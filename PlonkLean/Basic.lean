@@ -6,7 +6,10 @@ import Mathlib.Probability.Distributions.Uniform
 
 def Distr (a : Type) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
 
-opaque state : Type
+-- Just an example state
+structure state where
+  x : Nat
+  y : Nat
 
 -- def Semantics := state → Distr state
 
@@ -31,13 +34,13 @@ def Program0 := StateT state Distr
 def Program input output := input -> Program0 output
 
 noncomputable
-def toDistr (p: PMF α) : Distr α :=
+def toDistr (p : PMF α) : Distr α :=
   ⟨@PMF.toMeasure _ ⊤ p, by
     haveI := @PMF.toMeasure.isProbabilityMeasure _ ⊤ p
     exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ⟩
 
 noncomputable
-def toProgram0 (p: PMF α) : Program0 α :=
+def toProgram0 (p : PMF α) : Program0 α :=
   StateT.lift (toDistr p)
 
 noncomputable
@@ -50,12 +53,17 @@ def coinToss : Program0 Bool := sampleUniform
 structure Variable (a : Type) [N : Nonempty a] where
   get : state -> a
   set : a -> state -> state
-  -- TODO lens axioms
+  set_get : ∀ s x, get (set x s) = x
+  set_set : ∀ s x y, set y (set x s) = set y s
+  get_set : ∀ s, let x := get s; get (set x s) = x
+
 
 -- inconsistent
 -- instance {a : Type} [N : Nonempty a] : Nonempty (Variable a) := sorry
 
-opaque disjoint [Nonempty a] [Nonempty b] : Variable a -> Variable b -> Prop
+-- Don't remember if that's the right def
+def disjoint [Nonempty a] [Nonempty b] (x : Variable a) (y : Variable b) : Prop :=
+  ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s)
 
 noncomputable
 def setVar {a : Type} [Nonempty a] (v : Variable a) (x : a) : Program0 Unit := do
@@ -69,10 +77,26 @@ def getVar {a : Type} [Nonempty a] (v : Variable a) : Program0 a := do
     let s <- StateT.get
     pure (v.get s)
 
-noncomputable
-axiom X : Variable Nat
-axiom Y : Variable Nat
-axiom disjXY : disjoint X Y
+def X : Variable Nat := {
+  get := fun s => s.x,
+  set := fun x s => {s with x := x},
+  set_get := by simp,
+  set_set := by simp,
+  get_set := by simp
+}
+
+def Y : Variable Nat := {
+  get := fun s => s.y,
+  set := fun y s => {s with y := y},
+  set_get := by simp,
+  set_set := by simp,
+  get_set := by simp
+}
+
+
+theorem disjXY : disjoint X Y := by
+  intros s v w
+  simp [X, Y]
 
 noncomputable
 def myProg : Program0 Nat := do
