@@ -1,9 +1,8 @@
 
 
-import Lean
-import Mathlib
-
-import Init.Control.State
+import Mathlib.MeasureTheory.Measure.Dirac
+import Mathlib.MeasureTheory.Measure.GiryMonad
+import Mathlib.Probability.Distributions.Uniform
 
 def Distr (a : Type) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
 
@@ -14,10 +13,16 @@ opaque state : Type
 noncomputable
 instance instDistr : Monad Distr where
   pure a :=
-    ⟨@MeasureTheory.Measure.dirac _ ⊤ a, sorry⟩
+    ⟨@MeasureTheory.Measure.dirac _ ⊤ a, by simp⟩
   bind x f :=
     let ⟨mu, h⟩ := x
-    ⟨MeasureTheory.Measure.bind mu (fun a => (f a).1), sorry⟩
+    ⟨MeasureTheory.Measure.bind mu (fun a => (f a).1), by
+        simp only [Set.top_eq_univ]
+        rw [MeasureTheory.Measure.bind_apply MeasurableSet.univ measurable_from_top.aemeasurable]
+        calc ∫⁻ a, (f a).1 ⊤ ∂mu
+            ≤ ∫⁻ _, 1 ∂mu := MeasureTheory.lintegral_mono (fun a => (f a).2)
+          _ = mu ⊤ := MeasureTheory.lintegral_one
+          _ ≤ 1 := h⟩
 
 
 @[reducible]
@@ -27,7 +32,9 @@ def Program input output := input -> Program0 output
 
 noncomputable
 def toDistr (p: PMF α) : Distr α :=
-  ⟨@PMF.toMeasure _ ⊤ p, sorry⟩
+  ⟨@PMF.toMeasure _ ⊤ p, by
+    haveI := @PMF.toMeasure.isProbabilityMeasure _ ⊤ p
+    exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ⟩
 
 noncomputable
 def toProgram0 (p: PMF α) : Program0 α :=
@@ -68,7 +75,7 @@ axiom Y : Variable Nat
 axiom disjXY : disjoint X Y
 
 noncomputable
-def myProg: Program0 Nat := do
+def myProg : Program0 Nat := do
   let x ← coinToss
   if x then setVar X 1 else setVar X 2
   let y <- getVar X
