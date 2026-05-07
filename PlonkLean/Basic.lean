@@ -327,6 +327,19 @@ theorem wp_bind {α β : Type} (mu : Program0 α) (f : α → Program0 β)
   rw [h_bind, MeasureTheory.Measure.lintegral_bind
       measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
 
+-- wp_bind lifted to the >>= (do-notation bind) for Program0.
+-- The do-notation in myProg uses Bind.bind (via StateT.bind), while wp_bind works for pbind.
+-- They give the same measure: both unfold to instDistr.bind, so Subtype.ext + simp closes the gap.
+theorem wp_bind_do {α β : Type} (mu : Program0 α) (f : α → Program0 β)
+    (g : β × state → ENNReal) (s : state) :
+    wp (mu >>= f) g s = wp mu (fun (a, s') => wp (f a) g s') s := by
+  have heq : mu >>= f = pbind mu f := by
+    funext s
+    apply Subtype.ext
+    simp only [Bind.bind, StateT.bind, pbind]
+  rw [heq]
+  exact wp_bind mu f g s
+
 noncomputable
 def seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β) : Program0 β :=
   pbind p1 (fun _ => p2)
@@ -375,3 +388,11 @@ theorem wp_setVar {α : Type} (v : Variable α) (x : α) (f : Unit × state → 
   have hdef : setVar v x = pbind StateT.get (fun s => StateT.set (v.set x s)) := rfl
   rw [hdef, wp_bind, wp_get]
   simp [wp_set]
+
+
+theorem prfinal_myProg_1 (s : state) : prfinal myProg 1 s = 1/2 := by
+  simp only [prfinal]
+  -- Unfold myProg to expose the >>= chain, then reduce with wp_bind_do + wp_* rules
+  simp only [myProg, wp_bind_do, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get,
+             show (2 : Nat) ≠ 1 from by decide, ite_false]
+  exact prfinal_coinToss true s
