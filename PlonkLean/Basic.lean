@@ -231,8 +231,8 @@ instance disjoint_sym [disjoint X Y] : disjoint Y X := by
 --  5. Reduce PMF.toMeasure on a singleton via PMF.toMeasure_apply_singleton:
 --       PMF.toMeasure {true} = uniformOfFintype Bool true.
 --  6. Evaluate: uniformOfFintype Bool true = (card Bool)⁻¹ = 2⁻¹ = 1/2.
-theorem coinToss_prob_true (s : state) :
-    (coinToss s).1 {p : Bool × state | p.1 = true} = 1/2 := by
+theorem coinToss_prob_true (s : state) (b : Bool) :
+    (coinToss s).1 {p : Bool × state | p.1 = b} = 1/2 := by
   -- Step 1: unfold the monadic chain to expose the underlying Measure.bind of Dirac deltas.
   -- After unfolding: coinToss s = bind (toDistr (uniformOfFintype Bool)) (fun b => pure (b, s))
   -- whose underlying measure is Measure.bind (PMF.toMeasure ...) (Measure.dirac ∘ (·, s)).
@@ -251,11 +251,11 @@ theorem coinToss_prob_true (s : state) :
   rw [MeasureTheory.Measure.bind_dirac_eq_map _ measurable_from_top]
   -- Step 3: pushforward formula — (Measure.map f μ) S = μ (f⁻¹' S)
   rw [MeasureTheory.Measure.map_apply measurable_from_top (by trivial)]
-  -- Step 4: compute the preimage — {b | (b,s).1 = true} = {true}
-  have hpre : (fun b : Bool => (b, s)) ⁻¹' {p : Bool × state | p.1 = true} = {true} := by
-    ext b; simp
+  -- Step 4: compute the preimage — {b | (b,s).1 = b} = {b}
+  have hpre : (fun b : Bool => (b, s)) ⁻¹' {p : Bool × state | p.1 = b} = {b} := by
+    ext b'; simp
   rw [hpre]
   -- Step 5: PMF.toMeasure {a} = p a  (toMeasure_apply_singleton)
   rw [PMF.toMeasure_apply_singleton _ _ (by trivial)]
-  -- Step 6: uniformOfFintype Bool true = (card Bool)⁻¹ = 2⁻¹ = 1/2
+  -- Step 6: uniformOfFintype Bool b = (card Bool)⁻¹ = 2⁻¹ = 1/2
   simp [PMF.uniformOfFintype_apply, Fintype.card_bool]
