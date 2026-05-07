@@ -104,9 +104,28 @@ def myProg : Program0 Nat := do
   let y <- getVar X
   pure y
 
--- Theorem: coinToss returns `true` with probability 1/2
--- The output distribution of (coinToss s) is a measure on Bool × state.
--- We state that the measure of the event {output = (true, _)} is exactly 1/2.
+-- Theorem: coinToss returns `true` with probability 1/2.
+--
+-- The output type of `coinToss` is `Program0 Bool = state → Distr (Bool × state)`.
+-- Applied to an initial state `s`, it yields a sub-probability measure on `Bool × state`.
+-- We prove that the measure of the event {p | p.1 = true} (coin came up heads,
+-- regardless of final state) is exactly 1/2.
+--
+-- Proof outline:
+--  1. Unfold coinToss → sampleUniform → toProgram0 → StateT.lift. The monadic bind/pure in
+--     Distr reduce definitionally (by rfl), exposing the underlying measure as
+--     Measure.bind (PMF.toMeasure (uniformOfFintype Bool)) (Measure.dirac ∘ (·, s)).
+--  2. Convert bind-with-Dirac to a pushforward via Measure.bind_dirac_eq_map:
+--       Measure.bind μ (Dirac ∘ f) = Measure.map f μ.
+--     We use `letI : MeasurableSpace (Bool × state) := ⊤` as a *transparent* binding (not
+--     haveI) so the kernel can unify it with the ⊤ already baked into Measure.dirac.
+--  3. Apply the pushforward formula (Measure.map_apply):
+--       (Measure.map f μ) S = μ (f⁻¹' S).
+--     MeasurableSet is trivial because ⊤ makes every set measurable.
+--  4. Simplify the preimage: (b ↦ (b, s))⁻¹' {p | p.1 = true} = {true}.
+--  5. Reduce PMF.toMeasure on a singleton via PMF.toMeasure_apply_singleton:
+--       PMF.toMeasure {true} = uniformOfFintype Bool true.
+--  6. Evaluate: uniformOfFintype Bool true = (card Bool)⁻¹ = 2⁻¹ = 1/2.
 theorem coinToss_prob_true (s : state) :
     (coinToss s).1 {p : Bool × state | p.1 = true} = 1/2 := by
   -- Step 1: unfold the monadic chain to expose the underlying Measure.bind of Dirac deltas.
