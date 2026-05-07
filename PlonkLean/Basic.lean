@@ -48,6 +48,19 @@ def sampleUniform [h : Fintype α] [h : Nonempty α] : Program0 α :=
 noncomputable
 def coinToss : Program0 Bool := sampleUniform
 
+-- Weakest pre-expectation: expected value of f applied to the output of prog starting from state s.
+-- prog s : Distr (a × state) is a sub-probability measure on (value, final-state) pairs,
+-- and we integrate f against it using the Lebesgue integral.
+noncomputable
+def wp {a : Type} (prog : Program0 a) (f : a × state → ENNReal) (s : state) : ENNReal :=
+  ∫⁻ x, f x ∂(prog s).1
+
+-- Probability that prog returns value x starting from state s.
+-- The post-expectation x=y (Prop) is coerced to the {0,1}-indicator if y=x then 1 else 0.
+noncomputable
+def prfinal {a : Type} [DecidableEq a] (prog : Program0 a) (x : a) (s : state) : ENNReal :=
+  wp prog (fun (y, _) => if y = x then 1 else 0) s
+
 structure Lens (a : Type) (b : Type) where
   get : b -> a
   set : a -> b -> b
@@ -231,7 +244,29 @@ instance disjoint_sym [disjoint X Y] : disjoint Y X := by
 --  5. Reduce PMF.toMeasure on a singleton via PMF.toMeasure_apply_singleton:
 --       PMF.toMeasure {true} = uniformOfFintype Bool true.
 --  6. Evaluate: uniformOfFintype Bool true = (card Bool)⁻¹ = 2⁻¹ = 1/2.
-theorem coinToss_prob_true (s : state) (b : Bool) :
+theorem prfinal_coinToss (b : Bool) (s : state) : prfinal coinToss b s = 1/2 := by
+  simp only [prfinal, wp]
+  have h_bind : (coinToss s).1 =
+      MeasureTheory.Measure.bind
+        (@PMF.toMeasure Bool ⊤ (PMF.uniformOfFintype Bool))
+        (fun b' : Bool => @MeasureTheory.Measure.dirac (Bool × state) ⊤ (b', s)) := by
+    simp only [coinToss, sampleUniform, toProgram0, toDistr]
+    unfold StateT.lift; rfl
+  rw [h_bind]
+  letI : MeasurableSpace (Bool × state) := ⊤
+  have hind : ∀ x : Bool × state, (if x.1 = b then (1 : ENNReal) else 0) =
+      ({x | x.1 = b} : Set (Bool × state)).indicator 1 x := by
+    intro ⟨y, _⟩; simp [Set.indicator]
+  simp_rw [hind]
+  rw [MeasureTheory.lintegral_indicator_one (by trivial)]
+  rw [MeasureTheory.Measure.bind_dirac_eq_map _ measurable_from_top,
+      MeasureTheory.Measure.map_apply measurable_from_top (by trivial)]
+  have hpre : (fun b' : Bool => (b', s)) ⁻¹' {x : Bool × state | x.1 = b} = {b} := by
+    ext b'; simp
+  rw [hpre, PMF.toMeasure_apply_singleton _ _ (by trivial), PMF.uniformOfFintype_apply]
+  simp [Fintype.card_bool]
+
+theorem coinToss_prob (s : state) (b : Bool) :
     (coinToss s).1 {p : Bool × state | p.1 = b} = 1/2 := by
   -- Step 1: unfold the monadic chain to expose the underlying Measure.bind of Dirac deltas.
   -- After unfolding: coinToss s = bind (toDistr (uniformOfFintype Bool)) (fun b => pure (b, s))
