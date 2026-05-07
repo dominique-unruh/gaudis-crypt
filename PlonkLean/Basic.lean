@@ -335,3 +335,43 @@ theorem wp_seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β)
     (f : β × state → ENNReal) (s : state) :
     wp (seq p1 p2) f s = wp p1 (fun (_, s') => wp p2 f s') s :=
   wp_bind p1 (fun _ => p2) f s
+
+theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program0 α)
+    (f : α × state → ENNReal) (s : state) :
+    wp (if b then p1 else p2) f s = if b then wp p1 f s else wp p2 f s := by
+  cases b <;> rfl
+
+theorem wp_pure {α : Type} (x : α) (f : α × state → ENNReal) (s : state) :
+    wp (pure x) f s = f (x, s) := by
+  simp only [wp]
+  letI : MeasurableSpace (α × state) := ⊤
+  have h : ((pure x : Program0 α) s).1 = @MeasureTheory.Measure.dirac (α × state) ⊤ (x, s) := rfl
+  rw [h, MeasureTheory.lintegral_dirac' (x, s) measurable_from_top]
+
+theorem wp_get (f : state × state → ENNReal) (s : state) :
+    wp (StateT.get) f s = f (s, s) := by
+  simp only [wp]
+  letI : MeasurableSpace (state × state) := ⊤
+  have h : (StateT.get s : Distr (state × state)).1 =
+      @MeasureTheory.Measure.dirac (state × state) ⊤ (s, s) := rfl
+  rw [h, MeasureTheory.lintegral_dirac' (s, s) measurable_from_top]
+
+theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s : state) :
+    wp (getVar v) f s = f (v.get s, s) := by
+  have hdef : getVar v = pbind StateT.get (fun s' => pure (v.get s')) := rfl
+  rw [hdef, wp_bind, wp_get]
+  simp [wp_pure]
+
+theorem wp_set (s' : state) (f : Unit × state → ENNReal) (s : state) :
+    wp (StateT.set s') f s = f ((), s') := by
+  simp only [wp]
+  letI : MeasurableSpace (Unit × state) := ⊤
+  have h : (StateT.set s' s : Distr (Unit × state)).1 =
+      @MeasureTheory.Measure.dirac (Unit × state) ⊤ ((), s') := rfl
+  rw [h, MeasureTheory.lintegral_dirac' ((), s') measurable_from_top]
+
+theorem wp_setVar {α : Type} (v : Variable α) (x : α) (f : Unit × state → ENNReal) (s : state) :
+    wp (setVar v x) f s = f ((), v.set x s) := by
+  have hdef : setVar v x = pbind StateT.get (fun s => StateT.set (v.set x s)) := rfl
+  rw [hdef, wp_bind, wp_get]
+  simp [wp_set]
