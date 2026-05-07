@@ -294,3 +294,44 @@ theorem coinToss_prob (s : state) (b : Bool) :
   rw [PMF.toMeasure_apply_singleton _ _ (by trivial)]
   -- Step 6: uniformOfFintype Bool b = (card Bool)⁻¹ = 2⁻¹ = 1/2
   simp [PMF.uniformOfFintype_apply, Fintype.card_bool]
+
+noncomputable
+def pbind {α β : Type} (mu : Program0 α) (f : α → Program0 β) : Program0 β :=
+  fun s => instDistr.bind (mu s) (fun (a, s') => f a s')
+
+-- Bind law for wp (sequential composition / chain rule).
+--
+-- wp (pbind mu f) g s = wp mu (fun (a, s') => wp (f a) g s') s
+--
+-- The expected value of g after "mu >>= f" equals the expected value under mu
+-- of the function mapping each intermediate result (a, s') to the expected
+-- value of g under "f a" starting from s'.
+--
+-- Proof outline:
+--  1. Unfold wp and pbind: the goal becomes an integral of g against the
+--     underlying Measure.bind of the Distr monad's bind.
+--     h_bind (proved by rfl) exposes (instDistr.bind mu s).1 as the explicit
+--     Measure.bind (mu s).1 (fun as' => (f as'.1 as'.2).1).
+--  2. Apply Measure.lintegral_bind (Fubini for bind measures):
+--       ∫⁻ x, g x ∂(Measure.bind μ κ) = ∫⁻ a, ∫⁻ x, g x ∂κ a ∂μ
+--     Measurability of κ and g is trivial since all σ-algebras are ⊤.
+--  3. The resulting double integral matches the unfolding of the RHS by rfl.
+theorem wp_bind {α β : Type} (mu : Program0 α) (f : α → Program0 β)
+    (g : β × state → ENNReal) (s : state) :
+    wp (pbind mu f) g s = wp mu (fun (a, s') => wp (f a) g s') s := by
+  simp only [wp, pbind]
+  letI : MeasurableSpace (α × state) := ⊤
+  letI : MeasurableSpace (β × state) := ⊤
+  have h_bind : (instDistr.bind (mu s) (fun (a, s') => f a s')).1 =
+      MeasureTheory.Measure.bind (mu s).1 (fun as' => (f as'.1 as'.2).1) := rfl
+  rw [h_bind, MeasureTheory.Measure.lintegral_bind
+      measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
+
+noncomputable
+def seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β) : Program0 β :=
+  pbind p1 (fun _ => p2)
+
+theorem wp_seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β)
+    (f : β × state → ENNReal) (s : state) :
+    wp (seq p1 p2) f s = wp p1 (fun (_, s') => wp p2 f s') s :=
+  wp_bind p1 (fun _ => p2) f s
