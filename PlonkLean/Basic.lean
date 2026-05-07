@@ -1,5 +1,3 @@
-
-
 import Mathlib.MeasureTheory.Measure.Dirac
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
@@ -98,9 +96,42 @@ theorem disjXY : disjoint X Y := by
   intros s v w
   simp [X, Y]
 
+
 noncomputable
 def myProg : Program0 Nat := do
   let x ← coinToss
   if x then setVar X 1 else setVar X 2
   let y <- getVar X
   pure y
+
+-- Theorem: coinToss returns `true` with probability 1/2
+-- The output distribution of (coinToss s) is a measure on Bool × state.
+-- We state that the measure of the event {output = (true, _)} is exactly 1/2.
+theorem coinToss_prob_true (s : state) :
+    (coinToss s).1 {p : Bool × state | p.1 = true} = 1/2 := by
+  -- Step 1: unfold the monadic chain to expose the underlying Measure.bind of Dirac deltas.
+  -- After unfolding: coinToss s = bind (toDistr (uniformOfFintype Bool)) (fun b => pure (b, s))
+  -- whose underlying measure is Measure.bind (PMF.toMeasure ...) (Measure.dirac ∘ (·, s)).
+  have h_bind : (coinToss s).1 =
+      MeasureTheory.Measure.bind
+        (@PMF.toMeasure Bool ⊤ (PMF.uniformOfFintype Bool))
+        (fun b : Bool => @MeasureTheory.Measure.dirac (Bool × state) ⊤ (b, s)) := by
+    simp only [coinToss, sampleUniform, toProgram0, toDistr]
+    unfold StateT.lift
+    rfl
+  rw [h_bind]
+  -- state has no default MeasurableSpace; use letI (transparent) so the kernel
+  -- can equate this instance with the ⊤ already baked into Measure.dirac in h_bind.
+  letI : MeasurableSpace (Bool × state) := ⊤
+  -- Step 2: Measure.bind (Dirac ∘ f) = Measure.map f  (bind_dirac_eq_map)
+  rw [MeasureTheory.Measure.bind_dirac_eq_map _ measurable_from_top]
+  -- Step 3: pushforward formula — (Measure.map f μ) S = μ (f⁻¹' S)
+  rw [MeasureTheory.Measure.map_apply measurable_from_top (by trivial)]
+  -- Step 4: compute the preimage — {b | (b,s).1 = true} = {true}
+  have hpre : (fun b : Bool => (b, s)) ⁻¹' {p : Bool × state | p.1 = true} = {true} := by
+    ext b; simp
+  rw [hpre]
+  -- Step 5: PMF.toMeasure {a} = p a  (toMeasure_apply_singleton)
+  rw [PMF.toMeasure_apply_singleton _ _ (by trivial)]
+  -- Step 6: uniformOfFintype Bool true = (card Bool)⁻¹ = 2⁻¹ = 1/2
+  simp [PMF.uniformOfFintype_apply, Fintype.card_bool]
