@@ -1,0 +1,28 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/debian
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"containerEnv": {
+		// Use local timezone if it's set in $TZ, otherwise Europe/Berlin
+		"TZ": "${localEnv:TZ:Europe/Berlin}"
+	},
+	"features": {
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"leanprover.lean4",
+				"anthropic.claude-code",
+			]
+		}
+	},
+	"mounts": [
+    	"source=${localWorkspaceFolder}/.devcontainer/persistent/claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+		// Example how to mount a local directory (must be same path on everyone's computer though.)
+	    // "source=/opt/Isabelle2025-2,target=/opt/Isabelle2025-2,type=bind,readonly,consistency=cached",
+  	],
+	"postCreateCommand": "~/init.sh",
+}
