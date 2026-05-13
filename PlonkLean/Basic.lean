@@ -2,6 +2,8 @@ import Mathlib.MeasureTheory.Measure.Dirac
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
 import Mathlib.Order.FixedPoints
+import Mathlib.Order.CompletePartialOrder
+import Mathlib.Order.OmegaCompletePartialOrder
 
 def Distr (a : Type) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
 
@@ -638,3 +640,39 @@ theorem prfinal_myProg_1 (s : state) : prfinal myProg 1 s = 1/2 := by
   simp only [myProg, wp_bind_do, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get,
              show (2 : Nat) ≠ 1 from by decide, ite_false]
   exact prfinal_coinToss true s
+
+
+noncomputable
+def while_F (b : state → Bool) (body : Program0 Unit) (loop : Program0 Unit) : Program0 Unit :=
+    fun s => if b s then pbind body (fun _ => loop) s else (pure () : Program0 Unit) s
+
+theorem while_F_while_iter (b : state → Bool) (body : Program0 Unit) (n : ℕ) :
+  while_iter b body n = (while_F b body)^[n] (fun _ => ⟨0, by simp⟩) :=
+  sorry
+
+-- Can say a lot more than LE. In particular partial order, and omega-cpo (even cpo?)
+instance : LE (Program0 a) where
+  le p q := ∀ s, (p s).1 <= (q s).1
+
+instance : PartialOrder (Program0 a) where
+  le_refl := sorry
+  le_trans := sorry
+  le_antisymm := sorry
+
+instance : OmegaCompletePartialOrder (Program0 a) where
+  ωSup := sorry
+  le_ωSup := sorry
+  ωSup_le := sorry
+
+theorem while_F_mono (b : state → Bool) (body : Program0 Unit) (p q : Program0 Unit) (_: p <= q) :
+  while_F b body p <= while_F b body q := sorry
+
+def while2 (b : state → Bool) (body : Program0 Unit) : Program0 Unit :=
+  sorry
+  /- Want: (while_F b body).lfp, but Program0 is not a CompleteLattice, so it doesn't type.
+     We can write something like (n => (while_F b body)^[n] 0).ωSup, which is the lfp,
+     but it would be nicer if we could write "the lfp" instead of giving the construction.
+     (Since we can prove that the lfp exists.)
+  -/
+
+theorem all_the_same {b body} : while_ b body = while2 b body := sorry
