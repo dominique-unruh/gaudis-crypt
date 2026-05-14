@@ -641,6 +641,8 @@ theorem prfinal_myProg_1 (s : state) : prfinal myProg 1 s = 1/2 := by
              show (2 : Nat) ≠ 1 from by decide, ite_false]
   exact prfinal_coinToss true s
 
+
+
 -- Can say a lot more than LE. In particular partial order, and omega-cpo (even cpo?)
 instance : LE (Program0 a) where
   le p q := ∀ s, (p s).1 <= (q s).1
@@ -689,3 +691,25 @@ def while2 (b : state → Bool) (body : Program0 Unit) : Program0 Unit :=
   (while_F' b body).lfp
 
 theorem all_the_same {b body} : while_ b body = while2 b body := sorry
+
+theorem wp_toProgram0 (p : PMF α) f :
+  wp (toProgram0 p) f = fun s => ∑' x:α, p x * f (x,s)
+ := sorry
+
+theorem wp_sampleUniform [h : Fintype α] [h : Nonempty α] (f : (α × state) -> ENNReal):
+  wp sampleUniform f = (fun s => ∑ i:α, f (i,s) / Fintype.card α) := by
+  simp [sampleUniform, wp_toProgram0]
+  sorry
+
+theorem wp_coinToss : wp coinToss f = (fun s => f (True, s) / 2 + f (False, s) / 2) := by
+  simp [coinToss, wp_sampleUniform]
+
+/- A better version of the prfinal_myProg_1 proof
+   It doesn't try to reduce to `prfinal coinToss` because that doesn't work canonically.
+-/
+theorem prfinal_myProg_1_better (s : state) : prfinal myProg 1 s = 1/2 := by
+  simp only [prfinal]
+  simp [myProg, wp_bind_do, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_coinToss]
+
+-- Question: why did you define `pbind`? Doesn't `bind` already work on Program0 since the following is resolved:
+#synth Monad Program0
