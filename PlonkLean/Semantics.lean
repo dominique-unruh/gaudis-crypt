@@ -37,3 +37,38 @@ def toSubProbability (p : PMF α) : SubProbability α :=
   ⟨@PMF.toMeasure _ ⊤ p, by
     haveI := @PMF.toMeasure.isProbabilityMeasure _ ⊤ p
     exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ⟩
+
+noncomputable
+def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability α :=
+  toSubProbability (PMF.uniformOfFintype α)
+
+def SubProbability.ofEvent (μ : SubProbability a) e := μ.1 e
+
+instance : FunLike (SubProbability a) a ENNReal where
+  coe μ x := μ.ofEvent {x}
+  coe_injective' μ ν h := sorry
+
+/-!
+
+# Stateful programs
+
+-/
+
+@[reducible]
+def Program (state : Type) := StateT state SubProbability
+
+noncomputable
+def SubProbability.toProgram (p: SubProbability a) : Program s a := StateT.lift p
+
+noncomputable
+def PMF.toProgram {st α} (p : PMF α) : Program st α := StateT.lift (toSubProbability p)
+
+noncomputable
+def Program.uniform [h : Fintype α] [h : Nonempty α] : Program s α :=
+  SubProbability.uniform.toProgram
+
+def Program.finalProb (prog : Program s a) (st : s) (X : Set a) : NNReal :=
+  ((prog st).ofEvent (X ×ˢ ⊤)).toNNReal
+
+def Program.finalProb1 (prog : Program s a) (st : s) (x : a) : NNReal :=
+  prog.finalProb st {x}

@@ -7,47 +7,35 @@ import Mathlib.Order.OmegaCompletePartialOrder
 
 import PlonkLean.Misc
 import PlonkLean.Semantics
+import PlonkLean.WeakestPreconditions
 
-abbrev Distr := SubProbability
-noncomputable abbrev toDistr {α : Type} := @toSubProbability α
 
--- Just an example state
+
+/- Legacy placeholders. Remove. -/
 structure state where
   x : Nat
   y : Nat
-
--- def Semantics := state → Distr state
-
-
-
-@[reducible]
-def Program0 := StateT state Distr
-
-def Program input output := input -> Program0 output
-
+abbrev Distr := SubProbability
+noncomputable abbrev toDistr {α : Type} := @toSubProbability α
+abbrev Program0 := Program state
+noncomputable abbrev toProgram0 (p: PMF a) : Program0 a := p.toProgram
 noncomputable
-def toProgram0 (p : PMF α) : Program0 α :=
-  StateT.lift (toDistr p)
-
+abbrev wp {a : Type} (prog : Program0 a) (f : a × state → ENNReal) (s : state) : ENNReal :=
+  prog.wp f s
+-- Can delete this, it's easy enough to write Program.uniform
 noncomputable
-def sampleUniform [h : Fintype α] [h : Nonempty α] : Program0 α :=
-  toProgram0 (PMF.uniformOfFintype α)
-
-noncomputable
-def coinToss : Program0 Bool := sampleUniform
-
--- Weakest pre-expectation: expected value of f applied to the output of prog starting from state s.
--- prog s : Distr (a × state) is a sub-probability measure on (value, final-state) pairs,
--- and we integrate f against it using the Lebesgue integral.
-noncomputable
-def wp {a : Type} (prog : Program0 a) (f : a × state → ENNReal) (s : state) : ENNReal :=
-  ∫⁻ x, f x ∂(prog s).1
+abbrev coinToss : Program state Bool := Program.uniform
 
 -- Probability that prog returns value x starting from state s.
 -- The post-expectation x=y (Prop) is coerced to the {0,1}-indicator if y=x then 1 else 0.
 noncomputable
-def prfinal {a : Type} [DecidableEq a] (prog : Program0 a) (x : a) (s : state) : ENNReal :=
-  wp prog (fun (y, _) => if y = x then 1 else 0) s
+abbrev prfinal {a : Type} [DecidableEq a] (prog : Program0 a) (x : a) (s : state) : ENNReal :=
+  prog.finalProb1 s x
+
+
+/- End legacy placeholders -/
+
+
 
 structure Lens (a : Type) (b : Type) where
   get : b -> a
@@ -233,12 +221,17 @@ instance disjoint_sym [disjoint X Y] : disjoint Y X := by
 --       PMF.toMeasure {true} = uniformOfFintype Bool true.
 --  6. Evaluate: uniformOfFintype Bool true = (card Bool)⁻¹ = 2⁻¹ = 1/2.
 theorem prfinal_coinToss (b : Bool) (s : state) : prfinal coinToss b s = 1/2 := by
+  simp [prfinal, final_probability_wp, wp_uniform]
+  cases b; simp
+  sorry
+
+/-
   simp only [prfinal, wp]
   have h_bind : (coinToss s).1 =
       MeasureTheory.Measure.bind
         (@PMF.toMeasure Bool ⊤ (PMF.uniformOfFintype Bool))
         (fun b' : Bool => @MeasureTheory.Measure.dirac (Bool × state) ⊤ (b', s)) := by
-    simp only [coinToss, sampleUniform, toProgram0, toDistr]
+    simp only [coinToss, Program.uniform]
     unfold StateT.lift; rfl
   rw [h_bind]
   letI : MeasurableSpace (Bool × state) := ⊤
@@ -253,9 +246,17 @@ theorem prfinal_coinToss (b : Bool) (s : state) : prfinal coinToss b s = 1/2 := 
     ext b'; simp
   rw [hpre, PMF.toMeasure_apply_singleton _ _ (by trivial), PMF.uniformOfFintype_apply]
   simp [Fintype.card_bool]
+-/
 
 theorem coinToss_prob (s : state) (b : Bool) :
-    (coinToss s).1 {p : Bool × state | p.1 = b} = 1/2 := by
+    (coinToss s).1 {p : Bool × state | p.1 = b} = 1/2 := by calc
+      (coinToss s).1 {p : Bool × state | p.1 = b} = prfinal coinToss b s := by
+          simp [prfinal, Program.finalProb1, Program.finalProb, SubProbability.ofEvent]
+          sorry
+      _ = 1/2 := by apply prfinal_coinToss
+
+  /-- That's more or less the same as prfinal_coinToss above. Remove? -/
+  /-
   -- Step 1: unfold the monadic chain to expose the underlying Measure.bind of Dirac deltas.
   -- After unfolding: coinToss s = bind (toDistr (uniformOfFintype Bool)) (fun b => pure (b, s))
   -- whose underlying measure is Measure.bind (PMF.toMeasure ...) (Measure.dirac ∘ (·, s)).
@@ -282,7 +283,9 @@ theorem coinToss_prob (s : state) (b : Bool) :
   rw [PMF.toMeasure_apply_singleton _ _ (by trivial)]
   -- Step 6: uniformOfFintype Bool b = (card Bool)⁻¹ = 2⁻¹ = 1/2
   simp [PMF.uniformOfFintype_apply, Fintype.card_bool]
+-/
 
+-- TODO remove (use bind)
 noncomputable
 def pbind {α β : Type} (mu : Program0 α) (f : α → Program0 β) : Program0 β :=
   fun s => instMonadSubProbability.bind (mu s) (fun (a, s') => f a s')
@@ -304,6 +307,9 @@ def pbind {α β : Type} (mu : Program0 α) (f : α → Program0 β) : Program0 
 --       ∫⁻ x, g x ∂(Measure.bind μ κ) = ∫⁻ a, ∫⁻ x, g x ∂κ a ∂μ
 --     Measurability of κ and g is trivial since all σ-algebras are ⊤.
 --  3. The resulting double integral matches the unfolding of the RHS by rfl.
+
+-- TODO remove (use bind)
+/-
 theorem wp_bind {α β : Type} (mu : Program0 α) (f : α → Program0 β)
     (g : β × state → ENNReal) (s : state) :
     wp (pbind mu f) g s = wp mu (fun (a, s') => wp (f a) g s') s := by
@@ -314,10 +320,14 @@ theorem wp_bind {α β : Type} (mu : Program0 α) (f : α → Program0 β)
       MeasureTheory.Measure.bind (mu s).1 (fun as' => (f as'.1 as'.2).1) := rfl
   rw [h_bind, MeasureTheory.Measure.lintegral_bind
       measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
+-/
 
 -- wp_bind lifted to the >>= (do-notation bind) for Program0.
 -- The do-notation in myProg uses Bind.bind (via StateT.bind), while wp_bind works for pbind.
 -- They give the same measure: both unfold to instMonadSubProbability.bind, so Subtype.ext + simp closes the gap.
+
+-- That's WeakestPreconditions.wp_bind now
+/-
 theorem wp_bind_do {α β : Type} (mu : Program0 α) (f : α → Program0 β)
     (g : β × state → ENNReal) (s : state) :
     wp (mu >>= f) g s = wp mu (fun (a, s') => wp (f a) g s') s := by
@@ -327,55 +337,49 @@ theorem wp_bind_do {α β : Type} (mu : Program0 α) (f : α → Program0 β)
     simp only [Bind.bind, StateT.bind, pbind]
   rw [heq]
   exact wp_bind mu f g s
+-/
 
 noncomputable
 def seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β) : Program0 β :=
-  pbind p1 (fun _ => p2)
+  p1 >>= (fun _ => p2)
 
 theorem wp_seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β)
     (f : β × state → ENNReal) (s : state) :
-    wp (seq p1 p2) f s = wp p1 (fun (_, s') => wp p2 f s') s :=
-  wp_bind p1 (fun _ => p2) f s
+    (seq p1 p2).wp f s = p1.wp (fun (_, s') => p2.wp f s') s := by
+  simp [seq]
+  -- simp [wp_bind]  -- I don't understand why this doesn't rewrite...
+  sorry
+
+
+--  wp_bind p1 (fun _ => p2) f s
 
 theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program0 α)
     (f : α × state → ENNReal) (s : state) :
     wp (if b then p1 else p2) f s = if b then wp p1 f s else wp p2 f s := by
   cases b <;> rfl
 
-theorem wp_pure {α : Type} (x : α) (f : α × state → ENNReal) (s : state) :
-    wp (pure x) f s = f (x, s) := by
-  simp only [wp]
-  letI : MeasurableSpace (α × state) := ⊤
-  have h : ((pure x : Program0 α) s).1 = @MeasureTheory.Measure.dirac (α × state) ⊤ (x, s) := rfl
-  rw [h, MeasureTheory.lintegral_dirac' (x, s) measurable_from_top]
-
 theorem wp_get (f : state × state → ENNReal) (s : state) :
-    wp (StateT.get) f s = f (s, s) := by
-  simp only [wp]
-  letI : MeasurableSpace (state × state) := ⊤
-  have h : (StateT.get s : Distr (state × state)).1 =
-      @MeasureTheory.Measure.dirac (state × state) ⊤ (s, s) := rfl
-  rw [h, MeasureTheory.lintegral_dirac' (s, s) measurable_from_top]
+    Program.wp (StateT.get) f s = f (s, s) := by
+  simp [Program.wp, StateT.get, expected_pure]
 
 theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s : state) :
     wp (getVar v) f s = f (v.get s, s) := by
-  have hdef : getVar v = pbind StateT.get (fun s' => pure (v.get s')) := rfl
-  rw [hdef, wp_bind, wp_get]
-  simp [wp_pure]
+  have hdef : getVar v = bind StateT.get (fun s' => pure (v.get s')) := rfl
+  simp [hdef, wp_bind, wp_get] -- Why doesn't wp_bind apply?
+  sorry
+  -- simp [wp_pure]
 
 theorem wp_set (s' : state) (f : Unit × state → ENNReal) (s : state) :
-    wp (StateT.set s') f s = f ((), s') := by
-  simp only [wp]
-  letI : MeasurableSpace (Unit × state) := ⊤
-  have h : (StateT.set s' s : Distr (Unit × state)).1 =
-      @MeasureTheory.Measure.dirac (Unit × state) ⊤ ((), s') := rfl
-  rw [h, MeasureTheory.lintegral_dirac' ((), s') measurable_from_top]
+    Program.wp (StateT.set s' : Program state Unit) f s = f ((), s') := by  -- Why doesn't (...).wp syntax work?
+  simp [Program.wp, StateT.set, expected_pure]
 
 theorem wp_setVar {α : Type} (v : Variable α) (x : α) (f : Unit × state → ENNReal) (s : state) :
     wp (setVar v x) f s = f ((), v.set x s) := by
-  have hdef : setVar v x = pbind StateT.get (fun s => StateT.set (v.set x s)) := rfl
-  rw [hdef, wp_bind, wp_get]
-  simp [wp_set]
+  sorry
+  -- TODO fix
+  -- have hdef : setVar v x = pbind StateT.get (fun s => StateT.set (v.set x s)) := rfl
+  -- rw [hdef, wp_bind, wp_get]
+  -- simp [wp_set]
 
 
 -- Finite approximants of the while loop.
@@ -425,11 +429,13 @@ theorem Ψ_iterate (b : state → Bool) (body : Program0 Unit)
     · -- b s = true: apply wp_bind + IH
       have hbind := wp_bind body (fun _ => while_iter b body n) f s
       simp only [wp] at hbind
-      rw [hbind]; congr 1; ext ⟨_, s'⟩; exact ih s'
+      sorry
+      -- rw [hbind]; congr 1; ext ⟨_, s'⟩; exact ih s'
     · -- b s = false: apply wp_pure
-      have hpure := wp_pure () f s
-      simp only [wp] at hpure
-      exact hpure
+      sorry
+      -- have hpure := wp_pure () f s
+      -- simp only [wp] at hpure
+      -- exact hpure
 
 -- Ψ is ω-Scott continuous: it preserves suprema of ω-chains.
 -- The key is lintegral_iSup (MCT for functions) applied to the chain of integrands.
@@ -464,12 +470,14 @@ theorem Ψ_ωScottContinuous (b : state → Bool) (body : Program0 Unit)
   split_ifs with h
   · -- b s = true: swap ⨆ and ∫ via MCT (lintegral_iSup)
     simp only [wp]
-    rw [← MeasureTheory.lintegral_iSup
-          (f := fun n (x : Unit × state) => c n x.2)
-          (fun _ => measurable_from_top)
-          (fun _ _ hmn ⟨_, s'⟩ => c.2 hmn s')]
-  · -- b s = false: constant chain, sup = constant
-    exact (iSup_const (a := f ((), s))).symm
+    sorry
+  sorry
+  --   rw [← MeasureTheory.lintegral_iSup
+  --         (f := fun n (x : Unit × state) => c n x.2)
+  --         (fun _ => measurable_from_top)
+  --         (fun _ _ hmn ⟨_, s'⟩ => c.2 hmn s')]
+  -- · -- b s = false: constant chain, sup = constant
+  --   exact (iSup_const (a := f ((), s))).symm
 
 -- The lfp of Ψ gives the wp of the while loop.
 -- By Kleene's theorem: lfp Ψ = ⨆ n, Ψ^[n] ⊥ = ⨆ n, wp (while_iter n).
@@ -619,12 +627,12 @@ theorem wp_while (b : state → Bool) (body : Program0 Unit)
     simp only [while_]
     exact le_iSup (fun m => (while_iter b body m s).1) n
 
-theorem prfinal_myProg_1 (s : state) : prfinal myProg 1 s = 1/2 := by
-  simp only [prfinal]
-  -- Unfold myProg to expose the >>= chain, then reduce with wp_bind_do + wp_* rules
-  simp only [myProg, wp_bind_do, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get,
-             show (2 : Nat) ≠ 1 from by decide, ite_false]
-  exact prfinal_coinToss true s
+-- theorem prfinal_myProg_1 (s : state) : prfinal myProg 1 s = 1/2 := by
+--   simp only [prfinal]
+--   -- Unfold myProg to expose the >>= chain, then reduce with wp_bind_do + wp_* rules
+--   simp only [myProg, wp_bind_do, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get,
+--              show (2 : Nat) ≠ 1 from by decide, ite_false]
+--   exact prfinal_coinToss true s
 
 
 
@@ -727,24 +735,25 @@ theorem all_the_same {b body} : while_ b body = while2 b body := by
   funext n
   rw [while_F_while_iter]
 
-theorem wp_toProgram0 (p : PMF α) f :
-  wp (toProgram0 p) f = fun s => ∑' x:α, p x * f (x,s)
- := sorry
+-- theorem wp_toProgram0 (p : PMF α) f :
+--   wp (toProgram0 p) f = fun s => ∑' x:α, p x * f (x,s)
+--  := sorry
 
-theorem wp_sampleUniform [h : Fintype α] [h : Nonempty α] (f : (α × state) -> ENNReal):
-  wp sampleUniform f = (fun s => ∑ i:α, f (i,s) / Fintype.card α) := by
-  simp [sampleUniform, wp_toProgram0]
-  sorry
+-- theorem wp_sampleUniform [h : Fintype α] [h : Nonempty α] (f : (α × state) -> ENNReal):
+--   wp sampleUniform f = (fun s => ∑ i:α, f (i,s) / Fintype.card α) := by
+--   simp [sampleUniform, wp_toProgram0]
+--   sorry
 
-theorem wp_coinToss : wp coinToss f = (fun s => f (True, s) / 2 + f (False, s) / 2) := by
-  simp [coinToss, wp_sampleUniform]
+theorem wp_coinToss : coinToss.wp f = (fun s => f (True, s) / 2 + f (False, s) / 2) := by
+  simp [coinToss, wp_uniform]
 
 /- A better version of the prfinal_myProg_1 proof
    It doesn't try to reduce to `prfinal coinToss` because that doesn't work canonically.
 -/
 theorem prfinal_myProg_1_better (s : state) : prfinal myProg 1 s = 1/2 := by
-  simp only [prfinal]
-  simp [myProg, wp_bind_do, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_coinToss]
+  simp only [prfinal, final_probability_wp']
+  simp [myProg, wp_bind, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_coinToss, wp]  -- TODO why doesn't wp_bind simplify here?
+  sorry
 
 -- Question: why did you define `pbind`? Doesn't `bind` already work on Program0 since the following is resolved:
 #synth Monad Program0
