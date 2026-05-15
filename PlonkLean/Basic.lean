@@ -648,13 +648,15 @@ instance : LE (Program0 a) where
   le p q := ∀ s, (p s).1 <= (q s).1
 
 instance : PartialOrder (Program0 a) where
-  le_refl := sorry
-  le_trans := sorry
-  le_antisymm := sorry
+  le_refl _ _ := le_refl _
+  le_trans _ _ _ hpq hqr s := le_trans (hpq s) (hqr s)
+  le_antisymm p q hpq hqp := by
+    funext s
+    exact Subtype.ext (le_antisymm (hpq s) (hqp s))
 
 instance : OrderBot (Program0 a) where
-  bot := fun s => ⟨0, by simp⟩
-  bot_le := sorry
+  bot := fun _ => ⟨0, by simp⟩
+  bot_le _ _ := MeasureTheory.Measure.zero_le _
 
 -- Could also directly define while_F' instead without this intermediate def
 noncomputable
@@ -662,35 +664,113 @@ def while_F (b : state → Bool) (body : Program0 Unit) (loop : Program0 Unit) :
     fun s => if b s then pbind body (fun _ => loop) s else (pure () : Program0 Unit) s
 
 theorem while_F_while_iter (b : state → Bool) (body : Program0 Unit) (n : ℕ) :
-  while_iter b body n = (while_F b body)^[n] ⊥ :=
-  sorry
+  while_iter b body n = (while_F b body)^[n] ⊥ := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [Function.iterate_succ_apply', ← ih]
+    rfl
 
-instance : OmegaCompletePartialOrder (Program0 a) where
-  ωSup := sorry
-  le_ωSup := sorry
-  ωSup_le := sorry
+noncomputable instance : OmegaCompletePartialOrder (Program0 a) where
+  ωSup c := fun s => ⟨⨆ n, (c n s).1, by
+    have hmono : Monotone fun n => (c n s).1 := fun _ _ hmn => c.monotone hmn s
+    have heq : (⨆ n, (c n s).1) Set.univ = ⨆ n, (c n s).1 Set.univ := by
+      have h := @lintegral_iSup_measure_nat (a × state) ⊤
+                  (fun n => (c n s).1) hmono (fun _ => 1)
+      simp only [MeasureTheory.lintegral_one] at h
+      exact h
+    change (⨆ n, (c n s).1) Set.univ ≤ 1
+    rw [heq]
+    exact iSup_le fun n => (c n s).2⟩
+  le_ωSup c n s := le_iSup (fun m => (c m s).1) n
+  ωSup_le c x h s := iSup_le fun n => h n s
+
+-- (⨆ μ_n) S = ⨆ μ_n S for monotone chains of measures and measurable S.
+-- Derived from lintegral_iSup_measure_nat by integrating against the indicator of S.
+private theorem measure_iSup_apply_nat {α : Type*} [MeasurableSpace α]
+    {μ : ℕ → MeasureTheory.Measure α} (hmono : Monotone μ) {A : Set α}
+    (hA : MeasurableSet A) : (⨆ n, μ n) A = ⨆ n, μ n A := by
+  have h := @lintegral_iSup_measure_nat α _ μ hmono (A.indicator 1)
+  simp_rw [MeasureTheory.lintegral_indicator_one hA] at h
+  exact h
+
+private theorem while_F_monotone (b : state → Bool) (body : Program0 Unit) :
+    Monotone (while_F b body) := fun p q hpq s => by
+  simp only [while_F]
+  split_ifs with hb
+  · apply MeasureTheory.Measure.le_iff.mpr
+    intro A hA
+    have hp : (pbind body (fun _ => p) s).1 A =
+        ∫⁻ x, (p x.2).1 A ∂(body s).1 := by
+      have heq : (pbind body (fun _ => p) s).1 =
+          MeasureTheory.Measure.bind (body s).1 (fun x => (p x.2).1) := rfl
+      rw [heq, MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+    have hq : (pbind body (fun _ => q) s).1 A =
+        ∫⁻ x, (q x.2).1 A ∂(body s).1 := by
+      have heq : (pbind body (fun _ => q) s).1 =
+          MeasureTheory.Measure.bind (body s).1 (fun x => (q x.2).1) := rfl
+      rw [heq, MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+    rw [hp, hq]
+    exact MeasureTheory.lintegral_mono fun x =>
+      MeasureTheory.Measure.le_iff.mp (hpq x.2) A hA
+  · exact le_refl _
+
+-- ωScott continuity of while_F: bind commutes with directed sups via MCT.
+private theorem while_F_map_ωSup (b : state → Bool) (body : Program0 Unit)
+    (c : OmegaCompletePartialOrder.Chain (Program0 Unit)) :
+    while_F b body (OmegaCompletePartialOrder.ωSup c) =
+    OmegaCompletePartialOrder.ωSup
+      (c.map ⟨while_F b body, while_F_monotone b body⟩) := by sorry
+
 
 noncomputable
 def while_F' (b : state → Bool) (body : Program0 Unit) : Program0 Unit →𝒄 Program0 Unit where
   toFun := while_F b body
-  monotone' := sorry
-  map_ωSup' := sorry
+  monotone' := while_F_monotone b body
+  map_ωSup' := while_F_map_ωSup b body
+
+-- Generic helpers about iterating a monotone function from the bottom.
+private theorem iterate_mono_arg {α : Type*} [Preorder α] {f : α → α} (hf : Monotone f) (n : ℕ) :
+    ∀ (p q : α), p ≤ q → f^[n] p ≤ f^[n] q := by
+  induction n with
+  | zero => intros _ _ hpq; exact hpq
+  | succ k ih =>
+    intros p q hpq
+    change f^[k] (f p) ≤ f^[k] (f q)
+    exact ih _ _ (hf hpq)
+
+private theorem iterate_bot_mono {α : Type*} [Preorder α] [OrderBot α]
+    {f : α → α} (hf : Monotone f) : Monotone (fun n => f^[n] (⊥ : α)) := by
+  intro m n hmn
+  induction hmn with
+  | refl => exact le_refl _
+  | step _ ih =>
+    exact ih.trans (iterate_mono_arg hf _ _ _ bot_le)
 
 -- Why doesn't this exist?
-def OmegaCompletePartialOrder.ContinuousHom.lfp [OmegaCompletePartialOrder a] [OrderBot a] (f : a →𝒄 a) :=
-  OmegaCompletePartialOrder.ωSup (⟨fun n => f^[n] ⊥, sorry⟩ : OmegaCompletePartialOrder.Chain a)
+def OmegaCompletePartialOrder.ContinuousHom.lfp [OmegaCompletePartialOrder a] [OrderBot a]
+    (f : a →𝒄 a) :=
+  OmegaCompletePartialOrder.ωSup
+    (⟨fun n => f^[n] ⊥, iterate_bot_mono f.monotone⟩ : OmegaCompletePartialOrder.Chain a)
 
 -- Doesn't this exist?
 def IsLfp [LE a] (f : a -> a) (x : a) := IsLeast (Function.fixedPoints f) x
 
 theorem my_lfp_is_lfp [OmegaCompletePartialOrder a] [OrderBot a] (f : a →𝒄 a) :
-  IsLfp f (f.lfp) := sorry
+    IsLfp f (f.lfp) := by sorry
 
 noncomputable
 def while2 (b : state → Bool) (body : Program0 Unit) : Program0 Unit :=
   (while_F' b body).lfp
 
-theorem all_the_same {b body} : while_ b body = while2 b body := sorry
+theorem all_the_same {b body} : while_ b body = while2 b body := by
+  funext s
+  apply Subtype.ext
+  change (⨆ n, (while_iter b body n s).1) =
+         ⨆ n, ((while_F b body)^[n] (⊥ : Program0 Unit) s).1
+  congr 1
+  funext n
+  rw [while_F_while_iter]
 
 theorem wp_toProgram0 (p : PMF α) f :
   wp (toProgram0 p) f = fun s => ∑' x:α, p x * f (x,s)
