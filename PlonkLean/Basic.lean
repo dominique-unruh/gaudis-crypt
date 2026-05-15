@@ -5,7 +5,11 @@ import Mathlib.Order.FixedPoints
 import Mathlib.Order.CompletePartialOrder
 import Mathlib.Order.OmegaCompletePartialOrder
 
-def Distr (a : Type) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
+import PlonkLean.Misc
+import PlonkLean.Semantics
+
+abbrev Distr := SubProbability
+noncomputable abbrev toDistr {α : Type} := @toSubProbability α
 
 -- Just an example state
 structure state where
@@ -14,31 +18,12 @@ structure state where
 
 -- def Semantics := state → Distr state
 
-noncomputable
-instance instDistr : Monad Distr where
-  pure a :=
-    ⟨@MeasureTheory.Measure.dirac _ ⊤ a, by simp⟩
-  bind x f :=
-    let ⟨mu, h⟩ := x
-    ⟨MeasureTheory.Measure.bind mu (fun a => (f a).1), by
-        simp only [Set.top_eq_univ]
-        rw [MeasureTheory.Measure.bind_apply MeasurableSet.univ measurable_from_top.aemeasurable]
-        calc ∫⁻ a, (f a).1 ⊤ ∂mu
-            ≤ ∫⁻ _, 1 ∂mu := MeasureTheory.lintegral_mono (fun a => (f a).2)
-          _ = mu ⊤ := MeasureTheory.lintegral_one
-          _ ≤ 1 := h⟩
 
 
 @[reducible]
 def Program0 := StateT state Distr
 
 def Program input output := input -> Program0 output
-
-noncomputable
-def toDistr (p : PMF α) : Distr α :=
-  ⟨@PMF.toMeasure _ ⊤ p, by
-    haveI := @PMF.toMeasure.isProbabilityMeasure _ ⊤ p
-    exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ⟩
 
 noncomputable
 def toProgram0 (p : PMF α) : Program0 α :=
@@ -300,7 +285,7 @@ theorem coinToss_prob (s : state) (b : Bool) :
 
 noncomputable
 def pbind {α β : Type} (mu : Program0 α) (f : α → Program0 β) : Program0 β :=
-  fun s => instDistr.bind (mu s) (fun (a, s') => f a s')
+  fun s => instMonadSubProbability.bind (mu s) (fun (a, s') => f a s')
 
 -- Bind law for wp (sequential composition / chain rule).
 --
@@ -313,7 +298,7 @@ def pbind {α β : Type} (mu : Program0 α) (f : α → Program0 β) : Program0 
 -- Proof outline:
 --  1. Unfold wp and pbind: the goal becomes an integral of g against the
 --     underlying Measure.bind of the Distr monad's bind.
---     h_bind (proved by rfl) exposes (instDistr.bind mu s).1 as the explicit
+--     h_bind (proved by rfl) exposes (instMonadSubProbability.bind mu s).1 as the explicit
 --     Measure.bind (mu s).1 (fun as' => (f as'.1 as'.2).1).
 --  2. Apply Measure.lintegral_bind (Fubini for bind measures):
 --       ∫⁻ x, g x ∂(Measure.bind μ κ) = ∫⁻ a, ∫⁻ x, g x ∂κ a ∂μ
@@ -325,14 +310,14 @@ theorem wp_bind {α β : Type} (mu : Program0 α) (f : α → Program0 β)
   simp only [wp, pbind]
   letI : MeasurableSpace (α × state) := ⊤
   letI : MeasurableSpace (β × state) := ⊤
-  have h_bind : (instDistr.bind (mu s) (fun (a, s') => f a s')).1 =
+  have h_bind : (instMonadSubProbability.bind (mu s) (fun (a, s') => f a s')).1 =
       MeasureTheory.Measure.bind (mu s).1 (fun as' => (f as'.1 as'.2).1) := rfl
   rw [h_bind, MeasureTheory.Measure.lintegral_bind
       measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
 
 -- wp_bind lifted to the >>= (do-notation bind) for Program0.
 -- The do-notation in myProg uses Bind.bind (via StateT.bind), while wp_bind works for pbind.
--- They give the same measure: both unfold to instDistr.bind, so Subtype.ext + simp closes the gap.
+-- They give the same measure: both unfold to instMonadSubProbability.bind, so Subtype.ext + simp closes the gap.
 theorem wp_bind_do {α β : Type} (mu : Program0 α) (f : α → Program0 β)
     (g : β × state → ENNReal) (s : state) :
     wp (mu >>= f) g s = wp mu (fun (a, s') => wp (f a) g s') s := by
@@ -728,36 +713,6 @@ def while_F' (b : state → Bool) (body : Program0 Unit) : Program0 Unit →𝒄
   toFun := while_F b body
   monotone' := while_F_monotone b body
   map_ωSup' := while_F_map_ωSup b body
-
--- Generic helpers about iterating a monotone function from the bottom.
-private theorem iterate_mono_arg {α : Type*} [Preorder α] {f : α → α} (hf : Monotone f) (n : ℕ) :
-    ∀ (p q : α), p ≤ q → f^[n] p ≤ f^[n] q := by
-  induction n with
-  | zero => intros _ _ hpq; exact hpq
-  | succ k ih =>
-    intros p q hpq
-    change f^[k] (f p) ≤ f^[k] (f q)
-    exact ih _ _ (hf hpq)
-
-private theorem iterate_bot_mono {α : Type*} [Preorder α] [OrderBot α]
-    {f : α → α} (hf : Monotone f) : Monotone (fun n => f^[n] (⊥ : α)) := by
-  intro m n hmn
-  induction hmn with
-  | refl => exact le_refl _
-  | step _ ih =>
-    exact ih.trans (iterate_mono_arg hf _ _ _ bot_le)
-
--- Why doesn't this exist?
-def OmegaCompletePartialOrder.ContinuousHom.lfp [OmegaCompletePartialOrder a] [OrderBot a]
-    (f : a →𝒄 a) :=
-  OmegaCompletePartialOrder.ωSup
-    (⟨fun n => f^[n] ⊥, iterate_bot_mono f.monotone⟩ : OmegaCompletePartialOrder.Chain a)
-
--- Doesn't this exist?
-def IsLfp [LE a] (f : a -> a) (x : a) := IsLeast (Function.fixedPoints f) x
-
-theorem my_lfp_is_lfp [OmegaCompletePartialOrder a] [OrderBot a] (f : a →𝒄 a) :
-    IsLfp f (f.lfp) := by sorry
 
 noncomputable
 def while2 (b : state → Bool) (body : Program0 Unit) : Program0 Unit :=
