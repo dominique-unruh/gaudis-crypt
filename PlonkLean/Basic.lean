@@ -339,48 +339,29 @@ theorem wp_bind_do {α β : Type} (mu : Program0 α) (f : α → Program0 β)
   exact wp_bind mu f g s
 -/
 
-noncomputable
-def seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β) : Program0 β :=
-  p1 >>= (fun _ => p2)
+-- noncomputable
+-- def seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β) : Program0 β :=
+--   p1 >>= (fun _ => p2)
 
-theorem wp_seq {α β : Type} (p1 : Program0 α) (p2 : Program0 β)
-    (f : β × state → ENNReal) (s : state) :
-    (seq p1 p2).wp f s = p1.wp (fun (_, s') => p2.wp f s') s := by
-  simp [seq]
-  -- simp [wp_bind]  -- I don't understand why this doesn't rewrite...
-  sorry
-
-
---  wp_bind p1 (fun _ => p2) f s
-
-theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program0 α)
-    (f : α × state → ENNReal) (s : state) :
-    wp (if b then p1 else p2) f s = if b then wp p1 f s else wp p2 f s := by
-  cases b <;> rfl
-
-theorem wp_get (f : state × state → ENNReal) (s : state) :
-    Program.wp (StateT.get) f s = f (s, s) := by
-  simp [Program.wp, StateT.get, expected_pure]
+-- theorem wp_seq {α β : Type} (p1 : Program s α) (p2 : Program s β)
+--     (f : Program.WP s β) (st : state) :
+--     (p1 *> p2).wp f = p1.wp (fun (_, s') => p2.wp f s') := by
+--   simp [seqRight]
+--   -- simp [wp_bind]  -- I don't understand why this doesn't rewrite...
+--   sorry
 
 theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s : state) :
-    wp (getVar v) f s = f (v.get s, s) := by
-  have hdef : getVar v = bind StateT.get (fun s' => pure (v.get s')) := rfl
-  simp [hdef, wp_bind, wp_get] -- Why doesn't wp_bind apply?
-  sorry
-  -- simp [wp_pure]
+    Program.wp (getVar v) f s = f (v.get s, s) := by
+    simp [getVar, wp_bind, wp_pure, wp_get]
+       -- Why doesn't wp_bind apply?
+    sorry
 
-theorem wp_set (s' : state) (f : Unit × state → ENNReal) (s : state) :
-    Program.wp (StateT.set s' : Program state Unit) f s = f ((), s') := by  -- Why doesn't (...).wp syntax work?
-  simp [Program.wp, StateT.set, expected_pure]
 
 theorem wp_setVar {α : Type} (v : Variable α) (x : α) (f : Unit × state → ENNReal) (s : state) :
     wp (setVar v x) f s = f ((), v.set x s) := by
-  sorry
-  -- TODO fix
-  -- have hdef : setVar v x = pbind StateT.get (fun s => StateT.set (v.set x s)) := rfl
-  -- rw [hdef, wp_bind, wp_get]
-  -- simp [wp_set]
-
+    simp [setVar, wp_bind, wp_pure, wp_get, wp_set]
+       -- Why doesn't wp_bind apply?
+    sorry
 
 -- Finite approximants of the while loop.
 -- while_iter b body 0 is the "bottom" approximant (zero measure — never terminates).
@@ -393,6 +374,10 @@ noncomputable def while_iter (b : state → Bool) (body : Program0 Unit) : ℕ �
 
 -- Expectation transformer for while loops:
 -- Ψ b body f W s = if b holds at s, run body and apply W; else deliver f.
+
+-- TODO: Should be defined generically: as a function of while_F (below)
+--       Something like Ψ F (wp X) = wp (F X), and let F := while_F
+--       Also: Ψ, while_F should be of suitable bundled types
 noncomputable def Ψ (b : state → Bool) (body : Program0 Unit)
     (f : Unit × state → ENNReal) : (state → ENNReal) →o (state → ENNReal) where
   toFun W s := if b s then wp body (fun (_, s') => W s') s else f ((), s)
@@ -636,21 +621,6 @@ theorem wp_while (b : state → Bool) (body : Program0 Unit)
 
 
 
--- Can say a lot more than LE. In particular partial order, and omega-cpo (even cpo?)
-instance : LE (Program0 a) where
-  le p q := ∀ s, (p s).1 <= (q s).1
-
-instance : PartialOrder (Program0 a) where
-  le_refl _ _ := le_refl _
-  le_trans _ _ _ hpq hqr s := le_trans (hpq s) (hqr s)
-  le_antisymm p q hpq hqp := by
-    funext s
-    exact Subtype.ext (le_antisymm (hpq s) (hqp s))
-
-instance : OrderBot (Program0 a) where
-  bot := fun _ => ⟨0, by simp⟩
-  bot_le _ _ := MeasureTheory.Measure.zero_le _
-
 -- Could also directly define while_F' instead without this intermediate def
 noncomputable
 def while_F (b : state → Bool) (body : Program0 Unit) (loop : Program0 Unit) : Program0 Unit :=
@@ -663,20 +633,6 @@ theorem while_F_while_iter (b : state → Bool) (body : Program0 Unit) (n : ℕ)
   | succ n ih =>
     rw [Function.iterate_succ_apply', ← ih]
     rfl
-
-noncomputable instance : OmegaCompletePartialOrder (Program0 a) where
-  ωSup c := fun s => ⟨⨆ n, (c n s).1, by
-    have hmono : Monotone fun n => (c n s).1 := fun _ _ hmn => c.monotone hmn s
-    have heq : (⨆ n, (c n s).1) Set.univ = ⨆ n, (c n s).1 Set.univ := by
-      have h := @lintegral_iSup_measure_nat (a × state) ⊤
-                  (fun n => (c n s).1) hmono (fun _ => 1)
-      simp only [MeasureTheory.lintegral_one] at h
-      exact h
-    change (⨆ n, (c n s).1) Set.univ ≤ 1
-    rw [heq]
-    exact iSup_le fun n => (c n s).2⟩
-  le_ωSup c n s := le_iSup (fun m => (c m s).1) n
-  ωSup_le c x h s := iSup_le fun n => h n s
 
 -- (⨆ μ_n) S = ⨆ μ_n S for monotone chains of measures and measurable S.
 -- Derived from lintegral_iSup_measure_nat by integrating against the indicator of S.

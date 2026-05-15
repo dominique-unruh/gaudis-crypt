@@ -56,3 +56,16 @@ theorem wp_pure {s α : Type} (x : α) (f : Program.WP s α) :
     have h : (pure x : Program s α) = fun s => pure (x, s) := rfl  -- Can't we somehow unfold `pure x` without auxiliary def?
     ext
     simp [h, Program.wp, expected_pure]
+
+theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program s α)
+    (f : α × s → ENNReal) (st : s) :
+    (if b then p1 else p2).wp f st = if b then p1.wp f st else p2.wp f st := by
+  cases b <;> rfl
+
+theorem wp_set (st' : s) (f : Unit × s → ENNReal) (st : s) :
+    Program.wp (StateT.set st' : Program s Unit) f st = f ((), st') := by  -- Why doesn't (...).wp syntax work?
+  simp [Program.wp, StateT.set, expected_pure]
+
+theorem wp_get (f : Program.WP s s) (st : s) :
+    Program.wp (StateT.get) f st = f (st, st) := by
+  simp [Program.wp, StateT.get, expected_pure]
