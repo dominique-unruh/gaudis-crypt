@@ -10,7 +10,15 @@ Put here:
 
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
+import PlonkLean.Misc
 
+/-!
+# General stuff
+-/
+
+-- TODO: Should we keep this? It's a very simple rhs
+def recursion [OmegaCompletePartialOrder a] [OrderBot a] (F : a →𝒄 a) : a :=
+  F.lfp
 
 /-!
 # Discrete subprobability monad

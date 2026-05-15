@@ -18,6 +18,18 @@ theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := 
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
   simp [SubProbability.expected, h]
 
+theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProbability b))
+  (Ψ : ((b → ENNReal) →o (a → ENNReal)) →o ((b → ENNReal) →o (a → ENNReal)))
+  (h : ∀ (X : a → SubProbability b),
+      Ψ ⟨fun (f : b → ENNReal) (x : a) => (X x).expected f, sorry⟩
+         = ⟨fun (f : b → ENNReal) (x : a) => (F X x).expected f, sorry⟩)
+         (x : a) (f : b → ENNReal)
+ : (F.lfp x).expected f = Ψ.lfp f x
+ := sorry
+
+
+
+
 /-!
 
 # Stateful programs
