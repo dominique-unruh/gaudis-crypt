@@ -1,13 +1,3 @@
-/-
-
-Put here:
-
-- General monad stuff
-- ...
-
-
--/
-
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
 import PlonkLean.Misc
