@@ -56,7 +56,10 @@ instance : PartialOrder (SubProbability a) where
   le p q := p.1 <= q.1
   le_refl _ _ := le_refl _
   le_trans _ _ _ hpq hqr s := le_trans (hpq s) (hqr s)
-  le_antisymm p q hpq hqp := sorry
+  le_antisymm p q hpq hqp := by
+    apply Subtype.ext
+    exact le_antisymm hpq hqp
+
 
 instance : OrderBot (SubProbability a) where
   bot := ⟨0, by simp⟩
