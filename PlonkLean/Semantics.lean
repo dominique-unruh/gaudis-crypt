@@ -42,9 +42,15 @@ def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability �
 
 def SubProbability.ofEvent (μ : SubProbability a) e := μ.1 e
 
-instance : FunLike (SubProbability a) a ENNReal where
+instance [Countable a] : FunLike (SubProbability a) a ENNReal where
   coe μ x := μ.ofEvent {x}
-  coe_injective' μ ν h := sorry
+  coe_injective' μ ν h := by
+    apply Subtype.ext
+    exact @MeasureTheory.Measure.ext_of_singleton a ⊤ _ μ.1 ν.1 (fun x => congr_fun h x)
+
+
+
+
 
 instance : PartialOrder (SubProbability a) where
   le p q := p.1 <= q.1
@@ -118,7 +124,7 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
     rw [heq]
     exact iSup_le fun n => (c n).2⟩
   le_ωSup c n := le_iSup (fun m => (c m).1) n
-  ωSup_le c x h := sorry
+  ωSup_le c x h := show (⨆ n, (c n).1) ≤ x.1 from iSup_le h
 
 
 
