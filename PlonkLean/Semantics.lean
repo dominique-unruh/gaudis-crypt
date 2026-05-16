@@ -170,7 +170,20 @@ instance : OrderBot (Program s a) where
 noncomputable instance : OmegaCompletePartialOrder (Program s a) where
   ωSup c st :=
     let c_st n := c n st
-    let mono : Monotone c_st := sorry
+    let mono : Monotone c_st := by
+      intros n m hnm s
+      unfold c_st
+      apply c.monotone hnm
     OmegaCompletePartialOrder.ωSup ⟨c_st, mono⟩
-  le_ωSup c n s := sorry
-  ωSup_le c x h s := sorry
+  le_ωSup c n := by
+   intros s
+   apply OmegaCompletePartialOrder.le_ωSup
+     (⟨fun m => c m s, fun _ _ hmn => c.monotone hmn s⟩)
+
+
+
+  ωSup_le c x h s := by
+    unfold OmegaCompletePartialOrder.ωSup
+    apply OmegaCompletePartialOrder.ωSup_le
+    intro n
+    apply h n s

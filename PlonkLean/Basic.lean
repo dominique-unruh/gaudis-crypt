@@ -395,7 +395,7 @@ theorem Ψ_iterate (b : state → Bool) (body : Program0 Unit)
   induction n with
   | zero =>
     intro s
-    simp only [Function.iterate_zero, id, Pi.bot_apply, bot_eq_zero]
+    simp only [Function.iterate_zero, id,  bot_eq_zero]
     simp only [while_iter, wp]
     exact MeasureTheory.lintegral_zero_measure _
   | succ n ih =>
