@@ -68,7 +68,7 @@ theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
 
 theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
     (g : Program.Post s β) (st : s) :
-    (prog >>= f).wp g = prog.wp (fun (a, s') => (f a).wp g s') := by
+    (prog >>= f).wp g st = prog.wp (fun (a, s') => (f a).wp g s') st := by
   sorry
 
 theorem wp_pure {s α : Type} (x : α) (f : Program.Post s α) :

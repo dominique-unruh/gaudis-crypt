@@ -139,7 +139,7 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
 def Program (state : Type) := StateT state SubProbability
 
 noncomputable
-def SubProbability.toProgram (p: SubProbability a) : Program s a := StateT.lift p
+def SubProbability.toProgram (p : SubProbability a) : Program s a := StateT.lift p
 
 noncomputable
 def PMF.toProgram {st α} (p : PMF α) : Program st α := StateT.lift (toSubProbability p)
@@ -167,6 +167,7 @@ instance : OrderBot (Program s a) where
   bot := fun _ => ⟨0, by simp⟩
   bot_le _ _ := MeasureTheory.Measure.zero_le _
 
+
 noncomputable instance : OmegaCompletePartialOrder (Program s a) where
   ωSup c st :=
     let c_st n := c n st
@@ -179,9 +180,6 @@ noncomputable instance : OmegaCompletePartialOrder (Program s a) where
    intros s
    apply OmegaCompletePartialOrder.le_ωSup
      (⟨fun m => c m s, fun _ _ hmn => c.monotone hmn s⟩)
-
-
-
   ωSup_le c x h s := by
     unfold OmegaCompletePartialOrder.ωSup
     apply OmegaCompletePartialOrder.ωSup_le

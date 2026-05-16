@@ -354,14 +354,14 @@ theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s
     Program.wp (getVar v) f s = f (v.get s, s) := by
     simp [getVar, wp_bind, wp_pure, wp_get]
        -- Why doesn't wp_bind apply?
-    sorry
+
 
 
 theorem wp_setVar {α : Type} (v : Variable α) (x : α) (f : Unit × state → ENNReal) (s : state) :
     wp (setVar v x) f s = f ((), v.set x s) := by
-    simp [setVar, wp_bind, wp_pure, wp_get, wp_set]
+    simp [setVar, wp_bind, wp_get, wp_set]
        -- Why doesn't wp_bind apply?
-    sorry
+
 
 -- Finite approximants of the while loop.
 -- while_iter b body 0 is the "bottom" approximant (zero measure — never terminates).
