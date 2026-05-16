@@ -58,3 +58,17 @@ theorem ContinuousHom.lfp_isLfp [OmegaCompletePartialOrder a] [OrderBot a] (f : 
       rw [Function.iterate_succ_apply']
       calc f (f^[k] ⊥) ≤ f y := f.monotone ih
         f y = y := hy
+
+
+theorem ContinuousHom.map_lfp_comp [OmegaCompletePartialOrder α] [OmegaCompletePartialOrder β]
+      [OrderBot α] [OrderBot β] (f : β →𝒄 α) (g : α →𝒄 β) :
+  f (g.comp f).lfp = (f.comp g).lfp := by
+  apply le_antisymm
+  · have h : (g.comp f).lfp ≤ g (f.comp g).lfp :=
+      (ContinuousHom.lfp_isLfp (g.comp f)).2
+        (congr_arg g (ContinuousHom.lfp_isLfp (f.comp g)).1)
+    calc f (g.comp f).lfp
+        ≤ f (g (f.comp g).lfp) := f.monotone h
+      _ = (f.comp g).lfp := (ContinuousHom.lfp_isLfp (f.comp g)).1
+  · exact (ContinuousHom.lfp_isLfp (f.comp g)).2
+        (congr_arg f (ContinuousHom.lfp_isLfp (g.comp f)).1)

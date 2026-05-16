@@ -8,6 +8,7 @@ import Mathlib.Order.OmegaCompletePartialOrder
 import PlonkLean.Misc
 import PlonkLean.Semantics
 import PlonkLean.WeakestPreconditions
+import PlonkLean.Lens
 
 
 
@@ -37,12 +38,6 @@ abbrev prfinal {a : Type} [DecidableEq a] (prog : Program0 a) (x : a) (s : state
 
 
 
-structure Lens (a : Type) (b : Type) where
-  get : b -> a
-  set : a -> b -> b
-  set_get : ∀ s x, get (set x s) = x
-  set_set : ∀ s x y, set y (set x s) = set y s
-  get_set : ∀ s, set (get s) s = s
 
 
 @[reducible]
@@ -50,13 +45,6 @@ def Variable a := Lens a state
 
 -- inconsistent
 -- instance {a : Type} [N : Nonempty a] : Nonempty (Variable a) := sorry
-
--- Don't remember if that's the right def
-class disjoint (x : Lens a m) (y : Lens b m) where
-  commute : ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s)
-
-theorem disjoint.iff : disjoint x y ↔ ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s) :=
-  ⟨fun h => h.commute, fun h => ⟨h⟩⟩
 
 noncomputable
 def setVar {a : Type} (v : Variable a) (x : a) : Program0 Unit := do
@@ -85,65 +73,6 @@ def Y : Variable Nat := {
   set_set := by simp,
   get_set := by simp
 }
-
-def pair (x : Lens a m) (y : Lens b m) [disj : disjoint x y] : Lens (a × b) m :=
-  { get := fun s => (x.get s, y.get s)
-    set := fun (u,v) s => x.set u (y.set v s)
-    set_get := by
-      simp [x.set_get]
-      simp [disj.commute, y.set_get]
-    set_set := by
-     simp [disj.commute, y.set_set, x.set_set]
-    get_set := by
-      simp [y.get_set, x.get_set] }
-
-def chain {a b c} (x : Lens b c) (y : Lens a b) : Lens a c := {
-  get s := y.get (x.get s)
-  set a s := x.set (y.set a (x.get s)) s
-  set_get := by simp [x.set_get, y.set_get]
-  set_set := by simp [x.set_get, y.set_set, x.set_set]
-  get_set := by simp [x.get_set, y.get_set]
-}
-
-def fstL : Lens a (a×b) := {
-  get := fun (x,y) => x
-  set := fun x' (x,y) => (x',y)
-  set_get := by simp
-  set_set := by simp
-  get_set := by simp
-}
-
-def sndL : Lens b (a×b) := {
-  get := fun (x,y) => y
-  set := fun y' (x,y) => (x,y')
-  set_get := by simp
-  set_set := by simp
-  get_set := by simp
-}
-
-theorem pair_fst (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
-  chain (pair x y) fstL = x := by
-    simp [chain, pair, fstL, y.get_set]
-
-theorem pair_snd (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
-  chain (@pair _ _ _ x y disj) sndL = y :=
-    by simp [chain, pair, sndL, disj.commute, x.get_set]
-
-instance disjoint3 [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] :
-  disjoint x (pair y z) :=
-  -- let xy' : ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s) := xy
-  -- let xz' : ∀ s v w, x.set v (z.set w s) = z.set w (x.set v s) := xz
-  by
-    simp only [pair, disjoint.iff]
-    intros
-    simp [xy.commute, xz.commute]
-
-
-instance disjoint3' [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] :
-    disjoint (pair x y) z := by
-  simp only [pair, disjoint.iff]
-  intros
-  simp [yz.commute, xz.commute]
 
 instance disjXY : disjoint X Y := by
   apply disjoint.mk
@@ -708,7 +637,7 @@ theorem wp_coinToss : coinToss.wp f = (fun s => f (True, s) / 2 + f (False, s) /
 -/
 theorem prfinal_myProg_1_better (s : state) : prfinal myProg 1 s = 1/2 := by
   simp only [prfinal, final_probability_wp']
-  simp [myProg, wp_bind, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_coinToss, wp]  -- TODO why doesn't wp_bind simplify here?
+  simp [myProg, wp_bind, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_coinToss]
   sorry
 
 -- Question: why did you define `pbind`? Doesn't `bind` already work on Program0 since the following is resolved:

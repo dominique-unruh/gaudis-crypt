@@ -67,7 +67,7 @@ theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
   simp [wp_lift, Program.uniform, uniform_expected]
 
 theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
-    (g : Program.Post s β) (st : s) :
+    (g : Program.Post s β) :
     (prog >>= f).wp g = prog.wp (fun (a, s') => (f a).wp g s') := by
   sorry
 
@@ -105,12 +105,37 @@ theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
          (x : a) (f : Program.Post s b)
  : (F.lfp x).wp f = Ψ.lfp f x := by
     ext st
-    let F' : (a × s → SubProbability (b × s)) →𝒄 (a × s → SubProbability (b × s)) := sorry
-    let Ψ' : ((b × s → ENNReal) →o (a × s → ENNReal)) →o ((b × s → ENNReal) →o (a × s → ENNReal)) := sorry
-    let h X : Ψ' ⟨fun f x ↦ (X x).expected f, sorry⟩ = ⟨fun f x ↦ (F' X x).expected f, sorry⟩ := sorry
+    let curry : (a × s → SubProbability (b × s)) →𝒄 (a → Program s b) :=
+      OmegaCompletePartialOrder.ContinuousHom.ofFun fun f a b => f (a, b)
+    let uncurry :  (a → Program s b) →𝒄 (a × s → SubProbability (b × s)) :=
+      OmegaCompletePartialOrder.ContinuousHom.ofFun fun f a => f a.1 a.2
+    let F' : (a × s → SubProbability (b × s)) →𝒄 (a × s → SubProbability (b × s)) :=
+      uncurry.comp (F.comp curry)
+    let conv1 : ((b × s → ENNReal) →o (a × s → ENNReal)) →o ((b × s → ENNReal) →o (a → s → ENNReal)) :=
+      ⟨fun φ => ⟨fun g => Function.curry (φ g), fun g1 g2 hg a' b' => φ.monotone hg (a', b')⟩,
+       fun φ1 φ2 hφ g a' b' => hφ g (a', b')⟩
+    let conv2 : ((b × s → ENNReal) →o (a → s → ENNReal)) →o ((b × s → ENNReal) →o (a × s → ENNReal)) :=
+      ⟨fun φ => ⟨fun g => Function.uncurry (φ g), fun g1 g2 hg ⟨a', b'⟩ => φ.monotone hg a' b'⟩,
+       fun φ1 φ2 hφ g ⟨a', b'⟩ => hφ g a' b'⟩
+    let Ψ' : ((b × s → ENNReal) →o (a × s → ENNReal)) →o ((b × s → ENNReal) →o (a × s → ENNReal)) :=
+      conv2.comp (Ψ.comp conv1)
+      -- ⟨fun f => conv2 (Ψ (conv1 f)), fun f1 f2 hf g ⟨a, b⟩ => Ψ.monotone (fun g' a' b' => hf g' (a', b')) g a b⟩
+    have h X : Ψ' ⟨fun f x ↦ (X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ =
+              ⟨fun f x ↦ (F' X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ := by
+      let X' : a → Program s b := curry X
+      have lhs : conv1 ⟨fun f x ↦ (X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ =
+          ⟨fun f x ↦ (X' x).wp f, recursion_wp_mono⟩ := by
+        apply OrderHom.ext; funext g a' b'; rfl
+      change conv2 (Ψ (conv1 ⟨fun f x ↦ (X x).expected f, _⟩)) = ⟨fun f x ↦ (F' X x).expected f, _⟩
+      rw [lhs, h X']
+      apply OrderHom.ext; funext g x; rfl
     calc
       (F.lfp x).wp f st = (F.lfp x st).expected f := rfl
-      _ = (F'.lfp (x,st)).expected f := sorry
+      _ = (F'.lfp (x,st)).expected f := by
+        simp only [F', ← ContinuousHom.map_lfp_comp uncurry (F.comp curry)]
+        congr 1
       _ = Ψ'.lfp f (x,st)  := by
         apply recursion_expected; apply h
-      _ = Ψ.lfp f x st := sorry
+      _ = Ψ.lfp f x st := by
+        simp [Ψ', ← OrderHom.map_lfp_comp conv2 (Ψ.comp conv1)]
+        congr 1
