@@ -42,15 +42,24 @@ def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability �
 
 def SubProbability.ofEvent (μ : SubProbability a) e := μ.1 e
 
-instance : FunLike (SubProbability a) a ENNReal where
+instance [Countable a] : FunLike (SubProbability a) a ENNReal where
   coe μ x := μ.ofEvent {x}
-  coe_injective' μ ν h := sorry
+  coe_injective' μ ν h := by
+    apply Subtype.ext
+    exact @MeasureTheory.Measure.ext_of_singleton a ⊤ _ μ.1 ν.1 (fun x => congr_fun h x)
+
+
+
+
 
 instance : PartialOrder (SubProbability a) where
   le p q := p.1 <= q.1
   le_refl _ _ := le_refl _
   le_trans _ _ _ hpq hqr s := le_trans (hpq s) (hqr s)
-  le_antisymm p q hpq hqp := sorry
+  le_antisymm p q hpq hqp := by
+    apply Subtype.ext
+    exact le_antisymm hpq hqp
+
 
 instance : OrderBot (SubProbability a) where
   bot := ⟨0, by simp⟩
@@ -118,7 +127,7 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
     rw [heq]
     exact iSup_le fun n => (c n).2⟩
   le_ωSup c n := le_iSup (fun m => (c m).1) n
-  ωSup_le c x h := sorry
+  ωSup_le c x h := show (⨆ n, (c n).1) ≤ x.1 from iSup_le h
 
 
 
@@ -130,7 +139,7 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
 def Program (state : Type) := StateT state SubProbability
 
 noncomputable
-def SubProbability.toProgram (p: SubProbability a) : Program s a := StateT.lift p
+def SubProbability.toProgram (p : SubProbability a) : Program s a := StateT.lift p
 
 noncomputable
 def PMF.toProgram {st α} (p : PMF α) : Program st α := StateT.lift (toSubProbability p)
@@ -158,10 +167,21 @@ instance : OrderBot (Program s a) where
   bot := fun _ => ⟨0, by simp⟩
   bot_le _ _ := MeasureTheory.Measure.zero_le _
 
+
 noncomputable instance : OmegaCompletePartialOrder (Program s a) where
   ωSup c st :=
     let c_st n := c n st
-    let mono : Monotone c_st := sorry
+    let mono : Monotone c_st := by
+      intros n m hnm s
+      unfold c_st
+      apply c.monotone hnm
     OmegaCompletePartialOrder.ωSup ⟨c_st, mono⟩
-  le_ωSup c n s := sorry
-  ωSup_le c x h s := sorry
+  le_ωSup c n := by
+   intros s
+   apply OmegaCompletePartialOrder.le_ωSup
+     (⟨fun m => c m s, fun _ _ hmn => c.monotone hmn s⟩)
+  ωSup_le c x h s := by
+    unfold OmegaCompletePartialOrder.ωSup
+    apply OmegaCompletePartialOrder.ωSup_le
+    intro n
+    apply h n s
