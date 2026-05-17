@@ -120,7 +120,7 @@ noncomputable
 def Program.wp (prog : Program s a) (f : Program.Post s a) : Program.Pre s :=
   fun st => (prog st).expected f
 
-theorem final_probability_wp [DecidableEq a] (prog : Program s a) st x :
+theorem final_probability_wp [DecidableEq a] (prog : Program s a) (st : s) (x : a) :
   ↑(prog.finalProb1 st x) = prog.wp (fun (y, _) => if y = x then 1 else 0) st := by
   symm
   calc
@@ -133,7 +133,7 @@ theorem final_probability_wp [DecidableEq a] (prog : Program s a) st x :
       simp [Program.finalProb1, Program.finalProb]
 
 
-theorem final_probability_wp' [DecidableEq a] (prog : Program s a) st x :
+theorem final_probability_wp' [DecidableEq a] (prog : Program s a) (st : s) (x : a) :
   prog.finalProb1 st x = (prog.wp (fun (y, _) => if y = x then 1 else 0) st).toNNReal :=
     sorry
 
@@ -142,7 +142,8 @@ theorem wp_lift (μ : SubProbability a) : μ.toProgram.wp f = fun st => μ.expec
 
 theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
   Program.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
-  simp [wp_lift, Program.uniform, uniform_expected]
+  simp [Program.uniform, wp_lift, uniform_expected]
+
 
 theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
     (g : Program.Post s β) :
