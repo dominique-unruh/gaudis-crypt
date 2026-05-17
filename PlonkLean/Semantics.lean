@@ -92,20 +92,31 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
   ωSup_le c x h := show (⨆ n, (c n).1) ≤ x.1 from iSup_le h
 
 theorem Measure.bind_mono [MeasurableSpace a] [MeasurableSpace b] [Preorder i]
-  (f : i → MeasureTheory.Measure a) (g : i → a → MeasureTheory.Measure b) :
+  (f : i → MeasureTheory.Measure a) (g : i → a → MeasureTheory.Measure b)
+  (hf : Monotone f) (hg : Monotone g)
+  (hgm : ∀ x, Measurable (g x)) :
   Monotone (fun x => MeasureTheory.Measure.bind (f x) (g x)) := by
-  sorry
+    intro x y hxy
+    apply MeasureTheory.Measure.le_iff.mpr; intro A hA
+    calc MeasureTheory.Measure.bind (f x) (g x) A
+        ≤ ∫⁻ r, g x r A ∂(f x) := MeasureTheory.Measure.bind_apply_le _ hA
+      _ ≤ ∫⁻ r, g y r A ∂(f y) :=
+          MeasureTheory.lintegral_mono' (hf hxy)
+            (fun r => MeasureTheory.Measure.le_iff.mp (hg hxy r) A hA)
+      _ = MeasureTheory.Measure.bind (f y) (g y) A :=
+          (MeasureTheory.Measure.bind_apply hA (hgm y).aemeasurable).symm
 
-@[fun_prop]
 lemma Measure.bind_ωScottContinuous
   [MeasurableSpace b] [MeasurableSpace c]
   [OmegaCompletePartialOrder a]
   (f : a → MeasureTheory.Measure b) (g : a → b → MeasureTheory.Measure c)
+  (hgm : ∀ x, Measurable (g x))
   (hg : OmegaCompletePartialOrder.ωScottContinuous g)
   (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
   OmegaCompletePartialOrder.ωScottContinuous fun x => MeasureTheory.Measure.bind (f x) (g x) := by
   refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?mono, ?sup⟩
-  case mono => apply Measure.bind_mono
+  case mono =>
+    apply Measure.bind_mono _ _ hf.monotone hg.monotone hgm
   case sup =>
     intro ch
     have hf_mono : Monotone fun n => f (ch n) := fun _ _ hn => hf.monotone (ch.monotone hn)
@@ -113,7 +124,6 @@ lemma Measure.bind_ωScottContinuous
       fun r _ _ hn => hg.monotone (ch.monotone hn) r
     have hf_sup : f (OmegaCompletePartialOrder.ωSup ch) = ⨆ n, f (ch n) :=
       hf.map_ωSup ch
-    -- apply Subtype.ext
     change MeasureTheory.Measure.bind (f (OmegaCompletePartialOrder.ωSup ch))
              (fun r => g (OmegaCompletePartialOrder.ωSup ch) r) =
            ⨆ n, MeasureTheory.Measure.bind (f (ch n)) (fun r => (g (ch n) r))
@@ -126,18 +136,27 @@ lemma Measure.bind_ωScottContinuous
         ⨆ n, g (ch n) r A := fun r => by
       rw [(hg.apply₂ r).map_ωSup ch]
       exact hmeasure_iSup _ (hg_mono r)
-    rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
+    have hbind_eq : ∀ n, MeasureTheory.Measure.bind (f (ch n)) (g (ch n)) A =
+        ∫⁻ r, g (ch n) r A ∂(f (ch n)) := fun n =>
+      MeasureTheory.Measure.bind_apply hA (hgm (ch n)).aemeasurable
+    rw [MeasureTheory.Measure.bind_apply hA (hgm (OmegaCompletePartialOrder.ωSup ch)).aemeasurable,
         hmeasure_iSup _ (fun m n hmn => by
           apply MeasureTheory.Measure.le_iff.mpr; intro A' hA'
-          rw [MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable,
-              MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable]
-          exact MeasureTheory.lintegral_mono' (hf.monotone (ch.monotone hmn))
-            (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone (ch.monotone hmn) r) A' hA'))]
-    simp_rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+          calc MeasureTheory.Measure.bind (f (ch m)) (g (ch m)) A'
+              ≤ ∫⁻ r, g (ch m) r A' ∂(f (ch m)) := MeasureTheory.Measure.bind_apply_le _ hA'
+            _ ≤ ∫⁻ r, g (ch n) r A' ∂(f (ch n)) :=
+                MeasureTheory.lintegral_mono' (hf.monotone (ch.monotone hmn))
+                  (fun r => MeasureTheory.Measure.le_iff.mp
+                      (hg.monotone (ch.monotone hmn) r) A' hA')
+            _ = MeasureTheory.Measure.bind (f (ch n)) (g (ch n)) A' :=
+                (MeasureTheory.Measure.bind_apply hA' (hgm (ch n)).aemeasurable).symm)]
+    simp_rw [hbind_eq]
     rw [hf_sup]; simp_rw [hg_eq_A]
     rw [lintegral_iSup_measure_nat hf_mono]
-    simp_rw [MeasureTheory.lintegral_iSup (fun _ => measurable_from_top)
-      (fun m₁ m₂ hm r => MeasureTheory.Measure.le_iff.mp (hg_mono r hm) A hA)]
+    have hmeas : ∀ m, Measurable (fun a_1 : b => (g (ch m) a_1) A) := fun m =>
+      (MeasureTheory.Measure.measurable_coe hA).comp (hgm (ch m))
+    conv_lhs => arg 1; ext n_outer; rw [MeasureTheory.lintegral_iSup hmeas
+        (fun m₁ m₂ hm => fun r => MeasureTheory.Measure.le_iff.mp (hg_mono r hm) A hA)]
     apply le_antisymm
     · apply iSup_le; intro m; apply iSup_le; intro n
       apply le_trans (MeasureTheory.lintegral_mono' (hf_mono (le_max_left m n))
@@ -156,57 +175,18 @@ lemma SubProbability.bind_ωScottContinuous
   (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
   OmegaCompletePartialOrder.ωScottContinuous fun x => (f x) >>= (g x) := by
   letI : MeasurableSpace b := ⊤; letI : MeasurableSpace c := ⊤
+  have hf' : OmegaCompletePartialOrder.ωScottContinuous (fun x => (f x).1) :=
+    OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup
+      ⟨fun _ _ hxy => hf.monotone hxy, fun ch => congr_arg Subtype.val (hf.map_ωSup ch)⟩
+  have hg' : OmegaCompletePartialOrder.ωScottContinuous (fun x r => (g x r).1) :=
+    OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup
+      ⟨fun _ _ hxy r => hg.monotone hxy r,
+       fun ch => funext fun r => congr_arg Subtype.val ((hg.apply₂ r).map_ωSup ch)⟩
+  have hbind := Measure.bind_ωScottContinuous (fun x => (f x).1) (fun x r => (g x r).1)
+    (fun _ => measurable_from_top) hg' hf'
   refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?mono, ?sup⟩
-  case mono =>
-    intro x y hxy; change (f x >>= g x).1 ≤ (f y >>= g y).1
-    apply MeasureTheory.Measure.le_iff.mpr; intro A hA
-    calc (f x >>= g x).1 A
-        ≤ ∫⁻ r, (g x r).1 A ∂(f x).1 := MeasureTheory.Measure.bind_apply_le _ hA
-      _ ≤ ∫⁻ r, (g y r).1 A ∂(f y).1 :=
-          MeasureTheory.lintegral_mono' (hf.monotone hxy)
-            (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone hxy r) A hA)
-      _ = (f y >>= g y).1 A :=
-          (MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable).symm
-  case sup =>
-    intro ch
-    have hf_mono : Monotone fun n => (f (ch n)).1 := fun _ _ hn => hf.monotone (ch.monotone hn)
-    have hg_mono : ∀ r : b, Monotone fun n => (g (ch n) r).1 :=
-      fun r _ _ hn => hg.monotone (ch.monotone hn) r
-    have hf_sup : (f (OmegaCompletePartialOrder.ωSup ch)).1 = ⨆ n, (f (ch n)).1 :=
-      congr_arg Subtype.val (hf.map_ωSup ch)
-    apply Subtype.ext
-    change MeasureTheory.Measure.bind (f (OmegaCompletePartialOrder.ωSup ch)).1
-             (fun r => (g (OmegaCompletePartialOrder.ωSup ch) r).1) =
-           ⨆ n, MeasureTheory.Measure.bind (f (ch n)).1 (fun r => (g (ch n) r).1)
-    apply MeasureTheory.Measure.ext; intro A hA
-    have hmeasure_iSup : ∀ (ν : ℕ → MeasureTheory.Measure c) (hν : Monotone ν),
-        (⨆ n, ν n) A = ⨆ n, ν n A := fun ν hν => by
-      have h := lintegral_iSup_measure_nat hν (f := Set.indicator A 1)
-      simp only [MeasureTheory.lintegral_indicator_one hA] at h; exact h
-    have hg_eq_A : ∀ r : b, (g (OmegaCompletePartialOrder.ωSup ch) r).1 A =
-        ⨆ n, (g (ch n) r).1 A := fun r => by
-      rw [congr_arg Subtype.val ((hg.apply₂ r).map_ωSup ch)]
-      exact hmeasure_iSup _ (hg_mono r)
-    rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
-        hmeasure_iSup _ (fun m n hmn => by
-          apply MeasureTheory.Measure.le_iff.mpr; intro A' hA'
-          rw [MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable,
-              MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable]
-          exact MeasureTheory.lintegral_mono' (hf.monotone (ch.monotone hmn))
-            (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone (ch.monotone hmn) r) A' hA'))]
-    simp_rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
-    rw [hf_sup]; simp_rw [hg_eq_A]
-    rw [lintegral_iSup_measure_nat hf_mono]
-    simp_rw [MeasureTheory.lintegral_iSup (fun _ => measurable_from_top)
-      (fun m₁ m₂ hm r => MeasureTheory.Measure.le_iff.mp (hg_mono r hm) A hA)]
-    apply le_antisymm
-    · apply iSup_le; intro m; apply iSup_le; intro n
-      apply le_trans (MeasureTheory.lintegral_mono' (hf_mono (le_max_left m n))
-          (fun r => MeasureTheory.Measure.le_iff.mp (hg_mono r (le_max_right m n)) A hA))
-      exact le_iSup (fun k => ∫⁻ r : b, (g (ch k) r).1 A ∂(f (ch k)).1) (max m n)
-    · apply iSup_le; intro k
-      apply le_trans (le_iSup (fun n => ∫⁻ r : b, (g (ch n) r).1 A ∂(f (ch k)).1) k)
-      exact le_iSup (fun m => ⨆ n, ∫⁻ r : b, (g (ch n) r).1 A ∂(f (ch m)).1) k
+  case mono => intro x y hxy; exact hbind.monotone hxy
+  case sup => intro ch; apply Subtype.ext; exact hbind.map_ωSup ch
 
 
 /-!
@@ -274,98 +254,34 @@ lemma Program.bind_ωScottContinuous
   (hg : OmegaCompletePartialOrder.ωScottContinuous g)
   (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
   OmegaCompletePartialOrder.ωScottContinuous fun x => (f x) >>= (g x) := by
-  letI : MeasurableSpace b := ⊤
-  letI : MeasurableSpace c := ⊤
-  letI : MeasurableSpace (b × s) := ⊤
-  letI : MeasurableSpace (c × s) := ⊤
-  -- (⨆ n, μ n) A = ⨆ n, μ n A for monotone μ_n and measurable A
-  have measure_iSup_apply : ∀ {α : Type} [MeasurableSpace α]
-      (ν : ℕ → MeasureTheory.Measure α) (hmono : Monotone ν)
-      (A : Set α), MeasurableSet A → (⨆ n, ν n) A = ⨆ n, ν n A := by
-    intro α _ ν hmono A hA
-    have h := lintegral_iSup_measure_nat hmono (f := Set.indicator A 1)
-    simp only [MeasureTheory.lintegral_indicator_one hA] at h
-    exact h
-  refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?hmono, ?hωSup⟩
-  · -- Monotone
-    intro x y hxy st
-    apply MeasureTheory.Measure.le_iff.mpr
-    intro A hA
-    change MeasureTheory.Measure.bind (f x st).1 (fun r => (g x r.1 r.2).1) A ≤
-           MeasureTheory.Measure.bind (f y st).1 (fun r => (g y r.1 r.2).1) A
-    rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
-        MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
-    exact MeasureTheory.lintegral_mono' (hf.monotone hxy st)
-      (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone hxy r.1 r.2) A hA)
-  · -- map_ωSup
-    intro c
-    funext st
-    apply Subtype.ext
-    change MeasureTheory.Measure.bind (f (OmegaCompletePartialOrder.ωSup c) st).1
-             (fun r => (g (OmegaCompletePartialOrder.ωSup c) r.1 r.2).1) =
-           ⨆ n, MeasureTheory.Measure.bind (f (c n) st).1 (fun r => (g (c n) r.1 r.2).1)
-    apply MeasureTheory.Measure.ext
-    intro A hA
-    rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
-        measure_iSup_apply _ (fun n m hnm => by
-          apply MeasureTheory.Measure.le_iff.mpr; intro A' hA'
-          rw [MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable,
-              MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable]
-          exact MeasureTheory.lintegral_mono' (hf.monotone (c.monotone hnm) st)
-            (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone (c.monotone hnm) r.1 r.2) A' hA'))
-          A hA]
-    simp_rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
-    -- Goal: ∫⁻ r, (g (ωSup c) r.1 r.2).1 A ∂(f (ωSup c) st).1 = ⨆ n, ∫⁻ r, (g (c n) r.1 r.2).1 A ∂(f (c n) st).1
-    have hf_eq : (f (OmegaCompletePartialOrder.ωSup c) st).1 = ⨆ n, (f (c n) st).1 :=
-      congr_arg Subtype.val (congr_fun (hf.map_ωSup c) st)
-    have hg_meas : ∀ r : b × s, (g (OmegaCompletePartialOrder.ωSup c) r.1 r.2).1 =
-        ⨆ n, (g (c n) r.1 r.2).1 :=
-      fun r => congr_arg Subtype.val (congr_fun (congr_fun (hg.map_ωSup c) r.1) r.2)
-    have hg_eq_A : ∀ r : b × s, (g (OmegaCompletePartialOrder.ωSup c) r.1 r.2).1 A =
-        ⨆ n, (g (c n) r.1 r.2).1 A := fun r => by
-      rw [hg_meas r]
-      exact measure_iSup_apply _ (fun n m hnm => hg.monotone (c.monotone hnm) r.1 r.2) A hA
-    rw [hf_eq]; simp_rw [hg_eq_A]
-    sorry -- Proof below here broke
-    -- rw [lintegral_iSup_measure_nat (fun n m hnm => hf.monotone (c.monotone hnm) st)]
-    -- simp_rw [MeasureTheory.lintegral_iSup (fun m => measurable_from_top)
-    --   (fun m₁ m₂ hm₁m₂ r => MeasureTheory.Measure.le_iff.mp
-    --     (hg.monotone (c.monotone hm₁m₂) r.1 r.2) A hA)]
-    -- -- Diagonal: ⨆ n, ⨆ m, h n m = ⨆ n, h n n for jointly monotone h
-    -- apply le_antisymm
-    -- · exact iSup_le fun n => iSup_le fun m =>
-    --     (MeasureTheory.lintegral_mono' (hf.monotone (c.monotone (le_max_left n m)) st)
-    --       (fun r => MeasureTheory.Measure.le_iff.mp
-    --         (hg.monotone (c.monotone (le_max_right n m)) r.1 r.2) A hA)).trans
-    --       (le_iSup _ (max n m))
-    -- · exact iSup_le fun n => (le_iSup _ n).trans (le_iSup _ n)
-
--- @[fun_prop]
--- theorem ite_ωScottContinuous
---   [OmegaCompletePartialOrder a]
---   (f : a → Program s b) (g : a → Program s b) (cond)
---   [Decidable cond]
---   (hg : OmegaCompletePartialOrder.ωScottContinuous g) (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
---   OmegaCompletePartialOrder.ωScottContinuous fun x => if cond then f x else g x := by
---   split_ifs
---   · exact hf
---   · exact hg
+  simp only [Bind.bind]
+  have hg' : OmegaCompletePartialOrder.ωScottContinuous (fun x (p : b × s) => g x p.1 p.2) :=
+    OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup
+      ⟨fun _ _ hxy p => hg.monotone hxy p.1 p.2,
+       fun ch => funext fun p => ((hg.apply₂ p.1).apply₂ p.2).map_ωSup ch⟩
+  refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?mono, ?sup⟩
+  case mono =>
+    intro x y hxy s_val
+    exact (SubProbability.bind_ωScottContinuous (fun x => f x s_val) (fun x p => g x p.1 p.2)
+      hg' (hf.apply₂ s_val)).monotone hxy
+  case sup =>
+    intro ch
+    funext s_val
+    exact (SubProbability.bind_ωScottContinuous (fun x => f x s_val) (fun x p => g x p.1 p.2)
+      hg' (hf.apply₂ s_val)).map_ωSup ch
 
 noncomputable
-def while_iteration (cond : Program s Bool) (body : Program s Unit) : Program s Unit →𝒄 Program s Unit :=
+def while_iteration (cond : Program s Bool) (body : Program s Unit) :
+  Program s Unit →𝒄 Program s Unit :=
   OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Program s Unit) =>
-    do
-      if ← cond then
-        body
-        fp
-      else
-        return ()
+    do if ← cond then body; fp
+       else return ()
 
 noncomputable
 def while_loop (cond : Program s Bool) (body : Program s Unit) : Program s Unit :=
   (while_iteration cond body).lfp
 
-theorem while_unroll (cond : Program s Bool) (body : Program s Unit):
+theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
   while_loop cond body = do
       if ← cond then
         body
@@ -373,5 +289,5 @@ theorem while_unroll (cond : Program s Bool) (body : Program s Unit):
       else
         return () := by calc
   _ = while_iteration cond body (while_loop cond body) := by
-    sorry
+    simp [while_loop, ContinuousHom.map_lfp]
   _ = _ := rfl

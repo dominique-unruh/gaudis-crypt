@@ -132,6 +132,8 @@ theorem prfinal_coinToss (b : Bool) (st : state) : coinToss.finalProb1 st b = 1/
   simp [final_probability_wp', wp_uniform]
   cases b <;> simp
   sorry -- trivial1
+  sorry -- trivial1
+
 
 theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s : state) :
     Program.wp (getVar v) f s = f (v.get s, s) := by

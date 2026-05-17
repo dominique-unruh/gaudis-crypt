@@ -73,6 +73,12 @@ theorem ContinuousHom.map_lfp_comp [OmegaCompletePartialOrder α] [OmegaComplete
   · exact (ContinuousHom.lfp_isLfp (f.comp g)).2
         (congr_arg f (ContinuousHom.lfp_isLfp (g.comp f)).1)
 
+@[simp]
+theorem ContinuousHom.map_lfp [OmegaCompletePartialOrder a] [OrderBot a] (f: a →𝒄 a) :
+   f f.lfp = f.lfp :=
+  sorry
+
+
 -- MCT for a monotone sequence of measures: ∫⁻ f d(⨆ μ_n) = ⨆ n, ∫⁻ f dμ_n.
 theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
     {μ : ℕ → MeasureTheory.Measure α} (hmono : Monotone μ) {f : α → ENNReal} :
