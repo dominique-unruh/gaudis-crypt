@@ -188,6 +188,16 @@ lemma SubProbability.bind_ωScottContinuous
   case mono => intro x y hxy; exact hbind.monotone hxy
   case sup => intro ch; apply Subtype.ext; exact hbind.map_ωSup ch
 
+@[fun_prop]
+theorem SubProbability.bind_mono [Preorder i]
+  (f : i → SubProbability a) (g : i → a → SubProbability b)
+  (hf : Monotone f) (hg : Monotone g) :
+  Monotone (fun x => f x >>= g x) := by
+    intro x y hxy
+    letI : MeasurableSpace a := ⊤; letI : MeasurableSpace b := ⊤
+    exact Measure.bind_mono (fun x => (f x).1) (fun x r => (g x r).1)
+      (fun _ _ h => hf h) (fun _ _ h r => hg h r) (fun _ => measurable_from_top) hxy
+
 
 /-!
 # Stateful programs
@@ -248,6 +258,16 @@ instance : Monad (Program s) :=
   (inferInstance : Monad (StateT s SubProbability))
 
 @[fun_prop]
+theorem Program.bind_mono [Preorder i]
+  (f : i → Program s a) (g : i → a → Program s b)
+  (hf : Monotone f) (hg : Monotone g) :
+  Monotone (fun x => f x >>= g x) := by
+    intro x y hxy s_val
+    exact SubProbability.bind_mono (fun x => f x s_val) (fun x p => g x p.1 p.2)
+      (fun _ _ h => hf h s_val) (fun _ _ h p => hg h p.1 p.2) hxy
+
+
+@[fun_prop]
 lemma Program.bind_ωScottContinuous
   [OmegaCompletePartialOrder a]
   (f : a → Program s b) (g : a → b → Program s c)
@@ -260,10 +280,7 @@ lemma Program.bind_ωScottContinuous
       ⟨fun _ _ hxy p => hg.monotone hxy p.1 p.2,
        fun ch => funext fun p => ((hg.apply₂ p.1).apply₂ p.2).map_ωSup ch⟩
   refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?mono, ?sup⟩
-  case mono =>
-    intro x y hxy s_val
-    exact (SubProbability.bind_ωScottContinuous (fun x => f x s_val) (fun x p => g x p.1 p.2)
-      hg' (hf.apply₂ s_val)).monotone hxy
+  case mono => exact Program.bind_mono _ _ hf.monotone hg.monotone
   case sup =>
     intro ch
     funext s_val

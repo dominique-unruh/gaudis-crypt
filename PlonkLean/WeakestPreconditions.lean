@@ -26,22 +26,29 @@ theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := 
 
 theorem expectation_indicator (mu: SubProbability a) (s : Set a) c :
   mu.expected (s.indicator (fun _ => c)) = c * mu.ofEvent s := by
-    simp [SubProbability.expected, SubProbability.ofEvent]
-    sorry
+    letI : MeasurableSpace a := ⊤
+    have hfin : mu.1 s ≠ (⊤ : ENNReal) :=
+      ((MeasureTheory.measure_mono (Set.subset_univ s)).trans mu.2).trans_lt
+        ENNReal.one_lt_top |>.ne
+    simp only [SubProbability.expected, SubProbability.ofEvent, ENNReal.coe_toNNReal hfin]
+    exact MeasureTheory.lintegral_indicator_const (show MeasurableSet s from trivial) c
 
-theorem expectation_mono1 : Monotone fun (p : SubProbability a) => p.expected := by
-  sorry
+@[fun_prop]
+theorem expectation_mono [Preorder i]
+  (μ : i → SubProbability a) (f : i → a → ENNReal)
+  (hμ : Monotone μ) (hf : Monotone f) :
+  Monotone fun x => (μ x).expected (f x) := by
+    intro x y hxy; exact MeasureTheory.lintegral_mono' (hμ hxy) (hf hxy)
 
-theorem expectation_mono2 (p: SubProbability a) : Monotone fun f => p.expected f := by
-  sorry
+
 
 theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProbability b))
   (Ψ : ((b → ENNReal) →o (a → ENNReal)) →o ((b → ENNReal) →o (a → ENNReal)))
   (h : ∀ (X : a → SubProbability b),
       Ψ ⟨fun (f : b → ENNReal) (x : a) => (X x).expected f,
-          fun _ _ hf x => expectation_mono2 (X x) hf⟩
+          fun _ _ hf x => expectation_mono (fun _ => X x) id monotone_const monotone_id hf⟩
          = ⟨fun (f : b → ENNReal) (x : a) => (F X x).expected f,
-             fun _ _ hf x => expectation_mono2 (F X x) hf⟩)
+             fun _ _ hf x => expectation_mono (fun _ => F X x) id monotone_const monotone_id hf⟩)
          (x : a) (f : b → ENNReal)
  : (F.lfp x).expected f = Ψ.lfp f x := by
   -- SubProbability b uses @Measure b ⊤ explicitly; provide ⊤ as a transparent instance
@@ -50,7 +57,7 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
   -- ΦF maps a postcondition g to its expected value under F.lfp, pointwise in the initial state.
   -- This is the expected-value transformer induced by the least fixed point of F.
   let ΦF : (b → ENNReal) →o (a → ENNReal) :=
-    ⟨fun g y => (F.lfp y).expected g, fun g1 g2 hg y => expectation_mono2 (F.lfp y) hg⟩
+    ⟨fun g y => (F.lfp y).expected g, fun g1 g2 hg y => expectation_mono (fun _ => F.lfp y) id monotone_const monotone_id hg⟩
   -- ΦF is a fixed point of Ψ: apply h at F.lfp, then use F(F.lfp) = F.lfp (the lfp equation).
   have hfixed : Ψ ΦF = ΦF := by
     apply OrderHom.ext; funext g y
@@ -84,14 +91,14 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
         -- Use hstep to rewrite the expected value, then apply monotonicity of Ψ (induction
         -- hypothesis) and the pre-fixed point condition φ.
         calc (F (F^[n] ⊥) y).expected g
-            = (Ψ ⟨fun g' y' => (F^[n] ⊥ y').expected g', fun g1 g2 hg y' => expectation_mono2 (F^[n] ⊥ y') hg⟩) g y :=
+            = (Ψ ⟨fun g' y' => (F^[n] ⊥ y').expected g', fun g1 g2 hg y' => expectation_mono (fun _ => F^[n] ⊥ y') id monotone_const monotone_id hg⟩) g y :=
                 (congr_fun (congr_fun (congrArg DFunLike.coe hstep) g) y).symm
           _ ≤ (Ψ φ) g y := Ψ.monotone (fun g' y' => ih g' y') g y
           _ ≤ φ g y := hφ g y
     -- Pass to the limit: F.lfp = ⨆ n, F^n ⊥ (Kleene's theorem), so by MCT the expected value
     -- under F.lfp equals ⨆ n, E[g | F^n ⊥ y], and each term is ≤ φ g y by hind.
     intro g y
-    show (F.lfp y).expected g ≤ φ g y
+    change (F.lfp y).expected g ≤ φ g y
     have hmono : Monotone fun n => (F^[n] ⊥ y).1 :=
       fun m n hmn => (Monotone.monotone_iterate_of_le_map F.monotone (OrderBot.bot_le _) hmn) y
     have hmct : (F.lfp y).expected g = ⨆ n, (F^[n] ⊥ y).expected g := by
@@ -178,10 +185,12 @@ theorem wp_get (f : Program.Post s s) :
   ext
   simp [Program.wp, StateT.get, expected_pure]
 
-theorem wp_mono : Monotone fun (p : Program s a) => p.wp := by
-  intro p q hpq f st
-  simp only [Program.wp, SubProbability.expected]
-  exact MeasureTheory.lintegral_mono' (hpq st) le_rfl
+@[fun_prop]
+theorem wp_mono [Preorder i]
+  (μ : i → Program s a) (f : i → Program.Post s a)
+  (hμ : Monotone μ) (hf : Monotone f) :
+  Monotone fun x => (μ x).wp (f x) := by
+    intro x y hxy st; exact MeasureTheory.lintegral_mono' (hμ hxy st) (hf hxy)
 
 private theorem recursion_wp_mono {X : a → Program s b} :
   Monotone fun f x ↦ (X x).wp f := by
@@ -234,9 +243,9 @@ theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
   (Ψ : ((Program.Post s b) →o Program.Pre s) →o ((Program.Post s b) →o Program.Pre s))
   (h : ∀ (X : Program s b),
       Ψ ⟨fun (f : Program.Post s b) => X.wp f,
-          fun _ _ hf st => expectation_mono2 (X st) hf⟩
+          fun _ _ hf st => expectation_mono (fun _ => X st) id monotone_const monotone_id hf⟩
          = ⟨fun (f : Program.Post s b) => (F X).wp f,
-             fun _ _ hf st => expectation_mono2 (F X st) hf⟩)
+             fun _ _ hf st => expectation_mono (fun _ => F X st) id monotone_const monotone_id hf⟩)
          (f : Program.Post s b)
  : F.lfp.wp f = Ψ.lfp f := by
   -- Program s b = s → SubProbability (b × s), and wp = expected, so this is
@@ -262,11 +271,6 @@ def while_iteration_wp (c : Program s Bool) (p : Program s Unit)
             else
               post ((), st)),
    sorry⟩
-
-@[deprecated while_iteration_wp]
-noncomputable
-def while_iteration_wp''' (c : Program s Bool) (p : Program s Unit) :=
-  tailrec_wp (while_iteration_wp c p)
 
 theorem wp_recursion_tailrec_simplify [CompleteLattice a] [CompleteLattice b] (Φ : a → b →o b) post :
   (tailrec_wp Φ).lfp post = (Φ post).lfp := by
