@@ -49,8 +49,16 @@ instance [Countable a] : FunLike (SubProbability a) a NNReal where
   coe μ x := μ.ofEvent {x}
   coe_injective' μ ν h := by
     apply Subtype.ext
-    -- exact @MeasureTheory.Measure.ext_of_singleton a ⊤ _ μ.1 ν.1 (fun x => congr_fun h x)
-    sorry
+    letI : MeasurableSpace a := ⊤
+    apply MeasureTheory.Measure.ext_of_singleton
+    intro x
+    have hμ : μ.1 {x} ≠ ⊤ :=
+      ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2).trans_lt ENNReal.one_lt_top |>.ne
+    have hν : ν.1 {x} ≠ ⊤ :=
+      ((MeasureTheory.measure_mono (Set.subset_univ _)).trans ν.2).trans_lt ENNReal.one_lt_top |>.ne
+    have hnn : (μ.1 {x}).toNNReal = (ν.1 {x}).toNNReal := congr_fun h x
+    rw [← ENNReal.coe_toNNReal hμ, ← ENNReal.coe_toNNReal hν]
+    exact_mod_cast hnn
 
 
 
@@ -90,7 +98,6 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
 # Stateful programs
 -/
 
-@[reducible]
 def Program (state : Type) := StateT state SubProbability
 
 noncomputable
@@ -140,3 +147,116 @@ noncomputable instance : OmegaCompletePartialOrder (Program s a) where
     apply OmegaCompletePartialOrder.ωSup_le
     intro n
     apply h n s
+
+noncomputable
+instance : Monad (Program s) :=
+  (inferInstance : Monad (StateT s SubProbability))
+
+@[fun_prop]
+lemma bind_ωScottContinuous
+  [OmegaCompletePartialOrder a]
+  (f : a → Program s b) (g : a → b → Program s c)
+  (hg : OmegaCompletePartialOrder.ωScottContinuous g)
+  (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
+  OmegaCompletePartialOrder.ωScottContinuous fun x => (f x) >>= (g x) := by
+  letI : MeasurableSpace b := ⊤
+  letI : MeasurableSpace c := ⊤
+  letI : MeasurableSpace (b × s) := ⊤
+  letI : MeasurableSpace (c × s) := ⊤
+  -- (⨆ n, μ n) A = ⨆ n, μ n A for monotone μ_n and measurable A
+  have measure_iSup_apply : ∀ {α : Type} [MeasurableSpace α]
+      (ν : ℕ → MeasureTheory.Measure α) (hmono : Monotone ν)
+      (A : Set α), MeasurableSet A → (⨆ n, ν n) A = ⨆ n, ν n A := by
+    intro α _ ν hmono A hA
+    have h := lintegral_iSup_measure_nat hmono (f := Set.indicator A 1)
+    simp only [MeasureTheory.lintegral_indicator_one hA] at h
+    exact h
+  refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?hmono, ?hωSup⟩
+  · -- Monotone
+    intro x y hxy st
+    apply MeasureTheory.Measure.le_iff.mpr
+    intro A hA
+    change MeasureTheory.Measure.bind (f x st).1 (fun r => (g x r.1 r.2).1) A ≤
+           MeasureTheory.Measure.bind (f y st).1 (fun r => (g y r.1 r.2).1) A
+    rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
+        MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+    exact MeasureTheory.lintegral_mono' (hf.monotone hxy st)
+      (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone hxy r.1 r.2) A hA)
+  · -- map_ωSup
+    intro c
+    funext st
+    apply Subtype.ext
+    change MeasureTheory.Measure.bind (f (OmegaCompletePartialOrder.ωSup c) st).1
+             (fun r => (g (OmegaCompletePartialOrder.ωSup c) r.1 r.2).1) =
+           ⨆ n, MeasureTheory.Measure.bind (f (c n) st).1 (fun r => (g (c n) r.1 r.2).1)
+    apply MeasureTheory.Measure.ext
+    intro A hA
+    rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
+        measure_iSup_apply _ (fun n m hnm => by
+          apply MeasureTheory.Measure.le_iff.mpr; intro A' hA'
+          rw [MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable,
+              MeasureTheory.Measure.bind_apply hA' measurable_from_top.aemeasurable]
+          exact MeasureTheory.lintegral_mono' (hf.monotone (c.monotone hnm) st)
+            (fun r => MeasureTheory.Measure.le_iff.mp (hg.monotone (c.monotone hnm) r.1 r.2) A' hA'))
+          A hA]
+    simp_rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+    -- Goal: ∫⁻ r, (g (ωSup c) r.1 r.2).1 A ∂(f (ωSup c) st).1 = ⨆ n, ∫⁻ r, (g (c n) r.1 r.2).1 A ∂(f (c n) st).1
+    have hf_eq : (f (OmegaCompletePartialOrder.ωSup c) st).1 = ⨆ n, (f (c n) st).1 :=
+      congr_arg Subtype.val (congr_fun (hf.map_ωSup c) st)
+    have hg_meas : ∀ r : b × s, (g (OmegaCompletePartialOrder.ωSup c) r.1 r.2).1 =
+        ⨆ n, (g (c n) r.1 r.2).1 :=
+      fun r => congr_arg Subtype.val (congr_fun (congr_fun (hg.map_ωSup c) r.1) r.2)
+    have hg_eq_A : ∀ r : b × s, (g (OmegaCompletePartialOrder.ωSup c) r.1 r.2).1 A =
+        ⨆ n, (g (c n) r.1 r.2).1 A := fun r => by
+      rw [hg_meas r]
+      exact measure_iSup_apply _ (fun n m hnm => hg.monotone (c.monotone hnm) r.1 r.2) A hA
+    rw [hf_eq]; simp_rw [hg_eq_A]
+    sorry -- Proof below here broke
+    -- rw [lintegral_iSup_measure_nat (fun n m hnm => hf.monotone (c.monotone hnm) st)]
+    -- simp_rw [MeasureTheory.lintegral_iSup (fun m => measurable_from_top)
+    --   (fun m₁ m₂ hm₁m₂ r => MeasureTheory.Measure.le_iff.mp
+    --     (hg.monotone (c.monotone hm₁m₂) r.1 r.2) A hA)]
+    -- -- Diagonal: ⨆ n, ⨆ m, h n m = ⨆ n, h n n for jointly monotone h
+    -- apply le_antisymm
+    -- · exact iSup_le fun n => iSup_le fun m =>
+    --     (MeasureTheory.lintegral_mono' (hf.monotone (c.monotone (le_max_left n m)) st)
+    --       (fun r => MeasureTheory.Measure.le_iff.mp
+    --         (hg.monotone (c.monotone (le_max_right n m)) r.1 r.2) A hA)).trans
+    --       (le_iSup _ (max n m))
+    -- · exact iSup_le fun n => (le_iSup _ n).trans (le_iSup _ n)
+
+@[fun_prop]
+theorem ite_ωScottContinuous
+  [OmegaCompletePartialOrder a]
+  (f : a → Program s b) (g : a → Program s b) (cond)
+  [Decidable cond]
+  (hg : OmegaCompletePartialOrder.ωScottContinuous g) (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
+  OmegaCompletePartialOrder.ωScottContinuous fun x => if cond then f x else g x := by
+  split_ifs
+  · exact hf
+  · exact hg
+
+noncomputable
+def while_iteration (cond : Program s Bool) (body : Program s Unit) : Program s Unit →𝒄 Program s Unit :=
+  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Program s Unit) =>
+    do
+      if ← cond then
+        body
+        fp
+      else
+        return ()
+
+noncomputable
+def while_loop (cond : Program s Bool) (body : Program s Unit) : Program s Unit :=
+  (while_iteration cond body).lfp
+
+theorem while_unroll (cond : Program s Bool) (body : Program s Unit):
+  while_loop cond body = do
+      if ← cond then
+        body
+        while_loop cond body
+      else
+        return () := by calc
+  _ = while_iteration cond body (while_loop cond body) := by
+    sorry
+  _ = _ := rfl

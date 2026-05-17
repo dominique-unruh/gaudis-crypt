@@ -165,12 +165,15 @@ theorem wp_set (st' : s) (f : Unit × s → ENNReal) (st : s) :
     Program.wp (StateT.set st' : Program s Unit) f st = f ((), st') := by  -- Why doesn't (...).wp syntax work?
   simp [Program.wp, StateT.set, expected_pure]
 
-theorem wp_get (f : Program.Post s s) (st : s) :
-    Program.wp (StateT.get) f st = f (st, st) := by
+theorem wp_get (f : Program.Post s s) :
+    Program.wp (StateT.get) f = fun st => f (st, st) := by
+  ext
   simp [Program.wp, StateT.get, expected_pure]
 
-theorem wp_mono : Monotone fun (p : Program s a) => p.wp :=
-  sorry
+theorem wp_mono : Monotone fun (p : Program s a) => p.wp := by
+  intro p q hpq f st
+  simp only [Program.wp, SubProbability.expected]
+  exact MeasureTheory.lintegral_mono' (hpq st) le_rfl
 
 private theorem recursion_wp_mono {X : a → Program s b} :
   Monotone fun f x ↦ (X x).wp f := by
@@ -233,13 +236,73 @@ theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
   ext st
   exact recursion_expected F Ψ h st f
 
+-- Maybe remove this? recursion_wp_simple is as easy to use, and more intuitive types
 theorem recursion_wp_simple_unit (F : Program s Unit →𝒄 Program s Unit)
   (Ψ : (Program.Pre s →o Program.Pre s) →o (Program.Pre s →o Program.Pre s))
   (h : ∀ (X : Program s Unit),
-      Ψ ⟨fun (f : Program.Pre s) => X.wp (fun (_,s) => f s),
-          sorry⟩
-         = ⟨fun (f : Program.Pre s) => (F X).wp (fun (_,s) => f s),
-             sorry⟩)
+      Ψ ⟨fun (f : Program.Pre s) => X.wp (fun (_, s) => f s),
+          fun _ _ hf st => expectation_mono2 (X st) (fun x => hf x.2)⟩
+         = ⟨fun (f : Program.Pre s) => (F X).wp (fun (_, s) => f s),
+             fun _ _ hf st => expectation_mono2 (F X st) (fun x => hf x.2)⟩)
          (f : Program.Post s Unit)
- : F.lfp.wp f = Ψ.lfp (fun st => f ((),st)) := by
-  sorry
+ : F.lfp.wp f = Ψ.lfp (fun st => f ((), st)) := by
+  -- c1 : (Pre →o Pre) →o (Post Unit →o Pre): embeds ψ as f ↦ ψ (fun st => f ((), st))
+  -- c2 : (Post Unit →o Pre) →o (Pre →o Pre): embeds φ as g ↦ φ (fun x => g x.2)
+  -- c2 ∘ c1 = id since ((), st).2 = st; so Ψ'.lfp = c1 Ψ.lfp by map_lfp_comp.
+  let c1 : (Program.Pre s →o Program.Pre s) →o (Program.Post s Unit →o Program.Pre s) :=
+    ⟨fun ψ => ⟨fun f => ψ (fun st => f ((), st)), fun _ _ hf => ψ.monotone (fun st => hf ((), st))⟩,
+     fun _ _ hψ f => hψ _⟩
+  let c2 : (Program.Post s Unit →o Program.Pre s) →o (Program.Pre s →o Program.Pre s) :=
+    ⟨fun φ => ⟨fun g => φ (fun x => g x.2), fun _ _ hg => φ.monotone (fun x => hg x.2)⟩,
+     fun _ _ hφ g => hφ _⟩
+  -- F' = F (no transformation needed since b = Unit already)
+  -- Ψ' conjugates Ψ through the iso: Ψ' φ f = Ψ (c2 φ) (fun st => f ((), st))
+  let Ψ' := c1.comp (Ψ.comp c2)
+  have h' : ∀ X : Program s Unit,
+      Ψ' ⟨fun f => X.wp f, fun _ _ hf st => expectation_mono2 (X st) hf⟩
+         = ⟨fun f => (F X).wp f, fun _ _ hf st => expectation_mono2 (F X st) hf⟩ := fun X => by
+    apply OrderHom.ext; funext g
+    have key := congr_fun (congrArg DFunLike.coe (h X)) (fun st => g ((), st))
+    simp only [OrderHom.coe_mk] at key
+    calc (Ψ' ⟨fun f => X.wp f, _⟩) g
+        = (Ψ ⟨fun g' => X.wp (fun (_, s) => g' s), _⟩) (fun st => g ((), st)) := rfl
+      _ = (F X).wp (fun (_, s) => g ((), s)) := key
+      _ = (F X).wp g := by congr 1
+  calc F.lfp.wp f
+      = Ψ'.lfp f := recursion_wp_simple F Ψ' h' f
+    _ = Ψ.lfp (fun st => f ((), st)) := by
+        change (c1.comp (Ψ.comp c2)).lfp f = _
+        rw [← OrderHom.map_lfp_comp c1 (Ψ.comp c2)]
+        have hc : (Ψ.comp c2).comp c1 = Ψ := by
+          apply OrderHom.ext; funext ψ; apply OrderHom.ext; funext g; rfl
+        rw [hc]
+        rfl
+
+
+
+noncomputable
+def while_iteration_wp (c : Program s Bool) (p : Program s Unit) :
+  (Program.Post s Unit →o Program.Pre s) →o (Program.Post s Unit →o Program.Pre s) :=
+    ⟨fun (while_wp : Program.Post s Unit →o Program.Pre s) =>
+      ⟨fun (post : Program.Post s Unit) =>
+        c.wp (fun (b, st) =>
+          if b then
+            p.wp (fun ((),st) => while_wp post st) st
+          else
+            post ((), st)),
+      sorry⟩, sorry⟩
+
+theorem wp_while : (while_loop c p).wp f = (while_iteration_wp c p).lfp f := by
+  simp only [while_loop]
+  apply recursion_wp_simple
+  intros fp
+  ext post st
+  simp [while_iteration, wp_bind, wp_ite, wp_pure, while_iteration_wp]
+
+theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit)
+    (f : Program.Post s Unit) (post) :
+    (while_loop b body).wp post = b.wp fun (x,st) ↦ if x then body.wp (fun (x,st) ↦ (while_loop b body).wp post st) st else post ((), st) := by calc
+    (while_loop b body).wp post = while_iteration_wp b body ⟨(while_loop b body).wp, sorry⟩ post := by
+      sorry
+    _ = _ := by
+      rfl
