@@ -12,7 +12,13 @@ def SubProbability.expected (μ : SubProbability a) (f : a → ENNReal) : ENNRea
 
 theorem uniform_expected [Fintype a] [Nonempty a] (f: a → ENNReal):
   SubProbability.uniform.expected f = ∑ x:a, f x / Fintype.card a
-  := sorry
+  := by
+  letI : MeasurableSpace a := ⊤
+  change ∫⁻ x, f x ∂(PMF.uniformOfFintype a).toMeasure = _
+  rw [MeasureTheory.lintegral_fintype]
+  refine Finset.sum_congr rfl fun x _ => ?_
+  rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
+      PMF.uniformOfFintype_apply, ← div_eq_mul_inv]
 
 theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := by
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
