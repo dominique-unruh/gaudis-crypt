@@ -10,7 +10,7 @@ noncomputable
 def SubProbability.expected (μ : SubProbability a) (f : a → ENNReal) : ENNReal :=
   ∫⁻ x, f x ∂μ.1
 
-theorem uniform_expected [Fintype a] [Nonempty a] (f: a → ENNReal):
+theorem uniform_expected [Fintype a] [Nonempty a] (f: a → ENNReal) :
   SubProbability.uniform.expected f = ∑ x:a, f x / Fintype.card a
   := by
   letI : MeasurableSpace a := ⊤
@@ -236,73 +236,55 @@ theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
   ext st
   exact recursion_expected F Ψ h st f
 
--- Maybe remove this? recursion_wp_simple is as easy to use, and more intuitive types
-theorem recursion_wp_simple_unit (F : Program s Unit →𝒄 Program s Unit)
-  (Ψ : (Program.Pre s →o Program.Pre s) →o (Program.Pre s →o Program.Pre s))
-  (h : ∀ (X : Program s Unit),
-      Ψ ⟨fun (f : Program.Pre s) => X.wp (fun (_, s) => f s),
-          fun _ _ hf st => expectation_mono2 (X st) (fun x => hf x.2)⟩
-         = ⟨fun (f : Program.Pre s) => (F X).wp (fun (_, s) => f s),
-             fun _ _ hf st => expectation_mono2 (F X st) (fun x => hf x.2)⟩)
-         (f : Program.Post s Unit)
- : F.lfp.wp f = Ψ.lfp (fun st => f ((), st)) := by
-  -- c1 : (Pre →o Pre) →o (Post Unit →o Pre): embeds ψ as f ↦ ψ (fun st => f ((), st))
-  -- c2 : (Post Unit →o Pre) →o (Pre →o Pre): embeds φ as g ↦ φ (fun x => g x.2)
-  -- c2 ∘ c1 = id since ((), st).2 = st; so Ψ'.lfp = c1 Ψ.lfp by map_lfp_comp.
-  let c1 : (Program.Pre s →o Program.Pre s) →o (Program.Post s Unit →o Program.Pre s) :=
-    ⟨fun ψ => ⟨fun f => ψ (fun st => f ((), st)), fun _ _ hf => ψ.monotone (fun st => hf ((), st))⟩,
-     fun _ _ hψ f => hψ _⟩
-  let c2 : (Program.Post s Unit →o Program.Pre s) →o (Program.Pre s →o Program.Pre s) :=
-    ⟨fun φ => ⟨fun g => φ (fun x => g x.2), fun _ _ hg => φ.monotone (fun x => hg x.2)⟩,
-     fun _ _ hφ g => hφ _⟩
-  -- F' = F (no transformation needed since b = Unit already)
-  -- Ψ' conjugates Ψ through the iso: Ψ' φ f = Ψ (c2 φ) (fun st => f ((), st))
-  let Ψ' := c1.comp (Ψ.comp c2)
-  have h' : ∀ X : Program s Unit,
-      Ψ' ⟨fun f => X.wp f, fun _ _ hf st => expectation_mono2 (X st) hf⟩
-         = ⟨fun f => (F X).wp f, fun _ _ hf st => expectation_mono2 (F X st) hf⟩ := fun X => by
-    apply OrderHom.ext; funext g
-    have key := congr_fun (congrArg DFunLike.coe (h X)) (fun st => g ((), st))
-    simp only [OrderHom.coe_mk] at key
-    calc (Ψ' ⟨fun f => X.wp f, _⟩) g
-        = (Ψ ⟨fun g' => X.wp (fun (_, s) => g' s), _⟩) (fun st => g ((), st)) := rfl
-      _ = (F X).wp (fun (_, s) => g ((), s)) := key
-      _ = (F X).wp g := by congr 1
-  calc F.lfp.wp f
-      = Ψ'.lfp f := recursion_wp_simple F Ψ' h' f
-    _ = Ψ.lfp (fun st => f ((), st)) := by
-        change (c1.comp (Ψ.comp c2)).lfp f = _
-        rw [← OrderHom.map_lfp_comp c1 (Ψ.comp c2)]
-        have hc : (Ψ.comp c2).comp c1 = Ψ := by
-          apply OrderHom.ext; funext ψ; apply OrderHom.ext; funext g; rfl
-        rw [hc]
-        rfl
-
-
+/-- For tailrecursive programs (in particular while-loops), we can write
+    the wp iteration function (argument to `recursion_wp[_simple]`) as
+    `tailrec_wp something`. In this case, we'll have some nicer properties.
+    (See `while_wp_unfold` below for example.) -/
+def tailrec_wp [CompleteLattice a] [CompleteLattice b] (Φ : a → b →o b) :
+  (a →o b) →o (a →o b) :=
+  ⟨fun trafo => ⟨fun post => Φ post (trafo post), sorry⟩, sorry⟩
 
 noncomputable
-def while_iteration_wp (c : Program s Bool) (p : Program s Unit) :
-  (Program.Post s Unit →o Program.Pre s) →o (Program.Post s Unit →o Program.Pre s) :=
-    ⟨fun (while_wp : Program.Post s Unit →o Program.Pre s) =>
-      ⟨fun (post : Program.Post s Unit) =>
-        c.wp (fun (b, st) =>
-          if b then
-            p.wp (fun ((),st) => while_wp post st) st
-          else
-            post ((), st)),
-      sorry⟩, sorry⟩
+def while_iteration_wp (c : Program s Bool) (p : Program s Unit)
+  (post : Program.Post s Unit) :
+  Program.Pre s →o Program.Pre s :=
+  ⟨fun fp => c.wp (fun (b, st) =>
+            if b then
+              p.wp (fun ((),st) => fp st) st
+            else
+              post ((), st)),
+   sorry⟩
 
-theorem wp_while : (while_loop c p).wp f = (while_iteration_wp c p).lfp f := by
+@[deprecated while_iteration_wp]
+noncomputable
+def while_iteration_wp''' (c : Program s Bool) (p : Program s Unit) :=
+  tailrec_wp (while_iteration_wp c p)
+
+theorem wp_recursion_tailrec_simplify [CompleteLattice a] [CompleteLattice b] (Φ : a → b →o b) post :
+  (tailrec_wp Φ).lfp post = (Φ post).lfp := by
+  have lhs_fp : Function.IsFixedPt (Φ post) ((tailrec_wp Φ).lfp post) := sorry
+  clear lhs_fp
+  have leq : (tailrec_wp Φ).lfp post <= (Φ post).lfp := sorry
+  have rhs_fp : Function.IsFixedPt (tailrec_wp Φ) ⟨fun post => (Φ post).lfp, sorry⟩ := sorry
+  have geq : (tailrec_wp Φ).lfp >= ⟨fun post => (Φ post).lfp, sorry⟩ := sorry
+  clear rhs_fp
+  sorry -- Immediate from leq and geq
+
+theorem wp_while' : (while_loop c p).wp f = (tailrec_wp (while_iteration_wp c p)).lfp f := by
   simp only [while_loop]
   apply recursion_wp_simple
-  intros fp
-  ext post st
-  simp [while_iteration, wp_bind, wp_ite, wp_pure, while_iteration_wp]
+  simp [while_iteration, wp_bind, wp_ite, wp_pure, tailrec_wp, while_iteration_wp]
+
+theorem wp_while :
+  (while_loop c p).wp f = (while_iteration_wp c p f).lfp := by
+  simp [wp_while', wp_recursion_tailrec_simplify]
 
 theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit)
     (f : Program.Post s Unit) (post) :
-    (while_loop b body).wp post = b.wp fun (x,st) ↦ if x then body.wp (fun (x,st) ↦ (while_loop b body).wp post st) st else post ((), st) := by calc
-    (while_loop b body).wp post = while_iteration_wp b body ⟨(while_loop b body).wp, sorry⟩ post := by
-      sorry
-    _ = _ := by
-      rfl
+    (while_loop b body).wp post = b.wp fun (x,st) ↦ if x then body.wp (fun (x,st)
+         ↦ (while_loop b body).wp post st) st else post ((), st)
+  := by calc
+      _ = (while_iteration_wp b body post).lfp := by simp [wp_while]
+      _ = while_iteration_wp b body post ((while_iteration_wp b body post).lfp) := sorry
+      _ = while_iteration_wp b body post ((while_loop b body).wp post) := by simp only [wp_while]
+      _ = _ := by simp [while_iteration_wp]

@@ -107,7 +107,7 @@ theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
     simp only [MeasureTheory.SimpleFunc.lintegral,
       measure_iSup_apply _ (g.measurableSet_preimage _), ENNReal.mul_iSup]
     exact ENNReal.finsetSum_iSup_of_monotone fun r m n hmn =>
-      mul_le_mul_left'
+      mul_le_mul_right
         (MeasureTheory.Measure.le_iff.mp (hmono hmn) (g ⁻¹' {r}) (g.measurableSet_preimage _)) r
   apply le_antisymm
   · -- ≤: unfold lintegral as sup over simple functions, use simp_lintegral_iSup
@@ -121,3 +121,21 @@ theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
       _ ≤ ⨆ n, ∫⁻ a, f a ∂μ n := le_iSup (fun n => ∫⁻ a, f a ∂μ n) n
   · -- ≥: each μ n ≤ ⨆ n, μ n so lintegral is monotone
     exact iSup_le fun n => MeasureTheory.lintegral_mono' (le_iSup μ n) le_rfl
+
+
+@[fun_prop]
+theorem ite_ωScottContinuous
+  [OmegaCompletePartialOrder a] [OmegaCompletePartialOrder b]
+  (f : a → b) (g : a → b) (cond)
+  [Decidable cond]
+  (hg : OmegaCompletePartialOrder.ωScottContinuous g) (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
+  OmegaCompletePartialOrder.ωScottContinuous fun x => if cond then f x else g x := by
+  split_ifs
+  · exact hf
+  · exact hg
+
+attribute [fun_prop] Monotone
+
+def OrderHom.ofFun [Preorder α] [Preorder β] (f : α → β) (hf : Monotone f := by fun_prop) : α →o β where
+  toFun := f
+  monotone' := hf

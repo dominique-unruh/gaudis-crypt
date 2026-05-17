@@ -149,11 +149,14 @@ theorem wp_setVar {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit)
 -- Broken... while_iteration_wp doesn't have the right types. Need to fix this in the spirit of the original
 theorem wp_while_invariant (b : Program s Bool) (body : Program s Unit)
     (I : Program.Pre s) (f : Program.Post s Unit)
-    (h : while_iteration_wp b body ⟨fun st => f ((),st), sorry⟩ I ≤ I) :
-    ∀ s, wp_while b body f s ≤ I s := by
-  intro s
-  simp only [wp_while_val]
-  exact (Ψ b body f).lfp_le h s
+    (h : (b.wp fun (x,st) ↦ if x then body.wp (fun (x,st) ↦ (while_loop b body).wp (fun (_,st) => I st) st) st else f ((), st))
+         <= I) :
+    (while_loop b body).wp f ≤ I := by
+    simp [wp_while]
+    intros
+    let xxx := @(while_iteration_wp''' b body).lfp_le
+    apply (Ψ b body f).lfp_le h s
+    exact (Ψ b body f).lfp_le h s
 
 /- A better version of the prfinal_myProg_1 proof
    It doesn't try to reduce to `prfinal coinToss` because that doesn't work canonically.
