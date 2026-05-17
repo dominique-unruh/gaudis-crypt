@@ -18,6 +18,11 @@ theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := 
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
   simp [SubProbability.expected, h]
 
+theorem expectation_indicator (mu: SubProbability a) (s : Set a) c :
+  mu.expected (s.indicator (fun _ => c)) = c * mu.ofEvent s := by
+    simp [SubProbability.expected, SubProbability.ofEvent]
+    sorry
+
 theorem expectation_mono1 : Monotone fun (p : SubProbability a) => p.expected := by
   sorry
 
@@ -27,11 +32,69 @@ theorem expectation_mono2 (p: SubProbability a) : Monotone fun f => p.expected f
 theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProbability b))
   (Ψ : ((b → ENNReal) →o (a → ENNReal)) →o ((b → ENNReal) →o (a → ENNReal)))
   (h : ∀ (X : a → SubProbability b),
-      Ψ ⟨fun (f : b → ENNReal) (x : a) => (X x).expected f, sorry⟩
-         = ⟨fun (f : b → ENNReal) (x : a) => (F X x).expected f, sorry⟩)
+      Ψ ⟨fun (f : b → ENNReal) (x : a) => (X x).expected f,
+          fun _ _ hf x => expectation_mono2 (X x) hf⟩
+         = ⟨fun (f : b → ENNReal) (x : a) => (F X x).expected f,
+             fun _ _ hf x => expectation_mono2 (F X x) hf⟩)
          (x : a) (f : b → ENNReal)
- : (F.lfp x).expected f = Ψ.lfp f x
- := sorry
+ : (F.lfp x).expected f = Ψ.lfp f x := by
+  -- SubProbability b uses @Measure b ⊤ explicitly; provide ⊤ as a transparent instance
+  -- so that lintegral lemmas can find MeasurableSpace b without causing an instance mismatch.
+  letI : MeasurableSpace b := ⊤
+  -- ΦF maps a postcondition g to its expected value under F.lfp, pointwise in the initial state.
+  -- This is the expected-value transformer induced by the least fixed point of F.
+  let ΦF : (b → ENNReal) →o (a → ENNReal) :=
+    ⟨fun g y => (F.lfp y).expected g, fun g1 g2 hg y => expectation_mono2 (F.lfp y) hg⟩
+  -- ΦF is a fixed point of Ψ: apply h at F.lfp, then use F(F.lfp) = F.lfp (the lfp equation).
+  have hfixed : Ψ ΦF = ΦF := by
+    apply OrderHom.ext; funext g y
+    have h1 := congr_fun (congr_fun (congrArg DFunLike.coe (h F.lfp)) g) y
+    rw [(ContinuousHom.lfp_isLfp F).1] at h1
+    exact h1
+  -- Easy direction: Ψ.lfp ≤ ΦF because ΦF is a fixed point and Ψ.lfp is the least one.
+  have hΨ_le : Ψ.lfp ≤ ΦF := Ψ.lfp_le_fixed hfixed
+  -- Hard direction: ΦF ≤ Ψ.lfp, i.e. ΦF is below every pre-fixed point of Ψ.
+  -- We show this by induction on the Kleene iterates F^n ⊥, then take the supremum via MCT.
+  have hΦ_le : ΦF ≤ Ψ.lfp := by
+    apply OrderHom.le_lfp
+    intro φ hφ  -- φ is an arbitrary pre-fixed point: Ψ φ ≤ φ
+    -- Induction: each finite iterate F^n ⊥ already satisfies E[g | F^n ⊥ y] ≤ φ g y.
+    have hind : ∀ n g y, (F^[n] ⊥ y).expected g ≤ φ g y := by
+      intro n; induction n with
+      | zero =>
+        -- F^0 ⊥ = ⊥, the zero measure; lintegral against zero is 0.
+        intro g y
+        simp only [SubProbability.expected,
+          show (F^[0] ⊥ y).1 = (0 : @MeasureTheory.Measure b ⊤) from rfl,
+          MeasureTheory.lintegral_zero_measure, zero_le]
+      | succ n ih =>
+        intro g y
+        -- hstep: Ψ applied to the transformer of F^n ⊥ equals the transformer of F(F^n ⊥).
+        have hstep := h (F^[n] ⊥)
+        -- Rewrite F^(n+1) ⊥ as F applied to F^n ⊥.
+        have hiter : (F^[n+1] ⊥ y).expected g = (F (F^[n] ⊥) y).expected g :=
+          congrArg (SubProbability.expected · g) (congr_fun (Function.iterate_succ_apply' (⇑F) n ⊥) y)
+        rw [hiter]
+        -- Use hstep to rewrite the expected value, then apply monotonicity of Ψ (induction
+        -- hypothesis) and the pre-fixed point condition φ.
+        calc (F (F^[n] ⊥) y).expected g
+            = (Ψ ⟨fun g' y' => (F^[n] ⊥ y').expected g', fun g1 g2 hg y' => expectation_mono2 (F^[n] ⊥ y') hg⟩) g y :=
+                (congr_fun (congr_fun (congrArg DFunLike.coe hstep) g) y).symm
+          _ ≤ (Ψ φ) g y := Ψ.monotone (fun g' y' => ih g' y') g y
+          _ ≤ φ g y := hφ g y
+    -- Pass to the limit: F.lfp = ⨆ n, F^n ⊥ (Kleene's theorem), so by MCT the expected value
+    -- under F.lfp equals ⨆ n, E[g | F^n ⊥ y], and each term is ≤ φ g y by hind.
+    intro g y
+    show (F.lfp y).expected g ≤ φ g y
+    have hmono : Monotone fun n => (F^[n] ⊥ y).1 :=
+      fun m n hmn => (Monotone.monotone_iterate_of_le_map F.monotone (OrderBot.bot_le _) hmn) y
+    have hmct : (F.lfp y).expected g = ⨆ n, (F^[n] ⊥ y).expected g := by
+      simp only [SubProbability.expected]
+      -- (F.lfp y).1 = ⨆ n, (F^n ⊥ y).1 holds by rfl from the OCPO ωSup definition.
+      rw [show (F.lfp y).1 = ⨆ n, (F^[n] ⊥ y).1 from rfl, lintegral_iSup_measure_nat hmono]
+    rw [hmct]
+    exact iSup_le (fun n => hind n g y)
+  exact le_antisymm (hΦ_le f x) (hΨ_le f x)
 
 
 
@@ -52,8 +115,17 @@ def Program.wp (prog : Program s a) (f : Program.Post s a) : Program.Pre s :=
   fun st => (prog st).expected f
 
 theorem final_probability_wp [DecidableEq a] (prog : Program s a) st x :
-  ↑(prog.finalProb1 st x) = prog.wp (fun (y, _) => if y = x then 1 else 0) st :=
-    sorry
+  ↑(prog.finalProb1 st x) = prog.wp (fun (y, _) => if y = x then 1 else 0) st := by
+  symm
+  calc
+    prog.wp (fun (y, _) => if y = x then 1 else 0) st = prog.wp (({x} ×ˢ ⊤).indicator (fun _ => 1)) st := by
+      simp [Program.wp]
+      sorry
+    _ = (prog st).ofEvent ({x} ×ˢ Set.univ) := by
+      simp [Program.wp, expectation_indicator]
+    _ = ↑(prog.finalProb1 st x) := by
+      simp [Program.finalProb1, Program.finalProb]
+
 
 theorem final_probability_wp' [DecidableEq a] (prog : Program s a) st x :
   prog.finalProb1 st x = (prog.wp (fun (y, _) => if y = x then 1 else 0) st).toNNReal :=
@@ -139,3 +211,28 @@ theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
       _ = Ψ.lfp f x st := by
         simp [Ψ', ← OrderHom.map_lfp_comp conv2 (Ψ.comp conv1)]
         congr 1
+
+theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
+  (Ψ : ((Program.Post s b) →o Program.Pre s) →o ((Program.Post s b) →o Program.Pre s))
+  (h : ∀ (X : Program s b),
+      Ψ ⟨fun (f : Program.Post s b) => X.wp f,
+          fun _ _ hf st => expectation_mono2 (X st) hf⟩
+         = ⟨fun (f : Program.Post s b) => (F X).wp f,
+             fun _ _ hf st => expectation_mono2 (F X st) hf⟩)
+         (f : Program.Post s b)
+ : F.lfp.wp f = Ψ.lfp f := by
+  -- Program s b = s → SubProbability (b × s), and wp = expected, so this is
+  -- recursion_expected specialised to a := s, b := b × s.
+  ext st
+  exact recursion_expected F Ψ h st f
+
+theorem recursion_wp_simple_unit (F : Program s Unit →𝒄 Program s Unit)
+  (Ψ : (Program.Pre s →o Program.Pre s) →o (Program.Pre s →o Program.Pre s))
+  (h : ∀ (X : Program s Unit),
+      Ψ ⟨fun (f : Program.Pre s) => X.wp (fun (_,s) => f s),
+          sorry⟩
+         = ⟨fun (f : Program.Pre s) => (F X).wp (fun (_,s) => f s),
+             sorry⟩)
+         (f : Program.Post s Unit)
+ : F.lfp.wp f = Ψ.lfp (fun st => f ((),st)) := by
+  sorry

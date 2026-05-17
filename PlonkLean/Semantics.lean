@@ -40,14 +40,17 @@ noncomputable
 def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability α :=
   toSubProbability (PMF.uniformOfFintype α)
 
-def SubProbability.ofEvent (μ : SubProbability a) e := μ.1 e
+def SubProbability.ofEvent (μ : SubProbability a) e := (μ.1 e).toNNReal
 
-instance [Countable a] : FunLike (SubProbability a) a ENNReal where
+instance : CoeFun (SubProbability a) (fun _ => a -> NNReal) where
+  coe μ x := μ.ofEvent {x}
+
+instance [Countable a] : FunLike (SubProbability a) a NNReal where
   coe μ x := μ.ofEvent {x}
   coe_injective' μ ν h := by
     apply Subtype.ext
-    exact @MeasureTheory.Measure.ext_of_singleton a ⊤ _ μ.1 ν.1 (fun x => congr_fun h x)
-
+    -- exact @MeasureTheory.Measure.ext_of_singleton a ⊤ _ μ.1 ν.1 (fun x => congr_fun h x)
+    sorry
 
 
 
@@ -67,7 +70,7 @@ instance : OrderBot (SubProbability a) where
 
 
 -- MCT for a monotone sequence of measures: ∫⁻ f d(⨆ μ_n) = ⨆ n, ∫⁻ f dμ_n.
-private theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
+theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
     {μ : ℕ → MeasureTheory.Measure α} (hmono : Monotone μ) {f : α → ENNReal} :
     ∫⁻ a, f a ∂(⨆ n, μ n) = ⨆ n, ∫⁻ a, f a ∂μ n := by
   -- Step 1: (⨆ n, μ n) s = ⨆ n, μ n s for measurable s,
@@ -149,7 +152,7 @@ def Program.uniform [h : Fintype α] [h : Nonempty α] : Program s α :=
   SubProbability.uniform.toProgram
 
 def Program.finalProb (prog : Program s a) (st : s) (X : Set a) : NNReal :=
-  ((prog st).ofEvent (X ×ˢ ⊤)).toNNReal
+  ((prog st).ofEvent (X ×ˢ ⊤))
 
 def Program.finalProb1 (prog : Program s a) (st : s) (x : a) : NNReal :=
   prog.finalProb st {x}

@@ -282,7 +282,6 @@ theorem wp_bind_do {α β : Type} (mu : Program0 α) (f : α → Program0 β)
 theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s : state) :
     Program.wp (getVar v) f s = f (v.get s, s) := by
     simp [getVar, wp_bind, wp_pure, wp_get]
-       -- Why doesn't wp_bind apply?
 
 
 
@@ -341,7 +340,7 @@ theorem Ψ_iterate (b : state → Bool) (body : Program0 Unit)
     simp only [wp, hws]
     split_ifs with h
     · -- b s = true: apply wp_bind + IH
-      have hbind := wp_bind body (fun _ => while_iter b body n) f s
+      have hbind := wp_bind body (fun _ => while_iter b body n) f
       simp only [wp] at hbind
       sorry
       -- rw [hbind]; congr 1; ext ⟨_, s'⟩; exact ih s'
@@ -610,6 +609,40 @@ def while_F' (b : state → Bool) (body : Program0 Unit) : Program0 Unit →𝒄
 noncomputable
 def while2 (b : state → Bool) (body : Program0 Unit) : Program0 Unit :=
   (while_F' b body).lfp
+
+noncomputable
+def Ψ' (c : state → Bool) (p : Program0 Unit) : (Program.Post state Unit →o Program.Pre state) →o (Program.Post state Unit →o Program.Pre state) :=
+    ⟨fun (f : Program.Post state Unit →o Program.Pre state) =>
+      ⟨fun (post : Program.Post state Unit) s => if c s then p.wp (fun (_,st) => f post st) s else post ((),s), sorry⟩, sorry⟩
+
+theorem wp_while2 : (while2 c p).wp f = (Ψ' c p).lfp f := by
+  simp only [while2]
+  rw [recursion_wp_simple _ (Ψ' c p)]
+  intro X
+  ext
+  rw [Ψ']
+  rw [while_F']
+  simp
+  rw [while_F] -- Why does this rewrite not work?
+  sorry
+
+noncomputable
+def Ψ'' (c : state → Bool) (p : Program0 Unit) : (Program.Pre state →o Program.Pre state) →o (Program.Pre state →o Program.Pre state) :=
+    ⟨fun (f : Program.Pre state →o Program.Pre state) =>
+      ⟨fun (post : Program.Pre state) s => if c s then p.wp (fun (_,st) => f post st) s else post s, sorry⟩, sorry⟩
+
+theorem wp_while2' : (while2 c p).wp f = (Ψ'' c p).lfp (fun st ↦ f ((), st)) := by
+  simp only [while2]
+  rw [recursion_wp_simple_unit _ (Ψ'' c p)]
+  intro X
+  ext
+  rw [Ψ'']
+  rw [while_F']
+  simp
+  rw [while_F] -- Why does this rewrite not work?
+  sorry
+
+
 
 theorem all_the_same {b body} : while_ b body = while2 b body := by
   funext s
