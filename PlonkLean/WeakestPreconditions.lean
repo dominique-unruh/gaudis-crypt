@@ -305,6 +305,6 @@ theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit)
          ↦ (while_loop b body).wp post st) st else post ((), st)
   := by calc
       _ = (while_iteration_wp b body post).lfp := by simp [wp_while]
-      _ = while_iteration_wp b body post ((while_iteration_wp b body post).lfp) := sorry
+      _ = while_iteration_wp b body post ((while_iteration_wp b body post).lfp) := by simp
       _ = while_iteration_wp b body post ((while_loop b body).wp post) := by simp only [wp_while]
       _ = _ := by simp [while_iteration_wp]
