@@ -4,7 +4,7 @@ Various mathematical things that we use.
 Maybe some should be in mathlib.
 
 -/
-
+import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Order.OmegaCompletePartialOrder
 
 def OmegaCompletePartialOrder.ContinuousHom.lfp [OmegaCompletePartialOrder a] [OrderBot a]
@@ -72,3 +72,52 @@ theorem ContinuousHom.map_lfp_comp [OmegaCompletePartialOrder α] [OmegaComplete
       _ = (f.comp g).lfp := (ContinuousHom.lfp_isLfp (f.comp g)).1
   · exact (ContinuousHom.lfp_isLfp (f.comp g)).2
         (congr_arg f (ContinuousHom.lfp_isLfp (g.comp f)).1)
+
+-- MCT for a monotone sequence of measures: ∫⁻ f d(⨆ μ_n) = ⨆ n, ∫⁻ f dμ_n.
+theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
+    {μ : ℕ → MeasureTheory.Measure α} (hmono : Monotone μ) {f : α → ENNReal} :
+    ∫⁻ a, f a ∂(⨆ n, μ n) = ⨆ n, ∫⁻ a, f a ∂μ n := by
+  -- Step 1: (⨆ n, μ n) s = ⨆ n, μ n s for measurable s,
+  -- proved by constructing the colimit measure ν with ν t = ⨆ n, μ n t.
+  have measure_iSup_apply : ∀ s, MeasurableSet s → (⨆ n, μ n) s = ⨆ n, μ n s := fun s hs => by
+    -- σ-additivity of ν uses: ⨆ n, ∑' i, g n i = ∑' i, ⨆ n, g n i (monotone g).
+    -- Proof via ENNReal.tsum_eq_iSup_sum + iSup_comm + finsetSum_iSup_of_monotone.
+    let ν : MeasureTheory.Measure α := MeasureTheory.Measure.ofMeasurable
+        (fun t _ => ⨆ n, μ n t) (by simp)
+        (fun sets hsets hdisj => by
+          simp_rw [MeasureTheory.measure_iUnion hdisj hsets, ENNReal.tsum_eq_iSup_sum]
+          rw [iSup_comm]
+          congr 1; ext S
+          exact (ENNReal.finsetSum_iSup_of_monotone fun i m n hmn =>
+            MeasureTheory.Measure.le_iff.mp (hmono hmn) (sets i) (hsets i)).symm)
+    have hν : ν = ⨆ n, μ n := le_antisymm
+      (MeasureTheory.Measure.le_iff.mpr fun t ht => by
+        have heq : ν t = ⨆ n, μ n t := MeasureTheory.Measure.ofMeasurable_apply t ht
+        rw [heq]
+        exact iSup_le fun n => MeasureTheory.Measure.le_iff.mp (le_iSup μ n) t ht)
+      (iSup_le fun n => MeasureTheory.Measure.le_iff.mpr fun t ht => by
+        have heq : ν t = ⨆ n, μ n t := MeasureTheory.Measure.ofMeasurable_apply t ht
+        rw [heq]
+        exact le_iSup (μ · t) n)
+    rw [← hν]; exact MeasureTheory.Measure.ofMeasurable_apply s hs
+  -- Step 2: g.lintegral (⨆ n, μ n) = ⨆ n, g.lintegral (μ n) for simple g.
+  -- Proof: unfold lintegral = ∑ r * μ(preimage), swap mul/iSup, swap sum/iSup.
+  have simp_lintegral_iSup : ∀ (g : MeasureTheory.SimpleFunc α ENNReal),
+      g.lintegral (⨆ n, μ n) = ⨆ n, g.lintegral (μ n) := fun g => by
+    simp only [MeasureTheory.SimpleFunc.lintegral,
+      measure_iSup_apply _ (g.measurableSet_preimage _), ENNReal.mul_iSup]
+    exact ENNReal.finsetSum_iSup_of_monotone fun r m n hmn =>
+      mul_le_mul_left'
+        (MeasureTheory.Measure.le_iff.mp (hmono hmn) (g ⁻¹' {r}) (g.measurableSet_preimage _)) r
+  apply le_antisymm
+  · -- ≤: unfold lintegral as sup over simple functions, use simp_lintegral_iSup
+    rw [MeasureTheory.lintegral]
+    apply iSup₂_le; intro g hg
+    rw [simp_lintegral_iSup]
+    apply iSup_le; intro n
+    calc g.lintegral (μ n)
+        = ∫⁻ a, g a ∂μ n := (g.lintegral_eq_lintegral _).symm
+      _ ≤ ∫⁻ a, f a ∂μ n := MeasureTheory.lintegral_mono hg
+      _ ≤ ⨆ n, ∫⁻ a, f a ∂μ n := le_iSup (fun n => ∫⁻ a, f a ∂μ n) n
+  · -- ≥: each μ n ≤ ⨆ n, μ n so lintegral is monotone
+    exact iSup_le fun n => MeasureTheory.lintegral_mono' (le_iSup μ n) le_rfl
