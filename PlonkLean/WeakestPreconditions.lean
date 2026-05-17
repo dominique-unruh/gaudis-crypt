@@ -133,7 +133,7 @@ theorem final_probability_wp [DecidableEq a] (prog : Program s a) (st : s) (x : 
   calc
     prog.wp (fun (y, _) => if y = x then 1 else 0) st = prog.wp (({x} ×ˢ ⊤).indicator (fun _ => 1)) st := by
       simp [Program.wp]
-      sorry
+      congr 1; ext ⟨y, z⟩; simp [Set.indicator]
     _ = (prog st).ofEvent ({x} ×ˢ Set.univ) := by
       simp [Program.wp, expectation_indicator]
     _ = ↑(prog.finalProb1 st x) := by
@@ -142,10 +142,20 @@ theorem final_probability_wp [DecidableEq a] (prog : Program s a) (st : s) (x : 
 
 theorem final_probability_wp' [DecidableEq a] (prog : Program s a) (st : s) (x : a) :
   prog.finalProb1 st x = (prog.wp (fun (y, _) => if y = x then 1 else 0) st).toNNReal :=
-    sorry
+    (ENNReal.toNNReal_coe _).symm.trans (congrArg ENNReal.toNNReal (final_probability_wp prog st x))
 
-theorem wp_lift (μ : SubProbability a) : μ.toProgram.wp f = fun st => μ.expected (fun x => f (x,st))
-  := sorry
+theorem wp_lift (μ : SubProbability a) : μ.toProgram.wp f = fun st => μ.expected (fun x => f (x,st)) := by
+  letI : MeasurableSpace a := ⊤; letI : MeasurableSpace s := ⊤
+  ext st
+  simp only [Program.wp, SubProbability.expected, SubProbability.toProgram, StateT.lift]
+  have hmap : ((fun a => (a, st)) <$> μ : SubProbability (a × s)).1 =
+      μ.1.map (fun a => (a, st)) := by
+    simp only [Functor.map, Function.comp]
+    letI : MeasurableSpace (a × s) := ⊤
+    rw [show (μ >>= fun a => (⟨MeasureTheory.Measure.dirac (a, st), by simp⟩ : SubProbability _)).1 =
+        MeasureTheory.Measure.bind μ.1 (MeasureTheory.Measure.dirac ∘ fun a => (a, st)) from rfl]
+    exact MeasureTheory.Measure.bind_pure_comp _ _
+  rw [hmap, MeasureTheory.lintegral_map measurable_from_top measurable_from_top]
 
 theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
   Program.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
@@ -186,7 +196,7 @@ theorem wp_mono [Preorder i]
 
 private theorem recursion_wp_mono {X : a → Program s b} :
   Monotone fun f x ↦ (X x).wp f := by
-  sorry -- Use wp_mono
+  intro f1 f2 hf x st; exact MeasureTheory.lintegral_mono hf
 
 theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
   (Ψ : ((Program.Post s b) →o (a → Program.Pre s)) →o ((Program.Post s b) →o (a → Program.Pre s)))
