@@ -165,7 +165,15 @@ theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
 theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
     (g : Program.Post s β) :
     (prog >>= f).wp g = prog.wp (fun (a, s') => (f a).wp g s') := by
-  sorry
+  letI : MeasurableSpace (α × s) := ⊤
+  letI : MeasurableSpace (β × s) := ⊤
+  ext st
+  change ∫⁻ x, g x ∂((prog >>= f) st).1
+      = ∫⁻ x, (∫⁻ y, g y ∂((f x.1) x.2).1) ∂(prog st).1
+  have heq : ((prog >>= f) st).1
+      = MeasureTheory.Measure.bind (prog st).1 (fun p => ((f p.1) p.2).1) := rfl
+  rw [heq, MeasureTheory.Measure.lintegral_bind measurable_from_top.aemeasurable
+        measurable_from_top.aemeasurable]
 
 theorem wp_pure {s α : Type} (x : α) (f : Program.Post s α) :
     (pure x : Program s α).wp f = fun st => f (x, st) := by
