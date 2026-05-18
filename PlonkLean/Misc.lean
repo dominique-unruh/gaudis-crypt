@@ -145,3 +145,51 @@ attribute [fun_prop] Monotone
 def OrderHom.ofFun [Preorder α] [Preorder β] (f : α → β) (hf : Monotone f := by fun_prop) : α →o β where
   toFun := f
   monotone' := hf
+
+attribute [fun_prop] monotone_const
+attribute [fun_prop] monotone_id
+
+@[fun_prop]
+theorem monotone_pi_apply [Preorder β] (i : α) : Monotone (fun f : α → β => f i) :=
+  fun _ _ h => h i
+
+@[fun_prop]
+theorem monotone_pi {X : Type*} {ι : Type*} {A : ι → Type*} [Preorder X] [∀ (i : ι), Preorder (A i)]
+   {f : X → (i : ι) → A i} (h : ∀ (i : ι), Monotone fun (a : X) => f a i) :
+  Monotone f := sorry
+
+@[fun_prop]
+theorem monotone_ite (f : a → b) (g : a → b) [Preorder a] [Preorder b] c [Decidable c] :
+  Monotone fun x ↦ if c then f x else g x := sorry
+
+@[fun_prop]
+lemma monotone_comp [Preorder a] [Preorder b] [Preorder c] {f : a → b} {g : c → a} :
+  Monotone f → Monotone g → Monotone fun x ↦ f (g x) := sorry
+
+@[fun_prop]
+lemma monotone_OrderHom_mk [Preorder i] [Preorder a] [Preorder b] (f : i → a → b) (p : ∀ x, Monotone (f x))
+  (h : Monotone f) :
+  Monotone fun (x : i) ↦ ({ toFun := f x, monotone' := p x } : a →o b) := sorry
+
+@[fun_prop]
+theorem monotone_fst' [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y × Z) (hf : Monotone f) :
+    Monotone (fun x ↦ (f x).fst) := sorry
+
+@[fun_prop]
+theorem monotone_snd' [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y × Z) (hf : Monotone f) :
+    Monotone (fun x ↦ (f x).snd) := sorry
+
+@[fun_prop]
+theorem monotone_prod_mk [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y) (g : X → Z) (hf : Monotone f) (hg : Monotone g) :
+    Monotone (fun x ↦ (f x, g x)) := sorry
+
+
+@[fun_prop]
+theorem monotone_ContinuousHom [OmegaCompletePartialOrder a] [OmegaCompletePartialOrder b]
+  (f : a →𝒄 b) : Monotone (fun x ↦ f x) := f.monotone
+
+@[fun_prop]
+theorem monotone_OrderHom_apply [Preorder a] [Preorder b] [Preorder c]
+    {f : a → b →o c} (hf : Monotone f) {g : a → b} (hg : Monotone g) :
+    Monotone (fun x ↦ f x (g x)) :=
+  fun _ _ hx => ((f _).monotone (hg hx)).trans (hf hx _)
