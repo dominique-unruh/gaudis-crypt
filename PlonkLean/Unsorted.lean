@@ -167,3 +167,38 @@ theorem prfinal_myProg_1_better (s : state) : prfinal myProg 1 s = 1/2 := by
   simp only [prfinal, final_probability_wp']
   simp [myProg, wp_bind, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_uniform]
   sorry
+
+
+-- Mutual recursion example
+
+noncomputable
+def prog1 (prog2 : Program s String) : Program s Nat := do
+  let b : Bool <- Program.uniform
+  if b then
+    let x <- prog2
+    return x.length
+  else
+    return 0
+
+noncomputable
+def prog2 (prog1 : Program s Nat) : Program s String := do
+  let x <- prog1
+  return toString x
+
+noncomputable
+def iter (prog12 : ∀ b:Bool, Program s (if b then Nat else String)) (b:Bool) :
+  Program s (if b then Nat else String) :=
+  match b with
+    | true => prog1 (prog12 false)
+    | false => prog2 (prog12 true)
+
+theorem iter_cont {s} : OmegaCompletePartialOrder.ωScottContinuous (iter (s:=s)) :=
+  sorry
+
+noncomputable
+def prog12 : ∀ b:Bool, Program s (if b then Nat else String) :=
+  recursion (OmegaCompletePartialOrder.ContinuousHom.ofFun iter (hf := iter_cont))
+
+-- Note: the wp-theorems don't allow us to analyze this yet,
+-- because the return type of prog12 is dependent on b and the theorems
+-- are stated nondependently. Fix!

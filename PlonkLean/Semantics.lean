@@ -8,7 +8,8 @@ import PlonkLean.Misc
 
 -- Use this instead of .lfp so make sure the types are right.
 @[reducible]
-def recursion {a b} [OmegaCompletePartialOrder b] [OrderBot b] (F : (a → b) →𝒄 (a → b)) : a → b :=
+def recursion {a} {b : a → Type*} [∀ x, OmegaCompletePartialOrder (b x)] [∀ x, OrderBot (b x)]
+   (F : (∀ x, b x) →𝒄 (∀ x, b x)) : ∀ x, b x :=
   F.lfp
 
 /-!
@@ -289,6 +290,7 @@ def while_iteration (cond : Program s Bool) (body : Program s Unit) :
     do if ← cond then body; fp ()
        else return ()
 
+-- TODO Make while loop return non-unit value
 noncomputable
 def while_loop (cond : Program s Bool) (body : Program s Unit) : Program s Unit :=
   recursion (while_iteration cond body) ()

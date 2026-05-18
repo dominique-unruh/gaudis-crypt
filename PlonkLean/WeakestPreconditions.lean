@@ -41,7 +41,7 @@ theorem expectation_mono [Preorder i]
     intro x y hxy; exact MeasureTheory.lintegral_mono' (hμ hxy) (hf hxy)
 
 
-
+-- TODO Let b depend on a?
 theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProbability b))
   (Ψ : ((b → ENNReal) →o (a → ENNReal)) →o ((b → ENNReal) →o (a → ENNReal)))
   (h : ∀ (X : a → SubProbability b),
@@ -201,13 +201,7 @@ theorem wp_mono [Preorder i]
   Monotone fun x => (μ x).wp (f x) := by
     intro x y hxy st; exact MeasureTheory.lintegral_mono' (hμ hxy st) (hf hxy)
 
-private theorem recursion_wp_mono {X : a → Program s b} :
-  Monotone fun f x ↦ (X x).wp f := by
-  intro f1 f2 hf x st; exact MeasureTheory.lintegral_mono hf
-
-
-#check recursion_expected
-
+-- TODO Let b,s depend on a?
 theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
   (Ψ : (a → Program.Post s b →o Program.Pre s) →o (a → Program.Post s b →o Program.Pre s))
   (h : ∀ (X : a → Program s b) (f : Program.Post s b) (x : a),
@@ -238,29 +232,17 @@ theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
       _ = (F'.lfp (x,st)).expected f := by
         simp only [F']
         simp only [← ContinuousHom.map_lfp_comp uncurry (F.comp curry)]
-        have aux : (F.comp curry).comp uncurry = F := by sorry
+        have aux : (F.comp curry).comp uncurry = F := by
+          ext; simp [uncurry, curry]
         simp [aux, uncurry]
       _ = Ψ'.lfp f (x,st)  := by
         apply recursion_expected; intro; apply h
       _ = Ψ.lfp x f st := by
         simp only [Ψ']
-        have aux : (Ψ.comp conv1).comp conv2 = Ψ := sorry
+        have aux : (Ψ.comp conv1).comp conv2 = Ψ := by
+          ext f x; simp only [conv1, conv2]; trivial
         rw [← OrderHom.map_lfp_comp conv2 (Ψ.comp conv1), aux]
         simp [conv2]
-
-theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
-  (Ψ : ((Program.Post s b) →o Program.Pre s) →o ((Program.Post s b) →o Program.Pre s))
-  (h : ∀ (X : Program s b),
-      Ψ ⟨fun (f : Program.Post s b) => X.wp f,
-          fun _ _ hf st => expectation_mono (fun _ => X st) id monotone_const monotone_id hf⟩
-         = ⟨fun (f : Program.Post s b) => (F X).wp f,
-             fun _ _ hf st => expectation_mono (fun _ => F X st) id monotone_const monotone_id hf⟩)
-         (f : Program.Post s b)
- : F.lfp.wp f = Ψ.lfp f := by
-  -- Program s b = s → SubProbability (b × s), and wp = expected, so this is
-  -- recursion_expected specialised to a := s, b := b × s.
-  ext st
-  exact recursion_expected F Ψ h st f
 
 /-- For tailrecursive programs (in particular while-loops), we can write
     the wp iteration function (argument to `recursion_wp[_simple]`) as
@@ -282,6 +264,7 @@ def while_iteration_wp (c : Program s Bool) (p : Program s Unit) (_ : Unit) :
      by fun_prop⟩,
    by fun_prop⟩
 
+-- TODO allow types to depend on a
 theorem wp_recursion_tailrec_simplify [CompleteLattice b] [CompleteLattice c]
     (Φ : a → b →o (c →o c)) post x :
     (tailrec_wp Φ).lfp x post = (Φ x post).lfp := by
