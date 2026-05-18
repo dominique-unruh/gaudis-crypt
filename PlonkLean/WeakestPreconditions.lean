@@ -294,3 +294,14 @@ theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit) (post) :
       _ = while_iteration_wp b body () post ((while_iteration_wp b body () post).lfp) := by simp
       _ = while_iteration_wp b body () post ((while_loop b body).wp post) := by simp only [wp_while]
       _ = _ := by simp [while_iteration_wp]
+
+-- Loop invariant rule: if I is a pre-fixed-point of Ψ, then wp_while_val ≤ I.
+-- Concretely: if (∀ s, if b s then wp body (fun (_, s') => I s') s else f ((), s)) ≤ I s,
+-- then the loop's wp is bounded by I.
+theorem wp_while_invariant (b : Program s Bool) (body : Program s Unit)
+    (I : Program.Pre s) (f : Program.Post s Unit)
+    (h : (b.wp fun (x, st) ↦ if x then body.wp (fun (_, st) ↦ I st) st else f ((), st))
+         <= I) :
+    (while_loop b body).wp f ≤ I := by
+    simp only [wp_while]
+    apply (while_iteration_wp b body () f).lfp_le h

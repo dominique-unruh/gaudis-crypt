@@ -144,21 +144,7 @@ theorem wp_setVar {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit)
     simp [setVar, wp_bind, wp_get, wp_set]
 
 
--- Loop invariant rule: if I is a pre-fixed-point of Ψ, then wp_while_val ≤ I.
--- Concretely: if (∀ s, if b s then wp body (fun (_, s') => I s') s else f ((), s)) ≤ I s,
--- then the loop's wp is bounded by I.
 
--- Broken... while_iteration_wp doesn't have the right types. Need to fix this in the spirit of the original
-theorem wp_while_invariant (b : Program s Bool) (body : Program s Unit)
-    (I : Program.Pre s) (f : Program.Post s Unit)
-    (h : (b.wp fun (x,st) ↦ if x then body.wp (fun (x,st) ↦ (while_loop b body).wp (fun (_,st) => I st) st) st else f ((), st))
-         <= I) :
-    (while_loop b body).wp f ≤ I := by
-    simp [wp_while]
-    intros
-    let xxx := @(while_iteration_wp''' b body).lfp_le
-    apply (Ψ b body f).lfp_le h s
-    exact (Ψ b body f).lfp_le h s
 
 /- A better version of the prfinal_myProg_1 proof
    It doesn't try to reduce to `prfinal coinToss` because that doesn't work canonically.
@@ -202,3 +188,8 @@ def prog12 : ∀ b:Bool, Program s (if b then Nat else String) :=
 -- Note: the wp-theorems don't allow us to analyze this yet,
 -- because the return type of prog12 is dependent on b and the theorems
 -- are stated nondependently. Fix!
+
+-- I think prog1 outputs 0/1 with probability 1/2 each. Can we show this?
+-- Proof idea: represent the wp as an lfp of some function iter_wp.
+-- Manually iterate iter_wp starting at bot.
+-- I think this converges after 2 steps or so.
