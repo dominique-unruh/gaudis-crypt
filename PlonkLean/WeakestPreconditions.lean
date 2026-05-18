@@ -204,13 +204,15 @@ private theorem recursion_wp_mono {X : a → Program s b} :
   Monotone fun f x ↦ (X x).wp f := by
   intro f1 f2 hf x st; exact MeasureTheory.lintegral_mono hf
 
+#check recursion_expected
+
 theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
-  (Ψ : ((Program.Post s b) →o (a → Program.Pre s)) →o ((Program.Post s b) →o (a → Program.Pre s)))
-  (h : ∀ (X : a → Program s b),
-      Ψ ⟨fun (f : Program.Post s b) (x : a) => (X x).wp f, recursion_wp_mono⟩
-         = ⟨fun (f : Program.Post s b) (x : a) => (F X x).wp f, recursion_wp_mono⟩)
-         (x : a) (f : Program.Post s b)
- : (F.lfp x).wp f = Ψ.lfp f x := by
+  (Ψ : (a → Program.Post s b →o Program.Pre s) →o (a → Program.Post s b →o Program.Pre s))
+  (h : ∀ (X : a → Program s b) (f : Program.Post s b) (x : a),
+      Ψ (fun (x : a) => ⟨fun (f : Program.Post s b) => (X x).wp f, fun f1 f2 hf x => MeasureTheory.lintegral_mono hf⟩) x f
+         = (F X x).wp f)
+  (f : Program.Post s b) x
+ : (recursion F x).wp f = Ψ.lfp x f := by
     ext st
     let curry : (a × s → SubProbability (b × s)) →𝒄 (a → Program s b) :=
       OmegaCompletePartialOrder.ContinuousHom.ofFun fun f a b => f (a, b)
@@ -218,34 +220,36 @@ theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
       OmegaCompletePartialOrder.ContinuousHom.ofFun fun f a => f a.1 a.2
     let F' : (a × s → SubProbability (b × s)) →𝒄 (a × s → SubProbability (b × s)) :=
       uncurry.comp (F.comp curry)
-    let conv1 : ((b × s → ENNReal) →o (a × s → ENNReal)) →o ((b × s → ENNReal) →o (a → s → ENNReal)) :=
-      ⟨fun φ => ⟨fun g => Function.curry (φ g), fun g1 g2 hg a' b' => φ.monotone hg (a', b')⟩,
-       fun φ1 φ2 hφ g a' b' => hφ g (a', b')⟩
-    let conv2 : ((b × s → ENNReal) →o (a → s → ENNReal)) →o ((b × s → ENNReal) →o (a × s → ENNReal)) :=
-      ⟨fun φ => ⟨fun g => Function.uncurry (φ g), fun g1 g2 hg ⟨a', b'⟩ => φ.monotone hg a' b'⟩,
-       fun φ1 φ2 hφ g ⟨a', b'⟩ => hφ g a' b'⟩
+    let conv1 : ((b × s → ENNReal) →o (a × s → ENNReal)) →o (a → Program.Post s b →o Program.Pre s) :=
+      ⟨fun φ (x : a) => ⟨fun (post : Program.Post s b) st => φ post (x, st), sorry⟩, sorry⟩
+    let conv2 : (a → Program.Post s b →o Program.Pre s) →o ((b × s → ENNReal) →o (a × s → ENNReal)) :=
+      ⟨fun φ => ⟨fun post ⟨x, st⟩ => φ x post st, sorry⟩, sorry⟩
     let Ψ' : ((b × s → ENNReal) →o (a × s → ENNReal)) →o ((b × s → ENNReal) →o (a × s → ENNReal)) :=
       conv2.comp (Ψ.comp conv1)
-      -- ⟨fun f => conv2 (Ψ (conv1 f)), fun f1 f2 hf g ⟨a, b⟩ => Ψ.monotone (fun g' a' b' => hf g' (a', b')) g a b⟩
     have h X : Ψ' ⟨fun f x ↦ (X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ =
               ⟨fun f x ↦ (F' X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ := by
-      let X' : a → Program s b := curry X
+/-      let X' : a → Program s b := curry X
       have lhs : conv1 ⟨fun f x ↦ (X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ =
-          ⟨fun f x ↦ (X' x).wp f, recursion_wp_mono⟩ := by
-        apply OrderHom.ext; funext g a' b'; rfl
+          ⟨fun (f : a → Program.Post s b) (x : a) => (X' x).wp (f x), fun g1 g2 hg x st => MeasureTheory.lintegral_mono (hg x)⟩ := by
+        apply OrderHom.ext; funext g x st; rfl
       change conv2 (Ψ (conv1 ⟨fun f x ↦ (X x).expected f, _⟩)) = ⟨fun f x ↦ (F' X x).expected f, _⟩
       rw [lhs, h X']
-      apply OrderHom.ext; funext g x; rfl
+      apply OrderHom.ext; funext g x; rfl -/
+      sorry
     calc
-      (F.lfp x).wp f st = (F.lfp x st).expected f := rfl
+      (recursion F x).wp f st = (F.lfp x st).expected f := rfl
       _ = (F'.lfp (x,st)).expected f := by
-        simp only [F', ← ContinuousHom.map_lfp_comp uncurry (F.comp curry)]
-        congr 1
+        simp only [F']
+        simp only [← ContinuousHom.map_lfp_comp uncurry (F.comp curry)]
+        have aux : (F.comp curry).comp uncurry = F := by sorry
+        simp [aux, uncurry]
       _ = Ψ'.lfp f (x,st)  := by
         apply recursion_expected; apply h
-      _ = Ψ.lfp f x st := by
-        simp [Ψ', ← OrderHom.map_lfp_comp conv2 (Ψ.comp conv1)]
-        congr 1
+      _ = Ψ.lfp x f st := by
+        simp only [Ψ']
+        have aux : (Ψ.comp conv1).comp conv2 = Ψ := sorry
+        rw [← OrderHom.map_lfp_comp conv2 (Ψ.comp conv1), aux]
+        simp [conv2]
 
 theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
   (Ψ : ((Program.Post s b) →o Program.Pre s) →o ((Program.Post s b) →o Program.Pre s))
@@ -265,54 +269,47 @@ theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
     the wp iteration function (argument to `recursion_wp[_simple]`) as
     `tailrec_wp something`. In this case, we'll have some nicer properties.
     (See `while_wp_unfold` below for example.) -/
-def tailrec_wp [CompleteLattice a] [CompleteLattice b] (Φ : a →o (b →o b)) :
-  (a →o b) →o (a →o b) :=
-  ⟨fun trafo => ⟨fun post => Φ post (trafo post),
-      fun p1 p2 h => (Φ.monotone h (trafo p1)).trans ((Φ p2).monotone (trafo.monotone h))⟩, -- TODO avoid long inline proofs in defs
-   fun _ _ h post => (Φ post).monotone (h post)⟩ -- TODO avoid long inline proofs in defs
+def tailrec_wp [CompleteLattice b] [CompleteLattice c] (Φ : a → b →o (c →o c)) :
+  (a → b →o c) →o (a → b →o c) :=
+  ⟨fun trafo x => ⟨fun (post:b) => Φ x post (trafo x post), sorry⟩, -- TODO avoid long inline proofs in defs
+   sorry⟩ -- TODO avoid long inline proofs in defs
 
 noncomputable
-def while_iteration_wp (c : Program s Bool) (p : Program s Unit) :
-  Program.Post s Unit →o (Program.Pre s →o Program.Pre s) :=
+def while_iteration_wp (c : Program s Bool) (p : Program s Unit) (_: Unit) :
+  (Program.Post s Unit) →o (Program.Pre s →o Program.Pre s) :=
   ⟨fun post => ⟨fun fp => c.wp (fun (b, st) =>
-              if b then
-                p.wp (fun ((),st) => fp st) st
-              else
-                post ((), st)),
-     fun fp1 fp2 h st => by -- TODO avoid long inline proofs in defs
-       apply MeasureTheory.lintegral_mono
-       rintro ⟨b, st'⟩
-       cases b
-       · exact le_rfl
-       · exact MeasureTheory.lintegral_mono fun ⟨_, st''⟩ => h st''⟩, -- TODO avoid long inline proofs in defs
-   fun post1 post2 hpost fp st => by
-     apply MeasureTheory.lintegral_mono
-     rintro ⟨b, st'⟩
-     cases b
-     · exact hpost ((), st')
-     · exact le_rfl⟩
+                  if b then
+                    p.wp (fun ((),st) => fp st) st
+                  else
+                    post ((), st)),
+     sorry⟩, -- TODO avoid long inline proofs in defs
+   sorry⟩
 
-theorem wp_recursion_tailrec_simplify [CompleteLattice a] [CompleteLattice b]
-    (Φ : a →o (b →o b)) post :
-    (tailrec_wp Φ).lfp post = (Φ post).lfp := by
+theorem wp_recursion_tailrec_simplify [CompleteLattice b] [CompleteLattice c]
+    (Φ : a → b →o (c →o c)) post x :
+    (tailrec_wp Φ).lfp x post = (Φ x post).lfp := by
   apply le_antisymm
   · -- (tailrec_wp Φ).lfp ≤ ⟨fun post => (Φ post).lfp, _⟩, so at post we get ≤
-    have hmono : Monotone (fun p : a => (Φ p).lfp) :=
+    have hmono x : Monotone (fun p : b => (Φ x p).lfp) :=
       fun p1 p2 h => OrderHom.lfp.monotone (Φ.monotone h)
     have rhs_fp : tailrec_wp Φ ⟨_, hmono⟩ = ⟨_, hmono⟩ := by
-      ext p; exact (Φ p).map_lfp
+      sorry
     exact (tailrec_wp Φ).lfp_le_fixed rhs_fp post
   · -- (Φ post).lfp ≤ (tailrec_wp Φ).lfp post because the latter is a fixed point of Φ post
     apply (Φ post).lfp_le_fixed
     exact DFunLike.congr_fun (OrderHom.map_lfp (tailrec_wp Φ)) post
 
-theorem wp_while' : (while_loop c p).wp f = (tailrec_wp (while_iteration_wp c p)).lfp f := by
+variable  (c : Program s Bool) (p : Program s Unit)
+#check tailrec_wp (while_iteration_wp c p)
+
+theorem wp_while' :
+  (while_loop c p).wp f = (tailrec_wp (while_iteration_wp c p)).lfp () f := by
   simp only [while_loop]
-  apply recursion_wp_simple
+  apply recursion_wp (while_iteration c p) (tailrec_wp (while_iteration_wp c p)) _ f ()
   simp [while_iteration, wp_bind, wp_ite, wp_pure, tailrec_wp, while_iteration_wp]
 
 theorem wp_while :
-  (while_loop c p).wp f = (while_iteration_wp c p f).lfp := by
+  (while_loop c p).wp f = (while_iteration_wp c p () f).lfp := by
   simp [wp_while', wp_recursion_tailrec_simplify]
 
 theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit)
@@ -320,7 +317,7 @@ theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit)
     (while_loop b body).wp post = b.wp fun (x,st) ↦ if x then body.wp (fun (x,st)
          ↦ (while_loop b body).wp post st) st else post ((), st)
   := by calc
-      _ = (while_iteration_wp b body post).lfp := by simp [wp_while]
-      _ = while_iteration_wp b body post ((while_iteration_wp b body post).lfp) := by simp
-      _ = while_iteration_wp b body post ((while_loop b body).wp post) := by simp only [wp_while]
+      _ = (while_iteration_wp b body () post).lfp := by simp [wp_while]
+      _ = while_iteration_wp b body () post ((while_iteration_wp b body () post).lfp) := by simp
+      _ = while_iteration_wp b body () post ((while_loop b body).wp post) := by simp only [wp_while]
       _ = _ := by simp [while_iteration_wp]

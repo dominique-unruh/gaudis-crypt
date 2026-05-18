@@ -6,8 +6,9 @@ import PlonkLean.Misc
 # General stuff
 -/
 
--- TODO: Should we keep this? It's a very simple rhs
-def recursion [OmegaCompletePartialOrder a] [OrderBot a] (F : a →𝒄 a) : a :=
+-- Use this instead of .lfp so make sure the types are right.
+@[reducible]
+def recursion {a b} [OmegaCompletePartialOrder b] [OrderBot b] (F : (a → b) →𝒄 (a → b)) : a → b :=
   F.lfp
 
 /-!
@@ -59,9 +60,6 @@ instance [Countable a] : FunLike (SubProbability a) a NNReal where
     rw [← ENNReal.coe_toNNReal hμ, ← ENNReal.coe_toNNReal hν]
     exact_mod_cast hnn
 
-
-
-
 instance : PartialOrder (SubProbability a) where
   le p q := p.1 <= q.1
   le_refl _ _ := le_refl _
@@ -70,12 +68,9 @@ instance : PartialOrder (SubProbability a) where
     apply Subtype.ext
     exact le_antisymm hpq hqp
 
-
 instance : OrderBot (SubProbability a) where
   bot := ⟨0, by simp⟩
   bot_le x := MeasureTheory.Measure.zero_le _
-
-
 
 noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
   ωSup c := ⟨⨆ n, (c n).1, by
@@ -289,14 +284,14 @@ lemma Program.bind_ωScottContinuous
 
 noncomputable
 def while_iteration (cond : Program s Bool) (body : Program s Unit) :
-  Program s Unit →𝒄 Program s Unit :=
-  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Program s Unit) =>
-    do if ← cond then body; fp
+  (Unit → Program s Unit) →𝒄 (Unit → Program s Unit) :=
+  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → Program s Unit) => fun () =>
+    do if ← cond then body; fp ()
        else return ()
 
 noncomputable
 def while_loop (cond : Program s Bool) (body : Program s Unit) : Program s Unit :=
-  (while_iteration cond body).lfp
+  recursion (while_iteration cond body) ()
 
 theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
   while_loop cond body = do
@@ -305,6 +300,7 @@ theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
         while_loop cond body
       else
         return () := by calc
-  _ = while_iteration cond body (while_loop cond body) := by
-    simp [while_loop, ContinuousHom.map_lfp]
+  _ = recursion (while_iteration cond body) () := rfl
+  _ = while_iteration cond body (recursion (while_iteration cond body)) () := by
+    simp [ContinuousHom.map_lfp]
   _ = _ := rfl
