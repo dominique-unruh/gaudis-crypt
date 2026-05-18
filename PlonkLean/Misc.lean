@@ -76,7 +76,7 @@ theorem ContinuousHom.map_lfp_comp [OmegaCompletePartialOrder α] [OmegaComplete
 @[simp]
 theorem ContinuousHom.map_lfp [OmegaCompletePartialOrder a] [OrderBot a] (f: a →𝒄 a) :
    f f.lfp = f.lfp :=
-  sorry
+  (ContinuousHom.lfp_isLfp f).1
 
 
 -- MCT for a monotone sequence of measures: ∫⁻ f d(⨆ μ_n) = ⨆ n, ∫⁻ f dμ_n.

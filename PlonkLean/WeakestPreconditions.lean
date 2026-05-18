@@ -10,7 +10,7 @@ noncomputable
 def SubProbability.expected (μ : SubProbability a) (f : a → ENNReal) : ENNReal :=
   ∫⁻ x, f x ∂μ.1
 
-theorem uniform_expected [Fintype a] [Nonempty a] (f: a → ENNReal) :
+theorem uniform_expected [Fintype a] [Nonempty a] (f : a → ENNReal) :
   SubProbability.uniform.expected f = ∑ x:a, f x / Fintype.card a
   := by
   letI : MeasurableSpace a := ⊤
@@ -24,7 +24,7 @@ theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := 
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
   simp [SubProbability.expected, h]
 
-theorem expectation_indicator (mu: SubProbability a) (s : Set a) c :
+theorem expectation_indicator (mu : SubProbability a) (s : Set a) c :
   mu.expected (s.indicator (fun _ => c)) = c * mu.ofEvent s := by
     letI : MeasurableSpace a := ⊤
     have hfin : mu.1 s ≠ (⊤ : ENNReal) :=
@@ -265,30 +265,46 @@ theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
     the wp iteration function (argument to `recursion_wp[_simple]`) as
     `tailrec_wp something`. In this case, we'll have some nicer properties.
     (See `while_wp_unfold` below for example.) -/
-def tailrec_wp [CompleteLattice a] [CompleteLattice b] (Φ : a → b →o b) :
+def tailrec_wp [CompleteLattice a] [CompleteLattice b] (Φ : a →o (b →o b)) :
   (a →o b) →o (a →o b) :=
-  ⟨fun trafo => ⟨fun post => Φ post (trafo post), sorry⟩, sorry⟩
+  ⟨fun trafo => ⟨fun post => Φ post (trafo post),
+      fun p1 p2 h => (Φ.monotone h (trafo p1)).trans ((Φ p2).monotone (trafo.monotone h))⟩, -- TODO avoid long inline proofs in defs
+   fun _ _ h post => (Φ post).monotone (h post)⟩ -- TODO avoid long inline proofs in defs
 
 noncomputable
-def while_iteration_wp (c : Program s Bool) (p : Program s Unit)
-  (post : Program.Post s Unit) :
-  Program.Pre s →o Program.Pre s :=
-  ⟨fun fp => c.wp (fun (b, st) =>
-            if b then
-              p.wp (fun ((),st) => fp st) st
-            else
-              post ((), st)),
-   sorry⟩
+def while_iteration_wp (c : Program s Bool) (p : Program s Unit) :
+  Program.Post s Unit →o (Program.Pre s →o Program.Pre s) :=
+  ⟨fun post => ⟨fun fp => c.wp (fun (b, st) =>
+              if b then
+                p.wp (fun ((),st) => fp st) st
+              else
+                post ((), st)),
+     fun fp1 fp2 h st => by -- TODO avoid long inline proofs in defs
+       apply MeasureTheory.lintegral_mono
+       rintro ⟨b, st'⟩
+       cases b
+       · exact le_rfl
+       · exact MeasureTheory.lintegral_mono fun ⟨_, st''⟩ => h st''⟩, -- TODO avoid long inline proofs in defs
+   fun post1 post2 hpost fp st => by
+     apply MeasureTheory.lintegral_mono
+     rintro ⟨b, st'⟩
+     cases b
+     · exact hpost ((), st')
+     · exact le_rfl⟩
 
-theorem wp_recursion_tailrec_simplify [CompleteLattice a] [CompleteLattice b] (Φ : a → b →o b) post :
-  (tailrec_wp Φ).lfp post = (Φ post).lfp := by
-  have lhs_fp : Function.IsFixedPt (Φ post) ((tailrec_wp Φ).lfp post) := sorry
-  clear lhs_fp
-  have leq : (tailrec_wp Φ).lfp post <= (Φ post).lfp := sorry
-  have rhs_fp : Function.IsFixedPt (tailrec_wp Φ) ⟨fun post => (Φ post).lfp, sorry⟩ := sorry
-  have geq : (tailrec_wp Φ).lfp >= ⟨fun post => (Φ post).lfp, sorry⟩ := sorry
-  clear rhs_fp
-  sorry -- Immediate from leq and geq
+theorem wp_recursion_tailrec_simplify [CompleteLattice a] [CompleteLattice b]
+    (Φ : a →o (b →o b)) post :
+    (tailrec_wp Φ).lfp post = (Φ post).lfp := by
+  apply le_antisymm
+  · -- (tailrec_wp Φ).lfp ≤ ⟨fun post => (Φ post).lfp, _⟩, so at post we get ≤
+    have hmono : Monotone (fun p : a => (Φ p).lfp) :=
+      fun p1 p2 h => OrderHom.lfp.monotone (Φ.monotone h)
+    have rhs_fp : tailrec_wp Φ ⟨_, hmono⟩ = ⟨_, hmono⟩ := by
+      ext p; exact (Φ p).map_lfp
+    exact (tailrec_wp Φ).lfp_le_fixed rhs_fp post
+  · -- (Φ post).lfp ≤ (tailrec_wp Φ).lfp post because the latter is a fixed point of Φ post
+    apply (Φ post).lfp_le_fixed
+    exact DFunLike.congr_fun (OrderHom.map_lfp (tailrec_wp Φ)) post
 
 theorem wp_while' : (while_loop c p).wp f = (tailrec_wp (while_iteration_wp c p)).lfp f := by
   simp only [while_loop]
