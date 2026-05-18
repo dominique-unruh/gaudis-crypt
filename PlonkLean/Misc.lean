@@ -166,10 +166,17 @@ theorem monotone_ite (f : a → b) (g : a → b) [Preorder a] [Preorder b] c [De
 lemma monotone_comp [Preorder a] [Preorder b] [Preorder c] {f : a → b} {g : c → a} :
   Monotone f → Monotone g → Monotone fun x ↦ f (g x) := sorry
 
+-- @[fun_prop]
+-- lemma monotone_OrderHom_mk [Preorder i] [Preorder a] [Preorder b] (f : i → a → b) (p : ∀ x, Monotone (f x))
+--   (h : Monotone f) :
+--   Monotone fun (x : i) ↦ ({ toFun := f x, monotone' := p x } : a →o b) := sorry
+
 @[fun_prop]
-lemma monotone_OrderHom_mk [Preorder i] [Preorder a] [Preorder b] (f : i → a → b) (p : ∀ x, Monotone (f x))
-  (h : Monotone f) :
-  Monotone fun (x : i) ↦ ({ toFun := f x, monotone' := p x } : a →o b) := sorry
+theorem OrderHom.monotone_mk [Preorder a] [Preorder b] [Preorder c]
+    {f : a → b → c} (hinner : ∀ x, Monotone (f x))
+    (hmono : ∀ v, Monotone (fun x => f x v)) :
+    Monotone (fun x => (⟨f x, hinner x⟩ : b →o c)) :=
+  fun _ _ hx v => hmono v hx
 
 @[fun_prop]
 theorem monotone_fst' [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y × Z) (hf : Monotone f) :
@@ -193,3 +200,9 @@ theorem monotone_OrderHom_apply [Preorder a] [Preorder b] [Preorder c]
     {f : a → b →o c} (hf : Monotone f) {g : a → b} (hg : Monotone g) :
     Monotone (fun x ↦ f x (g x)) :=
   fun _ _ hx => ((f _).monotone (hg hx)).trans (hf hx _)
+
+
+@[fun_prop]
+theorem OrderHom.lfp_monotone [CompleteLattice c] :
+    Monotone (OrderHom.lfp : (c →o c) → c) :=
+  fun f g hfg => f.lfp_le (hfg g.lfp |>.trans g.map_lfp.le)

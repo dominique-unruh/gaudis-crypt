@@ -57,7 +57,7 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
   -- ΦF maps a postcondition g to its expected value under F.lfp, pointwise in the initial state.
   -- This is the expected-value transformer induced by the least fixed point of F.
   let ΦF : (b → ENNReal) →o (a → ENNReal) :=
-    ⟨fun g y => (F.lfp y).expected g, fun g1 g2 hg y => expectation_mono (fun _ => F.lfp y) id monotone_const monotone_id hg⟩
+    ⟨fun g y => (F.lfp y).expected g, by fun_prop⟩
   -- ΦF is a fixed point of Ψ: apply h at F.lfp, then use F(F.lfp) = F.lfp (the lfp equation).
   have hfixed : Ψ ΦF = ΦF := by
     apply OrderHom.ext; funext g y
@@ -86,12 +86,13 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
         have hstep := h (F^[n] ⊥)
         -- Rewrite F^(n+1) ⊥ as F applied to F^n ⊥.
         have hiter : (F^[n+1] ⊥ y).expected g = (F (F^[n] ⊥) y).expected g :=
-          congrArg (SubProbability.expected · g) (congr_fun (Function.iterate_succ_apply' (⇑F) n ⊥) y)
+          congrArg (SubProbability.expected · g)
+                (congr_fun (Function.iterate_succ_apply' (⇑F) n ⊥) y)
         rw [hiter]
         -- Use hstep to rewrite the expected value, then apply monotonicity of Ψ (induction
         -- hypothesis) and the pre-fixed point condition φ.
         calc (F (F^[n] ⊥) y).expected g
-            = (Ψ ⟨fun g' y' => (F^[n] ⊥ y').expected g', fun g1 g2 hg y' => expectation_mono (fun _ => F^[n] ⊥ y') id monotone_const monotone_id hg⟩) g y :=
+            = (Ψ ⟨fun g' y' => (F^[n] ⊥ y').expected g', by fun_prop⟩) g y :=
                 (congr_fun (congr_fun (congrArg DFunLike.coe hstep) g) y).symm
           _ ≤ (Ψ φ) g y := Ψ.monotone (fun g' y' => ih g' y') g y
           _ ≤ φ g y := hφ g y
@@ -231,14 +232,7 @@ theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
     have h X mono1 mono2 :
       Ψ' ⟨fun f x ↦ (X x).expected f, mono1⟩ = ⟨fun f x ↦ (F' X x).expected f, mono2⟩ := by
       ext trafo xst
-/-      let X' : a → Program s b := curry X
-      have lhs : conv1 ⟨fun f x ↦ (X x).expected f, fun g1 g2 hg x => MeasureTheory.lintegral_mono hg⟩ =
-          ⟨fun (f : a → Program.Post s b) (x : a) => (X' x).wp (f x), fun g1 g2 hg x st => MeasureTheory.lintegral_mono (hg x)⟩ := by
-        apply OrderHom.ext; funext g x st; rfl
-      change conv2 (Ψ (conv1 ⟨fun f x ↦ (X x).expected f, _⟩)) = ⟨fun f x ↦ (F' X x).expected f, _⟩
-      rw [lhs, h X']
-      apply OrderHom.ext; funext g x; rfl -/
-      sorry
+      exact congr_fun (h (curry X) trafo xst.1) xst.2
     calc
       (recursion F x).wp f st = (F.lfp x st).expected f := rfl
       _ = (F'.lfp (x,st)).expected f := by
@@ -268,18 +262,6 @@ theorem recursion_wp_simple (F : Program s b →𝒄 Program s b)
   ext st
   exact recursion_expected F Ψ h st f
 
-@[fun_prop]
-theorem OrderHom.monotone_mk [Preorder a] [Preorder b] [Preorder c]
-    {f : a → b → c} (hinner : ∀ x, Monotone (f x))
-    (hmono : ∀ v, Monotone (fun x => f x v)) :
-    Monotone (fun x => (⟨f x, hinner x⟩ : b →o c)) :=
-  fun _ _ hx v => hmono v hx
-
-@[fun_prop]
-theorem OrderHom.lfp_monotone [CompleteLattice c] :
-    Monotone (OrderHom.lfp : (c →o c) → c) :=
-  fun f g hfg => f.lfp_le (hfg g.lfp |>.trans g.map_lfp.le)
-
 /-- For tailrecursive programs (in particular while-loops), we can write
     the wp iteration function (argument to `recursion_wp[_simple]`) as
     `tailrec_wp something`. In this case, we'll have some nicer properties.
@@ -288,10 +270,6 @@ def tailrec_wp [CompleteLattice b] [CompleteLattice c] (Φ : a → b →o (c →
   (a → b →o c) →o (a → b →o c) :=
   ⟨fun trafo x => ⟨fun (post:b) => Φ x post (trafo x post), by fun_prop⟩,
    by fun_prop⟩
-
-
-
-
 
 noncomputable
 def while_iteration_wp (c : Program s Bool) (p : Program s Unit) (_ : Unit) :
