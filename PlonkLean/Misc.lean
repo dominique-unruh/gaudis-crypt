@@ -156,20 +156,21 @@ theorem monotone_pi_apply [Preorder β] (i : α) : Monotone (fun f : α → β =
 @[fun_prop]
 theorem monotone_pi {X : Type*} {ι : Type*} {A : ι → Type*} [Preorder X] [∀ (i : ι), Preorder (A i)]
    {f : X → (i : ι) → A i} (h : ∀ (i : ι), Monotone fun (a : X) => f a i) :
-  Monotone f := sorry
+  Monotone f :=
+  fun _ _ hx i => h i hx
 
 @[fun_prop]
-theorem monotone_ite (f : a → b) (g : a → b) [Preorder a] [Preorder b] c [Decidable c] :
-  Monotone fun x ↦ if c then f x else g x := sorry
+theorem monotone_ite (f : a → b) (g : a → b) [Preorder a] [Preorder b] c [Decidable c]
+    (hf : Monotone f) (hg : Monotone g) :
+    Monotone fun x ↦ if c then f x else g x := by
+  split_ifs
+  · exact hf
+  · exact hg
 
 @[fun_prop]
 lemma monotone_comp [Preorder a] [Preorder b] [Preorder c] {f : a → b} {g : c → a} :
-  Monotone f → Monotone g → Monotone fun x ↦ f (g x) := sorry
-
--- @[fun_prop]
--- lemma monotone_OrderHom_mk [Preorder i] [Preorder a] [Preorder b] (f : i → a → b) (p : ∀ x, Monotone (f x))
---   (h : Monotone f) :
---   Monotone fun (x : i) ↦ ({ toFun := f x, monotone' := p x } : a →o b) := sorry
+  Monotone f → Monotone g → Monotone fun x ↦ f (g x) :=
+  fun hf hg _ _ hx => hf (hg hx)
 
 @[fun_prop]
 theorem OrderHom.monotone_mk [Preorder a] [Preorder b] [Preorder c]
@@ -180,16 +181,19 @@ theorem OrderHom.monotone_mk [Preorder a] [Preorder b] [Preorder c]
 
 @[fun_prop]
 theorem monotone_fst' [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y × Z) (hf : Monotone f) :
-    Monotone (fun x ↦ (f x).fst) := sorry
+    Monotone (fun x ↦ (f x).fst) :=
+  fun _ _ hx => (hf hx).1
 
 @[fun_prop]
 theorem monotone_snd' [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y × Z) (hf : Monotone f) :
-    Monotone (fun x ↦ (f x).snd) := sorry
+    Monotone (fun x ↦ (f x).snd) :=
+  fun _ _ hx => (hf hx).2
 
 @[fun_prop]
-theorem monotone_prod_mk [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y) (g : X → Z) (hf : Monotone f) (hg : Monotone g) :
-    Monotone (fun x ↦ (f x, g x)) := sorry
-
+theorem monotone_prod_mk [Preorder X] [Preorder Y] [Preorder Z] (f : X → Y) (g : X → Z)
+    (hf : Monotone f) (hg : Monotone g) :
+    Monotone (fun x ↦ (f x, g x)) :=
+  fun _ _ hx => ⟨hf hx, hg hx⟩
 
 @[fun_prop]
 theorem monotone_ContinuousHom [OmegaCompletePartialOrder a] [OmegaCompletePartialOrder b]
@@ -200,7 +204,6 @@ theorem monotone_OrderHom_apply [Preorder a] [Preorder b] [Preorder c]
     {f : a → b →o c} (hf : Monotone f) {g : a → b} (hg : Monotone g) :
     Monotone (fun x ↦ f x (g x)) :=
   fun _ _ hx => ((f _).monotone (hg hx)).trans (hf hx _)
-
 
 @[fun_prop]
 theorem OrderHom.lfp_monotone [CompleteLattice c] :
