@@ -10,53 +10,11 @@ import PlonkLean.Semantics
 import PlonkLean.WeakestPreconditions
 import PlonkLean.Lens
 
-
-
-/- Legacy placeholders. Remove. -/
 structure state where
   x : Nat
   y : Nat
-abbrev Distr := SubProbability
-noncomputable abbrev toDistr {α : Type} := @toSubProbability α
-abbrev Program0 := Program state
-noncomputable abbrev toProgram0 (p: PMF a) : Program0 a := p.toProgram
-noncomputable
-abbrev wp {a : Type} (prog : Program0 a) (f : a × state → ENNReal) (s : state) : ENNReal :=
-  prog.wp f s
--- Can delete this, it's easy enough to write Program.uniform
-noncomputable
-abbrev coinToss : Program state Bool := Program.uniform
 
--- Probability that prog returns value x starting from state s.
--- The post-expectation x=y (Prop) is coerced to the {0,1}-indicator if y=x then 1 else 0.
-noncomputable
-abbrev prfinal {a : Type} [DecidableEq a] (prog : Program0 a) (x : a) (s : state) : ENNReal :=
-  prog.finalProb1 s x
-
-
-/- End legacy placeholders -/
-
-
-
-
-
-@[reducible]
-def Variable a := Lens a state
-
--- inconsistent
--- instance {a : Type} [N : Nonempty a] : Nonempty (Variable a) := sorry
-
-noncomputable
-def setVar {a : Type} (v : Lens a s) (x : a) : Program s Unit := do
-    let st <- StateT.get
-    let st' := v.set x st
-    StateT.set st'
-
-
-noncomputable
-def getVar {a : Type} (v : Lens a s) : Program s a := do
-    let s <- StateT.get
-    pure (v.get s)
+abbrev Variable a := Lens a state
 
 def X : Variable Nat := {
   get := fun s => s.x,
@@ -109,10 +67,10 @@ A syntactic sugar "disjoint_many (X, Y, Z, ...)" that's unfolded to a conjunctio
 -/
 
 noncomputable
-def myProg : Program0 Nat := do
-  let x ← coinToss
-  if x then setVar X 1 else setVar X 2
-  let y <- getVar X
+def myProg : Program state Nat := do
+  let (x:Bool) ← Program.uniform
+  if x then Program.set X 1 else Program.set X 2
+  let y <- Program.get X
   pure y
 
 opaque Z : Variable String := sorry
@@ -128,20 +86,12 @@ instance disjoint_sym [disjoint X Y] : disjoint Y X := by
 #synth disjoint (pair Y X) Z
 
 
-theorem prfinal_coinToss (b : Bool) (st : state) : coinToss.finalProb1 st b = 1/2 := by
+theorem prfinal_coinToss (b : Bool) (st : state) : Program.uniform.finalProb1 st b = 1/2 := by
   simp [final_probability_wp', wp_uniform]
   cases b <;> simp
   sorry -- trivial1
   sorry -- trivial1
 
-
-theorem wp_getVar {α : Type} (v : Variable α) (f : α × state → ENNReal) (s : state) :
-    Program.wp (getVar v) f s = f (v.get s, s) := by
-    simp [getVar, wp_bind, wp_pure, wp_get]
-
-theorem wp_setVar {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit) :
-    (setVar v x).wp f = fun st => f ((), v.set x st) := by
-    simp [setVar, wp_bind, wp_get, wp_set]
 
 
 
@@ -149,9 +99,9 @@ theorem wp_setVar {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit)
 /- A better version of the prfinal_myProg_1 proof
    It doesn't try to reduce to `prfinal coinToss` because that doesn't work canonically.
 -/
-theorem prfinal_myProg_1_better (s : state) : prfinal myProg 1 s = 1/2 := by
-  simp only [prfinal, final_probability_wp']
-  simp [myProg, wp_bind, wp_ite, wp_setVar, wp_getVar, wp_pure, X.set_get, wp_uniform]
+theorem prfinal_myProg_1_better (s : state) : myProg.finalProb1 s 1 = 1/2 := by
+  simp only [final_probability_wp']
+  simp [myProg, wp_bind, wp_ite, wp_set, wp_get, wp_pure, X.set_get, wp_uniform]
   sorry
 
 

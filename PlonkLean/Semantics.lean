@@ -1,6 +1,7 @@
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
 import PlonkLean.Misc
+import PlonkLean.Lens
 
 /-!
 # General stuff
@@ -306,3 +307,15 @@ theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
   _ = while_iteration cond body (recursion (while_iteration cond body)) () := by
     simp [ContinuousHom.map_lfp]
   _ = _ := rfl
+
+noncomputable
+def Program.set {a : Type} (v : Lens a s) (x : a) : Program s Unit := do
+    let st <- StateT.get
+    let st' := v.set x st
+    StateT.set st'
+
+
+noncomputable
+def Program.get {a : Type} (v : Lens a s) : Program s a := do
+    let s <- StateT.get
+    pure (v.get s)

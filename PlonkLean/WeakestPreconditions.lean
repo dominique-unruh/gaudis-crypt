@@ -185,11 +185,11 @@ theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program s α)
     (if b then p1 else p2).wp f st = if b then p1.wp f st else p2.wp f st := by
   cases b <;> rfl
 
-theorem wp_set (st' : s) (f : Unit × s → ENNReal) (st : s) :
+theorem wp_set_state (st' : s) (f : Unit × s → ENNReal) (st : s) :
     Program.wp (StateT.set st' : Program s Unit) f st = f ((), st') := by  -- Why doesn't (...).wp syntax work?
   simp [Program.wp, StateT.set, expected_pure]
 
-theorem wp_get (f : Program.Post s s) :
+theorem wp_get_state (f : Program.Post s s) :
     Program.wp (StateT.get) f = fun st => f (st, st) := by
   ext
   simp [Program.wp, StateT.get, expected_pure]
@@ -305,3 +305,11 @@ theorem wp_while_invariant (b : Program s Bool) (body : Program s Unit)
     (while_loop b body).wp f ≤ I := by
     simp only [wp_while]
     apply (while_iteration_wp b body () f).lfp_le h
+
+theorem wp_get {α : Type} (v : Lens α s) (f : Program.Post s α) :
+    (Program.get v).wp f = fun st => f (v.get st, st) := by
+    simp [Program.get, wp_bind, wp_pure, wp_get_state]
+
+theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit) :
+    (Program.set v x).wp f = fun st => f ((), v.set x st) := by
+    simp [Program.set, wp_bind, wp_get_state, wp_set_state]
