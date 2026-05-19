@@ -15,6 +15,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install correct lean version (so that it's cached)
 COPY lean-toolchain /tmp/lean-toolchain
+RUN echo "[2] Install Lean toolchain $(cat /tmp/lean-toolchain)"
 RUN elan toolchain install "$(cat /tmp/lean-toolchain)"
 
 RUN sudo updatedb
