@@ -7,6 +7,7 @@ structure Lens (a : Type) (b : Type) where
   set_set : ∀ s x y, set y (set x s) = set y s
   get_set : ∀ s, set (get s) s = s
 
+/-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
 class disjoint (x : Lens a m) (y : Lens b m) where
   commute : ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s)
 
@@ -68,3 +69,12 @@ instance disjoint3' [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] 
   simp only [pair, disjoint.iff]
   intros
   simp [yz.commute, xz.commute]
+
+def Lens.bijection (e : a ≃ b) : Lens a b where
+  get := e.symm
+  set x _ := e x
+  set_get _ x := e.symm_apply_apply x
+  set_set _ _ _ := rfl
+  get_set s := e.apply_symm_apply s
+
+

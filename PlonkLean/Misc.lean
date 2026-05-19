@@ -130,6 +130,17 @@ theorem lintegral_iSup_measure_nat {α : Type*} [MeasurableSpace α]
 
 
 @[fun_prop]
+theorem Bool.rec_ωScottContinuous
+    {X : Type*} [OmegaCompletePartialOrder X]
+    {α : Bool → Type*} [∀ b, OmegaCompletePartialOrder (α b)]
+    (a : Bool) {g : X → α false} {f : X → α true}
+    (hg : OmegaCompletePartialOrder.ωScottContinuous g)
+    (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
+    OmegaCompletePartialOrder.ωScottContinuous
+      (fun x => Bool.rec (motive := α) (g x) (f x) a) := by
+  cases a <;> [exact hg; exact hf]
+
+@[fun_prop]
 theorem ite_ωScottContinuous
   [OmegaCompletePartialOrder a] [OmegaCompletePartialOrder b]
   (f : a → b) (g : a → b) (cond)

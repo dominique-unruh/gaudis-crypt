@@ -13,6 +13,7 @@ import PlonkLean.Lens
 structure state where
   x : Nat
   y : Nat
+  z : String
 
 abbrev Variable a := Lens a state
 
@@ -27,6 +28,14 @@ def X : Variable Nat := {
 def Y : Variable Nat := {
   get := fun s => s.y,
   set := fun y s => {s with y := y},
+  set_get := by simp,
+  set_set := by simp,
+  get_set := by simp
+}
+
+def Z : Variable String := {
+  get := fun s => s.z,
+  set := fun z s => {s with z := z},
   set_get := by simp,
   set_set := by simp,
   get_set := by simp
@@ -73,10 +82,9 @@ def myProg : Program state Nat := do
   let y <- Program.get X
   pure y
 
-opaque Z : Variable String := sorry
+instance disjXZ : disjoint X Z := by simp [disjoint.iff, X, Z]
 
-instance disjXZ : disjoint X Z := sorry
-instance disjYZ : disjoint Y Z := sorry
+instance disjYZ : disjoint Y Z := by simp [disjoint.iff, Y, Z]
 
 instance disjoint_sym [disjoint X Y] : disjoint Y X := by
   simp only [disjoint.iff]
@@ -88,9 +96,8 @@ instance disjoint_sym [disjoint X Y] : disjoint Y X := by
 
 theorem prfinal_coinToss (b : Bool) (st : state) : Program.uniform.finalProb1 st b = 1/2 := by
   simp [final_probability_wp', wp_uniform]
-  cases b <;> simp
-  sorry -- trivial1
-  sorry -- trivial1
+  cases b
+  all_goals simp; norm_cast
 
 
 
@@ -102,7 +109,7 @@ theorem prfinal_coinToss (b : Bool) (st : state) : Program.uniform.finalProb1 st
 theorem prfinal_myProg_1_better (s : state) : myProg.finalProb1 s 1 = 1/2 := by
   simp only [final_probability_wp']
   simp [myProg, wp_bind, wp_ite, wp_set, wp_get, wp_pure, X.set_get, wp_uniform]
-  sorry
+  norm_cast
 
 
 -- Mutual recursion example
@@ -122,14 +129,18 @@ def prog2 (prog1 : Program s Nat) : Program s String := do
   return toString x
 
 noncomputable
-def iter (prog12 : ∀ b:Bool, Program s (if b then Nat else String)) (b:Bool) :
+def iter (prog12 : ∀ b:Bool, Program s (if b then Nat else String)) (b : Bool):
   Program s (if b then Nat else String) :=
   match b with
-    | true => prog1 (prog12 false)
-    | false => prog2 (prog12 true)
+   | true => prog1 (prog12 false)
+   | false => prog2 (prog12 true)
 
-theorem iter_cont {s} : OmegaCompletePartialOrder.ωScottContinuous (iter (s:=s)) :=
-  sorry
+theorem iter_cont {s} : OmegaCompletePartialOrder.ωScottContinuous (iter (s:=s)) := by
+  unfold iter
+  simp only [prog1, prog2]
+  unfold iter.match_1 -- Internal macro but unfortunately fun_prop doesn't see through it
+  fun_prop
+
 
 noncomputable
 def prog12 : ∀ b:Bool, Program s (if b then Nat else String) :=
