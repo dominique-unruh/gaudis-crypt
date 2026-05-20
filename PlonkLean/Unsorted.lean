@@ -154,3 +154,6 @@ def prog12 : ∀ b:Bool, Program s (if b then Nat else String) :=
 -- Proof idea: represent the wp as an lfp of some function iter_wp.
 -- Manually iterate iter_wp starting at bot.
 -- I think this converges after 2 steps or so.
+
+
+def prog12_wp_iter := sorry -- Write prog12_wp_iter so that `recursion_wp (F := iter) (Ψ := prog12_wp_iter)` works

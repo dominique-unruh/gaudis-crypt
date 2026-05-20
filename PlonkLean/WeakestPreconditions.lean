@@ -41,20 +41,17 @@ theorem expectation_mono [Preorder i]
     intro x y hxy; exact MeasureTheory.lintegral_mono' (hμ hxy) (hf hxy)
 
 
--- TODO Let b depend on a?
-theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProbability b))
-  (Ψ : (a → (b → ENNReal) →o ENNReal) →o (a → (b → ENNReal) →o ENNReal))
-  (h : ∀ (X : a → SubProbability b),
-      Ψ (fun (x : a) ↦ ⟨fun (f : b → ENNReal) ↦ (X x).expected f, by fun_prop⟩)
-         = fun (x : a) ↦ ⟨fun (f : b → ENNReal) ↦ (F X x).expected f, by fun_prop⟩)
-         (x : a) (f : b → ENNReal)
+theorem recursion_expected {b : a → Type}
+  (F : ((x : a) → SubProbability (b x)) →𝒄 ((x : a) → SubProbability (b x)))
+  (Ψ : ((x : a) → (b x → ENNReal) →o ENNReal) →o ((x : a) → (b x → ENNReal) →o ENNReal))
+  (h : ∀ (X : (x : a) → SubProbability (b x)),
+      Ψ (fun (x : a) ↦ ⟨fun (f : b x → ENNReal) ↦ (X x).expected f, by fun_prop⟩)
+         = fun (x : a) ↦ ⟨fun (f : b x → ENNReal) ↦ (F X x).expected f, by fun_prop⟩)
+  (x : a) (f : b x → ENNReal)
  : (F.lfp x).expected f = Ψ.lfp x f := by
-  -- SubProbability b uses @Measure b ⊤ explicitly; provide ⊤ as a transparent instance
-  -- so that lintegral lemmas can find MeasurableSpace b without causing an instance mismatch.
-  letI : MeasurableSpace b := ⊤
   -- ΦF maps a postcondition g to its expected value under F.lfp, pointwise in the initial state.
   -- This is the expected-value transformer induced by the least fixed point of F.
-  let ΦF : a → (b → ENNReal) →o ENNReal :=
+  let ΦF : (x : a) → (b x → ENNReal) →o ENNReal :=
     fun y ↦ ⟨fun g => (F.lfp y).expected g, by fun_prop⟩
   -- ΦF is a fixed point of Ψ: apply h at F.lfp, then use F(F.lfp) = F.lfp (the lfp equation).
   have hfixed : Ψ ΦF = ΦF := by
@@ -70,16 +67,16 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
     apply OrderHom.le_lfp
     intro φ hφ  -- φ is an arbitrary pre-fixed point: Ψ φ ≤ φ
     -- Induction: each finite iterate F^n ⊥ already satisfies E[g | F^n ⊥ y] ≤ φ g y.
-    have hind : ∀ n g y, (F^[n] ⊥ y).expected g ≤ φ y g := by
+    have hind : ∀ n (y : a) (g : b y → ENNReal), (F^[n] ⊥ y).expected g ≤ φ y g := by
       intro n; induction n with
       | zero =>
         -- F^0 ⊥ = ⊥, the zero measure; lintegral against zero is 0.
-        intro g y
+        intro y g
         simp only [SubProbability.expected,
-          show (F^[0] ⊥ y).1 = (0 : @MeasureTheory.Measure b ⊤) from rfl,
+          show (F^[0] ⊥ y).1 = (0 : @MeasureTheory.Measure (b y) ⊤) from rfl,
           MeasureTheory.lintegral_zero_measure, zero_le]
       | succ n ih =>
-        intro g y
+        intro y g
         -- hstep: Ψ applied to the transformer of F^n ⊥ equals the transformer of F(F^n ⊥).
         have hstep := h (F^[n] ⊥)
         -- Rewrite F^(n+1) ⊥ as F applied to F^n ⊥.
@@ -92,7 +89,7 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
         calc (F (F^[n] ⊥) y).expected g
             = Ψ (fun y' ↦ ⟨fun g' => (F^[n] ⊥ y').expected g', by fun_prop⟩) y g :=
                 (DFunLike.congr_fun (congr_fun hstep y) g).symm
-          _ ≤ (Ψ φ) y g := Ψ.monotone (fun y' g' => ih g' y') y g
+          _ ≤ (Ψ φ) y g := Ψ.monotone (fun y' g' => ih y' g') y g
           _ ≤ φ y g := hφ y g
     -- Pass to the limit: F.lfp = ⨆ n, F^n ⊥ (Kleene's theorem), so by MCT the expected value
     -- under F.lfp equals ⨆ n, E[g | F^n ⊥ y], and each term is ≤ φ g y by hind.
@@ -103,9 +100,10 @@ theorem recursion_expected (F : (a → SubProbability b) →𝒄 (a → SubProba
     have hmct : (F.lfp y).expected g = ⨆ n, (F^[n] ⊥ y).expected g := by
       simp only [SubProbability.expected]
       -- (F.lfp y).1 = ⨆ n, (F^n ⊥ y).1 holds by rfl from the OCPO ωSup definition.
+      letI : MeasurableSpace (b y) := ⊤
       rw [show (F.lfp y).1 = ⨆ n, (F^[n] ⊥ y).1 from rfl, lintegral_iSup_measure_nat hmono]
     rw [hmct]
-    exact iSup_le (fun n => hind n g y)
+    exact iSup_le (fun n => hind n y g)
   exact le_antisymm (hΦ_le x f) (hΨ_le x f)
 
 
@@ -201,42 +199,52 @@ theorem wp_mono [Preorder i]
   Monotone fun x => (μ x).wp (f x) := by
     intro x y hxy st; exact MeasureTheory.lintegral_mono' (hμ hxy st) (hf hxy)
 
--- TODO Let b,s depend on a?
-theorem recursion_wp (F : (a → Program s b) →𝒄 (a → Program s b))
-  (Ψ : (a → Program.Post s b →o Program.Pre s) →o (a → Program.Post s b →o Program.Pre s))
-  (h : ∀ (X : a → Program s b) (f : Program.Post s b) (x : a),
-      Ψ (fun (x : a) => ⟨fun (f : Program.Post s b) => (X x).wp f, by fun_prop⟩) x f
+theorem recursion_wp {s : a → Type} {b : a → Type}
+  (F : ((x : a) → Program (s x) (b x)) →𝒄 ((x : a) → Program (s x) (b x)))
+  (Ψ : ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)) →o
+       ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)))
+  (h : ∀ (X : (x : a) → Program (s x) (b x)) (x : a) (f : Program.Post (s x) (b x)),
+      Ψ (fun (x : a) => ⟨fun (f : Program.Post (s x) (b x)) => (X x).wp f, by fun_prop⟩) x f
          = (F X x).wp f)
-  (f : Program.Post s b) x
+  (x : a) (f : Program.Post (s x) (b x))
  : (recursion F x).wp f = Ψ.lfp x f := by
     ext st
-    let curry : (a × s → SubProbability (b × s)) →𝒄 (a → Program s b) :=
-      OmegaCompletePartialOrder.ContinuousHom.ofFun fun f a b => f (a, b)
-    let uncurry :  (a → Program s b) →𝒄 (a × s → SubProbability (b × s)) :=
-      OmegaCompletePartialOrder.ContinuousHom.ofFun fun f a => f a.1 a.2
-    let F' : (a × s → SubProbability (b × s)) →𝒄 (a × s → SubProbability (b × s)) :=
+    let curry : ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) →𝒄
+                ((x : a) → Program (s x) (b x)) :=
+      OmegaCompletePartialOrder.ContinuousHom.ofFun fun f x st => f ⟨x, st⟩
+    let uncurry : ((x : a) → Program (s x) (b x)) →𝒄
+                  ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) :=
+      OmegaCompletePartialOrder.ContinuousHom.ofFun fun f xst => f xst.1 xst.2
+    let F' : ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) →𝒄
+             ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) :=
       uncurry.comp (F.comp curry)
-    let conv1 : (a × s → (b × s → ENNReal) →o ENNReal) →o (a → Program.Post s b →o Program.Pre s) :=
-      ⟨fun φ (x : a) => ⟨fun (post : Program.Post s b) st => φ (x, st) post,
-                                                      by fun_prop⟩, by fun_prop⟩
-    let conv2 : (a → Program.Post s b →o Program.Pre s) →o (a × s → (b × s → ENNReal) →o ENNReal) :=
-      ⟨fun φ (x, st) => ⟨fun post => φ x post st, by fun_prop⟩, by fun_prop⟩
-    let Ψ' : (a × s → (b × s → ENNReal) →o ENNReal) →o (a × s → (b × s → ENNReal) →o ENNReal) :=
+    let conv1 : ((xst : Σ x : a, s x) → (b xst.1 × s xst.1 → ENNReal) →o ENNReal) →o
+                ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)) :=
+      ⟨fun φ (x : a) => ⟨fun (post : Program.Post (s x) (b x)) st => φ ⟨x, st⟩ post,
+                          fun _ _ hle st => (φ ⟨x, st⟩).monotone hle⟩,
+       fun _ _ hle x post st => hle ⟨x, st⟩ post⟩
+    let conv2 : ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)) →o
+                ((xst : Σ x : a, s x) → (b xst.1 × s xst.1 → ENNReal) →o ENNReal) :=
+      ⟨fun φ xst => ⟨fun post => φ xst.1 post xst.2,
+                      fun _ _ hle => (φ xst.1).monotone hle xst.2⟩,
+       fun _ _ hle xst post => hle xst.1 post xst.2⟩
+    let Ψ' : ((xst : Σ x : a, s x) → (b xst.1 × s xst.1 → ENNReal) →o ENNReal) →o
+             ((xst : Σ x : a, s x) → (b xst.1 × s xst.1 → ENNReal) →o ENNReal) :=
       conv2.comp (Ψ.comp conv1)
     have h X :
-      Ψ' (fun x ↦ ⟨fun f ↦ (X x).expected f, by fun_prop⟩)
-           = fun x ↦ ⟨fun f ↦ (F' X x).expected f, by fun_prop⟩ := by
+      Ψ' (fun xst ↦ ⟨fun f ↦ (X xst).expected f, by fun_prop⟩)
+           = fun xst ↦ ⟨fun f ↦ (F' X xst).expected f, by fun_prop⟩ := by
       ext xst trafo
-      exact congr_fun (h (curry X) trafo xst.1) xst.2
+      exact congr_fun (h (curry X) xst.1 trafo) xst.2
     calc
       (recursion F x).wp f st = (F.lfp x st).expected f := rfl
-      _ = (F'.lfp (x,st)).expected f := by
+      _ = (F'.lfp ⟨x, st⟩).expected f := by
         simp only [F']
         simp only [← ContinuousHom.map_lfp_comp uncurry (F.comp curry)]
         have aux : (F.comp curry).comp uncurry = F := by
           ext; simp [uncurry, curry]
         simp [aux, uncurry]
-      _ = Ψ'.lfp (x,st) f  := by
+      _ = Ψ'.lfp ⟨x, st⟩ f  := by
         apply recursion_expected; intro; apply h
       _ = Ψ.lfp x f st := by
         simp only [Ψ']
@@ -280,7 +288,7 @@ theorem wp_recursion_tailrec_simplify [CompleteLattice b] [CompleteLattice c]
 theorem wp_while' :
   (while_loop c p).wp f = (tailrec_wp (while_iteration_wp c p)).lfp () f := by
   simp only [while_loop]
-  apply recursion_wp (while_iteration c p) (tailrec_wp (while_iteration_wp c p)) _ f ()
+  apply recursion_wp (while_iteration c p) (tailrec_wp (while_iteration_wp c p)) _ () f
   simp [while_iteration, wp_bind, wp_ite, wp_pure, tailrec_wp, while_iteration_wp]
 
 theorem wp_while :
