@@ -1,6 +1,6 @@
 import Mathlib.CategoryTheory.Category.Basic
 
-structure Lens (a : Type) (b : Type) where
+structure Lens (a : Type u) (b : Type v) where
   get : b -> a
   set : a -> b -> b
   set_get : ∀ s x, get (set x s) = x
