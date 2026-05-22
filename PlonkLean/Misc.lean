@@ -153,6 +153,15 @@ theorem ite_ωScottContinuous
 
 attribute [fun_prop] Monotone
 
+@[fun_prop]
+theorem Bool.rec_monotone
+    {X : Type*} [Preorder X]
+    {α : Bool → Type*} [∀ b, Preorder (α b)]
+    (a : Bool) {g : X → α false} {f : X → α true}
+    (hg : Monotone g) (hf : Monotone f) :
+    Monotone (fun x => Bool.rec (motive := α) (g x) (f x) a) := by
+  cases a <;> [exact hg; exact hf]
+
 def OrderHom.ofFun [Preorder α] [Preorder β] (f : α → β) (hf : Monotone f := by fun_prop) : α →o β where
   toFun := f
   monotone' := hf
