@@ -137,16 +137,19 @@ Claim 3: (lazy_query; convert) == (convert; eager_query)
 From these claims, it follows that
 
 lazy_init; adv; lazy_query; ... adv; lazy_query
-= (up to oracle_state)
+= (up to random_oracle_state)
 lazy_init; adv; lazy_query; ... adv; lazy_query; convert
-= (Claims 2+3, induction)
+= (Claim 3)
+lazy_init; adv; lazy_query; ... adv; convert; eager_query
+= (Claim 2)
+lazy_init; adv; lazy_query; ... convert; adv; eager_query
+= (...induction)
 lazy_init; convert; adv; eager_query; ... adv; eager_query
 = (Claim 1)
 eager_init; adv; eager_query; ... adv; eager_query
 
 
-(Works also in easycrypt world, but needs a tactic of the kind:
-
+Works also in easycrypt world, but needs a tactic of the kind:
 (convert; O) =indist= (P; convert)
 and
 (I; convert) =indist= J
