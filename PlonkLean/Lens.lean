@@ -3,6 +3,7 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.GroupTheory.Submonoid.Centralizer
 import PlonkLean.Misc
 
+@[ext]
 structure Lens (a : Type u) (b : Type v) where
   get : b -> a
   set : a -> b -> b
@@ -89,16 +90,15 @@ def LensIn.mk' (lens : Lens a m) : LensIn m := ⟨a, lens⟩
 def IsoLens (lens : Lens a b) := Function.Bijective lens.get
 
 instance : Preorder (LensIn m) where
-  le x y := exists z : Lens x.content y.content, IsoLens z ∧ chain y.lens z = x.lens
+  le x y := exists z : Lens x.content y.content, chain y.lens z = x.lens
   le_refl := fun x => by
-    refine ⟨⟨id, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩,
-            Function.bijective_id, ?_⟩
+    refine ⟨⟨id, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩, ?_⟩
     obtain ⟨_, _, _, _, _⟩ := x.lens
     rfl
   le_trans := fun x y z hxy hyz => by
-    obtain ⟨f, hf_iso, hf_chain⟩ := hxy
-    obtain ⟨g, hg_iso, hg_chain⟩ := hyz
-    refine ⟨chain g f, hf_iso.comp hg_iso, ?_⟩
+    obtain ⟨f, hf_chain⟩ := hxy
+    obtain ⟨g, hg_chain⟩ := hyz
+    refine ⟨chain g f, ?_⟩
     have assoc : chain z.lens (chain g f) = chain (chain z.lens g) f := by
       obtain ⟨_, _, _, _, _⟩ := f
       obtain ⟨_, _, _, _, _⟩ := g
@@ -136,10 +136,35 @@ def upper_bound_2 : Lens (bit × bit) (bit × bit × bit) where
   get_set := by decide
   set_set := by decide
 
-lemma ub11 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_1 := sorry
-lemma ub12 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_2 := sorry
-lemma ub21 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_1 := sorry
-lemma ub22 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_2 := sorry
+private def z1 : Lens bit (bit × bit) where
+  get := Prod.fst
+  set := fun a (u,v) => (a, u+v+a)
+  set_get := by decide
+  set_set := by decide
+  get_set := by decide
+
+private def z2 : Lens bit (bit × bit) where
+  get := Prod.snd
+  set := fun a (u,v) => (u+v+a, a)
+  set_get := by decide
+  set_set := by decide
+  get_set := by decide
+
+private def proveChain (ub : Lens (bit × bit) (bit × bit × bit))
+    (ex : Lens bit (bit × bit × bit)) (z : Lens bit (bit × bit)) :
+    chain ub z = ex → LensIn.mk' ub ≥ LensIn.mk' ex := fun h => ⟨z, h⟩
+
+lemma ub11 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_1 :=
+  proveChain _ _ z1 (Lens.ext (by decide) (by decide))
+
+lemma ub12 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_2 :=
+  proveChain _ _ z2 (Lens.ext (by decide) (by decide))
+
+lemma ub21 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_1 :=
+  proveChain _ _ z1 (Lens.ext (by decide) (by decide))
+
+lemma ub22 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_2 :=
+  proveChain _ _ z2 (Lens.ext (by decide) (by decide))
 
 theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   IsLUB {LensIn.mk' example_lens_1, LensIn.mk' example_lens_2} l := by
@@ -177,42 +202,47 @@ structure LensRange (m : Type _) where
 
 def Lens.range (lens : Lens a m) : LensRange m where
   updates := Set.image lens.update ⊤
+  id := sorry
+  comp := sorry
   double_commutant := sorry
 
 def LensRange.from (generators : Set (m → m)) : LensRange m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
+  id := sorry
+  comp := sorry
+  double_commutant := sorry
 
 instance : PartialOrder (LensRange m) where
   le x y := x.updates ≤ y.updates
+  le_refl := sorry
+  le_trans := sorry
+  le_antisymm := sorry
 
 instance : Lattice (LensRange m) where
   sup x y := LensRange.from (x.updates ∪ x.updates) -- double commutant of union
   inf x y := ⟨x.updates ∩ y.updates, sorry, sorry, sorry⟩  -- intersection
-
-instance : BoundedOrder (LensRange m) where
-  top := ⟨⊤, sorry, sorry, sorry⟩
-  bot := ⟨⊥, sorry, sorry, sorry⟩
-
-instance : CompleteSemilatticeSup (LensRange m) where
-  sSup s := LensRange.from (union of all .updates in s)   -- double commutant of union
-
-instance : CompleteSemilatticeInf (LensRange m) where
-  sInf := sorry -- double commutant of intersection
-
-instance : CompleteLattice (LensRange m) where
-  le_refl := sorry
-  le_trans := sorry
-  le_antisymm := sorry
   le_sup_left := sorry
   le_sup_right := sorry
   le_inf := sorry
   sup_le := sorry
   inf_le_left := sorry
-  bot_le := sorry
   inf_le_right := sorry
-  isLUB_sSup := sorry
-  isGLB_sInf := sorry
+
+instance : BoundedOrder (LensRange m) where
+  top := ⟨⊤, sorry, sorry, sorry⟩
+  bot := ⟨⊥, sorry, sorry, sorry⟩
+  bot_le := sorry
   le_top := sorry
+
+instance : CompleteSemilatticeSup (LensRange m) where
+  sSup s := sorry -- LensRange.from (union of all .updates in s)   -- double commutant of union
+  isLUB_sSup := sorry
+
+instance : CompleteSemilatticeInf (LensRange m) where
+  sInf := sorry -- double commutant of intersection
+  isGLB_sInf := sorry
+
+instance : CompleteLattice (LensRange m) where
 
 
 theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
