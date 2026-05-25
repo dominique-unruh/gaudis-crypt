@@ -90,38 +90,51 @@ def IsoLens (lens : Lens a b) := Function.Bijective lens.get
 
 instance : Preorder (LensIn m) where
   le x y := exists z : Lens x.content y.content, IsoLens z ∧ chain y.lens z = x.lens
-  le_refl := sorry
-  le_trans := sorry
+  le_refl := fun x => by
+    refine ⟨⟨id, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩,
+            Function.bijective_id, ?_⟩
+    obtain ⟨_, _, _, _, _⟩ := x.lens
+    rfl
+  le_trans := fun x y z hxy hyz => by
+    obtain ⟨f, hf_iso, hf_chain⟩ := hxy
+    obtain ⟨g, hg_iso, hg_chain⟩ := hyz
+    refine ⟨chain g f, hf_iso.comp hg_iso, ?_⟩
+    have assoc : chain z.lens (chain g f) = chain (chain z.lens g) f := by
+      obtain ⟨_, _, _, _, _⟩ := f
+      obtain ⟨_, _, _, _, _⟩ := g
+      obtain ⟨_, _, _, _, _⟩ := z.lens
+      rfl
+    rw [assoc, hg_chain, hf_chain]
 
 abbrev bit := ZMod 2
 
 def example_lens_1 : Lens bit (bit × bit × bit) where
   get := fun (x,y,z) => x + y
   set := fun a (x,y,z) => (x, x+a, z)
-  set_get := sorry
-  get_set := sorry
-  set_set := sorry
+  set_get := by decide
+  get_set := by decide
+  set_set := by decide
 
 def example_lens_2 : Lens bit (bit × bit × bit) where
   get := fun (x,y,z) => y + z
   set := fun a (x,y,z) => (x, z+a, z)
-  set_get := sorry
-  get_set := sorry
-  set_set := sorry
+  set_get := by decide
+  get_set := by decide
+  set_set := by decide
 
 def upper_bound_1 : Lens (bit × bit) (bit × bit × bit) where
   get := fun (x,y,z) => (x + y, y + z)
   set := fun (a,b) (x,y,z) => (x,a+x,a+b+x)
-  set_get := sorry
-  get_set := sorry
-  set_set := sorry
+  set_get := by decide
+  get_set := by decide
+  set_set := by decide
 
 def upper_bound_2 : Lens (bit × bit) (bit × bit × bit) where
   get := fun (x,y,z) => (x + y, y + z)
   set := fun (a,b) (x,y,z) => (a+b+z, b+z, z)
-  set_get := sorry
-  get_set := sorry
-  set_set := sorry
+  set_get := by decide
+  get_set := by decide
+  set_set := by decide
 
 lemma ub11 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_1 := sorry
 lemma ub12 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_2 := sorry
@@ -152,31 +165,41 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
 
 def Lens.update (lens : Lens a m) (f : a → a) : m → m := fun x => lens.set (f (lens.get x)) x
 
+instance : Monoid (m → m) := sorry
 
 structure LensRange (m : Type _) where
-  updates :
-    letI inst : Monoid (m → m) := sorry
-    Submonoid (m → m)
-  double_commutant :
-    letI inst : Monoid (m → m) := _
-    Submonoid.centralizer (Submonoid.centralizer updates.carrier).carrier = updates
+  updates : Set (m → m)
+  id : id ∈ updates
+  comp : f ∈ updates → g ∈ updates → (f ∘ g) ∈ updates
+  double_commutant : (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
 
 
 
 def Lens.range (lens : Lens a m) : LensRange m where
-  updates :=
-    letI inst : Monoid (m → m) := _
-    ⟨⟨Set.image lens.update ⊤, sorry⟩, sorry⟩
+  updates := Set.image lens.update ⊤
   double_commutant := sorry
 
-instance : CompleteLattice (LensRange m) where
+def LensRange.from (generators : Set (m → m)) : LensRange m where
+  updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
+
+instance : PartialOrder (LensRange m) where
   le x y := x.updates ≤ y.updates
-  bot := sorry -- only id
-  top := sorry -- everything
-  inf := sorry -- intersection
-  sup := sorry -- double commutant of union
-  sSup := sorry -- double commutant of union
-  sInf := sorry -- intersection
+
+instance : Lattice (LensRange m) where
+  sup x y := LensRange.from (x.updates ∪ x.updates) -- double commutant of union
+  inf x y := ⟨x.updates ∩ y.updates, sorry, sorry, sorry⟩  -- intersection
+
+instance : BoundedOrder (LensRange m) where
+  top := ⟨⊤, sorry, sorry, sorry⟩
+  bot := ⟨⊥, sorry, sorry, sorry⟩
+
+instance : CompleteSemilatticeSup (LensRange m) where
+  sSup s := LensRange.from (union of all .updates in s)   -- double commutant of union
+
+instance : CompleteSemilatticeInf (LensRange m) where
+  sInf := sorry -- double commutant of intersection
+
+instance : CompleteLattice (LensRange m) where
   le_refl := sorry
   le_trans := sorry
   le_antisymm := sorry
