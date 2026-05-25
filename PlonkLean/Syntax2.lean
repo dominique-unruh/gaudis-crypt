@@ -1,4 +1,6 @@
-/--
+import Mathlib.Data.List.AList
+
+/-
 A small intrinsically-typed DSL in Lean 4 with
 
 * value expressions (`Expr`),
@@ -17,11 +19,10 @@ The design follows the requested separation:
 * module expressions are built only from module variables, application,
   and named projection.
 -/
-namespace IntrinsicDSL
 
 /-! ## Object-language value types -/
 
-/--
+/-
 `VTy` is the type of ordinary runtime values manipulated by expressions
 and programs.
 
@@ -30,12 +31,15 @@ We keep it intentionally small here:
 * `unit`, `bool`, `nat`
 * binary products for ordinary value tuples
 -/
-inductive VTy where
+
+
+/- inductive VTy where
   | unit
   | bool
   | nat
   | prod : VTy → VTy → VTy
   deriving DecidableEq, Repr
+ -/
 
 /-! ## Procedure signatures and module types -/
 
@@ -49,9 +53,8 @@ A module of type `MTy.proc sig` represents a module containing exactly one
 procedure with signature `sig`.
 -/
 structure ProcSig where
-  params : List VTy
-  ret    : VTy
-  deriving DecidableEq, Repr
+  params : List Type
+  ret    : Type
 
 /--
 Module types.
@@ -68,7 +71,6 @@ inductive MTy where
   | proc   : ProcSig → MTy
   | struct : List (String × MTy) → MTy
   | arr    : MTy → MTy → MTy
-  deriving DecidableEq, Repr
 
 /-! ## Contexts and typed variables -/
 
@@ -83,12 +85,12 @@ We use the same context shape for
 Snoc-lists are pleasant for intrinsically typed syntax because the newest
 binding sits at the end, making typed de Bruijn references straightforward.
 -/
-inductive Ctx (α : Type) where
+inductive Ctx (α : Type _) where
   | nil  : Ctx α
   | snoc : Ctx α → α → Ctx α
   deriving Repr
 
-abbrev VCtx := Ctx VTy
+abbrev VCtx := Ctx Type
 abbrev MCtx := Ctx MTy
 
 /--
@@ -99,7 +101,7 @@ A typed reference into a context.
 This is preferable to using bare `Fin` indices, because the typing information
 is built directly into the reference itself, avoiding equality proofs.
 -/
-inductive Ref : Ctx α → α → Type where
+inductive Ref {α : Type u} : Ctx α → α → Type u where
   | here  : Ref (.snoc Γ a) a
   | there : Ref Γ a → Ref (.snoc Γ b) a
   deriving Repr
@@ -113,9 +115,14 @@ a field called `name` whose module type is `ty`.
 This proof object is what makes named projection intrinsically typed.
 A projection is only constructible if such evidence is available.
 -/
-inductive HasFieldType : List (String × MTy) → String → MTy → Type where
-  | here  : HasFieldType ((name, ty) :: fs) name ty
-  | there : HasFieldType fs name ty → HasFieldType ((other, otherTy) :: fs) name ty
+-- TODO: Introduce a type for `List (String × ?)`. Also: do we need to ensure that the strings are distinct?
+inductive HasFieldType : List (String × MTy) → String → MTy → Type 1 where
+  | here  : {name : String} → {ty : MTy} → {fs : List (String × MTy)} →
+            HasFieldType ((name, ty) :: fs) name ty
+  | there : {name : String} → {ty : MTy} → {fs : List (String × MTy)} →
+            {other : String} → {otherTy : MTy} →
+            HasFieldType fs name ty →
+            HasFieldType ((other, otherTy) :: fs) name ty
   deriving Repr
 
 /-! ## Pure value expressions -/
@@ -130,7 +137,9 @@ These are the only terms allowed as
 * arguments to procedure calls,
 * conditions of conditionals.
 -/
-inductive Expr : VCtx → VTy → Type where
+def Expr s a := s → a
+
+/- inductive Expr : VCtx → VTy → Type where
   | var   : Ref Γ τ → Expr Γ τ
   | unit  : Expr Γ .unit
   | bool  : Bool → Expr Γ .bool
@@ -139,6 +148,7 @@ inductive Expr : VCtx → VTy → Type where
   | fst   : Expr Γ (.prod τ₁ τ₂) → Expr Γ τ₁
   | snd   : Expr Γ (.prod τ₁ τ₂) → Expr Γ τ₂
   deriving Repr
+ -/
 
 /-! ## Typed lists of pure arguments -/
 
@@ -148,10 +158,9 @@ inductive Expr : VCtx → VTy → Type where
 This is useful for procedure calls: a procedure with parameter list
 `[τ₁, τ₂, ..., τₙ]` can only be called with `Exprs Γ [τ₁, τ₂, ..., τₙ]`.
 -/
-inductive Exprs : VCtx → List VTy → Type where
-  | nil  : Exprs Γ []
-  | cons : Expr Γ t → Exprs Γ ts → Exprs Γ (t :: ts)
-  deriving Repr
+inductive Exprs s : List Type → Type _ where
+  | nil  : Exprs s []
+  | cons {t ts} : Expr s t → Exprs s ts → Exprs s (t :: ts)
 
 /-! ## Module expressions -/
 
@@ -171,11 +180,10 @@ It does *not* contain literal modules directly. That is exactly the requested
 shape: modules are referenced from the context, and combined only by
 application and projection.
 -/
-inductive MExpr : MCtx → MTy → Type where
+inductive MExpr : MCtx → MTy → Type _ where
   | var  : Ref Δ M → MExpr Δ M
   | app  : MExpr Δ (.arr A B) → MExpr Δ A → MExpr Δ B
-  | proj : MExpr Δ (.struct fs) → HasFieldType fs name ty → MExpr Δ ty
-  deriving Repr
+  | proj {fs name ty} : MExpr Δ (.struct fs) → HasFieldType fs name ty → MExpr Δ ty
 
 /-! ## Programs / statements -/
 
@@ -197,20 +205,23 @@ The constructors reflect the requested language design:
 In particular, `call` uses a *module expression* of procedure type,
 not a direct procedure literal.
 -/
-inductive Program : MCtx → VCtx → VTy → Type where
-  | pure       : Expr Γ τ → Program Δ Γ τ
-  | assign     : Ref Γ τ → Expr Γ τ → Program Δ Γ .unit
-  | ifThenElse : Expr Γ .bool → Program Δ Γ τ → Program Δ Γ τ → Program Δ Γ τ
-  | seq        : Program Δ Γ .unit → Program Δ Γ τ → Program Δ Γ τ
-  | call       : MExpr Δ (.proc sig) → Exprs Γ sig.params → Program Δ Γ sig.ret
-  deriving Repr
+inductive Program s : MCtx → VCtx → Type _ where
+  | assign     : Ref Γ τ → Expr s τ → Program s Δ Γ
+  | ifThenElse : Expr s Bool → Program s Δ Γ → Program s Δ Γ → Program s Δ Γ
+  | seq        : Program s Δ Γ → Program s Δ Γ → Program s Δ Γ
+  | call {sig}       : Ref Γ τ → MExpr Δ (.proc sig) → Exprs s sig.params → Program s Δ Γ
+
+structure Procedure (s : Type) (mctx : MCtx) (vctx : VCtx) (return_type : Type) : Type _ where
+  body : Program s mctx vctx
+  return_value : Expr s return_type
+
 
 /-! ## Small examples -/
 
 /-- A sample procedure signature: `(Nat, Bool) -> Nat`. -/
 def sigNatBoolToNat : ProcSig := {
-  params := [.nat, .bool],
-  ret := .nat
+  params := [Nat, Bool],
+  ret := Nat
 }
 
 /--
@@ -221,7 +232,7 @@ util : proc () -> Unit }
 def exampleStructTy : MTy :=
   .struct
     [ ("main", .proc sigNatBoolToNat)
-    , ("util", .proc { params := [], ret := .unit })
+    , ("util", .proc { params := [], ret := Unit })
     ]
 
 /--
@@ -230,7 +241,7 @@ Evidence that field `"main"` exists in the sample structure with the expected ty
 def mainFieldProof :
     HasFieldType
       [ ("main", .proc sigNatBoolToNat)
-      , ("util", .proc { params := [], ret := .unit })
+      , ("util", .proc { params := [], ret := Unit })
       ]
       "main"
       (.proc sigNatBoolToNat) :=
@@ -247,20 +258,20 @@ The module expression `M.main`, where `M` is the only module variable in `Δ₀`
 def mainProcExpr : MExpr Δ₀ (.proc sigNatBoolToNat) :=
   .proj (.var Ref.here) mainFieldProof
 
+def example_vctx : VCtx := Ctx.snoc .nil Nat
+
 /--
 An example call `M.main(5, true)`.
 -/
-def exampleCall : Program Δ₀ .nil .nat :=
-  .call mainProcExpr (.cons (.nat 5) (.cons (.bool true) .nil))
+def exampleCall : Program s Δ₀ example_vctx :=
+  .call Ref.here mainProcExpr (.cons (fun _ => 5) (.cons (fun _ => true) .nil))
 
 /--
 A slightly larger example:
 if true then M.main(5, true) else M.main(7, false)
 -/
-def exampleIf : Program Δ₀ .nil .nat :=
+def exampleIf : Program s Δ₀ example_vctx :=
   .ifThenElse
-    (.bool true)
-    (.call mainProcExpr (.cons (.nat 5) (.cons (.bool true) .nil)))
-    (.call mainProcExpr (.cons (.nat 7) (.cons (.bool false) .nil)))
-
-end IntrinsicDSL
+    (fun _ => true)
+    (.call Ref.here mainProcExpr (.cons (fun _ => 5) (.cons (fun _ => true) .nil)))
+    (.call Ref.here mainProcExpr (.cons (fun _ => 7) (.cons (fun _ => false) .nil)))
