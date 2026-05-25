@@ -15,21 +15,20 @@ The design follows the requested separation:
 
 * assignment RHSs are pure expressions,
 * `ifThenElse` conditions are pure boolean expressions,
-* `Program.call` has the form `call <module expression> <arguments>`,
+* `Program.call` has the form `call result_var proc_expr args`, storing the
+  procedure's return value into a typed variable,
 * module expressions are built only from module variables, application,
   and named projection.
 -/
 
-/-! ## Object-language value types -/
+/-! ## Value types -/
 
 /-
-`VTy` is the type of ordinary runtime values manipulated by expressions
-and programs.
+Value types are Lean's native `Type`. The context `VCtx := Ctx Type` stores
+one Lean type per value variable, and `Expr s a := s → a` produces a value
+of type `a` from a state of type `s`.
 
-We keep it intentionally small here:
-
-* `unit`, `bool`, `nat`
-* binary products for ordinary value tuples
+The `VTy` inductive below is a draft of an alternative intrinsic design.
 -/
 
 
@@ -63,9 +62,10 @@ Module types.
 * `struct fs`    : a named tuple / structure of submodules
 * `arr A B`      : a module function from `A` to `B`
 
-The field names of a structure are represented as strings.
-The types ensure that projections are only allowed for fields that actually
-exist, via the proof object `HasFieldType` defined below.
+Field names are strings; uniqueness is not enforced in `MTy` itself (Lean's
+nested-inductive restrictions prevent embedding `AList` here). `HasFieldType`
+finds the first matching field, so duplicates resolve to the first occurrence.
+Projections are only constructible when `HasFieldType` evidence exists.
 -/
 inductive MTy where
   | proc   : ProcSig → MTy
@@ -79,7 +79,7 @@ A snoc-list context.
 
 We use the same context shape for
 
-* value-variable contexts (`VCtx := Ctx VTy`), and
+* value-variable contexts (`VCtx := Ctx Type`), and
 * module-variable contexts (`MCtx := Ctx MTy`).
 
 Snoc-lists are pleasant for intrinsically typed syntax because the newest
@@ -112,10 +112,9 @@ inductive Ref {α : Type u} : Ctx α → α → Type u where
 `HasFieldType fs name ty` is evidence that the field list `fs` contains
 a field called `name` whose module type is `ty`.
 
-This proof object is what makes named projection intrinsically typed.
-A projection is only constructible if such evidence is available.
+`here` matches the head of the list; `there` skips one entry and recurses.
+For lists with duplicate field names this finds the first occurrence.
 -/
--- TODO: Introduce a type for `List (String × ?)`. Also: do we need to ensure that the strings are distinct?
 inductive HasFieldType : List (String × MTy) → String → MTy → Type 1 where
   | here  : {name : String} → {ty : MTy} → {fs : List (String × MTy)} →
             HasFieldType ((name, ty) :: fs) name ty
@@ -125,13 +124,13 @@ inductive HasFieldType : List (String × MTy) → String → MTy → Type 1 wher
             HasFieldType ((other, otherTy) :: fs) name ty
   deriving Repr
 
-/-! ## Pure value expressions -/
+/-! ## Expressions -/
 
 /--
-`Expr Γ τ` is the type of pure, side-effect-free expressions that read value
-variables from context `Γ` and produce a value of type `τ`.
+`Expr s a` is a pure expression over state `s` producing a value of type `a`.
+Concretely, `Expr s a = s → a`.
 
-These are the only terms allowed as
+Expressions are the only terms allowed as
 
 * right-hand sides of assignments,
 * arguments to procedure calls,
@@ -153,10 +152,11 @@ def Expr s a := s → a
 /-! ## Typed lists of pure arguments -/
 
 /--
-`Exprs Γ ts` is a list of pure expressions whose types are exactly the list `ts`.
+`Exprs s ts` is a typed list of pure expressions over state `s` whose result
+types are exactly `ts : List Type`.
 
-This is useful for procedure calls: a procedure with parameter list
-`[τ₁, τ₂, ..., τₙ]` can only be called with `Exprs Γ [τ₁, τ₂, ..., τₙ]`.
+Used for procedure call arguments: a call to a procedure with parameter list
+`[τ₁, ..., τₙ]` requires an `Exprs s [τ₁, ..., τₙ]`.
 -/
 inductive Exprs s : List Type → Type _ where
   | nil  : Exprs s []
@@ -188,22 +188,20 @@ inductive MExpr : MCtx → MTy → Type _ where
 /-! ## Programs / statements -/
 
 /--
-`Program Δ Γ τ` is a program which
+`Program s Δ Γ` is a statement over state `s` which
 
-* may refer to module variables in context `Δ`,
-* may refer to value variables in context `Γ`, and
-* returns a value of type `τ`.
+* may refer to module variables in module context `Δ : MCtx`,
+* may read value variables from value context `Γ : VCtx`.
 
-The constructors reflect the requested language design:
+Constructors:
 
-* `pure e` embeds a side-effect-free expression as a trivial program,
-* `assign x rhs` assigns a pure expression to a typed variable,
-* `ifThenElse c t e` branches on a pure boolean condition,
-* `seq p q` sequences two programs, keeping the second result,
-* `call f args` calls a procedure obtained from a module expression.
+* `assign x rhs` writes the result of pure expression `rhs` into variable `x`,
+* `ifThenElse c t e` branches on pure boolean condition `c`,
+* `seq p q` sequences two statements,
+* `call x f args` calls procedure `f` (a module expression of proc type) with
+  arguments `args`, storing the return value into variable `x`.
 
-In particular, `call` uses a *module expression* of procedure type,
-not a direct procedure literal.
+`call` uses a *module expression* of procedure type, not a direct literal.
 -/
 inductive Program s : MCtx → VCtx → Type _ where
   | assign     : Ref Γ τ → Expr s τ → Program s Δ Γ
@@ -211,6 +209,11 @@ inductive Program s : MCtx → VCtx → Type _ where
   | seq        : Program s Δ Γ → Program s Δ Γ → Program s Δ Γ
   | call {sig}       : Ref Γ τ → MExpr Δ (.proc sig) → Exprs s sig.params → Program s Δ Γ
 
+/--
+`Procedure s mctx vctx return_type` bundles a statement body with a pure
+expression that computes its return value. The body runs in module context
+`mctx` and value context `vctx`; `return_value` reads the result from state `s`.
+-/
 structure Procedure (s : Type) (mctx : MCtx) (vctx : VCtx) (return_type : Type) : Type _ where
   body : Program s mctx vctx
   return_value : Expr s return_type
