@@ -17,7 +17,7 @@ def recursion {a} {b : a → Type*} [∀ x, OmegaCompletePartialOrder (b x)] [�
 # Discrete subprobability monad
 -/
 
-def SubProbability (a : Type) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
+def SubProbability (a : Type u) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
 
 noncomputable
 instance : Monad SubProbability where
@@ -200,7 +200,7 @@ theorem SubProbability.bind_mono [Preorder i]
 # Stateful programs
 -/
 
-def Program (state : Type) := StateT state SubProbability
+def Program (state : Type) : Type → Type := StateT state SubProbability
 
 noncomputable
 def SubProbability.toProgram (p : SubProbability a) : Program s a := StateT.lift p
@@ -307,6 +307,9 @@ theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
   _ = while_iteration cond body (recursion (while_iteration cond body)) () := by
     simp [ContinuousHom.map_lfp]
   _ = _ := rfl
+
+noncomputable
+def Program.get_state : Program s s := StateT.get
 
 noncomputable
 def Program.set {a : Type} (v : Lens a s) (x : a) : Program s Unit := do
