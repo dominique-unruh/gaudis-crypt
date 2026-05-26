@@ -74,11 +74,18 @@ private noncomputable def double_complement_iso_lens [Nonempty m] (lens : Lens a
       obtain ⟨q, hq⟩ := hab
       induction q using Quotient.inductionOn with
       | h v => simp only [Lens.compl, Quotient.lift_mk] at hq; rw [← hq]; simp [lens.set_get]) x
-  get_set := sorry
-  set_get := sorry
-  set_set := sorry
+  get_set s := by
+    change lens.get (lens.set s (Classical.choice inferInstance)) = s
+    exact lens.set_get _ _
+  set_get s x := by
+    induction x using Quotient.inductionOn with
+    | h v =>
+      apply Quotient.sound
+      exact ⟨Quotient.mk'' v, by simp [Lens.compl, Quotient.lift_mk, lens.set_get, lens.get_set]⟩
+  set_set _ _ _ := rfl
 
-private theorem double_complement_iso_lens_iso [Nonempty m] (lens : Lens a m) : IsoLens (double_complement_iso_lens lens) := sorry
+private theorem double_complement_iso_lens_iso [Nonempty m] (lens : Lens a m) :
+  IsoLens (double_complement_iso_lens lens) := sorry
 
 private theorem double_complement [Nonempty m] (lens : Lens a m) :
   lens.compl.compl = chain lens (double_complement_iso_lens lens)
@@ -93,6 +100,9 @@ def Lens.range (lens : Lens a m) : LensRange m where
     exact ⟨h ∘ k, Set.mem_univ _, funext fun x => by
       simp [Lens.update, lens.set_get, lens.set_set]⟩
   double_commutant := sorry /- Proof sketch:
+    First, a case distinction whether Nonempty m or Empty m. For empty m, the theorem is trivial.
+    For nonempty m:
+
     - double_commutant of updates = Set.image lens.complement.complement.update ⊤   BY: complement_range
     - ... = Set.image (chain lens iso_lens).update ⊤  BY: double_complement
     - ... = Set.image lens.update ⊤    BY: the fact that iso_lens is IsoLens
@@ -217,7 +227,7 @@ instance : CompleteSemilatticeInf (LensRange m) where
 instance : CompleteLattice (LensRange m) where
 
 instance : ComplementedLattice (LensRange m) where
-  exists_isCompl := sorry
+  exists_isCompl x := by use xᶜ; apply LensRange.compl_is_compl
 
 theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
   x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := sorry
