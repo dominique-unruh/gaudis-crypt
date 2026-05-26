@@ -158,7 +158,15 @@ def Lens.range (lens : Lens a m) : LensRange m where
       rw [himg, h_univ, h_univ]
 
 theorem LensRange.complement_range (lens : Lens a m) :
-  lens.compl.range = lens.rangeᶜ := sorry
+    lens.compl.range = lens.rangeᶜ := by
+  have key : ∀ {x y : LensRange m}, x.updates = y.updates → x = y := by
+    intro x y hxy
+    obtain ⟨xu, xi, xc, xd⟩ := x; obtain ⟨yu, yi, yc, yd⟩ := y
+    simp only at hxy; subst hxy; rfl
+  refine key ?_
+  change Set.image lens.compl.update ⊤ =
+    (Submonoid.centralizer (Set.image lens.update ⊤)).carrier
+  exact _root_.complement_range lens
 
 def LensRange.from (generators : Set (m → m)) : LensRange m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
@@ -227,13 +235,18 @@ instance : BoundedOrder (LensRange m) where
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
-theorem LensRange.disjoint_iff (x : LensRange m) (y : LensRange m) :
-  Disjoint x y ↔ ∀ u∈x.updates, ∀ v∈y.updates, u ∘ v = v ∘ u :=
-  sorry
+-- FALSE, see flipRange counterexample
+-- theorem LensRange.disjoint_iff (x : LensRange m) (y : LensRange m) :
+  -- Disjoint x y ↔ ∀ u∈x.updates, ∀ v∈y.updates, u ∘ v = v ∘ u :=
+  -- sorry
 
-theorem LensRange.compl_is_compl (x : LensRange a) : IsCompl x (xᶜ) := sorry
+-- theorem LensRange.compl_is_compl (x : LensRange a) : IsCompl x (xᶜ) := sorry
 
-theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := sorry
+theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := by
+  have key : ∀ {p q : LensRange a}, p.updates = q.updates → p = q := by
+    intro p q h; obtain ⟨_,_,_,_⟩ := p; obtain ⟨_,_,_,_⟩ := q
+    simp only at h; subst h; rfl
+  apply key; simp only [Compl.compl]; exact x.double_commutant
 
 instance : CompleteSemilatticeSup (LensRange m) where
   sSup s := LensRange.from (⋃ x ∈ s, x.updates)
@@ -274,8 +287,9 @@ instance : CompleteSemilatticeInf (LensRange m) where
 
 instance : CompleteLattice (LensRange m) where
 
-instance : ComplementedLattice (LensRange m) where
-  exists_isCompl x := by use xᶜ; apply LensRange.compl_is_compl
+-- TODO not the kind of complemented lattice I want. I just want something with Compl that inverts the ordering
+-- instance : ComplementedLattice (LensRange m) where
+  -- exists_isCompl x := by use xᶜ; apply LensRange.compl_is_compl
 
 theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
   x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := sorry

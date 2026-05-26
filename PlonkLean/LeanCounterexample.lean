@@ -1,4 +1,8 @@
+import Mathlib.Data.Finset.Sort
 import PlonkLean.Lens
+import PlonkLean.LensRange
+import Mathlib.Data.List.Basic
+import Mathlib.Data.FinEnum
 
 def example_lens_1 : Lens bit (bit × bit × bit) where
   get := fun (x,y,z) => x + y
@@ -58,6 +62,7 @@ lemma ub21 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_1 :=
 lemma ub22 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_2 :=
   proveChain _ _ z2 (Lens.ext (by decide) (by decide))
 
+
 theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   IsLUB {LensIn.mk' example_lens_1, LensIn.mk' example_lens_2} l := by
   /-
@@ -79,3 +84,48 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   - We have a contradiction, so l cannot exist
   -/
   sorry
+
+
+
+
+/-- `{id, Bool.not}` centralizes itself: the centralizer of `{id, Bool.not}` in `Bool → Bool`
+    is exactly `{id, Bool.not}`. -/
+private lemma bool_not_centralizer :
+    (Submonoid.centralizer ({id, Bool.not} : Set (Bool → Bool))).carrier = {id, Bool.not} := by
+  ext f
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+  constructor
+  · intro h
+    -- f commutes with Bool.not, so f(¬b) = ¬f(b) for all b
+    have key : ∀ b : Bool, f (Bool.not b) = Bool.not (f b) := fun b => by
+      have := congr_fun (h Bool.not (Or.inr rfl)) b
+      simpa [HMul.hMul, Mul.mul, Function.comp] using this.symm
+    cases hff : f false
+    · left; funext b; cases b
+      · exact hff
+      · have := key false; rw [hff] at this; simpa using this
+    · right; funext b; cases b
+      · exact hff
+      · have := key false; rw [hff] at this; simpa using this
+  · rintro (rfl | rfl) g (rfl | rfl) <;>
+    simp [HMul.hMul, Mul.mul]
+
+private def lr_ext' : ∀ {x y : LensRange m}, x.updates = y.updates → x = y := by
+  intro x y h; obtain ⟨_,_,_,_⟩ := x; obtain ⟨_,_,_,_⟩ := y
+  simp only at h; subst h; rfl
+
+/-- Counterexample: `{id, Bool.not}` is a valid `LensRange Bool` that is its own complement,
+    disproving `LensRange.compl_is_compl` for general `LensRange`s. -/
+def flipRange : LensRange Bool where
+  updates := {id, Bool.not}
+  id := Set.mem_insert _ _
+  comp := by
+    intro f g hf hg
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hf hg ⊢
+    rcases hf with rfl | rfl <;> rcases hg with rfl | rfl <;>
+      decide
+  double_commutant := by rw [bool_not_centralizer]; exact bool_not_centralizer
+
+theorem flipRange_compl_eq_self : flipRangeᶜ = flipRange :=
+  lr_ext' (by simp only [Compl.compl, flipRange, bool_not_centralizer])
+
