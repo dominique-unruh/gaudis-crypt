@@ -85,11 +85,33 @@ private noncomputable def double_complement_iso_lens [Nonempty m] (lens : Lens a
   set_set _ _ _ := rfl
 
 private theorem double_complement_iso_lens_iso [Nonempty m] (lens : Lens a m) :
-  IsoLens (double_complement_iso_lens lens) := sorry
+    IsoLens (double_complement_iso_lens lens) := by
+  constructor
+  · intro v1 v2 h
+    have hrel := Quotient.exact h
+    obtain ⟨q, hq⟩ := hrel
+    induction q using Quotient.inductionOn with
+    | h u =>
+      simp only [Lens.compl, Quotient.lift_mk] at hq
+      have key := congr_arg lens.get hq
+      simp only [lens.set_get] at key
+      exact key
+  · intro q
+    induction q using Quotient.inductionOn with
+    | h s =>
+      exact ⟨lens.get s, Quotient.sound ⟨Quotient.mk'' s,
+        by simp [Lens.compl, Quotient.lift_mk, lens.set_get, lens.get_set]⟩⟩
 
 private theorem double_complement [Nonempty m] (lens : Lens a m) :
-  lens.compl.compl = chain lens (double_complement_iso_lens lens)
-  := sorry
+    lens.compl.compl = chain lens (double_complement_iso_lens lens) := by
+  ext
+  · simp only [Lens.compl, chain, double_complement_iso_lens]
+    apply Quotient.sound
+    exact ⟨Quotient.mk'' (Classical.choice inferInstance),
+      by simp [Lens.compl, Quotient.lift_mk]⟩
+  · rename_i q s
+    induction q using Quotient.inductionOn with
+    | h t => simp [Lens.compl, chain, double_complement_iso_lens, Quotient.lift_mk]
 
 def Lens.range (lens : Lens a m) : LensRange m where
   updates := Set.image lens.update ⊤
@@ -99,15 +121,41 @@ def Lens.range (lens : Lens a m) : LensRange m where
     obtain ⟨k, -, rfl⟩ := hg
     exact ⟨h ∘ k, Set.mem_univ _, funext fun x => by
       simp [Lens.update, lens.set_get, lens.set_set]⟩
-  double_commutant := sorry /- Proof sketch:
-    First, a case distinction whether Nonempty m or Empty m. For empty m, the theorem is trivial.
-    For nonempty m:
-
-    - double_commutant of updates = Set.image lens.complement.complement.update ⊤   BY: complement_range
-    - ... = Set.image (chain lens iso_lens).update ⊤  BY: double_complement
-    - ... = Set.image lens.update ⊤    BY: the fact that iso_lens is IsoLens
-    - ... = updates
-  -/
+  double_commutant := by
+    simp only [centralizer_carrier_eq]
+    by_cases hm : Nonempty m
+    · haveI := hm
+      have hiso := double_complement_iso_lens_iso lens
+      have h1 : Set.centralizer (Set.image lens.update ⊤) = Set.image lens.compl.update ⊤ := by
+        rw [← centralizer_carrier_eq]; exact (complement_range lens).symm
+      have h2 : Set.centralizer (Set.image lens.compl.update ⊤) =
+          Set.image lens.compl.compl.update ⊤ := by
+        rw [← centralizer_carrier_eq]; exact (complement_range lens.compl).symm
+      rw [h1, h2, double_complement]
+      apply Set.Subset.antisymm
+      · rintro _ ⟨f, -, rfl⟩
+        exact ⟨fun v => (double_complement_iso_lens lens).set
+            (f ((double_complement_iso_lens lens).get v)) v,
+          Set.mem_univ _, by funext s; simp [chain, Lens.update]⟩
+      · rintro _ ⟨g, -, rfl⟩
+        refine ⟨fun q => (double_complement_iso_lens lens).get
+            (g (Classical.choose (hiso.2 q))), Set.mem_univ _, ?_⟩
+        funext s; simp only [chain, Lens.update]
+        have key : ∀ (v w : a), (double_complement_iso_lens lens).set
+            ((double_complement_iso_lens lens).get w) v = w :=
+          fun v w => hiso.1 ((double_complement_iso_lens lens).set_get v
+              ((double_complement_iso_lens lens).get w))
+        rw [key]
+        exact congr_arg (fun v => lens.set (g v) s)
+          (hiso.1 (Classical.choose_spec (hiso.2 _)))
+    · rw [not_nonempty_iff] at hm
+      have heq : ∀ f g : m → m, f = g := fun f g => funext fun x => IsEmpty.elim hm x
+      have h_univ : Set.centralizer (Set.univ : Set (m → m)) = Set.univ := by
+        ext f; simp only [Set.mem_centralizer_iff, Set.mem_univ, iff_true]; intro g _; exact heq _ _
+      have himg : Set.image lens.update ⊤ = Set.univ :=
+        Set.eq_univ_iff_forall.mpr fun f =>
+          ⟨Classical.arbitrary _, Set.mem_univ _, heq _ _⟩
+      rw [himg, h_univ, h_univ]
 
 theorem LensRange.complement_range (lens : Lens a m) :
   lens.compl.range = lens.rangeᶜ := sorry
