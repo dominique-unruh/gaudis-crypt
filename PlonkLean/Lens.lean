@@ -108,142 +108,42 @@ instance : Preorder (LensIn m) where
 
 abbrev bit := ZMod 2
 
-def example_lens_1 : Lens bit (bit × bit × bit) where
-  get := fun (x,y,z) => x + y
-  set := fun a (x,y,z) => (x, x+a, z)
-  set_get := by decide
-  get_set := by decide
-  set_set := by decide
-
-def example_lens_2 : Lens bit (bit × bit × bit) where
-  get := fun (x,y,z) => y + z
-  set := fun a (x,y,z) => (x, z+a, z)
-  set_get := by decide
-  get_set := by decide
-  set_set := by decide
-
-def upper_bound_1 : Lens (bit × bit) (bit × bit × bit) where
-  get := fun (x,y,z) => (x + y, y + z)
-  set := fun (a,b) (x,y,z) => (x,a+x,a+b+x)
-  set_get := by decide
-  get_set := by decide
-  set_set := by decide
-
-def upper_bound_2 : Lens (bit × bit) (bit × bit × bit) where
-  get := fun (x,y,z) => (x + y, y + z)
-  set := fun (a,b) (x,y,z) => (a+b+z, b+z, z)
-  set_get := by decide
-  get_set := by decide
-  set_set := by decide
-
-private def z1 : Lens bit (bit × bit) where
-  get := Prod.fst
-  set := fun a (u,v) => (a, u+v+a)
-  set_get := by decide
-  set_set := by decide
-  get_set := by decide
-
-private def z2 : Lens bit (bit × bit) where
-  get := Prod.snd
-  set := fun a (u,v) => (u+v+a, a)
-  set_get := by decide
-  set_set := by decide
-  get_set := by decide
-
-private def proveChain (ub : Lens (bit × bit) (bit × bit × bit))
-    (ex : Lens bit (bit × bit × bit)) (z : Lens bit (bit × bit)) :
-    chain ub z = ex → LensIn.mk' ub ≥ LensIn.mk' ex := fun h => ⟨z, h⟩
-
-lemma ub11 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_1 :=
-  proveChain _ _ z1 (Lens.ext (by decide) (by decide))
-
-lemma ub12 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_2 :=
-  proveChain _ _ z2 (Lens.ext (by decide) (by decide))
-
-lemma ub21 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_1 :=
-  proveChain _ _ z1 (Lens.ext (by decide) (by decide))
-
-lemma ub22 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_2 :=
-  proveChain _ _ z2 (Lens.ext (by decide) (by decide))
-
-theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
-  IsLUB {LensIn.mk' example_lens_1, LensIn.mk' example_lens_2} l := by
-  /-
-  Proof sketch:
-  - Both upper_bound_1 and upper_bound_2 are upper bounds.
-  - upper_bound_1 and upper_bound_2 are incomparable. Reason:
-      - If  upper_bound_1 = chain upper_bound_2 x,
-        then (chain upper_bound_2 x).set cannot modify the third component of the (bit x bit x bit) memory
-        but upper_bound_1 does. So they can't be equal.
-      - Analogous in the other direction
-  - So if the LUB l exists, it must be strictly smaller than both upper_bound_1 and upper_bound_2
-  - If l is strictly smaller than upper_bound_1, then l.content must have smaller cardinality than
-    (LensIn.mk' upper_bound_1).content. And it must be a divider of that cardinality.
-  - Since that cardinality is 4, l.content must have cardinality 2.
-  - l >= example_lens_2, example_lens_2.content and l.content have same cardinality (namely 2)
-  - Consequence: l ~~ example_lens_2  (~~ meaning both <= and >=).
-  - Since l is an upper bound of example_lens_1, this implies example_lens_1 <= example_lens_2.
-  - But that's incorrect, since example_lens_1.set can change the first component of the memory, and example_lens_2.set only the second
-  - We have a contradiction, so l cannot exist
-  -/
-  sorry
 
 def Lens.update (lens : Lens a m) (f : a → a) : m → m := fun x => lens.set (f (lens.get x)) x
 
-instance : Monoid (m → m) := sorry
 
-structure LensRange (m : Type _) where
-  updates : Set (m → m)
-  id : id ∈ updates
-  comp : f ∈ updates → g ∈ updates → (f ∘ g) ∈ updates
-  double_commutant : (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
+/-- `s ~ s'` iff they differ only in the part the lens controls:
+    `∃ a, lens.set a s = s'`. -/
+def Lens.equal_outside (lens : Lens a m) (s s' : m) : Prop :=
+  ∃ x, lens.set x s = s'
 
+/-- The relation `equal_outside` is an equivalence.
+- refl:  `set (get s) s = s`  (by `get_set`)
+- symm:  `set x s = s'`  →  `set (get s) s' = set (get s) (set x s) = set (get s) s = s`
+         (first step by `set_set`, second by `get_set`)
+- trans: `set x s = s'`, `set y s' = s''`  →  `set y s = set y (set x s) = s''`  (by `set_set`) -/
+def Lens.equal_outside_setoid (lens : Lens a m) : Setoid m where
+  r := lens.equal_outside
+  iseqv := {
+    refl  := fun s =>
+      ⟨lens.get s, lens.get_set s⟩
+    symm  := fun {s s'} ⟨x, hx⟩ =>
+      ⟨lens.get s, by rw [← hx, lens.set_set, lens.get_set]⟩
+    trans := fun {s _ s''} ⟨x, hx⟩ ⟨y, hy⟩ =>
+      ⟨y, by rw [← hy, ← hx, lens.set_set]⟩
+  }
 
+def Lens.complement (lens : Lens a m) : Lens (Quotient lens.equal_outside_setoid) m where
+  get mem := Quotient.mk'' mem
+  set a mem := Quotient.lift (lens.set (lens.get mem))
+    (fun _ _ h => by obtain ⟨x, hx⟩ := h; rw [← hx, lens.set_set]) a
+  get_set s := by simp [lens.get_set]
+  set_get s a := by
+    induction a using Quotient.inductionOn
+    rename_i v
+    exact Quotient.sound ⟨lens.get v, (lens.set_set v _ _).trans (lens.get_set v)⟩
+  set_set s a b := by
+    induction a using Quotient.inductionOn
+    rename_i v
+    simp [lens.set_get]
 
-def Lens.range (lens : Lens a m) : LensRange m where
-  updates := Set.image lens.update ⊤
-  id := sorry
-  comp := sorry
-  double_commutant := sorry
-
-def LensRange.from (generators : Set (m → m)) : LensRange m where
-  updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
-  id := sorry
-  comp := sorry
-  double_commutant := sorry
-
-instance : PartialOrder (LensRange m) where
-  le x y := x.updates ≤ y.updates
-  le_refl := sorry
-  le_trans := sorry
-  le_antisymm := sorry
-
-instance : Lattice (LensRange m) where
-  sup x y := LensRange.from (x.updates ∪ x.updates) -- double commutant of union
-  inf x y := ⟨x.updates ∩ y.updates, sorry, sorry, sorry⟩  -- intersection
-  le_sup_left := sorry
-  le_sup_right := sorry
-  le_inf := sorry
-  sup_le := sorry
-  inf_le_left := sorry
-  inf_le_right := sorry
-
-instance : BoundedOrder (LensRange m) where
-  top := ⟨⊤, sorry, sorry, sorry⟩
-  bot := ⟨⊥, sorry, sorry, sorry⟩
-  bot_le := sorry
-  le_top := sorry
-
-instance : CompleteSemilatticeSup (LensRange m) where
-  sSup s := sorry -- LensRange.from (union of all .updates in s)   -- double commutant of union
-  isLUB_sSup := sorry
-
-instance : CompleteSemilatticeInf (LensRange m) where
-  sInf := sorry -- double commutant of intersection
-  isGLB_sInf := sorry
-
-instance : CompleteLattice (LensRange m) where
-
-
-theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
-  x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := sorry
