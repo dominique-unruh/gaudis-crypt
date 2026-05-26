@@ -133,7 +133,7 @@ def Lens.equal_outside_setoid (lens : Lens a m) : Setoid m where
       ⟨y, by rw [← hy, ← hx, lens.set_set]⟩
   }
 
-def Lens.complement (lens : Lens a m) : Lens (Quotient lens.equal_outside_setoid) m where
+def Lens.compl (lens : Lens a m) : Lens (Quotient lens.equal_outside_setoid) m where
   get mem := Quotient.mk'' mem
   set a mem := Quotient.lift (lens.set (lens.get mem))
     (fun _ _ h => by obtain ⟨x, hx⟩ := h; rw [← hx, lens.set_set]) a
