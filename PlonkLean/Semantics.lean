@@ -322,3 +322,44 @@ noncomputable
 def Program.get {a : Type} (v : Lens a s) : Program s a := do
     let s <- StateT.get
     pure (v.get s)
+
+/-! ## Monad laws for `Program s` -/
+
+lemma Program.bind_assoc {s a b c : Type}
+    (p : Program s a) (f : a → Program s b) (g : b → Program s c) :
+    (p >>= f) >>= g = p >>= fun x => f x >>= g := by
+  funext st
+  apply Subtype.ext
+  letI : MeasurableSpace (a × s) := ⊤
+  letI : MeasurableSpace (b × s) := ⊤
+  letI : MeasurableSpace (c × s) := ⊤
+  exact MeasureTheory.Measure.bind_bind
+    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
+
+lemma Program.pure_bind {s a b : Type} (x : a) (f : a → Program s b) :
+    (pure x : Program s a) >>= f = f x := by
+  funext st
+  apply Subtype.ext
+  letI : MeasurableSpace (a × s) := ⊤
+  letI : MeasurableSpace (b × s) := ⊤
+  exact MeasureTheory.Measure.dirac_bind measurable_from_top (x, st)
+
+lemma Program.bind_pure {s a : Type} (m : Program s a) :
+    m >>= pure = m := by
+  funext st
+  apply Subtype.ext
+  letI : MeasurableSpace (a × s) := ⊤
+  change MeasureTheory.Measure.bind (m st).1 (fun p => @MeasureTheory.Measure.dirac (a × s) ⊤ p)
+      = (m st).1
+  rw [show (fun (p : a × s) => @MeasureTheory.Measure.dirac (a × s) ⊤ p) =
+          (fun (p : a × s) => @MeasureTheory.Measure.dirac (a × s) ⊤ (id p)) from rfl]
+  rw [MeasureTheory.Measure.bind_dirac_eq_map (m st).1 measurable_id]
+  exact MeasureTheory.Measure.map_id
+
+/-- SubProbability pure-bind law (at the SubProb level, not just Program level). -/
+lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbability β) :
+    (pure x : SubProbability α) >>= f = f x := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  exact MeasureTheory.Measure.dirac_bind measurable_from_top x

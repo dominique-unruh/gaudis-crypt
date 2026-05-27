@@ -3,6 +3,12 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.GroupTheory.Submonoid.Centralizer
 import PlonkLean.Misc
 
+/-- A read-only projection. Forgetting the setter of a `Lens` gives a `Getter`. -/
+@[ext]
+structure Getter (a : Type u) (b : Type v) where
+  get : b -> a
+
+@[ext]
 structure Lens (a : Type u) (b : Type v) where
   get : b -> a
   set : a -> b -> b
@@ -37,6 +43,12 @@ theorem Lens.ext (l r : Lens a m) (h : (∀ x y, l.set x y = r.set x y)) : l = r
     rw [h1] at h2
     exact h2.symm
   cases l; cases r; simp_all
+
+/-- Forget the setter; view a Lens as just the read-side. -/
+def Lens.toGetter (lens : Lens a b) : Getter a b := ⟨lens.get⟩
+
+instance : Coe (Lens a b) (Getter a b) where
+  coe := Lens.toGetter
 
 /-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
 class disjoint (x : Lens a m) (y : Lens b m) where

@@ -381,3 +381,30 @@ noncomputable def LensIn.antisymmOrderEmb [Nonempty m] :
     apply Quotient.sound
     exact ⟨(Lens.range_defines_preorder x.lens y.lens).mp (le_of_eq h),
            (Lens.range_defines_preorder y.lens x.lens).mp (le_of_eq h.symm)⟩
+
+/-! ## Orbits and the global getter -/
+
+/-- The `R`-orbit equivalence on `m`: `s ~ s'` iff one is reachable from the other via
+    `R`-updates (the equivalence closure of the directed orbit relation, since `R` is a
+    monoid not a group). -/
+def LensRange.orbit_setoid (R : LensRange m) : Setoid m where
+  r := Relation.EqvGen (fun s s' => ∃ f ∈ R.updates, f s = s')
+  iseqv := Relation.EqvGen.is_equivalence _
+
+/-- The "global getter" of a LensRange: the quotient projection onto orbit-classes.
+
+    Reading: two states give the same getter value iff they are in the same `R`-orbit.
+
+    For a lens-derived range `R = l.range`, two states are in the same `R`-orbit iff they
+    differ only in `l`'s content — so this getter encodes the *complement* of `l`.
+
+    Convention: `glob A` is typically "what A touches", i.e. **the commutant's** orbits,
+    so one writes `glob A := A.range.commutant.global_getter` (commutant = `Rᶜ`).
+    Equivalently `glob A := A.rangeᶜ.global_getter`. -/
+def LensRange.global_getter (R : LensRange m) : Getter (Quotient R.orbit_setoid) m where
+  get := Quotient.mk R.orbit_setoid
+
+/-- The "touched" getter: the same construction applied to the commutant.
+    For a lens-derived range `R = l.range`, this is isomorphic to `l.toGetter`. -/
+def LensRange.touched_getter (R : LensRange m) : Getter (Quotient Rᶜ.orbit_setoid) m :=
+  Rᶜ.global_getter
