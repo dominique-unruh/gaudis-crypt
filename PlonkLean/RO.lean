@@ -9,6 +9,8 @@ import PlonkLean.Misc
 import PlonkLean.Semantics
 import PlonkLean.WeakestPreconditions
 import PlonkLean.Lens
+import PlonkLean.LensRange
+import PlonkLean.ProgramRange
 import PlonkLean.Unsorted
 
 ------ Oracles
@@ -46,6 +48,18 @@ noncomputable def convert : Program state Unit := do
 noncomputable def lazy_init_convert : Program state Unit := do
   lazy_init
   convert
+
+/- `convert` only reads and writes `random_oracle_state` (modulo a uniform sample). -/
+theorem convert_inRange_ro : convert.inRange random_oracle_state.range := by
+  show ((Program.get random_oracle_state) >>= fun h =>
+          (Program.uniform : Program state (input → output)) >>= fun y =>
+            Program.set random_oracle_state (fun x => some ((h x).getD (y x)))).inRange _
+  refine Program.inRange_bind (Program.inRange_get _) ?_
+  intro _
+  refine Program.inRange_bind ?_ ?_
+  · exact Program.inRange_mono Program.inRange_uniform bot_le
+  · intro _
+    exact Program.inRange_set _ _
 
 private theorem program_ext {s a : Type} (p q : Program s a)
     (h : ∀ f, p.wp f = q.wp f) : p = q := by
@@ -190,15 +204,12 @@ noncomputable def conv_adv : Program state Unit := do
   convert
   adv
 
-/- Disjointness assumptions: `adv` does not read or write `random_oracle_state`,
-   and is independent of the uniform sampling inside `convert`. -/
-axiom adv_commutes_get_ro {a : Type} (k : (input → Option output) → Program state a) :
-    (adv >>= fun _ => Program.get random_oracle_state >>= k)
-  = (Program.get random_oracle_state >>= fun h => adv >>= fun _ => k h)
-
-axiom adv_commutes_set_ro (x : input → Option output) :
-    (adv >>= fun _ => Program.set random_oracle_state x)
-  = (Program.set random_oracle_state x >>= fun _ => adv)
+/- Disjointness assumption: `adv` does not touch `random_oracle_state`.
+   We express it as `adv.inRange random_oracle_state.compl.range` (= adv lives in
+   the lens-complement of `random_oracle_state`). This single hypothesis replaces
+   the previous two `adv_commutes_get_ro` / `adv_commutes_set_ro` axioms — the
+   commutativity now follows from `commute_of_disjoint_lens`. -/
+axiom adv_inRange_compl_ro : adv.inRange random_oracle_state.compl.range
 
 private lemma Program_bind_assoc {s a b c : Type}
     (p : Program s a) (f : a → Program s b) (g : b → Program s c) :
@@ -253,11 +264,23 @@ private theorem adv_commutes_uniform {α : Type} [Fintype α] [Nonempty α] {a :
 
 theorem claim_3 : adv_conv = conv_adv := by
   change (adv >>= fun _ => convert) = (convert >>= fun _ => adv)
-  simp only [convert]
-  rw [adv_commutes_get_ro]
-  simp_rw [adv_commutes_uniform]
-  simp_rw [adv_commutes_set_ro]
-  simp_rw [Program_bind_assoc]
+  -- Disjointness of the lens-complement with the lens itself (an equality, hence ≤).
+  have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
+    le_of_eq (LensRange.complement_range _)
+  -- Pair-output commutation from the headline lemma.
+  have h_commute : (adv >>= fun x => convert >>= fun y => pure (x, y))
+                 = (convert >>= fun y => adv >>= fun x => pure (x, y)) :=
+    Program.commute_of_disjoint_lens adv_inRange_compl_ro convert_inRange_ro h_disj
+  -- Massage both sides of the goal into the pair-output form so we can rewrite.
+  have hL : (adv >>= fun _ => convert)
+          = (adv >>= fun x => convert >>= fun y => pure (x, y)) >>= fun _ => pure () := by
+    apply Program.ext_of_wp; intro F; funext σ
+    simp [wp_bind, wp_pure]
+  have hR : (convert >>= fun _ => adv)
+          = (convert >>= fun y => adv >>= fun x => pure (x, y)) >>= fun _ => pure () := by
+    apply Program.ext_of_wp; intro F; funext σ
+    simp [wp_bind, wp_pure]
+  rw [hL, hR, h_commute]
 
 
 axiom want_more : Variable Bool
@@ -755,3 +778,86 @@ theorem claim_4 :
         (L >>= fun _ => convert >>= fun _ => K) = ((L >>= fun _ => convert) >>= fun _ => K))
         from fun L K => (Program_bind_assoc _ _ _).symm]
   rw [show (lazy_init >>= fun _ => convert) = random_oracle_init from claim_1]
+
+/-- `claim_5`: the lazy and eager oracle loops agree on every postcondition that is
+    invariant under writes to `random_oracle_state` (i.e., every postcondition that only
+    depends on the *non-RO* part of state).
+
+    Intuitively: an adversary that observes only its own global variables (none of which
+    are the random oracle's internal state) cannot tell lazy from eager. -/
+theorem claim_5 (F : Bool × state → ENNReal)
+    (hF_inv : ∀ (b : Bool) (σ : state) (x : input → Option output),
+        F (b, random_oracle_state.set x σ) = F (b, σ)) :
+    (oracle_loop lazy_init lazy_query).wp F
+  = (oracle_loop random_oracle_init random_oracle_query).wp F := by
+  -- Step 1: convert composed with `pure b` is wp-transparent for RO-invariant F.
+  -- (convert >>= fun _ => pure b).wp F σ = F (b, σ).
+  have h_convert : ∀ (b : Bool) (σ : state),
+      (convert >>= fun _ : Unit => (pure b : Program state Bool)).wp F σ = F (b, σ) := by
+    intros b σ
+    simp only [wp_bind, wp_pure]
+    rw [convert_wp_eq]
+    -- ∑ y, F (b, random_oracle_state.set (...) σ) / card = F (b, σ)
+    simp_rw [hF_inv]
+    -- ∑ y : input → output, F (b, σ) / card = F (b, σ)
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+    -- ↑card * (F (b, σ) / ↑card) = F (b, σ)
+    have hcard_pos : (Fintype.card (input → output) : ENNReal) ≠ 0 := by
+      exact_mod_cast Fintype.card_pos.ne'
+    have hcard_top : (Fintype.card (input → output) : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
+    rw [ENNReal.mul_div_cancel hcard_pos hcard_top]
+  -- Step 2: use claim_4 to bridge the two loops.
+  have h4_wp := congr_arg (fun prog : Program state Bool => prog.wp F) claim_4
+  simp only at h4_wp  -- beta-reduce
+  -- h4_wp : (lazy_loop >>= fun b => convert >>= fun _ => pure b).wp F = eager_loop.wp F
+  rw [wp_bind] at h4_wp
+  -- h4_wp : lazy_loop.wp (fun ⟨b, σ⟩ => (convert >>= fun _ => pure b).wp F σ) = eager_loop.wp F
+  -- Replace the inner expression using h_convert.
+  have h_eq : (fun (bσ : Bool × state) =>
+                  (convert >>= fun _ : Unit => (pure bσ.1 : Program state Bool)).wp F bσ.2)
+            = (fun (bσ : Bool × state) => F (bσ.1, bσ.2)) := by
+    funext bσ; exact h_convert bσ.1 bσ.2
+  rw [h_eq] at h4_wp
+  -- h4_wp : lazy_loop.wp (fun bσ => F (bσ.1, bσ.2)) = eager_loop.wp F.
+  -- After beta + eta, this is lazy_loop.wp F = eager_loop.wp F.
+  exact h4_wp
+
+/-- **SubProb-level form of `claim_5`**: for any projection `h : state → β` of
+    state that is invariant under writes to `random_oracle_state` (i.e., `h` only
+    sees the *non-RO* part of state), the lazy and eager oracle loops produce the
+    same distribution over `Bool × β`.
+
+    This is the "lazy oracle is indistinguishable from eager oracle by the
+    adversary's observable variables" statement: an adversary that observes only
+    `h σ` (which doesn't depend on the RO's internal state) sees identical
+    distributions in both worlds. -/
+theorem claim_5_subprob {β : Type} (h : state → β)
+    (h_inv : ∀ (σ : state) (x : input → Option output),
+        h (random_oracle_state.set x σ) = h σ)
+    (σ₀ : state) :
+    (oracle_loop lazy_init lazy_query σ₀ >>=
+        fun bσ : Bool × state => (pure (bσ.1, h bσ.2) : SubProbability (Bool × β)))
+    =
+    (oracle_loop random_oracle_init random_oracle_query σ₀ >>=
+        fun bσ : Bool × state => (pure (bσ.1, h bσ.2) : SubProbability (Bool × β))) := by
+  apply Subtype.ext
+  letI : MeasurableSpace (Bool × state) := ⊤
+  letI : MeasurableSpace (Bool × β) := ⊤
+  apply MeasureTheory.Measure.ext
+  intro A hA
+  -- Reduce both sides via `Measure.bind_apply` to lintegrals.
+  show MeasureTheory.Measure.bind (oracle_loop lazy_init lazy_query σ₀).1
+        (fun bσ : Bool × state =>
+          @MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A
+    = MeasureTheory.Measure.bind (oracle_loop random_oracle_init random_oracle_query σ₀).1
+        (fun bσ : Bool × state =>
+          @MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A
+  rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+  rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
+  -- Now both sides are `∫⁻ bσ, dirac (bσ.1, h bσ.2) A ∂(…).1`,
+  -- i.e. (… .wp F σ₀) for F bσ := dirac (bσ.1, h bσ.2) A.
+  -- This F is RO-invariant because `h` is.
+  exact congr_fun (claim_5
+      (fun bσ : Bool × state =>
+        (@MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A)
+      (by intros b σ x; simp only; rw [h_inv])) σ₀

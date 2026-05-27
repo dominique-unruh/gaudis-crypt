@@ -109,8 +109,11 @@ def Lens.range (lens : Lens a m) : LensRange m where
     - ... = updates
   -/
 
-theorem LensRange.complement_range (lens : Lens a m) :
-  lens.compl.range = lens.rangeᶜ := sorry
+/-- Auxiliary form before PartialOrder is set up; the full equality
+    `lens.compl.range = lens.rangeᶜ` is `LensRange.complement_range` below. -/
+private theorem complement_range_updates_eq (lens : Lens a m) :
+    (lens.compl.range : LensRange m).updates = (lens.rangeᶜ : LensRange m).updates :=
+  complement_range lens
 
 def LensRange.from (generators : Set (m → m)) : LensRange m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
@@ -179,6 +182,14 @@ instance : BoundedOrder (LensRange m) where
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
+theorem LensRange.complement_range (lens : Lens a m) :
+    lens.compl.range = lens.rangeᶜ := by
+  apply le_antisymm
+  · show lens.compl.range.updates ⊆ lens.rangeᶜ.updates
+    rw [complement_range_updates_eq]
+  · show lens.rangeᶜ.updates ⊆ lens.compl.range.updates
+    rw [← complement_range_updates_eq]
+
 theorem LensRange.disjoint_iff (x : LensRange m) (y : LensRange m) :
   Disjoint x y ↔ ∀ u∈x.updates, ∀ v∈y.updates, u ∘ v = v ∘ u :=
   sorry
@@ -231,3 +242,30 @@ instance : ComplementedLattice (LensRange m) where
 
 theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
   x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := sorry
+
+/-! ## Orbits and the global getter -/
+
+/-- The `R`-orbit equivalence on `m`: `s ~ s'` iff one is reachable from the other via
+    `R`-updates (the equivalence closure of the directed orbit relation, since `R` is a
+    monoid not a group). -/
+def LensRange.orbit_setoid (R : LensRange m) : Setoid m where
+  r := Relation.EqvGen (fun s s' => ∃ f ∈ R.updates, f s = s')
+  iseqv := Relation.EqvGen.is_equivalence _
+
+/-- The "global getter" of a LensRange: the quotient projection onto orbit-classes.
+
+    Reading: two states give the same getter value iff they are in the same `R`-orbit.
+
+    For a lens-derived range `R = l.range`, two states are in the same `R`-orbit iff they
+    differ only in `l`'s content — so this getter encodes the *complement* of `l`.
+
+    Convention: `glob A` is typically "what A touches", i.e. **the commutant's** orbits,
+    so one writes `glob A := A.range.commutant.global_getter` (commutant = `Rᶜ`).
+    Equivalently `glob A := A.rangeᶜ.global_getter`. -/
+def LensRange.global_getter (R : LensRange m) : Getter (Quotient R.orbit_setoid) m where
+  get := Quotient.mk R.orbit_setoid
+
+/-- The "touched" getter: the same construction applied to the commutant.
+    For a lens-derived range `R = l.range`, this is isomorphic to `l.toGetter`. -/
+def LensRange.touched_getter (R : LensRange m) : Getter (Quotient Rᶜ.orbit_setoid) m :=
+  Rᶜ.global_getter
