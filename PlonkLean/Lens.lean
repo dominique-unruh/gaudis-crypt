@@ -8,9 +8,7 @@ import PlonkLean.Misc
 structure Getter (a : Type u) (b : Type v) where
   get : b -> a
 
-@[ext]
-structure Lens (a : Type u) (b : Type v) where
-  get : b -> a
+structure Lens (a : Type u) (b : Type v) extends Getter a b where
   set : a -> b -> b
   set_get : ∀ s x, get (set x s) = x
   set_set : ∀ s x y, set y (set x s) = set y s
@@ -43,12 +41,6 @@ theorem Lens.ext (l r : Lens a m) (h : (∀ x y, l.set x y = r.set x y)) : l = r
     rw [h1] at h2
     exact h2.symm
   cases l; cases r; simp_all
-
-/-- Forget the setter; view a Lens as just the read-side. -/
-def Lens.toGetter (lens : Lens a b) : Getter a b := ⟨lens.get⟩
-
-instance : Coe (Lens a b) (Getter a b) where
-  coe := Lens.toGetter
 
 /-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
 class disjoint (x : Lens a m) (y : Lens b m) where
@@ -131,7 +123,7 @@ def IsoLens (lens : Lens a b) := Function.Bijective lens.get
 instance : Preorder (LensIn m) where
   le x y := exists z : Lens x.content y.content, chain y.lens z = x.lens
   le_refl := fun x => by
-    refine ⟨⟨id, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩, ?_⟩
+    refine ⟨⟨⟨id⟩, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩, ?_⟩
     obtain ⟨_, _, _, _, _⟩ := x.lens
     rfl
   le_trans := fun x y z hxy hyz => by
