@@ -105,17 +105,13 @@ private theorem double_complement_iso_lens_iso [Nonempty m] (lens : Lens a m) :
 private theorem double_complement [Nonempty m] (lens : Lens a m) :
     lens.compl.compl = chain lens (double_complement_iso_lens lens) := by
   ext
-  · simp only [Lens.compl, chain, double_complement_iso_lens]
-    apply Quotient.sound
-    exact ⟨Quotient.mk'' (Classical.choice inferInstance),
-      by simp [Lens.compl, Quotient.lift_mk]⟩
-  · rename_i q s
-    induction q using Quotient.inductionOn with
-    | h t => simp [Lens.compl, chain, double_complement_iso_lens, Quotient.lift_mk]
+  rename_i q s
+  induction q using Quotient.inductionOn with
+  | h t => simp [Lens.compl, chain, double_complement_iso_lens, Quotient.lift_mk]
 
 def Lens.range (lens : Lens a m) : LensRange m where
   updates := Set.image lens.update ⊤
-  id := ⟨id, Set.mem_univ _, funext fun x => lens.get_set x⟩
+  id := ⟨_root_.id, Set.mem_univ _, funext fun x => lens.get_set x⟩
   comp := fun hf hg => by
     obtain ⟨h, -, rfl⟩ := hf
     obtain ⟨k, -, rfl⟩ := hg
@@ -235,13 +231,6 @@ instance : BoundedOrder (LensRange m) where
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
--- FALSE, see flipRange counterexample
--- theorem LensRange.disjoint_iff (x : LensRange m) (y : LensRange m) :
-  -- Disjoint x y ↔ ∀ u∈x.updates, ∀ v∈y.updates, u ∘ v = v ∘ u :=
-  -- sorry
-
--- theorem LensRange.compl_is_compl (x : LensRange a) : IsCompl x (xᶜ) := sorry
-
 theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := by
   have key : ∀ {p q : LensRange a}, p.updates = q.updates → p = q := by
     intro p q h; obtain ⟨_,_,_,_⟩ := p; obtain ⟨_,_,_,_⟩ := q
@@ -287,9 +276,108 @@ instance : CompleteSemilatticeInf (LensRange m) where
 
 instance : CompleteLattice (LensRange m) where
 
--- TODO not the kind of complemented lattice I want. I just want something with Compl that inverts the ordering
--- instance : ComplementedLattice (LensRange m) where
-  -- exists_isCompl x := by use xᶜ; apply LensRange.compl_is_compl
+theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
+    x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := by
+  /-
+  Direction →  (∃ z, chain y z = x  →  x.range ≤ y.range):
+    Given z with chain y z = x, for any f : a → a,
+    x.update f = (chain y z).update f = y.update (fun v => z.set (f (z.get v)) v),
+    so every x-update is a y-update, i.e., x.range.updates ⊆ y.range.updates.
 
-theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
-  x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := sorry
+  Direction ←  (x.range ≤ y.range  →  ∃ z, chain y z = x):
+    (1) Centralizer antitonicity: x.range.updates ⊆ y.range.updates implies
+        centralizer(y.range.updates) ⊆ centralizer(x.range.updates), i.e.,
+        y.compl.range.updates ⊆ x.compl.range.updates (by complement_range).
+        So every y.compl-update commutes with every x-update.
+    (2) From this commutativity, x.get factors through y.get:
+        y.get s = y.get t  →  x.get s = x.get t.
+        (Proof: apply commutativity of x.update (fun _ => x.get t) with a
+        y.compl-update that maps s to a point with the same y.get as t.)
+    (3) Fix m₀ : m and define z : Lens a b by
+          z.get v  := x.get (y.set v m₀)
+          z.set c v := y.get (x.set c (y.set v m₀))
+        These are well-defined (z.get independent of m₀ by step 2,
+        z.set independent of m₀ since x.set c s depends on y.get s only).
+    (4) Verify chain y z = x:
+        get: (chain y z).get s = z.get (y.get s) = x.get (y.set (y.get s) m₀) = x.get s  (step 2)
+        set: (chain y z).set c s = y.set (z.set c (y.get s)) s
+                                 = y.set (y.get (x.set c (y.set (y.get s) m₀))) s
+             From x.range ≤ y.range, x.set c s = y.set (y.get (x.set c s)) s,
+             and y.get (x.set c s) = y.get (x.set c (y.set (y.get s) m₀)) by step 2,
+             so (chain y z).set c s = y.set (y.get (x.set c s)) s = x.set c s.
+  -/
+  constructor
+  · intro hle
+    -- Step 1: centralizer antitonicity gives y.compl.range ≤ x.compl.range
+    have hcompl : y.compl.range ≤ x.compl.range := by
+      rw [LensRange.complement_range y, LensRange.complement_range x]
+      exact Submonoid.centralizer_le hle
+    -- Step 2: x.get factors through y.get
+    have hfactor : ∀ s t : m, y.get s = y.get t → x.get s = x.get t := by
+      intro s t hyt
+      have hmem : y.compl.update (fun _ => Quotient.mk'' t) ∈ y.compl.range.updates :=
+        ⟨fun _ => Quotient.mk'' t, Set.mem_univ _, rfl⟩
+      obtain ⟨g, -, hg⟩ := hcompl hmem
+      have hget : x.get (x.compl.update g s) = x.get s := by
+        change x.get (x.compl.set (g (Quotient.mk'' s)) s) = x.get s
+        induction g (Quotient.mk'' s) using Quotient.inductionOn with
+        | h v => exact x.set_get v (x.get s)
+      have hst : y.compl.update (fun _ => Quotient.mk'' t) s = t := by
+        change y.set (y.get s) t = t
+        rw [hyt]; exact y.get_set t
+      rw [← hg] at hst
+      rw [hst] at hget
+      exact hget.symm
+    -- Step 3: define z : Lens a b
+    let m0 : m := Classical.choice inferInstance
+    have hfact2 : ∀ (d : a) (s₁ s₂ : m), y.get s₁ = y.get s₂ →
+        y.get (x.set d s₁) = y.get (x.set d s₂) := fun d s₁ s₂ heq => by
+      obtain ⟨g, -, hg⟩ := hle ⟨fun _ => d, Set.mem_univ _, rfl⟩
+      have key : ∀ s, y.get (x.set d s) = g (y.get s) := fun s => by
+        have eq := congr_fun hg s
+        simp only [Lens.update] at eq
+        rw [← eq, y.set_get]
+      simp only [key, heq]
+    let z : Lens a b := {
+      get := fun v => x.get (y.set v m0)
+      set := fun c v => y.get (x.set c (y.set v m0))
+      set_get := fun v c => (hfactor _ _ (y.set_get m0 _)).trans (x.set_get _ _)
+      get_set := fun v => by rw [x.get_set, y.set_get]
+      set_set := fun v c d => (hfact2 d _ _ (y.set_get m0 _)).trans (by rw [x.set_set])
+    }
+    let chain_eq : chain (LensIn.mk' y).lens z = (LensIn.mk' x).lens := by
+      ext c mem
+      simp [chain, LensIn.mk']
+      obtain ⟨g, -, hg⟩ := hle ⟨fun _ => c, Set.mem_univ _, rfl⟩
+      have hgkey : ∀ s, y.set (g (y.get s)) s = x.set c s := fun s => by
+        have := congr_fun hg s; simp only [Lens.update] at this; exact this
+      have hgget : ∀ s, y.get (x.set c s) = g (y.get s) := fun s => by
+        rw [← hgkey s]; exact y.set_get s _
+      have heq : y.get (x.set c (y.set (y.get mem) m0)) = y.get (x.set c mem) :=
+        hfact2 c _ _ (y.set_get m0 (y.get mem))
+      change y.set (y.get (x.set c (y.set (y.get mem) m0))) mem = x.set c mem
+      rw [heq, hgget mem, hgkey mem]
+    exact ⟨z, chain_eq⟩
+  · rintro ⟨z, hz⟩
+    have hz' : chain y z = x := hz
+    rintro _ ⟨f, -, rfl⟩
+    exact ⟨fun v => z.set (f (z.get v)) v, Set.mem_univ _,
+      by funext s; rw [← hz']; simp [Lens.update, chain]⟩
+
+noncomputable def LensIn.antisymmOrderEmb [Nonempty m] :
+    Antisymmetrization (LensIn m) (· ≤ ·) ↪o LensRange m where
+  toFun := Quotient.lift (fun ⟨_, lens⟩ => lens.range)
+    fun a b ⟨h1, h2⟩ => le_antisymm
+      ((Lens.range_defines_preorder a.lens b.lens).mpr h1)
+      ((Lens.range_defines_preorder b.lens a.lens).mpr h2)
+  map_rel_iff' {a b} := by
+    induction a using Quotient.inductionOn with | h x =>
+    induction b using Quotient.inductionOn with | h y =>
+    exact Lens.range_defines_preorder x.lens y.lens
+  inj' := by
+    intro a b h
+    induction a using Quotient.inductionOn with | h x =>
+    induction b using Quotient.inductionOn with | h y =>
+    apply Quotient.sound
+    exact ⟨(Lens.range_defines_preorder x.lens y.lens).mp (le_of_eq h),
+           (Lens.range_defines_preorder y.lens x.lens).mp (le_of_eq h.symm)⟩

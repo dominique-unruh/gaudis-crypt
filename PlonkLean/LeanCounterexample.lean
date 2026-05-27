@@ -3,6 +3,7 @@ import PlonkLean.Lens
 import PlonkLean.LensRange
 import Mathlib.Data.List.Basic
 import Mathlib.Data.FinEnum
+import Mathlib.SetTheory.Cardinal.Basic
 
 def example_lens_1 : Lens bit (bit × bit × bit) where
   get := fun (x,y,z) => x + y
@@ -51,17 +52,16 @@ private def proveChain (ub : Lens (bit × bit) (bit × bit × bit))
     chain ub z = ex → LensIn.mk' ub ≥ LensIn.mk' ex := fun h => ⟨z, h⟩
 
 lemma ub11 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_1 :=
-  proveChain _ _ z1 (Lens.ext (by decide) (by decide))
+  proveChain _ _ z1 (by apply Lens.ext; decide)
 
 lemma ub12 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_2 :=
-  proveChain _ _ z2 (Lens.ext (by decide) (by decide))
+  proveChain _ _ z2 (by apply Lens.ext; decide)
 
 lemma ub21 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_1 :=
-  proveChain _ _ z1 (Lens.ext (by decide) (by decide))
+  proveChain _ _ z1 (by apply Lens.ext; decide)
 
 lemma ub22 : LensIn.mk' upper_bound_2 ≥ LensIn.mk' example_lens_2 :=
-  proveChain _ _ z2 (Lens.ext (by decide) (by decide))
-
+  proveChain _ _ z2 (by apply Lens.ext; decide)
 
 theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   IsLUB {LensIn.mk' example_lens_1, LensIn.mk' example_lens_2} l := by
@@ -83,6 +83,39 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   - But that's incorrect, since example_lens_1.set can change the first component of the memory, and example_lens_2.set only the second
   - We have a contradiction, so l cannot exist
   -/
+  intro ⟨l, hlub⟩
+  have hincomp1 : ¬ LensIn.mk' upper_bound_1 ≤ LensIn.mk' upper_bound_2 := by
+    -- chain upper_bound_2 z always preserves the 3rd component, but upper_bound_1.set can change it
+    intro ⟨z, hz⟩
+    have heq : chain upper_bound_2 z = upper_bound_1 := hz
+    have hthird : ∀ a (s : bit × bit × bit), ((chain upper_bound_2 z).set a s).2.2 = s.2.2 := by
+      intro a ⟨x, y, w⟩; simp [chain, upper_bound_2]
+    have h := hthird (1, 0) (0, 0, 0)
+    rw [heq] at h; simp [upper_bound_1] at h
+  have hincomp2 : ¬ LensIn.mk' upper_bound_2 ≤ LensIn.mk' upper_bound_1 := by
+    -- chain upper_bound_1 z always preserves the 1st component, but upper_bound_2.set can change it
+    intro ⟨z, hz⟩
+    have heq : chain upper_bound_1 z = upper_bound_2 := hz
+    have hfst : ∀ a (s : bit × bit × bit), ((chain upper_bound_1 z).set a s).1 = s.1 := by
+      intro a ⟨x, y, w⟩; simp [chain, upper_bound_1]
+    have h := hfst (1, 0) (0, 0, 0)
+    rw [heq] at h; simp [upper_bound_2] at h
+  have l_leq: l < LensIn.mk' upper_bound_1 := by
+    have hl_le_ub1 : l ≤ LensIn.mk' upper_bound_1 := hlub.2 sorry
+    have hl_le_ub2 : l ≤ LensIn.mk' upper_bound_2 := hlub.2 sorry
+    have hub1_not_le_l : ¬ LensIn.mk' upper_bound_1 ≤ l := by
+      intro h; exact hincomp1 (h.trans hl_le_ub2)
+    exact lt_of_le_not_ge hl_le_ub1 hub1_not_le_l
+  have l_leq_4: Cardinal.mk l.content ≤ Cardinal.mk (bit × bit) := sorry
+  haveI _ : Fintype l.content := sorry
+  have l_div_4 : Fintype.card l.content ∣ Fintype.card (bit × bit) := sorry
+  have l_lt_4 : Fintype.card l.content < Fintype.card (bit × bit) := sorry
+  have l_ge_2 : Fintype.card l.content >= Fintype.card bit := sorry
+  have l_eq_2 : Fintype.card l.content = Fintype.card bit := sorry
+  have l_le_ex1 : l ≤ LensIn.mk' example_lens_2 := sorry
+  have l_ge_ex1 : l ≥ LensIn.mk' example_lens_1 := sorry
+  have ex2_le_ex1 : LensIn.mk' example_lens_2 ≤ LensIn.mk' example_lens_1 := sorry
+  -- But that's incorrect, since example_lens_1.set can change the first component of the memory, and example_lens_2.set only the second
   sorry
 
 

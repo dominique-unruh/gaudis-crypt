@@ -3,13 +3,40 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.GroupTheory.Submonoid.Centralizer
 import PlonkLean.Misc
 
-@[ext]
 structure Lens (a : Type u) (b : Type v) where
   get : b -> a
   set : a -> b -> b
   set_get : ∀ s x, get (set x s) = x
   set_set : ∀ s x y, set y (set x s) = set y s
   get_set : ∀ s, set (get s) s = s
+
+open Classical in
+noncomputable def Lens.get_from_set {a m : Type*} [ne : Nonempty a] (set : a → m → m) : m → a :=
+  fun mem ↦
+    if h : ∃ x : a, set x mem = mem
+    then choose h else choice ne
+
+def Lens.get_from_set_correct [Nonempty a] (lens : Lens a m) :
+    Lens.get_from_set lens.set = lens.get := by
+  funext mem
+  simp only [Lens.get_from_set]
+  have hex : ∃ x : a, lens.set x mem = mem := ⟨lens.get mem, lens.get_set mem⟩
+  rw [dif_pos hex]
+  have h1 := Classical.choose_spec hex
+  have h2 := lens.set_get mem (Classical.choose hex)
+  rw [h1] at h2
+  exact h2.symm
+
+@[ext]
+theorem Lens.ext (l r : Lens a m) (h : (∀ x y, l.set x y = r.set x y)) : l = r := by
+  have hset : l.set = r.set := funext₂ h
+  have hget : l.get = r.get := by
+    funext s
+    have h1 : r.set (l.get s) s = s := hset ▸ l.get_set s
+    have h2 := r.set_get s (l.get s)
+    rw [h1] at h2
+    exact h2.symm
+  cases l; cases r; simp_all
 
 /-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
 class disjoint (x : Lens a m) (y : Lens b m) where
@@ -147,3 +174,77 @@ def Lens.compl (lens : Lens a m) : Lens (Quotient lens.equal_outside_setoid) m w
     rename_i v
     simp [lens.set_get]
 
+theorem Lens.empty_eq [IsEmpty m] (lens1 : Lens a m) (lens2 : Lens a m) : lens1 = lens2 := by
+  ext x m; exact of_decide_eq_true rfl
+
+def Lens.id : Lens m m where
+  get m := m
+  set a _ := a
+  set_set _ _ _ := rfl
+  get_set _ := rfl
+  set_get _ _ := rfl
+
+
+
+lemma lens_leq_content_leq [Nonempty m] (lens1 : LensIn m) (lens2 : LensIn m)
+    (h : lens1 ≤ lens2) : Cardinal.mk lens1.content ≤ Cardinal.mk lens2.content := by
+  obtain ⟨z, _⟩ := h
+  let s₀ : lens2.content := lens2.lens.get (Classical.choice inferInstance)
+  exact Cardinal.mk_le_of_injective (f := fun x => z.set x s₀) fun x₁ x₂ heq => by
+    simpa [z.set_get] using congr_arg z.get heq
+
+lemma get_surjective (lens : Lens a m) : Function.Surjective lens.get := sorry
+
+lemma get_injective_iso_lens (lens : Lens a m) (_ : Function.Injective lens.get) : IsoLens lens :=
+  /-
+  Proof:
+  - lens.get surjective by get_surjective
+  - With assumption, lens.get bijective
+  - By definition, this makes lens an IsoLens
+  -/
+  sorry
+
+lemma iso_lens_ge (lens1 : Lens a m) (lens2 : Lens b m) (_ : IsoLens z) (_ : chain lens2 z = lens1) :
+  LensIn.mk' lens1 ≥ LensIn.mk' lens2 := sorry
+
+lemma lens_lt_content_lt (lens1 : LensIn m) (lens2 : LensIn m)
+  [Fintype lens1.content] [Fintype lens2.content] (lt : lens1 < lens2) :
+  Fintype.card lens1.content < Fintype.card lens2.content :=
+  /-
+  Proof sketch:
+  - Assume the goal doesn't hold, i.e., Fintype.card lens1.content >= Fintype.card lens2.content
+  - By lens_leq_content_leq, we have Fintype.card lens1.content <= Fintype.card lens2.content
+  - So Fintype.card lens1.content = Fintype.card lens2.content
+  - Since lens1 <= lens2, there is a lens z such that `chain lens2.lens z = lens1.lens`.
+  - z : Lens lens1.content lens2.content
+  - By get_surjective, z.get is surjective.
+  - Since Fintype.card lens1.content = Fintype.card lens2.content, this implies that z.get is injective.
+  - By get_injective_iso_lens, this implies z is an IsoLens
+  - This implies: lens1 >= lens2
+  - Contradiction to assumption `lt`
+  -/
+  sorry
+
+lemma lens_content_div_mem [Fintype a] [Fintype m] (lens : Lens a m) :
+  Fintype.card a ∣ Fintype.card m :=
+  /-
+  Proof:
+  - f mem := (lens.get mem, lens.compl.get mem)
+  - Then f is a bijection
+  - f : m → a × t  (for suitable t)
+  - Since Fintype m, it follows Fintype (a × t). Thus Fintype t.
+  - Thus Fintype.card m = Fintype.card (a × t) = Fintype.card a × Fintype.card t
+  - Hence Fintype.card a divides Fintype.card m
+  -/
+  sorry
+
+lemma lens_le_content_div (lens1 : LensIn m) (lens2 : LensIn m)
+  [Fintype lens1.content] [Fintype lens2.content] (_ : lens1 ≤ lens2) :
+  Fintype.card lens1.content ∣ Fintype.card lens2.content :=
+  /-
+  Proof sketch:
+  - There is a lens z such that `chain lens2.lens z = lens1.lens
+  - z : Lens lens1.content lens2.content
+  - By lens_content_div_mem, the theorem follows
+  -/
+  sorry
