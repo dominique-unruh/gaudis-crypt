@@ -85,11 +85,33 @@ private noncomputable def double_complement_iso_lens [Nonempty m] (lens : Lens a
   set_set _ _ _ := rfl
 
 private theorem double_complement_iso_lens_iso [Nonempty m] (lens : Lens a m) :
-  IsoLens (double_complement_iso_lens lens) := sorry
+    IsoLens (double_complement_iso_lens lens) := by
+  constructor
+  · intro v1 v2 h
+    have hrel := Quotient.exact h
+    obtain ⟨q, hq⟩ := hrel
+    induction q using Quotient.inductionOn with
+    | h u =>
+      simp only [Lens.compl, Quotient.lift_mk] at hq
+      have key := congr_arg lens.get hq
+      simp only [lens.set_get] at key
+      exact key
+  · intro q
+    induction q using Quotient.inductionOn with
+    | h s =>
+      exact ⟨lens.get s, Quotient.sound ⟨Quotient.mk'' s,
+        by simp [Lens.compl, Quotient.lift_mk, lens.set_get, lens.get_set]⟩⟩
 
 private theorem double_complement [Nonempty m] (lens : Lens a m) :
-  lens.compl.compl = chain lens (double_complement_iso_lens lens)
-  := sorry
+    lens.compl.compl = chain lens (double_complement_iso_lens lens) := by
+  ext
+  · simp only [Lens.compl, chain, double_complement_iso_lens]
+    apply Quotient.sound
+    exact ⟨Quotient.mk'' (Classical.choice inferInstance),
+      by simp [Lens.compl, Quotient.lift_mk]⟩
+  · rename_i q s
+    induction q using Quotient.inductionOn with
+    | h t => simp [Lens.compl, chain, double_complement_iso_lens, Quotient.lift_mk]
 
 def Lens.range (lens : Lens a m) : LensRange m where
   updates := Set.image lens.update ⊤
@@ -99,21 +121,52 @@ def Lens.range (lens : Lens a m) : LensRange m where
     obtain ⟨k, -, rfl⟩ := hg
     exact ⟨h ∘ k, Set.mem_univ _, funext fun x => by
       simp [Lens.update, lens.set_get, lens.set_set]⟩
-  double_commutant := sorry /- Proof sketch:
-    First, a case distinction whether Nonempty m or Empty m. For empty m, the theorem is trivial.
-    For nonempty m:
+  double_commutant := by
+    simp only [centralizer_carrier_eq]
+    by_cases hm : Nonempty m
+    · haveI := hm
+      have hiso := double_complement_iso_lens_iso lens
+      have h1 : Set.centralizer (Set.image lens.update ⊤) = Set.image lens.compl.update ⊤ := by
+        rw [← centralizer_carrier_eq]; exact (complement_range lens).symm
+      have h2 : Set.centralizer (Set.image lens.compl.update ⊤) =
+          Set.image lens.compl.compl.update ⊤ := by
+        rw [← centralizer_carrier_eq]; exact (complement_range lens.compl).symm
+      rw [h1, h2, double_complement]
+      apply Set.Subset.antisymm
+      · rintro _ ⟨f, -, rfl⟩
+        exact ⟨fun v => (double_complement_iso_lens lens).set
+            (f ((double_complement_iso_lens lens).get v)) v,
+          Set.mem_univ _, by funext s; simp [chain, Lens.update]⟩
+      · rintro _ ⟨g, -, rfl⟩
+        refine ⟨fun q => (double_complement_iso_lens lens).get
+            (g (Classical.choose (hiso.2 q))), Set.mem_univ _, ?_⟩
+        funext s; simp only [chain, Lens.update]
+        have key : ∀ (v w : a), (double_complement_iso_lens lens).set
+            ((double_complement_iso_lens lens).get w) v = w :=
+          fun v w => hiso.1 ((double_complement_iso_lens lens).set_get v
+              ((double_complement_iso_lens lens).get w))
+        rw [key]
+        exact congr_arg (fun v => lens.set (g v) s)
+          (hiso.1 (Classical.choose_spec (hiso.2 _)))
+    · rw [not_nonempty_iff] at hm
+      have heq : ∀ f g : m → m, f = g := fun f g => funext fun x => IsEmpty.elim hm x
+      have h_univ : Set.centralizer (Set.univ : Set (m → m)) = Set.univ := by
+        ext f; simp only [Set.mem_centralizer_iff, Set.mem_univ, iff_true]; intro g _; exact heq _ _
+      have himg : Set.image lens.update ⊤ = Set.univ :=
+        Set.eq_univ_iff_forall.mpr fun f =>
+          ⟨Classical.arbitrary _, Set.mem_univ _, heq _ _⟩
+      rw [himg, h_univ, h_univ]
 
-    - double_commutant of updates = Set.image lens.complement.complement.update ⊤   BY: complement_range
-    - ... = Set.image (chain lens iso_lens).update ⊤  BY: double_complement
-    - ... = Set.image lens.update ⊤    BY: the fact that iso_lens is IsoLens
-    - ... = updates
-  -/
-
-/-- Auxiliary form before PartialOrder is set up; the full equality
-    `lens.compl.range = lens.rangeᶜ` is `LensRange.complement_range` below. -/
-private theorem complement_range_updates_eq (lens : Lens a m) :
-    (lens.compl.range : LensRange m).updates = (lens.rangeᶜ : LensRange m).updates :=
-  complement_range lens
+theorem LensRange.complement_range (lens : Lens a m) :
+    lens.compl.range = lens.rangeᶜ := by
+  have key : ∀ {x y : LensRange m}, x.updates = y.updates → x = y := by
+    intro x y hxy
+    obtain ⟨xu, xi, xc, xd⟩ := x; obtain ⟨yu, yi, yc, yd⟩ := y
+    simp only at hxy; subst hxy; rfl
+  refine key ?_
+  change Set.image lens.compl.update ⊤ =
+    (Submonoid.centralizer (Set.image lens.update ⊤)).carrier
+  exact _root_.complement_range lens
 
 def LensRange.from (generators : Set (m → m)) : LensRange m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
@@ -182,21 +235,18 @@ instance : BoundedOrder (LensRange m) where
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
-theorem LensRange.complement_range (lens : Lens a m) :
-    lens.compl.range = lens.rangeᶜ := by
-  apply le_antisymm
-  · show lens.compl.range.updates ⊆ lens.rangeᶜ.updates
-    rw [complement_range_updates_eq]
-  · show lens.rangeᶜ.updates ⊆ lens.compl.range.updates
-    rw [← complement_range_updates_eq]
+-- FALSE, see flipRange counterexample
+-- theorem LensRange.disjoint_iff (x : LensRange m) (y : LensRange m) :
+  -- Disjoint x y ↔ ∀ u∈x.updates, ∀ v∈y.updates, u ∘ v = v ∘ u :=
+  -- sorry
 
-theorem LensRange.disjoint_iff (x : LensRange m) (y : LensRange m) :
-  Disjoint x y ↔ ∀ u∈x.updates, ∀ v∈y.updates, u ∘ v = v ∘ u :=
-  sorry
+-- theorem LensRange.compl_is_compl (x : LensRange a) : IsCompl x (xᶜ) := sorry
 
-theorem LensRange.compl_is_compl (x : LensRange a) : IsCompl x (xᶜ) := sorry
-
-theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := sorry
+theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := by
+  have key : ∀ {p q : LensRange a}, p.updates = q.updates → p = q := by
+    intro p q h; obtain ⟨_,_,_,_⟩ := p; obtain ⟨_,_,_,_⟩ := q
+    simp only at h; subst h; rfl
+  apply key; simp only [Compl.compl]; exact x.double_commutant
 
 instance : CompleteSemilatticeSup (LensRange m) where
   sSup s := LensRange.from (⋃ x ∈ s, x.updates)
@@ -237,8 +287,9 @@ instance : CompleteSemilatticeInf (LensRange m) where
 
 instance : CompleteLattice (LensRange m) where
 
-instance : ComplementedLattice (LensRange m) where
-  exists_isCompl x := by use xᶜ; apply LensRange.compl_is_compl
+-- TODO not the kind of complemented lattice I want. I just want something with Compl that inverts the ordering
+-- instance : ComplementedLattice (LensRange m) where
+  -- exists_isCompl x := by use xᶜ; apply LensRange.compl_is_compl
 
 theorem Lens.range_defines_preorder (x : Lens a m) (y : Lens b m) :
   x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := sorry
