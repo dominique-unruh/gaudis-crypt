@@ -2,6 +2,7 @@ import Lean
 import Lean.Elab.Term
 import PlonkLean.Semantics
 
+-- TODO Just use Getter?
 def Expression s a := s → a
 
 /-- Syntactic program (with arbitrary Lean terms as expressions) -/
