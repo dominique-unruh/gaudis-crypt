@@ -100,23 +100,57 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
       intro a ⟨x, y, w⟩; simp [chain, upper_bound_1]
     have h := hfst (1, 0) (0, 0, 0)
     rw [heq] at h; simp [upper_bound_2] at h
-  have l_leq: l < LensIn.mk' upper_bound_1 := by
-    have hl_le_ub1 : l ≤ LensIn.mk' upper_bound_1 := hlub.2 sorry
-    have hl_le_ub2 : l ≤ LensIn.mk' upper_bound_2 := hlub.2 sorry
-    have hub1_not_le_l : ¬ LensIn.mk' upper_bound_1 ≤ l := by
-      intro h; exact hincomp1 (h.trans hl_le_ub2)
+  have l_leq : l < LensIn.mk' upper_bound_1 := by
+    have hl_le_ub1 : l ≤ LensIn.mk' upper_bound_1 := hlub.2 (fun x hx => by
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx
+      rcases hx with rfl | rfl; exact ub11; exact ub12)
+    have hl_le_ub2 : l ≤ LensIn.mk' upper_bound_2 := hlub.2 (fun x hx => by
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx
+      rcases hx with rfl | rfl; exact ub21; exact ub22)
+    have hub1_not_le_l : ¬ LensIn.mk' upper_bound_1 ≤ l := fun h => hincomp1 (h.trans hl_le_ub2)
     exact lt_of_le_not_ge hl_le_ub1 hub1_not_le_l
-  have l_leq_4: Cardinal.mk l.content ≤ Cardinal.mk (bit × bit) := sorry
-  haveI _ : Fintype l.content := sorry
-  have l_div_4 : Fintype.card l.content ∣ Fintype.card (bit × bit) := sorry
-  have l_lt_4 : Fintype.card l.content < Fintype.card (bit × bit) := sorry
-  have l_ge_2 : Fintype.card l.content >= Fintype.card bit := sorry
-  have l_eq_2 : Fintype.card l.content = Fintype.card bit := sorry
-  have l_le_ex1 : l ≤ LensIn.mk' example_lens_2 := sorry
-  have l_ge_ex1 : l ≥ LensIn.mk' example_lens_1 := sorry
-  have ex2_le_ex1 : LensIn.mk' example_lens_2 ≤ LensIn.mk' example_lens_1 := sorry
-  -- But that's incorrect, since example_lens_1.set can change the first component of the memory, and example_lens_2.set only the second
-  sorry
+  -- Fintype l.content from injection l.content → bit × bit
+  obtain ⟨z_ub, _⟩ := l_leq.le
+  haveI : Fintype l.content :=
+    Fintype.ofInjective (fun x => z_ub.set x (0, 0)) (fun x₁ x₂ h => by
+      simpa [z_ub.set_get] using congr_arg z_ub.get h)
+  haveI : Nonempty (bit × bit × bit) := ⟨(0, 0, 0)⟩
+  have l_lt_4 : Fintype.card l.content < Fintype.card (bit × bit) :=
+    lens_lt_content_lt l (LensIn.mk' upper_bound_1) l_leq
+  have l_div_4 : Fintype.card l.content ∣ Fintype.card (bit × bit) :=
+    lens_le_content_div l (LensIn.mk' upper_bound_1) l_leq.le
+  -- l is upper bound of example_lens_2; get injection bit → l.content
+  have hex2_le_l : LensIn.mk' example_lens_2 ≤ l := hlub.1 (Set.mem_insert_of_mem _ rfl)
+  obtain ⟨z_ex2, hchain_ex2⟩ := hex2_le_l
+  let s₀ : l.content := l.lens.get (Classical.choice inferInstance)
+  have l_ge_2 : Fintype.card bit ≤ Fintype.card l.content :=
+    Fintype.card_le_of_injective (fun a : bit => z_ex2.set a s₀) (fun a₁ a₂ h => by
+      simpa [z_ex2.set_get] using congr_arg z_ex2.get h)
+  have l_eq_2 : Fintype.card l.content = Fintype.card bit := by
+    have h4 : Fintype.card (bit × bit) = 4 := by decide
+    have h2 : Fintype.card bit = 2 := by decide
+    omega
+  -- z_ex2 has bijective get (equal cardinalities), so l ≤ example_lens_2
+  haveI : Nonempty l.content := ⟨s₀⟩
+  have f_inj_ex2 : Function.Injective (fun a : bit => z_ex2.set a s₀) := fun a₁ a₂ h => by
+    simpa [z_ex2.set_get] using congr_arg z_ex2.get h
+  have f_surj_ex2 : Function.Surjective (fun a : bit => z_ex2.set a s₀) :=
+    f_inj_ex2.surjective_of_finite (Fintype.equivOfCardEq l_eq_2.symm)
+  have hinj_ex2 : Function.Injective z_ex2.get := fun y₁ y₂ hy => by
+    obtain ⟨a₁, rfl⟩ := f_surj_ex2 y₁; obtain ⟨a₂, rfl⟩ := f_surj_ex2 y₂
+    simp only [z_ex2.set_get] at hy; rw [hy]
+  have l_le_ex2 : l ≤ LensIn.mk' example_lens_2 :=
+    iso_lens_ge example_lens_2 l.lens (get_injective_iso_lens z_ex2 hinj_ex2) hchain_ex2
+  -- example_lens_1 ≤ l ≤ example_lens_2 → contradiction
+  have hex1_le_l : LensIn.mk' example_lens_1 ≤ l := hlub.1 (Set.mem_insert _ _)
+  obtain ⟨z_12, hchain_12⟩ := hex1_le_l.trans l_le_ex2
+  have h1 : z_12.get (0 : bit) = 0 := by
+    have := congr_fun (congr_arg Lens.get hchain_12) ((0, 0, 0) : bit × bit × bit)
+    simpa [chain, example_lens_1, example_lens_2] using this
+  have h2 : z_12.get (0 : bit) = 1 := by
+    have := congr_fun (congr_arg Lens.get hchain_12) ((1, 0, 0) : bit × bit × bit)
+    simpa [chain, example_lens_1, example_lens_2] using this
+  exact absurd (h1.symm.trans h2) (by decide)
 
 
 
