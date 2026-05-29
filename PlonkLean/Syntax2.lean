@@ -1,24 +1,22 @@
 import Mathlib.Data.List.AList
 -- import PlonkLean.Syntax
-import Init.Data.Equiv.Basic
+-- import Init.Data.Equiv.Basic
+import Mathlib.Logic.Equiv.Defs
+import PlonkLean.Syntax
 
 class TupleLike a (b : outParam Type) (c : outParam Type) where
   iso : a ≃ (b × c)
 
-struct bla where
+structure bla where
   x : Nat
   y : Nat
   z : Nat
-derive TupleLike
+  -- deriving TupleLike
 
-instance : TupleLike bla Nat (Nat × Nat)
-
-structure ProcSig where
-  params : List Type
-  ret    : Type
+instance : TupleLike bla Nat (Nat × Nat) := sorry
 
 inductive MTy where
-  | proc   : ProcSig → MTy
+  | proc   : ProcedureSignature → MTy
   | prod : MTy → MTy → MTy
   | arr    : MTy → MTy → MTy
 
@@ -30,55 +28,76 @@ inductive Ref : MCtx → MTy → Type _ where
   | here {a} : Ref (.snoc Γ a) a
   | there {a b} : Ref Γ a → Ref (.snoc Γ b) a
 
--- Placeholder
-def procSigToType : ProcSig → Type := sorry
+inductive MExpr' s : MCtx → MTy → Type _ where
+  | const {sig} : Procedure s sig → MExpr' s Δ (.proc sig)
+  | var  : Ref Δ M → MExpr' s Δ M
+  | app  : MExpr' s Δ (.arr A B) → MExpr' s Δ A → MExpr' s Δ B
+  | fst : MExpr' s Δ (.prod A B) → MExpr' s Δ A
+  | snd : MExpr' s Δ (.prod A B) → MExpr' s Δ B
+  | abs : MExpr' s (Δ.snoc A) B → MExpr' s Δ (MTy.arr A B)
 
-inductive MExpr' : MCtx → MTy → Type _ where
-  | const {sig} : procSigToType sig → MExpr' Δ (.proc sig)
-  | var  : Ref Δ M → MExpr' Δ M
-  | app  : MExpr' Δ (.arr A B) → MExpr' Δ A → MExpr' Δ B
-  | fst : MExpr' Δ (.prod A B) → MExpr' Δ A
-  | snd : MExpr' Δ (.prod A B) → MExpr' Δ B
-  | abs : MExpr' (Δ.snoc A) B → MExpr' Δ (MTy.arr A B)
+def MExpr (s : Type) : MTy → Type _ := MExpr' s .nil
 
-def MExpr : MTy → Type _ := MExpr' .nil
+def mtyToType (s : Type) (mty : MTy) := match mty with
+  | .proc sig => Procedure s sig
+  | .arr a b => mtyToType s a -> mtyToType s b
+  | .prod a b => mtyToType s a × mtyToType s b
 
-def mtyToType (mty : MTy) := match mty with
-  | .proc sig => procSigToType sig
-  | .arr a b => mtyToType a -> mtyToType b
-  | .prod a b => mtyToType a × mtyToType b
-
-def mctxToType (mctx : MCtx) : Type _ := match mctx with
+def mctxToType (s : Type) (mctx : MCtx) : Type _ := match mctx with
   | .nil => PUnit
-  | .snoc mctx' mty => mctxToType mctx' × mtyToType mty
+  | .snoc mctx' mty => mctxToType s mctx' × mtyToType s mty
 
-def mctxToType' (mctx : MCtx) : Type _ := match mctx with
+def mctxToType' (s : Type) (mctx : MCtx) : Type _ := match mctx with
   | .nil => PUnit
-  | .snoc mctx' mty => mctxToType mctx' × MExpr' mctx' mty
+  | .snoc mctx' mty => mctxToType s mctx' × MExpr' s mctx' mty
 
-def evalModule' {mctx : MCtx} {mty : MTy} (mex : MExpr' mctx mty) : mctxToType mctx -> mtyToType mty :=
+def evalModule' {mctx : MCtx} {mty : MTy} (mex : MExpr' s mctx mty) :
+      mctxToType s mctx -> mtyToType s mty :=
   match mex with
-  | .const p => fun _ => p
+  | .const (sig:=sig) (p : Procedure s sig) => fun _ => p
   | .var Ref.here => fun (_, x) => x
-  | .var (Ref.there n) => fun (mctx', _) => evalModule' (.var n) mctx'
+  | .var (Ref.there n) => fun (mctx', _) => evalModule' (s:=s) (.var n) mctx'
   | .app a b => fun ctx => (evalModule' a ctx) (evalModule' b ctx)
   | .fst a => fun ctx => (evalModule' a ctx).1
   | .snd a => fun ctx => (evalModule' a ctx).2
   | .abs body => fun ctx => fun x => (evalModule' body (ctx, x))
 
-def fv {mctx : MCtx} {mty : MTy} (mex : MExpr' mctx mty) := Set String :=
+def evalModule {mty} (mex : MExpr s mty) : mtyToType s mty := evalModule'.{0} mex PUnit.unit
+
+def MProc s sig := MExpr s (.proc sig)
+
+def evalProc {sig} (mex : MProc s sig) : Procedure s sig := evalModule mex
+
+opaque FV : Type
+-- Placeholder
+def fv_proc {sig} (proc : Procedure s sig) : Set FV := sorry
+
+def fv' {mctx : MCtx} {mty : MTy} (mex : MExpr' s mctx mty) : Set FV :=
   match mex with
-    | .const p => sorry
-    | .var Ref.here => Set.empty
-    | .var (Ref.there n) => Set.empty
-    | .app a b => fv a ∪ fv b
-    | .fst a => fv a
-    | .snd a => fv b
-    | .abs body => fv body
+    | .const p => fv_proc p
+    | .var Ref.here => {}
+    | .var (Ref.there n) => {}
+    | .app a b => fv' a ∪ fv' b
+    | .fst a => fv' a
+    | .snd a => fv' a
+    | .abs body => fv' body
 
-def evalModule {mty} (mex : MExpr mty) : mtyToType mty := evalModule' mex ()
+-- Trivially true but not what we want.
+-- Unintuitive that modules don't reduce when applying
+-- Do we need the operational semantics of the simply typled λ-calculus?
+-- I think so, below's the attempt
+theorem fv'_app : fv' (MExpr'.app a b) = fv' a ∪ fv' b := by grind only
 
-def evalProc {sig} (mex : MExpr (.proc sig)) : procSigToType sig := evalModule mex
+def beta_reduce {ctxt} {ty} (m : MExpr' s ctxt ty) : MExpr' s ctxt ty := sorry
+
+def fv (m : MExpr' s c t) : Set FV := fv' (beta_reduce m)
+
+theorem fv_reduce (m : MExpr' s c t) : fv' (beta_reduce m) ⊆ fv' m := sorry
+
+theorem fv_app : fv (MExpr'.app a b) ⊆ fv' a ∪ fv' b := by
+  simp only [fv, ← fv'_app]
+  apply fv_reduce
+
 /-
 
 #eval fv(mymodule) = {a,b,c}
