@@ -861,3 +861,86 @@ theorem claim_5_subprob {β : Type} (h : state → β)
       (fun bσ : Bool × state =>
         (@MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A)
       (by intros b σ x; simp only; rw [h_inv])) σ₀
+
+/-- **Form (a) of `claim_5` — lens-complement projection**.
+
+    The joint distribution of (adv's bit, the entire non-RO part of state) is
+    identical under lazy and eager RO.
+
+    `random_oracle_state.compl.get` is the lens-complement getter: it returns
+    the equivalence class of σ modulo "differs only in RO content". This is
+    the most concrete glob-style form — the returned type is a `Quotient` of
+    state by the RO-equivalence, with no `Program.range` machinery involved. -/
+theorem claim_5_compl (σ₀ : state) :
+    (oracle_loop lazy_init lazy_query σ₀ >>=
+        fun bσ : Bool × state =>
+          (pure (bσ.1, random_oracle_state.compl.get bσ.2) :
+            SubProbability (Bool × Quotient random_oracle_state.equal_outside_setoid)))
+    =
+    (oracle_loop random_oracle_init random_oracle_query σ₀ >>=
+        fun bσ : Bool × state =>
+          (pure (bσ.1, random_oracle_state.compl.get bσ.2) :
+            SubProbability (Bool × Quotient random_oracle_state.equal_outside_setoid))) := by
+  refine claim_5_subprob random_oracle_state.compl.get ?_ σ₀
+  -- h_inv: random_oracle_state.compl.get (set x σ) = random_oracle_state.compl.get σ.
+  -- compl.get is `Quotient.mk''` on the equal_outside setoid, and set x σ ~ σ
+  -- via the witness `random_oracle_state.get σ`:
+  --   set (get σ) (set x σ) = set (get σ) σ = σ (by set_set and get_set).
+  intro σ x
+  exact Quotient.sound ⟨random_oracle_state.get σ,
+    (random_oracle_state.set_set σ x (random_oracle_state.get σ)).trans
+      (random_oracle_state.get_set σ)⟩
+
+/-- **Form (c) of `claim_5` — `Program.glob adv`**.
+
+    The joint distribution of (adv's bit, what `adv` can see/modify) is
+    identical under lazy and eager RO.
+
+    This is the natural cryptographic indistinguishability statement:
+    `(Program.glob adv).get bσ.2` is the equivalence class of `bσ.2` under
+    `(adv.range)ᶜ`-orbits — i.e., "everything adv could possibly observe or
+    affect", quotiented by symmetries outside adv's reach.
+
+    Corollary of `claim_5_subprob` applied to `(Program.glob adv).get`. The
+    RO-invariance of this projection follows from `adv_inRange_compl_ro` via
+    the inclusion `random_oracle_state.range ≤ (adv.range)ᶜ`. -/
+theorem claim_5_glob (σ₀ : state) :
+    (oracle_loop lazy_init lazy_query σ₀ >>=
+        fun bσ : Bool × state =>
+          (pure (bσ.1, (Program.glob adv).get bσ.2) :
+            SubProbability (Bool × adv.Globals)))
+    =
+    (oracle_loop random_oracle_init random_oracle_query σ₀ >>=
+        fun bσ : Bool × state =>
+          (pure (bσ.1, (Program.glob adv).get bσ.2) :
+            SubProbability (Bool × adv.Globals))) := by
+  refine claim_5_subprob (Program.glob adv).get ?_ σ₀
+  intro σ x
+  -- Goal: Quotient.mk (adv.range)ᶜ.orbit_setoid (set x σ)
+  --     = Quotient.mk (adv.range)ᶜ.orbit_setoid σ
+  apply Quotient.sound
+  -- Goal reduces to: Relation.EqvGen (∃ f ∈ (adv.range)ᶜ.updates, f s = s') (set x σ) σ
+  change Relation.EqvGen
+      (fun s s' : state => ∃ f ∈ ((adv.range)ᶜ : LensRange state).updates, f s = s')
+      (random_oracle_state.set x σ) σ
+  -- Use symm: it's easier to give a forward step σ ↦ set x σ.
+  apply Relation.EqvGen.symm
+  apply Relation.EqvGen.rel
+  -- Witness: f := random_oracle_state.set x. Membership chain below.
+  refine ⟨random_oracle_state.set x, ?_, rfl⟩
+  -- random_oracle_state.set x ∈ random_oracle_state.range.updates (canonical).
+  have h_in_ro : random_oracle_state.set x ∈ random_oracle_state.range.updates := by
+    refine ⟨Function.const _ x, Set.mem_univ _, ?_⟩
+    funext σ'
+    simp [Lens.update]
+  -- adv.range ≤ random_oracle_state.compl.range (from adv_inRange_compl_ro).
+  have hadv_le : adv.range ≤ random_oracle_state.compl.range :=
+    sInf_le adv_inRange_compl_ro
+  -- Antitone complement + complement_range + compl_compl give the inclusion.
+  have h_le : random_oracle_state.range ≤ (adv.range)ᶜ := by
+    have hflip : (random_oracle_state.compl.range)ᶜ ≤ (adv.range)ᶜ := by
+      change (Submonoid.centralizer random_oracle_state.compl.range.updates).carrier
+           ⊆ (Submonoid.centralizer adv.range.updates).carrier
+      exact Submonoid.centralizer_le hadv_le
+    rwa [LensRange.complement_range, LensRange.compl_compl] at hflip
+  exact h_le h_in_ro

@@ -57,16 +57,28 @@ noncomputable def Program.range' {s a b : Type} (progs : a → Program s b) : Le
 
 /-! ## `glob`: the global variables read/written by a program -/
 
+/-- The *type* of `A`'s global variables: the quotient of state by
+    `(A.range)ᶜ`-orbit equivalence. Two states have the same `Globals` value
+    iff they differ only by an update outside `A`'s range — i.e., they are
+    indistinguishable from `A`'s perspective. Use this anywhere
+    `Quotient (A.range)ᶜ.orbit_setoid` would otherwise appear. -/
+noncomputable abbrev Program.Globals {s a : Type} (A : Program s a) : Type :=
+  Quotient (A.range)ᶜ.orbit_setoid
+
+/-- Family-version type: the globals of the parameterized family `progs`. -/
+noncomputable abbrev Program.Globals' {s a b : Type} (progs : a → Program s b) : Type :=
+  Quotient (Program.range' progs)ᶜ.orbit_setoid
+
 /-- The global variables of `A` — a Getter projecting `state s` onto the data
     `A` can observe or modify. Built from `A.range` via the LensRange-level
     `touched_getter` (which uses the *commutant* `Rᶜ`-orbit equivalence). -/
 noncomputable def Program.glob {s a : Type} (A : Program s a) :
-    Getter (Quotient (A.range)ᶜ.orbit_setoid) s :=
+    Getter A.Globals s :=
   A.range.touched_getter
 
 /-- Family version of `glob`. -/
 noncomputable def Program.glob' {s a b : Type} (progs : a → Program s b) :
-    Getter (Quotient (Program.range' progs)ᶜ.orbit_setoid) s :=
+    Getter (Program.Globals' progs) s :=
   (Program.range' progs).touched_getter
 
 /-! ## Structural lemmas -/
@@ -594,3 +606,78 @@ theorem Program.commute_of_disjoint_lens
   Program.commute_of_disjoint hp hq hdisj
     (fun σ => Lens.range_hasOrbitCollapse l σ)
     (fun σ => Lens.range_hasOrbitCollapse l' σ)
+
+/-! ## Lens lifting and factoring
+
+If `Adv : Program s a` is confined to a lens window `L : Lens c s`
+(i.e. `Adv.inRange L.range`), then `Adv` is the lifting of some "inner"
+program `Adv' : Program c a` along `L`. This is the converse to the
+obvious direction that any lift lives in the lens's range.
+-/
+
+/-- Lift an "inner" program along a lens: `L.lift P` runs `P` on the
+    L-content of state and writes the result back, leaving the outside
+    untouched. -/
+noncomputable def Lens.lift {c s a : Type} (L : Lens c s) (P : Program c a) :
+    Program s a := fun σ =>
+  P (L.get σ) >>= fun (xc : a × c) =>
+    (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
+
+/-- Given `Adv : Program s a` confined to `L`'s range, factor it through an
+    inner program `Program c a`. The construction picks an arbitrary state
+    to "pad" the inner input; `factor_of_inRange` shows this padding doesn't
+    matter when `Adv.inRange L.range`. -/
+noncomputable def Lens.factor {c s a : Type} [Nonempty s]
+    (L : Lens c s) (Adv : Program s a) : Program c a := fun c₀ =>
+  Adv (L.set c₀ (Classical.arbitrary s)) >>= fun (xσ : a × s) =>
+    (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))
+
+/-- SubProbability bind is associative. -/
+private lemma SubProbability.bind_assoc' {α β γ : Type}
+    (μ : SubProbability α) (g : α → SubProbability β) (h' : β → SubProbability γ) :
+    (μ >>= g) >>= h' = μ >>= fun x => g x >>= h' := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  letI : MeasurableSpace γ := ⊤
+  exact MeasureTheory.Measure.bind_bind
+    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
+
+/-- **Factorization theorem**: every program confined to a lens window comes
+    from running some inner program on the L-content.
+
+    The witness is `L.factor Adv` (which depends on an arbitrary "padding"
+    state); the equation `Adv = L.lift (L.factor Adv)` holds because
+    `Adv.inRange L.range` makes `Adv` insensitive to the padding's
+    outside content. -/
+theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
+    (L : Lens c s) {Adv : Program s a} (h : Adv.inRange L.range) :
+    Adv = L.lift (L.factor Adv) := by
+  funext σ
+  -- Abbreviations matching the proof sketch.
+  set σ_pad : s := L.set (L.get σ) (Classical.arbitrary s) with hσ_pad_def
+  set f : s → s := fun σ' => L.set (L.get σ') σ with hf_def
+  -- (i) f σ_pad = σ — lens-law calculation.
+  have h_fσ_pad : f σ_pad = σ := by
+    show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
+    rw [L.set_get, L.get_set]
+  -- (iii) f ∈ L.rangeᶜ.updates — via complement_range.
+  have h_f_mem : f ∈ ((L.range : LensRange s)ᶜ).updates := by
+    rw [← LensRange.complement_range]
+    refine ⟨Function.const _ (L.compl.get σ), Set.mem_univ _, ?_⟩
+    rfl
+  -- (iv) inRange_subprob: Adv σ = Adv σ_pad >>= fun xs => pure (xs.1, f xs.2)
+  have h_iv : Adv σ = (Adv σ_pad) >>=
+              (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
+    rw [← h_fσ_pad]
+    exact Program.inRange_subprob h h_f_mem σ_pad
+  -- Unfold the RHS of the goal.
+  change Adv σ = ((Adv σ_pad) >>= fun (xσ' : a × s) =>
+                    (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
+                  >>= fun (xc : a × c) =>
+                    (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
+  rw [h_iv, SubProbability.bind_assoc']
+  -- Collapse the two inner pures into one.
+  congr 1
+  funext xσ'
+  rw [SubProbability.pure_bind]

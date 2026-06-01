@@ -100,9 +100,11 @@ def denotation {s : Type} : Stmt s → Program s Unit
     let result ← (e.get st).toProgram
     Program.set x result
 | Stmt.call' x b r p => do
-    let params ← Program.get p
+    let st₀ ← Program.get_state
+    let params := p.get st₀
     denotation (b params)
-    let result <- Program.get r
+    let st₁ ← Program.get_state
+    let result := r.get st₁
     Program.set x result
 | Stmt.ifThenElse c t e => do
     let st ← Program.get_state

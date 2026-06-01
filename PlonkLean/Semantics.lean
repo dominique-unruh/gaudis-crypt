@@ -319,7 +319,7 @@ def Program.set {a : Type} (v : Lens a s) (x : a) : Program s Unit := do
 
 
 noncomputable
-def Program.get {a : Type} (v : Getter a s) : Program s a := do
+def Program.get {a : Type} (v : Lens a s) : Program s a := do
     let s <- StateT.get
     pure (v.get s)
 
