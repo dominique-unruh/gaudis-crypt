@@ -1,13 +1,8 @@
-# plonk-lean
+# Formalization of Plonk in Lean
 
-## GitHub configuration
+We plan to formalize the security of Plonk in Lean.
 
-To set up your new GitHub repository, follow these steps:
+On the way, we develop a framework for cryptographic proofs in Lean.
 
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
-
-After following the steps above, you can remove this section from the README file.
+At this point, the project is still in development and quite undocumented.
+In case of questions, do not hesitate to contact us (Dominique Unruh, Denis Firsov).
