@@ -49,6 +49,11 @@ class disjoint (x : Lens a m) (y : Lens b m) where
 theorem disjoint.iff : disjoint x y ↔ ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s) :=
   ⟨fun h => h.commute, fun h => ⟨h⟩⟩
 
+/-- Disjointness is symmetric. Not an instance (would loop). -/
+theorem disjoint.symm {a b m : Type} {x : Lens a m} {y : Lens b m}
+    (h : disjoint x y) : disjoint y x where
+  commute s v w := (h.commute s w v).symm
+
 /-- Setting through a disjoint lens leaves the other lens's `get` unchanged.
     Disjointness is recorded as `disjoint M L` (setter then reader). -/
 theorem Lens.get_of_disjoint_set {a b m : Type} (L : Lens a m) (M : Lens b m)
