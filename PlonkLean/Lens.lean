@@ -49,6 +49,14 @@ class disjoint (x : Lens a m) (y : Lens b m) where
 theorem disjoint.iff : disjoint x y ↔ ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s) :=
   ⟨fun h => h.commute, fun h => ⟨h⟩⟩
 
+/-- Setting through a disjoint lens leaves the other lens's `get` unchanged.
+    Disjointness is recorded as `disjoint M L` (setter then reader). -/
+theorem Lens.get_of_disjoint_set {a b m : Type} (L : Lens a m) (M : Lens b m)
+    [hd : disjoint M L] (v : b) (s : m) :
+    L.get (M.set v s) = L.get s := by
+  conv_lhs => rw [show s = L.set (L.get s) s from (L.get_set s).symm]
+  rw [hd.commute, L.set_get]
+
 def pair (x : Lens a m) (y : Lens b m) [disj : disjoint x y] : Lens (a × b) m :=
   { get := fun s => (x.get s, y.get s)
     set := fun (u,v) s => x.set u (y.set v s)

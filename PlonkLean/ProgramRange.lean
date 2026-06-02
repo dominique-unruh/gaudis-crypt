@@ -260,6 +260,37 @@ lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : LensRange s}
   funext xs
   rw [expected_pure]
 
+/-- **Preservation under in-range**: if `prog` modifies only the complement of `L`,
+    and the postcondition factors through `L.get` (i.e. depends only on `L`-content),
+    then `prog.wp (P ∘ snd) σ ≤ P σ`. The sub-probability mass of `prog σ` only
+    decreases the value below `P σ`. -/
+lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
+    {prog : Program s α} (h_inRange : prog.inRange L.compl.range)
+    {P : s → ENNReal}
+    (h_factors : ∀ σ σ', L.get σ' = L.get σ → P σ' = P σ)
+    (σ : s) :
+    prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
+  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
+  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+      rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ (L.get σ), Set.mem_univ _, rfl⟩
+  have h_f_fix : f σ = σ := by
+    show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
+    rw [Function.const_apply, L.get_set]
+  have h_f_P : ∀ σ' : s, P (f σ') = P σ := by
+    intro σ'
+    apply h_factors
+    show L.get (L.set ((Function.const _ (L.get σ)) (L.get σ')) σ') = L.get σ
+    rw [Function.const_apply, L.set_get]
+  have h_shift := Program.wp_shift_input h_inRange h_f_in_Rc
+    (fun xs : α × s => P xs.2) σ
+  rw [h_f_fix] at h_shift
+  rw [h_shift]
+  rw [show (fun xs : α × s => P (f xs.2)) = (fun _ : α × s => P σ) from by
+    funext xs; exact h_f_P xs.2]
+  exact Program.wp_const_le prog (P σ) σ
+
 /-! ## Orbit fact
 
   Outputs of `p.inRange R` started at `σ` must lie (a.e.) in the `R`-orbit of `σ`.

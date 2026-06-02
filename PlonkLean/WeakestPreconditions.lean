@@ -177,6 +177,51 @@ theorem wp_pure {s α : Type} (x : α) (f : Program.Post s α) :
     ext
     simp [h, Program.wp, expected_pure]
 
+/-! ### Postcondition combinators for `wp`
+
+  Basic monotonicity, the `0`-postcondition, the constant-postcondition bound
+  (from sub-probability mass), linearity, and constant scaling. These are
+  pure consequences of `wp = lintegral against the SubProb measure`. -/
+
+/-- Pointwise monotonicity of `wp` in the postcondition. -/
+theorem Program.wp_le_wp_of_le {s a : Type} (p : Program s a)
+    (F G : Program.Post s a) (h : ∀ x, F x ≤ G x) (σ : s) :
+    p.wp F σ ≤ p.wp G σ := by
+  letI : MeasurableSpace (a × s) := ⊤
+  exact MeasureTheory.lintegral_mono h
+
+/-- `wp` of the constant `0` postcondition is `0`. -/
+theorem Program.wp_zero_post {s a : Type} (p : Program s a) (σ : s) :
+    p.wp (fun _ => (0 : ENNReal)) σ = 0 := by
+  letI : MeasurableSpace (a × s) := ⊤
+  exact MeasureTheory.lintegral_zero
+
+/-- `wp` of the constant `c` postcondition is at most `c`, since the underlying
+    measure is a sub-probability (total mass ≤ 1). -/
+theorem Program.wp_const_le {s a : Type} (p : Program s a) (c : ENNReal) (σ : s) :
+    p.wp (fun _ => c) σ ≤ c := by
+  letI : MeasurableSpace (a × s) := ⊤
+  show ∫⁻ _, c ∂(p σ).1 ≤ c
+  rw [MeasureTheory.lintegral_const]
+  calc c * (p σ).1 Set.univ ≤ c * 1 := by gcongr; exact (p σ).2
+    _ = c := mul_one _
+
+/-- Linearity of `wp` in the postcondition. -/
+theorem Program.wp_add {s a : Type} (p : Program s a)
+    (F G : Program.Post s a) (σ : s) :
+    p.wp (fun aσ : a × s => F aσ + G aσ) σ = p.wp F σ + p.wp G σ := by
+  letI : MeasurableSpace (a × s) := ⊤
+  show ∫⁻ x, (F x + G x) ∂(p σ).1 = (∫⁻ x, F x ∂(p σ).1) + (∫⁻ x, G x ∂(p σ).1)
+  exact MeasureTheory.lintegral_add_left measurable_from_top G
+
+/-- Constant scaling of `wp`. -/
+theorem Program.wp_const_mul {s a : Type} (p : Program s a)
+    (c : ENNReal) (F : Program.Post s a) (σ : s) :
+    p.wp (fun aσ : a × s => c * F aσ) σ = c * p.wp F σ := by
+  letI : MeasurableSpace (a × s) := ⊤
+  show ∫⁻ x, c * F x ∂(p σ).1 = c * ∫⁻ x, F x ∂(p σ).1
+  exact MeasureTheory.lintegral_const_mul c measurable_from_top
+
 theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program s α)
     (f : α × s → ENNReal) (st : s) :
     (if b then p1 else p2).wp f st = if b then p1.wp f st else p2.wp f st := by

@@ -229,3 +229,11 @@ theorem monotone_OrderHom_apply [Preorder a] [Preorder b] [Preorder c]
 theorem OrderHom.lfp_monotone [CompleteLattice c] :
     Monotone (OrderHom.lfp : (c →o c) → c) :=
   fun f g hfg => f.lfp_le (hfg g.lfp |>.trans g.map_lfp.le)
+
+/-- Sum of a 0/1 indicator over a finite type equals the size of the indicated set. -/
+lemma sum_indicator_eq_card_ENNReal {α : Type*} [Fintype α] [DecidableEq α]
+    (S : Finset α) :
+    ∑ y : α, (if y ∈ S then (1 : ENNReal) else 0) = (S.card : ENNReal) := by
+  rw [← Finset.sum_filter]
+  rw [show (Finset.univ : Finset α).filter (· ∈ S) = S from by ext; simp]
+  simp [Finset.sum_const]

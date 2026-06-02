@@ -207,23 +207,6 @@ lemma lazy_query_wp_preserves_other_RO
     congr 1
     rw [if_pos h_RO_x'_preserved]
 
-/-! ### Helpers for `cr_true_implies_collision_wp` -/
-
-/-- Pointwise monotonicity of `wp` in the postcondition. -/
-private lemma Program.wp_le_wp_of_le {s a : Type} (p : Program s a)
-    (F G : Program.Post s a) (h : ∀ x, F x ≤ G x) (σ : s) :
-    p.wp F σ ≤ p.wp G σ := by
-  letI : MeasurableSpace (a × s) := ⊤
-  show ∫⁻ x, F x ∂(p σ).1 ≤ ∫⁻ x, G x ∂(p σ).1
-  exact MeasureTheory.lintegral_mono h
-
-/-- `wp` of constant 0 postcondition is 0. -/
-private lemma Program.wp_zero_post {s a : Type} (p : Program s a) (σ : s) :
-    p.wp (fun _ => (0 : ENNReal)) σ = 0 := by
-  letI : MeasurableSpace (a × s) := ⊤
-  show ∫⁻ _, (0 : ENNReal) ∂(p σ).1 = 0
-  exact MeasureTheory.lintegral_zero
-
 /-- **Bookkeeping helper**: at every state in the support of
     `cr_experiment q lazy_init lazy_query`, if the result bit is `true`
     then the state has a collision. Stated at the `wp` level so it
@@ -371,23 +354,6 @@ The proof is decomposed into:
   `cr_loop q` with the two final queries.
 -/
 
-/-! ### `wp` linearity (used in birthday-bound proofs below) -/
-
-/-- Linearity of `wp` in the postcondition. -/
-lemma Program.wp_add {s a : Type} (p : Program s a) (F G : Program.Post s a) (σ : s) :
-    p.wp (fun aσ : a × s => F aσ + G aσ) σ = p.wp F σ + p.wp G σ := by
-  letI : MeasurableSpace (a × s) := ⊤
-  show ∫⁻ x, (F x + G x) ∂(p σ).1 = (∫⁻ x, F x ∂(p σ).1) + (∫⁻ x, G x ∂(p σ).1)
-  exact MeasureTheory.lintegral_add_left measurable_from_top G
-
-/-- Constant scaling of `wp`. -/
-lemma Program.wp_const_mul {s a : Type} (p : Program s a)
-    (c : ENNReal) (F : Program.Post s a) (σ : s) :
-    p.wp (fun aσ : a × s => c * F aσ) σ = c * p.wp F σ := by
-  letI : MeasurableSpace (a × s) := ⊤
-  show ∫⁻ x, c * F x ∂(p σ).1 = c * ∫⁻ x, F x ∂(p σ).1
-  exact MeasureTheory.lintegral_const_mul c measurable_from_top
-
 /-- The number of cached entries in the random oracle state. -/
 noncomputable def RO_size (σ : state) : ℕ :=
   (Finset.filter (fun x => (random_oracle_state.get σ x).isSome) Finset.univ).card
@@ -514,14 +480,6 @@ private lemma inducing_set_card_le_RO_size (x : input) (σ : state) :
   rw [Finset.mem_filter] at ha
   rw [Finset.mem_filter]
   exact ⟨Finset.mem_univ _, ha.2⟩
-
-/-- Sum identity: `∑ y ∈ univ, (if y ∈ S then 1 else 0) = |S|`. -/
-private lemma sum_indicator_eq_card_ENNReal {α : Type*} [Fintype α] [DecidableEq α]
-    (S : Finset α) :
-    ∑ y : α, (if y ∈ S then (1 : ENNReal) else 0) = (S.card : ENNReal) := by
-  rw [← Finset.sum_filter]
-  rw [show (Finset.univ : Finset α).filter (· ∈ S) = S from by ext; simp]
-  simp [Finset.sum_const]
 
 /-- Pointwise: after sampling `y`, the new collision indicator is bounded by
     the existing collision indicator plus 1 if `y` is in the inducing set. -/
@@ -666,64 +624,27 @@ lemma lazy_query_RO_size_step (x : input) (σ : state) :
 
 -- `cr_loop_birthday_step` (Layer C) is defined below the helpers that follow.
 
+/-- `RO_size` factors through the RO content: equal RO maps give equal sizes. -/
+lemma RO_size_of_get_eq {σ σ' : state}
+    (h : random_oracle_state.get σ' = random_oracle_state.get σ) :
+    RO_size σ' = RO_size σ := by
+  unfold RO_size
+  congr 1
+  ext x
+  rw [h]
+
 /-- `cr_adv` doesn't touch the RO, so its expected `RO_size` is preserved. -/
 lemma cr_adv_wp_RO_size (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
-    ≤ (RO_size σ : ENNReal) := by
-  -- f := RO.update (const (RO.get σ)) — "force RO to σ's content".
-  -- f σ = σ; f ∈ random_oracle_state.range.updates = (RO.compl.range)ᶜ.
-  -- RO_size (f σ') = RO_size σ for all σ'.
-  -- By wp_shift_input applied to cr_adv: wp (RO_size ∘ snd) σ = wp (const (RO_size σ)) σ
-  --                                    = RO_size σ * mass(cr_adv σ) ≤ RO_size σ.
-  set f : state → state := random_oracle_state.update
-      (Function.const _ (random_oracle_state.get σ)) with hf_def
-  have h_f_in_Rc : f ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
-          = random_oracle_state.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ (random_oracle_state.get σ), Set.mem_univ _, rfl⟩
-  have h_f_fix : f σ = σ := by
-    show random_oracle_state.set
-        ((Function.const _ (random_oracle_state.get σ)) (random_oracle_state.get σ)) σ = σ
-    rw [Function.const_apply, random_oracle_state.get_set]
-  have h_f_RO_size : ∀ σ' : state, RO_size (f σ') = RO_size σ := by
-    intro σ'
-    show RO_size (random_oracle_state.set
-        ((Function.const _ (random_oracle_state.get σ)) (random_oracle_state.get σ')) σ') = RO_size σ
-    rw [Function.const_apply]
-    unfold RO_size
-    congr 1
-    ext x
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, random_oracle_state.set_get]
-  have h_shift := Program.wp_shift_input cr_adv_inRange h_f_in_Rc
-    (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
-  rw [h_f_fix] at h_shift
-  rw [h_shift]
-  rw [show (fun xs : Unit × state => (RO_size (f xs.2) : ENNReal))
-        = (fun _ : Unit × state => (RO_size σ : ENNReal)) from by
-      funext xs; rw [h_f_RO_size]]
-  show ∫⁻ _ : Unit × state, ((RO_size σ : ENNReal)) ∂((cr_adv σ).1) ≤ (RO_size σ : ENNReal)
-  rw [MeasureTheory.lintegral_const]
-  calc (RO_size σ : ENNReal) * (cr_adv σ).1 Set.univ
-      ≤ (RO_size σ : ENNReal) * 1 := by gcongr; exact (cr_adv σ).2
-    _ = (RO_size σ : ENNReal) := mul_one _
+    ≤ (RO_size σ : ENNReal) :=
+  Program.wp_le_of_factors (P := fun σ => (RO_size σ : ENNReal))
+    random_oracle_state cr_adv_inRange
+    (fun _ _ h => congrArg _ (RO_size_of_get_eq h)) σ
 
 /-- Setting a variable disjoint from `random_oracle_state` doesn't change `RO_size`. -/
-lemma RO_size_set_disjoint {α : Type} (v : Variable α) [hd : disjoint v random_oracle_state]
-    (x : α) (σ : state) : RO_size (v.set x σ) = RO_size σ := by
-  have h_RO_preserved : random_oracle_state.get (v.set x σ) = random_oracle_state.get σ := by
-    have h_recon : σ = random_oracle_state.set (random_oracle_state.get σ) σ :=
-      (random_oracle_state.get_set σ).symm
-    have h_commute : v.set x σ
-                  = random_oracle_state.set (random_oracle_state.get σ) (v.set x σ) := by
-      conv_lhs => rw [h_recon]
-      exact hd.commute σ x (random_oracle_state.get σ)
-    conv_lhs => rw [h_commute]
-    exact random_oracle_state.set_get _ _
-  unfold RO_size
-  congr 1
-  ext y
-  rw [h_RO_preserved]
+lemma RO_size_set_disjoint {α : Type} (v : Variable α) [disjoint v random_oracle_state]
+    (x : α) (σ : state) : RO_size (v.set x σ) = RO_size σ :=
+  RO_size_of_get_eq (random_oracle_state.get_of_disjoint_set v x σ)
 
 /-- One iteration of `cr_loop_body` bumps `RO_size` by at most 1 in expectation. -/
 lemma cr_loop_body_wp_RO_size (σ : state) :
@@ -753,19 +674,13 @@ lemma cr_loop_body_wp_RO_size (σ : state) :
       rw [RO_size_set_disjoint]]
     exact lazy_query_RO_size_step (oracle_input.get σ_a) σ_a
   calc cr_adv.wp _ σ
-      ≤ cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal) + 1) σ := by
-        apply MeasureTheory.lintegral_mono
-        intro yσ
-        exact h_inner yσ.2
+      ≤ cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal) + 1) σ :=
+        Program.wp_le_wp_of_le _ _ _ (fun yσ => h_inner yσ.2) σ
     _ = cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
         + cr_adv.wp (fun _ : Unit × state => (1 : ENNReal)) σ := by
       rw [Program.wp_add]
-    _ ≤ (RO_size σ : ENNReal) + 1 := by
-      gcongr
-      · exact cr_adv_wp_RO_size σ
-      · show ∫⁻ _ : Unit × state, (1 : ENNReal) ∂((cr_adv σ).1) ≤ 1
-        rw [MeasureTheory.lintegral_one]
-        exact (cr_adv σ).2
+    _ ≤ (RO_size σ : ENNReal) + 1 :=
+      add_le_add (cr_adv_wp_RO_size σ) (Program.wp_const_le cr_adv 1 σ)
 
 /-- **Layer B-iterated**: expected `RO_size` after `cr_loop k` grows by at most
     `k`. Needed by Layer D to bound the size at intermediate points. -/
@@ -795,94 +710,42 @@ lemma cr_loop_RO_size_step (k : ℕ) (σ : state) :
             (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
           + (cr_loop_body lazy_query).wp (fun _ : Unit × state => (k : ENNReal)) σ := by
           rw [Program.wp_add]
-      _ ≤ (RO_size σ + 1 : ENNReal) + k := by
-          gcongr
-          · exact cr_loop_body_wp_RO_size σ
-          · show ∫⁻ _ : Unit × state, (k : ENNReal) ∂((cr_loop_body lazy_query σ).1) ≤ k
-            rw [MeasureTheory.lintegral_const]
-            calc (k : ENNReal) * (cr_loop_body lazy_query σ).1 Set.univ
-                ≤ (k : ENNReal) * 1 := by
-                  gcongr; exact (cr_loop_body lazy_query σ).2
-              _ = (k : ENNReal) := mul_one _
+      _ ≤ (RO_size σ + 1 : ENNReal) + k :=
+          add_le_add (cr_loop_body_wp_RO_size σ)
+            (Program.wp_const_le (cr_loop_body lazy_query) k σ)
       _ = (RO_size σ + (k + 1) : ENNReal) := by push_cast; ring_nf
 
 /-! ### Collision-side helpers (mirror of the RO_size helpers above) -/
 
-/-- `cr_adv` doesn't touch the RO, so the collision indicator is preserved
-    in expectation. -/
-lemma cr_adv_wp_collision (σ : state) :
-    cr_adv.wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
-    ≤ collision_indicator σ := by
-  set f : state → state := random_oracle_state.update
-      (Function.const _ (random_oracle_state.get σ)) with hf_def
-  have h_f_in_Rc : f ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
-          = random_oracle_state.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ (random_oracle_state.get σ), Set.mem_univ _, rfl⟩
-  have h_f_fix : f σ = σ := by
-    show random_oracle_state.set
-        ((Function.const _ (random_oracle_state.get σ)) (random_oracle_state.get σ)) σ = σ
-    rw [Function.const_apply, random_oracle_state.get_set]
-  have h_f_collision : ∀ σ' : state, collision_indicator (f σ') = collision_indicator σ := by
-    intro σ'
-    show collision_indicator (random_oracle_state.set
-        ((Function.const _ (random_oracle_state.get σ)) (random_oracle_state.get σ')) σ') = _
-    rw [Function.const_apply]
-    -- The RO of the set state is `RO.get σ` (a function), regardless of σ'.
-    have h_RO : ∀ x, random_oracle_state.get
-        (random_oracle_state.set (random_oracle_state.get σ) σ') x
-        = random_oracle_state.get σ x := by
-      intro x; rw [random_oracle_state.set_get]
-    unfold collision_indicator
-    congr 1
-    apply propext
-    unfold has_collision
-    constructor
-    · rintro ⟨x, x', hne, y, hy, hy'⟩
-      exact ⟨x, x', hne, y, (h_RO x).symm ▸ hy, (h_RO x').symm ▸ hy'⟩
-    · rintro ⟨x, x', hne, y, hy, hy'⟩
-      exact ⟨x, x', hne, y, (h_RO x) ▸ hy, (h_RO x') ▸ hy'⟩
-  have h_shift := Program.wp_shift_input cr_adv_inRange h_f_in_Rc
-    (fun yσ : Unit × state => collision_indicator yσ.2) σ
-  rw [h_f_fix] at h_shift
-  rw [h_shift]
-  rw [show (fun xs : Unit × state => collision_indicator (f xs.2))
-        = (fun _ : Unit × state => collision_indicator σ) from by
-      funext xs; rw [h_f_collision]]
-  show ∫⁻ _ : Unit × state, collision_indicator σ ∂((cr_adv σ).1) ≤ collision_indicator σ
-  rw [MeasureTheory.lintegral_const]
-  calc collision_indicator σ * (cr_adv σ).1 Set.univ
-      ≤ collision_indicator σ * 1 := by gcongr; exact (cr_adv σ).2
-    _ = collision_indicator σ := mul_one _
-
-/-- Setting a variable disjoint from `random_oracle_state` doesn't change
-    `collision_indicator`. -/
-lemma collision_indicator_set_disjoint {α : Type} (v : Variable α)
-    [hd : disjoint v random_oracle_state] (x : α) (σ : state) :
-    collision_indicator (v.set x σ) = collision_indicator σ := by
-  have h_RO_preserved : random_oracle_state.get (v.set x σ) = random_oracle_state.get σ := by
-    have h_recon : σ = random_oracle_state.set (random_oracle_state.get σ) σ :=
-      (random_oracle_state.get_set σ).symm
-    have h_commute : v.set x σ
-                  = random_oracle_state.set (random_oracle_state.get σ) (v.set x σ) := by
-      conv_lhs => rw [h_recon]
-      exact hd.commute σ x (random_oracle_state.get σ)
-    conv_lhs => rw [h_commute]
-    exact random_oracle_state.set_get _ _
+/-- `collision_indicator` factors through the RO content. -/
+lemma collision_indicator_of_get_eq {σ σ' : state}
+    (h : random_oracle_state.get σ' = random_oracle_state.get σ) :
+    collision_indicator σ' = collision_indicator σ := by
   unfold collision_indicator
   congr 1
   apply propext
   unfold has_collision
   constructor
-  · rintro ⟨a, b, hne, y, hy, hy'⟩
-    refine ⟨a, b, hne, y, ?_, ?_⟩
-    · rw [h_RO_preserved] at hy; exact hy
-    · rw [h_RO_preserved] at hy'; exact hy'
-  · rintro ⟨a, b, hne, y, hy, hy'⟩
-    refine ⟨a, b, hne, y, ?_, ?_⟩
-    · rw [h_RO_preserved]; exact hy
-    · rw [h_RO_preserved]; exact hy'
+  · rintro ⟨x, x', hne, y, hy, hy'⟩
+    exact ⟨x, x', hne, y, h ▸ hy, h ▸ hy'⟩
+  · rintro ⟨x, x', hne, y, hy, hy'⟩
+    exact ⟨x, x', hne, y, h ▸ hy, h ▸ hy'⟩
+
+/-- `cr_adv` doesn't touch the RO, so the collision indicator is preserved
+    in expectation. -/
+lemma cr_adv_wp_collision (σ : state) :
+    cr_adv.wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
+    ≤ collision_indicator σ :=
+  Program.wp_le_of_factors (P := collision_indicator)
+    random_oracle_state cr_adv_inRange
+    (fun _ _ h => collision_indicator_of_get_eq h) σ
+
+/-- Setting a variable disjoint from `random_oracle_state` doesn't change
+    `collision_indicator`. -/
+lemma collision_indicator_set_disjoint {α : Type} (v : Variable α)
+    [disjoint v random_oracle_state] (x : α) (σ : state) :
+    collision_indicator (v.set x σ) = collision_indicator σ :=
+  collision_indicator_of_get_eq (random_oracle_state.get_of_disjoint_set v x σ)
 
 /-- One iteration of `cr_loop_body` bumps the collision indicator by at most
     `RO_size σ / N` (in expectation). -/
@@ -983,13 +846,7 @@ lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
         _ ≤ 2 * ((↑(RO_size σ) : ENNReal) + 1) + ((k : ENNReal) - 1) := by
             gcongr
             · rw [Program.wp_const_mul]; gcongr; exact cr_loop_body_wp_RO_size σ
-            · show ∫⁻ _ : Unit × state, ((k : ENNReal) - 1)
-                  ∂((cr_loop_body lazy_query σ).1) ≤ (k : ENNReal) - 1
-              rw [MeasureTheory.lintegral_const]
-              calc ((k : ENNReal) - 1) * (cr_loop_body lazy_query σ).1 Set.univ
-                  ≤ ((k : ENNReal) - 1) * 1 := by
-                    gcongr; exact (cr_loop_body lazy_query σ).2
-                _ = (k : ENNReal) - 1 := mul_one _
+            · exact Program.wp_const_le (cr_loop_body lazy_query) ((k : ENNReal) - 1) σ
     -- IH-term bound (with ↑k multiplier and /(2*N) division).
     have h_IH_term_bound :
         (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
@@ -1226,11 +1083,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
                     rw [Program.wp_const_mul]
                     apply mul_le_mul_left'
                     exact cr_loop_RO_size_step q σ_1
-                  · -- (cr_loop q).wp (fun _ => 1) σ_1 ≤ 1
-                    show (cr_loop q lazy_query σ_1).expected (fun _ => 1) ≤ 1
-                    show ∫⁻ _, (1 : ENNReal) ∂(cr_loop q lazy_query σ_1).1 ≤ 1
-                    rw [MeasureTheory.lintegral_one]
-                    exact (cr_loop q lazy_query σ_1).2
+                  · exact Program.wp_const_le (cr_loop q lazy_query) 1 σ_1
               _ = (2 * (RO_size σ_1 + q) + 1 : ENNReal) / N := by
                   rw [one_div, ← ENNReal.div_eq_inv_mul]
   -- Step 4: substitute σ_1 values and finish arithmetic
