@@ -14,27 +14,45 @@ def paramListToTuple (types : List Type) : Type := match types with
   -- body : Stmt s
   -- return_val : Getter sig.ret s
 
+inductive HoleSigs where
+  | empty  : HoleSigs
+  | append : HoleSigs → ProcedureSignature → HoleSigs
+
+inductive HoleIndex : HoleSigs → ProcedureSignature → Type _ where
+  | zero {a} {Γ : HoleSigs} : HoleIndex (Γ.append a) a
+  | succ {a b} : HoleIndex Γ a → HoleIndex (Γ.append b) a
+
 /-- Syntactic program (with arbitrary Lean terms as expressions) -/
-inductive Stmt (s : Type) : Type 1 where
-  | skip : Stmt s
-  | assign {a : Type} : Lens a s → Getter a s → Stmt s -- mutation
-  | sample {a : Type} : Lens a s → Getter (SubProbability a) s → Stmt s
+inductive StmtWithHoles (s : Type) : HoleSigs → Type 1 where
+  | skip : StmtWithHoles s h
+  | assign {a : Type} : Lens a s → Getter a s → StmtWithHoles s h -- mutation
+  | sample {a : Type} : Lens a s → Getter (SubProbability a) s → StmtWithHoles s h
   | call' {sig : ProcedureSignature} :
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
-      Lens sig.ret s → (paramListToTuple sig.params → Stmt s) → Getter sig.ret s
-        → Getter (paramListToTuple sig.params) s → Stmt s
-  | seq : Stmt s → Stmt s → Stmt s                   -- c1; c2
-  | ifThenElse : (Getter Bool s) → Stmt s → Stmt s → Stmt s  -- if b then c1 else c2
-  | while : (Getter Bool s) → Stmt s → Stmt s           -- while b do c
+      Lens sig.ret s → StmtWithHoles s .empty → Getter sig.ret s
+        → Getter (paramListToTuple sig.params) s → StmtWithHoles s h
+  | hole {sig} (n: HoleIndex h sig) :
+      Lens sig.ret s → Getter (paramListToTuple sig.params) s → StmtWithHoles s h
+  | seq : StmtWithHoles s h → StmtWithHoles s h → StmtWithHoles s h                   -- c1; c2
+  | ifThenElse : (Getter Bool s) → StmtWithHoles s h → StmtWithHoles s h → StmtWithHoles s h  -- if b then c1 else c2
+  | while : (Getter Bool s) → StmtWithHoles s h → StmtWithHoles s h          -- while b do c
 
-structure Procedure s (sig : ProcedureSignature) where
-  body : paramListToTuple sig.params → Stmt s
+def Stmt s := StmtWithHoles s .empty
+
+structure ProcedureWithHoles s (holeSigs : HoleSigs) (sig : ProcedureSignature) where
+  body : StmtWithHoles s holeSigs -- WARNING: procedure arguments are ignored so far
   return_val : Getter sig.ret s
 
-def Stmt.call {sig} (x : Lens sig.ret s) (proc : Procedure s sig)
-      (params : Getter (paramListToTuple sig.params) s) : Stmt s :=
-  Stmt.call' x proc.body proc.return_val params
+def Procedure s sig := ProcedureWithHoles s .empty sig
+
+def StmtWithHoles.call {sig} (x : Lens sig.ret s) (proc : Procedure s sig)
+      (params : Getter (paramListToTuple sig.params) s) : StmtWithHoles s h :=
+  StmtWithHoles.call' x proc.body proc.return_val params
+
+ def Stmt.call{sig} (x : Lens sig.ret s) (proc : Procedure s sig)
+                     (params : Getter (paramListToTuple sig.params) s) : Stmt s
+     := StmtWithHoles.call x proc params
 
 /- # Syntax of programs -/
 
@@ -91,27 +109,48 @@ macro_rules
   | `([var| $id:ident]) => `($id)
   -- TODO: [var| (x,y,z)] translation for tuples of lenses
 
+private def StmtWithHoles.mySize : StmtWithHoles s h → ℕ
+  | .skip => 0
+  | .assign _ _ => 0
+  | .sample _ _ => 0
+  | .call' _ b _ _ => b.mySize + 1
+  | .hole _ _ _ => 0
+  | .seq p q => p.mySize + q.mySize + 1
+  | .ifThenElse _ t e => t.mySize + e.mySize + 1
+  | .while _ t => t.mySize + 1
+
+instance : SizeOf (StmtWithHoles s h) where
+  sizeOf := StmtWithHoles.mySize
+
+@[reducible]
+instance : SizeOf (Stmt s) := instSizeOfStmtWithHoles
+
 noncomputable
 def denotation {s : Type} : Stmt s → Program s Unit
-| Stmt.skip => do return ()
-| Stmt.assign x e => do let st ← Program.get_state; let result := e.get st; Program.set x result
-| Stmt.sample x e => do
+| .skip => do return ()
+| .assign x e => do let st ← Program.get_state; let result := e.get st; Program.set x result
+| .sample x e => do
     let st ← Program.get_state
     let result ← (e.get st).toProgram
     Program.set x result
-| Stmt.call' x b r p => do
+| .call' x b r p => do
     let st₀ ← Program.get_state
-    let params := p.get st₀
-    denotation (b params)
+    let params := p.get st₀ -- WARNING ignored
+    denotation b
     let st₁ ← Program.get_state
     let result := r.get st₁
     Program.set x result
-| Stmt.ifThenElse c t e => do
+| .ifThenElse c t e => do
     let st ← Program.get_state
     let result := c.get st
     if result then denotation t else denotation e
-| Stmt.while c t => while_loop (do let st ← Program.get_state; return c.get st) (denotation t)
-| Stmt.seq p q => do denotation p; denotation q
+| .while c t => while_loop (do let st ← Program.get_state; return c.get st) (denotation t)
+| .seq p q => do denotation p; denotation q
+termination_by stmt => sizeOf (self := instSizeOfStmt) stmt
+decreasing_by
+  sorry; sorry; sorry; sorry; sorry; sorry
+  -- TODO
+   -- simp_all [StmtWithHoles.mySize]; omega
 
 /- # Experiments -/
 
