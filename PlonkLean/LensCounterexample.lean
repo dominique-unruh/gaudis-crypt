@@ -111,13 +111,14 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
     exact lt_of_le_not_ge hl_le_ub1 hub1_not_le_l
   -- Fintype l.content from injection l.content → bit × bit
   obtain ⟨z_ub, _⟩ := l_leq.le
+  haveI : Fintype (LensIn.mk' upper_bound_1).content := inferInstanceAs (Fintype (bit × bit))
   haveI : Fintype l.content :=
     Fintype.ofInjective (fun x => z_ub.set x (0, 0)) (fun x₁ x₂ h => by
       simpa [z_ub.set_get] using congr_arg z_ub.get h)
   haveI : Nonempty (bit × bit × bit) := ⟨(0, 0, 0)⟩
-  have l_lt_4 : Fintype.card l.content < Fintype.card (bit × bit) :=
+  have l_lt_4 : Fintype.card l.content < Fintype.card (LensIn.mk' upper_bound_1).content :=
     lens_lt_content_lt l (LensIn.mk' upper_bound_1) l_leq
-  have l_div_4 : Fintype.card l.content ∣ Fintype.card (bit × bit) :=
+  have l_div_4 : Fintype.card l.content ∣ Fintype.card (LensIn.mk' upper_bound_1).content :=
     lens_le_content_div l (LensIn.mk' upper_bound_1) l_leq.le
   -- l is upper bound of example_lens_2; get injection bit → l.content
   have hex2_le_l : LensIn.mk' example_lens_2 ≤ l := hlub.1 (Set.mem_insert_of_mem _ rfl)
@@ -127,9 +128,19 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
     Fintype.card_le_of_injective (fun a : bit => z_ex2.set a s₀) (fun a₁ a₂ h => by
       simpa [z_ex2.set_get] using congr_arg z_ex2.get h)
   have l_eq_2 : Fintype.card l.content = Fintype.card bit := by
-    have h4 : Fintype.card (bit × bit) = 4 := by decide
+    have h4 : Fintype.card (LensIn.mk' upper_bound_1).content = 4 := by
+      have heq : (LensIn.mk' upper_bound_1).content = (bit × bit) := rfl
+      rw [Fintype.card_congr (Equiv.cast heq)]; decide
     have h2 : Fintype.card bit = 2 := by decide
-    omega
+    have hlt : Fintype.card l.content < 4 := h4 ▸ l_lt_4
+    have hge : 2 ≤ Fintype.card l.content := h2 ▸ l_ge_2
+    obtain ⟨k, hk⟩ := h4 ▸ l_div_4
+    have hkpos : 0 < k := by nlinarith
+    have hkle : k ≤ 2 := by nlinarith
+    rcases Nat.lt_or_eq_of_le hkle with hlt2 | rfl
+    · have : k = 1 := by omega
+      subst this; omega
+    · omega
   -- z_ex2 has bijective get (equal cardinalities), so l ≤ example_lens_2
   haveI : Nonempty l.content := ⟨s₀⟩
   have f_inj_ex2 : Function.Injective (fun a : bit => z_ex2.set a s₀) := fun a₁ a₂ h => by
@@ -144,13 +155,15 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   -- example_lens_1 ≤ l ≤ example_lens_2 → contradiction
   have hex1_le_l : LensIn.mk' example_lens_1 ≤ l := hlub.1 (Set.mem_insert _ _)
   obtain ⟨z_12, hchain_12⟩ := hex1_le_l.trans l_le_ex2
-  have h1 : z_12.get (0 : bit) = 0 := by
-    have := congr_fun (congr_arg Lens.get hchain_12) ((0, 0, 0) : bit × bit × bit)
+  have h1 : z_12.get (0 : bit) = (0 : bit) := by
+    have := congr_fun (congr_arg (fun l : Lens bit (bit × bit × bit) => l.get) hchain_12)
+      ((0, 0, 0) : bit × bit × bit)
     simpa [chain, example_lens_1, example_lens_2] using this
-  have h2 : z_12.get (0 : bit) = 1 := by
-    have := congr_fun (congr_arg Lens.get hchain_12) ((1, 0, 0) : bit × bit × bit)
+  have h2 : z_12.get (0 : bit) = (1 : bit) := by
+    have := congr_fun (congr_arg (fun l : Lens bit (bit × bit × bit) => l.get) hchain_12)
+      ((1, 0, 0) : bit × bit × bit)
     simpa [chain, example_lens_1, example_lens_2] using this
-  exact absurd (h1.symm.trans h2) (by decide)
+  exact absurd (show (0 : bit) = 1 from h1.symm.trans h2) (by decide)
 
 
 
