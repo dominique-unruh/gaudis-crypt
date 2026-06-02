@@ -78,6 +78,98 @@ The output of `cr_experiment` is RO-invariant (it only depends on state
 variables disjoint from `random_oracle_state`), so the dist of the result
 bit agrees under lazy and eager RO. -/
 
+/-! ### Building blocks for `cr_transfer` via the `Program.transfer` framework. -/
+
+/-- Any program in `v.range` for a `v` disjoint from RO transfers to itself. -/
+private lemma transfer_of_inRange_disjoint {α : Type} [Countable α]
+    (p : Program state α) {β : Type} (v : Lens β state)
+    [disjoint v random_oracle_state]
+    (hp : p.inRange v.range) :
+    Program.transfer p p :=
+  Program.transfer_refl_of_inRange_compl
+    (Program.inRange_mono hp
+      (Lens.range_le_compl_of_disjoint v random_oracle_state))
+
+/-- `cr_adv` transfers to itself: it doesn't touch RO. -/
+private lemma transfer_cr_adv : Program.transfer cr_adv cr_adv :=
+  Program.transfer_refl_of_inRange_compl cr_adv_inRange
+
+/-- One iteration of `cr_loop_body` transfers from lazy to eager. -/
+private lemma transfer_cr_loop_body :
+    Program.transfer (cr_loop_body lazy_query) (cr_loop_body random_oracle_query) := by
+  show Program.transfer
+    (cr_adv >>= fun _ => Program.get oracle_input >>= fun inp =>
+      lazy_query inp >>= fun y => Program.set oracle_output y)
+    (cr_adv >>= fun _ => Program.get oracle_input >>= fun inp =>
+      random_oracle_query inp >>= fun y => Program.set oracle_output y)
+  apply Program.transfer_bind transfer_cr_adv
+  intro _
+  apply Program.transfer_bind
+    (transfer_of_inRange_disjoint _ oracle_input (Program.inRange_get _))
+  intro inp
+  apply Program.transfer_bind (Program.transfer_lazy_query inp)
+  intro y
+  exact transfer_of_inRange_disjoint _ oracle_output (Program.inRange_set _ _)
+
+/-- `cr_loop q` transfers from lazy to eager, by induction on `q`. -/
+private lemma transfer_cr_loop (q : ℕ) :
+    Program.transfer (cr_loop q lazy_query) (cr_loop q random_oracle_query) := by
+  induction q with
+  | zero => exact Program.transfer_pure ()
+  | succ n ih =>
+    show Program.transfer
+      (cr_loop_body lazy_query >>= fun _ => cr_loop n lazy_query)
+      (cr_loop_body random_oracle_query >>= fun _ => cr_loop n random_oracle_query)
+    exact Program.transfer_bind transfer_cr_loop_body (fun _ => ih)
+
+/-- The full `cr_experiment q` transfers from lazy to eager. -/
+private lemma transfer_cr_experiment (q : ℕ) :
+    Program.transfer
+      (cr_experiment q lazy_init lazy_query)
+      (cr_experiment q random_oracle_init random_oracle_query) := by
+  show Program.transfer
+    (lazy_init >>= fun _ => cr_loop q lazy_query >>= fun _ =>
+      Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
+        lazy_query x >>= fun y => lazy_query x' >>= fun y' =>
+          (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool))
+    (random_oracle_init >>= fun _ => cr_loop q random_oracle_query >>= fun _ =>
+      Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
+        random_oracle_query x >>= fun y => random_oracle_query x' >>= fun y' =>
+          (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool))
+  apply Program.transfer_bind Program.transfer_lazy_init
+  intro _
+  apply Program.transfer_bind (transfer_cr_loop q)
+  intro _
+  apply Program.transfer_bind
+    (transfer_of_inRange_disjoint _ claim_x (Program.inRange_get _))
+  intro x
+  apply Program.transfer_bind
+    (transfer_of_inRange_disjoint _ claim_x' (Program.inRange_get _))
+  intro x'
+  apply Program.transfer_bind (Program.transfer_lazy_query x)
+  intro y
+  apply Program.transfer_bind (Program.transfer_lazy_query x')
+  intro y'
+  exact Program.transfer_pure _
+
+/-- `convert` is absorbed by the eager `cr_experiment` (it starts with
+    `random_oracle_init`, which overwrites RO via a fresh uniform sample). -/
+private lemma convert_cr_experiment_eager (q : ℕ) :
+    (convert >>= fun _ =>
+      cr_experiment q random_oracle_init random_oracle_query)
+    = cr_experiment q random_oracle_init random_oracle_query := by
+  -- cr_experiment q eager_init eager_query = random_oracle_init >>= rest.
+  -- So convert >>= (random_oracle_init >>= rest) = (convert >>= random_oracle_init) >>= rest
+  --                                              = random_oracle_init >>= rest (by convert_random_oracle_init).
+  set rest : Program state Bool :=
+    cr_loop q random_oracle_query >>= fun _ =>
+      Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
+        random_oracle_query x >>= fun y => random_oracle_query x' >>= fun y' =>
+          (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool) with hrest
+  show (convert >>= fun _ => random_oracle_init >>= fun _ => rest)
+      = (random_oracle_init >>= fun _ => rest)
+  rw [← Program.bind_assoc, convert_random_oracle_init]
+
 /-- **Transfer theorem**: The marginal distribution of the result bit is
     identical under lazy and eager random oracle. -/
 theorem cr_transfer (q : ℕ) (σ₀ : state) :
@@ -85,8 +177,9 @@ theorem cr_transfer (q : ℕ) (σ₀ : state) :
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool))
     =
     (cr_experiment q random_oracle_init random_oracle_query σ₀ >>=
-        fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool)) := by
-  sorry
+        fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool)) :=
+  Program.transfer_value_marginal (transfer_cr_experiment q)
+    (convert_cr_experiment_eager q) σ₀
 
 /-! ## Phase 3 — Birthday bound on the lazy CR experiment
 
@@ -123,7 +216,35 @@ noncomputable instance : DecidablePred has_collision :=
 noncomputable def collision_indicator (σ : state) : ENNReal :=
   if has_collision σ then 1 else 0
 
-/-! ### Helper: `lazy_query` writes its output to `RO[x]` -/
+/-! ### Helper: `lazy_query` postcondition strengthening -/
+
+/-- **`lazy_query` support strengthening**: if an invariant `I : output → state → Prop`
+    holds at every state reachable from `lazy_query x σ` — namely, on the cached
+    output (when the entry is cached) and on every fresh-sample post-state (when
+    not cached) — then strengthening the postcondition with `if I then F else 0`
+    leaves the `wp` value unchanged. -/
+lemma lazy_query_wp_strengthen
+    {x : input} {σ : state} {I : output → state → Prop}
+    [DecidablePred (fun yσ : output × state => I yσ.1 yσ.2)]
+    (h_cache : ∀ y_cache, random_oracle_state.get σ x = some y_cache → I y_cache σ)
+    (h_fresh : ∀ value, random_oracle_state.get σ x = none → I value
+      (random_oracle_state.set
+        (fun x' => if x' = x then some value else random_oracle_state.get σ x') σ))
+    (F : output × state → ENNReal) :
+    (lazy_query x).wp F σ
+      = (lazy_query x).wp
+          (fun yσ : output × state => if I yσ.1 yσ.2 then F yσ else 0) σ := by
+  simp only [lazy_query, wp_bind, wp_get]
+  cases h_cache_state : random_oracle_state.get σ x with
+  | some y_cache =>
+    simp only [wp_pure]
+    rw [if_pos (h_cache y_cache h_cache_state)]
+  | none =>
+    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
+    apply Finset.sum_congr rfl
+    intro value _
+    congr 1
+    rw [if_pos (h_fresh value h_cache_state)]
 
 /-- **`lazy_query` writes its output**: integrating any `F` against
     `lazy_query x σ` is the same as integrating `F` restricted to states
@@ -134,22 +255,11 @@ lemma lazy_query_wp_writes_output
       = (lazy_query x).wp
           (fun yσ : output × state =>
             if random_oracle_state.get yσ.2 x = some yσ.1 then F yσ else 0) σ := by
-  simp only [lazy_query, wp_bind, wp_get]
-  cases h_cache : random_oracle_state.get σ x with
-  | some y_cache =>
-    simp only [h_cache, wp_pure, if_true]
-  | none =>
-    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
-    apply Finset.sum_congr rfl
-    intro value _
-    have h_RO_set : random_oracle_state.get
-        (random_oracle_state.set
-          (fun x' => if x' = x then some value else random_oracle_state.get σ x') σ) x
-        = some value := by
-      rw [random_oracle_state.set_get]
-      exact if_pos rfl
-    congr 1
-    rw [if_pos h_RO_set]
+  apply lazy_query_wp_strengthen
+    (I := fun y σ' => random_oracle_state.get σ' x = some y)
+  · intro _ h; exact h
+  · intro value _; show random_oracle_state.get _ x = some value
+    rw [random_oracle_state.set_get]; exact if_pos rfl
 
 /-- **`lazy_query` preserves disjoint state**: querying doesn't change
     the value of any variable disjoint from `random_oracle_state`. -/
@@ -159,28 +269,13 @@ lemma lazy_query_wp_preserves_disjoint {α : Type} [DecidableEq α]
     (lazy_query x).wp F σ
       = (lazy_query x).wp
           (fun yσ : output × state =>
-            if v.get yσ.2 = v.get σ then F yσ else 0) σ := by
-  simp only [lazy_query, wp_bind, wp_get]
-  cases h_cache : random_oracle_state.get σ x with
-  | some y_cache =>
-    simp only [wp_pure, if_true]
-  | none =>
-    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
-    apply Finset.sum_congr rfl
-    intro value _
-    have h_v_preserved : v.get
-        (random_oracle_state.set
-          (fun x' => if x' = x then some value else random_oracle_state.get σ x') σ)
-        = v.get σ := by
-      have key : v.set (v.get σ)
-          (random_oracle_state.set
-            (fun x' => if x' = x then some value else random_oracle_state.get σ x') σ)
-        = random_oracle_state.set
-            (fun x' => if x' = x then some value else random_oracle_state.get σ x') σ := by
-        rw [disjoint.commute, v.get_set]
-      rw [← key, v.set_get]
-    congr 1
-    rw [if_pos h_v_preserved]
+            if v.get yσ.2 = v.get σ then F yσ else 0) σ :=
+  letI := (inferInstance : disjoint v random_oracle_state).symm
+  lazy_query_wp_strengthen
+    (I := fun _ σ' => v.get σ' = v.get σ)
+    (fun _ _ => rfl)
+    (fun _ _ => v.get_of_disjoint_set random_oracle_state _ σ)
+    F
 
 /-- **`lazy_query` preserves other RO entries**: querying `x` doesn't
     change `RO[x']` for `x' ≠ x`. -/
@@ -191,21 +286,11 @@ lemma lazy_query_wp_preserves_other_RO
           (fun yσ : output × state =>
             if random_oracle_state.get yσ.2 x' = random_oracle_state.get σ x'
               then F yσ else 0) σ := by
-  simp only [lazy_query, wp_bind, wp_get]
-  cases h_cache : random_oracle_state.get σ x with
-  | some y_cache =>
-    simp only [wp_pure, if_true]
-  | none =>
-    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
-    apply Finset.sum_congr rfl
-    intro value _
-    have h_RO_x'_preserved : random_oracle_state.get
-        (random_oracle_state.set
-          (fun y => if y = x then some value else random_oracle_state.get σ y) σ) x'
-        = random_oracle_state.get σ x' := by
-      rw [random_oracle_state.set_get, if_neg h_neq]
-    congr 1
-    rw [if_pos h_RO_x'_preserved]
+  apply lazy_query_wp_strengthen
+    (I := fun _ σ' => random_oracle_state.get σ' x' = random_oracle_state.get σ x')
+  · intro _ _; rfl
+  · intro _ _; show random_oracle_state.get _ x' = random_oracle_state.get σ x'
+    rw [random_oracle_state.set_get, if_neg h_neq]
 
 /-- **Bookkeeping helper**: at every state in the support of
     `cr_experiment q lazy_init lazy_query`, if the result bit is `true`

@@ -237,6 +237,26 @@ theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := by
     simp only at h; subst h; rfl
   apply key; simp only [Compl.compl]; exact x.double_commutant
 
+/-- Disjoint lenses have ranges contained in each other's complements: if
+    `disjoint v L`, then every `v`-update lives in `L.compl.range`. -/
+theorem Lens.range_le_compl_of_disjoint {a b m : Type} (v : Lens a m) (L : Lens b m)
+    [hd : disjoint v L] : v.range ≤ L.compl.range := by
+  rw [LensRange.complement_range]
+  rintro _ ⟨g, -, rfl⟩
+  show v.update g ∈ Submonoid.centralizer L.range.updates
+  rw [Submonoid.mem_centralizer_iff]
+  rintro _ ⟨h, -, rfl⟩
+  letI := hd.symm
+  funext σ
+  show L.update h (v.update g σ) = v.update g (L.update h σ)
+  simp only [Lens.update]
+  have hL_get : L.get (v.set (g (v.get σ)) σ) = L.get σ :=
+    Lens.get_of_disjoint_set L v _ σ
+  have hv_get : v.get (L.set (h (L.get σ)) σ) = v.get σ :=
+    Lens.get_of_disjoint_set v L _ σ
+  rw [hL_get, hv_get]
+  exact (hd.commute σ (g (v.get σ)) (h (L.get σ))).symm
+
 instance : CompleteSemilatticeSup (LensRange m) where
   sSup s := LensRange.from (⋃ x ∈ s, x.updates)
   isLUB_sSup s := by
