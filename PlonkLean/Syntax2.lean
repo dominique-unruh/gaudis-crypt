@@ -4,17 +4,6 @@ import Mathlib.Data.List.AList
 import Mathlib.Logic.Equiv.Defs
 import PlonkLean.Syntax
 
-class TupleLike a (b : outParam Type) (c : outParam Type) where
-  iso : a ≃ (b × c)
-
-structure bla where
-  x : Nat
-  y : Nat
-  z : Nat
-  -- deriving TupleLike
-
-instance : TupleLike bla Nat (Nat × Nat) := sorry
-
 inductive MTy where
   | proc   : ProcedureSignature → MTy
   | prod : MTy → MTy → MTy
@@ -38,21 +27,6 @@ inductive MExpr' s : MCtx → MTy → Type _ where
   | pair : MExpr' s Δ A → MExpr' s Δ B → MExpr' s Δ (MTy.prod A B)
 
 def MExpr (s : Type) : MTy → Type _ := MExpr' s .empty
-
-class ModuleTypeRelation (mty : outParam MTy) (typ: Type _)
-
-instance instModuleTypeRelationFun [ModuleTypeRelation a a'] [ModuleTypeRelation b b'] :
-  ModuleTypeRelation (MTy.arr a b) (a' → b') := sorry
-
-instance instModuleTypeRelationProc {sig} : ModuleTypeRelation (MTy.proc sig) (Procedure s sig) := sorry
-
-structure MODULE s {mty : MTy} (typ : Type 1) [i : ModuleTypeRelation mty typ] where
-  mexpr : MExpr s mty
-
-def applyMODULE
-  [ModuleTypeRelation t0 t] [ModuleTypeRelation u0 u]
-  (module1 : MODULE (i := instModuleTypeRelationFun) s (t → u)) (module2 : MODULE s t) : MODULE s u :=
-  ⟨ module1.mexpr.app module2.mexpr ⟩
 
 mutual
   /-- Beta-normal form: no beta-redex anywhere in the term. -/
@@ -148,9 +122,7 @@ private def substVar {s : Type} {Δ : MCtx} {u : MTy} (arg : MExpr' s Δ u) {T} 
 def subst (body : MExpr' s (Δ.append u) t) (arg : MExpr' s Δ u) : MExpr' s Δ t :=
   substGen (substVar arg) body
 
-/- TODO:
-Define this. It should be the beta-reduced normal form of the simply-typed lambda calculus.
--/
+-- TODO Use some existing STLC library
 def reduce (m : MExpr' s Δ t) : MExpr' s Δ t := match m with
   | .app a b =>
       let ra := reduce a
@@ -173,36 +145,8 @@ def reduce (m : MExpr' s Δ t) : MExpr' s Δ t := match m with
 termination_by sizeOf m
 decreasing_by all_goals sorry
 
-theorem reduceNormal (m : MExpr' s Δ t) : Normal (reduce m) := by
-  match m with
-  | .var _    => simp only [reduce]; exact .neutral .var
-  | .const _  => simp only [reduce]; exact .const
-  | .abs a    => simp only [reduce]; exact .abs (reduceNormal a)
-  | .pair a b => simp only [reduce]; exact .pair (reduceNormal a) (reduceNormal b)
-  | .app a b  =>
-      match h : reduce a with
-      | .abs a'   => sorry  -- need: Normal (reduce (subst a' (reduce b)))
-      | _         => sorry  -- need: Normal (.app (reduce a) (reduce b))
-  | .fst a =>
-      match h : reduce a with
-      | .pair b c =>
-          have hpair : Normal (.pair b c) := h ▸ reduceNormal a
-          cases hpair with
-          | neutral hn => cases hn
-          | pair hb _ =>
-              have heq : reduce (.fst a) = b := by unfold reduce; rw [h]; rfl
-              rw [heq]; exact hb
-      | _ => sorry  -- need: Normal (.fst (reduce a))
-  | .snd a =>
-      match h : reduce a with
-      | .pair b c =>
-          have hpair : Normal (.pair b c) := h ▸ reduceNormal a
-          cases hpair with
-          | neutral hn => cases hn
-          | pair _ hc =>
-              have heq : reduce (.snd a) = c := by unfold reduce; rw [h]; rfl
-              rw [heq]; exact hc
-      | _ => sorry  -- need: Normal (.snd (reduce a))
+-- TODO Use some existing STLC library
+theorem reduceNormal (m : MExpr' s Δ t) : Normal (reduce m) := sorry
 
 private lemma Normal.toNormalClosed {s : Type} {T : MTy} {m : MExpr' s .empty T} :
     Normal m → NormalClosed m
@@ -215,13 +159,7 @@ private lemma Normal.toNormalClosed {s : Type} {T : MTy} {m : MExpr' s .empty T}
 theorem reduceNormalClosed (m : MExpr s t) : NormalClosed (reduce m) :=
   (reduceNormal m).toNormalClosed
 
-def evalProc {sig} (module : MODULE (i := instModuleTypeRelationProc) s (Procedure s sig)) : Procedure s sig :=
-  let subt : { m // NormalClosed m } := ⟨ reduce module.mexpr, reduceNormalClosed _ ⟩
-  match subt with
-  | ⟨ .const proc, _ ⟩ => proc
-
 class MtyToType (s : Type) (mty : MTy) (userType : outParam Type)
-
 
 def mtyToType (s : Type) (mty : MTy) := match mty with
   | .proc sig => Procedure s sig
@@ -276,11 +214,6 @@ def moduleEqual (a : MExpr' s Δ t) b := reduce a = reduce b
 
 theorem test : moduleEqual myMod.main testMain := by
   simp only [moduleEqual, TestModuleType.main, myMod, TestModuleType.mk, reduce]
-
-axiom bla2 : TestModuleType s
-
-
-#check bla2.main
 
 def evalModule {mty} (mex : MExpr s mty) : mtyToType s mty := evalModule'.{0} mex PUnit.unit
 
