@@ -91,11 +91,19 @@ lemma not_neutral_empty {s : Type} {T : MTy} : {m : MExpr' s .empty T} → ¬ Ne
   | .fst _,   .fst ne   => not_neutral_empty ne
   | .snd _,   .snd ne   => not_neutral_empty ne
 
+/-- Extends a renaming `ρ : Ref Δ → Ref Γ` to work under one binder of type `A`.
+    The bound variable `.zero` maps to itself; outer variables `.succ r` are renamed by `ρ`
+    and re-wrapped with `.succ`.  This is the typed analogue of incrementing the cutoff `c`
+    in Pierce's shift operation. -/
 private def liftRename {Δ Γ : MCtx} {A : MTy}
     (ρ : ∀ {T}, Ref Δ T → Ref Γ T) {T} : Ref (MCtx.append Δ A) T → Ref (MCtx.append Γ A) T
   | .zero   => .zero
   | .succ r => .succ (ρ r)
 
+/-- Applies a renaming `ρ : Ref Δ → Ref Γ` to every variable in a term, producing a term
+    over context `Γ`.  Goes under binders by lifting `ρ` with `liftRename`.
+    This is the typed analogue of Pierce's shift `↑_c^d`, where `ρ` encodes both the
+    cutoff `c` and the displacement `d`. -/
 private def MExpr'.rename (ρ : ∀ {T}, Ref Δ T → Ref Γ T) : MExpr' s Δ T → MExpr' s Γ T
   | .const p  => .const p
   | .var r    => .var (ρ r)
@@ -105,11 +113,19 @@ private def MExpr'.rename (ρ : ∀ {T}, Ref Δ T → Ref Γ T) : MExpr' s Δ T 
   | .abs body => .abs (body.rename (liftRename ρ))
   | .pair a b => .pair (a.rename ρ) (b.rename ρ)
 
+/-- Extends a simultaneous substitution `σ : Ref Δ → MExpr' s Γ` to work under one binder
+    of type `A`, yielding a substitution `Ref (Δ,A) → MExpr' s (Γ,A)`.
+    The bound variable `.zero` maps to the fresh variable `.var .zero`;
+    outer variables `.succ r` are substituted by `σ r` and then weakened into the
+    extended context `Γ,A` by renaming with `.succ`. -/
 private def liftSubst {s : Type} {Δ Γ : MCtx} {A : MTy}
     (σ : ∀ {T}, Ref Δ T → MExpr' s Γ T) {T} : Ref (MCtx.append Δ A) T → MExpr' s (MCtx.append Γ A) T
   | .zero   => .var .zero
   | .succ r => (σ r).rename (fun {_} r => .succ r)
 
+/-- Applies a simultaneous substitution `σ : Ref Δ → MExpr' s Γ` to every variable in a
+    term, producing a term over context `Γ`.  Goes under binders by lifting `σ` with
+    `liftSubst`. -/
 private def substGen (σ : ∀ {T}, Ref Δ T → MExpr' s Γ T) : MExpr' s Δ T → MExpr' s Γ T
   | .const p  => .const p
   | .var r    => σ r
@@ -119,11 +135,16 @@ private def substGen (σ : ∀ {T}, Ref Δ T → MExpr' s Γ T) : MExpr' s Δ T 
   | .abs body => .abs (substGen (liftSubst σ) body)
   | .pair a b => .pair (substGen σ a) (substGen σ b)
 
+/-- The single-variable substitution map used as the `σ` argument to `substGen`:
+    de Bruijn index 0 (the outermost bound variable) maps to `arg`;
+    any other index `k+1` maps back to the variable at index `k`. -/
 private def substVar {s : Type} {Δ : MCtx} {u : MTy} (arg : MExpr' s Δ u) {T} :
     Ref (MCtx.append Δ u) T → MExpr' s Δ T
   | .zero   => arg
   | .succ r => .var r
 
+/-- Single-variable de Bruijn substitution: replaces de Bruijn index 0 in `body` with `arg`.
+    Implemented via `substGen` with the point substitution `substVar arg`. -/
 def subst (body : MExpr' s (Δ.append u) t) (arg : MExpr' s Δ u) : MExpr' s Δ t :=
   substGen (substVar arg) body
 
@@ -132,23 +153,56 @@ Define this. It should be the beta-reduced normal form of the simply-typed lambd
 -/
 def reduce (m : MExpr' s Δ t) : MExpr' s Δ t := match m with
   | .app a b =>
-      match reduce a with
-      | .abs a' => subst a' b
-      | _ => .app a b -- stuck
-  | .var n => .var n
+      let ra := reduce a
+      let rb := reduce b
+      match ra with
+      | .abs a' => reduce (subst a' rb)
+      | _       => .app ra rb
+  | .var n    => .var n
   | .pair a b => .pair (reduce a) (reduce b)
-  | .abs a => .abs (reduce a)
-  | .fst a =>
+  | .abs a    => .abs (reduce a)
+  | .fst a    =>
       match reduce a with
       | .pair b _ => b
-      | _ => .fst a -- stuck
-  | .snd a =>
+      | ra        => .fst ra
+  | .snd a    =>
       match reduce a with
       | .pair _ c => c
-      | _ => .snd a -- stuck
-  | .const p => .const p
+      | ra        => .snd ra
+  | .const p  => .const p
+termination_by sizeOf m
+decreasing_by all_goals sorry
 
-theorem reduceNormal (m : MExpr' s Δ t) : Normal (reduce m) := sorry
+theorem reduceNormal (m : MExpr' s Δ t) : Normal (reduce m) := by
+  match m with
+  | .var _    => simp only [reduce]; exact .neutral .var
+  | .const _  => simp only [reduce]; exact .const
+  | .abs a    => simp only [reduce]; exact .abs (reduceNormal a)
+  | .pair a b => simp only [reduce]; exact .pair (reduceNormal a) (reduceNormal b)
+  | .app a b  =>
+      match h : reduce a with
+      | .abs a'   => sorry  -- need: Normal (reduce (subst a' (reduce b)))
+      | _         => sorry  -- need: Normal (.app (reduce a) (reduce b))
+  | .fst a =>
+      match h : reduce a with
+      | .pair b c =>
+          have hpair : Normal (.pair b c) := h ▸ reduceNormal a
+          cases hpair with
+          | neutral hn => cases hn
+          | pair hb _ =>
+              have heq : reduce (.fst a) = b := by unfold reduce; rw [h]; rfl
+              rw [heq]; exact hb
+      | _ => sorry  -- need: Normal (.fst (reduce a))
+  | .snd a =>
+      match h : reduce a with
+      | .pair b c =>
+          have hpair : Normal (.pair b c) := h ▸ reduceNormal a
+          cases hpair with
+          | neutral hn => cases hn
+          | pair _ hc =>
+              have heq : reduce (.snd a) = c := by unfold reduce; rw [h]; rfl
+              rw [heq]; exact hc
+      | _ => sorry  -- need: Normal (.snd (reduce a))
 
 private lemma Normal.toNormalClosed {s : Type} {T : MTy} {m : MExpr' s .empty T} :
     Normal m → NormalClosed m
@@ -220,7 +274,8 @@ def myMod := TestModuleType.mk (s:=s) {main := testMain, aux := sorry}
 
 def moduleEqual (a : MExpr' s Δ t) b := reduce a = reduce b
 
-theorem test : moduleEqual myMod.main testMain := rfl
+theorem test : moduleEqual myMod.main testMain := by
+  simp only [moduleEqual, TestModuleType.main, myMod, TestModuleType.mk, reduce]
 
 axiom bla2 : TestModuleType s
 
