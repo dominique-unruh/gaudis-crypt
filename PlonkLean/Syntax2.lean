@@ -91,7 +91,41 @@ lemma not_neutral_empty {s : Type} {T : MTy} : {m : MExpr' s .empty T} → ¬ Ne
   | .fst _,   .fst ne   => not_neutral_empty ne
   | .snd _,   .snd ne   => not_neutral_empty ne
 
-def subst (body : MExpr' s (Δ.append u) t) (arg : MExpr' s Δ u) : MExpr' s Δ t := sorry
+private def liftRename {Δ Γ : MCtx} {A : MTy}
+    (ρ : ∀ {T}, Ref Δ T → Ref Γ T) {T} : Ref (MCtx.append Δ A) T → Ref (MCtx.append Γ A) T
+  | .zero   => .zero
+  | .succ r => .succ (ρ r)
+
+private def MExpr'.rename (ρ : ∀ {T}, Ref Δ T → Ref Γ T) : MExpr' s Δ T → MExpr' s Γ T
+  | .const p  => .const p
+  | .var r    => .var (ρ r)
+  | .app f a  => .app (f.rename ρ) (a.rename ρ)
+  | .fst e    => .fst (e.rename ρ)
+  | .snd e    => .snd (e.rename ρ)
+  | .abs body => .abs (body.rename (liftRename ρ))
+  | .pair a b => .pair (a.rename ρ) (b.rename ρ)
+
+private def liftSubst {s : Type} {Δ Γ : MCtx} {A : MTy}
+    (σ : ∀ {T}, Ref Δ T → MExpr' s Γ T) {T} : Ref (MCtx.append Δ A) T → MExpr' s (MCtx.append Γ A) T
+  | .zero   => .var .zero
+  | .succ r => (σ r).rename (fun {_} r => .succ r)
+
+private def substGen (σ : ∀ {T}, Ref Δ T → MExpr' s Γ T) : MExpr' s Δ T → MExpr' s Γ T
+  | .const p  => .const p
+  | .var r    => σ r
+  | .app f a  => .app (substGen σ f) (substGen σ a)
+  | .fst e    => .fst (substGen σ e)
+  | .snd e    => .snd (substGen σ e)
+  | .abs body => .abs (substGen (liftSubst σ) body)
+  | .pair a b => .pair (substGen σ a) (substGen σ b)
+
+private def substVar {s : Type} {Δ : MCtx} {u : MTy} (arg : MExpr' s Δ u) {T} :
+    Ref (MCtx.append Δ u) T → MExpr' s Δ T
+  | .zero   => arg
+  | .succ r => .var r
+
+def subst (body : MExpr' s (Δ.append u) t) (arg : MExpr' s Δ u) : MExpr' s Δ t :=
+  substGen (substVar arg) body
 
 /- TODO:
 Define this. It should be the beta-reduced normal form of the simply-typed lambda calculus.
