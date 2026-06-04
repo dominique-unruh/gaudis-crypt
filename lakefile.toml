@@ -10,14 +10,19 @@ weak.linter.mathlibStandardSet = true
 maxSynthPendingDepth = 3
 
 [[require]]
-name = "mathlib"
-scope = "leanprover-community"
-rev = "v4.29.1"
-
-[[require]]
 name = "VCVio"
 scope = "Verified-zkEVM"
-rev = "v4.29.1"
+rev = "v4.29.0"
+
+[[require]]
+name = "Metatheory-Unruh"
+git = "https://github.com/dominique-unruh/Lean-Metatheory.git"
+rev = "main"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.30.0"
 
 [[lean_lib]]
 name = "PlonkLean"
