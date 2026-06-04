@@ -260,6 +260,43 @@ lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : LensRange s}
   funext xs
   rw [expected_pure]
 
+/-- **Lens-preservation strengthening**: if `prog` modifies only the complement
+    of `L`, then on the support of `prog σ` every output state has the same
+    `L.get` as `σ`. We can therefore strengthen the postcondition with an
+    `if L.get = L.get σ then F else 0` check without changing the `wp` value.
+
+    Proved by a double-shift via `Program.wp_shift_input`: shifting `F` and the
+    strengthened post by `f := L.update (Function.const _ (L.get σ))` (which
+    forces `L.get` to `L.get σ`) makes both inner posts identical, so the
+    `wp` values match. -/
+lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
+    (L : Lens γ s) {p : Program s α} (h_inRange : p.inRange L.compl.range)
+    (F : α × s → ENNReal) (σ : s) :
+    p.wp F σ
+      = p.wp (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ := by
+  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
+  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+      rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ (L.get σ), Set.mem_univ _, rfl⟩
+  have h_f_fix : f σ = σ := by
+    show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
+    rw [Function.const_apply, L.get_set]
+  have h_f_L_get : ∀ σ' : s, L.get (f σ') = L.get σ := by
+    intro σ'
+    show L.get (L.set ((Function.const _ (L.get σ)) (L.get σ')) σ') = L.get σ
+    rw [Function.const_apply, L.set_get]
+  have h_shift_F := Program.wp_shift_input h_inRange h_f_in_Rc F σ
+  rw [h_f_fix] at h_shift_F
+  have h_shift_strong := Program.wp_shift_input h_inRange h_f_in_Rc
+    (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ
+  rw [h_f_fix] at h_shift_strong
+  rw [h_shift_F, h_shift_strong]
+  congr 1
+  funext xs
+  show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
+  rw [if_pos (h_f_L_get xs.2)]
+
 /-- **Preservation under in-range**: if `prog` modifies only the complement of `L`,
     and the postcondition factors through `L.get` (i.e. depends only on `L`-content),
     then `prog.wp (P ∘ snd) σ ≤ P σ`. The sub-probability mass of `prog σ` only

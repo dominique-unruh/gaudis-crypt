@@ -97,6 +97,21 @@ noncomputable def random_oracle_query (inp : input) : Program state output := do
   let h <- Program.get random_oracle_state
   return (h inp).getD default
 
+/-- `lazy_query` only reads and writes `random_oracle_state`. -/
+theorem lazy_query_inRange_ro (inp : input) :
+    (lazy_query inp).inRange random_oracle_state.range := by
+  refine Program.inRange_bind (Program.inRange_get _) ?_
+  intro h
+  cases h inp with
+  | some x => exact Program.inRange_pure _ _
+  | none =>
+    refine Program.inRange_bind ?_ ?_
+    · exact Program.inRange_mono Program.inRange_uniform bot_le
+    · intro value
+      refine Program.inRange_bind (Program.inRange_set _ _) ?_
+      intro _
+      exact Program.inRange_pure _ _
+
 
 noncomputable def lazy_query_conv (inp : input) :  Program state Unit := do
   let _ <- lazy_query inp
