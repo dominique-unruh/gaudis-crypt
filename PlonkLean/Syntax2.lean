@@ -316,13 +316,13 @@ def reduction_step [ProgramSpec] (m : MExpr' Δ t) (nn : ¬ Normal m) : MExpr' �
           .app hd (reduction_step arg nn_arg)
   | .const p => absurd .const nn
   | .abs body =>
-      have nn' : ¬ Normal body := sorry
+      have nn' : ¬ Normal body := fun hb => nn (.abs hb)
       .abs (reduction_step body nn')
   | .pair m1 m2 =>
       if nn1: ¬ Normal m1 then
         .pair (reduction_step m1 nn1) m2
       else
-        have nn2 : ¬ Normal m2 := sorry
+        have nn2 : ¬ Normal m2 := fun h2 => nn (.pair (not_not.mp nn1) h2)
         .pair m1 (reduction_step m2 nn2)
   | .fst m' =>
       if pair: is_pair m' then
@@ -343,23 +343,206 @@ def reduction_step [ProgramSpec] (m : MExpr' Δ t) (nn : ¬ Normal m) : MExpr' �
   | .var n => absurd (.neutral .var) nn
 
 
+private lemma mexprToSTLC_rename_shift [ProgramSpec] (d : Nat)
+    {Δ : MCtx} {T : MTy} (m : MExpr' Δ T) :
+    ∀ (c : Nat) {Γ : MCtx}
+      (ρ : ∀ {T}, Ref Δ T → Ref Γ T)
+      (_ : ∀ {T} (r : Ref Δ T), r.toNat < c → (ρ r).toNat = r.toNat)
+      (_ : ∀ {T} (r : Ref Δ T), r.toNat ≥ c → (ρ r).toNat = r.toNat + d),
+      mexprToSTLC (m.rename ρ) =
+      Metatheory.STLCext.Term.shift d c (mexprToSTLC m) := by
+  induction m with
+  | const p => intros; simp [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift]
+  | var r =>
+    intro c Γ ρ hlo hhi
+    simp only [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift]
+    by_cases h : r.toNat < c
+    · simp only [h, ite_true]; congr 1; exact hlo _ h
+    · simp only [h, ite_false]; congr 1
+      have h' : r.toNat ≥ c := Nat.le_of_not_lt h
+      have heq := hhi _ h'; omega
+  | app f a ihf iha =>
+    intro c Γ ρ hlo hhi
+    simp [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift,
+          ihf c ρ hlo hhi, iha c ρ hlo hhi]
+  | fst e ih =>
+    intro c Γ ρ hlo hhi
+    simp [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift, ih c ρ hlo hhi]
+  | snd e ih =>
+    intro c Γ ρ hlo hhi
+    simp [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift, ih c ρ hlo hhi]
+  | pair a b iha ihb =>
+    intro c Γ ρ hlo hhi
+    simp [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift,
+          iha c ρ hlo hhi, ihb c ρ hlo hhi]
+  | abs body ih =>
+    intro c Γ ρ hlo hhi
+    simp only [MExpr'.rename, mexprToSTLC, Metatheory.STLCext.Term.shift]
+    congr 1
+    apply ih (c + 1) (liftRename ρ)
+    · intro T r hr
+      cases r with
+      | zero => simp [liftRename, Ref.toNat]
+      | succ r' =>
+        simp only [liftRename, Ref.toNat] at *
+        have := hlo r' (by omega); omega
+    · intro T r hr
+      cases r with
+      | zero => simp [liftRename, Ref.toNat] at hr
+      | succ r' =>
+        simp only [liftRename, Ref.toNat] at *
+        have := hhi r' (by omega); omega
+
+private lemma mexprToSTLC_substGen_level [ProgramSpec]
+    (N_stlc : Metatheory.STLCext.Term)
+    {Δ' : MCtx} {T : MTy} (m : MExpr' Δ' T) :
+    ∀ (k : Nat) {Γ : MCtx}
+      (σ : ∀ {T}, Ref Δ' T → MExpr' Γ T)
+      (_ : ∀ {T} (r : Ref Δ' T),
+        mexprToSTLC (σ r) =
+        Metatheory.STLCext.Term.subst k
+          (Metatheory.STLCext.Term.shift k 0 N_stlc)
+          (Metatheory.STLCext.Term.var r.toNat)),
+      mexprToSTLC (substGen σ m) =
+      Metatheory.STLCext.Term.subst k
+        (Metatheory.STLCext.Term.shift k 0 N_stlc)
+        (mexprToSTLC m) := by
+  induction m with
+  | const p => intros; simp [substGen, mexprToSTLC, Metatheory.STLCext.Term.subst]
+  | var r =>
+    intro k Γ σ hσ
+    simp [substGen, mexprToSTLC, hσ]
+  | app f a ihf iha =>
+    intro k Γ σ hσ
+    simp [substGen, mexprToSTLC, Metatheory.STLCext.Term.subst, ihf k σ hσ, iha k σ hσ]
+  | fst e ih =>
+    intro k Γ σ hσ
+    simp [substGen, mexprToSTLC, Metatheory.STLCext.Term.subst, ih k σ hσ]
+  | snd e ih =>
+    intro k Γ σ hσ
+    simp [substGen, mexprToSTLC, Metatheory.STLCext.Term.subst, ih k σ hσ]
+  | pair a b iha ihb =>
+    intro k Γ σ hσ
+    simp [substGen, mexprToSTLC, Metatheory.STLCext.Term.subst, iha k σ hσ, ihb k σ hσ]
+  | abs body ih =>
+    intro k Γ σ hσ
+    simp only [substGen, mexprToSTLC, Metatheory.STLCext.Term.subst]
+    congr 1
+    have hshift : (Metatheory.STLCext.Term.shift k 0 N_stlc).shift1 =
+        Metatheory.STLCext.Term.shift (k + 1) 0 N_stlc := by
+      simp only [Metatheory.STLCext.Term.shift1]
+      rw [show (1 : Int) = ((1 : Nat) : Int) from by norm_num,
+          Metatheory.STLCext.Term.shift_shift]
+      congr 1; omega
+    rw [hshift]
+    apply ih (k + 1) (liftSubst σ)
+    intro T r
+    cases r with
+    | zero =>
+      simp only [liftSubst, mexprToSTLC, Ref.toNat, Metatheory.STLCext.Term.subst]
+      have : (0 : Nat) ≠ k + 1 := Nat.zero_ne_add_one k
+      simp [this, show ¬ (0 : Nat) > k + 1 from Nat.not_lt.mpr (Nat.zero_le _)]
+    | succ r' =>
+      simp only [liftSubst, Ref.toNat]
+      rw [mexprToSTLC_rename_shift 1 (σ r') 0 (fun {_} r => .succ r)
+        (fun {_} r hr => absurd hr (Nat.not_lt.mpr (Nat.zero_le _)))
+        (fun {_} r _ => by simp [Ref.toNat])]
+      rw [hσ r']
+      have key := Metatheory.STLCext.Term.shift1_subst
+          (Metatheory.STLCext.Term.var r'.toNat)
+          (Metatheory.STLCext.Term.shift (↑k) 0 N_stlc) k
+      simp only [Metatheory.STLCext.Term.shift1] at key hshift
+      rw [show (↑(1 : Nat) : Int) = (1 : Int) from by norm_cast, key, hshift]
+      simp only [Metatheory.STLCext.Term.shift,
+                 show ¬ (r'.toNat < (0 : Nat)) from Nat.not_lt.mpr (Nat.zero_le _), ite_false]
+      norm_cast
+
+private lemma mexprToSTLC_subst [ProgramSpec]
+    {Δ : MCtx} {u T : MTy}
+    (body : MExpr' (Δ.append u) T) (arg : MExpr' Δ u) :
+    mexprToSTLC (subst body arg) =
+    Metatheory.STLCext.Term.subst0 (mexprToSTLC arg) (mexprToSTLC body) := by
+  simp only [subst]
+  rw [mexprToSTLC_substGen_level (mexprToSTLC arg) body 0 (substVar arg)]
+  · simp [Metatheory.STLCext.Term.shift_zero]
+  · intro T r
+    cases r with
+    | zero =>
+      simp only [substVar, mexprToSTLC, Ref.toNat, Metatheory.STLCext.Term.subst]
+      simp [Metatheory.STLCext.Term.shift_zero]
+    | succ r' =>
+      simp only [substVar, mexprToSTLC, Ref.toNat, Metatheory.STLCext.Term.subst,
+                 Metatheory.STLCext.Term.shift_zero]
+      simp [show r'.toNat + 1 > 0 from Nat.succ_pos _]
+
 theorem reduction_step_compat [ProgramSpec] (m : MExpr' Γ T) (nn : ¬ Normal m) :
   Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduction_step m nn)) := by
-    cases m
-    case const =>
-      sorry -- can't happen
-    case var =>
-      sorry -- can't happen
-    case app hd arg =>
-      sorry
-    case fst m' =>
-      sorry
-    case snd m' =>
-      sorry
-    case abs body =>
-      sorry
-    case pair m1 m2 =>
-      sorry
+  induction m with
+  | const => exact absurd .const nn
+  | var => exact absurd (.neutral .var) nn
+  | app hd arg ihhd iharg =>
+    -- With induction m: hd is the function (arrow type), arg is the argument
+    simp only [reduction_step, mexprToSTLC]
+    split_ifs with h_abs h_nn
+    · -- beta: hd (function) is .abs
+      rw [mexprToSTLC_subst]
+      have h_meq : mexprToSTLC hd =
+          Metatheory.STLCext.Term.lam (mexprToSTLC h_abs.body) := by
+        cases hd with
+        | abs body => simp [is_abs.body, mexprToSTLC]
+        | var _ | app _ _ | fst _ | snd _ => simp [is_abs] at h_abs
+      rw [h_meq]
+      exact Metatheory.STLCext.Step.beta _ _
+    · -- appR: hd (function) is normal, reduce argument arg
+      simp only [mexprToSTLC]
+      have h_neutral : Neutral hd := by
+        cases h_nn with
+        | neutral ne => exact ne
+        | abs _ => simp [is_abs] at h_abs
+      have h_nn_arg : ¬ Normal arg := fun hna =>
+        nn (.neutral (.app h_neutral hna))
+      exact Metatheory.STLCext.Step.appR (iharg h_nn_arg)
+    · -- appL: hd (function) not normal, reduce it
+      simp only [mexprToSTLC]
+      exact Metatheory.STLCext.Step.appL (ihhd h_nn)
+  | fst m' ih =>
+    simp only [reduction_step, mexprToSTLC]
+    split_ifs with h_pair
+    · cases m' with
+      | pair m1 m2 =>
+        simp [is_pair.fst, is_pair.split, mexprToSTLC]
+        exact Metatheory.STLCext.Step.fstPair _ _
+      | var _ | app _ _ | fst _ | snd _ => simp [is_pair] at h_pair
+    · simp only [mexprToSTLC]
+      have nn' : ¬ Normal m' := fun hn => match hn with
+        | .neutral ne => nn (.neutral (.fst ne))
+        | .pair _ _ => h_pair (by simp [is_pair])
+      exact Metatheory.STLCext.Step.fst (ih nn')
+  | snd m' ih =>
+    simp only [reduction_step, mexprToSTLC]
+    split_ifs with h_pair
+    · cases m' with
+      | pair m1 m2 =>
+        simp [is_pair.snd, is_pair.split, mexprToSTLC]
+        exact Metatheory.STLCext.Step.sndPair _ _
+      | var _ | app _ _ | fst _ | snd _ => simp [is_pair] at h_pair
+    · simp only [mexprToSTLC]
+      have nn' : ¬ Normal m' := fun hn => match hn with
+        | .neutral ne => nn (.neutral (.snd ne))
+        | .pair _ _ => h_pair (by simp [is_pair])
+      exact Metatheory.STLCext.Step.snd (ih nn')
+  | abs body ih =>
+    simp only [reduction_step, mexprToSTLC]
+    exact Metatheory.STLCext.Step.lam (ih (fun hb => nn (.abs hb)))
+  | pair m1 m2 ih1 ih2 =>
+    simp only [reduction_step, mexprToSTLC]
+    split_ifs with h1
+    · -- split_ifs gives Normal m1 first (after not_not simplification)
+      simp only [mexprToSTLC]
+      have h2 : ¬ Normal m2 := fun h2 => nn (.pair h1 h2)
+      exact Metatheory.STLCext.Step.pairR (ih2 h2)
+    · simp only [mexprToSTLC]
+      exact Metatheory.STLCext.Step.pairL (ih1 h1)
 
 def reduce [ProgramSpec] (m : MExpr' Γ T) : MExpr' Γ T :=
     if h : Normal m then m
@@ -371,6 +554,20 @@ decreasing_by sorry
 theorem reduce_induction [ProgramSpec] {P : MExpr' Γ T → Prop}
     (step : ∀ m, P m → ∀ (nn : ¬ Normal m), P (reduction_step m nn)) :
   ∀ m, P m := sorry
+
+/- theorem reduce_induction'  [ProgramSpec] {P : MExpr' Γ T → Prop} : ∀ m, P m := by
+  intro m
+  induction m using reduce_induction
+  case step m Pm nn =>
+    cases m
+    case const c => exact absurd .const nn
+    case var n => exact absurd .var nn
+    case app hd arg => sorry
+    case fst m => sorry
+    case snd m => sorry
+    case abs body => sorry
+    case
+ -/
 
 theorem reduceNormal [ProgramSpec] (m : MExpr' Δ t) : Normal (reduce m) := sorry
 
