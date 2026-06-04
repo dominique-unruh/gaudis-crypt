@@ -237,3 +237,11 @@ lemma sum_indicator_eq_card_ENNReal {α : Type*} [Fintype α] [DecidableEq α]
   rw [← Finset.sum_filter]
   rw [show (Finset.univ : Finset α).filter (· ∈ S) = S from by ext; simp]
   simp [Finset.sum_const]
+
+/-- `((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal)` — the standard ℕ-cast
+    successor cancellation in `ENNReal` (with truncated subtraction). Used
+    pervasively in birthday-bound arithmetic. -/
+lemma ENNReal.natCast_succ_sub_one (n : ℕ) :
+    ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
+  push_cast
+  exact ENNReal.add_sub_cancel_right (by norm_num)

@@ -89,16 +89,6 @@ variable (h_cr_adv : cr_adv.inRange random_oracle_state.compl.range)
 
 /-! ### Building blocks for `cr_transfer` via the `Program.transfer` framework. -/
 
-/-- Any program in `v.range` for a `v` disjoint from RO transfers to itself. -/
-private lemma transfer_of_inRange_disjoint {α : Type} [Countable α]
-    (p : Program state α) {β : Type} (v : Lens β state)
-    [disjoint v random_oracle_state]
-    (hp : p.inRange v.range) :
-    Program.transfer p p :=
-  Program.transfer_refl_of_inRange_compl
-    (Program.inRange_mono hp
-      (Lens.range_le_compl_of_disjoint v random_oracle_state))
-
 include h_cr_adv in
 /-- `cr_adv` transfers to itself: it doesn't touch RO. -/
 private lemma transfer_cr_adv : Program.transfer cr_adv cr_adv :=
@@ -117,11 +107,11 @@ private lemma transfer_cr_loop_body :
   apply Program.transfer_bind (transfer_cr_adv cr_adv h_cr_adv)
   intro _
   apply Program.transfer_bind
-    (transfer_of_inRange_disjoint _ oracle_input (Program.inRange_get _))
+    (Program.transfer_of_inRange_disjoint _ oracle_input (Program.inRange_get _))
   intro inp
   apply Program.transfer_bind (Program.transfer_lazy_query inp)
   intro y
-  exact transfer_of_inRange_disjoint _ oracle_output (Program.inRange_set _ _)
+  exact Program.transfer_of_inRange_disjoint _ oracle_output (Program.inRange_set _ _)
 
 include h_cr_adv in
 /-- `cr_loop q` transfers from lazy to eager, by induction on `q`. -/
@@ -156,10 +146,10 @@ private lemma transfer_cr_experiment (q : ℕ) :
 
   intro _
   apply Program.transfer_bind
-    (transfer_of_inRange_disjoint _ claim_x (Program.inRange_get _))
+    (Program.transfer_of_inRange_disjoint _ claim_x (Program.inRange_get _))
   intro x
   apply Program.transfer_bind
-    (transfer_of_inRange_disjoint _ claim_x' (Program.inRange_get _))
+    (Program.transfer_of_inRange_disjoint _ claim_x' (Program.inRange_get _))
   intro x'
   apply Program.transfer_bind (Program.transfer_lazy_query x)
   intro y
@@ -470,11 +460,7 @@ private lemma ennreal_triangular_step (m k : ℕ) :
     push_cast
     ring
   | succ n =>
-    have h_cast : ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
-      push_cast
-      rw [show ((n : ENNReal) + 1 - 1) = (n : ENNReal) from
-        ENNReal.add_sub_cancel_right (by norm_num)]
-    rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from h_cast]
+    rw [ENNReal.natCast_succ_sub_one]
     push_cast
     ring
 
@@ -488,10 +474,7 @@ private lemma triangular_term_cast (m k : ℕ) :
   | zero => simp
   | succ n =>
     have h_nat : (2 * m + (n + 1) - 1 : ℕ) = 2 * m + n := by omega
-    have h_ennreal : ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
-      push_cast
-      exact ENNReal.add_sub_cancel_right (by norm_num)
-    rw [h_nat, h_ennreal]
+    rw [h_nat, ENNReal.natCast_succ_sub_one]
     push_cast
     ring
 
@@ -505,9 +488,7 @@ private lemma layer_C_term_alt (m_e : ENNReal) (k : ℕ) :
   | zero => simp
   | succ n =>
     congr 1
-    rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from by
-      push_cast
-      exact ENNReal.add_sub_cancel_right (by norm_num)]
+    rw [ENNReal.natCast_succ_sub_one]
     push_cast
     rw [show (2 * m_e + ((n : ENNReal) + 1) - 1) = 2 * m_e + (n : ENNReal) from by
       rw [← add_assoc]
@@ -528,9 +509,7 @@ private lemma layer_C_combine_div (m k : ℕ) (N : ENNReal)
   cases k with
   | zero => push_cast; ring
   | succ n =>
-    rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from by
-      push_cast
-      exact ENNReal.add_sub_cancel_right (by norm_num)]
+    rw [ENNReal.natCast_succ_sub_one]
     push_cast
     ring
 
@@ -1213,9 +1192,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
           cases q with
           | zero => push_cast; simp
           | succ n =>
-            rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from by
-              push_cast
-              exact ENNReal.add_sub_cancel_right (by norm_num)]
+            rw [ENNReal.natCast_succ_sub_one]
             push_cast
             ring_nf
             rfl

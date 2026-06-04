@@ -132,67 +132,9 @@ private lemma sum_update_eq_card_mul_sum {α β : Type*} [DecidableEq α] [Finty
     _ = (Fintype.card β : ENNReal) * ∑ z : α → β, G z := by
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
 
-theorem claim_2 (inp : input) :
-  lazy_query_conv inp = conv_random_oracle inp := by
-  apply program_ext
-  intro f
-  funext s
-  show (lazy_query_conv inp).wp f s = (conv_random_oracle inp).wp f s
-  simp only [lazy_query_conv, lazy_query, conv_random_oracle, random_oracle_query, convert,
-             wp_bind, wp_set, wp_get, wp_pure, wp_uniform]
-  cases h_eq : random_oracle_state.get s inp with
-  | some x => simp [wp_pure]
-  | none =>
-    simp only [wp_bind, wp_set, wp_pure, wp_uniform,
-               random_oracle_state.set_get, random_oracle_state.set_set]
-    have integrand_eq : ∀ (value : output) (y : input → output),
-        (fun x' : input =>
-          some ((if x' = inp then some value else random_oracle_state.get s x').getD (y x')))
-        = (fun x' : input =>
-          some ((random_oracle_state.get s x').getD (Function.update y inp value x'))) := by
-      intros value y
-      funext x'
-      by_cases hx : x' = inp
-      · subst hx; simp [Function.update_self, h_eq]
-      · simp [if_neg hx, Function.update_of_ne hx]
-    simp_rw [integrand_eq]
-    have hO_ne_zero : (Fintype.card output : ENNReal) ≠ 0 := by
-      exact_mod_cast Fintype.card_pos.ne'
-    have hO_ne_top : (Fintype.card output : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
-    have hF_ne_zero : (Fintype.card (input → output) : ENNReal) ≠ 0 := by
-      exact_mod_cast Fintype.card_pos.ne'
-    have hF_ne_top : (Fintype.card (input → output) : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
-    let G : (input → output) → ENNReal := fun z =>
-      f ((), random_oracle_state.set
-          (fun x' => some ((random_oracle_state.get s x').getD (z x'))) s)
-    change (∑ v : output, (∑ y : input → output, G (Function.update y inp v) /
-                          (Fintype.card (input → output) : ENNReal)) /
-                         (Fintype.card output : ENNReal))
-       = ∑ z : input → output, G z / (Fintype.card (input → output) : ENNReal)
-    calc (∑ v : output, (∑ y : input → output, G (Function.update y inp v) /
-                          (Fintype.card (input → output) : ENNReal)) /
-                         (Fintype.card output : ENNReal))
-        = (∑ v : output, ∑ y : input → output, G (Function.update y inp v)) /
-              ((Fintype.card (input → output) : ENNReal) *
-               (Fintype.card output : ENNReal)) := by
-            simp_rw [div_eq_mul_inv]
-            simp_rw [← Finset.sum_mul]
-            rw [mul_assoc]
-            congr 1
-            exact (ENNReal.mul_inv (Or.inl hF_ne_zero) (Or.inl hF_ne_top)).symm
-      _ = ((Fintype.card output : ENNReal) * ∑ z : input → output, G z) /
-              ((Fintype.card (input → output) : ENNReal) *
-               (Fintype.card output : ENNReal)) := by
-            rw [sum_update_eq_card_mul_sum]
-      _ = (∑ z : input → output, G z) /
-            (Fintype.card (input → output) : ENNReal) := by
-            rw [mul_comm (Fintype.card (input → output) : ENNReal)
-                         (Fintype.card output : ENNReal)]
-            exact ENNReal.mul_div_mul_left _ _ hO_ne_zero hO_ne_top
-      _ = ∑ z : input → output, G z /
-            (Fintype.card (input → output) : ENNReal) := by
-            simp_rw [div_eq_mul_inv]
-            rw [Finset.sum_mul]
+-- `claim_2` (Unit-form: `lazy_query_conv inp = conv_random_oracle inp`) is
+-- derived from the value-tracking variant `claim_2_cont` below. The actual
+-- arithmetic lives in `claim_2_strong`.
 
 /-! ## Phase 4 — Oracle loops parameterised by an adversary
 
@@ -219,36 +161,6 @@ noncomputable def conv_adv : Program state Unit := do
 
 variable (h_adv : adv.inRange random_oracle_state.compl.range)
 
-private lemma Program_bind_assoc {s a b c : Type}
-    (p : Program s a) (f : a → Program s b) (g : b → Program s c) :
-    (p >>= f) >>= g = p >>= fun x => f x >>= g := by
-  funext st
-  apply Subtype.ext
-  letI : MeasurableSpace (a × s) := ⊤
-  letI : MeasurableSpace (b × s) := ⊤
-  letI : MeasurableSpace (c × s) := ⊤
-  exact MeasureTheory.Measure.bind_bind
-    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
-
-private lemma Program_pure_bind {s a b : Type} (x : a) (f : a → Program s b) :
-    (pure x : Program s a) >>= f = f x := by
-  funext st
-  apply Subtype.ext
-  letI : MeasurableSpace (a × s) := ⊤
-  letI : MeasurableSpace (b × s) := ⊤
-  exact MeasureTheory.Measure.dirac_bind measurable_from_top (x, st)
-
-private lemma Program_bind_pure {s a : Type} (m : Program s a) :
-    m >>= pure = m := by
-  funext st
-  apply Subtype.ext
-  letI : MeasurableSpace (a × s) := ⊤
-  change MeasureTheory.Measure.bind (m st).1 (fun p => @MeasureTheory.Measure.dirac (a × s) ⊤ p)
-      = (m st).1
-  rw [show (fun (p : a × s) => @MeasureTheory.Measure.dirac (a × s) ⊤ p) =
-          (fun (p : a × s) => @MeasureTheory.Measure.dirac (a × s) ⊤ (id p)) from rfl]
-  rw [MeasureTheory.Measure.bind_dirac_eq_map (m st).1 measurable_id]
-  exact MeasureTheory.Measure.map_id
 
 /- `Program.uniform` is state-preserving and produces an independent sample, so it commutes
    with any program. -/
@@ -449,15 +361,28 @@ private theorem claim_2_cont {β : Type} (inp : input) (k : output → Program s
   = (convert >>= fun _ => random_oracle_query inp >>= k) := by
   have h1 : (lazy_query inp >>= fun v => convert >>= fun _ => k v)
         = (lazy_query inp >>= fun v => convert >>= fun _ => pure v) >>= k := by
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
     congr 1; funext v
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
     congr 1; funext _
-    rw [Program_pure_bind]
+    rw [Program.pure_bind]
   have h2 : (convert >>= fun _ => random_oracle_query inp >>= k)
         = (convert >>= fun _ => random_oracle_query inp) >>= k := by
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
   rw [h1, h2, claim_2_strong]
+
+/-- Unit-form lazy/eager bridge: `lazy_query inp; convert = convert; random_oracle_query inp`
+    (the trailing `random_oracle_query` result is discarded on both sides).
+    Derived from the value-tracking `claim_2_cont` by specializing `k := pure ()`. -/
+theorem claim_2 (inp : input) :
+    lazy_query_conv inp = conv_random_oracle inp := by
+  change (lazy_query inp >>= fun _ => convert)
+       = (convert >>= fun _ => random_oracle_query inp >>= fun _ => pure ())
+  rw [show (lazy_query inp >>= fun _ : output => (convert : Program state Unit))
+        = (lazy_query inp >>= fun _ : output =>
+            convert >>= fun _ : Unit => (pure () : Program state Unit))
+        from by congr 1; funext _; exact (Program.bind_pure convert).symm]
+  exact claim_2_cont inp (fun _ => pure ())
 
 /- Pushing `convert` past the `let inp ← get oracle_input; let v ← lazy_query inp; set oracle_output v`
    piece. -/
@@ -469,7 +394,7 @@ private theorem query_set_convert_eq :
       Program.get oracle_input >>= fun inp =>
       random_oracle_query inp >>= fun v =>
       Program.set oracle_output v) := by
-  simp_rw [Program_bind_assoc, convert_commutes_set, claim_2_cont]
+  simp_rw [Program.bind_assoc, convert_commutes_set, claim_2_cont]
   exact convert_commutes_get oracle_input _
 
 /- Factor `convert` out of an `if`: if the then-branch starts with `convert` and the else-branch
@@ -479,7 +404,7 @@ private lemma if_factor_convert (b : Bool) (X : Program state Unit) :
   = convert >>= fun _ => (if b = true then X else pure ()) := by
   cases b
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    exact (Program_bind_pure convert).symm
+    exact (Program.bind_pure convert).symm
   · rfl
 
 /- Body of the loop with `convert` appended on the lazy side equals `convert` prepended
@@ -499,12 +424,12 @@ private theorem body_convert_eq :
       else
         skip) := by
   -- Step 1: bind_assoc to push outer convert through adv's bind.
-  rw [Program_bind_assoc]
+  rw [Program.bind_assoc]
   -- LHS: adv >>= fun _ => ((get want_more >>= ...) >>= convert)
   -- Step 2: bind_assoc inside, then distribute over if.
   conv_lhs =>
     arg 2; ext _
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
     -- Now: get want_more >>= fun b => (if b then T_lazy else skip) >>= convert
     arg 2; ext b
     rw [show ((if b = true then
@@ -519,7 +444,7 @@ private theorem body_convert_eq :
               else (skip >>= fun _ => convert))
             from by split_ifs <;> rfl]
     rw [show (skip >>= fun _ => convert : Program state Unit) = convert from
-          Program_pure_bind () _]
+          Program.pure_bind () _]
     rw [query_set_convert_eq]
     rw [if_factor_convert]
   -- Now LHS: adv >>= fun _ => (get want_more >>= fun b => convert >>= ...)
@@ -529,9 +454,9 @@ private theorem body_convert_eq :
     rw [convert_commutes_get]
   -- LHS: adv >>= fun _ => (convert >>= fun _ => get want_more >>= ...)
   -- Step 4: bind_assoc reverse, then claim_3, then bind_assoc.
-  rw [← Program_bind_assoc,
+  rw [← Program.bind_assoc,
       show (adv >>= fun _ => convert) = (convert >>= fun _ => adv) from claim_3 adv h_adv,
-      Program_bind_assoc]
+      Program.bind_assoc]
   rfl
 
 noncomputable def oracle_loop
@@ -594,20 +519,6 @@ private theorem body_def_convert_eq :
     (loop_body_lazy adv >>= fun _ => convert) = (convert >>= fun _ => loop_body_eager adv) :=
   body_convert_eq adv h_adv
 
-/- Helper: bot bind anything is bot. -/
-private lemma Program_bot_bind {s a b : Type} (F : a → Program s b) :
-    (⊥ : Program s a) >>= F = ⊥ := by
-  funext st
-  apply Subtype.ext
-  exact MeasureTheory.Measure.bind_zero_left _
-
-/- Helper: bind with constant bot is bot. -/
-private lemma Program_bind_bot {s a b : Type} (m : Program s a) :
-    m >>= (fun _ => (⊥ : Program s b)) = ⊥ := by
-  funext st
-  apply Subtype.ext
-  exact MeasureTheory.Measure.bind_zero_right' _
-
 /- The intermediate iteration: same as `while_iteration` for the lazy body, but with `convert`
    in the else branch (representing "loop terminates, then convert"). -/
 private noncomputable def Ψ_iter :
@@ -629,7 +540,7 @@ private lemma loop_kleene_lazy : ∀ n : ℕ,
   | zero =>
     change ((⊥ : Unit → Program state Unit) () >>= fun _ => convert) = (⊥ : Unit → Program state Unit) ()
     change ((⊥ : Program state Unit) >>= fun _ => convert) = (⊥ : Program state Unit)
-    exact Program_bot_bind _
+    exact Program.bot_bind _
   | succ n ih =>
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
     -- LHS: (while_iteration cond body_lazy (F_lazy^[n] ⊥)) () >>= convert
@@ -644,15 +555,15 @@ private lemma loop_kleene_lazy : ∀ n : ℕ,
               if b = true then
                 loop_body_lazy adv >>= fun _ => ((Ψ_iter adv)^[n] ⊥) ()
               else convert
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
     congr 1; funext b
     by_cases h : b = true
     · simp only [h, if_true]
-      rw [Program_bind_assoc]
+      rw [Program.bind_assoc]
       congr 1; funext _
       exact ih
     · simp only [h, if_false]
-      exact Program_pure_bind () _
+      exact Program.pure_bind () _
 
 /- Kleene induction on the eager side: `convert` prepended to each eager iterate equals the
    same iterate of `Ψ_iter`. -/
@@ -666,7 +577,7 @@ private lemma loop_kleene_eager : ∀ n : ℕ,
   | zero =>
     change (convert >>= fun _ => (⊥ : Unit → Program state Unit) ()) = (⊥ : Unit → Program state Unit) ()
     change (convert >>= fun _ => (⊥ : Program state Unit)) = (⊥ : Program state Unit)
-    exact Program_bind_bot _
+    exact Program.bind_bot _
   | succ n ih =>
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
     -- LHS: convert >>= F_eager (F_eager^[n] ⊥) ()
@@ -695,15 +606,15 @@ private lemma loop_kleene_eager : ∀ n : ℕ,
     · simp only [h, if_true]
       -- LHS: convert >>= body_eager >>= F_eager^[n] ⊥ ()
       -- Use body_def_convert_eq to swap convert and body
-      rw [← Program_bind_assoc]
+      rw [← Program.bind_assoc]
       rw [show (convert >>= fun _ => loop_body_eager adv)
               = (loop_body_lazy adv >>= fun _ => convert) from
             (body_def_convert_eq adv h_adv).symm]
-      rw [Program_bind_assoc]
+      rw [Program.bind_assoc]
       congr 1; funext _
       exact ih
     · simp only [h, if_false]
-      exact Program_bind_pure _
+      exact Program.bind_pure _
 
 /- Lift the Kleene iterate identity to the lfp via ω-continuity of bind. -/
 include h_adv in
@@ -762,22 +673,22 @@ theorem claim_4 :
               while_loop (Program.get want_more) (loop_body_eager adv) >>= fun _ =>
                 Program.get adversary_result)
   -- Flatten binds.
-  simp_rw [Program_bind_assoc]
+  simp_rw [Program.bind_assoc]
   -- Step 1: tail rewrite.
   rw [show ((Program.get adversary_result) >>= fun b => convert >>= fun _ => pure b)
         = (convert >>= fun _ => Program.get adversary_result) from by
       rw [convert_commutes_get]
-      congr 1; funext b; exact Program_bind_pure _]
+      congr 1; funext b; exact Program.bind_pure _]
   -- Step 2: regroup `while_lazy >>= _ => convert` and apply loop_coupling.
   rw [show (∀ (W : Program state Unit) (K : Program state Bool),
         (W >>= fun _ => convert >>= fun _ => K) = ((W >>= fun _ => convert) >>= fun _ => K))
-        from fun W K => (Program_bind_assoc _ _ _).symm]
+        from fun W K => (Program.bind_assoc _ _ _).symm]
   rw [loop_coupling adv h_adv]
-  rw [Program_bind_assoc]
+  rw [Program.bind_assoc]
   -- Step 3: regroup `lazy_init >>= _ => convert` and apply claim_1.
   rw [show (∀ (L : Program state Unit) (K : Program state Bool),
         (L >>= fun _ => convert >>= fun _ => K) = ((L >>= fun _ => convert) >>= fun _ => K))
-        from fun L K => (Program_bind_assoc _ _ _).symm]
+        from fun L K => (Program.bind_assoc _ _ _).symm]
   rw [show (lazy_init >>= fun _ => convert) = random_oracle_init from claim_1]
 
 include h_adv in
@@ -994,21 +905,33 @@ lemma Program.transfer_refl_of_inRange_compl
   have hL : (p >>= fun a => convert >>= fun b => pure (a, b)) >>=
               (fun ab : α × Unit => (Pure.pure ab.1 : Program state α))
           = (p >>= fun a => convert >>= fun _ => (Pure.pure a : Program state α)) := by
-    rw [Program_bind_assoc]; congr 1; funext a
-    rw [Program_bind_assoc]; congr 1; funext _
-    rw [Program_pure_bind]
+    rw [Program.bind_assoc]; congr 1; funext a
+    rw [Program.bind_assoc]; congr 1; funext _
+    rw [Program.pure_bind]
   have hR : (convert >>= fun b => p >>= fun a => pure (a, b)) >>=
               (fun ab : α × Unit => (Pure.pure ab.1 : Program state α))
           = (convert >>= fun _ => p) := by
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
     congr 1; funext _
-    rw [Program_bind_assoc]
+    rw [Program.bind_assoc]
     rw [show (fun a : α => pure (a, ()) >>=
               (fun ab : α × Unit => (Pure.pure ab.1 : Program state α)))
           = (fun a : α => (Pure.pure a : Program state α)) from by
-        funext a; rw [Program_pure_bind]]
-    exact Program_bind_pure _
+        funext a; rw [Program.pure_bind]]
+    exact Program.bind_pure _
   rw [← hL, h_commute, hR]
+
+/-- Any program in `v.range`, for a `v` disjoint from `random_oracle_state`,
+    transfers to itself. Convenience composition of `transfer_refl_of_inRange_compl`,
+    `inRange_mono`, and `Lens.range_le_compl_of_disjoint`. -/
+lemma Program.transfer_of_inRange_disjoint {α : Type} [Countable α]
+    (p : Program state α) {β : Type} (v : Lens β state)
+    [disjoint v random_oracle_state]
+    (hp : p.inRange v.range) :
+    Program.transfer p p :=
+  Program.transfer_refl_of_inRange_compl
+    (Program.inRange_mono hp
+      (Lens.range_le_compl_of_disjoint v random_oracle_state))
 
 /-- Bind closure: transfer chains under `>>=`. -/
 lemma Program.transfer_bind {α β : Type}
@@ -1017,7 +940,7 @@ lemma Program.transfer_bind {α β : Type}
     Program.transfer (p >>= p') (q >>= q') := by
   show ((p >>= p') >>= fun b => convert >>= fun _ => pure b)
       = (convert >>= fun _ => q >>= q')
-  rw [Program_bind_assoc]
+  rw [Program.bind_assoc]
   conv_lhs =>
     rhs; ext a
     rw [show (p' a >>= fun b => convert >>= fun _ => (Pure.pure b : Program state β))
@@ -1026,18 +949,18 @@ lemma Program.transfer_bind {α β : Type}
     rhs; ext a
     rw [show (convert >>= fun _ => q' a)
           = (convert >>= fun _ => (Pure.pure a : Program state α)) >>= q' from by
-        rw [Program_bind_assoc]; congr 1; funext _; rw [Program_pure_bind]]
-  rw [← Program_bind_assoc]
+        rw [Program.bind_assoc]; congr 1; funext _; rw [Program.pure_bind]]
+  rw [← Program.bind_assoc]
   rw [show (p >>= fun a => convert >>= fun _ => (Pure.pure a : Program state α))
         = (convert >>= fun _ => q) from h]
-  rw [Program_bind_assoc]
+  rw [Program.bind_assoc]
 
 /-- Pure transfers to itself. -/
 lemma Program.transfer_pure {α : Type} (a : α) :
     Program.transfer (Pure.pure a : Program state α) (Pure.pure a) := by
   show ((Pure.pure a : Program state α) >>= fun a' => convert >>= fun _ => pure a')
       = (convert >>= fun _ => Pure.pure a)
-  rw [Program_pure_bind]
+  rw [Program.pure_bind]
 
 /-- `lazy_init` transfers to `random_oracle_init`. -/
 lemma Program.transfer_lazy_init :
@@ -1047,7 +970,7 @@ lemma Program.transfer_lazy_init :
   have hL : (lazy_init >>= fun _ => convert >>= fun _ => (Pure.pure () : Program state Unit))
           = lazy_init >>= fun _ => convert := by
     congr 1; funext _
-    exact Program_bind_pure _
+    exact Program.bind_pure _
   rw [hL]
   show lazy_init_convert = (convert >>= fun _ => random_oracle_init)
   rw [claim_1]
