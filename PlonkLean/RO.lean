@@ -194,7 +194,20 @@ theorem claim_2 (inp : input) :
             simp_rw [div_eq_mul_inv]
             rw [Finset.sum_mul]
 
-axiom adv : Program state Unit
+/-! ## Phase 4 — Oracle loops parameterised by an adversary
+
+Below, `adv` and `h_adv` are *parameters* (via a `variable` declaration), not
+axioms. Every `oracle_loop`-style definition and `claim_3`–`claim_5*`-style
+theorem in this section is parameterised over an arbitrary adversary
+`adv : Program state Unit` together with its RO-disjointness hypothesis
+`h_adv : adv.inRange random_oracle_state.compl.range`.
+
+This enables instantiation with wrapped/composed adversaries (CR reductions,
+hybrid games, etc.) without re-axiomatising or re-deriving the framework. -/
+
+section AdvParam
+
+variable (adv : Program state Unit)
 
 noncomputable def adv_conv : Program state Unit := do
   adv
@@ -204,12 +217,7 @@ noncomputable def conv_adv : Program state Unit := do
   convert
   adv
 
-/- Disjointness assumption: `adv` does not touch `random_oracle_state`.
-   We express it as `adv.inRange random_oracle_state.compl.range` (= adv lives in
-   the lens-complement of `random_oracle_state`). This single hypothesis replaces
-   the previous two `adv_commutes_get_ro` / `adv_commutes_set_ro` axioms — the
-   commutativity now follows from `commute_of_disjoint_lens`. -/
-axiom adv_inRange_compl_ro : adv.inRange random_oracle_state.compl.range
+variable (h_adv : adv.inRange random_oracle_state.compl.range)
 
 private lemma Program_bind_assoc {s a b c : Type}
     (p : Program s a) (f : a → Program s b) (g : b → Program s c) :
@@ -262,7 +270,8 @@ private theorem adv_commutes_uniform {α : Type} [Fintype α] [Nonempty α] {a :
   simp_rw [div_eq_mul_inv]
   exact MeasureTheory.lintegral_mul_const _ measurable_from_top
 
-theorem claim_3 : adv_conv = conv_adv := by
+include h_adv in
+theorem claim_3 : adv_conv adv = conv_adv adv := by
   change (adv >>= fun _ => convert) = (convert >>= fun _ => adv)
   -- Disjointness of the lens-complement with the lens itself (an equality, hence ≤).
   have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
@@ -270,7 +279,7 @@ theorem claim_3 : adv_conv = conv_adv := by
   -- Pair-output commutation from the headline lemma.
   have h_commute : (adv >>= fun x => convert >>= fun y => pure (x, y))
                  = (convert >>= fun y => adv >>= fun x => pure (x, y)) :=
-    Program.commute_of_disjoint_lens adv_inRange_compl_ro convert_inRange_ro h_disj
+    Program.commute_of_disjoint_lens h_adv convert_inRange_ro h_disj
   -- Massage both sides of the goal into the pair-output form so we can rewrite.
   have hL : (adv >>= fun _ => convert)
           = (adv >>= fun x => convert >>= fun y => pure (x, y)) >>= fun _ => pure () := by
@@ -475,6 +484,7 @@ private lemma if_factor_convert (b : Bool) (X : Program state Unit) :
 
 /- Body of the loop with `convert` appended on the lazy side equals `convert` prepended
    on the eager side. -/
+include h_adv in
 private theorem body_convert_eq :
     ((do
       adv
@@ -520,7 +530,7 @@ private theorem body_convert_eq :
   -- LHS: adv >>= fun _ => (convert >>= fun _ => get want_more >>= ...)
   -- Step 4: bind_assoc reverse, then claim_3, then bind_assoc.
   rw [← Program_bind_assoc,
-      show (adv >>= fun _ => convert) = (convert >>= fun _ => adv) from claim_3,
+      show (adv >>= fun _ => convert) = (convert >>= fun _ => adv) from claim_3 adv h_adv,
       Program_bind_assoc]
   rfl
 
@@ -579,9 +589,10 @@ private noncomputable def loop_body_eager : Program state Unit := do
   else
     skip
 
+include h_adv in
 private theorem body_def_convert_eq :
-    (loop_body_lazy >>= fun _ => convert) = (convert >>= fun _ => loop_body_eager) :=
-  body_convert_eq
+    (loop_body_lazy adv >>= fun _ => convert) = (convert >>= fun _ => loop_body_eager adv) :=
+  body_convert_eq adv h_adv
 
 /- Helper: bot bind anything is bot. -/
 private lemma Program_bot_bind {s a b : Type} (F : a → Program s b) :
@@ -603,16 +614,16 @@ private noncomputable def Ψ_iter :
     (Unit → Program state Unit) →𝒄 (Unit → Program state Unit) :=
   OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → Program state Unit) => fun () =>
     do if ← Program.get want_more then
-         loop_body_lazy
+         loop_body_lazy adv
          fp ()
        else convert
 
 /- Kleene induction on the lazy side: at every finite iterate, the lazy iterate composed with
    `convert` equals the same iterate of `Ψ_iter`. -/
 private lemma loop_kleene_lazy : ∀ n : ℕ,
-    (((while_iteration (Program.get want_more) loop_body_lazy)^[n]
+    (((while_iteration (Program.get want_more) (loop_body_lazy adv))^[n]
       (⊥ : Unit → Program state Unit)) () >>= (fun _ => convert))
-    = (Ψ_iter^[n] (⊥ : Unit → Program state Unit)) () := by
+    = ((Ψ_iter adv)^[n] (⊥ : Unit → Program state Unit)) () := by
   intro n
   induction n with
   | zero =>
@@ -626,12 +637,12 @@ private lemma loop_kleene_lazy : ∀ n : ℕ,
     -- Unfold while_iteration and Ψ_iter, apply if-distribute, then ih.
     change (((Program.get want_more) >>= fun b =>
               if b = true then
-                loop_body_lazy >>= fun _ =>
-                  ((while_iteration (Program.get want_more) loop_body_lazy)^[n] ⊥) ()
+                loop_body_lazy adv >>= fun _ =>
+                  ((while_iteration (Program.get want_more) (loop_body_lazy adv))^[n] ⊥) ()
               else (pure () : Program state Unit)) >>= fun _ => convert)
         = (Program.get want_more) >>= fun b =>
               if b = true then
-                loop_body_lazy >>= fun _ => (Ψ_iter^[n] ⊥) ()
+                loop_body_lazy adv >>= fun _ => ((Ψ_iter adv)^[n] ⊥) ()
               else convert
     rw [Program_bind_assoc]
     congr 1; funext b
@@ -645,10 +656,11 @@ private lemma loop_kleene_lazy : ∀ n : ℕ,
 
 /- Kleene induction on the eager side: `convert` prepended to each eager iterate equals the
    same iterate of `Ψ_iter`. -/
+include h_adv in
 private lemma loop_kleene_eager : ∀ n : ℕ,
-    convert >>= (fun _ => ((while_iteration (Program.get want_more) loop_body_eager)^[n]
+    convert >>= (fun _ => ((while_iteration (Program.get want_more) (loop_body_eager adv))^[n]
       (⊥ : Unit → Program state Unit)) ())
-    = (Ψ_iter^[n] (⊥ : Unit → Program state Unit)) () := by
+    = ((Ψ_iter adv)^[n] (⊥ : Unit → Program state Unit)) () := by
   intro n
   induction n with
   | zero =>
@@ -661,21 +673,21 @@ private lemma loop_kleene_eager : ∀ n : ℕ,
     -- RHS: Ψ_iter (Ψ_iter^[n] ⊥) ()
     change (convert >>= fun _ => (Program.get want_more) >>= fun b =>
               if b = true then
-                loop_body_eager >>= fun _ =>
-                  ((while_iteration (Program.get want_more) loop_body_eager)^[n] ⊥) ()
+                loop_body_eager adv >>= fun _ =>
+                  ((while_iteration (Program.get want_more) (loop_body_eager adv))^[n] ⊥) ()
               else (pure () : Program state Unit))
         = (Program.get want_more) >>= fun b =>
               if b = true then
-                loop_body_lazy >>= fun _ => (Ψ_iter^[n] ⊥) ()
+                loop_body_lazy adv >>= fun _ => ((Ψ_iter adv)^[n] ⊥) ()
               else convert
     -- Push convert past get want_more.
     rw [show (convert >>= fun _ => (Program.get want_more) >>=
-              fun b => if b = true then loop_body_eager >>= fun _ =>
-                  ((while_iteration (Program.get want_more) loop_body_eager)^[n] ⊥) ()
+              fun b => if b = true then loop_body_eager adv >>= fun _ =>
+                  ((while_iteration (Program.get want_more) (loop_body_eager adv))^[n] ⊥) ()
                 else (pure () : Program state Unit))
             = ((Program.get want_more) >>= fun b => convert >>= fun _ =>
-                if b = true then loop_body_eager >>= fun _ =>
-                  ((while_iteration (Program.get want_more) loop_body_eager)^[n] ⊥) ()
+                if b = true then loop_body_eager adv >>= fun _ =>
+                  ((while_iteration (Program.get want_more) (loop_body_eager adv))^[n] ⊥) ()
                 else (pure () : Program state Unit)) from by
         rw [← convert_commutes_get]]
     congr 1; funext b
@@ -684,8 +696,9 @@ private lemma loop_kleene_eager : ∀ n : ℕ,
       -- LHS: convert >>= body_eager >>= F_eager^[n] ⊥ ()
       -- Use body_def_convert_eq to swap convert and body
       rw [← Program_bind_assoc]
-      rw [show (convert >>= fun _ => loop_body_eager) = (loop_body_lazy >>= fun _ => convert) from
-            body_def_convert_eq.symm]
+      rw [show (convert >>= fun _ => loop_body_eager adv)
+              = (loop_body_lazy adv >>= fun _ => convert) from
+            (body_def_convert_eq adv h_adv).symm]
       rw [Program_bind_assoc]
       congr 1; funext _
       exact ih
@@ -693,22 +706,18 @@ private lemma loop_kleene_eager : ∀ n : ℕ,
       exact Program_bind_pure _
 
 /- Lift the Kleene iterate identity to the lfp via ω-continuity of bind. -/
+include h_adv in
 private theorem loop_coupling :
-    ((while_loop (Program.get want_more) loop_body_lazy) >>= fun _ => convert)
-  = (convert >>= fun _ => while_loop (Program.get want_more) loop_body_eager) := by
+    ((while_loop (Program.get want_more) (loop_body_lazy adv)) >>= fun _ => convert)
+  = (convert >>= fun _ => while_loop (Program.get want_more) (loop_body_eager adv)) := by
   -- Both sides equal Ψ_iter.lfp ().
-  -- LHS = W_lazy >>= convert = (F_lazy.lfp ()) >>= convert
-  --     = (⨆ n, F_lazy^[n] ⊥ ()) >>= convert    [Kleene + pointwise sup]
-  --     = ⨆ n, (F_lazy^[n] ⊥ ()) >>= convert     [ω-continuity of `>>= convert`]
-  --     = ⨆ n, Ψ_iter^[n] ⊥ ()                   [loop_kleene_lazy]
-  --     = Ψ_iter.lfp ()
-  -- RHS, symmetrically using loop_kleene_eager.
-  let F_lazy := while_iteration (Program.get want_more) loop_body_lazy
-  let F_eager := while_iteration (Program.get want_more) loop_body_eager
+  let F_lazy := while_iteration (Program.get want_more) (loop_body_lazy adv)
+  let F_eager := while_iteration (Program.get want_more) (loop_body_eager adv)
   have hL_chain : ∀ n, ((F_lazy^[n] ⊥ : Unit → Program state Unit) () >>= (fun _ => convert))
-                     = (Ψ_iter^[n] ⊥ : Unit → Program state Unit) () := loop_kleene_lazy
+                     = ((Ψ_iter adv)^[n] ⊥ : Unit → Program state Unit) () := loop_kleene_lazy adv
   have hE_chain : ∀ n, convert >>= (fun _ => (F_eager^[n] ⊥ : Unit → Program state Unit) ())
-                     = (Ψ_iter^[n] ⊥ : Unit → Program state Unit) () := loop_kleene_eager
+                     = ((Ψ_iter adv)^[n] ⊥ : Unit → Program state Unit) () :=
+    loop_kleene_eager adv h_adv
   -- ω-continuity of `· >>= convert` and `convert >>= ·`.
   have h_bind_convert_cont :
       OmegaCompletePartialOrder.ωScottContinuous
@@ -716,49 +725,41 @@ private theorem loop_coupling :
   have h_convert_bind_cont :
       OmegaCompletePartialOrder.ωScottContinuous
         (fun (m : Program state Unit) => convert >>= fun _ => m) := by fun_prop
-  -- Express W_lazy, W_eager, Ψ.lfp as ωSup's of their Kleene chains.
   change (F_lazy.lfp ()) >>= (fun _ => convert) = convert >>= (fun _ => F_eager.lfp ())
-  -- Get the chains
   let chain_lazy : OmegaCompletePartialOrder.Chain (Unit → Program state Unit) :=
     ⟨fun n => F_lazy^[n] ⊥,
      Monotone.monotone_iterate_of_le_map F_lazy.monotone (OrderBot.bot_le _)⟩
   let chain_eager : OmegaCompletePartialOrder.Chain (Unit → Program state Unit) :=
     ⟨fun n => F_eager^[n] ⊥,
      Monotone.monotone_iterate_of_le_map F_eager.monotone (OrderBot.bot_le _)⟩
-  let chain_Ψ : OmegaCompletePartialOrder.Chain (Unit → Program state Unit) :=
-    ⟨fun n => Ψ_iter^[n] ⊥,
-     Monotone.monotone_iterate_of_le_map Ψ_iter.monotone (OrderBot.bot_le _)⟩
   have hLfpL : F_lazy.lfp = OmegaCompletePartialOrder.ωSup chain_lazy := rfl
   have hLfpE : F_eager.lfp = OmegaCompletePartialOrder.ωSup chain_eager := rfl
-  -- F_lazy.lfp () = ωSup (chain_lazy.map (eval at ()))
   have hLfpL_at : F_lazy.lfp () = OmegaCompletePartialOrder.ωSup
                     (chain_lazy.map ⟨fun fp => fp (), fun _ _ h => h ()⟩) := by
     rw [hLfpL]; rfl
   have hLfpE_at : F_eager.lfp () = OmegaCompletePartialOrder.ωSup
                     (chain_eager.map ⟨fun fp => fp (), fun _ _ h => h ()⟩) := by
     rw [hLfpE]; rfl
-  -- LHS = F_lazy.lfp () >>= convert
   rw [hLfpL_at, hLfpE_at]
   rw [h_bind_convert_cont.map_ωSup]
   rw [h_convert_bind_cont.map_ωSup]
-  -- Now both sides are ωSup's. Show the chains are equal pointwise.
   congr 1
   ext n
-  -- Show: F_lazy^[n] ⊥ () >>= convert = convert >>= F_eager^[n] ⊥ ()
   exact (hL_chain n).trans (hE_chain n).symm
 
+include h_adv in
 theorem claim_4 :
-    (oracle_loop lazy_init lazy_query >>= fun b => convert >>= fun _ => pure b)
-  = oracle_loop random_oracle_init random_oracle_query
+    (oracle_loop adv lazy_init lazy_query >>= fun b => convert >>= fun _ => pure b)
+  = oracle_loop adv random_oracle_init random_oracle_query
   := by
   -- Fold the inline bodies as `loop_body_lazy` / `loop_body_eager` (definitionally equal).
   change ((Program.set want_more true >>= fun _ =>
             lazy_init >>= fun _ =>
-              while_loop (Program.get want_more) loop_body_lazy >>= fun _ =>
+              while_loop (Program.get want_more) (loop_body_lazy adv) >>= fun _ =>
                 Program.get adversary_result) >>= fun b => convert >>= fun _ => pure b)
        = (Program.set want_more true >>= fun _ =>
             random_oracle_init >>= fun _ =>
-              while_loop (Program.get want_more) loop_body_eager >>= fun _ =>
+              while_loop (Program.get want_more) (loop_body_eager adv) >>= fun _ =>
                 Program.get adversary_result)
   -- Flatten binds.
   simp_rw [Program_bind_assoc]
@@ -771,7 +772,7 @@ theorem claim_4 :
   rw [show (∀ (W : Program state Unit) (K : Program state Bool),
         (W >>= fun _ => convert >>= fun _ => K) = ((W >>= fun _ => convert) >>= fun _ => K))
         from fun W K => (Program_bind_assoc _ _ _).symm]
-  rw [loop_coupling]
+  rw [loop_coupling adv h_adv]
   rw [Program_bind_assoc]
   -- Step 3: regroup `lazy_init >>= _ => convert` and apply claim_1.
   rw [show (∀ (L : Program state Unit) (K : Program state Bool),
@@ -779,6 +780,7 @@ theorem claim_4 :
         from fun L K => (Program_bind_assoc _ _ _).symm]
   rw [show (lazy_init >>= fun _ => convert) = random_oracle_init from claim_1]
 
+include h_adv in
 /-- `claim_5`: the lazy and eager oracle loops agree on every postcondition that is
     invariant under writes to `random_oracle_state` (i.e., every postcondition that only
     depends on the *non-RO* part of state).
@@ -788,40 +790,31 @@ theorem claim_4 :
 theorem claim_5 (F : Bool × state → ENNReal)
     (hF_inv : ∀ (b : Bool) (σ : state) (x : input → Option output),
         F (b, random_oracle_state.set x σ) = F (b, σ)) :
-    (oracle_loop lazy_init lazy_query).wp F
-  = (oracle_loop random_oracle_init random_oracle_query).wp F := by
+    (oracle_loop adv lazy_init lazy_query).wp F
+  = (oracle_loop adv random_oracle_init random_oracle_query).wp F := by
   -- Step 1: convert composed with `pure b` is wp-transparent for RO-invariant F.
-  -- (convert >>= fun _ => pure b).wp F σ = F (b, σ).
   have h_convert : ∀ (b : Bool) (σ : state),
       (convert >>= fun _ : Unit => (pure b : Program state Bool)).wp F σ = F (b, σ) := by
     intros b σ
     simp only [wp_bind, wp_pure]
     rw [convert_wp_eq]
-    -- ∑ y, F (b, random_oracle_state.set (...) σ) / card = F (b, σ)
     simp_rw [hF_inv]
-    -- ∑ y : input → output, F (b, σ) / card = F (b, σ)
     rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-    -- ↑card * (F (b, σ) / ↑card) = F (b, σ)
     have hcard_pos : (Fintype.card (input → output) : ENNReal) ≠ 0 := by
       exact_mod_cast Fintype.card_pos.ne'
     have hcard_top : (Fintype.card (input → output) : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
     rw [ENNReal.mul_div_cancel hcard_pos hcard_top]
-  -- Step 2: use claim_4 to bridge the two loops.
-  have h4_wp := congr_arg (fun prog : Program state Bool => prog.wp F) claim_4
-  simp only at h4_wp  -- beta-reduce
-  -- h4_wp : (lazy_loop >>= fun b => convert >>= fun _ => pure b).wp F = eager_loop.wp F
+  have h4_wp := congr_arg (fun prog : Program state Bool => prog.wp F) (claim_4 adv h_adv)
+  simp only at h4_wp
   rw [wp_bind] at h4_wp
-  -- h4_wp : lazy_loop.wp (fun ⟨b, σ⟩ => (convert >>= fun _ => pure b).wp F σ) = eager_loop.wp F
-  -- Replace the inner expression using h_convert.
   have h_eq : (fun (bσ : Bool × state) =>
                   (convert >>= fun _ : Unit => (pure bσ.1 : Program state Bool)).wp F bσ.2)
             = (fun (bσ : Bool × state) => F (bσ.1, bσ.2)) := by
     funext bσ; exact h_convert bσ.1 bσ.2
   rw [h_eq] at h4_wp
-  -- h4_wp : lazy_loop.wp (fun bσ => F (bσ.1, bσ.2)) = eager_loop.wp F.
-  -- After beta + eta, this is lazy_loop.wp F = eager_loop.wp F.
   exact h4_wp
 
+include h_adv in
 /-- **SubProb-level form of `claim_5`**: for any projection `h : state → β` of
     state that is invariant under writes to `random_oracle_state` (i.e., `h` only
     sees the *non-RO* part of state), the lazy and eager oracle loops produce the
@@ -835,33 +828,31 @@ theorem claim_5_subprob {β : Type} (h : state → β)
     (h_inv : ∀ (σ : state) (x : input → Option output),
         h (random_oracle_state.set x σ) = h σ)
     (σ₀ : state) :
-    (oracle_loop lazy_init lazy_query σ₀ >>=
+    (oracle_loop adv lazy_init lazy_query σ₀ >>=
         fun bσ : Bool × state => (pure (bσ.1, h bσ.2) : SubProbability (Bool × β)))
     =
-    (oracle_loop random_oracle_init random_oracle_query σ₀ >>=
+    (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state => (pure (bσ.1, h bσ.2) : SubProbability (Bool × β))) := by
   apply Subtype.ext
   letI : MeasurableSpace (Bool × state) := ⊤
   letI : MeasurableSpace (Bool × β) := ⊤
   apply MeasureTheory.Measure.ext
   intro A hA
-  -- Reduce both sides via `Measure.bind_apply` to lintegrals.
-  show MeasureTheory.Measure.bind (oracle_loop lazy_init lazy_query σ₀).1
+  show MeasureTheory.Measure.bind (oracle_loop adv lazy_init lazy_query σ₀).1
         (fun bσ : Bool × state =>
           @MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A
-    = MeasureTheory.Measure.bind (oracle_loop random_oracle_init random_oracle_query σ₀).1
+    = MeasureTheory.Measure.bind
+        (oracle_loop adv random_oracle_init random_oracle_query σ₀).1
         (fun bσ : Bool × state =>
           @MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A
   rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
   rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
-  -- Now both sides are `∫⁻ bσ, dirac (bσ.1, h bσ.2) A ∂(…).1`,
-  -- i.e. (… .wp F σ₀) for F bσ := dirac (bσ.1, h bσ.2) A.
-  -- This F is RO-invariant because `h` is.
-  exact congr_fun (claim_5
+  exact congr_fun (claim_5 adv h_adv
       (fun bσ : Bool × state =>
         (@MeasureTheory.Measure.dirac (Bool × β) ⊤ (bσ.1, h bσ.2)) A)
       (by intros b σ x; simp only; rw [h_inv])) σ₀
 
+include h_adv in
 /-- **Form (a) of `claim_5` — lens-complement projection**.
 
     The joint distribution of (adv's bit, the entire non-RO part of state) is
@@ -872,25 +863,22 @@ theorem claim_5_subprob {β : Type} (h : state → β)
     the most concrete glob-style form — the returned type is a `Quotient` of
     state by the RO-equivalence, with no `Program.range` machinery involved. -/
 theorem claim_5_compl (σ₀ : state) :
-    (oracle_loop lazy_init lazy_query σ₀ >>=
+    (oracle_loop adv lazy_init lazy_query σ₀ >>=
         fun bσ : Bool × state =>
           (pure (bσ.1, random_oracle_state.compl.get bσ.2) :
             SubProbability (Bool × Quotient random_oracle_state.equal_outside_setoid)))
     =
-    (oracle_loop random_oracle_init random_oracle_query σ₀ >>=
+    (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state =>
           (pure (bσ.1, random_oracle_state.compl.get bσ.2) :
             SubProbability (Bool × Quotient random_oracle_state.equal_outside_setoid))) := by
-  refine claim_5_subprob random_oracle_state.compl.get ?_ σ₀
-  -- h_inv: random_oracle_state.compl.get (set x σ) = random_oracle_state.compl.get σ.
-  -- compl.get is `Quotient.mk''` on the equal_outside setoid, and set x σ ~ σ
-  -- via the witness `random_oracle_state.get σ`:
-  --   set (get σ) (set x σ) = set (get σ) σ = σ (by set_set and get_set).
+  refine claim_5_subprob adv h_adv random_oracle_state.compl.get ?_ σ₀
   intro σ x
   exact Quotient.sound ⟨random_oracle_state.get σ,
     (random_oracle_state.set_set σ x (random_oracle_state.get σ)).trans
       (random_oracle_state.get_set σ)⟩
 
+include h_adv in
 /-- **Form (c) of `claim_5` — `Program.glob adv`**.
 
     The joint distribution of (adv's bit, what `adv` can see/modify) is
@@ -902,41 +890,33 @@ theorem claim_5_compl (σ₀ : state) :
     affect", quotiented by symmetries outside adv's reach.
 
     Corollary of `claim_5_subprob` applied to `(Program.glob adv).get`. The
-    RO-invariance of this projection follows from `adv_inRange_compl_ro` via
+    RO-invariance of this projection follows from `h_adv` via
     the inclusion `random_oracle_state.range ≤ (adv.range)ᶜ`. -/
 theorem claim_5_glob (σ₀ : state) :
-    (oracle_loop lazy_init lazy_query σ₀ >>=
+    (oracle_loop adv lazy_init lazy_query σ₀ >>=
         fun bσ : Bool × state =>
           (pure (bσ.1, (Program.glob adv).get bσ.2) :
             SubProbability (Bool × adv.Globals)))
     =
-    (oracle_loop random_oracle_init random_oracle_query σ₀ >>=
+    (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state =>
           (pure (bσ.1, (Program.glob adv).get bσ.2) :
             SubProbability (Bool × adv.Globals))) := by
-  refine claim_5_subprob (Program.glob adv).get ?_ σ₀
+  refine claim_5_subprob adv h_adv (Program.glob adv).get ?_ σ₀
   intro σ x
-  -- Goal: Quotient.mk (adv.range)ᶜ.orbit_setoid (set x σ)
-  --     = Quotient.mk (adv.range)ᶜ.orbit_setoid σ
   apply Quotient.sound
-  -- Goal reduces to: Relation.EqvGen (∃ f ∈ (adv.range)ᶜ.updates, f s = s') (set x σ) σ
   change Relation.EqvGen
       (fun s s' : state => ∃ f ∈ ((adv.range)ᶜ : LensRange state).updates, f s = s')
       (random_oracle_state.set x σ) σ
-  -- Use symm: it's easier to give a forward step σ ↦ set x σ.
   apply Relation.EqvGen.symm
   apply Relation.EqvGen.rel
-  -- Witness: f := random_oracle_state.set x. Membership chain below.
   refine ⟨random_oracle_state.set x, ?_, rfl⟩
-  -- random_oracle_state.set x ∈ random_oracle_state.range.updates (canonical).
   have h_in_ro : random_oracle_state.set x ∈ random_oracle_state.range.updates := by
     refine ⟨Function.const _ x, Set.mem_univ _, ?_⟩
     funext σ'
     simp [Lens.update]
-  -- adv.range ≤ random_oracle_state.compl.range (from adv_inRange_compl_ro).
   have hadv_le : adv.range ≤ random_oracle_state.compl.range :=
-    sInf_le adv_inRange_compl_ro
-  -- Antitone complement + complement_range + compl_compl give the inclusion.
+    sInf_le h_adv
   have h_le : random_oracle_state.range ≤ (adv.range)ᶜ := by
     have hflip : (random_oracle_state.compl.range)ᶜ ≤ (adv.range)ᶜ := by
       change (Submonoid.centralizer random_oracle_state.compl.range.updates).carrier
@@ -944,6 +924,8 @@ theorem claim_5_glob (σ₀ : state) :
       exact Submonoid.centralizer_le hadv_le
     rwa [LensRange.complement_range, LensRange.compl_compl] at hflip
   exact h_le h_in_ro
+
+end AdvParam
 
 /-! ## Phase 6 — General lazy/eager transfer relation
 
