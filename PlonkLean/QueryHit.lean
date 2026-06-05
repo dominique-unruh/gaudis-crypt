@@ -209,6 +209,18 @@ lemma lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl
     exact Program.inRange_mono (Program.inRange_set _ _)
       (Lens.range_le_compl_of_disjoint oracle_output chal_x_queried)
 
+/-- The "lazy_query then set oracle_output" is in `ow_challenge_x.compl.range`. -/
+lemma lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl
+    (inp : input) :
+    (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+        ow_challenge_x.compl.range := by
+  refine Program.inRange_bind ?_ ?_
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+  · intro y
+    exact Program.inRange_mono (Program.inRange_set _ _)
+      (Lens.range_le_compl_of_disjoint oracle_output ow_challenge_x)
+
 /-- The conditional `set chal_x_queried` step is a no-op for posts that
     ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`. -/
 lemma conditional_set_chal_x_queried_no_op
@@ -1011,6 +1023,39 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     have h_aσ_lq_qf : chal_x_queried.get aσ_lq.2 = false := h_cxq_lq.trans h_aσ_adv_qf
     exact ih aσ_lq.2 h_aσ_lq_qf
 
+/-- `(lazy_query inp >>= set oracle_output)` preserves `RO[k]` for `inp ≠ k`.
+    More precisely, the wp can be strengthened with the `RO[k]`-preserved
+    condition. -/
+private lemma lazy_query_set_oracle_output_preserves_RO_at_other_key
+    (inp k : input) (h_neq : inp ≠ k) (σ : state) (F : Unit × state → ENNReal) :
+    (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp F σ
+    = (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp
+        (fun aσ_lq =>
+          if random_oracle_state.get aσ_lq.2 k = random_oracle_state.get σ k
+          then F aσ_lq else 0) σ := by
+  haveI _disj_oo_ro : disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
+  simp only [lazy_query, wp_bind, wp_get, wp_uniform, wp_pure, wp_set]
+  cases h_eq : random_oracle_state.get σ inp with
+  | some v =>
+    simp only [h_eq, wp_pure]
+    have h_RO_pres : random_oracle_state.get (oracle_output.set v σ) k
+        = random_oracle_state.get σ k := by
+      rw [random_oracle_state.get_of_disjoint_set]
+    rw [if_pos h_RO_pres]
+  | none =>
+    simp only [h_eq, wp_bind, wp_uniform, wp_set, wp_pure]
+    congr 1
+    funext v
+    -- After full simp, sum is over v : output.
+    have h_RO_pres : random_oracle_state.get
+        (oracle_output.set v (random_oracle_state.set
+          (fun x_1 => if x_1 = inp then some v else random_oracle_state.get σ x_1) σ)) k
+        = random_oracle_state.get σ k := by
+      rw [random_oracle_state.get_of_disjoint_set oracle_output v,
+          random_oracle_state.set_get]
+      simp only [if_neg (Ne.symm h_neq)]
+    rw [if_pos h_RO_pres]
+
 /-- Fine-grained RO commutativity: a write to `RO[x]` commutes with
     `(lazy_query inp >>= set oracle_output)` when `inp ≠ x`. Writes to
     different RO keys commute, and `oracle_output` is disjoint from RO.
@@ -1409,7 +1454,57 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
         fun y_arg => RO_setentry_neq_commutes_lazy_query_set_oracle_output
           inp_a x h_inp y_arg aσ_adv.2 G
       simp_rw [h_commute]
-      sorry  -- Pull sum + apply IH.
+      -- Pull (1/|output|) ∑ y inside the outer wp via wp_finset_sum + wp_const_mul.
+      rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+      -- Apply wp_strengthen 3x on both sides to enforce preconditions.
+      have h_inRange_cxq : (lazy_query inp_a >>= fun y_lq =>
+          Program.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
+        lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp_a
+      have h_inRange_cx : (lazy_query inp_a >>= fun y_lq =>
+          Program.set oracle_output y_lq).inRange ow_challenge_x.compl.range :=
+        lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp_a
+      -- Strengthen LHS with three conditions stacked (use conv_lhs to disambiguate).
+      conv_lhs =>
+        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
+            Program.wp_strengthen_lens_preserved ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
+      -- Strengthen RHS with same three conditions stacked.
+      conv_rhs =>
+        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
+            Program.wp_strengthen_lens_preserved ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
+      -- Now both sides have the same outer structure. Show post equality per aσ_lq.
+      congr 1
+      funext aσ_lq
+      -- Per-aσ_lq: case on the 3 stacked if-conditions.
+      by_cases h_ro_lq : random_oracle_state.get aσ_lq.2 x
+          = random_oracle_state.get aσ_adv.2 x
+      swap
+      · simp only [if_neg h_ro_lq]
+      simp only [if_pos h_ro_lq]
+      by_cases h_cx_lq : ow_challenge_x.get aσ_lq.2 = ow_challenge_x.get aσ_adv.2
+      swap
+      · simp only [if_neg h_cx_lq]
+      simp only [if_pos h_cx_lq]
+      by_cases h_cxq_lq : chal_x_queried.get aσ_lq.2 = chal_x_queried.get aσ_adv.2
+      swap
+      · simp only [if_neg h_cxq_lq]
+      simp only [if_pos h_cxq_lq]
+      -- Now aσ_lq.2 satisfies: cxq = false, chal_x = x, RO[x] = none.
+      have h_aσ_lq_cxq : chal_x_queried.get aσ_lq.2 = false :=
+        h_cxq_lq.trans h_aσ_adv_cxq
+      have h_aσ_lq_chal_x : ow_challenge_x.get aσ_lq.2 = x :=
+        h_cx_lq.trans h_aσ_adv_chal_x
+      have h_aσ_lq_ro_x : random_oracle_state.get aσ_lq.2 x = none :=
+        h_ro_lq.trans h_aσ_adv_ro_x
+      have h_aσ_lq_ro_chal_x : random_oracle_state.get aσ_lq.2
+          (ow_challenge_x.get aσ_lq.2) = none := by
+        rw [h_aσ_lq_chal_x]; exact h_aσ_lq_ro_x
+      -- Apply IH at aσ_lq.2.
+      have h_ih := ih aσ_lq.2 h_aσ_lq_cxq h_aσ_lq_ro_chal_x
+      -- h_ih has chal_x.get aσ_lq.2; substitute to x.
+      rw [h_aσ_lq_chal_x] at h_ih
+      exact h_ih
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
