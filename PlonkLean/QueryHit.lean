@@ -887,9 +887,18 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- Step 6: Bound the inner sum ≤ 1 + q, then ow_adv.wp ≤ 1 + q.
     have h_target : ((q + 1 : ℕ) : ENNReal) = 1 + (q : ENNReal) := by push_cast; ring
     rw [h_target]
+    -- Apply wp_strengthen on ow_adv to add `chal_x_queried.get aσ_adv.2 = false`.
+    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried _ σ]
     refine le_trans (Program.wp_le_wp_of_le ow_adv _ (fun _ => 1 + (q : ENNReal)) ?_ σ)
                     (Program.wp_const_le ow_adv _ σ)
     intro aσ_adv
+    -- The post is `if cxq_aσ_adv = cxq_σ then ... else 0`. Case-split.
+    by_cases h_cxq_adv : chal_x_queried.get aσ_adv.2 = chal_x_queried.get σ
+    swap
+    · simp only [if_neg h_cxq_adv]; exact zero_le _
+    simp only [if_pos h_cxq_adv]
+    -- We now know cxq.get aσ_adv.2 = cxq.get σ = false.
+    have h_aσ_adv_qf : chal_x_queried.get aσ_adv.2 = false := h_cxq_adv.trans h_σ
     -- Show: ∑ x : input, post_adv.wp G (ow_challenge_x.set x aσ_adv.2) ≤ 1 + q.
     set inp := oracle_input.get aσ_adv.2 with h_inp_def
     -- helpers for state operations on chal_x.set x aσ_adv.2.
@@ -986,21 +995,21 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     simp_rw [h_shift_lqso]
     -- Apply wp_finset_sum to pull sum inside.
     rw [← Program.wp_finset_sum]
-    -- Apply IH at aσ_lq.2: requires aσ_lq.2.chal_x_queried = false.
+    -- Apply wp_strengthen_lens_preserved on (lazy_query inp >>= set oracle_output)
+    -- with L = chal_x_queried to add `cxq_aσ_lq = cxq_aσ_adv` to the post.
+    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ aσ_adv.2]
     refine le_trans
       (Program.wp_le_wp_of_le _ _ (fun _ => (q : ENNReal)) ?_ aσ_adv.2)
       (Program.wp_const_le _ _ _)
     intro aσ_lq
-    -- We need ∑ x G (..., chal_x.set x aσ_lq.2) ≤ q. By IH, this holds if
-    -- aσ_lq.2.chal_x_queried = false. We use `wp_strengthen_lens_preserved`
-    -- to add this condition; otherwise the bound trivially holds (≤ 0).
-    show ∑ x : input,
-        (ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x aσ_lq.2)
-        ≤ (q : ENNReal)
-    -- Without the strengthening, we'd need the bound for all aσ_lq (including
-    -- those with chal_x_queried = true, where the bound fails). The fix is to
-    -- restructure with `wp_strengthen_lens_preserved` higher up — left as TODO.
-    sorry
+    -- The post is `if cxq_aσ_lq = cxq_aσ_adv then ∑ x ... else 0`.
+    by_cases h_cxq_lq : chal_x_queried.get aσ_lq.2 = chal_x_queried.get aσ_adv.2
+    swap
+    · simp only [if_neg h_cxq_lq]; exact zero_le _
+    simp only [if_pos h_cxq_lq]
+    -- Combine: cxq_aσ_lq = cxq_aσ_adv = false. Apply IH.
+    have h_aσ_lq_qf : chal_x_queried.get aσ_lq.2 = false := h_cxq_lq.trans h_aσ_adv_qf
+    exact ih aσ_lq.2 h_aσ_lq_qf
 
 include h_ow_adv_chal_x_queried in
 /-- **Layer C_obs**: the probability that `chal_x_queried` is set during the
