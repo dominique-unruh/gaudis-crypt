@@ -1368,10 +1368,27 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
         rw [random_oracle_state.get_of_disjoint_set chal_x_queried true aσ_adv.2]
         exact h_aσ_adv_ro_x
       -- Compute both sides via lazy_query's wp.
+      -- For LHS state RO_setentry x y σ_arg: RO[x] = some y. lazy_query returns y.
+      -- For RHS state σ_arg: RO[x] = none. lazy_query samples uniform.
+      have h_LHS_get_x : ∀ y_arg : output,
+          random_oracle_state.get
+            (random_oracle_state.set
+              (fun k => if k = x then some y_arg
+                        else random_oracle_state.get (chal_x_queried.set true aσ_adv.2) k)
+              (chal_x_queried.set true aσ_adv.2)) x
+          = some y_arg := by
+        intro y_arg
+        rw [random_oracle_state.set_get]; simp
       simp only [lazy_query, wp_bind, wp_get, wp_uniform, wp_pure, wp_set]
-      -- After simp: RHS expands to (1/|output|) ∑ y_lq, F(state with RO[x] = y_lq).
-      -- LHS expands per y to F(state with RO[x] = y), since RO_setentry x y has RO[x] = y.
-      sorry
+      simp_rw [h_LHS_get_x, h_σ_arg_ro]
+      -- LHS now has pure for each y. RHS has do-block (none branch).
+      -- Apply more simp to unfold do-block.
+      simp only [wp_bind, wp_uniform, wp_set, wp_pure]
+      -- Both sides equal up to (1/c) * ∑ vs ∑ ../c distribution.
+      rw [Finset.mul_sum]
+      congr 1
+      funext y_arg
+      simp only [one_div, mul_one, ENNReal.div_eq_inv_mul]
     · -- MISS case (inp_a ≠ x): RO_setentry_commute + IH.
       simp only [if_neg h_inp]
       sorry
