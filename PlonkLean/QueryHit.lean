@@ -1255,34 +1255,45 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.
     rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
-    -- Now: ow_adv.wp (fun aσ_adv => (1/|output|) * ∑ y, post_adv.wp G (RO_setentry x y aσ_adv.2)) σ
-    --    = ow_adv.wp (fun aσ_adv => post_adv.wp G aσ_adv.2) σ
-    -- Apply wp_strengthen_lens_preserved on adv to add chal_x_queried.get
-    -- aσ_adv.2 = chal_x_queried.get σ = false (preserved by adv).
-    rw [show ow_adv.wp (fun aσ_adv : Unit × state =>
-              (1 : ENNReal) / Fintype.card output *
-              ∑ y : output,
-                (Program.get oracle_input >>= fun inp =>
-                    Program.get ow_challenge_x >>= fun cx =>
-                      (if inp = cx then Program.set chal_x_queried true
-                       else (pure () : Program state Unit)) >>= fun _ =>
-                        lazy_query inp >>= fun y_lq =>
-                          Program.set oracle_output y_lq).wp G
-                    (random_oracle_state.set
-                      (fun k => if k = x then some y
-                                else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)) σ
-            = ow_adv.wp (fun aσ_adv : Unit × state =>
+    -- Now: ow_adv.wp (post_LHS_avg) σ = ow_adv.wp (post_RHS) σ.
+    -- Apply wp_strengthen_lens_preserved twice: random_oracle_state + ow_challenge_x.
+    -- Adv preserves both (h_ow_adv, h_ow_adv_chal_x), so on support both match σ.
+    rw [Program.wp_strengthen_lens_preserved random_oracle_state h_ow_adv _ σ,
+        Program.wp_strengthen_lens_preserved random_oracle_state h_ow_adv
+          (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+                Program.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then Program.set chal_x_queried true
+                   else (pure () : Program state Unit)) >>= fun _ =>
+                    lazy_query inp >>= fun y_lq =>
+                      Program.set oracle_output y_lq).wp G aσ_adv.2) σ]
+    rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x _ σ,
+        Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x
+          (fun aσ_adv : Unit × state =>
+            if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
               (Program.get oracle_input >>= fun inp =>
                   Program.get ow_challenge_x >>= fun cx =>
                     (if inp = cx then Program.set chal_x_queried true
                      else (pure () : Program state Unit)) >>= fun _ =>
                       lazy_query inp >>= fun y_lq =>
-                        Program.set oracle_output y_lq).wp G aσ_adv.2) σ
-            from ?_]
-    -- Pointwise per aσ_adv (inside ow_adv.wp): inner sum averaged equals base.
+                        Program.set oracle_output y_lq).wp G aσ_adv.2
+            else 0) σ]
     apply congrArg (fun P => ow_adv.wp P σ)
     funext aσ_adv
-    sorry  -- Inner pointwise equality.
+    -- Goal: nested if (chal_x_pres ∧ RO_pres) ↦ post on both sides; else 0.
+    by_cases h_cx_pres : ow_challenge_x.get aσ_adv.2 = ow_challenge_x.get σ
+    swap
+    · simp only [if_neg h_cx_pres]
+    simp only [if_pos h_cx_pres]
+    by_cases h_ro_pres : random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ
+    swap
+    · simp only [if_neg h_ro_pres]
+    simp only [if_pos h_ro_pres]
+    -- Now: aσ_adv.2.chal_x = x AND aσ_adv.2.RO = σ.RO.
+    have h_aσ_adv_chal_x : ow_challenge_x.get aσ_adv.2 = x := h_cx_pres
+    have h_aσ_adv_ro_x : random_oracle_state.get aσ_adv.2 x = none := by
+      rw [h_ro_pres]; exact h_ro
+    sorry  -- Inner pointwise equality with all constraints.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
