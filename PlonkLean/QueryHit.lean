@@ -1391,7 +1391,25 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       simp only [one_div, mul_one, ENNReal.div_eq_inv_mul]
     · -- MISS case (inp_a ≠ x): RO_setentry_commute + IH.
       simp only [if_neg h_inp]
-      sorry  -- MISS case body.
+      -- The goal already has (pure ()).wp form. Reduce via wp_pure.
+      simp only [wp_pure]
+      -- Now refold via ← wp_bind to get (lazy_query inp_a >>= set oracle_output).wp.
+      simp_rw [← wp_bind]
+      -- Apply RO_setentry_commute per y.
+      have h_commute : ∀ y_arg : output,
+          (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp G
+            (random_oracle_state.set
+              (fun k => if k = x then some y_arg
+                        else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
+          = (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp
+              (fun aσ_lq => G (aσ_lq.1, random_oracle_state.set
+                                      (fun k => if k = x then some y_arg
+                                               else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
+              aσ_adv.2 :=
+        fun y_arg => RO_setentry_neq_commutes_lazy_query_set_oracle_output
+          inp_a x h_inp y_arg aσ_adv.2 G
+      simp_rw [h_commute]
+      sorry  -- Pull sum + apply IH.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
