@@ -1011,6 +1011,22 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     have h_aσ_lq_qf : chal_x_queried.get aσ_lq.2 = false := h_cxq_lq.trans h_aσ_adv_qf
     exact ih aσ_lq.2 h_aσ_lq_qf
 
+/-- Fine-grained RO commutativity: a write to `RO[x]` commutes with
+    `(lazy_query inp >>= set oracle_output)` when `inp ≠ x`. Writes to
+    different RO keys commute, and `oracle_output` is disjoint from RO. -/
+private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
+    (inp x : input) (h_neq : inp ≠ x) (y : output) (σ : state)
+    (F : Unit × state → ENNReal) :
+    (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp F
+      (random_oracle_state.set (fun k => if k = x then some y
+                                       else random_oracle_state.get σ k) σ)
+    = (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp
+      (fun aσ_lq => F (aσ_lq.1, random_oracle_state.set
+                              (fun k => if k = x then some y
+                                       else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
+      σ := by
+  sorry  -- RO-entry commutativity: ~80 lines via wp unfold + case split + lens disjointness.
+
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
     `RO[x] = none`) doesn't change the loop's wp of the indicator.
