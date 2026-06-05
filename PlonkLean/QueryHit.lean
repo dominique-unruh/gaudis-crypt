@@ -1257,10 +1257,32 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
     -- Now: ow_adv.wp (fun aσ_adv => (1/|output|) * ∑ y, post_adv.wp G (RO_setentry x y aσ_adv.2)) σ
     --    = ow_adv.wp (fun aσ_adv => post_adv.wp G aσ_adv.2) σ
-    -- Sufficient: pointwise per aσ_adv equality.
-    congr 1
+    -- Apply wp_strengthen_lens_preserved on adv to add chal_x_queried.get
+    -- aσ_adv.2 = chal_x_queried.get σ = false (preserved by adv).
+    rw [show ow_adv.wp (fun aσ_adv : Unit × state =>
+              (1 : ENNReal) / Fintype.card output *
+              ∑ y : output,
+                (Program.get oracle_input >>= fun inp =>
+                    Program.get ow_challenge_x >>= fun cx =>
+                      (if inp = cx then Program.set chal_x_queried true
+                       else (pure () : Program state Unit)) >>= fun _ =>
+                        lazy_query inp >>= fun y_lq =>
+                          Program.set oracle_output y_lq).wp G
+                    (random_oracle_state.set
+                      (fun k => if k = x then some y
+                                else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)) σ
+            = ow_adv.wp (fun aσ_adv : Unit × state =>
+              (Program.get oracle_input >>= fun inp =>
+                  Program.get ow_challenge_x >>= fun cx =>
+                    (if inp = cx then Program.set chal_x_queried true
+                     else (pure () : Program state Unit)) >>= fun _ =>
+                      lazy_query inp >>= fun y_lq =>
+                        Program.set oracle_output y_lq).wp G aσ_adv.2) σ
+            from ?_]
+    -- Pointwise per aσ_adv (inside ow_adv.wp): inner sum averaged equals base.
+    apply congrArg (fun P => ow_adv.wp P σ)
     funext aσ_adv
-    sorry  -- Pointwise: case split on inp_a = x.
+    sorry  -- Inner pointwise equality.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
