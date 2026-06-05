@@ -1186,8 +1186,42 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     simp
   | succ q ih =>
     intro σ h_qf h_ro
-    -- Inductive step: ~150 lines using RO_setentry_commute + linearity + IH.
-    sorry
+    set x := ow_challenge_x.get σ with x_def
+    set F : Unit × state → ENNReal :=
+      fun aσ : Unit × state => if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0 with hF_def
+    set G : Unit × state → ENNReal :=
+      fun aσ_b : Unit × state => (ow_loop_tracked ow_adv q lazy_query).wp F aσ_b.2 with hG_def
+    -- Reduce loop_{q+1} = body >>= loop_q on both sides.
+    have h_unfold : ∀ σ' : state,
+        (ow_loop_tracked ow_adv (q+1) lazy_query).wp F σ'
+        = (ow_loop_body_tracked ow_adv lazy_query).wp G σ' := by
+      intro σ'
+      show (ow_loop_body_tracked ow_adv lazy_query >>= fun _ : Unit =>
+              ow_loop_tracked ow_adv q lazy_query).wp F σ' = _
+      rw [wp_bind]
+    simp_rw [h_unfold]
+    -- Now: (1/|output|) ∑ y body.wp G (RO_setentry x y σ) = body.wp G σ.
+    -- body = adv >>= post_adv. Apply wp_bind.
+    have h_body_unfold : ∀ σ' : state,
+        (ow_loop_body_tracked ow_adv lazy_query).wp G σ'
+        = ow_adv.wp (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp G aσ_adv.2) σ' := by
+      intro σ'
+      show (ow_adv >>= fun _ : Unit =>
+              Program.get oracle_input >>= fun inp =>
+                Program.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then Program.set chal_x_queried true
+                   else (pure () : Program state Unit)) >>= fun _ =>
+                    lazy_query inp >>= fun y =>
+                      Program.set oracle_output y).wp G σ' = _
+      rw [wp_bind]
+    simp_rw [h_body_unfold]
+    sorry  -- Continue: wp_shift_input on adv + linearity + per-adv-outcome case split.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
