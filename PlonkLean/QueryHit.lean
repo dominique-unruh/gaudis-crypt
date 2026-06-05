@@ -1013,7 +1013,22 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
 
 /-- Fine-grained RO commutativity: a write to `RO[x]` commutes with
     `(lazy_query inp >>= set oracle_output)` when `inp ≠ x`. Writes to
-    different RO keys commute, and `oracle_output` is disjoint from RO. -/
+    different RO keys commute, and `oracle_output` is disjoint from RO.
+
+    Proof sketch:
+    1. Unfold `lazy_query inp` via wp_bind, wp_get.
+    2. Case split on `RO.get σ inp` (using that `RO.get` at inp is same on
+       both sides since inp ≠ x).
+    3. For `some v` case: both sides reduce to F applied at "oracle_output
+       set + RO entry added", in different order — equal by lens disjoint
+       commute between `oracle_output` and `random_oracle_state`.
+    4. For `none` case: similar with extra RO_setentry inp v from the
+       lazy_query's fresh sampling. Both RO setentries (at keys x and inp)
+       commute since they're at different keys.
+
+    The challenge in Lean: `simp` doesn't auto-beta-reduce the lambdas
+    produced by `wp_set`, so the goal stays in lambda-equality form.
+    Requires explicit `funext` + manual manipulation. -/
 private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
     (inp x : input) (h_neq : inp ≠ x) (y : output) (σ : state)
     (F : Unit × state → ENNReal) :
@@ -1025,7 +1040,7 @@ private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
                               (fun k => if k = x then some y
                                        else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
       σ := by
-  sorry  -- RO-entry commutativity: ~80 lines via wp unfold + case split + lens disjointness.
+  sorry  -- RO-entry commutativity: needs careful wp unfold + case split on RO[inp].
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
