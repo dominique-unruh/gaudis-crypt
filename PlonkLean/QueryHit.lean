@@ -2052,7 +2052,51 @@ private lemma ow_loop_tracked_indep_sum_le_strong
       · -- Miss: inp ≠ x. pure ().
         simp only [if_neg h]
         rw [wp_pure]
-    sorry  -- After pointwise: sum + shift + IH bound.
+    -- After pointwise: ∑ x, post_adv.wp G_x ≤ ∑ x, (lazy_query inp; set oo).wp G_x ≤ [¬cxq.get σ].
+    refine le_trans (Finset.sum_le_sum (fun x _ => h_pointwise x)) ?_
+    -- Apply wp_shift_input on (lazy_query inp; set oo) for chal_x.
+    have h_shift_lqso : ∀ x : input,
+        (lazy_query inp >>= fun y => Program.set oracle_output y).wp
+          (fun aσ_b : Unit × state =>
+            (ow_loop_tracked ow_adv q lazy_query).wp
+              (fun aσ : Unit × state =>
+                if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+                then (1 : ENNReal) else 0)
+              aσ_b.2) (ow_challenge_x.set x aσ_adv.2)
+        = (lazy_query inp >>= fun y => Program.set oracle_output y).wp
+          (fun aσ_lqo : Unit × state =>
+            (ow_loop_tracked ow_adv q lazy_query).wp
+              (fun aσ : Unit × state =>
+                if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+                then (1 : ENNReal) else 0)
+              (ow_challenge_x.set x aσ_lqo.2))
+          aσ_adv.2 := by
+      intro x
+      rw [show ow_challenge_x.set x aσ_adv.2
+          = (ow_challenge_x.update (Function.const _ x)) aσ_adv.2 by
+        show ow_challenge_x.set x aσ_adv.2
+          = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get aσ_adv.2)) aσ_adv.2
+        rw [Function.const_apply]]
+      exact Program.wp_shift_input h_lqso_inRange_cx_compl (h_shift_chal_x.2 x) _ _
+    simp_rw [h_shift_lqso]
+    -- Apply wp_finset_sum.
+    rw [← Program.wp_finset_sum]
+    -- Apply wp_strengthen on (lazy_query inp; set oo) for chal_x_queried.
+    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ aσ_adv.2]
+    refine le_trans
+      (Program.wp_le_wp_of_le _ _ (fun _ => if chal_x_queried.get σ then (0 : ENNReal) else 1) ?_ aσ_adv.2)
+      (Program.wp_const_le _ _ _)
+    intro aσ_lqo
+    by_cases h_cxq_lqo : chal_x_queried.get aσ_lqo.2 = chal_x_queried.get aσ_adv.2
+    swap
+    · simp only [if_neg h_cxq_lqo]; exact zero_le _
+    simp only [if_pos h_cxq_lqo]
+    have h_aσ_lqo_cxq : chal_x_queried.get aσ_lqo.2 = chal_x_queried.get σ :=
+      h_cxq_lqo.trans h_cxq_adv
+    -- ∑ x, loop_q.wp F_x (chal_x.set x aσ_lqo.2) ≤ [¬cxq.get aσ_lqo.2] = [¬cxq.get σ].
+    have h_ih_at_lqo := ih aσ_lqo.2
+    rw [h_aσ_lqo_cxq] at h_ih_at_lqo
+    exact h_ih_at_lqo
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
