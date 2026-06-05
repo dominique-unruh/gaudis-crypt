@@ -1147,7 +1147,14 @@ private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
     Intuition: the indicator only depends on whether adv queried `x`.
     Adv's pre-x-query behavior is independent of `RO[x]` (since adv hasn't
     seen its value). The probability of "adv queries x at some iter" is
-    the same. -/
+    the same.
+
+    NOTE: the *pointwise* (per y) version stated here may not hold without
+    an adversary-termination assumption (`ow_adv.wp (fun _ => 1) σ = 1`)
+    because adv's mass at a state with `oracle_output = y` may depend on y.
+    The *averaged* version (`(1/|output|) ∑ y, … = …`) is what's actually
+    needed for the experiment-level bound, and it IS provable without
+    extra hypotheses via variable renaming in the `inp = x` body case. -/
 private lemma ow_loop_tracked_chal_x_queried_RO_invariance
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
