@@ -1035,7 +1035,18 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance
         (random_oracle_state.set
           (fun k => if k = ow_challenge_x.get σ then some y
                     else random_oracle_state.get σ k) σ) := by
-  sorry  -- Pointwise freshness — coupling. ~150 lines.
+  intro q
+  induction q with
+  | zero =>
+    intro σ y h_qf h_ro
+    show (Pure.pure () : Program state Unit).wp _ σ
+        = (Pure.pure () : Program state Unit).wp _ _
+    simp only [wp_pure]
+    -- chal_x_queried.get unchanged by RO write (disjointness).
+    rw [chal_x_queried.get_of_disjoint_set]
+  | succ q ih =>
+    intro σ y h_qf h_ro
+    sorry  -- Inductive step: wp_shift_input on adv + post_adv case analysis + IH.
 
 /-- **Lazy-query freshness invariance** for the chal_x_queried indicator:
     pre-setting `RO[x] = y` (uniform y) is equivalent (averaged over y) to
