@@ -350,6 +350,51 @@ private lemma ow_loop_inRange_chal_x_queried_compl (q : ℕ) :
       (ow_loop_body_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried)
       (fun _ => ih)
 
+/-- `ow_loop_body_tracked` is in `ow_challenge_y.compl.range`. -/
+private lemma ow_loop_body_tracked_inRange_ow_challenge_y_compl
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range) :
+    (ow_loop_body_tracked ow_adv lazy_query).inRange ow_challenge_y.compl.range := by
+  refine Program.inRange_bind h_ow_adv_chal_y ?_
+  intro _
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_get _)
+      (Lens.range_le_compl_of_disjoint oracle_input ow_challenge_y)) ?_
+  intro inp
+  haveI _disj_cx_cy : disjoint ow_challenge_x ow_challenge_y :=
+    disjoint_ow_challenge_y_ow_challenge_x.symm
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_get _)
+      (Lens.range_le_compl_of_disjoint ow_challenge_x ow_challenge_y)) ?_
+  intro cx
+  refine Program.inRange_bind ?_ ?_
+  · by_cases h : inp = cx
+    · rw [if_pos h]
+      exact Program.inRange_mono (Program.inRange_set _ _)
+        (Lens.range_le_compl_of_disjoint chal_x_queried ow_challenge_y)
+    · rw [if_neg h]
+      exact Program.inRange_pure _ _
+  · intro _
+    refine Program.inRange_bind ?_ ?_
+    · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+        (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
+    · intro y
+      exact Program.inRange_mono (Program.inRange_set _ _)
+        (Lens.range_le_compl_of_disjoint oracle_output ow_challenge_y)
+
+/-- `ow_loop_tracked q` is in `ow_challenge_y.compl.range`. -/
+private lemma ow_loop_tracked_inRange_ow_challenge_y_compl
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (q : ℕ) :
+    (ow_loop_tracked ow_adv q lazy_query).inRange ow_challenge_y.compl.range := by
+  induction q with
+  | zero => exact Program.inRange_pure _ _
+  | succ n ih =>
+    show (ow_loop_body_tracked ow_adv lazy_query >>= fun _ =>
+          ow_loop_tracked ow_adv n lazy_query).inRange _
+    exact Program.inRange_bind
+      (ow_loop_body_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y)
+      (fun _ => ih)
+
 include h_ow_adv_chal_x_queried in
 /-- The wp of `ow_loop q` at a `chal_x_queried = true` state equals the wp at
     the original state, for posts that ignore `chal_x_queried`. -/
@@ -1517,6 +1562,7 @@ private lemma ow_loop_tracked_lazy_query_freshness
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_ow_adv_chal_x_queried : ow_adv.inRange chal_x_queried.compl.range)
     (q : ℕ) (x : input) (σ : state)
     (h_σ_qf : chal_x_queried.get σ = false)
     (h_σ_ro : random_oracle_state.get σ x = none) :
@@ -1529,11 +1575,67 @@ private lemma ow_loop_tracked_lazy_query_freshness
       (fun aσ : Unit × state =>
         if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
       (ow_challenge_x.set x σ) := by
-  -- LHS unfolds to (1/|output|) ∑ y_lq (loop_q).wp F (RO_setentry x y_lq (chal_x.set x σ))
-  -- after wp_bind + lazy_query unfold (σ.RO[x] = none case) + wp_set + chal_y drop.
-  -- This is the averaged-freshness statement. Proof by induction on q using
-  -- the RO_setentry commute lemma (proved) + variable renaming in inp = x case.
-  sorry  -- Averaged freshness — main proof outline above.
+  set σ_in := ow_challenge_x.set x σ with σ_in_def
+  set F : Unit × state → ENNReal :=
+    fun aσ : Unit × state => if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0 with hF_def
+  -- σ_in properties.
+  have h_σ_in_cxq : chal_x_queried.get σ_in = false := by
+    rw [σ_in_def, chal_x_queried.get_of_disjoint_set]; exact h_σ_qf
+  have h_σ_in_chal_x : ow_challenge_x.get σ_in = x := ow_challenge_x.set_get σ x
+  have h_σ_in_ro_x : random_oracle_state.get σ_in x = none := by
+    rw [σ_in_def, random_oracle_state.get_of_disjoint_set]; exact h_σ_ro
+  have h_σ_in_ro_chal_x : random_oracle_state.get σ_in (ow_challenge_x.get σ_in) = none := by
+    rw [h_σ_in_chal_x]; exact h_σ_in_ro_x
+  -- inRange for ow_loop_tracked w.r.t. ow_challenge_y.
+  have h_loop_inRange_cy : (ow_loop_tracked ow_adv q lazy_query).inRange
+      ow_challenge_y.compl.range :=
+    ow_loop_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y q
+  -- F doesn't read ow_challenge_y (only reads chal_x_queried; chal_x_queried ⟂ ow_challenge_y).
+  have h_F_no_cy : ∀ v : output, ∀ aσ : Unit × state,
+      F (aσ.1, ow_challenge_y.set v aσ.2) = F aσ := by
+    intro v aσ
+    simp only [hF_def]
+    rw [chal_x_queried.get_of_disjoint_set]
+  -- (set ow_challenge_y v; ow_loop_tracked).wp F σ' = ow_loop_tracked.wp F σ' for all σ', v.
+  have h_drop_chal_y : ∀ (v : output) (σ' : state),
+      (Program.set ow_challenge_y v >>= fun _ : Unit =>
+          ow_loop_tracked ow_adv q lazy_query).wp F σ'
+      = (ow_loop_tracked ow_adv q lazy_query).wp F σ' :=
+    fun v σ' => Program.wp_set_disjoint_no_op h_loop_inRange_cy v F (h_F_no_cy v) σ'
+  -- Apply wp_bind on outer and h_drop_chal_y inside.
+  rw [wp_bind]
+  simp_rw [h_drop_chal_y]
+  -- Now: (lazy_query x).wp (fun aσ_lq => ow_loop_tracked.wp F aσ_lq.2) σ_in = ow_loop_tracked.wp F σ_in.
+  -- Compute (lazy_query x).wp at σ_in where σ_in.RO[x] = none.
+  have h_lq_compute : ∀ (Q : output × state → ENNReal),
+      (lazy_query x).wp Q σ_in
+      = ∑ v : output, Q (v, random_oracle_state.set
+          (fun k => if k = x then some v else random_oracle_state.get σ_in k) σ_in)
+            / Fintype.card output := by
+    intro Q
+    show (do let h <- Program.get random_oracle_state
+             match h x with
+             | some v => pure v
+             | none => do let value <- Program.uniform
+                          Program.set random_oracle_state
+                            (fun k => if k=x then some value else h k)
+                          pure value).wp Q σ_in = _
+    simp only [wp_bind, wp_get]
+    rw [h_σ_in_ro_x]
+    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
+  rw [h_lq_compute]
+  -- Goal: ∑ v, ow_loop_tracked.wp F (RO_setentry x v σ_in) / |output| = ow_loop_tracked.wp F σ_in.
+  -- Apply averaged freshness at σ_in.
+  have h_avg := ow_loop_tracked_chal_x_queried_RO_invariance_avg ow_adv h_ow_adv
+    h_ow_adv_chal_y h_ow_adv_chal_x h_ow_adv_chal_x_queried q σ_in h_σ_in_cxq h_σ_in_ro_chal_x
+  rw [h_σ_in_chal_x] at h_avg
+  -- h_avg: (1/|output|) * ∑ y, ow_loop_tracked.wp F (RO_setentry x y σ_in) = ow_loop_tracked.wp F σ_in.
+  -- Convert sum-divided-by-c form to const-mul-sum form.
+  rw [show ∀ (g : output → ENNReal),
+      (∑ v : output, g v / Fintype.card output)
+      = 1 / Fintype.card output * ∑ v : output, g v from fun g => by
+    rw [Finset.mul_sum]; congr 1; funext v; rw [ENNReal.div_eq_inv_mul, one_div]]
+  exact h_avg
 
 /-- Helper: `post_loop` (`get resp; lazy_query resp; pure (decide ...)`) preserves
     `chal_x_queried`. Hence its wp at the chal_x_queried indicator equals the
