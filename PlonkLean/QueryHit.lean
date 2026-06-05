@@ -1207,7 +1207,11 @@ private lemma ow_loop_tracked_lazy_query_freshness
       (fun aσ : Unit × state =>
         if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
       (ow_challenge_x.set x σ) := by
-  sorry  -- Compose pointwise invariance with chal_y drop and lazy_query unfold.
+  -- LHS unfolds to (1/|output|) ∑ y_lq (loop_q).wp F (RO_setentry x y_lq (chal_x.set x σ))
+  -- after wp_bind + lazy_query unfold (σ.RO[x] = none case) + wp_set + chal_y drop.
+  -- This is the averaged-freshness statement. Proof by induction on q using
+  -- the RO_setentry commute lemma (proved) + variable renaming in inp = x case.
+  sorry  -- Averaged freshness — main proof outline above.
 
 /-- Helper: `post_loop` (`get resp; lazy_query resp; pure (decide ...)`) preserves
     `chal_x_queried`. Hence its wp at the chal_x_queried indicator equals the
