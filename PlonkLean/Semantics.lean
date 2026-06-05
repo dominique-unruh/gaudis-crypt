@@ -356,6 +356,18 @@ lemma Program.bind_pure {s a : Type} (m : Program s a) :
   rw [MeasureTheory.Measure.bind_dirac_eq_map (m st).1 measurable_id]
   exact MeasureTheory.Measure.map_id
 
+lemma Program.bot_bind {s a b : Type} (f : a → Program s b) :
+    (⊥ : Program s a) >>= f = ⊥ := by
+  funext st
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_left _
+
+lemma Program.bind_bot {s a b : Type} (m : Program s a) :
+    m >>= (fun _ => (⊥ : Program s b)) = ⊥ := by
+  funext st
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_right' _
+
 /-- SubProbability pure-bind law (at the SubProb level, not just Program level). -/
 lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbability β) :
     (pure x : SubProbability α) >>= f = f x := by

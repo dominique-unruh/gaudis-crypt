@@ -25,14 +25,6 @@ fixes the experiment shape and the targets.
 axiom claim_x : Variable input
 axiom claim_x' : Variable input
 
-/-- The CR adversary itself. It runs in `q` rounds; each round it may set
-    `oracle_input` to query and read back `oracle_output`, and (at any
-    point) it writes its candidate collision into `claim_x, claim_x'`. -/
-axiom cr_adv : Program state Unit
-
-/-- The adversary does not touch the random oracle's internal cache. -/
-axiom cr_adv_inRange : cr_adv.inRange random_oracle_state.compl.range
-
 /-- Disjointness: the claim variables don't alias the RO state. -/
 axiom disjoint_claim_x_ro : disjoint claim_x random_oracle_state
 axiom disjoint_claim_x'_ro : disjoint claim_x' random_oracle_state
@@ -42,6 +34,21 @@ attribute [instance] disjoint_claim_x_ro disjoint_claim_x'_ro
 /-- Output equality needed for the collision check. We get it for free
     from classical logic (the rest of the file is noncomputable anyway). -/
 noncomputable instance : DecidableEq output := Classical.decEq output
+
+/-! ## CR experiment parameterised over an adversary
+
+`cr_adv` is a *parameter* (via the `variable` declaration below), not an
+axiom. Every `cr_experiment`-, `cr_lazy_bound`-, `cr_transfer`-style
+definition and theorem in this section takes an arbitrary CR adversary
+`cr_adv : Program state Unit` together with `h_cr_adv : cr_adv.inRange ...`.
+
+The adversary may set `oracle_input` (queried each round), may set
+`claim_x` and `claim_x'` (its candidate collision), and may *not* touch
+`random_oracle_state` directly. -/
+
+section CRParam
+
+variable (cr_adv : Program state Unit)
 
 /-- One round of the CR loop body: the adversary computes, then we run one
     query on whatever `cr_adv` placed in `oracle_input`. -/
@@ -54,7 +61,7 @@ noncomputable def cr_loop_body (oracle : input → Program state output) :
 noncomputable def cr_loop : ℕ → (input → Program state output) → Program state Unit
   | 0,     _      => pure ()
   | n + 1, oracle => do
-      cr_loop_body oracle
+      cr_loop_body cr_adv oracle
       cr_loop n oracle
 
 /-- **The CR experiment** parameterised by query budget `q`, init, and oracle.
@@ -65,7 +72,7 @@ noncomputable def cr_experiment (q : ℕ)
     (init : Program state Unit)
     (oracle : input → Program state output) : Program state Bool := do
   init
-  cr_loop q oracle
+  cr_loop cr_adv q oracle
   let x  ← Program.get claim_x
   let x' ← Program.get claim_x'
   let y  ← oracle x
@@ -78,73 +85,71 @@ The output of `cr_experiment` is RO-invariant (it only depends on state
 variables disjoint from `random_oracle_state`), so the dist of the result
 bit agrees under lazy and eager RO. -/
 
+variable (h_cr_adv : cr_adv.inRange random_oracle_state.compl.range)
+
 /-! ### Building blocks for `cr_transfer` via the `Program.transfer` framework. -/
 
-/-- Any program in `v.range` for a `v` disjoint from RO transfers to itself. -/
-private lemma transfer_of_inRange_disjoint {α : Type} [Countable α]
-    (p : Program state α) {β : Type} (v : Lens β state)
-    [disjoint v random_oracle_state]
-    (hp : p.inRange v.range) :
-    Program.transfer p p :=
-  Program.transfer_refl_of_inRange_compl
-    (Program.inRange_mono hp
-      (Lens.range_le_compl_of_disjoint v random_oracle_state))
-
+include h_cr_adv in
 /-- `cr_adv` transfers to itself: it doesn't touch RO. -/
 private lemma transfer_cr_adv : Program.transfer cr_adv cr_adv :=
-  Program.transfer_refl_of_inRange_compl cr_adv_inRange
+  Program.transfer_refl_of_inRange_compl h_cr_adv
 
+include h_cr_adv in
 /-- One iteration of `cr_loop_body` transfers from lazy to eager. -/
 private lemma transfer_cr_loop_body :
-    Program.transfer (cr_loop_body lazy_query) (cr_loop_body random_oracle_query) := by
+    Program.transfer (cr_loop_body cr_adv lazy_query)
+                     (cr_loop_body cr_adv random_oracle_query) := by
   show Program.transfer
     (cr_adv >>= fun _ => Program.get oracle_input >>= fun inp =>
       lazy_query inp >>= fun y => Program.set oracle_output y)
     (cr_adv >>= fun _ => Program.get oracle_input >>= fun inp =>
       random_oracle_query inp >>= fun y => Program.set oracle_output y)
-  apply Program.transfer_bind transfer_cr_adv
+  apply Program.transfer_bind (transfer_cr_adv cr_adv h_cr_adv)
   intro _
   apply Program.transfer_bind
-    (transfer_of_inRange_disjoint _ oracle_input (Program.inRange_get _))
+    (Program.transfer_of_inRange_disjoint _ oracle_input (Program.inRange_get _))
   intro inp
   apply Program.transfer_bind (Program.transfer_lazy_query inp)
   intro y
-  exact transfer_of_inRange_disjoint _ oracle_output (Program.inRange_set _ _)
+  exact Program.transfer_of_inRange_disjoint _ oracle_output (Program.inRange_set _ _)
 
+include h_cr_adv in
 /-- `cr_loop q` transfers from lazy to eager, by induction on `q`. -/
 private lemma transfer_cr_loop (q : ℕ) :
-    Program.transfer (cr_loop q lazy_query) (cr_loop q random_oracle_query) := by
+    Program.transfer (cr_loop cr_adv q lazy_query) (cr_loop cr_adv q random_oracle_query) := by
   induction q with
   | zero => exact Program.transfer_pure ()
   | succ n ih =>
     show Program.transfer
-      (cr_loop_body lazy_query >>= fun _ => cr_loop n lazy_query)
-      (cr_loop_body random_oracle_query >>= fun _ => cr_loop n random_oracle_query)
-    exact Program.transfer_bind transfer_cr_loop_body (fun _ => ih)
+      (cr_loop_body cr_adv lazy_query >>= fun _ => cr_loop cr_adv n lazy_query)
+      (cr_loop_body cr_adv random_oracle_query >>= fun _ => cr_loop cr_adv n random_oracle_query)
+    exact Program.transfer_bind (transfer_cr_loop_body cr_adv h_cr_adv) (fun _ => ih)
 
+include h_cr_adv in
 /-- The full `cr_experiment q` transfers from lazy to eager. -/
 private lemma transfer_cr_experiment (q : ℕ) :
     Program.transfer
-      (cr_experiment q lazy_init lazy_query)
-      (cr_experiment q random_oracle_init random_oracle_query) := by
+      (cr_experiment cr_adv q lazy_init lazy_query)
+      (cr_experiment cr_adv q random_oracle_init random_oracle_query) := by
   show Program.transfer
-    (lazy_init >>= fun _ => cr_loop q lazy_query >>= fun _ =>
+    (lazy_init >>= fun _ => cr_loop cr_adv q lazy_query >>= fun _ =>
       Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
         lazy_query x >>= fun y => lazy_query x' >>= fun y' =>
           (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool))
-    (random_oracle_init >>= fun _ => cr_loop q random_oracle_query >>= fun _ =>
+    (random_oracle_init >>= fun _ => cr_loop cr_adv q random_oracle_query >>= fun _ =>
       Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
         random_oracle_query x >>= fun y => random_oracle_query x' >>= fun y' =>
           (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool))
   apply Program.transfer_bind Program.transfer_lazy_init
   intro _
-  apply Program.transfer_bind (transfer_cr_loop q)
+  apply Program.transfer_bind (transfer_cr_loop cr_adv h_cr_adv q)
+
   intro _
   apply Program.transfer_bind
-    (transfer_of_inRange_disjoint _ claim_x (Program.inRange_get _))
+    (Program.transfer_of_inRange_disjoint _ claim_x (Program.inRange_get _))
   intro x
   apply Program.transfer_bind
-    (transfer_of_inRange_disjoint _ claim_x' (Program.inRange_get _))
+    (Program.transfer_of_inRange_disjoint _ claim_x' (Program.inRange_get _))
   intro x'
   apply Program.transfer_bind (Program.transfer_lazy_query x)
   intro y
@@ -156,13 +161,13 @@ private lemma transfer_cr_experiment (q : ℕ) :
     `random_oracle_init`, which overwrites RO via a fresh uniform sample). -/
 private lemma convert_cr_experiment_eager (q : ℕ) :
     (convert >>= fun _ =>
-      cr_experiment q random_oracle_init random_oracle_query)
-    = cr_experiment q random_oracle_init random_oracle_query := by
+      cr_experiment cr_adv q random_oracle_init random_oracle_query)
+    = cr_experiment cr_adv q random_oracle_init random_oracle_query := by
   -- cr_experiment q eager_init eager_query = random_oracle_init >>= rest.
   -- So convert >>= (random_oracle_init >>= rest) = (convert >>= random_oracle_init) >>= rest
   --                                              = random_oracle_init >>= rest (by convert_random_oracle_init).
   set rest : Program state Bool :=
-    cr_loop q random_oracle_query >>= fun _ =>
+    cr_loop cr_adv q random_oracle_query >>= fun _ =>
       Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
         random_oracle_query x >>= fun y => random_oracle_query x' >>= fun y' =>
           (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool) with hrest
@@ -170,16 +175,17 @@ private lemma convert_cr_experiment_eager (q : ℕ) :
       = (random_oracle_init >>= fun _ => rest)
   rw [← Program.bind_assoc, convert_random_oracle_init]
 
+include h_cr_adv in
 /-- **Transfer theorem**: The marginal distribution of the result bit is
     identical under lazy and eager random oracle. -/
 theorem cr_transfer (q : ℕ) (σ₀ : state) :
-    (cr_experiment q lazy_init lazy_query σ₀ >>=
+    (cr_experiment cr_adv q lazy_init lazy_query σ₀ >>=
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool))
     =
-    (cr_experiment q random_oracle_init random_oracle_query σ₀ >>=
+    (cr_experiment cr_adv q random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool)) :=
-  Program.transfer_value_marginal (transfer_cr_experiment q)
-    (convert_cr_experiment_eager q) σ₀
+  Program.transfer_value_marginal (transfer_cr_experiment cr_adv h_cr_adv q)
+    (convert_cr_experiment_eager cr_adv q) σ₀
 
 /-! ## Phase 3 — Birthday bound on the lazy CR experiment
 
@@ -293,7 +299,7 @@ lemma lazy_query_wp_preserves_other_RO
     rw [random_oracle_state.set_get, if_neg h_neq]
 
 /-- **Bookkeeping helper**: at every state in the support of
-    `cr_experiment q lazy_init lazy_query`, if the result bit is `true`
+    `cr_experiment cr_adv q lazy_init lazy_query`, if the result bit is `true`
     then the state has a collision. Stated at the `wp` level so it
     composes with the birthday bound below.
 
@@ -330,9 +336,9 @@ lemma lazy_query_wp_preserves_other_RO
        apply `MeasureTheory.lintegral_mono` propagated outward through
        each wp_bind layer. -/
 lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
-    (cr_experiment q lazy_init lazy_query).wp
+    (cr_experiment cr_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ₀
-    ≤ (cr_experiment q lazy_init lazy_query).wp
+    ≤ (cr_experiment cr_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => collision_indicator bσ.2) σ₀ := by
   simp only [cr_experiment, wp_bind, wp_get, wp_pure]
   -- Propagate via wp_le_wp_of_le through init and cr_loop.
@@ -454,11 +460,7 @@ private lemma ennreal_triangular_step (m k : ℕ) :
     push_cast
     ring
   | succ n =>
-    have h_cast : ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
-      push_cast
-      rw [show ((n : ENNReal) + 1 - 1) = (n : ENNReal) from
-        ENNReal.add_sub_cancel_right (by norm_num)]
-    rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from h_cast]
+    rw [ENNReal.natCast_succ_sub_one]
     push_cast
     ring
 
@@ -472,10 +474,7 @@ private lemma triangular_term_cast (m k : ℕ) :
   | zero => simp
   | succ n =>
     have h_nat : (2 * m + (n + 1) - 1 : ℕ) = 2 * m + n := by omega
-    have h_ennreal : ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
-      push_cast
-      exact ENNReal.add_sub_cancel_right (by norm_num)
-    rw [h_nat, h_ennreal]
+    rw [h_nat, ENNReal.natCast_succ_sub_one]
     push_cast
     ring
 
@@ -489,9 +488,7 @@ private lemma layer_C_term_alt (m_e : ENNReal) (k : ℕ) :
   | zero => simp
   | succ n =>
     congr 1
-    rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from by
-      push_cast
-      exact ENNReal.add_sub_cancel_right (by norm_num)]
+    rw [ENNReal.natCast_succ_sub_one]
     push_cast
     rw [show (2 * m_e + ((n : ENNReal) + 1) - 1) = 2 * m_e + (n : ENNReal) from by
       rw [← add_assoc]
@@ -512,9 +509,7 @@ private lemma layer_C_combine_div (m k : ℕ) (N : ENNReal)
   cases k with
   | zero => push_cast; ring
   | succ n =>
-    rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from by
-      push_cast
-      exact ENNReal.add_sub_cancel_right (by norm_num)]
+    rw [ENNReal.natCast_succ_sub_one]
     push_cast
     ring
 
@@ -718,12 +713,13 @@ lemma RO_size_of_get_eq {σ σ' : state}
   ext x
   rw [h]
 
+include h_cr_adv in
 /-- `cr_adv` doesn't touch the RO, so its expected `RO_size` is preserved. -/
 lemma cr_adv_wp_RO_size (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
     ≤ (RO_size σ : ENNReal) :=
   Program.wp_le_of_factors (P := fun σ => (RO_size σ : ENNReal))
-    random_oracle_state cr_adv_inRange
+    random_oracle_state h_cr_adv
     (fun _ _ h => congrArg _ (RO_size_of_get_eq h)) σ
 
 /-- Setting a variable disjoint from `random_oracle_state` doesn't change `RO_size`. -/
@@ -731,9 +727,10 @@ lemma RO_size_set_disjoint {α : Type} (v : Variable α) [disjoint v random_orac
     (x : α) (σ : state) : RO_size (v.set x σ) = RO_size σ :=
   RO_size_of_get_eq (random_oracle_state.get_of_disjoint_set v x σ)
 
+include h_cr_adv in
 /-- One iteration of `cr_loop_body` bumps `RO_size` by at most 1 in expectation. -/
 lemma cr_loop_body_wp_RO_size (σ : state) :
-    (cr_loop_body lazy_query).wp
+    (cr_loop_body cr_adv lazy_query).wp
         (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
     ≤ (RO_size σ + 1 : ENNReal) := by
   -- cr_loop_body = cr_adv >>= fun _ => get oracle_input >>= fun inp =>
@@ -765,12 +762,13 @@ lemma cr_loop_body_wp_RO_size (σ : state) :
         + cr_adv.wp (fun _ : Unit × state => (1 : ENNReal)) σ := by
       rw [Program.wp_add]
     _ ≤ (RO_size σ : ENNReal) + 1 :=
-      add_le_add (cr_adv_wp_RO_size σ) (Program.wp_const_le cr_adv 1 σ)
+      add_le_add (cr_adv_wp_RO_size cr_adv h_cr_adv σ) (Program.wp_const_le cr_adv 1 σ)
 
+include h_cr_adv in
 /-- **Layer B-iterated**: expected `RO_size` after `cr_loop k` grows by at most
     `k`. Needed by Layer D to bound the size at intermediate points. -/
 lemma cr_loop_RO_size_step (k : ℕ) (σ : state) :
-    (cr_loop k lazy_query).wp
+    (cr_loop cr_adv k lazy_query).wp
         (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
     ≤ (RO_size σ + k : ENNReal) := by
   induction k generalizing σ with
@@ -780,24 +778,24 @@ lemma cr_loop_RO_size_step (k : ℕ) (σ : state) :
     push_cast
     simp
   | succ k ih =>
-    show (cr_loop_body lazy_query >>= fun _ => cr_loop k lazy_query).wp _ σ ≤ _
+    show (cr_loop_body cr_adv lazy_query >>= fun _ => cr_loop cr_adv k lazy_query).wp _ σ ≤ _
     rw [wp_bind]
     push_cast
-    calc (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
-            (cr_loop k lazy_query).wp
+    calc (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
+            (cr_loop cr_adv k lazy_query).wp
               (fun yσ' : Unit × state => (RO_size yσ'.2 : ENNReal)) yσ.2) σ
-        ≤ (cr_loop_body lazy_query).wp
+        ≤ (cr_loop_body cr_adv lazy_query).wp
             (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal) + k) σ := by
           apply MeasureTheory.lintegral_mono
           intro yσ
           exact ih yσ.2
-      _ = (cr_loop_body lazy_query).wp
+      _ = (cr_loop_body cr_adv lazy_query).wp
             (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
-          + (cr_loop_body lazy_query).wp (fun _ : Unit × state => (k : ENNReal)) σ := by
+          + (cr_loop_body cr_adv lazy_query).wp (fun _ : Unit × state => (k : ENNReal)) σ := by
           rw [Program.wp_add]
       _ ≤ (RO_size σ + 1 : ENNReal) + k :=
-          add_le_add (cr_loop_body_wp_RO_size σ)
-            (Program.wp_const_le (cr_loop_body lazy_query) k σ)
+          add_le_add (cr_loop_body_wp_RO_size cr_adv h_cr_adv σ)
+            (Program.wp_const_le (cr_loop_body cr_adv lazy_query) k σ)
       _ = (RO_size σ + (k + 1) : ENNReal) := by push_cast; ring_nf
 
 /-! ### Collision-side helpers (mirror of the RO_size helpers above) -/
@@ -816,13 +814,14 @@ lemma collision_indicator_of_get_eq {σ σ' : state}
   · rintro ⟨x, x', hne, y, hy, hy'⟩
     exact ⟨x, x', hne, y, h ▸ hy, h ▸ hy'⟩
 
+include h_cr_adv in
 /-- `cr_adv` doesn't touch the RO, so the collision indicator is preserved
     in expectation. -/
 lemma cr_adv_wp_collision (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
     ≤ collision_indicator σ :=
   Program.wp_le_of_factors (P := collision_indicator)
-    random_oracle_state cr_adv_inRange
+    random_oracle_state h_cr_adv
     (fun _ _ h => collision_indicator_of_get_eq h) σ
 
 /-- Setting a variable disjoint from `random_oracle_state` doesn't change
@@ -832,10 +831,11 @@ lemma collision_indicator_set_disjoint {α : Type} (v : Variable α)
     collision_indicator (v.set x σ) = collision_indicator σ :=
   collision_indicator_of_get_eq (random_oracle_state.get_of_disjoint_set v x σ)
 
+include h_cr_adv in
 /-- One iteration of `cr_loop_body` bumps the collision indicator by at most
     `RO_size σ / N` (in expectation). -/
 lemma cr_loop_body_wp_collision (σ : state) :
-    (cr_loop_body lazy_query).wp
+    (cr_loop_body cr_adv lazy_query).wp
         (fun yσ : Unit × state => collision_indicator yσ.2) σ
     ≤ collision_indicator σ + (RO_size σ : ENNReal) / Fintype.card output := by
   unfold cr_loop_body
@@ -868,7 +868,7 @@ lemma cr_loop_body_wp_collision (σ : state) :
       rw [Program.wp_add]
     _ ≤ collision_indicator σ + (RO_size σ : ENNReal) / Fintype.card output := by
       gcongr
-      · exact cr_adv_wp_collision σ
+      · exact cr_adv_wp_collision cr_adv h_cr_adv σ
       · calc cr_adv.wp (fun yσ : Unit × state =>
                 (RO_size yσ.2 : ENNReal) / Fintype.card output) σ
             = (1 / Fintype.card output : ENNReal) *
@@ -879,10 +879,11 @@ lemma cr_loop_body_wp_collision (σ : state) :
                   funext yσ; rw [one_div, ← ENNReal.div_eq_inv_mul]]
               rw [Program.wp_const_mul]
           _ ≤ (1 / Fintype.card output : ENNReal) * (RO_size σ : ENNReal) := by
-              gcongr; exact cr_adv_wp_RO_size σ
+              gcongr; exact cr_adv_wp_RO_size cr_adv h_cr_adv σ
           _ = (RO_size σ : ENNReal) / Fintype.card output := by
               rw [one_div, ← ENNReal.div_eq_inv_mul]
 
+include h_cr_adv in
 /-- **Layer C**: the cumulative collision bound after `cr_loop k` queries.
     Triangular sum of Layer A across the loop.
 
@@ -894,7 +895,7 @@ lemma cr_loop_body_wp_collision (σ : state) :
       = k(2*RO_size σ + k + 1)/(2N). Combined: RO_size σ/N + k(2*RO_size σ + k + 1)/(2N)
       = (k+1)(2*RO_size σ + k)/(2N), matching the bound at level k+1. -/
 lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
-    (cr_loop k lazy_query).wp
+    (cr_loop cr_adv k lazy_query).wp
         (fun yσ : Unit × state => collision_indicator yσ.2) σ
     ≤ collision_indicator σ
       + (k * (2 * RO_size σ + k - 1) : ENNReal) / (2 * Fintype.card output) := by
@@ -904,7 +905,7 @@ lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
     rw [wp_pure]
     simp
   | succ k ih =>
-    show (cr_loop_body lazy_query >>= fun _ => cr_loop k lazy_query).wp _ σ ≤ _
+    show (cr_loop_body cr_adv lazy_query >>= fun _ => cr_loop cr_adv k lazy_query).wp _ σ ≤ _
     rw [wp_bind]
     set N : ENNReal := (Fintype.card output : ENNReal) with hN_def
     have hN_pos : N ≠ 0 := by rw [hN_def]; exact_mod_cast Fintype.card_pos.ne'
@@ -919,22 +920,22 @@ lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
     -- Goal: cr_loop_body.wp (...) σ ≤ collision σ + (↑k + 1) * (2*↑(RO_size σ) + ↑k) / (2 * N)
     -- Inner bound: wp(2*↑(RO_size σ') + (↑k - 1) ∘ snd) σ ≤ 2*(↑(RO_size σ) + 1) + (↑k - 1)
     have h_inner_bound :
-        (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+        (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
             2 * (↑(RO_size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) σ
         ≤ 2 * ((↑(RO_size σ) : ENNReal) + 1) + ((k : ENNReal) - 1) := by
-      calc (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+      calc (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
               2 * (↑(RO_size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) σ
-          = (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+          = (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
               2 * (↑(RO_size yσ.2) : ENNReal)) σ
-            + (cr_loop_body lazy_query).wp (fun _ : Unit × state => ((k : ENNReal) - 1)) σ := by
+            + (cr_loop_body cr_adv lazy_query).wp (fun _ : Unit × state => ((k : ENNReal) - 1)) σ := by
             rw [Program.wp_add]
         _ ≤ 2 * ((↑(RO_size σ) : ENNReal) + 1) + ((k : ENNReal) - 1) := by
             gcongr
-            · rw [Program.wp_const_mul]; gcongr; exact cr_loop_body_wp_RO_size σ
-            · exact Program.wp_const_le (cr_loop_body lazy_query) ((k : ENNReal) - 1) σ
+            · rw [Program.wp_const_mul]; gcongr; exact cr_loop_body_wp_RO_size cr_adv h_cr_adv σ
+            · exact Program.wp_const_le (cr_loop_body cr_adv lazy_query) ((k : ENNReal) - 1) σ
     -- IH-term bound (with ↑k multiplier and /(2*N) division).
     have h_IH_term_bound :
-        (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+        (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
             ((k : ENNReal) * (2 * (↑(RO_size yσ.2) : ENNReal) + ((k : ENNReal) - 1))) / (2 * N)) σ
         ≤ ((k : ENNReal) * (2 * ((↑(RO_size σ) : ENNReal) + 1) + ((k : ENNReal) - 1))) / (2 * N) := by
       rw [show (fun yσ : Unit × state =>
@@ -951,9 +952,9 @@ lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
             from by rw [mul_div_assoc]]
       gcongr
       -- wp((X)/(2N) ∘ snd) σ ≤ Y/(2N) via div bound + h_inner_bound
-      calc (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+      calc (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
               (2 * (↑(RO_size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) / (2 * N)) σ
-          = (1 / (2 * N)) * (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+          = (1 / (2 * N)) * (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
               2 * (↑(RO_size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) σ := by
             rw [show (fun yσ : Unit × state =>
                   (2 * (↑(RO_size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) / (2 * N))
@@ -967,24 +968,24 @@ lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
         _ = (2 * ((↑(RO_size σ) : ENNReal) + 1) + ((k : ENNReal) - 1)) / (2 * N) := by
             rw [one_div, ← ENNReal.div_eq_inv_mul]
     -- Main calc chain.
-    calc (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
-            (cr_loop k lazy_query).wp
+    calc (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
+            (cr_loop cr_adv k lazy_query).wp
               (fun yσ' : Unit × state => collision_indicator yσ'.2) yσ.2) σ
-        ≤ (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+        ≤ (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
             collision_indicator yσ.2 +
               ((k : ENNReal) * ((2 * (↑(RO_size yσ.2) : ENNReal) + (k : ENNReal)) - 1))
                 / (2 * N)) σ := by
           apply MeasureTheory.lintegral_mono
           intro yσ
           exact ih yσ.2
-      _ = (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+      _ = (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
             collision_indicator yσ.2 +
               ((k : ENNReal) * (2 * (↑(RO_size yσ.2) : ENNReal)
                 + ((k : ENNReal) - 1))) / (2 * N)) σ := by
           congr 1; funext yσ
           rw [layer_C_term_alt _ k]
-      _ = (cr_loop_body lazy_query).wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
-          + (cr_loop_body lazy_query).wp (fun yσ : Unit × state =>
+      _ = (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
+          + (cr_loop_body cr_adv lazy_query).wp (fun yσ : Unit × state =>
               ((k : ENNReal) * (2 * (↑(RO_size yσ.2) : ENNReal)
                 + ((k : ENNReal) - 1))) / (2 * N)) σ := by
           rw [Program.wp_add]
@@ -992,7 +993,7 @@ lemma cr_loop_birthday_step (k : ℕ) (σ : state) :
           + ((k : ENNReal) * (2 * ((↑(RO_size σ) : ENNReal) + 1) + ((k : ENNReal) - 1)))
               / (2 * N) := by
           apply add_le_add
-          · exact cr_loop_body_wp_collision σ
+          · exact cr_loop_body_wp_collision cr_adv h_cr_adv σ
           · exact h_IH_term_bound
       _ = collision_indicator σ +
           ((k : ENNReal) + 1) * (2 * (↑(RO_size σ) : ENNReal) + (k : ENNReal)) / (2 * N) := by
@@ -1022,13 +1023,14 @@ lemma lazy_init_collision_indicator (σ₀ : state) :
   rw [random_oracle_state.set_get] at hy
   simp at hy
 
+include h_cr_adv in
 /-- **Layer D — `cr_collision_birthday_bound`**: composition of A, B, C.
 
     After `lazy_init`, `RO_size = 0`. After `cr_loop q`, by Layer C the bound is
     `q(q-1)/(2N)`. The two final queries add at most `(q + (q+1))/N` (via Layer
     A applied twice). Total: `(q+2)(q+1)/(2N)`. -/
 lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
-    (cr_experiment q lazy_init lazy_query).wp
+    (cr_experiment cr_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => collision_indicator bσ.2) σ₀
     ≤ ((q + 2) * (q + 1) : ENNReal) / (2 * Fintype.card output) := by
   -- Set up notation
@@ -1044,7 +1046,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
   have h_RO_size_σ_1 : RO_size σ_1 = 0 := lazy_init_RO_size σ₀
   have h_collision_σ_1 : collision_indicator σ_1 = 0 := lazy_init_collision_indicator σ₀
   -- Define abbreviations for the nested wp's
-  -- Goal pattern: (cr_loop q lazy_query).wp (fun (_, σ_2) =>
+  -- Goal pattern: (cr_loop cr_adv q lazy_query).wp (fun (_, σ_2) =>
   --   (lazy_query x_v).wp (fun (_, σ_5) =>
   --     (lazy_query x'_v).wp (fun (_, σ_6) => collision_indicator σ_6) σ_5
   --   ) σ_2
@@ -1114,7 +1116,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
             ring
   -- Step 3: bound cr_loop q's wp of (collision + (2*RO_size + 1)/N).
   -- Use Layer C, B-iterated, and constant integral.
-  have step_outer : (cr_loop q lazy_query).wp
+  have step_outer : (cr_loop cr_adv q lazy_query).wp
       (fun yσ : Unit × state =>
         (lazy_query (claim_x.get yσ.2)).wp
           (fun yσ' : output × state =>
@@ -1122,39 +1124,39 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
               (fun yσ'' : output × state => collision_indicator yσ''.2) yσ'.2) yσ.2) σ_1
       ≤ collision_indicator σ_1 + (q * (2 * RO_size σ_1 + q - 1) : ENNReal) / (2 * N) +
         (2 * (RO_size σ_1 + q) + 1 : ENNReal) / N := by
-    calc _ ≤ (cr_loop q lazy_query).wp
+    calc _ ≤ (cr_loop cr_adv q lazy_query).wp
               (fun yσ : Unit × state =>
                 collision_indicator yσ.2 + (2 * RO_size yσ.2 + 1 : ENNReal) / N) σ_1 := by
               apply MeasureTheory.lintegral_mono
               intro yσ
               exact step_middle yσ.2
-      _ = (cr_loop q lazy_query).wp
+      _ = (cr_loop cr_adv q lazy_query).wp
             (fun yσ : Unit × state => collision_indicator yσ.2) σ_1 +
-          (cr_loop q lazy_query).wp
+          (cr_loop cr_adv q lazy_query).wp
             (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal) / N) σ_1 := by
             rw [Program.wp_add]
       _ ≤ (collision_indicator σ_1 +
             (q * (2 * RO_size σ_1 + q - 1) : ENNReal) / (2 * N)) +
-          (cr_loop q lazy_query).wp
+          (cr_loop cr_adv q lazy_query).wp
             (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal) / N) σ_1 := by
             gcongr
-            exact cr_loop_birthday_step q σ_1
+            exact cr_loop_birthday_step cr_adv h_cr_adv q σ_1
       _ ≤ (collision_indicator σ_1 +
             (q * (2 * RO_size σ_1 + q - 1) : ENNReal) / (2 * N)) +
           (2 * (RO_size σ_1 + q) + 1 : ENNReal) / N := by
             gcongr
             -- Bound the wp of (2*RO_size + 1)/N by (2*(RO_size+q) + 1)/N
-            calc (cr_loop q lazy_query).wp
+            calc (cr_loop cr_adv q lazy_query).wp
                     (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal) / N) σ_1
-                = (1 / N) * (cr_loop q lazy_query).wp
+                = (1 / N) * (cr_loop cr_adv q lazy_query).wp
                     (fun yσ : Unit × state => 2 * RO_size yσ.2 + 1) σ_1 := by
                   rw [show (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal) / N)
                        = (fun yσ : Unit × state => (1 / N) * (2 * RO_size yσ.2 + 1)) from by
                     funext yσ; rw [ENNReal.div_eq_inv_mul]; rw [one_div]]
                   rw [Program.wp_const_mul]
-              _ = (1 / N) * ((cr_loop q lazy_query).wp
+              _ = (1 / N) * ((cr_loop cr_adv q lazy_query).wp
                     (fun yσ : Unit × state => 2 * (RO_size yσ.2 : ENNReal)) σ_1 +
-                  (cr_loop q lazy_query).wp
+                  (cr_loop cr_adv q lazy_query).wp
                     (fun _ : Unit × state => 1) σ_1) := by
                   congr 1
                   rw [show (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal))
@@ -1167,8 +1169,8 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
                          = (fun yσ : Unit × state => 2 * (RO_size yσ.2 : ENNReal)) from rfl]
                     rw [Program.wp_const_mul]
                     apply mul_le_mul_left'
-                    exact cr_loop_RO_size_step q σ_1
-                  · exact Program.wp_const_le (cr_loop q lazy_query) 1 σ_1
+                    exact cr_loop_RO_size_step cr_adv h_cr_adv q σ_1
+                  · exact Program.wp_const_le (cr_loop cr_adv q lazy_query) 1 σ_1
               _ = (2 * (RO_size σ_1 + q) + 1 : ENNReal) / N := by
                   rw [one_div, ← ENNReal.div_eq_inv_mul]
   -- Step 4: substitute σ_1 values and finish arithmetic
@@ -1190,31 +1192,30 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
           cases q with
           | zero => push_cast; simp
           | succ n =>
-            rw [show ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) from by
-              push_cast
-              exact ENNReal.add_sub_cancel_right (by norm_num)]
+            rw [ENNReal.natCast_succ_sub_one]
             push_cast
             ring_nf
             rfl
 
+include h_cr_adv in
 /-- **Birthday bound** for the lazy CR experiment. Proved by composing
     the bookkeeping lemma with the probability bound. -/
 theorem cr_lazy_bound (q : ℕ) (σ₀ : state) :
-    ((cr_experiment q lazy_init lazy_query).wp
+    ((cr_experiment cr_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
     ≤ ((q + 2) * (q + 1) : ENNReal) / (2 * Fintype.card output) :=
-  le_trans (cr_true_implies_collision_wp q σ₀) (cr_collision_birthday_bound q σ₀)
+  le_trans (cr_true_implies_collision_wp cr_adv q σ₀)
+    (cr_collision_birthday_bound cr_adv h_cr_adv q σ₀)
 
+include h_cr_adv in
 /-- **Transfer of `cr_transfer` from the SubProb marginal level to the
     `wp` level**, for postconditions that depend only on the result bit
     `bσ.1`. This bridges Phase 2 and Phase 3 for `cr_eager_bound`. -/
 lemma cr_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
-    (cr_experiment q lazy_init lazy_query).wp
+    (cr_experiment cr_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀
-    = (cr_experiment q random_oracle_init random_oracle_query).wp
+    = (cr_experiment cr_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀ := by
-  -- Express each side's wp as `expected G` of the pushed-forward marginal.
-  -- Then `cr_transfer` directly gives the equality.
   have h_wp_to_marg : ∀ (p : Program state Bool) (σ : state),
       p.wp (fun bσ : Bool × state => G bσ.1) σ
         = (p σ >>= fun bσ : Bool × state =>
@@ -1227,13 +1228,17 @@ lemma cr_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
     congr 1
     funext bσ
     exact (expected_pure _).symm
-  rw [h_wp_to_marg, h_wp_to_marg, cr_transfer]
+  rw [h_wp_to_marg, h_wp_to_marg, cr_transfer cr_adv h_cr_adv]
 
+include h_cr_adv in
 /-- Birthday bound for the eager (true random oracle) game,
     obtained by transferring `cr_lazy_bound` via `cr_transfer`. -/
 theorem cr_eager_bound (q : ℕ) (σ₀ : state) :
-    ((cr_experiment q random_oracle_init random_oracle_query).wp
+    ((cr_experiment cr_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
     ≤ ((q + 2) * (q + 1) : ENNReal) / (2 * Fintype.card output) := by
-  rw [← cr_transfer_wp_of_bit q σ₀ (fun b => if b then (1 : ENNReal) else 0)]
-  exact cr_lazy_bound q σ₀
+  rw [← cr_transfer_wp_of_bit cr_adv h_cr_adv q σ₀
+        (fun b => if b then (1 : ENNReal) else 0)]
+  exact cr_lazy_bound cr_adv h_cr_adv q σ₀
+
+end CRParam
