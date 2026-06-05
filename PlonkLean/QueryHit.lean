@@ -2529,6 +2529,129 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       rw [h_aσ_lq_chal_x] at h_ih
       exact h_ih
 
+/-- The inner part of body (after adv and the two gets) doesn't read chal_x —
+    cx is captured as a value. Hence it's in chal_x.compl.range. -/
+private lemma body_inner_inRange_chal_x_compl (inp cx : input) :
+    ((if inp = cx then Program.set chal_x_queried true
+      else (pure () : Program state Unit)) >>= fun _ =>
+        lazy_query inp >>= fun y =>
+          Program.set oracle_output y).inRange ow_challenge_x.compl.range := by
+  refine Program.inRange_bind ?_ ?_
+  · by_cases h : inp = cx
+    · rw [if_pos h]
+      exact Program.inRange_mono (Program.inRange_set _ _)
+        (Lens.range_le_compl_of_disjoint chal_x_queried ow_challenge_x)
+    · rw [if_neg h]
+      exact Program.inRange_pure _ _
+  · intro _
+    exact lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp
+
+/-- `ow_loop_body_tracked` preserves chal_x value: at any body output state,
+    chal_x.get equals input's chal_x.get. -/
+private lemma ow_loop_body_tracked_preserves_chal_x_wp
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (F : Unit × state → ENNReal) (σ : state) :
+    (ow_loop_body_tracked ow_adv lazy_query).wp F σ
+    = (ow_loop_body_tracked ow_adv lazy_query).wp
+        (fun aσ : Unit × state =>
+          if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) σ := by
+  have h_lhs : (ow_loop_body_tracked ow_adv lazy_query).wp F σ
+      = ow_adv.wp (fun aσ_adv : Unit × state =>
+          (Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp F aσ_adv.2) σ := by
+    show (ow_adv >>= fun _ : Unit =>
+            Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp F σ = _
+    rw [wp_bind]
+  have h_rhs : (ow_loop_body_tracked ow_adv lazy_query).wp
+        (fun aσ : Unit × state =>
+          if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) σ
+      = ow_adv.wp (fun aσ_adv : Unit × state =>
+          (Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp
+            (fun aσ : Unit × state =>
+              if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0)
+            aσ_adv.2) σ := by
+    show (ow_adv >>= fun _ : Unit =>
+            Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp _ σ = _
+    rw [wp_bind]
+  rw [h_lhs, h_rhs]
+  rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x _ σ,
+      Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x
+        (fun aσ_adv : Unit × state =>
+          (Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp
+            (fun aσ : Unit × state =>
+              if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0)
+            aσ_adv.2) σ]
+  congr 1
+  funext aσ_adv
+  by_cases h_cx_pres : ow_challenge_x.get aσ_adv.2 = ow_challenge_x.get σ
+  swap
+  · simp only [if_neg h_cx_pres]
+  simp only [if_pos h_cx_pres]
+  show (Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp F aσ_adv.2
+      = (Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp
+        (fun aσ : Unit × state =>
+          if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0)
+        aσ_adv.2
+  conv_lhs => rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  simp only []
+  conv_lhs => rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  simp only []
+  set inp := oracle_input.get aσ_adv.2
+  set cx := ow_challenge_x.get aσ_adv.2
+  have h_inner_inRange : ((if inp = cx then
+      Program.set chal_x_queried true
+      else (pure () : Program state Unit)) >>= fun _ =>
+        lazy_query inp >>= fun y =>
+          Program.set oracle_output y).inRange ow_challenge_x.compl.range :=
+    body_inner_inRange_chal_x_compl inp cx
+  rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_inner_inRange _ aσ_adv.2,
+      Program.wp_strengthen_lens_preserved ow_challenge_x h_inner_inRange
+        (fun aσ : Unit × state =>
+          if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) aσ_adv.2]
+  congr 1
+  funext aσ_rest
+  by_cases h_cx_rest : ow_challenge_x.get aσ_rest.2 = ow_challenge_x.get aσ_adv.2
+  swap
+  · simp only [if_neg h_cx_rest]
+  simp only [if_pos h_cx_rest]
+  simp [if_pos (h_cx_rest.trans h_cx_pres)]
+
 /-- F'_x freshness analog of `ow_loop_tracked_lazy_query_freshness` for the
     indep indicator. -/
 private lemma ow_loop_tracked_lazy_query_freshness_indep
