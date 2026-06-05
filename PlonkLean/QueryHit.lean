@@ -1040,7 +1040,105 @@ private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
                               (fun k => if k = x then some y
                                        else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
       σ := by
-  sorry  -- RO-entry commutativity: needs careful wp unfold + case split on RO[inp].
+  haveI _disj_oo_ro : disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
+  -- State commute helper: oracle_output.set commutes with the RO setentry.
+  have h_state_eq : ∀ (v : output) (σ' : state),
+      oracle_output.set v (random_oracle_state.set
+        (fun k => if k = x then some y else random_oracle_state.get σ' k) σ')
+      = random_oracle_state.set
+        (fun k => if k = x then some y
+                  else random_oracle_state.get (oracle_output.set v σ') k)
+        (oracle_output.set v σ') := by
+    intro v σ'
+    rw [disjoint_oracle_output_ro.commute]
+    congr 1
+    funext k
+    by_cases hk : k = x
+    · simp only [if_pos hk]
+    · simp only [if_neg hk]
+      rw [random_oracle_state.get_of_disjoint_set]
+  -- Unfold (lazy_query inp >>= set oracle_output).wp via wp_bind, wp_set.
+  rw [wp_bind, wp_bind]
+  -- Now reduce the inner (set oracle_output ...).wp via funext + wp_set.
+  conv_lhs => rw [show (fun aσ_lq : output × state =>
+                          (Program.set oracle_output aσ_lq.1).wp F aσ_lq.2)
+                    = (fun aσ_lq : output × state =>
+                          F ((), oracle_output.set aσ_lq.1 aσ_lq.2))
+                  from by funext aσ_lq; rw [wp_set]]
+  conv_rhs => rw [show (fun aσ_lq : output × state =>
+                          (Program.set oracle_output aσ_lq.1).wp
+                            (fun aσ_lq' : Unit × state =>
+                              F (aσ_lq'.1, random_oracle_state.set
+                                (fun k => if k = x then some y
+                                          else random_oracle_state.get aσ_lq'.2 k) aσ_lq'.2))
+                            aσ_lq.2)
+                    = (fun aσ_lq : output × state =>
+                          F ((), random_oracle_state.set
+                            (fun k => if k = x then some y
+                                      else random_oracle_state.get
+                                            (oracle_output.set aσ_lq.1 aσ_lq.2) k)
+                            (oracle_output.set aσ_lq.1 aσ_lq.2)))
+                  from by funext aσ_lq; rw [wp_set]]
+  -- Set σ_xy abbreviation.
+  set σ_xy : state := random_oracle_state.set
+    (fun k => if k = x then some y else random_oracle_state.get σ k) σ with σ_xy_def
+  -- RO.get σ_xy at inp = σ.RO at inp (since inp ≠ x).
+  have h_RO_xy_inp : random_oracle_state.get σ_xy inp = random_oracle_state.get σ inp := by
+    show random_oracle_state.get (random_oracle_state.set _ σ) inp
+        = random_oracle_state.get σ inp
+    rw [random_oracle_state.set_get, if_neg h_neq]
+  -- Unfold lazy_query on both sides via simp.
+  simp only [lazy_query, wp_bind, wp_get]
+  rw [h_RO_xy_inp]
+  -- Case split on σ.RO inp.
+  cases h_eq : random_oracle_state.get σ inp with
+  | some v =>
+    simp only [wp_pure]
+    congr 1
+    rw [σ_xy_def, h_state_eq v σ]
+  | none =>
+    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
+    -- Both sides: (1/|output|) ∑ v F((), state_v).
+    -- Per-v: state_LHS(v) = state_RHS(v) by setentry commute + h_state_eq.
+    -- Setentry commute: RO_setentry inp v (RO_setentry x y σ) = RO_setentry x y (RO_setentry inp v σ).
+    have h_setentry_commute : ∀ v : output,
+        random_oracle_state.set
+          (fun k => if k = inp then some v
+                    else random_oracle_state.get (random_oracle_state.set
+                          (fun k' => if k' = x then some y else random_oracle_state.get σ k') σ) k)
+          (random_oracle_state.set
+            (fun k' => if k' = x then some y else random_oracle_state.get σ k') σ)
+        = random_oracle_state.set
+          (fun k => if k = x then some y else random_oracle_state.get
+              (random_oracle_state.set
+                (fun k' => if k' = inp then some v else random_oracle_state.get σ k') σ) k)
+          (random_oracle_state.set
+            (fun k => if k = inp then some v else random_oracle_state.get σ k) σ) := by
+      intro v
+      rw [random_oracle_state.set_set, random_oracle_state.set_set]
+      congr 1
+      funext k
+      simp only [random_oracle_state.set_get]
+      by_cases hk_x : k = x
+      · by_cases hk_inp : k = inp
+        · exfalso; exact h_neq (hk_inp.symm.trans hk_x)
+        · simp [if_pos hk_x, if_neg hk_inp]
+      · by_cases hk_inp : k = inp
+        · simp [if_neg hk_x, if_pos hk_inp]
+        · simp [if_neg hk_x, if_neg hk_inp]
+    -- Use h_setentry_commute + h_state_eq to show per-v equality.
+    congr 1
+    funext v
+    -- Goal: F((), oracle_output.set v (RO_setentry inp v σ_xy))
+    --     = F((), RO_setentry x y (oracle_output.set v (RO_setentry inp v σ)))
+    congr 1
+    -- Goal: ((), state_LHS) = ((), state_RHS)
+    congr 1
+    -- Goal: state_LHS = state_RHS
+    rw [σ_xy_def, h_setentry_commute v]
+    rw [← h_state_eq v
+      (random_oracle_state.set
+        (fun k => if k = inp then some v else random_oracle_state.get σ k) σ)]
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
