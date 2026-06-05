@@ -342,6 +342,30 @@ def reduction_step [ProgramSpec] (m : MExpr' Δ t) (nn : ¬ Normal m) : MExpr' �
         .snd (reduction_step m' nn')
   | .var n => absurd (.neutral .var) nn
 
+/-- Non-deterministic single-step reduction: all possible one-step reductions. -/
+inductive reduction_step_nd [ProgramSpec] : MExpr' Δ T → MExpr' Δ T → Prop where
+  | beta    {body : MExpr' (MCtx.append Δ A) T} {arg : MExpr' Δ A} :
+      reduction_step_nd (.app (.abs body) arg) (subst body arg)
+  | appL    {f f' : MExpr' Δ (.arr A T)} {arg : MExpr' Δ A} :
+      reduction_step_nd f f' → reduction_step_nd (.app f arg) (.app f' arg)
+  | appR    {f : MExpr' Δ (.arr A T)} {arg arg' : MExpr' Δ A} :
+      reduction_step_nd arg arg' → reduction_step_nd (.app f arg) (.app f arg')
+  | lam     {body body' : MExpr' (MCtx.append Δ A) B} :
+      reduction_step_nd body body' → reduction_step_nd (.abs body) (.abs body')
+  | pairL   {a a' : MExpr' Δ A} {b : MExpr' Δ B} :
+      reduction_step_nd a a' → reduction_step_nd (.pair a b) (.pair a' b)
+  | pairR   {a : MExpr' Δ A} {b b' : MExpr' Δ B} :
+      reduction_step_nd b b' → reduction_step_nd (.pair a b) (.pair a b')
+  | fstPair {a : MExpr' Δ A} {b : MExpr' Δ B} :
+      reduction_step_nd (.fst (.pair a b)) a
+  | fst     {e e' : MExpr' Δ (.prod A T)} :
+      reduction_step_nd e e' → reduction_step_nd (.fst e) (.fst e')
+  | sndPair {a : MExpr' Δ A} {b : MExpr' Δ B} :
+      reduction_step_nd (.snd (.pair a b)) b
+  | snd     {e e' : MExpr' Δ (.prod A T)} :
+      reduction_step_nd e e' → reduction_step_nd (.snd e) (.snd e')
+
+
 
 private lemma mexprToSTLC_rename_shift [ProgramSpec] (d : Nat)
     {Δ : MCtx} {T : MTy} (m : MExpr' Δ T) :
@@ -646,43 +670,20 @@ theorem reduction_step_preservation [ProgramSpec] {R : ∀ {Γ T}, MExpr' Γ T �
        exact pair_right _ _ _ (ihq nn2)
      · exact pair_left _ _ _ (ihp h_nn1)
 
-/- theorem reduce_induction'  [ProgramSpec] {R : ∀ {Γ T}, MExpr' Γ T → MExpr' Γ T → Prop}
- (refl: ∀ Γ T, Std.Refl (@R Γ T))
- (trans: ∀ Γ T, Transitive (@R Γ T))
- -- TODO R reflexive, transitive
- (pair_left : ∀ {Γ T U} (m1 m1' : MExpr' Γ T) (m2 : MExpr' Γ U),
-              R m1 m1' → R (.pair m1 m2) (.pair m1' m2))
- (pair_right : ∀ {Γ T U} (m1 : MExpr' Γ T) (m2 m2' : MExpr' Γ U),
-               R m2 m2' → R (.pair m1 m2) (.pair m1 m2'))
- (app_left : ∀ {Γ T U} (m1 m1' : MExpr' Γ (.arr T U)) (m2 : MExpr' Γ T),
-               R m1 m1' → R (.app m1 m2) (.app m1' m2))
- (app_right : ∀ {Γ T U} (m1 : MExpr' Γ (.arr T U)) (m2 m2' : MExpr' Γ T),
-              R m2 m2' → R (.app m1 m2) (.app m1 m2'))
- (app_beta : ∀ {Γ T U} (body : MExpr' (.append Γ T) U) (arg : MExpr' Γ T),
-              R (.app (.abs body) arg) (subst body arg))
- (abs : ∀ {Γ T U} (body body' : MExpr' (.append Γ T) U), R body body' → R (.abs body) (.abs body'))
- (fst : ∀ {Γ T U} (m m' : MExpr' Γ (.prod T U)), R m m' → R (.fst m) (.fst m'))
- (fst_beta : ∀ {Γ T U} (a : MExpr' Γ T) (b : MExpr' Γ U), R (.fst (.pair a b)) a)
- (snd : ∀ {Γ T U} (m m' : MExpr' Γ (.prod T U)), R m m' → R (.snd m) (.snd m'))
- (snd_beta : ∀ {Γ T U} (a : MExpr' Γ T) (b : MExpr' Γ U), R (.snd (.pair a b)) b)
- :
- ∀ (m : MExpr' Γ T), R m (reduce m) := by
-  intro m
-  -- let P m := R m' m
-  apply reduce_induction (P := fun m' => R m m')
-  case base m' normal =>
-     intro m' h_normal
-     have : R m' m' := refl
-  intro m' nn Rmm'
-  have Rm'step : R m' (reduction_step m' nn) := reduction_step_preservation pair_left pair_right app_left app_right app_beta abs fst fst_beta snd snd_beta m' nn
-
-
-  induction m using reduce_induction
-  case step  =>
-
-  case step _ m' Pm =>
-    have : R m' (reduction_step m' nn) := reduction_step_preservation pair_left pair_right app_left app_right app_beta abs fst fst_beta snd snd_beta m' nn
- -/
+theorem reduction_step_is_nd [ProgramSpec] (m : MExpr' Γ T) (nn : ¬ Normal m) :
+    reduction_step_nd m (reduction_step m nn) :=
+  reduction_step_preservation (R := reduction_step_nd)
+    (pair_left  := fun _ _ _ h => .pairL h)
+    (pair_right := fun _ _ _ h => .pairR h)
+    (app_left   := fun _ _ _ h => .appL h)
+    (app_right  := fun _ _ _ h => .appR h)
+    (app_beta   := fun _ _     => .beta)
+    (abs        := fun _ _ h   => .lam h)
+    (fst        := fun _ _ h   => .fst h)
+    (fst_beta   := fun _ _     => .fstPair)
+    (snd        := fun _ _ h   => .snd h)
+    (snd_beta   := fun _ _     => .sndPair)
+    m nn
 
 theorem reduceNormal [ProgramSpec] (m : MExpr' Δ t) : Normal (reduce m) := by
   apply WellFoundedRelation.wf.induction (C := fun m => Normal (reduce m)) m
@@ -734,18 +735,30 @@ def moduleEqual [ProgramSpec] (a : MExpr' Δ t) b := reduce a = reduce b
 
 @[simp]
 theorem reduce_fst [ProgramSpec] (m : MExpr' Γ T) (m' : MExpr' Γ T') :
-  reduce (MExpr'.fst (MExpr'.pair m m')) = reduce m := sorry
+  reduce (MExpr'.fst (MExpr'.pair m m')) = reduce m := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | fst ne' => exact nomatch ne'
+  · rfl
 
 @[simp]
 theorem reduce_snd [ProgramSpec] (m : MExpr' Γ T) (m' : MExpr' Γ T') :
-  reduce (MExpr'.snd (MExpr'.pair m m')) = reduce m' := sorry
+  reduce (MExpr'.snd (MExpr'.pair m m')) = reduce m' := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | snd ne' => exact nomatch ne'
+  · rfl
 
 theorem reduce_app [ProgramSpec] (m : MExpr' Γ (.arr T U)) (m' : MExpr' Γ T) :
   reduce (MExpr'.app m m') = reduce (MExpr'.app (reduce m) (reduce m')) := sorry
 
 @[simp]
 theorem reduce_beta [ProgramSpec] (body : MExpr' (Γ.append T) U) (arg : MExpr' Γ T) :
-  reduce (MExpr'.app (MExpr'.abs body) arg) = reduce (subst body arg) := sorry
+  reduce (MExpr'.app (MExpr'.abs body) arg) = reduce (subst body arg) := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | app ne' _ => exact nomatch ne'
+  · rfl
 
 -- TODO: How to tell the simplifier to use these theorems? Maybe need to mark them as congruence rule?
 -- => Investigate @[gcongr]
