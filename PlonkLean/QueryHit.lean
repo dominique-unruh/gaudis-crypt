@@ -2158,6 +2158,321 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     exact h_ih_at_lqo
 
 include h_ow_adv_chal_x_queried in
+/-- **F'_x averaged RO invariance**: pre-setting `RO[chal_x.get σ] = y` (uniform y)
+    is equivalent (averaged over y) to no pre-set entry, when the post is
+    `[resp = chal_x.get σ ∧ ¬cxq]`.
+
+    Mirrors `ow_loop_tracked_chal_x_queried_RO_invariance_avg` but with a
+    different post. HIT case is simpler: cxq=true at end ⟹ post=0 on both
+    sides via strengthened sum lemma. -/
+private lemma ow_loop_tracked_indep_RO_invariance_avg
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_ow_adv_chal_x_queried' : ow_adv.inRange chal_x_queried.compl.range) :
+    ∀ (q : ℕ) (σ : state),
+    chal_x_queried.get σ = false →
+    random_oracle_state.get σ (ow_challenge_x.get σ) = none →
+    (1 : ENNReal) / Fintype.card output *
+      ∑ y : output, (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if ow_response.get aσ.2 = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get aσ.2
+          then (1 : ENNReal) else 0)
+        (random_oracle_state.set
+          (fun k => if k = ow_challenge_x.get σ then some y
+                    else random_oracle_state.get σ k) σ)
+    = (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if ow_response.get aσ.2 = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get aσ.2
+          then (1 : ENNReal) else 0) σ := by
+  intro q
+  induction q with
+  | zero =>
+    intro σ h_qf h_ro
+    show (1 : ENNReal) / Fintype.card output *
+        ∑ y : output, (Pure.pure () : Program state Unit).wp _ _
+      = (Pure.pure () : Program state Unit).wp _ _
+    simp_rw [wp_pure]
+    -- RO_setentry preserves resp.get and cxq.get (RO ⟂ resp, RO ⟂ cxq).
+    have h_resp_unchanged : ∀ y : output,
+        ow_response.get (random_oracle_state.set
+          (fun k => if k = ow_challenge_x.get σ then some y
+                    else random_oracle_state.get σ k) σ)
+        = ow_response.get σ := by
+      intro y
+      rw [ow_response.get_of_disjoint_set]
+    have h_cxq_unchanged : ∀ y : output,
+        chal_x_queried.get (random_oracle_state.set
+          (fun k => if k = ow_challenge_x.get σ then some y
+                    else random_oracle_state.get σ k) σ)
+        = chal_x_queried.get σ := by
+      intro y
+      rw [chal_x_queried.get_of_disjoint_set]
+    simp_rw [h_resp_unchanged, h_cxq_unchanged]
+    -- ∑ over y of a constant.
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+    -- Goal: (1/|output|) * (|output| * indicator) = indicator
+    rw [← mul_assoc, mul_comm (1 / _) _, mul_one_div,
+        ENNReal.div_self
+          (by exact_mod_cast Fintype.card_pos.ne')
+          (by simp [ENNReal.natCast_ne_top]), one_mul]
+  | succ q ih =>
+    intro σ h_qf h_ro
+    set x := ow_challenge_x.get σ with x_def
+    set F : Unit × state → ENNReal :=
+      fun aσ : Unit × state =>
+        if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+        then (1 : ENNReal) else 0 with hF_def
+    set G : Unit × state → ENNReal :=
+      fun aσ_b : Unit × state => (ow_loop_tracked ow_adv q lazy_query).wp F aσ_b.2 with hG_def
+    -- Reduce loop_{q+1} = body >>= loop_q on both sides.
+    have h_unfold : ∀ σ' : state,
+        (ow_loop_tracked ow_adv (q+1) lazy_query).wp F σ'
+        = (ow_loop_body_tracked ow_adv lazy_query).wp G σ' := by
+      intro σ'
+      show (ow_loop_body_tracked ow_adv lazy_query >>= fun _ : Unit =>
+              ow_loop_tracked ow_adv q lazy_query).wp F σ' = _
+      rw [wp_bind]
+    simp_rw [h_unfold]
+    -- body = adv >>= post_adv. Apply wp_bind.
+    have h_body_unfold : ∀ σ' : state,
+        (ow_loop_body_tracked ow_adv lazy_query).wp G σ'
+        = ow_adv.wp (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp G aσ_adv.2) σ' := by
+      intro σ'
+      show (ow_adv >>= fun _ : Unit =>
+              Program.get oracle_input >>= fun inp =>
+                Program.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then Program.set chal_x_queried true
+                   else (pure () : Program state Unit)) >>= fun _ =>
+                    lazy_query inp >>= fun y =>
+                      Program.set oracle_output y).wp G σ' = _
+      rw [wp_bind]
+    simp_rw [h_body_unfold]
+    -- Apply wp_shift_input on adv with shift = RO_setentry x y.
+    have h_shift : ∀ y' : output,
+        ow_adv.wp (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp G aσ_adv.2)
+            (random_oracle_state.set
+              (fun k => if k = x then some y'
+                        else random_oracle_state.get σ k) σ)
+        = ow_adv.wp (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp G
+              (random_oracle_state.set
+                (fun k => if k = x then some y'
+                          else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)) σ := by
+      intro y'
+      have h_shift_in : (fun σ' => random_oracle_state.set
+          (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
+          ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
+        rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
+            = random_oracle_state.range from by
+          rw [LensRange.complement_range, LensRange.compl_compl]]
+        exact ⟨fun h => fun k => if k = x then some y' else h k, Set.mem_univ _, rfl⟩
+      exact Program.wp_shift_input h_ow_adv h_shift_in _ σ
+    simp_rw [h_shift]
+    -- Pull sum and 1/|output| inside ow_adv.wp.
+    rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+    -- Apply wp_strengthen_lens_preserved 3x: RO, ow_challenge_x, chal_x_queried.
+    rw [Program.wp_strengthen_lens_preserved random_oracle_state h_ow_adv _ σ,
+        Program.wp_strengthen_lens_preserved random_oracle_state h_ow_adv
+          (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+                Program.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then Program.set chal_x_queried true
+                   else (pure () : Program state Unit)) >>= fun _ =>
+                    lazy_query inp >>= fun y_lq =>
+                      Program.set oracle_output y_lq).wp G aσ_adv.2) σ]
+    rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x _ σ,
+        Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x
+          (fun aσ_adv : Unit × state =>
+            if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
+              (Program.get oracle_input >>= fun inp =>
+                  Program.get ow_challenge_x >>= fun cx =>
+                    (if inp = cx then Program.set chal_x_queried true
+                     else (pure () : Program state Unit)) >>= fun _ =>
+                      lazy_query inp >>= fun y_lq =>
+                        Program.set oracle_output y_lq).wp G aσ_adv.2
+            else 0) σ]
+    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried' _ σ,
+        Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried'
+          (fun aσ_adv : Unit × state =>
+            if ow_challenge_x.get aσ_adv.2 = ow_challenge_x.get σ then
+              if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
+                (Program.get oracle_input >>= fun inp =>
+                    Program.get ow_challenge_x >>= fun cx =>
+                      (if inp = cx then Program.set chal_x_queried true
+                       else (pure () : Program state Unit)) >>= fun _ =>
+                        lazy_query inp >>= fun y_lq =>
+                          Program.set oracle_output y_lq).wp G aσ_adv.2
+              else 0
+            else 0) σ]
+    apply congrArg (fun P => ow_adv.wp P σ)
+    funext aσ_adv
+    by_cases h_cxq_pres : chal_x_queried.get aσ_adv.2 = chal_x_queried.get σ
+    swap
+    · simp only [if_neg h_cxq_pres]
+    simp only [if_pos h_cxq_pres]
+    by_cases h_cx_pres : ow_challenge_x.get aσ_adv.2 = ow_challenge_x.get σ
+    swap
+    · simp only [if_neg h_cx_pres]
+    simp only [if_pos h_cx_pres]
+    by_cases h_ro_pres : random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ
+    swap
+    · simp only [if_neg h_ro_pres]
+    simp only [if_pos h_ro_pres]
+    have h_aσ_adv_chal_x : ow_challenge_x.get aσ_adv.2 = x := h_cx_pres
+    have h_aσ_adv_ro_x : random_oracle_state.get aσ_adv.2 x = none := by
+      rw [h_ro_pres]; exact h_ro
+    have h_aσ_adv_cxq : chal_x_queried.get aσ_adv.2 = false := by
+      rw [h_cxq_pres]; exact h_qf
+    -- Goal: (1/|output|) ∑ y, post_adv.wp G (RO_setentry x y aσ_adv.2) = post_adv.wp G aσ_adv.2.
+    -- Step 1: unfold post_adv via wp_bind + wp_get.
+    simp only [wp_bind, wp_get]
+    haveI _disj_ro_oi : disjoint random_oracle_state oracle_input :=
+      disjoint_oracle_input_ro.symm
+    have h_oi_RO : ∀ y_arg : output,
+        oracle_input.get (random_oracle_state.set
+          (fun k => if k = x then some y_arg
+                    else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
+        = oracle_input.get aσ_adv.2 := by
+      intro _; rw [oracle_input.get_of_disjoint_set]
+    have h_cx_RO : ∀ y_arg : output,
+        ow_challenge_x.get (random_oracle_state.set
+          (fun k => if k = x then some y_arg
+                    else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
+        = ow_challenge_x.get aσ_adv.2 := by
+      intro _; rw [ow_challenge_x.get_of_disjoint_set]
+    simp_rw [h_oi_RO, h_cx_RO, h_aσ_adv_chal_x]
+    set inp_a := oracle_input.get aσ_adv.2 with inp_a_def
+    by_cases h_inp : inp_a = x
+    · -- HIT case (inp_a = x): both LHS and RHS = 0 via strengthened sum lemma at cxq=true.
+      simp only [if_pos h_inp]
+      rw [h_inp]
+      simp only [wp_bind, wp_set]
+      -- LHS state at chal_x_queried.set true (RO_setentry x y aσ_adv.2)
+      --      = RO_setentry x y (chal_x_queried.set true aσ_adv.2) (by disjoint commute).
+      haveI _disj_cxq_ro : disjoint chal_x_queried random_oracle_state :=
+        disjoint_chal_x_queried_ro
+      have h_commute_LHS : ∀ y_arg : output,
+          chal_x_queried.set true
+            (random_oracle_state.set
+              (fun k => if k = x then some y_arg
+                        else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
+          = random_oracle_state.set
+              (fun k => if k = x then some y_arg
+                        else random_oracle_state.get (chal_x_queried.set true aσ_adv.2) k)
+              (chal_x_queried.set true aσ_adv.2) := by
+        intro y_arg
+        rw [_disj_cxq_ro.commute]
+        congr 1
+        funext k
+        rw [random_oracle_state.get_of_disjoint_set chal_x_queried true aσ_adv.2]
+      simp_rw [h_commute_LHS]
+      -- Helper: (lazy_query x; set oo).wp G at cxq=true, chal_x=x state = 0.
+      -- Uses strengthened sum lemma.
+      have h_lqso_inRange_cx_compl :
+          (lazy_query x >>= fun y => Program.set oracle_output y).inRange
+              ow_challenge_x.compl.range :=
+        lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl x
+      have h_lqso_inRange_cxq_compl :
+          (lazy_query x >>= fun y => Program.set oracle_output y).inRange
+              chal_x_queried.compl.range :=
+        lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl x
+      -- Bridge: (lazy_query x; set oo).wp G σ = (lazy_query x).wp (fun aσ => G ((), oo.set ...)) σ.
+      have h_bridge : ∀ σ_in : state,
+          (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G σ_in
+          = (lazy_query x).wp
+            (fun x_1 : output × state => G ((), oracle_output.set x_1.1 x_1.2)) σ_in := by
+        intro σ_in
+        rw [wp_bind]
+        congr 1
+        funext aσ_lq
+        simp only [wp_set]
+      have h_zero_at_cxq_true : ∀ σ_in : state,
+          chal_x_queried.get σ_in = true →
+          ow_challenge_x.get σ_in = x →
+          (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G σ_in = 0 := by
+        intro σ_in h_cxq_in h_cx_in
+        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ σ_in]
+        rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_lqso_inRange_cx_compl _ σ_in]
+        refine le_antisymm ?_ (zero_le _)
+        refine le_trans
+          (Program.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ σ_in)
+          (Program.wp_const_le _ _ _)
+        intro aσ_lqo
+        by_cases h_cx_lq : ow_challenge_x.get aσ_lqo.2 = ow_challenge_x.get σ_in
+        swap
+        · simp only [if_neg h_cx_lq]; rfl
+        simp only [if_pos h_cx_lq]
+        by_cases h_cxq_lq : chal_x_queried.get aσ_lqo.2 = chal_x_queried.get σ_in
+        swap
+        · simp only [if_neg h_cxq_lq]; rfl
+        simp only [if_pos h_cxq_lq]
+        have h_aσ_lqo_chal_x : ow_challenge_x.get aσ_lqo.2 = x := h_cx_lq.trans h_cx_in
+        have h_aσ_lqo_cxq : chal_x_queried.get aσ_lqo.2 = true := h_cxq_lq.trans h_cxq_in
+        -- Apply strengthened sum lemma at aσ_lqo.2 (cxq=true).
+        have h_sum := ow_loop_tracked_indep_sum_le_strong ow_adv h_ow_adv_chal_x_queried'
+          h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x q aσ_lqo.2
+        rw [if_pos h_aσ_lqo_cxq] at h_sum
+        -- For x' = x = chal_x.get aσ_lqo.2: chal_x.set x aσ_lqo.2 = aσ_lqo.2.
+        have h_set_eq : ow_challenge_x.set x aσ_lqo.2 = aσ_lqo.2 := by
+          rw [← h_aσ_lqo_chal_x]; exact ow_challenge_x.get_set aσ_lqo.2
+        -- G aσ_lqo = loop_q.wp F aσ_lqo.2 ≤ ∑ x', loop_q.wp F'_x' (chal_x.set x' aσ_lqo.2) ≤ 0.
+        show (ow_loop_tracked ow_adv q lazy_query).wp F aσ_lqo.2 ≤ 0
+        have h_term_le_sum :
+            (ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x aσ_lqo.2)
+            ≤ ∑ x' : input, (ow_loop_tracked ow_adv q lazy_query).wp
+              (fun aσ : Unit × state =>
+                if ow_response.get aσ.2 = x' ∧ ¬ chal_x_queried.get aσ.2
+                then (1 : ENNReal) else 0)
+              (ow_challenge_x.set x' aσ_lqo.2) :=
+          Finset.single_le_sum (f := fun x' => (ow_loop_tracked ow_adv q lazy_query).wp
+              (fun aσ : Unit × state =>
+                if ow_response.get aσ.2 = x' ∧ ¬ chal_x_queried.get aσ.2
+                then (1 : ENNReal) else 0)
+              (ow_challenge_x.set x' aσ_lqo.2)) (fun _ _ => zero_le _) (Finset.mem_univ x)
+        rw [h_set_eq] at h_term_le_sum
+        exact le_trans h_term_le_sum h_sum
+      -- Apply h_zero_at_cxq_true on both sides.
+      have h_LHS_zero : ∀ y_arg : output,
+          (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G
+            (random_oracle_state.set
+              (fun k => if k = x then some y_arg
+                        else random_oracle_state.get (chal_x_queried.set true aσ_adv.2) k)
+              (chal_x_queried.set true aσ_adv.2)) = 0 := by
+        intro y_arg
+        apply h_zero_at_cxq_true
+        · rw [chal_x_queried.get_of_disjoint_set, chal_x_queried.set_get]
+        · rw [ow_challenge_x.get_of_disjoint_set, ow_challenge_x.get_of_disjoint_set]
+          exact h_aσ_adv_chal_x
+      have h_RHS_zero : (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G
+          (chal_x_queried.set true aσ_adv.2) = 0 := by
+        apply h_zero_at_cxq_true
+        · rw [chal_x_queried.set_get]
+        · rw [ow_challenge_x.get_of_disjoint_set]
+          exact h_aσ_adv_chal_x
+      simp_rw [← h_bridge]
+      rw [Finset.sum_eq_zero (fun y _ => h_LHS_zero y), mul_zero, h_RHS_zero]
+    · -- MISS case (inp_a ≠ x): RO_setentry_commute + IH.
+      sorry  -- MISS case
+
+include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
     the adversary's response equals `ow_challenge_x` with probability
     at most `1/|input|`.
