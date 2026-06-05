@@ -1011,12 +1011,38 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     have h_aσ_lq_qf : chal_x_queried.get aσ_lq.2 = false := h_cxq_lq.trans h_aσ_adv_qf
     exact ih aσ_lq.2 h_aσ_lq_qf
 
+/-- **Lazy-query freshness invariance** for the chal_x_queried indicator:
+    pre-setting `RO[x] = y` (uniform y) is equivalent (averaged over y) to
+    no pre-set entry, when the post is the chal_x_queried indicator.
+
+    Intuition: the indicator only depends on WHETHER adv queried x, not on
+    the response value. Adv's pre-x-query behavior is independent of RO[x].
+    So the iter of first hit (if any) has the same distribution. -/
+private lemma ow_loop_tracked_lazy_query_freshness
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (x : input) (σ : state)
+    (h_σ_qf : chal_x_queried.get σ = false)
+    (h_σ_ro : random_oracle_state.get σ x = none) :
+    (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+        ow_loop_tracked ow_adv q lazy_query).wp
+      (fun aσ : Unit × state =>
+        if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
+      (ow_challenge_x.set x σ)
+    = (ow_loop_tracked ow_adv q lazy_query).wp
+      (fun aσ : Unit × state =>
+        if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
+      (ow_challenge_x.set x σ) := by
+  sorry  -- Lazy-query freshness — coupling argument; deferred sampling.
+
 include h_ow_adv_chal_x_queried in
 /-- **Layer C_obs**: the probability that `chal_x_queried` is set during the
     tracked experiment is at most `q/|input|`.
 
-    This is the union bound: each of the `q` loop iterations has at most
-    `1/|input|` probability of "hitting" the uniformly-sampled `ow_challenge_x`. -/
+    Reduction: use lazy-query freshness invariance to drop the pre-loop's
+    `lazy_query x` (which only affects RO[x] = chal_y), then apply the
+    strengthened sum lemma. -/
 lemma ow_experiment_tracked_chal_x_queried_bound
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
@@ -1026,7 +1052,7 @@ lemma ow_experiment_tracked_chal_x_queried_bound
         (fun bσ : Bool × state =>
           if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ₀
     ≤ (q : ENNReal) / Fintype.card input := by
-  sorry  -- Reduce to the strengthened sum lemma via wp_uniform.
+  sorry  -- Compose freshness + sum lemma + wp_uniform.
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
