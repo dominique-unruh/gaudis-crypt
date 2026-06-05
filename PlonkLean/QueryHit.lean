@@ -1506,50 +1506,6 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       rw [h_aσ_lq_chal_x] at h_ih
       exact h_ih
 
-/-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
-    indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
-    `RO[x] = none`) doesn't change the loop's wp of the indicator.
-
-    Intuition: the indicator only depends on whether adv queried `x`.
-    Adv's pre-x-query behavior is independent of `RO[x]` (since adv hasn't
-    seen its value). The probability of "adv queries x at some iter" is
-    the same.
-
-    NOTE: the *pointwise* (per y) version stated here may not hold without
-    an adversary-termination assumption (`ow_adv.wp (fun _ => 1) σ = 1`)
-    because adv's mass at a state with `oracle_output = y` may depend on y.
-    The *averaged* version (`(1/|output|) ∑ y, … = …`) is what's actually
-    needed for the experiment-level bound, and it IS provable without
-    extra hypotheses via variable renaming in the `inp = x` body case. -/
-private lemma ow_loop_tracked_chal_x_queried_RO_invariance
-    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range) :
-    ∀ (q : ℕ) (σ : state) (y : output),
-    chal_x_queried.get σ = false →
-    random_oracle_state.get σ (ow_challenge_x.get σ) = none →
-    (ow_loop_tracked ow_adv q lazy_query).wp
-        (fun aσ : Unit × state =>
-          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0) σ
-    = (ow_loop_tracked ow_adv q lazy_query).wp
-        (fun aσ : Unit × state =>
-          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
-        (random_oracle_state.set
-          (fun k => if k = ow_challenge_x.get σ then some y
-                    else random_oracle_state.get σ k) σ) := by
-  intro q
-  induction q with
-  | zero =>
-    intro σ y h_qf h_ro
-    show (Pure.pure () : Program state Unit).wp _ σ
-        = (Pure.pure () : Program state Unit).wp _ _
-    simp only [wp_pure]
-    -- chal_x_queried.get unchanged by RO write (disjointness).
-    rw [chal_x_queried.get_of_disjoint_set]
-  | succ q ih =>
-    intro σ y h_qf h_ro
-    sorry  -- Inductive step: wp_shift_input on adv + post_adv case analysis + IH.
-
 /-- **Lazy-query freshness invariance** for the chal_x_queried indicator:
     pre-setting `RO[x] = y` (uniform y) is equivalent (averaged over y) to
     no pre-set entry, when the post is the chal_x_queried indicator.
