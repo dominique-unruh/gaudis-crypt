@@ -2470,7 +2470,64 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       simp_rw [← h_bridge]
       rw [Finset.sum_eq_zero (fun y _ => h_LHS_zero y), mul_zero, h_RHS_zero]
     · -- MISS case (inp_a ≠ x): RO_setentry_commute + IH.
-      sorry  -- MISS case
+      simp only [if_neg h_inp]
+      simp only [wp_pure]
+      simp_rw [← wp_bind]
+      have h_commute : ∀ y_arg : output,
+          (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp G
+            (random_oracle_state.set
+              (fun k => if k = x then some y_arg
+                        else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
+          = (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp
+              (fun aσ_lq => G (aσ_lq.1, random_oracle_state.set
+                                      (fun k => if k = x then some y_arg
+                                               else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
+              aσ_adv.2 :=
+        fun y_arg => RO_setentry_neq_commutes_lazy_query_set_oracle_output
+          inp_a x h_inp y_arg aσ_adv.2 G
+      simp_rw [h_commute]
+      rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+      have h_inRange_cxq : (lazy_query inp_a >>= fun y_lq =>
+          Program.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
+        lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp_a
+      have h_inRange_cx : (lazy_query inp_a >>= fun y_lq =>
+          Program.set oracle_output y_lq).inRange ow_challenge_x.compl.range :=
+        lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp_a
+      conv_lhs =>
+        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
+            Program.wp_strengthen_lens_preserved ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
+      conv_rhs =>
+        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
+            Program.wp_strengthen_lens_preserved ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
+      congr 1
+      funext aσ_lq
+      by_cases h_ro_lq : random_oracle_state.get aσ_lq.2 x
+          = random_oracle_state.get aσ_adv.2 x
+      swap
+      · simp only [if_neg h_ro_lq]
+      simp only [if_pos h_ro_lq]
+      by_cases h_cx_lq : ow_challenge_x.get aσ_lq.2 = ow_challenge_x.get aσ_adv.2
+      swap
+      · simp only [if_neg h_cx_lq]
+      simp only [if_pos h_cx_lq]
+      by_cases h_cxq_lq : chal_x_queried.get aσ_lq.2 = chal_x_queried.get aσ_adv.2
+      swap
+      · simp only [if_neg h_cxq_lq]
+      simp only [if_pos h_cxq_lq]
+      have h_aσ_lq_cxq : chal_x_queried.get aσ_lq.2 = false :=
+        h_cxq_lq.trans h_aσ_adv_cxq
+      have h_aσ_lq_chal_x : ow_challenge_x.get aσ_lq.2 = x :=
+        h_cx_lq.trans h_aσ_adv_chal_x
+      have h_aσ_lq_ro_x : random_oracle_state.get aσ_lq.2 x = none :=
+        h_ro_lq.trans h_aσ_adv_ro_x
+      have h_aσ_lq_ro_chal_x : random_oracle_state.get aσ_lq.2
+          (ow_challenge_x.get aσ_lq.2) = none := by
+        rw [h_aσ_lq_chal_x]; exact h_aσ_lq_ro_x
+      have h_ih := ih aσ_lq.2 h_aσ_lq_cxq h_aσ_lq_ro_chal_x
+      rw [h_aσ_lq_chal_x] at h_ih
+      exact h_ih
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
