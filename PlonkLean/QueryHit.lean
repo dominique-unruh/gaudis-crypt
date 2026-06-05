@@ -2529,6 +2529,84 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       rw [h_aσ_lq_chal_x] at h_ih
       exact h_ih
 
+/-- F'_x freshness analog of `ow_loop_tracked_lazy_query_freshness` for the
+    indep indicator. -/
+private lemma ow_loop_tracked_lazy_query_freshness_indep
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_ow_adv_chal_x_queried : ow_adv.inRange chal_x_queried.compl.range)
+    (q : ℕ) (x : input) (σ : state)
+    (h_σ_qf : chal_x_queried.get σ = false)
+    (h_σ_ro : random_oracle_state.get σ x = none) :
+    (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+        ow_loop_tracked ow_adv q lazy_query).wp
+      (fun aσ : Unit × state =>
+        if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+        then (1 : ENNReal) else 0)
+      (ow_challenge_x.set x σ)
+    = (ow_loop_tracked ow_adv q lazy_query).wp
+      (fun aσ : Unit × state =>
+        if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+        then (1 : ENNReal) else 0)
+      (ow_challenge_x.set x σ) := by
+  set σ_in := ow_challenge_x.set x σ with σ_in_def
+  set F : Unit × state → ENNReal :=
+    fun aσ : Unit × state =>
+      if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+      then (1 : ENNReal) else 0 with hF_def
+  have h_σ_in_cxq : chal_x_queried.get σ_in = false := by
+    rw [σ_in_def, chal_x_queried.get_of_disjoint_set]; exact h_σ_qf
+  have h_σ_in_chal_x : ow_challenge_x.get σ_in = x := ow_challenge_x.set_get σ x
+  have h_σ_in_ro_x : random_oracle_state.get σ_in x = none := by
+    rw [σ_in_def, random_oracle_state.get_of_disjoint_set]; exact h_σ_ro
+  have h_σ_in_ro_chal_x : random_oracle_state.get σ_in (ow_challenge_x.get σ_in) = none := by
+    rw [h_σ_in_chal_x]; exact h_σ_in_ro_x
+  have h_loop_inRange_cy : (ow_loop_tracked ow_adv q lazy_query).inRange
+      ow_challenge_y.compl.range :=
+    ow_loop_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y q
+  -- F doesn't read ow_challenge_y (reads resp, cxq — both ⟂ chal_y).
+  have h_F_no_cy : ∀ v : output, ∀ aσ : Unit × state,
+      F (aσ.1, ow_challenge_y.set v aσ.2) = F aσ := by
+    intro v aσ
+    simp only [hF_def]
+    rw [ow_response.get_of_disjoint_set, chal_x_queried.get_of_disjoint_set]
+  have h_drop_chal_y : ∀ (v : output) (σ' : state),
+      (Program.set ow_challenge_y v >>= fun _ : Unit =>
+          ow_loop_tracked ow_adv q lazy_query).wp F σ'
+      = (ow_loop_tracked ow_adv q lazy_query).wp F σ' :=
+    fun v σ' => Program.wp_set_disjoint_no_op h_loop_inRange_cy v F (h_F_no_cy v) σ'
+  rw [wp_bind]
+  simp_rw [h_drop_chal_y]
+  have h_lq_compute : ∀ (Q : output × state → ENNReal),
+      (lazy_query x).wp Q σ_in
+      = ∑ v : output, Q (v, random_oracle_state.set
+          (fun k => if k = x then some v else random_oracle_state.get σ_in k) σ_in)
+            / Fintype.card output := by
+    intro Q
+    show (do let h <- Program.get random_oracle_state
+             match h x with
+             | some v => pure v
+             | none => do let value <- Program.uniform
+                          Program.set random_oracle_state
+                            (fun k => if k=x then some value else h k)
+                          pure value).wp Q σ_in = _
+    simp only [wp_bind, wp_get]
+    rw [h_σ_in_ro_x]
+    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
+  rw [h_lq_compute]
+  -- Apply F'_x averaged invariance at σ_in.
+  have h_avg := ow_loop_tracked_indep_RO_invariance_avg ow_adv h_ow_adv_chal_x_queried
+    h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x h_ow_adv_chal_x_queried q σ_in
+    h_σ_in_cxq h_σ_in_ro_chal_x
+  rw [h_σ_in_chal_x] at h_avg
+  -- Convert ∑ / c to (1/c) * ∑.
+  rw [show ∀ (g : output → ENNReal),
+      (∑ v : output, g v / Fintype.card output)
+      = 1 / Fintype.card output * ∑ v : output, g v from fun g => by
+    rw [Finset.mul_sum]; congr 1; funext v; rw [ENNReal.div_eq_inv_mul, one_div]]
+  exact h_avg
+
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
     the adversary's response equals `ow_challenge_x` with probability
