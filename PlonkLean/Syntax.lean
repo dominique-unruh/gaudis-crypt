@@ -19,6 +19,8 @@ def paramListToTuple (types : List Type) : Type := match types with
   -- body : Stmt s
   -- return_val : Getter sig.ret s
 
+/-- A sequences of procedure signatures, intended to be used to describe the type
+    of holes in a program -/
 inductive HoleSigs where
   | empty  : HoleSigs
   | append : HoleSigs → ProcedureSignature → HoleSigs
@@ -58,7 +60,7 @@ def StmtWithHoles.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure s
       (params : Expr (paramListToTuple sig.params)) : StmtWithHoles h :=
   StmtWithHoles.call' x proc.body proc.return_val params
 
- def Stmt.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
+def Stmt.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
                      (params : Expr (paramListToTuple sig.params)) : Stmt
      := StmtWithHoles.call x proc params
 
@@ -156,9 +158,7 @@ def denotation [ProgramSpec] : Stmt → Program State Unit
 | .seq p q => do denotation p; denotation q
 termination_by stmt => sizeOf (self := instSizeOfStmt) stmt
 decreasing_by
-  sorry; sorry; sorry; sorry; sorry; sorry
-  -- TODO
-   -- simp_all [StmtWithHoles.mySize]; omega
+  all_goals simp only [SizeOf.sizeOf, StmtWithHoles.mySize]; omega
 
 /- # Experiments -/
 
