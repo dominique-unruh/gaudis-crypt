@@ -1221,7 +1221,46 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
                       Program.set oracle_output y).wp G σ' = _
       rw [wp_bind]
     simp_rw [h_body_unfold]
-    sorry  -- Continue: wp_shift_input on adv + linearity + per-adv-outcome case split.
+    -- Apply wp_shift_input on adv with shift = RO_setentry x y.
+    have h_shift : ∀ y' : output,
+        ow_adv.wp (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp G aσ_adv.2)
+            (random_oracle_state.set
+              (fun k => if k = x then some y'
+                        else random_oracle_state.get σ k) σ)
+        = ow_adv.wp (fun aσ_adv : Unit × state =>
+            (Program.get oracle_input >>= fun inp =>
+              Program.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then Program.set chal_x_queried true
+                 else (pure () : Program state Unit)) >>= fun _ =>
+                  lazy_query inp >>= fun y =>
+                    Program.set oracle_output y).wp G
+              (random_oracle_state.set
+                (fun k => if k = x then some y'
+                          else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)) σ := by
+      intro y'
+      have h_shift_in : (fun σ' => random_oracle_state.set
+          (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
+          ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
+        rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
+            = random_oracle_state.range from by
+          rw [LensRange.complement_range, LensRange.compl_compl]]
+        exact ⟨fun h => fun k => if k = x then some y' else h k, Set.mem_univ _, rfl⟩
+      exact Program.wp_shift_input h_ow_adv h_shift_in _ σ
+    simp_rw [h_shift]
+    -- Pull sum and 1/|output| inside ow_adv.wp.
+    rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+    -- Now: ow_adv.wp (fun aσ_adv => (1/|output|) * ∑ y, post_adv.wp G (RO_setentry x y aσ_adv.2)) σ
+    --    = ow_adv.wp (fun aσ_adv => post_adv.wp G aσ_adv.2) σ
+    -- Sufficient: pointwise per aσ_adv equality.
+    congr 1
+    funext aσ_adv
+    sorry  -- Pointwise: case split on inp_a = x.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
