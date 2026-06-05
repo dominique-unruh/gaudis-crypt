@@ -1011,6 +1011,32 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     have h_aσ_lq_qf : chal_x_queried.get aσ_lq.2 = false := h_cxq_lq.trans h_aσ_adv_qf
     exact ih aσ_lq.2 h_aσ_lq_qf
 
+/-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
+    indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
+    `RO[x] = none`) doesn't change the loop's wp of the indicator.
+
+    Intuition: the indicator only depends on whether adv queried `x`.
+    Adv's pre-x-query behavior is independent of `RO[x]` (since adv hasn't
+    seen its value). The probability of "adv queries x at some iter" is
+    the same. -/
+private lemma ow_loop_tracked_chal_x_queried_RO_invariance
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range) :
+    ∀ (q : ℕ) (σ : state) (y : output),
+    chal_x_queried.get σ = false →
+    random_oracle_state.get σ (ow_challenge_x.get σ) = none →
+    (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0) σ
+    = (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
+        (random_oracle_state.set
+          (fun k => if k = ow_challenge_x.get σ then some y
+                    else random_oracle_state.get σ k) σ) := by
+  sorry  -- Pointwise freshness — coupling. ~150 lines.
+
 /-- **Lazy-query freshness invariance** for the chal_x_queried indicator:
     pre-setting `RO[x] = y` (uniform y) is equivalent (averaged over y) to
     no pre-set entry, when the post is the chal_x_queried indicator.
@@ -1034,7 +1060,33 @@ private lemma ow_loop_tracked_lazy_query_freshness
       (fun aσ : Unit × state =>
         if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
       (ow_challenge_x.set x σ) := by
-  sorry  -- Lazy-query freshness — coupling argument; deferred sampling.
+  sorry  -- Compose pointwise invariance with chal_y drop and lazy_query unfold.
+
+/-- Helper: `post_loop` (`get resp; lazy_query resp; pure (decide ...)`) preserves
+    `chal_x_queried`. Hence its wp at the chal_x_queried indicator equals the
+    indicator at the input state. -/
+private lemma post_loop_preserves_chal_x_queried_wp
+    (y_chal : output) (σ : state) :
+    (Program.get ow_response >>= fun resp =>
+      lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = y_chal)) : Program state Bool)).wp
+      (fun bσ : Bool × state => if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ
+    ≤ (if chal_x_queried.get σ then (1 : ENNReal) else 0) := by
+  -- post_loop is in chal_x_queried.compl.range. Bound the wp by mass · indicator.
+  have h_inRange : (Program.get ow_response >>= fun resp =>
+      lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = y_chal)) : Program state Bool)).inRange
+      chal_x_queried.compl.range := post_loop_inRange_chal_x_queried_compl y_chal
+  -- Use wp_strengthen_lens_preserved with L = chal_x_queried.
+  rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange _ σ]
+  -- Now post is `if cxq.get bσ.2 = cxq.get σ then F bσ else 0`.
+  -- Bound by `if cxq.get σ then 1 else 0` (constant).
+  refine le_trans (Program.wp_le_wp_of_le _ _ _ ?_ σ)
+                  (Program.wp_const_le _ _ σ)
+  intro bσ
+  by_cases h : chal_x_queried.get bσ.2 = chal_x_queried.get σ
+  · rw [if_pos h, h]
+  · rw [if_neg h]; exact zero_le _
 
 include h_ow_adv_chal_x_queried in
 /-- **Layer C_obs**: the probability that `chal_x_queried` is set during the
@@ -1052,7 +1104,7 @@ lemma ow_experiment_tracked_chal_x_queried_bound
         (fun bσ : Bool × state =>
           if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ₀
     ≤ (q : ENNReal) / Fintype.card input := by
-  sorry  -- Compose freshness + sum lemma + wp_uniform.
+  sorry  -- Unfold experiment via wp_bind, apply freshness + sum lemma. ~100 lines.
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
