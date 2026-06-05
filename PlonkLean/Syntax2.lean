@@ -790,7 +790,7 @@ m3 = (B', (λ x:U->U. A) (λ x:U. x))
 theorem reduction_step_nd_congr_right [ProgramSpec] {m1 m2 m3 : MExpr' Γ T}
     (h1 : reduction_step_nd m1 m2) (h2 : mexpr_equiv m2 m3) :
     reduction_step_nd m1 m3 := by
-  sorry
+
 -/
 
 
@@ -956,10 +956,10 @@ theorem reduction_step_nd_iff_Step [ProgramSpec] (m m' : MExpr' Γ T) :
     induction m with
     | const p => simp [mexprToSTLC] at h; cases h
     | var r => simp [mexprToSTLC] at h; cases h
-    | app f a ihf iha => sorry
-    | fst e ih => sorry
-    | snd e ih => sorry
-    | abs body ih => sorry
+    | app f a ihf iha =>
+    | fst e ih =>
+    | snd e ih =>
+    | abs body ih =>
     | pair a b iha ihb =>
       simp only [mexprToSTLC] at h
       clear *- iha ihb h
@@ -1145,82 +1145,139 @@ private lemma Ref.heq_of_toNat_eq {Γ : MCtx} : ∀ {T1 T2 : MTy} (r1 : Ref Γ T
       subst hT
       exact ⟨rfl, heq_of_eq (congrArg Ref.succ (eq_of_heq hr))⟩
 
-mutual
+private theorem mexpr_equiv_inj [ProgramSpec] {Γ : MCtx} {T1 T2 : MTy}
+    (m : MExpr' Γ T1) (m' : MExpr' Γ T2) (h : mexpr_equiv m m') :
+    (Normal m → T1 = T2 → HEq m m') ∧ (Neutral m → T1 = T2 ∧ HEq m m') := by
+  induction m generalizing T2 with
+  | const p =>
+    refine ⟨fun _ _ => ?_, fun hne => by cases hne⟩
+    cases m' <;> simp only [mexpr_equiv] at h
+    case const p' =>
+      obtain ⟨hsig, hp⟩ := h
+      subst hsig
+      exact heq_of_eq (congrArg MExpr'.const (eq_of_heq hp))
+  | var r =>
+    cases m' <;> simp only [mexpr_equiv] at h
+    case var r' =>
+      obtain ⟨hT, hr⟩ := Ref.heq_of_toNat_eq _ _ h
+      subst hT
+      have heq : HEq (MExpr'.var r) (MExpr'.var r') :=
+        heq_of_eq (congrArg MExpr'.var (eq_of_heq hr))
+      exact ⟨fun _ _ => heq, fun _ => ⟨rfl, heq⟩⟩
+  | app f arg ihf iharg =>
+    cases m' with
+    | app f' arg' =>
+      simp only [mexpr_equiv] at h
+      obtain ⟨hf_eq, harg_eq⟩ := h
+      constructor
+      · intro hn _
+        cases hn with
+        | neutral hne =>
+          cases hne with
+          | app hf ha =>
+            obtain ⟨hTf, hf_heq⟩ := (ihf f' hf_eq).2 hf
+            obtain ⟨hA, hB⟩ := MTy.arr.inj hTf
+            subst hA hB
+            exact (eq_of_heq hf_heq) ▸ (eq_of_heq ((iharg arg' harg_eq).1 ha rfl)) ▸ HEq.rfl
+      · intro hne
+        cases hne with
+        | app hf ha =>
+          obtain ⟨hTf, hf_heq⟩ := (ihf f' hf_eq).2 hf
+          obtain ⟨hA, hB⟩ := MTy.arr.inj hTf
+          subst hA hB
+          exact ⟨rfl, (eq_of_heq hf_heq) ▸ (eq_of_heq ((iharg arg' harg_eq).1 ha rfl)) ▸ HEq.rfl⟩
+    | _ => simp [mexpr_equiv] at h
+  | fst e ihe =>
+    cases m' with
+    | fst e' =>
+      simp only [mexpr_equiv] at h
+      constructor
+      · intro hn _
+        cases hn with
+        | neutral hne =>
+          cases hne with
+          | fst hne' =>
+            obtain ⟨hTe, he_heq⟩ := (ihe e' h).2 hne'
+            obtain ⟨hA, hB⟩ := MTy.prod.inj hTe
+            subst hA hB
+            exact heq_of_eq (congrArg MExpr'.fst (eq_of_heq he_heq))
+      · intro hne
+        cases hne with
+        | fst hne' =>
+          obtain ⟨hTe, he_heq⟩ := (ihe e' h).2 hne'
+          obtain ⟨hA, hB⟩ := MTy.prod.inj hTe
+          subst hA hB
+          exact ⟨rfl, heq_of_eq (congrArg MExpr'.fst (eq_of_heq he_heq))⟩
+    | _ => simp [mexpr_equiv] at h
+  | snd e ihe =>
+    cases m' with
+    | snd e' =>
+      simp only [mexpr_equiv] at h
+      constructor
+      · intro hn _
+        cases hn with
+        | neutral hne =>
+          cases hne with
+          | snd hne' =>
+            obtain ⟨hTe, he_heq⟩ := (ihe e' h).2 hne'
+            obtain ⟨hA, hB⟩ := MTy.prod.inj hTe
+            subst hA hB
+            exact heq_of_eq (congrArg MExpr'.snd (eq_of_heq he_heq))
+      · intro hne
+        cases hne with
+        | snd hne' =>
+          obtain ⟨hTe, he_heq⟩ := (ihe e' h).2 hne'
+          obtain ⟨hA, hB⟩ := MTy.prod.inj hTe
+          subst hA hB
+          exact ⟨rfl, heq_of_eq (congrArg MExpr'.snd (eq_of_heq he_heq))⟩
+    | _ => simp [mexpr_equiv] at h
+  | abs body ihbody =>
+    cases m' with
+    | abs body' =>
+      simp only [mexpr_equiv] at h
+      constructor
+      · intro hn hT
+        cases hn with
+        | neutral hne => cases hne
+        | abs hb =>
+          obtain ⟨hA, hB⟩ := MTy.arr.inj hT
+          subst hA hB
+          have hbody' := eq_of_heq ((ihbody body' h).1 hb rfl)
+          subst hbody'
+          exact HEq.rfl
+      · intro hne
+        cases hne
+    | _ => simp [mexpr_equiv] at h
+  | pair a b iha ihb =>
+    cases m' with
+    | pair a' b' =>
+      simp only [mexpr_equiv] at h
+      obtain ⟨ha_eq, hb_eq⟩ := h
+      constructor
+      · intro hn hT
+        cases hn with
+        | neutral hne => cases hne
+        | pair ha hb =>
+          obtain ⟨hA, hB⟩ := MTy.prod.inj hT
+          subst hA hB
+          have ha' := eq_of_heq ((iha a' ha_eq).1 ha rfl)
+          have hb' := eq_of_heq ((ihb b' hb_eq).1 hb rfl)
+          subst ha' hb'
+          exact HEq.rfl
+      · intro hne
+        cases hne
+    | _ => simp [mexpr_equiv] at h
 
 theorem mexpr_equiv_Normal_eq [ProgramSpec] {Γ : MCtx} {T : MTy}
     {n1 n2 : MExpr' Γ T} (hn1 : Normal n1) (hn2 : Normal n2)
-    (h : mexpr_equiv n1 n2) : n1 = n2 := by
-  cases hn1 with
-  | neutral hne1 =>
-    cases hn2 with
-    | neutral hne2 =>
-      obtain ⟨_, heq⟩ := mexpr_equiv_Neutral_eq hne1 hne2 h
-      exact eq_of_heq heq
-    | abs | pair | const => cases hne1 <;> simp [mexpr_equiv] at h
-  | abs hn1' =>
-    cases hn2 with
-    | neutral hne2 => cases hne2 <;> simp [mexpr_equiv] at h
-    | abs hn2' =>
-      simp only [mexpr_equiv] at h
-      exact congrArg MExpr'.abs (mexpr_equiv_Normal_eq hn1' hn2' h)
-  | pair hn1a hn1b =>
-    cases hn2 with
-    | neutral hne2 => cases hne2 <;> simp [mexpr_equiv] at h
-    | pair hn2a hn2b =>
-      simp only [mexpr_equiv] at h
-      congr 1
-      · exact mexpr_equiv_Normal_eq hn1a hn2a h.1
-      · exact mexpr_equiv_Normal_eq hn1b hn2b h.2
-  | const =>
-    cases hn2 with
-    | neutral hne2 => cases hne2 <;> simp [mexpr_equiv] at h
-    | const => simp [mexpr_equiv] at h; exact congrArg MExpr'.const h
-termination_by (sizeOf n1, 1)
+    (h : mexpr_equiv n1 n2) : n1 = n2 :=
+  eq_of_heq ((mexpr_equiv_inj n1 n2 h).1 hn1 rfl)
 
 theorem mexpr_equiv_Neutral_eq [ProgramSpec] {Γ : MCtx} {T1 T2 : MTy}
     {e1 : MExpr' Γ T1} {e2 : MExpr' Γ T2}
     (hne1 : Neutral e1) (hne2 : Neutral e2)
-    (h : mexpr_equiv e1 e2) : T1 = T2 ∧ HEq e1 e2 := by
-  cases hne1 with
-  | var =>
-    cases hne2 with
-    | var =>
-      simp [mexpr_equiv] at h
-      obtain ⟨hT, hr⟩ := Ref.heq_of_toNat_eq _ _ h
-      subst hT
-      exact ⟨rfl, heq_of_eq (congrArg MExpr'.var (eq_of_heq hr))⟩
-    | app | fst | snd => simp [mexpr_equiv] at h
-  | app hf1 harg1 =>
-    cases hne2 with
-    | var | fst | snd => simp [mexpr_equiv] at h
-    | app hf2 harg2 =>
-      simp only [mexpr_equiv] at h
-      obtain ⟨hf_eq, harg_eq⟩ := h
-      obtain ⟨hTf, hf_heq⟩ := mexpr_equiv_Neutral_eq hf1 hf2 hf_eq
-      obtain ⟨hA, hT⟩ := MTy.arr.inj hTf
-      subst hA hT
-      exact ⟨rfl, (eq_of_heq hf_heq) ▸ (mexpr_equiv_Normal_eq harg1 harg2 harg_eq) ▸ HEq.rfl⟩
-  | fst hne1' =>
-    cases hne2 with
-    | var | app | snd => simp [mexpr_equiv] at h
-    | fst hne2' =>
-      simp only [mexpr_equiv] at h
-      obtain ⟨hTe, he_heq⟩ := mexpr_equiv_Neutral_eq hne1' hne2' h
-      obtain ⟨hT, hB⟩ := MTy.prod.inj hTe
-      subst hT hB
-      exact ⟨rfl, (eq_of_heq he_heq) ▸ HEq.rfl⟩
-  | snd hne1' =>
-    cases hne2 with
-    | var | app | fst => simp [mexpr_equiv] at h
-    | snd hne2' =>
-      simp only [mexpr_equiv] at h
-      obtain ⟨hTe, he_heq⟩ := mexpr_equiv_Neutral_eq hne1' hne2' h
-      obtain ⟨hA, hT⟩ := MTy.prod.inj hTe
-      subst hA hT
-      exact ⟨rfl, (eq_of_heq he_heq) ▸ HEq.rfl⟩
-termination_by (sizeOf e1, 0)
-
-end
+    (h : mexpr_equiv e1 e2) : T1 = T2 ∧ HEq e1 e2 :=
+  (mexpr_equiv_inj e1 e2 h).2 hne1
 
 theorem mexprToSTLC_injective_Normal [ProgramSpec] {Γ : MCtx} {T : MTy}
     {n1 n2 : MExpr' Γ T} (hn1 : Normal n1) (hn2 : Normal n2)
@@ -1293,15 +1350,6 @@ theorem mexprToSTLC_injective_Normal [ProgramSpec] {Γ : MCtx} {T : MTy}
 --   By (D) applied to m1: q1 with multi_step_reduction m1 q1, mexprToSTLC q1 = P.
 --   By (C): Normal q1. By (E): reduce m1 = q1 ... but needs uniqueness of normal form.
 --   → This also ultimately requires (E). No escape.
-theorem confluence1 [ProgramSpec] {m m1 m2 : MExpr' Γ T}
-   (h1 : reduction_step_nd m m1) (h2 : reduction_step_nd m m2) :
-   reduce m1 = reduce m2 := by
-   sorry
-
-theorem confluence [ProgramSpec] {m m1 m2 : MExpr' Γ T}
-   (h1 : multi_step_reduction m m1) (h2 : multi_step_reduction m m2) :
-   reduce m1 = reduce m2 := by sorry -- Follows from confluence1 and the definition of multi_step_reduction
-
 theorem reduceNormal [ProgramSpec] (m : MExpr' Δ t) : Normal (reduce m) := by
   apply WellFoundedRelation.wf.induction (C := fun m => Normal (reduce m)) m
   intro n ih
@@ -1309,6 +1357,42 @@ theorem reduceNormal [ProgramSpec] (m : MExpr' Δ t) : Normal (reduce m) := by
   split_ifs with h
   · exact h
   · exact ih _ (reduction_step_compat n h)
+
+/- theorem confluence1 [ProgramSpec] {m m1 m2 : MExpr' Γ T}
+   (h1 : reduction_step_nd m m1) (h2 : reduction_step_nd m m2) :
+   reduce m1 = reduce m2 := by
+  have star1 : Rewriting.Star Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduce m1)) :=
+    Rewriting.Star.trans
+      (Rewriting.Star.single (reduction_step_nd_then_Step m m1 h1))
+      (multi_step_to_stlc_star multi_step_reduction_reduce)
+  have star2 : Rewriting.Star Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduce m2)) :=
+    Rewriting.Star.trans
+      (Rewriting.Star.single (reduction_step_nd_then_Step m m2 h2))
+      (multi_step_to_stlc_star multi_step_reduction_reduce)
+  have nf1 : Rewriting.IsNormalForm Metatheory.STLCext.Step (mexprToSTLC (reduce m1)) :=
+    mexprToSTLC_Normal_iff.mp (reduceNormal m1)
+  have nf2 : Rewriting.IsNormalForm Metatheory.STLCext.Step (mexprToSTLC (reduce m2)) :=
+    mexprToSTLC_Normal_iff.mp (reduceNormal m2)
+  have heq : mexprToSTLC (reduce m1) = mexprToSTLC (reduce m2) :=
+    Rewriting.normalForm_unique Metatheory.STLCext.step_confluent star1 star2 nf1 nf2
+  exact mexprToSTLC_injective_Normal (reduceNormal m1) (reduceNormal m2) heq
+ -/
+
+theorem confluence [ProgramSpec] {m m1 m2 : MExpr' Γ T}
+   (h1 : multi_step_reduction m m1) (h2 : multi_step_reduction m m2) :
+   reduce m1 = reduce m2 := by
+  have star1 : Rewriting.Star Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduce m1)) :=
+    Rewriting.Star.trans
+      (multi_step_to_stlc_star h1) (multi_step_to_stlc_star multi_step_reduction_reduce)
+  have star2 : Rewriting.Star Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduce m2)) :=
+    Rewriting.Star.trans
+      (multi_step_to_stlc_star h2) (multi_step_to_stlc_star multi_step_reduction_reduce)
+  have nf1 : Rewriting.IsNormalForm Metatheory.STLCext.Step (mexprToSTLC (reduce m1)) :=
+    mexprToSTLC_Normal_iff.mp (reduceNormal m1)
+  have nf2 : Rewriting.IsNormalForm Metatheory.STLCext.Step (mexprToSTLC (reduce m2)) :=
+    mexprToSTLC_Normal_iff.mp (reduceNormal m2)
+  exact mexprToSTLC_injective_Normal (reduceNormal m1) (reduceNormal m2)
+    (Rewriting.normalForm_unique Metatheory.STLCext.step_confluent star1 star2 nf1 nf2)
 
 private lemma Normal.toNormalClosed [ProgramSpec] {T : MTy} {m : MExpr' .empty T} :
     Normal m → NormalClosed m
@@ -1394,10 +1478,29 @@ theorem reduce_snd [ProgramSpec] (m : MExpr' Γ T) (m' : MExpr' Γ T') :
   · cases h with | neutral ne => cases ne with | snd ne' => exact nomatch ne'
   · rfl
 
+theorem reduce_idem [ProgramSpec] (m : MExpr' Γ T) : reduce (reduce m) = reduce m := by
+  conv_lhs => unfold reduce
+  simp [reduceNormal m]
+
+theorem multi_step_reduction_app [ProgramSpec]
+    {m1 m1' : MExpr' Γ (.arr T U)} {m2 m2' : MExpr' Γ T}
+    (h1 : multi_step_reduction m1 m1') (h2 : multi_step_reduction m2 m2') :
+    multi_step_reduction (MExpr'.app m1 m2) (MExpr'.app m1' m2') := by
+  have left : multi_step_reduction (MExpr'.app m1 m2) (MExpr'.app m1' m2) := by
+    induction h1 with
+    | refl => exact Rewriting.Star.refl _
+    | tail _ hbc ih => exact Rewriting.Star.tail ih (.appL hbc)
+  have right : multi_step_reduction (MExpr'.app m1' m2) (MExpr'.app m1' m2') := by
+    induction h2 with
+    | refl => exact Rewriting.Star.refl _
+    | tail _ hbc ih => exact Rewriting.Star.tail ih (.appR hbc)
+  exact Rewriting.Star.trans left right
+
 theorem reduce_app [ProgramSpec] (m : MExpr' Γ (.arr T U)) (m' : MExpr' Γ T) :
   reduce (MExpr'.app m m') = reduce (MExpr'.app (reduce m) (reduce m')) :=
-  -- TODO Show using `confluence`
-  sorry
+  (reduce_idem _).symm.trans
+    (confluence multi_step_reduction_reduce
+      (multi_step_reduction_app multi_step_reduction_reduce multi_step_reduction_reduce))
 
 @[simp]
 theorem reduce_beta [ProgramSpec] (body : MExpr' (Γ.append T) U) (arg : MExpr' Γ T) :
