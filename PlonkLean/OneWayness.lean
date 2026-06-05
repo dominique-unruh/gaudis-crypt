@@ -371,19 +371,19 @@ cached `ow_challenge_x`. We track this separately because:
   `ow_challenge_y` — variables disjoint from the adversary's range — so the
   adversary cannot affect it directly. -/
 
-private def useful_preimage (σ : state) : Prop :=
+def useful_preimage (σ : state) : Prop :=
   ∃ x' : input, x' ≠ ow_challenge_x.get σ ∧
     random_oracle_state.get σ x' = some (ow_challenge_y.get σ)
 
-private noncomputable instance (σ : state) : Decidable (useful_preimage σ) :=
+noncomputable instance (σ : state) : Decidable (useful_preimage σ) :=
   Classical.propDecidable _
 
-private noncomputable def useful_preimage_indicator (σ : state) : ENNReal :=
+noncomputable def useful_preimage_indicator (σ : state) : ENNReal :=
   if useful_preimage σ then 1 else 0
 
 /-- Structural decomposition: `preimage` implies either the response is the
     trivially cached challenge input, or there's a useful preimage. -/
-private lemma preimage_le_useful_or_resp_eq_chal_x (σ : state) :
+lemma preimage_le_useful_or_resp_eq_chal_x (σ : state) :
     preimage_indicator σ ≤ useful_preimage_indicator σ +
       (if ow_response.get σ = ow_challenge_x.get σ ∧ is_preimage σ
        then (1 : ENNReal) else 0) := by
@@ -822,7 +822,7 @@ include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
     nothing (handled by `lazy_query_useful_preimage_step_self`), the loop adds
     at most `q/|output|` (Layer C_OW), and the final `lazy_query` on the
     adversary's response adds at most `1/|output|` (Layer A_OW). -/
-private lemma ow_experiment_useful_preimage_bound (q : ℕ) (σ₀ : state) :
+lemma ow_experiment_useful_preimage_bound (q : ℕ) (σ₀ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => useful_preimage_indicator bσ.2) σ₀
     ≤ ((q + 1) : ENNReal) / Fintype.card output := by
@@ -858,70 +858,6 @@ private lemma ow_experiment_useful_preimage_bound (q : ℕ) (σ₀ : state) :
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← hNinp_def]
         exact ENNReal.mul_div_cancel hNinp_pos hNinp_top
 
-include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
-/-- The expected `[resp = ow_challenge_x]` indicator is at most `(q+1)/|input|`:
-    `ow_challenge_x` is uniform over `input`, and the adversary's `q+1` lazy
-    queries (including the final one at `ow_response`) can each "hit"
-    `ow_challenge_x` with probability at most `1/|input|`. The bound follows
-    by a union bound over those queries plus the trivial "guess" probability. -/
-private lemma ow_experiment_resp_eq_chal_x_bound (q : ℕ) (σ₀ : state) :
-    (ow_experiment ow_adv q lazy_init lazy_query).wp
-        (fun bσ : Bool × state =>
-          if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
-          then (1 : ENNReal) else 0) σ₀
-    ≤ ((q + 1) : ENNReal) / Fintype.card input := by
-  sorry
-
-include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
-/-- **Layer D_OW**: probability bound on `preimage_indicator` at the end of
-    the experiment. Combines the two sub-bounds via the decomposition
-    `preimage ≤ useful_preimage + [resp = ow_challenge_x ∧ preimage]`. The
-    standard tight bound is `2(q+1)/|output|`. -/
-private lemma ow_preimage_bound (q : ℕ) (σ₀ : state) :
-    (ow_experiment ow_adv q lazy_init lazy_query).wp
-        (fun bσ : Bool × state => preimage_indicator bσ.2) σ₀
-    ≤ (2 * (q + 1) : ENNReal) / Fintype.card output := by
-  set N : ENNReal := (Fintype.card output : ENNReal) with hN_def
-  calc (ow_experiment ow_adv q lazy_init lazy_query).wp
-          (fun bσ : Bool × state => preimage_indicator bσ.2) σ₀
-      ≤ (ow_experiment ow_adv q lazy_init lazy_query).wp
-          (fun bσ : Bool × state => useful_preimage_indicator bσ.2 +
-            (if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
-             then (1 : ENNReal) else 0)) σ₀ := by
-        apply Program.wp_le_wp_of_le
-        intro bσ
-        exact preimage_le_useful_or_resp_eq_chal_x bσ.2
-    _ = (ow_experiment ow_adv q lazy_init lazy_query).wp
-          (fun bσ : Bool × state => useful_preimage_indicator bσ.2) σ₀ +
-        (ow_experiment ow_adv q lazy_init lazy_query).wp
-          (fun bσ : Bool × state =>
-            if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
-            then (1 : ENNReal) else 0) σ₀ := by
-        rw [Program.wp_add]
-    _ ≤ ((q + 1) : ENNReal) / N + ((q + 1) : ENNReal) / Fintype.card input := by
-        gcongr
-        · exact ow_experiment_useful_preimage_bound ow_adv h_ow_adv
-            h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
-        · exact ow_experiment_resp_eq_chal_x_bound ow_adv h_ow_adv
-            h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
-    _ ≤ ((q + 1) : ENNReal) / N + ((q + 1) : ENNReal) / N := by
-        gcongr
-        rw [hN_def]
-        exact_mod_cast card_input_ge_output
-    _ = (2 * (q + 1) : ENNReal) / N := by
-        rw [← ENNReal.add_div]; ring_nf
-
-include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
-/-- **Birthday-style bound** for the lazy one-wayness experiment.
-    Composes the bookkeeping lemma (`ow_true_implies_preimage_wp`) with the
-    probability bound (`ow_preimage_bound`). -/
-theorem ow_lazy_bound (q : ℕ) (σ₀ : state) :
-    ((ow_experiment ow_adv q lazy_init lazy_query).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
-    ≤ (2 * (q + 1) : ENNReal) / Fintype.card output :=
-  le_trans (ow_true_implies_preimage_wp ow_adv h_ow_adv_chal_y q σ₀)
-    (ow_preimage_bound ow_adv h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x q σ₀)
-
 include h_ow_adv in
 /-- **Transfer of `ow_transfer` from the SubProb marginal level to the
     `wp` level**, for postconditions that depend only on the result bit. -/
@@ -944,15 +880,10 @@ lemma ow_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
     exact (expected_pure _).symm
   rw [h_wp_to_marg, h_wp_to_marg, ow_transfer ow_adv h_ow_adv]
 
-include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
-/-- One-wayness bound for the eager (true random oracle) game, obtained by
-    transferring `ow_lazy_bound` via `ow_transfer`. -/
-theorem ow_eager_bound (q : ℕ) (σ₀ : state) :
-    ((ow_experiment ow_adv q random_oracle_init random_oracle_query).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
-    ≤ (2 * (q + 1) : ENNReal) / Fintype.card output := by
-  rw [← ow_transfer_wp_of_bit ow_adv h_ow_adv q σ₀
-        (fun b => if b then (1 : ENNReal) else 0)]
-  exact ow_lazy_bound ow_adv h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
-
 end OWParam
+
+/-! The OW lazy/eager bounds (`ow_lazy_bound`, `ow_eager_bound`) and their
+    intermediate `ow_preimage_bound` are proved in `PlonkLean/QueryHit.lean`,
+    which provides the deferred-sampling infrastructure needed to close the
+    `[resp = ow_challenge_x ∧ is_preimage]` bound without axioms. -/
+

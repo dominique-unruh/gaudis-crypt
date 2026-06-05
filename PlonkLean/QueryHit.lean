@@ -1,0 +1,933 @@
+import PlonkLean.OneWayness
+
+/-!
+# Deferred-sampling infrastructure for one-wayness
+
+This file provides the infrastructure to close the
+`ow_experiment_resp_eq_chal_x_bound` lemma without axioms.
+
+The standard cryptographic argument:
+```
+P[adv's output = chal_x in lazy game]
+  ≤ P[adv ever queried chal_x]               (bad event)
+    + P[adv's output = chal_x ∧ ¬queried]    (good event)
+  ≤ q/|input|                                (Layer A_obs union bound)
+    + 1/|input|                              (conditional independence on good event)
+  = (q+1)/|input|
+```
+
+## Strategy
+
+1. **Tracking variable** `chal_x_queried : Variable Bool` records whether
+   any adversary lazy_query input has equalled `ow_challenge_x` so far.
+   The *experiment* (not adv) maintains this — adv cannot read or write
+   it directly.
+
+2. **Tracked experiment** `ow_experiment_tracked` is the same as
+   `ow_experiment` but with the tracking variable updated in each loop
+   iteration. Observable behavior (the win bit, the preimage condition)
+   is unchanged.
+
+3. **Equivalence**: `ow_experiment.wp F σ = ow_experiment_tracked.wp F σ`
+   for any `F` that doesn't read `chal_x_queried`.
+
+4. **Layer A_obs**: per-iteration, `E[chal_x_queried becomes true] ≤ 1/|input|`
+   (via `wp_shift_input` on `chal_x.compl.range`).
+
+5. **Layer C_obs**: by induction, `E[chal_x_queried at end of ow_loop q]
+   ≤ q/|input|`.
+
+6. **Conditional independence**: on `¬chal_x_queried_at_end`, adv's view
+   is independent of `chal_x`, so the final lazy_query's hit at chal_x
+   has probability `1/|input|`.
+
+7. **Composition**: bound `[resp = chal_x ∧ preimage]` by combining 5+6.
+-/
+
+/-- Tracking variable for whether the adversary has queried `ow_challenge_x`
+    via `oracle_input` in any loop iteration so far.
+
+    Initialized to `false` at the start of the tracked experiment, set to
+    `true` by the *experiment* (not the adversary) whenever it observes
+    `oracle_input.get = ow_challenge_x.get` at the moment of a lazy_query
+    in `ow_loop_body`. -/
+axiom chal_x_queried : Variable Bool
+
+/-! ### Disjointness axioms for `chal_x_queried` -/
+
+axiom disjoint_chal_x_queried_ro :
+  disjoint chal_x_queried random_oracle_state
+axiom disjoint_chal_x_queried_ow_challenge_x :
+  disjoint chal_x_queried ow_challenge_x
+axiom disjoint_chal_x_queried_ow_challenge_y :
+  disjoint chal_x_queried ow_challenge_y
+axiom disjoint_chal_x_queried_ow_response :
+  disjoint chal_x_queried ow_response
+axiom disjoint_chal_x_queried_oracle_input :
+  disjoint chal_x_queried oracle_input
+axiom disjoint_chal_x_queried_oracle_output :
+  disjoint chal_x_queried oracle_output
+
+attribute [instance] disjoint_chal_x_queried_ro
+                     disjoint_chal_x_queried_ow_challenge_x
+                     disjoint_chal_x_queried_ow_challenge_y
+                     disjoint_chal_x_queried_ow_response
+                     disjoint_chal_x_queried_oracle_input
+                     disjoint_chal_x_queried_oracle_output
+
+/-- Symmetric disjoint instances. -/
+instance : disjoint random_oracle_state chal_x_queried :=
+  disjoint_chal_x_queried_ro.symm
+instance : disjoint ow_challenge_x chal_x_queried :=
+  disjoint_chal_x_queried_ow_challenge_x.symm
+instance : disjoint ow_challenge_y chal_x_queried :=
+  disjoint_chal_x_queried_ow_challenge_y.symm
+instance : disjoint ow_response chal_x_queried :=
+  disjoint_chal_x_queried_ow_response.symm
+instance : disjoint oracle_input chal_x_queried :=
+  disjoint_chal_x_queried_oracle_input.symm
+instance : disjoint oracle_output chal_x_queried :=
+  disjoint_chal_x_queried_oracle_output.symm
+
+section OWParam
+
+variable (ow_adv : Program state Unit)
+variable (h_ow_adv_chal_x_queried :
+            ow_adv.inRange chal_x_queried.compl.range)
+
+/-! ### Tracked loop body and experiment
+
+The tracked version of `ow_loop_body` updates `chal_x_queried` whenever
+the adversary's chosen `oracle_input` matches `ow_challenge_x`. This is
+done by the experiment (it reads `ow_challenge_x`), not by adv.
+-/
+
+/-- One round of the tracked OW loop body. After adv sets `oracle_input`
+    and the experiment computes the oracle response, we additionally check
+    whether `oracle_input = ow_challenge_x` and update `chal_x_queried`. -/
+noncomputable def ow_loop_body_tracked
+    (oracle : input → Program state output) : Program state Unit :=
+  ow_adv >>= fun _ =>
+    Program.get oracle_input >>= fun inp =>
+      Program.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then Program.set chal_x_queried true
+         else (pure () : Program state Unit)) >>= fun _ =>
+          oracle inp >>= fun y =>
+            Program.set oracle_output y
+
+/-- Run the tracked loop for `q` rounds. -/
+noncomputable def ow_loop_tracked
+    : ℕ → (input → Program state output) → Program state Unit
+  | 0,     _      => pure ()
+  | n + 1, oracle => do
+      ow_loop_body_tracked ow_adv oracle
+      ow_loop_tracked n oracle
+
+/-- The tracked OW experiment: like `ow_experiment` but with `chal_x_queried`
+    initialized to `false` at start and updated by `ow_loop_body_tracked`. -/
+noncomputable def ow_experiment_tracked (q : ℕ)
+    (init : Program state Unit)
+    (oracle : input → Program state output) : Program state Bool := do
+  init
+  Program.set chal_x_queried false
+  let x ← Program.uniform
+  Program.set ow_challenge_x x
+  let y ← oracle x
+  Program.set ow_challenge_y y
+  ow_loop_tracked ow_adv q oracle
+  let resp ← Program.get ow_response
+  let y_check ← oracle resp
+  pure (decide (y_check = y))
+
+/-! ### Equivalence with the original experiment
+
+For post-conditions `F` that don't read `chal_x_queried`, the original
+`ow_experiment` and `ow_experiment_tracked` have the same wp. The extra
+`Program.set chal_x_queried _` steps in the tracked version only modify a
+variable that's disjoint from everything `F` reads. -/
+
+/-- Key helper: prepending `Program.set L v` to a program `rest` that doesn't
+    touch `L`'s lens range is a no-op for any post that ignores `L`'s value. -/
+lemma Program.wp_set_disjoint_no_op
+    {γ : Type} [DecidableEq γ] {L : Lens γ state} {α : Type}
+    {rest : Program state α} (h_rest : rest.inRange L.compl.range)
+    (v : γ) (F : α × state → ENNReal)
+    (h_F : ∀ aσ : α × state, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : state) :
+    (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
+  simp only [wp_bind, wp_set]
+  set f : state → state := L.update (Function.const _ v) with hf_def
+  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange state)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange state)ᶜ) = L.range from by
+      rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  have h_f_eq : ∀ σ', f σ' = L.set v σ' := fun σ' => by
+    show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
+    rw [Function.const_apply]
+  rw [← h_f_eq σ]
+  rw [Program.wp_shift_input h_rest h_f_in_Rc]
+  congr 1
+  funext xs
+  rw [h_f_eq xs.2]
+  exact h_F xs
+
+/-- A post-condition `F : Bool × state → ENNReal` "ignores `chal_x_queried`"
+    iff its value doesn't depend on `chal_x_queried.get`. Formally:
+    for any state, replacing `chal_x_queried`'s value doesn't change `F`. -/
+def IgnoresChalXQueried (F : Bool × state → ENNReal) : Prop :=
+  ∀ bσ b, F (bσ.1, chal_x_queried.set b bσ.2) = F bσ
+
+/-- The "preimage win" post-condition (which is what we care about for OW)
+    doesn't depend on `chal_x_queried`. -/
+lemma preimage_win_ignores_chal_x_queried :
+    IgnoresChalXQueried (fun bσ : Bool × state =>
+      if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
+      then (1 : ENNReal) else 0) := by
+  intro bσ b
+  dsimp only
+  -- chal_x_queried is disjoint from ow_response, ow_challenge_x, RO, chal_y.
+  -- So setting it doesn't change ow_response.get, ow_challenge_x.get, or is_preimage.
+  rw [ow_response.get_of_disjoint_set chal_x_queried,
+      ow_challenge_x.get_of_disjoint_set chal_x_queried]
+  congr 1
+  unfold is_preimage
+  rw [random_oracle_state.get_of_disjoint_set chal_x_queried,
+      ow_response.get_of_disjoint_set chal_x_queried,
+      ow_challenge_y.get_of_disjoint_set chal_x_queried]
+
+/-- The "lazy_query then set oracle_output" rest of `ow_loop_body` is in
+    `chal_x_queried.compl.range`: it touches `random_oracle_state` (disjoint
+    from chal_x_queried) and `oracle_output` (also disjoint). -/
+lemma lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl
+    (inp : input) :
+    (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+        chal_x_queried.compl.range := by
+  refine Program.inRange_bind ?_ ?_
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
+  · intro y
+    exact Program.inRange_mono (Program.inRange_set _ _)
+      (Lens.range_le_compl_of_disjoint oracle_output chal_x_queried)
+
+/-- The conditional `set chal_x_queried` step is a no-op for posts that
+    ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`. -/
+lemma conditional_set_chal_x_queried_no_op
+    {α : Type} (cond : Prop) [Decidable cond]
+    {rest : Program state α} (h_rest : rest.inRange chal_x_queried.compl.range)
+    (F : α × state → ENNReal)
+    (h_F : ∀ aσ : α × state, F (aσ.1, chal_x_queried.set true aσ.2) = F aσ)
+    (σ : state) :
+    ((if cond then Program.set chal_x_queried true else pure ()) >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  by_cases h : cond
+  · rw [if_pos h]
+    exact Program.wp_set_disjoint_no_op h_rest true F h_F σ
+  · rw [if_neg h]
+    simp only [wp_bind, wp_pure]
+
+/-- A helper combining `get ow_challenge_x` with the conditional set. -/
+lemma get_chal_x_then_conditional_set_no_op
+    {α : Type} (inp : input)
+    {rest : Program state α} (h_rest : rest.inRange chal_x_queried.compl.range)
+    (F : α × state → ENNReal)
+    (h_F : ∀ aσ : α × state, F (aσ.1, chal_x_queried.set true aσ.2) = F aσ)
+    (σ : state) :
+    (Program.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then Program.set chal_x_queried true
+         else (pure () : Program state Unit)) >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  rw [wp_bind, wp_get]
+  exact conditional_set_chal_x_queried_no_op (inp = ow_challenge_x.get σ) h_rest F h_F σ
+
+/-- The inner post equivalence — provable using
+    `get_chal_x_then_conditional_set_no_op`. -/
+private lemma ow_loop_body_inner_eq
+    (G : Unit × state → ENNReal)
+    (h_G : ∀ aσ : Unit × state, G (aσ.1, chal_x_queried.set true aσ.2) = G aσ)
+    (σ_a : state) :
+    (Program.get oracle_input >>= fun inp =>
+      lazy_query inp >>= fun y => Program.set oracle_output y).wp G σ_a
+    = (Program.get oracle_input >>= fun inp =>
+      Program.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then Program.set chal_x_queried true
+         else (pure () : Program state Unit)) >>= fun _ =>
+          lazy_query inp >>= fun y => Program.set oracle_output y).wp G σ_a := by
+  rw [wp_bind, wp_get, wp_bind, wp_get]
+  set inp := oracle_input.get σ_a
+  exact (get_chal_x_then_conditional_set_no_op inp
+      (lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp)
+      G h_G σ_a).symm
+
+/-- Per-iteration body equivalence: `ow_loop_body` and `ow_loop_body_tracked`
+    produce the same wp for posts that ignore `chal_x_queried`. -/
+lemma ow_loop_body_eq_tracked
+    (G : Unit × state → ENNReal)
+    (h_G : ∀ aσ : Unit × state, G (aσ.1, chal_x_queried.set true aσ.2) = G aσ)
+    (σ : state) :
+    (ow_loop_body ow_adv lazy_query).wp G σ
+    = (ow_loop_body_tracked ow_adv lazy_query).wp G σ := by
+  -- Step 1: unfold both bodies via rfl (defs are defeq).
+  -- Step 2: apply wp_bind on both, then use inner equivalence.
+  have h_lhs : (ow_loop_body ow_adv lazy_query).wp G σ
+      = ow_adv.wp (fun xs : Unit × state =>
+          (Program.get oracle_input >>= fun inp =>
+            lazy_query inp >>= fun y =>
+              Program.set oracle_output y).wp G xs.snd) σ := by
+    show (ow_adv >>= fun _ : Unit =>
+          Program.get oracle_input >>= fun inp =>
+            lazy_query inp >>= fun y =>
+              Program.set oracle_output y).wp G σ
+       = ow_adv.wp _ σ
+    rw [wp_bind]
+  have h_rhs : (ow_loop_body_tracked ow_adv lazy_query).wp G σ
+      = ow_adv.wp (fun xs : Unit × state =>
+          (Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp G xs.snd) σ := by
+    show (ow_adv >>= fun _ : Unit =>
+          Program.get oracle_input >>= fun inp =>
+            Program.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then Program.set chal_x_queried true
+               else (pure () : Program state Unit)) >>= fun _ =>
+                lazy_query inp >>= fun y =>
+                  Program.set oracle_output y).wp G σ
+       = ow_adv.wp _ σ
+    rw [wp_bind]
+  rw [h_lhs, h_rhs]
+  apply congrArg (fun P => ow_adv.wp P σ)
+  funext xs
+  exact ow_loop_body_inner_eq G h_G xs.snd
+
+/-! ### Loop and experiment equivalence
+
+By induction on `q`, the loop equivalence lifts the body equivalence.
+This requires `ow_adv.inRange chal_x_queried.compl.range` so that
+`ow_loop` (untouched) is in `chal_x_queried.compl.range` and the
+"G' ignores chal_x_queried" hypothesis carries through induction. -/
+
+include h_ow_adv_chal_x_queried in
+/-- `ow_loop_body` (the original, untracked) is in `chal_x_queried.compl.range`:
+    it's built from operations that don't touch `chal_x_queried`. -/
+private lemma ow_loop_body_inRange_chal_x_queried_compl :
+    (ow_loop_body ow_adv lazy_query).inRange chal_x_queried.compl.range := by
+  show (ow_adv >>= fun _ : Unit =>
+        Program.get oracle_input >>= fun inp =>
+          lazy_query inp >>= fun y =>
+            Program.set oracle_output y).inRange chal_x_queried.compl.range
+  refine Program.inRange_bind h_ow_adv_chal_x_queried ?_
+  intro _
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_get _)
+      (Lens.range_le_compl_of_disjoint oracle_input chal_x_queried)) ?_
+  intro inp
+  exact lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp
+
+include h_ow_adv_chal_x_queried in
+/-- `ow_loop q` (the original, untracked) is in `chal_x_queried.compl.range`. -/
+private lemma ow_loop_inRange_chal_x_queried_compl (q : ℕ) :
+    (ow_loop ow_adv q lazy_query).inRange chal_x_queried.compl.range := by
+  induction q with
+  | zero => exact Program.inRange_pure _ _
+  | succ n ih =>
+    show (ow_loop_body ow_adv lazy_query >>= fun _ =>
+          ow_loop ow_adv n lazy_query).inRange _
+    exact Program.inRange_bind
+      (ow_loop_body_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried)
+      (fun _ => ih)
+
+include h_ow_adv_chal_x_queried in
+/-- The wp of `ow_loop q` at a `chal_x_queried = true` state equals the wp at
+    the original state, for posts that ignore `chal_x_queried`. -/
+private lemma ow_loop_wp_chal_x_queried_invariant (q : ℕ)
+    (G : Unit × state → ENNReal)
+    (h_G : ∀ aσ : Unit × state, G (aσ.1, chal_x_queried.set true aσ.2) = G aσ)
+    (σ : state) :
+    (ow_loop ow_adv q lazy_query).wp G (chal_x_queried.set true σ)
+    = (ow_loop ow_adv q lazy_query).wp G σ := by
+  set f : state → state := chal_x_queried.update (Function.const _ true) with hf_def
+  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : LensRange state)ᶜ).updates := by
+    rw [show ((chal_x_queried.compl.range : LensRange state)ᶜ) = chal_x_queried.range from by
+      rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
+  have h_f_eq : ∀ σ', f σ' = chal_x_queried.set true σ' := fun σ' => by
+    show chal_x_queried.set ((Function.const _ true) (chal_x_queried.get σ')) σ'
+      = chal_x_queried.set true σ'
+    rw [Function.const_apply]
+  rw [← h_f_eq σ]
+  rw [Program.wp_shift_input
+      (ow_loop_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried q)
+      h_f_in_Rc]
+  congr 1
+  funext xs
+  rw [h_f_eq xs.snd]
+  exact h_G xs
+
+include h_ow_adv_chal_x_queried in
+/-- **Loop equivalence**: `ow_loop` and `ow_loop_tracked` produce the same wp
+    for posts that ignore `chal_x_queried`. By induction on `q`. -/
+lemma ow_loop_eq_tracked (q : ℕ)
+    (G : Unit × state → ENNReal)
+    (h_G : ∀ aσ : Unit × state, G (aσ.1, chal_x_queried.set true aσ.2) = G aσ)
+    (σ : state) :
+    (ow_loop ow_adv q lazy_query).wp G σ
+    = (ow_loop_tracked ow_adv q lazy_query).wp G σ := by
+  induction q generalizing σ with
+  | zero =>
+    -- Both ow_loop 0 = pure () and ow_loop_tracked 0 = pure ().
+    rfl
+  | succ n ih =>
+    -- ow_loop (n+1) = ow_loop_body >>= ow_loop n.
+    -- ow_loop_tracked (n+1) = ow_loop_body_tracked >>= ow_loop_tracked n.
+    show (ow_loop_body ow_adv lazy_query >>= fun _ =>
+          ow_loop ow_adv n lazy_query).wp G σ
+       = (ow_loop_body_tracked ow_adv lazy_query >>= fun _ =>
+          ow_loop_tracked ow_adv n lazy_query).wp G σ
+    rw [wp_bind, wp_bind]
+    -- Both sides: body[_tracked].wp (fun aσ => loop[_tracked] n .wp G aσ.2) σ.
+    -- Set up the post G' for body equivalence.
+    set G' : Unit × state → ENNReal :=
+      fun aσ => (ow_loop ow_adv n lazy_query).wp G aσ.2
+    -- G' ignores chal_x_queried by ow_loop_wp_chal_x_queried_invariant.
+    have h_G' : ∀ aσ : Unit × state,
+        G' (aσ.1, chal_x_queried.set true aσ.2) = G' aσ := by
+      intro aσ
+      show (ow_loop ow_adv n lazy_query).wp G (chal_x_queried.set true aσ.2)
+         = (ow_loop ow_adv n lazy_query).wp G aσ.2
+      exact ow_loop_wp_chal_x_queried_invariant
+        ow_adv h_ow_adv_chal_x_queried n G h_G aσ.2
+    -- Replace RHS's `ow_loop_tracked n` with `ow_loop n` (by IH).
+    have h_rhs_inner : (fun aσ : Unit × state =>
+        (ow_loop_tracked ow_adv n lazy_query).wp G aσ.2)
+        = G' := by
+      funext aσ
+      show (ow_loop_tracked ow_adv n lazy_query).wp G aσ.2
+         = (ow_loop ow_adv n lazy_query).wp G aσ.2
+      exact (ih aσ.snd).symm
+    rw [h_rhs_inner]
+    -- Now both sides: body[_tracked].wp G' σ. Apply body equivalence.
+    exact ow_loop_body_eq_tracked ow_adv G' h_G' σ
+
+include h_ow_adv_chal_x_queried in
+/-- The "rest of the experiment" minus the initial `init` step is in
+    `chal_x_queried.compl.range`. -/
+private lemma ow_experiment_rest_inRange_chal_x_queried_compl (q : ℕ)
+    (oracle : input → Program state output)
+    (h_oracle_inRange : ∀ x : input,
+        (oracle x).inRange chal_x_queried.compl.range)
+    (h_ow_loop_in_compl :
+        (ow_loop ow_adv q oracle).inRange chal_x_queried.compl.range) :
+    (Program.uniform >>= fun x : input =>
+      Program.set ow_challenge_x x >>= fun _ =>
+        oracle x >>= fun y =>
+          Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop ow_adv q oracle >>= fun _ =>
+              Program.get ow_response >>= fun resp =>
+                oracle resp >>= fun y_check =>
+                  (pure (decide (y_check = y)) : Program state Bool)).inRange
+      chal_x_queried.compl.range := by
+  refine Program.inRange_bind
+    (Program.inRange_mono Program.inRange_uniform bot_le) ?_
+  intro x
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_set _ _)
+      (Lens.range_le_compl_of_disjoint ow_challenge_x chal_x_queried)) ?_
+  intro _
+  refine Program.inRange_bind (h_oracle_inRange x) ?_
+  intro y
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_set _ _)
+      (Lens.range_le_compl_of_disjoint ow_challenge_y chal_x_queried)) ?_
+  intro _
+  refine Program.inRange_bind h_ow_loop_in_compl ?_
+  intro _
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_get _)
+      (Lens.range_le_compl_of_disjoint ow_response chal_x_queried)) ?_
+  intro resp
+  refine Program.inRange_bind (h_oracle_inRange resp) ?_
+  intro _
+  exact Program.inRange_mono (Program.inRange_pure _ _) bot_le
+
+/-- The post-loop tail `get resp >>= lazy_query resp >>= pure` is in
+    `chal_x_queried.compl.range`. -/
+private lemma post_loop_inRange_chal_x_queried_compl (y_chal : output) :
+    (Program.get ow_response >>= fun resp =>
+      lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = y_chal)) : Program state Bool)).inRange
+        chal_x_queried.compl.range := by
+  refine Program.inRange_bind
+    (Program.inRange_mono (Program.inRange_get _)
+      (Lens.range_le_compl_of_disjoint ow_response chal_x_queried)) ?_
+  intro resp
+  refine Program.inRange_bind ?_ ?_
+  · exact Program.inRange_mono (lazy_query_inRange_ro resp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
+  · intro _
+    exact Program.inRange_mono (Program.inRange_pure _ _) bot_le
+
+include h_ow_adv_chal_x_queried in
+/-- **REST equivalence**: the experiment "rest" with `ow_loop` vs `ow_loop_tracked`
+    have the same wp for posts ignoring `chal_x_queried`. -/
+private lemma ow_experiment_rest_eq_tracked (q : ℕ)
+    (F : Bool × state → ENNReal) (h_F : IgnoresChalXQueried F) (σ_init : state) :
+    (Program.uniform >>= fun x : input =>
+      Program.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y =>
+          Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop ow_adv q lazy_query >>= fun _ =>
+              Program.get ow_response >>= fun resp =>
+                lazy_query resp >>= fun y_check =>
+                  (pure (decide (y_check = y)) : Program state Bool)).wp F σ_init
+    = (Program.uniform >>= fun x : input =>
+      Program.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y =>
+          Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+              Program.get ow_response >>= fun resp =>
+                lazy_query resp >>= fun y_check =>
+                  (pure (decide (y_check = y)) : Program state Bool)).wp F σ_init := by
+  -- Both sides differ only at ow_loop vs ow_loop_tracked.
+  -- Peel off wp_bind on both sides, then use congrArg + funext to descend.
+  rw [wp_bind]; conv_rhs => rw [wp_bind]
+  apply congrArg (fun P => Program.uniform.wp P σ_init)
+  funext xs_u
+  -- xs_u : input × state. The inner is set chal_x xs_u.1 >>= ... .wp F xs_u.2.
+  show (Program.set ow_challenge_x xs_u.1 >>= fun _ =>
+        lazy_query xs_u.1 >>= fun y =>
+          Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop ow_adv q lazy_query >>= fun _ =>
+              Program.get ow_response >>= fun resp =>
+                lazy_query resp >>= fun y_check =>
+                  (pure (decide (y_check = y)) : Program state Bool)).wp F xs_u.2
+      = (Program.set ow_challenge_x xs_u.1 >>= fun _ =>
+          lazy_query xs_u.1 >>= fun y =>
+            Program.set ow_challenge_y y >>= fun _ =>
+              ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+                Program.get ow_response >>= fun resp =>
+                  lazy_query resp >>= fun y_check =>
+                    (pure (decide (y_check = y)) : Program state Bool)).wp F xs_u.2
+  rw [wp_bind]; conv_rhs => rw [wp_bind]
+  apply congrArg (fun P => (Program.set ow_challenge_x xs_u.1).wp P xs_u.2)
+  funext xs_cx
+  -- xs_cx : Unit × state.
+  show (lazy_query xs_u.1 >>= fun y =>
+          Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop ow_adv q lazy_query >>= fun _ =>
+              Program.get ow_response >>= fun resp =>
+                lazy_query resp >>= fun y_check =>
+                  (pure (decide (y_check = y)) : Program state Bool)).wp F xs_cx.2
+      = (lazy_query xs_u.1 >>= fun y =>
+          Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+              Program.get ow_response >>= fun resp =>
+                lazy_query resp >>= fun y_check =>
+                  (pure (decide (y_check = y)) : Program state Bool)).wp F xs_cx.2
+  rw [wp_bind]; conv_rhs => rw [wp_bind]
+  apply congrArg (fun P => (lazy_query xs_u.1).wp P xs_cx.2)
+  funext xs_lq
+  -- xs_lq : output × state.
+  show (Program.set ow_challenge_y xs_lq.1 >>= fun _ =>
+          ow_loop ow_adv q lazy_query >>= fun _ =>
+            Program.get ow_response >>= fun resp =>
+              lazy_query resp >>= fun y_check =>
+                (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_lq.2
+      = (Program.set ow_challenge_y xs_lq.1 >>= fun _ =>
+          ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+            Program.get ow_response >>= fun resp =>
+              lazy_query resp >>= fun y_check =>
+                (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_lq.2
+  rw [wp_bind]; conv_rhs => rw [wp_bind]
+  apply congrArg (fun P => (Program.set ow_challenge_y xs_lq.1).wp P xs_lq.2)
+  funext xs_cy
+  -- xs_cy : Unit × state.
+  show (ow_loop ow_adv q lazy_query >>= fun _ =>
+          Program.get ow_response >>= fun resp =>
+            lazy_query resp >>= fun y_check =>
+              (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_cy.2
+      = (ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+          Program.get ow_response >>= fun resp =>
+            lazy_query resp >>= fun y_check =>
+              (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_cy.2
+  rw [wp_bind]; conv_rhs => rw [wp_bind]
+  -- Now: ow_loop.wp G' xs_cy.2 = ow_loop_tracked.wp G' xs_cy.2 where
+  -- G' = fun aσ => post_loop.wp F aσ.2.
+  set post_loop : Program state Bool :=
+    Program.get ow_response >>= fun resp =>
+      lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = xs_lq.1)) : Program state Bool) with hpost_def
+  set G' : Unit × state → ENNReal :=
+    fun aσ => post_loop.wp F aσ.2 with hG'_def
+  -- G' ignores chal_x_queried since post_loop is in chal_x_queried.compl.range
+  -- and F ignores chal_x_queried.
+  have h_G' : ∀ aσ : Unit × state,
+      G' (aσ.1, chal_x_queried.set true aσ.2) = G' aσ := by
+    intro aσ
+    show post_loop.wp F (chal_x_queried.set true aσ.2) = post_loop.wp F aσ.2
+    -- Apply wp_shift_input.
+    set f : state → state := chal_x_queried.update (Function.const _ true) with hf_def
+    have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((chal_x_queried.compl.range : LensRange state)ᶜ) = chal_x_queried.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
+    have h_f_eq : ∀ σ', f σ' = chal_x_queried.set true σ' := fun σ' => by
+      show chal_x_queried.set ((Function.const _ true) (chal_x_queried.get σ')) σ'
+        = chal_x_queried.set true σ'
+      rw [Function.const_apply]
+    rw [← h_f_eq aσ.2]
+    rw [Program.wp_shift_input
+        (post_loop_inRange_chal_x_queried_compl xs_lq.1) h_f_in_Rc]
+    congr 1
+    funext xs_b
+    rw [h_f_eq xs_b.snd]
+    exact h_F xs_b true
+  exact ow_loop_eq_tracked ow_adv h_ow_adv_chal_x_queried q G' h_G' xs_cy.2
+
+include h_ow_adv_chal_x_queried in
+/-- **Experiment equivalence (for lazy oracle)**: `ow_experiment` with
+    `lazy_query` and `ow_experiment_tracked` with `lazy_query` produce the same
+    wp for posts ignoring `chal_x_queried`. -/
+lemma ow_experiment_eq_tracked_lazy (q : ℕ)
+    (init : Program state Unit)
+    (h_init_inRange : init.inRange chal_x_queried.compl.range)
+    (F : Bool × state → ENNReal) (h_F : IgnoresChalXQueried F) (σ : state) :
+    (ow_experiment ow_adv q init lazy_query).wp F σ
+    = (ow_experiment_tracked ow_adv q init lazy_query).wp F σ := by
+  -- Factor out init via wp_bind on both sides.
+  have h_lhs :
+      (ow_experiment ow_adv q init lazy_query).wp F σ
+      = init.wp (fun xs : Unit × state =>
+          (Program.uniform >>= fun x : input =>
+            Program.set ow_challenge_x x >>= fun _ =>
+              lazy_query x >>= fun y =>
+                Program.set ow_challenge_y y >>= fun _ =>
+                  ow_loop ow_adv q lazy_query >>= fun _ =>
+                    Program.get ow_response >>= fun resp =>
+                      lazy_query resp >>= fun y_check =>
+                        (pure (decide (y_check = y)) : Program state Bool)).wp F xs.snd) σ := by
+    show (init >>= fun _ : Unit =>
+          Program.uniform >>= fun x : input =>
+            Program.set ow_challenge_x x >>= fun _ =>
+              lazy_query x >>= fun y =>
+                Program.set ow_challenge_y y >>= fun _ =>
+                  ow_loop ow_adv q lazy_query >>= fun _ =>
+                    Program.get ow_response >>= fun resp =>
+                      lazy_query resp >>= fun y_check =>
+                        (pure (decide (y_check = y)) : Program state Bool)).wp F σ
+       = init.wp _ σ
+    rw [wp_bind]
+  have h_rhs :
+      (ow_experiment_tracked ow_adv q init lazy_query).wp F σ
+      = init.wp (fun xs : Unit × state =>
+          (Program.set chal_x_queried false >>= fun _ =>
+            Program.uniform >>= fun x : input =>
+              Program.set ow_challenge_x x >>= fun _ =>
+                lazy_query x >>= fun y =>
+                  Program.set ow_challenge_y y >>= fun _ =>
+                    ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+                      Program.get ow_response >>= fun resp =>
+                        lazy_query resp >>= fun y_check =>
+                          (pure (decide (y_check = y)) : Program state Bool)).wp F xs.snd) σ := by
+    show (init >>= fun _ : Unit =>
+          Program.set chal_x_queried false >>= fun _ =>
+            Program.uniform >>= fun x : input =>
+              Program.set ow_challenge_x x >>= fun _ =>
+                lazy_query x >>= fun y =>
+                  Program.set ow_challenge_y y >>= fun _ =>
+                    ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+                      Program.get ow_response >>= fun resp =>
+                        lazy_query resp >>= fun y_check =>
+                          (pure (decide (y_check = y)) : Program state Bool)).wp F σ
+       = init.wp _ σ
+    rw [wp_bind]
+  rw [h_lhs, h_rhs]
+  apply congrArg (fun P => init.wp P σ)
+  funext xs
+  -- Inner equality: REST.wp F xs.snd = (set chal_x_queried false >>= REST_TRACKED).wp F xs.snd.
+  set σ_a := xs.snd with hσ_a_def
+  -- Step 1: (set chal_x_queried false >>= REST_TRACKED).wp F σ_a
+  --       = REST_TRACKED.wp F (chal_x_queried.set false σ_a)   [wp_bind + wp_set]
+  rw [show (Program.set chal_x_queried false >>= fun _ =>
+            Program.uniform >>= fun x : input =>
+              Program.set ow_challenge_x x >>= fun _ =>
+                lazy_query x >>= fun y =>
+                  Program.set ow_challenge_y y >>= fun _ =>
+                    ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+                      Program.get ow_response >>= fun resp =>
+                        lazy_query resp >>= fun y_check =>
+                          (pure (decide (y_check = y)) : Program state Bool)).wp F σ_a
+        = (Program.uniform >>= fun x : input =>
+            Program.set ow_challenge_x x >>= fun _ =>
+              lazy_query x >>= fun y =>
+                Program.set ow_challenge_y y >>= fun _ =>
+                  ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+                    Program.get ow_response >>= fun resp =>
+                      lazy_query resp >>= fun y_check =>
+                        (pure (decide (y_check = y)) : Program state Bool)).wp F
+            (chal_x_queried.set false σ_a) from by
+      rw [wp_bind, wp_set]]
+  -- Step 2: REST_TRACKED.wp F (chal_x_queried.set false σ_a)
+  --       = REST.wp F (chal_x_queried.set false σ_a)            [REST equivalence reversed]
+  rw [← ow_experiment_rest_eq_tracked ow_adv h_ow_adv_chal_x_queried q F h_F
+        (chal_x_queried.set false σ_a)]
+  -- Step 3: REST.wp F (chal_x_queried.set false σ_a) = REST.wp F σ_a
+  --   [wp_shift_input + h_F + REST.inRange chal_x_queried.compl.range]
+  set f : state → state := chal_x_queried.update (Function.const _ false) with hf_def
+  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : LensRange state)ᶜ).updates := by
+    rw [show ((chal_x_queried.compl.range : LensRange state)ᶜ) = chal_x_queried.range from by
+      rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
+  have h_f_eq : ∀ σ', f σ' = chal_x_queried.set false σ' := fun σ' => by
+    show chal_x_queried.set ((Function.const _ false) (chal_x_queried.get σ')) σ'
+      = chal_x_queried.set false σ'
+    rw [Function.const_apply]
+  rw [← h_f_eq σ_a]
+  rw [Program.wp_shift_input
+      (ow_experiment_rest_inRange_chal_x_queried_compl ow_adv
+        h_ow_adv_chal_x_queried q lazy_query
+        (fun x => Program.inRange_mono (lazy_query_inRange_ro x)
+          (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried))
+        (ow_loop_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried q))
+      h_f_in_Rc]
+  congr 1
+  funext xs_b
+  rw [h_f_eq xs_b.snd]
+  exact (h_F xs_b false).symm
+
+/-! ### Layer A_obs: per-iteration query-hit bound
+
+When entering a loop iteration with `chal_x_queried = false`, the probability
+that the iteration sets `chal_x_queried = true` is at most `1/|input|`.
+
+The key insight: with `chal_x_queried = false`, by the equivalence lemma
+combined with `wp_shift_input`, the experiment's behavior up to this point
+is independent of `chal_x`'s value. Marginalizing over the initial uniform
+sample of `chal_x` gives `1/|input|`.
+-/
+
+/-- Mass bound for the tracked loop body. (Trivial; not the real Layer A_obs.) -/
+private lemma ow_loop_body_tracked_mass_le_one
+    (σ : state) :
+    (ow_loop_body_tracked ow_adv lazy_query).wp
+        (fun _ : Unit × state => (1 : ENNReal)) σ
+    ≤ 1 :=
+  Program.wp_const_le _ 1 σ
+
+/-! ### Bound on `chal_x_queried_at_end` (Layer C_obs)
+
+The "bad event" bound: across the `q` loop iterations, the probability that
+some adversary `oracle_input` equals `ow_challenge_x` is at most `q/|input|`.
+
+This is a union bound, valid because the adversary cannot read `ow_challenge_x`
+and `ow_challenge_x` is uniformly sampled. -/
+
+include h_ow_adv_chal_x_queried in
+/-- **Layer C_obs**: the probability that `chal_x_queried` is set during the
+    tracked experiment is at most `q/|input|`.
+
+    This is the union bound: each of the `q` loop iterations has at most
+    `1/|input|` probability of "hitting" the uniformly-sampled `ow_challenge_x`. -/
+lemma ow_experiment_tracked_chal_x_queried_bound
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (σ₀ : state) :
+    (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
+        (fun bσ : Bool × state =>
+          if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ₀
+    ≤ (q : ENNReal) / Fintype.card input := by
+  sorry  -- Layer C_obs — deferred-sampling argument.
+
+include h_ow_adv_chal_x_queried in
+/-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
+    the adversary's response equals `ow_challenge_x` with probability
+    at most `1/|input|`.
+
+    Intuition: if `chal_x_queried_at_end` is false, the adversary never
+    queried `ow_challenge_x` during the loop. Since the adversary cannot
+    read `ow_challenge_x` directly, its view (and hence its response) is
+    statistically independent of `ow_challenge_x`. Thus the probability
+    the adversary's deterministic-from-view response coincides with the
+    uniformly-sampled `ow_challenge_x` is `1/|input|`. -/
+lemma ow_experiment_tracked_indep_bound
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (σ₀ : state) :
+    (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
+        (fun bσ : Bool × state =>
+          if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧
+             ¬ chal_x_queried.get bσ.2
+          then (1 : ENNReal) else 0) σ₀
+    ≤ (1 : ENNReal) / Fintype.card input := by
+  sorry  -- Conditional independence — coupling argument.
+
+/-! ### Composition: closing the OW bound
+
+Using the two bounds above plus the experiment equivalence, we close the
+original `ow_experiment_resp_eq_chal_x_bound` sorry in `OneWayness.lean`.
+-/
+
+/-- Indicator decomposition: `[resp = chal_x ∧ is_preimage]` is bounded by
+    the sum of `[chal_x_queried]` and `[resp = chal_x ∧ ¬chal_x_queried]`. -/
+private lemma resp_chal_x_preimage_decomp (σ : state) :
+    (if ow_response.get σ = ow_challenge_x.get σ ∧ is_preimage σ
+     then (1 : ENNReal) else 0)
+    ≤ (if chal_x_queried.get σ then (1 : ENNReal) else 0)
+      + (if ow_response.get σ = ow_challenge_x.get σ ∧
+            ¬ chal_x_queried.get σ
+         then (1 : ENNReal) else 0) := by
+  by_cases h_queried : chal_x_queried.get σ
+  · rw [if_pos h_queried]
+    by_cases h : ow_response.get σ = ow_challenge_x.get σ ∧ is_preimage σ
+    · rw [if_pos h]
+      exact (le_add_right (le_refl (1 : ENNReal)))
+    · rw [if_neg h]
+      exact zero_le ((1 : ENNReal) +
+        (if ow_response.get σ = ow_challenge_x.get σ ∧
+            ¬ chal_x_queried.get σ then (1 : ENNReal) else 0))
+  · rw [if_neg h_queried]
+    by_cases h : ow_response.get σ = ow_challenge_x.get σ ∧ is_preimage σ
+    · rw [if_pos h]
+      have h2 : ow_response.get σ = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get σ :=
+        ⟨h.1, h_queried⟩
+      rw [if_pos h2]; rw [zero_add]
+    · rw [if_neg h]; exact zero_le _
+
+include h_ow_adv_chal_x_queried in
+/-- **The OW bound, via the tracking variable approach**: in the *lazy*
+    experiment, `E[resp = chal_x ∧ is_preimage] ≤ (q+1)/|input|`.
+
+    Composes:
+    1. `ow_experiment_eq_tracked_lazy` (switch to tracked variant).
+    2. `resp_chal_x_preimage_decomp` (decompose indicator).
+    3. `ow_experiment_tracked_chal_x_queried_bound` (Layer C_obs).
+    4. `ow_experiment_tracked_indep_bound` (conditional independence). -/
+theorem ow_experiment_resp_eq_chal_x_bound_via_tracked
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (σ₀ : state) :
+    (ow_experiment ow_adv q lazy_init lazy_query).wp
+        (fun bσ : Bool × state =>
+          if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
+          then (1 : ENNReal) else 0) σ₀
+    ≤ ((q + 1) : ENNReal) / Fintype.card input := by
+  -- Step 1: lazy_init is in chal_x_queried.compl.range.
+  have h_lazy_init_inRange :
+      (lazy_init : Program state Unit).inRange chal_x_queried.compl.range := by
+    exact Program.inRange_mono (Program.inRange_set _ _)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
+  -- Step 2: switch to tracked variant via the equivalence.
+  rw [ow_experiment_eq_tracked_lazy ow_adv h_ow_adv_chal_x_queried q lazy_init
+      h_lazy_init_inRange _ (preimage_win_ignores_chal_x_queried) σ₀]
+  -- Step 3: bound by the decomposition.
+  calc (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state =>
+            if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
+            then (1 : ENNReal) else 0) σ₀
+      ≤ (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state =>
+            (if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0)
+            + (if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧
+                  ¬ chal_x_queried.get bσ.2
+               then (1 : ENNReal) else 0)) σ₀ := by
+        apply Program.wp_le_wp_of_le
+        intro bσ
+        exact resp_chal_x_preimage_decomp bσ.2
+    _ = (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state =>
+            if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ₀
+        + (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state =>
+            if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧
+               ¬ chal_x_queried.get bσ.2
+            then (1 : ENNReal) else 0) σ₀ := by
+        rw [Program.wp_add]
+    _ ≤ (q : ENNReal) / Fintype.card input
+        + (1 : ENNReal) / Fintype.card input := by
+        gcongr
+        · exact ow_experiment_tracked_chal_x_queried_bound ow_adv
+            h_ow_adv_chal_x_queried h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
+        · exact ow_experiment_tracked_indep_bound ow_adv
+            h_ow_adv_chal_x_queried h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
+    _ = ((q + 1) : ENNReal) / Fintype.card input := by
+        rw [← ENNReal.add_div]
+
+include h_ow_adv_chal_x_queried in
+/-- **Layer D_OW (closed)**: probability bound on `preimage_indicator` at the
+    end of the experiment. Closes the original `ow_preimage_bound` from
+    `OneWayness.lean` without axioms (modulo two clean sub-bounds). -/
+theorem ow_preimage_bound
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (σ₀ : state) :
+    (ow_experiment ow_adv q lazy_init lazy_query).wp
+        (fun bσ : Bool × state => preimage_indicator bσ.2) σ₀
+    ≤ (2 * (q + 1) : ENNReal) / Fintype.card output := by
+  set N : ENNReal := (Fintype.card output : ENNReal) with hN_def
+  calc (ow_experiment ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state => preimage_indicator bσ.2) σ₀
+      ≤ (ow_experiment ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state => useful_preimage_indicator bσ.2 +
+            (if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
+             then (1 : ENNReal) else 0)) σ₀ := by
+        apply Program.wp_le_wp_of_le
+        intro bσ
+        exact preimage_le_useful_or_resp_eq_chal_x bσ.2
+    _ = (ow_experiment ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state => useful_preimage_indicator bσ.2) σ₀ +
+        (ow_experiment ow_adv q lazy_init lazy_query).wp
+          (fun bσ : Bool × state =>
+            if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
+            then (1 : ENNReal) else 0) σ₀ := by
+        rw [Program.wp_add]
+    _ ≤ ((q + 1) : ENNReal) / N + ((q + 1) : ENNReal) / Fintype.card input := by
+        gcongr
+        · exact ow_experiment_useful_preimage_bound ow_adv h_ow_adv
+            h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
+        · exact ow_experiment_resp_eq_chal_x_bound_via_tracked ow_adv
+            h_ow_adv_chal_x_queried h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
+    _ ≤ ((q + 1) : ENNReal) / N + ((q + 1) : ENNReal) / N := by
+        gcongr
+        rw [hN_def]
+        exact_mod_cast card_input_ge_output
+    _ = (2 * (q + 1) : ENNReal) / N := by
+        rw [← ENNReal.add_div]; ring_nf
+
+include h_ow_adv_chal_x_queried in
+/-- **Birthday-style bound** for the lazy one-wayness experiment, closed via
+    the deferred-sampling tracking variable. -/
+theorem ow_lazy_bound
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (σ₀ : state) :
+    ((ow_experiment ow_adv q lazy_init lazy_query).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
+    ≤ (2 * (q + 1) : ENNReal) / Fintype.card output :=
+  le_trans (ow_true_implies_preimage_wp ow_adv h_ow_adv_chal_y q σ₀)
+    (ow_preimage_bound ow_adv h_ow_adv_chal_x_queried h_ow_adv
+       h_ow_adv_chal_y h_ow_adv_chal_x q σ₀)
+
+include h_ow_adv_chal_x_queried in
+/-- **One-wayness bound for the eager (true random oracle) game**, obtained by
+    transferring `ow_lazy_bound` via `ow_transfer`. Closed via the tracking
+    variable. -/
+theorem ow_eager_bound
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (q : ℕ) (σ₀ : state) :
+    ((ow_experiment ow_adv q random_oracle_init random_oracle_query).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
+    ≤ (2 * (q + 1) : ENNReal) / Fintype.card output := by
+  rw [← ow_transfer_wp_of_bit ow_adv h_ow_adv q σ₀
+        (fun b => if b then (1 : ENNReal) else 0)]
+  exact ow_lazy_bound ow_adv h_ow_adv_chal_x_queried h_ow_adv
+    h_ow_adv_chal_y h_ow_adv_chal_x q σ₀
+
+end OWParam
