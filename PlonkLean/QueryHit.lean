@@ -88,6 +88,10 @@ instance : disjoint oracle_input chal_x_queried :=
   disjoint_chal_x_queried_oracle_input.symm
 instance : disjoint oracle_output chal_x_queried :=
   disjoint_chal_x_queried_oracle_output.symm
+instance : disjoint ow_challenge_x ow_response :=
+  disjoint_ow_response_ow_challenge_x.symm
+instance : disjoint ow_challenge_y ow_response :=
+  disjoint_ow_response_ow_challenge_y.symm
 
 section OWParam
 
@@ -1777,6 +1781,62 @@ lemma ow_experiment_tracked_chal_x_queried_bound
   exact ENNReal.div_le_div_right
     (ow_loop_tracked_chal_x_queried_sum_le ow_adv h_ow_adv_chal_x_queried h_ow_adv
       h_ow_adv_chal_y h_ow_adv_chal_x q σ_a h_σ_a_cxq) _
+
+include h_ow_adv_chal_x_queried in
+/-- **Strengthened sum bound** for conditional independence:
+    `∑ x, loop_q.wp [resp=x ∧ ¬cxq] (chal_x.set x σ) ≤ [¬cxq.get σ]`.
+
+    Stronger than `≤ 1`: yields 0 when σ.cxq=true. The strengthened IH at
+    cxq=true forces each term to be 0 by positivity. -/
+private lemma ow_loop_tracked_indep_sum_le_strong
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range) :
+    ∀ (q : ℕ) (σ : state),
+    ∑ x : input, (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
+          then (1 : ENNReal) else 0)
+        (ow_challenge_x.set x σ)
+    ≤ (if chal_x_queried.get σ then (0 : ENNReal) else 1) := by
+  intro q
+  induction q with
+  | zero =>
+    intro σ
+    show ∑ x : input, (Pure.pure () : Program state Unit).wp _ (ow_challenge_x.set x σ) ≤ _
+    simp_rw [wp_pure]
+    have h_resp : ∀ x : input,
+        ow_response.get (ow_challenge_x.set x σ) = ow_response.get σ := by
+      intro x; rw [ow_response.get_of_disjoint_set]
+    have h_cxq : ∀ x : input,
+        chal_x_queried.get (ow_challenge_x.set x σ) = chal_x_queried.get σ := by
+      intro x; rw [chal_x_queried.get_of_disjoint_set]
+    simp_rw [h_resp, h_cxq]
+    by_cases h : chal_x_queried.get σ = true
+    · have h_zero : ∀ x : input,
+          (if ow_response.get σ = x ∧ ¬ chal_x_queried.get σ then (1 : ENNReal) else 0) = 0 := by
+        intro x
+        rw [if_neg]
+        rintro ⟨_, h_neg⟩
+        exact h_neg h
+      simp_rw [h_zero, Finset.sum_const_zero]
+      rw [if_pos h]
+    · have h_simplify : ∀ x : input,
+          (if ow_response.get σ = x ∧ ¬ chal_x_queried.get σ then (1 : ENNReal) else 0)
+          = if ow_response.get σ = x then (1 : ENNReal) else 0 := by
+        intro x
+        by_cases h_resp_x : ow_response.get σ = x
+        · rw [if_pos h_resp_x, if_pos]
+          exact ⟨h_resp_x, h⟩
+        · rw [if_neg h_resp_x, if_neg]
+          exact fun ⟨h1, _⟩ => h_resp_x h1
+      simp_rw [h_simplify]
+      rw [if_neg h]
+      rw [Finset.sum_ite_eq Finset.univ (ow_response.get σ) (fun _ => (1 : ENNReal))]
+      simp
+  | succ q ih =>
+    intro σ
+    sorry  -- Inductive step
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
