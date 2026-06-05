@@ -1667,6 +1667,65 @@ private lemma post_loop_preserves_chal_x_queried_wp
   · rw [if_pos h, h]
   · rw [if_neg h]; exact zero_le _
 
+/-- Helper: `post_loop` preserves the indep indicator `[resp = chal_x ∧ ¬cxq]`.
+    Argument: after `get ow_response`, the remaining `lazy_query resp; pure decide`
+    is in `random_oracle_state.range`, which is in the compl range of `ow_response`,
+    `ow_challenge_x`, and `chal_x_queried` (all disjoint from RO). -/
+private lemma post_loop_preserves_indep_wp
+    (y_chal : output) (σ : state) :
+    (Program.get ow_response >>= fun resp =>
+      lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = y_chal)) : Program state Bool)).wp
+      (fun bσ : Bool × state =>
+        if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ ¬ chal_x_queried.get bσ.2
+        then (1 : ENNReal) else 0) σ
+    ≤ (if ow_response.get σ = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get σ
+       then (1 : ENNReal) else 0) := by
+  rw [wp_bind, wp_get]
+  simp only []  -- beta-reduce
+  -- Goal: (lazy_query (ow_response.get σ) >>= pure decide).wp F_bool σ ≤ indicator(σ).
+  set resp_val := ow_response.get σ with h_resp_val_def
+  -- (lazy_query resp_val; pure decide).wp F_bool σ.
+  rw [wp_bind]
+  -- (lazy_query resp_val).wp (fun (y_check, σ') => (pure decide).wp F_bool σ') σ.
+  -- lazy_query is in random_oracle_state.range. Apply wp_strengthen for resp, chal_x, cxq.
+  have h_lq_inRange_resp : (lazy_query resp_val).inRange ow_response.compl.range :=
+    Program.inRange_mono (lazy_query_inRange_ro _)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_response)
+  have h_lq_inRange_cx : (lazy_query resp_val).inRange ow_challenge_x.compl.range :=
+    Program.inRange_mono (lazy_query_inRange_ro _)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+  have h_lq_inRange_cxq : (lazy_query resp_val).inRange chal_x_queried.compl.range :=
+    Program.inRange_mono (lazy_query_inRange_ro _)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
+  rw [Program.wp_strengthen_lens_preserved ow_response h_lq_inRange_resp _ σ,
+      Program.wp_strengthen_lens_preserved ow_challenge_x h_lq_inRange_cx _ σ,
+      Program.wp_strengthen_lens_preserved chal_x_queried h_lq_inRange_cxq _ σ]
+  refine le_trans
+    (Program.wp_le_wp_of_le _ _ (fun _ =>
+      if ow_response.get σ = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get σ
+      then (1 : ENNReal) else 0) ?_ σ)
+    (Program.wp_const_le _ _ σ)
+  intro yσ
+  by_cases h_cxq_pres : chal_x_queried.get yσ.2 = chal_x_queried.get σ
+  swap
+  · simp only [if_neg h_cxq_pres]; exact zero_le _
+  simp only [if_pos h_cxq_pres]
+  by_cases h_cx_pres : ow_challenge_x.get yσ.2 = ow_challenge_x.get σ
+  swap
+  · simp only [if_neg h_cx_pres]; exact zero_le _
+  simp only [if_pos h_cx_pres]
+  by_cases h_resp_pres : ow_response.get yσ.2 = ow_response.get σ
+  swap
+  · simp only [if_neg h_resp_pres]; exact zero_le _
+  simp only [if_pos h_resp_pres]
+  -- (pure decide).wp F_bool yσ.2 ≤ if resp = chal_x ∧ ¬cxq at σ then 1 else 0.
+  rw [wp_pure]
+  simp only []  -- beta-reduce
+  -- F_bool (decide ..., yσ.2) = if resp = chal_x ∧ ¬cxq at yσ.2 then 1 else 0.
+  -- By preservation: = if resp = chal_x ∧ ¬cxq at σ then 1 else 0.
+  rw [h_resp_pres, h_cx_pres, h_cxq_pres]
+
 include h_ow_adv_chal_x_queried in
 /-- **Layer C_obs**: the probability that `chal_x_queried` is set during the
     tracked experiment is at most `q/|input|`.
