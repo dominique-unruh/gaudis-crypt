@@ -2652,6 +2652,53 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
   simp only [if_pos h_cx_rest]
   simp [if_pos (h_cx_rest.trans h_cx_pres)]
 
+/-- `ow_loop_tracked q` preserves chal_x value. By induction on q using the
+    body preservation lemma. -/
+private lemma ow_loop_tracked_preserves_chal_x_wp
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range) :
+    ∀ (q : ℕ) (σ : state) (F : Unit × state → ENNReal),
+    (ow_loop_tracked ow_adv q lazy_query).wp F σ
+    = (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) σ := by
+  intro q
+  induction q with
+  | zero =>
+    intro σ F
+    show (Pure.pure () : Program state Unit).wp F σ
+        = (Pure.pure () : Program state Unit).wp _ σ
+    rw [wp_pure, wp_pure]
+    simp
+  | succ q ih =>
+    intro σ F
+    -- loop_(q+1) = body; loop_q. Apply wp_bind.
+    show (ow_loop_body_tracked ow_adv lazy_query >>= fun _ : Unit =>
+            ow_loop_tracked ow_adv q lazy_query).wp F σ
+        = (ow_loop_body_tracked ow_adv lazy_query >>= fun _ : Unit =>
+            ow_loop_tracked ow_adv q lazy_query).wp _ σ
+    rw [wp_bind, wp_bind]
+    -- LHS = body.wp (fun aσ_b => loop_q.wp F aσ_b.2) σ.
+    -- Apply body chal_x preservation: LHS = body.wp (if chal_x_pres aσ_b then ... else 0) σ.
+    rw [ow_loop_body_tracked_preserves_chal_x_wp ow_adv h_ow_adv_chal_x _ σ]
+    rw [ow_loop_body_tracked_preserves_chal_x_wp ow_adv h_ow_adv_chal_x
+        (fun aσ : Unit × state =>
+          (ow_loop_tracked ow_adv q lazy_query).wp
+            (fun aσ' : Unit × state =>
+              if ow_challenge_x.get aσ'.2 = ow_challenge_x.get σ then F aσ' else 0)
+            aσ.2) σ]
+    -- Both sides now have body.wp (if chal_x_pres then ... else 0) σ.
+    -- Show per aσ_b with chal_x_pres: loop_q.wp F aσ_b.2 = loop_q.wp F_strong aσ_b.2.
+    congr 1
+    funext aσ_b
+    by_cases h_cx_b : ow_challenge_x.get aσ_b.2 = ow_challenge_x.get σ
+    swap
+    · simp only [if_neg h_cx_b]
+    simp only [if_pos h_cx_b]
+    -- aσ_b.2 has chal_x.get = chal_x.get σ. Apply IH at aσ_b.2.
+    have h_ih := ih aσ_b.2 F
+    -- h_ih: loop_q.wp F aσ_b.2 = loop_q.wp (if chal_x.get = chal_x.get aσ_b.2 then F else 0) aσ_b.2.
+    rw [h_ih, h_cx_b]
+
 /-- F'_x freshness analog of `ow_loop_tracked_lazy_query_freshness` for the
     indep indicator. -/
 private lemma ow_loop_tracked_lazy_query_freshness_indep
