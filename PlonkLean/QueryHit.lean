@@ -1293,7 +1293,16 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     have h_aσ_adv_chal_x : ow_challenge_x.get aσ_adv.2 = x := h_cx_pres
     have h_aσ_adv_ro_x : random_oracle_state.get aσ_adv.2 x = none := by
       rw [h_ro_pres]; exact h_ro
-    sorry  -- Inner pointwise equality with all constraints.
+    -- Goal: (1/|output|) ∑ y, post_adv.wp G (RO_setentry x y aσ_adv.2) = post_adv.wp G aσ_adv.2
+    -- Compute post_adv.wp via wp_bind + wp_get for both sides.
+    -- inp = oracle_input.get state (same on both sides by disjointness).
+    -- cx = ow_challenge_x.get state = x (by h_aσ_adv_chal_x + disjointness).
+    -- The conditional checks inp = x.
+    -- Case split on inp = x:
+    --   inp = x: variable renaming — average over y of `lazy_query x; set oracle_output; loop_q`
+    --            at state with RO[x] = y matches RHS where lazy_query x samples fresh y_lq.
+    --   inp ≠ x: RO_setentry_commute (proved!) + wp_finset_sum + IH (averaged freshness at q).
+    sorry  -- Inner pointwise: ~80-100 lines case split + lens commutes + IH.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
