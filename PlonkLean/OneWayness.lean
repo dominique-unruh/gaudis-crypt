@@ -56,6 +56,8 @@ axiom disjoint_ow_challenge_y_ow_challenge_x : disjoint ow_challenge_y ow_challe
 axiom disjoint_oracle_input_ow_response : disjoint oracle_input ow_response
 axiom disjoint_oracle_output_ow_response : disjoint oracle_output ow_response
 axiom disjoint_ro_ow_response : disjoint random_oracle_state ow_response
+axiom disjoint_ow_response_ow_challenge_x : disjoint ow_response ow_challenge_x
+axiom disjoint_ow_response_ow_challenge_y : disjoint ow_response ow_challenge_y
 
 attribute [instance] disjoint_ow_challenge_y_ro disjoint_ow_challenge_x_ro
                      disjoint_ow_response_ro
@@ -69,6 +71,8 @@ attribute [instance] disjoint_ow_challenge_y_ro disjoint_ow_challenge_x_ro
                      disjoint_oracle_input_ow_response
                      disjoint_oracle_output_ow_response
                      disjoint_ro_ow_response
+                     disjoint_ow_response_ow_challenge_x
+                     disjoint_ow_response_ow_challenge_y
 
 /-- DecidableEq on `output` (needed for the win-bit). Same trick as CR. -/
 noncomputable instance : DecidableEq output := Classical.decEq output
