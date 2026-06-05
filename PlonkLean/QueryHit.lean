@@ -715,6 +715,14 @@ private lemma ow_loop_body_tracked_mass_le_one
     ≤ 1 :=
   Program.wp_const_le _ 1 σ
 
+/-- `wp` commutes with finite sums of postconditions. -/
+private lemma Program.wp_finset_sum {α β : Type} [Fintype β]
+    (p : Program state α) (F : β → α × state → ENNReal) (σ : state) :
+    p.wp (fun aσ => ∑ b : β, F b aσ) σ = ∑ b : β, p.wp (F b) σ := by
+  letI : MeasurableSpace (α × state) := ⊤
+  show ∫⁻ aσ, (∑ b, F b aσ) ∂(p σ).1 = ∑ b, ∫⁻ aσ, F b aσ ∂(p σ).1
+  exact MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)
+
 /-! ### Bound on `chal_x_queried_at_end` (Layer C_obs)
 
 The "bad event" bound: across the `q` loop iterations, the probability that
@@ -722,6 +730,87 @@ some adversary `oracle_input` equals `ow_challenge_x` is at most `q/|input|`.
 
 This is a union bound, valid because the adversary cannot read `ow_challenge_x`
 and `ow_challenge_x` is uniformly sampled. -/
+
+/-! ### Proof sketch (Layer C_obs)
+
+The bound reduces (via `wp_uniform` at the experiment's outer `uniform x`) to
+a strengthened sum inequality on the loop:
+
+  **Sum lemma**: ∀ q : ℕ, ∀ σ with `chal_x_queried.get σ = false`,
+    ∑ x : input, (ow_loop_tracked q lazy_query).wp
+      [chal_x_queried.get bσ.2 = true] (ow_challenge_x.set x σ) ≤ q
+
+Proof by induction on q.
+
+* `q = 0`: `pure ()` preserves chal_x_queried = false; indicator = 0; sum = 0. ✓
+* `q → q+1`:
+  - Unfold `ow_loop_tracked (q+1) = body_tracked >>= ow_loop_tracked q`.
+  - Use `wp_bind` to factor.
+  - body_tracked = `ow_adv >>= post_adv` where `post_adv` does the conditional
+    chal_x_queried update and the lazy_query.
+  - Apply `wp_shift_input` on `ow_adv` (∈ `chal_x.compl.range`): commute the
+    `chal_x.set x` past the adversary.
+  - Apply `wp_finset_sum` to pull `∑ x` inside `ow_adv.wp`.
+  - For each adversary outcome `aσ_adv` (with `inp = oracle_input.get aσ_adv.2`,
+    note `inp` is independent of `x`):
+    - For `x = inp` (one term): the conditional fires, setting
+      chal_x_queried = true; the rest of body preserves it; loop_q preserves it.
+      Contribution ≤ 1.
+    - For `x ≠ inp` (other terms): conditional doesn't fire; the remaining
+      `lazy_query inp >>= set oracle_output >>= loop_q` is independent of `x`
+      via another `wp_shift_input` (this program is in `chal_x.compl.range`).
+      Apply `wp_finset_sum` again, then IH gives sum ≤ q.
+  - Total per outcome: ≤ 1 + q. Adversary mass ≤ 1 gives sum ≤ q+1.
+
+This argument relies crucially on `h_ow_adv_chal_x`: the adversary cannot read
+`ow_challenge_x`, so its choice of `inp` is independent of `chal_x`.
+-/
+
+include h_ow_adv_chal_x_queried in
+/-- **Strengthened sum bound** for `ow_loop_tracked`: for any state with
+    `chal_x_queried = false`, summing the loop's wp at `[chal_x_queried]`
+    over `chal_x = x` gives at most `q`. This is the core of Layer C_obs.
+
+    Proof by induction on `q`.
+
+    * `q = 0`: `pure ()` preserves chal_x_queried; indicator = 0; sum = 0.
+    * `q → q+1`: Apply `wp_shift_input` to commute `chal_x.set x` past
+      `ow_adv` (which doesn't read chal_x). Use `wp_finset_sum` to pull the
+      sum inside. For each adversary outcome with `inp`, split: `x = inp`
+      contributes ≤ 1 (hit case); `x ≠ inp` contributes the miss-branch wp,
+      which we shift again (lazy_query and set are also in chal_x.compl.range)
+      and apply IH. Total per outcome ≤ 1 + q; adversary mass ≤ 1 gives q+1.
+-/
+private lemma ow_loop_tracked_chal_x_queried_sum_le
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range) :
+    ∀ (q : ℕ) (σ : state), chal_x_queried.get σ = false →
+    ∑ x : input, (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
+        (ow_challenge_x.set x σ) ≤ (q : ENNReal) := by
+  intro q
+  induction q with
+  | zero =>
+    intro σ h_σ
+    -- ow_loop_tracked 0 = pure (). wp evaluates the indicator at the state.
+    show ∑ x : input, (Pure.pure () : Program state Unit).wp _ (ow_challenge_x.set x σ) ≤ _
+    simp_rw [wp_pure]
+    -- chal_x.set preserves chal_x_queried.get since chal_x and chal_x_queried are disjoint.
+    have h_qf : ∀ x : input,
+        chal_x_queried.get (ow_challenge_x.set x σ) = false := by
+      intro x
+      rw [chal_x_queried.get_of_disjoint_set]; exact h_σ
+    have h_zero : ∀ x : input,
+        (if chal_x_queried.get (ow_challenge_x.set x σ) then (1 : ENNReal) else 0) = 0 := by
+      intro x; rw [h_qf x]; simp
+    simp_rw [h_zero]
+    simp
+  | succ q ih =>
+    intro σ h_σ
+    sorry  -- Inductive step: technical wp manipulation with wp_shift_input,
+           -- wp_finset_sum, and IH. See sketch above; ~150 lines of careful tactic.
 
 include h_ow_adv_chal_x_queried in
 /-- **Layer C_obs**: the probability that `chal_x_queried` is set during the
@@ -738,7 +827,7 @@ lemma ow_experiment_tracked_chal_x_queried_bound
         (fun bσ : Bool × state =>
           if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ₀
     ≤ (q : ENNReal) / Fintype.card input := by
-  sorry  -- Layer C_obs — deferred-sampling argument.
+  sorry  -- Reduce to the strengthened sum lemma via wp_uniform.
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
