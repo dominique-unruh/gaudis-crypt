@@ -1140,6 +1140,55 @@ private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
       (random_oracle_state.set
         (fun k => if k = inp then some v else random_oracle_state.get σ k) σ)]
 
+/-- **Averaged RO invariance** for `ow_loop_tracked`'s `chal_x_queried`
+    indicator: averaging over uniform `y` of the loop's wp at
+    `RO_setentry chal_x y σ` equals the wp at `σ`.
+
+    This is the deferred-sampling content needed for the experiment-level
+    bound. Provable WITHOUT adv-termination assumption, by variable
+    renaming in the `inp = x` case and IH application in the `inp ≠ x`
+    case (using `RO_setentry_neq_commutes_lazy_query_set_oracle_output`). -/
+private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
+    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range) :
+    ∀ (q : ℕ) (σ : state),
+    chal_x_queried.get σ = false →
+    random_oracle_state.get σ (ow_challenge_x.get σ) = none →
+    (1 : ENNReal) / Fintype.card output *
+      ∑ y : output, (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
+        (random_oracle_state.set
+          (fun k => if k = ow_challenge_x.get σ then some y
+                    else random_oracle_state.get σ k) σ)
+    = (ow_loop_tracked ow_adv q lazy_query).wp
+        (fun aσ : Unit × state =>
+          if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0) σ := by
+  intro q
+  induction q with
+  | zero =>
+    intro σ h_qf h_ro
+    show (1 : ENNReal) / Fintype.card output *
+        ∑ y : output, (Pure.pure () : Program state Unit).wp _ _
+      = (Pure.pure () : Program state Unit).wp _ _
+    simp_rw [wp_pure]
+    -- RO_setentry preserves chal_x_queried.get (lens disjoint).
+    have h_cxq_unchanged : ∀ y : output,
+        chal_x_queried.get (random_oracle_state.set
+          (fun k => if k = ow_challenge_x.get σ then some y
+                    else random_oracle_state.get σ k) σ)
+        = chal_x_queried.get σ := by
+      intro y
+      rw [chal_x_queried.get_of_disjoint_set]
+    simp_rw [h_cxq_unchanged]
+    rw [h_qf]
+    simp
+  | succ q ih =>
+    intro σ h_qf h_ro
+    -- Inductive step: ~150 lines using RO_setentry_commute + linearity + IH.
+    sorry
+
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
     `RO[x] = none`) doesn't change the loop's wp of the indicator.
