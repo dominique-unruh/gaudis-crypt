@@ -2120,7 +2120,7 @@ lemma ow_experiment_tracked_indep_bound
              ¬ chal_x_queried.get bσ.2
           then (1 : ENNReal) else 0) σ₀
     ≤ (1 : ENNReal) / Fintype.card input := by
-  sorry  -- Conditional independence — coupling argument. ~150 lines via sum lemma.
+  sorry  -- Indep bound: composition pending F_unit/F'_x averaged invariance lemma.
 
 /-! ### Composition: closing the OW bound
 
