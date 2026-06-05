@@ -1679,7 +1679,104 @@ lemma ow_experiment_tracked_chal_x_queried_bound
         (fun bσ : Bool × state =>
           if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ₀
     ≤ (q : ENNReal) / Fintype.card input := by
-  sorry  -- Unfold experiment via wp_bind, apply freshness + sum lemma. ~100 lines.
+  set F : Unit × state → ENNReal :=
+    fun aσ : Unit × state => if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0 with hF_def
+  -- σ_a = state after init + set cxq false. cxq = false, RO = all none.
+  set σ_a : state := chal_x_queried.set false (random_oracle_state.set (fun _ => none) σ₀)
+    with σ_a_def
+  have h_σ_a_cxq : chal_x_queried.get σ_a = false := by
+    rw [σ_a_def, chal_x_queried.set_get]
+  have h_σ_a_ro : ∀ k : input, random_oracle_state.get σ_a k = none := by
+    intro k
+    rw [σ_a_def, random_oracle_state.get_of_disjoint_set, random_oracle_state.set_get]
+  -- Helper: post_loop step bound for any y.
+  have h_post_drop : ∀ (y : output) (σ' : state),
+      (Program.set ow_challenge_y y >>= fun _ =>
+          ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+          Program.get ow_response >>= fun resp =>
+          lazy_query resp >>= fun y_check =>
+          (pure (decide (y_check = y)) : Program state Bool)).wp
+        (fun bσ : Bool × state =>
+          if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ'
+      ≤ (Program.set ow_challenge_y y >>= fun _ =>
+          ow_loop_tracked ow_adv q lazy_query).wp F σ' := by
+    intro y σ'
+    conv_lhs =>
+      rw [wp_bind, wp_set, wp_bind]
+    conv_rhs =>
+      rw [wp_bind, wp_set]
+    refine Program.wp_le_wp_of_le _ _ _ ?_ _
+    intro aσ_l
+    exact post_loop_preserves_chal_x_queried_wp y aσ_l.2
+  -- Per-x bound.
+  have h_per_x : ∀ x : input,
+      (Program.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+        ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+        Program.get ow_response >>= fun resp =>
+        lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = y)) : Program state Bool)).wp
+          (fun bσ : Bool × state =>
+            if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ_a
+      ≤ (ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x σ_a) := by
+    intro x
+    rw [wp_bind, wp_set]
+    -- Apply wp_bind on lazy_query x.
+    rw [wp_bind]
+    -- Apply wp_le_wp_of_le on lazy_query post via h_post_drop.
+    refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun yσ_l : output × state =>
+        (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+            ow_loop_tracked ow_adv q lazy_query).wp F yσ_l.2)
+      (fun yσ_l => h_post_drop yσ_l.1 yσ_l.2) _) ?_
+    -- Refold inner via ← wp_bind.
+    rw [show (lazy_query x).wp
+        (fun yσ_l : output × state =>
+          (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+              ow_loop_tracked ow_adv q lazy_query).wp F yσ_l.2)
+        (ow_challenge_x.set x σ_a)
+        = (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x σ_a)
+        from by rw [wp_bind]]
+    -- Apply freshness.
+    rw [ow_loop_tracked_lazy_query_freshness ow_adv h_ow_adv h_ow_adv_chal_y
+        h_ow_adv_chal_x h_ow_adv_chal_x_queried q x σ_a h_σ_a_cxq (h_σ_a_ro x)]
+  -- Unfold experiment via wp_bind.
+  show (lazy_init >>= fun _ => Program.set chal_x_queried false >>= fun _ =>
+        Program.uniform >>= fun x => Program.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+        ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+        Program.get ow_response >>= fun resp =>
+        lazy_query resp >>= fun y_check =>
+        (pure (decide (y_check = y)) : Program state Bool)).wp _ σ₀ ≤ _
+  rw [wp_bind]
+  unfold lazy_init
+  rw [wp_set, wp_bind, wp_set]
+  simp only []  -- beta-reduce
+  -- Now: (do uniform; continuation).wp F_bool σ_a ≤ q / |input|.
+  rw [wp_bind, wp_uniform]
+  -- Goal: ∑ x, (continuation x).wp F_bool σ_a / |input| ≤ q / |input|.
+  refine le_trans (Finset.sum_le_sum (fun x _ =>
+    show (Program.set ow_challenge_x x >>= fun _ =>
+            lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+            ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
+            Program.get ow_response >>= fun resp =>
+            lazy_query resp >>= fun y_check =>
+            (pure (decide (y_check = y)) : Program state Bool)).wp
+            (fun bσ : Bool × state =>
+              if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ_a
+          / Fintype.card input
+        ≤ (ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x σ_a)
+          / Fintype.card input
+        from ENNReal.div_le_div_right (h_per_x x) _)) ?_
+  rw [show ∑ i : input, (ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set i σ_a)
+            / Fintype.card input
+        = (∑ i : input, (ow_loop_tracked ow_adv q lazy_query).wp F
+            (ow_challenge_x.set i σ_a)) / Fintype.card input from by
+    simp only [ENNReal.div_eq_inv_mul, ← Finset.mul_sum]]
+  exact ENNReal.div_le_div_right
+    (ow_loop_tracked_chal_x_queried_sum_le ow_adv h_ow_adv_chal_x_queried h_ow_adv
+      h_ow_adv_chal_y h_ow_adv_chal_x q σ_a h_σ_a_cxq) _
 
 include h_ow_adv_chal_x_queried in
 /-- **Conditional independence**: on the event `¬chal_x_queried_at_end`,
