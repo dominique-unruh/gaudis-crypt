@@ -1390,7 +1390,8 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       funext y_arg
       simp only [one_div, mul_one, ENNReal.div_eq_inv_mul]
     · -- MISS case (inp_a ≠ x): RO_setentry_commute + IH.
-      sorry  -- MISS case: needs ~80 lines.
+      simp only [if_neg h_inp]
+      sorry  -- MISS case body.
 
 /-- **Pointwise RO[x] invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: adding any `(x, y)` entry to `RO` (when `chal_x = x` and
