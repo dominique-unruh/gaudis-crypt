@@ -2629,7 +2629,7 @@ lemma ow_experiment_tracked_indep_bound
              ¬ chal_x_queried.get bσ.2
           then (1 : ENNReal) else 0) σ₀
     ≤ (1 : ENNReal) / Fintype.card input := by
-  sorry  -- Indep bound: composition pending F_unit/F'_x averaged invariance lemma.
+  sorry  -- Indep bound composition. Pending: chal_x preservation through tracked loop.
 
 /-! ### Composition: closing the OW bound
 
