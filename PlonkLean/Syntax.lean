@@ -2,6 +2,11 @@ import Lean
 import Lean.Elab.Term
 import PlonkLean.Semantics
 
+class ProgramSpec : Type _ where
+  state : Type u
+
+def State [spec : ProgramSpec] := spec.state
+
 structure ProcedureSignature where
   params : List Type
   ret    : Type
@@ -14,6 +19,8 @@ def paramListToTuple (types : List Type) : Type := match types with
   -- body : Stmt s
   -- return_val : Getter sig.ret s
 
+/-- A sequences of procedure signatures, intended to be used to describe the type
+    of holes in a program -/
 inductive HoleSigs where
   | empty  : HoleSigs
   | append : HoleSigs → ProcedureSignature → HoleSigs
@@ -22,36 +29,39 @@ inductive HoleIndex : HoleSigs → ProcedureSignature → Type _ where
   | zero {a} {Γ : HoleSigs} : HoleIndex (Γ.append a) a
   | succ {a b} : HoleIndex Γ a → HoleIndex (Γ.append b) a
 
+abbrev Var [ProgramSpec] a := Lens a State
+abbrev Expr [ProgramSpec] a := Getter a State
+
 /-- Syntactic program (with arbitrary Lean terms as expressions) -/
-inductive StmtWithHoles (s : Type) : HoleSigs → Type 1 where
-  | skip : StmtWithHoles s h
-  | assign {a : Type} : Lens a s → Getter a s → StmtWithHoles s h -- mutation
-  | sample {a : Type} : Lens a s → Getter (SubProbability a) s → StmtWithHoles s h
+inductive StmtWithHoles [ProgramSpec] : HoleSigs → Type _ where
+  | skip : StmtWithHoles h
+  | assign {a : Type} : Var a → Expr a → StmtWithHoles h -- mutation
+  | sample {a : Type} : Var a → Expr (SubProbability a) → StmtWithHoles h
   | call' {sig : ProcedureSignature} :
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
-      Lens sig.ret s → StmtWithHoles s .empty → Getter sig.ret s
-        → Getter (paramListToTuple sig.params) s → StmtWithHoles s h
+      Var sig.ret → StmtWithHoles .empty → Expr sig.ret
+        → Expr (paramListToTuple sig.params) → StmtWithHoles h
   | hole {sig} (n: HoleIndex h sig) :
-      Lens sig.ret s → Getter (paramListToTuple sig.params) s → StmtWithHoles s h
-  | seq : StmtWithHoles s h → StmtWithHoles s h → StmtWithHoles s h                   -- c1; c2
-  | ifThenElse : (Getter Bool s) → StmtWithHoles s h → StmtWithHoles s h → StmtWithHoles s h  -- if b then c1 else c2
-  | while : (Getter Bool s) → StmtWithHoles s h → StmtWithHoles s h          -- while b do c
+      Var sig.ret → Expr (paramListToTuple sig.params) → StmtWithHoles h
+  | seq : StmtWithHoles h → StmtWithHoles h → StmtWithHoles h                   -- c1; c2
+  | ifThenElse : Expr Bool → StmtWithHoles h → StmtWithHoles h → StmtWithHoles h  -- if b then c1 else c2
+  | while : Expr Bool → StmtWithHoles h → StmtWithHoles h          -- while b do c
 
-def Stmt s := StmtWithHoles s .empty
+def Stmt [ProgramSpec] := StmtWithHoles .empty
 
-structure ProcedureWithHoles s (holeSigs : HoleSigs) (sig : ProcedureSignature) where
-  body : StmtWithHoles s holeSigs -- WARNING: procedure arguments are ignored so far
-  return_val : Getter sig.ret s
+structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : ProcedureSignature) where
+  body : StmtWithHoles holeSigs -- WARNING: procedure arguments are ignored so far
+  return_val : Expr sig.ret
 
-def Procedure s sig := ProcedureWithHoles s .empty sig
+def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
-def StmtWithHoles.call {sig} (x : Lens sig.ret s) (proc : Procedure s sig)
-      (params : Getter (paramListToTuple sig.params) s) : StmtWithHoles s h :=
+def StmtWithHoles.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
+      (params : Expr (paramListToTuple sig.params)) : StmtWithHoles h :=
   StmtWithHoles.call' x proc.body proc.return_val params
 
- def Stmt.call{sig} (x : Lens sig.ret s) (proc : Procedure s sig)
-                     (params : Getter (paramListToTuple sig.params) s) : Stmt s
+def Stmt.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
+                     (params : Expr (paramListToTuple sig.params)) : Stmt
      := StmtWithHoles.call x proc params
 
 /- # Syntax of programs -/
@@ -109,7 +119,7 @@ macro_rules
   | `([var| $id:ident]) => `($id)
   -- TODO: [var| (x,y,z)] translation for tuples of lenses
 
-private def StmtWithHoles.mySize : StmtWithHoles s h → ℕ
+private def StmtWithHoles.mySize [ProgramSpec] : StmtWithHoles h → ℕ
   | .skip => 0
   | .assign _ _ => 0
   | .sample _ _ => 0
@@ -119,14 +129,14 @@ private def StmtWithHoles.mySize : StmtWithHoles s h → ℕ
   | .ifThenElse _ t e => t.mySize + e.mySize + 1
   | .while _ t => t.mySize + 1
 
-instance : SizeOf (StmtWithHoles s h) where
+instance [ProgramSpec] : SizeOf (StmtWithHoles h) where
   sizeOf := StmtWithHoles.mySize
 
 @[reducible]
-instance : SizeOf (Stmt s) := instSizeOfStmtWithHoles
+instance [ProgramSpec] : SizeOf Stmt := instSizeOfStmtWithHoles
 
 noncomputable
-def denotation {s : Type} : Stmt s → Program s Unit
+def denotation [ProgramSpec] : Stmt → Program State Unit
 | .skip => do return ()
 | .assign x e => do let st ← Program.get_state; let result := e.get st; Program.set x result
 | .sample x e => do
@@ -148,9 +158,7 @@ def denotation {s : Type} : Stmt s → Program s Unit
 | .seq p q => do denotation p; denotation q
 termination_by stmt => sizeOf (self := instSizeOfStmt) stmt
 decreasing_by
-  sorry; sorry; sorry; sorry; sorry; sorry
-  -- TODO
-   -- simp_all [StmtWithHoles.mySize]; omega
+  all_goals simp only [SizeOf.sizeOf, StmtWithHoles.mySize]; omega
 
 /- # Experiments -/
 
