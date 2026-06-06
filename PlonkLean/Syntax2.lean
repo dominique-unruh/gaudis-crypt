@@ -1510,11 +1510,26 @@ theorem reduce_beta [ProgramSpec] (body : MExpr' (Γ.append T) U) (arg : MExpr' 
   · cases h with | neutral ne => cases ne with | app ne' _ => exact nomatch ne'
   · rfl
 
+private theorem multi_step_reduction_fst [ProgramSpec]
+    {e e' : MExpr' Γ (.prod A B)} (h : multi_step_reduction e e') :
+    multi_step_reduction (MExpr'.fst e) (MExpr'.fst e') := by
+  induction h with
+  | refl => exact Rewriting.Star.refl _
+  | tail _ hbc ih => exact Rewriting.Star.tail ih (.fst hbc)
+
 -- TODO: How to tell the simplifier to use these theorems? Maybe need to mark them as congruence rule?
 -- => Investigate @[gcongr]
 -- @[congr]
 theorem reduce_fst_cong [ProgramSpec] (m m' : MExpr' Γ (.prod T U)) :
-  reduce m = reduce m' → reduce (MExpr'.fst m) = reduce (MExpr'.fst m') := sorry
+    reduce m = reduce m' → reduce (MExpr'.fst m) = reduce (MExpr'.fst m') := by
+  intro h
+  have eq1 : reduce (MExpr'.fst m) = reduce (MExpr'.fst (reduce m)) :=
+    (reduce_idem _).symm.trans
+      (confluence multi_step_reduction_reduce (multi_step_reduction_fst multi_step_reduction_reduce))
+  have eq2 : reduce (MExpr'.fst m') = reduce (MExpr'.fst (reduce m')) :=
+    (reduce_idem _).symm.trans
+      (confluence multi_step_reduction_reduce (multi_step_reduction_fst multi_step_reduction_reduce))
+  rw [eq1, eq2, h]
 
 
 section Demo
@@ -1571,6 +1586,7 @@ def MProc [ProgramSpec] sig := MExpr (.proc sig)
 
 def evalProc2 [ProgramSpec] {sig} (mex : MProc sig) : Procedure sig := evalModule mex
 
+-- Not sure we need this.
 theorem evalProc2_reduce [ProgramSpec] {sig} (mex : MProc sig) :
   evalProc2 (reduce mex) = evalProc2 mex := by sorry
 
