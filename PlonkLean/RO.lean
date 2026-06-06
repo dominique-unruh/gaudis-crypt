@@ -1065,6 +1065,23 @@ theorem Program.transfer_value_marginal {α : Type}
     (fun a : α => (@MeasureTheory.Measure.dirac α ⊤ a) A) σ₀
 
 
+/-- `(lazy_query inp >>= set oracle_output)` is in `L.compl.range` for any lens
+    `L` disjoint from both `random_oracle_state` and `oracle_output`. Useful for
+    `wp_strengthen_lens_preserved` arguments downstream. -/
+lemma lazy_query_then_set_oracle_output_inRange_compl
+    {γ : Type} (L : Lens γ state)
+    [disjoint random_oracle_state L]
+    [disjoint oracle_output L]
+    (inp : input) :
+    (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+        L.compl.range := by
+  refine Program.inRange_bind ?_ ?_
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state L)
+  · intro y
+    exact Program.inRange_mono (Program.inRange_set _ _)
+      (Lens.range_le_compl_of_disjoint oracle_output L)
+
 /-! ### RO-key-level properties of `lazy_query` + `set oracle_output`
 
 These are the workhorse lemmas for "deferred sampling" arguments in

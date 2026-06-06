@@ -177,30 +177,20 @@ lemma preimage_win_ignores_chal_x_queried :
       ow_challenge_y.get_of_disjoint_set chal_x_queried]
 
 /-- The "lazy_query then set oracle_output" rest of `ow_loop_body` is in
-    `chal_x_queried.compl.range`: it touches `random_oracle_state` (disjoint
-    from chal_x_queried) and `oracle_output` (also disjoint). -/
+    `chal_x_queried.compl.range`. Specialization of the generic
+    `lazy_query_then_set_oracle_output_inRange_compl` in `RO.lean`. -/
 lemma lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl
     (inp : input) :
     (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
-        chal_x_queried.compl.range := by
-  refine Program.inRange_bind ?_ ?_
-  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
-  · intro y
-    exact Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint oracle_output chal_x_queried)
+        chal_x_queried.compl.range :=
+  lazy_query_then_set_oracle_output_inRange_compl chal_x_queried inp
 
-/-- The "lazy_query then set oracle_output" is in `ow_challenge_x.compl.range`. -/
+/-- Specialization for `ow_challenge_x`. -/
 lemma lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl
     (inp : input) :
     (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
-        ow_challenge_x.compl.range := by
-  refine Program.inRange_bind ?_ ?_
-  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
-  · intro y
-    exact Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint oracle_output ow_challenge_x)
+        ow_challenge_x.compl.range :=
+  lazy_query_then_set_oracle_output_inRange_compl ow_challenge_x inp
 
 /-- The conditional `set chal_x_queried` step is a no-op for posts that
     ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`. -/
