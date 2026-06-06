@@ -1284,72 +1284,6 @@ theorem mexprToSTLC_injective_Normal [ProgramSpec] {Γ : MCtx} {T : MTy}
     (h : mexprToSTLC n1 = mexprToSTLC n2) : n1 = n2 :=
   mexpr_equiv_Normal_eq hn1 hn2 (mexprToSTLC_injective n1 n2 h)
 
--- Proof plan for confluence1:
---
--- Note: mexpr_equiv_eq_of_same_type is FALSE for general terms.
--- Counterexample: (.app (.abs A) idX) and (.app (.abs A) idY) (for X ≠ Y, same result type)
--- have the same STLC representation but differ as MExpr' terms.
--- This beta-redex CAN appear as a subterm of one-step reducts of some m.
--- Therefore the proof cannot go via mexpr_equiv_eq_of_same_type.
---
--- Required auxiliary lemmas (to prove first):
---
--- (A) multi_step_reduction_reduce : multi_step_reduction m (reduce m)
---     Already stated above with sorry.
---     Proof: WF induction on m.
---       • Normal m: reduce m = m, Star.refl.
---       • ¬ Normal m: reduction_step_is_nd gives reduction_step_nd m (reduction_step m nn).
---         By IH, multi_step_reduction (reduction_step m nn) (reduce m). Prepend one step.
---
--- (B) multi_step_to_stlc_star :
---       multi_step_reduction m m' → Star Step (mexprToSTLC m) (mexprToSTLC m')
---     Proof: Star.mono applied to reduction_step_nd_then_Step.
---
--- (C) mexprToSTLC_Normal_iff :
---       Normal m ↔ IsNormalForm Step (mexprToSTLC m)
---     Forward: induction on Normal/Neutral derivation (no STLC step matches each normal form).
---     Backward (contrapositive): ¬ Normal m → reduction_step_is_nd + reduction_step_nd_then_Step
---       gives a STLC step from mexprToSTLC m.
---
--- (D) stlc_star_lift :
---       (m : MExpr' Γ T) → Star Step (mexprToSTLC m) M' → ∃ m', multi_step_reduction m m' ∧ mexprToSTLC m' = M'
---     THIS is where reduction_step_nd_if_Step is used.
---     Proof: induction on Star Step (mexprToSTLC m) M':
---       • Star.refl: m' := m, trivial.
---       • Star.head step ih: reduction_step_nd_if_Step gives n with reduction_step_nd m n and
---         mexprToSTLC n = next. Apply IH to n to get m' with multi_step_reduction n m' and
---         mexprToSTLC m' = M'. Compose steps.
---
--- (E) mexprToSTLC_injective_Normal :
---       (n1 n2 : MExpr' Γ T) → Normal n1 → Normal n2 → mexprToSTLC n1 = mexprToSTLC n2 → n1 = n2
---     This IS true for normal forms: in a normal form, the only .app nodes have neutral
---     functions. Neutral functions begin with a .var, whose type is fixed by the context.
---     Therefore the argument type A in .app f a (f : MExpr' Γ (.arr A T)) is determined
---     by the neutral head variable's position in Γ. So the full Lean structure is recovered
---     from the STLC structure + Γ + T.
---     Proof: simultaneous induction on n1 and n2 with case analysis:
---       • var/const: as in mexprToSTLC_injective (Ref.toNat_inj, HEq).
---       • abs: T = .arr A B, both bodies in Γ.append A, same type B → IH applies.
---       • pair: both halves have determined types from T = .prod A B → IH applies.
---       • neutral app: f1, f2 have neutral heads (both .var r with same toNat in same Γ T).
---           Neutral head determines argument type A → IH applies to f and a.
---       • neutral fst/snd: similar to var case.
---
--- Main proof of confluence1, given (A)–(E):
---   1. From h1: Star Step (mexprToSTLC m) (mexprToSTLC m1)  [single Step].
---   2. From h2: Star Step (mexprToSTLC m) (mexprToSTLC m2).
---   3. By (B) + (A): Star Step (mexprToSTLC m) (mexprToSTLC (reduce m1))  [extend to normal form].
---   4. Similarly: Star Step (mexprToSTLC m) (mexprToSTLC (reduce m2)).
---   5. By (C) + reduceNormal: IsNormalForm Step (mexprToSTLC (reduce m1)) and (reduce m2).
---   6. By Rewriting.normalForm_unique + step_confluent:
---        mexprToSTLC (reduce m1) = mexprToSTLC (reduce m2).
---   7. By (E): reduce m1 = reduce m2.
---
--- Alternative approach to step 7 (avoiding (E), using (D) instead):
---   From STLC confluence pick P (STLC normal form of mexprToSTLC m).
---   By (D) applied to m1: q1 with multi_step_reduction m1 q1, mexprToSTLC q1 = P.
---   By (C): Normal q1. By (E): reduce m1 = q1 ... but needs uniqueness of normal form.
---   → This also ultimately requires (E). No escape.
 theorem reduceNormal [ProgramSpec] (m : MExpr' Δ t) : Normal (reduce m) := by
   apply WellFoundedRelation.wf.induction (C := fun m => Normal (reduce m)) m
   intro n ih
@@ -1357,26 +1291,6 @@ theorem reduceNormal [ProgramSpec] (m : MExpr' Δ t) : Normal (reduce m) := by
   split_ifs with h
   · exact h
   · exact ih _ (reduction_step_compat n h)
-
-/- theorem confluence1 [ProgramSpec] {m m1 m2 : MExpr' Γ T}
-   (h1 : reduction_step_nd m m1) (h2 : reduction_step_nd m m2) :
-   reduce m1 = reduce m2 := by
-  have star1 : Rewriting.Star Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduce m1)) :=
-    Rewriting.Star.trans
-      (Rewriting.Star.single (reduction_step_nd_then_Step m m1 h1))
-      (multi_step_to_stlc_star multi_step_reduction_reduce)
-  have star2 : Rewriting.Star Metatheory.STLCext.Step (mexprToSTLC m) (mexprToSTLC (reduce m2)) :=
-    Rewriting.Star.trans
-      (Rewriting.Star.single (reduction_step_nd_then_Step m m2 h2))
-      (multi_step_to_stlc_star multi_step_reduction_reduce)
-  have nf1 : Rewriting.IsNormalForm Metatheory.STLCext.Step (mexprToSTLC (reduce m1)) :=
-    mexprToSTLC_Normal_iff.mp (reduceNormal m1)
-  have nf2 : Rewriting.IsNormalForm Metatheory.STLCext.Step (mexprToSTLC (reduce m2)) :=
-    mexprToSTLC_Normal_iff.mp (reduceNormal m2)
-  have heq : mexprToSTLC (reduce m1) = mexprToSTLC (reduce m2) :=
-    Rewriting.normalForm_unique Metatheory.STLCext.step_confluent star1 star2 nf1 nf2
-  exact mexprToSTLC_injective_Normal (reduceNormal m1) (reduceNormal m2) heq
- -/
 
 theorem confluence [ProgramSpec] {m m1 m2 : MExpr' Γ T}
    (h1 : multi_step_reduction m m1) (h2 : multi_step_reduction m m2) :
@@ -1408,8 +1322,12 @@ structure ProcModule [ProgramSpec] (T : MTy) where
   mexpr : MExpr T
   normal : NormalClosed mexpr
 
+def MExpr'.toProcModule [ProgramSpec] {T : MTy} (m : MExpr' .empty T) : ProcModule T :=
+  ⟨reduce m, reduceNormalClosed m⟩
+
 def MExpr.toProcModule [ProgramSpec] {T : MTy} (m : MExpr T) : ProcModule T :=
   ⟨reduce m, reduceNormalClosed m⟩
+
 
 instance [ProgramSpec] : CoeFun (ProcModule (.arr T U)) (fun _ ↦ ProcModule T → ProcModule U) where
   coe f x := MExpr.toProcModule (MExpr'.app f.mexpr x.mexpr)
@@ -1426,38 +1344,6 @@ def mctxToType [ProgramSpec] (mctx : MCtx) : Type _ := match mctx with
 def mctxToType' [ProgramSpec] (mctx : MCtx) : Type _ := match mctx with
   | MCtx.empty => PUnit
   | MCtx.append mctx' mty => mctxToType mctx' × MExpr' mctx' mty
-
-def evalModule' [ProgramSpec] {mctx : MCtx} {mty : MTy} (mex : MExpr' mctx mty) :
-      mctxToType mctx -> mtyToType mty :=
-  match mex with
-  | .const (sig:=sig) (p : Procedure sig) => fun _ => p
-  | .var .zero => fun (_, x) => x
-  | .var (.succ n) => fun (mctx', _) => evalModule' (.var n) mctx'
-  | .app a b => fun ctx => (evalModule' a ctx) (evalModule' b ctx)
-  | .fst a => fun ctx => (evalModule' a ctx).1
-  | .snd a => fun ctx => (evalModule' a ctx).2
-  | .abs body => fun ctx => fun x => (evalModule' body (ctx, x))
-  | .pair a b => fun ctx => (evalModule' a ctx, evalModule' b ctx)
-
-/-
-Following thm is wrong, by counterexample:
-
-X = procedure () -> Nat
-A : X = some procedure that returns 0
-Module type = (X -> X) -> X
-Module M : Module type = λ (f : X -> X) => f ((%x. x) A)
-f : X -> X := λ (x : X) => let n = # of lambdas in X; return proc() {return n}
-(eval_module' M) f = proc() {return 1} (since X has one lambda, the one in the module type)
-(eval_module' (reduce M)) f
-= (eval_module (%f => f A)) f
-= proc() {return 0} (since M reduces to A, which returns 0)
-
-
-
-theorem evalModule'_reduce [ProgramSpec] (m : MExpr' Γ T) (ctx : mctxToType Γ) :
-  evalModule' (reduce m) = evalModule' m := by
-  sorry
- -/
 
 
 def moduleEqual [ProgramSpec] (a : MExpr' Δ t) b := reduce a = reduce b
@@ -1478,6 +1364,7 @@ theorem reduce_snd [ProgramSpec] (m : MExpr' Γ T) (m' : MExpr' Γ T') :
   · cases h with | neutral ne => cases ne with | snd ne' => exact nomatch ne'
   · rfl
 
+@[simp]
 theorem reduce_idem [ProgramSpec] (m : MExpr' Γ T) : reduce (reduce m) = reduce m := by
   conv_lhs => unfold reduce
   simp [reduceNormal m]
@@ -1531,6 +1418,52 @@ theorem reduce_fst_cong [ProgramSpec] (m m' : MExpr' Γ (.prod T U)) :
       (confluence multi_step_reduction_reduce (multi_step_reduction_fst multi_step_reduction_reduce))
   rw [eq1, eq2, h]
 
+def ProcModule.fst [ProgramSpec] {T U} (m : ProcModule (.prod T U)) : ProcModule T :=
+  m.mexpr.fst.toProcModule
+
+
+def ProcModule.snd [ProgramSpec] {T U} (m : ProcModule (.prod T U)) : ProcModule T :=
+  m.mexpr.fst.toProcModule
+
+def ProcModule.pair [ProgramSpec] {T U} (m1 : ProcModule T) (m2 : ProcModule U) : ProcModule (.prod T U) :=
+  (m1.mexpr.pair m2.mexpr).toProcModule
+
+@[ext]
+theorem ProcModule.ext [ProgramSpec] {T} {m1 m2 : ProcModule T} (h : m1.mexpr = m2.mexpr) :
+  m1 = m2 := by
+  obtain ⟨e1, n1⟩ := m1; obtain ⟨e2, n2⟩ := m2
+  simp only at h; subst h; rfl
+
+@[simp]
+theorem ProcModule.mexpr_fst [ProgramSpec] {T U} (m : ProcModule (.prod T U)) :
+    m.fst.mexpr = reduce m.mexpr.fst := rfl
+
+@[simp]
+theorem ProcModule.toProcModule_mexpr [ProgramSpec] {T} (m : MExpr' .empty T) :
+    (MExpr'.toProcModule m).mexpr = reduce m := rfl
+
+@[simp]
+theorem reduce_fst_pair [ProgramSpec] {T U} (m1 : MExpr' Γ T) (m2 : MExpr' Γ U) :
+    reduce (MExpr'.fst (MExpr'.pair m1 m2)) = reduce m1 := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | fst ne' => exact nomatch ne'
+  · rfl
+
+@[simp]
+theorem reduce_pair [ProgramSpec] {T U} (m1 : MExpr' Γ T) (m2 : MExpr' Γ U) :
+    reduce (MExpr'.pair m1 m2) = MExpr'.pair (reduce m1) (reduce m2) :=
+  sorry
+
+@[simp]
+theorem ProcModule.reduce_mexpr [ProgramSpec] {T} (m : ProcModule T) : reduce m.mexpr = m.mexpr := by
+  sorry
+
+@[simp]
+theorem ProcModule.fst_pair [ProgramSpec] {T U} (m1 : ProcModule T) (m2 : ProcModule U) :
+    (m1.pair m2).fst = m1 := by
+  ext
+  simp [ProcModule.fst, ProcModule.pair]
 
 section Demo
 
@@ -1548,16 +1481,16 @@ module type TestModuleType = {
 -/
 
 axiom sig : ProcedureSignature
-def TestModuleType := MExpr (MTy.prod (MTy.proc sig) (MTy.proc sig))
+def TestModuleType := ProcModule (MTy.prod (MTy.proc sig) (MTy.proc sig))
 
 noncomputable
-def TestModuleType.main (m : TestModuleType) : MExpr (MTy.proc sig) := m.fst
+def TestModuleType.main (m : TestModuleType) : ProcModule (MTy.proc sig) := m.fst
 noncomputable
-def TestModuleType.aux (m : TestModuleType) : MExpr (MTy.proc sig) := m.snd
+def TestModuleType.aux (m : TestModuleType) : ProcModule (MTy.proc sig) := m.snd
 
 structure TestModuleTypeStruct where
-  main : MExpr (MTy.proc sig)
-  aux : MExpr (MTy.proc sig)
+  main : ProcModule (MTy.proc sig)
+  aux : ProcModule (MTy.proc sig)
 
 noncomputable
 def TestModuleTypeStruct.destruct (str : TestModuleTypeStruct) : TestModuleType :=
@@ -1566,8 +1499,8 @@ def TestModuleTypeStruct.destruct (str : TestModuleTypeStruct) : TestModuleType 
 noncomputable
 def TestModuleType.mk (str : TestModuleTypeStruct) : TestModuleType := str.main.pair str.aux
 
-axiom testMain : MExpr (MTy.proc sig)
-axiom testAux : MExpr (MTy.proc sig)
+axiom testMain : ProcModule (MTy.proc sig)
+axiom testAux : ProcModule (MTy.proc sig)
 
 noncomputable
 def myMod := TestModuleType.mk {main := testMain, aux := testAux}
@@ -1575,21 +1508,10 @@ def myMod := TestModuleType.mk {main := testMain, aux := testAux}
 -- theorem reduceFstPair {ctx mtya mtyb} (a : MExpr' ctx mtya) (b : MExpr' ctx mtyb) :
   -- reduce (MExpr'.pair a b).fst = reduce a := rfl
 
-theorem test : moduleEqual myMod.main testMain := by
-  simp [moduleEqual, TestModuleType.main, myMod, TestModuleType.mk]
+theorem test : myMod.main = testMain := by
+  simp [TestModuleType.main, myMod, TestModuleType.mk]
 
 end Demo
-
-def evalModule [ProgramSpec.{0}] {mty} (mex : MExpr mty) : mtyToType mty := evalModule'.{0,0} mex PUnit.unit
-
-def MProc [ProgramSpec] sig := MExpr (.proc sig)
-
-def evalProc2 [ProgramSpec] {sig} (mex : MProc sig) : Procedure sig := evalModule mex
-
--- Not sure we need this.
-theorem evalProc2_reduce [ProgramSpec] {sig} (mex : MProc sig) :
-  evalProc2 (reduce mex) = evalProc2 mex := by sorry
-
 
 opaque FV : Type
 -- Placeholder
@@ -1718,7 +1640,6 @@ theorem fv_reduce [ProgramSpec] (m : MExpr' c t) : fv m ⊆ fv' m := by
 
 theorem fv_app [ProgramSpec] (a : MExpr' Γ (MTy.arr A B)) (b : MExpr' Γ A) :
     fv (MExpr'.app a b) ⊆ fv a ∪ fv b := by
-  simp only [fv]
   simp only [fv, ← fv'_app]
   rw [reduce_app]
   exact fv_reduce _
