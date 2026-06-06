@@ -83,19 +83,15 @@ section OWParam
 variable (ow_adv : Program state Unit)
 
 /-- One round of the OW loop body: the adversary computes (and writes
-    `oracle_input`), then we run one oracle query. Same shape as
-    `cr_loop_body`. -/
+    `oracle_input`), then we run one oracle query. Thin alias for the generic
+    `oracle_step` in `RO.lean` (same shape as `cr_loop_body`). -/
 noncomputable def ow_loop_body (oracle : input → Program state output) :
-    Program state Unit := do
-  ow_adv
-  Program.set oracle_output (← oracle (← Program.get oracle_input))
+    Program state Unit := oracle_step ow_adv oracle
 
-/-- Run the adversary-and-query loop for `q` rounds. -/
-noncomputable def ow_loop : ℕ → (input → Program state output) → Program state Unit
-  | 0,     _      => pure ()
-  | n + 1, oracle => do
-      ow_loop_body ow_adv oracle
-      ow_loop n oracle
+/-- Run the adversary-and-query loop for `q` rounds. Thin alias for the generic
+    `oracle_loop_n` in `RO.lean`. -/
+noncomputable def ow_loop (q : ℕ) (oracle : input → Program state output) :
+    Program state Unit := oracle_loop_n ow_adv q oracle
 
 /-- **The OW experiment** parameterised by query budget `q`, init, and oracle.
 
@@ -131,33 +127,14 @@ include h_ow_adv in
 /-- One iteration of `ow_loop_body` transfers from lazy to eager. -/
 private lemma transfer_ow_loop_body :
     Program.transfer (ow_loop_body ow_adv lazy_query)
-                     (ow_loop_body ow_adv random_oracle_query) := by
-  show Program.transfer
-    (ow_adv >>= fun _ => Program.get oracle_input >>= fun inp =>
-      lazy_query inp >>= fun y => Program.set oracle_output y)
-    (ow_adv >>= fun _ => Program.get oracle_input >>= fun inp =>
-      random_oracle_query inp >>= fun y => Program.set oracle_output y)
-  apply Program.transfer_bind (transfer_ow_adv ow_adv h_ow_adv)
-  intro _
-  apply Program.transfer_bind
-    (Program.transfer_of_inRange_disjoint _ oracle_input (Program.inRange_get _))
-  intro inp
-  apply Program.transfer_bind (Program.transfer_lazy_query inp)
-  intro y
-  exact Program.transfer_of_inRange_disjoint _ oracle_output (Program.inRange_set _ _)
+                     (ow_loop_body ow_adv random_oracle_query) :=
+  Program.transfer_oracle_step h_ow_adv
 
 include h_ow_adv in
-/-- `ow_loop q` transfers from lazy to eager, by induction on `q`. -/
+/-- `ow_loop q` transfers from lazy to eager. -/
 private lemma transfer_ow_loop (q : ℕ) :
-    Program.transfer (ow_loop ow_adv q lazy_query) (ow_loop ow_adv q random_oracle_query) := by
-  induction q with
-  | zero => exact Program.transfer_pure ()
-  | succ n ih =>
-    show Program.transfer
-      (ow_loop_body ow_adv lazy_query >>= fun _ => ow_loop ow_adv n lazy_query)
-      (ow_loop_body ow_adv random_oracle_query >>=
-        fun _ => ow_loop ow_adv n random_oracle_query)
-    exact Program.transfer_bind (transfer_ow_loop_body ow_adv h_ow_adv) (fun _ => ih)
+    Program.transfer (ow_loop ow_adv q lazy_query) (ow_loop ow_adv q random_oracle_query) :=
+  Program.transfer_oracle_loop_n h_ow_adv q
 
 include h_ow_adv in
 /-- The full `ow_experiment q` transfers from lazy to eager. -/
@@ -186,45 +163,30 @@ private lemma transfer_ow_experiment (q : ℕ) :
                     (pure (decide (y_check = y)) : Program state Bool))
   apply Program.transfer_bind Program.transfer_lazy_init
   intro _
-  apply Program.transfer_bind
-    (Program.transfer_refl_of_inRange_compl
-      (Program.inRange_mono Program.inRange_uniform bot_le))
+  apply Program.transfer_bind Program.transfer_uniform
   intro x
-  apply Program.transfer_bind
-    (Program.transfer_of_inRange_disjoint _ ow_challenge_x (Program.inRange_set _ _))
+  apply Program.transfer_bind (Program.transfer_set_of_disjoint_ro ow_challenge_x x)
   intro _
   apply Program.transfer_bind (Program.transfer_lazy_query x)
   intro y
-  apply Program.transfer_bind
-    (Program.transfer_of_inRange_disjoint _ ow_challenge_y (Program.inRange_set _ _))
+  apply Program.transfer_bind (Program.transfer_set_of_disjoint_ro ow_challenge_y y)
   intro _
   apply Program.transfer_bind (transfer_ow_loop ow_adv h_ow_adv q)
   intro _
-  apply Program.transfer_bind
-    (Program.transfer_of_inRange_disjoint _ ow_response (Program.inRange_get _))
+  apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro ow_response)
   intro resp
   apply Program.transfer_bind (Program.transfer_lazy_query resp)
   intro y_check
   exact Program.transfer_pure _
 
 /-- `convert` is absorbed by the eager `ow_experiment` (it starts with
-    `random_oracle_init`). -/
+    `random_oracle_init`). Thin wrapper over the generic
+    `convert_bind_random_oracle_init_bind`. -/
 private lemma convert_ow_experiment_eager (q : ℕ) :
     (convert >>= fun _ =>
       ow_experiment ow_adv q random_oracle_init random_oracle_query)
-    = ow_experiment ow_adv q random_oracle_init random_oracle_query := by
-  set rest : Program state Bool :=
-    Program.uniform >>= fun x =>
-      Program.set ow_challenge_x x >>= fun _ =>
-        random_oracle_query x >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
-            ow_loop ow_adv q random_oracle_query >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
-                random_oracle_query resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool) with hrest
-  show (convert >>= fun _ => random_oracle_init >>= fun _ => rest)
-      = (random_oracle_init >>= fun _ => rest)
-  rw [← Program.bind_assoc, convert_random_oracle_init]
+    = ow_experiment ow_adv q random_oracle_init random_oracle_query :=
+  convert_bind_random_oracle_init_bind _
 
 include h_ow_adv in
 /-- **Transfer theorem**: the marginal distribution of the win-bit is identical
@@ -259,35 +221,14 @@ noncomputable def preimage_indicator (σ : state) : ENNReal :=
 include h_ow_adv_chal_y in
 /-- `ow_loop_body` preserves `ow_challenge_y`. -/
 private lemma ow_loop_body_inRange_chal_y_compl :
-    (ow_loop_body ow_adv lazy_query).inRange ow_challenge_y.compl.range := by
-  show (ow_adv >>= fun _ =>
-        Program.get oracle_input >>= fun inp =>
-          lazy_query inp >>= fun y =>
-            Program.set oracle_output y).inRange ow_challenge_y.compl.range
-  refine Program.inRange_bind h_ow_adv_chal_y ?_
-  intro _
-  refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_get _)
-      (Lens.range_le_compl_of_disjoint oracle_input ow_challenge_y)) ?_
-  intro inp
-  refine Program.inRange_bind ?_ ?_
-  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
-  · intro y
-    exact Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint oracle_output ow_challenge_y)
+    (ow_loop_body ow_adv lazy_query).inRange ow_challenge_y.compl.range :=
+  oracle_step_inRange_compl ow_challenge_y h_ow_adv_chal_y
 
 include h_ow_adv_chal_y in
 /-- `ow_loop q` preserves `ow_challenge_y`. -/
 private lemma ow_loop_inRange_chal_y_compl (q : ℕ) :
-    (ow_loop ow_adv q lazy_query).inRange ow_challenge_y.compl.range := by
-  induction q with
-  | zero => exact Program.inRange_pure _ _
-  | succ n ih =>
-    show (ow_loop_body ow_adv lazy_query >>= fun _ =>
-          ow_loop ow_adv n lazy_query).inRange _
-    exact Program.inRange_bind
-      (ow_loop_body_inRange_chal_y_compl ow_adv h_ow_adv_chal_y) (fun _ => ih)
+    (ow_loop ow_adv q lazy_query).inRange ow_challenge_y.compl.range :=
+  oracle_loop_n_inRange_compl ow_challenge_y h_ow_adv_chal_y q
 
 include h_ow_adv_chal_y in
 /-- **Bookkeeping**: if the experiment's result bit is `true`, then the final
@@ -440,72 +381,39 @@ private lemma pointwise_useful_preimage_bound (x : input) (σ : state)
   · rw [if_neg h_up_y]; exact bot_le
 
 /-- **Layer A_OW**: each `lazy_query` bumps the expected `useful_preimage_indicator`
-    by at most `1/|output|`. The fresh-sample case puts probability `1/|output|`
-    on the single "bad" value `ow_challenge_y σ`; if `x = ow_challenge_x σ` the
-    bump is zero. -/
+    by at most `1/|output|`. Reduced to the generic `lazy_query_wp_step`. -/
 private lemma lazy_query_useful_preimage_step (x : input) (σ : state) :
     (lazy_query x).wp
         (fun yσ : output × state => useful_preimage_indicator yσ.2) σ
     ≤ useful_preimage_indicator σ + (1 : ENNReal) / Fintype.card output := by
-  simp only [lazy_query, wp_bind, wp_get]
-  cases h_cache : random_oracle_state.get σ x with
-  | some y_cache =>
-    simp only [wp_pure]
-    exact le_self_add
-  | none =>
-    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
-    set N : ENNReal := (Fintype.card output : ENNReal) with hN_def
-    have hN_pos : N ≠ 0 := by rw [hN_def]; exact_mod_cast Fintype.card_pos.ne'
-    have hN_top : N ≠ ⊤ := by rw [hN_def]; exact ENNReal.natCast_ne_top _
-    calc ∑ y : output, useful_preimage_indicator (random_oracle_state.set
-            (fun x' => if x' = x then some y else random_oracle_state.get σ x') σ) / N
-        = (∑ y : output, useful_preimage_indicator (random_oracle_state.set
-            (fun x' => if x' = x then some y else random_oracle_state.get σ x') σ)) / N := by
-          simp_rw [ENNReal.div_eq_inv_mul]
-          rw [← Finset.mul_sum]
-      _ ≤ (∑ y : output, (useful_preimage_indicator σ +
-            (if y = ow_challenge_y.get σ ∧ x ≠ ow_challenge_x.get σ
-             then (1 : ENNReal) else 0))) / N := by
-          gcongr with y _
-          exact pointwise_useful_preimage_bound x σ h_cache y
-      _ = (N * useful_preimage_indicator σ +
-            (if x ≠ ow_challenge_x.get σ then (1 : ENNReal) else 0)) / N := by
-          have h_sum_eq : (∑ y : output, (useful_preimage_indicator σ +
-                (if y = ow_challenge_y.get σ ∧ x ≠ ow_challenge_x.get σ
-                 then (1 : ENNReal) else 0)))
-              = N * useful_preimage_indicator σ +
-                  (if x ≠ ow_challenge_x.get σ then (1 : ENNReal) else 0) := by
-            rw [Finset.sum_add_distrib]
-            congr 1
-            · rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← hN_def]
-            · by_cases h_x_neq : x ≠ ow_challenge_x.get σ
-              · rw [if_pos h_x_neq]
-                have h_simp : ∀ y : output,
-                    (if y = ow_challenge_y.get σ ∧ x ≠ ow_challenge_x.get σ
-                     then (1 : ENNReal) else 0)
-                    = (if y = ow_challenge_y.get σ then (1 : ENNReal) else 0) := by
-                  intro y
-                  by_cases h_y : y = ow_challenge_y.get σ
-                  · rw [if_pos ⟨h_y, h_x_neq⟩, if_pos h_y]
-                  · rw [if_neg (fun h => h_y h.1), if_neg h_y]
-                simp_rw [h_simp]
-                rw [Finset.sum_ite_eq' Finset.univ (ow_challenge_y.get σ) (fun _ => (1 : ENNReal))]
-                rw [if_pos (Finset.mem_univ _)]
-              · rw [if_neg h_x_neq]
-                push_neg at h_x_neq
-                apply Finset.sum_eq_zero
-                intro y _
-                rw [if_neg]
-                intro ⟨_, h_contra⟩
-                exact h_contra h_x_neq
-          rw [h_sum_eq]
-      _ ≤ (N * useful_preimage_indicator σ + 1) / N := by
-          gcongr
-          split_ifs <;> simp
-      _ = useful_preimage_indicator σ + 1 / N := by
-          rw [ENNReal.add_div]
-          rw [mul_comm N (useful_preimage_indicator σ), mul_div_assoc,
-              ENNReal.div_self hN_pos hN_top, mul_one]
+  have h_step := lazy_query_wp_step useful_preimage_indicator
+    (fun x' y σ' =>
+      if y = ow_challenge_y.get σ' ∧ x' ≠ ow_challenge_x.get σ' then (1 : ENNReal) else 0)
+    (fun x' σ' y h_cache => pointwise_useful_preimage_bound x' σ' h_cache y) x σ
+  apply le_trans h_step
+  gcongr
+  -- Bound `∑ y, bad x y σ ≤ 1` by case on whether `x = chal_x σ`.
+  by_cases h_x : x = ow_challenge_x.get σ
+  · have h_zero : (∑ y : output,
+        (if y = ow_challenge_y.get σ ∧ x ≠ ow_challenge_x.get σ then (1 : ENNReal) else 0))
+        = 0 := by
+      apply Finset.sum_eq_zero; intro y _; rw [if_neg]
+      rintro ⟨_, h_neq⟩; exact h_neq h_x
+    rw [h_zero]; exact bot_le
+  · have h_eq : (∑ y : output,
+        (if y = ow_challenge_y.get σ ∧ x ≠ ow_challenge_x.get σ then (1 : ENNReal) else 0))
+        = 1 := by
+      have h_simp : ∀ y : output,
+          (if y = ow_challenge_y.get σ ∧ x ≠ ow_challenge_x.get σ then (1 : ENNReal) else 0)
+          = (if y = ow_challenge_y.get σ then (1 : ENNReal) else 0) := by
+        intro y
+        by_cases h_y : y = ow_challenge_y.get σ
+        · rw [if_pos ⟨h_y, h_x⟩, if_pos h_y]
+        · rw [if_neg (fun h => h_y h.1), if_neg h_y]
+      simp_rw [h_simp]
+      rw [Finset.sum_ite_eq' Finset.univ (ow_challenge_y.get σ) (fun _ => (1 : ENNReal))]
+      rw [if_pos (Finset.mem_univ _)]
+    rw [h_eq]
 
 /-! ### Layer C_OW: loop accumulation -/
 
@@ -547,100 +455,41 @@ private lemma useful_preimage_indicator_set_disjoint {α : Type} (v : Variable �
 include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
 /-- `ow_adv` preserves the `useful_preimage_indicator` (in expectation): it
     modifies only the complement of each of `random_oracle_state`,
-    `ow_challenge_x`, `ow_challenge_y`. -/
+    `ow_challenge_x`, `ow_challenge_y`. Reduced to the generic
+    `Program.wp_le_of_factors_three`. -/
 private lemma ow_adv_wp_useful_preimage (σ : state) :
     ow_adv.wp (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ
-    ≤ useful_preimage_indicator σ := by
-  rw [Program.wp_strengthen_lens_preserved ow_challenge_y h_ow_adv_chal_y]
-  rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x]
-  rw [Program.wp_strengthen_lens_preserved random_oracle_state h_ow_adv]
-  calc ow_adv.wp _ σ
-      ≤ ow_adv.wp (fun _ : Unit × state => useful_preimage_indicator σ) σ := by
-        apply Program.wp_le_wp_of_le
-        rintro ⟨_, σ'⟩; dsimp only
-        split_ifs with h_RO h_x h_y
-        · exact le_of_eq (useful_preimage_indicator_of_three_get_eq h_RO h_x h_y)
-        all_goals exact bot_le
-    _ ≤ useful_preimage_indicator σ := Program.wp_const_le ow_adv _ σ
+    ≤ useful_preimage_indicator σ :=
+  Program.wp_le_of_factors_three random_oracle_state ow_challenge_x ow_challenge_y
+    h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_y
+    (fun _ _ h_RO h_x h_y => useful_preimage_indicator_of_three_get_eq h_RO h_x h_y) σ
 
 include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
 /-- One iteration of `ow_loop_body` bumps the useful_preimage indicator by at
-    most `1/|output|` (in expectation). -/
+    most `1/|output|` (in expectation). Reduced to the generic
+    `oracle_step_wp_indicator_bump_const`. -/
 private lemma ow_loop_body_useful_preimage_step (σ : state) :
     (ow_loop_body ow_adv lazy_query).wp
         (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ
-    ≤ useful_preimage_indicator σ + (1 : ENNReal) / Fintype.card output := by
-  unfold ow_loop_body
-  rw [wp_bind]
-  have h_inner : ∀ σ_a : state,
-      (Program.get oracle_input >>= fun inp =>
-        lazy_query inp >>= fun y => Program.set oracle_output y).wp
-          (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ_a
-      ≤ useful_preimage_indicator σ_a + (1 : ENNReal) / Fintype.card output := by
-    intro σ_a
-    simp only [wp_bind, wp_get]
-    rw [show (fun yσ : output × state =>
-              (Program.set oracle_output yσ.1).wp
-                (fun yσ' : Unit × state => useful_preimage_indicator yσ'.2) yσ.2)
-            = (fun yσ : output × state => useful_preimage_indicator yσ.2) from by
-      funext yσ
-      rw [wp_set]
-      exact useful_preimage_indicator_set_disjoint oracle_output yσ.1 yσ.2]
-    exact lazy_query_useful_preimage_step (oracle_input.get σ_a) σ_a
-  calc ow_adv.wp _ σ
-      ≤ ow_adv.wp (fun yσ : Unit × state =>
-            useful_preimage_indicator yσ.2 + (1 : ENNReal) / Fintype.card output) σ := by
-        apply Program.wp_le_wp_of_le
-        intro yσ
-        exact h_inner yσ.2
-    _ = ow_adv.wp (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ
-        + ow_adv.wp (fun _ : Unit × state =>
-            (1 : ENNReal) / Fintype.card output) σ := by
-      rw [Program.wp_add]
-    _ ≤ useful_preimage_indicator σ + (1 : ENNReal) / Fintype.card output := by
-      gcongr
-      · exact ow_adv_wp_useful_preimage ow_adv h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x σ
-      · exact Program.wp_const_le ow_adv _ σ
+    ≤ useful_preimage_indicator σ + (1 : ENNReal) / Fintype.card output :=
+  oracle_step_wp_indicator_bump_const (1 / Fintype.card output)
+    (ow_adv_wp_useful_preimage ow_adv h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x)
+    (useful_preimage_indicator_set_disjoint oracle_output)
+    lazy_query_useful_preimage_step σ
 
 include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
 /-- **Layer C_OW**: the cumulative useful_preimage bound after `ow_loop k`.
-    Linear sum of Layer A_OW across the loop body. -/
+    Linear sum of Layer A_OW across the loop body. Reduced to the generic
+    `oracle_loop_n_wp_linear_bound` with `c = 1/|output|`. -/
 private lemma ow_loop_useful_preimage_step (k : ℕ) (σ : state) :
     (ow_loop ow_adv k lazy_query).wp
         (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ
     ≤ useful_preimage_indicator σ + (k : ENNReal) / Fintype.card output := by
-  induction k generalizing σ with
-  | zero =>
-    show (pure () : Program state Unit).wp _ σ ≤ _
-    rw [wp_pure]; simp
-  | succ k ih =>
-    show (ow_loop_body ow_adv lazy_query >>= fun _ =>
-          ow_loop ow_adv k lazy_query).wp _ σ ≤ _
-    rw [wp_bind]
-    set N : ENNReal := (Fintype.card output : ENNReal) with hN_def
-    calc (ow_loop_body ow_adv lazy_query).wp (fun yσ : Unit × state =>
-            (ow_loop ow_adv k lazy_query).wp
-              (fun yσ' : Unit × state => useful_preimage_indicator yσ'.2) yσ.2) σ
-        ≤ (ow_loop_body ow_adv lazy_query).wp (fun yσ : Unit × state =>
-            useful_preimage_indicator yσ.2 + (k : ENNReal) / N) σ := by
-          apply Program.wp_le_wp_of_le
-          intro yσ
-          exact ih yσ.2
-      _ = (ow_loop_body ow_adv lazy_query).wp
-            (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ +
-          (ow_loop_body ow_adv lazy_query).wp
-            (fun _ : Unit × state => (k : ENNReal) / N) σ := by
-          rw [Program.wp_add]
-      _ ≤ (useful_preimage_indicator σ + 1 / N) + (k : ENNReal) / N := by
-          gcongr
-          · exact ow_loop_body_useful_preimage_step ow_adv h_ow_adv
-              h_ow_adv_chal_y h_ow_adv_chal_x σ
-          · exact Program.wp_const_le _ _ _
-      _ = useful_preimage_indicator σ + ((k + 1 : ℕ) : ENNReal) / N := by
-          rw [add_assoc]
-          congr 1
-          push_cast
-          rw [ENNReal.add_div, one_div, ENNReal.div_eq_inv_mul, add_comm]
+  have h := oracle_loop_n_wp_linear_bound
+    (f := useful_preimage_indicator) (c := 1 / Fintype.card output)
+    (fun σ' => ow_loop_body_useful_preimage_step ow_adv h_ow_adv
+                  h_ow_adv_chal_y h_ow_adv_chal_x σ') k σ
+  rwa [mul_one_div] at h
 
 /-! ### Layer D_OW: full bound -/
 
@@ -863,25 +712,14 @@ lemma ow_experiment_useful_preimage_bound (q : ℕ) (σ₀ : state) :
 
 include h_ow_adv in
 /-- **Transfer of `ow_transfer` from the SubProb marginal level to the
-    `wp` level**, for postconditions that depend only on the result bit. -/
+    `wp` level**, for postconditions that depend only on the result bit.
+    Thin wrapper over the generic `Program.wp_eq_of_marginal_eq`. -/
 lemma ow_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀
     = (ow_experiment ow_adv q random_oracle_init random_oracle_query).wp
-        (fun bσ : Bool × state => G bσ.1) σ₀ := by
-  have h_wp_to_marg : ∀ (p : Program state Bool) (σ : state),
-      p.wp (fun bσ : Bool × state => G bσ.1) σ
-        = (p σ >>= fun bσ : Bool × state =>
-            (pure bσ.1 : SubProbability Bool)).expected G := by
-    intro p σ
-    change (p σ).expected (fun bσ : Bool × state => G bσ.1)
-         = (p σ >>= fun bσ : Bool × state =>
-              (pure bσ.1 : SubProbability Bool)).expected G
-    rw [SubProbability.expected_bind]
-    congr 1
-    funext bσ
-    exact (expected_pure _).symm
-  rw [h_wp_to_marg, h_wp_to_marg, ow_transfer ow_adv h_ow_adv]
+        (fun bσ : Bool × state => G bσ.1) σ₀ :=
+  Program.wp_eq_of_marginal_eq (ow_transfer ow_adv h_ow_adv q) G σ₀
 
 end OWParam
 

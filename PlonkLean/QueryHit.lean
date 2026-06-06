@@ -193,7 +193,8 @@ lemma lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl
   lazy_query_then_set_oracle_output_inRange_compl ow_challenge_x inp
 
 /-- The conditional `set chal_x_queried` step is a no-op for posts that
-    ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`. -/
+    ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`.
+    Thin wrapper over `Program.wp_conditional_set_disjoint_no_op`. -/
 lemma conditional_set_chal_x_queried_no_op
     {α : Type} (cond : Prop) [Decidable cond]
     {rest : Program state α} (h_rest : rest.inRange chal_x_queried.compl.range)
@@ -201,14 +202,11 @@ lemma conditional_set_chal_x_queried_no_op
     (h_F : ∀ aσ : α × state, F (aσ.1, chal_x_queried.set true aσ.2) = F aσ)
     (σ : state) :
     ((if cond then Program.set chal_x_queried true else pure ()) >>= fun _ => rest).wp F σ
-    = rest.wp F σ := by
-  by_cases h : cond
-  · rw [if_pos h]
-    exact Program.wp_set_disjoint_no_op h_rest true F h_F σ
-  · rw [if_neg h]
-    simp only [wp_bind, wp_pure]
+    = rest.wp F σ :=
+  Program.wp_conditional_set_disjoint_no_op cond true h_rest F h_F σ
 
-/-- A helper combining `get ow_challenge_x` with the conditional set. -/
+/-- A helper combining `get ow_challenge_x` with the conditional set. Thin
+    wrapper over `Program.wp_get_then_conditional_set_disjoint_no_op`. -/
 lemma get_chal_x_then_conditional_set_no_op
     {α : Type} (inp : input)
     {rest : Program state α} (h_rest : rest.inRange chal_x_queried.compl.range)
@@ -218,9 +216,10 @@ lemma get_chal_x_then_conditional_set_no_op
     (Program.get ow_challenge_x >>= fun cx =>
         (if inp = cx then Program.set chal_x_queried true
          else (pure () : Program state Unit)) >>= fun _ => rest).wp F σ
-    = rest.wp F σ := by
-  rw [wp_bind, wp_get]
-  exact conditional_set_chal_x_queried_no_op (inp = ow_challenge_x.get σ) h_rest F h_F σ
+    = rest.wp F σ :=
+  Program.wp_get_then_conditional_set_disjoint_no_op
+    (L_get := ow_challenge_x) (L_set := chal_x_queried)
+    (fun cx => inp = cx) true h_rest F h_F σ
 
 /-- The inner post equivalence — provable using
     `get_chal_x_then_conditional_set_no_op`. -/
@@ -295,31 +294,14 @@ include h_ow_adv_chal_x_queried in
 /-- `ow_loop_body` (the original, untracked) is in `chal_x_queried.compl.range`:
     it's built from operations that don't touch `chal_x_queried`. -/
 private lemma ow_loop_body_inRange_chal_x_queried_compl :
-    (ow_loop_body ow_adv lazy_query).inRange chal_x_queried.compl.range := by
-  show (ow_adv >>= fun _ : Unit =>
-        Program.get oracle_input >>= fun inp =>
-          lazy_query inp >>= fun y =>
-            Program.set oracle_output y).inRange chal_x_queried.compl.range
-  refine Program.inRange_bind h_ow_adv_chal_x_queried ?_
-  intro _
-  refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_get _)
-      (Lens.range_le_compl_of_disjoint oracle_input chal_x_queried)) ?_
-  intro inp
-  exact lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp
+    (ow_loop_body ow_adv lazy_query).inRange chal_x_queried.compl.range :=
+  oracle_step_inRange_compl chal_x_queried h_ow_adv_chal_x_queried
 
 include h_ow_adv_chal_x_queried in
 /-- `ow_loop q` (the original, untracked) is in `chal_x_queried.compl.range`. -/
 private lemma ow_loop_inRange_chal_x_queried_compl (q : ℕ) :
-    (ow_loop ow_adv q lazy_query).inRange chal_x_queried.compl.range := by
-  induction q with
-  | zero => exact Program.inRange_pure _ _
-  | succ n ih =>
-    show (ow_loop_body ow_adv lazy_query >>= fun _ =>
-          ow_loop ow_adv n lazy_query).inRange _
-    exact Program.inRange_bind
-      (ow_loop_body_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried)
-      (fun _ => ih)
+    (ow_loop ow_adv q lazy_query).inRange chal_x_queried.compl.range :=
+  oracle_loop_n_inRange_compl chal_x_queried h_ow_adv_chal_x_queried q
 
 /-- `ow_loop_body_tracked` is in `ow_challenge_y.compl.range`. -/
 private lemma ow_loop_body_tracked_inRange_ow_challenge_y_compl
@@ -328,29 +310,21 @@ private lemma ow_loop_body_tracked_inRange_ow_challenge_y_compl
   refine Program.inRange_bind h_ow_adv_chal_y ?_
   intro _
   refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_get _)
-      (Lens.range_le_compl_of_disjoint oracle_input ow_challenge_y)) ?_
+    (Program.get_inRange_compl_of_disjoint oracle_input ow_challenge_y) ?_
   intro inp
   haveI _disj_cx_cy : disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
   refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_get _)
-      (Lens.range_le_compl_of_disjoint ow_challenge_x ow_challenge_y)) ?_
+    (Program.get_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y) ?_
   intro cx
   refine Program.inRange_bind ?_ ?_
   · by_cases h : inp = cx
     · rw [if_pos h]
-      exact Program.inRange_mono (Program.inRange_set _ _)
-        (Lens.range_le_compl_of_disjoint chal_x_queried ow_challenge_y)
+      exact Program.set_inRange_compl_of_disjoint chal_x_queried ow_challenge_y _
     · rw [if_neg h]
       exact Program.inRange_pure _ _
   · intro _
-    refine Program.inRange_bind ?_ ?_
-    · exact Program.inRange_mono (lazy_query_inRange_ro inp)
-        (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
-    · intro y
-      exact Program.inRange_mono (Program.inRange_set _ _)
-        (Lens.range_le_compl_of_disjoint oracle_output ow_challenge_y)
+    exact lazy_query_then_set_oracle_output_inRange_compl ow_challenge_y inp
 
 /-- `ow_loop_tracked q` is in `ow_challenge_y.compl.range`. -/
 private lemma ow_loop_tracked_inRange_ow_challenge_y_compl
@@ -460,20 +434,17 @@ private lemma ow_experiment_rest_inRange_chal_x_queried_compl (q : ℕ)
     (Program.inRange_mono Program.inRange_uniform bot_le) ?_
   intro x
   refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint ow_challenge_x chal_x_queried)) ?_
+    (Program.set_inRange_compl_of_disjoint ow_challenge_x chal_x_queried _) ?_
   intro _
   refine Program.inRange_bind (h_oracle_inRange x) ?_
   intro y
   refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint ow_challenge_y chal_x_queried)) ?_
+    (Program.set_inRange_compl_of_disjoint ow_challenge_y chal_x_queried _) ?_
   intro _
   refine Program.inRange_bind h_ow_loop_in_compl ?_
   intro _
   refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_get _)
-      (Lens.range_le_compl_of_disjoint ow_response chal_x_queried)) ?_
+    (Program.get_inRange_compl_of_disjoint ow_response chal_x_queried) ?_
   intro resp
   refine Program.inRange_bind (h_oracle_inRange resp) ?_
   intro _
@@ -487,8 +458,7 @@ private lemma post_loop_inRange_chal_x_queried_compl (y_chal : output) :
         (pure (decide (y_check = y_chal)) : Program state Bool)).inRange
         chal_x_queried.compl.range := by
   refine Program.inRange_bind
-    (Program.inRange_mono (Program.inRange_get _)
-      (Lens.range_le_compl_of_disjoint ow_response chal_x_queried)) ?_
+    (Program.get_inRange_compl_of_disjoint ow_response chal_x_queried) ?_
   intro resp
   refine Program.inRange_bind ?_ ?_
   · exact Program.inRange_mono (lazy_query_inRange_ro resp)
@@ -938,8 +908,7 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
       · exact Program.inRange_mono (lazy_query_inRange_ro inp)
           (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
       · intro y
-        exact Program.inRange_mono (Program.inRange_set _ _)
-          (Lens.range_le_compl_of_disjoint oracle_output ow_challenge_x)
+        exact Program.set_inRange_compl_of_disjoint oracle_output ow_challenge_x _
     -- (lazy_query inp >>= set oracle_output) is in chal_x_queried.compl.range.
     have h_lqso_inRange_cxq_compl :
         (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
@@ -2339,8 +2308,7 @@ private lemma body_inner_inRange_chal_x_compl (inp cx : input) :
   refine Program.inRange_bind ?_ ?_
   · by_cases h : inp = cx
     · rw [if_pos h]
-      exact Program.inRange_mono (Program.inRange_set _ _)
-        (Lens.range_le_compl_of_disjoint chal_x_queried ow_challenge_x)
+      exact Program.set_inRange_compl_of_disjoint chal_x_queried ow_challenge_x _
     · rw [if_neg h]
       exact Program.inRange_pure _ _
   · intro _
@@ -2817,9 +2785,8 @@ theorem ow_experiment_resp_eq_chal_x_bound_via_tracked
     ≤ ((q + 1) : ENNReal) / Fintype.card input := by
   -- Step 1: lazy_init is in chal_x_queried.compl.range.
   have h_lazy_init_inRange :
-      (lazy_init : Program state Unit).inRange chal_x_queried.compl.range := by
-    exact Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
+      (lazy_init : Program state Unit).inRange chal_x_queried.compl.range :=
+    Program.set_inRange_compl_of_disjoint random_oracle_state chal_x_queried _
   -- Step 2: switch to tracked variant via the equivalence.
   rw [ow_experiment_eq_tracked_lazy ow_adv h_ow_adv_chal_x_queried q lazy_init
       h_lazy_init_inRange _ (preimage_win_ignores_chal_x_queried) σ₀]

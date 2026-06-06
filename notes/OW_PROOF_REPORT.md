@@ -487,3 +487,237 @@ ow_experiment_tracked_indep_bound                    -- THE BOUND
 │           └── RO_setentry_neq_commutes_lazy_query_set_oracle_output
 └── ow_loop_tracked_indep_sum_le_strong              -- the outer sum bound
 ```
+
+## Post-proof refactoring: what's reusable
+
+After the OW reduction was closed, we extracted the pieces that are
+general — not OW-specific — into the underlying framework modules. The
+guiding principle: anything that would help with a different
+cryptographic proof (CR-style birthday bounds, signature unforgeability,
+IND-CPA, etc.) should live in a reusable location rather than buried in
+`QueryHit.lean`.
+
+### Promoted to the framework (no longer OW-specific)
+
+**`Program.wp_finset_sum`** → `WeakestPreconditions.lean`. Linearity of
+wp over finite sums of post-conditions: `p.wp (∑ b, F b) σ = ∑ b, p.wp (F b) σ`.
+A standard wp lemma; appears in any argument that bounds an event by
+summing over a finite set (challenge values, adversary outcomes, etc.).
+
+**`Program.wp_set_disjoint_no_op`** → `ProgramRange.lean`. The "drop a
+dead write" optimization: prepending `Program.set L v` to a program in
+`L.compl.range` is a no-op for any post that ignores `L`. Useful for
+cleaning up bookkeeping writes (like the experiment's `set chal_y y`
+in our proof) that downstream code doesn't read.
+
+**`lazy_query_set_oracle_output_preserves_RO_at_other_key`** → `RO.lean`.
+A query at `inp ≠ k` doesn't change `RO[k]`. This is a property of the
+random-oracle interface, not of any specific game.
+
+**`RO_setentry_neq_commutes_lazy_query_set_oracle_output`** → `RO.lean`.
+Writes to different RO keys commute past a query at a different key.
+Mechanical core of any "deferred sampling" argument in the random
+oracle model.
+
+**`lazy_query_then_set_oracle_output_inRange_compl`** → `RO.lean`. The
+combined `(lazy_query inp >>= set oracle_output)` program is in
+`L.compl.range` for any `L` disjoint from both `random_oracle_state` and
+`oracle_output`. Used everywhere we need to apply `wp_strengthen` on
+the post-query part of a loop body. The two existing specialized
+versions in `QueryHit.lean` (for `chal_x_queried` and `ow_challenge_x`)
+are now one-line wrappers around the generic version.
+
+**`Program.wp_conditional_set_disjoint_no_op`** → `ProgramRange.lean`. A
+conditional variant of `wp_set_disjoint_no_op`: prepending
+`if cond then set L v else pure ()` to a program in `L.compl.range` is
+a no-op for any post that ignores `L`. This is the wp-level core of the
+tracking-variable pattern (see below) — any time you conditionally write
+a flag based on some predicate, the rest of the program doesn't see it,
+so the write is invisible to a post that doesn't read it either.
+
+**`Program.wp_get_then_conditional_set_disjoint_no_op`** → `ProgramRange.lean`.
+The compound `get L_get >>= fun cx => if pred cx then set L_set v else pure`
+followed by `rest` is wp-equivalent to just `rest`, when `L_set.compl.range`
+covers `rest` and `L_set`-writes don't change the post. This is the
+exact shape of "branch on the secret/challenge, optionally update a
+tracking flag, continue" — the building block of any tracking-variable
+proof. The specialized OW versions (`conditional_set_chal_x_queried_no_op`,
+`get_chal_x_then_conditional_set_no_op`) are now one-line wrappers.
+
+**`oracle_step` / `oracle_loop_n`** → `RO.lean`. The shared loop-body
+shape `adv >>= fun _ => Program.get oracle_input >>= fun inp =>
+oracle inp >>= fun y => Program.set oracle_output y` and its `q`-iterate.
+Both `cr_loop_body`/`cr_loop` (in `CollisionResistance.lean`) and
+`ow_loop_body`/`ow_loop` (in `OneWayness.lean`) are now thin aliases:
+`cr_loop_body := oracle_step cr_adv`, etc. This eliminates the parallel
+duplication of two whole loop primitives across the CR and OW files.
+
+**`Program.transfer_oracle_step` / `Program.transfer_oracle_loop_n`** →
+`RO.lean`. Lazy-to-eager transfer for the generic loop body and the
+generic `q`-iterate. Given `adv.inRange RO.compl.range`, the body and
+the loop transfer. Every game built on the oracle-loop shape inherits
+this for free; `transfer_cr_loop_body`, `transfer_cr_loop`,
+`transfer_ow_loop_body`, `transfer_ow_loop` are now one-liners.
+
+**`oracle_step_inRange_compl L` / `oracle_loop_n_inRange_compl L`** →
+`RO.lean`. Generic preservation: for any `L` disjoint from
+`random_oracle_state`, `oracle_input`, `oracle_output`, the loop stays
+in `L.compl.range` whenever the adversary does. The OW-specific
+`ow_loop_body_inRange_chal_y_compl` and `ow_loop_inRange_chal_y_compl`
+are now one-liners.
+
+**`Program.wp_value_eq_marginal_expected` / `Program.wp_eq_of_marginal_eq`**
+→ `ProgramRange.lean`. The bridge from SubProb-level marginal equality
+(returned by `Program.transfer_value_marginal`) to wp-level equality for
+posts that only depend on the value. `cr_transfer_wp_of_bit` and
+`ow_transfer_wp_of_bit` are now one-liners. Any future game-transfer
+proof can lift to wp via this generic lemma.
+
+**`oracle_loop_n_wp_linear_bound`** → `RO.lean`. The "linear loop
+accumulation" pattern: if a body bumps the wp of `f` by at most `c`,
+then `q` iterations bump it by at most `q * c`. Used by both CR's
+RO_size bound (`c = 1`) and OW's useful_preimage bound (`c = 1/|output|`).
+Captures the standard induction-on-`q` proof skeleton that has appeared
+verbatim in multiple Layer C arguments.
+
+**`lazy_query_wp_step`** → `RO.lean`. The "per-query indicator bump"
+pattern: if a fresh cache-miss bumps `f` by at most `bad x y σ`, then
+`(lazy_query x).wp(f) σ ≤ f σ + (∑ y, bad x y σ) / |output|`. The
+common shape of Layer A bounds for collision (`bad = inducing_set`),
+RO_size (`bad = 1`), and useful_preimage (`bad = challenge match`).
+
+**`oracle_step_wp_indicator_bump` / `oracle_step_wp_indicator_bump_const`**
+→ `RO.lean`. The "Layer A + adv-preservation" pattern at the body
+level: one `oracle_step` bumps `f` by at most `c σ`, given that the
+adversary preserves `f` and `c`, writes to `oracle_output` leave `f`
+unchanged, and one `lazy_query` bumps `f` by at most `c σ`. Used by
+`cr_loop_body_wp_RO_size`, `cr_loop_body_wp_collision`, and
+`ow_loop_body_useful_preimage_step` — three formerly-parallel ~40-line
+proofs that are now 5–8 lines each.
+
+**`Program.wp_le_of_factors_two` / `Program.wp_le_of_factors_three`** →
+`ProgramRange.lean`. Multi-lens versions of `Program.wp_le_of_factors`:
+if `P` factors through `(L₁, L₂)` or `(L₁, L₂, L₃)` and the program
+preserves each lens, then `prog.wp(P ∘ snd) σ ≤ P σ`. Used by
+`ow_adv_wp_useful_preimage` (with 3 lenses) — pattern reusable for any
+indicator with multi-lens factoring.
+
+**`convert_bind_random_oracle_init_bind`** → `RO.lean`. The "absorb
+preceding `convert` into a program that starts with `random_oracle_init`"
+pattern. `convert_cr_experiment_eager` and `convert_ow_experiment_eager`
+are now one-liners.
+
+**`Program.set_inRange_compl_of_disjoint` / `Program.get_inRange_compl_of_disjoint`**
+→ `ProgramRange.lean`. The very-common idiom
+`inRange_mono (inRange_set/get _) (Lens.range_le_compl_of_disjoint v L)`
+collapsed into a single direct lemma. Used pervasively across
+`oracle_step_inRange_compl`, `lazy_query_then_set_oracle_output_inRange_compl`,
+and ~13 sites in `QueryHit.lean`.
+
+**`Program.transfer_set_of_disjoint_ro` / `Program.transfer_get_of_disjoint_ro` /
+`Program.transfer_uniform`** → `RO.lean`. Direct shortcuts for the common
+"this primitive transfers to itself" cases in transfer-bind chains. The
+`transfer_cr_experiment` and `transfer_ow_experiment` proofs now read as
+a clean linear sequence of one-liner transfers instead of nested
+`transfer_of_inRange_disjoint (inRange_set/get _)` invocations.
+
+These twenty-four lemmas — plus the two generic loop primitives and the
+`DecidableEq output` instance, consolidated into `RO.lean` — form the
+bulk of the directly-reusable content.
+
+### Patterns worth knowing (not directly extractable as code)
+
+Some pieces of the proof are valuable as *patterns* even though they
+don't generalize cleanly into a single reusable lemma. They appear in
+similar form in any wp-based cryptographic argument:
+
+**Tracking variable pattern.** When a property of an adversary's
+execution can't be naturally expressed as a state predicate (e.g., "did
+adv query this particular value at some point"), introduce an auxiliary
+state variable disjoint from everything else, modify the experiment to
+write to it from the appropriate vantage point, and prove an equivalence
+with the original experiment for posts that ignore the tracking
+variable. Implementations vary by experiment, but the recipe is the same.
+
+**Strengthened sum lemma over a uniform challenge.** Whenever a bound
+takes the form "for uniform `x ∈ X`, adv's advantage is at most `b`,"
+the wp-level statement is `∑ x, loop_q.wp F_x (chal.set x σ) ≤ k`,
+where `b = k / |X|`. The inductive proof loops over query budget `q`,
+applies `wp_shift_input` to commute `chal.set x` past adv, applies
+`wp_finset_sum` to pull the sum inside, applies `wp_strengthen` to
+enforce invariants, and case-splits on whether the current iteration
+"hits" the relevant condition. Different experiments differ in the
+contribution of the hit case (`1` for C_obs-style bounds, `0` for
+conditional-independence bounds) and the inductive invariant, but the
+skeleton is the same.
+
+**Averaged invariance + freshness pair.** For arguments where a uniform
+oracle response is sampled and then averaged over, the proof typically
+factors as: (1) an *averaged invariance* lemma showing that the loop's
+wp is invariant under averaging over the relevant uniform value, and
+(2) a *freshness* lemma that uses (1) plus disjointness facts to absorb
+the pre-loop sampling step into the loop. We have one such pair for
+each of the cxq and indep indicators in `QueryHit.lean`. A new game
+would need its own pair, but the proof technique (induction on `q` with
+HIT/MISS case-split using `RO_setentry_neq_commutes_lazy_query_set_oracle_output`
+in the MISS case) is directly transferable.
+
+**Chal_x preservation through a read-but-not-write loop.** When a loop
+body reads but doesn't write a lens, its value is preserved at the
+output, but `wp_strengthen_lens_preserved` doesn't apply directly
+because the framework conflates reads and writes for `compl.range`. The
+workaround is to decompose the body so that reads of the lens get
+captured into local bindings (`fun cx => ...`), leaving a write-only
+remainder that *is* in `L.compl.range`. Then `wp_strengthen` applies in
+two pieces: once around the read-capture, and once on the remainder. By
+induction on `q`, this lifts from body to loop. We use this for chal_x
+in `ow_loop_tracked_preserves_chal_x_wp`. Any loop whose body reads but
+doesn't write some game parameter (secret key, public parameter,
+counter) can use the same technique.
+
+### Likely overkill to extract further
+
+A few additional generalizations were considered but not done because
+the API surface explodes faster than the savings:
+
+- **A fully generic `ow_loop_body_inRange_compl L`** for the tracked
+  body, parameterized over `L` with disjointness from `oracle_input`,
+  `ow_challenge_x`, `chal_x_queried`, `random_oracle_state`, and
+  `oracle_output`. This would unify the cxq and chal_y versions, but
+  the call sites would need to supply five disjointness instances
+  each — not obviously cleaner than the two specialized lemmas.
+
+- **A unified averaged-invariance schema** parameterized over the post.
+  The cxq and indep versions have different HIT-case treatments
+  (variable renaming vs strengthened-IH gives 0), so a single
+  parameterized proof would be more conditional logic, not less.
+
+- **A "preservesLensValue" type class** for programs that read but
+  don't write a given lens. Would require new abstractions in the
+  framework (a finer-grained version of `inRange`), with corresponding
+  closure lemmas (bind, etc.). Worth doing if there are enough call
+  sites; for now, the one OW use case is handled directly.
+
+## What other OW-flavored proofs would inherit for free
+
+A proof for, e.g., a CR-style birthday bound or a signature scheme's
+EUF-CMA would directly reuse:
+
+- The generic loop primitives `oracle_step`, `oracle_loop_n` and their
+  transfer/preservation lemmas.
+- The bridge `Program.wp_eq_of_marginal_eq` from SubProb-marginal
+  transfer to wp transfer.
+- The generic wp lemmas (`wp_finset_sum`, `wp_set_disjoint_no_op`,
+  `wp_conditional_set_disjoint_no_op`,
+  `wp_get_then_conditional_set_disjoint_no_op`).
+- The RO-key reasoning lemmas (`lazy_query_set_oracle_output_preserves_RO_at_other_key`,
+  `RO_setentry_neq_commutes_lazy_query_set_oracle_output`).
+- The generic inRange lemma for `lazy_query + set oracle_output`.
+
+And would adapt (with similar but new code) the four pattern templates
+above. The bulk of the QueryHit.lean code (about 80%) is the specific
+OW proof; about 20% is now in shared library locations. The CR and OW
+files are now structurally parallel: each one consists of a parameter
+section binding an adversary, thin aliases over `oracle_step` /
+`oracle_loop_n`, one-line transfer lemmas, a `*_transfer` theorem, and
+then the game-specific probability work.

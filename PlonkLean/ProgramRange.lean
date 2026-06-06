@@ -202,6 +202,24 @@ theorem Program.inRange_get {s a : Type} (v : Lens a s) :
   -- LHS: F (v.get (f σ), f σ); RHS: F (v.get σ, f σ).
   rw [h_get_pres]
 
+/-- **`Program.set` is in `L.compl.range`** when the setter `v` is disjoint
+    from the reader `L`. Common one-liner replacing
+    `inRange_mono (inRange_set _ _) (Lens.range_le_compl_of_disjoint v L)`. -/
+lemma Program.set_inRange_compl_of_disjoint
+    {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] (x : α) :
+    (Program.set v x).inRange L.compl.range :=
+  Program.inRange_mono (Program.inRange_set v x)
+    (Lens.range_le_compl_of_disjoint v L)
+
+/-- **`Program.get` is in `L.compl.range`** when the reader `v` is disjoint
+    from `L`. Common one-liner replacing
+    `inRange_mono (inRange_get _) (Lens.range_le_compl_of_disjoint v L)`. -/
+lemma Program.get_inRange_compl_of_disjoint
+    {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] :
+    (Program.get v).inRange L.compl.range :=
+  Program.inRange_mono (Program.inRange_get v)
+    (Lens.range_le_compl_of_disjoint v L)
+
 /-! ## SubProbability-level characterization of `inRange` -/
 
 /-- `inRange` lifted to the SubProbability level: at state `σ`, applying a commutant update
@@ -247,6 +265,34 @@ lemma SubProbability.expected_bind {α β : Type} (μ : SubProbability α)
   rw [heq, MeasureTheory.Measure.lintegral_bind
         measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
   rfl
+
+/-- **wp of a value-only post = expected value under the value-marginal**. For
+    any `G : α → ENNReal`, `p.wp (fun aσ => G aσ.1) σ` equals the expected
+    value of `G` under the marginal distribution `p σ >>= fun aσ => pure aσ.1`. -/
+lemma Program.wp_value_eq_marginal_expected {s α : Type}
+    (p : Program s α) (G : α → ENNReal) (σ : s) :
+    p.wp (fun aσ : α × s => G aσ.1) σ
+      = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G := by
+  change (p σ).expected (fun aσ : α × s => G aσ.1)
+       = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G
+  rw [SubProbability.expected_bind]
+  congr 1
+  funext aσ
+  exact (expected_pure _).symm
+
+/-- **Marginal-equality lifts to wp-equality for value-only posts**. If two
+    programs agree on the value-marginal distribution at every starting state,
+    they agree on the wp of any post of the form `fun aσ => G aσ.1`. This is
+    the generic bridge from a SubProb-level transfer theorem to a wp-level
+    one — used by `cr_transfer_wp_of_bit`, `ow_transfer_wp_of_bit`, etc. -/
+lemma Program.wp_eq_of_marginal_eq {s α : Type}
+    {p q : Program s α}
+    (h_marg : ∀ σ : s, (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α))
+                       = (q σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)))
+    (G : α → ENNReal) (σ : s) :
+    p.wp (fun aσ : α × s => G aσ.1) σ = q.wp (fun aσ : α × s => G aσ.1) σ := by
+  rw [Program.wp_value_eq_marginal_expected p G σ,
+      Program.wp_value_eq_marginal_expected q G σ, h_marg σ]
 
 /-- wp form of `inRange`: shifting the input state by `f ∈ Rᶜ` is equivalent to
     post-composing `f` on the state coordinate of the postcondition. -/
@@ -322,6 +368,42 @@ lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ 
   rw [h_f_eq xs.2]
   exact h_F xs
 
+/-- **Conditional dead write**: variant of `wp_set_disjoint_no_op` where the
+    `set` is gated by a `Prop`. Useful for the tracking-variable pattern in
+    cryptographic proofs, where an auxiliary flag is conditionally written
+    inside a loop body whose remainder doesn't read it. -/
+lemma Program.wp_conditional_set_disjoint_no_op {s γ : Type} [DecidableEq γ]
+    {L : Lens γ s} {α : Type} (cond : Prop) [Decidable cond] (v : γ)
+    {rest : Program s α} (h_rest : rest.inRange L.compl.range)
+    (F : α × s → ENNReal)
+    (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    ((if cond then Program.set L v else pure ()) >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  by_cases h : cond
+  · rw [if_pos h]
+    exact Program.wp_set_disjoint_no_op h_rest v F h_F σ
+  · rw [if_neg h]
+    simp only [wp_bind, wp_pure]
+
+/-- **Get-then-conditional-set is a no-op** when the conditional set targets a
+    lens whose `compl.range` covers the rest. Captures the common shape
+    `get L_get >>= fun cx => (if pred cx then set L_set v else pure) >>= rest`
+    used in tracking-variable patterns. -/
+lemma Program.wp_get_then_conditional_set_disjoint_no_op
+    {s γ δ : Type} [DecidableEq γ] {L_get : Lens δ s} {L_set : Lens γ s}
+    {α : Type} (pred : δ → Prop) [DecidablePred pred] (v : γ)
+    {rest : Program s α} (h_rest : rest.inRange L_set.compl.range)
+    (F : α × s → ENNReal)
+    (h_F : ∀ aσ : α × s, F (aσ.1, L_set.set v aσ.2) = F aσ)
+    (σ : s) :
+    (Program.get L_get >>= fun cx =>
+        (if pred cx then Program.set L_set v else (pure () : Program s Unit))
+          >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  rw [wp_bind, wp_get]
+  exact Program.wp_conditional_set_disjoint_no_op (pred (L_get.get σ)) v h_rest F h_F σ
+
 /-- **Preservation under in-range**: if `prog` modifies only the complement of `L`,
     and the postcondition factors through `L.get` (i.e. depends only on `L`-content),
     then `prog.wp (P ∘ snd) σ ≤ P σ`. The sub-probability mass of `prog σ` only
@@ -352,6 +434,59 @@ lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
   rw [show (fun xs : α × s => P (f xs.2)) = (fun _ : α × s => P σ) from by
     funext xs; exact h_f_P xs.2]
   exact Program.wp_const_le prog (P σ) σ
+
+/-- **Two-lens preservation**: same idea as `Program.wp_le_of_factors`, but `P`
+    factors through the pair `(L₁.get, L₂.get)` and `prog` preserves both
+    lenses. Iterates `wp_strengthen_lens_preserved` over two lenses. -/
+lemma Program.wp_le_of_factors_two {s α γ₁ γ₂ : Type}
+    [DecidableEq γ₁] [DecidableEq γ₂]
+    (L₁ : Lens γ₁ s) (L₂ : Lens γ₂ s)
+    {prog : Program s α}
+    (h₁ : prog.inRange L₁.compl.range) (h₂ : prog.inRange L₂.compl.range)
+    {P : s → ENNReal}
+    (h_factors : ∀ σ σ' : s,
+        L₁.get σ' = L₁.get σ → L₂.get σ' = L₂.get σ → P σ' = P σ)
+    (σ : s) :
+    prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
+  rw [Program.wp_strengthen_lens_preserved L₂ h₂]
+  rw [Program.wp_strengthen_lens_preserved L₁ h₁]
+  calc prog.wp _ σ
+      ≤ prog.wp (fun _ : α × s => P σ) σ := by
+        apply Program.wp_le_wp_of_le
+        rintro ⟨_, σ'⟩; dsimp only
+        split_ifs with h1 h2
+        · exact le_of_eq (h_factors σ σ' h1 h2)
+        all_goals exact bot_le
+    _ ≤ P σ := Program.wp_const_le prog _ σ
+
+/-- **Three-lens preservation**: same idea as `Program.wp_le_of_factors`, but
+    `P` factors through three lens-gets and `prog` preserves all three. Used
+    for indicators (e.g. OW's `useful_preimage`) that depend on multiple
+    independent pieces of state. -/
+lemma Program.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
+    [DecidableEq γ₁] [DecidableEq γ₂] [DecidableEq γ₃]
+    (L₁ : Lens γ₁ s) (L₂ : Lens γ₂ s) (L₃ : Lens γ₃ s)
+    {prog : Program s α}
+    (h₁ : prog.inRange L₁.compl.range)
+    (h₂ : prog.inRange L₂.compl.range)
+    (h₃ : prog.inRange L₃.compl.range)
+    {P : s → ENNReal}
+    (h_factors : ∀ σ σ' : s,
+        L₁.get σ' = L₁.get σ → L₂.get σ' = L₂.get σ →
+        L₃.get σ' = L₃.get σ → P σ' = P σ)
+    (σ : s) :
+    prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
+  rw [Program.wp_strengthen_lens_preserved L₃ h₃]
+  rw [Program.wp_strengthen_lens_preserved L₂ h₂]
+  rw [Program.wp_strengthen_lens_preserved L₁ h₁]
+  calc prog.wp _ σ
+      ≤ prog.wp (fun _ : α × s => P σ) σ := by
+        apply Program.wp_le_wp_of_le
+        rintro ⟨_, σ'⟩; dsimp only
+        split_ifs with h1 h2 h3
+        · exact le_of_eq (h_factors σ σ' h1 h2 h3)
+        all_goals exact bot_le
+    _ ≤ P σ := Program.wp_const_le prog _ σ
 
 /-! ## Orbit fact
 
