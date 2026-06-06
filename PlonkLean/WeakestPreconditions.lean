@@ -222,6 +222,14 @@ theorem Program.wp_const_mul {s a : Type} (p : Program s a)
   show ∫⁻ x, c * F x ∂(p σ).1 = c * ∫⁻ x, F x ∂(p σ).1
   exact MeasureTheory.lintegral_const_mul c measurable_from_top
 
+/-- `wp` commutes with finite sums of postconditions. -/
+theorem Program.wp_finset_sum {s α β : Type} [Fintype β]
+    (p : Program s α) (F : β → α × s → ENNReal) (σ : s) :
+    p.wp (fun aσ => ∑ b : β, F b aσ) σ = ∑ b : β, p.wp (F b) σ := by
+  letI : MeasurableSpace (α × s) := ⊤
+  show ∫⁻ aσ, (∑ b, F b aσ) ∂(p σ).1 = ∑ b, ∫⁻ aσ, F b aσ ∂(p σ).1
+  exact MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)
+
 theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program s α)
     (f : α × s → ENNReal) (st : s) :
     (if b then p1 else p2).wp f st = if b then p1.wp f st else p2.wp f st := by

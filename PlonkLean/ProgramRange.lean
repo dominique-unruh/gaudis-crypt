@@ -297,6 +297,31 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
   show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
   rw [if_pos (h_f_L_get xs.2)]
 
+/-- **Drop a dead write**: prepending `Program.set L v` to a program `rest` that
+    doesn't touch `L`'s range is a no-op for any post that ignores `L`'s value.
+    Useful for cleaning up bookkeeping writes that downstream code doesn't read. -/
+lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+    {α : Type} {rest : Program s α} (h_rest : rest.inRange L.compl.range)
+    (v : γ) (F : α × s → ENNReal)
+    (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
+  simp only [wp_bind, wp_set]
+  set f : s → s := L.update (Function.const _ v) with hf_def
+  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+      rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  have h_f_eq : ∀ σ', f σ' = L.set v σ' := fun σ' => by
+    show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
+    rw [Function.const_apply]
+  rw [← h_f_eq σ]
+  rw [Program.wp_shift_input h_rest h_f_in_Rc]
+  congr 1
+  funext xs
+  rw [h_f_eq xs.2]
+  exact h_F xs
+
 /-- **Preservation under in-range**: if `prog` modifies only the complement of `L`,
     and the postcondition factors through `L.get` (i.e. depends only on `L`-content),
     then `prog.wp (P ∘ snd) σ ≤ P σ`. The sub-probability mass of `prog σ` only

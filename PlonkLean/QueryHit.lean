@@ -150,30 +150,7 @@ For post-conditions `F` that don't read `chal_x_queried`, the original
 `Program.set chal_x_queried _` steps in the tracked version only modify a
 variable that's disjoint from everything `F` reads. -/
 
-/-- Key helper: prepending `Program.set L v` to a program `rest` that doesn't
-    touch `L`'s lens range is a no-op for any post that ignores `L`'s value. -/
-lemma Program.wp_set_disjoint_no_op
-    {γ : Type} [DecidableEq γ] {L : Lens γ state} {α : Type}
-    {rest : Program state α} (h_rest : rest.inRange L.compl.range)
-    (v : γ) (F : α × state → ENNReal)
-    (h_F : ∀ aσ : α × state, F (aσ.1, L.set v aσ.2) = F aσ)
-    (σ : state) :
-    (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
-  simp only [wp_bind, wp_set]
-  set f : state → state := L.update (Function.const _ v) with hf_def
-  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange state)ᶜ) = L.range from by
-      rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
-  have h_f_eq : ∀ σ', f σ' = L.set v σ' := fun σ' => by
-    show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
-    rw [Function.const_apply]
-  rw [← h_f_eq σ]
-  rw [Program.wp_shift_input h_rest h_f_in_Rc]
-  congr 1
-  funext xs
-  rw [h_f_eq xs.2]
-  exact h_F xs
+-- `Program.wp_set_disjoint_no_op` moved to ProgramRange.lean.
 
 /-- A post-condition `F : Bool × state → ENNReal` "ignores `chal_x_queried`"
     iff its value doesn't depend on `chal_x_queried.get`. Formally:
@@ -776,14 +753,6 @@ private lemma ow_loop_body_tracked_mass_le_one
     ≤ 1 :=
   Program.wp_const_le _ 1 σ
 
-/-- `wp` commutes with finite sums of postconditions. -/
-private lemma Program.wp_finset_sum {α β : Type} [Fintype β]
-    (p : Program state α) (F : β → α × state → ENNReal) (σ : state) :
-    p.wp (fun aσ => ∑ b : β, F b aσ) σ = ∑ b : β, p.wp (F b) σ := by
-  letI : MeasurableSpace (α × state) := ⊤
-  show ∫⁻ aσ, (∑ b, F b aσ) ∂(p σ).1 = ∑ b, ∫⁻ aσ, F b aσ ∂(p σ).1
-  exact MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)
-
 /-! ### Bound on `chal_x_queried_at_end` (Layer C_obs)
 
 The "bad event" bound: across the `q` loop iterations, the probability that
@@ -956,7 +925,7 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- The post is `if cxq_aσ_adv = cxq_σ then ... else 0`. Case-split.
     by_cases h_cxq_adv : chal_x_queried.get aσ_adv.2 = chal_x_queried.get σ
     swap
-    · simp only [if_neg h_cxq_adv]; exact zero_le _
+    · simp only [if_neg h_cxq_adv]; exact bot_le
     simp only [if_pos h_cxq_adv]
     -- We now know cxq.get aσ_adv.2 = cxq.get σ = false.
     have h_aσ_adv_qf : chal_x_queried.get aσ_adv.2 = false := h_cxq_adv.trans h_σ
@@ -994,7 +963,7 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
                       (Program.wp_const_le _ 1 aσ_b.2)
       intro aσ
       show (if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0) ≤ 1
-      split <;> [rfl; exact zero_le _]
+      split <;> [rfl; exact bot_le]
     -- Pointwise: post_adv.wp G (chal_x.set x aσ_adv.2) ≤
     --   (if x = inp then 1 else 0) + (lazy_query inp >>= set oracle_output).wp G (chal_x.set x aσ_adv.2)
     have h_pointwise : ∀ x : input,
@@ -1066,173 +1035,14 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- The post is `if cxq_aσ_lq = cxq_aσ_adv then ∑ x ... else 0`.
     by_cases h_cxq_lq : chal_x_queried.get aσ_lq.2 = chal_x_queried.get aσ_adv.2
     swap
-    · simp only [if_neg h_cxq_lq]; exact zero_le _
+    · simp only [if_neg h_cxq_lq]; exact bot_le
     simp only [if_pos h_cxq_lq]
     -- Combine: cxq_aσ_lq = cxq_aσ_adv = false. Apply IH.
     have h_aσ_lq_qf : chal_x_queried.get aσ_lq.2 = false := h_cxq_lq.trans h_aσ_adv_qf
     exact ih aσ_lq.2 h_aσ_lq_qf
 
-/-- `(lazy_query inp >>= set oracle_output)` preserves `RO[k]` for `inp ≠ k`.
-    More precisely, the wp can be strengthened with the `RO[k]`-preserved
-    condition. -/
-private lemma lazy_query_set_oracle_output_preserves_RO_at_other_key
-    (inp k : input) (h_neq : inp ≠ k) (σ : state) (F : Unit × state → ENNReal) :
-    (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp F σ
-    = (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp
-        (fun aσ_lq =>
-          if random_oracle_state.get aσ_lq.2 k = random_oracle_state.get σ k
-          then F aσ_lq else 0) σ := by
-  haveI _disj_oo_ro : disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
-  simp only [lazy_query, wp_bind, wp_get, wp_uniform, wp_pure, wp_set]
-  cases h_eq : random_oracle_state.get σ inp with
-  | some v =>
-    simp only [h_eq, wp_pure]
-    have h_RO_pres : random_oracle_state.get (oracle_output.set v σ) k
-        = random_oracle_state.get σ k := by
-      rw [random_oracle_state.get_of_disjoint_set]
-    rw [if_pos h_RO_pres]
-  | none =>
-    simp only [h_eq, wp_bind, wp_uniform, wp_set, wp_pure]
-    congr 1
-    funext v
-    -- After full simp, sum is over v : output.
-    have h_RO_pres : random_oracle_state.get
-        (oracle_output.set v (random_oracle_state.set
-          (fun x_1 => if x_1 = inp then some v else random_oracle_state.get σ x_1) σ)) k
-        = random_oracle_state.get σ k := by
-      rw [random_oracle_state.get_of_disjoint_set oracle_output v,
-          random_oracle_state.set_get]
-      simp only [if_neg (Ne.symm h_neq)]
-    rw [if_pos h_RO_pres]
-
-/-- Fine-grained RO commutativity: a write to `RO[x]` commutes with
-    `(lazy_query inp >>= set oracle_output)` when `inp ≠ x`. Writes to
-    different RO keys commute, and `oracle_output` is disjoint from RO.
-
-    Proof sketch:
-    1. Unfold `lazy_query inp` via wp_bind, wp_get.
-    2. Case split on `RO.get σ inp` (using that `RO.get` at inp is same on
-       both sides since inp ≠ x).
-    3. For `some v` case: both sides reduce to F applied at "oracle_output
-       set + RO entry added", in different order — equal by lens disjoint
-       commute between `oracle_output` and `random_oracle_state`.
-    4. For `none` case: similar with extra RO_setentry inp v from the
-       lazy_query's fresh sampling. Both RO setentries (at keys x and inp)
-       commute since they're at different keys.
-
-    The challenge in Lean: `simp` doesn't auto-beta-reduce the lambdas
-    produced by `wp_set`, so the goal stays in lambda-equality form.
-    Requires explicit `funext` + manual manipulation. -/
-private lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
-    (inp x : input) (h_neq : inp ≠ x) (y : output) (σ : state)
-    (F : Unit × state → ENNReal) :
-    (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp F
-      (random_oracle_state.set (fun k => if k = x then some y
-                                       else random_oracle_state.get σ k) σ)
-    = (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp
-      (fun aσ_lq => F (aσ_lq.1, random_oracle_state.set
-                              (fun k => if k = x then some y
-                                       else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
-      σ := by
-  haveI _disj_oo_ro : disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
-  -- State commute helper: oracle_output.set commutes with the RO setentry.
-  have h_state_eq : ∀ (v : output) (σ' : state),
-      oracle_output.set v (random_oracle_state.set
-        (fun k => if k = x then some y else random_oracle_state.get σ' k) σ')
-      = random_oracle_state.set
-        (fun k => if k = x then some y
-                  else random_oracle_state.get (oracle_output.set v σ') k)
-        (oracle_output.set v σ') := by
-    intro v σ'
-    rw [disjoint_oracle_output_ro.commute]
-    congr 1
-    funext k
-    by_cases hk : k = x
-    · simp only [if_pos hk]
-    · simp only [if_neg hk]
-      rw [random_oracle_state.get_of_disjoint_set]
-  -- Unfold (lazy_query inp >>= set oracle_output).wp via wp_bind, wp_set.
-  rw [wp_bind, wp_bind]
-  -- Now reduce the inner (set oracle_output ...).wp via funext + wp_set.
-  conv_lhs => rw [show (fun aσ_lq : output × state =>
-                          (Program.set oracle_output aσ_lq.1).wp F aσ_lq.2)
-                    = (fun aσ_lq : output × state =>
-                          F ((), oracle_output.set aσ_lq.1 aσ_lq.2))
-                  from by funext aσ_lq; rw [wp_set]]
-  conv_rhs => rw [show (fun aσ_lq : output × state =>
-                          (Program.set oracle_output aσ_lq.1).wp
-                            (fun aσ_lq' : Unit × state =>
-                              F (aσ_lq'.1, random_oracle_state.set
-                                (fun k => if k = x then some y
-                                          else random_oracle_state.get aσ_lq'.2 k) aσ_lq'.2))
-                            aσ_lq.2)
-                    = (fun aσ_lq : output × state =>
-                          F ((), random_oracle_state.set
-                            (fun k => if k = x then some y
-                                      else random_oracle_state.get
-                                            (oracle_output.set aσ_lq.1 aσ_lq.2) k)
-                            (oracle_output.set aσ_lq.1 aσ_lq.2)))
-                  from by funext aσ_lq; rw [wp_set]]
-  -- Set σ_xy abbreviation.
-  set σ_xy : state := random_oracle_state.set
-    (fun k => if k = x then some y else random_oracle_state.get σ k) σ with σ_xy_def
-  -- RO.get σ_xy at inp = σ.RO at inp (since inp ≠ x).
-  have h_RO_xy_inp : random_oracle_state.get σ_xy inp = random_oracle_state.get σ inp := by
-    show random_oracle_state.get (random_oracle_state.set _ σ) inp
-        = random_oracle_state.get σ inp
-    rw [random_oracle_state.set_get, if_neg h_neq]
-  -- Unfold lazy_query on both sides via simp.
-  simp only [lazy_query, wp_bind, wp_get]
-  rw [h_RO_xy_inp]
-  -- Case split on σ.RO inp.
-  cases h_eq : random_oracle_state.get σ inp with
-  | some v =>
-    simp only [wp_pure]
-    congr 1
-    rw [σ_xy_def, h_state_eq v σ]
-  | none =>
-    simp only [wp_bind, wp_uniform, wp_set, wp_pure]
-    -- Both sides: (1/|output|) ∑ v F((), state_v).
-    -- Per-v: state_LHS(v) = state_RHS(v) by setentry commute + h_state_eq.
-    -- Setentry commute: RO_setentry inp v (RO_setentry x y σ) = RO_setentry x y (RO_setentry inp v σ).
-    have h_setentry_commute : ∀ v : output,
-        random_oracle_state.set
-          (fun k => if k = inp then some v
-                    else random_oracle_state.get (random_oracle_state.set
-                          (fun k' => if k' = x then some y else random_oracle_state.get σ k') σ) k)
-          (random_oracle_state.set
-            (fun k' => if k' = x then some y else random_oracle_state.get σ k') σ)
-        = random_oracle_state.set
-          (fun k => if k = x then some y else random_oracle_state.get
-              (random_oracle_state.set
-                (fun k' => if k' = inp then some v else random_oracle_state.get σ k') σ) k)
-          (random_oracle_state.set
-            (fun k => if k = inp then some v else random_oracle_state.get σ k) σ) := by
-      intro v
-      rw [random_oracle_state.set_set, random_oracle_state.set_set]
-      congr 1
-      funext k
-      simp only [random_oracle_state.set_get]
-      by_cases hk_x : k = x
-      · by_cases hk_inp : k = inp
-        · exfalso; exact h_neq (hk_inp.symm.trans hk_x)
-        · simp [if_pos hk_x, if_neg hk_inp]
-      · by_cases hk_inp : k = inp
-        · simp [if_neg hk_x, if_pos hk_inp]
-        · simp [if_neg hk_x, if_neg hk_inp]
-    -- Use h_setentry_commute + h_state_eq to show per-v equality.
-    congr 1
-    funext v
-    -- Goal: F((), oracle_output.set v (RO_setentry inp v σ_xy))
-    --     = F((), RO_setentry x y (oracle_output.set v (RO_setentry inp v σ)))
-    congr 1
-    -- Goal: ((), state_LHS) = ((), state_RHS)
-    congr 1
-    -- Goal: state_LHS = state_RHS
-    rw [σ_xy_def, h_setentry_commute v]
-    rw [← h_state_eq v
-      (random_oracle_state.set
-        (fun k => if k = inp then some v else random_oracle_state.get σ k) σ)]
+-- `lazy_query_set_oracle_output_preserves_RO_at_other_key` moved to RO.lean.
+-- `RO_setentry_neq_commutes_lazy_query_set_oracle_output` moved to RO.lean.
 
 /-- **Averaged RO invariance** for `ow_loop_tracked`'s `chal_x_queried`
     indicator: averaging over uniform `y` of the loop's wp at
@@ -1665,7 +1475,7 @@ private lemma post_loop_preserves_chal_x_queried_wp
   intro bσ
   by_cases h : chal_x_queried.get bσ.2 = chal_x_queried.get σ
   · rw [if_pos h, h]
-  · rw [if_neg h]; exact zero_le _
+  · rw [if_neg h]; exact bot_le
 
 /-- Helper: `post_loop` preserves the indep indicator `[resp = chal_x ∧ ¬cxq]`.
     Argument: after `get ow_response`, the remaining `lazy_query resp; pure decide`
@@ -1709,15 +1519,15 @@ private lemma post_loop_preserves_indep_wp
   intro yσ
   by_cases h_cxq_pres : chal_x_queried.get yσ.2 = chal_x_queried.get σ
   swap
-  · simp only [if_neg h_cxq_pres]; exact zero_le _
+  · simp only [if_neg h_cxq_pres]; exact bot_le
   simp only [if_pos h_cxq_pres]
   by_cases h_cx_pres : ow_challenge_x.get yσ.2 = ow_challenge_x.get σ
   swap
-  · simp only [if_neg h_cx_pres]; exact zero_le _
+  · simp only [if_neg h_cx_pres]; exact bot_le
   simp only [if_pos h_cx_pres]
   by_cases h_resp_pres : ow_response.get yσ.2 = ow_response.get σ
   swap
-  · simp only [if_neg h_resp_pres]; exact zero_le _
+  · simp only [if_neg h_resp_pres]; exact bot_le
   simp only [if_pos h_resp_pres]
   -- (pure decide).wp F_bool yσ.2 ≤ if resp = chal_x ∧ ¬cxq at σ then 1 else 0.
   rw [wp_pure]
@@ -2007,7 +1817,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     intro aσ_adv
     by_cases h_cxq_adv : chal_x_queried.get aσ_adv.2 = chal_x_queried.get σ
     swap
-    · simp only [if_neg h_cxq_adv]; exact zero_le _
+    · simp only [if_neg h_cxq_adv]; exact bot_le
     simp only [if_pos h_cxq_adv]
     -- Set inp = oracle_input.get aσ_adv.2.
     set inp := oracle_input.get aσ_adv.2 with h_inp_def
@@ -2060,7 +1870,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
         rw [← wp_bind]
         -- LHS = (lazy_query inp; set oo).wp G_x at (cxq.set true (chal_x.set x aσ_adv.2)).
         -- Show LHS ≤ 0 ≤ RHS via strengthened IH at the lazy_query/set oo output.
-        refine le_trans ?_ (zero_le _)
+        refine le_trans ?_ (bot_le)
         -- Apply wp_strengthen for chal_x AND chal_x_queried.
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
               (chal_x_queried.set true (ow_challenge_x.set x aσ_adv.2))]
@@ -2105,7 +1915,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
           Finset.single_le_sum (f := fun x' => (ow_loop_tracked ow_adv q lazy_query).wp
               (fun aσ : Unit × state =>
                 if ow_response.get aσ.2 = x' ∧ ¬ chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
-              (ow_challenge_x.set x' aσ_lqo.2)) (fun _ _ => zero_le _) (Finset.mem_univ x)
+              (ow_challenge_x.set x' aσ_lqo.2)) (fun _ _ => bot_le) (Finset.mem_univ x)
         rw [h_set_eq] at h_term_le_sum
         exact le_trans h_term_le_sum h_ih_at_lqo
       · -- Miss: inp ≠ x. pure ().
@@ -2148,7 +1958,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     intro aσ_lqo
     by_cases h_cxq_lqo : chal_x_queried.get aσ_lqo.2 = chal_x_queried.get aσ_adv.2
     swap
-    · simp only [if_neg h_cxq_lqo]; exact zero_le _
+    · simp only [if_neg h_cxq_lqo]; exact bot_le
     simp only [if_pos h_cxq_lqo]
     have h_aσ_lqo_cxq : chal_x_queried.get aσ_lqo.2 = chal_x_queried.get σ :=
       h_cxq_lqo.trans h_cxq_adv
@@ -2411,7 +2221,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
         intro σ_in h_cxq_in h_cx_in
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ σ_in]
         rw [Program.wp_strengthen_lens_preserved ow_challenge_x h_lqso_inRange_cx_compl _ σ_in]
-        refine le_antisymm ?_ (zero_le _)
+        refine le_antisymm ?_ (bot_le)
         refine le_trans
           (Program.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ σ_in)
           (Program.wp_const_le _ _ _)
@@ -2446,7 +2256,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
               (fun aσ : Unit × state =>
                 if ow_response.get aσ.2 = x' ∧ ¬ chal_x_queried.get aσ.2
                 then (1 : ENNReal) else 0)
-              (ow_challenge_x.set x' aσ_lqo.2)) (fun _ _ => zero_le _) (Finset.mem_univ x)
+              (ow_challenge_x.set x' aσ_lqo.2)) (fun _ _ => bot_le) (Finset.mem_univ x)
         rw [h_set_eq] at h_term_le_sum
         exact le_trans h_term_le_sum h_sum
       -- Apply h_zero_at_cxq_true on both sides.
@@ -2987,16 +2797,14 @@ private lemma resp_chal_x_preimage_decomp (σ : state) :
     · rw [if_pos h]
       exact (le_add_right (le_refl (1 : ENNReal)))
     · rw [if_neg h]
-      exact zero_le ((1 : ENNReal) +
-        (if ow_response.get σ = ow_challenge_x.get σ ∧
-            ¬ chal_x_queried.get σ then (1 : ENNReal) else 0))
+      exact bot_le
   · rw [if_neg h_queried]
     by_cases h : ow_response.get σ = ow_challenge_x.get σ ∧ is_preimage σ
     · rw [if_pos h]
       have h2 : ow_response.get σ = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get σ :=
         ⟨h.1, h_queried⟩
       rw [if_pos h2]; rw [zero_add]
-    · rw [if_neg h]; exact zero_le _
+    · rw [if_neg h]; exact bot_le
 
 include h_ow_adv_chal_x_queried in
 /-- **The OW bound, via the tracking variable approach**: in the *lazy*

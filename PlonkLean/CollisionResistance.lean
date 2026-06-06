@@ -386,7 +386,7 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
       rw [h_const_zero]
       exact Program.wp_zero_post _ _
     rw [h_outer_zero]
-    exact zero_le _
+    exact bot_le
   · -- Not equal case: x_v ≠ x'_v where x_v = claim_x.get σ_2, x'_v = claim_x'.get σ_2.
     -- Apply strengthening helpers to the OUTER lazy_query (for x_v).
     -- This wraps the postcondition in `if RO σ_5 x_v = some y then ... else 0` etc.
@@ -426,8 +426,8 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
           · -- RO σ_6 (claim_x'.get σ_2) = some y
             rw [h_RO6_x', ← h_AND.2]
         simp [collision_indicator, h_has_collision]
-      all_goals (first | exact zero_le _ | (simp [collision_indicator]; exact zero_le _))
-    all_goals exact zero_le _
+      all_goals (first | exact bot_le | (simp [collision_indicator]; exact bot_le))
+    all_goals exact bot_le
 
 /-! ### Birthday-bound decomposition
 
@@ -602,7 +602,7 @@ private lemma pointwise_collision_bound (x : input) (σ : state)
         rw [if_pos h_collision_σ]
         exact le_self_add
   · rw [if_neg h_sy]
-    exact zero_le _
+    exact bot_le
 
 lemma lazy_query_collision_step (x : input) (σ : state) :
     (lazy_query x).wp (fun yσ : output × state => collision_indicator yσ.2) σ

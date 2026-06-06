@@ -74,8 +74,7 @@ attribute [instance] disjoint_ow_challenge_y_ro disjoint_ow_challenge_x_ro
                      disjoint_ow_response_ow_challenge_x
                      disjoint_ow_response_ow_challenge_y
 
-/-- DecidableEq on `output` (needed for the win-bit). Same trick as CR. -/
-noncomputable instance : DecidableEq output := Classical.decEq output
+-- DecidableEq on `output` moved to RO.lean (needed by RO infrastructure).
 
 /-! ## Game definition (parameterized over the adversary) -/
 
@@ -327,8 +326,8 @@ lemma ow_true_implies_preimage_wp (q : ℕ) (σ₀ : state) :
                some (ow_challenge_y.get σ_f)
         rw [h_resp_f, h_RO_f, h_chal_y_eq_y, h_y_check_eq_y]
       simp [preimage_indicator, h_is_preimage]
-    all_goals exact zero_le _
-  · exact zero_le _
+    all_goals exact bot_le
+  · exact bot_le
 
 /-! ## Phase 4 — Probability bound on preimage_indicator
 
@@ -400,7 +399,7 @@ lemma preimage_le_useful_or_resp_eq_chal_x (σ : state) :
       unfold useful_preimage_indicator
       rw [if_pos h_useful]
       exact le_self_add
-  · rw [if_neg h_pre]; exact zero_le _
+  · rw [if_neg h_pre]; exact bot_le
 
 /-! ### Layer A_OW: per-query bump for `useful_preimage_indicator` -/
 
@@ -438,7 +437,7 @@ private lemma pointwise_useful_preimage_bound (x : input) (σ : state)
       have h_useful_σ : useful_preimage σ := ⟨x'', h_neq, h_RO⟩
       rw [if_pos h_useful_σ]
       exact le_self_add
-  · rw [if_neg h_up_y]; exact zero_le _
+  · rw [if_neg h_up_y]; exact bot_le
 
 /-- **Layer A_OW**: each `lazy_query` bumps the expected `useful_preimage_indicator`
     by at most `1/|output|`. The fresh-sample case puts probability `1/|output|`
@@ -561,7 +560,7 @@ private lemma ow_adv_wp_useful_preimage (σ : state) :
         rintro ⟨_, σ'⟩; dsimp only
         split_ifs with h_RO h_x h_y
         · exact le_of_eq (useful_preimage_indicator_of_three_get_eq h_RO h_x h_y)
-        all_goals exact zero_le _
+        all_goals exact bot_le
     _ ≤ useful_preimage_indicator σ := Program.wp_const_le ow_adv _ σ
 
 include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
