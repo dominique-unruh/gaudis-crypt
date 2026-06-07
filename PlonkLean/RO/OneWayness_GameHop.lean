@@ -1651,6 +1651,11 @@ private lemma ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match
       = ((ow_game_2_with_match ow_adv q) σ >>=
         fun ttb_σ : (output × output × Bool) × state =>
           (pure (ttb_σ.1.1, ttb_σ.1.2.1) : SubProbability (output × output))) := by
+  -- With the new ow_game_2_with_match (sharing the env+sample prefix with
+  -- ow_game_2_tracked_p, and with match-checks using bound variables),
+  -- the marginal equality should follow from the wp equality (now provable
+  -- directly via building blocks) lifted through the converse
+  -- `Program.marginal_eq_of_wp_eq_all_value_posts`.
   sorry
 
 /-- **Step (A2) of the Game 2 bridge:** wp-equality on the F_match post
@@ -1768,6 +1773,26 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
         -- Step (B): structural reduction for the NEW ow_game_2_with_match.
         -- At the final pure (y_check, y, m), if y_check = y, the trailing
         -- match-check ensures m = true. Hence F_match ≤ matched_indicator.
+        -- Proof: descend via wp_bind through the program; at the final
+        -- block, both posts coincide on every execution path because the
+        -- trailing match-check enforces the invariant.
+        unfold ow_game_2_with_match
+        -- Apply wp monotonicity through the program. The post comparison
+        -- holds for the trailing block via case-split.
+        apply Program.wp_le_wp_of_le
+        intro bσ
+        -- bσ : (output × output × Bool) × state.
+        -- The output triple is (y_check, y, m) from the program's pure.
+        -- Need: (if bσ.1.1 = bσ.1.2.1 then 1 else 0) ≤ (if bσ.1.2.2 then 1 else 0).
+        -- This holds whenever bσ.1.1 = bσ.1.2.1 → bσ.1.2.2 = true.
+        -- But this is NOT pointwise on arbitrary tuples — only on those in
+        -- the program's output range. The program's trailing match-check
+        -- enforces this invariant.
+        --
+        -- For now, we'd need a more sophisticated argument that uses the
+        -- program structure (not just pointwise post comparison). Deferred —
+        -- but this is a SHORT proof when written properly (the trailing
+        -- match-check is a clear program-level invariant).
         sorry
 
 /-- **Bound on matched in `ow_game_2_with_match`** — the `guess_experiment`
