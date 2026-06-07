@@ -1771,29 +1771,39 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
           (fun bσ : (output × output × Bool) × state =>
             if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
         -- Step (B): structural reduction for the NEW ow_game_2_with_match.
-        -- At the final pure (y_check, y, m), if y_check = y, the trailing
-        -- match-check ensures m = true. Hence F_match ≤ matched_indicator.
-        -- Proof: descend via wp_bind through the program; at the final
-        -- block, both posts coincide on every execution path because the
-        -- trailing match-check enforces the invariant.
+        -- The trailing match-check ensures `y_check = y → m = true`, so
+        -- F_match ≤ matched_indicator on every execution path.
+        -- Proof pattern follows `guess_experiment_wp_final_guess_le_matched`.
+        have wp_bind_le : ∀ {α β : Type} (prog : Program state α) (k : α → Program state β)
+            (F G : Program.Post state β),
+            (∀ aσ : α × state, (k aσ.1).wp F aσ.2 ≤ (k aσ.1).wp G aσ.2) →
+            ∀ σ : state, (prog >>= k).wp F σ ≤ (prog >>= k).wp G σ := by
+          intro α β prog k F G h σ_pre
+          rw [wp_bind, wp_bind]
+          exact Program.wp_le_wp_of_le _ _ _ h _
         unfold ow_game_2_with_match
-        -- Apply wp monotonicity through the program. The post comparison
-        -- holds for the trailing block via case-split.
-        apply Program.wp_le_wp_of_le
-        intro bσ
-        -- bσ : (output × output × Bool) × state.
-        -- The output triple is (y_check, y, m) from the program's pure.
-        -- Need: (if bσ.1.1 = bσ.1.2.1 then 1 else 0) ≤ (if bσ.1.2.2 then 1 else 0).
-        -- This holds whenever bσ.1.1 = bσ.1.2.1 → bσ.1.2.2 = true.
-        -- But this is NOT pointwise on arbitrary tuples — only on those in
-        -- the program's output range. The program's trailing match-check
-        -- enforces this invariant.
-        --
-        -- For now, we'd need a more sophisticated argument that uses the
-        -- program structure (not just pointwise post comparison). Deferred —
-        -- but this is a SHORT proof when written properly (the trailing
-        -- match-check is a clear program-level invariant).
-        sorry
+        -- Descend through binds: env (lazy_init + set chal_x_queried_gh + uniform x +
+        -- set chal_x x), uniform y, set chal_y y, set matched false, loop, get resp,
+        -- lazy_query_tracked resp.
+        apply wp_bind_le; rintro ⟨_, σ1⟩
+        apply wp_bind_le; rintro ⟨_, σ2⟩
+        apply wp_bind_le; rintro ⟨_, σ3⟩
+        apply wp_bind_le; rintro ⟨_, σ4⟩
+        apply wp_bind_le; rintro ⟨y, σ5⟩
+        apply wp_bind_le; rintro ⟨_, σ6⟩
+        apply wp_bind_le; rintro ⟨_, σ7⟩
+        apply wp_bind_le; rintro ⟨_, σ8⟩
+        apply wp_bind_le; rintro ⟨_, σ9⟩
+        apply wp_bind_le; rintro ⟨y_check, σ10⟩
+        -- Now y and y_check are in scope. Case-split on y_check = y.
+        by_cases h_yc : y_check = y
+        · -- y_check = y: cond_set fires, m = true; both posts evaluate to 1.
+          simp only [if_pos h_yc, wp_bind, wp_set, wp_get, wp_pure]
+          rw [matched_chal_y.set_get _ true]
+          simp [h_yc]
+        · -- y_check ≠ y: F_match = 0 ≤ matched_indicator (≥ 0).
+          simp only [if_neg h_yc, Program.pure_bind, wp_bind, wp_get, wp_pure]
+          split_ifs <;> simp [h_yc]
 
 /-- **Bound on matched in `ow_game_2_with_match`** — the `guess_experiment`
     bound specialized to Game 2.
