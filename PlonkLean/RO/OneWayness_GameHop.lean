@@ -1265,7 +1265,44 @@ theorem guess_experiment_wp_final_guess_le_matched
           if bσ.1.1 = target_var.get bσ.2 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment env target_var matched_var loop_body final_body extract n).wp
         (fun bσ : (T × Bool) × state => if bσ.1.2 then (1 : ENNReal) else 0) σ := by
-  sorry
+  -- Custom helper for lifting wp comparisons through bind.
+  have wp_bind_le : ∀ {α β : Type} (prog : Program state α) (k : α → Program state β)
+      (F G : Program.Post state β),
+      (∀ aσ : α × state, (k aσ.1).wp F aσ.2 ≤ (k aσ.1).wp G aσ.2) →
+      ∀ σ : state, (prog >>= k).wp F σ ≤ (prog >>= k).wp G σ := by
+    intro α β prog k F G h σ_pre
+    rw [wp_bind, wp_bind]
+    exact Program.wp_le_wp_of_le _ _ _ h _
+  -- Specialized helper for `get v >>= k`: substitutes the specific get value.
+  have wp_get_bind_le : ∀ {γ β : Type} (v : Lens γ state) (k : γ → Program state β)
+      (F G : Program.Post state β) (σ_g : state),
+      ((k (v.get σ_g)).wp F σ_g ≤ (k (v.get σ_g)).wp G σ_g) →
+      (Program.get v >>= k).wp F σ_g ≤ (Program.get v >>= k).wp G σ_g := by
+    intro γ β v k F G σ_g h
+    simp only [wp_bind, wp_get]
+    exact h
+  unfold guess_experiment
+  haveI : disjoint matched_var target_var :=
+    (inferInstance : disjoint target_var matched_var).symm
+  -- Iteratively peel binds.
+  apply wp_bind_le; rintro ⟨_, σ1⟩
+  apply wp_bind_le; rintro ⟨_, σ2⟩
+  apply wp_bind_le; rintro ⟨_, σ3⟩
+  apply wp_bind_le; rintro ⟨_, σ4⟩
+  apply wp_bind_le; rintro ⟨_, σ5⟩
+  apply wp_bind_le; rintro ⟨_, σ6⟩
+  apply wp_bind_le; rintro ⟨g, σ7⟩
+  -- Final: get target_var >>= if g = · then ... else ...
+  apply wp_get_bind_le target_var
+  -- Now the goal substitutes target_var.get σ7 for the get-result.
+  -- Case-split on g = target_var.get σ7.
+  by_cases h_g_eq : g = target_var.get σ7
+  · simp only [if_pos h_g_eq, wp_bind, wp_set, wp_get, wp_pure]
+    rw [target_var.get_of_disjoint_set matched_var true σ7]
+    rw [matched_var.set_get σ7 true]
+    simp [h_g_eq]
+  · simp only [if_neg h_g_eq, Program.pure_bind, wp_bind, wp_get, wp_pure]
+    simp [h_g_eq]
 
 section Reductions
 
