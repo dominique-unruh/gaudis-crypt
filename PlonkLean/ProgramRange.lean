@@ -488,6 +488,53 @@ lemma Program.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
         all_goals exact bot_le
     _ ≤ P σ := Program.wp_const_le prog _ σ
 
+/-! ## Identical-until-bad
+
+The "fundamental lemma of game-playing" (Bellare-Rogaway, one-sided form):
+if two programs `p` and `q` agree on every postcondition that vanishes on
+"bad" outcomes, then `p.wp G σ ≤ q.wp G σ + p.wp (G restricted to bad)`.
+
+In our applications, `bad` is a state predicate (e.g., "the adversary
+queried `chal_x`"), `p` is the original game, `q` is the simplified
+"branch-eliminated" game, and `G` is the win indicator. We get
+`P[p wins] ≤ P[q wins] + P[p triggered bad]`.
+-/
+
+/-- **Up-to-bad (wp form)**. If `p` and `q` agree on the restriction of any
+    post to `¬ bad`, then `p.wp G σ ≤ q.wp G σ + p.wp (G | bad) σ`. -/
+lemma Program.up_to_bad {s α : Type}
+    {p q : Program s α} {bad : s → Prop} [DecidablePred bad]
+    (G : α × s → ENNReal)
+    (h_agree_on_good : ∀ (σ : s),
+        p.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ
+        = q.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ)
+    (σ : s) :
+    p.wp G σ
+    ≤ q.wp G σ
+      + p.wp (fun aσ : α × s => if bad aσ.2 then G aσ else 0) σ := by
+  -- Split G = (¬ bad ∧ G) + (bad ∧ G) on both sides via wp_add.
+  have h_split : ∀ (r : Program s α),
+      r.wp G σ
+      = r.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ
+        + r.wp (fun aσ : α × s => if bad aσ.2 then G aσ else 0) σ := by
+    intro r
+    rw [← Program.wp_add]
+    congr 1
+    funext aσ
+    by_cases h : bad aσ.2
+    · simp [h]
+    · simp [h]
+  rw [h_split p]
+  rw [h_agree_on_good σ]
+  -- Goal: q.wp (good_part G) σ + p.wp (bad_part G) σ ≤ q.wp G σ + p.wp (bad_part G) σ.
+  -- It suffices to show q.wp (good_part G) σ ≤ q.wp G σ.
+  gcongr
+  apply Program.wp_le_wp_of_le
+  intro aσ
+  by_cases h : bad aσ.2
+  · simp [h]
+  · simp [h]
+
 /-! ## Orbit fact
 
   Outputs of `p.inRange R` started at `σ` must lie (a.e.) in the `R`-orbit of `σ`.
