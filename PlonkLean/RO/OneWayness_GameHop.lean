@@ -1394,6 +1394,40 @@ lemma match_check_invisible
   exact Program.wp_conditional_set_disjoint_no_op
     (oracle_output.get σ = ow_challenge_y.get σ) true h_rest F h_F σ
 
+/-- `loop_n n body` stays in `R` whenever `body` does. -/
+lemma loop_n_inRange {R : LensRange state}
+    (body : Program state Unit) (h_body : body.inRange R) (n : ℕ) :
+    (loop_n n body).inRange R := by
+  induction n with
+  | zero => exact Program.inRange_pure _ _
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).inRange R
+    exact Program.inRange_bind h_body (fun _ => ih)
+
+/-! ### Sketch of the loop-level invisibility argument
+
+    `loop_n_match_check_invisible` (to be added when needed): for any
+    `body : Program state Unit` that's in `matched_chal_y.compl.range`,
+    and any post `F` that ignores `matched_chal_y`, we have
+    `(loop_n n (body >>= match_check)).wp F σ = (loop_n n body).wp F σ`.
+
+    Proof outline (deferred):
+    * Induction on `n`. Base case (n=0): both sides equal `pure ().wp F σ`.
+    * Step (n+1): unfold `loop_n` once. The two loop bodies differ by `mc`
+      (the match_check). Use the IH to replace `loop_n n (body >>= mc)`
+      with `loop_n n body` inside the post under `body.wp` (justified by
+      `wp_bind` and pointwise post equality via `funext` + `congr_arg`).
+      Then apply `match_check_invisible` with `rest := loop_n n body`
+      (which is `matched_chal_y`-disjoint by `loop_n_inRange`).
+    * Requires `h_loop_F_inv`: wp of a matched-disjoint program with a
+      matched-ignoring post is invariant under matched.set on input.
+      Provable via `Program.wp_shift_input` + `LensRange.complement_range`.
+    * Lean script complexity: Lean's do-notation elaboration with nested
+      conditional sets creates `match` expressions that complicate
+      `rw [wp_bind, wp_get]` chains and the `congr 1; funext` pattern.
+      Needs careful handling via `set` for abbreviations and explicit
+      manipulation of post functions. -/
+
 /-- **The SubProb-level partial marginal equality at the heart of Step (A2).**
 
     Both `ow_game_2_tracked_p` and `ow_game_2_with_match` have the SAME
