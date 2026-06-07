@@ -1362,6 +1362,104 @@ version of `ow_game_2_tracked` that additionally sets `matched_chal_y` to
 
 Step 3 is the `guess_experiment_wp_bound` specialized to this game. -/
 
+/-- **The SubProb-level partial marginal equality at the heart of Step (A2).**
+
+    Both `ow_game_2_tracked_p` and `ow_game_2_with_match` have the SAME
+    SubProb marginal on the `(y_check, y_target)` projection of their
+    `(output × output × Bool)` output. The two programs differ only in:
+    * `set matched_chal_y false` (initialization, ow_game_2_with_match only)
+    * In-loop match-check (`get oo + get chal_y + cond set matched_chal_y true`)
+    * Final `set oracle_output y_check` (after the final `lazy_query_tracked`)
+    * Final match-check (same shape as the in-loop one)
+    * Trailing `get matched_chal_y + pure (g, t', m)` vs trailing
+      `pure (y_check, y, decide(y_check = y))`.
+
+    Each difference writes only to `matched_chal_y` or `oracle_output`, both
+    of which are disjoint from the lenses appearing in the projection
+    `(y_check, y_target)` (the y_check is the return of `lazy_query_tracked`;
+    the y_target is `ow_challenge_y.get`). At SubProb level, the projection
+    drops these state changes, and the two distributions coincide.
+
+    Proof strategy (deferred): structural induction on the program
+    composition, using `wp_set_disjoint_no_op`-family lemmas lifted to
+    SubProb level via the marginal-equality framework. -/
+private lemma ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match
+    (q : ℕ) :
+    ∀ σ : state,
+      ((ow_game_2_tracked_p ow_adv q) σ >>=
+        fun ttb_σ : (output × output × Bool) × state =>
+          (pure (ttb_σ.1.1, ttb_σ.1.2.1) : SubProbability (output × output)))
+      = ((ow_game_2_with_match ow_adv q) σ >>=
+        fun ttb_σ : (output × output × Bool) × state =>
+          (pure (ttb_σ.1.1, ttb_σ.1.2.1) : SubProbability (output × output))) := by
+  sorry
+
+/-- **Step (A2) of the Game 2 bridge:** wp-equality on the F_match post
+    between `ow_game_2_tracked_p` and `ow_game_2_with_match`. Proved by
+    applying `Program.wp_eq_of_marginal_eq` to the pair-projected programs,
+    reducing to the SubProb-level partial marginal equality
+    `ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match`.
+
+    The post `F_match bσ = if bσ.1.1 = bσ.1.2.1 then 1 else 0` factors
+    through the projection `proj abm = (abm.1, abm.2.1)` as `G ∘ proj`
+    where `G : output × output → ENNReal := fun ab => if ab.1 = ab.2 then 1 else 0`. -/
+private lemma ow_game_2_tracked_p_wp_eq_ow_game_2_with_match_wp
+    (q : ℕ) (σ : state) :
+    (ow_game_2_tracked_p ow_adv q).wp
+        (fun bσ : (output × output × Bool) × state =>
+          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
+    = (ow_game_2_with_match ow_adv q).wp
+        (fun bσ : (output × output × Bool) × state =>
+          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
+  -- Define the projected programs explicitly: drop the third (matched) component.
+  set p_proj : Program state (output × output) :=
+    ow_game_2_tracked_p ow_adv q >>=
+      fun ttb => (pure (ttb.1, ttb.2.1) : Program state (output × output)) with hp_def
+  set q_proj : Program state (output × output) :=
+    ow_game_2_with_match ow_adv q >>=
+      fun ttb => (pure (ttb.1, ttb.2.1) : Program state (output × output)) with hq_def
+  -- For value-only post `G ∘ .1`, projected program wp equals original wp on F_match.
+  have lhs_eq :
+      (ow_game_2_tracked_p ow_adv q).wp
+          (fun bσ : (output × output × Bool) × state =>
+            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
+      = p_proj.wp
+          (fun pσ : (output × output) × state =>
+            if pσ.1.1 = pσ.1.2 then (1 : ENNReal) else 0) σ := by
+    simp only [hp_def, wp_bind, wp_pure]
+  have rhs_eq :
+      (ow_game_2_with_match ow_adv q).wp
+          (fun bσ : (output × output × Bool) × state =>
+            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
+      = q_proj.wp
+          (fun pσ : (output × output) × state =>
+            if pσ.1.1 = pσ.1.2 then (1 : ENNReal) else 0) σ := by
+    simp only [hq_def, wp_bind, wp_pure]
+  rw [lhs_eq, rhs_eq]
+  -- Apply wp_eq_of_marginal_eq using the named SubProb-level marginal equality.
+  refine Program.wp_eq_of_marginal_eq (p := p_proj) (q := q_proj)
+    ?_ (fun ab : output × output => if ab.1 = ab.2 then (1 : ENNReal) else 0) σ
+  intro σ_pre
+  -- Reduce projected-program marginals to direct projection of unprojected programs.
+  simp only [hp_def, hq_def]
+  -- `(prog >>= fun a => pure (proj a)) σ >>= pure ∘ .1`
+  --   = `prog σ >>= fun aσ => pure (proj aσ.1)`.
+  show (ow_game_2_tracked_p ow_adv q σ_pre >>=
+          fun ttb_σ : (output × output × Bool) × state =>
+            (pure ((ttb_σ.1.1, ttb_σ.1.2.1), ttb_σ.2)
+              : SubProbability ((output × output) × state)))
+        >>= (fun pσ : (output × output) × state =>
+              (pure pσ.1 : SubProbability (output × output)))
+      = (ow_game_2_with_match ow_adv q σ_pre >>=
+          fun ttb_σ : (output × output × Bool) × state =>
+            (pure ((ttb_σ.1.1, ttb_σ.1.2.1), ttb_σ.2)
+              : SubProbability ((output × output) × state)))
+        >>= (fun pσ : (output × output) × state =>
+              (pure pσ.1 : SubProbability (output × output)))
+  rw [SubProbability.bind_assoc', SubProbability.bind_assoc']
+  simp only [SubProbability.pure_bind]
+  exact ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match ow_adv q σ_pre
+
 /-- **The Game 2 reduction**: `ow_game_2_tracked.wp win ≤
     ow_game_2_with_match.wp matched`. Factored into two pieces:
 
@@ -1399,18 +1497,12 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
         ow_game_2_tracked_wp_eq_ow_game_2_tracked_p_wp ow_adv q σ
     _ = (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
-            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
-        -- Step (A2): marginal equality. Both `ow_game_2_tracked_p` and
-        -- `ow_game_2_with_match` have the same SubProb marginal on the
-        -- (y_check, y_sample) projection — the matched_chal_y tracking and
-        -- final set oracle_output in ow_game_2_with_match don't affect the
-        -- (first, second-of-second) projection of the output. Apply via
-        -- a partial-marginal-equality argument.
-        --
-        -- Note: F_match factors through proj : (T × T × Bool) → (T × T)
-        -- as `if proj.1 = proj.2 then 1 else 0`. So the wp equality follows
-        -- from `(p σ >>= proj_pair_pure) = (q σ >>= proj_pair_pure)`.
-        sorry
+            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ :=
+        -- Step (A2): wp-equality via partial marginal equality. The proof
+        -- reduces (via `Program.wp_eq_of_marginal_eq` applied to pair-projected
+        -- programs) to the SubProb-level partial marginal equality stated in
+        -- `ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match` (sorry'd).
+        ow_game_2_tracked_p_wp_eq_ow_game_2_with_match_wp ow_adv q σ
     _ ≤ (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
             if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by

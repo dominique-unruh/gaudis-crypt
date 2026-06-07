@@ -908,7 +908,7 @@ noncomputable def Lens.factor {c s a : Type} [Nonempty s]
     (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))
 
 /-- SubProbability bind is associative. -/
-private lemma SubProbability.bind_assoc' {α β γ : Type}
+lemma SubProbability.bind_assoc' {α β γ : Type}
     (μ : SubProbability α) (g : α → SubProbability β) (h' : β → SubProbability γ) :
     (μ >>= g) >>= h' = μ >>= fun x => g x >>= h' := by
   apply Subtype.ext
