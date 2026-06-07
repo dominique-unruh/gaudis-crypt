@@ -366,37 +366,36 @@ noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program 
   | 0 => pure ()
   | n + 1 => body >>= fun _ => loop_n n body
 
-/-- A generic "guess the uniform target" experiment with split loop and
-    final body. Designed to match the `q-loop + 1-final` structure of
-    cryptographic experiments.
+/-- A generic "guess the uniform target" experiment.
 
-    Returns `(final_guess, target_value, matched)`: the extract of the final
-    iteration, the sampled target value, and the matched-var's value at end.
-    Including `target_value` in the output makes the "final guess matches
-    target" event OUTPUT-ONLY (no state dependency), enabling marginal
-    equality-based reduction proofs via `Program.wp_eq_of_marginal_eq`. -/
-noncomputable def guess_experiment
-    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T] {s : Type}
-    (env : Program s Unit) (target_var : Lens T s) (matched_var : Lens Bool s)
-    (loop_body : Program s Unit) (final_body : Program s Unit)
-    (extract : Program s T) (n : ℕ) : Program s (T × T × Bool) := do
+    The key generalization vs prior versions: the `body` and `final`
+    iterations are parameterized by the target `t`. Each iteration can
+    use the bound target directly in match-checks (no state extracts
+    required). This unifies two shapes of match-check that arise in OW:
+    * **Input-side match (Game 1 bad):** lazy_query_tracked already
+      tracks input matches internally via `chal_x_queried_gh`; the body
+      doesn't need an explicit match-check (it ignores its target param).
+    * **Output-side match (Game 2 win-bound):** body explicitly does
+      `if y_val = t then set matched_var true` using bound `y_val` and `t`.
+
+    Returns the matched flag's final value (Bool). Cryptographic reductions
+    relate ow_game_*'s win/bad events to the matched flag via specialized
+    bridges. -/
+noncomputable def guess_experiment {T s : Type}
+    (env : Program s Unit)
+    (sample_target : Program s T)
+    (target_var : Lens T s)
+    (matched_var : Lens Bool s)
+    (body : T → Program s Unit)
+    (final : T → Program s Unit)
+    (n : ℕ) : Program s Bool := do
   env
-  let t ← Program.uniform
+  let t ← sample_target
   Program.set target_var t
   Program.set matched_var false
-  loop_n n (do
-    loop_body
-    let g ← extract
-    let t' ← Program.get target_var
-    if g = t' then Program.set matched_var true
-    else pure ())
-  final_body
-  let g ← extract
-  let t' ← Program.get target_var
-  if g = t' then Program.set matched_var true
-  else pure ()
-  let m ← Program.get matched_var
-  pure (g, t', m)
+  loop_n n (body t)
+  final t
+  Program.get matched_var
 
 /-- **Game 2 with matched tracking** — structurally close to `ow_game_2_tracked_p`.
 
@@ -432,6 +431,67 @@ noncomputable def ow_game_2_with_match (q : ℕ) : Program state (output × outp
   if y_check = y then Program.set matched_chal_y true else pure ()
   let m ← Program.get matched_chal_y
   pure (y_check, y, m)
+
+/-- **Game 2 as a `guess_experiment` instance.** The matched flag is
+    `matched_chal_y`; the target is the uniformly-sampled `chal_y`. Body
+    and final use the BOUND target `y` for explicit match-checks
+    (`if y_val = y then ...`), avoiding state reads. The result is just
+    the matched Bool (no extra output tuple).
+
+    Same structure as `ow_game_2_with_match` minus the trailing `pure
+    (y_check, y, m)` reconstruction — that's added back via a bridge
+    when needed. -/
+noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
+  guess_experiment
+    (env := do
+      lazy_init
+      Program.set chal_x_queried_gh false
+      let x ← Program.uniform
+      Program.set ow_challenge_x x)
+    (sample_target := Program.uniform)
+    (target_var := ow_challenge_y)
+    (matched_var := matched_chal_y)
+    (body := fun y => do
+      ow_adv
+      let inp ← Program.get oracle_input
+      let y_val ← lazy_query_tracked inp
+      Program.set oracle_output y_val
+      if y_val = y then Program.set matched_chal_y true else pure ())
+    (final := fun y => do
+      let resp ← Program.get ow_response
+      let y_val ← lazy_query_tracked resp
+      Program.set oracle_output y_val
+      if y_val = y then Program.set matched_chal_y true else pure ())
+    (n := q)
+
+/-- **Game 1 as a `guess_experiment` instance.** The matched flag is
+    `chal_x_queried_gh`; the target is the uniformly-sampled `chal_x`.
+    Body and final use `lazy_query_tracked` which has the input-match
+    tracking INTERNAL (it sets `chal_x_queried_gh` when `inp = chal_x`).
+    The body therefore IGNORES its target parameter — the matching is
+    handled inside `lazy_query_tracked`.
+
+    Same structure as `ow_game_1_tracked` minus the RO pre-programming
+    and the trailing win-pure — those add back via a bridge when needed
+    (for the bad-event bound, the pre-programming doesn't affect the
+    flag distribution and can be omitted). -/
+noncomputable def guess_experiment_game_1 (q : ℕ) : Program state Bool :=
+  guess_experiment
+    (env := do
+      lazy_init)
+    (sample_target := Program.uniform)
+    (target_var := ow_challenge_x)
+    (matched_var := chal_x_queried_gh)
+    (body := fun _x => do  -- Body ignores target; lazy_query_tracked checks internally.
+      ow_adv
+      let inp ← Program.get oracle_input
+      let y ← lazy_query_tracked inp
+      Program.set oracle_output y)
+    (final := fun _x => do
+      let resp ← Program.get ow_response
+      let y ← lazy_query_tracked resp
+      Program.set oracle_output y)
+    (n := q)
 
 /-! ### Step 1: tracking is invisible to flag-ignoring posts
 
@@ -1255,95 +1315,26 @@ The reductions show that the OW game's win/bad indicator wp is bounded
 above by the corresponding guess_experiment's matched indicator wp.
 The final `(q+1)/|T|` bound on `guess_experiment` is deferred. -/
 
-/-- **TODO**. Bound on `guess_experiment`'s matched indicator. Generic
-    `(n+1)/|T|` bound when bodies and `extract` are target-independent.
-    Post reads matched from the tuple's `.snd.snd` component. -/
+/-- **TODO**. Bound on `guess_experiment`'s matched indicator: each iteration
+    has ≤ 1/|T| chance of setting `matched_var := true` (because the target
+    is uniformly sampled and revealed only via the lens read inside the body),
+    so the union bound over `n+1` iterations gives `(n+1)/|T|`.
+
+    Generic over the body's structure; the body MAY use the bound target `t`
+    in match-checks (Game 2 style) or query an oracle that internally tracks
+    matches against state-stored target (Game 1 style — `lazy_query_tracked`).
+    Deferred. -/
 theorem guess_experiment_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit) (target_var : Lens T state)
-    (matched_var : Lens Bool state) [disjoint target_var matched_var]
-    (loop_body final_body : Program state Unit) (extract : Program state T)
-    (h_env : env.inRange target_var.compl.range)
-    (h_loop_body : loop_body.inRange target_var.compl.range)
-    (h_final_body : final_body.inRange target_var.compl.range)
-    (h_extract : extract.inRange target_var.compl.range)
+    (env : Program state Unit) (sample_target : Program state T)
+    (target_var : Lens T state) (matched_var : Lens Bool state)
+    [disjoint target_var matched_var]
+    (body : T → Program state Unit) (final : T → Program state Unit)
     (n : ℕ) (σ : state) :
-    (guess_experiment env target_var matched_var loop_body final_body extract n).wp
-        (fun bσ : (T × T × Bool) × state => if bσ.1.2.2 then (1 : ENNReal) else 0) σ
+    (guess_experiment env sample_target target_var matched_var body final n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
   sorry
-
-/-- **Structural reduction lemma for `guess_experiment`**: the wp of
-    `final_guess = target` indicator is at most the wp of `matched` indicator.
-
-    This is the heart of the guess-game reduction: by construction, the
-    final match_check sets `matched_var := true` when the final extract
-    matches the target. So in any trace where the final guess = target,
-    matched is true.
-
-    **Proof plan:** Factor guess_experiment as `PREFIX >>= FINAL_4_LINES`
-    where PREFIX = env + sample + set + loop + final_body and
-    FINAL_4_LINES = `get target_var >>= ... >>= pure (g, m)`.
-
-    Peel the bind chain via `rw [wp_bind]; apply Program.wp_le_wp_of_le; intro x`
-    iteratively for each outer bind. At the innermost level (after `wp_get`
-    on `target_var`), case-split on `g = target_var.get σ`:
-    * positive: matched_var is set true, both wp's equal 1.
-    * negative: LHS = 0 ≤ RHS.
-
-    The mechanical Lean proof needs careful handling of do-notation
-    elaboration (the `aσ.2` projection introduces `match` expressions that
-    require `dsimp` or `show` to beta-reduce). -/
-theorem guess_experiment_wp_final_guess_le_matched
-    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit) (target_var : Lens T state)
-    (matched_var : Lens Bool state) [disjoint target_var matched_var]
-    (loop_body final_body : Program state Unit) (extract : Program state T)
-    (n : ℕ) (σ : state) :
-    (guess_experiment env target_var matched_var loop_body final_body extract n).wp
-        (fun bσ : (T × T × Bool) × state =>
-          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
-    ≤ (guess_experiment env target_var matched_var loop_body final_body extract n).wp
-        (fun bσ : (T × T × Bool) × state => if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
-  -- Custom helper for lifting wp comparisons through bind.
-  have wp_bind_le : ∀ {α β : Type} (prog : Program state α) (k : α → Program state β)
-      (F G : Program.Post state β),
-      (∀ aσ : α × state, (k aσ.1).wp F aσ.2 ≤ (k aσ.1).wp G aσ.2) →
-      ∀ σ : state, (prog >>= k).wp F σ ≤ (prog >>= k).wp G σ := by
-    intro α β prog k F G h σ_pre
-    rw [wp_bind, wp_bind]
-    exact Program.wp_le_wp_of_le _ _ _ h _
-  -- Specialized helper for `get v >>= k`: substitutes the specific get value.
-  have wp_get_bind_le : ∀ {γ β : Type} (v : Lens γ state) (k : γ → Program state β)
-      (F G : Program.Post state β) (σ_g : state),
-      ((k (v.get σ_g)).wp F σ_g ≤ (k (v.get σ_g)).wp G σ_g) →
-      (Program.get v >>= k).wp F σ_g ≤ (Program.get v >>= k).wp G σ_g := by
-    intro γ β v k F G σ_g h
-    simp only [wp_bind, wp_get]
-    exact h
-  unfold guess_experiment
-  haveI : disjoint matched_var target_var :=
-    (inferInstance : disjoint target_var matched_var).symm
-  -- Iteratively peel binds.
-  apply wp_bind_le; rintro ⟨_, σ1⟩
-  apply wp_bind_le; rintro ⟨_, σ2⟩
-  apply wp_bind_le; rintro ⟨_, σ3⟩
-  apply wp_bind_le; rintro ⟨_, σ4⟩
-  apply wp_bind_le; rintro ⟨_, σ5⟩
-  apply wp_bind_le; rintro ⟨_, σ6⟩
-  apply wp_bind_le; rintro ⟨g, σ7⟩
-  -- Final: get target_var >>= if g = · then ... else ...
-  apply wp_get_bind_le target_var
-  -- Now t' has been substituted with target_var.get σ7 in the program.
-  -- Case-split on g = target_var.get σ7.
-  by_cases h_g_eq : g = target_var.get σ7
-  · -- positive branch: matched_var set to true, m = true. Both sides = 1.
-    simp only [if_pos h_g_eq, wp_bind, wp_set, wp_get, wp_pure]
-    rw [matched_var.set_get σ7 true]
-    simp [h_g_eq]
-  · -- negative branch: matched unchanged. LHS = 0, RHS ≥ 0.
-    simp only [if_neg h_g_eq, Program.pure_bind, wp_bind, wp_get, wp_pure]
-    simp [h_g_eq]
 
 section Reductions
 
