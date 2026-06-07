@@ -13,12 +13,17 @@ The lemmas live in:
     `random_oracle_query`, `lazy_init`, `random_oracle_init`, `convert`),
     state-variable axioms (`oracle_input`, `oracle_output`, `want_more`,
     `adversary_result`), and `lazy_init_convert_eq_random_oracle_init` / `lazy_query_conv_eq_conv_random_oracle` / `lazy_query_convert_eq_convert_random_oracle_query`.
-  - `PlonkLean/RO/Wrapper.lean` — adversary-parameterised wrapper layer
-    (`oracle_loop` while-loop, `adv_conv_eq_conv_adv`–`oracle_loop_wp_lazy_eq_random_oracle*`).
   - `PlonkLean/RO/Transfer.lean` — generic `Program.transfer` framework,
-    convert absorption, and transfer shortcuts.
-  - `PlonkLean/RO/OracleLoop.lean` — generic `oracle_step` /
-    `oracle_loop_n` primitives and the indicator-step lemmas.
+    closure laws (including `transfer_while_loop`), convert absorption,
+    and transfer shortcuts.
+  - `PlonkLean/RO/OracleLoop.lean` — oracle loop primitives
+    (`oracle_step`, `oracle_loop_n`, `oracle_loop`) and the
+    indicator-step lemmas.
+  - `PlonkLean/RO/ROEquiv.lean` — lazy = eager equivalence for the
+    unbounded `oracle_loop` (`adv_conv_eq_conv_adv`,
+    `Program.transfer_oracle_loop`,
+    `oracle_loop_lazy_convert_eq_random_oracle_loop`,
+    `oracle_loop_wp_lazy_eq_random_oracle`, marginal/compl/glob variants).
 
 `PlonkLean/RO.lean` is a barrel that re-exports all four; importing it
 gives access to everything.

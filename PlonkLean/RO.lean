@@ -1,7 +1,7 @@
 import PlonkLean.RO.Basic
-import PlonkLean.RO.Wrapper
 import PlonkLean.RO.Transfer
 import PlonkLean.RO.OracleLoop
+import PlonkLean.RO.ROEquiv
 
 /-!
 # Random oracle framework
@@ -9,25 +9,37 @@ import PlonkLean.RO.OracleLoop
 This file is a barrel re-exporting the framework. The actual definitions
 and lemmas live in `PlonkLean/RO/`:
 
-* `PlonkLean.RO.Basic` — RO axioms and primitives (`lazy_query`,
-  `random_oracle_query`, `lazy_init`, `random_oracle_init`, `convert`),
-  the `oracle_input`/`oracle_output`/`adversary_result`/`want_more`
-  scratch variables, and `lazy_init_convert_eq_random_oracle_init` / `lazy_query_convert_eq_convert_random_oracle_query` / `lazy_query_conv_eq_conv_random_oracle`.
+* `PlonkLean.RO.Basic` — RO primitives only: `random_oracle_state` axiom,
+  `lazy_init` / `random_oracle_init`, `lazy_query` / `random_oracle_query`,
+  and `lazy_query_inRange_ro`. No bridging between lazy and eager.
 
-* `PlonkLean.RO.Wrapper` — adversary-parameterised wrapper layer:
-  `oracle_loop` (while-loop with `want_more`), `adv_conv_eq_conv_adv` (`convert`
-  commutes with adversaries), `oracle_loop_lazy_convert_eq_random_oracle_loop` (Kleene-style transfer of
-  `oracle_loop`), and `oracle_loop_wp_lazy_eq_random_oracle` / `oracle_loop_marginal_lazy_eq_random_oracle` / `oracle_loop_marginal_lazy_eq_random_oracle_compl` /
-  `oracle_loop_marginal_lazy_eq_random_oracle_glob`.
+* `PlonkLean.RO.Transfer` — the lazy/eager bridge: `convert` itself,
+  convert algebra (`convert_wp_eq`, `convert_mass`, `convert_wp_const`,
+  `convert_commutes_set/get`, `convert_random_oracle_init`,
+  `convert_bind_random_oracle_init_bind`), the foundational lazy/eager
+  equations (`lazy_init_convert_eq_random_oracle_init`,
+  `lazy_query_convert_eq_convert_random_oracle_query`,
+  `lazy_query_conv_eq_conv_random_oracle`, `if_factor_convert`), the
+  `Program.transfer` relation with its closure laws (including
+  `Program.transfer_while_loop`), and the wp/marginal bridges
+  (`Program.transfer_wp_value`, `_marginal`, and the RO-invariant
+  enrichments).
 
-* `PlonkLean.RO.Transfer` — generic lazy/eager transfer relation
-  `Program.transfer`, its closure lemmas, the bridge to wp/marginal
-  statements, and convenience shortcuts (`transfer_set/get_of_disjoint_ro`,
-  `transfer_uniform`, `convert_bind_random_oracle_init_bind`).
+* `PlonkLean.RO.OracleLoop` — scratch state for adversary-driven loops
+  (`want_more`, `oracle_input`, `oracle_output`, `adversary_result`,
+  `skip`, disjointness instances), the `lazy_query + set oracle_output`
+  key-reasoning lemmas (`query_set_convert_eq`,
+  `lazy_query_then_set_oracle_output_inRange_compl`,
+  `lazy_query_set_oracle_output_preserves_RO_at_other_key`,
+  `RO_setentry_neq_commutes_lazy_query_set_oracle_output`), the three
+  oracle loop variants (`oracle_step`, `oracle_loop_n`, `oracle_loop`),
+  and their transfer/`inRange`/indicator-step lemmas.
 
-* `PlonkLean.RO.OracleLoop` — generic adversary + oracle loop primitives
-  (`oracle_step`, `oracle_loop_n`), their transfer/`inRange` lemmas,
-  the `lazy_query` + `set oracle_output` key-reasoning lemmas, and the
-  generic indicator-step lemmas (`lazy_query_wp_step`,
-  `oracle_step_wp_indicator_bump`, `oracle_loop_n_wp_linear_bound`).
+* `PlonkLean.RO.ROEquiv` — the lazy = eager equivalence for `oracle_loop`:
+  `adv_conv_eq_conv_adv` (`convert` commutes with RO-disjoint adversaries),
+  `Program.transfer_oracle_loop` (full transfer of the while-loop game,
+  built via the framework's `transfer_while_loop` closure law),
+  `oracle_loop_lazy_convert_eq_random_oracle_loop` (the foundational
+  equation), and the corollary family `oracle_loop_wp_lazy_eq_random_oracle`
+  / `oracle_loop_marginal_lazy_eq_random_oracle` / `..._compl` / `..._glob`.
 -/

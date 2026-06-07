@@ -1,18 +1,81 @@
 import PlonkLean.RO.Basic
 import PlonkLean.RO.Transfer
 
-/-! ### RO-key-level properties of `lazy_query` + `set oracle_output`
+/-!
+# Oracle loops
 
-These are the workhorse lemmas for "deferred sampling" arguments in
-random-oracle proofs:
+Scratch state and loop primitives for adversary-driven oracle protocols.
 
-- `lazy_query_set_oracle_output_preserves_RO_at_other_key`: a query at
-  `inp ≠ k` doesn't change `RO[k]`, so we can strengthen the post with
-  the `RO[k]`-preserved condition.
-- `RO_setentry_neq_commutes_lazy_query_set_oracle_output`: writes to
-  different RO keys commute past the query. This is the mechanical core
-  of "averaged invariance" arguments for indistinct-key reasoning.
+* Scratch state: `want_more`, `oracle_input`, `oracle_output`,
+  `adversary_result` — the per-step variables shared between the
+  adversary and the loop infrastructure. All disjoint from
+  `random_oracle_state`.
+
+* The three oracle-loop variants, sharing the same body shape:
+  - `oracle_step` — one iteration.
+  - `oracle_loop_n` — `q` iterations (static query budget).
+  - `oracle_loop` — unbounded iteration via `while_loop` and `want_more`.
+
+* Their transfer / `inRange` / linear-bound / indicator-step lemmas.
+
+* Key-level RO reasoning for `lazy_query inp >>= set oracle_output`
+  (the "deferred sampling" combinator).
 -/
+
+/-! ## Scratch state -/
+
+axiom want_more : Variable Bool
+axiom oracle_input : Variable input
+axiom oracle_output : Variable output
+axiom adversary_result : Variable Bool
+
+noncomputable def skip : Program state Unit := do
+  return ()
+
+/- The non-RO state variables are disjoint from `random_oracle_state`. -/
+axiom disjoint_want_more_ro : disjoint want_more random_oracle_state
+axiom disjoint_oracle_input_ro : disjoint oracle_input random_oracle_state
+axiom disjoint_oracle_output_ro : disjoint oracle_output random_oracle_state
+axiom disjoint_adversary_result_ro : disjoint adversary_result random_oracle_state
+
+attribute [instance] disjoint_want_more_ro disjoint_oracle_input_ro
+                     disjoint_oracle_output_ro disjoint_adversary_result_ro
+
+/-! ## `lazy_query + set oracle_output` — the "deferred sampling" combinator
+
+The combined step "query the oracle on `inp`, store the result in
+`oracle_output`" is the unit of work performed in every oracle-loop
+body. We collect its key-level properties here. -/
+
+/-- Pushing `convert` past the `let inp ← get oracle_input; let v ← lazy_query inp;
+    set oracle_output v` piece. -/
+theorem query_set_convert_eq :
+    ((Program.get oracle_input >>= fun inp =>
+      lazy_query inp >>= fun v =>
+      Program.set oracle_output v) >>= fun _ => convert)
+  = (convert >>= fun _ =>
+      Program.get oracle_input >>= fun inp =>
+      random_oracle_query inp >>= fun v =>
+      Program.set oracle_output v) := by
+  simp_rw [Program.bind_assoc, convert_commutes_set,
+           lazy_query_convert_cont_eq_convert_random_oracle_query]
+  exact convert_commutes_get oracle_input _
+
+/-- `(lazy_query inp >>= set oracle_output)` is in `L.compl.range` for any
+    lens `L` disjoint from both `random_oracle_state` and `oracle_output`.
+    Useful for `wp_strengthen_lens_preserved` arguments downstream. -/
+lemma lazy_query_then_set_oracle_output_inRange_compl
+    {γ : Type} (L : Lens γ state)
+    [disjoint random_oracle_state L]
+    [disjoint oracle_output L]
+    (inp : input) :
+    (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+        L.compl.range := by
+  refine Program.inRange_bind ?_ ?_
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state L)
+  · intro y
+    exact Program.set_inRange_compl_of_disjoint oracle_output L _
 
 /-- `(lazy_query inp >>= set oracle_output)` preserves `RO[k]` for `inp ≠ k`.
     More precisely, the wp can be strengthened with the `RO[k]`-preserved
@@ -170,6 +233,47 @@ noncomputable def oracle_loop_n (adv : Program state Unit) :
   | n + 1, oracle => do
       oracle_step adv oracle
       oracle_loop_n adv n oracle
+
+/-! ### Unbounded `oracle_loop`
+
+The `while_loop` variant: the adversary may continue indefinitely,
+terminating by clearing `want_more`. Strictly more general than
+`oracle_loop_n` (which fixes the query budget upfront). The lazy = eager
+equivalence is proved in `PlonkLean.RO.ROEquiv` via the transfer
+framework's `while_loop` closure law. -/
+
+/-- Unbounded "adversary + oracle call" loop. The adversary decides via
+    the `want_more` flag whether to continue or stop. Returns the value
+    of `adversary_result`. -/
+noncomputable def oracle_loop (adv : Program state Unit)
+    (init : Program state Unit)
+    (oracle : input → Program state output) : Program state Bool := do
+  Program.set want_more true
+  init
+  while_loop (Program.get want_more) (do
+    adv
+    if ← Program.get want_more then
+      Program.set oracle_output (← oracle (← Program.get oracle_input))
+    else
+      skip
+  )
+  Program.get adversary_result
+
+/-- The lazy form of `oracle_loop`'s while-loop body. -/
+noncomputable def loop_body_lazy (adv : Program state Unit) : Program state Unit := do
+  adv
+  if ← Program.get want_more then
+    Program.set oracle_output (← lazy_query (← Program.get oracle_input))
+  else
+    skip
+
+/-- The eager form of `oracle_loop`'s while-loop body. -/
+noncomputable def loop_body_eager (adv : Program state Unit) : Program state Unit := do
+  adv
+  if ← Program.get want_more then
+    Program.set oracle_output (← random_oracle_query (← Program.get oracle_input))
+  else
+    skip
 
 /-- `oracle_step adv` transfers from lazy to eager, provided `adv` is
     RO-disjoint. -/
