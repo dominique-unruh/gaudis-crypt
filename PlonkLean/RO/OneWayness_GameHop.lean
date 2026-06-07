@@ -398,37 +398,40 @@ noncomputable def guess_experiment
   let m ← Program.get matched_var
   pure (g, t', m)
 
-/-- **Game 2 with matched tracking** (the guess form). Defined as a
-    literal `guess_experiment` instance over `T := output`,
-    `target_var := ow_challenge_y`, `matched_var := matched_chal_y`,
-    loop_body = oracle_step (adv + lazy_query_tracked + set oracle_output),
-    final_body = (get ow_response + lazy_query_tracked + set oracle_output),
-    extract = `Program.get oracle_output`, n = q.
+/-- **Game 2 with matched tracking** — structurally close to `ow_game_2_tracked_p`.
 
-    The match-check is OUTSIDE the lazy_query (guess_experiment's pattern).
-    Returns `(final_guess, matched)` — the final lazy_query's output paired
-    with the matched flag. By construction the pair satisfies
-    `final_guess = chal_y → matched = true`. -/
-noncomputable def ow_game_2_with_match (q : ℕ) : Program state (output × output × Bool) :=
-  guess_experiment
-    (env := do
-      lazy_init
-      Program.set chal_x_queried_gh false
-      let x ← Program.uniform
-      Program.set ow_challenge_x x)
-    (target_var := ow_challenge_y)
-    (matched_var := matched_chal_y)
-    (loop_body := do
-      ow_adv
-      let inp ← Program.get oracle_input
-      let y ← lazy_query_tracked inp
-      Program.set oracle_output y)
-    (final_body := do
-      let resp ← Program.get ow_response
-      let y ← lazy_query_tracked resp
-      Program.set oracle_output y)
-    (extract := Program.get oracle_output)
-    (n := q)
+    Same prefix and loop structure as `ow_game_2_tracked_p`, with the
+    following ADDITIONS (each surgically inserted to track matched_chal_y):
+    1. `set matched_chal_y false` after the env prefix.
+    2. In-loop match-check: `if y_val = y then set matched_chal_y true`
+       using the *bound* `y_val` and `y` (no state reads).
+    3. Final match-check: `if y_check = y then set matched_chal_y true`.
+    4. Trailing `get matched_chal_y` reading into `m`.
+    5. Pure tuple uses `m` instead of `decide (y_check = y)`.
+
+    Crucially, the match-checks use BOUND VARIABLES (not state reads),
+    so they are `wp_conditional_set_disjoint_no_op`-style invisible for
+    matched_chal_y-ignoring posts — making the bridge to `ow_game_2_tracked_p`
+    tractable. -/
+noncomputable def ow_game_2_with_match (q : ℕ) : Program state (output × output × Bool) := do
+  lazy_init
+  Program.set chal_x_queried_gh false
+  let x ← Program.uniform
+  Program.set ow_challenge_x x
+  let y ← Program.uniform
+  Program.set ow_challenge_y y
+  Program.set matched_chal_y false
+  loop_n q (do
+    ow_adv
+    let inp ← Program.get oracle_input
+    let y_val ← lazy_query_tracked inp
+    Program.set oracle_output y_val
+    if y_val = y then Program.set matched_chal_y true else pure ())
+  let resp ← Program.get ow_response
+  let y_check ← lazy_query_tracked resp
+  if y_check = y then Program.set matched_chal_y true else pure ()
+  let m ← Program.get matched_chal_y
+  pure (y_check, y, m)
 
 /-! ### Step 1: tracking is invisible to flag-ignoring posts
 
@@ -1762,11 +1765,10 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
     _ ≤ (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
             if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
-        -- Step (B): framework structural reduction applied to the specific
-        -- guess_experiment instance.
-        unfold ow_game_2_with_match
-        exact guess_experiment_wp_final_guess_le_matched _ ow_challenge_y
-          matched_chal_y _ _ _ q σ
+        -- Step (B): structural reduction for the NEW ow_game_2_with_match.
+        -- At the final pure (y_check, y, m), if y_check = y, the trailing
+        -- match-check ensures m = true. Hence F_match ≤ matched_indicator.
+        sorry
 
 /-- **Bound on matched in `ow_game_2_with_match`** — the `guess_experiment`
     bound specialized to Game 2.
@@ -1785,75 +1787,13 @@ theorem ow_game_2_with_match_matched_bound
         (fun bσ : (output × output × Bool) × state =>
           if bσ.1.2.2 then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card output := by
-  -- ow_game_2_with_match is *literally* `guess_experiment(specific args)`.
-  -- Apply `guess_experiment_wp_bound` with inRange hypotheses for each piece.
-  unfold ow_game_2_with_match
-  -- inRange proofs: each component touches only variables disjoint from chal_y.
-  have h_lazy_init : (lazy_init : Program state Unit).inRange
-      ow_challenge_y.compl.range :=
-    Program.inRange_mono (Program.inRange_set _ _)
-      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
-  haveI : disjoint ow_challenge_x ow_challenge_y :=
-    disjoint_ow_challenge_y_ow_challenge_x.symm
-  have h_lazy_query_tracked_inRange : ∀ inp,
-      (lazy_query_tracked inp).inRange ow_challenge_y.compl.range := by
-    intro inp
-    unfold lazy_query_tracked
-    refine Program.inRange_bind ?_ (fun y => ?_)
-    · exact Program.inRange_mono (lazy_query_inRange_ro inp)
-        (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
-    refine Program.inRange_bind ?_ (fun cx => ?_)
-    · exact Program.get_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y
-    refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
-    by_cases h : inp = cx
-    · simp only [if_pos h]
-      exact Program.set_inRange_compl_of_disjoint
-        chal_x_queried_gh ow_challenge_y true
-    · simp only [if_neg h]
-      exact Program.inRange_pure _ _
-  have h_env_inRange : (do
-      lazy_init
-      Program.set chal_x_queried_gh false
-      let x ← Program.uniform
-      Program.set ow_challenge_x x : Program state Unit).inRange
-        ow_challenge_y.compl.range := by
-    refine Program.inRange_bind h_lazy_init (fun _ => ?_)
-    refine Program.inRange_bind
-      (Program.set_inRange_compl_of_disjoint chal_x_queried_gh ow_challenge_y false)
-      (fun _ => ?_)
-    refine Program.inRange_bind
-      (Program.inRange_mono Program.inRange_uniform bot_le)
-      (fun x => ?_)
-    exact Program.set_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y x
-  have h_loop_body_inRange : (do
-      ow_adv
-      let inp ← Program.get oracle_input
-      let y ← lazy_query_tracked inp
-      Program.set oracle_output y : Program state Unit).inRange
-        ow_challenge_y.compl.range := by
-    refine Program.inRange_bind h_ow_adv_chal_y (fun _ => ?_)
-    refine Program.inRange_bind
-      (Program.get_inRange_compl_of_disjoint oracle_input ow_challenge_y)
-      (fun inp => ?_)
-    refine Program.inRange_bind (h_lazy_query_tracked_inRange inp) (fun y => ?_)
-    exact Program.set_inRange_compl_of_disjoint oracle_output ow_challenge_y y
-  have h_final_body_inRange : (do
-      let resp ← Program.get ow_response
-      let y ← lazy_query_tracked resp
-      Program.set oracle_output y : Program state Unit).inRange
-        ow_challenge_y.compl.range := by
-    refine Program.inRange_bind
-      (Program.get_inRange_compl_of_disjoint ow_response ow_challenge_y)
-      (fun resp => ?_)
-    refine Program.inRange_bind (h_lazy_query_tracked_inRange resp) (fun y => ?_)
-    exact Program.set_inRange_compl_of_disjoint oracle_output ow_challenge_y y
-  have h_extract_inRange :
-      (Program.get oracle_output : Program state output).inRange
-        ow_challenge_y.compl.range :=
-    Program.get_inRange_compl_of_disjoint oracle_output ow_challenge_y
-  exact guess_experiment_wp_bound _ ow_challenge_y matched_chal_y
-    _ _ _ h_env_inRange h_loop_body_inRange h_final_body_inRange
-    h_extract_inRange q σ
+  -- The matched bound: each of the q+1 lazy_query_tracked calls has
+  -- ≤ 1/|output| chance of returning y (the uniform sample), so the union
+  -- bound gives (q+1)/|output|. Proof is analogous to guess_experiment_wp_bound
+  -- but specialized to the new ow_game_2_with_match definition (where the
+  -- match-check uses bound variables y_val, y directly). Sorry'd for now —
+  -- to be replaced by a direct linear-loop bound proof.
+  sorry
 
 /-- Game 2 wins bound: combines the reduction with the matched bound.
     This is the cryptographic guess-game factorization. -/
