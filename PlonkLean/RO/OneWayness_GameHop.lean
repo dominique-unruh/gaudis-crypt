@@ -1357,10 +1357,25 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
       = (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × Bool) × state =>
             if bσ.1.1 = ow_challenge_y.get bσ.2 then (1 : ENNReal) else 0) σ := by
-        -- Step (A): game equivalence. ow_game_2_tracked's `decide(y_check = y)`
-        -- equals (in distribution) ow_game_2_with_match's `final_guess = chal_y`.
-        -- Both games share the same q+1 lazy_query_tracked calls; matched
-        -- tracking + final set oo are invisible to the final-guess indicator.
+        -- Step (A): game equivalence — the OW-specific bridge.
+        --
+        -- Both wp's express E[1 if y_check = y_sample] but in different
+        -- representations:
+        -- * LHS:  ow_game_2_tracked returns `decide(y_check = y)` (Bool).
+        -- * RHS:  ow_game_2_with_match returns `(g, m)` where g = oo at end
+        --         = y_check (final lazy_query's result, written to oo by
+        --         final_body's `set oracle_output y`). The post checks
+        --         g = chal_y.get = y_sample.
+        --
+        -- The bridge requires four pieces:
+        --   (a) writes_output: after final lazy_query, RO[resp] = some y_check.
+        --   (b) matched-elision: matched_chal_y init + match_checks are
+        --       invisible for matched-ignoring posts.
+        --   (c) final-set-oo: ow_game_2_with_match's `set oracle_output y_check`
+        --       at the end is the only step that's NOT in ow_game_2_tracked.
+        --   (d) chal_y preservation: in support, chal_y.get σ_end = y_sample.
+        --
+        -- Deferred. See task #79.
         sorry
     _ ≤ (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × Bool) × state =>
