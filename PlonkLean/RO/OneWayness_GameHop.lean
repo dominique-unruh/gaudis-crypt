@@ -1559,6 +1559,30 @@ lemma loop_n_match_check_invisible
         exact h_inner_eq _
     rw [h_post]
 
+/-- **Loop-level wp equality**: the bare `oracle_loop_n` (used in
+    `ow_game_2_tracked_p`) has the same wp as the `loop_n` with match-checks
+    inside (used in `ow_game_2_with_match`'s `loop_body`), for any post that
+    ignores `matched_chal_y`.
+
+    Combines `oracle_loop_n_eq_loop_n` + `loop_n_match_check_invisible` +
+    `oracle_step_lazy_query_tracked_inRange_matched_chal_y`. -/
+lemma ow_game_2_loops_wp_eq
+    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
+    (F : Unit × state → ENNReal)
+    (h_F : ∀ aσ : Unit × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (q : ℕ) (σ : state) :
+    (oracle_loop_n ow_adv q lazy_query_tracked).wp F σ
+    = (loop_n q (oracle_step ow_adv lazy_query_tracked >>= fun _ =>
+        (Program.get oracle_output >>= fun g =>
+         Program.get ow_challenge_y >>= fun t' =>
+         (if g = t' then Program.set matched_chal_y true
+          else (pure () : Program state Unit))))).wp F σ := by
+  rw [oracle_loop_n_eq_loop_n]
+  exact (loop_n_match_check_invisible q (oracle_step ow_adv lazy_query_tracked)
+    (oracle_step_lazy_query_tracked_inRange_matched_chal_y ow_adv
+      h_ow_adv_matched_chal_y) F h_F σ).symm
+
 /-- **The SubProb-level partial marginal equality at the heart of Step (A2).**
 
     Both `ow_game_2_tracked_p` and `ow_game_2_with_match` have the SAME
