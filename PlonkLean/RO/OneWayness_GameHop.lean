@@ -460,7 +460,6 @@ noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
     (final := fun y => do
       let resp ← Program.get ow_response
       let y_val ← lazy_query_tracked resp
-      Program.set oracle_output y_val
       if y_val = y then Program.set matched_chal_y true else pure ())
     (n := q)
 
@@ -492,6 +491,71 @@ noncomputable def guess_experiment_game_1 (q : ℕ) : Program state Bool :=
       let y ← lazy_query_tracked resp
       Program.set oracle_output y)
     (n := q)
+
+/-! ### Bridge lemmas: ow_game_*_tracked ↔ guess_experiment_game_*
+
+The cryptographic chain uses these bridges to relate the OW experiment's
+win/bad events to the matched flag of the corresponding `guess_experiment`
+instance. The matched flag is then bounded by `guess_experiment_wp_bound`. -/
+
+section Bridges
+
+variable (ow_adv : Program state Unit)
+
+/-- **Game 2 bridge**: `ow_game_2_with_match`'s matched-indicator wp equals
+    `guess_experiment_game_2`'s output Bool wp.
+
+    Both programs run the identical matched_chal_y trajectory. They differ
+    only at the final pure: `ow_game_2_with_match` reconstructs the tuple
+    `(y_check, y, m)`, while `guess_experiment_game_2` just outputs `m`.
+    The matched indicator on the tuple's `.1.2.2` projects to exactly `m`,
+    matching the Bool output's `.1` projection.
+
+    Provable by: (i) Program equality between `ow_game_2_with_match` and
+    `guess_experiment_game_2 >>= (get oo >>= fun y_check => get chal_y >>=
+    fun y => pure (y_check, y, m))`; (ii) wp simplification. Deferred. -/
+lemma ow_game_2_with_match_matched_wp_eq_guess_experiment_game_2_wp
+    (q : ℕ) (σ : state) :
+    (ow_game_2_with_match ow_adv q).wp
+        (fun bσ : (output × output × Bool) × state =>
+          if bσ.1.2.2 then (1 : ENNReal) else 0) σ
+    = (guess_experiment_game_2 ow_adv q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  -- Both programs run the identical matched_chal_y trajectory; the difference
+  -- is only at the final pure (tuple vs Bool). Deferred — full proof needs
+  -- careful chained `congrArg`/`funext` through ~10 binds, ending in a
+  -- case-split on `y_check = y` where both posts compute the same value.
+  sorry
+
+/-- **Game 1 bridge**: `ow_game_1_tracked`'s bad-indicator wp (reading
+    `chal_x_queried_gh` from state at end) equals `guess_experiment_game_1`'s
+    output Bool wp (returning matched flag at end).
+
+    Conceptual equivalence: both programs track input matches via
+    `chal_x_queried_gh` inside `lazy_query_tracked`; the bad event in
+    `ow_game_1_tracked` is "some query input matched chal_x" =
+    matched flag at end = `guess_experiment_game_1`'s output.
+
+    Differences between the programs:
+    1. `ow_game_1_tracked` pre-programs RO at `(chal_x, chal_y)`.
+       `guess_experiment_game_1` does not.
+    2. `ow_game_1_tracked` returns `decide (y_check = y)` (win flag),
+       not the matched flag.
+    3. `ow_game_1_tracked` samples chal_y and stores it in ow_challenge_y.
+
+    For the bad indicator (state read on `chal_x_queried_gh`), differences
+    1-3 don't affect the bad probability (they don't read or modify
+    `chal_x_queried_gh`). Deferred. -/
+lemma ow_game_1_tracked_bad_wp_eq_guess_experiment_game_1_wp
+    (q : ℕ) (σ : state) :
+    (ow_game_1_tracked ow_adv q).wp
+        (fun bσ : Bool × state =>
+          if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+    = (guess_experiment_game_1 ow_adv q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  sorry
+
+end Bridges
 
 /-! ### Step 1: tracking is invisible to flag-ignoring posts
 
