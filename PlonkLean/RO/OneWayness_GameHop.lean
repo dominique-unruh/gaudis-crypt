@@ -333,16 +333,16 @@ noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program 
     final body. Designed to match the `q-loop + 1-final` structure of
     cryptographic experiments.
 
-    Returns `(final_guess, matched)` where `final_guess` is the extract
-    of the final iteration and `matched` is the matched-var's value at
-    end. The pair encodes the structural invariant:
-    `final_guess = target → matched = true` (since the final match_check
-    fires when extract = target). -/
+    Returns `(final_guess, target_value, matched)`: the extract of the final
+    iteration, the sampled target value, and the matched-var's value at end.
+    Including `target_value` in the output makes the "final guess matches
+    target" event OUTPUT-ONLY (no state dependency), enabling marginal
+    equality-based reduction proofs via `Program.wp_eq_of_marginal_eq`. -/
 noncomputable def guess_experiment
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T] {s : Type}
     (env : Program s Unit) (target_var : Lens T s) (matched_var : Lens Bool s)
     (loop_body : Program s Unit) (final_body : Program s Unit)
-    (extract : Program s T) (n : ℕ) : Program s (T × Bool) := do
+    (extract : Program s T) (n : ℕ) : Program s (T × T × Bool) := do
   env
   let t ← Program.uniform
   Program.set target_var t
@@ -359,7 +359,7 @@ noncomputable def guess_experiment
   if g = t' then Program.set matched_var true
   else pure ()
   let m ← Program.get matched_var
-  pure (g, m)
+  pure (g, t', m)
 
 /-- **Game 2 with matched tracking** (the guess form). Defined as a
     literal `guess_experiment` instance over `T := output`,
@@ -372,7 +372,7 @@ noncomputable def guess_experiment
     Returns `(final_guess, matched)` — the final lazy_query's output paired
     with the matched flag. By construction the pair satisfies
     `final_guess = chal_y → matched = true`. -/
-noncomputable def ow_game_2_with_match (q : ℕ) : Program state (output × Bool) :=
+noncomputable def ow_game_2_with_match (q : ℕ) : Program state (output × output × Bool) :=
   guess_experiment
     (env := do
       lazy_init
@@ -1217,7 +1217,7 @@ The final `(q+1)/|T|` bound on `guess_experiment` is deferred. -/
 
 /-- **TODO**. Bound on `guess_experiment`'s matched indicator. Generic
     `(n+1)/|T|` bound when bodies and `extract` are target-independent.
-    Post reads matched from the pair's `.snd` component. -/
+    Post reads matched from the tuple's `.snd.snd` component. -/
 theorem guess_experiment_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit) (target_var : Lens T state)
@@ -1229,7 +1229,7 @@ theorem guess_experiment_wp_bound
     (h_extract : extract.inRange target_var.compl.range)
     (n : ℕ) (σ : state) :
     (guess_experiment env target_var matched_var loop_body final_body extract n).wp
-        (fun bσ : (T × Bool) × state => if bσ.1.2 then (1 : ENNReal) else 0) σ
+        (fun bσ : (T × T × Bool) × state => if bσ.1.2.2 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
   sorry
 
@@ -1261,10 +1261,10 @@ theorem guess_experiment_wp_final_guess_le_matched
     (loop_body final_body : Program state Unit) (extract : Program state T)
     (n : ℕ) (σ : state) :
     (guess_experiment env target_var matched_var loop_body final_body extract n).wp
-        (fun bσ : (T × Bool) × state =>
-          if bσ.1.1 = target_var.get bσ.2 then (1 : ENNReal) else 0) σ
+        (fun bσ : (T × T × Bool) × state =>
+          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment env target_var matched_var loop_body final_body extract n).wp
-        (fun bσ : (T × Bool) × state => if bσ.1.2 then (1 : ENNReal) else 0) σ := by
+        (fun bσ : (T × T × Bool) × state => if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
   -- Custom helper for lifting wp comparisons through bind.
   have wp_bind_le : ∀ {α β : Type} (prog : Program state α) (k : α → Program state β)
       (F G : Program.Post state β),
@@ -1294,14 +1294,15 @@ theorem guess_experiment_wp_final_guess_le_matched
   apply wp_bind_le; rintro ⟨g, σ7⟩
   -- Final: get target_var >>= if g = · then ... else ...
   apply wp_get_bind_le target_var
-  -- Now the goal substitutes target_var.get σ7 for the get-result.
+  -- Now t' has been substituted with target_var.get σ7 in the program.
   -- Case-split on g = target_var.get σ7.
   by_cases h_g_eq : g = target_var.get σ7
-  · simp only [if_pos h_g_eq, wp_bind, wp_set, wp_get, wp_pure]
-    rw [target_var.get_of_disjoint_set matched_var true σ7]
+  · -- positive branch: matched_var set to true, m = true. Both sides = 1.
+    simp only [if_pos h_g_eq, wp_bind, wp_set, wp_get, wp_pure]
     rw [matched_var.set_get σ7 true]
     simp [h_g_eq]
-  · simp only [if_neg h_g_eq, Program.pure_bind, wp_bind, wp_get, wp_pure]
+  · -- negative branch: matched unchanged. LHS = 0, RHS ≥ 0.
+    simp only [if_neg h_g_eq, Program.pure_bind, wp_bind, wp_get, wp_pure]
     simp [h_g_eq]
 
 section Reductions
@@ -1345,41 +1346,33 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ (ow_game_2_with_match ow_adv q).wp
-        (fun bσ : (output × Bool) × state =>
-          if bσ.1.2 then (1 : ENNReal) else 0) σ := by
+        (fun bσ : (output × output × Bool) × state =>
+          if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
   -- Decomposition:
   -- Step (A): bridge ow_game_2_tracked.wp win σ to ow_game_2_with_match.wp
-  --   (final_guess = chal_y indicator) σ via game equivalence.
-  -- Step (B): apply framework structural reduction
-  --   `guess_experiment_wp_final_guess_le_matched`.
+  --   (g = t' indicator) σ via game equivalence. With the new (T × T × Bool)
+  --   return type, this comparison is now OUTPUT-ONLY (no chal_y.get).
+  -- Step (B): apply framework structural reduction.
   calc (ow_game_2_tracked ow_adv q).wp
           (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
       = (ow_game_2_with_match ow_adv q).wp
-          (fun bσ : (output × Bool) × state =>
-            if bσ.1.1 = ow_challenge_y.get bσ.2 then (1 : ENNReal) else 0) σ := by
-        -- Step (A): game equivalence — the OW-specific bridge.
+          (fun bσ : (output × output × Bool) × state =>
+            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
+        -- Step (A): game equivalence (output-only post).
+        -- The new (T × T × Bool) output places the target value bσ.1.2.1
+        -- alongside the final guess bσ.1.1. The comparison `g = t'` is now
+        -- output-only — no state dependency. This enables a marginal-equality
+        -- proof via `Program.wp_eq_of_marginal_eq`.
         --
-        -- Both wp's express E[1 if y_check = y_sample] but in different
-        -- representations:
-        -- * LHS:  ow_game_2_tracked returns `decide(y_check = y)` (Bool).
-        -- * RHS:  ow_game_2_with_match returns `(g, m)` where g = oo at end
-        --         = y_check (final lazy_query's result, written to oo by
-        --         final_body's `set oracle_output y`). The post checks
-        --         g = chal_y.get = y_sample.
+        -- Both wp's express E[1 if y_check = y_sample]:
+        -- * LHS via ow_game_2_tracked's Bool result = decide(y_check = y).
+        -- * RHS via ow_game_2_with_match's pair (g, t', m) — g = y_check, t' = t.
         --
-        -- The bridge requires four pieces:
-        --   (a) writes_output: after final lazy_query, RO[resp] = some y_check.
-        --   (b) matched-elision: matched_chal_y init + match_checks are
-        --       invisible for matched-ignoring posts.
-        --   (c) final-set-oo: ow_game_2_with_match's `set oracle_output y_check`
-        --       at the end is the only step that's NOT in ow_game_2_tracked.
-        --   (d) chal_y preservation: in support, chal_y.get σ_end = y_sample.
-        --
-        -- Deferred. See task #79.
+        -- Proof deferred — needs marginal equality at SubProb level.
         sorry
     _ ≤ (ow_game_2_with_match ow_adv q).wp
-          (fun bσ : (output × Bool) × state =>
-            if bσ.1.2 then (1 : ENNReal) else 0) σ := by
+          (fun bσ : (output × output × Bool) × state =>
+            if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
         -- Step (B): framework structural reduction applied to the specific
         -- guess_experiment instance.
         unfold ow_game_2_with_match
@@ -1400,8 +1393,8 @@ theorem ow_game_2_with_match_matched_bound
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_2_with_match ow_adv q).wp
-        (fun bσ : (output × Bool) × state =>
-          if bσ.1.2 then (1 : ENNReal) else 0) σ
+        (fun bσ : (output × output × Bool) × state =>
+          if bσ.1.2.2 then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card output := by
   -- ow_game_2_with_match is *literally* `guess_experiment(specific args)`.
   -- Apply `guess_experiment_wp_bound` with inRange hypotheses for each piece.
