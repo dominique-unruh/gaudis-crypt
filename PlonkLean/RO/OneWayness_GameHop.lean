@@ -1404,29 +1404,115 @@ lemma loop_n_inRange {R : LensRange state}
     show (body >>= fun _ => loop_n n body).inRange R
     exact Program.inRange_bind h_body (fun _ => ih)
 
-/-! ### Sketch of the loop-level invisibility argument
+/-- **The match_check pattern inside a loop is wp-invisible** for posts that
+    ignore `matched_chal_y`. Generalizes `match_check_invisible` over the
+    `q`-iteration `loop_n` combinator.
 
-    `loop_n_match_check_invisible` (to be added when needed): for any
-    `body : Program state Unit` that's in `matched_chal_y.compl.range`,
-    and any post `F` that ignores `matched_chal_y`, we have
-    `(loop_n n (body >>= match_check)).wp F σ = (loop_n n body).wp F σ`.
-
-    Proof outline (deferred):
-    * Induction on `n`. Base case (n=0): both sides equal `pure ().wp F σ`.
-    * Step (n+1): unfold `loop_n` once. The two loop bodies differ by `mc`
-      (the match_check). Use the IH to replace `loop_n n (body >>= mc)`
-      with `loop_n n body` inside the post under `body.wp` (justified by
-      `wp_bind` and pointwise post equality via `funext` + `congr_arg`).
-      Then apply `match_check_invisible` with `rest := loop_n n body`
-      (which is `matched_chal_y`-disjoint by `loop_n_inRange`).
-    * Requires `h_loop_F_inv`: wp of a matched-disjoint program with a
-      matched-ignoring post is invariant under matched.set on input.
-      Provable via `Program.wp_shift_input` + `LensRange.complement_range`.
-    * Lean script complexity: Lean's do-notation elaboration with nested
-      conditional sets creates `match` expressions that complicate
-      `rw [wp_bind, wp_get]` chains and the `congr 1; funext` pattern.
-      Needs careful handling via `set` for abbreviations and explicit
-      manipulation of post functions. -/
+    Proof: induction on `n`. Inductive step:
+    * Unfold `loop_n` once on both sides.
+    * Apply `wp_bind` to peel `body` on both sides.
+    * Show post equality via `funext`: for each state σ', the inner
+      `(mc >>= fun _ => loop_n n bm).wp F σ' = (loop_n n body).wp F σ'`.
+    * Inside: use IH to replace `loop_n n bm` with `loop_n n body` (post-
+      function equality via `funext`), then apply `match_check_invisible`
+      with `rest := loop_n n body` (`matched_chal_y`-disjoint via
+      `loop_n_inRange`).
+    * Lift back via `congr_arg`. -/
+lemma loop_n_match_check_invisible
+    (n : ℕ) (body : Program state Unit)
+    (h_body : body.inRange matched_chal_y.compl.range)
+    (F : Unit × state → ENNReal)
+    (h_F : ∀ aσ : Unit × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (σ : state) :
+    (loop_n n (body >>= fun _ =>
+        (Program.get oracle_output >>= fun g =>
+         Program.get ow_challenge_y >>= fun t' =>
+         (if g = t' then Program.set matched_chal_y true
+          else (pure () : Program state Unit))))).wp F σ
+    = (loop_n n body).wp F σ := by
+  -- Helper: wp of `loop_n n body` is matched_chal_y-set-invariant on input.
+  have h_loop_body_inRange : ∀ k, (loop_n k body).inRange matched_chal_y.compl.range :=
+    fun k => loop_n_inRange body h_body k
+  have h_loop_set_inv : ∀ k σ',
+      (loop_n k body).wp F (matched_chal_y.set true σ') = (loop_n k body).wp F σ' := by
+    intro k σ'
+    have hf : (fun s : state => matched_chal_y.set true s) ∈
+        ((matched_chal_y.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((matched_chal_y.compl.range : LensRange state)ᶜ)
+            = matched_chal_y.range from by
+            rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
+    rw [Program.wp_shift_input (h_loop_body_inRange k) hf]
+    congr 1
+    funext xs
+    exact h_F xs
+  induction n generalizing σ with
+  | zero => rfl
+  | succ n ih =>
+    -- Unfold loop_n one step.
+    show ((body >>= fun _ =>
+            (Program.get oracle_output >>= fun g =>
+             Program.get ow_challenge_y >>= fun t' =>
+             (if g = t' then Program.set matched_chal_y true
+              else (pure () : Program state Unit)))) >>= fun _ =>
+            loop_n n (body >>= fun _ =>
+              (Program.get oracle_output >>= fun g =>
+               Program.get ow_challenge_y >>= fun t' =>
+               (if g = t' then Program.set matched_chal_y true
+                else (pure () : Program state Unit))))).wp F σ
+       = (body >>= fun _ => loop_n n body).wp F σ
+    -- Reassociate: body >>= (mc >>= loop_n n bm).
+    rw [Program.bind_assoc, wp_bind]
+    -- RHS: also peel body.
+    conv_rhs => rw [wp_bind]
+    -- Goal: body.wp (fun ttσ => (mc >>= fun _ => loop_n n bm).wp F ttσ.2) σ
+    --     = body.wp (fun ttσ => (loop_n n body).wp F ttσ.2) σ
+    -- Establish post equality.
+    have h_post :
+      (fun ttσ : Unit × state =>
+          ((Program.get oracle_output >>= fun g =>
+            Program.get ow_challenge_y >>= fun t' =>
+            (if g = t' then Program.set matched_chal_y true
+             else (pure () : Program state Unit))) >>= fun _ =>
+              loop_n n (body >>= fun _ =>
+                (Program.get oracle_output >>= fun g =>
+                 Program.get ow_challenge_y >>= fun t' =>
+                 (if g = t' then Program.set matched_chal_y true
+                  else (pure () : Program state Unit))))).wp F ttσ.2)
+        =
+      (fun ttσ : Unit × state => (loop_n n body).wp F ttσ.2) := by
+      funext ttσ
+      -- Sub-step 1: replace loop_n n bm with loop_n n body via IH.
+      have h_inner_eq : ∀ σ',
+          (loop_n n (body >>= fun _ =>
+            (Program.get oracle_output >>= fun g =>
+             Program.get ow_challenge_y >>= fun t' =>
+             (if g = t' then Program.set matched_chal_y true
+              else (pure () : Program state Unit))))).wp F σ'
+          = (loop_n n body).wp F σ' := fun σ' => ih σ'
+      -- The whole expression is `(mc >>= fun _ => K) F ttσ.2` for the two
+      -- different K's. Show wp-eq via post-function equality + congrArg.
+      -- Reassociate and peel get oo + get chal_y via wp_bind + wp_get.
+      simp only [Program.bind_assoc]
+      rw [wp_bind, wp_get]
+      dsimp only
+      rw [wp_bind, wp_get]
+      dsimp only
+      -- Now goal: `(if g = t' then set matched true else pure ()) >>= loop_n n bm)`
+      --   .wp F ttσ.2 = (loop_n n body).wp F ttσ.2.
+      -- where g = oo.get ttσ.2, t' = chal_y.get ttσ.2.
+      by_cases hgt : oracle_output.get ttσ.2 = ow_challenge_y.get ttσ.2
+      · -- Positive: set matched true >>= loop_n n bm.
+        simp only [if_pos hgt, wp_bind, wp_set]
+        -- (loop_n n bm).wp F (matched_chal_y.set true ttσ.2) = (loop_n n body).wp F ttσ.2
+        rw [h_inner_eq]
+        -- (loop_n n body).wp F (matched_chal_y.set true ttσ.2) = (loop_n n body).wp F ttσ.2
+        exact h_loop_set_inv n ttσ.2
+      · -- Negative: pure () >>= loop_n n bm.
+        simp only [if_neg hgt, Program.pure_bind]
+        exact h_inner_eq _
+    rw [h_post]
 
 /-- **The SubProb-level partial marginal equality at the heart of Step (A2).**
 
