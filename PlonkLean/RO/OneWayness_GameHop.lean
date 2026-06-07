@@ -1362,6 +1362,51 @@ version of `ow_game_2_tracked` that additionally sets `matched_chal_y` to
 
 Step 3 is the `guess_experiment_wp_bound` specialized to this game. -/
 
+/-- `oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle)`.
+    Both are recursive over `q` with the same body shape; the equality is
+    a straightforward induction. -/
+lemma oracle_loop_n_eq_loop_n
+    (adv : Program state Unit) (oracle : input → Program state output) (q : ℕ) :
+    oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle) := by
+  induction q with
+  | zero => rfl
+  | succ n ih =>
+    show oracle_step adv oracle >>= (fun _ => oracle_loop_n adv n oracle)
+       = oracle_step adv oracle >>= fun _ => loop_n n (oracle_step adv oracle)
+    rw [ih]
+
+/-- `lazy_query_tracked inp` is matched_chal_y-disjoint: all writes go to
+    `random_oracle_state` or `chal_x_queried_gh`, both disjoint from
+    `matched_chal_y`. -/
+lemma lazy_query_tracked_inRange_matched_chal_y (inp : input) :
+    (lazy_query_tracked inp).inRange matched_chal_y.compl.range := by
+  unfold lazy_query_tracked
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state matched_chal_y)
+  refine Program.inRange_bind ?_ (fun cx => ?_)
+  · exact Program.get_inRange_compl_of_disjoint ow_challenge_x matched_chal_y
+  refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
+  by_cases h : inp = cx
+  · simp only [if_pos h]
+    exact Program.set_inRange_compl_of_disjoint
+      chal_x_queried_gh matched_chal_y true
+  · simp only [if_neg h]
+    exact Program.inRange_pure _ _
+
+/-- `oracle_step adv lazy_query_tracked` is matched_chal_y-disjoint when
+    `adv` is. -/
+lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
+    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range) :
+    (oracle_step ow_adv lazy_query_tracked).inRange matched_chal_y.compl.range := by
+  unfold oracle_step
+  refine Program.inRange_bind h_ow_adv_matched_chal_y (fun _ => ?_)
+  refine Program.inRange_bind
+    (Program.get_inRange_compl_of_disjoint oracle_input matched_chal_y) (fun inp => ?_)
+  refine Program.inRange_bind (lazy_query_tracked_inRange_matched_chal_y inp)
+    (fun y => ?_)
+  exact Program.set_inRange_compl_of_disjoint oracle_output matched_chal_y y
+
 /-- **Match-check is wp-invisible** for matched_chal_y-ignoring posts and
     matched_chal_y-disjoint continuations. The match-check pattern is
     `get oo + get chal_y + (if g = t' then set matched true else pure ())`.
