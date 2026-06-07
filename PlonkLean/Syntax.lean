@@ -11,19 +11,26 @@ structure ProcedureSignature where
   params : List Type
   ret    : Type
 
-def paramListToTuple (types : List Type) : Type := match types with
-  | [] => PUnit
-  | (x :: xs) => x × paramListToTuple xs
+def typeListToProdGeneric (prod : A → A → A) (unit : A) (types : List A) := match types with
+  | [] => unit
+  | [x] => x
+  | (x :: xs) => prod x (typeListToProdGeneric prod unit xs)
 
--- structure Procedure' s (sig : ProcedureSignature) where
-  -- body : Stmt s
-  -- return_val : Getter sig.ret s
+def paramListToTuple := typeListToProdGeneric Prod Unit
 
 /-- A sequences of procedure signatures, intended to be used to describe the type
     of holes in a program -/
 inductive HoleSigs where
   | empty  : HoleSigs
   | append : HoleSigs → ProcedureSignature → HoleSigs
+
+def HoleSigs.NonEmpty : HoleSigs → Prop
+| .empty => False
+| _ => True
+
+def HoleSigs.toList : HoleSigs → List ProcedureSignature
+  | .empty => []
+  | .append h sig => HoleSigs.toList h ++ [sig]
 
 inductive HoleIndex : HoleSigs → ProcedureSignature → Type _ where
   | zero {a} {Γ : HoleSigs} : HoleIndex (Γ.append a) a
