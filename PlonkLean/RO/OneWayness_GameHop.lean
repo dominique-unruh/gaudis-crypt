@@ -1587,23 +1587,58 @@ lemma ow_game_2_loops_wp_eq
 
     Both `ow_game_2_tracked_p` and `ow_game_2_with_match` have the SAME
     SubProb marginal on the `(y_check, y_target)` projection of their
-    `(output × output × Bool)` output. The two programs differ only in:
-    * `set matched_chal_y false` (initialization, ow_game_2_with_match only)
-    * In-loop match-check (`get oo + get chal_y + cond set matched_chal_y true`)
-    * Final `set oracle_output y_check` (after the final `lazy_query_tracked`)
-    * Final match-check (same shape as the in-loop one)
-    * Trailing `get matched_chal_y + pure (g, t', m)` vs trailing
-      `pure (y_check, y, decide(y_check = y))`.
+    `(output × output × Bool)` output.
 
-    Each difference writes only to `matched_chal_y` or `oracle_output`, both
-    of which are disjoint from the lenses appearing in the projection
-    `(y_check, y_target)` (the y_check is the return of `lazy_query_tracked`;
-    the y_target is `ow_challenge_y.get`). At SubProb level, the projection
-    drops these state changes, and the two distributions coincide.
+    ## Proof plan
 
-    Proof strategy (deferred): structural induction on the program
-    composition, using `wp_set_disjoint_no_op`-family lemmas lifted to
-    SubProb level via the marginal-equality framework. -/
+    The marginal_eq reduces to wp equality for an arbitrary G via the
+    converse of `wp_eq_of_marginal_eq` (provable via measure extensionality
+    on the countable `output × output` space). The wp equality is:
+
+    ```
+    ∀ G : output × output → ENNReal, ∀ σ,
+      (ow_game_2_tracked_p ow_adv q).wp (fun bσ => G (bσ.1.1, bσ.1.2.1)) σ
+      = (ow_game_2_with_match ow_adv q).wp (fun bσ => G (bσ.1.1, bσ.1.2.1)) σ
+    ```
+
+    Direct proof of the wp equality (after the SHARED env prefix is peeled
+    via wp_bind):
+
+    **Step 1**: apply `ow_game_2_loops_wp_eq` to transform RHS's loop
+       (with match-checks) into LHS's `oracle_loop_n` form. *(PROVED)*
+
+    **Step 2**: eliminate RHS's initial `set matched_chal_y false`. By
+       `wp_set_disjoint_no_op` applied with `rest` = the entire tail AFTER
+       elimination of all matched_chal_y reads/writes (which happens
+       in Steps 3-4 — so apply Step 1 first, then 3-4, then 2 last).
+
+    **Step 3**: eliminate RHS's trailing match-check (after final
+       `lazy_query_tracked`) via `match_check_invisible`.
+
+    **Step 4**: eliminate `get matched_chal_y + pure (g, t', m)`. For G
+       that doesn't read the third component, replace with `pure (g, t', _)`
+       via `wp_get + wp_pure`.
+
+    **Step 5**: handle `set oracle_output y_check + get oracle_output`:
+       state composition gives `g = y_check`. Use `wp_set + wp_get`.
+
+    **Step 6**: handle `get ow_challenge_y` returning `y` (state invariant
+       since `set ow_challenge_y y` in env, and nothing writes chal_y after).
+       Use `wp_get` and the chal_y invariance.
+
+    **Step 7**: after all eliminations, both sides have form
+       `(env >>= oracle_loop_n + final_lazy_query >>= pure (y_check, y, ...)).wp G_pair σ`.
+       The wp on G_pair (= G ∘ proj_pair) collapses to the same value.
+
+    ## Status
+
+    Building blocks 1, 3 already proved (`match_check_invisible`,
+    `ow_game_2_loops_wp_eq`). Steps 2, 4-6 are straightforward `wp_*`
+    rewrites. Step 7 closes the calculus.
+
+    Sorry'd in this session — full assembly requires ~100-200 additional
+    lines and careful do-notation/match elaboration handling. The proof
+    is mechanical from here. -/
 private lemma ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match
     (q : ℕ) :
     ∀ σ : state,
