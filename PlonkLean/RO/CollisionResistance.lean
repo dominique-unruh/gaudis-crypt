@@ -11,7 +11,7 @@ plugging in `lazy_*` or `random_oracle_*` (= eager) primitives.
 The high-level claims are:
 
 * `cr_transfer` — the collision probability is identical under lazy and
-  eager random oracle (proved via `claim_5`).
+  eager random oracle (proved via `oracle_loop_wp_lazy_eq_random_oracle`).
 * `cr_lazy_bound` — the lazy collision probability is bounded by the
   birthday bound `(q+2)(q+1) / (2 · |output|)` (the +2 accounts for the
   final two collision-check queries).

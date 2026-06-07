@@ -455,7 +455,7 @@ of wp.
 
 The proof lives in two files:
 
-- **`PlonkLean/QueryHit.lean`** (~3000 lines): all the wp machinery
+- **`PlonkLean/RO/QueryHit.lean`** (~3000 lines): all the wp machinery
   for the OW analysis, organized roughly as:
   1. Tracked loop definitions and equivalence with untracked.
   2. inRange lemmas for various lens ranges.
@@ -465,7 +465,7 @@ The proof lives in two files:
   6. The chal_x preservation lemmas.
   7. The two layer bounds and final composition.
 
-- **`PlonkLean/OneWayness.lean`**: defines the OW experiment and
+- **`PlonkLean/RO/OneWayness.lean`**: defines the OW experiment and
   composes the two layer bounds to give the final theorem.
 
 Both files are now **sorry-free**. The proof depends only on the

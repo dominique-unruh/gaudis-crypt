@@ -10,7 +10,8 @@ The framework is laid out in two tiers:
 - **Framework-level state and variables** (in `RO.lean`): `state`,
   `random_oracle_state`, `want_more`, `oracle_input`, `oracle_output`,
   `adversary_result`. These are declared as `axiom`s and shared across all
-  games. They support `oracle_loop`, `claim_3`–`claim_5*`, `Program.transfer`,
+  games. They support `oracle_loop`, the `adv_conv_eq_conv_adv` /
+  `oracle_loop_*_lazy_eq_random_oracle` lemmas, `Program.transfer`,
   and the transfer framework.
 
 - **Game-level state, variables, and adversary** (in `CollisionResistance.lean`):
@@ -138,6 +139,6 @@ in the chat history of the 2026-06-03 session (see project memory). Briefly:
 
 ## Reference
 
-`PlonkLean/CollisionResistance.lean` is the canonical worked example. Read
+`PlonkLean/RO/CollisionResistance.lean` is the canonical worked example. Read
 its outline (the `section CRParam` block; `cr_adv` and `h_cr_adv` parameters;
 `include h_cr_adv in` annotations) for the template.

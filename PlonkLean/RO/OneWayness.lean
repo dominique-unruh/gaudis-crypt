@@ -1,5 +1,5 @@
 import PlonkLean.RO
-import PlonkLean.CollisionResistance
+import PlonkLean.RO.CollisionResistance
 
 /-!
 # One-wayness of the random oracle
@@ -724,7 +724,7 @@ lemma ow_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
 end OWParam
 
 /-! The OW lazy/eager bounds (`ow_lazy_bound`, `ow_eager_bound`) and their
-    intermediate `ow_preimage_bound` are proved in `PlonkLean/QueryHit.lean`,
+    intermediate `ow_preimage_bound` are proved in `PlonkLean/RO/QueryHit.lean`,
     which provides the deferred-sampling infrastructure needed to close the
     `[resp = ow_challenge_x ∧ is_preimage]` bound without axioms. -/
 

@@ -245,3 +245,4 @@ lemma ENNReal.natCast_succ_sub_one (n : ℕ) :
     ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
   push_cast
   exact ENNReal.add_sub_cancel_right (by norm_num)
+

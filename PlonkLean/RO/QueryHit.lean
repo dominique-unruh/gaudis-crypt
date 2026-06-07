@@ -1,4 +1,4 @@
-import PlonkLean.OneWayness
+import PlonkLean.RO.OneWayness
 
 /-!
 # Deferred-sampling infrastructure for one-wayness

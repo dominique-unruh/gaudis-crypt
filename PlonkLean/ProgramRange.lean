@@ -909,3 +909,28 @@ theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
   congr 1
   funext xσ'
   rw [SubProbability.pure_bind]
+
+/-- **`Program.uniform` commutes with any program**. Because `Program.uniform`
+    is state-preserving and produces an independent sample, it can be hoisted
+    out of any preceding bind (and its output passed through to the
+    continuation). The result of the preceding program is discarded.
+
+    Generalises `adv_commutes_uniform` (formerly in `RO.lean`) to arbitrary
+    programs and return types — the proof never used RO-specific facts. -/
+theorem Program.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
+    (p : Program s β) (k : α → Program s a) :
+    (p >>= fun _ => (Program.uniform : Program s α) >>= k)
+    = (Program.uniform >>= fun y => p >>= fun _ => k y) := by
+  apply Program.ext_of_wp
+  intro f
+  funext σ
+  simp only [wp_bind, wp_uniform]
+  change (p σ).expected (fun x => ∑ y, (k y).wp f x.2 / (Fintype.card α : ENNReal))
+      = ∑ y, (p σ).expected (fun x => (k y).wp f x.2) / (Fintype.card α : ENNReal)
+  simp only [SubProbability.expected]
+  letI : MeasurableSpace (β × s) := ⊤
+  rw [MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)]
+  apply Finset.sum_congr rfl
+  intro y _
+  simp_rw [div_eq_mul_inv]
+  exact MeasureTheory.lintegral_mul_const _ measurable_from_top
