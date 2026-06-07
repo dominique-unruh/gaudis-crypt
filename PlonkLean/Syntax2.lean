@@ -298,9 +298,53 @@ private lemma procedureHolesToArgumentType_isArrowFree
   exact typeListToProd_allProc_isArrowFree holes.toList
 
 
+/-- Split the last component off a right-nested tuple over `l ++ [Y]`. -/
+def tupleSnocSplit {Y : Type u} : (l : List (Type u)) →
+    typeListToProdGeneric Prod PUnit (l ++ [Y]) →
+    typeListToProdGeneric Prod PUnit l × Y
+  | [],            v          => (PUnit.unit, v)
+  | [_],           p          => p
+  | _ :: x' :: xs, (a, rest)  =>
+      let (t, y) := tupleSnocSplit (x' :: xs) rest
+      ((a, t), y)
+
+/-- Resolve a hole index to the procedure supplied for it in the argument tuple.
+    `HoleIndex.zero` points at the most recently appended hole, which is the *last*
+    entry of `holes.toList`, hence the last component of the tuple. -/
+def holeLookup : (holes : HoleSigs) →
+    typeListToProdGeneric Prod PUnit (holes.toList.map Procedure) →
+    ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Procedure sig
+  | .empty,      _    => fun n => nomatch n
+  | .append Γ a, args => fun n =>
+      have heq : (Γ.append a).toList.map Procedure
+               = Γ.toList.map Procedure ++ [Procedure a] := by simp [HoleSigs.toList]
+      let split := tupleSnocSplit (Γ.toList.map Procedure) (heq ▸ args)
+      match n with
+      | .zero   => split.2
+      | .succ m => holeLookup Γ split.1 m
+
+/-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
+    `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
+def StmtWithHoles.instantiate {holes : HoleSigs}
+    (resolve : ∀ {sig}, HoleIndex holes sig → Procedure sig) :
+    StmtWithHoles holes → StmtWithHoles .empty
+  | .skip            => .skip
+  | .assign x e      => .assign x e
+  | .sample x e      => .sample x e
+  | .call' x b r p   => .call' x b r p
+  | .hole n x p      => StmtWithHoles.call x (resolve n) p
+  | .seq s1 s2       =>
+      .seq (StmtWithHoles.instantiate resolve s1) (StmtWithHoles.instantiate resolve s2)
+  | .ifThenElse c t e =>
+      .ifThenElse c (StmtWithHoles.instantiate resolve t) (StmtWithHoles.instantiate resolve e)
+  | .while c t       => .while c (StmtWithHoles.instantiate resolve t)
+
+/-- Plug the procedures in `args` into the corresponding holes of `proc`, replacing each
+    `.hole` in the body with a `.call'` of the supplied procedure. -/
 def substituteProcedure {holes sig} (proc : ProcedureWithHoles holes sig)
   (args : typeListToProdGeneric Prod PUnit (holes.toList.map Procedure)) :
-  Procedure sig := sorry
+  Procedure sig :=
+  ⟨StmtWithHoles.instantiate (holeLookup holes args) proc.body, proc.return_val⟩
 
 /-- Convert a basic STLC term of the translated argument-tuple type back into the nested
     tuple of procedures expected by `substituteProcedure`. -/
@@ -329,6 +373,15 @@ noncomputable def procedureToSTLC {holes sig}
         (basicTermToProcedureArgs holes.toList bt))
     .func (t := inputType) (u := outputType)
       (ht := inputArrowFree) (hu := outputArrowFree) substitution
+
+/-- The STLC translation of a procedure-with-holes determines the procedure (and its
+    hole/return signatures). -/
+theorem procedureToSTLC_inj {holes holes' : HoleSigs} {sig sig' : ProcedureSignature}
+    {p : ProcedureWithHoles holes sig} {p' : ProcedureWithHoles holes' sig'} :
+    procedureToSTLC p = procedureToSTLC p' → holes = holes' ∧ sig = sig' ∧ p ≍ p' := by
+  intro h
+  simp only [procedureToSTLC] at h
+  sorry
 
 noncomputable def moduleExpressionToSTLC :
     ModuleExpression Γ T → Metatheory.STLCext.Term
@@ -712,11 +765,14 @@ theorem cbvReductionStep_preservation
               R m2 m2' → R (.app m1 m2) (.app m1 m2'))
  (app_beta : ∀ {Γ T U} (body : ModuleExpression (.append Γ T) U) (arg : ModuleExpression Γ T),
               R (.app (.abs body) arg) (subst body arg))
- (abs : ∀ {Γ T U} (body body' : ModuleExpression (.append Γ T) U), R body body' → R (.abs body) (.abs body'))
+ (abs : ∀ {Γ T U} (body body' : ModuleExpression (.append Γ T) U),
+        R body body' → R (.abs body) (.abs body'))
  (fst : ∀ {Γ T U} (m m' : ModuleExpression Γ (.prod T U)), R m m' → R (.fst m) (.fst m'))
- (fst_beta : ∀ {Γ T U} (a : ModuleExpression Γ T) (b : ModuleExpression Γ U), R (.fst (.pair a b)) a)
+ (fst_beta : ∀ {Γ T U} (a : ModuleExpression Γ T) (b : ModuleExpression Γ U),
+             R (.fst (.pair a b)) a)
  (snd : ∀ {Γ T U} (m m' : ModuleExpression Γ (.prod T U)), R m m' → R (.snd m) (.snd m'))
- (snd_beta : ∀ {Γ T U} (a : ModuleExpression Γ T) (b : ModuleExpression Γ U), R (.snd (.pair a b)) b)
+ (snd_beta : ∀ {Γ T U} (a : ModuleExpression Γ T) (b : ModuleExpression Γ U),
+             R (.snd (.pair a b)) b)
  (m : ModuleExpression Γ T) (nn : ¬ Normal m) :
  R m (cbvReductionStep m nn) := by
    induction m
@@ -822,8 +878,8 @@ private lemma ModuleContextIdx.toNat_inj {Γ : ModuleContext} {T : ModuleType} :
 def ModuleExpression.erasedEqual
   (m : ModuleExpression Γ T) (m' : ModuleExpression Γ' T') : Prop := match m, m' with
   | @ModuleExpression.proc _ _ sig p, @ModuleExpression.proc _ _ sig' p' => sig = sig' ∧ p ≍ p'
-  | @ModuleExpression.procHoles _ _ holes sig p _,
-    @ModuleExpression.procHoles _ _ holes' sig' p' _ => holes = holes' ∧ sig = sig' ∧ p ≍ p'
+  | @ModuleExpression.procHoles _ _ holes sig _ p,
+    @ModuleExpression.procHoles _ _ holes' sig' _ p' => holes = holes' ∧ sig = sig' ∧ p ≍ p'
   | .var r, .var r' => r.toNat = r'.toNat
   | .app f a, .app f' a' => ModuleExpression.erasedEqual f f' ∧ ModuleExpression.erasedEqual a a'
   | .fst e, .fst e' => ModuleExpression.erasedEqual e e'
@@ -905,10 +961,12 @@ theorem moduleExpressionToSTLC_injective {Γ Γ' : ModuleContext} {T T' : Module
     cases m' <;> simp_all [moduleExpressionToSTLC, ModuleExpression.erasedEqual, procedureToSTLC]
   | procHoles ne p =>
     intro Γ' T' m' h
-    cases m' <;> simp_all [moduleExpressionToSTLC, ModuleExpression.erasedEqual, procedureToSTLC]
-    -- remaining: procHoles vs procHoles — recover `holes`, `sig` via injectivity
-    exact ⟨procedureHolesToArgumentType_injective (moduleTypeToSTLC_injective h.1),
-           ModuleType.proc.inj (moduleTypeToSTLC_injective h.2.1)⟩
+    cases m' with
+    | procHoles ne' p' =>
+        simp only [moduleExpressionToSTLC] at h
+        exact procedureToSTLC_inj h
+    | proc _ | var _ | app _ _ | fst _ | snd _ | abs _ | pair _ _ =>
+        simp_all [moduleExpressionToSTLC, procedureToSTLC]
   | var r =>
     intro Γ' T' m' h
     cases m' <;> simp_all [moduleExpressionToSTLC, ModuleExpression.erasedEqual, procedureToSTLC]
@@ -1310,7 +1368,8 @@ theorem multiStepReduction_stlc_complete (m : ModuleExpression Γ T) {M' : Metat
     obtain ⟨m', hnd, heq'⟩ := reductionStep_stlc_complete m_b _ hbc
     exact ⟨m', Rewriting.Star.tail hred_b hnd, heq'⟩
 
-private theorem ModuleExpression.erasedEqual_normal_neutral_eq {Γ : ModuleContext} {T1 T2 : ModuleType}
+private theorem ModuleExpression.erasedEqual_normal_neutral_eq
+    {Γ : ModuleContext} {T1 T2 : ModuleType}
     (m : ModuleExpression Γ T1) (m' : ModuleExpression Γ T2)
     (h : ModuleExpression.erasedEqual m m') :
     (Normal m → T1 = T2 → HEq m m') ∧ (Neutral m → T1 = T2 ∧ HEq m m') := by
@@ -1322,7 +1381,14 @@ private theorem ModuleExpression.erasedEqual_normal_neutral_eq {Γ : ModuleConte
       obtain ⟨hsig, hp⟩ := h
       subst hsig
       exact heq_of_eq (congrArg ModuleExpression.proc (eq_of_heq hp))
-  | procHoles ne p => sorry
+  | procHoles ne p =>
+    refine ⟨fun _ _ => ?_, fun hne => by cases hne⟩
+    cases m' <;> simp only [ModuleExpression.erasedEqual] at h
+    case procHoles ne' p' =>
+      obtain ⟨hholes, hsig, hp⟩ := h
+      subst hholes; subst hsig
+      obtain rfl := eq_of_heq hp
+      rfl
   | var r =>
     cases m' <;> simp only [ModuleExpression.erasedEqual] at h
     case var r' =>
