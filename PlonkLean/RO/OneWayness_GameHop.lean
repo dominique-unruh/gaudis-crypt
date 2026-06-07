@@ -1358,17 +1358,29 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
       = (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
             if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
-        -- Step (A): game equivalence (output-only post).
-        -- The new (T × T × Bool) output places the target value bσ.1.2.1
-        -- alongside the final guess bσ.1.1. The comparison `g = t'` is now
-        -- output-only — no state dependency. This enables a marginal-equality
-        -- proof via `Program.wp_eq_of_marginal_eq`.
+        -- Step (A): game equivalence (OUTPUT-ONLY post on both sides).
         --
-        -- Both wp's express E[1 if y_check = y_sample]:
-        -- * LHS via ow_game_2_tracked's Bool result = decide(y_check = y).
-        -- * RHS via ow_game_2_with_match's pair (g, t', m) — g = y_check, t' = t.
+        -- **Proof plan now enabled by the (T × T × Bool) refactor:**
         --
-        -- Proof deferred — needs marginal equality at SubProb level.
+        -- Define intermediate `ow_game_2_tracked_p` returning
+        -- `(y_check, y, decide(y_check = y))` (= triple with all info).
+        -- Then:
+        -- (i) ow_game_2_tracked.wp F_win σ
+        --   = ow_game_2_tracked_p.wp (fun bσ => if bσ.1.2.2 then 1 else 0) σ
+        --     (by wp_pure expansion — same body, just augmented return).
+        -- (ii) ow_game_2_tracked_p.wp G σ = ow_game_2_with_match.wp G σ for any
+        --     output-only `G : (output × output × Bool) → ENNReal`, via
+        --     `Program.wp_eq_of_marginal_eq` (the framework's marginal-equality
+        --     theorem). Both programs have the same SubProb marginal on the
+        --     (y_check, y) projection — the only place they differ is
+        --     `matched_chal_y` tracking and final `set oracle_output`, neither
+        --     of which affects the marginal on (y_check, y).
+        -- (iii) Apply with `G = fun (g, t', _) => if g = t' then 1 else 0`.
+        --     For ow_game_2_tracked_p, G evaluated on (y_check, y, _) gives
+        --     `if y_check = y then 1 else 0` — matches LHS via decide.
+        --
+        -- Implementation: ~150 lines (definition of intermediate +
+        -- equivalences). Deferred — see task #79.
         sorry
     _ ≤ (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
