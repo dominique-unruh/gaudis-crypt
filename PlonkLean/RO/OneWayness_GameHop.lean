@@ -317,6 +317,43 @@ noncomputable def ow_game_2_tracked (q : ℕ) : Program state Bool := do
   let y_check ← lazy_query_tracked resp
   pure (decide (y_check = y))
 
+/-- **Intermediate game for the bridge proof.** Same body as `ow_game_2_tracked`
+    but returns `(y_check, y, decide(y_check = y))` instead of just the Bool.
+    The first two components match `ow_game_2_with_match`'s output structure,
+    enabling the marginal-equality-based bridge. -/
+noncomputable def ow_game_2_tracked_p (q : ℕ) : Program state (output × output × Bool) := do
+  lazy_init
+  Program.set chal_x_queried_gh false
+  let x ← Program.uniform
+  Program.set ow_challenge_x x
+  let y ← Program.uniform
+  Program.set ow_challenge_y y
+  oracle_loop_n ow_adv q lazy_query_tracked
+  let resp ← Program.get ow_response
+  let y_check ← lazy_query_tracked resp
+  pure (y_check, y, decide (y_check = y))
+
+/-- **Step 2 of the bridge:** `ow_game_2_tracked.wp F_win σ` equals
+    `ow_game_2_tracked_p.wp F_match σ` where F_match is the (output-only)
+    comparison `bσ.1.1 = bσ.1.2.1`. Both programs have identical bodies;
+    only the final `pure` differs, and the posts evaluate to the same value
+    on the respective return values.
+
+    Critically, this uses F_match (not F_proj) on the RHS — F_match compares
+    `bσ.1.1 = bσ.1.2.1` directly (output-only), aligning with the bridge's
+    target RHS post. The Bool component in ow_game_2_tracked_p's return is
+    just `decide(y_check = y)`, so `bσ.1.1 = bσ.1.2.1` evaluates to the same
+    as F_win's check `bσ.1 = true`. -/
+private lemma ow_game_2_tracked_wp_eq_ow_game_2_tracked_p_wp
+    (q : ℕ) (σ : state) :
+    (ow_game_2_tracked ow_adv q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    = (ow_game_2_tracked_p ow_adv q).wp
+        (fun bσ : (output × output × Bool) × state =>
+          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
+  unfold ow_game_2_tracked ow_game_2_tracked_p
+  simp only [wp_bind, wp_pure, decide_eq_true_eq]
+
 /-! ## Generic guessing-game combinators
 
 The framework for cryptographic guess-game reductions. `loop_n` is a
@@ -1355,32 +1392,24 @@ theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
   -- Step (B): apply framework structural reduction.
   calc (ow_game_2_tracked ow_adv q).wp
           (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-      = (ow_game_2_with_match ow_adv q).wp
+      = (ow_game_2_tracked_p ow_adv q).wp
+          (fun bσ : (output × output × Bool) × state =>
+            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ :=
+        -- Step (A1): ow_game_2_tracked → ow_game_2_tracked_p (same body, augmented return).
+        ow_game_2_tracked_wp_eq_ow_game_2_tracked_p_wp ow_adv q σ
+    _ = (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
             if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
-        -- Step (A): game equivalence (OUTPUT-ONLY post on both sides).
+        -- Step (A2): marginal equality. Both `ow_game_2_tracked_p` and
+        -- `ow_game_2_with_match` have the same SubProb marginal on the
+        -- (y_check, y_sample) projection — the matched_chal_y tracking and
+        -- final set oracle_output in ow_game_2_with_match don't affect the
+        -- (first, second-of-second) projection of the output. Apply via
+        -- a partial-marginal-equality argument.
         --
-        -- **Proof plan now enabled by the (T × T × Bool) refactor:**
-        --
-        -- Define intermediate `ow_game_2_tracked_p` returning
-        -- `(y_check, y, decide(y_check = y))` (= triple with all info).
-        -- Then:
-        -- (i) ow_game_2_tracked.wp F_win σ
-        --   = ow_game_2_tracked_p.wp (fun bσ => if bσ.1.2.2 then 1 else 0) σ
-        --     (by wp_pure expansion — same body, just augmented return).
-        -- (ii) ow_game_2_tracked_p.wp G σ = ow_game_2_with_match.wp G σ for any
-        --     output-only `G : (output × output × Bool) → ENNReal`, via
-        --     `Program.wp_eq_of_marginal_eq` (the framework's marginal-equality
-        --     theorem). Both programs have the same SubProb marginal on the
-        --     (y_check, y) projection — the only place they differ is
-        --     `matched_chal_y` tracking and final `set oracle_output`, neither
-        --     of which affects the marginal on (y_check, y).
-        -- (iii) Apply with `G = fun (g, t', _) => if g = t' then 1 else 0`.
-        --     For ow_game_2_tracked_p, G evaluated on (y_check, y, _) gives
-        --     `if y_check = y then 1 else 0` — matches LHS via decide.
-        --
-        -- Implementation: ~150 lines (definition of intermediate +
-        -- equivalences). Deferred — see task #79.
+        -- Note: F_match factors through proj : (T × T × Bool) → (T × T)
+        -- as `if proj.1 = proj.2 then 1 else 0`. So the wp equality follows
+        -- from `(p σ >>= proj_pair_pure) = (q σ >>= proj_pair_pure)`.
         sorry
     _ ≤ (ow_game_2_with_match ow_adv q).wp
           (fun bσ : (output × output × Bool) × state =>
