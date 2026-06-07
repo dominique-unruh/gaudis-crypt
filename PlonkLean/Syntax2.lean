@@ -194,7 +194,7 @@ lemma not_neutral_empty {T : ModuleType} : {m : ModuleExpression .empty T} → �
   | .app _ _, .appProcHoles _ _ _ =>
       -- A closed Normal argument of a procedure-tuple type is always a proc-tuple, so this
       -- stuck form cannot occur in the empty context.
-      -- TODO: needs the auxiliary lemma `closed Normal arg → IsProcTuple arg`.
+      -- TODO: needs `closedNormalProcTuple`; mutual WF termination is fiddly (HEq from `cases`).
       sorry
   | .fst _,   .fst ne   => not_neutral_empty ne
   | .snd _,   .snd ne   => not_neutral_empty ne
@@ -269,6 +269,7 @@ def subst (body : ModuleExpression (Δ.append u) t) (arg : ModuleExpression Δ u
 scoped instance instModuleExpressionSTLCspec : Metatheory.STLCext.STLCspec where
   baseTypes := ProcedureSignature
   baseTypeValue := Procedure
+  funcData := Σ holes : HoleSigs, Σ sig : ProcedureSignature, ProcedureWithHoles holes sig
 
 def moduleTypeToSTLC : ModuleType → Metatheory.STLCext.Ty
 | .prod A B => .prod (moduleTypeToSTLC A) (moduleTypeToSTLC B)
@@ -372,7 +373,7 @@ noncomputable def procedureToSTLC {holes sig}
       fun bt => .value (substituteProcedure proc
         (basicTermToProcedureArgs holes.toList bt))
     .func (t := inputType) (u := outputType)
-      (ht := inputArrowFree) (hu := outputArrowFree) substitution
+      (ht := inputArrowFree) (hu := outputArrowFree) ⟨holes, sig, proc⟩ substitution
 
 /-- The STLC translation of a procedure-with-holes determines the procedure (and its
     hole/return signatures). -/
@@ -381,7 +382,14 @@ theorem procedureToSTLC_inj {holes holes' : HoleSigs} {sig sig' : ProcedureSigna
     procedureToSTLC p = procedureToSTLC p' → holes = holes' ∧ sig = sig' ∧ p ≍ p' := by
   intro h
   simp only [procedureToSTLC] at h
-  sorry
+  rw [Metatheory.STLCext.Term.func.injEq] at h
+  obtain ⟨-, -, hdata, -⟩ := h
+  -- hdata : (⟨holes, sig, p⟩ : FuncData) = ⟨holes', sig', p'⟩
+  injection hdata with h1 h2
+  subst h1
+  injection (eq_of_heq h2) with h3 h4
+  subst h3
+  exact ⟨rfl, rfl, h4⟩
 
 noncomputable def moduleExpressionToSTLC :
     ModuleExpression Γ T → Metatheory.STLCext.Term
@@ -405,7 +413,7 @@ theorem moduleExpressionToSTLC_hasType (m : ModuleExpression Γ T) :
     simp only [moduleExpressionToSTLC, moduleTypeToSTLC]
     exact Metatheory.STLCext.HasType.value c
   | procHoles _ _ =>
-    exact Metatheory.STLCext.HasType.func _
+    exact Metatheory.STLCext.HasType.func _ _
   | abs M ihM =>
     simp only [moduleExpressionToSTLC, moduleTypeToSTLC, moduleContextToSTLC] at *
     exact Metatheory.STLCext.HasType.lam ihM
