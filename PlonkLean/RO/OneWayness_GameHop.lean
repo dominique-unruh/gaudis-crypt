@@ -1362,6 +1362,38 @@ version of `ow_game_2_tracked` that additionally sets `matched_chal_y` to
 
 Step 3 is the `guess_experiment_wp_bound` specialized to this game. -/
 
+/-- **Match-check is wp-invisible** for matched_chal_y-ignoring posts and
+    matched_chal_y-disjoint continuations. The match-check pattern is
+    `get oo + get chal_y + (if g = t' then set matched true else pure ())`.
+    For a continuation `rest` that doesn't touch `matched_chal_y` and a
+    post `F` that doesn't depend on `matched_chal_y` content, this whole
+    block is a no-op.
+
+    Reusable building block for eliminating match-check operations in the
+    Game 2 bridge marginal equality. -/
+lemma match_check_invisible
+    {α : Type} {rest : Program state α}
+    (h_rest : rest.inRange matched_chal_y.compl.range)
+    (F : α × state → ENNReal)
+    (h_F : ∀ aσ : α × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (σ : state) :
+    ((Program.get oracle_output >>= fun g =>
+        Program.get ow_challenge_y >>= fun t' =>
+        (if g = t' then Program.set matched_chal_y true
+         else (pure () : Program state Unit))) >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  -- Reassociate the outer bind so the conditional is bound directly to rest.
+  simp only [Program.bind_assoc]
+  -- Peel outer get oo.
+  rw [wp_bind, wp_get]
+  dsimp only
+  -- Peel get chal_y.
+  rw [wp_bind, wp_get]
+  dsimp only
+  exact Program.wp_conditional_set_disjoint_no_op
+    (oracle_output.get σ = ow_challenge_y.get σ) true h_rest F h_F σ
+
 /-- **The SubProb-level partial marginal equality at the heart of Step (A2).**
 
     Both `ow_game_2_tracked_p` and `ow_game_2_with_match` have the SAME
