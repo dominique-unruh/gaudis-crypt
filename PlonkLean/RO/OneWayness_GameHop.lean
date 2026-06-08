@@ -1762,30 +1762,61 @@ lemma oracle_step_equiv_lazy_query_lazy_query_tracked
     (fun _ => Program.EquivModuloLens.refl _)
     (fun y => Program.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
 
+/-- `oracle_step ow_adv lazy_query` is flag-disjoint. Used by the calculus
+    chains in flag elision. -/
+lemma oracle_step_lazy_query_inRange_chal_x_queried_gh
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) :
+    (oracle_step ow_adv lazy_query).inRange chal_x_queried_gh.compl.range := by
+  dsimp only [oracle_step]
+  refine Program.inRange_bind h_ow_adv_flag (fun _ => ?_)
+  refine Program.inRange_bind
+    (Program.get_inRange_compl_of_disjoint oracle_input chal_x_queried_gh)
+    (fun inp => ?_)
+  refine Program.inRange_bind ?_ (fun y =>
+    Program.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
+  exact Program.inRange_mono (lazy_query_inRange_ro inp)
+    (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+
+/-- Loop-level: `oracle_loop_n adv q lazy_query ≈_L oracle_loop_n adv q lazy_query_tracked`. -/
+lemma oracle_loop_n_equiv_lazy_query_lazy_query_tracked
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) (q : ℕ) :
+    Program.EquivModuloLens chal_x_queried_gh
+      (oracle_loop_n ow_adv q lazy_query)
+      (oracle_loop_n ow_adv q lazy_query_tracked) := by
+  -- Convert both to loop_n form via oracle_loop_n_eq_loop_n, then loop_n_congr.
+  rw [oracle_loop_n_eq_loop_n, oracle_loop_n_eq_loop_n]
+  exact loop_n_congr
+    (oracle_step_lazy_query_inRange_chal_x_queried_gh ow_adv h_ow_adv_flag)
+    (oracle_step_equiv_lazy_query_lazy_query_tracked ow_adv h_ow_adv_flag) q
+
 /-- **Flag elision at the game level**: `ow_game_1` and `ow_game_1_tracked`
     have equal wp's for flag-ignoring postconditions.
 
-    Proof via the `EquivModuloLens` calculus: chain bind congruences with
-    `set_equiv_pure` for the initial `set chal_x_queried_gh false` and
-    `lazy_query_equiv_lazy_query_tracked` for the q+1 query calls (lifted
-    over `oracle_loop_n` via `loop_n_congr`). -/
+    Proof via the `EquivModuloLens` calculus: bind congruence chains compose
+    `oracle_loop_n_equiv` (loop-level), `lazy_query_equiv_lazy_query_tracked`
+    (final query), and `set_equiv_pure` (initial set chal_x_queried_gh false). -/
 theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
     (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (q : ℕ) (F : Bool × state → ENNReal)
     (h_F : IgnoresChalXQueriedGh F)
     (σ : state) :
     (ow_game_1 ow_adv q).wp F σ = (ow_game_1_tracked ow_adv q).wp F σ := by
-  -- Strategy: build h_equiv : ow_game_1 ≈_L ow_game_1_tracked, then apply.
   have h_F' : IgnoresLens chal_x_queried_gh F := fun aσ v => h_F aσ v
-  -- Build the equivalence proof by chaining calculus rules.
   suffices h_equiv : Program.EquivModuloLens chal_x_queried_gh
       (ow_game_1 ow_adv q) (ow_game_1_tracked ow_adv q) by
     exact h_equiv F h_F' σ
-  -- Now build h_equiv. Unfold both games and use bind_congr chains.
-  -- The key insight: ow_game_1_tracked = ow_game_1[lq := lqt; prepend set flag false].
-  -- Going from ow_game_1 to ow_game_1_tracked: insert dead L-write, then replace
-  -- each lazy_query with lazy_query_tracked.
-  sorry
+  -- Build the equivalence via bind_congr chain.
+  dsimp only [ow_game_1, ow_game_1_tracked]
+  -- Both start with `lazy_init`. Apply bind_congr.
+  -- The continuation on LHS is flag-disjoint (uses lazy_query, no flag ops).
+  -- The continuation on RHS has set flag false + lazy_query_tracked.
+  -- Strategy: peel `lazy_init` and show inner equivalence by transitivity.
+  refine Program.EquivModuloLens.bind (Program.EquivModuloLens.refl lazy_init)
+    (fun _ => ?_) ?_
+  · -- The inner equivalence (after lazy_init).
+    sorry
+  · -- LHS's continuation is flag-disjoint.
+    sorry
 
 end Reductions
 
