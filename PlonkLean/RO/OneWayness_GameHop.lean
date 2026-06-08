@@ -1641,6 +1641,42 @@ lemma ow_game_2_loops_wp_eq
     (oracle_step_lazy_query_tracked_inRange_matched_chal_y ow_adv
       h_ow_adv_matched_chal_y) F h_F σ).symm
 
+/-- **Cond_set invisibility for matched-ignoring posts.** A direct
+    `if cond then set matched true else pure ()` is wp-invisible. -/
+lemma cond_set_matched_chal_y_wp_invisible
+    (cond : Prop) [Decidable cond] (F : Unit × state → ENNReal)
+    (h_F : ∀ aσ : Unit × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (σ : state) :
+    (if cond then Program.set matched_chal_y true
+     else (pure () : Program state Unit)).wp F σ = F ((), σ) := by
+  by_cases h : cond
+  · rw [if_pos h, wp_set]
+    exact h_F ((), σ)
+  · rw [if_neg h, wp_pure]
+
+/-- **Body-level wp equality for the bound-variable cond_set pattern.**
+    Loop body `oracle_step + (if y_val = y then set matched true else pure ())`
+    has same wp as plain `oracle_step` for matched_chal_y-ignoring posts. -/
+lemma loop_body_v2_wp_eq_oracle_step
+    (y : output) (F : Unit × state → ENNReal)
+    (h_F : ∀ aσ : Unit × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (σ : state) :
+    (do
+      ow_adv
+      let inp ← Program.get oracle_input
+      let y_val ← lazy_query_tracked inp
+      Program.set oracle_output y_val
+      if y_val = y then Program.set matched_chal_y true else pure ()).wp F σ
+    = (oracle_step ow_adv lazy_query_tracked).wp F σ := by
+  unfold oracle_step
+  -- After unfold, both have `ow_adv >>= ...`. Use wp_bind to peel through.
+  -- The bodies differ at the innermost: LHS has trailing cond_set, RHS does not.
+  -- Use simp to normalize wp expressions, then handle the inner difference.
+  simp only [wp_bind, wp_get, wp_set,
+    cond_set_matched_chal_y_wp_invisible _ F h_F]
+
 /-- **Direct Game 2 bridge to the guess_experiment framework.**
 
     Routes around the SubProb-level marginal_eq wall by stating the bridge
