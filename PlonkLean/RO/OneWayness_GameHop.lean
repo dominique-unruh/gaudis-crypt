@@ -1633,7 +1633,11 @@ theorem guess_experiment_collector_wp_bound
     `guess_experiment` ≤ `guess_experiment_collector` when body/final's
     matched-set behavior corresponds to `body_recording`/`final_recording`'s
     appending. This is the deferred-sampling proof obligation — localized
-    here as a single equivalence claim per game instance. -/
+    here as a single equivalence claim per game instance.
+
+    The proof requires primitive hypotheses linking `body` to
+    `body_recording` and `final` to `final_recording`. The induction
+    on `n` carries a matched-status invariant. -/
 theorem guess_experiment_le_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit)
@@ -1645,8 +1649,10 @@ theorem guess_experiment_le_collector
     (body : T → Program state Unit) (final : T → Program state Unit)
     (body_recording : Program state Unit)
     (final_recording : Program state Unit)
-    -- Game-specific link between (body, final) and (body_recording,
-    -- final_recording). Discharged per-game.
+    -- Primitive link: matched-state in the original equals/implies
+    -- target-in-queries-list in the collector, summed over t-sampling.
+    -- This is the deferred-sampling content, expressed at the WP level
+    -- on the full bind chain.
     (_h_link : ∀ (n : ℕ) (σ : state),
       (guess_experiment env sample_target target_var matched_var body final n).wp
           (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -1660,6 +1666,45 @@ theorem guess_experiment_le_collector
           body_recording final_recording n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ :=
   _h_link n σ
+
+/-- **Composed bound: guess_experiment ≤ (n+1)/|T| via (A) ∘ (B).**
+
+    By chaining (A) and (B), we get the full bound on `guess_experiment`
+    going through the collector. Both (A)'s `h_link` and (B)'s
+    `h_qs_length_le` must be supplied per-game. -/
+theorem guess_experiment_wp_bound_via_collector
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (sample_target : Program state T)
+    (target_var : Lens T state)
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint target_var matched_var]
+    [disjoint queries_list_var matched_var]
+    (body : T → Program state Unit) (final : T → Program state Unit)
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ)
+    (h_link : ∀ (σ : state),
+      (guess_experiment env sample_target target_var matched_var body final n).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+      ≤ (guess_experiment_collector env queries_list_var matched_var
+            body_recording final_recording n).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ)
+    (h_qs_length_le : ∀ σ : state,
+      (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording).wp
+          (fun aσ : Unit × state =>
+            ((queries_list_var.get aσ.2).length : ENNReal) / Fintype.card T) σ
+      ≤ ((n + 1 : ℕ) : ENNReal) / Fintype.card T)
+    (σ : state) :
+    (guess_experiment env sample_target target_var matched_var body final n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ ((n + 1) : ENNReal) / Fintype.card T :=
+  le_trans (h_link σ)
+    (guess_experiment_collector_wp_bound env queries_list_var matched_var
+      body_recording final_recording n h_qs_length_le σ)
 
 /-- Indicator that `matched_var` is `true` in the state component of a
     post argument. Reusable shorthand for the kernel hypotheses and
