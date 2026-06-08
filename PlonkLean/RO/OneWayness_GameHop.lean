@@ -1744,6 +1744,26 @@ lemma loop_n_body_v2_wp_eq
     (fun F' h_F' σ' => body_v2_wp_eq_oracle_step ow_adv y F' h_F' σ')
     n F h_F σ
 
+/-- **General matched_chal_y-set invariance of wp.** For any program in
+    matched_chal_y.compl.range and any matched-ignoring post, the wp value
+    is invariant under matched_chal_y.set on the input state. -/
+lemma wp_matched_chal_y_set_inv {α : Type} {p : Program state α}
+    (hp : p.inRange matched_chal_y.compl.range)
+    (b : Bool) (F : α × state → ENNReal)
+    (h_F : ∀ aσ : α × state, F (aσ.1, matched_chal_y.set b aσ.2) = F aσ)
+    (σ : state) :
+    p.wp F (matched_chal_y.set b σ) = p.wp F σ := by
+  have hf : (fun s : state => matched_chal_y.set b s) ∈
+      ((matched_chal_y.compl.range : LensRange state)ᶜ).updates := by
+    rw [show ((matched_chal_y.compl.range : LensRange state)ᶜ)
+          = matched_chal_y.range from by
+          rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ b, Set.mem_univ _, rfl⟩
+  rw [Program.wp_shift_input hp hf]
+  congr 1
+  funext xs
+  exact h_F xs
+
 /-- **Direct Game 2 bridge to the guess_experiment framework.**
 
     Routes around the SubProb-level marginal_eq wall by stating the bridge
@@ -1811,12 +1831,40 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
           = matched_chal_y.range from by
           rw [LensRange.complement_range, LensRange.compl_compl]]
     exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
-  -- Set up post for LHS — what comes after the loop in tracked.
-  -- The post is fun ttσ => (the_tail).wp F_win ttσ.2, where the_tail does
-  -- get resp + lazy_query_tracked + pure decide.
-  -- Show the post is matched-ignoring (so wp_shift_input applies).
-  -- Then rewrite LHS from "at σ6" to "at matched.set false σ6".
-  -- Remaining steps (B, C, D) build on this. Sorry'd as one block for now.
+  -- Step A: state alignment. LHS's post is matched-ignoring; LHS is
+  -- matched-disjoint; so LHS.wp is invariant under matched.set on input.
+  have h_rest_LHS_inRange :
+      (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool).inRange
+          matched_chal_y.compl.range := by
+    refine Program.inRange_bind
+      (Program.get_inRange_compl_of_disjoint ow_response matched_chal_y)
+      (fun resp => ?_)
+    refine Program.inRange_bind (lazy_query_tracked_inRange_matched_chal_y resp)
+      (fun y_check => ?_)
+    exact Program.inRange_pure _ _
+  -- The post fun ttσ => rest_LHS.wp F_win ttσ.2 is matched-ignoring.
+  have h_post_LHS_inv : ∀ aσ : Unit × state,
+      (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+          (matched_chal_y.set false aσ.2)
+      = (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) aσ.2 := by
+    intro aσ
+    exact wp_matched_chal_y_set_inv h_rest_LHS_inRange false _ (fun _ => rfl) aσ.2
+  -- Rewrite LHS from "at σ6" to "at matched.set false σ6".
+  rw [show (loop_n q (oracle_step ow_adv lazy_query_tracked)).wp _ σ6 =
+        (loop_n q (oracle_step ow_adv lazy_query_tracked)).wp _ (matched_chal_y.set false σ6)
+        from (wp_matched_chal_y_set_inv h_loop_oracle_step_inRange false _
+                (fun aσ => h_post_LHS_inv aσ) σ6).symm]
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
