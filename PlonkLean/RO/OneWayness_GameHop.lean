@@ -1795,6 +1795,13 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
   dsimp only
   -- Convert LHS's oracle_loop_n to loop_n form to match RHS structure.
   rw [oracle_loop_n_eq_loop_n]
+  -- LHS now has `loop_n q (oracle_step ...)`. Peel via wp_bind on both sides.
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  -- Convert LHS's `loop_n q (oracle_step ...).wp post σ` to body_v2 form.
+  -- For this to apply, the post must be matched-ignoring (h_F lemma).
+  rw [(loop_n_body_v2_wp_eq ow_adv h_ow_adv_matched_chal_y q y _ ?_ σ6).symm]
+  sorry
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
