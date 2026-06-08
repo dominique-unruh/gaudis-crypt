@@ -188,16 +188,76 @@ inductive NormalClosed : ModuleExpression .empty T → Prop where
   | pair {a : ModuleExpression .empty A} {b : ModuleExpression .empty B} :
       NormalClosed a → NormalClosed b → NormalClosed (.pair a b)
 
-lemma not_neutral_empty {T : ModuleType} : {m : ModuleExpression .empty T} → ¬ Neutral m
-  | .var r,   _       => nomatch r
-  | .app _ _, .app nf _ => not_neutral_empty nf
-  | .app _ _, .appProcHoles _ _ _ =>
-      -- A closed Normal argument of a procedure-tuple type is always a proc-tuple, so this
-      -- stuck form cannot occur in the empty context.
-      -- TODO: needs `closedNormalProcTuple`; mutual WF termination is fiddly (HEq from `cases`).
-      sorry
-  | .fst _,   .fst ne   => not_neutral_empty ne
-  | .snd _,   .snd ne   => not_neutral_empty ne
+/-- A type that can be the argument type of a procedure-with-holes: a right-nested tuple of
+    procedure types. -/
+def IsProcArgType : ModuleType → Prop
+  | .unit => True
+  | .proc _ => True
+  | .prod (.proc _) rest => IsProcArgType rest
+  | _ => False
+
+lemma isProcArgType_tlpg : (sigs : List ProcedureSignature) →
+    IsProcArgType (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))
+  | [] => trivial
+  | [_] => trivial
+  | _ :: s :: ss => isProcArgType_tlpg (s :: ss)
+
+lemma isProcArgType_procHolesArgType (holes : HoleSigs) :
+    IsProcArgType (procedureHolesToArgumentType holes) :=
+  isProcArgType_tlpg holes.toList
+
+lemma IsProcHoles.argType {Δ : ModuleContext} {A B : ModuleType}
+    {f : ModuleExpression Δ (.arr A B)} (h : IsProcHoles f) : IsProcArgType A := by
+  cases f with
+  | procHoles _ _ => exact isProcArgType_procHolesArgType _
+  | abs _ => exact absurd h (by simp [IsProcHoles])
+  | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcHoles])
+
+/-- Progress for the closed fragment, packaged so the two facts share one structural
+    recursion on the term: a closed term is never neutral, and a closed `Normal` term of a
+    procedure-argument type is a proc-tuple. -/
+lemma closed_progress : {T : ModuleType} → (m : ModuleExpression .empty T) →
+    (¬ Neutral m) ∧ (IsProcArgType T → Normal m → IsProcTuple m)
+  | _, .proc _ => ⟨fun hne => (nomatch hne), fun _ _ => trivial⟩
+  | _, .procHoles _ _ => ⟨fun hne => (nomatch hne), fun ht _ => ht.elim⟩
+  | _, .var r => nomatch r
+  | _, .app f arg =>
+      have ihf := closed_progress f
+      have iharg := closed_progress arg
+      have h1 : ¬ Neutral (.app f arg) := by
+        intro hne
+        cases hne with
+        | app nf _ => exact ihf.1 nf
+        | appProcHoles hph ha hpt => exact hpt (iharg.2 hph.argType ha)
+      ⟨h1, fun _ hn => by cases hn with | neutral hne => exact absurd hne h1⟩
+  | _, .fst e =>
+      have ih := closed_progress e
+      have h1 : ¬ Neutral (.fst e) := by intro hne; cases hne with | fst ne => exact ih.1 ne
+      ⟨h1, fun _ hn => by cases hn with | neutral hne => exact absurd hne h1⟩
+  | _, .snd e =>
+      have ih := closed_progress e
+      have h1 : ¬ Neutral (.snd e) := by intro hne; cases hne with | snd ne => exact ih.1 ne
+      ⟨h1, fun _ hn => by cases hn with | neutral hne => exact absurd hne h1⟩
+  | _, .abs _ => ⟨fun hne => (nomatch hne), fun ht _ => ht.elim⟩
+  | _, .pair a b =>
+      have iha := closed_progress a
+      have ihb := closed_progress b
+      ⟨fun hne => (nomatch hne), fun ht hn => by
+        cases hn with
+        | neutral hne => exact nomatch hne
+        | pair ha hb =>
+            cases a with
+            | proc p => exact ihb.2 ht hb
+            | var r => exact nomatch r
+            | app _ _ => cases ha with | neutral hne => exact absurd hne iha.1
+            | fst _ => cases ha with | neutral hne => exact absurd hne iha.1
+            | snd _ => cases ha with | neutral hne => exact absurd hne iha.1
+            | abs _ => exact ht.elim
+            | procHoles _ _ => exact ht.elim
+            | pair _ _ => exact ht.elim⟩
+
+lemma not_neutral_empty {T : ModuleType} {m : ModuleExpression .empty T} : ¬ Neutral m :=
+  (closed_progress m).1
 
 /-- Extends a renaming `ρ : ModuleContextIdx Δ → ModuleContextIdx Γ` to work under one
     binder of type `A`.
@@ -1243,6 +1303,39 @@ theorem multiStepReduction_to_stlc_star {m m' : ModuleExpression Γ T}
   | refl => exact Rewriting.Star.refl _
   | tail hab hbc ih => exact Rewriting.Star.tail ih (reductionStep_stlc_compat _ _ hbc)
 
+/-- For an argument of a procedure-tuple type, being a `BasicTerm` after erasure means it is
+    a proc-tuple.  (So a non-proc-tuple argument blocks the STLC `funcApp` reduction.) -/
+private lemma isBasicType_imp_isProcTuple {Δ : ModuleContext} :
+    (sigs : List ProcedureSignature) →
+    (arg : ModuleExpression Δ
+        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))) →
+    Metatheory.STLCext.Term.isBasicType
+        (moduleTypeToSTLC
+          (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
+        (moduleExpressionToSTLC arg) →
+    IsProcTuple arg
+  | [], arg, h => by
+      cases arg <;>
+        simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType]
+  | [_], arg, h => by
+      cases arg <;>
+        simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType,
+          IsProcTuple]
+  | _ :: s :: ss, arg, h => by
+      cases arg with
+      | pair a b =>
+          cases a with
+          | proc p =>
+              simp only [moduleExpressionToSTLC, moduleTypeToSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+              exact isBasicType_imp_isProcTuple (s :: ss) b h.2
+          | var _ | app _ _ | fst _ | snd _ =>
+              simp only [moduleExpressionToSTLC, moduleTypeToSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+              exact h.1.elim
+      | var _ | app _ _ | fst _ | snd _ =>
+          simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType]
+
 theorem moduleExpressionToSTLC_Normal_iff {m : ModuleExpression Γ T} :
     Normal m ↔ Rewriting.IsNormalForm Metatheory.STLCext.Step (moduleExpressionToSTLC m) := by
   constructor
@@ -1301,9 +1394,16 @@ theorem moduleExpressionToSTLC_Normal_iff {m : ModuleExpression Γ T} :
             | appR step => exact (iharg.1 harg_n) _ step
             | funcApp => cases hf_n <;> simp [moduleExpressionToSTLC] at hF
           | appProcHoles hph ha hpt =>
-            -- stuck procHoles-app: STLC image `.app (.func ..) (mtS arg)` is a normal form.
-            -- Needs: `¬ IsProcTuple arg → mtS arg` is not basic (so `funcApp` is blocked).
-            sorry
+            cases f with
+            | procHoles ne p =>
+                simp only [moduleExpressionToSTLC, procedureToSTLC] at h
+                cases h with
+                | appL step => nomatch step
+                | appR step => exact (iharg.1 ha) _ step
+                | funcApp d g N' hbasic =>
+                    exact absurd (isBasicType_imp_isProcTuple _ _ hbasic) hpt
+            | abs _ => exact absurd hph (by simp [IsProcHoles])
+            | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
       · intro hne
         cases hne with
         | app hf_n harg_n =>
@@ -1319,8 +1419,19 @@ theorem moduleExpressionToSTLC_Normal_iff {m : ModuleExpression Γ T} :
           · intro h; cases h
           · intro h; cases h
         | appProcHoles hph ha hpt =>
-          -- stuck procHoles-app is neutral; same `funcApp`-blocked argument as above.
-          sorry
+          cases f with
+          | procHoles ne p =>
+              refine ⟨fun N h => ?_, fun _ => ?_, fun _ _ => ?_⟩
+              · simp only [moduleExpressionToSTLC, procedureToSTLC] at h
+                cases h with
+                | appL step => nomatch step
+                | appR step => exact (iharg.1 ha) _ step
+                | funcApp d g N' hbasic =>
+                    exact absurd (isBasicType_imp_isProcTuple _ _ hbasic) hpt
+              · intro h; cases h
+              · intro h; cases h
+          | abs _ => exact absurd hph (by simp [IsProcHoles])
+          | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
     | fst e ihe =>
       constructor
       · intro hn N h
@@ -1421,8 +1532,19 @@ private theorem ModuleExpression.erasedEqual_normal_neutral_eq
             subst hA hB
             exact (eq_of_heq hf_heq) ▸ (eq_of_heq ((iharg arg' harg_eq).1 ha rfl)) ▸ HEq.rfl
           | appProcHoles hph ha hpt =>
-            -- stuck procHoles-app; the erased-equal counterpart is also a stuck procHoles-app.
-            sorry
+            cases f with
+            | procHoles ne p =>
+                cases f' with
+                | procHoles ne' p' =>
+                    simp only [ModuleExpression.erasedEqual] at hf_eq
+                    obtain ⟨hh, hs, hp⟩ := hf_eq
+                    subst hh; subst hs; obtain rfl := eq_of_heq hp
+                    obtain rfl := eq_of_heq ((iharg arg' harg_eq).1 ha rfl)
+                    rfl
+                | var _ | app _ _ | fst _ | snd _ | abs _ =>
+                    simp [ModuleExpression.erasedEqual] at hf_eq
+            | abs _ => exact absurd hph (by simp [IsProcHoles])
+            | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
       · intro hne
         cases hne with
         | app hf ha =>
@@ -1430,7 +1552,20 @@ private theorem ModuleExpression.erasedEqual_normal_neutral_eq
           obtain ⟨hA, hB⟩ := ModuleType.arr.inj hTf
           subst hA hB
           exact ⟨rfl, (eq_of_heq hf_heq) ▸ (eq_of_heq ((iharg arg' harg_eq).1 ha rfl)) ▸ HEq.rfl⟩
-        | appProcHoles hph ha hpt => sorry
+        | appProcHoles hph ha hpt =>
+          cases f with
+          | procHoles ne p =>
+              cases f' with
+              | procHoles ne' p' =>
+                  simp only [ModuleExpression.erasedEqual] at hf_eq
+                  obtain ⟨hh, hs, hp⟩ := hf_eq
+                  subst hh; subst hs; obtain rfl := eq_of_heq hp
+                  obtain rfl := eq_of_heq ((iharg arg' harg_eq).1 ha rfl)
+                  exact ⟨rfl, HEq.rfl⟩
+              | var _ | app _ _ | fst _ | snd _ | abs _ =>
+                  simp [ModuleExpression.erasedEqual] at hf_eq
+          | abs _ => exact absurd hph (by simp [IsProcHoles])
+          | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
     | _ => simp [ModuleExpression.erasedEqual] at h
   | fst e ihe =>
     cases m' with
