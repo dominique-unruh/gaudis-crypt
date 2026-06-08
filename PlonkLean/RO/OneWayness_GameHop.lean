@@ -1798,10 +1798,20 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
   -- LHS now has `loop_n q (oracle_step ...)`. Peel via wp_bind on both sides.
   rw [wp_bind]
   conv_rhs => rw [wp_bind]
-  -- After this point, both sides are `loop_n q ?_body.wp post σ`. To use
-  -- loop_n_body_v2_wp_eq to align bodies, we need the post to be matched-
-  -- ignoring AND need to handle the state misalignment. Sorry'd; this is
-  -- the next step of the assembly.
+  -- Step A: state alignment via matched-set-invariance of LHS's wp.
+  -- LHS at σ6 = LHS at (matched.set false σ6).
+  have h_loop_oracle_step_inRange :
+      (loop_n q (oracle_step ow_adv lazy_query_tracked)).inRange
+        matched_chal_y.compl.range :=
+    loop_n_inRange (oracle_step ow_adv lazy_query_tracked)
+      (oracle_step_lazy_query_tracked_inRange_matched_chal_y ow_adv
+        h_ow_adv_matched_chal_y) q
+  have hf : (fun s : state => matched_chal_y.set false s) ∈
+      ((matched_chal_y.compl.range : LensRange state)ᶜ).updates := by
+    rw [show ((matched_chal_y.compl.range : LensRange state)ᶜ)
+          = matched_chal_y.range from by
+          rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
