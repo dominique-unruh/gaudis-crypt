@@ -1767,6 +1767,7 @@ lemma loop_n_body_v2_wp_eq
     Lean elaboration of full `unfold` is heavy (whnf timeouts) — needs
     careful per-symbol unfolding. Sorry'd. -/
 lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
+    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -1800,12 +1801,14 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
     Routes via `guess_experiment_game_2` — bypasses the old marginal_eq wall. -/
 theorem ow_game_2_tracked_wins_le_guess_output_bound
     [Fintype output] [Nonempty output] [DecidableEq output]
+    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card output :=
   le_trans
-    (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv q σ)
+    (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv
+      h_ow_adv_matched_chal_y q σ)
     (by unfold guess_experiment_game_2
         exact guess_experiment_wp_bound _ _ ow_challenge_y matched_chal_y _ _ q σ)
 
@@ -1913,7 +1916,8 @@ theorem ow_lazy_bound_via_gamehop
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card input := by
         gcongr
-        · exact ow_game_2_tracked_wins_le_guess_output_bound ow_adv q σ
+        · exact ow_game_2_tracked_wins_le_guess_output_bound ow_adv
+            h_ow_adv_matched_chal_y q σ
         · -- The "bad ∩ Win" wp is ≤ "bad" wp (since Win ≤ 1).
           calc (ow_game_1_tracked ow_adv q).wp
                   (fun bσ : Bool × state =>
