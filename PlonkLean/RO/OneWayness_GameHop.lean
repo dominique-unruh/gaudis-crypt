@@ -1,5 +1,6 @@
 import PlonkLean.RO
 import PlonkLean.RO.OneWayness
+import PlonkLean.EquivModuloLens
 
 /-!
 # Game-hopping proof of one-wayness
@@ -1367,6 +1368,24 @@ lemma loop_n_inRange {R : LensRange state}
     show (body >>= fun _ => loop_n n body).inRange R
     exact Program.inRange_bind h_body (fun _ => ih)
 
+/-- **Loop congruence for the equiv-modulo-lens calculus**: if two bodies
+    are `≈_L`-equivalent, so are their loops. Requires the reference body
+    `body` to be `L`-disjoint so that `loop_n n body` is also `L`-disjoint
+    (needed for the bind congruence in the inductive step). -/
+lemma loop_n_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
+    {body body' : Program state Unit}
+    (h_body : body.inRange L.compl.range)
+    (h_eq : Program.EquivModuloLens L body body')
+    (n : ℕ) :
+    Program.EquivModuloLens L (loop_n n body) (loop_n n body') := by
+  induction n with
+  | zero => exact Program.EquivModuloLens.refl _
+  | succ n ih =>
+    show Program.EquivModuloLens L (body >>= fun _ => loop_n n body)
+                                   (body' >>= fun _ => loop_n n body')
+    exact Program.EquivModuloLens.bind h_eq (fun _ => ih)
+      (fun _ => loop_n_inRange body h_body n)
+
 /-- **Cond_set invisibility for matched-ignoring posts.** A direct
     `if cond then set matched true else pure ()` is wp-invisible. -/
 lemma cond_set_matched_chal_y_wp_invisible
@@ -1678,18 +1697,37 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
 For postconditions that don't read `chal_x_queried_gh`, the tracked and
 untracked variants of Game 1 agree at the wp level. -/
 
-/-- **Flag elision at the game level**: `ow_game_1` and `ow_game_1_tracked`
-    have equal wp's for flag-ignoring postconditions. Composes
-    `lazy_query_tracked_eq_lazy_query_wp` over the q+1 lazy_query calls and
-    handles the initial `set chal_x_queried_gh false`.
+/-- `lazy_query inp` is equivalent (modulo `chal_x_queried_gh`) to
+    `lazy_query_tracked inp` — they produce the same value-marginal,
+    differing only by writes to `chal_x_queried_gh`. -/
+lemma lazy_query_equiv_lazy_query_tracked (inp : input) :
+    Program.EquivModuloLens chal_x_queried_gh (lazy_query inp) (lazy_query_tracked inp) := by
+  intro F h_F σ
+  -- Apply lazy_query_tracked_eq_lazy_query_wp with k := pure.
+  have h_eq := lazy_query_tracked_eq_lazy_query_wp
+    (k := fun y => (pure y : Program state output))
+    (fun y => Program.inRange_pure _ _) F h_F inp σ
+  -- h_eq : (lazy_query_tracked inp >>= pure).wp F σ = (lazy_query inp >>= pure).wp F σ.
+  simp only [Program.bind_pure] at h_eq
+  exact h_eq.symm
 
-    The win indicator `fun bσ => if bσ.1 then 1 else 0` is trivially
-    flag-ignoring (depends only on `bσ.1`). Proof deferred. -/
+/-- **Flag elision at the game level**: `ow_game_1` and `ow_game_1_tracked`
+    have equal wp's for flag-ignoring postconditions.
+
+    Proof via the `EquivModuloLens` calculus: chain bind congruences with
+    `set_equiv_pure` for the initial `set chal_x_queried_gh false` and
+    `lazy_query_equiv_lazy_query_tracked` for the q+1 query calls (lifted
+    over `oracle_loop_n` via `loop_n_congr`). -/
 theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (q : ℕ) (F : Bool × state → ENNReal)
     (h_F : IgnoresChalXQueriedGh F)
     (σ : state) :
     (ow_game_1 ow_adv q).wp F σ = (ow_game_1_tracked ow_adv q).wp F σ := by
+  -- Unify F's hypothesis with IgnoresLens form.
+  have h_F' : IgnoresLens chal_x_queried_gh F := fun aσ v => h_F aσ v
+  -- Strategy: show ow_game_1 ≈_L ow_game_1_tracked via the calculus.
+  -- TODO: complete the proof using the calculus chain.
   sorry
 
 end Reductions
@@ -1740,7 +1778,8 @@ theorem ow_lazy_bound_via_gamehop
        ≤ (2 * (q + 1) : ENNReal) / Fintype.card output
   rw [show (ow_experiment ow_adv q lazy_init lazy_query) = ow_game_0 ow_adv q from rfl]
   rw [ow_game_0_eq_ow_game_1 ow_adv q]
-  rw [ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring ow_adv q Win h_Win_flag σ]
+  rw [ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring ow_adv
+      h_ow_adv_chal_x_queried_gh q Win h_Win_flag σ]
   -- Apply up_to_bad: ow_game_1_tracked.wp Win ≤ ow_game_2_tracked.wp Win + bad-wp.
   calc (ow_game_1_tracked ow_adv q).wp Win σ
       ≤ (ow_game_2_tracked ow_adv q).wp Win σ
