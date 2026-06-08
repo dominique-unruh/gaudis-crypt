@@ -1855,16 +1855,14 @@ theorem ow_game_2_tracked_wins_le_guess_output_bound
     guess_experiment. Combined with `guess_experiment_wp_bound`, this
     gives `≤ (q+1)/|input|`. -/
 theorem ow_game_1_tracked_bad_le_guess_input_bound
-    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
           if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card input := by
-  sorry
+  rw [ow_game_1_tracked_bad_eq_guess_experiment_game_1 ow_adv q σ]
+  unfold guess_experiment_game_1
+  exact guess_experiment_wp_bound _ _ ow_challenge_x chal_x_queried_gh _ _ q σ
 
 /-! ## Flag-elision bridge: untracked Game 1 ↔ tracked Game 1
 
@@ -2206,9 +2204,7 @@ theorem ow_lazy_bound_via_gamehop
                   split_ifs <;> simp
                 · simp [h]
             _ ≤ ((q + 1) : ENNReal) / Fintype.card input := by
-                exact ow_game_1_tracked_bad_le_guess_input_bound ow_adv
-                  h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x
-                  h_ow_adv_chal_x_queried_gh q σ
+                exact ow_game_1_tracked_bad_le_guess_input_bound ow_adv q σ
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card output := by
         gcongr
