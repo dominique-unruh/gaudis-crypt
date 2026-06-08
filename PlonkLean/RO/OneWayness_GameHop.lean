@@ -278,10 +278,8 @@ instance : disjoint chal_x_queried_gh matched_chal_y :=
   disjoint_matched_chal_y_chal_x_queried_gh.symm
 
 -- Note: in the `guess_experiment`-based design, the match-check is placed
--- OUTSIDE the lazy_query, in `guess_experiment`'s body itself. So we
--- don't need a dedicated `lazy_query_with_match` — `ow_game_2_with_match`
--- uses `lazy_query_tracked` and adds the match-check via guess_experiment's
--- loop body / final body structure.
+-- in `guess_experiment`'s body using BOUND variables (y_val, target y),
+-- not via state reads. This is what makes the Game 2 wall proof tractable.
 
 section GameHopParam_Tracked
 
@@ -316,43 +314,6 @@ noncomputable def ow_game_2_tracked (q : ℕ) : Program state Bool := do
   let resp ← Program.get ow_response
   let y_check ← lazy_query_tracked resp
   pure (decide (y_check = y))
-
-/-- **Intermediate game for the bridge proof.** Same body as `ow_game_2_tracked`
-    but returns `(y_check, y, decide(y_check = y))` instead of just the Bool.
-    The first two components match `ow_game_2_with_match`'s output structure,
-    enabling the marginal-equality-based bridge. -/
-noncomputable def ow_game_2_tracked_p (q : ℕ) : Program state (output × output × Bool) := do
-  lazy_init
-  Program.set chal_x_queried_gh false
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
-  let y ← Program.uniform
-  Program.set ow_challenge_y y
-  oracle_loop_n ow_adv q lazy_query_tracked
-  let resp ← Program.get ow_response
-  let y_check ← lazy_query_tracked resp
-  pure (y_check, y, decide (y_check = y))
-
-/-- **Step 2 of the bridge:** `ow_game_2_tracked.wp F_win σ` equals
-    `ow_game_2_tracked_p.wp F_match σ` where F_match is the (output-only)
-    comparison `bσ.1.1 = bσ.1.2.1`. Both programs have identical bodies;
-    only the final `pure` differs, and the posts evaluate to the same value
-    on the respective return values.
-
-    Critically, this uses F_match (not F_proj) on the RHS — F_match compares
-    `bσ.1.1 = bσ.1.2.1` directly (output-only), aligning with the bridge's
-    target RHS post. The Bool component in ow_game_2_tracked_p's return is
-    just `decide(y_check = y)`, so `bσ.1.1 = bσ.1.2.1` evaluates to the same
-    as F_win's check `bσ.1 = true`. -/
-private lemma ow_game_2_tracked_wp_eq_ow_game_2_tracked_p_wp
-    (q : ℕ) (σ : state) :
-    (ow_game_2_tracked ow_adv q).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-    = (ow_game_2_tracked_p ow_adv q).wp
-        (fun bσ : (output × output × Bool) × state =>
-          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
-  unfold ow_game_2_tracked ow_game_2_tracked_p
-  simp only [wp_bind, wp_pure, decide_eq_true_eq]
 
 /-! ## Generic guessing-game combinators
 
@@ -397,50 +358,11 @@ noncomputable def guess_experiment {T s : Type}
   final t
   Program.get matched_var
 
-/-- **Game 2 with matched tracking** — structurally close to `ow_game_2_tracked_p`.
-
-    Same prefix and loop structure as `ow_game_2_tracked_p`, with the
-    following ADDITIONS (each surgically inserted to track matched_chal_y):
-    1. `set matched_chal_y false` after the env prefix.
-    2. In-loop match-check: `if y_val = y then set matched_chal_y true`
-       using the *bound* `y_val` and `y` (no state reads).
-    3. Final match-check: `if y_check = y then set matched_chal_y true`.
-    4. Trailing `get matched_chal_y` reading into `m`.
-    5. Pure tuple uses `m` instead of `decide (y_check = y)`.
-
-    Crucially, the match-checks use BOUND VARIABLES (not state reads),
-    so they are `wp_conditional_set_disjoint_no_op`-style invisible for
-    matched_chal_y-ignoring posts — making the bridge to `ow_game_2_tracked_p`
-    tractable. -/
-noncomputable def ow_game_2_with_match (q : ℕ) : Program state (output × output × Bool) := do
-  lazy_init
-  Program.set chal_x_queried_gh false
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
-  let y ← Program.uniform
-  Program.set ow_challenge_y y
-  Program.set matched_chal_y false
-  loop_n q (do
-    ow_adv
-    let inp ← Program.get oracle_input
-    let y_val ← lazy_query_tracked inp
-    Program.set oracle_output y_val
-    if y_val = y then Program.set matched_chal_y true else pure ())
-  let resp ← Program.get ow_response
-  let y_check ← lazy_query_tracked resp
-  if y_check = y then Program.set matched_chal_y true else pure ()
-  let m ← Program.get matched_chal_y
-  pure (y_check, y, m)
-
 /-- **Game 2 as a `guess_experiment` instance.** The matched flag is
     `matched_chal_y`; the target is the uniformly-sampled `chal_y`. Body
     and final use the BOUND target `y` for explicit match-checks
-    (`if y_val = y then ...`), avoiding state reads. The result is just
-    the matched Bool (no extra output tuple).
-
-    Same structure as `ow_game_2_with_match` minus the trailing `pure
-    (y_check, y, m)` reconstruction — that's added back via a bridge
-    when needed. -/
+    (`if y_val = y then ...`), avoiding state reads. The result is the
+    matched Bool. -/
 noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
   guess_experiment
     (env := do
@@ -501,31 +423,6 @@ instance. The matched flag is then bounded by `guess_experiment_wp_bound`. -/
 section Bridges
 
 variable (ow_adv : Program state Unit)
-
-/-- **Game 2 bridge**: `ow_game_2_with_match`'s matched-indicator wp equals
-    `guess_experiment_game_2`'s output Bool wp.
-
-    Both programs run the identical matched_chal_y trajectory. They differ
-    only at the final pure: `ow_game_2_with_match` reconstructs the tuple
-    `(y_check, y, m)`, while `guess_experiment_game_2` just outputs `m`.
-    The matched indicator on the tuple's `.1.2.2` projects to exactly `m`,
-    matching the Bool output's `.1` projection.
-
-    Provable by: (i) Program equality between `ow_game_2_with_match` and
-    `guess_experiment_game_2 >>= (get oo >>= fun y_check => get chal_y >>=
-    fun y => pure (y_check, y, m))`; (ii) wp simplification. Deferred. -/
-lemma ow_game_2_with_match_matched_wp_eq_guess_experiment_game_2_wp
-    (q : ℕ) (σ : state) :
-    (ow_game_2_with_match ow_adv q).wp
-        (fun bσ : (output × output × Bool) × state =>
-          if bσ.1.2.2 then (1 : ENNReal) else 0) σ
-    = (guess_experiment_game_2 ow_adv q).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  -- Both programs run the identical matched_chal_y trajectory; the difference
-  -- is only at the final pure (tuple vs Bool). Deferred — full proof needs
-  -- careful chained `congrArg`/`funext` through ~10 binds, ending in a
-  -- case-split on `y_check = y` where both posts compute the same value.
-  sorry
 
 /-- **Game 1 bridge**: `ow_game_1_tracked`'s bad-indicator wp (reading
     `chal_x_queried_gh` from state at end) equals `guess_experiment_game_1`'s
@@ -1404,21 +1301,16 @@ section Reductions
 
 variable (ow_adv : Program state Unit)
 
-/-! ### Game 2 reduction to the matched-flag game (Option B)
+/-! ### Game 2 reduction to the `guess_experiment` framework
 
-The reduction factors through `ow_game_2_with_match`, an instrumented
-version of `ow_game_2_tracked` that additionally sets `matched_chal_y` to
-`true` whenever a `lazy_query` returns `chal_y`. The chain:
+The reduction routes directly through `guess_experiment_game_2`. The chain:
 
-1. `ow_game_2_tracked.wp win = ow_game_2_with_match.wp win` (game
-   equivalence — matched tracking is invisible to win-only posts).
-2. `ow_game_2_with_match.wp win ≤ ow_game_2_with_match.wp matched`
-   (structural — winning means the final lazy_query returned `chal_y`,
-   which sets the matched flag).
-3. `ow_game_2_with_match.wp matched ≤ (q+1)/|output|` (linear bound —
-   each lazy_query has ≤ 1/|output| chance of returning `chal_y`).
-
-Step 3 is the `guess_experiment_wp_bound` specialized to this game. -/
+1. `ow_game_2_tracked.wp win ≤ guess_experiment_game_2.wp matched`
+   (Game 2 wall, PROVED via the chain: env+sample+set chal_y descent,
+   state alignment, body conversion, pointwise tail comparison).
+2. `guess_experiment_game_2.wp matched ≤ (q+1)/|output|` (framework
+   bound — each lazy_query has ≤ 1/|output| chance of returning the
+   uniformly-sampled `chal_y`). -/
 
 /-- `oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle)`.
     Both are recursive over `q` with the same body shape; the equality is
@@ -1465,38 +1357,6 @@ lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
     (fun y => ?_)
   exact Program.set_inRange_compl_of_disjoint oracle_output matched_chal_y y
 
-/-- **Match-check is wp-invisible** for matched_chal_y-ignoring posts and
-    matched_chal_y-disjoint continuations. The match-check pattern is
-    `get oo + get chal_y + (if g = t' then set matched true else pure ())`.
-    For a continuation `rest` that doesn't touch `matched_chal_y` and a
-    post `F` that doesn't depend on `matched_chal_y` content, this whole
-    block is a no-op.
-
-    Reusable building block for eliminating match-check operations in the
-    Game 2 bridge marginal equality. -/
-lemma match_check_invisible
-    {α : Type} {rest : Program state α}
-    (h_rest : rest.inRange matched_chal_y.compl.range)
-    (F : α × state → ENNReal)
-    (h_F : ∀ aσ : α × state,
-        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
-    (σ : state) :
-    ((Program.get oracle_output >>= fun g =>
-        Program.get ow_challenge_y >>= fun t' =>
-        (if g = t' then Program.set matched_chal_y true
-         else (pure () : Program state Unit))) >>= fun _ => rest).wp F σ
-    = rest.wp F σ := by
-  -- Reassociate the outer bind so the conditional is bound directly to rest.
-  simp only [Program.bind_assoc]
-  -- Peel outer get oo.
-  rw [wp_bind, wp_get]
-  dsimp only
-  -- Peel get chal_y.
-  rw [wp_bind, wp_get]
-  dsimp only
-  exact Program.wp_conditional_set_disjoint_no_op
-    (oracle_output.get σ = ow_challenge_y.get σ) true h_rest F h_F σ
-
 /-- `loop_n n body` stays in `R` whenever `body` does. -/
 lemma loop_n_inRange {R : LensRange state}
     (body : Program state Unit) (h_body : body.inRange R) (n : ℕ) :
@@ -1506,140 +1366,6 @@ lemma loop_n_inRange {R : LensRange state}
   | succ n ih =>
     show (body >>= fun _ => loop_n n body).inRange R
     exact Program.inRange_bind h_body (fun _ => ih)
-
-/-- **The match_check pattern inside a loop is wp-invisible** for posts that
-    ignore `matched_chal_y`. Generalizes `match_check_invisible` over the
-    `q`-iteration `loop_n` combinator.
-
-    Proof: induction on `n`. Inductive step:
-    * Unfold `loop_n` once on both sides.
-    * Apply `wp_bind` to peel `body` on both sides.
-    * Show post equality via `funext`: for each state σ', the inner
-      `(mc >>= fun _ => loop_n n bm).wp F σ' = (loop_n n body).wp F σ'`.
-    * Inside: use IH to replace `loop_n n bm` with `loop_n n body` (post-
-      function equality via `funext`), then apply `match_check_invisible`
-      with `rest := loop_n n body` (`matched_chal_y`-disjoint via
-      `loop_n_inRange`).
-    * Lift back via `congr_arg`. -/
-lemma loop_n_match_check_invisible
-    (n : ℕ) (body : Program state Unit)
-    (h_body : body.inRange matched_chal_y.compl.range)
-    (F : Unit × state → ENNReal)
-    (h_F : ∀ aσ : Unit × state,
-        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
-    (σ : state) :
-    (loop_n n (body >>= fun _ =>
-        (Program.get oracle_output >>= fun g =>
-         Program.get ow_challenge_y >>= fun t' =>
-         (if g = t' then Program.set matched_chal_y true
-          else (pure () : Program state Unit))))).wp F σ
-    = (loop_n n body).wp F σ := by
-  -- Helper: wp of `loop_n n body` is matched_chal_y-set-invariant on input.
-  have h_loop_body_inRange : ∀ k, (loop_n k body).inRange matched_chal_y.compl.range :=
-    fun k => loop_n_inRange body h_body k
-  have h_loop_set_inv : ∀ k σ',
-      (loop_n k body).wp F (matched_chal_y.set true σ') = (loop_n k body).wp F σ' := by
-    intro k σ'
-    have hf : (fun s : state => matched_chal_y.set true s) ∈
-        ((matched_chal_y.compl.range : LensRange state)ᶜ).updates := by
-      rw [show ((matched_chal_y.compl.range : LensRange state)ᶜ)
-            = matched_chal_y.range from by
-            rw [LensRange.complement_range, LensRange.compl_compl]]
-      exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
-    rw [Program.wp_shift_input (h_loop_body_inRange k) hf]
-    congr 1
-    funext xs
-    exact h_F xs
-  induction n generalizing σ with
-  | zero => rfl
-  | succ n ih =>
-    -- Unfold loop_n one step.
-    show ((body >>= fun _ =>
-            (Program.get oracle_output >>= fun g =>
-             Program.get ow_challenge_y >>= fun t' =>
-             (if g = t' then Program.set matched_chal_y true
-              else (pure () : Program state Unit)))) >>= fun _ =>
-            loop_n n (body >>= fun _ =>
-              (Program.get oracle_output >>= fun g =>
-               Program.get ow_challenge_y >>= fun t' =>
-               (if g = t' then Program.set matched_chal_y true
-                else (pure () : Program state Unit))))).wp F σ
-       = (body >>= fun _ => loop_n n body).wp F σ
-    -- Reassociate: body >>= (mc >>= loop_n n bm).
-    rw [Program.bind_assoc, wp_bind]
-    -- RHS: also peel body.
-    conv_rhs => rw [wp_bind]
-    -- Goal: body.wp (fun ttσ => (mc >>= fun _ => loop_n n bm).wp F ttσ.2) σ
-    --     = body.wp (fun ttσ => (loop_n n body).wp F ttσ.2) σ
-    -- Establish post equality.
-    have h_post :
-      (fun ttσ : Unit × state =>
-          ((Program.get oracle_output >>= fun g =>
-            Program.get ow_challenge_y >>= fun t' =>
-            (if g = t' then Program.set matched_chal_y true
-             else (pure () : Program state Unit))) >>= fun _ =>
-              loop_n n (body >>= fun _ =>
-                (Program.get oracle_output >>= fun g =>
-                 Program.get ow_challenge_y >>= fun t' =>
-                 (if g = t' then Program.set matched_chal_y true
-                  else (pure () : Program state Unit))))).wp F ttσ.2)
-        =
-      (fun ttσ : Unit × state => (loop_n n body).wp F ttσ.2) := by
-      funext ttσ
-      -- Sub-step 1: replace loop_n n bm with loop_n n body via IH.
-      have h_inner_eq : ∀ σ',
-          (loop_n n (body >>= fun _ =>
-            (Program.get oracle_output >>= fun g =>
-             Program.get ow_challenge_y >>= fun t' =>
-             (if g = t' then Program.set matched_chal_y true
-              else (pure () : Program state Unit))))).wp F σ'
-          = (loop_n n body).wp F σ' := fun σ' => ih σ'
-      -- The whole expression is `(mc >>= fun _ => K) F ttσ.2` for the two
-      -- different K's. Show wp-eq via post-function equality + congrArg.
-      -- Reassociate and peel get oo + get chal_y via wp_bind + wp_get.
-      simp only [Program.bind_assoc]
-      rw [wp_bind, wp_get]
-      dsimp only
-      rw [wp_bind, wp_get]
-      dsimp only
-      -- Now goal: `(if g = t' then set matched true else pure ()) >>= loop_n n bm)`
-      --   .wp F ttσ.2 = (loop_n n body).wp F ttσ.2.
-      -- where g = oo.get ttσ.2, t' = chal_y.get ttσ.2.
-      by_cases hgt : oracle_output.get ttσ.2 = ow_challenge_y.get ttσ.2
-      · -- Positive: set matched true >>= loop_n n bm.
-        simp only [if_pos hgt, wp_bind, wp_set]
-        -- (loop_n n bm).wp F (matched_chal_y.set true ttσ.2) = (loop_n n body).wp F ttσ.2
-        rw [h_inner_eq]
-        -- (loop_n n body).wp F (matched_chal_y.set true ttσ.2) = (loop_n n body).wp F ttσ.2
-        exact h_loop_set_inv n ttσ.2
-      · -- Negative: pure () >>= loop_n n bm.
-        simp only [if_neg hgt, Program.pure_bind]
-        exact h_inner_eq _
-    rw [h_post]
-
-/-- **Loop-level wp equality**: the bare `oracle_loop_n` (used in
-    `ow_game_2_tracked_p`) has the same wp as the `loop_n` with match-checks
-    inside (used in `ow_game_2_with_match`'s `loop_body`), for any post that
-    ignores `matched_chal_y`.
-
-    Combines `oracle_loop_n_eq_loop_n` + `loop_n_match_check_invisible` +
-    `oracle_step_lazy_query_tracked_inRange_matched_chal_y`. -/
-lemma ow_game_2_loops_wp_eq
-    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
-    (F : Unit × state → ENNReal)
-    (h_F : ∀ aσ : Unit × state,
-        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
-    (q : ℕ) (σ : state) :
-    (oracle_loop_n ow_adv q lazy_query_tracked).wp F σ
-    = (loop_n q (oracle_step ow_adv lazy_query_tracked >>= fun _ =>
-        (Program.get oracle_output >>= fun g =>
-         Program.get ow_challenge_y >>= fun t' =>
-         (if g = t' then Program.set matched_chal_y true
-          else (pure () : Program state Unit))))).wp F σ := by
-  rw [oracle_loop_n_eq_loop_n]
-  exact (loop_n_match_check_invisible q (oracle_step ow_adv lazy_query_tracked)
-    (oracle_step_lazy_query_tracked_inRange_matched_chal_y ow_adv
-      h_ow_adv_matched_chal_y) F h_F σ).symm
 
 /-- **Cond_set invisibility for matched-ignoring posts.** A direct
     `if cond then set matched true else pure ()` is wp-invisible. -/

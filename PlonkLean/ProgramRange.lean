@@ -294,47 +294,6 @@ lemma Program.wp_eq_of_marginal_eq {s α : Type}
   rw [Program.wp_value_eq_marginal_expected p G σ,
       Program.wp_value_eq_marginal_expected q G σ, h_marg σ]
 
-/-- **Converse**: wp-equality for all value-only posts lifts to marginal-equality.
-    For `α : Fintype + DecidableEq` (sufficient for `Countable` and measure
-    extensibility), agreement on every `fun aσ => G aσ.1`-post implies the
-    SubProb-level value-marginals coincide. Provides the reverse direction of
-    `wp_eq_of_marginal_eq`, useful for closing SubProb-level bridges using
-    wp-level building blocks. -/
-lemma Program.marginal_eq_of_wp_eq_all_value_posts {s α : Type}
-    [Fintype α] [DecidableEq α] {p q : Program s α}
-    (h_wp : ∀ G : α → ENNReal, ∀ σ : s,
-        p.wp (fun aσ : α × s => G aσ.1) σ = q.wp (fun aσ : α × s => G aσ.1) σ)
-    (σ : s) :
-    (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α))
-    = (q σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)) := by
-  haveI : Countable α := Finite.to_countable
-  apply DFunLike.coe_injective
-  funext x
-  -- Goal: μ x = ν x as NNReal, where μ = p σ >>= proj, ν = q σ >>= proj.
-  -- FunLike coercion: μ x = μ.ofEvent {x}.
-  show (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).ofEvent {x}
-     = (q σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).ofEvent {x}
-  -- Strategy: use expectation_indicator to convert ofEvent {x} to expected,
-  -- then connect expected to wp via wp_value_eq_marginal_expected.
-  have h_wp_x := h_wp (fun a => if a = x then (1 : ENNReal) else 0) σ
-  rw [Program.wp_value_eq_marginal_expected p (fun a => if a = x then (1 : ENNReal) else 0) σ,
-      Program.wp_value_eq_marginal_expected q (fun a => if a = x then (1 : ENNReal) else 0) σ]
-    at h_wp_x
-  -- h_wp_x : (p σ >>= proj).expected (fun a => if a = x then 1 else 0)
-  --        = (q σ >>= proj).expected (fun a => if a = x then 1 else 0)
-  -- The function `fun a => if a = x then 1 else 0` is `Set.indicator {x} (fun _ => 1)`.
-  have h_eq_indicator : (fun a : α => if a = x then (1 : ENNReal) else 0)
-                      = (Set.indicator {x} (fun _ => (1 : ENNReal))) := by
-    funext a
-    by_cases h : a = x
-    · simp [Set.indicator, Set.mem_singleton_iff, h]
-    · simp [Set.indicator, Set.mem_singleton_iff, h]
-  rw [h_eq_indicator] at h_wp_x
-  rw [expectation_indicator, expectation_indicator, one_mul, one_mul] at h_wp_x
-  -- h_wp_x : ((p σ >>= proj).ofEvent {x} : ENNReal) = ((q σ >>= proj).ofEvent {x} : ENNReal)
-  -- Cast ENNReal NNReal equality back to NNReal.
-  exact_mod_cast h_wp_x
-
 /-- wp form of `inRange`: shifting the input state by `f ∈ Rᶜ` is equivalent to
     post-composing `f` on the state coordinate of the postcondition. -/
 lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : LensRange s}
