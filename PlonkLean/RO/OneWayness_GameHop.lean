@@ -1542,32 +1542,32 @@ theorem guess_experiment_collector_wp_bound
     [disjoint queries_list_var matched_var]
     (body_recording : Program state Unit)
     (final_recording : Program state Unit)
-    -- Length invariant on the queries_list at the end of the loop+final.
-    -- Both Game 1 and Game 2 instances satisfy this (each iter appends
-    -- exactly one element).
+    (n : ℕ)
+    -- Hypothesis: at every state reachable after env + set queries [] +
+    -- loop_n n body + final, queries_list has length ≤ n+1. Captured at
+    -- the wp level.
     (_h_qs_length_le : ∀ σ : state,
       (env >>= fun _ : Unit =>
         Program.set queries_list_var [] >>= fun _ =>
         loop_n n body_recording >>= fun _ => final_recording).wp
           (fun aσ : Unit × state =>
-            if (queries_list_var.get aσ.2).length ≤ n + 1 then (1 : ENNReal) else 0) σ
-      = (env >>= fun _ : Unit =>
-        Program.set queries_list_var [] >>= fun _ =>
-        loop_n n body_recording >>= fun _ => final_recording).wp
-          (fun _ => (1 : ENNReal)) σ)
-    (n : ℕ) (σ : state) :
+            ((queries_list_var.get aσ.2).length : ENNReal) / Fintype.card T) σ
+      ≤ ((n + 1 : ℕ) : ENNReal) / Fintype.card T)
+    (σ : state) :
     (guess_experiment_collector env queries_list_var matched_var
         body_recording final_recording n).wp
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
-  -- Plan:
-  -- 1. Unfold guess_experiment_collector. Peel via wp_bind through env,
-  --    set queries [], loop, final.
-  -- 2. At innermost state σ_pre (where queries_list has length ≤ n+1
-  --    by h_qs_length_le): inner wp = (uniform; get qs; set matched;
-  --    get matched).wp F_matched σ_pre. Reduce by wp_uniform/wp_get/wp_set.
-  -- 3. Innermost: ∑_t (if t ∈ qs then 1 else 0) / |T| ≤ |qs|/|T| ≤ (n+1)/|T|.
-  -- 4. Lift back through outer wp's via wp_le_wp_of_le.
+  -- Strategy:
+  --   1. Unfold the collector. The trailing portion is
+  --        uniform; get qs; set matched (t ∈ qs); get matched
+  --      under F_matched = `if bσ.1 then 1 else 0`.
+  --   2. Reduce wp via wp_uniform/wp_get/wp_set/Lens.set_get, yielding
+  --      pointwise (per σ_pre_t): ∑_t [t ∈ qs] / |T| ≤ |qs|/|T|
+  --      (by `uniform_wp_mem_le`).
+  --   3. Lift outward via `Program.wp_le_wp_of_le` through env+loop+final,
+  --      giving LHS ≤ (env;loop;final).wp (fun aσ => |qs|/|T|) σ.
+  --   4. Apply h_qs_length_le to conclude ≤ (n+1)/|T|.
   sorry
 
 /-- **(A): Bound on `guess_experiment` via the collector.**
