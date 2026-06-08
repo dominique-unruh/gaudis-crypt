@@ -1689,6 +1689,8 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
   -- Now y is captured. Peel `set matched_chal_y false` from RHS only.
   conv_rhs => rw [wp_bind, wp_set]
   dsimp only
+  -- Convert LHS's oracle_loop_n to loop_n form to match RHS structure.
+  rw [oracle_loop_n_eq_loop_n]
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
