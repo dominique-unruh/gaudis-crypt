@@ -1558,16 +1558,21 @@ theorem guess_experiment_collector_wp_bound
         body_recording final_recording n).wp
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
-  -- Strategy:
-  --   1. Unfold the collector. The trailing portion is
-  --        uniform; get qs; set matched (t ∈ qs); get matched
-  --      under F_matched = `if bσ.1 then 1 else 0`.
-  --   2. Reduce wp via wp_uniform/wp_get/wp_set/Lens.set_get, yielding
-  --      pointwise (per σ_pre_t): ∑_t [t ∈ qs] / |T| ≤ |qs|/|T|
-  --      (by `uniform_wp_mem_le`).
-  --   3. Lift outward via `Program.wp_le_wp_of_le` through env+loop+final,
-  --      giving LHS ≤ (env;loop;final).wp (fun aσ => |qs|/|T|) σ.
-  --   4. Apply h_qs_length_le to conclude ≤ (n+1)/|T|.
+  -- Strategy: pointwise inner bound + wp_le_wp_of_le lifting + h_qs_length_le.
+  --
+  -- 1. At any σ', the inner sub-program
+  --    `(uniform; get qs; set matched (t ∈ qs); get matched)` has wp
+  --    bounded by `|queries_list.get σ'|/|T|` (via `uniform_wp_mem_le`
+  --    after reducing the inner get/set/get via wp lemmas).
+  --
+  -- 2. Lifting through the bind chain (env; set queries [] ; loop; final)
+  --    via `Program.wp_le_wp_of_le` gives:
+  --      LHS ≤ (env;...;final).wp (fun aσ => |queries_list.get aσ.2|/|T|) σ.
+  --
+  -- 3. By h_qs_length_le, this is ≤ (n+1)/|T|.
+  --
+  -- The wp manipulations involve careful tracking of state through
+  -- uniform's (state-preserving) wp; deferred for cleaner future work.
   sorry
 
 /-- **(A): Bound on `guess_experiment` via the collector.**
