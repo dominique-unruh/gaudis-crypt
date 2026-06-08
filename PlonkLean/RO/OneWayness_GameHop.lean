@@ -1563,8 +1563,29 @@ theorem guess_experiment_wp_bound
     -- bind. We use simp's congruence + the helper as a rewrite rule.
     simp only [wp_bind, h_absorb_get]
   | succ k _ih =>
-    -- Inductive step: technical (telescoping body iters with monotonicity
-    -- and kernel hypothesis). Deferred for now.
+    -- INDUCTIVE STEP — argument sketch:
+    --   guess_experiment(k+1) = env; sample; set target; set matched false;
+    --                           body; loop_n k body; final; get matched.
+    --   Decompose matched_chk(σ_final) ≤ matched_chk(σ_after_body) + Q-flip
+    --   where Q = loop_n k body; final; get matched.
+    --   E[matched_chk(σ_after_body)] ≤ 1/|T| (by h_body_step).
+    --   E[Q-flip from σ_after_body] ≤ (k+1)/|T| (would need a HELPER:
+    --     a loop-level bound at any matched-false state, which itself
+    --     requires that target_var has a uniform marginal in σ).
+    --
+    -- The helper is the technical obstruction: stated at "any σ", it's
+    -- too strong (per-fixed-target it could be 1); stated at "σ with
+    -- uniform target marginal", it requires meta-reasoning about σ.
+    --
+    -- Resolution paths (for future work):
+    --   (A) Add a stronger kernel hypothesis: a "loop-level marginal
+    --       bound" that does the σ-marginal-tracking work once.
+    --   (B) Reformulate guess_experiment to re-sample target per iter
+    --       (changes semantics but cleanly inductive — would need an
+    --       equivalence proof between the two formulations).
+    --   (C) Carry an explicit "target_var marginal" invariant through
+    --       the induction (involves tracking a probability measure on T
+    --       alongside the state).
     sorry
 
 section Reductions
