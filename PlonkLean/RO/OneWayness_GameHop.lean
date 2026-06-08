@@ -433,6 +433,19 @@ section Bridges
 
 variable (ow_adv : Program state Unit)
 
+/-- `oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle)`.
+    Both are recursive over `q` with the same body shape; the equality is
+    a straightforward induction. -/
+lemma oracle_loop_n_eq_loop_n
+    (adv : Program state Unit) (oracle : input → Program state output) (q : ℕ) :
+    oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle) := by
+  induction q with
+  | zero => rfl
+  | succ n ih =>
+    show oracle_step adv oracle >>= (fun _ => oracle_loop_n adv n oracle)
+       = oracle_step adv oracle >>= fun _ => loop_n n (oracle_step adv oracle)
+    rw [ih]
+
 /-- Helper: two `Program.set`s on disjoint lenses can be swapped — the
     resulting program is equal. Reusable for prefix-permutation arguments. -/
 private lemma Program.bind_set_set_comm {γ δ α : Type}
@@ -553,18 +566,79 @@ lemma ow_game_1_tracked_bad_eq_guess_experiment_game_1
           if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
     = (guess_experiment_game_1 ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  -- Strategy:
-  --   1. Unfold both games.
-  --   2. Show the two PREFIXES (lazy_init through set chal_y y) produce
-  --      programs with the same wp — they differ only by commutations of
-  --      uniform/set ops on disjoint lenses.
-  --   3. After the shared prefix, both have:
-  --        oracle_loop_n adv q lqt; get ow_resp; lqt resp; TAIL
-  --      where TAIL differs:
-  --        LHS: pure (decide (y_check = y))   with post F_chal_xqg
-  --        RHS: set oo y_check; get chal_xqg  with post F_matched
-  --      Both reduce to (if chal_xqg.get σ then 1 else 0) at the same σ.
-  sorry
+  dsimp only [ow_game_1_tracked, guess_experiment_game_1, guess_experiment]
+  -- Convert LHS's oracle_loop_n to loop_n form to match RHS's body.
+  rw [oracle_loop_n_eq_loop_n]
+  -- Flatten do-notation: `bind_assoc` re-associates, `pure_bind` collapses
+  -- the trailing `pure x >>= fun t => ...` in sample_target on RHS.
+  simp only [Program.bind_assoc, Program.pure_bind]
+  -- Reduce wp on the matching prefix structure on both sides:
+  --   lazy_init = set RO none; then uniform x; then later uniform y.
+  simp only [lazy_init, wp_bind, wp_uniform, wp_set]
+  -- After this, both sides are of the form
+  --   (1/|input|) ∑_x (1/|output|) ∑_y (loop+get+lqt+TAIL).wp F (S(x, y, σ))
+  -- where S(x, y, σ) is a specific lens-set chain (different order LHS vs RHS,
+  -- but equal by disjoint.iff and Lens.set_set).
+  apply Finset.sum_congr rfl; intro x _
+  congr 1
+  apply Finset.sum_congr rfl; intro y _
+  congr 1
+  -- Now the goal is the (loop+TAIL) wp equality on a specific state, with
+  -- the LHS and RHS states differing only by lens-disjoint commutations.
+  -- Step 1: Normalize the state of LHS to match RHS by repeatedly applying
+  -- disjoint.iff (commute disjoint sets) and Lens.set_set (combine ro writes).
+  -- The state expressions:
+  --   LHS state:
+  --     chal_y.set y (ro.set NEW (chal_x.set x (chal_xqg.set false (ro.set INIT σ))))
+  --   RHS state:
+  --     chal_xqg.set false (chal_x.set x (chal_y.set y (ro.set NEW (ro.set INIT σ))))
+  -- Reuse the prefix lemma's commutations.
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint random_oracle_state ow_challenge_x))
+        (chal_x_queried_gh.set false (random_oracle_state.set (fun _ => none) σ))
+        (fun k => if k = x then some y else none) x]
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint random_oracle_state chal_x_queried_gh))
+        (random_oracle_state.set (fun _ => none) σ)
+        (fun k => if k = x then some y else none) false]
+  rw [Lens.set_set]
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint ow_challenge_y ow_challenge_x))
+        (chal_x_queried_gh.set false
+          (random_oracle_state.set (fun k => if k = x then some y else none) σ))
+        y x]
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint ow_challenge_y chal_x_queried_gh))
+        (random_oracle_state.set (fun k => if k = x then some y else none) σ)
+        y false]
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint ow_challenge_x chal_x_queried_gh))
+        (ow_challenge_y.set y
+          (random_oracle_state.set (fun k => if k = x then some y else none) σ))
+        x false]
+  -- Now both LHS-state and RHS-state should be equal.
+  -- Goal remaining: (loop+get+lqt+TAIL_LHS).wp F_chal_xqg σ_eq
+  --             = (loop+get+lqt+TAIL_RHS).wp F_matched σ_eq
+  -- The earlier `simp [wp_bind, wp_uniform, wp_set]` already folded the
+  -- post-prefix bind chain INTO the post argument. So both sides now look
+  -- like `(loop_n q body).wp deep_post state`, where deep_post differs in
+  -- the innermost continuation (LHS: pure decide; RHS: set oo + get chal_xqg).
+  -- Descend by `congr 1; funext` to compare post functions pointwise.
+  congr 1
+  funext aσ_post_loop
+  -- Goal: deep_post_LHS aσ_post_loop = deep_post_RHS aσ_post_loop
+  -- deep_post_LHS = (get; lqt; pure decide) at F_chal_xqg, on aσ_post_loop.2
+  -- deep_post_RHS = (get; lqt; set oo; get chal_xqg) at F_matched, on aσ_post_loop.2
+  -- Both are (Program.get ow_response).wp (...) aσ_post_loop.2.
+  congr 1
+  funext aσ_resp
+  -- (lazy_query_tracked resp).wp (continuation) aσ_resp.2
+  congr 1
+  funext aσ_yc
+  -- Innermost: (pure decide).wp F_LHS aσ_yc.2 = (set oo; get chal_xqg).wp F_matched aσ_yc.2
+  -- Reduce both sides.
+  simp only [wp_pure, wp_bind, wp_set, wp_get,
+    chal_x_queried_gh.get_of_disjoint_set]
 
 end Bridges
 
@@ -1425,19 +1499,6 @@ The reduction routes directly through `guess_experiment_game_2`. The chain:
 2. `guess_experiment_game_2.wp matched ≤ (q+1)/|output|` (framework
    bound — each lazy_query has ≤ 1/|output| chance of returning the
    uniformly-sampled `chal_y`). -/
-
-/-- `oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle)`.
-    Both are recursive over `q` with the same body shape; the equality is
-    a straightforward induction. -/
-lemma oracle_loop_n_eq_loop_n
-    (adv : Program state Unit) (oracle : input → Program state output) (q : ℕ) :
-    oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle) := by
-  induction q with
-  | zero => rfl
-  | succ n ih =>
-    show oracle_step adv oracle >>= (fun _ => oracle_loop_n adv n oracle)
-       = oracle_step adv oracle >>= fun _ => loop_n n (oracle_step adv oracle)
-    rw [ih]
 
 /-- `lazy_query_tracked inp` is matched_chal_y-disjoint: all writes go to
     `random_oracle_state` or `chal_x_queried_gh`, both disjoint from
