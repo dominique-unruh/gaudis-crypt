@@ -393,15 +393,23 @@ noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
     The body therefore IGNORES its target parameter — the matching is
     handled inside `lazy_query_tracked`.
 
-    Same structure as `ow_game_1_tracked` minus the RO pre-programming
-    and the trailing win-pure — those add back via a bridge when needed
-    (for the bad-event bound, the pre-programming doesn't affect the
-    flag distribution and can be omitted). -/
+    The `sample_target` BAKES IN the y-pre-programming that
+    `ow_game_1_tracked` does upfront (sample y uniform, write `(x ↦ y)`
+    into RO, set `chal_y`), so the bridge to `ow_game_1_tracked` becomes
+    a wp-equality via trivial commutations. The deferred-sampling content
+    moves into `guess_experiment_wp_bound`'s per-iteration kernel
+    hypothesis, where it can be discharged generically. -/
 noncomputable def guess_experiment_game_1 (q : ℕ) : Program state Bool :=
   guess_experiment
     (env := do
       lazy_init)
-    (sample_target := Program.uniform)
+    (sample_target := do
+      let x ← Program.uniform
+      let y ← Program.uniform
+      Program.set random_oracle_state
+        (fun k => if k = x then some y else none)
+      Program.set ow_challenge_y y
+      pure x)
     (target_var := ow_challenge_x)
     (matched_var := chal_x_queried_gh)
     (body := fun _x => do  -- Body ignores target; lazy_query_tracked checks internally.
@@ -425,32 +433,137 @@ section Bridges
 
 variable (ow_adv : Program state Unit)
 
+/-- Helper: two `Program.set`s on disjoint lenses can be swapped — the
+    resulting program is equal. Reusable for prefix-permutation arguments. -/
+private lemma Program.bind_set_set_comm {γ δ α : Type}
+    (L1 : Lens γ state) (L2 : Lens δ state) [disjoint L1 L2]
+    (v1 : γ) (v2 : δ) (k : Program state α) :
+    (Program.set L1 v1 >>= fun _ => Program.set L2 v2 >>= fun _ => k)
+    = (Program.set L2 v2 >>= fun _ => Program.set L1 v1 >>= fun _ => k) := by
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  simp only [wp_bind, wp_set]
+  rw [(disjoint.iff.mp inferInstance) σ v1 v2]
+
+/-- Helper: `Program.set` can be moved to the right past `Program.uniform`
+    (uniform doesn't write state, so it commutes with any preceding set). -/
+private lemma Program.bind_set_uniform_comm {γ α β : Type}
+    [Fintype α] [Nonempty α] (L : Lens γ state) (v : γ)
+    (k : α → Program state β) :
+    (Program.set L v >>= fun _ => Program.uniform >>= k)
+    = (Program.uniform >>= fun a => Program.set L v >>= fun _ => k a) :=
+  Program.bind_uniform_comm (Program.set L v) k
+
+/-- The shared "prefix" of `ow_game_1_tracked` and `guess_experiment_game_1`
+    (everything up through `set ow_challenge_y y`), returning the captured
+    `(x, y)`. Both games' prefixes are equal as programs — they differ only
+    in the *order* of writes to pairwise-disjoint lenses, which commutes. -/
+private noncomputable def ow_game_1_prefix : Program state (input × output) := do
+  lazy_init
+  let x ← Program.uniform
+  let y ← Program.uniform
+  Program.set random_oracle_state (fun k => if k = x then some y else none)
+  Program.set ow_challenge_y y
+  Program.set ow_challenge_x x
+  Program.set chal_x_queried_gh false
+  pure (x, y)
+
+/-- `ow_game_1_tracked`'s prefix is equal (as a program) to the canonical
+    prefix `ow_game_1_prefix`. Proved via `Program.ext_of_wp`, computing
+    both wp's via simp + lens-disjointness commutations. -/
+private lemma ow_game_1_tracked_prefix_eq :
+    (do
+      lazy_init
+      Program.set chal_x_queried_gh false
+      let x ← Program.uniform
+      Program.set ow_challenge_x x
+      let y ← Program.uniform
+      Program.set random_oracle_state (fun k => if k = x then some y else none)
+      Program.set ow_challenge_y y
+      pure (x, y) : Program state (input × output))
+    = ow_game_1_prefix := by
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  dsimp only [ow_game_1_prefix]
+  simp only [wp_bind, wp_uniform, wp_set, wp_pure, lazy_init]
+  -- Both sides are (1/|input|) ∑_x (1/|output|) ∑_y F((x, y), state(x, y)).
+  -- Goal: show state_LHS(x, y) = state_RHS(x, y) for every (x, y).
+  apply Finset.sum_congr rfl
+  intro x _
+  congr 1
+  apply Finset.sum_congr rfl
+  intro y _
+  congr 1
+  congr 1
+  -- State equality:
+  -- LHS = chal_y.set y (ro.set NEW (chal_x.set x (chal_xqg.set false (ro.set INIT σ))))
+  -- RHS = chal_xqg.set false (chal_x.set x (chal_y.set y (ro.set NEW (ro.set INIT σ))))
+  -- Step 1: Commute ro.set NEW past chal_x.set x (disjoint lenses).
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint random_oracle_state ow_challenge_x))
+        (chal_x_queried_gh.set false (random_oracle_state.set (fun _ => none) σ))
+        (fun k => if k = x then some y else none) x]
+  -- Step 2: Commute ro.set NEW past chal_xqg.set false.
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint random_oracle_state chal_x_queried_gh))
+        (random_oracle_state.set (fun _ => none) σ)
+        (fun k => if k = x then some y else none) false]
+  -- Step 3: Combine the two ro.sets using Lens.set_set.
+  rw [Lens.set_set]
+  -- LHS: chal_y.set y (chal_x.set x (chal_xqg.set false (ro.set NEW σ)))
+  -- RHS: chal_xqg.set false (chal_x.set x (chal_y.set y (ro.set NEW σ)))
+  -- Step 4: Move chal_y.set y past chal_x.set x.
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint ow_challenge_y ow_challenge_x))
+        (chal_x_queried_gh.set false
+          (random_oracle_state.set (fun k => if k = x then some y else none) σ))
+        y x]
+  -- Step 5: Move chal_y.set y past chal_xqg.set false.
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint ow_challenge_y chal_x_queried_gh))
+        (random_oracle_state.set (fun k => if k = x then some y else none) σ)
+        y false]
+  -- Step 6: Move chal_x.set x past chal_xqg.set false to match RHS.
+  rw [(disjoint.iff.mp (inferInstance :
+        disjoint ow_challenge_x chal_x_queried_gh))
+        (ow_challenge_y.set y
+          (random_oracle_state.set (fun k => if k = x then some y else none) σ))
+        x false]
+
 /-- **Game 1 bridge**: `ow_game_1_tracked`'s bad-indicator wp (reading
     `chal_x_queried_gh` from state at end) equals `guess_experiment_game_1`'s
-    output Bool wp (returning matched flag at end).
+    output Bool wp (returning the matched flag via `Program.get`).
 
-    Conceptual equivalence: both programs track input matches via
-    `chal_x_queried_gh` inside `lazy_query_tracked`; the bad event in
-    `ow_game_1_tracked` is "some query input matched chal_x" =
-    matched flag at end = `guess_experiment_game_1`'s output.
+    With the y-pre-programming baked into `guess_experiment_game_1`'s
+    `sample_target`, the two programs differ only by:
+    1. Commutations of disjoint-lens writes (`set chal_x_queried_gh false`
+       and `set ow_challenge_x` positions, etc.).
+    2. The trailing op: LHS `pure (decide (y_check = y))` vs RHS
+       `set oracle_output y_check; get chal_x_queried_gh`. Both yield
+       wp-equivalent values for the chal_x_queried_gh-reading post.
 
-    Differences between the programs:
-    1. `ow_game_1_tracked` pre-programs RO at `(chal_x, chal_y)`.
-       `guess_experiment_game_1` does not.
-    2. `ow_game_1_tracked` returns `decide (y_check = y)` (win flag),
-       not the matched flag.
-    3. `ow_game_1_tracked` samples chal_y and stores it in ow_challenge_y.
-
-    For the bad indicator (state read on `chal_x_queried_gh`), differences
-    1-3 don't affect the bad probability (they don't read or modify
-    `chal_x_queried_gh`). Deferred. -/
-lemma ow_game_1_tracked_bad_wp_eq_guess_experiment_game_1_wp
+    No deferred-sampling argument is needed here; that content has been
+    moved into `guess_experiment_wp_bound`'s per-iteration hypothesis. -/
+lemma ow_game_1_tracked_bad_eq_guess_experiment_game_1
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
           if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
     = (guess_experiment_game_1 ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  -- Strategy:
+  --   1. Unfold both games.
+  --   2. Show the two PREFIXES (lazy_init through set chal_y y) produce
+  --      programs with the same wp — they differ only by commutations of
+  --      uniform/set ops on disjoint lenses.
+  --   3. After the shared prefix, both have:
+  --        oracle_loop_n adv q lqt; get ow_resp; lqt resp; TAIL
+  --      where TAIL differs:
+  --        LHS: pure (decide (y_check = y))   with post F_chal_xqg
+  --        RHS: set oo y_check; get chal_xqg  with post F_matched
+  --      Both reduce to (if chal_xqg.get σ then 1 else 0) at the same σ.
   sorry
 
 end Bridges
