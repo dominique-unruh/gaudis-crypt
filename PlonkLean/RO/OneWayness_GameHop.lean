@@ -1789,6 +1789,137 @@ lemma oracle_loop_n_equiv_lazy_query_lazy_query_tracked
     (oracle_step_lazy_query_inRange_chal_x_queried_gh ow_adv h_ow_adv_flag)
     (oracle_step_equiv_lazy_query_lazy_query_tracked ow_adv h_ow_adv_flag) q
 
+/-- The "tail after lazy_init" of `ow_game_1` is flag-disjoint. -/
+private lemma ow_game_1_tail_inRange_chal_x_queried_gh
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (q : ℕ) : (do
+      let x ← Program.uniform
+      Program.set ow_challenge_x x
+      let y ← Program.uniform
+      Program.set random_oracle_state (fun k => if k = x then some y else none)
+      Program.set ow_challenge_y y
+      oracle_loop_n ow_adv q lazy_query
+      let resp ← Program.get ow_response
+      let y_check ← lazy_query resp
+      pure (decide (y_check = y)) : Program state Bool).inRange
+        chal_x_queried_gh.compl.range := by
+  refine Program.inRange_bind (Program.inRange_mono Program.inRange_uniform bot_le) (fun x => ?_)
+  refine Program.inRange_bind
+    (Program.set_inRange_compl_of_disjoint ow_challenge_x chal_x_queried_gh x) (fun _ => ?_)
+  refine Program.inRange_bind (Program.inRange_mono Program.inRange_uniform bot_le) (fun y => ?_)
+  refine Program.inRange_bind ?_ (fun _ => ?_)
+  · -- set random_oracle_state ... in flag.compl.range
+    exact Program.set_inRange_compl_of_disjoint random_oracle_state chal_x_queried_gh _
+  refine Program.inRange_bind
+    (Program.set_inRange_compl_of_disjoint ow_challenge_y chal_x_queried_gh y) (fun _ => ?_)
+  refine Program.inRange_bind ?_ (fun _ => ?_)
+  · -- oracle_loop_n adv q lazy_query in flag.compl.range
+    exact oracle_loop_n_inRange_compl chal_x_queried_gh h_ow_adv_flag q
+  refine Program.inRange_bind
+    (Program.get_inRange_compl_of_disjoint ow_response chal_x_queried_gh) (fun resp => ?_)
+  refine Program.inRange_bind ?_ (fun y_check => Program.inRange_pure _ _)
+  -- lazy_query resp in flag.compl.range
+  exact Program.inRange_mono (lazy_query_inRange_ro resp)
+    (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+
+/-- Post-loop tail (get response + final lazy_query + pure check) is
+    equivalent under flag-ignoring posts when we replace `lazy_query` with
+    `lazy_query_tracked`. Uses `bind_eq_p` because the prefix `get ow_response`
+    is identical on both sides. -/
+private lemma ow_game_1_post_loop_equiv (y : output) :
+    Program.EquivModuloLens chal_x_queried_gh
+      (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query resp
+        pure (decide (y_check = y)) : Program state Bool)
+      (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool) := by
+  apply Program.EquivModuloLens.bind_eq_p
+  intro resp
+  -- Inner: lazy_query resp >>= pure ≈ lazy_query_tracked resp >>= pure.
+  -- Here prefixes differ (lq vs lqt), so use `bind`. The continuation is
+  -- `pure (decide ...)`, whose inRange is `inRange_pure`.
+  refine Program.EquivModuloLens.bind
+    (lazy_query_equiv_lazy_query_tracked resp)
+    (fun _ => Program.EquivModuloLens.refl _)
+    (fun _ => Program.inRange_pure _ _)
+
+/-- Post-loop tail (get response + final lazy_query + pure check) is
+    flag-disjoint. -/
+private lemma ow_game_1_post_loop_inRange (y : output) :
+    (do
+      let resp ← Program.get ow_response
+      let y_check ← lazy_query resp
+      pure (decide (y_check = y)) : Program state Bool).inRange
+        chal_x_queried_gh.compl.range := by
+  refine Program.inRange_bind
+    (Program.get_inRange_compl_of_disjoint ow_response chal_x_queried_gh)
+    (fun resp => ?_)
+  refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
+  exact Program.inRange_mono (lazy_query_inRange_ro resp)
+    (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+
+/-- Loop + post-loop tail equivalence — the `oracle_loop_n` call composed
+    with the `get ow_response; lazy_query resp; pure (decide ...)` tail. -/
+private lemma ow_game_1_loop_tail_equiv
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (q : ℕ) (y : output) :
+    Program.EquivModuloLens chal_x_queried_gh
+      (do
+        oracle_loop_n ow_adv q lazy_query
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query resp
+        pure (decide (y_check = y)) : Program state Bool)
+      (do
+        oracle_loop_n ow_adv q lazy_query_tracked
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool) := by
+  -- Prefixes differ (loop with lq vs lqt). Use `bind`.
+  refine Program.EquivModuloLens.bind
+    (oracle_loop_n_equiv_lazy_query_lazy_query_tracked ow_adv h_ow_adv_flag q)
+    (fun _ => ow_game_1_post_loop_equiv y)
+    (fun _ => ow_game_1_post_loop_inRange y)
+
+/-- The full tail of `ow_game_1` (after `lazy_init`) is equivalent (modulo
+    `chal_x_queried_gh`) to the full tail of `ow_game_1_tracked` (after
+    `lazy_init` and `set chal_x_queried_gh false`).
+
+    The 5-layer prefix (uniform / set chal_x / uniform / set ro / set chal_y)
+    is *identical* on both sides, so we use `bind_eq_p` repeatedly — no
+    inRange proofs needed for the prefix. -/
+private lemma ow_game_1_full_tail_equiv_lq_lqt
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) (q : ℕ) :
+    Program.EquivModuloLens chal_x_queried_gh
+      (do
+        let x ← Program.uniform
+        Program.set ow_challenge_x x
+        let y ← Program.uniform
+        Program.set random_oracle_state (fun k => if k = x then some y else none)
+        Program.set ow_challenge_y y
+        oracle_loop_n ow_adv q lazy_query
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query resp
+        pure (decide (y_check = y)) : Program state Bool)
+      (do
+        let x ← Program.uniform
+        Program.set ow_challenge_x x
+        let y ← Program.uniform
+        Program.set random_oracle_state (fun k => if k = x then some y else none)
+        Program.set ow_challenge_y y
+        oracle_loop_n ow_adv q lazy_query_tracked
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool) := by
+  apply Program.EquivModuloLens.bind_eq_p; intro x
+  apply Program.EquivModuloLens.bind_eq_p; intro _
+  apply Program.EquivModuloLens.bind_eq_p; intro y
+  apply Program.EquivModuloLens.bind_eq_p; intro _
+  apply Program.EquivModuloLens.bind_eq_p; intro _
+  exact ow_game_1_loop_tail_equiv ow_adv h_ow_adv_flag q y
+
 /-- **Flag elision at the game level**: `ow_game_1` and `ow_game_1_tracked`
     have equal wp's for flag-ignoring postconditions.
 
@@ -1805,18 +1936,24 @@ theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
   suffices h_equiv : Program.EquivModuloLens chal_x_queried_gh
       (ow_game_1 ow_adv q) (ow_game_1_tracked ow_adv q) by
     exact h_equiv F h_F' σ
-  -- Build the equivalence via bind_congr chain.
   dsimp only [ow_game_1, ow_game_1_tracked]
-  -- Both start with `lazy_init`. Apply bind_congr.
-  -- The continuation on LHS is flag-disjoint (uses lazy_query, no flag ops).
-  -- The continuation on RHS has set flag false + lazy_query_tracked.
-  -- Strategy: peel `lazy_init` and show inner equivalence by transitivity.
-  refine Program.EquivModuloLens.bind (Program.EquivModuloLens.refl lazy_init)
-    (fun _ => ?_) ?_
-  · -- The inner equivalence (after lazy_init).
-    sorry
-  · -- LHS's continuation is flag-disjoint.
-    sorry
+  -- Outer `lazy_init` prefix is identical on both sides; use `bind_eq_p`.
+  apply Program.EquivModuloLens.bind_eq_p
+  intro _
+  -- Goal: REST_lq ≈_L (set chal_x_queried_gh false >>= REST_lqt).
+  -- Step 1: REST_lq ≈_L set L false >>= REST_lq (dead set insertion via
+  --   bind_eq_k with `pure_equiv_set`, then rewriting `pure () >>= _` via
+  --   `Program.pure_bind`).
+  -- Step 2: set L false >>= REST_lq ≈_L set L false >>= REST_lqt (replace
+  --   lq with lqt under same prefix; uses bind_eq_p with full-tail equiv).
+  have h_dead_set := Program.EquivModuloLens.bind_eq_k
+    (Program.EquivModuloLens.pure_equiv_set (L := chal_x_queried_gh) false)
+    (fun _ : Unit => ow_game_1_tail_inRange_chal_x_queried_gh ow_adv h_ow_adv_flag q)
+  -- h_dead_set : (pure () >>= fun _ => REST_lq) ≈_L (set L false >>= fun _ => REST_lq)
+  rw [Program.pure_bind] at h_dead_set
+  -- h_dead_set : REST_lq ≈_L (set L false >>= fun _ => REST_lq)
+  exact h_dead_set.trans (Program.EquivModuloLens.bind_eq_p
+    (fun _ => ow_game_1_full_tail_equiv_lq_lqt ow_adv h_ow_adv_flag q))
 
 end Reductions
 
