@@ -1669,6 +1669,26 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment_game_2 ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  have wp_bind_le_diff_k : ∀ {α β : Type} (prog : Program state α)
+      (k1 k2 : α → Program state β) (F G : Program.Post state β),
+      (∀ aσ : α × state, (k1 aσ.1).wp F aσ.2 ≤ (k2 aσ.1).wp G aσ.2) →
+      ∀ σ : state, (prog >>= k1).wp F σ ≤ (prog >>= k2).wp G σ := by
+    intro α β prog k1 k2 F G h σ_pre
+    rw [wp_bind, wp_bind]
+    exact Program.wp_le_wp_of_le _ _ _ h _
+  dsimp only [ow_game_2_tracked, guess_experiment_game_2, guess_experiment]
+  -- Flatten do-notation on both sides so binds match structurally.
+  simp only [Program.bind_assoc]
+  -- Descend through the shared env+sample+set chal_y prefix.
+  apply wp_bind_le_diff_k; rintro ⟨_, σ1⟩  -- lazy_init
+  apply wp_bind_le_diff_k; rintro ⟨_, σ2⟩  -- set chal_x_queried_gh false
+  apply wp_bind_le_diff_k; rintro ⟨_, σ3⟩  -- uniform x
+  apply wp_bind_le_diff_k; rintro ⟨_, σ4⟩  -- set chal_x x
+  apply wp_bind_le_diff_k; rintro ⟨y, σ5⟩  -- uniform y (captured)
+  apply wp_bind_le_diff_k; rintro ⟨_, σ6⟩  -- set chal_y y
+  -- Now y is captured. Peel `set matched_chal_y false` from RHS only.
+  conv_rhs => rw [wp_bind, wp_set]
+  dsimp only
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
