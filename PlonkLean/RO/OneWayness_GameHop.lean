@@ -1798,10 +1798,10 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
   -- LHS now has `loop_n q (oracle_step ...)`. Peel via wp_bind on both sides.
   rw [wp_bind]
   conv_rhs => rw [wp_bind]
-  -- Convert LHS's `loop_n q (oracle_step ...).wp post σ` to body_v2 form.
-  -- For this to apply, the post must be matched-ignoring (h_F lemma).
-  rw [(loop_n_body_v2_wp_eq ow_adv h_ow_adv_matched_chal_y q y _ ?_ σ6).symm]
-  sorry
+  -- After this point, both sides are `loop_n q ?_body.wp post σ`. To use
+  -- loop_n_body_v2_wp_eq to align bodies, we need the post to be matched-
+  -- ignoring AND need to handle the state misalignment. Sorry'd; this is
+  -- the next step of the assembly.
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
