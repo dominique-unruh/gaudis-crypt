@@ -1480,6 +1480,129 @@ quite different proofs:
 The deferred-sampling content lives in discharging Game 1's hypothesis;
 the bound's proof itself is generic. -/
 
+/-! ### Collector-game route to the bound.
+
+ALTERNATIVE architectural approach: introduce a *collector* version of
+`guess_experiment` that:
+- Doesn't sample the target during the loop.
+- Records each iteration's "comparison value" into a list.
+- Samples target uniformly at the END, then checks if it lies in the
+  recorded list.
+
+The bound on the collector is then a one-line application of "uniform
+sample ∈ finite list of length ≤ n+1 has probability ≤ (n+1)/|T|". The
+deferred-sampling content becomes a single equivalence proof
+`guess_experiment ≤ guess_experiment_collector`. -/
+
+/-- Collector form of `guess_experiment`. Doesn't take a `target_var`
+    parameter — target is sampled uniformly at the end and used only to
+    compute the matched flag via `decide (t ∈ queries_list)`. `body` and
+    `final` operate without knowledge of the target; they're responsible
+    for appending their "comparison values" to `queries_list`. -/
+noncomputable def guess_experiment_collector
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ) : Program state Bool := do
+  env
+  Program.set queries_list_var []
+  loop_n n body_recording
+  final_recording
+  let t ← Program.uniform
+  let qs ← Program.get queries_list_var
+  Program.set matched_var (decide (t ∈ qs))
+  Program.get matched_var
+
+/-- Pointwise bound: `Program.uniform`'s wp on a list-membership indicator
+    is at most `|list|/|T|`. The core trivial fact behind (B).
+
+    Proof: wp_uniform gives ∑_t 1[t ∈ qs] / |T|, and ∑_t 1[t ∈ qs] equals
+    |qs.toFinset| ≤ qs.length. Deferred — standard counting argument. -/
+private lemma uniform_wp_mem_le
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (qs : List T) (σ : state) :
+    (Program.uniform : Program state T).wp
+        (fun aσ : T × state => if aσ.1 ∈ qs then (1 : ENNReal) else 0) σ
+    ≤ (qs.length : ENNReal) / Fintype.card T := by
+  sorry
+
+/-- **(B): Trivial bound on the collector.**
+
+    After body+final, `queries_list` holds some list `qs` of length ≤ n+1
+    (under the length hypothesis). Then `t ~ Uniform[T]` is sampled
+    independently. So `P[t ∈ qs] = |qs|/|T| ≤ (n+1)/|T|`. -/
+theorem guess_experiment_collector_wp_bound
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    [disjoint queries_list_var matched_var]
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    -- Length invariant on the queries_list at the end of the loop+final.
+    -- Both Game 1 and Game 2 instances satisfy this (each iter appends
+    -- exactly one element).
+    (_h_qs_length_le : ∀ σ : state,
+      (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording).wp
+          (fun aσ : Unit × state =>
+            if (queries_list_var.get aσ.2).length ≤ n + 1 then (1 : ENNReal) else 0) σ
+      = (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording).wp
+          (fun _ => (1 : ENNReal)) σ)
+    (n : ℕ) (σ : state) :
+    (guess_experiment_collector env queries_list_var matched_var
+        body_recording final_recording n).wp
+      (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ ((n + 1) : ENNReal) / Fintype.card T := by
+  -- Plan:
+  -- 1. Unfold guess_experiment_collector. Peel via wp_bind through env,
+  --    set queries [], loop, final.
+  -- 2. At innermost state σ_pre (where queries_list has length ≤ n+1
+  --    by h_qs_length_le): inner wp = (uniform; get qs; set matched;
+  --    get matched).wp F_matched σ_pre. Reduce by wp_uniform/wp_get/wp_set.
+  -- 3. Innermost: ∑_t (if t ∈ qs then 1 else 0) / |T| ≤ |qs|/|T| ≤ (n+1)/|T|.
+  -- 4. Lift back through outer wp's via wp_le_wp_of_le.
+  sorry
+
+/-- **(A): Bound on `guess_experiment` via the collector.**
+
+    `guess_experiment` ≤ `guess_experiment_collector` when body/final's
+    matched-set behavior corresponds to `body_recording`/`final_recording`'s
+    appending. This is the deferred-sampling proof obligation — localized
+    here as a single equivalence claim per game instance. -/
+theorem guess_experiment_le_collector
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (sample_target : Program state T)
+    (target_var : Lens T state)
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint target_var matched_var]
+    (body : T → Program state Unit) (final : T → Program state Unit)
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    -- Game-specific link between (body, final) and (body_recording,
+    -- final_recording). Discharged per-game.
+    (_h_link : ∀ (n : ℕ) (σ : state),
+      (guess_experiment env sample_target target_var matched_var body final n).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+      ≤ (guess_experiment_collector env queries_list_var matched_var
+            body_recording final_recording n).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ)
+    (n : ℕ) (σ : state) :
+    (guess_experiment env sample_target target_var matched_var body final n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ (guess_experiment_collector env queries_list_var matched_var
+          body_recording final_recording n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ :=
+  _h_link n σ
+
 /-- Indicator that `matched_var` is `true` in the state component of a
     post argument. Reusable shorthand for the kernel hypotheses and
     bound statements. -/
