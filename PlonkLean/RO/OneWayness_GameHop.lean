@@ -1697,6 +1697,12 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
 For postconditions that don't read `chal_x_queried_gh`, the tracked and
 untracked variants of Game 1 agree at the wp level. -/
 
+/-- `Program.get L` is flag-disjoint when L ≠ chal_x_queried_gh. -/
+lemma Program.get_inRange_chal_x_queried_gh_compl
+    {γ : Type} (L : Lens γ state) [disjoint L chal_x_queried_gh] :
+    (Program.get L).inRange chal_x_queried_gh.compl.range :=
+  Program.get_inRange_compl_of_disjoint L chal_x_queried_gh
+
 /-- `lazy_query inp` is equivalent (modulo `chal_x_queried_gh`) to
     `lazy_query_tracked inp` — they produce the same value-marginal,
     differing only by writes to `chal_x_queried_gh`. -/
@@ -1711,6 +1717,51 @@ lemma lazy_query_equiv_lazy_query_tracked (inp : input) :
   simp only [Program.bind_pure] at h_eq
   exact h_eq.symm
 
+/-- `oracle_step ow_adv lazy_query` is equivalent (modulo `chal_x_queried_gh`)
+    to `oracle_step ow_adv lazy_query_tracked` — same body, with the inner
+    `lazy_query` replaced by the tracked variant. -/
+lemma oracle_step_equiv_lazy_query_lazy_query_tracked
+    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) :
+    Program.EquivModuloLens chal_x_queried_gh
+      (oracle_step ow_adv lazy_query)
+      (oracle_step ow_adv lazy_query_tracked) := by
+  dsimp only [oracle_step]
+  -- The continuation `fun _ => get input >>= lazy_query inp >>= set oo` is
+  -- flag-disjoint (LHS uses lazy_query, which is flag-disjoint).
+  have h_inner_lq_inRange : ∀ _ : Unit, (do
+      let inp ← Program.get oracle_input
+      let y ← lazy_query inp
+      Program.set oracle_output y : Program state Unit).inRange
+        chal_x_queried_gh.compl.range := by
+    intro _
+    refine Program.inRange_bind
+      (Program.get_inRange_compl_of_disjoint oracle_input chal_x_queried_gh)
+      (fun inp => ?_)
+    refine Program.inRange_bind ?_ (fun y =>
+      Program.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
+    exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine Program.EquivModuloLens.bind (Program.EquivModuloLens.refl ow_adv)
+    (fun _ => ?_) h_inner_lq_inRange
+  -- Inner: get input >>= ... [lq vs lqt] >>= set oo.
+  have h_lq_set_oo_inRange : ∀ inp : input, (do
+      let y ← lazy_query inp
+      Program.set oracle_output y : Program state Unit).inRange
+        chal_x_queried_gh.compl.range := by
+    intro inp
+    refine Program.inRange_bind ?_ (fun y =>
+      Program.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
+    exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine Program.EquivModuloLens.bind
+    (Program.EquivModuloLens.refl (Program.get oracle_input))
+    (fun inp => ?_) h_lq_set_oo_inRange
+  -- After get input: lazy_query[_t] inp >>= set oo y.
+  refine Program.EquivModuloLens.bind
+    (lazy_query_equiv_lazy_query_tracked inp)
+    (fun _ => Program.EquivModuloLens.refl _)
+    (fun y => Program.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
+
 /-- **Flag elision at the game level**: `ow_game_1` and `ow_game_1_tracked`
     have equal wp's for flag-ignoring postconditions.
 
@@ -1724,10 +1775,16 @@ theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
     (h_F : IgnoresChalXQueriedGh F)
     (σ : state) :
     (ow_game_1 ow_adv q).wp F σ = (ow_game_1_tracked ow_adv q).wp F σ := by
-  -- Unify F's hypothesis with IgnoresLens form.
+  -- Strategy: build h_equiv : ow_game_1 ≈_L ow_game_1_tracked, then apply.
   have h_F' : IgnoresLens chal_x_queried_gh F := fun aσ v => h_F aσ v
-  -- Strategy: show ow_game_1 ≈_L ow_game_1_tracked via the calculus.
-  -- TODO: complete the proof using the calculus chain.
+  -- Build the equivalence proof by chaining calculus rules.
+  suffices h_equiv : Program.EquivModuloLens chal_x_queried_gh
+      (ow_game_1 ow_adv q) (ow_game_1_tracked ow_adv q) by
+    exact h_equiv F h_F' σ
+  -- Now build h_equiv. Unfold both games and use bind_congr chains.
+  -- The key insight: ow_game_1_tracked = ow_game_1[lq := lqt; prepend set flag false].
+  -- Going from ow_game_1 to ow_game_1_tracked: insert dead L-write, then replace
+  -- each lazy_query with lazy_query_tracked.
   sorry
 
 end Reductions
