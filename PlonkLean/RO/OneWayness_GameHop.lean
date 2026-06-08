@@ -1519,14 +1519,21 @@ noncomputable def guess_experiment_collector
 /-- Pointwise bound: `Program.uniform`'s wp on a list-membership indicator
     is at most `|list|/|T|`. The core trivial fact behind (B).
 
-    Proof: wp_uniform gives ∑_t 1[t ∈ qs] / |T|, and ∑_t 1[t ∈ qs] equals
-    |qs.toFinset| ≤ qs.length. Deferred — standard counting argument. -/
+    Proof: wp_uniform gives ∑_t 1[t ∈ qs] / |T|; ∑_t 1[t ∈ qs] equals
+    `(Finset.univ.filter (· ∈ qs)).card = qs.toFinset.card ≤ qs.length`. -/
 private lemma uniform_wp_mem_le
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (qs : List T) (σ : state) :
     (Program.uniform : Program state T).wp
         (fun aσ : T × state => if aσ.1 ∈ qs then (1 : ENNReal) else 0) σ
     ≤ (qs.length : ENNReal) / Fintype.card T := by
+  simp only [wp_uniform]
+  -- Goal: ∑ t : T, (if t ∈ qs then 1 else 0) / |T| ≤ qs.length / |T|.
+  -- Proof outline (standard but non-trivial Finset.sum manipulations):
+  --   ∑_t 1[t ∈ qs] = (univ.filter (· ∈ qs)).card = qs.toFinset.card ≤ qs.length.
+  --   Divide by |T| throughout to get the bound.
+  -- The mechanical wrangling between ℕ • ENNReal, Nat casts, Finset filter
+  -- equality, and decidability instances is non-trivial — deferred.
   sorry
 
 /-- **(B): Trivial bound on the collector.**
