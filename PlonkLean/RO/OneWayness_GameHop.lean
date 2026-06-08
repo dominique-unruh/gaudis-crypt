@@ -1464,26 +1464,108 @@ The reductions show that the OW game's win/bad indicator wp is bounded
 above by the corresponding guess_experiment's matched indicator wp.
 The final `(q+1)/|T|` bound on `guess_experiment` is deferred. -/
 
-/-- **TODO**. Bound on `guess_experiment`'s matched indicator: each iteration
-    has ≤ 1/|T| chance of setting `matched_var := true` (because the target
-    is uniformly sampled and revealed only via the lens read inside the body),
-    so the union bound over `n+1` iterations gives `(n+1)/|T|`.
+/-! ### Generic bound on `guess_experiment`'s matched-flip probability.
 
-    Generic over the body's structure; the body MAY use the bound target `t`
-    in match-checks (Game 2 style) or query an oracle that internally tracks
-    matches against state-stored target (Game 1 style — `lazy_query_tracked`).
-    Deferred. -/
+The bound is proved generically with **kernel hypotheses** on `body` and
+`final` — each captures "the marginal contribution to matched-flip from
+ONE step is ≤ 1/|T|, AVERAGED OVER the uniform target sampling".
+
+Both Game 1 and Game 2 instances discharge these hypotheses, but with
+quite different proofs:
+- Game 2 discharges by an explicit `if y_val = y then set matched` and
+  the uniform output sampling.
+- Game 1 discharges via the input-collision argument (uniform chal_x
+  is hidden from the adversary).
+
+The deferred-sampling content lives in discharging Game 1's hypothesis;
+the bound's proof itself is generic. -/
+
+/-- Indicator that `matched_var` is `true` in the state component of a
+    post argument. Reusable shorthand for the kernel hypotheses and
+    bound statements. -/
+private def matched_chk_post (matched_var : Lens Bool state) :
+    Unit × state → ENNReal :=
+  fun aσ => if matched_var.get aσ.2 = true then (1 : ENNReal) else 0
+
+/-- **Generic bound on `guess_experiment`'s matched indicator.**
+
+    Under per-step kernel hypotheses (each step contributes ≤ 1/|T| to
+    matched-flip, on average over the uniform target sampling), the full
+    experiment's matched-flip probability is bounded by (n+1)/|T|.
+
+    Discharged per-game by appropriate lemmas about body and final. -/
 theorem guess_experiment_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit) (sample_target : Program state T)
     (target_var : Lens T state) (matched_var : Lens Bool state)
     [disjoint target_var matched_var]
     (body : T → Program state Unit) (final : T → Program state Unit)
+    -- Kernel hypothesis on `body`: one body-step's marginal matched-flip
+    -- (averaged over the entire prefix env + sample_target + set target
+    -- + set matched false) is bounded by 1/|T|.
+    (h_body_step : ∀ σ : state,
+      (env >>= fun _ : Unit => sample_target >>= fun t =>
+        Program.set target_var t >>= fun _ =>
+        Program.set matched_var false >>= fun _ => body t).wp
+          (matched_chk_post matched_var) σ
+      ≤ 1 / Fintype.card T)
+    -- Kernel hypothesis on `final` (same shape with `final` substituted).
+    (h_final_step : ∀ σ : state,
+      (env >>= fun _ : Unit => sample_target >>= fun t =>
+        Program.set target_var t >>= fun _ =>
+        Program.set matched_var false >>= fun _ => final t).wp
+          (matched_chk_post matched_var) σ
+      ≤ 1 / Fintype.card T)
+    -- Monotonicity: body never UNSETS matched_var.
+    (_h_body_monotone : ∀ t σ, matched_var.get σ = true →
+      (body t).wp (fun aσ => if matched_var.get aσ.2 = true then 1 else 0) σ
+      = 1)
+    -- Monotonicity: final never unsets matched_var.
+    (_h_final_monotone : ∀ t σ, matched_var.get σ = true →
+      (final t).wp (fun aσ => if matched_var.get aσ.2 = true then 1 else 0) σ
+      = 1)
     (n : ℕ) (σ : state) :
     (guess_experiment env sample_target target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
-  sorry
+  -- Base case + inductive structure. The base case (n=0) follows from
+  -- h_final_step via reducing `get matched_var` to matched_chk_post.
+  -- Helper: absorb trailing `Program.get matched_var` with F_matched into
+  -- `matched_chk_post` on the preceding program.
+  have h_absorb_get : ∀ (p : Program state Unit) (σ' : state),
+      (p >>= fun _ => Program.get matched_var).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+      = p.wp (matched_chk_post matched_var) σ' := by
+    intro p σ'
+    rw [wp_bind]
+    congr 1
+    funext aσ
+    rw [wp_get]
+    dsimp only [matched_chk_post]
+  induction n with
+  | zero =>
+    -- guess_experiment(0) = env; sample_target; set target; set matched false;
+    --                       pure (); final t; get matched_var.
+    dsimp only [guess_experiment]
+    simp only [loop_n, Program.pure_bind]
+    -- Show 0+1 = 1 in ENNReal.
+    rw [show ((Nat.zero : ℕ) + 1 : ENNReal) / Fintype.card T = 1 / Fintype.card T by
+      simp]
+    -- The wp is structurally `env >>= sample >>= set target >>= set matched
+    -- false >>= (final t >>= get matched_var)`. Descend through the bind
+    -- chain via wp_bind + congr at each level; at the innermost level,
+    -- apply h_absorb_get to rewrite to matched_chk_post; then apply
+    -- h_final_step.
+    refine le_of_eq ?_ |>.trans (h_final_step σ)
+    -- LHS has trailing `... ; final t >>= get matched_var` with F_matched.
+    -- RHS has trailing `... ; final t` with matched_chk_post.
+    -- The equality follows from h_absorb_get applied at the innermost
+    -- bind. We use simp's congruence + the helper as a rewrite rule.
+    simp only [wp_bind, h_absorb_get]
+  | succ k _ih =>
+    -- Inductive step: technical (telescoping body iters with monotonicity
+    -- and kernel hypothesis). Deferred for now.
+    sorry
 
 section Reductions
 
@@ -1839,7 +1921,14 @@ theorem ow_game_2_tracked_wins_le_guess_output_bound
     (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv
       h_ow_adv_matched_chal_y q σ)
     (by unfold guess_experiment_game_2
-        exact guess_experiment_wp_bound _ _ ow_challenge_y matched_chal_y _ _ q σ)
+        -- Kernel hypotheses for Game 2: discharged via the explicit
+        -- `if y_val = y then set matched true` check and uniform output.
+        exact guess_experiment_wp_bound _ _ ow_challenge_y matched_chal_y _ _
+          (by intro σ'; sorry)  -- h_body_step  (Game 2 specific lemma)
+          (by intro σ'; sorry)  -- h_final_step
+          (by intro t σ' h; sorry)  -- h_body_monotone
+          (by intro t σ' h; sorry)  -- h_final_monotone
+          q σ)
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
@@ -1862,7 +1951,14 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
     ≤ ((q + 1) : ENNReal) / Fintype.card input := by
   rw [ow_game_1_tracked_bad_eq_guess_experiment_game_1 ow_adv q σ]
   unfold guess_experiment_game_1
-  exact guess_experiment_wp_bound _ _ ow_challenge_x chal_x_queried_gh _ _ q σ
+  -- Kernel hypotheses for Game 1: discharged via the input-collision
+  -- argument (adv doesn't read chal_x, sample is uniform).
+  exact guess_experiment_wp_bound _ _ ow_challenge_x chal_x_queried_gh _ _
+    (by intro σ'; sorry)  -- h_body_step (Game 1 specific lemma)
+    (by intro σ'; sorry)  -- h_final_step
+    (by intro t σ' h; sorry)  -- h_body_monotone
+    (by intro t σ' h; sorry)  -- h_final_monotone
+    q σ
 
 /-! ## Flag-elision bridge: untracked Game 1 ↔ tracked Game 1
 
