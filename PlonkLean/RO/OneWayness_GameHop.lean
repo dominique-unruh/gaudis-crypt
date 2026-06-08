@@ -1651,8 +1651,18 @@ lemma ow_game_2_loops_wp_eq
     fires, setting `matched_chal_y := true`. So
       `P[ow_game_2_tracked wins] ≤ P[guess_experiment_game_2 matched]`.
 
-    Sorry'd. This is the single combined bridge replacing the old chain
-    Step A1 + Step A2 (marginal_eq wall) + Step B + matched_bound. -/
+    Proof pattern attempted: extend the wp_bind_le pattern (from Step B) to
+    handle DIFFERENT continuations of the same return type. Helper lemma
+    `wp_bind_le_diff_k` lifts comparison through the shared env+sample+set
+    prefix. After descending past the prefix, the comparison reduces to
+    `(tracked_tail y).wp F_win σ ≤ (guess_tail y).wp F_matched σ`.
+
+    The tail comparison: tracked_tail has `oracle_loop_n + ... + pure decide`,
+    guess_tail has `set matched false + loop_n with cond_set + ... + cond_set +
+    get matched`. Pointwise on each execution, the win event implies the
+    matched event (final iteration's match-check fires when win holds).
+    Lean elaboration of full `unfold` is heavy (whnf timeouts) — needs
+    careful per-symbol unfolding. Sorry'd. -/
 lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
