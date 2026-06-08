@@ -1528,12 +1528,10 @@ private lemma uniform_wp_mem_le
         (fun aσ : T × state => if aσ.1 ∈ qs then (1 : ENNReal) else 0) σ
     ≤ (qs.length : ENNReal) / Fintype.card T := by
   simp only [wp_uniform]
-  -- Goal: ∑ t : T, (if t ∈ qs then 1 else 0) / |T| ≤ qs.length / |T|.
-  -- Proof outline (standard but non-trivial Finset.sum manipulations):
-  --   ∑_t 1[t ∈ qs] = (univ.filter (· ∈ qs)).card = qs.toFinset.card ≤ qs.length.
-  --   Divide by |T| throughout to get the bound.
-  -- The mechanical wrangling between ℕ • ENNReal, Nat casts, Finset filter
-  -- equality, and decidability instances is non-trivial — deferred.
+  -- Standard counting argument: ∑_t 1[t ∈ qs] ≤ qs.length, then divide
+  -- by |T|. The mechanical Finset.sum/Nat-cast/ENNReal-div interaction
+  -- has been resistant to multiple proof attempts (no clean Mathlib
+  -- lemma combo found in this session). Deferred.
   sorry
 
 /-- **(B): Trivial bound on the collector.**
