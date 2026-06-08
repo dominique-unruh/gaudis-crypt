@@ -1528,11 +1528,29 @@ private lemma uniform_wp_mem_le
         (fun aσ : T × state => if aσ.1 ∈ qs then (1 : ENNReal) else 0) σ
     ≤ (qs.length : ENNReal) / Fintype.card T := by
   simp only [wp_uniform]
-  -- Standard counting argument: ∑_t 1[t ∈ qs] ≤ qs.length, then divide
-  -- by |T|. The mechanical Finset.sum/Nat-cast/ENNReal-div interaction
-  -- has been resistant to multiple proof attempts (no clean Mathlib
-  -- lemma combo found in this session). Deferred.
-  sorry
+  -- ∑_t (if t ∈ qs then 1 else 0) / |T| ≤ qs.length / |T|.
+  have h_sum_le : ∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0)
+                ≤ (qs.length : ENNReal) := by
+    calc ∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0)
+        = ∑ t ∈ Finset.univ.filter (fun t : T => t ∈ qs), (1 : ENNReal) := by
+          rw [← Finset.sum_filter]
+      _ = ((Finset.univ.filter (fun t : T => t ∈ qs)).card : ENNReal) := by
+          rw [Finset.sum_const, nsmul_eq_mul, mul_one]
+      _ ≤ (qs.toFinset.card : ENNReal) := by
+          apply Nat.cast_le.mpr
+          apply Finset.card_le_card
+          intro t ht
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ht
+          exact List.mem_toFinset.mpr ht
+      _ ≤ (qs.length : ENNReal) := by exact_mod_cast List.toFinset_card_le qs
+  calc ∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0) / Fintype.card T
+      = (∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0)) * ((Fintype.card T : ENNReal))⁻¹ := by
+        simp only [div_eq_mul_inv]
+        rw [← Finset.sum_mul]
+    _ ≤ (qs.length : ENNReal) * ((Fintype.card T : ENNReal))⁻¹ := by
+        gcongr
+    _ = (qs.length : ENNReal) / Fintype.card T := by
+        rw [← div_eq_mul_inv]
 
 /-- **(B): Trivial bound on the collector.**
 
@@ -1563,22 +1581,52 @@ theorem guess_experiment_collector_wp_bound
         body_recording final_recording n).wp
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
-  -- Strategy: pointwise inner bound + wp_le_wp_of_le lifting + h_qs_length_le.
-  --
-  -- 1. At any σ', the inner sub-program
-  --    `(uniform; get qs; set matched (t ∈ qs); get matched)` has wp
-  --    bounded by `|queries_list.get σ'|/|T|` (via `uniform_wp_mem_le`
-  --    after reducing the inner get/set/get via wp lemmas).
-  --
-  -- 2. Lifting through the bind chain (env; set queries [] ; loop; final)
-  --    via `Program.wp_le_wp_of_le` gives:
-  --      LHS ≤ (env;...;final).wp (fun aσ => |queries_list.get aσ.2|/|T|) σ.
-  --
-  -- 3. By h_qs_length_le, this is ≤ (n+1)/|T|.
-  --
-  -- The wp manipulations involve careful tracking of state through
-  -- uniform's (state-preserving) wp; deferred for cleaner future work.
-  sorry
+  -- Unfold collector.
+  dsimp only [guess_experiment_collector]
+  -- Pointwise inner bound: the inner program reduces to a uniform.wp
+  -- over the queries-membership indicator, then uniform_wp_mem_le.
+  have h_inner : ∀ σ' : state,
+      ((Program.uniform : Program state T) >>= fun t =>
+        Program.get queries_list_var >>= fun qs =>
+        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        Program.get matched_var).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+      ≤ ((queries_list_var.get σ').length : ENNReal) / Fintype.card T := by
+    intro σ'
+    rw [wp_bind]
+    refine le_trans ?_ (uniform_wp_mem_le (queries_list_var.get σ') σ')
+    rw [wp_uniform, wp_uniform]
+    apply Finset.sum_le_sum
+    intro t _
+    -- After dsimp + reduction, the LHS inner = if t ∈ qs.get σ' then 1 else 0.
+    simp only [wp_bind, wp_get, wp_set, Lens.set_get, decide_eq_true_eq]
+    -- Both sides are now syntactically equal.
+    exact le_refl _
+  -- Lift inner bound: group (env; set; loop; final) as a single prefix,
+  -- then apply wp_le_wp_of_le pointwise.
+  rw [show ((n : ℕ) : ENNReal) + 1 = ((n + 1 : ℕ) : ENNReal) by push_cast; ring]
+  refine le_trans ?_ (_h_qs_length_le σ)
+  -- Left-associate the bind chain so INNER is the outermost.
+  rw [show (env >>= fun _ : Unit =>
+      Program.set queries_list_var [] >>= fun _ =>
+      loop_n n body_recording >>= fun _ =>
+      final_recording >>= fun _ =>
+      Program.uniform >>= fun t =>
+      Program.get queries_list_var >>= fun qs =>
+      Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+      Program.get matched_var)
+    = (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording) >>= fun _ =>
+        Program.uniform >>= fun t =>
+        Program.get queries_list_var >>= fun qs =>
+        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        Program.get matched_var from by
+      simp [Program.bind_assoc]]
+  rw [wp_bind]
+  apply Program.wp_le_wp_of_le
+  intro aσ
+  exact h_inner aσ.2
 
 /-- **(A): Bound on `guess_experiment` via the collector.**
 
