@@ -1655,27 +1655,94 @@ lemma cond_set_matched_chal_y_wp_invisible
     exact h_F ((), σ)
   · rw [if_neg h, wp_pure]
 
+/-- The loop body used by `guess_experiment_game_2`: oracle_step plus a
+    bound-variable cond_set on the matched_chal_y flag. Defined as a
+    separate program so the kernel sees a single named term rather than a
+    deeply-nested lambda expression — keeps inductive proofs tractable. -/
+noncomputable def body_v2 (adv : Program state Unit) (y : output) :
+    Program state Unit := do
+  adv
+  let inp ← Program.get oracle_input
+  let y_val ← lazy_query_tracked inp
+  Program.set oracle_output y_val
+  if y_val = y then Program.set matched_chal_y true else pure ()
+
 /-- **Body-level wp equality for the bound-variable cond_set pattern.**
-    Loop body `oracle_step + (if y_val = y then set matched true else pure ())`
-    has same wp as plain `oracle_step` for matched_chal_y-ignoring posts. -/
-lemma loop_body_v2_wp_eq_oracle_step
+    `body_v2 ow_adv y` has same wp as plain `oracle_step` for
+    matched_chal_y-ignoring posts. -/
+lemma body_v2_wp_eq_oracle_step
     (y : output) (F : Unit × state → ENNReal)
     (h_F : ∀ aσ : Unit × state,
         F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
     (σ : state) :
-    (do
-      ow_adv
-      let inp ← Program.get oracle_input
-      let y_val ← lazy_query_tracked inp
-      Program.set oracle_output y_val
-      if y_val = y then Program.set matched_chal_y true else pure ()).wp F σ
+    (body_v2 ow_adv y).wp F σ
     = (oracle_step ow_adv lazy_query_tracked).wp F σ := by
-  unfold oracle_step
-  -- After unfold, both have `ow_adv >>= ...`. Use wp_bind to peel through.
-  -- The bodies differ at the innermost: LHS has trailing cond_set, RHS does not.
-  -- Use simp to normalize wp expressions, then handle the inner difference.
+  unfold body_v2 oracle_step
   simp only [wp_bind, wp_get, wp_set,
     cond_set_matched_chal_y_wp_invisible _ F h_F]
+
+/-- **Generic loop-level wp equality**: if two bodies have the same wp on
+    any matched-ignoring post (provided some matched-disjoint reference
+    body's wp is matched-set-invariant on input), then their loops have
+    same wp. Abstracted to avoid kernel timeouts from heavy fixed bodies. -/
+lemma loop_n_wp_eq_of_body_eq
+    {body_v body_ref : Program state Unit}
+    (h_ref_inRange : body_ref.inRange matched_chal_y.compl.range)
+    (h_body_eq : ∀ (F : Unit × state → ENNReal),
+        (∀ aσ : Unit × state, F (aσ.1, matched_chal_y.set true aσ.2) = F aσ) →
+        ∀ σ, body_v.wp F σ = body_ref.wp F σ)
+    (n : ℕ)
+    (F : Unit × state → ENNReal)
+    (h_F : ∀ aσ : Unit × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (σ : state) :
+    (loop_n n body_v).wp F σ = (loop_n n body_ref).wp F σ := by
+  have h_loop_inRange : ∀ k, (loop_n k body_ref).inRange matched_chal_y.compl.range :=
+    fun k => loop_n_inRange body_ref h_ref_inRange k
+  have h_loop_set_inv : ∀ k σ',
+      (loop_n k body_ref).wp F (matched_chal_y.set true σ')
+      = (loop_n k body_ref).wp F σ' := by
+    intro k σ'
+    have hf : (fun s : state => matched_chal_y.set true s) ∈
+        ((matched_chal_y.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((matched_chal_y.compl.range : LensRange state)ᶜ)
+            = matched_chal_y.range from by
+            rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
+    rw [Program.wp_shift_input (h_loop_inRange k) hf]
+    congr 1
+    funext xs
+    exact h_F xs
+  induction n generalizing σ with
+  | zero => rfl
+  | succ n ih =>
+    show (body_v >>= fun _ => loop_n n body_v).wp F σ
+       = (body_ref >>= fun _ => loop_n n body_ref).wp F σ
+    rw [wp_bind]
+    conv_rhs => rw [wp_bind]
+    have h_post_eq :
+        (fun ttσ : Unit × state => (loop_n n body_v).wp F ttσ.2)
+        = (fun ttσ : Unit × state => (loop_n n body_ref).wp F ttσ.2) := by
+      funext ttσ
+      exact ih ttσ.2
+    rw [h_post_eq]
+    exact h_body_eq _ (fun aσ => h_loop_set_inv n aσ.2) σ
+
+/-- Specialization: `loop_n n (body_v2 ow_adv y)` ≡ `loop_n n oracle_step` on
+    matched-ignoring posts. -/
+lemma loop_n_body_v2_wp_eq
+    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
+    (n : ℕ) (y : output)
+    (F : Unit × state → ENNReal)
+    (h_F : ∀ aσ : Unit × state,
+        F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
+    (σ : state) :
+    (loop_n n (body_v2 ow_adv y)).wp F σ
+    = (loop_n n (oracle_step ow_adv lazy_query_tracked)).wp F σ :=
+  loop_n_wp_eq_of_body_eq
+    (oracle_step_lazy_query_tracked_inRange_matched_chal_y ow_adv h_ow_adv_matched_chal_y)
+    (fun F' h_F' σ' => body_v2_wp_eq_oracle_step ow_adv y F' h_F' σ')
+    n F h_F σ
 
 /-- **Direct Game 2 bridge to the guess_experiment framework.**
 
