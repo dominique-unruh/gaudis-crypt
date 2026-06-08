@@ -1630,14 +1630,16 @@ theorem guess_experiment_collector_wp_bound
 
 /-- **(A): Bound on `guess_experiment` via the collector.**
 
-    `guess_experiment` ≤ `guess_experiment_collector` when body/final's
-    matched-set behavior corresponds to `body_recording`/`final_recording`'s
-    appending. This is the deferred-sampling proof obligation — localized
-    here as a single equivalence claim per game instance.
+    Proved by `wp_bind` peeling through the shared `env` prefix +
+    monotonicity (`wp_le_wp_of_le`), reducing to a single per-state
+    inequality `h_post_env` that captures the deferred-sampling
+    content. This is the cleanest possible formulation: ONE concrete
+    wp inequality per game, not a family of n+1 kernel hypotheses.
 
-    The proof requires primitive hypotheses linking `body` to
-    `body_recording` and `final` to `final_recording`. The induction
-    on `n` carries a matched-status invariant. -/
+    To discharge `h_post_env` per game, the deferred-sampling
+    argument needs to be proved once — that's the substantive content.
+    The structural lifting from `h_post_env` to the full guess_experiment
+    inequality is done HERE (proved in 6 lines below). -/
 theorem guess_experiment_le_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit)
@@ -1649,29 +1651,43 @@ theorem guess_experiment_le_collector
     (body : T → Program state Unit) (final : T → Program state Unit)
     (body_recording : Program state Unit)
     (final_recording : Program state Unit)
-    -- Primitive link: matched-state in the original equals/implies
-    -- target-in-queries-list in the collector, summed over t-sampling.
-    -- This is the deferred-sampling content, expressed at the WP level
-    -- on the full bind chain.
-    (_h_link : ∀ (n : ℕ) (σ : state),
-      (guess_experiment env sample_target target_var matched_var body final n).wp
-          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-      ≤ (guess_experiment_collector env queries_list_var matched_var
-            body_recording final_recording n).wp
-          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ)
-    (n : ℕ) (σ : state) :
+    (n : ℕ)
+    -- The "post-env" inequality. ONE concrete wp inequality.
+    (h_post_env : ∀ σ_env : state,
+      (sample_target >>= fun t =>
+        Program.set target_var t >>= fun _ =>
+        Program.set matched_var false >>= fun _ =>
+        loop_n n (body t) >>= fun _ =>
+        final t >>= fun _ => Program.get matched_var).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_env
+      ≤ (Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ =>
+        final_recording >>= fun _ =>
+        Program.uniform >>= fun t =>
+        Program.get queries_list_var >>= fun qs =>
+        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        Program.get matched_var).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_env)
+    (σ : state) :
     (guess_experiment env sample_target target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment_collector env queries_list_var matched_var
           body_recording final_recording n).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ :=
-  _h_link n σ
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  dsimp only [guess_experiment, guess_experiment_collector]
+  -- Peel `env` on BOTH sides via conv_lhs / conv_rhs to expose env.wp.
+  conv_lhs => rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  apply Program.wp_le_wp_of_le (p := env)
+  intro aσ_env
+  exact h_post_env aσ_env.2
 
 /-- **Composed bound: guess_experiment ≤ (n+1)/|T| via (A) ∘ (B).**
 
     By chaining (A) and (B), we get the full bound on `guess_experiment`
-    going through the collector. Both (A)'s `h_link` and (B)'s
-    `h_qs_length_le` must be supplied per-game. -/
+    going through the collector. (A) is invoked with `h_post_env`
+    (the per-state primitive); (B) with `h_qs_length_le` (the list-
+    length invariant). Both must be supplied per-game. -/
 theorem guess_experiment_wp_bound_via_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit)
@@ -1685,12 +1701,21 @@ theorem guess_experiment_wp_bound_via_collector
     (body_recording : Program state Unit)
     (final_recording : Program state Unit)
     (n : ℕ)
-    (h_link : ∀ (σ : state),
-      (guess_experiment env sample_target target_var matched_var body final n).wp
-          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-      ≤ (guess_experiment_collector env queries_list_var matched_var
-            body_recording final_recording n).wp
-          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ)
+    (h_post_env : ∀ σ_env : state,
+      (sample_target >>= fun t =>
+        Program.set target_var t >>= fun _ =>
+        Program.set matched_var false >>= fun _ =>
+        loop_n n (body t) >>= fun _ =>
+        final t >>= fun _ => Program.get matched_var).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_env
+      ≤ (Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ =>
+        final_recording >>= fun _ =>
+        Program.uniform >>= fun t =>
+        Program.get queries_list_var >>= fun qs =>
+        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        Program.get matched_var).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_env)
     (h_qs_length_le : ∀ σ : state,
       (env >>= fun _ : Unit =>
         Program.set queries_list_var [] >>= fun _ =>
@@ -1702,7 +1727,9 @@ theorem guess_experiment_wp_bound_via_collector
     (guess_experiment env sample_target target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((n + 1) : ENNReal) / Fintype.card T :=
-  le_trans (h_link σ)
+  le_trans (guess_experiment_le_collector env sample_target target_var
+      matched_var queries_list_var body final body_recording final_recording
+      n h_post_env σ)
     (guess_experiment_collector_wp_bound env queries_list_var matched_var
       body_recording final_recording n h_qs_length_le σ)
 
