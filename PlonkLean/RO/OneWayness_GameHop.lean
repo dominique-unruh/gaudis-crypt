@@ -1865,7 +1865,47 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
         (loop_n q (oracle_step ow_adv lazy_query_tracked)).wp _ (matched_chal_y.set false σ6)
         from (wp_matched_chal_y_set_inv h_loop_oracle_step_inRange false _
                 (fun aσ => h_post_LHS_inv aσ) σ6).symm]
-  sorry
+  -- Step B: body conversion. Convert LHS's oracle_step to body_v2 form.
+  -- Need post matched-ignoring for `true` (loop_n_body_v2_wp_eq's h_F shape).
+  have h_post_LHS_inv_true : ∀ aσ : Unit × state,
+      (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+          (matched_chal_y.set true aσ.2)
+      = (do
+        let resp ← Program.get ow_response
+        let y_check ← lazy_query_tracked resp
+        pure (decide (y_check = y)) : Program state Bool).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) aσ.2 := by
+    intro aσ
+    exact wp_matched_chal_y_set_inv h_rest_LHS_inRange true _ (fun _ => rfl) aσ.2
+  rw [show (loop_n q (oracle_step ow_adv lazy_query_tracked)).wp _
+        (matched_chal_y.set false σ6) =
+        (loop_n q (body_v2 ow_adv y)).wp _ (matched_chal_y.set false σ6)
+        from (loop_n_body_v2_wp_eq ow_adv h_ow_adv_matched_chal_y q y _
+                (fun aσ => h_post_LHS_inv_true aσ) (matched_chal_y.set false σ6)).symm]
+  -- Step C: both sides now have `loop_n q (body_v2 ow_adv y)` form
+  -- (modulo Lean's defeq of body_v2 named vs inline). Apply wp_le_wp_of_le.
+  apply Program.wp_le_wp_of_le
+  -- Step D: pointwise tail comparison.
+  intro aσ
+  -- Both tails start with get ow_response + lazy_query_tracked. Same prog,
+  -- different continuations + posts. Use wp_bind_le_diff_k.
+  apply wp_bind_le_diff_k; rintro ⟨resp, σ_a⟩
+  apply wp_bind_le_diff_k; rintro ⟨y_check, σ_b⟩
+  -- Now trailing comparison:
+  -- LHS: pure (decide (y_check = y)).wp F_win σ_b.
+  -- RHS: (if y_check = y then set matched true else pure ()) >>= get matched .wp F_matched σ_b.
+  by_cases h : y_check = y
+  · -- y_check = y case: LHS = 1, RHS = 1.
+    simp only [wp_pure, if_pos h, wp_bind, wp_set, wp_get,
+      matched_chal_y.set_get]
+    simp [h]
+  · -- y_check ≠ y case: LHS = 0, RHS ≥ 0.
+    simp only [wp_pure, if_neg h, Program.pure_bind, wp_get]
+    split_ifs with h1 h2 <;> simp_all
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
     Routes via `guess_experiment_game_2` — bypasses the old marginal_eq wall. -/
