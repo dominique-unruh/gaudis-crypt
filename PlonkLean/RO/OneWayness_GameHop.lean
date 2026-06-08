@@ -1641,265 +1641,38 @@ lemma ow_game_2_loops_wp_eq
     (oracle_step_lazy_query_tracked_inRange_matched_chal_y ow_adv
       h_ow_adv_matched_chal_y) F h_F σ).symm
 
-/-- **The SubProb-level partial marginal equality at the heart of Step (A2).**
+/-- **Direct Game 2 bridge to the guess_experiment framework.**
 
-    Both `ow_game_2_tracked_p` and `ow_game_2_with_match` have the SAME
-    SubProb marginal on the `(y_check, y_target)` projection of their
-    `(output × output × Bool)` output.
+    Routes around the SubProb-level marginal_eq wall by stating the bridge
+    DIRECTLY between `ow_game_2_tracked.win` and `guess_experiment_game_2.matched`.
 
-    ## Proof plan
+    Semantic argument: for any execution, if `ow_game_2_tracked` wins
+    (final `y_check = y`), then the final match-check in `guess_experiment_game_2`
+    fires, setting `matched_chal_y := true`. So
+      `P[ow_game_2_tracked wins] ≤ P[guess_experiment_game_2 matched]`.
 
-    The marginal_eq reduces to wp equality for an arbitrary G via the
-    converse of `wp_eq_of_marginal_eq` (provable via measure extensionality
-    on the countable `output × output` space). The wp equality is:
-
-    ```
-    ∀ G : output × output → ENNReal, ∀ σ,
-      (ow_game_2_tracked_p ow_adv q).wp (fun bσ => G (bσ.1.1, bσ.1.2.1)) σ
-      = (ow_game_2_with_match ow_adv q).wp (fun bσ => G (bσ.1.1, bσ.1.2.1)) σ
-    ```
-
-    Direct proof of the wp equality (after the SHARED env prefix is peeled
-    via wp_bind):
-
-    **Step 1**: apply `ow_game_2_loops_wp_eq` to transform RHS's loop
-       (with match-checks) into LHS's `oracle_loop_n` form. *(PROVED)*
-
-    **Step 2**: eliminate RHS's initial `set matched_chal_y false`. By
-       `wp_set_disjoint_no_op` applied with `rest` = the entire tail AFTER
-       elimination of all matched_chal_y reads/writes (which happens
-       in Steps 3-4 — so apply Step 1 first, then 3-4, then 2 last).
-
-    **Step 3**: eliminate RHS's trailing match-check (after final
-       `lazy_query_tracked`) via `match_check_invisible`.
-
-    **Step 4**: eliminate `get matched_chal_y + pure (g, t', m)`. For G
-       that doesn't read the third component, replace with `pure (g, t', _)`
-       via `wp_get + wp_pure`.
-
-    **Step 5**: handle `set oracle_output y_check + get oracle_output`:
-       state composition gives `g = y_check`. Use `wp_set + wp_get`.
-
-    **Step 6**: handle `get ow_challenge_y` returning `y` (state invariant
-       since `set ow_challenge_y y` in env, and nothing writes chal_y after).
-       Use `wp_get` and the chal_y invariance.
-
-    **Step 7**: after all eliminations, both sides have form
-       `(env >>= oracle_loop_n + final_lazy_query >>= pure (y_check, y, ...)).wp G_pair σ`.
-       The wp on G_pair (= G ∘ proj_pair) collapses to the same value.
-
-    ## Status
-
-    Building blocks 1, 3 already proved (`match_check_invisible`,
-    `ow_game_2_loops_wp_eq`). Steps 2, 4-6 are straightforward `wp_*`
-    rewrites. Step 7 closes the calculus.
-
-    Sorry'd in this session — full assembly requires ~100-200 additional
-    lines and careful do-notation/match elaboration handling. The proof
-    is mechanical from here. -/
-private lemma ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match
-    (q : ℕ) :
-    ∀ σ : state,
-      ((ow_game_2_tracked_p ow_adv q) σ >>=
-        fun ttb_σ : (output × output × Bool) × state =>
-          (pure (ttb_σ.1.1, ttb_σ.1.2.1) : SubProbability (output × output)))
-      = ((ow_game_2_with_match ow_adv q) σ >>=
-        fun ttb_σ : (output × output × Bool) × state =>
-          (pure (ttb_σ.1.1, ttb_σ.1.2.1) : SubProbability (output × output))) := by
-  -- With the new ow_game_2_with_match (sharing the env+sample prefix with
-  -- ow_game_2_tracked_p, and with match-checks using bound variables),
-  -- the marginal equality should follow from the wp equality (now provable
-  -- directly via building blocks) lifted through the converse
-  -- `Program.marginal_eq_of_wp_eq_all_value_posts`.
-  sorry
-
-/-- **Step (A2) of the Game 2 bridge:** wp-equality on the F_match post
-    between `ow_game_2_tracked_p` and `ow_game_2_with_match`. Proved by
-    applying `Program.wp_eq_of_marginal_eq` to the pair-projected programs,
-    reducing to the SubProb-level partial marginal equality
-    `ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match`.
-
-    The post `F_match bσ = if bσ.1.1 = bσ.1.2.1 then 1 else 0` factors
-    through the projection `proj abm = (abm.1, abm.2.1)` as `G ∘ proj`
-    where `G : output × output → ENNReal := fun ab => if ab.1 = ab.2 then 1 else 0`. -/
-private lemma ow_game_2_tracked_p_wp_eq_ow_game_2_with_match_wp
-    (q : ℕ) (σ : state) :
-    (ow_game_2_tracked_p ow_adv q).wp
-        (fun bσ : (output × output × Bool) × state =>
-          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
-    = (ow_game_2_with_match ow_adv q).wp
-        (fun bσ : (output × output × Bool) × state =>
-          if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ := by
-  -- Define the projected programs explicitly: drop the third (matched) component.
-  set p_proj : Program state (output × output) :=
-    ow_game_2_tracked_p ow_adv q >>=
-      fun ttb => (pure (ttb.1, ttb.2.1) : Program state (output × output)) with hp_def
-  set q_proj : Program state (output × output) :=
-    ow_game_2_with_match ow_adv q >>=
-      fun ttb => (pure (ttb.1, ttb.2.1) : Program state (output × output)) with hq_def
-  -- For value-only post `G ∘ .1`, projected program wp equals original wp on F_match.
-  have lhs_eq :
-      (ow_game_2_tracked_p ow_adv q).wp
-          (fun bσ : (output × output × Bool) × state =>
-            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
-      = p_proj.wp
-          (fun pσ : (output × output) × state =>
-            if pσ.1.1 = pσ.1.2 then (1 : ENNReal) else 0) σ := by
-    simp only [hp_def, wp_bind, wp_pure]
-  have rhs_eq :
-      (ow_game_2_with_match ow_adv q).wp
-          (fun bσ : (output × output × Bool) × state =>
-            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ
-      = q_proj.wp
-          (fun pσ : (output × output) × state =>
-            if pσ.1.1 = pσ.1.2 then (1 : ENNReal) else 0) σ := by
-    simp only [hq_def, wp_bind, wp_pure]
-  rw [lhs_eq, rhs_eq]
-  -- Apply wp_eq_of_marginal_eq using the named SubProb-level marginal equality.
-  refine Program.wp_eq_of_marginal_eq (p := p_proj) (q := q_proj)
-    ?_ (fun ab : output × output => if ab.1 = ab.2 then (1 : ENNReal) else 0) σ
-  intro σ_pre
-  -- Reduce projected-program marginals to direct projection of unprojected programs.
-  simp only [hp_def, hq_def]
-  -- `(prog >>= fun a => pure (proj a)) σ >>= pure ∘ .1`
-  --   = `prog σ >>= fun aσ => pure (proj aσ.1)`.
-  show (ow_game_2_tracked_p ow_adv q σ_pre >>=
-          fun ttb_σ : (output × output × Bool) × state =>
-            (pure ((ttb_σ.1.1, ttb_σ.1.2.1), ttb_σ.2)
-              : SubProbability ((output × output) × state)))
-        >>= (fun pσ : (output × output) × state =>
-              (pure pσ.1 : SubProbability (output × output)))
-      = (ow_game_2_with_match ow_adv q σ_pre >>=
-          fun ttb_σ : (output × output × Bool) × state =>
-            (pure ((ttb_σ.1.1, ttb_σ.1.2.1), ttb_σ.2)
-              : SubProbability ((output × output) × state)))
-        >>= (fun pσ : (output × output) × state =>
-              (pure pσ.1 : SubProbability (output × output)))
-  rw [SubProbability.bind_assoc', SubProbability.bind_assoc']
-  simp only [SubProbability.pure_bind]
-  exact ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match ow_adv q σ_pre
-
-/-- **The Game 2 reduction**: `ow_game_2_tracked.wp win ≤
-    ow_game_2_with_match.wp matched`. Factored into two pieces:
-
-    **Step (A): Game equivalence (bridge to guess_experiment).** Maps
-    `ow_game_2_tracked`'s OG win event (`decide (y_check = y)`) to
-    `ow_game_2_with_match`'s final-guess-matches-target indicator
-    (`bσ.1.1 = ow_challenge_y.get bσ.2`).
-
-    Both games share the same `q+1` `lazy_query_tracked` calls; the
-    `ow_game_2_with_match` adds matched tracking + final `set oracle_output`,
-    which are wp-invisible for the final-guess indicator. Sorry'd.
-
-    **Step (B): Framework structural reduction.** Apply
-    `guess_experiment_wp_final_guess_le_matched` to the specific instance.
-    This is the clean cryptographic factoring: in a guess game, the final
-    guess matching the target implies matched. -/
-theorem ow_game_2_tracked_wins_le_ow_game_2_with_match_matched
+    Sorry'd. This is the single combined bridge replacing the old chain
+    Step A1 + Step A2 (marginal_eq wall) + Step B + matched_bound. -/
+lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-    ≤ (ow_game_2_with_match ow_adv q).wp
-        (fun bσ : (output × output × Bool) × state =>
-          if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
-  -- Decomposition:
-  -- Step (A): bridge ow_game_2_tracked.wp win σ to ow_game_2_with_match.wp
-  --   (g = t' indicator) σ via game equivalence. With the new (T × T × Bool)
-  --   return type, this comparison is now OUTPUT-ONLY (no chal_y.get).
-  -- Step (B): apply framework structural reduction.
-  calc (ow_game_2_tracked ow_adv q).wp
-          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-      = (ow_game_2_tracked_p ow_adv q).wp
-          (fun bσ : (output × output × Bool) × state =>
-            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ :=
-        -- Step (A1): ow_game_2_tracked → ow_game_2_tracked_p (same body, augmented return).
-        ow_game_2_tracked_wp_eq_ow_game_2_tracked_p_wp ow_adv q σ
-    _ = (ow_game_2_with_match ow_adv q).wp
-          (fun bσ : (output × output × Bool) × state =>
-            if bσ.1.1 = bσ.1.2.1 then (1 : ENNReal) else 0) σ :=
-        -- Step (A2): wp-equality via partial marginal equality. The proof
-        -- reduces (via `Program.wp_eq_of_marginal_eq` applied to pair-projected
-        -- programs) to the SubProb-level partial marginal equality stated in
-        -- `ow_game_2_tracked_p_marginal_eq_ow_game_2_with_match` (sorry'd).
-        ow_game_2_tracked_p_wp_eq_ow_game_2_with_match_wp ow_adv q σ
-    _ ≤ (ow_game_2_with_match ow_adv q).wp
-          (fun bσ : (output × output × Bool) × state =>
-            if bσ.1.2.2 then (1 : ENNReal) else 0) σ := by
-        -- Step (B): structural reduction for the NEW ow_game_2_with_match.
-        -- The trailing match-check ensures `y_check = y → m = true`, so
-        -- F_match ≤ matched_indicator on every execution path.
-        -- Proof pattern follows `guess_experiment_wp_final_guess_le_matched`.
-        have wp_bind_le : ∀ {α β : Type} (prog : Program state α) (k : α → Program state β)
-            (F G : Program.Post state β),
-            (∀ aσ : α × state, (k aσ.1).wp F aσ.2 ≤ (k aσ.1).wp G aσ.2) →
-            ∀ σ : state, (prog >>= k).wp F σ ≤ (prog >>= k).wp G σ := by
-          intro α β prog k F G h σ_pre
-          rw [wp_bind, wp_bind]
-          exact Program.wp_le_wp_of_le _ _ _ h _
-        unfold ow_game_2_with_match
-        -- Descend through binds: env (lazy_init + set chal_x_queried_gh + uniform x +
-        -- set chal_x x), uniform y, set chal_y y, set matched false, loop, get resp,
-        -- lazy_query_tracked resp.
-        apply wp_bind_le; rintro ⟨_, σ1⟩
-        apply wp_bind_le; rintro ⟨_, σ2⟩
-        apply wp_bind_le; rintro ⟨_, σ3⟩
-        apply wp_bind_le; rintro ⟨_, σ4⟩
-        apply wp_bind_le; rintro ⟨y, σ5⟩
-        apply wp_bind_le; rintro ⟨_, σ6⟩
-        apply wp_bind_le; rintro ⟨_, σ7⟩
-        apply wp_bind_le; rintro ⟨_, σ8⟩
-        apply wp_bind_le; rintro ⟨_, σ9⟩
-        apply wp_bind_le; rintro ⟨y_check, σ10⟩
-        -- Now y and y_check are in scope. Case-split on y_check = y.
-        by_cases h_yc : y_check = y
-        · -- y_check = y: cond_set fires, m = true; both posts evaluate to 1.
-          simp only [if_pos h_yc, wp_bind, wp_set, wp_get, wp_pure]
-          rw [matched_chal_y.set_get _ true]
-          simp [h_yc]
-        · -- y_check ≠ y: F_match = 0 ≤ matched_indicator (≥ 0).
-          simp only [if_neg h_yc, Program.pure_bind, wp_bind, wp_get, wp_pure]
-          split_ifs <;> simp [h_yc]
-
-/-- **Bound on matched in `ow_game_2_with_match`** — the `guess_experiment`
-    bound specialized to Game 2.
-
-    Since `ow_game_2_with_match` is *literally* a `guess_experiment`
-    instance (by definition), this follows directly from
-    `guess_experiment_wp_bound` with the appropriate inRange hypotheses
-    for `env`, `loop_body`, `final_body`, and `extract`. -/
-theorem ow_game_2_with_match_matched_bound
-    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
-    (q : ℕ) (σ : state) :
-    (ow_game_2_with_match ow_adv q).wp
-        (fun bσ : (output × output × Bool) × state =>
-          if bσ.1.2.2 then (1 : ENNReal) else 0) σ
-    ≤ ((q + 1) : ENNReal) / Fintype.card output := by
-  -- The matched bound: each of the q+1 lazy_query_tracked calls has
-  -- ≤ 1/|output| chance of returning y (the uniform sample), so the union
-  -- bound gives (q+1)/|output|. Proof is analogous to guess_experiment_wp_bound
-  -- but specialized to the new ow_game_2_with_match definition (where the
-  -- match-check uses bound variables y_val, y directly). Sorry'd for now —
-  -- to be replaced by a direct linear-loop bound proof.
+    ≤ (guess_experiment_game_2 ow_adv q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
   sorry
 
-/-- Game 2 wins bound: combines the reduction with the matched bound.
-    This is the cryptographic guess-game factorization. -/
+/-- Game 2 wins bound: combines the direct bridge with the framework bound.
+    Routes via `guess_experiment_game_2` — bypasses the old marginal_eq wall. -/
 theorem ow_game_2_tracked_wins_le_guess_output_bound
-    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
+    [Fintype output] [Nonempty output] [DecidableEq output]
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card output :=
   le_trans
-    (ow_game_2_tracked_wins_le_ow_game_2_with_match_matched ow_adv q σ)
-    (ow_game_2_with_match_matched_bound ow_adv
-      h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x h_ow_adv_matched_chal_y q σ)
+    (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv q σ)
+    (by unfold guess_experiment_game_2
+        exact guess_experiment_wp_bound _ _ ow_challenge_y matched_chal_y _ _ q σ)
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
@@ -2005,8 +1778,7 @@ theorem ow_lazy_bound_via_gamehop
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card input := by
         gcongr
-        · exact ow_game_2_tracked_wins_le_guess_output_bound ow_adv
-            h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x h_ow_adv_matched_chal_y q σ
+        · exact ow_game_2_tracked_wins_le_guess_output_bound ow_adv q σ
         · -- The "bad ∩ Win" wp is ≤ "bad" wp (since Win ≤ 1).
           calc (ow_game_1_tracked ow_adv q).wp
                   (fun bσ : Bool × state =>
