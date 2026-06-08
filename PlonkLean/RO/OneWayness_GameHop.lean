@@ -1799,7 +1799,6 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
   rw [wp_bind]
   conv_rhs => rw [wp_bind]
   -- Step A: state alignment via matched-set-invariance of LHS's wp.
-  -- LHS at σ6 = LHS at (matched.set false σ6).
   have h_loop_oracle_step_inRange :
       (loop_n q (oracle_step ow_adv lazy_query_tracked)).inRange
         matched_chal_y.compl.range :=
@@ -1812,6 +1811,12 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
           = matched_chal_y.range from by
           rw [LensRange.complement_range, LensRange.compl_compl]]
     exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
+  -- Set up post for LHS — what comes after the loop in tracked.
+  -- The post is fun ttσ => (the_tail).wp F_win ttσ.2, where the_tail does
+  -- get resp + lazy_query_tracked + pure decide.
+  -- Show the post is matched-ignoring (so wp_shift_input applies).
+  -- Then rewrite LHS from "at σ6" to "at matched.set false σ6".
+  -- Remaining steps (B, C, D) build on this. Sorry'd as one block for now.
   sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
