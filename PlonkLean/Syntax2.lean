@@ -384,28 +384,12 @@ def holeLookup : (holes : HoleSigs) →
       | .zero   => split.2
       | .succ m => holeLookup Γ split.1 m
 
-/-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
-    `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
-def StmtWithHoles.instantiate {holes : HoleSigs}
-    (resolve : ∀ {sig}, HoleIndex holes sig → Procedure sig) :
-    StmtWithHoles holes → StmtWithHoles .empty
-  | .skip            => .skip
-  | .assign x e      => .assign x e
-  | .sample x e      => .sample x e
-  | .call' x b r p   => .call' x b r p
-  | .hole n x p      => StmtWithHoles.call x (resolve n) p
-  | .seq s1 s2       =>
-      .seq (StmtWithHoles.instantiate resolve s1) (StmtWithHoles.instantiate resolve s2)
-  | .ifThenElse c t e =>
-      .ifThenElse c (StmtWithHoles.instantiate resolve t) (StmtWithHoles.instantiate resolve e)
-  | .while c t       => .while c (StmtWithHoles.instantiate resolve t)
-
 /-- Plug the procedures in `args` into the corresponding holes of `proc`, replacing each
     `.hole` in the body with a `.call'` of the supplied procedure. -/
+@[deprecated "Use ProcedureWithHoles.instantiate"]
 def substituteProcedure {holes sig} (proc : ProcedureWithHoles holes sig)
   (args : typeListToProdGeneric Prod PUnit (holes.toList.map Procedure)) :
-  Procedure sig :=
-  ⟨StmtWithHoles.instantiate (holeLookup holes args) proc.body, proc.return_val⟩
+  Procedure sig := proc.instantiate (holeLookup holes args)
 
 /-- Convert a basic STLC term of the translated argument-tuple type back into the nested
     tuple of procedures expected by `substituteProcedure`. -/
@@ -572,6 +556,121 @@ def IsProcTuple.toArgs
       | .fst _,   h => absurd h (by simp [IsProcTuple])
       | .snd _,   h => absurd h (by simp [IsProcTuple])
 
+lemma HoleSigs.toList_ne_nil {holes : HoleSigs} (h : holes.NonEmpty) : holes.toList ≠ [] := by
+  cases holes with
+  | empty => exact absurd h (by simp [HoleSigs.NonEmpty])
+  | append Γ s => simp [HoleSigs.toList]
+
+/-- Build the proc-tuple argument (a right-nested `.pair` of `.proc`s) from a tuple of
+    procedures — the inverse of `IsProcTuple.toArgs`. -/
+def procTupleOfArgs {Δ : ModuleContext} : (sigs : List ProcedureSignature) → sigs ≠ [] →
+    typeListToProdGeneric Prod PUnit (sigs.map Procedure) →
+    ModuleExpression Δ
+      (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))
+  | [],           h, _         => absurd rfl h
+  | [_],          _, p         => .proc p
+  | _ :: s :: ss, _, (p, rest) => .pair (.proc p) (procTupleOfArgs (s :: ss) (by simp) rest)
+
+/-- The erasure of a proc-tuple built by `procTupleOfArgs` is a `BasicTerm` (so it can drive
+    the STLC `funcApp` reduction). -/
+lemma isBasicType_procTupleOfArgs {Δ : ModuleContext} : (sigs : List ProcedureSignature) →
+    (hne : sigs ≠ []) → (args : typeListToProdGeneric Prod PUnit (sigs.map Procedure)) →
+    Metatheory.STLCext.Term.isBasicType
+      (moduleTypeToSTLC
+        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
+      (moduleExpressionToSTLC (procTupleOfArgs (Δ := Δ) sigs hne args))
+  | [], hne, _ => absurd rfl hne
+  | [_], _, p => by
+      simp [procTupleOfArgs, moduleExpressionToSTLC, moduleTypeToSTLC, typeListToProdGeneric,
+        List.map, Metatheory.STLCext.Term.isBasicType]
+  | _ :: s :: ss, _, (p, rest) => by
+      simp only [procTupleOfArgs, moduleExpressionToSTLC, moduleTypeToSTLC, List.map,
+        typeListToProdGeneric, Metatheory.STLCext.Term.isBasicType]
+      exact ⟨trivial, isBasicType_procTupleOfArgs (Δ := Δ) (s :: ss) (by simp) rest⟩
+
+/-- Round-trip: erasing a `procTupleOfArgs`, converting back to a `BasicTerm`, and reading the
+    procedures out recovers the original tuple `args`. -/
+lemma basicTermToProcedureArgs_toBasicTerm {Δ : ModuleContext} :
+    (sigs : List ProcedureSignature) → (hne : sigs ≠ []) →
+    (args : typeListToProdGeneric Prod PUnit (sigs.map Procedure)) →
+    (hbasic : Metatheory.STLCext.Term.isBasicType
+      (moduleTypeToSTLC
+        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
+      (moduleExpressionToSTLC (procTupleOfArgs (Δ := Δ) sigs hne args))) →
+    basicTermToProcedureArgs sigs
+        (Metatheory.STLCext.Term.toBasicTerm _
+          (moduleExpressionToSTLC (procTupleOfArgs (Δ := Δ) sigs hne args)) hbasic)
+      = args
+  | [], hne, _, _ => absurd rfl hne
+  | [_], _, _, _ => rfl
+  | _ :: s :: ss, _, (p, rest), hbasic => by
+      obtain ⟨hM, hN⟩ := hbasic
+      exact congrArg (Prod.mk p)
+        (basicTermToProcedureArgs_toBasicTerm (Δ := Δ) (s :: ss) (by simp) rest hN)
+
+/-- Erasure to STLC ignores a type-cast of the module expression. -/
+lemma moduleExpressionToSTLC_cast {Δ : ModuleContext} {T T' : ModuleType} (h : T = T')
+    (m : ModuleExpression Δ T) :
+    moduleExpressionToSTLC (h ▸ m) = moduleExpressionToSTLC m := by cases h; rfl
+
+/-- Inverse round-trip: rebuilding a proc-tuple from the procedures read out of it (via
+    `IsProcTuple.toArgs`) gives back the original term. -/
+lemma procTupleOfArgs_toArgs {Δ : ModuleContext} : (sigs : List ProcedureSignature) →
+    (hne : sigs ≠ []) →
+    (m : ModuleExpression Δ
+      (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))) →
+    (ipt : IsProcTuple m) →
+    procTupleOfArgs sigs hne ipt.toArgs = m
+  | [], hne, _, _ => absurd rfl hne
+  | [_], _, .proc _, _ => rfl
+  | [_], _, .var _, h => absurd h (by simp [IsProcTuple])
+  | [_], _, .app _ _, h => absurd h (by simp [IsProcTuple])
+  | [_], _, .fst _, h => absurd h (by simp [IsProcTuple])
+  | [_], _, .snd _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.proc p) rest, h => by
+      simp only [IsProcTuple.toArgs, procTupleOfArgs]
+      rw [procTupleOfArgs_toArgs (s :: ss) (by simp) rest h]
+  | _ :: s :: ss, _, .pair (.var _) _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.app _ _) _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.fst _) _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.snd _) _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .var _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .app _ _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .fst _, h => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .snd _, h => absurd h (by simp [IsProcTuple])
+
+/-- Reading the procedures out of the erasure of an arbitrary proc-tuple `m` recovers
+    `ipt.toArgs` — the `IsProcTuple`-indexed analogue of `basicTermToProcedureArgs_toBasicTerm`. -/
+lemma basicTermToProcedureArgs_toBasicTerm_toArgs {Δ : ModuleContext} :
+    (sigs : List ProcedureSignature) → (hne : sigs ≠ []) →
+    (m : ModuleExpression Δ
+      (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))) →
+    (ipt : IsProcTuple m) →
+    (hbasic : Metatheory.STLCext.Term.isBasicType
+      (moduleTypeToSTLC
+        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
+      (moduleExpressionToSTLC m)) →
+    basicTermToProcedureArgs sigs
+        (Metatheory.STLCext.Term.toBasicTerm _ (moduleExpressionToSTLC m) hbasic) = ipt.toArgs
+  | [], hne, _, _, _ => absurd rfl hne
+  | [_], _, .proc _, _, _ => rfl
+  | [_], _, .var _, h, _ => absurd h (by simp [IsProcTuple])
+  | [_], _, .app _ _, h, _ => absurd h (by simp [IsProcTuple])
+  | [_], _, .fst _, h, _ => absurd h (by simp [IsProcTuple])
+  | [_], _, .snd _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.proc p) rest, h, hbasic => by
+      obtain ⟨hM, hN⟩ := hbasic
+      exact congrArg (Prod.mk p)
+        (basicTermToProcedureArgs_toBasicTerm_toArgs (s :: ss) (by simp) rest h hN)
+  | _ :: s :: ss, _, .pair (.var _) _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.app _ _) _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.fst _) _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .pair (.snd _) _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .var _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .app _ _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .fst _, h, _ => absurd h (by simp [IsProcTuple])
+  | _ :: s :: ss, _, .snd _, h, _ => absurd h (by simp [IsProcTuple])
+
 
 def cbvReductionStep (m : ModuleExpression Δ t) (nn : ¬ Normal m) :
     ModuleExpression Δ t :=
@@ -652,6 +751,14 @@ inductive ReductionStep : ModuleExpression Δ T → ModuleExpression Δ T → Pr
       ReductionStep (.snd (.pair a b)) b
   | snd     {e e' : ModuleExpression Δ (.prod A T)} :
       ReductionStep e e' → ReductionStep (.snd e) (.snd e')
+  /-- δ-reduction: a procedure-with-holes applied to a ground proc-tuple argument is
+      instantiated, producing the closed procedure `substituteProcedure proc args`. -/
+  | delta   {holes : HoleSigs} {sigs : ProcedureSignature} {ne : holes.NonEmpty}
+            {proc : ProcedureWithHoles holes sigs}
+            (args : typeListToProdGeneric Prod PUnit (holes.toList.map Procedure)) :
+      ReductionStep
+        (.app (.procHoles ne proc) (procTupleOfArgs holes.toList (HoleSigs.toList_ne_nil ne) args))
+        (.proc (substituteProcedure proc args))
 
 
 private lemma moduleExpressionToSTLC_rename_shift (d : Nat)
@@ -833,6 +940,11 @@ theorem cbvReductionStep_preservation
               R m2 m2' → R (.app m1 m2) (.app m1 m2'))
  (app_beta : ∀ {Γ T U} (body : ModuleExpression (.append Γ T) U) (arg : ModuleExpression Γ T),
               R (.app (.abs body) arg) (subst body arg))
+ (app_delta : ∀ {Γ holes sig} (ne : holes.NonEmpty) (proc : ProcedureWithHoles holes sig)
+              (args : typeListToProdGeneric Prod PUnit (holes.toList.map Procedure)),
+              R (.app (.procHoles ne proc)
+                    (procTupleOfArgs (Δ := Γ) holes.toList (HoleSigs.toList_ne_nil ne) args))
+                (.proc (substituteProcedure proc args)))
  (abs : ∀ {Γ T U} (body body' : ModuleExpression (.append Γ T) U),
         R body body' → R (.abs body) (.abs body'))
  (fst : ∀ {Γ T U} (m m' : ModuleExpression Γ (.prod T U)), R m m' → R (.fst m) (.fst m'))
@@ -856,9 +968,14 @@ theorem cbvReductionStep_preservation
        | abs body => simp only [IsAbs.body]; exact app_beta body _
        | procHoles _ _ => simp [IsAbs] at h_abs
        | var _ | app _ _ | fst _ | snd _ => simp [IsAbs] at h_abs
-     · -- `f` is a procedure-with-holes applied to a proc-tuple: δ-reduction.
-       -- Proving this requires an `app_delta` closure property on `R`, not assumed here.
-       sorry
+     · -- `f` is a procedure-with-holes applied to a proc-tuple: δ-reduction (via `app_delta`).
+       obtain ⟨hph, harg⟩ := h_cond
+       cases f with
+       | procHoles ne proc =>
+           convert app_delta ne proc harg.toArgs using 2
+           exact (procTupleOfArgs_toArgs _ (HoleSigs.toList_ne_nil ne) x harg).symm
+       | abs _ => exact absurd hph (by simp [IsProcHoles])
+       | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
      · -- `f` is Normal: reduce the argument (it must be reducible, else the app is Normal)
        have nn_arg : ¬ Normal x := fun ha => by
          by_cases hph : IsProcHoles f
@@ -914,6 +1031,7 @@ theorem cbvReductionStep_is_reductionStep (m : ModuleExpression Γ T) (nn : ¬ N
     (app_left   := fun _ _ _ h => .appL h)
     (app_right  := fun _ _ _ h => .appR h)
     (app_beta   := fun _ _     => .beta)
+    (app_delta  := fun _ _ args => .delta args)
     (abs        := fun _ _ h   => .lam h)
     (fst        := fun _ _ h   => .fst h)
     (fst_beta   := fun _ _     => .fstPair)
@@ -1115,6 +1233,57 @@ theorem reductionStep_stlc_compat (m m' : ModuleExpression Γ T) :
   | fst _ ih  => simp only [moduleExpressionToSTLC]; exact .fst ih
   | sndPair => simp only [moduleExpressionToSTLC]; exact .sndPair _ _
   | snd _ ih  => simp only [moduleExpressionToSTLC]; exact .snd ih
+  | delta args =>
+      rename_i Δ holes sigs ne proc
+      -- δ-step ⟷ STLC `funcApp`: the erased argument is basic (`isBasicType_procTupleOfArgs`),
+      -- and reading the procedures back out recovers `args`
+      -- (`basicTermToProcedureArgs_toBasicTerm`), so `funcApp`'s reduct is `.value (subst args)`.
+      have hb := isBasicType_procTupleOfArgs (Δ := Δ) holes.toList (HoleSigs.toList_ne_nil ne) args
+      have key := basicTermToProcedureArgs_toBasicTerm (Δ := Δ) holes.toList
+        (HoleSigs.toList_ne_nil ne) args hb
+      simp only [moduleExpressionToSTLC, procedureToSTLC]
+      rw [show Metatheory.STLCext.Term.value (substituteProcedure proc args)
+            = Metatheory.STLCext.BasicTerm.toTerm
+                ((fun bt => Metatheory.STLCext.BasicTerm.value
+                    (substituteProcedure proc (basicTermToProcedureArgs holes.toList bt)))
+                  (Metatheory.STLCext.Term.toBasicTerm _
+                    (moduleExpressionToSTLC
+                      (procTupleOfArgs (Δ := Δ) holes.toList (HoleSigs.toList_ne_nil ne) args)) hb))
+            from by simp only [Metatheory.STLCext.BasicTerm.toTerm]; rw [key]]
+      exact Metatheory.STLCext.Step.funcApp _ _ _ hb
+
+/-- For an argument of a procedure-tuple type, being a `BasicTerm` after erasure means it is
+    a proc-tuple.  (So a non-proc-tuple argument blocks the STLC `funcApp` reduction.) -/
+private lemma isBasicType_imp_isProcTuple {Δ : ModuleContext} :
+    (sigs : List ProcedureSignature) →
+    (arg : ModuleExpression Δ
+        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))) →
+    Metatheory.STLCext.Term.isBasicType
+        (moduleTypeToSTLC
+          (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
+        (moduleExpressionToSTLC arg) →
+    IsProcTuple arg
+  | [], arg, h => by
+      cases arg <;>
+        simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType]
+  | [_], arg, h => by
+      cases arg <;>
+        simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType,
+          IsProcTuple]
+  | _ :: s :: ss, arg, h => by
+      cases arg with
+      | pair a b =>
+          cases a with
+          | proc p =>
+              simp only [moduleExpressionToSTLC, moduleTypeToSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+              exact isBasicType_imp_isProcTuple (s :: ss) b h.2
+          | var _ | app _ _ | fst _ | snd _ =>
+              simp only [moduleExpressionToSTLC, moduleTypeToSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+              exact h.1.elim
+      | var _ | app _ _ | fst _ | snd _ =>
+          simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType]
 
 theorem reductionStep_stlc_complete
   (m : ModuleExpression Γ T) (M' : Metatheory.STLCext.Term)
@@ -1136,7 +1305,23 @@ theorem reductionStep_stlc_complete
           | appR step =>
               obtain ⟨arg', hnd, heq⟩ := iharg _ step
               exact ⟨.app (.abs body) arg', .appR hnd, by simp [moduleExpressionToSTLC, heq]⟩
-      | procHoles _ => sorry
+      | procHoles ne proc =>
+          simp only [moduleExpressionToSTLC, procedureToSTLC] at h
+          cases h with
+          | appL step => nomatch step
+          | appR step =>
+              obtain ⟨arg', hnd, heq⟩ := iharg _ step
+              exact ⟨.app (.procHoles ne proc) arg', .appR hnd,
+                by simp [moduleExpressionToSTLC, procedureToSTLC, heq]⟩
+          | funcApp d g N hbasic =>
+              have ipt : IsProcTuple arg := isBasicType_imp_isProcTuple _ arg hbasic
+              refine ⟨.proc (substituteProcedure proc ipt.toArgs), ?_, ?_⟩
+              · convert ReductionStep.delta (proc := proc) ipt.toArgs using 2
+                exact (procTupleOfArgs_toArgs _ (HoleSigs.toList_ne_nil ne) arg ipt).symm
+              · simp only [moduleExpressionToSTLC, Metatheory.STLCext.BasicTerm.toTerm,
+                  procedureHolesToArgumentType]
+                rw [basicTermToProcedureArgs_toBasicTerm_toArgs _ (HoleSigs.toList_ne_nil ne)
+                  arg ipt hbasic]
       | var _ | app _ _ | fst _ | snd _ =>
           simp only [moduleExpressionToSTLC] at h
           cases h with
@@ -1216,9 +1401,15 @@ theorem cbvReductionStep_stlc_compat (m : ModuleExpression Γ T) (nn : ¬ Normal
         | var _ | app _ _ | fst _ | snd _ => simp [IsAbs] at h_abs
       rw [h_meq]
       exact Metatheory.STLCext.Step.beta _ _
-    · -- δ: procedure-with-holes applied to a proc-tuple.  Requires matching the module-level
-      -- `substituteProcHolesApp` with STLC `funcApp`; left as future work.
-      sorry
+    · -- δ: reduce to `reductionStep_stlc_compat` via a `ReductionStep.delta`.
+      refine reductionStep_stlc_compat (hd.app arg) _ ?step
+      obtain ⟨hph, harg⟩ := h_cond
+      cases hd with
+      | procHoles ne proc =>
+          convert ReductionStep.delta (proc := proc) harg.toArgs using 2
+          exact (procTupleOfArgs_toArgs _ (HoleSigs.toList_ne_nil ne) arg harg).symm
+      | abs _ => exact absurd hph (by simp [IsProcHoles])
+      | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
     · -- hd is Normal: reduce the argument
       simp only [moduleExpressionToSTLC]
       have h_nn_arg : ¬ Normal arg := fun ha => by
@@ -1302,39 +1493,6 @@ theorem multiStepReduction_to_stlc_star {m m' : ModuleExpression Γ T}
   induction h with
   | refl => exact Rewriting.Star.refl _
   | tail hab hbc ih => exact Rewriting.Star.tail ih (reductionStep_stlc_compat _ _ hbc)
-
-/-- For an argument of a procedure-tuple type, being a `BasicTerm` after erasure means it is
-    a proc-tuple.  (So a non-proc-tuple argument blocks the STLC `funcApp` reduction.) -/
-private lemma isBasicType_imp_isProcTuple {Δ : ModuleContext} :
-    (sigs : List ProcedureSignature) →
-    (arg : ModuleExpression Δ
-        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))) →
-    Metatheory.STLCext.Term.isBasicType
-        (moduleTypeToSTLC
-          (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
-        (moduleExpressionToSTLC arg) →
-    IsProcTuple arg
-  | [], arg, h => by
-      cases arg <;>
-        simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType]
-  | [_], arg, h => by
-      cases arg <;>
-        simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType,
-          IsProcTuple]
-  | _ :: s :: ss, arg, h => by
-      cases arg with
-      | pair a b =>
-          cases a with
-          | proc p =>
-              simp only [moduleExpressionToSTLC, moduleTypeToSTLC,
-                Metatheory.STLCext.Term.isBasicType] at h
-              exact isBasicType_imp_isProcTuple (s :: ss) b h.2
-          | var _ | app _ _ | fst _ | snd _ =>
-              simp only [moduleExpressionToSTLC, moduleTypeToSTLC,
-                Metatheory.STLCext.Term.isBasicType] at h
-              exact h.1.elim
-      | var _ | app _ _ | fst _ | snd _ =>
-          simp_all [moduleExpressionToSTLC, moduleTypeToSTLC, Metatheory.STLCext.Term.isBasicType]
 
 theorem moduleExpressionToSTLC_Normal_iff {m : ModuleExpression Γ T} :
     Normal m ↔ Rewriting.IsNormalForm Metatheory.STLCext.Step (moduleExpressionToSTLC m) := by
@@ -1867,6 +2025,8 @@ theorem Module.fst_pair {T U} (m1 : Module T) (m2 : Module U) :
 opaque FV : Type
 -- Placeholder
 axiom fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Set FV
+axiom fv_proc_instantiate {sig holes} (proc : ProcedureWithHoles holes sig) (args) :
+  fv_proc (proc.instantiate args) = fv_proc proc ∪ ⋃ i : HoleIndex holes sig, fv_proc (args i)
 
 def fv' {mctx : ModuleContext} {mty : ModuleType} (mex : ModuleExpression mctx mty) : Set FV :=
   match mex with
@@ -1954,6 +2114,40 @@ private lemma fv'_subst_le
   | zero => simp [substVar]
   | succ r' => simp only [substVar, fv'_var_eq]; exact Set.empty_subset _
 
+/-- The union of `fv_proc` over the entries of a procedure tuple. -/
+def fvArgs : (sigs : List ProcedureSignature) →
+    typeListToProdGeneric Prod PUnit (sigs.map Procedure) → Set FV
+  | [],           _          => {}
+  | [_],          p          => fv_proc p
+  | _ :: s :: ss, (p, rest)  => fv_proc p ∪ fvArgs (s :: ss) rest
+
+lemma fv'_procTupleOfArgs_eq_fvArgs {Δ : ModuleContext} :
+    (sigs : List ProcedureSignature) → (hne : sigs ≠ []) →
+    (args : typeListToProdGeneric Prod PUnit (sigs.map Procedure)) →
+    fv' (procTupleOfArgs (Δ := Δ) sigs hne args) = fvArgs sigs args
+  | [], hne, _ => absurd rfl hne
+  | [_], _, p => by simp [procTupleOfArgs, fv', fvArgs]
+  | _ :: s :: ss, _, (p, rest) => by
+      simp only [procTupleOfArgs, fv', fvArgs]
+      rw [fv'_procTupleOfArgs_eq_fvArgs (s :: ss) (by simp) rest]
+
+/-- Every procedure looked up from a tuple `args` has its free variables inside the free
+    variables of the proc-tuple built from `args`. -/
+private lemma fv_proc_holeLookup_subset {Δ : ModuleContext} :
+    (holes : HoleSigs) → (hne : holes.toList ≠ []) →
+    (args : typeListToProdGeneric Prod PUnit (holes.toList.map Procedure)) →
+    ∀ {sig : ProcedureSignature} (i : HoleIndex holes sig),
+      fv_proc (holeLookup holes args i)
+        ⊆ fv' (procTupleOfArgs (Δ := Δ) holes.toList hne args)
+  | .empty, _, _, _, i => nomatch i
+  | .append Γ a, hne, args, sig, i => by
+      -- `cases i` (zero/succ) + `fv'_procTupleOfArgs_eq_fvArgs` reduces this to a snoc split of
+      -- `fvArgs (Γ.toList ++ [a]) args` matching `tupleSnocSplit`.  Remaining obstacle: the
+      -- `heq ▸ args` cast (`(l++[a]).map Procedure = l.map Procedure ++ [Procedure a]`) must be
+      -- distributed over the tuple in the `_ :: _ :: _` case — the HoleSigs-snoc / List-cons
+      -- impedance.
+      sorry
+
 theorem fv_reduction_step (m : ModuleExpression c t) (nn : ¬ Normal m) :
   fv' (cbvReductionStep m nn) ⊆ fv' m := by
   apply cbvReductionStep_preservation (R := fun x y => fv' y ⊆ fv' x)
@@ -1967,6 +2161,11 @@ theorem fv_reduction_step (m : ModuleExpression c t) (nn : ¬ Normal m) :
     refine fun f a a' h => ?_; simp only [fv']; exact Set.union_subset_union_right _ h
   case app_beta =>
     refine fun body arg => ?_; simp only [fv']; exact fv'_subst_le body arg
+  case app_delta =>
+    refine fun ne proc args => ?_
+    simp only [fv', substituteProcedure, fv_proc_instantiate]
+    exact Set.union_subset_union_right _
+      (Set.iUnion_subset fun i => fv_proc_holeLookup_subset _ (HoleSigs.toList_ne_nil ne) args i)
   case abs =>
     refine fun m m' h => ?_; simp only [fv']; exact h
   case fst =>

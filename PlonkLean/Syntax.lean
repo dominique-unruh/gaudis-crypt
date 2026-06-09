@@ -7,6 +7,8 @@ class ProgramSpec : Type _ where
 
 def State [spec : ProgramSpec] := spec.state
 
+variable [ProgramSpec]
+
 structure ProcedureSignature where
   params : List Type
   ret    : Type
@@ -70,6 +72,30 @@ def StmtWithHoles.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure s
 def Stmt.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
                      (params : Expr (paramListToTuple sig.params)) : Stmt
      := StmtWithHoles.call x proc params
+
+/-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
+    `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
+def StmtWithHoles.instantiate {holes : HoleSigs}
+    (stmt : StmtWithHoles holes)
+    (resolve : ∀ {sig}, HoleIndex holes sig → Procedure sig) :
+    Stmt := match stmt with
+  | .skip            => .skip
+  | .assign x e      => .assign x e
+  | .sample x e      => .sample x e
+  | .call' x b r p   => .call' x b r p
+  | .hole n x p      => StmtWithHoles.call x (resolve n) p
+  | .seq s1 s2       =>
+      .seq (s1.instantiate resolve) (s2.instantiate resolve)
+  | .ifThenElse c t e =>
+      .ifThenElse c (StmtWithHoles.instantiate t resolve) (StmtWithHoles.instantiate e resolve)
+  | .while c t       => .while c (StmtWithHoles.instantiate t resolve)
+
+def ProcedureWithHoles.instantiate {holes : HoleSigs} {sig}
+    (proc : ProcedureWithHoles holes sig)
+    (resolve : ∀ {sig}, HoleIndex holes sig → Procedure sig)
+     : Procedure sig :=
+  ⟨StmtWithHoles.instantiate proc.body resolve, proc.return_val⟩
+
 
 /- # Syntax of programs -/
 
