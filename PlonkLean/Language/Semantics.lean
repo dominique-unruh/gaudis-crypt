@@ -1,7 +1,7 @@
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
 import PlonkLean.Misc
-import PlonkLean.Lens
+import PlonkLean.Language.Lens
 
 /-!
 # General stuff
