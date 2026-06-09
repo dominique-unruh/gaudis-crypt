@@ -53,25 +53,6 @@ noncomputable def ow_game_1 (q : ℕ) : Program state Bool := do
   let y_check ← lazy_query resp
   pure (decide (y_check = y))
 
-/-! ## Game 2 — drop the (x ↦ y) insertion
-
-Same as Game 1, but the `RO ← RO[x ↦ y]` step is removed. The adversary
-sees a uniformly-random `chal_y` that is *not* reflected in the RO. This
-is the "up-to-bad" game: identical to Game 1 unless the adversary queries
-the oracle at `x`. -/
-
-noncomputable def ow_game_2 (q : ℕ) : Program state Bool := do
-  lazy_init
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
-  let y ← Program.uniform
-  -- No RO insertion!
-  Program.set ow_challenge_y y
-  oracle_loop_n ow_adv q lazy_query
-  let resp ← Program.get ow_response
-  let y_check ← lazy_query resp
-  pure (decide (y_check = y))
-
 /-! ## Hop 0 → 1: program equality
 
 `ow_game_0 = ow_game_1` (no probabilistic content; just unfolding
@@ -258,6 +239,82 @@ instance : disjoint oracle_output matched_chal_y :=
 instance : disjoint chal_x_queried_gh matched_chal_y :=
   disjoint_matched_chal_y_chal_x_queried_gh.symm
 
+/-- Queries list for the input-side collector (Game 1 bad reduction).
+    Records adversary's inputs across loop iterations. -/
+axiom queries_input : Variable (List input)
+
+/-- Queries list for the output-side collector (Game 2 wins reduction).
+    Records `lazy_query_tracked` outputs across loop iterations. -/
+axiom queries_output : Variable (List output)
+
+axiom disjoint_queries_input_chal_x_queried_gh :
+  disjoint queries_input chal_x_queried_gh
+axiom disjoint_queries_input_ro : disjoint queries_input random_oracle_state
+axiom disjoint_queries_input_chal_x : disjoint queries_input ow_challenge_x
+axiom disjoint_queries_input_chal_y : disjoint queries_input ow_challenge_y
+axiom disjoint_queries_input_response : disjoint queries_input ow_response
+axiom disjoint_queries_input_oracle_input : disjoint queries_input oracle_input
+axiom disjoint_queries_input_oracle_output : disjoint queries_input oracle_output
+
+axiom disjoint_queries_output_matched_chal_y :
+  disjoint queries_output matched_chal_y
+axiom disjoint_queries_output_ro : disjoint queries_output random_oracle_state
+axiom disjoint_queries_output_chal_x : disjoint queries_output ow_challenge_x
+axiom disjoint_queries_output_chal_y : disjoint queries_output ow_challenge_y
+axiom disjoint_queries_output_response : disjoint queries_output ow_response
+axiom disjoint_queries_output_oracle_input : disjoint queries_output oracle_input
+axiom disjoint_queries_output_oracle_output : disjoint queries_output oracle_output
+axiom disjoint_queries_output_chal_x_queried_gh :
+  disjoint queries_output chal_x_queried_gh
+
+attribute [instance] disjoint_queries_input_chal_x_queried_gh
+                     disjoint_queries_input_ro
+                     disjoint_queries_input_chal_x
+                     disjoint_queries_input_chal_y
+                     disjoint_queries_input_response
+                     disjoint_queries_input_oracle_input
+                     disjoint_queries_input_oracle_output
+                     disjoint_queries_output_matched_chal_y
+                     disjoint_queries_output_ro
+                     disjoint_queries_output_chal_x
+                     disjoint_queries_output_chal_y
+                     disjoint_queries_output_response
+                     disjoint_queries_output_oracle_input
+                     disjoint_queries_output_oracle_output
+                     disjoint_queries_output_chal_x_queried_gh
+
+instance : disjoint chal_x_queried_gh queries_input :=
+  disjoint_queries_input_chal_x_queried_gh.symm
+instance : disjoint random_oracle_state queries_input :=
+  disjoint_queries_input_ro.symm
+instance : disjoint ow_challenge_x queries_input :=
+  disjoint_queries_input_chal_x.symm
+instance : disjoint ow_challenge_y queries_input :=
+  disjoint_queries_input_chal_y.symm
+instance : disjoint ow_response queries_input :=
+  disjoint_queries_input_response.symm
+instance : disjoint oracle_input queries_input :=
+  disjoint_queries_input_oracle_input.symm
+instance : disjoint oracle_output queries_input :=
+  disjoint_queries_input_oracle_output.symm
+
+instance : disjoint matched_chal_y queries_output :=
+  disjoint_queries_output_matched_chal_y.symm
+instance : disjoint random_oracle_state queries_output :=
+  disjoint_queries_output_ro.symm
+instance : disjoint ow_challenge_x queries_output :=
+  disjoint_queries_output_chal_x.symm
+instance : disjoint ow_challenge_y queries_output :=
+  disjoint_queries_output_chal_y.symm
+instance : disjoint ow_response queries_output :=
+  disjoint_queries_output_response.symm
+instance : disjoint oracle_input queries_output :=
+  disjoint_queries_output_oracle_input.symm
+instance : disjoint oracle_output queries_output :=
+  disjoint_queries_output_oracle_output.symm
+instance : disjoint chal_x_queried_gh queries_output :=
+  disjoint_queries_output_chal_x_queried_gh.symm
+
 -- Note: in the `guess_experiment`-based design, the match-check is placed
 -- in `guess_experiment`'s body using BOUND variables (y_val, target y),
 -- not via state reads. This is what makes the Game 2 wall proof tractable.
@@ -413,57 +470,276 @@ lemma oracle_loop_n_eq_loop_n
        = oracle_step adv oracle >>= fun _ => loop_n n (oracle_step adv oracle)
     rw [ih]
 
+/-- `lazy_query_tracked inp` is ow_challenge_y-disjoint. -/
+lemma lazy_query_tracked_inRange_ow_challenge_y (inp : input) :
+    (lazy_query_tracked inp).inRange ow_challenge_y.compl.range := by
+  haveI : disjoint ow_challenge_x ow_challenge_y :=
+    disjoint_ow_challenge_y_ow_challenge_x.symm
+  unfold lazy_query_tracked
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
+  refine Program.inRange_bind ?_ (fun cx => ?_)
+  · exact Program.get_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y
+  refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
+  by_cases h : inp = cx
+  · simp only [if_pos h]
+    exact Program.set_inRange_compl_of_disjoint
+      chal_x_queried_gh ow_challenge_y true
+  · simp only [if_neg h]
+    exact Program.inRange_pure _ _
+
+/-- `oracle_step adv lazy_query_tracked` is ow_challenge_y-disjoint when
+    `adv` is. -/
+lemma oracle_step_lazy_query_tracked_inRange_ow_challenge_y
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range) :
+    (oracle_step ow_adv lazy_query_tracked).inRange ow_challenge_y.compl.range := by
+  unfold oracle_step
+  refine Program.inRange_bind h_ow_adv_chal_y (fun _ => ?_)
+  refine Program.inRange_bind
+    (Program.get_inRange_compl_of_disjoint oracle_input ow_challenge_y) (fun inp => ?_)
+  refine Program.inRange_bind (lazy_query_tracked_inRange_ow_challenge_y inp)
+    (fun y => ?_)
+  exact Program.set_inRange_compl_of_disjoint oracle_output ow_challenge_y y
+
+/-- `loop_n n body` stays in `R` whenever `body` does. -/
+lemma loop_n_inRange {R : LensRange state}
+    (body : Program state Unit) (h_body : body.inRange R) (n : ℕ) :
+    (loop_n n body).inRange R := by
+  induction n with
+  | zero => exact Program.inRange_pure _ _
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).inRange R
+    exact Program.inRange_bind h_body (fun _ => ih)
+
+/-- Helper: the chal_y block + trailing `pure (decide (y_check = y))` (which
+    uses the outer-bound y) absorbs into NEW_POST for chal_xqg-reading posts.
+    Used for G2 bad-event reduction. -/
+private lemma chal_y_block_pure_decide_eliminate
+    (k : Program state output)
+    (h_k : k.inRange ow_challenge_y.compl.range)
+    (σ : state) :
+    ((Program.uniform : Program state output) >>= fun y =>
+      Program.set ow_challenge_y y >>= fun _ =>
+      k >>= fun y_check => pure (decide (y_check = y))).wp
+      (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+    = k.wp (fun aσ : output × state =>
+        if chal_x_queried_gh.get aσ.2 = true then (1 : ENNReal) else 0) σ := by
+  rw [wp_bind, wp_uniform]
+  -- For each y, the inner reduces to k.wp NEW_POST σ.
+  have h_inner : ∀ y, (Program.set ow_challenge_y y >>= fun _ =>
+      k >>= fun y_check => pure (decide (y_check = y))).wp
+      (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+      = k.wp (fun aσ : output × state =>
+        if chal_x_queried_gh.get aσ.2 = true then (1 : ENNReal) else 0) σ := by
+    intro y
+    rw [wp_bind, wp_set, wp_bind]
+    -- Goal: k.wp (fun aσ => (pure (decide aσ.1 = y)).wp F_chal_xqg aσ.2) (chal_y.set y σ) = k.wp NEW_POST σ.
+    -- Simplify the post via wp_pure: F_chal_xqg ignores Bool.
+    have h_post_eq :
+        (fun aσ : output × state =>
+          (Pure.pure (decide (aσ.1 = y)) : Program state Bool).wp
+            (fun bσ : Bool × state =>
+              if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) aσ.2)
+        = fun aσ : output × state =>
+          if chal_x_queried_gh.get aσ.2 = true then (1 : ENNReal) else 0 := by
+      funext aσ
+      rw [wp_pure]
+    rw [h_post_eq]
+    -- Goal: k.wp NEW_POST (chal_y.set y σ) = k.wp NEW_POST σ.
+    have h_F : IgnoresLens ow_challenge_y
+        (fun aσ' : output × state =>
+          if chal_x_queried_gh.get aσ'.2 = true then (1 : ENNReal) else 0) := by
+      intro aσ v
+      simp only [Lens.get_of_disjoint_set chal_x_queried_gh ow_challenge_y v aσ.2]
+    have h_k_wp_inv : IgnoresLens ow_challenge_y
+        (fun aσ : Unit × state => k.wp
+          (fun aσ' : output × state =>
+            if chal_x_queried_gh.get aσ'.2 = true then (1 : ENNReal) else 0) aσ.2) :=
+      IgnoresLens.comp_inRange (L := ow_challenge_y) h_F (fun _ : Unit => k)
+        (fun _ => h_k)
+    exact h_k_wp_inv ((), σ) y
+  simp_rw [h_inner]
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_comm]
+  exact ENNReal.div_mul_cancel
+    (by exact_mod_cast Fintype.card_ne_zero) (ENNReal.natCast_ne_top _)
+
 /-- **Game 2 bad-event ↔ guess_experiment_game_1 matched-event bridge.**
 
     Both programs have the same structure (lazy RO, no pre-programming,
     `lazy_query_tracked` for the loop). They differ only by:
-    1. Order of disjoint-lens writes in the prefix (e.g., `set chal_xqg
-       false` position, `set chal_x x` vs `set chal_y y` order).
-    2. The trailing op: LHS `pure (decide (y_check = y))` (Game 2's win
-       indicator, ignored by the F_chal_xqg post) vs RHS
-       `set oracle_output y_check; get chal_x_queried_gh` (collector-
-       style read of the matched flag).
+    1. Order of disjoint-lens writes in the prefix.
+    2. G2 has `uniform y; set chal_y y` (invisible at F_chal_xqg).
+    3. Trailing: G2 `pure (decide (y_check = y))` (Game 2's win indicator,
+       ignored by F_chal_xqg) vs guess `set oo y_check; get chal_xqg`.
 
-    Both yield wp-equivalent values for the chal_x_queried_gh-reading post.
-    No deferred-sampling needed — both games have lazy RO. -/
+    No deferred-sampling needed — both games have lazy RO.
+
+    **Proof outline** (deferred — see helper `uniform_set_chal_y_invisible`
+    above; the architectural piece is in place but assembling the full
+    wp-chain is mechanical and tedious):
+
+    Let NEW_POST(yc, σ') := if chal_xqg.get σ' then 1 else 0.
+
+    1. **Trailing absorption.**
+       * LHS: `wp_bind` + `wp_pure` on `pure (decide y_check = y)` →
+         post becomes `fun (yc, σ') => F_chal_xqg(decide yc = y, σ')`.
+         F_chal_xqg ignores Bool, so post simplifies to NEW_POST.
+       * RHS: `wp_bind` + `wp_set` on `set oo y_check`, then `wp_get`
+         on `get chal_xqg`. Result: NEW_POST (oo ⊥ chal_xqg means
+         `chal_xqg.get (oo.set v σ') = chal_xqg.get σ'`).
+       * After this step, both sides reduce to
+         `(prefix; loop; get resp; lqt resp).wp NEW_POST σ`
+         for different prefixes.
+
+    2. **Eliminate G2's chal_y block.**
+       Apply `uniform_set_chal_y_invisible` with
+       k = `loop_n q (oracle_step adv lqt) >>= fun _ => get ow_response
+            >>= fun resp => lqt resp`, F = NEW_POST. Hypotheses:
+       * `h_k`: k is chal_y-disjoint. Composition of loop_n_inRange +
+         oracle_step's chal_y-disjointness (needs `h_ow_adv_chal_y`) +
+         lqt's chal_y-disjointness.
+       * `h_F`: NEW_POST is chal_y-ignoring (only reads chal_xqg).
+
+    3. **Commute `set chal_xqg false`.**
+       After step 2, LHS has `lazy_init; set chal_xqg false; uniform x;
+       set chal_x x; k` and RHS has `lazy_init; uniform x; set chal_x x;
+       set chal_xqg false; k`. Differ only by position of `set chal_xqg
+       false` relative to `uniform x; set chal_x x`. Commute via:
+       * `bind_uniform_comm` to move `set chal_xqg false` past `uniform x`
+         (uniform doesn't write state).
+       * Lens-disjoint commutation (chal_xqg ⊥ chal_x) to move past
+         `set chal_x x`.
+
+    Each step is a standard pattern in the existing proofs (cf.
+    `ow_game_2_tracked_wins_le_guess_experiment_game_2_matched` for the
+    Game 2 win bridge). The helper `uniform_set_chal_y_invisible` already
+    captures the only structurally novel piece. -/
 lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
           if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
     = (guess_experiment_game_1 ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  -- Differences:
-  --   1. ow_game_2_tracked has `uniform y; set chal_y y` in the prefix
-  --      (wp-invisible at chal_xqg-reading post; chal_y ⊥ chal_xqg).
-  --   2. set chal_xqg false position (before uniform x in G2; after set
-  --      chal_x x in guess). Commute via disjoint.iff.
-  --   3. Trailing: G2 ends `pure (decide y_check = y)`; guess ends
-  --      `set oo y_check; get chal_xqg`. Same wp at chal_xqg-reading post
-  --      (oo ⊥ chal_xqg).
-  -- Deferred: standard wp manipulation following the patterns established
-  -- in `ow_game_1_tracked_eq_ow_game_2_tracked_until_bad`.
-  sorry
-
-/-- **Bad-event invariance under up-to-bad.** Since Games 1 and 2 agree
-    on all behavior except possibly at the first chal_xqg-flip, and since
-    chal_xqg-flip semantics are identical (lqt sets the flag iff inp = chal_x),
-    the bad event probability is the same in both games.
-
-    Derived from the identical-until-bad equality (specialized to G = 1)
-    and mass conservation. -/
-lemma ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad
-    (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (q : ℕ) (σ : state) :
-    (ow_game_1_tracked ow_adv q).wp
-        (fun bσ : Bool × state =>
-          if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
-    = (ow_game_2_tracked ow_adv q).wp
-        (fun bσ : Bool × state =>
-          if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ := by
-  sorry
+  -- Common "tail" k = loop_n; get resp; lqt resp.
+  set k : Program state output :=
+    loop_n q (oracle_step ow_adv lazy_query_tracked) >>= fun _ =>
+      Program.get ow_response >>= fun resp =>
+      lazy_query_tracked resp with k_def
+  -- NEW_POST: chal_xqg-reading, output-ignoring post.
+  set NEW_POST : output × state → ENNReal :=
+    fun aσ => if chal_x_queried_gh.get aσ.2 = true then 1 else 0
+      with NEW_POST_def
+  -- (b) RHS trailing absorption — generic helper inlined.
+  -- For any p : Program state output:
+  --   (p >>= fun y => set oo y >>= fun _ => get chal_xqg).wp F_matched σ
+  --   = p.wp NEW_POST σ
+  -- The absorption uses oo ⊥ chal_xqg.
+  have h_trailing_absorb : ∀ (p : Program state output) (σ' : state),
+      (p >>= fun y =>
+          Program.set oracle_output y >>= fun _ =>
+          Program.get chal_x_queried_gh).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+      = p.wp NEW_POST σ' := by
+    intro p σ'
+    rw [wp_bind]
+    congr 1
+    funext aσ
+    obtain ⟨a, s'⟩ := aσ
+    dsimp only
+    rw [wp_bind, wp_set, wp_get]
+    simp only [NEW_POST_def]
+    have h_get : chal_x_queried_gh.get (oracle_output.set a s')
+                = chal_x_queried_gh.get s' :=
+      Lens.get_of_disjoint_set chal_x_queried_gh oracle_output a s'
+    rw [h_get]
+  -- View GE1 as `(prefix >>= k) >>= trailing` and apply h_trailing_absorb.
+  -- For this we need GE1 = (prefix >>= k) >>= trailing as Programs. This holds
+  -- up to bind_assoc rewriting.
+  -- View GE1 as `(prefix >>= k) >>= trailing` via Program equality (bind_assoc).
+  have h_GE1_eq : guess_experiment_game_1 ow_adv q
+      = (lazy_init >>= fun _ =>
+         (Program.uniform : Program state input) >>= fun x =>
+         Program.set ow_challenge_x x >>= fun _ =>
+         Program.set chal_x_queried_gh false >>= fun _ => k) >>=
+        (fun y => Program.set oracle_output y >>= fun _ =>
+                  Program.get chal_x_queried_gh) := by
+    unfold guess_experiment_game_1 guess_experiment
+    simp only [k_def, oracle_step, Program.bind_assoc]
+  have h_RHS : (guess_experiment_game_1 ow_adv q).wp
+      (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+      = (lazy_init >>= fun _ =>
+         (Program.uniform : Program state input) >>= fun x =>
+         Program.set ow_challenge_x x >>= fun _ =>
+         Program.set chal_x_queried_gh false >>= fun _ => k).wp NEW_POST σ := by
+    rw [h_GE1_eq]
+    exact h_trailing_absorb _ σ
+  rw [h_RHS]
+  -- k is chal_y-disjoint (composed from loop_n_inRange + lqt_inRange_chal_y).
+  have h_k_chal_y : k.inRange ow_challenge_y.compl.range := by
+    rw [k_def]
+    refine Program.inRange_bind ?_ (fun _ => ?_)
+    · exact loop_n_inRange _ (oracle_step_lazy_query_tracked_inRange_ow_challenge_y
+        ow_adv h_ow_adv_chal_y) q
+    refine Program.inRange_bind
+      (Program.get_inRange_compl_of_disjoint ow_response ow_challenge_y) (fun _ => ?_)
+    exact lazy_query_tracked_inRange_ow_challenge_y _
+  -- (a) LHS: trailing pure-decide absorbed + chal_y block eliminated.
+  have h_OG2_eq : ow_game_2_tracked ow_adv q
+      = (lazy_init >>= fun _ =>
+         Program.set chal_x_queried_gh false >>= fun _ =>
+         (Program.uniform : Program state input) >>= fun x =>
+         Program.set ow_challenge_x x) >>= fun _ =>
+        ((Program.uniform : Program state output) >>= fun y =>
+         Program.set ow_challenge_y y >>= fun _ =>
+         k >>= fun y_check => pure (decide (y_check = y))) := by
+    unfold ow_game_2_tracked
+    rw [oracle_loop_n_eq_loop_n]
+    simp only [k_def, Program.bind_assoc]
+  have h_LHS : (ow_game_2_tracked ow_adv q).wp
+      (fun bσ : Bool × state =>
+        if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+      = ((lazy_init >>= fun _ =>
+          Program.set chal_x_queried_gh false >>= fun _ =>
+          (Program.uniform : Program state input) >>= fun x =>
+          Program.set ow_challenge_x x) >>= fun _ => k).wp NEW_POST σ := by
+    rw [h_OG2_eq]
+    rw [wp_bind]
+    conv_rhs => rw [wp_bind]
+    congr 1
+    funext aσ
+    exact chal_y_block_pure_decide_eliminate k h_k_chal_y aσ.2
+  rw [h_LHS]
+  -- (c) Two prefixes equal up to `set chal_xqg false` commutation.
+  have h_prefix_eq :
+      ((lazy_init >>= fun _ =>
+        Program.set chal_x_queried_gh false >>= fun _ =>
+        (Program.uniform : Program state input) >>= fun x =>
+        Program.set ow_challenge_x x) >>= (fun _ => k))
+      = ((lazy_init >>= fun _ =>
+          (Program.uniform : Program state input) >>= fun x =>
+          Program.set ow_challenge_x x >>= fun _ =>
+          Program.set chal_x_queried_gh false) >>= (fun _ => k)) := by
+    simp only [Program.bind_assoc]
+    congr 1
+    funext _
+    rw [Program.bind_uniform_comm
+      (Program.set chal_x_queried_gh false) (fun x =>
+        (Program.set ow_challenge_x x : Program state Unit) >>= fun _ => k)]
+    congr 1
+    funext x
+    apply Program.ext_of_wp
+    intro F
+    funext σ_pre
+    simp only [wp_bind, wp_set]
+    congr 1
+    exact ((inferInstance : disjoint chal_x_queried_gh ow_challenge_x).commute
+      σ_pre false x).symm
+  rw [h_prefix_eq]
+  -- Final cleanup: both sides are now structurally equal modulo bind_assoc.
+  simp only [Program.bind_assoc]
 
 end Bridges
 
@@ -1073,6 +1349,289 @@ theorem ow_game_1_tracked_eq_ow_game_2_tracked_until_bad
       simp only [wp_pure]
       exact h_F_RO_inv _ σ'' y''
 
+/-! ### Bad-event probability equality
+
+The bad-event probability is the same in G1 and G2. Proof uses
+identical-until-bad (for non-bad complement) + mass conservation
+(both games have the same total mass) + linearity.
+
+Mass conservation REQUIRES the adversary to be a probability program
+(mass = 1 at every state). For sub-probability adversaries, post-bad
+termination probabilities can differ between G1 and G2. -/
+
+/-- Mass of `lazy_query` is 1 at any state — it always returns. -/
+lemma lazy_query_mass_one (inp : input) (σ : state) :
+    (lazy_query inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  unfold lazy_query
+  rw [wp_bind, wp_get]
+  rcases h : (random_oracle_state.get σ) inp with _ | y_cached
+  · -- none: sample fresh, set, return.
+    simp only [h]
+    rw [wp_bind, wp_uniform]
+    simp only [wp_bind, wp_set, wp_pure]
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_comm]
+    exact ENNReal.div_mul_cancel
+      (by exact_mod_cast Fintype.card_ne_zero) (ENNReal.natCast_ne_top _)
+  · -- some: return cached value.
+    simp only [h]
+    rw [wp_pure]
+
+/-- Mass of `lazy_query_tracked` is 1 at any state. -/
+lemma lazy_query_tracked_mass_one (inp : input) (σ : state) :
+    (lazy_query_tracked inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  have h_rest_mass : ∀ (y : output) (σ' : state),
+      (Program.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then Program.set chal_x_queried_gh true
+         else (pure () : Program state Unit)) >>= fun _ =>
+        (pure y : Program state output)).wp (fun _ => (1 : ENNReal)) σ' = 1 := by
+    intro y σ'
+    rw [wp_bind, wp_get]
+    dsimp only
+    rw [wp_bind]
+    by_cases h : inp = ow_challenge_x.get σ'
+    · simp only [if_pos h, wp_set, wp_pure]
+    · simp only [if_neg h, wp_pure]
+  unfold lazy_query_tracked
+  rw [wp_bind]
+  have h_post_const : (fun aσ : output × state =>
+      (Program.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then Program.set chal_x_queried_gh true
+         else (pure () : Program state Unit)) >>= fun _ =>
+        (pure aσ.1 : Program state output)).wp (fun _ => (1 : ENNReal)) aσ.2)
+    = fun _ : output × state => (1 : ENNReal) := by
+    funext aσ
+    exact h_rest_mass aσ.1 aσ.2
+  rw [h_post_const]
+  exact lazy_query_mass_one inp σ
+
+/-- Mass of `oracle_step adv lazy_query_tracked` equals mass of `adv`. -/
+lemma oracle_step_lqt_mass_eq_adv_mass (σ : state) :
+    (oracle_step ow_adv lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ
+    = ow_adv.wp (fun _ => (1 : ENNReal)) σ := by
+  unfold oracle_step
+  rw [wp_bind]
+  have h_post_const : (fun aσ : Unit × state =>
+      (Program.get oracle_input >>= fun inp =>
+        lazy_query_tracked inp >>= fun y =>
+        Program.set oracle_output y).wp (fun _ => (1 : ENNReal)) aσ.2)
+    = fun _ : Unit × state => (1 : ENNReal) := by
+    funext aσ
+    rw [wp_bind, wp_get]
+    dsimp only
+    rw [wp_bind]
+    have h_post_lqt : (fun yσ : output × state =>
+        (Program.set oracle_output yσ.1).wp (fun _ => (1 : ENNReal)) yσ.2)
+      = fun _ : output × state => (1 : ENNReal) := by
+      funext yσ
+      rw [wp_set]
+    rw [h_post_lqt]
+    exact lazy_query_tracked_mass_one _ aσ.2
+  rw [h_post_const]
+
+/-- Mass of `loop_n n body` is `1` if body has mass 1 at every state. -/
+lemma loop_n_mass_one
+    (body : Program state Unit)
+    (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (n : ℕ) (σ : state) :
+    (loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  induction n generalizing σ with
+  | zero => rw [show loop_n 0 body = pure () from rfl, wp_pure]
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1
+    rw [wp_bind]
+    have h_post : (fun aσ : Unit × state =>
+        (loop_n n body).wp (fun _ => (1 : ENNReal)) aσ.2)
+      = fun _ : Unit × state => (1 : ENNReal) := by
+      funext aσ
+      exact ih aσ.2
+    rw [h_post]
+    exact h_body σ
+
+/-- Mass of `oracle_loop_n adv q lazy_query_tracked` is `1` if adv has mass 1. -/
+lemma oracle_loop_n_lqt_mass_one
+    (h_adv_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (q : ℕ) (σ : state) :
+    (oracle_loop_n ow_adv q lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [oracle_loop_n_eq_loop_n]
+  apply loop_n_mass_one
+  intro σ'
+  rw [oracle_step_lqt_mass_eq_adv_mass]
+  exact h_adv_mass σ'
+
+/-- Mass-preservation under bind: if `p` and every `k a` have mass 1, then `p >>= k` has mass 1. -/
+lemma Program.mass_bind {α β : Type}
+    (p : Program state α) (k : α → Program state β)
+    (hp : ∀ σ, p.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (hk : ∀ a σ, (k a).wp (fun _ => (1 : ENNReal)) σ = 1)
+    (σ : state) :
+    (p >>= k).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_bind]
+  have h_post : (fun aσ : α × state => (k aσ.1).wp (fun _ => (1 : ENNReal)) aσ.2)
+              = fun _ : α × state => (1 : ENNReal) := by
+    funext aσ
+    exact hk aσ.1 aσ.2
+  rw [h_post]
+  exact hp σ
+
+/-- Mass of `Program.set` is always 1. -/
+lemma Program.set_mass_one {α : Type} (L : Lens α state) (v : α) (σ : state) :
+    (Program.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by rw [wp_set]
+
+/-- Mass of `Program.uniform` is always 1. -/
+lemma Program.uniform_mass_one {α : Type} [Fintype α] [Nonempty α] (σ : state) :
+    (Program.uniform : Program state α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_uniform]
+  show ∑ _i : α, (1 : ENNReal) / (Fintype.card α : ENNReal) = 1
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_div_assoc, mul_one,
+      ENNReal.div_self
+        (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card α ≠ 0))
+        (ENNReal.natCast_ne_top _)]
+
+/-- **Bad-event invariance.** P[bad in G1] = P[bad in G2].
+
+    Proven via identical-until-bad (for F_nonBad) + mass conservation
+    + linearity + ENNReal cancellation. Mass conservation requires that
+    `ow_adv` is a probability program (mass = 1 at every state), captured
+    by `h_ow_adv_mass_one`. -/
+lemma ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad
+    (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (q : ℕ) (σ : state) :
+    (ow_game_1_tracked ow_adv q).wp
+        (fun bσ : Bool × state =>
+          if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+    = (ow_game_2_tracked ow_adv q).wp
+        (fun bσ : Bool × state =>
+          if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ := by
+  set F_bad : Bool × state → ENNReal :=
+    fun bσ => if chal_x_queried_gh.get bσ.2 = true then 1 else 0 with F_bad_def
+  set F_nonBad : Bool × state → ENNReal :=
+    fun bσ => if chal_x_queried_gh.get bσ.2 = true then 0 else 1 with F_nonBad_def
+  -- Step 1: identical-until-bad with G = const 1 gives F_nonBad equality.
+  have h_nonBad_eq : (ow_game_1_tracked ow_adv q).wp F_nonBad σ
+                  = (ow_game_2_tracked ow_adv q).wp F_nonBad σ :=
+    ow_game_1_tracked_eq_ow_game_2_tracked_until_bad ow_adv h_ow_adv_RO
+      h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh q (fun _ => 1) (fun _ _ => rfl) σ
+  -- Step 2: linearity decomposition.
+  have h_decompose : ∀ (p : Program state Bool),
+      p.wp (fun _ => (1 : ENNReal)) σ = p.wp F_nonBad σ + p.wp F_bad σ := by
+    intro p
+    rw [← Program.wp_add]
+    congr 1
+    funext bσ
+    simp only [F_nonBad_def, F_bad_def]
+    by_cases h : chal_x_queried_gh.get bσ.2 = true
+    · simp [h]
+    · simp [h]
+  -- Step 3: mass conservation. Each game has mass = 1, since all operations
+  -- (lazy_init, set, uniform, get, lazy_query_tracked, oracle_loop_n, pure)
+  -- have mass 1 individually, and adv has mass 1 by hypothesis.
+  have h_tail_mass : ∀ (y_outer : output) (σ' : state),
+      ((oracle_loop_n ow_adv q lazy_query_tracked) >>= fun _ =>
+        Program.get ow_response >>= fun resp =>
+        lazy_query_tracked resp >>= fun y_check =>
+        (pure (decide (y_check = y_outer)) : Program state Bool)).wp
+          (fun _ => (1 : ENNReal)) σ' = 1 := by
+    intro y_outer σ'
+    rw [wp_bind]
+    have h_post : (fun aσ : Unit × state =>
+        (Program.get ow_response >>= fun resp =>
+          lazy_query_tracked resp >>= fun y_check =>
+          (pure (decide (y_check = y_outer)) : Program state Bool)).wp
+            (fun _ => (1 : ENNReal)) aσ.2)
+      = fun _ : Unit × state => (1 : ENNReal) := by
+      funext aσ
+      rw [wp_bind, wp_get]
+      dsimp only
+      rw [wp_bind]
+      have h_post2 : (fun yσ : output × state =>
+          (Pure.pure (decide (yσ.1 = y_outer)) : Program state Bool).wp
+            (fun _ => (1 : ENNReal)) yσ.2)
+        = fun _ : output × state => (1 : ENNReal) := by
+        funext yσ
+        rw [wp_pure]
+      rw [h_post2]
+      exact lazy_query_tracked_mass_one _ aσ.2
+    rw [h_post]
+    exact oracle_loop_n_lqt_mass_one ow_adv h_ow_adv_mass_one q σ'
+  -- Mass of G_i = 1. Each game = lazy_init; set chal_xqg false; uniform x;
+  -- set chal_x x; uniform y; [set RO?;] set chal_y y; oracle_loop_n; get resp;
+  -- lqt resp; pure decide. By wp_bind + wp_set (mass 1) + wp_uniform (sum
+  -- collapse) + tail mass (h_tail_mass), each game has mass 1.
+  --
+  -- The unfolding via simp_only [wp_bind, wp_set, wp_uniform] should reduce
+  -- to a double sum over (x, y) of `h_tail_mass`-applicable expressions.
+  -- Then each sum collapses via Finset.sum_const + ENNReal arithmetic.
+  -- (Detailed wp-chain assembly still needs care to avoid simp not matching.)
+  -- Mass of G_i = 1 — by descent through wp_bind + wp_set/uniform on the prefix,
+  -- reducing to h_tail_mass at the deepest level.
+  have h_uniform_sum_collapse : ∀ {T : Type} [Fintype T] [Nonempty T] (c : ENNReal),
+      (Finset.univ.sum (fun _ : T => c)) / (Fintype.card T : ENNReal) = c := by
+    intros T _ _ c
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_comm,
+        mul_div_assoc, ENNReal.div_self
+          (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card T ≠ 0))
+          (ENNReal.natCast_ne_top _), mul_one]
+  -- Define the inner-mass-1 helper that handles set chal_y; tail.
+  have h_after_set_chal_y_mass : ∀ (y : output) (σ' : state),
+      (Program.set ow_challenge_y y >>= fun _ =>
+        (oracle_loop_n ow_adv q lazy_query_tracked) >>= fun _ =>
+        Program.get ow_response >>= fun resp =>
+        lazy_query_tracked resp >>= fun y_check =>
+        (pure (decide (y_check = y)) : Program state Bool)).wp
+          (fun _ => (1 : ENNReal)) σ' = 1 := by
+    intro y σ'
+    rw [wp_bind, wp_set]
+    exact h_tail_mass y _
+  have h_g2_mass : (ow_game_2_tracked ow_adv q).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+    unfold ow_game_2_tracked lazy_init
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.uniform_mass_one σ')
+    intro x _
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.uniform_mass_one σ')
+    intro y _
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ σ_6
+    exact h_tail_mass y σ_6
+  have h_g1_mass : (ow_game_1_tracked ow_adv q).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+    unfold ow_game_1_tracked lazy_init
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.uniform_mass_one σ')
+    intro x _
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.uniform_mass_one σ')
+    intro y _
+    -- G1 has extra `set random_oracle_state ...` step before set chal_y.
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ _
+    apply Program.mass_bind _ _ (fun σ' => Program.set_mass_one _ _ σ')
+    intro _ σ_7
+    exact h_tail_mass y σ_7
+  have h_mass_eq : (ow_game_1_tracked ow_adv q).wp (fun _ => 1) σ
+                = (ow_game_2_tracked ow_adv q).wp (fun _ => 1) σ := by
+    rw [h_g1_mass, h_g2_mass]
+  -- Step 4: combine via cancellation.
+  rw [h_decompose, h_decompose, h_nonBad_eq] at h_mass_eq
+  have h_nb_finite : (ow_game_2_tracked ow_adv q).wp F_nonBad σ ≠ ⊤ := by
+    refine ne_top_of_le_ne_top (b := (1 : ENNReal)) ENNReal.one_ne_top ?_
+    refine le_trans ?_ (Program.wp_const_le (ow_game_2_tracked ow_adv q) 1 σ)
+    apply Program.wp_le_wp_of_le
+    intro bσ
+    simp only [F_nonBad_def]
+    split_ifs <;> simp
+  exact (IsAddRegular.of_ne_top h_nb_finite).1 h_mass_eq
+
 /-! ### Up-to-bad inequality for tracked games
 
 Applying `Program.up_to_bad` with `bad := chal_x_queried_gh.get · = true`
@@ -1121,25 +1680,239 @@ The reductions show that the OW game's win/bad indicator wp is bounded
 above by the corresponding guess_experiment's matched indicator wp.
 The final `(q+1)/|T|` bound on `guess_experiment` is deferred. -/
 
-/-- **Bound on `guess_experiment`'s matched indicator** — `P[matched=true] ≤ (n+1)/|T|`.
+/-! ### Collector-game route to the bound.
 
-    Standard combinatorial bound: each step has at most `1/|T|` chance of
-    setting matched (target is uniform and hidden from adv), and the union
-    bound over `n+1` steps gives `(n+1)/|T|`. Discharged by a trajectory
-    bound (adv's queries are determined by adv's randomness and lazy samples,
-    independent of the uniformly-sampled target). Deferred. -/
-theorem guess_experiment_wp_bound
+ALTERNATIVE architectural approach: introduce a *collector* version of
+`guess_experiment` that:
+- Doesn't sample the target during the loop.
+- Records each iteration's "comparison value" into a list.
+- Samples target uniformly at the END, then checks if it lies in the
+  recorded list.
+
+The bound on the collector is then a one-line application of "uniform
+sample ∈ finite list of length ≤ n+1 has probability ≤ (n+1)/|T|". The
+deferred-sampling content becomes a single equivalence proof
+`guess_experiment ≤ guess_experiment_collector`. -/
+
+/-- Collector form of `guess_experiment`. Doesn't take a `target_var`
+    parameter — target is sampled uniformly at the end and used only to
+    compute the matched flag via `decide (t ∈ queries_list)`. `body` and
+    `final` operate without knowledge of the target; they're responsible
+    for appending their "comparison values" to `queries_list`. -/
+noncomputable def guess_experiment_collector
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ) : Program state Bool := do
+  env
+  Program.set queries_list_var []
+  loop_n n body_recording
+  final_recording
+  let t ← Program.uniform
+  let qs ← Program.get queries_list_var
+  Program.set matched_var (decide (t ∈ qs))
+  Program.get matched_var
+
+/-- **Interim form of `guess_experiment`**: same as the collector but with the
+    target sampled FIRST (like `guess_experiment`) instead of last. -/
+noncomputable def guess_experiment_interim
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ) : Program state Bool := do
+  env
+  let t ← Program.uniform
+  Program.set queries_list_var []
+  loop_n n body_recording
+  final_recording
+  let qs ← Program.get queries_list_var
+  Program.set matched_var (decide (t ∈ qs))
+  Program.get matched_var
+
+/-- **Interim = Collector** as programs, by commuting the `uniform` sampling
+    past the `t`-independent prefix via `Program.bind_uniform_comm`. -/
+theorem guess_experiment_interim_eq_collector
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ) :
+    guess_experiment_interim env queries_list_var matched_var
+        body_recording final_recording n
+    = guess_experiment_collector env queries_list_var matched_var
+        body_recording final_recording n := by
+  unfold guess_experiment_interim guess_experiment_collector
+  congr 1
+  funext _
+  -- uniform >>= fun t => set qs []; loop; final; ...t...
+  -- = set qs []; uniform >>= fun t => loop; final; ...t...
+  rw [← Program.bind_uniform_comm]
+  congr 1
+  funext _
+  rw [← Program.bind_uniform_comm]
+  congr 1
+  funext _
+  rw [← Program.bind_uniform_comm]
+
+/-- Pointwise bound: `Program.uniform`'s wp on a list-membership indicator
+    is at most `|list|/|T|`. The core trivial fact behind (B).
+
+    Proof: wp_uniform gives ∑_t 1[t ∈ qs] / |T|; ∑_t 1[t ∈ qs] equals
+    `(Finset.univ.filter (· ∈ qs)).card = qs.toFinset.card ≤ qs.length`. -/
+private lemma uniform_wp_mem_le
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (qs : List T) (σ : state) :
+    (Program.uniform : Program state T).wp
+        (fun aσ : T × state => if aσ.1 ∈ qs then (1 : ENNReal) else 0) σ
+    ≤ (qs.length : ENNReal) / Fintype.card T := by
+  simp only [wp_uniform]
+  have h_sum_le : ∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0)
+                ≤ (qs.length : ENNReal) := by
+    calc ∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0)
+        = ∑ t ∈ Finset.univ.filter (fun t : T => t ∈ qs), (1 : ENNReal) := by
+          rw [← Finset.sum_filter]
+      _ = ((Finset.univ.filter (fun t : T => t ∈ qs)).card : ENNReal) := by
+          rw [Finset.sum_const, nsmul_eq_mul, mul_one]
+      _ ≤ (qs.toFinset.card : ENNReal) := by
+          apply Nat.cast_le.mpr
+          apply Finset.card_le_card
+          intro t ht
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ht
+          exact List.mem_toFinset.mpr ht
+      _ ≤ (qs.length : ENNReal) := by exact_mod_cast List.toFinset_card_le qs
+  calc ∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0) / Fintype.card T
+      = (∑ t : T, (if t ∈ qs then (1 : ENNReal) else 0)) * ((Fintype.card T : ENNReal))⁻¹ := by
+        simp only [div_eq_mul_inv]
+        rw [← Finset.sum_mul]
+    _ ≤ (qs.length : ENNReal) * ((Fintype.card T : ENNReal))⁻¹ := by
+        gcongr
+    _ = (qs.length : ENNReal) / Fintype.card T := by
+        rw [← div_eq_mul_inv]
+
+/-- **(B): Trivial bound on the collector.**
+
+    After body+final, `queries_list` holds some list `qs` of length ≤ n+1
+    (under the length hypothesis). Then `t ~ Uniform[T]` is sampled
+    independently. So `P[t ∈ qs] = |qs|/|T| ≤ (n+1)/|T|`. -/
+theorem guess_experiment_collector_wp_bound
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    [disjoint queries_list_var matched_var]
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ)
+    (_h_qs_length_le : ∀ σ : state,
+      (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording).wp
+          (fun aσ : Unit × state =>
+            ((queries_list_var.get aσ.2).length : ENNReal) / Fintype.card T) σ
+      ≤ ((n + 1 : ℕ) : ENNReal) / Fintype.card T)
+    (σ : state) :
+    (guess_experiment_collector env queries_list_var matched_var
+        body_recording final_recording n).wp
+      (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ ((n + 1) : ENNReal) / Fintype.card T := by
+  dsimp only [guess_experiment_collector]
+  have h_inner : ∀ σ' : state,
+      ((Program.uniform : Program state T) >>= fun t =>
+        Program.get queries_list_var >>= fun qs =>
+        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        Program.get matched_var).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+      ≤ ((queries_list_var.get σ').length : ENNReal) / Fintype.card T := by
+    intro σ'
+    rw [wp_bind]
+    refine le_trans ?_ (uniform_wp_mem_le (queries_list_var.get σ') σ')
+    rw [wp_uniform, wp_uniform]
+    apply Finset.sum_le_sum
+    intro t _
+    simp only [wp_bind, wp_get, wp_set, Lens.set_get, decide_eq_true_eq]
+    exact le_refl _
+  rw [show ((n : ℕ) : ENNReal) + 1 = ((n + 1 : ℕ) : ENNReal) by push_cast; ring]
+  refine le_trans ?_ (_h_qs_length_le σ)
+  rw [show (env >>= fun _ : Unit =>
+      Program.set queries_list_var [] >>= fun _ =>
+      loop_n n body_recording >>= fun _ =>
+      final_recording >>= fun _ =>
+      Program.uniform >>= fun t =>
+      Program.get queries_list_var >>= fun qs =>
+      Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+      Program.get matched_var)
+    = (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording) >>= fun _ =>
+        Program.uniform >>= fun t =>
+        Program.get queries_list_var >>= fun qs =>
+        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        Program.get matched_var from by
+      simp [Program.bind_assoc]]
+  rw [wp_bind]
+  apply Program.wp_le_wp_of_le
+  intro aσ
+  exact h_inner aσ.2
+
+/-- **Generic assumption** (deferred-sampling content): `guess_experiment` is
+    bounded by `guess_experiment_interim` at the matched-firing post.
+
+    The cryptographic content: body's match-check (per-iter) is equivalent to
+    body_recording's append + final check, when body+adv don't depend on the
+    target. Instantiated per-game by supplying appropriate body/body_recording
+    pairs.
+
+    Proof deferred — this is the single cryptographic obligation. Sound when
+    `body` and `body_recording` correspond (body's match-fire equates to
+    body_recording's appended guess matching the target). -/
+theorem guess_experiment_le_interim_assumption
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit) (sample_target : Program state T)
     (target_var : Lens T state) (matched_var : Lens Bool state)
-    [disjoint target_var matched_var]
+    (queries_list_var : Lens (List T) state)
     (body : T → Program state Unit) (final : T → Program state Unit)
+    (body_recording : Program state Unit) (final_recording : Program state Unit)
     (n : ℕ) (σ : state) :
     (guess_experiment env sample_target target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-    ≤ ((n + 1) : ENNReal) / Fintype.card T := by
+    ≤ (guess_experiment_interim env queries_list_var matched_var
+        body_recording final_recording n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
   sorry
 
+/-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
+theorem guess_experiment_interim_wp_bound
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (queries_list_var : Lens (List T) state)
+    (matched_var : Lens Bool state)
+    [disjoint queries_list_var matched_var]
+    (body_recording : Program state Unit)
+    (final_recording : Program state Unit)
+    (n : ℕ)
+    (h_qs_length_le : ∀ σ : state,
+      (env >>= fun _ : Unit =>
+        Program.set queries_list_var [] >>= fun _ =>
+        loop_n n body_recording >>= fun _ => final_recording).wp
+          (fun aσ : Unit × state =>
+            ((queries_list_var.get aσ.2).length : ENNReal) / Fintype.card T) σ
+      ≤ ((n + 1 : ℕ) : ENNReal) / Fintype.card T)
+    (σ : state) :
+    (guess_experiment_interim env queries_list_var matched_var
+        body_recording final_recording n).wp
+      (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ ((n + 1) : ENNReal) / Fintype.card T := by
+  rw [guess_experiment_interim_eq_collector]
+  exact guess_experiment_collector_wp_bound env queries_list_var matched_var
+    body_recording final_recording n h_qs_length_le σ
 
 section Reductions
 
@@ -1188,15 +1961,8 @@ lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
     (fun y => ?_)
   exact Program.set_inRange_compl_of_disjoint oracle_output matched_chal_y y
 
-/-- `loop_n n body` stays in `R` whenever `body` does. -/
-lemma loop_n_inRange {R : LensRange state}
-    (body : Program state Unit) (h_body : body.inRange R) (n : ℕ) :
-    (loop_n n body).inRange R := by
-  induction n with
-  | zero => exact Program.inRange_pure _ _
-  | succ n ih =>
-    show (body >>= fun _ => loop_n n body).inRange R
-    exact Program.inRange_bind h_body (fun _ => ih)
+-- The chal_y inRange lemmas and loop_n_inRange were moved earlier in the file
+-- to be available for the bridge proofs.
 
 /-- **Loop congruence for the equiv-modulo-lens calculus**: if two bodies
     are `≈_L`-equivalent, so are their loops. Requires the reference body
@@ -1482,52 +2248,455 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
     simp only [wp_pure, if_neg h, Program.pure_bind, wp_get]
     split_ifs with h1 h2 <;> simp_all
 
+/-! ### Helpers for length-bound proofs -/
+
+/-- For a program `p` that doesn't write to `qs_var`, the expected list
+    length at output is bounded by the initial length (up to mass ≤ 1). -/
+lemma Program.wp_qs_length_preserved_of_inRange
+    {T : Type} [DecidableEq T]
+    (qs_var : Lens (List T) state) {α : Type} (p : Program state α)
+    (h_p : p.inRange qs_var.compl.range) (σ : state) :
+    p.wp (fun aσ : α × state => ((qs_var.get aσ.2).length : ENNReal)) σ
+    ≤ ((qs_var.get σ).length : ENNReal) := by
+  rw [Program.wp_strengthen_lens_preserved qs_var h_p]
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun _ : α × state => ((qs_var.get σ).length : ENNReal)) ?_ σ) ?_
+  · intro aσ
+    by_cases h : qs_var.get aσ.2 = qs_var.get σ
+    · simp [h]
+    · simp [h]
+  · exact Program.wp_const_le _ _ _
+
+/-- Linear bump bound for `loop_n` with respect to a state-projected potential.
+    If body bumps `f` by ≤ c per iter, then `loop_n n body` bumps by ≤ n*c. -/
+lemma loop_n_wp_linear_bound
+    (body : Program state Unit)
+    (f : state → ENNReal) (c : ENNReal)
+    (h_body : ∀ σ, body.wp (fun aσ : Unit × state => f aσ.2) σ ≤ f σ + c)
+    (n : ℕ) (σ : state) :
+    (loop_n n body).wp (fun aσ : Unit × state => f aσ.2) σ
+    ≤ f σ + (n : ENNReal) * c := by
+  induction n generalizing σ with
+  | zero =>
+    show (pure () : Program state Unit).wp _ σ ≤ _
+    rw [wp_pure]; simp
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).wp _ σ ≤ _
+    rw [wp_bind]
+    calc body.wp (fun yσ : Unit × state =>
+            (loop_n n body).wp
+              (fun yσ' : Unit × state => f yσ'.2) yσ.2) σ
+        ≤ body.wp (fun yσ : Unit × state => f yσ.2 + (n : ENNReal) * c) σ := by
+          apply Program.wp_le_wp_of_le
+          intro yσ
+          exact ih yσ.2
+      _ = body.wp (fun yσ : Unit × state => f yσ.2) σ +
+          body.wp (fun _ : Unit × state => (n : ENNReal) * c) σ := by
+          rw [Program.wp_add]
+      _ ≤ (f σ + c) + (n : ENNReal) * c := by
+          gcongr
+          · exact h_body σ
+          · exact Program.wp_const_le _ _ _
+      _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
+          push_cast; ring
+
+/-! ### Collector-based per-game instances and reductions
+
+For each game, define `body_recording` and `final_recording` that record
+guesses into the appropriate queries list, then assume the per-game
+inequality `guess_experiment_game_X ≤ guess_experiment_interim_game_X`
+and the length invariant. This closes the chain via:
+  Game → guess_experiment → guess_experiment_interim → (n+1)/|T|. -/
+
+/-- Body recording for Game 2 wins: same shape as guess_experiment_game_2.body
+    but without the explicit match-check; instead appends `y_val` to qs. -/
+noncomputable def body_recording_game_2 (adv : Program state Unit) :
+    Program state Unit := do
+  adv
+  let inp ← Program.get oracle_input
+  let y_val ← lazy_query_tracked inp
+  Program.set oracle_output y_val
+  let qs ← Program.get queries_output
+  Program.set queries_output (qs ++ [y_val])
+
+/-- Final recording for Game 2 wins: the last query attempt records `y_val`. -/
+noncomputable def final_recording_game_2 : Program state Unit := do
+  let resp ← Program.get ow_response
+  let y_val ← lazy_query_tracked resp
+  let qs ← Program.get queries_output
+  Program.set queries_output (qs ++ [y_val])
+
+/-- `lazy_query_tracked` is queries_output-disjoint. -/
+private lemma lazy_query_tracked_inRange_queries_output (inp : input) :
+    (lazy_query_tracked inp).inRange queries_output.compl.range := by
+  unfold lazy_query_tracked
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state queries_output)
+  refine Program.inRange_bind ?_ (fun cx => ?_)
+  · exact Program.get_inRange_compl_of_disjoint ow_challenge_x queries_output
+  refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
+  by_cases h : inp = cx
+  · simp only [if_pos h]
+    exact Program.set_inRange_compl_of_disjoint chal_x_queried_gh queries_output true
+  · simp only [if_neg h]
+    exact Program.inRange_pure _ _
+
+/-- `lazy_query_tracked` is queries_input-disjoint. -/
+private lemma lazy_query_tracked_inRange_queries_input (inp : input) :
+    (lazy_query_tracked inp).inRange queries_input.compl.range := by
+  unfold lazy_query_tracked
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state queries_input)
+  refine Program.inRange_bind ?_ (fun cx => ?_)
+  · exact Program.get_inRange_compl_of_disjoint ow_challenge_x queries_input
+  refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
+  by_cases h : inp = cx
+  · simp only [if_pos h]
+    exact Program.set_inRange_compl_of_disjoint chal_x_queried_gh queries_input true
+  · simp only [if_neg h]
+    exact Program.inRange_pure _ _
+
+/-- final_recording_game_2 bumps queries_output.length by at most 1. -/
+private lemma final_recording_game_2_qs_length_bump (σ : state) :
+    final_recording_game_2.wp
+      (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal)) σ
+    ≤ ((queries_output.get σ).length : ENNReal) + 1 := by
+  unfold final_recording_game_2
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_bind]
+  have h_inner_eq : ∀ (y_val : output) (σ_lqt : state),
+      (Program.get queries_output >>= fun qs =>
+        Program.set queries_output (qs ++ [y_val])).wp
+        (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal)) σ_lqt
+      = ((queries_output.get σ_lqt).length : ENNReal) + 1 := by
+    intro y_val σ_lqt
+    simp only [wp_bind, wp_set, wp_get]
+    simp only [Lens.set_get, List.length_append, List.length_singleton]
+    push_cast
+    ring
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun yσ : output × state => ((queries_output.get yσ.2).length : ENNReal) + 1)
+      ?_ σ) ?_
+  · intro yσ
+    exact le_of_eq (h_inner_eq yσ.1 yσ.2)
+  rw [Program.wp_add (lazy_query_tracked _)
+      (fun yσ : output × state => ((queries_output.get yσ.2).length : ENNReal))
+      (fun _ : output × state => (1 : ENNReal))]
+  refine add_le_add ?_ ?_
+  · exact Program.wp_qs_length_preserved_of_inRange queries_output
+      (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_output _) _
+  · exact Program.wp_const_le _ _ _
+
+/-- body_recording_game_2 bumps queries_output.length by at most 1 per iteration. -/
+private lemma body_recording_game_2_qs_length_bump
+    (adv : Program state Unit)
+    (h_adv : adv.inRange queries_output.compl.range)
+    (σ : state) :
+    (body_recording_game_2 adv).wp
+      (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal)) σ
+    ≤ ((queries_output.get σ).length : ENNReal) + 1 := by
+  unfold body_recording_game_2
+  -- Compute the wp by descending step by step.
+  -- The final `set queries_output (qs ++ [y_val])` increments length by 1.
+  -- All prior steps (adv, get oi, lqt, set oo, get qs) are queries-disjoint
+  -- so they preserve queries_output.length.
+  rw [wp_bind]
+  -- adv.wp (fun aσ => (rest).wp _ aσ.2) σ
+  have h_rest_bound : ∀ σ',
+      (Program.get oracle_input >>= fun inp =>
+        lazy_query_tracked inp >>= fun y_val =>
+        Program.set oracle_output y_val >>= fun _ =>
+        Program.get queries_output >>= fun qs =>
+        Program.set queries_output (qs ++ [y_val])).wp
+        (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal)) σ'
+      ≤ ((queries_output.get σ').length : ENNReal) + 1 := by
+    intro σ'
+    rw [wp_bind, wp_get]
+    dsimp only
+    rw [wp_bind]
+    -- lqt inp .wp (fun (y_val, σ_lqt) => (set oo; get qs; set qs).wp _ σ_lqt) σ'
+    -- The inner: (set oo y_val; get qs; set qs (qs ++ [y_val])).wp (qs.length post) σ_lqt
+    --   = qs.length σ_lqt + 1
+    -- (assuming queries preserved through set oo).
+    have h_inner_eq : ∀ (y_val : output) (σ_lqt : state),
+        (Program.set oracle_output y_val >>= fun _ =>
+          Program.get queries_output >>= fun qs =>
+          Program.set queries_output (qs ++ [y_val])).wp
+          (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal)) σ_lqt
+        = ((queries_output.get σ_lqt).length : ENNReal) + 1 := by
+      intro y_val σ_lqt
+      simp only [wp_bind, wp_set, wp_get]
+      simp only [Lens.get_of_disjoint_set queries_output oracle_output, Lens.set_get,
+        List.length_append, List.length_singleton]
+      push_cast
+      ring
+    refine le_trans (Program.wp_le_wp_of_le _ _
+        (fun yσ : output × state => ((queries_output.get yσ.2).length : ENNReal) + 1)
+        ?_ σ') ?_
+    · intro yσ
+      exact le_of_eq (h_inner_eq yσ.1 yσ.2)
+    rw [Program.wp_add (lazy_query_tracked _)
+        (fun yσ : output × state => ((queries_output.get yσ.2).length : ENNReal))
+        (fun _ : output × state => (1 : ENNReal))]
+    refine add_le_add ?_ ?_
+    · exact Program.wp_qs_length_preserved_of_inRange queries_output
+        (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_output _) _
+    · exact Program.wp_const_le _ _ _
+  -- Apply adv.wp ≤ ... via similar decomposition.
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal) + 1)
+      ?_ σ) ?_
+  · intro aσ
+    exact h_rest_bound aσ.2
+  rw [Program.wp_add adv
+      (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal))
+      (fun _ : Unit × state => (1 : ENNReal))]
+  refine add_le_add ?_ ?_
+  · exact Program.wp_qs_length_preserved_of_inRange queries_output adv h_adv σ
+  · exact Program.wp_const_le _ _ _
+
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
-    Routes via `guess_experiment_game_2` — bypasses the old marginal_eq wall. -/
+    Routes via `guess_experiment_game_2` → `interim` → `collector` → bound. -/
 theorem ow_game_2_tracked_wins_le_guess_output_bound
     [Fintype output] [Nonempty output] [DecidableEq output]
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
+    (h_ow_adv_queries : ow_adv.inRange queries_output.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-    ≤ ((q + 1) : ENNReal) / Fintype.card output :=
-  le_trans
-    (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv
-      h_ow_adv_matched_chal_y q σ)
-    (by unfold guess_experiment_game_2
-        exact guess_experiment_wp_bound _ _ ow_challenge_y matched_chal_y _ _ q σ)
+    ≤ ((q + 1) : ENNReal) / Fintype.card output := by
+  -- Step 1: Game 2 wins ≤ guess_experiment_game_2 matched (proved).
+  refine le_trans (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv
+      h_ow_adv_matched_chal_y q σ) ?_
+  -- Step 2: guess_experiment_game_2 ≤ guess_experiment_interim_game_2 (ASSUMED).
+  refine le_trans (guess_experiment_le_interim_assumption _ _ _ _ queries_output _ _
+      (body_recording_game_2 ow_adv) final_recording_game_2 _ _) ?_
+  -- Step 3: guess_experiment_interim_game_2 ≤ (q+1)/|output|. Generic.
+  apply guess_experiment_interim_wp_bound
+  -- h_qs_length_le for Game 2.
+  intro σ'
+  -- Strategy: prog.wp (qs.length / |T|) σ' = |T|⁻¹ * prog.wp qs.length σ'
+  --        and prog.wp qs.length σ' ≤ q+1 (via lazy_init + set qs [] + loop bound + final bump).
+  have h_post_eq : (fun aσ : Unit × state =>
+        ((queries_output.get aσ.2).length : ENNReal) / Fintype.card output)
+      = fun aσ : Unit × state => (Fintype.card output : ENNReal)⁻¹ *
+            ((queries_output.get aσ.2).length : ENNReal) := by
+    funext aσ
+    rw [div_eq_mul_inv, mul_comm]
+  rw [h_post_eq, Program.wp_const_mul]
+  -- Goal: |output|⁻¹ * prog.wp (qs.length post) σ' ≤ (q+1) / |output|.
+  rw [show ((q + 1 : ℕ) : ENNReal) / Fintype.card output
+        = (Fintype.card output : ENNReal)⁻¹ * ((q + 1 : ℕ) : ENNReal) from by
+      rw [div_eq_mul_inv, mul_comm]]
+  refine mul_le_mul' (le_refl _) ?_
+  -- Goal: prog.wp (qs.length post) σ' ≤ q+1.
+  -- Step: lazy_init preserves queries.
+  rw [wp_bind]
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun _ : Unit × state => ((q + 1 : ℕ) : ENNReal)) ?_ σ') ?_
+  · intro aσ_lazy
+    -- (set qs []; loop; final).wp (qs.length post) aσ_lazy.2 ≤ q+1
+    rw [wp_bind, wp_set]
+    -- After set qs []: state has qs = []. qs.length = 0.
+    -- (loop; final).wp (qs.length post) (queries.set [] aσ_lazy.2)
+    -- ≤ loop.wp (qs.length + 1) σ_init = qs.length σ_init + q + 1 = 0 + q + 1 = q+1.
+    set σ_init := queries_output.set [] aσ_lazy.2 with σ_init_def
+    have h_qs_init : (queries_output.get σ_init).length = 0 := by
+      simp [σ_init_def, Lens.set_get]
+    rw [wp_bind]
+    refine le_trans (Program.wp_le_wp_of_le _ _
+        (fun aσ : Unit × state =>
+          ((queries_output.get aσ.2).length : ENNReal) + 1) ?_ σ_init) ?_
+    · intro aσ_loop
+      exact final_recording_game_2_qs_length_bump _
+    rw [Program.wp_add (loop_n q (body_recording_game_2 ow_adv))
+        (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal))
+        (fun _ : Unit × state => (1 : ENNReal))]
+    refine le_trans (add_le_add (loop_n_wp_linear_bound (body_recording_game_2 ow_adv)
+        (fun σ => ((queries_output.get σ).length : ENNReal)) 1
+        (fun σ_body => body_recording_game_2_qs_length_bump ow_adv h_ow_adv_queries σ_body)
+        q σ_init) (Program.wp_const_le _ _ _)) ?_
+    rw [h_qs_init]
+    push_cast
+    ring_nf
+    rfl
+  · exact Program.wp_const_le _ _ _
+
+/-- Body recording for Game 1 bad: same shape as guess_experiment_game_1.body
+    but appends `inp` (adv's query) to qs. -/
+noncomputable def body_recording_game_1 (adv : Program state Unit) :
+    Program state Unit := do
+  adv
+  let inp ← Program.get oracle_input
+  let y ← lazy_query_tracked inp
+  Program.set oracle_output y
+  let qs ← Program.get queries_input
+  Program.set queries_input (qs ++ [inp])
+
+/-- Final recording for Game 1 bad: the last query attempt records `resp`. -/
+noncomputable def final_recording_game_1 : Program state Unit := do
+  let resp ← Program.get ow_response
+  let y ← lazy_query_tracked resp
+  Program.set oracle_output y
+  let qs ← Program.get queries_input
+  Program.set queries_input (qs ++ [resp])
+
+/-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
+private lemma body_recording_game_1_qs_length_bump
+    (adv : Program state Unit)
+    (h_adv : adv.inRange queries_input.compl.range)
+    (σ : state) :
+    (body_recording_game_1 adv).wp
+      (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ
+    ≤ ((queries_input.get σ).length : ENNReal) + 1 := by
+  unfold body_recording_game_1
+  rw [wp_bind]
+  have h_rest_bound : ∀ σ',
+      (Program.get oracle_input >>= fun inp =>
+        lazy_query_tracked inp >>= fun y =>
+        Program.set oracle_output y >>= fun _ =>
+        Program.get queries_input >>= fun qs =>
+        Program.set queries_input (qs ++ [inp])).wp
+        (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ'
+      ≤ ((queries_input.get σ').length : ENNReal) + 1 := by
+    intro σ'
+    rw [wp_bind, wp_get]
+    dsimp only
+    rw [wp_bind]
+    have h_inner_eq : ∀ (y : output) (σ_lqt : state),
+        (Program.set oracle_output y >>= fun _ =>
+          Program.get queries_input >>= fun qs =>
+          Program.set queries_input (qs ++ [oracle_input.get σ'])).wp
+          (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ_lqt
+        = ((queries_input.get σ_lqt).length : ENNReal) + 1 := by
+      intro y σ_lqt
+      simp only [wp_bind, wp_set, wp_get]
+      simp only [Lens.get_of_disjoint_set queries_input oracle_output, Lens.set_get,
+        List.length_append, List.length_singleton]
+      push_cast
+      ring
+    refine le_trans (Program.wp_le_wp_of_le _ _
+        (fun yσ : output × state => ((queries_input.get yσ.2).length : ENNReal) + 1)
+        ?_ σ') ?_
+    · intro yσ
+      exact le_of_eq (h_inner_eq yσ.1 yσ.2)
+    rw [Program.wp_add (lazy_query_tracked _)
+        (fun yσ : output × state => ((queries_input.get yσ.2).length : ENNReal))
+        (fun _ : output × state => (1 : ENNReal))]
+    refine add_le_add ?_ ?_
+    · exact Program.wp_qs_length_preserved_of_inRange queries_input
+        (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
+    · exact Program.wp_const_le _ _ _
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal) + 1)
+      ?_ σ) ?_
+  · intro aσ
+    exact h_rest_bound aσ.2
+  rw [Program.wp_add adv
+      (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal))
+      (fun _ : Unit × state => (1 : ENNReal))]
+  refine add_le_add ?_ ?_
+  · exact Program.wp_qs_length_preserved_of_inRange queries_input adv h_adv σ
+  · exact Program.wp_const_le _ _ _
+
+/-- final_recording_game_1 bumps queries_input.length by at most 1. -/
+private lemma final_recording_game_1_qs_length_bump (σ : state) :
+    final_recording_game_1.wp
+      (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ
+    ≤ ((queries_input.get σ).length : ENNReal) + 1 := by
+  unfold final_recording_game_1
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_bind]
+  have h_inner_eq : ∀ (y : output) (σ_lqt : state),
+      (Program.set oracle_output y >>= fun _ =>
+        Program.get queries_input >>= fun qs =>
+        Program.set queries_input (qs ++ [ow_response.get σ])).wp
+        (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ_lqt
+      = ((queries_input.get σ_lqt).length : ENNReal) + 1 := by
+    intro y σ_lqt
+    simp only [wp_bind, wp_set, wp_get]
+    simp only [Lens.get_of_disjoint_set queries_input oracle_output, Lens.set_get,
+      List.length_append, List.length_singleton]
+    push_cast
+    ring
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun yσ : output × state => ((queries_input.get yσ.2).length : ENNReal) + 1)
+      ?_ σ) ?_
+  · intro yσ
+    exact le_of_eq (h_inner_eq yσ.1 yσ.2)
+  rw [Program.wp_add (lazy_query_tracked _)
+      (fun yσ : output × state => ((queries_input.get yσ.2).length : ENNReal))
+      (fun _ : output × state => (1 : ENNReal))]
+  refine add_le_add ?_ ?_
+  · exact Program.wp_qs_length_preserved_of_inRange queries_input
+      (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
+  · exact Program.wp_const_le _ _ _
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
-    The bad event `chal_x_queried_gh = true` happens iff some
-    `lazy_query_tracked` was called with input `= chal_x`. This matches
-    `guess_experiment`'s structure with target = `chal_x`, guesses = the
-    inputs chosen by the adversary (`oracle_input` after each adversary
-    step) plus `ow_response` for the final query, env = `lazy_init >>=
-    sample y >>= set chal_y`, n = q+1.
-
-    The reduction is structurally tight: the `chal_x_queried_gh` flag in
-    `ow_game_1_tracked` is exactly the "matched" flag of the
-    guess_experiment. Combined with `guess_experiment_wp_bound`, this
-    gives `≤ (q+1)/|input|`. -/
+    Routes via `guess_experiment_game_1` → `interim` → `collector` → bound. -/
 theorem ow_game_1_tracked_bad_le_guess_input_bound
     (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_ow_adv_queries : ow_adv.inRange queries_input.compl.range)
+    (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
           if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card input := by
-  -- Two-step bridge via Game 2's bad event:
-  --   P[bad in G1] = P[bad in G2]   (identical-until-bad on bad event)
-  --              = P[guess_experiment_game_1 matched]  (structural bridge)
-  --              ≤ (q+1)/|input|   (guess_experiment_wp_bound)
   rw [ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad ow_adv h_ow_adv_RO
-      h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh q σ]
-  rw [ow_game_2_tracked_bad_eq_guess_experiment_game_1 ow_adv q σ]
-  unfold guess_experiment_game_1
-  exact guess_experiment_wp_bound _ _ ow_challenge_x chal_x_queried_gh _ _ q σ
+      h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh h_ow_adv_mass_one q σ]
+  rw [ow_game_2_tracked_bad_eq_guess_experiment_game_1 ow_adv
+      h_ow_adv_chal_y q σ]
+  refine le_trans (guess_experiment_le_interim_assumption _ _ _ _ queries_input _ _
+      (body_recording_game_1 ow_adv) final_recording_game_1 _ _) ?_
+  apply guess_experiment_interim_wp_bound
+  -- h_qs_length_le for Game 1.
+  intro σ'
+  have h_post_eq : (fun aσ : Unit × state =>
+        ((queries_input.get aσ.2).length : ENNReal) / Fintype.card input)
+      = fun aσ : Unit × state => (Fintype.card input : ENNReal)⁻¹ *
+            ((queries_input.get aσ.2).length : ENNReal) := by
+    funext aσ
+    rw [div_eq_mul_inv, mul_comm]
+  rw [h_post_eq, Program.wp_const_mul]
+  rw [show ((q + 1 : ℕ) : ENNReal) / Fintype.card input
+        = (Fintype.card input : ENNReal)⁻¹ * ((q + 1 : ℕ) : ENNReal) from by
+      rw [div_eq_mul_inv, mul_comm]]
+  refine mul_le_mul' (le_refl _) ?_
+  rw [wp_bind]
+  refine le_trans (Program.wp_le_wp_of_le _ _
+      (fun _ : Unit × state => ((q + 1 : ℕ) : ENNReal)) ?_ σ') ?_
+  · intro aσ_lazy
+    rw [wp_bind, wp_set]
+    set σ_init := queries_input.set [] aσ_lazy.2 with σ_init_def
+    have h_qs_init : (queries_input.get σ_init).length = 0 := by
+      simp [σ_init_def, Lens.set_get]
+    rw [wp_bind]
+    refine le_trans (Program.wp_le_wp_of_le _ _
+        (fun aσ : Unit × state =>
+          ((queries_input.get aσ.2).length : ENNReal) + 1) ?_ σ_init) ?_
+    · intro aσ_loop
+      exact final_recording_game_1_qs_length_bump _
+    rw [Program.wp_add (loop_n q (body_recording_game_1 ow_adv))
+        (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal))
+        (fun _ : Unit × state => (1 : ENNReal))]
+    refine le_trans (add_le_add (loop_n_wp_linear_bound (body_recording_game_1 ow_adv)
+        (fun σ => ((queries_input.get σ).length : ENNReal)) 1
+        (fun σ_body => body_recording_game_1_qs_length_bump ow_adv h_ow_adv_queries σ_body)
+        q σ_init) (Program.wp_const_le _ _ _)) ?_
+    rw [h_qs_init]
+    push_cast
+    ring_nf
+    rfl
+  · exact Program.wp_const_le _ _ _
 
 /-! ## Flag-elision bridge: untracked Game 1 ↔ tracked Game 1
 
@@ -1548,8 +2717,7 @@ lemma lazy_query_equiv_lazy_query_tracked (inp : input) :
 /-- `oracle_step ow_adv lazy_query` is equivalent (modulo `chal_x_queried_gh`)
     to `oracle_step ow_adv lazy_query_tracked` — same body, with the inner
     `lazy_query` replaced by the tracked variant. -/
-lemma oracle_step_equiv_lazy_query_lazy_query_tracked
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) :
+lemma oracle_step_equiv_lazy_query_lazy_query_tracked :
     Program.EquivModuloLens chal_x_queried_gh
       (oracle_step ow_adv lazy_query)
       (oracle_step ow_adv lazy_query_tracked) := by
@@ -1615,7 +2783,7 @@ lemma oracle_loop_n_equiv_lazy_query_lazy_query_tracked
   rw [oracle_loop_n_eq_loop_n, oracle_loop_n_eq_loop_n]
   exact loop_n_congr
     (oracle_step_lazy_query_inRange_chal_x_queried_gh ow_adv h_ow_adv_flag)
-    (oracle_step_equiv_lazy_query_lazy_query_tracked ow_adv h_ow_adv_flag) q
+    (oracle_step_equiv_lazy_query_lazy_query_tracked ow_adv) q
 
 /-- The "tail after lazy_init" of `ow_game_1` is flag-disjoint. -/
 private lemma ow_game_1_tail_inRange_chal_x_queried_gh
@@ -1813,6 +2981,9 @@ theorem ow_lazy_bound_via_gamehop
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
+    (h_ow_adv_queries_output : ow_adv.inRange queries_output.compl.range)
+    (h_ow_adv_queries_input : ow_adv.inRange queries_input.compl.range)
+    (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -1845,7 +3016,7 @@ theorem ow_lazy_bound_via_gamehop
         + ((q + 1) : ENNReal) / Fintype.card input := by
         gcongr
         · exact ow_game_2_tracked_wins_le_guess_output_bound ow_adv
-            h_ow_adv_matched_chal_y q σ
+            h_ow_adv_matched_chal_y h_ow_adv_queries_output q σ
         · -- The "bad ∩ Win" wp is ≤ "bad" wp (since Win ≤ 1).
           calc (ow_game_1_tracked ow_adv q).wp
                   (fun bσ : Bool × state =>
@@ -1861,7 +3032,9 @@ theorem ow_lazy_bound_via_gamehop
                 · simp [h]
             _ ≤ ((q + 1) : ENNReal) / Fintype.card input := by
                 exact ow_game_1_tracked_bad_le_guess_input_bound ow_adv
-                  h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh q σ
+                  h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x
+                  h_ow_adv_chal_x_queried_gh h_ow_adv_queries_input
+                  h_ow_adv_mass_one q σ
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card output := by
         gcongr
