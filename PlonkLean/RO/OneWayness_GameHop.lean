@@ -94,26 +94,6 @@ private lemma lazy_query_on_totally_empty_RO
   -- The match key is now `(fun _ : input => none) inp = none`. Reduce.
   simp only [wp_bind, wp_uniform, wp_set, wp_pure]
 
-/-- Frame variant: at the point in a program where the RO is empty
-    everywhere (the state immediately after `lazy_init`), one `lazy_query`
-    can be swapped for an explicit `uniform >>= set RO` pair, with the
-    continuation unchanged. -/
-private lemma swap_lazy_query_after_empty_RO
-    {α : Type} (k : output → Program state α) (σ : state)
-    (h_empty : random_oracle_state.get σ = fun _ => none) (F : α × state → ENNReal)
-    (inp : input) :
-    (lazy_query inp >>= k).wp F σ
-    = (Program.uniform >>= fun y =>
-        Program.set random_oracle_state
-          (fun k' => if k' = inp then some y else none) >>= fun _ =>
-        k y).wp F σ := by
-  rw [wp_bind, lazy_query_on_totally_empty_RO inp σ h_empty
-      (fun yσ : output × state => (k yσ.1).wp F yσ.2)]
-  -- Both sides are now `Program.uniform.wp (fun y => ... ) σ`. Reduce.
-  simp only [wp_bind, wp_uniform, wp_set, wp_pure]
-
-/-- The lazy_query swap, framed as a program equality (not wp). Both Game 0
-    and Game 1 instantiate this with the OW-experiment suffix as `rest`. -/
 private lemma lazy_query_x_eq_explicit_y_frame {α : Type}
     (rest : input → output → Program state α) :
     (lazy_init >>= fun _ : Unit =>
@@ -571,80 +551,6 @@ private lemma lazy_query_tracked_wp_decompose
   · simp only [h, ↓reduceIte, wp_set, wp_pure]
   · simp only [h, ↓reduceIte, wp_pure]
 
-/-- **`lazy_query_tracked` writes its output**. After a tracked query at `x`,
-    the RO contains `x ↦ some y_check`. Same property as
-    `lazy_query_wp_writes_output` for the tracked variant; the flag-update
-    step is RO-disjoint so the property propagates through. -/
-private lemma lazy_query_tracked_wp_writes_output
-    (x : input) (F : output × state → ENNReal) (σ : state) :
-    (lazy_query_tracked x).wp F σ
-    = (lazy_query_tracked x).wp
-        (fun yσ : output × state =>
-          if random_oracle_state.get yσ.2 x = some yσ.1 then F yσ else 0) σ := by
-  rw [lazy_query_tracked_wp_decompose]
-  conv_rhs => rw [lazy_query_tracked_wp_decompose]
-  rw [lazy_query_wp_strengthen
-    (I := fun y σ' => random_oracle_state.get σ' x = some y)
-    (h_cache := fun _ h_cache => h_cache)
-    (h_fresh := fun value _ => by
-      show random_oracle_state.get _ x = some value
-      rw [random_oracle_state.set_get]; exact if_pos rfl)]
-  haveI : disjoint chal_x_queried_gh random_oracle_state := disjoint_chal_x_queried_gh_ro
-  congr 1
-  funext yσ'
-  have h_flag_RO : random_oracle_state.get (chal_x_queried_gh.set true yσ'.2) x
-                 = random_oracle_state.get yσ'.2 x := by
-    rw [random_oracle_state.get_of_disjoint_set]
-  by_cases h_RO : random_oracle_state.get yσ'.2 x = some yσ'.1
-  · simp only [if_pos h_RO]
-    by_cases h_chal_x : x = ow_challenge_x.get yσ'.2
-    · simp only [if_pos h_chal_x]
-      rw [h_flag_RO, if_pos h_RO]
-    · simp only [if_neg h_chal_x, if_pos h_RO]
-  · simp only [if_neg h_RO]
-    by_cases h_chal_x : x = ow_challenge_x.get yσ'.2
-    · simp only [if_pos h_chal_x]
-      rw [h_flag_RO, if_neg h_RO]
-    · simp only [if_neg h_chal_x, if_neg h_RO]
-
-/-- The state `insert_at_chal_x y_chal σ` has the same `ow_challenge_x` as
-    `σ` (the insertion only touches RO, which is disjoint from chal_x). -/
-private lemma chal_x_get_insert_at_chal_x (σ : state) (y_chal : output) :
-    ow_challenge_x.get (insert_at_chal_x y_chal σ) = ow_challenge_x.get σ := by
-  unfold insert_at_chal_x
-  exact ow_challenge_x.get_of_disjoint_set _ _ _
-
-/-- The state `insert_at_chal_x y_chal σ` has the same `chal_x_queried_gh`
-    as `σ`. -/
-private lemma chal_x_queried_gh_get_insert_at_chal_x (σ : state) (y_chal : output) :
-    chal_x_queried_gh.get (insert_at_chal_x y_chal σ) = chal_x_queried_gh.get σ := by
-  unfold insert_at_chal_x
-  exact chal_x_queried_gh.get_of_disjoint_set _ _ _
-
-/-- `random_oracle_state.get` at `insert_at_chal_x` keys away from `chal_x σ`
-    agrees with the original. -/
-private lemma RO_get_insert_at_chal_x_of_neq (σ : state) (y_chal : output)
-    (k : input) (h_neq : k ≠ ow_challenge_x.get σ) :
-    random_oracle_state.get (insert_at_chal_x y_chal σ) k
-    = random_oracle_state.get σ k := by
-  unfold insert_at_chal_x
-  rw [random_oracle_state.set_get]
-  simp [h_neq]
-
-/-- `random_oracle_state.get` at `insert_at_chal_x` evaluated at the chal_x key
-    yields the inserted value. -/
-private lemma RO_get_insert_at_chal_x_at_chal_x (σ : state) (y_chal : output) :
-    random_oracle_state.get (insert_at_chal_x y_chal σ) (ow_challenge_x.get σ)
-    = some y_chal := by
-  unfold insert_at_chal_x
-  rw [random_oracle_state.set_get]
-  simp
-
-/-- **Generic RO-set commutativity for `lazy_query`**: writes to `RO[x]`
-    commute with `lazy_query inp` when `inp ≠ x`. The lazy_query at inp
-    doesn't touch RO[x], so any pre-existing write to RO[x] passes through.
-    Adapted from `RO_setentry_neq_commutes_lazy_query_set_oracle_output`,
-    without the `set oracle_output` continuation. -/
 private lemma RO_setentry_neq_commutes_lazy_query
     (inp x : input) (h_neq : inp ≠ x) (y : output) (σ : state)
     (F : output × state → ENNReal) :
@@ -1054,100 +960,6 @@ private lemma oracle_loop_n_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     · intro a σ' y
       exact IH F h_F_bad_zero h_F_RO_inv σ' y
 
-/-- **Tail invariance under RO[chal_x] insertion**. The portion of both
-    games starting from `set ow_challenge_y y` produces equal wp's at `σ`
-    and `insert_at_chal_x y_chal σ`. Composes:
-    `chal_y`-RO commutativity, the loop-level invariance, RO-disjointness
-    of `ow_response`, the per-step invariance for `lazy_query_tracked`,
-    and `F`'s RO-invariance for the final `pure`. -/
-private lemma ow_tail_wp_invariant_under_RO_chal_x_set
-    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (q : ℕ) (y : output) (F : Bool × state → ENNReal)
-    (h_F_bad_zero : ∀ bσ : Bool × state, chal_x_queried_gh.get bσ.2 = true → F bσ = 0)
-    (h_F_RO_inv : ∀ (b : Bool) (σ' : state) (y' : output),
-       F (b, insert_at_chal_x y' σ') = F (b, σ'))
-    (σ : state) (y_chal : output) :
-    (Program.set ow_challenge_y y >>= fun _ =>
-      oracle_loop_n ow_adv q lazy_query_tracked >>= fun _ =>
-      Program.get ow_response >>= fun resp =>
-      lazy_query_tracked resp >>= fun y_check =>
-      (pure (decide (y_check = y)) : Program state Bool)).wp F
-        (insert_at_chal_x y_chal σ)
-    = (Program.set ow_challenge_y y >>= fun _ =>
-      oracle_loop_n ow_adv q lazy_query_tracked >>= fun _ =>
-      Program.get ow_response >>= fun resp =>
-      lazy_query_tracked resp >>= fun y_check =>
-      (pure (decide (y_check = y)) : Program state Bool)).wp F σ := by
-  -- Step 1: Unfold the outer bind on `set chal_y y` via wp_set.
-  -- We get the remaining program's wp at `chal_y.set y (insert σ)` vs `chal_y.set y σ`.
-  haveI : disjoint ow_challenge_y random_oracle_state := disjoint_ow_challenge_y_ro
-  haveI : disjoint ow_challenge_y ow_challenge_x := disjoint_ow_challenge_y_ow_challenge_x
-  simp only [wp_bind, wp_set]
-  -- chal_y.set y (insert σ) = insert (chal_y.set y σ): commute set-set via disjointness.
-  have h_chal_y_commute :
-      ow_challenge_y.set y (insert_at_chal_x y_chal σ)
-      = insert_at_chal_x y_chal (ow_challenge_y.set y σ) := by
-    unfold insert_at_chal_x
-    rw [(disjoint_ow_challenge_y_ro).commute]
-    congr 1
-    funext k
-    rw [ow_challenge_x.get_of_disjoint_set]
-    rw [random_oracle_state.get_of_disjoint_set]
-  rw [h_chal_y_commute]
-  -- Step 2: Apply loop-level RO[chal_x] invariance.
-  refine oracle_loop_n_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
-    ow_adv h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh q _ ?_ ?_
-    (ow_challenge_y.set y σ) y_chal
-  · -- post bad-vanishing: starting at flag-true, the inner wp = 0.
-    intro aσ_loop h_flag
-    -- inner = (get resp >>= lq_t resp >>= pure decide).wp F aσ_loop.2 at flag-true state.
-    -- get resp's result is independent of state; lq_t at flag-true with F bad-vanishing gives 0.
-    simp only [wp_bind, wp_get]
-    -- Now: (lq_t (resp.get aσ_loop.2)).wp (fun yσ_lq => (pure ...).wp F yσ_lq.2) aσ_loop.2 = 0.
-    haveI : disjoint chal_x_queried_gh ow_response :=
-      disjoint_chal_x_queried_gh_ow_response
-    apply lazy_query_tracked_wp_at_flag_true _ _ _ aσ_loop.2 h_flag
-    intro yσ_lq h_yσ_lq_flag
-    rw [wp_pure]
-    exact h_F_bad_zero _ h_yσ_lq_flag
-  · -- post RO[chal_x]-inv.
-    intro a σ_inner y_inner
-    -- inner.wp F (insert σ_inner) = inner.wp F σ_inner.
-    -- Unfold: get resp doesn't change state; resp.get (insert σ_inner) = resp.get σ_inner.
-    -- Then lq_t's per-step invariance.
-    simp only [wp_bind, wp_get]
-    have h_resp_get : ow_response.get (insert_at_chal_x y_inner σ_inner)
-                    = ow_response.get σ_inner := by
-      unfold insert_at_chal_x
-      rw [ow_response.get_of_disjoint_set]
-    rw [h_resp_get]
-    -- Now: (lq_t (resp.get σ_inner)).wp (fun yσ_lq => F (decide (yσ_lq.1=y), yσ_lq.2)) (insert σ_inner)
-    --    = (lq_t (resp.get σ_inner)).wp (...) σ_inner
-    refine lazy_query_tracked_wp_invariant_under_RO_chal_x_set
-      (ow_response.get σ_inner)
-      (fun yσ_lq : output × state =>
-        (pure (decide (yσ_lq.1 = y)) : Program state Bool).wp F yσ_lq.2)
-      ?_ ?_ σ_inner y_inner
-    · intro yσ_lq h_yσ_lq_flag
-      simp only [wp_pure]
-      exact h_F_bad_zero _ h_yσ_lq_flag
-    · intro a' σ'' y''
-      simp only [wp_pure]
-      exact h_F_RO_inv _ σ'' y''
-
-/-- **Identical-until-bad** at the game level. For posts that vanish on
-    `chal_x_queried_gh = true` outcomes AND are RO[chal_x]-invariant, tracked
-    Game 1 and tracked Game 2 produce equal wp's.
-
-    The argument is structural: Games 1 and 2 share the prefix
-    `lazy_init >>= set flag false >>= uniform x >>= set chal_x x >>= uniform y`;
-    they differ only at the `set random_oracle_state (...)` step in Game 1.
-    For the tail program (which is shared between Games 1 and 2 starting
-    from RO-different states), the wp is RO[chal_x]-invariant on
-    bad-vanishing-and-state-invariant posts. The chain of invariance
-    lemmas concludes that Games 1 and 2 produce equal wp's. -/
 theorem ow_game_1_tracked_eq_ow_game_2_tracked_until_bad
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
@@ -1722,15 +1534,6 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
 For postconditions that don't read `chal_x_queried_gh`, the tracked and
 untracked variants of Game 1 agree at the wp level. -/
 
-/-- `Program.get L` is flag-disjoint when L ≠ chal_x_queried_gh. -/
-lemma Program.get_inRange_chal_x_queried_gh_compl
-    {γ : Type} (L : Lens γ state) [disjoint L chal_x_queried_gh] :
-    (Program.get L).inRange chal_x_queried_gh.compl.range :=
-  Program.get_inRange_compl_of_disjoint L chal_x_queried_gh
-
-/-- `lazy_query inp` is equivalent (modulo `chal_x_queried_gh`) to
-    `lazy_query_tracked inp` — they produce the same value-marginal,
-    differing only by writes to `chal_x_queried_gh`. -/
 lemma lazy_query_equiv_lazy_query_tracked (inp : input) :
     Program.EquivModuloLens chal_x_queried_gh (lazy_query inp) (lazy_query_tracked inp) := by
   intro F h_F σ
