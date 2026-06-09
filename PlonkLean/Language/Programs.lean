@@ -78,27 +78,29 @@ def Stmt.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
                      (params : Expr (paramListToTuple sig.params)) : Stmt
      := StmtWithHoles.call x proc params
 
+def HoleSigs.Instantiation (holes : HoleSigs) := ∀ {sig}, HoleIndex holes sig → Procedure sig
+
 /-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
     `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
 def StmtWithHoles.instantiate {holes : HoleSigs}
     (stmt : StmtWithHoles holes)
-    (resolve : ∀ {sig}, HoleIndex holes sig → Procedure sig) :
+    (instantiation : holes.Instantiation) :
     Stmt := match stmt with
   | .skip            => .skip
   | .assign x e      => .assign x e
   | .sample x e      => .sample x e
   | .call' x b r p   => .call' x b r p
-  | .hole n x p      => StmtWithHoles.call x (resolve n) p
+  | .hole n x p      => StmtWithHoles.call x (instantiation n) p
   | .seq s1 s2       =>
-      .seq (s1.instantiate resolve) (s2.instantiate resolve)
+      .seq (s1.instantiate instantiation) (s2.instantiate instantiation)
   | .ifThenElse c t e =>
-      .ifThenElse c (StmtWithHoles.instantiate t resolve) (StmtWithHoles.instantiate e resolve)
-  | .while c t       => .while c (StmtWithHoles.instantiate t resolve)
+      .ifThenElse c (StmtWithHoles.instantiate t instantiation) (StmtWithHoles.instantiate e instantiation)
+  | .while c t       => .while c (StmtWithHoles.instantiate t instantiation)
 
 def ProcedureWithHoles.instantiate {holes : HoleSigs} {sig}
     (proc : ProcedureWithHoles holes sig)
-    (resolve : ∀ {sig}, HoleIndex holes sig → Procedure sig)
+    (instantiation : holes.Instantiation)
      : Procedure sig :=
-  ⟨StmtWithHoles.instantiate proc.body resolve, proc.return_val⟩
+  ⟨StmtWithHoles.instantiate proc.body instantiation, proc.return_val⟩
 
 end Language.Programs
