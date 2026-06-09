@@ -34,22 +34,23 @@ def ModuleContextIdx.toNat : ModuleContextIdx Γ T → Nat
 | .zero => 0
 | .succ n => Nat.succ (n.toNat)
 
-def procedureHolesToArgumentType (holes : HoleSigs) : ModuleType :=
-  typeListToProdGeneric ModuleType.prod ModuleType.unit
-     (holes.toList.map fun sig => ModuleType.proc sig)
+def _root_.Language.Programs.HoleSigs.toModuleTypeTuple : HoleSigs → ModuleType
+| .empty => .unit
+| .append holes sig => .prod (.proc sig) holes.toModuleTypeTuple
 
 /-- `ModuleExpression Γ T` is the type of all module expressions that are well-typed in
     module contexts of type `Γ` and have type `T`. -/
 inductive ModuleExpression : ModuleContext → ModuleType → Type _ where
   | proc {sig} : Procedure sig → ModuleExpression Δ (.proc sig)
   | procHoles {holes} {sig} : holes.NonEmpty → ProcedureWithHoles holes sig →
-        ModuleExpression Δ (.arr (procedureHolesToArgumentType holes) (.proc sig))
+        ModuleExpression Δ (.arr holes.toModuleTypeTuple (.proc sig))
   | var  : ModuleContextIdx Δ M → ModuleExpression Δ M
   | app  : ModuleExpression Δ (.arr A B) → ModuleExpression Δ A → ModuleExpression Δ B
   | fst : ModuleExpression Δ (.prod A B) → ModuleExpression Δ A
   | snd : ModuleExpression Δ (.prod A B) → ModuleExpression Δ B
   | abs : ModuleExpression (Δ.append A) B → ModuleExpression Δ (ModuleType.arr A B)
   | pair : ModuleExpression Δ A → ModuleExpression Δ B → ModuleExpression Δ (ModuleType.prod A B)
+  | unit : ModuleExpression Δ .unit
 
 /- # Helper functions -/
 
@@ -60,52 +61,43 @@ def IsProcHoles : ModuleExpression Δ T → Prop
 instance : Decidable (IsProcHoles m) :=
   match m with
   | .procHoles _ _ => isTrue trivial
-  | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .proc _ => isFalse not_false
+  | .unit | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .proc _ => isFalse not_false
 
 /-- `IsProcTuple m` holds when `m` is a right-nested tuple of hole-free procedures:
     either `.proc _`, or `.pair (.proc _) rest` with `IsProcTuple rest`.  These are exactly
     the ground arguments a procedure-with-holes can be instantiated with (the module-level
     analogue of STLC `BasicTerm`s). -/
 def IsProcTuple : ModuleExpression Δ T → Prop
-  | .proc _ => True
+  | .unit => True
   | .pair (.proc _) rest => IsProcTuple rest
   | _ => False
 
-instance instModuleExpressionDecidable (m : ModuleExpression Δ T) : Decidable (IsProcTuple m) :=
+instance instDecidableIsProcTuple (m : ModuleExpression Δ T) : Decidable (IsProcTuple m) :=
   match m with
-  | .proc _ => isTrue trivial
+  | .unit => isTrue trivial
   | .pair a rest =>
       match a with
       | .proc _ =>
-          match instModuleExpressionDecidable rest with
+          match instDecidableIsProcTuple rest with
           | isTrue h  => isTrue h
           | isFalse h => isFalse h
-      | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .procHoles _ _ =>
+      | .unit | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .procHoles _ _ =>
           isFalse (by simp [IsProcTuple])
-  | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .procHoles _ _ => isFalse not_false
+  | .proc _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .procHoles _ _ => isFalse not_false
 
 
 /-- A type that can be the argument type of a procedure-with-holes: a right-nested tuple of
     procedure types. -/
 def IsProcArgType : ModuleType → Prop
   | .unit => True
-  | .proc _ => True
   | .prod (.proc _) rest => IsProcArgType rest
   | _ => False
 
 -- TODO inline?
 omit [ProgramSpec] in
-lemma isProcArgType_tlpg : (sigs : List ProcedureSignature) →
-    IsProcArgType (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))
-  | [] => trivial
-  | [_] => trivial
-  | _ :: s :: ss => isProcArgType_tlpg (s :: ss)
-
--- TODO inline?
-omit [ProgramSpec] in
 lemma isProcArgType_procHolesArgType (holes : HoleSigs) :
-    IsProcArgType (procedureHolesToArgumentType holes) :=
-  isProcArgType_tlpg holes.toList
+    IsProcArgType (holes.toModuleTypeTuple) :=
+  holes.rec trivial (fun _ _ ih => ih)
 
 lemma IsProcHoles.isProcArgType {Δ : ModuleContext} {A B : ModuleType}
     {f : ModuleExpression Δ (.arr A B)} (h : IsProcHoles f) : IsProcArgType A := by
@@ -117,39 +109,10 @@ lemma IsProcHoles.isProcArgType {Δ : ModuleContext} {A B : ModuleType}
 def IsProcHoles.destruct {m : ModuleExpression Γ T} (h : IsProcHoles m) :
     Σ holes : HoleSigs, Σ sig : ProcedureSignature,
     { proc : ProcedureWithHoles holes sig //
-      T = (.arr (procedureHolesToArgumentType holes) (.proc sig))}
+      T = (.arr holes.toModuleTypeTuple (.proc sig))}
 := match m with
 | @ModuleExpression.procHoles _ _ holes sigs _ p => ⟨holes, sigs, p, rfl⟩
 
-/-- Extract the underlying tuple of hole-free procedures from a `IsProcTuple` argument,
-    in the shape expected by `substituteProcedure`.  Total: the `IsProcTuple` proof rules
-    out every non-`.proc`/`.pair` shape. -/
--- TODO get rid of this or change type
-def IsProcTuple.toArgs
-  {sigs : List ProcedureSignature}
-  {m : ModuleExpression Δ (typeListToProdGeneric ModuleType.prod ModuleType.unit
-                                                 (sigs.map ModuleType.proc))}
-  (ipt : IsProcTuple m)
-     : typeListToProdGeneric Prod PUnit (sigs.map Procedure) := match sigs, m, ipt with
-  | [],           _, _ => PUnit.unit
-  | [_],          m, h =>
-      match m, h with
-      | .proc p,  _ => p
-      | .var _,   h => absurd h (by simp [IsProcTuple])
-      | .app _ _, h => absurd h (by simp [IsProcTuple])
-      | .fst _,   h => absurd h (by simp [IsProcTuple])
-      | .snd _,   h => absurd h (by simp [IsProcTuple])
-  | _ :: s :: ss, m, h =>
-      match m, h with
-      | .pair (.proc p) rest, hpt => (p, IsProcTuple.toArgs hpt)
-      | .pair (.var _) _,        h => absurd h (by simp [IsProcTuple])
-      | .pair (.app _ _) _,      h => absurd h (by simp [IsProcTuple])
-      | .pair (.fst _) _,        h => absurd h (by simp [IsProcTuple])
-      | .pair (.snd _) _,        h => absurd h (by simp [IsProcTuple])
-      | .var _,   h => absurd h (by simp [IsProcTuple])
-      | .app _ _, h => absurd h (by simp [IsProcTuple])
-      | .fst _,   h => absurd h (by simp [IsProcTuple])
-      | .snd _,   h => absurd h (by simp [IsProcTuple])
 
 /- # Normal forms -/
 
@@ -165,6 +128,7 @@ mutual
     | const : Normal (.proc p)
     | constHoles {holes sig} {ne : holes.NonEmpty} {p : ProcedureWithHoles holes sig} :
         Normal (.procHoles ne p)
+    | unit : Normal .unit
 
   /-- Neutral form: no outermost redex.  Either the head is a variable, or it is a
       procedure-with-holes applied to a normal argument that is not a proc-tuple (so the
@@ -184,6 +148,7 @@ end
 private def decidableNormalNeutral (m : ModuleExpression Δ t) :
     Decidable (Normal m) × Decidable (Neutral m) :=
   match m with
+  | .unit => ⟨.isTrue .unit, .isFalse fun h => nomatch h⟩
   | .var _  => ⟨.isTrue (.neutral .var), .isTrue .var⟩
   | .proc _ => ⟨.isTrue .const, .isFalse fun h => nomatch h⟩
   | .procHoles _ _ => ⟨.isTrue .constHoles, .isFalse fun h => nomatch h⟩
@@ -219,7 +184,7 @@ private def decidableNormalNeutral (m : ModuleExpression Δ t) :
               | appProcHoles _ na' _ => exact na na'
         | .isFalse nf, .isTrue na =>
             if hph : IsProcHoles f then
-              match instModuleExpressionDecidable arg with
+              match instDecidableIsProcTuple arg with
               | .isFalse hpt => exact .isTrue (.appProcHoles hph na hpt)
               | .isTrue hpt =>
                   exact .isFalse fun h => by
@@ -261,13 +226,15 @@ inductive NormalClosed : ModuleExpression .empty T → Prop where
                 Normal body → NormalClosed (.abs body)
   | pair {a : ModuleExpression .empty A} {b : ModuleExpression .empty B} :
       NormalClosed a → NormalClosed b → NormalClosed (.pair a b)
+  | unit : NormalClosed .unit
 
 /-- Progress for the closed fragment, packaged so the two facts share one structural
     recursion on the term: a closed term is never neutral, and a closed `Normal` term of a
     procedure-argument type is a proc-tuple. -/
 private lemma closed_progress : {T : ModuleType} → (m : ModuleExpression .empty T) →
     (¬ Neutral m) ∧ (IsProcArgType T → Normal m → IsProcTuple m)
-  | _, .proc _ => ⟨fun hne => (nomatch hne), fun _ _ => trivial⟩
+  | _, .unit => ⟨fun hne => (nomatch hne), fun _ _ => trivial⟩
+  | _, .proc _ => ⟨fun hne => (nomatch hne), fun ht _ => absurd ht (by simp [IsProcArgType])⟩
   | _, .procHoles _ _ => ⟨fun hne => (nomatch hne), fun ht _ => ht.elim⟩
   | _, .var r => nomatch r
   | _, .app f arg =>
@@ -296,6 +263,7 @@ private lemma closed_progress : {T : ModuleType} → (m : ModuleExpression .empt
         | neutral hne => exact nomatch hne
         | pair ha hb =>
             cases a with
+            | unit => exact absurd ht (by simp [IsProcArgType])
             | proc p => exact ihb.2 ht hb
             | var r => exact nomatch r
             | app _ _ => cases ha with | neutral hne => exact absurd hne iha.1
@@ -315,6 +283,7 @@ lemma Normal.normalClosed {T : ModuleType} {m : ModuleExpression .empty T} :
   | .constHoles => .constHoles
   | .abs hb     => .abs hb
   | .pair ha hb => .pair ha.normalClosed hb.normalClosed
+  | .unit       => .unit
 
 /- # Reduction step -/
 
@@ -338,6 +307,7 @@ def liftRenaming {Δ Γ : ModuleContext} {A : ModuleType}
 def ModuleExpression.rename
     (ρ : ∀ {T}, ModuleContextIdx Δ T → ModuleContextIdx Γ T) :
   ModuleExpression Δ T → ModuleExpression Γ T
+| .unit => .unit
 | .proc p  => .proc p
 | .procHoles ne p => .procHoles ne p
 | .var r    => .var (ρ r)
@@ -364,6 +334,7 @@ def liftSubstitution {Δ Γ : ModuleContext} {A : ModuleType}
     Goes under binders by lifting `σ` with `liftSubst`. -/
 def substituteSimultaneously (σ : ∀ {T}, ModuleContextIdx Δ T → ModuleExpression Γ T) :
    ModuleExpression Δ T → ModuleExpression Γ T
+  | .unit => .unit
   | .proc p  => .proc p
   | .procHoles ne p => .procHoles ne p
   | .var r    => σ r
