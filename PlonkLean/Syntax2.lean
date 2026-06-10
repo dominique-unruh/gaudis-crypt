@@ -38,32 +38,6 @@ lemma HoleSigs.toList_ne_nil {holes : HoleSigs} (h : holes.NonEmpty) : holes.toL
   | empty => exact absurd h (by simp [HoleSigs.NonEmpty])
   | append Γ s => simp [HoleSigs.toList]
 
-/-- Build the proc-tuple argument (a right-nested `.pair` of `.proc`s) from a tuple of
-    procedures — the inverse of `IsProcTuple.toArgs`. -/
-def procTupleOfArgs {Δ : ModuleContext} : (sigs : List ProcedureSignature) → sigs ≠ [] →
-    typeListToProdGeneric Prod PUnit (sigs.map Procedure) →
-    ModuleExpression Δ
-      (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))
-  | [],           h, _         => absurd rfl h
-  | [_],          _, p         => .proc p
-  | _ :: s :: ss, _, (p, rest) => .pair (.proc p) (procTupleOfArgs (s :: ss) (by simp) rest)
-
-/-- The erasure of a proc-tuple built by `procTupleOfArgs` is a `BasicTerm` (so it can drive
-    the STLC `funcApp` reduction). -/
-lemma isBasicType_procTupleOfArgs {Δ : ModuleContext} : (sigs : List ProcedureSignature) →
-    (hne : sigs ≠ []) → (args : typeListToProdGeneric Prod PUnit (sigs.map Procedure)) →
-    Metatheory.STLCext.Term.isBasicType
-      (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)).toSTLC
-      (ModuleExpression.toSTLC (procTupleOfArgs (Δ := Δ) sigs hne args))
-  | [], hne, _ => absurd rfl hne
-  | [_], _, p => by
-      simp [procTupleOfArgs, ModuleExpression.toSTLC, ModuleType.toSTLC, typeListToProdGeneric,
-        List.map, Metatheory.STLCext.Term.isBasicType]
-  | _ :: s :: ss, _, (p, rest) => by
-      simp only [procTupleOfArgs, ModuleExpression.toSTLC, ModuleType.toSTLC, List.map,
-        typeListToProdGeneric, Metatheory.STLCext.Term.isBasicType]
-      exact ⟨trivial, isBasicType_procTupleOfArgs (Δ := Δ) (s :: ss) (by simp) rest⟩
-
 /-- Erasure to STLC ignores a type-cast of the module expression. -/
 lemma ModuleExpression.toSTLC_cast {Δ : ModuleContext} {T T' : ModuleType} (h : T = T')
     (m : ModuleExpression Δ T) :
@@ -72,14 +46,84 @@ lemma ModuleExpression.toSTLC_cast {Δ : ModuleContext} {T T' : ModuleType} (h :
 
 
 
-
-
-
-
 -- TODO move to Modules.lean
 theorem cbvReductionStep_is_reductionStep (m : ModuleExpression Γ T) (nn : ¬ Normal m) :
-    ReductionStep m (cbvReductionStep m nn) :=
-sorry
+    ReductionStep m (cbvReductionStep m nn) := by
+  induction m with
+  | proc p =>
+      exact absurd .const nn
+  | procHoles ne p =>
+      exact absurd .constHoles nn
+  | var r =>
+      exact absurd (.neutral .var) nn
+  | unit =>
+      exact absurd .unit nn
+  | abs body ih =>
+      exact .lam (ih (fun hb => nn (.abs hb)))
+  | pair a b iha ihb =>
+      simp only [cbvReductionStep]
+      by_cases nn1 : ¬ Normal a
+      · simp only [dif_pos nn1]; exact .pairL (iha nn1)
+      · simp only [dif_neg nn1]
+        exact .pairR (ihb (fun h2 => nn (.pair (not_not.mp nn1) h2)))
+  | fst e ih =>
+      simp only [cbvReductionStep]
+      by_cases hp : IsPair e
+      · simp only [dif_pos hp]
+        cases e with
+        | pair a b => exact .fstPair
+        | var _ | app _ _ | fst _ | snd _ => exact absurd hp (by simp [IsPair])
+      · simp only [dif_neg hp]
+        exact .fst (ih (fun hn => by
+          cases hn with
+          | neutral ne => exact nn (.neutral (.fst ne))
+          | pair _ _ => exact absurd rfl hp))
+  | snd e ih =>
+      simp only [cbvReductionStep]
+      by_cases hp : IsPair e
+      · simp only [dif_pos hp]
+        cases e with
+        | pair a b => exact .sndPair
+        | var _ | app _ _ | fst _ | snd _ => exact absurd hp (by simp [IsPair])
+      · simp only [dif_neg hp]
+        exact .snd (ih (fun hn => by
+          cases hn with
+          | neutral ne => exact nn (.neutral (.snd ne))
+          | pair _ _ => exact absurd rfl hp))
+  | app f arg ihf iharg =>
+      simp only [cbvReductionStep]
+      by_cases hab : IsAbs f
+      · -- beta: f = .abs body, result = substitute body arg
+        simp only [dif_pos hab]
+        cases f with
+        | abs body => exact .beta
+        | var _ | app _ _ | fst _ | snd _ | procHoles _ _ => exact absurd hab (by simp [IsAbs])
+      · simp only [dif_neg hab]
+        by_cases hph : IsProcHoles f ∧ IsProcTuple arg
+        · -- delta: f = .procHoles ne proc, arg = instantiation.toModuleTuple
+          simp only [dif_pos hph]
+          cases f with
+          | procHoles ne proc =>
+              nth_rw 1 [← Language.Modules.procTupleLookup_toModuleTuple arg hph.2]
+              exact .delta _
+          | abs _ | var _ | app _ _ | fst _ | snd _ => exact absurd hph.1 (by simp [IsProcHoles])
+        · simp only [dif_neg hph]
+          by_cases nn_f : ¬ Normal f
+          · -- appL: f is not normal
+            simp only [dif_pos nn_f]
+            exact .appL (ihf nn_f)
+          · -- appR: f is normal, arg is not normal
+            simp only [dif_neg nn_f]
+            refine .appR (iharg ?_)
+            intro ha
+            by_cases hph' : IsProcHoles f
+            · exact nn (.neutral (.appProcHoles hph' ha (fun hpt => hph ⟨hph', hpt⟩)))
+            · have hne : Neutral f := by
+                cases not_not.mp nn_f with
+                | neutral ne => exact ne
+                | abs _ => simp [IsAbs] at hab
+                | constHoles => simp [IsProcHoles] at hph'
+              exact nn (.neutral (.app hne ha))
 
 omit [ProgramSpec] in
 private lemma ModuleContextIdx.toNat_inj' {Γ : ModuleContext} :
@@ -133,28 +177,6 @@ private theorem ModuleType.toSTLC_injective {a b : ModuleType}
           simp only [ModuleType.toSTLC, Metatheory.STLCext.Ty.prod.injEq] at h; rw [ihA h.1, ihB h.2]
       | _ => simp [ModuleType.toSTLC] at h
 
-omit [ProgramSpec] in
-private theorem typeListToProd_proc_inj {l1 l2 : List ProcedureSignature}
-      (h : typeListToProdGeneric ModuleType.prod ModuleType.unit (l1.map ModuleType.proc)
-        = typeListToProdGeneric ModuleType.prod ModuleType.unit (l2.map ModuleType.proc)) :
-     l1 = l2 := by
-  revert l2 h
-  induction l1 with
-  | nil => intro l2 h; cases l2 with
-    | nil => rfl
-    | cons b bs => cases bs <;> simp_all [typeListToProdGeneric, List.map]
-  | cons a as iha => intro l2 h; cases l2 with
-    | nil => cases as <;> simp_all [typeListToProdGeneric, List.map]
-    | cons b bs =>
-        cases as with
-        | nil => cases bs <;> simp_all [typeListToProdGeneric, List.map]
-        | cons a' as' => cases bs with
-          | nil => simp_all [typeListToProdGeneric, List.map]
-          | cons b' bs' =>
-              simp only [List.map, typeListToProdGeneric, ModuleType.prod.injEq,
-                ModuleType.proc.injEq] at h
-              obtain ⟨rfl, hrest⟩ := h
-              rw [iha (l2 := b' :: bs') hrest]
 
 -- TODO move to Syntax.lean
 omit [ProgramSpec] in
@@ -258,41 +280,6 @@ theorem ModuleExpression.erasedEqual_pair_left
 
 
 
-/-- For an argument of a procedure-tuple type, being a `BasicTerm` after erasure means it is
-    a proc-tuple.  (So a non-proc-tuple argument blocks the STLC `funcApp` reduction.) -/
-private lemma isBasicType_imp_isProcTuple {Δ : ModuleContext} :
-    (sigs : List ProcedureSignature) →
-    (arg : ModuleExpression Δ
-        (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc))) →
-    Metatheory.STLCext.Term.isBasicType
-        (ModuleType.toSTLC
-          (typeListToProdGeneric ModuleType.prod ModuleType.unit (sigs.map ModuleType.proc)))
-        (ModuleExpression.toSTLC arg) →
-    IsProcTuple arg
-  | [], arg, h => by
-      sorry
-      -- cases arg <;>
-      --   simp_all [ModuleExpression.toSTLC, ModuleType.toSTLC, Metatheory.STLCext.Term.isBasicType]
-  | [_], arg, h =>
-      by sorry
-      -- cases arg <;>
-        -- simp_all [ModuleExpression.toSTLC, ModuleType.toSTLC, Metatheory.STLCext.Term.isBasicType,
-          -- IsProcTuple]
-  | _ :: s :: ss, arg, h => by
-      cases arg with
-      | pair a b =>
-          cases a with
-          | proc p =>
-              simp only [ModuleExpression.toSTLC, ModuleType.toSTLC,
-                Metatheory.STLCext.Term.isBasicType] at h
-              exact isBasicType_imp_isProcTuple (s :: ss) b h.2
-          | var _ | app _ _ | fst _ | snd _ =>
-              simp only [ModuleExpression.toSTLC, ModuleType.toSTLC,
-                Metatheory.STLCext.Term.isBasicType] at h
-              exact h.1.elim
-      | var _ | app _ _ | fst _ | snd _ =>
-          simp_all [ModuleExpression.toSTLC, ModuleType.toSTLC, Metatheory.STLCext.Term.isBasicType]
-
 -- TODO move to Modules.lean
 theorem reductionStep_stlc_complete
   (m : ModuleExpression Γ T) (M' : Metatheory.STLCext.Term)
@@ -323,6 +310,19 @@ theorem reductionStep_stlc_complete
               exact ⟨.app (.procHoles ne proc) arg', .appR hnd,
                 by simp [ModuleExpression.toSTLC, ProcedureWithHoles.toSTLC, heq]⟩
           | funcApp d g N hbasic =>
+              -- Plan:
+              -- (.procHoles ne proc).toSTLC = Term.func d g where
+              --   g bt = BasicTerm.value (proc.instantiate (basicTermHoleLookup holes bt))
+              -- hbasic : isBasicType holes.toModuleTypeTuple.toSTLC arg.toSTLC
+              --
+              -- Witness: m' = .proc (proc.instantiate (basicTermHoleLookup holes bt))
+              --   where bt = toBasicTerm ... hbasic
+              --
+              -- (a) m'.toSTLC = Term.value ... = (BasicTerm.value ...).toTerm = RHS  (rfl/simp)
+              --
+              -- (b) ReductionStep via delta: need arg = instantiation.toModuleTuple
+              --   Use toModuleTuple_of_basicType to rewrite arg,
+              --   then exact .delta _
               sorry
       | var _ | app _ _ | fst _ | snd _ =>
           simp only [ModuleExpression.toSTLC] at h
@@ -382,90 +382,6 @@ theorem reductionStep_stlc_complete
 
 
 
--- TODO should be a simple corollary of reductionStep_stlc_compat
-theorem cbvReductionStep_stlc_compat (m : ModuleExpression Γ T) (nn : ¬ Normal m) :
-  Metatheory.STLCext.Step (ModuleExpression.toSTLC m)
-                          (ModuleExpression.toSTLC (cbvReductionStep m nn)) := by
-  induction m with
-  | unit => exact absurd Normal.unit nn
-  | proc => exact absurd .const nn
-  | procHoles => exact absurd .constHoles nn
-  | var => exact absurd (.neutral .var) nn
-  | app hd arg ihhd iharg =>
-    -- With induction m: hd is the function (arrow type), arg is the argument
-    simp only [cbvReductionStep, ModuleExpression.toSTLC]
-    split_ifs with h_abs h_cond h_nh
-    · -- beta: hd (function) is .abs
-      rw [ModuleExpression.toSTLC_subst]
-      have h_meq : ModuleExpression.toSTLC hd =
-          Metatheory.STLCext.Term.lam (ModuleExpression.toSTLC h_abs.body) := by
-        cases hd with
-        | abs body => simp [IsAbs.body, ModuleExpression.toSTLC]
-        | procHoles _ _ => simp [IsAbs] at h_abs
-        | var _ | app _ _ | fst _ | snd _ => simp [IsAbs] at h_abs
-      rw [h_meq]
-      exact Metatheory.STLCext.Step.beta _ _
-    · -- δ: reduce to `reductionStep_stlc_compat` via a `ReductionStep.delta`.
-      refine reductionStep_stlc_compat (hd.app arg) _ ?step
-      obtain ⟨hph, harg⟩ := h_cond
-      cases hd with
-      | procHoles ne proc =>
-          sorry
-      | abs _ => exact absurd hph (by simp [IsProcHoles])
-      | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
-    · -- hd is Normal: reduce the argument
-      simp only [ModuleExpression.toSTLC]
-      have h_nn_arg : ¬ Normal arg := fun ha => by
-        by_cases hph : IsProcHoles hd
-        · exact nn (.neutral (.appProcHoles hph ha (fun hpt => h_cond ⟨hph, hpt⟩)))
-        · have hne : Neutral hd := by
-            cases h_nh with
-            | neutral ne => exact ne
-            | abs _ => simp [IsAbs] at h_abs
-            | constHoles => exact absurd trivial hph
-          exact nn (.neutral (.app hne ha))
-      exact Metatheory.STLCext.Step.appR (iharg h_nn_arg)
-    · -- appL: hd (function) not normal, reduce it
-      simp only [ModuleExpression.toSTLC]
-      exact Metatheory.STLCext.Step.appL (ihhd h_nh)
-  | fst m' ih =>
-    simp only [cbvReductionStep, ModuleExpression.toSTLC]
-    split_ifs with h_pair
-    · cases m' with
-      | pair m1 m2 =>
-        simp only [IsPair.fst, IsPair.split, ModuleExpression.toSTLC]
-        exact Metatheory.STLCext.Step.fstPair _ _
-      | var _ | app _ _ | fst _ | snd _ => simp [IsPair] at h_pair
-    · simp only [ModuleExpression.toSTLC]
-      have nn' : ¬ Normal m' := fun hn => match hn with
-        | .neutral ne => nn (.neutral (.fst ne))
-        | .pair _ _ => h_pair (by simp [IsPair])
-      exact Metatheory.STLCext.Step.fst (ih nn')
-  | snd m' ih =>
-    simp only [cbvReductionStep, ModuleExpression.toSTLC]
-    split_ifs with h_pair
-    · cases m' with
-      | pair m1 m2 =>
-        simp only [IsPair.snd, IsPair.split, ModuleExpression.toSTLC]
-        exact Metatheory.STLCext.Step.sndPair _ _
-      | var _ | app _ _ | fst _ | snd _ => simp [IsPair] at h_pair
-    · simp only [ModuleExpression.toSTLC]
-      have nn' : ¬ Normal m' := fun hn => match hn with
-        | .neutral ne => nn (.neutral (.snd ne))
-        | .pair _ _ => h_pair (by simp [IsPair])
-      exact Metatheory.STLCext.Step.snd (ih nn')
-  | abs body ih =>
-    simp only [cbvReductionStep, ModuleExpression.toSTLC]
-    exact Metatheory.STLCext.Step.lam (ih (fun hb => nn (.abs hb)))
-  | pair m1 m2 ih1 ih2 =>
-    simp only [cbvReductionStep, ModuleExpression.toSTLC]
-    split_ifs with h1
-    · -- split_ifs gives Normal m1 first (after not_not simplification)
-      simp only [ModuleExpression.toSTLC]
-      have h2 : ¬ Normal m2 := fun h2 => nn (.pair h1 h2)
-      exact Metatheory.STLCext.Step.pairR (ih2 h2)
-    · simp only [ModuleExpression.toSTLC]
-      exact Metatheory.STLCext.Step.pairL (ih1 h1)
 
 -- scoped instance (priority := 1001) instWellFoundedModuleExpression1 {Γ : ModuleContext} {T : ModuleType} :
 --     WellFoundedRelation (ModuleExpression Γ T) :=
@@ -494,7 +410,7 @@ theorem multiStepReduction_reduce {m : ModuleExpression Γ T} :
   split_ifs with h
   · exact Rewriting.Star.refl _
   · apply Rewriting.Star.head (cbvReductionStep_is_reductionStep n h)
-    sorry
+    exact ih (cbvReductionStep n h) (cbvReductionStep_is_reductionStep n h)
 
 
 theorem multiStepReduction_to_stlc_star {m m' : ModuleExpression Γ T}
@@ -570,7 +486,11 @@ theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
                 cases h with
                 | appL step => nomatch step
                 | appR step => exact (iharg.1 ha) _ step
-                | funcApp d g N' hbasic => sorry
+                | funcApp d g N' hbasic =>
+                    exact absurd
+                      (Language.Modules.toModuleTuple_of_basicType arg hbasic ▸
+                        Language.Modules.toModuleTuple_isProcTuple _)
+                      hpt
             | abs _ => exact absurd hph (by simp [IsProcHoles])
             | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
       · intro hne
@@ -596,7 +516,10 @@ theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
                 | appL step => nomatch step
                 | appR step => exact (iharg.1 ha) _ step
                 | funcApp d g N' hbasic =>
-                    sorry
+                    exact absurd
+                      (Language.Modules.toModuleTuple_of_basicType arg hbasic ▸
+                        Language.Modules.toModuleTuple_isProcTuple _)
+                      hpt
               · intro h; cases h
               · intro h; cases h
           | abs _ => exact absurd hph (by simp [IsProcHoles])
@@ -840,7 +763,7 @@ theorem reduce_normal (m : ModuleExpression Δ t) : Normal (reduce m) := by
   unfold reduce
   split_ifs with h
   · exact h
-  · sorry
+  · exact ih (cbvReductionStep n h) (cbvReductionStep_is_reductionStep n h)
 
 theorem confluence {m m1 m2 : ModuleExpression Γ T}
    (h1 : MultiStepReduction m m1) (h2 : MultiStepReduction m m2) :
@@ -861,19 +784,18 @@ theorem confluence {m m1 m2 : ModuleExpression Γ T}
   exact ModuleExpression.toSTLC_injective_normal (reduce_normal m1)
     (Rewriting.normalForm_unique Metatheory.STLCext.step_confluent star1 star2 nf1 nf2)
 
+-- TODO move to Modules.lean
 theorem reduce_normalClosed (m : ModuleExpression .empty t) : NormalClosed (reduce m) :=
   (reduce_normal m).normalClosed
 
-structure Module (T : ModuleType) where
-  expression : ModuleExpression .empty T
-  normal : NormalClosed expression
-
-def _root_.Language.Modules.ModuleExpression.toProcModule {T : ModuleType}
+-- TODO move to Modules.lean
+def _root_.Language.Modules.ModuleExpression.toModule {T : ModuleType}
   (m : ModuleExpression .empty T) : Module T :=
   ⟨reduce m, reduce_normalClosed m⟩
 
+-- TODO move to Modules.lean
 instance : CoeFun (Module (.arr T U)) (fun _ ↦ Module T → Module U) where
-  coe f x := ModuleExpression.toProcModule (ModuleExpression.app f.expression x.expression)
+  coe f x := ModuleExpression.toModule (ModuleExpression.app f.expression x.expression)
 
 @[simp]
 theorem reduce_fst (m : ModuleExpression Γ T) (m' : ModuleExpression Γ T') :
@@ -950,15 +872,19 @@ theorem reduce_fst_cong (m m' : ModuleExpression Γ (.prod T U)) :
       (confluence multiStepReduction_reduce (multiStepReduction_fst multiStepReduction_reduce))
   rw [eq1, eq2, h]
 
+-- TODO move to Modules
 def Module.fst {T U} (m : Module (.prod T U)) : Module T :=
-  m.expression.fst.toProcModule
+  m.expression.fst.toModule
 
+-- TODO move to Modules
 def Module.snd {T U} (m : Module (.prod T U)) : Module T :=
-  m.expression.fst.toProcModule
+  m.expression.fst.toModule
 
+-- TODO move to Modules
 def Module.pair {T U} (m1 : Module T) (m2 : Module U) : Module (.prod T U) :=
-  (m1.expression.pair m2.expression).toProcModule
+  (m1.expression.pair m2.expression).toModule
 
+-- TODO move to Modules
 @[ext]
 theorem Module.ext {T} {m1 m2 : Module T} (h : m1.expression = m2.expression) :
   m1 = m2 := by
@@ -969,9 +895,10 @@ theorem Module.ext {T} {m1 m2 : Module T} (h : m1.expression = m2.expression) :
 theorem Module.expression_fst {T U} (m : Module (.prod T U)) :
     m.fst.expression = reduce m.expression.fst := rfl
 
+-- TODO move to Modules
 @[simp]
-theorem Module.toProcModule_expression {T} (m : ModuleExpression .empty T) :
-    (ModuleExpression.toProcModule m).expression = reduce m := rfl
+theorem Module.toModule_expression {T} (m : ModuleExpression .empty T) :
+    (ModuleExpression.toModule m).expression = reduce m := rfl
 
 @[simp]
 theorem reduce_fst_pair {T U} (m1 : ModuleExpression Γ T) (m2 : ModuleExpression Γ U) :
@@ -1026,146 +953,6 @@ theorem Module.fst_pair {T U} (m1 : Module T) (m2 : Module U) :
   ext
   simp [Module.fst, Module.pair]
 
-
-opaque FV : Type
--- Placeholder
-axiom fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Set FV
-axiom fv_proc_instantiate {sig holes} (proc : ProcedureWithHoles holes sig) (args) :
-  fv_proc (proc.instantiate args) = fv_proc proc ∪ ⋃ i : HoleIndex holes sig, fv_proc (args i)
-
-def fv' {mctx : ModuleContext} {mty : ModuleType} (mex : ModuleExpression mctx mty) : Set FV :=
-  match mex with
-    | .unit => sorry
-    | .proc p => fv_proc p
-    | .procHoles n p => fv_proc p
-    | .var .zero => {}
-    | .var (.succ n) => {}
-    | .app a b => fv' a ∪ fv' b
-    | .fst a => fv' a
-    | .snd a => fv' a
-    | .abs body => fv' body
-    | .pair a b => fv' a ∪ fv' b
-
--- Trivially true but not what we want.
--- Unintuitive that modules don't reduce when applying
--- Do we need the operational semantics of the simply typled λ-calculus?
--- I think so, below's the attempt
-theorem fv'_app (a : ModuleExpression Γ (ModuleType.arr A B)) (b : ModuleExpression Γ A) :
-  fv' (ModuleExpression.app a b) = fv' a ∪ fv' b := rfl
-
-def fv (m : ModuleExpression c t) : Set FV := fv' (reduce m)
-
-private lemma fv'_var_eq {Γ T} (r : ModuleContextIdx Γ T) : fv' (.var r) = {} := by
-  cases r <;> rfl
-
-private lemma fv'_rename_eq {Δ U} (m : ModuleExpression Δ U) :
-    ∀ {Γ : ModuleContext} (ρ : ∀ {T}, ModuleContextIdx Δ T → ModuleContextIdx Γ T),
-    fv' (m.rename ρ) = fv' m := by
-  induction m with
-  | unit => sorry
-  | proc | procHoles | var _ => intros; simp [ModuleExpression.rename, fv', fv'_var_eq]
-  | app f a ihf iha => intros Γ ρ; simp [ModuleExpression.rename, fv', ihf ρ, iha ρ]
-  | fst e ih => intros Γ ρ; simp [ModuleExpression.rename, fv', ih ρ]
-  | snd e ih => intros Γ ρ; simp [ModuleExpression.rename, fv', ih ρ]
-  | abs body ih => intros Γ ρ; simp [ModuleExpression.rename, fv', ih (liftRenaming ρ)]
-  | pair a b iha ihb => intros Γ ρ; simp [ModuleExpression.rename, fv', iha ρ, ihb ρ]
-
-private lemma fv'_substAll_le {S : Set FV} {Δ U} (m : ModuleExpression Δ U) :
-    ∀ {Γ : ModuleContext} (σ : ∀ {T}, ModuleContextIdx Δ T → ModuleExpression Γ T),
-    (∀ {T} (r : ModuleContextIdx Δ T), fv' (σ r) ⊆ S) →
-    fv' (substituteSimultaneously σ m) ⊆ fv' m ∪ S := by
-  induction m with
-  | unit => sorry
-  | proc | procHoles => intros; simp [substituteSimultaneously, fv']
-  | var r =>
-      intros Γ σ hσ
-      simp only [substituteSimultaneously, fv'_var_eq, Set.empty_union]
-      exact hσ r
-  | app f a ihf iha =>
-      intros Γ σ hσ
-      simp only [substituteSimultaneously, fv']
-      rintro x (h | h)
-      · rcases ihf σ hσ h with h' | h'
-        · exact .inl (.inl h')
-        · exact .inr h'
-      · rcases iha σ hσ h with h' | h'
-        · exact .inl (.inr h')
-        · exact .inr h'
-  | fst e ih => intros Γ σ hσ; simp only [substituteSimultaneously, fv']; exact ih σ hσ
-  | snd e ih => intros Γ σ hσ; simp only [substituteSimultaneously, fv']; exact ih σ hσ
-  | abs body ih =>
-      intros Γ σ hσ
-      simp only [substituteSimultaneously, fv']
-      apply ih (liftSubstitution σ)
-      intro T r
-      cases r with
-      | zero => simp [liftSubstitution, fv']
-      | succ r' => simp only [liftSubstitution]; rw [fv'_rename_eq]; exact hσ r'
-  | pair a b iha ihb =>
-      intros Γ σ hσ
-      simp only [substituteSimultaneously, fv']
-      rintro x (h | h)
-      · rcases iha σ hσ h with h' | h'
-        · exact .inl (.inl h')
-        · exact .inr h'
-      · rcases ihb σ hσ h with h' | h'
-        · exact .inl (.inr h')
-        · exact .inr h'
-
-private lemma fv'_subst_le
-    (body : ModuleExpression (Δ.append u) t) (arg : ModuleExpression Δ u) :
-    fv' (substitute body arg) ⊆ fv' body ∪ fv' arg := by
-  simp only [substitute]
-  apply fv'_substAll_le body (S := fv' arg)
-  intro T r
-  cases r with
-  | zero => simp [variableSubstitution]
-  | succ r' => simp only [variableSubstitution, fv'_var_eq]; exact Set.empty_subset _
-
-/-- The union of `fv_proc` over the entries of a procedure tuple. -/
-def fvArgs : (sigs : List ProcedureSignature) →
-    typeListToProdGeneric Prod PUnit (sigs.map Procedure) → Set FV
-  | [],           _          => {}
-  | [_],          p          => fv_proc p
-  | _ :: s :: ss, (p, rest)  => fv_proc p ∪ fvArgs (s :: ss) rest
-
-lemma fv'_procTupleOfArgs_eq_fvArgs {Δ : ModuleContext} :
-    (sigs : List ProcedureSignature) → (hne : sigs ≠ []) →
-    (args : typeListToProdGeneric Prod PUnit (sigs.map Procedure)) →
-    fv' (procTupleOfArgs (Δ := Δ) sigs hne args) = fvArgs sigs args
-  | [], hne, _ => absurd rfl hne
-  | [_], _, p => by simp [procTupleOfArgs, fv', fvArgs]
-  | _ :: s :: ss, _, (p, rest) => by
-      simp only [procTupleOfArgs, fv', fvArgs]
-      rw [fv'_procTupleOfArgs_eq_fvArgs (s :: ss) (by simp) rest]
-
-
-
-theorem fv_reduction_step (m : ModuleExpression c t) (h : ReductionStep m m') :
-  fv' m' ⊆ fv' m := by
-  cases h
-  all_goals sorry
-
-
-theorem fv_reduce (m : ModuleExpression c t) : fv m ⊆ fv' m := by
-  unfold fv
-  -- Having some packaged induction principle for reduce would be nice.
-  apply WellFoundedRelation.wf.induction (C := fun m => fv' (reduce m) ⊆ fv' m) m
-  intro n ih
-  unfold reduce
-  split_ifs with h
-  · exact Set.Subset.refl _
-  · have h1 : ReductionStep n (cbvReductionStep n h) := by apply cbvReductionStep_is_reductionStep
-    have h2 := fv_reduction_step _ h1
-    have h3 : WellFoundedRelation.rel (cbvReductionStep n h) n := sorry
-    have h4 := ih _ h3
-    grind
-
-theorem fv_app (a : ModuleExpression Γ (ModuleType.arr A B)) (b : ModuleExpression Γ A) :
-    fv (ModuleExpression.app a b) ⊆ fv a ∪ fv b := by
-  simp only [fv, ← fv'_app]
-  rw [reduce_app]
-  exact fv_reduce _
 
 
 

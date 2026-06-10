@@ -446,8 +446,7 @@ def MultiStepReduction : ModuleExpression Γ T → ModuleExpression Γ T → Pro
 
 /-- Inverse of `HoleSigs.Instantiation.toModuleTuple`: extract a `Procedure` for each hole index
     from a `ModuleExpression` that is a right-nested tuple of procedures (`IsProcTuple`). -/
--- TODO make non-private + rename
-private def procTupleLookup {Δ : ModuleContext} :
+def procTupleLookup {Δ : ModuleContext} :
     {holes : HoleSigs} → (m : ModuleExpression Δ holes.toModuleTypeTuple) → IsProcTuple m →
     holes.Instantiation
   | .empty, _, _ => fun n => nomatch n
@@ -461,6 +460,25 @@ private def procTupleLookup {Δ : ModuleContext} :
               | succ n' => exact procTupleLookup rest h n'
           | var _ | app _ _ | fst _ | snd _ => simp [IsProcTuple] at h
       | var _ | app _ _ | fst _ | snd _ => simp [IsProcTuple] at h
+
+/-- Round-trip: converting a proc-tuple back to an instantiation and then to a tuple recovers
+    the original expression. -/
+lemma procTupleLookup_toModuleTuple {Δ : ModuleContext} :
+    {holes : HoleSigs} → (m : ModuleExpression Δ holes.toModuleTypeTuple) → (h : IsProcTuple m) →
+    HoleSigs.Instantiation.toModuleTuple (Δ := Δ) (procTupleLookup m h) = m
+  | .empty, m, h => by
+      cases m with
+      | unit => rfl
+      | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcTuple])
+  | .append _ _, m, h => by
+      cases m with
+      | pair a rest =>
+          cases a with
+          | proc p =>
+              have ih := procTupleLookup_toModuleTuple (Δ := Δ) rest h
+              exact congrArg (ModuleExpression.pair (.proc p)) ih
+          | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcTuple])
+      | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcTuple])
 
 def cbvReductionStep (m : ModuleExpression Δ t) (nn : ¬ Normal m) :
     ModuleExpression Δ t :=
@@ -780,6 +798,47 @@ private lemma instantiate_congr {Δ : ModuleContext} {holes : HoleSigs} (args : 
   | ifThenElse _ _ _ iht ihe => simp only [StmtWithHoles.instantiate]; rw [iht, ihe]
   | «while» _ _ ihb => simp only [StmtWithHoles.instantiate]; rw [ihb]
 
+/-- `toModuleTuple inst` always satisfies `IsProcTuple`. -/
+lemma toModuleTuple_isProcTuple {Δ : ModuleContext} {holes : HoleSigs}
+    (inst : holes.Instantiation) :
+    IsProcTuple (HoleSigs.Instantiation.toModuleTuple (Δ := Δ) inst) := by
+  induction holes with
+  | empty => simp [HoleSigs.Instantiation.toModuleTuple, IsProcTuple]
+  | append holeTail sig ih =>
+      simp only [HoleSigs.Instantiation.toModuleTuple]
+      exact ih (fun idx => inst (.succ idx))
+
+/-- Round-trip from the STLC side: if `arg.toSTLC` is a basic term of the hole-tuple type,
+    then recovering the instantiation from that basic term and converting back gives `arg`. -/
+lemma toModuleTuple_of_basicType {Δ : ModuleContext} :
+    {holes : HoleSigs} → (arg : ModuleExpression Δ holes.toModuleTypeTuple) →
+    (h : Metatheory.STLCext.Term.isBasicType holes.toModuleTypeTuple.toSTLC arg.toSTLC) →
+    HoleSigs.Instantiation.toModuleTuple (Δ := Δ)
+      (basicTermHoleLookup holes (Metatheory.STLCext.Term.toBasicTerm _ _ h)) = arg
+  | .empty, arg, h => by
+      cases arg with
+      | unit => rfl
+      | var _ | app _ _ | fst _ | snd _ =>
+          simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeTuple, ModuleType.toSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+  | .append holeTail sig, arg, h => by
+      cases arg with
+      | pair a rest =>
+          cases a with
+          | proc p =>
+              obtain ⟨h1, h2⟩ := h
+              simp only [HoleSigs.toModuleTypeTuple, ModuleType.toSTLC, ModuleExpression.toSTLC,
+                         Metatheory.STLCext.Term.toBasicTerm,
+                         HoleSigs.Instantiation.toModuleTuple]
+              exact congrArg (ModuleExpression.pair (.proc p))
+                (toModuleTuple_of_basicType (Δ := Δ) rest h2)
+          | var _ | app _ _ | fst _ | snd _ =>
+              simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeTuple, ModuleType.toSTLC,
+                    Metatheory.STLCext.Term.isBasicType] at h
+      | var _ | app _ _ | fst _ | snd _ =>
+          simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeTuple, ModuleType.toSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+
 theorem reductionStep_stlc_compat (m m' : ModuleExpression Γ T) :
     ReductionStep m m' →
     Metatheory.STLCext.Step (ModuleExpression.toSTLC m) (ModuleExpression.toSTLC m') := by
@@ -882,3 +941,9 @@ scoped instance instWellFoundedRelationModuleExpressionReduction (priority := 10
 /- # Confluence -/
 
 /- # Full reduction -/
+
+/- # Modules -/
+
+structure Module (T : ModuleType) where
+  expression : ModuleExpression .empty T
+  normal : NormalClosed expression
