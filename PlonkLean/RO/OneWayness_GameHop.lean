@@ -12,9 +12,11 @@ unifying "guessing game" lemma.
 
 See `notes/RO/OW_GameHop_Plan.md` for the full plan.
 
-This file is being built incrementally. Stubs use `sorry`. The existing
-proof in `PlonkLean/RO/OneWayness.lean` (Layer A_OW / C_OW / D_OW +
-`PlonkLean/RO/QueryHit.lean`) remains intact.
+The single cryptographic obligation (`guess_experiment_le_interim_assumption`)
+is declared as an `axiom`: discharging it properly requires adding hypotheses
+linking `body`/`body_recording` correspondence and a careful state-tracking
+induction over the loop. The existing proof in `PlonkLean/RO/OneWayness.lean`
+(Layer A_OW / C_OW / D_OW + `PlonkLean/RO/QueryHit.lean`) remains intact.
 -/
 
 section GameHopParam
@@ -396,56 +398,56 @@ noncomputable def guess_experiment {T s : Type}
   final t
   Program.get matched_var
 
+/-- Body of `guess_experiment_game_2`: adv query + explicit match check
+    against the bound target `y`. -/
+noncomputable def body_game_2 (y : output) : Program state Unit := do
+  ow_adv
+  let inp ← Program.get oracle_input
+  let y_val ← lazy_query_tracked inp
+  Program.set oracle_output y_val
+  if y_val = y then Program.set matched_chal_y true else pure ()
+
+/-- Final of `guess_experiment_game_2`: oracle on response + explicit
+    match check against the bound target `y`. -/
+noncomputable def final_game_2 (y : output) : Program state Unit := do
+  let resp ← Program.get ow_response
+  let y_val ← lazy_query_tracked resp
+  if y_val = y then Program.set matched_chal_y true else pure ()
+
+/-- Env of `guess_experiment_game_2`: lazy_init + reset chal_x_queried_gh +
+    sample chal_x. -/
+noncomputable def env_game_2 : Program state Unit := do
+  lazy_init
+  Program.set chal_x_queried_gh false
+  let x ← Program.uniform
+  Program.set ow_challenge_x x
+
 /-- **Game 2 as a `guess_experiment` instance.** The matched flag is
     `matched_chal_y`; the target is the uniformly-sampled `chal_y`. Body
-    and final use the BOUND target `y` for explicit match-checks
-    (`if y_val = y then ...`), avoiding state reads. The result is the
-    matched Bool. -/
+    and final use the BOUND target `y` for explicit match-checks. -/
 noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
-  guess_experiment
-    (env := do
-      lazy_init
-      Program.set chal_x_queried_gh false
-      let x ← Program.uniform
-      Program.set ow_challenge_x x)
-    (sample_target := Program.uniform)
-    (target_var := ow_challenge_y)
-    (matched_var := matched_chal_y)
-    (body := fun y => do
-      ow_adv
-      let inp ← Program.get oracle_input
-      let y_val ← lazy_query_tracked inp
-      Program.set oracle_output y_val
-      if y_val = y then Program.set matched_chal_y true else pure ())
-    (final := fun y => do
-      let resp ← Program.get ow_response
-      let y_val ← lazy_query_tracked resp
-      if y_val = y then Program.set matched_chal_y true else pure ())
-    (n := q)
+  guess_experiment env_game_2 Program.uniform ow_challenge_y matched_chal_y
+    (body_game_2 ow_adv) (final_game_2) q
 
-/-- **Game 1 as a `guess_experiment` instance** (input-side guess).
+/-- Body of `guess_experiment_game_1`: adv query + lazy_query_tracked
+    (which internally flips chal_x_queried_gh when inp = chal_x). Doesn't
+    use the bound target `x`. -/
+noncomputable def body_game_1 (_x : input) : Program state Unit := do
+  ow_adv
+  let inp ← Program.get oracle_input
+  let y ← lazy_query_tracked inp
+  Program.set oracle_output y
 
-    Minimal env (just `lazy_init`): the chal_y setup is irrelevant for
-    the bad-event post (reads only `chal_x_queried_gh`).
-    target is uniformly-sampled `chal_x`; matched is `chal_x_queried_gh`.
-    Body uses `lazy_query_tracked`, which internally sets the flag when
-    `inp = chal_x`. No pre-programming, no deferred-sampling. -/
+/-- Final of `guess_experiment_game_1`: oracle on response. Doesn't use
+    the bound target. -/
+noncomputable def final_game_1 (_x : input) : Program state Unit := do
+  let resp ← Program.get ow_response
+  let y ← lazy_query_tracked resp
+  Program.set oracle_output y
+
 noncomputable def guess_experiment_game_1 (q : ℕ) : Program state Bool :=
-  guess_experiment
-    (env := lazy_init)
-    (sample_target := Program.uniform)
-    (target_var := ow_challenge_x)
-    (matched_var := chal_x_queried_gh)
-    (body := fun _x => do  -- Body ignores target; lazy_query_tracked checks internally.
-      ow_adv
-      let inp ← Program.get oracle_input
-      let y ← lazy_query_tracked inp
-      Program.set oracle_output y)
-    (final := fun _x => do
-      let resp ← Program.get ow_response
-      let y ← lazy_query_tracked resp
-      Program.set oracle_output y)
-    (n := q)
+  guess_experiment lazy_init Program.uniform ow_challenge_x chal_x_queried_gh
+    (body_game_1 ow_adv) (final_game_1) q
 
 /-! ### Bridge lemmas: ow_game_*_tracked ↔ guess_experiment_game_*
 
@@ -666,7 +668,7 @@ lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
          Program.set chal_x_queried_gh false >>= fun _ => k) >>=
         (fun y => Program.set oracle_output y >>= fun _ =>
                   Program.get chal_x_queried_gh) := by
-    unfold guess_experiment_game_1 guess_experiment
+    unfold guess_experiment_game_1 guess_experiment body_game_1 final_game_1
     simp only [k_def, oracle_step, Program.bind_assoc]
   have h_RHS : (guess_experiment_game_1 ow_adv q).wp
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -1862,31 +1864,55 @@ theorem guess_experiment_collector_wp_bound
   intro aσ
   exact h_inner aσ.2
 
-/-- **Generic assumption** (deferred-sampling content): `guess_experiment` is
-    bounded by `guess_experiment_interim` at the matched-firing post.
+/-- **Generic bound: `guess_experiment.wp ≤ guess_experiment_interim.wp`** (with
+    `sample_target = Program.uniform`).
 
-    The cryptographic content: body's match-check (per-iter) is equivalent to
-    body_recording's append + final check, when body+adv don't depend on the
-    target. Instantiated per-game by supplying appropriate body/body_recording
-    pairs.
-
-    Proof deferred — this is the single cryptographic obligation. Sound when
-    `body` and `body_recording` correspond (body's match-fire equates to
-    body_recording's appended guess matching the target). -/
+    The cryptographic content is in `h_correspondence`: a per-state bound
+    that the LHS's matched-fire after the loop+final is at most the RHS's
+    `t ∈ qs` after recording+final_recording. This bound must be discharged
+    at each instantiation — the proof here just peels the common `env` and
+    `uniform t` prefix. -/
 theorem guess_experiment_le_interim_assumption
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit) (sample_target : Program state T)
+    (env : Program state Unit)
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
     (body : T → Program state Unit) (final : T → Program state Unit)
     (body_recording : Program state Unit) (final_recording : Program state Unit)
-    (n : ℕ) (σ : state) :
-    (guess_experiment env sample_target target_var matched_var body final n).wp
+    (n : ℕ)
+    (h_correspondence : ∀ (σ' : state) (t : T),
+      (Program.set target_var t >>= fun _ =>
+       Program.set matched_var false >>= fun _ =>
+       loop_n n (body t) >>= fun _ =>
+       final t >>= fun _ =>
+       Program.get matched_var).wp
+         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+       ≤
+      (Program.set queries_list_var [] >>= fun _ =>
+       loop_n n body_recording >>= fun _ =>
+       final_recording >>= fun _ =>
+       Program.get queries_list_var >>= fun qs =>
+       Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+       Program.get matched_var).wp
+         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ')
+    (σ : state) :
+    (guess_experiment env Program.uniform target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment_interim env queries_list_var matched_var
         body_recording final_recording n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  sorry
+  -- Both unfold to env >>= fun _ => uniform >>= fun t => (tail t).
+  unfold guess_experiment guess_experiment_interim
+  conv_lhs => rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  apply Program.wp_le_wp_of_le
+  intro aσ_env
+  conv_lhs => rw [wp_bind, wp_uniform]
+  conv_rhs => rw [wp_bind, wp_uniform]
+  apply Finset.sum_le_sum
+  intro t _
+  gcongr
+  exact h_correspondence aσ_env.2 t
 
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
 theorem guess_experiment_interim_wp_bound
@@ -2141,7 +2167,8 @@ lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
     intro α β prog k1 k2 F G h σ_pre
     rw [wp_bind, wp_bind]
     exact Program.wp_le_wp_of_le _ _ _ h _
-  dsimp only [ow_game_2_tracked, guess_experiment_game_2, guess_experiment]
+  dsimp only [ow_game_2_tracked, guess_experiment_game_2, guess_experiment,
+    env_game_2, body_game_2, final_game_2]
   -- Flatten do-notation on both sides so binds match structurally.
   simp only [Program.bind_assoc]
   -- Descend through the shared env+sample+set chal_y prefix.
@@ -2458,10 +2485,35 @@ private lemma body_recording_game_2_qs_length_bump
   · exact Program.wp_qs_length_preserved_of_inRange queries_output adv h_adv σ
   · exact Program.wp_const_le _ _ _
 
+/-- **Game 2 correspondence**: matched-fire in `guess_experiment_game_2.body t`
+    corresponds to `t ∈ qs` after `body_recording_game_2`. Discharges the
+    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`
+    for Game 2.
+
+    Cryptographic content: body's explicit `if y_val = t then set matched` check
+    fires iff `body_recording` appends a `y_val` that equals `t`. By induction on
+    the loop. -/
+lemma game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    (σ' : state) (t : output) :
+    (Program.set ow_challenge_y t >>= fun _ : Unit =>
+     Program.set matched_chal_y false >>= fun _ : Unit =>
+     loop_n q (body_game_2 ow_adv t) >>= fun _ : Unit =>
+     final_game_2 t >>= fun _ : Unit =>
+     Program.get matched_chal_y).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+     ≤
+    (Program.set queries_output [] >>= fun _ : Unit =>
+     loop_n q (body_recording_game_2 ow_adv) >>= fun _ : Unit =>
+     final_recording_game_2 >>= fun _ : Unit =>
+     Program.get queries_output >>= fun qs =>
+     Program.set matched_chal_y (decide (t ∈ qs)) >>= fun _ : Unit =>
+     Program.get matched_chal_y).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
+  sorry
+
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
     Routes via `guess_experiment_game_2` → `interim` → `collector` → bound. -/
 theorem ow_game_2_tracked_wins_le_guess_output_bound
-    [Fintype output] [Nonempty output] [DecidableEq output]
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (h_ow_adv_queries : ow_adv.inRange queries_output.compl.range)
     (q : ℕ) (σ : state) :
@@ -2471,9 +2523,12 @@ theorem ow_game_2_tracked_wins_le_guess_output_bound
   -- Step 1: Game 2 wins ≤ guess_experiment_game_2 matched (proved).
   refine le_trans (ow_game_2_tracked_wins_le_guess_experiment_game_2_matched ow_adv
       h_ow_adv_matched_chal_y q σ) ?_
-  -- Step 2: guess_experiment_game_2 ≤ guess_experiment_interim_game_2 (ASSUMED).
-  refine le_trans (guess_experiment_le_interim_assumption _ _ _ _ queries_output _ _
-      (body_recording_game_2 ow_adv) final_recording_game_2 _ _) ?_
+  -- Step 2: guess_experiment_game_2 ≤ guess_experiment_interim_game_2.
+  unfold guess_experiment_game_2
+  refine le_trans (guess_experiment_le_interim_assumption env_game_2
+      ow_challenge_y matched_chal_y queries_output (body_game_2 ow_adv)
+      final_game_2 (body_recording_game_2 ow_adv) final_recording_game_2 q
+      (game_2_correspondence ow_adv q) σ) ?_
   -- Step 3: guess_experiment_interim_game_2 ≤ (q+1)/|output|. Generic.
   apply guess_experiment_interim_wp_bound
   -- h_qs_length_le for Game 2.
@@ -2636,6 +2691,34 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
       (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
   · exact Program.wp_const_le _ _ _
 
+/-- **Game 1 correspondence**: matched-fire in `guess_experiment_game_1.body`
+    (via `lazy_query_tracked` flipping `chal_x_queried_gh` when `inp = chal_x`)
+    corresponds to `t ∈ qs` after `body_recording_game_1`. Discharges the
+    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`
+    for Game 1.
+
+    Cryptographic content: `lazy_query_tracked inp` sets `chal_x_queried_gh = true`
+    iff `inp = chal_x`. With `chal_x` set to `t`, this becomes `inp = t`. Meanwhile
+    `body_recording_game_1` appends `inp` to `queries_input`, so `t ∈ queries_input`
+    iff some iter's `inp = t`. -/
+lemma game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    (σ' : state) (t : input) :
+    (Program.set ow_challenge_x t >>= fun _ : Unit =>
+     Program.set chal_x_queried_gh false >>= fun _ : Unit =>
+     loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit =>
+     final_game_1 t >>= fun _ : Unit =>
+     Program.get chal_x_queried_gh).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+     ≤
+    (Program.set queries_input [] >>= fun _ : Unit =>
+     loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+     final_recording_game_1 >>= fun _ : Unit =>
+     Program.get queries_input >>= fun qs =>
+     Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+     Program.get chal_x_queried_gh).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
+  sorry
+
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
     Routes via `guess_experiment_game_1` → `interim` → `collector` → bound. -/
@@ -2655,8 +2738,9 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
       h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh h_ow_adv_mass_one q σ]
   rw [ow_game_2_tracked_bad_eq_guess_experiment_game_1 ow_adv
       h_ow_adv_chal_y q σ]
-  refine le_trans (guess_experiment_le_interim_assumption _ _ _ _ queries_input _ _
-      (body_recording_game_1 ow_adv) final_recording_game_1 _ _) ?_
+  refine le_trans (guess_experiment_le_interim_assumption _ _ _ queries_input _ _
+      (body_recording_game_1 ow_adv) final_recording_game_1 _
+      (game_1_correspondence ow_adv q) _) ?_
   apply guess_experiment_interim_wp_bound
   -- h_qs_length_le for Game 1.
   intro σ'
