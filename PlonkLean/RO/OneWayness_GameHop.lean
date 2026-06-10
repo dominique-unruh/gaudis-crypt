@@ -1918,6 +1918,64 @@ theorem guess_experiment_le_interim_assumption
   gcongr
   exact h_correspondence aσ_env.2 t
 
+/-- **Schema-based correspondence**: when body and body_recording both
+    decompose as `q >>= ...` for some shared "query" subprogram `q`, with
+    body's tail being a match-check against `t` and body_recording's tail
+    appending to `queries_list_var`, the per-state correspondence (the
+    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`)
+    is provable structurally.
+
+    The cryptographic content "the LHS's matched-fire ↔ RHS's `t ∈ qs`"
+    becomes the *invariant* `matched_var = decide (t ∈ queries_list_var)`,
+    maintained by each iter since both sides run the same `q` and update
+    their respective tracking variables in lockstep.
+
+    `q_body` and `q_final` are the shared subprograms for the loop and the
+    final iteration respectively. They may differ (e.g., body does adv query
+    via oracle_input, final does response check via ow_response). -/
+theorem guess_experiment_le_interim_via_schema
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (target_var : Lens T state) (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q_body q_final : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (h_q_body_target : q_body.inRange target_var.compl.range)
+    (h_q_final_matched : q_final.inRange matched_var.compl.range)
+    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
+    (h_q_final_target : q_final.inRange target_var.compl.range)
+    (body : T → Program state Unit) (final : T → Program state Unit)
+    (body_recording : Program state Unit) (final_recording : Program state Unit)
+    (h_body : ∀ t, body t = q_body >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+    (h_body_recording : body_recording = q_body >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+    (h_final : ∀ t, final t = q_final >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+    (h_final_recording : final_recording = q_final >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+    (n : ℕ)
+    (σ : state) :
+    (guess_experiment env Program.uniform target_var matched_var body final n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ (guess_experiment_interim env queries_list_var matched_var
+        body_recording final_recording n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  refine guess_experiment_le_interim_assumption env target_var matched_var
+    queries_list_var body final body_recording final_recording n ?_ σ
+  intro σ' t
+  -- Substitute schema hypotheses to expose the q_body / q_final structure.
+  rw [h_body t, h_final t, h_body_recording, h_final_recording]
+  -- Now the per-state correspondence is in terms of q_body, q_final and the
+  -- match-check / record patterns. The invariant
+  -- `matched_var = decide (t ∈ queries_list_var)` is maintained per-iter,
+  -- and at the end both sides give the same Bool indicator.
+  sorry
+
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
 theorem guess_experiment_interim_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
