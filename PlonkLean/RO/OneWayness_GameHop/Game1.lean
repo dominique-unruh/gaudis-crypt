@@ -279,7 +279,7 @@ private lemma lazy_query_tracked_inRange_queries_input (inp : input) :
 
 /-- Helper: `get qi >>= fun qs => set qi (qs ++ [v])` has the same wp as
     `pure ()` at queries_input-ignoring posts. -/
-private lemma wp_qi_get_set_invisible
+private lemma wp_queries_input_get_set_invisible
     (val : input)
     (F : Unit × state → ENNReal)
     (h_F : IgnoresLens queries_input F)
@@ -294,7 +294,7 @@ private lemma wp_qi_get_set_invisible
 
 /-- Helper: a trailing `get qi >>= set qi (qs ++ [v])` is invisible to wp at
     queries_input-ignoring posts. (Specialized to Program state Unit.) -/
-private lemma wp_qi_trailing_invisible
+private lemma wp_queries_input_trailing_invisible
     (p : Program state Unit) (val : input)
     (F : Unit × state → ENNReal)
     (h_F : IgnoresLens queries_input F)
@@ -688,7 +688,7 @@ private lemma final_game_1_wp_eq_final_game_1'_at_chal_x_eq
     is chal_x-disjoint (adv via hypothesis, get/set oracle_input/output via
     disjointness, lazy_query via RO ⊥ chal_x, the if-set on chal_x_qg via
     chal_x_qg ⊥ chal_x). -/
-private lemma body_game_1'_inRange_chal_x
+private lemma body_game_1'_inRange_ow_challenge_x
     (ow_adv : Program state Unit)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (t : input) :
@@ -709,7 +709,7 @@ private lemma body_game_1'_inRange_chal_x
       exact Program.inRange_pure _ _
 
 /-- `final_game_1' t` is in `ow_challenge_x.compl.range`. -/
-private lemma final_game_1'_inRange_chal_x (t : input) :
+private lemma final_game_1'_inRange_ow_challenge_x (t : input) :
     (final_game_1' t).inRange ow_challenge_x.compl.range := by
   unfold final_game_1' q_final_game_1'
   refine Program.inRange_bind ?_ (fun a => ?_)
@@ -767,9 +767,9 @@ private lemma loop_final_body_game_1_wp_eq
     rw [body_game_1_wp_eq_body_game_1'_at_chal_x_eq ow_adv h_ow_adv_chal_x t _ σ h_cx]
     -- Step 2: strengthen with chal_x preservation on both sides (body_game_1' is chal_x-disjoint).
     rw [Program.wp_strengthen_lens_preserved ow_challenge_x
-        (body_game_1'_inRange_chal_x ow_adv h_ow_adv_chal_x t)]
+        (body_game_1'_inRange_ow_challenge_x ow_adv h_ow_adv_chal_x t)]
     conv_rhs => rw [Program.wp_strengthen_lens_preserved ow_challenge_x
-        (body_game_1'_inRange_chal_x ow_adv h_ow_adv_chal_x t)]
+        (body_game_1'_inRange_ow_challenge_x ow_adv h_ow_adv_chal_x t)]
     -- Step 3: equate posts; in the chal_x-preserved branch, apply IH.
     congr 1
     funext aσ_body
@@ -913,10 +913,10 @@ private lemma body_game_1_wp_eq_body_recording_game_1
   conv_lhs => rw [wp_set]
   conv_rhs => rw [wp_bind, wp_set]
   dsimp only
-  rw [wp_qi_get_set_invisible _ F h_F _]
+  rw [wp_queries_input_get_set_invisible _ F h_F _]
 
 /-- body_game_1 is queries_input-disjoint when ow_adv is. -/
-private lemma body_game_1_inRange_qi
+private lemma body_game_1_inRange_queries_input
     (ow_adv : Program state Unit)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
     (t : input) :
@@ -928,7 +928,7 @@ private lemma body_game_1_inRange_qi
   exact Program.set_inRange_compl_of_disjoint _ _ _
 
 /-- final_game_1 is queries_input-disjoint. -/
-private lemma final_game_1_inRange_qi (t : input) :
+private lemma final_game_1_inRange_queries_input (t : input) :
     (final_game_1 t).inRange queries_input.compl.range := by
   unfold final_game_1
   refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
@@ -937,7 +937,7 @@ private lemma final_game_1_inRange_qi (t : input) :
 
 /-- A queries_input-disjoint program's wp at qi-ignoring F is invariant under
     setting queries_input on the input. -/
-private lemma wp_qi_input_invariant_of_inRange_qi
+private lemma wp_queries_input_invariant_of_inRange_queries_input
     {α : Type} (p : Program state α)
     (h_p_qi : p.inRange queries_input.compl.range)
     (F : α × state → ENNReal) (h_F : IgnoresLens queries_input F)
@@ -975,7 +975,7 @@ private lemma loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1
     (σ : state) :
     (loop_n n (body_game_1 ow_adv t)).wp F σ
     = (loop_n n (body_recording_game_1 ow_adv)).wp F σ :=
-  loop_n_congr (body_game_1_inRange_qi ow_adv h_ow_adv_qi t)
+  loop_n_congr (body_game_1_inRange_queries_input ow_adv h_ow_adv_qi t)
     (body_game_1_equiv_body_recording_game_1 ow_adv t) n F h_F σ
 
 /-- Helper: final_game_1 t and final_recording_game_1 have the same wp at
@@ -999,12 +999,12 @@ private lemma final_game_1_wp_eq_final_recording_game_1
   conv_lhs => rw [wp_set]
   conv_rhs => rw [wp_bind, wp_set]
   dsimp only
-  rw [wp_qi_get_set_invisible _ F h_F _]
+  rw [wp_queries_input_get_set_invisible _ F h_F _]
 
 /-- body_recording_game_1's wp at qi-ignoring posts is invariant under
     setting queries_input on the input. Proven by routing through body_game_1
     (which is qi-disjoint). -/
-private lemma body_recording_game_1_wp_qi_input_invariant
+private lemma body_recording_game_1_wp_queries_input_invariant
     (ow_adv : Program state Unit) (t : input)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
     (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
@@ -1013,13 +1013,13 @@ private lemma body_recording_game_1_wp_qi_input_invariant
     = (body_recording_game_1 ow_adv).wp F σ := by
   rw [← body_game_1_wp_eq_body_recording_game_1 ow_adv t F h_F
         (queries_input.set v σ)]
-  rw [wp_qi_input_invariant_of_inRange_qi _
-        (body_game_1_inRange_qi ow_adv h_ow_adv_qi t) F h_F σ v]
+  rw [wp_queries_input_invariant_of_inRange_queries_input _
+        (body_game_1_inRange_queries_input ow_adv h_ow_adv_qi t) F h_F σ v]
   rw [body_game_1_wp_eq_body_recording_game_1 ow_adv t F h_F σ]
 
 /-- loop_n body_recording's wp at qi-ignoring posts is qi-input-invariant.
     Same routing trick: factor through loop_n body_game_1 (which is qi-disjoint). -/
-private lemma loop_n_body_recording_game_1_wp_qi_input_invariant
+private lemma loop_n_body_recording_game_1_wp_queries_input_invariant
     (ow_adv : Program state Unit) (t : input)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
     (n : ℕ) (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
@@ -1028,19 +1028,19 @@ private lemma loop_n_body_recording_game_1_wp_qi_input_invariant
     = (loop_n n (body_recording_game_1 ow_adv)).wp F σ := by
   rw [← loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1 ow_adv t h_ow_adv_qi n F h_F
         (queries_input.set v σ)]
-  rw [wp_qi_input_invariant_of_inRange_qi _
-        (loop_n_inRange _ (body_game_1_inRange_qi ow_adv h_ow_adv_qi t) n) F h_F σ v]
+  rw [wp_queries_input_invariant_of_inRange_queries_input _
+        (loop_n_inRange _ (body_game_1_inRange_queries_input ow_adv h_ow_adv_qi t) n) F h_F σ v]
   rw [loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1 ow_adv t h_ow_adv_qi n F h_F σ]
 
 /-- final_recording_game_1's wp at qi-ignoring posts is qi-input-invariant. -/
-private lemma final_recording_game_1_wp_qi_input_invariant
+private lemma final_recording_game_1_wp_queries_input_invariant
     (t : input)
     (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
     (σ : state) (v : List input) :
     final_recording_game_1.wp F (queries_input.set v σ)
     = final_recording_game_1.wp F σ := by
   rw [← final_game_1_wp_eq_final_recording_game_1 t F h_F (queries_input.set v σ)]
-  rw [wp_qi_input_invariant_of_inRange_qi _ (final_game_1_inRange_qi t) F h_F σ v]
+  rw [wp_queries_input_invariant_of_inRange_queries_input _ (final_game_1_inRange_queries_input t) F h_F σ v]
   rw [final_game_1_wp_eq_final_recording_game_1 t F h_F σ]
 
 /-- Bridge: LHS with body_game_1 = LHS with body_recording_game_1, for the
@@ -1101,7 +1101,7 @@ private lemma loop_final_get_game_1_wp_eq_recording
   have h_final_post_qi : IgnoresLens queries_input
       (fun aσ : Unit × state => (final_game_1 t).wp F_chal_xqg aσ.2) := by
     intro aσ v
-    exact wp_qi_input_invariant_of_inRange_qi _ (final_game_1_inRange_qi t)
+    exact wp_queries_input_invariant_of_inRange_queries_input _ (final_game_1_inRange_queries_input t)
       F_chal_xqg h_F_chal_xqg_qi _ v
   -- Use loop equivalence on the loop's wp.
   rw [loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1 ow_adv t h_ow_adv_qi q _
@@ -1114,7 +1114,7 @@ private lemma loop_final_get_game_1_wp_eq_recording
 
 /-- The full "loop + final + get chal_x_qg" chain (with recording bodies) is
     qi-input-invariant. -/
-private lemma loop_final_get_recording_wp_qi_input_invariant
+private lemma loop_final_get_recording_wp_queries_input_invariant
     (ow_adv : Program state Unit) (t : input)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
     (q : ℕ) (σ : state) (v : List input) :
@@ -1134,14 +1134,14 @@ private lemma loop_final_get_recording_wp_qi_input_invariant
                        Program.get chal_x_queried_gh).inRange
                       queries_input.compl.range := by
     refine Program.inRange_bind
-      (loop_n_inRange _ (body_game_1_inRange_qi ow_adv h_ow_adv_qi t) q) (fun _ => ?_)
-    refine Program.inRange_bind (final_game_1_inRange_qi t) (fun _ => ?_)
+      (loop_n_inRange _ (body_game_1_inRange_queries_input ow_adv h_ow_adv_qi t) q) (fun _ => ?_)
+    refine Program.inRange_bind (final_game_1_inRange_queries_input t) (fun _ => ?_)
     exact Program.get_inRange_compl_of_disjoint _ _
   have h_F_qi : IgnoresLens queries_input
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) := by
     intro bσ v'
     rfl
-  exact wp_qi_input_invariant_of_inRange_qi _ h_chain_qi _ h_F_qi σ v
+  exact wp_queries_input_invariant_of_inRange_queries_input _ h_chain_qi _ h_F_qi σ v
 
 /-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
 private lemma body_recording_game_1_qs_length_bump
@@ -1695,7 +1695,7 @@ private lemma ow_game_1_loop_tail_equiv
     The 5-layer prefix (uniform / set chal_x / uniform / set ro / set chal_y)
     is *identical* on both sides, so we use `bind_eq_p` repeatedly — no
     inRange proofs needed for the prefix. -/
-private lemma ow_game_1_full_tail_equiv_lq_lqt
+private lemma ow_game_1_full_tail_equiv_lazy_query_tracked
     (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) (q : ℕ) :
     Program.EquivModuloLens chal_x_queried_gh
       (do
@@ -1758,7 +1758,7 @@ theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
   rw [Program.pure_bind] at h_dead_set
   -- h_dead_set : REST_lq ≈_L (set L false >>= fun _ => REST_lq)
   exact h_dead_set.trans (Program.EquivModuloLens.bind_eq_p
-    (fun _ => ow_game_1_full_tail_equiv_lq_lqt ow_adv h_ow_adv_flag q))
+    (fun _ => ow_game_1_full_tail_equiv_lazy_query_tracked ow_adv h_ow_adv_flag q))
 
 
 end Game1

@@ -31,7 +31,7 @@ fires.
 ## Mass conservation infrastructure
 
 A family of `*_mass_one` lemmas (`lazy_query_mass_one`,
-`lazy_query_tracked_mass_one`, `oracle_step_lqt_mass_eq_adv_mass`,
+`lazy_query_tracked_mass_one`, `oracle_step_lazy_query_tracked_mass_eq_adv_mass`,
 `loop_n_mass_one`, etc.) plus `Program.mass_bind` for composing them.
 -/
 
@@ -691,7 +691,7 @@ private lemma lazy_query_tracked_mass_one (inp : input) (σ : state) :
   exact lazy_query_mass_one inp σ
 
 /-- Mass of `oracle_step adv lazy_query_tracked` equals mass of `adv`. -/
-private lemma oracle_step_lqt_mass_eq_adv_mass (σ : state) :
+private lemma oracle_step_lazy_query_tracked_mass_eq_adv_mass (σ : state) :
     (oracle_step ow_adv lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ
     = ow_adv.wp (fun _ => (1 : ENNReal)) σ := by
   unfold oracle_step
@@ -734,14 +734,14 @@ private lemma loop_n_mass_one
     exact h_body σ
 
 /-- Mass of `oracle_loop_n adv q lazy_query_tracked` is `1` if adv has mass 1. -/
-private lemma oracle_loop_n_lqt_mass_one
+private lemma oracle_loop_n_lazy_query_tracked_mass_one
     (h_adv_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (oracle_loop_n ow_adv q lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [oracle_loop_n_eq_loop_n]
   apply loop_n_mass_one
   intro σ'
-  rw [oracle_step_lqt_mass_eq_adv_mass]
+  rw [oracle_step_lazy_query_tracked_mass_eq_adv_mass]
   exact h_adv_mass σ'
 
 /-- Mass-preservation under bind: if `p` and every `k a` have mass 1, then `p >>= k` has mass 1. -/
@@ -841,7 +841,7 @@ lemma ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad
       rw [h_post2]
       exact lazy_query_tracked_mass_one _ aσ.2
     rw [h_post]
-    exact oracle_loop_n_lqt_mass_one ow_adv h_ow_adv_mass_one q σ'
+    exact oracle_loop_n_lazy_query_tracked_mass_one ow_adv h_ow_adv_mass_one q σ'
   -- Mass of G_i = 1. Each game = lazy_init; set chal_xqg false; uniform x;
   -- set chal_x x; uniform y; [set RO?;] set chal_y y; oracle_loop_n; get resp;
   -- lqt resp; pure decide. By wp_bind + wp_set (mass 1) + wp_uniform (sum
