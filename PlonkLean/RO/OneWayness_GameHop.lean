@@ -2638,24 +2638,14 @@ private lemma guess_experiment_RHS_reduce
   rw [Lens.set_get matched_var]
 
 set_option maxHeartbeats 1600000 in
-/-- **Schema-based correspondence**: when body and body_recording both
-    decompose as `q >>= ...` for some shared "query" subprogram `q`, with
-    body's tail being a match-check against `t` and body_recording's tail
-    appending to `queries_list_var`, the per-state correspondence (the
-    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`)
-    is provable structurally.
+/-- **Schema's inner per-σ' equation**: the per-`σ', t` correspondence that
+    `guess_experiment_le_interim_via_schema` uses to discharge the
+    `h_correspondence` of `guess_experiment_le_interim_assumption`.
 
-    The cryptographic content "the LHS's matched-fire ↔ RHS's `t ∈ qs`"
-    becomes the *invariant* `matched_var = decide (t ∈ queries_list_var)`,
-    maintained by each iter since both sides run the same `q` and update
-    their respective tracking variables in lockstep.
-
-    `q_body` and `q_final` are the shared subprograms for the loop and the
-    final iteration respectively. They may differ (e.g., body does adv query
-    via oracle_input, final does response check via ow_response). -/
-theorem guess_experiment_le_interim_via_schema
+    Reusable for other game-level proofs (e.g., `game_1_correspondence`) that
+    need the inner equation directly without going through the full schema. -/
+private lemma schema_inner_equation
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
     [disjoint matched_var queries_list_var]
@@ -2668,34 +2658,31 @@ theorem guess_experiment_le_interim_via_schema
     (h_q_final_matched : q_final.inRange matched_var.compl.range)
     (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
     (h_q_final_target : q_final.inRange target_var.compl.range)
-    (body : T → Program state Unit) (final : T → Program state Unit)
-    (body_recording : Program state Unit) (final_recording : Program state Unit)
-    (h_body : ∀ t, body t = q_body >>= fun a : T =>
+    (n : ℕ) (σ' : state) (t : T) :
+    (Program.set target_var t >>= fun _ : Unit =>
+     Program.set matched_var false >>= fun _ : Unit =>
+     loop_n n (q_body >>= fun a : T =>
         if a = t then Program.set matched_var true else (pure () : Program state Unit))
-    (h_body_recording : body_recording = q_body >>= fun a : T =>
-        Program.get queries_list_var >>= fun qs : List T =>
-        Program.set queries_list_var (qs ++ [a]))
-    (h_final : ∀ t, final t = q_final >>= fun a : T =>
+      >>= fun _ : Unit =>
+     (q_final >>= fun a : T =>
         if a = t then Program.set matched_var true else (pure () : Program state Unit))
-    (h_final_recording : final_recording = q_final >>= fun a : T =>
-        Program.get queries_list_var >>= fun qs : List T =>
-        Program.set queries_list_var (qs ++ [a]))
-    (n : ℕ)
-    (σ : state) :
-    (guess_experiment env Program.uniform target_var matched_var body final n).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
-    ≤ (guess_experiment_interim env queries_list_var matched_var
-        body_recording final_recording n).wp
-        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  refine guess_experiment_le_interim_assumption env target_var matched_var
-    queries_list_var body final body_recording final_recording n ?_ σ
-  intro σ' t
-  -- Substitute schema hypotheses to expose the q_body / q_final structure.
-  rw [h_body t, h_final t, h_body_recording, h_final_recording]
+      >>= fun _ : Unit =>
+     Program.get matched_var).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+    = (Program.set queries_list_var [] >>= fun _ : Unit =>
+       loop_n n (q_body >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       (q_final >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs =>
+       Program.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
+       Program.get matched_var).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
   haveI h_qs_matched : disjoint queries_list_var matched_var := disjoint.symm inferInstance
   haveI h_target_matched_sym : disjoint target_var matched_var := disjoint.symm inferInstance
   haveI h_target_qs_sym : disjoint target_var queries_list_var := disjoint.symm inferInstance
-  refine le_of_eq ?_
   -- IgnoresLens facts for F_matched and F_decide.
   have hF_matched_qs : IgnoresLens queries_list_var
       (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0) := by
@@ -2931,6 +2918,59 @@ theorem guess_experiment_le_interim_via_schema
     show (if matched_var.get aσ.2 then (1 : ENNReal) else 0)
        = if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0
     rw [h_inv]
+
+/-- **Schema-based correspondence**: when body and body_recording both
+    decompose as `q >>= ...` for some shared "query" subprogram `q`, with
+    body's tail being a match-check against `t` and body_recording's tail
+    appending to `queries_list_var`, the per-state correspondence (the
+    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`)
+    is provable structurally via `schema_inner_equation`.
+
+    `q_body` and `q_final` are the shared subprograms for the loop and the
+    final iteration respectively. They may differ (e.g., body does adv query
+    via oracle_input, final does response check via ow_response). -/
+theorem guess_experiment_le_interim_via_schema
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit)
+    (target_var : Lens T state) (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    [disjoint matched_var target_var]
+    [disjoint queries_list_var target_var]
+    (q_body q_final : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (h_q_body_target : q_body.inRange target_var.compl.range)
+    (h_q_final_matched : q_final.inRange matched_var.compl.range)
+    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
+    (h_q_final_target : q_final.inRange target_var.compl.range)
+    (body : T → Program state Unit) (final : T → Program state Unit)
+    (body_recording : Program state Unit) (final_recording : Program state Unit)
+    (h_body : ∀ t, body t = q_body >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+    (h_body_recording : body_recording = q_body >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+    (h_final : ∀ t, final t = q_final >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+    (h_final_recording : final_recording = q_final >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+    (n : ℕ)
+    (σ : state) :
+    (guess_experiment env Program.uniform target_var matched_var body final n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ (guess_experiment_interim env queries_list_var matched_var
+        body_recording final_recording n).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  refine guess_experiment_le_interim_assumption env target_var matched_var
+    queries_list_var body final body_recording final_recording n ?_ σ
+  intro σ' t
+  rw [h_body t, h_final t, h_body_recording, h_final_recording]
+  refine le_of_eq ?_
+  exact schema_inner_equation target_var matched_var queries_list_var
+    q_body q_final h_q_body_matched h_q_body_qs h_q_body_target
+    h_q_final_matched h_q_final_qs h_q_final_target n σ' t
 
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
 theorem guess_experiment_interim_wp_bound
@@ -3877,6 +3917,27 @@ private lemma q_final_game_1'_inRange_ow_challenge_x :
   refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
   exact Program.inRange_pure _ _
 
+/-- `body_recording_game_1' ow_adv` is in `chal_x_queried_gh.compl.range`.
+    Used to lift the body-recording bridge to the loop level. -/
+private lemma body_recording_game_1'_inRange_chal_x_queried_gh
+    (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x_qg : ow_adv.inRange chal_x_queried_gh.compl.range) :
+    (body_recording_game_1' ow_adv).inRange chal_x_queried_gh.compl.range := by
+  unfold body_recording_game_1'
+  refine Program.inRange_bind
+    (q_body_game_1'_inRange_chal_x_queried_gh ow_adv h_ow_adv_chal_x_qg) (fun a => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
+/-- `final_recording_game_1'` is in `chal_x_queried_gh.compl.range`.
+    Used to lift the final-recording bridge to the loop level. -/
+private lemma final_recording_game_1'_inRange_chal_x_queried_gh :
+    final_recording_game_1'.inRange chal_x_queried_gh.compl.range := by
+  unfold final_recording_game_1'
+  refine Program.inRange_bind q_final_game_1'_inRange_chal_x_queried_gh (fun a => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
 /-- **Generic wp-bridge for `lazy_query_tracked` vs `lazy_query`**: at any
     chal_x_queried_gh-ignoring post `F` with a chal_x_queried_gh-disjoint
     continuation `K`, the two are wp-equivalent. The chal_x_qg flip inside
@@ -4663,17 +4724,21 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
     each `inp` to the list). Both events are "some lazy_query_tracked saw
     `inp = t`".
 
-    Requires hypothesis `h_ow_adv_chal_x_blind` that ow_adv is chal_x-input-blind
-    (its wp is invariant under chal_x state changes). Without this, an adv that
-    reads chal_x can violate the bound (e.g., always query chal_x = t in LHS).
-
-    Proof obligation (currently `sorry`): inducting on the loop with invariant
-    `chal_x_queried_gh = decide (t ∈ queries_input)` maintained by
-    `body_recording_game_1`. -/
+    Proof structure: route through Game 1':
+    1. Convert LHS body_game_1 → body_game_1' via `loop_final_body_game_1_wp_eq`
+       (the game-hop bridge, requires chal_x.get σ_inner = t which is established
+       by the prefix `set ow_challenge_x t`).
+    2. Apply `schema_inner_equation` for Game 1' (uses q_body_game_1' and
+       q_final_game_1' which are chal_x_qg, qi, and ow_challenge_x disjoint).
+    3. Convert RHS body_recording_game_1' → body_recording_game_1 via
+       `body_recording_game_1_wp_eq_body_recording_game_1'` and its loop+final
+       lifting (the chal_x_qg flip in lazy_query_tracked is invisible at
+       chal_x_qg-ignoring posts; the trailing `get qi; set chal_x_qg (decide);
+       get chal_x_qg` produces a qi-only post which IS chal_x_qg-ignoring). -/
 theorem game_1_correspondence (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_ow_adv_chal_x_qg : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
-    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
-      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
     (q : ℕ)
     (σ' : state) (t : input) :
     (Program.set ow_challenge_x t >>= fun _ : Unit =>
@@ -4690,20 +4755,182 @@ theorem game_1_correspondence (ow_adv : Program state Unit)
      Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
      Program.get chal_x_queried_gh).wp
        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
-  -- The chal_x_qg-only post is qi-ignoring.
-  set Post : Bool × state → ENNReal :=
-    fun bσ => if bσ.1 then (1 : ENNReal) else 0 with hPost
-  -- Inner post after get chal_x_qg: F_inner = fun aσ : Unit × state =>
-  --   if chal_x_qg.get aσ.2 then 1 else 0. Qi-ignoring.
-  have h_F_inner_qi : IgnoresLens queries_input
-      (fun aσ : Unit × state =>
-        if chal_x_queried_gh.get aσ.2 = true then (1 : ENNReal) else 0) := by
-    intro aσ v
-    show (if chal_x_queried_gh.get (queries_input.set v aσ.2) = true then _ else _)
-       = (if chal_x_queried_gh.get aσ.2 = true then _ else _)
-    rw [Lens.get_of_disjoint_set chal_x_queried_gh queries_input]
-  -- The remaining work — alignment, invariant, final wp algebra — is DEFERRED.
-  sorry
+  refine le_of_eq ?_
+  -- We will route LHS_game1 = LHS_game1' = RHS_game1' = RHS_game1.
+  -- Step 1: LHS_game1 = LHS_game1' via game-hop bridge.
+  have h_LHS_eq :
+      (Program.set ow_challenge_x t >>= fun _ : Unit =>
+       Program.set chal_x_queried_gh false >>= fun _ : Unit =>
+       loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit =>
+       final_game_1 t >>= fun _ : Unit =>
+       Program.get chal_x_queried_gh).wp
+         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+      =
+      (Program.set ow_challenge_x t >>= fun _ : Unit =>
+       Program.set chal_x_queried_gh false >>= fun _ : Unit =>
+       loop_n q (body_game_1' ow_adv t) >>= fun _ : Unit =>
+       final_game_1' t >>= fun _ : Unit =>
+       Program.get chal_x_queried_gh).wp
+         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
+    rw [wp_bind, wp_set, wp_bind, wp_set]
+    conv_rhs => rw [wp_bind, wp_set, wp_bind, wp_set]
+    dsimp only
+    set σ_inner : state := chal_x_queried_gh.set false (ow_challenge_x.set t σ')
+    have h_chal_x_inner : ow_challenge_x.get σ_inner = t := by
+      show ow_challenge_x.get (chal_x_queried_gh.set false (ow_challenge_x.set t σ')) = t
+      rw [Lens.get_of_disjoint_set ow_challenge_x chal_x_queried_gh]
+      exact ow_challenge_x.set_get σ' t
+    -- Re-associate so `(loop body >>= final) >>= get chal_x_qg` is exposed for loop_final bridge.
+    rw [← Program.bind_assoc]
+    conv_rhs => rw [← Program.bind_assoc]
+    rw [wp_bind]
+    conv_rhs => rw [wp_bind]
+    have h_post :
+        (fun aσ : Unit × state =>
+          (Program.get chal_x_queried_gh).wp
+            (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) aσ.2)
+        = (fun aσ : Unit × state =>
+            if chal_x_queried_gh.get aσ.2 then (1 : ENNReal) else 0) := by
+      funext aσ; rw [wp_get]
+    rw [h_post]
+    exact loop_final_body_game_1_wp_eq ow_adv h_ow_adv_chal_x t q _ σ_inner h_chal_x_inner
+  rw [h_LHS_eq]
+  -- Step 2: LHS_game1' = RHS_game1' via schema_inner_equation for Game 1'.
+  -- LHS_game1' has the form `set tvar t; set mvar false; loop q_body >>= match_check; q_final >>= match_check; get mvar`.
+  -- We need to substitute body_game_1' = q_body_game_1' >>= match_check, etc., via unfold.
+  haveI : disjoint ow_challenge_x chal_x_queried_gh := disjoint.symm inferInstance
+  haveI : disjoint ow_challenge_x queries_input := disjoint.symm inferInstance
+  show (Program.set ow_challenge_x t >>= fun _ : Unit =>
+        Program.set chal_x_queried_gh false >>= fun _ : Unit =>
+        loop_n q (body_game_1' ow_adv t) >>= fun _ : Unit =>
+        final_game_1' t >>= fun _ : Unit =>
+        Program.get chal_x_queried_gh).wp _ σ' = _
+  unfold body_game_1' final_game_1'
+  rw [show (Program.set queries_input [] >>= fun _ : Unit =>
+            loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+            final_recording_game_1 >>= fun _ : Unit =>
+            Program.get queries_input >>= fun qs =>
+            Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+            Program.get chal_x_queried_gh).wp
+              (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+        = (Program.set queries_input [] >>= fun _ : Unit =>
+            loop_n q (q_body_game_1' ow_adv >>= fun a : input =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+            (q_final_game_1' >>= fun a : input =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+            Program.get queries_input >>= fun qs =>
+            Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+            Program.get chal_x_queried_gh).wp
+              (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' from ?_]
+  · exact schema_inner_equation ow_challenge_x chal_x_queried_gh queries_input
+      (q_body_game_1' ow_adv) q_final_game_1'
+      (q_body_game_1'_inRange_chal_x_queried_gh ow_adv h_ow_adv_chal_x_qg)
+      (q_body_game_1'_inRange_queries_input ow_adv h_ow_adv_qi)
+      (q_body_game_1'_inRange_ow_challenge_x ow_adv h_ow_adv_chal_x)
+      q_final_game_1'_inRange_chal_x_queried_gh
+      q_final_game_1'_inRange_queries_input
+      q_final_game_1'_inRange_ow_challenge_x
+      q σ' t
+  · -- Step 3: RHS_game1' = RHS_game1 via recording bridges (chal_x_qg-ignoring inner post).
+    rw [wp_bind, wp_set]
+    conv_rhs => rw [wp_bind, wp_set]
+    dsimp only
+    set σ_rhs_inner : state := queries_input.set [] σ' with σ_rhs_inner_def
+    -- Helper: trailing reduction (the get qi; set chal_x_qg; get chal_x_qg is qi-dependent only).
+    have h_reduce : ∀ (X : Program state Unit) (s : state),
+        (X >>= fun _ : Unit =>
+          Program.get queries_input >>= fun qs : List input =>
+          Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+          Program.get chal_x_queried_gh).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) s
+        = X.wp (fun aσ : Unit × state =>
+            if decide (t ∈ queries_input.get aσ.2) then (1 : ENNReal) else 0) s := by
+      intro X s
+      rw [wp_bind]
+      congr 1
+      funext aσ_X
+      rw [wp_bind, wp_get]
+      dsimp only
+      rw [wp_bind, wp_set, wp_get]
+      dsimp only
+      rw [Lens.set_get chal_x_queried_gh]
+    -- The goal LHS has body_recording_game_1, RHS has body_recording_game_1' (unfolded).
+    -- Reassociate so loop+final is the prefix on both sides.
+    rw [show (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+              final_recording_game_1 >>= fun _ : Unit =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+              Program.get chal_x_queried_gh) =
+            ((loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit => final_recording_game_1)
+              >>= fun _ : Unit =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+              Program.get chal_x_queried_gh) from
+      (Program.bind_assoc _ _ _).symm]
+    -- RHS uses UNFOLDED forms: q_body_game_1' ow_adv >>= fun a => get qi >>= ... etc.
+    conv_rhs => rw [show (loop_n q (q_body_game_1' ow_adv >>= fun a : input =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+              (q_final_game_1' >>= fun a : input =>
+                Program.get queries_input >>= fun qs : List input =>
+                Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+              Program.get chal_x_queried_gh) =
+            ((loop_n q (q_body_game_1' ow_adv >>= fun a : input =>
+                Program.get queries_input >>= fun qs : List input =>
+                Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+              q_final_game_1' >>= fun a : input =>
+                Program.get queries_input >>= fun qs : List input =>
+                Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+              Program.get queries_input >>= fun qs : List input =>
+              Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
+              Program.get chal_x_queried_gh) from
+      (Program.bind_assoc _ _ _).symm]
+    -- Now apply h_reduce on both sides.
+    rw [h_reduce (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+        final_recording_game_1)]
+    conv_rhs => rw [h_reduce (loop_n q (q_body_game_1' ow_adv >>= fun a : input =>
+                Program.get queries_input >>= fun qs : List input =>
+                Program.set queries_input (qs ++ [a])) >>= fun _ : Unit =>
+              q_final_game_1' >>= fun a : input =>
+                Program.get queries_input >>= fun qs : List input =>
+                Program.set queries_input (qs ++ [a]))]
+    -- Now both sides: (loop body_X >>= final_X).wp F_qi σ_rhs_inner where F_qi is qi-only (chal_x_qg-ignoring).
+    have h_F_qi : IgnoresLens chal_x_queried_gh
+        (fun aσ : Unit × state =>
+          if decide (t ∈ queries_input.get aσ.2) then (1 : ENNReal) else 0) := by
+      intro aσ v
+      show (if decide (t ∈ queries_input.get (chal_x_queried_gh.set v aσ.2)) then _ else _)
+         = if decide (t ∈ queries_input.get aσ.2) then _ else _
+      rw [Lens.get_of_disjoint_set queries_input chal_x_queried_gh]
+    -- Apply EquivModuloLens chain. Goal: (loop body_rec).wp F_qi σ = (loop body_rec').wp F_qi σ.
+    -- We need EquivModuloLens with LHS reference (body_rec'), since loop_n_congr requires the
+    -- reference body to be chal_x_qg-disjoint (body_rec is NOT).
+    have h_body_equiv : Program.EquivModuloLens chal_x_queried_gh
+        (body_recording_game_1' ow_adv) (body_recording_game_1 ow_adv) :=
+      Program.EquivModuloLens.symm
+        (body_recording_game_1_wp_eq_body_recording_game_1' ow_adv)
+    have h_loop_equiv : Program.EquivModuloLens chal_x_queried_gh
+        (loop_n q (body_recording_game_1' ow_adv))
+        (loop_n q (body_recording_game_1 ow_adv)) :=
+      loop_n_congr
+        (body_recording_game_1'_inRange_chal_x_queried_gh ow_adv h_ow_adv_chal_x_qg)
+        h_body_equiv q
+    have h_final_equiv : Program.EquivModuloLens chal_x_queried_gh
+        final_recording_game_1' final_recording_game_1 :=
+      Program.EquivModuloLens.symm
+        (final_recording_game_1_wp_eq_final_recording_game_1')
+    have h_loop_final_equiv : Program.EquivModuloLens chal_x_queried_gh
+        (loop_n q (body_recording_game_1' ow_adv) >>= fun _ : Unit => final_recording_game_1')
+        (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit => final_recording_game_1) :=
+      Program.EquivModuloLens.bind h_loop_equiv (fun _ => h_final_equiv)
+        (fun _ => final_recording_game_1'_inRange_chal_x_queried_gh)
+    -- Goal direction: (loop body_rec >>= final_rec).wp F_qi σ = (loop body_rec' >>= final_rec').wp F_qi σ.
+    -- h_loop_final_equiv has direction body_rec' → body_rec. Symm gives body_rec → body_rec'.
+    exact (h_loop_final_equiv.symm) _ h_F_qi σ_rhs_inner
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
@@ -4728,7 +4955,8 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
       h_ow_adv_chal_y q σ]
   refine le_trans (guess_experiment_le_interim_assumption _ _ _ queries_input _ _
       (body_recording_game_1 ow_adv) final_recording_game_1 _
-      (game_1_correspondence ow_adv h_ow_adv_queries h_ow_adv_chal_x_blind q) _) ?_
+      (game_1_correspondence ow_adv h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh
+        h_ow_adv_queries q) _) ?_
   apply guess_experiment_interim_wp_bound
   -- h_qs_length_le for Game 1.
   intro σ'
