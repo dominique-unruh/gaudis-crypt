@@ -59,10 +59,6 @@ theorem ow_lazy_bound_via_gamehop
     (h_ow_adv_queries_output : ow_adv.inRange queries_output.compl.range)
     (h_ow_adv_queries_input : ow_adv.inRange queries_input.compl.range)
     (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
-    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
-      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
-    (h_ow_adv_chal_y_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : output),
-      ow_adv.wp F (ow_challenge_y.set v σ) = ow_adv.wp F σ)
     (q : ℕ) (σ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -113,7 +109,7 @@ theorem ow_lazy_bound_via_gamehop
                 exact ow_game_1_tracked_bad_le_guess_input_bound ow_adv
                   h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x
                   h_ow_adv_chal_x_queried_gh h_ow_adv_queries_input
-                  h_ow_adv_mass_one h_ow_adv_chal_x_blind q σ
+                  h_ow_adv_mass_one q σ
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card output := by
         gcongr

@@ -917,9 +917,7 @@ set_option maxHeartbeats 800000 in
     (no body modifies chal_x). -/
 lemma guess_experiment_game_1_wp_eq_game_1'
     (ow_adv : Program state Unit)
-    (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (q : ℕ) (σ : state) :
     (guess_experiment_game_1 ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -1157,36 +1155,6 @@ lemma loop_final_get_game_1_wp_eq_recording
   congr 1
   funext aσ
   exact final_game_1_wp_eq_final_recording_game_1 t F_chal_xqg h_F_chal_xqg_qi aσ.2
-
-/-- body_recording_game_1 is chal_x-input-invariant given ow_adv chal_x-blindness.
-    Reason: body_recording starts with ow_adv, and the rest doesn't touch chal_x. -/
-lemma body_recording_game_1_wp_chal_x_input_invariant
-    (ow_adv : Program state Unit)
-    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
-      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
-    (F : Unit × state → ENNReal) (σ : state) (v : input) :
-    (body_recording_game_1 ow_adv).wp F (ow_challenge_x.set v σ)
-    = (body_recording_game_1 ow_adv).wp F σ := by
-  -- body_recording = ow_adv >>= k. By chal_x-blindness of ow_adv on the
-  -- wp post (whatever it is), the wp value is chal_x-input-invariant.
-  unfold body_recording_game_1
-  -- The do-block elaborates to ow_adv >>= fun _ => (...). Use wp_bind directly.
-  rw [show (do
-        ow_adv
-        let inp ← Program.get oracle_input
-        let y ← lazy_query_tracked inp
-        Program.set oracle_output y
-        let qs ← Program.get queries_input
-        Program.set queries_input (qs ++ [inp]) : Program state Unit)
-       = ow_adv >>= fun _ : Unit =>
-           Program.get oracle_input >>= fun inp : input =>
-           lazy_query_tracked inp >>= fun y : output =>
-           Program.set oracle_output y >>= fun _ : Unit =>
-           Program.get queries_input >>= fun qs : List input =>
-           Program.set queries_input (qs ++ [inp])
-       from rfl]
-  rw [wp_bind, wp_bind]
-  exact h_ow_adv_chal_x_blind _ σ v
 
 /-- The full "loop + final + get chal_x_qg" chain (with recording bodies) is
     qi-input-invariant. -/
@@ -1537,8 +1505,6 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_ow_adv_queries : ow_adv.inRange queries_input.compl.range)
     (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
-    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
-      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
