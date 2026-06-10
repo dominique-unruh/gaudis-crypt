@@ -2489,6 +2489,21 @@ private lemma body_recording_game_2_qs_length_bump
   · exact Program.wp_qs_length_preserved_of_inRange queries_output adv h_adv σ
   · exact Program.wp_const_le _ _ _
 
+/-- Helper: `get qi >>= fun qs => set qi (qs ++ [v])` has the same wp as
+    `pure ()` at queries_input-ignoring posts. -/
+private lemma wp_qi_get_set_invisible
+    (val : input)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens queries_input F)
+    (σ : state) :
+    (Program.get queries_input >>= fun qs : List input =>
+       Program.set queries_input (qs ++ [val])).wp F σ
+    = F ((), σ) := by
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_set]
+  exact h_F ((), σ) _
+
 /-- Helper: a trailing `get qi >>= set qi (qs ++ [v])` is invisible to wp at
     queries_input-ignoring posts. (Specialized to Program state Unit.) -/
 private lemma wp_qi_trailing_invisible
@@ -2633,6 +2648,59 @@ noncomputable def final_recording_game_1 : Program state Unit := do
   Program.set oracle_output y
   let qs ← Program.get queries_input
   Program.set queries_input (qs ++ [resp])
+
+/-- Helper: body_game_1 ow_adv and body_recording_game_1 ow_adv have the same
+    wp at queries_input-ignoring posts. body_recording adds only a trailing
+    qi append, which is wp-invisible to qi-ignoring F. -/
+private lemma body_game_1_wp_eq_body_recording_game_1
+    (ow_adv : Program state Unit) (t : input)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens queries_input F)
+    (σ : state) :
+    (body_game_1 ow_adv t).wp F σ = (body_recording_game_1 ow_adv).wp F σ := by
+  unfold body_game_1 body_recording_game_1
+  conv_lhs => rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_ow
+  obtain ⟨_, σ_1⟩ := aσ_ow
+  dsimp only
+  conv_lhs => rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  dsimp only
+  conv_lhs => rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_lq
+  obtain ⟨y, σ_2⟩ := aσ_lq
+  dsimp only
+  conv_lhs => rw [wp_set]
+  conv_rhs => rw [wp_bind, wp_set]
+  dsimp only
+  rw [wp_qi_get_set_invisible _ F h_F _]
+
+/-- Helper: final_game_1 t and final_recording_game_1 have the same wp at
+    queries_input-ignoring posts. -/
+private lemma final_game_1_wp_eq_final_recording_game_1
+    (t : input)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens queries_input F)
+    (σ : state) :
+    (final_game_1 t).wp F σ = final_recording_game_1.wp F σ := by
+  unfold final_game_1 final_recording_game_1
+  conv_lhs => rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  dsimp only
+  conv_lhs => rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_lq
+  obtain ⟨y, σ_2⟩ := aσ_lq
+  dsimp only
+  conv_lhs => rw [wp_set]
+  conv_rhs => rw [wp_bind, wp_set]
+  dsimp only
+  rw [wp_qi_get_set_invisible _ F h_F _]
 
 /-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
 private lemma body_recording_game_1_qs_length_bump
