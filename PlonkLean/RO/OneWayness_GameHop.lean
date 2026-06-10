@@ -3877,6 +3877,94 @@ private lemma q_final_game_1'_inRange_ow_challenge_x :
   refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
   exact Program.inRange_pure _ _
 
+/-- **Generic wp-bridge for `lazy_query_tracked` vs `lazy_query`**: at any
+    chal_x_queried_gh-ignoring post `F` with a chal_x_queried_gh-disjoint
+    continuation `K`, the two are wp-equivalent. The chal_x_qg flip inside
+    `lazy_query_tracked` is invisible at chal_x_qg-ignoring F. -/
+private lemma lazy_query_tracked_bind_wp_eq_lazy_query_bind
+    (inp : input) {β : Type} (K : output → Program state β)
+    (h_K : ∀ y, (K y).inRange chal_x_queried_gh.compl.range)
+    (F : β × state → ENNReal) (h_F : IgnoresLens chal_x_queried_gh F)
+    (σ : state) :
+    (lazy_query_tracked inp >>= K).wp F σ = (lazy_query inp >>= K).wp F σ := by
+  unfold lazy_query_tracked
+  simp only [Program.bind_assoc, Program.pure_bind]
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_lq
+  obtain ⟨y, σ_lq⟩ := aσ_lq
+  dsimp only
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_bind]
+  by_cases h : inp = ow_challenge_x.get σ_lq
+  · rw [if_pos h, wp_set]
+    dsimp only
+    have hf : (fun s' : state => chal_x_queried_gh.set true s') ∈
+        ((chal_x_queried_gh.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((chal_x_queried_gh.compl.range : LensRange state)ᶜ) = chal_x_queried_gh.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
+    show (K y).wp F ((fun s' => chal_x_queried_gh.set true s') σ_lq) = (K y).wp F σ_lq
+    rw [Program.wp_shift_input (h_K y) hf]
+    congr 1
+    funext xs
+    exact h_F xs true
+  · rw [if_neg h, wp_pure]
+
+/-- **Body-recording bridge**: at chal_x_queried_gh-ignoring posts,
+    `body_recording_game_1` (with lazy_query_tracked) and
+    `body_recording_game_1'` (with lazy_query) have the same wp. The
+    chal_x_qg flip in lazy_query_tracked is invisible at chal_x_qg-ignoring
+    posts. -/
+private lemma body_recording_game_1_wp_eq_body_recording_game_1'
+    (ow_adv : Program state Unit)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens chal_x_queried_gh F)
+    (σ : state) :
+    (body_recording_game_1 ow_adv).wp F σ
+    = (body_recording_game_1' ow_adv).wp F σ := by
+  -- Normalize body_recording_game_1' via bind_assoc + pure_bind so the
+  -- structures match except for `lazy_query` vs `lazy_query_tracked`.
+  unfold body_recording_game_1 body_recording_game_1' q_body_game_1'
+  simp only [Program.bind_assoc, Program.pure_bind]
+  -- Both sides: ow_adv; get inp; lazy_query[_tracked] inp; set output y; record qs.
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_adv
+  obtain ⟨_, σ_adv⟩ := aσ_adv
+  dsimp only
+  rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  dsimp only
+  -- Goal: (lazy_query_tracked (oracle_input.get σ_adv) >>= K).wp F σ_adv =
+  --       (lazy_query (oracle_input.get σ_adv) >>= K).wp F σ_adv
+  -- where K = fun y => set output y >>= fun _ => get qs >>= fun qs' => set qs (qs' ++ [inp]).
+  apply lazy_query_tracked_bind_wp_eq_lazy_query_bind _ _ _ _ h_F
+  intro y
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
+/-- **Final-recording bridge**: same as body-recording bridge for final. -/
+private lemma final_recording_game_1_wp_eq_final_recording_game_1'
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens chal_x_queried_gh F)
+    (σ : state) :
+    final_recording_game_1.wp F σ = final_recording_game_1'.wp F σ := by
+  unfold final_recording_game_1 final_recording_game_1' q_final_game_1'
+  simp only [Program.bind_assoc, Program.pure_bind]
+  rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  dsimp only
+  apply lazy_query_tracked_bind_wp_eq_lazy_query_bind _ _ _ _ h_F
+  intro y
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
 /-- **Game-hop bridge**: at the chal_x_queried_gh-firing post (which is what
     Game 1 cares about), `guess_experiment_game_1` and `guess_experiment_game_1'`
     have the same wp. This is because, inside guess_experiment's loop after
@@ -3884,7 +3972,8 @@ private lemma q_final_game_1'_inRange_ow_challenge_x :
     chal_x = t) is wp-equivalent to `lazy_query inp >>= if inp = t then set chal_x_qg`.
 
     Proof DEFERRED — requires conditional-wp manipulation that respects the
-    `chal_x = t` post-condition through each iter. -/
+    `chal_x = t` post-condition through each iter, threading the
+    `target = t` invariant through the loop. -/
 private lemma guess_experiment_game_1_wp_eq_game_1'
     (ow_adv : Program state Unit)
     (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
@@ -3895,29 +3984,6 @@ private lemma guess_experiment_game_1_wp_eq_game_1'
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     = (guess_experiment_game_1' ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  sorry
-
-/-- **Body-recording bridge**: at chal_x_queried_gh-ignoring posts,
-    `body_recording_game_1` (with lazy_query_tracked) and
-    `body_recording_game_1'` (with lazy_query) have the same wp.
-
-    Proof DEFERRED — the chal_x_qg flip in lazy_query_tracked is invisible
-    at chal_x_qg-ignoring posts. -/
-private lemma body_recording_game_1_wp_eq_body_recording_game_1'
-    (ow_adv : Program state Unit)
-    (F : Unit × state → ENNReal)
-    (h_F : IgnoresLens chal_x_queried_gh F)
-    (σ : state) :
-    (body_recording_game_1 ow_adv).wp F σ
-    = (body_recording_game_1' ow_adv).wp F σ := by
-  sorry
-
-/-- **Final-recording bridge**: same as body-recording bridge for final. -/
-private lemma final_recording_game_1_wp_eq_final_recording_game_1'
-    (F : Unit × state → ENNReal)
-    (h_F : IgnoresLens chal_x_queried_gh F)
-    (σ : state) :
-    final_recording_game_1.wp F σ = final_recording_game_1'.wp F σ := by
   sorry
 
 /-- Helper: body_game_1 ow_adv and body_recording_game_1 ow_adv have the same
