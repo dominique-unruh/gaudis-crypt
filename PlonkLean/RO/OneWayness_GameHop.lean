@@ -2246,6 +2246,103 @@ private lemma body_aug_wp_invariant_step
     · simp only [hm, if_false]
   · simp only [hq, if_false]
 
+/-- Augmentation invisibility: `body_match` and `body_aug` (= body_match + record)
+    have the same wp at queries_list-ignoring posts. The trailing record is
+    invisible. -/
+private lemma body_match_eq_body_aug_qs_ignoring
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    (q : Program state T)
+    (t : T)
+    (F : Unit × state → ENNReal)
+    (h_F_qs : IgnoresLens queries_list_var F)
+    (σ : state) :
+    (q >>= fun a : T =>
+       if a = t then Program.set matched_var true
+       else (pure () : Program state Unit)).wp F σ
+    = (q >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F σ := by
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_q
+  obtain ⟨a, σ_q⟩ := aσ_q
+  dsimp only
+  rw [wp_bind]
+  congr 1
+  funext aσ'
+  exact (wp_record_append_invisible queries_list_var a F h_F_qs aσ'.2).symm
+
+/-- Match-check elision: `body_aug` and `body_rec` (= body_aug without match_check)
+    have the same wp at matched-ignoring posts. -/
+private lemma body_aug_eq_body_rec_matched_ignoring
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint queries_list_var matched_var]
+    (q : Program state T)
+    (t : T)
+    (F : Unit × state → ENNReal)
+    (h_F_matched : IgnoresLens matched_var F)
+    (σ : state) :
+    (q >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F σ
+    = (q >>= fun a : T =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F σ := by
+  haveI : disjoint matched_var queries_list_var := disjoint.symm inferInstance
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_q
+  obtain ⟨a, σ_q⟩ := aσ_q
+  dsimp only
+  rw [wp_bind]
+  have h_inner_matched_ignoring : IgnoresLens matched_var
+      (fun aσ' : Unit × state =>
+        (Program.get queries_list_var >>= fun qs : List T =>
+         Program.set queries_list_var (qs ++ [a])).wp F aσ'.2) := by
+    intro aσ' v
+    show (Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])).wp F (matched_var.set v aσ'.2)
+        = (Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a])).wp F aσ'.2
+    have h_LHS_compute :
+        (Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])).wp F (matched_var.set v aσ'.2)
+        = F ((), queries_list_var.set (queries_list_var.get aσ'.2 ++ [a])
+                  (matched_var.set v aσ'.2)) := by
+      rw [wp_bind, wp_get]
+      dsimp only
+      rw [wp_set]
+      rw [Lens.get_of_disjoint_set queries_list_var matched_var v aσ'.2]
+    have h_RHS_compute :
+        (Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])).wp F aσ'.2
+        = F ((), queries_list_var.set (queries_list_var.get aσ'.2 ++ [a]) aσ'.2) := by
+      rw [wp_bind, wp_get]
+      dsimp only
+      rw [wp_set]
+    rw [h_LHS_compute, h_RHS_compute]
+    have h_swap : queries_list_var.set
+          (queries_list_var.get aσ'.2 ++ [a]) (matched_var.set v aσ'.2)
+        = matched_var.set v
+          (queries_list_var.set (queries_list_var.get aσ'.2 ++ [a]) aσ'.2) :=
+      (inferInstance : disjoint queries_list_var matched_var).commute aσ'.2 _ v
+    rw [h_swap]
+    exact h_F_matched ((),
+      queries_list_var.set (queries_list_var.get aσ'.2 ++ [a]) aσ'.2) v
+  rw [wp_match_check_matched_invisible matched_var t a _ h_inner_matched_ignoring σ_q]
+
 /-- **Schema-based correspondence**: when body and body_recording both
     decompose as `q >>= ...` for some shared "query" subprogram `q`, with
     body's tail being a match-check against `t` and body_recording's tail
