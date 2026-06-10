@@ -15,15 +15,10 @@ structure ProcedureSignature where
   params : List Type
   ret    : Type
 
--- TODO: Remove
-@[deprecated ""]
-def typeListToProdGeneric (prod : A → A → A) (unit : A) (types : List A) := match types with
-  | [] => unit
-  | [x] => x
-  | (x :: xs) => prod x (typeListToProdGeneric prod unit xs)
-
--- TODO: Specialize to keep things simpler
-def paramListToTuple := typeListToProdGeneric Prod Unit
+def paramListToTuple : List Type → Type
+  | []      => Unit
+  | [x]     => x
+  | x :: xs => x × paramListToTuple xs
 
 /-- A sequences of procedure signatures, intended to be used to describe the type
     of holes in a program -/
@@ -70,6 +65,7 @@ structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : Procedur
 
 def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
+@[match_pattern]
 def StmtWithHoles.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
       (params : Expr (paramListToTuple sig.params)) : StmtWithHoles h :=
   StmtWithHoles.call' x proc.body proc.return_val params

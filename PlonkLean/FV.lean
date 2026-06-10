@@ -7,6 +7,13 @@ open Language.Programs
 
 variable [ProgramSpec]
 
+
+def typeListToProdGeneric (prod : A → A → A) (unit : A) (types : List A) := match types with
+  | [] => unit
+  | [x] => x
+  | (x :: xs) => prod x (typeListToProdGeneric prod unit xs)
+
+
 opaque FV : Type
 -- Placeholder
 axiom fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Set FV
