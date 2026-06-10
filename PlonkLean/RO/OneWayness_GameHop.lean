@@ -2765,6 +2765,75 @@ private lemma final_game_1_wp_eq_final_recording_game_1
   dsimp only
   rw [wp_qi_get_set_invisible _ F h_F _]
 
+/-- Bridge: LHS with body_game_1 = LHS with body_recording_game_1, for the
+    full game_1 LHS (loop + final + get chal_x_qg). Uses the loop and final
+    equivalences with the qi-ignoring chal_x_qg post. -/
+private lemma loop_final_get_game_1_wp_eq_recording
+    (ow_adv : Program state Unit)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (t : input) (q : ℕ) (σ : state) :
+    (loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit =>
+     final_game_1 t >>= fun _ : Unit =>
+     Program.get chal_x_queried_gh).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    = (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+       final_recording_game_1 >>= fun _ : Unit =>
+       Program.get chal_x_queried_gh).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  -- Post `if bσ.1 then 1 else 0` after `get chal_x_qg` reduces to
+  -- `fun aσ : Unit × state => if chal_x_qg.get aσ.2 then 1 else 0` = F_chal_xqg.
+  set F_chal_xqg : Unit × state → ENNReal :=
+    fun aσ => if chal_x_queried_gh.get aσ.2 = true then (1 : ENNReal) else 0
+    with hF_chal_xqg
+  have h_F_chal_xqg_qi : IgnoresLens queries_input F_chal_xqg := by
+    intro aσ v
+    show (if chal_x_queried_gh.get (queries_input.set v aσ.2) = true then _ else _)
+       = (if chal_x_queried_gh.get aσ.2 = true then _ else _)
+    rw [Lens.get_of_disjoint_set chal_x_queried_gh queries_input]
+  -- Step 1: peel the get chal_x_qg. After this, the post becomes F_chal_xqg.
+  have h_get_collapse : ∀ (k : Program state Unit) (σ_k : state),
+      (k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_k
+      = k.wp F_chal_xqg σ_k := by
+    intro k σ_k
+    rw [wp_bind]
+    congr 1
+    funext aσ
+    rw [wp_get]
+  -- Apply h_get_collapse on both sides (LHS and RHS of the goal).
+  -- After: (loop_n q body_game_1 >>= fun _ => final_game_1).wp F_chal_xqg σ
+  --      = (loop_n q body_recording >>= fun _ => final_recording).wp F_chal_xqg σ
+  rw [show (loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit =>
+          final_game_1 t >>= fun _ : Unit =>
+          Program.get chal_x_queried_gh)
+       = ((loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit => final_game_1 t)
+          >>= fun _ : Unit => Program.get chal_x_queried_gh)
+       from by simp [Program.bind_assoc]]
+  rw [show (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+          final_recording_game_1 >>= fun _ : Unit =>
+          Program.get chal_x_queried_gh)
+       = ((loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit => final_recording_game_1)
+          >>= fun _ : Unit => Program.get chal_x_queried_gh)
+       from by simp [Program.bind_assoc]]
+  rw [h_get_collapse, h_get_collapse]
+  -- Step 2: peel final via wp_bind, then use final_game_1 ↔ final_recording equivalence.
+  rw [wp_bind, wp_bind]
+  -- Inner post: fun aσ : Unit × state => final_X.wp F_chal_xqg aσ.2 (X varies).
+  -- This inner post is qi-ignoring (final_X is qi-disjoint + F_chal_xqg qi-ignoring).
+  have h_final_post_qi : IgnoresLens queries_input
+      (fun aσ : Unit × state => (final_game_1 t).wp F_chal_xqg aσ.2) := by
+    intro aσ v
+    exact wp_qi_input_invariant_of_inRange_qi _ (final_game_1_inRange_qi t)
+      F_chal_xqg h_F_chal_xqg_qi _ v
+  -- Use loop equivalence on the loop's wp.
+  rw [loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1 ow_adv t h_ow_adv_qi q _
+      h_final_post_qi σ]
+  -- Now: (loop_n q body_recording).wp (fun aσ => (final_game_1 t).wp F_chal_xqg aσ.2) σ
+  --    = (loop_n q body_recording).wp (fun aσ => final_recording.wp F_chal_xqg aσ.2) σ
+  congr 1
+  funext aσ
+  exact final_game_1_wp_eq_final_recording_game_1 t F_chal_xqg h_F_chal_xqg_qi aσ.2
+
 /-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
 private lemma body_recording_game_1_qs_length_bump
     (adv : Program state Unit)
