@@ -2562,6 +2562,81 @@ private lemma loop_final_body_aug_equiv_body_rec
       (body_aug_equiv_body_rec matched_var queries_list_var q_final t))
     (fun _ => body_rec_inRange_matched matched_var queries_list_var q_final h_q_final_matched)
 
+/-- LHS prefix/trailing peel for the schema: peels `set target_var t`,
+    `set matched_var false` from the prefix and `>>= get matched_var` from
+    the trailing, leaving a canonical `(X >>= Y).wp F_matched σ_inner` form. -/
+private lemma guess_experiment_LHS_reduce
+    {T : Type}
+    (target_var : Lens T state) (matched_var : Lens Bool state)
+    (X Y : Program state Unit)
+    (t : T) (σ' : state) :
+    (Program.set target_var t >>= fun _ =>
+     Program.set matched_var false >>= fun _ =>
+     X >>= fun _ =>
+     Y >>= fun _ =>
+     Program.get matched_var).wp
+     (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+   = (X >>= fun _ => Y).wp
+     (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0)
+     (matched_var.set false (target_var.set t σ')) := by
+  rw [wp_bind, wp_set]
+  dsimp only
+  rw [wp_bind, wp_set]
+  dsimp only
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ
+  obtain ⟨_, σ_x⟩ := aσ
+  dsimp only
+  rw [wp_bind]
+  congr 1
+  funext aσ'
+  obtain ⟨_, σ_y⟩ := aσ'
+  dsimp only
+  rw [wp_get]
+
+/-- RHS prefix/trailing peel for the schema: peels `set queries_list_var []`
+    from the prefix and `>>= get qs >>= set matched (decide t ∈ qs) >>= get matched`
+    from the trailing, leaving a canonical `(X >>= Y).wp F_decide σ_inner` form. -/
+private lemma guess_experiment_RHS_reduce
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    (X Y : Program state Unit)
+    (t : T) (σ' : state) :
+    (Program.set queries_list_var [] >>= fun _ =>
+     X >>= fun _ =>
+     Y >>= fun _ =>
+     Program.get queries_list_var >>= fun qs =>
+     Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+     Program.get matched_var).wp
+     (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+   = (X >>= fun _ => Y).wp
+     (fun aσ : Unit × state =>
+       if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0)
+     (queries_list_var.set [] σ') := by
+  rw [wp_bind, wp_set]
+  dsimp only
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ
+  obtain ⟨_, σ_x⟩ := aσ
+  dsimp only
+  rw [wp_bind]
+  congr 1
+  funext aσ'
+  obtain ⟨_, σ_y⟩ := aσ'
+  dsimp only
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_bind, wp_set]
+  dsimp only
+  rw [wp_get]
+  dsimp only
+  rw [Lens.set_get matched_var]
+
 set_option maxHeartbeats 1600000 in
 /-- **Schema-based correspondence**: when body and body_recording both
     decompose as `q >>= ...` for some shared "query" subprogram `q`, with
@@ -2725,7 +2800,12 @@ theorem guess_experiment_le_interim_via_schema
           if a = t then Program.set matched_var true else (pure () : Program state Unit)).wp
        (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0)
        σ_LHS_inner := by
-    sorry  -- LHS prefix/trailing peel + match to canonical wp form
+    exact guess_experiment_LHS_reduce target_var matched_var
+      (loop_n n (q_body >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit)))
+      (q_final >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+      t σ'
   -- Reduce RHS to canonical form.
   have h_RHS_reduce :
       (Program.set queries_list_var [] >>= fun _ =>
@@ -2749,7 +2829,14 @@ theorem guess_experiment_le_interim_via_schema
        (fun aσ : Unit × state =>
          if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0)
        σ_RHS_inner := by
-    sorry  -- RHS prefix/trailing peel + match to canonical wp form
+    exact guess_experiment_RHS_reduce matched_var queries_list_var
+      (loop_n n (q_body >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])))
+      (q_final >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+      t σ'
   rw [h_LHS_reduce, h_RHS_reduce]
   -- Now: (loop+final body_match).wp F_matched σ_LHS_inner = (loop+final body_rec).wp F_decide σ_RHS_inner.
   -- Step 1: shift LHS input qs to [].
