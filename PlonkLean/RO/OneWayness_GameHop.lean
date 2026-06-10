@@ -1992,9 +1992,178 @@ private lemma match_check_record_preserves_invariant
       · exact h1
       · exact absurd (List.mem_singleton.mp h1).symm ha
 
-/-- Body_aug invariant step: for body_aug = q_body >>= match_check t >>= record,
-    the wp from invariant-respecting σ at "matched-reading" post equals the
-    wp at "decide (t ∈ qs)-reading" post. -/
+/-- Generalized body_aug agreement lemma: if F1 and F2 agree on
+    invariant-respecting states, then body_aug.wp F1 = body_aug.wp F2 at
+    invariant-respecting input. -/
+private lemma body_aug_wp_agree_on_invariant
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q_body : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (t : T)
+    (F1 F2 : Unit × state → ENNReal)
+    (h_agree : ∀ aσ : Unit × state,
+      matched_var.get aσ.2 = decide (t ∈ queries_list_var.get aσ.2) →
+      F1 aσ = F2 aσ)
+    (σ : state)
+    (h_inv : matched_var.get σ = decide (t ∈ queries_list_var.get σ)) :
+    (q_body >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F1 σ
+    = (q_body >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F2 σ := by
+  haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  rw [Program.wp_strengthen_lens_preserved matched_var h_q_body_matched _ σ,
+      Program.wp_strengthen_lens_preserved queries_list_var h_q_body_qs _ σ]
+  conv_rhs =>
+    rw [Program.wp_strengthen_lens_preserved matched_var h_q_body_matched _ σ,
+        Program.wp_strengthen_lens_preserved queries_list_var h_q_body_qs _ σ]
+  congr 1
+  funext aσ_q
+  obtain ⟨a, σ_q⟩ := aσ_q
+  dsimp only
+  by_cases hq : queries_list_var.get σ_q = queries_list_var.get σ
+  · by_cases hm : matched_var.get σ_q = matched_var.get σ
+    · simp only [hq, hm, if_true]
+      have h_inv_σ_q : matched_var.get σ_q = decide (t ∈ queries_list_var.get σ_q) := by
+        rw [hm, hq]; exact h_inv
+      rw [match_check_record_wp matched_var queries_list_var t a _ σ_q]
+      rw [match_check_record_wp matched_var queries_list_var t a _ σ_q]
+      have h_inv_σ_new :=
+        match_check_record_preserves_invariant matched_var queries_list_var t a σ_q h_inv_σ_q
+      exact h_agree _ h_inv_σ_new
+    · simp only [hm, if_false]
+  · simp only [hq, if_false]
+
+/-- Loop version of `body_aug_wp_agree_on_invariant`: the n-fold iteration
+    of body_aug also has wp agreeing on invariant-respecting posts when
+    starting from an invariant-respecting state. -/
+private lemma loop_n_body_aug_wp_agree_on_invariant
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q_body : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (t : T) (n : ℕ) :
+    ∀ (F1 F2 : Unit × state → ENNReal),
+      (∀ aσ : Unit × state,
+        matched_var.get aσ.2 = decide (t ∈ queries_list_var.get aσ.2) →
+        F1 aσ = F2 aσ) →
+      ∀ (σ : state),
+        matched_var.get σ = decide (t ∈ queries_list_var.get σ) →
+        (loop_n n (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a]))).wp F1 σ
+        = (loop_n n (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a]))).wp F2 σ := by
+  induction n with
+  | zero =>
+    intro F1 F2 h_agree σ h_inv
+    show (pure () : Program state Unit).wp F1 σ = (pure () : Program state Unit).wp F2 σ
+    rw [wp_pure, wp_pure]
+    exact h_agree _ h_inv
+  | succ n ih =>
+    intro F1 F2 h_agree σ h_inv
+    -- Use body_aug_wp_agree_on_invariant for the outer body_aug, with the
+    -- inner post being (loop_n n body_aug).wp F.
+    -- For aσ with invariant: (loop_n n body_aug).wp F1 aσ.2 = (loop_n n body_aug).wp F2 aσ.2 by IH.
+    have h_inner_agree : ∀ aσ : Unit × state,
+        matched_var.get aσ.2 = decide (t ∈ queries_list_var.get aσ.2) →
+        (loop_n n (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a]))).wp F1 aσ.2
+        = (loop_n n (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a]))).wp F2 aσ.2 := by
+      intro aσ' h_inv'
+      exact ih F1 F2 h_agree aσ'.2 h_inv'
+    -- The succ case: loop_n (n+1) body = body >>= loop_n n body.
+    -- wp_bind gives body.wp (post involving loop_n n) σ.
+    -- Apply body_aug_wp_agree_on_invariant.
+    have h_LHS : (loop_n (n + 1) (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a]))).wp F1 σ
+        = (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a])).wp
+          (fun aσ : Unit × state =>
+            (loop_n n (q_body >>= fun a : T =>
+              (if a = t then Program.set matched_var true
+               else (pure () : Program state Unit)) >>=
+              fun _ : Unit =>
+              Program.get queries_list_var >>= fun qs : List T =>
+              Program.set queries_list_var (qs ++ [a]))).wp F1 aσ.2) σ := by
+      show ((q_body >>= fun a : T =>
+              (if a = t then Program.set matched_var true
+               else (pure () : Program state Unit)) >>=
+              fun _ : Unit =>
+              Program.get queries_list_var >>= fun qs : List T =>
+              Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+            loop_n n _).wp F1 σ = _
+      rw [wp_bind]
+    have h_RHS : (loop_n (n + 1) (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a]))).wp F2 σ
+        = (q_body >>= fun a : T =>
+           (if a = t then Program.set matched_var true
+            else (pure () : Program state Unit)) >>=
+           fun _ : Unit =>
+           Program.get queries_list_var >>= fun qs : List T =>
+           Program.set queries_list_var (qs ++ [a])).wp
+          (fun aσ : Unit × state =>
+            (loop_n n (q_body >>= fun a : T =>
+              (if a = t then Program.set matched_var true
+               else (pure () : Program state Unit)) >>=
+              fun _ : Unit =>
+              Program.get queries_list_var >>= fun qs : List T =>
+              Program.set queries_list_var (qs ++ [a]))).wp F2 aσ.2) σ := by
+      show ((q_body >>= fun a : T =>
+              (if a = t then Program.set matched_var true
+               else (pure () : Program state Unit)) >>=
+              fun _ : Unit =>
+              Program.get queries_list_var >>= fun qs : List T =>
+              Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+            loop_n n _).wp F2 σ = _
+      rw [wp_bind]
+    rw [h_LHS, h_RHS]
+    exact body_aug_wp_agree_on_invariant matched_var queries_list_var
+      q_body h_q_body_matched h_q_body_qs t _ _ h_inner_agree σ h_inv
 private lemma body_aug_wp_invariant_step
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
