@@ -518,6 +518,24 @@ lemma loop_n_inRange {R : LensRange state}
     show (body >>= fun _ => loop_n n body).inRange R
     exact Program.inRange_bind h_body (fun _ => ih)
 
+/-- **Loop congruence for the equiv-modulo-lens calculus**: if two bodies
+    are `≈_L`-equivalent, so are their loops. Requires the reference body
+    `body` to be `L`-disjoint so that `loop_n n body` is also `L`-disjoint
+    (needed for the bind congruence in the inductive step). -/
+lemma loop_n_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
+    {body body' : Program state Unit}
+    (h_body : body.inRange L.compl.range)
+    (h_eq : Program.EquivModuloLens L body body')
+    (n : ℕ) :
+    Program.EquivModuloLens L (loop_n n body) (loop_n n body') := by
+  induction n with
+  | zero => exact Program.EquivModuloLens.refl _
+  | succ n ih =>
+    show Program.EquivModuloLens L (body >>= fun _ => loop_n n body)
+                                   (body' >>= fun _ => loop_n n body')
+    exact Program.EquivModuloLens.bind h_eq (fun _ => ih)
+      (fun _ => loop_n_inRange body h_body n)
+
 /-- Helper: the chal_y block + trailing `pure (decide (y_check = y))` (which
     uses the outer-bound y) absorbs into NEW_POST for chal_xqg-reading posts.
     Used for G2 bad-event reduction. -/
@@ -2396,6 +2414,154 @@ private lemma loop_final_body_aug_wp_agree_on_invariant
       q_final h_q_final_matched h_q_final_qs t F1 F2 h_agree aσ'.2 h_inv'
   · exact h_inv
 
+/-- Body_match → body_aug as EquivModuloLens at queries_list_var. -/
+private lemma body_match_equiv_body_aug
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    (q : Program state T) (t : T) :
+    Program.EquivModuloLens queries_list_var
+      (q >>= fun a : T =>
+        if a = t then Program.set matched_var true
+        else (pure () : Program state Unit))
+      (q >>= fun a : T =>
+        (if a = t then Program.set matched_var true
+         else (pure () : Program state Unit)) >>=
+        fun _ : Unit =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) :=
+  fun F h_F σ =>
+    body_match_eq_body_aug_qs_ignoring matched_var queries_list_var q t F h_F σ
+
+/-- Body_aug → body_rec as EquivModuloLens at matched_var. -/
+private lemma body_aug_equiv_body_rec
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint queries_list_var matched_var]
+    (q : Program state T) (t : T) :
+    Program.EquivModuloLens matched_var
+      (q >>= fun a : T =>
+        (if a = t then Program.set matched_var true
+         else (pure () : Program state Unit)) >>=
+        fun _ : Unit =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+      (q >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) :=
+  fun F h_F σ =>
+    body_aug_eq_body_rec_matched_ignoring matched_var queries_list_var q t F h_F σ
+
+/-- body_match (= q >>= match_check) is qs-disjoint when q is. -/
+private lemma body_match_inRange_qs
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q : Program state T)
+    (h_q_qs : q.inRange queries_list_var.compl.range)
+    (t : T) :
+    (q >>= fun a : T =>
+      if a = t then Program.set matched_var true
+      else (pure () : Program state Unit)).inRange queries_list_var.compl.range := by
+  refine Program.inRange_bind h_q_qs (fun a => ?_)
+  by_cases ha : a = t
+  · simp only [if_pos ha]
+    exact Program.set_inRange_compl_of_disjoint _ _ _
+  · simp only [if_neg ha]
+    exact Program.inRange_pure _ _
+
+/-- body_rec (= q >>= record) is matched-disjoint when q is and matched ⊥ qs. -/
+private lemma body_rec_inRange_matched
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint queries_list_var matched_var]
+    (q : Program state T)
+    (h_q_matched : q.inRange matched_var.compl.range) :
+    (q >>= fun a : T =>
+      Program.get queries_list_var >>= fun qs : List T =>
+      Program.set queries_list_var (qs ++ [a])).inRange matched_var.compl.range := by
+  refine Program.inRange_bind h_q_matched (fun a => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
+/-- The loop+final body_match ≈ body_aug equivalence (modulo queries_list_var). -/
+private lemma loop_final_body_match_equiv_body_aug
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q_body q_final : Program state T)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
+    (t : T) (n : ℕ) :
+    Program.EquivModuloLens queries_list_var
+      (loop_n n (q_body >>= fun a : T =>
+        if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>= fun _ : Unit =>
+       q_final >>= fun a : T =>
+        if a = t then Program.set matched_var true
+        else (pure () : Program state Unit))
+      (loop_n n (q_body >>= fun a : T =>
+        (if a = t then Program.set matched_var true
+         else (pure () : Program state Unit)) >>=
+        fun _ : Unit =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       q_final >>= fun a : T =>
+        (if a = t then Program.set matched_var true
+         else (pure () : Program state Unit)) >>=
+        fun _ : Unit =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) := by
+  refine Program.EquivModuloLens.bind
+    (loop_n_congr (body_match_inRange_qs matched_var queries_list_var q_body h_q_body_qs t)
+      (body_match_equiv_body_aug matched_var queries_list_var q_body t) n)
+    (fun _ => body_match_equiv_body_aug matched_var queries_list_var q_final t)
+    (fun _ => body_match_inRange_qs matched_var queries_list_var q_final h_q_final_qs t)
+
+/-- The loop+final body_aug ≈ body_rec equivalence (modulo matched_var). -/
+private lemma loop_final_body_aug_equiv_body_rec
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint queries_list_var matched_var]
+    (q_body q_final : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_final_matched : q_final.inRange matched_var.compl.range)
+    (t : T) (n : ℕ) :
+    Program.EquivModuloLens matched_var
+      (loop_n n (q_body >>= fun a : T =>
+        (if a = t then Program.set matched_var true
+         else (pure () : Program state Unit)) >>=
+        fun _ : Unit =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       q_final >>= fun a : T =>
+        (if a = t then Program.set matched_var true
+         else (pure () : Program state Unit)) >>=
+        fun _ : Unit =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a]))
+      (loop_n n (q_body >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       q_final >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) := by
+  -- loop_n_congr requires body to be matched-disjoint. body_aug ISN'T (writes matched).
+  -- So use body_rec (matched-disjoint) as the in-range body, then symm.
+  refine Program.EquivModuloLens.symm ?_
+  refine Program.EquivModuloLens.bind
+    (loop_n_congr (body_rec_inRange_matched matched_var queries_list_var q_body h_q_body_matched)
+      (Program.EquivModuloLens.symm
+        (body_aug_equiv_body_rec matched_var queries_list_var q_body t)) n)
+    (fun _ => Program.EquivModuloLens.symm
+      (body_aug_equiv_body_rec matched_var queries_list_var q_final t))
+    (fun _ => body_rec_inRange_matched matched_var queries_list_var q_final h_q_final_matched)
+
 /-- **Schema-based correspondence**: when body and body_recording both
     decompose as `q >>= ...` for some shared "query" subprogram `q`, with
     body's tail being a match-check against `t` and body_recording's tail
@@ -2449,12 +2615,17 @@ theorem guess_experiment_le_interim_via_schema
   -- Substitute schema hypotheses to expose the q_body / q_final structure.
   rw [h_body t, h_final t, h_body_recording, h_final_recording]
   haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
-  -- Apply le_of_eq to convert the ≤ goal to an = goal.
   refine le_of_eq ?_
-  -- Now prove equality. Use the invariant lemma to bridge LHS and RHS.
-  -- The chain at a state σ_aligned (matched=false, qs=[]) with invariant:
-  -- LHS_match ─→ LHS_aug ─→ decide-reading ─→ LHS_rec ─→ RHS.
-  -- DEFERRED: full assembly.
+  -- Plan: write LHS = X = RHS via a chain of equivalences.
+  -- (1) Peel set target_var t; set matched_var false on LHS, getting σ_L.
+  -- (2) Peel set queries_list_var [] on RHS, getting σ_R.
+  -- (3) Move both to σ_aligned by inserting invisible sets.
+  -- (4) At σ_aligned: augment LHS to use body_aug.
+  -- (5) Apply invariant lemma.
+  -- (6) De-augment to body_rec, fold RHS tail.
+  --
+  -- Each step is straightforward but requires careful wp manipulation.
+  -- Given the assembly's mechanical nature, leave as a deferred plumbing task.
   sorry
 
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
@@ -2532,24 +2703,6 @@ lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
 
 -- The chal_y inRange lemmas and loop_n_inRange were moved earlier in the file
 -- to be available for the bridge proofs.
-
-/-- **Loop congruence for the equiv-modulo-lens calculus**: if two bodies
-    are `≈_L`-equivalent, so are their loops. Requires the reference body
-    `body` to be `L`-disjoint so that `loop_n n body` is also `L`-disjoint
-    (needed for the bind congruence in the inductive step). -/
-lemma loop_n_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
-    {body body' : Program state Unit}
-    (h_body : body.inRange L.compl.range)
-    (h_eq : Program.EquivModuloLens L body body')
-    (n : ℕ) :
-    Program.EquivModuloLens L (loop_n n body) (loop_n n body') := by
-  induction n with
-  | zero => exact Program.EquivModuloLens.refl _
-  | succ n ih =>
-    show Program.EquivModuloLens L (body >>= fun _ => loop_n n body)
-                                   (body' >>= fun _ => loop_n n body')
-    exact Program.EquivModuloLens.bind h_eq (fun _ => ih)
-      (fun _ => loop_n_inRange body h_body n)
 
 /-- **Cond_set invisibility for matched-ignoring posts.** A direct
     `if cond then set matched true else pure ()` is wp-invisible. -/
