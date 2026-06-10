@@ -1426,27 +1426,19 @@ private theorem game_1_correspondence (ow_adv : Program state Unit)
          = if decide (t ∈ queries_input.get aσ.2) then _ else _
       rw [Lens.get_of_disjoint_set queries_input chal_x_queried_gh]
     -- Apply EquivModuloLens chain. Goal: (loop body_rec).wp F_qi σ = (loop body_rec').wp F_qi σ.
-    -- We need EquivModuloLens with LHS reference (body_rec'), since loop_n_congr requires the
-    -- reference body to be chal_x_qg-disjoint (body_rec is NOT).
-    have h_body_equiv : Program.EquivModuloLens chal_x_queried_gh
-        (body_recording_game_1' ow_adv) (body_recording_game_1 ow_adv) :=
-      Program.EquivModuloLens.symm
-        (body_recording_game_1_wp_eq_body_recording_game_1' ow_adv)
-    have h_loop_equiv : Program.EquivModuloLens chal_x_queried_gh
-        (loop_n q (body_recording_game_1' ow_adv))
-        (loop_n q (body_recording_game_1 ow_adv)) :=
-      loop_n_congr
-        (body_recording_game_1'_inRange_chal_x_queried_gh ow_adv h_ow_adv_chal_x_qg)
-        h_body_equiv q
-    have h_final_equiv : Program.EquivModuloLens chal_x_queried_gh
-        final_recording_game_1' final_recording_game_1 :=
-      Program.EquivModuloLens.symm
-        (final_recording_game_1_wp_eq_final_recording_game_1')
+    -- We use the loop_n_then_congr combinator with body_rec' / final_rec' as the
+    -- chal_x_qg-disjoint references (body_rec / final_rec are NOT chal_x_qg-disjoint).
     have h_loop_final_equiv : Program.EquivModuloLens chal_x_queried_gh
         (loop_n q (body_recording_game_1' ow_adv) >>= fun _ : Unit => final_recording_game_1')
         (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit => final_recording_game_1) :=
-      Program.EquivModuloLens.bind h_loop_equiv (fun _ => h_final_equiv)
-        (fun _ => final_recording_game_1'_inRange_chal_x_queried_gh)
+      loop_n_then_congr
+        (body_recording_game_1'_inRange_chal_x_queried_gh ow_adv h_ow_adv_chal_x_qg)
+        (Program.EquivModuloLens.symm
+          (body_recording_game_1_wp_eq_body_recording_game_1' ow_adv))
+        final_recording_game_1'_inRange_chal_x_queried_gh
+        (Program.EquivModuloLens.symm
+          final_recording_game_1_wp_eq_final_recording_game_1')
+        q
     -- Goal direction: (loop body_rec >>= final_rec).wp F_qi σ = (loop body_rec' >>= final_rec').wp F_qi σ.
     -- h_loop_final_equiv has direction body_rec' → body_rec. Symm gives body_rec → body_rec'.
     exact (h_loop_final_equiv.symm) _ h_F_qi σ_rhs_inner

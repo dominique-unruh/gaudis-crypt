@@ -122,6 +122,29 @@ lemma loop_n_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
     exact Program.EquivModuloLens.bind h_eq (fun _ => ih)
       (fun _ => loop_n_inRange body h_body n)
 
+/-- **Loop + trailing congruence**: if `body ≈_L body'` and `final ≈_L final'`,
+    with both `body` and `final` being `L`-disjoint, then
+    `loop_n n body >>= fun _ => final  ≈_L  loop_n n body' >>= fun _ => final'`.
+
+    Combines `loop_n_congr` and `Program.EquivModuloLens.bind` in one step.
+    The `body`/`final` disjointness conditions are the ones the underlying
+    `bind` congruence requires (it needs the continuation to be `L`-disjoint
+    so the inner post stays `L`-ignoring). -/
+lemma loop_n_then_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
+    {body body' final final' : Program state Unit}
+    (h_body : body.inRange L.compl.range)
+    (h_body_eq : Program.EquivModuloLens L body body')
+    (h_final : final.inRange L.compl.range)
+    (h_final_eq : Program.EquivModuloLens L final final')
+    (n : ℕ) :
+    Program.EquivModuloLens L
+        (loop_n n body >>= fun _ : Unit => final)
+        (loop_n n body' >>= fun _ : Unit => final') :=
+  Program.EquivModuloLens.bind
+    (loop_n_congr h_body h_body_eq n)
+    (fun _ => h_final_eq)
+    (fun _ => h_final)
+
 /-! ### Collector-game route to the bound.
 
 ALTERNATIVE architectural approach: introduce a *collector* version of

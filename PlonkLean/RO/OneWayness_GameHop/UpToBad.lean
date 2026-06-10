@@ -294,23 +294,15 @@ private lemma lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     rw [h_reduce_to_F σ rfl]
     exact lazy_query_wp_invariant_under_RO_chal_x_set_at_neq inp F h_F_RO_inv σ y_chal h
 
+/-- Convenience alias: specialization of `Program.wp_zero_of_lens_preserves`
+    for the `chal_x_queried_gh = true` "bad-event vanishing" pattern. -/
 private lemma Program.wp_zero_of_flag_true_in_range
     {α : Type} {p : Program state α} (h_p : p.inRange chal_x_queried_gh.compl.range)
     {F : α × state → ENNReal}
     (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
     {σ : state} (h_σ : chal_x_queried_gh.get σ = true) :
-    p.wp F σ = 0 := by
-  rw [Program.wp_strengthen_lens_preserved chal_x_queried_gh h_p]
-  rw [show (fun aσ : α × state =>
-            if chal_x_queried_gh.get aσ.2 = chal_x_queried_gh.get σ then F aσ else 0)
-          = (fun _ : α × state => (0 : ENNReal)) from by
-    funext aσ
-    by_cases h : chal_x_queried_gh.get aσ.2 = chal_x_queried_gh.get σ
-    · simp only [if_pos h]
-      apply h_F_bad_zero
-      rw [h]; exact h_σ
-    · simp only [if_neg h]]
-  exact Program.wp_zero_post _ _
+    p.wp F σ = 0 :=
+  Program.wp_zero_of_lens_preserves h_p h_F_bad_zero h_σ
 
 /-- **Flag-true-zero for `lazy_query_tracked`**: starting at flag-true, the wp on a
     bad-vanishing post is 0. `lazy_query_tracked` may set flag to true but never to

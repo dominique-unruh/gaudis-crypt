@@ -343,6 +343,28 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
   show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
   rw [if_pos (h_f_L_get xs.2)]
 
+/-- **Vanishing-post zero**: if `p` is `L`-disjoint, `F` vanishes on every state
+    where `L.get = v`, and the input state already has `L.get σ = v`, then
+    `p.wp F σ = 0`. Captures the standard "bad-event vanishing" pattern in
+    security proofs: once the bad flag is set, all post-outcomes count as bad
+    too (and the post assigns them 0), so the wp is 0. -/
+lemma Program.wp_zero_of_lens_preserves {s α γ : Type} [DecidableEq γ]
+    {L : Lens γ s} {p : Program s α} (h_p : p.inRange L.compl.range)
+    {F : α × s → ENNReal} {v : γ}
+    (h_F_zero : ∀ aσ : α × s, L.get aσ.2 = v → F aσ = 0)
+    {σ : s} (h_σ : L.get σ = v) :
+    p.wp F σ = 0 := by
+  rw [Program.wp_strengthen_lens_preserved L h_p]
+  rw [show (fun aσ : α × s =>
+            if L.get aσ.2 = L.get σ then F aσ else 0)
+          = (fun _ : α × s => (0 : ENNReal)) from by
+    funext aσ
+    by_cases h : L.get aσ.2 = L.get σ
+    · simp only [if_pos h]
+      exact h_F_zero aσ (h.trans h_σ)
+    · simp only [if_neg h]]
+  exact Program.wp_zero_post _ _
+
 /-- **Drop a dead write**: prepending `Program.set L v` to a program `rest` that
     doesn't touch `L`'s range is a no-op for any post that ignores `L`'s value.
     Useful for cleaning up bookkeeping writes that downstream code doesn't read. -/
