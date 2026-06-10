@@ -2876,6 +2876,67 @@ private lemma loop_final_get_game_1_wp_eq_recording
   funext aσ
   exact final_game_1_wp_eq_final_recording_game_1 t F_chal_xqg h_F_chal_xqg_qi aσ.2
 
+/-- body_recording_game_1 is chal_x-input-invariant given ow_adv chal_x-blindness.
+    Reason: body_recording starts with ow_adv, and the rest doesn't touch chal_x. -/
+private lemma body_recording_game_1_wp_chal_x_input_invariant
+    (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
+      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
+    (F : Unit × state → ENNReal) (σ : state) (v : input) :
+    (body_recording_game_1 ow_adv).wp F (ow_challenge_x.set v σ)
+    = (body_recording_game_1 ow_adv).wp F σ := by
+  -- body_recording = ow_adv >>= k. By chal_x-blindness of ow_adv on the
+  -- wp post (whatever it is), the wp value is chal_x-input-invariant.
+  unfold body_recording_game_1
+  -- The do-block elaborates to ow_adv >>= fun _ => (...). Use wp_bind directly.
+  rw [show (do
+        ow_adv
+        let inp ← Program.get oracle_input
+        let y ← lazy_query_tracked inp
+        Program.set oracle_output y
+        let qs ← Program.get queries_input
+        Program.set queries_input (qs ++ [inp]) : Program state Unit)
+       = ow_adv >>= fun _ : Unit =>
+           Program.get oracle_input >>= fun inp : input =>
+           lazy_query_tracked inp >>= fun y : output =>
+           Program.set oracle_output y >>= fun _ : Unit =>
+           Program.get queries_input >>= fun qs : List input =>
+           Program.set queries_input (qs ++ [inp])
+       from rfl]
+  rw [wp_bind, wp_bind]
+  exact h_ow_adv_chal_x_blind _ σ v
+
+/-- The full "loop + final + get chal_x_qg" chain (with recording bodies) is
+    qi-input-invariant. -/
+private lemma loop_final_get_recording_wp_qi_input_invariant
+    (ow_adv : Program state Unit) (t : input)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (q : ℕ) (σ : state) (v : List input) :
+    (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+     final_recording_game_1 >>= fun _ : Unit =>
+     Program.get chal_x_queried_gh).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+       (queries_input.set v σ)
+    = (loop_n q (body_recording_game_1 ow_adv) >>= fun _ : Unit =>
+       final_recording_game_1 >>= fun _ : Unit =>
+       Program.get chal_x_queried_gh).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  rw [← loop_final_get_game_1_wp_eq_recording ow_adv h_ow_adv_qi t q (queries_input.set v σ)]
+  rw [← loop_final_get_game_1_wp_eq_recording ow_adv h_ow_adv_qi t q σ]
+  have h_chain_qi : (loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit =>
+                       final_game_1 t >>= fun _ : Unit =>
+                       Program.get chal_x_queried_gh).inRange
+                      queries_input.compl.range := by
+    refine Program.inRange_bind
+      (loop_n_inRange _ (body_game_1_inRange_qi ow_adv h_ow_adv_qi t) q) (fun _ => ?_)
+    refine Program.inRange_bind (final_game_1_inRange_qi t) (fun _ => ?_)
+    exact Program.get_inRange_compl_of_disjoint _ _
+  have h_F_qi : IgnoresLens queries_input
+      (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) := by
+    intro bσ v'
+    rfl
+  exact wp_qi_input_invariant_of_inRange_qi _ h_chain_qi _ h_F_qi σ v
+
 /-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
 private lemma body_recording_game_1_qs_length_bump
     (adv : Program state Unit)
