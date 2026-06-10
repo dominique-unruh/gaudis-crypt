@@ -310,20 +310,15 @@ theorem reductionStep_stlc_complete
               exact ⟨.app (.procHoles ne proc) arg', .appR hnd,
                 by simp [ModuleExpression.toSTLC, ProcedureWithHoles.toSTLC, heq]⟩
           | funcApp d g N hbasic =>
-              -- Plan:
-              -- (.procHoles ne proc).toSTLC = Term.func d g where
-              --   g bt = BasicTerm.value (proc.instantiate (basicTermHoleLookup holes bt))
-              -- hbasic : isBasicType holes.toModuleTypeTuple.toSTLC arg.toSTLC
-              --
-              -- Witness: m' = .proc (proc.instantiate (basicTermHoleLookup holes bt))
-              --   where bt = toBasicTerm ... hbasic
-              --
-              -- (a) m'.toSTLC = Term.value ... = (BasicTerm.value ...).toTerm = RHS  (rfl/simp)
-              --
-              -- (b) ReductionStep via delta: need arg = instantiation.toModuleTuple
-              --   Use toModuleTuple_of_basicType to rewrite arg,
-              --   then exact .delta _
-              sorry
+              refine ⟨.proc (proc.instantiate (basicTermHoleLookup _
+                  (Metatheory.STLCext.Term.toBasicTerm _ _ hbasic))), ?_, ?_⟩
+              · exact Eq.subst
+                    (motive := fun x => ReductionStep (.app (.procHoles ne proc) x)
+                      (.proc (proc.instantiate (basicTermHoleLookup _
+                        (Metatheory.STLCext.Term.toBasicTerm _ _ hbasic)))))
+                    (toModuleTuple_of_basicType arg hbasic)
+                    (ReductionStep.delta _)
+              · rfl
       | var _ | app _ _ | fst _ | snd _ =>
           simp only [ModuleExpression.toSTLC] at h
           cases h with
@@ -433,7 +428,10 @@ theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
       (key m).1 hm
     intro Γ' T' m'
     induction m' with
-    | unit => sorry
+    | unit =>
+      constructor
+      · intro _ N h; simp only [ModuleExpression.toSTLC] at h; cases h
+      · intro hne; nomatch hne
     | var n =>
       constructor
       · intro _ N h; simp only [ModuleExpression.toSTLC] at h; cases h
@@ -585,7 +583,10 @@ private theorem ModuleExpression.erasedEqual_normal_neutral_eq
     (h : ModuleExpression.erasedEqual m m') :
     (Normal m → T1 = T2 → HEq m m') ∧ (Neutral m → T1 = T2 ∧ HEq m m') := by
   induction m generalizing T2 with
-  | unit => sorry
+  | unit =>
+    refine ⟨fun _ _ => ?_, fun hne => by cases hne⟩
+    cases m' <;> simp only [ModuleExpression.erasedEqual] at h
+    rfl
   | proc p =>
     refine ⟨fun _ _ => ?_, fun hne => by cases hne⟩
     cases m' <;> simp only [ModuleExpression.erasedEqual] at h
