@@ -2873,6 +2873,7 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
     `chal_x_queried_gh = decide (t ∈ queries_input)` maintained by
     `body_recording_game_1`. -/
 theorem game_1_correspondence (ow_adv : Program state Unit)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
     (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
       ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
     (q : ℕ)
@@ -2891,6 +2892,19 @@ theorem game_1_correspondence (ow_adv : Program state Unit)
      Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
      Program.get chal_x_queried_gh).wp
        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
+  -- The chal_x_qg-only post is qi-ignoring.
+  set Post : Bool × state → ENNReal :=
+    fun bσ => if bσ.1 then (1 : ENNReal) else 0 with hPost
+  -- Inner post after get chal_x_qg: F_inner = fun aσ : Unit × state =>
+  --   if chal_x_qg.get aσ.2 then 1 else 0. Qi-ignoring.
+  have h_F_inner_qi : IgnoresLens queries_input
+      (fun aσ : Unit × state =>
+        if chal_x_queried_gh.get aσ.2 = true then (1 : ENNReal) else 0) := by
+    intro aσ v
+    show (if chal_x_queried_gh.get (queries_input.set v aσ.2) = true then _ else _)
+       = (if chal_x_queried_gh.get aσ.2 = true then _ else _)
+    rw [Lens.get_of_disjoint_set chal_x_queried_gh queries_input]
+  -- The remaining work — alignment, invariant, final wp algebra — is DEFERRED.
   sorry
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
@@ -2916,7 +2930,7 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
       h_ow_adv_chal_y q σ]
   refine le_trans (guess_experiment_le_interim_assumption _ _ _ queries_input _ _
       (body_recording_game_1 ow_adv) final_recording_game_1 _
-      (game_1_correspondence ow_adv h_ow_adv_chal_x_blind q) _) ?_
+      (game_1_correspondence ow_adv h_ow_adv_queries h_ow_adv_chal_x_blind q) _) ?_
   apply guess_experiment_interim_wp_bound
   -- h_qs_length_le for Game 1.
   intro σ'
