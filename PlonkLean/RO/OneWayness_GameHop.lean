@@ -2395,19 +2395,13 @@ theorem guess_experiment_le_interim_via_schema
   intro σ' t
   -- Substitute schema hypotheses to expose the q_body / q_final structure.
   rw [h_body t, h_final t, h_body_recording, h_final_recording]
-  -- ATTEMPT: prove the per-state correspondence directly by induction on n.
-  --
-  -- Key claim (strengthened induction):
-  -- For any σ_state, the wp equality holds for one iter + tail, allowing
-  -- us to peel iters off the loop. The invariant tracks how matched.get
-  -- relates to (t ∈ qs.get) through the chain.
-  --
-  -- Concretely, we prove by induction:
-  -- For any σ_inner with matched_var.get σ_inner = false ∧ qs.get σ_inner = [],
-  -- the LHS chain and RHS chain have equal wps.
-  --
-  -- We achieve "matched = false, qs = []" by inserting/aligning the
-  -- prefix sets on both sides.
+  haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  -- Apply le_of_eq to convert the ≤ goal to an = goal.
+  refine le_of_eq ?_
+  -- Now prove equality. Use the invariant lemma to bridge LHS and RHS.
+  -- The chain at a state σ_aligned (matched=false, qs=[]) with invariant:
+  -- LHS_match ─→ LHS_aug ─→ decide-reading ─→ LHS_rec ─→ RHS.
+  -- DEFERRED: full assembly.
   sorry
 
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
