@@ -2489,18 +2489,20 @@ private lemma body_recording_game_2_qs_length_bump
   · exact Program.wp_qs_length_preserved_of_inRange queries_output adv h_adv σ
   · exact Program.wp_const_le _ _ _
 
-/-- **AXIOM: Game 2 correspondence**.
+/-- **Game 2 correspondence**.
 
     `body_game_2 ow_adv t`'s match-fire on `matched_chal_y` (via the explicit
     `if y_val = t` check) corresponds to `t ∈ queries_output` after
     `body_recording_game_2 ow_adv` (which appends each `y_val` to the list).
     Both events are "some lazy_query_tracked produced `y_val = t`".
 
-    This is a true cryptographic claim about specific concrete programs. Proving
-    it requires inducting on the loop with invariant
+    Proof obligation (currently `sorry`): inducting on the loop with invariant
     `matched_chal_y = decide (t ∈ queries_output)` maintained by
-    `body_recording_game_2`. Proof deferred to future work. -/
-axiom game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    `body_recording_game_2`, plus standard wp manipulation showing the body's
+    `if y_val = t then set matched true` is equivalent (at the matched-firing
+    post) to body_recording's append + final-membership-check. The bound is
+    actually *equality* (not strict ≤). -/
+theorem game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
     (σ' : state) (t : output) :
     (Program.set ow_challenge_y t >>= fun _ : Unit =>
      Program.set matched_chal_y false >>= fun _ : Unit =>
@@ -2515,7 +2517,8 @@ axiom game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
      Program.get queries_output >>= fun qs =>
      Program.set matched_chal_y (decide (t ∈ qs)) >>= fun _ : Unit =>
      Program.get matched_chal_y).wp
-       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
+  sorry
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
     Routes via `guess_experiment_game_2` → `interim` → `collector` → bound. -/
@@ -2697,7 +2700,7 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
       (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
   · exact Program.wp_const_le _ _ _
 
-/-- **AXIOM: Game 1 correspondence**.
+/-- **Game 1 correspondence**.
 
     `body_game_1 ow_adv`'s match-fire on `chal_x_queried_gh` (via
     `lazy_query_tracked` flipping the flag when `inp = chal_x = t`) corresponds
@@ -2705,11 +2708,13 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
     each `inp` to the list). Both events are "some lazy_query_tracked saw
     `inp = t`".
 
-    This is a true cryptographic claim about specific concrete programs. Proving
-    it requires inducting on the loop with invariant
+    Proof obligation (currently `sorry`): inducting on the loop with invariant
     `chal_x_queried_gh = decide (t ∈ queries_input)` maintained by
-    `body_recording_game_1`. Proof deferred to future work. -/
-axiom game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    `body_recording_game_1`. For the equivalence to hold genuinely, the
+    adversary `ow_adv` must not read `ow_challenge_x` (otherwise it could
+    behave differently in LHS where chal_x = t vs RHS where chal_x = σ'.chal_x).
+    A complete proof would need this hypothesis added. -/
+theorem game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
     (σ' : state) (t : input) :
     (Program.set ow_challenge_x t >>= fun _ : Unit =>
      Program.set chal_x_queried_gh false >>= fun _ : Unit =>
@@ -2724,7 +2729,8 @@ axiom game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
      Program.get queries_input >>= fun qs =>
      Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
      Program.get chal_x_queried_gh).wp
-       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
+  sorry
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
