@@ -2723,20 +2723,24 @@ private lemma wp_qi_input_invariant_of_inRange_qi
   show F (xs.1, queries_input.set v xs.2) = F xs
   exact h_F xs v
 
-/-- Loop equivalence: loop_n (body_game_1) and loop_n (body_recording_game_1)
-    have the same wp at queries_input-ignoring posts.
+/-- Body equivalence packaged as EquivModuloLens. -/
+private lemma body_game_1_equiv_body_recording_game_1
+    (ow_adv : Program state Unit) (t : input) :
+    Program.EquivModuloLens queries_input
+      (body_game_1 ow_adv t) (body_recording_game_1 ow_adv) :=
+  fun F h_F σ => body_game_1_wp_eq_body_recording_game_1 ow_adv t F h_F σ
 
-    Proof DEFERRED — Lean kernel times out on verification even though the
-    mathematical argument is clear (induction on n, using the body-equivalence
-    helper at each step). Likely needs further structural decomposition. -/
+/-- Loop equivalence at the wp level — via the codebase's existing
+    `loop_n_congr` lemma. -/
 private lemma loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1
     (ow_adv : Program state Unit) (t : input)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
     (n : ℕ) (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
     (σ : state) :
     (loop_n n (body_game_1 ow_adv t)).wp F σ
-    = (loop_n n (body_recording_game_1 ow_adv)).wp F σ := by
-  sorry
+    = (loop_n n (body_recording_game_1 ow_adv)).wp F σ :=
+  loop_n_congr (body_game_1_inRange_qi ow_adv h_ow_adv_qi t)
+    (body_game_1_equiv_body_recording_game_1 ow_adv t) n F h_F σ
 
 /-- Helper: final_game_1 t and final_recording_game_1 have the same wp at
     queries_input-ignoring posts. -/
