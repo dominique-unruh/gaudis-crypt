@@ -2343,6 +2343,59 @@ private lemma body_aug_eq_body_rec_matched_ignoring
       queries_list_var.set (queries_list_var.get aσ'.2 ++ [a]) aσ'.2) v
   rw [wp_match_check_matched_invisible matched_var t a _ h_inner_matched_ignoring σ_q]
 
+/-- The invariant lemma extended to include a final iteration: for σ_aligned
+    with invariant, the wp of `loop_n n body_aug >>= final_aug` at posts
+    agreeing on invariant-respecting states is independent of which post. -/
+private lemma loop_final_body_aug_wp_agree_on_invariant
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q_body q_final : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (h_q_final_matched : q_final.inRange matched_var.compl.range)
+    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
+    (t : T) (n : ℕ)
+    (F1 F2 : Unit × state → ENNReal)
+    (h_agree : ∀ aσ : Unit × state,
+      matched_var.get aσ.2 = decide (t ∈ queries_list_var.get aσ.2) →
+      F1 aσ = F2 aσ)
+    (σ : state)
+    (h_inv : matched_var.get σ = decide (t ∈ queries_list_var.get σ)) :
+    (loop_n n (q_body >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+     q_final >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F1 σ
+    = (loop_n n (q_body >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+     q_final >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp F2 σ := by
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  apply loop_n_body_aug_wp_agree_on_invariant matched_var queries_list_var
+    q_body h_q_body_matched h_q_body_qs t n
+  · intro aσ' h_inv'
+    exact body_aug_wp_agree_on_invariant matched_var queries_list_var
+      q_final h_q_final_matched h_q_final_qs t F1 F2 h_agree aσ'.2 h_inv'
+  · exact h_inv
+
 /-- **Schema-based correspondence**: when body and body_recording both
     decompose as `q >>= ...` for some shared "query" subprogram `q`, with
     body's tail being a match-check against `t` and body_recording's tail
