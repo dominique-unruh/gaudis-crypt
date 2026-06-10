@@ -2765,6 +2765,48 @@ private lemma final_game_1_wp_eq_final_recording_game_1
   dsimp only
   rw [wp_qi_get_set_invisible _ F h_F _]
 
+/-- body_recording_game_1's wp at qi-ignoring posts is invariant under
+    setting queries_input on the input. Proven by routing through body_game_1
+    (which is qi-disjoint). -/
+private lemma body_recording_game_1_wp_qi_input_invariant
+    (ow_adv : Program state Unit) (t : input)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
+    (σ : state) (v : List input) :
+    (body_recording_game_1 ow_adv).wp F (queries_input.set v σ)
+    = (body_recording_game_1 ow_adv).wp F σ := by
+  rw [← body_game_1_wp_eq_body_recording_game_1 ow_adv t F h_F
+        (queries_input.set v σ)]
+  rw [wp_qi_input_invariant_of_inRange_qi _
+        (body_game_1_inRange_qi ow_adv h_ow_adv_qi t) F h_F σ v]
+  rw [body_game_1_wp_eq_body_recording_game_1 ow_adv t F h_F σ]
+
+/-- loop_n body_recording's wp at qi-ignoring posts is qi-input-invariant.
+    Same routing trick: factor through loop_n body_game_1 (which is qi-disjoint). -/
+private lemma loop_n_body_recording_game_1_wp_qi_input_invariant
+    (ow_adv : Program state Unit) (t : input)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (n : ℕ) (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
+    (σ : state) (v : List input) :
+    (loop_n n (body_recording_game_1 ow_adv)).wp F (queries_input.set v σ)
+    = (loop_n n (body_recording_game_1 ow_adv)).wp F σ := by
+  rw [← loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1 ow_adv t h_ow_adv_qi n F h_F
+        (queries_input.set v σ)]
+  rw [wp_qi_input_invariant_of_inRange_qi _
+        (loop_n_inRange _ (body_game_1_inRange_qi ow_adv h_ow_adv_qi t) n) F h_F σ v]
+  rw [loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1 ow_adv t h_ow_adv_qi n F h_F σ]
+
+/-- final_recording_game_1's wp at qi-ignoring posts is qi-input-invariant. -/
+private lemma final_recording_game_1_wp_qi_input_invariant
+    (t : input)
+    (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
+    (σ : state) (v : List input) :
+    final_recording_game_1.wp F (queries_input.set v σ)
+    = final_recording_game_1.wp F σ := by
+  rw [← final_game_1_wp_eq_final_recording_game_1 t F h_F (queries_input.set v σ)]
+  rw [wp_qi_input_invariant_of_inRange_qi _ (final_game_1_inRange_qi t) F h_F σ v]
+  rw [final_game_1_wp_eq_final_recording_game_1 t F h_F σ]
+
 /-- Bridge: LHS with body_game_1 = LHS with body_recording_game_1, for the
     full game_1 LHS (loop + final + get chal_x_qg). Uses the loop and final
     equivalences with the qi-ignoring chal_x_qg post. -/
