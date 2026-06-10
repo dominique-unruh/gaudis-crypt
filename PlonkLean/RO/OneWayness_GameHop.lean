@@ -2616,16 +2616,12 @@ theorem guess_experiment_le_interim_via_schema
   rw [h_body t, h_final t, h_body_recording, h_final_recording]
   haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
   refine le_of_eq ?_
-  -- Plan: write LHS = X = RHS via a chain of equivalences.
-  -- (1) Peel set target_var t; set matched_var false on LHS, getting σ_L.
-  -- (2) Peel set queries_list_var [] on RHS, getting σ_R.
-  -- (3) Move both to σ_aligned by inserting invisible sets.
-  -- (4) At σ_aligned: augment LHS to use body_aug.
-  -- (5) Apply invariant lemma.
-  -- (6) De-augment to body_rec, fold RHS tail.
-  --
-  -- Each step is straightforward but requires careful wp manipulation.
-  -- Given the assembly's mechanical nature, leave as a deferred plumbing task.
+  -- The full assembly: state alignment + EquivModuloLens transitions + invariant.
+  -- Each piece uses the proven helpers; the assembly itself involves careful
+  -- wp_bind/wp_set/wp_get manipulation plus state-shift bookkeeping.
+  -- Deferred — all the conceptually hard pieces (the invariant lemmas at
+  -- both single-step and loop+final levels, body_match↔body_aug↔body_rec
+  -- equivalences) are proven.
   sorry
 
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
