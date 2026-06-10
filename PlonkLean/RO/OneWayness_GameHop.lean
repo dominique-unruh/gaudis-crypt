@@ -2679,6 +2679,65 @@ private lemma body_game_1_wp_eq_body_recording_game_1
   dsimp only
   rw [wp_qi_get_set_invisible _ F h_F _]
 
+/-- body_game_1 is queries_input-disjoint when ow_adv is. -/
+private lemma body_game_1_inRange_qi
+    (ow_adv : Program state Unit)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (t : input) :
+    (body_game_1 ow_adv t).inRange queries_input.compl.range := by
+  unfold body_game_1
+  refine Program.inRange_bind h_ow_adv_qi (fun _ => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun inp => ?_)
+  refine Program.inRange_bind (lazy_query_tracked_inRange_queries_input _) (fun y => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
+/-- final_game_1 is queries_input-disjoint. -/
+private lemma final_game_1_inRange_qi (t : input) :
+    (final_game_1 t).inRange queries_input.compl.range := by
+  unfold final_game_1
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
+  refine Program.inRange_bind (lazy_query_tracked_inRange_queries_input _) (fun y => ?_)
+  exact Program.set_inRange_compl_of_disjoint _ _ _
+
+/-- A queries_input-disjoint program's wp at qi-ignoring F is invariant under
+    setting queries_input on the input. -/
+private lemma wp_qi_input_invariant_of_inRange_qi
+    {α : Type} (p : Program state α)
+    (h_p_qi : p.inRange queries_input.compl.range)
+    (F : α × state → ENNReal) (h_F : IgnoresLens queries_input F)
+    (σ : state) (v : List input) :
+    p.wp F (queries_input.set v σ) = p.wp F σ := by
+  have h_f_updates : (queries_input.update (Function.const _ v))
+      ∈ ((queries_input.compl.range : LensRange state)ᶜ).updates := by
+    rw [show ((queries_input.compl.range : LensRange state)ᶜ) = queries_input.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  have h_set_eq : queries_input.update (Function.const _ v) σ = queries_input.set v σ := by
+    show queries_input.set ((Function.const _ v) (queries_input.get σ)) σ = queries_input.set v σ
+    rfl
+  rw [← h_set_eq]
+  rw [Program.wp_shift_input h_p_qi h_f_updates]
+  congr 1
+  funext xs
+  show F (xs.1, queries_input.update (Function.const _ v) xs.2) = F xs
+  show F (xs.1, queries_input.set v xs.2) = F xs
+  exact h_F xs v
+
+/-- Loop equivalence: loop_n (body_game_1) and loop_n (body_recording_game_1)
+    have the same wp at queries_input-ignoring posts.
+
+    Proof DEFERRED — Lean kernel times out on verification even though the
+    mathematical argument is clear (induction on n, using the body-equivalence
+    helper at each step). Likely needs further structural decomposition. -/
+private lemma loop_n_body_game_1_wp_eq_loop_n_body_recording_game_1
+    (ow_adv : Program state Unit) (t : input)
+    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (n : ℕ) (F : Unit × state → ENNReal) (h_F : IgnoresLens queries_input F)
+    (σ : state) :
+    (loop_n n (body_game_1 ow_adv t)).wp F σ
+    = (loop_n n (body_recording_game_1 ow_adv)).wp F σ := by
+  sorry
+
 /-- Helper: final_game_1 t and final_recording_game_1 have the same wp at
     queries_input-ignoring posts. -/
 private lemma final_game_1_wp_eq_final_recording_game_1
