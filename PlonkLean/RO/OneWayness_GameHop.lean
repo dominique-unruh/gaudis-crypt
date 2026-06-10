@@ -1918,6 +1918,36 @@ theorem guess_experiment_le_interim_assumption
   gcongr
   exact h_correspondence aσ_env.2 t
 
+/-- A trailing `get qs >>= set qs (qs ++ [a])` is wp-invisible at
+    queries_list-ignoring posts. Generic in `T` and `queries_list_var`. -/
+private lemma wp_record_append_invisible
+    {T : Type} (queries_list_var : Lens (List T) state) (val : T)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens queries_list_var F)
+    (σ : state) :
+    (Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [val])).wp F σ
+    = F ((), σ) := by
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_set]
+  exact h_F ((), σ) _
+
+/-- The match-check `if a = t then set matched true else pure ()` is
+    wp-invisible at matched-ignoring posts. -/
+private lemma wp_match_check_matched_invisible
+    {T : Type} [DecidableEq T] (matched_var : Lens Bool state)
+    (t a : T) (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens matched_var F)
+    (σ : state) :
+    (if a = t then Program.set matched_var true
+     else (pure () : Program state Unit)).wp F σ
+    = F ((), σ) := by
+  by_cases h : a = t
+  · simp only [if_pos h, wp_set]
+    exact h_F ((), σ) _
+  · simp only [if_neg h, wp_pure]
+
 /-- The combined "match_check + record" trailing has a specific wp form:
     it sets matched to (old_matched ∨ (a = t)) and qs to (old_qs ++ [a]).
     For F that's "invariant-respecting" (returns same value on states
@@ -2215,35 +2245,6 @@ private lemma body_aug_wp_invariant_step
       rw [h_inv_σ_new]
     · simp only [hm, if_false]
   · simp only [hq, if_false]
-
-/-- A trailing `get qs >>= set qs (qs ++ [a])` is wp-invisible at
-    queries_list-ignoring posts. Generic in `T` and `queries_list_var`. -/
-private lemma wp_record_append_invisible
-    {T : Type} (queries_list_var : Lens (List T) state) (val : T)
-    (F : Unit × state → ENNReal)
-    (h_F : IgnoresLens queries_list_var F)
-    (σ : state) :
-    (Program.get queries_list_var >>= fun qs : List T =>
-       Program.set queries_list_var (qs ++ [val])).wp F σ
-    = F ((), σ) := by
-  rw [wp_bind, wp_get]
-  dsimp only
-  rw [wp_set]
-  exact h_F ((), σ) _
-
-/-- The match-check `if a = t then set matched true else pure ()` is
-    wp-invisible at matched-ignoring posts. -/
-private lemma wp_match_check_matched_invisible
-    {T : Type} [DecidableEq T] (matched_var : Lens Bool state)
-    (t a : T) (F : Unit × state → ENNReal)
-    (h_F : IgnoresLens matched_var F)
-    (σ : state) :
-    (if a = t then Program.set matched_var true else (pure () : Program state Unit)).wp F σ
-    = F ((), σ) := by
-  by_cases h : a = t
-  · simp only [if_pos h, wp_set]
-    exact h_F ((), σ) _
-  · simp only [if_neg h, wp_pure]
 
 /-- **Schema-based correspondence**: when body and body_recording both
     decompose as `q >>= ...` for some shared "query" subprogram `q`, with
