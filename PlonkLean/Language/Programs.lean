@@ -11,9 +11,13 @@ def State [spec : ProgramSpec] := spec.state
 
 variable [ProgramSpec]
 
+def VariableName := String
+
 structure ProcedureSignature where
-  params : List Type
-  ret    : Type
+  params : List (VariableName × Type)
+  locals : List (VariableName × Σ t : Type, Inhabited t)
+  ret : Type
+  distinctNames : List.Nodup ((params.map Prod.fst) ++ (locals.map Prod.fst))
 
 def paramListToTuple : List Type → Type
   | []      => Unit
@@ -50,11 +54,11 @@ inductive StmtWithHoles [ProgramSpec] : HoleSigs → Type _ where
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
       Var sig.ret → StmtWithHoles .empty → Expr sig.ret
-        → Expr (paramListToTuple sig.params) → StmtWithHoles h
+        → Expr (paramListToTuple (sig.params.map Prod.snd)) → StmtWithHoles h
   | hole {sig} (n: HoleIndex h sig) :
-      Var sig.ret → Expr (paramListToTuple sig.params) → StmtWithHoles h
+      Var sig.ret → Expr (paramListToTuple (sig.params.map Prod.snd)) → StmtWithHoles h
   | seq : StmtWithHoles h → StmtWithHoles h → StmtWithHoles h                   -- c1; c2
-  | ifThenElse : Expr Bool → StmtWithHoles h → StmtWithHoles h → StmtWithHoles h  -- if b then c1 else c2
+  | ifThenElse : Expr Bool → StmtWithHoles h → StmtWithHoles h → StmtWithHoles h
   | while : Expr Bool → StmtWithHoles h → StmtWithHoles h          -- while b do c
 
 def Stmt [ProgramSpec] := StmtWithHoles .empty
@@ -67,11 +71,11 @@ def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
 @[match_pattern]
 def StmtWithHoles.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
-      (params : Expr (paramListToTuple sig.params)) : StmtWithHoles h :=
+      (params : Expr (paramListToTuple (sig.params.map Prod.snd))) : StmtWithHoles h :=
   StmtWithHoles.call' x proc.body proc.return_val params
 
 def Stmt.call [ProgramSpec] {sig} (x : Var sig.ret) (proc : Procedure sig)
-                     (params : Expr (paramListToTuple sig.params)) : Stmt
+                     (params : Expr (paramListToTuple (sig.params.map Prod.snd))) : Stmt
      := StmtWithHoles.call x proc params
 
 def HoleSigs.Instantiation (holes : HoleSigs) := ∀ {sig}, HoleIndex holes sig → Procedure sig
