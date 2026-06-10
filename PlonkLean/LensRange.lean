@@ -1,4 +1,4 @@
-import PlonkLean.Lens
+import PlonkLean.Language.Lens
 
 instance : Monoid (m → m) where
   mul := (· ∘ ·)

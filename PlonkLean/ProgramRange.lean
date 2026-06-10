@@ -1,6 +1,6 @@
-import PlonkLean.Semantics
+import PlonkLean.Language.Semantics
 import PlonkLean.WeakestPreconditions
-import PlonkLean.LensRange
+import PlonkLean.Language.LensRange
 
 /-!
 # Program.range and `glob` foundations
