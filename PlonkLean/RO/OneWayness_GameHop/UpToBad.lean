@@ -106,7 +106,7 @@ noncomputable def insert_at_chal_x (y_chal : output) (σ : state) : state :=
 
 /-- Decompose `lazy_query_tracked.wp` into a `lazy_query.wp` with the
     bad-flag branching folded into the post. -/
-lemma lazy_query_tracked_wp_decompose
+private lemma lazy_query_tracked_wp_decompose
     (inp : input) (F : output × state → ENNReal) (σ : state) :
     (lazy_query_tracked inp).wp F σ
     = (lazy_query inp).wp
@@ -123,7 +123,7 @@ lemma lazy_query_tracked_wp_decompose
   · simp only [h, ↓reduceIte, wp_set, wp_pure]
   · simp only [h, ↓reduceIte, wp_pure]
 
-lemma RO_setentry_neq_commutes_lazy_query
+private lemma RO_setentry_neq_commutes_lazy_query
     (inp x : input) (h_neq : inp ≠ x) (y : output) (σ : state)
     (F : output × state → ENNReal) :
     (lazy_query inp).wp F
@@ -182,7 +182,7 @@ lemma RO_setentry_neq_commutes_lazy_query
     rw [σ_xy_def, h_setentry_commute v]
 
 /-- Per-step invariance for `lazy_query` at inp ≠ `chal_x`. -/
-lemma lazy_query_wp_invariant_under_RO_chal_x_set_at_neq
+private lemma lazy_query_wp_invariant_under_RO_chal_x_set_at_neq
     (inp : input) (F : output × state → ENNReal)
     (h_F_RO_inv : ∀ (a : output) (σ' : state) (y : output),
        F (a, insert_at_chal_x y σ') = F (a, σ'))
@@ -225,7 +225,7 @@ lemma lazy_query_wp_invariant_under_RO_chal_x_set_at_neq
   · simp only [if_neg h_chal]
 
 /-- Per-step invariance for `lazy_query_tracked`. -/
-lemma lazy_query_tracked_wp_invariant_under_RO_chal_x_set
+private lemma lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     (inp : input) (F : output × state → ENNReal)
     (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
     (h_F_RO_inv : ∀ (a : output) (σ' : state) (y : output),
@@ -294,7 +294,7 @@ lemma lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     rw [h_reduce_to_F σ rfl]
     exact lazy_query_wp_invariant_under_RO_chal_x_set_at_neq inp F h_F_RO_inv σ y_chal h
 
-lemma Program.wp_zero_of_flag_true_in_range
+private lemma Program.wp_zero_of_flag_true_in_range
     {α : Type} {p : Program state α} (h_p : p.inRange chal_x_queried_gh.compl.range)
     {F : α × state → ENNReal}
     (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
@@ -315,7 +315,7 @@ lemma Program.wp_zero_of_flag_true_in_range
 /-- **Flag-true-zero for `lazy_query_tracked`**: starting at flag-true, the wp on a
     bad-vanishing post is 0. `lazy_query_tracked` may set flag to true but never to
     false, so all post-states have flag = true. -/
-lemma lazy_query_tracked_wp_at_flag_true
+private lemma lazy_query_tracked_wp_at_flag_true
     (inp : input) (F : output × state → ENNReal)
     (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
     (σ : state) (h_flag : chal_x_queried_gh.get σ = true) :
@@ -336,7 +336,7 @@ lemma lazy_query_tracked_wp_at_flag_true
     extended to a single oracle step. The adversary is flag-disjoint, the
     `get oracle_input` is no-op, the `lazy_query_tracked` step uses its own
     flag-true-zero lemma, and the `set oracle_output` is flag-disjoint. -/
-lemma oracle_step_wp_at_flag_true
+private lemma oracle_step_wp_at_flag_true
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (F : Unit × state → ENNReal)
     (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
@@ -372,7 +372,7 @@ lemma oracle_step_wp_at_flag_true
 
 /-- **Flag-true-zero for `oracle_loop_n`**: the loop preserves the flag-true-zero
     property. By induction on the iteration count. -/
-lemma oracle_loop_n_lazy_query_tracked_wp_at_flag_true
+private lemma oracle_loop_n_lazy_query_tracked_wp_at_flag_true
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (q : ℕ) (F : Unit × state → ENNReal)
     (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
@@ -400,7 +400,7 @@ lemma oracle_loop_n_lazy_query_tracked_wp_at_flag_true
     Proof uses `wp_shift_input` via `h_ow_adv` (the adversary is RO-disjoint,
     so it commutes with RO writes), then chal_x-preservation strengthening,
     then the per-step lemma for `lazy_query_tracked`. -/
-lemma oracle_step_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
+private lemma oracle_step_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (F : Unit × state → ENNReal)
@@ -497,7 +497,7 @@ lemma oracle_step_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     preserves the RO[chal_x]-invariance + bad-vanishing post equality. By
     induction on `q`, using the per-step lemma at each oracle_step and
     the flag-true-zero lemma to show the inner wp is bad-vanishing. -/
-lemma oracle_loop_n_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
+private lemma oracle_loop_n_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
@@ -530,7 +530,7 @@ lemma oracle_loop_n_lazy_query_tracked_wp_invariant_under_RO_chal_x_set
       exact IH F h_F_bad_zero h_F_RO_inv σ' y
 
 
-theorem ow_game_1_tracked_eq_ow_game_2_tracked_until_bad
+private theorem ow_game_1_tracked_eq_ow_game_2_tracked_until_bad
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
@@ -654,7 +654,7 @@ Mass conservation REQUIRES the adversary to be a probability program
 termination probabilities can differ between G1 and G2. -/
 
 /-- Mass of `lazy_query` is 1 at any state — it always returns. -/
-lemma lazy_query_mass_one (inp : input) (σ : state) :
+private lemma lazy_query_mass_one (inp : input) (σ : state) :
     (lazy_query inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   unfold lazy_query
   rw [wp_bind, wp_get]
@@ -671,7 +671,7 @@ lemma lazy_query_mass_one (inp : input) (σ : state) :
     rw [wp_pure]
 
 /-- Mass of `lazy_query_tracked` is 1 at any state. -/
-lemma lazy_query_tracked_mass_one (inp : input) (σ : state) :
+private lemma lazy_query_tracked_mass_one (inp : input) (σ : state) :
     (lazy_query_tracked inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   have h_rest_mass : ∀ (y : output) (σ' : state),
       (Program.get ow_challenge_x >>= fun cx =>
@@ -699,7 +699,7 @@ lemma lazy_query_tracked_mass_one (inp : input) (σ : state) :
   exact lazy_query_mass_one inp σ
 
 /-- Mass of `oracle_step adv lazy_query_tracked` equals mass of `adv`. -/
-lemma oracle_step_lqt_mass_eq_adv_mass (σ : state) :
+private lemma oracle_step_lqt_mass_eq_adv_mass (σ : state) :
     (oracle_step ow_adv lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ
     = ow_adv.wp (fun _ => (1 : ENNReal)) σ := by
   unfold oracle_step
@@ -723,7 +723,7 @@ lemma oracle_step_lqt_mass_eq_adv_mass (σ : state) :
   rw [h_post_const]
 
 /-- Mass of `loop_n n body` is `1` if body has mass 1 at every state. -/
-lemma loop_n_mass_one
+private lemma loop_n_mass_one
     (body : Program state Unit)
     (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
     (n : ℕ) (σ : state) :
@@ -742,7 +742,7 @@ lemma loop_n_mass_one
     exact h_body σ
 
 /-- Mass of `oracle_loop_n adv q lazy_query_tracked` is `1` if adv has mass 1. -/
-lemma oracle_loop_n_lqt_mass_one
+private lemma oracle_loop_n_lqt_mass_one
     (h_adv_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (oracle_loop_n ow_adv q lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ = 1 := by
@@ -753,7 +753,7 @@ lemma oracle_loop_n_lqt_mass_one
   exact h_adv_mass σ'
 
 /-- Mass-preservation under bind: if `p` and every `k a` have mass 1, then `p >>= k` has mass 1. -/
-lemma Program.mass_bind {α β : Type}
+private lemma Program.mass_bind {α β : Type}
     (p : Program state α) (k : α → Program state β)
     (hp : ∀ σ, p.wp (fun _ => (1 : ENNReal)) σ = 1)
     (hk : ∀ a σ, (k a).wp (fun _ => (1 : ENNReal)) σ = 1)
@@ -768,11 +768,11 @@ lemma Program.mass_bind {α β : Type}
   exact hp σ
 
 /-- Mass of `Program.set` is always 1. -/
-lemma Program.set_mass_one {α : Type} (L : Lens α state) (v : α) (σ : state) :
+private lemma Program.set_mass_one {α : Type} (L : Lens α state) (v : α) (σ : state) :
     (Program.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by rw [wp_set]
 
 /-- Mass of `Program.uniform` is always 1. -/
-lemma Program.uniform_mass_one {α : Type} [Fintype α] [Nonempty α] (σ : state) :
+private lemma Program.uniform_mass_one {α : Type} [Fintype α] [Nonempty α] (σ : state) :
     (Program.uniform : Program state α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_uniform]
   show ∑ _i : α, (1 : ENNReal) / (Fintype.card α : ENNReal) = 1

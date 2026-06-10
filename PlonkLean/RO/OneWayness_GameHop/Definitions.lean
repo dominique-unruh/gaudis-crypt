@@ -71,7 +71,7 @@ noncomputable def ow_game_1 (q : ℕ) : Program state Bool := do
 /-- On a state whose entire RO is `fun _ => none` (i.e., immediately after
     `lazy_init`), `lazy_query inp` is wp-equivalent to "sample a fresh `y`,
     insert `(inp ↦ y)` into the RO, return `y`". -/
-lemma lazy_query_on_totally_empty_RO
+private lemma lazy_query_on_totally_empty_RO
     (inp : input) (σ : state)
     (h_empty : random_oracle_state.get σ = fun _ => none)
     (F : output × state → ENNReal) :
@@ -85,7 +85,7 @@ lemma lazy_query_on_totally_empty_RO
   -- The match key is now `(fun _ : input => none) inp = none`. Reduce.
   simp only [wp_bind, wp_uniform, wp_set, wp_pure]
 
-lemma lazy_query_x_eq_explicit_y_frame {α : Type}
+private lemma lazy_query_x_eq_explicit_y_frame {α : Type}
     (rest : input → output → Program state α) :
     (lazy_init >>= fun _ : Unit =>
       Program.uniform >>= fun x : input =>

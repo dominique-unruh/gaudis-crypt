@@ -141,7 +141,7 @@ deferred-sampling content becomes a single equivalence proof
     compute the matched flag via `decide (t ∈ queries_list)`. `body` and
     `final` operate without knowledge of the target; they're responsible
     for appending their "comparison values" to `queries_list`. -/
-noncomputable def guess_experiment_collector
+private noncomputable def guess_experiment_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit)
     (queries_list_var : Lens (List T) state)
@@ -179,7 +179,7 @@ noncomputable def guess_experiment_interim
 
 /-- **Interim = Collector** as programs, by commuting the `uniform` sampling
     past the `t`-independent prefix via `Program.bind_uniform_comm`. -/
-theorem guess_experiment_interim_eq_collector
+private theorem guess_experiment_interim_eq_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit)
     (queries_list_var : Lens (List T) state)
@@ -209,7 +209,7 @@ theorem guess_experiment_interim_eq_collector
 
     Proof: wp_uniform gives ∑_t 1[t ∈ qs] / |T|; ∑_t 1[t ∈ qs] equals
     `(Finset.univ.filter (· ∈ qs)).card = qs.toFinset.card ≤ qs.length`. -/
-lemma uniform_wp_mem_le
+private lemma uniform_wp_mem_le
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (qs : List T) (σ : state) :
     (Program.uniform : Program state T).wp
@@ -244,7 +244,7 @@ lemma uniform_wp_mem_le
     After body+final, `queries_list` holds some list `qs` of length ≤ n+1
     (under the length hypothesis). Then `t ~ Uniform[T]` is sampled
     independently. So `P[t ∈ qs] = |qs|/|T| ≤ (n+1)/|T|`. -/
-theorem guess_experiment_collector_wp_bound
+private theorem guess_experiment_collector_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (env : Program state Unit)
     (queries_list_var : Lens (List T) state)
@@ -356,7 +356,7 @@ theorem guess_experiment_le_interim_assumption
 
 /-- A trailing `get qs >>= set qs (qs ++ [a])` is wp-invisible at
     queries_list-ignoring posts. Generic in `T` and `queries_list_var`. -/
-lemma wp_record_append_invisible
+private lemma wp_record_append_invisible
     {T : Type} (queries_list_var : Lens (List T) state) (val : T)
     (F : Unit × state → ENNReal)
     (h_F : IgnoresLens queries_list_var F)
@@ -371,7 +371,7 @@ lemma wp_record_append_invisible
 
 /-- The match-check `if a = t then set matched true else pure ()` is
     wp-invisible at matched-ignoring posts. -/
-lemma wp_match_check_matched_invisible
+private lemma wp_match_check_matched_invisible
     {T : Type} [DecidableEq T] (matched_var : Lens Bool state)
     (t a : T) (F : Unit × state → ENNReal)
     (h_F : IgnoresLens matched_var F)
@@ -389,7 +389,7 @@ lemma wp_match_check_matched_invisible
     For F that's "invariant-respecting" (returns same value on states
     satisfying the invariant), the wp from invariant-respecting input
     gives F applied at an invariant-respecting output state. -/
-lemma match_check_record_wp
+private lemma match_check_record_wp
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -421,7 +421,7 @@ lemma match_check_record_wp
 /-- After running `match_check t a; record a` from a state σ with the invariant
     `matched.get σ = decide (t ∈ qs.get σ)`, the resulting state also satisfies
     the invariant. -/
-lemma match_check_record_preserves_invariant
+private lemma match_check_record_preserves_invariant
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -461,7 +461,7 @@ lemma match_check_record_preserves_invariant
 /-- Generalized body_aug agreement lemma: if F1 and F2 agree on
     invariant-respecting states, then body_aug.wp F1 = body_aug.wp F2 at
     invariant-respecting input. -/
-lemma body_aug_wp_agree_on_invariant
+private lemma body_aug_wp_agree_on_invariant
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -516,7 +516,7 @@ lemma body_aug_wp_agree_on_invariant
 /-- Loop version of `body_aug_wp_agree_on_invariant`: the n-fold iteration
     of body_aug also has wp agreeing on invariant-respecting posts when
     starting from an invariant-respecting state. -/
-lemma loop_n_body_aug_wp_agree_on_invariant
+private lemma loop_n_body_aug_wp_agree_on_invariant
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -630,7 +630,7 @@ lemma loop_n_body_aug_wp_agree_on_invariant
     rw [h_LHS, h_RHS]
     exact body_aug_wp_agree_on_invariant matched_var queries_list_var
       q_body h_q_body_matched h_q_body_qs t _ _ h_inner_agree σ h_inv
-lemma body_aug_wp_invariant_step
+private lemma body_aug_wp_invariant_step
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -685,7 +685,7 @@ lemma body_aug_wp_invariant_step
 /-- Augmentation invisibility: `body_match` and `body_aug` (= body_match + record)
     have the same wp at queries_list-ignoring posts. The trailing record is
     invisible. -/
-lemma body_match_eq_body_aug_qs_ignoring
+private lemma body_match_eq_body_aug_qs_ignoring
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -716,7 +716,7 @@ lemma body_match_eq_body_aug_qs_ignoring
 
 /-- Match-check elision: `body_aug` and `body_rec` (= body_aug without match_check)
     have the same wp at matched-ignoring posts. -/
-lemma body_aug_eq_body_rec_matched_ignoring
+private lemma body_aug_eq_body_rec_matched_ignoring
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -782,7 +782,7 @@ lemma body_aug_eq_body_rec_matched_ignoring
 /-- The invariant lemma extended to include a final iteration: for σ_aligned
     with invariant, the wp of `loop_n n body_aug >>= final_aug` at posts
     agreeing on invariant-respecting states is independent of which post. -/
-lemma loop_final_body_aug_wp_agree_on_invariant
+private lemma loop_final_body_aug_wp_agree_on_invariant
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -833,7 +833,7 @@ lemma loop_final_body_aug_wp_agree_on_invariant
   · exact h_inv
 
 /-- Body_match → body_aug as EquivModuloLens at queries_list_var. -/
-lemma body_match_equiv_body_aug
+private lemma body_match_equiv_body_aug
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -852,7 +852,7 @@ lemma body_match_equiv_body_aug
     body_match_eq_body_aug_qs_ignoring matched_var queries_list_var q t F h_F σ
 
 /-- Body_aug → body_rec as EquivModuloLens at matched_var. -/
-lemma body_aug_equiv_body_rec
+private lemma body_aug_equiv_body_rec
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -872,7 +872,7 @@ lemma body_aug_equiv_body_rec
     body_aug_eq_body_rec_matched_ignoring matched_var queries_list_var q t F h_F σ
 
 /-- body_match (= q >>= match_check) is qs-disjoint when q is. -/
-lemma body_match_inRange_qs
+private lemma body_match_inRange_qs
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -891,7 +891,7 @@ lemma body_match_inRange_qs
     exact Program.inRange_pure _ _
 
 /-- body_rec (= q >>= record) is matched-disjoint when q is and matched ⊥ qs. -/
-lemma body_rec_inRange_matched
+private lemma body_rec_inRange_matched
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -906,7 +906,7 @@ lemma body_rec_inRange_matched
   exact Program.set_inRange_compl_of_disjoint _ _ _
 
 /-- The loop+final body_match ≈ body_aug equivalence (modulo queries_list_var). -/
-lemma loop_final_body_match_equiv_body_aug
+private lemma loop_final_body_match_equiv_body_aug
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -941,7 +941,7 @@ lemma loop_final_body_match_equiv_body_aug
     (fun _ => body_match_inRange_qs matched_var queries_list_var q_final h_q_final_qs t)
 
 /-- The loop+final body_aug ≈ body_rec equivalence (modulo matched_var). -/
-lemma loop_final_body_aug_equiv_body_rec
+private lemma loop_final_body_aug_equiv_body_rec
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
@@ -983,7 +983,7 @@ lemma loop_final_body_aug_equiv_body_rec
 /-- LHS prefix/trailing peel for the schema: peels `set target_var t`,
     `set matched_var false` from the prefix and `>>= get matched_var` from
     the trailing, leaving a canonical `(X >>= Y).wp F_matched σ_inner` form. -/
-lemma guess_experiment_LHS_reduce
+private lemma guess_experiment_LHS_reduce
     {T : Type}
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (X Y : Program state Unit)
@@ -1017,7 +1017,7 @@ lemma guess_experiment_LHS_reduce
 /-- RHS prefix/trailing peel for the schema: peels `set queries_list_var []`
     from the prefix and `>>= get qs >>= set matched (decide t ∈ qs) >>= get matched`
     from the trailing, leaving a canonical `(X >>= Y).wp F_decide σ_inner` form. -/
-lemma guess_experiment_RHS_reduce
+private lemma guess_experiment_RHS_reduce
     {T : Type} [DecidableEq T]
     (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)

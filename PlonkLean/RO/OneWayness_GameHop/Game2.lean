@@ -45,7 +45,7 @@ variable (ow_adv : Program state Unit)
 
 /-- Body of `guess_experiment_game_2`: adv query + explicit match check
     against the bound target `y`. -/
-noncomputable def body_game_2 (y : output) : Program state Unit := do
+private noncomputable def body_game_2 (y : output) : Program state Unit := do
   ow_adv
   let inp ← Program.get oracle_input
   let y_val ← lazy_query_tracked inp
@@ -54,14 +54,14 @@ noncomputable def body_game_2 (y : output) : Program state Unit := do
 
 /-- Final of `guess_experiment_game_2`: oracle on response + explicit
     match check against the bound target `y`. -/
-noncomputable def final_game_2 (y : output) : Program state Unit := do
+private noncomputable def final_game_2 (y : output) : Program state Unit := do
   let resp ← Program.get ow_response
   let y_val ← lazy_query_tracked resp
   if y_val = y then Program.set matched_chal_y true else pure ()
 
 /-- Env of `guess_experiment_game_2`: lazy_init + reset chal_x_queried_gh +
     sample chal_x. -/
-noncomputable def env_game_2 : Program state Unit := do
+private noncomputable def env_game_2 : Program state Unit := do
   lazy_init
   Program.set chal_x_queried_gh false
   let x ← Program.uniform
@@ -70,11 +70,11 @@ noncomputable def env_game_2 : Program state Unit := do
 /-- **Game 2 as a `guess_experiment` instance.** The matched flag is
     `matched_chal_y`; the target is the uniformly-sampled `chal_y`. Body
     and final use the BOUND target `y` for explicit match-checks. -/
-noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
+private noncomputable def guess_experiment_game_2 (q : ℕ) : Program state Bool :=
   guess_experiment env_game_2 Program.uniform ow_challenge_y matched_chal_y
     (body_game_2 ow_adv) (final_game_2) q
 
-lemma lazy_query_tracked_inRange_matched_chal_y (inp : input) :
+private lemma lazy_query_tracked_inRange_matched_chal_y (inp : input) :
     (lazy_query_tracked inp).inRange matched_chal_y.compl.range := by
   unfold lazy_query_tracked
   refine Program.inRange_bind ?_ (fun y => ?_)
@@ -92,7 +92,7 @@ lemma lazy_query_tracked_inRange_matched_chal_y (inp : input) :
 
 /-- `oracle_step adv lazy_query_tracked` is matched_chal_y-disjoint when
     `adv` is. -/
-lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
+private lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range) :
     (oracle_step ow_adv lazy_query_tracked).inRange matched_chal_y.compl.range := by
   unfold oracle_step
@@ -108,7 +108,7 @@ lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
 
 /-- **Cond_set invisibility for matched-ignoring posts.** A direct
     `if cond then set matched true else pure ()` is wp-invisible. -/
-lemma cond_set_matched_chal_y_wp_invisible
+private lemma cond_set_matched_chal_y_wp_invisible
     (cond : Prop) [Decidable cond] (F : Unit × state → ENNReal)
     (h_F : ∀ aσ : Unit × state,
         F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
@@ -124,7 +124,7 @@ lemma cond_set_matched_chal_y_wp_invisible
     bound-variable cond_set on the matched_chal_y flag. Defined as a
     separate program so the kernel sees a single named term rather than a
     deeply-nested lambda expression — keeps inductive proofs tractable. -/
-noncomputable def body_v2 (adv : Program state Unit) (y : output) :
+private noncomputable def body_v2 (adv : Program state Unit) (y : output) :
     Program state Unit := do
   adv
   let inp ← Program.get oracle_input
@@ -135,7 +135,7 @@ noncomputable def body_v2 (adv : Program state Unit) (y : output) :
 /-- **Body-level wp equality for the bound-variable cond_set pattern.**
     `body_v2 ow_adv y` has same wp as plain `oracle_step` for
     matched_chal_y-ignoring posts. -/
-lemma body_v2_wp_eq_oracle_step
+private lemma body_v2_wp_eq_oracle_step
     (y : output) (F : Unit × state → ENNReal)
     (h_F : ∀ aσ : Unit × state,
         F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
@@ -150,7 +150,7 @@ lemma body_v2_wp_eq_oracle_step
     any matched-ignoring post (provided some matched-disjoint reference
     body's wp is matched-set-invariant on input), then their loops have
     same wp. Abstracted to avoid kernel timeouts from heavy fixed bodies. -/
-lemma loop_n_wp_eq_of_body_eq
+private lemma loop_n_wp_eq_of_body_eq
     {body_v body_ref : Program state Unit}
     (h_ref_inRange : body_ref.inRange matched_chal_y.compl.range)
     (h_body_eq : ∀ (F : Unit × state → ENNReal),
@@ -195,7 +195,7 @@ lemma loop_n_wp_eq_of_body_eq
 
 /-- Specialization: `loop_n n (body_v2 ow_adv y)` ≡ `loop_n n oracle_step` on
     matched-ignoring posts. -/
-lemma loop_n_body_v2_wp_eq
+private lemma loop_n_body_v2_wp_eq
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (n : ℕ) (y : output)
     (F : Unit × state → ENNReal)
@@ -212,7 +212,7 @@ lemma loop_n_body_v2_wp_eq
 /-- **General matched_chal_y-set invariance of wp.** For any program in
     matched_chal_y.compl.range and any matched-ignoring post, the wp value
     is invariant under matched_chal_y.set on the input state. -/
-lemma wp_matched_chal_y_set_inv {α : Type} {p : Program state α}
+private lemma wp_matched_chal_y_set_inv {α : Type} {p : Program state α}
     (hp : p.inRange matched_chal_y.compl.range)
     (b : Bool) (F : α × state → ENNReal)
     (h_F : ∀ aσ : α × state, F (aσ.1, matched_chal_y.set b aσ.2) = F aσ)
@@ -251,7 +251,7 @@ lemma wp_matched_chal_y_set_inv {α : Type} {p : Program state α}
     matched event (final iteration's match-check fires when win holds).
     Lean elaboration of full `unfold` is heavy (whnf timeouts) — needs
     careful per-symbol unfolding. Sorry'd. -/
-lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
+private lemma ow_game_2_tracked_wins_le_guess_experiment_game_2_matched
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
@@ -383,7 +383,7 @@ and the length invariant. This closes the chain via:
 
 /-- Body recording for Game 2 wins: same shape as guess_experiment_game_2.body
     but without the explicit match-check; instead appends `y_val` to qs. -/
-noncomputable def body_recording_game_2 (adv : Program state Unit) :
+private noncomputable def body_recording_game_2 (adv : Program state Unit) :
     Program state Unit := do
   adv
   let inp ← Program.get oracle_input
@@ -393,7 +393,7 @@ noncomputable def body_recording_game_2 (adv : Program state Unit) :
   Program.set queries_output (qs ++ [y_val])
 
 /-- Final recording for Game 2 wins: the last query attempt records `y_val`. -/
-noncomputable def final_recording_game_2 : Program state Unit := do
+private noncomputable def final_recording_game_2 : Program state Unit := do
   let resp ← Program.get ow_response
   let y_val ← lazy_query_tracked resp
   let qs ← Program.get queries_output
@@ -407,7 +407,7 @@ for final. -/
 
 /-- The "query" subprogram shared between body_game_2 and body_recording_game_2.
     Returns `y_val` (the lazy_query_tracked output for the adv's query). -/
-noncomputable def q_body_game_2 (ow_adv : Program state Unit) : Program state output := do
+private noncomputable def q_body_game_2 (ow_adv : Program state Unit) : Program state output := do
   ow_adv
   let inp ← Program.get oracle_input
   let y_val ← lazy_query_tracked inp
@@ -416,13 +416,13 @@ noncomputable def q_body_game_2 (ow_adv : Program state Unit) : Program state ou
 
 /-- The "query" subprogram shared between final_game_2 and final_recording_game_2.
     Returns `y_val` for the response. -/
-noncomputable def q_final_game_2 : Program state output := do
+private noncomputable def q_final_game_2 : Program state output := do
   let resp ← Program.get ow_response
   let y_val ← lazy_query_tracked resp
   pure y_val
 
 /-- Schema equation: body_game_2 follows the schema with q_body_game_2 + match_check. -/
-lemma body_game_2_eq_schema (ow_adv : Program state Unit) (y : output) :
+private lemma body_game_2_eq_schema (ow_adv : Program state Unit) (y : output) :
     body_game_2 ow_adv y
     = q_body_game_2 ow_adv >>= fun y_val : output =>
         if y_val = y then Program.set matched_chal_y true
@@ -431,7 +431,7 @@ lemma body_game_2_eq_schema (ow_adv : Program state Unit) (y : output) :
   simp only [Program.bind_assoc, Program.pure_bind]
 
 /-- Schema equation: body_recording_game_2 follows the schema with q_body_game_2 + record. -/
-lemma body_recording_game_2_eq_schema (ow_adv : Program state Unit) :
+private lemma body_recording_game_2_eq_schema (ow_adv : Program state Unit) :
     body_recording_game_2 ow_adv
     = q_body_game_2 ow_adv >>= fun y_val : output =>
         Program.get queries_output >>= fun qs : List output =>
@@ -440,7 +440,7 @@ lemma body_recording_game_2_eq_schema (ow_adv : Program state Unit) :
   simp only [Program.bind_assoc, Program.pure_bind]
 
 /-- Schema equation: final_game_2 follows the schema with q_final_game_2 + match_check. -/
-lemma final_game_2_eq_schema (y : output) :
+private lemma final_game_2_eq_schema (y : output) :
     final_game_2 y
     = q_final_game_2 >>= fun y_val : output =>
         if y_val = y then Program.set matched_chal_y true
@@ -449,7 +449,7 @@ lemma final_game_2_eq_schema (y : output) :
   simp only [Program.bind_assoc, Program.pure_bind]
 
 /-- Schema equation: final_recording_game_2 follows the schema with q_final_game_2 + record. -/
-lemma final_recording_game_2_eq_schema :
+private lemma final_recording_game_2_eq_schema :
     final_recording_game_2
     = q_final_game_2 >>= fun y_val : output =>
         Program.get queries_output >>= fun qs : List output =>
@@ -458,7 +458,7 @@ lemma final_recording_game_2_eq_schema :
   simp only [Program.bind_assoc, Program.pure_bind]
 
 /-- `lazy_query_tracked` is queries_output-disjoint. -/
-lemma lazy_query_tracked_inRange_queries_output (inp : input) :
+private lemma lazy_query_tracked_inRange_queries_output (inp : input) :
     (lazy_query_tracked inp).inRange queries_output.compl.range := by
   unfold lazy_query_tracked
   refine Program.inRange_bind ?_ (fun y => ?_)
@@ -476,7 +476,7 @@ lemma lazy_query_tracked_inRange_queries_output (inp : input) :
 
 
 /-- `q_body_game_2 ow_adv` is matched_chal_y-disjoint when ow_adv is. -/
-lemma q_body_game_2_inRange_matched_chal_y
+private lemma q_body_game_2_inRange_matched_chal_y
     (ow_adv : Program state Unit)
     (h_ow_adv : ow_adv.inRange matched_chal_y.compl.range) :
     (q_body_game_2 ow_adv).inRange matched_chal_y.compl.range := by
@@ -488,7 +488,7 @@ lemma q_body_game_2_inRange_matched_chal_y
   exact Program.inRange_pure _ _
 
 /-- `q_body_game_2 ow_adv` is queries_output-disjoint when ow_adv is. -/
-lemma q_body_game_2_inRange_queries_output
+private lemma q_body_game_2_inRange_queries_output
     (ow_adv : Program state Unit)
     (h_ow_adv : ow_adv.inRange queries_output.compl.range) :
     (q_body_game_2 ow_adv).inRange queries_output.compl.range := by
@@ -500,7 +500,7 @@ lemma q_body_game_2_inRange_queries_output
   exact Program.inRange_pure _ _
 
 /-- `q_body_game_2 ow_adv` is ow_challenge_y-disjoint when ow_adv is. -/
-lemma q_body_game_2_inRange_ow_challenge_y
+private lemma q_body_game_2_inRange_ow_challenge_y
     (ow_adv : Program state Unit)
     (h_ow_adv : ow_adv.inRange ow_challenge_y.compl.range) :
     (q_body_game_2 ow_adv).inRange ow_challenge_y.compl.range := by
@@ -512,7 +512,7 @@ lemma q_body_game_2_inRange_ow_challenge_y
   exact Program.inRange_pure _ _
 
 /-- `q_final_game_2` is matched_chal_y-disjoint. -/
-lemma q_final_game_2_inRange_matched_chal_y :
+private lemma q_final_game_2_inRange_matched_chal_y :
     q_final_game_2.inRange matched_chal_y.compl.range := by
   unfold q_final_game_2
   refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
@@ -520,7 +520,7 @@ lemma q_final_game_2_inRange_matched_chal_y :
   exact Program.inRange_pure _ _
 
 /-- `q_final_game_2` is queries_output-disjoint. -/
-lemma q_final_game_2_inRange_queries_output :
+private lemma q_final_game_2_inRange_queries_output :
     q_final_game_2.inRange queries_output.compl.range := by
   unfold q_final_game_2
   refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
@@ -528,7 +528,7 @@ lemma q_final_game_2_inRange_queries_output :
   exact Program.inRange_pure _ _
 
 /-- `q_final_game_2` is ow_challenge_y-disjoint. -/
-lemma q_final_game_2_inRange_ow_challenge_y :
+private lemma q_final_game_2_inRange_ow_challenge_y :
     q_final_game_2.inRange ow_challenge_y.compl.range := by
   unfold q_final_game_2
   refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
@@ -536,7 +536,7 @@ lemma q_final_game_2_inRange_ow_challenge_y :
   exact Program.inRange_pure _ _
 
 /-- final_recording_game_2 bumps queries_output.length by at most 1. -/
-lemma final_recording_game_2_qs_length_bump (σ : state) :
+private lemma final_recording_game_2_qs_length_bump (σ : state) :
     final_recording_game_2.wp
       (fun aσ : Unit × state => ((queries_output.get aσ.2).length : ENNReal)) σ
     ≤ ((queries_output.get σ).length : ENNReal) + 1 := by
@@ -568,7 +568,7 @@ lemma final_recording_game_2_qs_length_bump (σ : state) :
   · exact Program.wp_const_le _ _ _
 
 /-- body_recording_game_2 bumps queries_output.length by at most 1 per iteration. -/
-lemma body_recording_game_2_qs_length_bump
+private lemma body_recording_game_2_qs_length_bump
     (adv : Program state Unit)
     (h_adv : adv.inRange queries_output.compl.range)
     (σ : state) :
