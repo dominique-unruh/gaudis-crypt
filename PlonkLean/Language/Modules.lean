@@ -338,6 +338,15 @@ lemma Normal.normalClosed {T : ModuleType} {m : ModuleExpression .empty T} :
   | .pair ha hb => .pair ha.normalClosed hb.normalClosed
   | .unit       => .unit
 
+lemma NormalClosed.normal {T : ModuleType} {m : ModuleExpression .empty T} :
+    NormalClosed m → Normal m
+  | .const      => .const
+  | .constHoles => .constHoles
+  | .abs hb     => .abs hb
+  | .pair ha hb => .pair ha.normal hb.normal
+  | .unit       => .unit
+
+
 /- # Reduction step -/
 
 
@@ -452,6 +461,43 @@ inductive ReductionStep : ModuleExpression Δ T → ModuleExpression Δ T → Pr
 
 def MultiStepReduction : ModuleExpression Γ T → ModuleExpression Γ T → Prop :=
   Rewriting.Star ReductionStep
+
+theorem multiStepReduction_app
+    {m1 m1' : ModuleExpression Γ (.arr T U)} {m2 m2' : ModuleExpression Γ T}
+    (h1 : MultiStepReduction m1 m1') (h2 : MultiStepReduction m2 m2') :
+    MultiStepReduction (ModuleExpression.app m1 m2) (ModuleExpression.app m1' m2') := by
+  have left : MultiStepReduction (ModuleExpression.app m1 m2) (ModuleExpression.app m1' m2) := by
+    induction h1 with
+    | refl => exact Rewriting.Star.refl _
+    | tail _ hbc ih => exact Rewriting.Star.tail ih (.appL hbc)
+  have right : MultiStepReduction (ModuleExpression.app m1' m2) (ModuleExpression.app m1' m2') := by
+    induction h2 with
+    | refl => exact Rewriting.Star.refl _
+    | tail _ hbc ih => exact Rewriting.Star.tail ih (.appR hbc)
+  exact Rewriting.Star.trans left right
+
+
+
+theorem multiStepReduction_fst
+    {e e' : ModuleExpression Γ (.prod A B)} (h : MultiStepReduction e e') :
+    MultiStepReduction (ModuleExpression.fst e) (ModuleExpression.fst e') := by
+  induction h with
+  | refl => exact Rewriting.Star.refl _
+  | tail _ hbc ih => exact Rewriting.Star.tail ih (.fst hbc)
+
+theorem multiStepReduction_pair
+    {a a' : ModuleExpression Γ A} {b b' : ModuleExpression Γ B}
+    (h1 : MultiStepReduction a a') (h2 : MultiStepReduction b b') :
+    MultiStepReduction (ModuleExpression.pair a b) (ModuleExpression.pair a' b') := by
+  have left : MultiStepReduction (ModuleExpression.pair a b) (ModuleExpression.pair a' b) := by
+    induction h1 with
+    | refl => exact Rewriting.Star.refl _
+    | tail _ hbc ih => exact Rewriting.Star.tail ih (.pairL hbc)
+  have right : MultiStepReduction (ModuleExpression.pair a' b) (ModuleExpression.pair a' b') := by
+    induction h2 with
+    | refl => exact Rewriting.Star.refl _
+    | tail _ hbc ih => exact Rewriting.Star.tail ih (.pairR hbc)
+  exact Rewriting.Star.trans left right
 
 
 
@@ -648,6 +694,32 @@ def ModuleExpression.erasedEqual
   | .unit, .unit => True
   | _, _ => False
 
+theorem ModuleExpression.erasedEqual_refl (m : ModuleExpression Γ T) :
+  ModuleExpression.erasedEqual m m := by
+  induction m with
+  | unit => trivial
+  | proc => exact ⟨rfl, HEq.refl _⟩
+  | procHoles => exact ⟨rfl, rfl, HEq.refl _⟩
+  | var r => simp [ModuleExpression.erasedEqual]
+  | app f a ihf iha => exact ⟨ihf, iha⟩
+  | fst e ih => exact ih
+  | snd e ih => exact ih
+  | pair a b iha ihb => exact ⟨iha, ihb⟩
+  | abs body ih => exact ih
+
+
+theorem ModuleExpression.erasedEqual_pair_right (a : ModuleExpression Γ T)
+  {b : ModuleExpression Γ U} {b' : ModuleExpression Γ U'} (h : ModuleExpression.erasedEqual b b') :
+  ModuleExpression.erasedEqual (.pair a b) (.pair a b') :=
+  ⟨ModuleExpression.erasedEqual_refl a, h⟩
+
+theorem ModuleExpression.erasedEqual_pair_left
+    {a : ModuleExpression Γ T} {a' : ModuleExpression Γ T'}
+    (b : ModuleExpression Γ U) (h : ModuleExpression.erasedEqual a a') :
+    ModuleExpression.erasedEqual (.pair a b) (.pair a' b) :=
+  ⟨h, ModuleExpression.erasedEqual_refl b⟩
+
+
 theorem ModuleExpression.erasedEqual_normal_neutral_eq
     {Γ : ModuleContext} {T1 T2 : ModuleType}
     (m : ModuleExpression Γ T1) (m' : ModuleExpression Γ T2)
@@ -818,6 +890,11 @@ theorem ModuleExpression.erasedEqual_normal_eq {Γ : ModuleContext} {T : ModuleT
     (h : ModuleExpression.erasedEqual n1 n2) : n1 = n2 :=
   eq_of_heq ((ModuleExpression.erasedEqual_normal_neutral_eq n1 n2 h).1 hn1 rfl)
 
+theorem ModuleExpression.erasedEqual_neutral_eq {Γ : ModuleContext} {T1 T2 : ModuleType}
+    {e1 : ModuleExpression Γ T1} {e2 : ModuleExpression Γ T2}
+    (hne1 : Neutral e1)
+    (h : ModuleExpression.erasedEqual e1 e2) : T1 = T2 ∧ HEq e1 e2 :=
+  (ModuleExpression.erasedEqual_normal_neutral_eq e1 e2 h).2 hne1
 
 
 /- # Mapping to Metatheory.STLCext -/
@@ -1580,6 +1657,48 @@ theorem reduce_normal (m : ModuleExpression Δ t) : Normal (reduce m) := by
 theorem reduce_normalClosed (m : ModuleExpression .empty t) : NormalClosed (reduce m) :=
   (reduce_normal m).normalClosed
 
+@[simp]
+theorem reduce_fst_pair {T U} (m1 : ModuleExpression Γ T) (m2 : ModuleExpression Γ U) :
+    reduce (.fst (.pair m1 m2)) = reduce m1 := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | fst ne' => exact nomatch ne'
+  · rfl
+
+@[simp]
+theorem reduce_fst (m : ModuleExpression Γ T) (m' : ModuleExpression Γ T') :
+  reduce (ModuleExpression.fst (ModuleExpression.pair m m')) = reduce m := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | fst ne' => exact nomatch ne'
+  · rfl
+
+@[simp]
+theorem reduce_snd (m : ModuleExpression Γ T) (m' : ModuleExpression Γ T') :
+  reduce (ModuleExpression.snd (ModuleExpression.pair m m')) = reduce m' := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with | snd ne' => exact nomatch ne'
+  · rfl
+
+@[simp]
+theorem reduce_idempotent (m : ModuleExpression Γ T) :
+  reduce (reduce m) = reduce m := by
+  conv_lhs => unfold reduce
+  simp [reduce_normal m]
+
+
+@[simp]
+theorem reduce_beta
+  (body : ModuleExpression (Γ.append T) U) (arg : ModuleExpression Γ T) :
+  reduce (ModuleExpression.app (ModuleExpression.abs body) arg) = reduce (substitute body arg) := by
+  conv_lhs => unfold reduce
+  split_ifs with h
+  · cases h with | neutral ne => cases ne with
+      | app ne' _ => exact nomatch ne'
+      | appProcHoles hph _ _ => exact absurd hph (by simp [IsProcHoles])
+  · rfl
+
 
 /- # Confluence -/
 
@@ -1602,6 +1721,38 @@ theorem confluence {m m1 m2 : ModuleExpression Γ T}
   exact ModuleExpression.toSTLC_injective_normal (reduce_normal m1)
     (Rewriting.normalForm_unique Metatheory.STLCext.step_confluent star1 star2 nf1 nf2)
 
+
+theorem reduce_app (m : ModuleExpression Γ (.arr T U)) (m' : ModuleExpression Γ T) :
+  reduce (ModuleExpression.app m m') = reduce (ModuleExpression.app (reduce m) (reduce m')) :=
+  (reduce_idempotent _).symm.trans
+    (confluence multiStepReduction_reduce
+      (multiStepReduction_app multiStepReduction_reduce multiStepReduction_reduce))
+
+theorem reduce_fst_cong (m m' : ModuleExpression Γ (.prod T U)) :
+    reduce m = reduce m' → reduce (ModuleExpression.fst m) = reduce (ModuleExpression.fst m') := by
+  intro h
+  have eq1 : reduce (ModuleExpression.fst m) = reduce (ModuleExpression.fst (reduce m)) :=
+    (reduce_idempotent _).symm.trans
+      (confluence multiStepReduction_reduce (multiStepReduction_fst multiStepReduction_reduce))
+  have eq2 : reduce (ModuleExpression.fst m') = reduce (ModuleExpression.fst (reduce m')) :=
+    (reduce_idempotent _).symm.trans
+      (confluence multiStepReduction_reduce (multiStepReduction_fst multiStepReduction_reduce))
+  rw [eq1, eq2, h]
+
+
+theorem reduce_pair {T U} (m1 : ModuleExpression Γ T) (m2 : ModuleExpression Γ U) :
+    reduce (ModuleExpression.pair m1 m2) = ModuleExpression.pair (reduce m1) (reduce m2) := by
+  have h2 : MultiStepReduction (ModuleExpression.pair m1 m2)
+            (ModuleExpression.pair (reduce m1) (reduce m2)) :=
+    multiStepReduction_pair multiStepReduction_reduce multiStepReduction_reduce
+  have key : reduce (ModuleExpression.pair m1 m2) =
+             reduce (ModuleExpression.pair (reduce m1) (reduce m2)) :=
+    (reduce_idempotent _).symm.trans (confluence multiStepReduction_reduce h2)
+  rw [key]; conv_lhs => unfold reduce
+  rw [dif_pos (Normal.pair (reduce_normal m1) (reduce_normal m2))]
+
+
+
 /- # Modules -/
 
 structure Module (T : ModuleType) where
@@ -1614,3 +1765,84 @@ def ModuleExpression.toModule {T : ModuleType}
 
 instance : CoeFun (Module (.arr T U)) (fun _ ↦ Module T → Module U) where
   coe f x := ModuleExpression.toModule (ModuleExpression.app f.expression x.expression)
+
+def Module.fst {T U} (m : Module (.prod T U)) : Module T :=
+  m.expression.fst.toModule
+
+def Module.snd {T U} (m : Module (.prod T U)) : Module U :=
+  m.expression.snd.toModule
+
+def Module.pair {T U} (m1 : Module T) (m2 : Module U) : Module (.prod T U) :=
+  (m1.expression.pair m2.expression).toModule
+
+@[ext]
+theorem Module.ext {T} {m1 m2 : Module T} (h : m1.expression = m2.expression) :
+  m1 = m2 := by
+  obtain ⟨e1, n1⟩ := m1; obtain ⟨e2, n2⟩ := m2
+  simp only at h; subst h; rfl
+
+@[simp]
+theorem Module.expression_fst {T U} (m : Module (.prod T U)) :
+    m.fst.expression = reduce m.expression.fst := rfl
+
+@[simp]
+theorem Module.toModule_expression {T} (m : ModuleExpression .empty T) :
+    (ModuleExpression.toModule m).expression = reduce m := rfl
+
+@[simp]
+theorem Module.reduce_expression {T} (m : Module T) : reduce m.expression = m.expression := by
+  obtain ⟨expression, normal⟩ := m
+  simp only
+  unfold reduce
+  exact dif_pos normal.normal
+
+
+@[simp]
+theorem Module.fst_pair {T U} (m1 : Module T) (m2 : Module U) :
+    (m1.pair m2).fst = m1 := by
+  ext
+  simp [Module.fst, Module.pair, reduce_pair]
+
+@[simp]
+theorem Module.snd_pair {T U} (m1 : Module T) (m2 : Module U) :
+    (m1.pair m2).snd = m2 := by
+  ext
+  simp [Module.snd, Module.pair, reduce_pair]
+
+/- # Demo -/
+
+
+
+section Demo
+
+axiom sig : ProcedureSignature
+def TestModuleType := Module (ModuleType.prod (ModuleType.proc sig) (ModuleType.proc sig))
+
+noncomputable
+def TestModuleType.main (m : TestModuleType) : Module (ModuleType.proc sig) := m.fst
+noncomputable
+def TestModuleType.aux (m : TestModuleType) : Module (ModuleType.proc sig) := m.snd
+
+structure TestModuleTypeStruct where
+  main : Module (ModuleType.proc sig)
+  aux : Module (ModuleType.proc sig)
+
+noncomputable
+def TestModuleTypeStruct.destruct (str : TestModuleTypeStruct) : TestModuleType :=
+  str.main.pair str.aux
+
+noncomputable
+def TestModuleType.mk (str : TestModuleTypeStruct) : TestModuleType := str.main.pair str.aux
+
+axiom testMain : Module (ModuleType.proc sig)
+axiom testAux : Module (ModuleType.proc sig)
+
+noncomputable
+def myMod := TestModuleType.mk {main := testMain, aux := testAux}
+
+theorem test : myMod.main = testMain := by
+  simp [TestModuleType.main, myMod, TestModuleType.mk]
+
+end Demo
+
+end Language.Modules

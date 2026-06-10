@@ -1,3 +1,12 @@
+-- CHAOS FILE
+
+import PlonkLean.Language.Modules
+
+open Language.Modules
+open Language.Programs
+
+variable [ProgramSpec]
+
 opaque FV : Type
 -- Placeholder
 axiom fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Set FV
