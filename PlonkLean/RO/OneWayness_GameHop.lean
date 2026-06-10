@@ -2489,6 +2489,26 @@ private lemma body_recording_game_2_qs_length_bump
   · exact Program.wp_qs_length_preserved_of_inRange queries_output adv h_adv σ
   · exact Program.wp_const_le _ _ _
 
+/-- Helper: a trailing `get qi >>= set qi (qs ++ [v])` is invisible to wp at
+    queries_input-ignoring posts. (Specialized to Program state Unit.) -/
+private lemma wp_qi_trailing_invisible
+    (p : Program state Unit) (val : input)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens queries_input F)
+    (σ : state) :
+    (p >>= fun _ : Unit =>
+       Program.get queries_input >>= fun qs : List input =>
+       Program.set queries_input (qs ++ [val])).wp F σ
+    = p.wp F σ := by
+  rw [wp_bind]
+  congr 1
+  funext aσ
+  obtain ⟨a, s'⟩ := aσ
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_set]
+  exact h_F (a, s') _
+
 /-- **Game 2 correspondence**.
 
     `body_game_2 ow_adv t`'s match-fire on `matched_chal_y` (via the explicit
@@ -2496,13 +2516,17 @@ private lemma body_recording_game_2_qs_length_bump
     `body_recording_game_2 ow_adv` (which appends each `y_val` to the list).
     Both events are "some lazy_query_tracked produced `y_val = t`".
 
+    Requires hypothesis `h_ow_adv_chal_y_blind` that ow_adv is chal_y-input-blind
+    (its wp is invariant under chal_y state changes). Without this, an adv that
+    reads chal_y can violate the bound.
+
     Proof obligation (currently `sorry`): inducting on the loop with invariant
     `matched_chal_y = decide (t ∈ queries_output)` maintained by
-    `body_recording_game_2`, plus standard wp manipulation showing the body's
-    `if y_val = t then set matched true` is equivalent (at the matched-firing
-    post) to body_recording's append + final-membership-check. The bound is
-    actually *equality* (not strict ≤). -/
-theorem game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    `body_recording_game_2`. -/
+theorem game_2_correspondence (ow_adv : Program state Unit)
+    (h_ow_adv_chal_y_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : output),
+      ow_adv.wp F (ow_challenge_y.set v σ) = ow_adv.wp F σ)
+    (q : ℕ)
     (σ' : state) (t : output) :
     (Program.set ow_challenge_y t >>= fun _ : Unit =>
      Program.set matched_chal_y false >>= fun _ : Unit =>
@@ -2525,6 +2549,8 @@ theorem game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
 theorem ow_game_2_tracked_wins_le_guess_output_bound
     (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
     (h_ow_adv_queries : ow_adv.inRange queries_output.compl.range)
+    (h_ow_adv_chal_y_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : output),
+      ow_adv.wp F (ow_challenge_y.set v σ) = ow_adv.wp F σ)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -2537,7 +2563,7 @@ theorem ow_game_2_tracked_wins_le_guess_output_bound
   refine le_trans (guess_experiment_le_interim_assumption env_game_2
       ow_challenge_y matched_chal_y queries_output (body_game_2 ow_adv)
       final_game_2 (body_recording_game_2 ow_adv) final_recording_game_2 q
-      (game_2_correspondence ow_adv q) σ) ?_
+      (game_2_correspondence ow_adv h_ow_adv_chal_y_blind q) σ) ?_
   -- Step 3: guess_experiment_interim_game_2 ≤ (q+1)/|output|. Generic.
   apply guess_experiment_interim_wp_bound
   -- h_qs_length_le for Game 2.
@@ -2708,13 +2734,17 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
     each `inp` to the list). Both events are "some lazy_query_tracked saw
     `inp = t`".
 
+    Requires hypothesis `h_ow_adv_chal_x_blind` that ow_adv is chal_x-input-blind
+    (its wp is invariant under chal_x state changes). Without this, an adv that
+    reads chal_x can violate the bound (e.g., always query chal_x = t in LHS).
+
     Proof obligation (currently `sorry`): inducting on the loop with invariant
     `chal_x_queried_gh = decide (t ∈ queries_input)` maintained by
-    `body_recording_game_1`. For the equivalence to hold genuinely, the
-    adversary `ow_adv` must not read `ow_challenge_x` (otherwise it could
-    behave differently in LHS where chal_x = t vs RHS where chal_x = σ'.chal_x).
-    A complete proof would need this hypothesis added. -/
-theorem game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    `body_recording_game_1`. -/
+theorem game_1_correspondence (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
+      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
+    (q : ℕ)
     (σ' : state) (t : input) :
     (Program.set ow_challenge_x t >>= fun _ : Unit =>
      Program.set chal_x_queried_gh false >>= fun _ : Unit =>
@@ -2742,6 +2772,8 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
     (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_ow_adv_queries : ow_adv.inRange queries_input.compl.range)
     (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
+      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
@@ -2753,7 +2785,7 @@ theorem ow_game_1_tracked_bad_le_guess_input_bound
       h_ow_adv_chal_y q σ]
   refine le_trans (guess_experiment_le_interim_assumption _ _ _ queries_input _ _
       (body_recording_game_1 ow_adv) final_recording_game_1 _
-      (game_1_correspondence ow_adv q) _) ?_
+      (game_1_correspondence ow_adv h_ow_adv_chal_x_blind q) _) ?_
   apply guess_experiment_interim_wp_bound
   -- h_qs_length_le for Game 1.
   intro σ'
@@ -3081,6 +3113,10 @@ theorem ow_lazy_bound_via_gamehop
     (h_ow_adv_queries_output : ow_adv.inRange queries_output.compl.range)
     (h_ow_adv_queries_input : ow_adv.inRange queries_input.compl.range)
     (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (h_ow_adv_chal_x_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : input),
+      ow_adv.wp F (ow_challenge_x.set v σ) = ow_adv.wp F σ)
+    (h_ow_adv_chal_y_blind : ∀ (F : Unit × state → ENNReal) (σ : state) (v : output),
+      ow_adv.wp F (ow_challenge_y.set v σ) = ow_adv.wp F σ)
     (q : ℕ) (σ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
@@ -3113,7 +3149,7 @@ theorem ow_lazy_bound_via_gamehop
         + ((q + 1) : ENNReal) / Fintype.card input := by
         gcongr
         · exact ow_game_2_tracked_wins_le_guess_output_bound ow_adv
-            h_ow_adv_matched_chal_y h_ow_adv_queries_output q σ
+            h_ow_adv_matched_chal_y h_ow_adv_queries_output h_ow_adv_chal_y_blind q σ
         · -- The "bad ∩ Win" wp is ≤ "bad" wp (since Win ≤ 1).
           calc (ow_game_1_tracked ow_adv q).wp
                   (fun bσ : Bool × state =>
@@ -3131,7 +3167,7 @@ theorem ow_lazy_bound_via_gamehop
                 exact ow_game_1_tracked_bad_le_guess_input_bound ow_adv
                   h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x
                   h_ow_adv_chal_x_queried_gh h_ow_adv_queries_input
-                  h_ow_adv_mass_one q σ
+                  h_ow_adv_mass_one h_ow_adv_chal_x_blind q σ
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card output := by
         gcongr
