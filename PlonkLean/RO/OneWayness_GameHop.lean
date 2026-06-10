@@ -2562,6 +2562,7 @@ private lemma loop_final_body_aug_equiv_body_rec
       (body_aug_equiv_body_rec matched_var queries_list_var q_final t))
     (fun _ => body_rec_inRange_matched matched_var queries_list_var q_final h_q_final_matched)
 
+set_option maxHeartbeats 1600000 in
 /-- **Schema-based correspondence**: when body and body_recording both
     decompose as `q >>= ...` for some shared "query" subprogram `q`, with
     body's tail being a match-check against `t` and body_recording's tail
@@ -2583,6 +2584,8 @@ theorem guess_experiment_le_interim_via_schema
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
     [disjoint matched_var queries_list_var]
+    [disjoint matched_var target_var]
+    [disjoint queries_list_var target_var]
     (q_body q_final : Program state T)
     (h_q_body_matched : q_body.inRange matched_var.compl.range)
     (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
@@ -2614,15 +2617,233 @@ theorem guess_experiment_le_interim_via_schema
   intro σ' t
   -- Substitute schema hypotheses to expose the q_body / q_final structure.
   rw [h_body t, h_final t, h_body_recording, h_final_recording]
-  haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  haveI h_qs_matched : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  haveI h_target_matched_sym : disjoint target_var matched_var := disjoint.symm inferInstance
+  haveI h_target_qs_sym : disjoint target_var queries_list_var := disjoint.symm inferInstance
   refine le_of_eq ?_
-  -- The full assembly: state alignment + EquivModuloLens transitions + invariant.
-  -- Each piece uses the proven helpers; the assembly itself involves careful
-  -- wp_bind/wp_set/wp_get manipulation plus state-shift bookkeeping.
-  -- Deferred — all the conceptually hard pieces (the invariant lemmas at
-  -- both single-step and loop+final levels, body_match↔body_aug↔body_rec
-  -- equivalences) are proven.
-  sorry
+  -- IgnoresLens facts for F_matched and F_decide.
+  have hF_matched_qs : IgnoresLens queries_list_var
+      (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0) := by
+    intro aσ v
+    show (if matched_var.get (queries_list_var.set v aσ.2) then (1 : ENNReal) else 0)
+        = if matched_var.get aσ.2 then (1 : ENNReal) else 0
+    rw [Lens.get_of_disjoint_set matched_var queries_list_var v aσ.2]
+  have hF_decide_matched : IgnoresLens matched_var
+      (fun aσ : Unit × state =>
+        if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0) := by
+    intro aσ v
+    show (if decide (t ∈ queries_list_var.get (matched_var.set v aσ.2)) then (1 : ENNReal) else 0)
+        = if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0
+    rw [Lens.get_of_disjoint_set queries_list_var matched_var v aσ.2]
+  have hF_decide_target : IgnoresLens target_var
+      (fun aσ : Unit × state =>
+        if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0) := by
+    intro aσ v
+    show (if decide (t ∈ queries_list_var.get (target_var.set v aσ.2)) then (1 : ENNReal) else 0)
+        = if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0
+    rw [Lens.get_of_disjoint_set queries_list_var target_var v aσ.2]
+  -- Loop+final body_match is qs-disjoint.
+  have h_loop_final_match_qs :
+      (loop_n n (q_body >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit)) >>= fun _ =>
+       q_final >>= fun a : T =>
+        if a = t then Program.set matched_var true else (pure () : Program state Unit)).inRange
+      queries_list_var.compl.range :=
+    Program.inRange_bind
+      (loop_n_inRange _ (body_match_inRange_qs matched_var queries_list_var q_body h_q_body_qs t) n)
+      (fun _ => body_match_inRange_qs matched_var queries_list_var q_final h_q_final_qs t)
+  -- Loop+final body_rec is matched-disjoint.
+  have h_loop_final_rec_matched :
+      (loop_n n (q_body >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       q_final >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])).inRange
+      matched_var.compl.range :=
+    Program.inRange_bind
+      (loop_n_inRange _
+        (body_rec_inRange_matched matched_var queries_list_var q_body h_q_body_matched) n)
+      (fun _ => body_rec_inRange_matched matched_var queries_list_var q_final h_q_final_matched)
+  -- Loop+final body_rec is target-disjoint.
+  have h_body_rec_target : ∀ q : Program state T, q.inRange target_var.compl.range →
+      (q >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])).inRange target_var.compl.range := by
+    intro q h_q
+    refine Program.inRange_bind h_q (fun a => ?_)
+    refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
+    exact Program.set_inRange_compl_of_disjoint _ _ _
+  have h_loop_final_rec_target :
+      (loop_n n (q_body >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       q_final >>= fun a : T =>
+        Program.get queries_list_var >>= fun qs : List T =>
+        Program.set queries_list_var (qs ++ [a])).inRange
+      target_var.compl.range :=
+    Program.inRange_bind
+      (loop_n_inRange _ (h_body_rec_target q_body h_q_body_target) n)
+      (fun _ => h_body_rec_target q_final h_q_final_target)
+  -- State shorthands.
+  set σ_LHS_inner : state := matched_var.set false (target_var.set t σ') with σ_LHS_inner_def
+  set σ_RHS_inner : state := queries_list_var.set [] σ' with σ_RHS_inner_def
+  set σ_aligned : state := queries_list_var.set [] σ_LHS_inner with σ_aligned_def
+  -- Invariant holds at σ_aligned.
+  have h_inv_aligned :
+      matched_var.get σ_aligned = decide (t ∈ queries_list_var.get σ_aligned) := by
+    show matched_var.get (queries_list_var.set [] σ_LHS_inner)
+       = decide (t ∈ queries_list_var.get (queries_list_var.set [] σ_LHS_inner))
+    rw [Lens.get_of_disjoint_set matched_var queries_list_var, Lens.set_get queries_list_var]
+    show matched_var.get (matched_var.set false (target_var.set t σ')) = decide (t ∈ ([] : List T))
+    rw [Lens.set_get matched_var]
+    simp
+  -- σ_aligned equals matched.set false (target.set t σ_RHS_inner) up to lens-commutations.
+  have h_σ_aligned_eq :
+      σ_aligned = matched_var.set false (target_var.set t σ_RHS_inner) := by
+    show queries_list_var.set [] (matched_var.set false (target_var.set t σ'))
+       = matched_var.set false (target_var.set t (queries_list_var.set [] σ'))
+    rw [(inferInstance : disjoint queries_list_var matched_var).commute]
+    rw [(inferInstance : disjoint queries_list_var target_var).commute]
+  -- Reduce LHS to canonical form.
+  have h_LHS_reduce :
+      (Program.set target_var t >>= fun _ =>
+       Program.set matched_var false >>= fun _ =>
+       loop_n n (q_body >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        >>= fun _ =>
+       (q_final >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        >>= fun _ =>
+       Program.get matched_var).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+       =
+      (loop_n n (q_body >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        >>= fun _ =>
+       q_final >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit)).wp
+       (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0)
+       σ_LHS_inner := by
+    sorry  -- LHS prefix/trailing peel + match to canonical wp form
+  -- Reduce RHS to canonical form.
+  have h_RHS_reduce :
+      (Program.set queries_list_var [] >>= fun _ =>
+       loop_n n (q_body >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       (q_final >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       Program.get queries_list_var >>= fun qs =>
+       Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+       Program.get matched_var).wp
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
+       =
+      (loop_n n (q_body >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       q_final >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])).wp
+       (fun aσ : Unit × state =>
+         if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0)
+       σ_RHS_inner := by
+    sorry  -- RHS prefix/trailing peel + match to canonical wp form
+  rw [h_LHS_reduce, h_RHS_reduce]
+  -- Now: (loop+final body_match).wp F_matched σ_LHS_inner = (loop+final body_rec).wp F_decide σ_RHS_inner.
+  -- Step 1: shift LHS input qs to [].
+  have h_LHS_shift :
+      (loop_n n (q_body >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        >>= fun _ =>
+       q_final >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit)).wp
+       (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0)
+       σ_LHS_inner
+      =
+      (loop_n n (q_body >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        >>= fun _ =>
+       q_final >>= fun a : T =>
+          if a = t then Program.set matched_var true else (pure () : Program state Unit)).wp
+       (fun aσ : Unit × state => if matched_var.get aσ.2 then (1 : ENNReal) else 0)
+       σ_aligned := by
+    have hf_in : (fun s' : state => queries_list_var.set [] s') ∈
+        ((queries_list_var.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((queries_list_var.compl.range : LensRange state)ᶜ) = queries_list_var.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ [], Set.mem_univ _, rfl⟩
+    show _ = (loop_n n _ >>= fun _ => _).wp _ ((fun s' => queries_list_var.set [] s') σ_LHS_inner)
+    rw [Program.wp_shift_input h_loop_final_match_qs hf_in]
+    congr 1
+    funext xs
+    exact (hF_matched_qs xs []).symm
+  -- Step 2: shift RHS input matched/target.
+  have h_RHS_shift :
+      (loop_n n (q_body >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       q_final >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])).wp
+       (fun aσ : Unit × state =>
+         if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0)
+       σ_aligned
+      =
+      (loop_n n (q_body >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])) >>= fun _ =>
+       q_final >>= fun a : T =>
+          Program.get queries_list_var >>= fun qs : List T =>
+          Program.set queries_list_var (qs ++ [a])).wp
+       (fun aσ : Unit × state =>
+         if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0)
+       σ_RHS_inner := by
+    rw [h_σ_aligned_eq]
+    -- Shift away matched.set false.
+    have hf_matched : (fun s' : state => matched_var.set false s') ∈
+        ((matched_var.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((matched_var.compl.range : LensRange state)ᶜ) = matched_var.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
+    have hf_target : (fun s' : state => target_var.set t s') ∈
+        ((target_var.compl.range : LensRange state)ᶜ).updates := by
+      rw [show ((target_var.compl.range : LensRange state)ᶜ) = target_var.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+      exact ⟨Function.const _ t, Set.mem_univ _, rfl⟩
+    show (loop_n n _ >>= _).wp _
+        ((fun s' => matched_var.set false s') (target_var.set t σ_RHS_inner)) = _
+    rw [Program.wp_shift_input h_loop_final_rec_matched hf_matched]
+    show (loop_n n _ >>= _).wp _ ((fun s' => target_var.set t s') σ_RHS_inner) = _
+    rw [Program.wp_shift_input h_loop_final_rec_target hf_target]
+    congr 1
+    funext xs
+    show (if decide (t ∈ queries_list_var.get (matched_var.set false (target_var.set t xs.2)))
+          then (1 : ENNReal) else 0)
+       = if decide (t ∈ queries_list_var.get xs.2) then (1 : ENNReal) else 0
+    rw [Lens.get_of_disjoint_set queries_list_var matched_var,
+        Lens.get_of_disjoint_set queries_list_var target_var]
+  rw [h_LHS_shift, ← h_RHS_shift]
+  -- Now both sides at σ_aligned. Apply the equivalence chain:
+  --   body_match ≈_qs body_aug   (loop_final_body_match_equiv_body_aug)
+  --   body_aug agrees w/ body_aug under invariant  (loop_final_body_aug_wp_agree_on_invariant)
+  --   body_aug ≈_matched body_rec   (loop_final_body_aug_equiv_body_rec)
+  -- Step 3a: match → aug at F_matched (qs-ignoring).
+  rw [(loop_final_body_match_equiv_body_aug matched_var queries_list_var q_body q_final
+        h_q_body_qs h_q_final_qs t n).wp_eq _ hF_matched_qs σ_aligned]
+  -- Step 3b: aug at F_matched = aug at F_decide via invariant.
+  rw [loop_final_body_aug_wp_agree_on_invariant matched_var queries_list_var
+        q_body q_final h_q_body_matched h_q_body_qs h_q_final_matched h_q_final_qs
+        t n _ _ ?_ σ_aligned h_inv_aligned]
+  · -- Step 3c: aug → rec at F_decide (matched-ignoring).
+    exact ((loop_final_body_aug_equiv_body_rec matched_var queries_list_var q_body q_final
+        h_q_body_matched h_q_final_matched t n).wp_eq _ hF_decide_matched σ_aligned)
+  -- Sub-goal: F_matched and F_decide agree on invariant-respecting states.
+  · intro aσ h_inv
+    show (if matched_var.get aσ.2 then (1 : ENNReal) else 0)
+       = if decide (t ∈ queries_list_var.get aσ.2) then (1 : ENNReal) else 0
+    rw [h_inv]
 
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
 theorem guess_experiment_interim_wp_bound
