@@ -2802,6 +2802,186 @@ noncomputable def final_recording_game_1 : Program state Unit := do
   let qs ← Program.get queries_input
   Program.set queries_input (qs ++ [resp])
 
+/-! ### Game 1 schema: explicit-match form via game-hop
+
+Game 1's `body_game_1` hides the match-check inside `lazy_query_tracked`
+(which flips `chal_x_queried_gh` when `inp = chal_x`). The schema framework
+requires the match-check to be explicit. We define `body_game_1'` using
+`lazy_query` (untracked) plus an explicit `if inp = x` check, and show via
+a game-hop that the wp's agree.
+
+`q_body_game_1'` and `q_final_game_1'` are the schema's shared query
+subprograms. -/
+
+/-- The "query" subprogram for the explicit-match form of Game 1's body. -/
+noncomputable def q_body_game_1' (ow_adv : Program state Unit) : Program state input := do
+  ow_adv
+  let inp ← Program.get oracle_input
+  let y ← lazy_query inp
+  Program.set oracle_output y
+  pure inp
+
+/-- The "query" subprogram for the explicit-match form of Game 1's final. -/
+noncomputable def q_final_game_1' : Program state input := do
+  let resp ← Program.get ow_response
+  let y ← lazy_query resp
+  Program.set oracle_output y
+  pure resp
+
+/-- Explicit-match body for Game 1 (post game-hop). Uses untracked
+    `lazy_query` and explicit `if inp = x then set chal_x_qg true`. -/
+noncomputable def body_game_1' (ow_adv : Program state Unit) (x : input) :
+    Program state Unit :=
+  q_body_game_1' ow_adv >>= fun a : input =>
+    if a = x then Program.set chal_x_queried_gh true else (pure () : Program state Unit)
+
+/-- Explicit-match final for Game 1 (post game-hop). -/
+noncomputable def final_game_1' (x : input) : Program state Unit :=
+  q_final_game_1' >>= fun a : input =>
+    if a = x then Program.set chal_x_queried_gh true else (pure () : Program state Unit)
+
+/-- Recording-style body for Game 1, using untracked `lazy_query`. This is
+    wp-equivalent to `body_recording_game_1` at chal_x_qg-ignoring posts
+    (since lazy_query_tracked's chal_x_qg flip is invisible). -/
+noncomputable def body_recording_game_1' (ow_adv : Program state Unit) :
+    Program state Unit :=
+  q_body_game_1' ow_adv >>= fun a : input =>
+    Program.get queries_input >>= fun qs : List input =>
+    Program.set queries_input (qs ++ [a])
+
+/-- Recording-style final for Game 1, using untracked `lazy_query`. -/
+noncomputable def final_recording_game_1' : Program state Unit :=
+  q_final_game_1' >>= fun a : input =>
+    Program.get queries_input >>= fun qs : List input =>
+    Program.set queries_input (qs ++ [a])
+
+/-- Game 1', the schema-friendly variant. Same as Game 1 but with the
+    explicit-match body/final. -/
+noncomputable def guess_experiment_game_1' (ow_adv : Program state Unit) (q : ℕ) :
+    Program state Bool :=
+  guess_experiment lazy_init Program.uniform ow_challenge_x chal_x_queried_gh
+    (body_game_1' ow_adv) final_game_1' q
+
+/-! ### Disjointness for q_body_game_1' and q_final_game_1' -/
+
+/-- `q_body_game_1' ow_adv` is chal_x_queried_gh-disjoint. -/
+private lemma q_body_game_1'_inRange_chal_x_queried_gh
+    (ow_adv : Program state Unit)
+    (h_ow_adv : ow_adv.inRange chal_x_queried_gh.compl.range) :
+    (q_body_game_1' ow_adv).inRange chal_x_queried_gh.compl.range := by
+  unfold q_body_game_1'
+  refine Program.inRange_bind h_ow_adv (fun _ => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun inp => ?_)
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  exact Program.inRange_pure _ _
+
+/-- `q_body_game_1' ow_adv` is queries_input-disjoint. -/
+private lemma q_body_game_1'_inRange_queries_input
+    (ow_adv : Program state Unit)
+    (h_ow_adv : ow_adv.inRange queries_input.compl.range) :
+    (q_body_game_1' ow_adv).inRange queries_input.compl.range := by
+  unfold q_body_game_1'
+  refine Program.inRange_bind h_ow_adv (fun _ => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun inp => ?_)
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state queries_input)
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  exact Program.inRange_pure _ _
+
+/-- `q_body_game_1' ow_adv` is ow_challenge_x-disjoint. -/
+private lemma q_body_game_1'_inRange_ow_challenge_x
+    (ow_adv : Program state Unit)
+    (h_ow_adv : ow_adv.inRange ow_challenge_x.compl.range) :
+    (q_body_game_1' ow_adv).inRange ow_challenge_x.compl.range := by
+  unfold q_body_game_1'
+  refine Program.inRange_bind h_ow_adv (fun _ => ?_)
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun inp => ?_)
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  exact Program.inRange_pure _ _
+
+/-- `q_final_game_1'` is chal_x_queried_gh-disjoint. -/
+private lemma q_final_game_1'_inRange_chal_x_queried_gh :
+    q_final_game_1'.inRange chal_x_queried_gh.compl.range := by
+  unfold q_final_game_1'
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro resp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  exact Program.inRange_pure _ _
+
+/-- `q_final_game_1'` is queries_input-disjoint. -/
+private lemma q_final_game_1'_inRange_queries_input :
+    q_final_game_1'.inRange queries_input.compl.range := by
+  unfold q_final_game_1'
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro resp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state queries_input)
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  exact Program.inRange_pure _ _
+
+/-- `q_final_game_1'` is ow_challenge_x-disjoint. -/
+private lemma q_final_game_1'_inRange_ow_challenge_x :
+    q_final_game_1'.inRange ow_challenge_x.compl.range := by
+  unfold q_final_game_1'
+  refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
+  refine Program.inRange_bind ?_ (fun y => ?_)
+  · exact Program.inRange_mono (lazy_query_inRange_ro resp)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+  refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+  exact Program.inRange_pure _ _
+
+/-- **Game-hop bridge**: at the chal_x_queried_gh-firing post (which is what
+    Game 1 cares about), `guess_experiment_game_1` and `guess_experiment_game_1'`
+    have the same wp. This is because, inside guess_experiment's loop after
+    `set ow_challenge_x t`, `lazy_query_tracked inp` (which compares inp to
+    chal_x = t) is wp-equivalent to `lazy_query inp >>= if inp = t then set chal_x_qg`.
+
+    Proof DEFERRED — requires conditional-wp manipulation that respects the
+    `chal_x = t` post-condition through each iter. -/
+private lemma guess_experiment_game_1_wp_eq_game_1'
+    (ow_adv : Program state Unit)
+    (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (q : ℕ) (σ : state) :
+    (guess_experiment_game_1 ow_adv q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    = (guess_experiment_game_1' ow_adv q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  sorry
+
+/-- **Body-recording bridge**: at chal_x_queried_gh-ignoring posts,
+    `body_recording_game_1` (with lazy_query_tracked) and
+    `body_recording_game_1'` (with lazy_query) have the same wp.
+
+    Proof DEFERRED — the chal_x_qg flip in lazy_query_tracked is invisible
+    at chal_x_qg-ignoring posts. -/
+private lemma body_recording_game_1_wp_eq_body_recording_game_1'
+    (ow_adv : Program state Unit)
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens chal_x_queried_gh F)
+    (σ : state) :
+    (body_recording_game_1 ow_adv).wp F σ
+    = (body_recording_game_1' ow_adv).wp F σ := by
+  sorry
+
+/-- **Final-recording bridge**: same as body-recording bridge for final. -/
+private lemma final_recording_game_1_wp_eq_final_recording_game_1'
+    (F : Unit × state → ENNReal)
+    (h_F : IgnoresLens chal_x_queried_gh F)
+    (σ : state) :
+    final_recording_game_1.wp F σ = final_recording_game_1'.wp F σ := by
+  sorry
+
 /-- Helper: body_game_1 ow_adv and body_recording_game_1 ow_adv have the same
     wp at queries_input-ignoring posts. body_recording adds only a trailing
     qi append, which is wp-invisible to qi-ignoring F. -/
