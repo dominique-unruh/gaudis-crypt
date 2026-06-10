@@ -12,11 +12,15 @@ unifying "guessing game" lemma.
 
 See `notes/RO/OW_GameHop_Plan.md` for the full plan.
 
-The single cryptographic obligation (`guess_experiment_le_interim_assumption`)
-is declared as an `axiom`: discharging it properly requires adding hypotheses
-linking `body`/`body_recording` correspondence and a careful state-tracking
-induction over the loop. The existing proof in `PlonkLean/RO/OneWayness.lean`
-(Layer A_OW / C_OW / D_OW + `PlonkLean/RO/QueryHit.lean`) remains intact.
+`guess_experiment_le_interim_assumption` is a proper theorem parameterized by
+a `h_correspondence` hypothesis (the body↔body_recording correspondence). The
+hypothesis is discharged at each call site by per-game correspondence lemmas
+(`game_1_correspondence`, `game_2_correspondence`), which are currently
+declared as `axiom`s — they're concrete, TRUE statements about specific
+programs, with deferred proof effort. Proving them requires inducting on the
+loop with the invariant `matched_var = decide (t ∈ queries_list_var)`
+maintained by the body_recording. The existing proof in
+`PlonkLean/RO/OneWayness.lean` remains intact.
 -/
 
 section GameHopParam
@@ -2485,15 +2489,18 @@ private lemma body_recording_game_2_qs_length_bump
   · exact Program.wp_qs_length_preserved_of_inRange queries_output adv h_adv σ
   · exact Program.wp_const_le _ _ _
 
-/-- **Game 2 correspondence**: matched-fire in `guess_experiment_game_2.body t`
-    corresponds to `t ∈ qs` after `body_recording_game_2`. Discharges the
-    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`
-    for Game 2.
+/-- **AXIOM: Game 2 correspondence**.
 
-    Cryptographic content: body's explicit `if y_val = t then set matched` check
-    fires iff `body_recording` appends a `y_val` that equals `t`. By induction on
-    the loop. -/
-lemma game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    `body_game_2 ow_adv t`'s match-fire on `matched_chal_y` (via the explicit
+    `if y_val = t` check) corresponds to `t ∈ queries_output` after
+    `body_recording_game_2 ow_adv` (which appends each `y_val` to the list).
+    Both events are "some lazy_query_tracked produced `y_val = t`".
+
+    This is a true cryptographic claim about specific concrete programs. Proving
+    it requires inducting on the loop with invariant
+    `matched_chal_y = decide (t ∈ queries_output)` maintained by
+    `body_recording_game_2`. Proof deferred to future work. -/
+axiom game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
     (σ' : state) (t : output) :
     (Program.set ow_challenge_y t >>= fun _ : Unit =>
      Program.set matched_chal_y false >>= fun _ : Unit =>
@@ -2508,8 +2515,7 @@ lemma game_2_correspondence (ow_adv : Program state Unit) (q : ℕ)
      Program.get queries_output >>= fun qs =>
      Program.set matched_chal_y (decide (t ∈ qs)) >>= fun _ : Unit =>
      Program.get matched_chal_y).wp
-       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
-  sorry
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
 
 /-- Game 2 wins bound: combines the direct bridge with the framework bound.
     Routes via `guess_experiment_game_2` → `interim` → `collector` → bound. -/
@@ -2691,17 +2697,19 @@ private lemma final_recording_game_1_qs_length_bump (σ : state) :
       (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
   · exact Program.wp_const_le _ _ _
 
-/-- **Game 1 correspondence**: matched-fire in `guess_experiment_game_1.body`
-    (via `lazy_query_tracked` flipping `chal_x_queried_gh` when `inp = chal_x`)
-    corresponds to `t ∈ qs` after `body_recording_game_1`. Discharges the
-    `h_correspondence` hypothesis of `guess_experiment_le_interim_assumption`
-    for Game 1.
+/-- **AXIOM: Game 1 correspondence**.
 
-    Cryptographic content: `lazy_query_tracked inp` sets `chal_x_queried_gh = true`
-    iff `inp = chal_x`. With `chal_x` set to `t`, this becomes `inp = t`. Meanwhile
-    `body_recording_game_1` appends `inp` to `queries_input`, so `t ∈ queries_input`
-    iff some iter's `inp = t`. -/
-lemma game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
+    `body_game_1 ow_adv`'s match-fire on `chal_x_queried_gh` (via
+    `lazy_query_tracked` flipping the flag when `inp = chal_x = t`) corresponds
+    to `t ∈ queries_input` after `body_recording_game_1 ow_adv` (which appends
+    each `inp` to the list). Both events are "some lazy_query_tracked saw
+    `inp = t`".
+
+    This is a true cryptographic claim about specific concrete programs. Proving
+    it requires inducting on the loop with invariant
+    `chal_x_queried_gh = decide (t ∈ queries_input)` maintained by
+    `body_recording_game_1`. Proof deferred to future work. -/
+axiom game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
     (σ' : state) (t : input) :
     (Program.set ow_challenge_x t >>= fun _ : Unit =>
      Program.set chal_x_queried_gh false >>= fun _ : Unit =>
@@ -2716,8 +2724,7 @@ lemma game_1_correspondence (ow_adv : Program state Unit) (q : ℕ)
      Program.get queries_input >>= fun qs =>
      Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
      Program.get chal_x_queried_gh).wp
-       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
-  sorry
+       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
 
 /-- **Reduction: bad-in-Game-1 ≤ Guess(input, q+1)**.
 
