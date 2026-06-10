@@ -3965,15 +3965,300 @@ private lemma final_recording_game_1_wp_eq_final_recording_game_1'
   refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun qs => ?_)
   exact Program.set_inRange_compl_of_disjoint _ _ _
 
-/-- **Game-hop bridge**: at the chal_x_queried_gh-firing post (which is what
-    Game 1 cares about), `guess_experiment_game_1` and `guess_experiment_game_1'`
-    have the same wp. This is because, inside guess_experiment's loop after
-    `set ow_challenge_x t`, `lazy_query_tracked inp` (which compares inp to
-    chal_x = t) is wp-equivalent to `lazy_query inp >>= if inp = t then set chal_x_qg`.
+/-- Helper: body of `body_game_1 ow_adv _` and `body_game_1' ow_adv t` have the
+    same wp at any post, when starting from state σ with `ow_challenge_x.get σ = t`.
 
-    Proof DEFERRED — requires conditional-wp manipulation that respects the
-    `chal_x = t` post-condition through each iter, threading the
-    `target = t` invariant through the loop. -/
+    The two bodies differ in HOW they compare adv's query `inp` against the bound
+    target `t`: body_game_1 reads chal_x from state (via lazy_query_tracked's
+    `get chal_x` inside); body_game_1' uses the bound `t` directly. When state
+    has chal_x = t, both ways agree. The chal_x_qg-write and set-output also
+    appear in opposite orders; they commute by disjointness. -/
+private lemma body_game_1_wp_eq_body_game_1'_at_chal_x_eq
+    (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (t : input) (F : Unit × state → ENNReal) (σ : state)
+    (h_cx : ow_challenge_x.get σ = t) :
+    (body_game_1 ow_adv t).wp F σ = (body_game_1' ow_adv t).wp F σ := by
+  unfold body_game_1 body_game_1' q_body_game_1' lazy_query_tracked
+  simp only [Program.bind_assoc, Program.pure_bind]
+  -- Step 1: peel ow_adv, strengthening with chal_x preservation.
+  rw [wp_bind, Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x]
+  conv_rhs => rw [wp_bind, Program.wp_strengthen_lens_preserved ow_challenge_x h_ow_adv_chal_x]
+  congr 1
+  funext aσ_adv
+  obtain ⟨_, σ_adv⟩ := aσ_adv
+  dsimp only
+  by_cases h1 : ow_challenge_x.get σ_adv = ow_challenge_x.get σ
+  · simp only [if_pos h1]
+    rw [h_cx] at h1
+    -- Step 2: peel get inp.
+    rw [wp_bind, wp_get]
+    conv_rhs => rw [wp_bind, wp_get]
+    dsimp only
+    -- Step 3: peel lazy_query, strengthening with chal_x preservation.
+    have h_lq_chal_x : (lazy_query (oracle_input.get σ_adv)).inRange
+        ow_challenge_x.compl.range :=
+      Program.inRange_mono (lazy_query_inRange_ro _)
+        (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+    rw [wp_bind, Program.wp_strengthen_lens_preserved ow_challenge_x h_lq_chal_x]
+    conv_rhs => rw [wp_bind, Program.wp_strengthen_lens_preserved ow_challenge_x h_lq_chal_x]
+    congr 1
+    funext aσ_lq
+    obtain ⟨y, σ_lq⟩ := aσ_lq
+    dsimp only
+    by_cases h2 : ow_challenge_x.get σ_lq = ow_challenge_x.get σ_adv
+    · simp only [if_pos h2]
+      rw [h1] at h2
+      -- Step 4: LHS = (get chal_x; (if inp = cx then ...); set output y).wp F σ_lq.
+      --         RHS = (set output y; (if inp = t then ...)).wp F σ_lq.
+      rw [wp_bind, wp_get]
+      dsimp only
+      rw [h2]
+      rw [wp_bind]
+      conv_rhs => rw [wp_bind, wp_set]
+      dsimp only
+      by_cases h : oracle_input.get σ_adv = t
+      · simp only [if_pos h]
+        rw [wp_set]
+        dsimp only
+        simp only [wp_set]
+        congr 2
+        exact (inferInstance : disjoint oracle_output chal_x_queried_gh).commute σ_lq y true
+      · simp only [if_neg h]
+        simp only [wp_pure, wp_set]
+    · simp only [if_neg h2]
+  · simp only [if_neg h1]
+
+/-- Final-game-1 equivalent of the body bridge: `final_game_1` and `final_game_1' t`
+    have the same wp when starting from a state with `ow_challenge_x.get σ = t`. -/
+private lemma final_game_1_wp_eq_final_game_1'_at_chal_x_eq
+    (t : input) (F : Unit × state → ENNReal) (σ : state)
+    (h_cx : ow_challenge_x.get σ = t) :
+    (final_game_1 t).wp F σ = (final_game_1' t).wp F σ := by
+  unfold final_game_1 final_game_1' q_final_game_1' lazy_query_tracked
+  simp only [Program.bind_assoc, Program.pure_bind]
+  -- Step 1: peel get ow_response.
+  rw [wp_bind, wp_get]
+  conv_rhs => rw [wp_bind, wp_get]
+  dsimp only
+  -- Step 2: peel lazy_query, strengthening with chal_x preservation.
+  have h_lq_chal_x : (lazy_query (ow_response.get σ)).inRange
+      ow_challenge_x.compl.range :=
+    Program.inRange_mono (lazy_query_inRange_ro _)
+      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+  rw [wp_bind, Program.wp_strengthen_lens_preserved ow_challenge_x h_lq_chal_x]
+  conv_rhs => rw [wp_bind, Program.wp_strengthen_lens_preserved ow_challenge_x h_lq_chal_x]
+  congr 1
+  funext aσ_lq
+  obtain ⟨y, σ_lq⟩ := aσ_lq
+  dsimp only
+  by_cases h1 : ow_challenge_x.get σ_lq = ow_challenge_x.get σ
+  · simp only [if_pos h1]
+    rw [h_cx] at h1
+    rw [wp_bind, wp_get]
+    dsimp only
+    rw [h1]
+    rw [wp_bind]
+    conv_rhs => rw [wp_bind, wp_set]
+    dsimp only
+    by_cases h : ow_response.get σ = t
+    · simp only [if_pos h]
+      rw [wp_set]
+      dsimp only
+      simp only [wp_set]
+      congr 2
+      exact (inferInstance : disjoint oracle_output chal_x_queried_gh).commute σ_lq y true
+    · simp only [if_neg h]
+      simp only [wp_pure, wp_set]
+  · simp only [if_neg h1]
+
+/-- `body_game_1' ow_adv t` is in `ow_challenge_x.compl.range`: every sub-program
+    is chal_x-disjoint (adv via hypothesis, get/set oracle_input/output via
+    disjointness, lazy_query via RO ⊥ chal_x, the if-set on chal_x_qg via
+    chal_x_qg ⊥ chal_x). -/
+private lemma body_game_1'_inRange_chal_x
+    (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (t : input) :
+    (body_game_1' ow_adv t).inRange ow_challenge_x.compl.range := by
+  unfold body_game_1' q_body_game_1'
+  refine Program.inRange_bind ?_ (fun a => ?_)
+  · refine Program.inRange_bind h_ow_adv_chal_x (fun _ => ?_)
+    refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun inp => ?_)
+    refine Program.inRange_bind ?_ (fun y => ?_)
+    · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+        (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+    refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+    exact Program.inRange_pure _ _
+  · by_cases hh : a = t
+    · simp only [if_pos hh]
+      exact Program.set_inRange_compl_of_disjoint _ _ _
+    · simp only [if_neg hh]
+      exact Program.inRange_pure _ _
+
+/-- `final_game_1' t` is in `ow_challenge_x.compl.range`. -/
+private lemma final_game_1'_inRange_chal_x (t : input) :
+    (final_game_1' t).inRange ow_challenge_x.compl.range := by
+  unfold final_game_1' q_final_game_1'
+  refine Program.inRange_bind ?_ (fun a => ?_)
+  · refine Program.inRange_bind (Program.get_inRange_compl_of_disjoint _ _) (fun resp => ?_)
+    refine Program.inRange_bind ?_ (fun y => ?_)
+    · exact Program.inRange_mono (lazy_query_inRange_ro resp)
+        (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+    refine Program.inRange_bind (Program.set_inRange_compl_of_disjoint _ _ _) (fun _ => ?_)
+    exact Program.inRange_pure _ _
+  · by_cases hh : a = t
+    · simp only [if_pos hh]
+      exact Program.set_inRange_compl_of_disjoint _ _ _
+    · simp only [if_neg hh]
+      exact Program.inRange_pure _ _
+
+/-- Loop+final bridge for Game 1: under the invariant `ow_challenge_x.get σ = t`,
+    the loop-and-final wp's of Game 1 and Game 1' agree at any post `F`. Proven
+    by induction on `q` with the chal_x-invariant threaded through each iter
+    via `body_game_1_preserves_chal_x`. -/
+private lemma loop_final_body_game_1_wp_eq
+    (ow_adv : Program state Unit)
+    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+    (t : input) (q : ℕ) :
+    ∀ (F : Unit × state → ENNReal) (σ : state), ow_challenge_x.get σ = t →
+      (loop_n q (body_game_1 ow_adv t) >>= fun _ => final_game_1 t).wp F σ
+    = (loop_n q (body_game_1' ow_adv t) >>= fun _ => final_game_1' t).wp F σ := by
+  induction q with
+  | zero =>
+    intro F σ h_cx
+    show ((pure () : Program state Unit) >>= fun _ => final_game_1 t).wp F σ = _
+    rw [Program.pure_bind]
+    conv_rhs => rw [show (loop_n 0 (body_game_1' ow_adv t) >>= fun _ => final_game_1' t) =
+                       final_game_1' t from by
+                  show (pure () >>= fun _ => final_game_1' t) = _
+                  rw [Program.pure_bind]]
+    exact final_game_1_wp_eq_final_game_1'_at_chal_x_eq t F σ h_cx
+  | succ n ih =>
+    intro F σ h_cx
+    -- LHS: loop_n (n+1) body_game_1 >>= final_game_1 = body >>= loop_n n body >>= final.
+    -- Apply wp_bind directly (loop_n (n+1) body = body >>= fun _ => loop_n n body by rfl,
+    -- and the outer >>= is body >>= (loop_n n body >>= final)).
+    rw [show (loop_n (n+1) (body_game_1 ow_adv t) >>= fun _ => final_game_1 t) =
+           body_game_1 ow_adv t >>= fun _ =>
+             loop_n n (body_game_1 ow_adv t) >>= fun _ => final_game_1 t from by
+         show (body_game_1 ow_adv t >>= fun _ => loop_n n (body_game_1 ow_adv t)) >>= _ = _
+         rw [Program.bind_assoc]]
+    conv_rhs => rw [show (loop_n (n+1) (body_game_1' ow_adv t) >>= fun _ => final_game_1' t) =
+           body_game_1' ow_adv t >>= fun _ =>
+             loop_n n (body_game_1' ow_adv t) >>= fun _ => final_game_1' t from by
+         show (body_game_1' ow_adv t >>= fun _ => loop_n n (body_game_1' ow_adv t)) >>= _ = _
+         rw [Program.bind_assoc]]
+    rw [wp_bind]
+    conv_rhs => rw [wp_bind]
+    -- Step 1: convert LHS's body_game_1 → body_game_1' via body bridge.
+    rw [body_game_1_wp_eq_body_game_1'_at_chal_x_eq ow_adv h_ow_adv_chal_x t _ σ h_cx]
+    -- Step 2: strengthen with chal_x preservation on both sides (body_game_1' is chal_x-disjoint).
+    rw [Program.wp_strengthen_lens_preserved ow_challenge_x
+        (body_game_1'_inRange_chal_x ow_adv h_ow_adv_chal_x t)]
+    conv_rhs => rw [Program.wp_strengthen_lens_preserved ow_challenge_x
+        (body_game_1'_inRange_chal_x ow_adv h_ow_adv_chal_x t)]
+    -- Step 3: equate posts; in the chal_x-preserved branch, apply IH.
+    congr 1
+    funext aσ_body
+    obtain ⟨_, σ_body⟩ := aσ_body
+    dsimp only
+    by_cases h_inv : ow_challenge_x.get σ_body = ow_challenge_x.get σ
+    · simp only [if_pos h_inv]
+      rw [h_cx] at h_inv
+      exact ih F σ_body h_inv
+    · simp only [if_neg h_inv]
+
+set_option maxHeartbeats 4000000 in
+/-- Generic prefix-peel helper for `guess_experiment`: peels env, uniform t,
+    set tvar t, set mvar false, and the trailing get mvar, reducing the wp
+    to a wp at the inner state involving only (loop_n q (body t) >>= final t).
+
+    Used to bridge guess_experiment_game_1 and guess_experiment_game_1' at the
+    canonical inner form, where loop_final_body_game_1_wp_eq applies. -/
+private lemma guess_experiment_wp_inner_eq
+    {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
+    (env : Program state Unit) (tvar : Lens T state) (mvar : Lens Bool state)
+    (body body' : T → Program state Unit)
+    (final final' : T → Program state Unit) (q : ℕ)
+    (h_inner : ∀ (σ_inner : state) (t : T),
+       tvar.get σ_inner = t →
+       (loop_n q (body t) >>= fun _ => final t).wp
+         (fun aσ : Unit × state => if mvar.get aσ.2 then (1 : ENNReal) else 0) σ_inner
+       = (loop_n q (body' t) >>= fun _ => final' t).wp
+         (fun aσ : Unit × state => if mvar.get aσ.2 then (1 : ENNReal) else 0) σ_inner)
+    [disjoint mvar tvar] (σ : state) :
+    (guess_experiment env Program.uniform tvar mvar body final q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
+    = (guess_experiment env Program.uniform tvar mvar body' final' q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  haveI : disjoint tvar mvar := disjoint.symm inferInstance
+  -- Show the inner post equality.
+  have h_inner_post : ∀ (σ_env : state) (t : T),
+      (Program.set tvar t >>= fun _ =>
+       Program.set mvar false >>= fun _ =>
+       loop_n q (body t) >>= fun _ =>
+       final t >>= fun _ =>
+       Program.get mvar).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_env
+      = (Program.set tvar t >>= fun _ =>
+         Program.set mvar false >>= fun _ =>
+         loop_n q (body' t) >>= fun _ =>
+         final' t >>= fun _ =>
+         Program.get mvar).wp
+          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ_env := by
+    intro σ_env t
+    rw [wp_bind, wp_set]
+    conv_rhs => rw [wp_bind, wp_set]
+    dsimp only
+    rw [wp_bind, wp_set]
+    conv_rhs => rw [wp_bind, wp_set]
+    dsimp only
+    set σ_inner : state := mvar.set false (tvar.set t σ_env) with σ_inner_def
+    have h_tvar_get : tvar.get σ_inner = t := by
+      show tvar.get (mvar.set false (tvar.set t σ_env)) = t
+      rw [Lens.get_of_disjoint_set tvar mvar]
+      exact tvar.set_get σ_env t
+    -- Reassociate via bind_assoc: `loop >>= (\_. final >>= (\_. get))` =
+    -- `(loop >>= (\_. final)) >>= (\_. get)`.
+    rw [← Program.bind_assoc]
+    conv_rhs => rw [← Program.bind_assoc]
+    -- Now: ((loop >>= final) >>= get mvar).wp F σ_inner. Apply wp_bind to peel get mvar.
+    rw [wp_bind]
+    conv_rhs => rw [wp_bind]
+    have h_post :
+        (fun aσ : Unit × state =>
+          (Program.get mvar).wp (fun bσ : Bool × state =>
+            if bσ.1 then (1 : ENNReal) else 0) aσ.2)
+        = (fun aσ : Unit × state => if mvar.get aσ.2 then (1 : ENNReal) else 0) := by
+      funext aσ; rw [wp_get]
+    rw [h_post]
+    exact h_inner σ_inner t h_tvar_get
+  -- Now apply at the guess_experiment level.
+  unfold guess_experiment
+  conv_lhs => rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  congr 1
+  funext aσ_env
+  obtain ⟨_, σ_env⟩ := aσ_env
+  dsimp only
+  conv_lhs => rw [wp_bind, wp_uniform]
+  conv_rhs => rw [wp_bind, wp_uniform]
+  apply Finset.sum_congr rfl
+  intro t _
+  congr 1
+  exact h_inner_post σ_env t
+
+set_option maxHeartbeats 800000 in
+/-- **Game-hop bridge**: at the chal_x_queried_gh-firing post,
+    `guess_experiment_game_1` and `guess_experiment_game_1'` have the same wp.
+
+    Inside the loop, `lazy_query_tracked inp` (which reads chal_x from state and
+    fires `set chal_x_queried_gh true` iff `inp = chal_x`) is wp-equivalent to
+    `lazy_query inp; if inp = t then set chal_x_queried_gh true` provided
+    `chal_x.get state = t`. The schema's prefix sets `chal_x ← t`, so this
+    invariant is established before the loop and preserved by every iter
+    (no body modifies chal_x). -/
 private lemma guess_experiment_game_1_wp_eq_game_1'
     (ow_adv : Program state Unit)
     (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
@@ -3984,7 +4269,11 @@ private lemma guess_experiment_game_1_wp_eq_game_1'
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     = (guess_experiment_game_1' ow_adv q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
-  sorry
+  unfold guess_experiment_game_1 guess_experiment_game_1'
+  refine guess_experiment_wp_inner_eq lazy_init ow_challenge_x chal_x_queried_gh
+    (body_game_1 ow_adv) (body_game_1' ow_adv) final_game_1 final_game_1' q ?_ σ
+  intro σ_inner t h_tvar
+  exact loop_final_body_game_1_wp_eq ow_adv h_ow_adv_chal_x t q _ σ_inner h_tvar
 
 /-- Helper: body_game_1 ow_adv and body_recording_game_1 ow_adv have the same
     wp at queries_input-ignoring posts. body_recording adds only a trailing
