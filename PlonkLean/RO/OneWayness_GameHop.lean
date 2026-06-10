@@ -1918,6 +1918,135 @@ theorem guess_experiment_le_interim_assumption
   gcongr
   exact h_correspondence aσ_env.2 t
 
+/-- The combined "match_check + record" trailing has a specific wp form:
+    it sets matched to (old_matched ∨ (a = t)) and qs to (old_qs ++ [a]).
+    For F that's "invariant-respecting" (returns same value on states
+    satisfying the invariant), the wp from invariant-respecting input
+    gives F applied at an invariant-respecting output state. -/
+private lemma match_check_record_wp
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (t a : T)
+    (F : Unit × state → ENNReal)
+    (σ : state) :
+    ((if a = t then Program.set matched_var true
+      else (pure () : Program state Unit)) >>=
+     fun _ : Unit =>
+     Program.get queries_list_var >>= fun qs : List T =>
+     Program.set queries_list_var (qs ++ [a])).wp F σ
+    = F ((), queries_list_var.set
+            (queries_list_var.get σ ++ [a])
+            (if a = t then matched_var.set true σ else σ)) := by
+  haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  by_cases ha : a = t
+  · simp only [if_pos ha]
+    rw [wp_bind, wp_set, wp_bind, wp_get]
+    dsimp only
+    rw [wp_set]
+    congr 1
+    rw [Lens.get_of_disjoint_set queries_list_var matched_var true σ]
+  · simp only [if_neg ha]
+    rw [wp_bind, wp_pure, wp_bind, wp_get]
+    dsimp only
+    rw [wp_set]
+
+/-- After running `match_check t a; record a` from a state σ with the invariant
+    `matched.get σ = decide (t ∈ qs.get σ)`, the resulting state also satisfies
+    the invariant. -/
+private lemma match_check_record_preserves_invariant
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (t a : T) (σ : state)
+    (h_inv : matched_var.get σ = decide (t ∈ queries_list_var.get σ)) :
+    matched_var.get
+      (queries_list_var.set (queries_list_var.get σ ++ [a])
+        (if a = t then matched_var.set true σ else σ))
+    = decide (t ∈ queries_list_var.get
+      (queries_list_var.set (queries_list_var.get σ ++ [a])
+        (if a = t then matched_var.set true σ else σ))) := by
+  haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  by_cases ha : a = t
+  · simp only [if_pos ha]
+    rw [Lens.get_of_disjoint_set matched_var queries_list_var]
+    rw [Lens.set_get matched_var]
+    rw [Lens.set_get queries_list_var]
+    rw [ha]
+    symm
+    rw [decide_eq_true_iff]
+    exact List.mem_append_right _ (List.mem_singleton.mpr rfl)
+  · simp only [if_neg ha]
+    rw [Lens.get_of_disjoint_set matched_var queries_list_var]
+    rw [Lens.set_get queries_list_var]
+    rw [h_inv]
+    congr 1
+    apply propext
+    constructor
+    · intro h
+      exact List.mem_append_left _ h
+    · intro h
+      rcases List.mem_append.mp h with h1 | h1
+      · exact h1
+      · exact absurd (List.mem_singleton.mp h1).symm ha
+
+/-- Body_aug invariant step: for body_aug = q_body >>= match_check t >>= record,
+    the wp from invariant-respecting σ at "matched-reading" post equals the
+    wp at "decide (t ∈ qs)-reading" post. -/
+private lemma body_aug_wp_invariant_step
+    {T : Type} [DecidableEq T]
+    (matched_var : Lens Bool state)
+    (queries_list_var : Lens (List T) state)
+    [disjoint matched_var queries_list_var]
+    (q_body : Program state T)
+    (h_q_body_matched : q_body.inRange matched_var.compl.range)
+    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
+    (t : T)
+    (F1 : Bool → state → ENNReal)
+    (σ : state)
+    (h_inv : matched_var.get σ = decide (t ∈ queries_list_var.get σ)) :
+    (q_body >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp
+       (fun aσ : Unit × state => F1 (matched_var.get aσ.2) aσ.2) σ
+    = (q_body >>= fun a : T =>
+       (if a = t then Program.set matched_var true
+        else (pure () : Program state Unit)) >>=
+       fun _ : Unit =>
+       Program.get queries_list_var >>= fun qs : List T =>
+       Program.set queries_list_var (qs ++ [a])).wp
+       (fun aσ : Unit × state =>
+         F1 (decide (t ∈ queries_list_var.get aσ.2)) aσ.2) σ := by
+  haveI : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  rw [wp_bind]
+  conv_rhs => rw [wp_bind]
+  rw [Program.wp_strengthen_lens_preserved matched_var h_q_body_matched _ σ,
+      Program.wp_strengthen_lens_preserved queries_list_var h_q_body_qs _ σ]
+  conv_rhs =>
+    rw [Program.wp_strengthen_lens_preserved matched_var h_q_body_matched _ σ,
+        Program.wp_strengthen_lens_preserved queries_list_var h_q_body_qs _ σ]
+  congr 1
+  funext aσ_q
+  obtain ⟨a, σ_q⟩ := aσ_q
+  dsimp only
+  by_cases hq : queries_list_var.get σ_q = queries_list_var.get σ
+  · by_cases hm : matched_var.get σ_q = matched_var.get σ
+    · simp only [hq, hm, if_true]
+      have h_inv_σ_q : matched_var.get σ_q = decide (t ∈ queries_list_var.get σ_q) := by
+        rw [hm, hq]; exact h_inv
+      rw [match_check_record_wp matched_var queries_list_var t a _ σ_q]
+      rw [match_check_record_wp matched_var queries_list_var t a _ σ_q]
+      have h_inv_σ_new :=
+        match_check_record_preserves_invariant matched_var queries_list_var t a σ_q h_inv_σ_q
+      rw [h_inv_σ_new]
+    · simp only [hm, if_false]
+  · simp only [hq, if_false]
+
 /-- A trailing `get qs >>= set qs (qs ++ [a])` is wp-invisible at
     queries_list-ignoring posts. Generic in `T` and `queries_list_var`. -/
 private lemma wp_record_append_invisible
