@@ -8,39 +8,80 @@ import PlonkLean.RO.OneWayness_GameHop.Game1
 import PlonkLean.RO.OneWayness_GameHop.Game2
 
 /-!
-# Game-hopping proof of one-wayness
+# One-wayness via game hopping
 
-An alternative proof of the OW lazy bound
-`P[ow_experiment wins] ≤ 2(q+1)/|output|` via three games and one
-up-to-bad analysis, with both probability bounds reduced to a single
-unifying "guessing game" lemma.
+A proof from first principles that for any adversary against a random oracle
+making at most `q` queries:
 
-See `notes/RO/OW_GameHop_Plan.md` for the full plan.
+```
+  P[OW experiment wins]  ≤  2 (q + 1) / |output|
+```
 
-`guess_experiment_le_interim_assumption` is a proper theorem parameterized by
-a `h_correspondence` hypothesis (the body↔body_recording correspondence). The
-hypothesis is discharged at each call site by per-game correspondence lemmas
-(`game_1_correspondence`, `game_2_correspondence`), which are currently
-declared as `axiom`s — they're concrete, TRUE statements about specific
-programs, with deferred proof effort. Proving them requires inducting on the
-loop with the invariant `matched_var = decide (t ∈ queries_list_var)`
-maintained by the body_recording. The existing proof in
-`PlonkLean/RO/OneWayness.lean` remains intact.
--/
+## Proof structure
 
-/-! ## The final game-hop bound
+```
+                                       ow_game_0_eq_ow_game_1
+  ow_experiment  ==  ow_game_0  ==========================>  ow_game_1
+                                  (program equality)              ║
+                                                                  ║ flag-elision
+                                                                  ║ (tracking
+                                                                  ║  invisible
+                                                                  ║  at flag-
+                                                                  ║  ignoring
+                                                                  ║  posts)
+                                                                  ║
+                                                                  ▼
+                                                          ow_game_1_tracked
+                                                                  ║
+                                                                  ║ up-to-bad
+                                                                  ║ (Game 1 ─ Game 2
+                                                                  ║   identical
+                                                                  ║   until adv
+                                                                  ║   queries
+                                                                  ║   chal_x)
+                                                                  ▼
+                                                          ow_game_2_tracked
+                                                          + bad event
+                                            ┌───────────────┴──────────┐
+                                            ▼                          ▼
+                                     win event in G2              bad event
+                                            │                          │
+                                            │ Game 2 → guess-          │ Game 1 → guess-
+                                            │ experiment_game_2        │ experiment_game_1
+                                            │ (matched_chal_y)         │ (chal_x_queried_gh)
+                                            ▼                          ▼
+                                  ≤ (q+1)/|output|              ≤ (q+1)/|input|
+                                                                       │
+                                                                       │ |input| ≥ |output|
+                                                                       ▼
+                                                                ≤ (q+1)/|output|
+                                            └──────────────┬───────────┘
+                                                           ▼
+                                                ≤ 2(q+1)/|output|
+```
 
-Combining the proved infrastructure:
-* `ow_game_0_eq_ow_game_1` — Hop 0 → 1 (program equality).
-* `ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring` — tracking is
-  invisible for flag-ignoring posts.
-* `ow_game_1_tracked_le_ow_game_2_tracked_plus_bad` — Hop 1 → 2 via
-  `Program.up_to_bad`.
-* `ow_game_2_tracked_wins_le_guess_output_bound` — Game 2 win bound.
-* `ow_game_1_tracked_bad_le_guess_input_bound` — bad event bound.
-* `card_input_ge_output` — |input| ≥ |output|.
+## Module layout
 
-Yields `P[ow_experiment wins] ≤ 2(q+1)/|output|`. -/
+* `Definitions` — the three games (`ow_game_0`, `ow_game_1`, `ow_game_2`),
+  their tracked variants, the tracking flag `chal_x_queried_gh`, the
+  matched flag `matched_chal_y`, the query-recording lists
+  `queries_input`/`queries_output`, all disjointness axioms.
+* `GuessExperiment` — the abstract guessing-game framework
+  (`guess_experiment`, `guess_experiment_interim`, `schema_inner_equation`,
+  `guess_experiment_le_interim_via_schema`, `guess_experiment_interim_wp_bound`).
+  Reduces both Game 2 wins and Game 1 bad to a single bound `≤ (q+1)/|T|`.
+* `UpToBad` — the identical-until-bad analysis bridging Game 1 to Game 2.
+  Contains RO-invariance machinery, mass-conservation lemmas, and the
+  `up_to_bad`-style decomposition.
+* `Game1` — Game 1 specifics: bridges Game 1 to Game 1' (a schema-friendly
+  variant with explicit `if inp = t then set chal_x_queried_gh true`),
+  `game_1_correspondence`, and the bad-event bound.
+* `Game2` — Game 2 specifics: schema decomposition (`q_body_game_2`,
+  `q_final_game_2`), win-event bound.
+
+## The master theorem
+
+`ow_lazy_bound_via_gamehop` (this file) chains everything together. -/
 
 section GameHopParam_Final
 
@@ -48,8 +89,7 @@ variable (ow_adv : Program state Unit)
 
 /-- **The OW lazy bound via the game-hop chain**.
     Matches the existing `ow_lazy_bound` (in `QueryHit.lean`), proved via
-    the game-hopping + up-to-bad chain instead of the
-    useful_preimage/deferred-sampling machinery. -/
+    the game-hopping + up-to-bad chain. -/
 theorem ow_lazy_bound_via_gamehop
     (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
     (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)

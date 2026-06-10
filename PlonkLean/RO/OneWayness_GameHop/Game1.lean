@@ -127,55 +127,11 @@ private lemma chal_y_block_pure_decide_eliminate
 
 /-- **Game 2 bad-event ↔ guess_experiment_game_1 matched-event bridge.**
 
-    Both programs have the same structure (lazy RO, no pre-programming,
-    `lazy_query_tracked` for the loop). They differ only by:
-    1. Order of disjoint-lens writes in the prefix.
-    2. G2 has `uniform y; set chal_y y` (invisible at F_chal_xqg).
-    3. Trailing: G2 `pure (decide (y_check = y))` (Game 2's win indicator,
-       ignored by F_chal_xqg) vs guess `set oo y_check; get chal_xqg`.
-
-    No deferred-sampling needed — both games have lazy RO.
-
-    **Proof outline** (deferred — see helper `uniform_set_chal_y_invisible`
-    above; the architectural piece is in place but assembling the full
-    wp-chain is mechanical and tedious):
-
-    Let NEW_POST(yc, σ') := if chal_xqg.get σ' then 1 else 0.
-
-    1. **Trailing absorption.**
-       * LHS: `wp_bind` + `wp_pure` on `pure (decide y_check = y)` →
-         post becomes `fun (yc, σ') => F_chal_xqg(decide yc = y, σ')`.
-         F_chal_xqg ignores Bool, so post simplifies to NEW_POST.
-       * RHS: `wp_bind` + `wp_set` on `set oo y_check`, then `wp_get`
-         on `get chal_xqg`. Result: NEW_POST (oo ⊥ chal_xqg means
-         `chal_xqg.get (oo.set v σ') = chal_xqg.get σ'`).
-       * After this step, both sides reduce to
-         `(prefix; loop; get resp; lqt resp).wp NEW_POST σ`
-         for different prefixes.
-
-    2. **Eliminate G2's chal_y block.**
-       Apply `uniform_set_chal_y_invisible` with
-       k = `loop_n q (oracle_step adv lqt) >>= fun _ => get ow_response
-            >>= fun resp => lqt resp`, F = NEW_POST. Hypotheses:
-       * `h_k`: k is chal_y-disjoint. Composition of loop_n_inRange +
-         oracle_step's chal_y-disjointness (needs `h_ow_adv_chal_y`) +
-         lqt's chal_y-disjointness.
-       * `h_F`: NEW_POST is chal_y-ignoring (only reads chal_xqg).
-
-    3. **Commute `set chal_xqg false`.**
-       After step 2, LHS has `lazy_init; set chal_xqg false; uniform x;
-       set chal_x x; k` and RHS has `lazy_init; uniform x; set chal_x x;
-       set chal_xqg false; k`. Differ only by position of `set chal_xqg
-       false` relative to `uniform x; set chal_x x`. Commute via:
-       * `bind_uniform_comm` to move `set chal_xqg false` past `uniform x`
-         (uniform doesn't write state).
-       * Lens-disjoint commutation (chal_xqg ⊥ chal_x) to move past
-         `set chal_x x`.
-
-    Each step is a standard pattern in the existing proofs (cf.
-    `ow_game_2_tracked_wins_le_guess_experiment_game_2_matched` for the
-    Game 2 win bridge). The helper `uniform_set_chal_y_invisible` already
-    captures the only structurally novel piece. -/
+    `ow_game_2_tracked`'s bad event (`chal_x_queried_gh = true` at the end)
+    is exactly `guess_experiment_game_1`'s matched event. Both run the same
+    `lazy_query_tracked`-based loop; the prefixes and trailing operations
+    differ only by chal_x_qg-invisible steps (sampling chal_y, setting
+    oracle_output) that the bad-event post doesn't observe. -/
 private lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
     (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
     (q : ℕ) (σ : state) :
