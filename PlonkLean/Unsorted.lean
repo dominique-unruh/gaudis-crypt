@@ -6,9 +6,9 @@ import Mathlib.Order.CompletePartialOrder
 import Mathlib.Order.OmegaCompletePartialOrder
 
 import PlonkLean.Misc
-import PlonkLean.Semantics
+import PlonkLean.Language.Semantics
 import PlonkLean.WeakestPreconditions
-import PlonkLean.Lens
+import PlonkLean.Language.Lens
 
 structure state where
   x : Nat

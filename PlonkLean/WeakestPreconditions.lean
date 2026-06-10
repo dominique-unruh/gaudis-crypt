@@ -1,4 +1,4 @@
-import PlonkLean.Semantics
+import PlonkLean.Language.Semantics
 
 
 /-!
