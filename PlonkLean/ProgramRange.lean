@@ -220,6 +220,59 @@ lemma Program.get_inRange_compl_of_disjoint
   Program.inRange_mono (Program.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)
 
+/-! ## Bounded-loop combinator
+
+A generic `n`-fold iterator and its basic invariance/bound theorems. -/
+
+/-- Run `body` exactly `n` times. Generic bounded loop combinator. -/
+noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program s Unit :=
+  match n with
+  | 0 => pure ()
+  | n + 1 => body >>= fun _ => loop_n n body
+
+/-- `loop_n n body` stays in the same range as `body`. -/
+lemma loop_n_inRange {s : Type} {R : LensRange s}
+    (body : Program s Unit) (h_body : body.inRange R) (n : ℕ) :
+    (loop_n n body).inRange R := by
+  induction n with
+  | zero => exact Program.inRange_pure _ _
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).inRange R
+    exact Program.inRange_bind h_body (fun _ => ih)
+
+/-- **Linear bump bound for `loop_n`** with respect to a state-projected potential.
+    If `body` bumps `f` by ≤ `c` per iteration, then `loop_n n body` bumps `f` by ≤ `n*c`. -/
+lemma loop_n_wp_linear_bound {s : Type}
+    (body : Program s Unit)
+    (f : s → ENNReal) (c : ENNReal)
+    (h_body : ∀ σ, body.wp (fun aσ : Unit × s => f aσ.2) σ ≤ f σ + c)
+    (n : ℕ) (σ : s) :
+    (loop_n n body).wp (fun aσ : Unit × s => f aσ.2) σ
+    ≤ f σ + (n : ENNReal) * c := by
+  induction n generalizing σ with
+  | zero =>
+    show (pure () : Program s Unit).wp _ σ ≤ _
+    rw [wp_pure]; simp
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).wp _ σ ≤ _
+    rw [wp_bind]
+    calc body.wp (fun yσ : Unit × s =>
+            (loop_n n body).wp
+              (fun yσ' : Unit × s => f yσ'.2) yσ.2) σ
+        ≤ body.wp (fun yσ : Unit × s => f yσ.2 + (n : ENNReal) * c) σ := by
+          apply Program.wp_le_wp_of_le
+          intro yσ
+          exact ih yσ.2
+      _ = body.wp (fun yσ : Unit × s => f yσ.2) σ +
+          body.wp (fun _ : Unit × s => (n : ENNReal) * c) σ := by
+          rw [Program.wp_add]
+      _ ≤ (f σ + c) + (n : ENNReal) * c := by
+          gcongr
+          · exact h_body σ
+          · exact Program.wp_const_le _ _ _
+      _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
+          push_cast; ring
+
 /-! ## SubProbability-level characterization of `inRange` -/
 
 /-- `inRange` lifted to the SubProbability level: at state `σ`, applying a commutant update

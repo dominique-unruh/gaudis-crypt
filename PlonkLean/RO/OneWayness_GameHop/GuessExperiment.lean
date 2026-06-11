@@ -47,11 +47,7 @@ The framework for cryptographic guess-game reductions. `loop_n` is a
 plain bounded loop; `guess_experiment` is the unifying "n+1 attempts to
 hit a uniform target" game. -/
 
-/-- Run `body` exactly `n` times. Generic bounded loop combinator. -/
-noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program s Unit :=
-  match n with
-  | 0 => pure ()
-  | n + 1 => body >>= fun _ => loop_n n body
+-- `loop_n` is defined generically in PlonkLean.ProgramRange.
 
 /-- A generic "guess the uniform target" experiment.
 
@@ -95,55 +91,8 @@ lemma oracle_loop_n_eq_loop_n
     rw [ih]
 
 
-lemma loop_n_inRange {R : LensRange state}
-    (body : Program state Unit) (h_body : body.inRange R) (n : ℕ) :
-    (loop_n n body).inRange R := by
-  induction n with
-  | zero => exact Program.inRange_pure _ _
-  | succ n ih =>
-    show (body >>= fun _ => loop_n n body).inRange R
-    exact Program.inRange_bind h_body (fun _ => ih)
-
-/-- **Loop congruence for the equiv-modulo-lens calculus**: if two bodies
-    are `≈_L`-equivalent, so are their loops. Requires the reference body
-    `body` to be `L`-disjoint so that `loop_n n body` is also `L`-disjoint
-    (needed for the bind congruence in the inductive step). -/
-lemma loop_n_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
-    {body body' : Program state Unit}
-    (h_body : body.inRange L.compl.range)
-    (h_eq : Program.EquivModuloLens L body body')
-    (n : ℕ) :
-    Program.EquivModuloLens L (loop_n n body) (loop_n n body') := by
-  induction n with
-  | zero => exact Program.EquivModuloLens.refl _
-  | succ n ih =>
-    show Program.EquivModuloLens L (body >>= fun _ => loop_n n body)
-                                   (body' >>= fun _ => loop_n n body')
-    exact Program.EquivModuloLens.bind h_eq (fun _ => ih)
-      (fun _ => loop_n_inRange body h_body n)
-
-/-- **Loop + trailing congruence**: if `body ≈_L body'` and `final ≈_L final'`,
-    with both `body` and `final` being `L`-disjoint, then
-    `loop_n n body >>= fun _ => final  ≈_L  loop_n n body' >>= fun _ => final'`.
-
-    Combines `loop_n_congr` and `Program.EquivModuloLens.bind` in one step.
-    The `body`/`final` disjointness conditions are the ones the underlying
-    `bind` congruence requires (it needs the continuation to be `L`-disjoint
-    so the inner post stays `L`-ignoring). -/
-lemma loop_n_then_congr {γ : Type} [DecidableEq γ] {L : Lens γ state}
-    {body body' final final' : Program state Unit}
-    (h_body : body.inRange L.compl.range)
-    (h_body_eq : Program.EquivModuloLens L body body')
-    (h_final : final.inRange L.compl.range)
-    (h_final_eq : Program.EquivModuloLens L final final')
-    (n : ℕ) :
-    Program.EquivModuloLens L
-        (loop_n n body >>= fun _ : Unit => final)
-        (loop_n n body' >>= fun _ : Unit => final') :=
-  Program.EquivModuloLens.bind
-    (loop_n_congr h_body h_body_eq n)
-    (fun _ => h_final_eq)
-    (fun _ => h_final)
+-- `loop_n_inRange` is defined generically in PlonkLean.ProgramRange.
+-- `loop_n_congr` and `loop_n_then_congr` are defined generically in PlonkLean.EquivModuloLens.
 
 /-! ### Collector-game route to the bound.
 
@@ -378,7 +327,7 @@ theorem guess_experiment_le_interim_assumption
   exact h_correspondence aσ_env.2 t
 
 /-- A trailing `get qs >>= set qs (qs ++ [a])` is wp-invisible at
-    queries_list-ignoring posts. Generic in `T` and `queries_list_var`. -/
+    queries_list-ignoring posts. Specialization of `Program.wp_get_modify_invisible`. -/
 private lemma wp_record_append_invisible
     {T : Type} (queries_list_var : Lens (List T) state) (val : T)
     (F : Unit × state → ENNReal)
@@ -386,14 +335,12 @@ private lemma wp_record_append_invisible
     (σ : state) :
     (Program.get queries_list_var >>= fun qs : List T =>
        Program.set queries_list_var (qs ++ [val])).wp F σ
-    = F ((), σ) := by
-  rw [wp_bind, wp_get]
-  dsimp only
-  rw [wp_set]
-  exact h_F ((), σ) _
+    = F ((), σ) :=
+  Program.wp_get_modify_invisible queries_list_var (fun qs => qs ++ [val]) F h_F σ
 
 /-- The match-check `if a = t then set matched true else pure ()` is
-    wp-invisible at matched-ignoring posts. -/
+    wp-invisible at matched-ignoring posts. Specialization of
+    `Program.wp_cond_set_invisible` to `matched_var := true`. -/
 private lemma wp_match_check_matched_invisible
     {T : Type} [DecidableEq T] (matched_var : Lens Bool state)
     (t a : T) (F : Unit × state → ENNReal)
@@ -401,11 +348,8 @@ private lemma wp_match_check_matched_invisible
     (σ : state) :
     (if a = t then Program.set matched_var true
      else (pure () : Program state Unit)).wp F σ
-    = F ((), σ) := by
-  by_cases h : a = t
-  · simp only [if_pos h, wp_set]
-    exact h_F ((), σ) _
-  · simp only [if_neg h, wp_pure]
+    = F ((), σ) :=
+  Program.wp_cond_set_invisible matched_var (a = t) true F (fun aσ => h_F aσ true) σ
 
 /-- The combined "match_check + record" trailing has a specific wp form:
     it sets matched to (old_matched ∨ (a = t)) and qs to (old_qs ++ [a]).
@@ -1458,37 +1402,6 @@ lemma Program.wp_qs_length_preserved_of_inRange
     · simp [h]
   · exact Program.wp_const_le _ _ _
 
-/-- Linear bump bound for `loop_n` with respect to a state-projected potential.
-    If body bumps `f` by ≤ c per iter, then `loop_n n body` bumps by ≤ n*c. -/
-lemma loop_n_wp_linear_bound
-    (body : Program state Unit)
-    (f : state → ENNReal) (c : ENNReal)
-    (h_body : ∀ σ, body.wp (fun aσ : Unit × state => f aσ.2) σ ≤ f σ + c)
-    (n : ℕ) (σ : state) :
-    (loop_n n body).wp (fun aσ : Unit × state => f aσ.2) σ
-    ≤ f σ + (n : ENNReal) * c := by
-  induction n generalizing σ with
-  | zero =>
-    show (pure () : Program state Unit).wp _ σ ≤ _
-    rw [wp_pure]; simp
-  | succ n ih =>
-    show (body >>= fun _ => loop_n n body).wp _ σ ≤ _
-    rw [wp_bind]
-    calc body.wp (fun yσ : Unit × state =>
-            (loop_n n body).wp
-              (fun yσ' : Unit × state => f yσ'.2) yσ.2) σ
-        ≤ body.wp (fun yσ : Unit × state => f yσ.2 + (n : ENNReal) * c) σ := by
-          apply Program.wp_le_wp_of_le
-          intro yσ
-          exact ih yσ.2
-      _ = body.wp (fun yσ : Unit × state => f yσ.2) σ +
-          body.wp (fun _ : Unit × state => (n : ENNReal) * c) σ := by
-          rw [Program.wp_add]
-      _ ≤ (f σ + c) + (n : ENNReal) * c := by
-          gcongr
-          · exact h_body σ
-          · exact Program.wp_const_le _ _ _
-      _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
-          push_cast; ring
+-- `loop_n_wp_linear_bound` is defined generically in PlonkLean.ProgramRange.
 
 end GuessExperiment
