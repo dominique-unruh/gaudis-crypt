@@ -278,7 +278,8 @@ private lemma lazy_query_tracked_inRange_queries_input (inp : input) :
 
 
 /-- Helper: `get qi >>= fun qs => set qi (qs ++ [v])` has the same wp as
-    `pure ()` at queries_input-ignoring posts. -/
+    `pure ()` at queries_input-ignoring posts. Specialization of
+    `Program.wp_get_modify_invisible` with `g := fun qs => qs ++ [val]`. -/
 private lemma wp_queries_input_get_set_invisible
     (val : input)
     (F : Unit × state → ENNReal)
@@ -286,11 +287,8 @@ private lemma wp_queries_input_get_set_invisible
     (σ : state) :
     (Program.get queries_input >>= fun qs : List input =>
        Program.set queries_input (qs ++ [val])).wp F σ
-    = F ((), σ) := by
-  rw [wp_bind, wp_get]
-  dsimp only
-  rw [wp_set]
-  exact h_F ((), σ) _
+    = F ((), σ) :=
+  Program.wp_get_modify_invisible queries_input (fun qs => qs ++ [val]) F h_F σ
 
 /-- Helper: a trailing `get qi >>= set qi (qs ++ [v])` is invisible to wp at
     queries_input-ignoring posts. (Specialized to Program state Unit.) -/
@@ -936,28 +934,15 @@ private lemma final_game_1_inRange_queries_input (t : input) :
   exact Program.set_inRange_compl_of_disjoint _ _ _
 
 /-- A queries_input-disjoint program's wp at qi-ignoring F is invariant under
-    setting queries_input on the input. -/
+    setting queries_input on the input. Specialization of
+    `Program.wp_invariant_under_lens_set` to `queries_input`. -/
 private lemma wp_queries_input_invariant_of_inRange_queries_input
     {α : Type} (p : Program state α)
     (h_p_qi : p.inRange queries_input.compl.range)
     (F : α × state → ENNReal) (h_F : IgnoresLens queries_input F)
     (σ : state) (v : List input) :
-    p.wp F (queries_input.set v σ) = p.wp F σ := by
-  have h_f_updates : (queries_input.update (Function.const _ v))
-      ∈ ((queries_input.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((queries_input.compl.range : LensRange state)ᶜ) = queries_input.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
-  have h_set_eq : queries_input.update (Function.const _ v) σ = queries_input.set v σ := by
-    show queries_input.set ((Function.const _ v) (queries_input.get σ)) σ = queries_input.set v σ
-    rfl
-  rw [← h_set_eq]
-  rw [Program.wp_shift_input h_p_qi h_f_updates]
-  congr 1
-  funext xs
-  show F (xs.1, queries_input.update (Function.const _ v) xs.2) = F xs
-  show F (xs.1, queries_input.set v xs.2) = F xs
-  exact h_F xs v
+    p.wp F (queries_input.set v σ) = p.wp F σ :=
+  Program.wp_invariant_under_lens_set queries_input h_p_qi h_F σ v
 
 /-- Body equivalence packaged as EquivModuloLens. -/
 private lemma body_game_1_equiv_body_recording_game_1

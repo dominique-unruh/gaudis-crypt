@@ -17,30 +17,9 @@ lens `L`, value `v`). Tracking-flag elision proofs reduce to short
 chains of these rules.
 -/
 
-/-- A post `F` ignores lens `L` if it doesn't depend on `L`-content of
-    its state argument: setting `L` to any value leaves `F` unchanged. -/
-def IgnoresLens {γ s α : Type} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
-  ∀ (aσ : α × s) (v : γ), F (aσ.1, L.set v aσ.2) = F aσ
-
-namespace IgnoresLens
-
-/-- L-ignoring is preserved when post-composing with an L-disjoint program. -/
-lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
-    {F : β × s → ENNReal} (h_F : IgnoresLens L F)
-    (k : α → Program s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
-    IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
-  intro aσ v
-  have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
-  show (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
-  rw [Program.wp_shift_input (h_k aσ.1) hf]
-  congr 1
-  funext xs
-  exact h_F xs v
-
-end IgnoresLens
+-- `IgnoresLens` and `IgnoresLens.comp_inRange` moved to PlonkLean.ProgramRange
+-- (they don't depend on the EquivModuloLens calculus; they're foundational
+-- lens-post-invariance facts useful beyond this module).
 
 /-- `Program.EquivModuloLens L p q` — `p` and `q` have equal wps on any
     `L`-ignoring post. -/

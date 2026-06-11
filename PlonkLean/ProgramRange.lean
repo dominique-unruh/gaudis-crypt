@@ -343,6 +343,71 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
   show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
   rw [if_pos (h_f_L_get xs.2)]
 
+/-- A post `F` ignores lens `L` if it doesn't depend on `L`-content of
+    its state argument: setting `L` to any value leaves `F` unchanged. -/
+def IgnoresLens {γ s α : Type} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
+  ∀ (aσ : α × s) (v : γ), F (aσ.1, L.set v aσ.2) = F aσ
+
+namespace IgnoresLens
+
+/-- L-ignoring is preserved when post-composing with an L-disjoint program. -/
+lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
+    {F : β × s → ENNReal} (h_F : IgnoresLens L F)
+    (k : α → Program s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
+    IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
+  intro aσ v
+  have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  show (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
+  rw [Program.wp_shift_input (h_k aσ.1) hf]
+  congr 1
+  funext xs
+  exact h_F xs v
+
+end IgnoresLens
+
+/-- **wp is `L`-shift-invariant on input** when `p` is `L`-disjoint and `F` is
+    `L`-ignoring. The intuition: writing `v` into `L` before `p` is invisible
+    because `p` doesn't read `L` and `F` doesn't read `L` of the output. -/
+lemma Program.wp_invariant_under_lens_set
+    {s α γ : Type} [DecidableEq γ] (L : Lens γ s)
+    {p : Program s α} (h_p : p.inRange L.compl.range)
+    {F : α × s → ENNReal} (h_F : IgnoresLens L F)
+    (σ : s) (v : γ) :
+    p.wp F (L.set v σ) = p.wp F σ := by
+  have h_f_updates : L.update (Function.const _ v)
+      ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  have h_set_eq : L.update (Function.const _ v) σ = L.set v σ := by
+    show L.set ((Function.const _ v) (L.get σ)) σ = L.set v σ
+    rfl
+  rw [← h_set_eq]
+  rw [Program.wp_shift_input h_p h_f_updates]
+  congr 1
+  funext xs
+  show F (xs.1, L.update (Function.const _ v) xs.2) = F xs
+  show F (xs.1, L.set v xs.2) = F xs
+  exact h_F xs v
+
+/-- **Read-modify-write on `L` is wp-invisible at `L`-ignoring posts**.
+    `get L >>= fun a => set L (g a)` has the same wp as `pure ()` for any
+    pure modification `g : γ → γ` of the lens value, provided the post `F`
+    doesn't read `L`. Captures the "tracking variable updated in place"
+    pattern: the modification is invisible if downstream code doesn't
+    observe `L`. -/
+lemma Program.wp_get_modify_invisible
+    {s γ : Type} (L : Lens γ s) (g : γ → γ)
+    (F : Unit × s → ENNReal) (h_F : IgnoresLens L F) (σ : s) :
+    (Program.get L >>= fun a : γ => Program.set L (g a)).wp F σ = F ((), σ) := by
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_set]
+  exact h_F ((), σ) _
+
 /-- **Vanishing-post zero**: if `p` is `L`-disjoint, `F` vanishes on every state
     where `L.get = v`, and the input state already has `L.get σ = v`, then
     `p.wp F σ = 0`. Captures the standard "bad-event vanishing" pattern in
