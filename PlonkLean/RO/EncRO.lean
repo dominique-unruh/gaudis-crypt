@@ -30,12 +30,15 @@ the adversary's query loop. The two worlds differ only in `m_b`.
   The two runs then differ only at `RO[k]` — exactly the OW up-to-bad
   invariant `InvUB k hk` — so the shared loop body relates by the OW core
   `body_relE`, and the guesses agree until the adversary queries `k`.
-* **Bad bound** (Stage 2, *outstanding*): `Pr[adversary queries k] ≤
-  (q+1)/|input|`. This is a deferred-sampling reduction to the
-  `guess_experiment` framework: the key's sampling commutes past the
-  adversary loop (the published ciphertext `c = H(k) + m` is independent
-  of `k`, so the queries are independent of `k`). Structurally the same
-  chain as the OW bad-event bound; not yet ported here.
+* **Bad bound** (Stage 2): `Pr[adversary queries k] ≤ (q+1)/|input|`, a
+  deferred-sampling reduction to the `guess_experiment` framework. Two of
+  the three pieces are done: `enc_pre_bad_eq_nopre` (dropping the `RO[k]`
+  preprogramming is invisible — `relE.bad_eq`) and `gexp_env_c_bound` (the
+  guess-experiment bound, reusing OW's `game_1_correspondence`). The
+  connector `enc_nopre bad ≤ gexp matched` (reindex mask → fresh
+  ciphertext, `sum_comm`, tail monotonicity `enc_tail_mono`) remains: a
+  mechanical double-sum bridge, with all its helpers (`final_game_1_mono`,
+  `enc_tail_mono`, `enc_state_comm`) in place.
 
 We reuse `ow_challenge_x` as the **key register** and `chal_x_queried_gh`
 as the **"queried the key" flag**, so `lazy_query_tracked` and the entire
@@ -43,10 +46,10 @@ OW up-to-bad core (`body_relE`, `InvUB`, …) apply verbatim.
 
 ## Status
 
-Stage 1 is complete (`enc_guess_le`): the indistinguishability bound up to
-the bad event, proved by the OTP coupling + up-to-bad reuse. Stage 2 (the
-quantitative bad bound) is documented above and outstanding. Composing the
-two gives the headline `2(q+1)/|output|`-style bound. -/
+Stage 1 complete (`enc_guess_le`). Stage 2 ≈ 80%: `enc_pre_bad_eq_nopre`
+and `gexp_env_c_bound` done; the double-sum connector between them
+(`enc_nopre bad ≤ gexp matched`) remains, with all helper lemmas in
+place. Composing everything gives the headline `2(q+1)/|input|` bound. -/
 
 /-- A commutative group structure on the output type, modelling the
     one-time-pad mask (e.g. bitwise XOR). Axiomatized on the opaque
@@ -522,5 +525,71 @@ theorem gexp_env_c_bound
     ENNReal.div_le_div_right
       (by rw [Program.wp_set_seq]; exact h_inner _) _))
     (le_of_eq (sum_const_div_card _))
+
+/-- The extra final query can only set the flag: `if flag then 1 else 0`
+    is below `final_game_1`'s wp of the same indicator (flag-monotonicity
+    + losslessness). -/
+private lemma final_game_1_mono (k : input) (s : state) :
+    (if chal_x_queried_gh.get s = true then (1 : ENNReal) else 0)
+    ≤ (final_game_1 k).wp
+        (fun bσ : Unit × state =>
+          if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) s := by
+  by_cases hs : chal_x_queried_gh.get s = true
+  · rw [if_pos hs]
+    refine le_of_eq ?_
+    symm
+    show (Program.get ow_response >>= fun resp =>
+      lazy_query_tracked resp >>= fun y =>
+      Program.set oracle_output y).wp _ s = 1
+    rw [wp_bind, wp_get]
+    dsimp only
+    rw [wp_bind]
+    have hpost : (fun yσ : output × state =>
+        (Program.set oracle_output yσ.1).wp
+          (fun bσ : Unit × state =>
+            if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) yσ.2)
+      = fun yσ : output × state =>
+          if chal_x_queried_gh.get yσ.2 = true then (1 : ENNReal) else 0 := by
+      funext yσ
+      rw [wp_set]
+      show (if chal_x_queried_gh.get (oracle_output.set yσ.1 yσ.2) = true
+          then (1 : ENNReal) else 0) = _
+      rw [Lens.get_of_disjoint_set chal_x_queried_gh oracle_output]
+    rw [hpost]
+    exact wp_flag_one (lazy_query_tracked (ow_response.get s)) (lqt_mass _ s)
+      (lqt_flag_zero (fun u hu => by rw [if_pos hu]) hs)
+  · rw [if_neg hs]; exact zero_le
+
+include h_RO h_flag h_cx h_mass in
+/-- The shared loop tail: dropping the final query (and reading the guess
+    instead of the flag) only lowers the bad probability. -/
+private lemma enc_tail_mono (k : input) (q : ℕ) (s : state) :
+    (loop_n q (oracle_step enc_adv lazy_query_tracked) >>= fun _ : Unit =>
+      Program.get guess_var).wp
+      (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) s
+    ≤ (loop_n q (oracle_step enc_adv lazy_query_tracked) >>= fun _ : Unit =>
+        final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+      (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) s := by
+  rw [wp_bind, wp_bind]
+  apply Program.wp_le_wp_of_le
+  intro aσ
+  rw [wp_get]
+  dsimp only
+  rw [wp_bind]
+  refine le_trans (final_game_1_mono k aσ.2) (le_of_eq ?_)
+  congr 1
+  funext yσ
+  rw [wp_get]
+
+/-- State commute: the lazy-run state at `(k, hk)` equals the
+    guess-experiment state at ciphertext `c = hk + m` (the published
+    register commutes to where the guess experiment writes it). -/
+private lemma enc_state_comm (m : output) (k : input) (hk : output) (s : state) :
+    chal_c.set (hk + m) (chal_x_queried_gh.set false
+      (ow_challenge_x.set k (random_oracle_state.set (fun _ => none) s)))
+    = chal_x_queried_gh.set false (ow_challenge_x.set k
+        (chal_c.set (hk + m) (random_oracle_state.set (fun _ => none) s))) := by
+  rw [(inferInstance : disjoint chal_c chal_x_queried_gh).commute,
+      (inferInstance : disjoint chal_c ow_challenge_x).commute]
 
 end EncBad
