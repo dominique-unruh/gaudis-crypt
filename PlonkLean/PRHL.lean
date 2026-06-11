@@ -3,6 +3,7 @@ import PlonkLean.PRHL.Lenses
 import PlonkLean.PRHL.Loops
 import PlonkLean.PRHL.UpToBad
 import PlonkLean.PRHL.Coupling
+import PlonkLean.PRHL.Tactics
 
 /-!
 # pRHL: a probabilistic relational Hoare logic for `Program`
@@ -30,7 +31,9 @@ to `wp` reasoning or `Program.ext_of_wp`.
 * `Lenses` — footprint-aware rules: `self_shift` (relational
   `wp_shift_input`), `frame` (relational `wp_strengthen_lens_preserved`),
   and the two-way bridge with the `EquivModuloLens` calculus.
-* `Loops` — synchronized invariant rule for `loop_n`.
+* `Loops` — synchronized invariant rules for `loop_n` and `while_loop`
+  (the unbounded rule needs no Kleene induction: the left loop's wp is a
+  least fixed point, bounded by an `iInf`-interpolant prefixed point).
 * `UpToBad` — the Fundamental Lemma (`relE.up_to_bad`, `relE.bad_eq`) and
   the rectangular rule `rel.of_unary` (for phases where the two sides
   genuinely diverge).
@@ -64,8 +67,14 @@ to `wp` reasoning or `Program.ext_of_wp`.
    `Coupling.of_pure`/`of_uniform` builders). Couplings are used at leaves
    only; composition stays with the wp-lifting rules. `lqt_relE` in the
    up-to-bad client now does its case analysis once.
-7. Remaining tactic-layer candidates: do-notation-aware `rel_step`,
-   synchronized `while_loop` rule (Kleene argument).
+7. ✅ Synchronized `while_loop` rule (`rel/relE.while_loop` in `Loops`):
+   guards agree under the invariant, bodies preserve it, loops relate at
+   the guard-false refinement.
+8. ✅ Tactic layer v1 (`Tactics`): `wp_peel` (strip synchronized
+   deterministic/uniform prefixes), `rel_bind Mid` (EasyCrypt's `seq`),
+   `rel_step` (leaf/structural rule search at reducible transparency).
+9. Open: migrate Game1/Game2 bridges relationally; `glob`/`inRange`
+   synthesis automation (deferred with the CLAUDE subtasks).
 
 ## Known landmines (do not "fix")
 
