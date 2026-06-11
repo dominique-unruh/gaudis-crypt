@@ -167,12 +167,12 @@ private lemma lqtPost_of_bad {x : input} {y : output} {u v : output × state}
 
 /-! ## Closed wp forms (the `wp`-tactic analogue) -/
 
-private lemma wp_lq_hit (inp : input) {σ : state} {v : output}
+lemma wp_lq_hit (inp : input) {σ : state} {v : output}
     (h : random_oracle_state.get σ inp = some v) (F : output × state → ENNReal) :
     (lazy_query inp).wp F σ = F (v, σ) := by
   simp only [lazy_query, wp_bind, wp_get, h, wp_pure]
 
-private lemma wp_lq_miss (inp : input) {σ : state}
+lemma wp_lq_miss (inp : input) {σ : state}
     (h : random_oracle_state.get σ inp = none) (F : output × state → ENNReal) :
     (lazy_query inp).wp F σ
     = ∑ v : output, F (v, random_oracle_state.set
@@ -182,7 +182,7 @@ private lemma wp_lq_miss (inp : input) {σ : state}
 
 /-- Decompose `lazy_query_tracked.wp` into a `lazy_query.wp` with the
     flag-branching folded into the post. -/
-private lemma wp_lqt (inp : input) (F : output × state → ENNReal) (σ : state) :
+lemma wp_lqt (inp : input) (F : output × state → ENNReal) (σ : state) :
     (lazy_query_tracked inp).wp F σ
     = (lazy_query inp).wp
         (fun yσ : output × state =>
