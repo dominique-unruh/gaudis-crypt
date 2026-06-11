@@ -368,14 +368,21 @@ lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
 
 end IgnoresLens
 
-/-- **wp is `L`-shift-invariant on input** when `p` is `L`-disjoint and `F` is
-    `L`-ignoring. The intuition: writing `v` into `L` before `p` is invisible
-    because `p` doesn't read `L` and `F` doesn't read `L` of the output. -/
+/-- **wp is invariant under `L.set v` on input** when `p` is `L`-disjoint and
+    `F` is invariant under `L.set v` on its state argument. The intuition:
+    writing `v` into `L` before `p` is invisible because `p` doesn't read
+    `L`, and `F` doesn't see the `L`-content of the output.
+
+    Note: the hypothesis on `F` is *single-value* (only requires invariance
+    at this `v`), not the full `IgnoresLens` (invariance at every value).
+    Callers that have the stronger `IgnoresLens L F` can supply
+    `fun aσ => h_F aσ v`. -/
 lemma Program.wp_invariant_under_lens_set
     {s α γ : Type} [DecidableEq γ] (L : Lens γ s)
     {p : Program s α} (h_p : p.inRange L.compl.range)
-    {F : α × s → ENNReal} (h_F : IgnoresLens L F)
-    (σ : s) (v : γ) :
+    (v : γ) {F : α × s → ENNReal}
+    (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
     p.wp F (L.set v σ) = p.wp F σ := by
   have h_f_updates : L.update (Function.const _ v)
       ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
@@ -391,7 +398,24 @@ lemma Program.wp_invariant_under_lens_set
   funext xs
   show F (xs.1, L.update (Function.const _ v) xs.2) = F xs
   show F (xs.1, L.set v xs.2) = F xs
-  exact h_F xs v
+  exact h_F xs
+
+/-- **Conditional set is wp-invisible at posts that ignore the set value**.
+    `if c then set L v else pure ()` has wp equal to `F ((), σ)` for any
+    post `F` that doesn't observe `L.set v`. Both branches converge:
+    when `c` holds, `set L v` is invisible by `h_F`; otherwise `pure ()`
+    is a no-op. Captures the "conditional tracking write" pattern. -/
+lemma Program.wp_cond_set_invisible
+    {s γ : Type} (L : Lens γ s) (cond : Prop) [Decidable cond] (v : γ)
+    (F : Unit × s → ENNReal)
+    (h_F : ∀ aσ : Unit × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    (if cond then Program.set L v else (pure () : Program s Unit)).wp F σ
+    = F ((), σ) := by
+  by_cases h : cond
+  · rw [if_pos h, wp_set]
+    exact h_F ((), σ)
+  · rw [if_neg h, wp_pure]
 
 /-- **Read-modify-write on `L` is wp-invisible at `L`-ignoring posts**.
     `get L >>= fun a => set L (g a)` has the same wp as `pure ()` for any

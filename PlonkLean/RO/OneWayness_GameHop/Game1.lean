@@ -942,7 +942,7 @@ private lemma wp_queries_input_invariant_of_inRange_queries_input
     (F : α × state → ENNReal) (h_F : IgnoresLens queries_input F)
     (σ : state) (v : List input) :
     p.wp F (queries_input.set v σ) = p.wp F σ :=
-  Program.wp_invariant_under_lens_set queries_input h_p_qi h_F σ v
+  Program.wp_invariant_under_lens_set queries_input h_p_qi v (fun aσ => h_F aσ v) σ
 
 /-- Body equivalence packaged as EquivModuloLens. -/
 private lemma body_game_1_equiv_body_recording_game_1

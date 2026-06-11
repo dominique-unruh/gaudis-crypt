@@ -107,18 +107,16 @@ private lemma oracle_step_lazy_query_tracked_inRange_matched_chal_y
 -- to be available for the bridge proofs.
 
 /-- **Cond_set invisibility for matched-ignoring posts.** A direct
-    `if cond then set matched true else pure ()` is wp-invisible. -/
+    `if cond then set matched true else pure ()` is wp-invisible.
+    Specialization of `Program.wp_cond_set_invisible` to `matched_chal_y := true`. -/
 private lemma cond_set_matched_chal_y_wp_invisible
     (cond : Prop) [Decidable cond] (F : Unit × state → ENNReal)
     (h_F : ∀ aσ : Unit × state,
         F (aσ.1, matched_chal_y.set true aσ.2) = F aσ)
     (σ : state) :
     (if cond then Program.set matched_chal_y true
-     else (pure () : Program state Unit)).wp F σ = F ((), σ) := by
-  by_cases h : cond
-  · rw [if_pos h, wp_set]
-    exact h_F ((), σ)
-  · rw [if_neg h, wp_pure]
+     else (pure () : Program state Unit)).wp F σ = F ((), σ) :=
+  Program.wp_cond_set_invisible matched_chal_y cond true F h_F σ
 
 /-- The loop body used by `guess_experiment_game_2`: oracle_step plus a
     bound-variable cond_set on the matched_chal_y flag. Defined as a
@@ -209,25 +207,14 @@ private lemma loop_n_body_v2_wp_eq
     (fun F' h_F' σ' => body_v2_wp_eq_oracle_step ow_adv y F' h_F' σ')
     n F h_F σ
 
-/-- **General matched_chal_y-set invariance of wp.** For any program in
-    matched_chal_y.compl.range and any matched-ignoring post, the wp value
-    is invariant under matched_chal_y.set on the input state. -/
+/-- Specialization of `Program.wp_invariant_under_lens_set` to `matched_chal_y`. -/
 private lemma wp_matched_chal_y_set_inv {α : Type} {p : Program state α}
     (hp : p.inRange matched_chal_y.compl.range)
     (b : Bool) (F : α × state → ENNReal)
     (h_F : ∀ aσ : α × state, F (aσ.1, matched_chal_y.set b aσ.2) = F aσ)
     (σ : state) :
-    p.wp F (matched_chal_y.set b σ) = p.wp F σ := by
-  have hf : (fun s : state => matched_chal_y.set b s) ∈
-      ((matched_chal_y.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((matched_chal_y.compl.range : LensRange state)ᶜ)
-          = matched_chal_y.range from by
-          rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ b, Set.mem_univ _, rfl⟩
-  rw [Program.wp_shift_input hp hf]
-  congr 1
-  funext xs
-  exact h_F xs
+    p.wp F (matched_chal_y.set b σ) = p.wp F σ :=
+  Program.wp_invariant_under_lens_set matched_chal_y hp b h_F σ
 
 /-- **Direct Game 2 bridge to the guess_experiment framework.**
 
