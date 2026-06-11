@@ -126,7 +126,8 @@ theorem ow_lazy_bound_via_gamehop
             (fun bσ : Bool × state =>
               if chal_x_queried_gh.get bσ.2 = true then Win bσ else 0) σ := by
         exact ow_game_1_tracked_le_ow_game_2_tracked_plus_bad ow_adv
-          h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh q Win h_Win_RO_inv σ
+          h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_x_queried_gh
+          h_ow_adv_mass_one q Win h_Win_RO_inv σ
     _ ≤ ((q + 1) : ENNReal) / Fintype.card output
         + ((q + 1) : ENNReal) / Fintype.card input := by
         gcongr
