@@ -106,7 +106,7 @@ noncomputable def insRO (x : input) (y : output) (σ : state) : state :=
     (fun k => if k = x then some y else random_oracle_state.get σ k) σ
 
 /-- Reading any RO-disjoint lens through `insRO` is invisible. -/
-private lemma get_insRO {γ : Type} (L : Lens γ state)
+lemma get_insRO {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L] (x : input) (y : output) (σ : state) :
     L.get (insRO x y σ) = L.get σ := by
   unfold insRO
@@ -139,18 +139,18 @@ private abbrev GoodPre (x : input) (y : output) (σ₁ σ₂ : state) : Prop :=
   chal_x_queried_gh.get σ₂ = false ∧ ow_challenge_x.get σ₂ = x
   ∧ σ₁ = insRO x y σ₂
 
-private lemma invUB_of_good {x : input} {y : output} {σ₁ σ₂ : state}
+lemma invUB_of_good {x : input} {y : output} {σ₁ σ₂ : state}
     (_hf : chal_x_queried_gh.get σ₂ = false) (hcx : ow_challenge_x.get σ₂ = x)
     (hσ : σ₁ = insRO x y σ₂) : InvUB x y σ₁ σ₂ := by
   subst hσ
   exact ⟨by rw [get_insRO], fun _ => ⟨hcx, rfl⟩⟩
 
-private lemma invUB_of_bad {x : input} {y : output} {σ₁ σ₂ : state}
+lemma invUB_of_bad {x : input} {y : output} {σ₁ σ₂ : state}
     (h₁ : chal_x_queried_gh.get σ₁ = true) (h₂ : chal_x_queried_gh.get σ₂ = true) :
     InvUB x y σ₁ σ₂ :=
   ⟨h₁.trans h₂.symm, fun h => absurd (h₁.symm.trans h) (by simp)⟩
 
-private lemma invUB_cases {x : input} {y : output} {σ₁ σ₂ : state}
+lemma invUB_cases {x : input} {y : output} {σ₁ σ₂ : state}
     (h : InvUB x y σ₁ σ₂) :
     GoodPre x y σ₁ σ₂
     ∨ (chal_x_queried_gh.get σ₁ = true ∧ chal_x_queried_gh.get σ₂ = true) := by
@@ -197,12 +197,12 @@ lemma wp_lqt (inp : input) (F : output × state → ENNReal) (σ : state) :
   · simp only [h, ↓reduceIte, wp_set]
   · simp only [h, ↓reduceIte, wp_pure]
 
-private lemma wp_set_seq {γ α : Type} (L : Lens γ state) (v : γ)
+lemma wp_set_seq_state {γ α : Type} (L : Lens γ state) (v : γ)
     (P : Program state α) (F : α × state → ENNReal) (σ : state) :
     (Program.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
   rw [wp_bind, wp_set]
 
-private lemma wp_uniform_seq {α β : Type} [Fintype α] [Nonempty α]
+lemma wp_uniform_seq_state {α β : Type} [Fintype α] [Nonempty α]
     (k : α → Program state β) (F : β × state → ENNReal) (σ : state) :
     ((Program.uniform : Program state α) >>= k).wp F σ
     = ∑ v : α, (k v).wp F σ / Fintype.card α := by
@@ -355,7 +355,7 @@ private lemma lqt_relE (x : input) (y : output) (inp₁ inp₂ : input) :
 
 /-! ## Bad-phase unary side conditions (flag monotonicity and mass) -/
 
-private lemma lqt_flag_zero {inp : input} {F : output × state → ENNReal}
+lemma lqt_flag_zero {inp : input} {F : output × state → ENNReal}
     (hF : ∀ u : output × state, chal_x_queried_gh.get u.2 = true → F u = 0)
     {σ : state} (h : chal_x_queried_gh.get σ = true) :
     (lazy_query_tracked inp).wp F σ = 0 := by
@@ -371,7 +371,7 @@ private lemma lqt_flag_zero {inp : input} {F : output × state → ENNReal}
   · rw [if_neg hc]
     exact hF u hu
 
-private lemma lazy_query_mass (inp : input) (σ : state) :
+lemma lazy_query_mass (inp : input) (σ : state) :
     (lazy_query inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   cases h : random_oracle_state.get σ inp with
   | some v => rw [wp_lq_hit inp h]
@@ -381,7 +381,7 @@ private lemma lazy_query_mass (inp : input) (σ : state) :
     rw [wp_uniform] at this
     exact this
 
-private lemma lqt_mass (inp : input) (σ : state) :
+lemma lqt_mass (inp : input) (σ : state) :
     (lazy_query_tracked inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_lqt]
   simp only [ite_self]
@@ -389,7 +389,7 @@ private lemma lqt_mass (inp : input) (σ : state) :
 
 /-- Indicator complement trick: full mass + zero on the complement gives
     mass 1 on the event. -/
-private lemma wp_flag_one {α : Type} (p : Program state α) {σ : state}
+lemma wp_flag_one {α : Type} (p : Program state α) {σ : state}
     (hmass : p.wp (fun _ => (1 : ENNReal)) σ = 1)
     (hzero : p.wp (fun u : α × state =>
       if chal_x_queried_gh.get u.2 = true then 0 else 1) σ = 0) :
@@ -407,7 +407,7 @@ private lemma wp_flag_one {α : Type} (p : Program state α) {σ : state}
   rw [hmass, hzero, add_zero] at h
   exact h.symm
 
-private lemma body_flag_zero
+lemma body_flag_zero
     (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     {F : Unit × state → ENNReal}
     (hF : ∀ u : Unit × state, chal_x_queried_gh.get u.2 = true → F u = 0)
@@ -431,12 +431,12 @@ private lemma body_flag_zero
   exact hw
 
 /-- Pointwise post congruence for `wp`. -/
-private lemma wp_post_congr {α : Type} (p : Program state α)
+lemma wp_post_congr {α : Type} (p : Program state α)
     {F G : α × state → ENNReal} (h : ∀ u, F u = G u) (σ : state) :
     p.wp F σ = p.wp G σ := by
   rw [funext h]
 
-private lemma body_mass
+lemma body_mass
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1) (σ : state) :
     (oracle_step ow_adv lazy_query_tracked).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   change (ow_adv >>= fun _ =>
@@ -492,7 +492,7 @@ private lemma final_mass (y_v : output) (σ : state) :
 
 /-! ## The rectangular (after-bad) judgments -/
 
-private lemma body_bad_relE
+lemma body_bad_relE
     (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (x : input) (y : output) :
@@ -569,7 +569,7 @@ private lemma final_bad_relE
 
 /-! ## The good-phase judgments -/
 
-private lemma body_good_relE
+lemma body_good_relE
     (h_RO : ow_adv.inRange random_oracle_state.compl.range)
     (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
@@ -646,7 +646,7 @@ private lemma body_good_relE
             rw [Lens.get_of_disjoint_set random_oracle_state oracle_output]
 
 /-- The full loop-body judgment: `Inv` is preserved by one oracle step. -/
-private lemma body_relE
+lemma body_relE
     (h_RO : ow_adv.inRange random_oracle_state.compl.range)
     (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
@@ -756,7 +756,7 @@ theorem ow_game_tracked_relE
     cases hpre
     unfold ow_game_1_tracked ow_game_2_tracked lazy_init
     rw [oracle_loop_n_eq_loop_n]
-    simp only [wp_set_seq, wp_uniform_seq]
+    simp only [wp_set_seq_state, wp_uniform_seq_state]
     refine Finset.sum_le_sum fun x _ => ?_
     refine ENNReal.div_le_div_right ?_ _
     refine Finset.sum_le_sum fun y _ => ?_
@@ -766,7 +766,7 @@ theorem ow_game_tracked_relE
     cases hpre
     unfold ow_game_1_tracked ow_game_2_tracked lazy_init
     rw [oracle_loop_n_eq_loop_n]
-    simp only [wp_set_seq, wp_uniform_seq]
+    simp only [wp_set_seq_state, wp_uniform_seq_state]
     refine Finset.sum_le_sum fun x _ => ?_
     refine ENNReal.div_le_div_right ?_ _
     refine Finset.sum_le_sum fun y _ => ?_

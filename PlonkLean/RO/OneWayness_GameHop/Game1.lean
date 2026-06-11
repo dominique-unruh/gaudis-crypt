@@ -40,7 +40,7 @@ variable (ow_adv : Program state Unit)
 /-- Body of `guess_experiment_game_1`: adv query + lazy_query_tracked
     (which internally flips chal_x_queried_gh when inp = chal_x). Doesn't
     use the bound target `x`. -/
-private noncomputable def body_game_1 (_x : input) : Program state Unit := do
+noncomputable def body_game_1 (_x : input) : Program state Unit := do
   ow_adv
   let inp ← Program.get oracle_input
   let y ← lazy_query_tracked inp
@@ -246,7 +246,7 @@ private lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
 
 
 /-- `lazy_query_tracked` is queries_input-disjoint. -/
-private lemma lazy_query_tracked_inRange_queries_input (inp : input) :
+lemma lazy_query_tracked_inRange_queries_input (inp : input) :
     (lazy_query_tracked inp).inRange queries_input.compl.range := by
   unfold lazy_query_tracked
   refine Program.inRange_bind ?_ (fun y => ?_)
@@ -265,7 +265,7 @@ private lemma lazy_query_tracked_inRange_queries_input (inp : input) :
 
 /-- Body recording for Game 1 bad: same shape as guess_experiment_game_1.body
     but appends `inp` (adv's query) to qs. -/
-private noncomputable def body_recording_game_1 (adv : Program state Unit) :
+noncomputable def body_recording_game_1 (adv : Program state Unit) :
     Program state Unit := do
   adv
   let inp ← Program.get oracle_input
@@ -283,7 +283,7 @@ private noncomputable def final_recording_game_1 : Program state Unit := do
   Program.set queries_input (qs ++ [resp])
 
 /-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
-private lemma body_recording_game_1_qs_length_bump
+lemma body_recording_game_1_qs_length_bump
     (adv : Program state Unit)
     (h_adv : adv.inRange queries_input.compl.range)
     (σ : state) :
@@ -393,7 +393,7 @@ invisibility block, and two `maxHeartbeats` game-level conversions — see
 git history). -/
 
 /-- The Game-1 coupling invariant. -/
-private abbrev InvG1 (t tv : input) (σ₁ σ₂ : state) : Prop :=
+abbrev InvG1 (t tv : input) (σ₁ σ₂ : state) : Prop :=
   ∃ (l : List input) (m : Bool),
     σ₂ = queries_input.set l (chal_x_queried_gh.set m (ow_challenge_x.set tv σ₁))
     ∧ chal_x_queried_gh.get σ₁ = decide (t ∈ l)
@@ -665,7 +665,7 @@ private lemma record_step_rel (t tv inp : input) (l : List input) (y : output) :
 
 /-- The ending: reading the tracking flag (left) returns the same boolean
     as the deferred membership test (right). -/
-private lemma ending_g1_rel (t tv : input) :
+lemma ending_g1_rel (t tv : input) :
     (Program.get chal_x_queried_gh).rel
       (Program.get queries_input >>= fun qs =>
         Program.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ =>
@@ -680,7 +680,7 @@ private lemma ending_g1_rel (t tv : input) :
   exact hf
 
 /-- **Loop-body judgment**: one tracking step vs one recording step. -/
-private lemma body_game_1_rel
+lemma body_game_1_rel
     (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
     (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_qi : ow_adv.inRange queries_input.compl.range)
