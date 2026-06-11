@@ -2,6 +2,7 @@ import PlonkLean.PRHL.Core
 import PlonkLean.PRHL.Lenses
 import PlonkLean.PRHL.Loops
 import PlonkLean.PRHL.UpToBad
+import PlonkLean.PRHL.Coupling
 
 /-!
 # pRHL: a probabilistic relational Hoare logic for `Program`
@@ -57,10 +58,13 @@ to `wp` reasoning or `Program.ext_of_wp`.
    relational one and garbage-collect its private support block.
 5. Parallel track: `glob`/`Program.range` synthesis automation to discharge
    `inRange` side conditions (gates roughly a third of the compression).
-6. Tactic-layer candidates, by demonstrated need: a symmetric-`relE` proof
-   principle (client 2's mirror-direction duplication is the single
-   largest tax), do-notation-aware `rel_step`, synchronized `while_loop`
-   rule (Kleene argument).
+6. ✅ Symmetric-`relE` principle: `Coupling.lean` — an explicit coupling
+   witness yields both `relE` directions at once (`relE.of_coupling`, with
+   `Coupling.of_pure`/`of_uniform` builders). Couplings are used at leaves
+   only; composition stays with the wp-lifting rules. `lqt_relE` in the
+   up-to-bad client now does its case analysis once.
+7. Remaining tactic-layer candidates: do-notation-aware `rel_step`,
+   synchronized `while_loop` rule (Kleene argument).
 
 ## Known landmines (do not "fix")
 

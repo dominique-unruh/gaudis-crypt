@@ -160,36 +160,6 @@ private lemma wp_uniform_seq {α β : Type} [Fintype α] [Nonempty α]
     = ∑ v : α, (k v).wp F σ / Fintype.card α := by
   rw [wp_bind, wp_uniform]
 
-/-! ## Average arithmetic -/
-
-private lemma le_avg {c : ENNReal} {f : output → ENNReal} (h : ∀ v, c ≤ f v) :
-    c ≤ ∑ v : output, f v / Fintype.card output := by
-  have hc0 : (Fintype.card output : ENNReal) ≠ 0 := by
-    exact_mod_cast (Fintype.card_ne_zero : Fintype.card output ≠ 0)
-  have hct : (Fintype.card output : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
-  calc c = ∑ _v : output, c / Fintype.card output := by
-        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
-            ENNReal.mul_div_cancel hc0 hct]
-    _ ≤ ∑ v : output, f v / Fintype.card output :=
-        Finset.sum_le_sum fun v _ => ENNReal.div_le_div_right (h v) _
-
-private lemma avg_le {c : ENNReal} {f : output → ENNReal} (h : ∀ v, f v ≤ c) :
-    (∑ v : output, f v / Fintype.card output) ≤ c := by
-  have hc0 : (Fintype.card output : ENNReal) ≠ 0 := by
-    exact_mod_cast (Fintype.card_ne_zero : Fintype.card output ≠ 0)
-  have hct : (Fintype.card output : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
-  calc (∑ v : output, f v / Fintype.card output)
-      ≤ ∑ _v : output, c / Fintype.card output :=
-        Finset.sum_le_sum fun v _ => ENNReal.div_le_div_right (h v) _
-    _ = c := by
-        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
-            ENNReal.mul_div_cancel hc0 hct]
-
-private lemma avg_le_avg {f g : output → ENNReal} (h : ∀ v, f v ≤ g v) :
-    (∑ v : output, f v / Fintype.card output)
-    ≤ ∑ v : output, g v / Fintype.card output :=
-  Finset.sum_le_sum fun v _ => ENNReal.div_le_div_right (h v) _
-
 /-! ## The per-query coupling (the heart of the hop)
 
 `lazy_query_tracked inp` relates to itself across `insRO x y`:
@@ -197,7 +167,10 @@ private lemma avg_le_avg {f g : output → ENNReal} (h : ∀ v, f v ≤ g v) :
   same value, miss-miss couples the fresh sample identically and the new
   entry commutes with the `x`-overwrite. Good post, equal values.
 * `inp = x`: the left side hits the pre-programmed entry while the right
-  side does whatever its cache says — but *both* set the flag. Bad post. -/
+  side does whatever its cache says — but *both* set the flag. Bad post.
+
+Proved by exhibiting one coupling per branch (`relE.of_coupling`), so both
+judgment directions come from a single case analysis. -/
 private lemma lqt_relE (x : input) (y : output) (inp₁ inp₂ : input) :
     (lazy_query_tracked inp₁).relE (lazy_query_tracked inp₂)
       (fun σ₁ σ₂ => (inp₁ = inp₂ ∧ chal_x_queried_gh.get σ₂ = false
@@ -222,113 +195,115 @@ private lemma lqt_relE (x : input) (y : output) (inp₁ inp₂ : input) :
     · by_cases hk₂ : k = x
       · subst hk₂; simp [hk₁]
       · simp [hk₁, hk₂]
-  constructor
-  · rintro F G hFG σ₁ σ₂ ⟨⟨rfl, hf₂, hcx⟩, rfl⟩
-    have hcx' : ow_challenge_x.get (insRO x y σ₂) = x := by
-      rw [get_insRO]; exact hcx
-    rw [wp_lqt, wp_lqt]
-    by_cases hix : inp₁ = x
-    · -- bad transition: both flags fire.
-      have hhit : random_oracle_state.get (insRO x y σ₂) inp₁ = some y := by
-        rw [RO_get_insRO]; simp [hix]
-      rw [wp_lq_hit inp₁ hhit]
+  refine Program.relE.of_coupling ?_
+  rintro σ₁ σ₂ ⟨⟨rfl, hf₂, hcx⟩, rfl⟩
+  have hcx' : ow_challenge_x.get (insRO x y σ₂) = x := by
+    rw [get_insRO]; exact hcx
+  by_cases hix : inp₁ = x
+  · -- bad transition: LHS hits the pre-programmed entry; both flags fire.
+    have hhit : random_oracle_state.get (insRO x y σ₂) inp₁ = some y := by
+      rw [RO_get_insRO]; simp [hix]
+    have hL : ∀ F : output × state → ENNReal,
+        (lazy_query_tracked inp₁).wp F (insRO x y σ₂)
+        = F (y, chal_x_queried_gh.set true (insRO x y σ₂)) := by
+      intro F
+      rw [wp_lqt, wp_lq_hit inp₁ hhit]
       dsimp only
       rw [hcx', if_pos hix]
-      cases hr : random_oracle_state.get σ₂ inp₁ with
-      | some v =>
-        rw [wp_lq_hit inp₁ hr]
+    cases hr : random_oracle_state.get σ₂ inp₁ with
+    | some v =>
+      have hR : ∀ G : output × state → ENNReal,
+          (lazy_query_tracked inp₁).wp G σ₂
+          = G (v, chal_x_queried_gh.set true σ₂) := by
+        intro G
+        rw [wp_lqt, wp_lq_hit inp₁ hr]
         dsimp only
         rw [hcx, if_pos hix]
-        exact hFG _ _ (lqtPost_of_bad (by rw [Lens.set_get]) (by rw [Lens.set_get]))
-      | none =>
-        rw [wp_lq_miss inp₁ hr]
-        apply le_avg
-        intro v
+      exact Program.Coupling.of_pure _ _ hL hR
+        (lqtPost_of_bad (by rw [Lens.set_get]) (by rw [Lens.set_get]))
+    | none =>
+      have hR : ∀ G : output × state → ENNReal,
+          (lazy_query_tracked inp₁).wp G σ₂
+          = ∑ t : output, G (t, chal_x_queried_gh.set true
+              (random_oracle_state.set
+                (fun k => if k = inp₁ then some t
+                          else random_oracle_state.get σ₂ k) σ₂))
+            / Fintype.card output := by
+        intro G
+        rw [wp_lqt, wp_lq_miss inp₁ hr]
+        refine Finset.sum_congr rfl fun t _ => ?_
+        congr 1
         rw [if_pos (by
           rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state, hcx]
           exact hix)]
-        exact hFG _ _ (lqtPost_of_bad (by rw [Lens.set_get]) (by rw [Lens.set_get]))
-    · -- good step: synchronized cache behaviour.
-      have hread : random_oracle_state.get (insRO x y σ₂) inp₁
-          = random_oracle_state.get σ₂ inp₁ := by
-        rw [RO_get_insRO]; simp [hix]
-      cases hr : random_oracle_state.get σ₂ inp₁ with
-      | some v =>
-        rw [wp_lq_hit inp₁ (hread.trans hr), wp_lq_hit inp₁ hr]
+      refine Program.Coupling.of_uniform
+        (fun _ : output => (y, chal_x_queried_gh.set true (insRO x y σ₂)))
+        (fun t : output => (t, chal_x_queried_gh.set true
+          (random_oracle_state.set
+            (fun k => if k = inp₁ then some t
+                      else random_oracle_state.get σ₂ k) σ₂)))
+        (fun F => by rw [hL]; exact (sum_const_div_card _).symm) hR
+        (fun t => lqtPost_of_bad (by rw [Lens.set_get]) (by rw [Lens.set_get]))
+  · -- good step: synchronized cache behaviour.
+    have hread : random_oracle_state.get (insRO x y σ₂) inp₁
+        = random_oracle_state.get σ₂ inp₁ := by
+      rw [RO_get_insRO]; simp [hix]
+    cases hr : random_oracle_state.get σ₂ inp₁ with
+    | some v =>
+      have hL : ∀ F : output × state → ENNReal,
+          (lazy_query_tracked inp₁).wp F (insRO x y σ₂)
+          = F (v, insRO x y σ₂) := by
+        intro F
+        rw [wp_lqt, wp_lq_hit inp₁ (hread.trans hr)]
         dsimp only
-        rw [hcx', hcx, if_neg hix, if_neg hix]
-        exact hFG _ _ ⟨invUB_of_good hf₂ hcx rfl, fun _ => rfl⟩
-      | none =>
-        rw [wp_lq_miss inp₁ (hread.trans hr), wp_lq_miss inp₁ hr]
-        apply avg_le_avg
-        intro v
-        have hf₂' : chal_x_queried_gh.get (random_oracle_state.set
-            (fun k => if k = inp₁ then some v
-                      else random_oracle_state.get σ₂ k) σ₂) = false := by
-          rw [Lens.get_of_disjoint_set chal_x_queried_gh random_oracle_state]
-          exact hf₂
-        have hcx₂' : ow_challenge_x.get (random_oracle_state.set
-            (fun k => if k = inp₁ then some v
-                      else random_oracle_state.get σ₂ k) σ₂) = x := by
-          rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state]
-          exact hcx
+        rw [hcx', if_neg hix]
+      have hR : ∀ G : output × state → ENNReal,
+          (lazy_query_tracked inp₁).wp G σ₂ = G (v, σ₂) := by
+        intro G
+        rw [wp_lqt, wp_lq_hit inp₁ hr]
+        dsimp only
+        rw [hcx, if_neg hix]
+      exact Program.Coupling.of_pure _ _ hL hR
+        ⟨invUB_of_good hf₂ hcx rfl, fun _ => rfl⟩
+    | none =>
+      have hL : ∀ F : output × state → ENNReal,
+          (lazy_query_tracked inp₁).wp F (insRO x y σ₂)
+          = ∑ t : output, F (t, random_oracle_state.set
+              (fun k => if k = inp₁ then some t
+                        else random_oracle_state.get (insRO x y σ₂) k)
+              (insRO x y σ₂)) / Fintype.card output := by
+        intro F
+        rw [wp_lqt, wp_lq_miss inp₁ (hread.trans hr)]
+        refine Finset.sum_congr rfl fun t _ => ?_
+        congr 1
         rw [if_neg (by
-              rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state, hcx']
-              exact hix),
-            if_neg (by rw [hcx₂']; exact hix)]
-        exact hFG _ _ ⟨invUB_of_good hf₂' hcx₂' (hsetentry σ₂ v hix), fun _ => rfl⟩
-  · rintro F G hFG σ₂ σ₁ ⟨⟨rfl, hf₂, hcx⟩, rfl⟩
-    have hcx' : ow_challenge_x.get (insRO x y σ₂) = x := by
-      rw [get_insRO]; exact hcx
-    rw [wp_lqt, wp_lqt]
-    by_cases hix : inp₁ = x
-    · have hhit : random_oracle_state.get (insRO x y σ₂) inp₁ = some y := by
-        rw [RO_get_insRO]; simp [hix]
-      rw [wp_lq_hit inp₁ hhit]
-      dsimp only
-      rw [hcx', if_pos hix]
-      cases hr : random_oracle_state.get σ₂ inp₁ with
-      | some v =>
-        rw [wp_lq_hit inp₁ hr]
-        dsimp only
-        rw [hcx, if_pos hix]
-        exact hFG _ _ (lqtPost_of_bad (by rw [Lens.set_get]) (by rw [Lens.set_get]))
-      | none =>
-        rw [wp_lq_miss inp₁ hr]
-        apply avg_le
-        intro v
-        rw [if_pos (by
+          rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state, hcx']
+          exact hix)]
+      have hR : ∀ G : output × state → ENNReal,
+          (lazy_query_tracked inp₁).wp G σ₂
+          = ∑ t : output, G (t, random_oracle_state.set
+              (fun k => if k = inp₁ then some t
+                        else random_oracle_state.get σ₂ k) σ₂)
+            / Fintype.card output := by
+        intro G
+        rw [wp_lqt, wp_lq_miss inp₁ hr]
+        refine Finset.sum_congr rfl fun t _ => ?_
+        congr 1
+        rw [if_neg (by
           rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state, hcx]
           exact hix)]
-        exact hFG _ _ (lqtPost_of_bad (by rw [Lens.set_get]) (by rw [Lens.set_get]))
-    · have hread : random_oracle_state.get (insRO x y σ₂) inp₁
-          = random_oracle_state.get σ₂ inp₁ := by
-        rw [RO_get_insRO]; simp [hix]
-      cases hr : random_oracle_state.get σ₂ inp₁ with
-      | some v =>
-        rw [wp_lq_hit inp₁ (hread.trans hr), wp_lq_hit inp₁ hr]
-        dsimp only
-        rw [hcx', hcx, if_neg hix, if_neg hix]
-        exact hFG _ _ ⟨invUB_of_good hf₂ hcx rfl, fun _ => rfl⟩
-      | none =>
-        rw [wp_lq_miss inp₁ (hread.trans hr), wp_lq_miss inp₁ hr]
-        apply avg_le_avg
-        intro v
-        have hf₂' : chal_x_queried_gh.get (random_oracle_state.set
-            (fun k => if k = inp₁ then some v
-                      else random_oracle_state.get σ₂ k) σ₂) = false := by
-          rw [Lens.get_of_disjoint_set chal_x_queried_gh random_oracle_state]
-          exact hf₂
-        have hcx₂' : ow_challenge_x.get (random_oracle_state.set
-            (fun k => if k = inp₁ then some v
-                      else random_oracle_state.get σ₂ k) σ₂) = x := by
-          rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state]
-          exact hcx
-        rw [if_neg (by rw [hcx₂']; exact hix),
-            if_neg (by
-              rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state, hcx']
-              exact hix)]
-        exact hFG _ _ ⟨invUB_of_good hf₂' hcx₂' (hsetentry σ₂ v hix), fun _ => rfl⟩
+      refine Program.Coupling.of_uniform _ _ hL hR (fun t => ?_)
+      have hf₂' : chal_x_queried_gh.get (random_oracle_state.set
+          (fun k => if k = inp₁ then some t
+                    else random_oracle_state.get σ₂ k) σ₂) = false := by
+        rw [Lens.get_of_disjoint_set chal_x_queried_gh random_oracle_state]
+        exact hf₂
+      have hcx₂' : ow_challenge_x.get (random_oracle_state.set
+          (fun k => if k = inp₁ then some t
+                    else random_oracle_state.get σ₂ k) σ₂) = x := by
+        rw [Lens.get_of_disjoint_set ow_challenge_x random_oracle_state]
+        exact hcx
+      exact ⟨invUB_of_good hf₂' hcx₂' (hsetentry σ₂ t hix), fun _ => rfl⟩
 
 /-! ## Bad-phase unary side conditions (flag monotonicity and mass) -/
 
