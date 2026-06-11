@@ -43,14 +43,24 @@ to `wp` reasoning or `Program.ext_of_wp`.
    strictly more general (generic state type, no `Fintype`/`Nonempty` on
    `T`, 2 of 3 disjointness assumptions). Drop-in compatibility certified
    in `Clients/SchemaInnerEquationCheck.lean`.
-3. Validation client 2: re-derive the UpToBad.lean core (Game 1 ~ Game 2
-   identical-until-bad) via `relE.up_to_bad`. Target: ≤250 lines vs ~810.
+3. ✅ Validation client 2: the UpToBad core re-derived in
+   `Clients/UpToBadPRHL.lean` — one judgment (`ow_game_tracked_relE`, the
+   textbook coupling invariant `InvUB`) yields all three theorems
+   (`until_bad`, `bad_eq`, the hop bound) as corollaries. Honest verdict:
+   ~line parity with the unary original (832 vs 891) — `relE` pays a
+   two-direction mirror tax and the rectangular phase keeps the unary
+   flag/mass side conditions — but the architecture is one invariant + 3
+   corollaries instead of ~15 interdependent inductions, `bad_eq` comes
+   free (unary: 138-line mass/cancellation chain), and the judgment is
+   post-generic. Extra hypothesis: adversary mass-1 (see module docstring).
 4. Migration: replace the unary `schema_inner_equation` proof with the
    relational one and garbage-collect its private support block.
 5. Parallel track: `glob`/`Program.range` synthesis automation to discharge
    `inRange` side conditions (gates roughly a third of the compression).
-6. On demand only: synchronized `while_loop` rule (Kleene argument),
-   do-notation-aware `rel_step` tactic.
+6. Tactic-layer candidates, by demonstrated need: a symmetric-`relE` proof
+   principle (client 2's mirror-direction duplication is the single
+   largest tax), do-notation-aware `rel_step`, synchronized `while_loop`
+   rule (Kleene argument).
 
 ## Known landmines (do not "fix")
 

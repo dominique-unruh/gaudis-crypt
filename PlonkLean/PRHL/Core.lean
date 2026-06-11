@@ -106,6 +106,14 @@ lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
   fun F G hFG σ₁ σ₂ hpre =>
     hpre.elim fun i hi => h i F G hFG σ₁ σ₂ hi
 
+/-- Case split on the precondition. -/
+lemma or_pre {s₁ s₂ α β : Type} {p : Program s₁ α} {q : Program s₂ β}
+    {Pre₁ Pre₂ : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h₁ : p.rel q Pre₁ Post) (h₂ : p.rel q Pre₂ Post) :
+    p.rel q (fun σ₁ σ₂ => Pre₁ σ₁ σ₂ ∨ Pre₂ σ₁ σ₂) Post :=
+  fun F G hFG σ₁ σ₂ hpre =>
+    hpre.elim (h₁ F G hFG σ₁ σ₂) (h₂ F G hFG σ₁ σ₂)
+
 /-- Two-sided `pure`. -/
 lemma pure_pure {s₁ s₂ α β : Type} {x₁ : α} {x₂ : β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
@@ -365,6 +373,13 @@ lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
   ⟨Program.rel.exists_pre (fun i => (h i).1),
    fun F G hFG σ₂ σ₁ hpre =>
      hpre.elim fun i hi => (h i).2 F G hFG σ₂ σ₁ hi⟩
+
+/-- Case split on the precondition, for `relE`. -/
+lemma or_pre {s₁ s₂ α β : Type} {p : Program s₁ α} {q : Program s₂ β}
+    {Pre₁ Pre₂ : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h₁ : p.relE q Pre₁ Post) (h₂ : p.relE q Pre₂ Post) :
+    p.relE q (fun σ₁ σ₂ => Pre₁ σ₁ σ₂ ∨ Pre₂ σ₁ σ₂) Post :=
+  ⟨Program.rel.or_pre h₁.1 h₂.1, Program.rel.or_pre h₁.2 h₂.2⟩
 
 /-- Consequence for `relE`. -/
 lemma conseq {s₁ s₂ α β : Type} {p : Program s₁ α} {q : Program s₂ β}
