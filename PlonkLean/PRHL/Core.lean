@@ -97,6 +97,15 @@ lemma trans {s₁ s₂ s₃ α β γ : Type}
         h₂ _ G (fun y z hyz => iSup₂_le fun x hxy => hFG x z ⟨y, hxy, hyz⟩)
           σ₂ σ₃ hpre₂
 
+/-- Eliminate an existential in the precondition. -/
+lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
+    {p : Program s₁ α} {q : Program s₂ β}
+    {Pre : ι → s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : ∀ i, p.rel q (Pre i) Post) :
+    p.rel q (fun σ₁ σ₂ => ∃ i, Pre i σ₁ σ₂) Post :=
+  fun F G hFG σ₁ σ₂ hpre =>
+    hpre.elim fun i hi => h i F G hFG σ₁ σ₂ hi
+
 /-- Two-sided `pure`. -/
 lemma pure_pure {s₁ s₂ α β : Type} {x₁ : α} {x₂ : β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
@@ -333,6 +342,29 @@ lemma symm {s₁ s₂ α β : Type} {p : Program s₁ α} {q : Program s₂ β}
     (h : p.relE q Pre Post) :
     q.relE p (fun σ₂ σ₁ => Pre σ₁ σ₂) (fun y x => Post x y) :=
   ⟨h.2, h.1⟩
+
+/-- Transitivity for `relE` (composed pre/post relations). -/
+lemma trans {s₁ s₂ s₃ α β γ : Type}
+    {p : Program s₁ α} {q : Program s₂ β} {r : Program s₃ γ}
+    {Pre₁ : s₁ → s₂ → Prop} {Post₁ : α × s₁ → β × s₂ → Prop}
+    {Pre₂ : s₂ → s₃ → Prop} {Post₂ : β × s₂ → γ × s₃ → Prop}
+    (h₁ : p.relE q Pre₁ Post₁) (h₂ : q.relE r Pre₂ Post₂) :
+    p.relE r (fun σ₁ σ₃ => ∃ σ₂, Pre₁ σ₁ σ₂ ∧ Pre₂ σ₂ σ₃)
+             (fun x z => ∃ y, Post₁ x y ∧ Post₂ y z) := by
+  refine ⟨Program.rel.trans h₁.1 h₂.1, ?_⟩
+  exact (Program.rel.trans h₂.2 h₁.2).conseq
+    (fun σ₃ σ₁ h => h.elim fun σ₂ hh => ⟨σ₂, hh.2, hh.1⟩)
+    (fun z x h => h.elim fun y hh => ⟨y, hh.2, hh.1⟩)
+
+/-- Eliminate an existential in the precondition. -/
+lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
+    {p : Program s₁ α} {q : Program s₂ β}
+    {Pre : ι → s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : ∀ i, p.relE q (Pre i) Post) :
+    p.relE q (fun σ₁ σ₂ => ∃ i, Pre i σ₁ σ₂) Post :=
+  ⟨Program.rel.exists_pre (fun i => (h i).1),
+   fun F G hFG σ₂ σ₁ hpre =>
+     hpre.elim fun i hi => (h i).2 F G hFG σ₂ σ₁ hi⟩
 
 /-- Consequence for `relE`. -/
 lemma conseq {s₁ s₂ α β : Type} {p : Program s₁ α} {q : Program s₂ β}

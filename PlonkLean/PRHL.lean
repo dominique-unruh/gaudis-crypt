@@ -37,15 +37,19 @@ to `wp` reasoning or `Program.ext_of_wp`.
 ## Roadmap
 
 1. ✅ Core judgment + rule set (this library).
-2. Validation client 1: re-prove `schema_inner_equation`
-   (GuessExperiment.lean) as one `relE.loop_n` invariant
-   (`matched₁ = (t ∈ qs₂)`). Target: ≤150 lines vs the current ~950-line
-   unary block.
+2. ✅ Validation client 1: `schema_inner_equation` re-proved relationally in
+   `Clients/SchemaInnerEquation.lean` — 280 lines (incl. docs) vs the
+   ~980-line unary block, no `maxHeartbeats` bump (original: 1600000), and
+   strictly more general (generic state type, no `Fintype`/`Nonempty` on
+   `T`, 2 of 3 disjointness assumptions). Drop-in compatibility certified
+   in `Clients/SchemaInnerEquationCheck.lean`.
 3. Validation client 2: re-derive the UpToBad.lean core (Game 1 ~ Game 2
    identical-until-bad) via `relE.up_to_bad`. Target: ≤250 lines vs ~810.
-4. Parallel track: `glob`/`Program.range` synthesis automation to discharge
+4. Migration: replace the unary `schema_inner_equation` proof with the
+   relational one and garbage-collect its private support block.
+5. Parallel track: `glob`/`Program.range` synthesis automation to discharge
    `inRange` side conditions (gates roughly a third of the compression).
-5. On demand only: synchronized `while_loop` rule (Kleene argument),
+6. On demand only: synchronized `while_loop` rule (Kleene argument),
    do-notation-aware `rel_step` tactic.
 
 ## Known landmines (do not "fix")
