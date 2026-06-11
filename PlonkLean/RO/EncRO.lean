@@ -30,26 +30,25 @@ the adversary's query loop. The two worlds differ only in `m_b`.
   The two runs then differ only at `RO[k]` — exactly the OW up-to-bad
   invariant `InvUB k hk` — so the shared loop body relates by the OW core
   `body_relE`, and the guesses agree until the adversary queries `k`.
-* **Bad bound** (Stage 2): `Pr[adversary queries k] ≤ (q+1)/|input|`, a
-  deferred-sampling reduction to the `guess_experiment` framework. Two of
-  the three pieces are done: `enc_pre_bad_eq_nopre` (dropping the `RO[k]`
-  preprogramming is invisible — `relE.bad_eq`) and `gexp_env_c_bound` (the
-  guess-experiment bound, reusing OW's `game_1_correspondence`). The
-  connector `enc_nopre bad ≤ gexp matched` (reindex mask → fresh
-  ciphertext, `sum_comm`, tail monotonicity `enc_tail_mono`) remains: a
-  mechanical double-sum bridge, with all its helpers (`final_game_1_mono`,
-  `enc_tail_mono`, `enc_state_comm`) in place.
+* **Bad bound** (`enc_bad_bound`): `Pr[adversary queries k] ≤ (q+1)/|input|`,
+  a deferred-sampling reduction to the `guess_experiment` framework, in
+  three steps: `enc_pre_bad_eq_nopre` (dropping the `RO[k]` preprogramming
+  is invisible — `relE.bad_eq`), `enc_nopre_bad_le_gexp` (reindex the mask
+  to a fresh ciphertext so `m` drops out, `sum_comm`, tail monotonicity
+  `enc_tail_mono`), and `gexp_env_c_bound` (the guess-experiment bound,
+  reusing OW's `game_1_correspondence`).
 
 We reuse `ow_challenge_x` as the **key register** and `chal_x_queried_gh`
 as the **"queried the key" flag**, so `lazy_query_tracked` and the entire
 OW up-to-bad core (`body_relE`, `InvUB`, …) apply verbatim.
 
-## Status
+## Result
 
-Stage 1 complete (`enc_guess_le`). Stage 2 ≈ 80%: `enc_pre_bad_eq_nopre`
-and `gexp_env_c_bound` done; the double-sum connector between them
-(`enc_nopre bad ≤ gexp matched`) remains, with all helper lemmas in
-place. Composing everything gives the headline `2(q+1)/|input|` bound. -/
+`enc_ind_secure` (fully proved, no `sorry`): for a `q`-query adversary,
+`Pr[A guesses ∣ enc m₀] ≤ Pr[A guesses ∣ enc m₁] + (q+1)/|input|`. By
+symmetry in `m₀, m₁`, `|Pr₀ − Pr₁| ≤ (q+1)/|input|`. The whole proof is
+game hopping in the relational calculus, reusing the OW up-to-bad core and
+guess-experiment framework wholesale. -/
 
 /-- A commutative group structure on the output type, modelling the
     one-time-pad mask (e.g. bitwise XOR). Axiomatized on the opaque
@@ -538,7 +537,7 @@ private lemma final_game_1_mono (k : input) (s : state) :
   · rw [if_pos hs]
     refine le_of_eq ?_
     symm
-    show (Program.get ow_response >>= fun resp =>
+    change (Program.get ow_response >>= fun resp =>
       lazy_query_tracked resp >>= fun y =>
       Program.set oracle_output y).wp _ s = 1
     rw [wp_bind, wp_get]
@@ -552,7 +551,7 @@ private lemma final_game_1_mono (k : input) (s : state) :
           if chal_x_queried_gh.get yσ.2 = true then (1 : ENNReal) else 0 := by
       funext yσ
       rw [wp_set]
-      show (if chal_x_queried_gh.get (oracle_output.set yσ.1 yσ.2) = true
+      change (if chal_x_queried_gh.get (oracle_output.set yσ.1 yσ.2) = true
           then (1 : ENNReal) else 0) = _
       rw [Lens.get_of_disjoint_set chal_x_queried_gh oracle_output]
     rw [hpost]
@@ -560,7 +559,6 @@ private lemma final_game_1_mono (k : input) (s : state) :
       (lqt_flag_zero (fun u hu => by rw [if_pos hu]) hs)
   · rw [if_neg hs]; exact zero_le
 
-include h_RO h_flag h_cx h_mass in
 /-- The shared loop tail: dropping the final query (and reading the guess
     instead of the flag) only lowers the bad probability. -/
 private lemma enc_tail_mono (k : input) (q : ℕ) (s : state) :
@@ -592,4 +590,100 @@ private lemma enc_state_comm (m : output) (k : input) (hk : output) (s : state) 
   rw [(inferInstance : disjoint chal_c chal_x_queried_gh).commute,
       (inferInstance : disjoint chal_c ow_challenge_x).commute]
 
+/-- Pull both averaging factors out of a doubly-averaged sum. -/
+private lemma sum_sum_div {α β : Type} [Fintype α] [Fintype β]
+    (g : α → β → ENNReal) (Nα Nβ : ENNReal) :
+    (∑ a : α, (∑ b : β, g a b / Nβ) / Nα)
+    = (∑ a : α, ∑ b : β, g a b) * (Nβ⁻¹ * Nα⁻¹) := by
+  simp only [div_eq_mul_inv, ← Finset.sum_mul, mul_assoc]
+
+/-- The lazy-run bad event is bounded by the guess-experiment matched
+    event: reindex the mask to a fresh ciphertext (`m` drops out), commute
+    the sums, and apply the tail bound termwise. -/
+theorem enc_nopre_bad_le_gexp (m : output) (q : ℕ) (σ : state) :
+    (enc_game_nopre enc_adv m q).wp
+        (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+    ≤ (guess_experiment env_c Program.uniform ow_challenge_x chal_x_queried_gh
+        (body_game_1 enc_adv) final_game_1 q).wp
+        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
+  unfold enc_game_nopre guess_experiment env_c lazy_init
+  simp only [Program.bind_assoc, Program.wp_set_seq, Program.wp_uniform_seq]
+  rw [sum_sum_div, sum_sum_div,
+      mul_comm (Fintype.card output : ENNReal)⁻¹ (Fintype.card input : ENNReal)⁻¹]
+  gcongr
+  calc ∑ k : input, ∑ hk : output,
+          (oracle_loop_n enc_adv q lazy_query_tracked >>= fun _ : Unit =>
+            Program.get guess_var).wp
+            (fun bσ : Bool × state =>
+              if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0)
+            (chal_c.set (hk + m) (chal_x_queried_gh.set false
+              (ow_challenge_x.set k (random_oracle_state.set (fun _ => none) σ))))
+      ≤ ∑ k : input, ∑ hk : output,
+          (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
+            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+            (chal_x_queried_gh.set false (ow_challenge_x.set k
+              (chal_c.set (hk + m) (random_oracle_state.set (fun _ => none) σ)))) := by
+        refine Finset.sum_le_sum fun k _ => Finset.sum_le_sum fun hk _ => ?_
+        rw [oracle_loop_n_eq_loop_n, enc_state_comm m k hk σ]
+        exact enc_tail_mono enc_adv k q _
+    _ = ∑ k : input, ∑ c : output,
+          (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
+            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+            (chal_x_queried_gh.set false (ow_challenge_x.set k
+              (chal_c.set c (random_oracle_state.set (fun _ => none) σ)))) := by
+        refine Finset.sum_congr rfl fun k _ => ?_
+        exact Equiv.sum_comp (Equiv.addRight m) (fun c : output =>
+          (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
+            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+            (chal_x_queried_gh.set false (ow_challenge_x.set k
+              (chal_c.set c (random_oracle_state.set (fun _ => none) σ)))))
+    _ = ∑ c : output, ∑ k : input,
+          (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
+            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
+            (chal_x_queried_gh.set false (ow_challenge_x.set k
+              (chal_c.set c (random_oracle_state.set (fun _ => none) σ)))) :=
+        Finset.sum_comm
+
+include h_RO h_flag h_cx h_mass in
+/-- **The bad-event bound**: `Pr[adversary queries the key] ≤ (q+1)/|input|`.
+    Mini-hop → drop preprogramming → guess-experiment bound. -/
+theorem enc_bad_bound (h_qi : enc_adv.inRange queries_input.compl.range)
+    (m : output) (q : ℕ) (σ : state) :
+    (enc_game enc_adv m q).wp
+        (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
+    ≤ ((q + 1) : ENNReal) / Fintype.card input := by
+  rw [enc_game_wp_eq_pre, enc_pre_bad_eq_nopre enc_adv h_RO h_flag h_cx h_mass m q σ]
+  exact le_trans (enc_nopre_bad_le_gexp enc_adv m q σ)
+    (gexp_env_c_bound enc_adv h_flag h_cx h_qi q σ)
+
 end EncBad
+
+/-! ## The headline theorem -/
+
+section EncMain
+
+variable (enc_adv : Program state Unit)
+variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
+variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
+variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
+variable (h_qi : enc_adv.inRange queries_input.compl.range)
+variable (h_mass : ∀ σ, enc_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
+
+include h_RO h_flag h_cx h_qi h_mass in
+/-- **IND-security of the hashed one-time pad.** The adversary's guess
+    probability in the `m₀` world exceeds that in the `m₁` world by at most
+    `(q+1)/|input|` (its chance of querying the key). Symmetric in `m₀, m₁`,
+    so `|Pr₀ − Pr₁| ≤ (q+1)/|input|`. -/
+theorem enc_ind_secure (m₀ m₁ : output) (q : ℕ) (σ : state) :
+    (enc_game enc_adv m₀ q).wp (fun bσ => if bσ.1 then (1 : ENNReal) else 0) σ
+    ≤ (enc_game enc_adv m₁ q).wp (fun bσ => if bσ.1 then (1 : ENNReal) else 0) σ
+      + ((q + 1) : ENNReal) / Fintype.card input := by
+  refine le_trans (enc_guess_le enc_adv h_RO h_flag h_cx h_mass m₀ m₁ q σ) ?_
+  gcongr
+  exact enc_bad_bound enc_adv h_RO h_flag h_cx h_mass h_qi m₀ q σ
+
+end EncMain
