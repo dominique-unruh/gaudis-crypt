@@ -54,8 +54,9 @@ to `wp` reasoning or `Program.ext_of_wp`.
    corollaries instead of ~15 interdependent inductions, `bad_eq` comes
    free (unary: 138-line mass/cancellation chain), and the judgment is
    post-generic. Extra hypothesis: adversary mass-1 (see module docstring).
-4. Migration: replace the unary `schema_inner_equation` proof with the
-   relational one and garbage-collect its private support block.
+4. ✅ Migration: `schema_inner_equation`'s proof is now the relational
+   client; its 280-line unary proof, `maxHeartbeats 1600000`, and ~700-line
+   private support block are deleted (GuessExperiment.lean: 1407 → 483).
 5. Parallel track: `glob`/`Program.range` synthesis automation to discharge
    `inRange` side conditions (gates roughly a third of the compression).
 6. ✅ Symmetric-`relE` principle: `Coupling.lean` — an explicit coupling
