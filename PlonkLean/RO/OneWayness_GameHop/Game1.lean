@@ -1719,13 +1719,12 @@ private lemma ow_game_1_full_tail_equiv_lazy_query_tracked
 theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
     (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
     (q : ℕ) (F : Bool × state → ENNReal)
-    (h_F : IgnoresChalXQueriedGh F)
+    (h_F : IgnoresLens chal_x_queried_gh F)
     (σ : state) :
     (ow_game_1 ow_adv q).wp F σ = (ow_game_1_tracked ow_adv q).wp F σ := by
-  have h_F' : IgnoresLens chal_x_queried_gh F := fun aσ v => h_F aσ v
   suffices h_equiv : Program.EquivModuloLens chal_x_queried_gh
       (ow_game_1 ow_adv q) (ow_game_1_tracked ow_adv q) by
-    exact h_equiv F h_F' σ
+    exact h_equiv F h_F σ
   dsimp only [ow_game_1, ow_game_1_tracked]
   -- Outer `lazy_init` prefix is identical on both sides; use `bind_eq_p`.
   apply Program.EquivModuloLens.bind_eq_p

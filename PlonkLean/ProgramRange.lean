@@ -240,6 +240,26 @@ lemma loop_n_inRange {s : Type} {R : LensRange s}
     show (body >>= fun _ => loop_n n body).inRange R
     exact Program.inRange_bind h_body (fun _ => ih)
 
+/-- **Mass conservation for `loop_n`**: if `body` has mass 1 at every state,
+    then so does `loop_n n body`. -/
+lemma loop_n_mass_one {s : Type}
+    (body : Program s Unit)
+    (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (n : ℕ) (σ : s) :
+    (loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  induction n generalizing σ with
+  | zero => rw [show loop_n 0 body = pure () from rfl, wp_pure]
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1
+    rw [wp_bind]
+    have h_post : (fun aσ : Unit × s =>
+        (loop_n n body).wp (fun _ => (1 : ENNReal)) aσ.2)
+      = fun _ : Unit × s => (1 : ENNReal) := by
+      funext aσ
+      exact ih aσ.2
+    rw [h_post]
+    exact h_body σ
+
 /-- **Linear bump bound for `loop_n`** with respect to a state-projected potential.
     If `body` bumps `f` by ≤ `c` per iteration, then `loop_n n body` bumps `f` by ≤ `n*c`. -/
 lemma loop_n_wp_linear_bound {s : Type}

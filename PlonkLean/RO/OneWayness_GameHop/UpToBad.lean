@@ -45,18 +45,14 @@ For any continuation that doesn't read `chal_x_queried_gh`, the extra
 `set chal_x_queried_gh ...` calls in `lazy_query_tracked` are no-ops at
 the wp level. -/
 
-/-- `IgnoresChalXQueriedGh F` says `F` doesn't read `chal_x_queried_gh`:
-    setting the flag to any value doesn't change `F`. -/
-def IgnoresChalXQueriedGh {α : Type} (F : α × state → ENNReal) : Prop :=
-  ∀ (aσ : α × state) (b : Bool),
-    F (aσ.1, chal_x_queried_gh.set b aσ.2) = F aσ
+-- "F doesn't read chal_x_queried_gh" is the generic `IgnoresLens chal_x_queried_gh F`.
 
 /-- One `lazy_query_tracked` is wp-equivalent to one `lazy_query` for any
     flag-ignoring continuation whose post is also flag-ignoring. -/
 lemma lazy_query_tracked_eq_lazy_query_wp
     {α : Type} (k : output → Program state α)
     (h_k_inRange : ∀ y, (k y).inRange chal_x_queried_gh.compl.range)
-    (F : α × state → ENNReal) (h_F_inv : IgnoresChalXQueriedGh F)
+    (F : α × state → ENNReal) (h_F_inv : IgnoresLens chal_x_queried_gh F)
     (inp : input) (σ : state) :
     (lazy_query_tracked inp >>= k).wp F σ
     = (lazy_query inp >>= k).wp F σ := by
@@ -294,16 +290,6 @@ private lemma lazy_query_tracked_wp_invariant_under_RO_chal_x_set
     rw [h_reduce_to_F σ rfl]
     exact lazy_query_wp_invariant_under_RO_chal_x_set_at_neq inp F h_F_RO_inv σ y_chal h
 
-/-- Convenience alias: specialization of `Program.wp_zero_of_lens_preserves`
-    for the `chal_x_queried_gh = true` "bad-event vanishing" pattern. -/
-private lemma Program.wp_zero_of_flag_true_in_range
-    {α : Type} {p : Program state α} (h_p : p.inRange chal_x_queried_gh.compl.range)
-    {F : α × state → ENNReal}
-    (h_F_bad_zero : ∀ aσ, chal_x_queried_gh.get aσ.2 = true → F aσ = 0)
-    {σ : state} (h_σ : chal_x_queried_gh.get σ = true) :
-    p.wp F σ = 0 :=
-  Program.wp_zero_of_lens_preserves h_p h_F_bad_zero h_σ
-
 /-- **Flag-true-zero for `lazy_query_tracked`**: starting at flag-true, the wp on a
     bad-vanishing post is 0. `lazy_query_tracked` may set flag to true but never to
     false, so all post-states have flag = true. -/
@@ -316,7 +302,7 @@ private lemma lazy_query_tracked_wp_at_flag_true
   have h_lq_flag : (lazy_query inp).inRange chal_x_queried_gh.compl.range :=
     Program.inRange_mono (lazy_query_inRange_ro inp)
       (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
-  refine Program.wp_zero_of_flag_true_in_range h_lq_flag ?_ h_flag
+  refine Program.wp_zero_of_lens_preserves h_lq_flag ?_ h_flag
   intro yσ' h_yσ'_flag
   by_cases h : inp = ow_challenge_x.get yσ'.2
   · simp only [if_pos h]
@@ -346,7 +332,7 @@ private lemma oracle_step_wp_at_flag_true
   --                            (fun yσ_lq => (set oracle_output yσ_lq.1).wp F yσ_lq.2)
   --                          aσ_adv.2) σ = 0
   -- Apply Program.wp_zero_of_flag_true_in_range with ow_adv.
-  refine Program.wp_zero_of_flag_true_in_range h_ow_adv_chal_x_queried_gh ?_ h_flag
+  refine Program.wp_zero_of_lens_preserves h_ow_adv_chal_x_queried_gh ?_ h_flag
   intro aσ_adv h_adv_flag
   -- Inner: (lazy_query_tracked (oracle_input.get aσ_adv.2)).wp Cont aσ_adv.2
   -- with Cont = fun yσ_lq => (set oo yσ_lq.1).wp F yσ_lq.2.
@@ -714,24 +700,7 @@ private lemma oracle_step_lazy_query_tracked_mass_eq_adv_mass (σ : state) :
     exact lazy_query_tracked_mass_one _ aσ.2
   rw [h_post_const]
 
-/-- Mass of `loop_n n body` is `1` if body has mass 1 at every state. -/
-private lemma loop_n_mass_one
-    (body : Program state Unit)
-    (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
-    (n : ℕ) (σ : state) :
-    (loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1 := by
-  induction n generalizing σ with
-  | zero => rw [show loop_n 0 body = pure () from rfl, wp_pure]
-  | succ n ih =>
-    show (body >>= fun _ => loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1
-    rw [wp_bind]
-    have h_post : (fun aσ : Unit × state =>
-        (loop_n n body).wp (fun _ => (1 : ENNReal)) aσ.2)
-      = fun _ : Unit × state => (1 : ENNReal) := by
-      funext aσ
-      exact ih aσ.2
-    rw [h_post]
-    exact h_body σ
+-- `loop_n_mass_one` is defined generically in PlonkLean.ProgramRange.
 
 /-- Mass of `oracle_loop_n adv q lazy_query_tracked` is `1` if adv has mass 1. -/
 private lemma oracle_loop_n_lazy_query_tracked_mass_one

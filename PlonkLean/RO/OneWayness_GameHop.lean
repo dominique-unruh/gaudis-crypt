@@ -105,7 +105,7 @@ theorem ow_lazy_bound_via_gamehop
     ≤ (2 * (q + 1) : ENNReal) / Fintype.card output := by
   -- Win indicator is flag-ignoring (depends only on `bσ.1`) and RO-invariant.
   set Win : Bool × state → ENNReal := fun bσ => if bσ.1 then (1 : ENNReal) else 0 with Win_def
-  have h_Win_flag : IgnoresChalXQueriedGh Win := by
+  have h_Win_flag : IgnoresLens chal_x_queried_gh Win := by
     intro aσ b
     simp [Win_def]
   have h_Win_RO_inv : ∀ (bσ : Bool × state) (y : output),
