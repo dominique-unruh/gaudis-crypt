@@ -43,17 +43,29 @@ structure Program.Coupling {s₁ s₂ α β : Type}
 
 /-! ## Expected-value helpers -/
 
-private lemma expected_mono_pt {γ : Type} (μ : SubProbability γ)
+lemma SubProbability.expected_mono_pt {γ : Type} (μ : SubProbability γ)
     {f g : γ → ENNReal} (h : ∀ x, f x ≤ g x) :
     μ.expected f ≤ μ.expected g := by
   letI : MeasurableSpace γ := ⊤
   exact MeasureTheory.lintegral_mono h
 
-private lemma expected_add' {γ : Type} (μ : SubProbability γ)
+lemma SubProbability.expected_add {γ : Type} (μ : SubProbability γ)
     (f g : γ → ENNReal) :
     μ.expected (fun x => f x + g x) = μ.expected f + μ.expected g := by
   letI : MeasurableSpace γ := ⊤
   exact MeasureTheory.lintegral_add_left measurable_from_top g
+
+/-- Expected value of the constant-zero post. -/
+lemma SubProbability.expected_zero {γ : Type} (μ : SubProbability γ) :
+    μ.expected (fun _ => (0 : ENNReal)) = 0 := by
+  letI : MeasurableSpace γ := ⊤
+  exact MeasureTheory.lintegral_zero
+
+/-- Expected value over the zero subdistribution. -/
+lemma SubProbability.expected_bot {γ : Type} (f : γ → ENNReal) :
+    (⊥ : SubProbability γ).expected f = 0 := by
+  letI : MeasurableSpace γ := ⊤
+  exact MeasureTheory.lintegral_zero_measure f
 
 /-- Pointwise congruence for `expected`. -/
 lemma SubProbability.expected_congr {γ : Type} (μ : SubProbability γ)
@@ -84,14 +96,14 @@ lemma expected_le (c : Program.Coupling p q σ₁ σ₂ Post)
   classical
   calc c.w.expected A
       ≤ c.w.expected (fun uv => B uv + (if Post uv.1 uv.2 then 0 else ⊤)) := by
-        apply expected_mono_pt
+        apply SubProbability.expected_mono_pt
         intro uv
         by_cases hP : Post uv.1 uv.2
         · simpa [hP] using hAB uv hP
         · simp [hP]
     _ = c.w.expected B
         + c.w.expected (fun uv => if Post uv.1 uv.2 then 0 else ⊤) :=
-        expected_add' _ _ _
+        SubProbability.expected_add _ _ _
     _ = c.w.expected B := by
         rw [c.supp _ (fun uv hP => if_pos hP), add_zero]
 

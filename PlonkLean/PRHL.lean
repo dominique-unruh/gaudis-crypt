@@ -4,6 +4,7 @@ import PlonkLean.PRHL.Loops
 import PlonkLean.PRHL.UpToBad
 import PlonkLean.PRHL.Coupling
 import PlonkLean.PRHL.Tactics
+import PlonkLean.PRHL.Prhl
 
 /-!
 # pRHL: a probabilistic relational Hoare logic for `Program`
@@ -73,8 +74,15 @@ to `wp` reasoning or `Program.ext_of_wp`.
 8. ✅ Tactic layer v1 (`Tactics`): `wp_peel` (strip synchronized
    deterministic/uniform prefixes), `rel_bind Mid` (EasyCrypt's `seq`),
    `rel_step` (leaf/structural rule search at reducible transparency).
-9. Open: migrate Game1/Game2 bridges relationally; `glob`/`inRange`
-   synthesis automation (deferred with the CLAUDE subtasks).
+9. ✅ Game1/Game2 bridges migrated relationally (the whole game-hop suite
+   is pRHL end-to-end).
+10. ✅ Coupling-based pRHL (`Prhl`): the subtask-3 judgment
+   `prhl A c d B` with couplings as the primitive, rules incl. the seq
+   composition (no measurable-choice obligation in the discrete setting),
+   soundness `prhl.to_relE`. Open: discrete Strassen (completeness),
+   coupling transitivity (gluing), coupling while rule — see the module
+   header of `Prhl.lean`.
+11. Open: `glob`/`inRange` synthesis automation (deferred).
 
 ## Known landmines (do not "fix")
 
