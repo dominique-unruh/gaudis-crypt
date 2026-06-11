@@ -48,7 +48,7 @@ noncomputable def body_game_1 (_x : input) : Program state Unit := do
 
 /-- Final of `guess_experiment_game_1`: oracle on response. Doesn't use
     the bound target. -/
-private noncomputable def final_game_1 (_x : input) : Program state Unit := do
+noncomputable def final_game_1 (_x : input) : Program state Unit := do
   let resp ← Program.get ow_response
   let y ← lazy_query_tracked resp
   Program.set oracle_output y
@@ -275,7 +275,7 @@ noncomputable def body_recording_game_1 (adv : Program state Unit) :
   Program.set queries_input (qs ++ [inp])
 
 /-- Final recording for Game 1 bad: the last query attempt records `resp`. -/
-private noncomputable def final_recording_game_1 : Program state Unit := do
+noncomputable def final_recording_game_1 : Program state Unit := do
   let resp ← Program.get ow_response
   let y ← lazy_query_tracked resp
   Program.set oracle_output y
@@ -341,7 +341,7 @@ lemma body_recording_game_1_qs_length_bump
   · exact Program.wp_const_le _ _ _
 
 /-- final_recording_game_1 bumps queries_input.length by at most 1. -/
-private lemma final_recording_game_1_qs_length_bump (σ : state) :
+lemma final_recording_game_1_qs_length_bump (σ : state) :
     final_recording_game_1.wp
       (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ
     ≤ ((queries_input.get σ).length : ENNReal) + 1 := by
@@ -785,7 +785,7 @@ private lemma final_game_1_rel (t tv : input) :
 /-- **Game 1 correspondence**, relationally: the tracking flag fires iff
     the target lands in the recorded query list. One synchronized
     invariant (`InvG1`) through the loop, the final query, and the ending. -/
-private theorem game_1_correspondence (ow_adv : Program state Unit)
+theorem game_1_correspondence (ow_adv : Program state Unit)
     (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
     (h_ow_adv_chal_x_qg : ow_adv.inRange chal_x_queried_gh.compl.range)
     (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
