@@ -30,13 +30,23 @@ the adversary's query loop. The two worlds differ only in `m_b`.
   The two runs then differ only at `RO[k]` — exactly the OW up-to-bad
   invariant `InvUB k hk` — so the shared loop body relates by the OW core
   `body_relE`, and the guesses agree until the adversary queries `k`.
-* **Bad bound**: `Pr[adversary queries k] ≤ (q+1)/|input|` by the
-  `guess_experiment` framework (the same chain as the OW bad event).
+* **Bad bound** (Stage 2, *outstanding*): `Pr[adversary queries k] ≤
+  (q+1)/|input|`. This is a deferred-sampling reduction to the
+  `guess_experiment` framework: the key's sampling commutes past the
+  adversary loop (the published ciphertext `c = H(k) + m` is independent
+  of `k`, so the queries are independent of `k`). Structurally the same
+  chain as the OW bad-event bound; not yet ported here.
 
 We reuse `ow_challenge_x` as the **key register** and `chal_x_queried_gh`
 as the **"queried the key" flag**, so `lazy_query_tracked` and the entire
 OW up-to-bad core (`body_relE`, `InvUB`, …) apply verbatim.
--/
+
+## Status
+
+Stage 1 is complete (`enc_guess_le`): the indistinguishability bound up to
+the bad event, proved by the OTP coupling + up-to-bad reuse. Stage 2 (the
+quantitative bad bound) is documented above and outstanding. Composing the
+two gives the headline `2(q+1)/|output|`-style bound. -/
 
 /-- A commutative group structure on the output type, modelling the
     one-time-pad mask (e.g. bitwise XOR). Axiomatized on the opaque
