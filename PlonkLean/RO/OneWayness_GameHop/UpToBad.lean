@@ -744,34 +744,9 @@ private lemma oracle_loop_n_lazy_query_tracked_mass_one
   rw [oracle_step_lazy_query_tracked_mass_eq_adv_mass]
   exact h_adv_mass σ'
 
-/-- Mass-preservation under bind: if `p` and every `k a` have mass 1, then `p >>= k` has mass 1. -/
-private lemma Program.mass_bind {α β : Type}
-    (p : Program state α) (k : α → Program state β)
-    (hp : ∀ σ, p.wp (fun _ => (1 : ENNReal)) σ = 1)
-    (hk : ∀ a σ, (k a).wp (fun _ => (1 : ENNReal)) σ = 1)
-    (σ : state) :
-    (p >>= k).wp (fun _ => (1 : ENNReal)) σ = 1 := by
-  rw [wp_bind]
-  have h_post : (fun aσ : α × state => (k aσ.1).wp (fun _ => (1 : ENNReal)) aσ.2)
-              = fun _ : α × state => (1 : ENNReal) := by
-    funext aσ
-    exact hk aσ.1 aσ.2
-  rw [h_post]
-  exact hp σ
-
-/-- Mass of `Program.set` is always 1. -/
-private lemma Program.set_mass_one {α : Type} (L : Lens α state) (v : α) (σ : state) :
-    (Program.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by rw [wp_set]
-
-/-- Mass of `Program.uniform` is always 1. -/
-private lemma Program.uniform_mass_one {α : Type} [Fintype α] [Nonempty α] (σ : state) :
-    (Program.uniform : Program state α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
-  rw [wp_uniform]
-  show ∑ _i : α, (1 : ENNReal) / (Fintype.card α : ENNReal) = 1
-  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_div_assoc, mul_one,
-      ENNReal.div_self
-        (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card α ≠ 0))
-        (ENNReal.natCast_ne_top _)]
+-- `Program.mass_bind`, `Program.set_mass_one`, `Program.uniform_mass_one`
+-- moved to `PlonkLean/WeakestPreconditions.lean` (generic mass-conservation
+-- infrastructure, reusable across any cryptographic up-to-bad analysis).
 
 /-- **Bad-event invariance.** P[bad in G1] = P[bad in G2].
 
