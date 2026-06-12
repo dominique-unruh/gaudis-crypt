@@ -1,6 +1,6 @@
 # IND-security of the hashed one-time pad — a report
 
-*A game-hopping proof in the relational (pRHL) calculus, `PlonkLean/RO/EncRO.lean`.*
+*A game-hopping proof in the relational (pRHL) calculus, `GaudisCrypt/Lib/Enc/HashedOTP.lean`.*
 
 ---
 
@@ -59,7 +59,7 @@ being *"the adversary queried the key"*.
 
 The formal proof is a chain of game hops. Two ingredients recur and are
 worth naming up front, because they are *reused verbatim* from the
-one-wayness (OW) development in `PlonkLean/RO/OneWayness_GameHop/`:
+one-wayness (OW) development in `GaudisCrypt/Lib/RO/OneWayness_GameHop/`:
 
 * **the tracked oracle** `lazy_query_tracked`, a lazy random-oracle query
   that additionally flips a ghost flag `chal_x_queried_gh` whenever it is
@@ -177,7 +177,7 @@ ones for this file: `chal_c` (the published ciphertext) and `guess_var`
 
 ### The relational calculus (pRHL)
 
-The proof is written in the project's relational layer (`PlonkLean/PRHL/`).
+The proof is written in the project's relational layer (`GaudisCrypt/Logic/PRHL/`).
 Its judgments are
 
 ```
@@ -332,6 +332,6 @@ refactors.
   challenger's own key computation is untracked, so only the adversary's
   `q` loop queries — plus the framework's `+1` slack — count).
 * The whole file is `sorry`-free; the only `sorry`s in its dependency
-  cone are the framework-level opaque-type instances in `RO/Basic.lean`
+  cone are the framework-level opaque-type instances in `GaudisCrypt/Lib/RO/Basic.lean`
   (`Countable state`, `Fintype output`, …), shared by every proof in the
   project.
