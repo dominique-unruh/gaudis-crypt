@@ -1,5 +1,5 @@
 import GaudisCrypt.Lib.RO
-import GaudisCrypt.Birthday
+import GaudisCrypt.Lib.Birthday
 
 /-!
 # Collision resistance of the random oracle
