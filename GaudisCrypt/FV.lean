@@ -1,6 +1,6 @@
 -- CHAOS FILE
 
-import PlonkLean.Language.Modules
+import GaudisCrypt.Language.Modules
 
 open Language.Modules
 open Language.Programs

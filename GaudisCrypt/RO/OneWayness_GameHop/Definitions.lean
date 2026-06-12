@@ -1,6 +1,6 @@
-import PlonkLean.RO
-import PlonkLean.RO.OneWayness
-import PlonkLean.EquivModuloLens
+import GaudisCrypt.RO
+import GaudisCrypt.RO.OneWayness
+import GaudisCrypt.EquivModuloLens
 
 /-!
 # OneWayness GameHop: Definitions

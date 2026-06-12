@@ -1,4 +1,4 @@
-import PlonkLean.Language.Lens
+import GaudisCrypt.Language.Lens
 
 instance : Monoid (m → m) where
   mul := (· ∘ ·)

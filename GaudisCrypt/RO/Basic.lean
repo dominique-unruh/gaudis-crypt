@@ -5,13 +5,13 @@ import Mathlib.Order.FixedPoints
 import Mathlib.Order.CompletePartialOrder
 import Mathlib.Order.OmegaCompletePartialOrder
 
-import PlonkLean.Misc
-import PlonkLean.Language.Semantics
-import PlonkLean.WeakestPreconditions
-import PlonkLean.Language.Lens
-import PlonkLean.LensRange
-import PlonkLean.ProgramRange
-import PlonkLean.Unsorted
+import GaudisCrypt.Misc
+import GaudisCrypt.Language.Semantics
+import GaudisCrypt.WeakestPreconditions
+import GaudisCrypt.Language.Lens
+import GaudisCrypt.LensRange
+import GaudisCrypt.ProgramRange
+import GaudisCrypt.Unsorted
 
 /-!
 # Random oracle primitives

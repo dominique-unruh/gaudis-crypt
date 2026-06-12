@@ -1,7 +1,7 @@
-import PlonkLean.RO.OneWayness_GameHop.Definitions
-import PlonkLean.RO.OneWayness_GameHop.GuessExperiment
-import PlonkLean.RO.OneWayness_GameHop.UpToBad
-import PlonkLean.RO.OneWayness_GameHop.Game1
+import GaudisCrypt.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.RO.OneWayness_GameHop.GuessExperiment
+import GaudisCrypt.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.RO.OneWayness_GameHop.Game1
 
 /-!
 # IND-security of the hashed one-time pad

@@ -1,7 +1,7 @@
 import Mathlib.CategoryTheory.Category.Basic
 import Mathlib.Data.ZMod.Basic
 import Mathlib.GroupTheory.Submonoid.Centralizer
-import PlonkLean.Misc
+import GaudisCrypt.Misc
 
 /-- A read-only projection. Forgetting the setter of a `Lens` gives a `Getter`. -/
 @[ext]

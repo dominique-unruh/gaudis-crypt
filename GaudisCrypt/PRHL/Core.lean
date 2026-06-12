@@ -1,4 +1,4 @@
-import PlonkLean.WeakestPreconditions
+import GaudisCrypt.WeakestPreconditions
 
 /-!
 # pRHL core: a relational wp calculus for `Program`

@@ -1,6 +1,6 @@
-import PlonkLean.RO.OneWayness_GameHop.Definitions
-import PlonkLean.RO.OneWayness_GameHop.GuessExperiment
-import PlonkLean.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.RO.OneWayness_GameHop.GuessExperiment
+import GaudisCrypt.RO.OneWayness_GameHop.UpToBad
 
 /-!
 # OneWayness GameHop: Game 1 reduction

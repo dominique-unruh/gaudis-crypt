@@ -1,11 +1,11 @@
-import PlonkLean.RO
-import PlonkLean.RO.OneWayness
-import PlonkLean.EquivModuloLens
-import PlonkLean.RO.OneWayness_GameHop.Definitions
-import PlonkLean.RO.OneWayness_GameHop.GuessExperiment
-import PlonkLean.RO.OneWayness_GameHop.UpToBad
-import PlonkLean.RO.OneWayness_GameHop.Game1
-import PlonkLean.RO.OneWayness_GameHop.Game2
+import GaudisCrypt.RO
+import GaudisCrypt.RO.OneWayness
+import GaudisCrypt.EquivModuloLens
+import GaudisCrypt.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.RO.OneWayness_GameHop.GuessExperiment
+import GaudisCrypt.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.RO.OneWayness_GameHop.Game1
+import GaudisCrypt.RO.OneWayness_GameHop.Game2
 
 /-!
 # One-wayness via game hopping

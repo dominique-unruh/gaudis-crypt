@@ -1,7 +1,7 @@
-import PlonkLean.RO.Basic
-import PlonkLean.RO.Transfer
-import PlonkLean.RO.OracleLoop
-import PlonkLean.RO.ROEquiv
+import GaudisCrypt.RO.Basic
+import GaudisCrypt.RO.Transfer
+import GaudisCrypt.RO.OracleLoop
+import GaudisCrypt.RO.ROEquiv
 
 /-!
 # Random oracle framework

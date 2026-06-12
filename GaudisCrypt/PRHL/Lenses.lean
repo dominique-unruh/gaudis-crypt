@@ -1,5 +1,5 @@
-import PlonkLean.PRHL.Core
-import PlonkLean.EquivModuloLens
+import GaudisCrypt.PRHL.Core
+import GaudisCrypt.EquivModuloLens
 
 /-!
 # pRHL lens rules: self-shift, framing, and the EquivModuloLens bridge

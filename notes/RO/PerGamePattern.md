@@ -39,7 +39,7 @@ Suppose we're adding a new game `MyGame` with:
 ### Step 1. Declare game-specific Variables (still axiomatic)
 
 ```lean
-import PlonkLean.CollisionResistance  -- or just RO.lean if not building on CR
+import GaudisCrypt.CollisionResistance  -- or just RO.lean if not building on CR
 
 axiom myVar1 : Variable Foo
 axiom myVar2 : Variable Bar

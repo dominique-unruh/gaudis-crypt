@@ -1,4 +1,4 @@
-import PlonkLean.RO.OneWayness
+import GaudisCrypt.RO.OneWayness
 
 /-!
 # Deferred-sampling infrastructure for one-wayness

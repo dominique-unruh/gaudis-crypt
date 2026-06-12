@@ -1,6 +1,6 @@
-import PlonkLean.RO.Basic
-import PlonkLean.RO.Transfer
-import PlonkLean.RO.OracleLoop
+import GaudisCrypt.RO.Basic
+import GaudisCrypt.RO.Transfer
+import GaudisCrypt.RO.OracleLoop
 
 /-! ## Phase 4 — Oracle loops parameterised by an adversary
 

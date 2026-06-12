@@ -1,6 +1,6 @@
-import PlonkLean.Language.Semantics
-import PlonkLean.WeakestPreconditions
-import PlonkLean.LensRange
+import GaudisCrypt.Language.Semantics
+import GaudisCrypt.WeakestPreconditions
+import GaudisCrypt.LensRange
 
 /-!
 # Program.range and `glob` foundations

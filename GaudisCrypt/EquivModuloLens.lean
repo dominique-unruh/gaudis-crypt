@@ -1,4 +1,4 @@
-import PlonkLean.ProgramRange
+import GaudisCrypt.ProgramRange
 
 /-!
 # Equivalence-modulo-lens calculus

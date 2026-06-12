@@ -1,6 +1,6 @@
 import Mathlib.Data.Finset.Sort
-import PlonkLean.Language.Lens
-import PlonkLean.LensRange
+import GaudisCrypt.Language.Lens
+import GaudisCrypt.LensRange
 import Mathlib.Data.List.Basic
 import Mathlib.Data.FinEnum
 import Mathlib.SetTheory.Cardinal.Basic
@@ -208,4 +208,3 @@ def flipRange : LensRange Bool where
 
 theorem flipRange_compl_eq_self : flipRangeᶜ = flipRange :=
   lr_ext' (by simp only [Compl.compl, flipRange, bool_not_centralizer])
-

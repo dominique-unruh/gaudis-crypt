@@ -1,5 +1,5 @@
-import PlonkLean.PRHL.Core
-import PlonkLean.ProgramRange
+import GaudisCrypt.PRHL.Core
+import GaudisCrypt.ProgramRange
 
 /-!
 # Coupling introduction for `relE` (the symmetric proof principle)

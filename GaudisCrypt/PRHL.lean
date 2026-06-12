@@ -1,10 +1,10 @@
-import PlonkLean.PRHL.Core
-import PlonkLean.PRHL.Lenses
-import PlonkLean.PRHL.Loops
-import PlonkLean.PRHL.UpToBad
-import PlonkLean.PRHL.Coupling
-import PlonkLean.PRHL.Tactics
-import PlonkLean.PRHL.Prhl
+import GaudisCrypt.PRHL.Core
+import GaudisCrypt.PRHL.Lenses
+import GaudisCrypt.PRHL.Loops
+import GaudisCrypt.PRHL.UpToBad
+import GaudisCrypt.PRHL.Coupling
+import GaudisCrypt.PRHL.Tactics
+import GaudisCrypt.PRHL.Prhl
 
 /-!
 # pRHL: a probabilistic relational Hoare logic for `Program`

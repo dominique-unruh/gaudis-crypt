@@ -1,4 +1,4 @@
-import PlonkLean.PRHL
+import GaudisCrypt.PRHL
 
 /-!
 # Validation client 1: `schema_inner_equation`, relationally

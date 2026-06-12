@@ -1,6 +1,6 @@
 import Mathlib.Data.List.AList
 import Mathlib.Logic.Equiv.Defs
-import PlonkLean.Language.Programs
+import GaudisCrypt.Language.Programs
 import Metatheory.STLCext.Normalization
 import Metatheory.STLCext.Confluence
 

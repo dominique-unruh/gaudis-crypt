@@ -1,5 +1,5 @@
-import PlonkLean.RO
-import PlonkLean.RO.CollisionResistance
+import GaudisCrypt.RO
+import GaudisCrypt.RO.CollisionResistance
 
 /-!
 # One-wayness of the random oracle
@@ -727,4 +727,3 @@ end OWParam
     intermediate `ow_preimage_bound` are proved in `PlonkLean/RO/QueryHit.lean`,
     which provides the deferred-sampling infrastructure needed to close the
     `[resp = ow_challenge_x ∧ is_preimage]` bound without axioms. -/
-

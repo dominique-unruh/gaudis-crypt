@@ -1,6 +1,6 @@
 import Lean
 import Lean.Elab.Term
-import PlonkLean.Language.Semantics
+import GaudisCrypt.Language.Semantics
 
 namespace Language.Programs
 

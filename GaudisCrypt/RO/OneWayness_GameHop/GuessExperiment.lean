@@ -1,5 +1,5 @@
-import PlonkLean.RO.OneWayness_GameHop.Definitions
-import PlonkLean.PRHL.Clients.SchemaInnerEquation
+import GaudisCrypt.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.PRHL.Clients.SchemaInnerEquation
 
 /-!
 # OneWayness GameHop: Guess Experiment Framework

@@ -5,10 +5,10 @@ import Mathlib.Order.FixedPoints
 import Mathlib.Order.CompletePartialOrder
 import Mathlib.Order.OmegaCompletePartialOrder
 
-import PlonkLean.Misc
-import PlonkLean.Language.Semantics
-import PlonkLean.WeakestPreconditions
-import PlonkLean.Language.Lens
+import GaudisCrypt.Misc
+import GaudisCrypt.Language.Semantics
+import GaudisCrypt.WeakestPreconditions
+import GaudisCrypt.Language.Lens
 
 structure state where
   x : Nat

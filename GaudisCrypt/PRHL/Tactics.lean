@@ -1,6 +1,6 @@
-import PlonkLean.PRHL.Core
-import PlonkLean.PRHL.Lenses
-import PlonkLean.PRHL.Loops
+import GaudisCrypt.PRHL.Core
+import GaudisCrypt.PRHL.Lenses
+import GaudisCrypt.PRHL.Loops
 
 /-!
 # pRHL tactic layer (v1)

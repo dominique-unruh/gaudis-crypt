@@ -1,1 +1,1 @@
-import PlonkLean.Syntax
+import GaudisCrypt.Syntax
