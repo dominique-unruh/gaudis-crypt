@@ -1,5 +1,5 @@
-import GaudisCrypt.RO.Basic
-import GaudisCrypt.RO.Transfer
+import GaudisCrypt.Lib.RO.Basic
+import GaudisCrypt.Lib.RO.Transfer
 
 /-!
 # Oracle loops

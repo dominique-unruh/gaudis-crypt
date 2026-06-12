@@ -1,4 +1,4 @@
-import GaudisCrypt.RO.OneWayness
+import GaudisCrypt.Lib.RO.OneWayness
 
 /-!
 # Deferred-sampling infrastructure for one-wayness

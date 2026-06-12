@@ -1,5 +1,5 @@
-import GaudisCrypt.RO.OneWayness_GameHop.Definitions
-import GaudisCrypt.PRHL.Clients.SchemaInnerEquation
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.Logic.PRHL.Clients.SchemaInnerEquation
 
 /-!
 # OneWayness GameHop: Guess Experiment Framework

@@ -1,6 +1,6 @@
-import GaudisCrypt.RO.OneWayness_GameHop.Definitions
-import GaudisCrypt.RO.OneWayness_GameHop.GuessExperiment
-import GaudisCrypt.PRHL
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
+import GaudisCrypt.Logic.PRHL
 
 /-!
 # OneWayness GameHop: Up-to-Bad Hop (Game 1 → Game 2), relationally

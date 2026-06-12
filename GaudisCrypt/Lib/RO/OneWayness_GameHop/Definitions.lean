@@ -1,5 +1,5 @@
-import GaudisCrypt.RO
-import GaudisCrypt.RO.OneWayness
+import GaudisCrypt.Lib.RO
+import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.EquivModuloLens
 
 /-!

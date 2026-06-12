@@ -1,4 +1,4 @@
-import GaudisCrypt.RO
+import GaudisCrypt.Lib.RO
 
 /-!
 # Collision resistance of the random oracle

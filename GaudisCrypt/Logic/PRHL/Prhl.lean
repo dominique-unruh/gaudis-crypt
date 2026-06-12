@@ -1,5 +1,5 @@
-import GaudisCrypt.PRHL.Core
-import GaudisCrypt.PRHL.Coupling
+import GaudisCrypt.Logic.PRHL.Core
+import GaudisCrypt.Logic.PRHL.Coupling
 
 /-!
 # pRHL with couplings as the primitive judgment (CLAUDE.md subtask 3)

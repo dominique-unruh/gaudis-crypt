@@ -1,11 +1,11 @@
-import GaudisCrypt.RO
-import GaudisCrypt.RO.OneWayness
+import GaudisCrypt.Lib.RO
+import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.EquivModuloLens
-import GaudisCrypt.RO.OneWayness_GameHop.Definitions
-import GaudisCrypt.RO.OneWayness_GameHop.GuessExperiment
-import GaudisCrypt.RO.OneWayness_GameHop.UpToBad
-import GaudisCrypt.RO.OneWayness_GameHop.Game1
-import GaudisCrypt.RO.OneWayness_GameHop.Game2
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game1
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game2
 
 /-!
 # One-wayness via game hopping

@@ -1,6 +1,6 @@
-import GaudisCrypt.RO.OneWayness_GameHop.Definitions
-import GaudisCrypt.RO.OneWayness_GameHop.GuessExperiment
-import GaudisCrypt.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 
 /-!
 # OneWayness GameHop: Game 1 reduction
