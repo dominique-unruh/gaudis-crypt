@@ -111,6 +111,6 @@
    "inputRev": "v4.30.0",
    "inherited": true,
    "configFile": "lakefile.toml"}],
- "name": "«plonk-lean»",
+ "name": "«gaudis-crypt»",
  "lakeDir": ".lake",
  "fixedToolchain": false}

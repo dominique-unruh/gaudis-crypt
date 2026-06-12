@@ -1,4 +1,4 @@
-name = "plonk-lean"
+name = "gaudis-crypt"
 version = "0.1.0"
 keywords = ["math"]
 defaultTargets = ["GaudisCrypt"]
