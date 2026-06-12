@@ -212,6 +212,19 @@ noncomputable
 def Program.uniform [h : Fintype α] [h : Nonempty α] : Program s α :=
   SubProbability.uniform.toProgram
 
+/-- Uniform subprobability over a nonempty finset. -/
+noncomputable
+def SubProbability.uniformOfFinset {α : Type} (fs : Finset α) (hs : fs.Nonempty) :
+    SubProbability α :=
+  toSubProbability (PMF.uniformOfFinset fs hs)
+
+/-- Uniform sampling over a nonempty finset (used e.g. for "sample without
+    replacement" — uniform over the complement of the values seen so far). -/
+noncomputable
+def Program.uniformOfFinset {s α : Type} (fs : Finset α) (hs : fs.Nonempty) :
+    Program s α :=
+  (SubProbability.uniformOfFinset fs hs).toProgram
+
 def Program.finalProb (prog : Program s a) (st : s) (X : Set a) : NNReal :=
   ((prog st).ofEvent (X ×ˢ ⊤))
 

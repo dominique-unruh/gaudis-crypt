@@ -20,6 +20,23 @@ theorem uniform_expected [Fintype a] [Nonempty a] (f : a → ENNReal) :
   rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
       PMF.uniformOfFintype_apply, ← div_eq_mul_inv]
 
+theorem uniformOfFinset_expected {a : Type} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
+    (f : a → ENNReal) :
+    (SubProbability.uniformOfFinset fs hs).expected f = ∑ x ∈ fs, f x / fs.card := by
+  classical
+  letI : MeasurableSpace a := ⊤
+  change ∫⁻ x, f x ∂(PMF.uniformOfFinset fs hs).toMeasure = _
+  rw [MeasureTheory.lintegral_fintype]
+  rw [show (fun x : a => f x * (PMF.uniformOfFinset fs hs).toMeasure {x})
+        = fun x : a => if x ∈ fs then f x / (fs.card : ENNReal) else 0 from ?_]
+  · rw [Finset.sum_ite_mem, Finset.univ_inter]
+  · funext x
+    rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
+        PMF.uniformOfFinset_apply]
+    by_cases hx : x ∈ fs
+    · rw [if_pos hx, if_pos hx, ← div_eq_mul_inv]
+    · rw [if_neg hx, if_neg hx, mul_zero]
+
 theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := by
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
   simp [SubProbability.expected, h]
@@ -155,6 +172,11 @@ theorem wp_lift {s : Type} (μ : SubProbability a) (f : Program.Post s a) :
 theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
   Program.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
   simp [Program.uniform, wp_lift, uniform_expected]
+
+theorem wp_uniformOfFinset {st a : Type} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
+    (f : Program.Post st a) :
+    (Program.uniformOfFinset fs hs).wp f = (fun σ => ∑ i ∈ fs, f (i, σ) / fs.card) := by
+  simp [Program.uniformOfFinset, wp_lift, uniformOfFinset_expected]
 
 
 theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
@@ -409,6 +431,17 @@ theorem Program.uniform_mass_one {s α : Type} [Fintype α] [Nonempty α] (σ : 
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_div_assoc, mul_one,
       ENNReal.div_self
         (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card α ≠ 0))
+        (ENNReal.natCast_ne_top _)]
+
+/-- `Program.uniformOfFinset` has mass 1. -/
+theorem Program.uniformOfFinset_mass_one {s α : Type} [Fintype α]
+    (fs : Finset α) (hs : fs.Nonempty) (σ : s) :
+    (Program.uniformOfFinset fs hs).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_uniformOfFinset]
+  show ∑ _i ∈ fs, (1 : ENNReal) / (fs.card : ENNReal) = 1
+  rw [Finset.sum_const, nsmul_eq_mul, ← mul_div_assoc, mul_one,
+      ENNReal.div_self
+        (by exact_mod_cast (Finset.card_ne_zero.mpr hs))
         (ENNReal.natCast_ne_top _)]
 
 /-- **Mass-1 composes through `>>=`**: if `p` and every `k a` have mass 1, then
