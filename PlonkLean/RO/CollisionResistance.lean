@@ -17,8 +17,9 @@ The high-level claims are:
   final two collision-check queries).
 * `cr_eager_bound` — the same bound for eager, by `cr_transfer`.
 
-Both probability theorems are stated below with `sorry`; this file
-fixes the experiment shape and the targets.
+All results below are fully proved (no `sorry`): the transfer via the
+`Program.transfer` framework, and the birthday bound by a unary
+wp-expectation induction.
 -/
 
 /-- The CR adversary's two collision claims, stored in state. -/
@@ -156,8 +157,8 @@ theorem cr_transfer (q : ℕ) (σ₀ : state) :
 
 /-! ## Phase 3 — Birthday bound on the lazy CR experiment
 
-The proof is decomposed into two helper lemmas (both `sorry`d) and a
-top-level composition. The composition `cr_lazy_bound` itself is
+The proof is decomposed into helper lemmas and a top-level
+composition. The composition `cr_lazy_bound` itself is
 *proved* — no `sorry` — modulo the two helpers.
 
 * `cr_true_implies_collision_wp` (bookkeeping): if the experiment's
@@ -401,11 +402,11 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
 The proof is decomposed into:
 
 * `RO_size` — counts the cached entries of the random oracle.
-* `lazy_query_collision_step` (Layer A, sorry) — each query bumps the collision
+* `lazy_query_collision_step` (Layer A) — each query bumps the collision
   probability by at most `RO_size σ / N`. Core probability content.
 * `lazy_query_RO_size_step` (Layer B, *proved*) — each query's expected
   `RO_size` grows by at most 1. Combinatorial.
-* `cr_loop_birthday_step` (Layer C, sorry) — combining A and B over `cr_loop k`:
+* `cr_loop_birthday_step` (Layer C) — combining A and B over `cr_loop k`:
   after `k` queries the collision bump is at most the triangular sum
   `k * (2 * RO_size σ + k - 1) / (2N)`.
 * `cr_collision_birthday_bound` (Layer D, *proved* modulo A & C) — combines

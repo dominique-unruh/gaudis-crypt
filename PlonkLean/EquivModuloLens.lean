@@ -17,30 +17,9 @@ lens `L`, value `v`). Tracking-flag elision proofs reduce to short
 chains of these rules.
 -/
 
-/-- A post `F` ignores lens `L` if it doesn't depend on `L`-content of
-    its state argument: setting `L` to any value leaves `F` unchanged. -/
-def IgnoresLens {γ s α : Type} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
-  ∀ (aσ : α × s) (v : γ), F (aσ.1, L.set v aσ.2) = F aσ
-
-namespace IgnoresLens
-
-/-- L-ignoring is preserved when post-composing with an L-disjoint program. -/
-lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
-    {F : β × s → ENNReal} (h_F : IgnoresLens L F)
-    (k : α → Program s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
-    IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
-  intro aσ v
-  have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
-    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
-  show (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
-  rw [Program.wp_shift_input (h_k aσ.1) hf]
-  congr 1
-  funext xs
-  exact h_F xs v
-
-end IgnoresLens
+-- `IgnoresLens` and `IgnoresLens.comp_inRange` moved to PlonkLean.ProgramRange
+-- (they don't depend on the EquivModuloLens calculus; they're foundational
+-- lens-post-invariance facts useful beyond this module).
 
 /-- `Program.EquivModuloLens L p q` — `p` and `q` have equal wps on any
     `L`-ignoring post. -/
@@ -128,3 +107,41 @@ lemma wp_eq {p q : Program s α} (h : Program.EquivModuloLens L p q)
     p.wp F σ = q.wp F σ := h F h_F σ
 
 end Program.EquivModuloLens
+
+/-- **Loop congruence for the equiv-modulo-lens calculus**: if two bodies are
+    `≈_L`-equivalent, so are their `loop_n` iterates. Requires the reference body
+    `body` to be `L`-disjoint so that `loop_n n body` is also `L`-disjoint (needed
+    by the bind congruence in the inductive step). -/
+lemma loop_n_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+    {body body' : Program s Unit}
+    (h_body : body.inRange L.compl.range)
+    (h_eq : Program.EquivModuloLens L body body')
+    (n : ℕ) :
+    Program.EquivModuloLens L (loop_n n body) (loop_n n body') := by
+  induction n with
+  | zero => exact Program.EquivModuloLens.refl _
+  | succ n ih =>
+    show Program.EquivModuloLens L (body >>= fun _ => loop_n n body)
+                                   (body' >>= fun _ => loop_n n body')
+    exact Program.EquivModuloLens.bind h_eq (fun _ => ih)
+      (fun _ => loop_n_inRange body h_body n)
+
+/-- **Loop + trailing congruence**: if `body ≈_L body'` and `final ≈_L final'`,
+    with both `body` and `final` being `L`-disjoint, then
+    `loop_n n body >>= final  ≈_L  loop_n n body' >>= final'`.
+
+    Combines `loop_n_congr` and `Program.EquivModuloLens.bind` in one step. -/
+lemma loop_n_then_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+    {body body' final final' : Program s Unit}
+    (h_body : body.inRange L.compl.range)
+    (h_body_eq : Program.EquivModuloLens L body body')
+    (h_final : final.inRange L.compl.range)
+    (h_final_eq : Program.EquivModuloLens L final final')
+    (n : ℕ) :
+    Program.EquivModuloLens L
+        (loop_n n body >>= fun _ : Unit => final)
+        (loop_n n body' >>= fun _ : Unit => final') :=
+  Program.EquivModuloLens.bind
+    (loop_n_congr h_body h_body_eq n)
+    (fun _ => h_final_eq)
+    (fun _ => h_final)

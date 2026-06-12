@@ -1,4 +1,4 @@
-import PlonkLean.Semantics
+import PlonkLean.Language.Semantics
 
 
 /-!
@@ -375,3 +375,55 @@ theorem wp_get {α : Type} (v : Lens α s) (f : Program.Post s α) :
 theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit) :
     (Program.set v x).wp f = fun st => f ((), v.set x st) := by
     simp [Program.set, wp_bind, wp_get_state, wp_set_state]
+
+/-! ## Mass-1 (full probability) lemmas
+
+A program `p` has *mass 1* at state `σ` iff `p.wp (fun _ => 1) σ = 1`, i.e.,
+the total sub-probability mass produced by `p` at `σ` equals 1. This holds for
+every "real" probabilistic operation in the language (pure, get, set, uniform,
+…), and is preserved by `>>=`. The lemmas below let proofs about
+identical-until-bad analyses and similar mass-conservation arguments compose
+mass-1 facts cleanly. -/
+
+/-- `pure x` has mass 1. -/
+theorem Program.pure_mass_one {s α : Type} (x : α) (σ : s) :
+    (pure x : Program s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_pure]
+
+/-- `Program.get L` has mass 1. -/
+theorem Program.get_mass_one {s α : Type} (L : Lens α s) (σ : s) :
+    (Program.get L).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_get]
+
+/-- `Program.set L v` has mass 1. -/
+theorem Program.set_mass_one {s α : Type} (L : Lens α s) (v : α) (σ : s) :
+    (Program.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_set]
+
+/-- `Program.uniform` has mass 1 (the uniform distribution sums to 1 over its
+    finite, non-empty support). -/
+theorem Program.uniform_mass_one {s α : Type} [Fintype α] [Nonempty α] (σ : s) :
+    (Program.uniform : Program s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_uniform]
+  show ∑ _i : α, (1 : ENNReal) / (Fintype.card α : ENNReal) = 1
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_div_assoc, mul_one,
+      ENNReal.div_self
+        (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card α ≠ 0))
+        (ENNReal.natCast_ne_top _)]
+
+/-- **Mass-1 composes through `>>=`**: if `p` and every `k a` have mass 1, then
+    so does `p >>= k`. The workhorse for chaining mass-conservation facts
+    through composite programs. -/
+theorem Program.mass_bind {s α β : Type}
+    (p : Program s α) (k : α → Program s β)
+    (hp : ∀ σ, p.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (hk : ∀ a σ, (k a).wp (fun _ => (1 : ENNReal)) σ = 1)
+    (σ : s) :
+    (p >>= k).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  rw [wp_bind]
+  have h_post : (fun aσ : α × s => (k aσ.1).wp (fun _ => (1 : ENNReal)) aσ.2)
+              = fun _ : α × s => (1 : ENNReal) := by
+    funext aσ
+    exact hk aσ.1 aσ.2
+  rw [h_post]
+  exact hp σ

@@ -1,5 +1,5 @@
 import Mathlib.Data.Finset.Sort
-import PlonkLean.Lens
+import PlonkLean.Language.Lens
 import PlonkLean.LensRange
 import Mathlib.Data.List.Basic
 import Mathlib.Data.FinEnum

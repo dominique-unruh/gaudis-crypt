@@ -1,6 +1,6 @@
 import PlonkLean.Language.Semantics
 import PlonkLean.WeakestPreconditions
-import PlonkLean.Language.LensRange
+import PlonkLean.LensRange
 
 /-!
 # Program.range and `glob` foundations
@@ -220,6 +220,79 @@ lemma Program.get_inRange_compl_of_disjoint
   Program.inRange_mono (Program.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)
 
+/-! ## Bounded-loop combinator
+
+A generic `n`-fold iterator and its basic invariance/bound theorems. -/
+
+/-- Run `body` exactly `n` times. Generic bounded loop combinator. -/
+noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program s Unit :=
+  match n with
+  | 0 => pure ()
+  | n + 1 => body >>= fun _ => loop_n n body
+
+/-- `loop_n n body` stays in the same range as `body`. -/
+lemma loop_n_inRange {s : Type} {R : LensRange s}
+    (body : Program s Unit) (h_body : body.inRange R) (n : ℕ) :
+    (loop_n n body).inRange R := by
+  induction n with
+  | zero => exact Program.inRange_pure _ _
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).inRange R
+    exact Program.inRange_bind h_body (fun _ => ih)
+
+/-- **Mass conservation for `loop_n`**: if `body` has mass 1 at every state,
+    then so does `loop_n n body`. -/
+lemma loop_n_mass_one {s : Type}
+    (body : Program s Unit)
+    (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (n : ℕ) (σ : s) :
+    (loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  induction n generalizing σ with
+  | zero => rw [show loop_n 0 body = pure () from rfl, wp_pure]
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1
+    rw [wp_bind]
+    have h_post : (fun aσ : Unit × s =>
+        (loop_n n body).wp (fun _ => (1 : ENNReal)) aσ.2)
+      = fun _ : Unit × s => (1 : ENNReal) := by
+      funext aσ
+      exact ih aσ.2
+    rw [h_post]
+    exact h_body σ
+
+/-- **Linear bump bound for `loop_n`** with respect to a state-projected potential.
+    If `body` bumps `f` by ≤ `c` per iteration, then `loop_n n body` bumps `f` by ≤ `n*c`. -/
+lemma loop_n_wp_linear_bound {s : Type}
+    (body : Program s Unit)
+    (f : s → ENNReal) (c : ENNReal)
+    (h_body : ∀ σ, body.wp (fun aσ : Unit × s => f aσ.2) σ ≤ f σ + c)
+    (n : ℕ) (σ : s) :
+    (loop_n n body).wp (fun aσ : Unit × s => f aσ.2) σ
+    ≤ f σ + (n : ENNReal) * c := by
+  induction n generalizing σ with
+  | zero =>
+    show (pure () : Program s Unit).wp _ σ ≤ _
+    rw [wp_pure]; simp
+  | succ n ih =>
+    show (body >>= fun _ => loop_n n body).wp _ σ ≤ _
+    rw [wp_bind]
+    calc body.wp (fun yσ : Unit × s =>
+            (loop_n n body).wp
+              (fun yσ' : Unit × s => f yσ'.2) yσ.2) σ
+        ≤ body.wp (fun yσ : Unit × s => f yσ.2 + (n : ENNReal) * c) σ := by
+          apply Program.wp_le_wp_of_le
+          intro yσ
+          exact ih yσ.2
+      _ = body.wp (fun yσ : Unit × s => f yσ.2) σ +
+          body.wp (fun _ : Unit × s => (n : ENNReal) * c) σ := by
+          rw [Program.wp_add]
+      _ ≤ (f σ + c) + (n : ENNReal) * c := by
+          gcongr
+          · exact h_body σ
+          · exact Program.wp_const_le _ _ _
+      _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
+          push_cast; ring
+
 /-! ## SubProbability-level characterization of `inRange` -/
 
 /-- `inRange` lifted to the SubProbability level: at state `σ`, applying a commutant update
@@ -342,6 +415,117 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
   funext xs
   show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
   rw [if_pos (h_f_L_get xs.2)]
+
+/-- A post `F` ignores lens `L` if it doesn't depend on `L`-content of
+    its state argument: setting `L` to any value leaves `F` unchanged. -/
+def IgnoresLens {γ s α : Type} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
+  ∀ (aσ : α × s) (v : γ), F (aσ.1, L.set v aσ.2) = F aσ
+
+namespace IgnoresLens
+
+/-- L-ignoring is preserved when post-composing with an L-disjoint program. -/
+lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
+    {F : β × s → ENNReal} (h_F : IgnoresLens L F)
+    (k : α → Program s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
+    IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
+  intro aσ v
+  have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  show (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
+  rw [Program.wp_shift_input (h_k aσ.1) hf]
+  congr 1
+  funext xs
+  exact h_F xs v
+
+end IgnoresLens
+
+/-- **wp is invariant under `L.set v` on input** when `p` is `L`-disjoint and
+    `F` is invariant under `L.set v` on its state argument. The intuition:
+    writing `v` into `L` before `p` is invisible because `p` doesn't read
+    `L`, and `F` doesn't see the `L`-content of the output.
+
+    Note: the hypothesis on `F` is *single-value* (only requires invariance
+    at this `v`), not the full `IgnoresLens` (invariance at every value).
+    Callers that have the stronger `IgnoresLens L F` can supply
+    `fun aσ => h_F aσ v`. -/
+lemma Program.wp_invariant_under_lens_set
+    {s α γ : Type} [DecidableEq γ] (L : Lens γ s)
+    {p : Program s α} (h_p : p.inRange L.compl.range)
+    (v : γ) {F : α × s → ENNReal}
+    (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    p.wp F (L.set v σ) = p.wp F σ := by
+  have h_f_updates : L.update (Function.const _ v)
+      ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
+        rw [LensRange.complement_range, LensRange.compl_compl]]
+    exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
+  have h_set_eq : L.update (Function.const _ v) σ = L.set v σ := by
+    show L.set ((Function.const _ v) (L.get σ)) σ = L.set v σ
+    rfl
+  rw [← h_set_eq]
+  rw [Program.wp_shift_input h_p h_f_updates]
+  congr 1
+  funext xs
+  show F (xs.1, L.update (Function.const _ v) xs.2) = F xs
+  show F (xs.1, L.set v xs.2) = F xs
+  exact h_F xs
+
+/-- **Conditional set is wp-invisible at posts that ignore the set value**.
+    `if c then set L v else pure ()` has wp equal to `F ((), σ)` for any
+    post `F` that doesn't observe `L.set v`. Both branches converge:
+    when `c` holds, `set L v` is invisible by `h_F`; otherwise `pure ()`
+    is a no-op. Captures the "conditional tracking write" pattern. -/
+lemma Program.wp_cond_set_invisible
+    {s γ : Type} (L : Lens γ s) (cond : Prop) [Decidable cond] (v : γ)
+    (F : Unit × s → ENNReal)
+    (h_F : ∀ aσ : Unit × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    (if cond then Program.set L v else (pure () : Program s Unit)).wp F σ
+    = F ((), σ) := by
+  by_cases h : cond
+  · rw [if_pos h, wp_set]
+    exact h_F ((), σ)
+  · rw [if_neg h, wp_pure]
+
+/-- **Read-modify-write on `L` is wp-invisible at `L`-ignoring posts**.
+    `get L >>= fun a => set L (g a)` has the same wp as `pure ()` for any
+    pure modification `g : γ → γ` of the lens value, provided the post `F`
+    doesn't read `L`. Captures the "tracking variable updated in place"
+    pattern: the modification is invisible if downstream code doesn't
+    observe `L`. -/
+lemma Program.wp_get_modify_invisible
+    {s γ : Type} (L : Lens γ s) (g : γ → γ)
+    (F : Unit × s → ENNReal) (h_F : IgnoresLens L F) (σ : s) :
+    (Program.get L >>= fun a : γ => Program.set L (g a)).wp F σ = F ((), σ) := by
+  rw [wp_bind, wp_get]
+  dsimp only
+  rw [wp_set]
+  exact h_F ((), σ) _
+
+/-- **Vanishing-post zero**: if `p` is `L`-disjoint, `F` vanishes on every state
+    where `L.get = v`, and the input state already has `L.get σ = v`, then
+    `p.wp F σ = 0`. Captures the standard "bad-event vanishing" pattern in
+    security proofs: once the bad flag is set, all post-outcomes count as bad
+    too (and the post assigns them 0), so the wp is 0. -/
+lemma Program.wp_zero_of_lens_preserves {s α γ : Type} [DecidableEq γ]
+    {L : Lens γ s} {p : Program s α} (h_p : p.inRange L.compl.range)
+    {F : α × s → ENNReal} {v : γ}
+    (h_F_zero : ∀ aσ : α × s, L.get aσ.2 = v → F aσ = 0)
+    {σ : s} (h_σ : L.get σ = v) :
+    p.wp F σ = 0 := by
+  rw [Program.wp_strengthen_lens_preserved L h_p]
+  rw [show (fun aσ : α × s =>
+            if L.get aσ.2 = L.get σ then F aσ else 0)
+          = (fun _ : α × s => (0 : ENNReal)) from by
+    funext aσ
+    by_cases h : L.get aσ.2 = L.get σ
+    · simp only [if_pos h]
+      exact h_F_zero aσ (h.trans h_σ)
+    · simp only [if_neg h]]
+  exact Program.wp_zero_post _ _
 
 /-- **Drop a dead write**: prepending `Program.set L v` to a program `rest` that
     doesn't touch `L`'s range is a no-op for any post that ignores `L`'s value.
