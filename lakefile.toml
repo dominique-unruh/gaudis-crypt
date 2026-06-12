@@ -1,6 +1,6 @@
 name = "gaudis-crypt"
 version = "0.1.0"
-keywords = ["math"]
+keywords = ["math", "cryptography", "formalization"]
 defaultTargets = ["GaudisCrypt"]
 
 [leanOptions]
@@ -8,11 +8,6 @@ pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 maxSynthPendingDepth = 3
-
-[[require]]
-name = "VCVio"
-scope = "Verified-zkEVM"
-rev = "v4.29.0"
 
 [[require]]
 name = "Metatheory-Unruh"
