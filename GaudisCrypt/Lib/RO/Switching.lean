@@ -96,6 +96,78 @@ noncomputable def lazy_query_rp (inp : input) : Program state output :=
           Program.set random_oracle_state (fun x => if x = inp then some y else h x)
             >>= fun _ => (pure y : Program state output)
 
+/-! ### Closed-form weakest preconditions (Phase 2a)
+
+The per-query coupling marginals are computed against these closed forms. -/
+
+/-- The sub-distribution `lazy_query_rp` resamples from on a collision: uniform
+    over the unused outputs, or a point mass on `y` if all outputs are used. -/
+noncomputable def rp_resample_sub (h : input → Option output) (inp : input)
+    (y : output) : SubProbability output :=
+  if hne : (Finset.univ \ colliding_outputs h inp).Nonempty then
+    SubProbability.uniformOfFinset (Finset.univ \ colliding_outputs h inp) hne
+  else (pure y : SubProbability output)
+
+/-- `lazy_query_rf` on a cache hit returns the cached value, no state change. -/
+lemma lazy_query_rf_wp_hit {inp : input} {σ : state} {x : output}
+    (hc : random_oracle_state.get σ inp = some x) (F : output × state → ENNReal) :
+    (lazy_query_rf inp).wp F σ = F (x, σ) := by
+  simp only [lazy_query_rf, wp_bind, wp_get, hc, wp_pure]
+
+/-- `lazy_query_rp` on a cache hit returns the cached value, no state change. -/
+lemma lazy_query_rp_wp_hit {inp : input} {σ : state} {x : output}
+    (hc : random_oracle_state.get σ inp = some x) (G : output × state → ENNReal) :
+    (lazy_query_rp inp).wp G σ = G (x, σ) := by
+  simp only [lazy_query_rp, wp_bind, wp_get, hc, wp_pure]
+
+/-- `lazy_query_rf` on a cache miss: uniform over the drawn value `y`, setting
+    the flag and caching `y` on a collision (with replacement). -/
+lemma lazy_query_rf_wp_miss {inp : input} {σ : state}
+    (hc : random_oracle_state.get σ inp = none) (F : output × state → ENNReal) :
+    (lazy_query_rf inp).wp F σ
+      = ∑ y : output, F (y,
+          if y ∈ colliding_outputs (random_oracle_state.get σ) inp
+          then random_oracle_state.set
+                 (fun k => if k = inp then some y else random_oracle_state.get σ k)
+                 (prp_bad.set true σ)
+          else random_oracle_state.set
+                 (fun k => if k = inp then some y else random_oracle_state.get σ k) σ)
+        / Fintype.card output := by
+  simp only [lazy_query_rf, wp_bind, wp_get, hc, wp_uniform]
+  apply Finset.sum_congr rfl
+  intro y _
+  congr 1
+  by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
+  · simp only [if_pos hb, wp_bind, wp_set, wp_pure]
+  · simp only [if_neg hb, wp_bind, wp_set, wp_pure]
+
+/-- `lazy_query_rp` on a cache miss: uniform over the drawn value `y`; on a
+    collision it sets the flag and resamples a fresh value (without
+    replacement) via `rp_resample_sub`, otherwise caches `y`. -/
+lemma lazy_query_rp_wp_miss {inp : input} {σ : state}
+    (hc : random_oracle_state.get σ inp = none) (G : output × state → ENNReal) :
+    (lazy_query_rp inp).wp G σ
+      = ∑ y : output,
+          (if y ∈ colliding_outputs (random_oracle_state.get σ) inp
+           then (rp_resample_sub (random_oracle_state.get σ) inp y).expected
+                  (fun y' => G (y', random_oracle_state.set
+                    (fun k => if k = inp then some y' else random_oracle_state.get σ k)
+                    (prp_bad.set true σ)))
+           else G (y, random_oracle_state.set
+                    (fun k => if k = inp then some y else random_oracle_state.get σ k) σ))
+        / Fintype.card output := by
+  simp only [lazy_query_rp, wp_bind, wp_get, hc, wp_uniform]
+  apply Finset.sum_congr rfl
+  intro y _
+  congr 1
+  by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
+  · simp only [if_pos hb, wp_bind, wp_set]
+    unfold rp_resample_sub
+    by_cases hne : (Finset.univ \ colliding_outputs (random_oracle_state.get σ) inp).Nonempty
+    · simp only [dif_pos hne, Program.uniformOfFinset, wp_bind, wp_lift, wp_set, wp_pure]
+    · simp only [dif_neg hne, wp_bind, wp_set, wp_pure, expected_pure]
+  · simp only [if_neg hb, wp_bind, wp_set, wp_pure]
+
 /-- `lazy_query_rf` touches only `random_oracle_state` and `prp_bad`: it lives in
     the complement of any lens disjoint from both. -/
 lemma lazy_query_rf_inRange {α : Type} (L : Variable α)
