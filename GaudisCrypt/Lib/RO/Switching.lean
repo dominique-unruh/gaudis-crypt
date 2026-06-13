@@ -1,4 +1,5 @@
 import GaudisCrypt.Lib.RO.CollisionResistance
+import GaudisCrypt.Logic.PRHL.Coupling
 
 /-!
 # PRP/PRF switching lemma — oracles and the shared bad flag (Phase 1)
@@ -220,3 +221,99 @@ lemma lazy_query_rp_inRange {α : Type} (L : Variable α)
       exact Program.inRange_bind
         (Program.set_inRange_compl_of_disjoint random_oracle_state L _)
         (fun _ => Program.inRange_pure _ _)
+
+/-! ### The per-query coupling (Phase 2b) -/
+
+/-- The resample sub-distribution has mass one, so integrating a constant
+    against it returns the constant. -/
+lemma rp_resample_sub_expected_const (h : input → Option output) (inp : input)
+    (y : output) (c : ENNReal) :
+    (rp_resample_sub h inp y).expected (fun _ => c) = c := by
+  unfold rp_resample_sub
+  by_cases hne : (Finset.univ \ colliding_outputs h inp).Nonempty
+  · simp only [dif_pos hne]
+    rw [uniformOfFinset_expected, Finset.sum_const, nsmul_eq_mul,
+        ENNReal.mul_div_cancel
+          (by exact_mod_cast (Finset.card_pos.mpr hne).ne' :
+              ((Finset.univ \ colliding_outputs h inp).card : ENNReal) ≠ 0)
+          (ENNReal.natCast_ne_top _)]
+  · simp only [dif_neg hne, expected_pure]
+
+/-- **Per-query coupling** (the heart of the switching argument). From equal
+    states with the flag clear, `lazy_query_rf` and `lazy_query_rp` are coupled
+    so that the flag always agrees, and on no-collision runs the full
+    output-and-state result agrees. The collision branch is coupled by the
+    independent product (both flags are then `true`, so the post is satisfied
+    regardless). -/
+lemma lazy_query_switch_step (inp : input) :
+    (lazy_query_rf inp).relE (lazy_query_rp inp)
+      (fun σ₁ σ₂ => σ₁ = σ₂ ∧ prp_bad.get σ₁ = false)
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2
+        ∧ (prp_bad.get u.2 = false → u = v)) := by
+  refine Program.relE.of_coupling ?_
+  rintro σ₁ σ₂ ⟨rfl, hflag⟩
+  cases hc : random_oracle_state.get σ₁ inp with
+  | some x =>
+    exact Program.Coupling.of_pure (x, σ₁) (x, σ₁)
+      (fun F => lazy_query_rf_wp_hit hc F)
+      (fun G => lazy_query_rp_wp_hit hc G)
+      ⟨rfl, fun _ => rfl⟩
+  | none =>
+    have hb_rf : ∀ y : output, prp_bad.get (random_oracle_state.set
+        (fun k => if k = inp then some y else random_oracle_state.get σ₁ k)
+        (prp_bad.set true σ₁)) = true := fun y => by
+      rw [prp_bad.get_of_disjoint_set random_oracle_state, prp_bad.set_get]
+    refine
+      { w := (SubProbability.uniform : SubProbability output) >>= fun y =>
+          if y ∈ colliding_outputs (random_oracle_state.get σ₁) inp then
+            rp_resample_sub (random_oracle_state.get σ₁) inp y >>= fun y' =>
+              (pure
+                ((y, random_oracle_state.set
+                      (fun k => if k = inp then some y else random_oracle_state.get σ₁ k)
+                      (prp_bad.set true σ₁)),
+                 (y', random_oracle_state.set
+                      (fun k => if k = inp then some y' else random_oracle_state.get σ₁ k)
+                      (prp_bad.set true σ₁)))
+                : SubProbability ((output × state) × (output × state)))
+          else
+            (pure
+              ((y, random_oracle_state.set
+                    (fun k => if k = inp then some y else random_oracle_state.get σ₁ k) σ₁),
+               (y, random_oracle_state.set
+                    (fun k => if k = inp then some y else random_oracle_state.get σ₁ k) σ₁))
+              : SubProbability ((output × state) × (output × state)))
+        marg₁ := ?_, marg₂ := ?_, supp := ?_ }
+    · intro F
+      rw [SubProbability.expected_bind, uniform_expected, lazy_query_rf_wp_miss hc]
+      apply Finset.sum_congr rfl
+      intro y _
+      congr 1
+      by_cases hbb : y ∈ colliding_outputs (random_oracle_state.get σ₁) inp
+      · simp only [if_pos hbb, SubProbability.expected_bind, expected_pure]
+        exact rp_resample_sub_expected_const _ _ _ _
+      · simp only [if_neg hbb, expected_pure]
+    · intro G
+      rw [SubProbability.expected_bind, uniform_expected, lazy_query_rp_wp_miss hc]
+      apply Finset.sum_congr rfl
+      intro y _
+      congr 1
+      by_cases hbb : y ∈ colliding_outputs (random_oracle_state.get σ₁) inp
+      · simp only [if_pos hbb, SubProbability.expected_bind, expected_pure]
+      · simp only [if_neg hbb, expected_pure]
+    · intro f hf
+      rw [SubProbability.expected_bind]
+      refine Eq.trans
+        (SubProbability.expected_congr _ (g := fun _ : output => (0 : ENNReal)) (fun y => ?_))
+        (SubProbability.expected_zero _)
+      by_cases hbb : y ∈ colliding_outputs (random_oracle_state.get σ₁) inp
+      · simp only [if_pos hbb]
+        rw [SubProbability.expected_bind]
+        refine Eq.trans
+          (SubProbability.expected_congr _ (g := fun _ : output => (0 : ENNReal)) (fun y' => ?_))
+          (SubProbability.expected_zero _)
+        rw [expected_pure]
+        apply hf
+        exact ⟨by rw [hb_rf y, hb_rf y'],
+          fun hcontra => by rw [hb_rf y] at hcontra; exact absurd hcontra (by decide)⟩
+      · simp only [if_neg hbb, expected_pure]
+        exact hf _ ⟨rfl, fun _ => rfl⟩
