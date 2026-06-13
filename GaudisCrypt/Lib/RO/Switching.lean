@@ -1,6 +1,7 @@
 import GaudisCrypt.Lib.RO.CollisionResistance
 import GaudisCrypt.Logic.PRHL.Coupling
 import GaudisCrypt.Logic.PRHL.UpToBad
+import GaudisCrypt.Logic.PRHL.Loops
 
 /-!
 # PRP/PRF switching lemma — oracles and the shared bad flag (Phase 1)
@@ -591,3 +592,37 @@ lemma oracle_step_switch_relE (A : Program state Unit)
   refine Program.relE.bind hA (fun _ _ => ?_)
   refine Program.relE.bind hGet (fun inp₁ inp₂ => ?_)
   exact Program.relE.bind (hOracle inp₁ inp₂) (fun y₁ y₂ => hSet y₁ y₂)
+
+/-! ### Loop lifting and the Fundamental Lemma (Phase 3c) -/
+
+/-- The whole `q`-round game relates RF to RP at the conditional invariant. -/
+lemma loop_switch_relE (A : Program state Unit)
+    (hA_pres : A.inRange prp_bad.compl.range)
+    (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1) (q : ℕ) :
+    (loop_n q (oracle_step A lazy_query_rf)).relE (loop_n q (oracle_step A lazy_query_rp))
+      (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) :=
+  Program.relE.loop_n (oracle_step_switch_relE A hA_pres hA_mass) q
+
+/-- **Switching inequality (Fundamental Lemma).** For any state-functional `G`,
+    the RF game's expectation is at most the RP game's plus the probability that
+    RF triggered a collision (`prp_bad`). Starting from a common state. -/
+lemma switch_up_to_bad (A : Program state Unit)
+    (hA_pres : A.inRange prp_bad.compl.range)
+    (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (q : ℕ) (G : state → ENNReal) (σ : state) :
+    (loop_n q (oracle_step A lazy_query_rf)).wp (fun u => G u.2) σ
+    ≤ (loop_n q (oracle_step A lazy_query_rp)).wp (fun u => G u.2) σ
+      + (loop_n q (oracle_step A lazy_query_rf)).wp
+          (fun u => if prp_bad.get u.2 = true then G u.2 else 0) σ := by
+  classical
+  have hEq := (loop_switch_relE A hA_pres hA_mass q).conseq
+    (Pre' := (Eq : state → state → Prop))
+    (fun σ₁ σ₂ h => ⟨congrArg _ h, fun _ => h⟩) (fun _ _ h => h)
+  exact Program.relE.up_to_bad (bad := fun σ => prp_bad.get σ = true) (fun u => G u.2) hEq
+    (fun x y hxy => by dsimp only; rw [hxy.1])
+    (fun x y hxy hb => by
+      dsimp only at hb ⊢
+      rw [Bool.not_eq_true] at hb
+      rw [hxy.2 hb])
+    σ
