@@ -150,6 +150,17 @@ theorem Program.inRange_uniform {s α : Type} [Fintype α] [Nonempty α] :
   funext σ
   simp only [wp_bind, wp_liftF, wp_uniform, wp_pure]
 
+/-- `Program.uniformOfFinset` lives in the trivial range (it doesn't touch
+    state — it only samples its return value). -/
+theorem Program.inRange_uniformOfFinset {s α : Type} [Fintype α]
+    (fs : Finset α) (hs : fs.Nonempty) :
+    (Program.uniformOfFinset fs hs : Program s α).inRange ⊥ := by
+  intro f _
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  simp only [wp_bind, wp_liftF, wp_uniformOfFinset, wp_pure]
+
 /-- `Program.set v x` lives in `v.range`. -/
 theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
     (Program.set v x).inRange v.range := by
