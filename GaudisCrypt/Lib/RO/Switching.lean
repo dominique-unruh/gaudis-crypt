@@ -698,3 +698,114 @@ lemma lazy_query_rf_bad_step (x : input) (σ : state) :
       gcongr
       rw [Finset.sum_boole, Finset.filter_mem_eq_inter, Finset.univ_inter]
       exact_mod_cast inducing_set_card_le_RO_size x σ
+
+/-- Generic `oracle_step` potential bump, parameterized by the oracle (the
+    `lazy_query`-specific `oracle_step_wp_indicator_bump` adapted). -/
+lemma oracle_step_bump_gen {A : Program state Unit} (oracle : input → Program state output)
+    {f : state → ENNReal} (c : state → ENNReal)
+    (h_adv_f : ∀ σ, A.wp (fun yσ : Unit × state => f yσ.2) σ ≤ f σ)
+    (h_adv_c : ∀ σ, A.wp (fun yσ : Unit × state => c yσ.2) σ ≤ c σ)
+    (h_set_oo : ∀ y σ, f (oracle_output.set y σ) = f σ)
+    (h_oracle : ∀ x σ, (oracle x).wp (fun yσ : output × state => f yσ.2) σ ≤ f σ + c σ)
+    (σ : state) :
+    (oracle_step A oracle).wp (fun yσ : Unit × state => f yσ.2) σ ≤ f σ + c σ := by
+  show (A >>= fun _ =>
+        Program.get oracle_input >>= fun inp =>
+          oracle inp >>= fun y => Program.set oracle_output y).wp _ σ ≤ _
+  rw [wp_bind]
+  have h_inner : ∀ σ_a : state,
+      (Program.get oracle_input >>= fun inp =>
+        oracle inp >>= fun y => Program.set oracle_output y).wp
+          (fun yσ : Unit × state => f yσ.2) σ_a ≤ f σ_a + c σ_a := by
+    intro σ_a
+    simp only [wp_bind, wp_get]
+    rw [show (fun yσ : output × state =>
+              (Program.set oracle_output yσ.1).wp (fun yσ' : Unit × state => f yσ'.2) yσ.2)
+            = (fun yσ : output × state => f yσ.2) from by
+      funext yσ; rw [wp_set]; exact h_set_oo yσ.1 yσ.2]
+    exact h_oracle (oracle_input.get σ_a) σ_a
+  calc A.wp _ σ
+      ≤ A.wp (fun yσ : Unit × state => f yσ.2 + c yσ.2) σ := by
+        apply Program.wp_le_wp_of_le; intro yσ; exact h_inner yσ.2
+    _ = A.wp (fun yσ : Unit × state => f yσ.2) σ + A.wp (fun yσ : Unit × state => c yσ.2) σ := by
+        rw [Program.wp_add]
+    _ ≤ f σ + c σ := add_le_add (h_adv_f σ) (h_adv_c σ)
+
+/-- One loop body bumps `RO_size` by at most one. -/
+lemma oracle_step_rf_size_bump {A : Program state Unit}
+    (hA_ro : A.inRange random_oracle_state.compl.range)
+    (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1) (σ : state) :
+    (oracle_step A lazy_query_rf).wp (fun u => (RO_size u.2 : ENNReal)) σ
+    ≤ (RO_size σ : ENNReal) + 1 := by
+  have h := oracle_step_bump_gen lazy_query_rf (fun _ => 1)
+    (fun σ' => Program.wp_le_of_factors random_oracle_state hA_ro
+      (fun _ _ hss => congrArg _ (RO_size_of_get_eq hss)) σ')
+    (fun σ' => le_of_eq (hA_mass σ'))
+    (fun y σ' => by rw [RO_size_set_disjoint oracle_output y σ'])
+    lazy_query_rf_RO_size_step σ
+  simpa using h
+
+/-- One loop body bumps the bad-flag indicator by at most `RO_size σ / N`. -/
+lemma oracle_step_rf_bad_bump {A : Program state Unit}
+    (hA_ro : A.inRange random_oracle_state.compl.range)
+    (hA_pres : A.inRange prp_bad.compl.range) (σ : state) :
+    (oracle_step A lazy_query_rf).wp
+      (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ
+    ≤ (if prp_bad.get σ = true then (1 : ENNReal) else 0)
+      + (RO_size σ : ENNReal) / Fintype.card output :=
+  oracle_step_bump_gen lazy_query_rf (fun σ' => (RO_size σ' : ENNReal) / Fintype.card output)
+    (fun σ' => Program.wp_le_of_factors prp_bad hA_pres
+      (P := fun s => if prp_bad.get s = true then (1 : ENNReal) else 0)
+      (fun _ _ hss => by simp only [hss]) σ')
+    (fun σ' => Program.wp_le_of_factors random_oracle_state hA_ro
+      (P := fun s => (RO_size s : ENNReal) / Fintype.card output)
+      (fun _ _ hss => by simp only [RO_size_of_get_eq hss]) σ')
+    (fun y σ' => by simp only [prp_bad.get_of_disjoint_set oracle_output])
+    lazy_query_rf_bad_step σ
+
+/-! ### The switching lemma (Phase 4) -/
+
+/-- **Bad-event bound.** Starting from a clean state (flag clear, empty oracle),
+    the probability that `q` RF rounds set `prp_bad` is at most `q(q−1)/2N`. The
+    bad flag is itself a collision potential, so this is `loop_n_birthday_bound`
+    applied directly. -/
+lemma loop_rf_bad_bound {A : Program state Unit}
+    (hA_ro : A.inRange random_oracle_state.compl.range)
+    (hA_pres : A.inRange prp_bad.compl.range)
+    (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (q : ℕ) (σ : state) (h_flag : prp_bad.get σ = false) (h_size0 : RO_size σ = 0) :
+    (loop_n q (oracle_step A lazy_query_rf)).wp
+      (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ
+    ≤ ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by
+  have hb := loop_n_birthday_bound (oracle_step A lazy_query_rf)
+    (fun σ' => if prp_bad.get σ' = true then (1 : ENNReal) else 0) RO_size (Fintype.card output)
+    (by exact_mod_cast Fintype.card_pos.ne') (ENNReal.natCast_ne_top _)
+    (oracle_step_rf_bad_bump hA_ro hA_pres) (oracle_step_rf_size_bump hA_ro hA_mass) q σ
+  refine le_trans hb ?_
+  simp [h_flag, h_size0]
+
+/-- **PRP/PRF switching lemma.** For a distinguisher `A` (touching neither the
+    oracle table nor the internal flag, and lossless) outputting a `[0,1]`-valued
+    functional `G`, the RF and RP games differ by at most `q(q−1)/2N`:
+
+    `Pr[A^RF : G] ≤ Pr[A^RP : G] + q(q−1)/2N`.
+
+    Combines the Fundamental Lemma (`switch_up_to_bad`) with the birthday bound
+    on the bad event (`loop_rf_bad_bound`). -/
+theorem switching_lemma {A : Program state Unit}
+    (hA_ro : A.inRange random_oracle_state.compl.range)
+    (hA_pres : A.inRange prp_bad.compl.range)
+    (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (q : ℕ) (G : state → ENNReal) (hG : ∀ σ, G σ ≤ 1)
+    (σ : state) (h_flag : prp_bad.get σ = false) (h_size0 : RO_size σ = 0) :
+    (loop_n q (oracle_step A lazy_query_rf)).wp (fun u => G u.2) σ
+    ≤ (loop_n q (oracle_step A lazy_query_rp)).wp (fun u => G u.2) σ
+      + ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by
+  refine le_trans (switch_up_to_bad A hA_pres hA_mass q G σ) ?_
+  gcongr
+  refine le_trans (Program.wp_le_wp_of_le _ _ _ ?_ σ)
+    (loop_rf_bad_bound hA_ro hA_pres hA_mass q σ h_flag h_size0)
+  intro u
+  by_cases hb : prp_bad.get u.2 = true
+  · simp only [if_pos hb]; exact hG _
+  · simp only [if_neg hb, le_refl]
