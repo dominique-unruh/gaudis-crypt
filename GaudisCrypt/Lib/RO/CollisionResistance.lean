@@ -934,3 +934,28 @@ theorem cr_eager_bound (q : ℕ) (σ₀ : state) :
   exact cr_lazy_bound cr_adv h_cr_adv q σ₀
 
 end CRParam
+
+/-- **Generic lazy-oracle collision bound.** For any adversary `A` that only
+    touches the random-oracle state, after `lazy_init` and `q` query rounds
+    (each round runs `A`, then answers one `lazy_query`), the probability
+    that the oracle map contains a collision is at most `q(q−1)/2N`.
+
+    This is the birthday framework `loop_n_birthday_bound` instantiated at the
+    RO collision/size potentials, with `lazy_init` zeroing both. Unlike
+    `cr_collision_birthday_bound` (which carries two extra challenge queries,
+    giving `(q+2)(q+1)/2N`), this is the clean `q(q−1)/2N` for the bare
+    `q`-round loop — the `Pr[bad]` input to the PRP/PRF switching lemma. -/
+lemma loop_n_lazy_query_collision_bound (A : Program state Unit)
+    (hA : A.inRange random_oracle_state.compl.range) (q : ℕ) (σ₀ : state) :
+    (lazy_init >>= fun _ => loop_n q (oracle_step A lazy_query)).wp
+        (fun yσ : Unit × state => collision_indicator yσ.2) σ₀
+    ≤ ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by
+  simp only [wp_bind, lazy_init, Program.set, wp_get_state, wp_set_state]
+  have h := loop_n_birthday_bound (oracle_step A lazy_query)
+    collision_indicator RO_size (Fintype.card output)
+    (by exact_mod_cast Fintype.card_pos.ne') (ENNReal.natCast_ne_top _)
+    (cr_loop_body_wp_collision A hA) (cr_loop_body_wp_RO_size A hA) q
+    (random_oracle_state.set (fun _ : input => none) σ₀)
+  refine le_trans h ?_
+  rw [lazy_init_collision_indicator, lazy_init_RO_size]
+  simp only [Nat.cast_zero, mul_zero, zero_add, le_refl]
