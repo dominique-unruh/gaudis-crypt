@@ -427,13 +427,13 @@ with probability `1/N`). Decomposed into 5 helpers below. -/
 
 /-- The Finset of output values that a fresh sample at `x` could collide with:
     values that already appear in the RO at some other input. -/
-private noncomputable def inducing_set (x : input) (σ : state) : Finset output :=
+noncomputable def inducing_set (x : input) (σ : state) : Finset output :=
   ((Finset.univ.erase x).filter
     (fun x' => (random_oracle_state.get σ x').isSome)).image
     (fun x' => (random_oracle_state.get σ x').getD default)
 
 /-- Membership characterization. -/
-private lemma mem_inducing_set_iff (x : input) (σ : state) (y : output) :
+lemma mem_inducing_set_iff (x : input) (σ : state) (y : output) :
     y ∈ inducing_set x σ ↔
       ∃ x' : input, x' ≠ x ∧ random_oracle_state.get σ x' = some y := by
   unfold inducing_set
@@ -455,7 +455,7 @@ private lemma mem_inducing_set_iff (x : input) (σ : state) (y : output) :
     · rw [hRO]; rfl
 
 /-- The inducing set has at most `RO_size σ` elements. -/
-private lemma inducing_set_card_le_RO_size (x : input) (σ : state) :
+lemma inducing_set_card_le_RO_size (x : input) (σ : state) :
     (inducing_set x σ).card ≤ RO_size σ := by
   unfold inducing_set
   apply le_trans Finset.card_image_le

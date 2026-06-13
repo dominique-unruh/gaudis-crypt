@@ -626,3 +626,75 @@ lemma switch_up_to_bad (A : Program state Unit)
       rw [Bool.not_eq_true] at hb
       rw [hxy.2 hb])
     σ
+
+/-! ### Bounding the bad event (Phase 4) -/
+
+/-- Caching a fresh input grows the RO size by exactly one (independent of any
+    disjoint scratch state in the base). -/
+lemma RO_size_set_upd_fresh {x : input} {σ : state}
+    (hc : random_oracle_state.get σ x = none) (y : output) (τ : state) :
+    RO_size (random_oracle_state.set
+      (fun k => if k = x then some y else random_oracle_state.get σ k) τ)
+      = RO_size σ + 1 := by
+  classical
+  unfold RO_size
+  rw [random_oracle_state.set_get]
+  have hfilter : Finset.filter
+        (fun k => ((fun k' => if k' = x then some y else random_oracle_state.get σ k') k).isSome)
+        Finset.univ
+      = insert x (Finset.filter (fun k => (random_oracle_state.get σ k).isSome) Finset.univ) := by
+    ext k
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
+    by_cases hk : k = x
+    · subst hk; simp
+    · simp [hk]
+  rw [hfilter, Finset.card_insert_of_notMem (by simp [Finset.mem_filter, hc])]
+
+/-- One RF query grows the expected RO size by at most one. -/
+lemma lazy_query_rf_RO_size_step (x : input) (σ : state) :
+    (lazy_query_rf x).wp (fun u => (RO_size u.2 : ENNReal)) σ ≤ (RO_size σ : ENNReal) + 1 := by
+  cases hc : random_oracle_state.get σ x with
+  | some v => rw [lazy_query_rf_wp_hit hc]; exact le_self_add
+  | none =>
+    rw [lazy_query_rf_wp_miss hc]
+    refine le_of_eq (Eq.trans (Finset.sum_congr rfl (fun y _ => ?_))
+      (sum_const_div_card ((RO_size σ : ENNReal) + 1)))
+    congr 1
+    by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) x
+    · rw [if_pos hb, RO_size_set_upd_fresh hc y]; push_cast; ring
+    · rw [if_neg hb, RO_size_set_upd_fresh hc y]; push_cast; ring
+
+/-- One RF query bumps the bad-flag indicator by at most `RO_size σ / N`: the
+    flag flips only when the fresh draw lands in the (≤ `RO_size`)-element
+    collision set. -/
+lemma lazy_query_rf_bad_step (x : input) (σ : state) :
+    (lazy_query_rf x).wp (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ
+    ≤ (if prp_bad.get σ = true then (1 : ENNReal) else 0)
+      + (RO_size σ : ENNReal) / Fintype.card output := by
+  cases hc : random_oracle_state.get σ x with
+  | some v => rw [lazy_query_rf_wp_hit hc]; exact le_self_add
+  | none =>
+    rw [lazy_query_rf_wp_miss hc]
+    refine le_trans (Finset.sum_le_sum (g := fun y : output =>
+        ((if prp_bad.get σ = true then (1 : ENNReal) else 0)
+          + (if y ∈ colliding_outputs (random_oracle_state.get σ) x then (1 : ENNReal) else 0))
+          / Fintype.card output) (fun y _ => ?_)) ?_
+    · -- pointwise: bad_ind(rf-state y) ≤ bad_ind σ + (y ∈ colliding ? 1 : 0)
+      apply ENNReal.div_le_div_right
+      by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) x
+      · rw [if_pos hb, prp_bad_get_ro_set_true, if_pos hb, if_pos rfl]
+        exact le_add_self
+      · rw [if_neg hb, prp_bad_get_ro_set, if_neg hb, add_zero]
+    · -- ∑ (bad_ind σ + ind_y)/N = bad_ind σ + |colliding|/N ≤ bad_ind σ + RO_size σ/N
+      rw [show (fun y : output => ((if prp_bad.get σ = true then (1 : ENNReal) else 0)
+              + (if y ∈ colliding_outputs (random_oracle_state.get σ) x then (1 : ENNReal) else 0))
+              / Fintype.card output)
+            = (fun y => (if prp_bad.get σ = true then (1 : ENNReal) else 0) / Fintype.card output
+              + (if y ∈ colliding_outputs (random_oracle_state.get σ) x then (1 : ENNReal) else 0)
+                / Fintype.card output) from by funext y; rw [ENNReal.add_div]]
+      rw [Finset.sum_add_distrib, sum_const_div_card]
+      gcongr
+      simp only [div_eq_mul_inv, ← Finset.sum_mul]
+      gcongr
+      rw [Finset.sum_boole, Finset.filter_mem_eq_inter, Finset.univ_inter]
+      exact_mod_cast inducing_set_card_le_RO_size x σ
