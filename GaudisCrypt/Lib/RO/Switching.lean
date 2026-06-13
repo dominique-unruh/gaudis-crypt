@@ -139,8 +139,8 @@ lemma lazy_query_rf_wp_miss {inp : input} {σ : state}
   intro y _
   congr 1
   by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
-  · simp only [if_pos hb, wp_bind, wp_set, wp_pure]
-  · simp only [if_neg hb, wp_bind, wp_set, wp_pure]
+  · simp only [if_pos hb, wp_set, wp_pure]
+  · simp only [if_neg hb, wp_set, wp_pure]
 
 /-- `lazy_query_rp` on a cache miss: uniform over the drawn value `y`; on a
     collision it sets the flag and resamples a fresh value (without
@@ -165,8 +165,8 @@ lemma lazy_query_rp_wp_miss {inp : input} {σ : state}
   · simp only [if_pos hb, wp_bind, wp_set]
     unfold rp_resample_sub
     by_cases hne : (Finset.univ \ colliding_outputs (random_oracle_state.get σ) inp).Nonempty
-    · simp only [dif_pos hne, Program.uniformOfFinset, wp_bind, wp_lift, wp_set, wp_pure]
-    · simp only [dif_neg hne, wp_bind, wp_set, wp_pure, expected_pure]
+    · simp only [dif_pos hne, Program.uniformOfFinset, wp_lift, wp_pure]
+    · simp only [dif_neg hne, wp_pure, expected_pure]
   · simp only [if_neg hb, wp_bind, wp_set, wp_pure]
 
 /-- `lazy_query_rf` touches only `random_oracle_state` and `prp_bad`: it lives in
