@@ -478,3 +478,116 @@ lemma lazy_query_rf_keeps_flag_one {inp : input} {σ : state} (h : prp_bad.get �
     (lazy_query_rf inp).wp
       (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1 :=
   flag_one_of_zero (lazy_query_rf_mass_one inp σ) (lazy_query_rf_keeps_flag h)
+
+/-! ### The loop body preserves the conditional invariant (Phase 3b) -/
+
+/-- **The switching loop body relates RF to RP at the conditional invariant.**
+    `oracle_step A` with the RF oracle relates to the same with the RP oracle:
+    the flag always agrees, and as long as it is clear the states stay equal.
+    Requires `A` to leave `prp_bad` untouched and to be lossless. -/
+lemma oracle_step_switch_relE (A : Program state Unit)
+    (hA_pres : A.inRange prp_bad.compl.range)
+    (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1) :
+    (oracle_step A lazy_query_rf).relE (oracle_step A lazy_query_rp)
+      (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) := by
+  have hget_pres : (Program.get oracle_input).inRange prp_bad.compl.range :=
+    Program.get_inRange_compl_of_disjoint oracle_input prp_bad
+  have hset_pres : ∀ y, (Program.set oracle_output y).inRange prp_bad.compl.range :=
+    fun y => Program.set_inRange_compl_of_disjoint oracle_output prp_bad y
+  have hget_mass : ∀ σ, (Program.get oracle_input).wp (fun _ => (1 : ENNReal)) σ = 1 :=
+    fun σ => by simp [wp_get]
+  have hset_mass : ∀ y σ, (Program.set oracle_output y).wp (fun _ => (1 : ENNReal)) σ = 1 :=
+    fun y σ => by simp [wp_set]
+  have hptrue : ∀ {α : Type} (u v : α × state), prp_bad.get u.2 = true → prp_bad.get v.2 = true →
+      prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u = v) :=
+    fun u v hu hv => ⟨hu.trans hv.symm, fun hf => absurd (hu.symm.trans hf) (by decide)⟩
+  -- A component
+  have hA : A.relE A
+      (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) := by
+    refine two_mode_relE (fun _ _ hpre => hpre.1) ?_ ?_
+      (fun σ h => wp_keeps_flag_zero hA_pres h)
+      (fun σ h => flag_one_of_zero (hA_mass σ) (wp_keeps_flag_zero hA_pres h))
+      (fun σ h => wp_keeps_flag_zero hA_pres h)
+      (fun σ h => flag_one_of_zero (hA_mass σ) (wp_keeps_flag_zero hA_pres h))
+      (fun u v hu hv => ⟨hu.trans hv.symm, fun hf => absurd (hu.symm.trans hf) (by decide)⟩)
+    · intro F G hFG σ₁ σ₂ hp
+      obtain ⟨hpre, hf⟩ := hp
+      have heq : σ₁ = σ₂ := hpre.2 hf
+      subst heq
+      exact Program.wp_le_wp_of_le A F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+    · intro F G hFG σ₂ σ₁ hp
+      obtain ⟨hpre, hf⟩ := hp
+      have heq : σ₁ = σ₂ := hpre.2 hf
+      subst heq
+      exact Program.wp_le_wp_of_le A F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+  -- get oracle_input component
+  have hGet : (Program.get oracle_input).relE (Program.get oracle_input)
+      (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u = v)) := by
+    refine two_mode_relE (fun _ _ hpre => hpre.1) ?_ ?_
+      (fun σ h => wp_keeps_flag_zero hget_pres h)
+      (fun σ h => flag_one_of_zero (hget_mass σ) (wp_keeps_flag_zero hget_pres h))
+      (fun σ h => wp_keeps_flag_zero hget_pres h)
+      (fun σ h => flag_one_of_zero (hget_mass σ) (wp_keeps_flag_zero hget_pres h))
+      (fun u v hu hv => hptrue u v hu hv)
+    · intro F G hFG σ₁ σ₂ hp
+      obtain ⟨hpre, hf⟩ := hp
+      have heq : σ₁ = σ₂ := hpre.2 hf
+      subst heq
+      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+    · intro F G hFG σ₂ σ₁ hp
+      obtain ⟨hpre, hf⟩ := hp
+      have heq : σ₁ = σ₂ := hpre.2 hf
+      subst heq
+      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+  -- oracle component (rf inp₁ vs rp inp₂)
+  have hOracle : ∀ inp₁ inp₂, (lazy_query_rf inp₁).relE (lazy_query_rp inp₂)
+      (fun τ₁ τ₂ => prp_bad.get τ₁ = prp_bad.get τ₂
+        ∧ (prp_bad.get τ₁ = false → (inp₁, τ₁) = (inp₂, τ₂)))
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u = v)) := by
+    intro inp₁ inp₂
+    refine two_mode_relE (fun _ _ hpre => hpre.1) ?_ ?_
+      (fun σ h => lazy_query_rf_keeps_flag h)
+      (fun σ h => lazy_query_rf_keeps_flag_one h)
+      (fun σ h => lazy_query_rp_keeps_flag_zero h)
+      (fun σ h => lazy_query_rp_keeps_flag h)
+      (fun u v hu hv => hptrue u v hu hv)
+    · intro F G hFG σ₁ σ₂ hp
+      obtain ⟨hpre, hf⟩ := hp
+      obtain ⟨hinp, hst⟩ := Prod.mk.inj (hpre.2 hf)
+      subst hinp; subst hst
+      exact (lazy_query_switch_step inp₁).1 F G hFG σ₁ σ₁ ⟨rfl, hf⟩
+    · intro F G hFG σ₂ σ₁ hp
+      obtain ⟨hpre, hf⟩ := hp
+      obtain ⟨hinp, hst⟩ := Prod.mk.inj (hpre.2 hf)
+      subst hinp; subst hst
+      exact (lazy_query_switch_step inp₁).2 F G hFG σ₁ σ₁ ⟨rfl, hf⟩
+  -- set oracle_output component
+  have hSet : ∀ y₁ y₂, (Program.set oracle_output y₁).relE (Program.set oracle_output y₂)
+      (fun τ₁ τ₂ => prp_bad.get τ₁ = prp_bad.get τ₂
+        ∧ (prp_bad.get τ₁ = false → (y₁, τ₁) = (y₂, τ₂)))
+      (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) := by
+    intro y₁ y₂
+    refine two_mode_relE (fun _ _ hpre => hpre.1) ?_ ?_
+      (fun σ h => wp_keeps_flag_zero (hset_pres y₁) h)
+      (fun σ h => flag_one_of_zero (hset_mass y₁ σ) (wp_keeps_flag_zero (hset_pres y₁) h))
+      (fun σ h => wp_keeps_flag_zero (hset_pres y₂) h)
+      (fun σ h => flag_one_of_zero (hset_mass y₂ σ) (wp_keeps_flag_zero (hset_pres y₂) h))
+      (fun u v hu hv => ⟨hu.trans hv.symm, fun hf => absurd (hu.symm.trans hf) (by decide)⟩)
+    · intro F G hFG σ₁ σ₂ hp
+      obtain ⟨hpre, hf⟩ := hp
+      obtain ⟨hy, hst⟩ := Prod.mk.inj (hpre.2 hf)
+      subst hy; subst hst
+      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+    · intro F G hFG σ₂ σ₁ hp
+      obtain ⟨hpre, hf⟩ := hp
+      obtain ⟨hy, hst⟩ := Prod.mk.inj (hpre.2 hf)
+      subst hy; subst hst
+      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+  -- assemble the body via relE.bind
+  unfold oracle_step
+  refine Program.relE.bind hA (fun _ _ => ?_)
+  refine Program.relE.bind hGet (fun inp₁ inp₂ => ?_)
+  exact Program.relE.bind (hOracle inp₁ inp₂) (fun y₁ y₂ => hSet y₁ y₂)
