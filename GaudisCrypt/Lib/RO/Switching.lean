@@ -1,5 +1,6 @@
 import GaudisCrypt.Lib.RO.CollisionResistance
 import GaudisCrypt.Logic.PRHL.Coupling
+import GaudisCrypt.Logic.PRHL.UpToBad
 
 /-!
 # PRP/PRF switching lemma — oracles and the shared bad flag (Phase 1)
@@ -384,3 +385,71 @@ lemma lazy_query_rp_keeps_flag {inp : input} {σ : state} (h : prp_bad.get σ = 
       · rw [if_pos (prp_bad_get_ro_set_true _ _)]
       · exact rp_resample_sub_expected_const _ _ _ _
     · rw [if_neg hb, if_pos (by rw [prp_bad_get_ro_set]; exact h)]
+
+/-! ### Two-mode relational lifting (Phase 3b) -/
+
+/-- A program that doesn't touch `prp_bad` almost surely keeps it `true`. -/
+lemma wp_keeps_flag_zero {α : Type} {prog : Program state α}
+    (hpres : prog.inRange prp_bad.compl.range) {σ : state} (h : prp_bad.get σ = true) :
+    prog.wp (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0 := by
+  have hle := Program.wp_le_of_factors prp_bad hpres
+    (P := fun σ' => if prp_bad.get σ' = true then (0 : ENNReal) else 1)
+    (fun _ _ hss => by simp only [hss]) σ
+  rw [if_pos h] at hle
+  exact le_zero_iff.mp hle
+
+/-- From losslessness and a.s.-flag-preservation, the full-mass flag form. -/
+lemma flag_one_of_zero {α : Type} {prog : Program state α} {σ : state}
+    (hmass : prog.wp (fun _ => (1 : ENNReal)) σ = 1)
+    (hzero : prog.wp (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0) :
+    prog.wp (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1 := by
+  have hadd := Program.wp_add prog
+    (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0)
+    (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ
+  rw [show (fun u : α × state => (if prp_bad.get u.2 = true then (1 : ENNReal) else 0)
+        + (if prp_bad.get u.2 = true then (0 : ENNReal) else 1)) = fun _ => 1 from by
+      funext u; by_cases hb : prp_bad.get u.2 = true <;> simp [hb]] at hadd
+  rw [hmass, hzero, add_zero] at hadd
+  exact hadd.symm
+
+/-- **Two-mode relational lifting.** For two programs over `state` related by a
+    precondition that (a) forces flag agreement and (b) when the flag is clear
+    forces synchronization (`h_sync_*`), the judgment lifts to the conditional
+    invariant. The flag-clear mode is given directly; the flag-set mode uses
+    `rel.of_unary` (each side independently keeps `prp_bad` set). -/
+lemma two_mode_relE {α : Type} {p q : Program state α}
+    {Pre : state → state → Prop} {Post : α × state → α × state → Prop}
+    (h_flageq : ∀ σ₁ σ₂, Pre σ₁ σ₂ → prp_bad.get σ₁ = prp_bad.get σ₂)
+    (h_sync_fwd : p.rel q (fun σ₁ σ₂ => Pre σ₁ σ₂ ∧ prp_bad.get σ₁ = false) Post)
+    (h_sync_bwd : q.rel p (fun σ₂ σ₁ => Pre σ₁ σ₂ ∧ prp_bad.get σ₁ = false)
+        (fun v u => Post u v))
+    (h_p0 : ∀ σ, prp_bad.get σ = true →
+        p.wp (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0)
+    (h_p1 : ∀ σ, prp_bad.get σ = true →
+        p.wp (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1)
+    (h_q0 : ∀ σ, prp_bad.get σ = true →
+        q.wp (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0)
+    (h_q1 : ∀ σ, prp_bad.get σ = true →
+        q.wp (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1)
+    (h_post_true : ∀ u v, prp_bad.get u.2 = true → prp_bad.get v.2 = true → Post u v) :
+    p.relE q Pre Post := by
+  have hbool : ∀ b : Bool, ¬ (b = false) → b = true := by decide
+  constructor
+  · intro F G hFG σ₁ σ₂ hpre
+    by_cases hf : prp_bad.get σ₁ = false
+    · exact h_sync_fwd F G hFG σ₁ σ₂ ⟨hpre, hf⟩
+    · have hf1 : prp_bad.get σ₁ = true := hbool _ hf
+      have hf2 : prp_bad.get σ₂ = true := (h_flageq σ₁ σ₂ hpre) ▸ hf1
+      have hun : p.rel q (fun a b => prp_bad.get a = true ∧ prp_bad.get b = true)
+          (fun u v => prp_bad.get u.2 = true ∧ prp_bad.get v.2 = true) :=
+        Program.rel.of_unary (fun a _ hab => h_p0 a hab.1) (fun _ b hab => h_q1 b hab.2)
+      exact hun.wp_le (fun u v huv => hFG u v (h_post_true u v huv.1 huv.2)) ⟨hf1, hf2⟩
+  · intro F G hFG σ₂ σ₁ hpre
+    by_cases hf : prp_bad.get σ₁ = false
+    · exact h_sync_bwd F G hFG σ₂ σ₁ ⟨hpre, hf⟩
+    · have hf1 : prp_bad.get σ₁ = true := hbool _ hf
+      have hf2 : prp_bad.get σ₂ = true := (h_flageq σ₁ σ₂ hpre) ▸ hf1
+      have hun : q.rel p (fun b a => prp_bad.get b = true ∧ prp_bad.get a = true)
+          (fun v u => prp_bad.get v.2 = true ∧ prp_bad.get u.2 = true) :=
+        Program.rel.of_unary (fun b _ hab => h_q0 b hab.1) (fun _ a hab => h_p1 a hab.2)
+      exact hun.wp_le (fun v u hvu => hFG v u (h_post_true u v hvu.2 hvu.1)) ⟨hf2, hf1⟩
