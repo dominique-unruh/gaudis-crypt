@@ -453,3 +453,28 @@ lemma two_mode_relE {α : Type} {p q : Program state α}
           (fun v u => prp_bad.get v.2 = true ∧ prp_bad.get u.2 = true) :=
         Program.rel.of_unary (fun b _ hab => h_q0 b hab.1) (fun _ a hab => h_p1 a hab.2)
       exact hun.wp_le (fun v u hvu => hFG v u (h_post_true u v hvu.2 hvu.1)) ⟨hf2, hf1⟩
+
+/-- `lazy_query_rp` a.s. keeps `prp_bad = true`. -/
+lemma lazy_query_rp_keeps_flag_zero {inp : input} {σ : state} (h : prp_bad.get σ = true) :
+    (lazy_query_rp inp).wp
+      (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0 := by
+  cases hc : random_oracle_state.get σ inp with
+  | some x => rw [lazy_query_rp_wp_hit hc]; simp only [h, if_true]
+  | none =>
+    rw [lazy_query_rp_wp_miss hc]
+    refine Finset.sum_eq_zero (fun y _ => ?_)
+    rw [ENNReal.div_eq_zero_iff]
+    refine Or.inl ?_
+    by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
+    · rw [if_pos hb]
+      refine Eq.trans
+        (SubProbability.expected_congr _ (g := fun _ : output => (0 : ENNReal)) (fun y' => ?_)) ?_
+      · rw [if_pos (prp_bad_get_ro_set_true _ _)]
+      · exact SubProbability.expected_zero _
+    · rw [if_neg hb, if_pos (by rw [prp_bad_get_ro_set]; exact h)]
+
+/-- `lazy_query_rf` keeps `prp_bad = true` with full mass. -/
+lemma lazy_query_rf_keeps_flag_one {inp : input} {σ : state} (h : prp_bad.get σ = true) :
+    (lazy_query_rf inp).wp
+      (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1 :=
+  flag_one_of_zero (lazy_query_rf_mass_one inp σ) (lazy_query_rf_keeps_flag h)
