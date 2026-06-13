@@ -317,3 +317,70 @@ lemma lazy_query_switch_step (inp : input) :
           fun hcontra => by rw [hb_rf y] at hcontra; exact absurd hcontra (by decide)⟩
       · simp only [if_neg hbb, expected_pure]
         exact hf _ ⟨rfl, fun _ => rfl⟩
+
+/-! ### Unary facts: mass one and flag preservation (Phase 3a)
+
+These feed the *flag-set* mode of the loop body, where the two games have
+already diverged and are coupled only through `rel.of_unary`: each side
+independently keeps `prp_bad = true` (with full mass). -/
+
+/-- Setting `random_oracle_state` doesn't change the flag. -/
+lemma prp_bad_get_ro_set (g : input → Option output) (σ : state) :
+    prp_bad.get (random_oracle_state.set g σ) = prp_bad.get σ :=
+  prp_bad.get_of_disjoint_set random_oracle_state g σ
+
+/-- After setting the flag then the RO, the flag is `true`. -/
+lemma prp_bad_get_ro_set_true (g : input → Option output) (σ : state) :
+    prp_bad.get (random_oracle_state.set g (prp_bad.set true σ)) = true := by
+  rw [prp_bad_get_ro_set, prp_bad.set_get]
+
+/-- `lazy_query_rf` is lossless. -/
+lemma lazy_query_rf_mass_one (inp : input) (σ : state) :
+    (lazy_query_rf inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  cases hc : random_oracle_state.get σ inp with
+  | some x => rw [lazy_query_rf_wp_hit hc]
+  | none => rw [lazy_query_rf_wp_miss hc]; exact sum_const_div_card 1
+
+/-- `lazy_query_rp` is lossless. -/
+lemma lazy_query_rp_mass_one (inp : input) (σ : state) :
+    (lazy_query_rp inp).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+  cases hc : random_oracle_state.get σ inp with
+  | some x => rw [lazy_query_rp_wp_hit hc]
+  | none =>
+    rw [lazy_query_rp_wp_miss hc]
+    refine Eq.trans (Finset.sum_congr rfl (fun y _ => ?_)) (sum_const_div_card 1)
+    by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
+    · rw [if_pos hb, rp_resample_sub_expected_const]
+    · rw [if_neg hb]
+
+/-- `lazy_query_rf` keeps `prp_bad = true`. -/
+lemma lazy_query_rf_keeps_flag {inp : input} {σ : state} (h : prp_bad.get σ = true) :
+    (lazy_query_rf inp).wp
+      (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0 := by
+  cases hc : random_oracle_state.get σ inp with
+  | some x => rw [lazy_query_rf_wp_hit hc]; simp only [h, if_true]
+  | none =>
+    rw [lazy_query_rf_wp_miss hc]
+    refine Finset.sum_eq_zero (fun y _ => ?_)
+    rw [if_pos ?_, ENNReal.zero_div]
+    by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
+    · rw [if_pos hb, prp_bad_get_ro_set_true]
+    · rw [if_neg hb, prp_bad_get_ro_set, h]
+
+/-- `lazy_query_rp` keeps `prp_bad = true` (with full mass). -/
+lemma lazy_query_rp_keeps_flag {inp : input} {σ : state} (h : prp_bad.get σ = true) :
+    (lazy_query_rp inp).wp
+      (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1 := by
+  cases hc : random_oracle_state.get σ inp with
+  | some x => rw [lazy_query_rp_wp_hit hc]; simp only [h, if_true]
+  | none =>
+    rw [lazy_query_rp_wp_miss hc]
+    refine Eq.trans (Finset.sum_congr rfl (fun y _ => ?_)) (sum_const_div_card 1)
+    by_cases hb : y ∈ colliding_outputs (random_oracle_state.get σ) inp
+    · rw [if_pos hb]
+      congr 1
+      refine Eq.trans
+        (SubProbability.expected_congr _ (g := fun _ => (1 : ENNReal)) (fun y' => ?_)) ?_
+      · rw [if_pos (prp_bad_get_ro_set_true _ _)]
+      · exact rp_resample_sub_expected_const _ _ _ _
+    · rw [if_neg hb, if_pos (by rw [prp_bad_get_ro_set]; exact h)]
