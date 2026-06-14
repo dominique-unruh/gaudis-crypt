@@ -1,5 +1,5 @@
-import GaudisCrypt.RO
-import GaudisCrypt.RO.CollisionResistance
+import GaudisCrypt.Lib.RO
+import GaudisCrypt.Lib.RO.CollisionResistance
 
 /-!
 # One-wayness of the random oracle

@@ -1,4 +1,4 @@
-import GaudisCrypt.PRHL
+import GaudisCrypt.Logic.PRHL
 
 /-!
 # Validation client 1: `schema_inner_equation`, relationally

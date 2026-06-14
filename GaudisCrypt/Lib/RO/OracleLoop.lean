@@ -1,5 +1,5 @@
-import GaudisCrypt.RO.Basic
-import GaudisCrypt.RO.Transfer
+import GaudisCrypt.Lib.RO.Basic
+import GaudisCrypt.Lib.RO.Transfer
 
 /-!
 # Oracle loops
@@ -501,3 +501,15 @@ lemma oracle_step_wp_indicator_bump_const
     ≤ f σ + c :=
   oracle_step_wp_indicator_bump (fun _ => c) h_adv_preserves
     (fun σ' => Program.wp_const_le adv c σ') h_set_oo h_lazy_query σ
+
+/-- The static-budget oracle loop is the bounded loop combinator applied to a
+    single oracle step. Lets generic `loop_n` lemmas apply to `oracle_loop_n`. -/
+lemma oracle_loop_n_eq_loop_n
+    (adv : Program state Unit) (oracle : input → Program state output) (q : ℕ) :
+    oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle) := by
+  induction q with
+  | zero => rfl
+  | succ n ih =>
+    show oracle_step adv oracle >>= (fun _ => oracle_loop_n adv n oracle)
+       = oracle_step adv oracle >>= fun _ => loop_n n (oracle_step adv oracle)
+    rw [ih]

@@ -1,7 +1,7 @@
-import GaudisCrypt.RO.Basic
-import GaudisCrypt.RO.Transfer
-import GaudisCrypt.RO.OracleLoop
-import GaudisCrypt.RO.ROEquiv
+import GaudisCrypt.Lib.RO.Basic
+import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.OracleLoop
+import GaudisCrypt.Lib.RO.ROEquiv
 
 /-!
 # Random oracle framework

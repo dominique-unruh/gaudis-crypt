@@ -1,5 +1,5 @@
-import GaudisCrypt.RO.OneWayness_GameHop.Definitions
-import GaudisCrypt.PRHL.Clients.SchemaInnerEquation
+import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
+import GaudisCrypt.Logic.PRHL.Clients.SchemaInnerEquation
 
 /-!
 # OneWayness GameHop: Guess Experiment Framework
@@ -81,15 +81,6 @@ noncomputable def guess_experiment {T s : Type}
   final t
   Program.get matched_var
 
-lemma oracle_loop_n_eq_loop_n
-    (adv : Program state Unit) (oracle : input → Program state output) (q : ℕ) :
-    oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle) := by
-  induction q with
-  | zero => rfl
-  | succ n ih =>
-    show oracle_step adv oracle >>= (fun _ => oracle_loop_n adv n oracle)
-       = oracle_step adv oracle >>= fun _ => loop_n n (oracle_step adv oracle)
-    rw [ih]
 
 
 -- `loop_n_inRange` is defined generically in PlonkLean.ProgramRange.

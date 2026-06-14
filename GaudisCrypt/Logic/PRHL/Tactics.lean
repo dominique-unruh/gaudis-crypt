@@ -1,6 +1,6 @@
-import GaudisCrypt.PRHL.Core
-import GaudisCrypt.PRHL.Lenses
-import GaudisCrypt.PRHL.Loops
+import GaudisCrypt.Logic.PRHL.Core
+import GaudisCrypt.Logic.PRHL.Lenses
+import GaudisCrypt.Logic.PRHL.Loops
 
 /-!
 # pRHL tactic layer (v1)

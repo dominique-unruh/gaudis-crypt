@@ -1,4 +1,4 @@
-import GaudisCrypt.PRHL.Core
+import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.EquivModuloLens
 
 /-!
