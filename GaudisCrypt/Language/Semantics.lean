@@ -3,6 +3,8 @@ import Mathlib.Probability.Distributions.Uniform
 import GaudisCrypt.Misc
 import GaudisCrypt.Language.Lens
 
+open GaudisCrypt.Language.Lens
+
 /-!
 # General stuff
 -/
@@ -195,6 +197,13 @@ theorem SubProbability.bind_mono [Preorder i]
     exact Measure.bind_mono (fun x => (f x).1) (fun x r => (g x r).1)
       (fun _ _ h => hf h) (fun _ _ h r => hg h r) (fun _ => measurable_from_top) hxy
 
+lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbability β) :
+    (pure x : SubProbability α) >>= f = f x := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+
 
 /-!
 # Stateful programs
@@ -319,12 +328,22 @@ def Program.set {a : Type} (v : Lens a s) (x : a) : Program s Unit := do
 
 
 noncomputable
-def Program.get {a : Type} (v : Lens a s) : Program s a := do
+def Program.get {a : Type} (v : Getter a s) : Program s a := do
     let s <- StateT.get
     pure (v.get s)
 
+noncomputable
+def Program.skip : Program s Unit := pure ()
+
+-- TODO: Does this already exist somewhere?
+noncomputable
+def Program.zoom (lens : Lens s t) (p : Program s a) : Program t a := fun t_val => do
+  let (a, s') ← p (lens.get t_val)
+  return (a, lens.set s' t_val)
+
 /-! ## Monad laws for `Program s` -/
 
+-- TODO remove (should already exist for all Monad typeclasses directly)
 lemma Program.bind_assoc {s a b c : Type}
     (p : Program s a) (f : a → Program s b) (g : b → Program s c) :
     (p >>= f) >>= g = p >>= fun x => f x >>= g := by
@@ -336,6 +355,7 @@ lemma Program.bind_assoc {s a b c : Type}
   exact MeasureTheory.Measure.bind_bind
     measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
+-- TODO remove (should already exist for all Monad typeclasses directly)
 lemma Program.pure_bind {s a b : Type} (x : a) (f : a → Program s b) :
     (pure x : Program s a) >>= f = f x := by
   funext st
@@ -344,6 +364,7 @@ lemma Program.pure_bind {s a b : Type} (x : a) (f : a → Program s b) :
   letI : MeasurableSpace (b × s) := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (x, st)
 
+-- TODO remove (should already exist for all Monad typeclasses directly)
 lemma Program.bind_pure {s a : Type} (m : Program s a) :
     m >>= pure = m := by
   funext st
@@ -367,11 +388,3 @@ lemma Program.bind_bot {s a b : Type} (m : Program s a) :
   funext st
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
-
-/-- SubProbability pure-bind law (at the SubProb level, not just Program level). -/
-lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbability β) :
-    (pure x : SubProbability α) >>= f = f x := by
-  apply Subtype.ext
-  letI : MeasurableSpace α := ⊤
-  letI : MeasurableSpace β := ⊤
-  exact MeasureTheory.Measure.dirac_bind measurable_from_top x

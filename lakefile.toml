@@ -7,6 +7,8 @@ defaultTargets = ["GaudisCrypt"]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
+# TODO: re-enable this (remove the line) once files have proper copyright headers
+weak.linter.style.header = false
 maxSynthPendingDepth = 3
 
 [[require]]

@@ -3,6 +3,8 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.GroupTheory.Submonoid.Centralizer
 import GaudisCrypt.Misc
 
+namespace GaudisCrypt.Language.Lens
+
 /-- A read-only projection. Forgetting the setter of a `Lens` gives a `Getter`. -/
 @[ext]
 structure Getter (a : Type u) (b : Type v) where
@@ -62,7 +64,7 @@ theorem Lens.get_of_disjoint_set {a b m : Type} (L : Lens a m) (M : Lens b m)
   conv_lhs => rw [show s = L.set (L.get s) s from (L.get_set s).symm]
   rw [hd.commute, L.set_get]
 
-def pair (x : Lens a m) (y : Lens b m) [disj : disjoint x y] : Lens (a × b) m :=
+def Lens.pair (x : Lens a m) (y : Lens b m) [disj : disjoint x y] : Lens (a × b) m :=
   { get := fun s => (x.get s, y.get s)
     set := fun (u,v) s => x.set u (y.set v s)
     set_get := by
@@ -73,7 +75,7 @@ def pair (x : Lens a m) (y : Lens b m) [disj : disjoint x y] : Lens (a × b) m :
     get_set := by
       simp [y.get_set, x.get_set] }
 
-def chain {a b c} (x : Lens b c) (y : Lens a b) : Lens a c := {
+def Lens.chain {a b c} (x : Lens b c) (y : Lens a b) : Lens a c := {
   get s := y.get (x.get s)
   set a s := x.set (y.set a (x.get s)) s
   set_get := by simp [x.set_get, y.set_get]
@@ -81,7 +83,7 @@ def chain {a b c} (x : Lens b c) (y : Lens a b) : Lens a c := {
   get_set := by simp [x.get_set, y.get_set]
 }
 
-def fst : Lens a (a×b) := {
+def Lens.fst : Lens a (a×b) := {
   get := fun (x,y) => x
   set := fun x' (x,y) => (x',y)
   set_get := by simp
@@ -89,7 +91,7 @@ def fst : Lens a (a×b) := {
   get_set := by simp
 }
 
-def snd : Lens b (a×b) := {
+def Lens.snd : Lens b (a×b) := {
   get := fun (x,y) => y
   set := fun y' (x,y) => (x,y')
   set_get := by simp
@@ -97,24 +99,27 @@ def snd : Lens b (a×b) := {
   get_set := by simp
 }
 
+def Lens.ofst (lens : Lens a m) : Lens a (m × m') := Lens.fst.chain lens
+def Lens.osnd (lens : Lens a m) : Lens a (m' × m) := Lens.snd.chain lens
+
 theorem pair_fst (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
-  chain (pair x y) fst = x := by
-    simp [chain, pair, fst, y.get_set]
+  Lens.chain (Lens.pair x y) Lens.fst = x := by
+    simp [Lens.chain, Lens.pair, Lens.fst, y.get_set]
 
 theorem pair_snd (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
-  chain (@pair _ _ _ x y disj) snd = y :=
-    by simp [chain, pair, snd, disj.commute, x.get_set]
+  Lens.chain (@Lens.pair _ _ _ x y disj) Lens.snd = y :=
+    by simp [Lens.chain, Lens.pair, Lens.snd, disj.commute, x.get_set]
 
 instance disjoint3 [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] :
-  disjoint x (pair y z) :=
+  disjoint x (Lens.pair y z) :=
   by
-    simp only [pair, disjoint.iff]
+    simp only [Lens.pair, disjoint.iff]
     intros
     simp [xy.commute, xz.commute]
 
 instance disjoint3' [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] :
-    disjoint (pair x y) z := by
-  simp only [pair, disjoint.iff]
+    disjoint (Lens.pair x y) z := by
+  simp only [Lens.pair, disjoint.iff]
   intros
   simp [yz.commute, xz.commute]
 
@@ -134,7 +139,7 @@ def LensIn.mk' (lens : Lens a m) : LensIn m := ⟨a, lens⟩
 def IsoLens (lens : Lens a b) := Function.Bijective lens.get
 
 instance : Preorder (LensIn m) where
-  le x y := exists z : Lens x.content y.content, chain y.lens z = x.lens
+  le x y := exists z : Lens x.content y.content, Lens.chain y.lens z = x.lens
   le_refl := fun x => by
     refine ⟨⟨⟨id⟩, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩, ?_⟩
     obtain ⟨_, _, _, _, _⟩ := x.lens
@@ -142,8 +147,8 @@ instance : Preorder (LensIn m) where
   le_trans := fun x y z hxy hyz => by
     obtain ⟨f, hf_chain⟩ := hxy
     obtain ⟨g, hg_chain⟩ := hyz
-    refine ⟨chain g f, ?_⟩
-    have assoc : chain z.lens (chain g f) = chain (chain z.lens g) f := by
+    refine ⟨Lens.chain g f, ?_⟩
+    have assoc : Lens.chain z.lens (Lens.chain g f) = Lens.chain (Lens.chain z.lens g) f := by
       obtain ⟨_, _, _, _, _⟩ := f
       obtain ⟨_, _, _, _, _⟩ := g
       obtain ⟨_, _, _, _, _⟩ := z.lens
@@ -218,15 +223,15 @@ lemma get_injective_iso_lens [Nonempty m] (lens : Lens a m) (_ : Function.Inject
   ⟨‹_›, get_surjective lens⟩
 
 lemma iso_lens_ge (lens1 : Lens a m) (lens2 : Lens b m) (_ : IsoLens z)
-    (_ : chain lens2 z = lens1) :
+    (_ : Lens.chain lens2 z = lens1) :
     LensIn.mk' lens1 ≥ LensIn.mk' lens2 := by
   refine ⟨Lens.bijection (Equiv.ofBijective z.get ‹_›), ?_⟩
   apply Lens.ext; intro v s
-  simp only [chain, Lens.bijection, Equiv.ofBijective_apply]
+  simp only [Lens.chain, Lens.bijection, Equiv.ofBijective_apply]
   change lens1.set (z.get v) s = lens2.set v s
   have hset : lens2.set (z.set (z.get v) (lens2.get s)) s = lens1.set (z.get v) s := by
-    have h := congr_fun₂ (congr_arg Lens.set ‹chain lens2 z = lens1›) (z.get v) s
-    simpa [chain] using h
+    have h := congr_fun₂ (congr_arg Lens.set ‹Lens.chain lens2 z = lens1›) (z.get v) s
+    simpa [Lens.chain] using h
   rw [← hset]; congr 1
   exact ‹IsoLens z›.1 (by simp [z.set_get])
 
@@ -276,3 +281,5 @@ lemma lens_le_content_div (lens1 : LensIn m) (lens2 : LensIn m)
     Fintype.card lens1.content ∣ Fintype.card lens2.content := by
   obtain ⟨w, _⟩ := hle
   exact lens_content_div_mem w
+
+end GaudisCrypt.Language.Lens
