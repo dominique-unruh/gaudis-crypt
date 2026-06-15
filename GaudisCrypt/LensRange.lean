@@ -105,13 +105,13 @@ private theorem double_complement_iso_lens_iso [Nonempty m] (lens : Lens a m) :
         by simp [Lens.compl, Quotient.lift_mk, lens.set_get, lens.get_set]⟩⟩
 
 private theorem double_complement [Nonempty m] (lens : Lens a m) :
-    lens.compl.compl = chain lens (double_complement_iso_lens lens) := by
+    lens.compl.compl = Lens.chain lens (double_complement_iso_lens lens) := by
   ext
   rename_i q s
   induction q using Quotient.inductionOn with
-  | h t => simp [Lens.compl, chain, double_complement_iso_lens, Quotient.lift_mk]
+  | h t => simp [Lens.compl, Lens.chain, double_complement_iso_lens, Quotient.lift_mk]
 
-def Lens.range (lens : Lens a m) : LensRange m where
+def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : LensRange m where
   updates := Set.image lens.update ⊤
   id := ⟨_root_.id, Set.mem_univ _, funext fun x => lens.get_set x⟩
   comp := fun hf hg => by
@@ -134,11 +134,11 @@ def Lens.range (lens : Lens a m) : LensRange m where
       · rintro _ ⟨f, -, rfl⟩
         exact ⟨fun v => (double_complement_iso_lens lens).set
             (f ((double_complement_iso_lens lens).get v)) v,
-          Set.mem_univ _, by funext s; simp [chain, Lens.update]⟩
+          Set.mem_univ _, by funext s; simp [Lens.chain, Lens.update]⟩
       · rintro _ ⟨g, -, rfl⟩
         refine ⟨fun q => (double_complement_iso_lens lens).get
             (g (Classical.choose (hiso.2 q))), Set.mem_univ _, ?_⟩
-        funext s; simp only [chain, Lens.update]
+        funext s; simp only [Lens.chain, Lens.update]
         have key : ∀ (v w : a), (double_complement_iso_lens lens).set
             ((double_complement_iso_lens lens).get w) v = w :=
           fun v w => hiso.1 ((double_complement_iso_lens lens).set_get v
@@ -367,9 +367,9 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
       get_set := fun v => by rw [x.get_set, y.set_get]
       set_set := fun v c d => (hfact2 d _ _ (y.set_get m0 _)).trans (by rw [x.set_set])
     }
-    let chain_eq : chain (LensIn.mk' y).lens z = (LensIn.mk' x).lens := by
+    let chain_eq : Lens.chain (LensIn.mk' y).lens z = (LensIn.mk' x).lens := by
       ext c mem
-      simp [chain, LensIn.mk']
+      simp [Lens.chain, LensIn.mk']
       obtain ⟨g, -, hg⟩ := hle ⟨fun _ => c, Set.mem_univ _, rfl⟩
       have hgkey : ∀ s, y.set (g (y.get s)) s = x.set c s := fun s => by
         have := congr_fun hg s; simp only [Lens.update] at this; exact this
@@ -381,10 +381,10 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
       rw [heq, hgget mem, hgkey mem]
     exact ⟨z, chain_eq⟩
   · rintro ⟨z, hz⟩
-    have hz' : chain y z = x := hz
+    have hz' : Lens.chain y z = x := hz
     rintro _ ⟨f, -, rfl⟩
     exact ⟨fun v => z.set (f (z.get v)) v, Set.mem_univ _,
-      by funext s; rw [← hz']; simp [Lens.update, chain]⟩
+      by funext s; rw [← hz']; simp [Lens.update, Lens.chain]⟩
 
 noncomputable def LensIn.antisymmOrderEmb [Nonempty m] :
     Antisymmetrization (LensIn m) (· ≤ ·) ↪o LensRange m where
