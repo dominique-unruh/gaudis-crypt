@@ -50,8 +50,10 @@ instance : Evaluatable S (Getter T State) T where
   eval cs x := x.get cs.1
 instance : Evaluatable S (Getter T (State × S)) T where
   eval cs x := x.get cs
+-- TODO: Needed? (We have Lens->Setter coercion)
 instance : Evaluatable S (Lens T State) T where
   eval cs x := x.get cs.1
+-- TODO: Needed? (We have Lens->Setter coercion)
 instance : Evaluatable S (Lens T (State × S)) T where
   eval cs x := x.get cs
 
@@ -151,11 +153,14 @@ Surface forms (`gaudi_stmt`):
     x <- e;                       -- assignment
     a, b <- e;   (a,b) <- e;      -- tuple l-value (parens optional), via `Lens.pair`
     x <$ e;                       -- sampling (e : a distribution expression)
+    x <- call p (e₁, …, eₙ);      -- procedure call, result stored in `x`
+    call p (e₁, …, eₙ);           -- procedure call, result discarded (Lens.throwaway)
     if (e) { … } else { … }       -- the `else` branch is optional
     while (e) { … }
     { … }                         -- a block (sequence)
 
-(`call`/`hole` are deferred to the procedure layer.) -/
+The call argument list `( … )` is always required (even `()`); the arguments form a
+tuple matching the callee's `ParamType`.  (`hole` is still deferred.) -/
 
 namespace GaudisCrypt.Language.Syntax
 
@@ -164,20 +169,23 @@ open GaudisCrypt.Language.Programs
 
 variable [ProgramSpec]
 
-/-- Lift a program variable used as an l-value into a lens on the full current
-state `State × S`: a global `Lens A State` via `.ofst`, a full lens unchanged. -/
-class LiftLens (S : Type) (X : Type) (A : outParam Type) where
-  liftLens : X → Lens A (State × S)
+/-- Lift a program variable used as an l-value into a lens on the full current state
+`State × S`.  Dispatch is on the lens's *container* `M`: a global lens (`M = State`)
+is lifted with `.ofst`, a full-state lens (`M = State × S`) is kept as-is.  The
+content type `A` is deliberately *not* a class parameter — resolution then only needs
+`M` (always concrete from the argument), and the result's content unifies with the
+expected type as an ordinary, postponable constraint.  (That is what lets a `call`
+result l-value resolve even before the callee's `sig` is known.) -/
+class LiftLens (S : Type) (M : Type) where
+  lift {A : Type} : Lens A M → Setter A (State × S)
 
-instance : LiftLens S (Lens A State) A where
-  liftLens x := x.ofst
-instance : LiftLens S (Lens A (State × S)) A where
-  liftLens x := x
+instance {S : Type} : LiftLens S State where lift x := x.ofst.toSetter
+instance {S : Type} : LiftLens S (State × S) where lift x := x.toSetter
 
-/-- User-facing l-value lift, with `S` implicit (inferred from the expected
-full-state lens type). -/
-def liftLens {S X A} [LiftLens S X A] (x : X) : Lens A (State × S) :=
-  LiftLens.liftLens (S := S) x
+/-- User-facing l-value lift; `S`, the container `M`, and the content `A` are inferred.
+The result is a `Setter` (l-values only ever `set`). -/
+def liftLens {S A M} [LiftLens S M] (x : Lens A M) : Setter A (State × S) :=
+  LiftLens.lift x
 
 /-- The raw (un-lifted) lens for an l-value: a tuple `(x, y, …)` becomes a nested
 `Lens.pair`; a single term is itself.  Pairing needs the components to be disjoint
@@ -209,6 +217,8 @@ declare_syntax_cat gaudi_stmt
 syntax "skip" ";" : gaudi_stmt
 syntax term:max,+ " <- " term ";" : gaudi_stmt
 syntax term:max,+ " <$ " term ";" : gaudi_stmt
+syntax term:max,+ " <- " "call" term:max "(" term,* ")" ";" : gaudi_stmt   -- store result
+syntax "call" term:max "(" term,* ")" ";" : gaudi_stmt                     -- discard result
 syntax "if" "(" term ")" "{" gaudi_stmt* "}" "else" "{" gaudi_stmt* "}" : gaudi_stmt
 syntax "if" "(" term ")" "{" gaudi_stmt* "}" : gaudi_stmt
 syntax "while" "(" term ")" "{" gaudi_stmt* "}" : gaudi_stmt
@@ -240,6 +250,23 @@ macro_rules
   | `([gstmt| while ($c:term) { $body:gaudi_stmt* }]) =>
       `(StmtWithHoles.while (GaudiExpr[ $c ]) [gseq| $body*])
   | `([gstmt| { $ss:gaudi_stmt* }]) => `([gseq| $ss*])
+
+open Lean in
+/-- Build the (right-nested) argument tuple from a comma-list of arg expressions:
+`[]` ↦ `()`, `[e]` ↦ `e`, `e :: es` ↦ `(e, <es>)` — matching `paramListToTuple`. -/
+private def mkArgTuple (args : List Term) : MacroM Term := do
+  match args with
+  | []      => `(())
+  | [e]     => pure e
+  | e :: es => do `(($e, $(← mkArgTuple es)))
+
+-- `call`-style statements (arguments wrapped as a `GaudiExpr` tuple)
+open Lean in
+macro_rules
+  | `([gstmt| $xs:term,* <- call $p:term ( $args:term,* );]) => do
+      `(StmtWithHoles.call [lval| $xs,*] $p (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+  | `([gstmt| call $p:term ( $args:term,* );]) => do
+      `(StmtWithHoles.call Setter.throwaway $p (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
 
 macro_rules
   | `(GaudiProg[ $ss:gaudi_stmt* ]) => `([gseq| $ss*])
@@ -418,69 +445,29 @@ noncomputable def proc_loop := proc () {
 }
 #check @proc_loop
 
+/- ### Procedure calls -/
+
+-- store the result of a one-argument call
+noncomputable def prog_call : Stmt Unit := GaudiProg[
+  a <- call proc_inc ($a);
+]
+#print prog_call
+
+-- a two-argument call (the argument tuple matches the callee's `ParamType`)
+noncomputable def prog_call2 : Stmt Unit := GaudiProg[
+  a <- call proc_sum ($a, $b);
+]
+
+-- discard the result (uses `Lens.throwaway`); `()` still required
+noncomputable def prog_call_void : Stmt Unit := GaudiProg[
+  call proc_inc ($a);
+]
+#check @prog_call_void
+
 end GaudisCrypt.Language.Syntax.ProgTest
 
-/-! ## Procedure layer (WIP)
-
-Projecting a procedure's params/locals out of their tuple.  A `TuplePath` names a slot
-in an arbitrarily nested tuple of binary products (`here`/`left`/`right`); the
-`ProjAt` typeclass decomposes the (concrete) tuple type structurally, so
-`Lens.nTh path` **deduces both the tuple type `M` and the component type `A` from the
-expected output type** — the caller (the `proc` macro) supplies only the path.
-Because the path is fully general, the macro can express the *entire*
-`Lens T (State × l)` projection as a single path — the `State × l` split, the
-`paramTuple × localTuple` split, and the slot within — with no separate `.ofst`/
-`.osnd` lifting.  Encoding the path as an inductive, rather than `Nat` arithmetic in
-instance indices, keeps typeclass resolution robust. -/
-
-namespace GaudisCrypt.Language.Lens
-
-/-- A navigation path into an arbitrarily nested tuple of binary products.
-`here` stops at the current node; `left`/`right` descend into the first/second
-component of `A × B` and continue.  The right-nested `paramListToTuple` shape is the
-special case: element `k` of `[T₀,…]` is `right^k` then `left here` (or just `here`
-for the last, un-wrapped element). -/
-inductive TuplePath where
-  | here                        -- stop: the current type is the target
-  | left  : TuplePath → TuplePath   -- descend into the first component of `A × B`
-  | right : TuplePath → TuplePath   -- descend into the second component of `A × B`
-
-/-- `ProjAt p M A`: following path `p` into tuple type `M` lands on component `A`,
-with projection lens `proj`.  `M` is an input (taken from the expected type), `A` is
-deduced (`outParam`). -/
-class ProjAt (p : TuplePath) (M : Type) (A : outParam Type) where
-  proj : Lens A M
-
-instance {M : Type} : ProjAt .here M M := ⟨Lens.id⟩
-instance {p : TuplePath} {A B Tgt : Type} [g : ProjAt p A Tgt] :
-    ProjAt (.left p) (A × B) Tgt := ⟨g.proj.ofst⟩
-instance {p : TuplePath} {A B Tgt : Type} [g : ProjAt p B Tgt] :
-    ProjAt (.right p) (A × B) Tgt := ⟨g.proj.osnd⟩
-
-set_option linter.dupNamespace false in
-/-- The lens projecting the slot named by `p` out of a (possibly nested) tuple.  The
-tuple type `M` and component type `A` are deduced from the expected output type, so
-the `proc` macro only supplies the path. -/
-def Lens.nTh (p : TuplePath) {M A : Type} [g : ProjAt p M A] : Lens A M := g.proj
-
-end GaudisCrypt.Language.Lens
-
-/-! ### `Lens.nTh` examples -/
-
-namespace GaudisCrypt.Language.Syntax.TuplePathTest
-
-open GaudisCrypt.Language.Lens
-
--- Right-nested tuple `Nat × Bool × Nat` (the `paramListToTuple` shape):
-#check (Lens.nTh (.left .here)           : Lens Nat  (Nat × Bool × Nat))   -- first
-#check (Lens.nTh (.right (.left .here))  : Lens Bool (Nat × Bool × Nat))   -- middle
-#check (Lens.nTh (.right (.right .here)) : Lens Nat  (Nat × Bool × Nat))   -- last (un-wrapped)
-#check (Lens.nTh .here                   : Lens Nat  Nat)                  -- singleton
-
--- Arbitrarily nested tuple `(Nat × Bool) × (String × Nat)`:
-#check (Lens.nTh (.left .here)            : Lens (Nat × Bool) ((Nat × Bool) × (String × Nat)))
-#check (Lens.nTh (.left (.right .here))   : Lens Bool         ((Nat × Bool) × (String × Nat)))
-#check (Lens.nTh (.right (.left .here))   : Lens String       ((Nat × Bool) × (String × Nat)))
-#check (Lens.nTh (.right (.right .here))  : Lens Nat          ((Nat × Bool) × (String × Nat)))
-
-end GaudisCrypt.Language.Syntax.TuplePathTest
+-- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
+-- TODO: Create a nice syntax for a `Procedure[WithHoles] {...sig...}` types
+-- TODO: Make all things not only parseable, but also printable
+-- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
+-- TODO: Allow _ in lvalues (translated to Setter.throwaway)

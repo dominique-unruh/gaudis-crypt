@@ -1,5 +1,7 @@
 import GaudisCrypt.Language.Lens
 
+open GaudisCrypt.Language.Lens
+
 instance : Monoid (m → m) where
   mul := (· ∘ ·)
   one := id

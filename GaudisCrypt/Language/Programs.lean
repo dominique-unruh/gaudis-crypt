@@ -69,14 +69,14 @@ abbrev Expr [ProgramSpec] a := Getter a State
 inductive StmtWithHoles [ProgramSpec]: HoleSigs → Type → Type _ where
   | skip : StmtWithHoles h l
   -- | assign {a : Type} : Lens a (State × l) → Getter a (State × l) → StmtWithHoles h l -- mutation
-  | sample {a : Type} : Lens a (State × l) → Getter (SubProbability a) (State × l) → StmtWithHoles h l
+  | sample {a : Type} : Setter a (State × l) → Getter (SubProbability a) (State × l) → StmtWithHoles h l
   | call' {sig : ProcedureSignature} :
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
-      Lens sig.ret (State × l) → StmtWithHoles .empty sig.LocalVariableState
+      Setter sig.ret (State × l) → StmtWithHoles .empty sig.LocalVariableState
         → Getter sig.ret (State × sig.LocalVariableState)
         → Getter sig.ParamType (State × l) → StmtWithHoles h l
-  | hole {sig} (n: HoleIndex h sig) : Lens sig.ret (State × l) → Getter sig.ParamType (State × l) → StmtWithHoles h l
+  | hole {sig} (n: HoleIndex h sig) : Setter sig.ret (State × l) → Getter sig.ParamType (State × l) → StmtWithHoles h l
   | seq : StmtWithHoles h l → StmtWithHoles h l → StmtWithHoles h l                   -- c1; c2
   | ifThenElse : Getter Bool (State × l) → StmtWithHoles h l → StmtWithHoles h l → StmtWithHoles h l
   | while : Getter Bool (State × l) → StmtWithHoles h l → StmtWithHoles h l          -- while b do c
@@ -90,16 +90,16 @@ structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : Procedur
 def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
 @[match_pattern]
-def StmtWithHoles.call [ProgramSpec] {sig} (x : Lens sig.ret (State × l)) (proc : Procedure sig)
+def StmtWithHoles.call [ProgramSpec] {sig} (x : Setter sig.ret (State × l)) (proc : Procedure sig)
       (params : Getter sig.ParamType (State × l)) : StmtWithHoles h l :=
   StmtWithHoles.call' x proc.body proc.return_val params
 
 noncomputable
 def StmtWithHoles.assign [ProgramSpec]
-  (x : Lens a (State × l)) (e : Getter a (State × l)) : StmtWithHoles h l :=
+  (x : Setter a (State × l)) (e : Getter a (State × l)) : StmtWithHoles h l :=
   StmtWithHoles.sample x ⟨fun st => pure (e.get st)⟩
 
-def Stmt.call [ProgramSpec] {sig}  (x : Lens sig.ret (State × l)) (proc : Procedure sig)
+def Stmt.call [ProgramSpec] {sig}  (x : Setter sig.ret (State × l)) (proc : Procedure sig)
       (params : Getter sig.ParamType (State × l)) : Stmt l
      := StmtWithHoles.call x proc params
 
@@ -152,7 +152,7 @@ def programDenotation : Stmt l → Program (State × l) Unit
 | .seq p q => do let _ <- programDenotation p; programDenotation q
 | .ifThenElse c p q => do if ← Program.get c then programDenotation p else programDenotation q
 | .while c p => while_loop (Program.get c) (programDenotation p)
-| .call' (sig:=sig) (x : Lens sig.ret _) body ret args => do
+| .call' (sig:=sig) (x : Setter sig.ret _) body ret args => do
     let proc : Procedure sig := ⟨body, ret⟩
     let argValues <- Program.get args
     let retVal <- Program.zoom Lens.fst (procedureDenotation proc argValues)

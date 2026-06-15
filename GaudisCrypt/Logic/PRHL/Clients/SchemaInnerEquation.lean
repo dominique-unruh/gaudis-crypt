@@ -105,10 +105,10 @@ private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a�
           (matched_var.set m₀ (target_var.set tv₀
             (if a₁ = t then matched_var.set true τ₁ else τ₁))) := by
     intro τ₁
-    rw [Lens.set_get queries_list_var, Lens.set_set queries_list_var]
+    rw [Lens.set_get queries_list_var, queries_list_var.set_set]
     by_cases h : a₁ = t
     · simp only [if_pos h]
-      rw [htm.commute, Lens.set_set matched_var]
+      rw [htm.commute, matched_var.set_set]
     · simp only [if_neg h]
   have hinv : ∀ τ₁ : s, matched_var.get τ₁ = decide (t ∈ l) →
       matched_var.get (if a₁ = t then matched_var.set true τ₁ else τ₁)
@@ -268,7 +268,7 @@ theorem schema_inner_equation_prhl
       (matched_var.set false (target_var.set t σ'))
       (queries_list_var.set [] σ') := by
     refine ⟨[], ?_, ?_⟩
-    · rw [htm.commute, Lens.set_set matched_var, Lens.set_set target_var,
+    · rw [htm.commute, matched_var.set_set, target_var.set_set,
           Lens.get_set target_var, Lens.get_set matched_var]
     · rw [Lens.set_get matched_var]
       simp

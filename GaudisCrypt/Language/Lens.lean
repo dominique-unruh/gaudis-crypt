@@ -10,11 +10,23 @@ namespace GaudisCrypt.Language.Lens
 structure Getter (a : Type u) (b : Type v) where
   get : b -> a
 
-structure Lens (a : Type u) (b : Type v) extends Getter a b where
+/-- A write-only updater (a *lawful setter*): the only law is overwrite-collapse
+(`set_set`).  Forgetting the getter of a `Lens` gives a `Setter`.  Unlike a `Lens`,
+a `Setter` need not be invertible — e.g. `Setter.throwaway` discards its writes. -/
+@[ext]
+structure Setter (a : Type u) (b : Type v) where
   set : a -> b -> b
-  set_get : ∀ s x, get (set x s) = x
   set_set : ∀ s x y, set y (set x s) = set y s
+
+structure Lens (a : Type u) (b : Type v) extends Getter a b, Setter a b where
+  set_get : ∀ s x, get (set x s) = x
   get_set : ∀ s, set (get s) s = s
+
+/-- A `Lens` forgets to its `Getter` / `Setter`.  (`extends` does not generate these
+coercions automatically, but code that passes a lens where a getter/setter is
+expected — e.g. `Program.get`/`Program.set` — relies on them.) -/
+instance : Coe (Lens a b) (Getter a b) := ⟨Lens.toGetter⟩
+instance : Coe (Lens a b) (Setter a b) := ⟨Lens.toSetter⟩
 
 open Classical in
 noncomputable def Lens.get_from_set {a m : Type*} [ne : Nonempty a] (set : a → m → m) : m → a :=
@@ -42,7 +54,7 @@ theorem Lens.ext (l r : Lens a m) (h : (∀ x y, l.set x y = r.set x y)) : l = r
     have h2 := r.set_get s (l.get s)
     rw [h1] at h2
     exact h2.symm
-  cases l; cases r; simp_all [Getter.ext_iff]
+  cases l; cases r; simp_all [Getter.ext_iff, Setter.ext_iff]
 
 /-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
 class disjoint (x : Lens a m) (y : Lens b m) where
@@ -102,6 +114,20 @@ def Lens.snd : Lens b (a×b) := {
 def Lens.ofst (lens : Lens a m) : Lens a (m × m') := Lens.fst.chain lens
 def Lens.osnd (lens : Lens a m) : Lens a (m' × m) := Lens.snd.chain lens
 
+/-- Lift a setter into the first component of a product (no `get` needed, unlike
+`Lens.ofst`, which is why a bare `Setter` can be lifted). -/
+def Setter.ofst (s : Setter a m) : Setter a (m × m') where
+  set v p := (s.set v p.1, p.2)
+  set_set := by intro p x y; simp [s.set_set]
+def Setter.osnd (s : Setter a m) : Setter a (m' × m) where
+  set v p := (p.1, s.set v p.2)
+  set_set := by intro p x y; simp [s.set_set]
+
+/-- A setter that *discards* its writes. -/
+def Setter.throwaway : Setter a m where
+  set _ s := s
+  set_set := by intros; rfl
+
 theorem pair_fst (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
   Lens.chain (Lens.pair x y) Lens.fst = x := by
     simp [Lens.chain, Lens.pair, Lens.fst, y.get_set]
@@ -141,17 +167,17 @@ def IsoLens (lens : Lens a b) := Function.Bijective lens.get
 instance : Preorder (LensIn m) where
   le x y := exists z : Lens x.content y.content, Lens.chain y.lens z = x.lens
   le_refl := fun x => by
-    refine ⟨⟨⟨id⟩, fun a _ => a, fun _ _ => rfl, fun _ _ _ => rfl, fun _ => rfl⟩, ?_⟩
-    obtain ⟨_, _, _, _, _⟩ := x.lens
+    refine ⟨⟨⟨id⟩, ⟨fun a _ => a, fun _ _ _ => rfl⟩, fun _ _ => rfl, fun _ => rfl⟩, ?_⟩
+    obtain ⟨_, _, _, _⟩ := x.lens
     rfl
   le_trans := fun x y z hxy hyz => by
     obtain ⟨f, hf_chain⟩ := hxy
     obtain ⟨g, hg_chain⟩ := hyz
     refine ⟨Lens.chain g f, ?_⟩
     have assoc : Lens.chain z.lens (Lens.chain g f) = Lens.chain (Lens.chain z.lens g) f := by
-      obtain ⟨_, _, _, _, _⟩ := f
-      obtain ⟨_, _, _, _, _⟩ := g
-      obtain ⟨_, _, _, _, _⟩ := z.lens
+      obtain ⟨_, _, _, _⟩ := f
+      obtain ⟨_, _, _, _⟩ := g
+      obtain ⟨_, _, _, _⟩ := z.lens
       rfl
     rw [assoc, hg_chain, hf_chain]
 
@@ -207,7 +233,6 @@ def Lens.id : Lens m m where
   set_get _ _ := rfl
 
 
-
 lemma lens_leq_content_leq [Nonempty m] (lens1 : LensIn m) (lens2 : LensIn m)
     (h : lens1 ≤ lens2) : Cardinal.mk lens1.content ≤ Cardinal.mk lens2.content := by
   obtain ⟨z, _⟩ := h
@@ -230,7 +255,7 @@ lemma iso_lens_ge (lens1 : Lens a m) (lens2 : Lens b m) (_ : IsoLens z)
   simp only [Lens.chain, Lens.bijection, Equiv.ofBijective_apply]
   change lens1.set (z.get v) s = lens2.set v s
   have hset : lens2.set (z.set (z.get v) (lens2.get s)) s = lens1.set (z.get v) s := by
-    have h := congr_fun₂ (congr_arg Lens.set ‹Lens.chain lens2 z = lens1›) (z.get v) s
+    have h := congr_fun₂ (congr_arg (·.set) ‹Lens.chain lens2 z = lens1›) (z.get v) s
     simpa [Lens.chain] using h
   rw [← hset]; congr 1
   exact ‹IsoLens z›.1 (by simp [z.set_get])
@@ -281,5 +306,47 @@ lemma lens_le_content_div (lens1 : LensIn m) (lens2 : LensIn m)
     Fintype.card lens1.content ∣ Fintype.card lens2.content := by
   obtain ⟨w, _⟩ := hle
   exact lens_content_div_mem w
+
+/-! ## Navigating nested tuples
+
+A `TuplePath` names a slot in an arbitrarily nested tuple of binary products
+(`here`/`left`/`right`); the `ProjAt` typeclass decomposes the (concrete) tuple type
+structurally, so `Lens.insideTuple path` deduces both the tuple type `M` and the
+component type `A` from the expected output type.  Encoding the path as an inductive
+(rather than `Nat` arithmetic in instance indices) keeps typeclass resolution
+robust. -/
+
+/-- A navigation path into an arbitrarily nested tuple of binary products.
+`here` stops at the current node; `left`/`right` descend into the first/second
+component of `A × B` and continue. -/
+inductive TuplePath where
+  | here                            -- stop: the current type is the target
+  | left  : TuplePath → TuplePath   -- descend into the first component of `A × B`
+  | right : TuplePath → TuplePath   -- descend into the second component of `A × B`
+
+/-- `ProjAt p M A`: following path `p` into tuple type `M` lands on component `A`,
+with projection lens `proj`.  `M` is an input (taken from the expected type), `A` is
+deduced (`outParam`). -/
+class ProjAt (p : TuplePath) (M : Type) (A : outParam Type) where
+  proj : Lens A M
+
+instance {M : Type} : ProjAt .here M M := ⟨Lens.id⟩
+instance {p : TuplePath} {A B Tgt : Type} [g : ProjAt p A Tgt] :
+    ProjAt (.left p) (A × B) Tgt := ⟨g.proj.ofst⟩
+instance {p : TuplePath} {A B Tgt : Type} [g : ProjAt p B Tgt] :
+    ProjAt (.right p) (A × B) Tgt := ⟨g.proj.osnd⟩
+
+set_option linter.dupNamespace false in
+/-- The lens projecting the slot named by `p` out of a (possibly nested) tuple.  The
+tuple type `M` and component type `A` are deduced from the expected output type. -/
+def Lens.insideTuple (p : TuplePath) {M A : Type} [g : ProjAt p M A] : Lens A M := g.proj
+
+-- Right-nested tuple `Nat × Bool × Nat` (the `paramListToTuple` shape):
+example : Lens Nat  (Nat × Bool × Nat) := Lens.insideTuple (.left .here)          -- first
+example : Lens Bool (Nat × Bool × Nat) := Lens.insideTuple (.right (.left .here))  -- middle
+example : Lens Nat  (Nat × Bool × Nat) := Lens.insideTuple (.right (.right .here)) -- last
+example : Lens Nat  Nat                := Lens.insideTuple .here                    -- singleton
+-- Arbitrarily nested tuple `(Nat × Bool) × (String × Nat)`:
+example : Lens String ((Nat × Bool) × (String × Nat)) := Lens.insideTuple (.right (.left .here))
 
 end GaudisCrypt.Language.Lens

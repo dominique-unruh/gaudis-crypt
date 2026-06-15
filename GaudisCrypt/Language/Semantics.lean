@@ -334,7 +334,7 @@ noncomputable
 def Program.get_state : Program s s := StateT.get
 
 noncomputable
-def Program.set {a : Type} (v : Lens a s) (x : a) : Program s Unit := do
+def Program.set {a : Type} (v : Setter a s) (x : a) : Program s Unit := do
     let st <- StateT.get
     let st' := v.set x st
     StateT.set st'

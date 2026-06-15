@@ -1,5 +1,6 @@
 import GaudisCrypt.Language.Semantics
 
+open GaudisCrypt.Language.Lens
 
 /-!
 # Discrete subprobability monad
@@ -414,7 +415,7 @@ theorem Program.pure_mass_one {s α : Type} (x : α) (σ : s) :
 
 /-- `Program.get L` has mass 1. -/
 theorem Program.get_mass_one {s α : Type} (L : Lens α s) (σ : s) :
-    (Program.get L).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+    (Program.get L.toGetter).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_get]
 
 /-- `Program.set L v` has mass 1. -/

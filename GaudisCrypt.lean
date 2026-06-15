@@ -1,1 +1,1 @@
-import GaudisCrypt.Syntax
+import GaudisCrypt.Language.Syntax2
