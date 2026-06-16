@@ -1137,8 +1137,22 @@ private def basicTermHoleLookup_toModuleTuple {Δ : ModuleContext} :
       basicTermHoleLookup_toModuleTuple (fun idx => inst (.succ idx)) m
 
 
+-- Two instantiations that agree on every hole index produce the same statement.
+-- Generic in the local-state `l` (a variable here), so `induction` is well-formed —
+-- unlike inducting on a procedure body, whose `l` is a fixed `sig.LocalVariableState …`.
+private lemma StmtWithHoles.instantiate_congr_of_agree {holes : HoleSigs} {l : Type}
+    (s : StmtWithHoles holes l) {f g : holes.Instantiation}
+    (h : ∀ {sig} (n : HoleIndex holes sig), f n = g n) :
+    s.instantiate f = s.instantiate g := by
+  induction s with
+  | hole n _ _ => simp only [StmtWithHoles.instantiate]; rw [h n]
+  | seq _ _ ih1 ih2 => simp only [StmtWithHoles.instantiate]; rw [ih1 h, ih2 h]
+  | ifThenElse _ _ _ iht ihe => simp only [StmtWithHoles.instantiate]; rw [iht h, ihe h]
+  | «while» _ _ ihb => simp only [StmtWithHoles.instantiate]; rw [ihb h]
+  | _ => rfl
+
 -- `funext` cannot introduce the implicit `{sig}` binder in `holes.Instantiation`.
--- Instead prove the needed instantiate equality by induction on the procedure body.
+-- Instead prove the needed instantiate equality via the agreement lemma above.
 private lemma instantiate_congr {Δ : ModuleContext} {holes : HoleSigs} (args : holes.Instantiation)
     {sig : ProcedureSignature} (proc : ProcedureWithHoles holes sig) :
     proc.instantiate (basicTermHoleLookup holes
@@ -1147,14 +1161,8 @@ private lemma instantiate_congr {Δ : ModuleContext} {holes : HoleSigs} (args : 
   obtain ⟨_, body, _⟩ := proc
   simp only [ProcedureWithHoles.instantiate]
   congr 1
-  induction body with
-  | skip | assign | sample | call' => rfl
-  | hole n _ _ =>
-      simp only [StmtWithHoles.instantiate, StmtWithHoles.call]
-      rw [basicTermHoleLookup_toModuleTuple (Δ := Δ) args n]
-  | seq _ _ ih1 ih2 => simp only [StmtWithHoles.instantiate]; rw [ih1, ih2]
-  | ifThenElse _ _ _ iht ihe => simp only [StmtWithHoles.instantiate]; rw [iht, ihe]
-  | «while» _ _ ihb => simp only [StmtWithHoles.instantiate]; rw [ihb]
+  exact StmtWithHoles.instantiate_congr_of_agree body
+    (fun n => basicTermHoleLookup_toModuleTuple (Δ := Δ) args n)
 
 /-- `toModuleTuple inst` always satisfies `IsProcTuple`. -/
 lemma toModuleTuple_isProcTuple {Δ : ModuleContext} {holes : HoleSigs}
