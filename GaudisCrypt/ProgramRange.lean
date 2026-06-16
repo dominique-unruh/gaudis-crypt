@@ -2,6 +2,9 @@ import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.LensRange
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Program.range and `glob` foundations
 
@@ -41,13 +44,13 @@ theorem Program.ext_of_wp {s a : Type} (p q : Program s a)
     The two sides are compared as `Program s a`: on the left, `f` runs before `p`
     and `p`'s return is preserved; on the right, `p`'s return is captured, then
     `f` runs, then the saved return is produced. -/
-def Program.inRange {s a : Type} (p : Program s a) (R : LensRange s) : Prop :=
+def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a) (R : LensRange s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (liftF f >>= fun _ => p)
   = (p >>= fun x => liftF f >>= fun _ => pure x)
 
 /-- The smallest LensRange in which `p` lives. -/
-noncomputable def Program.range {s a : Type} (p : Program s a) : LensRange s :=
+noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range {s a : Type} (p : Program s a) : LensRange s :=
   sInf { R | p.inRange R }
 
 /-- Family version: the smallest LensRange in which every `progs x` lives.
@@ -62,7 +65,7 @@ noncomputable def Program.range' {s a b : Type} (progs : a → Program s b) : Le
     iff they differ only by an update outside `A`'s range — i.e., they are
     indistinguishable from `A`'s perspective. Use this anywhere
     `Quotient (A.range)ᶜ.orbit_setoid` would otherwise appear. -/
-noncomputable abbrev Program.Globals {s a : Type} (A : Program s a) : Type :=
+noncomputable abbrev _root_.GaudisCrypt.Language.Semantics.Program.Globals {s a : Type} (A : Program s a) : Type :=
   Quotient (A.range)ᶜ.orbit_setoid
 
 /-- Family-version type: the globals of the parameterized family `progs`. -/
@@ -185,9 +188,11 @@ theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
   -- LHS reduces to F ((), v.set x (f σ)); RHS reduces to F ((), f (v.set x σ)).
   exact congr_arg (fun st : s => F ((), st)) (h_comm σ)
 
+
 /-- `Program.get v` lives in `v.range`: it reads from `v`, doesn't write. -/
 theorem Program.inRange_get {s a : Type} (v : Lens a s) :
-    (Program.get v).inRange v.range := by
+-- TODO: Figure out why the coercion fires only with the explicit type case (and if that can be fixed)
+    (Program.get (v : Getter a s)).inRange v.range := by
   intro f hf
   -- Extract: f preserves v.get.
   have h_get_pres : ∀ σ : s, v.get (f σ) = v.get σ := by
@@ -227,7 +232,7 @@ lemma Program.set_inRange_compl_of_disjoint
     `inRange_mono (inRange_get _) (Lens.range_le_compl_of_disjoint v L)`. -/
 lemma Program.get_inRange_compl_of_disjoint
     {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] :
-    (Program.get v).inRange L.compl.range :=
+    (Program.get v.toGetter).inRange L.compl.range :=
   Program.inRange_mono (Program.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)
 
@@ -1088,7 +1093,7 @@ obvious direction that any lift lives in the lens's range.
 /-- Lift an "inner" program along a lens: `L.lift P` runs `P` on the
     L-content of state and writes the result back, leaving the outside
     untouched. -/
-noncomputable def Lens.lift {c s a : Type} (L : Lens c s) (P : Program c a) :
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.lift {c s a : Type} (L : Lens c s) (P : Program c a) :
     Program s a := fun σ =>
   P (L.get σ) >>= fun (xc : a × c) =>
     (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
@@ -1097,7 +1102,7 @@ noncomputable def Lens.lift {c s a : Type} (L : Lens c s) (P : Program c a) :
     inner program `Program c a`. The construction picks an arbitrary state
     to "pad" the inner input; `factor_of_inRange` shows this padding doesn't
     matter when `Adv.inRange L.range`. -/
-noncomputable def Lens.factor {c s a : Type} [Nonempty s]
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.factor {c s a : Type} [Nonempty s]
     (L : Lens c s) (Adv : Program s a) : Program c a := fun c₀ =>
   Adv (L.set c₀ (Classical.arbitrary s)) >>= fun (xσ : a × s) =>
     (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))

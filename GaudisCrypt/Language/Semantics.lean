@@ -5,6 +5,8 @@ import GaudisCrypt.Language.Lens
 
 open GaudisCrypt.Language.Lens
 
+namespace GaudisCrypt.Language.Semantics
+
 /-!
 # General stuff
 -/
@@ -401,3 +403,5 @@ lemma Program.bind_bot {s a b : Type} (m : Program s a) :
   funext st
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
+
+end GaudisCrypt.Language.Semantics
