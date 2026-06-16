@@ -6,7 +6,7 @@ import Metatheory.STLCext.Confluence
 
 namespace Language.Modules
 
-open Language.Programs
+open GaudisCrypt.Language.Programs
 
 variable [ProgramSpec]
 
@@ -34,7 +34,7 @@ def ModuleContextIdx.toNat : ModuleContextIdx Γ T → Nat
 | .zero => 0
 | .succ n => Nat.succ (n.toNat)
 
-def _root_.Language.Programs.HoleSigs.toModuleTypeTuple : HoleSigs → ModuleType
+def _root_.GaudisCrypt.Language.Programs.HoleSigs.toModuleTypeTuple : HoleSigs → ModuleType
 | .empty => .unit
 | .append holes sig => .prod (.proc sig) holes.toModuleTypeTuple
 
@@ -421,12 +421,13 @@ def substitute (body : ModuleExpression (Δ.append u) t) (arg : ModuleExpression
   substituteSimultaneously (variableSubstitution arg) body
 
 /-- Convert a `HoleSigs.Instantiation` into the corresponding module-expression tuple. -/
-def _root_.Language.Programs.HoleSigs.Instantiation.toModuleTuple {Δ : ModuleContext} :
+def _root_.GaudisCrypt.Language.Programs.HoleSigs.Instantiation.toModuleTuple {Δ : ModuleContext} :
     {holes : HoleSigs} → holes.Instantiation → ModuleExpression Δ holes.toModuleTypeTuple
   | .empty,       _    => .unit
   | .append _ _, inst =>
       .pair (.proc (inst .zero))
-            (Language.Programs.HoleSigs.Instantiation.toModuleTuple (fun idx => inst (.succ idx)))
+            (GaudisCrypt.Language.Programs.HoleSigs.Instantiation.toModuleTuple
+              (fun idx => inst (.succ idx)))
 
 /-- Non-deterministic single-step reduction: all possible one-step reductions. -/
 inductive ReductionStep : ModuleExpression Δ T → ModuleExpression Δ T → Prop where
@@ -930,7 +931,7 @@ def basicTermHoleLookup : (holes : HoleSigs) →
       | .succ m => basicTermHoleLookup Γ rest m
 
 open Metatheory.STLCext in
-noncomputable def _root_.Language.Programs.ProcedureWithHoles.toSTLC {holes sig}
+noncomputable def _root_.GaudisCrypt.Language.Programs.ProcedureWithHoles.toSTLC {holes sig}
   (proc : ProcedureWithHoles holes sig) : Term :=
     let inputType := holes.toModuleTypeTuple.toSTLC
     let outputType := (ModuleType.proc sig).toSTLC
@@ -1143,7 +1144,7 @@ private lemma instantiate_congr {Δ : ModuleContext} {holes : HoleSigs} (args : 
     proc.instantiate (basicTermHoleLookup holes
       (Metatheory.STLCext.Term.toBasicTerm _ _ (isBasicType_toModuleTuple (Δ := Δ) args)))
     = proc.instantiate args := by
-  obtain ⟨body, _⟩ := proc
+  obtain ⟨_, body, _⟩ := proc
   simp only [ProcedureWithHoles.instantiate]
   congr 1
   induction body with

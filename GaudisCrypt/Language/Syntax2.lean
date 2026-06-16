@@ -1,4 +1,5 @@
 import GaudisCrypt.Language.Programs
+import GaudisCrypt.Language.Modules
 
 /-!
 Concrete syntax for programs and procedures — take 2.
@@ -29,14 +30,14 @@ type of the argument (see `Evaluatable`). -/
 `S` need not be known up front — this is what lets a *global* variable, whose type
 says nothing about `S`, still be evaluated. -/
 class CurrentState (S : outParam Type) where
-  state : State × S
+  state : ProcedureState S
 
 /-- Anything that can be read to a value `T` in the ambient `CurrentState S`:
-program variables (lenses/getters into `State`, or into the full `State × S`), and
+program variables (lenses/getters into `State`, or into the full `ProcedureState S`), and
 anything users later add instances for.  Dispatch is on the concrete type `X` of
 the argument, so resolution is never stuck on a metavariable. -/
 class Evaluatable (S : Type) (X : Type) (T : outParam Type) where
-  eval : (State × S) → X → T
+  eval : ProcedureState S → X → T
 
 /-- User-facing variable read, with `S` implicit (inferred from the variable's
 container in the full case, from the ambient `CurrentState` in the global case).
@@ -47,14 +48,14 @@ def eval {S X T} [Evaluatable S X T] [cs : CurrentState S] (x : X) : T :=
 /-- The four container shapes, dispatched directly on the argument type.  (No
 `Lens → Getter` forwarder: it would overlap these, so we spell out all four.) -/
 instance : Evaluatable S (Getter T State) T where
-  eval cs x := x.get cs.1
-instance : Evaluatable S (Getter T (State × S)) T where
+  eval cs x := x.get cs.global
+instance : Evaluatable S (Getter T (ProcedureState S)) T where
   eval cs x := x.get cs
 -- TODO: Needed? (We have Lens->Setter coercion)
 instance : Evaluatable S (Lens T State) T where
-  eval cs x := x.get cs.1
+  eval cs x := x.get cs.global
 -- TODO: Needed? (We have Lens->Setter coercion)
-instance : Evaluatable S (Lens T (State × S)) T where
+instance : Evaluatable S (Lens T (ProcedureState S)) T where
   eval cs x := x.get cs
 
 /-! ## Reduction lemmas (so denotations compute)
@@ -64,15 +65,15 @@ Making `S` a real parameter (rather than a `cs.L` projection) is what lets the
 full-state lemmas match under `simp`. -/
 
 @[simp] theorem eval_getter_global [cs : CurrentState S] (x : Getter T State) :
-    eval x = x.get cs.state.1 := rfl
+    eval x = x.get cs.state.global := rfl
 
-@[simp] theorem eval_getter_full [cs : CurrentState S] (x : Getter T (State × S)) :
+@[simp] theorem eval_getter_full [cs : CurrentState S] (x : Getter T (ProcedureState S)) :
     eval x = x.get cs.state := rfl
 
 @[simp] theorem eval_lens_global [cs : CurrentState S] (x : Lens T State) :
-    eval x = x.get cs.state.1 := rfl
+    eval x = x.get cs.state.global := rfl
 
-@[simp] theorem eval_lens_full [cs : CurrentState S] (x : Lens T (State × S)) :
+@[simp] theorem eval_lens_full [cs : CurrentState S] (x : Lens T (ProcedureState S)) :
     eval x = x.get cs.state := rfl
 
 /-! ## Sigil syntax for expressions
@@ -116,25 +117,26 @@ axiom a : Lens Nat State
 axiom b : Lens Nat State
 
 -- a global variable, full state has trivial locals
-#check (GaudiExpr[ $a + 1 ] : Getter Nat (State × Unit))
-#check (GaudiExpr[ $a + $b ] : Getter Nat (State × Unit))
+#check (GaudiExpr[ $a + 1 ] : Getter Nat (ProcedureState Unit))
+#check (GaudiExpr[ $a + $b ] : Getter Nat (ProcedureState Unit))
 
 -- a full-current-state lens (e.g. a local variable already lifted)
-axiom loc : Lens Nat (State × Unit)
-#check (GaudiExpr[ $a + $loc ] : Getter Nat (State × Unit))
-noncomputable def test := (GaudiExpr[ $a + $loc ] : Getter Nat (State × Unit))
+axiom loc : Lens Nat (ProcedureState Unit)
+#check (GaudiExpr[ $a + $loc ] : Getter Nat (ProcedureState Unit))
+noncomputable def test := (GaudiExpr[ $a + $loc ] : Getter Nat (ProcedureState Unit))
 #print test
 
 -- $(...) for a compound lens term
-#check (GaudiExpr[ $(a) + 1 ] : Getter Nat (State × Unit))
+#check (GaudiExpr[ $(a) + 1 ] : Getter Nat (ProcedureState Unit))
 
 -- reduction: expressions compute through to plain lens reads
-example (st : State × Unit) :
-    (GaudiExpr[ $a + 1 ] : Getter Nat (State × Unit)).get st = a.get st.1 + 1 := by
+example (st : ProcedureState Unit) :
+    (GaudiExpr[ $a + 1 ] : Getter Nat (ProcedureState Unit)).get st = a.get st.global + 1 := by
   simp
 
-example (st : State × Unit) :
-    (GaudiExpr[ $a + $loc ] : Getter Nat (State × Unit)).get st = a.get st.1 + loc.get st := by
+example (st : ProcedureState Unit) :
+    (GaudiExpr[ $a + $loc ] : Getter Nat (ProcedureState Unit)).get st
+      = a.get st.global + loc.get st := by
   simp
 
 end GaudisCrypt.Language.Syntax.Test
@@ -177,14 +179,15 @@ content type `A` is deliberately *not* a class parameter — resolution then onl
 expected type as an ordinary, postponable constraint.  (That is what lets a `call`
 result l-value resolve even before the callee's `sig` is known.) -/
 class LiftLens (S : Type) (M : Type) where
-  lift {A : Type} : Lens A M → Setter A (State × S)
+  lift {A : Type} : Lens A M → Setter A (ProcedureState S)
 
-instance {S : Type} : LiftLens S State where lift x := x.ofst.toSetter
-instance {S : Type} : LiftLens S (State × S) where lift x := x.toSetter
+instance {S : Type} : LiftLens S State where
+  lift x := (ProcedureState.globalL.chain x).toSetter
+instance {S : Type} : LiftLens S (ProcedureState S) where lift x := x.toSetter
 
 /-- User-facing l-value lift; `S`, the container `M`, and the content `A` are inferred.
 The result is a `Setter` (l-values only ever `set`). -/
-def liftLens {S A M} [LiftLens S M] (x : Lens A M) : Setter A (State × S) :=
+def liftLens {S A M} [LiftLens S M] (x : Lens A M) : Setter A (ProcedureState S) :=
   LiftLens.lift x
 
 /-- The raw (un-lifted) lens for an l-value: a tuple `(x, y, …)` becomes a nested
@@ -294,12 +297,6 @@ open Lean in section
 declare_syntax_cat proc_binder
 syntax ident " : " term : proc_binder
 
-/-- Right-nested product (the `paramListToTuple` shape): `[] ↦ Unit`, `[T] ↦ T`. -/
-private def mkProdType : List Term → MacroM Term
-  | []      => `(Unit)
-  | [t]     => pure t
-  | t :: ts => do `($t × $(← mkProdType ts))
-
 /-- `Lens.id` followed by a chain of `.ofst` (`true`) / `.osnd` (`false`). -/
 private def mkChain (steps : List Bool) : MacroM Term := do
   let mut acc ← `(Lens.id)
@@ -378,23 +375,30 @@ macro_rules
       | none    => pure []).toArray
     let np := paramBs.size
     let nl := localBs.size
-    let paramProd ← mkProdType (paramBs.toList.map (·.2))
-    let localProd ← mkProdType (localBs.toList.map (·.2))
-    let L ← `($paramProd × $localProd)
-    -- the signature
+    -- the signature and local-variable list; the local-state `L` is the
+    -- `LocalVariableState` *structure* (params tuple + vars tuple).
     let paramTys := paramBs.map (·.2)
     let localSigmas ← localBs.mapM fun (_, ty) => `(⟨$ty, inferInstance⟩)
     let retTyTerm ← match retTy with | some r => pure r | none => `(_)
-    -- one `let` per name, binding it to its lens into `State × L`
+    let sigTerm ← `(({ params := [$paramTys,*], ret := $retTyTerm } : ProcedureSignature))
+    let localsTerm ← `([$localSigmas,*])
+    -- `L` is the local-state structure, indexed by param *types* (no `ret`), so it is
+    -- fully determined even when the return type is omitted.
+    let L ← `(LocalVariableState [$paramTys,*] $localsTerm)
+    -- one `let` per name, binding it to its lens into `ProcedureState L`.  A variable
+    -- lens navigates `ProcedureState L` → (`localL`) `L` → (`paramsL`/`varsL`) the
+    -- params/vars tuple → (`mkChain`/`navSteps`) the individual slot.
     let mut binds : Array (Ident × Term × Term) := #[]
     for k in [0:np] do
       let (id, ty) := paramBs[k]!
-      let chain ← mkChain (navSteps k np ++ [true, false])   -- param: into paramTuple (fst of l)
-      binds := binds.push (id, ← `(Lens $ty (State × $L)), chain)
+      let slot ← mkChain (navSteps k np)
+      let chain ← `(Lens.intoParams $slot)
+      binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
     for j in [0:nl] do
       let (id, ty) := localBs[j]!
-      let chain ← mkChain (navSteps j nl ++ [false, false])  -- local: into localTuple (snd of l)
-      binds := binds.push (id, ← `(Lens $ty (State × $L)), chain)
+      let slot ← mkChain (navSteps j nl)
+      let chain ← `(Lens.intoVars $slot)
+      binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
     -- holes: a `ProcedureSignature` (no locals) each, folded into a `HoleSigs` context,
     -- and one `let` per name binding it to its `HoleIndex` (last-declared = `.zero`).
     let nh := holeBs.size
@@ -416,11 +420,65 @@ macro_rules
     let holeNames := holeBs.toList.map (·.1.getId)
     let stmts' ← stmts.mapM (rewriteHoles holeNames)
     let body ← wrap (binds ++ holeBinds) (← `((GaudiProg[ $stmts'* ] : StmtWithHoles $hCtx $L)))
-    let retval ← wrap binds (← `((GaudiExpr[ $ret ] : Getter _ (State × $L))))
-    `((⟨[$localSigmas,*], $body, $retval⟩ : ProcedureWithHoles $hCtx
-        { params := [$paramTys,*], ret := $retTyTerm }))
+    let retval ← wrap binds (← `((GaudiExpr[ $ret ] : Getter _ (ProcedureState $L))))
+    `((⟨$localsTerm, $body, $retval⟩ : ProcedureWithHoles $hCtx $sigTerm))
 
 end
+
+/-! ### Procedure *type* syntax
+
+`proctype (T, U, V) -> W` is the type `Procedure { params := [T, U, V], ret := W }`, and
+`proctype (…) -> W uses ((A₁,…) → R₁, …)` is the corresponding `ProcedureWithHoles`, whose
+hole context is built from the listed (nameless) procedure signatures.  (Uses `->` rather
+than `:` so it needs no extra parentheses inside a type ascription.) -/
+
+/-- Reducible aliases that `proctype` expands to.  Using a dedicated head (rather than a
+raw `Procedure { … }` / `ProcedureWithHoles (….append …) { … }`) keeps the term easy to
+*unexpand* back to `proctype` syntax for display, while staying defeq to the underlying
+type (so hand-written procedures still inhabit it). -/
+@[reducible] def ProcedureType (paramTypes : List Type) (ret : Type) :=
+  Procedure { params := paramTypes, ret := ret }
+
+@[reducible] def ProcedureTypeWithHoles (paramTypes : List Type) (ret : Type)
+    (holes : List ProcedureSignature) :=
+  ProcedureWithHoles (holes.foldl HoleSigs.append HoleSigs.empty)
+    { params := paramTypes, ret := ret }
+
+/-- A nameless hole signature `(T₁, …, Tₙ) → R` inside a `proctype … uses (…)` clause. -/
+declare_syntax_cat hole_sig
+syntax "(" term,* ")" " → " term : hole_sig
+
+syntax "proctype" "(" term,* ")" " -> " term (" uses " "(" hole_sig,* ")")? : term
+
+open Lean in
+macro_rules
+  | `(proctype ( $params:term,* ) -> $ret:term $[uses ( $holes:hole_sig,* )]?) => do
+      match holes with
+      | none    => `(ProcedureType [$params,*] $ret)
+      | some hs =>
+        let holeSigs ← hs.getElems.mapM fun h => match h with
+          | `(hole_sig| ( $ps:term,* ) → $r:term) =>
+              `(({ params := [$ps,*], ret := $r } : ProcedureSignature))
+          | _ => Macro.throwUnsupported
+        `(ProcedureTypeWithHoles [$params,*] $ret [$holeSigs,*])
+
+/-! `proctype` unexpanders, so the type prints back as `proctype (…) -> W [uses (…)]`. -/
+
+open Lean PrettyPrinter in
+@[app_unexpander ProcedureType]
+def unexpandProcedureType : Unexpander
+  | `($_ [$ps,*] $r) => `(proctype ( $ps,* ) -> $r)
+  | _ => throw ()
+
+open Lean PrettyPrinter in
+@[app_unexpander ProcedureTypeWithHoles]
+def unexpandProcedureTypeWithHoles : Unexpander
+  | `($_ [$ps,*] $r [$hs,*]) => do
+      let holeSyns ← hs.getElems.mapM fun h => match h with
+        | `({ params := [$hps,*], ret := $hr }) => `(hole_sig| ( $hps,* ) → $hr)
+        | _ => throw ()
+      `(proctype ( $ps,* ) -> $r uses ( $holeSyns,* ))
+  | _ => throw ()
 
 end GaudisCrypt.Language.Syntax
 
@@ -556,14 +614,24 @@ noncomputable def proc_two_holes := proc (x : Nat) uses (A : (Nat) → Bool, B :
 #check @proc_two_holes
 #print proc_two_holes
 
+/- ### Procedure *type* syntax -/
+
+-- `proctype (…) -> W` is `Procedure { params := […], ret := W }`
+example : (proctype (Nat, Bool) -> Nat) = Procedure { params := [Nat, Bool], ret := Nat } := rfl
+#check (proc_inc : proctype (Nat) -> Nat)
+#check (proc_sum : proctype (Nat, Nat) -> Nat)
+
+-- `proctype (…) -> W uses (…)` is the corresponding `ProcedureWithHoles`
+#check (proc_two_holes : proctype (Nat) -> Nat uses ((Nat) → Bool, (Bool) → Nat))
+#check (proc_with_hole : proctype (Nat) -> Nat uses ((Nat) → Nat))
+
+-- the types also print back as `proctype …` (unexpanders)
+#check proctype (Nat) -> Nat
+#check proctype (Nat, Bool) -> Nat uses ((Nat) → Bool, (Bool) → Nat)
+
 end GaudisCrypt.Language.Syntax.ProgTest
 
--- TODO: Try: let combined local/global state be a new structure `ProcedureState [ProgramSpec] localState` (with two fields)
---       Allow only getters/setters on this state in the syntax.
---       Introduce coercions to lift Getters/Setters/Lenses on State to `ProcedureState`.
---       This might avoid the whole mess with the Evaluation/LiftLens instances
 -- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
--- TODO: Create a nice syntax for a `Procedure[WithHoles] {...sig...}` types
 -- TODO: Make all things not only parseable, but also printable
 -- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
 -- TODO: Allow _ in lvalues (translated to Setter.throwaway)
