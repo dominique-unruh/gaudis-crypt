@@ -399,7 +399,7 @@ macro_rules
     -- and one `let` per name binding it to its `HoleIndex` (last-declared = `.zero`).
     let nh := holeBs.size
     let holeSigTerms ← holeBs.mapM fun (_, ps, ret) =>
-      `(({ params := [$(ps.toArray),*], locals := [], ret := $ret } : ProcedureSignature))
+      `(({ params := [$(ps.toArray),*], ret := $ret } : ProcedureSignature))
     let mut hCtx ← `(HoleSigs.empty)
     for sigT in holeSigTerms do hCtx ← `(($hCtx).append $sigT)
     let mut holeBinds : Array (Ident × Term × Term) := #[]
@@ -417,8 +417,8 @@ macro_rules
     let stmts' ← stmts.mapM (rewriteHoles holeNames)
     let body ← wrap (binds ++ holeBinds) (← `((GaudiProg[ $stmts'* ] : StmtWithHoles $hCtx $L)))
     let retval ← wrap binds (← `((GaudiExpr[ $ret ] : Getter _ (State × $L))))
-    `((⟨$body, $retval⟩ : ProcedureWithHoles $hCtx
-        { params := [$paramTys,*], locals := [$localSigmas,*], ret := $retTyTerm }))
+    `((⟨[$localSigmas,*], $body, $retval⟩ : ProcedureWithHoles $hCtx
+        { params := [$paramTys,*], ret := $retTyTerm }))
 
 end
 

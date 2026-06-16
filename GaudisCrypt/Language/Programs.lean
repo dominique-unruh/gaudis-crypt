@@ -17,7 +17,6 @@ def VariableName := String
 
 structure ProcedureSignature where
   params : List Type
-  locals : List (Σ t : Type, Inhabited t)
   ret : Type
 
 class LocalState : Type _ where
@@ -29,8 +28,9 @@ def paramListToTuple : List Type → Type
   | [x]     => x
   | x :: xs => x × paramListToTuple xs
 
-def ProcedureSignature.LocalVariableState (sig : ProcedureSignature) :=
-  paramListToTuple sig.params × paramListToTuple (sig.locals.map (·.fst))
+def ProcedureSignature.LocalVariableState (sig : ProcedureSignature)
+    (locals : List (Σ t : Type, Inhabited t)) :=
+  paramListToTuple sig.params × paramListToTuple (locals.map (·.fst))
 
 def ProcedureSignature.ParamType (sig : ProcedureSignature) := paramListToTuple sig.params
 
@@ -40,9 +40,10 @@ private def localDefaults : (ls : List (Σ t : Type, Inhabited t)) → paramList
   | ⟨_, inst⟩ :: h :: t => (inst.default, localDefaults (h :: t))
 
 def ProcedureSignature.localVariableInit
-    (sig : ProcedureSignature) (params : paramListToTuple sig.params) : sig.LocalVariableState := by
+    (sig : ProcedureSignature) (locals : List (Σ t : Type, Inhabited t))
+    (params : paramListToTuple sig.params) : sig.LocalVariableState locals := by
   unfold ProcedureSignature.LocalVariableState
-  exact (params, localDefaults sig.locals)
+  exact (params, localDefaults locals)
 
 /-- A sequences of procedure signatures, intended to be used to describe the type
     of holes in a program -/
@@ -73,8 +74,9 @@ inductive StmtWithHoles [ProgramSpec]: HoleSigs → Type → Type _ where
   | call' {sig : ProcedureSignature} :
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
-      Setter sig.ret (State × l) → StmtWithHoles .empty sig.LocalVariableState
-        → Getter sig.ret (State × sig.LocalVariableState)
+      Setter sig.ret (State × l) → (locals : List (Σ t : Type, Inhabited t))
+        → StmtWithHoles .empty (sig.LocalVariableState locals)
+        → Getter sig.ret (State × sig.LocalVariableState locals)
         → Getter sig.ParamType (State × l) → StmtWithHoles h l
   | hole {sig} (n: HoleIndex h sig) : Setter sig.ret (State × l) → Getter sig.ParamType (State × l) → StmtWithHoles h l
   | seq : StmtWithHoles h l → StmtWithHoles h l → StmtWithHoles h l                   -- c1; c2
@@ -84,22 +86,23 @@ inductive StmtWithHoles [ProgramSpec]: HoleSigs → Type → Type _ where
 def Stmt [ProgramSpec] := StmtWithHoles .empty
 
 structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : ProcedureSignature) where
-  body : StmtWithHoles holeSigs sig.LocalVariableState
-  return_val : Getter sig.ret (State × sig.LocalVariableState)
+  locals : List (Σ t : Type, Inhabited t)
+  body : StmtWithHoles holeSigs (sig.LocalVariableState locals)
+  return_val : Getter sig.ret (State × sig.LocalVariableState locals)
 
 def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
 @[match_pattern]
 def StmtWithHoles.call [ProgramSpec] {sig} (x : Setter sig.ret (State × l)) (proc : Procedure sig)
       (params : Getter sig.ParamType (State × l)) : StmtWithHoles h l :=
-  StmtWithHoles.call' x proc.body proc.return_val params
+  StmtWithHoles.call' x proc.locals proc.body proc.return_val params
 
 noncomputable
 def StmtWithHoles.assign [ProgramSpec]
   (x : Setter a (State × l)) (e : Getter a (State × l)) : StmtWithHoles h l :=
   StmtWithHoles.sample x ⟨fun st => pure (e.get st)⟩
 
-def Stmt.call [ProgramSpec] {sig}  (x : Setter sig.ret (State × l)) (proc : Procedure sig)
+def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret (State × l)) (proc : Procedure sig)
       (params : Getter sig.ParamType (State × l)) : Stmt l
      := StmtWithHoles.call x proc params
 
@@ -114,7 +117,7 @@ def StmtWithHoles.instantiate {holes : HoleSigs} {l : Type}
   | .skip            => .skip
   -- | .assign x e      => .assign x e
   | .sample x e      => .sample x e
-  | .call' x b r p   => .call' x b r p
+  | .call' x ls b r p => .call' x ls b r p
   | .hole n x p      => StmtWithHoles.call x (instantiation n) p
   | .seq s1 s2       =>
       .seq (s1.instantiate instantiation) (s2.instantiate instantiation)
@@ -127,7 +130,7 @@ def ProcedureWithHoles.instantiate {holes : HoleSigs} {sig}
     (proc : ProcedureWithHoles holes sig)
     (instantiation : holes.Instantiation)
      : Procedure sig :=
-  ⟨StmtWithHoles.instantiate proc.body instantiation, proc.return_val⟩
+  ⟨proc.locals, StmtWithHoles.instantiate proc.body instantiation, proc.return_val⟩
 
 
 /-- A structural size measure used to justify termination of `programDenotation`.
@@ -138,7 +141,7 @@ def StmtWithHoles.depth {h l} : StmtWithHoles h l → Nat
   | .skip           => 0
   | .sample _ _     => 0
   | .hole _ _ _     => 0
-  | .call' _ body _ _ => body.depth + 1
+  | .call' _ _ body _ _ => body.depth + 1
   | .seq p q        => max p.depth q.depth + 1
   | .ifThenElse _ p q => max p.depth q.depth + 1
   | .while _ p      => p.depth + 1
@@ -152,8 +155,8 @@ def programDenotation : Stmt l → Program (State × l) Unit
 | .seq p q => do let _ <- programDenotation p; programDenotation q
 | .ifThenElse c p q => do if ← Program.get c then programDenotation p else programDenotation q
 | .while c p => while_loop (Program.get c) (programDenotation p)
-| .call' (sig:=sig) (x : Setter sig.ret _) body ret args => do
-    let proc : Procedure sig := ⟨body, ret⟩
+| .call' (sig:=sig) (x : Setter sig.ret _) locals body ret args => do
+    let proc : Procedure sig := ⟨locals, body, ret⟩
     let argValues <- Program.get args
     let retVal <- Program.zoom Lens.fst (procedureDenotation proc argValues)
     Program.set x retVal
@@ -163,9 +166,9 @@ decreasing_by all_goals simp [StmtWithHoles.depth, Prod.lex_def]
 noncomputable
 def procedureDenotation {sig} (proc : Procedure sig) (args : sig.ParamType) :
    Program State sig.ret := fun st => do
-    let procLocalSt := sig.localVariableInit args
+    let procLocalSt := sig.localVariableInit proc.locals args
     let (_, procFinalSt) <-
-      programDenotation (l := sig.LocalVariableState) proc.body (st, procLocalSt)
+      programDenotation (l := sig.LocalVariableState proc.locals) proc.body (st, procLocalSt)
     let retVal := proc.return_val.get procFinalSt
     return (retVal, procFinalSt.1)
 termination_by (proc.body.depth, 1)
@@ -173,4 +176,4 @@ decreasing_by simp [Prod.lex_def]
 
 end
 
-end Language.Programs
+end GaudisCrypt.Language.Programs
