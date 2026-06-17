@@ -33,6 +33,17 @@ A `;`-terminated sequence of statements.  The statement forms are:
 
 The argument list `( … )` of a `call` is always required (write `()` for no arguments).
 
+Example (`a b c : Lens Nat State`, `inc : Procedure …`):
+```
+GaudiProg[
+  a <- $a + 1;
+  b, c <- ($a, $a * 2);
+  if ($a == 0) { a <- 1; } else { skip; }
+  while ($b == 0) { b <- $b + 1; }
+  a <- call inc ($a);
+]
+```
+
 ## Procedures — `proc (…) [uses (…)] [: R] { … }`
 
 A procedure *term*:
@@ -61,16 +72,19 @@ proc (x : T, y : U) uses (A : (Nat) → Bool, B : (Bool) → Nat) : R {
 `->` is used (rather than `:`) so these nest inside type ascriptions without extra
 parentheses; they also pretty-print back into this form.
 
+e.g. `proctype (Nat, Bool) -> Nat`, `proctype (Nat) -> Nat uses ((Nat) → Bool, (Bool) → Nat)`,
+`procsig (Nat, Bool) -> Nat`.  Note `Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat`.
+
 ## Module types — `moduletype Name { … }`
 
-A top-level command declaring a record-like module type:
+A top-level command declaring a record-like module type, e.g.:
 ```
-moduletype Name {
-  module f₁ : T₁;
-  module f₂ : T₂;
+moduletype TwoProcs {
+  proc enc (Nat, Nat) -> Bool;
+  module aux : ModuleType.arr (ModuleType.proc (procsig (Nat) -> Nat)) ModuleType.unit;
 }
 ```
-where each `Tᵢ` is a `ModuleType`.  A field may also be written `proc fᵢ (A₁, …) -> R;` as
+where each field's type is a `ModuleType`.  A field may also be written `proc fᵢ (A₁, …) -> R;` as
 shorthand for `module fᵢ : ModuleType.proc (procsig (A₁, …) -> R);`.  It generates `Name`
 (the corresponding `Module`), a record `Name.Structure` with fields `fᵢ : Module Tᵢ`,
 accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, and round-trip
