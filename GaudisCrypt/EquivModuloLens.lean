@@ -1,5 +1,10 @@
 import GaudisCrypt.ProgramRange
 
+namespace GaudisCrypt.EquivModuloLens
+
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Equivalence-modulo-lens calculus
 
@@ -145,3 +150,5 @@ lemma loop_n_then_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     (loop_n_congr h_body h_body_eq n)
     (fun _ => h_final_eq)
     (fun _ => h_final)
+
+end GaudisCrypt.EquivModuloLens

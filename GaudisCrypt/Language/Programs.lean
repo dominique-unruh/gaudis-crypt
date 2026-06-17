@@ -5,6 +5,7 @@ import GaudisCrypt.Language.Semantics
 namespace GaudisCrypt.Language.Programs
 
 open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
 
 class ProgramSpec : Type _ where
   state : Type u

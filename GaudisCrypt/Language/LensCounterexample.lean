@@ -5,6 +5,10 @@ import Mathlib.Data.List.Basic
 import Mathlib.Data.FinEnum
 import Mathlib.SetTheory.Cardinal.Basic
 
+namespace GaudisCrypt.Language.LensCounterexample
+
+open GaudisCrypt.Language.Lens
+
 def example_lens_1 : Lens bit (bit × bit × bit) where
   get := fun (x,y,z) => x + y
   set := fun a (x,y,z) => (x, x+a, z)
@@ -49,7 +53,7 @@ private def z2 : Lens bit (bit × bit) where
 
 private def proveChain (ub : Lens (bit × bit) (bit × bit × bit))
     (ex : Lens bit (bit × bit × bit)) (z : Lens bit (bit × bit)) :
-    chain ub z = ex → LensIn.mk' ub ≥ LensIn.mk' ex := fun h => ⟨z, h⟩
+    ub.chain z = ex → LensIn.mk' ub ≥ LensIn.mk' ex := fun h => ⟨z, h⟩
 
 lemma ub11 : LensIn.mk' upper_bound_1 ≥ LensIn.mk' example_lens_1 :=
   proveChain _ _ z1 (by apply Lens.ext; decide)
@@ -87,17 +91,17 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   have hincomp1 : ¬ LensIn.mk' upper_bound_1 ≤ LensIn.mk' upper_bound_2 := by
     -- chain upper_bound_2 z always preserves the 3rd component, but upper_bound_1.set can change it
     intro ⟨z, hz⟩
-    have heq : chain upper_bound_2 z = upper_bound_1 := hz
-    have hthird : ∀ a (s : bit × bit × bit), ((chain upper_bound_2 z).set a s).2.2 = s.2.2 := by
-      intro a ⟨x, y, w⟩; simp [chain, upper_bound_2]
+    have heq : upper_bound_2.chain z = upper_bound_1 := hz
+    have hthird : ∀ a (s : bit × bit × bit), ((upper_bound_2.chain z).set a s).2.2 = s.2.2 := by
+      intro a ⟨x, y, w⟩; simp [Lens.chain, upper_bound_2]
     have h := hthird (1, 0) (0, 0, 0)
     rw [heq] at h; simp [upper_bound_1] at h
   have hincomp2 : ¬ LensIn.mk' upper_bound_2 ≤ LensIn.mk' upper_bound_1 := by
     -- chain upper_bound_1 z always preserves the 1st component, but upper_bound_2.set can change it
     intro ⟨z, hz⟩
-    have heq : chain upper_bound_1 z = upper_bound_2 := hz
-    have hfst : ∀ a (s : bit × bit × bit), ((chain upper_bound_1 z).set a s).1 = s.1 := by
-      intro a ⟨x, y, w⟩; simp [chain, upper_bound_1]
+    have heq : Lens.chain upper_bound_1 z = upper_bound_2 := hz
+    have hfst : ∀ a (s : bit × bit × bit), ((Lens.chain upper_bound_1 z).set a s).1 = s.1 := by
+      intro a ⟨x, y, w⟩; simp [Lens.chain, upper_bound_1]
     have h := hfst (1, 0) (0, 0, 0)
     rw [heq] at h; simp [upper_bound_2] at h
   have l_leq : l < LensIn.mk' upper_bound_1 := by
@@ -158,11 +162,11 @@ theorem no_least_lens : ¬ exists l : LensIn (bit × bit × bit),
   have h1 : z_12.get (0 : bit) = (0 : bit) := by
     have := congr_fun (congr_arg (fun l : Lens bit (bit × bit × bit) => l.get) hchain_12)
       ((0, 0, 0) : bit × bit × bit)
-    simpa [chain, example_lens_1, example_lens_2] using this
+    simpa [Lens.chain, example_lens_1, example_lens_2] using this
   have h2 : z_12.get (0 : bit) = (1 : bit) := by
     have := congr_fun (congr_arg (fun l : Lens bit (bit × bit × bit) => l.get) hchain_12)
       ((1, 0, 0) : bit × bit × bit)
-    simpa [chain, example_lens_1, example_lens_2] using this
+    simpa [Lens.chain, example_lens_1, example_lens_2] using this
   exact absurd (show (0 : bit) = 1 from h1.symm.trans h2) (by decide)
 
 
@@ -208,3 +212,5 @@ def flipRange : LensRange Bool where
 
 theorem flipRange_compl_eq_self : flipRangeᶜ = flipRange :=
   lr_ext' (by simp only [Compl.compl, flipRange, bool_not_centralizer])
+
+end GaudisCrypt.Language.LensCounterexample
