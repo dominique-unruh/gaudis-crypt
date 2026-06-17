@@ -280,6 +280,62 @@ theorem strengthen_right [Countable ((α × s₁) × (β × s₂))]
     Program.prhl2 A c d (fun u v => B u v ∧ C v) :=
   (h.symm.strengthen_left (C := C) (fun σ₂ σ₁ hA => hC σ₁ σ₂ hA)).symm
 
+/-! ## Tier 2: one-sided/frame rules and rnd generalizations -/
+
+/-- **Left frame**: a left-only prefix `p₀` matched against `skip` on the
+    right (carrying `Pre` to `Mid`), then the continuations from `Mid`,
+    gives `(p₀; k) ~ q`. Avoids inserting `pure () >>=` on the right by
+    hand. Derived from `bind` + the monad law. -/
+theorem prefix_left {β₁ β₂ : Type}
+    [Countable ((Unit × s₁) × (Unit × s₂))] [Countable ((β₁ × s₁) × (β₂ × s₂))]
+    {p₀ : Program s₁ Unit} {k : Program s₁ β₁} {q : Program s₂ β₂}
+    {Pre Mid : s₁ → s₂ → Prop} {Post : β₁ × s₁ → β₂ × s₂ → Prop}
+    (h₀ : Program.prhl2 Pre p₀ (pure ()) (fun u v => Mid u.2 v.2))
+    (h : Program.prhl2 Mid k q Post) :
+    Program.prhl2 Pre (p₀ >>= fun _ => k) q Post := by
+  have hb := Program.prhl2.bind h₀ (fun _ _ => h)
+  rwa [Program.pure_bind] at hb
+
+/-- **Right frame**: the mirror of `prefix_left`. -/
+theorem prefix_right {β₁ β₂ : Type}
+    [Countable ((Unit × s₁) × (Unit × s₂))] [Countable ((β₁ × s₁) × (β₂ × s₂))]
+    {p : Program s₁ β₁} {q₀ : Program s₂ Unit} {k : Program s₂ β₂}
+    {Pre Mid : s₁ → s₂ → Prop} {Post : β₁ × s₁ → β₂ × s₂ → Prop}
+    (h₀ : Program.prhl2 Pre (pure ()) q₀ (fun u v => Mid u.2 v.2))
+    (h : Program.prhl2 Mid p k Post) :
+    Program.prhl2 Pre p (q₀ >>= fun _ => k) Post := by
+  have hb := Program.prhl2.bind h₀ (fun _ _ => h)
+  rwa [Program.pure_bind] at hb
+
+/-- **Left ghost write**: a left-only `set L v` matched against `skip`. The
+    coupling analogue of `EquivModuloLens.set_equiv_pure`. Unconditional
+    (both sides are point masses). -/
+theorem set_skip_left {γ : Type} (L : Lens γ s₁) (v : γ)
+    {B : Unit × s₁ → Unit × s₂ → Prop}
+    (h : ∀ σ₁ σ₂, A σ₁ σ₂ → B ((), L.set v σ₁) ((), σ₂)) :
+    Program.prhl2 A (Program.set L v) (pure ()) B :=
+  (show Program.prhl A (Program.set L v) (pure () : Program s₂ Unit) B from
+    fun σ₁ σ₂ hA => ⟨Program.Coupling.of_pure ((), L.set v σ₁) ((), σ₂)
+      (fun F => by rw [wp_set]) (fun G => by rw [wp_pure]) (h σ₁ σ₂ hA)⟩).to_prhl2
+
+/-- **Right ghost write**: the mirror of `set_skip_left`. -/
+theorem set_skip_right {γ : Type} (L : Lens γ s₂) (v : γ)
+    {B : Unit × s₁ → Unit × s₂ → Prop}
+    (h : ∀ σ₁ σ₂, A σ₁ σ₂ → B ((), σ₁) ((), L.set v σ₂)) :
+    Program.prhl2 A (pure ()) (Program.set L v) B :=
+  (show Program.prhl A (pure () : Program s₁ Unit) (Program.set L v) B from
+    fun σ₁ σ₂ hA => ⟨Program.Coupling.of_pure ((), σ₁) ((), L.set v σ₂)
+      (fun F => by rw [wp_pure]) (fun G => by rw [wp_set]) (h σ₁ σ₂ hA)⟩).to_prhl2
+
+/-- **Synchronized sampling** (`rnd` with the identity coupling): both runs
+    draw the *same* uniform value. The common special case of `uniform`. -/
+theorem uniform_id {α' : Type} [Fintype α'] [Nonempty α']
+    {B : α' × s₁ → α' × s₂ → Prop}
+    (h : ∀ t σ₁ σ₂, A σ₁ σ₂ → B (t, σ₁) (t, σ₂)) :
+    Program.prhl2 A (Program.uniform : Program s₁ α')
+      (Program.uniform : Program s₂ α') B :=
+  Program.prhl2.uniform (Equiv.refl α') h
+
 end Program.prhl2
 
 /-! ## Smoke tests -/
@@ -303,5 +359,21 @@ example (n : ℕ) :
     Program.prhl2 Eq (loop_n n (pure () : Program Bool Unit))
       (loop_n n (pure ())) (fun u v => u.2 = v.2) :=
   Program.prhl2.loop_n (Program.prhl2.pure_pure (fun _ _ h => h)) n
+
+/-- Frame a left-only ghost write away, keeping only value equality. -/
+example {γ : Type} (L : Lens γ Bool) (v : γ) (x : Nat) :
+    Program.prhl2 (fun _ _ => True)
+      (Program.set L v >>= fun _ => (pure x : Program Bool Nat))
+      (pure x : Program Bool Nat) (fun u v => u.1 = v.1) :=
+  Program.prhl2.prefix_left (Mid := fun _ _ => True)
+    (Program.prhl2.set_skip_left L v (fun _ _ _ => trivial))
+    (Program.prhl2.pure_pure (fun _ _ _ => rfl))
+
+/-- Synchronized sampling draws the same value on both sides. -/
+example :
+    Program.prhl2 (fun _ _ => True)
+      (Program.uniform : Program Bool Bool) (Program.uniform : Program Bool Bool)
+      (fun u v => u.1 = v.1) :=
+  Program.prhl2.uniform_id (fun _ _ _ _ => rfl)
 
 end GaudisCrypt.Language.Semantics
