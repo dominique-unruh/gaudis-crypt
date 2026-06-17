@@ -70,9 +70,11 @@ moduletype Name {
   module f₂ : T₂;
 }
 ```
-where each `Tᵢ` is a `ModuleType`.  It generates `Name` (the corresponding `Module`), a
-record `Name.Structure` with fields `fᵢ : Module Tᵢ`, accessors `Name.fᵢ`, a constructor
-`Name.mk`, a destructor `Name.structure`, and round-trip `@[simp]` lemmas relating them.
+where each `Tᵢ` is a `ModuleType`.  A field may also be written `proc fᵢ (A₁, …) -> R;` as
+shorthand for `module fᵢ : ModuleType.proc (procsig (A₁, …) -> R);`.  It generates `Name`
+(the corresponding `Module`), a record `Name.Structure` with fields `fᵢ : Module Tᵢ`,
+accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, and round-trip
+`@[simp]` lemmas relating them.
 -/
 
 namespace GaudisCrypt.Language.Syntax
@@ -737,7 +739,7 @@ example : Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat := rfl
 #check ProcedureSignature.mk [String,String] Nat
 #check Procedure (ProcedureSignature.mk [String,String] Nat)
 #check ProcedureWithHoles (.append .empty (procsig () -> Unit)) (ProcedureSignature.mk [String,String] Nat)
-
+-- TODO: Can we make test cases that trigger if the terms above don't print the way we want?
 
 end GaudisCrypt.Language.Syntax.ProgTest
 
@@ -746,14 +748,19 @@ open GaudisCrypt.Language.Programs
 open GaudisCrypt.Language.Modules
 
 /-- A field `f : Module T` of a `moduletype` declaration. -/
-syntax moduletypeField := "module " ident " : " term ";"
+/- A field of a `moduletype` declaration: either `module f : T;` (explicit module type)
+or the shorthand `proc f (T₁, …) -> R;` (a procedure field). -/
+declare_syntax_cat moduletypeField
+syntax "module " ident " : " term ";" : moduletypeField
+syntax "proc " ident " (" term,* ")" " -> " term ";" : moduletypeField
 
 /-- `moduletype Name { module f₁ : T₁; … ; module fₙ : Tₙ }` declares a record-like module
-type, where each `Tᵢ` is a `ModuleType`.  It expands to: `Name := Module (ModuleType.prod T₁
-(… Tₙ))` (right-nested product of the field types), a record `Name.Structure` with fields
-`fᵢ : Module Tᵢ`, accessors `Name.fᵢ` (via `Module.fst`/`Module.snd`), a constructor
-`Name.mk`, a destructor `Name.structure`, and the two round-trip `@[simp]` lemmas
-`Name.mk_destruct` / `Name.destruct_mk`. -/
+type, where each `Tᵢ` is a `ModuleType`.  A field may also be written
+`proc fᵢ (A₁, …) -> R;`, shorthand for `module fᵢ : ModuleType.proc (procsig (A₁, …) -> R);`.
+It expands to: `Name := Module (ModuleType.prod T₁ (… Tₙ))` (right-nested product of the
+field types), a record `Name.Structure` with fields `fᵢ : Module Tᵢ`, accessors `Name.fᵢ`
+(via `Module.fst`/`Module.snd`), a constructor `Name.mk`, a destructor `Name.structure`, and
+the two round-trip `@[simp]` lemmas `Name.mk_destruct` / `Name.destruct_mk`. -/
 syntax "moduletype " ident "{" moduletypeField* "}" : command
 
 open Lean Elab Command in
@@ -763,10 +770,13 @@ elab_rules : command
       if n == 0 then throwError "moduletype needs at least one field"
       -- per field: the field name and its `ModuleType`
       let fns ← fields.mapM fun f => match f with
-        | `(moduletypeField| module $fn:ident : $_ ;) => pure fn
+        | `(moduletypeField| module $fn:ident : $_ ;)         => pure fn
+        | `(moduletypeField| proc $fn:ident ( $_,* ) -> $_ ;) => pure fn
         | _ => throwUnsupportedSyntax
       let Ts ← fields.mapM fun f => match f with
         | `(moduletypeField| module $_ : $T:term ;) => pure T
+        | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;) =>
+            `(ModuleType.proc (ProcedureSignature.mk [$ps,*] $ret))
         | _ => throwUnsupportedSyntax
       -- the field/accessor types are `Module Tᵢ`
       let fts ← Ts.mapM fun T => `(Module $T)
@@ -856,3 +866,5 @@ end Experiment
 -- TODO: Make all things not only parseable, but also printable
 -- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
 -- TODO: Allow _ in lvalues (translated to Setter.throwaway)
+-- TODO: Syntax for writing explicit modules (needed? or def + .mk is sufficient?)
+-- TODO: Concrete syntax for module types (.arr, .proc, .unit, .proc)
