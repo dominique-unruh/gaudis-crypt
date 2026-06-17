@@ -75,6 +75,91 @@ lemma SubProbability.expected_map {γ δ : Type} (μ : SubProbability γ)
   rw [SubProbability.expected_bind]
   exact SubProbability.expected_congr _ (fun x => by rw [expected_pure])
 
+/-! ## Discrete disintegration toolkit (for `trans`)
+
+Over countable carriers (the `⊤` σ-algebra) a `SubProbability` is determined
+by its atom weights, and the integral is a countable sum of atoms. These
+helpers let us build the glued coupling for transitivity as an explicit
+atomic measure and reason about its marginals by `tsum` algebra. -/
+
+/-- Integral as a countable sum of atoms. -/
+lemma SubProbability.expected_eq_tsum {T : Type} [Countable T]
+    (μ : SubProbability T) (F : T → ENNReal) :
+    μ.expected F = ∑' t, F t * μ.1 {t} := by
+  letI : MeasurableSpace T := ⊤
+  haveI : MeasurableSingletonClass T := ⟨fun _ => trivial⟩
+  exact MeasureTheory.lintegral_countable' F
+
+/-- An atomic sub-probability built from a summable weight function. -/
+noncomputable def SubProbability.ofWeights {T : Type} [Countable T]
+    (w : T → ENNReal) (h : ∑' t, w t ≤ 1) : SubProbability T :=
+  letI : MeasurableSpace T := ⊤
+  ⟨MeasureTheory.Measure.sum (fun t => w t • MeasureTheory.Measure.dirac t), by
+    rw [Set.top_eq_univ, MeasureTheory.Measure.sum_apply _ MeasurableSet.univ]
+    simp only [MeasureTheory.Measure.smul_apply, MeasureTheory.measure_univ,
+      smul_eq_mul, mul_one]
+    exact h⟩
+
+/-- The integral against an atomic measure is the weighted sum. -/
+lemma SubProbability.ofWeights_expected {T : Type} [Countable T]
+    (w : T → ENNReal) (h : ∑' t, w t ≤ 1) (F : T → ENNReal) :
+    (SubProbability.ofWeights w h).expected F = ∑' t, F t * w t := by
+  letI : MeasurableSpace T := ⊤
+  haveI : MeasurableSingletonClass T := ⟨fun _ => trivial⟩
+  show ∫⁻ x, F x ∂(MeasureTheory.Measure.sum _) = _
+  rw [MeasureTheory.lintegral_sum_measure]
+  refine tsum_congr (fun t => ?_)
+  rw [MeasureTheory.lintegral_smul_measure, MeasureTheory.lintegral_dirac]
+  rw [smul_eq_mul, mul_comm]
+
+/-- A left-marginal atom is the sum of the joint atoms over the fiber. -/
+lemma SubProbability.marginal_fst_singleton {A B : Type} [Countable A] [Countable B]
+    (μ : SubProbability (A × B)) (a : A) :
+    (μ >>= fun w => (pure w.1 : SubProbability A)).1 {a} = ∑' b, μ.1 {(a, b)} := by
+  letI : MeasurableSpace A := ⊤
+  letI : MeasurableSpace B := ⊤
+  letI : MeasurableSpace (A × B) := ⊤
+  have hmap : (μ >>= fun w => (pure w.1 : SubProbability A)).1
+      = MeasureTheory.Measure.map Prod.fst μ.1 :=
+    MeasureTheory.Measure.bind_dirac_eq_map μ.1 measurable_from_top
+  rw [hmap, MeasureTheory.Measure.map_apply measurable_from_top
+        (MeasurableSet.singleton a)]
+  have hset : Prod.fst ⁻¹' {a} = ⋃ b, {((a, b) : A × B)} := by
+    ext ⟨x₁, x₂⟩; simp [eq_comm]
+  rw [hset, MeasureTheory.measure_iUnion (fun b b' hbb' => by
+        simp only [Set.disjoint_singleton, ne_eq, Prod.mk.injEq, not_and]
+        exact fun _ => hbb')
+      (fun _ => MeasurableSet.singleton _)]
+
+/-- A right-marginal atom is the sum of the joint atoms over the fiber. -/
+lemma SubProbability.marginal_snd_singleton {A B : Type} [Countable A] [Countable B]
+    (μ : SubProbability (A × B)) (b : B) :
+    (μ >>= fun w => (pure w.2 : SubProbability B)).1 {b} = ∑' a, μ.1 {(a, b)} := by
+  letI : MeasurableSpace A := ⊤
+  letI : MeasurableSpace B := ⊤
+  letI : MeasurableSpace (A × B) := ⊤
+  have hmap : (μ >>= fun w => (pure w.2 : SubProbability B)).1
+      = MeasureTheory.Measure.map Prod.snd μ.1 :=
+    MeasureTheory.Measure.bind_dirac_eq_map μ.1 measurable_from_top
+  rw [hmap, MeasureTheory.Measure.map_apply measurable_from_top
+        (MeasurableSet.singleton b)]
+  have hset : Prod.snd ⁻¹' {b} = ⋃ a, {((a, b) : A × B)} := by
+    ext ⟨x₁, x₂⟩; simp [eq_comm]
+  rw [hset, MeasureTheory.measure_iUnion (fun a a' haa' => by
+        simp only [Set.disjoint_singleton, ne_eq, Prod.mk.injEq, not_and]
+        exact fun h => absurd h haa')
+      (fun _ => MeasurableSet.singleton _)]
+
+/-- The atom weights of a sub-probability sum to at most one. -/
+lemma SubProbability.tsum_singleton_le_one {T : Type} [Countable T]
+    (ν : SubProbability T) : ∑' t, ν.1 {t} ≤ 1 := by
+  letI : MeasurableSpace T := ⊤
+  haveI : MeasurableSingletonClass T := ⟨fun _ => trivial⟩
+  rw [← MeasureTheory.measure_iUnion (fun a b hab => by
+        simpa [Set.disjoint_singleton] using hab) (fun _ => MeasurableSet.singleton _)]
+  calc ν.1 (⋃ t, {t}) ≤ ν.1 Set.univ := MeasureTheory.measure_mono (Set.subset_univ _)
+    _ ≤ 1 := ν.2
+
 /-! ## Bridges to `Program.prhl` -/
 
 /-- **Forward bridge** (unconditional): the structure-packaged judgment
@@ -336,6 +421,116 @@ theorem uniform_id {α' : Type} [Fintype α'] [Nonempty α']
       (Program.uniform : Program s₂ α') B :=
   Program.prhl2.uniform (Equiv.refl α') h
 
+/-! ## Tier 3: transitivity by discrete disintegration -/
+
+/-- **Transitivity**: compose a coupling of `(p, q)` with a coupling of
+    `(q, r)` into a coupling of `(p, r)`, gluing along the shared middle
+    marginal `q σ₂`. The glued weight is
+    `ν{(x,z)} = ∑ₘ μ₁{(x,m)}·μ₂{(m,z)} / q{m}` — the discrete disintegration
+    (independent given the middle), with the middle weights cancelling in
+    each marginal. Needs `Countable` on all three carriers. -/
+theorem trans {s₁ s₂ s₃ α β γ : Type}
+    [Countable (α × s₁)] [Countable (β × s₂)] [Countable (γ × s₃)]
+    {p : Program s₁ α} {q : Program s₂ β} {r : Program s₃ γ}
+    {Pre₁ : s₁ → s₂ → Prop} {Post₁ : α × s₁ → β × s₂ → Prop}
+    {Pre₂ : s₂ → s₃ → Prop} {Post₂ : β × s₂ → γ × s₃ → Prop}
+    (h₁ : Program.prhl2 Pre₁ p q Post₁) (h₂ : Program.prhl2 Pre₂ q r Post₂) :
+    Program.prhl2 (fun σ₁ σ₃ => ∃ σ₂, Pre₁ σ₁ σ₂ ∧ Pre₂ σ₂ σ₃) p r
+      (fun x z => ∃ y, Post₁ x y ∧ Post₂ y z) := by
+  rintro σ₁ σ₃ ⟨σ₂, hPre₁, hPre₂⟩
+  obtain ⟨μ₁, hm1₁, hm2₁, hsat₁⟩ := h₁ σ₁ σ₂ hPre₁
+  obtain ⟨μ₂, hm1₂, hm2₂, hsat₂⟩ := h₂ σ₂ σ₃ hPre₂
+  -- Atom-level marginals.
+  have hpσ : ∀ x, ∑' m, μ₁.1 {(x, m)} = (p σ₁).1 {x} :=
+    fun x => by rw [← SubProbability.marginal_fst_singleton μ₁ x, hm1₁]
+  have hq₁ : ∀ m, ∑' x, μ₁.1 {(x, m)} = (q σ₂).1 {m} :=
+    fun m => by rw [← SubProbability.marginal_snd_singleton μ₁ m, hm2₁]
+  have hq₂ : ∀ m, ∑' z, μ₂.1 {(m, z)} = (q σ₂).1 {m} :=
+    fun m => by rw [← SubProbability.marginal_fst_singleton μ₂ m, hm1₂]
+  have hrσ : ∀ z, ∑' m, μ₂.1 {(m, z)} = (r σ₃).1 {z} :=
+    fun z => by rw [← SubProbability.marginal_snd_singleton μ₂ z, hm2₂]
+  -- Atom domination by the middle weight, and middle weight ≤ 1.
+  have haμ₁_le : ∀ x m, μ₁.1 {(x, m)} ≤ (q σ₂).1 {m} :=
+    fun x m => by rw [← hq₁ m]; exact ENNReal.le_tsum x
+  have haμ₂_le : ∀ m z, μ₂.1 {(m, z)} ≤ (q σ₂).1 {m} :=
+    fun m z => by rw [← hq₂ m]; exact ENNReal.le_tsum z
+  have hqm_le : ∀ m, (q σ₂).1 {m} ≤ 1 := fun m =>
+    (MeasureTheory.measure_mono (Set.subset_univ _)).trans (q σ₂).2
+  -- The cancellation `a / q * q = a` (with `q = 0 → a = 0`).
+  have hcancel : ∀ a qv : ENNReal, (qv = 0 → a = 0) → qv ≤ 1 → a / qv * qv = a := by
+    intro a qv hz hle
+    by_cases h : qv = 0
+    · simp [h, hz h]
+    · exact ENNReal.div_mul_cancel h (ne_top_of_le_ne_top ENNReal.one_ne_top hle)
+  have hfac : ∀ a b c : ENNReal, a * b / c = a / c * b :=
+    fun a b c => by rw [div_eq_mul_inv, div_eq_mul_inv, mul_right_comm]
+  set wf : (α × s₁) × (γ × s₃) → ENNReal :=
+    fun xz => ∑' m, μ₁.1 {(xz.1, m)} * μ₂.1 {(m, xz.2)} / (q σ₂).1 {m} with hwf
+  -- Marginals of the glued weight.
+  have hXmarg : ∀ x, ∑' z, wf (x, z) = (p σ₁).1 {x} := by
+    intro x
+    simp only [hwf]
+    calc ∑' z, ∑' m, μ₁.1 {(x, m)} * μ₂.1 {(m, z)} / (q σ₂).1 {m}
+        = ∑' m, ∑' z, μ₁.1 {(x, m)} * μ₂.1 {(m, z)} / (q σ₂).1 {m} := ENNReal.tsum_comm
+      _ = ∑' m, μ₁.1 {(x, m)} / (q σ₂).1 {m} * ∑' z, μ₂.1 {(m, z)} := by
+          refine tsum_congr (fun m => ?_)
+          rw [← ENNReal.tsum_mul_left]
+          exact tsum_congr (fun z => hfac _ _ _)
+      _ = ∑' m, μ₁.1 {(x, m)} / (q σ₂).1 {m} * (q σ₂).1 {m} := by
+          exact tsum_congr (fun m => by rw [hq₂ m])
+      _ = ∑' m, μ₁.1 {(x, m)} := tsum_congr (fun m =>
+          hcancel _ _ (fun h0 => le_zero_iff.mp (h0 ▸ haμ₁_le x m)) (hqm_le m))
+      _ = (p σ₁).1 {x} := hpσ x
+  have hZmarg : ∀ z, ∑' x, wf (x, z) = (r σ₃).1 {z} := by
+    intro z
+    simp only [hwf]
+    calc ∑' x, ∑' m, μ₁.1 {(x, m)} * μ₂.1 {(m, z)} / (q σ₂).1 {m}
+        = ∑' m, ∑' x, μ₁.1 {(x, m)} * μ₂.1 {(m, z)} / (q σ₂).1 {m} := ENNReal.tsum_comm
+      _ = ∑' m, (∑' x, μ₁.1 {(x, m)}) * (μ₂.1 {(m, z)} / (q σ₂).1 {m}) := by
+          refine tsum_congr (fun m => ?_)
+          rw [← ENNReal.tsum_mul_right]
+          exact tsum_congr (fun x => by rw [mul_div_assoc])
+      _ = ∑' m, (q σ₂).1 {m} * (μ₂.1 {(m, z)} / (q σ₂).1 {m}) := by
+          exact tsum_congr (fun m => by rw [hq₁ m])
+      _ = ∑' m, μ₂.1 {(m, z)} := tsum_congr (fun m => by
+          rw [mul_comm]
+          exact hcancel _ _ (fun h0 => le_zero_iff.mp (h0 ▸ haμ₂_le m z)) (hqm_le m))
+      _ = (r σ₃).1 {z} := hrσ z
+  -- Total mass ≤ 1.
+  have hmass : ∑' t, wf t ≤ 1 := by
+    rw [ENNReal.tsum_prod']
+    calc ∑' x, ∑' z, wf (x, z) = ∑' x, (p σ₁).1 {x} := tsum_congr hXmarg
+      _ ≤ 1 := SubProbability.tsum_singleton_le_one (p σ₁)
+  refine ⟨SubProbability.ofWeights wf hmass, ?_, ?_, ?_⟩
+  · -- left marginal = p σ₁
+    refine SubProbability.ext_of_expected (fun F => ?_)
+    rw [SubProbability.expected_map, SubProbability.ofWeights_expected,
+        SubProbability.expected_eq_tsum, ENNReal.tsum_prod']
+    refine tsum_congr (fun x => ?_)
+    dsimp only
+    rw [ENNReal.tsum_mul_left, hXmarg]
+  · -- right marginal = r σ₃
+    refine SubProbability.ext_of_expected (fun F => ?_)
+    rw [SubProbability.expected_map, SubProbability.ofWeights_expected,
+        SubProbability.expected_eq_tsum, ENNReal.tsum_prod', ENNReal.tsum_comm]
+    refine tsum_congr (fun z => ?_)
+    dsimp only
+    rw [ENNReal.tsum_mul_left, hZmarg]
+  · -- support ⊆ composed post
+    refine SubProbability.satisfies_of_range _ _ (fun f hf => ?_)
+    rw [SubProbability.ofWeights_expected]
+    refine ENNReal.tsum_eq_zero.mpr (fun t => ?_)
+    by_cases hwz : wf t = 0
+    · rw [hwz, mul_zero]
+    · simp only [hwf] at hwz
+      obtain ⟨m, hm⟩ : ∃ m, μ₁.1 {(t.1, m)} * μ₂.1 {(m, t.2)} / (q σ₂).1 {m} ≠ 0 := by
+        by_contra h; push_neg at h; exact hwz (ENNReal.tsum_eq_zero.mpr h)
+      have h1 : μ₁.1 {(t.1, m)} ≠ 0 := by
+        intro h0; exact hm (by rw [h0, zero_mul, ENNReal.zero_div])
+      have h2 : μ₂.1 {(m, t.2)} ≠ 0 := by
+        intro h0; exact hm (by rw [h0, mul_zero, ENNReal.zero_div])
+      rw [hf t ⟨m, hsat₁ (t.1, m) h1, hsat₂ (m, t.2) h2⟩, zero_mul]
+
 end Program.prhl2
 
 /-! ## Smoke tests -/
@@ -375,5 +570,11 @@ example :
       (Program.uniform : Program Bool Bool) (Program.uniform : Program Bool Bool)
       (fun u v => u.1 = v.1) :=
   Program.prhl2.uniform_id (fun _ _ _ _ => rfl)
+
+/-- Transitivity composes two diagonal couplings. -/
+example (p : Program Bool Bool) :
+    Program.prhl2 (fun σ₁ σ₃ => ∃ σ₂, σ₁ = σ₂ ∧ σ₂ = σ₃) p p
+      (fun x z => ∃ y, x = y ∧ y = z) :=
+  Program.prhl2.trans (Program.prhl2.refl p) (Program.prhl2.refl p)
 
 end GaudisCrypt.Language.Semantics
