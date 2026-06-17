@@ -2,10 +2,77 @@ import GaudisCrypt.Language.Programs
 import GaudisCrypt.Language.Modules
 
 /-!
-Concrete syntax for programs and procedures — take 2.
+# Concrete syntax for programs, procedures, and module types
 
-This file currently implements ONLY the expression layer (sigil `$`), standalone,
-without any program/procedure syntax yet. See `syntax-ideas.md` for the design.
+Surface syntax for the imperative probabilistic language (`StmtWithHoles` /
+`ProcedureWithHoles` from `GaudisCrypt.Language.Programs`).  The user-facing notations are
+summarised below; see `syntax-ideas.md` for design notes.
+
+## Expressions — `GaudiExpr[ e ]`
+
+Wraps a Lean expression `e` as a program expression.  Inside, the `$` sigil reads program
+variables:
+* `$x`   — the value of program variable / lens `x`;
+* `$(e)` — the value of an arbitrary lens-valued term `e`.
+
+e.g. `GaudiExpr[ $a + $b * 2 ]`.  Every expression position in a statement is already an
+`GaudiExpr`, so `$` may be used directly there.
+
+## Statements / programs — `GaudiProg[ … ]`
+
+A `;`-terminated sequence of statements.  The statement forms are:
+* `skip;`
+* `x <- e;`                       — assignment;
+* `a, b <- e;`  /  `(a, b) <- e;` — tuple assignment (the parentheses are optional);
+* `x <$ e;`                       — sample `x` from distribution `e`;
+* `x <- call p (e₁, …, eₙ);`      — call procedure `p`, storing the result in `x`;
+* `call p (e₁, …, eₙ);`           — call `p`, discarding the result;
+* `if (e) { … } else { … }`       — the `else` branch is optional;
+* `while (e) { … }`
+* `{ … }`                         — a nested block.
+
+The argument list `( … )` of a `call` is always required (write `()` for no arguments).
+
+## Procedures — `proc (…) [uses (…)] [: R] { … }`
+
+A procedure *term*:
+```
+proc (x : T, y : U) uses (A : (Nat) → Bool, B : (Bool) → Nat) : R {
+  var u : V, w : W;     -- zero or more `var …;` lines of local variables
+  <statements>
+  return e
+}
+```
+* parameters `(x : T, …)` (possibly none);
+* an optional `uses (…)` clause declaring *holes* (abstract sub-procedures), each written
+  `name : (T₁, …, Tₙ) → R`.  Inside the body a hole is invoked with the ordinary
+  `call A (…)` syntax — `A` resolves to a hole when it is one of the declared names, and to
+  a concrete procedure otherwise;
+* an optional return type `: R` (inferred from `return e` when omitted);
+* local variables via one or more `var name : T, …;` lines;
+* a body of statements ending in `return e`.
+
+## Procedure types and signatures
+
+* `proctype (T, U, …) -> W`                    — the type of a closed procedure;
+* `proctype (T, …) -> W uses ((T₁,…) → R, …)`   — the type of a procedure with holes;
+* `procsig (T, U, …) -> W`                      — the bare `ProcedureSignature`.
+
+`->` is used (rather than `:`) so these nest inside type ascriptions without extra
+parentheses; they also pretty-print back into this form.
+
+## Module types — `moduletype Name { … }`
+
+A top-level command declaring a record-like module type:
+```
+moduletype Name {
+  module f₁ : T₁;
+  module f₂ : T₂;
+}
+```
+where each `Tᵢ` is a `ModuleType`.  It generates `Name` (the corresponding `Module`), a
+record `Name.Structure` with fields `fᵢ : Module Tᵢ`, accessors `Name.fᵢ`, a constructor
+`Name.mk`, a destructor `Name.structure`, and round-trip `@[simp]` lemmas relating them.
 -/
 
 namespace GaudisCrypt.Language.Syntax
@@ -674,17 +741,6 @@ example : Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat := rfl
 
 end GaudisCrypt.Language.Syntax.ProgTest
 
--- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
--- TODO: Make all things not only parseable, but also printable
--- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
--- TODO: Allow _ in lvalues (translated to Setter.throwaway)
-
-
-/-
-
-
--/
-
 
 open GaudisCrypt.Language.Programs
 open GaudisCrypt.Language.Modules
@@ -776,7 +832,8 @@ moduletype TestModuleType {
 -/
 
 moduletype TestModuleType {
-  module main : ModuleType.proc (procsig (String, Nat) -> Bool);
+  -- module main : ModuleType.proc (procsig (String, Nat) -> Bool);
+  proc main (String, Nat) -> Bool;
   module aux : ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) ModuleType.unit;
 }
 
@@ -792,3 +849,10 @@ theorem test : myMod.main = testMain := by
   simp [TestModuleType.main, myMod]
 
 end Experiment
+
+
+
+-- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
+-- TODO: Make all things not only parseable, but also printable
+-- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
+-- TODO: Allow _ in lvalues (translated to Setter.throwaway)
