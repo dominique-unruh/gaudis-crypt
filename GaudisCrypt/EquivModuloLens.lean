@@ -1,5 +1,8 @@
 import GaudisCrypt.ProgramRange
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Equivalence-modulo-lens calculus
 

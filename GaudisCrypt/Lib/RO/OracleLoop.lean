@@ -1,6 +1,9 @@
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.Transfer
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Oracle loops
 

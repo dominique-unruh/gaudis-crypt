@@ -2,6 +2,9 @@ import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.Transfer
 import GaudisCrypt.Lib.RO.OracleLoop
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-! ## Phase 4 — Oracle loops parameterised by an adversary
 
 Below, `adv` and `h_adv` are *parameters* (via a `variable` declaration), not

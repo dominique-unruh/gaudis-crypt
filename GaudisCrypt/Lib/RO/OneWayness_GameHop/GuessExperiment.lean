@@ -1,6 +1,9 @@
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
 import GaudisCrypt.Logic.PRHL.Clients.SchemaInnerEquation
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # OneWayness GameHop: Guess Experiment Framework
 

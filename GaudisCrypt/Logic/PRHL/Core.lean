@@ -1,5 +1,9 @@
 import GaudisCrypt.WeakestPreconditions
 
+open GaudisCrypt.Language.Lens
+
+namespace GaudisCrypt.Language.Semantics
+
 /-!
 # pRHL core: a relational wp calculus for `Program`
 
@@ -449,3 +453,5 @@ lemma ite_sync {s₁ s₂ α β : Type} {c₁ c₂ : Prop} [Decidable c₁] [Dec
    Program.rel.ite_sync h_iff.symm (fun h2 h1 => (h_t h1 h2).2) (fun h2 h1 => (h_f h1 h2).2)⟩
 
 end Program.relE
+
+end GaudisCrypt.Language.Semantics

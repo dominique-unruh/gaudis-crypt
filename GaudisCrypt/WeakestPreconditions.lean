@@ -394,11 +394,11 @@ theorem wp_while_invariant (b : Program s Bool) (body : Program s Unit)
 
 theorem wp_get {α : Type} (v : Lens α s) (f : Program.Post s α) :
     (Program.get v).wp f = fun st => f (v.get st, st) := by
-    simp [Program.get, wp_bind, wp_pure, wp_get_state]
+    simp [Program.get, wp_bind, wp_pure, wp_get_state, AsGetter.toG]
 
 theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit) :
     (Program.set v x).wp f = fun st => f ((), v.set x st) := by
-    simp [Program.set, wp_bind, wp_get_state, wp_set_state]
+    simp [Program.set, wp_bind, wp_get_state, wp_set_state, AsSetter.toS]
 
 /-! ## Mass-1 (full probability) lemmas
 
@@ -416,7 +416,7 @@ theorem Program.pure_mass_one {s α : Type} (x : α) (σ : s) :
 
 /-- `Program.get L` has mass 1. -/
 theorem Program.get_mass_one {s α : Type} (L : Lens α s) (σ : s) :
-    (Program.get L.toGetter).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+    (Program.get L).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_get]
 
 /-- `Program.set L v` has mass 1. -/

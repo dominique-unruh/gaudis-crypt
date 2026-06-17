@@ -11,7 +11,19 @@ import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.LensRange
 import GaudisCrypt.ProgramRange
-import GaudisCrypt.Unsorted
+
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
+/-- The ambient state of the development. (Moved here from the former scratch
+    `Unsorted.lean` so that the crypto layer doesn't depend on that file.) -/
+structure state where
+  x : Nat
+  y : Nat
+  z : String
+
+/-- A `Variable` is a lens into the ambient `state`. -/
+abbrev Variable a := Lens a state
 
 /-!
 # Random oracle primitives

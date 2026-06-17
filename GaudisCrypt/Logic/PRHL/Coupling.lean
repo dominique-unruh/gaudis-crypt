@@ -1,6 +1,8 @@
 import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.ProgramRange
 
+namespace GaudisCrypt.Language.Semantics
+
 /-!
 # Coupling introduction for `relE` (the symmetric proof principle)
 
@@ -178,3 +180,5 @@ lemma Program.relE.of_coupling {s₁ s₂ α β : Type}
       _ ≤ c.w.expected (fun uv => G uv.1) :=
           c.expected_le (fun uv hP => hFG _ _ hP)
       _ = p.wp G σ₁ := c.marg₁ G
+
+end GaudisCrypt.Language.Semantics

@@ -335,17 +335,29 @@ theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
 noncomputable
 def Program.get_state : Program s s := StateT.get
 
+/-- `Program.get`/`Program.set` accept anything that forgets to a `Getter`/`Setter`
+    — a `Getter`/`Setter` itself, or a full `Lens`/`Variable`. The value/state
+    types are `outParam`s recovered from the argument, which sidesteps the Lean
+    4.30 coercion that no longer fires when the value type is a metavariable. -/
+class AsGetter (T : Type) (a s : outParam Type) where toG : T → Getter a s
+class AsSetter (T : Type) (a s : outParam Type) where toS : T → Setter a s
+
+instance {a s : Type} : AsGetter (Getter a s) a s := ⟨id⟩
+instance {a s : Type} : AsGetter (Lens a s) a s := ⟨Lens.toGetter⟩
+instance {a s : Type} : AsSetter (Setter a s) a s := ⟨id⟩
+instance {a s : Type} : AsSetter (Lens a s) a s := ⟨Lens.toSetter⟩
+
 noncomputable
-def Program.set {a : Type} (v : Setter a s) (x : a) : Program s Unit := do
+def Program.set {T a s : Type} [AsSetter T a s] (v : T) (x : a) : Program s Unit := do
     let st <- StateT.get
-    let st' := v.set x st
+    let st' := (AsSetter.toS v).set x st
     StateT.set st'
 
 
 noncomputable
-def Program.get {a : Type} (v : Getter a s) : Program s a := do
+def Program.get {T a s : Type} [AsGetter T a s] (v : T) : Program s a := do
     let s <- StateT.get
-    pure (v.get s)
+    pure ((AsGetter.toG v).get s)
 
 noncomputable
 def Program.skip : Program s Unit := pure ()

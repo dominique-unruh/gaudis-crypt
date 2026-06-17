@@ -3,6 +3,9 @@ import GaudisCrypt.Logic.PRHL.Coupling
 import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Logic.PRHL.Loops
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # PRP/PRF switching lemma — oracles and the shared bad flag (Phase 1)
 

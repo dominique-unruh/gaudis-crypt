@@ -191,8 +191,7 @@ theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
 
 /-- `Program.get v` lives in `v.range`: it reads from `v`, doesn't write. -/
 theorem Program.inRange_get {s a : Type} (v : Lens a s) :
--- TODO: Figure out why the coercion fires only with the explicit type case (and if that can be fixed)
-    (Program.get (v : Getter a s)).inRange v.range := by
+    (Program.get v).inRange v.range := by
   intro f hf
   -- Extract: f preserves v.get.
   have h_get_pres : ∀ σ : s, v.get (f σ) = v.get σ := by
@@ -232,7 +231,7 @@ lemma Program.set_inRange_compl_of_disjoint
     `inRange_mono (inRange_get _) (Lens.range_le_compl_of_disjoint v L)`. -/
 lemma Program.get_inRange_compl_of_disjoint
     {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] :
-    (Program.get v.toGetter).inRange L.compl.range :=
+    (Program.get v).inRange L.compl.range :=
   Program.inRange_mono (Program.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)
 

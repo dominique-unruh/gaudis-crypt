@@ -1,6 +1,9 @@
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.Birthday
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Collision resistance of the random oracle
 

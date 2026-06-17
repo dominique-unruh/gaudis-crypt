@@ -1,5 +1,8 @@
 import GaudisCrypt.Lib.RO.Basic
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Lazy/eager transfer
 

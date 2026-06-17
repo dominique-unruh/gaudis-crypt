@@ -1,5 +1,8 @@
 import GaudisCrypt.Logic.PRHL
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Validation client 1: `schema_inner_equation`, relationally
 

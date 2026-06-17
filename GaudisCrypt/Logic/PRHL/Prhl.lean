@@ -1,6 +1,8 @@
 import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.Logic.PRHL.Coupling
 
+namespace GaudisCrypt.Language.Semantics
+
 /-!
 # pRHL with couplings as the primitive judgment (CLAUDE.md subtask 3)
 
@@ -391,3 +393,5 @@ example :
     (fun x₁ x₂ => Program.prhl.pure_pure (fun σ₁ σ₂ h => by
       cases h
       rfl))
+
+end GaudisCrypt.Language.Semantics

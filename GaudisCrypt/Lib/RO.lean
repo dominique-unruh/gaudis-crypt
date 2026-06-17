@@ -3,6 +3,9 @@ import GaudisCrypt.Lib.RO.Transfer
 import GaudisCrypt.Lib.RO.OracleLoop
 import GaudisCrypt.Lib.RO.ROEquiv
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # Random oracle framework
 

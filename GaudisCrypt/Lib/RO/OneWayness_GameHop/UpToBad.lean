@@ -2,6 +2,9 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Logic.PRHL
 
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
 /-!
 # OneWayness GameHop: Up-to-Bad Hop (Game 1 → Game 2), relationally
 
