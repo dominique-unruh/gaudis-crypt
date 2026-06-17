@@ -432,52 +432,85 @@ end
 hole context is built from the listed (nameless) procedure signatures.  (Uses `->` rather
 than `:` so it needs no extra parentheses inside a type ascription.) -/
 
-/-- Reducible aliases that `proctype` expands to.  Using a dedicated head (rather than a
-raw `Procedure { … }` / `ProcedureWithHoles (….append …) { … }`) keeps the term easy to
-*unexpand* back to `proctype` syntax for display, while staying defeq to the underlying
-type (so hand-written procedures still inhabit it). -/
-@[reducible] def ProcedureType (paramTypes : List Type) (ret : Type) :=
-  Procedure { params := paramTypes, ret := ret }
-
-@[reducible] def ProcedureTypeWithHoles (paramTypes : List Type) (ret : Type)
-    (holes : List ProcedureSignature) :=
-  ProcedureWithHoles (holes.foldl HoleSigs.append HoleSigs.empty)
-    { params := paramTypes, ret := ret }
-
 /-- A nameless hole signature `(T₁, …, Tₙ) → R` inside a `proctype … uses (…)` clause. -/
 declare_syntax_cat hole_sig
 syntax "(" term,* ")" " → " term : hole_sig
 
-syntax "proctype" "(" term,* ")" " -> " term (" uses " "(" hole_sig,* ")")? : term
+syntax "proctype " "(" term,* ")" " -> " term (" uses " "(" hole_sig,* ")")? : term
 
 open Lean in
 macro_rules
   | `(proctype ( $params:term,* ) -> $ret:term $[uses ( $holes:hole_sig,* )]?) => do
+      let sigTerm ← `(ProcedureSignature.mk [$params,*] $ret)
       match holes with
-      | none    => `(ProcedureType [$params,*] $ret)
+      | none    => `(Procedure $sigTerm)
       | some hs =>
-        let holeSigs ← hs.getElems.mapM fun h => match h with
+        let mut hCtx ← `(HoleSigs.empty)
+        for h in hs.getElems do
+          match h with
           | `(hole_sig| ( $ps:term,* ) → $r:term) =>
-              `(({ params := [$ps,*], ret := $r } : ProcedureSignature))
+              hCtx ← `(($hCtx).append (ProcedureSignature.mk [$ps,*] $r))
           | _ => Macro.throwUnsupported
-        `(ProcedureTypeWithHoles [$params,*] $ret [$holeSigs,*])
+        `(ProcedureWithHoles $hCtx $sigTerm)
 
-/-! `proctype` unexpanders, so the type prints back as `proctype (…) -> W [uses (…)]`. -/
+/-! `proctype` unexpanders.  A signature already prints as `procsig (…) -> …` (the
+`ProcedureSignature.mk` unexpander), so we just rewrite `Procedure (procsig …)` and
+`ProcedureWithHoles … (procsig …)` to `proctype …`.  Parameter lists are read off the raw
+`procsig` node (a category quotation can't match the sepBy inside the parens). -/
 
 open Lean PrettyPrinter in
-@[app_unexpander ProcedureType]
-def unexpandProcedureType : Unexpander
-  | `($_ [$ps,*] $r) => `(proctype ( $ps,* ) -> $r)
+/-- If `s` is a `procsig ( … ) -> …` node, return its parameter list and return type. -/
+private def procsigParts? (s : Syntax) : Option (Syntax.TSepArray `term "," × TSyntax `term) :=
+  let a := s.getArgs
+  if a.size == 6 && a[0]!.getAtomVal == "procsig" then some (⟨a[2]!.getArgs⟩, ⟨a[5]!⟩) else none
+
+open Lean PrettyPrinter in
+@[app_unexpander Procedure]
+def unexpandProcedure : Unexpander
+  | `($_ $sig) => do
+      let some (ps, r) := procsigParts? sig.raw | throw ()
+      `(proctype ( $ps,* ) -> $r)
   | _ => throw ()
 
 open Lean PrettyPrinter in
-@[app_unexpander ProcedureTypeWithHoles]
-def unexpandProcedureTypeWithHoles : Unexpander
-  | `($_ [$ps,*] $r [$hs,*]) => do
-      let holeSyns ← hs.getElems.mapM fun h => match h with
-        | `({ params := [$hps,*], ret := $hr }) => `(hole_sig| ( $hps,* ) → $hr)
-        | _ => throw ()
-      `(proctype ( $ps,* ) -> $r uses ( $holeSyns,* ))
+/-- Collect every `procsig ( … ) -> …` node in `s`, left to right.  (Matching field
+notation on `HoleSigs.append` in a quotation is brittle, so we just gather the leaves.)
+A hole context `HoleSigs.empty.append s₁ … .append sₙ` has the hole signatures as its
+only `procsig` nodes, in declaration order. -/
+private partial def collectProcsigParts (s : Syntax) :
+    Array (Syntax.TSepArray `term "," × TSyntax `term) :=
+  match procsigParts? s with
+  | some pr => #[pr]
+  | none    => s.getArgs.foldl (fun acc a => acc ++ collectProcsigParts a) #[]
+
+open Lean PrettyPrinter in
+@[app_unexpander ProcedureWithHoles]
+def unexpandProcedureWithHoles : Unexpander
+  | `($_ $holes $sig) => do
+      let some (ps, r) := procsigParts? sig.raw | throw ()
+      let holeParts := collectProcsigParts holes.raw
+      if holeParts.isEmpty then `(proctype ( $ps,* ) -> $r)
+      else
+        let holeSyns ← holeParts.mapM fun (hps, hr) => `(hole_sig| ( $hps,* ) → $hr)
+        `(proctype ( $ps,* ) -> $r uses ( $holeSyns,* ))
+  | _ => throw ()
+
+/-! ### Procedure *signature* syntax
+
+`procsig (T, U, V) -> W` is the bare `ProcedureSignature.mk [T, U, V] W` (the same surface
+form as `proctype`, minus the holes — a signature has none).  By construction
+`Procedure (procsig …) = proctype …`.  The unexpander is on `ProcedureSignature.mk`, so any
+signature with a literal parameter list prints back as `procsig (…) -> …`. -/
+
+syntax "procsig " "(" term,* ")" " -> " term : term
+
+macro_rules
+  | `(procsig ( $params:term,* ) -> $ret:term) => `(ProcedureSignature.mk [$params,*] $ret)
+
+open Lean PrettyPrinter in
+@[app_unexpander ProcedureSignature.mk]
+def unexpandProcSig : Unexpander
+  | `($_ [$ps,*] $r) => `(procsig ( $ps,* ) -> $r)
   | _ => throw ()
 
 end GaudisCrypt.Language.Syntax
@@ -525,7 +558,7 @@ noncomputable def prog_while : Stmt Unit := GaudiProg[
 ]
 
 noncomputable def prog_sample : Stmt Unit := GaudiProg[
-  c <$ SubProbability.uniform;
+  c <$ GaudisCrypt.Language.Semantics.SubProbability.uniform;
 ]
 
 noncomputable def split : Stmt Unit := GaudiProg[
@@ -629,9 +662,133 @@ example : (proctype (Nat, Bool) -> Nat) = Procedure { params := [Nat, Bool], ret
 #check proctype (Nat) -> Nat
 #check proctype (Nat, Bool) -> Nat uses ((Nat) → Bool, (Bool) → Nat)
 
+-- `procsig (…) -> W` is the bare signature; `Procedure (procsig …) = proctype …`
+example : (procsig (Nat, Bool) -> Nat) = ({ params := [Nat, Bool], ret := Nat } : ProcedureSignature) :=
+  rfl
+example : Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat := rfl
+#check procsig (Nat, Bool) -> Nat
+#check ProcedureSignature.mk [String,String] Nat
+#check Procedure (ProcedureSignature.mk [String,String] Nat)
+#check ProcedureWithHoles (.append .empty (procsig () -> Unit)) (ProcedureSignature.mk [String,String] Nat)
+
+
 end GaudisCrypt.Language.Syntax.ProgTest
 
 -- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
 -- TODO: Make all things not only parseable, but also printable
 -- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
 -- TODO: Allow _ in lvalues (translated to Setter.throwaway)
+
+
+/-
+
+
+-/
+
+
+open GaudisCrypt.Language.Programs
+open GaudisCrypt.Language.Modules
+
+/-- A field `f : Module T` of a `moduletype` declaration. -/
+syntax moduletypeField := "module " ident " : " term ";"
+
+/-- `moduletype Name { module f₁ : T₁; … ; module fₙ : Tₙ }` declares a record-like module
+type, where each `Tᵢ` is a `ModuleType`.  It expands to: `Name := Module (ModuleType.prod T₁
+(… Tₙ))` (right-nested product of the field types), a record `Name.Structure` with fields
+`fᵢ : Module Tᵢ`, accessors `Name.fᵢ` (via `Module.fst`/`Module.snd`), a constructor
+`Name.mk`, a destructor `Name.structure`, and the two round-trip `@[simp]` lemmas
+`Name.mk_destruct` / `Name.destruct_mk`. -/
+syntax "moduletype " ident "{" moduletypeField* "}" : command
+
+open Lean Elab Command in
+elab_rules : command
+  | `(moduletype $nm:ident { $fields:moduletypeField* }) => do
+      let n := fields.size
+      if n == 0 then throwError "moduletype needs at least one field"
+      -- per field: the field name and its `ModuleType`
+      let fns ← fields.mapM fun f => match f with
+        | `(moduletypeField| module $fn:ident : $_ ;) => pure fn
+        | _ => throwUnsupportedSyntax
+      let Ts ← fields.mapM fun f => match f with
+        | `(moduletypeField| module $_ : $T:term ;) => pure T
+        | _ => throwUnsupportedSyntax
+      -- the field/accessor types are `Module Tᵢ`
+      let fts ← Ts.mapM fun T => `(Module $T)
+      -- right-nested product of the underlying types
+      let prodT ← Ts.pop.foldrM (fun T acc => `(ModuleType.prod $T $acc)) Ts.back!
+      -- generated names
+      let nb := nm.getId
+      let structId := mkIdent (nb.str "Structure")
+      let ctorId   := mkIdent ((nb.str "Structure").str "mk")
+      let mkId     := mkIdent (nb.str "mk")
+      let structFn := mkIdent (nb.str "structure")
+      let accIds   := fns.map fun f => mkIdent (nb ++ f.getId)
+      let projId : Nat → Ident := fun i => mkIdent ((nb.str "Structure") ++ fns[i]!.getId)
+      let mId := mkIdent `m
+      let sId := mkIdent `s
+      -- (1) the module type
+      elabCommand (← `(def $nm := Module $prodT))
+      -- (2) the record structure
+      elabCommand (← `(structure $structId where $[$fns:ident : $fts:term]*))
+      -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last
+      for i in [0:n] do
+        let accId := accIds[i]!
+        let ft := fts[i]!
+        let mut e : Term := mId
+        for _ in [0:i] do e ← `(Module.snd $e)
+        if i + 1 < n then e ← `(Module.fst $e)
+        elabCommand (← `(def $accId ($mId : $nm) : $ft := $e))
+      -- (4) constructor: right-nested `Module.pair`
+      let mut mkBody : Term ← `($(projId (n-1)) $sId)
+      for i in [0:n-1] do
+        let j := n - 2 - i
+        let pj := projId j
+        mkBody ← `(Module.pair ($pj $sId) $mkBody)
+      elabCommand (← `(@[reducible] def $mkId ($sId : $structId) : $nm := $mkBody))
+      -- (5) destructor
+      let args ← (Array.range n).mapM fun i => do
+        let accId : Ident := accIds[i]!
+        `($accId $mId)
+      elabCommand (← `(def $structFn ($mId : $nm) : $structId := $ctorId $args*))
+      -- (6) / (7) round-trip lemmas
+      let baseLemmas : Array Ident := #[mkId, structFn] ++ accIds
+      elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "mk_destruct")) ($sId : $structId) :
+          $structFn ($mkId $sId) = $sId := by simp [$[$baseLemmas:ident],*]))
+      let dmLemmas : Array Ident := baseLemmas.push (mkIdent `Module.pair_fst_snd)
+      elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "destruct_mk")) ($mId : $nm) :
+          $mkId ($structFn $mId) = $mId := by simp [$[$dmLemmas:ident],*]))
+
+namespace Experiment
+variable [ProgramSpec]
+
+/-
+
+Define a toplevel command `moduletype` that would transform something like the following
+to the sequence of commands given below between START and END. Of course, this should not be restricted to allowing only two fields (main, aux)
+but an arbitrary number.
+
+
+moduletype TestModuleType {
+  main : Module (ModuleType.proc (procsig (String,Nat) -> Bool));
+  module aux : Module (ModuleType.proc (procsig (Nat) -> String)) (ModuleType.unit));
+}
+
+-/
+
+moduletype TestModuleType {
+  module main : ModuleType.proc (procsig (String, Nat) -> Bool);
+  module aux : ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) ModuleType.unit;
+}
+
+
+
+axiom testMain : Module (ModuleType.proc (procsig (String,Nat) -> Bool))
+axiom testAux : Module (ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) (ModuleType.unit))
+
+noncomputable
+def myMod := TestModuleType.mk {main := testMain, aux := testAux}
+
+theorem test : myMod.main = testMain := by
+  simp [TestModuleType.main, myMod]
+
+end Experiment
