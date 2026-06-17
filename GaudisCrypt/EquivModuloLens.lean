@@ -1,5 +1,7 @@
 import GaudisCrypt.ProgramRange
 
+namespace GaudisCrypt.Language.Semantics
+
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
 
@@ -148,3 +150,5 @@ lemma loop_n_then_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     (loop_n_congr h_body h_body_eq n)
     (fun _ => h_final_eq)
     (fun _ => h_final)
+
+end GaudisCrypt.Language.Semantics

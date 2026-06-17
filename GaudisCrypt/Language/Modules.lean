@@ -1760,7 +1760,11 @@ theorem reduce_pair {T U} (m1 : ModuleExpression Γ T) (m2 : ModuleExpression Γ
   rw [key]; conv_lhs => unfold reduce
   rw [dif_pos (Normal.pair (reduce_normal m1) (reduce_normal m2))]
 
-
+theorem pair_type_is_pair {m : ModuleExpression _ (.prod t1 t2)} (_ : NormalClosed m) :
+  ∃ m1 m2, m = .pair m1 m2 := by
+  rename_i h
+  cases h
+  exact ⟨_, _, rfl⟩
 
 /- # Modules -/
 
@@ -1817,6 +1821,19 @@ theorem Module.snd_pair {T U} (m1 : Module T) (m2 : Module U) :
     (m1.pair m2).snd = m2 := by
   ext
   simp [Module.snd, Module.pair, reduce_pair]
+
+theorem Module.pair_fst_snd : (Module.fst m).pair (Module.snd m) = m := by
+  ext
+  -- a closed normal term of product type is a pair `a, b` with `a`, `b` normal
+  obtain ⟨a, b, he⟩ := pair_type_is_pair m.normal
+  have hn := m.normal
+  rw [he] at hn
+  cases hn with
+  | pair hna hnb =>
+      have ha : reduce a = a := Module.reduce_expression ⟨a, hna⟩
+      have hb : reduce b = b := Module.reduce_expression ⟨b, hnb⟩
+      simp only [Module.fst, Module.snd, Module.pair, Module.toModule_expression, he,
+        reduce_fst, reduce_snd, reduce_pair, ha, hb]
 
 /- # Demo -/
 
