@@ -160,6 +160,133 @@ lemma SubProbability.tsum_singleton_le_one {T : Type} [Countable T]
   calc ν.1 (⋃ t, {t}) ≤ ν.1 Set.univ := MeasureTheory.measure_mono (Set.subset_univ _)
     _ ≤ 1 := ν.2
 
+/-! ### Bind algebra and fixed-point helpers (for `while_loop`) -/
+
+/-- Bind of the zero sub-probability is zero. -/
+lemma SubProbability.bot_bind {A C : Type} (f : A → SubProbability C) :
+    (⊥ : SubProbability A) >>= f = ⊥ := by
+  refine SubProbability.ext_of_expected (fun test => ?_)
+  rw [SubProbability.expected_bind, SubProbability.expected_bot,
+      SubProbability.expected_bot]
+
+/-- Associativity of bind. -/
+lemma SubProbability.bind_assoc' {A B C : Type} (μ : SubProbability A)
+    (f : A → SubProbability B) (g : B → SubProbability C) :
+    (μ >>= f) >>= g = μ >>= fun a => f a >>= g := by
+  refine SubProbability.ext_of_expected (fun test => ?_)
+  simp only [SubProbability.expected_bind]
+
+/-- A bind whose continuation reads only the first coordinate factors through
+    the first marginal. -/
+lemma SubProbability.bind_fst_left {A B C : Type} (μ : SubProbability (A × B))
+    (H : A → SubProbability C) :
+    (μ >>= fun ab => H ab.1) = (μ >>= fun ab => (pure ab.1 : SubProbability A)) >>= H := by
+  refine SubProbability.ext_of_expected (fun test => ?_)
+  simp only [SubProbability.expected_bind, expected_pure]
+
+/-- A bind whose continuation reads only the second coordinate factors through
+    the second marginal. -/
+lemma SubProbability.bind_snd_left {A B C : Type} (μ : SubProbability (A × B))
+    (H : B → SubProbability C) :
+    (μ >>= fun ab => H ab.2) = (μ >>= fun ab => (pure ab.2 : SubProbability B)) >>= H := by
+  refine SubProbability.ext_of_expected (fun test => ?_)
+  simp only [SubProbability.expected_bind, expected_pure]
+
+/-- Two binds with continuations agreeing on the support are equal. -/
+lemma SubProbability.bind_congr_support {A C : Type} [Countable A]
+    (μ : SubProbability A) {F F' : A → SubProbability C}
+    (h : ∀ a, μ.1 {a} ≠ 0 → F a = F' a) : μ >>= F = μ >>= F' := by
+  refine SubProbability.ext_of_expected (fun test => ?_)
+  rw [SubProbability.expected_bind, SubProbability.expected_bind,
+      SubProbability.expected_eq_tsum, SubProbability.expected_eq_tsum]
+  refine tsum_congr (fun a => ?_)
+  by_cases ha : μ.1 {a} = 0
+  · rw [ha, mul_zero, mul_zero]
+  · rw [h a ha]
+
+/-- The integral against a least fixed point is the supremum of the integrals
+    against the Kleene iterates (monotone convergence). -/
+lemma SubProbability.expected_lfp_eq_iSup {a : Type} {b : a → Type}
+    (F : ((x : a) → SubProbability (b x)) →𝒄 ((x : a) → SubProbability (b x)))
+    (y : a) (g : b y → ENNReal) :
+    (F.lfp y).expected g = ⨆ n, (F^[n] ⊥ y).expected g := by
+  simp only [SubProbability.expected]
+  letI : MeasurableSpace (b y) := ⊤
+  have hmono : Monotone fun n => (F^[n] ⊥ y).1 :=
+    fun m n hmn => (Monotone.monotone_iterate_of_le_map F.monotone (OrderBot.bot_le _) hmn) y
+  rw [show (F.lfp y).1 = ⨆ n, (F^[n] ⊥ y).1 from rfl, lintegral_iSup_measure_nat hmono]
+
+/-- If every Kleene iterate is supported in `B`, so is the least fixed point. -/
+lemma SubProbability.satisfies_lfp {a : Type} {b : a → Type} [∀ y, Countable (b y)]
+    (F : ((x : a) → SubProbability (b x)) →𝒄 ((x : a) → SubProbability (b x)))
+    (y : a) (B : b y → Prop) (h : ∀ n, (F^[n] ⊥ y).satisfies B) :
+    (F.lfp y).satisfies B := by
+  refine SubProbability.satisfies_of_range _ _ (fun f hf => ?_)
+  rw [SubProbability.expected_lfp_eq_iSup]
+  have hz : ∀ n, (F^[n] ⊥ y).expected f = 0 :=
+    fun n => (F^[n] ⊥ y).range_of_satisfies B (h n) f hf
+  simp [hz]
+
+/-- The zero sub-probability is supported anywhere (vacuously). -/
+lemma SubProbability.satisfies_bot {C : Type} (B : C → Prop) :
+    (⊥ : SubProbability C).satisfies B := by
+  intro y hy
+  simp only [show (⊥ : SubProbability C).1 = 0 from rfl, MeasureTheory.Measure.coe_zero,
+    Pi.zero_apply, ne_eq, not_true_eq_false] at hy
+
+/-- A point mass is supported at its point. -/
+lemma SubProbability.satisfies_pure {C : Type} (x : C) (B : C → Prop) (hB : B x) :
+    (pure x : SubProbability C).satisfies B := by
+  letI : MeasurableSpace C := ⊤
+  haveI : MeasurableSingletonClass C := ⟨fun _ => trivial⟩
+  intro y hy
+  have hyx : y = x := by
+    by_contra hne
+    refine hy ?_
+    show (MeasureTheory.Measure.dirac x) {y} = 0
+    rw [MeasureTheory.Measure.dirac_apply' x (MeasurableSet.singleton y),
+      Set.indicator_of_notMem (by simpa [eq_comm] using hne)]
+  rwa [hyx]
+
+/-- Support of a bind: if each fibre is supported in `B`, so is the bind. -/
+lemma SubProbability.satisfies_bind {A C : Type} [Countable A] [Countable C]
+    (μ : SubProbability A) {F : A → SubProbability C} {B : C → Prop}
+    (h : ∀ a, μ.1 {a} ≠ 0 → (F a).satisfies B) : (μ >>= F).satisfies B := by
+  refine SubProbability.satisfies_of_range _ _ (fun f hf => ?_)
+  rw [SubProbability.expected_bind, SubProbability.expected_eq_tsum]
+  refine ENNReal.tsum_eq_zero.mpr (fun a => ?_)
+  by_cases ha : μ.1 {a} = 0
+  · rw [ha, mul_zero]
+  · rw [(F a).range_of_satisfies B (h a ha) f hf, zero_mul]
+
+/-- Monotone convergence for the program `while_loop` (curried fixed point). -/
+lemma expected_while_lfp_iSup {s : Type} (cond : Program s Bool) (body : Program s Unit)
+    (σ : s) (G : Unit × s → ENNReal) :
+    (while_loop cond body σ).expected G
+      = ⨆ n, ((while_iteration cond body)^[n] ⊥ () σ).expected G := by
+  simp only [SubProbability.expected]
+  letI : MeasurableSpace (Unit × s) := ⊤
+  have hmono : Monotone fun n => ((while_iteration cond body)^[n] ⊥ () σ).1 :=
+    fun m n hmn =>
+      ((Monotone.monotone_iterate_of_le_map (while_iteration cond body).monotone
+        (OrderBot.bot_le _) hmn) ()) σ
+  rw [show (while_loop cond body σ).1
+        = ⨆ n, ((while_iteration cond body)^[n] ⊥ () σ).1 from rfl,
+      lintegral_iSup_measure_nat hmono]
+
+/-- Unfold one step of the `while_iteration` functional at a state. -/
+lemma while_iteration_apply {s : Type} (cond : Program s Bool) (body : Program s Unit)
+    (fp : Unit → Program s Unit) (σ : s) :
+    while_iteration cond body fp () σ
+      = cond σ >>= fun bσ =>
+          if bσ.1 then body bσ.2 >>= fun uσ => fp () uσ.2
+          else pure ((), bσ.2) := by
+  show cond σ >>= (fun bσ =>
+      (if bσ.1 then (body >>= fun _ => fp ()) else (pure () : Program s Unit)) bσ.2) = _
+  congr 1
+  funext bσ
+  split_ifs with h <;> rfl
+
 /-! ## Bridges to `Program.prhl` -/
 
 /-- **Forward bridge** (unconditional): the structure-packaged judgment
@@ -531,6 +658,167 @@ theorem trans {s₁ s₂ s₃ α β γ : Type}
         intro h0; exact hm (by rw [h0, mul_zero, ENNReal.zero_div])
       rw [hf t ⟨m, hsat₁ (t.1, m) h1, hsat₂ (m, t.2) h2⟩, zero_mul]
 
+/-- **Synchronized while rule** (the coupling least fixed point). Under the
+    invariant the guards are coupled to agree (`PostC` records the invariant
+    refined by the guard value), the bodies preserve the invariant from
+    `PostC true`, and the loops relate at `PostC false`. The witness coupling
+    is `Φ.lfp`, the least fixed point of the coupling transformer that runs
+    the guard coupling and, while it fires, the body coupling. -/
+theorem while_loop {s₁ s₂ : Type}
+    [Countable (Unit × s₁)] [Countable (Unit × s₂)]
+    [Countable (Bool × s₁)] [Countable (Bool × s₂)]
+    {cond₁ : Program s₁ Bool} {body₁ : Program s₁ Unit}
+    {cond₂ : Program s₂ Bool} {body₂ : Program s₂ Unit}
+    {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
+    (h_cond : Program.prhl2 Inv cond₁ cond₂ (fun u v => u.1 = v.1 ∧ PostC u.1 u.2 v.2))
+    (h_body : Program.prhl2 (PostC true) body₁ body₂ (fun u v => Inv u.2 v.2)) :
+    Program.prhl2 Inv (while_loop cond₁ body₁) (while_loop cond₂ body₂)
+      (fun u v => PostC false u.2 v.2) := by
+  classical
+  -- Guard and body coupling kernels (⊥ off the relevant relation).
+  set Kc : s₁ → s₂ → SubProbability ((Bool × s₁) × (Bool × s₂)) :=
+    fun a b => if h : Inv a b then (h_cond a b h).choose else ⊥ with hKc
+  set Kb : s₁ → s₂ → SubProbability ((Unit × s₁) × (Unit × s₂)) :=
+    fun a b => if h : PostC true a b then (h_body a b h).choose else ⊥ with hKb
+  have Kc_fst : ∀ a b, Inv a b → (Kc a b >>= fun w => pure w.1) = cond₁ a := by
+    intro a b h; simp only [hKc, dif_pos h]; exact (h_cond a b h).choose_spec.1
+  have Kc_snd : ∀ a b, Inv a b → (Kc a b >>= fun w => pure w.2) = cond₂ b := by
+    intro a b h; simp only [hKc, dif_pos h]; exact (h_cond a b h).choose_spec.2.1
+  have Kc_sat : ∀ a b, Inv a b →
+      (Kc a b).satisfies (fun x => x.1.1 = x.2.1 ∧ PostC x.1.1 x.1.2 x.2.2) := by
+    intro a b h; simp only [hKc, dif_pos h]; exact (h_cond a b h).choose_spec.2.2
+  have Kb_fst : ∀ a b, PostC true a b → (Kb a b >>= fun w => pure w.1) = body₁ a := by
+    intro a b h; simp only [hKb, dif_pos h]; exact (h_body a b h).choose_spec.1
+  have Kb_snd : ∀ a b, PostC true a b → (Kb a b >>= fun w => pure w.2) = body₂ b := by
+    intro a b h; simp only [hKb, dif_pos h]; exact (h_body a b h).choose_spec.2.1
+  have Kb_sat : ∀ a b, PostC true a b → (Kb a b).satisfies (fun x => Inv x.1.2 x.2.2) := by
+    intro a b h; simp only [hKb, dif_pos h]; exact (h_body a b h).choose_spec.2.2
+  -- The coupling transformer and its application lemma.
+  set Φ : ((s₁ × s₂) → SubProbability ((Unit × s₁) × (Unit × s₂))) →𝒄
+          ((s₁ × s₂) → SubProbability ((Unit × s₁) × (Unit × s₂))) :=
+    OmegaCompletePartialOrder.ContinuousHom.ofFun
+      (fun φ st => Kc st.1 st.2 >>= fun gp =>
+        if gp.1.1 then Kb gp.1.2 gp.2.2 >>= fun bp => φ (bp.1.2, bp.2.2)
+        else pure (((), gp.1.2), ((), gp.2.2))) with hΦ
+  have hΦ_app : ∀ (φ : (s₁ × s₂) → SubProbability ((Unit × s₁) × (Unit × s₂)))
+      (st : s₁ × s₂), Φ φ st = Kc st.1 st.2 >>= fun gp =>
+        if gp.1.1 then Kb gp.1.2 gp.2.2 >>= fun bp => φ (bp.1.2, bp.2.2)
+        else pure (((), gp.1.2), ((), gp.2.2)) := fun φ st => rfl
+  -- Left marginal of each Kleene iterate.
+  have hML : ∀ n σ₁ σ₂, Inv σ₁ σ₂ →
+      (Φ^[n] ⊥ (σ₁, σ₂)) >>= (fun w => pure w.1)
+        = (while_iteration cond₁ body₁)^[n] ⊥ () σ₁ := by
+    intro n
+    induction n with
+    | zero =>
+      intro σ₁ σ₂ _
+      simp only [Function.iterate_zero, id_eq]
+      rw [show (⊥ : (s₁ × s₂) → SubProbability _) (σ₁, σ₂) = ⊥ from rfl,
+          show (⊥ : Unit → Program s₁ Unit) () σ₁ = ⊥ from rfl]
+      exact SubProbability.bot_bind _
+    | succ n ih =>
+      intro σ₁ σ₂ hInv
+      rw [Function.iterate_succ_apply', hΦ_app]
+      dsimp only
+      rw [SubProbability.bind_assoc',
+          SubProbability.bind_congr_support (Kc σ₁ σ₂)
+            (F' := fun gp => if gp.1.1
+              then body₁ gp.1.2 >>= fun u => (while_iteration cond₁ body₁)^[n] ⊥ () u.2
+              else pure ((), gp.1.2))]
+      · rw [SubProbability.bind_fst_left (H := fun b : Bool × s₁ => if b.1
+              then body₁ b.2 >>= fun u => (while_iteration cond₁ body₁)^[n] ⊥ () u.2
+              else pure ((), b.2)),
+          Kc_fst σ₁ σ₂ hInv, Function.iterate_succ_apply', while_iteration_apply]
+      · intro gp hgp
+        obtain ⟨hb_eq, hpc⟩ := Kc_sat σ₁ σ₂ hInv gp hgp
+        by_cases hb : gp.1.1
+        · rw [if_pos hb, if_pos hb, SubProbability.bind_assoc',
+              SubProbability.bind_congr_support (Kb gp.1.2 gp.2.2)
+                (F' := fun bp => (while_iteration cond₁ body₁)^[n] ⊥ () bp.1.2)]
+          · rw [SubProbability.bind_fst_left (H := fun u : Unit × s₁ =>
+                  (while_iteration cond₁ body₁)^[n] ⊥ () u.2),
+              Kb_fst gp.1.2 gp.2.2 (hb ▸ hpc)]
+          · intro bp hbp
+            exact ih bp.1.2 bp.2.2 (Kb_sat gp.1.2 gp.2.2 (hb ▸ hpc) bp hbp)
+        · rw [if_neg hb, if_neg hb, SubProbability.pure_bind]
+  -- Right marginal of each Kleene iterate.
+  have hMR : ∀ n σ₁ σ₂, Inv σ₁ σ₂ →
+      (Φ^[n] ⊥ (σ₁, σ₂)) >>= (fun w => pure w.2)
+        = (while_iteration cond₂ body₂)^[n] ⊥ () σ₂ := by
+    intro n
+    induction n with
+    | zero =>
+      intro σ₁ σ₂ _
+      simp only [Function.iterate_zero, id_eq]
+      rw [show (⊥ : (s₁ × s₂) → SubProbability _) (σ₁, σ₂) = ⊥ from rfl,
+          show (⊥ : Unit → Program s₂ Unit) () σ₂ = ⊥ from rfl]
+      exact SubProbability.bot_bind _
+    | succ n ih =>
+      intro σ₁ σ₂ hInv
+      rw [Function.iterate_succ_apply', hΦ_app]
+      dsimp only
+      rw [SubProbability.bind_assoc',
+          SubProbability.bind_congr_support (Kc σ₁ σ₂)
+            (F' := fun gp => if gp.2.1
+              then body₂ gp.2.2 >>= fun u => (while_iteration cond₂ body₂)^[n] ⊥ () u.2
+              else pure ((), gp.2.2))]
+      · rw [SubProbability.bind_snd_left (H := fun b : Bool × s₂ => if b.1
+              then body₂ b.2 >>= fun u => (while_iteration cond₂ body₂)^[n] ⊥ () u.2
+              else pure ((), b.2)),
+          Kc_snd σ₁ σ₂ hInv, Function.iterate_succ_apply', while_iteration_apply]
+      · intro gp hgp
+        obtain ⟨hb_eq, hpc⟩ := Kc_sat σ₁ σ₂ hInv gp hgp
+        by_cases hb : gp.1.1
+        · rw [if_pos hb, if_pos (hb_eq ▸ hb : gp.2.1 = true),
+              SubProbability.bind_assoc',
+              SubProbability.bind_congr_support (Kb gp.1.2 gp.2.2)
+                (F' := fun bp => (while_iteration cond₂ body₂)^[n] ⊥ () bp.2.2)]
+          · rw [SubProbability.bind_snd_left (H := fun u : Unit × s₂ =>
+                  (while_iteration cond₂ body₂)^[n] ⊥ () u.2),
+              Kb_snd gp.1.2 gp.2.2 (hb ▸ hpc)]
+          · intro bp hbp
+            exact ih bp.1.2 bp.2.2 (Kb_sat gp.1.2 gp.2.2 (hb ▸ hpc) bp hbp)
+        · rw [if_neg hb, if_neg (by rw [← hb_eq]; exact hb : ¬ gp.2.1 = true),
+              SubProbability.pure_bind]
+  -- Support of each Kleene iterate.
+  have hS : ∀ n σ₁ σ₂, Inv σ₁ σ₂ →
+      (Φ^[n] ⊥ (σ₁, σ₂)).satisfies (fun x => PostC false x.1.2 x.2.2) := by
+    intro n
+    induction n with
+    | zero =>
+      intro σ₁ σ₂ _
+      simp only [Function.iterate_zero, id_eq]
+      rw [show (⊥ : (s₁ × s₂) → SubProbability _) (σ₁, σ₂) = ⊥ from rfl]
+      exact SubProbability.satisfies_bot _
+    | succ n ih =>
+      intro σ₁ σ₂ hInv
+      rw [Function.iterate_succ_apply', hΦ_app]
+      refine SubProbability.satisfies_bind (Kc σ₁ σ₂) (fun gp hgp => ?_)
+      obtain ⟨hb_eq, hpc⟩ := Kc_sat σ₁ σ₂ hInv gp hgp
+      by_cases hb : gp.1.1
+      · rw [if_pos hb]
+        exact SubProbability.satisfies_bind (Kb gp.1.2 gp.2.2)
+          (fun bp hbp => ih bp.1.2 bp.2.2 (Kb_sat gp.1.2 gp.2.2 (hb ▸ hpc) bp hbp))
+      · rw [if_neg hb]
+        refine SubProbability.satisfies_pure _ _ ?_
+        have : gp.1.1 = false := by simpa using hb
+        rw [this] at hpc
+        exact hpc
+  -- Assemble the coupling witness at each invariant-related state.
+  intro σ₁ σ₂ hInv
+  refine ⟨Φ.lfp (σ₁, σ₂), ?_, ?_, ?_⟩
+  · refine SubProbability.ext_of_expected (fun G => ?_)
+    rw [SubProbability.expected_map, SubProbability.expected_lfp_eq_iSup,
+        expected_while_lfp_iSup]
+    refine iSup_congr (fun n => ?_)
+    rw [← SubProbability.expected_map, hML n σ₁ σ₂ hInv]
+  · refine SubProbability.ext_of_expected (fun G => ?_)
+    rw [SubProbability.expected_map, SubProbability.expected_lfp_eq_iSup,
+        expected_while_lfp_iSup]
+    refine iSup_congr (fun n => ?_)
+    rw [← SubProbability.expected_map, hMR n σ₁ σ₂ hInv]
+  · exact SubProbability.satisfies_lfp Φ (σ₁, σ₂) _ (fun n => hS n σ₁ σ₂ hInv)
+
 end Program.prhl2
 
 /-! ## Smoke tests -/
@@ -576,5 +864,15 @@ example (p : Program Bool Bool) :
     Program.prhl2 (fun σ₁ σ₃ => ∃ σ₂, σ₁ = σ₂ ∧ σ₂ = σ₃) p p
       (fun x z => ∃ y, x = y ∧ y = z) :=
   Program.prhl2.trans (Program.prhl2.refl p) (Program.prhl2.refl p)
+
+/-- The synchronized while rule on a loop that exits immediately. -/
+example :
+    Program.prhl2 Eq
+      (while_loop (pure false : Program Bool Bool) (pure ()))
+      (while_loop (pure false : Program Bool Bool) (pure ()))
+      (fun u v => u.2 = v.2) :=
+  Program.prhl2.while_loop (PostC := fun _ σ₁ σ₂ => σ₁ = σ₂)
+    (Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩))
+    (Program.prhl2.pure_pure (fun _ _ h => h))
 
 end GaudisCrypt.Language.Semantics
