@@ -923,17 +923,38 @@ theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {
     (d σ₂).1 B ≤ (c σ₁).1 {x | ∃ y ∈ B, Post x y} :=
   h.2.hall hpre B
 
-/-- **Discrete Strassen / coupling lifting (axiom).** Over countable
-    carriers, two sub-probabilities whose masses satisfy Hall's
-    marginal-domination condition in both directions admit a coupling with
-    those marginals, supported on the relation. This is the classical
-    discrete Strassen (equivalently transportation feasibility / weighted
-    Hall) theorem. It is **not** available in Mathlib — there is no
-    max-flow–min-cut, fractional Hall, or transportation-polytope
-    feasibility — so we take it as an axiom rather than formalize it from
-    scratch. `Program.rel.hall` / `Program.relE.hall_right` show its
-    hypotheses are *exactly* what the wp judgment `relE` supplies, so this
-    is the sole gap between the two relational logics.
+/-! ### Scaling a sub-probability (for the mass-normalization reduction) -/
+
+/-- Scale a sub-probability by `c` (well-defined as a sub-probability when
+    `c · (total mass) ≤ 1`). -/
+noncomputable def SubProbability.scale {X : Type} (c : ENNReal) (ν : SubProbability X)
+    (h : c * ν.1 Set.univ ≤ 1) : SubProbability X :=
+  ⟨c • ν.1, by
+    rw [MeasureTheory.Measure.smul_apply, smul_eq_mul]; exact h⟩
+
+@[simp] lemma SubProbability.scale_expected {X : Type} (c : ENNReal) (ν : SubProbability X)
+    (h : c * ν.1 Set.univ ≤ 1) (g : X → ENNReal) :
+    (SubProbability.scale c ν h).expected g = c * ν.expected g := by
+  show ∫⁻ x, g x ∂(c • ν.1) = c * ∫⁻ x, g x ∂ν.1
+  rw [MeasureTheory.lintegral_smul_measure, smul_eq_mul]
+
+lemma SubProbability.scale_satisfies {X : Type} (c : ENNReal) (ν : SubProbability X)
+    (h : c * ν.1 Set.univ ≤ 1) {B : X → Prop} (hν : ν.satisfies B) :
+    (SubProbability.scale c ν h).satisfies B := by
+  intro w hw
+  refine hν w (fun h0 => hw ?_)
+  show (c • ν.1) {w} = 0
+  rw [MeasureTheory.Measure.smul_apply, h0, smul_zero]
+
+/-- **Discrete Strassen / coupling lifting (axiom), probability-measure
+    form.** This is Strassen's 1965 theorem verbatim: over countable
+    carriers, two *probability* measures satisfying Hall's marginal-
+    domination condition `p(A) ≤ q(R(A))` admit a coupling with those
+    marginals supported on the relation. It is **not** available in Mathlib
+    (no max-flow–min-cut / fractional Hall / transportation feasibility),
+    so we take it as an axiom; `SubProbability.exists_coupling_of_hall`
+    below derives the sub-probability form from it by normalization, and
+    `Program.rel.hall` shows the hypothesis is exactly what `relE` supplies.
 
     References (this is a true, classical theorem):
     * V. Strassen, "The existence of probability measures with given
@@ -943,26 +964,93 @@ theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {
       https://projecteuclid.org/euclid.aoms/1177700153
     * T. Koperberg, "Couplings and Matchings: combinatorial notes on
       Strassen's theorem", Statist. Probab. Lett. (2024), arXiv:2202.02092
-      — the finite case in exactly this Hall form
-      `P(U) ≤ P'(R(U))`, shown equivalent to Hall's marriage theorem.
+      — the finite case in exactly this Hall form, shown equivalent to
+      Hall's marriage theorem.
     * Combinatorial proof: max-flow–min-cut / weighted Hall; see
       Lovász & Plummer, "Matching Theory" (1986).
     * Use in coupling-based program logics (the `relE ↔ prhl2`
       correspondence here): Barthe, Espitau, Grégoire, Hsu, Strub,
       "Probabilistic Couplings for Probabilistic Reasoning",
-      arXiv:1710.09951.
+      arXiv:1710.09951. -/
+axiom SubProbability.exists_coupling_of_hall_prob {X Y : Type} [Countable X] [Countable Y]
+    (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
+    (hp : p.1 Set.univ = 1) (hq : q.1 Set.univ = 1)
+    (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y}) :
+    ∃ μ : SubProbability (X × Y),
+      (μ >>= fun w => (pure w.1 : SubProbability X)) = p ∧
+      (μ >>= fun w => (pure w.2 : SubProbability Y)) = q ∧
+      μ.satisfies (fun w => R w.1 w.2)
 
-    (Our `p`, `q` are sub-probabilities; the two-sided Hall hypotheses
-    force equal total mass `p univ = q univ`, reducing to the
-    probability-measure statement by normalization.) -/
-axiom SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Countable Y]
+/-- **Coupling lifting, sub-probability form** — *derived* from the
+    probability-measure axiom `exists_coupling_of_hall_prob` by mass
+    normalization (no new assumption). Two-sided Hall forces equal total
+    mass; the zero-mass case is the empty coupling, and otherwise we
+    normalize both sides to probability measures, invoke the axiom, and
+    scale the resulting coupling back. -/
+theorem SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Countable Y]
     (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
     (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y})
     (hqp : ∀ B : Set Y, q.1 B ≤ p.1 {x | ∃ y ∈ B, R x y}) :
     ∃ μ : SubProbability (X × Y),
       (μ >>= fun w => (pure w.1 : SubProbability X)) = p ∧
       (μ >>= fun w => (pure w.2 : SubProbability Y)) = q ∧
-      μ.satisfies (fun w => R w.1 w.2)
+      μ.satisfies (fun w => R w.1 w.2) := by
+  -- Equal total mass.
+  have hmass : p.1 Set.univ = q.1 Set.univ :=
+    le_antisymm ((hpq Set.univ).trans (MeasureTheory.measure_mono (Set.subset_univ _)))
+      ((hqp Set.univ).trans (MeasureTheory.measure_mono (Set.subset_univ _)))
+  by_cases hm0 : p.1 Set.univ = 0
+  · -- Zero mass: both measures vanish; the empty coupling works.
+    have hp0 : p = ⊥ := Subtype.ext (by
+      rw [MeasureTheory.Measure.measure_univ_eq_zero.mp hm0]; rfl)
+    have hq0 : q = ⊥ := Subtype.ext (by
+      have hqm0 : q.1 Set.univ = 0 := by rw [← hmass]; exact hm0
+      rw [MeasureTheory.Measure.measure_univ_eq_zero.mp hqm0]; rfl)
+    exact ⟨⊥, by rw [SubProbability.bot_bind, hp0], by rw [SubProbability.bot_bind, hq0],
+      SubProbability.satisfies_bot _⟩
+  · -- Positive mass: normalize both sides to probability measures.
+    have hm_le : p.1 Set.univ ≤ 1 := p.2
+    have hm_top : p.1 Set.univ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hm_le
+    have hpscale : (p.1 Set.univ)⁻¹ * p.1 Set.univ ≤ 1 :=
+      le_of_eq (ENNReal.inv_mul_cancel hm0 hm_top)
+    have hqscale : (p.1 Set.univ)⁻¹ * q.1 Set.univ ≤ 1 :=
+      le_of_eq (by rw [← hmass]; exact ENNReal.inv_mul_cancel hm0 hm_top)
+    have hp'1 : (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).1 Set.univ = 1 := by
+      show ((p.1 Set.univ)⁻¹ • p.1) Set.univ = 1
+      rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, ENNReal.inv_mul_cancel hm0 hm_top]
+    have hq'1 : (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).1 Set.univ = 1 := by
+      show ((p.1 Set.univ)⁻¹ • q.1) Set.univ = 1
+      rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, ← hmass,
+        ENNReal.inv_mul_cancel hm0 hm_top]
+    have hp'hall : ∀ A : Set X, (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).1 A
+        ≤ (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).1 {y | ∃ x ∈ A, R x y} := by
+      intro A
+      show ((p.1 Set.univ)⁻¹ • p.1) A ≤ ((p.1 Set.univ)⁻¹ • q.1) _
+      rw [MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.smul_apply,
+        smul_eq_mul, smul_eq_mul]
+      gcongr
+      exact hpq A
+    obtain ⟨ν, hν1, hν2, hνsat⟩ := SubProbability.exists_coupling_of_hall_prob
+      (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale)
+      (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale) R hp'1 hq'1 hp'hall
+    have hνmass : p.1 Set.univ * ν.1 Set.univ ≤ 1 := by
+      calc p.1 Set.univ * ν.1 Set.univ ≤ p.1 Set.univ * 1 := by gcongr; exact ν.2
+        _ = p.1 Set.univ := mul_one _
+        _ ≤ 1 := hm_le
+    refine ⟨SubProbability.scale (p.1 Set.univ) ν hνmass, ?_, ?_, ?_⟩
+    · refine SubProbability.ext_of_expected (fun G => ?_)
+      have hν1' : ν.expected (fun w => G w.1) = (p.1 Set.univ)⁻¹ * p.expected G := by
+        rw [← SubProbability.scale_expected (p.1 Set.univ)⁻¹ p hpscale G, ← hν1,
+          SubProbability.expected_map]
+      rw [SubProbability.expected_map, SubProbability.scale_expected, hν1',
+        ← mul_assoc, ENNReal.mul_inv_cancel hm0 hm_top, one_mul]
+    · refine SubProbability.ext_of_expected (fun G => ?_)
+      have hν2' : ν.expected (fun w => G w.2) = (p.1 Set.univ)⁻¹ * q.expected G := by
+        rw [← SubProbability.scale_expected (p.1 Set.univ)⁻¹ q hqscale G, ← hν2,
+          SubProbability.expected_map]
+      rw [SubProbability.expected_map, SubProbability.scale_expected, hν2',
+        ← mul_assoc, ENNReal.mul_inv_cancel hm0 hm_top, one_mul]
+    · exact SubProbability.scale_satisfies (p.1 Set.univ) ν hνmass hνsat
 
 /-- **Completeness** `relE → prhl2` (discrete, modulo the Strassen axiom):
     the wp-lifting judgment yields a coupling. The reduction is real — it
