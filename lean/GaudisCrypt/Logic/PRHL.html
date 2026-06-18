@@ -1,0 +1,51 @@
+<html lang="en"><head><meta charset="UTF-8"></meta><meta name="viewport" content="width=device-width, initial-scale=1"></meta><link rel="stylesheet" href="../.././style.css"></link><link rel="icon" href="../.././favicon.svg"></link><link rel="mask-icon" href="../.././favicon.svg" color="#000000"></link><link rel="prefetch" href="../.././/declarations/declaration-data.bmp" as="image"></link><title>GaudisCrypt.Logic.PRHL</title><script defer="true" src="../.././mathjax-config.js"></script><script defer="true" src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script><script defer="true" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><script>const SITE_ROOT="../.././";</script><script>const MODULE_NAME="GaudisCrypt.Logic.PRHL";</script><script type="module" src="../.././jump-src.js"></script><script type="module" src="../.././search.js"></script><script type="module" src="../.././expand-nav.js"></script><script type="module" src="../.././how-about.js"></script><script type="module" src="../.././instances.js"></script><script type="module" src="../.././importedBy.js"></script></head><body><input id="nav_toggle" type="checkbox"></input><header><h1><label for="nav_toggle"></label><span>Documentation</span></h1><h2 class="header_filename break_within"><span class="name">GaudisCrypt</span>.<span class="name">Logic</span>.<span class="name">PRHL</span></h2><form id="search_form"><input type="text" name="q" autocomplete="off"></input>&#32;<button id="search_button" onclick="javascript: form.action='../.././search.html';">Search</button></form></header><nav class="internal_nav"><p><a href="#top">return to top</a></p><p class="gh_nav_link"><a href="https://github.com/dominique-unruh/gaudis-crypt/blob/297980f887ede2ecd9a1f834e002ae9016161855/GaudisCrypt/Logic/PRHL.lean">source</a></p><div class="imports"><details><summary>Imports</summary><ul><li><a href="https://leanprover-community.github.io/mathlib4_docs/Init.html">Init</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/Core.html">GaudisCrypt.Logic.PRHL.Core</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/Coupling.html">GaudisCrypt.Logic.PRHL.Coupling</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/Lenses.html">GaudisCrypt.Logic.PRHL.Lenses</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/Loops.html">GaudisCrypt.Logic.PRHL.Loops</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/Prhl.html">GaudisCrypt.Logic.PRHL.Prhl</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/Tactics.html">GaudisCrypt.Logic.PRHL.Tactics</a></li><li><a href="../.././GaudisCrypt/Logic/PRHL/UpToBad.html">GaudisCrypt.Logic.PRHL.UpToBad</a></li></ul></details><details><summary>Imported by</summary><ul id="imported-by-GaudisCrypt.Logic.PRHL" class="imported-by-list"></ul></details></div></nav><main>
+<div class="mod_doc"><h1 id="pRHL-a-probabilistic-relational-Hoare-logic-for-Program" class="markdown-heading">pRHL: a probabilistic relational Hoare logic for <code>Program</code> <a class="hover-link" href="#pRHL-a-probabilistic-relational-Hoare-logic-for-Program">#</a></h1><p>A relational layer over the unary wp calculus, in the EasyCrypt/CertiCrypt
+tradition but with a wp-based (coupling-free) semantics:</p><pre><code>Program.rel  p q Pre Post  :=
+  ∀ F G, (∀ x y, Post x y → F x ≤ G y) →
+    ∀ σ₁ σ₂, Pre σ₁ σ₂ → p.wp F σ₁ ≤ q.wp G σ₂
+Program.relE p q Pre Post  :=  rel in both directions
+</code></pre><p>All rules are derived as lemmas from the unary wp lemma base (CertiCrypt's
+&quot;semantic setting&quot; methodology): if the rule set is insufficient, fall back
+to <code>wp</code> reasoning or <code><a href="../.././GaudisCrypt/ProgramRange.html#Program.ext_of_wp">Program.ext_of_wp</a></code>.</p><h2 id="Module-layout" class="markdown-heading">Module layout <a class="hover-link" href="#Module-layout">#</a></h2><ul><li><code>Core</code> — the judgments, Pr-bridges (<code>rel.wp_le</code>, <code>relE.wp_eq</code>), structural
+rules (<code>conseq</code>, <code><a href="https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/Defs/Unbundled.html#refl">refl</a></code>, <code><a href="https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/Defs/Unbundled.html#trans">trans</a></code>, <code>bind</code>, <code>prefix_left/right</code>,
+<code>ite_sync</code>), assignment rules (<code>set_set</code>, <code>get_get</code>, one-sided variants),
+sampling rules (<code>uniform_bij</code>, <code>sample_left/right</code>).</li><li><code>Lenses</code> — footprint-aware rules: <code>self_shift</code> (relational
+<code>wp_shift_input</code>), <code>frame</code> (relational <code>wp_strengthen_lens_preserved</code>),
+and the two-way bridge with the <code>EquivModuloLens</code> calculus.</li><li><code>Loops</code> — synchronized invariant rules for <code><a href="../.././GaudisCrypt/ProgramRange.html#loop_n">loop_n</a></code> and <code>while_loop</code>
+(the unbounded rule needs no Kleene induction: the left loop's wp is a
+least fixed point, bounded by an <code><a href="https://leanprover-community.github.io/mathlib4_docs/Mathlib/Order/SetNotation.html#iInf">iInf</a></code>-interpolant prefixed point).</li><li><code>UpToBad</code> — the Fundamental Lemma (<code>relE.up_to_bad</code>, <code>relE.bad_eq</code>) and
+the rectangular rule <code>rel.of_unary</code> (for phases where the two sides
+genuinely diverge).</li></ul><h2 id="Roadmap" class="markdown-heading">Roadmap <a class="hover-link" href="#Roadmap">#</a></h2><ol><li>✅ Core judgment + rule set (this library).</li><li>✅ Validation client 1: <code><a href="../.././GaudisCrypt/Lib/RO/OneWayness_GameHop/GuessExperiment.html#schema_inner_equation">schema_inner_equation</a></code> re-proved relationally in
+<code><a href="https://leanprover-community.github.io/mathlib4_docs/Clients/SchemaInnerEquation.html">Clients/SchemaInnerEquation.lean</a></code> — 280 lines (incl. docs) vs the
+~980-line unary block, no <code>maxHeartbeats</code> bump (original: 1600000), and
+strictly more general (generic state type, no <code><a href="https://leanprover-community.github.io/mathlib4_docs/Mathlib/Data/Fintype/Defs.html#Fintype">Fintype</a></code>/<code><a href="https://leanprover-community.github.io/mathlib4_docs/Init/Prelude.html#Nonempty">Nonempty</a></code> on
+<code>T</code>, 2 of 3 disjointness assumptions). Drop-in compatibility certified
+in <code><a href="https://leanprover-community.github.io/mathlib4_docs/Clients/SchemaInnerEquationCheck.html">Clients/SchemaInnerEquationCheck.lean</a></code>.</li><li>✅ Validation client 2: the UpToBad core re-derived in
+<code><a href="https://leanprover-community.github.io/mathlib4_docs/Clients/UpToBadPRHL.html">Clients/UpToBadPRHL.lean</a></code> — one judgment (<code><a href="../.././GaudisCrypt/Lib/RO/OneWayness_GameHop/UpToBad.html#ow_game_tracked_relE">ow_game_tracked_relE</a></code>, the
+textbook coupling invariant <code><a href="../.././GaudisCrypt/Lib/RO/OneWayness_GameHop/UpToBad.html#InvUB">InvUB</a></code>) yields all three theorems
+(<code>until_bad</code>, <code>bad_eq</code>, the hop bound) as corollaries. Honest verdict:
+~line parity with the unary original (832 vs 891) — <code>relE</code> pays a
+two-direction mirror tax and the rectangular phase keeps the unary
+flag/mass side conditions — but the architecture is one invariant + 3
+corollaries instead of ~15 interdependent inductions, <code>bad_eq</code> comes
+free (unary: 138-line mass/cancellation chain), and the judgment is
+post-generic. Extra hypothesis: adversary mass-1 (see module docstring).</li><li>✅ Migration: <code><a href="../.././GaudisCrypt/Lib/RO/OneWayness_GameHop/GuessExperiment.html#schema_inner_equation">schema_inner_equation</a></code>'s proof is now the relational
+client; its 280-line unary proof, <code>maxHeartbeats 1600000</code>, and ~700-line
+private support block are deleted (GuessExperiment.lean: 1407 → 483).</li><li>Parallel track: <code>glob</code>/<code>Program.range</code> synthesis automation to discharge
+<code>inRange</code> side conditions (gates roughly a third of the compression).</li><li>✅ Symmetric-<code>relE</code> principle: <code>Coupling.lean</code> — an explicit coupling
+witness yields both <code>relE</code> directions at once (<code>relE.of_coupling</code>, with
+<code>Coupling.of_pure</code>/<code>of_uniform</code> builders). Couplings are used at leaves
+only; composition stays with the wp-lifting rules. <code>lqt_relE</code> in the
+up-to-bad client now does its case analysis once.</li><li>✅ Synchronized <code>while_loop</code> rule (<code>rel/relE.while_loop</code> in <code>Loops</code>):
+guards agree under the invariant, bodies preserve it, loops relate at
+the guard-false refinement.</li><li>✅ Tactic layer v1 (<code>Tactics</code>): <code>wp_peel</code> (strip synchronized
+deterministic/uniform prefixes), <code>rel_bind Mid</code> (EasyCrypt's <code>seq</code>),
+<code>rel_step</code> (leaf/structural rule search at reducible transparency).</li><li>✅ Game1/Game2 bridges migrated relationally (the whole game-hop suite
+is pRHL end-to-end).</li><li>✅ Coupling-based pRHL (<code>Prhl</code>): the subtask-3 judgment
+<code>prhl A c d B</code> with couplings as the primitive, rules incl. the seq
+composition (no measurable-choice obligation in the discrete setting),
+soundness <code>prhl.to_relE</code>. Open: discrete Strassen (completeness),
+coupling transitivity (gluing), coupling while rule — see the module
+header of <code>Prhl.lean</code>.</li><li>Open: <code>glob</code>/<code>inRange</code> synthesis automation (deferred).</li></ol><h2 id="Known-landmines-do-not-fix" class="markdown-heading">Known landmines (do not &quot;fix&quot;) <a class="hover-link" href="#Known-landmines-do-not-fix">#</a></h2><ul><li>No conjunction rule for posts (see <code>Core</code> header).</li><li><code>rel.sample_right</code> works because <code>uniform</code> has mass 1; a general
+sample-introduction rule for sub-mass-1 distributions is unsound.</li></ul></div></main>
+<nav class="nav"><iframe src="../.././navbar.html" class="navframe" frameBorder="0"></iframe></nav></body></html>
