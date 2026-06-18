@@ -923,4 +923,49 @@ theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {
     (d σ₂).1 B ≤ (c σ₁).1 {x | ∃ y ∈ B, Post x y} :=
   h.2.hall hpre B
 
+/-- **Discrete Strassen / coupling lifting (axiom).** Over countable
+    carriers, two sub-probabilities whose masses satisfy Hall's
+    marginal-domination condition in both directions admit a coupling with
+    those marginals, supported on the relation. This is the classical
+    discrete Strassen (equivalently transportation feasibility / weighted
+    Hall) theorem. It is **not** available in Mathlib — there is no
+    max-flow–min-cut, fractional Hall, or transportation-polytope
+    feasibility — so we take it as an axiom rather than formalize it from
+    scratch. `Program.rel.hall` / `Program.relE.hall_right` show its
+    hypotheses are *exactly* what the wp judgment `relE` supplies, so this
+    is the sole gap between the two relational logics. -/
+axiom SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Countable Y]
+    (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
+    (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y})
+    (hqp : ∀ B : Set Y, q.1 B ≤ p.1 {x | ∃ y ∈ B, R x y}) :
+    ∃ μ : SubProbability (X × Y),
+      (μ >>= fun w => (pure w.1 : SubProbability X)) = p ∧
+      (μ >>= fun w => (pure w.2 : SubProbability Y)) = q ∧
+      μ.satisfies (fun w => R w.1 w.2)
+
+/-- **Completeness** `relE → prhl2` (discrete, modulo the Strassen axiom):
+    the wp-lifting judgment yields a coupling. The reduction is real — it
+    extracts Hall's condition in both directions from `relE` via
+    `rel.hall` and feeds it to `exists_coupling_of_hall`; only the
+    combinatorial coupling-existence step is assumed. Together with
+    `prhl2.to_relE` this shows the two logics coincide over countable
+    carriers. -/
+theorem Program.relE.to_prhl2 {s₁ s₂ α β : Type}
+    [Countable (α × s₁)] [Countable (β × s₂)]
+    {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : c.relE d Pre Post) : Program.prhl2 Pre c d Post :=
+  fun σ₁ σ₂ hpre =>
+    SubProbability.exists_coupling_of_hall (c σ₁) (d σ₂) Post
+      (fun A => h.1.hall hpre A) (fun B => Program.relE.hall_right h hpre B)
+
+/-- The two relational logics **coincide** over countable carriers
+    (discrete, modulo the Strassen axiom). -/
+theorem Program.prhl2_iff_relE {s₁ s₂ α β : Type}
+    [Countable ((α × s₁) × (β × s₂))] [Countable (α × s₁)] [Countable (β × s₂)]
+    {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop} :
+    Program.prhl2 Pre c d Post ↔ c.relE d Pre Post :=
+  ⟨fun h => h.to_relE, fun h => h.to_prhl2⟩
+
 end GaudisCrypt.Language.Semantics
