@@ -169,6 +169,10 @@ lemma SubProbability.bot_bind {A C : Type} (f : A → SubProbability C) :
   rw [SubProbability.expected_bind, SubProbability.expected_bot,
       SubProbability.expected_bot]
 
+/-- A lifted sampling unfolded at a state. -/
+lemma SubProbability.toProgram_apply {s α : Type} (μ : SubProbability α) (σ : s) :
+    SubProbability.toProgram μ σ = μ >>= fun a => (pure (a, σ) : SubProbability (α × s)) := rfl
+
 /-- Associativity of bind. -/
 lemma SubProbability.bind_assoc' {A B C : Type} (μ : SubProbability A)
     (f : A → SubProbability B) (g : B → SubProbability C) :
@@ -819,6 +823,88 @@ theorem while_loop {s₁ s₂ : Type}
     rw [← SubProbability.expected_map, hMR n σ₁ σ₂ hInv]
   · exact SubProbability.satisfies_lfp Φ (σ₁, σ₂) _ (fun n => hS n σ₁ σ₂ hInv)
 
+/-! ## Core-completion rules (EasyCrypt-style `if`, `case`, `rnd`) -/
+
+/-- **Synchronized conditional** (`if`): if the guards are coupled to
+    produce equal booleans (carrying `Mid`), and the branches are related
+    from `Mid`, then the conditionals are related. -/
+theorem cond {β₁ β₂ : Type}
+    [Countable ((Bool × s₁) × (Bool × s₂))] [Countable ((β₁ × s₁) × (β₂ × s₂))]
+    {g₁ : Program s₁ Bool} {g₂ : Program s₂ Bool}
+    {ct₁ ce₁ : Program s₁ β₁} {ct₂ ce₂ : Program s₂ β₂}
+    {Mid : s₁ → s₂ → Prop} {B : β₁ × s₁ → β₂ × s₂ → Prop}
+    (hg : Program.prhl2 A g₁ g₂ (fun u v => u.1 = v.1 ∧ Mid u.2 v.2))
+    (ht : Program.prhl2 Mid ct₁ ct₂ B)
+    (hf : Program.prhl2 Mid ce₁ ce₂ B) :
+    Program.prhl2 A (g₁ >>= fun b => if b then ct₁ else ce₁)
+      (g₂ >>= fun b => if b then ct₂ else ce₂) B := by
+  refine Program.prhl2.bind hg (fun b₁ b₂ => ?_)
+  rcases eq_or_ne b₁ b₂ with rfl | hbne
+  · cases b₁ with
+    | true => exact ht.conseq (fun _ _ h => h.2) (fun _ _ h => h)
+    | false => exact hf.conseq (fun _ _ h => h.2) (fun _ _ h => h)
+  · exact fun σ₁ σ₂ h => absurd h.1 hbne
+
+/-- **Case split** on a state predicate `P`. -/
+theorem case (P : s₁ → s₂ → Prop) {c : Program s₁ α} {d : Program s₂ β}
+    (hp : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ P σ₁ σ₂) c d B)
+    (hn : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ ¬ P σ₁ σ₂) c d B) :
+    Program.prhl2 A c d B := by
+  intro σ₁ σ₂ hA
+  by_cases hP : P σ₁ σ₂
+  · exact hp σ₁ σ₂ ⟨hA, hP⟩
+  · exact hn σ₁ σ₂ ⟨hA, hP⟩
+
+/-- **General `rnd`**: couple two samplings `μ`, `ν` along a function `e`
+    that pushes `μ` to `ν` (`map e μ = ν`); the post must hold for every
+    drawn `a` paired with `e a`. Subsumes `uniform`/`uniform_id` (take `μ`,
+    `ν` uniform and `e` a bijection). -/
+theorem rnd {α' β' : Type} [Countable α'] [Countable ((α' × s₁) × (β' × s₂))]
+    (μ : SubProbability α') (ν : SubProbability β') (e : α' → β')
+    (he : (μ >>= fun a => (pure (e a) : SubProbability β')) = ν)
+    {B : α' × s₁ → β' × s₂ → Prop}
+    (h : ∀ a σ₁ σ₂, A σ₁ σ₂ → B (a, σ₁) (e a, σ₂)) :
+    Program.prhl2 A (SubProbability.toProgram μ) (SubProbability.toProgram ν) B := by
+  intro σ₁ σ₂ hA
+  refine ⟨μ >>= fun a => pure ((a, σ₁), (e a, σ₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    rfl
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    rw [SubProbability.toProgram_apply, ← he, SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+  · exact SubProbability.satisfies_bind μ (fun a _ =>
+      SubProbability.satisfies_pure _ _ (h a σ₁ σ₂ hA))
+
+/-- **Kill** a lossless left-only statement: a lossless `p₀` whose output
+    almost-surely satisfies the post (against the unchanged right state) is
+    related to `skip`. Generalizes `set_skip_left` from deterministic to any
+    lossless program. -/
+theorem kill_left [Countable (Unit × s₁)] [Countable ((Unit × s₁) × (Unit × s₂))]
+    {p₀ : Program s₁ Unit} {B : Unit × s₁ → Unit × s₂ → Prop}
+    (hloss : ∀ σ₁, p₀.wp (fun _ => 1) σ₁ = 1)
+    (hsupp : ∀ σ₁ σ₂, A σ₁ σ₂ → (p₀ σ₁).satisfies (fun u => B u ((), σ₂))) :
+    Program.prhl2 A p₀ (pure ()) B := by
+  intro σ₁ σ₂ hA
+  refine ⟨(p₀ σ₁) >>= fun u => pure (u, ((), σ₂)), ?_, ?_, ?_⟩
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    refine SubProbability.expected_congr _ (fun u => ?_)
+    rw [expected_pure]
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    have hmass1 : (p₀ σ₁).1 Set.univ = 1 := by
+      rw [← MeasureTheory.lintegral_one]; exact hloss σ₁
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    simp only [expected_pure]
+    show (p₀ σ₁).expected (fun _ => F ((), σ₂)) = ((pure () : Program s₂ Unit) σ₂).expected F
+    rw [show ((pure () : Program s₂ Unit) σ₂) = (pure ((), σ₂) : SubProbability (Unit × s₂))
+          from rfl, expected_pure]
+    show ∫⁻ _, F ((), σ₂) ∂(p₀ σ₁).1 = F ((), σ₂)
+    rw [MeasureTheory.lintegral_const, hmass1, mul_one]
+  · exact SubProbability.satisfies_bind (p₀ σ₁) (fun u hu =>
+      SubProbability.satisfies_pure _ _ (hsupp σ₁ σ₂ hA u hu))
+
 end Program.prhl2
 
 /-! ## Smoke tests -/
@@ -874,6 +960,25 @@ example :
   Program.prhl2.while_loop (PostC := fun _ σ₁ σ₂ => σ₁ = σ₂)
     (Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩))
     (Program.prhl2.pure_pure (fun _ _ h => h))
+
+/-- Synchronized `if` on a sampled guard, branches returning equal values. -/
+example :
+    Program.prhl2 (fun _ _ => True)
+      ((Program.uniform : Program Bool Bool) >>= fun b =>
+        if b then (pure 1 : Program Bool Nat) else pure 0)
+      ((Program.uniform : Program Bool Bool) >>= fun b =>
+        if b then (pure 1 : Program Bool Nat) else pure 0)
+      (fun u v => u.1 = v.1) :=
+  Program.prhl2.cond (Mid := fun _ _ => True)
+    (Program.prhl2.uniform_id (fun _ _ _ _ => ⟨rfl, trivial⟩))
+    (Program.prhl2.pure_pure (fun _ _ _ => rfl))
+    (Program.prhl2.pure_pure (fun _ _ _ => rfl))
+
+/-- Kill a lossless (here: skip) left statement. -/
+example :
+    Program.prhl2 (fun _ _ => True) (pure () : Program Bool Unit)
+      (pure () : Program Bool Unit) (fun _ _ => True) :=
+  Program.prhl2.kill_left (fun _ => by rw [wp_pure]) (fun _ _ _ => fun _ _ => trivial)
 
 /-! ## Completeness (`relE → prhl`): the forward half, and the open step
 
