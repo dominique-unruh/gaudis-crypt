@@ -173,6 +173,41 @@ lemma SubProbability.bot_bind {A C : Type} (f : A → SubProbability C) :
 lemma SubProbability.toProgram_apply {s α : Type} (μ : SubProbability α) (σ : s) :
     SubProbability.toProgram μ σ = μ >>= fun a => (pure (a, σ) : SubProbability (α × s)) := rfl
 
+/-- A lifted sampling threads the state unchanged: `(sample; K) σ = μ >>= K(·,σ)`. -/
+lemma SubProbability.toProgram_bind_apply {s α γ : Type} (μ : SubProbability α)
+    (K : α → Program s γ) (σ : s) :
+    (SubProbability.toProgram μ >>= K) σ = μ >>= fun a => K a σ := by
+  show (SubProbability.toProgram μ σ) >>= (fun p => K p.1 p.2) = μ >>= fun a => K a σ
+  rw [SubProbability.toProgram_apply, SubProbability.bind_assoc']
+  simp only [SubProbability.pure_bind]
+
+/-- **Commutativity of independent sampling** (Tonelli): two state-free
+    samplings can be drawn in either order. -/
+lemma SubProbability.bind_comm {α β γ : Type} [Countable α] [Countable β]
+    (μ : SubProbability α) (ν : SubProbability β) (f : α → β → SubProbability γ) :
+    (μ >>= fun x => ν >>= fun y => f x y) = (ν >>= fun y => μ >>= fun x => f x y) := by
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
+  haveI : MeasurableSingletonClass β := ⟨fun _ => trivial⟩
+  haveI : MeasureTheory.IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2 ENNReal.one_lt_top⟩
+  haveI : MeasureTheory.IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2 ENNReal.one_lt_top⟩
+  refine SubProbability.ext_of_expected (fun g => ?_)
+  simp only [SubProbability.expected_bind]
+  show ∫⁻ x, (∫⁻ y, (f x y).expected g ∂ν.1) ∂μ.1
+      = ∫⁻ y, (∫⁻ x, (f x y).expected g ∂μ.1) ∂ν.1
+  exact MeasureTheory.lintegral_lintegral_swap
+    (measurable_of_countable (fun p : α × β => (f p.1 p.2).expected g)).aemeasurable
+
+/-- **Swap** two independent (state-free) samplings in a program. -/
+lemma SubProbability.swap_sample {s α' β' γ : Type} [Countable α'] [Countable β']
+    (μ : SubProbability α') (ν : SubProbability β') (k : α' → β' → Program s γ) :
+    (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y)
+      = (SubProbability.toProgram ν >>= fun y => SubProbability.toProgram μ >>= fun x => k x y) := by
+  funext σ
+  simp only [SubProbability.toProgram_bind_apply]
+  exact SubProbability.bind_comm μ ν (fun x y => (k x y) σ)
+
 /-- Associativity of bind. -/
 lemma SubProbability.bind_assoc' {A B C : Type} (μ : SubProbability A)
     (f : A → SubProbability B) (g : B → SubProbability C) :
@@ -905,6 +940,26 @@ theorem kill_left [Countable (Unit × s₁)] [Countable ((Unit × s₁) × (Unit
   · exact SubProbability.satisfies_bind (p₀ σ₁) (fun u hu =>
       SubProbability.satisfies_pure _ _ (hsupp σ₁ σ₂ hA u hu))
 
+/-- **Swap** two independent samplings on the left program. -/
+theorem swap_left {α' β' γ δ : Type} [Countable α'] [Countable β']
+    {μ : SubProbability α'} {ν : SubProbability β'} {k : α' → β' → Program s₁ γ}
+    {d : Program s₂ δ} {B : γ × s₁ → δ × s₂ → Prop}
+    (h : Program.prhl2 A
+      (SubProbability.toProgram ν >>= fun y => SubProbability.toProgram μ >>= fun x => k x y) d B) :
+    Program.prhl2 A
+      (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y) d B := by
+  rw [SubProbability.swap_sample]; exact h
+
+/-- **Swap** two independent samplings on the right program. -/
+theorem swap_right {α' β' γ δ : Type} [Countable α'] [Countable β']
+    {c : Program s₁ γ} {μ : SubProbability α'} {ν : SubProbability β'}
+    {k : α' → β' → Program s₂ δ} {B : γ × s₁ → δ × s₂ → Prop}
+    (h : Program.prhl2 A c
+      (SubProbability.toProgram ν >>= fun y => SubProbability.toProgram μ >>= fun x => k x y) B) :
+    Program.prhl2 A c
+      (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y) B := by
+  rw [SubProbability.swap_sample]; exact h
+
 end Program.prhl2
 
 /-! ## Smoke tests -/
@@ -979,6 +1034,17 @@ example :
     Program.prhl2 (fun _ _ => True) (pure () : Program Bool Unit)
       (pure () : Program Bool Unit) (fun _ _ => True) :=
   Program.prhl2.kill_left (fun _ => by rw [wp_pure]) (fun _ _ _ => fun _ _ => trivial)
+
+/-- Swap two independent samplings on the left to align with the right. -/
+example (μ : SubProbability Bool) (ν : SubProbability Nat) :
+    Program.prhl2 Eq
+      (SubProbability.toProgram μ >>= fun x =>
+        SubProbability.toProgram ν >>= fun y => (pure (x, y) : Program Unit (Bool × Nat)))
+      (SubProbability.toProgram ν >>= fun y =>
+        SubProbability.toProgram μ >>= fun x => pure (x, y))
+      (fun u v => u = v) := by
+  apply Program.prhl2.swap_left
+  exact Program.prhl2.refl _
 
 /-! ## Completeness (`relE → prhl`): the forward half, and the open step
 
