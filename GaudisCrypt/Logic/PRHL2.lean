@@ -933,7 +933,28 @@ theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {
     feasibility — so we take it as an axiom rather than formalize it from
     scratch. `Program.rel.hall` / `Program.relE.hall_right` show its
     hypotheses are *exactly* what the wp judgment `relE` supplies, so this
-    is the sole gap between the two relational logics. -/
+    is the sole gap between the two relational logics.
+
+    References (this is a true, classical theorem):
+    * V. Strassen, "The existence of probability measures with given
+      marginals", Ann. Math. Statist. 36(2):423–439, 1965 — the general
+      theorem. A countable discrete space is Polish and every relation on
+      it is closed, so the 1965 result applies here directly.
+      https://projecteuclid.org/euclid.aoms/1177700153
+    * T. Koperberg, "Couplings and Matchings: combinatorial notes on
+      Strassen's theorem", Statist. Probab. Lett. (2024), arXiv:2202.02092
+      — the finite case in exactly this Hall form
+      `P(U) ≤ P'(R(U))`, shown equivalent to Hall's marriage theorem.
+    * Combinatorial proof: max-flow–min-cut / weighted Hall; see
+      Lovász & Plummer, "Matching Theory" (1986).
+    * Use in coupling-based program logics (the `relE ↔ prhl2`
+      correspondence here): Barthe, Espitau, Grégoire, Hsu, Strub,
+      "Probabilistic Couplings for Probabilistic Reasoning",
+      arXiv:1710.09951.
+
+    (Our `p`, `q` are sub-probabilities; the two-sided Hall hypotheses
+    force equal total mass `p univ = q univ`, reducing to the
+    probability-measure statement by normalization.) -/
 axiom SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Countable Y]
     (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
     (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y})
