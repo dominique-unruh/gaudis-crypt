@@ -875,4 +875,52 @@ example :
     (Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩))
     (Program.prhl2.pure_pure (fun _ _ h => h))
 
+/-! ## Completeness (`relE → prhl`): the forward half, and the open step
+
+The converse of `prhl2.to_relE` — that the wp-lifting judgment yields a
+coupling — is **discrete Strassen** (the coupling-lifting theorem). Its
+only proofs go through max-flow–min-cut / LP-duality, none of which is in
+Mathlib (no transportation feasibility, no fractional Hall, no
+Birkhoff–von Neumann), so it would be a from-scratch standalone
+formalization. It remains the single open step between the two logics.
+
+What the wp judgment *does* give directly is the **forward half**:
+plugging in indicator post-conditions turns `rel` into Hall's
+marginal-domination condition. By the classical (discrete) Strassen
+theorem this condition is also *sufficient* for a coupling — so this lemma
+isolates exactly the combinatorial fact that is missing. -/
+
+/-- **Hall's condition from `rel`** (the necessary half of discrete
+    Strassen): the mass `c` places on any set `A` is dominated by the mass
+    `d` places on the `Post`-image of `A`. The converse (Hall ⇒ coupling)
+    is the open Strassen step. -/
+theorem Program.rel.hall {s₁ s₂ α β : Type} {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : c.rel d Pre Post) {σ₁ : s₁} {σ₂ : s₂} (hpre : Pre σ₁ σ₂)
+    (A : Set (α × s₁)) :
+    (c σ₁).1 A ≤ (d σ₂).1 {y | ∃ x ∈ A, Post x y} := by
+  have key := h (Set.indicator A 1) (Set.indicator {y | ∃ x ∈ A, Post x y} 1)
+    (fun x y hxy => by
+      by_cases hx : x ∈ A
+      · have hy : y ∈ {y | ∃ x ∈ A, Post x y} := ⟨x, hx, hxy⟩
+        rw [Set.indicator_of_mem hx, Set.indicator_of_mem hy]
+        exact le_rfl
+      · rw [Set.indicator_of_notMem hx]; exact zero_le')
+    σ₁ σ₂ hpre
+  rwa [show c.wp (Set.indicator A 1) σ₁ = (c σ₁).1 A from
+        MeasureTheory.lintegral_indicator_one trivial,
+      show d.wp (Set.indicator {y | ∃ x ∈ A, Post x y} 1) σ₂
+          = (d σ₂).1 {y | ∃ x ∈ A, Post x y} from
+        MeasureTheory.lintegral_indicator_one trivial] at key
+
+/-- For a two-sided `relE`, Hall's condition holds in **both** directions:
+    `d`'s mass on `B` is dominated by `c`'s mass on the `Post`-preimage of
+    `B`. -/
+theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : c.relE d Pre Post) {σ₁ : s₁} {σ₂ : s₂} (hpre : Pre σ₁ σ₂)
+    (B : Set (β × s₂)) :
+    (d σ₂).1 B ≤ (c σ₁).1 {x | ∃ y ∈ B, Post x y} :=
+  h.2.hall hpre B
+
 end GaudisCrypt.Language.Semantics
