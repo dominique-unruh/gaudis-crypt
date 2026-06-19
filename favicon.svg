@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!--
+    Gaudi's Crypt favicon.
+    Design: a stylized crypt entrance with two noticeably inward-leaning pillars.
+    Keep shapes bold for readability at 16x16.
+  -->
+
+  <!-- Background disk -->
+  <circle cx="64" cy="64" r="60" fill="#0b1220"/>
+
+  <!-- Crypt mass (light stone) -->
+  <g fill="#f2f5f7">
+    <!-- Lintel / roof -->
+    <path d="M38 34 H90 L96 52 H32 Z"/>
+
+    <!-- Left leaning pillar (leans right/inward) -->
+    <path d="M30 50 L46 54 L42 98 L26 94 Z"/>
+
+    <!-- Right leaning pillar (leans left/inward) -->
+    <path d="M82 54 L98 50 L102 94 L86 98 Z"/>
+
+    <!-- Floor / base -->
+    <path d="M26 98 H102 V106 H26 Z"/>
+  </g>
+
+  <!-- Door opening (cut-out) -->
+  <path fill="#0b1220" d="M54 58
+    C54 52 58 48 64 48
+    C70 48 74 52 74 58
+    V96 H54 Z"/>
+
+  <!-- Subtle highlight edge to read on small sizes -->
+  <path fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="3" stroke-linejoin="round" d="M38 34 H90 L96 52 H32 Z"/>
+</svg>
