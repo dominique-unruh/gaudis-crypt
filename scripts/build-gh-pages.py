@@ -415,6 +415,12 @@ def git_branch_exists(root: Path, branch: str) -> bool:
     return cp.returncode == 0
 
 
+def git_remote_branch_exists(root: Path, remote: str, branch: str) -> bool:
+    """Return True if `remote` has `branch`, even if it isn't fetched locally."""
+    cp = run(["git", "ls-remote", "--heads", remote, branch], cwd=root, check=False)
+    return cp.returncode == 0 and bool(cp.stdout.strip())
+
+
 def ensure_worktree(root: Path, branch: str, worktree_dir: Path) -> None:
     """Ensure `worktree_dir` is a git worktree checked out at `branch`.
 
@@ -452,10 +458,21 @@ def ensure_worktree(root: Path, branch: str, worktree_dir: Path) -> None:
 
     if git_branch_exists(root, branch):
         run(["git", "worktree", "add", str(worktree_dir), branch], cwd=root)
-    else:
-        # Create gh-pages off current HEAD. If the doc build fails on the first run,
-        # we'll still wipe it to avoid publishing source files.
-        run(["git", "worktree", "add", "-b", branch, str(worktree_dir), "HEAD"], cwd=root)
+        return
+
+    # If the remote branch exists but the user didn't fetch it, creating a new
+    # local branch off HEAD would later make `git push origin <branch>` fail
+    # (non-fast-forward). Detect via ls-remote and fetch only that branch.
+    remote = "origin"
+    if git_remote_branch_exists(root, remote, branch):
+        # Create the remote-tracking ref without fetching other branches.
+        run(["git", "fetch", remote, f"{branch}:refs/remotes/{remote}/{branch}"], cwd=root)
+        run(["git", "worktree", "add", "-b", branch, str(worktree_dir), f"{remote}/{branch}"], cwd=root)
+        return
+
+    # Remote doesn't have the branch (or no remote configured): create it.
+    # The script will wipe the worktree before writing gh-pages content.
+    run(["git", "worktree", "add", "-b", branch, str(worktree_dir), "HEAD"], cwd=root)
 
 
 
@@ -498,7 +515,10 @@ def run_jekyll_build(site_src: Path, site_dst: Path) -> None:
     if (site_src / "Gemfile").exists():
         # Ensure Gemfile.lock is consistent; keep it local to the repo.
         run(["bundle", "install"], cwd=site_src)
-        run(["bundle", "exec", "jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)], cwd=site_src)
+        run(
+            ["bundle", "exec", "jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)],
+            cwd=site_src,
+        )
     else:
         run(["jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)], cwd=site_src)
 
@@ -1051,15 +1071,38 @@ def main() -> int:
         wt = Path("/tmp/opencode") / f"gaudis-crypt-gh-pages-{os.getpid()}"
         ensure_worktree(root, args.branch, wt)
         try:
-            preserve = {"lean"}
+            preserve = set()
             if args.keep_cname and (wt / "CNAME").exists():
                 preserve.add("CNAME")
+
+            # Snapshot previous API docs so we can restore them after rebuilding
+            # the manual website.
+            old_lean: Path | None = None
+            if not (wt / "lean").exists():
+                raise SystemExit(
+                    "--no-api requested but `lean/` is missing on gh-pages. "
+                    "Run the script once without --no-api to publish API docs first."
+                )
+
+            old_lean = Path("/tmp/opencode") / f"gaudis-crypt-gh-pages-lean-{os.getpid()}"
+            if old_lean.exists():
+                shutil.rmtree(old_lean)
+            shutil.copytree(wt / "lean", old_lean)
+
             remove_all_except_git(wt, preserve=preserve)
 
             site_src = root / "docs" / "website"
             if not site_src.exists():
                 raise SystemExit("Missing `docs/website/` directory on main branch.")
+
+            # Build website into a clean gh-pages worktree...
             run_jekyll_build(site_src, wt)
+
+            # ...then restore previously published API docs.
+            if old_lean is not None:
+                if (wt / "lean").exists():
+                    shutil.rmtree(wt / "lean")
+                shutil.move(str(old_lean), str(wt / "lean"))
 
             # Ensure Jekyll runs: remove stale `.nojekyll` if present.
             (wt / ".nojekyll").unlink(missing_ok=True)
@@ -1093,6 +1136,12 @@ def main() -> int:
             print("Updated site; reused existing API docs (--no-api).")
             return 0
         finally:
+            # Clean up any temp lean snapshot.
+            try:
+                if 'old_lean' in locals() and old_lean is not None and old_lean.exists():
+                    shutil.rmtree(old_lean, ignore_errors=True)
+            except Exception:
+                pass
             run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, check=False)
 
     # Generated entrypoint is created in the repo root; remove it afterwards.
