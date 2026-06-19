@@ -490,6 +490,19 @@ def copy_tree(src: Path, dst: Path) -> None:
             shutil.copy2(s, t)
 
 
+def run_jekyll_build(site_src: Path, site_dst: Path) -> None:
+    """Build the Jekyll site locally into `site_dst`.
+
+    Uses Bundler if `Gemfile` exists; otherwise tries `jekyll` directly.
+    """
+    if (site_src / "Gemfile").exists():
+        # Ensure Gemfile.lock is consistent; keep it local to the repo.
+        run(["bundle", "install"], cwd=site_src)
+        run(["bundle", "exec", "jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)], cwd=site_src)
+    else:
+        run(["jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)], cwd=site_src)
+
+
 def read_text(path: Path) -> str:
     """Read a file as UTF-8, replacing errors."""
     return path.read_text(encoding="utf-8", errors="replace")
@@ -1010,7 +1023,7 @@ def main() -> int:
         "--no-api",
         action="store_true",
         help=(
-            "Do not rebuild Lean API docs. Only update the website from doc/website/ and reuse the existing "
+                "Do not rebuild Lean API docs. Only update the website from docs/website/ and reuse the existing "
             "gh-pages/lean/ directory as-is."
         ),
     )
@@ -1043,12 +1056,13 @@ def main() -> int:
                 preserve.add("CNAME")
             remove_all_except_git(wt, preserve=preserve)
 
-            write_text(wt / ".nojekyll", "")
-
-            site_src = root / "doc" / "website"
+            site_src = root / "docs" / "website"
             if not site_src.exists():
-                raise SystemExit("Missing `doc/website/` directory on main branch.")
-            copy_tree(site_src, wt)
+                raise SystemExit("Missing `docs/website/` directory on main branch.")
+            run_jekyll_build(site_src, wt)
+
+            # Ensure Jekyll runs: remove stale `.nojekyll` if present.
+            (wt / ".nojekyll").unlink(missing_ok=True)
 
             # Basic build status (no doc build attempted).
             write_text(
@@ -1117,14 +1131,18 @@ def main() -> int:
         # Rebuild gh-pages content from scratch (manual site + freshly generated docs).
         remove_all_except_git(wt, preserve=preserve)
 
-        # Always: ensure no Jekyll interference.
-        write_text(wt / ".nojekyll", "")
+        # We intentionally keep `.nojekyll` absent.
+        # The manual site is built locally (Jekyll), so GitHub Pages/Jekyll isn't required.
 
-        # Always: copy manual site content.
-        site_src = root / "doc" / "website"
+        # Always: build manual site content locally.
+        site_src = root / "docs" / "website"
         if not site_src.exists():
-            raise SystemExit("Missing `doc/website/` directory on main branch. Create it with your manual pages.")
-        copy_tree(site_src, wt)
+            raise SystemExit("Missing `docs/website/` directory on main branch. Create it with your manual pages.")
+        run_jekyll_build(site_src, wt)
+
+        # We build the site locally with Jekyll; make sure a stale `.nojekyll`
+        # doesn't get committed accidentally.
+        (wt / ".nojekyll").unlink(missing_ok=True)
 
         # Copy docs output.
         # We put doc-gen4 output under `lean/` to keep manual pages at root.
