@@ -61,4 +61,68 @@ theorem otp_wp_eq {G : Type} [Fintype G] [Nonempty G] [AddCommGroup G]
   · exact h.2 (fun v => F v.1) (fun u => F u.1)
       (fun v u huv => le_of_eq (congrArg F huv.symm)) () () trivial
 
+/-!
+## Demonstration 2: `#heads = #tails` over `n` fair coin flips
+
+A longer "game". The state is a counter (`ℕ`). One loop counts heads, the
+other counts tails, both over `n` fair flips:
+
+  `headBody := do let b ← coin; if b then incr else skip`
+  `tailBody := do let b ← coin; if b then skip else incr`
+
+Their final-count distributions coincide. The coupling flips the coin
+*oppositely* on the two sides (`b₂ = ¬b₁`) — a bijection that preserves the
+fair coin — so each side increments on exactly the same physical outcome,
+keeping the two counters equal throughout. The proof chains `loop_n`,
+`bind`, `uniform` (the `¬` coupling), `get`, `set`, a case split, and
+`pure_pure`.
+-/
+
+/-- The bit-flip bijection `Bool ≃ Bool`; it preserves the uniform (fair)
+    coin, which is what licenses the opposite-coin coupling. -/
+def notEquiv : Bool ≃ Bool :=
+  ⟨Bool.not, Bool.not, fun b => Bool.not_not b, fun b => Bool.not_not b⟩
+
+/-- Increment the counter (the whole state, via the identity lens). -/
+noncomputable def incr : Program ℕ Unit :=
+  Program.get Lens.id >>= fun c => Program.set Lens.id (c + 1)
+
+/-- Two increments from equal counters end at equal counters. -/
+theorem incr_rel : Program.prhl2 Eq incr incr (fun u v => u.2 = v.2) := by
+  refine Program.prhl2.bind
+    (Program.prhl2.get Lens.id Lens.id
+      (B := fun u v => u.1 = v.1 ∧ u.2 = v.2) (fun _ _ h => ⟨h, h⟩)) (fun c₁ c₂ => ?_)
+  exact Program.prhl2.set Lens.id Lens.id (c₁ + 1) (c₂ + 1)
+    (fun _ _ h => by have hc : c₁ = c₂ := h.1; subst hc; rfl)
+
+/-- Count a head: increment iff the coin shows `true`. -/
+noncomputable def headBody : Program ℕ Unit :=
+  (Program.uniform : Program ℕ Bool) >>= fun b => if b then incr else pure ()
+
+/-- Count a tail: increment iff the coin shows `false`. -/
+noncomputable def tailBody : Program ℕ Unit :=
+  (Program.uniform : Program ℕ Bool) >>= fun b => if b then pure () else incr
+
+/-- One head-step and one tail-step, with the coin coupled oppositely,
+    preserve equality of the counters. -/
+theorem body_rel : Program.prhl2 Eq headBody tailBody (fun u v => u.2 = v.2) := by
+  refine Program.prhl2.bind
+    (Program.prhl2.uniform (B := fun u v => v.1 = !u.1 ∧ u.2 = v.2) notEquiv
+      (fun _ _ _ h => ⟨rfl, h⟩)) (fun b₁ b₂ => ?_)
+  intro τ₁ τ₂ hpre
+  have hb : b₂ = !b₁ := hpre.1
+  have hτ : τ₁ = τ₂ := hpre.2
+  cases b₁ with
+  | true => rw [hb]; exact incr_rel τ₁ τ₂ hτ
+  | false =>
+    rw [hb]
+    exact Program.prhl2.pure_pure (A := Eq) (B := fun u v => u.2 = v.2)
+      (fun _ _ h => h) τ₁ τ₂ hτ
+
+/-- **`#heads` and `#tails` have the same distribution** after `n` fair
+    flips: the two counting loops are related by the equal-counter coupling. -/
+theorem count_heads_eq_count_tails (n : ℕ) :
+    Program.prhl2 Eq (loop_n n headBody) (loop_n n tailBody) (fun u v => u.2 = v.2) :=
+  Program.prhl2.loop_n body_rel n
+
 end GaudisCrypt.Language.Semantics
