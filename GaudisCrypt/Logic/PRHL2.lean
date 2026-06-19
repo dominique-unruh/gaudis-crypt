@@ -1013,6 +1013,43 @@ theorem kill_right [Countable (Unit × s₂)] [Countable ((Unit × s₁) × (Uni
 
 end Program.prhl2
 
+/-! ## The adversary / `call` rule (EasyCrypt `call (_ : ={glob A})`)
+
+An adversary is a program confined to a state *window* `L` (a lens); `glob A`
+is exactly this window. Running it from two states that agree on the window
+returns equal results and states that again agree on the window —
+`={glob A} ⟹ ={res, glob A}`. The coupling is the diagonal one through `L`:
+run the inner program once and write its result back into both states. -/
+
+/-- **Adversary call**, constructive form: `L.lift P` (an adversary acting
+    through window `L`) from `L`-agreeing states gives equal results and
+    `L`-agreeing states. -/
+theorem Program.prhl2.adversary {c s γ : Type}
+    [Countable (γ × c)] [Countable ((γ × s) × (γ × s))]
+    (L : Lens c s) (P : Program c γ) :
+    Program.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) (L.lift P) (L.lift P)
+      (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
+  intro σ₁ σ₂ hL
+  refine ⟨P (L.get σ₁) >>= fun xc =>
+      pure ((xc.1, L.set xc.2 σ₁), (xc.1, L.set xc.2 σ₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind]; rfl
+  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind, hL]; rfl
+  · refine SubProbability.satisfies_bind _ (fun xc _ =>
+      SubProbability.satisfies_pure _ _ ⟨rfl, ?_⟩)
+    show L.get (L.set xc.2 σ₁) = L.get (L.set xc.2 σ₂)
+    rw [L.set_get, L.set_get]
+
+/-- **Adversary call**, abstract form: any `A` confined to the window `L`
+    (`A.inRange L.range`) satisfies the same rule, via the factorization
+    `A = L.lift (L.factor A)`. This is the modular adversary principle. -/
+theorem Program.prhl2.adversary_inRange {c s γ : Type} [Nonempty s]
+    [Countable (γ × c)] [Countable ((γ × s) × (γ × s))]
+    (L : Lens c s) (A : Program s γ) (hA : A.inRange L.range) :
+    Program.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) A A
+      (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
+  rw [Lens.factor_of_inRange L hA]
+  exact Program.prhl2.adversary L (L.factor A)
+
 /-! ## Smoke tests -/
 
 example {s γ : Type} (p : Program s γ) :
