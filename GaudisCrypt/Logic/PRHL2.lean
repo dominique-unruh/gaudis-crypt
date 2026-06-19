@@ -169,6 +169,45 @@ lemma SubProbability.bot_bind {A C : Type} (f : A → SubProbability C) :
   rw [SubProbability.expected_bind, SubProbability.expected_bot,
       SubProbability.expected_bot]
 
+/-- A lifted sampling unfolded at a state. -/
+lemma SubProbability.toProgram_apply {s α : Type} (μ : SubProbability α) (σ : s) :
+    SubProbability.toProgram μ σ = μ >>= fun a => (pure (a, σ) : SubProbability (α × s)) := rfl
+
+/-- A lifted sampling threads the state unchanged: `(sample; K) σ = μ >>= K(·,σ)`. -/
+lemma SubProbability.toProgram_bind_apply {s α γ : Type} (μ : SubProbability α)
+    (K : α → Program s γ) (σ : s) :
+    (SubProbability.toProgram μ >>= K) σ = μ >>= fun a => K a σ := by
+  show (SubProbability.toProgram μ σ) >>= (fun p => K p.1 p.2) = μ >>= fun a => K a σ
+  rw [SubProbability.toProgram_apply, SubProbability.bind_assoc']
+  simp only [SubProbability.pure_bind]
+
+/-- **Commutativity of independent sampling** (Tonelli): two state-free
+    samplings can be drawn in either order. -/
+lemma SubProbability.bind_comm {α β γ : Type} [Countable α] [Countable β]
+    (μ : SubProbability α) (ν : SubProbability β) (f : α → β → SubProbability γ) :
+    (μ >>= fun x => ν >>= fun y => f x y) = (ν >>= fun y => μ >>= fun x => f x y) := by
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
+  haveI : MeasurableSingletonClass β := ⟨fun _ => trivial⟩
+  haveI : MeasureTheory.IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2 ENNReal.one_lt_top⟩
+  haveI : MeasureTheory.IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2 ENNReal.one_lt_top⟩
+  refine SubProbability.ext_of_expected (fun g => ?_)
+  simp only [SubProbability.expected_bind]
+  show ∫⁻ x, (∫⁻ y, (f x y).expected g ∂ν.1) ∂μ.1
+      = ∫⁻ y, (∫⁻ x, (f x y).expected g ∂μ.1) ∂ν.1
+  exact MeasureTheory.lintegral_lintegral_swap
+    (measurable_of_countable (fun p : α × β => (f p.1 p.2).expected g)).aemeasurable
+
+/-- **Swap** two independent (state-free) samplings in a program. -/
+lemma SubProbability.swap_sample {s α' β' γ : Type} [Countable α'] [Countable β']
+    (μ : SubProbability α') (ν : SubProbability β') (k : α' → β' → Program s γ) :
+    (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y)
+      = (SubProbability.toProgram ν >>= fun y => SubProbability.toProgram μ >>= fun x => k x y) := by
+  funext σ
+  simp only [SubProbability.toProgram_bind_apply]
+  exact SubProbability.bind_comm μ ν (fun x y => (k x y) σ)
+
 /-- Associativity of bind. -/
 lemma SubProbability.bind_assoc' {A B C : Type} (μ : SubProbability A)
     (f : A → SubProbability B) (g : B → SubProbability C) :
@@ -819,6 +858,108 @@ theorem while_loop {s₁ s₂ : Type}
     rw [← SubProbability.expected_map, hMR n σ₁ σ₂ hInv]
   · exact SubProbability.satisfies_lfp Φ (σ₁, σ₂) _ (fun n => hS n σ₁ σ₂ hInv)
 
+/-! ## Core-completion rules (EasyCrypt-style `if`, `case`, `rnd`) -/
+
+/-- **Synchronized conditional** (`if`): if the guards are coupled to
+    produce equal booleans (carrying `Mid`), and the branches are related
+    from `Mid`, then the conditionals are related. -/
+theorem cond {β₁ β₂ : Type}
+    [Countable ((Bool × s₁) × (Bool × s₂))] [Countable ((β₁ × s₁) × (β₂ × s₂))]
+    {g₁ : Program s₁ Bool} {g₂ : Program s₂ Bool}
+    {ct₁ ce₁ : Program s₁ β₁} {ct₂ ce₂ : Program s₂ β₂}
+    {Mid : s₁ → s₂ → Prop} {B : β₁ × s₁ → β₂ × s₂ → Prop}
+    (hg : Program.prhl2 A g₁ g₂ (fun u v => u.1 = v.1 ∧ Mid u.2 v.2))
+    (ht : Program.prhl2 Mid ct₁ ct₂ B)
+    (hf : Program.prhl2 Mid ce₁ ce₂ B) :
+    Program.prhl2 A (g₁ >>= fun b => if b then ct₁ else ce₁)
+      (g₂ >>= fun b => if b then ct₂ else ce₂) B := by
+  refine Program.prhl2.bind hg (fun b₁ b₂ => ?_)
+  rcases eq_or_ne b₁ b₂ with rfl | hbne
+  · cases b₁ with
+    | true => exact ht.conseq (fun _ _ h => h.2) (fun _ _ h => h)
+    | false => exact hf.conseq (fun _ _ h => h.2) (fun _ _ h => h)
+  · exact fun σ₁ σ₂ h => absurd h.1 hbne
+
+/-- **Case split** on a state predicate `P`. -/
+theorem case (P : s₁ → s₂ → Prop) {c : Program s₁ α} {d : Program s₂ β}
+    (hp : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ P σ₁ σ₂) c d B)
+    (hn : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ ¬ P σ₁ σ₂) c d B) :
+    Program.prhl2 A c d B := by
+  intro σ₁ σ₂ hA
+  by_cases hP : P σ₁ σ₂
+  · exact hp σ₁ σ₂ ⟨hA, hP⟩
+  · exact hn σ₁ σ₂ ⟨hA, hP⟩
+
+/-- **General `rnd`**: couple two samplings `μ`, `ν` along a function `e`
+    that pushes `μ` to `ν` (`map e μ = ν`); the post must hold for every
+    drawn `a` paired with `e a`. Subsumes `uniform`/`uniform_id` (take `μ`,
+    `ν` uniform and `e` a bijection). -/
+theorem rnd {α' β' : Type} [Countable α'] [Countable ((α' × s₁) × (β' × s₂))]
+    (μ : SubProbability α') (ν : SubProbability β') (e : α' → β')
+    (he : (μ >>= fun a => (pure (e a) : SubProbability β')) = ν)
+    {B : α' × s₁ → β' × s₂ → Prop}
+    (h : ∀ a σ₁ σ₂, A σ₁ σ₂ → B (a, σ₁) (e a, σ₂)) :
+    Program.prhl2 A (SubProbability.toProgram μ) (SubProbability.toProgram ν) B := by
+  intro σ₁ σ₂ hA
+  refine ⟨μ >>= fun a => pure ((a, σ₁), (e a, σ₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    rfl
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    rw [SubProbability.toProgram_apply, ← he, SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+  · exact SubProbability.satisfies_bind μ (fun a _ =>
+      SubProbability.satisfies_pure _ _ (h a σ₁ σ₂ hA))
+
+/-- **Kill** a lossless left-only statement: a lossless `p₀` whose output
+    almost-surely satisfies the post (against the unchanged right state) is
+    related to `skip`. Generalizes `set_skip_left` from deterministic to any
+    lossless program. -/
+theorem kill_left [Countable (Unit × s₁)] [Countable ((Unit × s₁) × (Unit × s₂))]
+    {p₀ : Program s₁ Unit} {B : Unit × s₁ → Unit × s₂ → Prop}
+    (hloss : ∀ σ₁, p₀.wp (fun _ => 1) σ₁ = 1)
+    (hsupp : ∀ σ₁ σ₂, A σ₁ σ₂ → (p₀ σ₁).satisfies (fun u => B u ((), σ₂))) :
+    Program.prhl2 A p₀ (pure ()) B := by
+  intro σ₁ σ₂ hA
+  refine ⟨(p₀ σ₁) >>= fun u => pure (u, ((), σ₂)), ?_, ?_, ?_⟩
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    refine SubProbability.expected_congr _ (fun u => ?_)
+    rw [expected_pure]
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    have hmass1 : (p₀ σ₁).1 Set.univ = 1 := by
+      rw [← MeasureTheory.lintegral_one]; exact hloss σ₁
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    simp only [expected_pure]
+    show (p₀ σ₁).expected (fun _ => F ((), σ₂)) = ((pure () : Program s₂ Unit) σ₂).expected F
+    rw [show ((pure () : Program s₂ Unit) σ₂) = (pure ((), σ₂) : SubProbability (Unit × s₂))
+          from rfl, expected_pure]
+    show ∫⁻ _, F ((), σ₂) ∂(p₀ σ₁).1 = F ((), σ₂)
+    rw [MeasureTheory.lintegral_const, hmass1, mul_one]
+  · exact SubProbability.satisfies_bind (p₀ σ₁) (fun u hu =>
+      SubProbability.satisfies_pure _ _ (hsupp σ₁ σ₂ hA u hu))
+
+/-- **Swap** two independent samplings on the left program. -/
+theorem swap_left {α' β' γ δ : Type} [Countable α'] [Countable β']
+    {μ : SubProbability α'} {ν : SubProbability β'} {k : α' → β' → Program s₁ γ}
+    {d : Program s₂ δ} {B : γ × s₁ → δ × s₂ → Prop}
+    (h : Program.prhl2 A
+      (SubProbability.toProgram ν >>= fun y => SubProbability.toProgram μ >>= fun x => k x y) d B) :
+    Program.prhl2 A
+      (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y) d B := by
+  rw [SubProbability.swap_sample]; exact h
+
+/-- **Swap** two independent samplings on the right program. -/
+theorem swap_right {α' β' γ δ : Type} [Countable α'] [Countable β']
+    {c : Program s₁ γ} {μ : SubProbability α'} {ν : SubProbability β'}
+    {k : α' → β' → Program s₂ δ} {B : γ × s₁ → δ × s₂ → Prop}
+    (h : Program.prhl2 A c
+      (SubProbability.toProgram ν >>= fun y => SubProbability.toProgram μ >>= fun x => k x y) B) :
+    Program.prhl2 A c
+      (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y) B := by
+  rw [SubProbability.swap_sample]; exact h
+
 end Program.prhl2
 
 /-! ## Smoke tests -/
@@ -874,5 +1015,237 @@ example :
   Program.prhl2.while_loop (PostC := fun _ σ₁ σ₂ => σ₁ = σ₂)
     (Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩))
     (Program.prhl2.pure_pure (fun _ _ h => h))
+
+/-- Synchronized `if` on a sampled guard, branches returning equal values. -/
+example :
+    Program.prhl2 (fun _ _ => True)
+      ((Program.uniform : Program Bool Bool) >>= fun b =>
+        if b then (pure 1 : Program Bool Nat) else pure 0)
+      ((Program.uniform : Program Bool Bool) >>= fun b =>
+        if b then (pure 1 : Program Bool Nat) else pure 0)
+      (fun u v => u.1 = v.1) :=
+  Program.prhl2.cond (Mid := fun _ _ => True)
+    (Program.prhl2.uniform_id (fun _ _ _ _ => ⟨rfl, trivial⟩))
+    (Program.prhl2.pure_pure (fun _ _ _ => rfl))
+    (Program.prhl2.pure_pure (fun _ _ _ => rfl))
+
+/-- Kill a lossless (here: skip) left statement. -/
+example :
+    Program.prhl2 (fun _ _ => True) (pure () : Program Bool Unit)
+      (pure () : Program Bool Unit) (fun _ _ => True) :=
+  Program.prhl2.kill_left (fun _ => by rw [wp_pure]) (fun _ _ _ => fun _ _ => trivial)
+
+/-- Swap two independent samplings on the left to align with the right. -/
+example (μ : SubProbability Bool) (ν : SubProbability Nat) :
+    Program.prhl2 Eq
+      (SubProbability.toProgram μ >>= fun x =>
+        SubProbability.toProgram ν >>= fun y => (pure (x, y) : Program Unit (Bool × Nat)))
+      (SubProbability.toProgram ν >>= fun y =>
+        SubProbability.toProgram μ >>= fun x => pure (x, y))
+      (fun u v => u = v) := by
+  apply Program.prhl2.swap_left
+  exact Program.prhl2.refl _
+
+/-! ## Completeness (`relE → prhl`): the forward half, and the open step
+
+The converse of `prhl2.to_relE` — that the wp-lifting judgment yields a
+coupling — is **discrete Strassen** (the coupling-lifting theorem). Its
+only proofs go through max-flow–min-cut / LP-duality, none of which is in
+Mathlib (no transportation feasibility, no fractional Hall, no
+Birkhoff–von Neumann), so it would be a from-scratch standalone
+formalization. It remains the single open step between the two logics.
+
+What the wp judgment *does* give directly is the **forward half**:
+plugging in indicator post-conditions turns `rel` into Hall's
+marginal-domination condition. By the classical (discrete) Strassen
+theorem this condition is also *sufficient* for a coupling — so this lemma
+isolates exactly the combinatorial fact that is missing. -/
+
+/-- **Hall's condition from `rel`** (the necessary half of discrete
+    Strassen): the mass `c` places on any set `A` is dominated by the mass
+    `d` places on the `Post`-image of `A`. The converse (Hall ⇒ coupling)
+    is the open Strassen step. -/
+theorem Program.rel.hall {s₁ s₂ α β : Type} {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : c.rel d Pre Post) {σ₁ : s₁} {σ₂ : s₂} (hpre : Pre σ₁ σ₂)
+    (A : Set (α × s₁)) :
+    (c σ₁).1 A ≤ (d σ₂).1 {y | ∃ x ∈ A, Post x y} := by
+  have key := h (Set.indicator A 1) (Set.indicator {y | ∃ x ∈ A, Post x y} 1)
+    (fun x y hxy => by
+      by_cases hx : x ∈ A
+      · have hy : y ∈ {y | ∃ x ∈ A, Post x y} := ⟨x, hx, hxy⟩
+        rw [Set.indicator_of_mem hx, Set.indicator_of_mem hy]
+        exact le_rfl
+      · rw [Set.indicator_of_notMem hx]; exact zero_le')
+    σ₁ σ₂ hpre
+  rwa [show c.wp (Set.indicator A 1) σ₁ = (c σ₁).1 A from
+        MeasureTheory.lintegral_indicator_one trivial,
+      show d.wp (Set.indicator {y | ∃ x ∈ A, Post x y} 1) σ₂
+          = (d σ₂).1 {y | ∃ x ∈ A, Post x y} from
+        MeasureTheory.lintegral_indicator_one trivial] at key
+
+/-- For a two-sided `relE`, Hall's condition holds in **both** directions:
+    `d`'s mass on `B` is dominated by `c`'s mass on the `Post`-preimage of
+    `B`. -/
+theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : c.relE d Pre Post) {σ₁ : s₁} {σ₂ : s₂} (hpre : Pre σ₁ σ₂)
+    (B : Set (β × s₂)) :
+    (d σ₂).1 B ≤ (c σ₁).1 {x | ∃ y ∈ B, Post x y} :=
+  h.2.hall hpre B
+
+/-! ### Scaling a sub-probability (for the mass-normalization reduction) -/
+
+/-- Scale a sub-probability by `c` (well-defined as a sub-probability when
+    `c · (total mass) ≤ 1`). -/
+noncomputable def SubProbability.scale {X : Type} (c : ENNReal) (ν : SubProbability X)
+    (h : c * ν.1 Set.univ ≤ 1) : SubProbability X :=
+  ⟨c • ν.1, by
+    rw [MeasureTheory.Measure.smul_apply, smul_eq_mul]; exact h⟩
+
+@[simp] lemma SubProbability.scale_expected {X : Type} (c : ENNReal) (ν : SubProbability X)
+    (h : c * ν.1 Set.univ ≤ 1) (g : X → ENNReal) :
+    (SubProbability.scale c ν h).expected g = c * ν.expected g := by
+  show ∫⁻ x, g x ∂(c • ν.1) = c * ∫⁻ x, g x ∂ν.1
+  rw [MeasureTheory.lintegral_smul_measure, smul_eq_mul]
+
+lemma SubProbability.scale_satisfies {X : Type} (c : ENNReal) (ν : SubProbability X)
+    (h : c * ν.1 Set.univ ≤ 1) {B : X → Prop} (hν : ν.satisfies B) :
+    (SubProbability.scale c ν h).satisfies B := by
+  intro w hw
+  refine hν w (fun h0 => hw ?_)
+  show (c • ν.1) {w} = 0
+  rw [MeasureTheory.Measure.smul_apply, h0, smul_zero]
+
+/-- **Discrete Strassen / coupling lifting (axiom), probability-measure
+    form.** This is Strassen's 1965 theorem verbatim: over countable
+    carriers, two *probability* measures satisfying Hall's marginal-
+    domination condition `p(A) ≤ q(R(A))` admit a coupling with those
+    marginals supported on the relation. It is **not** available in Mathlib
+    (no max-flow–min-cut / fractional Hall / transportation feasibility),
+    so we take it as an axiom; `SubProbability.exists_coupling_of_hall`
+    below derives the sub-probability form from it by normalization, and
+    `Program.rel.hall` shows the hypothesis is exactly what `relE` supplies.
+
+    References (this is a true, classical theorem):
+    * V. Strassen, "The existence of probability measures with given
+      marginals", Ann. Math. Statist. 36(2):423–439, 1965 — the general
+      theorem. A countable discrete space is Polish and every relation on
+      it is closed, so the 1965 result applies here directly.
+      https://projecteuclid.org/euclid.aoms/1177700153
+    * T. Koperberg, "Couplings and Matchings: combinatorial notes on
+      Strassen's theorem", Statist. Probab. Lett. (2024), arXiv:2202.02092
+      — the finite case in exactly this Hall form, shown equivalent to
+      Hall's marriage theorem.
+    * Combinatorial proof: max-flow–min-cut / weighted Hall; see
+      Lovász & Plummer, "Matching Theory" (1986).
+    * Use in coupling-based program logics (the `relE ↔ prhl2`
+      correspondence here): Barthe, Espitau, Grégoire, Hsu, Strub,
+      "Probabilistic Couplings for Probabilistic Reasoning",
+      arXiv:1710.09951. -/
+axiom SubProbability.exists_coupling_of_hall_prob {X Y : Type} [Countable X] [Countable Y]
+    (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
+    (hp : p.1 Set.univ = 1) (hq : q.1 Set.univ = 1)
+    (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y}) :
+    ∃ μ : SubProbability (X × Y),
+      (μ >>= fun w => (pure w.1 : SubProbability X)) = p ∧
+      (μ >>= fun w => (pure w.2 : SubProbability Y)) = q ∧
+      μ.satisfies (fun w => R w.1 w.2)
+
+/-- **Coupling lifting, sub-probability form** — *derived* from the
+    probability-measure axiom `exists_coupling_of_hall_prob` by mass
+    normalization (no new assumption). Two-sided Hall forces equal total
+    mass; the zero-mass case is the empty coupling, and otherwise we
+    normalize both sides to probability measures, invoke the axiom, and
+    scale the resulting coupling back. -/
+theorem SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Countable Y]
+    (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
+    (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y})
+    (hqp : ∀ B : Set Y, q.1 B ≤ p.1 {x | ∃ y ∈ B, R x y}) :
+    ∃ μ : SubProbability (X × Y),
+      (μ >>= fun w => (pure w.1 : SubProbability X)) = p ∧
+      (μ >>= fun w => (pure w.2 : SubProbability Y)) = q ∧
+      μ.satisfies (fun w => R w.1 w.2) := by
+  -- Equal total mass.
+  have hmass : p.1 Set.univ = q.1 Set.univ :=
+    le_antisymm ((hpq Set.univ).trans (MeasureTheory.measure_mono (Set.subset_univ _)))
+      ((hqp Set.univ).trans (MeasureTheory.measure_mono (Set.subset_univ _)))
+  by_cases hm0 : p.1 Set.univ = 0
+  · -- Zero mass: both measures vanish; the empty coupling works.
+    have hp0 : p = ⊥ := Subtype.ext (by
+      rw [MeasureTheory.Measure.measure_univ_eq_zero.mp hm0]; rfl)
+    have hq0 : q = ⊥ := Subtype.ext (by
+      have hqm0 : q.1 Set.univ = 0 := by rw [← hmass]; exact hm0
+      rw [MeasureTheory.Measure.measure_univ_eq_zero.mp hqm0]; rfl)
+    exact ⟨⊥, by rw [SubProbability.bot_bind, hp0], by rw [SubProbability.bot_bind, hq0],
+      SubProbability.satisfies_bot _⟩
+  · -- Positive mass: normalize both sides to probability measures.
+    have hm_le : p.1 Set.univ ≤ 1 := p.2
+    have hm_top : p.1 Set.univ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hm_le
+    have hpscale : (p.1 Set.univ)⁻¹ * p.1 Set.univ ≤ 1 :=
+      le_of_eq (ENNReal.inv_mul_cancel hm0 hm_top)
+    have hqscale : (p.1 Set.univ)⁻¹ * q.1 Set.univ ≤ 1 :=
+      le_of_eq (by rw [← hmass]; exact ENNReal.inv_mul_cancel hm0 hm_top)
+    have hp'1 : (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).1 Set.univ = 1 := by
+      show ((p.1 Set.univ)⁻¹ • p.1) Set.univ = 1
+      rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, ENNReal.inv_mul_cancel hm0 hm_top]
+    have hq'1 : (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).1 Set.univ = 1 := by
+      show ((p.1 Set.univ)⁻¹ • q.1) Set.univ = 1
+      rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, ← hmass,
+        ENNReal.inv_mul_cancel hm0 hm_top]
+    have hp'hall : ∀ A : Set X, (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).1 A
+        ≤ (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).1 {y | ∃ x ∈ A, R x y} := by
+      intro A
+      show ((p.1 Set.univ)⁻¹ • p.1) A ≤ ((p.1 Set.univ)⁻¹ • q.1) _
+      rw [MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.smul_apply,
+        smul_eq_mul, smul_eq_mul]
+      gcongr
+      exact hpq A
+    obtain ⟨ν, hν1, hν2, hνsat⟩ := SubProbability.exists_coupling_of_hall_prob
+      (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale)
+      (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale) R hp'1 hq'1 hp'hall
+    have hνmass : p.1 Set.univ * ν.1 Set.univ ≤ 1 := by
+      calc p.1 Set.univ * ν.1 Set.univ ≤ p.1 Set.univ * 1 := by gcongr; exact ν.2
+        _ = p.1 Set.univ := mul_one _
+        _ ≤ 1 := hm_le
+    refine ⟨SubProbability.scale (p.1 Set.univ) ν hνmass, ?_, ?_, ?_⟩
+    · refine SubProbability.ext_of_expected (fun G => ?_)
+      have hν1' : ν.expected (fun w => G w.1) = (p.1 Set.univ)⁻¹ * p.expected G := by
+        rw [← SubProbability.scale_expected (p.1 Set.univ)⁻¹ p hpscale G, ← hν1,
+          SubProbability.expected_map]
+      rw [SubProbability.expected_map, SubProbability.scale_expected, hν1',
+        ← mul_assoc, ENNReal.mul_inv_cancel hm0 hm_top, one_mul]
+    · refine SubProbability.ext_of_expected (fun G => ?_)
+      have hν2' : ν.expected (fun w => G w.2) = (p.1 Set.univ)⁻¹ * q.expected G := by
+        rw [← SubProbability.scale_expected (p.1 Set.univ)⁻¹ q hqscale G, ← hν2,
+          SubProbability.expected_map]
+      rw [SubProbability.expected_map, SubProbability.scale_expected, hν2',
+        ← mul_assoc, ENNReal.mul_inv_cancel hm0 hm_top, one_mul]
+    · exact SubProbability.scale_satisfies (p.1 Set.univ) ν hνmass hνsat
+
+/-- **Completeness** `relE → prhl2` (discrete, modulo the Strassen axiom):
+    the wp-lifting judgment yields a coupling. The reduction is real — it
+    extracts Hall's condition in both directions from `relE` via
+    `rel.hall` and feeds it to `exists_coupling_of_hall`; only the
+    combinatorial coupling-existence step is assumed. Together with
+    `prhl2.to_relE` this shows the two logics coincide over countable
+    carriers. -/
+theorem Program.relE.to_prhl2 {s₁ s₂ α β : Type}
+    [Countable (α × s₁)] [Countable (β × s₂)]
+    {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
+    (h : c.relE d Pre Post) : Program.prhl2 Pre c d Post :=
+  fun σ₁ σ₂ hpre =>
+    SubProbability.exists_coupling_of_hall (c σ₁) (d σ₂) Post
+      (fun A => h.1.hall hpre A) (fun B => Program.relE.hall_right h hpre B)
+
+/-- The two relational logics **coincide** over countable carriers
+    (discrete, modulo the Strassen axiom). -/
+theorem Program.prhl2_iff_relE {s₁ s₂ α β : Type}
+    [Countable ((α × s₁) × (β × s₂))] [Countable (α × s₁)] [Countable (β × s₂)]
+    {c : Program s₁ α} {d : Program s₂ β}
+    {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop} :
+    Program.prhl2 Pre c d Post ↔ c.relE d Pre Post :=
+  ⟨fun h => h.to_relE, fun h => h.to_prhl2⟩
 
 end GaudisCrypt.Language.Semantics
