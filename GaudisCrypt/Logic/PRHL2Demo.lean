@@ -158,4 +158,67 @@ theorem external_tweak_invisible {a e s γ : Type}
       rw [hdisj]; exact h)
   · exact (Program.prhl2.adversary winA P).conseq (fun _ _ h => h) (fun _ _ h => h.1)
 
+/-!
+## Demonstration 4: collision resistance of double hashing
+
+A genuine cryptographic reduction. For a pure hash `H : α → α`, if `H` is
+collision-resistant then so is `H ∘ H`. Given any adversary `A` producing a
+candidate collision `(x, y)`, the reduction post-processes it:
+
+  `rp (x, y) := if H x = H y then (x, y) else (H x, H y)`.
+
+If `(x, y)` is an `(H∘H)`-collision then `rp (x, y)` is an `H`-collision —
+a pure case split. Hence `Adv^{CR}_{H∘H}(A) ≤ Adv^{CR}_H(A ∘ rp)`: every
+`(H∘H)`-collision the adversary finds yields an `H`-collision, so if `H` is
+CR (right side small) then `H∘H` is CR (left side small).
+
+The framework's role: `refl` runs `A` as a black box on both sides,
+`pure_pure` threads the pure reduction fact through the post-processing,
+and `to_relE` turns the coupling into the probability inequality.
+-/
+
+/-- `p` is an `f`-collision: two distinct points with the same `f`-image. -/
+abbrev IsColl {α : Type} (f : α → α) (p : α × α) : Prop :=
+  p.1 ≠ p.2 ∧ f p.1 = f p.2
+
+/-- The reduction's post-processing of a candidate collision. -/
+def reducePair {α : Type} [DecidableEq α] (H : α → α) (p : α × α) : α × α :=
+  if H p.1 = H p.2 then p else (H p.1, H p.2)
+
+/-- **Pure core**: an `(H∘H)`-collision is mapped to an `H`-collision. -/
+theorem reducePair_isColl {α : Type} [DecidableEq α] (H : α → α) (p : α × α)
+    (h : IsColl (fun x => H (H x)) p) : IsColl H (reducePair H p) := by
+  unfold reducePair
+  by_cases he : H p.1 = H p.2
+  · rw [if_pos he]; exact ⟨h.1, he⟩
+  · rw [if_neg he]; exact ⟨he, h.2⟩
+
+/-- **Reduction (relational)**: a win on the left (an `(H∘H)`-collision from
+    `A`) forces a win on the right (an `H`-collision from the reduction). -/
+theorem double_hash_reduction {α s : Type} [DecidableEq α] [Countable α] [Countable s]
+    (H : α → α) (A : Program s (α × α)) :
+    Program.prhl2 Eq (A >>= pure) (A >>= fun p => pure (reducePair H p))
+      (fun u v => IsColl (fun x => H (H x)) u.1 → IsColl H v.1) := by
+  refine Program.prhl2.bind (Program.prhl2.refl A) (fun p₁ p₂ => ?_)
+  exact Program.prhl2.pure_pure (fun _ _ heq hcoll => by
+    have hp : p₁ = p₂ := congrArg Prod.fst heq
+    rw [← hp]; exact reducePair_isColl H p₁ hcoll)
+
+/-- **Concrete-security bound**: the `(H∘H)`-CR advantage of `A` is at most
+    the `H`-CR advantage of the reduction `A ∘ rp`. So `H` CR ⟹ `H∘H` CR. -/
+theorem double_hash_cr_bound {α s : Type} [DecidableEq α] [Countable α] [Countable s]
+    (H : α → α) (A : Program s (α × α)) (σ : s) :
+    A.wp (fun pσ => if IsColl (fun x => H (H x)) pσ.1 then 1 else 0) σ
+      ≤ (A >>= fun p => pure (reducePair H p)).wp
+          (fun qσ => if IsColl H qσ.1 then 1 else 0) σ := by
+  have key := ((double_hash_reduction H A).to_relE).1
+    (fun pσ => if IsColl (fun x => H (H x)) pσ.1 then 1 else 0)
+    (fun qσ => if IsColl H qσ.1 then 1 else 0)
+    (fun x y hxy => by
+      by_cases hc : IsColl (fun x => H (H x)) x.1
+      · simp only [if_pos hc, if_pos (hxy hc), le_refl]
+      · simp only [if_neg hc]; exact zero_le')
+    σ σ rfl
+  rwa [Program.bind_pure] at key
+
 end GaudisCrypt.Language.Semantics
