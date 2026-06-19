@@ -1,3 +1,8 @@
 /.lake
 /.devcontainer/persistent/
 .claude/
+
+# Output folder used by local gh-pages generation script (optional)
+/dist/
+/DocEntrypoint.lean
+/scripts/__pycache__/
