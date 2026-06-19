@@ -21,5 +21,16 @@ name = "mathlib"
 scope = "leanprover-community"
 rev = "v4.30.0"
 
+[[require]]
+scope = "leanprover"
+name = "doc-gen4"
+rev = "v4.30.0"
+
 [[lean_lib]]
 name = "GaudisCrypt"
+
+[[lean_lib]]
+# Used only by the local GitHub Pages build script (`scripts/build-gh-pages.py`).
+# The corresponding `DocEntrypoint.lean` file is generated and deleted by the script.
+name = "DocEntrypoint"
+srcDir = "."
