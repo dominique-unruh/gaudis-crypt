@@ -125,4 +125,37 @@ theorem count_heads_eq_count_tails (n : ℕ) :
     Program.prhl2 Eq (loop_n n headBody) (loop_n n tailBody) (fun u v => u.2 = v.2) :=
   Program.prhl2.loop_n body_rel n
 
+/-!
+## Demonstration 3: a reduction step — the adversary frame rule
+
+The workhorse of reductions: **a state change outside the adversary's
+window is invisible to it.** This is what licenses inserting bookkeeping,
+reprogramming a hidden oracle table, or sampling auxiliary randomness
+*between* game hops without disturbing the adversary's output.
+
+Setup: an adversary `winA.lift P` acts only through its window `winA`. A
+reduction tweaks some *external* state `winE` (disjoint from `winA`, so
+`winA.get (winE.set v σ) = winA.get σ`). Then running the adversary, and
+running the tweak-then-adversary, produce the same output distribution.
+
+The proof chains four rules: `prefix_right` (frame the external write off
+the right side), `set_skip_right` (relate that write against `skip`, using
+the disjointness), the new **`adversary`** call rule (the adversary from
+window-agreeing states returns equal results), and `conseq`.
+-/
+
+theorem external_tweak_invisible {a e s γ : Type}
+    [Countable a] [Countable s] [Countable γ]
+    (winA : Lens a s) (winE : Lens e s) (P : Program a γ) (v : e)
+    (hdisj : ∀ σ, winA.get (winE.set v σ) = winA.get σ) :
+    Program.prhl2 (fun σ₁ σ₂ => winA.get σ₁ = winA.get σ₂)
+      (winA.lift P)
+      (Program.set winE v >>= fun _ => winA.lift P)
+      (fun u v => u.1 = v.1) := by
+  refine Program.prhl2.prefix_right (Mid := fun σ₁ σ₂ => winA.get σ₁ = winA.get σ₂) ?_ ?_
+  · exact Program.prhl2.set_skip_right winE v (fun σ₁ σ₂ h => by
+      show winA.get σ₁ = winA.get (winE.set v σ₂)
+      rw [hdisj]; exact h)
+  · exact (Program.prhl2.adversary winA P).conseq (fun _ _ h => h) (fun _ _ h => h.1)
+
 end GaudisCrypt.Language.Semantics
