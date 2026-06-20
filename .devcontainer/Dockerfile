@@ -1,7 +1,8 @@
 FROM mcr.microsoft.com/devcontainers/base:trixie
 RUN apt update
 RUN apt install -y nodejs npm plocate file git ripgrep
-RUN npm install -g @anthropic-ai/claude-code   # Need to install via the devcontainer feature, so it patches the question asking.
+RUN npm install -g @anthropic-ai/claude-code
+RUN sudo npm install -g opencode-ai
 
 USER vscode
 

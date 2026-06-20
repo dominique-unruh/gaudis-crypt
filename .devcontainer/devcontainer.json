@@ -16,6 +16,8 @@
 			"extensions": [
 				"leanprover.lean4",
 				"anthropic.claude-code",
+				"sst-dev.opencode",
+				"FedaykinDev.openchamber",
 			]
 		},
 		"jetbrains": {
@@ -28,6 +30,7 @@
 	},
 	"mounts": [
     	"source=${localWorkspaceFolder}/.devcontainer/persistent/claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    	"source=${localWorkspaceFolder}/.devcontainer/persistent/opencode,target=/home/vscode/.config/opencode,type=bind,consistency=cached",
 		// Example how to mount a local directory (must be same path on everyone's computer though.)
 	    // "source=/opt/Isabelle2025-2,target=/opt/Isabelle2025-2,type=bind,readonly,consistency=cached",
   	],

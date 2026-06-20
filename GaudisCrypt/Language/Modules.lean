@@ -1835,6 +1835,12 @@ theorem Module.pair_fst_snd : (Module.fst m).pair (Module.snd m) = m := by
       simp only [Module.fst, Module.snd, Module.pair, Module.toModule_expression, he,
         reduce_fst, reduce_snd, reduce_pair, ha, hb]
 
+def Module.app (m : Module (.arr A B)) (m' : Module A) := (m.expression.pair m'.expression).toModule
+
+def Module.unit : Module .unit := ModuleExpression.unit.toModule
+
+
+
 /- # Demo -/
 
 
