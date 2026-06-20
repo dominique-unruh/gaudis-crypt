@@ -378,12 +378,67 @@ def rewrite_broken_links_to_online_docs(docs_root: Path) -> None:
                 print(f"  {k}  ({v})")
 
 
+# doc-gen4 emits its own favicon <link> tags (referencing favicon.svg). Any
+# <link> whose rel contains "icon" (icon, mask-icon, apple-touch-icon, ...) is a
+# favicon declaration we want to replace. Group 1 captures the leading indent so
+# we can preserve formatting when substituting our own tags.
+FAVICON_LINK_RE = re.compile(
+    r"([ \t]*)<link\b[^>]*\brel=\"[^\"]*icon[^\"]*\"[^>]*>[ \t]*\n?",
+    re.IGNORECASE,
+)
+
+
+def retarget_doc_favicon(docs_root: Path) -> None:
+    """Point the generated API docs at the main site favicon.
+
+    doc-gen4 references its own `favicon.svg`, which shows a favicon in the
+    `lean/` subfolder different from the rest of the site. We replace those tags
+    with links to the main site favicon (`favicon.ico`/`favicon.png`, published at
+    the gh-pages root), so the API docs match the rest of the site.
+    """
+    # The manual site favicon lives at the gh-pages root, one level above `lean/`.
+    site_root = docs_root.parent
+    scanned = 0
+    changed_files = 0
+    for html_path in iter_html_files(docs_root):
+        scanned += 1
+        html = read_text(html_path)
+        if not FAVICON_LINK_RE.search(html):
+            continue
+
+        # Relative path from this page's directory up to the gh-pages root.
+        rel = os.path.relpath(site_root, start=html_path.parent).replace(os.sep, "/")
+        prefix = "" if rel == "." else rel + "/"
+
+        # Replace the first favicon <link> with our pair; drop any others.
+        state = {"first": True}
+
+        def replace(m: re.Match[str]) -> str:
+            indent = m.group(1)
+            if state["first"]:
+                state["first"] = False
+                return (
+                    f'{indent}<link rel="icon" href="{prefix}favicon.ico" sizes="any">\n'
+                    f'{indent}<link rel="icon" href="{prefix}favicon.png" type="image/png" sizes="256x256">\n'
+                )
+            return ""
+
+        new_html = FAVICON_LINK_RE.sub(replace, html)
+        if new_html != html:
+            write_text(html_path, new_html)
+            changed_files += 1
+    if VERBOSE:
+        print(f"favicon retarget: scanned {scanned} html files, updated {changed_files}")
+
+
 def postprocess_doc_tree(doc_dir: Path, project_root: str) -> None:
     """Restrict docs nav + delete non-project module pages."""
     # This is called right after copying doc-gen4 output into the publish directory.
     # It removes dependency pages, but does NOT yet write navbar.html (we do that
     # after restoring excluded theories, so the navbar can include them).
     prune_nonproject_modules(doc_dir, project_root)
+    # Point the API docs at the main site favicon so they don't differ from it.
+    retarget_doc_favicon(doc_dir)
     # Navbar is generated later, after excluded theories are restored.
 
 
