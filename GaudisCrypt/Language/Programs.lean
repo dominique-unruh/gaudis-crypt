@@ -1,5 +1,6 @@
 import Lean
 import Lean.Elab.Term
+import Mathlib.Data.Fintype.Basic
 import GaudisCrypt.Language.Semantics
 
 namespace GaudisCrypt.Language.Programs
@@ -123,6 +124,10 @@ inductive HoleSigs where
   | empty  : HoleSigs
   | append : HoleSigs → ProcedureSignature → HoleSigs
 
+def HoleSigs.length : HoleSigs → Nat
+  | .empty => 0
+  | .append h _ => h.length.succ
+
 def HoleSigs.NonEmpty : HoleSigs → Prop
 | .empty => False
 | _ => True
@@ -134,6 +139,38 @@ def HoleSigs.toList : HoleSigs → List ProcedureSignature
 inductive HoleIndex : HoleSigs → ProcedureSignature → Type _ where
   | zero {a} {Γ : HoleSigs} : HoleIndex (Γ.append a) a
   | succ {a b} : HoleIndex Γ a → HoleIndex (Γ.append b) a
+  deriving DecidableEq
+
+def HoleIndex.toFin {holes sig} : HoleIndex holes sig → Fin holes.length
+  | .zero =>
+      ⟨0, by simp [HoleSigs.length]⟩
+  | .succ i =>
+      let j : Fin _ := HoleIndex.toFin (holes := _) (sig := _) i
+      ⟨j.val.succ, Nat.succ_lt_succ j.isLt⟩
+
+theorem HoleIndex.toFin_inj {holes sig} :
+    ∀ (i1 i2 : HoleIndex holes sig), i1.toFin = i2.toFin → i1 = i2
+  | .zero,    .zero,    _ => rfl
+  | .zero,    .succ i2, h => by
+      have : (0 : Nat) = Nat.succ (i2.toFin.val) := by
+        simpa [HoleIndex.toFin] using congrArg Fin.val h
+      exact (Nat.succ_ne_zero _ this.symm).elim
+  | .succ i1, .zero,    h => by
+      have : Nat.succ (i1.toFin.val) = 0 := by
+        simpa [HoleIndex.toFin] using congrArg Fin.val h
+      exact (Nat.succ_ne_zero _ this).elim
+  | .succ i1, .succ i2, h => by
+      have hv : Nat.succ (i1.toFin.val) = Nat.succ (i2.toFin.val) := by
+        simpa [HoleIndex.toFin] using congrArg Fin.val h
+      have hv' : i1.toFin.val = i2.toFin.val := Nat.succ.inj hv
+      have ht : i1.toFin = i2.toFin := Fin.ext hv'
+      exact congrArg HoleIndex.succ (HoleIndex.toFin_inj i1 i2 ht)
+
+noncomputable instance {holes sig} : Fintype (HoleIndex holes sig) := by
+  refine Fintype.ofInjective (HoleIndex.toFin (holes := holes) (sig := sig))
+    (by
+      intro i1 i2 h
+      exact HoleIndex.toFin_inj (holes := holes) (sig := sig) i1 i2 h)
 
 abbrev Var [ProgramSpec] a := Lens a State
 abbrev Expr [ProgramSpec] a := Getter a State
@@ -179,6 +216,17 @@ def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret (ProcedureState l)) (proc 
      := StmtWithHoles.call x proc params
 
 def HoleSigs.Instantiation (holes : HoleSigs) := ∀ {sig}, HoleIndex holes sig → Procedure sig
+
+/-- Convert an instantiation into a plain list of procedures (tagged by their signature),
+in the same right-nested order as `HoleSigs.Instantiation.toModuleTuple`.
+
+The head of the list corresponds to the most-recently appended hole signature. -/
+def HoleSigs.Instantiation.toList : {holes : HoleSigs} → holes.Instantiation → List (Σ sig, Procedure sig)
+  | .empty,       _    => []
+  | .append _ sig, inst =>
+      ⟨sig, inst .zero⟩ ::
+        HoleSigs.Instantiation.toList (holes := _)
+          (fun {sig'} idx => inst (.succ idx))
 
 /-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
     `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
