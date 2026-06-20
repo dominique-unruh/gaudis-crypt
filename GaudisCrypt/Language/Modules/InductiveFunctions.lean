@@ -18,8 +18,6 @@ class Reducible {t : Type _} (ind : InductiveFunction t)
   join_mono_right : ∀ {a b b' : t}, b' ≤ b → ind.join a b' ≤ ind.join a b
   le_join_left : ∀ a b : t, a ≤ ind.join a b
   le_join_right : ∀ a b : t, b ≤ ind.join a b
-  -- Idempotence can be stated as an inequality; the opposite direction is implied by
-  -- `le_join_left`/`le_join_right`.
   join_idem : ∀ x : t, ind.join x x ≤ x
   delta_bound :
     ∀ {holes : HoleSigs} {sig : ProcedureSignature} (proc : ProcedureWithHoles holes sig)
@@ -344,11 +342,55 @@ theorem evalMexpr_reduce {t mctx mt} (ind : InductiveFunction t)
         exact le_trans (eval_induction_step (ind := ind) hstep) ih
   exact hStar (multiStepReduction_reduce (m := m))
 
-/-
-NOTE: `eval_induction_step` proves one-step decrease under `ReductionStep`. We inline
-the `MultiStepReduction` induction in `evalMexpr_reduce` using `multiStepReduction_reduce`.
--/
 
+theorem InductiveFunction.app_moduleExpression (ind : InductiveFunction t)
+  (a : ModuleExpression Γ (.arr A B)) (b : ModuleExpression Γ A) :
+    ind.evalMexpr (.app a b) = ind.join (ind.evalMexpr a) (ind.evalMexpr b) := by
+    simp [InductiveFunction.evalMexpr]
 
+theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] (a : Module (.arr A B)) (b : Module A) :
+    ind.eval (Module.app a b) ≤ ind.join (ind.eval a) (ind.eval b) := by
+  sorry
+
+theorem InductiveFunction.pair_moduleExpression (ind : InductiveFunction t)
+  (a : ModuleExpression Γ A) (b : ModuleExpression Γ B) :
+    ind.evalMexpr (.pair a b) = ind.join (ind.evalMexpr a) (ind.evalMexpr b) := by
+    simp [InductiveFunction.evalMexpr]
+
+theorem InductiveFunction.pair (ind : InductiveFunction t) (a : Module A) (b : Module B) :
+    ind.eval (Module.pair a b) = ind.join (ind.eval a) (ind.eval b) := by
+  sorry
+
+@[simp]
+theorem InductiveFunction.fst_moduleExpression (ind : InductiveFunction t)
+  (a : ModuleExpression Γ (.prod A B)) :
+    ind.evalMexpr (.fst a) = ind.evalMexpr a := by
+    simp [InductiveFunction.evalMexpr]
+
+theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind]
+  (a : Module (.prod A B)) :
+    ind.eval (.fst a) ≤ ind.eval a := by
+    sorry
+
+@[simp]
+theorem InductiveFunction.snd_moduleExpression (ind : InductiveFunction t)
+  (a : ModuleExpression Γ (.prod A B)) :
+    ind.evalMexpr (.snd a) = ind.evalMexpr a := by
+    simp [InductiveFunction.evalMexpr]
+
+theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind]
+  (a : Module (.prod A B)) :
+    ind.eval (.snd a) ≤ ind.eval a := by
+    sorry
+
+@[simp]
+theorem InductiveFunction.unit_moduleExpression {ctxt} (ind : InductiveFunction t) :
+  ind.evalMexpr (.unit : ModuleExpression ctxt _) = ind.nothing := by
+    simp [InductiveFunction.evalMexpr]
+
+@[simp]
+theorem InductiveFunction.unit (ind : InductiveFunction t) (m : Module .unit) :
+  ind.eval m = ind.nothing := by
+    sorry
 
 end GaudisCrypt.Language.Modules.InductiveFunctions
