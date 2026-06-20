@@ -6,14 +6,133 @@
     <title>{{ page.title | default: site.title }}</title>
     {% include head.html %}
     <style>
-      :root { color-scheme: light dark; }
-      body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      a { text-decoration: none; }
+      :root {
+        color-scheme: light dark;
+        --accent: #b5651d;
+        --accent-soft: #d98c4a;
+        --bg: #ffffff;
+        --fg: #1c1a17;
+        --muted: #6b6258;
+        --card: #faf7f2;
+        --border: #e7dfd4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16130f;
+          --fg: #ece6dd;
+          --muted: #a89e90;
+          --card: #211c16;
+          --border: #352d24;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--fg);
+        background: var(--bg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.6;
+      }
+      code, pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      a { color: var(--accent); text-decoration: none; }
       a:hover { text-decoration: underline; }
+
+      /* Hero banner */
+      .hero {
+        position: relative;
+        min-height: 60vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 3rem 1.5rem 2.5rem;
+        background-image:
+          linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.7) 100%),
+          url("/crypt-banner.jpg");
+        background-size: cover;
+        background-position: center 35%;
+        color: #fff;
+      }
+      .hero__inner { max-width: 60rem; width: 100%; margin: 0 auto; }
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 6vw, 3.6rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.55);
+      }
+      .hero p {
+        margin: 0.6rem 0 0;
+        font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+        max-width: 40rem;
+        color: #f4efe8;
+        text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+      }
+
+      /* Content */
+      main { max-width: 60rem; margin: 0 auto; padding: 2.5rem 1.5rem 1rem; }
+      main h2 {
+        font-size: 1.5rem;
+        margin-top: 2.2rem;
+        padding-bottom: 0.3rem;
+        border-bottom: 2px solid var(--border);
+      }
+
+      .cards {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0 0;
+        display: grid;
+        gap: 0.9rem;
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      }
+      .cards li { margin: 0; }
+      .cards a {
+        display: block;
+        height: 100%;
+        padding: 1rem 1.1rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-weight: 600;
+        transition: transform 0.12s ease, border-color 0.12s ease;
+      }
+      .cards a:hover {
+        text-decoration: none;
+        transform: translateY(-2px);
+        border-color: var(--accent-soft);
+      }
+      .cards a small { display: block; font-weight: 400; color: var(--muted); margin-top: 0.25rem; }
+
+      footer {
+        max-width: 60rem;
+        margin: 2rem auto 3rem;
+        padding: 1.2rem 1.5rem 0;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      footer a { color: var(--muted); text-decoration: underline; }
     </style>
   </head>
   <body>
-    {{ content }}
+    <header class="hero">
+      <div class="hero__inner">
+        <h1>{{ page.heading | default: page.title | default: site.title }}</h1>
+        {% if page.tagline %}<p>{{ page.tagline }}</p>{% endif %}
+      </div>
+    </header>
+
+    <main>
+      {{ content }}
+    </main>
+
+    <footer>
+      Banner photo: <em>Cripta de la Colònia Güell</em> by
+      <a href="https://flickr.com/photos/46198971@N06/16907189985">rob Stoeltje</a>,
+      licensed under <a href="https://creativecommons.org/licenses/by/2.0/">CC BY 2.0</a>
+      (via <a href="https://commons.wikimedia.org/wiki/File:Cripta_de_la_Col%C3%B2nia_G%C3%BCell_(16907189985).jpg">Wikimedia Commons</a>).
+    </footer>
   </body>
 </html>

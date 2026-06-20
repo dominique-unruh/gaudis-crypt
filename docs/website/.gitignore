@@ -1,0 +1,4 @@
+# Jekyll build output (generated locally; published to the gh-pages branch)
+_site/
+.jekyll-cache/
+.jekyll-metadata
