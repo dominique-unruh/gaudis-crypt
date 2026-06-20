@@ -1,6 +1,6 @@
 ---
 title: Gaudi's Crypt
-heading: Gaudí's Crypt
+heading: 'Gaudí<span class="gaudi-apostrophe-kern">’</span>s Crypt'
 tagline: A framework for cryptographic proofs in Lean.
 layout: default
 ---
