@@ -17,6 +17,7 @@
 				"leanprover.lean4",
 				"anthropic.claude-code",
 				"sst-dev.opencode",
+				"FedaykinDev.openchamber",
 			]
 		},
 		"jetbrains": {
