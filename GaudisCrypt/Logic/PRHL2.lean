@@ -960,7 +960,95 @@ theorem swap_right {α' β' γ δ : Type} [Countable α'] [Countable β']
       (SubProbability.toProgram μ >>= fun x => SubProbability.toProgram ν >>= fun y => k x y) B := by
   rw [SubProbability.swap_sample]; exact h
 
+/-! ## One-sided rules (EasyCrypt `if⟨i⟩`, `kill`) -/
+
+/-- **One-sided `if` on the left** (`if⟨1⟩`): a left conditional on a
+    deterministic state guard `e`, related to an arbitrary right program by
+    relating each branch under the refined precondition. -/
+theorem cond_left (e : s₁ → Bool) {ct₁ ce₁ : Program s₁ α} {d : Program s₂ β}
+    (ht : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ e σ₁ = true) ct₁ d B)
+    (hf : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ e σ₁ = false) ce₁ d B) :
+    Program.prhl2 A (fun σ₁ => if e σ₁ then ct₁ σ₁ else ce₁ σ₁) d B := by
+  intro σ₁ σ₂ hA
+  dsimp only
+  by_cases he : e σ₁ = true
+  · rw [if_pos he]; exact ht σ₁ σ₂ ⟨hA, he⟩
+  · rw [if_neg he]; exact hf σ₁ σ₂ ⟨hA, by simpa using he⟩
+
+/-- **One-sided `if` on the right** (`if⟨2⟩`). -/
+theorem cond_right (e : s₂ → Bool) {c : Program s₁ α} {dt₂ de₂ : Program s₂ β}
+    (ht : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ e σ₂ = true) c dt₂ B)
+    (hf : Program.prhl2 (fun σ₁ σ₂ => A σ₁ σ₂ ∧ e σ₂ = false) c de₂ B) :
+    Program.prhl2 A c (fun σ₂ => if e σ₂ then dt₂ σ₂ else de₂ σ₂) B := by
+  intro σ₁ σ₂ hA
+  dsimp only
+  by_cases he : e σ₂ = true
+  · rw [if_pos he]; exact ht σ₁ σ₂ ⟨hA, he⟩
+  · rw [if_neg he]; exact hf σ₁ σ₂ ⟨hA, by simpa using he⟩
+
+/-- **Kill** a lossless right-only statement (mirror of `kill_left`). -/
+theorem kill_right [Countable (Unit × s₂)] [Countable ((Unit × s₁) × (Unit × s₂))]
+    {q₀ : Program s₂ Unit} {B : Unit × s₁ → Unit × s₂ → Prop}
+    (hloss : ∀ σ₂, q₀.wp (fun _ => 1) σ₂ = 1)
+    (hsupp : ∀ σ₁ σ₂, A σ₁ σ₂ → (q₀ σ₂).satisfies (fun v => B ((), σ₁) v)) :
+    Program.prhl2 A (pure ()) q₀ B := by
+  intro σ₁ σ₂ hA
+  refine ⟨(q₀ σ₂) >>= fun v => pure (((), σ₁), v), ?_, ?_, ?_⟩
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    have hmass1 : (q₀ σ₂).1 Set.univ = 1 := by
+      rw [← MeasureTheory.lintegral_one]; exact hloss σ₂
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    simp only [expected_pure]
+    show (q₀ σ₂).expected (fun _ => F ((), σ₁)) = ((pure () : Program s₁ Unit) σ₁).expected F
+    rw [show ((pure () : Program s₁ Unit) σ₁) = (pure ((), σ₁) : SubProbability (Unit × s₁))
+          from rfl, expected_pure]
+    show ∫⁻ _, F ((), σ₁) ∂(q₀ σ₂).1 = F ((), σ₁)
+    rw [MeasureTheory.lintegral_const, hmass1, mul_one]
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    refine SubProbability.expected_congr _ (fun v => ?_)
+    rw [expected_pure]
+  · exact SubProbability.satisfies_bind (q₀ σ₂) (fun v hv =>
+      SubProbability.satisfies_pure _ _ (hsupp σ₁ σ₂ hA v hv))
+
 end Program.prhl2
+
+/-! ## The adversary / `call` rule (EasyCrypt `call (_ : ={glob A})`)
+
+An adversary is a program confined to a state *window* `L` (a lens); `glob A`
+is exactly this window. Running it from two states that agree on the window
+returns equal results and states that again agree on the window —
+`={glob A} ⟹ ={res, glob A}`. The coupling is the diagonal one through `L`:
+run the inner program once and write its result back into both states. -/
+
+/-- **Adversary call**, constructive form: `L.lift P` (an adversary acting
+    through window `L`) from `L`-agreeing states gives equal results and
+    `L`-agreeing states. -/
+theorem Program.prhl2.adversary {c s γ : Type}
+    [Countable (γ × c)] [Countable ((γ × s) × (γ × s))]
+    (L : Lens c s) (P : Program c γ) :
+    Program.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) (L.lift P) (L.lift P)
+      (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
+  intro σ₁ σ₂ hL
+  refine ⟨P (L.get σ₁) >>= fun xc =>
+      pure ((xc.1, L.set xc.2 σ₁), (xc.1, L.set xc.2 σ₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind]; rfl
+  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind, hL]; rfl
+  · refine SubProbability.satisfies_bind _ (fun xc _ =>
+      SubProbability.satisfies_pure _ _ ⟨rfl, ?_⟩)
+    show L.get (L.set xc.2 σ₁) = L.get (L.set xc.2 σ₂)
+    rw [L.set_get, L.set_get]
+
+/-- **Adversary call**, abstract form: any `A` confined to the window `L`
+    (`A.inRange L.range`) satisfies the same rule, via the factorization
+    `A = L.lift (L.factor A)`. This is the modular adversary principle. -/
+theorem Program.prhl2.adversary_inRange {c s γ : Type} [Nonempty s]
+    [Countable (γ × c)] [Countable ((γ × s) × (γ × s))]
+    (L : Lens c s) (A : Program s γ) (hA : A.inRange L.range) :
+    Program.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) A A
+      (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
+  rw [Lens.factor_of_inRange L hA]
+  exact Program.prhl2.adversary L (L.factor A)
 
 /-! ## Smoke tests -/
 
@@ -1045,6 +1133,15 @@ example (μ : SubProbability Bool) (ν : SubProbability Nat) :
       (fun u v => u = v) := by
   apply Program.prhl2.swap_left
   exact Program.prhl2.refl _
+
+/-- One-sided `if` on the left (deterministic state guard). -/
+example (e : Bool → Bool) :
+    Program.prhl2 (fun _ _ => True)
+      (fun σ₁ => if e σ₁ then (pure 1 : Program Bool Nat) σ₁ else (pure 0 : Program Bool Nat) σ₁)
+      (pure 5 : Program Bool Nat) (fun _ _ => True) := by
+  refine Program.prhl2.cond_left e (ct₁ := pure 1) (ce₁ := pure 0) ?_ ?_
+  · exact Program.prhl2.pure_pure (fun _ _ _ => trivial)
+  · exact Program.prhl2.pure_pure (fun _ _ _ => trivial)
 
 /-! ## Completeness (`relE → prhl`): the forward half, and the open step
 
