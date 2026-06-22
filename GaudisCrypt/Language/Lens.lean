@@ -184,7 +184,7 @@ instance : Preorder (LensIn m) where
 abbrev bit := ZMod 2
 
 
-def Lens.update (lens : Lens a m) (f : a → a) : m → m := fun x => lens.set (f (lens.get x)) x
+def Lens.update (lens : Lens a m) (f : Function.End a) : Function.End m := fun x => lens.set (f (lens.get x)) x
 
 
 /-- `s ~ s'` iff they differ only in the part the lens controls:

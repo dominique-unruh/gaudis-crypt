@@ -2,20 +2,21 @@ import GaudisCrypt.Language.Lens
 
 open GaudisCrypt.Language.Lens
 
-instance : Monoid (m → m) where
-  mul := (· ∘ ·)
-  one := id
-  mul_assoc _ _ _ := rfl
-  one_mul _ := rfl
-  mul_one _ := rfl
+-- Use  `Function.End m` instead of `m → m` and drop this instance.
+-- instance : Monoid (m → m) where
+--   mul := (· ∘ ·)
+--   one := id
+--   mul_assoc _ _ _ := rfl
+--   one_mul _ := rfl
+--   mul_one _ := rfl
 
 structure LensRange (m : Type _) where
-  updates : Set (m → m)
+  updates : Set (Function.End m)
   id : id ∈ updates
   comp : f ∈ updates → g ∈ updates → (f ∘ g) ∈ updates
   double_commutant : (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
 
-private lemma centralizer_carrier_eq (S : Set (m → m)) :
+private lemma centralizer_carrier_eq (S : Set (Function.End m)) :
     (Submonoid.centralizer S).carrier = Set.centralizer S := by
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
@@ -148,7 +149,7 @@ def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : LensRange m 
           (hiso.1 (Classical.choose_spec (hiso.2 _)))
     · rw [not_nonempty_iff] at hm
       have heq : ∀ f g : m → m, f = g := fun f g => funext fun x => IsEmpty.elim hm x
-      have h_univ : Set.centralizer (Set.univ : Set (m → m)) = Set.univ := by
+      have h_univ : Set.centralizer (Set.univ : Set (Function.End m)) = Set.univ := by
         ext f; simp only [Set.mem_centralizer_iff, Set.mem_univ, iff_true]; intro g _; exact heq _ _
       have himg : Set.image lens.update ⊤ = Set.univ :=
         Set.eq_univ_iff_forall.mpr fun f =>
@@ -166,7 +167,7 @@ theorem LensRange.complement_range (lens : Lens a m) :
     (Submonoid.centralizer (Set.image lens.update ⊤)).carrier
   exact _root_.complement_range lens
 
-def LensRange.from (generators : Set (m → m)) : LensRange m where
+def LensRange.from (generators : Set (Function.End m)) : LensRange m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
   id := Submonoid.one_mem _
   comp := fun hf hg => Submonoid.mul_mem _ hf hg
