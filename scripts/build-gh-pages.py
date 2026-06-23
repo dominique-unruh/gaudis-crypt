@@ -1212,6 +1212,13 @@ def main() -> int:
 
         if not ok:
             # User requested: if docs do not build at all, do not touch gh-pages.
+            # Still write logs to disk so the user can inspect what went wrong.
+            out_dir = root / ".lake" / "build"
+            full_log_path = out_dir / "doc-build.log"
+            excerpt_path = out_dir / "doc-build-excerpt.log"
+            write_text(full_log_path, (log or "").strip() + "\n")
+            write_text(excerpt_path, (error_excerpt or "").strip() + "\n")
+            print(f"doc build failed; wrote log to {full_log_path} and excerpt to {excerpt_path}")
             raise SystemExit("doc build failed; gh-pages not updated")
 
         # Place worktree in /tmp/opencode (pre-approved external temp dir in this environment).
