@@ -1,0 +1,923 @@
+import GaudisCrypt.Language.Programs
+import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.FV
+import GaudisCrypt.Logic.PRHL.Prhl
+import GaudisCrypt.Logic.PRHL2
+
+/-!
+# Lazy/eager RO equivalence for *syntactic* adversaries
+
+Goal (subtask 3): for any adversary `A` written in Dominique's `StmtWithHoles`
+syntax, the lazy and eager instantiations of its oracle hole are related by
+`Program.transfer` — `convert` slides across `A`, turning every lazy query into
+an eager one. This generalizes `ROEquiv.lean` (which proves it for one fixed
+loop adversary) to an arbitrary `A`, by structural induction.
+
+## Architecture
+
+* **Generic `transferBy` calculus** (`transferBy_pure`/`_bind`/`_zoom`,
+  `zoom_pure`/`zoom_bind`): `Program.transfer = transferBy convert`; we factor
+  out the relation over an arbitrary "convert" `c`, prove the monad-law
+  combinators once, and a `zoom`-lifting lemma.  All **sorry-free**.
+* **Body induction** (`body_transfer_gen`): every `StmtWithHoles` constructor
+  reduces to the calculus + a per-hole hypothesis (`hhole`).  All seven cases
+  **proven**; the only residual it touches is `transferL_while_loop`.
+* **Honest locality** (`Loc`/`Stable`): since `fv_proc` is `sorry` in `FV.lean`
+  (a computed footprint for an opaque getter is undefinable), the usable
+  condition is *semantic*: each of the adversary's own operations commutes with
+  `convert`.
+
+## Status
+
+`Program.transfer_instantiate` (subtask 3, theorem 1) is **fully assembled**:
+it reduces (via `transfer_wrapper`) to `transfer_instantiate_body`, which is
+proven by `body_transfer_gen` + `ro_hhole`.  The denotation bridges
+(`procDenotation_RO_{eager,lazy}`), the hole discharge (`ro_hhole`), `denote_call`,
+and the entire body induction are **proven** (sorry-free modulo the pre-existing
+RO-scaffolding `sorry`s in `Basic.lean`: `Inhabited output`, `Fintype input`, …).
+
+**`Program.transfer_instantiate` (subtask 3, theorem 1) is COMPLETE** — proven
+sorry-free (modulo the pre-existing RO-scaffolding `sorry`s in `Basic.lean`:
+`Inhabited output`, `Fintype input`, …).  All components are proven:
+* the generic `transferBy` calculus + `zoom` morphism;
+* the body induction `body_transfer_gen` (all 7 cases);
+* the two denotation bridges and the hole discharge `ro_hhole`;
+* the procedure wrapper `transfer_wrapper` (`procedureDenotation_eq_procWrap`,
+  `procWrap_convertL_in`, `procWrap_convert_out` ← `rv_convert_invariant`);
+* `transferL_while_loop`, via the state-generic `transferBy_while_loop` (a port
+  of `Program.transfer_while_loop`'s Kleene fixed-point argument — itself fully
+  sorry-free, the RO-specific condition-commutation being supplied by `Stable`).
+
+**Subtask 3, theorem 2** (`prhl_instantiate`, relational/coupling form) is also
+**COMPLETE**, parallel to theorem 1:
+* the lifted relation `liftRel`/`liftRelPost` and honest locality `LocP`/`GetOK`;
+* the inductive core `body_prhl2_gen` (all 7 cases in the `prhl2` calculus —
+  `bind`/`cond`/`while_loop`/`pure_pure` + `conseq`);
+* `prhl2_zoom` (coupling lift through `zoom globalL`, the analogue of
+  `transferBy_zoom`) and the RO hole coupling `ro_hhole_prhl`;
+* the procedure wrapper `prhl_wrapper` (built like `prhl2_zoom`, bridged to
+  `prhl` via `prhl2.to_prhl`).
+
+**Both subtask-3 theorems are proved, sorry-free** modulo the pre-existing
+RO-scaffolding `sorry`s in `Basic.lean` (`Inhabited output`, `Fintype input`,
+`Countable state`, …) — none introduced here.
+-/
+
+namespace GaudisCrypt.Lib.RO.SyntacticEquiv
+
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+open GaudisCrypt.Language.Programs
+open FV
+
+/-- The ambient state of an RO adversary is the RO `state`. -/
+instance roSpec : ProgramSpec := ⟨state⟩
+
+/-- The oracle's signature: a query takes an `input`, returns an `output`.
+    `abbrev` so `roSig.ParamType` reduces to `input` (for `DecidableEq` synthesis). -/
+abbrev roSig : ProcedureSignature := { params := [input], ret := output }
+
+/-- One oracle hole. -/
+abbrev roHoles : HoleSigs := HoleSigs.empty.append roSig
+
+/-- `convert` lifted from the RO `State` to a procedure state. -/
+noncomputable def convertL {l : Type} : Program (ProcedureState l) Unit :=
+  Program.zoom ProcedureState.globalL convert
+
+/-! ## Concrete RO instantiations
+
+We make the oracle hole concrete: `RO_lazy`/`RO_eager` are *actual* procedures
+(over the RO `state`). Their bodies are the syntactic lazy/eager queries, and
+the bridge lemmas record that they denote to the semantic `lazy_query` /
+`random_oracle_query`. With these in hand we can state the two subtask-3
+theorems directly in terms of `Procedure.instantiate` / `Program.transfer` /
+`Program.prhl`. -/
+
+/-- The oracle procedure has one local variable, of type `output`, holding the
+    result that `return_val` reads back. -/
+def roLocals : List (Σ t : Type, Inhabited t) := [⟨output, inferInstance⟩]
+
+/-- The procedure's local state. -/
+abbrev roLocalState : Type := roSig.LocalVariableState roLocals
+
+/-- Read the query input.  `paramListToTuple [input] = input`, so the lens into
+    the parameter tuple is the identity, lifted into the procedure state. -/
+def inpL : Lens input (ProcedureState roLocalState) := (Lens.id (m := input)).intoParams
+
+/-- Read/write the result.  `paramListToTuple [output] = output`, so likewise. -/
+def outL : Lens output (ProcedureState roLocalState) := (Lens.id (m := output)).intoVars
+
+/-- Read/write the RO table living in the global state. -/
+noncomputable def roG : Lens (input → Option output) (ProcedureState roLocalState) :=
+  ProcedureState.globalL.chain random_oracle_state
+
+/-- Lazy body: sample the result (cached → point mass, else uniform), then write
+    the table entry. Two clean-lens statements; denotes to `lazy_query`. -/
+noncomputable def RO_lazy_body : StmtWithHoles .empty roLocalState :=
+  StmtWithHoles.seq
+    (StmtWithHoles.sample outL
+      ⟨fun ps => match (roG.get ps) (inpL.get ps) with
+                 | some y => pure y
+                 | none   => SubProbability.uniform⟩)
+    (StmtWithHoles.assign roG
+      ⟨fun ps => fun j => if j = inpL.get ps then some (outL.get ps) else (roG.get ps) j⟩)
+
+/-- Eager body: read the (pre-sampled) table entry into the result. Denotes to
+    `random_oracle_query`. -/
+noncomputable def RO_eager_body : StmtWithHoles .empty roLocalState :=
+  StmtWithHoles.assign outL
+    ⟨fun ps => ((roG.get ps) (inpL.get ps)).getD default⟩
+
+/-- The lazy oracle as a closed procedure. -/
+noncomputable def RO_lazy_proc : Procedure roSig := ⟨roLocals, RO_lazy_body, outL.toGetter⟩
+
+/-- The eager oracle as a closed procedure. -/
+noncomputable def RO_eager_proc : Procedure roSig := ⟨roLocals, RO_eager_body, outL.toGetter⟩
+
+/-- The lazy instantiation of the single oracle hole. -/
+noncomputable def RO_lazy : roHoles.Instantiation
+  | _, .zero => RO_lazy_proc
+
+/-- The eager instantiation of the single oracle hole. -/
+noncomputable def RO_eager : roHoles.Instantiation
+  | _, .zero => RO_eager_proc
+
+/-- Lift a state relation `P` to a post-relation on `(result, state)` pairs:
+    require equal results and `P` on the states. -/
+def liftPost {α : Type} (P : state → state → Prop) : α × state → α × state → Prop :=
+  fun u v => u.1 = v.1 ∧ P u.2 v.2
+
+/-! ## Generic `transferBy` calculus
+
+`Program.transfer` is `transferBy convert`.  We need the same relation at the
+`ProcedureState` level (with `convertL`), so we factor out a generic version
+`transferBy c p q := (p >>= a => c >>= _ => pure a) = (c >>= _ => q)` over an
+arbitrary "convert" program `c`, prove the monad-law combinators once, and a
+`zoom` lifting lemma — `convertL = zoom globalL convert`, and `zoom` is a monad
+morphism, so any state-level transfer lifts to a zoomed `ProcedureState` one. -/
+
+/-- Generic transfer: `c` slides from after `p` to before `q`, preserving the value. -/
+def transferBy {s α : Type} (c : Program s Unit) (p q : Program s α) : Prop :=
+  (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => q)
+
+/-- `pure` transfers to itself (generic). -/
+theorem transferBy_pure {s α : Type} {c : Program s Unit} (a : α) :
+    transferBy c (pure a) (pure a) := by
+  show ((pure a : Program s α) >>= fun a' => c >>= fun _ => pure a') = (c >>= fun _ => pure a)
+  rw [Program.pure_bind]
+
+/-- `transferBy` chains under `>>=` (generic; copy of `Program.transfer_bind`). -/
+theorem transferBy_bind {s α β : Type} {c : Program s Unit}
+    {p q : Program s α} {p' q' : α → Program s β}
+    (h : transferBy c p q) (h' : ∀ a, transferBy c (p' a) (q' a)) :
+    transferBy c (p >>= p') (q >>= q') := by
+  show ((p >>= p') >>= fun b => c >>= fun _ => pure b) = (c >>= fun _ => q >>= q')
+  rw [Program.bind_assoc]
+  conv_lhs =>
+    rhs; ext a
+    rw [show (p' a >>= fun b => c >>= fun _ => (Pure.pure b : Program s β))
+          = (c >>= fun _ => q' a) from h' a]
+  conv_lhs =>
+    rhs; ext a
+    rw [show (c >>= fun _ => q' a)
+          = (c >>= fun _ => (Pure.pure a : Program s α)) >>= q' from by
+        rw [Program.bind_assoc]; congr 1; funext _; rw [Program.pure_bind]]
+  rw [← Program.bind_assoc]
+  rw [show (p >>= fun a => c >>= fun _ => (Pure.pure a : Program s α))
+        = (c >>= fun _ => q) from h]
+  rw [Program.bind_assoc]
+
+/-! ### `zoom` is a monad morphism, and lifts `transferBy` -/
+
+theorem zoom_pure {s t a : Type} (lens : Lens s t) (x : a) :
+    Program.zoom lens (pure x) = (pure x : Program t a) := by
+  funext tv
+  show ((pure x : Program s a) (lens.get tv)) >>= (fun as => pure (as.1, lens.set as.2 tv))
+       = (pure (x, tv) : SubProbability (a × t))
+  show (pure (x, lens.get tv) : SubProbability (a × s)) >>= (fun as => pure (as.1, lens.set as.2 tv))
+       = (pure (x, tv) : SubProbability (a × t))
+  rw [SubProbability.pure_bind]
+  simp only [lens.get_set]
+
+theorem zoom_bind {s t a b : Type} (lens : Lens s t)
+    (p : Program s a) (k : a → Program s b) :
+    Program.zoom lens (p >>= k) = Program.zoom lens p >>= fun a => Program.zoom lens (k a) := by
+  funext tv
+  show (((p (lens.get tv)) >>= fun as => k as.1 as.2) >>= fun bs => pure (bs.1, lens.set bs.2 tv))
+       = ((p (lens.get tv)) >>= fun as => pure (as.1, lens.set as.2 tv))
+          >>= fun cs => (k cs.1 (lens.get cs.2)) >>= fun bs => pure (bs.1, lens.set bs.2 cs.2)
+  rw [SubProbability.bind_assoc', SubProbability.bind_assoc']
+  congr 1; funext as
+  rw [SubProbability.pure_bind]
+  simp only [lens.set_get, lens.set_set]
+
+/-- `zoom` lifts `transferBy`: a state-level transfer becomes a zoomed one. -/
+theorem transferBy_zoom {s t α : Type} (lens : Lens s t)
+    {c : Program s Unit} {p q : Program s α} (h : transferBy c p q) :
+    transferBy (Program.zoom lens c) (Program.zoom lens p) (Program.zoom lens q) := by
+  show (Program.zoom lens p >>= fun a => Program.zoom lens c >>= fun _ => pure a)
+      = (Program.zoom lens c >>= fun _ => Program.zoom lens q)
+  rw [show (fun a => Program.zoom lens c >>= fun _ => (pure a : Program t α))
+        = (fun a => Program.zoom lens (c >>= fun _ => pure a)) from by
+      funext a; rw [zoom_bind]; congr 1; funext _; rw [zoom_pure]]
+  rw [← zoom_bind, ← zoom_bind]
+  rw [show (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => q) from h]
+
+/-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`. -/
+
+theorem procDenotation_RO_eager (args : roSig.ParamType) :
+    procedureDenotation RO_eager_proc args = random_oracle_query args := by
+  funext st
+  simp only [procedureDenotation, RO_eager_proc, RO_eager_body, StmtWithHoles.assign,
+    programDenotation, random_oracle_query, Program.get, Program.set,
+    bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
+    SubProbability.toProgram, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  refine Subtype.ext ?_
+  simp only [inpL, outL, roG, Lens.intoParams, Lens.intoVars, Lens.chain, Lens.id, Lens.fst,
+    ProcedureState.globalL, ProcedureState.localL, LocalVariableState.paramsL,
+    LocalVariableState.varsL, Lens.toGetter, Lens.toSetter, AsGetter.toG, AsSetter.toS,
+    id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top,
+    ProcedureSignature.localVariableInit]
+  rfl
+
+theorem procDenotation_RO_lazy (args : roSig.ParamType) :
+    procedureDenotation RO_lazy_proc args = lazy_query args := by
+  funext st
+  simp only [procedureDenotation, RO_lazy_proc, RO_lazy_body, StmtWithHoles.assign,
+    programDenotation, lazy_query, Program.get, Program.set, Program.uniform,
+    bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
+    SubProbability.toProgram, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  refine Subtype.ext ?_
+  simp only [inpL, outL, roG, Lens.intoParams, Lens.intoVars, Lens.chain, Lens.id, Lens.fst,
+    ProcedureState.globalL, ProcedureState.localL, LocalVariableState.paramsL,
+    LocalVariableState.varsL, Lens.toGetter, Lens.toSetter, AsGetter.toG, AsSetter.toS,
+    id_eq, ProcedureSignature.localVariableInit]
+  cases hc : random_oracle_state.get st args with
+  | some y =>
+      simp only [hc, MeasureTheory.Measure.dirac_bind measurable_from_top]
+      have hfun : (fun (j : input) => if j = args then some y else random_oracle_state.get st j)
+                = random_oracle_state.get st := by
+        funext j; by_cases hj : j = args
+        · rw [if_pos hj, hj]; exact hc.symm
+        · rw [if_neg hj]
+      rw [hfun, random_oracle_state.get_set]; rfl
+  | none =>
+      simp only [hc, bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure]
+      generalize (SubProbability.uniform : SubProbability output) = U
+      obtain ⟨mu, hmu⟩ := U
+      simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
+        measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top]
+      rfl
+
+/-! ## Honest locality + the body induction
+
+`fv_proc` is `sorry` in `FV.lean`, and a *computed* footprint for an opaque
+getter/setter is genuinely undefinable.  The honest, usable locality condition
+is **semantic**: each of the adversary's own operations commutes with `convert`
+(i.e. transfers to itself).  `Loc A` collects exactly these per-leaf facts.  The
+oracle hole is exempt — it is handled by the `hhole` hypothesis (later
+discharged by the per-query transfer lemma). -/
+
+/-- `p` commutes with `convertL` ("transfers to itself"). -/
+def Stable {l α : Type} (p : Program (ProcedureState l) α) : Prop :=
+  transferBy convertL p p
+
+/-- Locality: every operation of `A` *outside the oracle interface* is `Stable`.
+    For a hole, this is the surrounding read (`get p`) and write (`set x`) — the
+    oracle query itself is *not* required stable (it transfers, lazy↦eager). -/
+def Loc {holes : HoleSigs} {l : Type} : StmtWithHoles holes l → Prop
+  | .skip => True
+  | .sample x e => Stable (programDenotation (StmtWithHoles.sample x e : Stmt l))
+  | .call' x ls b r p => Stable (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l))
+  | .hole _ x p => Stable (Program.get p) ∧ (∀ ret, Stable (Program.set x ret))
+  | .seq s1 s2 => Loc s1 ∧ Loc s2
+  | .ifThenElse c t e => Stable (Program.get c) ∧ Loc t ∧ Loc e
+  | .while c t => Stable (Program.get c) ∧ Loc t
+
+/-! ### Generic Kleene closure of `transferBy` under `while_loop`
+
+A state-and-`c`-generic port of `Program.transfer_while_loop`.  The only step
+that was RO-specific there (the condition commuting with `convert`) is taken as
+a hypothesis `h_cond_comm` here — at the `ProcedureState` level it is supplied
+by `Stable cond`. -/
+
+/-- Intermediate iteration: the lazy body, but with `c` in the else branch. -/
+private noncomputable def whileBy_Ψ {s : Type} (c : Program s Unit)
+    (cond : Program s Bool) (body_lazy : Program s Unit) :
+    (Unit → Program s Unit) →𝒄 (Unit → Program s Unit) :=
+  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → Program s Unit) => fun () =>
+    do if ← cond then body_lazy; fp () else c
+
+/-- Lazy iterate composed with `c` equals the `Ψ`-iterate. -/
+private lemma whileBy_kleene_lazy {s : Type} (c : Program s Unit)
+    (cond : Program s Bool) (body_lazy : Program s Unit) :
+    ∀ n : ℕ,
+    (((while_iteration cond body_lazy)^[n] (⊥ : Unit → Program s Unit)) () >>= (fun _ => c))
+    = ((whileBy_Ψ c cond body_lazy)^[n] (⊥ : Unit → Program s Unit)) () := by
+  intro n
+  induction n with
+  | zero =>
+    change ((⊥ : Program s Unit) >>= fun _ => c) = (⊥ : Program s Unit)
+    exact Program.bot_bind _
+  | succ n ih =>
+    rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
+    change (((cond) >>= fun b =>
+              if b = true then body_lazy >>= fun _ => ((while_iteration cond body_lazy)^[n] ⊥) ()
+              else (pure () : Program s Unit)) >>= fun _ => c)
+        = (cond) >>= fun b =>
+              if b = true then body_lazy >>= fun _ => ((whileBy_Ψ c cond body_lazy)^[n] ⊥) ()
+              else c
+    rw [Program.bind_assoc]
+    congr 1; funext b
+    by_cases h : b = true
+    · simp only [h, if_true]; rw [Program.bind_assoc]; congr 1; funext _; exact ih
+    · simp only [h, if_false]; exact Program.pure_bind () _
+
+/-- `c` prepended to the eager iterate equals the `Ψ`-iterate. -/
+private lemma whileBy_kleene_eager {s : Type} (c : Program s Unit) {cond : Program s Bool}
+    (h_cond_comm : ∀ {β : Type} (k : Bool → Program s β),
+        (cond >>= fun b => c >>= fun _ => k b) = (c >>= fun _ => cond >>= k))
+    {body_lazy body_eager : Program s Unit}
+    (h_body : (body_lazy >>= fun _ : Unit => c) = (c >>= fun _ : Unit => body_eager)) :
+    ∀ n : ℕ,
+    c >>= (fun _ => ((while_iteration cond body_eager)^[n] (⊥ : Unit → Program s Unit)) ())
+    = ((whileBy_Ψ c cond body_lazy)^[n] (⊥ : Unit → Program s Unit)) () := by
+  intro n
+  induction n with
+  | zero =>
+    change (c >>= fun _ => (⊥ : Program s Unit)) = (⊥ : Program s Unit)
+    exact Program.bind_bot _
+  | succ n ih =>
+    rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
+    change (c >>= fun _ => (cond) >>= fun b =>
+              if b = true then body_eager >>= fun _ => ((while_iteration cond body_eager)^[n] ⊥) ()
+              else (pure () : Program s Unit))
+        = (cond) >>= fun b =>
+              if b = true then body_lazy >>= fun _ => ((whileBy_Ψ c cond body_lazy)^[n] ⊥) ()
+              else c
+    rw [show (c >>= fun _ => (cond) >>=
+              fun b => if b = true then body_eager >>= fun _ =>
+                  ((while_iteration cond body_eager)^[n] ⊥) () else (pure () : Program s Unit))
+            = ((cond) >>= fun b => c >>= fun _ =>
+                if b = true then body_eager >>= fun _ =>
+                  ((while_iteration cond body_eager)^[n] ⊥) () else (pure () : Program s Unit)) from
+        (h_cond_comm _).symm]
+    congr 1; funext b
+    by_cases h : b = true
+    · simp only [h, if_true]
+      rw [← Program.bind_assoc]
+      rw [show (c >>= fun _ : Unit => body_eager) = (body_lazy >>= fun _ : Unit => c) from h_body.symm]
+      rw [Program.bind_assoc]; congr 1; funext _; exact ih
+    · simp only [h, if_false]; exact Program.bind_pure _
+
+/-- **Generic `while_loop` closure for `transferBy`.** -/
+theorem transferBy_while_loop {s : Type} (c : Program s Unit) {cond : Program s Bool}
+    (h_cond_comm : ∀ {β : Type} (k : Bool → Program s β),
+        (cond >>= fun b => c >>= fun _ => k b) = (c >>= fun _ => cond >>= k))
+    {body_lazy body_eager : Program s Unit}
+    (h_body : (body_lazy >>= fun _ : Unit => c) = (c >>= fun _ : Unit => body_eager)) :
+    transferBy c (while_loop cond body_lazy) (while_loop cond body_eager) := by
+  show (while_loop cond body_lazy >>= fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : Program s Unit))
+      = (c >>= fun _ : Unit => while_loop cond body_eager)
+  rw [show (fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : Program s Unit)) = (fun _ : Unit => c) from by
+        funext u
+        rw [show (Pure.pure u : Program s Unit) = (Pure.pure () : Program s Unit) from rfl]
+        exact Program.bind_pure _]
+  let F_lazy := while_iteration cond body_lazy
+  let F_eager := while_iteration cond body_eager
+  have hL_chain : ∀ n, ((F_lazy^[n] ⊥ : Unit → Program s Unit) () >>= (fun _ => c))
+                     = ((whileBy_Ψ c cond body_lazy)^[n] ⊥ : Unit → Program s Unit) () :=
+    whileBy_kleene_lazy c cond body_lazy
+  have hE_chain : ∀ n, c >>= (fun _ => (F_eager^[n] ⊥ : Unit → Program s Unit) ())
+                     = ((whileBy_Ψ c cond body_lazy)^[n] ⊥ : Unit → Program s Unit) () :=
+    whileBy_kleene_eager c h_cond_comm h_body
+  have h_bind_c_cont : OmegaCompletePartialOrder.ωScottContinuous
+      (fun (m : Program s Unit) => m >>= fun _ => c) := by fun_prop
+  have h_c_bind_cont : OmegaCompletePartialOrder.ωScottContinuous
+      (fun (m : Program s Unit) => c >>= fun _ => m) := by fun_prop
+  change (F_lazy.lfp ()) >>= (fun _ => c) = c >>= (fun _ => F_eager.lfp ())
+  let chain_lazy : OmegaCompletePartialOrder.Chain (Unit → Program s Unit) :=
+    ⟨fun n => F_lazy^[n] ⊥, Monotone.monotone_iterate_of_le_map F_lazy.monotone (OrderBot.bot_le _)⟩
+  let chain_eager : OmegaCompletePartialOrder.Chain (Unit → Program s Unit) :=
+    ⟨fun n => F_eager^[n] ⊥, Monotone.monotone_iterate_of_le_map F_eager.monotone (OrderBot.bot_le _)⟩
+  have hLfpL : F_lazy.lfp = OmegaCompletePartialOrder.ωSup chain_lazy := rfl
+  have hLfpE : F_eager.lfp = OmegaCompletePartialOrder.ωSup chain_eager := rfl
+  have hLfpL_at : F_lazy.lfp () = OmegaCompletePartialOrder.ωSup
+                    (chain_lazy.map ⟨fun fp => fp (), fun _ _ h => h ()⟩) := by rw [hLfpL]; rfl
+  have hLfpE_at : F_eager.lfp () = OmegaCompletePartialOrder.ωSup
+                    (chain_eager.map ⟨fun fp => fp (), fun _ _ h => h ()⟩) := by rw [hLfpE]; rfl
+  rw [hLfpL_at, hLfpE_at, h_bind_c_cont.map_ωSup, h_c_bind_cont.map_ωSup]
+  congr 1
+  ext n
+  exact (hL_chain n).trans (hE_chain n).symm
+
+/-- **The former hard lemma** (now proved): `transferBy convertL` is closed under
+    `while_loop`.  Instantiates `transferBy_while_loop` with `c := convertL`; the
+    condition-commutation comes from `Stable c` and the body bind-form from `hbody`. -/
+theorem transferL_while_loop {l : Type} {c : Program (ProcedureState l) Bool}
+    {body_lazy body_eager : Program (ProcedureState l) Unit}
+    (hc : Stable c) (hbody : transferBy convertL body_lazy body_eager) :
+    transferBy convertL (while_loop c body_lazy) (while_loop c body_eager) := by
+  refine transferBy_while_loop convertL (cond := c) ?_ ?_
+  · -- condition commutes with convertL, from `Stable c`
+    intro β k
+    have hc' : (c >>= fun a => convertL >>= fun _ => (pure a : Program (ProcedureState l) Bool))
+             = (convertL >>= fun _ => c) := hc
+    have h_pair : (c >>= fun b => convertL >>= fun _ => (pure (b, ()) : Program (ProcedureState l) (Bool × Unit)))
+                = (convertL >>= fun _ => c >>= fun b => pure (b, ())) := by
+      have := congrArg (fun m => m >>= fun b =>
+        (pure (b, ()) : Program (ProcedureState l) (Bool × Unit))) hc'
+      simpa only [Program.bind_assoc, Program.pure_bind] using this
+    have hL : (c >>= fun b => convertL >>= fun _ => k b)
+            = (c >>= fun b => convertL >>= fun _ =>
+                (pure (b, ()) : Program (ProcedureState l) (Bool × Unit))) >>= fun bu => k bu.1 := by
+      simp_rw [Program.bind_assoc]; congr 1; funext b; congr 1; funext u; rw [Program.pure_bind]
+    have hR : (convertL >>= fun _ => c >>= k)
+            = (convertL >>= fun _ => c >>= fun b =>
+                (pure (b, ()) : Program (ProcedureState l) (Bool × Unit))) >>= fun bu => k bu.1 := by
+      simp_rw [Program.bind_assoc]; congr 1; funext u; congr 1; funext b; rw [Program.pure_bind]
+    rw [hL, hR, h_pair]
+  · -- body bind-form, from `hbody`
+    calc (body_lazy >>= fun _ : Unit => convertL)
+        = (body_lazy >>= fun u : Unit =>
+              convertL >>= fun _ : Unit => (Pure.pure u : Program (ProcedureState l) Unit)) := by
+          congr 1; funext u
+          show convertL = convertL >>= fun _ : Unit => Pure.pure u
+          rw [show (Pure.pure u : Program (ProcedureState l) Unit)
+                = (Pure.pure () : Program (ProcedureState l) Unit) from rfl]
+          exact (Program.bind_pure _).symm
+      _ = (convertL >>= fun _ : Unit => body_eager) := hbody
+
+/-- **Body induction**: an arbitrary syntactic adversary `A` transfers from its
+    lazy to its eager instantiation, given locality (`Loc`) of its own operations
+    and a per-hole transfer hypothesis (`hhole`).  Generic over the holes so the
+    induction goes through; specialized to the RO hole below. -/
+theorem body_transfer_gen :
+    ∀ {holes : HoleSigs} {l : Type} (A : StmtWithHoles holes l)
+      (lazyInst eagerInst : holes.Instantiation),
+      Loc A →
+      (∀ {sig} (n : HoleIndex holes sig)
+          (x : Setter sig.ret (ProcedureState l))
+          (p : Getter sig.ParamType (ProcedureState l)),
+          Stable (Program.get p) → (∀ ret, Stable (Program.set x ret)) →
+          transferBy convertL (programDenotation (StmtWithHoles.call x (lazyInst n) p))
+            (programDenotation (StmtWithHoles.call x (eagerInst n) p))) →
+      transferBy convertL (programDenotation (A.instantiate lazyInst))
+        (programDenotation (A.instantiate eagerInst)) := by
+  intro holes l A
+  induction A with
+  | skip =>
+      intro lazyInst eagerInst _ _
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      exact transferBy_pure ()
+  | sample x e =>
+      intro lazyInst eagerInst hloc _
+      simp only [StmtWithHoles.instantiate]
+      exact hloc
+  | call' x ls b r p =>
+      intro lazyInst eagerInst hloc _
+      simp only [StmtWithHoles.instantiate]
+      exact hloc
+  | hole n x p =>
+      intro lazyInst eagerInst hloc hhole
+      simp only [StmtWithHoles.instantiate]
+      exact hhole n x p hloc.1 hloc.2
+  | seq s1 s2 ih1 ih2 =>
+      intro lazyInst eagerInst hloc hhole
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      exact transferBy_bind (ih1 lazyInst eagerInst hloc.1 hhole)
+        (fun _ => ih2 lazyInst eagerInst hloc.2 hhole)
+  | ifThenElse c t e iht ihe =>
+      intro lazyInst eagerInst hloc hhole
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      refine transferBy_bind hloc.1 (fun b => ?_)
+      by_cases hb : b = true
+      · subst hb; simpa using iht lazyInst eagerInst hloc.2.1 hhole
+      · simp only [Bool.not_eq_true] at hb; subst hb
+        simpa using ihe lazyInst eagerInst hloc.2.2 hhole
+  | «while» c t iht =>
+      intro lazyInst eagerInst hloc hhole
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      exact transferL_while_loop hloc.1 (iht lazyInst eagerInst hloc.2 hhole)
+
+/-- The denotation of a procedure call, with the called procedure kept intact
+    (`programDenotation` reconstructs `⟨proc.locals, proc.body, proc.return_val⟩`,
+    which is `proc` by structure-eta). -/
+theorem denote_call {l : Type} {sig : ProcedureSignature}
+    (x : Setter sig.ret (ProcedureState l)) (proc : Procedure sig)
+    (p : Getter sig.ParamType (ProcedureState l)) :
+    programDenotation (StmtWithHoles.call x proc p)
+      = (Program.get p >>= fun args =>
+          Program.zoom ProcedureState.globalL (procedureDenotation proc args)
+            >>= fun ret => Program.set x ret) := by
+  simp only [StmtWithHoles.call, programDenotation]; rfl
+
+/-- **Discharge of the oracle hypothesis for RO**: the lazy and eager oracle
+    calls transfer, given the surrounding read/write are stable.  This is the
+    concrete `hhole` for `body_transfer_gen` with `RO_lazy`/`RO_eager`: the
+    query itself transfers by `Program.transfer_lazy_query` (lifted via
+    `transferBy_zoom`), and the bridges identify the procedures with the
+    semantic queries. -/
+theorem ro_hhole {l : Type} {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
+    (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
+    (hp : Stable (Program.get p)) (hx : ∀ ret, Stable (Program.set x ret)) :
+    transferBy convertL (programDenotation (StmtWithHoles.call x (RO_lazy n) p))
+      (programDenotation (StmtWithHoles.call x (RO_eager n) p)) := by
+  cases n with
+  | zero =>
+      show transferBy convertL (programDenotation (StmtWithHoles.call x RO_lazy_proc p))
+          (programDenotation (StmtWithHoles.call x RO_eager_proc p))
+      rw [denote_call, denote_call]
+      refine transferBy_bind hp (fun args => transferBy_bind ?_ (fun ret => hx ret))
+      rw [procDenotation_RO_lazy, procDenotation_RO_eager]
+      exact transferBy_zoom ProcedureState.globalL (Program.transfer_lazy_query args)
+  | succ m => nomatch m
+
+/-- **Body-level RO transfer** — fully assembled (only `transferL_while_loop`
+    remains, via `body_transfer_gen`).  For any syntactic adversary body `A`
+    that is `Loc`al (touches the RO table only through the oracle hole), the
+    lazy and eager instantiations transfer at the `ProcedureState` level. -/
+theorem transfer_instantiate_body {l : Type} (A : StmtWithHoles roHoles l) (hloc : Loc A) :
+    transferBy convertL (programDenotation (A.instantiate RO_lazy))
+      (programDenotation (A.instantiate RO_eager)) :=
+  body_transfer_gen A RO_lazy RO_eager hloc (fun n x p hp hx => ro_hhole n x p hp hx)
+
+/-! ## The two subtask-3 theorems
+
+Here `A : ProcedureWithHoles roHoles sig` is an adversary procedure carrying the
+single oracle hole.  `A.instantiate RO_lazy` / `A.instantiate RO_eager` fill that
+hole, and `procedureDenotation _ args : Program state sig.ret` runs the result on
+the RO global `state`. -/
+
+/-- The procedure denotation as an explicit wrapper: initialise locals, run the
+    body, extract `(return_val, global)`. -/
+noncomputable def procWrap {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (initL : L)
+    (B : Program (ProcedureState L) Unit) : Program state sig.ret :=
+  fun st => B ⟨st, initL⟩ >>= fun p => pure (rv.get p.2, p.2.global)
+
+/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body. -/
+theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (inst : roHoles.Instantiation) :
+    procedureDenotation (A.instantiate inst) args
+      = procWrap A.return_val (sig.localVariableInit A.locals args)
+          (programDenotation (A.body.instantiate inst)) := by
+  funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]; rfl
+
+/-- **`convertL` slides in**: `convert` before the wrapper = `convertL` before the
+    body, inside the wrapper.  Structural (no return-value hypothesis). -/
+theorem procWrap_convertL_in {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : Program (ProcedureState L) Unit) :
+    procWrap rv initL (convertL >>= fun _ => B) = (convert >>= fun _ => procWrap rv initL B) := by
+  funext st
+  simp only [procWrap, convertL, Program.zoom, bind, StateT.bind, pure, StateT.pure,
+    ProcedureState.globalL]
+  generalize convert st = U
+  obtain ⟨mu, hmu⟩ := U
+  simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
+    measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  rfl
+
+/-- `Program.get rv` reads `rv` and threads the state through unchanged. -/
+theorem programGet_eq {sig : ProcedureSignature} {L : Type} (rv : Getter sig.ret (ProcedureState L)) :
+    (Program.get rv : Program (ProcedureState L) sig.ret) = fun ps => pure (rv.get ps, ps) := by
+  funext ps
+  simp only [Program.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure, StateT.pure,
+    id_eq, SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top]
+
+/-- From `hret`: reading `rv` commutes with `convertL` (clean `convertL`-form). -/
+theorem rv_convertL_stable {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (Program.get rv)) (ps : ProcedureState L) :
+    (convertL ps >>= fun q => pure (rv.get ps, q.2)) = (convertL ps >>= fun q => pure (rv.get q.2, q.2)) := by
+  have h := congrFun hret ps
+  simp only [Stable, transferBy, programGet_eq, bind, StateT.bind, pure, StateT.pure,
+    SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top] at h
+  exact h
+
+/-- `key`: reading `rv` is invariant under `convert` changing the table (the global
+    component of `rv_convertL_stable`). -/
+theorem rv_convert_invariant {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (Program.get rv)) (ps : ProcedureState L) :
+    (convert ps.global >>= fun w => pure (rv.get ps, w.2))
+      = (convert ps.global >>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
+  have hc := rv_convertL_stable rv hret ps
+  have hp := congrArg (fun (m : SubProbability (sig.ret × ProcedureState L)) =>
+      m >>= fun p => (pure (p.1, p.2.global) : SubProbability (sig.ret × state))) hc
+  simp only [convertL, Program.zoom, ProcedureState.globalL, bind, StateT.bind, pure, StateT.pure,
+    SubProbability.bind_assoc', SubProbability.pure_bind] at hp ⊢
+  generalize convert ps.global = U at hp ⊢
+  obtain ⟨mu, hmu⟩ := U
+  simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
+    measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top] at hp ⊢
+  exact hp
+
+set_option maxHeartbeats 1000000 in
+/-- **`convert` slides out**: `convert` after the wrapper = `convertL` after the
+    body, inside the wrapper.  Consumes `hret` (the return value is RO-disjoint,
+    so reading it commutes with `convert` changing the table) via `rv_convert_invariant`. -/
+theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : Program (ProcedureState L) Unit)
+    (hret : Stable (Program.get rv)) :
+    (procWrap rv initL B >>= fun r => convert >>= fun _ => pure r)
+      = procWrap rv initL (B >>= fun a => convertL >>= fun _ => pure a) := by
+  funext st
+  simp only [procWrap, convertL, Program.zoom, ProcedureState.globalL, bind, StateT.bind,
+    pure, StateT.pure]
+  generalize B ⟨st, initL⟩ = Bv
+  obtain ⟨mb, hb⟩ := Bv
+  simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
+    measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  apply Subtype.ext
+  show mb.bind _ = mb.bind _
+  congr 1
+  funext p
+  have h := congrArg Subtype.val (rv_convert_invariant rv hret p.2)
+  simp only [bind, StateT.bind, pure, StateT.pure] at h ⊢
+  generalize convert p.2.global = U at h ⊢
+  obtain ⟨mu, hmu⟩ := U
+  simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
+    measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top] at h ⊢
+  exact h
+
+/-- **Procedure wrapper**: a body-level `transferBy convertL` lifts to a
+    state-level `Program.transfer` of the whole procedure denotation, provided
+    the return value is RO-disjoint.  Assembled from `procedureDenotation_eq_procWrap`,
+    `procWrap_convert_out` (uses `hret`), `hbody`, and `procWrap_convertL_in`. -/
+theorem transfer_wrapper {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (hbody : transferBy convertL (programDenotation (A.body.instantiate RO_lazy))
+              (programDenotation (A.body.instantiate RO_eager)))
+    (hret : Stable (Program.get A.return_val)) :
+    Program.transfer
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (procedureDenotation (A.instantiate RO_eager) args) := by
+  rw [procedureDenotation_eq_procWrap A args RO_lazy, procedureDenotation_eq_procWrap A args RO_eager]
+  show (procWrap A.return_val (sig.localVariableInit A.locals args)
+          (programDenotation (A.body.instantiate RO_lazy)) >>= fun r => convert >>= fun _ => pure r)
+      = (convert >>= fun _ => procWrap A.return_val (sig.localVariableInit A.locals args)
+          (programDenotation (A.body.instantiate RO_eager)))
+  rw [procWrap_convert_out _ _ _ hret,
+      congrArg (procWrap A.return_val (sig.localVariableInit A.locals args)) hbody,
+      procWrap_convertL_in]
+
+/-- **`Program.transfer_instantiate`** (subtask 3, theorem 1).
+
+If `A` touches the RO table only through the oracle hole (honest locality `Loc`
+on its body; `fv_proc` is unusable while its leaves are `sorry`), then the lazy
+and eager instantiations are related by `Program.transfer` — `convert` slides
+across `A`, turning every lazy query into an eager one.  (Direction `lazy ↦
+eager` matches the definition of `Program.transfer`; CLAUDE.md writes the pair in
+the opposite order.)  Reduces to `transfer_instantiate_body` (proven modulo
+`transferL_while_loop`) via `transfer_wrapper`. -/
+theorem Program.transfer_instantiate {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (hloc : Loc A.body) (hret : Stable (Program.get A.return_val)) :
+    Program.transfer
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (procedureDenotation (A.instantiate RO_eager) args) :=
+  transfer_wrapper A args (transfer_instantiate_body A.body hloc) hret
+
+/-! ### Theorem 2 scaffolding: relational invariant preservation
+
+Subtask-3 theorem 2 is the coupling/`prhl` analogue of theorem 1.  We lift the
+state invariant `P` to procedure states (`P` on globals, equal locals), give an
+honest locality predicate `LocP` (each of the adversary's own operations
+preserves the invariant relationally — its guards return equal booleans and its
+updates preserve the relation), and prove the body induction `body_prhl2_gen`
+in `prhl2` (the richer relational calculus). -/
+
+/-- Lift `P` (on the global RO state) to a relation on procedure states:
+    `P` on the globals, identical locals (the adversary's local computation is
+    the same on the eager and lazy sides). -/
+def liftRel {l : Type} (P : state → state → Prop) : ProcedureState l → ProcedureState l → Prop :=
+  fun ps₁ ps₂ => P ps₁.global ps₂.global ∧ ps₁.locals = ps₂.locals
+
+/-- Post-relation on `(result, procedure state)`: equal results, `liftRel P` on states. -/
+def liftRelPost {l α : Type} (P : state → state → Prop) :
+    α × ProcedureState l → α × ProcedureState l → Prop :=
+  fun u v => u.1 = v.1 ∧ liftRel P u.2 v.2
+
+/-- Read coupling: a getter returns equal values and preserves `liftRel P`.
+    Used both for `Bool` guards (`if`/`while`) and the oracle's params getter. -/
+def GetOK {γ l : Type} (P : state → state → Prop) (g : Getter γ (ProcedureState l)) : Prop :=
+  Program.prhl2 (liftRel P) (Program.get g) (Program.get g) (liftRelPost P)
+
+/-- Honest locality for theorem 2: every operation of `A` *outside the oracle*
+    preserves the invariant relationally (self-couples under `liftRel P`).  The
+    oracle hole is exempt (handled by the per-query hypothesis). -/
+def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWithHoles holes l → Prop
+  | .skip => True
+  | .sample x e => Program.prhl2 (liftRel P) (programDenotation (StmtWithHoles.sample x e : Stmt l))
+      (programDenotation (StmtWithHoles.sample x e : Stmt l)) (liftRelPost P)
+  | .call' x ls b r p => Program.prhl2 (liftRel P)
+      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l))
+      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)) (liftRelPost P)
+  | .hole _ x p => GetOK P p ∧
+      (∀ ret, Program.prhl2 (liftRel P) (Program.set x ret) (Program.set x ret) (liftRelPost P))
+  | .seq s1 s2 => LocP P s1 ∧ LocP P s2
+  | .ifThenElse c t e => GetOK P c ∧ LocP P t ∧ LocP P e
+  | .while c t => GetOK P c ∧ LocP P t
+
+/-- `ProcedureState l` is `Countable` when its locals are (the global RO `state`
+    already is) — needed for the `prhl2` composition rules. -/
+instance instCountableProcedureState {l : Type} [Countable l] : Countable (ProcedureState l) :=
+  Countable.of_equiv (state × l)
+    { toFun := fun p => ⟨p.1, p.2⟩, invFun := fun ps => (ps.global, ps.locals),
+      left_inv := fun _ => rfl, right_inv := fun _ => rfl }
+
+/-- **Body induction**: an arbitrary adversary body `A` preserves the lifted
+    invariant relationally, given `LocP` and a per-hole coupling `hhole` (the
+    oracle preserves the invariant).  `[Countable l]` feeds the `prhl2`
+    composition rules (`bind`/`cond`/`while_loop`). -/
+theorem body_prhl2_gen {P : state → state → Prop} :
+    ∀ {holes : HoleSigs} {l : Type} (A : StmtWithHoles holes l) [Countable l]
+      (eagerInst lazyInst : holes.Instantiation),
+      LocP P A →
+      (∀ {sig} (n : HoleIndex holes sig)
+          (x : Setter sig.ret (ProcedureState l))
+          (p : Getter sig.ParamType (ProcedureState l)),
+          GetOK P p →
+          (∀ ret, Program.prhl2 (liftRel P) (Program.set x ret) (Program.set x ret) (liftRelPost P)) →
+          Program.prhl2 (liftRel P)
+            (programDenotation (StmtWithHoles.call x (eagerInst n) p))
+            (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) →
+      Program.prhl2 (liftRel P)
+        (programDenotation (A.instantiate eagerInst))
+        (programDenotation (A.instantiate lazyInst)) (liftRelPost P) := by
+  intro holes l A
+  induction A with
+  | skip =>
+      intro _ eagerInst lazyInst _ _
+      simp only [StmtWithHoles.instantiate, programDenotation, Program.skip]
+      exact Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩)
+  | sample x e =>
+      intro _ eagerInst lazyInst hloc _
+      simp only [StmtWithHoles.instantiate]
+      exact hloc
+  | call' x ls b r p =>
+      intro _ eagerInst lazyInst hloc _
+      simp only [StmtWithHoles.instantiate]
+      exact hloc
+  | hole n x p =>
+      intro _ eagerInst lazyInst hloc hhole
+      simp only [StmtWithHoles.instantiate]
+      exact hhole n x p hloc.1 hloc.2
+  | seq s1 s2 ih1 ih2 =>
+      intro hCl eagerInst lazyInst hloc hhole
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      refine Program.prhl2.bind (ih1 eagerInst lazyInst hloc.1 hhole) (fun _ _ => ?_)
+      exact Program.prhl2.conseq (ih2 eagerInst lazyInst hloc.2 hhole)
+        (fun _ _ hpre => hpre.2) (fun _ _ hB => hB)
+  | ifThenElse c t e iht ihe =>
+      intro hCl eagerInst lazyInst hloc hhole
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      exact Program.prhl2.cond hloc.1 (iht eagerInst lazyInst hloc.2.1 hhole)
+        (ihe eagerInst lazyInst hloc.2.2 hhole)
+  | «while» c t iht =>
+      intro hCl eagerInst lazyInst hloc hhole
+      simp only [StmtWithHoles.instantiate, programDenotation]
+      refine Program.prhl2.conseq
+        (Program.prhl2.while_loop (PostC := fun _ => liftRel P) hloc.1 ?_)
+        (fun _ _ h => h) (fun _ _ hB => ⟨rfl, hB⟩)
+      exact Program.prhl2.conseq (iht eagerInst lazyInst hloc.2 hhole)
+        (fun _ _ h => h) (fun _ _ hB => hB.2)
+
+/-- **Coupling lift through `zoom globalL`** (the `prhl2` analogue of
+    `transferBy_zoom`): a state-level coupling of `c`, `d` under `P` lifts to a
+    `ProcedureState` coupling of their `zoom`s under `liftRel P`, threading the
+    (equal) locals.  Used to lift the per-query hypothesis `h` to the oracle hole. -/
+theorem prhl2_zoom (l : Type) {γ : Type} {P : state → state → Prop}
+    [Countable ((γ × state) × (γ × state))]
+    [Countable ((γ × ProcedureState l) × (γ × ProcedureState l))]
+    {c d : Program state γ} {B : γ × state → γ × state → Prop}
+    (hcd : Program.prhl2 P c d B) :
+    Program.prhl2 (liftRel (l := l) P)
+      (Program.zoom (ProcedureState.globalL (l := l)) c)
+      (Program.zoom (ProcedureState.globalL (l := l)) d)
+      (fun u v => B (u.1, u.2.global) (v.1, v.2.global) ∧ u.2.locals = v.2.locals) := by
+  intro ps₁ ps₂ hrel
+  obtain ⟨μ, hm1, hm2, hsat⟩ := hcd ps₁.global ps₂.global hrel.1
+  refine ⟨μ >>= fun w => pure ((w.1.1, (⟨w.1.2, ps₁.locals⟩ : ProcedureState l)),
+                               (w.2.1, (⟨w.2.2, ps₂.locals⟩ : ProcedureState l))), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    show (μ >>= fun w => pure (w.1.1, (⟨w.1.2, ps₁.locals⟩ : ProcedureState l)))
+        = c ps₁.global >>= fun as => pure (as.1, (⟨as.2, ps₁.locals⟩ : ProcedureState l))
+    rw [← hm1, SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    show (μ >>= fun w => pure (w.2.1, (⟨w.2.2, ps₂.locals⟩ : ProcedureState l)))
+        = d ps₂.global >>= fun as => pure (as.1, (⟨as.2, ps₂.locals⟩ : ProcedureState l))
+    rw [← hm2, SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+  · exact SubProbability.satisfies_bind _
+      (fun w hw => SubProbability.satisfies_pure _ _ ⟨hsat w hw, hrel.2⟩)
+
+/-- **RO hole coupling**: the eager/lazy oracle calls couple under `liftRel P`,
+    given the surrounding read/write are `liftRel`-preserving.  The query couples
+    via `prhl2_zoom` of the per-query hypothesis `h` (with the bridges identifying
+    the procedures with the semantic queries).  This is `body_prhl2_gen`'s `hhole`
+    for the RO instantiation. -/
+theorem ro_hhole_prhl {l : Type} [Countable l] {P : state → state → Prop}
+    (h : ∀ inp : input, Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
+    (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
+    (hp : GetOK P p)
+    (hx : ∀ ret, Program.prhl2 (liftRel P) (Program.set x ret) (Program.set x ret) (liftRelPost P)) :
+    Program.prhl2 (liftRel P)
+      (programDenotation (StmtWithHoles.call x (RO_eager n) p))
+      (programDenotation (StmtWithHoles.call x (RO_lazy n) p)) (liftRelPost P) := by
+  cases n with
+  | zero =>
+      haveI : Countable roSig.ParamType := inferInstanceAs (Countable input)
+      haveI : Countable roSig.ret := inferInstanceAs (Countable output)
+      show Program.prhl2 (liftRel P)
+          (programDenotation (StmtWithHoles.call x RO_eager_proc p))
+          (programDenotation (StmtWithHoles.call x RO_lazy_proc p)) (liftRelPost P)
+      rw [denote_call, denote_call]
+      refine Program.prhl2.bind hp (fun args₁ args₂ => ?_)
+      intro σ₁ σ₂ hpre
+      obtain ⟨rfl, hrel⟩ := hpre
+      refine (Program.prhl2.bind (M := liftRelPost P) ?_ (fun ret₁ ret₂ => ?_)) σ₁ σ₂ hrel
+      · -- the zoomed query couples (via `prhl2_zoom`); post normalized to `liftRelPost P`
+        rw [procDenotation_RO_eager, procDenotation_RO_lazy]
+        exact Program.prhl2.conseq (prhl2_zoom l ((h args₁).to_prhl2))
+          (fun _ _ h => h) (fun _ _ hB => ⟨hB.1.1, hB.1.2, hB.2⟩)
+      · -- the write couples (equal results from the middle post)
+        intro τ₁ τ₂ hpre2
+        obtain ⟨rfl, hrel2⟩ := hpre2
+        exact hx ret₁ τ₁ τ₂ hrel2
+  | succ m => nomatch m
+
+/-- **Body-level theorem 2** — fully assembled: an arbitrary `Loc`al adversary
+    body preserves the invariant relationally, with the RO oracle.  Combines
+    `body_prhl2_gen` with the RO hole coupling `ro_hhole_prhl`. -/
+theorem prhl_instantiate_body {l : Type} [Countable l] {P : state → state → Prop}
+    (h : ∀ inp : input, Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (A : StmtWithHoles roHoles l) (hloc : LocP P A) :
+    Program.prhl2 (liftRel P)
+      (programDenotation (A.instantiate RO_eager))
+      (programDenotation (A.instantiate RO_lazy)) (liftRelPost P) :=
+  body_prhl2_gen A RO_eager RO_lazy hloc (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
+
+/-- **Procedure wrapper for `prhl`** (isolated, analogue of `transfer_wrapper`):
+    a body-level `prhl2` coupling lifts to a state-level `prhl` coupling of the
+    whole procedure, given the return value is determined by the invariant. -/
+theorem prhl_wrapper {sig : ProcedureSignature} {P : state → state → Prop}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)]
+    (hbody : Program.prhl2 (liftRel P)
+      (programDenotation (A.body.instantiate RO_eager))
+      (programDenotation (A.body.instantiate RO_lazy)) (liftRelPost P))
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args) (liftPost P) := by
+  apply Program.prhl2.to_prhl
+  intro st₁ st₂ hP
+  obtain ⟨μ, hm1, hm2, hsat⟩ :=
+    hbody ⟨st₁, sig.localVariableInit A.locals args⟩ ⟨st₂, sig.localVariableInit A.locals args⟩ ⟨hP, rfl⟩
+  refine ⟨μ >>= fun w => pure ((A.return_val.get w.1.2, w.1.2.global),
+                               (A.return_val.get w.2.2, w.2.2.global)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    rw [procedureDenotation_eq_procWrap]
+    show (μ >>= fun w => pure (A.return_val.get w.1.2, w.1.2.global))
+        = (programDenotation (A.body.instantiate RO_eager))
+            ⟨st₁, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
+    rw [← hm1, SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    rw [procedureDenotation_eq_procWrap]
+    show (μ >>= fun w => pure (A.return_val.get w.2.2, w.2.2.global))
+        = (programDenotation (A.body.instantiate RO_lazy))
+            ⟨st₂, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
+    rw [← hm2, SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+  · refine SubProbability.satisfies_bind _ (fun w hw => SubProbability.satisfies_pure _ _ ?_)
+    have hlr := hsat w hw
+    exact ⟨hret w.1.2 w.2.2 hlr.2, hlr.2.1⟩
+
+/-- **`prhl_instantiate`** (subtask 3, theorem 2).
+
+Given a state invariant `P` that (a) is preserved relationally by a single oracle
+query (`h`), and (b) is preserved by `A`'s own operations (`hloc`, the honest
+locality; `fv_proc` is unusable while its leaves are `sorry`) and its return read
+(`hret`), the eager and lazy instantiations of `A` are related by `Program.prhl`
+under `P`.  Reduces to `prhl_instantiate_body` via `prhl_wrapper`. -/
+theorem prhl_instantiate {sig : ProcedureSignature} {P : state → state → Prop}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)]
+    (h : ∀ inp : input,
+        Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (hloc : LocP P A.body)
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost P) :=
+  prhl_wrapper A args (prhl_instantiate_body h A.body hloc) hret
+
+end GaudisCrypt.Lib.RO.SyntacticEquiv
