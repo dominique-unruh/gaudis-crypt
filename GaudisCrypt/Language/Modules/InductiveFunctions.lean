@@ -2,6 +2,7 @@ import GaudisCrypt.Language.Modules
 
 open GaudisCrypt.Language.Modules
 open GaudisCrypt.Language.Programs
+open GaudisCrypt.Language.Lens
 
 namespace GaudisCrypt.Language.Modules.InductiveFunctions
 
@@ -413,5 +414,264 @@ theorem InductiveFunction.unit (ind : InductiveFunction t) (m : Module .unit) :
       rfl
     change ind.evalMexpr m.expression = _
     rw [h, InductiveFunction.unit_moduleExpression]
+
+
+
+structure InductiveFunctionGettersSetters (T : Type → Type) :=
+  nothing : T t
+  join : T t → T t → T t
+  getter {a s : Type}: Getter a s → T s
+  setter {a s : Type}: Setter a s → T s
+  reduce (lens : Lens a b) (x : T b) : T a
+  extend (lens : Lens a b) (x : T a) : T b
+
+def InductiveFunctionGettersSetters.transfer
+  (ind : InductiveFunctionGettersSetters T) (x : T (ProcedureState s)) : T (ProcedureState t) :=
+  ind.extend ProcedureState.globalL (ind.reduce ProcedureState.globalL x)
+
+def InductiveFunctionGettersSetters.stmt (ind : InductiveFunctionGettersSetters T) {s} {holes} :
+  StmtWithHoles holes s → T (ProcedureState s)
+| .skip => ind.nothing
+| .sample x e => ind.join (ind.setter x) (ind.getter e)
+| .call' x _ b r p =>
+    ind.join (ind.setter x)
+    (ind.join (ind.transfer (ind.stmt b))
+    (ind.join (ind.transfer (ind.getter r)) (ind.getter p)))
+| .hole _ x p => ind.join (ind.setter x) (ind.getter p)
+| .seq s1 s2 => ind.join (ind.stmt s1) (ind.stmt s2)
+| .ifThenElse c t e => ind.join (ind.getter c) (ind.join (ind.stmt t) (ind.stmt e))
+| .while c t => ind.join (ind.getter c) (ind.stmt t)
+
+def InductiveFunctionGettersSetters.proc (ind : InductiveFunctionGettersSetters T) {sig holes}
+  (proc : ProcedureWithHoles holes sig) : T State :=
+  ind.join
+  (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
+  (ind.reduce ProcedureState.globalL (ind.getter proc.return_val))
+
+
+class ReducibleGettersSetters {T : Type → Type} (ind : InductiveFunctionGettersSetters T) where
+  [preorder : ∀ {t}, PartialOrder (T t)]
+  [comm  : ∀ {t}, Std.Commutative (@ind.join t)]
+  [assoc  : ∀ {t}, Std.Associative (@ind.join t)]
+  reduce_join (lens : Lens a b) : ind.reduce lens (ind.join r₁ r₂) = ind.join (ind.reduce lens r₁) (ind.reduce lens r₂)
+  extend_join (lens : Lens a b) : ind.extend lens (ind.join r₁ r₂) = ind.join (ind.extend lens r₁) (ind.extend lens r₂)
+  extend_reduce (lens : Lens a b) (r : T a) : ind.reduce lens (ind.extend lens r) ≤ r
+  join_mono_left : ∀ {a a' b : T t}, a' ≤ a → ind.join a' b ≤ ind.join a b
+  join_mono_right : ∀ {a b b' : T t}, b' ≤ b → ind.join a b' ≤ ind.join a b
+  le_join_left : ∀ a b : T t, a ≤ ind.join a b
+  le_join_right : ∀ a b : T t, b ≤ ind.join a b
+  join_idem : ∀ x : T t, ind.join x x ≤ x
+  nothing_le : ∀ {t} (x : T t), ind.nothing ≤ x
+
+/-! ### Abstract join helpers (replacements for the lattice lemmas `le_sup_*`, `sup_le`, …). -/
+section JoinHelpers
+variable {T : Type → Type} {ind : InductiveFunctionGettersSetters T}
+variable [red : ReducibleGettersSetters ind]
+omit [ProgramSpec]
+
+private theorem join_le {t} {a b c : T t}
+    (ha : red.preorder.le a c) (hb : red.preorder.le b c) :
+    red.preorder.le (ind.join a b) c := by
+  letI := @red.preorder
+  exact le_trans (le_trans (red.join_mono_left ha) (red.join_mono_right hb)) (red.join_idem c)
+
+private theorem join_mono {t} {a b c d : T t}
+    (h₁ : red.preorder.le a c) (h₂ : red.preorder.le b d) :
+    red.preorder.le (ind.join a b) (ind.join c d) := by
+  letI := @red.preorder
+  exact le_trans (red.join_mono_left h₁) (red.join_mono_right h₂)
+
+private theorem le_join_of_le_left {t} {a b c : T t}
+    (h : red.preorder.le a b) : red.preorder.le a (ind.join b c) := by
+  letI := @red.preorder
+  exact le_trans h (red.le_join_left b c)
+
+private theorem le_join_of_le_right {t} {a b c : T t}
+    (h : red.preorder.le a c) : red.preorder.le a (ind.join b c) := by
+  letI := @red.preorder
+  exact le_trans h (red.le_join_right b c)
+
+/-- `(x ⊔ e) ⊔ (y ⊔ e) ≤ (x ⊔ y) ⊔ e`, the join-idempotency rearrangement. -/
+private theorem join_join_le {t} (x y e : T t) :
+    red.preorder.le (ind.join (ind.join x e) (ind.join y e)) (ind.join (ind.join x y) e) := by
+  letI := @red.preorder
+  have a : ∀ {s} (u v w : T s), ind.join (ind.join u v) w = ind.join u (ind.join v w) :=
+    fun {s} => (red.assoc (t := s)).assoc
+  have c : ∀ {s} (u v : T s), ind.join u v = ind.join v u :=
+    fun {s} => (red.comm (t := s)).comm
+  calc
+    ind.join (ind.join x e) (ind.join y e)
+        = ind.join x (ind.join e (ind.join y e)) := by rw [a]
+    _ = ind.join x (ind.join (ind.join y e) e) := by rw [c e (ind.join y e)]
+    _ = ind.join x (ind.join y (ind.join e e)) := by rw [a y e e]
+    _ ≤ ind.join x (ind.join y e) := red.join_mono_right (red.join_mono_right (red.join_idem e))
+    _ = ind.join (ind.join x y) e := by rw [a]
+
+end JoinHelpers
+
+/-- Folding `ind.join` with an arbitrary base splits off the base. -/
+private theorem foldr_sup_base (ind : InductiveFunctionGettersSetters T)
+    [red : ReducibleGettersSetters ind] (base : T State) (l : List (Σ sig, Procedure sig)) :
+    List.foldr (fun p acc => ind.join (ind.proc p.2) acc) base l
+      = ind.join base (List.foldr (fun p acc => ind.join (ind.proc p.2) acc) ind.nothing l) := by
+  letI := @red.preorder
+  have a : ∀ {s} (u v w : T s), ind.join (ind.join u v) w = ind.join u (ind.join v w) :=
+    fun {s} => (red.assoc (t := s)).assoc
+  have c : ∀ {s} (u v : T s), ind.join u v = ind.join v u :=
+    fun {s} => (red.comm (t := s)).comm
+  induction l with
+  | nil =>
+      simp only [List.foldr_nil]
+      exact le_antisymm (red.le_join_left _ _) (join_le le_rfl (red.nothing_le _))
+  | cons p l ih =>
+      simp only [List.foldr_cons]
+      rw [ih, ← a, c (ind.proc p.2) base, a]
+
+/-- Every instantiated hole's footprint is bounded by the fold over all of them. -/
+private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] :
+    letI pre := @red.preorder
+    ∀ {holes sig} (n : HoleIndex holes sig) (args : holes.Instantiation),
+      ind.proc (args n)
+        ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)
+  | _, _, .zero, args => by
+      letI := @red.preorder
+      simp only [HoleSigs.Instantiation.toList, List.foldr_cons]; exact red.le_join_left _ _
+  | _, _, .succ n', args => by
+      letI := @red.preorder
+      simp only [HoleSigs.Instantiation.toList, List.foldr_cons]
+      exact le_trans (proc_le_toList ind n' (fun idx => args idx.succ)) (red.le_join_right _ _)
+
+omit [ProgramSpec] in
+private theorem extend_mono (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind]
+   {a b} (lens : Lens a b) {r₁ r₂ : T a} (h : red.preorder.le r₁ r₂) :
+    letI pre := @red.preorder
+    ind.extend lens r₁ ≤ ind.extend lens r₂ := by
+  letI := @red.preorder
+  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (red.le_join_right _ _)
+  calc ind.extend lens r₁
+      ≤ ind.join (ind.extend lens r₁) (ind.extend lens r₂) := red.le_join_left _ _
+    _ = ind.extend lens (ind.join r₁ r₂) := (red.extend_join lens).symm
+    _ = ind.extend lens r₂ := by rw [hjoin]
+
+omit [ProgramSpec] in
+private theorem reduce_mono (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind]
+   {a b} (lens : Lens a b) {r₁ r₂ : T b} (h : red.preorder.le r₁ r₂) :
+    letI pre := @red.preorder
+    ind.reduce lens r₁ ≤ ind.reduce lens r₂ := by
+  letI := @red.preorder
+  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (red.le_join_right _ _)
+  calc ind.reduce lens r₁
+      ≤ ind.join (ind.reduce lens r₁) (ind.reduce lens r₂) := red.le_join_left _ _
+    _ = ind.reduce lens (ind.join r₁ r₂) := (red.reduce_join lens).symm
+    _ = ind.reduce lens r₂ := by rw [hjoin]
+
+/-- Instantiating a statement only adds the (transferred) footprints of the procedures
+plugged into its holes. -/
+private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] {holes l} (stmt : StmtWithHoles holes l)
+    (args : holes.Instantiation) :
+    letI pre := @red.preorder
+    ind.stmt (stmt.instantiate args)
+      ≤ ind.join (ind.stmt stmt)
+        (ind.extend ProcedureState.globalL
+            (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))) := by
+  letI := @red.preorder
+  revert args
+  induction stmt with
+  | skip =>
+      intro args
+      simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
+      exact red.le_join_left _ _
+  | sample x e =>
+      intro args
+      simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
+      exact red.le_join_left _ _
+  | call' x ls b r p _ =>
+      intro args
+      simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
+      exact red.le_join_left _ _
+  | hole n x p =>
+      intro args
+      have hmem := proc_le_toList ind n args
+      simp only [InductiveFunctionGettersSetters.proc] at hmem
+      have hb : ind.reduce ProcedureState.globalL (ind.stmt (args n).body)
+          ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
+        le_trans (red.le_join_left _ _) hmem
+      have hr : ind.reduce ProcedureState.globalL (ind.getter (args n).return_val)
+          ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
+        le_trans (red.le_join_right _ _) hmem
+      simp only [StmtWithHoles.instantiate, StmtWithHoles.call,
+        InductiveFunctionGettersSetters.stmt, InductiveFunctionGettersSetters.transfer]
+      refine join_le ?_ (join_le ?_ (join_le ?_ ?_))
+      · exact le_join_of_le_left (red.le_join_left _ _)
+      · exact le_join_of_le_right (extend_mono ind _ hb)
+      · exact le_join_of_le_right (extend_mono ind _ hr)
+      · exact le_join_of_le_left (red.le_join_right _ _)
+  | seq s1 s2 ih1 ih2 =>
+      intro args
+      simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
+      exact le_trans (join_mono (ih1 args) (ih2 args)) (join_join_le _ _ _)
+  | ifThenElse c t e iht ihe =>
+      intro args
+      simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
+      refine join_le ?_ (join_le ?_ ?_)
+      · exact le_join_of_le_left (red.le_join_left _ _)
+      · exact le_trans (iht args) (join_mono (le_join_of_le_right (red.le_join_left _ _)) le_rfl)
+      · exact le_trans (ihe args) (join_mono (le_join_of_le_right (red.le_join_right _ _)) le_rfl)
+  | «while» c t iht =>
+      intro args
+      simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
+      refine join_le ?_ ?_
+      · exact le_join_of_le_left (red.le_join_left _ _)
+      · exact le_trans (iht args) (join_mono (red.le_join_right _ _) le_rfl)
+
+private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] {holes sig} (proc : ProcedureWithHoles holes sig) args :
+  letI pre := @red.preorder
+  ind.proc (proc.instantiate args) ≤
+    List.foldr (fun p acc ↦ ind.join (ind.proc p.snd) acc)
+      (ind.proc proc) args.toList := by
+  letI := @red.preorder
+  have key2 :
+      ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args))
+        ≤ ind.join (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
+            (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)) := by
+    refine le_trans (reduce_mono ind _ (stmt_instantiate_le ind proc.body args)) ?_
+    rw [red.reduce_join]
+    exact red.join_mono_right (red.extend_reduce _ _)
+  rw [foldr_sup_base ind (ind.proc proc) args.toList]
+  change ind.join (ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args)))
+        (ind.reduce ProcedureState.globalL (ind.getter proc.return_val))
+      ≤ ind.join
+          (ind.join (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
+            (ind.reduce ProcedureState.globalL (ind.getter proc.return_val)))
+          (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))
+  refine join_le ?_ ?_
+  · exact le_trans key2 (join_mono (red.le_join_left _ _) le_rfl)
+  · exact le_join_of_le_left (red.le_join_right _ _)
+
+
+def InductiveFunctionGettersSetters.inductiveFunction (ind : InductiveFunctionGettersSetters T) : InductiveFunction (T State) where
+  nothing := ind.nothing
+  join := ind.join
+  proc (p : ProcedureWithHoles _ _) := ind.proc p
+
+def InductiveFunctionGettersSetters.evalMexpr {ctx} (ind : InductiveFunctionGettersSetters T) :
+    ModuleExpression ctx t → T State := ind.inductiveFunction.evalMexpr
+
+def InductiveFunctionGettersSetters.eval (ind : InductiveFunctionGettersSetters T) :
+    Module t → T State := ind.inductiveFunction.eval
+
+instance {ind : InductiveFunctionGettersSetters T} [red: ReducibleGettersSetters ind] : Reducible ind.inductiveFunction where
+  le := red.preorder.le
+  le_refl := red.preorder.le_refl
+  le_trans := red.preorder.le_trans
+  comm := red.comm.comm
+  assoc := red.assoc.assoc
+  join_mono_left := red.join_mono_left
+  join_mono_right := red.join_mono_right
+  le_join_left := red.le_join_left
+  le_join_right := red.le_join_right
+  join_idem := red.join_idem
+  delta_bound := by apply proc_instantiate
+
 
 end GaudisCrypt.Language.Modules.InductiveFunctions

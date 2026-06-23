@@ -20,9 +20,9 @@ namespace GaudisCrypt.CounterExamples
 /-- `{id, Bool.not}` centralizes itself: the centralizer of `{id, Bool.not}` in `Bool → Bool`
     is exactly `{id, Bool.not}`. -/
 private lemma bool_not_centralizer :
-    (Submonoid.centralizer ({id, Bool.not} : Set (Bool → Bool))).carrier = {id, Bool.not} := by
+    (Submonoid.centralizer ({id, Bool.not} : Set (Function.End Bool))).carrier = {id, Bool.not} := by
   ext f
-  simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+  simp only [Subsemigroup.mem_carrier, Submonoid.mem_toSubsemigroup]
   constructor
   · intro h
     -- f commutes with Bool.not, so f(¬b) = ¬f(b) for all b
@@ -50,10 +50,12 @@ def flipRange : LensRange Bool where
   id := Set.mem_insert _ _
   comp := by
     intro f g hf hg
-    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hf hg ⊢
+    change f ∘ g = id ∨ f ∘ g = not
     rcases hf with rfl | rfl <;> rcases hg with rfl | rfl <;>
       decide
   double_commutant := by rw [bool_not_centralizer]; exact bool_not_centralizer
 
 theorem flipRange_compl_eq_self : flipRangeᶜ = flipRange :=
   lr_ext' (by simp only [Compl.compl, flipRange, bool_not_centralizer])
+
+end GaudisCrypt.CounterExamples
