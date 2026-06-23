@@ -170,4 +170,10 @@ theorem fv_snd (a : Module (.prod A B)) :
 theorem fv_unit (a : Module .unit) : fv a = ⊥ :=
  InductiveFunction.unit _ _
 
+noncomputable
+def fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : LensRange State := fvInductiveFunctionGS.proc proc
+
+noncomputable
+def fv_stmt {s holes} (stmt : StmtWithHoles holes s) : LensRange (ProcedureState s) := fvInductiveFunctionGS.stmt stmt
+
 end FV
