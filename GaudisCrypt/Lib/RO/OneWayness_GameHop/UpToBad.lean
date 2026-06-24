@@ -123,10 +123,10 @@ private lemma RO_get_insRO (x : input) (y : output) (σ : state) :
 
 /-- `insRO x y` is an update inside the RO's footprint. -/
 private lemma insRO_mem (x : input) (y : output) :
-    insRO x y ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
-  rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
+    insRO x y ∈ ((random_oracle_state.compl.range : TotLensRange state)ᶜ).updates := by
+  rw [show ((random_oracle_state.compl.range : TotLensRange state)ᶜ)
         = random_oracle_state.range from by
-    rw [LensRange.complement_range, LensRange.compl_compl]]
+    rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
   exact ⟨fun h k => if k = x then some y else h k, Set.mem_univ _, rfl⟩
 
 /-- **The coupling invariant** between the Game-1 run (left) and the

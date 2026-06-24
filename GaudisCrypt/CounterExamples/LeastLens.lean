@@ -1,6 +1,6 @@
 import Mathlib.Data.Finset.Sort
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.LensRange
+import GaudisCrypt.TotLensRange
 import Mathlib.Data.List.Basic
 import Mathlib.Data.FinEnum
 import Mathlib.SetTheory.Cardinal.Basic

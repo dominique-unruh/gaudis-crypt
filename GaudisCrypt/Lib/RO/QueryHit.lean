@@ -353,9 +353,9 @@ private lemma ow_loop_wp_chal_x_queried_invariant (q : ℕ)
     (ow_loop ow_adv q lazy_query).wp G (chal_x_queried.set true σ)
     = (ow_loop ow_adv q lazy_query).wp G σ := by
   set f : state → state := chal_x_queried.update (Function.const _ true) with hf_def
-  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((chal_x_queried.compl.range : LensRange state)ᶜ) = chal_x_queried.range from by
-      rw [LensRange.complement_range, LensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
+    rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
+      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
   have h_f_eq : ∀ σ', f σ' = chal_x_queried.set true σ' := fun σ' => by
     show chal_x_queried.set ((Function.const _ true) (chal_x_queried.get σ')) σ'
@@ -569,9 +569,9 @@ private lemma ow_experiment_rest_eq_tracked (q : ℕ)
     show post_loop.wp F (chal_x_queried.set true aσ.2) = post_loop.wp F aσ.2
     -- Apply wp_shift_input.
     set f : state → state := chal_x_queried.update (Function.const _ true) with hf_def
-    have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : LensRange state)ᶜ).updates := by
-      rw [show ((chal_x_queried.compl.range : LensRange state)ᶜ) = chal_x_queried.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
+    have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
+      rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
+        rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
       exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
     have h_f_eq : ∀ σ', f σ' = chal_x_queried.set true σ' := fun σ' => by
       show chal_x_queried.set ((Function.const _ true) (chal_x_queried.get σ')) σ'
@@ -676,9 +676,9 @@ lemma ow_experiment_eq_tracked_lazy (q : ℕ)
   -- Step 3: REST.wp F (chal_x_queried.set false σ_a) = REST.wp F σ_a
   --   [wp_shift_input + h_F + REST.inRange chal_x_queried.compl.range]
   set f : state → state := chal_x_queried.update (Function.const _ false) with hf_def
-  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : LensRange state)ᶜ).updates := by
-    rw [show ((chal_x_queried.compl.range : LensRange state)ᶜ) = chal_x_queried.range from by
-      rw [LensRange.complement_range, LensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
+    rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
+      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
   have h_f_eq : ∀ σ', f σ' = chal_x_queried.set false σ' := fun σ' => by
     show chal_x_queried.set ((Function.const _ false) (chal_x_queried.get σ')) σ'
@@ -840,11 +840,11 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- Step 3: Shift chal_x.set x past ow_adv using wp_shift_input.
     have h_shift_chal_x : ow_challenge_x.set ∈ Set.univ ∧
         ∀ x : input, ow_challenge_x.update (Function.const _ x) ∈
-            ((ow_challenge_x.compl.range : LensRange state)ᶜ).updates := by
+            ((ow_challenge_x.compl.range : TotLensRange state)ᶜ).updates := by
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
-      rw [show ((ow_challenge_x.compl.range : LensRange state)ᶜ) = ow_challenge_x.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
+      rw [show ((ow_challenge_x.compl.range : TotLensRange state)ᶜ) = ow_challenge_x.range from by
+        rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
       exact ⟨Function.const _ x, Set.mem_univ _, rfl⟩
     -- Rewrite ow_challenge_x.set x σ = (ow_challenge_x.update (const x)) σ.
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
@@ -1113,10 +1113,10 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       intro y'
       have h_shift_in : (fun σ' => random_oracle_state.set
           (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
-          ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
-        rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
+          ∈ ((random_oracle_state.compl.range : TotLensRange state)ᶜ).updates := by
+        rw [show ((random_oracle_state.compl.range : TotLensRange state)ᶜ)
             = random_oracle_state.range from by
-          rw [LensRange.complement_range, LensRange.compl_compl]]
+          rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
         exact ⟨fun h => fun k => if k = x then some y' else h k, Set.mem_univ _, rfl⟩
       exact Program.wp_shift_input h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
@@ -1724,11 +1724,11 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     -- Step 3: Apply wp_shift_input on adv to move chal_x.set x past adv.
     have h_shift_chal_x : ow_challenge_x.set ∈ Set.univ ∧
         ∀ x : input, ow_challenge_x.update (Function.const _ x) ∈
-            ((ow_challenge_x.compl.range : LensRange state)ᶜ).updates := by
+            ((ow_challenge_x.compl.range : TotLensRange state)ᶜ).updates := by
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
-      rw [show ((ow_challenge_x.compl.range : LensRange state)ᶜ) = ow_challenge_x.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
+      rw [show ((ow_challenge_x.compl.range : TotLensRange state)ᶜ) = ow_challenge_x.range from by
+        rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
       exact ⟨Function.const _ x, Set.mem_univ _, rfl⟩
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
         = (ow_challenge_x.update (Function.const _ x)) σ := by
@@ -2051,10 +2051,10 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       intro y'
       have h_shift_in : (fun σ' => random_oracle_state.set
           (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
-          ∈ ((random_oracle_state.compl.range : LensRange state)ᶜ).updates := by
-        rw [show ((random_oracle_state.compl.range : LensRange state)ᶜ)
+          ∈ ((random_oracle_state.compl.range : TotLensRange state)ᶜ).updates := by
+        rw [show ((random_oracle_state.compl.range : TotLensRange state)ᶜ)
             = random_oracle_state.range from by
-          rw [LensRange.complement_range, LensRange.compl_compl]]
+          rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
         exact ⟨fun h => fun k => if k = x then some y' else h k, Set.mem_univ _, rfl⟩
       exact Program.wp_shift_input h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]

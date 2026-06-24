@@ -320,7 +320,7 @@ theorem stable_of_inRange_compl {l α : Type} [Countable α] [Countable l]
     {p : Program (ProcedureState l) α} (hp : p.inRange (roLift l).compl.range) : Stable p := by
   show (p >>= fun a => convertL >>= fun _ => pure a) = (convertL >>= fun _ => p)
   have hdisj : (roLift l).compl.range ≤ ((roLift l).range)ᶜ :=
-    le_of_eq (LensRange.complement_range _)
+    le_of_eq (TotLensRange.complement_range _)
   have h_commute : (p >>= fun a => convertL >>= fun b => pure (a, b))
                  = (convertL >>= fun b => p >>= fun a => pure (a, b)) :=
     Program.commute_of_disjoint_lens hp convertL_inRange hdisj
@@ -1056,7 +1056,7 @@ theorem localL_range_le_ro_compl {l : Type} :
     (ProcedureState.localL : Lens l (ProcedureState l)).range ≤ (roLift l).compl.range := by
   refine le_trans
     (Lens.range_le_compl_of_disjoint ProcedureState.localL ProcedureState.globalL) ?_
-  rw [LensRange.complement_range, LensRange.complement_range]
+  rw [TotLensRange.complement_range, TotLensRange.complement_range]
   exact Submonoid.centralizer_le
     (Lens.chain_range_le ProcedureState.globalL random_oracle_state)
 
@@ -1069,7 +1069,7 @@ theorem stable_of_confined_lens {l α advSt : Type} [Countable α] [Countable l]
     (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.range ≤ ((roLift l).range)ᶜ)
     {p : Program (ProcedureState l) α} (hp : p.inRange L_adv.range) : Stable p :=
   stable_of_inRange_compl
-    (Program.inRange_mono hp (hdisj.trans (le_of_eq (LensRange.complement_range _).symm)))
+    (Program.inRange_mono hp (hdisj.trans (le_of_eq (TotLensRange.complement_range _).symm)))
 
 /-- The locals are one such lens (disjoint from the RO) — the canonical instance. -/
 theorem stable_of_inRange_local {l α : Type} [Countable α] [Countable l]
@@ -1310,7 +1310,7 @@ So the whole conversion stands or falls on **`get_confined_of_fv`**. -/
     on `Bool × Bool`), so the premise is vacuous while the conclusion fails.  This
     is the precise obstruction to `fv_proc ≤ ROᶜ ⟹ Confined`. -/
 theorem get_confined_of_fv {a l : Type} (c : Getter a (ProcedureState l))
-    {R : LensRange (ProcedureState l)} (h : fv_getter c ≤ R) :
+    {R : TotLensRange (ProcedureState l)} (h : fv_getter c ≤ R) :
     (Program.get c).inRange R := by
   sorry
 
@@ -1342,9 +1342,9 @@ theorem range_get_fst_eq_bot :
       gcex * (Lens.fst.update w) = (Lens.fst.update w) * gcex → w = id := by decide
   -- (1) `get fst` lives in `(from {gcex})ᶜ` (every map in its complement preserves `fst`).
   have hR₁ : (Program.get (Lens.fst : Lens Bool (Bool × Bool))).inRange
-      ((LensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ) := by
+      ((TotLensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ) := by
     intro f hf
-    rw [LensRange.compl_compl] at hf
+    rw [TotLensRange.compl_compl] at hf
     have hpres : ∀ σ, (f σ).1 = σ.1 := by
       apply dec1
       intro a hga
@@ -1357,11 +1357,11 @@ theorem range_get_fst_eq_bot :
     show F ((f σ).1, f σ) = F (σ.1, f σ)
     rw [hpres σ]
   -- (2) `(from {gcex})ᶜ ⊓ fst.range = ⊥`: the only `fst`-update commuting with `gcex` is `id`.
-  have hmeet : (LensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ ⊓ Lens.fst.range
-      ≤ (⊥ : LensRange (Bool × Bool)) := by
+  have hmeet : (TotLensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ ⊓ Lens.fst.range
+      ≤ (⊥ : TotLensRange (Bool × Bool)) := by
     intro u hu
     obtain ⟨hu1, hu2⟩ :
-        u ∈ ((LensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ).updates
+        u ∈ ((TotLensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ).updates
           ∧ u ∈ Lens.fst.range.updates := hu
     obtain ⟨w, -, hw⟩ :
         ∃ w, w ∈ (⊤ : Set (Bool → Bool)) ∧ Lens.fst.update w = u := hu2
@@ -1373,7 +1373,7 @@ theorem range_get_fst_eq_bot :
       exact Submonoid.mem_centralizer_iff.mp hu1 gcex hg_mem
     have hwid : w = id := dec2 w (by rw [hw]; exact hgu)
     rw [← hw, hwid]
-    exact (⊥ : LensRange (Bool × Bool)).id
+    exact (⊥ : TotLensRange (Bool × Bool)).id
   exact le_antisymm
     ((le_inf (sInf_le hR₁) (sInf_le (Program.inRange_get _))).trans hmeet) bot_le
 

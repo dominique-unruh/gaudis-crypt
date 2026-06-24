@@ -1,7 +1,7 @@
 -- CHAOS FILE
 
 import GaudisCrypt.Language.Modules.InductiveFunctions
-import GaudisCrypt.LensRange
+import GaudisCrypt.TotLensRange
 import GaudisCrypt.ProgramRange
 
 open GaudisCrypt.Language.Modules
@@ -14,20 +14,20 @@ namespace FV
 
 variable [ProgramSpec]
 
-abbrev FV := LensRange State
+abbrev FV := TotLensRange State
 
 
 noncomputable
-def fv_getter (getter : Getter a s) : LensRange s := Program.range (Program.get getter)
+def fv_getter (getter : Getter a s) : TotLensRange s := Program.range (Program.get getter)
 
 noncomputable
-def fv_setter (setter : Setter a s) : LensRange s := Program.range' (Program.set setter)
+def fv_setter (setter : Setter a s) : TotLensRange s := Program.range' (Program.set setter)
 
-def fv_reduce {a b} (lens : Lens a b) (range : LensRange b) : LensRange a :=
-  LensRange.from { f | ∀ g ∈ range.updates, lens.update f * g = g * lens.update f}.centralizer
+def fv_reduce {a b} (lens : Lens a b) (range : TotLensRange b) : TotLensRange a :=
+  TotLensRange.from { f | ∀ g ∈ range.updates, lens.update f * g = g * lens.update f}.centralizer
 
-def fv_extend {a b} (lens : Lens a b) (range : LensRange a) : LensRange b :=
-  LensRange.from (lens.update '' range.updates)
+def fv_extend {a b} (lens : Lens a b) (range : TotLensRange a) : TotLensRange b :=
+  TotLensRange.from (lens.update '' range.updates)
 
 
 /-! ### Properties of `fv_reduce` / `fv_extend` needed for `fv_proc_instantiate`.
@@ -39,8 +39,8 @@ needs *no* properties of `fv_getter`/`fv_setter` — they are used opaquely. -/
 section FvReduceSup
 omit [ProgramSpec]
 
-/-- Two `LensRange`s with the same `updates` are equal. -/
-private lemma lensRange_eq_of_updates {m} {x y : LensRange m} (h : x.updates = y.updates) :
+/-- Two `TotLensRange`s with the same `updates` are equal. -/
+private lemma lensRange_eq_of_updates {m} {x y : TotLensRange m} (h : x.updates = y.updates) :
     x = y := by
   obtain ⟨_, _, _, _⟩ := x
   obtain ⟨_, _, _, _⟩ := y
@@ -48,18 +48,18 @@ private lemma lensRange_eq_of_updates {m} {x y : LensRange m} (h : x.updates = y
   subst h
   rfl
 
-/-- `LensRange.from G` has the double-centralizer of `G` as its `updates`. -/
+/-- `TotLensRange.from G` has the double-centralizer of `G` as its `updates`. -/
 private lemma lensRange_from_updates {m} (G : Set (Function.End m)) :
-    (LensRange.from G).updates = Set.centralizer (Set.centralizer G) := by
+    (TotLensRange.from G).updates = Set.centralizer (Set.centralizer G) := by
   change (Submonoid.centralizer ((Submonoid.centralizer G).carrier) : Set (Function.End m))
       = Set.centralizer (Set.centralizer G)
   rw [Submonoid.coe_centralizer]
   rfl
 
 /-- The `updates` of a join is the double centralizer of the union of the `updates`. -/
-private lemma lensRange_sup_updates {m} (x y : LensRange m) :
+private lemma lensRange_sup_updates {m} (x y : TotLensRange m) :
     (x ⊔ y).updates = Set.centralizer (Set.centralizer (x.updates ∪ y.updates)) := by
-  change (LensRange.from (x.updates ∪ y.updates)).updates = _
+  change (TotLensRange.from (x.updates ∪ y.updates)).updates = _
   exact lensRange_from_updates _
 
 /-- Bicommutant closure `cⁿ²` is monotone. -/
@@ -67,9 +67,9 @@ private lemma cl_mono {m} {A B : Set (Function.End m)} (h : A ⊆ B) :
     Set.centralizer (Set.centralizer A) ⊆ Set.centralizer (Set.centralizer B) :=
   Set.centralizer_subset (Set.centralizer_subset h)
 
-/-- `LensRange.from` turns unions into joins. -/
+/-- `TotLensRange.from` turns unions into joins. -/
 private lemma lensRange_from_union {m} (A B : Set (Function.End m)) :
-    LensRange.from A ⊔ LensRange.from B = LensRange.from (A ∪ B) := by
+    TotLensRange.from A ⊔ TotLensRange.from B = TotLensRange.from (A ∪ B) := by
   apply lensRange_eq_of_updates
   rw [lensRange_sup_updates, lensRange_from_updates, lensRange_from_updates,
       lensRange_from_updates]
@@ -92,28 +92,28 @@ private lemma fv_reduce_constraint {a b} (lens : Lens a b) (V : Set (Function.En
   simp only [Set.mem_setOf_eq, Set.mem_preimage, Set.mem_centralizer_iff]
   exact ⟨fun h g hg => (h g hg).symm, fun h g hg => (h g hg).symm⟩
 
-theorem fv_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : LensRange b) :
+theorem fv_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : TotLensRange b) :
     fv_reduce lens (r₁ ⊔ r₂) = fv_reduce lens r₁ ⊔ fv_reduce lens r₂ := by
   sorry
 
 end FvReduceSup
 
 /-- `fv_extend` distributes over joins. -/
-theorem fv_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : LensRange a) :
+theorem fv_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : TotLensRange a) :
     fv_extend lens (r₁ ⊔ r₂) = fv_extend lens r₁ ⊔ fv_extend lens r₂ := sorry
 
-theorem fv_extend_updates(lens : Lens a b) (range : LensRange a) :
+theorem fv_extend_updates(lens : Lens a b) (range : TotLensRange a) :
   (fv_extend lens range).updates = lens.update '' range.updates := by
   sorry
 
 /-- `fv_reduce` is a retraction of `fv_extend`: pushing a footprint forward along a
     lens and pulling it back recovers it.  (Only `≤` is used in the proof.) -/
-theorem fv_reduce_extend {a b} (lens : Lens a b) (r : LensRange a) :
+theorem fv_reduce_extend {a b} (lens : Lens a b) (r : TotLensRange a) :
     fv_reduce lens (fv_extend lens r) ≤ r := by
     sorry
 
 noncomputable
-def fvInductiveFunctionGS : InductiveFunctionGettersSetters LensRange where
+def fvInductiveFunctionGS : InductiveFunctionGettersSetters TotLensRange where
   nothing := ⊥
   join := (· ⊔ ·)
   getter := fv_getter
@@ -122,7 +122,7 @@ def fvInductiveFunctionGS : InductiveFunctionGettersSetters LensRange where
   extend := fv_extend
 
 noncomputable
-def fvMexpr {ctx t} (m : ModuleExpression ctx t) : (LensRange State) := fvInductiveFunctionGS.evalMexpr m
+def fvMexpr {ctx t} (m : ModuleExpression ctx t) : (TotLensRange State) := fvInductiveFunctionGS.evalMexpr m
 
 noncomputable
 def fv (m : Module t) : FV := fvInductiveFunctionGS.eval m
@@ -171,9 +171,9 @@ theorem fv_unit (a : Module .unit) : fv a = ⊥ :=
  InductiveFunction.unit _ _
 
 noncomputable
-def fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : LensRange State := fvInductiveFunctionGS.proc proc
+def fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : TotLensRange State := fvInductiveFunctionGS.proc proc
 
 noncomputable
-def fv_stmt {s holes} (stmt : StmtWithHoles holes s) : LensRange (ProcedureState s) := fvInductiveFunctionGS.stmt stmt
+def fv_stmt {s holes} (stmt : StmtWithHoles holes s) : TotLensRange (ProcedureState s) := fvInductiveFunctionGS.stmt stmt
 
 end FV

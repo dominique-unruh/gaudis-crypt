@@ -9,7 +9,7 @@ import GaudisCrypt.Misc
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.LensRange
+import GaudisCrypt.TotLensRange
 import GaudisCrypt.ProgramRange
 
 open GaudisCrypt.Language.Lens
