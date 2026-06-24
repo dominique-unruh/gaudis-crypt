@@ -193,4 +193,23 @@ lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbabilit
   letI : MeasurableSpace β := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top x
 
+/-- Kleisli composition for `SubProbability`: `f * g` applies `g` first, then `f`
+    on the result (so `f * g = f ∘ₖ g`), with `pure` as the identity. This is the
+    monoid of sub-probability kernels `m → SubProbability m`, the probabilistic
+    analogue of `Function.End`. -/
+noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
+  mul f g := fun x => g x >>= f
+  one := pure
+  mul_assoc f g h := funext fun x => by
+    apply Subtype.ext; letI : MeasurableSpace m := ⊤
+    exact (MeasureTheory.Measure.bind_bind
+      measurable_from_top.aemeasurable measurable_from_top.aemeasurable).symm
+  one_mul f := funext fun x => by
+    apply Subtype.ext; letI : MeasurableSpace m := ⊤
+    exact MeasureTheory.Measure.bind_dirac
+  mul_one f := funext fun x => by
+    apply Subtype.ext; letI : MeasurableSpace m := ⊤
+    change (MeasureTheory.Measure.dirac x).bind (fun a => (f a).1) = (f x).1
+    exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+
 end GaudisCrypt.Language.Semantics

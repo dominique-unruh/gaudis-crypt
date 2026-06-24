@@ -1,6 +1,7 @@
 import GaudisCrypt.Misc
 import GaudisCrypt.FV
 import GaudisCrypt.TotLensRange
+import GaudisCrypt.ProbLensRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Language.Modules.InductiveFunctions

@@ -63,22 +63,8 @@ structure RelLensRange (m : Type*) where
 
 
 
-open GaudisCrypt.Language.Semantics in
-/-- Kleisli composition for `SubProbability`: apply `g` first, then `f` on the result. -/
-noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
-  mul f g := fun x => g x >>= f
-  one := pure
-  mul_assoc f g h := funext fun x => by
-    apply Subtype.ext; letI : MeasurableSpace m := ⊤
-    exact (MeasureTheory.Measure.bind_bind
-      measurable_from_top.aemeasurable measurable_from_top.aemeasurable).symm
-  one_mul f := funext fun x => by
-    apply Subtype.ext; letI : MeasurableSpace m := ⊤
-    exact MeasureTheory.Measure.bind_dirac
-  mul_one f := funext fun x => by
-    apply Subtype.ext; letI : MeasurableSpace m := ⊤
-    change (MeasureTheory.Measure.dirac x).bind (fun a => (f a).1) = (f x).1
-    exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+-- The Kleisli `Monoid (m → SubProbability m)` instance now lives canonically in
+-- `GaudisCrypt.Language.SubProbability` (imported transitively here).
 
 open GaudisCrypt.Language.Semantics in
 /-- Analogue of `TotLensRange` where updates are sub-probability kernels `m → SubProbability m`
