@@ -73,6 +73,10 @@ open FV
 /-- The ambient state of an RO adversary is the RO `state`. -/
 instance roSpec : ProgramSpec := ⟨state⟩
 
+/-- `State` (= `state`) is inhabited — needed for `Lens.lift_inRange_chain`'s
+    `factor_of_inRange` padding. -/
+instance : Nonempty State := ⟨⟨0, 0, ""⟩⟩
+
 /-- The oracle's signature: a query takes an `input`, returns an `output`.
     `abbrev` so `roSig.ParamType` reduces to `input` (for `DecidableEq` synthesis). -/
 abbrev roSig : ProcedureSignature := { params := [input], ret := output }
@@ -83,6 +87,33 @@ abbrev roHoles : HoleSigs := HoleSigs.empty.append roSig
 /-- `convert` lifted from the RO `State` to a procedure state. -/
 noncomputable def convertL {l : Type} : Program (ProcedureState l) Unit :=
   Program.zoom ProcedureState.globalL convert
+
+/-! ## Faithful `fv`-based locality (bridge to `Loc`)
+
+To restate the theorems with the real `fv` (subtask 3's "fv(A) disjoint
+oracle_state"), we derive the semantic locality `Loc` from `fv_stmt`-disjointness.
+The crux is `convertL.inRange (roLift).range`, via the range-framework lemma
+`lift_inRange_chain` (a program confined to `v` lifts to one confined to `L∘v`). -/
+
+-- `Program.wp_lift`, `Lens.lift_lift_chain`, `Lens.lift_inRange_self` and the key
+-- `Lens.lift_inRange_chain` (a program confined to `v` lifts to one confined to
+-- `L∘v`) now live — proven, no `sorry` — in `ProgramRange.lean`.
+
+/-- The RO table as a lens into a procedure state. -/
+noncomputable def roLift (l : Type) : Lens (input → Option output) (ProcedureState l) :=
+  ProcedureState.globalL.chain random_oracle_state
+
+/-- `ProcedureState l` is `Countable` when its locals are (the global RO `state`
+    already is) — needed for `commute_of_disjoint_lens` and the `prhl2` rules. -/
+instance instCountableProcedureState {l : Type} [Countable l] : Countable (ProcedureState l) :=
+  Countable.of_equiv (state × l)
+    { toFun := fun p => ⟨p.1, p.2⟩, invFun := fun ps => (ps.global, ps.locals),
+      left_inv := fun _ => rfl, right_inv := fun _ => rfl }
+
+/-- `convertL` is confined to the (lifted) RO table — instance of
+    `Lens.lift_inRange_chain` (ProgramRange.lean). -/
+theorem convertL_inRange {l : Type} : convertL.inRange (roLift l).range :=
+  Lens.lift_inRange_chain ProcedureState.globalL random_oracle_state convert convert_inRange_ro
 
 /-! ## Concrete RO instantiations
 
@@ -282,6 +313,79 @@ discharged by the per-query transfer lemma). -/
 def Stable {l α : Type} (p : Program (ProcedureState l) α) : Prop :=
   transferBy convertL p p
 
+/-- **`Stable` from footprint disjointness**: a program confined to the
+    complement of the RO table commutes with `convertL`, i.e. is `Stable`.
+    The `ProcedureState`-level analogue of `transfer_refl_of_inRange_compl`. -/
+theorem stable_of_inRange_compl {l α : Type} [Countable α] [Countable l]
+    {p : Program (ProcedureState l) α} (hp : p.inRange (roLift l).compl.range) : Stable p := by
+  show (p >>= fun a => convertL >>= fun _ => pure a) = (convertL >>= fun _ => p)
+  have hdisj : (roLift l).compl.range ≤ ((roLift l).range)ᶜ :=
+    le_of_eq (LensRange.complement_range _)
+  have h_commute : (p >>= fun a => convertL >>= fun b => pure (a, b))
+                 = (convertL >>= fun b => p >>= fun a => pure (a, b)) :=
+    Program.commute_of_disjoint_lens hp convertL_inRange hdisj
+  have hL : (p >>= fun a => convertL >>= fun b => pure (a, b)) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
+          = (p >>= fun a => convertL >>= fun _ => (Pure.pure a : Program (ProcedureState l) α)) := by
+    rw [Program.bind_assoc]; congr 1; funext a
+    rw [Program.bind_assoc]; congr 1; funext _
+    rw [Program.pure_bind]
+  have hR : (convertL >>= fun b => p >>= fun a => pure (a, b)) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
+          = (convertL >>= fun _ => p) := by
+    rw [Program.bind_assoc]
+    congr 1; funext _
+    rw [Program.bind_assoc]
+    rw [show (fun a : α => pure (a, ()) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α)))
+          = (fun a : α => (Pure.pure a : Program (ProcedureState l) α)) from by
+        funext a; rw [Program.pure_bind]]
+    exact Program.bind_pure _
+  rw [← hL, h_commute, hR]
+
+/-! ### Discharging `Stable` from lens-range disjointness (the faithful-for-lens bridge)
+
+For **lens-based** getters/setters, `Stable` (and hence each `Loc` leaf) follows
+from the lens's `range` being disjoint from the RO table — the faithful reading of
+subtask 3's "`fv(A)` disjoint from `oracle_state`".  No semantic locality needs to
+be checked by hand: `inRange_get`/`inRange_set` give the footprint, and
+`stable_of_inRange_compl` converts it to `Stable`.
+
+(For a *general*, opaque getter/setter this is impossible: `fv_getter c =
+Program.range (Program.get c)` and `p.inRange (Program.range p)` is **false** in
+general — it requires the program's commutant to be double-commutant-closed,
+which fails for arbitrary kernels.  Lens reads/writes are exactly the case where
+it holds, via `inRange_get`/`inRange_set`.) -/
+
+/-- **`Stable` for a lens read disjoint from the RO table.**  Discharges the
+    `Loc` obligation for hole reads (`get p`) and `if`/`while` guards. -/
+theorem stable_get_lens {l a : Type} [Countable l] [Countable a]
+    (c : Lens a (ProcedureState l)) (h : c.range ≤ (roLift l).compl.range) :
+    Stable (Program.get c) :=
+  stable_of_inRange_compl (Program.inRange_mono (Program.inRange_get c) h)
+
+/-- **`Stable` for a lens write disjoint from the RO table.**  Discharges the
+    `Loc` obligation for hole writes (`set x ret`). -/
+theorem stable_set_lens {l a : Type} [Countable l]
+    (x : Lens a (ProcedureState l)) (h : x.range ≤ (roLift l).compl.range) (v : a) :
+    Stable (Program.set x v) :=
+  stable_of_inRange_compl (Program.inRange_mono (Program.inRange_set x v) h)
+
+/-- **`Stable` for a `sample` whose read `e` and write `x` are lens-disjoint from
+    the RO table.**  Discharges the `Loc` obligation for `.sample` leaves. -/
+theorem stable_sample_lens {l a : Type} [Countable l] [Countable a]
+    (x : Lens a (ProcedureState l)) (e : Lens (SubProbability a) (ProcedureState l))
+    (hx : x.range ≤ (roLift l).compl.range) (he : e.range ≤ (roLift l).compl.range) :
+    Stable (programDenotation
+      (StmtWithHoles.sample (Lens.toSetter x) (Lens.toGetter e) : Stmt l)) := by
+  apply stable_of_inRange_compl
+  simp only [programDenotation]
+  refine Program.inRange_bind (Program.inRange_mono (Program.inRange_get e) he) ?_
+  intro μ
+  refine Program.inRange_bind (Program.inRange_toProgram μ _) ?_
+  intro v
+  exact Program.inRange_mono (Program.inRange_set x v) hx
+
 /-- Locality: every operation of `A` *outside the oracle interface* is `Stable`.
     For a hole, this is the surrounding read (`get p`) and write (`set x`) — the
     oracle query itself is *not* required stable (it transfers, lazy↦eager). -/
@@ -293,6 +397,22 @@ def Loc {holes : HoleSigs} {l : Type} : StmtWithHoles holes l → Prop
   | .seq s1 s2 => Loc s1 ∧ Loc s2
   | .ifThenElse c t e => Stable (Program.get c) ∧ Loc t ∧ Loc e
   | .while c t => Stable (Program.get c) ∧ Loc t
+
+/-- **End-to-end: `Loc` from lens-range disjointness.**  For an adversary built
+    from lenses whose ranges are disjoint from the RO table, the whole semantic
+    `Loc` predicate is discharged mechanically by the `stable_*_lens` lemmas —
+    the faithful "`fv(A)` disjoint from `oracle_state`" hypothesis for the
+    lens-based fragment.  (Composed with `Program.transfer_instantiate`, this
+    gives the lazy=eager equivalence for any such adversary.) -/
+example {l a : Type} [Countable l] [Countable a]
+    (c : Lens Bool (ProcedureState l))
+    (x : Lens a (ProcedureState l)) (e : Lens (SubProbability a) (ProcedureState l))
+    (hc : c.range ≤ (roLift l).compl.range)
+    (hx : x.range ≤ (roLift l).compl.range) (he : e.range ≤ (roLift l).compl.range) :
+    Loc (StmtWithHoles.ifThenElse (Lens.toGetter c)
+          (StmtWithHoles.sample (Lens.toSetter x) (Lens.toGetter e))
+          StmtWithHoles.skip : StmtWithHoles roHoles l) :=
+  ⟨stable_get_lens c hc, stable_sample_lens x e hx he, trivial⟩
 
 /-! ### Generic Kleene closure of `transferBy` under `while_loop`
 
@@ -718,13 +838,6 @@ def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWith
   | .ifThenElse c t e => GetOK P c ∧ LocP P t ∧ LocP P e
   | .while c t => GetOK P c ∧ LocP P t
 
-/-- `ProcedureState l` is `Countable` when its locals are (the global RO `state`
-    already is) — needed for the `prhl2` composition rules. -/
-instance instCountableProcedureState {l : Type} [Countable l] : Countable (ProcedureState l) :=
-  Countable.of_equiv (state × l)
-    { toFun := fun p => ⟨p.1, p.2⟩, invFun := fun ps => (ps.global, ps.locals),
-      left_inv := fun _ => rfl, right_inv := fun _ => rfl }
-
 /-- **Body induction**: an arbitrary adversary body `A` preserves the lifted
     invariant relationally, given `LocP` and a per-hole coupling `hhole` (the
     oracle preserves the invariant).  `[Countable l]` feeds the `prhl2`
@@ -919,5 +1032,419 @@ theorem prhl_instantiate {sig : ProcedureSignature} {P : state → state → Pro
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
   prhl_wrapper A args (prhl_instantiate_body h A.body hloc) hret
+
+/-! ## Faithful hypothesis: the adversary confined to its private local state
+
+The honest "`fv(A)` disjoint from `oracle_state`" reading: the adversary's own
+operations live in its **private local state** `ProcedureState.localL`, which is
+disjoint from the oracle (the RO table sits in `global`).  The magic is that
+`liftRel P` *pins the locals to equality* — so the same confinement assumption
+discharges **both** `Loc` (theorem 1) and `LocP` (theorem 2), the latter with
+**no `P`-specific side condition** (subtask 3's `h'` is subsumed). -/
+
+/-- The locals and the global part of a `ProcedureState` are disjoint lenses. -/
+instance instDisjointLocalGlobal {l : Type} :
+    disjoint (ProcedureState.localL : Lens l (ProcedureState l)) ProcedureState.globalL :=
+  ⟨fun _ _ _ => rfl⟩
+
+instance instNonemptyProcedureState {l : Type} [Nonempty l] : Nonempty (ProcedureState l) :=
+  ⟨⟨Classical.arbitrary State, Classical.arbitrary l⟩⟩
+
+/-- **Locals are disjoint from the RO table.**  `localL.range ≤ (roLift l).compl.range`:
+    the RO table lives inside `global`, the adversary's locals are elsewhere. -/
+theorem localL_range_le_ro_compl {l : Type} :
+    (ProcedureState.localL : Lens l (ProcedureState l)).range ≤ (roLift l).compl.range := by
+  refine le_trans
+    (Lens.range_le_compl_of_disjoint ProcedureState.localL ProcedureState.globalL) ?_
+  rw [LensRange.complement_range, LensRange.complement_range]
+  exact Submonoid.centralizer_le
+    (Lens.chain_range_le ProcedureState.globalL random_oracle_state)
+
+/-- **Theorem-1 leaf discharge, general lens form.**  A program confined to *any*
+    adversary lens `L_adv` whose range is disjoint from the RO table (the sound,
+    faithful "footprint disjoint from `oracle_state`" hypothesis — the lens-range
+    analogue of the unsound `fv_proc ≤ (random_oracle_state.range)ᶜ`) is `Stable`.
+    This is precisely `commute_of_disjoint_lens` specialised to `convertL`. -/
+theorem stable_of_confined_lens {l α advSt : Type} [Countable α] [Countable l]
+    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.range ≤ ((roLift l).range)ᶜ)
+    {p : Program (ProcedureState l) α} (hp : p.inRange L_adv.range) : Stable p :=
+  stable_of_inRange_compl
+    (Program.inRange_mono hp (hdisj.trans (le_of_eq (LensRange.complement_range _).symm)))
+
+/-- The locals are one such lens (disjoint from the RO) — the canonical instance. -/
+theorem stable_of_inRange_local {l α : Type} [Countable α] [Countable l]
+    {p : Program (ProcedureState l) α}
+    (hp : p.inRange (ProcedureState.localL : Lens l (ProcedureState l)).range) : Stable p :=
+  stable_of_inRange_compl (Program.inRange_mono hp localL_range_le_ro_compl)
+
+/-- A program confined to an adversary lens `L_adv` self-couples under `liftRel P`
+    — the lift form (mirrors `Program.prhl2.adversary`).  The two compatibility
+    conditions are: `heq` — `liftRel P` forces equality on `L_adv` (so the inner
+    program gets equal inputs); `hset` — writing the (equal) result back into
+    `L_adv` preserves `liftRel P`. -/
+theorem prhl2_lift_lens {l γ advSt : Type} [Countable γ] [Countable advSt] [Countable l]
+    {P : state → state → Prop} (L_adv : Lens advSt (ProcedureState l))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    (p' : Program advSt γ) :
+    Program.prhl2 (liftRel P) (L_adv.lift p') (L_adv.lift p') (liftRelPost P) := by
+  intro ps₁ ps₂ hpre
+  refine ⟨p' (L_adv.get ps₁) >>= fun xc =>
+      pure ((xc.1, L_adv.set xc.2 ps₁), (xc.1, L_adv.set xc.2 ps₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind]; rfl
+  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind]
+    rw [show L_adv.get ps₁ = L_adv.get ps₂ from heq ps₁ ps₂ hpre]; rfl
+  · exact SubProbability.satisfies_bind _ (fun xc _ =>
+      SubProbability.satisfies_pure _ _ ⟨rfl, hset xc.2 ps₁ ps₂ hpre⟩)
+
+/-- **Theorem-2 leaf discharge, general lens form.**  A program confined to an
+    adversary lens `L_adv` (compatible with `liftRel P` via `heq`/`hset`)
+    self-couples under `liftRel P`, for *any* invariant `P`. -/
+theorem prhl2_of_inRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)] [Countable γ]
+    [Countable advSt] [Countable l] {P : state → state → Prop}
+    (L_adv : Lens advSt (ProcedureState l))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    {p : Program (ProcedureState l) γ} (hp : p.inRange L_adv.range) :
+    Program.prhl2 (liftRel P) p p (liftRelPost P) := by
+  rw [Lens.factor_of_inRange L_adv hp]
+  exact prhl2_lift_lens L_adv heq hset (L_adv.factor p)
+
+/-- **Confinement to the adversary's private local state** — the faithful,
+    checkable locality: every operation *outside the oracle interface* is
+    confined to `ProcedureState.localL`.  Structurally identical to `Loc`/`LocP`,
+    but with one uniform leaf condition (`.inRange localL.range`) that discharges
+    *both*. -/
+def Confined {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (ProcedureState l)) :
+    StmtWithHoles holes l → Prop
+  | .skip => True
+  | .sample x e =>
+      (programDenotation (StmtWithHoles.sample x e : Stmt l)).inRange L_adv.range
+  | .call' x ls b r p =>
+      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inRange L_adv.range
+  | .hole _ x p => (Program.get p).inRange L_adv.range ∧
+      (∀ ret, (Program.set x ret).inRange L_adv.range)
+  | .seq s1 s2 => Confined L_adv s1 ∧ Confined L_adv s2
+  | .ifThenElse c t e =>
+      (Program.get c).inRange L_adv.range ∧ Confined L_adv t ∧ Confined L_adv e
+  | .while c t => (Program.get c).inRange L_adv.range ∧ Confined L_adv t
+
+/-- The single `roHoles` hole has signature `roSig`, whose query type is
+    `Countable`.  (`HoleIndex roHoles sig` forces `sig = roSig`.) -/
+private theorem roHole_paramType_countable {sig : ProcedureSignature}
+    (n : HoleIndex roHoles sig) : Countable sig.ParamType := by
+  cases n with
+  | zero => exact inferInstanceAs (Countable input)
+  | succ i => exact nomatch i
+
+/-- **Confinement discharges `Loc`** (theorem-1 locality), leaf by leaf.  The
+    hole's query type is `Countable` via `hc`. -/
+theorem confined_loc {holes : HoleSigs} {l advSt : Type} [Countable l]
+    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.range ≤ ((roLift l).range)ᶜ)
+    (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
+    ∀ (A : StmtWithHoles holes l), Confined L_adv A → Loc A
+  | .skip, _ => trivial
+  | .sample _ _, h => stable_of_confined_lens L_adv hdisj h
+  | .call' _ _ _ _ _, h => stable_of_confined_lens L_adv hdisj h
+  | .hole n _ _, h =>
+      haveI := hc n
+      ⟨stable_of_confined_lens L_adv hdisj h.1,
+        fun ret => stable_of_confined_lens L_adv hdisj (h.2 ret)⟩
+  | .seq s1 s2, h => ⟨confined_loc L_adv hdisj hc s1 h.1, confined_loc L_adv hdisj hc s2 h.2⟩
+  | .ifThenElse _ t e, h =>
+      ⟨stable_of_confined_lens L_adv hdisj h.1, confined_loc L_adv hdisj hc t h.2.1,
+        confined_loc L_adv hdisj hc e h.2.2⟩
+  | .«while» _ t, h =>
+      ⟨stable_of_confined_lens L_adv hdisj h.1, confined_loc L_adv hdisj hc t h.2⟩
+
+/-- **Confinement discharges `LocP`** (theorem-2 locality) for *any* invariant
+    `P` — provided the adversary lens `L_adv` is `liftRel P`-compatible
+    (`heq`/`hset`).  No `h'`-style preservation condition on the adversary's ops:
+    `heq`/`hset` are conditions on the *region* `L_adv` vs `P`, not on `A`. -/
+theorem confined_locP {holes : HoleSigs} {l advSt : Type} [Nonempty (ProcedureState l)]
+    [Countable l] [Countable advSt] {P : state → state → Prop}
+    (L_adv : Lens advSt (ProcedureState l))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
+    ∀ (A : StmtWithHoles holes l), Confined L_adv A → LocP P A
+  | .skip, _ => trivial
+  | .sample _ _, h => prhl2_of_inRange_lens L_adv heq hset h
+  | .call' _ _ _ _ _, h => prhl2_of_inRange_lens L_adv heq hset h
+  | .hole n _ _, h =>
+      haveI := hc n
+      ⟨prhl2_of_inRange_lens L_adv heq hset h.1,
+        fun ret => prhl2_of_inRange_lens L_adv heq hset (h.2 ret)⟩
+  | .seq s1 s2, h => ⟨confined_locP L_adv heq hset hc s1 h.1, confined_locP L_adv heq hset hc s2 h.2⟩
+  | .ifThenElse _ t e, h =>
+      ⟨prhl2_of_inRange_lens L_adv heq hset h.1, confined_locP L_adv heq hset hc t h.2.1,
+        confined_locP L_adv heq hset hc e h.2.2⟩
+  | .«while» _ t, h =>
+      ⟨prhl2_of_inRange_lens L_adv heq hset h.1, confined_locP L_adv heq hset hc t h.2⟩
+
+/-- **Theorem 1, faithful form.**  An adversary confined to *any* lens `L_adv`
+    whose range is disjoint from the oracle (`L_adv.range ≤ (roLift _).rangeᶜ` —
+    the sound, lens-range rendering of "`fv(A)` disjoint from `oracle_state`")
+    cannot distinguish lazy from eager. -/
+theorem Program.transfer_instantiate_confined {sig : ProcedureSignature} {advSt : Type}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
+    (hdisj : L_adv.range ≤ ((roLift (sig.LocalVariableState A.locals)).range)ᶜ)
+    [Countable (sig.LocalVariableState A.locals)] [Countable sig.ret]
+    (hconf : Confined L_adv A.body)
+    (hret : (Program.get A.return_val).inRange L_adv.range) :
+    Program.transfer
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (procedureDenotation (A.instantiate RO_eager) args) :=
+  Program.transfer_instantiate A args
+    (confined_loc L_adv hdisj roHole_paramType_countable A.body hconf)
+    (stable_of_confined_lens L_adv hdisj hret)
+
+/-- **Theorem 2, faithful form (general adversary lens).**  An adversary confined
+    to *any* lens `L_adv` that is compatible with `liftRel P` (`heq`: `liftRel`
+    forces equality on `L_adv`; `hset`: writing `L_adv` preserves `liftRel`) gives
+    the relational (coupling) equivalence for that invariant `P`.  `L_adv` may
+    include **shared non-RO global variables** wherever `P` already forces them
+    equal — not just the locals.  No `h'`-style condition on the adversary's ops. -/
+theorem prhl_instantiate_confined {sig : ProcedureSignature} {advSt : Type}
+    {P : state → state → Prop}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable advSt]
+    [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
+    (h : ∀ inp : input,
+        Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (hconf : Confined L_adv A.body)
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost P) :=
+  prhl_instantiate A args h
+    (confined_locP L_adv heq hset roHole_paramType_countable A.body hconf) hret
+
+/-- **Theorem 2, locals-only instance.**  The canonical case `L_adv = localL`:
+    `heq`/`hset` hold for free (`liftRel` pins the locals to equality), so the
+    only confinement hypothesis is `Confined localL A.body`. -/
+theorem prhl_instantiate_confined_local {sig : ProcedureSignature} {P : state → state → Prop}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)]
+    [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
+    (h : ∀ inp : input,
+        Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (hconf : Confined ProcedureState.localL A.body)
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost P) :=
+  prhl_instantiate_confined A args ProcedureState.localL
+    (fun _ _ hpre => hpre.2) (fun _ _ _ hpre => ⟨hpre.1, rfl⟩) h hconf hret
+
+/-- **Worked corollary: theorem 2 with a shared non-RO *global* variable.**
+    The adversary may read/write a global variable `gv` (not just its locals),
+    as long as the invariant keeps `gv` equal across the two runs and the oracle
+    invariant `Pro` survives `gv`-writes (`hPro` — automatic when `gv` is disjoint
+    from the RO table, since then a `gv`-write leaves the RO table fixed).  The
+    invariant used is `P g₁ g₂ := gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂` and the
+    confinement region is `globalL.chain gv` (the `gv`-slice of the procedure
+    state).  This shows `prhl_instantiate_confined` already covers non-RO globals
+    — only the choice of `P` and `L_adv` differs from the locals-only case; no new
+    machinery is needed.  (Pair `globalL.chain gv` with `localL` to use both.) -/
+theorem prhl_instantiate_confined_global {sig : ProcedureSignature} {γ : Type}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (gv : Lens γ state) (Pro : state → state → Prop)
+    (hPro : ∀ (c : γ) g₁ g₂, Pro g₁ g₂ → Pro (gv.set c g₁) (gv.set c g₂))
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable γ]
+    [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
+    (h : ∀ inp : input,
+        Program.prhl (fun g₁ g₂ => gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂)
+          (random_oracle_query inp) (lazy_query inp)
+          (liftPost (fun g₁ g₂ => gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂)))
+    (hconf : Confined (ProcedureState.globalL.chain gv) A.body)
+    (hret : ∀ ps₁ ps₂,
+        liftRel (fun g₁ g₂ => gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂) ps₁ ps₂ →
+          A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl (fun g₁ g₂ => gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂)
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost (fun g₁ g₂ => gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂)) :=
+  prhl_instantiate_confined A args (ProcedureState.globalL.chain gv)
+    (fun _ _ hpre => hpre.1.1)
+    (fun c ps₁ ps₂ hpre => by
+      refine ⟨⟨?_, hPro c ps₁.global ps₂.global hpre.1.2⟩, hpre.2⟩
+      show gv.get (gv.set c ps₁.global) = gv.get (gv.set c ps₂.global)
+      rw [gv.set_get, gv.set_get])
+    h hconf hret
+
+/-! ## INVESTIGATION (for tomorrow, with Dominique): `fv`-disjointness ⟹ `Confined`?
+
+`fv_stmt A ≤ L_adv.range` is Dominique's `Program.range`-based footprint hypothesis
+(the `fv_proc A ≤ (random_oracle_state.range)ᶜ` form, at the `ProcedureState`
+level).  `confined_of_fv` below reduces it to `Confined`, **leaf by leaf**:
+
+* the structural cases (`skip`/`sample`/`hole`/`if`/`while`/`seq`) are **proven**;
+* the **setter** leaf bridge is the hypothesis `hset` — it is *provable* (writes:
+  `Program.range' (Program.set x)` is achieved, so `fv_setter`-soundness holds);
+* the **getter** leaf bridge is `get_confined_of_fv` — the **single open `sorry`**,
+  the case to study.  (`call'` is a separate `sorry`: a nested procedure runs on
+  the global state via `zoom globalL`, so it is not local — orthogonal to the
+  get-read issue, and it leans on Dominique's still-`sorry` `fv_reduce`/`fv_extend`.)
+
+So the whole conversion stands or falls on **`get_confined_of_fv`**. -/
+
+/-- **The `get` bridge — THE OPEN CASE (`sorry`).**  Unfolding,
+    `fv_getter c = Program.range (Program.get c)`, so this lemma is exactly
+
+      `Program.range (Program.get c) ≤ R  →  (Program.get c).inRange R`,
+
+    which (by monotonicity of `inRange`) is equivalent to **self-range for a read**,
+    `(Program.get c).inRange (Program.range (Program.get c))`.  It is FALSE in
+    general: a read's `Program.range` collapses (e.g. `Program.range (get fst) = ⊥`
+    on `Bool × Bool`), so the premise is vacuous while the conclusion fails.  This
+    is the precise obstruction to `fv_proc ≤ ROᶜ ⟹ Confined`. -/
+theorem get_confined_of_fv {a l : Type} (c : Getter a (ProcedureState l))
+    {R : LensRange (ProcedureState l)} (h : fv_getter c ≤ R) :
+    (Program.get c).inRange R := by
+  sorry
+
+/-- The `fst`-preserving involution `(a,b) ↦ (a, a⊕b)` — a `fst`-preserving update
+    that is *not* a pure complement update (it doesn't commute with `fst`-writes). -/
+private def gcex : Function.End (Bool × Bool) := fun p => (p.1, xor p.1 p.2)
+
+/-- **Concrete witness that read-`Program.range` collapses (PROVEN).**  On
+    `Bool × Bool`, reading the first component has `Program.range = ⊥`, even though
+    `get fst` obviously "uses" `fst`.  Reason: both `{id, gcex}` and `snd.range` are
+    double-commutant-closed families of `fst`-preserving updates, so each is a valid
+    `Rᶜ` with `(get fst).inRange R`; their meet is `⊥`, so the infimum defining
+    `Program.range` is `⊥` and is *not achieved* (`(get fst).inRange ⊥` is false).
+    This is exactly why `get_confined_of_fv` (self-range for reads) fails: the two
+    finite facts are dispatched by `decide` over the 4-element state. -/
+set_option maxRecDepth 100000 in
+theorem range_get_fst_eq_bot :
+    Program.range (Program.get (Lens.fst : Lens Bool (Bool × Bool))) = ⊥ := by
+  classical
+  letI : Fintype (Function.End (Bool × Bool)) :=
+    inferInstanceAs (Fintype (Bool × Bool → Bool × Bool))
+  letI : DecidableEq (Function.End (Bool × Bool)) :=
+    inferInstanceAs (DecidableEq (Bool × Bool → Bool × Bool))
+  -- two finite facts, by `decide`:
+  have dec1 : ∀ f : Function.End (Bool × Bool),
+      (∀ a : Function.End (Bool × Bool), gcex * a = a * gcex → a * f = f * a) →
+      ∀ σ : Bool × Bool, (f σ).1 = σ.1 := by decide
+  have dec2 : ∀ w : Bool → Bool,
+      gcex * (Lens.fst.update w) = (Lens.fst.update w) * gcex → w = id := by decide
+  -- (1) `get fst` lives in `(from {gcex})ᶜ` (every map in its complement preserves `fst`).
+  have hR₁ : (Program.get (Lens.fst : Lens Bool (Bool × Bool))).inRange
+      ((LensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ) := by
+    intro f hf
+    rw [LensRange.compl_compl] at hf
+    have hpres : ∀ σ, (f σ).1 = σ.1 := by
+      apply dec1
+      intro a hga
+      have ha : a ∈ Submonoid.centralizer ({gcex} : Set (Function.End (Bool × Bool))) :=
+        Submonoid.mem_centralizer_iff.mpr (fun c hc => by
+          rw [Set.mem_singleton_iff] at hc; subst hc; exact hga)
+      exact Submonoid.mem_centralizer_iff.mp hf a ha
+    apply Program.ext_of_wp; intro F; funext σ
+    simp only [wp_bind, wp_liftF, wp_get, wp_pure]
+    show F ((f σ).1, f σ) = F (σ.1, f σ)
+    rw [hpres σ]
+  -- (2) `(from {gcex})ᶜ ⊓ fst.range = ⊥`: the only `fst`-update commuting with `gcex` is `id`.
+  have hmeet : (LensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ ⊓ Lens.fst.range
+      ≤ (⊥ : LensRange (Bool × Bool)) := by
+    intro u hu
+    obtain ⟨hu1, hu2⟩ :
+        u ∈ ((LensRange.from ({gcex} : Set (Function.End (Bool × Bool))))ᶜ).updates
+          ∧ u ∈ Lens.fst.range.updates := hu
+    obtain ⟨w, -, hw⟩ :
+        ∃ w, w ∈ (⊤ : Set (Bool → Bool)) ∧ Lens.fst.update w = u := hu2
+    have hgu : gcex * u = u * gcex := by
+      have hg_mem : gcex ∈ Submonoid.centralizer
+          ((Submonoid.centralizer ({gcex} : Set (Function.End (Bool × Bool)))).carrier) :=
+        Submonoid.mem_centralizer_iff.mpr (fun b hb =>
+          (Submonoid.mem_centralizer_iff.mp hb gcex (Set.mem_singleton gcex)).symm)
+      exact Submonoid.mem_centralizer_iff.mp hu1 gcex hg_mem
+    have hwid : w = id := dec2 w (by rw [hw]; exact hgu)
+    rw [← hw, hwid]
+    exact (⊥ : LensRange (Bool × Bool)).id
+  exact le_antisymm
+    ((le_inf (sInf_le hR₁) (sInf_le (Program.inRange_get _))).trans hmeet) bot_le
+
+/-- **`fv`-disjointness ⟹ `Confined`, modulo the `get` bridge.**  Structural
+    reduction: every leaf is discharged by `get_confined_of_fv` (the `sorry`),
+    the (provable) setter bridge `hset`, and `inRange_toProgram`/`inRange_bind`.
+    `call'` is the one orthogonal `sorry` (nested procedure). -/
+theorem confined_of_fv {holes : HoleSigs} {l advSt : Type}
+    (L_adv : Lens advSt (ProcedureState l))
+    (hset : ∀ {b : Type} (y : Setter b (ProcedureState l)) (w : b),
+        fv_setter y ≤ L_adv.range → (Program.set y w).inRange L_adv.range) :
+    ∀ (A : StmtWithHoles holes l), fv_stmt A ≤ L_adv.range → Confined L_adv A
+  | .skip, _ => trivial
+  | .sample x e, h => by
+      have hx : fv_setter x ≤ L_adv.range := le_sup_left.trans h
+      have he : fv_getter e ≤ L_adv.range := le_sup_right.trans h
+      show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inRange L_adv.range
+      simp only [programDenotation]
+      exact Program.inRange_bind (get_confined_of_fv e he)
+        (fun μ => Program.inRange_bind (Program.inRange_toProgram μ _)
+          (fun v => hset x v hx))
+  | .call' x ls b r p, _ => by
+      -- nested procedure: `programDenotation (call' …)` runs the sub-procedure on
+      -- the global state (`zoom globalL`), so it is not confined to `L_adv` in
+      -- general.  Orthogonal to the get-read issue; depends on `fv_reduce`/`fv_extend`.
+      sorry
+  | .hole _ x p, h =>
+      ⟨get_confined_of_fv p (le_sup_right.trans h), fun ret => hset x ret (le_sup_left.trans h)⟩
+  | .seq s1 s2, h =>
+      ⟨confined_of_fv L_adv hset s1 (le_sup_left.trans h),
+        confined_of_fv L_adv hset s2 (le_sup_right.trans h)⟩
+  | .ifThenElse c t e, h =>
+      ⟨get_confined_of_fv c (le_sup_left.trans h),
+        confined_of_fv L_adv hset t (le_sup_left.trans (le_sup_right.trans h)),
+        confined_of_fv L_adv hset e (le_sup_right.trans (le_sup_right.trans h))⟩
+  | .«while» c t, h =>
+      ⟨get_confined_of_fv c (le_sup_left.trans h), confined_of_fv L_adv hset t (le_sup_right.trans h)⟩
+
+/-- **Level translation `State` ↔ `ProcedureState` — MECHANICAL (`sorry`).**
+    `fv_proc` lives over `State`; `fv_stmt` over `ProcedureState`.  Concretely
+    `fv_proc A = fv_reduce globalL (fv_stmt A.body) ⊔ fv_reduce globalL (fv_getter A.return_val)`,
+    where `fv_reduce globalL` pulls the body's footprint back to `State` along the
+    global lens (projecting the locals out).  This lemma is the corresponding
+    pullback fact: the body's *global* footprint avoiding the RO table lifts to
+    the *full* footprint avoiding it.  It is the `fv_reduce`/`fv_extend` adjunction
+    through `globalL` — Dominique's machinery (whose supporting lemmas
+    `fv_reduce_sup`/`fv_extend_sup`/`fv_reduce_extend` are themselves still `sorry`
+    in `FV.lean`).  Orthogonal to the read issue; left as a labeled `sorry`. -/
+theorem fv_stmt_le_compl_of_reduce {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig)
+    (h : fv_reduce ProcedureState.globalL (fv_stmt A.body) ≤ (random_oracle_state.range)ᶜ) :
+    fv_stmt A.body ≤ (roLift (sig.LocalVariableState A.locals)).compl.range := by
+  sorry
+
+/-- **EXACTLY the requested implication.**  `fv_proc A ≤ (random_oracle_state.range)ᶜ`
+    ⟹ the adversary body is `Confined` to the RO-complement.  The proof is the
+    structural reduction `confined_of_fv`, after the level translation
+    `fv_stmt_le_compl_of_reduce`.  The single **conceptual** open obligation is
+    `get_confined_of_fv` (the read self-range — the case to study).  `hset` is the
+    *provable* setter bridge (writes: `range'(set y)` is achieved), supplied as a
+    hypothesis to keep the focus on the read case; `call'` (inside `confined_of_fv`)
+    and `fv_stmt_le_compl_of_reduce` are the labeled *mechanical* gaps. -/
+theorem confined_of_fv_proc {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig)
+    (hset : ∀ {b : Type}
+        (y : Setter b (ProcedureState (sig.LocalVariableState A.locals))) (w : b),
+        fv_setter y ≤ (roLift (sig.LocalVariableState A.locals)).compl.range →
+          (Program.set y w).inRange (roLift (sig.LocalVariableState A.locals)).compl.range)
+    (hfv : fv_proc A ≤ (random_oracle_state.range)ᶜ) :
+    Confined (roLift (sig.LocalVariableState A.locals)).compl A.body :=
+  confined_of_fv (roLift (sig.LocalVariableState A.locals)).compl hset A.body
+    (fv_stmt_le_compl_of_reduce A (le_sup_left.trans hfv))
 
 end GaudisCrypt.Lib.RO.SyntacticEquiv

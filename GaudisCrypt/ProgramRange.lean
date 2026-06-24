@@ -1180,3 +1180,106 @@ theorem Program.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
   intro y _
   simp_rw [div_eq_mul_inv]
   exact MeasureTheory.lintegral_mul_const _ measurable_from_top
+
+/-! ## Lifting a confined program along a chained lens
+
+These close the `lift_inRange_chain` obligation used by the RO syntactic-
+equivalence development.  All ranges here are *lens* ranges, so the orbit
+machinery is not needed — the facts are pure lens algebra plus the existing
+`inRange_get`/`inRange_set` extractions. -/
+
+/-- `wp` of a lifted program: run `P` on the `L`-content and re-set the result. -/
+theorem Program.wp_lift {c s α : Type} (L : Lens c s) (P : Program c α) (F : Program.Post s α) :
+    (L.lift P).wp F = fun σ => P.wp (fun ac => F (ac.1, L.set ac.2 σ)) (L.get σ) := by
+  funext σ
+  show ((L.lift P) σ).expected F = _
+  simp only [Lens.lift, SubProbability.expected_bind, expected_pure]
+  rfl
+
+/-- **Lift composes via `chain`.**  Lifting `Q` along `v` and then along `L`
+    is lifting `Q` along the composite lens `L ∘ v`. -/
+theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q : Program d a) :
+    L.lift (v.lift Q) = (L.chain v).lift Q := by
+  funext σ
+  simp only [Lens.lift, Lens.chain]
+  rw [SubProbability.bind_assoc']
+  congr 1
+  funext xd
+  rw [SubProbability.pure_bind]
+
+/-- **A lift lives in its lens's range.**  For any inner program `Q`, the lift
+    `M.lift Q` is confined to `M.range`: it only touches the `M`-window. -/
+theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
+    (M.lift Q).inRange M.range := by
+  intro f hf
+  -- `f` outside `M.range` preserves `M.get` and commutes with `M.set`.
+  have h_get : ∀ σ : s, M.get (f σ) = M.get σ := by
+    intro σ
+    have hmem : f ∈ Submonoid.centralizer M.range.updates := hf
+    rw [Submonoid.mem_centralizer_iff] at hmem
+    have hv_upd : M.update (Function.const _ (M.get σ)) ∈ M.range.updates :=
+      ⟨Function.const _ (M.get σ), Set.mem_univ _, rfl⟩
+    have hcomm := congr_fun (hmem _ hv_upd) σ
+    change M.update (Function.const _ (M.get σ)) (f σ)
+         = f (M.update (Function.const _ (M.get σ)) σ) at hcomm
+    simp only [Lens.update, Function.const_apply] at hcomm
+    rw [M.get_set] at hcomm
+    have := congr_arg M.get hcomm
+    rw [M.set_get] at this
+    exact this.symm
+  have h_set : ∀ (y : c) (σ : s), M.set y (f σ) = f (M.set y σ) := by
+    intro y σ
+    have hmem : f ∈ Submonoid.centralizer M.range.updates := hf
+    rw [Submonoid.mem_centralizer_iff] at hmem
+    have hvx : M.update (Function.const _ y) ∈ M.range.updates :=
+      ⟨Function.const _ y, Set.mem_univ _, rfl⟩
+    have hcomm := congr_fun (hmem _ hvx) σ
+    change M.update (Function.const _ y) (f σ) = f (M.update (Function.const _ y) σ) at hcomm
+    simp only [Lens.update, Function.const_apply] at hcomm
+    exact hcomm
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  simp only [wp_bind, wp_liftF, wp_pure, Program.wp_lift, h_get]
+  congr 1
+  funext ac
+  rw [h_set]
+
+/-- **Lift confines the footprint through the chained lens.**  A program `P`
+    confined to window `v` lifts (along `L`) to one confined to the composite
+    `L ∘ v`.  Proof: `P` factors as `v.lift (v.factor P)` (by `factor_of_inRange`),
+    lift composition turns the double lift into a single `(L.chain v)` lift, and
+    `lift_inRange_self` confines that to `(L.chain v).range`. -/
+theorem Lens.lift_inRange_chain {c s d a : Type} [Nonempty c] (L : Lens c s) (v : Lens d c)
+    (P : Program c a) (hP : P.inRange v.range) :
+    (L.lift P).inRange (L.chain v).range := by
+  rw [Lens.factor_of_inRange v hP, Lens.lift_lift_chain]
+  exact Lens.lift_inRange_self (L.chain v) (v.factor P)
+
+/-- `wp` of a sampled value (`μ.toProgram = StateT.lift μ`): it samples its
+    return from `μ` and leaves the state untouched. -/
+theorem Program.wp_toProgram {s a : Type} (μ : SubProbability a) (G : Program.Post s a) :
+    (SubProbability.toProgram μ : Program s a).wp G = fun σ => μ.expected (fun x => G (x, σ)) := by
+  funext σ
+  show ((SubProbability.toProgram μ : Program s a) σ).expected G = _
+  show ((μ >>= fun x => (pure (x, σ) : SubProbability (a × s))).expected G) = _
+  rw [SubProbability.expected_bind]
+  simp only [expected_pure]
+
+/-- **A sampled value lives in every range.**  `μ.toProgram` only draws its
+    return value; it never touches the state, so it commutes with every update. -/
+theorem Program.inRange_toProgram {s a : Type} (μ : SubProbability a) (R : LensRange s) :
+    (SubProbability.toProgram μ : Program s a).inRange R := by
+  intro f _
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  simp only [wp_bind, wp_liftF, wp_pure, Program.wp_toProgram]
+
+/-- **Chaining focuses a sub-window**: `(L.chain v).range ≤ L.range`.  Every
+    `L∘v`-update is an `L`-update (acting only inside the `L`-window). -/
+theorem Lens.chain_range_le {a b c : Type} (L : Lens b c) (v : Lens a b) :
+    (L.chain v).range ≤ L.range := by
+  rintro _ ⟨f, -, rfl⟩
+  exact ⟨fun s => v.set (f (v.get s)) s, Set.mem_univ _, by
+    funext s; simp [Lens.chain, Lens.update]⟩

@@ -416,4 +416,58 @@ lemma Program.bind_bot {s a b : Type} (m : Program s a) :
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
 
+/-
+noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
+  mul f g := fun x => g x >>= f
+  one := pure
+  mul_assoc f g h := funext fun x => by
+    apply Subtype.ext; letI : MeasurableSpace m := ⊤
+    exact (MeasureTheory.Measure.bind_bind
+      measurable_from_top.aemeasurable measurable_from_top.aemeasurable).symm
+  one_mul f := funext fun x => by
+    apply Subtype.ext; letI : MeasurableSpace m := ⊤
+    exact MeasureTheory.Measure.bind_dirac
+  mul_one f := funext fun x => by
+    apply Subtype.ext; letI : MeasurableSpace m := ⊤
+    change (MeasureTheory.Measure.dirac x).bind (fun a => (f a).1) = (f x).1
+    exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+
+
+
+structure ProbLensRange (m : Type _) where
+  updates : Set (m -> SubProbability m)
+  id : pure ∈ updates
+  comp : f ∈ updates → g ∈ updates → (f * g) ∈ updates
+  double_commutant : (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
+
+instance : Compl (ProbLensRange m) where
+  compl range := ⟨(Submonoid.centralizer range.updates).carrier,
+    Submonoid.one_mem _,
+    fun hf hg => Submonoid.mul_mem _ hf hg,
+    by sorry⟩
+
+
+def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a)
+  (R : ProbLensRange s) : Prop :=
+  ∀ f ∈ Rᶜ.updates,
+    (fun st => do let st' <- f st; let (x, st'') <- p st'; return (x,st''))
+  = (fun st => do let (x, st') <- p st; let st'' <- f st'; return (x, st''))
+
+def ProbLensRange.from (generators : Set (m -> SubProbability m)) : ProbLensRange m where
+  updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
+  id := Submonoid.one_mem _
+  comp := fun hf hg => Submonoid.mul_mem _ hf hg
+  double_commutant := by sorry
+
+/- The smallest LensRange in which `p` lives. -/
+noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.rangeUnit2 {s a : Type} (p : Program s Unit)
+  : ProbLensRange s := ProbLensRange.from { fun st => do let (_,st') <- p st; return st' }
+
+noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range2 {s a : Type} (p : Program s a)
+  : ProbLensRange s := ProbLensRange.from { fun st => do let (x,st') <- p st; if (x ≠ y) then ⊥ else ⊤; return st' | y : a }
+
+/- Litmus test: p.inRange R <-> p.range <= R  -/
+
+-/
+
 end GaudisCrypt.Language.Semantics
