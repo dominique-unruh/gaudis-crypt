@@ -1378,6 +1378,52 @@ theorem range_get_fst_eq_bot :
   exact le_antisymm
     ((le_inf (sInf_le hR₁) (sInf_le (Program.inRange_get _))).trans hmeet) bot_le
 
+/-! ### The leaf bridges over `ProbLensRange` — the obstruction removed
+
+The `TotLensRange` conversion "stands or falls on `get_confined_of_fv`" (the `sorry` above), which
+is *self-range for a read* — and that is **false** (`range_get_fst_eq_bot`: read-`Program.range`
+collapses to `⊥`).  Over `ProbLensRange`, **self-range holds for every program** (it is the litmus
+`inProbRange_of_probRange_le` at `R := p.probRange`), so the `get`, `set`, *and* `call'` bridges all
+discharge uniformly — no `sorry`, and no `hset`-style hypothesis.  This is the precise payoff of
+moving the range theory to sub-probability kernels. -/
+
+/-- **Self-range over `ProbLensRange` (PROVEN).**  For any program with countable return,
+    `p.inProbRange p.probRange`.  This is *exactly* the statement that is FALSE for `TotLensRange`
+    (witness: `range_get_fst_eq_bot`), whose failure forced `get_confined_of_fv`/`call'` to be
+    `sorry`.  Every leaf bridge below is a corollary. -/
+theorem inProbRange_selfRange {a s : Type} [Countable a] (p : Program s a) :
+    p.inProbRange p.probRange :=
+  Program.inProbRange_of_probRange_le (le_refl _)
+
+/-- **The `get` bridge over `ProbLensRange` — PROVEN (the litmus).**  The probabilistic counterpart
+    of `get_confined_of_fv` (the open `sorry`): where the `TotLensRange` bridge is self-range for a
+    read (false), this is the litmus, which holds for any read with countable result. -/
+theorem get_confinedP_of_fv {a l : Type} [Countable a] (c : Getter a (ProcedureState l))
+    {R : ProbLensRange (ProcedureState l)} (h : (Program.get c).probRange ≤ R) :
+    (Program.get c).inProbRange R :=
+  Program.inProbRange_of_probRange_le h
+
+/-- **The setter bridge over `ProbLensRange` — PROVEN (the litmus).**  In `confined_of_fv` the
+    setter bridge had to be *assumed* (`hset`); here it is the litmus, for free. -/
+theorem set_confinedP_of_fv {a l : Type} (y : Setter a (ProcedureState l)) (w : a)
+    {R : ProbLensRange (ProcedureState l)} (h : (Program.set y w).probRange ≤ R) :
+    (Program.set y w).inProbRange R :=
+  Program.inProbRange_of_probRange_le h
+
+/-- **The probabilistic footprint of a statement.**  The `ProbLensRange` analogue of `fv_stmt`,
+    defined *directly* as the join of each leaf's own `probRange` — no `fv_reduce`/`fv_extend`
+    machinery is needed, because self-range makes every program its own footprint.  In particular
+    the nested `call'` leaf is just `(programDenotation (call' …)).probRange`. -/
+noncomputable def fvP_stmt {holes : HoleSigs} {l : Type} :
+    StmtWithHoles holes l → ProbLensRange (ProcedureState l)
+  | .skip => ⊥
+  | .sample x e => (programDenotation (StmtWithHoles.sample x e : Stmt l)).probRange
+  | .call' x ls b r p => (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).probRange
+  | .hole _ x p => (Program.get p).probRange ⊔ (⨆ ret, (Program.set x ret).probRange)
+  | .seq s1 s2 => fvP_stmt s1 ⊔ fvP_stmt s2
+  | .ifThenElse c t e => (Program.get c).probRange ⊔ fvP_stmt t ⊔ fvP_stmt e
+  | .while c t => (Program.get c).probRange ⊔ fvP_stmt t
+
 /-- **`fv`-disjointness ⟹ `Confined`, modulo the `get` bridge.**  Structural
     reduction: every leaf is discharged by `get_confined_of_fv` (the `sorry`),
     the (provable) setter bridge `hset`, and `inRange_toProgram`/`inRange_bind`.
@@ -1797,6 +1843,40 @@ theorem prhl_instantiate_confinedP {sig : ProcedureSignature} {advSt : Type}
       (liftPost P) :=
   prhl_instantiate A args h
     (confinedP_locP L_adv heq hset roHole_paramType_countable A.body hconf) hret
+
+/-- **`fvP`-disjointness ⟹ `ConfinedP` — COMPLETE, no `sorry`.**  The full structural reduction
+    that `confined_of_fv` (`TotLensRange`) could only achieve modulo the `get` `sorry`
+    (`get_confined_of_fv`), the orthogonal `call'` `sorry`, and an *assumed* setter bridge
+    (`hset`).  Over `ProbLensRange` every leaf — get, set, sample, *and the nested `call'`* —
+    discharges by the litmus (self-range, `inProbRange_selfRange`), so the reduction is total.
+    Composing with `confinedP_loc`/`confinedP_locP` gives the two main theorems directly from a
+    footprint-disjointness hypothesis. -/
+theorem confinedP_of_fv {holes : HoleSigs} {l advSt : Type}
+    (L_adv : Lens advSt (ProcedureState l))
+    (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
+    ∀ (A : StmtWithHoles holes l), fvP_stmt A ≤ L_adv.probRange → ConfinedP L_adv A
+  | .skip, _ => trivial
+  | .sample x e, h => by
+      show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inProbRange L_adv.probRange
+      exact Program.inProbRange_of_probRange_le h
+  | .call' x ls b r p, h => by
+      show (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inProbRange L_adv.probRange
+      exact Program.inProbRange_of_probRange_le h
+  | .hole n x p, h =>
+      haveI := hc n
+      ⟨get_confinedP_of_fv p (le_sup_left.trans h),
+        fun ret => set_confinedP_of_fv x ret
+          ((le_iSup (fun ret => (Program.set x ret).probRange) ret).trans (le_sup_right.trans h))⟩
+  | .seq s1 s2, h =>
+      ⟨confinedP_of_fv L_adv hc s1 (le_sup_left.trans h),
+        confinedP_of_fv L_adv hc s2 (le_sup_right.trans h)⟩
+  | .ifThenElse c t e, h =>
+      ⟨get_confinedP_of_fv c (le_sup_left.trans (le_sup_left.trans h)),
+        confinedP_of_fv L_adv hc t (le_sup_right.trans (le_sup_left.trans h)),
+        confinedP_of_fv L_adv hc e (le_sup_right.trans h)⟩
+  | .«while» c t, h =>
+      ⟨get_confinedP_of_fv c (le_sup_left.trans h),
+        confinedP_of_fv L_adv hc t (le_sup_right.trans h)⟩
 
 end
 
