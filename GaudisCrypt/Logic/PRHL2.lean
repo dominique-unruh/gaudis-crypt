@@ -162,12 +162,8 @@ lemma SubProbability.tsum_singleton_le_one {T : Type} [Countable T]
 
 /-! ### Bind algebra and fixed-point helpers (for `while_loop`) -/
 
-/-- Bind of the zero sub-probability is zero. -/
-lemma SubProbability.bot_bind {A C : Type} (f : A → SubProbability C) :
-    (⊥ : SubProbability A) >>= f = ⊥ := by
-  refine SubProbability.ext_of_expected (fun test => ?_)
-  rw [SubProbability.expected_bind, SubProbability.expected_bot,
-      SubProbability.expected_bot]
+-- `SubProbability.bot_bind` now lives canonically in `GaudisCrypt.Language.SubProbability`
+-- (imported transitively here).
 
 /-- A lifted sampling unfolded at a state. -/
 lemma SubProbability.toProgram_apply {s α : Type} (μ : SubProbability α) (σ : s) :

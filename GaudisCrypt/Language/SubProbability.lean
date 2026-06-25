@@ -193,6 +193,36 @@ lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbabilit
   letI : MeasurableSpace β := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top x
 
+lemma SubProbability.bind_assoc {α β γ : Type}
+    (m : SubProbability α) (f : α → SubProbability β) (g : β → SubProbability γ) :
+    (m >>= f) >>= g = m >>= fun x => f x >>= g := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  letI : MeasurableSpace γ := ⊤
+  exact MeasureTheory.Measure.bind_bind
+    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
+
+lemma SubProbability.bind_pure {α : Type} (m : SubProbability α) :
+    m >>= pure = m := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  change MeasureTheory.Measure.bind m.1 (fun a => @MeasureTheory.Measure.dirac α ⊤ a) = m.1
+  rw [show (fun a : α => @MeasureTheory.Measure.dirac α ⊤ a)
+        = (fun a : α => @MeasureTheory.Measure.dirac α ⊤ (id a)) from rfl]
+  rw [MeasureTheory.Measure.bind_dirac_eq_map m.1 measurable_id]
+  exact MeasureTheory.Measure.map_id
+
+lemma SubProbability.bot_bind {α β : Type} (f : α → SubProbability β) :
+    ((⊥ : SubProbability α) >>= f) = ⊥ := by
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_left _
+
+lemma SubProbability.bind_bot {α β : Type} (m : SubProbability α) :
+    (m >>= fun _ => (⊥ : SubProbability β)) = ⊥ := by
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_right' _
+
 /-- Kleisli composition for `SubProbability`: `f * g` applies `g` first, then `f`
     on the result (so `f * g = f ∘ₖ g`), with `pure` as the identity. This is the
     monoid of sub-probability kernels `m → SubProbability m`, the probabilistic

@@ -1,6 +1,7 @@
 import GaudisCrypt.Language.Semantics
 
 open GaudisCrypt.Language.Semantics
+open GaudisCrypt.Language.Lens
 
 /-!
 # Probabilistic lens-ranges (`ProbLensRange`)
@@ -108,6 +109,29 @@ theorem ProbLensRange.compl_compl (x : ProbLensRange a) : xᶜᶜ = x := by
     simp only at h; subst h; rfl
   apply key; simp only [Compl.compl]; exact x.double_commutant
 
+/-- A range equals the centralizer of its own complement (double-commutant closure,
+    stated with the commutant on the inside). -/
+theorem ProbLensRange.updates_eq_centralizer_compl {m : Type _} (R : ProbLensRange m) :
+    R.updates = (Submonoid.centralizer Rᶜ.updates).carrier := by
+  show R.updates = (Submonoid.centralizer (Submonoid.centralizer R.updates).carrier).carrier
+  exact R.double_commutant.symm
+
+/-- **Galois connection for `from`**: `from G` is the smallest range whose updates
+    contain `G`. Since `R` is double-commutant-closed, `from G ≤ R` iff `G ⊆ R.updates`. -/
+theorem ProbLensRange.from_le_iff {m : Type _} (G : Set (m → SubProbability m))
+    (R : ProbLensRange m) : ProbLensRange.from G ≤ R ↔ G ⊆ R.updates := by
+  constructor
+  · intro h
+    intro x hx
+    apply h
+    show x ∈ (Submonoid.centralizer (Submonoid.centralizer G).carrier).carrier
+    simp only [centralizer_carrier_eq]
+    exact Set.subset_centralizer_centralizer hx
+  · intro h
+    show (Submonoid.centralizer (Submonoid.centralizer G).carrier).carrier ⊆ R.updates
+    conv_rhs => rw [← R.double_commutant]
+    exact Submonoid.centralizer_le (Submonoid.centralizer_le h)
+
 instance : CompleteSemilatticeSup (ProbLensRange m) where
   sSup s := ProbLensRange.from (⋃ x ∈ s, x.updates)
   isLUB_sSup s := by
@@ -179,3 +203,332 @@ noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.probRange {s a :
   ProbLensRange.from
     (Set.range fun (y : a) (st : s) =>
       (do let (x, st') ← p st; if x = y then pure st' else ⊥ : SubProbability s))
+
+/-! ## Litmus test: `p.inProbRange R ↔ p.probRange ≤ R`
+
+The probabilistic analogue of the bicommutant litmus test. The key device is the
+return-value slice `projK y`: post-composing a kernel into `a × s` with `projK y`
+keeps only the mass that returns `y` and projects to the state. Slicing turns the
+joint commutation equation defining `inProbRange` into per-`y` commutations of the
+conditioned kernels `kᵧ` (the generators of `probRange`) with the commutant `Rᶜ`,
+i.e. `kᵧ ∈ centralizer Rᶜ = R.updates`. The forward direction is pure slicing; the
+backward direction reassembles the joint kernel from its slices, which needs the
+return type `a` to be `Countable`. -/
+
+section Litmus
+open Classical MeasureTheory
+
+/-- Return-value slice: `projK y (x, s') = pure s'` if `x = y`, else `⊥`.
+    Post-composing a kernel into `a × s` keeps the `y`-returning mass and forgets `y`. -/
+private noncomputable def projK {s a : Type} (y : a) : a × s → SubProbability s :=
+  fun xs => if xs.1 = y then pure xs.2 else ⊥
+
+/-- Slicing the "run outside-kernel then `p`" side gives `kᵧ ∘ₖ f`. -/
+private lemma lhs_slice {s a : Type} (p : Program s a) (f : s → SubProbability s) (y : a) (st : s) :
+    ((f st >>= fun st' => p st' >>= fun w => (pure (w.1, w.2) : SubProbability (a × s))) >>= projK y)
+    = f st >>= (fun st' => p st' >>= projK y) := by
+  rw [SubProbability.bind_assoc]; congr 1; funext st'
+  rw [SubProbability.bind_assoc]; congr 1; funext w
+  rw [SubProbability.pure_bind]
+
+/-- Slicing the "run `p` then outside-kernel" side gives `f ∘ₖ kᵧ`. -/
+private lemma rhs_slice {s a : Type} (p : Program s a) (f : s → SubProbability s) (y : a) (st : s) :
+    ((p st >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+      >>= projK y)
+    = (p st >>= projK y) >>= f := by
+  rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+  congr 1; funext w
+  rw [SubProbability.bind_assoc]
+  show (f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)) >>= projK y) = projK y w >>= f
+  unfold projK
+  by_cases hwy : w.1 = y
+  · rw [if_pos hwy]
+    rw [show (fun st'' : s => (pure (w.1, st'') : SubProbability (a × s))
+              >>= fun xs : a × s => if xs.1 = y then (pure xs.2 : SubProbability s) else ⊥)
+          = (pure : s → SubProbability s) from by
+        funext st''; rw [SubProbability.pure_bind, if_pos hwy]]
+    rw [SubProbability.bind_pure, SubProbability.pure_bind]
+  · rw [if_neg hwy]
+    rw [show (fun st'' : s => (pure (w.1, st'') : SubProbability (a × s))
+              >>= fun xs : a × s => if xs.1 = y then (pure xs.2 : SubProbability s) else ⊥)
+          = (fun _ : s => (⊥ : SubProbability s)) from by
+        funext st''; rw [SubProbability.pure_bind, if_neg hwy]]
+    rw [SubProbability.bind_bot, SubProbability.bot_bind]
+
+/-- The `y`-slice of a kernel evaluates to its mass on the `{y}`-fibre rectangle. -/
+private lemma slice_apply {s a : Type} (μ : SubProbability (a × s)) (y : a) (B : Set s) :
+    (μ >>= projK y).1 B = μ.1 ({y} ×ˢ B) := by
+  letI : MeasurableSpace (a × s) := ⊤
+  letI : MeasurableSpace s := ⊤
+  show (Measure.bind μ.1 (fun w => (projK y w).1)) B = μ.1 ({y} ×ˢ B)
+  rw [Measure.bind_apply (by trivial) (by exact measurable_from_top.aemeasurable)]
+  rw [show (fun w : a × s => (projK y w).1 B) = Set.indicator ({y} ×ˢ B) 1 from ?_]
+  · rw [lintegral_indicator_one (by trivial)]
+  · funext w
+    unfold projK
+    by_cases hwy : w.1 = y
+    · rw [if_pos hwy]
+      show (@MeasureTheory.Measure.dirac s ⊤ w.2) B = Set.indicator ({y} ×ˢ B) 1 w
+      rw [MeasureTheory.Measure.dirac_apply' w.2 (by trivial)]
+      simp only [Set.indicator, Set.mem_prod, Set.mem_singleton_iff, hwy, true_and, Pi.one_apply]
+    · rw [if_neg hwy]
+      show (⊥ : SubProbability s).1 B = Set.indicator ({y} ×ˢ B) 1 w
+      rw [show ((⊥ : SubProbability s).1 : Measure s) = 0 from rfl]
+      simp only [Measure.coe_zero, Pi.zero_apply, Set.indicator, Set.mem_prod,
+        Set.mem_singleton_iff, hwy, false_and, if_false]
+
+/-- **A kernel into `a × s` is determined by its return-value slices** (for `Countable a`).
+    This is the disintegration fact powering the backward litmus direction. -/
+private lemma ext_of_slices {s a : Type} [Countable a] (μ ν : SubProbability (a × s))
+    (h : ∀ y, μ >>= projK y = ν >>= projK y) : μ = ν := by
+  apply Subtype.ext
+  letI : MeasurableSpace (a × s) := ⊤
+  letI : MeasurableSpace s := ⊤
+  apply Measure.ext
+  intro C _hC
+  have hcover : C = ⋃ y : a, {y} ×ˢ (Prod.mk y ⁻¹' C) := by
+    ext ⟨x, s'⟩
+    simp only [Set.mem_iUnion, Set.mem_prod, Set.mem_singleton_iff, Set.mem_preimage]
+    constructor
+    · intro hC; exact ⟨x, rfl, hC⟩
+    · rintro ⟨y, rfl, hyC⟩; exact hyC
+  have hdisj : Pairwise (Function.onFun Disjoint (fun y : a => {y} ×ˢ (Prod.mk y ⁻¹' C))) := by
+    intro y y' hyy'
+    simp only [Function.onFun, Set.disjoint_left]
+    rintro ⟨x, s'⟩ hz hz'
+    rw [Set.mem_prod, Set.mem_singleton_iff] at hz hz'
+    exact hyy' (hz.1.symm.trans hz'.1)
+  calc μ.1 C
+      = ∑' y : a, μ.1 ({y} ×ˢ (Prod.mk y ⁻¹' C)) := by
+        conv_lhs => rw [hcover]; rw [measure_iUnion hdisj (fun y => by trivial)]
+    _ = ∑' y : a, ν.1 ({y} ×ˢ (Prod.mk y ⁻¹' C)) := by
+        congr 1; funext y; rw [← slice_apply μ y, ← slice_apply ν y, h y]
+    _ = ν.1 C := by
+        conv_rhs => rw [hcover]; rw [measure_iUnion hdisj (fun y => by trivial)]
+
+/-- **Litmus test, forward (soundness)**: if `p` commutes with the commutant `Rᶜ`,
+    its constructive `probRange` is contained in `R`. No countability needed — this is
+    pure slicing of the commutation equation. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_le_of_inProbRange
+    {s a : Type} {p : Program s a} {R : ProbLensRange s}
+    (h : p.inProbRange R) : p.probRange ≤ R := by
+  refine (ProbLensRange.from_le_iff _ R).mpr ?_
+  rintro k ⟨y, rfl⟩
+  show (fun st => p st >>= projK y) ∈ R.updates
+  rw [ProbLensRange.updates_eq_centralizer_compl R]
+  refine Submonoid.mem_centralizer_iff.mpr ?_
+  intro f hf
+  funext st
+  show (p st >>= projK y) >>= f = f st >>= (fun st' => p st' >>= projK y)
+  have hjoint := congrFun (h f hf) st
+  have hs : (f st >>= fun st' => p st' >>= fun w : a × s => (pure (w.1, w.2) : SubProbability (a × s)))
+              >>= projK y
+          = (p st >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+              >>= projK y :=
+    congrArg (fun μ : SubProbability (a × s) => μ >>= projK y) hjoint
+  rw [lhs_slice, rhs_slice] at hs
+  exact hs.symm
+
+/-- **Litmus test, backward (completeness)**: if `p`'s constructive `probRange` is
+    contained in `R`, then `p` commutes with the commutant `Rᶜ`. Needs `[Countable a]`
+    to reassemble the joint kernel from its return-value slices. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_of_probRange_le
+    {s a : Type} [Countable a] {p : Program s a} {R : ProbLensRange s}
+    (h : p.probRange ≤ R) : p.inProbRange R := by
+  intro f hf
+  have h' := (ProbLensRange.from_le_iff _ R).mp h
+  funext st
+  apply ext_of_slices
+  intro y
+  have hky : (fun st => p st >>= projK y) ∈ R.updates := h' ⟨y, rfl⟩
+  rw [ProbLensRange.updates_eq_centralizer_compl R] at hky
+  have hcomm := Submonoid.mem_centralizer_iff.mp hky f hf
+  show (f st >>= fun st' => p st' >>= fun w : a × s => (pure (w.1, w.2) : SubProbability (a × s)))
+         >>= projK y
+     = (p st >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+         >>= projK y
+  rw [lhs_slice, rhs_slice]
+  exact (congrFun hcomm st).symm
+
+/-- **Litmus test**: a program lies in the range `R` (commutes with the commutant)
+    iff its constructive `probRange` is `≤ R`. Ported from the `Litmus test` note in
+    `Language/Semantics.lean`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_iff_probRange_le
+    {s a : Type} [Countable a] {p : Program s a} {R : ProbLensRange s} :
+    p.inProbRange R ↔ p.probRange ≤ R :=
+  ⟨Program.probRange_le_of_inProbRange, Program.inProbRange_of_probRange_le⟩
+
+/-! ## Closure properties of `inProbRange` / `probRange` -/
+
+/-- Clean reformulation of `inProbRange`: strip the trailing `pure`-repack from the
+    "run outside-kernel first" side via `bind_pure`. -/
+lemma inProbRange_iff_clean {s c : Type} {P : Program s c} {R : ProbLensRange s} :
+    P.inProbRange R ↔ ∀ f ∈ Rᶜ.updates,
+      (fun st => f st >>= P)
+    = (fun st => P st >>= fun w : c × s =>
+        f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (c × s))) := by
+  have eL : ∀ f : s → SubProbability s, (fun st => f st >>= P)
+      = (fun st => f st >>= fun st' =>
+          P st' >>= fun w : c × s => (pure (w.1, w.2) : SubProbability (c × s))) := fun f => by
+    funext st; congr 1; funext st'; exact (SubProbability.bind_pure (P st')).symm
+  constructor
+  · intro h f hf; exact (eL f).trans (h f hf)
+  · intro h f hf; exact (eL f).symm.trans (h f hf)
+
+/-- **Monotonicity**: a larger range still contains the program. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_mono {s c : Type}
+    {P : Program s c} {R R' : ProbLensRange s} (h : P.inProbRange R) (hR : R ≤ R') :
+    P.inProbRange R' := by
+  intro f hf
+  apply h
+  have hsub : R'ᶜ.updates ⊆ Rᶜ.updates := by
+    change (Submonoid.centralizer R'.updates).carrier ⊆ (Submonoid.centralizer R.updates).carrier
+    exact Submonoid.centralizer_le hR
+  exact hsub hf
+
+/-- **Commutation composes through `bind`**: if `p` and every `q x` commute with the
+    commutant `Rᶜ`, so does `p >>= q`. Pure Kleisli algebra — no countability needed.
+    The slogan is `pre`/`post` (run-`f`-first / run-`f`-last) compose via `bind_assoc`,
+    and the hypotheses swap `pre ↔ post` at `p` and at each `q x`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_bind {s a b : Type}
+    {p : Program s a} {q : a → Program s b} {R : ProbLensRange s}
+    (hp : p.inProbRange R) (hq : ∀ x, (q x).inProbRange R) : (p >>= q).inProbRange R := by
+  rw [inProbRange_iff_clean]
+  intro f hf
+  have hp' := (inProbRange_iff_clean.mp hp) f hf
+  have hq' := fun x => (inProbRange_iff_clean.mp (hq x)) f hf
+  funext st
+  calc f st >>= (p >>= q)
+      = (f st >>= p) >>= (fun v : a × s => q v.1 v.2) := (SubProbability.bind_assoc (f st) p _).symm
+    _ = (p st >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+          >>= (fun v : a × s => q v.1 v.2) := by rw [congrFun hp' st]
+    _ = p st >>= fun w : a × s => f w.2 >>= fun st'' => q w.1 st'' := by
+        rw [SubProbability.bind_assoc]; congr 1; funext w
+        rw [SubProbability.bind_assoc]; congr 1; funext st''
+        rw [SubProbability.pure_bind]
+    _ = p st >>= fun w : a × s => f w.2 >>= (q w.1) := rfl
+    _ = (p st >>= fun v : a × s => q v.1 v.2)
+          >>= (fun u : b × s => f u.2 >>= fun st''' => (pure (u.1, st''') : SubProbability (b × s))) := by
+        rw [SubProbability.bind_assoc]; congr 1; funext w
+        rw [← congrFun (hq' w.1) w.2]
+    _ = (p >>= q) st
+          >>= (fun u : b × s => f u.2 >>= fun st''' => (pure (u.1, st''') : SubProbability (b × s))) := rfl
+
+/-- **Range of a `bind`**: `(p >>= q).probRange ≤ p.probRange ⊔ ⨆ x, (q x).probRange`.
+    The footprint of a sequenced computation is contained in `p`'s footprint together
+    with the union of the continuations' footprints. Needs `[Countable a] [Countable b]`
+    only through the self-range step (`inProbRange_of_probRange_le`). -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_bind_le {s a b : Type}
+    [Countable a] [Countable b] (p : Program s a) (q : a → Program s b) :
+    (p >>= q).probRange ≤ p.probRange ⊔ ⨆ x, (q x).probRange := by
+  apply Program.probRange_le_of_inProbRange
+  apply Program.inProbRange_bind
+  · exact Program.inProbRange_of_probRange_le le_sup_left
+  · intro x
+    exact Program.inProbRange_of_probRange_le
+      ((le_iSup (fun x => (q x).probRange) x).trans le_sup_right)
+
+end Litmus
+
+/-! ## Parity primitives: `Lens.probRange` and primitive ranges
+
+The probabilistic analogues of `Lens.range` / `Program.inRange_pure/set/get`, mirroring the
+`TotLensRange` leaves so consumers can migrate. A deterministic state update embeds as a Dirac
+kernel via `diracKer`; `Lens.probRange` is generated by the lens-localized ones. -/
+
+/-- A deterministic state update `f : Function.End s` as a Dirac kernel. The Kleisli embedding
+    `Function.End s ↪ (s → SubProbability s)`. -/
+noncomputable def diracKer {s : Type} (f : Function.End s) : s → SubProbability s :=
+  fun st => pure (f st)
+
+/-- The probabilistic range of a lens: generated by the Dirac kernels of its localized
+    deterministic updates `lens.update g`. The sub-probability analogue of `Lens.range`. -/
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.probRange {a s : Type} (lens : Lens a s) :
+    ProbLensRange s :=
+  ProbLensRange.from (Set.range fun g : Function.End a => diracKer (lens.update g))
+
+/-- `Program.set v x` applied at a state: a deterministic write. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.set_apply {a s : Type}
+    (v : Lens a s) (x : a) (st : s) : (Program.set v x) st = pure ((), v.set x st) := by
+  show (pure (st, st) : SubProbability (s × s))
+        >>= (fun p : s × s => (pure ((), (AsSetter.toS v).set x p.1) : SubProbability (Unit × s)))
+      = pure ((), v.set x st)
+  rw [SubProbability.pure_bind]; rfl
+
+/-- `Program.get v` applied at a state: a read leaving the state unchanged. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.get_apply {a s : Type}
+    (v : Lens a s) (st : s) : (Program.get v) st = pure (v.get st, st) := by
+  show (pure (st, st) : SubProbability (s × s))
+        >>= (fun p : s × s => (pure ((AsGetter.toG v).get p.1, p.2) : SubProbability (a × s)))
+      = pure (v.get st, st)
+  rw [SubProbability.pure_bind]; rfl
+
+/-- `pure x` is in every probabilistic range — it touches no state. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_pure {s a : Type}
+    (x : a) (R : ProbLensRange s) : (pure x : Program s a).inProbRange R := by
+  rw [inProbRange_iff_clean]
+  intro f hf
+  funext st
+  show (f st >>= fun st' => (pure (x, st') : SubProbability (a × s)))
+     = (pure (x, st) : SubProbability (a × s))
+        >>= (fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+  rw [SubProbability.pure_bind]
+
+/-- `Program.set v x` lives in `v.probRange`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_set {a s : Type}
+    (v : Lens a s) (x : a) : (Program.set v x).inProbRange v.probRange := by
+  rw [inProbRange_iff_clean]
+  intro f hf
+  have hmem : diracKer (v.set x) ∈ v.probRange.updates :=
+    (ProbLensRange.from_le_iff (Set.range fun g : Function.End a => diracKer (v.update g))
+      v.probRange).mp le_rfl ⟨fun _ => x, rfl⟩
+  have hcomm := (Submonoid.mem_centralizer_iff.mp hf) (diracKer (v.set x)) hmem
+  funext st
+  have key : (f st >>= fun st' => (pure (v.set x st') : SubProbability s)) = f (v.set x st) := by
+    have hcs : (f st >>= fun st' => (pure (v.set x st') : SubProbability s))
+             = (pure (v.set x st) : SubProbability s) >>= f := congrFun hcomm st
+    rw [SubProbability.pure_bind] at hcs
+    exact hcs
+  show (f st >>= (Program.set v x))
+     = ((Program.set v x) st >>= fun w : Unit × s =>
+          f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (Unit × s)))
+  rw [Program.set_apply, SubProbability.pure_bind]
+  rw [show (Program.set v x) = (fun st' => (pure ((), v.set x st') : SubProbability (Unit × s)))
+        from funext (fun st' => Program.set_apply v x st')]
+  rw [← key, SubProbability.bind_assoc]
+  congr 1; funext st'
+  rw [SubProbability.pure_bind]
+
+/-- `Program.get v` lives in `v.probRange`: it reads `v`, never writes. The extraction
+    `hstar` says any commutant kernel `f` preserves `v.get` almost surely. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_get {a s : Type}
+    (v : Lens a s) : (Program.get v).inProbRange v.probRange := by
+  rw [inProbRange_iff_clean]
+  intro f hf
+  funext st
+  have hmem : diracKer (v.update (fun _ => v.get st)) ∈ v.probRange.updates :=
+    (ProbLensRange.from_le_iff (Set.range fun g : Function.End a => diracKer (v.update g))
+      v.probRange).mp le_rfl ⟨fun _ => v.get st, rfl⟩
+  have hcomm := (Submonoid.mem_centralizer_iff.mp hf) (diracKer (v.update (fun _ => v.get st))) hmem
+  have hstar : (f st >>= fun st' => (pure (v.set (v.get st) st') : SubProbability s)) = f st := by
+    have h0 : (f st >>= fun st' => (pure (v.set (v.get st) st') : SubProbability s))
+            = (pure (v.set (v.get st) st) : SubProbability s) >>= f := congrFun hcomm st
+    rw [SubProbability.pure_bind] at h0
+    rwa [v.get_set] at h0
+  have hL : (f st >>= fun st' => (pure (v.get st', st') : SubProbability (a × s)))
+          = f st >>= fun st' => (pure (v.get st, v.set (v.get st) st') : SubProbability (a × s)) := by
+    conv_lhs => rw [← hstar]
+    rw [SubProbability.bind_assoc]; congr 1; funext st'
+    rw [SubProbability.pure_bind, v.set_get]
+  have hR : (f st >>= fun st'' => (pure (v.get st, st'') : SubProbability (a × s)))
+          = f st >>= fun st' => (pure (v.get st, v.set (v.get st) st') : SubProbability (a × s)) := by
+    conv_lhs => rw [← hstar]
+    rw [SubProbability.bind_assoc]; congr 1; funext st'
+    rw [SubProbability.pure_bind]
+  show (f st >>= (Program.get v))
+     = ((Program.get v) st >>= fun w : a × s =>
+          f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+  rw [Program.get_apply, SubProbability.pure_bind]
+  rw [show (Program.get v) = (fun st' => (pure (v.get st', st') : SubProbability (a × s)))
+        from funext (fun st' => Program.get_apply v st')]
+  rw [hL, hR]
