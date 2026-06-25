@@ -1671,6 +1671,133 @@ theorem stable_of_inProbRange_compl {l α : Type} [Countable α] [Countable l]
     exact Program.bind_pure _
   rw [← hL, h_commute, hR]
 
+/-- **`Stable` from confinement to a lens disjoint from the RO** (probabilistic). The
+    `ProbLensRange` analogue of `stable_of_confined_lens`. No `complement_range` needed — the
+    `ᶜ`-form bound `hdisj` feeds `inProbRange_mono` directly. -/
+theorem stable_of_confinedP_lens {l α advSt : Type} [Countable α] [Countable l]
+    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.probRange ≤ ((roLift l).probRange)ᶜ)
+    {p : Program (ProcedureState l) α} (hp : p.inProbRange L_adv.probRange) : Stable p :=
+  stable_of_inProbRange_compl (Program.inProbRange_mono hp hdisj)
+
+/-- **Probabilistic confinement predicate.** The `inProbRange`/`probRange` analogue of `Confined`:
+    each leaf's footprint lies in the adversary region `L_adv`. Crucially the `get`-leaves are now
+    soundly derivable from footprint disjointness (litmus), unlike `Confined` (`TotLensRange`),
+    where `get`'s `Program.range` collapses (the `get_confined_of_fv` sorry). -/
+def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (ProcedureState l)) :
+    StmtWithHoles holes l → Prop
+  | .skip => True
+  | .sample x e =>
+      (programDenotation (StmtWithHoles.sample x e : Stmt l)).inProbRange L_adv.probRange
+  | .call' x ls b r p =>
+      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inProbRange L_adv.probRange
+  | .hole _ x p => (Program.get p).inProbRange L_adv.probRange ∧
+      (∀ ret, (Program.set x ret).inProbRange L_adv.probRange)
+  | .seq s1 s2 => ConfinedP L_adv s1 ∧ ConfinedP L_adv s2
+  | .ifThenElse c t e =>
+      (Program.get c).inProbRange L_adv.probRange ∧ ConfinedP L_adv t ∧ ConfinedP L_adv e
+  | .while c t => (Program.get c).inProbRange L_adv.probRange ∧ ConfinedP L_adv t
+
+/-- **`ConfinedP` discharges `Loc`** (theorem-1 locality), leaf by leaf — reusing the existing
+    `Loc`→theorems chain. The `ProbLensRange` analogue of `confined_loc`. -/
+theorem confinedP_loc {holes : HoleSigs} {l advSt : Type} [Countable l]
+    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.probRange ≤ ((roLift l).probRange)ᶜ)
+    (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
+    ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → Loc A
+  | .skip, _ => trivial
+  | .sample _ _, h => stable_of_confinedP_lens L_adv hdisj h
+  | .call' _ _ _ _ _, h => stable_of_confinedP_lens L_adv hdisj h
+  | .hole n _ _, h =>
+      haveI := hc n
+      ⟨stable_of_confinedP_lens L_adv hdisj h.1,
+        fun ret => stable_of_confinedP_lens L_adv hdisj (h.2 ret)⟩
+  | .seq s1 s2, h => ⟨confinedP_loc L_adv hdisj hc s1 h.1, confinedP_loc L_adv hdisj hc s2 h.2⟩
+  | .ifThenElse _ t e, h =>
+      ⟨stable_of_confinedP_lens L_adv hdisj h.1, confinedP_loc L_adv hdisj hc t h.2.1,
+        confinedP_loc L_adv hdisj hc e h.2.2⟩
+  | .«while» _ t, h =>
+      ⟨stable_of_confinedP_lens L_adv hdisj h.1, confinedP_loc L_adv hdisj hc t h.2⟩
+
+/-- **Theorem-2 leaf discharge** (probabilistic). A program confined (in the `inProbRange` sense)
+    to an adversary lens `L_adv` compatible with `liftRel P` self-couples. The `ProbLensRange`
+    analogue of `prhl2_of_inRange_lens` — factors through `factor_of_inProbRange` and the
+    *range-independent* `prhl2_lift_lens` (reused verbatim). -/
+theorem prhl2_of_inProbRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)] [Countable γ]
+    [Countable advSt] [Countable l] {P : state → state → Prop}
+    (L_adv : Lens advSt (ProcedureState l))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    {p : Program (ProcedureState l) γ} (hp : p.inProbRange L_adv.probRange) :
+    Program.prhl2 (liftRel P) p p (liftRelPost P) := by
+  rw [factor_of_inProbRange L_adv hp]
+  exact prhl2_lift_lens L_adv heq hset (L_adv.factor p)
+
+/-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
+    `ProbLensRange` analogue of `confined_locP`. -/
+theorem confinedP_locP {holes : HoleSigs} {l advSt : Type} [Nonempty (ProcedureState l)]
+    [Countable l] [Countable advSt] {P : state → state → Prop}
+    (L_adv : Lens advSt (ProcedureState l))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
+    ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → LocP P A
+  | .skip, _ => trivial
+  | .sample _ _, h => prhl2_of_inProbRange_lens L_adv heq hset h
+  | .call' _ _ _ _ _, h => prhl2_of_inProbRange_lens L_adv heq hset h
+  | .hole n _ _, h =>
+      haveI := hc n
+      ⟨prhl2_of_inProbRange_lens L_adv heq hset h.1,
+        fun ret => prhl2_of_inProbRange_lens L_adv heq hset (h.2 ret)⟩
+  | .seq s1 s2, h =>
+      ⟨confinedP_locP L_adv heq hset hc s1 h.1, confinedP_locP L_adv heq hset hc s2 h.2⟩
+  | .ifThenElse _ t e, h =>
+      ⟨prhl2_of_inProbRange_lens L_adv heq hset h.1, confinedP_locP L_adv heq hset hc t h.2.1,
+        confinedP_locP L_adv heq hset hc e h.2.2⟩
+  | .«while» _ t, h =>
+      ⟨prhl2_of_inProbRange_lens L_adv heq hset h.1, confinedP_locP L_adv heq hset hc t h.2⟩
+
+/-- **Theorem 1, probabilistic confinement form.**  An adversary confined (in the `inProbRange`
+    sense) to any lens `L_adv` whose `probRange` is disjoint from the oracle cannot distinguish
+    lazy from eager.  The `ProbLensRange` rendering of `transfer_instantiate_confined`; reuses the
+    existing `Loc`→`Program.transfer_instantiate` chain via `confinedP_loc`. -/
+theorem Program.transfer_instantiate_confinedP {sig : ProcedureSignature} {advSt : Type}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
+    (hdisj : L_adv.probRange ≤ ((roLift (sig.LocalVariableState A.locals)).probRange)ᶜ)
+    [Countable (sig.LocalVariableState A.locals)] [Countable sig.ret]
+    (hconf : ConfinedP L_adv A.body)
+    (hret : (Program.get A.return_val).inProbRange L_adv.probRange) :
+    Program.transfer
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (procedureDenotation (A.instantiate RO_eager) args) :=
+  Program.transfer_instantiate A args
+    (confinedP_loc L_adv hdisj roHole_paramType_countable A.body hconf)
+    (stable_of_confinedP_lens L_adv hdisj hret)
+
+/-- **Theorem 2, probabilistic confinement form (general adversary lens).**  The `ProbLensRange`
+    rendering of `prhl_instantiate_confined`; reuses the existing `LocP`→`prhl_instantiate` chain
+    via `confinedP_locP`. -/
+theorem prhl_instantiate_confinedP {sig : ProcedureSignature} {advSt : Type}
+    {P : state → state → Prop}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable advSt]
+    [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
+    (h : ∀ inp : input,
+        Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (hconf : ConfinedP L_adv A.body)
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost P) :=
+  prhl_instantiate A args h
+    (confinedP_locP L_adv heq hset roHole_paramType_countable A.body hconf) hret
+
 end
 
 end GaudisCrypt.Lib.RO.SyntacticEquiv
