@@ -532,3 +532,52 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_get {a s : Typ
   rw [show (Program.get v) = (fun st' => (pure (v.get st', st') : SubProbability (a × s)))
         from funext (fun st' => Program.get_apply v st')]
   rw [hL, hR]
+
+/-! ## Disjointness bridge -/
+
+/-- `diracKer` is a monoid homomorphism `Function.End s → (s → SubProbability s)`. -/
+lemma diracKer_mul {s : Type} (p q : Function.End s) :
+    diracKer p * diracKer q = diracKer (p * q) := by
+  funext st
+  show (pure (q st) : SubProbability s) >>= diracKer p = pure ((p * q) st)
+  rw [SubProbability.pure_bind]; rfl
+
+/-- **Disjoint lenses have ranges in each other's complements**: if `disjoint v L`, then every
+    `v`-localized kernel commutes with every `L`-localized kernel, so `v.probRange ≤ (L.probRange)ᶜ`.
+    The sub-probability analogue of `Lens.range_le_compl_of_disjoint`. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.probRange_le_compl_of_disjoint
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L] :
+    v.probRange ≤ (L.probRange)ᶜ := by
+  refine (ProbLensRange.from_le_iff _ _).mpr ?_
+  rintro _ ⟨g, rfl⟩
+  show diracKer (v.update g) ∈ Submonoid.centralizer (L.probRange).updates
+  rw [Submonoid.mem_centralizer_iff]
+  intro k hk
+  have hjmem : diracKer (v.update g)
+      ∈ Submonoid.centralizer (Set.range fun h : Function.End b => diracKer (L.update h)) := by
+    rw [Submonoid.mem_centralizer_iff]
+    rintro _ ⟨h, rfl⟩
+    rw [diracKer_mul, diracKer_mul]
+    congr 1
+    show L.update h ∘ v.update g = v.update g ∘ L.update h
+    funext σ
+    show L.update h (v.update g σ) = v.update g (L.update h σ)
+    letI := hd.symm
+    simp only [Lens.update]
+    have hL_get : L.get (v.set (g (v.get σ)) σ) = L.get σ := Lens.get_of_disjoint_set L v _ σ
+    have hv_get : v.get (L.set (h (L.get σ)) σ) = v.get σ := Lens.get_of_disjoint_set v L _ σ
+    rw [hL_get, hv_get]
+    exact (hd.commute σ (g (v.get σ)) (h (L.get σ))).symm
+  exact (Submonoid.mem_centralizer_iff.mp hk (diracKer (v.update g)) hjmem).symm
+
+/-- **`Program.set v x` lives in `L.probRangeᶜ`** when `v` is disjoint from `L`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.set_inProbRange_compl_of_disjoint
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] (x : a) :
+    (Program.set v x).inProbRange (L.probRange)ᶜ :=
+  Program.inProbRange_mono (Program.inProbRange_set v x) (Lens.probRange_le_compl_of_disjoint v L)
+
+/-- **`Program.get v` lives in `L.probRangeᶜ`** when `v` is disjoint from `L`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.get_inProbRange_compl_of_disjoint
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] :
+    (Program.get v).inProbRange (L.probRange)ᶜ :=
+  Program.inProbRange_mono (Program.inProbRange_get v) (Lens.probRange_le_compl_of_disjoint v L)
