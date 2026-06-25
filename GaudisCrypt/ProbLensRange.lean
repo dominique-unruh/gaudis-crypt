@@ -639,3 +639,106 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_uniform {s α 
   rw [SubProbability.pure_bind]
 
 end Uniform
+
+/-! ## Disjoint programs commute (no orbit machinery)
+
+Programs with disjoint probabilistic ranges can be run in either order with the same joint
+`(output, state)` distribution. Unlike the `TotLensRange` version (`commute_of_disjoint`, which
+needs `HasOrbitCollapse` preconditions *and* `[Countable s]`), this follows directly from the
+constructive `probRange` + litmus: slicing the joint by the return value `(x₀, y₀)` collapses each
+side to a product of the return-conditioned kernels `kp`/`kq`, which commute because they live in
+the disjoint ranges `R`, `R'`. Needs `[Countable a] [Countable b]` (the return types), **not**
+`[Countable s]`. -/
+
+section Commute
+open Classical
+
+variable {s a b : Type}
+
+/-- `p`'s state-kernel conditioned on returning `x₀` — the `x₀`-generator of `p.probRange`. -/
+private noncomputable def kp (p : Program s a) (x0 : a) : s → SubProbability s :=
+  fun st => p st >>= fun w => if w.1 = x0 then pure w.2 else ⊥
+
+/-- `q`'s state-kernel conditioned on returning `y₀` — the `y₀`-generator of `q.probRange`. -/
+private noncomputable def kq (q : Program s b) (y0 : b) : s → SubProbability s :=
+  fun st => q st >>= fun w => if w.1 = y0 then pure w.2 else ⊥
+
+/-- Slicing the run-`p`-then-`q` side at return `(x₀,y₀)` collapses to `kp x₀ ∘ₖ kq y₀`. -/
+private lemma slice_pq (p : Program s a) (q : Program s b) (x0 : a) (y0 : b) (σ : s) :
+    ((p σ >>= fun w1 : a × s => q w1.2 >>= fun w2 : b × s =>
+        (pure ((w1.1, w2.1), w2.2) : SubProbability ((a × b) × s))) >>= projK (x0, y0))
+    = kp p x0 σ >>= kq q y0 := by
+  show _ = (p σ >>= fun w1 : a × s => if w1.1 = x0 then pure w1.2 else ⊥) >>= kq q y0
+  rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+  congr 1; funext w1
+  rw [SubProbability.bind_assoc]
+  by_cases hx : w1.1 = x0
+  · rw [if_pos hx, SubProbability.pure_bind]
+    show (q w1.2 >>= fun w2 : b × s =>
+            (pure ((w1.1, w2.1), w2.2) : SubProbability ((a × b) × s)) >>= projK (x0, y0))
+       = q w1.2 >>= fun w2 : b × s => if w2.1 = y0 then pure w2.2 else ⊥
+    congr 1; funext w2
+    rw [SubProbability.pure_bind]
+    simp only [projK, hx, Prod.mk.injEq, true_and]
+  · rw [if_neg hx, SubProbability.bot_bind]
+    rw [show (fun w2 : b × s =>
+              (pure ((w1.1, w2.1), w2.2) : SubProbability ((a × b) × s)) >>= projK (x0, y0))
+          = (fun _ : b × s => (⊥ : SubProbability s)) from by
+        funext w2
+        rw [SubProbability.pure_bind]
+        simp only [projK, hx, Prod.mk.injEq, false_and, if_false]]
+    rw [SubProbability.bind_bot]
+
+/-- Slicing the run-`q`-then-`p` side at return `(x₀,y₀)` collapses to `kq y₀ ∘ₖ kp x₀`. -/
+private lemma slice_qp (p : Program s a) (q : Program s b) (x0 : a) (y0 : b) (σ : s) :
+    ((q σ >>= fun w1 : b × s => p w1.2 >>= fun w2 : a × s =>
+        (pure ((w2.1, w1.1), w2.2) : SubProbability ((a × b) × s))) >>= projK (x0, y0))
+    = kq q y0 σ >>= kp p x0 := by
+  show _ = (q σ >>= fun w1 : b × s => if w1.1 = y0 then pure w1.2 else ⊥) >>= kp p x0
+  rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+  congr 1; funext w1
+  rw [SubProbability.bind_assoc]
+  by_cases hy : w1.1 = y0
+  · rw [if_pos hy, SubProbability.pure_bind]
+    show (p w1.2 >>= fun w2 : a × s =>
+            (pure ((w2.1, w1.1), w2.2) : SubProbability ((a × b) × s)) >>= projK (x0, y0))
+       = p w1.2 >>= fun w2 : a × s => if w2.1 = x0 then pure w2.2 else ⊥
+    congr 1; funext w2
+    rw [SubProbability.pure_bind]
+    simp only [projK, hy, Prod.mk.injEq, and_true]
+  · rw [if_neg hy, SubProbability.bot_bind]
+    rw [show (fun w2 : a × s =>
+              (pure ((w2.1, w1.1), w2.2) : SubProbability ((a × b) × s)) >>= projK (x0, y0))
+          = (fun _ : a × s => (⊥ : SubProbability s)) from by
+        funext w2
+        rw [SubProbability.pure_bind]
+        simp only [projK, hy, Prod.mk.injEq, and_false, if_false]]
+    rw [SubProbability.bind_bot]
+
+/-- **Disjoint programs commute.** If `p` lives in `R`, `q` in `R'`, and `R ≤ R'ᶜ`, then `p` and
+    `q` may be run in either order with the same `(output, state)` distribution. The probabilistic
+    analogue of `Program.commute_of_disjoint` — but with **no** `HasOrbitCollapse` hypotheses and
+    **no** `[Countable s]` (only the return types must be countable). -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob
+    [Countable a] [Countable b] {p : Program s a} {q : Program s b} {R R' : ProbLensRange s}
+    (hp : p.inProbRange R) (hq : q.inProbRange R') (hdisj : R ≤ R'ᶜ) :
+    (p >>= fun x => q >>= fun y => pure (x, y))
+  = (q >>= fun y => p >>= fun x => pure (x, y)) := by
+  funext σ
+  apply ext_of_slices
+  rintro ⟨x0, y0⟩
+  show ((p σ >>= fun w1 : a × s => q w1.2 >>= fun w2 : b × s =>
+            (pure ((w1.1, w2.1), w2.2) : SubProbability ((a × b) × s))) >>= projK (x0, y0))
+     = ((q σ >>= fun w1 : b × s => p w1.2 >>= fun w2 : a × s =>
+            (pure ((w2.1, w1.1), w2.2) : SubProbability ((a × b) × s))) >>= projK (x0, y0))
+  rw [slice_pq, slice_qp]
+  have hcomm : kq q y0 * kp p x0 = kp p x0 * kq q y0 :=
+    Submonoid.mem_centralizer_iff.mp
+      (hdisj ((Program.probRange_le_of_inProbRange hp)
+        ((ProbLensRange.from_le_iff _ p.probRange).mp le_rfl ⟨x0, rfl⟩)))
+      (kq q y0)
+      ((Program.probRange_le_of_inProbRange hq)
+        ((ProbLensRange.from_le_iff _ q.probRange).mp le_rfl ⟨y0, rfl⟩))
+  exact congrFun hcomm σ
+
+end Commute
