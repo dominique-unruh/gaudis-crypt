@@ -741,4 +741,27 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob
         ((ProbLensRange.from_le_iff _ q.probRange).mp le_rfl ⟨y0, rfl⟩))
   exact congrFun hcomm σ
 
+/-- Lens-range specialisation of `commute_of_disjoint_prob`. A thin wrapper (no
+    `HasOrbitCollapse` to discharge, unlike the `TotLensRange` `commute_of_disjoint_lens`),
+    matching that API for drop-in migration. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob_lens
+    {c d : Type} [Countable a] [Countable b]
+    {p : Program s a} {q : Program s b} {l : Lens c s} {l' : Lens d s}
+    (hp : p.inProbRange l.probRange) (hq : q.inProbRange l'.probRange)
+    (hdisj : l.probRange ≤ (l'.probRange)ᶜ) :
+    (p >>= fun x => q >>= fun y => pure (x, y))
+  = (q >>= fun y => p >>= fun x => pure (x, y)) :=
+  Program.commute_of_disjoint_prob hp hq hdisj
+
+/-- When the lenses `l`, `l'` are `disjoint`, the disjointness of their probabilistic ranges is
+    automatic (`Lens.probRange_le_compl_of_disjoint`), so the caller supplies only the two
+    `inProbRange` confinement proofs. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_lenses
+    {c d : Type} [Countable a] [Countable b]
+    {p : Program s a} {q : Program s b} {l : Lens c s} {l' : Lens d s} [disjoint l l']
+    (hp : p.inProbRange l.probRange) (hq : q.inProbRange l'.probRange) :
+    (p >>= fun x => q >>= fun y => pure (x, y))
+  = (q >>= fun y => p >>= fun x => pure (x, y)) :=
+  Program.commute_of_disjoint_prob hp hq (Lens.probRange_le_compl_of_disjoint l l')
+
 end Commute
