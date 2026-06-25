@@ -764,4 +764,30 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_lenses
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
   Program.commute_of_disjoint_prob hp hq (Lens.probRange_le_compl_of_disjoint l l')
 
+/-! ### Corollaries: disjoint reads/writes commute
+
+End-to-end payoff of the toolkit — the primitives (`inProbRange_set`/`get`) feed straight into
+`commute_of_disjoint_lenses`, so independent operations on disjoint lenses may be reordered. -/
+
+/-- Two writes to disjoint lenses commute. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.set_set_commute_of_disjoint
+    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (x : γ) (y : δ) :
+    (Program.set l x >>= fun a => Program.set l' y >>= fun b => pure (a, b))
+  = (Program.set l' y >>= fun b => Program.set l x >>= fun a => pure (a, b)) :=
+  Program.commute_of_disjoint_lenses (Program.inProbRange_set l x) (Program.inProbRange_set l' y)
+
+/-- A read and a write to disjoint lenses commute. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.get_set_commute_of_disjoint
+    {γ δ : Type} [Countable γ] (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (y : δ) :
+    (Program.get l >>= fun a => Program.set l' y >>= fun b => pure (a, b))
+  = (Program.set l' y >>= fun b => Program.get l >>= fun a => pure (a, b)) :=
+  Program.commute_of_disjoint_lenses (Program.inProbRange_get l) (Program.inProbRange_set l' y)
+
+/-- Two reads of disjoint lenses commute. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.get_get_commute_of_disjoint
+    {γ δ : Type} [Countable γ] [Countable δ] (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] :
+    (Program.get l >>= fun a => Program.get l' >>= fun b => pure (a, b))
+  = (Program.get l' >>= fun b => Program.get l >>= fun a => pure (a, b)) :=
+  Program.commute_of_disjoint_lenses (Program.inProbRange_get l) (Program.inProbRange_get l')
+
 end Commute
