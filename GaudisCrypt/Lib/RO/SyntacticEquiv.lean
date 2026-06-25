@@ -1499,4 +1499,56 @@ theorem convert_inProbRange_ro : convert.inProbRange random_oracle_state.probRan
   · intro _
     exact Program.inProbRange_set _ _
 
+/-! ### Lift framework for `inProbRange` (toward `convertL_inProbRange`)
+
+`convertL = globalL.lift convert` (`zoom = lift`), so `convertL_inProbRange` will be
+`lift_inProbRange_chain globalL random_oracle_state convert convert_inProbRange_ro`. The lift
+lemmas apply via the elaborator (handling the `state`/`State` defeq), unlike the `zoom`-rewrite
+route. `Lens.lift`/`Lens.factor`/`lift_lift_chain` are the (range-independent) constructs from
+`ProgramRange`. -/
+
+/-- Kernel-shift extraction: a program in range `R` commutes with a deterministic outside-update
+    `f` (as a Dirac kernel). The `inProbRange` analogue of `Program.inRange_subprob`. -/
+theorem inProbRange_subprob {s a : Type} {p : Program s a} {R : ProbLensRange s}
+    (h : p.inProbRange R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
+    p (f σ) = (p σ) >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
+  have hcs := congrFun ((inProbRange_iff_clean.mp h) (diracKer f) hf) σ
+  rw [show (diracKer f σ : SubProbability s) = pure (f σ) from rfl, SubProbability.pure_bind] at hcs
+  rw [hcs]; congr 1; funext xs
+  rw [show (diracKer f xs.2 : SubProbability s) = pure (f xs.2) from rfl, SubProbability.pure_bind]
+
+/-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
+    inner program on the `L`-content. The `inProbRange` analogue of `Lens.factor_of_inRange`. -/
+theorem factor_of_inProbRange {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : Program s a}
+    (h : Adv.inProbRange L.probRange) : Adv = L.lift (L.factor Adv) := by
+  funext σ
+  set f : s → s := fun σ' => L.set (L.get σ') σ with hf_def
+  have h_fσ_pad : f (L.set (L.get σ) (Classical.arbitrary s)) = σ := by
+    show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
+    rw [L.set_get, L.get_set]
+  have h_f_mem : diracKer f ∈ ((L.probRange)ᶜ).updates := by
+    refine Submonoid.mem_centralizer_iff.mpr ?_
+    intro k hk
+    have hfgen : diracKer f ∈
+        Submonoid.centralizer (Set.range fun g : Function.End c => diracKer (L.update g)) := by
+      refine Submonoid.mem_centralizer_iff.mpr ?_
+      rintro _ ⟨g, rfl⟩
+      rw [diracKer_mul, diracKer_mul]; congr 1
+      show L.update g ∘ f = f ∘ L.update g
+      funext σ'
+      show L.update g (f σ') = f (L.update g σ')
+      simp only [Lens.update, hf_def, L.set_get, L.set_set]
+    exact (Submonoid.mem_centralizer_iff.mp hk (diracKer f) hfgen).symm
+  have h_iv : Adv σ
+      = (Adv (L.set (L.get σ) (Classical.arbitrary s)))
+          >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
+    rw [← h_fσ_pad]; exact inProbRange_subprob h h_f_mem _
+  change Adv σ
+      = ((Adv (L.set (L.get σ) (Classical.arbitrary s)))
+            >>= fun xσ' : a × s => (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
+          >>= fun xc : a × c => (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
+  rw [h_iv, SubProbability.bind_assoc']
+  congr 1; funext xσ'
+  rw [SubProbability.pure_bind]
+
 end GaudisCrypt.Lib.RO.SyntacticEquiv
