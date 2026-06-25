@@ -3,6 +3,7 @@ import GaudisCrypt.Lib.RO.Transfer
 import GaudisCrypt.FV
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL2
+import GaudisCrypt.ProbLensRange
 
 /-!
 # Lazy/eager RO equivalence for *syntactic* adversaries
@@ -1318,6 +1319,7 @@ theorem get_confined_of_fv {a l : Type} (c : Getter a (ProcedureState l))
     that is *not* a pure complement update (it doesn't commute with `fst`-writes). -/
 private def gcex : Function.End (Bool × Bool) := fun p => (p.1, xor p.1 p.2)
 
+set_option maxRecDepth 100000 in
 /-- **Concrete witness that read-`Program.range` collapses (PROVEN).**  On
     `Bool × Bool`, reading the first component has `Program.range = ⊥`, even though
     `get fst` obviously "uses" `fst`.  Reason: both `{id, gcex}` and `snd.range` are
@@ -1326,7 +1328,6 @@ private def gcex : Function.End (Bool × Bool) := fun p => (p.1, xor p.1 p.2)
     `Program.range` is `⊥` and is *not achieved* (`(get fst).inRange ⊥` is false).
     This is exactly why `get_confined_of_fv` (self-range for reads) fails: the two
     finite facts are dispatched by `decide` over the 4-element state. -/
-set_option maxRecDepth 100000 in
 theorem range_get_fst_eq_bot :
     Program.range (Program.get (Lens.fst : Lens Bool (Bool × Bool))) = ⊥ := by
   classical
@@ -1446,5 +1447,56 @@ theorem confined_of_fv_proc {sig : ProcedureSignature}
     Confined (roLift (sig.LocalVariableState A.locals)).compl A.body :=
   confined_of_fv (roLift (sig.LocalVariableState A.locals)).compl hset A.body
     (fv_stmt_le_compl_of_reduce A (le_sup_left.trans hfv))
+
+/-! ## ProbLensRange path: deriving `Confined` from disjointness
+
+The `TotLensRange`-based `Confined`/`Loc` chain above could not derive its `get`-leaves from a
+footprint/disjointness hypothesis (reads collapse under `Program.range`, so the litmus backward
+direction fails). The probabilistic `inProbRange` does not have this defect: the litmus
+`inProbRange_iff_probRange_le` makes `(get c).inProbRange R` follow from `(get c).probRange ≤ R`
+for *opaque* getters. This section rebuilds the leaf bridge (`convertL_inProbRange`,
+`stable_of_inProbRange_compl`) over `ProbLensRange`, reusing the existing `Loc`→theorems chain. -/
+
+/-- `zoom` of a read is a read through the chained lens. -/
+theorem zoom_get {s t c : Type} (L : Lens s t) (v : Lens c s) :
+    Program.zoom L (Program.get v) = Program.get (L.chain v) := by
+  funext tv
+  show (Program.get v (L.get tv)) >>= (fun as => (pure (as.1, L.set as.2 tv) : SubProbability (c × t)))
+     = Program.get (L.chain v) tv
+  rw [Program.get_apply, SubProbability.pure_bind, Program.get_apply, L.get_set]; rfl
+
+/-- `zoom` of a write is a write through the chained lens. -/
+theorem zoom_set {s t c : Type} (L : Lens s t) (v : Lens c s) (Z : c) :
+    Program.zoom L (Program.set v Z) = Program.set (L.chain v) Z := by
+  funext tv
+  show (Program.set v Z (L.get tv)) >>= (fun as => (pure (as.1, L.set as.2 tv) : SubProbability (Unit × t)))
+     = Program.set (L.chain v) Z tv
+  rw [Program.set_apply, SubProbability.pure_bind, Program.set_apply]; rfl
+
+/-- `zoom` of a state-free sample is that sample (it touches no state). -/
+theorem zoom_uniform {s t α : Type} [Fintype α] [Nonempty α] (L : Lens s t) :
+    Program.zoom L (Program.uniform : Program s α) = (Program.uniform : Program t α) := by
+  funext tv
+  show ((SubProbability.uniform : SubProbability α) >>= fun a => (pure (a, L.get tv) : SubProbability (α × s)))
+        >>= (fun as => (pure (as.1, L.set as.2 tv) : SubProbability (α × t)))
+     = (SubProbability.uniform : SubProbability α) >>= fun a => (pure (a, tv) : SubProbability (α × t))
+  rw [SubProbability.bind_assoc]
+  congr 1; funext a
+  rw [SubProbability.pure_bind, L.get_set]
+
+/-- `convert` is confined to the RO table, as a *probabilistic* range. Direct port of
+    `convert_inRange_ro` via the `inProbRange` primitives (`convert` reads/writes RO modulo a
+    uniform sample). The double-commutant closure of `Lens.probRange` absorbs `convert`'s
+    probabilistic RO-write. -/
+theorem convert_inProbRange_ro : convert.inProbRange random_oracle_state.probRange := by
+  show ((Program.get random_oracle_state) >>= fun h =>
+          (Program.uniform : Program state (input → output)) >>= fun y =>
+            Program.set random_oracle_state (fun x => some ((h x).getD (y x)))).inProbRange _
+  refine Program.inProbRange_bind (Program.inProbRange_get _) ?_
+  intro _
+  refine Program.inProbRange_bind ?_ ?_
+  · exact Program.inProbRange_mono Program.inProbRange_uniform bot_le
+  · intro _
+    exact Program.inProbRange_set _ _
 
 end GaudisCrypt.Lib.RO.SyntacticEquiv
