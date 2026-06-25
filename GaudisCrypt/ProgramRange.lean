@@ -1,6 +1,6 @@
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.LensRange
+import GaudisCrypt.TotLensRange
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
@@ -15,8 +15,8 @@ This file defines
 * `Program.range p`, the smallest such `R` (via `sInf`),
 * `Program.range'`, the family-version for `a → Program s b`.
 
-The definition uses the commutant `Rᶜ` (`Compl` instance from `LensRange.lean`): `p` lies
-in `R` iff `p` commutes with everything outside `R`. By the bicommutant closure of `LensRange`,
+The definition uses the commutant `Rᶜ` (`Compl` instance from `TotLensRange.lean`): `p` lies
+in `R` iff `p` commutes with everything outside `R`. By the bicommutant closure of `TotLensRange`,
 this is equivalent to "the actions of `p` (lifted to deterministic updates) lie in `R`".
 -/
 
@@ -37,25 +37,25 @@ theorem Program.ext_of_wp {s a : Type} (p q : Program s a)
   rwa [MeasureTheory.lintegral_indicator_one hA,
        MeasureTheory.lintegral_indicator_one hA] at hf
 
-/-- A program is *in* a LensRange `R` iff it commutes with every update in `Rᶜ`
+/-- A program is *in* a TotLensRange `R` iff it commutes with every update in `Rᶜ`
     (the commutant of `R`). By bicommutant closure, this is equivalent to
     "every state-transition `p` can perform lies in `R`".
 
     The two sides are compared as `Program s a`: on the left, `f` runs before `p`
     and `p`'s return is preserved; on the right, `p`'s return is captured, then
     `f` runs, then the saved return is produced. -/
-def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a) (R : LensRange s) : Prop :=
+def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a) (R : TotLensRange s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (liftF f >>= fun _ => p)
   = (p >>= fun x => liftF f >>= fun _ => pure x)
 
-/-- The smallest LensRange in which `p` lives. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range {s a : Type} (p : Program s a) : LensRange s :=
+/-- The smallest TotLensRange in which `p` lives. -/
+noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range {s a : Type} (p : Program s a) : TotLensRange s :=
   sInf { R | p.inRange R }
 
-/-- Family version: the smallest LensRange in which every `progs x` lives.
+/-- Family version: the smallest TotLensRange in which every `progs x` lives.
     Equivalently the supremum `⨆ x, (progs x).range`. -/
-noncomputable def Program.range' {s a b : Type} (progs : a → Program s b) : LensRange s :=
+noncomputable def Program.range' {s a b : Type} (progs : a → Program s b) : TotLensRange s :=
   sInf { R | ∀ x, (progs x).inRange R }
 
 /-! ## `glob`: the global variables read/written by a program -/
@@ -73,7 +73,7 @@ noncomputable abbrev Program.Globals' {s a b : Type} (progs : a → Program s b)
   Quotient (Program.range' progs)ᶜ.orbit_setoid
 
 /-- The global variables of `A` — a Getter projecting `state s` onto the data
-    `A` can observe or modify. Built from `A.range` via the LensRange-level
+    `A` can observe or modify. Built from `A.range` via the TotLensRange-level
     `touched_getter` (which uses the *commutant* `Rᶜ`-orbit equivalence). -/
 noncomputable def Program.glob {s a : Type} (A : Program s a) :
     Getter A.Globals s :=
@@ -87,7 +87,7 @@ noncomputable def Program.glob' {s a b : Type} (progs : a → Program s b) :
 /-! ## Structural lemmas -/
 
 /-- `pure x` is in every range — it touches no state. -/
-theorem Program.inRange_pure {s a : Type} (x : a) (R : LensRange s) :
+theorem Program.inRange_pure {s a : Type} (x : a) (R : TotLensRange s) :
     (pure x : Program s a).inRange R := by
   intro f _
   -- LHS: liftF f; pure x
@@ -96,7 +96,7 @@ theorem Program.inRange_pure {s a : Type} (x : a) (R : LensRange s) :
 
 /-- Bind composition: if `p` and every `f x` live in `R`, then so does `p >>= f`. -/
 theorem Program.inRange_bind {s a b : Type}
-    {p : Program s a} {f : a → Program s b} {R : LensRange s}
+    {p : Program s a} {f : a → Program s b} {R : TotLensRange s}
     (hp : p.inRange R) (hf : ∀ x, (f x).inRange R) :
     (p >>= f).inRange R := by
   intro g hg
@@ -114,7 +114,7 @@ theorem Program.inRange_bind {s a b : Type}
             rw [Program.bind_assoc]
 
 /-- Monotonicity: a larger range still contains the program. -/
-theorem Program.inRange_mono {s a : Type} {p : Program s a} {R R' : LensRange s}
+theorem Program.inRange_mono {s a : Type} {p : Program s a} {R R' : TotLensRange s}
     (h : p.inRange R) (hR : R ≤ R') : p.inRange R' := by
   intro f hf
   -- R ≤ R' implies R'ᶜ ≤ Rᶜ, so f ∈ R'ᶜ ⊆ Rᶜ.
@@ -246,7 +246,7 @@ noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program 
   | n + 1 => body >>= fun _ => loop_n n body
 
 /-- `loop_n n body` stays in the same range as `body`. -/
-lemma loop_n_inRange {s : Type} {R : LensRange s}
+lemma loop_n_inRange {s : Type} {R : TotLensRange s}
     (body : Program s Unit) (h_body : body.inRange R) (n : ℕ) :
     (loop_n n body).inRange R := by
   induction n with
@@ -313,7 +313,7 @@ lemma loop_n_wp_linear_bound {s : Type}
 /-- `inRange` lifted to the SubProbability level: at state `σ`, applying a commutant update
     `f ∈ Rᶜ` *before* `p` gives the same distribution as running `p` first and then applying
     `f` to the state coordinate of each outcome. -/
-lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : LensRange s}
+lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : TotLensRange s}
     (hp : p.inRange R) {f : s → s} (hf : f ∈ Rᶜ.updates) (σ : s) :
     p (f σ) = (p σ) >>= (fun (xs : a × s) => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
   have h_eq := congr_fun (hp f hf) σ
@@ -384,7 +384,7 @@ lemma Program.wp_eq_of_marginal_eq {s α : Type}
 
 /-- wp form of `inRange`: shifting the input state by `f ∈ Rᶜ` is equivalent to
     post-composing `f` on the state coordinate of the postcondition. -/
-lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : LensRange s}
+lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : TotLensRange s}
     (hp : p.inRange R) {f : s → s} (hf : f ∈ Rᶜ.updates) (F : a × s → ENNReal) (σ : s) :
     p.wp F (f σ) = p.wp (fun (xs : a × s) => F (xs.1, f xs.2)) σ := by
   show (p (f σ)).expected F = (p σ).expected (fun (xs : a × s) => F (xs.1, f xs.2))
@@ -409,9 +409,9 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
     p.wp F σ
       = p.wp (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ := by
   set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
-  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-      rw [LensRange.complement_range, LensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
+      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ (L.get σ), Set.mem_univ _, rfl⟩
   have h_f_fix : f σ = σ := by
     show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
@@ -444,9 +444,9 @@ lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
     (k : α → Program s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
     IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
   intro aσ v
-  have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
+  have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
+        rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
   show (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
   rw [Program.wp_shift_input (h_k aσ.1) hf]
@@ -473,9 +473,9 @@ lemma Program.wp_invariant_under_lens_set
     (σ : s) :
     p.wp F (L.set v σ) = p.wp F σ := by
   have h_f_updates : L.update (Function.const _ v)
-      ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-        rw [LensRange.complement_range, LensRange.compl_compl]]
+      ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
+        rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
   have h_set_eq : L.update (Function.const _ v) σ = L.set v σ := by
     show L.set ((Function.const _ v) (L.get σ)) σ = L.set v σ
@@ -553,9 +553,9 @@ lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ 
     (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
   simp only [wp_bind, wp_set]
   set f : s → s := L.update (Function.const _ v) with hf_def
-  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-      rw [LensRange.complement_range, LensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
+      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
   have h_f_eq : ∀ σ', f σ' = L.set v σ' := fun σ' => by
     show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
@@ -614,9 +614,9 @@ lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
     (σ : s) :
     prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
   set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
-  have h_f_in_Rc : f ∈ ((L.compl.range : LensRange s)ᶜ).updates := by
-    rw [show ((L.compl.range : LensRange s)ᶜ) = L.range from by
-      rw [LensRange.complement_range, LensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
+    rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
+      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ (L.get σ), Set.mem_univ _, rfl⟩
   have h_f_fix : f σ = σ := by
     show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
@@ -744,23 +744,23 @@ lemma Program.up_to_bad {s α : Type}
   observation: any `f ∈ Rᶜ` that "merges" an off-orbit class `c'` into the σ-class kills
   the measure of `c'`.
 
-  For *general* `LensRange R`, constructing such an `f` from `Rᶜ` requires the
+  For *general* `TotLensRange R`, constructing such an `f` from `Rᶜ` requires the
   `Rᶜ`-action on the orbit quotient to be rich enough to move any non-σ-class to
   the σ-class. This holds at least for lens-derived ranges (`R = l.range`).
 -/
 
-/-- A `LensRange R` *collapses to σ* if there is a single `Rᶜ`-update that fixes `σ`
+/-- A `TotLensRange R` *collapses to σ* if there is a single `Rᶜ`-update that fixes `σ`
     and sends every state into the `R`-orbit of `σ`.
 
     For *lens-derived* `R = l.range`, this is provided by `l.compl.update (const [σ])`:
     a complement-set that "resets" any state's complement to match σ's.
     For an *abelian* bicommutant-closed `R`, no such update exists. -/
-def LensRange.HasOrbitCollapse (R : LensRange m) (σ : m) : Prop :=
+def TotLensRange.HasOrbitCollapse (R : TotLensRange m) (σ : m) : Prop :=
   ∃ f ∈ Rᶜ.updates, f σ = σ ∧ ∀ s, ∃ u ∈ R.updates, u σ = f s
 
 /-- The orbit fact under the `HasOrbitCollapse` hypothesis: outcomes of `p σ` are
     a.e. in `R`-orbit(σ). -/
-lemma Program.inRange_orbit_of_collapse {s a : Type} {p : Program s a} {R : LensRange s}
+lemma Program.inRange_orbit_of_collapse {s a : Type} {p : Program s a} {R : TotLensRange s}
     (hp : p.inRange R) (σ : s) (hcoll : R.HasOrbitCollapse σ) :
     (p σ).1 ((Set.univ : Set a) ×ˢ {s' : s | ∀ u ∈ R.updates, u σ ≠ s'}) = 0 := by
   obtain ⟨f, hf_in, hf_fix, hf_collapse⟩ := hcoll
@@ -835,9 +835,9 @@ lemma Lens.range_hasOrbitCollapse {s c : Type} (l : Lens c s) (σ : s) :
     rfl
 
 /-- The general orbit fact, packaged with the `HasOrbitCollapse` precondition.
-    For arbitrary `LensRange R`, the precondition needs to be supplied externally;
+    For arbitrary `TotLensRange R`, the precondition needs to be supplied externally;
     for lens-derived `R`, `Lens.range_hasOrbitCollapse` discharges it. -/
-lemma Program.inRange_orbit {s a : Type} {p : Program s a} {R : LensRange s}
+lemma Program.inRange_orbit {s a : Type} {p : Program s a} {R : TotLensRange s}
     (hp : p.inRange R) (σ : s) (hcoll : R.HasOrbitCollapse σ) :
     (p σ).1 ((Set.univ : Set a) ×ˢ {s' : s | ∀ u ∈ R.updates, u σ ≠ s'}) = 0 :=
   Program.inRange_orbit_of_collapse hp σ hcoll
@@ -872,7 +872,7 @@ lemma Program.inRange_orbit {s a : Type} {p : Program s a} {R : LensRange s}
     8. Result matches RHS by `rfl`. -/
 theorem Program.commute_of_disjoint
     {s a b : Type} [Countable a] [Countable b] [Countable s]
-    {p : Program s a} {q : Program s b} {R R' : LensRange s}
+    {p : Program s a} {q : Program s b} {R R' : TotLensRange s}
     (hp : p.inRange R) (hq : q.inRange R') (hdisj : R ≤ R'ᶜ)
     (hp_coll : ∀ σ, R.HasOrbitCollapse σ)
     (hq_coll : ∀ σ, R'.HasOrbitCollapse σ) :
@@ -1136,8 +1136,8 @@ theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
     show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
     rw [L.set_get, L.get_set]
   -- (iii) f ∈ L.rangeᶜ.updates — via complement_range.
-  have h_f_mem : f ∈ ((L.range : LensRange s)ᶜ).updates := by
-    rw [← LensRange.complement_range]
+  have h_f_mem : f ∈ ((L.range : TotLensRange s)ᶜ).updates := by
+    rw [← TotLensRange.complement_range]
     refine ⟨Function.const _ (L.compl.get σ), Set.mem_univ _, ?_⟩
     rfl
   -- (iv) inRange_subprob: Adv σ = Adv σ_pad >>= fun xs => pure (xs.1, f xs.2)
@@ -1180,3 +1180,106 @@ theorem Program.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
   intro y _
   simp_rw [div_eq_mul_inv]
   exact MeasureTheory.lintegral_mul_const _ measurable_from_top
+
+/-! ## Lifting a confined program along a chained lens
+
+These close the `lift_inRange_chain` obligation used by the RO syntactic-
+equivalence development.  All ranges here are *lens* ranges, so the orbit
+machinery is not needed — the facts are pure lens algebra plus the existing
+`inRange_get`/`inRange_set` extractions. -/
+
+/-- `wp` of a lifted program: run `P` on the `L`-content and re-set the result. -/
+theorem Program.wp_lift {c s α : Type} (L : Lens c s) (P : Program c α) (F : Program.Post s α) :
+    (L.lift P).wp F = fun σ => P.wp (fun ac => F (ac.1, L.set ac.2 σ)) (L.get σ) := by
+  funext σ
+  show ((L.lift P) σ).expected F = _
+  simp only [Lens.lift, SubProbability.expected_bind, expected_pure]
+  rfl
+
+/-- **Lift composes via `chain`.**  Lifting `Q` along `v` and then along `L`
+    is lifting `Q` along the composite lens `L ∘ v`. -/
+theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q : Program d a) :
+    L.lift (v.lift Q) = (L.chain v).lift Q := by
+  funext σ
+  simp only [Lens.lift, Lens.chain]
+  rw [SubProbability.bind_assoc']
+  congr 1
+  funext xd
+  rw [SubProbability.pure_bind]
+
+/-- **A lift lives in its lens's range.**  For any inner program `Q`, the lift
+    `M.lift Q` is confined to `M.range`: it only touches the `M`-window. -/
+theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
+    (M.lift Q).inRange M.range := by
+  intro f hf
+  -- `f` outside `M.range` preserves `M.get` and commutes with `M.set`.
+  have h_get : ∀ σ : s, M.get (f σ) = M.get σ := by
+    intro σ
+    have hmem : f ∈ Submonoid.centralizer M.range.updates := hf
+    rw [Submonoid.mem_centralizer_iff] at hmem
+    have hv_upd : M.update (Function.const _ (M.get σ)) ∈ M.range.updates :=
+      ⟨Function.const _ (M.get σ), Set.mem_univ _, rfl⟩
+    have hcomm := congr_fun (hmem _ hv_upd) σ
+    change M.update (Function.const _ (M.get σ)) (f σ)
+         = f (M.update (Function.const _ (M.get σ)) σ) at hcomm
+    simp only [Lens.update, Function.const_apply] at hcomm
+    rw [M.get_set] at hcomm
+    have := congr_arg M.get hcomm
+    rw [M.set_get] at this
+    exact this.symm
+  have h_set : ∀ (y : c) (σ : s), M.set y (f σ) = f (M.set y σ) := by
+    intro y σ
+    have hmem : f ∈ Submonoid.centralizer M.range.updates := hf
+    rw [Submonoid.mem_centralizer_iff] at hmem
+    have hvx : M.update (Function.const _ y) ∈ M.range.updates :=
+      ⟨Function.const _ y, Set.mem_univ _, rfl⟩
+    have hcomm := congr_fun (hmem _ hvx) σ
+    change M.update (Function.const _ y) (f σ) = f (M.update (Function.const _ y) σ) at hcomm
+    simp only [Lens.update, Function.const_apply] at hcomm
+    exact hcomm
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  simp only [wp_bind, wp_liftF, wp_pure, Program.wp_lift, h_get]
+  congr 1
+  funext ac
+  rw [h_set]
+
+/-- **Lift confines the footprint through the chained lens.**  A program `P`
+    confined to window `v` lifts (along `L`) to one confined to the composite
+    `L ∘ v`.  Proof: `P` factors as `v.lift (v.factor P)` (by `factor_of_inRange`),
+    lift composition turns the double lift into a single `(L.chain v)` lift, and
+    `lift_inRange_self` confines that to `(L.chain v).range`. -/
+theorem Lens.lift_inRange_chain {c s d a : Type} [Nonempty c] (L : Lens c s) (v : Lens d c)
+    (P : Program c a) (hP : P.inRange v.range) :
+    (L.lift P).inRange (L.chain v).range := by
+  rw [Lens.factor_of_inRange v hP, Lens.lift_lift_chain]
+  exact Lens.lift_inRange_self (L.chain v) (v.factor P)
+
+/-- `wp` of a sampled value (`μ.toProgram = StateT.lift μ`): it samples its
+    return from `μ` and leaves the state untouched. -/
+theorem Program.wp_toProgram {s a : Type} (μ : SubProbability a) (G : Program.Post s a) :
+    (SubProbability.toProgram μ : Program s a).wp G = fun σ => μ.expected (fun x => G (x, σ)) := by
+  funext σ
+  show ((SubProbability.toProgram μ : Program s a) σ).expected G = _
+  show ((μ >>= fun x => (pure (x, σ) : SubProbability (a × s))).expected G) = _
+  rw [SubProbability.expected_bind]
+  simp only [expected_pure]
+
+/-- **A sampled value lives in every range.**  `μ.toProgram` only draws its
+    return value; it never touches the state, so it commutes with every update. -/
+theorem Program.inRange_toProgram {s a : Type} (μ : SubProbability a) (R : TotLensRange s) :
+    (SubProbability.toProgram μ : Program s a).inRange R := by
+  intro f _
+  apply Program.ext_of_wp
+  intro F
+  funext σ
+  simp only [wp_bind, wp_liftF, wp_pure, Program.wp_toProgram]
+
+/-- **Chaining focuses a sub-window**: `(L.chain v).range ≤ L.range`.  Every
+    `L∘v`-update is an `L`-update (acting only inside the `L`-window). -/
+theorem Lens.chain_range_le {a b c : Type} (L : Lens b c) (v : Lens a b) :
+    (L.chain v).range ≤ L.range := by
+  rintro _ ⟨f, -, rfl⟩
+  exact ⟨fun s => v.set (f (v.get s)) s, Set.mem_univ _, by
+    funext s; simp [Lens.chain, Lens.update]⟩

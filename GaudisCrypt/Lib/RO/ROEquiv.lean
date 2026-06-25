@@ -36,7 +36,7 @@ theorem adv_conv_eq_conv_adv : adv_conv adv = conv_adv adv := by
   change (adv >>= fun _ => convert) = (convert >>= fun _ => adv)
   -- Disjointness of the lens-complement with the lens itself (an equality, hence ≤).
   have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
-    le_of_eq (LensRange.complement_range _)
+    le_of_eq (TotLensRange.complement_range _)
   -- Pair-output commutation from the headline lemma.
   have h_commute : (adv >>= fun x => convert >>= fun y => pure (x, y))
                  = (convert >>= fun y => adv >>= fun x => pure (x, y)) :=
@@ -263,7 +263,7 @@ theorem oracle_loop_marginal_lazy_eq_random_oracle_glob (σ₀ : state) :
   intro σ x
   apply Quotient.sound
   change Relation.EqvGen
-      (fun s s' : state => ∃ f ∈ ((adv.range)ᶜ : LensRange state).updates, f s = s')
+      (fun s s' : state => ∃ f ∈ ((adv.range)ᶜ : TotLensRange state).updates, f s = s')
       (random_oracle_state.set x σ) σ
   apply Relation.EqvGen.symm
   apply Relation.EqvGen.rel
@@ -279,7 +279,7 @@ theorem oracle_loop_marginal_lazy_eq_random_oracle_glob (σ₀ : state) :
       change (Submonoid.centralizer random_oracle_state.compl.range.updates).carrier
            ⊆ (Submonoid.centralizer adv.range.updates).carrier
       exact Submonoid.centralizer_le hadv_le
-    rwa [LensRange.complement_range, LensRange.compl_compl] at hflip
+    rwa [TotLensRange.complement_range, TotLensRange.compl_compl] at hflip
   exact h_le h_in_ro
 
 end AdvParam

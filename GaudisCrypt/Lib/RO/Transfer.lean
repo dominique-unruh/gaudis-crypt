@@ -364,7 +364,7 @@ lemma Program.transfer_refl_of_inRange_compl
     Program.transfer p p := by
   show (p >>= fun a => convert >>= fun _ => pure a) = (convert >>= fun _ => p)
   have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
-    le_of_eq (LensRange.complement_range _)
+    le_of_eq (TotLensRange.complement_range _)
   have h_commute : (p >>= fun a => convert >>= fun b => pure (a, b))
                  = (convert >>= fun b => p >>= fun a => pure (a, b)) :=
     Program.commute_of_disjoint_lens hp convert_inRange_ro h_disj
@@ -544,7 +544,7 @@ private lemma transfer_while_kleene_eager
       = (convert >>= fun _ => cond >>= k) := by
     intro β k
     have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
-      le_of_eq (LensRange.complement_range _)
+      le_of_eq (TotLensRange.complement_range _)
     have h_pair : (cond >>= fun b => convert >>= fun u => pure (b, u))
                 = (convert >>= fun u => cond >>= fun b => pure (b, u)) :=
       Program.commute_of_disjoint_lens h_cond convert_inRange_ro h_disj

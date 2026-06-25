@@ -18,7 +18,7 @@ instance : Monoid (m → Option m) where
     change some x >>= f = f x
     rfl
 
-/-- Analogue of `LensRange` where updates are partial functions `m → Option m`
+/-- Analogue of `TotLensRange` where updates are partial functions `m → Option m`
     composed via Kleisli composition for `Option`. -/
 structure OptionLensRange (m : Type _) where
   updates : Set (m → Option m)
@@ -52,7 +52,7 @@ instance {m : Type*} : Monoid (m → m → Prop) where
     · rintro ⟨y, rfl, hRy⟩; exact hRy
     · intro hR; exact ⟨x, rfl, hR⟩)
 
-/-- Analogue of `LensRange` where updates are relations on `m`
+/-- Analogue of `TotLensRange` where updates are relations on `m`
     composed via relational composition. -/
 structure RelLensRange (m : Type*) where
   updates : Set (m → m → Prop)
@@ -63,25 +63,11 @@ structure RelLensRange (m : Type*) where
 
 
 
-open GaudisCrypt.Language.Semantics in
-/-- Kleisli composition for `SubProbability`: apply `g` first, then `f` on the result. -/
-noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
-  mul f g := fun x => g x >>= f
-  one := pure
-  mul_assoc f g h := funext fun x => by
-    apply Subtype.ext; letI : MeasurableSpace m := ⊤
-    exact (MeasureTheory.Measure.bind_bind
-      measurable_from_top.aemeasurable measurable_from_top.aemeasurable).symm
-  one_mul f := funext fun x => by
-    apply Subtype.ext; letI : MeasurableSpace m := ⊤
-    exact MeasureTheory.Measure.bind_dirac
-  mul_one f := funext fun x => by
-    apply Subtype.ext; letI : MeasurableSpace m := ⊤
-    change (MeasureTheory.Measure.dirac x).bind (fun a => (f a).1) = (f x).1
-    exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+-- The Kleisli `Monoid (m → SubProbability m)` instance now lives canonically in
+-- `GaudisCrypt.Language.SubProbability` (imported transitively here).
 
 open GaudisCrypt.Language.Semantics in
-/-- Analogue of `LensRange` where updates are sub-probability kernels `m → SubProbability m`
+/-- Analogue of `TotLensRange` where updates are sub-probability kernels `m → SubProbability m`
     composed via Kleisli composition for `SubProbability`. -/
 structure SubProbLensRange (m : Type _) where
   updates : Set (m → SubProbability m)
@@ -464,7 +450,7 @@ open GaudisCrypt.Language.Semantics in
 /-- The deterministic bicommutant `C(C(S))` of a set of stochastic kernels `S`: the
     `Submonoid.centralizer` (in the composition monoid `m → m`) of the deterministic centralizer
     `Centralizer commuteST S`.  Returned as a `Set (m → m)` (the submonoid carrier) so it can
-    feed `LensRange.from`. -/
+    feed `TotLensRange.from`. -/
 def hullST {m : Type*} (S : Set (m → SubProbability m)) : Set (Function.End m) :=
   (Submonoid.centralizer (Centralizer commuteST S)).carrier
 
@@ -637,11 +623,11 @@ private lemma centralizer_carrier_eq' {m : Type*} (S : Set (Function.End m)) :
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
 open GaudisCrypt.Language.Semantics in
-/-- `hullST S` is already double-commutant closed, i.e. it is a genuine `LensRange`: the
-    `LensRange.from` it generates returns exactly `hullST S`.  This holds because `hullST S` is a
+/-- `hullST S` is already double-commutant closed, i.e. it is a genuine `TotLensRange`: the
+    `TotLensRange.from` it generates returns exactly `hullST S`.  This holds because `hullST S` is a
     single centralizer and `C∘C∘C = C` (`Set.centralizer_centralizer_centralizer`). -/
 theorem from_hullST_updates {m : Type*} (S : Set (m → SubProbability m)) :
-    (LensRange.from (hullST S)).updates = hullST S := by
+    (TotLensRange.from (hullST S)).updates = hullST S := by
   change (Submonoid.centralizer (Submonoid.centralizer (hullST S)).carrier).carrier = hullST S
   unfold hullST
   simp only [centralizer_carrier_eq']

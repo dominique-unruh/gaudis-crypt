@@ -1,11 +1,13 @@
 import GaudisCrypt.Misc
 import GaudisCrypt.FV
-import GaudisCrypt.LensRange
+import GaudisCrypt.TotLensRange
+import GaudisCrypt.ProbLensRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Language.Modules.InductiveFunctions
 import GaudisCrypt.Language.Programs
 import GaudisCrypt.Language.Semantics
+import GaudisCrypt.Language.SubProbability
 import GaudisCrypt.Language.Syntax2
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.EquivModuloLens

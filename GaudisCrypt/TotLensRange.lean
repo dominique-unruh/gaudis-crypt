@@ -10,7 +10,9 @@ open GaudisCrypt.Language.Lens
 --   one_mul _ := rfl
 --   mul_one _ := rfl
 
-structure LensRange (m : Type _) where
+
+
+structure TotLensRange (m : Type _) where
   updates : Set (Function.End m)
   id : id ∈ updates
   comp : f ∈ updates → g ∈ updates → (f ∘ g) ∈ updates
@@ -63,7 +65,7 @@ private theorem complement_range (lens : Lens a m) :
     rw [← hget x]
     exact lens.get_set (h x)
 
-instance : Compl (LensRange m) where
+instance : Compl (TotLensRange m) where
   compl range := ⟨(Submonoid.centralizer range.updates).carrier,
     Submonoid.one_mem _,
     fun hf hg => Submonoid.mul_mem _ hf hg,
@@ -112,7 +114,7 @@ private theorem double_complement [Nonempty m] (lens : Lens a m) :
   induction q using Quotient.inductionOn with
   | h t => simp [Lens.compl, Lens.chain, double_complement_iso_lens, Quotient.lift_mk]
 
-def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : LensRange m where
+def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : TotLensRange m where
   updates := Set.image lens.update ⊤
   id := ⟨_root_.id, Set.mem_univ _, funext fun x => lens.get_set x⟩
   comp := fun hf hg => by
@@ -156,9 +158,9 @@ def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : LensRange m 
           ⟨Classical.arbitrary _, Set.mem_univ _, heq _ _⟩
       rw [himg, h_univ, h_univ]
 
-theorem LensRange.complement_range (lens : Lens a m) :
+theorem TotLensRange.complement_range (lens : Lens a m) :
     lens.compl.range = lens.rangeᶜ := by
-  have key : ∀ {x y : LensRange m}, x.updates = y.updates → x = y := by
+  have key : ∀ {x y : TotLensRange m}, x.updates = y.updates → x = y := by
     intro x y hxy
     obtain ⟨xu, xi, xc, xd⟩ := x; obtain ⟨yu, yi, yc, yd⟩ := y
     simp only at hxy; subst hxy; rfl
@@ -167,7 +169,7 @@ theorem LensRange.complement_range (lens : Lens a m) :
     (Submonoid.centralizer (Set.image lens.update ⊤)).carrier
   exact _root_.complement_range lens
 
-def LensRange.from (generators : Set (Function.End m)) : LensRange m where
+def TotLensRange.from (generators : Set (Function.End m)) : TotLensRange m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
   id := Submonoid.one_mem _
   comp := fun hf hg => Submonoid.mul_mem _ hf hg
@@ -175,7 +177,7 @@ def LensRange.from (generators : Set (Function.End m)) : LensRange m where
     simp only [centralizer_carrier_eq]
     exact Set.centralizer_centralizer_centralizer _
 
-instance : PartialOrder (LensRange m) where
+instance : PartialOrder (TotLensRange m) where
   le x y := x.updates ≤ y.updates
   le_refl x := le_refl x.updates
   le_trans _ _ _ h1 h2 := le_trans h1 h2
@@ -187,8 +189,8 @@ instance : PartialOrder (LensRange m) where
     obtain rfl := le_antisymm hxy hyx
     rfl
 
-instance : Lattice (LensRange m) where
-  sup x y := LensRange.from (x.updates ∪ y.updates) -- double commutant of union
+instance : Lattice (TotLensRange m) where
+  sup x y := TotLensRange.from (x.updates ∪ y.updates) -- double commutant of union
   inf x y := ⟨x.updates ∩ y.updates, ⟨x.id, y.id⟩,
     fun hf hg => ⟨x.comp hf.1 hg.1, y.comp hf.2 hg.2⟩, by
       simp only [centralizer_carrier_eq]
@@ -223,19 +225,19 @@ instance : Lattice (LensRange m) where
   inf_le_left := fun _ _ => Set.inter_subset_left
   inf_le_right := fun _ _ => Set.inter_subset_right
 
-instance : BoundedOrder (LensRange m) where
+instance : BoundedOrder (TotLensRange m) where
   top := ⟨⊤, Set.mem_univ _, fun _ _ => Set.mem_univ _, by
     simp only [centralizer_carrier_eq, Set.top_eq_univ, Set.centralizer_univ]
     exact Set.centralizer_eq_top_iff_subset.mpr (Set.Subset.refl _)⟩
-  bot := LensRange.from ∅
+  bot := TotLensRange.from ∅
   bot_le := fun x => by
     change (Submonoid.centralizer (Submonoid.centralizer ∅).carrier).carrier ⊆ x.updates
     conv_rhs => rw [← x.double_commutant]
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
-theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := by
-  have key : ∀ {p q : LensRange a}, p.updates = q.updates → p = q := by
+theorem TotLensRange.compl_compl (x : TotLensRange a) : xᶜᶜ = x := by
+  have key : ∀ {p q : TotLensRange a}, p.updates = q.updates → p = q := by
     intro p q h; obtain ⟨_,_,_,_⟩ := p; obtain ⟨_,_,_,_⟩ := q
     simp only at h; subst h; rfl
   apply key; simp only [Compl.compl]; exact x.double_commutant
@@ -244,7 +246,7 @@ theorem LensRange.compl_compl (x : LensRange a) : xᶜᶜ = x := by
     `disjoint v L`, then every `v`-update lives in `L.compl.range`. -/
 theorem Lens.range_le_compl_of_disjoint {a b m : Type} (v : Lens a m) (L : Lens b m)
     [hd : disjoint v L] : v.range ≤ L.compl.range := by
-  rw [LensRange.complement_range]
+  rw [TotLensRange.complement_range]
   rintro _ ⟨g, -, rfl⟩
   show v.update g ∈ Submonoid.centralizer L.range.updates
   rw [Submonoid.mem_centralizer_iff]
@@ -260,8 +262,8 @@ theorem Lens.range_le_compl_of_disjoint {a b m : Type} (v : Lens a m) (L : Lens 
   rw [hL_get, hv_get]
   exact (hd.commute σ (g (v.get σ)) (h (L.get σ))).symm
 
-instance : CompleteSemilatticeSup (LensRange m) where
-  sSup s := LensRange.from (⋃ x ∈ s, x.updates)
+instance : CompleteSemilatticeSup (TotLensRange m) where
+  sSup s := TotLensRange.from (⋃ x ∈ s, x.updates)
   isLUB_sSup s := by
     constructor
     · intro a ha
@@ -277,7 +279,7 @@ instance : CompleteSemilatticeSup (LensRange m) where
       exact Submonoid.centralizer_le
         (Submonoid.centralizer_le (Set.iUnion₂_subset (fun x hx => hb hx)))
 
-instance : CompleteSemilatticeInf (LensRange m) where
+instance : CompleteSemilatticeInf (TotLensRange m) where
   sInf s := ⟨⋂ x ∈ s, x.updates,
     Set.mem_iInter₂.mpr fun x hx => x.id,
     fun hf hg => Set.mem_iInter₂.mpr fun x hx =>
@@ -297,7 +299,7 @@ instance : CompleteSemilatticeInf (LensRange m) where
     · intro a ha; exact Set.iInter₂_subset a ha
     · intro b hb; exact Set.subset_iInter₂ (fun x hx => hb hx)
 
-instance : CompleteLattice (LensRange m) where
+instance : CompleteLattice (TotLensRange m) where
 
 theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
     x.range ≤ y.range ↔ LensIn.mk' x ≤ LensIn.mk' y := by
@@ -333,7 +335,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
   · intro hle
     -- Step 1: centralizer antitonicity gives y.compl.range ≤ x.compl.range
     have hcompl : y.compl.range ≤ x.compl.range := by
-      rw [LensRange.complement_range y, LensRange.complement_range x]
+      rw [TotLensRange.complement_range y, TotLensRange.complement_range x]
       exact Submonoid.centralizer_le hle
     -- Step 2: x.get factors through y.get
     have hfactor : ∀ s t : m, y.get s = y.get t → x.get s = x.get t := by
@@ -388,7 +390,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
       by funext s; rw [← hz']; simp [Lens.update, Lens.chain]⟩
 
 noncomputable def LensIn.antisymmOrderEmb [Nonempty m] :
-    Antisymmetrization (LensIn m) (· ≤ ·) ↪o LensRange m where
+    Antisymmetrization (LensIn m) (· ≤ ·) ↪o TotLensRange m where
   toFun := Quotient.lift (fun ⟨_, lens⟩ => lens.range)
     fun a b ⟨h1, h2⟩ => le_antisymm
       ((Lens.range_defines_preorder a.lens b.lens).mpr h1)
@@ -410,11 +412,11 @@ noncomputable def LensIn.antisymmOrderEmb [Nonempty m] :
 /-- The `R`-orbit equivalence on `m`: `s ~ s'` iff one is reachable from the other via
     `R`-updates (the equivalence closure of the directed orbit relation, since `R` is a
     monoid not a group). -/
-def LensRange.orbit_setoid (R : LensRange m) : Setoid m where
+def TotLensRange.orbit_setoid (R : TotLensRange m) : Setoid m where
   r := Relation.EqvGen (fun s s' => ∃ f ∈ R.updates, f s = s')
   iseqv := Relation.EqvGen.is_equivalence _
 
-/-- The "global getter" of a LensRange: the quotient projection onto orbit-classes.
+/-- The "global getter" of a TotLensRange: the quotient projection onto orbit-classes.
 
     Reading: two states give the same getter value iff they are in the same `R`-orbit.
 
@@ -424,10 +426,10 @@ def LensRange.orbit_setoid (R : LensRange m) : Setoid m where
     Convention: `glob A` is typically "what A touches", i.e. **the commutant's** orbits,
     so one writes `glob A := A.range.commutant.global_getter` (commutant = `Rᶜ`).
     Equivalently `glob A := A.rangeᶜ.global_getter`. -/
-def LensRange.global_getter (R : LensRange m) : Getter (Quotient R.orbit_setoid) m where
+def TotLensRange.global_getter (R : TotLensRange m) : Getter (Quotient R.orbit_setoid) m where
   get := Quotient.mk R.orbit_setoid
 
 /-- The "touched" getter: the same construction applied to the commutant.
     For a lens-derived range `R = l.range`, this is isomorphic to `l.toGetter`. -/
-def LensRange.touched_getter (R : LensRange m) : Getter (Quotient Rᶜ.orbit_setoid) m :=
+def TotLensRange.touched_getter (R : TotLensRange m) : Getter (Quotient Rᶜ.orbit_setoid) m :=
   Rᶜ.global_getter
