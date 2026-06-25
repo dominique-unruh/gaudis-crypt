@@ -1551,4 +1551,95 @@ theorem factor_of_inProbRange {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
   congr 1; funext xσ'
   rw [SubProbability.pure_bind]
 
+section
+open Classical
+
+/-- **An `M`-localized kernel lies in `M.probRange`.** A kernel that reads only `M.get`, samples a
+    new `M`-value, and writes it back (`ρ (M.get st) >>= fun mc' => pure (M.set mc' st)`) commutes
+    with the commutant `M.probRangeᶜ` — using that any such `f` preserves `M.get` a.s. and commutes
+    with `M.set`, plus the one-sided Fubini `bind_swap_countable` (whence `[Countable c]`). -/
+theorem Mlocalized_in_probRange {c s : Type} [Countable c] (M : Lens c s) (ρ : c → SubProbability c) :
+    (fun st => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s))
+      ∈ M.probRange.updates := by
+  rw [ProbLensRange.updates_eq_centralizer_compl M.probRange]
+  refine Submonoid.mem_centralizer_iff.mpr ?_
+  intro f hf
+  have hgen : ∀ g : Function.End c, diracKer (M.update g) ∈ M.probRange.updates :=
+    fun g => (ProbLensRange.from_le_iff _ M.probRange).mp le_rfl ⟨g, rfl⟩
+  have hset : ∀ (mc' : c) (st : s),
+      (f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) = f (M.set mc' st) := by
+    intro mc' st
+    have h0 : (f st >>= fun st' => (pure (M.set mc' st') : SubProbability s))
+            = (pure (M.set mc' st) : SubProbability s) >>= f :=
+      congrFun (Submonoid.mem_centralizer_iff.mp hf (diracKer (M.update (Function.const c mc')))
+        (hgen (Function.const c mc'))) st
+    rwa [SubProbability.pure_bind] at h0
+  have hpres : ∀ st, (f st >>= fun st' => (pure (M.set (M.get st) st') : SubProbability s)) = f st := by
+    intro st; rw [hset (M.get st) st, M.get_set]
+  funext st
+  show (ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s)) >>= f
+     = f st >>= fun st' => ρ (M.get st') >>= fun mc' => (pure (M.set mc' st') : SubProbability s)
+  have hL : ((ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s)) >>= f)
+      = f st >>= fun st' => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st') : SubProbability s) := by
+    rw [SubProbability.bind_assoc]
+    rw [show (fun mc' => (pure (M.set mc' st) : SubProbability s) >>= f)
+          = (fun mc' => f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) from by
+        funext mc'; rw [SubProbability.pure_bind, hset mc' st]]
+    exact (bind_swap_countable (f st) (ρ (M.get st))
+      (fun mc' st' => (pure (M.set mc' st') : SubProbability s))).symm
+  have hR : (f st >>= fun st' => ρ (M.get st') >>= fun mc' => (pure (M.set mc' st') : SubProbability s))
+      = f st >>= fun st' => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st') : SubProbability s) := by
+    conv_lhs => rw [← hpres st]
+    rw [SubProbability.bind_assoc]
+    congr 1; funext st''
+    rw [SubProbability.pure_bind, M.set_get]
+    congr 1; funext mc'
+    rw [M.set_set]
+  rw [hL, hR]
+
+/-- **A lift lives in its lens's probabilistic range** — the `inProbRange` analogue of
+    `Lens.lift_inRange_self`. The `y`-generator of `(M.lift Q).probRange` is the `M`-localized
+    kernel for `Q` conditioned on returning `y`, so `Mlocalized_in_probRange` applies. -/
+theorem lift_inProbRange_self {c s a : Type} [Countable a] [Countable c]
+    (M : Lens c s) (Q : Program c a) : (M.lift Q).inProbRange M.probRange := by
+  refine Program.inProbRange_of_probRange_le ?_
+  refine (ProbLensRange.from_le_iff _ _).mpr ?_
+  rintro k ⟨y, rfl⟩
+  show (fun st => (M.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
+       ∈ M.probRange.updates
+  have heq : (fun st => (M.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
+           = (fun st => (Q (M.get st) >>= fun xc : a × c => if xc.1 = y then pure xc.2 else ⊥)
+               >>= fun mc' => (pure (M.set mc' st) : SubProbability s)) := by
+    funext st
+    show (Q (M.get st) >>= fun xc : a × c => (pure (xc.1, M.set xc.2 st) : SubProbability (a × s)))
+          >>= (fun w : a × s => if w.1 = y then pure w.2 else ⊥)
+       = (Q (M.get st) >>= fun xc : a × c => if xc.1 = y then pure xc.2 else ⊥)
+          >>= fun mc' => (pure (M.set mc' st) : SubProbability s)
+    rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+    congr 1; funext xc
+    rw [SubProbability.pure_bind]
+    by_cases h : xc.1 = y
+    · rw [if_pos h, if_pos h, SubProbability.pure_bind]
+    · rw [if_neg h, if_neg h, SubProbability.bot_bind]
+  rw [heq]
+  exact Mlocalized_in_probRange M (fun mc => Q mc >>= fun xc => if xc.1 = y then pure xc.2 else ⊥)
+
+/-- **Lift confines the footprint through the chained lens** — `inProbRange` analogue of
+    `Lens.lift_inRange_chain`. Factor `P` as `v.lift (v.factor P)`, fold the double lift into a
+    single `(L.chain v)`-lift (`lift_lift_chain`), and confine via `lift_inProbRange_self`. -/
+theorem lift_inProbRange_chain {c s d a : Type} [Nonempty c] [Countable a] [Countable d]
+    (L : Lens c s) (v : Lens d c) (P : Program c a) (hP : P.inProbRange v.probRange) :
+    (L.lift P).inProbRange (L.chain v).probRange := by
+  rw [factor_of_inProbRange v hP, Lens.lift_lift_chain]
+  exact lift_inProbRange_self (L.chain v) (v.factor P)
+
+/-- **`convertL` is confined to the (lifted) RO table, as a probabilistic range.** Via the lift
+    framework (avoiding the `zoom`-rewrite's `state`/`State` `rw` obstacle): `convertL = globalL.lift
+    convert`, and `convert.inProbRange random_oracle_state.probRange` (`convert_inProbRange_ro`). -/
+theorem convertL_inProbRange {l : Type} :
+    (convertL : Program (ProcedureState l) Unit).inProbRange (roLift l).probRange :=
+  lift_inProbRange_chain ProcedureState.globalL random_oracle_state convert convert_inProbRange_ro
+
+end
+
 end GaudisCrypt.Lib.RO.SyntacticEquiv
