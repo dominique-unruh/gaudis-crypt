@@ -581,3 +581,61 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.get_inProbRange_compl_of_d
     {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] :
     (Program.get v).inProbRange (L.probRange)ᶜ :=
   Program.inProbRange_mono (Program.inProbRange_get v) (Lens.probRange_le_compl_of_disjoint v L)
+
+/-! ## Sampling: `Program.uniform`
+
+`Program.uniform` lives in the trivial range `⊥` — it samples a value without touching the state.
+Because `⊥ᶜ = univ`, this means it commutes with *every* kernel, which is a Fubini swap between the
+sampling and an arbitrary state-kernel. The swap (`bind_swap_countable`) needs `Countable` only on
+the *sampled* type — supplied by `Fintype α` — and crucially **not** on the (possibly uncountable)
+state `s`: with the sampled type countable, `measurable_from_prod_countable_left` discharges the
+product-σ-algebra measurability since each fibre is measurable from the discrete σ-algebra on `s`. -/
+
+section Uniform
+open MeasureTheory
+
+/-- **Commute two binds when the inner-sampled type is countable.** A one-sided Fubini: only the
+    type of `μ` must be `Countable` (not the type of `ν`). -/
+lemma bind_swap_countable {s α γ : Type} [Countable α] (ν : SubProbability s) (μ : SubProbability α)
+    (k : α → s → SubProbability γ) :
+    (ν >>= fun st' => μ >>= fun a => k a st') = (μ >>= fun a => ν >>= fun st' => k a st') := by
+  apply Subtype.ext
+  letI : MeasurableSpace s := ⊤
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace γ := ⊤
+  haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
+  haveI : IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2 ENNReal.one_lt_top⟩
+  haveI : IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2 ENNReal.one_lt_top⟩
+  apply Measure.ext
+  intro C hC
+  show Measure.bind ν.1 (fun st' => (μ >>= fun a => k a st').1) C
+     = Measure.bind μ.1 (fun a => (ν >>= fun st' => k a st').1) C
+  rw [Measure.bind_apply hC (measurable_from_top.aemeasurable),
+      Measure.bind_apply hC (measurable_from_top.aemeasurable)]
+  have hL : ∀ st', (μ >>= fun a => k a st').1 C = ∫⁻ a, (k a st').1 C ∂μ.1 := fun st' => by
+    rw [show (μ >>= fun a => k a st').1 = Measure.bind μ.1 (fun a => (k a st').1) from rfl,
+        Measure.bind_apply hC (measurable_from_top.aemeasurable)]
+  have hR : ∀ a, (ν >>= fun st' => k a st').1 C = ∫⁻ st', (k a st').1 C ∂ν.1 := fun a => by
+    rw [show (ν >>= fun st' => k a st').1 = Measure.bind ν.1 (fun st' => (k a st').1) from rfl,
+        Measure.bind_apply hC (measurable_from_top.aemeasurable)]
+  simp only [hL, hR]
+  exact lintegral_lintegral_swap
+    (measurable_from_prod_countable_left (fun a => measurable_from_top)).aemeasurable
+
+/-- `Program.uniform` lives in the trivial range `⊥` — it samples a value, touching no state.
+    Needs only `Fintype α` (the sampled type), not countability of the state. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_uniform {s α : Type}
+    [Fintype α] [Nonempty α] : (Program.uniform : Program s α).inProbRange ⊥ := by
+  rw [inProbRange_iff_clean]
+  intro f hf
+  funext st
+  show (f st >>= fun st' =>
+          (SubProbability.uniform : SubProbability α) >>= fun a => (pure (a, st') : SubProbability (α × s)))
+     = (((SubProbability.uniform : SubProbability α) >>= fun a => (pure (a, st) : SubProbability (α × s)))
+          >>= fun w : α × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (α × s)))
+  rw [bind_swap_countable (f st) SubProbability.uniform (fun a st' => pure (a, st'))]
+  rw [SubProbability.bind_assoc]
+  congr 1; funext a
+  rw [SubProbability.pure_bind]
+
+end Uniform
