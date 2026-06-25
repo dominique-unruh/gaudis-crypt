@@ -1878,6 +1878,47 @@ theorem confinedP_of_fv {holes : HoleSigs} {l advSt : Type}
       ⟨get_confinedP_of_fv c (le_sup_left.trans h),
         confinedP_of_fv L_adv hc t (le_sup_right.trans h)⟩
 
+/-- **Theorem 1, end-to-end from footprint disjointness.**  Lazy/eager indistinguishability for any
+    adversary whose probabilistic footprint (body + return) lies in a region `L_adv` disjoint from
+    the RO table — derived entirely from the footprint hypotheses, with no per-leaf confinement to
+    check by hand.  The full `fvP → ConfinedP → Loc → transfer` chain in one step. -/
+theorem Program.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
+    (hdisj : L_adv.probRange ≤ ((roLift (sig.LocalVariableState A.locals)).probRange)ᶜ)
+    [Countable (sig.LocalVariableState A.locals)] [Countable sig.ret]
+    (hbody : fvP_stmt A.body ≤ L_adv.probRange)
+    (hret : (Program.get A.return_val).probRange ≤ L_adv.probRange) :
+    Program.transfer
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (procedureDenotation (A.instantiate RO_eager) args) :=
+  Program.transfer_instantiate_confinedP A args L_adv hdisj
+    (confinedP_of_fv L_adv roHole_paramType_countable A.body hbody)
+    (get_confinedP_of_fv A.return_val hret)
+
+/-- **Theorem 2, end-to-end from footprint disjointness.**  The relational (coupling) equivalence
+    for an invariant `P`, from the body's footprint lying in a `liftRel P`-compatible region `L_adv`
+    — the full `fvP → ConfinedP → LocP → prhl` chain in one step. -/
+theorem prhl_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
+    {P : state → state → Prop}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
+    (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
+    (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
+        liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable advSt]
+    [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
+    (h : ∀ inp : input,
+        Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (hbody : fvP_stmt A.body ≤ L_adv.probRange)
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    Program.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost P) :=
+  prhl_instantiate_confinedP A args L_adv heq hset h
+    (confinedP_of_fv L_adv roHole_paramType_countable A.body hbody) hret
+
 end
 
 end GaudisCrypt.Lib.RO.SyntacticEquiv
