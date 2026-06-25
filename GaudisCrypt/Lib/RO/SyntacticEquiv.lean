@@ -1542,7 +1542,8 @@ theorem factor_of_inProbRange {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
   have h_iv : Adv σ
       = (Adv (L.set (L.get σ) (Classical.arbitrary s)))
           >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-    rw [← h_fσ_pad]; exact inProbRange_subprob h h_f_mem _
+    conv_lhs => rw [← h_fσ_pad]
+    exact inProbRange_subprob h h_f_mem _
   change Adv σ
       = ((Adv (L.set (L.get σ) (Classical.arbitrary s)))
             >>= fun xσ' : a × s => (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
@@ -1639,6 +1640,36 @@ theorem lift_inProbRange_chain {c s d a : Type} [Nonempty c] [Countable a] [Coun
 theorem convertL_inProbRange {l : Type} :
     (convertL : Program (ProcedureState l) Unit).inProbRange (roLift l).probRange :=
   lift_inProbRange_chain ProcedureState.globalL random_oracle_state convert convert_inProbRange_ro
+
+/-- **`Stable` from probabilistic footprint disjointness.** A program confined (in the
+    `inProbRange` sense) to the complement of the RO table commutes with `convertL`, i.e. is
+    `Stable`. The `ProbLensRange` analogue of `stable_of_inRange_compl`; the `ᶜ`-form makes the
+    `commute_of_disjoint_prob` disjointness hypothesis `le_refl`, so no `complement_range` analog
+    is needed. -/
+theorem stable_of_inProbRange_compl {l α : Type} [Countable α] [Countable l]
+    {p : Program (ProcedureState l) α} (hp : p.inProbRange ((roLift l).probRange)ᶜ) : Stable p := by
+  show (p >>= fun a => convertL >>= fun _ => pure a) = (convertL >>= fun _ => p)
+  have h_commute : (p >>= fun a => convertL >>= fun b => pure (a, b))
+                 = (convertL >>= fun b => p >>= fun a => pure (a, b)) :=
+    Program.commute_of_disjoint_prob hp convertL_inProbRange (le_refl _)
+  have hL : (p >>= fun a => convertL >>= fun b => pure (a, b)) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
+          = (p >>= fun a => convertL >>= fun _ => (Pure.pure a : Program (ProcedureState l) α)) := by
+    rw [Program.bind_assoc]; congr 1; funext a
+    rw [Program.bind_assoc]; congr 1; funext _
+    rw [Program.pure_bind]
+  have hR : (convertL >>= fun b => p >>= fun a => pure (a, b)) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
+          = (convertL >>= fun _ => p) := by
+    rw [Program.bind_assoc]
+    congr 1; funext _
+    rw [Program.bind_assoc]
+    rw [show (fun a : α => pure (a, ()) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α)))
+          = (fun a : α => (Pure.pure a : Program (ProcedureState l) α)) from by
+        funext a; rw [Program.pure_bind]]
+    exact Program.bind_pure _
+  rw [← hL, h_commute, hR]
 
 end
 
