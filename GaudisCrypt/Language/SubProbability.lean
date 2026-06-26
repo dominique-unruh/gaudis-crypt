@@ -154,6 +154,22 @@ lemma discreteMeasure_sum_dirac {a : Type u} (w : a → ENNReal) :
       (MeasureTheory.Measure.sum (fun t => w t • @MeasureTheory.Measure.dirac a ⊤ t)) :=
   discreteMeasure_measureSum _ (fun t => discreteMeasure_smul (w t) (discreteMeasure_dirac t))
 
+/-- **Countable additivity over an arbitrary disjoint family** for a discrete measure — the
+    countability-free replacement for `measure_iUnion` (the index `ι` may be uncountable; the
+    measure's countable support makes the sum well-defined). Proved by reindexing the
+    singleton-sum across the disjoint union (`ENNReal.tsum_sigma'` + `Set.unionEqSigmaOfDisjoint`). -/
+lemma discreteMeasure_measure_iUnion {a : Type u} {ι : Type v} {mu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) (B : ι → Set a)
+    (hd : Pairwise (Function.onFun Disjoint B)) :
+    mu (⋃ i, B i) = ∑' i, mu (B i) := by
+  letI : MeasurableSpace a := ⊤
+  rw [hmu (⋃ i, B i),
+    show (fun i => mu (B i)) = (fun i => ∑' (w : B i), mu {(w : a)}) from
+      funext (fun i => hmu (B i)),
+    ← ENNReal.tsum_sigma' (fun p : Σ i, B i => mu {((p.2 : a))})]
+  refine ((Equiv.tsum_eq (Set.unionEqSigmaOfDisjoint hd).symm (fun x => mu {(x : a)})).symm).trans ?_
+  exact tsum_congr (fun _ => rfl)
+
 /-! ### The sub-probability monad -/
 
 def SubProbability (a : Type u) :=
@@ -190,13 +206,11 @@ def SubProbability.ofEvent (μ : SubProbability a) (e : Set a) := (μ.1 e).toNNR
 instance : CoeFun (SubProbability a) (fun _ => a -> NNReal) where
   coe μ x := μ.ofEvent {x}
 
-instance [Countable a] : FunLike (SubProbability a) a NNReal where
+instance : FunLike (SubProbability a) a NNReal where
   coe μ x := μ.ofEvent {x}
   coe_injective' μ ν h := by
     apply Subtype.ext
-    letI : MeasurableSpace a := ⊤
-    apply MeasureTheory.Measure.ext_of_singleton
-    intro x
+    refine discreteMeasure.ext μ.2.2 ν.2.2 (fun x => ?_)
     have hμ : μ.1 {x} ≠ ⊤ :=
       ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt ENNReal.one_lt_top |>.ne
     have hν : ν.1 {x} ≠ ⊤ :=

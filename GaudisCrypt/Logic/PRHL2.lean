@@ -82,16 +82,18 @@ by its atom weights, and the integral is a countable sum of atoms. These
 helpers let us build the glued coupling for transitivity as an explicit
 atomic measure and reason about its marginals by `tsum` algebra. -/
 
-/-- Integral as a countable sum of atoms. -/
-lemma SubProbability.expected_eq_tsum {T : Type} [Countable T]
+/-- Integral as a sum of atoms.  Countability-free (subtask 4): via the discreteness invariant
+    (`lintegral_eq_tsum_smul`) rather than `lintegral_countable'`. -/
+lemma SubProbability.expected_eq_tsum {T : Type}
     (μ : SubProbability T) (F : T → ENNReal) :
     μ.expected F = ∑' t, F t * μ.1 {t} := by
   letI : MeasurableSpace T := ⊤
-  haveI : MeasurableSingletonClass T := ⟨fun _ => trivial⟩
-  exact MeasureTheory.lintegral_countable' F
+  show ∫⁻ x, F x ∂μ.1 = ∑' t, F t * μ.1 {t}
+  rw [lintegral_eq_tsum_smul μ.2.2 F]
+  exact tsum_congr (fun t => mul_comm _ _)
 
 /-- An atomic sub-probability built from a summable weight function. -/
-noncomputable def SubProbability.ofWeights {T : Type} [Countable T]
+noncomputable def SubProbability.ofWeights {T : Type}
     (w : T → ENNReal) (h : ∑' t, w t ≤ 1) : SubProbability T :=
   letI : MeasurableSpace T := ⊤
   ⟨MeasureTheory.Measure.sum (fun t => w t • MeasureTheory.Measure.dirac t), ⟨by
@@ -101,7 +103,7 @@ noncomputable def SubProbability.ofWeights {T : Type} [Countable T]
     exact h, discreteMeasure_sum_dirac w⟩⟩
 
 /-- The integral against an atomic measure is the weighted sum. -/
-lemma SubProbability.ofWeights_expected {T : Type} [Countable T]
+lemma SubProbability.ofWeights_expected {T : Type}
     (w : T → ENNReal) (h : ∑' t, w t ≤ 1) (F : T → ENNReal) :
     (SubProbability.ofWeights w h).expected F = ∑' t, F t * w t := by
   letI : MeasurableSpace T := ⊤
@@ -112,8 +114,9 @@ lemma SubProbability.ofWeights_expected {T : Type} [Countable T]
   rw [MeasureTheory.lintegral_smul_measure, MeasureTheory.lintegral_dirac]
   rw [smul_eq_mul, mul_comm]
 
-/-- A left-marginal atom is the sum of the joint atoms over the fiber. -/
-lemma SubProbability.marginal_fst_singleton {A B : Type} [Countable A] [Countable B]
+/-- A left-marginal atom is the sum of the joint atoms over the fiber. Countability-free
+    (subtask 4): `discreteMeasure_measure_iUnion` instead of `measure_iUnion`. -/
+lemma SubProbability.marginal_fst_singleton {A B : Type}
     (μ : SubProbability (A × B)) (a : A) :
     (μ >>= fun w => (pure w.1 : SubProbability A)).1 {a} = ∑' b, μ.1 {(a, b)} := by
   letI : MeasurableSpace A := ⊤
@@ -126,13 +129,13 @@ lemma SubProbability.marginal_fst_singleton {A B : Type} [Countable A] [Countabl
         (MeasurableSet.singleton a)]
   have hset : Prod.fst ⁻¹' {a} = ⋃ b, {((a, b) : A × B)} := by
     ext ⟨x₁, x₂⟩; simp [eq_comm]
-  rw [hset, MeasureTheory.measure_iUnion (fun b b' hbb' => by
-        simp only [Set.disjoint_singleton, ne_eq, Prod.mk.injEq, not_and]
-        exact fun _ => hbb')
-      (fun _ => MeasurableSet.singleton _)]
+  rw [hset, discreteMeasure_measure_iUnion μ.2.2 (fun b => {((a, b) : A × B)}) (fun b b' hbb' => by
+        simp only [Function.onFun, Set.disjoint_singleton, ne_eq, Prod.mk.injEq, not_and]
+        exact fun _ => hbb')]
 
-/-- A right-marginal atom is the sum of the joint atoms over the fiber. -/
-lemma SubProbability.marginal_snd_singleton {A B : Type} [Countable A] [Countable B]
+/-- A right-marginal atom is the sum of the joint atoms over the fiber. Countability-free
+    (subtask 4): `discreteMeasure_measure_iUnion` instead of `measure_iUnion`. -/
+lemma SubProbability.marginal_snd_singleton {A B : Type}
     (μ : SubProbability (A × B)) (b : B) :
     (μ >>= fun w => (pure w.2 : SubProbability B)).1 {b} = ∑' a, μ.1 {(a, b)} := by
   letI : MeasurableSpace A := ⊤
@@ -145,20 +148,17 @@ lemma SubProbability.marginal_snd_singleton {A B : Type} [Countable A] [Countabl
         (MeasurableSet.singleton b)]
   have hset : Prod.snd ⁻¹' {b} = ⋃ a, {((a, b) : A × B)} := by
     ext ⟨x₁, x₂⟩; simp [eq_comm]
-  rw [hset, MeasureTheory.measure_iUnion (fun a a' haa' => by
-        simp only [Set.disjoint_singleton, ne_eq, Prod.mk.injEq, not_and]
-        exact fun h => absurd h haa')
-      (fun _ => MeasurableSet.singleton _)]
+  rw [hset, discreteMeasure_measure_iUnion μ.2.2 (fun a => {((a, b) : A × B)}) (fun a a' haa' => by
+        simp only [Function.onFun, Set.disjoint_singleton, ne_eq, Prod.mk.injEq, not_and]
+        exact fun h => absurd h haa')]
 
-/-- The atom weights of a sub-probability sum to at most one. -/
-lemma SubProbability.tsum_singleton_le_one {T : Type} [Countable T]
+/-- The atom weights of a sub-probability sum to at most one.  Countability-free (subtask 4):
+    `∑' t, ν{t} = ν univ` directly from the discreteness invariant at `univ`. -/
+lemma SubProbability.tsum_singleton_le_one {T : Type}
     (ν : SubProbability T) : ∑' t, ν.1 {t} ≤ 1 := by
-  letI : MeasurableSpace T := ⊤
-  haveI : MeasurableSingletonClass T := ⟨fun _ => trivial⟩
-  rw [← MeasureTheory.measure_iUnion (fun a b hab => by
-        simpa [Set.disjoint_singleton] using hab) (fun _ => MeasurableSet.singleton _)]
-  calc ν.1 (⋃ t, {t}) ≤ ν.1 Set.univ := MeasureTheory.measure_mono (Set.subset_univ _)
-    _ ≤ 1 := ν.2.1
+  have h : ∑' t, ν.1 {t} = ν.1 Set.univ := by
+    rw [ν.2.2 Set.univ, tsum_subtype Set.univ (fun t => ν.1 {t}), Set.indicator_univ]
+  rw [h]; exact ν.2.1
 
 /-! ### Bind algebra and fixed-point helpers (for `while_loop`) -/
 
@@ -179,21 +179,16 @@ lemma SubProbability.toProgram_bind_apply {s α γ : Type} (μ : SubProbability 
 
 /-- **Commutativity of independent sampling** (Tonelli): two state-free
     samplings can be drawn in either order. -/
-lemma SubProbability.bind_comm {α β γ : Type} [Countable α] [Countable β]
+lemma SubProbability.bind_comm {α β γ : Type}
     (μ : SubProbability α) (ν : SubProbability β) (f : α → β → SubProbability γ) :
     (μ >>= fun x => ν >>= fun y => f x y) = (ν >>= fun y => μ >>= fun x => f x y) := by
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace β := ⊤
-  haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
-  haveI : MeasurableSingletonClass β := ⟨fun _ => trivial⟩
-  haveI : MeasureTheory.IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2.1 ENNReal.one_lt_top⟩
-  haveI : MeasureTheory.IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2.1 ENNReal.one_lt_top⟩
   refine SubProbability.ext_of_expected (fun g => ?_)
   simp only [SubProbability.expected_bind]
   show ∫⁻ x, (∫⁻ y, (f x y).expected g ∂ν.1) ∂μ.1
       = ∫⁻ y, (∫⁻ x, (f x y).expected g ∂μ.1) ∂ν.1
-  exact MeasureTheory.lintegral_lintegral_swap
-    (measurable_of_countable (fun p : α × β => (f p.1 p.2).expected g)).aemeasurable
+  exact (lintegral_lintegral_swap_discrete μ.2.2 ν.2.2 (fun x y => (f x y).expected g)).symm
 
 /-- **Swap** two independent (state-free) samplings in a program. -/
 lemma SubProbability.swap_sample {s α' β' γ : Type} [Countable α'] [Countable β']
