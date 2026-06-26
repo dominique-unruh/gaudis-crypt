@@ -844,7 +844,7 @@ def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWith
     oracle preserves the invariant).  `[Countable l]` feeds the `prhl2`
     composition rules (`bind`/`cond`/`while_loop`). -/
 theorem body_prhl2_gen {P : state → state → Prop} :
-    ∀ {holes : HoleSigs} {l : Type} (A : StmtWithHoles holes l) [Countable l]
+    ∀ {holes : HoleSigs} {l : Type} (A : StmtWithHoles holes l)
       (eagerInst lazyInst : holes.Instantiation),
       LocP P A →
       (∀ {sig} (n : HoleIndex holes sig)
@@ -861,34 +861,34 @@ theorem body_prhl2_gen {P : state → state → Prop} :
   intro holes l A
   induction A with
   | skip =>
-      intro _ eagerInst lazyInst _ _
+      intro eagerInst lazyInst _ _
       simp only [StmtWithHoles.instantiate, programDenotation, Program.skip]
       exact Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩)
   | sample x e =>
-      intro _ eagerInst lazyInst hloc _
+      intro eagerInst lazyInst hloc _
       simp only [StmtWithHoles.instantiate]
       exact hloc
   | call' x ls b r p =>
-      intro _ eagerInst lazyInst hloc _
+      intro eagerInst lazyInst hloc _
       simp only [StmtWithHoles.instantiate]
       exact hloc
   | hole n x p =>
-      intro _ eagerInst lazyInst hloc hhole
+      intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate]
       exact hhole n x p hloc.1 hloc.2
   | seq s1 s2 ih1 ih2 =>
-      intro hCl eagerInst lazyInst hloc hhole
+      intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate, programDenotation]
       refine Program.prhl2.bind (ih1 eagerInst lazyInst hloc.1 hhole) (fun _ _ => ?_)
       exact Program.prhl2.conseq (ih2 eagerInst lazyInst hloc.2 hhole)
         (fun _ _ hpre => hpre.2) (fun _ _ hB => hB)
   | ifThenElse c t e iht ihe =>
-      intro hCl eagerInst lazyInst hloc hhole
+      intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate, programDenotation]
       exact Program.prhl2.cond hloc.1 (iht eagerInst lazyInst hloc.2.1 hhole)
         (ihe eagerInst lazyInst hloc.2.2 hhole)
   | «while» c t iht =>
-      intro hCl eagerInst lazyInst hloc hhole
+      intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate, programDenotation]
       refine Program.prhl2.conseq
         (Program.prhl2.while_loop (PostC := fun _ => liftRel P) hloc.1 ?_)
@@ -901,8 +901,6 @@ theorem body_prhl2_gen {P : state → state → Prop} :
     `ProcedureState` coupling of their `zoom`s under `liftRel P`, threading the
     (equal) locals.  Used to lift the per-query hypothesis `h` to the oracle hole. -/
 theorem prhl2_zoom (l : Type) {γ : Type} {P : state → state → Prop}
-    [Countable ((γ × state) × (γ × state))]
-    [Countable ((γ × ProcedureState l) × (γ × ProcedureState l))]
     {c d : Program state γ} {B : γ × state → γ × state → Prop}
     (hcd : Program.prhl2 P c d B) :
     Program.prhl2 (liftRel (l := l) P)
@@ -933,7 +931,7 @@ theorem prhl2_zoom (l : Type) {γ : Type} {P : state → state → Prop}
     via `prhl2_zoom` of the per-query hypothesis `h` (with the bridges identifying
     the procedures with the semantic queries).  This is `body_prhl2_gen`'s `hhole`
     for the RO instantiation. -/
-theorem ro_hhole_prhl {l : Type} [Countable l] {P : state → state → Prop}
+theorem ro_hhole_prhl {l : Type} {P : state → state → Prop}
     (h : ∀ inp : input, Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
     {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
     (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
@@ -967,7 +965,7 @@ theorem ro_hhole_prhl {l : Type} [Countable l] {P : state → state → Prop}
 /-- **Body-level theorem 2** — fully assembled: an arbitrary `Loc`al adversary
     body preserves the invariant relationally, with the RO oracle.  Combines
     `body_prhl2_gen` with the RO hole coupling `ro_hhole_prhl`. -/
-theorem prhl_instantiate_body {l : Type} [Countable l] {P : state → state → Prop}
+theorem prhl_instantiate_body {l : Type} {P : state → state → Prop}
     (h : ∀ inp : input, Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
     (A : StmtWithHoles roHoles l) (hloc : LocP P A) :
     Program.prhl2 (liftRel P)
@@ -980,7 +978,6 @@ theorem prhl_instantiate_body {l : Type} [Countable l] {P : state → state → 
     whole procedure, given the return value is determined by the invariant. -/
 theorem prhl_wrapper {sig : ProcedureSignature} {P : state → state → Prop}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)]
     (hbody : Program.prhl2 (liftRel P)
       (programDenotation (A.body.instantiate RO_eager))
       (programDenotation (A.body.instantiate RO_lazy)) (liftRelPost P))
@@ -1023,7 +1020,6 @@ locality; `fv_proc` is unusable while its leaves are `sorry`) and its return rea
 under `P`.  Reduces to `prhl_instantiate_body` via `prhl_wrapper`. -/
 theorem prhl_instantiate {sig : ProcedureSignature} {P : state → state → Prop}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)]
     (h : ∀ inp : input,
         Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
     (hloc : LocP P A.body)
@@ -1083,7 +1079,7 @@ theorem stable_of_inRange_local {l α : Type} [Countable α] [Countable l]
     conditions are: `heq` — `liftRel P` forces equality on `L_adv` (so the inner
     program gets equal inputs); `hset` — writing the (equal) result back into
     `L_adv` preserves `liftRel P`. -/
-theorem prhl2_lift_lens {l γ advSt : Type} [Countable γ] [Countable advSt] [Countable l]
+theorem prhl2_lift_lens {l γ advSt : Type}
     {P : state → state → Prop} (L_adv : Lens advSt (ProcedureState l))
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
@@ -1102,8 +1098,8 @@ theorem prhl2_lift_lens {l γ advSt : Type} [Countable γ] [Countable advSt] [Co
 /-- **Theorem-2 leaf discharge, general lens form.**  A program confined to an
     adversary lens `L_adv` (compatible with `liftRel P` via `heq`/`hset`)
     self-couples under `liftRel P`, for *any* invariant `P`. -/
-theorem prhl2_of_inRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)] [Countable γ]
-    [Countable advSt] [Countable l] {P : state → state → Prop}
+theorem prhl2_of_inRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)]
+    {P : state → state → Prop}
     (L_adv : Lens advSt (ProcedureState l))
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
@@ -1165,7 +1161,7 @@ theorem confined_loc {holes : HoleSigs} {l advSt : Type} [Countable l]
     (`heq`/`hset`).  No `h'`-style preservation condition on the adversary's ops:
     `heq`/`hset` are conditions on the *region* `L_adv` vs `P`, not on `A`. -/
 theorem confined_locP {holes : HoleSigs} {l advSt : Type} [Nonempty (ProcedureState l)]
-    [Countable l] [Countable advSt] {P : state → state → Prop}
+    {P : state → state → Prop}
     (L_adv : Lens advSt (ProcedureState l))
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
@@ -1217,7 +1213,6 @@ theorem prhl_instantiate_confined {sig : ProcedureSignature} {advSt : Type}
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
         liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable advSt]
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
         Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
@@ -1235,7 +1230,6 @@ theorem prhl_instantiate_confined {sig : ProcedureSignature} {advSt : Type}
     only confinement hypothesis is `Confined localL A.body`. -/
 theorem prhl_instantiate_confined_local {sig : ProcedureSignature} {P : state → state → Prop}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)]
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
         Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
@@ -1262,7 +1256,6 @@ theorem prhl_instantiate_confined_global {sig : ProcedureSignature} {γ : Type}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (gv : Lens γ state) (Pro : state → state → Prop)
     (hPro : ∀ (c : γ) g₁ g₂, Pro g₁ g₂ → Pro (gv.set c g₁) (gv.set c g₂))
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable γ]
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
         Program.prhl (fun g₁ g₂ => gv.get g₁ = gv.get g₂ ∧ Pro g₁ g₂)
@@ -1767,8 +1760,8 @@ theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
     to an adversary lens `L_adv` compatible with `liftRel P` self-couples. The `ProbLensRange`
     analogue of `prhl2_of_inRange_lens` — factors through `factor_of_inProbRange` and the
     *range-independent* `prhl2_lift_lens` (reused verbatim). -/
-theorem prhl2_of_inProbRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)] [Countable γ]
-    [Countable advSt] [Countable l] {P : state → state → Prop}
+theorem prhl2_of_inProbRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)]
+    {P : state → state → Prop}
     (L_adv : Lens advSt (ProcedureState l))
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
@@ -1781,7 +1774,7 @@ theorem prhl2_of_inProbRange_lens {l γ advSt : Type} [Nonempty (ProcedureState 
 /-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
     `ProbLensRange` analogue of `confined_locP`. -/
 theorem confinedP_locP {holes : HoleSigs} {l advSt : Type} [Nonempty (ProcedureState l)]
-    [Countable l] [Countable advSt] {P : state → state → Prop}
+    {P : state → state → Prop}
     (L_adv : Lens advSt (ProcedureState l))
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
@@ -1831,7 +1824,6 @@ theorem prhl_instantiate_confinedP {sig : ProcedureSignature} {advSt : Type}
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
         liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable advSt]
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
         Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
@@ -1906,7 +1898,6 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
     (heq : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂)
     (hset : ∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ →
         liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
-    [Countable sig.ret] [Countable (sig.LocalVariableState A.locals)] [Countable advSt]
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
         Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
