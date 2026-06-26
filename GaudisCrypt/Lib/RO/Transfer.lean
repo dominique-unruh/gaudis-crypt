@@ -401,18 +401,6 @@ lemma Program.transfer_refl_of_inRange_compl
     exact Program.bind_pure _
   rw [← hL, h_commute, hR]
 
-/-- Any program in `v.range`, for a `v` disjoint from `random_oracle_state`,
-    transfers to itself. Convenience composition of `transfer_refl_of_inRange_compl`,
-    `inRange_mono`, and `Lens.range_le_compl_of_disjoint`. -/
-lemma Program.transfer_of_inRange_disjoint {α : Type} [Countable α]
-    (p : Program state α) {β : Type} (v : Lens β state)
-    [disjoint v random_oracle_state]
-    (hp : p.inRange v.range) :
-    Program.transfer p p :=
-  Program.transfer_refl_of_inRange_compl
-    (Program.inRange_mono hp
-      (Lens.range_le_compl_of_disjoint v random_oracle_state))
-
 /-- **Reflexivity on RO-disjoint programs — countability-free** (subtask 4). The `ProbLensRange`
     analogue of `transfer_refl_of_inRange_compl`: a program whose probabilistic footprint avoids the
     RO table commutes with `convert` (via `commute_of_disjoint_prob`, no `[Countable]`), so transfers
