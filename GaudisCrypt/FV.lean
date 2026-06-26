@@ -136,25 +136,140 @@ private lemma fvP_reduce_constraint {a b} (lens : Lens a b) (V : Set (b → SubP
   simp only [Set.mem_setOf_eq, Set.mem_preimage, Set.mem_centralizer_iff]
   exact ⟨fun h g hg => (h g hg).symm, fun h g hg => (h g hg).symm⟩
 
+/-! ### `lens.updateK` is a monoid homomorphism, and the resulting closure algebra. -/
+
+private lemma updateK_apply {a b} (lens : Lens a b) (κ : a → SubProbability a) (st : b) :
+    lens.updateK κ st = κ (lens.get st) >>= fun a' => pure (lens.set a' st) := rfl
+
+private lemma kmul_apply {m} (f g : m → SubProbability m) (x : m) : (f * g) x = g x >>= f := rfl
+
+/-- **`lens.updateK` preserves the identity kernel.** -/
+lemma updateK_one {a b} (lens : Lens a b) :
+    lens.updateK (1 : a → SubProbability a) = 1 := by
+  funext st
+  show (pure (lens.get st) : SubProbability a) >>= (fun a' => pure (lens.set a' st)) = pure st
+  rw [SubProbability.pure_bind, lens.get_set]
+
+/-- **`lens.updateK` is multiplicative**, hence a monoid homomorphism on kernels. The lens
+    laws (`set_get`, `set_set`) make the two localizations of a Kleisli composition agree. -/
+lemma updateK_mul {a b} (lens : Lens a b) (κ₁ κ₂ : a → SubProbability a) :
+    lens.updateK (κ₁ * κ₂) = lens.updateK κ₁ * lens.updateK κ₂ := by
+  funext st
+  simp only [kmul_apply, updateK_apply]
+  rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+  congr 1
+  funext a'
+  rw [SubProbability.pure_bind, updateK_apply, lens.set_get]
+  congr 1
+  funext a''
+  rw [lens.set_set]
+
+/-- The bicommutant retraction inequality for a multiplicative `u`:
+    `C(u⁻¹'(C(u '' R))) ⊆ CC(R)`.  The engine behind `fvP_reduce_extend`: if `q` commutes
+    with `R` then `u q` commutes with `u '' R` (by multiplicativity), so `q` lies in the
+    preimage that `f` centralizes, whence `q * f = f * q`. -/
+private lemma centralizer_preimage_image_subset {M N : Type*} [Monoid M] [Monoid N]
+    (u : M → N) (hu : ∀ x y, u (x * y) = u x * u y) (R : Set M) :
+    Set.centralizer (u ⁻¹' Set.centralizer (u '' R)) ⊆ Set.centralizer (Set.centralizer R) := by
+  intro f hf
+  rw [Set.mem_centralizer_iff]
+  intro q hq
+  have hqmem : q ∈ u ⁻¹' Set.centralizer (u '' R) := by
+    show u q ∈ Set.centralizer (u '' R)
+    rw [Set.mem_centralizer_iff]
+    rintro _ ⟨r, hr, rfl⟩
+    rw [← hu, ← hu, (Set.mem_centralizer_iff.mp hq) r hr]
+  exact (Set.mem_centralizer_iff.mp hf) q hqmem
+
+private lemma submonoid_centralizer_carrier {m} (S : Set (m → SubProbability m)) :
+    (Submonoid.centralizer S).carrier = Set.centralizer S := by
+  ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
+
+/-- Every `ProbLensRange` is its own bicommutant (the `double_commutant` field, in `Set` form). -/
+private lemma probLensRange_updates_cc {m} (r : ProbLensRange m) :
+    Set.centralizer (Set.centralizer r.updates) = r.updates := by
+  have h := r.double_commutant
+  simpa only [submonoid_centralizer_carrier] using h
+
+/-- `ProbLensRange.from` is monotone. -/
+private lemma from_mono {m} {G G' : Set (m → SubProbability m)} (h : G ⊆ G') :
+    ProbLensRange.from G ≤ ProbLensRange.from G' := by
+  rw [ProbLensRange.from_le_iff, probLensRange_from_updates]
+  exact h.trans Set.subset_centralizer_centralizer
+
+/-- `fvP_reduce` is monotone in its range argument (double-antitone via the two centralizers). -/
+private lemma fvP_reduce_mono {a b} (lens : Lens a b) {r r' : ProbLensRange b} (h : r ≤ r') :
+    fvP_reduce lens r ≤ fvP_reduce lens r' := by
+  have hsub : r.updates ⊆ r'.updates := h
+  unfold fvP_reduce
+  apply from_mono
+  rw [fvP_reduce_constraint, fvP_reduce_constraint]
+  exact Set.centralizer_subset (Set.preimage_mono (Set.centralizer_subset hsub))
+
+/-- `fvP_extend` is monotone in its range argument. -/
+private lemma fvP_extend_mono {a b} (lens : Lens a b) {r r' : ProbLensRange a} (h : r ≤ r') :
+    fvP_extend lens r ≤ fvP_extend lens r' := by
+  have hsub : r.updates ⊆ r'.updates := h
+  unfold fvP_extend
+  apply from_mono
+  rintro _ ⟨g, hg, rfl⟩
+  exact ⟨g, hsub hg, rfl⟩
+
+/-- `fvP_reduce` distributes over joins.
+
+    Only the `≤`-half (`reduce r₁ ⊔ reduce r₂ ≤ reduce (r₁ ⊔ r₂)`, i.e. monotonicity) is
+    proven.  The reverse `reduce (r₁ ⊔ r₂) ≤ reduce r₁ ⊔ reduce r₂` reduces to
+    `CCP ∩ CCQ ⊆ CC (P ∩ Q)` for the preimage sets `P = u⁻¹'(C r₁.updates)`,
+    `Q = u⁻¹'(C r₂.updates)`; that is a kernel-monoid double-commutant fact which does **not**
+    follow from `updateK` being a homomorphism alone, and is left open. -/
 theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
-    fvP_reduce lens (r₁ ⊔ r₂) = fvP_reduce lens r₁ ⊔ fvP_reduce lens r₂ := by
-  sorry
+    fvP_reduce lens (r₁ ⊔ r₂) = fvP_reduce lens r₁ ⊔ fvP_reduce lens r₂ :=
+  le_antisymm
+    (by sorry)
+    (sup_le (fvP_reduce_mono lens le_sup_left) (fvP_reduce_mono lens le_sup_right))
 
 end FvReduceSup
 
-/-- `fvP_extend` distributes over joins. -/
+/-- `fvP_extend` distributes over joins.
+
+    Only the `≤`-half (`extend r₁ ⊔ extend r₂ ≤ extend (r₁ ⊔ r₂)`, i.e. monotonicity) is
+    proven.  The reverse `extend (r₁ ⊔ r₂) ≤ extend r₁ ⊔ extend r₂` reduces to
+    `u '' (CC Y) ⊆ CC (u '' Y)` (image of a bicommutant ⊆ bicommutant of the image), a
+    von-Neumann-style double-commutant theorem for the kernel monoid, and is left open. -/
 theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
-    fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ := sorry
+    fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ :=
+  le_antisymm
+    (by sorry)
+    (sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right))
 
+/-- The lens-image of a footprint is contained in its `fvP_extend`.
+
+    NOTE: the deterministic original conjectured *equality*
+    `(fvP_extend lens r).updates = lens.updateK '' r.updates`, but that is **false** in general:
+    `fvP_extend` is the *bicommutant closure* of the image (`from` double-commutant-closes its
+    generators), which is strictly larger than the raw image unless the image is already closed.
+    Only this inclusion holds unconditionally. -/
 theorem fvP_extend_updates {a b} (lens : Lens a b) (range : ProbLensRange a) :
-    (fvP_extend lens range).updates = lens.updateK '' range.updates := by
-  sorry
+    lens.updateK '' range.updates ⊆ (fvP_extend lens range).updates := by
+  unfold fvP_extend
+  rw [probLensRange_from_updates]
+  exact Set.subset_centralizer_centralizer
 
-/-- `fvP_reduce` is a retraction of `fvP_extend`: pushing a footprint forward along a
-    lens and pulling it back recovers it.  (Only `≤` is used in the proof.) -/
+/-- **`fvP_reduce` is a retraction of `fvP_extend`** (`reduce (extend r) ≤ r`): pushing a
+    footprint forward along a lens and pulling it back recovers at most it.  Proven in full from
+    `updateK` being a monoid homomorphism (`centralizer_preimage_image_subset`). -/
 theorem fvP_reduce_extend {a b} (lens : Lens a b) (r : ProbLensRange a) :
     fvP_reduce lens (fvP_extend lens r) ≤ r := by
-    sorry
+  unfold fvP_reduce
+  rw [ProbLensRange.from_le_iff, fvP_reduce_constraint]
+  have hext : Set.centralizer (fvP_extend lens r).updates
+            = Set.centralizer (lens.updateK '' r.updates) := by
+    unfold fvP_extend
+    rw [probLensRange_from_updates, Set.centralizer_centralizer_centralizer]
+  rw [hext]
+  have key := centralizer_preimage_image_subset lens.updateK (updateK_mul lens) r.updates
+  rw [probLensRange_updates_cc] at key
+  exact key
 
 noncomputable
 def fvpInductiveFunctionGS : InductiveFunctionGettersSetters ProbLensRange where
