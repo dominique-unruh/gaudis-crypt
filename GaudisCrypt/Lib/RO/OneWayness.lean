@@ -117,27 +117,27 @@ noncomputable def ow_experiment (q : ℕ)
 
 Mirrors `cr_transfer` from `CollisionResistance.lean`. -/
 
-variable (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-variable (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-variable (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+variable (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
+variable (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
+variable (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
 
 include h_ow_adv in
 /-- `ow_adv` transfers to itself: it doesn't touch RO. -/
 private lemma transfer_ow_adv : Program.transfer ow_adv ow_adv :=
-  Program.transfer_refl_of_inRange_compl h_ow_adv
+  Program.transfer_refl_of_inProbRange_compl h_ow_adv
 
 include h_ow_adv in
 /-- One iteration of `ow_loop_body` transfers from lazy to eager. -/
 private lemma transfer_ow_loop_body :
     Program.transfer (ow_loop_body ow_adv lazy_query)
                      (ow_loop_body ow_adv random_oracle_query) :=
-  Program.transfer_oracle_step h_ow_adv
+  Program.transfer_oracle_step_prob h_ow_adv
 
 include h_ow_adv in
 /-- `ow_loop q` transfers from lazy to eager. -/
 private lemma transfer_ow_loop (q : ℕ) :
     Program.transfer (ow_loop ow_adv q lazy_query) (ow_loop ow_adv q random_oracle_query) :=
-  Program.transfer_oracle_loop_n h_ow_adv q
+  Program.transfer_oracle_loop_n_prob h_ow_adv q
 
 include h_ow_adv in
 /-- The full `ow_experiment q` transfers from lazy to eager. -/
@@ -224,14 +224,14 @@ noncomputable def preimage_indicator (σ : state) : ENNReal :=
 include h_ow_adv_chal_y in
 /-- `ow_loop_body` preserves `ow_challenge_y`. -/
 private lemma ow_loop_body_inRange_chal_y_compl :
-    (ow_loop_body ow_adv lazy_query).inRange ow_challenge_y.compl.range :=
-  oracle_step_inRange_compl ow_challenge_y h_ow_adv_chal_y
+    (ow_loop_body ow_adv lazy_query).inProbRange (ow_challenge_y.probRange)ᶜ :=
+  oracle_step_inProbRange_compl ow_challenge_y h_ow_adv_chal_y
 
 include h_ow_adv_chal_y in
 /-- `ow_loop q` preserves `ow_challenge_y`. -/
 private lemma ow_loop_inRange_chal_y_compl (q : ℕ) :
-    (ow_loop ow_adv q lazy_query).inRange ow_challenge_y.compl.range :=
-  oracle_loop_n_inRange_compl ow_challenge_y h_ow_adv_chal_y q
+    (ow_loop ow_adv q lazy_query).inProbRange (ow_challenge_y.probRange)ᶜ :=
+  oracle_loop_n_inProbRange_compl ow_challenge_y h_ow_adv_chal_y q
 
 include h_ow_adv_chal_y in
 /-- **Bookkeeping**: if the experiment's result bit is `true`, then the final
@@ -248,7 +248,7 @@ lemma ow_true_implies_preimage_wp (q : ℕ) (σ₀ : state) :
   apply Program.wp_le_wp_of_le; rintro ⟨y, σ_l⟩; dsimp only
   -- Now ow_loop is at outermost wp. Its input state is `ow_challenge_y.set y σ_l`
   -- (since `Program.set ow_challenge_y y` was inlined via wp_set).
-  rw [Program.wp_strengthen_lens_preserved ow_challenge_y
+  rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_y
       (ow_loop_inRange_chal_y_compl ow_adv h_ow_adv_chal_y q)]
   apply Program.wp_le_wp_of_le; rintro ⟨_, σ_o⟩; dsimp only
   -- LHS has an outer-if wrap from `wp_strengthen_lens_preserved`; RHS does not.
@@ -463,7 +463,7 @@ include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
 private lemma ow_adv_wp_useful_preimage (σ : state) :
     ow_adv.wp (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ
     ≤ useful_preimage_indicator σ :=
-  Program.wp_le_of_factors_three random_oracle_state ow_challenge_x ow_challenge_y
+  Program.wp_le_of_factors_three_prob random_oracle_state ow_challenge_x ow_challenge_y
     h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_y
     (fun _ _ h_RO h_x h_y => useful_preimage_indicator_of_three_get_eq h_RO h_x h_y) σ
 

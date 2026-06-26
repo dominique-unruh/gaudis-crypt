@@ -140,3 +140,27 @@ lemma Program.wp_le_of_factors_three_prob {s α γ₁ γ₂ γ₃ : Type}
         · exact le_of_eq (h_factors σ σ' h1 h2 h3)
         all_goals exact bot_le
     _ ≤ P σ := Program.wp_const_le prog _ σ
+
+/-- **Dead write across a disjoint footprint** — the `inProbRange` analogue of
+    `Program.wp_set_disjoint_no_op`. If `rest` lives in `(L.probRange)ᶜ` and the post `F`
+    ignores `L`, then a preceding `Program.set L v` is a no-op for the `wp`. -/
+lemma Program.wp_set_disjoint_no_op_prob {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+    {α : Type} {rest : Program s α} (h_rest : rest.inProbRange (L.probRange)ᶜ)
+    (v : γ) (F : α × s → ENNReal)
+    (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
+  simp only [wp_bind, wp_set]
+  set f : s → s := L.update (Function.const _ v) with hf_def
+  have h_f_in_Rc : diracKer f ∈ (((L.probRange)ᶜ)ᶜ).updates := by
+    rw [ProbLensRange.compl_compl]
+    exact (ProbLensRange.from_le_iff _ L.probRange).mp le_rfl ⟨Function.const _ v, rfl⟩
+  have h_f_eq : ∀ σ', f σ' = L.set v σ' := fun σ' => by
+    show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
+    rw [Function.const_apply]
+  rw [← h_f_eq σ]
+  rw [Program.wp_shift_input_prob h_rest h_f_in_Rc]
+  congr 1
+  funext xs
+  rw [h_f_eq xs.2]
+  exact h_F xs
