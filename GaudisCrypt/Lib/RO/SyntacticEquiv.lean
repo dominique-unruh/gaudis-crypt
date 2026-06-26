@@ -1804,7 +1804,6 @@ theorem Program.transfer_instantiate_confinedP {sig : ProcedureSignature} {advSt
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
     (hdisj : L_adv.probRange ≤ ((roLift (sig.LocalVariableState A.locals)).probRange)ᶜ)
-    [Countable (sig.LocalVariableState A.locals)] [Countable sig.ret]
     (hconf : ConfinedP L_adv A.body)
     (hret : (Program.get A.return_val).inProbRange L_adv.probRange) :
     Program.transfer
@@ -1878,7 +1877,6 @@ theorem Program.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : 
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
     (hdisj : L_adv.probRange ≤ ((roLift (sig.LocalVariableState A.locals)).probRange)ᶜ)
-    [Countable (sig.LocalVariableState A.locals)] [Countable sig.ret]
     (hbody : fvP_stmt A.body ≤ L_adv.probRange)
     (hret : (Program.get A.return_val).probRange ≤ L_adv.probRange) :
     Program.transfer
