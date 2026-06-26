@@ -157,7 +157,7 @@ lemma SubProbability.range_of_satisfies {γ : Type}
   · rw [hf x (h x hx), mul_zero]
 
 /-- For discrete state the two `satisfy` formulations coincide. -/
-theorem SubProbability.satisfies_iff_range {γ : Type} [Countable γ]
+theorem SubProbability.satisfies_iff_range {γ : Type}
     (μ : SubProbability γ) (B : γ → Prop) :
     μ.satisfies B
     ↔ ∀ f : γ → ENNReal, (∀ x, B x → f x = 0) → μ.expected f = 0 :=
