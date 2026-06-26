@@ -277,34 +277,20 @@ private lemma slice_apply {s a : Type} (μ : SubProbability (a × s)) (y : a) (B
       simp only [Measure.coe_zero, Pi.zero_apply, Set.indicator, Set.mem_prod,
         Set.mem_singleton_iff, hwy, false_and, if_false]
 
-/-- **A kernel into `a × s` is determined by its return-value slices** (for `Countable a`).
-    This is the disintegration fact powering the backward litmus direction. -/
-private lemma ext_of_slices {s a : Type} [Countable a] (μ ν : SubProbability (a × s))
+/-- **A kernel into `a × s` is determined by its return-value slices.**  This is the disintegration
+    fact powering the backward litmus direction.  Countability-free: it goes through the discreteness
+    invariant (`discreteMeasure.ext`), comparing the two kernels on singletons `{(y, s')}`, each of
+    which `slice_apply` exposes as the `y`-slice evaluated at `{s'}`. -/
+private lemma ext_of_slices {s a : Type} (μ ν : SubProbability (a × s))
     (h : ∀ y, μ >>= projK y = ν >>= projK y) : μ = ν := by
   apply Subtype.ext
-  letI : MeasurableSpace (a × s) := ⊤
-  letI : MeasurableSpace s := ⊤
-  apply Measure.ext
-  intro C _hC
-  have hcover : C = ⋃ y : a, {y} ×ˢ (Prod.mk y ⁻¹' C) := by
-    ext ⟨x, s'⟩
-    simp only [Set.mem_iUnion, Set.mem_prod, Set.mem_singleton_iff, Set.mem_preimage]
-    constructor
-    · intro hC; exact ⟨x, rfl, hC⟩
-    · rintro ⟨y, rfl, hyC⟩; exact hyC
-  have hdisj : Pairwise (Function.onFun Disjoint (fun y : a => {y} ×ˢ (Prod.mk y ⁻¹' C))) := by
-    intro y y' hyy'
-    simp only [Function.onFun, Set.disjoint_left]
-    rintro ⟨x, s'⟩ hz hz'
-    rw [Set.mem_prod, Set.mem_singleton_iff] at hz hz'
-    exact hyy' (hz.1.symm.trans hz'.1)
-  calc μ.1 C
-      = ∑' y : a, μ.1 ({y} ×ˢ (Prod.mk y ⁻¹' C)) := by
-        conv_lhs => rw [hcover]; rw [measure_iUnion hdisj (fun y => by trivial)]
-    _ = ∑' y : a, ν.1 ({y} ×ˢ (Prod.mk y ⁻¹' C)) := by
-        congr 1; funext y; rw [← slice_apply μ y, ← slice_apply ν y, h y]
-    _ = ν.1 C := by
-        conv_rhs => rw [hcover]; rw [measure_iUnion hdisj (fun y => by trivial)]
+  refine discreteMeasure.ext μ.2.2 ν.2.2 (fun z => ?_)
+  obtain ⟨y, s'⟩ := z
+  have key : ∀ ρ : SubProbability (a × s), ρ.1 {((y, s') : a × s)} = (ρ >>= projK y).1 {s'} :=
+    fun ρ => by
+      rw [slice_apply ρ y {s'}, show ({y} ×ˢ ({s'} : Set s)) = {((y, s') : a × s)} from by
+        ext w; simp [Prod.ext_iff]]
+  rw [key μ, key ν, h y]
 
 /-- **Litmus test, forward (soundness)**: if `p` commutes with the commutant `Rᶜ`,
     its constructive `probRange` is contained in `R`. No countability needed — this is
@@ -330,10 +316,11 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_le_of_inProbRang
   exact hs.symm
 
 /-- **Litmus test, backward (completeness)**: if `p`'s constructive `probRange` is
-    contained in `R`, then `p` commutes with the commutant `Rᶜ`. Needs `[Countable a]`
-    to reassemble the joint kernel from its return-value slices. -/
+    contained in `R`, then `p` commutes with the commutant `Rᶜ`.  Countability-free (subtask 4):
+    the joint kernel is reassembled from its slices via the discreteness invariant
+    (`ext_of_slices`), not from countability of the return type. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_of_probRange_le
-    {s a : Type} [Countable a] {p : Program s a} {R : ProbLensRange s}
+    {s a : Type} {p : Program s a} {R : ProbLensRange s}
     (h : p.probRange ≤ R) : p.inProbRange R := by
   intro f hf
   have h' := (ProbLensRange.from_le_iff _ R).mp h
@@ -354,7 +341,7 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_of_probRange_l
     iff its constructive `probRange` is `≤ R`. Ported from the `Litmus test` note in
     `Language/Semantics.lean`. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_iff_probRange_le
-    {s a : Type} [Countable a] {p : Program s a} {R : ProbLensRange s} :
+    {s a : Type} {p : Program s a} {R : ProbLensRange s} :
     p.inProbRange R ↔ p.probRange ≤ R :=
   ⟨Program.probRange_le_of_inProbRange, Program.inProbRange_of_probRange_le⟩
 
@@ -416,10 +403,10 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_bind {s a b : 
 
 /-- **Range of a `bind`**: `(p >>= q).probRange ≤ p.probRange ⊔ ⨆ x, (q x).probRange`.
     The footprint of a sequenced computation is contained in `p`'s footprint together
-    with the union of the continuations' footprints. Needs `[Countable a] [Countable b]`
-    only through the self-range step (`inProbRange_of_probRange_le`). -/
+    with the union of the continuations' footprints. Countability-free (subtask 4): the
+    self-range step (`inProbRange_of_probRange_le`) no longer needs countable return types. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_bind_le {s a b : Type}
-    [Countable a] [Countable b] (p : Program s a) (q : a → Program s b) :
+    (p : Program s a) (q : a → Program s b) :
     (p >>= q).probRange ≤ p.probRange ⊔ ⨆ x, (q x).probRange := by
   apply Program.probRange_le_of_inProbRange
   apply Program.inProbRange_bind
@@ -586,26 +573,23 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.get_inProbRange_compl_of_d
 
 `Program.uniform` lives in the trivial range `⊥` — it samples a value without touching the state.
 Because `⊥ᶜ = univ`, this means it commutes with *every* kernel, which is a Fubini swap between the
-sampling and an arbitrary state-kernel. The swap (`bind_swap_countable`) needs `Countable` only on
-the *sampled* type — supplied by `Fintype α` — and crucially **not** on the (possibly uncountable)
-state `s`: with the sampled type countable, `measurable_from_prod_countable_left` discharges the
-product-σ-algebra measurability since each fibre is measurable from the discrete σ-algebra on `s`. -/
+sampling and an arbitrary state-kernel. The swap (`bind_swap`) is countability-free (subtask 4): it
+goes through the discreteness invariant, so neither the sampled type nor the (possibly uncountable)
+state need be countable. -/
 
 section Uniform
 open MeasureTheory
 
-/-- **Commute two binds when the inner-sampled type is countable.** A one-sided Fubini: only the
-    type of `μ` must be `Countable` (not the type of `ν`). -/
-lemma bind_swap_countable {s α γ : Type} [Countable α] (ν : SubProbability s) (μ : SubProbability α)
+/-- **Commute two binds** — a Fubini swap for sub-probability kernels.  Countability-free
+    (subtask 4): the swap goes through the discreteness invariant (`lintegral_lintegral_swap_discrete`
+    / `ENNReal.tsum_comm`), not σ-finiteness or product-σ-algebra measurability. -/
+lemma bind_swap {s α γ : Type} (ν : SubProbability s) (μ : SubProbability α)
     (k : α → s → SubProbability γ) :
     (ν >>= fun st' => μ >>= fun a => k a st') = (μ >>= fun a => ν >>= fun st' => k a st') := by
   apply Subtype.ext
   letI : MeasurableSpace s := ⊤
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace γ := ⊤
-  haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
-  haveI : IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2.1 ENNReal.one_lt_top⟩
-  haveI : IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2.1 ENNReal.one_lt_top⟩
   apply Measure.ext
   intro C hC
   show Measure.bind ν.1 (fun st' => (μ >>= fun a => k a st').1) C
@@ -619,8 +603,7 @@ lemma bind_swap_countable {s α γ : Type} [Countable α] (ν : SubProbability s
     rw [show (ν >>= fun st' => k a st').1 = Measure.bind ν.1 (fun st' => (k a st').1) from rfl,
         Measure.bind_apply hC (measurable_from_top.aemeasurable)]
   simp only [hL, hR]
-  exact lintegral_lintegral_swap
-    (measurable_from_prod_countable_left (fun a => measurable_from_top)).aemeasurable
+  exact lintegral_lintegral_swap_discrete μ.2.2 ν.2.2 (fun a st' => (k a st').1 C)
 
 /-- `Program.uniform` lives in the trivial range `⊥` — it samples a value, touching no state.
     Needs only `Fintype α` (the sampled type), not countability of the state. -/
@@ -633,7 +616,7 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_uniform {s α 
           (SubProbability.uniform : SubProbability α) >>= fun a => (pure (a, st') : SubProbability (α × s)))
      = (((SubProbability.uniform : SubProbability α) >>= fun a => (pure (a, st) : SubProbability (α × s)))
           >>= fun w : α × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (α × s)))
-  rw [bind_swap_countable (f st) SubProbability.uniform (fun a st' => pure (a, st'))]
+  rw [bind_swap (f st) SubProbability.uniform (fun a st' => pure (a, st'))]
   rw [SubProbability.bind_assoc]
   congr 1; funext a
   rw [SubProbability.pure_bind]
@@ -647,8 +630,9 @@ Programs with disjoint probabilistic ranges can be run in either order with the 
 needs `HasOrbitCollapse` preconditions *and* `[Countable s]`), this follows directly from the
 constructive `probRange` + litmus: slicing the joint by the return value `(x₀, y₀)` collapses each
 side to a product of the return-conditioned kernels `kp`/`kq`, which commute because they live in
-the disjoint ranges `R`, `R'`. Needs `[Countable a] [Countable b]` (the return types), **not**
-`[Countable s]`. -/
+the disjoint ranges `R`, `R'`. After subtask 4 this needs **no countability at all** — neither the
+state `s` nor the return types — since slice-reassembly (`ext_of_slices`) goes through the
+discreteness invariant. -/
 
 section Commute
 open Classical
@@ -717,10 +701,11 @@ private lemma slice_qp (p : Program s a) (q : Program s b) (x0 : a) (y0 : b) (σ
 
 /-- **Disjoint programs commute.** If `p` lives in `R`, `q` in `R'`, and `R ≤ R'ᶜ`, then `p` and
     `q` may be run in either order with the same `(output, state)` distribution. The probabilistic
-    analogue of `Program.commute_of_disjoint` — but with **no** `HasOrbitCollapse` hypotheses and
-    **no** `[Countable s]` (only the return types must be countable). -/
+    analogue of `Program.commute_of_disjoint` — but with **no** `HasOrbitCollapse` hypotheses and,
+    after subtask 4, **no countability whatsoever** (the joint kernel is reassembled from its
+    slices via the discreteness invariant, not from countable state or return types). -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob
-    [Countable a] [Countable b] {p : Program s a} {q : Program s b} {R R' : ProbLensRange s}
+    {p : Program s a} {q : Program s b} {R R' : ProbLensRange s}
     (hp : p.inProbRange R) (hq : q.inProbRange R') (hdisj : R ≤ R'ᶜ) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) := by
@@ -745,7 +730,7 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob
     `HasOrbitCollapse` to discharge, unlike the `TotLensRange` `commute_of_disjoint_lens`),
     matching that API for drop-in migration. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob_lens
-    {c d : Type} [Countable a] [Countable b]
+    {c d : Type}
     {p : Program s a} {q : Program s b} {l : Lens c s} {l' : Lens d s}
     (hp : p.inProbRange l.probRange) (hq : q.inProbRange l'.probRange)
     (hdisj : l.probRange ≤ (l'.probRange)ᶜ) :
@@ -757,7 +742,7 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob_l
     automatic (`Lens.probRange_le_compl_of_disjoint`), so the caller supplies only the two
     `inProbRange` confinement proofs. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_lenses
-    {c d : Type} [Countable a] [Countable b]
+    {c d : Type}
     {p : Program s a} {q : Program s b} {l : Lens c s} {l' : Lens d s} [disjoint l l']
     (hp : p.inProbRange l.probRange) (hq : q.inProbRange l'.probRange) :
     (p >>= fun x => q >>= fun y => pure (x, y))
@@ -778,14 +763,14 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.set_set_commute_of_disjoin
 
 /-- A read and a write to disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.get_set_commute_of_disjoint
-    {γ δ : Type} [Countable γ] (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (y : δ) :
+    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (y : δ) :
     (Program.get l >>= fun a => Program.set l' y >>= fun b => pure (a, b))
   = (Program.set l' y >>= fun b => Program.get l >>= fun a => pure (a, b)) :=
   Program.commute_of_disjoint_lenses (Program.inProbRange_get l) (Program.inProbRange_set l' y)
 
 /-- Two reads of disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.get_get_commute_of_disjoint
-    {γ δ : Type} [Countable γ] [Countable δ] (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] :
+    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] :
     (Program.get l >>= fun a => Program.get l' >>= fun b => pure (a, b))
   = (Program.get l' >>= fun b => Program.get l >>= fun a => pure (a, b)) :=
   Program.commute_of_disjoint_lenses (Program.inProbRange_get l) (Program.inProbRange_get l')

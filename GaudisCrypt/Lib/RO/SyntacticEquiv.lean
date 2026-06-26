@@ -1632,7 +1632,7 @@ theorem Mlocalized_in_probRange {c s : Type} [Countable c] (M : Lens c s) (ρ : 
     rw [show (fun mc' => (pure (M.set mc' st) : SubProbability s) >>= f)
           = (fun mc' => f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) from by
         funext mc'; rw [SubProbability.pure_bind, hset mc' st]]
-    exact (bind_swap_countable (f st) (ρ (M.get st))
+    exact (bind_swap (f st) (ρ (M.get st))
       (fun mc' st' => (pure (M.set mc' st') : SubProbability s))).symm
   have hR : (f st >>= fun st' => ρ (M.get st') >>= fun mc' => (pure (M.set mc' st') : SubProbability s))
       = f st >>= fun st' => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st') : SubProbability s) := by

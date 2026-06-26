@@ -50,6 +50,14 @@ lemma discreteMeasure.eq_sum {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
   rw [MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.dirac_apply' x hA, smul_eq_mul]
   by_cases hx : x ∈ A <;> simp [Set.indicator_of_mem, Set.indicator_of_notMem, hx]
 
+/-- **Singleton extensionality**: two discrete measures agreeing on all singletons are equal
+    (countability-free — the replacement for `Measure.ext_of_singleton`, which needs `[Countable]`). -/
+lemma discreteMeasure.ext {a : Type u} {mu nu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) (hnu : discreteMeasure nu) (h : ∀ z, mu {z} = nu {z}) : mu = nu := by
+  letI : MeasurableSpace a := ⊤
+  apply MeasureTheory.Measure.ext; intro A _
+  rw [hmu A, hnu A]; exact tsum_congr (fun z => h ↑z)
+
 /-- Integration against a discrete measure is the weighted sum of point evaluations. -/
 lemma lintegral_eq_tsum_smul {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
     (hmu : discreteMeasure mu) (g : a → ENNReal) :
@@ -60,6 +68,21 @@ lemma lintegral_eq_tsum_smul {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
   congr 1; funext x
   rw [MeasureTheory.lintegral_smul_measure, MeasureTheory.lintegral_dirac' x measurable_from_top,
     smul_eq_mul]
+
+/-- **Fubini for discrete measures** — integration order swaps with no σ-finiteness/countability
+    side-condition, via `ENNReal.tsum_comm`. -/
+lemma lintegral_lintegral_swap_discrete {α s : Type u} {μ : @MeasureTheory.Measure α ⊤}
+    {ν : @MeasureTheory.Measure s ⊤} (hμ : discreteMeasure μ) (hν : discreteMeasure ν)
+    (g : α → s → ENNReal) :
+    ∫⁻ st', ∫⁻ a, g a st' ∂μ ∂ν = ∫⁻ a, ∫⁻ st', g a st' ∂ν ∂μ := by
+  rw [lintegral_eq_tsum_smul hν,
+    show (∑' st', ν {st'} * ∫⁻ a, g a st' ∂μ) = ∑' st', ∑' a, ν {st'} * (μ {a} * g a st') from
+      tsum_congr (fun st' => by rw [lintegral_eq_tsum_smul hμ, ENNReal.tsum_mul_left]),
+    lintegral_eq_tsum_smul hμ,
+    show (∑' a, μ {a} * ∫⁻ st', g a st' ∂ν) = ∑' a, ∑' st', μ {a} * (ν {st'} * g a st') from
+      tsum_congr (fun a => by rw [lintegral_eq_tsum_smul hν, ENNReal.tsum_mul_left]),
+    ENNReal.tsum_comm]
+  exact tsum_congr (fun st' => tsum_congr (fun a => by ring))
 
 /-- **Bind preserves discreteness** (the keystone — countability-free, via `ENNReal.tsum_comm`). -/
 lemma discreteMeasure_bind {a b : Type u} {mu : @MeasureTheory.Measure a ⊤}
