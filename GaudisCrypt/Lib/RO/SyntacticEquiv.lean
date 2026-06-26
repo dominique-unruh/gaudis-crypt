@@ -1523,20 +1523,8 @@ theorem zoom_uniform {s t α : Type} [Fintype α] [Nonempty α] (L : Lens s t) :
   congr 1; funext a
   rw [SubProbability.pure_bind, L.get_set]
 
-/-- `convert` is confined to the RO table, as a *probabilistic* range. Direct port of
-    `convert_inRange_ro` via the `inProbRange` primitives (`convert` reads/writes RO modulo a
-    uniform sample). The double-commutant closure of `Lens.probRange` absorbs `convert`'s
-    probabilistic RO-write. -/
-theorem convert_inProbRange_ro : convert.inProbRange random_oracle_state.probRange := by
-  show ((Program.get random_oracle_state) >>= fun h =>
-          (Program.uniform : Program state (input → output)) >>= fun y =>
-            Program.set random_oracle_state (fun x => some ((h x).getD (y x)))).inProbRange _
-  refine Program.inProbRange_bind (Program.inProbRange_get _) ?_
-  intro _
-  refine Program.inProbRange_bind ?_ ?_
-  · exact Program.inProbRange_mono Program.inProbRange_uniform bot_le
-  · intro _
-    exact Program.inProbRange_set _ _
+-- `convert_inProbRange_ro` now lives in `GaudisCrypt.Lib.RO.Transfer` (imported transitively),
+-- next to `convert` and the transfer-reflexivity it drives.
 
 /-! ### Lift framework for `inProbRange` (toward `convertL_inProbRange`)
 
