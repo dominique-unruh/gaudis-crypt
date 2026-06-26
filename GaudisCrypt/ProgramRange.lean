@@ -1,13 +1,19 @@
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.TotLensRange
-import GaudisCrypt.ProbLensRange
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
 
 /-!
-# Program.range and `glob` foundations
+# Program.range and `glob` foundations  — **LEGACY `TotLensRange` theory (quarantined)**
+
+> **Deprecated / quarantined.** This is the deterministic `TotLensRange`/`inRange` program-range
+> theory, superseded by `ProbLensRange` + `ProbProgramRange` (the `inProbRange` analogues — they are
+> countability-free and a read's range does not collapse). Retained only for `CounterExamples` (which
+> need the `TotLensRange` pathology) and not-yet-migrated consumers; new code should use
+> `ProbLensRange`/`inProbRange`. The probabilistic wp-layer (`Program.wp_*_prob`) lives in
+> `ProbProgramRange`.
 
 This file defines
 
@@ -341,20 +347,6 @@ lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : TotLensRange s
     rw [SubProbability.pure_bind]
   rw [← hL, h_eq, hR]
 
-/-- SubProbability expected-bind: integrate `F` against `μ >>= k` by integrating
-    `(k ·).expected F` against `μ`. -/
-lemma SubProbability.expected_bind {α β : Type} (μ : SubProbability α)
-    (k : α → SubProbability β) (F : β → ENNReal) :
-    (μ >>= k).expected F = μ.expected (fun a => (k a).expected F) := by
-  letI : MeasurableSpace α := ⊤
-  letI : MeasurableSpace β := ⊤
-  show ∫⁻ x, F x ∂((μ >>= k).1) = ∫⁻ a, (k a).expected F ∂μ.1
-  have heq : ((μ >>= k).1 : MeasureTheory.Measure β)
-      = MeasureTheory.Measure.bind μ.1 (fun a => (k a).1) := rfl
-  rw [heq, MeasureTheory.Measure.lintegral_bind
-        measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
-  rfl
-
 /-- **wp of a value-only post = expected value under the value-marginal**. For
     any `G : α → ENNReal`, `p.wp (fun aσ => G aσ.1) σ` equals the expected
     value of `G` under the marginal distribution `p σ >>= fun aσ => pure aσ.1`. -/
@@ -390,20 +382,6 @@ lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : TotLensRange s}
     p.wp F (f σ) = p.wp (fun (xs : a × s) => F (xs.1, f xs.2)) σ := by
   show (p (f σ)).expected F = (p σ).expected (fun (xs : a × s) => F (xs.1, f xs.2))
   rw [Program.inRange_subprob hp hf σ]
-  rw [SubProbability.expected_bind]
-  congr 1
-  funext xs
-  rw [expected_pure]
-
-/-- **`wp_shift_input` over `ProbLensRange`** — countability-free. The probabilistic analogue of
-    `Program.wp_shift_input`: a program in range `R` lets a deterministic outside-update `f` (a Dirac
-    kernel in `Rᶜ`) be pushed from the input to the output of `wp`.  Same proof, via
-    `inProbRange_subprob`. -/
-lemma Program.wp_shift_input_prob {s a : Type} {p : Program s a} {R : ProbLensRange s}
-    (hp : p.inProbRange R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (F : a × s → ENNReal) (σ : s) :
-    p.wp F (f σ) = p.wp (fun (xs : a × s) => F (xs.1, f xs.2)) σ := by
-  show (p (f σ)).expected F = (p σ).expected (fun (xs : a × s) => F (xs.1, f xs.2))
-  rw [inProbRange_subprob hp hf σ]
   rw [SubProbability.expected_bind]
   congr 1
   funext xs
@@ -649,35 +627,6 @@ lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
     funext xs; exact h_f_P xs.2]
   exact Program.wp_const_le prog (P σ) σ
 
-/-- **Preservation under in-range, over `ProbLensRange`** — countability-free analogue of
-    `Program.wp_le_of_factors`: if `prog`'s probabilistic footprint avoids `L` (`inProbRange
-    (L.probRange)ᶜ`) and `P` factors through `L.get`, then `prog.wp (P ∘ snd) σ ≤ P σ`. -/
-lemma Program.wp_le_of_factors_prob {s α γ : Type} (L : Lens γ s)
-    {prog : Program s α} (h_inRange : prog.inProbRange (L.probRange)ᶜ)
-    {P : s → ENNReal}
-    (h_factors : ∀ σ σ', L.get σ' = L.get σ → P σ' = P σ)
-    (σ : s) :
-    prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
-  have h_f_in_Rc : diracKer f ∈ (((L.probRange)ᶜ)ᶜ).updates := by
-    rw [ProbLensRange.compl_compl]
-    exact (ProbLensRange.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.update g))
-      L.probRange).mp le_rfl ⟨Function.const _ (L.get σ), rfl⟩
-  have h_f_fix : f σ = σ := by
-    show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
-    rw [Function.const_apply, L.get_set]
-  have h_f_P : ∀ σ' : s, P (f σ') = P σ := by
-    intro σ'
-    apply h_factors
-    show L.get (L.set ((Function.const _ (L.get σ)) (L.get σ')) σ') = L.get σ
-    rw [Function.const_apply, L.set_get]
-  have h_shift := Program.wp_shift_input_prob h_inRange h_f_in_Rc (fun xs : α × s => P xs.2) σ
-  rw [h_f_fix] at h_shift
-  rw [h_shift]
-  rw [show (fun xs : α × s => P (f xs.2)) = (fun _ : α × s => P σ) from by
-    funext xs; exact h_f_P xs.2]
-  exact Program.wp_const_le prog (P σ) σ
-
 /-- **Two-lens preservation**: same idea as `Program.wp_le_of_factors`, but `P`
     factors through the pair `(L₁.get, L₂.get)` and `prog` preserves both
     lenses. Iterates `wp_strengthen_lens_preserved` over two lenses. -/
@@ -722,86 +671,6 @@ lemma Program.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
   rw [Program.wp_strengthen_lens_preserved L₃ h₃]
   rw [Program.wp_strengthen_lens_preserved L₂ h₂]
   rw [Program.wp_strengthen_lens_preserved L₁ h₁]
-  calc prog.wp _ σ
-      ≤ prog.wp (fun _ : α × s => P σ) σ := by
-        apply Program.wp_le_wp_of_le
-        rintro ⟨_, σ'⟩; dsimp only
-        split_ifs with h1 h2 h3
-        · exact le_of_eq (h_factors σ σ' h1 h2 h3)
-        all_goals exact bot_le
-    _ ≤ P σ := Program.wp_const_le prog _ σ
-
-/-- **Lens-preservation strengthening over `ProbLensRange`** — countability-free analogue of
-    `Program.wp_strengthen_lens_preserved`. -/
-lemma Program.wp_strengthen_lens_preserved_prob {s α γ : Type} [DecidableEq γ]
-    (L : Lens γ s) {p : Program s α} (h_inRange : p.inProbRange (L.probRange)ᶜ)
-    (F : α × s → ENNReal) (σ : s) :
-    p.wp F σ
-      = p.wp (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ := by
-  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
-  have h_f_in_Rc : diracKer f ∈ (((L.probRange)ᶜ)ᶜ).updates := by
-    rw [ProbLensRange.compl_compl]
-    exact (ProbLensRange.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.update g))
-      L.probRange).mp le_rfl ⟨Function.const _ (L.get σ), rfl⟩
-  have h_f_fix : f σ = σ := by
-    show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
-    rw [Function.const_apply, L.get_set]
-  have h_f_L_get : ∀ σ' : s, L.get (f σ') = L.get σ := by
-    intro σ'
-    show L.get (L.set ((Function.const _ (L.get σ)) (L.get σ')) σ') = L.get σ
-    rw [Function.const_apply, L.set_get]
-  have h_shift_F := Program.wp_shift_input_prob h_inRange h_f_in_Rc F σ
-  rw [h_f_fix] at h_shift_F
-  have h_shift_strong := Program.wp_shift_input_prob h_inRange h_f_in_Rc
-    (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ
-  rw [h_f_fix] at h_shift_strong
-  rw [h_shift_F, h_shift_strong]
-  congr 1
-  funext xs
-  show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
-  rw [if_pos (h_f_L_get xs.2)]
-
-/-- **Two-lens preservation over `ProbLensRange`** — countability-free analogue of
-    `Program.wp_le_of_factors_two`. -/
-lemma Program.wp_le_of_factors_two_prob {s α γ₁ γ₂ : Type}
-    [DecidableEq γ₁] [DecidableEq γ₂]
-    (L₁ : Lens γ₁ s) (L₂ : Lens γ₂ s)
-    {prog : Program s α}
-    (h₁ : prog.inProbRange (L₁.probRange)ᶜ) (h₂ : prog.inProbRange (L₂.probRange)ᶜ)
-    {P : s → ENNReal}
-    (h_factors : ∀ σ σ' : s,
-        L₁.get σ' = L₁.get σ → L₂.get σ' = L₂.get σ → P σ' = P σ)
-    (σ : s) :
-    prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  rw [Program.wp_strengthen_lens_preserved_prob L₂ h₂]
-  rw [Program.wp_strengthen_lens_preserved_prob L₁ h₁]
-  calc prog.wp _ σ
-      ≤ prog.wp (fun _ : α × s => P σ) σ := by
-        apply Program.wp_le_wp_of_le
-        rintro ⟨_, σ'⟩; dsimp only
-        split_ifs with h1 h2
-        · exact le_of_eq (h_factors σ σ' h1 h2)
-        all_goals exact bot_le
-    _ ≤ P σ := Program.wp_const_le prog _ σ
-
-/-- **Three-lens preservation over `ProbLensRange`** — countability-free analogue of
-    `Program.wp_le_of_factors_three`. -/
-lemma Program.wp_le_of_factors_three_prob {s α γ₁ γ₂ γ₃ : Type}
-    [DecidableEq γ₁] [DecidableEq γ₂] [DecidableEq γ₃]
-    (L₁ : Lens γ₁ s) (L₂ : Lens γ₂ s) (L₃ : Lens γ₃ s)
-    {prog : Program s α}
-    (h₁ : prog.inProbRange (L₁.probRange)ᶜ)
-    (h₂ : prog.inProbRange (L₂.probRange)ᶜ)
-    (h₃ : prog.inProbRange (L₃.probRange)ᶜ)
-    {P : s → ENNReal}
-    (h_factors : ∀ σ σ' : s,
-        L₁.get σ' = L₁.get σ → L₂.get σ' = L₂.get σ →
-        L₃.get σ' = L₃.get σ → P σ' = P σ)
-    (σ : s) :
-    prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  rw [Program.wp_strengthen_lens_preserved_prob L₃ h₃]
-  rw [Program.wp_strengthen_lens_preserved_prob L₂ h₂]
-  rw [Program.wp_strengthen_lens_preserved_prob L₁ h₁]
   calc prog.wp _ σ
       ≤ prog.wp (fun _ : α × s => P σ) σ := by
         apply Program.wp_le_wp_of_le

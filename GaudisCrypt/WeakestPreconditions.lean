@@ -43,6 +43,20 @@ theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := 
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
   simp [SubProbability.expected, h]
 
+/-- SubProbability expected-bind: integrate `F` against `μ >>= k` by integrating
+    `(k ·).expected F` against `μ`. -/
+lemma SubProbability.expected_bind {α β : Type} (μ : SubProbability α)
+    (k : α → SubProbability β) (F : β → ENNReal) :
+    (μ >>= k).expected F = μ.expected (fun a => (k a).expected F) := by
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  show ∫⁻ x, F x ∂((μ >>= k).1) = ∫⁻ a, (k a).expected F ∂μ.1
+  have heq : ((μ >>= k).1 : MeasureTheory.Measure β)
+      = MeasureTheory.Measure.bind μ.1 (fun a => (k a).1) := rfl
+  rw [heq, MeasureTheory.Measure.lintegral_bind
+        measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
+  rfl
+
 theorem expectation_indicator (mu : SubProbability a) (s : Set a) c :
   mu.expected (s.indicator (fun _ => c)) = c * mu.ofEvent s := by
     letI : MeasurableSpace a := ⊤

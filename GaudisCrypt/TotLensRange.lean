@@ -1,5 +1,13 @@
 import GaudisCrypt.Language.Lens
 
+/-!
+# `TotLensRange` — **LEGACY deterministic range theory (quarantined)**
+
+> **Deprecated / quarantined.** The deterministic (`Function.End`-based) lens-range theory,
+> superseded by `ProbLensRange` (sub-probability kernels — countability-free, self-range holds).
+> Retained only for `CounterExamples` and not-yet-migrated consumers. New code: use `ProbLensRange`.
+-/
+
 open GaudisCrypt.Language.Lens
 
 -- Use  `Function.End m` instead of `m → m` and drop this instance.

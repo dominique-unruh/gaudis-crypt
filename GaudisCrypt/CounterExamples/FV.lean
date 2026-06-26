@@ -1,4 +1,6 @@
--- CHAOS FILE
+-- LEGACY / DEAD: the `fv` (computed-footprint) layer over `TotLensRange`. Unused (nothing imports
+-- it); the syntactic-confinement development now uses the total `fvP_stmt`/`confinedP_of_fv` over
+-- `ProbLensRange` (see `Lib/RO/InstantiateCommon`). Quarantined here; kept for reference only.
 
 import GaudisCrypt.Language.Modules.InductiveFunctions
 import GaudisCrypt.TotLensRange
