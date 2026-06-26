@@ -434,6 +434,17 @@ noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.probRange {a s : Type} (
     ProbLensRange s :=
   ProbLensRange.from (Set.range fun g : Function.End a => diracKer (lens.update g))
 
+/-- **Kernel-shift extraction**: a program in range `R` commutes with a deterministic
+    outside-update `f` (as a Dirac kernel). The `inProbRange` analogue of `Program.inRange_subprob`. -/
+theorem inProbRange_subprob
+    {s a : Type} {p : Program s a} {R : ProbLensRange s}
+    (h : p.inProbRange R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
+    p (f σ) = (p σ) >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
+  have hcs := congrFun ((inProbRange_iff_clean.mp h) (diracKer f) hf) σ
+  rw [show (diracKer f σ : SubProbability s) = pure (f σ) from rfl, SubProbability.pure_bind] at hcs
+  rw [hcs]; congr 1; funext xs
+  rw [show (diracKer f xs.2 : SubProbability s) = pure (f xs.2) from rfl, SubProbability.pure_bind]
+
 /-- `Program.set v x` applied at a state: a deterministic write. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.set_apply {a s : Type}
     (v : Lens a s) (x : a) (st : s) : (Program.set v x) st = pure ((), v.set x st) := by

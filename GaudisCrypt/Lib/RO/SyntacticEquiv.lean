@@ -1534,15 +1534,8 @@ lemmas apply via the elaborator (handling the `state`/`State` defeq), unlike the
 route. `Lens.lift`/`Lens.factor`/`lift_lift_chain` are the (range-independent) constructs from
 `ProgramRange`. -/
 
-/-- Kernel-shift extraction: a program in range `R` commutes with a deterministic outside-update
-    `f` (as a Dirac kernel). The `inProbRange` analogue of `Program.inRange_subprob`. -/
-theorem inProbRange_subprob {s a : Type} {p : Program s a} {R : ProbLensRange s}
-    (h : p.inProbRange R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
-    p (f σ) = (p σ) >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-  have hcs := congrFun ((inProbRange_iff_clean.mp h) (diracKer f) hf) σ
-  rw [show (diracKer f σ : SubProbability s) = pure (f σ) from rfl, SubProbability.pure_bind] at hcs
-  rw [hcs]; congr 1; funext xs
-  rw [show (diracKer f xs.2 : SubProbability s) = pure (f xs.2) from rfl, SubProbability.pure_bind]
+-- `inProbRange_subprob` now lives in `GaudisCrypt.ProbLensRange` (imported), next to the other
+-- `inProbRange` primitives, so the wp-layer (`ProgramRange`) can reuse it.
 
 /-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
     inner program on the `L`-content. The `inProbRange` analogue of `Lens.factor_of_inRange`. -/
