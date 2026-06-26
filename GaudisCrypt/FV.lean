@@ -197,6 +197,46 @@ private lemma from_mono {m} {G G' : Set (m → SubProbability m)} (h : G ⊆ G')
   rw [ProbLensRange.from_le_iff, probLensRange_from_updates]
   exact h.trans Set.subset_centralizer_centralizer
 
+/-- A `diracKer` of a localized deterministic update is the `updateK` of the base `diracKer`
+    (so the `diracKer` generators of `lens.probRange` all sit inside the localized-kernel image). -/
+private lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
+    lens.updateK (diracKer g) = diracKer (lens.update g) := by
+  funext st
+  show (pure (g (lens.get st)) : SubProbability a) >>= (fun a' => pure (lens.set a' st))
+     = pure (lens.set (g (lens.get st)) st)
+  rw [SubProbability.pure_bind]
+
+/-- **The cheap half of the lens-corner double-commutant theorem.** The bicommutant closure of the
+    full set of `lens`-localized kernels is exactly `lens.probRange`: the `diracKer` generators of
+    `lens.probRange` lie inside the localized image (`updateK_diracKer`), and every localized kernel
+    lies in `lens.probRange` (`Mlocalized_in_probRange`), so both sides share a bicommutant closure.
+
+    This is scaffolding toward closing `fvP_reduce_sup` / `fvP_extend_sup`.  The genuinely hard,
+    still-open part is that this image is *already* closed — i.e.
+    `lens.probRange.updates ⊆ lens.updateK '' univ` (every range element is a localized kernel) plus
+    injectivity of `updateK` — which together would give the lens-corner tensor/commutant
+    factorization the two `_sup` reverse directions need. -/
+theorem updateK_image_univ_cc {a s : Type} (lens : Lens a s) :
+    Set.centralizer (Set.centralizer (lens.updateK '' (Set.univ : Set (a → SubProbability a))))
+      = lens.probRange.updates := by
+  have hI : lens.updateK '' (Set.univ : Set (a → SubProbability a)) ⊆ lens.probRange.updates := by
+    rintro _ ⟨ρ, _, rfl⟩
+    exact Mlocalized_in_probRange lens ρ
+  have hD : (Set.range fun g : Function.End a => diracKer (lens.update g))
+      ⊆ lens.updateK '' (Set.univ : Set (a → SubProbability a)) := by
+    rintro _ ⟨g, rfl⟩
+    exact ⟨diracKer g, Set.mem_univ _, updateK_diracKer lens g⟩
+  have hprD : lens.probRange.updates
+      = Set.centralizer (Set.centralizer
+          (Set.range fun g : Function.End a => diracKer (lens.update g))) :=
+    probLensRange_from_updates _
+  apply Set.Subset.antisymm
+  · calc Set.centralizer (Set.centralizer (lens.updateK '' (Set.univ : Set (a → SubProbability a))))
+        ⊆ Set.centralizer (Set.centralizer lens.probRange.updates) := cl_mono hI
+      _ = lens.probRange.updates := probLensRange_updates_cc lens.probRange
+  · rw [hprD]
+    exact cl_mono hD
+
 /-- `fvP_reduce` is monotone in its range argument (double-antitone via the two centralizers). -/
 private lemma fvP_reduce_mono {a b} (lens : Lens a b) {r r' : ProbLensRange b} (h : r ≤ r') :
     fvP_reduce lens r ≤ fvP_reduce lens r' := by

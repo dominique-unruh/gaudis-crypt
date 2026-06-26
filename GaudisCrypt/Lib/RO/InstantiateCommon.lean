@@ -339,49 +339,9 @@ theorem factor_of_inProbRange {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
   rw [SubProbability.pure_bind]
 
 
-/-- **An `M`-localized kernel lies in `M.probRange`.** A kernel that reads only `M.get`, samples a
-    new `M`-value, and writes it back (`ρ (M.get st) >>= fun mc' => pure (M.set mc' st)`) commutes
-    with the commutant `M.probRangeᶜ` — using that any such `f` preserves `M.get` a.s. and commutes
-    with `M.set`, plus the Fubini swap `bind_swap` (countability-free since subtask 4). -/
-theorem Mlocalized_in_probRange {c s : Type} (M : Lens c s) (ρ : c → SubProbability c) :
-    (fun st => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s))
-      ∈ M.probRange.updates := by
-  rw [ProbLensRange.updates_eq_centralizer_compl M.probRange]
-  refine Submonoid.mem_centralizer_iff.mpr ?_
-  intro f hf
-  have hgen : ∀ g : Function.End c, diracKer (M.update g) ∈ M.probRange.updates :=
-    fun g => (ProbLensRange.from_le_iff _ M.probRange).mp le_rfl ⟨g, rfl⟩
-  have hset : ∀ (mc' : c) (st : s),
-      (f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) = f (M.set mc' st) := by
-    intro mc' st
-    have h0 : (f st >>= fun st' => (pure (M.set mc' st') : SubProbability s))
-            = (pure (M.set mc' st) : SubProbability s) >>= f :=
-      congrFun (Submonoid.mem_centralizer_iff.mp hf (diracKer (M.update (Function.const c mc')))
-        (hgen (Function.const c mc'))) st
-    rwa [SubProbability.pure_bind] at h0
-  have hpres : ∀ st, (f st >>= fun st' => (pure (M.set (M.get st) st') : SubProbability s)) = f st := by
-    intro st; rw [hset (M.get st) st, M.get_set]
-  funext st
-  show (ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s)) >>= f
-     = f st >>= fun st' => ρ (M.get st') >>= fun mc' => (pure (M.set mc' st') : SubProbability s)
-  have hL : ((ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s)) >>= f)
-      = f st >>= fun st' => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st') : SubProbability s) := by
-    rw [SubProbability.bind_assoc]
-    rw [show (fun mc' => (pure (M.set mc' st) : SubProbability s) >>= f)
-          = (fun mc' => f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) from by
-        funext mc'; rw [SubProbability.pure_bind, hset mc' st]]
-    exact (bind_swap (f st) (ρ (M.get st))
-      (fun mc' st' => (pure (M.set mc' st') : SubProbability s))).symm
-  have hR : (f st >>= fun st' => ρ (M.get st') >>= fun mc' => (pure (M.set mc' st') : SubProbability s))
-      = f st >>= fun st' => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st') : SubProbability s) := by
-    conv_lhs => rw [← hpres st]
-    rw [SubProbability.bind_assoc]
-    congr 1; funext st''
-    rw [SubProbability.pure_bind, M.set_get]
-    congr 1; funext mc'
-    rw [M.set_set]
-  rw [hL, hR]
-
+-- `Mlocalized_in_probRange` (an `M`-localized kernel lies in `M.probRange`) was a general
+-- `ProbLensRange` fact, not RO-specific; it now lives in `GaudisCrypt.ProbLensRange` and is
+-- reused here (and by the `fvP` footprint layer).
 
 /-- **A lift lives in its lens's probabilistic range** — the `inProbRange` analogue of
     `Lens.lift_inRange_self`. The `y`-generator of `(M.lift Q).probRange` is the `M`-localized
