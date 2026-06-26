@@ -45,7 +45,7 @@ noncomputable instance : DecidableEq output := Classical.decEq output
 `cr_adv` is a *parameter* (via the `variable` declaration below), not an
 axiom. Every `cr_experiment`-, `cr_lazy_bound`-, `cr_transfer`-style
 definition and theorem in this section takes an arbitrary CR adversary
-`cr_adv : Program state Unit` together with `h_cr_adv : cr_adv.inRange ...`.
+`cr_adv : Program state Unit` together with `h_cr_adv : cr_adv.inProbRange ...`.
 
 The adversary may set `oracle_input` (queried each round), may set
 `claim_x` and `claim_x'` (its candidate collision), and may *not* touch
@@ -87,27 +87,27 @@ The output of `cr_experiment` is RO-invariant (it only depends on state
 variables disjoint from `random_oracle_state`), so the dist of the result
 bit agrees under lazy and eager RO. -/
 
-variable (h_cr_adv : cr_adv.inRange random_oracle_state.compl.range)
+variable (h_cr_adv : cr_adv.inProbRange (random_oracle_state.probRange)ᶜ)
 
 /-! ### Building blocks for `cr_transfer` via the `Program.transfer` framework. -/
 
 include h_cr_adv in
 /-- `cr_adv` transfers to itself: it doesn't touch RO. -/
 private lemma transfer_cr_adv : Program.transfer cr_adv cr_adv :=
-  Program.transfer_refl_of_inRange_compl h_cr_adv
+  Program.transfer_refl_of_inProbRange_compl h_cr_adv
 
 include h_cr_adv in
 /-- One iteration of `cr_loop_body` transfers from lazy to eager. -/
 private lemma transfer_cr_loop_body :
     Program.transfer (cr_loop_body cr_adv lazy_query)
                      (cr_loop_body cr_adv random_oracle_query) :=
-  Program.transfer_oracle_step h_cr_adv
+  Program.transfer_oracle_step_prob h_cr_adv
 
 include h_cr_adv in
 /-- `cr_loop q` transfers from lazy to eager. -/
 private lemma transfer_cr_loop (q : ℕ) :
     Program.transfer (cr_loop cr_adv q lazy_query) (cr_loop cr_adv q random_oracle_query) :=
-  Program.transfer_oracle_loop_n h_cr_adv q
+  Program.transfer_oracle_loop_n_prob h_cr_adv q
 
 include h_cr_adv in
 /-- The full `cr_experiment q` transfers from lazy to eager. -/
@@ -582,7 +582,7 @@ include h_cr_adv in
 lemma cr_adv_wp_RO_size (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
     ≤ (RO_size σ : ENNReal) :=
-  Program.wp_le_of_factors (P := fun σ => (RO_size σ : ENNReal))
+  Program.wp_le_of_factors_prob (P := fun σ => (RO_size σ : ENNReal))
     random_oracle_state h_cr_adv
     (fun _ _ h => congrArg _ (RO_size_of_get_eq h)) σ
 
@@ -639,7 +639,7 @@ include h_cr_adv in
 lemma cr_adv_wp_collision (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
     ≤ collision_indicator σ :=
-  Program.wp_le_of_factors (P := collision_indicator)
+  Program.wp_le_of_factors_prob (P := collision_indicator)
     random_oracle_state h_cr_adv
     (fun _ _ h => collision_indicator_of_get_eq h) σ
 
@@ -949,7 +949,7 @@ end CRParam
     giving `(q+2)(q+1)/2N`), this is the clean `q(q−1)/2N` for the bare
     `q`-round loop — the `Pr[bad]` input to the PRP/PRF switching lemma. -/
 lemma loop_n_lazy_query_collision_bound (A : Program state Unit)
-    (hA : A.inRange random_oracle_state.compl.range) (q : ℕ) (σ₀ : state) :
+    (hA : A.inProbRange (random_oracle_state.probRange)ᶜ) (q : ℕ) (σ₀ : state) :
     (lazy_init >>= fun _ => loop_n q (oracle_step A lazy_query)).wp
         (fun yσ : Unit × state => collision_indicator yσ.2) σ₀
     ≤ ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by

@@ -12,6 +12,7 @@ import GaudisCrypt.Language.Lens
 import GaudisCrypt.TotLensRange
 import GaudisCrypt.ProgramRange
 import GaudisCrypt.ProbLensRange
+import GaudisCrypt.ProbProgramRange
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
