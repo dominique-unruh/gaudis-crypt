@@ -1391,14 +1391,14 @@ moving the range theory to sub-probability kernels. -/
     `p.inProbRange p.probRange`.  This is *exactly* the statement that is FALSE for `TotLensRange`
     (witness: `range_get_fst_eq_bot`), whose failure forced `get_confined_of_fv`/`call'` to be
     `sorry`.  Every leaf bridge below is a corollary. -/
-theorem inProbRange_selfRange {a s : Type} [Countable a] (p : Program s a) :
+theorem inProbRange_selfRange {a s : Type} (p : Program s a) :
     p.inProbRange p.probRange :=
   Program.inProbRange_of_probRange_le (le_refl _)
 
 /-- **The `get` bridge over `ProbLensRange` — PROVEN (the litmus).**  The probabilistic counterpart
     of `get_confined_of_fv` (the open `sorry`): where the `TotLensRange` bridge is self-range for a
     read (false), this is the litmus, which holds for any read with countable result. -/
-theorem get_confinedP_of_fv {a l : Type} [Countable a] (c : Getter a (ProcedureState l))
+theorem get_confinedP_of_fv {a l : Type} (c : Getter a (ProcedureState l))
     {R : ProbLensRange (ProcedureState l)} (h : (Program.get c).probRange ≤ R) :
     (Program.get c).inProbRange R :=
   Program.inProbRange_of_probRange_le h
@@ -1604,8 +1604,8 @@ open Classical
 /-- **An `M`-localized kernel lies in `M.probRange`.** A kernel that reads only `M.get`, samples a
     new `M`-value, and writes it back (`ρ (M.get st) >>= fun mc' => pure (M.set mc' st)`) commutes
     with the commutant `M.probRangeᶜ` — using that any such `f` preserves `M.get` a.s. and commutes
-    with `M.set`, plus the one-sided Fubini `bind_swap_countable` (whence `[Countable c]`). -/
-theorem Mlocalized_in_probRange {c s : Type} [Countable c] (M : Lens c s) (ρ : c → SubProbability c) :
+    with `M.set`, plus the Fubini swap `bind_swap` (countability-free since subtask 4). -/
+theorem Mlocalized_in_probRange {c s : Type} (M : Lens c s) (ρ : c → SubProbability c) :
     (fun st => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s))
       ∈ M.probRange.updates := by
   rw [ProbLensRange.updates_eq_centralizer_compl M.probRange]
@@ -1647,7 +1647,7 @@ theorem Mlocalized_in_probRange {c s : Type} [Countable c] (M : Lens c s) (ρ : 
 /-- **A lift lives in its lens's probabilistic range** — the `inProbRange` analogue of
     `Lens.lift_inRange_self`. The `y`-generator of `(M.lift Q).probRange` is the `M`-localized
     kernel for `Q` conditioned on returning `y`, so `Mlocalized_in_probRange` applies. -/
-theorem lift_inProbRange_self {c s a : Type} [Countable a] [Countable c]
+theorem lift_inProbRange_self {c s a : Type}
     (M : Lens c s) (Q : Program c a) : (M.lift Q).inProbRange M.probRange := by
   refine Program.inProbRange_of_probRange_le ?_
   refine (ProbLensRange.from_le_iff _ _).mpr ?_
@@ -1674,7 +1674,7 @@ theorem lift_inProbRange_self {c s a : Type} [Countable a] [Countable c]
 /-- **Lift confines the footprint through the chained lens** — `inProbRange` analogue of
     `Lens.lift_inRange_chain`. Factor `P` as `v.lift (v.factor P)`, fold the double lift into a
     single `(L.chain v)`-lift (`lift_lift_chain`), and confine via `lift_inProbRange_self`. -/
-theorem lift_inProbRange_chain {c s d a : Type} [Nonempty c] [Countable a] [Countable d]
+theorem lift_inProbRange_chain {c s d a : Type} [Nonempty c]
     (L : Lens c s) (v : Lens d c) (P : Program c a) (hP : P.inProbRange v.probRange) :
     (L.lift P).inProbRange (L.chain v).probRange := by
   rw [factor_of_inProbRange v hP, Lens.lift_lift_chain]
@@ -1692,7 +1692,7 @@ theorem convertL_inProbRange {l : Type} :
     `Stable`. The `ProbLensRange` analogue of `stable_of_inRange_compl`; the `ᶜ`-form makes the
     `commute_of_disjoint_prob` disjointness hypothesis `le_refl`, so no `complement_range` analog
     is needed. -/
-theorem stable_of_inProbRange_compl {l α : Type} [Countable α] [Countable l]
+theorem stable_of_inProbRange_compl {l α : Type}
     {p : Program (ProcedureState l) α} (hp : p.inProbRange ((roLift l).probRange)ᶜ) : Stable p := by
   show (p >>= fun a => convertL >>= fun _ => pure a) = (convertL >>= fun _ => p)
   have h_commute : (p >>= fun a => convertL >>= fun b => pure (a, b))
@@ -1720,7 +1720,7 @@ theorem stable_of_inProbRange_compl {l α : Type} [Countable α] [Countable l]
 /-- **`Stable` from confinement to a lens disjoint from the RO** (probabilistic). The
     `ProbLensRange` analogue of `stable_of_confined_lens`. No `complement_range` needed — the
     `ᶜ`-form bound `hdisj` feeds `inProbRange_mono` directly. -/
-theorem stable_of_confinedP_lens {l α advSt : Type} [Countable α] [Countable l]
+theorem stable_of_confinedP_lens {l α advSt : Type}
     (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.probRange ≤ ((roLift l).probRange)ᶜ)
     {p : Program (ProcedureState l) α} (hp : p.inProbRange L_adv.probRange) : Stable p :=
   stable_of_inProbRange_compl (Program.inProbRange_mono hp hdisj)
@@ -1745,7 +1745,7 @@ def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (Procedure
 
 /-- **`ConfinedP` discharges `Loc`** (theorem-1 locality), leaf by leaf — reusing the existing
     `Loc`→theorems chain. The `ProbLensRange` analogue of `confined_loc`. -/
-theorem confinedP_loc {holes : HoleSigs} {l advSt : Type} [Countable l]
+theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
     (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.probRange ≤ ((roLift l).probRange)ᶜ)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
     ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → Loc A
