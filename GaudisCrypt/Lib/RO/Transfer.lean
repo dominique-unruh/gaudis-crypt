@@ -370,37 +370,6 @@ lemma convert_bind_random_oracle_init_bind {α : Type} (rest : Program state α)
 def Program.transfer {α : Type} (p q : Program state α) : Prop :=
   (p >>= fun a => convert >>= fun _ => pure a) = (convert >>= fun _ => q)
 
-/-- Reflexivity on RO-disjoint programs: a program that doesn't modify
-    `random_oracle_state` commutes with `convert`, so transfers to itself. -/
-lemma Program.transfer_refl_of_inRange_compl
-    {α : Type} [Countable α] {p : Program state α}
-    (hp : p.inRange random_oracle_state.compl.range) :
-    Program.transfer p p := by
-  show (p >>= fun a => convert >>= fun _ => pure a) = (convert >>= fun _ => p)
-  have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
-    le_of_eq (TotLensRange.complement_range _)
-  have h_commute : (p >>= fun a => convert >>= fun b => pure (a, b))
-                 = (convert >>= fun b => p >>= fun a => pure (a, b)) :=
-    Program.commute_of_disjoint_lens hp convert_inRange_ro h_disj
-  have hL : (p >>= fun a => convert >>= fun b => pure (a, b)) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : Program state α))
-          = (p >>= fun a => convert >>= fun _ => (Pure.pure a : Program state α)) := by
-    rw [Program.bind_assoc]; congr 1; funext a
-    rw [Program.bind_assoc]; congr 1; funext _
-    rw [Program.pure_bind]
-  have hR : (convert >>= fun b => p >>= fun a => pure (a, b)) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : Program state α))
-          = (convert >>= fun _ => p) := by
-    rw [Program.bind_assoc]
-    congr 1; funext _
-    rw [Program.bind_assoc]
-    rw [show (fun a : α => pure (a, ()) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : Program state α)))
-          = (fun a : α => (Pure.pure a : Program state α)) from by
-        funext a; rw [Program.pure_bind]]
-    exact Program.bind_pure _
-  rw [← hL, h_commute, hR]
-
 /-- **Reflexivity on RO-disjoint programs — countability-free** (subtask 4). The `ProbLensRange`
     analogue of `transfer_refl_of_inRange_compl`: a program whose probabilistic footprint avoids the
     RO table commutes with `convert` (via `commute_of_disjoint_prob`, no `[Countable]`), so transfers

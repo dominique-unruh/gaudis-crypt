@@ -293,27 +293,9 @@ noncomputable def loop_body_eager (adv : Program state Unit) : Program state Uni
   else
     skip
 
-/-- `oracle_step adv` transfers from lazy to eager, provided `adv` is
-    RO-disjoint. -/
-lemma Program.transfer_oracle_step
-    {adv : Program state Unit}
-    (h_adv : adv.inRange random_oracle_state.compl.range) :
-    Program.transfer (oracle_step adv lazy_query)
-                     (oracle_step adv random_oracle_query) := by
-  show Program.transfer
-    (adv >>= fun _ => Program.get oracle_input >>= fun inp =>
-      lazy_query inp >>= fun y => Program.set oracle_output y)
-    (adv >>= fun _ => Program.get oracle_input >>= fun inp =>
-      random_oracle_query inp >>= fun y => Program.set oracle_output y)
-  apply Program.transfer_bind (Program.transfer_refl_of_inRange_compl h_adv)
-  intro _
-  apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro oracle_input)
-  intro inp
-  apply Program.transfer_bind (Program.transfer_lazy_query inp)
-  intro y
-  exact Program.transfer_set_of_disjoint_ro oracle_output y
-
-/-- `inProbRange` (countability-free) analogue of `Program.transfer_oracle_step`. -/
+/-- `oracle_step adv` transfers from lazy to eager, provided `adv` is RO-disjoint.
+    (Countability-free; the inRange original was retired once all consumers moved to
+    `inProbRange`.) -/
 lemma Program.transfer_oracle_step_prob
     {adv : Program state Unit}
     (h_adv : adv.inProbRange (random_oracle_state.probRange)ᶜ) :
@@ -332,23 +314,8 @@ lemma Program.transfer_oracle_step_prob
   intro y
   exact Program.transfer_set_of_disjoint_ro oracle_output y
 
-/-- `oracle_loop_n adv q` transfers from lazy to eager. -/
-lemma Program.transfer_oracle_loop_n
-    {adv : Program state Unit}
-    (h_adv : adv.inRange random_oracle_state.compl.range)
-    (q : ℕ) :
-    Program.transfer (oracle_loop_n adv q lazy_query)
-                     (oracle_loop_n adv q random_oracle_query) := by
-  induction q with
-  | zero => exact Program.transfer_pure ()
-  | succ n ih =>
-    show Program.transfer
-      (oracle_step adv lazy_query >>= fun _ => oracle_loop_n adv n lazy_query)
-      (oracle_step adv random_oracle_query >>=
-        fun _ => oracle_loop_n adv n random_oracle_query)
-    exact Program.transfer_bind (Program.transfer_oracle_step h_adv) (fun _ => ih)
-
-/-- `inProbRange` (countability-free) analogue of `Program.transfer_oracle_loop_n`. -/
+/-- `oracle_loop_n adv q` transfers from lazy to eager. (Countability-free; the inRange
+    original was retired once all consumers moved to `inProbRange`.) -/
 lemma Program.transfer_oracle_loop_n_prob
     {adv : Program state Unit}
     (h_adv : adv.inProbRange (random_oracle_state.probRange)ᶜ)
