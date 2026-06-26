@@ -94,11 +94,11 @@ lemma SubProbability.expected_eq_tsum {T : Type} [Countable T]
 noncomputable def SubProbability.ofWeights {T : Type} [Countable T]
     (w : T → ENNReal) (h : ∑' t, w t ≤ 1) : SubProbability T :=
   letI : MeasurableSpace T := ⊤
-  ⟨MeasureTheory.Measure.sum (fun t => w t • MeasureTheory.Measure.dirac t), by
+  ⟨MeasureTheory.Measure.sum (fun t => w t • MeasureTheory.Measure.dirac t), ⟨by
     rw [Set.top_eq_univ, MeasureTheory.Measure.sum_apply _ MeasurableSet.univ]
     simp only [MeasureTheory.Measure.smul_apply, MeasureTheory.measure_univ,
       smul_eq_mul, mul_one]
-    exact h⟩
+    exact h, discreteMeasure_sum_dirac w⟩⟩
 
 /-- The integral against an atomic measure is the weighted sum. -/
 lemma SubProbability.ofWeights_expected {T : Type} [Countable T]
@@ -158,7 +158,7 @@ lemma SubProbability.tsum_singleton_le_one {T : Type} [Countable T]
   rw [← MeasureTheory.measure_iUnion (fun a b hab => by
         simpa [Set.disjoint_singleton] using hab) (fun _ => MeasurableSet.singleton _)]
   calc ν.1 (⋃ t, {t}) ≤ ν.1 Set.univ := MeasureTheory.measure_mono (Set.subset_univ _)
-    _ ≤ 1 := ν.2
+    _ ≤ 1 := ν.2.1
 
 /-! ### Bind algebra and fixed-point helpers (for `while_loop`) -/
 
@@ -186,8 +186,8 @@ lemma SubProbability.bind_comm {α β γ : Type} [Countable α] [Countable β]
   letI : MeasurableSpace β := ⊤
   haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
   haveI : MeasurableSingletonClass β := ⟨fun _ => trivial⟩
-  haveI : MeasureTheory.IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2 ENNReal.one_lt_top⟩
-  haveI : MeasureTheory.IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2 ENNReal.one_lt_top⟩
+  haveI : MeasureTheory.IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2.1 ENNReal.one_lt_top⟩
+  haveI : MeasureTheory.IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2.1 ENNReal.one_lt_top⟩
   refine SubProbability.ext_of_expected (fun g => ?_)
   simp only [SubProbability.expected_bind]
   show ∫⁻ x, (∫⁻ y, (f x y).expected g ∂ν.1) ∂μ.1
@@ -617,7 +617,7 @@ theorem trans {s₁ s₂ s₃ α β γ : Type}
   have haμ₂_le : ∀ m z, μ₂.1 {(m, z)} ≤ (q σ₂).1 {m} :=
     fun m z => by rw [← hq₂ m]; exact ENNReal.le_tsum z
   have hqm_le : ∀ m, (q σ₂).1 {m} ≤ 1 := fun m =>
-    (MeasureTheory.measure_mono (Set.subset_univ _)).trans (q σ₂).2
+    (MeasureTheory.measure_mono (Set.subset_univ _)).trans (q σ₂).2.1
   -- The cancellation `a / q * q = a` (with `q = 0 → a = 0`).
   have hcancel : ∀ a qv : ENNReal, (qv = 0 → a = 0) → qv ≤ 1 → a / qv * qv = a := by
     intro a qv hz hle
@@ -1193,8 +1193,8 @@ theorem Program.relE.hall_right {s₁ s₂ α β : Type} {c : Program s₁ α} {
     `c · (total mass) ≤ 1`). -/
 noncomputable def SubProbability.scale {X : Type} (c : ENNReal) (ν : SubProbability X)
     (h : c * ν.1 Set.univ ≤ 1) : SubProbability X :=
-  ⟨c • ν.1, by
-    rw [MeasureTheory.Measure.smul_apply, smul_eq_mul]; exact h⟩
+  ⟨c • ν.1, ⟨by
+    rw [MeasureTheory.Measure.smul_apply, smul_eq_mul]; exact h, discreteMeasure_smul c ν.2.2⟩⟩
 
 @[simp] lemma SubProbability.scale_expected {X : Type} (c : ENNReal) (ν : SubProbability X)
     (h : c * ν.1 Set.univ ≤ 1) (g : X → ENNReal) :
@@ -1273,7 +1273,7 @@ theorem SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Count
     exact ⟨⊥, by rw [SubProbability.bot_bind, hp0], by rw [SubProbability.bot_bind, hq0],
       SubProbability.satisfies_bot _⟩
   · -- Positive mass: normalize both sides to probability measures.
-    have hm_le : p.1 Set.univ ≤ 1 := p.2
+    have hm_le : p.1 Set.univ ≤ 1 := p.2.1
     have hm_top : p.1 Set.univ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hm_le
     have hpscale : (p.1 Set.univ)⁻¹ * p.1 Set.univ ≤ 1 :=
       le_of_eq (ENNReal.inv_mul_cancel hm0 hm_top)
@@ -1298,7 +1298,7 @@ theorem SubProbability.exists_coupling_of_hall {X Y : Type} [Countable X] [Count
       (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale)
       (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale) R hp'1 hq'1 hp'hall
     have hνmass : p.1 Set.univ * ν.1 Set.univ ≤ 1 := by
-      calc p.1 Set.univ * ν.1 Set.univ ≤ p.1 Set.univ * 1 := by gcongr; exact ν.2
+      calc p.1 Set.univ * ν.1 Set.univ ≤ p.1 Set.univ * 1 := by gcongr; exact ν.2.1
         _ = p.1 Set.univ := mul_one _
         _ ≤ 1 := hm_le
     refine ⟨SubProbability.scale (p.1 Set.univ) ν hνmass, ?_, ?_, ?_⟩

@@ -47,7 +47,7 @@ theorem expectation_indicator (mu : SubProbability a) (s : Set a) c :
   mu.expected (s.indicator (fun _ => c)) = c * mu.ofEvent s := by
     letI : MeasurableSpace a := ⊤
     have hfin : mu.1 s ≠ (⊤ : ENNReal) :=
-      ((MeasureTheory.measure_mono (Set.subset_univ s)).trans mu.2).trans_lt
+      ((MeasureTheory.measure_mono (Set.subset_univ s)).trans mu.2.1).trans_lt
         ENNReal.one_lt_top |>.ne
     simp only [SubProbability.expected, SubProbability.ofEvent, ENNReal.coe_toNNReal hfin]
     exact MeasureTheory.lintegral_indicator_const (show MeasurableSet s from trivial) c
@@ -227,7 +227,7 @@ theorem Program.wp_const_le {s a : Type} (p : Program s a) (c : ENNReal) (σ : s
   letI : MeasurableSpace (a × s) := ⊤
   show ∫⁻ _, c ∂(p σ).1 ≤ c
   rw [MeasureTheory.lintegral_const]
-  calc c * (p σ).1 Set.univ ≤ c * 1 := by gcongr; exact (p σ).2
+  calc c * (p σ).1 Set.univ ≤ c * 1 := by gcongr; exact (p σ).2.1
     _ = c := mul_one _
 
 /-- Linearity of `wp` in the postcondition. -/

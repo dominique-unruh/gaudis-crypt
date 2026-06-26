@@ -604,8 +604,8 @@ lemma bind_swap_countable {s α γ : Type} [Countable α] (ν : SubProbability s
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace γ := ⊤
   haveI : MeasurableSingletonClass α := ⟨fun _ => trivial⟩
-  haveI : IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2 ENNReal.one_lt_top⟩
-  haveI : IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2 ENNReal.one_lt_top⟩
+  haveI : IsFiniteMeasure ν.1 := ⟨lt_of_le_of_lt ν.2.1 ENNReal.one_lt_top⟩
+  haveI : IsFiniteMeasure μ.1 := ⟨lt_of_le_of_lt μ.2.1 ENNReal.one_lt_top⟩
   apply Measure.ext
   intro C hC
   show Measure.bind ν.1 (fun st' => (μ >>= fun a => k a st').1) C

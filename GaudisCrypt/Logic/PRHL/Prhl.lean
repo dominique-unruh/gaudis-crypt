@@ -135,7 +135,7 @@ lemma SubProbability.satisfies_of_range {γ : Type} (μ : SubProbability γ)
     simp [Set.indicator_of_notMem hyx])
   rw [expectation_indicator, one_mul] at h0
   have hne : μ.1 {x} ≠ ⊤ :=
-    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2).trans_lt
+    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt
       ENNReal.one_lt_top |>.ne
   have : (μ.1 {x}).toNNReal = 0 := by exact_mod_cast h0
   rw [← ENNReal.coe_toNNReal hne, this]

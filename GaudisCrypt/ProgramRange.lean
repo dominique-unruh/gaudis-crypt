@@ -971,9 +971,9 @@ theorem Program.commute_of_disjoint
   -- LHS: ∫⁻ xs, ∫⁻ ys, F((xs.1, ys.1), U xs ys.2) ∂(q σ).1 ∂(p σ).1
   -- → ∫⁻ ys, ∫⁻ xs, F((xs.1, ys.1), U xs ys.2) ∂(p σ).1 ∂(q σ).1
   have hp_fin : MeasureTheory.IsFiniteMeasure (p σ).1 :=
-    ⟨lt_of_le_of_lt (p σ).2 ENNReal.one_lt_top⟩
+    ⟨lt_of_le_of_lt (p σ).2.1 ENNReal.one_lt_top⟩
   have hq_fin : MeasureTheory.IsFiniteMeasure (q σ).1 :=
-    ⟨lt_of_le_of_lt (q σ).2 ENNReal.one_lt_top⟩
+    ⟨lt_of_le_of_lt (q σ).2.1 ENNReal.one_lt_top⟩
   have hp_sfin : MeasureTheory.SFinite (p σ).1 := inferInstance
   have hq_sfin : MeasureTheory.SFinite (q σ).1 := inferInstance
   have fubini :
