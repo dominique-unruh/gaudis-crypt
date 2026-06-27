@@ -282,18 +282,123 @@ theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
     (by sorry)
     (sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right))
 
-/-- The lens-image of a footprint is contained in its `fvP_extend`.
+/-! ### Extraction: `lens.probRange` is exactly the localized kernels.
 
-    NOTE: the deterministic original conjectured *equality*
-    `(fvP_extend lens r).updates = lens.updateK '' r.updates`, but that is **false** in general:
-    `fvP_extend` is the *bicommutant closure* of the image (`from` double-commutant-closes its
-    generators), which is strictly larger than the raw image unless the image is already closed.
-    Only this inclusion holds unconditionally. -/
-theorem fvP_extend_updates {a b} (lens : Lens a b) (range : ProbLensRange a) :
-    lens.updateK '' range.updates ⊆ (fvP_extend lens range).updates := by
-  unfold fvP_extend
-  rw [probLensRange_from_updates]
-  exact Set.subset_centralizer_centralizer
+The bicommutant closure of the lens-image does *not* enlarge it — `fvP_extend_updates` is a genuine
+equality. The two ingredients (per the proof sketch): every kernel in `lens.probRange` is `lens.updateK`
+of some base kernel (`probRange_updateK_image`), and `lens.updateK` is injective (so commutation
+transfers through it). -/
+
+/-- **Read-back**: post-composing a localized kernel with `lens.get` recovers the base kernel
+    (`lens.set_get` collapses the write, `bind_pure` the trivial bind). -/
+private lemma updateK_get_inv {a s : Type} (lens : Lens a s) (κ : a → SubProbability a) (st : s) :
+    (lens.updateK κ st >>= fun st' => pure (lens.get st')) = κ (lens.get st) := by
+  show (κ (lens.get st) >>= fun a' => pure (lens.set a' st)) >>= (fun st' => pure (lens.get st'))
+     = κ (lens.get st)
+  rw [SubProbability.bind_assoc]
+  rw [show (fun a' => (pure (lens.set a' st) : SubProbability s) >>= fun st' => pure (lens.get st'))
+        = (fun a' => (pure a' : SubProbability a)) from by
+      funext a'; rw [SubProbability.pure_bind, lens.set_get]]
+  exact SubProbability.bind_pure _
+
+/-- **`lens.updateK` is injective** when the state is inhabited (every focus value is some
+    `lens.get st`, and read-back recovers the kernel there). -/
+private lemma updateK_injective {a s : Type} [Nonempty s] (lens : Lens a s) :
+    Function.Injective lens.updateK := by
+  intro κ κ' h
+  funext v
+  have hsub := congrArg
+    (fun k : s → SubProbability s => k (lens.set v (Classical.arbitrary s)) >>= fun st' => pure (lens.get st')) h
+  simp only [updateK_get_inv, lens.set_get] at hsub
+  exact hsub
+
+/-- A kernel in `lens.probRange` is **equivariant under complement updates**: it commutes with every
+    Dirac complement-update (`diracKer (lens.compl.update h) ∈ lens.probRangeᶜ`), so it intertwines
+    `lens.compl.update h`. -/
+private lemma probRange_equivariant {a s : Type} (lens : Lens a s)
+    {p : s → SubProbability s} (hp : p ∈ lens.probRange.updates)
+    (h : Function.End (Quotient lens.equal_outside_setoid)) (st : s) :
+    p (lens.compl.update h st) = (p st >>= fun st' => pure (lens.compl.update h st')) := by
+  haveI : disjoint lens.compl lens := ⟨fun st v w => by
+    induction v using Quotient.inductionOn
+    rename_i u
+    show lens.set (lens.get (lens.set w st)) u = lens.set w (lens.set (lens.get st) u)
+    rw [lens.set_get, lens.set_set]⟩
+  have hsub : lens.compl.probRange.updates ⊆ (lens.probRange)ᶜ.updates :=
+    Lens.probRange_le_compl_of_disjoint lens.compl lens
+  have hk : diracKer (lens.compl.update h) ∈ (lens.probRange)ᶜ.updates :=
+    hsub ((ProbLensRange.from_le_iff _ lens.compl.probRange).mp le_rfl ⟨h, rfl⟩)
+  rw [ProbLensRange.updates_eq_centralizer_compl lens.probRange] at hp
+  have hcomm := Submonoid.mem_centralizer_iff.mp hp (diracKer (lens.compl.update h)) hk
+  have hst := congrFun hcomm st
+  simp only [kmul_apply] at hst
+  rw [show (diracKer (lens.compl.update h) st) = pure (lens.compl.update h st) from rfl,
+      SubProbability.pure_bind] at hst
+  exact hst.symm
+
+/-- **Extraction**: every kernel in `lens.probRange` is `lens.updateK` of a base kernel. The witness
+    reads the base at a fixed `st₀`; equivariance + the `Lens.compl.set ⟦st⟧ st' = lens.set (lens.get st') st`
+    identity make `lens.updateK (read-back) = p`. -/
+private lemma probRange_updateK_image {a s : Type} (lens : Lens a s) (st₀ : s)
+    {p : s → SubProbability s} (hp : p ∈ lens.probRange.updates) :
+    lens.updateK (fun v => p (lens.set v st₀) >>= fun st' => pure (lens.get st')) = p := by
+  funext st
+  have hLHS :
+      lens.updateK (fun v => p (lens.set v st₀) >>= fun st' => pure (lens.get st')) st
+      = p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.set (lens.get st') st) := by
+    show ((p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.get st'))
+            >>= fun a' => pure (lens.set a' st))
+       = p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.set (lens.get st') st)
+    rw [SubProbability.bind_assoc]
+    congr 1; funext st'
+    rw [SubProbability.pure_bind]
+  rw [hLHS]
+  have hrecon : lens.compl.update (Function.const _ (lens.compl.get st))
+      (lens.set (lens.get st) st₀) = st := by
+    show lens.set (lens.get (lens.set (lens.get st) st₀)) st = st
+    rw [lens.set_get]; exact lens.get_set st
+  have heq := probRange_equivariant lens hp (Function.const _ (lens.compl.get st))
+    (lens.set (lens.get st) st₀)
+  rw [hrecon] at heq
+  rw [heq]
+  congr 1
+
+/-- **`fvP_extend` is exactly the lens-image of the footprint** (`[Nonempty b]`). The `⊇` half is the
+    generic `X ⊆ CC X`; the `⊆` half is the proof sketch: `fvP_extend` lands in `lens.probRange`, every
+    such element extracts as `lens.updateK q`, and (`updateK` being an injective hom) `q` inherits the
+    commutation defining `range.updates`. Correcting the deterministic original's *false* conjecture —
+    over a lens corner the bicommutant closure does **not** enlarge the image. -/
+theorem fvP_extend_updates {a b} [Nonempty b] (lens : Lens a b) (range : ProbLensRange a) :
+    (fvP_extend lens range).updates = lens.updateK '' range.updates := by
+  apply Set.Subset.antisymm
+  · intro p hp
+    have hp_lens : p ∈ lens.probRange.updates := by
+      have h1 : (fvP_extend lens range).updates ⊆ lens.probRange.updates := by
+        rw [← updateK_image_univ_cc lens]
+        unfold fvP_extend
+        rw [probLensRange_from_updates]
+        exact cl_mono (Set.image_mono (Set.subset_univ _))
+      exact h1 hp
+    have hpC : p ∈ Set.centralizer (Set.centralizer (lens.updateK '' range.updates)) := by
+      have hfe : (fvP_extend lens range).updates
+          = Set.centralizer (Set.centralizer (lens.updateK '' range.updates)) := by
+        unfold fvP_extend; exact probLensRange_from_updates _
+      rwa [hfe] at hp
+    obtain ⟨q, hq⟩ : ∃ q, lens.updateK q = p :=
+      ⟨_, probRange_updateK_image lens (Classical.arbitrary b) hp_lens⟩
+    refine ⟨q, ?_, hq⟩
+    rw [← probLensRange_updates_cc range, Set.mem_centralizer_iff]
+    intro r hr
+    have hur : lens.updateK r ∈ Set.centralizer (lens.updateK '' range.updates) := by
+      rw [Set.mem_centralizer_iff]
+      rintro _ ⟨t, ht, rfl⟩
+      rw [← updateK_mul, ← updateK_mul, (Set.mem_centralizer_iff.mp hr) t ht]
+    have hcomm := (Set.mem_centralizer_iff.mp hpC) (lens.updateK r) hur
+    rw [← hq, ← updateK_mul, ← updateK_mul] at hcomm
+    exact updateK_injective lens hcomm
+  · unfold fvP_extend
+    rw [probLensRange_from_updates]
+    exact Set.subset_centralizer_centralizer
 
 /-- **`fvP_reduce` is a retraction of `fvP_extend`** (`reduce (extend r) ≤ r`): pushing a
     footprint forward along a lens and pulling it back recovers at most it.  Proven in full from
