@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -567,15 +568,38 @@ def run_jekyll_build(site_src: Path, site_dst: Path) -> None:
 
     Uses Bundler if `Gemfile` exists; otherwise tries `jekyll` directly.
     """
-    if (site_src / "Gemfile").exists():
-        # Ensure Gemfile.lock is consistent; keep it local to the repo.
-        run(["bundle", "install"], cwd=site_src)
-        run(
-            ["bundle", "exec", "jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)],
-            cwd=site_src,
+    try:
+        if (site_src / "Gemfile").exists():
+            if shutil.which("bundle") is None:
+                raise SystemExit(
+                    "Missing `bundle` (Ruby Bundler), required because docs/website contains a Gemfile.\n"
+                    "Install Ruby + Bundler, then retry. For example:\n"
+                    "  gem install bundler\n"
+                    "Or via your OS package manager (e.g. `apt install ruby-full` / `brew install ruby`)."
+                )
+
+            # Ensure Gemfile.lock is consistent; keep it local to the repo.
+            run(["bundle", "install"], cwd=site_src)
+            run(
+                ["bundle", "exec", "jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)],
+                cwd=site_src,
+            )
+        else:
+            if shutil.which("jekyll") is None:
+                raise SystemExit(
+                    "Missing `jekyll` (Ruby). Install Ruby + Jekyll, then retry. For example:\n"
+                    "  gem install jekyll\n"
+                    "Or use Bundler by adding a Gemfile under docs/website/."
+                )
+            run(["jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)], cwd=site_src)
+    except subprocess.CalledProcessError as e:
+        # Avoid a Python traceback; surface the failing command and its output.
+        out = getattr(e, "stdout", None) or getattr(e, "output", None) or ""
+        raise SystemExit(
+            "Jekyll build failed. Ensure Ruby dependencies are installed and the site builds locally.\n"
+            f"Command: {' '.join(map(str, e.cmd))}\n\n"
+            f"Output:\n{out}"
         )
-    else:
-        run(["jekyll", "build", "--source", str(site_src), "--destination", str(site_dst)], cwd=site_src)
 
 
 def read_text(path: Path) -> str:
@@ -1123,7 +1147,8 @@ def main() -> int:
 
     # In --no-api mode, we skip doc generation entirely.
     if args.no_api:
-        wt = Path("/tmp/opencode") / f"gaudis-crypt-gh-pages-{os.getpid()}"
+        # Use system temp dir for worktrees; avoid hardcoding shared paths.
+        wt = Path(tempfile.gettempdir()) / f"gaudis-crypt-gh-pages-{os.getpid()}"
         ensure_worktree(root, args.branch, wt)
         try:
             preserve = set()
@@ -1139,7 +1164,7 @@ def main() -> int:
                     "Run the script once without --no-api to publish API docs first."
                 )
 
-            old_lean = Path("/tmp/opencode") / f"gaudis-crypt-gh-pages-lean-{os.getpid()}"
+            old_lean = Path(tempfile.gettempdir()) / f"gaudis-crypt-gh-pages-lean-{os.getpid()}"
             if old_lean.exists():
                 shutil.rmtree(old_lean)
             shutil.copytree(wt / "lean", old_lean)
@@ -1221,8 +1246,8 @@ def main() -> int:
             print(f"doc build failed; wrote log to {full_log_path} and excerpt to {excerpt_path}")
             raise SystemExit("doc build failed; gh-pages not updated")
 
-        # Place worktree in /tmp/opencode (pre-approved external temp dir in this environment).
-        wt = Path("/tmp/opencode") / f"gaudis-crypt-gh-pages-{os.getpid()}"
+        # Use system temp dir for worktrees; avoid hardcoding shared paths.
+        wt = Path(tempfile.gettempdir()) / f"gaudis-crypt-gh-pages-{os.getpid()}"
         ensure_worktree(root, args.branch, wt)
 
         # Prepare gh-pages content.
