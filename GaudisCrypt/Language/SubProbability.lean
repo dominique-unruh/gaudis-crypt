@@ -8,26 +8,194 @@ namespace GaudisCrypt.Language.Semantics
 # Discrete subprobability monad
 -/
 
-def SubProbability (a : Type u) := {mu: @MeasureTheory.Measure a ⊤ // mu ⊤ <= 1}
+/-! ### Discreteness invariant
+
+A measure on the discrete (`⊤`) σ-algebra is *discrete* when it is the sum of its point masses,
+`μ A = ∑_{x ∈ A} μ {x}`.  This is the invariant our semantics always satisfies (every measure is
+built from `pure`/`bind`/`uniform`/`⊥`), and it is exactly what lets the framework reconstruct a
+measure from its singletons and swap integration order **without any countability assumption on the
+type** — replacing the `[Countable a]` side-conditions (the goal of subtask 4). -/
+
+/-- A measure on the discrete σ-algebra is *discrete* (purely atomic) when `μ A = ∑_{x∈A} μ{x}`. -/
+def discreteMeasure {a : Type u} (mu : @MeasureTheory.Measure a ⊤) : Prop :=
+  ∀ A : Set a, mu A = ∑' x : A, mu {(x : a)}
+
+lemma discreteMeasure_zero {a : Type u} : discreteMeasure (0 : @MeasureTheory.Measure a ⊤) := by
+  intro A; simp
+
+lemma discreteMeasure_dirac {a : Type u} (x : a) :
+    discreteMeasure (@MeasureTheory.Measure.dirac a ⊤ x) := by
+  letI : MeasurableSpace a := ⊤
+  intro A
+  by_cases hx : x ∈ A
+  · rw [MeasureTheory.Measure.dirac_apply_of_mem hx]
+    rw [tsum_eq_single ⟨x, hx⟩ (fun z hz => by
+      rw [MeasureTheory.Measure.dirac_apply' x (MeasurableSet.of_discrete),
+        Set.indicator_of_notMem (fun h => hz (Subtype.ext (Set.mem_singleton_iff.mp h)).symm)])]
+    rw [MeasureTheory.Measure.dirac_apply' x (MeasurableSet.of_discrete),
+      Set.indicator_of_mem (Set.mem_singleton_iff.mpr rfl), Pi.one_apply]
+  · rw [MeasureTheory.Measure.dirac_apply' x (MeasurableSet.of_discrete), Set.indicator_of_notMem hx]
+    refine (ENNReal.tsum_eq_zero.mpr (fun z => ?_)).symm
+    rw [MeasureTheory.Measure.dirac_apply' x (MeasurableSet.of_discrete),
+      Set.indicator_of_notMem (fun h => hx (by rw [Set.mem_singleton_iff.mp h]; exact z.2))]
+
+/-- Structural form: a discrete measure is the `Measure.sum` of its weighted point masses. -/
+lemma discreteMeasure.eq_sum {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) :
+    mu = MeasureTheory.Measure.sum (fun x => mu {x} • @MeasureTheory.Measure.dirac a ⊤ x) := by
+  letI : MeasurableSpace a := ⊤
+  apply MeasureTheory.Measure.ext; intro A hA
+  rw [MeasureTheory.Measure.sum_apply _ hA, hmu A, tsum_subtype A (fun z => mu {z})]
+  congr 1; funext x
+  rw [MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.dirac_apply' x hA, smul_eq_mul]
+  by_cases hx : x ∈ A <;> simp [Set.indicator_of_mem, Set.indicator_of_notMem, hx]
+
+/-- **Singleton extensionality**: two discrete measures agreeing on all singletons are equal
+    (countability-free — the replacement for `Measure.ext_of_singleton`, which needs `[Countable]`). -/
+lemma discreteMeasure.ext {a : Type u} {mu nu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) (hnu : discreteMeasure nu) (h : ∀ z, mu {z} = nu {z}) : mu = nu := by
+  letI : MeasurableSpace a := ⊤
+  apply MeasureTheory.Measure.ext; intro A _
+  rw [hmu A, hnu A]; exact tsum_congr (fun z => h ↑z)
+
+/-- Integration against a discrete measure is the weighted sum of point evaluations. -/
+lemma lintegral_eq_tsum_smul {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) (g : a → ENNReal) :
+    ∫⁻ x, g x ∂mu = ∑' x, mu {x} * g x := by
+  letI : MeasurableSpace a := ⊤
+  conv_lhs => rw [hmu.eq_sum]
+  rw [MeasureTheory.lintegral_sum_measure]
+  congr 1; funext x
+  rw [MeasureTheory.lintegral_smul_measure, MeasureTheory.lintegral_dirac' x measurable_from_top,
+    smul_eq_mul]
+
+/-- **Fubini for discrete measures** — integration order swaps with no σ-finiteness/countability
+    side-condition, via `ENNReal.tsum_comm`. -/
+lemma lintegral_lintegral_swap_discrete {α s : Type u} {μ : @MeasureTheory.Measure α ⊤}
+    {ν : @MeasureTheory.Measure s ⊤} (hμ : discreteMeasure μ) (hν : discreteMeasure ν)
+    (g : α → s → ENNReal) :
+    ∫⁻ st', ∫⁻ a, g a st' ∂μ ∂ν = ∫⁻ a, ∫⁻ st', g a st' ∂ν ∂μ := by
+  rw [lintegral_eq_tsum_smul hν,
+    show (∑' st', ν {st'} * ∫⁻ a, g a st' ∂μ) = ∑' st', ∑' a, ν {st'} * (μ {a} * g a st') from
+      tsum_congr (fun st' => by rw [lintegral_eq_tsum_smul hμ, ENNReal.tsum_mul_left]),
+    lintegral_eq_tsum_smul hμ,
+    show (∑' a, μ {a} * ∫⁻ st', g a st' ∂ν) = ∑' a, ∑' st', μ {a} * (ν {st'} * g a st') from
+      tsum_congr (fun a => by rw [lintegral_eq_tsum_smul hν, ENNReal.tsum_mul_left]),
+    ENNReal.tsum_comm]
+  exact tsum_congr (fun st' => tsum_congr (fun a => by ring))
+
+/-- **Bind preserves discreteness** (the keystone — countability-free, via `ENNReal.tsum_comm`). -/
+lemma discreteMeasure_bind {a b : Type u} {mu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) {k : a → @MeasureTheory.Measure b ⊤}
+    (hk : ∀ x, discreteMeasure (k x)) :
+    discreteMeasure (MeasureTheory.Measure.bind mu k) := by
+  letI : MeasurableSpace a := ⊤; letI : MeasurableSpace b := ⊤
+  intro A
+  rw [MeasureTheory.Measure.bind_apply (MeasurableSet.of_discrete) measurable_from_top.aemeasurable,
+    lintegral_eq_tsum_smul hmu (fun x => k x A)]
+  rw [show (∑' x, mu {x} * k x A) = ∑' x, ∑' z : A, mu {x} * k x {(z : b)} from
+    tsum_congr (fun x => by rw [hk x A, ENNReal.tsum_mul_left])]
+  rw [ENNReal.tsum_comm]
+  refine tsum_congr (fun z => ?_)
+  rw [MeasureTheory.Measure.bind_apply (MeasurableSet.of_discrete) measurable_from_top.aemeasurable,
+    lintegral_eq_tsum_smul hmu (fun x => k x {(z : b)})]
+
+lemma discreteMeasure_pmf {a : Type u} (p : PMF a) :
+    discreteMeasure (@PMF.toMeasure a ⊤ p) := by
+  letI : MeasurableSpace a := ⊤
+  intro A
+  rw [PMF.toMeasure_apply p (MeasurableSet.of_discrete : @MeasurableSet a ⊤ A),
+    tsum_subtype A (fun y => (p.toMeasure) {y})]
+  congr 1; funext y
+  by_cases hy : y ∈ A
+  · rw [Set.indicator_of_mem hy, Set.indicator_of_mem hy,
+      PMF.toMeasure_apply_singleton p y (MeasurableSet.of_discrete)]
+  · rw [Set.indicator_of_notMem hy, Set.indicator_of_notMem hy]
+
+/-- A monotone supremum of discrete measures is discrete (for the `ωSup` of the OCPO). -/
+lemma discreteMeasure_iSup {a : Type u} (mu : ℕ → @MeasureTheory.Measure a ⊤)
+    (hmono : Monotone mu) (hd : ∀ n, discreteMeasure (mu n)) :
+    discreteMeasure (⨆ n, mu n) := by
+  letI : MeasurableSpace a := ⊤
+  intro A
+  have hsup : ∀ (B : Set a), (⨆ n, mu n) B = ⨆ n, mu n B := fun B => by
+    have h := @lintegral_iSup_measure_nat a ⊤ mu hmono (Set.indicator B 1)
+    simp only [MeasureTheory.lintegral_indicator_one (MeasurableSet.of_discrete)] at h
+    exact h
+  rw [hsup A, iSup_congr (fun n => hd n A),
+    show (∑' z : A, (⨆ n, mu n) {(z : a)}) = ∑' z : A, ⨆ n, mu n {(z : a)} from
+      tsum_congr (fun z => hsup {(z : a)})]
+  letI : MeasurableSpace A := ⊤
+  simp_rw [← MeasureTheory.lintegral_count]
+  exact (MeasureTheory.lintegral_iSup (μ := (MeasureTheory.Measure.count : @MeasureTheory.Measure A ⊤))
+    (fun n => measurable_from_top) (fun i j hij (x : A) => hmono hij {(x : a)})).symm
+
+/-- Scaling preserves discreteness. -/
+lemma discreteMeasure_smul {a : Type u} (c : ENNReal) {mu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) : discreteMeasure (c • mu) := by
+  letI : MeasurableSpace a := ⊤
+  intro A
+  rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, hmu A, ← ENNReal.tsum_mul_left]
+  exact tsum_congr (fun z => by rw [MeasureTheory.Measure.smul_apply, smul_eq_mul])
+
+/-- A `Measure.sum` of discrete measures is discrete (countability-free, via `ENNReal.tsum_comm`). -/
+lemma discreteMeasure_measureSum {a : Type u} {ι : Type v} (ν : ι → @MeasureTheory.Measure a ⊤)
+    (hν : ∀ i, discreteMeasure (ν i)) : discreteMeasure (MeasureTheory.Measure.sum ν) := by
+  letI : MeasurableSpace a := ⊤
+  intro A
+  rw [MeasureTheory.Measure.sum_apply _ (MeasurableSet.of_discrete),
+    show (∑' i, ν i A) = ∑' i, ∑' z : A, ν i {(z : a)} from tsum_congr (fun i => hν i A),
+    ENNReal.tsum_comm]
+  exact tsum_congr (fun z => (MeasureTheory.Measure.sum_apply _ (MeasurableSet.of_discrete)).symm)
+
+/-- The canonical discrete measure `∑ₜ w t • δₜ` is discrete. -/
+lemma discreteMeasure_sum_dirac {a : Type u} (w : a → ENNReal) :
+    discreteMeasure
+      (MeasureTheory.Measure.sum (fun t => w t • @MeasureTheory.Measure.dirac a ⊤ t)) :=
+  discreteMeasure_measureSum _ (fun t => discreteMeasure_smul (w t) (discreteMeasure_dirac t))
+
+/-- **Countable additivity over an arbitrary disjoint family** for a discrete measure — the
+    countability-free replacement for `measure_iUnion` (the index `ι` may be uncountable; the
+    measure's countable support makes the sum well-defined). Proved by reindexing the
+    singleton-sum across the disjoint union (`ENNReal.tsum_sigma'` + `Set.unionEqSigmaOfDisjoint`). -/
+lemma discreteMeasure_measure_iUnion {a : Type u} {ι : Type v} {mu : @MeasureTheory.Measure a ⊤}
+    (hmu : discreteMeasure mu) (B : ι → Set a)
+    (hd : Pairwise (Function.onFun Disjoint B)) :
+    mu (⋃ i, B i) = ∑' i, mu (B i) := by
+  letI : MeasurableSpace a := ⊤
+  rw [hmu (⋃ i, B i),
+    show (fun i => mu (B i)) = (fun i => ∑' (w : B i), mu {(w : a)}) from
+      funext (fun i => hmu (B i)),
+    ← ENNReal.tsum_sigma' (fun p : Σ i, B i => mu {((p.2 : a))})]
+  refine ((Equiv.tsum_eq (Set.unionEqSigmaOfDisjoint hd).symm (fun x => mu {(x : a)})).symm).trans ?_
+  exact tsum_congr (fun _ => rfl)
+
+/-! ### The sub-probability monad -/
+
+def SubProbability (a : Type u) :=
+  {mu : @MeasureTheory.Measure a ⊤ // mu ⊤ ≤ 1 ∧ discreteMeasure mu}
 
 noncomputable
 instance : Monad SubProbability where
   pure a :=
-    ⟨@MeasureTheory.Measure.dirac _ ⊤ a, by simp⟩
-  bind := fun ⟨mu, h⟩ f =>
-    ⟨MeasureTheory.Measure.bind mu (fun a => (f a).1), by
+    ⟨@MeasureTheory.Measure.dirac _ ⊤ a, ⟨by simp, discreteMeasure_dirac a⟩⟩
+  bind := fun ⟨mu, hmu⟩ f =>
+    ⟨MeasureTheory.Measure.bind mu (fun a => (f a).1),
+      ⟨by
         simp only [Set.top_eq_univ]
         rw [MeasureTheory.Measure.bind_apply MeasurableSet.univ measurable_from_top.aemeasurable]
         calc ∫⁻ a, (f a).1 ⊤ ∂mu
-            ≤ ∫⁻ _, 1 ∂mu := MeasureTheory.lintegral_mono (fun a => (f a).2)
+            ≤ ∫⁻ _, 1 ∂mu := MeasureTheory.lintegral_mono (fun a => (f a).2.1)
           _ = mu ⊤ := MeasureTheory.lintegral_one
-          _ ≤ 1 := h⟩
+          _ ≤ 1 := hmu.1,
+       discreteMeasure_bind hmu.2 (fun a => (f a).2.2)⟩⟩
 
 noncomputable
 def toSubProbability (p : PMF α) : SubProbability α :=
-  ⟨@PMF.toMeasure _ ⊤ p, by
+  ⟨@PMF.toMeasure _ ⊤ p, ⟨by
     haveI := @PMF.toMeasure.isProbabilityMeasure _ ⊤ p
-    exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ⟩
+    exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ,
+   discreteMeasure_pmf p⟩⟩
 
 noncomputable
 def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability α :=
@@ -38,17 +206,15 @@ def SubProbability.ofEvent (μ : SubProbability a) (e : Set a) := (μ.1 e).toNNR
 instance : CoeFun (SubProbability a) (fun _ => a -> NNReal) where
   coe μ x := μ.ofEvent {x}
 
-instance [Countable a] : FunLike (SubProbability a) a NNReal where
+instance : FunLike (SubProbability a) a NNReal where
   coe μ x := μ.ofEvent {x}
   coe_injective' μ ν h := by
     apply Subtype.ext
-    letI : MeasurableSpace a := ⊤
-    apply MeasureTheory.Measure.ext_of_singleton
-    intro x
+    refine discreteMeasure.ext μ.2.2 ν.2.2 (fun x => ?_)
     have hμ : μ.1 {x} ≠ ⊤ :=
-      ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2).trans_lt ENNReal.one_lt_top |>.ne
+      ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt ENNReal.one_lt_top |>.ne
     have hν : ν.1 {x} ≠ ⊤ :=
-      ((MeasureTheory.measure_mono (Set.subset_univ _)).trans ν.2).trans_lt ENNReal.one_lt_top |>.ne
+      ((MeasureTheory.measure_mono (Set.subset_univ _)).trans ν.2.1).trans_lt ENNReal.one_lt_top |>.ne
     have hnn : (μ.1 {x}).toNNReal = (ν.1 {x}).toNNReal := congr_fun h x
     rw [← ENNReal.coe_toNNReal hμ, ← ENNReal.coe_toNNReal hν]
     exact_mod_cast hnn
@@ -62,11 +228,11 @@ instance : PartialOrder (SubProbability a) where
     exact le_antisymm hpq hqp
 
 instance : OrderBot (SubProbability a) where
-  bot := ⟨0, by simp⟩
+  bot := ⟨0, ⟨by simp, discreteMeasure_zero⟩⟩
   bot_le x := MeasureTheory.Measure.zero_le _
 
 noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
-  ωSup c := ⟨⨆ n, (c n).1, by
+  ωSup c := ⟨⨆ n, (c n).1, ⟨by
     have hmono : Monotone fun n => (c n).1 := fun _ _ hmn => c.monotone hmn
     have heq : (⨆ n, (c n).1) Set.univ = ⨆ n, (c n).1 Set.univ := by
       have h := @lintegral_iSup_measure_nat a ⊤
@@ -75,7 +241,9 @@ noncomputable instance : OmegaCompletePartialOrder (SubProbability a) where
       exact h
     change (⨆ n, (c n).1) Set.univ ≤ 1
     rw [heq]
-    exact iSup_le fun n => (c n).2⟩
+    exact iSup_le fun n => (c n).2.1,
+   discreteMeasure_iSup (fun n => (c n).1) (fun _ _ hmn => c.monotone hmn)
+     (fun n => (c n).2.2)⟩⟩
   le_ωSup c n := le_iSup (fun m => (c m).1) n
   ωSup_le c x h := show (⨆ n, (c n).1) ≤ x.1 from iSup_le h
 
@@ -192,6 +360,36 @@ lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbabilit
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace β := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+
+lemma SubProbability.bind_assoc {α β γ : Type}
+    (m : SubProbability α) (f : α → SubProbability β) (g : β → SubProbability γ) :
+    (m >>= f) >>= g = m >>= fun x => f x >>= g := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  letI : MeasurableSpace γ := ⊤
+  exact MeasureTheory.Measure.bind_bind
+    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
+
+lemma SubProbability.bind_pure {α : Type} (m : SubProbability α) :
+    m >>= pure = m := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  change MeasureTheory.Measure.bind m.1 (fun a => @MeasureTheory.Measure.dirac α ⊤ a) = m.1
+  rw [show (fun a : α => @MeasureTheory.Measure.dirac α ⊤ a)
+        = (fun a : α => @MeasureTheory.Measure.dirac α ⊤ (id a)) from rfl]
+  rw [MeasureTheory.Measure.bind_dirac_eq_map m.1 measurable_id]
+  exact MeasureTheory.Measure.map_id
+
+lemma SubProbability.bot_bind {α β : Type} (f : α → SubProbability β) :
+    ((⊥ : SubProbability α) >>= f) = ⊥ := by
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_left _
+
+lemma SubProbability.bind_bot {α β : Type} (m : SubProbability α) :
+    (m >>= fun _ => (⊥ : SubProbability β)) = ⊥ := by
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_right' _
 
 /-- Kleisli composition for `SubProbability`: `f * g` applies `g` first, then `f`
     on the result (so `f * g = f ∘ₖ g`), with `pure` as the identity. This is the

@@ -1,4 +1,5 @@
 import GaudisCrypt.Lib.RO.Basic
+import GaudisCrypt.ProbLensRange
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
@@ -65,6 +66,19 @@ theorem convert_inRange_ro : convert.inRange random_oracle_state.range := by
   · exact Program.inRange_mono Program.inRange_uniform bot_le
   · intro _
     exact Program.inRange_set _ _
+
+/-- `convert`'s **probabilistic** footprint lies in `random_oracle_state.probRange` — the prob analogue
+    of `convert_inRange_ro`, used to drive the countability-free transfer-reflexivity. -/
+theorem convert_inProbRange_ro : convert.inProbRange random_oracle_state.probRange := by
+  show ((Program.get random_oracle_state) >>= fun h =>
+          (Program.uniform : Program state (input → output)) >>= fun y =>
+            Program.set random_oracle_state (fun x => some ((h x).getD (y x)))).inProbRange _
+  refine Program.inProbRange_bind (Program.inProbRange_get _) ?_
+  intro _
+  refine Program.inProbRange_bind ?_ ?_
+  · exact Program.inProbRange_mono Program.inProbRange_uniform bot_le
+  · intro _
+    exact Program.inProbRange_set _ _
 
 /-! ## Convert algebra -/
 
@@ -387,36 +401,68 @@ lemma Program.transfer_refl_of_inRange_compl
     exact Program.bind_pure _
   rw [← hL, h_commute, hR]
 
-/-- Any program in `v.range`, for a `v` disjoint from `random_oracle_state`,
-    transfers to itself. Convenience composition of `transfer_refl_of_inRange_compl`,
-    `inRange_mono`, and `Lens.range_le_compl_of_disjoint`. -/
-lemma Program.transfer_of_inRange_disjoint {α : Type} [Countable α]
+/-- **Reflexivity on RO-disjoint programs — countability-free** (subtask 4). The `ProbLensRange`
+    analogue of `transfer_refl_of_inRange_compl`: a program whose probabilistic footprint avoids the
+    RO table commutes with `convert` (via `commute_of_disjoint_prob`, no `[Countable]`), so transfers
+    to itself.  The `ᶜ`-form makes the disjointness `le_refl`. -/
+lemma Program.transfer_refl_of_inProbRange_compl
+    {α : Type} {p : Program state α}
+    (hp : p.inProbRange (random_oracle_state.probRange)ᶜ) :
+    Program.transfer p p := by
+  show (p >>= fun a => convert >>= fun _ => pure a) = (convert >>= fun _ => p)
+  have h_commute : (p >>= fun a => convert >>= fun b => pure (a, b))
+                 = (convert >>= fun b => p >>= fun a => pure (a, b)) :=
+    Program.commute_of_disjoint_prob hp convert_inProbRange_ro (le_refl _)
+  have hL : (p >>= fun a => convert >>= fun b => pure (a, b)) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program state α))
+          = (p >>= fun a => convert >>= fun _ => (Pure.pure a : Program state α)) := by
+    rw [Program.bind_assoc]; congr 1; funext a
+    rw [Program.bind_assoc]; congr 1; funext _
+    rw [Program.pure_bind]
+  have hR : (convert >>= fun b => p >>= fun a => pure (a, b)) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program state α))
+          = (convert >>= fun _ => p) := by
+    rw [Program.bind_assoc]
+    congr 1; funext _
+    rw [Program.bind_assoc]
+    rw [show (fun a : α => pure (a, ()) >>=
+              (fun ab : α × Unit => (Pure.pure ab.1 : Program state α)))
+          = (fun a : α => (Pure.pure a : Program state α)) from by
+        funext a; rw [Program.pure_bind]]
+    exact Program.bind_pure _
+  rw [← hL, h_commute, hR]
+
+/-- Any program in `v.probRange`, for a `v` disjoint from `random_oracle_state`, transfers to itself
+    — the countability-free `ProbLensRange` analogue of `transfer_of_inRange_disjoint`. -/
+lemma Program.transfer_of_inProbRange_disjoint {α : Type}
     (p : Program state α) {β : Type} (v : Lens β state)
     [disjoint v random_oracle_state]
-    (hp : p.inRange v.range) :
+    (hp : p.inProbRange v.probRange) :
     Program.transfer p p :=
-  Program.transfer_refl_of_inRange_compl
-    (Program.inRange_mono hp
-      (Lens.range_le_compl_of_disjoint v random_oracle_state))
+  Program.transfer_refl_of_inProbRange_compl
+    (Program.inProbRange_mono hp
+      (Lens.probRange_le_compl_of_disjoint v random_oracle_state))
 
 /-- `Program.set v x` transfers to itself when `v` is disjoint from `random_oracle_state`.
-    Common one-liner replacing the `transfer_of_inRange_disjoint _ v (inRange_set _ _)` chain. -/
+    Countability-free (subtask 4): via the `ProbLensRange` transfer-reflexivity. -/
 lemma Program.transfer_set_of_disjoint_ro {α : Type}
     (v : Lens α state) [disjoint v random_oracle_state] (x : α) :
     Program.transfer (Program.set v x) (Program.set v x) :=
-  Program.transfer_of_inRange_disjoint _ v (Program.inRange_set v x)
+  Program.transfer_of_inProbRange_disjoint _ v (Program.inProbRange_set v x)
 
-/-- `Program.get v` transfers to itself when `v` is disjoint from `random_oracle_state`. -/
-lemma Program.transfer_get_of_disjoint_ro {α : Type} [Countable α]
+/-- `Program.get v` transfers to itself when `v` is disjoint from `random_oracle_state`.
+    Countability-free (subtask 4). -/
+lemma Program.transfer_get_of_disjoint_ro {α : Type}
     (v : Lens α state) [disjoint v random_oracle_state] :
     Program.transfer (Program.get v) (Program.get v) :=
-  Program.transfer_of_inRange_disjoint _ v (Program.inRange_get v)
+  Program.transfer_of_inProbRange_disjoint _ v (Program.inProbRange_get v)
 
-/-- `Program.uniform` transfers to itself (it doesn't touch state at all). -/
-lemma Program.transfer_uniform {α : Type} [Countable α] [Fintype α] [Nonempty α] :
+/-- `Program.uniform` transfers to itself (it doesn't touch state at all).
+    Countability-free (subtask 4). -/
+lemma Program.transfer_uniform {α : Type} [Fintype α] [Nonempty α] :
     Program.transfer (Program.uniform : Program state α) Program.uniform :=
-  Program.transfer_refl_of_inRange_compl
-    (Program.inRange_mono Program.inRange_uniform bot_le)
+  Program.transfer_refl_of_inProbRange_compl
+    (Program.inProbRange_mono Program.inProbRange_uniform bot_le)
 
 /-- Bind closure: transfer chains under `>>=`. -/
 lemma Program.transfer_bind {α β : Type}

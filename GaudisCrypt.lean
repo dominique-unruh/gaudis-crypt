@@ -1,7 +1,9 @@
 import GaudisCrypt.Misc
-import GaudisCrypt.FV
+import GaudisCrypt.CounterExamples.FV
 import GaudisCrypt.TotLensRange
 import GaudisCrypt.ProbLensRange
+import GaudisCrypt.ProbProgramRange
+import GaudisCrypt.FV
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Language.Modules.InductiveFunctions

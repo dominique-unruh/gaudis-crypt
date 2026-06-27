@@ -135,29 +135,29 @@ lemma SubProbability.satisfies_of_range {γ : Type} (μ : SubProbability γ)
     simp [Set.indicator_of_notMem hyx])
   rw [expectation_indicator, one_mul] at h0
   have hne : μ.1 {x} ≠ ⊤ :=
-    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2).trans_lt
+    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt
       ENNReal.one_lt_top |>.ne
   have : (μ.1 {x}).toNNReal = 0 := by exact_mod_cast h0
   rw [← ENNReal.coe_toNNReal hne, this]
   rfl
 
-/-- Pointwise form implies range form — **this is where discreteness is
-    used**: the integral is a countable sum of atoms. -/
-lemma SubProbability.range_of_satisfies {γ : Type} [Countable γ]
+/-- Pointwise form implies range form — **this is where discreteness is used**: the integral is the
+    sum of its atoms.  Countability-free (subtask 4): via the discreteness invariant
+    (`lintegral_eq_tsum_smul`) rather than `lintegral_countable'`. -/
+lemma SubProbability.range_of_satisfies {γ : Type}
     (μ : SubProbability γ) (B : γ → Prop) (h : μ.satisfies B) :
     ∀ f : γ → ENNReal, (∀ x, B x → f x = 0) → μ.expected f = 0 := by
   intro f hf
   letI : MeasurableSpace γ := ⊤
-  haveI : MeasurableSingletonClass γ := ⟨fun _ => trivial⟩
   change ∫⁻ x, f x ∂μ.1 = 0
-  rw [MeasureTheory.lintegral_countable']
+  rw [lintegral_eq_tsum_smul μ.2.2]
   refine ENNReal.tsum_eq_zero.mpr fun x => ?_
   by_cases hx : μ.1 {x} = 0
-  · rw [hx, mul_zero]
-  · rw [hf x (h x hx), zero_mul]
+  · rw [hx, zero_mul]
+  · rw [hf x (h x hx), mul_zero]
 
 /-- For discrete state the two `satisfy` formulations coincide. -/
-theorem SubProbability.satisfies_iff_range {γ : Type} [Countable γ]
+theorem SubProbability.satisfies_iff_range {γ : Type}
     (μ : SubProbability γ) (B : γ → Prop) :
     μ.satisfies B
     ↔ ∀ f : γ → ENNReal, (∀ x, B x → f x = 0) → μ.expected f = 0 :=

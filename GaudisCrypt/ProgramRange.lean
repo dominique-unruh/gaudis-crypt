@@ -6,7 +6,14 @@ open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
 
 /-!
-# Program.range and `glob` foundations
+# Program.range and `glob` foundations  — **LEGACY `TotLensRange` theory (quarantined)**
+
+> **Deprecated / quarantined.** This is the deterministic `TotLensRange`/`inRange` program-range
+> theory, superseded by `ProbLensRange` + `ProbProgramRange` (the `inProbRange` analogues — they are
+> countability-free and a read's range does not collapse). Retained only for `CounterExamples` (which
+> need the `TotLensRange` pathology) and not-yet-migrated consumers; new code should use
+> `ProbLensRange`/`inProbRange`. The probabilistic wp-layer (`Program.wp_*_prob`) lives in
+> `ProbProgramRange`.
 
 This file defines
 
@@ -339,20 +346,6 @@ lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : TotLensRange s
        = (pure (x, f s') : SubProbability (a × s))
     rw [SubProbability.pure_bind]
   rw [← hL, h_eq, hR]
-
-/-- SubProbability expected-bind: integrate `F` against `μ >>= k` by integrating
-    `(k ·).expected F` against `μ`. -/
-lemma SubProbability.expected_bind {α β : Type} (μ : SubProbability α)
-    (k : α → SubProbability β) (F : β → ENNReal) :
-    (μ >>= k).expected F = μ.expected (fun a => (k a).expected F) := by
-  letI : MeasurableSpace α := ⊤
-  letI : MeasurableSpace β := ⊤
-  show ∫⁻ x, F x ∂((μ >>= k).1) = ∫⁻ a, (k a).expected F ∂μ.1
-  have heq : ((μ >>= k).1 : MeasureTheory.Measure β)
-      = MeasureTheory.Measure.bind μ.1 (fun a => (k a).1) := rfl
-  rw [heq, MeasureTheory.Measure.lintegral_bind
-        measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
-  rfl
 
 /-- **wp of a value-only post = expected value under the value-marginal**. For
     any `G : α → ENNReal`, `p.wp (fun aσ => G aσ.1) σ` equals the expected
@@ -971,9 +964,9 @@ theorem Program.commute_of_disjoint
   -- LHS: ∫⁻ xs, ∫⁻ ys, F((xs.1, ys.1), U xs ys.2) ∂(q σ).1 ∂(p σ).1
   -- → ∫⁻ ys, ∫⁻ xs, F((xs.1, ys.1), U xs ys.2) ∂(p σ).1 ∂(q σ).1
   have hp_fin : MeasureTheory.IsFiniteMeasure (p σ).1 :=
-    ⟨lt_of_le_of_lt (p σ).2 ENNReal.one_lt_top⟩
+    ⟨lt_of_le_of_lt (p σ).2.1 ENNReal.one_lt_top⟩
   have hq_fin : MeasureTheory.IsFiniteMeasure (q σ).1 :=
-    ⟨lt_of_le_of_lt (q σ).2 ENNReal.one_lt_top⟩
+    ⟨lt_of_le_of_lt (q σ).2.1 ENNReal.one_lt_top⟩
   have hp_sfin : MeasureTheory.SFinite (p σ).1 := inferInstance
   have hq_sfin : MeasureTheory.SFinite (q σ).1 := inferInstance
   have fubini :

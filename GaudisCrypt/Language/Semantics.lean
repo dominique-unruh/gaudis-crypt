@@ -63,7 +63,7 @@ instance : PartialOrder (Program s a) where
     exact Subtype.ext (le_antisymm (hpq s) (hqp s))
 
 instance : OrderBot (Program s a) where
-  bot := fun _ => ⟨0, by simp⟩
+  bot := fun _ => ⟨0, ⟨by simp, discreteMeasure_zero⟩⟩
   bot_le _ _ := MeasureTheory.Measure.zero_le _
 
 
