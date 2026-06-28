@@ -451,12 +451,17 @@ def InductiveFunctionGettersSetters.proc (ind : InductiveFunctionGettersSetters 
 
 
 class ReducibleGettersSetters {T : Type → Type} (ind : InductiveFunctionGettersSetters T) where
-  [preorder : ∀ {t}, PartialOrder (T t)]
+  [preorder : ∀ {t}, Preorder (T t)]
   [comm  : ∀ {t}, Std.Commutative (@ind.join t)]
   [assoc  : ∀ {t}, Std.Associative (@ind.join t)]
-  reduce_join (lens : Lens a b) : ind.reduce lens (ind.join r₁ r₂) = ind.join (ind.reduce lens r₁) (ind.reduce lens r₂)
+  reduce_join (lens : Lens a b) : ind.reduce lens (ind.join r₁ r₂) ≤ ind.join (ind.reduce lens r₁) (ind.reduce lens r₂)
   extend_join (lens : Lens a b) : ind.join (ind.extend lens r₁) (ind.extend lens r₂) ≤ ind.extend lens (ind.join r₁ r₂)
   extend_reduce (lens : Lens a b) (r : T a) : ind.reduce lens (ind.extend lens r) ≤ r
+  /-- Monotonicity of `reduce`. Under only a `Preorder` this is not derivable from `reduce_join`
+      (the old derivation used antisymmetry to turn `r₁ ≤ r₂` into `join r₁ r₂ = r₂`). -/
+  reduce_mono (lens : Lens a b) : r₁ ≤ r₂ → ind.reduce lens r₁ ≤ ind.reduce lens r₂
+  /-- Monotonicity of `extend`; see `reduce_mono`. -/
+  extend_mono (lens : Lens a b) : r₁ ≤ r₂ → ind.extend lens r₁ ≤ ind.extend lens r₂
   join_mono_left : ∀ {a a' b : T t}, a' ≤ a → ind.join a' b ≤ ind.join a b
   le_join_left : ∀ a b : T t, a ≤ ind.join a b
   join_idem : ∀ x : T t, ind.join x x ≤ x
@@ -523,11 +528,14 @@ private theorem join_join_le {t} (x y e : T t) :
 
 end JoinHelpers
 
-/-- Folding `ind.join` with an arbitrary base splits off the base. -/
+/-- The base of a fold can be split off (the direction needed by `proc_instantiate`):
+    `base ⊔ foldr … nothing l ≤ foldr … base l`.  Proven with only a `Preorder`; the old
+    equality version used antisymmetry. -/
 private theorem foldr_sup_base (ind : InductiveFunctionGettersSetters T)
     [red : ReducibleGettersSetters ind] (base : T State) (l : List (Σ sig, Procedure sig)) :
-    List.foldr (fun p acc => ind.join (ind.proc p.2) acc) base l
-      = ind.join base (List.foldr (fun p acc => ind.join (ind.proc p.2) acc) ind.nothing l) := by
+    red.preorder.le
+      (ind.join base (List.foldr (fun p acc => ind.join (ind.proc p.2) acc) ind.nothing l))
+      (List.foldr (fun p acc => ind.join (ind.proc p.2) acc) base l) := by
   letI := @red.preorder
   have a : ∀ {s} (u v w : T s), ind.join (ind.join u v) w = ind.join u (ind.join v w) :=
     fun {s} => (red.assoc (t := s)).assoc
@@ -536,10 +544,11 @@ private theorem foldr_sup_base (ind : InductiveFunctionGettersSetters T)
   induction l with
   | nil =>
       simp only [List.foldr_nil]
-      exact le_antisymm (red.le_join_left _ _) (join_le le_rfl (red.nothing_le _))
+      exact join_le le_rfl (red.nothing_le _)
   | cons p l ih =>
       simp only [List.foldr_cons]
-      rw [ih, ← a, c (ind.proc p.2) base, a]
+      rw [← a, c base (ind.proc p.2), a]
+      exact join_mono_right ih
 
 /-- Every instantiated hole's footprint is bounded by the fold over all of them. -/
 private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] :
@@ -554,30 +563,6 @@ private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : 
       letI := @red.preorder
       simp only [HoleSigs.Instantiation.toList, List.foldr_cons]
       exact le_trans (proc_le_toList ind n' (fun idx => args idx.succ)) (le_join_right _ _)
-
-omit [ProgramSpec] in
-private theorem extend_mono (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind]
-   {a b} (lens : Lens a b) {r₁ r₂ : T a} (h : red.preorder.le r₁ r₂) :
-    letI pre := @red.preorder
-    ind.extend lens r₁ ≤ ind.extend lens r₂ := by
-  letI := @red.preorder
-  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (le_join_right _ _)
-  calc ind.extend lens r₁
-      ≤ ind.join (ind.extend lens r₁) (ind.extend lens r₂) := red.le_join_left _ _
-    _ ≤ ind.extend lens (ind.join r₁ r₂) := red.extend_join lens
-    _ = ind.extend lens r₂ := by rw [hjoin]
-
-omit [ProgramSpec] in
-private theorem reduce_mono (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind]
-   {a b} (lens : Lens a b) {r₁ r₂ : T b} (h : red.preorder.le r₁ r₂) :
-    letI pre := @red.preorder
-    ind.reduce lens r₁ ≤ ind.reduce lens r₂ := by
-  letI := @red.preorder
-  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (le_join_right _ _)
-  calc ind.reduce lens r₁
-      ≤ ind.join (ind.reduce lens r₁) (ind.reduce lens r₂) := red.le_join_left _ _
-    _ = ind.reduce lens (ind.join r₁ r₂) := (red.reduce_join lens).symm
-    _ = ind.reduce lens r₂ := by rw [hjoin]
 
 /-- Instantiating a statement only adds the (transferred) footprints of the procedures
 plugged into its holes. -/
@@ -617,8 +602,8 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
         InductiveFunctionGettersSetters.stmt, InductiveFunctionGettersSetters.transfer]
       refine join_le ?_ (join_le ?_ (join_le ?_ ?_))
       · exact le_join_of_le_left (red.le_join_left _ _)
-      · exact le_join_of_le_right (extend_mono ind _ hb)
-      · exact le_join_of_le_right (extend_mono ind _ hr)
+      · exact le_join_of_le_right (red.extend_mono _ hb)
+      · exact le_join_of_le_right (red.extend_mono _ hr)
       · exact le_join_of_le_left (le_join_right _ _)
   | seq s1 s2 ih1 ih2 =>
       intro args
@@ -648,10 +633,9 @@ private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red 
       ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args))
         ≤ ind.join (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
             (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)) := by
-    refine le_trans (reduce_mono ind _ (stmt_instantiate_le ind proc.body args)) ?_
-    rw [red.reduce_join]
-    exact join_mono_right (red.extend_reduce _ _)
-  rw [foldr_sup_base ind (ind.proc proc) args.toList]
+    refine le_trans (red.reduce_mono _ (stmt_instantiate_le ind proc.body args)) ?_
+    exact le_trans (red.reduce_join _) (join_mono_right (red.extend_reduce _ _))
+  refine le_trans ?_ (foldr_sup_base ind (ind.proc proc) args.toList)
   change ind.join (ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args)))
         (ind.reduce ProcedureState.globalL (ind.getter proc.return_val))
       ≤ ind.join

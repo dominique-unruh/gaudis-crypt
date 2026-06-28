@@ -138,13 +138,23 @@ scoped instance : ReducibleGettersSetters fvInductiveFunctionGS where
   nothing_le := fun _ => bot_le
   reduce_join := by
     intro a b r1 r2 lens
-    apply fv_reduce_sup lens r1 r2
+    exact le_of_eq (fv_reduce_sup lens r1 r2)
   extend_join := by
     intro a b r1 r2 lens
     exact le_of_eq (fv_extend_sup lens r1 r2).symm
   extend_reduce := by
     intro a b lens r
     exact fv_reduce_extend lens r
+  reduce_mono := by
+    intro a b r1 r2 lens h
+    calc fv_reduce lens r1 ≤ fv_reduce lens r1 ⊔ fv_reduce lens r2 := le_sup_left
+      _ = fv_reduce lens (r1 ⊔ r2) := (fv_reduce_sup lens r1 r2).symm
+      _ = fv_reduce lens r2 := by rw [sup_eq_right.mpr h]
+  extend_mono := by
+    intro a b r1 r2 lens h
+    calc fv_extend lens r1 ≤ fv_extend lens r1 ⊔ fv_extend lens r2 := le_sup_left
+      _ = fv_extend lens (r1 ⊔ r2) := (fv_extend_sup lens r1 r2).symm
+      _ = fv_extend lens r2 := by rw [sup_eq_right.mpr h]
 
 
 theorem fvMexpr_upper_bound : fv (m.toModule) ≤ fvMexpr m :=

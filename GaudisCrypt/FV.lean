@@ -14,14 +14,6 @@ machinery (from `Language.Modules.InductiveFunctions`) at `T := ProbLensRange`, 
 syntactic over-approximation `fvP` of the part of the state a `Module`/`Procedure` can
 read or modify, together with the soundness bound `fvP (m.toModule) ≤ fvPMexpr m`.
 
-The four framework obligations `fvP_reduce_sup`, `fvP_extend_sup`, `fvP_extend_updates`
-and `fvP_reduce_extend` were already left as `sorry` in the deterministic original ("stated
-as axioms for review"); they remain `sorry` here. Everything else — the definitions, the
-generic centralizer helpers, and the soundness combinators — is complete.
-
-The genuinely *total* (sorry-free) probabilistic footprint used by the RO-instantiate
-development is the separate, directly-defined `fvP_stmt`/`confinedP_of_fv` in
-`Lib/RO/InstantiateCommon`; this file is the more general `Module`-level computed footprint.
 -/
 
 open GaudisCrypt.Language.Modules
@@ -450,13 +442,15 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   nothing_le := fun _ => bot_le
   reduce_join := by
     intro a b r1 r2 lens
-    apply fvP_reduce_sup lens r1 r2
+    exact le_of_eq (fvP_reduce_sup lens r1 r2)
   extend_join := by
     intro a b r1 r2 lens
     exact sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right)
   extend_reduce := by
     intro a b lens r
     exact fvP_reduce_extend lens r
+  reduce_mono := fun lens h => fvP_reduce_mono lens h
+  extend_mono := fun lens h => fvP_extend_mono lens h
 
 
 theorem fvPMexpr_upper_bound : fvP (m.toModule) ≤ fvPMexpr m :=
