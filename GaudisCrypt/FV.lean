@@ -55,6 +55,267 @@ noncomputable
 def fvP_setter (setter : Setter a s) : ProbLensRange s := Program.probRange' (Program.set setter)
 
 noncomputable
+def fvP_reduce_base {a b} (range : ProbLensRange (a × b)) : ProbLensRange a :=
+  ProbLensRange.from
+  ((fun ((f : a × b → SubProbability (a × b)),
+         (i : Unit -> SubProbability b),
+         (o : b -> SubProbability Unit)) =>
+    fun m => do let m' <- i (); let (m, m') <- f (m, m'); let _ <- o m'; return m)
+   '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
+
+omit [ProgramSpec] in
+/-- `fvP_reduce_base` is monotone: a larger range gives a larger reduced range. -/
+theorem fvP_reduce_base_mono {a b} {r r' : ProbLensRange (a × b)} (h : r ≤ r') :
+    fvP_reduce_base r ≤ fvP_reduce_base r' := by
+  have hsub : r.updates ⊆ r'.updates := h
+  unfold fvP_reduce_base
+  rw [ProbLensRange.from_le_iff]
+  refine Set.Subset.trans ?_ ((ProbLensRange.from_le_iff _ _).mp le_rfl)
+  gcongr
+
+omit [ProgramSpec] in
+theorem fvP_reduce_sup1 {a b} (r₁ r₂ : ProbLensRange (a × b)) :
+    fvP_reduce_base (r₁ ⊔ r₂) ≥ fvP_reduce_base r₁ ⊔ fvP_reduce_base r₂ :=
+  sup_le (fvP_reduce_base_mono le_sup_left) (fvP_reduce_base_mono le_sup_right)
+
+
+/-- The generator transform underlying `fvP_reduce_base`: given a joint kernel `f` on `a × b`,
+an input distribution `i` on `b`, and a weighting `o` on the `b`-output, produce the `a`-kernel
+that feeds `i`, runs `f`, and weights/discards the `b`-component via `o`. Named so the
+`fvP_reduce_sup` reasoning can manipulate the generator set without the inline lambda. -/
+noncomputable def reduceBaseGen {a b : Type}
+    (p : (a × b → SubProbability (a × b)) × (Unit → SubProbability b) × (b → SubProbability Unit)) :
+    a → SubProbability a :=
+  fun m => do let m' ← p.2.1 (); let (m, m') ← p.1 (m, m'); let _ ← p.2.2 m'; pure m
+
+omit [ProgramSpec] in
+/-- `fvP_reduce_base` as `ProbLensRange.from` of the named generator set. -/
+theorem fvP_reduce_base_eq_from {a b : Type} (range : ProbLensRange (a × b)) :
+    fvP_reduce_base range
+      = ProbLensRange.from (reduceBaseGen '' (range.updates ×ˢ Set.univ ×ˢ Set.univ)) := rfl
+
+/-- The `h ⊗ id_b` lift of an `a`-kernel to an `a × b`-kernel: act by `h` on the `a` component,
+leave the `b` component untouched. -/
+noncomputable def liftA {a b : Type} (h : a → SubProbability a) : a × b → SubProbability (a × b) :=
+  fun mb => h mb.1 >>= fun a'' => pure (a'', mb.2)
+
+omit [ProgramSpec] in
+/-- `reduceBaseGen` in clean (bind, projection) form on an explicit triple. -/
+theorem reduceBaseGen_apply {a b : Type}
+    (f : a × b → SubProbability (a × b)) (i : Unit → SubProbability b) (o : b → SubProbability Unit)
+    (m : a) :
+    reduceBaseGen (f, i, o) m
+      = i () >>= fun m' => f (m, m') >>= fun x => o x.2 >>= fun _ => pure x.1 := rfl
+
+omit [ProgramSpec] in
+/-- Kleisli product of `a × b`-kernels in bind form. -/
+theorem kmul_prod_apply {a b : Type} (F G : a × b → SubProbability (a × b)) (x : a × b) :
+    (F * G) x = G x >>= F := rfl
+
+omit [ProgramSpec] in
+/-- `liftA h` post-composed simplifies the write-back away. -/
+theorem liftA_mul_apply {a b : Type} (f : a × b → SubProbability (a × b)) (h : a → SubProbability a)
+    (m : a) (m' : b) :
+    (f * (liftA h : a × b → SubProbability (a × b))) (m, m') = h m >>= fun a'' => f (a'', m') := by
+  simp only [kmul_prod_apply, liftA, SubProbability.bind_assoc, SubProbability.pure_bind]
+
+omit [ProgramSpec] in
+/-- `liftA h` pre-composed pushes `h` through the `a`-output. -/
+theorem mul_liftA_apply {a b : Type} (g : a × b → SubProbability (a × b)) (h : a → SubProbability a)
+    (m : a) (m' : b) :
+    ((liftA h : a × b → SubProbability (a × b)) * g) (m, m')
+      = g (m, m') >>= fun x => h x.1 >>= fun a'' => pure (a'', x.2) := by
+  rw [kmul_prod_apply]; rfl
+
+omit [ProgramSpec] in
+/-- **Right Fubini identity.** Post-composing a reduced generator with `h` equals reducing the
+joint kernel post-composed with the lift `ĥ = liftA h`. Pure Kleisli algebra + one `bind_swap`. -/
+theorem reduceBaseGen_mul_right {a b : Type}
+    (f : a × b → SubProbability (a × b)) (i : Unit → SubProbability b) (o : b → SubProbability Unit)
+    (h : a → SubProbability a) :
+    reduceBaseGen (f, i, o) * h = reduceBaseGen (f * liftA h, i, o) := by
+  funext m
+  have lhs : (reduceBaseGen (f, i, o) * h) m
+      = h m >>= fun a'' => i () >>= fun m' =>
+          f (a'', m') >>= fun x => o x.2 >>= fun _ => pure x.1 := rfl
+  have rhs : reduceBaseGen (f * liftA h, i, o) m
+      = i () >>= fun m' => h m >>= fun a'' =>
+          f (a'', m') >>= fun x => o x.2 >>= fun _ => pure x.1 := by
+    rw [reduceBaseGen_apply]
+    congr 1; funext m'
+    rw [liftA_mul_apply, SubProbability.bind_assoc]
+  rw [lhs, rhs]
+  exact bind_swap (h m) (i ()) (fun m' a'' => f (a'', m') >>= fun x => o x.2 >>= fun _ => pure x.1)
+
+omit [ProgramSpec] in
+/-- **Left Fubini identity.** Pre-composing a reduced generator with `h` equals reducing the joint
+kernel pre-composed with the lift `ĥ = liftA h`. Needs two `bind_swap`s (one to push `h` past the
+input integral, one to commute the `o`-weight past `h`). -/
+theorem reduceBaseGen_mul_left {a b : Type}
+    (f : a × b → SubProbability (a × b)) (i : Unit → SubProbability b) (o : b → SubProbability Unit)
+    (h : a → SubProbability a) :
+    h * reduceBaseGen (f, i, o)
+      = reduceBaseGen ((liftA h : a × b → SubProbability (a × b)) * f, i, o) := by
+  funext m
+  have lhs : (h * reduceBaseGen (f, i, o)) m
+      = i () >>= fun m' => f (m, m') >>= fun x => o x.2 >>= fun _ => h x.1 := by
+    change reduceBaseGen (f, i, o) m >>= h = _
+    rw [reduceBaseGen_apply, SubProbability.bind_assoc]
+    congr 1; funext m'
+    rw [SubProbability.bind_assoc]
+    congr 1; funext x
+    rw [SubProbability.bind_assoc]
+    congr 1; funext _
+    rw [SubProbability.pure_bind]
+  have rhs : reduceBaseGen ((liftA h : a × b → SubProbability (a × b)) * f, i, o) m
+      = i () >>= fun m' => f (m, m') >>= fun x =>
+          h x.1 >>= fun a'' => o x.2 >>= fun _ => pure a'' := by
+    rw [reduceBaseGen_apply]
+    congr 1; funext m'
+    rw [mul_liftA_apply, SubProbability.bind_assoc]
+    congr 1; funext x
+    rw [SubProbability.bind_assoc]
+    congr 1; funext a''
+    rw [SubProbability.pure_bind]
+  have inner : ∀ x : a × b,
+      o x.2 >>= (fun _ => h x.1) = h x.1 >>= fun a'' => o x.2 >>= fun _ => pure a'' := by
+    intro x
+    conv_lhs => rw [← SubProbability.bind_pure (h x.1)]
+    exact bind_swap (o x.2) (h x.1) (fun a'' _ => pure a'')
+  rw [lhs, rhs]
+  congr 1; funext m'
+  congr 1; funext x
+  exact inner x
+
+open Classical MeasureTheory in
+omit [ProgramSpec] in
+/-- **Slice determination.** A joint kernel `K : a × b → SubProbability (a × b)` is determined by
+all its reduced generators: feeding a point input `i = δ_β` and an indicator weight `o = [·=γ]`
+recovers `K(m, β)` restricted to `b`-output `γ`, projected to `a`. Ranging over all `(β, γ)` pins
+down `K` on every input/output point. This is the one genuinely measure-theoretic ingredient
+(`discreteMeasure.ext` on singletons), the second-coordinate analogue of `ProbLensRange`'s
+`ext_of_slices`. -/
+theorem reduceBaseExt {a b : Type} (K L : a × b → SubProbability (a × b))
+    (hKL : ∀ i o, reduceBaseGen (K, i, o) = reduceBaseGen (L, i, o)) : K = L := by
+  -- A point input + indicator weight turns `reduceBaseGen` into a coordinate slice.
+  have reduceEq : ∀ (M : a × b → SubProbability (a × b)) (m : a) (β γ : b),
+      reduceBaseGen (M, (fun _ => pure β), (fun c => if c = γ then pure () else ⊥)) m
+        = M (m, β) >>= fun x => if x.2 = γ then (pure x.1 : SubProbability a) else ⊥ := by
+    intro M m β γ
+    rw [reduceBaseGen_apply, SubProbability.pure_bind]
+    congr 1; funext x
+    by_cases hx : x.2 = γ
+    · rw [if_pos hx, if_pos hx, SubProbability.pure_bind]
+    · rw [if_neg hx, if_neg hx, SubProbability.bot_bind]
+  -- The slice's mass is the joint kernel's mass on the `{γ}`-fibre rectangle.
+  have slice_apply2 : ∀ (μ : SubProbability (a × b)) (γ : b) (B : Set a),
+      (μ >>= fun x => if x.2 = γ then (pure x.1 : SubProbability a) else ⊥).1 B
+        = μ.1 (B ×ˢ {γ}) := by
+    intro μ γ B
+    letI : MeasurableSpace (a × b) := ⊤
+    letI : MeasurableSpace a := ⊤
+    change (Measure.bind μ.1 (fun x => (if x.2 = γ then (pure x.1 : SubProbability a) else ⊥).1)) B
+        = μ.1 (B ×ˢ {γ})
+    rw [Measure.bind_apply (by trivial) (measurable_from_top.aemeasurable)]
+    rw [show (fun x : a × b => (if x.2 = γ then (pure x.1 : SubProbability a) else ⊥).1 B)
+          = Set.indicator (B ×ˢ {γ}) 1 from ?_]
+    · rw [lintegral_indicator_one (by trivial)]
+    · funext x
+      by_cases hx : x.2 = γ
+      · rw [if_pos hx]
+        change (@MeasureTheory.Measure.dirac a ⊤ x.1) B = Set.indicator (B ×ˢ {γ}) 1 x
+        rw [MeasureTheory.Measure.dirac_apply' x.1 (by trivial)]
+        simp only [Set.indicator, Set.mem_prod, Set.mem_singleton_iff, hx, and_true, Pi.one_apply]
+      · rw [if_neg hx]
+        rw [show ((⊥ : SubProbability a).1 : Measure a) = 0 from rfl]
+        simp only [Measure.coe_zero, Pi.zero_apply, Set.indicator, Set.mem_prod,
+          Set.mem_singleton_iff, hx, and_false, if_false]
+  funext mb
+  obtain ⟨m, β⟩ := mb
+  apply Subtype.ext
+  refine discreteMeasure.ext (K (m, β)).2.2 (L (m, β)).2.2 (fun z => ?_)
+  obtain ⟨a', γ⟩ := z
+  have key : ∀ ρ : SubProbability (a × b),
+      ρ.1 {((a', γ) : a × b)}
+        = (ρ >>= fun x => if x.2 = γ then (pure x.1 : SubProbability a) else ⊥).1 {a'} := by
+    intro ρ
+    rw [slice_apply2 ρ γ {a'},
+      show (({a'} : Set a) ×ˢ ({γ} : Set b)) = {((a', γ) : a × b)} from by
+        ext w; simp [Prod.ext_iff]]
+  rw [key (K (m, β)), key (L (m, β))]
+  have hcomm := congrFun (hKL (fun _ => pure β) (fun c => if c = γ then pure () else ⊥)) m
+  rw [reduceEq K m β γ, reduceEq L m β γ] at hcomm
+  rw [hcomm]
+
+omit [ProgramSpec] in
+/-- **The crux of `fvP_reduce_sup2`.** Every generator of the reduced join lies in the bicommutant
+closure of the union of the two reduced generator sets — the double-commutant direction.
+
+The proof needs **no disintegration**: with `ĥ = liftA h` the `h ⊗ id_b` lift, the two Fubini
+identities (`reduceBaseGen_mul_left`/`_right`) turn `h`-commutation of reduced generators into
+`ĥ`-commutation of the joint kernels. Slice determination (`reduceBaseExt`) lifts any
+`h ∈ commutant(gen r₁ ∪ gen r₂)` to `ĥ ∈ commutant(r₁.updates ∪ r₂.updates)`; then `f` in the
+bicommutant commutes with `ĥ`, and the identities push that back down to `h`. -/
+theorem reduceBaseGen_sup_subset {a b : Type} (r₁ r₂ : ProbLensRange (a × b)) :
+    reduceBaseGen '' ((r₁ ⊔ r₂).updates ×ˢ Set.univ ×ˢ Set.univ)
+      ⊆ Set.centralizer (Set.centralizer
+          ((reduceBaseGen '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
+            ∪ (reduceBaseGen '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)))) := by
+  have hcc : ∀ (S : Set (a × b → SubProbability (a × b))),
+      (Submonoid.centralizer S).carrier = Set.centralizer S := fun S => by
+    ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
+  rintro _ ⟨⟨f, i, o⟩, ⟨hf, -, -⟩, rfl⟩
+  rw [Set.mem_centralizer_iff]
+  intro h hh
+  -- The `h ⊗ id_b` lift commutes with `r₁.updates ∪ r₂.updates`.
+  have hĥ : (liftA h : a × b → SubProbability (a × b))
+      ∈ Set.centralizer (r₁.updates ∪ r₂.updates) := by
+    rw [Set.mem_centralizer_iff]
+    intro g hg
+    apply reduceBaseExt
+    intro i' o'
+    rw [← reduceBaseGen_mul_right, ← reduceBaseGen_mul_left]
+    have hmem : reduceBaseGen (g, i', o')
+        ∈ (reduceBaseGen '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
+          ∪ (reduceBaseGen '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)) := by
+      cases hg with
+      | inl hg1 => exact Or.inl ⟨(g, i', o'), ⟨hg1, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
+      | inr hg2 => exact Or.inr ⟨(g, i', o'), ⟨hg2, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
+    exact (Set.mem_centralizer_iff.mp hh) (reduceBaseGen (g, i', o')) hmem
+  -- `f` is in the bicommutant of the union, so it commutes with the lift.
+  have hsup : (r₁ ⊔ r₂).updates = Set.centralizer (Set.centralizer (r₁.updates ∪ r₂.updates)) := by
+    change (Submonoid.centralizer
+      (Submonoid.centralizer (r₁.updates ∪ r₂.updates)).carrier).carrier = _
+    rw [hcc, hcc]
+  have hfĥ : (liftA h : a × b → SubProbability (a × b)) * f = f * liftA h := by
+    rw [hsup] at hf
+    exact (Set.mem_centralizer_iff.mp hf) (liftA h) hĥ
+  rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right, hfĥ]
+
+omit [ProgramSpec] in
+theorem fvP_reduce_sup2 {a b} (r₁ r₂ : ProbLensRange (a × b)) :
+    fvP_reduce_base (r₁ ⊔ r₂) ≤ fvP_reduce_base r₁ ⊔ fvP_reduce_base r₂ := by
+  rw [fvP_reduce_base_eq_from, fvP_reduce_base_eq_from, fvP_reduce_base_eq_from,
+    ProbLensRange.from_le_iff]
+  set Z := ProbLensRange.from (reduceBaseGen '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
+      ⊔ ProbLensRange.from (reduceBaseGen '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)) with hZ
+  have h1 : reduceBaseGen '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ) ⊆ Z.updates :=
+    (ProbLensRange.from_le_iff _ _).mp le_sup_left
+  have h2 : reduceBaseGen '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ) ⊆ Z.updates :=
+    (ProbLensRange.from_le_iff _ _).mp le_sup_right
+  have hcc : ∀ (S : Set (a → SubProbability a)),
+      (Submonoid.centralizer S).carrier = Set.centralizer S := fun S => by
+    ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
+  have hclosed : Set.centralizer (Set.centralizer Z.updates) = Z.updates := by
+    have h := Z.double_commutant
+    rw [hcc, hcc] at h
+    exact h
+  refine (reduceBaseGen_sup_subset r₁ r₂).trans ?_
+  rw [← hclosed]
+  exact Set.centralizer_subset (Set.centralizer_subset (Set.union_subset h1 h2))
+
+
+noncomputable
 def fvP_reduce {a b} (lens : Lens a b) (range : ProbLensRange b) : ProbLensRange a :=
   ProbLensRange.from { f | ∀ g ∈ range.updates, lens.updateK f * g = g * lens.updateK f}.centralizer
 
