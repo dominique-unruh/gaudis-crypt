@@ -79,6 +79,7 @@ theorem fvP_reduce_sup1 {a b} (r₁ r₂ : ProbLensRange (a × b)) :
   sup_le (fvP_reduce_base_mono le_sup_left) (fvP_reduce_base_mono le_sup_right)
 
 
+
 /-- The generator transform underlying `fvP_reduce_base`: given a joint kernel `f` on `a × b`,
 an input distribution `i` on `b`, and a weighting `o` on the `b`-output, produce the `a`-kernel
 that feeds `i`, runs `f`, and weights/discards the `b`-component via `o`. Named so the
@@ -316,6 +317,13 @@ theorem fvP_reduce_sup2 {a b} (r₁ r₂ : ProbLensRange (a × b)) :
 
 
 noncomputable
+def fvP_reduce_base' {a b : Type} (range : ProbLensRange (a × b)) : ProbLensRange a :=
+  ProbLensRange.from
+    { f | ∀ g ∈ range.updates,
+        (liftA f : a × b → SubProbability (a × b)) * g = g * liftA f }.centralizer
+
+
+noncomputable
 def fvP_reduce {a b} (lens : Lens a b) (range : ProbLensRange b) : ProbLensRange a :=
   ProbLensRange.from { f | ∀ g ∈ range.updates, lens.updateK f * g = g * lens.updateK f}.centralizer
 
@@ -523,6 +531,48 @@ theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
   le_antisymm
     (by sorry)
     (sup_le (fvP_reduce_mono lens le_sup_left) (fvP_reduce_mono lens le_sup_right))
+
+/-- **`fvP_reduce_base'` and `fvP_reduce_base` have the same generator centralizer.** The
+centralizer of the reduced-generator image is exactly the lift-commutation constraint defining
+`fvP_reduce_base'`: by the Fubini identities, `h` commutes with every `reduceBaseGen (g, i, o)`
+(over all `i, o`) iff `liftA h` commutes with `g` (the `⟸` direction is immediate; the `⟹` uses
+slice determination `reduceBaseExt`). -/
+theorem centralizer_reduceBaseGen_image {a b : Type} (range : ProbLensRange (a × b)) :
+    Set.centralizer (reduceBaseGen '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
+      = { f | ∀ g ∈ range.updates,
+          (liftA f : a × b → SubProbability (a × b)) * g = g * liftA f } := by
+  ext h
+  simp only [Set.mem_setOf_eq, Set.mem_centralizer_iff]
+  constructor
+  · intro hcomm g hg
+    apply reduceBaseExt
+    intro i o
+    rw [← reduceBaseGen_mul_left, ← reduceBaseGen_mul_right]
+    exact (hcomm (reduceBaseGen (g, i, o))
+      ⟨(g, i, o), ⟨hg, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩).symm
+  · intro hcon k hk
+    obtain ⟨⟨g, i, o⟩, ⟨hg, -, -⟩, rfl⟩ := hk
+    rw [reduceBaseGen_mul_right, reduceBaseGen_mul_left, hcon g hg]
+
+/-- **`fvP_reduce_base'` equals `fvP_reduce_base`.** Both `ProbLensRange`s have `updates` equal to
+the centralizer of the lift-commutation constraint set (`centralizer_reduceBaseGen_image` plus the
+triple-centralizer collapse), so the restated lift-commutation form is literally the same footprint
+as the explicit reduce-transform image. -/
+theorem fvP_reduce_base'_eq {a b : Type} (range : ProbLensRange (a × b)) :
+    fvP_reduce_base' range = fvP_reduce_base range := by
+  apply probLensRange_eq_of_updates
+  rw [fvP_reduce_base_eq_from, probLensRange_from_updates, centralizer_reduceBaseGen_image]
+  unfold fvP_reduce_base'
+  rw [probLensRange_from_updates, Set.centralizer_centralizer_centralizer]
+
+/-- The reverse (`≤`) direction of `fvP_reduce_base'`'s join law — the genuinely hard
+double-commutant direction — reduced to the already-proven `fvP_reduce_sup2` via the identification
+`fvP_reduce_base' = fvP_reduce_base`. -/
+theorem fvP_reduce_base'_sup2 {a b : Type} (r₁ r₂ : ProbLensRange (a × b)) :
+    fvP_reduce_base' (r₁ ⊔ r₂) ≤ fvP_reduce_base' r₁ ⊔ fvP_reduce_base' r₂ := by
+  rw [fvP_reduce_base'_eq, fvP_reduce_base'_eq, fvP_reduce_base'_eq]
+  exact fvP_reduce_sup2 r₁ r₂
+
 
 end FvReduceSup
 
