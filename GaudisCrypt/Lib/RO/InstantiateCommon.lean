@@ -10,7 +10,7 @@ import GaudisCrypt.ProbLensRange
 RO procedure setup (`RO_lazy`/`RO_eager`, denotation bridges), the `zoom`/`transferBy`-agnostic
 monad-morphism lemmas, and the ProbLensRange confinement core (`ConfinedP`, `fvP_stmt`,
 `confinedP_of_fv`, the `Lens.lift` framework, `convertL_inProbRange`). Shared by the transfer
-(`TransferInstantiate`) and relational (`PrhlInstantiate`) developments.
+(`TransferInstantiate`) and relational (`ROCouplingEquiv`) developments.
 -/
 
 namespace GaudisCrypt.Lib.RO.Instantiate
