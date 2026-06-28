@@ -4,8 +4,8 @@ import GaudisCrypt.Lib.RO.InstantiateCommon
 # Transfer instantiate (theorem 1)
 
 Lazy/eager **distribution** equivalence (`Program.transfer`) for a syntactic adversary: the
-`transferBy` calculus, `Stable`/`Loc`, `Program.transfer_instantiate`, and the confinement
-end-points `transfer_instantiate_confinedP` / `transfer_instantiate_of_fvP`.
+`transferBy` calculus, `Stable`/`Loc`, the body/wrapper lemmas, and the single confinement entry
+point `Program.transfer_instantiate_of_fvP`.
 -/
 
 namespace GaudisCrypt.Lib.RO.Instantiate
@@ -444,24 +444,6 @@ theorem transfer_wrapper {sig : ProcedureSignature}
       procWrap_convertL_in]
 
 
-/-- **`Program.transfer_instantiate`** (subtask 3, theorem 1).
-
-If `A` touches the RO table only through the oracle hole (honest locality `Loc`
-on its body; `fv_proc` is unusable while its leaves are `sorry`), then the lazy
-and eager instantiations are related by `Program.transfer` — `convert` slides
-across `A`, turning every lazy query into an eager one.  (Direction `lazy ↦
-eager` matches the definition of `Program.transfer`; CLAUDE.md writes the pair in
-the opposite order.)  Reduces to `transfer_instantiate_body` (proven modulo
-`transferL_while_loop`) via `transfer_wrapper`. -/
-theorem Program.transfer_instantiate {sig : ProcedureSignature}
-    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hloc : Loc A.body) (hret : Stable (Program.get A.return_val)) :
-    Program.transfer
-      (procedureDenotation (A.instantiate RO_lazy) args)
-      (procedureDenotation (A.instantiate RO_eager) args) :=
-  transfer_wrapper A args (transfer_instantiate_body A.body hloc) hret
-
-
 /-- **`Stable` from probabilistic footprint disjointness.** A program confined (in the
     `inProbRange` sense) to the complement of the RO table commutes with `convertL`, i.e. is
     `Stable`. The `ProbLensRange` analogue of `stable_of_inRange_compl`; the `ᶜ`-form makes the
@@ -523,28 +505,11 @@ theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
       ⟨stable_of_confinedP_lens L_adv hdisj h.1, confinedP_loc L_adv hdisj hc t h.2⟩
 
 
-/-- **Theorem 1, probabilistic confinement form.**  An adversary confined (in the `inProbRange`
-    sense) to any lens `L_adv` whose `probRange` is disjoint from the oracle cannot distinguish
-    lazy from eager.  The `ProbLensRange` rendering of `transfer_instantiate_confined`; reuses the
-    existing `Loc`→`Program.transfer_instantiate` chain via `confinedP_loc`. -/
-theorem Program.transfer_instantiate_confinedP {sig : ProcedureSignature} {advSt : Type}
-    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
-    (hdisj : L_adv.probRange ≤ ((roLift (sig.LocalVariableState A.locals)).probRange)ᶜ)
-    (hconf : ConfinedP L_adv A.body)
-    (hret : (Program.get A.return_val).inProbRange L_adv.probRange) :
-    Program.transfer
-      (procedureDenotation (A.instantiate RO_lazy) args)
-      (procedureDenotation (A.instantiate RO_eager) args) :=
-  Program.transfer_instantiate A args
-    (confinedP_loc L_adv hdisj roHole_paramType_countable A.body hconf)
-    (stable_of_confinedP_lens L_adv hdisj hret)
-
-
 /-- **Theorem 1, end-to-end from footprint disjointness.**  Lazy/eager indistinguishability for any
     adversary whose probabilistic footprint (body + return) lies in a region `L_adv` disjoint from
     the RO table — derived entirely from the footprint hypotheses, with no per-leaf confinement to
-    check by hand.  The full `fvP → ConfinedP → Loc → transfer` chain in one step. -/
+    check by hand.  Inlines the whole `fvP → ConfinedP → Loc → transfer` chain — the sole entry
+    point (the intermediate `Loc`/`ConfinedP`-form theorems were collapsed into this one). -/
 theorem Program.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
@@ -554,8 +519,10 @@ theorem Program.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : 
     Program.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=
-  Program.transfer_instantiate_confinedP A args L_adv hdisj
-    (confinedP_of_fv L_adv roHole_paramType_countable A.body hbody)
-    (get_confinedP_of_fv A.return_val hret)
+  transfer_wrapper A args
+    (transfer_instantiate_body A.body
+      (confinedP_loc L_adv hdisj roHole_paramType_countable A.body
+        (confinedP_of_fv L_adv roHole_paramType_countable A.body hbody)))
+    (stable_of_confinedP_lens L_adv hdisj (get_confinedP_of_fv A.return_val hret))
 
 end GaudisCrypt.Lib.RO.Instantiate
