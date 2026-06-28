@@ -75,6 +75,26 @@ def coreCounterexamples : Finset (Finset Ma) :=
 #eval ((univ : Finset Ma).powerset).card  -- 16 : all subsets of Ma
 #eval coreCounterexamples.card     -- 0 : u '' (CC W) = CC (u '' W) holds for EVERY subset W
 
+/-! ### Proof-strategy probe: does `extend` have a right adjoint?
+
+`extend r ≤ R ⟺ r.updates ⊆ u⁻¹'(R.updates)`. So `extend` has a right adjoint (hence preserves
+all joins, giving `extend_sup` *and* `reduce_sup` for free) iff `u⁻¹'(R.updates)` is bicommutant-closed
+for every range `R`. We test that on the corner ranges that actually arise. -/
+
+/-- Preimage of a set of `Mb`-endos under `u`. -/
+def uPre (R : Finset Mb) : Finset Ma := (univ : Finset Ma).filter (fun f => u f ∈ R)
+
+/-- Is `u⁻¹'(R)` bicommutant-closed in `Ma`? -/
+def uPreClosed (R : Finset Mb) : Bool := decide (cc (uPre R) = uPre R)
+
+/-- The corner ranges appearing in `extend_sup`: `extend r` and `extend r₁ ⊔ extend r₂`. -/
+def cornerRanges : Finset (Finset Mb) :=
+  (rangesA.image extendUpd) ∪
+  ((rangesA ×ˢ rangesA).image (fun p => joinB (extendUpd p.1) (extendUpd p.2)))
+
+#eval cornerRanges.card                                        -- how many distinct corner ranges
+#eval (cornerRanges.filter (fun R => ! uPreClosed R)).card     -- 0 ⟺ u⁻¹'(R) closed for all of them
+
 /-
 CONCLUSION (deterministic `Function.End` model, focus = Fin 2, complement = Fin 2):
   `extend_sup` and the underlying corner double-commutant identity hold in ALL cases

@@ -257,11 +257,13 @@ private lemma fvP_extend_mono {a b} (lens : Lens a b) {r r' : ProbLensRange a} (
 
 /-- `fvP_reduce` distributes over joins.
 
-    Only the `≤`-half (`reduce r₁ ⊔ reduce r₂ ≤ reduce (r₁ ⊔ r₂)`, i.e. monotonicity) is
-    proven.  The reverse `reduce (r₁ ⊔ r₂) ≤ reduce r₁ ⊔ reduce r₂` reduces to
-    `CCP ∩ CCQ ⊆ CC (P ∩ Q)` for the preimage sets `P = u⁻¹'(C r₁.updates)`,
-    `Q = u⁻¹'(C r₂.updates)`; that is a kernel-monoid double-commutant fact which does **not**
-    follow from `updateK` being a homomorphism alone, and is left open. -/
+    Status: **true** (computationally verified in the deterministic `Function.End` model — see
+    `CounterExamples/ExtendSupProbe`), but the reverse `≤` is open. Only the `≤`-half
+    (`reduce r₁ ⊔ reduce r₂ ≤ reduce (r₁ ⊔ r₂)`, monotonicity) is proven here. The reverse reduces —
+    like `fvP_extend_sup` and via the same `extend ⊣ pull` adjunction — to the single kernel-monoid
+    double-commutant theorem `u '' (CC W) ⊆ CC (u '' W)`. Its converse `CC (u '' W) ⊆ u '' (CC W)` is
+    proven (`centralizer_preimage_image_subset`/extraction); this direction is the open structure
+    theorem (the probe shows the obstructing "correlating" commutant elements are benign). -/
 theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
     fvP_reduce lens (r₁ ⊔ r₂) = fvP_reduce lens r₁ ⊔ fvP_reduce lens r₂ :=
   le_antisymm
@@ -272,10 +274,13 @@ end FvReduceSup
 
 /-- `fvP_extend` distributes over joins.
 
-    Only the `≤`-half (`extend r₁ ⊔ extend r₂ ≤ extend (r₁ ⊔ r₂)`, i.e. monotonicity) is
-    proven.  The reverse `extend (r₁ ⊔ r₂) ≤ extend r₁ ⊔ extend r₂` reduces to
-    `u '' (CC Y) ⊆ CC (u '' Y)` (image of a bicommutant ⊆ bicommutant of the image), a
-    von-Neumann-style double-commutant theorem for the kernel monoid, and is left open. -/
+    Status: **true** (computationally verified in the deterministic `Function.End` model — see
+    `CounterExamples/ExtendSupProbe`, which also checks `u⁻¹'(R)` is bicommutant-closed, i.e. `extend`
+    has a right adjoint), but the reverse `≤` is open. Only the `≤`-half
+    (`extend r₁ ⊔ extend r₂ ≤ extend (r₁ ⊔ r₂)`, monotonicity) is proven here. The reverse reduces to
+    `u '' (CC Y) ⊆ CC (u '' Y)` (image of a bicommutant ⊆ bicommutant of the image). Its converse is
+    proven via extraction; this direction is the open kernel-monoid double-commutant / tensor-commutant
+    theorem (the probe shows the obstructing "correlating" commutant elements are benign). -/
 theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
     fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ :=
   le_antisymm
