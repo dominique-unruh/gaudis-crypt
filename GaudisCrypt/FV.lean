@@ -273,11 +273,23 @@ theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
 
 end FvReduceSup
 
--- `ReducibleGettersSetters.extend_join` now requires only the `≤`-half
--- (`extend r₁ ⊔ extend r₂ ≤ extend (r₁ ⊔ r₂)`, = monotonicity), which is `fvP_extend_mono` and is
--- supplied directly in the instance below.  Full `extend`-distributivity (the `=`) would reduce to the
--- open kernel-monoid double-commutant theorem `u '' (CC Y) ⊆ CC (u '' Y)` — see
--- `CounterExamples/ExtendSupProbe` — but the framework no longer needs it.
+/-- **`fvP_extend` distributes over joins** (i.e. `extend` is a join-homomorphism).
+
+    Studied here for the framework's own sake, **not** because anything needs it: since the merge,
+    `ReducibleGettersSetters.extend_join` requires only the `≤`-half (`extend r₁ ⊔ extend r₂ ≤
+    extend (r₁ ⊔ r₂)`, = monotonicity, `fvP_extend_mono`), which the instance supplies directly.
+
+    Status of the equality: the `≤`-half is proven; the reverse `extend (r₁ ⊔ r₂) ≤ extend r₁ ⊔ extend r₂`
+    is **open** — it reduces (via `fvP_extend_updates`) to the kernel-monoid double-commutant theorem
+    `u '' (CC Y) = CC (u '' Y)`, whose `CC(u '' Y) ⊆ u '' (CC Y)` half is proven (extraction) and whose
+    `u '' (CC Y) ⊆ CC (u '' Y)` half is the `sorry`.  The equality is *true* in the finite deterministic
+    model (no counterexample, `CounterExamples/ExtendSupProbe`); a general proof needs measure-theoretic
+    disintegration. -/
+theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
+    fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ :=
+  le_antisymm
+    (by sorry)
+    (sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right))
 
 /-! ### Extraction: `lens.probRange` is exactly the localized kernels.
 
