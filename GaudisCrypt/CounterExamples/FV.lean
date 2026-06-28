@@ -134,16 +134,14 @@ scoped instance : ReducibleGettersSetters fvInductiveFunctionGS where
   assoc := ⟨sup_assoc⟩
   join_idem := fun _ => sup_le le_rfl le_rfl
   join_mono_left := fun h => sup_le_sup_right h _
-  join_mono_right := fun h => sup_le_sup_left h _
   le_join_left := fun _ _ => le_sup_left
-  le_join_right := fun _ _ => le_sup_right
   nothing_le := fun _ => bot_le
   reduce_join := by
     intro a b r1 r2 lens
     apply fv_reduce_sup lens r1 r2
   extend_join := by
     intro a b r1 r2 lens
-    apply fv_extend_sup lens r1 r2
+    exact le_of_eq (fv_extend_sup lens r1 r2).symm
   extend_reduce := by
     intro a b lens r
     exact fv_reduce_extend lens r

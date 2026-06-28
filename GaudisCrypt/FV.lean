@@ -259,9 +259,10 @@ private lemma fvP_extend_mono {a b} (lens : Lens a b) {r r' : ProbLensRange a} (
 
     Status: **true** (computationally verified in the deterministic `Function.End` model — see
     `CounterExamples/ExtendSupProbe`), but the reverse `≤` is open. Only the `≤`-half
-    (`reduce r₁ ⊔ reduce r₂ ≤ reduce (r₁ ⊔ r₂)`, monotonicity) is proven here. The reverse reduces —
-    like `fvP_extend_sup` and via the same `extend ⊣ pull` adjunction — to the single kernel-monoid
-    double-commutant theorem `u '' (CC W) ⊆ CC (u '' W)`. Its converse `CC (u '' W) ⊆ u '' (CC W)` is
+    (`reduce r₁ ⊔ reduce r₂ ≤ reduce (r₁ ⊔ r₂)`, monotonicity) is proven here. (Unlike `extend_join`,
+    the framework's `reduce_join` still demands the full `=`.) The reverse reduces — via the
+    `extend ⊣ pull` adjunction — to the single kernel-monoid double-commutant theorem
+    `u '' (CC W) ⊆ CC (u '' W)`. Its converse `CC (u '' W) ⊆ u '' (CC W)` is
     proven (`centralizer_preimage_image_subset`/extraction); this direction is the open structure
     theorem (the probe shows the obstructing "correlating" commutant elements are benign). -/
 theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
@@ -272,20 +273,11 @@ theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
 
 end FvReduceSup
 
-/-- `fvP_extend` distributes over joins.
-
-    Status: **true** (computationally verified in the deterministic `Function.End` model — see
-    `CounterExamples/ExtendSupProbe`, which also checks `u⁻¹'(R)` is bicommutant-closed, i.e. `extend`
-    has a right adjoint), but the reverse `≤` is open. Only the `≤`-half
-    (`extend r₁ ⊔ extend r₂ ≤ extend (r₁ ⊔ r₂)`, monotonicity) is proven here. The reverse reduces to
-    `u '' (CC Y) ⊆ CC (u '' Y)` (image of a bicommutant ⊆ bicommutant of the image). Its converse is
-    proven via extraction; this direction is the open kernel-monoid double-commutant / tensor-commutant
-    theorem (the probe shows the obstructing "correlating" commutant elements are benign). -/
-theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
-    fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ :=
-  le_antisymm
-    (by sorry)
-    (sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right))
+-- `ReducibleGettersSetters.extend_join` now requires only the `≤`-half
+-- (`extend r₁ ⊔ extend r₂ ≤ extend (r₁ ⊔ r₂)`, = monotonicity), which is `fvP_extend_mono` and is
+-- supplied directly in the instance below.  Full `extend`-distributivity (the `=`) would reduce to the
+-- open kernel-monoid double-commutant theorem `u '' (CC Y) ⊆ CC (u '' Y)` — see
+-- `CounterExamples/ExtendSupProbe` — but the framework no longer needs it.
 
 /-! ### Extraction: `lens.probRange` is exactly the localized kernels.
 
@@ -442,16 +434,14 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   assoc := ⟨sup_assoc⟩
   join_idem := fun _ => sup_le le_rfl le_rfl
   join_mono_left := fun h => sup_le_sup_right h _
-  join_mono_right := fun h => sup_le_sup_left h _
   le_join_left := fun _ _ => le_sup_left
-  le_join_right := fun _ _ => le_sup_right
   nothing_le := fun _ => bot_le
   reduce_join := by
     intro a b r1 r2 lens
     apply fvP_reduce_sup lens r1 r2
   extend_join := by
     intro a b r1 r2 lens
-    apply fvP_extend_sup lens r1 r2
+    exact sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right)
   extend_reduce := by
     intro a b lens r
     exact fvP_reduce_extend lens r
