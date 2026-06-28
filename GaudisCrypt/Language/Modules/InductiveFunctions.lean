@@ -455,7 +455,7 @@ class ReducibleGettersSetters {T : Type → Type} (ind : InductiveFunctionGetter
   [comm  : ∀ {t}, Std.Commutative (@ind.join t)]
   [assoc  : ∀ {t}, Std.Associative (@ind.join t)]
   reduce_join (lens : Lens a b) : ind.reduce lens (ind.join r₁ r₂) = ind.join (ind.reduce lens r₁) (ind.reduce lens r₂)
-  extend_join (lens : Lens a b) : ind.extend lens (ind.join r₁ r₂) = ind.join (ind.extend lens r₁) (ind.extend lens r₂)
+  extend_join (lens : Lens a b) : ind.join (ind.extend lens r₁) (ind.extend lens r₂) ≤ ind.extend lens (ind.join r₁ r₂)
   extend_reduce (lens : Lens a b) (r : T a) : ind.reduce lens (ind.extend lens r) ≤ r
   join_mono_left : ∀ {a a' b : T t}, a' ≤ a → ind.join a' b ≤ ind.join a b
   join_mono_right : ∀ {a b b' : T t}, b' ≤ b → ind.join a b' ≤ ind.join a b
@@ -551,7 +551,7 @@ private theorem extend_mono (ind : InductiveFunctionGettersSetters T) [red : Red
   have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (red.le_join_right _ _)
   calc ind.extend lens r₁
       ≤ ind.join (ind.extend lens r₁) (ind.extend lens r₂) := red.le_join_left _ _
-    _ = ind.extend lens (ind.join r₁ r₂) := (red.extend_join lens).symm
+    _ ≤ ind.extend lens (ind.join r₁ r₂) := red.extend_join lens
     _ = ind.extend lens r₂ := by rw [hjoin]
 
 omit [ProgramSpec] in
