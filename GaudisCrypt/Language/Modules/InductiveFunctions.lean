@@ -458,9 +458,7 @@ class ReducibleGettersSetters {T : Type → Type} (ind : InductiveFunctionGetter
   extend_join (lens : Lens a b) : ind.join (ind.extend lens r₁) (ind.extend lens r₂) ≤ ind.extend lens (ind.join r₁ r₂)
   extend_reduce (lens : Lens a b) (r : T a) : ind.reduce lens (ind.extend lens r) ≤ r
   join_mono_left : ∀ {a a' b : T t}, a' ≤ a → ind.join a' b ≤ ind.join a b
-  join_mono_right : ∀ {a b b' : T t}, b' ≤ b → ind.join a b' ≤ ind.join a b
   le_join_left : ∀ a b : T t, a ≤ ind.join a b
-  le_join_right : ∀ a b : T t, b ≤ ind.join a b
   join_idem : ∀ x : T t, ind.join x x ≤ x
   nothing_le : ∀ {t} (x : T t), ind.nothing ≤ x
 
@@ -470,17 +468,32 @@ variable {T : Type → Type} {ind : InductiveFunctionGettersSetters T}
 variable [red : ReducibleGettersSetters ind]
 omit [ProgramSpec]
 
+/-- `le_join_right` is derivable from `le_join_left` and `comm`, so it is not assumed by
+`ReducibleGettersSetters`. -/
+private theorem le_join_right {t} (a b : T t) : red.preorder.le b (ind.join a b) := by
+  letI := @red.preorder
+  rw [(red.comm (t := t)).comm a b]
+  exact red.le_join_left b a
+
+/-- `join_mono_right` is derivable from `join_mono_left` and `comm`, so it is not assumed by
+`ReducibleGettersSetters`. -/
+private theorem join_mono_right {t} {a b b' : T t} (h : red.preorder.le b' b) :
+    red.preorder.le (ind.join a b') (ind.join a b) := by
+  letI := @red.preorder
+  rw [(red.comm (t := t)).comm a b', (red.comm (t := t)).comm a b]
+  exact red.join_mono_left h
+
 private theorem join_le {t} {a b c : T t}
     (ha : red.preorder.le a c) (hb : red.preorder.le b c) :
     red.preorder.le (ind.join a b) c := by
   letI := @red.preorder
-  exact le_trans (le_trans (red.join_mono_left ha) (red.join_mono_right hb)) (red.join_idem c)
+  exact le_trans (le_trans (red.join_mono_left ha) (join_mono_right hb)) (red.join_idem c)
 
 private theorem join_mono {t} {a b c d : T t}
     (h₁ : red.preorder.le a c) (h₂ : red.preorder.le b d) :
     red.preorder.le (ind.join a b) (ind.join c d) := by
   letI := @red.preorder
-  exact le_trans (red.join_mono_left h₁) (red.join_mono_right h₂)
+  exact le_trans (red.join_mono_left h₁) (join_mono_right h₂)
 
 private theorem le_join_of_le_left {t} {a b c : T t}
     (h : red.preorder.le a b) : red.preorder.le a (ind.join b c) := by
@@ -490,7 +503,7 @@ private theorem le_join_of_le_left {t} {a b c : T t}
 private theorem le_join_of_le_right {t} {a b c : T t}
     (h : red.preorder.le a c) : red.preorder.le a (ind.join b c) := by
   letI := @red.preorder
-  exact le_trans h (red.le_join_right b c)
+  exact le_trans h (le_join_right b c)
 
 /-- `(x ⊔ e) ⊔ (y ⊔ e) ≤ (x ⊔ y) ⊔ e`, the join-idempotency rearrangement. -/
 private theorem join_join_le {t} (x y e : T t) :
@@ -505,7 +518,7 @@ private theorem join_join_le {t} (x y e : T t) :
         = ind.join x (ind.join e (ind.join y e)) := by rw [a]
     _ = ind.join x (ind.join (ind.join y e) e) := by rw [c e (ind.join y e)]
     _ = ind.join x (ind.join y (ind.join e e)) := by rw [a y e e]
-    _ ≤ ind.join x (ind.join y e) := red.join_mono_right (red.join_mono_right (red.join_idem e))
+    _ ≤ ind.join x (ind.join y e) := join_mono_right (join_mono_right (red.join_idem e))
     _ = ind.join (ind.join x y) e := by rw [a]
 
 end JoinHelpers
@@ -540,7 +553,7 @@ private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : 
   | _, _, .succ n', args => by
       letI := @red.preorder
       simp only [HoleSigs.Instantiation.toList, List.foldr_cons]
-      exact le_trans (proc_le_toList ind n' (fun idx => args idx.succ)) (red.le_join_right _ _)
+      exact le_trans (proc_le_toList ind n' (fun idx => args idx.succ)) (le_join_right _ _)
 
 omit [ProgramSpec] in
 private theorem extend_mono (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind]
@@ -548,7 +561,7 @@ private theorem extend_mono (ind : InductiveFunctionGettersSetters T) [red : Red
     letI pre := @red.preorder
     ind.extend lens r₁ ≤ ind.extend lens r₂ := by
   letI := @red.preorder
-  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (red.le_join_right _ _)
+  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (le_join_right _ _)
   calc ind.extend lens r₁
       ≤ ind.join (ind.extend lens r₁) (ind.extend lens r₂) := red.le_join_left _ _
     _ ≤ ind.extend lens (ind.join r₁ r₂) := red.extend_join lens
@@ -560,7 +573,7 @@ private theorem reduce_mono (ind : InductiveFunctionGettersSetters T) [red : Red
     letI pre := @red.preorder
     ind.reduce lens r₁ ≤ ind.reduce lens r₂ := by
   letI := @red.preorder
-  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (red.le_join_right _ _)
+  have hjoin : ind.join r₁ r₂ = r₂ := le_antisymm (join_le h le_rfl) (le_join_right _ _)
   calc ind.reduce lens r₁
       ≤ ind.join (ind.reduce lens r₁) (ind.reduce lens r₂) := red.le_join_left _ _
     _ = ind.reduce lens (ind.join r₁ r₂) := (red.reduce_join lens).symm
@@ -599,14 +612,14 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
         le_trans (red.le_join_left _ _) hmem
       have hr : ind.reduce ProcedureState.globalL (ind.getter (args n).return_val)
           ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
-        le_trans (red.le_join_right _ _) hmem
+        le_trans (le_join_right _ _) hmem
       simp only [StmtWithHoles.instantiate, StmtWithHoles.call,
         InductiveFunctionGettersSetters.stmt, InductiveFunctionGettersSetters.transfer]
       refine join_le ?_ (join_le ?_ (join_le ?_ ?_))
       · exact le_join_of_le_left (red.le_join_left _ _)
       · exact le_join_of_le_right (extend_mono ind _ hb)
       · exact le_join_of_le_right (extend_mono ind _ hr)
-      · exact le_join_of_le_left (red.le_join_right _ _)
+      · exact le_join_of_le_left (le_join_right _ _)
   | seq s1 s2 ih1 ih2 =>
       intro args
       simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
@@ -617,13 +630,13 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
       refine join_le ?_ (join_le ?_ ?_)
       · exact le_join_of_le_left (red.le_join_left _ _)
       · exact le_trans (iht args) (join_mono (le_join_of_le_right (red.le_join_left _ _)) le_rfl)
-      · exact le_trans (ihe args) (join_mono (le_join_of_le_right (red.le_join_right _ _)) le_rfl)
+      · exact le_trans (ihe args) (join_mono (le_join_of_le_right (le_join_right _ _)) le_rfl)
   | «while» c t iht =>
       intro args
       simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
       refine join_le ?_ ?_
       · exact le_join_of_le_left (red.le_join_left _ _)
-      · exact le_trans (iht args) (join_mono (red.le_join_right _ _) le_rfl)
+      · exact le_trans (iht args) (join_mono (le_join_right _ _) le_rfl)
 
 private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] {holes sig} (proc : ProcedureWithHoles holes sig) args :
   letI pre := @red.preorder
@@ -637,7 +650,7 @@ private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red 
             (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)) := by
     refine le_trans (reduce_mono ind _ (stmt_instantiate_le ind proc.body args)) ?_
     rw [red.reduce_join]
-    exact red.join_mono_right (red.extend_reduce _ _)
+    exact join_mono_right (red.extend_reduce _ _)
   rw [foldr_sup_base ind (ind.proc proc) args.toList]
   change ind.join (ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args)))
         (ind.reduce ProcedureState.globalL (ind.getter proc.return_val))
@@ -647,7 +660,7 @@ private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red 
           (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))
   refine join_le ?_ ?_
   · exact le_trans key2 (join_mono (red.le_join_left _ _) le_rfl)
-  · exact le_join_of_le_left (red.le_join_right _ _)
+  · exact le_join_of_le_left (le_join_right _ _)
 
 
 def InductiveFunctionGettersSetters.inductiveFunction (ind : InductiveFunctionGettersSetters T) : InductiveFunction (T State) where
@@ -668,9 +681,9 @@ instance {ind : InductiveFunctionGettersSetters T} [red: ReducibleGettersSetters
   comm := red.comm.comm
   assoc := red.assoc.assoc
   join_mono_left := red.join_mono_left
-  join_mono_right := red.join_mono_right
+  join_mono_right := join_mono_right
   le_join_left := red.le_join_left
-  le_join_right := red.le_join_right
+  le_join_right := le_join_right
   join_idem := red.join_idem
   delta_bound := by apply proc_instantiate
 
