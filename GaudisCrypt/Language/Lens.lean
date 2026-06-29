@@ -184,7 +184,8 @@ instance : Preorder (LensIn m) where
 abbrev bit := ZMod 2
 
 
-def Lens.update (lens : Lens a m) (f : Function.End a) : Function.End m := fun x => lens.set (f (lens.get x)) x
+def Lens.liftFunction (lens : Lens a m) (f : Function.End a) : Function.End m :=
+  fun x => lens.set (f (lens.get x)) x
 
 
 /-- `s ~ s'` iff they differ only in the part the lens controls:
@@ -223,6 +224,33 @@ def Lens.compl (lens : Lens a m) : Lens lens.ComplContent m where
     induction a using Quotient.inductionOn
     rename_i v
     simp [lens.set_get]
+
+open Classical in
+noncomputable
+def Lens.splitSpace (lens : Lens a b) : Equiv b (a × lens.ComplContent) where
+  toFun m := (lens.get m, lens.compl.get m)
+  invFun := if ne : Nonempty b
+            then fun (a,b) => lens.set a (lens.compl.set b (choice ne))
+            else fun p => Quotient.out p.2
+  left_inv := by
+    intro m
+    have hb : Nonempty b := ⟨m⟩
+    simp only [dif_pos hb]
+    change lens.set (lens.get m) (lens.set (lens.get (choice hb)) m) = m
+    rw [lens.set_set, lens.get_set]
+  right_inv := by
+    rintro ⟨x, c⟩
+    induction c using Quotient.inductionOn with
+    | _ y =>
+      have hb : Nonempty b := ⟨y⟩
+      simp only [dif_pos hb]
+      change (lens.get (lens.set x (lens.set (lens.get (choice hb)) y)),
+              lens.compl.get (lens.set x (lens.set (lens.get (choice hb)) y))) = (x, ⟦y⟧)
+      rw [lens.set_set]
+      refine Prod.ext ?_ ?_
+      · exact lens.set_get y x
+      · exact Quotient.sound ⟨lens.get y, by rw [lens.set_set, lens.get_set]⟩
+
 
 theorem Lens.empty_eq [IsEmpty m] (lens1 : Lens a m) (lens2 : Lens a m) : lens1 = lens2 := by
   ext x m; exact of_decide_eq_true rfl
