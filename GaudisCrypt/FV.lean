@@ -38,25 +38,29 @@ namespace FVP
 
 variable [ProgramSpec]
 
-/-- The footprint type: a `ProbLensRange` over the full program `State`. -/
-abbrev FVP := ProbLensRange State
+-- /-- The footprint type: a `ProbLensRange` over the full program `State`. -/
+-- abbrev FVP := ProbLensRange State
 
 /-- Family version of `Program.probRange`: the supremum of the per-input ranges. Used to
 give a setter (which is a *family* `a → Program s Unit`, one program per written value) a
 single footprint. -/
+-- TODO: Move
 noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.probRange'
     {s a b : Type} (progs : a → Program s b) : ProbLensRange s :=
   ⨆ x, (progs x).probRange
 
 noncomputable
+-- TODO: Inline
 def fvP_getter (getter : Getter a s) : ProbLensRange s := Program.probRange (Program.get getter)
 
 noncomputable
+-- TODO: Inline
 def fvP_setter (setter : Setter a s) : ProbLensRange s := Program.probRange' (Program.set setter)
 
 open Classical in
 noncomputable
-def Lens.split (lens : Lens a b) : Equiv b (a × lens.ComplContent) where
+-- TODO: Move to Lenses.lean
+def Lens.splitSpace (lens : Lens a b) : Equiv b (a × lens.ComplContent) where
   toFun m := (lens.get m, lens.compl.get m)
   invFun := if ne : Nonempty b
             then fun (a,b) => lens.set a (lens.compl.set b (choice ne))
@@ -96,9 +100,9 @@ def fvP_extend {a b} (lens : Lens a b) (range : ProbLensRange a) : ProbLensRange
 noncomputable
 def fvP_reduce_new {a b : Type} (lens : Lens a b) (range : ProbLensRange b) :
     ProbLensRange a :=
-  -- transport `range` along `lens.split : b ≃ a × lens.ComplContent` (via the bijection lens),
+  -- transport `range` along `lens.splitSpace : b ≃ a × lens.ComplContent` (via the bijection lens),
   -- then reduce away the complement component with `fvP_reduce_base`.
-  fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) range)
+  fvP_reduce_base (fvP_extend (Lens.bijection (Lens.splitSpace lens)) range)
 
 omit [ProgramSpec] in
 /-- `fvP_reduce_base` is monotone: a larger range gives a larger reduced range. -/
@@ -671,23 +675,23 @@ omit [ProgramSpec] in
 bijection `b ≃ a × lens.ComplContent` yields exactly the `a`-component lift `liftA f`. This is what
 makes the centralizer footprint `fvP_reduce` agree with the split-then-reduce construction. -/
 private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → SubProbability a) :
-    (Lens.bijection (Lens.split lens)).updateK (lens.updateK f) = liftA f := by
+    (Lens.bijection (Lens.splitSpace lens)).updateK (lens.updateK f) = liftA f := by
   funext p
-  have hA : lens.get ((Lens.split lens).symm p) = p.1 := by
-    calc lens.get ((Lens.split lens).symm p)
-        = ((Lens.split lens) ((Lens.split lens).symm p)).1 := rfl
-      _ = p.1 := by rw [(Lens.split lens).apply_symm_apply]
-  have hB : ∀ a', (Lens.split lens) (lens.set a' ((Lens.split lens).symm p)) = (a', p.2) := by
+  have hA : lens.get ((Lens.splitSpace lens).symm p) = p.1 := by
+    calc lens.get ((Lens.splitSpace lens).symm p)
+        = ((Lens.splitSpace lens) ((Lens.splitSpace lens).symm p)).1 := rfl
+      _ = p.1 := by rw [(Lens.splitSpace lens).apply_symm_apply]
+  have hB : ∀ a', (Lens.splitSpace lens) (lens.set a' ((Lens.splitSpace lens).symm p)) = (a', p.2) := by
     intro a'
-    have hcompl : lens.compl.get (lens.set a' ((Lens.split lens).symm p))
-        = lens.compl.get ((Lens.split lens).symm p) :=
-      Quotient.sound ⟨lens.get ((Lens.split lens).symm p), by rw [lens.set_set, lens.get_set]⟩
-    have hp2 : lens.compl.get ((Lens.split lens).symm p) = p.2 := by
-      calc lens.compl.get ((Lens.split lens).symm p)
-          = ((Lens.split lens) ((Lens.split lens).symm p)).2 := rfl
-        _ = p.2 := by rw [(Lens.split lens).apply_symm_apply]
-    show (lens.get (lens.set a' ((Lens.split lens).symm p)),
-          lens.compl.get (lens.set a' ((Lens.split lens).symm p))) = (a', p.2)
+    have hcompl : lens.compl.get (lens.set a' ((Lens.splitSpace lens).symm p))
+        = lens.compl.get ((Lens.splitSpace lens).symm p) :=
+      Quotient.sound ⟨lens.get ((Lens.splitSpace lens).symm p), by rw [lens.set_set, lens.get_set]⟩
+    have hp2 : lens.compl.get ((Lens.splitSpace lens).symm p) = p.2 := by
+      calc lens.compl.get ((Lens.splitSpace lens).symm p)
+          = ((Lens.splitSpace lens) ((Lens.splitSpace lens).symm p)).2 := rfl
+        _ = p.2 := by rw [(Lens.splitSpace lens).apply_symm_apply]
+    show (lens.get (lens.set a' ((Lens.splitSpace lens).symm p)),
+          lens.compl.get (lens.set a' ((Lens.splitSpace lens).symm p))) = (a', p.2)
     rw [lens.set_get, hcompl, hp2]
   simp only [updateK_apply, Lens.bijection, SubProbability.bind_assoc, SubProbability.pure_bind]
   rw [hA]
@@ -701,7 +705,7 @@ the abstract `lens.updateK`-commutation definition with the concrete
 homomorphism. -/
 theorem fvP_reduce_via_base' {a b : Type} (lens : Lens a b) (range : ProbLensRange b) :
     fvP_reduce lens range
-      = fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) range) := by
+      = fvP_reduce_base (fvP_extend (Lens.bijection (Lens.splitSpace lens)) range) := by
   rw [← fvP_reduce_base'_eq]
   unfold fvP_reduce fvP_reduce_base'
   congr 1
@@ -711,18 +715,18 @@ theorem fvP_reduce_via_base' {a b : Type} (lens : Lens a b) (range : ProbLensRan
   constructor
   · intro hf g hg
     have hmem : liftA f ∈
-        Set.centralizer ((Lens.bijection (Lens.split lens)).updateK '' range.updates) := by
+        Set.centralizer ((Lens.bijection (Lens.splitSpace lens)).updateK '' range.updates) := by
       rw [Set.mem_centralizer_iff]
       rintro _ ⟨g', hg', rfl⟩
       rw [← bijection_split_updateK, ← updateK_mul, ← updateK_mul, hf g' hg']
-    have hcent : Set.centralizer ((fvP_extend (Lens.bijection (Lens.split lens)) range).updates)
-        = Set.centralizer ((Lens.bijection (Lens.split lens)).updateK '' range.updates) := by
+    have hcent : Set.centralizer ((fvP_extend (Lens.bijection (Lens.splitSpace lens)) range).updates)
+        = Set.centralizer ((Lens.bijection (Lens.splitSpace lens)).updateK '' range.updates) := by
       unfold fvP_extend
       rw [probLensRange_from_updates, Set.centralizer_centralizer_centralizer]
     exact ((Set.mem_centralizer_iff.mp (hcent ▸ hmem)) g hg).symm
   · intro hf g hg
-    have hgmem : (Lens.bijection (Lens.split lens)).updateK g
-        ∈ (fvP_extend (Lens.bijection (Lens.split lens)) range).updates := by
+    have hgmem : (Lens.bijection (Lens.splitSpace lens)).updateK g
+        ∈ (fvP_extend (Lens.bijection (Lens.splitSpace lens)) range).updates := by
       unfold fvP_extend
       rw [probLensRange_from_updates]
       exact Set.subset_centralizer_centralizer ⟨g, hg, rfl⟩
@@ -730,8 +734,8 @@ theorem fvP_reduce_via_base' {a b : Type} (lens : Lens a b) (range : ProbLensRan
     rw [← bijection_split_updateK, ← updateK_mul, ← updateK_mul] at hcomm
     by_cases hne : Nonempty b
     · haveI := hne
-      haveI : Nonempty (a × lens.ComplContent) := ⟨Lens.split lens (Classical.arbitrary b)⟩
-      exact updateK_injective (Lens.bijection (Lens.split lens)) hcomm
+      haveI : Nonempty (a × lens.ComplContent) := ⟨Lens.splitSpace lens (Classical.arbitrary b)⟩
+      exact updateK_injective (Lens.bijection (Lens.splitSpace lens)) hcomm
     · funext st
       exact (hne ⟨st⟩).elim
 
@@ -803,7 +807,7 @@ omit [ProgramSpec] in
 `liftA_image_cc_subset` from `Lens.fst` to any `lens`. It is what powers the hard `≤` direction of
 `fvP_extend_sup`, exactly as `liftA_image_cc_subset` powers `fvP_extend_sup_simpler`. Proof: factor
 `lens.updateK` through the split bijection `b ≃ a × lens.ComplContent`. The pushforward
-`B := (Lens.bijection (Lens.split lens)).updateK` is an injective monoid hom and
+`B := (Lens.bijection (Lens.splitSpace lens)).updateK` is an injective monoid hom and
 `bijection_split_updateK` identifies `B (lens.updateK f) = liftA f`, so conjugating by `B` turns the
 general statement into the `liftA` one already handled by `liftA_image_cc_subset`. -/
 private lemma updateK_image_cc_subset {a b : Type} (lens : Lens a b)
@@ -814,10 +818,10 @@ private lemma updateK_image_cc_subset {a b : Type} (lens : Lens a b)
   rw [Set.mem_centralizer_iff]
   intro q hq
   -- Push commutation through the injective pushforward `B := (Lens.bijection (split lens)).updateK`
-  apply bijection_updateK_injective (Lens.split lens)
+  apply bijection_updateK_injective (Lens.splitSpace lens)
   rw [updateK_mul, updateK_mul, bijection_split_updateK]
   -- Goal: `B q * liftA f = liftA f * B q`. First, `B q` centralizes `liftA '' W`.
-  have hBq : (Lens.bijection (Lens.split lens)).updateK q ∈ Set.centralizer (liftA '' W) := by
+  have hBq : (Lens.bijection (Lens.splitSpace lens)).updateK q ∈ Set.centralizer (liftA '' W) := by
     rw [Set.mem_centralizer_iff]
     rintro _ ⟨w, hw, rfl⟩
     rw [← bijection_split_updateK lens w, ← updateK_mul, ← updateK_mul,
@@ -848,12 +852,12 @@ theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
   refine le_antisymm ?_ (sup_le
     (fvP_reduce_base_mono (fvP_extend_mono _ le_sup_left))
     (fvP_reduce_base_mono (fvP_extend_mono _ le_sup_right)))
-  calc fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) (r₁ ⊔ r₂))
-      ≤ fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) r₁
-          ⊔ fvP_extend (Lens.bijection (Lens.split lens)) r₂) :=
-        fvP_reduce_base_mono (fvP_extend_bijection_sup_le (Lens.split lens) r₁ r₂)
-    _ = fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) r₁)
-          ⊔ fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) r₂) :=
+  calc fvP_reduce_base (fvP_extend (Lens.bijection (Lens.splitSpace lens)) (r₁ ⊔ r₂))
+      ≤ fvP_reduce_base (fvP_extend (Lens.bijection (Lens.splitSpace lens)) r₁
+          ⊔ fvP_extend (Lens.bijection (Lens.splitSpace lens)) r₂) :=
+        fvP_reduce_base_mono (fvP_extend_bijection_sup_le (Lens.splitSpace lens) r₁ r₂)
+    _ = fvP_reduce_base (fvP_extend (Lens.bijection (Lens.splitSpace lens)) r₁)
+          ⊔ fvP_reduce_base (fvP_extend (Lens.bijection (Lens.splitSpace lens)) r₂) :=
         fvP_reduce_base_sup _ _
 
 /-- A kernel in `lens.probRange` is **equivariant under complement updates**: it commutes with every
@@ -974,7 +978,7 @@ def fvPMexpr {ctx t} (m : ModuleExpression ctx t) : (ProbLensRange State) :=
   fvpInductiveFunctionGS.evalMexpr m
 
 noncomputable
-def fvP (m : Module t) : FVP := fvpInductiveFunctionGS.eval m
+def fvP (m : Module t) : ProbLensRange State := fvpInductiveFunctionGS.eval m
 
 scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   comm := ⟨sup_comm⟩
