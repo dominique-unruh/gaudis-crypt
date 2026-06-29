@@ -37,6 +37,7 @@ instance : Compl (ProbLensRange m) where
     by simp only [centralizer_carrier_eq]; exact Set.centralizer_centralizer_centralizer _⟩
 
 def ProbLensRange.from (generators : Set (m → SubProbability m)) : ProbLensRange m where
+  -- TODO: Write Set.centralizer instead of Submonoid.centralizer, more
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
   id := Submonoid.one_mem _
   comp := fun hf hg => Submonoid.mul_mem _ hf hg
