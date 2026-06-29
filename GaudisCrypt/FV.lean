@@ -54,6 +54,32 @@ def fvP_getter (getter : Getter a s) : ProbLensRange s := Program.probRange (Pro
 noncomputable
 def fvP_setter (setter : Setter a s) : ProbLensRange s := Program.probRange' (Program.set setter)
 
+open Classical in
+noncomputable
+def Lens.split (lens : Lens a b) : Equiv b (a × lens.ComplContent) where
+  toFun m := (lens.get m, lens.compl.get m)
+  invFun := if ne : Nonempty b
+            then fun (a,b) => lens.set a (lens.compl.set b (choice ne))
+            else fun p => Quotient.out p.2
+  left_inv := by
+    intro m
+    have hb : Nonempty b := ⟨m⟩
+    simp only [dif_pos hb]
+    change lens.set (lens.get m) (lens.set (lens.get (choice hb)) m) = m
+    rw [lens.set_set, lens.get_set]
+  right_inv := by
+    rintro ⟨x, c⟩
+    induction c using Quotient.inductionOn with
+    | _ y =>
+      have hb : Nonempty b := ⟨y⟩
+      simp only [dif_pos hb]
+      change (lens.get (lens.set x (lens.set (lens.get (choice hb)) y)),
+              lens.compl.get (lens.set x (lens.set (lens.get (choice hb)) y))) = (x, ⟦y⟧)
+      rw [lens.set_set]
+      refine Prod.ext ?_ ?_
+      · exact lens.set_get y x
+      · exact Quotient.sound ⟨lens.get y, by rw [lens.set_set, lens.get_set]⟩
+
 noncomputable
 def fvP_reduce_base {a b} (range : ProbLensRange (a × b)) : ProbLensRange a :=
   ProbLensRange.from
@@ -62,6 +88,17 @@ def fvP_reduce_base {a b} (range : ProbLensRange (a × b)) : ProbLensRange a :=
          (o : b -> SubProbability Unit)) =>
     fun m => do let m' <- i (); let (m, m') <- f (m, m'); let _ <- o m'; return m)
    '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
+
+noncomputable
+def fvP_extend {a b} (lens : Lens a b) (range : ProbLensRange a) : ProbLensRange b :=
+  ProbLensRange.from (lens.updateK '' range.updates)
+
+noncomputable
+def fvP_reduce_new {a b : Type} (lens : Lens a b) (range : ProbLensRange b) :
+    ProbLensRange a :=
+  -- transport `range` along `lens.split : b ≃ a × lens.ComplContent` (via the bijection lens),
+  -- then reduce away the complement component with `fvP_reduce_base`.
+  fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) range)
 
 omit [ProgramSpec] in
 /-- `fvP_reduce_base` is monotone: a larger range gives a larger reduced range. -/
@@ -77,8 +114,6 @@ omit [ProgramSpec] in
 theorem fvP_reduce_sup1 {a b} (r₁ r₂ : ProbLensRange (a × b)) :
     fvP_reduce_base (r₁ ⊔ r₂) ≥ fvP_reduce_base r₁ ⊔ fvP_reduce_base r₂ :=
   sup_le (fvP_reduce_base_mono le_sup_left) (fvP_reduce_base_mono le_sup_right)
-
-
 
 /-- The generator transform underlying `fvP_reduce_base`: given a joint kernel `f` on `a × b`,
 an input distribution `i` on `b`, and a weighting `o` on the `b`-output, produce the `a`-kernel
@@ -294,6 +329,7 @@ theorem reduceBaseGen_sup_subset {a b : Type} (r₁ r₂ : ProbLensRange (a × b
   rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right, hfĥ]
 
 omit [ProgramSpec] in
+-- TODO: Do the =-case
 theorem fvP_reduce_sup2 {a b} (r₁ r₂ : ProbLensRange (a × b)) :
     fvP_reduce_base (r₁ ⊔ r₂) ≤ fvP_reduce_base r₁ ⊔ fvP_reduce_base r₂ := by
   rw [fvP_reduce_base_eq_from, fvP_reduce_base_eq_from, fvP_reduce_base_eq_from,
@@ -327,19 +363,10 @@ noncomputable
 def fvP_reduce {a b} (lens : Lens a b) (range : ProbLensRange b) : ProbLensRange a :=
   ProbLensRange.from { f | ∀ g ∈ range.updates, lens.updateK f * g = g * lens.updateK f}.centralizer
 
-noncomputable
-def fvP_extend {a b} (lens : Lens a b) (range : ProbLensRange a) : ProbLensRange b :=
-  ProbLensRange.from (lens.updateK '' range.updates)
-
 
 /-! ### Properties of `fvP_reduce` / `fvP_extend` needed for the framework instance.
 
-These mirror the deterministic `FV` development.  The three obligations consumed by the
-`ReducibleGettersSetters` instance (`fvP_reduce_sup`, `fvP_extend_sup`, `fvP_reduce_extend`),
-together with `fvP_extend_updates`, were left as `sorry` in the deterministic original and
-remain so here — they are nontrivial facts about the bicommutant closure of a lens-localized
-kernel set.  Note: the soundness proof `fvPMexpr_upper_bound` uses `fvP_getter`/`fvP_setter`
-only *opaquely*, so no properties of those are needed. -/
+ -/
 
 section FvReduceSup
 omit [ProgramSpec]
@@ -516,22 +543,6 @@ private lemma fvP_extend_mono {a b} (lens : Lens a b) {r r' : ProbLensRange a} (
   rintro _ ⟨g, hg, rfl⟩
   exact ⟨g, hsub hg, rfl⟩
 
-/-- `fvP_reduce` distributes over joins.
-
-    Status: **true** (computationally verified in the deterministic `Function.End` model — see
-    `CounterExamples/ExtendSupProbe`), but the reverse `≤` is open. Only the `≤`-half
-    (`reduce r₁ ⊔ reduce r₂ ≤ reduce (r₁ ⊔ r₂)`, monotonicity) is proven here. (Unlike `extend_join`,
-    the framework's `reduce_join` still demands the full `=`.) The reverse reduces — via the
-    `extend ⊣ pull` adjunction — to the single kernel-monoid double-commutant theorem
-    `u '' (CC W) ⊆ CC (u '' W)`. Its converse `CC (u '' W) ⊆ u '' (CC W)` is
-    proven (`centralizer_preimage_image_subset`/extraction); this direction is the open structure
-    theorem (the probe shows the obstructing "correlating" commutant elements are benign). -/
-theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
-    fvP_reduce lens (r₁ ⊔ r₂) = fvP_reduce lens r₁ ⊔ fvP_reduce lens r₂ :=
-  le_antisymm
-    (by sorry)
-    (sup_le (fvP_reduce_mono lens le_sup_left) (fvP_reduce_mono lens le_sup_right))
-
 /-- **`fvP_reduce_base'` and `fvP_reduce_base` have the same generator centralizer.** The
 centralizer of the reduced-generator image is exactly the lift-commutation constraint defining
 `fvP_reduce_base'`: by the Fubini identities, `h` commutes with every `reduceBaseGen (g, i, o)`
@@ -568,31 +579,62 @@ theorem fvP_reduce_base'_eq {a b : Type} (range : ProbLensRange (a × b)) :
 /-- The reverse (`≤`) direction of `fvP_reduce_base'`'s join law — the genuinely hard
 double-commutant direction — reduced to the already-proven `fvP_reduce_sup2` via the identification
 `fvP_reduce_base' = fvP_reduce_base`. -/
+-- TODO: Do the = case
 theorem fvP_reduce_base'_sup2 {a b : Type} (r₁ r₂ : ProbLensRange (a × b)) :
     fvP_reduce_base' (r₁ ⊔ r₂) ≤ fvP_reduce_base' r₁ ⊔ fvP_reduce_base' r₂ := by
   rw [fvP_reduce_base'_eq, fvP_reduce_base'_eq, fvP_reduce_base'_eq]
   exact fvP_reduce_sup2 r₁ r₂
 
+/-- **`Lens.fst.updateK` is exactly `liftA`.** The first-projection lens's localized update is the
+`_ ⊗ id_b` lift, so the extend-side join law for `Lens.fst` is governed by the same Fubini machinery
+as the reduce side. -/
+theorem updateK_fst_eq_liftA {a b : Type} :
+    (Lens.fst : Lens a (a × b)).updateK = liftA := by
+  funext κ x
+  obtain ⟨m, m'⟩ := x
+  rfl
+
+/-- **The extend-side double-commutant inclusion** (dual of `reduceBaseGen_sup_subset`). If `h` lies
+in the bicommutant of `W`, then its lift `liftA h` lies in the bicommutant of `liftA '' W`. Proof:
+for any `G` commuting with all lifts `liftA w` (`w ∈ W`), the two Fubini identities show every
+reduced generator `reduceBaseGen (G, i, o)` commutes with `W`; since `h ∈ CC(W)` it commutes with
+those generators, and slice determination (`reduceBaseExt`) lifts that back to `G * liftA h =
+liftA h * G`. -/
+theorem liftA_image_cc_subset {a b : Type} (W : Set (a → SubProbability a)) :
+    (liftA : (a → SubProbability a) → (a × b → SubProbability (a × b)))
+        '' Set.centralizer (Set.centralizer W)
+      ⊆ Set.centralizer (Set.centralizer
+          ((liftA : (a → SubProbability a) → (a × b → SubProbability (a × b))) '' W)) := by
+  rintro _ ⟨h, hh, rfl⟩
+  rw [Set.mem_centralizer_iff]
+  intro G hG
+  -- Every reduced generator of `G` commutes with `W`.
+  have hred : ∀ i o, reduceBaseGen (G, i, o) ∈ Set.centralizer W := by
+    intro i o
+    rw [Set.mem_centralizer_iff]
+    intro w hw
+    rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right]
+    rw [(Set.mem_centralizer_iff.mp hG) (liftA w) ⟨w, hw, rfl⟩]
+  -- `h` commutes with each of those generators, so the lifts agree on every slice.
+  apply reduceBaseExt
+  intro i o
+  rw [← reduceBaseGen_mul_right, ← reduceBaseGen_mul_left]
+  exact (Set.mem_centralizer_iff.mp hh) (reduceBaseGen (G, i, o)) (hred i o)
+
 
 end FvReduceSup
 
-/-- **`fvP_extend` distributes over joins** (i.e. `extend` is a join-homomorphism).
+omit [ProgramSpec] in
+theorem fvP_extend_sup_simpler {a b} (r₁ r₂ : ProbLensRange a) :
+    (fvP_extend Lens.fst (r₁ ⊔ r₂) : ProbLensRange (a × b))
+      = fvP_extend Lens.fst r₁ ⊔ fvP_extend Lens.fst r₂ := by
+  refine le_antisymm ?_
+    (sup_le (fvP_extend_mono Lens.fst le_sup_left) (fvP_extend_mono Lens.fst le_sup_right))
+  unfold fvP_extend
+  rw [probLensRange_from_union, ← Set.image_union, probLensRange_sup_updates,
+      ProbLensRange.from_le_iff, probLensRange_from_updates, updateK_fst_eq_liftA]
+  exact liftA_image_cc_subset _
 
-    Studied here for the framework's own sake, **not** because anything needs it: since the merge,
-    `ReducibleGettersSetters.extend_join` requires only the `≤`-half (`extend r₁ ⊔ extend r₂ ≤
-    extend (r₁ ⊔ r₂)`, = monotonicity, `fvP_extend_mono`), which the instance supplies directly.
-
-    Status of the equality: the `≤`-half is proven; the reverse `extend (r₁ ⊔ r₂) ≤ extend r₁ ⊔ extend r₂`
-    is **open** — it reduces (via `fvP_extend_updates`) to the kernel-monoid double-commutant theorem
-    `u '' (CC Y) = CC (u '' Y)`, whose `CC(u '' Y) ⊆ u '' (CC Y)` half is proven (extraction) and whose
-    `u '' (CC Y) ⊆ CC (u '' Y)` half is the `sorry`.  The equality is *true* in the finite deterministic
-    model (no counterexample, `CounterExamples/ExtendSupProbe`); a general proof needs measure-theoretic
-    disintegration. -/
-theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
-    fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ :=
-  le_antisymm
-    (by sorry)
-    (sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right))
 
 /-! ### Extraction: `lens.probRange` is exactly the localized kernels.
 
@@ -624,12 +666,202 @@ private lemma updateK_injective {a s : Type} [Nonempty s] (lens : Lens a s) :
   simp only [updateK_get_inv, lens.set_get] at hsub
   exact hsub
 
+omit [ProgramSpec] in
+/-- **Bridge identity.** Pushing a lens-localized kernel `lens.updateK f` through the split
+bijection `b ≃ a × lens.ComplContent` yields exactly the `a`-component lift `liftA f`. This is what
+makes the centralizer footprint `fvP_reduce` agree with the split-then-reduce construction. -/
+private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → SubProbability a) :
+    (Lens.bijection (Lens.split lens)).updateK (lens.updateK f) = liftA f := by
+  funext p
+  have hA : lens.get ((Lens.split lens).symm p) = p.1 := by
+    calc lens.get ((Lens.split lens).symm p)
+        = ((Lens.split lens) ((Lens.split lens).symm p)).1 := rfl
+      _ = p.1 := by rw [(Lens.split lens).apply_symm_apply]
+  have hB : ∀ a', (Lens.split lens) (lens.set a' ((Lens.split lens).symm p)) = (a', p.2) := by
+    intro a'
+    have hcompl : lens.compl.get (lens.set a' ((Lens.split lens).symm p))
+        = lens.compl.get ((Lens.split lens).symm p) :=
+      Quotient.sound ⟨lens.get ((Lens.split lens).symm p), by rw [lens.set_set, lens.get_set]⟩
+    have hp2 : lens.compl.get ((Lens.split lens).symm p) = p.2 := by
+      calc lens.compl.get ((Lens.split lens).symm p)
+          = ((Lens.split lens) ((Lens.split lens).symm p)).2 := rfl
+        _ = p.2 := by rw [(Lens.split lens).apply_symm_apply]
+    show (lens.get (lens.set a' ((Lens.split lens).symm p)),
+          lens.compl.get (lens.set a' ((Lens.split lens).symm p))) = (a', p.2)
+    rw [lens.set_get, hcompl, hp2]
+  simp only [updateK_apply, Lens.bijection, SubProbability.bind_assoc, SubProbability.pure_bind]
+  rw [hA]
+  simp only [hB]
+  rfl
+
+/-- **The centralizer footprint `fvP_reduce` equals the split-then-reduce construction.** Bridges
+the abstract `lens.updateK`-commutation definition with the concrete
+`fvP_reduce_base ∘ fvP_extend ∘ split` pipeline (i.e. `fvP_reduce_new`), via the lift identity
+`bijection_split_updateK` and the fact that the split pushforward `updateK` is an injective monoid
+homomorphism. -/
+theorem fvP_reduce_via_base' {a b : Type} (lens : Lens a b) (range : ProbLensRange b) :
+    fvP_reduce lens range
+      = fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) range) := by
+  rw [← fvP_reduce_base'_eq]
+  unfold fvP_reduce fvP_reduce_base'
+  congr 1
+  congr 1
+  ext f
+  simp only [Set.mem_setOf_eq]
+  constructor
+  · intro hf g hg
+    have hmem : liftA f ∈
+        Set.centralizer ((Lens.bijection (Lens.split lens)).updateK '' range.updates) := by
+      rw [Set.mem_centralizer_iff]
+      rintro _ ⟨g', hg', rfl⟩
+      rw [← bijection_split_updateK, ← updateK_mul, ← updateK_mul, hf g' hg']
+    have hcent : Set.centralizer ((fvP_extend (Lens.bijection (Lens.split lens)) range).updates)
+        = Set.centralizer ((Lens.bijection (Lens.split lens)).updateK '' range.updates) := by
+      unfold fvP_extend
+      rw [probLensRange_from_updates, Set.centralizer_centralizer_centralizer]
+    exact ((Set.mem_centralizer_iff.mp (hcent ▸ hmem)) g hg).symm
+  · intro hf g hg
+    have hgmem : (Lens.bijection (Lens.split lens)).updateK g
+        ∈ (fvP_extend (Lens.bijection (Lens.split lens)) range).updates := by
+      unfold fvP_extend
+      rw [probLensRange_from_updates]
+      exact Set.subset_centralizer_centralizer ⟨g, hg, rfl⟩
+    have hcomm := hf _ hgmem
+    rw [← bijection_split_updateK, ← updateK_mul, ← updateK_mul] at hcomm
+    by_cases hne : Nonempty b
+    · haveI := hne
+      haveI : Nonempty (a × lens.ComplContent) := ⟨Lens.split lens (Classical.arbitrary b)⟩
+      exact updateK_injective (Lens.bijection (Lens.split lens)) hcomm
+    · funext st
+      exact (hne ⟨st⟩).elim
+
+omit [ProgramSpec] in
+/-- The reduced footprint join law for `fvP_reduce_base`: both inequalities combine
+(`fvP_reduce_sup1` and `fvP_reduce_base'_sup2`). -/
+private lemma fvP_reduce_base_sup {a b : Type} (r₁ r₂ : ProbLensRange (a × b)) :
+    fvP_reduce_base (r₁ ⊔ r₂) = fvP_reduce_base r₁ ⊔ fvP_reduce_base r₂ := by
+  refine le_antisymm ?_ (fvP_reduce_sup1 r₁ r₂)
+  rw [← fvP_reduce_base'_eq, ← fvP_reduce_base'_eq, ← fvP_reduce_base'_eq]
+  exact fvP_reduce_base'_sup2 r₁ r₂
+
+omit [ProgramSpec] in
+/-- `(Lens.bijection e).updateK` is injective (its inverse is the `e.symm`-pushforward). -/
+private lemma bijection_updateK_injective {α β : Type} (e : α ≃ β) :
+    Function.Injective (Lens.bijection e).updateK := by
+  apply Function.LeftInverse.injective (g := fun k' st => k' (e st) >>= fun p => pure (e.symm p))
+  intro k
+  funext st
+  simp only [updateK_apply, Lens.bijection, SubProbability.bind_assoc, SubProbability.pure_bind,
+    Equiv.symm_apply_apply, SubProbability.bind_pure]
+
+omit [ProgramSpec] in
+/-- `(Lens.bijection e).updateK` is surjective (the `e.symm`-pushforward is a right inverse). -/
+private lemma bijection_updateK_surjective {α β : Type} (e : α ≃ β) :
+    Function.Surjective (Lens.bijection e).updateK := by
+  intro k'
+  refine ⟨fun st => k' (e st) >>= fun p => pure (e.symm p), ?_⟩
+  funext st
+  simp only [updateK_apply, Lens.bijection, SubProbability.bind_assoc, SubProbability.pure_bind,
+    Equiv.apply_symm_apply, SubProbability.bind_pure]
+
+omit [ProgramSpec] in
+/-- For a **bijective** monoid homomorphism `u`, the bicommutant transports through the image:
+`u '' CC(W) ⊆ CC(u '' W)`. (Surjectivity lets us pull back an arbitrary commutant element;
+injectivity lets us cancel `u`.) -/
+private lemma image_cc_subset {M N : Type*} [Monoid M] [Monoid N]
+    (u : M → N) (hu : ∀ x y, u (x * y) = u x * u y)
+    (hsurj : Function.Surjective u) (hinj : Function.Injective u) (W : Set M) :
+    u '' Set.centralizer (Set.centralizer W) ⊆ Set.centralizer (Set.centralizer (u '' W)) := by
+  rintro _ ⟨x, hx, rfl⟩
+  rw [Set.mem_centralizer_iff]
+  intro y hy
+  obtain ⟨y', rfl⟩ := hsurj y
+  have hy' : y' ∈ Set.centralizer W := by
+    rw [Set.mem_centralizer_iff]
+    intro w hw
+    apply hinj
+    rw [hu, hu, (Set.mem_centralizer_iff.mp hy) (u w) ⟨w, hw, rfl⟩]
+  have hc := (Set.mem_centralizer_iff.mp hx) y' hy'
+  rw [← hu, ← hu, hc]
+
+omit [ProgramSpec] in
+/-- **`fvP_extend` along a bijection sub-distributes over joins** (the `≤` direction). For a
+bijection lens the pushforward `updateK` is an injective monoid hom, so `image_cc_subset`
+applies. -/
+private lemma fvP_extend_bijection_sup_le {α β : Type} (e : α ≃ β)
+    (r₁ r₂ : ProbLensRange α) :
+    fvP_extend (Lens.bijection e) (r₁ ⊔ r₂)
+      ≤ fvP_extend (Lens.bijection e) r₁ ⊔ fvP_extend (Lens.bijection e) r₂ := by
+  unfold fvP_extend
+  rw [probLensRange_from_union, ← Set.image_union, probLensRange_sup_updates,
+      ProbLensRange.from_le_iff, probLensRange_from_updates]
+  exact image_cc_subset (Lens.bijection e).updateK (updateK_mul (Lens.bijection e))
+    (bijection_updateK_surjective e) (bijection_updateK_injective e) (r₁.updates ∪ r₂.updates)
+
+omit [ProgramSpec] in
+/-- **The extend-side double-commutant inclusion for an arbitrary lens** — the generalization of
+`liftA_image_cc_subset` from `Lens.fst` to any `lens`. It is what powers the hard `≤` direction of
+`fvP_extend_sup`, exactly as `liftA_image_cc_subset` powers `fvP_extend_sup_simpler`. Proof: factor
+`lens.updateK` through the split bijection `b ≃ a × lens.ComplContent`. The pushforward
+`B := (Lens.bijection (Lens.split lens)).updateK` is an injective monoid hom and
+`bijection_split_updateK` identifies `B (lens.updateK f) = liftA f`, so conjugating by `B` turns the
+general statement into the `liftA` one already handled by `liftA_image_cc_subset`. -/
+private lemma updateK_image_cc_subset {a b : Type} (lens : Lens a b)
+    (W : Set (a → SubProbability a)) :
+    lens.updateK '' Set.centralizer (Set.centralizer W)
+      ⊆ Set.centralizer (Set.centralizer (lens.updateK '' W)) := by
+  rintro _ ⟨f, hf, rfl⟩
+  rw [Set.mem_centralizer_iff]
+  intro q hq
+  -- Push commutation through the injective pushforward `B := (Lens.bijection (split lens)).updateK`
+  apply bijection_updateK_injective (Lens.split lens)
+  rw [updateK_mul, updateK_mul, bijection_split_updateK]
+  -- Goal: `B q * liftA f = liftA f * B q`. First, `B q` centralizes `liftA '' W`.
+  have hBq : (Lens.bijection (Lens.split lens)).updateK q ∈ Set.centralizer (liftA '' W) := by
+    rw [Set.mem_centralizer_iff]
+    rintro _ ⟨w, hw, rfl⟩
+    rw [← bijection_split_updateK lens w, ← updateK_mul, ← updateK_mul,
+        (Set.mem_centralizer_iff.mp hq) (lens.updateK w) ⟨w, hw, rfl⟩]
+  -- And `liftA f` lies in the bicommutant of `liftA '' W` (this is `liftA_image_cc_subset`).
+  exact (Set.mem_centralizer_iff.mp (liftA_image_cc_subset W ⟨f, hf, rfl⟩)) _ hBq
+
+omit [ProgramSpec] in
+/-- **`fvP_extend` distributes over joins** (i.e. `extend` is a join-homomorphism), for an arbitrary
+lens. The reverse (`≥`) direction is monotonicity; the hard (`≤`) direction reduces — exactly as in
+`fvP_extend_sup_simpler` — to the extend-side double-commutant inclusion, here in its general form
+`updateK_image_cc_subset`. -/
+theorem fvP_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange a) :
+    fvP_extend lens (r₁ ⊔ r₂) = fvP_extend lens r₁ ⊔ fvP_extend lens r₂ := by
+  refine le_antisymm ?_
+    (sup_le (fvP_extend_mono lens le_sup_left) (fvP_extend_mono lens le_sup_right))
+  unfold fvP_extend
+  rw [probLensRange_from_union, ← Set.image_union, probLensRange_sup_updates,
+      ProbLensRange.from_le_iff, probLensRange_from_updates]
+  exact updateK_image_cc_subset lens _
+
+/-- **`fvP_reduce` distributes over joins.** Now a theorem (no longer open): via the bridge
+`fvP_reduce_via_base'`, both sides reduce to `fvP_reduce_base` of the split-transported ranges,
+where `fvP_extend_bijection_sup_le` + `fvP_reduce_base_sup` close the hard `≤` direction. -/
+theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : ProbLensRange b) :
+    fvP_reduce lens (r₁ ⊔ r₂) = fvP_reduce lens r₁ ⊔ fvP_reduce lens r₂ := by
+  rw [fvP_reduce_via_base', fvP_reduce_via_base', fvP_reduce_via_base']
+  refine le_antisymm ?_ (sup_le
+    (fvP_reduce_base_mono (fvP_extend_mono _ le_sup_left))
+    (fvP_reduce_base_mono (fvP_extend_mono _ le_sup_right)))
+  calc fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) (r₁ ⊔ r₂))
+      ≤ fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) r₁
+          ⊔ fvP_extend (Lens.bijection (Lens.split lens)) r₂) :=
+        fvP_reduce_base_mono (fvP_extend_bijection_sup_le (Lens.split lens) r₁ r₂)
+    _ = fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) r₁)
+          ⊔ fvP_reduce_base (fvP_extend (Lens.bijection (Lens.split lens)) r₂) :=
+        fvP_reduce_base_sup _ _
+
 /-- A kernel in `lens.probRange` is **equivariant under complement updates**: it commutes with every
     Dirac complement-update (`diracKer (lens.compl.update h) ∈ lens.probRangeᶜ`), so it intertwines
     `lens.compl.update h`. -/
 private lemma probRange_equivariant {a s : Type} (lens : Lens a s)
     {p : s → SubProbability s} (hp : p ∈ lens.probRange.updates)
-    (h : Function.End (Quotient lens.equal_outside_setoid)) (st : s) :
+    (h : Function.End lens.ComplContent) (st : s) :
     p (lens.compl.update h st) = (p st >>= fun st' => pure (lens.compl.update h st')) := by
   haveI : disjoint lens.compl lens := ⟨fun st v w => by
     induction v using Quotient.inductionOn
