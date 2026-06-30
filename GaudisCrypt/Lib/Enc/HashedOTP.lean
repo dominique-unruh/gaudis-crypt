@@ -91,34 +91,34 @@ instance : disjoint chal_c guess_var := disjoint_guess_chal_c.symm
 
 section EncRO
 
-variable (enc_adv : Program state Unit)
+variable (enc_adv : ProgramDenotation state Unit)
 
 /-- The IND game: sample key, compute `H(key)` (the challenger's own,
     *untracked* query), publish `H(key) ⊕ m`, initialize the
     "queried the key" flag, run the adversary's tracked query loop, read
     its guess. The result bit is the adversary's guess. -/
-noncomputable def enc_game (m : output) (q : ℕ) : Program state Bool := do
+noncomputable def enc_game (m : output) (q : ℕ) : ProgramDenotation state Bool := do
   lazy_init
-  let k ← Program.uniform
-  Program.set ow_challenge_x k
+  let k ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x k
   let hk ← lazy_query k
-  Program.set chal_x_queried_gh false
-  Program.set chal_c (hk + m)
+  ProgramDenotation.set chal_x_queried_gh false
+  ProgramDenotation.set chal_c (hk + m)
   oracle_loop_n enc_adv q lazy_query_tracked
-  Program.get guess_var
+  ProgramDenotation.get guess_var
 
 /-- The preprogrammed form: `H(key)` on the empty oracle is a fresh
     `uniform` sample written into `RO[key]`. -/
-noncomputable def enc_game_pre (m : output) (q : ℕ) : Program state Bool := do
+noncomputable def enc_game_pre (m : output) (q : ℕ) : ProgramDenotation state Bool := do
   lazy_init
-  let k ← Program.uniform
-  Program.set ow_challenge_x k
-  let hk ← Program.uniform
-  Program.set random_oracle_state (fun j => if j = k then some hk else none)
-  Program.set chal_x_queried_gh false
-  Program.set chal_c (hk + m)
+  let k ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x k
+  let hk ← ProgramDenotation.uniform
+  ProgramDenotation.set random_oracle_state (fun j => if j = k then some hk else none)
+  ProgramDenotation.set chal_x_queried_gh false
+  ProgramDenotation.set chal_c (hk + m)
   oracle_loop_n enc_adv q lazy_query_tracked
-  Program.get guess_var
+  ProgramDenotation.get guess_var
 
 /-! ## The win indicator and bad event -/
 
@@ -144,7 +144,7 @@ body coupling `body_relE` verbatim. -/
 
 section EncStage1
 
-variable (enc_adv : Program state Unit)
+variable (enc_adv : ProgramDenotation state Unit)
 variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
 variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
 variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
@@ -161,14 +161,14 @@ include h_RO h_flag h_cx h_mass in
     plus the overwrite-invisibility of the guess. -/
 private lemma enc_tail_relE (k : input) (y : output) (q : ℕ) :
     (loop_n q (oracle_step enc_adv lazy_query_tracked) >>= fun _ : Unit =>
-      Program.get guess_var).relE
+      ProgramDenotation.get guess_var).relE
     (loop_n q (oracle_step enc_adv lazy_query_tracked) >>= fun _ : Unit =>
-      Program.get guess_var)
+      ProgramDenotation.get guess_var)
     (InvUB k y) encPost := by
-  refine Program.relE.bind (Mid := fun u v : Unit × state => InvUB k y u.2 v.2)
-    (Program.relE.loop_n (body_relE enc_adv h_RO h_flag h_cx h_mass k y) q)
+  refine ProgramDenotation.relE.bind (Mid := fun u v : Unit × state => InvUB k y u.2 v.2)
+    (ProgramDenotation.relE.loop_n (body_relE enc_adv h_RO h_flag h_cx h_mass k y) q)
     (fun _ _ => ?_)
-  refine Program.relE.get_get ?_
+  refine ProgramDenotation.relE.get_get ?_
   intro σ₁ σ₂ hinv
   dsimp only at hinv
   obtain ⟨hfeq, hgood⟩ := hinv
@@ -184,26 +184,26 @@ include h_RO h_flag h_cx h_mass in
     fresh mask is coupled by `hk ↦ hk + (m₀ − m₁)`, making the published
     ciphertexts coincide; the runs then differ only at `RO[k]`. -/
 private lemma enc_otp_tail_relE (m₀ m₁ : output) (k : input) (q : ℕ) :
-    ((Program.uniform : Program state output) >>= fun hk =>
-      Program.set random_oracle_state (fun j => if j = k then some hk else none)
-        >>= fun _ => Program.set chal_x_queried_gh false >>= fun _ =>
-      Program.set chal_c (hk + m₀) >>= fun _ =>
+    ((ProgramDenotation.uniform : ProgramDenotation state output) >>= fun hk =>
+      ProgramDenotation.set random_oracle_state (fun j => if j = k then some hk else none)
+        >>= fun _ => ProgramDenotation.set chal_x_queried_gh false >>= fun _ =>
+      ProgramDenotation.set chal_c (hk + m₀) >>= fun _ =>
       oracle_loop_n enc_adv q lazy_query_tracked >>= fun _ =>
-      Program.get guess_var).relE
-    ((Program.uniform : Program state output) >>= fun hk =>
-      Program.set random_oracle_state (fun j => if j = k then some hk else none)
-        >>= fun _ => Program.set chal_x_queried_gh false >>= fun _ =>
-      Program.set chal_c (hk + m₁) >>= fun _ =>
+      ProgramDenotation.get guess_var).relE
+    ((ProgramDenotation.uniform : ProgramDenotation state output) >>= fun hk =>
+      ProgramDenotation.set random_oracle_state (fun j => if j = k then some hk else none)
+        >>= fun _ => ProgramDenotation.set chal_x_queried_gh false >>= fun _ =>
+      ProgramDenotation.set chal_c (hk + m₁) >>= fun _ =>
       oracle_loop_n enc_adv q lazy_query_tracked >>= fun _ =>
-      Program.get guess_var)
+      ProgramDenotation.get guess_var)
     (fun σ₁ σ₂ => σ₁ = σ₂ ∧ ow_challenge_x.get σ₂ = k) encPost := by
   haveI : disjoint random_oracle_state chal_x_queried_gh :=
     disjoint_chal_x_queried_gh_ro.symm
   -- couple the masks: hk₁ = hk₀ + (m₀ − m₁)
-  refine Program.relE.bind
+  refine ProgramDenotation.relE.bind
     (Mid := fun u v : output × state =>
       v.1 = u.1 + (m₀ - m₁) ∧ v.2 = u.2 ∧ ow_challenge_x.get u.2 = k)
-    (Program.relE.uniform_bij (Equiv.addRight (m₀ - m₁)) ?_) (fun hk₀ hk₁ => ?_)
+    (ProgramDenotation.relE.uniform_bij (Equiv.addRight (m₀ - m₁)) ?_) (fun hk₀ hk₁ => ?_)
   · rintro hk σ₁ σ₂ ⟨rfl, hkey⟩
     exact ⟨rfl, rfl, hkey⟩
   · -- the three sets establish `InvUB k hk₀`, then `enc_tail_relE`
@@ -244,16 +244,16 @@ private lemma enc_otp_tail_relE (m₀ m₁ : output) (k : input) (q : ℕ) :
     · intro F G hFG τ₁ τ₂ hpre
       obtain ⟨hhk', hσ, hkey⟩ := hpre
       rw [show τ₂ = τ₁ from hσ]
-      rw [Program.wp_set_seq, Program.wp_set_seq, Program.wp_set_seq,
-          Program.wp_set_seq, Program.wp_set_seq, Program.wp_set_seq]
+      rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq,
+          ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq]
       obtain ⟨heq, hkey', hf'⟩ := hstate hhk' τ₁ hkey
       exact (enc_tail_relE enc_adv h_RO h_flag h_cx h_mass k hk₀ q).1 F G hFG _ _
         (invUB_of_good hf' hkey' heq)
     · intro F G hFG τ₂ τ₁ hpre
       obtain ⟨hhk', hσ, hkey⟩ := hpre
       rw [show τ₂ = τ₁ from hσ]
-      rw [Program.wp_set_seq, Program.wp_set_seq, Program.wp_set_seq,
-          Program.wp_set_seq, Program.wp_set_seq, Program.wp_set_seq]
+      rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq,
+          ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq]
       obtain ⟨heq, hkey', hf'⟩ := hstate hhk' τ₁ hkey
       exact (enc_tail_relE enc_adv h_RO h_flag h_cx h_mass k hk₀ q).2 F G hFG _ _
         (invUB_of_good hf' hkey' heq)
@@ -269,19 +269,19 @@ theorem enc_game_pre_relE (m₀ m₁ : output) (q : ℕ) :
   · intro F G hFG σ σ' hpre
     cases hpre
     unfold enc_game_pre lazy_init
-    rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-    rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+    rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+    rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
     refine Finset.sum_le_sum fun k _ => ENNReal.div_le_div_right ?_ _
-    rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
+    rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
     exact (enc_otp_tail_relE enc_adv h_RO h_flag h_cx h_mass m₀ m₁ k q).1
       F G hFG _ _ ⟨rfl, ow_challenge_x.set_get _ _⟩
   · intro F G hFG σ σ' hpre
     cases hpre
     unfold enc_game_pre lazy_init
-    rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-    rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+    rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+    rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
     refine Finset.sum_le_sum fun k _ => ENNReal.div_le_div_right ?_ _
-    rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
+    rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
     exact (enc_otp_tail_relE enc_adv h_RO h_flag h_cx h_mass m₀ m₁ k q).2
       F G hFG _ _ ⟨rfl, ow_challenge_x.set_get _ _⟩
 
@@ -291,7 +291,7 @@ end EncStage1
 
 section EncMiniHop
 
-variable (enc_adv : Program state Unit)
+variable (enc_adv : ProgramDenotation state Unit)
 
 /-- `H(key)` on the empty oracle is a fresh `uniform` written into `RO[key]`:
     `enc_game` and `enc_game_pre` have equal wp. -/
@@ -299,11 +299,11 @@ theorem enc_game_wp_eq_pre (m : output) (q : ℕ)
     (F : Bool × state → ENNReal) (σ : state) :
     (enc_game enc_adv m q).wp F σ = (enc_game_pre enc_adv m q).wp F σ := by
   unfold enc_game enc_game_pre lazy_init
-  rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-  rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+  rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+  rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
   refine Finset.sum_congr rfl fun k _ => ?_
   congr 1
-  rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
+  rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
   -- at σ_k = ow_challenge_x.set k (RO.set (fun _ => none) σ): RO is empty
   set σ_k : state := ow_challenge_x.set k (random_oracle_state.set (fun _ => none) σ)
     with hσk
@@ -319,7 +319,7 @@ end EncMiniHop
 
 section EncIndist
 
-variable (enc_adv : Program state Unit)
+variable (enc_adv : ProgramDenotation state Unit)
 variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
 variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
 variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
@@ -335,7 +335,7 @@ theorem enc_guess_le_pre (m₀ m₁ : output) (q : ℕ) (σ : state) :
       + (enc_game_pre enc_adv m₀ q).wp
           (fun bσ => if chal_x_queried_gh.get bσ.2 = true then
             (if bσ.1 then (1 : ENNReal) else 0) else 0) σ := by
-  refine Program.relE.up_to_bad (bad := fun s => chal_x_queried_gh.get s = true)
+  refine ProgramDenotation.relE.up_to_bad (bad := fun s => chal_x_queried_gh.get s = true)
     (fun bσ => if bσ.1 then (1 : ENNReal) else 0)
     (enc_game_pre_relE enc_adv h_RO h_flag h_cx h_mass m₀ m₁ q)
     (fun u v h => by dsimp only; rw [h.1]) ?_ σ
@@ -356,7 +356,7 @@ theorem enc_guess_le (m₀ m₁ : output) (q : ℕ) (σ : state) :
   rw [enc_game_wp_eq_pre, enc_game_wp_eq_pre, enc_game_wp_eq_pre]
   refine le_trans (enc_guess_le_pre enc_adv h_RO h_flag h_cx h_mass m₀ m₁ q σ) ?_
   gcongr
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   intro bσ
   by_cases hb : chal_x_queried_gh.get bσ.2 = true
   · rw [if_pos hb]; split_ifs <;> simp
@@ -374,20 +374,20 @@ which `game_1_correspondence` already supplies the schema inequality. -/
 
 section EncBad
 
-variable (enc_adv : Program state Unit)
+variable (enc_adv : ProgramDenotation state Unit)
 
 /-- The game with `H(key)` *not* preprogrammed into `RO[key]`: a lazy query
     to the key would sample fresh. Identical to `enc_game_pre` until the
     key is queried (the bad event). -/
-noncomputable def enc_game_nopre (m : output) (q : ℕ) : Program state Bool := do
+noncomputable def enc_game_nopre (m : output) (q : ℕ) : ProgramDenotation state Bool := do
   lazy_init
-  let k ← Program.uniform
-  Program.set ow_challenge_x k
-  let hk ← Program.uniform
-  Program.set chal_x_queried_gh false
-  Program.set chal_c (hk + m)
+  let k ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x k
+  let hk ← ProgramDenotation.uniform
+  ProgramDenotation.set chal_x_queried_gh false
+  ProgramDenotation.set chal_c (hk + m)
   oracle_loop_n enc_adv q lazy_query_tracked
-  Program.get guess_var
+  ProgramDenotation.get guess_var
 
 variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
 variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
@@ -432,40 +432,40 @@ theorem enc_pre_bad_eq_nopre (m : output) (q : ℕ) (σ : state) :
     · intro F G hFG σ₁ σ₂ hpre
       subst hpre
       unfold enc_game_pre enc_game_nopre lazy_init
-      rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-      rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+      rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+      rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
       refine Finset.sum_le_sum fun k _ => ENNReal.div_le_div_right ?_ _
-      rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-      rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+      rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+      rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
       refine Finset.sum_le_sum fun hk _ => ENNReal.div_le_div_right ?_ _
-      rw [Program.wp_set_seq, Program.wp_set_seq, Program.wp_set_seq]
-      conv_rhs => rw [Program.wp_set_seq, Program.wp_set_seq]
+      rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq]
+      conv_rhs => rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq]
       rw [oracle_loop_n_eq_loop_n]
       exact (enc_tail_relE enc_adv h_RO h_flag h_cx h_mass k hk q).1 F G hFG _ _
         (enc_bad_invUB k hk m _)
     · intro F G hFG σ₂ σ₁ hpre
       subst hpre
       unfold enc_game_pre enc_game_nopre lazy_init
-      rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-      rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+      rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+      rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
       refine Finset.sum_le_sum fun k _ => ENNReal.div_le_div_right ?_ _
-      rw [Program.wp_set_seq]; conv_rhs => rw [Program.wp_set_seq]
-      rw [Program.wp_uniform_seq]; conv_rhs => rw [Program.wp_uniform_seq]
+      rw [ProgramDenotation.wp_set_seq]; conv_rhs => rw [ProgramDenotation.wp_set_seq]
+      rw [ProgramDenotation.wp_uniform_seq]; conv_rhs => rw [ProgramDenotation.wp_uniform_seq]
       refine Finset.sum_le_sum fun hk _ => ENNReal.div_le_div_right ?_ _
-      conv_lhs => rw [Program.wp_set_seq, Program.wp_set_seq]
-      rw [Program.wp_set_seq, Program.wp_set_seq, Program.wp_set_seq]
+      conv_lhs => rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq]
+      rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq, ProgramDenotation.wp_set_seq]
       rw [oracle_loop_n_eq_loop_n]
       exact (enc_tail_relE enc_adv h_RO h_flag h_cx h_mass k hk q).2 F G hFG _ _
         (enc_bad_invUB k hk m _)
-  exact Program.relE.bad_eq (bad := fun s => chal_x_queried_gh.get s = true)
+  exact ProgramDenotation.relE.bad_eq (bad := fun s => chal_x_queried_gh.get s = true)
     hrel (fun u v h => by dsimp only; rw [h.1]) σ
 
 /-- The env of the bad-event guess experiment: lazy oracle, then publish a
     fresh uniform ciphertext (the mask reindex makes `m` disappear). -/
-noncomputable def env_c : Program state Unit := do
+noncomputable def env_c : ProgramDenotation state Unit := do
   lazy_init
-  let c ← Program.uniform
-  Program.set chal_c c
+  let c ← ProgramDenotation.uniform
+  ProgramDenotation.set chal_c c
 
 include h_cx h_flag in
 /-- **The guess-experiment bound** for the bad event: the adversary hits
@@ -474,7 +474,7 @@ include h_cx h_flag in
 theorem gexp_env_c_bound
     (h_qi : enc_adv.inRange queries_input.compl.range)
     (q : ℕ) (σ : state) :
-    (guess_experiment env_c Program.uniform ow_challenge_x chal_x_queried_gh
+    (guess_experiment env_c ProgramDenotation.uniform ow_challenge_x chal_x_queried_gh
         (body_game_1 enc_adv) final_game_1 q).wp
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ ((q + 1) : ENNReal) / Fintype.card input := by
@@ -489,13 +489,13 @@ theorem gexp_env_c_bound
       = fun aσ : Unit × state => (Fintype.card input : ENNReal)⁻¹ *
             ((queries_input.get aσ.2).length : ENNReal) := by
     funext aσ; rw [div_eq_mul_inv, mul_comm]
-  rw [h_post_eq, Program.wp_const_mul]
+  rw [h_post_eq, ProgramDenotation.wp_const_mul]
   rw [show ((q + 1 : ℕ) : ENNReal) / Fintype.card input
         = (Fintype.card input : ENNReal)⁻¹ * ((q + 1 : ℕ) : ENNReal) from by
       rw [div_eq_mul_inv, mul_comm]]
   refine mul_le_mul' (le_refl _) ?_
   have h_inner : ∀ σ₀ : state,
-      (Program.set queries_input [] >>= fun _ =>
+      (ProgramDenotation.set queries_input [] >>= fun _ =>
         loop_n q (body_recording_game_1 enc_adv) >>= fun _ =>
         final_recording_game_1).wp
         (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ₀
@@ -506,26 +506,26 @@ theorem gexp_env_c_bound
     have h_qs_init : (queries_input.get σ_init).length = 0 := by
       simp [σ_init_def, Lens.set_get]
     rw [wp_bind]
-    refine le_trans (Program.wp_le_wp_of_le _ _
+    refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
         (fun aσ : Unit × state =>
           ((queries_input.get aσ.2).length : ENNReal) + 1)
         (fun _ => final_recording_game_1_qs_length_bump _) σ_init) ?_
-    rw [Program.wp_add (loop_n q (body_recording_game_1 enc_adv))
+    rw [ProgramDenotation.wp_add (loop_n q (body_recording_game_1 enc_adv))
         (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal))
         (fun _ : Unit × state => (1 : ENNReal))]
     refine le_trans (add_le_add (loop_n_wp_linear_bound (body_recording_game_1 enc_adv)
         (fun σ => ((queries_input.get σ).length : ENNReal)) 1
         (fun σ_body => body_recording_game_1_qs_length_bump enc_adv h_qi σ_body)
-        q σ_init) (Program.wp_const_le _ _ _)) ?_
+        q σ_init) (ProgramDenotation.wp_const_le _ _ _)) ?_
     rw [h_qs_init]
     push_cast; ring_nf; rfl
   -- peel env_c (lazy_init; uniform c; set chal_c c), all queries_input-preserving
   unfold env_c lazy_init
-  simp only [Program.bind_assoc]
-  rw [Program.wp_set_seq, Program.wp_uniform_seq]
+  simp only [ProgramDenotation.bind_assoc]
+  rw [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_uniform_seq]
   refine le_trans (Finset.sum_le_sum (fun c _ =>
     ENNReal.div_le_div_right
-      (by rw [Program.wp_set_seq]; exact h_inner _) _))
+      (by rw [ProgramDenotation.wp_set_seq]; exact h_inner _) _))
     (le_of_eq (sum_const_div_card _))
 
 /-- The extra final query can only set the flag: `if flag then 1 else 0`
@@ -540,14 +540,14 @@ private lemma final_game_1_mono (k : input) (s : state) :
   · rw [if_pos hs]
     refine le_of_eq ?_
     symm
-    change (Program.get ow_response >>= fun resp =>
+    change (ProgramDenotation.get ow_response >>= fun resp =>
       lazy_query_tracked resp >>= fun y =>
-      Program.set oracle_output y).wp _ s = 1
+      ProgramDenotation.set oracle_output y).wp _ s = 1
     rw [wp_bind, wp_get]
     dsimp only
     rw [wp_bind]
     have hpost : (fun yσ : output × state =>
-        (Program.set oracle_output yσ.1).wp
+        (ProgramDenotation.set oracle_output yσ.1).wp
           (fun bσ : Unit × state =>
             if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) yσ.2)
       = fun yσ : output × state =>
@@ -566,13 +566,13 @@ private lemma final_game_1_mono (k : input) (s : state) :
     instead of the flag) only lowers the bad probability. -/
 private lemma enc_tail_mono (k : input) (q : ℕ) (s : state) :
     (loop_n q (oracle_step enc_adv lazy_query_tracked) >>= fun _ : Unit =>
-      Program.get guess_var).wp
+      ProgramDenotation.get guess_var).wp
       (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) s
     ≤ (loop_n q (oracle_step enc_adv lazy_query_tracked) >>= fun _ : Unit =>
-        final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+        final_game_1 k >>= fun _ : Unit => ProgramDenotation.get chal_x_queried_gh).wp
       (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) s := by
   rw [wp_bind, wp_bind]
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   intro aσ
   rw [wp_get]
   dsimp only
@@ -606,24 +606,25 @@ private lemma sum_sum_div {α β : Type} [Fintype α] [Fintype β]
 theorem enc_nopre_bad_le_gexp (m : output) (q : ℕ) (σ : state) :
     (enc_game_nopre enc_adv m q).wp
         (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
-    ≤ (guess_experiment env_c Program.uniform ow_challenge_x chal_x_queried_gh
+    ≤ (guess_experiment env_c ProgramDenotation.uniform ow_challenge_x chal_x_queried_gh
         (body_game_1 enc_adv) final_game_1 q).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ := by
   unfold enc_game_nopre guess_experiment env_c lazy_init
-  simp only [Program.bind_assoc, Program.wp_set_seq, Program.wp_uniform_seq]
+  simp only [ProgramDenotation.bind_assoc, ProgramDenotation.wp_set_seq,
+      ProgramDenotation.wp_uniform_seq]
   rw [sum_sum_div, sum_sum_div,
       mul_comm (Fintype.card output : ENNReal)⁻¹ (Fintype.card input : ENNReal)⁻¹]
   gcongr
   calc ∑ k : input, ∑ hk : output,
           (oracle_loop_n enc_adv q lazy_query_tracked >>= fun _ : Unit =>
-            Program.get guess_var).wp
+            ProgramDenotation.get guess_var).wp
             (fun bσ : Bool × state =>
               if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0)
             (chal_c.set (hk + m) (chal_x_queried_gh.set false
               (ow_challenge_x.set k (random_oracle_state.set (fun _ => none) σ))))
       ≤ ∑ k : input, ∑ hk : output,
           (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
-            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            final_game_1 k >>= fun _ : Unit => ProgramDenotation.get chal_x_queried_gh).wp
             (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
             (chal_x_queried_gh.set false (ow_challenge_x.set k
               (chal_c.set (hk + m) (random_oracle_state.set (fun _ => none) σ)))) := by
@@ -632,20 +633,20 @@ theorem enc_nopre_bad_le_gexp (m : output) (q : ℕ) (σ : state) :
         exact enc_tail_mono enc_adv k q _
     _ = ∑ k : input, ∑ c : output,
           (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
-            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            final_game_1 k >>= fun _ : Unit => ProgramDenotation.get chal_x_queried_gh).wp
             (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
             (chal_x_queried_gh.set false (ow_challenge_x.set k
               (chal_c.set c (random_oracle_state.set (fun _ => none) σ)))) := by
         refine Finset.sum_congr rfl fun k _ => ?_
         exact Equiv.sum_comp (Equiv.addRight m) (fun c : output =>
           (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
-            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            final_game_1 k >>= fun _ : Unit => ProgramDenotation.get chal_x_queried_gh).wp
             (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
             (chal_x_queried_gh.set false (ow_challenge_x.set k
               (chal_c.set c (random_oracle_state.set (fun _ => none) σ)))))
     _ = ∑ c : output, ∑ k : input,
           (loop_n q (body_game_1 enc_adv k) >>= fun _ : Unit =>
-            final_game_1 k >>= fun _ : Unit => Program.get chal_x_queried_gh).wp
+            final_game_1 k >>= fun _ : Unit => ProgramDenotation.get chal_x_queried_gh).wp
             (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)
             (chal_x_queried_gh.set false (ow_challenge_x.set k
               (chal_c.set c (random_oracle_state.set (fun _ => none) σ)))) :=
@@ -669,7 +670,7 @@ end EncBad
 
 section EncMain
 
-variable (enc_adv : Program state Unit)
+variable (enc_adv : ProgramDenotation state Unit)
 variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
 variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
 variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)

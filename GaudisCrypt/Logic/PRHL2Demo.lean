@@ -27,26 +27,26 @@ the shift bijection) to align the keys, then `pure_pure` to return.
 
 /-- The one-time pad over a finite abelian group `G`. -/
 noncomputable def enc {G : Type} [Fintype G] [Nonempty G] [AddCommGroup G]
-    (m : G) : Program Unit G :=
-  Program.uniform >>= fun k => pure (m + k)
+    (m : G) : ProgramDenotation Unit G :=
+  ProgramDenotation.uniform >>= fun k => pure (m + k)
 
 /-- **One-time-pad perfect secrecy.** The ciphertexts of any two messages
     are related by the diagonal (equal-output) coupling — so they have the
     same distribution. -/
 theorem otp_perfect_secrecy {G : Type} [Fintype G] [Nonempty G] [AddCommGroup G]
     (m₀ m₁ : G) :
-    Program.prhl2 (fun _ _ : Unit => True) (enc m₀) (enc m₁) (fun u v => u.1 = v.1) := by
+    ProgramDenotation.prhl2 (fun _ _ : Unit => True) (enc m₀) (enc m₁) (fun u v => u.1 = v.1) := by
   -- Sequence: first the two key draws, then the two returns.
-  refine Program.prhl2.bind
+  refine ProgramDenotation.prhl2.bind
     -- couple the keys by the shift `k ↦ k + (m₀ - m₁)` (uniform ↦ uniform),
     -- carrying the invariant `m₀ + k₀ = m₁ + k₁`.
-    (Program.prhl2.uniform (B := fun u v => m₀ + u.1 = m₁ + v.1)
+    (ProgramDenotation.prhl2.uniform (B := fun u v => m₀ + u.1 = m₁ + v.1)
       (Equiv.addRight (m₀ - m₁)) (fun k _ _ _ => by
         show m₀ + k = m₁ + (k + (m₀ - m₁))
         abel)) ?_
   -- the returns agree exactly when the carried invariant holds.
   intro k₀ k₁
-  exact Program.prhl2.pure_pure (fun _ _ hM => hM)
+  exact ProgramDenotation.prhl2.pure_pure (fun _ _ hM => hM)
 
 /-- Consequently the two encryptions are wp-indistinguishable: any
     ciphertext-only observable has equal expectation under `enc m₀` and
@@ -84,30 +84,30 @@ def notEquiv : Bool ≃ Bool :=
   ⟨Bool.not, Bool.not, fun b => Bool.not_not b, fun b => Bool.not_not b⟩
 
 /-- Increment the counter (the whole state, via the identity lens). -/
-noncomputable def incr : Program ℕ Unit :=
-  Program.get Lens.id >>= fun c => Program.set Lens.id (c + 1)
+noncomputable def incr : ProgramDenotation ℕ Unit :=
+  ProgramDenotation.get Lens.id >>= fun c => ProgramDenotation.set Lens.id (c + 1)
 
 /-- Two increments from equal counters end at equal counters. -/
-theorem incr_rel : Program.prhl2 Eq incr incr (fun u v => u.2 = v.2) := by
-  refine Program.prhl2.bind
-    (Program.prhl2.get Lens.id Lens.id
+theorem incr_rel : ProgramDenotation.prhl2 Eq incr incr (fun u v => u.2 = v.2) := by
+  refine ProgramDenotation.prhl2.bind
+    (ProgramDenotation.prhl2.get Lens.id Lens.id
       (B := fun u v => u.1 = v.1 ∧ u.2 = v.2) (fun _ _ h => ⟨h, h⟩)) (fun c₁ c₂ => ?_)
-  exact Program.prhl2.set Lens.id Lens.id (c₁ + 1) (c₂ + 1)
+  exact ProgramDenotation.prhl2.set Lens.id Lens.id (c₁ + 1) (c₂ + 1)
     (fun _ _ h => by have hc : c₁ = c₂ := h.1; subst hc; rfl)
 
 /-- Count a head: increment iff the coin shows `true`. -/
-noncomputable def headBody : Program ℕ Unit :=
-  (Program.uniform : Program ℕ Bool) >>= fun b => if b then incr else pure ()
+noncomputable def headBody : ProgramDenotation ℕ Unit :=
+  (ProgramDenotation.uniform : ProgramDenotation ℕ Bool) >>= fun b => if b then incr else pure ()
 
 /-- Count a tail: increment iff the coin shows `false`. -/
-noncomputable def tailBody : Program ℕ Unit :=
-  (Program.uniform : Program ℕ Bool) >>= fun b => if b then pure () else incr
+noncomputable def tailBody : ProgramDenotation ℕ Unit :=
+  (ProgramDenotation.uniform : ProgramDenotation ℕ Bool) >>= fun b => if b then pure () else incr
 
 /-- One head-step and one tail-step, with the coin coupled oppositely,
     preserve equality of the counters. -/
-theorem body_rel : Program.prhl2 Eq headBody tailBody (fun u v => u.2 = v.2) := by
-  refine Program.prhl2.bind
-    (Program.prhl2.uniform (B := fun u v => v.1 = !u.1 ∧ u.2 = v.2) notEquiv
+theorem body_rel : ProgramDenotation.prhl2 Eq headBody tailBody (fun u v => u.2 = v.2) := by
+  refine ProgramDenotation.prhl2.bind
+    (ProgramDenotation.prhl2.uniform (B := fun u v => v.1 = !u.1 ∧ u.2 = v.2) notEquiv
       (fun _ _ _ h => ⟨rfl, h⟩)) (fun b₁ b₂ => ?_)
   intro τ₁ τ₂ hpre
   have hb : b₂ = !b₁ := hpre.1
@@ -116,14 +116,14 @@ theorem body_rel : Program.prhl2 Eq headBody tailBody (fun u v => u.2 = v.2) := 
   | true => rw [hb]; exact incr_rel τ₁ τ₂ hτ
   | false =>
     rw [hb]
-    exact Program.prhl2.pure_pure (A := Eq) (B := fun u v => u.2 = v.2)
+    exact ProgramDenotation.prhl2.pure_pure (A := Eq) (B := fun u v => u.2 = v.2)
       (fun _ _ h => h) τ₁ τ₂ hτ
 
 /-- **`#heads` and `#tails` have the same distribution** after `n` fair
     flips: the two counting loops are related by the equal-counter coupling. -/
 theorem count_heads_eq_count_tails (n : ℕ) :
-    Program.prhl2 Eq (loop_n n headBody) (loop_n n tailBody) (fun u v => u.2 = v.2) :=
-  Program.prhl2.loop_n body_rel n
+    ProgramDenotation.prhl2 Eq (loop_n n headBody) (loop_n n tailBody) (fun u v => u.2 = v.2) :=
+  ProgramDenotation.prhl2.loop_n body_rel n
 
 /-!
 ## Demonstration 3: a reduction step — the adversary frame rule
@@ -146,17 +146,17 @@ window-agreeing states returns equal results), and `conseq`.
 
 theorem external_tweak_invisible {a e s γ : Type}
     [Countable a] [Countable s] [Countable γ]
-    (winA : Lens a s) (winE : Lens e s) (P : Program a γ) (v : e)
+    (winA : Lens a s) (winE : Lens e s) (P : ProgramDenotation a γ) (v : e)
     (hdisj : ∀ σ, winA.get (winE.set v σ) = winA.get σ) :
-    Program.prhl2 (fun σ₁ σ₂ => winA.get σ₁ = winA.get σ₂)
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ => winA.get σ₁ = winA.get σ₂)
       (winA.lift P)
-      (Program.set winE v >>= fun _ => winA.lift P)
+      (ProgramDenotation.set winE v >>= fun _ => winA.lift P)
       (fun u v => u.1 = v.1) := by
-  refine Program.prhl2.prefix_right (Mid := fun σ₁ σ₂ => winA.get σ₁ = winA.get σ₂) ?_ ?_
-  · exact Program.prhl2.set_skip_right winE v (fun σ₁ σ₂ h => by
+  refine ProgramDenotation.prhl2.prefix_right (Mid := fun σ₁ σ₂ => winA.get σ₁ = winA.get σ₂) ?_ ?_
+  · exact ProgramDenotation.prhl2.set_skip_right winE v (fun σ₁ σ₂ h => by
       show winA.get σ₁ = winA.get (winE.set v σ₂)
       rw [hdisj]; exact h)
-  · exact (Program.prhl2.adversary winA P).conseq (fun _ _ h => h) (fun _ _ h => h.1)
+  · exact (ProgramDenotation.prhl2.adversary winA P).conseq (fun _ _ h => h) (fun _ _ h => h.1)
 
 /-!
 ## Demonstration 4: collision resistance of double hashing
@@ -196,18 +196,18 @@ theorem reducePair_isColl {α : Type} [DecidableEq α] (H : α → α) (p : α �
 /-- **Reduction (relational)**: a win on the left (an `(H∘H)`-collision from
     `A`) forces a win on the right (an `H`-collision from the reduction). -/
 theorem double_hash_reduction {α s : Type} [DecidableEq α] [Countable α] [Countable s]
-    (H : α → α) (A : Program s (α × α)) :
-    Program.prhl2 Eq (A >>= pure) (A >>= fun p => pure (reducePair H p))
+    (H : α → α) (A : ProgramDenotation s (α × α)) :
+    ProgramDenotation.prhl2 Eq (A >>= pure) (A >>= fun p => pure (reducePair H p))
       (fun u v => IsColl (fun x => H (H x)) u.1 → IsColl H v.1) := by
-  refine Program.prhl2.bind (Program.prhl2.refl A) (fun p₁ p₂ => ?_)
-  exact Program.prhl2.pure_pure (fun _ _ heq hcoll => by
+  refine ProgramDenotation.prhl2.bind (ProgramDenotation.prhl2.refl A) (fun p₁ p₂ => ?_)
+  exact ProgramDenotation.prhl2.pure_pure (fun _ _ heq hcoll => by
     have hp : p₁ = p₂ := congrArg Prod.fst heq
     rw [← hp]; exact reducePair_isColl H p₁ hcoll)
 
 /-- **Concrete-security bound**: the `(H∘H)`-CR advantage of `A` is at most
     the `H`-CR advantage of the reduction `A ∘ rp`. So `H` CR ⟹ `H∘H` CR. -/
 theorem double_hash_cr_bound {α s : Type} [DecidableEq α] [Countable α] [Countable s]
-    (H : α → α) (A : Program s (α × α)) (σ : s) :
+    (H : α → α) (A : ProgramDenotation s (α × α)) (σ : s) :
     A.wp (fun pσ => if IsColl (fun x => H (H x)) pσ.1 then 1 else 0) σ
       ≤ (A >>= fun p => pure (reducePair H p)).wp
           (fun qσ => if IsColl H qσ.1 then 1 else 0) σ := by
@@ -219,6 +219,6 @@ theorem double_hash_cr_bound {α s : Type} [DecidableEq α] [Countable α] [Coun
       · simp only [if_pos hc, if_pos (hxy hc), le_refl]
       · simp only [if_neg hc]; exact zero_le')
     σ σ rfl
-  rwa [Program.bind_pure] at key
+  rwa [ProgramDenotation.bind_pure] at key
 
 end GaudisCrypt.Language.Semantics

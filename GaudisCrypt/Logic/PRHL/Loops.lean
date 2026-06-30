@@ -18,44 +18,45 @@ prefixed point — `fun τ₁ => ⨅ τ₂, ⨅ (_ : Inv τ₁ τ₂), (while₂
 the same `ENNReal`-interpolant trick as `rel.trans`.
 -/
 
-namespace Program.rel
+namespace ProgramDenotation.rel
 
 /-- **Synchronized loop rule**: if the bodies preserve the relational
     invariant `Inv` (as a state relation), so do `n` synchronized
     iterations. -/
 lemma loop_n {s₁ s₂ : Type}
-    {body₁ : Program s₁ Unit} {body₂ : Program s₂ Unit}
+    {body₁ : ProgramDenotation s₁ Unit} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop}
     (h : body₁.rel body₂ Inv (fun x y => Inv x.2 y.2)) (n : ℕ) :
     (loop_n n body₁).rel (loop_n n body₂) Inv (fun x y => Inv x.2 y.2) := by
   induction n with
   | zero =>
-    exact Program.rel.pure_pure (fun σ₁ σ₂ hpre => hpre)
+    exact ProgramDenotation.rel.pure_pure (fun σ₁ σ₂ hpre => hpre)
   | succ n ih =>
     change (body₁ >>= fun _ => _root_.loop_n n body₁).rel
            (body₂ >>= fun _ => _root_.loop_n n body₂) Inv _
-    exact Program.rel.bind h (fun _ _ => ih)
+    exact ProgramDenotation.rel.bind h (fun _ _ => ih)
 
-end Program.rel
+end ProgramDenotation.rel
 
-namespace Program.relE
+namespace ProgramDenotation.relE
 
 /-- Two-sided synchronized loop rule. -/
 lemma loop_n {s₁ s₂ : Type}
-    {body₁ : Program s₁ Unit} {body₂ : Program s₂ Unit}
+    {body₁ : ProgramDenotation s₁ Unit} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop}
     (h : body₁.relE body₂ Inv (fun x y => Inv x.2 y.2)) (n : ℕ) :
     (loop_n n body₁).relE (loop_n n body₂) Inv (fun x y => Inv x.2 y.2) :=
-  ⟨Program.rel.loop_n h.1 n, Program.rel.loop_n h.2 n⟩
+  ⟨ProgramDenotation.rel.loop_n h.1 n, ProgramDenotation.rel.loop_n h.2 n⟩
 
-end Program.relE
+end ProgramDenotation.relE
 
 /-! ## Synchronized `while_loop` rule -/
 
 /-- Unfold one application of the wp loop functional (definitional). -/
 private lemma while_iteration_wp_apply {s : Type}
-    (c : Program s Bool) (p : Program s Unit) (post : Program.Post s Unit)
-    (fp : Program.Pre s) (σ : s) :
+    (c : ProgramDenotation s Bool) (p : ProgramDenotation s Unit) (post : ProgramDenotation.Post s
+        Unit)
+    (fp : ProgramDenotation.Pre s) (σ : s) :
     while_iteration_wp c p () post fp σ
     = c.wp (fun bst : Bool × s =>
         if bst.1 then p.wp (fun ut : Unit × s => fp ut.2) bst.2
@@ -65,9 +66,9 @@ private lemma while_iteration_wp_apply {s : Type}
     (`PostC b` records the invariant refined by the guard value `b`), the
     bodies preserve the invariant from `PostC true`, and the loops relate
     at `PostC false`. -/
-lemma Program.rel.while_loop {s₁ s₂ : Type}
-    {cond₁ : Program s₁ Bool} {body₁ : Program s₁ Unit}
-    {cond₂ : Program s₂ Bool} {body₂ : Program s₂ Unit}
+lemma ProgramDenotation.rel.while_loop {s₁ s₂ : Type}
+    {cond₁ : ProgramDenotation s₁ Bool} {body₁ : ProgramDenotation s₁ Unit}
+    {cond₂ : ProgramDenotation s₂ Bool} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
     (h_cond : cond₁.rel cond₂ Inv (fun u v => u.1 = v.1 ∧ PostC u.1 u.2 v.2))
     (h_body : body₁.rel body₂ (PostC true) (fun u v => Inv u.2 v.2)) :
@@ -103,17 +104,17 @@ lemma Program.rel.while_loop {s₁ s₂ : Type}
     _ ≤ (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂).wp G σ₂ := iInf₂_le σ₂ hpre
 
 /-- Two-sided synchronized while rule. -/
-lemma Program.relE.while_loop {s₁ s₂ : Type}
-    {cond₁ : Program s₁ Bool} {body₁ : Program s₁ Unit}
-    {cond₂ : Program s₂ Bool} {body₂ : Program s₂ Unit}
+lemma ProgramDenotation.relE.while_loop {s₁ s₂ : Type}
+    {cond₁ : ProgramDenotation s₁ Bool} {body₁ : ProgramDenotation s₁ Unit}
+    {cond₂ : ProgramDenotation s₂ Bool} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
     (h_cond : cond₁.relE cond₂ Inv (fun u v => u.1 = v.1 ∧ PostC u.1 u.2 v.2))
     (h_body : body₁.relE body₂ (PostC true) (fun u v => Inv u.2 v.2)) :
     (GaudisCrypt.Language.Semantics.while_loop cond₁ body₁).relE (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂) Inv
       (fun u v => PostC false u.2 v.2) := by
   constructor
-  · exact Program.rel.while_loop h_cond.1 h_body.1
-  · refine Program.rel.while_loop (Inv := fun σ₂ σ₁ => Inv σ₁ σ₂)
+  · exact ProgramDenotation.rel.while_loop h_cond.1 h_body.1
+  · refine ProgramDenotation.rel.while_loop (Inv := fun σ₂ σ₁ => Inv σ₁ σ₂)
       (PostC := fun b σ₂ σ₁ => PostC b σ₁ σ₂) ?_ h_body.2
     exact h_cond.2.conseq (fun _ _ h => h)
       (fun v u h => ⟨h.1.symm, h.1 ▸ h.2⟩)

@@ -6,13 +6,13 @@ namespace GaudisCrypt.Language.Semantics
 /-!
 # pRHL up-to-bad and rectangular rules
 
-* `Program.relE.up_to_bad` — the Fundamental Lemma of game-playing as a
+* `ProgramDenotation.relE.up_to_bad` — the Fundamental Lemma of game-playing as a
   corollary of a `relE` judgment whose post says "the bad flags agree, and
   on good runs the win indicator agrees". Note the post is parameterized by
   the indicator `G` rather than demanding full state equality on good runs:
   in real games the related states may still differ in parts `G` cannot see
   (e.g. the random-oracle entry at the challenge point).
-* `Program.rel.of_unary` — the rectangular rule: a relational judgment from
+* `ProgramDenotation.rel.of_unary` — the rectangular rule: a relational judgment from
   two *unary* facts ("p almost surely lands in P" and "q has mass 1 on Q").
   Needed when the two sides genuinely diverge (e.g. after the bad event) and
   the only maintainable invariant is one-sided.
@@ -21,7 +21,7 @@ namespace GaudisCrypt.Language.Semantics
 /-- **Up-to-bad** (Fundamental Lemma, relational form). From a diagonal
     `relE` whose post forces agreement of the bad flag and of `G` on good
     runs, conclude `Pr[p : G] ≤ Pr[q : G] + Pr[p : bad ∧ G]`. -/
-lemma Program.relE.up_to_bad {s α : Type} {p q : Program s α}
+lemma ProgramDenotation.relE.up_to_bad {s α : Type} {p q : ProgramDenotation s α}
     {bad : s → Prop} [DecidablePred bad]
     {Post : α × s → α × s → Prop}
     (G : α × s → ENNReal)
@@ -31,7 +31,7 @@ lemma Program.relE.up_to_bad {s α : Type} {p q : Program s α}
     (σ : s) :
     p.wp G σ
     ≤ q.wp G σ + p.wp (fun x : α × s => if bad x.2 then G x else 0) σ := by
-  apply Program.up_to_bad
+  apply ProgramDenotation.up_to_bad
   intro σ'
   apply h.wp_eq ?_ rfl
   intro x y hxy
@@ -41,9 +41,9 @@ lemma Program.relE.up_to_bad {s α : Type} {p q : Program s α}
         h_good x y hxy hb]
 
 /-- The bad-event probabilities agree under the same `relE` judgment
-    (companion to `Program.relE.up_to_bad`; in the unary development this
+    (companion to `ProgramDenotation.relE.up_to_bad`; in the unary development this
     took a separate mass-conservation chain). -/
-lemma Program.relE.bad_eq {s α : Type} {p q : Program s α}
+lemma ProgramDenotation.relE.bad_eq {s α : Type} {p q : ProgramDenotation s α}
     {bad : s → Prop} [DecidablePred bad]
     {Post : α × s → α × s → Prop}
     (h : p.relE q Eq Post)
@@ -60,8 +60,8 @@ lemma Program.relE.bad_eq {s α : Type} {p q : Program s α}
 /-- **Rectangular rule**: if `p` almost surely lands in `P` (from
     `Pre`-related states) and `q` has full mass on `Q`, then `p ~ q` at the
     rectangular post `P × Q`. The two sides need not be coupled at all. -/
-lemma Program.rel.of_unary {s₁ s₂ α β : Type}
-    {p : Program s₁ α} {q : Program s₂ β}
+lemma ProgramDenotation.rel.of_unary {s₁ s₂ α β : Type}
+    {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop}
     {P : α × s₁ → Prop} [DecidablePred P]
     {Q : β × s₂ → Prop} [DecidablePred Q]
@@ -75,7 +75,7 @@ lemma Program.rel.of_unary {s₁ s₂ α β : Type}
     calc p.wp F σ₁
         ≤ p.wp (fun x => (⨅ y, ⨅ (_ : Q y), G y)
               + (⊤ : ENNReal) * (if P x then 0 else 1)) σ₁ := by
-          apply Program.wp_le_wp_of_le
+          apply ProgramDenotation.wp_le_wp_of_le
           intro x
           by_cases hx : P x
           · rw [if_pos hx, mul_zero, add_zero]
@@ -84,11 +84,11 @@ lemma Program.rel.of_unary {s₁ s₂ α β : Type}
             simp
       _ = p.wp (fun _ => ⨅ y, ⨅ (_ : Q y), G y) σ₁
           + (⊤ : ENNReal) * p.wp (fun x => if P x then 0 else 1) σ₁ := by
-          rw [← Program.wp_const_mul, ← Program.wp_add]
+          rw [← ProgramDenotation.wp_const_mul, ← ProgramDenotation.wp_add]
       _ ≤ (⨅ y, ⨅ (_ : Q y), G y) + (⊤ : ENNReal) * 0 := by
           rw [hP σ₁ σ₂ hpre]
           gcongr
-          exact Program.wp_const_le p _ σ₁
+          exact ProgramDenotation.wp_const_le p _ σ₁
       _ = ⨅ y, ⨅ (_ : Q y), G y := by rw [mul_zero, add_zero]
   have hstep2 : (⨅ y, ⨅ (_ : Q y), G y) ≤ q.wp G σ₂ := by
     calc (⨅ y, ⨅ (_ : Q y), G y)
@@ -97,9 +97,9 @@ lemma Program.rel.of_unary {s₁ s₂ α β : Type}
           rw [hQ σ₁ σ₂ hpre, mul_one]
       _ = q.wp (fun y => (⨅ y', ⨅ (_ : Q y'), G y')
               * (if Q y then 1 else 0)) σ₂ := by
-          rw [← Program.wp_const_mul]
+          rw [← ProgramDenotation.wp_const_mul]
       _ ≤ q.wp G σ₂ := by
-          apply Program.wp_le_wp_of_le
+          apply ProgramDenotation.wp_le_wp_of_le
           intro y
           by_cases hy : Q y
           · rw [if_pos hy, mul_one]

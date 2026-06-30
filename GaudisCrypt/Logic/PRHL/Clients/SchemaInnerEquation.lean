@@ -53,7 +53,7 @@ omit [DecidableEq T] [disjoint matched_var queries_list_var]
   [disjoint matched_var target_var] [disjoint queries_list_var target_var] in
 /-- The shared query program relates to itself across the three-lens
     overwrite: same answer, overwrite carried to the output states. -/
-private lemma q_shift (q : Program s T)
+private lemma q_shift (q : ProgramDenotation s T)
     (h_m : q.inRange matched_var.compl.range)
     (h_qs : q.inRange queries_list_var.compl.range)
     (h_tv : q.inRange target_var.compl.range)
@@ -63,9 +63,9 @@ private lemma q_shift (q : Program s T)
         σ₂ = queries_list_var.set l (matched_var.set m₀ (target_var.set tv₀ σ₁)))
       (fun x y => y.1 = x.1
         ∧ y.2 = queries_list_var.set l (matched_var.set m₀ (target_var.set tv₀ x.2))) := by
-  refine ((Program.relE.self_lens_set target_var h_tv tv₀).trans
-    ((Program.relE.self_lens_set matched_var h_m m₀).trans
-      (Program.relE.self_lens_set queries_list_var h_qs l))).conseq ?_ ?_
+  refine ((ProgramDenotation.relE.self_lens_set target_var h_tv tv₀).trans
+    ((ProgramDenotation.relE.self_lens_set matched_var h_m m₀).trans
+      (ProgramDenotation.relE.self_lens_set queries_list_var h_qs l))).conseq ?_ ?_
   · rintro σ₁ σ₂ rfl
     exact ⟨_, rfl, _, rfl, rfl⟩
   · rintro x z ⟨y, ⟨ha1, ha2⟩, y', ⟨hb1, hb2⟩, hc1, hc2⟩
@@ -75,10 +75,10 @@ omit [disjoint matched_var queries_list_var] [disjoint queries_list_var target_v
 /-- The two loop tails (match-check vs record-append) preserve the
     invariant, with witness `l ++ [a]`. -/
 private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a₂ : T) :
-    (if a₁ = t then Program.set matched_var true
-      else (pure () : Program s Unit)).relE
-      (Program.get queries_list_var >>= fun qs : List T =>
-        Program.set queries_list_var (qs ++ [a₂]))
+    (if a₁ = t then ProgramDenotation.set matched_var true
+      else (pure () : ProgramDenotation s Unit)).relE
+      (ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+        ProgramDenotation.set queries_list_var (qs ++ [a₂]))
       (fun τ₁ τ₂ =>
         (a₁ = a₂
           ∧ τ₂ = queries_list_var.set l (matched_var.set m₀ (target_var.set tv₀ τ₁)))
@@ -86,16 +86,16 @@ private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a�
       (fun x y => Inv target_var matched_var queries_list_var t m₀ tv₀ x.2 y.2) := by
   haveI htm : disjoint target_var matched_var := disjoint.symm inferInstance
   have hL : ∀ (F : Unit × s → ENNReal) (τ : s),
-      (if a₁ = t then Program.set matched_var true
-        else (pure () : Program s Unit)).wp F τ
+      (if a₁ = t then ProgramDenotation.set matched_var true
+        else (pure () : ProgramDenotation s Unit)).wp F τ
       = F ((), if a₁ = t then matched_var.set true τ else τ) := by
     intro F τ
     by_cases h : a₁ = t
     · simp only [if_pos h, wp_set]
     · simp only [if_neg h, wp_pure]
   have hR : ∀ (G : Unit × s → ENNReal) (τ : s),
-      (Program.get queries_list_var >>= fun qs : List T =>
-        Program.set queries_list_var (qs ++ [a₂])).wp G τ
+      (ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+        ProgramDenotation.set queries_list_var (qs ++ [a₂])).wp G τ
       = G ((), queries_list_var.set (queries_list_var.get τ ++ [a₂]) τ) := by
     intro G τ
     simp only [wp_bind, wp_get, wp_set]
@@ -143,29 +143,29 @@ private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a�
 omit [disjoint queries_list_var target_var] in
 /-- **The body judgment**: one match-tracking iteration relates to one
     recording iteration, preserving `Inv`. -/
-private lemma body_relE (q : Program s T)
+private lemma body_relE (q : ProgramDenotation s T)
     (h_m : q.inRange matched_var.compl.range)
     (h_qs : q.inRange queries_list_var.compl.range)
     (h_tv : q.inRange target_var.compl.range)
     (t : T) (m₀ : Bool) (tv₀ : T) :
     (q >>= fun a : T =>
-      if a = t then Program.set matched_var true
-      else (pure () : Program s Unit)).relE
+      if a = t then ProgramDenotation.set matched_var true
+      else (pure () : ProgramDenotation s Unit)).relE
     (q >>= fun a : T =>
-      Program.get queries_list_var >>= fun qs : List T =>
-      Program.set queries_list_var (qs ++ [a]))
+      ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+      ProgramDenotation.set queries_list_var (qs ++ [a]))
     (Inv target_var matched_var queries_list_var t m₀ tv₀)
     (fun x y => Inv target_var matched_var queries_list_var t m₀ tv₀ x.2 y.2) := by
   haveI hqm : disjoint queries_list_var matched_var := disjoint.symm inferInstance
-  apply Program.relE.exists_pre
+  apply ProgramDenotation.relE.exists_pre
   intro l
-  refine Program.relE.bind
+  refine ProgramDenotation.relE.bind
     (Mid := fun x y =>
       (x.1 = y.1
         ∧ y.2 = queries_list_var.set l (matched_var.set m₀ (target_var.set tv₀ x.2)))
       ∧ matched_var.get x.2 = decide (t ∈ l))
     ?_ (fun a₁ a₂ => tail_relE target_var matched_var queries_list_var t l m₀ tv₀ a₁ a₂)
-  refine (Program.relE.frame matched_var matched_var h_m h_m
+  refine (ProgramDenotation.relE.frame matched_var matched_var h_m h_m
     (q_shift target_var matched_var queries_list_var q h_m h_qs h_tv l m₀ tv₀)
     (decide (t ∈ l)) m₀).conseq ?_ ?_
   · intro σ₁ σ₂ hpre
@@ -179,16 +179,16 @@ omit [disjoint matched_var queries_list_var] [disjoint matched_var target_var]
 /-- **The ending judgment**: reading the matched flag (left) returns the
     same boolean as the deferred membership test (right). -/
 private lemma ending_relE (t : T) (m₀ : Bool) (tv₀ : T) :
-    (Program.get matched_var).relE
-      (Program.get queries_list_var >>= fun qs : List T =>
-        Program.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
-        Program.get matched_var)
+    (ProgramDenotation.get matched_var).relE
+      (ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+        ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
+        ProgramDenotation.get matched_var)
       (Inv target_var matched_var queries_list_var t m₀ tv₀)
       (fun x y => x.1 = y.1) := by
   have hR : ∀ (G : Bool × s → ENNReal) (τ : s),
-      (Program.get queries_list_var >>= fun qs : List T =>
-        Program.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
-        Program.get matched_var).wp G τ
+      (ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+        ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
+        ProgramDenotation.get matched_var).wp G τ
       = G (decide (t ∈ queries_list_var.get τ),
            matched_var.set (decide (t ∈ queries_list_var.get τ)) τ) := by
     intro G τ
@@ -213,9 +213,9 @@ private lemma ending_relE (t : T) (m₀ : Bool) (tv₀ : T) :
     exact hFG _ _ (hpost τ₁ l hm)
 
 /-- Peel a leading `set` off a `wp`. -/
-private lemma wp_set_seq {γ α : Type} (L : Lens γ s) (v : γ) (P : Program s α)
+private lemma wp_set_seq {γ α : Type} (L : Lens γ s) (v : γ) (P : ProgramDenotation s α)
     (F : α × s → ENNReal) (σ : s) :
-    (Program.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
+    (ProgramDenotation.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
   rw [wp_bind, wp_set]
 
 omit [disjoint queries_list_var target_var] in
@@ -224,7 +224,7 @@ omit [disjoint queries_list_var target_var] in
     assumptions on `T`, and needing only two of the original's three
     disjointness assumptions. -/
 theorem schema_inner_equation_prhl
-    (q_body q_final : Program s T)
+    (q_body q_final : ProgramDenotation s T)
     (h_q_body_matched : q_body.inRange matched_var.compl.range)
     (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
     (h_q_body_target : q_body.inRange target_var.compl.range)
@@ -232,34 +232,36 @@ theorem schema_inner_equation_prhl
     (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
     (h_q_final_target : q_final.inRange target_var.compl.range)
     (n : ℕ) (σ' : s) (t : T) :
-    (Program.set target_var t >>= fun _ : Unit =>
-     Program.set matched_var false >>= fun _ : Unit =>
+    (ProgramDenotation.set target_var t >>= fun _ : Unit =>
+     ProgramDenotation.set matched_var false >>= fun _ : Unit =>
      loop_n n (q_body >>= fun a : T =>
-        if a = t then Program.set matched_var true else (pure () : Program s Unit))
+        if a = t then ProgramDenotation.set matched_var true else (pure () : ProgramDenotation s
+            Unit))
       >>= fun _ : Unit =>
      (q_final >>= fun a : T =>
-        if a = t then Program.set matched_var true else (pure () : Program s Unit))
+        if a = t then ProgramDenotation.set matched_var true else (pure () : ProgramDenotation s
+            Unit))
       >>= fun _ : Unit =>
-     Program.get matched_var).wp
+     ProgramDenotation.get matched_var).wp
        (fun bσ : Bool × s => if bσ.1 then (1 : ENNReal) else 0) σ'
-    = (Program.set queries_list_var [] >>= fun _ : Unit =>
+    = (ProgramDenotation.set queries_list_var [] >>= fun _ : Unit =>
        loop_n n (q_body >>= fun a : T =>
-          Program.get queries_list_var >>= fun qs : List T =>
-          Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+          ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+          ProgramDenotation.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
        (q_final >>= fun a : T =>
-          Program.get queries_list_var >>= fun qs : List T =>
-          Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
-       Program.get queries_list_var >>= fun qs =>
-       Program.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
-       Program.get matched_var).wp
+          ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+          ProgramDenotation.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       ProgramDenotation.get queries_list_var >>= fun qs =>
+       ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
+       ProgramDenotation.get matched_var).wp
        (fun bσ : Bool × s => if bσ.1 then (1 : ENNReal) else 0) σ' := by
   haveI htm : disjoint target_var matched_var := disjoint.symm inferInstance
   -- The full relational judgment: loop, then final iteration, then ending.
-  have hmain := Program.relE.bind
-    (Program.relE.loop_n (body_relE target_var matched_var queries_list_var q_body
+  have hmain := ProgramDenotation.relE.bind
+    (ProgramDenotation.relE.loop_n (body_relE target_var matched_var queries_list_var q_body
       h_q_body_matched h_q_body_qs h_q_body_target t (matched_var.get σ')
       (target_var.get σ')) n)
-    (fun _ _ => Program.relE.bind
+    (fun _ _ => ProgramDenotation.relE.bind
       (body_relE target_var matched_var queries_list_var q_final
         h_q_final_matched h_q_final_qs h_q_final_target t (matched_var.get σ')
         (target_var.get σ'))

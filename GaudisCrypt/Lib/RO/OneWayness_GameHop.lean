@@ -87,7 +87,7 @@ making at most `q` queries:
 
 section GameHopParam_Final
 
-variable (ow_adv : Program state Unit)
+variable (ow_adv : ProgramDenotation state Unit)
 
 /-- **The OW lazy bound via the game-hop chain**.
     Matches the existing `ow_lazy_bound` (in `QueryHit.lean`), proved via
@@ -142,7 +142,7 @@ theorem ow_lazy_bound_via_gamehop
               ≤ (ow_game_1_tracked ow_adv q).wp
                   (fun bσ : Bool × state =>
                     if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ := by
-                apply Program.wp_le_wp_of_le
+                apply ProgramDenotation.wp_le_wp_of_le
                 intro bσ
                 by_cases h : chal_x_queried_gh.get bσ.2 = true
                 · simp only [if_pos h, Win_def]

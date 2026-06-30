@@ -59,7 +59,7 @@ private lemma layer_C_combine_div (m k : ℕ) (N : ENNReal)
 /-- **The birthday accumulation bound.** If `body` bumps `coll` by at most
     `size/N` and `size` by at most `1` per iteration, then `loop_n k body`
     bumps `coll` by at most `k(2·size + k − 1)/2N`. -/
-lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
+lemma loop_n_birthday_bound {s : Type} (body : ProgramDenotation s Unit)
     (coll : s → ENNReal) (size : s → ℕ) (N : ENNReal)
     (hN_pos : N ≠ 0) (hN_top : N ≠ ⊤)
     (h_coll : ∀ σ, body.wp (fun yσ : Unit × s => coll yσ.2) σ
@@ -71,7 +71,7 @@ lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
     ≤ coll σ + (k * (2 * size σ + k - 1) : ENNReal) / (2 * N) := by
   induction k generalizing σ with
   | zero =>
-    show (pure () : Program s Unit).wp _ σ ≤ _
+    show (pure () : ProgramDenotation s Unit).wp _ σ ≤ _
     rw [wp_pure]
     simp
   | succ k ih =>
@@ -90,11 +90,11 @@ lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
               2 * (↑(size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) σ
           = body.wp (fun yσ : Unit × s => 2 * (↑(size yσ.2) : ENNReal)) σ
             + body.wp (fun _ : Unit × s => ((k : ENNReal) - 1)) σ := by
-            rw [Program.wp_add]
+            rw [ProgramDenotation.wp_add]
         _ ≤ 2 * ((↑(size σ) : ENNReal) + 1) + ((k : ENNReal) - 1) := by
             gcongr
-            · rw [Program.wp_const_mul]; gcongr; exact h_size σ
-            · exact Program.wp_const_le body ((k : ENNReal) - 1) σ
+            · rw [ProgramDenotation.wp_const_mul]; gcongr; exact h_size σ
+            · exact ProgramDenotation.wp_const_le body ((k : ENNReal) - 1) σ
     have h_IH_term_bound :
         body.wp (fun yσ : Unit × s =>
             ((k : ENNReal) * (2 * (↑(size yσ.2) : ENNReal) + ((k : ENNReal) - 1))) / (2 * N)) σ
@@ -105,7 +105,7 @@ lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
               (k : ENNReal) *
                 ((2 * (↑(size yσ.2) : ENNReal) + ((k : ENNReal) - 1)) / (2 * N)))
             from by funext yσ; rw [mul_div_assoc]]
-      rw [Program.wp_const_mul]
+      rw [ProgramDenotation.wp_const_mul]
       rw [show ((k : ENNReal) *
               (2 * ((↑(size σ) : ENNReal) + 1) + ((k : ENNReal) - 1))) / (2 * N)
             = (k : ENNReal) *
@@ -122,7 +122,7 @@ lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
                   (1 / (2 * N)) *
                     (2 * (↑(size yσ.2) : ENNReal) + ((k : ENNReal) - 1)))
                 from by funext yσ; rw [one_div, ← ENNReal.div_eq_inv_mul]]
-            rw [Program.wp_const_mul]
+            rw [ProgramDenotation.wp_const_mul]
         _ ≤ (1 / (2 * N)) * (2 * ((↑(size σ) : ENNReal) + 1) + ((k : ENNReal) - 1)) := by
             exact mul_le_mul_left' h_inner_bound _
         _ = (2 * ((↑(size σ) : ENNReal) + 1) + ((k : ENNReal) - 1)) / (2 * N) := by
@@ -133,7 +133,7 @@ lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
             coll yσ.2 +
               ((k : ENNReal) * ((2 * (↑(size yσ.2) : ENNReal) + (k : ENNReal)) - 1))
                 / (2 * N)) σ := by
-          exact Program.wp_le_wp_of_le _ _ _ (fun yσ => ih yσ.2) σ
+          exact ProgramDenotation.wp_le_wp_of_le _ _ _ (fun yσ => ih yσ.2) σ
       _ = body.wp (fun yσ : Unit × s =>
             coll yσ.2 +
               ((k : ENNReal) * (2 * (↑(size yσ.2) : ENNReal)
@@ -144,7 +144,7 @@ lemma loop_n_birthday_bound {s : Type} (body : Program s Unit)
           + body.wp (fun yσ : Unit × s =>
               ((k : ENNReal) * (2 * (↑(size yσ.2) : ENNReal)
                 + ((k : ENNReal) - 1))) / (2 * N)) σ := by
-          rw [Program.wp_add]
+          rw [ProgramDenotation.wp_add]
       _ ≤ (coll σ + (↑(size σ) : ENNReal) / N)
           + ((k : ENNReal) * (2 * ((↑(size σ) : ENNReal) + 1) + ((k : ENNReal) - 1)))
               / (2 * N) := by

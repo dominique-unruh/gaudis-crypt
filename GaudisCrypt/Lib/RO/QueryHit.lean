@@ -98,7 +98,7 @@ instance : disjoint ow_challenge_y ow_response :=
 
 section OWParam
 
-variable (ow_adv : Program state Unit)
+variable (ow_adv : ProgramDenotation state Unit)
 variable (h_ow_adv_chal_x_queried :
             ow_adv.inRange chal_x_queried.compl.range)
 
@@ -113,18 +113,18 @@ done by the experiment (it reads `ow_challenge_x`), not by adv.
     and the experiment computes the oracle response, we additionally check
     whether `oracle_input = ow_challenge_x` and update `chal_x_queried`. -/
 noncomputable def ow_loop_body_tracked
-    (oracle : input → Program state output) : Program state Unit :=
+    (oracle : input → ProgramDenotation state output) : ProgramDenotation state Unit :=
   ow_adv >>= fun _ =>
-    Program.get oracle_input >>= fun inp =>
-      Program.get ow_challenge_x >>= fun cx =>
-        (if inp = cx then Program.set chal_x_queried true
-         else (pure () : Program state Unit)) >>= fun _ =>
+    ProgramDenotation.get oracle_input >>= fun inp =>
+      ProgramDenotation.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then ProgramDenotation.set chal_x_queried true
+         else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
           oracle inp >>= fun y =>
-            Program.set oracle_output y
+            ProgramDenotation.set oracle_output y
 
 /-- Run the tracked loop for `q` rounds. -/
 noncomputable def ow_loop_tracked
-    : ℕ → (input → Program state output) → Program state Unit
+    : ℕ → (input → ProgramDenotation state output) → ProgramDenotation state Unit
   | 0,     _      => pure ()
   | n + 1, oracle => do
       ow_loop_body_tracked ow_adv oracle
@@ -133,16 +133,16 @@ noncomputable def ow_loop_tracked
 /-- The tracked OW experiment: like `ow_experiment` but with `chal_x_queried`
     initialized to `false` at start and updated by `ow_loop_body_tracked`. -/
 noncomputable def ow_experiment_tracked (q : ℕ)
-    (init : Program state Unit)
-    (oracle : input → Program state output) : Program state Bool := do
+    (init : ProgramDenotation state Unit)
+    (oracle : input → ProgramDenotation state output) : ProgramDenotation state Bool := do
   init
-  Program.set chal_x_queried false
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
+  ProgramDenotation.set chal_x_queried false
+  let x ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x x
   let y ← oracle x
-  Program.set ow_challenge_y y
+  ProgramDenotation.set ow_challenge_y y
   ow_loop_tracked ow_adv q oracle
-  let resp ← Program.get ow_response
+  let resp ← ProgramDenotation.get ow_response
   let y_check ← oracle resp
   pure (decide (y_check = y))
 
@@ -150,10 +150,10 @@ noncomputable def ow_experiment_tracked (q : ℕ)
 
 For post-conditions `F` that don't read `chal_x_queried`, the original
 `ow_experiment` and `ow_experiment_tracked` have the same wp. The extra
-`Program.set chal_x_queried _` steps in the tracked version only modify a
+`ProgramDenotation.set chal_x_queried _` steps in the tracked version only modify a
 variable that's disjoint from everything `F` reads. -/
 
--- `Program.wp_set_disjoint_no_op` moved to ProgramRange.lean.
+-- `ProgramDenotation.wp_set_disjoint_no_op` moved to ProgramRange.lean.
 
 /-- A post-condition `F : Bool × state → ENNReal` "ignores `chal_x_queried`"
     iff its value doesn't depend on `chal_x_queried.get`. Formally:
@@ -184,43 +184,43 @@ lemma preimage_win_ignores_chal_x_queried :
     `lazy_query_then_set_oracle_output_inRange_compl` in `RO.lean`. -/
 lemma lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl
     (inp : input) :
-    (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+    (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inRange
         chal_x_queried.compl.range :=
   lazy_query_then_set_oracle_output_inRange_compl chal_x_queried inp
 
 /-- Specialization for `ow_challenge_x`. -/
 lemma lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl
     (inp : input) :
-    (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+    (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inFootprint
         (ow_challenge_x.footprint)ᶜ :=
   lazy_query_then_set_oracle_output_inFootprint_compl ow_challenge_x inp
 
 /-- The conditional `set chal_x_queried` step is a no-op for posts that
     ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`.
-    Thin wrapper over `Program.wp_conditional_set_disjoint_no_op`. -/
+    Thin wrapper over `ProgramDenotation.wp_conditional_set_disjoint_no_op`. -/
 lemma conditional_set_chal_x_queried_no_op
     {α : Type} (cond : Prop) [Decidable cond]
-    {rest : Program state α} (h_rest : rest.inRange chal_x_queried.compl.range)
+    {rest : ProgramDenotation state α} (h_rest : rest.inRange chal_x_queried.compl.range)
     (F : α × state → ENNReal)
     (h_F : ∀ aσ : α × state, F (aσ.1, chal_x_queried.set true aσ.2) = F aσ)
     (σ : state) :
-    ((if cond then Program.set chal_x_queried true else pure ()) >>= fun _ => rest).wp F σ
+    ((if cond then ProgramDenotation.set chal_x_queried true else pure ()) >>= fun _ => rest).wp F σ
     = rest.wp F σ :=
-  Program.wp_conditional_set_disjoint_no_op cond true h_rest F h_F σ
+  ProgramDenotation.wp_conditional_set_disjoint_no_op cond true h_rest F h_F σ
 
 /-- A helper combining `get ow_challenge_x` with the conditional set. Thin
-    wrapper over `Program.wp_get_then_conditional_set_disjoint_no_op`. -/
+    wrapper over `ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op`. -/
 lemma get_chal_x_then_conditional_set_no_op
     {α : Type} (inp : input)
-    {rest : Program state α} (h_rest : rest.inRange chal_x_queried.compl.range)
+    {rest : ProgramDenotation state α} (h_rest : rest.inRange chal_x_queried.compl.range)
     (F : α × state → ENNReal)
     (h_F : ∀ aσ : α × state, F (aσ.1, chal_x_queried.set true aσ.2) = F aσ)
     (σ : state) :
-    (Program.get ow_challenge_x >>= fun cx =>
-        (if inp = cx then Program.set chal_x_queried true
-         else (pure () : Program state Unit)) >>= fun _ => rest).wp F σ
+    (ProgramDenotation.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then ProgramDenotation.set chal_x_queried true
+         else (pure () : ProgramDenotation state Unit)) >>= fun _ => rest).wp F σ
     = rest.wp F σ :=
-  Program.wp_get_then_conditional_set_disjoint_no_op
+  ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op
     (L_get := ow_challenge_x) (L_set := chal_x_queried)
     (fun cx => inp = cx) true h_rest F h_F σ
 
@@ -230,13 +230,13 @@ private lemma ow_loop_body_inner_eq
     (G : Unit × state → ENNReal)
     (h_G : ∀ aσ : Unit × state, G (aσ.1, chal_x_queried.set true aσ.2) = G aσ)
     (σ_a : state) :
-    (Program.get oracle_input >>= fun inp =>
-      lazy_query inp >>= fun y => Program.set oracle_output y).wp G σ_a
-    = (Program.get oracle_input >>= fun inp =>
-      Program.get ow_challenge_x >>= fun cx =>
-        (if inp = cx then Program.set chal_x_queried true
-         else (pure () : Program state Unit)) >>= fun _ =>
-          lazy_query inp >>= fun y => Program.set oracle_output y).wp G σ_a := by
+    (ProgramDenotation.get oracle_input >>= fun inp =>
+      lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp G σ_a
+    = (ProgramDenotation.get oracle_input >>= fun inp =>
+      ProgramDenotation.get ow_challenge_x >>= fun cx =>
+        (if inp = cx then ProgramDenotation.set chal_x_queried true
+         else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
+          lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp G σ_a := by
   rw [wp_bind, wp_get, wp_bind, wp_get]
   set inp := oracle_input.get σ_a
   exact (get_chal_x_then_conditional_set_no_op inp
@@ -255,30 +255,30 @@ lemma ow_loop_body_eq_tracked
   -- Step 2: apply wp_bind on both, then use inner equivalence.
   have h_lhs : (ow_loop_body ow_adv lazy_query).wp G σ
       = ow_adv.wp (fun xs : Unit × state =>
-          (Program.get oracle_input >>= fun inp =>
+          (ProgramDenotation.get oracle_input >>= fun inp =>
             lazy_query inp >>= fun y =>
-              Program.set oracle_output y).wp G xs.snd) σ := by
+              ProgramDenotation.set oracle_output y).wp G xs.snd) σ := by
     show (ow_adv >>= fun _ : Unit =>
-          Program.get oracle_input >>= fun inp =>
+          ProgramDenotation.get oracle_input >>= fun inp =>
             lazy_query inp >>= fun y =>
-              Program.set oracle_output y).wp G σ
+              ProgramDenotation.set oracle_output y).wp G σ
        = ow_adv.wp _ σ
     rw [wp_bind]
   have h_rhs : (ow_loop_body_tracked ow_adv lazy_query).wp G σ
       = ow_adv.wp (fun xs : Unit × state =>
-          (Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+          (ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp G xs.snd) σ := by
+                  ProgramDenotation.set oracle_output y).wp G xs.snd) σ := by
     show (ow_adv >>= fun _ : Unit =>
-          Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+          ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp G σ
+                  ProgramDenotation.set oracle_output y).wp G σ
        = ow_adv.wp _ σ
     rw [wp_bind]
   rw [h_lhs, h_rhs]
@@ -310,22 +310,22 @@ private lemma ow_loop_inRange_chal_x_queried_compl (q : ℕ) :
 private lemma ow_loop_body_tracked_inRange_ow_challenge_y_compl
     (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ) :
     (ow_loop_body_tracked ow_adv lazy_query).inFootprint (ow_challenge_y.footprint)ᶜ := by
-  refine Program.inFootprint_bind h_ow_adv_chal_y ?_
+  refine ProgramDenotation.inFootprint_bind h_ow_adv_chal_y ?_
   intro _
-  refine Program.inFootprint_bind
-    (Program.get_inFootprint_compl_of_disjoint oracle_input ow_challenge_y) ?_
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint oracle_input ow_challenge_y) ?_
   intro inp
   haveI _disj_cx_cy : disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
-  refine Program.inFootprint_bind
-    (Program.get_inFootprint_compl_of_disjoint ow_challenge_x ow_challenge_y) ?_
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint ow_challenge_x ow_challenge_y) ?_
   intro cx
-  refine Program.inFootprint_bind ?_ ?_
+  refine ProgramDenotation.inFootprint_bind ?_ ?_
   · by_cases h : inp = cx
     · rw [if_pos h]
-      exact Program.set_inFootprint_compl_of_disjoint chal_x_queried ow_challenge_y _
+      exact ProgramDenotation.set_inFootprint_compl_of_disjoint chal_x_queried ow_challenge_y _
     · rw [if_neg h]
-      exact Program.inFootprint_pure _ _
+      exact ProgramDenotation.inFootprint_pure _ _
   · intro _
     exact lazy_query_then_set_oracle_output_inFootprint_compl ow_challenge_y inp
 
@@ -335,11 +335,11 @@ private lemma ow_loop_tracked_inRange_ow_challenge_y_compl
     (q : ℕ) :
     (ow_loop_tracked ow_adv q lazy_query).inFootprint (ow_challenge_y.footprint)ᶜ := by
   induction q with
-  | zero => exact Program.inFootprint_pure _ _
+  | zero => exact ProgramDenotation.inFootprint_pure _ _
   | succ n ih =>
     show (ow_loop_body_tracked ow_adv lazy_query >>= fun _ =>
           ow_loop_tracked ow_adv n lazy_query).inFootprint _
-    exact Program.inFootprint_bind
+    exact ProgramDenotation.inFootprint_bind
       (ow_loop_body_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y)
       (fun _ => ih)
 
@@ -362,7 +362,7 @@ private lemma ow_loop_wp_chal_x_queried_invariant (q : ℕ)
       = chal_x_queried.set true σ'
     rw [Function.const_apply]
   rw [← h_f_eq σ]
-  rw [Program.wp_shift_input
+  rw [ProgramDenotation.wp_shift_input
       (ow_loop_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried q)
       h_f_in_Rc]
   congr 1
@@ -419,146 +419,146 @@ include h_ow_adv_chal_x_queried in
 /-- The "rest of the experiment" minus the initial `init` step is in
     `chal_x_queried.compl.range`. -/
 private lemma ow_experiment_rest_inRange_chal_x_queried_compl (q : ℕ)
-    (oracle : input → Program state output)
+    (oracle : input → ProgramDenotation state output)
     (h_oracle_inRange : ∀ x : input,
         (oracle x).inRange chal_x_queried.compl.range)
     (h_ow_loop_in_compl :
         (ow_loop ow_adv q oracle).inRange chal_x_queried.compl.range) :
-    (Program.uniform >>= fun x : input =>
-      Program.set ow_challenge_x x >>= fun _ =>
+    (ProgramDenotation.uniform >>= fun x : input =>
+      ProgramDenotation.set ow_challenge_x x >>= fun _ =>
         oracle x >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
+          ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop ow_adv q oracle >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
+              ProgramDenotation.get ow_response >>= fun resp =>
                 oracle resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool)).inRange
+                  (pure (decide (y_check = y)) : ProgramDenotation state Bool)).inRange
       chal_x_queried.compl.range := by
-  refine Program.inRange_bind
-    (Program.inRange_mono Program.inRange_uniform bot_le) ?_
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le) ?_
   intro x
-  refine Program.inRange_bind
-    (Program.set_inRange_compl_of_disjoint ow_challenge_x chal_x_queried _) ?_
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.set_inRange_compl_of_disjoint ow_challenge_x chal_x_queried _) ?_
   intro _
-  refine Program.inRange_bind (h_oracle_inRange x) ?_
+  refine ProgramDenotation.inRange_bind (h_oracle_inRange x) ?_
   intro y
-  refine Program.inRange_bind
-    (Program.set_inRange_compl_of_disjoint ow_challenge_y chal_x_queried _) ?_
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.set_inRange_compl_of_disjoint ow_challenge_y chal_x_queried _) ?_
   intro _
-  refine Program.inRange_bind h_ow_loop_in_compl ?_
+  refine ProgramDenotation.inRange_bind h_ow_loop_in_compl ?_
   intro _
-  refine Program.inRange_bind
-    (Program.get_inRange_compl_of_disjoint ow_response chal_x_queried) ?_
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.get_inRange_compl_of_disjoint ow_response chal_x_queried) ?_
   intro resp
-  refine Program.inRange_bind (h_oracle_inRange resp) ?_
+  refine ProgramDenotation.inRange_bind (h_oracle_inRange resp) ?_
   intro _
-  exact Program.inRange_mono (Program.inRange_pure _ _) bot_le
+  exact ProgramDenotation.inRange_mono (ProgramDenotation.inRange_pure _ _) bot_le
 
 /-- The post-loop tail `get resp >>= lazy_query resp >>= pure` is in
     `chal_x_queried.compl.range`. -/
 private lemma post_loop_inRange_chal_x_queried_compl (y_chal : output) :
-    (Program.get ow_response >>= fun resp =>
+    (ProgramDenotation.get ow_response >>= fun resp =>
       lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y_chal)) : Program state Bool)).inRange
+        (pure (decide (y_check = y_chal)) : ProgramDenotation state Bool)).inRange
         chal_x_queried.compl.range := by
-  refine Program.inRange_bind
-    (Program.get_inRange_compl_of_disjoint ow_response chal_x_queried) ?_
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.get_inRange_compl_of_disjoint ow_response chal_x_queried) ?_
   intro resp
-  refine Program.inRange_bind ?_ ?_
-  · exact Program.inRange_mono (lazy_query_inRange_ro resp)
+  refine ProgramDenotation.inRange_bind ?_ ?_
+  · exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro resp)
       (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
   · intro _
-    exact Program.inRange_mono (Program.inRange_pure _ _) bot_le
+    exact ProgramDenotation.inRange_mono (ProgramDenotation.inRange_pure _ _) bot_le
 
 include h_ow_adv_chal_x_queried in
 /-- **REST equivalence**: the experiment "rest" with `ow_loop` vs `ow_loop_tracked`
     have the same wp for posts ignoring `chal_x_queried`. -/
 private lemma ow_experiment_rest_eq_tracked (q : ℕ)
     (F : Bool × state → ENNReal) (h_F : IgnoresChalXQueried F) (σ_init : state) :
-    (Program.uniform >>= fun x : input =>
-      Program.set ow_challenge_x x >>= fun _ =>
+    (ProgramDenotation.uniform >>= fun x : input =>
+      ProgramDenotation.set ow_challenge_x x >>= fun _ =>
         lazy_query x >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
+          ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop ow_adv q lazy_query >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
+              ProgramDenotation.get ow_response >>= fun resp =>
                 lazy_query resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool)).wp F σ_init
-    = (Program.uniform >>= fun x : input =>
-      Program.set ow_challenge_x x >>= fun _ =>
+                  (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F σ_init
+    = (ProgramDenotation.uniform >>= fun x : input =>
+      ProgramDenotation.set ow_challenge_x x >>= fun _ =>
         lazy_query x >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
+          ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
+              ProgramDenotation.get ow_response >>= fun resp =>
                 lazy_query resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool)).wp F σ_init := by
+                  (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F σ_init := by
   -- Both sides differ only at ow_loop vs ow_loop_tracked.
   -- Peel off wp_bind on both sides, then use congrArg + funext to descend.
   rw [wp_bind]; conv_rhs => rw [wp_bind]
-  apply congrArg (fun P => Program.uniform.wp P σ_init)
+  apply congrArg (fun P => ProgramDenotation.uniform.wp P σ_init)
   funext xs_u
   -- xs_u : input × state. The inner is set chal_x xs_u.1 >>= ... .wp F xs_u.2.
-  show (Program.set ow_challenge_x xs_u.1 >>= fun _ =>
+  show (ProgramDenotation.set ow_challenge_x xs_u.1 >>= fun _ =>
         lazy_query xs_u.1 >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
+          ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop ow_adv q lazy_query >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
+              ProgramDenotation.get ow_response >>= fun resp =>
                 lazy_query resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool)).wp F xs_u.2
-      = (Program.set ow_challenge_x xs_u.1 >>= fun _ =>
+                  (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F xs_u.2
+      = (ProgramDenotation.set ow_challenge_x xs_u.1 >>= fun _ =>
           lazy_query xs_u.1 >>= fun y =>
-            Program.set ow_challenge_y y >>= fun _ =>
+            ProgramDenotation.set ow_challenge_y y >>= fun _ =>
               ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-                Program.get ow_response >>= fun resp =>
+                ProgramDenotation.get ow_response >>= fun resp =>
                   lazy_query resp >>= fun y_check =>
-                    (pure (decide (y_check = y)) : Program state Bool)).wp F xs_u.2
+                    (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F xs_u.2
   rw [wp_bind]; conv_rhs => rw [wp_bind]
-  apply congrArg (fun P => (Program.set ow_challenge_x xs_u.1).wp P xs_u.2)
+  apply congrArg (fun P => (ProgramDenotation.set ow_challenge_x xs_u.1).wp P xs_u.2)
   funext xs_cx
   -- xs_cx : Unit × state.
   show (lazy_query xs_u.1 >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
+          ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop ow_adv q lazy_query >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
+              ProgramDenotation.get ow_response >>= fun resp =>
                 lazy_query resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool)).wp F xs_cx.2
+                  (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F xs_cx.2
       = (lazy_query xs_u.1 >>= fun y =>
-          Program.set ow_challenge_y y >>= fun _ =>
+          ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-              Program.get ow_response >>= fun resp =>
+              ProgramDenotation.get ow_response >>= fun resp =>
                 lazy_query resp >>= fun y_check =>
-                  (pure (decide (y_check = y)) : Program state Bool)).wp F xs_cx.2
+                  (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F xs_cx.2
   rw [wp_bind]; conv_rhs => rw [wp_bind]
   apply congrArg (fun P => (lazy_query xs_u.1).wp P xs_cx.2)
   funext xs_lq
   -- xs_lq : output × state.
-  show (Program.set ow_challenge_y xs_lq.1 >>= fun _ =>
+  show (ProgramDenotation.set ow_challenge_y xs_lq.1 >>= fun _ =>
           ow_loop ow_adv q lazy_query >>= fun _ =>
-            Program.get ow_response >>= fun resp =>
+            ProgramDenotation.get ow_response >>= fun resp =>
               lazy_query resp >>= fun y_check =>
-                (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_lq.2
-      = (Program.set ow_challenge_y xs_lq.1 >>= fun _ =>
+                (pure (decide (y_check = xs_lq.1)) : ProgramDenotation state Bool)).wp F xs_lq.2
+      = (ProgramDenotation.set ow_challenge_y xs_lq.1 >>= fun _ =>
           ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-            Program.get ow_response >>= fun resp =>
+            ProgramDenotation.get ow_response >>= fun resp =>
               lazy_query resp >>= fun y_check =>
-                (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_lq.2
+                (pure (decide (y_check = xs_lq.1)) : ProgramDenotation state Bool)).wp F xs_lq.2
   rw [wp_bind]; conv_rhs => rw [wp_bind]
-  apply congrArg (fun P => (Program.set ow_challenge_y xs_lq.1).wp P xs_lq.2)
+  apply congrArg (fun P => (ProgramDenotation.set ow_challenge_y xs_lq.1).wp P xs_lq.2)
   funext xs_cy
   -- xs_cy : Unit × state.
   show (ow_loop ow_adv q lazy_query >>= fun _ =>
-          Program.get ow_response >>= fun resp =>
+          ProgramDenotation.get ow_response >>= fun resp =>
             lazy_query resp >>= fun y_check =>
-              (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_cy.2
+              (pure (decide (y_check = xs_lq.1)) : ProgramDenotation state Bool)).wp F xs_cy.2
       = (ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-          Program.get ow_response >>= fun resp =>
+          ProgramDenotation.get ow_response >>= fun resp =>
             lazy_query resp >>= fun y_check =>
-              (pure (decide (y_check = xs_lq.1)) : Program state Bool)).wp F xs_cy.2
+              (pure (decide (y_check = xs_lq.1)) : ProgramDenotation state Bool)).wp F xs_cy.2
   rw [wp_bind]; conv_rhs => rw [wp_bind]
   -- Now: ow_loop.wp G' xs_cy.2 = ow_loop_tracked.wp G' xs_cy.2 where
   -- G' = fun aσ => post_loop.wp F aσ.2.
-  set post_loop : Program state Bool :=
-    Program.get ow_response >>= fun resp =>
+  set post_loop : ProgramDenotation state Bool :=
+    ProgramDenotation.get ow_response >>= fun resp =>
       lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = xs_lq.1)) : Program state Bool) with hpost_def
+        (pure (decide (y_check = xs_lq.1)) : ProgramDenotation state Bool) with hpost_def
   set G' : Unit × state → ENNReal :=
     fun aσ => post_loop.wp F aσ.2 with hG'_def
   -- G' ignores chal_x_queried since post_loop is in chal_x_queried.compl.range
@@ -578,7 +578,7 @@ private lemma ow_experiment_rest_eq_tracked (q : ℕ)
         = chal_x_queried.set true σ'
       rw [Function.const_apply]
     rw [← h_f_eq aσ.2]
-    rw [Program.wp_shift_input
+    rw [ProgramDenotation.wp_shift_input
         (post_loop_inRange_chal_x_queried_compl xs_lq.1) h_f_in_Rc]
     congr 1
     funext xs_b
@@ -591,7 +591,7 @@ include h_ow_adv_chal_x_queried in
     `lazy_query` and `ow_experiment_tracked` with `lazy_query` produce the same
     wp for posts ignoring `chal_x_queried`. -/
 lemma ow_experiment_eq_tracked_lazy (q : ℕ)
-    (init : Program state Unit)
+    (init : ProgramDenotation state Unit)
     (h_init_inRange : init.inRange chal_x_queried.compl.range)
     (F : Bool × state → ENNReal) (h_F : IgnoresChalXQueried F) (σ : state) :
     (ow_experiment ow_adv q init lazy_query).wp F σ
@@ -600,47 +600,49 @@ lemma ow_experiment_eq_tracked_lazy (q : ℕ)
   have h_lhs :
       (ow_experiment ow_adv q init lazy_query).wp F σ
       = init.wp (fun xs : Unit × state =>
-          (Program.uniform >>= fun x : input =>
-            Program.set ow_challenge_x x >>= fun _ =>
+          (ProgramDenotation.uniform >>= fun x : input =>
+            ProgramDenotation.set ow_challenge_x x >>= fun _ =>
               lazy_query x >>= fun y =>
-                Program.set ow_challenge_y y >>= fun _ =>
+                ProgramDenotation.set ow_challenge_y y >>= fun _ =>
                   ow_loop ow_adv q lazy_query >>= fun _ =>
-                    Program.get ow_response >>= fun resp =>
+                    ProgramDenotation.get ow_response >>= fun resp =>
                       lazy_query resp >>= fun y_check =>
-                        (pure (decide (y_check = y)) : Program state Bool)).wp F xs.snd) σ := by
+                        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F xs.snd)
+                            σ := by
     show (init >>= fun _ : Unit =>
-          Program.uniform >>= fun x : input =>
-            Program.set ow_challenge_x x >>= fun _ =>
+          ProgramDenotation.uniform >>= fun x : input =>
+            ProgramDenotation.set ow_challenge_x x >>= fun _ =>
               lazy_query x >>= fun y =>
-                Program.set ow_challenge_y y >>= fun _ =>
+                ProgramDenotation.set ow_challenge_y y >>= fun _ =>
                   ow_loop ow_adv q lazy_query >>= fun _ =>
-                    Program.get ow_response >>= fun resp =>
+                    ProgramDenotation.get ow_response >>= fun resp =>
                       lazy_query resp >>= fun y_check =>
-                        (pure (decide (y_check = y)) : Program state Bool)).wp F σ
+                        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F σ
        = init.wp _ σ
     rw [wp_bind]
   have h_rhs :
       (ow_experiment_tracked ow_adv q init lazy_query).wp F σ
       = init.wp (fun xs : Unit × state =>
-          (Program.set chal_x_queried false >>= fun _ =>
-            Program.uniform >>= fun x : input =>
-              Program.set ow_challenge_x x >>= fun _ =>
+          (ProgramDenotation.set chal_x_queried false >>= fun _ =>
+            ProgramDenotation.uniform >>= fun x : input =>
+              ProgramDenotation.set ow_challenge_x x >>= fun _ =>
                 lazy_query x >>= fun y =>
-                  Program.set ow_challenge_y y >>= fun _ =>
+                  ProgramDenotation.set ow_challenge_y y >>= fun _ =>
                     ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-                      Program.get ow_response >>= fun resp =>
+                      ProgramDenotation.get ow_response >>= fun resp =>
                         lazy_query resp >>= fun y_check =>
-                          (pure (decide (y_check = y)) : Program state Bool)).wp F xs.snd) σ := by
+                          (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F xs.snd)
+                              σ := by
     show (init >>= fun _ : Unit =>
-          Program.set chal_x_queried false >>= fun _ =>
-            Program.uniform >>= fun x : input =>
-              Program.set ow_challenge_x x >>= fun _ =>
+          ProgramDenotation.set chal_x_queried false >>= fun _ =>
+            ProgramDenotation.uniform >>= fun x : input =>
+              ProgramDenotation.set ow_challenge_x x >>= fun _ =>
                 lazy_query x >>= fun y =>
-                  Program.set ow_challenge_y y >>= fun _ =>
+                  ProgramDenotation.set ow_challenge_y y >>= fun _ =>
                     ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-                      Program.get ow_response >>= fun resp =>
+                      ProgramDenotation.get ow_response >>= fun resp =>
                         lazy_query resp >>= fun y_check =>
-                          (pure (decide (y_check = y)) : Program state Bool)).wp F σ
+                          (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F σ
        = init.wp _ σ
     rw [wp_bind]
   rw [h_lhs, h_rhs]
@@ -650,23 +652,23 @@ lemma ow_experiment_eq_tracked_lazy (q : ℕ)
   set σ_a := xs.snd with hσ_a_def
   -- Step 1: (set chal_x_queried false >>= REST_TRACKED).wp F σ_a
   --       = REST_TRACKED.wp F (chal_x_queried.set false σ_a)   [wp_bind + wp_set]
-  rw [show (Program.set chal_x_queried false >>= fun _ =>
-            Program.uniform >>= fun x : input =>
-              Program.set ow_challenge_x x >>= fun _ =>
+  rw [show (ProgramDenotation.set chal_x_queried false >>= fun _ =>
+            ProgramDenotation.uniform >>= fun x : input =>
+              ProgramDenotation.set ow_challenge_x x >>= fun _ =>
                 lazy_query x >>= fun y =>
-                  Program.set ow_challenge_y y >>= fun _ =>
+                  ProgramDenotation.set ow_challenge_y y >>= fun _ =>
                     ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-                      Program.get ow_response >>= fun resp =>
+                      ProgramDenotation.get ow_response >>= fun resp =>
                         lazy_query resp >>= fun y_check =>
-                          (pure (decide (y_check = y)) : Program state Bool)).wp F σ_a
-        = (Program.uniform >>= fun x : input =>
-            Program.set ow_challenge_x x >>= fun _ =>
+                          (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F σ_a
+        = (ProgramDenotation.uniform >>= fun x : input =>
+            ProgramDenotation.set ow_challenge_x x >>= fun _ =>
               lazy_query x >>= fun y =>
-                Program.set ow_challenge_y y >>= fun _ =>
+                ProgramDenotation.set ow_challenge_y y >>= fun _ =>
                   ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-                    Program.get ow_response >>= fun resp =>
+                    ProgramDenotation.get ow_response >>= fun resp =>
                       lazy_query resp >>= fun y_check =>
-                        (pure (decide (y_check = y)) : Program state Bool)).wp F
+                        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp F
             (chal_x_queried.set false σ_a) from by
       rw [wp_bind, wp_set]]
   -- Step 2: REST_TRACKED.wp F (chal_x_queried.set false σ_a)
@@ -685,10 +687,10 @@ lemma ow_experiment_eq_tracked_lazy (q : ℕ)
       = chal_x_queried.set false σ'
     rw [Function.const_apply]
   rw [← h_f_eq σ_a]
-  rw [Program.wp_shift_input
+  rw [ProgramDenotation.wp_shift_input
       (ow_experiment_rest_inRange_chal_x_queried_compl ow_adv
         h_ow_adv_chal_x_queried q lazy_query
-        (fun x => Program.inRange_mono (lazy_query_inRange_ro x)
+        (fun x => ProgramDenotation.inRange_mono (lazy_query_inRange_ro x)
           (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried))
         (ow_loop_inRange_chal_x_queried_compl ow_adv h_ow_adv_chal_x_queried q))
       h_f_in_Rc]
@@ -714,7 +716,7 @@ private lemma ow_loop_body_tracked_mass_le_one
     (ow_loop_body_tracked ow_adv lazy_query).wp
         (fun _ : Unit × state => (1 : ENNReal)) σ
     ≤ 1 :=
-  Program.wp_const_le _ 1 σ
+  ProgramDenotation.wp_const_le _ 1 σ
 
 /-! ### Bound on `chal_x_queried_at_end` (Layer C_obs)
 
@@ -788,7 +790,8 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
   | zero =>
     intro σ h_σ
     -- ow_loop_tracked 0 = pure (). wp evaluates the indicator at the state.
-    show ∑ x : input, (Pure.pure () : Program state Unit).wp _ (ow_challenge_x.set x σ) ≤ _
+    show ∑ x : input, (Pure.pure () : ProgramDenotation state Unit).wp _ (ow_challenge_x.set x σ) ≤
+        _
     simp_rw [wp_pure]
     -- chal_x.set preserves chal_x_queried.get since chal_x and chal_x_queried are disjoint.
     have h_qf : ∀ x : input,
@@ -820,21 +823,21 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     have h_step2 : ∀ x : input,
         (ow_loop_body_tracked ow_adv lazy_query).wp G (ow_challenge_x.set x σ)
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G aσ_adv.2)
+                    ProgramDenotation.set oracle_output y).wp G aσ_adv.2)
             (ow_challenge_x.set x σ) := by
       intro x
       show (ow_adv >>= fun _ : Unit =>
-              Program.get oracle_input >>= fun inp =>
-                Program.get ow_challenge_x >>= fun cx =>
-                  (if inp = cx then Program.set chal_x_queried true
-                   else (pure () : Program state Unit)) >>= fun _ =>
+              ProgramDenotation.get oracle_input >>= fun inp =>
+                ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then ProgramDenotation.set chal_x_queried true
+                   else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y =>
-                      Program.set oracle_output y).wp G (ow_challenge_x.set x σ) = _
+                      ProgramDenotation.set oracle_output y).wp G (ow_challenge_x.set x σ) = _
       rw [wp_bind]
     simp_rw [h_step2]
     -- Step 3: Shift chal_x.set x past ow_adv using wp_shift_input.
@@ -856,34 +859,34 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- Step 4: Apply wp_shift_input on ow_adv.
     have h_shift : ∀ x : input,
         ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G aσ_adv.2)
+                    ProgramDenotation.set oracle_output y).wp G aσ_adv.2)
             (ow_challenge_x.set x σ)
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G (ow_challenge_x.set x aσ_adv.2))
+                    ProgramDenotation.set oracle_output y).wp G (ow_challenge_x.set x aσ_adv.2))
             σ := by
       intro x
       rw [h_set_as_update x]
-      exact Program.wp_shift_input_prob h_ow_adv_chal_x (h_shift_chal_x.2 x) _ σ
+      exact ProgramDenotation.wp_shift_input_prob h_ow_adv_chal_x (h_shift_chal_x.2 x) _ σ
     simp_rw [h_shift]
     -- Step 5: Pull sum inside ow_adv.wp using wp_finset_sum.
-    rw [← Program.wp_finset_sum]
+    rw [← ProgramDenotation.wp_finset_sum]
     -- Step 6: Bound the inner sum ≤ 1 + q, then ow_adv.wp ≤ 1 + q.
     have h_target : ((q + 1 : ℕ) : ENNReal) = 1 + (q : ENNReal) := by push_cast; ring
     rw [h_target]
     -- Apply wp_strengthen on ow_adv to add `chal_x_queried.get aσ_adv.2 = false`.
-    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried _ σ]
-    refine le_trans (Program.wp_le_wp_of_le ow_adv _ (fun _ => 1 + (q : ENNReal)) ?_ σ)
-                    (Program.wp_const_le ow_adv _ σ)
+    rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried _ σ]
+    refine le_trans (ProgramDenotation.wp_le_wp_of_le ow_adv _ (fun _ => 1 + (q : ENNReal)) ?_ σ)
+                    (ProgramDenotation.wp_const_le ow_adv _ σ)
     intro aσ_adv
     -- The post is `if cxq_aσ_adv = cxq_σ then ... else 0`. Case-split.
     by_cases h_cxq_adv : chal_x_queried.get aσ_adv.2 = chal_x_queried.get σ
@@ -905,35 +908,35 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
       ow_challenge_x.set_get _ _
     -- (lazy_query inp >>= set oracle_output) is in ow_challenge_x.compl.range.
     have h_lqso_inRange_cx_compl :
-        (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+        (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inFootprint
             (ow_challenge_x.footprint)ᶜ :=
       lazy_query_then_set_oracle_output_inFootprint_compl ow_challenge_x inp
     -- (lazy_query inp >>= set oracle_output) is in chal_x_queried.compl.range.
     have h_lqso_inRange_cxq_compl :
-        (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+        (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inRange
             chal_x_queried.compl.range :=
       lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp
     -- G is bounded by 1 pointwise.
     have h_G_le_one : ∀ aσ_b : Unit × state, G aσ_b ≤ 1 := by
       intro aσ_b
       show (ow_loop_tracked ow_adv q lazy_query).wp F aσ_b.2 ≤ 1
-      refine le_trans (Program.wp_le_wp_of_le _ F (fun _ => 1) ?_ aσ_b.2)
-                      (Program.wp_const_le _ 1 aσ_b.2)
+      refine le_trans (ProgramDenotation.wp_le_wp_of_le _ F (fun _ => 1) ?_ aσ_b.2)
+                      (ProgramDenotation.wp_const_le _ 1 aσ_b.2)
       intro aσ
       show (if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0) ≤ 1
       split <;> [rfl; exact bot_le]
     -- Pointwise: post_adv.wp G (chal_x.set x aσ_adv.2) ≤
     --   (if x = inp then 1 else 0) + (lazy_query inp >>= set oracle_output).wp G (chal_x.set x aσ_adv.2)
     have h_pointwise : ∀ x : input,
-        (Program.get oracle_input >>= fun inp' =>
-          Program.get ow_challenge_x >>= fun cx =>
-            (if inp' = cx then Program.set chal_x_queried true
-             else (pure () : Program state Unit)) >>= fun _ =>
+        (ProgramDenotation.get oracle_input >>= fun inp' =>
+          ProgramDenotation.get ow_challenge_x >>= fun cx =>
+            (if inp' = cx then ProgramDenotation.set chal_x_queried true
+             else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
               lazy_query inp' >>= fun y =>
-                Program.set oracle_output y).wp G (ow_challenge_x.set x aσ_adv.2)
+                ProgramDenotation.set oracle_output y).wp G (ow_challenge_x.set x aσ_adv.2)
         ≤ (if x = inp then (1 : ENNReal) else 0) +
             (lazy_query inp >>= fun y =>
-              Program.set oracle_output y).wp G (ow_challenge_x.set x aσ_adv.2) := by
+              ProgramDenotation.set oracle_output y).wp G (ow_challenge_x.set x aσ_adv.2) := by
       intro x
       -- Unfold wp via get, ite, set/pure.
       simp only [wp_bind, wp_get]
@@ -946,12 +949,12 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
         refine le_add_right ?_
         -- Goal: (lazy_query inp).wp (fun x ↦ (set oracle_output x.1).wp G x.2)
         --         (chal_x_queried.set true (chal_x.set x aσ_adv.2)) ≤ 1
-        refine le_trans (Program.wp_le_wp_of_le _ _ (fun _ => 1) ?_ _) ?_
+        refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ => 1) ?_ _) ?_
         · intro xy
-          refine le_trans (Program.wp_le_wp_of_le _ _ (fun _ => 1) ?_ _) ?_
+          refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ => 1) ?_ _) ?_
           · intro xz; exact h_G_le_one xz
-          · exact Program.wp_const_le _ 1 _
-        · exact Program.wp_const_le _ 1 _
+          · exact ProgramDenotation.wp_const_le _ 1 _
+        · exact ProgramDenotation.wp_const_le _ 1 _
       · simp only [if_neg h]
         rw [wp_pure]
         have h_xi : x ≠ inp := fun he => h he.symm
@@ -968,9 +971,9 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- Goal: ∑ x, (lazy_query inp >>= set oracle_output).wp G (chal_x.set x aσ_adv.2) ≤ q.
     -- Apply wp_shift_input on (lazy_query inp >>= set oracle_output) (in chal_x.compl.range).
     have h_shift_lqso : ∀ x : input,
-        (lazy_query inp >>= fun y => Program.set oracle_output y).wp G
+        (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp G
           (ow_challenge_x.set x aσ_adv.2)
-        = (lazy_query inp >>= fun y => Program.set oracle_output y).wp
+        = (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp
           (fun aσ_lq : Unit × state => G (aσ_lq.1, ow_challenge_x.set x aσ_lq.2))
           aσ_adv.2 := by
       intro x
@@ -979,16 +982,17 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
         show ow_challenge_x.set x aσ_adv.2
           = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get aσ_adv.2)) aσ_adv.2
         rw [Function.const_apply]]
-      exact Program.wp_shift_input_prob h_lqso_inRange_cx_compl (h_shift_chal_x.2 x) _ _
+      exact ProgramDenotation.wp_shift_input_prob h_lqso_inRange_cx_compl (h_shift_chal_x.2 x) _ _
     simp_rw [h_shift_lqso]
     -- Apply wp_finset_sum to pull sum inside.
-    rw [← Program.wp_finset_sum]
+    rw [← ProgramDenotation.wp_finset_sum]
     -- Apply wp_strengthen_lens_preserved on (lazy_query inp >>= set oracle_output)
     -- with L = chal_x_queried to add `cxq_aσ_lq = cxq_aσ_adv` to the post.
-    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ aσ_adv.2]
+    rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
+        aσ_adv.2]
     refine le_trans
-      (Program.wp_le_wp_of_le _ _ (fun _ => (q : ENNReal)) ?_ aσ_adv.2)
-      (Program.wp_const_le _ _ _)
+      (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ => (q : ENNReal)) ?_ aσ_adv.2)
+      (ProgramDenotation.wp_const_le _ _ _)
     intro aσ_lq
     -- The post is `if cxq_aσ_lq = cxq_aσ_adv then ∑ x ... else 0`.
     by_cases h_cxq_lq : chal_x_queried.get aσ_lq.2 = chal_x_queried.get aσ_adv.2
@@ -1033,8 +1037,8 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
   | zero =>
     intro σ h_qf h_ro
     show (1 : ENNReal) / Fintype.card output *
-        ∑ y : output, (Pure.pure () : Program state Unit).wp _ _
-      = (Pure.pure () : Program state Unit).wp _ _
+        ∑ y : output, (Pure.pure () : ProgramDenotation state Unit).wp _ _
+      = (Pure.pure () : ProgramDenotation state Unit).wp _ _
     simp_rw [wp_pure]
     -- RO_setentry preserves chal_x_queried.get (lens disjoint).
     have h_cxq_unchanged : ∀ y : output,
@@ -1068,41 +1072,41 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     have h_body_unfold : ∀ σ' : state,
         (ow_loop_body_tracked ow_adv lazy_query).wp G σ'
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G aσ_adv.2) σ' := by
+                    ProgramDenotation.set oracle_output y).wp G aσ_adv.2) σ' := by
       intro σ'
       show (ow_adv >>= fun _ : Unit =>
-              Program.get oracle_input >>= fun inp =>
-                Program.get ow_challenge_x >>= fun cx =>
-                  (if inp = cx then Program.set chal_x_queried true
-                   else (pure () : Program state Unit)) >>= fun _ =>
+              ProgramDenotation.get oracle_input >>= fun inp =>
+                ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then ProgramDenotation.set chal_x_queried true
+                   else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y =>
-                      Program.set oracle_output y).wp G σ' = _
+                      ProgramDenotation.set oracle_output y).wp G σ' = _
       rw [wp_bind]
     simp_rw [h_body_unfold]
     -- Apply wp_shift_input on adv with shift = RO_setentry x y.
     have h_shift : ∀ y' : output,
         ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G aσ_adv.2)
+                    ProgramDenotation.set oracle_output y).wp G aσ_adv.2)
             (random_oracle_state.set
               (fun k => if k = x then some y'
                         else random_oracle_state.get σ k) σ)
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G
+                    ProgramDenotation.set oracle_output y).wp G
               (random_oracle_state.set
                 (fun k => if k = x then some y'
                           else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)) σ := by
@@ -1113,42 +1117,42 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
         rw [Footprint.compl_compl]
         exact (Footprint.from_le_iff _ random_oracle_state.footprint).mp le_rfl
           ⟨fun h => fun k => if k = x then some y' else h k, rfl⟩
-      exact Program.wp_shift_input_prob h_ow_adv h_shift_in _ σ
+      exact ProgramDenotation.wp_shift_input_prob h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.
-    rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+    rw [← ProgramDenotation.wp_finset_sum, ← ProgramDenotation.wp_const_mul]
     -- Apply wp_strengthen_lens_preserved 3x: RO, ow_challenge_x, chal_x_queried.
-    rw [Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv _ σ,
-        Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv
+    rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv _ σ,
+        ProgramDenotation.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv
           (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-                Program.get ow_challenge_x >>= fun cx =>
-                  (if inp = cx then Program.set chal_x_queried true
-                   else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+                ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then ProgramDenotation.set chal_x_queried true
+                   else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y_lq =>
-                      Program.set oracle_output y_lq).wp G aσ_adv.2) σ]
-    rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
-        Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
+                      ProgramDenotation.set oracle_output y_lq).wp G aσ_adv.2) σ]
+    rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
+        ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
           (fun aσ_adv : Unit × state =>
             if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
-              (Program.get oracle_input >>= fun inp =>
-                  Program.get ow_challenge_x >>= fun cx =>
-                    (if inp = cx then Program.set chal_x_queried true
-                     else (pure () : Program state Unit)) >>= fun _ =>
+              (ProgramDenotation.get oracle_input >>= fun inp =>
+                  ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                    (if inp = cx then ProgramDenotation.set chal_x_queried true
+                     else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                       lazy_query inp >>= fun y_lq =>
-                        Program.set oracle_output y_lq).wp G aσ_adv.2
+                        ProgramDenotation.set oracle_output y_lq).wp G aσ_adv.2
             else 0) σ]
-    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried' _ σ,
-        Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried'
+    rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried' _ σ,
+        ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried'
           (fun aσ_adv : Unit × state =>
             if ow_challenge_x.get aσ_adv.2 = ow_challenge_x.get σ then
               if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
-                (Program.get oracle_input >>= fun inp =>
-                    Program.get ow_challenge_x >>= fun cx =>
-                      (if inp = cx then Program.set chal_x_queried true
-                       else (pure () : Program state Unit)) >>= fun _ =>
+                (ProgramDenotation.get oracle_input >>= fun inp =>
+                    ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                      (if inp = cx then ProgramDenotation.set chal_x_queried true
+                       else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                         lazy_query inp >>= fun y_lq =>
-                          Program.set oracle_output y_lq).wp G aσ_adv.2
+                          ProgramDenotation.set oracle_output y_lq).wp G aσ_adv.2
               else 0
             else 0) σ]
     apply congrArg (fun P => ow_adv.wp P σ)
@@ -1258,11 +1262,11 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       simp_rw [← wp_bind]
       -- Apply RO_setentry_commute per y.
       have h_commute : ∀ y_arg : output,
-          (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp G
+          (lazy_query inp_a >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp G
             (random_oracle_state.set
               (fun k => if k = x then some y_arg
                         else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
-          = (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp
+          = (lazy_query inp_a >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp
               (fun aσ_lq => G (aσ_lq.1, random_oracle_state.set
                                       (fun k => if k = x then some y_arg
                                                else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
@@ -1271,23 +1275,25 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
           inp_a x h_inp y_arg aσ_adv.2 G
       simp_rw [h_commute]
       -- Pull (1/|output|) ∑ y inside the outer wp via wp_finset_sum + wp_const_mul.
-      rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+      rw [← ProgramDenotation.wp_finset_sum, ← ProgramDenotation.wp_const_mul]
       -- Apply wp_strengthen 3x on both sides to enforce preconditions.
       have h_inRange_cxq : (lazy_query inp_a >>= fun y_lq =>
-          Program.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
+          ProgramDenotation.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
         lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp_a
       have h_inRange_cx : (lazy_query inp_a >>= fun y_lq =>
-          Program.set oracle_output y_lq).inFootprint (ow_challenge_x.footprint)ᶜ :=
+          ProgramDenotation.set oracle_output y_lq).inFootprint (ow_challenge_x.footprint)ᶜ :=
         lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp_a
       -- Strengthen LHS with three conditions stacked (use conv_lhs to disambiguate).
       conv_lhs =>
-        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
+        rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
+            ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _
+                aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       -- Strengthen RHS with same three conditions stacked.
       conv_rhs =>
-        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
+        rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
+            ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _
+                aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       -- Now both sides have the same outer structure. Show post equality per aσ_lq.
       congr 1
@@ -1337,7 +1343,7 @@ private lemma ow_loop_tracked_lazy_query_freshness
     (q : ℕ) (x : input) (σ : state)
     (h_σ_qf : chal_x_queried.get σ = false)
     (h_σ_ro : random_oracle_state.get σ x = none) :
-    (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+    (lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         ow_loop_tracked ow_adv q lazy_query).wp
       (fun aσ : Unit × state =>
         if chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
@@ -1369,10 +1375,11 @@ private lemma ow_loop_tracked_lazy_query_freshness
     rw [chal_x_queried.get_of_disjoint_set]
   -- (set ow_challenge_y v; ow_loop_tracked).wp F σ' = ow_loop_tracked.wp F σ' for all σ', v.
   have h_drop_chal_y : ∀ (v : output) (σ' : state),
-      (Program.set ow_challenge_y v >>= fun _ : Unit =>
+      (ProgramDenotation.set ow_challenge_y v >>= fun _ : Unit =>
           ow_loop_tracked ow_adv q lazy_query).wp F σ'
       = (ow_loop_tracked ow_adv q lazy_query).wp F σ' :=
-    fun v σ' => Program.wp_set_disjoint_no_op_footprint h_loop_inRange_cy v F (h_F_no_cy v) σ'
+    fun v σ' => ProgramDenotation.wp_set_disjoint_no_op_footprint h_loop_inRange_cy v F (h_F_no_cy
+        v) σ'
   -- Apply wp_bind on outer and h_drop_chal_y inside.
   rw [wp_bind]
   simp_rw [h_drop_chal_y]
@@ -1384,11 +1391,11 @@ private lemma ow_loop_tracked_lazy_query_freshness
           (fun k => if k = x then some v else random_oracle_state.get σ_in k) σ_in)
             / Fintype.card output := by
     intro Q
-    show (do let h <- Program.get random_oracle_state
+    show (do let h <- ProgramDenotation.get random_oracle_state
              match h x with
              | some v => pure v
-             | none => do let value <- Program.uniform
-                          Program.set random_oracle_state
+             | none => do let value <- ProgramDenotation.uniform
+                          ProgramDenotation.set random_oracle_state
                             (fun k => if k=x then some value else h k)
                           pure value).wp Q σ_in = _
     simp only [wp_bind, wp_get]
@@ -1413,22 +1420,22 @@ private lemma ow_loop_tracked_lazy_query_freshness
     indicator at the input state. -/
 private lemma post_loop_preserves_chal_x_queried_wp
     (y_chal : output) (σ : state) :
-    (Program.get ow_response >>= fun resp =>
+    (ProgramDenotation.get ow_response >>= fun resp =>
       lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y_chal)) : Program state Bool)).wp
+        (pure (decide (y_check = y_chal)) : ProgramDenotation state Bool)).wp
       (fun bσ : Bool × state => if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ
     ≤ (if chal_x_queried.get σ then (1 : ENNReal) else 0) := by
   -- post_loop is in chal_x_queried.compl.range. Bound the wp by mass · indicator.
-  have h_inRange : (Program.get ow_response >>= fun resp =>
+  have h_inRange : (ProgramDenotation.get ow_response >>= fun resp =>
       lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y_chal)) : Program state Bool)).inRange
+        (pure (decide (y_check = y_chal)) : ProgramDenotation state Bool)).inRange
       chal_x_queried.compl.range := post_loop_inRange_chal_x_queried_compl y_chal
   -- Use wp_strengthen_lens_preserved with L = chal_x_queried.
-  rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange _ σ]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_inRange _ σ]
   -- Now post is `if cxq.get bσ.2 = cxq.get σ then F bσ else 0`.
   -- Bound by `if cxq.get σ then 1 else 0` (constant).
-  refine le_trans (Program.wp_le_wp_of_le _ _ _ ?_ σ)
-                  (Program.wp_const_le _ _ σ)
+  refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _ _ ?_ σ)
+                  (ProgramDenotation.wp_const_le _ _ σ)
   intro bσ
   by_cases h : chal_x_queried.get bσ.2 = chal_x_queried.get σ
   · rw [if_pos h, h]
@@ -1440,9 +1447,9 @@ private lemma post_loop_preserves_chal_x_queried_wp
     `ow_challenge_x`, and `chal_x_queried` (all disjoint from RO). -/
 private lemma post_loop_preserves_indep_wp
     (y_chal : output) (σ : state) :
-    (Program.get ow_response >>= fun resp =>
+    (ProgramDenotation.get ow_response >>= fun resp =>
       lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y_chal)) : Program state Bool)).wp
+        (pure (decide (y_check = y_chal)) : ProgramDenotation state Bool)).wp
       (fun bσ : Bool × state =>
         if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ ¬ chal_x_queried.get bσ.2
         then (1 : ENNReal) else 0) σ
@@ -1457,22 +1464,22 @@ private lemma post_loop_preserves_indep_wp
   -- (lazy_query resp_val).wp (fun (y_check, σ') => (pure decide).wp F_bool σ') σ.
   -- lazy_query is in random_oracle_state.range. Apply wp_strengthen for resp, chal_x, cxq.
   have h_lq_inRange_resp : (lazy_query resp_val).inRange ow_response.compl.range :=
-    Program.inRange_mono (lazy_query_inRange_ro _)
+    ProgramDenotation.inRange_mono (lazy_query_inRange_ro _)
       (Lens.range_le_compl_of_disjoint random_oracle_state ow_response)
   have h_lq_inRange_cx : (lazy_query resp_val).inFootprint (ow_challenge_x.footprint)ᶜ :=
-    Program.inFootprint_mono (lazy_query_inFootprint_ro _)
+    ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro _)
       (Lens.footprint_le_compl_of_disjoint random_oracle_state ow_challenge_x)
   have h_lq_inRange_cxq : (lazy_query resp_val).inRange chal_x_queried.compl.range :=
-    Program.inRange_mono (lazy_query_inRange_ro _)
+    ProgramDenotation.inRange_mono (lazy_query_inRange_ro _)
       (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
-  rw [Program.wp_strengthen_lens_preserved ow_response h_lq_inRange_resp _ σ,
-      Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _ σ,
-      Program.wp_strengthen_lens_preserved chal_x_queried h_lq_inRange_cxq _ σ]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved ow_response h_lq_inRange_resp _ σ,
+      ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _ σ,
+      ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_lq_inRange_cxq _ σ]
   refine le_trans
-    (Program.wp_le_wp_of_le _ _ (fun _ =>
+    (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ =>
       if ow_response.get σ = ow_challenge_x.get σ ∧ ¬ chal_x_queried.get σ
       then (1 : ENNReal) else 0) ?_ σ)
-    (Program.wp_const_le _ _ σ)
+    (ProgramDenotation.wp_const_le _ _ σ)
   intro yσ
   by_cases h_cxq_pres : chal_x_queried.get yσ.2 = chal_x_queried.get σ
   swap
@@ -1521,31 +1528,31 @@ lemma ow_experiment_tracked_chal_x_queried_bound
     rw [σ_a_def, random_oracle_state.get_of_disjoint_set, random_oracle_state.set_get]
   -- Helper: post_loop step bound for any y.
   have h_post_drop : ∀ (y : output) (σ' : state),
-      (Program.set ow_challenge_y y >>= fun _ =>
+      (ProgramDenotation.set ow_challenge_y y >>= fun _ =>
           ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-          Program.get ow_response >>= fun resp =>
+          ProgramDenotation.get ow_response >>= fun resp =>
           lazy_query resp >>= fun y_check =>
-          (pure (decide (y_check = y)) : Program state Bool)).wp
+          (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp
         (fun bσ : Bool × state =>
           if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ'
-      ≤ (Program.set ow_challenge_y y >>= fun _ =>
+      ≤ (ProgramDenotation.set ow_challenge_y y >>= fun _ =>
           ow_loop_tracked ow_adv q lazy_query).wp F σ' := by
     intro y σ'
     conv_lhs =>
       rw [wp_bind, wp_set, wp_bind]
     conv_rhs =>
       rw [wp_bind, wp_set]
-    refine Program.wp_le_wp_of_le _ _ _ ?_ _
+    refine ProgramDenotation.wp_le_wp_of_le _ _ _ ?_ _
     intro aσ_l
     exact post_loop_preserves_chal_x_queried_wp y aσ_l.2
   -- Per-x bound.
   have h_per_x : ∀ x : input,
-      (Program.set ow_challenge_x x >>= fun _ =>
-        lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+      (ProgramDenotation.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-        Program.get ow_response >>= fun resp =>
+        ProgramDenotation.get ow_response >>= fun resp =>
         lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y)) : Program state Bool)).wp
+        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp
           (fun bσ : Bool × state =>
             if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ_a
       ≤ (ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x σ_a) := by
@@ -1554,31 +1561,31 @@ lemma ow_experiment_tracked_chal_x_queried_bound
     -- Apply wp_bind on lazy_query x.
     rw [wp_bind]
     -- Apply wp_le_wp_of_le on lazy_query post via h_post_drop.
-    refine le_trans (Program.wp_le_wp_of_le _ _
+    refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
       (fun yσ_l : output × state =>
-        (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+        (ProgramDenotation.set ow_challenge_y yσ_l.1 >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query).wp F yσ_l.2)
       (fun yσ_l => h_post_drop yσ_l.1 yσ_l.2) _) ?_
     -- Refold inner via ← wp_bind.
     rw [show (lazy_query x).wp
         (fun yσ_l : output × state =>
-          (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+          (ProgramDenotation.set ow_challenge_y yσ_l.1 >>= fun _ =>
               ow_loop_tracked ow_adv q lazy_query).wp F yσ_l.2)
         (ow_challenge_x.set x σ_a)
-        = (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+        = (lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query).wp F (ow_challenge_x.set x σ_a)
         from by rw [wp_bind]]
     -- Apply freshness.
     rw [ow_loop_tracked_lazy_query_freshness ow_adv h_ow_adv h_ow_adv_chal_y
         h_ow_adv_chal_x h_ow_adv_chal_x_queried q x σ_a h_σ_a_cxq (h_σ_a_ro x)]
   -- Unfold experiment via wp_bind.
-  show (lazy_init >>= fun _ => Program.set chal_x_queried false >>= fun _ =>
-        Program.uniform >>= fun x => Program.set ow_challenge_x x >>= fun _ =>
-        lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+  show (lazy_init >>= fun _ => ProgramDenotation.set chal_x_queried false >>= fun _ =>
+        ProgramDenotation.uniform >>= fun x => ProgramDenotation.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-        Program.get ow_response >>= fun resp =>
+        ProgramDenotation.get ow_response >>= fun resp =>
         lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y)) : Program state Bool)).wp _ σ₀ ≤ _
+        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp _ σ₀ ≤ _
   rw [wp_bind]
   unfold lazy_init
   rw [wp_set, wp_bind, wp_set]
@@ -1587,12 +1594,12 @@ lemma ow_experiment_tracked_chal_x_queried_bound
   rw [wp_bind, wp_uniform]
   -- Goal: ∑ x, (continuation x).wp F_bool σ_a / |input| ≤ q / |input|.
   refine le_trans (Finset.sum_le_sum (fun x _ =>
-    show (Program.set ow_challenge_x x >>= fun _ =>
-            lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+    show (ProgramDenotation.set ow_challenge_x x >>= fun _ =>
+            lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-            Program.get ow_response >>= fun resp =>
+            ProgramDenotation.get ow_response >>= fun resp =>
             lazy_query resp >>= fun y_check =>
-            (pure (decide (y_check = y)) : Program state Bool)).wp
+            (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp
             (fun bσ : Bool × state =>
               if chal_x_queried.get bσ.2 then (1 : ENNReal) else 0) σ_a
           / Fintype.card input
@@ -1629,7 +1636,8 @@ private lemma ow_loop_tracked_indep_sum_le_strong
   induction q with
   | zero =>
     intro σ
-    show ∑ x : input, (Pure.pure () : Program state Unit).wp _ (ow_challenge_x.set x σ) ≤ _
+    show ∑ x : input, (Pure.pure () : ProgramDenotation state Unit).wp _ (ow_challenge_x.set x σ) ≤
+        _
     simp_rw [wp_pure]
     have h_resp : ∀ x : input,
         ow_response.get (ow_challenge_x.set x σ) = ow_response.get σ := by
@@ -1693,12 +1701,12 @@ private lemma ow_loop_tracked_indep_sum_le_strong
                 aσ_b.2)
             (ow_challenge_x.set x σ)
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp
+                    ProgramDenotation.set oracle_output y).wp
               (fun aσ_b : Unit × state =>
                 (ow_loop_tracked ow_adv q lazy_query).wp
                   (fun aσ : Unit × state =>
@@ -1708,12 +1716,12 @@ private lemma ow_loop_tracked_indep_sum_le_strong
             (ow_challenge_x.set x σ) := by
       intro x
       show (ow_adv >>= fun _ : Unit =>
-              Program.get oracle_input >>= fun inp =>
-                Program.get ow_challenge_x >>= fun cx =>
-                  (if inp = cx then Program.set chal_x_queried true
-                   else (pure () : Program state Unit)) >>= fun _ =>
+              ProgramDenotation.get oracle_input >>= fun inp =>
+                ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then ProgramDenotation.set chal_x_queried true
+                   else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y =>
-                      Program.set oracle_output y).wp _ (ow_challenge_x.set x σ) = _
+                      ProgramDenotation.set oracle_output y).wp _ (ow_challenge_x.set x σ) = _
       rw [wp_bind]
     simp_rw [h_step2]
     -- Step 3: Apply wp_shift_input on adv to move chal_x.set x past adv.
@@ -1733,12 +1741,12 @@ private lemma ow_loop_tracked_indep_sum_le_strong
       rw [Function.const_apply]
     have h_shift : ∀ x : input,
         ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp
+                    ProgramDenotation.set oracle_output y).wp
               (fun aσ_b : Unit × state =>
                 (ow_loop_tracked ow_adv q lazy_query).wp
                   (fun aσ : Unit × state =>
@@ -1747,12 +1755,12 @@ private lemma ow_loop_tracked_indep_sum_le_strong
                   aσ_b.2) aσ_adv.2)
             (ow_challenge_x.set x σ)
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp
+                    ProgramDenotation.set oracle_output y).wp
               (fun aσ_b : Unit × state =>
                 (ow_loop_tracked ow_adv q lazy_query).wp
                   (fun aσ : Unit × state =>
@@ -1762,15 +1770,15 @@ private lemma ow_loop_tracked_indep_sum_le_strong
             σ := by
       intro x
       rw [h_set_as_update x]
-      exact Program.wp_shift_input_prob h_ow_adv_chal_x (h_shift_chal_x.2 x) _ σ
+      exact ProgramDenotation.wp_shift_input_prob h_ow_adv_chal_x (h_shift_chal_x.2 x) _ σ
     simp_rw [h_shift]
     -- Step 4: Pull sum inside ow_adv.wp.
-    rw [← Program.wp_finset_sum]
+    rw [← ProgramDenotation.wp_finset_sum]
     -- Step 5: wp_strengthen on adv with chal_x_queried.compl.range.
-    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried _ σ]
-    refine le_trans (Program.wp_le_wp_of_le ow_adv _
+    rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried _ σ]
+    refine le_trans (ProgramDenotation.wp_le_wp_of_le ow_adv _
       (fun _ => if chal_x_queried.get σ then (0 : ENNReal) else 1) ?_ σ)
-      (Program.wp_const_le ow_adv _ σ)
+      (ProgramDenotation.wp_const_le ow_adv _ σ)
     intro aσ_adv
     by_cases h_cxq_adv : chal_x_queried.get aσ_adv.2 = chal_x_queried.get σ
     swap
@@ -1788,28 +1796,28 @@ private lemma ow_loop_tracked_indep_sum_le_strong
       ow_challenge_x.set_get _ _
     -- (lazy_query inp; set oo) in chal_x.compl.range and chal_x_queried.compl.range.
     have h_lqso_inRange_cx_compl :
-        (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+        (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inFootprint
             (ow_challenge_x.footprint)ᶜ :=
       lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp
     have h_lqso_inRange_cxq_compl :
-        (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+        (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inRange
             chal_x_queried.compl.range :=
       lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp
     -- Pointwise bound: per x, post_adv.wp G_x ≤ (lazy_query inp; set oo).wp G_x.
     have h_pointwise : ∀ x : input,
-        (Program.get oracle_input >>= fun inp' =>
-          Program.get ow_challenge_x >>= fun cx =>
-            (if inp' = cx then Program.set chal_x_queried true
-             else (pure () : Program state Unit)) >>= fun _ =>
+        (ProgramDenotation.get oracle_input >>= fun inp' =>
+          ProgramDenotation.get ow_challenge_x >>= fun cx =>
+            (if inp' = cx then ProgramDenotation.set chal_x_queried true
+             else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
               lazy_query inp' >>= fun y =>
-                Program.set oracle_output y).wp
+                ProgramDenotation.set oracle_output y).wp
           (fun aσ_b : Unit × state =>
             (ow_loop_tracked ow_adv q lazy_query).wp
               (fun aσ : Unit × state =>
                 if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
                 then (1 : ENNReal) else 0)
               aσ_b.2) (ow_challenge_x.set x aσ_adv.2)
-        ≤ (lazy_query inp >>= fun y => Program.set oracle_output y).wp
+        ≤ (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp
           (fun aσ_b : Unit × state =>
             (ow_loop_tracked ow_adv q lazy_query).wp
               (fun aσ : Unit × state =>
@@ -1829,12 +1837,13 @@ private lemma ow_loop_tracked_indep_sum_le_strong
         -- Show LHS ≤ 0 ≤ RHS via strengthened IH at the lazy_query/set oo output.
         refine le_trans ?_ (bot_le)
         -- Apply wp_strengthen for chal_x AND chal_x_queried.
-        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
+        rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
               (chal_x_queried.set true (ow_challenge_x.set x aσ_adv.2))]
-        rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lqso_inRange_cx_compl _
+        rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x
+            h_lqso_inRange_cx_compl _
               (chal_x_queried.set true (ow_challenge_x.set x aσ_adv.2))]
-        refine le_trans (Program.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ _)
-                        (Program.wp_const_le _ _ _)
+        refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ _)
+                        (ProgramDenotation.wp_const_le _ _ _)
         intro aσ_lqo
         by_cases h_cx_pres : ow_challenge_x.get aσ_lqo.2 = ow_challenge_x.get
             (chal_x_queried.set true (ow_challenge_x.set x aσ_adv.2))
@@ -1882,14 +1891,14 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     refine le_trans (Finset.sum_le_sum (fun x _ => h_pointwise x)) ?_
     -- Apply wp_shift_input on (lazy_query inp; set oo) for chal_x.
     have h_shift_lqso : ∀ x : input,
-        (lazy_query inp >>= fun y => Program.set oracle_output y).wp
+        (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp
           (fun aσ_b : Unit × state =>
             (ow_loop_tracked ow_adv q lazy_query).wp
               (fun aσ : Unit × state =>
                 if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
                 then (1 : ENNReal) else 0)
               aσ_b.2) (ow_challenge_x.set x aσ_adv.2)
-        = (lazy_query inp >>= fun y => Program.set oracle_output y).wp
+        = (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp
           (fun aσ_lqo : Unit × state =>
             (ow_loop_tracked ow_adv q lazy_query).wp
               (fun aσ : Unit × state =>
@@ -1903,15 +1912,17 @@ private lemma ow_loop_tracked_indep_sum_le_strong
         show ow_challenge_x.set x aσ_adv.2
           = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get aσ_adv.2)) aσ_adv.2
         rw [Function.const_apply]]
-      exact Program.wp_shift_input_prob h_lqso_inRange_cx_compl (h_shift_chal_x.2 x) _ _
+      exact ProgramDenotation.wp_shift_input_prob h_lqso_inRange_cx_compl (h_shift_chal_x.2 x) _ _
     simp_rw [h_shift_lqso]
     -- Apply wp_finset_sum.
-    rw [← Program.wp_finset_sum]
+    rw [← ProgramDenotation.wp_finset_sum]
     -- Apply wp_strengthen on (lazy_query inp; set oo) for chal_x_queried.
-    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ aσ_adv.2]
+    rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
+        aσ_adv.2]
     refine le_trans
-      (Program.wp_le_wp_of_le _ _ (fun _ => if chal_x_queried.get σ then (0 : ENNReal) else 1) ?_ aσ_adv.2)
-      (Program.wp_const_le _ _ _)
+      (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ => if chal_x_queried.get σ then (0 : ENNReal)
+          else 1) ?_ aσ_adv.2)
+      (ProgramDenotation.wp_const_le _ _ _)
     intro aσ_lqo
     by_cases h_cxq_lqo : chal_x_queried.get aσ_lqo.2 = chal_x_queried.get aσ_adv.2
     swap
@@ -1957,8 +1968,8 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
   | zero =>
     intro σ h_qf h_ro
     show (1 : ENNReal) / Fintype.card output *
-        ∑ y : output, (Pure.pure () : Program state Unit).wp _ _
-      = (Pure.pure () : Program state Unit).wp _ _
+        ∑ y : output, (Pure.pure () : ProgramDenotation state Unit).wp _ _
+      = (Pure.pure () : ProgramDenotation state Unit).wp _ _
     simp_rw [wp_pure]
     -- RO_setentry preserves resp.get and cxq.get (RO ⟂ resp, RO ⟂ cxq).
     have h_resp_unchanged : ∀ y : output,
@@ -2005,41 +2016,41 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
     have h_body_unfold : ∀ σ' : state,
         (ow_loop_body_tracked ow_adv lazy_query).wp G σ'
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G aσ_adv.2) σ' := by
+                    ProgramDenotation.set oracle_output y).wp G aσ_adv.2) σ' := by
       intro σ'
       show (ow_adv >>= fun _ : Unit =>
-              Program.get oracle_input >>= fun inp =>
-                Program.get ow_challenge_x >>= fun cx =>
-                  (if inp = cx then Program.set chal_x_queried true
-                   else (pure () : Program state Unit)) >>= fun _ =>
+              ProgramDenotation.get oracle_input >>= fun inp =>
+                ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then ProgramDenotation.set chal_x_queried true
+                   else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y =>
-                      Program.set oracle_output y).wp G σ' = _
+                      ProgramDenotation.set oracle_output y).wp G σ' = _
       rw [wp_bind]
     simp_rw [h_body_unfold]
     -- Apply wp_shift_input on adv with shift = RO_setentry x y.
     have h_shift : ∀ y' : output,
         ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G aσ_adv.2)
+                    ProgramDenotation.set oracle_output y).wp G aσ_adv.2)
             (random_oracle_state.set
               (fun k => if k = x then some y'
                         else random_oracle_state.get σ k) σ)
         = ow_adv.wp (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp G
+                    ProgramDenotation.set oracle_output y).wp G
               (random_oracle_state.set
                 (fun k => if k = x then some y'
                           else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)) σ := by
@@ -2050,42 +2061,42 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
         rw [Footprint.compl_compl]
         exact (Footprint.from_le_iff _ random_oracle_state.footprint).mp le_rfl
           ⟨fun h => fun k => if k = x then some y' else h k, rfl⟩
-      exact Program.wp_shift_input_prob h_ow_adv h_shift_in _ σ
+      exact ProgramDenotation.wp_shift_input_prob h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.
-    rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+    rw [← ProgramDenotation.wp_finset_sum, ← ProgramDenotation.wp_const_mul]
     -- Apply wp_strengthen_lens_preserved 3x: RO, ow_challenge_x, chal_x_queried.
-    rw [Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv _ σ,
-        Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv
+    rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv _ σ,
+        ProgramDenotation.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv
           (fun aσ_adv : Unit × state =>
-            (Program.get oracle_input >>= fun inp =>
-                Program.get ow_challenge_x >>= fun cx =>
-                  (if inp = cx then Program.set chal_x_queried true
-                   else (pure () : Program state Unit)) >>= fun _ =>
+            (ProgramDenotation.get oracle_input >>= fun inp =>
+                ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                  (if inp = cx then ProgramDenotation.set chal_x_queried true
+                   else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y_lq =>
-                      Program.set oracle_output y_lq).wp G aσ_adv.2) σ]
-    rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
-        Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
+                      ProgramDenotation.set oracle_output y_lq).wp G aσ_adv.2) σ]
+    rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
+        ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
           (fun aσ_adv : Unit × state =>
             if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
-              (Program.get oracle_input >>= fun inp =>
-                  Program.get ow_challenge_x >>= fun cx =>
-                    (if inp = cx then Program.set chal_x_queried true
-                     else (pure () : Program state Unit)) >>= fun _ =>
+              (ProgramDenotation.get oracle_input >>= fun inp =>
+                  ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                    (if inp = cx then ProgramDenotation.set chal_x_queried true
+                     else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                       lazy_query inp >>= fun y_lq =>
-                        Program.set oracle_output y_lq).wp G aσ_adv.2
+                        ProgramDenotation.set oracle_output y_lq).wp G aσ_adv.2
             else 0) σ]
-    rw [Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried' _ σ,
-        Program.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried'
+    rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried' _ σ,
+        ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_ow_adv_chal_x_queried'
           (fun aσ_adv : Unit × state =>
             if ow_challenge_x.get aσ_adv.2 = ow_challenge_x.get σ then
               if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
-                (Program.get oracle_input >>= fun inp =>
-                    Program.get ow_challenge_x >>= fun cx =>
-                      (if inp = cx then Program.set chal_x_queried true
-                       else (pure () : Program state Unit)) >>= fun _ =>
+                (ProgramDenotation.get oracle_input >>= fun inp =>
+                    ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                      (if inp = cx then ProgramDenotation.set chal_x_queried true
+                       else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                         lazy_query inp >>= fun y_lq =>
-                          Program.set oracle_output y_lq).wp G aσ_adv.2
+                          ProgramDenotation.set oracle_output y_lq).wp G aσ_adv.2
               else 0
             else 0) σ]
     apply congrArg (fun P => ow_adv.wp P σ)
@@ -2153,16 +2164,16 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       -- Helper: (lazy_query x; set oo).wp G at cxq=true, chal_x=x state = 0.
       -- Uses strengthened sum lemma.
       have h_lqso_inRange_cx_compl :
-          (lazy_query x >>= fun y => Program.set oracle_output y).inFootprint
+          (lazy_query x >>= fun y => ProgramDenotation.set oracle_output y).inFootprint
               (ow_challenge_x.footprint)ᶜ :=
         lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl x
       have h_lqso_inRange_cxq_compl :
-          (lazy_query x >>= fun y => Program.set oracle_output y).inRange
+          (lazy_query x >>= fun y => ProgramDenotation.set oracle_output y).inRange
               chal_x_queried.compl.range :=
         lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl x
       -- Bridge: (lazy_query x; set oo).wp G σ = (lazy_query x).wp (fun aσ => G ((), oo.set ...)) σ.
       have h_bridge : ∀ σ_in : state,
-          (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G σ_in
+          (lazy_query x >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp G σ_in
           = (lazy_query x).wp
             (fun x_1 : output × state => G ((), oracle_output.set x_1.1 x_1.2)) σ_in := by
         intro σ_in
@@ -2173,14 +2184,17 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       have h_zero_at_cxq_true : ∀ σ_in : state,
           chal_x_queried.get σ_in = true →
           ow_challenge_x.get σ_in = x →
-          (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G σ_in = 0 := by
+          (lazy_query x >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp G σ_in =
+              0 := by
         intro σ_in h_cxq_in h_cx_in
-        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ σ_in]
-        rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lqso_inRange_cx_compl _ σ_in]
+        rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
+            σ_in]
+        rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x
+            h_lqso_inRange_cx_compl _ σ_in]
         refine le_antisymm ?_ (bot_le)
         refine le_trans
-          (Program.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ σ_in)
-          (Program.wp_const_le _ _ _)
+          (ProgramDenotation.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ σ_in)
+          (ProgramDenotation.wp_const_le _ _ _)
         intro aσ_lqo
         by_cases h_cx_lq : ow_challenge_x.get aσ_lqo.2 = ow_challenge_x.get σ_in
         swap
@@ -2217,7 +2231,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
         exact le_trans h_term_le_sum h_sum
       -- Apply h_zero_at_cxq_true on both sides.
       have h_LHS_zero : ∀ y_arg : output,
-          (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G
+          (lazy_query x >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp G
             (random_oracle_state.set
               (fun k => if k = x then some y_arg
                         else random_oracle_state.get (chal_x_queried.set true aσ_adv.2) k)
@@ -2227,7 +2241,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
         · rw [chal_x_queried.get_of_disjoint_set, chal_x_queried.set_get]
         · rw [ow_challenge_x.get_of_disjoint_set, ow_challenge_x.get_of_disjoint_set]
           exact h_aσ_adv_chal_x
-      have h_RHS_zero : (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G
+      have h_RHS_zero : (lazy_query x >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp G
           (chal_x_queried.set true aσ_adv.2) = 0 := by
         apply h_zero_at_cxq_true
         · rw [chal_x_queried.set_get]
@@ -2240,11 +2254,11 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       simp only [wp_pure]
       simp_rw [← wp_bind]
       have h_commute : ∀ y_arg : output,
-          (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp G
+          (lazy_query inp_a >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp G
             (random_oracle_state.set
               (fun k => if k = x then some y_arg
                         else random_oracle_state.get aσ_adv.2 k) aσ_adv.2)
-          = (lazy_query inp_a >>= fun y_lq => Program.set oracle_output y_lq).wp
+          = (lazy_query inp_a >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp
               (fun aσ_lq => G (aσ_lq.1, random_oracle_state.set
                                       (fun k => if k = x then some y_arg
                                                else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
@@ -2252,20 +2266,22 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
         fun y_arg => RO_setentry_neq_commutes_lazy_query_set_oracle_output
           inp_a x h_inp y_arg aσ_adv.2 G
       simp_rw [h_commute]
-      rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
+      rw [← ProgramDenotation.wp_finset_sum, ← ProgramDenotation.wp_const_mul]
       have h_inRange_cxq : (lazy_query inp_a >>= fun y_lq =>
-          Program.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
+          ProgramDenotation.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
         lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp_a
       have h_inRange_cx : (lazy_query inp_a >>= fun y_lq =>
-          Program.set oracle_output y_lq).inFootprint (ow_challenge_x.footprint)ᶜ :=
+          ProgramDenotation.set oracle_output y_lq).inFootprint (ow_challenge_x.footprint)ᶜ :=
         lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp_a
       conv_lhs =>
-        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
+        rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
+            ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _
+                aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       conv_rhs =>
-        rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
+        rw [ProgramDenotation.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
+            ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _
+                aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       congr 1
       funext aσ_lq
@@ -2298,16 +2314,16 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
 /-- The inner part of body (after adv and the two gets) doesn't read chal_x —
     cx is captured as a value. Hence it's in chal_x.compl.range. -/
 private lemma body_inner_inRange_chal_x_compl (inp cx : input) :
-    ((if inp = cx then Program.set chal_x_queried true
-      else (pure () : Program state Unit)) >>= fun _ =>
+    ((if inp = cx then ProgramDenotation.set chal_x_queried true
+      else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
         lazy_query inp >>= fun y =>
-          Program.set oracle_output y).inFootprint (ow_challenge_x.footprint)ᶜ := by
-  refine Program.inFootprint_bind ?_ ?_
+          ProgramDenotation.set oracle_output y).inFootprint (ow_challenge_x.footprint)ᶜ := by
+  refine ProgramDenotation.inFootprint_bind ?_ ?_
   · by_cases h : inp = cx
     · rw [if_pos h]
-      exact Program.set_inFootprint_compl_of_disjoint chal_x_queried ow_challenge_x _
+      exact ProgramDenotation.set_inFootprint_compl_of_disjoint chal_x_queried ow_challenge_x _
     · rw [if_neg h]
-      exact Program.inFootprint_pure _ _
+      exact ProgramDenotation.inFootprint_pure _ _
   · intro _
     exact lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp
 
@@ -2322,51 +2338,51 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
           if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) σ := by
   have h_lhs : (ow_loop_body_tracked ow_adv lazy_query).wp F σ
       = ow_adv.wp (fun aσ_adv : Unit × state =>
-          (Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+          (ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp F aσ_adv.2) σ := by
+                  ProgramDenotation.set oracle_output y).wp F aσ_adv.2) σ := by
     show (ow_adv >>= fun _ : Unit =>
-            Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp F σ = _
+                    ProgramDenotation.set oracle_output y).wp F σ = _
     rw [wp_bind]
   have h_rhs : (ow_loop_body_tracked ow_adv lazy_query).wp
         (fun aσ : Unit × state =>
           if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) σ
       = ow_adv.wp (fun aσ_adv : Unit × state =>
-          (Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+          (ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp
+                  ProgramDenotation.set oracle_output y).wp
             (fun aσ : Unit × state =>
               if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0)
             aσ_adv.2) σ := by
     show (ow_adv >>= fun _ : Unit =>
-            Program.get oracle_input >>= fun inp =>
-              Program.get ow_challenge_x >>= fun cx =>
-                (if inp = cx then Program.set chal_x_queried true
-                 else (pure () : Program state Unit)) >>= fun _ =>
+            ProgramDenotation.get oracle_input >>= fun inp =>
+              ProgramDenotation.get ow_challenge_x >>= fun cx =>
+                (if inp = cx then ProgramDenotation.set chal_x_queried true
+                 else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                   lazy_query inp >>= fun y =>
-                    Program.set oracle_output y).wp _ σ = _
+                    ProgramDenotation.set oracle_output y).wp _ σ = _
     rw [wp_bind]
   rw [h_lhs, h_rhs]
-  rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
-      Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
+  rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
+      ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
         (fun aσ_adv : Unit × state =>
-          (Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+          (ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp
+                  ProgramDenotation.set oracle_output y).wp
             (fun aσ : Unit × state =>
               if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0)
             aσ_adv.2) σ]
@@ -2376,18 +2392,18 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
   swap
   · simp only [if_neg h_cx_pres]
   simp only [if_pos h_cx_pres]
-  show (Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+  show (ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp F aσ_adv.2
-      = (Program.get oracle_input >>= fun inp =>
-            Program.get ow_challenge_x >>= fun cx =>
-              (if inp = cx then Program.set chal_x_queried true
-               else (pure () : Program state Unit)) >>= fun _ =>
+                  ProgramDenotation.set oracle_output y).wp F aσ_adv.2
+      = (ProgramDenotation.get oracle_input >>= fun inp =>
+            ProgramDenotation.get ow_challenge_x >>= fun cx =>
+              (if inp = cx then ProgramDenotation.set chal_x_queried true
+               else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
                 lazy_query inp >>= fun y =>
-                  Program.set oracle_output y).wp
+                  ProgramDenotation.set oracle_output y).wp
         (fun aσ : Unit × state =>
           if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0)
         aσ_adv.2
@@ -2400,13 +2416,14 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
   set inp := oracle_input.get aσ_adv.2
   set cx := ow_challenge_x.get aσ_adv.2
   have h_inner_inRange : ((if inp = cx then
-      Program.set chal_x_queried true
-      else (pure () : Program state Unit)) >>= fun _ =>
+      ProgramDenotation.set chal_x_queried true
+      else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
         lazy_query inp >>= fun y =>
-          Program.set oracle_output y).inFootprint (ow_challenge_x.footprint)ᶜ :=
+          ProgramDenotation.set oracle_output y).inFootprint (ow_challenge_x.footprint)ᶜ :=
     body_inner_inRange_chal_x_compl inp cx
-  rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inner_inRange _ aσ_adv.2,
-      Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inner_inRange
+  rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inner_inRange _
+      aσ_adv.2,
+      ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inner_inRange
         (fun aσ : Unit × state =>
           if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) aσ_adv.2]
   congr 1
@@ -2430,8 +2447,8 @@ private lemma ow_loop_tracked_preserves_chal_x_wp
   induction q with
   | zero =>
     intro σ F
-    show (Pure.pure () : Program state Unit).wp F σ
-        = (Pure.pure () : Program state Unit).wp _ σ
+    show (Pure.pure () : ProgramDenotation state Unit).wp F σ
+        = (Pure.pure () : ProgramDenotation state Unit).wp _ σ
     rw [wp_pure, wp_pure]
     simp
   | succ q ih =>
@@ -2474,7 +2491,7 @@ private lemma ow_loop_tracked_lazy_query_freshness_indep
     (q : ℕ) (x : input) (σ : state)
     (h_σ_qf : chal_x_queried.get σ = false)
     (h_σ_ro : random_oracle_state.get σ x = none) :
-    (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+    (lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         ow_loop_tracked ow_adv q lazy_query).wp
       (fun aσ : Unit × state =>
         if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2
@@ -2507,10 +2524,11 @@ private lemma ow_loop_tracked_lazy_query_freshness_indep
     simp only [hF_def]
     rw [ow_response.get_of_disjoint_set, chal_x_queried.get_of_disjoint_set]
   have h_drop_chal_y : ∀ (v : output) (σ' : state),
-      (Program.set ow_challenge_y v >>= fun _ : Unit =>
+      (ProgramDenotation.set ow_challenge_y v >>= fun _ : Unit =>
           ow_loop_tracked ow_adv q lazy_query).wp F σ'
       = (ow_loop_tracked ow_adv q lazy_query).wp F σ' :=
-    fun v σ' => Program.wp_set_disjoint_no_op_footprint h_loop_inRange_cy v F (h_F_no_cy v) σ'
+    fun v σ' => ProgramDenotation.wp_set_disjoint_no_op_footprint h_loop_inRange_cy v F (h_F_no_cy
+        v) σ'
   rw [wp_bind]
   simp_rw [h_drop_chal_y]
   have h_lq_compute : ∀ (Q : output × state → ENNReal),
@@ -2519,11 +2537,11 @@ private lemma ow_loop_tracked_lazy_query_freshness_indep
           (fun k => if k = x then some v else random_oracle_state.get σ_in k) σ_in)
             / Fintype.card output := by
     intro Q
-    show (do let h <- Program.get random_oracle_state
+    show (do let h <- ProgramDenotation.get random_oracle_state
              match h x with
              | some v => pure v
-             | none => do let value <- Program.uniform
-                          Program.set random_oracle_state
+             | none => do let value <- ProgramDenotation.uniform
+                          ProgramDenotation.set random_oracle_state
                             (fun k => if k=x then some value else h k)
                           pure value).wp Q σ_in = _
     simp only [wp_bind, wp_get]
@@ -2576,20 +2594,20 @@ lemma ow_experiment_tracked_indep_bound
       if ow_response.get aσ.2 = ow_challenge_x.get aσ.2 ∧ ¬ chal_x_queried.get aσ.2
       then (1 : ENNReal) else 0 with hF_unit_def
   have h_post_drop : ∀ (y : output) (σ' : state),
-      (Program.set ow_challenge_y y >>= fun _ =>
+      (ProgramDenotation.set ow_challenge_y y >>= fun _ =>
           ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-          Program.get ow_response >>= fun resp =>
+          ProgramDenotation.get ow_response >>= fun resp =>
           lazy_query resp >>= fun y_check =>
-          (pure (decide (y_check = y)) : Program state Bool)).wp
+          (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp
         (fun bσ : Bool × state =>
           if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ ¬ chal_x_queried.get bσ.2
           then (1 : ENNReal) else 0) σ'
-      ≤ (Program.set ow_challenge_y y >>= fun _ =>
+      ≤ (ProgramDenotation.set ow_challenge_y y >>= fun _ =>
           ow_loop_tracked ow_adv q lazy_query).wp F_unit σ' := by
     intro y σ'
     conv_lhs => rw [wp_bind, wp_set, wp_bind]
     conv_rhs => rw [wp_bind, wp_set]
-    refine Program.wp_le_wp_of_le _ _ _ ?_ _
+    refine ProgramDenotation.wp_le_wp_of_le _ _ _ ?_ _
     intro aσ_l
     exact post_loop_preserves_indep_wp y aσ_l.2
   -- For σ_l with chal_x.get σ_l = x, loop.wp F_unit σ_l = loop.wp F'_x σ_l.
@@ -2614,12 +2632,12 @@ lemma ow_experiment_tracked_indep_bound
     simp only [h, h_σ_l_x]
   -- Per-x bound.
   have h_per_x : ∀ x : input,
-      (Program.set ow_challenge_x x >>= fun _ =>
-        lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+      (ProgramDenotation.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-        Program.get ow_response >>= fun resp =>
+        ProgramDenotation.get ow_response >>= fun resp =>
         lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y)) : Program state Bool)).wp
+        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp
           (fun bσ : Bool × state =>
             if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ ¬ chal_x_queried.get bσ.2
             then (1 : ENNReal) else 0) σ_a
@@ -2631,9 +2649,9 @@ lemma ow_experiment_tracked_indep_bound
     intro x
     rw [wp_bind, wp_set, wp_bind]
     -- Apply h_post_drop inside.
-    refine le_trans (Program.wp_le_wp_of_le _ _
+    refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
       (fun yσ_l : output × state =>
-        (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+        (ProgramDenotation.set ow_challenge_y yσ_l.1 >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query).wp F_unit yσ_l.2)
       (fun yσ_l => h_post_drop yσ_l.1 yσ_l.2) _) ?_
     -- Now bound (lazy_query x).wp (fun yσ => (chal_y; loop).wp F_unit yσ.2) σ' ≤ loop.wp F'_x σ'.
@@ -2642,17 +2660,17 @@ lemma ow_experiment_tracked_indep_bound
     -- chal_x.get (chal_y.set yσ.1 yσ.2) = chal_x.get yσ.2 = x.
     -- So loop.wp F_unit (chal_y.set yσ.1 yσ.2) = loop.wp F'_x (chal_y.set yσ.1 yσ.2).
     have h_lq_inRange_cx : (lazy_query x).inFootprint (ow_challenge_x.footprint)ᶜ :=
-      Program.inFootprint_mono (lazy_query_inFootprint_ro _)
+      ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro _)
         (Lens.footprint_le_compl_of_disjoint random_oracle_state ow_challenge_x)
     -- Apply wp_strengthen on lazy_query x to enforce yσ.2 has chal_x.get = x.
-    rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _
+    rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _
         (ow_challenge_x.set x σ_a)]
     -- Inner: replace F_unit by F'_x using h_loop_bridge.
     have h_inner_eq : ∀ yσ : output × state,
         ow_challenge_x.get yσ.2 = ow_challenge_x.get (ow_challenge_x.set x σ_a) →
-        (Program.set ow_challenge_y yσ.1 >>= fun _ =>
+        (ProgramDenotation.set ow_challenge_y yσ.1 >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query).wp F_unit yσ.2
-        = (Program.set ow_challenge_y yσ.1 >>= fun _ =>
+        = (ProgramDenotation.set ow_challenge_y yσ.1 >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query).wp
           (fun aσ : Unit × state =>
             if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
@@ -2665,10 +2683,10 @@ lemma ow_experiment_tracked_indep_bound
         rw [ow_challenge_x.get_of_disjoint_set]; exact h_yσ_x
       exact h_loop_bridge x _ h_chal_y_x
     -- Apply h_inner_eq via wp_le_wp_of_le.
-    refine le_trans (Program.wp_le_wp_of_le _ _
+    refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
       (fun yσ_l : output × state =>
         if ow_challenge_x.get yσ_l.2 = ow_challenge_x.get (ow_challenge_x.set x σ_a) then
-          (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+          (ProgramDenotation.set ow_challenge_y yσ_l.1 >>= fun _ =>
               ow_loop_tracked ow_adv q lazy_query).wp
             (fun aσ : Unit × state =>
               if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
@@ -2682,18 +2700,18 @@ lemma ow_experiment_tracked_indep_bound
       rw [h_inner_eq yσ_l h_cx]
     -- Now (lazy_query x).wp (if chal_x_pres then (chal_y; loop).wp F'_x yσ.2 else 0) σ'.
     -- Reverse wp_strengthen on lazy_query x.
-    rw [← Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _
+    rw [← ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _
         (ow_challenge_x.set x σ_a)]
     -- Now (lazy_query x).wp (fun yσ => (chal_y; loop).wp F'_x yσ.2) σ' = (chain).wp F'_x σ' (by wp_bind).
     rw [show (lazy_query x).wp
         (fun yσ_l : output × state =>
-          (Program.set ow_challenge_y yσ_l.1 >>= fun _ =>
+          (ProgramDenotation.set ow_challenge_y yσ_l.1 >>= fun _ =>
               ow_loop_tracked ow_adv q lazy_query).wp
             (fun aσ : Unit × state =>
               if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
             yσ_l.2)
         (ow_challenge_x.set x σ_a)
-        = (lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+        = (lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
             ow_loop_tracked ow_adv q lazy_query).wp
           (fun aσ : Unit × state =>
             if ow_response.get aσ.2 = x ∧ ¬ chal_x_queried.get aσ.2 then (1 : ENNReal) else 0)
@@ -2702,13 +2720,13 @@ lemma ow_experiment_tracked_indep_bound
     rw [ow_loop_tracked_lazy_query_freshness_indep ow_adv h_ow_adv h_ow_adv_chal_y
         h_ow_adv_chal_x h_ow_adv_chal_x_queried q x σ_a h_σ_a_cxq (h_σ_a_ro x)]
   -- Outer experiment unfold + sum lemma.
-  show (lazy_init >>= fun _ => Program.set chal_x_queried false >>= fun _ =>
-        Program.uniform >>= fun x => Program.set ow_challenge_x x >>= fun _ =>
-        lazy_query x >>= fun y => Program.set ow_challenge_y y >>= fun _ =>
+  show (lazy_init >>= fun _ => ProgramDenotation.set chal_x_queried false >>= fun _ =>
+        ProgramDenotation.uniform >>= fun x => ProgramDenotation.set ow_challenge_x x >>= fun _ =>
+        lazy_query x >>= fun y => ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         ow_loop_tracked ow_adv q lazy_query >>= fun _ =>
-        Program.get ow_response >>= fun resp =>
+        ProgramDenotation.get ow_response >>= fun resp =>
         lazy_query resp >>= fun y_check =>
-        (pure (decide (y_check = y)) : Program state Bool)).wp _ σ₀ ≤ _
+        (pure (decide (y_check = y)) : ProgramDenotation state Bool)).wp _ σ₀ ≤ _
   rw [wp_bind]
   unfold lazy_init
   rw [wp_set, wp_bind, wp_set]
@@ -2782,8 +2800,8 @@ theorem ow_experiment_resp_eq_chal_x_bound_via_tracked
     ≤ ((q + 1) : ENNReal) / Fintype.card input := by
   -- Step 1: lazy_init is in chal_x_queried.compl.range.
   have h_lazy_init_inRange :
-      (lazy_init : Program state Unit).inRange chal_x_queried.compl.range :=
-    Program.set_inRange_compl_of_disjoint random_oracle_state chal_x_queried _
+      (lazy_init : ProgramDenotation state Unit).inRange chal_x_queried.compl.range :=
+    ProgramDenotation.set_inRange_compl_of_disjoint random_oracle_state chal_x_queried _
   -- Step 2: switch to tracked variant via the equivalence.
   rw [ow_experiment_eq_tracked_lazy ow_adv h_ow_adv_chal_x_queried q lazy_init
       h_lazy_init_inRange _ (preimage_win_ignores_chal_x_queried) σ₀]
@@ -2798,7 +2816,7 @@ theorem ow_experiment_resp_eq_chal_x_bound_via_tracked
             + (if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧
                   ¬ chal_x_queried.get bσ.2
                then (1 : ENNReal) else 0)) σ₀ := by
-        apply Program.wp_le_wp_of_le
+        apply ProgramDenotation.wp_le_wp_of_le
         intro bσ
         exact resp_chal_x_preimage_decomp bσ.2
     _ = (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
@@ -2809,7 +2827,7 @@ theorem ow_experiment_resp_eq_chal_x_bound_via_tracked
             if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧
                ¬ chal_x_queried.get bσ.2
             then (1 : ENNReal) else 0) σ₀ := by
-        rw [Program.wp_add]
+        rw [ProgramDenotation.wp_add]
     _ ≤ (q : ENNReal) / Fintype.card input
         + (1 : ENNReal) / Fintype.card input := by
         gcongr
@@ -2839,7 +2857,7 @@ theorem ow_preimage_bound
           (fun bσ : Bool × state => useful_preimage_indicator bσ.2 +
             (if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
              then (1 : ENNReal) else 0)) σ₀ := by
-        apply Program.wp_le_wp_of_le
+        apply ProgramDenotation.wp_le_wp_of_le
         intro bσ
         exact preimage_le_useful_or_resp_eq_chal_x bσ.2
     _ = (ow_experiment ow_adv q lazy_init lazy_query).wp
@@ -2848,7 +2866,7 @@ theorem ow_preimage_bound
           (fun bσ : Bool × state =>
             if ow_response.get bσ.2 = ow_challenge_x.get bσ.2 ∧ is_preimage bσ.2
             then (1 : ENNReal) else 0) σ₀ := by
-        rw [Program.wp_add]
+        rw [ProgramDenotation.wp_add]
     _ ≤ ((q + 1) : ENNReal) / N + ((q + 1) : ENNReal) / Fintype.card input := by
         gcongr
         · exact ow_experiment_useful_preimage_bound ow_adv h_ow_adv

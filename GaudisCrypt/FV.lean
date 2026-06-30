@@ -596,20 +596,22 @@ namespace FVP
 
 variable [ProgramSpec]
 
-/-- Family version of `Program.footprint`: the supremum of the per-input ranges. Used to
-give a setter (which is a *family* `a → Program s Unit`, one program per written value) a
+/-- Family version of `ProgramDenotation.footprint`: the supremum of the per-input ranges. Used to
+give a setter (which is a *family* `a → ProgramDenotation s Unit`, one program per written value) a
 single footprint. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.footprint'
-    {s a b : Type} (progs : a → Program s b) : Footprint s :=
+noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.footprint'
+    {s a b : Type} (progs : a → ProgramDenotation s b) : Footprint s :=
   ⨆ x, (progs x).footprint
 
 noncomputable
 -- TODO: Inline
-def fvP_getter (getter : Getter a s) : Footprint s := Program.footprint (Program.get getter)
+def fvP_getter (getter : Getter a s) : Footprint s := ProgramDenotation.footprint
+    (ProgramDenotation.get getter)
 
 noncomputable
 -- TODO: Inline
-def fvP_setter (setter : Setter a s) : Footprint s := Program.footprint' (Program.set setter)
+def fvP_setter (setter : Setter a s) : Footprint s := ProgramDenotation.footprint'
+    (ProgramDenotation.set setter)
 
 noncomputable
 -- TODO rename to something Lens-related
@@ -859,8 +861,8 @@ noncomputable
 def fvpInductiveFunctionGS : InductiveFunctionGettersSetters Footprint where
   nothing := ⊥
   join := (· ⊔ ·)
-  getter g := Program.footprint (Program.get g)
-  setter s := Program.footprint' (Program.set s)
+  getter g := ProgramDenotation.footprint (ProgramDenotation.get g)
+  setter s := ProgramDenotation.footprint' (ProgramDenotation.set s)
   reduce := fvP_reduce
   extend := Lens.liftFootprint
 

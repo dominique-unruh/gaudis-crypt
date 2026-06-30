@@ -32,7 +32,7 @@ axiom oracle_input : Variable input
 axiom oracle_output : Variable output
 axiom adversary_result : Variable Bool
 
-noncomputable def skip : Program state Unit := do
+noncomputable def skip : ProgramDenotation state Unit := do
   return ()
 
 /- The non-RO state variables are disjoint from `random_oracle_state`. -/
@@ -53,14 +53,14 @@ body. We collect its key-level properties here. -/
 /-- Pushing `convert` past the `let inp ← get oracle_input; let v ← lazy_query inp;
     set oracle_output v` piece. -/
 theorem query_set_convert_eq :
-    ((Program.get oracle_input >>= fun inp =>
+    ((ProgramDenotation.get oracle_input >>= fun inp =>
       lazy_query inp >>= fun v =>
-      Program.set oracle_output v) >>= fun _ => convert)
+      ProgramDenotation.set oracle_output v) >>= fun _ => convert)
   = (convert >>= fun _ =>
-      Program.get oracle_input >>= fun inp =>
+      ProgramDenotation.get oracle_input >>= fun inp =>
       random_oracle_query inp >>= fun v =>
-      Program.set oracle_output v) := by
-  simp_rw [Program.bind_assoc, convert_commutes_set,
+      ProgramDenotation.set oracle_output v) := by
+  simp_rw [ProgramDenotation.bind_assoc, convert_commutes_set,
            lazy_query_convert_cont_eq_convert_random_oracle_query]
   exact convert_commutes_get oracle_input _
 
@@ -72,13 +72,13 @@ lemma lazy_query_then_set_oracle_output_inRange_compl
     [disjoint random_oracle_state L]
     [disjoint oracle_output L]
     (inp : input) :
-    (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
+    (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inRange
         L.compl.range := by
-  refine Program.inRange_bind ?_ ?_
-  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+  refine ProgramDenotation.inRange_bind ?_ ?_
+  · exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
       (Lens.range_le_compl_of_disjoint random_oracle_state L)
   · intro y
-    exact Program.set_inRange_compl_of_disjoint oracle_output L _
+    exact ProgramDenotation.set_inRange_compl_of_disjoint oracle_output L _
 
 /-- `inFootprint` (countability-free) analogue of
     `lazy_query_then_set_oracle_output_inRange_compl`. -/
@@ -87,21 +87,21 @@ lemma lazy_query_then_set_oracle_output_inFootprint_compl
     [disjoint random_oracle_state L]
     [disjoint oracle_output L]
     (inp : input) :
-    (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+    (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inFootprint
         (L.footprint)ᶜ := by
-  refine Program.inFootprint_bind ?_ ?_
-  · exact Program.inFootprint_mono (lazy_query_inFootprint_ro inp)
+  refine ProgramDenotation.inFootprint_bind ?_ ?_
+  · exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
       (Lens.footprint_le_compl_of_disjoint random_oracle_state L)
   · intro y
-    exact Program.set_inFootprint_compl_of_disjoint oracle_output L _
+    exact ProgramDenotation.set_inFootprint_compl_of_disjoint oracle_output L _
 
 /-- `(lazy_query inp >>= set oracle_output)` preserves `RO[k]` for `inp ≠ k`.
     More precisely, the wp can be strengthened with the `RO[k]`-preserved
     condition. -/
 lemma lazy_query_set_oracle_output_preserves_RO_at_other_key
     (inp k : input) (h_neq : inp ≠ k) (σ : state) (F : Unit × state → ENNReal) :
-    (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp F σ
-    = (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp
+    (lazy_query inp >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp F σ
+    = (lazy_query inp >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp
         (fun aσ_lq =>
           if random_oracle_state.get aσ_lq.2 k = random_oracle_state.get σ k
           then F aσ_lq else 0) σ := by
@@ -134,10 +134,10 @@ lemma lazy_query_set_oracle_output_preserves_RO_at_other_key
 lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
     (inp x : input) (h_neq : inp ≠ x) (y : output) (σ : state)
     (F : Unit × state → ENNReal) :
-    (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp F
+    (lazy_query inp >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp F
       (random_oracle_state.set (fun k => if k = x then some y
                                        else random_oracle_state.get σ k) σ)
-    = (lazy_query inp >>= fun y_lq => Program.set oracle_output y_lq).wp
+    = (lazy_query inp >>= fun y_lq => ProgramDenotation.set oracle_output y_lq).wp
       (fun aσ_lq => F (aσ_lq.1, random_oracle_state.set
                               (fun k => if k = x then some y
                                        else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
@@ -160,12 +160,12 @@ lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
       rw [random_oracle_state.get_of_disjoint_set]
   rw [wp_bind, wp_bind]
   conv_lhs => rw [show (fun aσ_lq : output × state =>
-                          (Program.set oracle_output aσ_lq.1).wp F aσ_lq.2)
+                          (ProgramDenotation.set oracle_output aσ_lq.1).wp F aσ_lq.2)
                     = (fun aσ_lq : output × state =>
                           F ((), oracle_output.set aσ_lq.1 aσ_lq.2))
                   from by funext aσ_lq; rw [wp_set]]
   conv_rhs => rw [show (fun aσ_lq : output × state =>
-                          (Program.set oracle_output aσ_lq.1).wp
+                          (ProgramDenotation.set oracle_output aσ_lq.1).wp
                             (fun aσ_lq' : Unit × state =>
                               F (aσ_lq'.1, random_oracle_state.set
                                 (fun k => if k = x then some y
@@ -239,14 +239,14 @@ shared abstraction lives here. Game-specific files alias these. -/
 /-- One round of an adversary-and-query loop body. Generic over the adversary;
     parameterised over the oracle so it can be instantiated to `lazy_query` or
     `random_oracle_query`. -/
-noncomputable def oracle_step (adv : Program state Unit)
-    (oracle : input → Program state output) : Program state Unit := do
+noncomputable def oracle_step (adv : ProgramDenotation state Unit)
+    (oracle : input → ProgramDenotation state output) : ProgramDenotation state Unit := do
   adv
-  Program.set oracle_output (← oracle (← Program.get oracle_input))
+  ProgramDenotation.set oracle_output (← oracle (← ProgramDenotation.get oracle_input))
 
 /-- Run `oracle_step adv oracle` for `q` rounds. -/
-noncomputable def oracle_loop_n (adv : Program state Unit) :
-    ℕ → (input → Program state output) → Program state Unit
+noncomputable def oracle_loop_n (adv : ProgramDenotation state Unit) :
+    ℕ → (input → ProgramDenotation state output) → ProgramDenotation state Unit
   | 0,     _      => pure ()
   | n + 1, oracle => do
       oracle_step adv oracle
@@ -263,73 +263,77 @@ framework's `while_loop` closure law. -/
 /-- Unbounded "adversary + oracle call" loop. The adversary decides via
     the `want_more` flag whether to continue or stop. Returns the value
     of `adversary_result`. -/
-noncomputable def oracle_loop (adv : Program state Unit)
-    (init : Program state Unit)
-    (oracle : input → Program state output) : Program state Bool := do
-  Program.set want_more true
+noncomputable def oracle_loop (adv : ProgramDenotation state Unit)
+    (init : ProgramDenotation state Unit)
+    (oracle : input → ProgramDenotation state output) : ProgramDenotation state Bool := do
+  ProgramDenotation.set want_more true
   init
-  while_loop (Program.get want_more) (do
+  while_loop (ProgramDenotation.get want_more) (do
     adv
-    if ← Program.get want_more then
-      Program.set oracle_output (← oracle (← Program.get oracle_input))
+    if ← ProgramDenotation.get want_more then
+      ProgramDenotation.set oracle_output (← oracle (← ProgramDenotation.get oracle_input))
     else
       skip
   )
-  Program.get adversary_result
+  ProgramDenotation.get adversary_result
 
 /-- The lazy form of `oracle_loop`'s while-loop body. -/
-noncomputable def loop_body_lazy (adv : Program state Unit) : Program state Unit := do
+noncomputable def loop_body_lazy (adv : ProgramDenotation state Unit) : ProgramDenotation state
+    Unit := do
   adv
-  if ← Program.get want_more then
-    Program.set oracle_output (← lazy_query (← Program.get oracle_input))
+  if ← ProgramDenotation.get want_more then
+    ProgramDenotation.set oracle_output (← lazy_query (← ProgramDenotation.get oracle_input))
   else
     skip
 
 /-- The eager form of `oracle_loop`'s while-loop body. -/
-noncomputable def loop_body_eager (adv : Program state Unit) : Program state Unit := do
+noncomputable def loop_body_eager (adv : ProgramDenotation state Unit) : ProgramDenotation state
+    Unit := do
   adv
-  if ← Program.get want_more then
-    Program.set oracle_output (← random_oracle_query (← Program.get oracle_input))
+  if ← ProgramDenotation.get want_more then
+    ProgramDenotation.set oracle_output (← random_oracle_query (← ProgramDenotation.get
+        oracle_input))
   else
     skip
 
 /-- `oracle_step adv` transfers from lazy to eager, provided `adv` is RO-disjoint.
     (Countability-free; the inRange original was retired once all consumers moved to
     `inFootprint`.) -/
-lemma Program.transfer_oracle_step_prob
-    {adv : Program state Unit}
+lemma ProgramDenotation.transfer_oracle_step_prob
+    {adv : ProgramDenotation state Unit}
     (h_adv : adv.inFootprint (random_oracle_state.footprint)ᶜ) :
-    Program.transfer (oracle_step adv lazy_query)
+    ProgramDenotation.transfer (oracle_step adv lazy_query)
                      (oracle_step adv random_oracle_query) := by
-  show Program.transfer
-    (adv >>= fun _ => Program.get oracle_input >>= fun inp =>
-      lazy_query inp >>= fun y => Program.set oracle_output y)
-    (adv >>= fun _ => Program.get oracle_input >>= fun inp =>
-      random_oracle_query inp >>= fun y => Program.set oracle_output y)
-  apply Program.transfer_bind (Program.transfer_refl_of_inFootprint_compl h_adv)
+  show ProgramDenotation.transfer
+    (adv >>= fun _ => ProgramDenotation.get oracle_input >>= fun inp =>
+      lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y)
+    (adv >>= fun _ => ProgramDenotation.get oracle_input >>= fun inp =>
+      random_oracle_query inp >>= fun y => ProgramDenotation.set oracle_output y)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_refl_of_inFootprint_compl h_adv)
   intro _
-  apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro oracle_input)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_get_of_disjoint_ro oracle_input)
   intro inp
-  apply Program.transfer_bind (Program.transfer_lazy_query inp)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_lazy_query inp)
   intro y
-  exact Program.transfer_set_of_disjoint_ro oracle_output y
+  exact ProgramDenotation.transfer_set_of_disjoint_ro oracle_output y
 
 /-- `oracle_loop_n adv q` transfers from lazy to eager. (Countability-free; the inRange
     original was retired once all consumers moved to `inFootprint`.) -/
-lemma Program.transfer_oracle_loop_n_prob
-    {adv : Program state Unit}
+lemma ProgramDenotation.transfer_oracle_loop_n_prob
+    {adv : ProgramDenotation state Unit}
     (h_adv : adv.inFootprint (random_oracle_state.footprint)ᶜ)
     (q : ℕ) :
-    Program.transfer (oracle_loop_n adv q lazy_query)
+    ProgramDenotation.transfer (oracle_loop_n adv q lazy_query)
                      (oracle_loop_n adv q random_oracle_query) := by
   induction q with
-  | zero => exact Program.transfer_pure ()
+  | zero => exact ProgramDenotation.transfer_pure ()
   | succ n ih =>
-    show Program.transfer
+    show ProgramDenotation.transfer
       (oracle_step adv lazy_query >>= fun _ => oracle_loop_n adv n lazy_query)
       (oracle_step adv random_oracle_query >>=
         fun _ => oracle_loop_n adv n random_oracle_query)
-    exact Program.transfer_bind (Program.transfer_oracle_step_prob h_adv) (fun _ => ih)
+    exact ProgramDenotation.transfer_bind (ProgramDenotation.transfer_oracle_step_prob h_adv) (fun _
+        => ih)
 
 /-- Generic preservation: `oracle_step adv` stays in `L.compl.range` for any
     lens `L` disjoint from `random_oracle_state`, `oracle_input`, and
@@ -338,17 +342,17 @@ lemma oracle_step_inRange_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
     [disjoint oracle_output L]
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     (h_adv : adv.inRange L.compl.range) :
     (oracle_step adv lazy_query).inRange L.compl.range := by
   show (adv >>= fun _ =>
-        Program.get oracle_input >>= fun inp =>
+        ProgramDenotation.get oracle_input >>= fun inp =>
           lazy_query inp >>= fun y =>
-            Program.set oracle_output y).inRange L.compl.range
-  refine Program.inRange_bind h_adv ?_
+            ProgramDenotation.set oracle_output y).inRange L.compl.range
+  refine ProgramDenotation.inRange_bind h_adv ?_
   intro _
-  refine Program.inRange_bind
-    (Program.get_inRange_compl_of_disjoint oracle_input L) ?_
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.get_inRange_compl_of_disjoint oracle_input L) ?_
   intro inp
   exact lazy_query_then_set_oracle_output_inRange_compl L inp
 
@@ -357,17 +361,17 @@ lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
     [disjoint oracle_output L]
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     (h_adv : adv.inFootprint (L.footprint)ᶜ) :
     (oracle_step adv lazy_query).inFootprint (L.footprint)ᶜ := by
   show (adv >>= fun _ =>
-        Program.get oracle_input >>= fun inp =>
+        ProgramDenotation.get oracle_input >>= fun inp =>
           lazy_query inp >>= fun y =>
-            Program.set oracle_output y).inFootprint (L.footprint)ᶜ
-  refine Program.inFootprint_bind h_adv ?_
+            ProgramDenotation.set oracle_output y).inFootprint (L.footprint)ᶜ
+  refine ProgramDenotation.inFootprint_bind h_adv ?_
   intro _
-  refine Program.inFootprint_bind
-    (Program.get_inFootprint_compl_of_disjoint oracle_input L) ?_
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint oracle_input L) ?_
   intro inp
   exact lazy_query_then_set_oracle_output_inFootprint_compl L inp
 
@@ -376,32 +380,32 @@ lemma oracle_loop_n_inRange_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
     [disjoint oracle_output L]
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     (h_adv : adv.inRange L.compl.range)
     (q : ℕ) :
     (oracle_loop_n adv q lazy_query).inRange L.compl.range := by
   induction q with
-  | zero => exact Program.inRange_pure _ _
+  | zero => exact ProgramDenotation.inRange_pure _ _
   | succ n ih =>
     show (oracle_step adv lazy_query >>= fun _ =>
           oracle_loop_n adv n lazy_query).inRange _
-    exact Program.inRange_bind (oracle_step_inRange_compl L h_adv) (fun _ => ih)
+    exact ProgramDenotation.inRange_bind (oracle_step_inRange_compl L h_adv) (fun _ => ih)
 
 /-- `inFootprint` (countability-free) analogue of `oracle_loop_n_inRange_compl`. -/
 lemma oracle_loop_n_inFootprint_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
     [disjoint oracle_output L]
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     (h_adv : adv.inFootprint (L.footprint)ᶜ)
     (q : ℕ) :
     (oracle_loop_n adv q lazy_query).inFootprint (L.footprint)ᶜ := by
   induction q with
-  | zero => exact Program.inFootprint_pure _ _
+  | zero => exact ProgramDenotation.inFootprint_pure _ _
   | succ n ih =>
     show (oracle_step adv lazy_query >>= fun _ =>
           oracle_loop_n adv n lazy_query).inFootprint _
-    exact Program.inFootprint_bind (oracle_step_inFootprint_compl L h_adv) (fun _ => ih)
+    exact ProgramDenotation.inFootprint_bind (oracle_step_inFootprint_compl L h_adv) (fun _ => ih)
 
 /-- **Linear-growth bound for `oracle_loop_n`**. If a single body iteration
     bumps the wp of `f` (against the state-projected post) by at most a
@@ -410,7 +414,7 @@ lemma oracle_loop_n_inFootprint_compl {γ : Type} (L : Lens γ state)
     bounds (e.g. each query bumps RO size by ≤ 1) and probability bounds
     (e.g. each query has ≤ 1/N chance of producing a target value). -/
 lemma oracle_loop_n_wp_linear_bound
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     {f : state → ENNReal} {c : ENNReal}
     (h_body : ∀ σ, (oracle_step adv lazy_query).wp
                      (fun yσ : Unit × state => f yσ.2) σ ≤ f σ + c)
@@ -419,7 +423,7 @@ lemma oracle_loop_n_wp_linear_bound
         (fun yσ : Unit × state => f yσ.2) σ ≤ f σ + (q : ENNReal) * c := by
   induction q generalizing σ with
   | zero =>
-    show (pure () : Program state Unit).wp _ σ ≤ _
+    show (pure () : ProgramDenotation state Unit).wp _ σ ≤ _
     rw [wp_pure]; simp
   | succ n ih =>
     show (oracle_step adv lazy_query >>= fun _ =>
@@ -430,18 +434,18 @@ lemma oracle_loop_n_wp_linear_bound
               (fun yσ' : Unit × state => f yσ'.2) yσ.2) σ
         ≤ (oracle_step adv lazy_query).wp (fun yσ : Unit × state =>
             f yσ.2 + (n : ENNReal) * c) σ := by
-          apply Program.wp_le_wp_of_le
+          apply ProgramDenotation.wp_le_wp_of_le
           intro yσ
           exact ih yσ.2
       _ = (oracle_step adv lazy_query).wp
             (fun yσ : Unit × state => f yσ.2) σ +
           (oracle_step adv lazy_query).wp
             (fun _ : Unit × state => (n : ENNReal) * c) σ := by
-          rw [Program.wp_add]
+          rw [ProgramDenotation.wp_add]
       _ ≤ (f σ + c) + (n : ENNReal) * c := by
           gcongr
           · exact h_body σ
-          · exact Program.wp_const_le _ _ _
+          · exact ProgramDenotation.wp_const_le _ _ _
       _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
           push_cast; ring
 
@@ -505,7 +509,7 @@ lemma lazy_query_wp_step
     because the adversary alone preserves it. Used by both CR and OW for
     multiple indicators (collision, RO_size, useful_preimage). -/
 lemma oracle_step_wp_indicator_bump
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     {f : state → ENNReal} (c : state → ENNReal)
     (h_adv_preserves_f : ∀ σ, adv.wp (fun yσ : Unit × state => f yσ.2) σ ≤ f σ)
     (h_adv_preserves_c : ∀ σ, adv.wp (fun yσ : Unit × state => c yσ.2) σ ≤ c σ)
@@ -516,19 +520,19 @@ lemma oracle_step_wp_indicator_bump
     (oracle_step adv lazy_query).wp (fun yσ : Unit × state => f yσ.2) σ
     ≤ f σ + c σ := by
   show (adv >>= fun _ =>
-        Program.get oracle_input >>= fun inp =>
+        ProgramDenotation.get oracle_input >>= fun inp =>
           lazy_query inp >>= fun y =>
-            Program.set oracle_output y).wp _ σ ≤ _
+            ProgramDenotation.set oracle_output y).wp _ σ ≤ _
   rw [wp_bind]
   have h_inner : ∀ σ_a : state,
-      (Program.get oracle_input >>= fun inp =>
-        lazy_query inp >>= fun y => Program.set oracle_output y).wp
+      (ProgramDenotation.get oracle_input >>= fun inp =>
+        lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).wp
           (fun yσ : Unit × state => f yσ.2) σ_a
       ≤ f σ_a + c σ_a := by
     intro σ_a
     simp only [wp_bind, wp_get]
     rw [show (fun yσ : output × state =>
-              (Program.set oracle_output yσ.1).wp
+              (ProgramDenotation.set oracle_output yσ.1).wp
                 (fun yσ' : Unit × state => f yσ'.2) yσ.2)
             = (fun yσ : output × state => f yσ.2) from by
       funext yσ
@@ -537,15 +541,15 @@ lemma oracle_step_wp_indicator_bump
     exact h_lazy_query (oracle_input.get σ_a) σ_a
   calc adv.wp _ σ
       ≤ adv.wp (fun yσ : Unit × state => f yσ.2 + c yσ.2) σ := by
-        apply Program.wp_le_wp_of_le; intro yσ; exact h_inner yσ.2
+        apply ProgramDenotation.wp_le_wp_of_le; intro yσ; exact h_inner yσ.2
     _ = adv.wp (fun yσ : Unit × state => f yσ.2) σ
-        + adv.wp (fun yσ : Unit × state => c yσ.2) σ := by rw [Program.wp_add]
+        + adv.wp (fun yσ : Unit × state => c yσ.2) σ := by rw [ProgramDenotation.wp_add]
     _ ≤ f σ + c σ := add_le_add (h_adv_preserves_f σ) (h_adv_preserves_c σ)
 
 /-- Constant-`c` specialization of `oracle_step_wp_indicator_bump`. The
-    adversary trivially preserves a constant via `Program.wp_const_le`. -/
+    adversary trivially preserves a constant via `ProgramDenotation.wp_const_le`. -/
 lemma oracle_step_wp_indicator_bump_const
-    {adv : Program state Unit}
+    {adv : ProgramDenotation state Unit}
     {f : state → ENNReal} (c : ENNReal)
     (h_adv_preserves : ∀ σ, adv.wp (fun yσ : Unit × state => f yσ.2) σ ≤ f σ)
     (h_set_oo : ∀ y σ, f (oracle_output.set y σ) = f σ)
@@ -555,12 +559,12 @@ lemma oracle_step_wp_indicator_bump_const
     (oracle_step adv lazy_query).wp (fun yσ : Unit × state => f yσ.2) σ
     ≤ f σ + c :=
   oracle_step_wp_indicator_bump (fun _ => c) h_adv_preserves
-    (fun σ' => Program.wp_const_le adv c σ') h_set_oo h_lazy_query σ
+    (fun σ' => ProgramDenotation.wp_const_le adv c σ') h_set_oo h_lazy_query σ
 
 /-- The static-budget oracle loop is the bounded loop combinator applied to a
     single oracle step. Lets generic `loop_n` lemmas apply to `oracle_loop_n`. -/
 lemma oracle_loop_n_eq_loop_n
-    (adv : Program state Unit) (oracle : input → Program state output) (q : ℕ) :
+    (adv : ProgramDenotation state Unit) (oracle : input → ProgramDenotation state output) (q : ℕ) :
     oracle_loop_n adv q oracle = loop_n q (oracle_step adv oracle) := by
   induction q with
   | zero => rfl

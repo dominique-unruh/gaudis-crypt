@@ -14,7 +14,7 @@ measured in the up-to-bad client).
 This module provides the missing *symmetric introduction form*: an
 explicit coupling witness — a joint subdistribution over output pairs
 whose marginals are the two runs and whose support lies in the post —
-yields **both** directions at once (`Program.relE.of_coupling`). This is
+yields **both** directions at once (`ProgramDenotation.relE.of_coupling`). This is
 the CertiCrypt/FCF lifting, deliberately confined to its sweet spot:
 
 * **leaves** are proved by exhibiting a coupling (`Coupling.of_pure` for
@@ -30,8 +30,8 @@ the CertiCrypt/FCF lifting, deliberately confined to its sweet spot:
     subdistribution on output pairs with the two runs as marginals and
     support inside `Post` (stated in CertiCrypt's `range` form, which needs
     no decidability). -/
-structure Program.Coupling {s₁ s₂ α β : Type}
-    (p : Program s₁ α) (q : Program s₂ β) (σ₁ : s₁) (σ₂ : s₂)
+structure ProgramDenotation.Coupling {s₁ s₂ α β : Type}
+    (p : ProgramDenotation s₁ α) (q : ProgramDenotation s₂ β) (σ₁ : s₁) (σ₂ : s₂)
     (Post : α × s₁ → β × s₂ → Prop) where
   /-- The joint subdistribution. -/
   w : SubProbability ((α × s₁) × (β × s₂))
@@ -83,15 +83,15 @@ lemma sum_const_div_card {T : Type} [Fintype T] [Nonempty T] (c : ENNReal) :
         (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card T ≠ 0))
         (ENNReal.natCast_ne_top _)]
 
-namespace Program.Coupling
+namespace ProgramDenotation.Coupling
 
 variable {s₁ s₂ α β : Type}
-    {p : Program s₁ α} {q : Program s₂ β} {σ₁ : s₁} {σ₂ : s₂}
+    {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {σ₁ : s₁} {σ₂ : s₂}
     {Post : α × s₁ → β × s₂ → Prop}
 
 /-- Domination through the witness: a `Post`-pointwise inequality between
     pair-posts integrates. -/
-lemma expected_le (c : Program.Coupling p q σ₁ σ₂ Post)
+lemma expected_le (c : ProgramDenotation.Coupling p q σ₁ σ₂ Post)
     {A B : (α × s₁) × (β × s₂) → ENNReal}
     (hAB : ∀ uv, Post uv.1 uv.2 → A uv ≤ B uv) :
     c.w.expected A ≤ c.w.expected B := by
@@ -113,7 +113,7 @@ lemma expected_le (c : Program.Coupling p q σ₁ σ₂ Post)
     `Post`-related pair of outputs. -/
 noncomputable def of_pure (u₀ : α × s₁) (v₀ : β × s₂)
     (h₁ : ∀ F, p.wp F σ₁ = F u₀) (h₂ : ∀ G, q.wp G σ₂ = G v₀)
-    (hP : Post u₀ v₀) : Program.Coupling p q σ₁ σ₂ Post where
+    (hP : Post u₀ v₀) : ProgramDenotation.Coupling p q σ₁ σ₂ Post where
   w := pure (u₀, v₀)
   marg₁ F := by rw [expected_pure, h₁]
   marg₂ G := by rw [expected_pure, h₂]
@@ -126,7 +126,7 @@ noncomputable def of_uniform {T : Type} [Fintype T] [Nonempty T]
     (f₁ : T → α × s₁) (f₂ : T → β × s₂)
     (h₁ : ∀ F, p.wp F σ₁ = ∑ t : T, F (f₁ t) / Fintype.card T)
     (h₂ : ∀ G, q.wp G σ₂ = ∑ t : T, G (f₂ t) / Fintype.card T)
-    (hP : ∀ t, Post (f₁ t) (f₂ t)) : Program.Coupling p q σ₁ σ₂ Post where
+    (hP : ∀ t, Post (f₁ t) (f₂ t)) : ProgramDenotation.Coupling p q σ₁ σ₂ Post where
   w := (SubProbability.uniform : SubProbability T) >>= fun t => pure (f₁ t, f₂ t)
   marg₁ F := by
     rw [SubProbability.expected_bind]
@@ -157,15 +157,15 @@ noncomputable def of_uniform {T : Type} [Fintype T] [Nonempty T]
     · rw [uniform_expected]
       simp
 
-end Program.Coupling
+end ProgramDenotation.Coupling
 
 /-- **Coupling introduction** (the symmetric proof principle): a coupling
     witness at every `Pre`-related state pair yields the full two-sided
     `relE` judgment — both directions from the same witness. -/
-lemma Program.relE.of_coupling {s₁ s₂ α β : Type}
-    {p : Program s₁ α} {q : Program s₂ β}
+lemma ProgramDenotation.relE.of_coupling {s₁ s₂ α β : Type}
+    {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
-    (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Program.Coupling p q σ₁ σ₂ Post) :
+    (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → ProgramDenotation.Coupling p q σ₁ σ₂ Post) :
     p.relE q Pre Post := by
   constructor
   · intro F G hFG σ₁ σ₂ hpre

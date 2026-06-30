@@ -69,38 +69,38 @@ noncomputable def colliding_outputs (h : input → Option output) (inp : input) 
     state, additionally setting `prp_bad := true` when the freshly drawn value
     already occurs in the image (the draw creates a collision). Written with
     explicit `>>=` to avoid the do-notation join-point macro on the `if`. -/
-noncomputable def lazy_query_rf (inp : input) : Program state output :=
-  Program.get random_oracle_state >>= fun h =>
+noncomputable def lazy_query_rf (inp : input) : ProgramDenotation state output :=
+  ProgramDenotation.get random_oracle_state >>= fun h =>
     match h inp with
-    | some x => (pure x : Program state output)
+    | some x => (pure x : ProgramDenotation state output)
     | none =>
-      Program.uniform >>= fun y =>
-        (if y ∈ colliding_outputs h inp then Program.set prp_bad true
-         else (pure () : Program state Unit)) >>= fun _ =>
-          Program.set random_oracle_state (fun x => if x = inp then some y else h x)
-            >>= fun _ => (pure y : Program state output)
+      ProgramDenotation.uniform >>= fun y =>
+        (if y ∈ colliding_outputs h inp then ProgramDenotation.set prp_bad true
+         else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
+          ProgramDenotation.set random_oracle_state (fun x => if x = inp then some y else h x)
+            >>= fun _ => (pure y : ProgramDenotation state output)
 
 /-- **RP oracle (instrumented, resample-on-collision).** Draws the *same* `y`
     and sets `prp_bad` on a collision exactly as `lazy_query_rf`. On a collision
     it resamples uniformly from the unused outputs (`univ \ colliding_outputs`),
     keeping the oracle injective; if the outputs are exhausted it falls through
     (the flag is already set, so the returned value is immaterial). -/
-noncomputable def lazy_query_rp (inp : input) : Program state output :=
-  Program.get random_oracle_state >>= fun h =>
+noncomputable def lazy_query_rp (inp : input) : ProgramDenotation state output :=
+  ProgramDenotation.get random_oracle_state >>= fun h =>
     match h inp with
-    | some x => (pure x : Program state output)
+    | some x => (pure x : ProgramDenotation state output)
     | none =>
-      Program.uniform >>= fun y =>
+      ProgramDenotation.uniform >>= fun y =>
         if y ∈ colliding_outputs h inp then
-          Program.set prp_bad true >>= fun _ =>
+          ProgramDenotation.set prp_bad true >>= fun _ =>
             (if hne : (Finset.univ \ colliding_outputs h inp).Nonempty then
-               Program.uniformOfFinset (Finset.univ \ colliding_outputs h inp) hne
-             else (pure y : Program state output)) >>= fun y' =>
-              Program.set random_oracle_state (fun x => if x = inp then some y' else h x)
-                >>= fun _ => (pure y' : Program state output)
+               ProgramDenotation.uniformOfFinset (Finset.univ \ colliding_outputs h inp) hne
+             else (pure y : ProgramDenotation state output)) >>= fun y' =>
+              ProgramDenotation.set random_oracle_state (fun x => if x = inp then some y' else h x)
+                >>= fun _ => (pure y' : ProgramDenotation state output)
         else
-          Program.set random_oracle_state (fun x => if x = inp then some y else h x)
-            >>= fun _ => (pure y : Program state output)
+          ProgramDenotation.set random_oracle_state (fun x => if x = inp then some y else h x)
+            >>= fun _ => (pure y : ProgramDenotation state output)
 
 /-! ### Closed-form weakest preconditions (Phase 2a)
 
@@ -170,7 +170,7 @@ lemma lazy_query_rp_wp_miss {inp : input} {σ : state}
   · simp only [if_pos hb, wp_bind, wp_set]
     unfold rp_resample_sub
     by_cases hne : (Finset.univ \ colliding_outputs (random_oracle_state.get σ) inp).Nonempty
-    · simp only [dif_pos hne, Program.uniformOfFinset, wp_lift, wp_pure]
+    · simp only [dif_pos hne, ProgramDenotation.uniformOfFinset, wp_lift, wp_pure]
     · simp only [dif_neg hne, wp_pure, expected_pure]
   · simp only [if_neg hb, wp_bind, wp_set, wp_pure]
 
@@ -180,52 +180,53 @@ lemma lazy_query_rf_inRange {α : Type} (L : Variable α)
     [disjoint random_oracle_state L] [disjoint prp_bad L] (inp : input) :
     (lazy_query_rf inp).inRange L.compl.range := by
   unfold lazy_query_rf
-  refine Program.inRange_bind
-    (Program.get_inRange_compl_of_disjoint random_oracle_state L) (fun h => ?_)
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.get_inRange_compl_of_disjoint random_oracle_state L) (fun h => ?_)
   cases h inp with
-  | some x => exact Program.inRange_pure _ _
+  | some x => exact ProgramDenotation.inRange_pure _ _
   | none =>
-    refine Program.inRange_bind
-      (Program.inRange_mono Program.inRange_uniform bot_le) (fun y => ?_)
-    refine Program.inRange_bind ?_ (fun _ => ?_)
+    refine ProgramDenotation.inRange_bind
+      (ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le) (fun y => ?_)
+    refine ProgramDenotation.inRange_bind ?_ (fun _ => ?_)
     · by_cases hy : y ∈ colliding_outputs h inp
       · simp only [if_pos hy]
-        exact Program.set_inRange_compl_of_disjoint prp_bad L true
+        exact ProgramDenotation.set_inRange_compl_of_disjoint prp_bad L true
       · simp only [if_neg hy]
-        exact Program.inRange_pure _ _
-    · exact Program.inRange_bind
-        (Program.set_inRange_compl_of_disjoint random_oracle_state L _)
-        (fun _ => Program.inRange_pure _ _)
+        exact ProgramDenotation.inRange_pure _ _
+    · exact ProgramDenotation.inRange_bind
+        (ProgramDenotation.set_inRange_compl_of_disjoint random_oracle_state L _)
+        (fun _ => ProgramDenotation.inRange_pure _ _)
 
 /-- `lazy_query_rp` touches only `random_oracle_state` and `prp_bad`. -/
 lemma lazy_query_rp_inRange {α : Type} (L : Variable α)
     [disjoint random_oracle_state L] [disjoint prp_bad L] (inp : input) :
     (lazy_query_rp inp).inRange L.compl.range := by
   unfold lazy_query_rp
-  refine Program.inRange_bind
-    (Program.get_inRange_compl_of_disjoint random_oracle_state L) (fun h => ?_)
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.get_inRange_compl_of_disjoint random_oracle_state L) (fun h => ?_)
   cases h inp with
-  | some x => exact Program.inRange_pure _ _
+  | some x => exact ProgramDenotation.inRange_pure _ _
   | none =>
-    refine Program.inRange_bind
-      (Program.inRange_mono Program.inRange_uniform bot_le) (fun y => ?_)
+    refine ProgramDenotation.inRange_bind
+      (ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le) (fun y => ?_)
     by_cases hy : y ∈ colliding_outputs h inp
     · simp only [if_pos hy]
-      refine Program.inRange_bind
-        (Program.set_inRange_compl_of_disjoint prp_bad L true) (fun _ => ?_)
-      refine Program.inRange_bind ?_ (fun y' => ?_)
+      refine ProgramDenotation.inRange_bind
+        (ProgramDenotation.set_inRange_compl_of_disjoint prp_bad L true) (fun _ => ?_)
+      refine ProgramDenotation.inRange_bind ?_ (fun y' => ?_)
       · by_cases hne : (Finset.univ \ colliding_outputs h inp).Nonempty
         · simp only [dif_pos hne]
-          exact Program.inRange_mono (Program.inRange_uniformOfFinset _ hne) bot_le
+          exact ProgramDenotation.inRange_mono (ProgramDenotation.inRange_uniformOfFinset _ hne)
+              bot_le
         · simp only [dif_neg hne]
-          exact Program.inRange_pure _ _
-      · exact Program.inRange_bind
-          (Program.set_inRange_compl_of_disjoint random_oracle_state L _)
-          (fun _ => Program.inRange_pure _ _)
+          exact ProgramDenotation.inRange_pure _ _
+      · exact ProgramDenotation.inRange_bind
+          (ProgramDenotation.set_inRange_compl_of_disjoint random_oracle_state L _)
+          (fun _ => ProgramDenotation.inRange_pure _ _)
     · simp only [if_neg hy]
-      exact Program.inRange_bind
-        (Program.set_inRange_compl_of_disjoint random_oracle_state L _)
-        (fun _ => Program.inRange_pure _ _)
+      exact ProgramDenotation.inRange_bind
+        (ProgramDenotation.set_inRange_compl_of_disjoint random_oracle_state L _)
+        (fun _ => ProgramDenotation.inRange_pure _ _)
 
 /-! ### The per-query coupling (Phase 2b) -/
 
@@ -255,11 +256,11 @@ lemma lazy_query_switch_step (inp : input) :
       (fun σ₁ σ₂ => σ₁ = σ₂ ∧ prp_bad.get σ₁ = false)
       (fun u v => prp_bad.get u.2 = prp_bad.get v.2
         ∧ (prp_bad.get u.2 = false → u = v)) := by
-  refine Program.relE.of_coupling ?_
+  refine ProgramDenotation.relE.of_coupling ?_
   rintro σ₁ σ₂ ⟨rfl, hflag⟩
   cases hc : random_oracle_state.get σ₁ inp with
   | some x =>
-    exact Program.Coupling.of_pure (x, σ₁) (x, σ₁)
+    exact ProgramDenotation.Coupling.of_pure (x, σ₁) (x, σ₁)
       (fun F => lazy_query_rf_wp_hit hc F)
       (fun G => lazy_query_rp_wp_hit hc G)
       ⟨rfl, fun _ => rfl⟩
@@ -393,21 +394,21 @@ lemma lazy_query_rp_keeps_flag {inp : input} {σ : state} (h : prp_bad.get σ = 
 /-! ### Two-mode relational lifting (Phase 3b) -/
 
 /-- A program that doesn't touch `prp_bad` almost surely keeps it `true`. -/
-lemma wp_keeps_flag_zero {α : Type} {prog : Program state α}
+lemma wp_keeps_flag_zero {α : Type} {prog : ProgramDenotation state α}
     (hpres : prog.inRange prp_bad.compl.range) {σ : state} (h : prp_bad.get σ = true) :
     prog.wp (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0 := by
-  have hle := Program.wp_le_of_factors prp_bad hpres
+  have hle := ProgramDenotation.wp_le_of_factors prp_bad hpres
     (P := fun σ' => if prp_bad.get σ' = true then (0 : ENNReal) else 1)
     (fun _ _ hss => by simp only [hss]) σ
   rw [if_pos h] at hle
   exact le_zero_iff.mp hle
 
 /-- From losslessness and a.s.-flag-preservation, the full-mass flag form. -/
-lemma flag_one_of_zero {α : Type} {prog : Program state α} {σ : state}
+lemma flag_one_of_zero {α : Type} {prog : ProgramDenotation state α} {σ : state}
     (hmass : prog.wp (fun _ => (1 : ENNReal)) σ = 1)
     (hzero : prog.wp (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ = 0) :
     prog.wp (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0) σ = 1 := by
-  have hadd := Program.wp_add prog
+  have hadd := ProgramDenotation.wp_add prog
     (fun u => if prp_bad.get u.2 = true then (1 : ENNReal) else 0)
     (fun u => if prp_bad.get u.2 = true then (0 : ENNReal) else 1) σ
   rw [show (fun u : α × state => (if prp_bad.get u.2 = true then (1 : ENNReal) else 0)
@@ -421,7 +422,7 @@ lemma flag_one_of_zero {α : Type} {prog : Program state α} {σ : state}
     forces synchronization (`h_sync_*`), the judgment lifts to the conditional
     invariant. The flag-clear mode is given directly; the flag-set mode uses
     `rel.of_unary` (each side independently keeps `prp_bad` set). -/
-lemma two_mode_relE {α : Type} {p q : Program state α}
+lemma two_mode_relE {α : Type} {p q : ProgramDenotation state α}
     {Pre : state → state → Prop} {Post : α × state → α × state → Prop}
     (h_flageq : ∀ σ₁ σ₂, Pre σ₁ σ₂ → prp_bad.get σ₁ = prp_bad.get σ₂)
     (h_sync_fwd : p.rel q (fun σ₁ σ₂ => Pre σ₁ σ₂ ∧ prp_bad.get σ₁ = false) Post)
@@ -446,7 +447,7 @@ lemma two_mode_relE {α : Type} {p q : Program state α}
       have hf2 : prp_bad.get σ₂ = true := (h_flageq σ₁ σ₂ hpre) ▸ hf1
       have hun : p.rel q (fun a b => prp_bad.get a = true ∧ prp_bad.get b = true)
           (fun u v => prp_bad.get u.2 = true ∧ prp_bad.get v.2 = true) :=
-        Program.rel.of_unary (fun a _ hab => h_p0 a hab.1) (fun _ b hab => h_q1 b hab.2)
+        ProgramDenotation.rel.of_unary (fun a _ hab => h_p0 a hab.1) (fun _ b hab => h_q1 b hab.2)
       exact hun.wp_le (fun u v huv => hFG u v (h_post_true u v huv.1 huv.2)) ⟨hf1, hf2⟩
   · intro F G hFG σ₂ σ₁ hpre
     by_cases hf : prp_bad.get σ₁ = false
@@ -455,7 +456,7 @@ lemma two_mode_relE {α : Type} {p q : Program state α}
       have hf2 : prp_bad.get σ₂ = true := (h_flageq σ₁ σ₂ hpre) ▸ hf1
       have hun : q.rel p (fun b a => prp_bad.get b = true ∧ prp_bad.get a = true)
           (fun v u => prp_bad.get v.2 = true ∧ prp_bad.get u.2 = true) :=
-        Program.rel.of_unary (fun b _ hab => h_q0 b hab.1) (fun _ a hab => h_p1 a hab.2)
+        ProgramDenotation.rel.of_unary (fun b _ hab => h_q0 b hab.1) (fun _ a hab => h_p1 a hab.2)
       exact hun.wp_le (fun v u hvu => hFG v u (h_post_true u v hvu.2 hvu.1)) ⟨hf2, hf1⟩
 
 /-- `lazy_query_rp` a.s. keeps `prp_bad = true`. -/
@@ -489,19 +490,20 @@ lemma lazy_query_rf_keeps_flag_one {inp : input} {σ : state} (h : prp_bad.get �
     `oracle_step A` with the RF oracle relates to the same with the RP oracle:
     the flag always agrees, and as long as it is clear the states stay equal.
     Requires `A` to leave `prp_bad` untouched and to be lossless. -/
-lemma oracle_step_switch_relE (A : Program state Unit)
+lemma oracle_step_switch_relE (A : ProgramDenotation state Unit)
     (hA_pres : A.inRange prp_bad.compl.range)
     (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1) :
     (oracle_step A lazy_query_rf).relE (oracle_step A lazy_query_rp)
       (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
       (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) := by
-  have hget_pres : (Program.get oracle_input).inRange prp_bad.compl.range :=
-    Program.get_inRange_compl_of_disjoint oracle_input prp_bad
-  have hset_pres : ∀ y, (Program.set oracle_output y).inRange prp_bad.compl.range :=
-    fun y => Program.set_inRange_compl_of_disjoint oracle_output prp_bad y
-  have hget_mass : ∀ σ, (Program.get oracle_input).wp (fun _ => (1 : ENNReal)) σ = 1 :=
+  have hget_pres : (ProgramDenotation.get oracle_input).inRange prp_bad.compl.range :=
+    ProgramDenotation.get_inRange_compl_of_disjoint oracle_input prp_bad
+  have hset_pres : ∀ y, (ProgramDenotation.set oracle_output y).inRange prp_bad.compl.range :=
+    fun y => ProgramDenotation.set_inRange_compl_of_disjoint oracle_output prp_bad y
+  have hget_mass : ∀ σ, (ProgramDenotation.get oracle_input).wp (fun _ => (1 : ENNReal)) σ = 1 :=
     fun σ => by simp [wp_get]
-  have hset_mass : ∀ y σ, (Program.set oracle_output y).wp (fun _ => (1 : ENNReal)) σ = 1 :=
+  have hset_mass : ∀ y σ, (ProgramDenotation.set oracle_output y).wp (fun _ => (1 : ENNReal)) σ =
+      1 :=
     fun y σ => by simp [wp_set]
   have hptrue : ∀ {α : Type} (u v : α × state), prp_bad.get u.2 = true → prp_bad.get v.2 = true →
       prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u = v) :=
@@ -520,14 +522,14 @@ lemma oracle_step_switch_relE (A : Program state Unit)
       obtain ⟨hpre, hf⟩ := hp
       have heq : σ₁ = σ₂ := hpre.2 hf
       subst heq
-      exact Program.wp_le_wp_of_le A F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+      exact ProgramDenotation.wp_le_wp_of_le A F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
     · intro F G hFG σ₂ σ₁ hp
       obtain ⟨hpre, hf⟩ := hp
       have heq : σ₁ = σ₂ := hpre.2 hf
       subst heq
-      exact Program.wp_le_wp_of_le A F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+      exact ProgramDenotation.wp_le_wp_of_le A F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
   -- get oracle_input component
-  have hGet : (Program.get oracle_input).relE (Program.get oracle_input)
+  have hGet : (ProgramDenotation.get oracle_input).relE (ProgramDenotation.get oracle_input)
       (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
       (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u = v)) := by
     refine two_mode_relE (fun _ _ hpre => hpre.1) ?_ ?_
@@ -540,12 +542,12 @@ lemma oracle_step_switch_relE (A : Program state Unit)
       obtain ⟨hpre, hf⟩ := hp
       have heq : σ₁ = σ₂ := hpre.2 hf
       subst heq
-      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+      exact ProgramDenotation.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
     · intro F G hFG σ₂ σ₁ hp
       obtain ⟨hpre, hf⟩ := hp
       have heq : σ₁ = σ₂ := hpre.2 hf
       subst heq
-      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+      exact ProgramDenotation.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
   -- oracle component (rf inp₁ vs rp inp₂)
   have hOracle : ∀ inp₁ inp₂, (lazy_query_rf inp₁).relE (lazy_query_rp inp₂)
       (fun τ₁ τ₂ => prp_bad.get τ₁ = prp_bad.get τ₂
@@ -569,7 +571,8 @@ lemma oracle_step_switch_relE (A : Program state Unit)
       subst hinp; subst hst
       exact (lazy_query_switch_step inp₁).2 F G hFG σ₁ σ₁ ⟨rfl, hf⟩
   -- set oracle_output component
-  have hSet : ∀ y₁ y₂, (Program.set oracle_output y₁).relE (Program.set oracle_output y₂)
+  have hSet : ∀ y₁ y₂, (ProgramDenotation.set oracle_output y₁).relE (ProgramDenotation.set
+      oracle_output y₂)
       (fun τ₁ τ₂ => prp_bad.get τ₁ = prp_bad.get τ₂
         ∧ (prp_bad.get τ₁ = false → (y₁, τ₁) = (y₂, τ₂)))
       (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) := by
@@ -584,33 +587,33 @@ lemma oracle_step_switch_relE (A : Program state Unit)
       obtain ⟨hpre, hf⟩ := hp
       obtain ⟨hy, hst⟩ := Prod.mk.inj (hpre.2 hf)
       subst hy; subst hst
-      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+      exact ProgramDenotation.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
     · intro F G hFG σ₂ σ₁ hp
       obtain ⟨hpre, hf⟩ := hp
       obtain ⟨hy, hst⟩ := Prod.mk.inj (hpre.2 hf)
       subst hy; subst hst
-      exact Program.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
+      exact ProgramDenotation.wp_le_wp_of_le _ F G (fun x => hFG x x ⟨rfl, fun _ => rfl⟩) σ₁
   -- assemble the body via relE.bind
   unfold oracle_step
-  refine Program.relE.bind hA (fun _ _ => ?_)
-  refine Program.relE.bind hGet (fun inp₁ inp₂ => ?_)
-  exact Program.relE.bind (hOracle inp₁ inp₂) (fun y₁ y₂ => hSet y₁ y₂)
+  refine ProgramDenotation.relE.bind hA (fun _ _ => ?_)
+  refine ProgramDenotation.relE.bind hGet (fun inp₁ inp₂ => ?_)
+  exact ProgramDenotation.relE.bind (hOracle inp₁ inp₂) (fun y₁ y₂ => hSet y₁ y₂)
 
 /-! ### Loop lifting and the Fundamental Lemma (Phase 3c) -/
 
 /-- The whole `q`-round game relates RF to RP at the conditional invariant. -/
-lemma loop_switch_relE (A : Program state Unit)
+lemma loop_switch_relE (A : ProgramDenotation state Unit)
     (hA_pres : A.inRange prp_bad.compl.range)
     (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1) (q : ℕ) :
     (loop_n q (oracle_step A lazy_query_rf)).relE (loop_n q (oracle_step A lazy_query_rp))
       (fun σ₁ σ₂ => prp_bad.get σ₁ = prp_bad.get σ₂ ∧ (prp_bad.get σ₁ = false → σ₁ = σ₂))
       (fun u v => prp_bad.get u.2 = prp_bad.get v.2 ∧ (prp_bad.get u.2 = false → u.2 = v.2)) :=
-  Program.relE.loop_n (oracle_step_switch_relE A hA_pres hA_mass) q
+  ProgramDenotation.relE.loop_n (oracle_step_switch_relE A hA_pres hA_mass) q
 
 /-- **Switching inequality (Fundamental Lemma).** For any state-functional `G`,
     the RF game's expectation is at most the RP game's plus the probability that
     RF triggered a collision (`prp_bad`). Starting from a common state. -/
-lemma switch_up_to_bad (A : Program state Unit)
+lemma switch_up_to_bad (A : ProgramDenotation state Unit)
     (hA_pres : A.inRange prp_bad.compl.range)
     (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (G : state → ENNReal) (σ : state) :
@@ -622,7 +625,7 @@ lemma switch_up_to_bad (A : Program state Unit)
   have hEq := (loop_switch_relE A hA_pres hA_mass q).conseq
     (Pre' := (Eq : state → state → Prop))
     (fun σ₁ σ₂ h => ⟨congrArg _ h, fun _ => h⟩) (fun _ _ h => h)
-  exact Program.relE.up_to_bad (bad := fun σ => prp_bad.get σ = true) (fun u => G u.2) hEq
+  exact ProgramDenotation.relE.up_to_bad (bad := fun σ => prp_bad.get σ = true) (fun u => G u.2) hEq
     (fun x y hxy => by dsimp only; rw [hxy.1])
     (fun x y hxy hb => by
       dsimp only at hb ⊢
@@ -704,7 +707,8 @@ lemma lazy_query_rf_bad_step (x : input) (σ : state) :
 
 /-- Generic `oracle_step` potential bump, parameterized by the oracle (the
     `lazy_query`-specific `oracle_step_wp_indicator_bump` adapted). -/
-lemma oracle_step_bump_gen {A : Program state Unit} (oracle : input → Program state output)
+lemma oracle_step_bump_gen {A : ProgramDenotation state Unit} (oracle : input → ProgramDenotation
+    state output)
     {f : state → ENNReal} (c : state → ENNReal)
     (h_adv_f : ∀ σ, A.wp (fun yσ : Unit × state => f yσ.2) σ ≤ f σ)
     (h_adv_c : ∀ σ, A.wp (fun yσ : Unit × state => c yσ.2) σ ≤ c σ)
@@ -713,35 +717,36 @@ lemma oracle_step_bump_gen {A : Program state Unit} (oracle : input → Program 
     (σ : state) :
     (oracle_step A oracle).wp (fun yσ : Unit × state => f yσ.2) σ ≤ f σ + c σ := by
   show (A >>= fun _ =>
-        Program.get oracle_input >>= fun inp =>
-          oracle inp >>= fun y => Program.set oracle_output y).wp _ σ ≤ _
+        ProgramDenotation.get oracle_input >>= fun inp =>
+          oracle inp >>= fun y => ProgramDenotation.set oracle_output y).wp _ σ ≤ _
   rw [wp_bind]
   have h_inner : ∀ σ_a : state,
-      (Program.get oracle_input >>= fun inp =>
-        oracle inp >>= fun y => Program.set oracle_output y).wp
+      (ProgramDenotation.get oracle_input >>= fun inp =>
+        oracle inp >>= fun y => ProgramDenotation.set oracle_output y).wp
           (fun yσ : Unit × state => f yσ.2) σ_a ≤ f σ_a + c σ_a := by
     intro σ_a
     simp only [wp_bind, wp_get]
     rw [show (fun yσ : output × state =>
-              (Program.set oracle_output yσ.1).wp (fun yσ' : Unit × state => f yσ'.2) yσ.2)
+              (ProgramDenotation.set oracle_output yσ.1).wp (fun yσ' : Unit × state => f yσ'.2)
+                  yσ.2)
             = (fun yσ : output × state => f yσ.2) from by
       funext yσ; rw [wp_set]; exact h_set_oo yσ.1 yσ.2]
     exact h_oracle (oracle_input.get σ_a) σ_a
   calc A.wp _ σ
       ≤ A.wp (fun yσ : Unit × state => f yσ.2 + c yσ.2) σ := by
-        apply Program.wp_le_wp_of_le; intro yσ; exact h_inner yσ.2
+        apply ProgramDenotation.wp_le_wp_of_le; intro yσ; exact h_inner yσ.2
     _ = A.wp (fun yσ : Unit × state => f yσ.2) σ + A.wp (fun yσ : Unit × state => c yσ.2) σ := by
-        rw [Program.wp_add]
+        rw [ProgramDenotation.wp_add]
     _ ≤ f σ + c σ := add_le_add (h_adv_f σ) (h_adv_c σ)
 
 /-- One loop body bumps `RO_size` by at most one. -/
-lemma oracle_step_rf_size_bump {A : Program state Unit}
+lemma oracle_step_rf_size_bump {A : ProgramDenotation state Unit}
     (hA_ro : A.inRange random_oracle_state.compl.range)
     (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1) (σ : state) :
     (oracle_step A lazy_query_rf).wp (fun u => (RO_size u.2 : ENNReal)) σ
     ≤ (RO_size σ : ENNReal) + 1 := by
   have h := oracle_step_bump_gen lazy_query_rf (fun _ => 1)
-    (fun σ' => Program.wp_le_of_factors random_oracle_state hA_ro
+    (fun σ' => ProgramDenotation.wp_le_of_factors random_oracle_state hA_ro
       (fun _ _ hss => congrArg _ (RO_size_of_get_eq hss)) σ')
     (fun σ' => le_of_eq (hA_mass σ'))
     (fun y σ' => by rw [RO_size_set_disjoint oracle_output y σ'])
@@ -749,7 +754,7 @@ lemma oracle_step_rf_size_bump {A : Program state Unit}
   simpa using h
 
 /-- One loop body bumps the bad-flag indicator by at most `RO_size σ / N`. -/
-lemma oracle_step_rf_bad_bump {A : Program state Unit}
+lemma oracle_step_rf_bad_bump {A : ProgramDenotation state Unit}
     (hA_ro : A.inRange random_oracle_state.compl.range)
     (hA_pres : A.inRange prp_bad.compl.range) (σ : state) :
     (oracle_step A lazy_query_rf).wp
@@ -757,10 +762,10 @@ lemma oracle_step_rf_bad_bump {A : Program state Unit}
     ≤ (if prp_bad.get σ = true then (1 : ENNReal) else 0)
       + (RO_size σ : ENNReal) / Fintype.card output :=
   oracle_step_bump_gen lazy_query_rf (fun σ' => (RO_size σ' : ENNReal) / Fintype.card output)
-    (fun σ' => Program.wp_le_of_factors prp_bad hA_pres
+    (fun σ' => ProgramDenotation.wp_le_of_factors prp_bad hA_pres
       (P := fun s => if prp_bad.get s = true then (1 : ENNReal) else 0)
       (fun _ _ hss => by simp only [hss]) σ')
-    (fun σ' => Program.wp_le_of_factors random_oracle_state hA_ro
+    (fun σ' => ProgramDenotation.wp_le_of_factors random_oracle_state hA_ro
       (P := fun s => (RO_size s : ENNReal) / Fintype.card output)
       (fun _ _ hss => by simp only [RO_size_of_get_eq hss]) σ')
     (fun y σ' => by simp only [prp_bad.get_of_disjoint_set oracle_output])
@@ -772,7 +777,7 @@ lemma oracle_step_rf_bad_bump {A : Program state Unit}
     the probability that `q` RF rounds set `prp_bad` is at most `q(q−1)/2N`. The
     bad flag is itself a collision potential, so this is `loop_n_birthday_bound`
     applied directly. -/
-lemma loop_rf_bad_bound {A : Program state Unit}
+lemma loop_rf_bad_bound {A : ProgramDenotation state Unit}
     (hA_ro : A.inRange random_oracle_state.compl.range)
     (hA_pres : A.inRange prp_bad.compl.range)
     (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1)
@@ -795,7 +800,7 @@ lemma loop_rf_bad_bound {A : Program state Unit}
 
     Combines the Fundamental Lemma (`switch_up_to_bad`) with the birthday bound
     on the bad event (`loop_rf_bad_bound`). -/
-theorem switching_lemma {A : Program state Unit}
+theorem switching_lemma {A : ProgramDenotation state Unit}
     (hA_ro : A.inRange random_oracle_state.compl.range)
     (hA_pres : A.inRange prp_bad.compl.range)
     (hA_mass : ∀ σ, A.wp (fun _ => (1 : ENNReal)) σ = 1)
@@ -806,7 +811,7 @@ theorem switching_lemma {A : Program state Unit}
       + ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by
   refine le_trans (switch_up_to_bad A hA_pres hA_mass q G σ) ?_
   gcongr
-  refine le_trans (Program.wp_le_wp_of_le _ _ _ ?_ σ)
+  refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _ _ ?_ σ)
     (loop_rf_bad_bound hA_ro hA_pres hA_mass q σ h_flag h_size0)
   intro u
   by_cases hb : prp_bad.get u.2 = true

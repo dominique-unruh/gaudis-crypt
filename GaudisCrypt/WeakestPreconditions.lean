@@ -149,15 +149,16 @@ theorem recursion_expected {b : a → Type}
 -/
 
 @[reducible]
-def Program.Post s a := a × s → ENNReal
+def ProgramDenotation.Post s a := a × s → ENNReal
 @[reducible]
-def Program.Pre s := s → ENNReal
+def ProgramDenotation.Pre s := s → ENNReal
 
 noncomputable
-def _root_.GaudisCrypt.Language.Semantics.Program.wp (prog : Program s a) (f : Program.Post s a) : Program.Pre s :=
+def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.wp (prog : ProgramDenotation s a) (f :
+    ProgramDenotation.Post s a) : ProgramDenotation.Pre s :=
   fun st => (prog st).expected f
 
-theorem final_probability_wp [DecidableEq a] (prog : Program s a) (st : s) (x : a) :
+theorem final_probability_wp [DecidableEq a] (prog : ProgramDenotation s a) (st : s) (x : a) :
   ↑(prog.finalProb1 st x) = prog.wp (fun (y, _) => if y = x then 1 else 0) st := by
   symm
   calc
@@ -165,17 +166,17 @@ theorem final_probability_wp [DecidableEq a] (prog : Program s a) (st : s) (x : 
         = prog.wp (({x} ×ˢ ⊤).indicator (fun _ => 1)) st := by
       congr 1; ext ⟨y, z⟩; simp [Set.indicator]
     _ = (prog st).ofEvent ({x} ×ˢ Set.univ) := by
-      simp [Program.wp, expectation_indicator]
+      simp [ProgramDenotation.wp, expectation_indicator]
     _ = ↑(prog.finalProb1 st x) := by
-      simp [Program.finalProb1, Program.finalProb]
+      simp [ProgramDenotation.finalProb1, ProgramDenotation.finalProb]
 
 
-theorem final_probability_wp' [DecidableEq a] (prog : Program s a) (st : s) (x : a) :
+theorem final_probability_wp' [DecidableEq a] (prog : ProgramDenotation s a) (st : s) (x : a) :
   prog.finalProb1 st x = (prog.wp (fun (y, _) => if y = x then 1 else 0) st).toNNReal :=
     (ENNReal.toNNReal_coe _).symm.trans (congrArg ENNReal.toNNReal (final_probability_wp prog st x))
 
-theorem wp_lift {s : Type} (μ : SubProbability a) (f : Program.Post s a) :
-    μ.toProgram.wp f = fun st => μ.expected (fun x => f (x, st)) := by
+theorem wp_lift {s : Type} (μ : SubProbability a) (f : ProgramDenotation.Post s a) :
+    μ.toProgramDenotation.wp f = fun st => μ.expected (fun x => f (x, st)) := by
   letI : MeasurableSpace a := ⊤
   letI : MeasurableSpace s := ⊤
   letI : MeasurableSpace (a × s) := ⊤
@@ -185,18 +186,18 @@ theorem wp_lift {s : Type} (μ : SubProbability a) (f : Program.Post s a) :
   rw [MeasureTheory.Measure.bind_dirac_eq_map _ measurable_from_top,
       MeasureTheory.lintegral_map measurable_from_top measurable_from_top]
 
-theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : Program.Post s a) :
-  Program.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
-  simp [Program.uniform, wp_lift, uniform_expected]
+theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : ProgramDenotation.Post s a) :
+  ProgramDenotation.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
+  simp [ProgramDenotation.uniform, wp_lift, uniform_expected]
 
 theorem wp_uniformOfFinset {st a : Type} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
-    (f : Program.Post st a) :
-    (Program.uniformOfFinset fs hs).wp f = (fun σ => ∑ i ∈ fs, f (i, σ) / fs.card) := by
-  simp [Program.uniformOfFinset, wp_lift, uniformOfFinset_expected]
+    (f : ProgramDenotation.Post st a) :
+    (ProgramDenotation.uniformOfFinset fs hs).wp f = (fun σ => ∑ i ∈ fs, f (i, σ) / fs.card) := by
+  simp [ProgramDenotation.uniformOfFinset, wp_lift, uniformOfFinset_expected]
 
 
-theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
-    (g : Program.Post s β) :
+theorem wp_bind {α β : Type} (prog : ProgramDenotation s α) (f : α → ProgramDenotation s β)
+    (g : ProgramDenotation.Post s β) :
     (prog >>= f).wp g = prog.wp (fun (a, s') => (f a).wp g s') := by
   letI : MeasurableSpace (α × s) := ⊤
   letI : MeasurableSpace (β × s) := ⊤
@@ -208,12 +209,12 @@ theorem wp_bind {α β : Type} (prog : Program s α) (f : α → Program s β)
   rw [heq, MeasureTheory.Measure.lintegral_bind measurable_from_top.aemeasurable
         measurable_from_top.aemeasurable]
 
-theorem wp_pure {s α : Type} (x : α) (f : Program.Post s α) :
-    (pure x : Program s α).wp f = fun st => f (x, st) := by
-    have h : (pure x : Program s α) = fun s => pure (x, s) := rfl
+theorem wp_pure {s α : Type} (x : α) (f : ProgramDenotation.Post s α) :
+    (pure x : ProgramDenotation s α).wp f = fun st => f (x, st) := by
+    have h : (pure x : ProgramDenotation s α) = fun s => pure (x, s) := rfl
              -- Can't we somehow unfold `pure x` without auxiliary def?
     ext
-    simp [h, Program.wp, expected_pure]
+    simp [h, ProgramDenotation.wp, expected_pure]
 
 /-! ### Postcondition combinators for `wp`
 
@@ -222,21 +223,22 @@ theorem wp_pure {s α : Type} (x : α) (f : Program.Post s α) :
   pure consequences of `wp = lintegral against the SubProb measure`. -/
 
 /-- Pointwise monotonicity of `wp` in the postcondition. -/
-theorem Program.wp_le_wp_of_le {s a : Type} (p : Program s a)
-    (F G : Program.Post s a) (h : ∀ x, F x ≤ G x) (σ : s) :
+theorem ProgramDenotation.wp_le_wp_of_le {s a : Type} (p : ProgramDenotation s a)
+    (F G : ProgramDenotation.Post s a) (h : ∀ x, F x ≤ G x) (σ : s) :
     p.wp F σ ≤ p.wp G σ := by
   letI : MeasurableSpace (a × s) := ⊤
   exact MeasureTheory.lintegral_mono h
 
 /-- `wp` of the constant `0` postcondition is `0`. -/
-theorem Program.wp_zero_post {s a : Type} (p : Program s a) (σ : s) :
+theorem ProgramDenotation.wp_zero_post {s a : Type} (p : ProgramDenotation s a) (σ : s) :
     p.wp (fun _ => (0 : ENNReal)) σ = 0 := by
   letI : MeasurableSpace (a × s) := ⊤
   exact MeasureTheory.lintegral_zero
 
 /-- `wp` of the constant `c` postcondition is at most `c`, since the underlying
     measure is a sub-probability (total mass ≤ 1). -/
-theorem Program.wp_const_le {s a : Type} (p : Program s a) (c : ENNReal) (σ : s) :
+theorem ProgramDenotation.wp_const_le {s a : Type} (p : ProgramDenotation s a) (c : ENNReal) (σ : s)
+    :
     p.wp (fun _ => c) σ ≤ c := by
   letI : MeasurableSpace (a × s) := ⊤
   show ∫⁻ _, c ∂(p σ).1 ≤ c
@@ -245,76 +247,78 @@ theorem Program.wp_const_le {s a : Type} (p : Program s a) (c : ENNReal) (σ : s
     _ = c := mul_one _
 
 /-- Linearity of `wp` in the postcondition. -/
-theorem Program.wp_add {s a : Type} (p : Program s a)
-    (F G : Program.Post s a) (σ : s) :
+theorem ProgramDenotation.wp_add {s a : Type} (p : ProgramDenotation s a)
+    (F G : ProgramDenotation.Post s a) (σ : s) :
     p.wp (fun aσ : a × s => F aσ + G aσ) σ = p.wp F σ + p.wp G σ := by
   letI : MeasurableSpace (a × s) := ⊤
   show ∫⁻ x, (F x + G x) ∂(p σ).1 = (∫⁻ x, F x ∂(p σ).1) + (∫⁻ x, G x ∂(p σ).1)
   exact MeasureTheory.lintegral_add_left measurable_from_top G
 
 /-- Constant scaling of `wp`. -/
-theorem Program.wp_const_mul {s a : Type} (p : Program s a)
-    (c : ENNReal) (F : Program.Post s a) (σ : s) :
+theorem ProgramDenotation.wp_const_mul {s a : Type} (p : ProgramDenotation s a)
+    (c : ENNReal) (F : ProgramDenotation.Post s a) (σ : s) :
     p.wp (fun aσ : a × s => c * F aσ) σ = c * p.wp F σ := by
   letI : MeasurableSpace (a × s) := ⊤
   show ∫⁻ x, c * F x ∂(p σ).1 = c * ∫⁻ x, F x ∂(p σ).1
   exact MeasureTheory.lintegral_const_mul c measurable_from_top
 
 /-- `wp` commutes with finite sums of postconditions. -/
-theorem Program.wp_finset_sum {s α β : Type} [Fintype β]
-    (p : Program s α) (F : β → α × s → ENNReal) (σ : s) :
+theorem ProgramDenotation.wp_finset_sum {s α β : Type} [Fintype β]
+    (p : ProgramDenotation s α) (F : β → α × s → ENNReal) (σ : s) :
     p.wp (fun aσ => ∑ b : β, F b aσ) σ = ∑ b : β, p.wp (F b) σ := by
   letI : MeasurableSpace (α × s) := ⊤
   show ∫⁻ aσ, (∑ b, F b aσ) ∂(p σ).1 = ∑ b, ∫⁻ aσ, F b aσ ∂(p σ).1
   exact MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)
 
-theorem wp_ite {α : Type} (b : Bool) (p1 p2 : Program s α)
+theorem wp_ite {α : Type} (b : Bool) (p1 p2 : ProgramDenotation s α)
     (f : α × s → ENNReal) (st : s) :
     (if b then p1 else p2).wp f st = if b then p1.wp f st else p2.wp f st := by
   cases b <;> rfl
 
 theorem wp_set_state (st' : s) (f : Unit × s → ENNReal) (st : s) :
-    Program.wp (StateT.set st' : Program s Unit) f st = f ((), st') := by
+    ProgramDenotation.wp (StateT.set st' : ProgramDenotation s Unit) f st = f ((), st') := by
            -- Why doesn't (...).wp syntax work?
-  simp [Program.wp, StateT.set, expected_pure]
+  simp [ProgramDenotation.wp, StateT.set, expected_pure]
 
-theorem wp_get_state (f : Program.Post s s) :
-    Program.wp (StateT.get) f = fun st => f (st, st) := by
+theorem wp_get_state (f : ProgramDenotation.Post s s) :
+    ProgramDenotation.wp (StateT.get) f = fun st => f (st, st) := by
   ext
-  simp [Program.wp, StateT.get, expected_pure]
+  simp [ProgramDenotation.wp, StateT.get, expected_pure]
 
 @[fun_prop]
 theorem wp_mono [Preorder i]
-  (μ : i → Program s a) (f : i → Program.Post s a)
+  (μ : i → ProgramDenotation s a) (f : i → ProgramDenotation.Post s a)
   (hμ : Monotone μ) (hf : Monotone f) :
   Monotone fun x => (μ x).wp (f x) := by
     intro x y hxy st; exact MeasureTheory.lintegral_mono' (hμ hxy st) (hf hxy)
 
 theorem recursion_wp {s : a → Type} {b : a → Type}
-  (F : ((x : a) → Program (s x) (b x)) →𝒄 ((x : a) → Program (s x) (b x)))
-  (Ψ : ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)) →o
-       ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)))
-  (h : ∀ (X : (x : a) → Program (s x) (b x)) (x : a) (f : Program.Post (s x) (b x)),
-      Ψ (fun (x : a) => ⟨fun (f : Program.Post (s x) (b x)) => (X x).wp f, by fun_prop⟩) x f
+  (F : ((x : a) → ProgramDenotation (s x) (b x)) →𝒄 ((x : a) → ProgramDenotation (s x) (b x)))
+  (Ψ : ((x : a) → ProgramDenotation.Post (s x) (b x) →o ProgramDenotation.Pre (s x)) →o
+       ((x : a) → ProgramDenotation.Post (s x) (b x) →o ProgramDenotation.Pre (s x)))
+  (h : ∀ (X : (x : a) → ProgramDenotation (s x) (b x)) (x : a) (f : ProgramDenotation.Post (s x) (b
+      x)),
+      Ψ (fun (x : a) => ⟨fun (f : ProgramDenotation.Post (s x) (b x)) => (X x).wp f, by fun_prop⟩) x
+          f
          = (F X x).wp f)
-  (x : a) (f : Program.Post (s x) (b x))
+  (x : a) (f : ProgramDenotation.Post (s x) (b x))
  : (recursion F x).wp f = Ψ.lfp x f := by
     ext st
     let curry : ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) →𝒄
-                ((x : a) → Program (s x) (b x)) :=
+                ((x : a) → ProgramDenotation (s x) (b x)) :=
       OmegaCompletePartialOrder.ContinuousHom.ofFun fun f x st => f ⟨x, st⟩
-    let uncurry : ((x : a) → Program (s x) (b x)) →𝒄
+    let uncurry : ((x : a) → ProgramDenotation (s x) (b x)) →𝒄
                   ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) :=
       OmegaCompletePartialOrder.ContinuousHom.ofFun fun f xst => f xst.1 xst.2
     let F' : ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) →𝒄
              ((xst : Σ x : a, s x) → SubProbability (b xst.1 × s xst.1)) :=
       uncurry.comp (F.comp curry)
     let conv1 : ((xst : Σ x : a, s x) → (b xst.1 × s xst.1 → ENNReal) →o ENNReal) →o
-                ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)) :=
-      ⟨fun φ (x : a) => ⟨fun (post : Program.Post (s x) (b x)) st => φ ⟨x, st⟩ post,
+                ((x : a) → ProgramDenotation.Post (s x) (b x) →o ProgramDenotation.Pre (s x)) :=
+      ⟨fun φ (x : a) => ⟨fun (post : ProgramDenotation.Post (s x) (b x)) st => φ ⟨x, st⟩ post,
                           fun _ _ hle st => (φ ⟨x, st⟩).monotone hle⟩,
        fun _ _ hle x post st => hle ⟨x, st⟩ post⟩
-    let conv2 : ((x : a) → Program.Post (s x) (b x) →o Program.Pre (s x)) →o
+    let conv2 : ((x : a) → ProgramDenotation.Post (s x) (b x) →o ProgramDenotation.Pre (s x)) →o
                 ((xst : Σ x : a, s x) → (b xst.1 × s xst.1 → ENNReal) →o ENNReal) :=
       ⟨fun φ xst => ⟨fun post => φ xst.1 post xst.2,
                       fun _ _ hle => (φ xst.1).monotone hle xst.2⟩,
@@ -354,8 +358,8 @@ def tailrec_wp [CompleteLattice b] [CompleteLattice c] (Φ : a → b →o (c →
    by fun_prop⟩
 
 noncomputable
-def while_iteration_wp (c : Program s Bool) (p : Program s Unit) (_ : Unit) :
-  (Program.Post s Unit) →o (Program.Pre s →o Program.Pre s) :=
+def while_iteration_wp (c : ProgramDenotation s Bool) (p : ProgramDenotation s Unit) (_ : Unit) :
+  (ProgramDenotation.Post s Unit) →o (ProgramDenotation.Pre s →o ProgramDenotation.Pre s) :=
   ⟨fun post => ⟨fun fp => c.wp (fun (b, st) =>
                   if b then
                     p.wp (fun ((),st) => fp st) st
@@ -386,7 +390,7 @@ theorem wp_while :
   (while_loop c p).wp f = (while_iteration_wp c p () f).lfp := by
   simp [wp_while', wp_recursion_tailrec_simplify]
 
-theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit) (post) :
+theorem wp_while_unfold (b : ProgramDenotation s Bool) (body : ProgramDenotation s Unit) (post) :
     (while_loop b body).wp post = b.wp fun (x,st) ↦
       if x then body.wp (fun (_,st) ↦ (while_loop b body).wp post st) st else post ((), st)
   := by calc
@@ -398,21 +402,21 @@ theorem wp_while_unfold (b : Program s Bool) (body : Program s Unit) (post) :
 -- Loop invariant rule: if I is a pre-fixed-point of Ψ, then wp_while_val ≤ I.
 -- Concretely: if (∀ s, if b s then wp body (fun (_, s') => I s') s else f ((), s)) ≤ I s,
 -- then the loop's wp is bounded by I.
-theorem wp_while_invariant (b : Program s Bool) (body : Program s Unit)
-    (I : Program.Pre s) (f : Program.Post s Unit)
+theorem wp_while_invariant (b : ProgramDenotation s Bool) (body : ProgramDenotation s Unit)
+    (I : ProgramDenotation.Pre s) (f : ProgramDenotation.Post s Unit)
     (h : (b.wp fun (x, st) ↦ if x then body.wp (fun (_, st) ↦ I st) st else f ((), st))
          <= I) :
     (while_loop b body).wp f ≤ I := by
     simp only [wp_while]
     apply (while_iteration_wp b body () f).lfp_le h
 
-theorem wp_get {α : Type} (v : Lens α s) (f : Program.Post s α) :
-    (Program.get v).wp f = fun st => f (v.get st, st) := by
-    simp [Program.get, wp_bind, wp_pure, wp_get_state, AsGetter.toG]
+theorem wp_get {α : Type} (v : Lens α s) (f : ProgramDenotation.Post s α) :
+    (ProgramDenotation.get v).wp f = fun st => f (v.get st, st) := by
+    simp [ProgramDenotation.get, wp_bind, wp_pure, wp_get_state, AsGetter.toG]
 
-theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : Program.Post s Unit) :
-    (Program.set v x).wp f = fun st => f ((), v.set x st) := by
-    simp [Program.set, wp_bind, wp_get_state, wp_set_state, AsSetter.toS]
+theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : ProgramDenotation.Post s Unit) :
+    (ProgramDenotation.set v x).wp f = fun st => f ((), v.set x st) := by
+    simp [ProgramDenotation.set, wp_bind, wp_get_state, wp_set_state, AsSetter.toS]
 
 /-! ## Mass-1 (full probability) lemmas
 
@@ -424,24 +428,24 @@ identical-until-bad analyses and similar mass-conservation arguments compose
 mass-1 facts cleanly. -/
 
 /-- `pure x` has mass 1. -/
-theorem Program.pure_mass_one {s α : Type} (x : α) (σ : s) :
-    (pure x : Program s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+theorem ProgramDenotation.pure_mass_one {s α : Type} (x : α) (σ : s) :
+    (pure x : ProgramDenotation s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_pure]
 
-/-- `Program.get L` has mass 1. -/
-theorem Program.get_mass_one {s α : Type} (L : Lens α s) (σ : s) :
-    (Program.get L).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+/-- `ProgramDenotation.get L` has mass 1. -/
+theorem ProgramDenotation.get_mass_one {s α : Type} (L : Lens α s) (σ : s) :
+    (ProgramDenotation.get L).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_get]
 
-/-- `Program.set L v` has mass 1. -/
-theorem Program.set_mass_one {s α : Type} (L : Lens α s) (v : α) (σ : s) :
-    (Program.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+/-- `ProgramDenotation.set L v` has mass 1. -/
+theorem ProgramDenotation.set_mass_one {s α : Type} (L : Lens α s) (v : α) (σ : s) :
+    (ProgramDenotation.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_set]
 
-/-- `Program.uniform` has mass 1 (the uniform distribution sums to 1 over its
+/-- `ProgramDenotation.uniform` has mass 1 (the uniform distribution sums to 1 over its
     finite, non-empty support). -/
-theorem Program.uniform_mass_one {s α : Type} [Fintype α] [Nonempty α] (σ : s) :
-    (Program.uniform : Program s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+theorem ProgramDenotation.uniform_mass_one {s α : Type} [Fintype α] [Nonempty α] (σ : s) :
+    (ProgramDenotation.uniform : ProgramDenotation s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_uniform]
   show ∑ _i : α, (1 : ENNReal) / (Fintype.card α : ENNReal) = 1
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← mul_div_assoc, mul_one,
@@ -449,10 +453,10 @@ theorem Program.uniform_mass_one {s α : Type} [Fintype α] [Nonempty α] (σ : 
         (by exact_mod_cast (Fintype.card_ne_zero : Fintype.card α ≠ 0))
         (ENNReal.natCast_ne_top _)]
 
-/-- `Program.uniformOfFinset` has mass 1. -/
-theorem Program.uniformOfFinset_mass_one {s α : Type} [Fintype α]
+/-- `ProgramDenotation.uniformOfFinset` has mass 1. -/
+theorem ProgramDenotation.uniformOfFinset_mass_one {s α : Type} [Fintype α]
     (fs : Finset α) (hs : fs.Nonempty) (σ : s) :
-    (Program.uniformOfFinset fs hs).wp (fun _ => (1 : ENNReal)) σ = 1 := by
+    (ProgramDenotation.uniformOfFinset fs hs).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_uniformOfFinset]
   show ∑ _i ∈ fs, (1 : ENNReal) / (fs.card : ENNReal) = 1
   rw [Finset.sum_const, nsmul_eq_mul, ← mul_div_assoc, mul_one,
@@ -463,8 +467,8 @@ theorem Program.uniformOfFinset_mass_one {s α : Type} [Fintype α]
 /-- **Mass-1 composes through `>>=`**: if `p` and every `k a` have mass 1, then
     so does `p >>= k`. The workhorse for chaining mass-conservation facts
     through composite programs. -/
-theorem Program.mass_bind {s α β : Type}
-    (p : Program s α) (k : α → Program s β)
+theorem ProgramDenotation.mass_bind {s α β : Type}
+    (p : ProgramDenotation s α) (k : α → ProgramDenotation s β)
     (hp : ∀ σ, p.wp (fun _ => (1 : ENNReal)) σ = 1)
     (hk : ∀ a σ, (k a).wp (fun _ => (1 : ENNReal)) σ = 1)
     (σ : s) :

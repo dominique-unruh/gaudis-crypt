@@ -32,7 +32,7 @@ This module also defines `lazy_query_tracked` (the flag-flipping variant of
 
 section GameHopParam
 
-variable (ow_adv : Program state Unit)
+variable (ow_adv : ProgramDenotation state Unit)
 variable (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
 variable (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
 variable (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
@@ -42,7 +42,7 @@ variable (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
 This is exactly `ow_experiment ow_adv q lazy_init lazy_query`. We give it a
 new name here for clarity in the game-hopping chain. -/
 
-noncomputable def ow_game_0 (q : ℕ) : Program state Bool :=
+noncomputable def ow_game_0 (q : ℕ) : ProgramDenotation state Bool :=
   ow_experiment ow_adv q lazy_init lazy_query
 
 /-! ## Game 1 — explicit y sampling
@@ -51,18 +51,18 @@ noncomputable def ow_game_0 (q : ℕ) : Program state Bool :=
 `(x ↦ y)` into RO, return y". Game 1 makes this explicit: sample y
 separately and write it into RO manually. Same distribution as Game 0. -/
 
-noncomputable def ow_game_1 (q : ℕ) : Program state Bool := do
+noncomputable def ow_game_1 (q : ℕ) : ProgramDenotation state Bool := do
   lazy_init
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
-  let y ← Program.uniform
+  let x ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x x
+  let y ← ProgramDenotation.uniform
   -- Insert (x ↦ y) into RO. At this point RO is `fun _ => none` (set by
   -- lazy_init, not touched since), so the "fallback to existing entries"
   -- in `lazy_query`'s case-miss branch is equivalent to "fallback to none".
-  Program.set random_oracle_state (fun k => if k = x then some y else none)
-  Program.set ow_challenge_y y
+  ProgramDenotation.set random_oracle_state (fun k => if k = x then some y else none)
+  ProgramDenotation.set ow_challenge_y y
   oracle_loop_n ow_adv q lazy_query
-  let resp ← Program.get ow_response
+  let resp ← ProgramDenotation.get ow_response
   let y_check ← lazy_query resp
   pure (decide (y_check = y))
 
@@ -79,29 +79,29 @@ lemma lazy_query_on_totally_empty_RO
     (h_empty : random_oracle_state.get σ = fun _ => none)
     (F : output × state → ENNReal) :
     (lazy_query inp).wp F σ
-    = (Program.uniform >>= fun y =>
-        Program.set random_oracle_state
+    = (ProgramDenotation.uniform >>= fun y =>
+        ProgramDenotation.set random_oracle_state
           (fun k => if k = inp then some y else none) >>= fun _ =>
-        (pure y : Program state output)).wp F σ := by
+        (pure y : ProgramDenotation state output)).wp F σ := by
   simp only [lazy_query, wp_bind, wp_get]
   rw [h_empty]
   -- The match key is now `(fun _ : input => none) inp = none`. Reduce.
   simp only [wp_bind, wp_uniform, wp_set, wp_pure]
 
 private lemma lazy_query_x_eq_explicit_y_frame {α : Type}
-    (rest : input → output → Program state α) :
+    (rest : input → output → ProgramDenotation state α) :
     (lazy_init >>= fun _ : Unit =>
-      Program.uniform >>= fun x : input =>
-        Program.set ow_challenge_x x >>= fun _ : Unit =>
+      ProgramDenotation.uniform >>= fun x : input =>
+        ProgramDenotation.set ow_challenge_x x >>= fun _ : Unit =>
           lazy_query x >>= fun y : output => rest x y)
     = (lazy_init >>= fun _ : Unit =>
-      Program.uniform >>= fun x : input =>
-        Program.set ow_challenge_x x >>= fun _ : Unit =>
-          Program.uniform >>= fun y : output =>
-            Program.set random_oracle_state
+      ProgramDenotation.uniform >>= fun x : input =>
+        ProgramDenotation.set ow_challenge_x x >>= fun _ : Unit =>
+          ProgramDenotation.uniform >>= fun y : output =>
+            ProgramDenotation.set random_oracle_state
               (fun k : input => if k = x then some y else none) >>= fun _ : Unit =>
                 rest x y) := by
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
   -- Unfold all wp's. After this, both sides are fully reduced to nested
@@ -131,11 +131,11 @@ theorem ow_game_0_eq_ow_game_1 (q : ℕ) :
   unfold ow_game_0 ow_experiment ow_game_1 ow_loop
   exact lazy_query_x_eq_explicit_y_frame
     (fun x y =>
-      Program.set ow_challenge_y y >>= fun _ =>
+      ProgramDenotation.set ow_challenge_y y >>= fun _ =>
         oracle_loop_n ow_adv q lazy_query >>= fun _ =>
-          Program.get ow_response >>= fun resp =>
+          ProgramDenotation.get ow_response >>= fun resp =>
             lazy_query resp >>= fun y_check =>
-              (pure (decide (y_check = y)) : Program state Bool))
+              (pure (decide (y_check = y)) : ProgramDenotation state Bool))
 
 /-! ## Hop 1 → 2: up-to-bad
 
@@ -149,10 +149,10 @@ The strategy:
   set to `true` whenever a `lazy_query` is invoked at input
   `chal_x`.
 * Show the tracked games are wp-equivalent to the untracked games on
-  posts that ignore the flag (`Program.wp_conditional_set_disjoint_no_op`).
+  posts that ignore the flag (`ProgramDenotation.wp_conditional_set_disjoint_no_op`).
 * Show the tracked Game 1 and tracked Game 2 are *identical until bad*:
   their wp's agree on posts that vanish whenever the flag is `true`.
-* Apply `Program.up_to_bad` to derive
+* Apply `ProgramDenotation.up_to_bad` to derive
   `Game 1_tracked.wp G ≤ Game 2_tracked.wp G + Game 1_tracked.wp (G | bad)`.
 * Strip tracking to obtain the corresponding statement for the
   un-tracked games.
@@ -200,12 +200,12 @@ instance : disjoint oracle_output chal_x_queried_gh :=
     input equals `chal_x`. The tracked games use this in place of
     `lazy_query`. Defined via explicit `>>=` to avoid Lean's do-notation
     join-point macro on the `if` branch. -/
-noncomputable def lazy_query_tracked (inp : input) : Program state output :=
+noncomputable def lazy_query_tracked (inp : input) : ProgramDenotation state output :=
   lazy_query inp >>= fun y =>
-    Program.get ow_challenge_x >>= fun cx =>
-      (if inp = cx then Program.set chal_x_queried_gh true
-       else (pure () : Program state Unit)) >>= fun _ =>
-        (pure y : Program state output)
+    ProgramDenotation.get ow_challenge_x >>= fun cx =>
+      (if inp = cx then ProgramDenotation.set chal_x_queried_gh true
+       else (pure () : ProgramDenotation state Unit)) >>= fun _ =>
+        (pure y : ProgramDenotation state output)
 
 /-! ### Output-side matched flag for the Game 2 reduction
 
@@ -334,35 +334,35 @@ instance : disjoint chal_x_queried_gh queries_output :=
 
 section GameHopParam_Tracked
 
-variable (ow_adv : Program state Unit)
+variable (ow_adv : ProgramDenotation state Unit)
 variable (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
 
 /-- Tracked Game 1: same as `ow_game_1`, but every `lazy_query` is replaced
     by `lazy_query_tracked` so the `chal_x_queried_gh` flag tracks whether
     the adversary ever queried `chal_x`. -/
-noncomputable def ow_game_1_tracked (q : ℕ) : Program state Bool := do
+noncomputable def ow_game_1_tracked (q : ℕ) : ProgramDenotation state Bool := do
   lazy_init
-  Program.set chal_x_queried_gh false  -- explicit init of the flag
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
-  let y ← Program.uniform
-  Program.set random_oracle_state (fun k => if k = x then some y else none)
-  Program.set ow_challenge_y y
+  ProgramDenotation.set chal_x_queried_gh false  -- explicit init of the flag
+  let x ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x x
+  let y ← ProgramDenotation.uniform
+  ProgramDenotation.set random_oracle_state (fun k => if k = x then some y else none)
+  ProgramDenotation.set ow_challenge_y y
   oracle_loop_n ow_adv q lazy_query_tracked
-  let resp ← Program.get ow_response
+  let resp ← ProgramDenotation.get ow_response
   let y_check ← lazy_query_tracked resp
   pure (decide (y_check = y))
 
 /-- Tracked Game 2: same as `ow_game_2`, with `lazy_query` → `lazy_query_tracked`. -/
-noncomputable def ow_game_2_tracked (q : ℕ) : Program state Bool := do
+noncomputable def ow_game_2_tracked (q : ℕ) : ProgramDenotation state Bool := do
   lazy_init
-  Program.set chal_x_queried_gh false
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
-  let y ← Program.uniform
-  Program.set ow_challenge_y y
+  ProgramDenotation.set chal_x_queried_gh false
+  let x ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x x
+  let y ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_y y
   oracle_loop_n ow_adv q lazy_query_tracked
-  let resp ← Program.get ow_response
+  let resp ← ProgramDenotation.get ow_response
   let y_check ← lazy_query_tracked resp
   pure (decide (y_check = y))
 
@@ -372,18 +372,18 @@ lemma lazy_query_tracked_inRange_ow_challenge_y (inp : input) :
   haveI : disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
   unfold lazy_query_tracked
-  refine Program.inRange_bind ?_ (fun y => ?_)
-  · exact Program.inRange_mono (lazy_query_inRange_ro inp)
+  refine ProgramDenotation.inRange_bind ?_ (fun y => ?_)
+  · exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
       (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
-  refine Program.inRange_bind ?_ (fun cx => ?_)
-  · exact Program.get_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y
-  refine Program.inRange_bind ?_ (fun _ => Program.inRange_pure _ _)
+  refine ProgramDenotation.inRange_bind ?_ (fun cx => ?_)
+  · exact ProgramDenotation.get_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y
+  refine ProgramDenotation.inRange_bind ?_ (fun _ => ProgramDenotation.inRange_pure _ _)
   by_cases h : inp = cx
   · simp only [if_pos h]
-    exact Program.set_inRange_compl_of_disjoint
+    exact ProgramDenotation.set_inRange_compl_of_disjoint
       chal_x_queried_gh ow_challenge_y true
   · simp only [if_neg h]
-    exact Program.inRange_pure _ _
+    exact ProgramDenotation.inRange_pure _ _
 
 /-- `oracle_step adv lazy_query_tracked` is ow_challenge_y-disjoint when
     `adv` is. -/
@@ -391,12 +391,12 @@ lemma oracle_step_lazy_query_tracked_inRange_ow_challenge_y
     (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range) :
     (oracle_step ow_adv lazy_query_tracked).inRange ow_challenge_y.compl.range := by
   unfold oracle_step
-  refine Program.inRange_bind h_ow_adv_chal_y (fun _ => ?_)
-  refine Program.inRange_bind
-    (Program.get_inRange_compl_of_disjoint oracle_input ow_challenge_y) (fun inp => ?_)
-  refine Program.inRange_bind (lazy_query_tracked_inRange_ow_challenge_y inp)
+  refine ProgramDenotation.inRange_bind h_ow_adv_chal_y (fun _ => ?_)
+  refine ProgramDenotation.inRange_bind
+    (ProgramDenotation.get_inRange_compl_of_disjoint oracle_input ow_challenge_y) (fun inp => ?_)
+  refine ProgramDenotation.inRange_bind (lazy_query_tracked_inRange_ow_challenge_y inp)
     (fun y => ?_)
-  exact Program.set_inRange_compl_of_disjoint oracle_output ow_challenge_y y
+  exact ProgramDenotation.set_inRange_compl_of_disjoint oracle_output ow_challenge_y y
 
 
 end GameHopParam_Tracked

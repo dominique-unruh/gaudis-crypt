@@ -10,7 +10,7 @@ open GaudisCrypt.Language.Semantics
 Below, `adv` and `h_adv` are *parameters* (via a `variable` declaration), not
 axioms. Every `oracle_loop`-style definition and `adv_conv_eq_conv_adv`–`oracle_loop_wp_lazy_eq_random_oracle*`-style
 theorem in this section is parameterised over an arbitrary adversary
-`adv : Program state Unit` together with its RO-disjointness hypothesis
+`adv : ProgramDenotation state Unit` together with its RO-disjointness hypothesis
 `h_adv : adv.inRange random_oracle_state.compl.range`.
 
 This enables instantiation with wrapped/composed adversaries (CR reductions,
@@ -18,13 +18,13 @@ hybrid games, etc.) without re-axiomatising or re-deriving the framework. -/
 
 section AdvParam
 
-variable (adv : Program state Unit)
+variable (adv : ProgramDenotation state Unit)
 
-noncomputable def adv_conv : Program state Unit := do
+noncomputable def adv_conv : ProgramDenotation state Unit := do
   adv
   convert
 
-noncomputable def conv_adv : Program state Unit := do
+noncomputable def conv_adv : ProgramDenotation state Unit := do
   convert
   adv
 
@@ -40,15 +40,15 @@ theorem adv_conv_eq_conv_adv : adv_conv adv = conv_adv adv := by
   -- Pair-output commutation from the headline lemma.
   have h_commute : (adv >>= fun x => convert >>= fun y => pure (x, y))
                  = (convert >>= fun y => adv >>= fun x => pure (x, y)) :=
-    Program.commute_of_disjoint_lens h_adv convert_inRange_ro h_disj
+    ProgramDenotation.commute_of_disjoint_lens h_adv convert_inRange_ro h_disj
   -- Massage both sides of the goal into the pair-output form so we can rewrite.
   have hL : (adv >>= fun _ => convert)
           = (adv >>= fun x => convert >>= fun y => pure (x, y)) >>= fun _ => pure () := by
-    apply Program.ext_of_wp; intro F; funext σ
+    apply ProgramDenotation.ext_of_wp; intro F; funext σ
     simp [wp_bind, wp_pure]
   have hR : (convert >>= fun _ => adv)
           = (convert >>= fun y => adv >>= fun x => pure (x, y)) >>= fun _ => pure () := by
-    apply Program.ext_of_wp; intro F; funext σ
+    apply ProgramDenotation.ext_of_wp; intro F; funext σ
     simp [wp_bind, wp_pure]
   rw [hL, hR, h_commute]
 
@@ -59,38 +59,39 @@ include h_adv in
 private theorem body_convert_eq :
     ((do
       adv
-      if ← Program.get want_more then
-        Program.set oracle_output (← lazy_query (← Program.get oracle_input))
+      if ← ProgramDenotation.get want_more then
+        ProgramDenotation.set oracle_output (← lazy_query (← ProgramDenotation.get oracle_input))
       else
         skip) >>= fun _ => convert)
   = (convert >>= fun _ => do
       adv
-      if ← Program.get want_more then
-        Program.set oracle_output (← random_oracle_query (← Program.get oracle_input))
+      if ← ProgramDenotation.get want_more then
+        ProgramDenotation.set oracle_output (← random_oracle_query (← ProgramDenotation.get
+            oracle_input))
       else
         skip) := by
   -- Step 1: bind_assoc to push outer convert through adv's bind.
-  rw [Program.bind_assoc]
+  rw [ProgramDenotation.bind_assoc]
   -- LHS: adv >>= fun _ => ((get want_more >>= ...) >>= convert)
   -- Step 2: bind_assoc inside, then distribute over if.
   conv_lhs =>
     arg 2; ext _
-    rw [Program.bind_assoc]
+    rw [ProgramDenotation.bind_assoc]
     -- Now: get want_more >>= fun b => (if b then T_lazy else skip) >>= convert
     arg 2; ext b
     rw [show ((if b = true then
-                (Program.get oracle_input >>= fun inp =>
+                (ProgramDenotation.get oracle_input >>= fun inp =>
                  lazy_query inp >>= fun v =>
-                 Program.set oracle_output v)
+                 ProgramDenotation.set oracle_output v)
               else skip) >>= fun _ => convert)
             = (if b = true then
-                ((Program.get oracle_input >>= fun inp =>
+                ((ProgramDenotation.get oracle_input >>= fun inp =>
                  lazy_query inp >>= fun v =>
-                 Program.set oracle_output v) >>= fun _ => convert)
+                 ProgramDenotation.set oracle_output v) >>= fun _ => convert)
               else (skip >>= fun _ => convert))
             from by split_ifs <;> rfl]
-    rw [show (skip >>= fun _ => convert : Program state Unit) = convert from
-          Program.pure_bind () _]
+    rw [show (skip >>= fun _ => convert : ProgramDenotation state Unit) = convert from
+          ProgramDenotation.pure_bind () _]
     rw [query_set_convert_eq]
     rw [if_factor_convert]
   -- Now LHS: adv >>= fun _ => (get want_more >>= fun b => convert >>= ...)
@@ -100,9 +101,9 @@ private theorem body_convert_eq :
     rw [convert_commutes_get]
   -- LHS: adv >>= fun _ => (convert >>= fun _ => get want_more >>= ...)
   -- Step 4: bind_assoc reverse, then adv_conv_eq_conv_adv, then bind_assoc.
-  rw [← Program.bind_assoc,
+  rw [← ProgramDenotation.bind_assoc,
       show (adv >>= fun _ => convert) = (convert >>= fun _ => adv) from adv_conv_eq_conv_adv adv h_adv,
-      Program.bind_assoc]
+      ProgramDenotation.bind_assoc]
   rfl
 
 /-! The `oracle_loop`, `loop_body_lazy`, and `loop_body_eager` definitions
@@ -112,19 +113,21 @@ private theorem body_convert_eq :
 
 include h_adv in
 /-- The transfer-form of the body equality: the lazy and eager loop bodies
-    are related by `Program.transfer`. Derived from `body_convert_eq` by
+    are related by `ProgramDenotation.transfer`. Derived from `body_convert_eq` by
     converting the Unit-valued bind form to the transfer form. -/
 private lemma transfer_loop_body :
-    Program.transfer (loop_body_lazy adv) (loop_body_eager adv) := by
+    ProgramDenotation.transfer (loop_body_lazy adv) (loop_body_eager adv) := by
   show ((loop_body_lazy adv) >>= fun u : Unit =>
-         convert >>= fun _ : Unit => (Pure.pure u : Program state Unit))
+         convert >>= fun _ : Unit => (Pure.pure u : ProgramDenotation state Unit))
       = (convert >>= fun _ : Unit => loop_body_eager adv)
   -- For Unit-valued, (λu. convert >>= pure u) = (λ_. convert).
-  rw [show (fun u : Unit => convert >>= fun _ : Unit => (Pure.pure u : Program state Unit))
+  rw [show (fun u : Unit => convert >>= fun _ : Unit => (Pure.pure u : ProgramDenotation state
+      Unit))
           = (fun _ : Unit => convert) from by
         funext u
-        rw [show (Pure.pure u : Program state Unit) = (Pure.pure () : Program state Unit) from rfl]
-        exact Program.bind_pure _]
+        rw [show (Pure.pure u : ProgramDenotation state Unit) = (Pure.pure () : ProgramDenotation
+            state Unit) from rfl]
+        exact ProgramDenotation.bind_pure _]
   -- Now it's the bind form, which is body_convert_eq via definitional unfolding.
   exact body_convert_eq adv h_adv
 
@@ -133,29 +136,30 @@ include h_adv in
     transfer to each other, built via the transfer framework (no Kleene
     plumbing in this file).
 
-    The proof is a `Program.transfer_bind` chain over the four components
+    The proof is a `ProgramDenotation.transfer_bind` chain over the four components
     of `oracle_loop` (set want_more, init, while_loop, get adversary_result).
-    The `while_loop` component is discharged by `Program.transfer_while_loop`,
+    The `while_loop` component is discharged by `ProgramDenotation.transfer_while_loop`,
     which contains the Kleene argument in abstract form. -/
-theorem Program.transfer_oracle_loop :
-    Program.transfer
+theorem ProgramDenotation.transfer_oracle_loop :
+    ProgramDenotation.transfer
       (oracle_loop adv lazy_init lazy_query)
       (oracle_loop adv random_oracle_init random_oracle_query) := by
   unfold oracle_loop
-  refine Program.transfer_bind (Program.transfer_set_of_disjoint_ro want_more true) ?_
+  refine ProgramDenotation.transfer_bind (ProgramDenotation.transfer_set_of_disjoint_ro want_more
+      true) ?_
   intro _
-  refine Program.transfer_bind Program.transfer_lazy_init ?_
+  refine ProgramDenotation.transfer_bind ProgramDenotation.transfer_lazy_init ?_
   intro _
-  refine Program.transfer_bind ?_ ?_
+  refine ProgramDenotation.transfer_bind ?_ ?_
   · -- while_loop transfers via the closure law.
-    refine Program.transfer_while_loop
-      (Program.get_inRange_compl_of_disjoint want_more random_oracle_state) ?_
+    refine ProgramDenotation.transfer_while_loop
+      (ProgramDenotation.get_inRange_compl_of_disjoint want_more random_oracle_state) ?_
     exact transfer_loop_body adv h_adv
   intro _
-  exact Program.transfer_get_of_disjoint_ro adversary_result
+  exact ProgramDenotation.transfer_get_of_disjoint_ro adversary_result
 
 /-- `convert` is absorbed by the eager `oracle_loop`. The loop starts with
-    `Program.set want_more true >>= random_oracle_init >>= ...`, so we push
+    `ProgramDenotation.set want_more true >>= random_oracle_init >>= ...`, so we push
     `convert` past the (RO-disjoint) `set want_more true` and then absorb
     it via `convert_bind_random_oracle_init_bind`. -/
 lemma convert_bind_oracle_loop_eager :
@@ -163,26 +167,26 @@ lemma convert_bind_oracle_loop_eager :
         oracle_loop adv random_oracle_init random_oracle_query)
     = oracle_loop adv random_oracle_init random_oracle_query := by
   unfold oracle_loop
-  rw [← Program.bind_assoc]
-  rw [show (convert >>= fun _ : Unit => Program.set want_more true)
-        = (Program.set want_more true >>= fun _ : Unit => convert)
+  rw [← ProgramDenotation.bind_assoc]
+  rw [show (convert >>= fun _ : Unit => ProgramDenotation.set want_more true)
+        = (ProgramDenotation.set want_more true >>= fun _ : Unit => convert)
       from (convert_commutes_set want_more true).symm]
-  rw [Program.bind_assoc]
+  rw [ProgramDenotation.bind_assoc]
   rw [convert_bind_random_oracle_init_bind]
 
 include h_adv in
 /-- The foundational lazy = eager equation for `oracle_loop`: the lazy loop
     composed with `convert` equals the eager loop. Derived from
-    `Program.transfer_oracle_loop` plus convert-absorption by the eager
+    `ProgramDenotation.transfer_oracle_loop` plus convert-absorption by the eager
     loop. (This used to be `claim_4`, proved directly via Kleene in this
     file; now the Kleene argument lives in
-    `Program.transfer_while_loop` and this theorem is a corollary.) -/
+    `ProgramDenotation.transfer_while_loop` and this theorem is a corollary.) -/
 theorem oracle_loop_lazy_convert_eq_random_oracle_loop :
     (oracle_loop adv lazy_init lazy_query >>= fun b => convert >>= fun _ => pure b)
   = oracle_loop adv random_oracle_init random_oracle_query := by
-  have h_transfer := Program.transfer_oracle_loop adv h_adv
+  have h_transfer := ProgramDenotation.transfer_oracle_loop adv h_adv
   show (oracle_loop adv lazy_init lazy_query >>= fun b =>
-          convert >>= fun _ : Unit => (Pure.pure b : Program state Bool))
+          convert >>= fun _ : Unit => (Pure.pure b : ProgramDenotation state Bool))
       = oracle_loop adv random_oracle_init random_oracle_query
   rw [h_transfer]
   exact convert_bind_oracle_loop_eager adv
@@ -192,7 +196,7 @@ include h_adv in
 /-- **wp-level lazy/eager equivalence for `oracle_loop`**: for any
     postcondition `F` invariant under writes to `random_oracle_state`,
     the wp's of the lazy and eager `oracle_loop` agree. Specialisation
-    of `Program.transfer_wp_ro_invariant` to `Program.transfer_oracle_loop`. -/
+    of `ProgramDenotation.transfer_wp_ro_invariant` to `ProgramDenotation.transfer_oracle_loop`. -/
 theorem oracle_loop_wp_lazy_eq_random_oracle
     (F : Bool × state → ENNReal)
     (hF_inv : ∀ (b : Bool) (σ : state) (x : input → Option output),
@@ -200,15 +204,15 @@ theorem oracle_loop_wp_lazy_eq_random_oracle
     (oracle_loop adv lazy_init lazy_query).wp F
     = (oracle_loop adv random_oracle_init random_oracle_query).wp F := by
   funext σ₀
-  exact Program.transfer_wp_ro_invariant
-    (Program.transfer_oracle_loop adv h_adv)
+  exact ProgramDenotation.transfer_wp_ro_invariant
+    (ProgramDenotation.transfer_oracle_loop adv h_adv)
     (convert_bind_oracle_loop_eager adv) F hF_inv σ₀
 
 include h_adv in
 /-- **SubProb-marginal lazy/eager equivalence**: for any RO-invariant
     projection `h : state → β`, the joint `(bit, h σ)` distribution agrees
     under lazy and eager `oracle_loop`. Specialisation of
-    `Program.transfer_marginal_ro_invariant`. -/
+    `ProgramDenotation.transfer_marginal_ro_invariant`. -/
 theorem oracle_loop_marginal_lazy_eq_random_oracle {β : Type}
     (h : state → β)
     (h_inv : ∀ (σ : state) (x : input → Option output),
@@ -219,8 +223,8 @@ theorem oracle_loop_marginal_lazy_eq_random_oracle {β : Type}
     =
     (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state => (Pure.pure (bσ.1, h bσ.2) : SubProbability (Bool × β))) :=
-  Program.transfer_marginal_ro_invariant
-    (Program.transfer_oracle_loop adv h_adv)
+  ProgramDenotation.transfer_marginal_ro_invariant
+    (ProgramDenotation.transfer_oracle_loop adv h_adv)
     (convert_bind_oracle_loop_eager adv) h h_inv σ₀
 
 include h_adv in
@@ -245,21 +249,21 @@ theorem oracle_loop_marginal_lazy_eq_random_oracle_compl (σ₀ : state) :
       (random_oracle_state.get_set σ)⟩
 
 include h_adv in
-/-- **Form (b) — `Program.glob` projection.** The joint distribution of
+/-- **Form (b) — `ProgramDenotation.glob` projection.** The joint distribution of
     (adv's bit, what `adv` can see/modify) is identical under lazy and
-    eager. Specialisation via `(Program.glob adv).get`. -/
+    eager. Specialisation via `(ProgramDenotation.glob adv).get`. -/
 theorem oracle_loop_marginal_lazy_eq_random_oracle_glob (σ₀ : state) :
     (oracle_loop adv lazy_init lazy_query σ₀ >>=
         fun bσ : Bool × state =>
-          (Pure.pure (bσ.1, (Program.glob adv).get bσ.2) :
+          (Pure.pure (bσ.1, (ProgramDenotation.glob adv).get bσ.2) :
             SubProbability (Bool × adv.Globals)))
     =
     (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state =>
-          (Pure.pure (bσ.1, (Program.glob adv).get bσ.2) :
+          (Pure.pure (bσ.1, (ProgramDenotation.glob adv).get bσ.2) :
             SubProbability (Bool × adv.Globals))) := by
   refine oracle_loop_marginal_lazy_eq_random_oracle adv h_adv
-    (Program.glob adv).get ?_ σ₀
+    (ProgramDenotation.glob adv).get ?_ σ₀
   intro σ x
   apply Quotient.sound
   change Relation.EqvGen

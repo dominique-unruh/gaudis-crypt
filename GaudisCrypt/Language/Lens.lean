@@ -24,7 +24,7 @@ structure Lens (a : Type u) (b : Type v) extends Getter a b, Setter a b where
 
 /-- A `Lens` forgets to its `Getter` / `Setter`.  (`extends` does not generate these
 coercions automatically, but code that passes a lens where a getter/setter is
-expected — e.g. `Program.get`/`Program.set` — relies on them.) -/
+expected — e.g. `ProgramDenotation.get`/`ProgramDenotation.set` — relies on them.) -/
 instance : Coe (Lens a b) (Getter a b) := ⟨Lens.toGetter⟩
 instance : Coe (Lens a b) (Setter a b) := ⟨Lens.toSetter⟩
 
