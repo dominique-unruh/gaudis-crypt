@@ -90,9 +90,7 @@ noncomputable def SubProbability.ofVector {a : Type*} [Fintype a]
       simp only [MeasureTheory.Measure.coe_finsetSum, Finset.sum_apply,
                  MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.dirac_apply,
                  smul_eq_mul, Set.top_eq_univ, Set.indicator_univ, Pi.one_apply, mul_one]
-      calc ∑ x : a, (v x : ENNReal)
-          = ↑(∑ x : a, v x) := by push_cast; rfl
-        _ ≤ 1 := by exact_mod_cast hv
+      exact_mod_cast hv
     · rw [← MeasureTheory.Measure.sum_fintype]
       exact discreteMeasure_sum_dirac _⟩
 
