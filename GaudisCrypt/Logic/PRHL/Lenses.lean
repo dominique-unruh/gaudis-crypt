@@ -100,7 +100,7 @@ lemma self_lens_set {s α γ : Type}
     {p : Program s α} (L : Lens γ s) (hp : p.inRange L.compl.range) (v : γ) :
     p.relE p (fun σ₁ σ₂ => σ₂ = L.set v σ₁)
              (fun x y => y.1 = x.1 ∧ y.2 = L.set v x.2) := by
-  have hf : L.update (Function.const γ v) ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
+  have hf : L.liftFunction (Function.const γ v) ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
     rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
         rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const γ v, Set.mem_univ _, rfl⟩

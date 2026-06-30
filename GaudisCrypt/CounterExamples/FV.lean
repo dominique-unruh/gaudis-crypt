@@ -26,10 +26,10 @@ noncomputable
 def fv_setter (setter : Setter a s) : TotLensRange s := Program.range' (Program.set setter)
 
 def fv_reduce {a b} (lens : Lens a b) (range : TotLensRange b) : TotLensRange a :=
-  TotLensRange.from { f | ∀ g ∈ range.updates, lens.update f * g = g * lens.update f}.centralizer
+  TotLensRange.from { f | ∀ g ∈ range.updates, lens.liftFunction f * g = g * lens.liftFunction f}.centralizer
 
 def fv_extend {a b} (lens : Lens a b) (range : TotLensRange a) : TotLensRange b :=
-  TotLensRange.from (lens.update '' range.updates)
+  TotLensRange.from (lens.liftFunction '' range.updates)
 
 
 /-! ### Properties of `fv_reduce` / `fv_extend` needed for `fv_proc_instantiate`.
@@ -86,10 +86,10 @@ private lemma lensRange_from_union {m} (A B : Set (Function.End m)) :
   · exact cl_mono (Set.union_subset_union Set.subset_centralizer_centralizer
       Set.subset_centralizer_centralizer)
 
-/-- The `fv_reduce` constraint set is `lens.update ⁻¹'` of a centralizer. -/
+/-- The `fv_reduce` constraint set is `lens.liftFunction ⁻¹'` of a centralizer. -/
 private lemma fv_reduce_constraint {a b} (lens : Lens a b) (V : Set (Function.End b)) :
-    {f : Function.End a | ∀ g ∈ V, lens.update f * g = g * lens.update f}
-      = lens.update ⁻¹' (Set.centralizer V) := by
+    {f : Function.End a | ∀ g ∈ V, lens.liftFunction f * g = g * lens.liftFunction f}
+      = lens.liftFunction ⁻¹' (Set.centralizer V) := by
   ext f
   simp only [Set.mem_setOf_eq, Set.mem_preimage, Set.mem_centralizer_iff]
   exact ⟨fun h g hg => (h g hg).symm, fun h g hg => (h g hg).symm⟩
@@ -105,7 +105,7 @@ theorem fv_extend_sup {a b} (lens : Lens a b) (r₁ r₂ : TotLensRange a) :
     fv_extend lens (r₁ ⊔ r₂) = fv_extend lens r₁ ⊔ fv_extend lens r₂ := sorry
 
 theorem fv_extend_updates(lens : Lens a b) (range : TotLensRange a) :
-  (fv_extend lens range).updates = lens.update '' range.updates := by
+  (fv_extend lens range).updates = lens.liftFunction '' range.updates := by
   sorry
 
 /-- `fv_reduce` is a retraction of `fv_extend`: pushing a footprint forward along a

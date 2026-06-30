@@ -31,37 +31,37 @@ private lemma centralizer_carrier_eq (S : Set (Function.End m)) :
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
 private theorem complement_range (lens : Lens a m) :
-  Set.image lens.compl.update ⊤ = (Submonoid.centralizer (Set.image lens.update ⊤)).carrier := by
+  Set.image lens.compl.liftFunction ⊤ = (Submonoid.centralizer (Set.image lens.liftFunction ⊤)).carrier := by
   rw [centralizer_carrier_eq]
   apply Set.Subset.antisymm
   · -- LHS ⊆ RHS: every complement update commutes with every lens update
     rintro h ⟨g, -, rfl⟩
     simp only [Set.mem_centralizer_iff]
     rintro _ ⟨f, -, rfl⟩
-    -- lens.update f does not change the outside equivalence class
-    have key : ∀ x, lens.compl.get (lens.update f x) = lens.compl.get x :=
-      fun x => Quotient.sound ⟨lens.get x, by rw [Lens.update, lens.set_set, lens.get_set]⟩
+    -- lens.liftFunction f does not change the outside equivalence class
+    have key : ∀ x, lens.compl.get (lens.liftFunction f x) = lens.compl.get x :=
+      fun x => Quotient.sound ⟨lens.get x, by rw [Lens.liftFunction, lens.set_set, lens.get_set]⟩
     funext x
-    show lens.update f (lens.compl.update g x) = lens.compl.update g (lens.update f x)
+    show lens.liftFunction f (lens.compl.liftFunction g x) = lens.compl.liftFunction g (lens.liftFunction f x)
     have key' : Quotient.mk'' (lens.set (f (lens.get x)) x) = Quotient.mk'' x := key x
-    simp only [Lens.update, Lens.compl]
+    simp only [Lens.liftFunction, Lens.compl]
     rw [key']
     refine Quotient.inductionOn (g (Quotient.mk'' x)) fun v => ?_
     simp [lens.set_get, lens.set_set]
   · -- RHS ⊆ LHS: every centralizer element is a complement update
     intro h hcomm
     simp only [Set.mem_centralizer_iff] at hcomm
-    -- h preserves lens.get (use commutativity with lens.update (fun _ => lens.get x))
+    -- h preserves lens.get (use commutativity with lens.liftFunction (fun _ => lens.get x))
     have hget : ∀ x, lens.get (h x) = lens.get x := fun x => by
-      have h1 := congr_fun (hcomm (lens.update (fun _ => lens.get x))
+      have h1 := congr_fun (hcomm (lens.liftFunction (fun _ => lens.get x))
         ⟨fun _ => lens.get x, Set.mem_univ _, rfl⟩) x
-      simp only [HMul.hMul, Mul.mul, Function.comp, Lens.update, lens.get_set] at h1
+      simp only [HMul.hMul, Mul.mul, Function.comp, Lens.liftFunction, lens.get_set] at h1
       rw [← h1, lens.set_get]
     -- h maps equal_outside-related inputs to equal_outside-related outputs
     have hwelldef : ∀ x y, lens.equal_outside_setoid.r x y →
         lens.equal_outside_setoid.r (h x) (h y) := fun x y ⟨a, ha⟩ => by
-      have h1 := congr_fun (hcomm (lens.update (fun _ => a)) ⟨fun _ => a, Set.mem_univ _, rfl⟩) x
-      simp only [HMul.hMul, Mul.mul, Function.comp, Lens.update] at h1
+      have h1 := congr_fun (hcomm (lens.liftFunction (fun _ => a)) ⟨fun _ => a, Set.mem_univ _, rfl⟩) x
+      simp only [HMul.hMul, Mul.mul, Function.comp, Lens.liftFunction] at h1
       rw [ha] at h1
       exact ⟨a, h1⟩
     -- define g : Quotient → Quotient by g [x] = [h x]
@@ -123,33 +123,33 @@ private theorem double_complement [Nonempty m] (lens : Lens a m) :
   | h t => simp [Lens.compl, Lens.chain, double_complement_iso_lens, Quotient.lift_mk]
 
 def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : TotLensRange m where
-  updates := Set.image lens.update ⊤
+  updates := Set.image lens.liftFunction ⊤
   id := ⟨_root_.id, Set.mem_univ _, funext fun x => lens.get_set x⟩
   comp := fun hf hg => by
     obtain ⟨h, -, rfl⟩ := hf
     obtain ⟨k, -, rfl⟩ := hg
     exact ⟨h ∘ k, Set.mem_univ _, funext fun x => by
-      simp [Lens.update, lens.set_get, lens.set_set]⟩
+      simp [Lens.liftFunction, lens.set_get, lens.set_set]⟩
   double_commutant := by
     simp only [centralizer_carrier_eq]
     by_cases hm : Nonempty m
     · haveI := hm
       have hiso := double_complement_iso_lens_iso lens
-      have h1 : Set.centralizer (Set.image lens.update ⊤) = Set.image lens.compl.update ⊤ := by
+      have h1 : Set.centralizer (Set.image lens.liftFunction ⊤) = Set.image lens.compl.liftFunction ⊤ := by
         rw [← centralizer_carrier_eq]; exact (complement_range lens).symm
-      have h2 : Set.centralizer (Set.image lens.compl.update ⊤) =
-          Set.image lens.compl.compl.update ⊤ := by
+      have h2 : Set.centralizer (Set.image lens.compl.liftFunction ⊤) =
+          Set.image lens.compl.compl.liftFunction ⊤ := by
         rw [← centralizer_carrier_eq]; exact (complement_range lens.compl).symm
       rw [h1, h2, double_complement]
       apply Set.Subset.antisymm
       · rintro _ ⟨f, -, rfl⟩
         exact ⟨fun v => (double_complement_iso_lens lens).set
             (f ((double_complement_iso_lens lens).get v)) v,
-          Set.mem_univ _, by funext s; simp [Lens.chain, Lens.update]⟩
+          Set.mem_univ _, by funext s; simp [Lens.chain, Lens.liftFunction]⟩
       · rintro _ ⟨g, -, rfl⟩
         refine ⟨fun q => (double_complement_iso_lens lens).get
             (g (Classical.choose (hiso.2 q))), Set.mem_univ _, ?_⟩
-        funext s; simp only [Lens.chain, Lens.update]
+        funext s; simp only [Lens.chain, Lens.liftFunction]
         have key : ∀ (v w : a), (double_complement_iso_lens lens).set
             ((double_complement_iso_lens lens).get w) v = w :=
           fun v w => hiso.1 ((double_complement_iso_lens lens).set_get v
@@ -161,7 +161,7 @@ def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : TotLensRange
       have heq : ∀ f g : m → m, f = g := fun f g => funext fun x => IsEmpty.elim hm x
       have h_univ : Set.centralizer (Set.univ : Set (Function.End m)) = Set.univ := by
         ext f; simp only [Set.mem_centralizer_iff, Set.mem_univ, iff_true]; intro g _; exact heq _ _
-      have himg : Set.image lens.update ⊤ = Set.univ :=
+      have himg : Set.image lens.liftFunction ⊤ = Set.univ :=
         Set.eq_univ_iff_forall.mpr fun f =>
           ⟨Classical.arbitrary _, Set.mem_univ _, heq _ _⟩
       rw [himg, h_univ, h_univ]
@@ -173,8 +173,8 @@ theorem TotLensRange.complement_range (lens : Lens a m) :
     obtain ⟨xu, xi, xc, xd⟩ := x; obtain ⟨yu, yi, yc, yd⟩ := y
     simp only at hxy; subst hxy; rfl
   refine key ?_
-  change Set.image lens.compl.update ⊤ =
-    (Submonoid.centralizer (Set.image lens.update ⊤)).carrier
+  change Set.image lens.compl.liftFunction ⊤ =
+    (Submonoid.centralizer (Set.image lens.liftFunction ⊤)).carrier
   exact _root_.complement_range lens
 
 def TotLensRange.from (generators : Set (Function.End m)) : TotLensRange m where
@@ -256,13 +256,13 @@ theorem Lens.range_le_compl_of_disjoint {a b m : Type} (v : Lens a m) (L : Lens 
     [hd : disjoint v L] : v.range ≤ L.compl.range := by
   rw [TotLensRange.complement_range]
   rintro _ ⟨g, -, rfl⟩
-  show v.update g ∈ Submonoid.centralizer L.range.updates
+  show v.liftFunction g ∈ Submonoid.centralizer L.range.updates
   rw [Submonoid.mem_centralizer_iff]
   rintro _ ⟨h, -, rfl⟩
   letI := hd.symm
   funext σ
-  show L.update h (v.update g σ) = v.update g (L.update h σ)
-  simp only [Lens.update]
+  show L.liftFunction h (v.liftFunction g σ) = v.liftFunction g (L.liftFunction h σ)
+  simp only [Lens.liftFunction]
   have hL_get : L.get (v.set (g (v.get σ)) σ) = L.get σ :=
     Lens.get_of_disjoint_set L v _ σ
   have hv_get : v.get (L.set (h (L.get σ)) σ) = v.get σ :=
@@ -314,7 +314,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
   /-
   Direction →  (∃ z, chain y z = x  →  x.range ≤ y.range):
     Given z with chain y z = x, for any f : a → a,
-    x.update f = (chain y z).update f = y.update (fun v => z.set (f (z.get v)) v),
+    x.liftFunction f = (chain y z).liftFunction f = y.liftFunction (fun v => z.set (f (z.get v)) v),
     so every x-update is a y-update, i.e., x.range.updates ⊆ y.range.updates.
 
   Direction ←  (x.range ≤ y.range  →  ∃ z, chain y z = x):
@@ -324,7 +324,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
         So every y.compl-update commutes with every x-update.
     (2) From this commutativity, x.get factors through y.get:
         y.get s = y.get t  →  x.get s = x.get t.
-        (Proof: apply commutativity of x.update (fun _ => x.get t) with a
+        (Proof: apply commutativity of x.liftFunction (fun _ => x.get t) with a
         y.compl-update that maps s to a point with the same y.get as t.)
     (3) Fix m₀ : m and define z : Lens a b by
           z.get v  := x.get (y.set v m₀)
@@ -348,14 +348,14 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
     -- Step 2: x.get factors through y.get
     have hfactor : ∀ s t : m, y.get s = y.get t → x.get s = x.get t := by
       intro s t hyt
-      have hmem : y.compl.update (fun _ => Quotient.mk'' t) ∈ y.compl.range.updates :=
+      have hmem : y.compl.liftFunction (fun _ => Quotient.mk'' t) ∈ y.compl.range.updates :=
         ⟨fun _ => Quotient.mk'' t, Set.mem_univ _, rfl⟩
       obtain ⟨g, -, hg⟩ := hcompl hmem
-      have hget : x.get (x.compl.update g s) = x.get s := by
+      have hget : x.get (x.compl.liftFunction g s) = x.get s := by
         change x.get (x.compl.set (g (Quotient.mk'' s)) s) = x.get s
         induction g (Quotient.mk'' s) using Quotient.inductionOn with
         | h v => exact x.set_get v (x.get s)
-      have hst : y.compl.update (fun _ => Quotient.mk'' t) s = t := by
+      have hst : y.compl.liftFunction (fun _ => Quotient.mk'' t) s = t := by
         change y.set (y.get s) t = t
         rw [hyt]; exact y.get_set t
       rw [← hg] at hst
@@ -368,7 +368,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
       obtain ⟨g, -, hg⟩ := hle ⟨fun _ => d, Set.mem_univ _, rfl⟩
       have key : ∀ s, y.get (x.set d s) = g (y.get s) := fun s => by
         have eq := congr_fun hg s
-        simp only [Lens.update] at eq
+        simp only [Lens.liftFunction] at eq
         rw [← eq, y.set_get]
       simp only [key, heq]
     let z : Lens a b := {
@@ -383,7 +383,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
       simp [Lens.chain, LensIn.mk']
       obtain ⟨g, -, hg⟩ := hle ⟨fun _ => c, Set.mem_univ _, rfl⟩
       have hgkey : ∀ s, y.set (g (y.get s)) s = x.set c s := fun s => by
-        have := congr_fun hg s; simp only [Lens.update] at this; exact this
+        have := congr_fun hg s; simp only [Lens.liftFunction] at this; exact this
       have hgget : ∀ s, y.get (x.set c s) = g (y.get s) := fun s => by
         rw [← hgkey s]; exact y.set_get s _
       have heq : y.get (x.set c (y.set (y.get mem) m0)) = y.get (x.set c mem) :=
@@ -395,7 +395,7 @@ theorem Lens.range_defines_preorder [Nonempty m] (x : Lens a m) (y : Lens b m) :
     have hz' : Lens.chain y z = x := hz
     rintro _ ⟨f, -, rfl⟩
     exact ⟨fun v => z.set (f (z.get v)) v, Set.mem_univ _,
-      by funext s; rw [← hz']; simp [Lens.update, Lens.chain]⟩
+      by funext s; rw [← hz']; simp [Lens.liftFunction, Lens.chain]⟩
 
 noncomputable def LensIn.antisymmOrderEmb [Nonempty m] :
     Antisymmetrization (LensIn m) (· ≤ ·) ↪o TotLensRange m where

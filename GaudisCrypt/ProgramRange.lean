@@ -180,12 +180,12 @@ theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
     intro σ
     have hmem : f ∈ Submonoid.centralizer v.range.updates := hf
     rw [Submonoid.mem_centralizer_iff] at hmem
-    have hvx : v.update (Function.const _ x) ∈ v.range.updates :=
+    have hvx : v.liftFunction (Function.const _ x) ∈ v.range.updates :=
       ⟨Function.const _ x, Set.mem_univ _, rfl⟩
     have hcomm := congr_fun (hmem _ hvx) σ
-    change v.update (Function.const _ x) (f σ) = f (v.update (Function.const _ x) σ) at hcomm
+    change v.liftFunction (Function.const _ x) (f σ) = f (v.liftFunction (Function.const _ x) σ) at hcomm
     show v.set x (f σ) = f (v.set x σ)
-    simp only [Lens.update, Function.const_apply] at hcomm
+    simp only [Lens.liftFunction, Function.const_apply] at hcomm
     exact hcomm
   -- Step 2: prove the equation via wp.
   apply Program.ext_of_wp
@@ -205,12 +205,12 @@ theorem Program.inRange_get {s a : Type} (v : Lens a s) :
     intro σ
     have hmem : f ∈ Submonoid.centralizer v.range.updates := hf
     rw [Submonoid.mem_centralizer_iff] at hmem
-    have hv_upd : v.update (Function.const _ (v.get σ)) ∈ v.range.updates :=
+    have hv_upd : v.liftFunction (Function.const _ (v.get σ)) ∈ v.range.updates :=
       ⟨Function.const _ (v.get σ), Set.mem_univ _, rfl⟩
     have hcomm := congr_fun (hmem _ hv_upd) σ
-    change v.update (Function.const _ (v.get σ)) (f σ)
-         = f (v.update (Function.const _ (v.get σ)) σ) at hcomm
-    simp only [Lens.update, Function.const_apply] at hcomm
+    change v.liftFunction (Function.const _ (v.get σ)) (f σ)
+         = f (v.liftFunction (Function.const _ (v.get σ)) σ) at hcomm
+    simp only [Lens.liftFunction, Function.const_apply] at hcomm
     rw [v.get_set] at hcomm
     -- hcomm: v.set (v.get σ) (f σ) = f σ
     have := congr_arg v.get hcomm
@@ -393,7 +393,7 @@ lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : TotLensRange s}
     `if L.get = L.get σ then F else 0` check without changing the `wp` value.
 
     Proved by a double-shift via `Program.wp_shift_input`: shifting `F` and the
-    strengthened post by `f := L.update (Function.const _ (L.get σ))` (which
+    strengthened post by `f := L.liftFunction (Function.const _ (L.get σ))` (which
     forces `L.get` to `L.get σ`) makes both inner posts identical, so the
     `wp` values match. -/
 lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
@@ -401,7 +401,7 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
     (F : α × s → ENNReal) (σ : s) :
     p.wp F σ
       = p.wp (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ := by
-  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
+  set f : s → s := L.liftFunction (Function.const _ (L.get σ)) with hf_def
   have h_f_in_Rc : f ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
     rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
       rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
@@ -465,19 +465,19 @@ lemma Program.wp_invariant_under_lens_set
     (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
     (σ : s) :
     p.wp F (L.set v σ) = p.wp F σ := by
-  have h_f_updates : L.update (Function.const _ v)
+  have h_f_updates : L.liftFunction (Function.const _ v)
       ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
     rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
         rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
     exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
-  have h_set_eq : L.update (Function.const _ v) σ = L.set v σ := by
+  have h_set_eq : L.liftFunction (Function.const _ v) σ = L.set v σ := by
     show L.set ((Function.const _ v) (L.get σ)) σ = L.set v σ
     rfl
   rw [← h_set_eq]
   rw [Program.wp_shift_input h_p h_f_updates]
   congr 1
   funext xs
-  show F (xs.1, L.update (Function.const _ v) xs.2) = F xs
+  show F (xs.1, L.liftFunction (Function.const _ v) xs.2) = F xs
   show F (xs.1, L.set v xs.2) = F xs
   exact h_F xs
 
@@ -545,7 +545,7 @@ lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ 
     (σ : s) :
     (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
   simp only [wp_bind, wp_set]
-  set f : s → s := L.update (Function.const _ v) with hf_def
+  set f : s → s := L.liftFunction (Function.const _ v) with hf_def
   have h_f_in_Rc : f ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
     rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
       rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
@@ -606,7 +606,7 @@ lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
     (h_factors : ∀ σ σ', L.get σ' = L.get σ → P σ' = P σ)
     (σ : s) :
     prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
+  set f : s → s := L.liftFunction (Function.const _ (L.get σ)) with hf_def
   have h_f_in_Rc : f ∈ ((L.compl.range : TotLensRange s)ᶜ).updates := by
     rw [show ((L.compl.range : TotLensRange s)ᶜ) = L.range from by
       rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
@@ -745,7 +745,7 @@ lemma Program.up_to_bad {s α : Type}
 /-- A `TotLensRange R` *collapses to σ* if there is a single `Rᶜ`-update that fixes `σ`
     and sends every state into the `R`-orbit of `σ`.
 
-    For *lens-derived* `R = l.range`, this is provided by `l.compl.update (const [σ])`:
+    For *lens-derived* `R = l.range`, this is provided by `l.compl.liftFunction (const [σ])`:
     a complement-set that "resets" any state's complement to match σ's.
     For an *abelian* bicommutant-closed `R`, no such update exists. -/
 def TotLensRange.HasOrbitCollapse (R : TotLensRange m) (σ : m) : Prop :=
@@ -793,33 +793,33 @@ lemma Program.inRange_orbit_of_collapse {s a : Type} {p : Program s a} {R : TotL
 /-- Lens-derived ranges always collapse. -/
 lemma Lens.range_hasOrbitCollapse {s c : Type} (l : Lens c s) (σ : s) :
     l.range.HasOrbitCollapse σ := by
-  refine ⟨l.compl.update (Function.const _ (l.compl.get σ)), ?_, ?_, ?_⟩
+  refine ⟨l.compl.liftFunction (Function.const _ (l.compl.get σ)), ?_, ?_, ?_⟩
   · -- f ∈ l.rangeᶜ.updates = (centralizer l.range.updates).carrier
-    show l.compl.update (Function.const _ (l.compl.get σ))
+    show l.compl.liftFunction (Function.const _ (l.compl.get σ))
          ∈ Submonoid.centralizer l.range.updates
     rw [Submonoid.mem_centralizer_iff]
     intro u hu
     obtain ⟨g, -, rfl⟩ := hu
-    -- show: l.update g ∘ f = f ∘ l.update g (where ∘ is Monoid mul, which is Function.comp)
-    show l.update g * l.compl.update (Function.const _ (l.compl.get σ))
-       = l.compl.update (Function.const _ (l.compl.get σ)) * l.update g
-    show l.update g ∘ l.compl.update (Function.const _ (l.compl.get σ))
-       = l.compl.update (Function.const _ (l.compl.get σ)) ∘ l.update g
+    -- show: l.liftFunction g ∘ f = f ∘ l.liftFunction g (where ∘ is Monoid mul, which is Function.comp)
+    show l.liftFunction g * l.compl.liftFunction (Function.const _ (l.compl.get σ))
+       = l.compl.liftFunction (Function.const _ (l.compl.get σ)) * l.liftFunction g
+    show l.liftFunction g ∘ l.compl.liftFunction (Function.const _ (l.compl.get σ))
+       = l.compl.liftFunction (Function.const _ (l.compl.get σ)) ∘ l.liftFunction g
     funext s
-    simp only [Function.comp_apply, Lens.update, Lens.compl, Quotient.lift_mk,
+    simp only [Function.comp_apply, Lens.liftFunction, Lens.compl, Quotient.lift_mk,
                Function.const_apply]
     rw [l.set_get, l.set_get, l.set_set]
   · -- f σ = σ
-    show l.compl.update (Function.const _ (l.compl.get σ)) σ = σ
+    show l.compl.liftFunction (Function.const _ (l.compl.get σ)) σ = σ
     show l.compl.set ((Function.const _ (l.compl.get σ)) (l.compl.get σ)) σ = σ
     simp only [Function.const_apply]
     exact l.compl.get_set σ
   · -- ∀ s, ∃ u ∈ l.range.updates, u σ = f s
     intro s
-    refine ⟨l.update (Function.const _ (l.get s)),
+    refine ⟨l.liftFunction (Function.const _ (l.get s)),
             ⟨Function.const _ (l.get s), Set.mem_univ _, rfl⟩, ?_⟩
-    show l.update (Function.const _ (l.get s)) σ
-       = l.compl.update (Function.const _ (l.compl.get σ)) s
+    show l.liftFunction (Function.const _ (l.get s)) σ
+       = l.compl.liftFunction (Function.const _ (l.compl.get σ)) s
     show l.set ((Function.const _ (l.get s)) (l.get σ)) σ
        = l.compl.set ((Function.const _ (l.compl.get σ)) (l.compl.get s)) s
     simp only [Function.const_apply]
@@ -1210,12 +1210,12 @@ theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
     intro σ
     have hmem : f ∈ Submonoid.centralizer M.range.updates := hf
     rw [Submonoid.mem_centralizer_iff] at hmem
-    have hv_upd : M.update (Function.const _ (M.get σ)) ∈ M.range.updates :=
+    have hv_upd : M.liftFunction (Function.const _ (M.get σ)) ∈ M.range.updates :=
       ⟨Function.const _ (M.get σ), Set.mem_univ _, rfl⟩
     have hcomm := congr_fun (hmem _ hv_upd) σ
-    change M.update (Function.const _ (M.get σ)) (f σ)
-         = f (M.update (Function.const _ (M.get σ)) σ) at hcomm
-    simp only [Lens.update, Function.const_apply] at hcomm
+    change M.liftFunction (Function.const _ (M.get σ)) (f σ)
+         = f (M.liftFunction (Function.const _ (M.get σ)) σ) at hcomm
+    simp only [Lens.liftFunction, Function.const_apply] at hcomm
     rw [M.get_set] at hcomm
     have := congr_arg M.get hcomm
     rw [M.set_get] at this
@@ -1224,11 +1224,11 @@ theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
     intro y σ
     have hmem : f ∈ Submonoid.centralizer M.range.updates := hf
     rw [Submonoid.mem_centralizer_iff] at hmem
-    have hvx : M.update (Function.const _ y) ∈ M.range.updates :=
+    have hvx : M.liftFunction (Function.const _ y) ∈ M.range.updates :=
       ⟨Function.const _ y, Set.mem_univ _, rfl⟩
     have hcomm := congr_fun (hmem _ hvx) σ
-    change M.update (Function.const _ y) (f σ) = f (M.update (Function.const _ y) σ) at hcomm
-    simp only [Lens.update, Function.const_apply] at hcomm
+    change M.liftFunction (Function.const _ y) (f σ) = f (M.liftFunction (Function.const _ y) σ) at hcomm
+    simp only [Lens.liftFunction, Function.const_apply] at hcomm
     exact hcomm
   apply Program.ext_of_wp
   intro F
@@ -1275,4 +1275,4 @@ theorem Lens.chain_range_le {a b c : Type} (L : Lens b c) (v : Lens a b) :
     (L.chain v).range ≤ L.range := by
   rintro _ ⟨f, -, rfl⟩
   exact ⟨fun s => v.set (f (v.get s)) s, Set.mem_univ _, by
-    funext s; simp [Lens.chain, Lens.update]⟩
+    funext s; simp [Lens.chain, Lens.liftFunction]⟩

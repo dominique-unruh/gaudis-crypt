@@ -38,10 +38,10 @@ lemma Program.wp_le_of_factors_prob {s α γ : Type} (L : Lens γ s)
     (h_factors : ∀ σ σ', L.get σ' = L.get σ → P σ' = P σ)
     (σ : s) :
     prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
+  set f : s → s := L.liftFunction (Function.const _ (L.get σ)) with hf_def
   have h_f_in_Rc : diracKer f ∈ (((L.probRange)ᶜ)ᶜ).updates := by
     rw [ProbLensRange.compl_compl]
-    exact (ProbLensRange.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.update g))
+    exact (ProbLensRange.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.liftFunction g))
       L.probRange).mp le_rfl ⟨Function.const _ (L.get σ), rfl⟩
   have h_f_fix : f σ = σ := by
     show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
@@ -66,10 +66,10 @@ lemma Program.wp_strengthen_lens_preserved_prob {s α γ : Type} [DecidableEq γ
     (F : α × s → ENNReal) (σ : s) :
     p.wp F σ
       = p.wp (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ := by
-  set f : s → s := L.update (Function.const _ (L.get σ)) with hf_def
+  set f : s → s := L.liftFunction (Function.const _ (L.get σ)) with hf_def
   have h_f_in_Rc : diracKer f ∈ (((L.probRange)ᶜ)ᶜ).updates := by
     rw [ProbLensRange.compl_compl]
-    exact (ProbLensRange.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.update g))
+    exact (ProbLensRange.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.liftFunction g))
       L.probRange).mp le_rfl ⟨Function.const _ (L.get σ), rfl⟩
   have h_f_fix : f σ = σ := by
     show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
@@ -151,7 +151,7 @@ lemma Program.wp_set_disjoint_no_op_prob {s γ : Type} [DecidableEq γ] {L : Len
     (σ : s) :
     (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
   simp only [wp_bind, wp_set]
-  set f : s → s := L.update (Function.const _ v) with hf_def
+  set f : s → s := L.liftFunction (Function.const _ v) with hf_def
   have h_f_in_Rc : diracKer f ∈ (((L.probRange)ᶜ)ᶜ).updates := by
     rw [ProbLensRange.compl_compl]
     exact (ProbLensRange.from_le_iff _ L.probRange).mp le_rfl ⟨Function.const _ v, rfl⟩

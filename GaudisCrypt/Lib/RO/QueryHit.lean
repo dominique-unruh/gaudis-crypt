@@ -352,7 +352,7 @@ private lemma ow_loop_wp_chal_x_queried_invariant (q : ℕ)
     (σ : state) :
     (ow_loop ow_adv q lazy_query).wp G (chal_x_queried.set true σ)
     = (ow_loop ow_adv q lazy_query).wp G σ := by
-  set f : state → state := chal_x_queried.update (Function.const _ true) with hf_def
+  set f : state → state := chal_x_queried.liftFunction (Function.const _ true) with hf_def
   have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
     rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
       rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
@@ -568,7 +568,7 @@ private lemma ow_experiment_rest_eq_tracked (q : ℕ)
     intro aσ
     show post_loop.wp F (chal_x_queried.set true aσ.2) = post_loop.wp F aσ.2
     -- Apply wp_shift_input.
-    set f : state → state := chal_x_queried.update (Function.const _ true) with hf_def
+    set f : state → state := chal_x_queried.liftFunction (Function.const _ true) with hf_def
     have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
       rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
         rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
@@ -675,7 +675,7 @@ lemma ow_experiment_eq_tracked_lazy (q : ℕ)
         (chal_x_queried.set false σ_a)]
   -- Step 3: REST.wp F (chal_x_queried.set false σ_a) = REST.wp F σ_a
   --   [wp_shift_input + h_F + REST.inRange chal_x_queried.compl.range]
-  set f : state → state := chal_x_queried.update (Function.const _ false) with hf_def
+  set f : state → state := chal_x_queried.liftFunction (Function.const _ false) with hf_def
   have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
     rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
       rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
@@ -839,16 +839,16 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     simp_rw [h_step2]
     -- Step 3: Shift chal_x.set x past ow_adv using wp_shift_input.
     have h_shift_chal_x : ow_challenge_x.set ∈ Set.univ ∧
-        ∀ x : input, diracKer (ow_challenge_x.update (Function.const _ x)) ∈
+        ∀ x : input, diracKer (ow_challenge_x.liftFunction (Function.const _ x)) ∈
             (((ow_challenge_x.probRange : ProbLensRange state)ᶜ)ᶜ).updates := by
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
       rw [ProbLensRange.compl_compl]
       exact (ProbLensRange.from_le_iff _ ow_challenge_x.probRange).mp le_rfl
         ⟨Function.const _ x, rfl⟩
-    -- Rewrite ow_challenge_x.set x σ = (ow_challenge_x.update (const x)) σ.
+    -- Rewrite ow_challenge_x.set x σ = (ow_challenge_x.liftFunction (const x)) σ.
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
-        = (ow_challenge_x.update (Function.const _ x)) σ := by
+        = (ow_challenge_x.liftFunction (Function.const _ x)) σ := by
       intro x
       show ow_challenge_x.set x σ
         = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get σ)) σ
@@ -975,7 +975,7 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
           aσ_adv.2 := by
       intro x
       rw [show ow_challenge_x.set x aσ_adv.2
-          = (ow_challenge_x.update (Function.const _ x)) aσ_adv.2 by
+          = (ow_challenge_x.liftFunction (Function.const _ x)) aσ_adv.2 by
         show ow_challenge_x.set x aσ_adv.2
           = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get aσ_adv.2)) aσ_adv.2
         rw [Function.const_apply]]
@@ -1718,7 +1718,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     simp_rw [h_step2]
     -- Step 3: Apply wp_shift_input on adv to move chal_x.set x past adv.
     have h_shift_chal_x : ow_challenge_x.set ∈ Set.univ ∧
-        ∀ x : input, diracKer (ow_challenge_x.update (Function.const _ x)) ∈
+        ∀ x : input, diracKer (ow_challenge_x.liftFunction (Function.const _ x)) ∈
             (((ow_challenge_x.probRange : ProbLensRange state)ᶜ)ᶜ).updates := by
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
@@ -1726,7 +1726,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
       exact (ProbLensRange.from_le_iff _ ow_challenge_x.probRange).mp le_rfl
         ⟨Function.const _ x, rfl⟩
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
-        = (ow_challenge_x.update (Function.const _ x)) σ := by
+        = (ow_challenge_x.liftFunction (Function.const _ x)) σ := by
       intro x
       show ow_challenge_x.set x σ
         = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get σ)) σ
@@ -1899,7 +1899,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
           aσ_adv.2 := by
       intro x
       rw [show ow_challenge_x.set x aσ_adv.2
-          = (ow_challenge_x.update (Function.const _ x)) aσ_adv.2 by
+          = (ow_challenge_x.liftFunction (Function.const _ x)) aσ_adv.2 by
         show ow_challenge_x.set x aσ_adv.2
           = ow_challenge_x.set ((Function.const _ x) (ow_challenge_x.get aσ_adv.2)) aσ_adv.2
         rw [Function.const_apply]]

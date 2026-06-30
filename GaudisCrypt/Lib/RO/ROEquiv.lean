@@ -271,7 +271,7 @@ theorem oracle_loop_marginal_lazy_eq_random_oracle_glob (σ₀ : state) :
   have h_in_ro : random_oracle_state.set x ∈ random_oracle_state.range.updates := by
     refine ⟨Function.const _ x, Set.mem_univ _, ?_⟩
     funext σ'
-    simp [Lens.update]
+    simp [Lens.liftFunction]
   have hadv_le : adv.range ≤ random_oracle_state.compl.range :=
     sInf_le h_adv
   have h_le : random_oracle_state.range ≤ (adv.range)ᶜ := by
