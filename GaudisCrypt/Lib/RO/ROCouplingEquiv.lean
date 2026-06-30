@@ -15,8 +15,9 @@ The development has three layers:
   procedure states (`P` on globals, equal locals) and state the per-statement honest-locality predicate.
 * **The coupling** (`body_prhl2_gen` → `ro_hhole_prhl` → `prhl_wrapper`): the body
   induction in `prhl2`, the RO-hole coupling, and the procedure wrapper, assembled into the main theorem.
-* **Confinement endpoints** (`prhl2_of_inFootprint_lens` → `confinedP_locP` → `prhl_instantiate_of_fvP`):
-  discharge `LocP` from the adversary's footprint lying in a `LiftCompat` region.
+* **Confinement endpoints** (`FootprintCompat` / `footprintCompat_of_lens` → `confinedP_locP` →
+  `prhl_instantiate_of_fvP`): discharge `LocP` from the adversary's footprint lying in a
+  `FootprintCompat` region (lens-free; a `LiftCompat` lens gives one via `footprintCompat_of_lens`).
 -/
 
 namespace GaudisCrypt.Lib.RO.Instantiate
@@ -88,6 +89,17 @@ def LiftCompat {l advSt : Type} (P : state → state → Prop)
     (L_adv : Lens advSt (ProcedureState l)) : Prop :=
   (∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂) ∧
   (∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ → liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
+
+
+/-- **Footprint-level compatibility with `liftRel P`** (lens-free).  A region `R` is `P`-compatible
+    when *every* program confined to `R` self-couples under `liftRel P`.  This is exactly what
+    `confinedP_locP` consumes — it never inspects a lens, only `inFootprint R`.  The lens route
+    `LiftCompat` is one way to discharge it (`footprintCompat_of_lens`); other regions (e.g. joins of
+    compatible footprints) can be supplied directly. -/
+def FootprintCompat {l : Type} (P : state → state → Prop)
+    (R : Footprint (ProcedureState l)) : Prop :=
+  ∀ {γ : Type} {p : ProgramDenotation (ProcedureState l) γ}, p.inFootprint R →
+    ProgramDenotation.prhl2 (liftRel P) p p (liftRelPost P)
 
 
 -- `P` — the state invariant relating eager/lazy global states — is fixed throughout.
@@ -307,50 +319,110 @@ theorem prhl2_of_inFootprint_lens {l γ advSt : Type} [Nonempty (ProcedureState 
   exact prhl2_lift_lens L_adv hcompat (L_adv.factor p)
 
 
+/-- **The lens route to `FootprintCompat`.**  A `LiftCompat` lens furnishes a `P`-compatible
+    footprint (its own `footprint`): factor any confined program through the lens, then self-couple
+    via `prhl2_of_inFootprint_lens`.  This is the *only* place the lens / `Nonempty` / factorization
+    is needed — every downstream theorem takes a bare `FootprintCompat`. -/
+theorem footprintCompat_of_lens {l advSt : Type} [Nonempty (ProcedureState l)]
+    (L_adv : Lens advSt (ProcedureState l)) (hcompat : LiftCompat P L_adv) :
+    FootprintCompat P L_adv.footprint :=
+  fun hp => prhl2_of_inFootprint_lens L_adv hcompat hp
+
+
 /-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
     `Footprint` analogue of `confined_locP`. -/
-theorem confinedP_locP {holes : HoleSigs} {l advSt : Type} [Nonempty (ProcedureState l)]
-    (L_adv : Lens advSt (ProcedureState l))
-    (hcompat : LiftCompat P L_adv)
+theorem confinedP_locP {holes : HoleSigs} {l : Type}
+    (R : Footprint (ProcedureState l))
+    (hR : FootprintCompat P R)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
-    ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → LocP P A
+    ∀ (A : StmtWithHoles holes l), ConfinedP R A → LocP P A
   | .skip, _ => trivial
-  | .sample _ _, h => prhl2_of_inFootprint_lens L_adv hcompat h
-  | .call' _ _ _ _ _, h => prhl2_of_inFootprint_lens L_adv hcompat h
+  | .sample _ _, h => hR h
+  | .call' _ _ _ _ _, h => hR h
   | .hole n _ _, h =>
       haveI := hc n
-      ⟨prhl2_of_inFootprint_lens L_adv hcompat h.1,
-        fun ret => prhl2_of_inFootprint_lens L_adv hcompat (h.2 ret)⟩
+      ⟨hR h.1, fun ret => hR (h.2 ret)⟩
   | .seq s1 s2, h =>
-      ⟨confinedP_locP L_adv hcompat hc s1 h.1, confinedP_locP L_adv hcompat hc s2 h.2⟩
+      ⟨confinedP_locP R hR hc s1 h.1, confinedP_locP R hR hc s2 h.2⟩
   | .ifThenElse _ t e, h =>
-      ⟨prhl2_of_inFootprint_lens L_adv hcompat h.1, confinedP_locP L_adv hcompat hc t h.2.1,
-        confinedP_locP L_adv hcompat hc e h.2.2⟩
+      ⟨hR h.1, confinedP_locP R hR hc t h.2.1, confinedP_locP R hR hc e h.2.2⟩
   | .«while» _ t, h =>
-      ⟨prhl2_of_inFootprint_lens L_adv hcompat h.1, confinedP_locP L_adv hcompat hc t h.2⟩
+      ⟨hR h.1, confinedP_locP R hR hc t h.2⟩
+
+
+/-- A getter confined to a `FootprintCompat` region reads **equal** values from `liftRel P`-related
+    states — the return-value condition `prhl_wrapper` needs, now derived from the footprint bound
+    rather than assumed.  A deterministic `get`/`get` self-coupling has both marginals point masses,
+    so its (a.e.) post `x.1.1 = x.2.1` pins the two reads together.  Replaces the standalone `hret`. -/
+theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureState l)}
+    (hR : FootprintCompat P R) {g : Getter γ (ProcedureState l)}
+    (hg : (ProgramDenotation.get g).inFootprint R)
+    {ps₁ ps₂ : ProcedureState l} (hpre : liftRel P ps₁ ps₂) :
+    g.get ps₁ = g.get ps₂ := by
+  obtain ⟨μ, hm1, hm2, hsat⟩ := hR hg ps₁ ps₂ hpre
+  -- Push each marginal to its first *value* component; the two `get`/`get` marginals are point
+  -- masses, so `pure (g.get ps₁) = pure (g.get ps₂)` follows from the a.e. post `x.1.1 = x.2.1`.
+  have hget : ∀ ps, (ProgramDenotation.get g) ps = pure (g.get ps, ps) := by
+    intro ps
+    simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure,
+      StateT.pure, id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  have h1 : (μ >>= fun x => (pure x.1.1 : SubProbability γ)) = pure (g.get ps₁) := by
+    have hrw : (μ >>= fun x => (pure x.1.1 : SubProbability γ))
+        = (μ >>= fun x => (pure x.1 : SubProbability (γ × ProcedureState l)))
+          >>= fun y => (pure y.1 : SubProbability γ) := by
+      rw [SubProbability.bind_assoc]
+      exact SubProbability.bind_congr_support _ (fun x _ => by rw [SubProbability.pure_bind])
+    rw [hrw, hm1, hget, SubProbability.pure_bind]
+  have h2 : (μ >>= fun x => (pure x.2.1 : SubProbability γ)) = pure (g.get ps₂) := by
+    have hrw : (μ >>= fun x => (pure x.2.1 : SubProbability γ))
+        = (μ >>= fun x => (pure x.2 : SubProbability (γ × ProcedureState l)))
+          >>= fun y => (pure y.1 : SubProbability γ) := by
+      rw [SubProbability.bind_assoc]
+      exact SubProbability.bind_congr_support _ (fun x _ => by rw [SubProbability.pure_bind])
+    rw [hrw, hm2, hget, SubProbability.pure_bind]
+  have h12 : (μ >>= fun x => (pure x.1.1 : SubProbability γ))
+      = (μ >>= fun x => (pure x.2.1 : SubProbability γ)) :=
+    SubProbability.bind_congr_support _ (fun x hx => congrArg pure (hsat x hx).1)
+  have hpe : (pure (g.get ps₁) : SubProbability γ) = pure (g.get ps₂) := by
+    rw [← h1, ← h2, h12]
+  -- `pure`-injectivity on `SubProbability γ`: evaluate the dirac measures at `{g.get ps₁}`.
+  letI : MeasurableSpace γ := ⊤
+  haveI : MeasurableSingletonClass γ := ⟨fun _ => trivial⟩
+  have hdirac : (MeasureTheory.Measure.dirac (g.get ps₁)) {g.get ps₁}
+      = (MeasureTheory.Measure.dirac (g.get ps₂)) {g.get ps₁} :=
+    congrFun (congrArg DFunLike.coe (congrArg Subtype.val hpe)) {g.get ps₁}
+  by_contra hne
+  rw [MeasureTheory.Measure.dirac_apply' _ (MeasurableSet.singleton _),
+    MeasureTheory.Measure.dirac_apply' _ (MeasurableSet.singleton _)] at hdirac
+  rw [Set.indicator_of_mem (Set.mem_singleton _),
+    Set.indicator_of_notMem (by simpa [Set.mem_singleton_iff] using fun h => hne h.symm)] at hdirac
+  exact one_ne_zero hdirac
 
 
 /-- **Theorem 2 — the entry point.**  Relational (coupling) lazy ≈ eager equivalence for an
-    invariant `P`, from the body's footprint lying in a `LiftCompat` region `L_adv`.  Inlines the
+    invariant `P`, from the procedure's full footprint `fvP_proc A` (body + return) lying in a
+    `FootprintCompat` region `R` (lens-free — supply `R` + a `FootprintCompat P R` proof, e.g. via
+    `footprintCompat_of_lens`).  The single `fvP_proc A ≤ R` bound replaces the old `hbody`/`hret`
+    pair (the return-value reads-equal is derived via `reads_equal_of_footprintCompat`).  Inlines the
     whole `fvP → ConfinedP → LocP → coupling → prhl` chain (the intermediate `LocP`/`ConfinedP`-form
     entry points were collapsed into this one). -/
-theorem prhl_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
+theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
-    (hcompat : LiftCompat P L_adv)
-    [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
+    (R : Footprint (ProcedureState (sig.LocalVariableState A.locals)))
+    (hR : FootprintCompat P R)
     (h : ∀ inp : input,
         ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
-    (hbody : fvP_stmt A.body ≤ L_adv.footprint)
-    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    (hfp : fvP_proc A ≤ R) :
     ProgramDenotation.prhl P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
   prhl_wrapper A args
     (prhl_instantiate_body h A.body
-      (confinedP_locP L_adv hcompat roHole_paramType_countable A.body
-        (confinedP_of_fv L_adv roHole_paramType_countable A.body hbody)))
-    hret
+      (confinedP_locP R hR roHole_paramType_countable A.body
+        (confinedP_of_fv R roHole_paramType_countable A.body
+          ((fvP_stmt_body_le_fvP_proc A).trans hfp))))
+    (fun _ _ hpre => reads_equal_of_footprintCompat hR
+      (ProgramDenotation.inFootprint_of_footprint_le ((get_return_val_le_fvP_proc A).trans hfp)) hpre)
 
 end GaudisCrypt.Lib.RO.Instantiate

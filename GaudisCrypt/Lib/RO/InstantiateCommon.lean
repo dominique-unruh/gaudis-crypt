@@ -307,6 +307,22 @@ noncomputable def fvP_stmt {holes : HoleSigs} {l : Type} :
   | .while c t => (ProgramDenotation.get c).footprint ⊔ fvP_stmt t
 
 
+/-- **The full probabilistic footprint of a procedure**: the body's footprint joined with the
+    return getter's.  A single `fvP_proc A ≤ R` bound feeds *both* the body confinement and the
+    return-value condition — replacing the separate `hbody`/`hret` hypotheses. -/
+noncomputable def fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig) :
+    Footprint (ProcedureState (sig.LocalVariableState A.locals)) :=
+  fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
+
+theorem fvP_stmt_body_le_fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig) : fvP_stmt A.body ≤ fvP_proc A := le_sup_left
+
+theorem get_return_val_le_fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig) :
+    (ProgramDenotation.get A.return_val).footprint ≤ fvP_proc A := le_sup_right
+
+
 /-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
     inner program on the `L`-content. The `inFootprint` analogue of `Lens.factor_of_inRange`. -/
 theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : ProgramDenotation s
@@ -398,19 +414,19 @@ theorem convertL_inFootprint {l : Type} :
     each leaf's footprint lies in the adversary region `L_adv`. Crucially the `get`-leaves are now
     soundly derivable from footprint disjointness (litmus), unlike `Confined` (`DetermFootprint`),
     where `get`'s `ProgramDenotation.range` collapses (the `get_confined_of_fv` sorry). -/
-def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (ProcedureState l)) :
+def ConfinedP {holes : HoleSigs} {l : Type} (R : Footprint (ProcedureState l)) :
     StmtWithHoles holes l → Prop
   | .skip => True
   | .sample x e =>
-      (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint L_adv.footprint
+      (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint R
   | .call' x ls b r p =>
-      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint L_adv.footprint
-  | .hole _ x p => (ProgramDenotation.get p).inFootprint L_adv.footprint ∧
-      (∀ ret, (ProgramDenotation.set x ret).inFootprint L_adv.footprint)
-  | .seq s1 s2 => ConfinedP L_adv s1 ∧ ConfinedP L_adv s2
+      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint R
+  | .hole _ x p => (ProgramDenotation.get p).inFootprint R ∧
+      (∀ ret, (ProgramDenotation.set x ret).inFootprint R)
+  | .seq s1 s2 => ConfinedP R s1 ∧ ConfinedP R s2
   | .ifThenElse c t e =>
-      (ProgramDenotation.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t ∧ ConfinedP L_adv e
-  | .while c t => (ProgramDenotation.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t
+      (ProgramDenotation.get c).inFootprint R ∧ ConfinedP R t ∧ ConfinedP R e
+  | .while c t => (ProgramDenotation.get c).inFootprint R ∧ ConfinedP R t
 
 
 /-- **`fvP`-disjointness ⟹ `ConfinedP` — COMPLETE, no `sorry`.**  The full structural reduction
@@ -420,16 +436,16 @@ def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (Procedure
     discharges by the litmus (self-range, `inFootprint_selfRange`), so the reduction is total.
     Composing with `confinedP_loc`/`confinedP_locP` gives the two main theorems directly from a
     footprint-disjointness hypothesis. -/
-theorem confinedP_of_fv {holes : HoleSigs} {l advSt : Type}
-    (L_adv : Lens advSt (ProcedureState l))
+theorem confinedP_of_fv {holes : HoleSigs} {l : Type}
+    (R : Footprint (ProcedureState l))
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
-    ∀ (A : StmtWithHoles holes l), fvP_stmt A ≤ L_adv.footprint → ConfinedP L_adv A
+    ∀ (A : StmtWithHoles holes l), fvP_stmt A ≤ R → ConfinedP R A
   | .skip, _ => trivial
   | .sample x e, h => by
-      show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint L_adv.footprint
+      show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint R
       exact ProgramDenotation.inFootprint_of_footprint_le h
   | .call' x ls b r p, h => by
-      show (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint L_adv.footprint
+      show (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint R
       exact ProgramDenotation.inFootprint_of_footprint_le h
   | .hole n x p, h =>
       haveI := hc n
@@ -438,14 +454,14 @@ theorem confinedP_of_fv {holes : HoleSigs} {l advSt : Type}
           ((le_iSup (fun ret => (ProgramDenotation.set x ret).footprint) ret).trans
               (le_sup_right.trans h))⟩
   | .seq s1 s2, h =>
-      ⟨confinedP_of_fv L_adv hc s1 (le_sup_left.trans h),
-        confinedP_of_fv L_adv hc s2 (le_sup_right.trans h)⟩
+      ⟨confinedP_of_fv R hc s1 (le_sup_left.trans h),
+        confinedP_of_fv R hc s2 (le_sup_right.trans h)⟩
   | .ifThenElse c t e, h =>
       ⟨get_confinedP_of_fv c (le_sup_left.trans (le_sup_left.trans h)),
-        confinedP_of_fv L_adv hc t (le_sup_right.trans (le_sup_left.trans h)),
-        confinedP_of_fv L_adv hc e (le_sup_right.trans h)⟩
+        confinedP_of_fv R hc t (le_sup_right.trans (le_sup_left.trans h)),
+        confinedP_of_fv R hc e (le_sup_right.trans h)⟩
   | .«while» c t, h =>
       ⟨get_confinedP_of_fv c (le_sup_left.trans h),
-        confinedP_of_fv L_adv hc t (le_sup_right.trans h)⟩
+        confinedP_of_fv R hc t (le_sup_right.trans h)⟩
 
 end GaudisCrypt.Lib.RO.Instantiate

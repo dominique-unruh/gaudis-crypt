@@ -504,54 +504,55 @@ theorem stable_of_inFootprint_compl {l α : Type}
   rw [← hL, h_commute, hR]
 
 
-/-- **`Stable` from confinement to a lens disjoint from the RO** (probabilistic). The
+/-- **`Stable` from confinement to a footprint disjoint from the RO** (probabilistic). The
     `Footprint` analogue of `stable_of_confined_lens`. No `complement_range` needed — the
     `ᶜ`-form bound `hdisj` feeds `inFootprint_mono` directly. -/
-theorem stable_of_confinedP_lens {l α advSt : Type}
-    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.footprint ≤ ((roLift l).footprint)ᶜ)
-    {p : ProgramDenotation (ProcedureState l) α} (hp : p.inFootprint L_adv.footprint) : Stable p :=
+theorem stable_of_confinedP_footprint {l α : Type}
+    (R : Footprint (ProcedureState l)) (hdisj : R ≤ ((roLift l).footprint)ᶜ)
+    {p : ProgramDenotation (ProcedureState l) α} (hp : p.inFootprint R) : Stable p :=
   stable_of_inFootprint_compl (ProgramDenotation.inFootprint_mono hp hdisj)
 
 
 /-- **`ConfinedP` discharges `Loc`** (theorem-1 locality), leaf by leaf — reusing the existing
     `Loc`→theorems chain. The `Footprint` analogue of `confined_loc`. -/
-theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
-    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.footprint ≤ ((roLift l).footprint)ᶜ)
+theorem confinedP_loc {holes : HoleSigs} {l : Type}
+    (R : Footprint (ProcedureState l)) (hdisj : R ≤ ((roLift l).footprint)ᶜ)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
-    ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → Loc A
+    ∀ (A : StmtWithHoles holes l), ConfinedP R A → Loc A
   | .skip, _ => trivial
-  | .sample _ _, h => stable_of_confinedP_lens L_adv hdisj h
-  | .call' _ _ _ _ _, h => stable_of_confinedP_lens L_adv hdisj h
+  | .sample _ _, h => stable_of_confinedP_footprint R hdisj h
+  | .call' _ _ _ _ _, h => stable_of_confinedP_footprint R hdisj h
   | .hole n _ _, h =>
       haveI := hc n
-      ⟨stable_of_confinedP_lens L_adv hdisj h.1,
-        fun ret => stable_of_confinedP_lens L_adv hdisj (h.2 ret)⟩
-  | .seq s1 s2, h => ⟨confinedP_loc L_adv hdisj hc s1 h.1, confinedP_loc L_adv hdisj hc s2 h.2⟩
+      ⟨stable_of_confinedP_footprint R hdisj h.1,
+        fun ret => stable_of_confinedP_footprint R hdisj (h.2 ret)⟩
+  | .seq s1 s2, h => ⟨confinedP_loc R hdisj hc s1 h.1, confinedP_loc R hdisj hc s2 h.2⟩
   | .ifThenElse _ t e, h =>
-      ⟨stable_of_confinedP_lens L_adv hdisj h.1, confinedP_loc L_adv hdisj hc t h.2.1,
-        confinedP_loc L_adv hdisj hc e h.2.2⟩
+      ⟨stable_of_confinedP_footprint R hdisj h.1, confinedP_loc R hdisj hc t h.2.1,
+        confinedP_loc R hdisj hc e h.2.2⟩
   | .«while» _ t, h =>
-      ⟨stable_of_confinedP_lens L_adv hdisj h.1, confinedP_loc L_adv hdisj hc t h.2⟩
+      ⟨stable_of_confinedP_footprint R hdisj h.1, confinedP_loc R hdisj hc t h.2⟩
 
 
 /-- **Theorem 1, end-to-end from footprint disjointness.**  Lazy/eager indistinguishability for any
-    adversary whose probabilistic footprint (body + return) lies in a region `L_adv` disjoint from
-    the RO table — derived entirely from the footprint hypotheses, with no per-leaf confinement to
-    check by hand.  Inlines the whole `fvP → ConfinedP → Loc → transfer` chain — the sole entry
-    point (the intermediate `Loc`/`ConfinedP`-form theorems were collapsed into this one). -/
-theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
+    adversary whose full footprint `fvP_proc A` (body + return) lies in a region `R` disjoint from
+    the RO table — derived entirely from the single footprint bound, with no per-leaf confinement to
+    check by hand (lens-free).  Inlines the whole `fvP → ConfinedP → Loc → transfer` chain — the sole
+    entry point (the intermediate `Loc`/`ConfinedP`-form theorems were collapsed into this one). -/
+theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
-    (hdisj : L_adv.footprint ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
-    (hbody : fvP_stmt A.body ≤ L_adv.footprint)
-    (hret : (ProgramDenotation.get A.return_val).footprint ≤ L_adv.footprint) :
+    (R : Footprint (ProcedureState (sig.LocalVariableState A.locals)))
+    (hdisj : R ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
+    (hfp : fvP_proc A ≤ R) :
     ProgramDenotation.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=
   transfer_wrapper A args
     (transfer_instantiate_body A.body
-      (confinedP_loc L_adv hdisj roHole_paramType_countable A.body
-        (confinedP_of_fv L_adv roHole_paramType_countable A.body hbody)))
-    (stable_of_confinedP_lens L_adv hdisj (get_confinedP_of_fv A.return_val hret))
+      (confinedP_loc R hdisj roHole_paramType_countable A.body
+        (confinedP_of_fv R roHole_paramType_countable A.body
+          ((fvP_stmt_body_le_fvP_proc A).trans hfp))))
+    (stable_of_confinedP_footprint R hdisj
+      (get_confinedP_of_fv A.return_val ((get_return_val_le_fvP_proc A).trans hfp)))
 
 end GaudisCrypt.Lib.RO.Instantiate
