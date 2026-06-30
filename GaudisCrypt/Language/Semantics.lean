@@ -22,17 +22,19 @@ def recursion {a} {b : a → Type*} [∀ x, OmegaCompletePartialOrder (b x)] [�
 # Stateful programs
 -/
 
-def Program (state : Type) : Type → Type := StateT state SubProbability
+def ProgramDenotation (state : Type) : Type → Type := StateT state SubProbability
 
 noncomputable
-def SubProbability.toProgram (p : SubProbability a) : Program s a := StateT.lift p
+def SubProbability.toProgramDenotation (p : SubProbability a) : ProgramDenotation s a := StateT.lift
+    p
 
 noncomputable
-def PMF.toProgram {st α} (p : PMF α) : Program st α := StateT.lift (toSubProbability p)
+def PMF.toProgramDenotation {st α} (p : PMF α) : ProgramDenotation st α := StateT.lift
+    (toSubProbability p)
 
 noncomputable
-def Program.uniform [h : Fintype α] [h : Nonempty α] : Program s α :=
-  SubProbability.uniform.toProgram
+def ProgramDenotation.uniform [h : Fintype α] [h : Nonempty α] : ProgramDenotation s α :=
+  SubProbability.uniform.toProgramDenotation
 
 /-- Uniform subprobability over a nonempty finset. -/
 noncomputable
@@ -43,18 +45,18 @@ def SubProbability.uniformOfFinset {α : Type} (fs : Finset α) (hs : fs.Nonempt
 /-- Uniform sampling over a nonempty finset (used e.g. for "sample without
     replacement" — uniform over the complement of the values seen so far). -/
 noncomputable
-def Program.uniformOfFinset {s α : Type} (fs : Finset α) (hs : fs.Nonempty) :
-    Program s α :=
-  (SubProbability.uniformOfFinset fs hs).toProgram
+def ProgramDenotation.uniformOfFinset {s α : Type} (fs : Finset α) (hs : fs.Nonempty) :
+    ProgramDenotation s α :=
+  (SubProbability.uniformOfFinset fs hs).toProgramDenotation
 
-def Program.finalProb (prog : Program s a) (st : s) (X : Set a) : NNReal :=
+def ProgramDenotation.finalProb (prog : ProgramDenotation s a) (st : s) (X : Set a) : NNReal :=
   ((prog st).ofEvent (X ×ˢ ⊤))
 
-def Program.finalProb1 (prog : Program s a) (st : s) (x : a) : NNReal :=
+def ProgramDenotation.finalProb1 (prog : ProgramDenotation s a) (st : s) (x : a) : NNReal :=
   prog.finalProb st {x}
 
 
-instance : PartialOrder (Program s a) where
+instance : PartialOrder (ProgramDenotation s a) where
   le p q := ∀ s, p s <= q s
   le_refl _ _ := le_refl _
   le_trans _ _ _ hpq hqr s := le_trans (hpq s) (hqr s)
@@ -62,12 +64,12 @@ instance : PartialOrder (Program s a) where
     funext s
     exact Subtype.ext (le_antisymm (hpq s) (hqp s))
 
-instance : OrderBot (Program s a) where
+instance : OrderBot (ProgramDenotation s a) where
   bot := fun _ => ⟨0, ⟨by simp, discreteMeasure_zero⟩⟩
   bot_le _ _ := MeasureTheory.Measure.zero_le _
 
 
-noncomputable instance : OmegaCompletePartialOrder (Program s a) where
+noncomputable instance : OmegaCompletePartialOrder (ProgramDenotation s a) where
   ωSup c st :=
     let c_st n := c n st
     let mono : Monotone c_st := by
@@ -86,12 +88,12 @@ noncomputable instance : OmegaCompletePartialOrder (Program s a) where
     apply h n s
 
 noncomputable
-instance : Monad (Program s) :=
+instance : Monad (ProgramDenotation s) :=
   (inferInstance : Monad (StateT s SubProbability))
 
 @[fun_prop]
-theorem Program.bind_mono [Preorder i]
-  (f : i → Program s a) (g : i → a → Program s b)
+theorem ProgramDenotation.bind_mono [Preorder i]
+  (f : i → ProgramDenotation s a) (g : i → a → ProgramDenotation s b)
   (hf : Monotone f) (hg : Monotone g) :
   Monotone (fun x => f x >>= g x) := by
     intro x y hxy s_val
@@ -100,9 +102,9 @@ theorem Program.bind_mono [Preorder i]
 
 
 @[fun_prop]
-lemma Program.bind_ωScottContinuous
+lemma ProgramDenotation.bind_ωScottContinuous
   [OmegaCompletePartialOrder a]
-  (f : a → Program s b) (g : a → b → Program s c)
+  (f : a → ProgramDenotation s b) (g : a → b → ProgramDenotation s c)
   (hg : OmegaCompletePartialOrder.ωScottContinuous g)
   (hf : OmegaCompletePartialOrder.ωScottContinuous f) :
   OmegaCompletePartialOrder.ωScottContinuous fun x => (f x) >>= (g x) := by
@@ -112,7 +114,7 @@ lemma Program.bind_ωScottContinuous
       ⟨fun _ _ hxy p => hg.monotone hxy p.1 p.2,
        fun ch => funext fun p => ((hg.apply₂ p.1).apply₂ p.2).map_ωSup ch⟩
   refine OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup ⟨?mono, ?sup⟩
-  case mono => exact Program.bind_mono _ _ hf.monotone hg.monotone
+  case mono => exact ProgramDenotation.bind_mono _ _ hf.monotone hg.monotone
   case sup =>
     intro ch
     funext s_val
@@ -120,18 +122,20 @@ lemma Program.bind_ωScottContinuous
       hg' (hf.apply₂ s_val)).map_ωSup ch
 
 noncomputable
-def while_iteration (cond : Program s Bool) (body : Program s Unit) :
-  (Unit → Program s Unit) →𝒄 (Unit → Program s Unit) :=
-  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → Program s Unit) => fun () =>
+def while_iteration (cond : ProgramDenotation s Bool) (body : ProgramDenotation s Unit) :
+  (Unit → ProgramDenotation s Unit) →𝒄 (Unit → ProgramDenotation s Unit) :=
+  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → ProgramDenotation s Unit) => fun ()
+      =>
     do if ← cond then body; fp ()
        else return ()
 
 -- TODO Make while loop return non-unit value
 noncomputable
-def while_loop (cond : Program s Bool) (body : Program s Unit) : Program s Unit :=
+def while_loop (cond : ProgramDenotation s Bool) (body : ProgramDenotation s Unit) :
+    ProgramDenotation s Unit :=
   recursion (while_iteration cond body) ()
 
-theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
+theorem while_unroll (cond : ProgramDenotation s Bool) (body : ProgramDenotation s Unit) :
   while_loop cond body = do
       if ← cond then
         body
@@ -144,9 +148,10 @@ theorem while_unroll (cond : Program s Bool) (body : Program s Unit) :
   _ = _ := rfl
 
 noncomputable
-def Program.get_state : Program s s := StateT.get
+def ProgramDenotation.get_state : ProgramDenotation s s := StateT.get
 
-/-- `Program.get`/`Program.set` accept anything that forgets to a `Getter`/`Setter`
+/-- `ProgramDenotation.get`/`ProgramDenotation.set` accept anything that forgets to a
+    `Getter`/`Setter`
     — a `Getter`/`Setter` itself, or a full `Lens`/`Variable`. The value/state
     types are `outParam`s recovered from the argument, which sidesteps the Lean
     4.30 coercion that no longer fires when the value type is a metavariable. -/
@@ -159,31 +164,33 @@ instance {a s : Type} : AsSetter (Setter a s) a s := ⟨id⟩
 instance {a s : Type} : AsSetter (Lens a s) a s := ⟨Lens.toSetter⟩
 
 noncomputable
-def Program.set {T a s : Type} [AsSetter T a s] (v : T) (x : a) : Program s Unit := do
+def ProgramDenotation.set {T a s : Type} [AsSetter T a s] (v : T) (x : a) : ProgramDenotation s
+    Unit := do
     let st <- StateT.get
     let st' := (AsSetter.toS v).set x st
     StateT.set st'
 
 
 noncomputable
-def Program.get {T a s : Type} [AsGetter T a s] (v : T) : Program s a := do
+def ProgramDenotation.get {T a s : Type} [AsGetter T a s] (v : T) : ProgramDenotation s a := do
     let s <- StateT.get
     pure ((AsGetter.toG v).get s)
 
 noncomputable
-def Program.skip : Program s Unit := pure ()
+def ProgramDenotation.skip : ProgramDenotation s Unit := pure ()
 
 -- TODO: Does this already exist somewhere?
 noncomputable
-def Program.zoom (lens : Lens s t) (p : Program s a) : Program t a := fun t_val => do
+def ProgramDenotation.zoom (lens : Lens s t) (p : ProgramDenotation s a) : ProgramDenotation t a :=
+    fun t_val => do
   let (a, s') ← p (lens.get t_val)
   return (a, lens.set s' t_val)
 
-/-! ## Monad laws for `Program s` -/
+/-! ## Monad laws for `ProgramDenotation s` -/
 
 -- TODO remove (should already exist for all Monad typeclasses directly)
-lemma Program.bind_assoc {s a b c : Type}
-    (p : Program s a) (f : a → Program s b) (g : b → Program s c) :
+lemma ProgramDenotation.bind_assoc {s a b c : Type}
+    (p : ProgramDenotation s a) (f : a → ProgramDenotation s b) (g : b → ProgramDenotation s c) :
     (p >>= f) >>= g = p >>= fun x => f x >>= g := by
   funext st
   apply Subtype.ext
@@ -194,8 +201,8 @@ lemma Program.bind_assoc {s a b c : Type}
     measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
 -- TODO remove (should already exist for all Monad typeclasses directly)
-lemma Program.pure_bind {s a b : Type} (x : a) (f : a → Program s b) :
-    (pure x : Program s a) >>= f = f x := by
+lemma ProgramDenotation.pure_bind {s a b : Type} (x : a) (f : a → ProgramDenotation s b) :
+    (pure x : ProgramDenotation s a) >>= f = f x := by
   funext st
   apply Subtype.ext
   letI : MeasurableSpace (a × s) := ⊤
@@ -203,7 +210,7 @@ lemma Program.pure_bind {s a b : Type} (x : a) (f : a → Program s b) :
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (x, st)
 
 -- TODO remove (should already exist for all Monad typeclasses directly)
-lemma Program.bind_pure {s a : Type} (m : Program s a) :
+lemma ProgramDenotation.bind_pure {s a : Type} (m : ProgramDenotation s a) :
     m >>= pure = m := by
   funext st
   apply Subtype.ext
@@ -215,14 +222,14 @@ lemma Program.bind_pure {s a : Type} (m : Program s a) :
   rw [MeasureTheory.Measure.bind_dirac_eq_map (m st).1 measurable_id]
   exact MeasureTheory.Measure.map_id
 
-lemma Program.bot_bind {s a b : Type} (f : a → Program s b) :
-    (⊥ : Program s a) >>= f = ⊥ := by
+lemma ProgramDenotation.bot_bind {s a b : Type} (f : a → ProgramDenotation s b) :
+    (⊥ : ProgramDenotation s a) >>= f = ⊥ := by
   funext st
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_left _
 
-lemma Program.bind_bot {s a b : Type} (m : Program s a) :
-    m >>= (fun _ => (⊥ : Program s b)) = ⊥ := by
+lemma ProgramDenotation.bind_bot {s a b : Type} (m : ProgramDenotation s a) :
+    m >>= (fun _ => (⊥ : ProgramDenotation s b)) = ⊥ := by
   funext st
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
@@ -262,7 +269,8 @@ instance : Compl (Footprint m) where
     by simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _⟩
 
 
-def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a)
+def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.inRange {s a : Type} (p :
+    ProgramDenotation s a)
   (R : Footprint s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (fun st => do let st' <- f st; let (x, st'') <- p st'; return (x,st''))
@@ -276,10 +284,12 @@ def Footprint.from (generators : Set (m -> SubProbability m)) : Footprint m wher
     simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _
 
 /- The smallest DetermFootprint in which `p` lives. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.rangeUnit2 {s a : Type} (p : Program s Unit)
+noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.rangeUnit2 {s a : Type} (p
+    : ProgramDenotation s Unit)
   : Footprint s := Footprint.from { fun st => do let (_,st') <- p st; return st' }
 
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range2 {s a : Type} (p : Program s a)
+noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.range2 {s a : Type} (p :
+    ProgramDenotation s a)
   : Footprint s := Footprint.from { fun st => do let (x,st') <- p st; if (x ≠ y) then ⊥ else ⊤; return st' | y : a }
 
 /- Litmus test: p.inRange R <-> p.range <= R  -/

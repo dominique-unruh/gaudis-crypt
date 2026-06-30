@@ -7,21 +7,21 @@ import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.Prhl
 
 /-!
-# pRHL: a probabilistic relational Hoare logic for `Program`
+# pRHL: a probabilistic relational Hoare logic for `ProgramDenotation`
 
 A relational layer over the unary wp calculus, in the EasyCrypt/CertiCrypt
 tradition but with a wp-based (coupling-free) semantics:
 
 ```
-Program.rel  p q Pre Post  :=
+ProgramDenotation.rel  p q Pre Post  :=
   ∀ F G, (∀ x y, Post x y → F x ≤ G y) →
     ∀ σ₁ σ₂, Pre σ₁ σ₂ → p.wp F σ₁ ≤ q.wp G σ₂
-Program.relE p q Pre Post  :=  rel in both directions
+ProgramDenotation.relE p q Pre Post  :=  rel in both directions
 ```
 
 All rules are derived as lemmas from the unary wp lemma base (CertiCrypt's
 "semantic setting" methodology): if the rule set is insufficient, fall back
-to `wp` reasoning or `Program.ext_of_wp`.
+to `wp` reasoning or `ProgramDenotation.ext_of_wp`.
 
 ## Module layout
 
@@ -61,7 +61,7 @@ to `wp` reasoning or `Program.ext_of_wp`.
 4. ✅ Migration: `schema_inner_equation`'s proof is now the relational
    client; its 280-line unary proof, `maxHeartbeats 1600000`, and ~700-line
    private support block are deleted (GuessExperiment.lean: 1407 → 483).
-5. Parallel track: `glob`/`Program.range` synthesis automation to discharge
+5. Parallel track: `glob`/`ProgramDenotation.range` synthesis automation to discharge
    `inRange` side conditions (gates roughly a third of the compression).
 6. ✅ Symmetric-`relE` principle: `Coupling.lean` — an explicit coupling
    witness yields both `relE` directions at once (`relE.of_coupling`, with

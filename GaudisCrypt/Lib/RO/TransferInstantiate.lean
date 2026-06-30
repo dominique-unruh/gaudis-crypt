@@ -3,9 +3,10 @@ import GaudisCrypt.Lib.RO.InstantiateCommon
 /-!
 # Transfer instantiate (theorem 1)
 
-Lazy/eager **distribution** equivalence (`Program.transfer`) for a syntactic adversary: the
+Lazy/eager **distribution** equivalence (`ProgramDenotation.transfer`) for a syntactic adversary:
+    the
 `transferBy` calculus, `Stable`/`Loc`, the body/wrapper lemmas, and the single confinement entry
-point `Program.transfer_instantiate_of_fvP`.
+point `ProgramDenotation.transfer_instantiate_of_fvP`.
 -/
 
 namespace GaudisCrypt.Lib.RO.Instantiate
@@ -18,7 +19,7 @@ open Classical
 
 /-! ## Generic `transferBy` calculus
 
-`Program.transfer` is `transferBy convert`.  We need the same relation at the
+`ProgramDenotation.transfer` is `transferBy convert`.  We need the same relation at the
 `ProcedureState` level (with `convertL`), so we factor out a generic version
 `transferBy c p q := (p >>= a => c >>= _ => pure a) = (c >>= _ => q)` over an
 arbitrary "convert" program `c`, prove the monad-law combinators once, and a
@@ -26,47 +27,50 @@ arbitrary "convert" program `c`, prove the monad-law combinators once, and a
 morphism, so any state-level transfer lifts to a zoomed `ProcedureState` one. -/
 
 /-- Generic transfer: `c` slides from after `p` to before `q`, preserving the value. -/
-def transferBy {s α : Type} (c : Program s Unit) (p q : Program s α) : Prop :=
+def transferBy {s α : Type} (c : ProgramDenotation s Unit) (p q : ProgramDenotation s α) : Prop :=
   (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => q)
 
 
 /-- `pure` transfers to itself (generic). -/
-theorem transferBy_pure {s α : Type} {c : Program s Unit} (a : α) :
+theorem transferBy_pure {s α : Type} {c : ProgramDenotation s Unit} (a : α) :
     transferBy c (pure a) (pure a) := by
-  show ((pure a : Program s α) >>= fun a' => c >>= fun _ => pure a') = (c >>= fun _ => pure a)
-  rw [Program.pure_bind]
+  show ((pure a : ProgramDenotation s α) >>= fun a' => c >>= fun _ => pure a') = (c >>= fun _ =>
+      pure a)
+  rw [ProgramDenotation.pure_bind]
 
 
-/-- `transferBy` chains under `>>=` (generic; copy of `Program.transfer_bind`). -/
-theorem transferBy_bind {s α β : Type} {c : Program s Unit}
-    {p q : Program s α} {p' q' : α → Program s β}
+/-- `transferBy` chains under `>>=` (generic; copy of `ProgramDenotation.transfer_bind`). -/
+theorem transferBy_bind {s α β : Type} {c : ProgramDenotation s Unit}
+    {p q : ProgramDenotation s α} {p' q' : α → ProgramDenotation s β}
     (h : transferBy c p q) (h' : ∀ a, transferBy c (p' a) (q' a)) :
     transferBy c (p >>= p') (q >>= q') := by
   show ((p >>= p') >>= fun b => c >>= fun _ => pure b) = (c >>= fun _ => q >>= q')
-  rw [Program.bind_assoc]
+  rw [ProgramDenotation.bind_assoc]
   conv_lhs =>
     rhs; ext a
-    rw [show (p' a >>= fun b => c >>= fun _ => (Pure.pure b : Program s β))
+    rw [show (p' a >>= fun b => c >>= fun _ => (Pure.pure b : ProgramDenotation s β))
           = (c >>= fun _ => q' a) from h' a]
   conv_lhs =>
     rhs; ext a
     rw [show (c >>= fun _ => q' a)
-          = (c >>= fun _ => (Pure.pure a : Program s α)) >>= q' from by
-        rw [Program.bind_assoc]; congr 1; funext _; rw [Program.pure_bind]]
-  rw [← Program.bind_assoc]
-  rw [show (p >>= fun a => c >>= fun _ => (Pure.pure a : Program s α))
+          = (c >>= fun _ => (Pure.pure a : ProgramDenotation s α)) >>= q' from by
+        rw [ProgramDenotation.bind_assoc]; congr 1; funext _; rw [ProgramDenotation.pure_bind]]
+  rw [← ProgramDenotation.bind_assoc]
+  rw [show (p >>= fun a => c >>= fun _ => (Pure.pure a : ProgramDenotation s α))
         = (c >>= fun _ => q) from h]
-  rw [Program.bind_assoc]
+  rw [ProgramDenotation.bind_assoc]
 
 
 /-- `zoom` lifts `transferBy`: a state-level transfer becomes a zoomed one. -/
 theorem transferBy_zoom {s t α : Type} (lens : Lens s t)
-    {c : Program s Unit} {p q : Program s α} (h : transferBy c p q) :
-    transferBy (Program.zoom lens c) (Program.zoom lens p) (Program.zoom lens q) := by
-  show (Program.zoom lens p >>= fun a => Program.zoom lens c >>= fun _ => pure a)
-      = (Program.zoom lens c >>= fun _ => Program.zoom lens q)
-  rw [show (fun a => Program.zoom lens c >>= fun _ => (pure a : Program t α))
-        = (fun a => Program.zoom lens (c >>= fun _ => pure a)) from by
+    {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α} (h : transferBy c p q) :
+    transferBy (ProgramDenotation.zoom lens c) (ProgramDenotation.zoom lens p)
+        (ProgramDenotation.zoom lens q) := by
+  show (ProgramDenotation.zoom lens p >>= fun a => ProgramDenotation.zoom lens c >>= fun _ => pure
+      a)
+      = (ProgramDenotation.zoom lens c >>= fun _ => ProgramDenotation.zoom lens q)
+  rw [show (fun a => ProgramDenotation.zoom lens c >>= fun _ => (pure a : ProgramDenotation t α))
+        = (fun a => ProgramDenotation.zoom lens (c >>= fun _ => pure a)) from by
       funext a; rw [zoom_bind]; congr 1; funext _; rw [zoom_pure]]
   rw [← zoom_bind, ← zoom_bind]
   rw [show (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => q) from h]
@@ -82,7 +86,7 @@ oracle hole is exempt — it is handled by the `hhole` hypothesis (later
 discharged by the per-query transfer lemma). -/
 
 /-- `p` commutes with `convertL` ("transfers to itself"). -/
-def Stable {l α : Type} (p : Program (ProcedureState l) α) : Prop :=
+def Stable {l α : Type} (p : ProgramDenotation (ProcedureState l) α) : Prop :=
   transferBy convertL p p
 
 
@@ -93,119 +97,129 @@ def Loc {holes : HoleSigs} {l : Type} : StmtWithHoles holes l → Prop
   | .skip => True
   | .sample x e => Stable (programDenotation (StmtWithHoles.sample x e : Stmt l))
   | .call' x ls b r p => Stable (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l))
-  | .hole _ x p => Stable (Program.get p) ∧ (∀ ret, Stable (Program.set x ret))
+  | .hole _ x p => Stable (ProgramDenotation.get p) ∧ (∀ ret, Stable (ProgramDenotation.set x ret))
   | .seq s1 s2 => Loc s1 ∧ Loc s2
-  | .ifThenElse c t e => Stable (Program.get c) ∧ Loc t ∧ Loc e
-  | .while c t => Stable (Program.get c) ∧ Loc t
+  | .ifThenElse c t e => Stable (ProgramDenotation.get c) ∧ Loc t ∧ Loc e
+  | .while c t => Stable (ProgramDenotation.get c) ∧ Loc t
 
 /-! ### Generic Kleene closure of `transferBy` under `while_loop`
 
-A state-and-`c`-generic port of `Program.transfer_while_loop`.  The only step
+A state-and-`c`-generic port of `ProgramDenotation.transfer_while_loop`.  The only step
 that was RO-specific there (the condition commuting with `convert`) is taken as
 a hypothesis `h_cond_comm` here — at the `ProcedureState` level it is supplied
 by `Stable cond`. -/
 
 /-- Intermediate iteration: the lazy body, but with `c` in the else branch. -/
-private noncomputable def whileBy_Ψ {s : Type} (c : Program s Unit)
-    (cond : Program s Bool) (body_lazy : Program s Unit) :
-    (Unit → Program s Unit) →𝒄 (Unit → Program s Unit) :=
-  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → Program s Unit) => fun () =>
+private noncomputable def whileBy_Ψ {s : Type} (c : ProgramDenotation s Unit)
+    (cond : ProgramDenotation s Bool) (body_lazy : ProgramDenotation s Unit) :
+    (Unit → ProgramDenotation s Unit) →𝒄 (Unit → ProgramDenotation s Unit) :=
+  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → ProgramDenotation s Unit) => fun ()
+      =>
     do if ← cond then body_lazy; fp () else c
 
 
 /-- Lazy iterate composed with `c` equals the `Ψ`-iterate. -/
-private lemma whileBy_kleene_lazy {s : Type} (c : Program s Unit)
-    (cond : Program s Bool) (body_lazy : Program s Unit) :
+private lemma whileBy_kleene_lazy {s : Type} (c : ProgramDenotation s Unit)
+    (cond : ProgramDenotation s Bool) (body_lazy : ProgramDenotation s Unit) :
     ∀ n : ℕ,
-    (((while_iteration cond body_lazy)^[n] (⊥ : Unit → Program s Unit)) () >>= (fun _ => c))
-    = ((whileBy_Ψ c cond body_lazy)^[n] (⊥ : Unit → Program s Unit)) () := by
+    (((while_iteration cond body_lazy)^[n] (⊥ : Unit → ProgramDenotation s Unit)) () >>= (fun _ =>
+        c))
+    = ((whileBy_Ψ c cond body_lazy)^[n] (⊥ : Unit → ProgramDenotation s Unit)) () := by
   intro n
   induction n with
   | zero =>
-    change ((⊥ : Program s Unit) >>= fun _ => c) = (⊥ : Program s Unit)
-    exact Program.bot_bind _
+    change ((⊥ : ProgramDenotation s Unit) >>= fun _ => c) = (⊥ : ProgramDenotation s Unit)
+    exact ProgramDenotation.bot_bind _
   | succ n ih =>
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
     change (((cond) >>= fun b =>
               if b = true then body_lazy >>= fun _ => ((while_iteration cond body_lazy)^[n] ⊥) ()
-              else (pure () : Program s Unit)) >>= fun _ => c)
+              else (pure () : ProgramDenotation s Unit)) >>= fun _ => c)
         = (cond) >>= fun b =>
               if b = true then body_lazy >>= fun _ => ((whileBy_Ψ c cond body_lazy)^[n] ⊥) ()
               else c
-    rw [Program.bind_assoc]
+    rw [ProgramDenotation.bind_assoc]
     congr 1; funext b
     by_cases h : b = true
-    · simp only [h, if_true]; rw [Program.bind_assoc]; congr 1; funext _; exact ih
-    · simp only [h, if_false]; exact Program.pure_bind () _
+    · simp only [h, if_true]; rw [ProgramDenotation.bind_assoc]; congr 1; funext _; exact ih
+    · simp only [h, if_false]; exact ProgramDenotation.pure_bind () _
 
 
 /-- `c` prepended to the eager iterate equals the `Ψ`-iterate. -/
-private lemma whileBy_kleene_eager {s : Type} (c : Program s Unit) {cond : Program s Bool}
-    (h_cond_comm : ∀ {β : Type} (k : Bool → Program s β),
+private lemma whileBy_kleene_eager {s : Type} (c : ProgramDenotation s Unit) {cond :
+    ProgramDenotation s Bool}
+    (h_cond_comm : ∀ {β : Type} (k : Bool → ProgramDenotation s β),
         (cond >>= fun b => c >>= fun _ => k b) = (c >>= fun _ => cond >>= k))
-    {body_lazy body_eager : Program s Unit}
+    {body_lazy body_eager : ProgramDenotation s Unit}
     (h_body : (body_lazy >>= fun _ : Unit => c) = (c >>= fun _ : Unit => body_eager)) :
     ∀ n : ℕ,
-    c >>= (fun _ => ((while_iteration cond body_eager)^[n] (⊥ : Unit → Program s Unit)) ())
-    = ((whileBy_Ψ c cond body_lazy)^[n] (⊥ : Unit → Program s Unit)) () := by
+    c >>= (fun _ => ((while_iteration cond body_eager)^[n] (⊥ : Unit → ProgramDenotation s Unit))
+        ())
+    = ((whileBy_Ψ c cond body_lazy)^[n] (⊥ : Unit → ProgramDenotation s Unit)) () := by
   intro n
   induction n with
   | zero =>
-    change (c >>= fun _ => (⊥ : Program s Unit)) = (⊥ : Program s Unit)
-    exact Program.bind_bot _
+    change (c >>= fun _ => (⊥ : ProgramDenotation s Unit)) = (⊥ : ProgramDenotation s Unit)
+    exact ProgramDenotation.bind_bot _
   | succ n ih =>
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
     change (c >>= fun _ => (cond) >>= fun b =>
               if b = true then body_eager >>= fun _ => ((while_iteration cond body_eager)^[n] ⊥) ()
-              else (pure () : Program s Unit))
+              else (pure () : ProgramDenotation s Unit))
         = (cond) >>= fun b =>
               if b = true then body_lazy >>= fun _ => ((whileBy_Ψ c cond body_lazy)^[n] ⊥) ()
               else c
     rw [show (c >>= fun _ => (cond) >>=
               fun b => if b = true then body_eager >>= fun _ =>
-                  ((while_iteration cond body_eager)^[n] ⊥) () else (pure () : Program s Unit))
+                  ((while_iteration cond body_eager)^[n] ⊥) () else (pure () : ProgramDenotation s
+                      Unit))
             = ((cond) >>= fun b => c >>= fun _ =>
                 if b = true then body_eager >>= fun _ =>
-                  ((while_iteration cond body_eager)^[n] ⊥) () else (pure () : Program s Unit)) from
+                  ((while_iteration cond body_eager)^[n] ⊥) () else (pure () : ProgramDenotation s
+                      Unit)) from
         (h_cond_comm _).symm]
     congr 1; funext b
     by_cases h : b = true
     · simp only [h, if_true]
-      rw [← Program.bind_assoc]
+      rw [← ProgramDenotation.bind_assoc]
       rw [show (c >>= fun _ : Unit => body_eager) = (body_lazy >>= fun _ : Unit => c) from h_body.symm]
-      rw [Program.bind_assoc]; congr 1; funext _; exact ih
-    · simp only [h, if_false]; exact Program.bind_pure _
+      rw [ProgramDenotation.bind_assoc]; congr 1; funext _; exact ih
+    · simp only [h, if_false]; exact ProgramDenotation.bind_pure _
 
 
 /-- **Generic `while_loop` closure for `transferBy`.** -/
-theorem transferBy_while_loop {s : Type} (c : Program s Unit) {cond : Program s Bool}
-    (h_cond_comm : ∀ {β : Type} (k : Bool → Program s β),
+theorem transferBy_while_loop {s : Type} (c : ProgramDenotation s Unit) {cond : ProgramDenotation s
+    Bool}
+    (h_cond_comm : ∀ {β : Type} (k : Bool → ProgramDenotation s β),
         (cond >>= fun b => c >>= fun _ => k b) = (c >>= fun _ => cond >>= k))
-    {body_lazy body_eager : Program s Unit}
+    {body_lazy body_eager : ProgramDenotation s Unit}
     (h_body : (body_lazy >>= fun _ : Unit => c) = (c >>= fun _ : Unit => body_eager)) :
     transferBy c (while_loop cond body_lazy) (while_loop cond body_eager) := by
-  show (while_loop cond body_lazy >>= fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : Program s Unit))
+  show (while_loop cond body_lazy >>= fun u : Unit => c >>= fun _ : Unit => (Pure.pure u :
+      ProgramDenotation s Unit))
       = (c >>= fun _ : Unit => while_loop cond body_eager)
-  rw [show (fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : Program s Unit)) = (fun _ : Unit => c) from by
+  rw [show (fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit)) = (fun _
+      : Unit => c) from by
         funext u
-        rw [show (Pure.pure u : Program s Unit) = (Pure.pure () : Program s Unit) from rfl]
-        exact Program.bind_pure _]
+        rw [show (Pure.pure u : ProgramDenotation s Unit) = (Pure.pure () : ProgramDenotation s
+            Unit) from rfl]
+        exact ProgramDenotation.bind_pure _]
   let F_lazy := while_iteration cond body_lazy
   let F_eager := while_iteration cond body_eager
-  have hL_chain : ∀ n, ((F_lazy^[n] ⊥ : Unit → Program s Unit) () >>= (fun _ => c))
-                     = ((whileBy_Ψ c cond body_lazy)^[n] ⊥ : Unit → Program s Unit) () :=
+  have hL_chain : ∀ n, ((F_lazy^[n] ⊥ : Unit → ProgramDenotation s Unit) () >>= (fun _ => c))
+                     = ((whileBy_Ψ c cond body_lazy)^[n] ⊥ : Unit → ProgramDenotation s Unit) () :=
     whileBy_kleene_lazy c cond body_lazy
-  have hE_chain : ∀ n, c >>= (fun _ => (F_eager^[n] ⊥ : Unit → Program s Unit) ())
-                     = ((whileBy_Ψ c cond body_lazy)^[n] ⊥ : Unit → Program s Unit) () :=
+  have hE_chain : ∀ n, c >>= (fun _ => (F_eager^[n] ⊥ : Unit → ProgramDenotation s Unit) ())
+                     = ((whileBy_Ψ c cond body_lazy)^[n] ⊥ : Unit → ProgramDenotation s Unit) () :=
     whileBy_kleene_eager c h_cond_comm h_body
   have h_bind_c_cont : OmegaCompletePartialOrder.ωScottContinuous
-      (fun (m : Program s Unit) => m >>= fun _ => c) := by fun_prop
+      (fun (m : ProgramDenotation s Unit) => m >>= fun _ => c) := by fun_prop
   have h_c_bind_cont : OmegaCompletePartialOrder.ωScottContinuous
-      (fun (m : Program s Unit) => c >>= fun _ => m) := by fun_prop
+      (fun (m : ProgramDenotation s Unit) => c >>= fun _ => m) := by fun_prop
   change (F_lazy.lfp ()) >>= (fun _ => c) = c >>= (fun _ => F_eager.lfp ())
-  let chain_lazy : OmegaCompletePartialOrder.Chain (Unit → Program s Unit) :=
+  let chain_lazy : OmegaCompletePartialOrder.Chain (Unit → ProgramDenotation s Unit) :=
     ⟨fun n => F_lazy^[n] ⊥, Monotone.monotone_iterate_of_le_map F_lazy.monotone (OrderBot.bot_le _)⟩
-  let chain_eager : OmegaCompletePartialOrder.Chain (Unit → Program s Unit) :=
+  let chain_eager : OmegaCompletePartialOrder.Chain (Unit → ProgramDenotation s Unit) :=
     ⟨fun n => F_eager^[n] ⊥, Monotone.monotone_iterate_of_le_map F_eager.monotone (OrderBot.bot_le _)⟩
   have hLfpL : F_lazy.lfp = OmegaCompletePartialOrder.ωSup chain_lazy := rfl
   have hLfpE : F_eager.lfp = OmegaCompletePartialOrder.ωSup chain_eager := rfl
@@ -222,38 +236,45 @@ theorem transferBy_while_loop {s : Type} (c : Program s Unit) {cond : Program s 
 /-- **The former hard lemma** (now proved): `transferBy convertL` is closed under
     `while_loop`.  Instantiates `transferBy_while_loop` with `c := convertL`; the
     condition-commutation comes from `Stable c` and the body bind-form from `hbody`. -/
-theorem transferL_while_loop {l : Type} {c : Program (ProcedureState l) Bool}
-    {body_lazy body_eager : Program (ProcedureState l) Unit}
+theorem transferL_while_loop {l : Type} {c : ProgramDenotation (ProcedureState l) Bool}
+    {body_lazy body_eager : ProgramDenotation (ProcedureState l) Unit}
     (hc : Stable c) (hbody : transferBy convertL body_lazy body_eager) :
     transferBy convertL (while_loop c body_lazy) (while_loop c body_eager) := by
   refine transferBy_while_loop convertL (cond := c) ?_ ?_
   · -- condition commutes with convertL, from `Stable c`
     intro β k
-    have hc' : (c >>= fun a => convertL >>= fun _ => (pure a : Program (ProcedureState l) Bool))
+    have hc' : (c >>= fun a => convertL >>= fun _ => (pure a : ProgramDenotation (ProcedureState l)
+        Bool))
              = (convertL >>= fun _ => c) := hc
-    have h_pair : (c >>= fun b => convertL >>= fun _ => (pure (b, ()) : Program (ProcedureState l) (Bool × Unit)))
+    have h_pair : (c >>= fun b => convertL >>= fun _ => (pure (b, ()) : ProgramDenotation
+        (ProcedureState l) (Bool × Unit)))
                 = (convertL >>= fun _ => c >>= fun b => pure (b, ())) := by
       have := congrArg (fun m => m >>= fun b =>
-        (pure (b, ()) : Program (ProcedureState l) (Bool × Unit))) hc'
-      simpa only [Program.bind_assoc, Program.pure_bind] using this
+        (pure (b, ()) : ProgramDenotation (ProcedureState l) (Bool × Unit))) hc'
+      simpa only [ProgramDenotation.bind_assoc, ProgramDenotation.pure_bind] using this
     have hL : (c >>= fun b => convertL >>= fun _ => k b)
             = (c >>= fun b => convertL >>= fun _ =>
-                (pure (b, ()) : Program (ProcedureState l) (Bool × Unit))) >>= fun bu => k bu.1 := by
-      simp_rw [Program.bind_assoc]; congr 1; funext b; congr 1; funext u; rw [Program.pure_bind]
+                (pure (b, ()) : ProgramDenotation (ProcedureState l) (Bool × Unit))) >>= fun bu => k
+                    bu.1 := by
+      simp_rw [ProgramDenotation.bind_assoc]; congr 1; funext b; congr 1; funext u; rw
+          [ProgramDenotation.pure_bind]
     have hR : (convertL >>= fun _ => c >>= k)
             = (convertL >>= fun _ => c >>= fun b =>
-                (pure (b, ()) : Program (ProcedureState l) (Bool × Unit))) >>= fun bu => k bu.1 := by
-      simp_rw [Program.bind_assoc]; congr 1; funext u; congr 1; funext b; rw [Program.pure_bind]
+                (pure (b, ()) : ProgramDenotation (ProcedureState l) (Bool × Unit))) >>= fun bu => k
+                    bu.1 := by
+      simp_rw [ProgramDenotation.bind_assoc]; congr 1; funext u; congr 1; funext b; rw
+          [ProgramDenotation.pure_bind]
     rw [hL, hR, h_pair]
   · -- body bind-form, from `hbody`
     calc (body_lazy >>= fun _ : Unit => convertL)
         = (body_lazy >>= fun u : Unit =>
-              convertL >>= fun _ : Unit => (Pure.pure u : Program (ProcedureState l) Unit)) := by
+              convertL >>= fun _ : Unit => (Pure.pure u : ProgramDenotation (ProcedureState l)
+                  Unit)) := by
           congr 1; funext u
           show convertL = convertL >>= fun _ : Unit => Pure.pure u
-          rw [show (Pure.pure u : Program (ProcedureState l) Unit)
-                = (Pure.pure () : Program (ProcedureState l) Unit) from rfl]
-          exact (Program.bind_pure _).symm
+          rw [show (Pure.pure u : ProgramDenotation (ProcedureState l) Unit)
+                = (Pure.pure () : ProgramDenotation (ProcedureState l) Unit) from rfl]
+          exact (ProgramDenotation.bind_pure _).symm
       _ = (convertL >>= fun _ : Unit => body_eager) := hbody
 
 
@@ -268,7 +289,7 @@ theorem body_transfer_gen :
       (∀ {sig} (n : HoleIndex holes sig)
           (x : Setter sig.ret (ProcedureState l))
           (p : Getter sig.ParamType (ProcedureState l)),
-          Stable (Program.get p) → (∀ ret, Stable (Program.set x ret)) →
+          Stable (ProgramDenotation.get p) → (∀ ret, Stable (ProgramDenotation.set x ret)) →
           transferBy convertL (programDenotation (StmtWithHoles.call x (lazyInst n) p))
             (programDenotation (StmtWithHoles.call x (eagerInst n) p))) →
       transferBy convertL (programDenotation (A.instantiate lazyInst))
@@ -313,12 +334,12 @@ theorem body_transfer_gen :
 /-- **Discharge of the oracle hypothesis for RO**: the lazy and eager oracle
     calls transfer, given the surrounding read/write are stable.  This is the
     concrete `hhole` for `body_transfer_gen` with `RO_lazy`/`RO_eager`: the
-    query itself transfers by `Program.transfer_lazy_query` (lifted via
+    query itself transfers by `ProgramDenotation.transfer_lazy_query` (lifted via
     `transferBy_zoom`), and the bridges identify the procedures with the
     semantic queries. -/
 theorem ro_hhole {l : Type} {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
     (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
-    (hp : Stable (Program.get p)) (hx : ∀ ret, Stable (Program.set x ret)) :
+    (hp : Stable (ProgramDenotation.get p)) (hx : ∀ ret, Stable (ProgramDenotation.set x ret)) :
     transferBy convertL (programDenotation (StmtWithHoles.call x (RO_lazy n) p))
       (programDenotation (StmtWithHoles.call x (RO_eager n) p)) := by
   cases n with
@@ -328,7 +349,7 @@ theorem ro_hhole {l : Type} {sig : ProcedureSignature} (n : HoleIndex roHoles si
       rw [denote_call, denote_call]
       refine transferBy_bind hp (fun args => transferBy_bind ?_ (fun ret => hx ret))
       rw [procDenotation_RO_lazy, procDenotation_RO_eager]
-      exact transferBy_zoom ProcedureState.globalL (Program.transfer_lazy_query args)
+      exact transferBy_zoom ProcedureState.globalL (ProgramDenotation.transfer_lazy_query args)
   | succ m => nomatch m
 
 
@@ -345,10 +366,11 @@ theorem transfer_instantiate_body {l : Type} (A : StmtWithHoles roHoles l) (hloc
 /-- **`convertL` slides in**: `convert` before the wrapper = `convertL` before the
     body, inside the wrapper.  Structural (no return-value hypothesis). -/
 theorem procWrap_convertL_in {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : Program (ProcedureState L) Unit) :
+    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : ProgramDenotation (ProcedureState L)
+        Unit) :
     procWrap rv initL (convertL >>= fun _ => B) = (convert >>= fun _ => procWrap rv initL B) := by
   funext st
-  simp only [procWrap, convertL, Program.zoom, bind, StateT.bind, pure, StateT.pure,
+  simp only [procWrap, convertL, ProgramDenotation.zoom, bind, StateT.bind, pure, StateT.pure,
     ProcedureState.globalL]
   generalize convert st = U
   obtain ⟨mu, hmu⟩ := U
@@ -357,17 +379,19 @@ theorem procWrap_convertL_in {sig : ProcedureSignature} {L : Type}
   rfl
 
 
-/-- `Program.get rv` reads `rv` and threads the state through unchanged. -/
+/-- `ProgramDenotation.get rv` reads `rv` and threads the state through unchanged. -/
 theorem programGet_eq {sig : ProcedureSignature} {L : Type} (rv : Getter sig.ret (ProcedureState L)) :
-    (Program.get rv : Program (ProcedureState L) sig.ret) = fun ps => pure (rv.get ps, ps) := by
+    (ProgramDenotation.get rv : ProgramDenotation (ProcedureState L) sig.ret) = fun ps => pure
+        (rv.get ps, ps) := by
   funext ps
-  simp only [Program.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure, StateT.pure,
+  simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure, StateT.pure,
     id_eq, SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top]
 
 
 /-- From `hret`: reading `rv` commutes with `convertL` (clean `convertL`-form). -/
 theorem rv_convertL_stable {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (Program.get rv)) (ps : ProcedureState L) :
+    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (ProgramDenotation.get rv)) (ps :
+        ProcedureState L) :
     (convertL ps >>= fun q => pure (rv.get ps, q.2)) = (convertL ps >>= fun q => pure (rv.get q.2, q.2)) := by
   have h := congrFun hret ps
   simp only [Stable, transferBy, programGet_eq, bind, StateT.bind, pure, StateT.pure,
@@ -378,13 +402,15 @@ theorem rv_convertL_stable {sig : ProcedureSignature} {L : Type}
 /-- `key`: reading `rv` is invariant under `convert` changing the table (the global
     component of `rv_convertL_stable`). -/
 theorem rv_convert_invariant {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (Program.get rv)) (ps : ProcedureState L) :
+    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (ProgramDenotation.get rv)) (ps :
+        ProcedureState L) :
     (convert ps.global >>= fun w => pure (rv.get ps, w.2))
       = (convert ps.global >>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
   have hc := rv_convertL_stable rv hret ps
   have hp := congrArg (fun (m : SubProbability (sig.ret × ProcedureState L)) =>
       m >>= fun p => (pure (p.1, p.2.global) : SubProbability (sig.ret × state))) hc
-  simp only [convertL, Program.zoom, ProcedureState.globalL, bind, StateT.bind, pure, StateT.pure,
+  simp only [convertL, ProgramDenotation.zoom, ProcedureState.globalL, bind, StateT.bind, pure,
+      StateT.pure,
     SubProbability.bind_assoc', SubProbability.pure_bind] at hp ⊢
   generalize convert ps.global = U at hp ⊢
   obtain ⟨mu, hmu⟩ := U
@@ -398,12 +424,13 @@ set_option maxHeartbeats 1000000 in
     body, inside the wrapper.  Consumes `hret` (the return value is RO-disjoint,
     so reading it commutes with `convert` changing the table) via `rv_convert_invariant`. -/
 theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : Program (ProcedureState L) Unit)
-    (hret : Stable (Program.get rv)) :
+    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : ProgramDenotation (ProcedureState L)
+        Unit)
+    (hret : Stable (ProgramDenotation.get rv)) :
     (procWrap rv initL B >>= fun r => convert >>= fun _ => pure r)
       = procWrap rv initL (B >>= fun a => convertL >>= fun _ => pure a) := by
   funext st
-  simp only [procWrap, convertL, Program.zoom, ProcedureState.globalL, bind, StateT.bind,
+  simp only [procWrap, convertL, ProgramDenotation.zoom, ProcedureState.globalL, bind, StateT.bind,
     pure, StateT.pure]
   generalize B ⟨st, initL⟩ = Bv
   obtain ⟨mb, hb⟩ := Bv
@@ -423,15 +450,15 @@ theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
 
 
 /-- **Procedure wrapper**: a body-level `transferBy convertL` lifts to a
-    state-level `Program.transfer` of the whole procedure denotation, provided
+    state-level `ProgramDenotation.transfer` of the whole procedure denotation, provided
     the return value is RO-disjoint.  Assembled from `procedureDenotation_eq_procWrap`,
     `procWrap_convert_out` (uses `hret`), `hbody`, and `procWrap_convertL_in`. -/
 theorem transfer_wrapper {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (hbody : transferBy convertL (programDenotation (A.body.instantiate RO_lazy))
               (programDenotation (A.body.instantiate RO_eager)))
-    (hret : Stable (Program.get A.return_val)) :
-    Program.transfer
+    (hret : Stable (ProgramDenotation.get A.return_val)) :
+    ProgramDenotation.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) := by
   rw [procedureDenotation_eq_procWrap A args RO_lazy, procedureDenotation_eq_procWrap A args RO_eager]
@@ -450,28 +477,30 @@ theorem transfer_wrapper {sig : ProcedureSignature}
     `commute_of_disjoint_footprint` disjointness hypothesis `le_refl`, so no `complement_range` analog
     is needed. -/
 theorem stable_of_inFootprint_compl {l α : Type}
-    {p : Program (ProcedureState l) α} (hp : p.inFootprint ((roLift l).footprint)ᶜ) : Stable p := by
+    {p : ProgramDenotation (ProcedureState l) α} (hp : p.inFootprint ((roLift l).footprint)ᶜ) :
+        Stable p := by
   show (p >>= fun a => convertL >>= fun _ => pure a) = (convertL >>= fun _ => p)
   have h_commute : (p >>= fun a => convertL >>= fun b => pure (a, b))
                  = (convertL >>= fun b => p >>= fun a => pure (a, b)) :=
-    Program.commute_of_disjoint_footprint hp convertL_inFootprint (le_refl _)
+    ProgramDenotation.commute_of_disjoint_footprint hp convertL_inFootprint (le_refl _)
   have hL : (p >>= fun a => convertL >>= fun b => pure (a, b)) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
-          = (p >>= fun a => convertL >>= fun _ => (Pure.pure a : Program (ProcedureState l) α)) := by
-    rw [Program.bind_assoc]; congr 1; funext a
-    rw [Program.bind_assoc]; congr 1; funext _
-    rw [Program.pure_bind]
+              (fun ab : α × Unit => (Pure.pure ab.1 : ProgramDenotation (ProcedureState l) α))
+          = (p >>= fun a => convertL >>= fun _ => (Pure.pure a : ProgramDenotation (ProcedureState
+              l) α)) := by
+    rw [ProgramDenotation.bind_assoc]; congr 1; funext a
+    rw [ProgramDenotation.bind_assoc]; congr 1; funext _
+    rw [ProgramDenotation.pure_bind]
   have hR : (convertL >>= fun b => p >>= fun a => pure (a, b)) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
+              (fun ab : α × Unit => (Pure.pure ab.1 : ProgramDenotation (ProcedureState l) α))
           = (convertL >>= fun _ => p) := by
-    rw [Program.bind_assoc]
+    rw [ProgramDenotation.bind_assoc]
     congr 1; funext _
-    rw [Program.bind_assoc]
+    rw [ProgramDenotation.bind_assoc]
     rw [show (fun a : α => pure (a, ()) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α)))
-          = (fun a : α => (Pure.pure a : Program (ProcedureState l) α)) from by
-        funext a; rw [Program.pure_bind]]
-    exact Program.bind_pure _
+              (fun ab : α × Unit => (Pure.pure ab.1 : ProgramDenotation (ProcedureState l) α)))
+          = (fun a : α => (Pure.pure a : ProgramDenotation (ProcedureState l) α)) from by
+        funext a; rw [ProgramDenotation.pure_bind]]
+    exact ProgramDenotation.bind_pure _
   rw [← hL, h_commute, hR]
 
 
@@ -480,8 +509,8 @@ theorem stable_of_inFootprint_compl {l α : Type}
     `ᶜ`-form bound `hdisj` feeds `inFootprint_mono` directly. -/
 theorem stable_of_confinedP_lens {l α advSt : Type}
     (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.footprint ≤ ((roLift l).footprint)ᶜ)
-    {p : Program (ProcedureState l) α} (hp : p.inFootprint L_adv.footprint) : Stable p :=
-  stable_of_inFootprint_compl (Program.inFootprint_mono hp hdisj)
+    {p : ProgramDenotation (ProcedureState l) α} (hp : p.inFootprint L_adv.footprint) : Stable p :=
+  stable_of_inFootprint_compl (ProgramDenotation.inFootprint_mono hp hdisj)
 
 
 /-- **`ConfinedP` discharges `Loc`** (theorem-1 locality), leaf by leaf — reusing the existing
@@ -510,13 +539,13 @@ theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
     the RO table — derived entirely from the footprint hypotheses, with no per-leaf confinement to
     check by hand.  Inlines the whole `fvP → ConfinedP → Loc → transfer` chain — the sole entry
     point (the intermediate `Loc`/`ConfinedP`-form theorems were collapsed into this one). -/
-theorem Program.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
+theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
     (hdisj : L_adv.footprint ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
     (hbody : fvP_stmt A.body ≤ L_adv.footprint)
-    (hret : (Program.get A.return_val).footprint ≤ L_adv.footprint) :
-    Program.transfer
+    (hret : (ProgramDenotation.get A.return_val).footprint ≤ L_adv.footprint) :
+    ProgramDenotation.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=
   transfer_wrapper A args

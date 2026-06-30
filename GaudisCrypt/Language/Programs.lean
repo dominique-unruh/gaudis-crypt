@@ -268,24 +268,26 @@ def StmtWithHoles.depth {h l} : StmtWithHoles h l → Nat
 
 mutual
 noncomputable
-def programDenotation : Stmt l → Program (ProcedureState l) Unit
-| .skip => Program.skip
--- | .assign x e => do let v <- Program.get e; Program.set x v
-| .sample x e => do let μ : SubProbability _ <- Program.get e; let v <- μ.toProgram; Program.set x v
+def programDenotation : Stmt l → ProgramDenotation (ProcedureState l) Unit
+| .skip => ProgramDenotation.skip
+-- | .assign x e => do let v <- ProgramDenotation.get e; ProgramDenotation.set x v
+| .sample x e => do let μ : SubProbability _ <- ProgramDenotation.get e; let v <-
+    μ.toProgramDenotation; ProgramDenotation.set x v
 | .seq p q => do let _ <- programDenotation p; programDenotation q
-| .ifThenElse c p q => do if ← Program.get c then programDenotation p else programDenotation q
-| .while c p => while_loop (Program.get c) (programDenotation p)
+| .ifThenElse c p q => do if ← ProgramDenotation.get c then programDenotation p else
+    programDenotation q
+| .while c p => while_loop (ProgramDenotation.get c) (programDenotation p)
 | .call' (sig:=sig) (x : Setter sig.ret _) locals body ret args => do
     let proc : Procedure sig := ⟨locals, body, ret⟩
-    let argValues <- Program.get args
-    let retVal <- Program.zoom ProcedureState.globalL (procedureDenotation proc argValues)
-    Program.set x retVal
+    let argValues <- ProgramDenotation.get args
+    let retVal <- ProgramDenotation.zoom ProcedureState.globalL (procedureDenotation proc argValues)
+    ProgramDenotation.set x retVal
 termination_by stmt => (stmt.depth, 0)
 decreasing_by all_goals simp [StmtWithHoles.depth, Prod.lex_def]
 
 noncomputable
 def procedureDenotation {sig} (proc : Procedure sig) (args : sig.ParamType) :
-   Program State sig.ret := fun st => do
+   ProgramDenotation State sig.ret := fun st => do
     let procLocalSt := sig.localVariableInit proc.locals args
     let (_, procFinalSt) <-
       programDenotation (l := sig.LocalVariableState proc.locals) proc.body ⟨st, procLocalSt⟩

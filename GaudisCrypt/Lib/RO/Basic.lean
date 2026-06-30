@@ -57,57 +57,57 @@ instance : DecidableEq input := sorry
 /-- Sample the entire `input → output` function space uniformly and store it
     in the random oracle (as the eager initialisation). -/
 noncomputable def random_oracle_init := do
-  let (h : input -> output) <- Program.uniform
-  Program.set random_oracle_state (fun x => some (h x))
+  let (h : input -> output) <- ProgramDenotation.uniform
+  ProgramDenotation.set random_oracle_state (fun x => some (h x))
 
 /-- Initialise the random oracle with no cached entries (lazy initialisation). -/
-noncomputable def lazy_init : Program state Unit :=
-  Program.set random_oracle_state (fun _ => none)
+noncomputable def lazy_init : ProgramDenotation state Unit :=
+  ProgramDenotation.set random_oracle_state (fun _ => none)
 
 /-- Lazy random-oracle query: return the cached output if present, otherwise
     sample uniformly and cache. -/
-noncomputable def lazy_query (inp : input) : Program state output := do
-  let h <- Program.get random_oracle_state
+noncomputable def lazy_query (inp : input) : ProgramDenotation state output := do
+  let h <- ProgramDenotation.get random_oracle_state
   let cached := h inp
   match cached with
   | some x => return x
   | none =>
-    let value <- Program.uniform
-    Program.set random_oracle_state (fun x => if x=inp then some value else h x)
+    let value <- ProgramDenotation.uniform
+    ProgramDenotation.set random_oracle_state (fun x => if x=inp then some value else h x)
     return value
 
 /-- Eager random-oracle query: read the (pre-sampled) value at `inp`. -/
-noncomputable def random_oracle_query (inp : input) : Program state output := do
-  let h <- Program.get random_oracle_state
+noncomputable def random_oracle_query (inp : input) : ProgramDenotation state output := do
+  let h <- ProgramDenotation.get random_oracle_state
   return (h inp).getD default
 
 /-- `lazy_query` only reads and writes `random_oracle_state`. -/
 theorem lazy_query_inRange_ro (inp : input) :
     (lazy_query inp).inRange random_oracle_state.range := by
-  refine Program.inRange_bind (Program.inRange_get _) ?_
+  refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_get _) ?_
   intro h
   cases h inp with
-  | some x => exact Program.inRange_pure _ _
+  | some x => exact ProgramDenotation.inRange_pure _ _
   | none =>
-    refine Program.inRange_bind ?_ ?_
-    · exact Program.inRange_mono Program.inRange_uniform bot_le
+    refine ProgramDenotation.inRange_bind ?_ ?_
+    · exact ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le
     · intro value
-      refine Program.inRange_bind (Program.inRange_set _ _) ?_
+      refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_set _ _) ?_
       intro _
-      exact Program.inRange_pure _ _
+      exact ProgramDenotation.inRange_pure _ _
 
 /-- `lazy_query`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob
     analogue of `lazy_query_inRange_ro`, for the countability-free transfer migration. -/
 theorem lazy_query_inFootprint_ro (inp : input) :
     (lazy_query inp).inFootprint random_oracle_state.footprint := by
-  refine Program.inFootprint_bind (Program.inFootprint_get _) ?_
+  refine ProgramDenotation.inFootprint_bind (ProgramDenotation.inFootprint_get _) ?_
   intro h
   cases h inp with
-  | some x => exact Program.inFootprint_pure _ _
+  | some x => exact ProgramDenotation.inFootprint_pure _ _
   | none =>
-    refine Program.inFootprint_bind ?_ ?_
-    · exact Program.inFootprint_mono Program.inFootprint_uniform bot_le
+    refine ProgramDenotation.inFootprint_bind ?_ ?_
+    · exact ProgramDenotation.inFootprint_mono ProgramDenotation.inFootprint_uniform bot_le
     · intro value
-      refine Program.inFootprint_bind (Program.inFootprint_set _ _) ?_
+      refine ProgramDenotation.inFootprint_bind (ProgramDenotation.inFootprint_set _ _) ?_
       intro _
-      exact Program.inFootprint_pure _ _
+      exact ProgramDenotation.inFootprint_pure _ _

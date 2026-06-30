@@ -3,7 +3,8 @@ import GaudisCrypt.Lib.RO.InstantiateCommon
 /-!
 # RO coupling equivalence (subtask-3, theorem 2)
 
-Lazy ≈ eager random oracle as a **relational** statement (`Program.prhl`, i.e. a coupling): for a
+Lazy ≈ eager random oracle as a **relational** statement (`ProgramDenotation.prhl`, i.e. a
+    coupling): for a
 syntactic adversary `A`, instantiating `A` against the eager oracle and against the lazy oracle yields
 couplable executions preserving any state invariant `P`. The companion `TransferInstantiate` proves
 the *distributional* version (theorem 1) via transfer; this file is the coupling version.
@@ -57,7 +58,8 @@ def liftRelPost {l α : Type} (P : state → state → Prop) :
 /-- Read coupling: a getter returns equal values and preserves `liftRel P`.
     Used both for `Bool` guards (`if`/`while`) and the oracle's params getter. -/
 def GetOK {γ l : Type} (P : state → state → Prop) (g : Getter γ (ProcedureState l)) : Prop :=
-  Program.prhl2 (liftRel P) (Program.get g) (Program.get g) (liftRelPost P)
+  ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.get g) (ProgramDenotation.get g)
+      (liftRelPost P)
 
 
 /-- Honest locality for theorem 2: every operation of `A` *outside the oracle*
@@ -65,13 +67,15 @@ def GetOK {γ l : Type} (P : state → state → Prop) (g : Getter γ (Procedure
     oracle hole is exempt (handled by the per-query hypothesis). -/
 def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWithHoles holes l → Prop
   | .skip => True
-  | .sample x e => Program.prhl2 (liftRel P) (programDenotation (StmtWithHoles.sample x e : Stmt l))
+  | .sample x e => ProgramDenotation.prhl2 (liftRel P) (programDenotation (StmtWithHoles.sample x e
+      : Stmt l))
       (programDenotation (StmtWithHoles.sample x e : Stmt l)) (liftRelPost P)
-  | .call' x ls b r p => Program.prhl2 (liftRel P)
+  | .call' x ls b r p => ProgramDenotation.prhl2 (liftRel P)
       (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l))
       (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)) (liftRelPost P)
   | .hole _ x p => GetOK P p ∧
-      (∀ ret, Program.prhl2 (liftRel P) (Program.set x ret) (Program.set x ret) (liftRelPost P))
+      (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
+          (ProgramDenotation.set x ret) (liftRelPost P))
   | .seq s1 s2 => LocP P s1 ∧ LocP P s2
   | .ifThenElse c t e => GetOK P c ∧ LocP P t ∧ LocP P e
   | .while c t => GetOK P c ∧ LocP P t
@@ -103,19 +107,20 @@ theorem body_prhl2_gen :
           (x : Setter sig.ret (ProcedureState l))
           (p : Getter sig.ParamType (ProcedureState l)),
           GetOK P p →
-          (∀ ret, Program.prhl2 (liftRel P) (Program.set x ret) (Program.set x ret) (liftRelPost P)) →
-          Program.prhl2 (liftRel P)
+          (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
+              (ProgramDenotation.set x ret) (liftRelPost P)) →
+          ProgramDenotation.prhl2 (liftRel P)
             (programDenotation (StmtWithHoles.call x (eagerInst n) p))
             (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) →
-      Program.prhl2 (liftRel P)
+      ProgramDenotation.prhl2 (liftRel P)
         (programDenotation (A.instantiate eagerInst))
         (programDenotation (A.instantiate lazyInst)) (liftRelPost P) := by
   intro holes l A
   induction A with
   | skip =>
       intro eagerInst lazyInst _ _
-      simp only [StmtWithHoles.instantiate, programDenotation, Program.skip]
-      exact Program.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩)
+      simp only [StmtWithHoles.instantiate, programDenotation, ProgramDenotation.skip]
+      exact ProgramDenotation.prhl2.pure_pure (fun _ _ h => ⟨rfl, h⟩)
   | sample x e =>
       intro eagerInst lazyInst hloc _
       simp only [StmtWithHoles.instantiate]
@@ -131,21 +136,21 @@ theorem body_prhl2_gen :
   | seq s1 s2 ih1 ih2 =>
       intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate, programDenotation]
-      refine Program.prhl2.bind (ih1 eagerInst lazyInst hloc.1 hhole) (fun _ _ => ?_)
-      exact Program.prhl2.conseq (ih2 eagerInst lazyInst hloc.2 hhole)
+      refine ProgramDenotation.prhl2.bind (ih1 eagerInst lazyInst hloc.1 hhole) (fun _ _ => ?_)
+      exact ProgramDenotation.prhl2.conseq (ih2 eagerInst lazyInst hloc.2 hhole)
         (fun _ _ hpre => hpre.2) (fun _ _ hB => hB)
   | ifThenElse c t e iht ihe =>
       intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate, programDenotation]
-      exact Program.prhl2.cond hloc.1 (iht eagerInst lazyInst hloc.2.1 hhole)
+      exact ProgramDenotation.prhl2.cond hloc.1 (iht eagerInst lazyInst hloc.2.1 hhole)
         (ihe eagerInst lazyInst hloc.2.2 hhole)
   | «while» c t iht =>
       intro eagerInst lazyInst hloc hhole
       simp only [StmtWithHoles.instantiate, programDenotation]
-      refine Program.prhl2.conseq
-        (Program.prhl2.while_loop (PostC := fun _ => liftRel P) hloc.1 ?_)
+      refine ProgramDenotation.prhl2.conseq
+        (ProgramDenotation.prhl2.while_loop (PostC := fun _ => liftRel P) hloc.1 ?_)
         (fun _ _ h => h) (fun _ _ hB => ⟨rfl, hB⟩)
-      exact Program.prhl2.conseq (iht eagerInst lazyInst hloc.2 hhole)
+      exact ProgramDenotation.prhl2.conseq (iht eagerInst lazyInst hloc.2 hhole)
         (fun _ _ h => h) (fun _ _ hB => hB.2)
 
 
@@ -154,11 +159,11 @@ theorem body_prhl2_gen :
     `ProcedureState` coupling of their `zoom`s under `liftRel P`, threading the
     (equal) locals.  Used to lift the per-query hypothesis `h` to the oracle hole. -/
 theorem prhl2_zoom (l : Type) {γ : Type}
-    {c d : Program state γ} {B : γ × state → γ × state → Prop}
-    (hcd : Program.prhl2 P c d B) :
-    Program.prhl2 (liftRel (l := l) P)
-      (Program.zoom (ProcedureState.globalL (l := l)) c)
-      (Program.zoom (ProcedureState.globalL (l := l)) d)
+    {c d : ProgramDenotation state γ} {B : γ × state → γ × state → Prop}
+    (hcd : ProgramDenotation.prhl2 P c d B) :
+    ProgramDenotation.prhl2 (liftRel (l := l) P)
+      (ProgramDenotation.zoom (ProcedureState.globalL (l := l)) c)
+      (ProgramDenotation.zoom (ProcedureState.globalL (l := l)) d)
       (fun u v => B (u.1, u.2.global) (v.1, v.2.global) ∧ u.2.locals = v.2.locals) := by
   intro ps₁ ps₂ hrel
   obtain ⟨μ, hm1, hm2, hsat⟩ := hcd ps₁.global ps₂.global hrel.1
@@ -184,29 +189,31 @@ theorem prhl2_zoom (l : Type) {γ : Type}
     the procedures with the semantic queries).  This is `body_prhl2_gen`'s `hhole`
     for the RO instantiation. -/
 theorem ro_hhole_prhl {l : Type}
-    (h : ∀ inp : input, Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (h : ∀ inp : input, ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp)
+        (liftPost P))
     {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
     (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
     (hp : GetOK P p)
-    (hx : ∀ ret, Program.prhl2 (liftRel P) (Program.set x ret) (Program.set x ret) (liftRelPost P)) :
-    Program.prhl2 (liftRel P)
+    (hx : ∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
+        (ProgramDenotation.set x ret) (liftRelPost P)) :
+    ProgramDenotation.prhl2 (liftRel P)
       (programDenotation (StmtWithHoles.call x (RO_eager n) p))
       (programDenotation (StmtWithHoles.call x (RO_lazy n) p)) (liftRelPost P) := by
   cases n with
   | zero =>
       haveI : Countable roSig.ParamType := inferInstanceAs (Countable input)
       haveI : Countable roSig.ret := inferInstanceAs (Countable output)
-      show Program.prhl2 (liftRel P)
+      show ProgramDenotation.prhl2 (liftRel P)
           (programDenotation (StmtWithHoles.call x RO_eager_proc p))
           (programDenotation (StmtWithHoles.call x RO_lazy_proc p)) (liftRelPost P)
       rw [denote_call, denote_call]
-      refine Program.prhl2.bind hp (fun args₁ args₂ => ?_)
+      refine ProgramDenotation.prhl2.bind hp (fun args₁ args₂ => ?_)
       intro σ₁ σ₂ hpre
       obtain ⟨rfl, hrel⟩ := hpre
-      refine (Program.prhl2.bind (M := liftRelPost P) ?_ (fun ret₁ ret₂ => ?_)) σ₁ σ₂ hrel
+      refine (ProgramDenotation.prhl2.bind (M := liftRelPost P) ?_ (fun ret₁ ret₂ => ?_)) σ₁ σ₂ hrel
       · -- the zoomed query couples (via `prhl2_zoom`); post normalized to `liftRelPost P`
         rw [procDenotation_RO_eager, procDenotation_RO_lazy]
-        exact Program.prhl2.conseq (prhl2_zoom l ((h args₁).to_prhl2))
+        exact ProgramDenotation.prhl2.conseq (prhl2_zoom l ((h args₁).to_prhl2))
           (fun _ _ h => h) (fun _ _ hB => ⟨hB.1.1, hB.1.2, hB.2⟩)
       · -- the write couples (equal results from the middle post)
         intro τ₁ τ₂ hpre2
@@ -219,9 +226,10 @@ theorem ro_hhole_prhl {l : Type}
     body preserves the invariant relationally, with the RO oracle.  Combines
     `body_prhl2_gen` with the RO hole coupling `ro_hhole_prhl`. -/
 theorem prhl_instantiate_body {l : Type}
-    (h : ∀ inp : input, Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+    (h : ∀ inp : input, ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp)
+        (liftPost P))
     (A : StmtWithHoles roHoles l) (hloc : LocP P A) :
-    Program.prhl2 (liftRel P)
+    ProgramDenotation.prhl2 (liftRel P)
       (programDenotation (A.instantiate RO_eager))
       (programDenotation (A.instantiate RO_lazy)) (liftRelPost P) :=
   body_prhl2_gen A RO_eager RO_lazy hloc (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
@@ -232,14 +240,14 @@ theorem prhl_instantiate_body {l : Type}
     whole procedure, given the return value is determined by the invariant. -/
 theorem prhl_wrapper {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hbody : Program.prhl2 (liftRel P)
+    (hbody : ProgramDenotation.prhl2 (liftRel P)
       (programDenotation (A.body.instantiate RO_eager))
       (programDenotation (A.body.instantiate RO_lazy)) (liftRelPost P))
     (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
-    Program.prhl P
+    ProgramDenotation.prhl P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args) (liftPost P) := by
-  apply Program.prhl2.to_prhl
+  apply ProgramDenotation.prhl2.to_prhl
   intro st₁ st₂ hP
   obtain ⟨μ, hm1, hm2, hsat⟩ :=
     hbody ⟨st₁, sig.localVariableInit A.locals args⟩ ⟨st₂, sig.localVariableInit A.locals args⟩ ⟨hP, rfl⟩
@@ -267,14 +275,15 @@ theorem prhl_wrapper {sig : ProcedureSignature}
 /-! ## Layer 3 — confinement endpoints (discharge `LocP` from a footprint) -/
 
 /-- A program confined to an adversary lens `L_adv` (with `LiftCompat P L_adv`) self-couples under
-    `liftRel P` — the lift form (mirrors `Program.prhl2.adversary`, generalized from `L.get =` to an
+    `liftRel P` — the lift form (mirrors `ProgramDenotation.prhl2.adversary`, generalized from
+        `L.get =` to an
     arbitrary `liftRel P`): `hcompat.1` gives the inner program equal inputs, `hcompat.2` propagates
     the relation through the write-back. -/
 theorem prhl2_lift_lens {l γ advSt : Type}
     (L_adv : Lens advSt (ProcedureState l))
     (hcompat : LiftCompat P L_adv)
-    (p' : Program advSt γ) :
-    Program.prhl2 (liftRel P) (L_adv.lift p') (L_adv.lift p') (liftRelPost P) := by
+    (p' : ProgramDenotation advSt γ) :
+    ProgramDenotation.prhl2 (liftRel P) (L_adv.lift p') (L_adv.lift p') (liftRelPost P) := by
   intro ps₁ ps₂ hpre
   refine ⟨p' (L_adv.get ps₁) >>= fun xc =>
       pure ((xc.1, L_adv.set xc.2 ps₁), (xc.1, L_adv.set xc.2 ps₂)), ?_, ?_, ?_⟩
@@ -292,8 +301,8 @@ theorem prhl2_lift_lens {l γ advSt : Type}
 theorem prhl2_of_inFootprint_lens {l γ advSt : Type} [Nonempty (ProcedureState l)]
     (L_adv : Lens advSt (ProcedureState l))
     (hcompat : LiftCompat P L_adv)
-    {p : Program (ProcedureState l) γ} (hp : p.inFootprint L_adv.footprint) :
-    Program.prhl2 (liftRel P) p p (liftRelPost P) := by
+    {p : ProgramDenotation (ProcedureState l) γ} (hp : p.inFootprint L_adv.footprint) :
+    ProgramDenotation.prhl2 (liftRel P) p p (liftRelPost P) := by
   rw [factor_of_inFootprint L_adv hp]
   exact prhl2_lift_lens L_adv hcompat (L_adv.factor p)
 
@@ -331,10 +340,10 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
     (hcompat : LiftCompat P L_adv)
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
-        Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
+        ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
     (hbody : fvP_stmt A.body ≤ L_adv.footprint)
     (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
-    Program.prhl P
+    ProgramDenotation.prhl P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=

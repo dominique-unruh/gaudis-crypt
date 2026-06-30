@@ -29,24 +29,24 @@ clients:
 
 /-! ## Peel lemmas -/
 
-lemma Program.wp_set_seq {s γ α : Type} (L : Lens γ s) (v : γ)
-    (P : Program s α) (F : α × s → ENNReal) (σ : s) :
-    (Program.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
+lemma ProgramDenotation.wp_set_seq {s γ α : Type} (L : Lens γ s) (v : γ)
+    (P : ProgramDenotation s α) (F : α × s → ENNReal) (σ : s) :
+    (ProgramDenotation.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
   rw [wp_bind, wp_set]
 
-lemma Program.wp_get_seq {s γ α : Type} (L : Lens γ s)
-    (k : γ → Program s α) (F : α × s → ENNReal) (σ : s) :
-    (Program.get L >>= k).wp F σ = (k (L.get σ)).wp F σ := by
+lemma ProgramDenotation.wp_get_seq {s γ α : Type} (L : Lens γ s)
+    (k : γ → ProgramDenotation s α) (F : α × s → ENNReal) (σ : s) :
+    (ProgramDenotation.get L >>= k).wp F σ = (k (L.get σ)).wp F σ := by
   rw [wp_bind, wp_get]
 
-lemma Program.wp_pure_seq {s α β : Type} (x : α)
-    (k : α → Program s β) (F : β × s → ENNReal) (σ : s) :
-    ((pure x : Program s α) >>= k).wp F σ = (k x).wp F σ := by
-  rw [Program.pure_bind]
+lemma ProgramDenotation.wp_pure_seq {s α β : Type} (x : α)
+    (k : α → ProgramDenotation s β) (F : β × s → ENNReal) (σ : s) :
+    ((pure x : ProgramDenotation s α) >>= k).wp F σ = (k x).wp F σ := by
+  rw [ProgramDenotation.pure_bind]
 
-lemma Program.wp_uniform_seq {s α β : Type} [Fintype α] [Nonempty α]
-    (k : α → Program s β) (F : β × s → ENNReal) (σ : s) :
-    ((Program.uniform : Program s α) >>= k).wp F σ
+lemma ProgramDenotation.wp_uniform_seq {s α β : Type} [Fintype α] [Nonempty α]
+    (k : α → ProgramDenotation s β) (F : β × s → ENNReal) (σ : s) :
+    ((ProgramDenotation.uniform : ProgramDenotation s α) >>= k).wp F σ
     = ∑ v : α, (k v).wp F σ / Fintype.card α := by
   rw [wp_bind, wp_uniform]
 
@@ -54,56 +54,56 @@ lemma Program.wp_uniform_seq {s α β : Type} [Fintype α] [Nonempty α]
 
 /-- Strip leading `set`/`get`/`pure`/`uniform` steps off `wp` goals. -/
 macro "wp_peel" : tactic =>
-  `(tactic| simp only [Program.wp_set_seq, Program.wp_get_seq,
-      Program.wp_pure_seq, Program.wp_uniform_seq])
+  `(tactic| simp only [ProgramDenotation.wp_set_seq, ProgramDenotation.wp_get_seq,
+      ProgramDenotation.wp_pure_seq, ProgramDenotation.wp_uniform_seq])
 
 /-- Cut a `relE` goal at the leading bind, with the given intermediate
     relation (EasyCrypt's `seq`). Produces the prefix judgment and the
     `∀`-quantified continuation judgment as goals. -/
 macro "rel_bind" t:term : tactic =>
-  `(tactic| refine Program.relE.bind (Mid := $t) ?_ (fun _ _ => ?_))
+  `(tactic| refine ProgramDenotation.relE.bind (Mid := $t) ?_ (fun _ _ => ?_))
 
 /-- Like `rel_bind`, for one-sided `rel` goals. -/
 macro "rel_bind_le" t:term : tactic =>
-  `(tactic| refine Program.rel.bind (Mid := $t) ?_ (fun _ _ => ?_))
+  `(tactic| refine ProgramDenotation.rel.bind (Mid := $t) ?_ (fun _ _ => ?_))
 
 /-- Try the structural/leaf relational rules; side conditions are left as
     goals. Runs at reducible transparency so failed candidates fail fast
     instead of unfolding program semantics. -/
 macro "rel_step" : tactic =>
   `(tactic| with_reducible first
-    | exact Program.relE.refl _
-    | exact Program.rel.refl _
-    | apply Program.relE.pure_pure
-    | apply Program.relE.set_set
-    | apply Program.relE.get_get
-    | apply Program.relE.ite_sync
-    | apply Program.relE.uniform_bij (Equiv.refl _)
-    | apply Program.relE.loop_n
-    | apply Program.relE.while_loop
-    | apply Program.rel.pure_pure
-    | apply Program.rel.set_set
-    | apply Program.rel.get_get
-    | apply Program.rel.ite_sync
-    | apply Program.rel.uniform_bij (Equiv.refl _)
-    | apply Program.rel.loop_n
-    | apply Program.rel.while_loop
-    | apply Program.rel.sample_left
-    | apply Program.rel.sample_right)
+    | exact ProgramDenotation.relE.refl _
+    | exact ProgramDenotation.rel.refl _
+    | apply ProgramDenotation.relE.pure_pure
+    | apply ProgramDenotation.relE.set_set
+    | apply ProgramDenotation.relE.get_get
+    | apply ProgramDenotation.relE.ite_sync
+    | apply ProgramDenotation.relE.uniform_bij (Equiv.refl _)
+    | apply ProgramDenotation.relE.loop_n
+    | apply ProgramDenotation.relE.while_loop
+    | apply ProgramDenotation.rel.pure_pure
+    | apply ProgramDenotation.rel.set_set
+    | apply ProgramDenotation.rel.get_get
+    | apply ProgramDenotation.rel.ite_sync
+    | apply ProgramDenotation.rel.uniform_bij (Equiv.refl _)
+    | apply ProgramDenotation.rel.loop_n
+    | apply ProgramDenotation.rel.while_loop
+    | apply ProgramDenotation.rel.sample_left
+    | apply ProgramDenotation.rel.sample_right)
 
 /-! ## Smoke tests -/
 
-example {s : Type} (p : Program s Bool) : p.relE p Eq Eq := by
+example {s : Type} (p : ProgramDenotation s Bool) : p.relE p Eq Eq := by
   rel_step
 
-example {s γ : Type} (L : Lens γ s) (v : γ) (q : Program s Bool)
+example {s γ : Type} (L : Lens γ s) (v : γ) (q : ProgramDenotation s Bool)
     (F : Bool × s → ENNReal) (σ : s) :
-    (Program.set L v >>= fun _ : Unit => q).wp F σ = q.wp F (L.set v σ) := by
+    (ProgramDenotation.set L v >>= fun _ : Unit => q).wp F σ = q.wp F (L.set v σ) := by
   wp_peel
 
 example {s γ : Type} (L M : Lens γ s) (v : γ) :
-    (Program.set L v >>= fun _ => Program.get M).relE
-    (Program.set L v >>= fun _ => Program.get M) Eq
+    (ProgramDenotation.set L v >>= fun _ => ProgramDenotation.get M).relE
+    (ProgramDenotation.set L v >>= fun _ => ProgramDenotation.get M) Eq
     (fun u v => u.1 = v.1) := by
   rel_bind (fun u v : Unit × s => u.2 = v.2)
   · rel_step

@@ -20,10 +20,12 @@ abbrev FV := DetermFootprint State
 
 
 noncomputable
-def fv_getter (getter : Getter a s) : DetermFootprint s := Program.range (Program.get getter)
+def fv_getter (getter : Getter a s) : DetermFootprint s := ProgramDenotation.range
+    (ProgramDenotation.get getter)
 
 noncomputable
-def fv_setter (setter : Setter a s) : DetermFootprint s := Program.range' (Program.set setter)
+def fv_setter (setter : Setter a s) : DetermFootprint s := ProgramDenotation.range'
+    (ProgramDenotation.set setter)
 
 def fv_reduce {a b} (lens : Lens a b) (range : DetermFootprint b) : DetermFootprint a :=
   DetermFootprint.from { f | ∀ g ∈ range.updates, lens.liftFunction f * g = g * lens.liftFunction f}.centralizer

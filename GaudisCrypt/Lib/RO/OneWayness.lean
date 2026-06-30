@@ -46,8 +46,8 @@ axiom disjoint_ow_challenge_x_ro : disjoint ow_challenge_x random_oracle_state
 axiom disjoint_ow_response_ro : disjoint ow_response random_oracle_state
 
 /-- Game-specific variables are disjoint from the loop's scratch variables.
-    Needed so that `ow_loop_body`'s `Program.get oracle_input` /
-    `Program.set oracle_output` / `random_oracle_state` operations preserve
+    Needed so that `ow_loop_body`'s `ProgramDenotation.get oracle_input` /
+    `ProgramDenotation.set oracle_output` / `random_oracle_state` operations preserve
     `ow_challenge_y` (and similarly for `ow_response`). -/
 axiom disjoint_oracle_input_ow_challenge_y : disjoint oracle_input ow_challenge_y
 axiom disjoint_oracle_output_ow_challenge_y : disjoint oracle_output ow_challenge_y
@@ -83,33 +83,33 @@ attribute [instance] disjoint_ow_challenge_y_ro disjoint_ow_challenge_x_ro
 
 section OWParam
 
-variable (ow_adv : Program state Unit)
+variable (ow_adv : ProgramDenotation state Unit)
 
 /-- One round of the OW loop body: the adversary computes (and writes
     `oracle_input`), then we run one oracle query. Thin alias for the generic
     `oracle_step` in `RO.lean` (same shape as `cr_loop_body`). -/
-noncomputable def ow_loop_body (oracle : input → Program state output) :
-    Program state Unit := oracle_step ow_adv oracle
+noncomputable def ow_loop_body (oracle : input → ProgramDenotation state output) :
+    ProgramDenotation state Unit := oracle_step ow_adv oracle
 
 /-- Run the adversary-and-query loop for `q` rounds. Thin alias for the generic
     `oracle_loop_n` in `RO.lean`. -/
-noncomputable def ow_loop (q : ℕ) (oracle : input → Program state output) :
-    Program state Unit := oracle_loop_n ow_adv q oracle
+noncomputable def ow_loop (q : ℕ) (oracle : input → ProgramDenotation state output) :
+    ProgramDenotation state Unit := oracle_loop_n ow_adv q oracle
 
 /-- **The OW experiment** parameterised by query budget `q`, init, and oracle.
 
     Sample `x`, set `y := oracle(x)`, publish `y`, run adversary for `q` rounds,
     read the adversary's response, and check whether `oracle(response) = y`. -/
 noncomputable def ow_experiment (q : ℕ)
-    (init : Program state Unit)
-    (oracle : input → Program state output) : Program state Bool := do
+    (init : ProgramDenotation state Unit)
+    (oracle : input → ProgramDenotation state output) : ProgramDenotation state Bool := do
   init
-  let x ← Program.uniform
-  Program.set ow_challenge_x x
+  let x ← ProgramDenotation.uniform
+  ProgramDenotation.set ow_challenge_x x
   let y ← oracle x
-  Program.set ow_challenge_y y
+  ProgramDenotation.set ow_challenge_y y
   ow_loop ow_adv q oracle
-  let resp ← Program.get ow_response
+  let resp ← ProgramDenotation.get ow_response
   let y_check ← oracle resp
   pure (decide (y_check = y))
 
@@ -123,64 +123,67 @@ variable (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
 
 include h_ow_adv in
 /-- `ow_adv` transfers to itself: it doesn't touch RO. -/
-private lemma transfer_ow_adv : Program.transfer ow_adv ow_adv :=
-  Program.transfer_refl_of_inFootprint_compl h_ow_adv
+private lemma transfer_ow_adv : ProgramDenotation.transfer ow_adv ow_adv :=
+  ProgramDenotation.transfer_refl_of_inFootprint_compl h_ow_adv
 
 include h_ow_adv in
 /-- One iteration of `ow_loop_body` transfers from lazy to eager. -/
 private lemma transfer_ow_loop_body :
-    Program.transfer (ow_loop_body ow_adv lazy_query)
+    ProgramDenotation.transfer (ow_loop_body ow_adv lazy_query)
                      (ow_loop_body ow_adv random_oracle_query) :=
-  Program.transfer_oracle_step_prob h_ow_adv
+  ProgramDenotation.transfer_oracle_step_prob h_ow_adv
 
 include h_ow_adv in
 /-- `ow_loop q` transfers from lazy to eager. -/
 private lemma transfer_ow_loop (q : ℕ) :
-    Program.transfer (ow_loop ow_adv q lazy_query) (ow_loop ow_adv q random_oracle_query) :=
-  Program.transfer_oracle_loop_n_prob h_ow_adv q
+    ProgramDenotation.transfer (ow_loop ow_adv q lazy_query) (ow_loop ow_adv q
+        random_oracle_query) :=
+  ProgramDenotation.transfer_oracle_loop_n_prob h_ow_adv q
 
 include h_ow_adv in
 /-- The full `ow_experiment q` transfers from lazy to eager. -/
 private lemma transfer_ow_experiment (q : ℕ) :
-    Program.transfer
+    ProgramDenotation.transfer
       (ow_experiment ow_adv q lazy_init lazy_query)
       (ow_experiment ow_adv q random_oracle_init random_oracle_query) := by
-  show Program.transfer
+  show ProgramDenotation.transfer
     (lazy_init >>= fun _ =>
-      Program.uniform >>= fun x =>
-        Program.set ow_challenge_x x >>= fun _ =>
+      ProgramDenotation.uniform >>= fun x =>
+        ProgramDenotation.set ow_challenge_x x >>= fun _ =>
           lazy_query x >>= fun y =>
-            Program.set ow_challenge_y y >>= fun _ =>
+            ProgramDenotation.set ow_challenge_y y >>= fun _ =>
               ow_loop ow_adv q lazy_query >>= fun _ =>
-                Program.get ow_response >>= fun resp =>
+                ProgramDenotation.get ow_response >>= fun resp =>
                   lazy_query resp >>= fun y_check =>
-                    (pure (decide (y_check = y)) : Program state Bool))
+                    (pure (decide (y_check = y)) : ProgramDenotation state Bool))
     (random_oracle_init >>= fun _ =>
-      Program.uniform >>= fun x =>
-        Program.set ow_challenge_x x >>= fun _ =>
+      ProgramDenotation.uniform >>= fun x =>
+        ProgramDenotation.set ow_challenge_x x >>= fun _ =>
           random_oracle_query x >>= fun y =>
-            Program.set ow_challenge_y y >>= fun _ =>
+            ProgramDenotation.set ow_challenge_y y >>= fun _ =>
               ow_loop ow_adv q random_oracle_query >>= fun _ =>
-                Program.get ow_response >>= fun resp =>
+                ProgramDenotation.get ow_response >>= fun resp =>
                   random_oracle_query resp >>= fun y_check =>
-                    (pure (decide (y_check = y)) : Program state Bool))
-  apply Program.transfer_bind Program.transfer_lazy_init
+                    (pure (decide (y_check = y)) : ProgramDenotation state Bool))
+  apply ProgramDenotation.transfer_bind ProgramDenotation.transfer_lazy_init
   intro _
-  apply Program.transfer_bind Program.transfer_uniform
+  apply ProgramDenotation.transfer_bind ProgramDenotation.transfer_uniform
   intro x
-  apply Program.transfer_bind (Program.transfer_set_of_disjoint_ro ow_challenge_x x)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_set_of_disjoint_ro
+      ow_challenge_x x)
   intro _
-  apply Program.transfer_bind (Program.transfer_lazy_query x)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_lazy_query x)
   intro y
-  apply Program.transfer_bind (Program.transfer_set_of_disjoint_ro ow_challenge_y y)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_set_of_disjoint_ro
+      ow_challenge_y y)
   intro _
-  apply Program.transfer_bind (transfer_ow_loop ow_adv h_ow_adv q)
+  apply ProgramDenotation.transfer_bind (transfer_ow_loop ow_adv h_ow_adv q)
   intro _
-  apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro ow_response)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_get_of_disjoint_ro ow_response)
   intro resp
-  apply Program.transfer_bind (Program.transfer_lazy_query resp)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_lazy_query resp)
   intro y_check
-  exact Program.transfer_pure _
+  exact ProgramDenotation.transfer_pure _
 
 /-- `convert` is absorbed by the eager `ow_experiment` (it starts with
     `random_oracle_init`). Thin wrapper over the generic
@@ -200,7 +203,7 @@ theorem ow_transfer (q : ℕ) (σ₀ : state) :
     =
     (ow_experiment ow_adv q random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool)) :=
-  Program.transfer_value_marginal (transfer_ow_experiment ow_adv h_ow_adv q)
+  ProgramDenotation.transfer_value_marginal (transfer_ow_experiment ow_adv h_ow_adv q)
     (convert_ow_experiment_eager ow_adv q) σ₀
 
 /-! ## Phase 3 — Bookkeeping: win implies preimage in RO
@@ -244,13 +247,13 @@ lemma ow_true_implies_preimage_wp (q : ℕ) (σ₀ : state) :
   simp only [ow_experiment, wp_bind, wp_set, wp_get, wp_pure, lazy_init]
   -- After simp, lazy_init's `set RO` is inlined. First stochastic wp is uniform.
   -- Layers (stochastic): uniform, lazy_query x, ow_loop, lazy_query resp.
-  apply Program.wp_le_wp_of_le; rintro ⟨x, σ_u⟩; dsimp only
-  apply Program.wp_le_wp_of_le; rintro ⟨y, σ_l⟩; dsimp only
+  apply ProgramDenotation.wp_le_wp_of_le; rintro ⟨x, σ_u⟩; dsimp only
+  apply ProgramDenotation.wp_le_wp_of_le; rintro ⟨y, σ_l⟩; dsimp only
   -- Now ow_loop is at outermost wp. Its input state is `ow_challenge_y.set y σ_l`
-  -- (since `Program.set ow_challenge_y y` was inlined via wp_set).
-  rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_y
+  -- (since `ProgramDenotation.set ow_challenge_y y` was inlined via wp_set).
+  rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint ow_challenge_y
       (ow_loop_inRange_chal_y_compl ow_adv h_ow_adv_chal_y q)]
-  apply Program.wp_le_wp_of_le; rintro ⟨_, σ_o⟩; dsimp only
+  apply ProgramDenotation.wp_le_wp_of_le; rintro ⟨_, σ_o⟩; dsimp only
   -- LHS has an outer-if wrap from `wp_strengthen_lens_preserved`; RHS does not.
   -- Split on that outer condition so both sides become bare `lazy_query.wp`s.
   split_ifs with h_chal_y_o
@@ -258,7 +261,7 @@ lemma ow_true_implies_preimage_wp (q : ℕ) (σ₀ : state) :
     rw [lazy_query_wp_writes_output (ow_response.get σ_o)]
     rw [lazy_query_wp_preserves_disjoint ow_response (ow_response.get σ_o)]
     rw [lazy_query_wp_preserves_disjoint ow_challenge_y (ow_response.get σ_o)]
-    apply Program.wp_le_wp_of_le; rintro ⟨y_check, σ_f⟩; dsimp only
+    apply ProgramDenotation.wp_le_wp_of_le; rintro ⟨y_check, σ_f⟩; dsimp only
     -- Compare nested-if expressions pointwise.
     split_ifs with h_chal_y_f h_resp_f h_RO_f h_decide
     · -- All conditions hold.
@@ -459,11 +462,12 @@ include h_ow_adv h_ow_adv_chal_y h_ow_adv_chal_x in
 /-- `ow_adv` preserves the `useful_preimage_indicator` (in expectation): it
     modifies only the complement of each of `random_oracle_state`,
     `ow_challenge_x`, `ow_challenge_y`. Reduced to the generic
-    `Program.wp_le_of_factors_three`. -/
+    `ProgramDenotation.wp_le_of_factors_three`. -/
 private lemma ow_adv_wp_useful_preimage (σ : state) :
     ow_adv.wp (fun yσ : Unit × state => useful_preimage_indicator yσ.2) σ
     ≤ useful_preimage_indicator σ :=
-  Program.wp_le_of_factors_three_footprint random_oracle_state ow_challenge_x ow_challenge_y
+  ProgramDenotation.wp_le_of_factors_three_footprint random_oracle_state ow_challenge_x
+      ow_challenge_y
     h_ow_adv h_ow_adv_chal_x h_ow_adv_chal_y
     (fun _ _ h_RO h_x h_y => useful_preimage_indicator_of_three_get_eq h_RO h_x h_y) σ
 
@@ -596,28 +600,28 @@ private lemma ow_experiment_useful_preimage_inner (q : ℕ) (x_orig : input) (σ
               useful_preimage_indicator yσ''.2) yσ'.2) σ_4
         ≤ (ow_loop ow_adv q lazy_query).wp (fun yσ' : Unit × state =>
             useful_preimage_indicator yσ'.2 + 1 / N) σ_4 := by
-          apply Program.wp_le_wp_of_le
+          apply ProgramDenotation.wp_le_wp_of_le
           intro yσ'
           exact lazy_query_useful_preimage_step _ yσ'.2
       _ = (ow_loop ow_adv q lazy_query).wp (fun yσ' : Unit × state =>
             useful_preimage_indicator yσ'.2) σ_4 +
           (ow_loop ow_adv q lazy_query).wp (fun _ : Unit × state => 1 / N) σ_4 := by
-          rw [Program.wp_add]
+          rw [ProgramDenotation.wp_add]
       _ ≤ (useful_preimage_indicator σ_4 + (q : ENNReal) / N) + 1 / N := by
           gcongr
           · exact ow_loop_useful_preimage_step ow_adv h_ow_adv
               h_ow_adv_chal_y h_ow_adv_chal_x q σ_4
-          · exact Program.wp_const_le _ _ _
+          · exact ProgramDenotation.wp_const_le _ _ _
       _ = ((q + 1) : ENNReal) / N := by
           rw [h_zero, zero_add, ← ENNReal.add_div]
   -- Step 2: peel the lazy_query x_orig. Since RO σ x_orig = none, only the
   -- fresh branch fires. Unfold the outer lazy_query only; keep the inner folded.
-  show (do let cache ← Program.get random_oracle_state
+  show (do let cache ← ProgramDenotation.get random_oracle_state
            match cache x_orig with
            | some y => pure y
            | none => do
-               let value ← Program.uniform
-               Program.set random_oracle_state
+               let value ← ProgramDenotation.uniform
+               ProgramDenotation.set random_oracle_state
                  (fun x' => if x' = x_orig then some value else cache x')
                pure value).wp _ σ ≤ _
   simp only [wp_bind, wp_get]
@@ -716,13 +720,13 @@ lemma ow_experiment_useful_preimage_bound (q : ℕ) (σ₀ : state) :
 include h_ow_adv in
 /-- **Transfer of `ow_transfer` from the SubProb marginal level to the
     `wp` level**, for postconditions that depend only on the result bit.
-    Thin wrapper over the generic `Program.wp_eq_of_marginal_eq`. -/
+    Thin wrapper over the generic `ProgramDenotation.wp_eq_of_marginal_eq`. -/
 lemma ow_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀
     = (ow_experiment ow_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀ :=
-  Program.wp_eq_of_marginal_eq (ow_transfer ow_adv h_ow_adv q) G σ₀
+  ProgramDenotation.wp_eq_of_marginal_eq (ow_transfer ow_adv h_ow_adv q) G σ₀
 
 end OWParam
 

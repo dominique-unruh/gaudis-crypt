@@ -27,7 +27,7 @@ reduction and Game 2's win-event reduction.
 * `guess_experiment_collector_wp_bound : (collector).wp post σ ≤ (n+1)/|T|`
   — the heart of the bound, via `uniform_wp_mem_le`.
 * `guess_experiment_interim_eq_collector` — interim = collector by
-  `Program.bind_uniform_comm` applied 3 times.
+  `ProgramDenotation.bind_uniform_comm` applied 3 times.
 * `guess_experiment_interim_wp_bound` — composed bound: interim ≤ (n+1)/|T|.
 
 ## Schema (per-game correspondence)
@@ -69,20 +69,20 @@ hit a uniform target" game. -/
     relate ow_game_*'s win/bad events to the matched flag via specialized
     bridges. -/
 noncomputable def guess_experiment {T s : Type}
-    (env : Program s Unit)
-    (sample_target : Program s T)
+    (env : ProgramDenotation s Unit)
+    (sample_target : ProgramDenotation s T)
     (target_var : Lens T s)
     (matched_var : Lens Bool s)
-    (body : T → Program s Unit)
-    (final : T → Program s Unit)
-    (n : ℕ) : Program s Bool := do
+    (body : T → ProgramDenotation s Unit)
+    (final : T → ProgramDenotation s Unit)
+    (n : ℕ) : ProgramDenotation s Bool := do
   env
   let t ← sample_target
-  Program.set target_var t
-  Program.set matched_var false
+  ProgramDenotation.set target_var t
+  ProgramDenotation.set matched_var false
   loop_n n (body t)
   final t
-  Program.get matched_var
+  ProgramDenotation.get matched_var
 
 
 
@@ -110,49 +110,49 @@ deferred-sampling content becomes a single equivalence proof
     for appending their "comparison values" to `queries_list`. -/
 private noncomputable def guess_experiment_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
-    (body_recording : Program state Unit)
-    (final_recording : Program state Unit)
-    (n : ℕ) : Program state Bool := do
+    (body_recording : ProgramDenotation state Unit)
+    (final_recording : ProgramDenotation state Unit)
+    (n : ℕ) : ProgramDenotation state Bool := do
   env
-  Program.set queries_list_var []
+  ProgramDenotation.set queries_list_var []
   loop_n n body_recording
   final_recording
-  let t ← Program.uniform
-  let qs ← Program.get queries_list_var
-  Program.set matched_var (decide (t ∈ qs))
-  Program.get matched_var
+  let t ← ProgramDenotation.uniform
+  let qs ← ProgramDenotation.get queries_list_var
+  ProgramDenotation.set matched_var (decide (t ∈ qs))
+  ProgramDenotation.get matched_var
 
 /-- **Interim form of `guess_experiment`**: same as the collector but with the
     target sampled FIRST (like `guess_experiment`) instead of last. -/
 noncomputable def guess_experiment_interim
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
-    (body_recording : Program state Unit)
-    (final_recording : Program state Unit)
-    (n : ℕ) : Program state Bool := do
+    (body_recording : ProgramDenotation state Unit)
+    (final_recording : ProgramDenotation state Unit)
+    (n : ℕ) : ProgramDenotation state Bool := do
   env
-  let t ← Program.uniform
-  Program.set queries_list_var []
+  let t ← ProgramDenotation.uniform
+  ProgramDenotation.set queries_list_var []
   loop_n n body_recording
   final_recording
-  let qs ← Program.get queries_list_var
-  Program.set matched_var (decide (t ∈ qs))
-  Program.get matched_var
+  let qs ← ProgramDenotation.get queries_list_var
+  ProgramDenotation.set matched_var (decide (t ∈ qs))
+  ProgramDenotation.get matched_var
 
 /-- **Interim = Collector** as programs, by commuting the `uniform` sampling
-    past the `t`-independent prefix via `Program.bind_uniform_comm`. -/
+    past the `t`-independent prefix via `ProgramDenotation.bind_uniform_comm`. -/
 private theorem guess_experiment_interim_eq_collector
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
-    (body_recording : Program state Unit)
-    (final_recording : Program state Unit)
+    (body_recording : ProgramDenotation state Unit)
+    (final_recording : ProgramDenotation state Unit)
     (n : ℕ) :
     guess_experiment_interim env queries_list_var matched_var
         body_recording final_recording n
@@ -163,15 +163,15 @@ private theorem guess_experiment_interim_eq_collector
   funext _
   -- uniform >>= fun t => set qs []; loop; final; ...t...
   -- = set qs []; uniform >>= fun t => loop; final; ...t...
-  rw [← Program.bind_uniform_comm]
+  rw [← ProgramDenotation.bind_uniform_comm]
   congr 1
   funext _
-  rw [← Program.bind_uniform_comm]
+  rw [← ProgramDenotation.bind_uniform_comm]
   congr 1
   funext _
-  rw [← Program.bind_uniform_comm]
+  rw [← ProgramDenotation.bind_uniform_comm]
 
-/-- Pointwise bound: `Program.uniform`'s wp on a list-membership indicator
+/-- Pointwise bound: `ProgramDenotation.uniform`'s wp on a list-membership indicator
     is at most `|list|/|T|`. The core trivial fact behind (B).
 
     Proof: wp_uniform gives ∑_t 1[t ∈ qs] / |T|; ∑_t 1[t ∈ qs] equals
@@ -179,7 +179,7 @@ private theorem guess_experiment_interim_eq_collector
 private lemma uniform_wp_mem_le
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
     (qs : List T) (σ : state) :
-    (Program.uniform : Program state T).wp
+    (ProgramDenotation.uniform : ProgramDenotation state T).wp
         (fun aσ : T × state => if aσ.1 ∈ qs then (1 : ENNReal) else 0) σ
     ≤ (qs.length : ENNReal) / Fintype.card T := by
   simp only [wp_uniform]
@@ -213,16 +213,16 @@ private lemma uniform_wp_mem_le
     independently. So `P[t ∈ qs] = |qs|/|T| ≤ (n+1)/|T|`. -/
 private theorem guess_experiment_collector_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
     [disjoint queries_list_var matched_var]
-    (body_recording : Program state Unit)
-    (final_recording : Program state Unit)
+    (body_recording : ProgramDenotation state Unit)
+    (final_recording : ProgramDenotation state Unit)
     (n : ℕ)
     (_h_qs_length_le : ∀ σ : state,
       (env >>= fun _ : Unit =>
-        Program.set queries_list_var [] >>= fun _ =>
+        ProgramDenotation.set queries_list_var [] >>= fun _ =>
         loop_n n body_recording >>= fun _ => final_recording).wp
           (fun aσ : Unit × state =>
             ((queries_list_var.get aσ.2).length : ENNReal) / Fintype.card T) σ
@@ -234,10 +234,10 @@ private theorem guess_experiment_collector_wp_bound
     ≤ ((n + 1) : ENNReal) / Fintype.card T := by
   dsimp only [guess_experiment_collector]
   have h_inner : ∀ σ' : state,
-      ((Program.uniform : Program state T) >>= fun t =>
-        Program.get queries_list_var >>= fun qs =>
-        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
-        Program.get matched_var).wp
+      ((ProgramDenotation.uniform : ProgramDenotation state T) >>= fun t =>
+        ProgramDenotation.get queries_list_var >>= fun qs =>
+        ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        ProgramDenotation.get matched_var).wp
           (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
       ≤ ((queries_list_var.get σ').length : ENNReal) / Fintype.card T := by
     intro σ'
@@ -251,28 +251,28 @@ private theorem guess_experiment_collector_wp_bound
   rw [show ((n : ℕ) : ENNReal) + 1 = ((n + 1 : ℕ) : ENNReal) by push_cast; ring]
   refine le_trans ?_ (_h_qs_length_le σ)
   rw [show (env >>= fun _ : Unit =>
-      Program.set queries_list_var [] >>= fun _ =>
+      ProgramDenotation.set queries_list_var [] >>= fun _ =>
       loop_n n body_recording >>= fun _ =>
       final_recording >>= fun _ =>
-      Program.uniform >>= fun t =>
-      Program.get queries_list_var >>= fun qs =>
-      Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
-      Program.get matched_var)
+      ProgramDenotation.uniform >>= fun t =>
+      ProgramDenotation.get queries_list_var >>= fun qs =>
+      ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+      ProgramDenotation.get matched_var)
     = (env >>= fun _ : Unit =>
-        Program.set queries_list_var [] >>= fun _ =>
+        ProgramDenotation.set queries_list_var [] >>= fun _ =>
         loop_n n body_recording >>= fun _ => final_recording) >>= fun _ =>
-        Program.uniform >>= fun t =>
-        Program.get queries_list_var >>= fun qs =>
-        Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
-        Program.get matched_var from by
-      simp [Program.bind_assoc]]
+        ProgramDenotation.uniform >>= fun t =>
+        ProgramDenotation.get queries_list_var >>= fun qs =>
+        ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+        ProgramDenotation.get matched_var from by
+      simp [ProgramDenotation.bind_assoc]]
   rw [wp_bind]
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   intro aσ
   exact h_inner aσ.2
 
 /-- **Generic bound: `guess_experiment.wp ≤ guess_experiment_interim.wp`** (with
-    `sample_target = Program.uniform`).
+    `sample_target = ProgramDenotation.uniform`).
 
     The cryptographic content is in `h_correspondence`: a per-state bound
     that the LHS's matched-fire after the loop+final is at most the RHS's
@@ -281,29 +281,29 @@ private theorem guess_experiment_collector_wp_bound
     `uniform t` prefix. -/
 theorem guess_experiment_le_interim_assumption
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
-    (body : T → Program state Unit) (final : T → Program state Unit)
-    (body_recording : Program state Unit) (final_recording : Program state Unit)
+    (body : T → ProgramDenotation state Unit) (final : T → ProgramDenotation state Unit)
+    (body_recording : ProgramDenotation state Unit) (final_recording : ProgramDenotation state Unit)
     (n : ℕ)
     (h_correspondence : ∀ (σ' : state) (t : T),
-      (Program.set target_var t >>= fun _ =>
-       Program.set matched_var false >>= fun _ =>
+      (ProgramDenotation.set target_var t >>= fun _ =>
+       ProgramDenotation.set matched_var false >>= fun _ =>
        loop_n n (body t) >>= fun _ =>
        final t >>= fun _ =>
-       Program.get matched_var).wp
+       ProgramDenotation.get matched_var).wp
          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
        ≤
-      (Program.set queries_list_var [] >>= fun _ =>
+      (ProgramDenotation.set queries_list_var [] >>= fun _ =>
        loop_n n body_recording >>= fun _ =>
        final_recording >>= fun _ =>
-       Program.get queries_list_var >>= fun qs =>
-       Program.set matched_var (decide (t ∈ qs)) >>= fun _ =>
-       Program.get matched_var).wp
+       ProgramDenotation.get queries_list_var >>= fun qs =>
+       ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ =>
+       ProgramDenotation.get matched_var).wp
          (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ')
     (σ : state) :
-    (guess_experiment env Program.uniform target_var matched_var body final n).wp
+    (guess_experiment env ProgramDenotation.uniform target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment_interim env queries_list_var matched_var
         body_recording final_recording n).wp
@@ -312,7 +312,7 @@ theorem guess_experiment_le_interim_assumption
   unfold guess_experiment guess_experiment_interim
   conv_lhs => rw [wp_bind]
   conv_rhs => rw [wp_bind]
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   intro aσ_env
   conv_lhs => rw [wp_bind, wp_uniform]
   conv_rhs => rw [wp_bind, wp_uniform]
@@ -340,7 +340,7 @@ lemma schema_inner_equation
     [disjoint matched_var queries_list_var]
     [disjoint matched_var target_var]
     [disjoint queries_list_var target_var]
-    (q_body q_final : Program state T)
+    (q_body q_final : ProgramDenotation state T)
     (h_q_body_matched : q_body.inRange matched_var.compl.range)
     (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
     (h_q_body_target : q_body.inRange target_var.compl.range)
@@ -348,26 +348,28 @@ lemma schema_inner_equation
     (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
     (h_q_final_target : q_final.inRange target_var.compl.range)
     (n : ℕ) (σ' : state) (t : T) :
-    (Program.set target_var t >>= fun _ : Unit =>
-     Program.set matched_var false >>= fun _ : Unit =>
+    (ProgramDenotation.set target_var t >>= fun _ : Unit =>
+     ProgramDenotation.set matched_var false >>= fun _ : Unit =>
      loop_n n (q_body >>= fun a : T =>
-        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        if a = t then ProgramDenotation.set matched_var true else (pure () : ProgramDenotation state
+            Unit))
       >>= fun _ : Unit =>
      (q_final >>= fun a : T =>
-        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        if a = t then ProgramDenotation.set matched_var true else (pure () : ProgramDenotation state
+            Unit))
       >>= fun _ : Unit =>
-     Program.get matched_var).wp
+     ProgramDenotation.get matched_var).wp
        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ'
-    = (Program.set queries_list_var [] >>= fun _ : Unit =>
+    = (ProgramDenotation.set queries_list_var [] >>= fun _ : Unit =>
        loop_n n (q_body >>= fun a : T =>
-          Program.get queries_list_var >>= fun qs : List T =>
-          Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+          ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+          ProgramDenotation.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
        (q_final >>= fun a : T =>
-          Program.get queries_list_var >>= fun qs : List T =>
-          Program.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
-       Program.get queries_list_var >>= fun qs =>
-       Program.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
-       Program.get matched_var).wp
+          ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+          ProgramDenotation.set queries_list_var (qs ++ [a])) >>= fun _ : Unit =>
+       ProgramDenotation.get queries_list_var >>= fun qs =>
+       ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
+       ProgramDenotation.get matched_var).wp
        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' :=
   PRHLSchema.schema_inner_equation_prhl target_var matched_var queries_list_var
     q_body q_final h_q_body_matched h_q_body_qs h_q_body_target
@@ -385,34 +387,36 @@ lemma schema_inner_equation
     via oracle_input, final does response check via ow_response). -/
 theorem guess_experiment_le_interim_via_schema
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
     [disjoint matched_var queries_list_var]
     [disjoint matched_var target_var]
     [disjoint queries_list_var target_var]
-    (q_body q_final : Program state T)
+    (q_body q_final : ProgramDenotation state T)
     (h_q_body_matched : q_body.inRange matched_var.compl.range)
     (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
     (h_q_body_target : q_body.inRange target_var.compl.range)
     (h_q_final_matched : q_final.inRange matched_var.compl.range)
     (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
     (h_q_final_target : q_final.inRange target_var.compl.range)
-    (body : T → Program state Unit) (final : T → Program state Unit)
-    (body_recording : Program state Unit) (final_recording : Program state Unit)
+    (body : T → ProgramDenotation state Unit) (final : T → ProgramDenotation state Unit)
+    (body_recording : ProgramDenotation state Unit) (final_recording : ProgramDenotation state Unit)
     (h_body : ∀ t, body t = q_body >>= fun a : T =>
-        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        if a = t then ProgramDenotation.set matched_var true else (pure () : ProgramDenotation state
+            Unit))
     (h_body_recording : body_recording = q_body >>= fun a : T =>
-        Program.get queries_list_var >>= fun qs : List T =>
-        Program.set queries_list_var (qs ++ [a]))
+        ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+        ProgramDenotation.set queries_list_var (qs ++ [a]))
     (h_final : ∀ t, final t = q_final >>= fun a : T =>
-        if a = t then Program.set matched_var true else (pure () : Program state Unit))
+        if a = t then ProgramDenotation.set matched_var true else (pure () : ProgramDenotation state
+            Unit))
     (h_final_recording : final_recording = q_final >>= fun a : T =>
-        Program.get queries_list_var >>= fun qs : List T =>
-        Program.set queries_list_var (qs ++ [a]))
+        ProgramDenotation.get queries_list_var >>= fun qs : List T =>
+        ProgramDenotation.set queries_list_var (qs ++ [a]))
     (n : ℕ)
     (σ : state) :
-    (guess_experiment env Program.uniform target_var matched_var body final n).wp
+    (guess_experiment env ProgramDenotation.uniform target_var matched_var body final n).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ
     ≤ (guess_experiment_interim env queries_list_var matched_var
         body_recording final_recording n).wp
@@ -429,16 +433,16 @@ theorem guess_experiment_le_interim_via_schema
 /-- **Interim wp bound**: by `interim = collector` + collector bound. Generic. -/
 theorem guess_experiment_interim_wp_bound
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T]
-    (env : Program state Unit)
+    (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
     [disjoint queries_list_var matched_var]
-    (body_recording : Program state Unit)
-    (final_recording : Program state Unit)
+    (body_recording : ProgramDenotation state Unit)
+    (final_recording : ProgramDenotation state Unit)
     (n : ℕ)
     (h_qs_length_le : ∀ σ : state,
       (env >>= fun _ : Unit =>
-        Program.set queries_list_var [] >>= fun _ =>
+        ProgramDenotation.set queries_list_var [] >>= fun _ =>
         loop_n n body_recording >>= fun _ => final_recording).wp
           (fun aσ : Unit × state =>
             ((queries_list_var.get aσ.2).length : ENNReal) / Fintype.card T) σ
@@ -456,20 +460,20 @@ theorem guess_experiment_interim_wp_bound
 
 /-- For a program `p` that doesn't write to `qs_var`, the expected list
     length at output is bounded by the initial length (up to mass ≤ 1). -/
-lemma Program.wp_qs_length_preserved_of_inRange
+lemma ProgramDenotation.wp_qs_length_preserved_of_inRange
     {T : Type} [DecidableEq T]
-    (qs_var : Lens (List T) state) {α : Type} (p : Program state α)
+    (qs_var : Lens (List T) state) {α : Type} (p : ProgramDenotation state α)
     (h_p : p.inRange qs_var.compl.range) (σ : state) :
     p.wp (fun aσ : α × state => ((qs_var.get aσ.2).length : ENNReal)) σ
     ≤ ((qs_var.get σ).length : ENNReal) := by
-  rw [Program.wp_strengthen_lens_preserved qs_var h_p]
-  refine le_trans (Program.wp_le_wp_of_le _ _
+  rw [ProgramDenotation.wp_strengthen_lens_preserved qs_var h_p]
+  refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
       (fun _ : α × state => ((qs_var.get σ).length : ENNReal)) ?_ σ) ?_
   · intro aσ
     by_cases h : qs_var.get aσ.2 = qs_var.get σ
     · simp [h]
     · simp [h]
-  · exact Program.wp_const_le _ _ _
+  · exact ProgramDenotation.wp_const_le _ _ _
 
 -- `loop_n_wp_linear_bound` is defined generically in PlonkLean.ProgramRange.
 

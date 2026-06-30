@@ -6,33 +6,34 @@ open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
 
 /-!
-# Program.range and `glob` foundations  — **LEGACY `DetermFootprint` theory (quarantined)**
+# ProgramDenotation.range and `glob` foundations  — **LEGACY `DetermFootprint` theory
+    (quarantined)**
 
 > **Deprecated / quarantined.** This is the deterministic `DetermFootprint`/`inRange` program-range
 > theory, superseded by `Footprint` + `ProbProgramRange` (the `inFootprint` analogues — they are
 > countability-free and a read's range does not collapse). Retained only for `CounterExamples` (which
 > need the `DetermFootprint` pathology) and not-yet-migrated consumers; new code should use
-> `Footprint`/`inFootprint`. The probabilistic wp-layer (`Program.wp_*_prob`) lives in
+> `Footprint`/`inFootprint`. The probabilistic wp-layer (`ProgramDenotation.wp_*_prob`) lives in
 > `ProbProgramRange`.
 
 This file defines
 
-* `liftF`, which embeds a deterministic state-update `f : s → s` as a `Program s Unit`,
-* `Program.inRange p R`, capturing that `p`'s reads and writes live in the region `R`,
-* `Program.range p`, the smallest such `R` (via `sInf`),
-* `Program.range'`, the family-version for `a → Program s b`.
+* `liftF`, which embeds a deterministic state-update `f : s → s` as a `ProgramDenotation s Unit`,
+* `ProgramDenotation.inRange p R`, capturing that `p`'s reads and writes live in the region `R`,
+* `ProgramDenotation.range p`, the smallest such `R` (via `sInf`),
+* `ProgramDenotation.range'`, the family-version for `a → ProgramDenotation s b`.
 
 The definition uses the commutant `Rᶜ` (`Compl` instance from `DetermFootprint.lean`): `p` lies
 in `R` iff `p` commutes with everything outside `R`. By the bicommutant closure of `DetermFootprint`,
 this is equivalent to "the actions of `p` (lifted to deterministic updates) lie in `R`".
 -/
 
-/-- Lift a deterministic state update `f : s → s` to a `Program s Unit`. -/
-noncomputable def liftF {s : Type} (f : s → s) : Program s Unit :=
+/-- Lift a deterministic state update `f : s → s` to a `ProgramDenotation s Unit`. -/
+noncomputable def liftF {s : Type} (f : s → s) : ProgramDenotation s Unit :=
   fun st => pure ((), f st)
 
 /-- Programs equal at all postconditions of their `wp` are equal. -/
-theorem Program.ext_of_wp {s a : Type} (p q : Program s a)
+theorem ProgramDenotation.ext_of_wp {s a : Type} (p q : ProgramDenotation s a)
     (h : ∀ f, p.wp f = q.wp f) : p = q := by
   funext st
   apply Subtype.ext
@@ -40,7 +41,7 @@ theorem Program.ext_of_wp {s a : Type} (p q : Program s a)
   apply MeasureTheory.Measure.ext
   intro A hA
   have hf := congrFun (h (A.indicator 1)) st
-  simp only [Program.wp, SubProbability.expected] at hf
+  simp only [ProgramDenotation.wp, SubProbability.expected] at hf
   rwa [MeasureTheory.lintegral_indicator_one hA,
        MeasureTheory.lintegral_indicator_one hA] at hf
 
@@ -48,21 +49,24 @@ theorem Program.ext_of_wp {s a : Type} (p q : Program s a)
     (the commutant of `R`). By bicommutant closure, this is equivalent to
     "every state-transition `p` can perform lies in `R`".
 
-    The two sides are compared as `Program s a`: on the left, `f` runs before `p`
+    The two sides are compared as `ProgramDenotation s a`: on the left, `f` runs before `p`
     and `p`'s return is preserved; on the right, `p`'s return is captured, then
     `f` runs, then the saved return is produced. -/
-def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a) (R : DetermFootprint s) : Prop :=
+def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.inRange {s a : Type} (p :
+    ProgramDenotation s a) (R : DetermFootprint s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (liftF f >>= fun _ => p)
   = (p >>= fun x => liftF f >>= fun _ => pure x)
 
 /-- The smallest DetermFootprint in which `p` lives. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range {s a : Type} (p : Program s a) : DetermFootprint s :=
+noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.range {s a : Type} (p :
+    ProgramDenotation s a) : DetermFootprint s :=
   sInf { R | p.inRange R }
 
 /-- Family version: the smallest DetermFootprint in which every `progs x` lives.
     Equivalently the supremum `⨆ x, (progs x).range`. -/
-noncomputable def Program.range' {s a b : Type} (progs : a → Program s b) : DetermFootprint s :=
+noncomputable def ProgramDenotation.range' {s a b : Type} (progs : a → ProgramDenotation s b) :
+    DetermFootprint s :=
   sInf { R | ∀ x, (progs x).inRange R }
 
 /-! ## `glob`: the global variables read/written by a program -/
@@ -72,56 +76,59 @@ noncomputable def Program.range' {s a b : Type} (progs : a → Program s b) : De
     iff they differ only by an update outside `A`'s range — i.e., they are
     indistinguishable from `A`'s perspective. Use this anywhere
     `Quotient (A.range)ᶜ.orbit_setoid` would otherwise appear. -/
-noncomputable abbrev _root_.GaudisCrypt.Language.Semantics.Program.Globals {s a : Type} (A : Program s a) : Type :=
+noncomputable abbrev _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.Globals {s a : Type} (A
+    : ProgramDenotation s a) : Type :=
   Quotient (A.range)ᶜ.orbit_setoid
 
 /-- Family-version type: the globals of the parameterized family `progs`. -/
-noncomputable abbrev Program.Globals' {s a b : Type} (progs : a → Program s b) : Type :=
-  Quotient (Program.range' progs)ᶜ.orbit_setoid
+noncomputable abbrev ProgramDenotation.Globals' {s a b : Type} (progs : a → ProgramDenotation s b) :
+    Type :=
+  Quotient (ProgramDenotation.range' progs)ᶜ.orbit_setoid
 
 /-- The global variables of `A` — a Getter projecting `state s` onto the data
     `A` can observe or modify. Built from `A.range` via the DetermFootprint-level
     `touched_getter` (which uses the *commutant* `Rᶜ`-orbit equivalence). -/
-noncomputable def Program.glob {s a : Type} (A : Program s a) :
+noncomputable def ProgramDenotation.glob {s a : Type} (A : ProgramDenotation s a) :
     Getter A.Globals s :=
   A.range.touched_getter
 
 /-- Family version of `glob`. -/
-noncomputable def Program.glob' {s a b : Type} (progs : a → Program s b) :
-    Getter (Program.Globals' progs) s :=
-  (Program.range' progs).touched_getter
+noncomputable def ProgramDenotation.glob' {s a b : Type} (progs : a → ProgramDenotation s b) :
+    Getter (ProgramDenotation.Globals' progs) s :=
+  (ProgramDenotation.range' progs).touched_getter
 
 /-! ## Structural lemmas -/
 
 /-- `pure x` is in every range — it touches no state. -/
-theorem Program.inRange_pure {s a : Type} (x : a) (R : DetermFootprint s) :
-    (pure x : Program s a).inRange R := by
+theorem ProgramDenotation.inRange_pure {s a : Type} (x : a) (R : DetermFootprint s) :
+    (pure x : ProgramDenotation s a).inRange R := by
   intro f _
   -- LHS: liftF f; pure x
   -- RHS: pure x ; liftF f ; pure x' = liftF f ; pure x   (by pure_bind on the outer)
-  rw [Program.pure_bind]
+  rw [ProgramDenotation.pure_bind]
 
 /-- Bind composition: if `p` and every `f x` live in `R`, then so does `p >>= f`. -/
-theorem Program.inRange_bind {s a b : Type}
-    {p : Program s a} {f : a → Program s b} {R : DetermFootprint s}
+theorem ProgramDenotation.inRange_bind {s a b : Type}
+    {p : ProgramDenotation s a} {f : a → ProgramDenotation s b} {R : DetermFootprint s}
     (hp : p.inRange R) (hf : ∀ x, (f x).inRange R) :
     (p >>= f).inRange R := by
   intro g hg
   calc (liftF g >>= fun _ => p >>= f)
-      = ((liftF g >>= fun _ => p) >>= f) := by rw [Program.bind_assoc]
+      = ((liftF g >>= fun _ => p) >>= f) := by rw [ProgramDenotation.bind_assoc]
     _ = ((p >>= fun x => liftF g >>= fun _ => pure x) >>= f) := by rw [hp g hg]
-    _ = (p >>= fun x => (liftF g >>= fun _ => pure x) >>= f) := by rw [Program.bind_assoc]
+    _ = (p >>= fun x => (liftF g >>= fun _ => pure x) >>= f) := by rw [ProgramDenotation.bind_assoc]
     _ = (p >>= fun x => liftF g >>= fun _ => pure x >>= f) := by
-            congr 1; funext x; rw [Program.bind_assoc]
+            congr 1; funext x; rw [ProgramDenotation.bind_assoc]
     _ = (p >>= fun x => liftF g >>= fun _ => f x) := by
-            congr 1; funext x; congr 1; funext _; rw [Program.pure_bind]
+            congr 1; funext x; congr 1; funext _; rw [ProgramDenotation.pure_bind]
     _ = (p >>= fun x => f x >>= fun y => liftF g >>= fun _ => pure y) := by
             congr 1; funext x; exact hf x g hg
     _ = ((p >>= f) >>= fun y => liftF g >>= fun _ => pure y) := by
-            rw [Program.bind_assoc]
+            rw [ProgramDenotation.bind_assoc]
 
 /-- Monotonicity: a larger range still contains the program. -/
-theorem Program.inRange_mono {s a : Type} {p : Program s a} {R R' : DetermFootprint s}
+theorem ProgramDenotation.inRange_mono {s a : Type} {p : ProgramDenotation s a} {R R' :
+    DetermFootprint s}
     (h : p.inRange R) (hR : R ≤ R') : p.inRange R' := by
   intro f hf
   -- R ≤ R' implies R'ᶜ ≤ Rᶜ, so f ∈ R'ᶜ ⊆ Rᶜ.
@@ -139,7 +146,7 @@ theorem Program.inRange_mono {s a : Type} {p : Program s a} {R R' : DetermFootpr
   exact this hf
 
 /-- The wp of `liftF f` simply applies the postcondition at the f-shifted state. -/
-lemma wp_liftF {s : Type} (f : s → s) (F : Program.Post s Unit) :
+lemma wp_liftF {s : Type} (f : s → s) (F : ProgramDenotation.Post s Unit) :
     (liftF f).wp F = fun st => F ((), f st) := by
   funext st
   show ((liftF f st).expected F : ENNReal) = F ((), f st)
@@ -151,29 +158,29 @@ lemma wp_liftF {s : Type} (f : s → s) (F : Program.Post s Unit) :
 These say that a primitive program (`uniform`, `set`, `get`) lives in the obvious range.
 -/
 
-/-- `Program.uniform` lives in the trivial range (it doesn't touch state). -/
-theorem Program.inRange_uniform {s α : Type} [Fintype α] [Nonempty α] :
-    (Program.uniform : Program s α).inRange ⊥ := by
+/-- `ProgramDenotation.uniform` lives in the trivial range (it doesn't touch state). -/
+theorem ProgramDenotation.inRange_uniform {s α : Type} [Fintype α] [Nonempty α] :
+    (ProgramDenotation.uniform : ProgramDenotation s α).inRange ⊥ := by
   intro f _
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
   simp only [wp_bind, wp_liftF, wp_uniform, wp_pure]
 
-/-- `Program.uniformOfFinset` lives in the trivial range (it doesn't touch
+/-- `ProgramDenotation.uniformOfFinset` lives in the trivial range (it doesn't touch
     state — it only samples its return value). -/
-theorem Program.inRange_uniformOfFinset {s α : Type} [Fintype α]
+theorem ProgramDenotation.inRange_uniformOfFinset {s α : Type} [Fintype α]
     (fs : Finset α) (hs : fs.Nonempty) :
-    (Program.uniformOfFinset fs hs : Program s α).inRange ⊥ := by
+    (ProgramDenotation.uniformOfFinset fs hs : ProgramDenotation s α).inRange ⊥ := by
   intro f _
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
   simp only [wp_bind, wp_liftF, wp_uniformOfFinset, wp_pure]
 
-/-- `Program.set v x` lives in `v.range`. -/
-theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
-    (Program.set v x).inRange v.range := by
+/-- `ProgramDenotation.set v x` lives in `v.range`. -/
+theorem ProgramDenotation.inRange_set {s a : Type} (v : Lens a s) (x : a) :
+    (ProgramDenotation.set v x).inRange v.range := by
   intro f hf
   -- Step 1: extract lens-commutativity from `hf : f ∈ v.rangeᶜ.updates`.
   have h_comm : ∀ σ : s, v.set x (f σ) = f (v.set x σ) := by
@@ -188,7 +195,7 @@ theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
     simp only [Lens.liftFunction, Function.const_apply] at hcomm
     exact hcomm
   -- Step 2: prove the equation via wp.
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
   simp only [wp_bind, wp_liftF, wp_set, wp_pure]
@@ -196,9 +203,9 @@ theorem Program.inRange_set {s a : Type} (v : Lens a s) (x : a) :
   exact congr_arg (fun st : s => F ((), st)) (h_comm σ)
 
 
-/-- `Program.get v` lives in `v.range`: it reads from `v`, doesn't write. -/
-theorem Program.inRange_get {s a : Type} (v : Lens a s) :
-    (Program.get v).inRange v.range := by
+/-- `ProgramDenotation.get v` lives in `v.range`: it reads from `v`, doesn't write. -/
+theorem ProgramDenotation.inRange_get {s a : Type} (v : Lens a s) :
+    (ProgramDenotation.get v).inRange v.range := by
   intro f hf
   -- Extract: f preserves v.get.
   have h_get_pres : ∀ σ : s, v.get (f σ) = v.get σ := by
@@ -217,29 +224,29 @@ theorem Program.inRange_get {s a : Type} (v : Lens a s) :
     rw [v.set_get] at this
     exact this.symm
   -- Prove the inRange equation via wp.
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
   simp only [wp_bind, wp_liftF, wp_get, wp_pure]
   -- LHS: F (v.get (f σ), f σ); RHS: F (v.get σ, f σ).
   rw [h_get_pres]
 
-/-- **`Program.set` is in `L.compl.range`** when the setter `v` is disjoint
+/-- **`ProgramDenotation.set` is in `L.compl.range`** when the setter `v` is disjoint
     from the reader `L`. Common one-liner replacing
     `inRange_mono (inRange_set _ _) (Lens.range_le_compl_of_disjoint v L)`. -/
-lemma Program.set_inRange_compl_of_disjoint
+lemma ProgramDenotation.set_inRange_compl_of_disjoint
     {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] (x : α) :
-    (Program.set v x).inRange L.compl.range :=
-  Program.inRange_mono (Program.inRange_set v x)
+    (ProgramDenotation.set v x).inRange L.compl.range :=
+  ProgramDenotation.inRange_mono (ProgramDenotation.inRange_set v x)
     (Lens.range_le_compl_of_disjoint v L)
 
-/-- **`Program.get` is in `L.compl.range`** when the reader `v` is disjoint
+/-- **`ProgramDenotation.get` is in `L.compl.range`** when the reader `v` is disjoint
     from `L`. Common one-liner replacing
     `inRange_mono (inRange_get _) (Lens.range_le_compl_of_disjoint v L)`. -/
-lemma Program.get_inRange_compl_of_disjoint
+lemma ProgramDenotation.get_inRange_compl_of_disjoint
     {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] :
-    (Program.get v).inRange L.compl.range :=
-  Program.inRange_mono (Program.inRange_get v)
+    (ProgramDenotation.get v).inRange L.compl.range :=
+  ProgramDenotation.inRange_mono (ProgramDenotation.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)
 
 /-! ## Bounded-loop combinator
@@ -247,25 +254,26 @@ lemma Program.get_inRange_compl_of_disjoint
 A generic `n`-fold iterator and its basic invariance/bound theorems. -/
 
 /-- Run `body` exactly `n` times. Generic bounded loop combinator. -/
-noncomputable def loop_n {s : Type} (n : ℕ) (body : Program s Unit) : Program s Unit :=
+noncomputable def loop_n {s : Type} (n : ℕ) (body : ProgramDenotation s Unit) : ProgramDenotation s
+    Unit :=
   match n with
   | 0 => pure ()
   | n + 1 => body >>= fun _ => loop_n n body
 
 /-- `loop_n n body` stays in the same range as `body`. -/
 lemma loop_n_inRange {s : Type} {R : DetermFootprint s}
-    (body : Program s Unit) (h_body : body.inRange R) (n : ℕ) :
+    (body : ProgramDenotation s Unit) (h_body : body.inRange R) (n : ℕ) :
     (loop_n n body).inRange R := by
   induction n with
-  | zero => exact Program.inRange_pure _ _
+  | zero => exact ProgramDenotation.inRange_pure _ _
   | succ n ih =>
     show (body >>= fun _ => loop_n n body).inRange R
-    exact Program.inRange_bind h_body (fun _ => ih)
+    exact ProgramDenotation.inRange_bind h_body (fun _ => ih)
 
 /-- **Mass conservation for `loop_n`**: if `body` has mass 1 at every state,
     then so does `loop_n n body`. -/
 lemma loop_n_mass_one {s : Type}
-    (body : Program s Unit)
+    (body : ProgramDenotation s Unit)
     (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
     (n : ℕ) (σ : s) :
     (loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1 := by
@@ -285,7 +293,7 @@ lemma loop_n_mass_one {s : Type}
 /-- **Linear bump bound for `loop_n`** with respect to a state-projected potential.
     If `body` bumps `f` by ≤ `c` per iteration, then `loop_n n body` bumps `f` by ≤ `n*c`. -/
 lemma loop_n_wp_linear_bound {s : Type}
-    (body : Program s Unit)
+    (body : ProgramDenotation s Unit)
     (f : s → ENNReal) (c : ENNReal)
     (h_body : ∀ σ, body.wp (fun aσ : Unit × s => f aσ.2) σ ≤ f σ + c)
     (n : ℕ) (σ : s) :
@@ -293,7 +301,7 @@ lemma loop_n_wp_linear_bound {s : Type}
     ≤ f σ + (n : ENNReal) * c := by
   induction n generalizing σ with
   | zero =>
-    show (pure () : Program s Unit).wp _ σ ≤ _
+    show (pure () : ProgramDenotation s Unit).wp _ σ ≤ _
     rw [wp_pure]; simp
   | succ n ih =>
     show (body >>= fun _ => loop_n n body).wp _ σ ≤ _
@@ -302,16 +310,16 @@ lemma loop_n_wp_linear_bound {s : Type}
             (loop_n n body).wp
               (fun yσ' : Unit × s => f yσ'.2) yσ.2) σ
         ≤ body.wp (fun yσ : Unit × s => f yσ.2 + (n : ENNReal) * c) σ := by
-          apply Program.wp_le_wp_of_le
+          apply ProgramDenotation.wp_le_wp_of_le
           intro yσ
           exact ih yσ.2
       _ = body.wp (fun yσ : Unit × s => f yσ.2) σ +
           body.wp (fun _ : Unit × s => (n : ENNReal) * c) σ := by
-          rw [Program.wp_add]
+          rw [ProgramDenotation.wp_add]
       _ ≤ (f σ + c) + (n : ENNReal) * c := by
           gcongr
           · exact h_body σ
-          · exact Program.wp_const_le _ _ _
+          · exact ProgramDenotation.wp_const_le _ _ _
       _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
           push_cast; ring
 
@@ -320,7 +328,8 @@ lemma loop_n_wp_linear_bound {s : Type}
 /-- `inRange` lifted to the SubProbability level: at state `σ`, applying a commutant update
     `f ∈ Rᶜ` *before* `p` gives the same distribution as running `p` first and then applying
     `f` to the state coordinate of each outcome. -/
-lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : DetermFootprint s}
+lemma ProgramDenotation.inRange_subprob {s a : Type} {p : ProgramDenotation s a} {R :
+    DetermFootprint s}
     (hp : p.inRange R) {f : s → s} (hf : f ∈ Rᶜ.updates) (σ : s) :
     p (f σ) = (p σ) >>= (fun (xs : a × s) => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
   have h_eq := congr_fun (hp f hf) σ
@@ -333,7 +342,8 @@ lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : DetermFootprin
   -- RHS of h_eq simplifies to (p σ) >>= (fun (x, s') => pure (x, f s')).
   have hR : (p >>= fun x => liftF f >>= fun _ => pure x) σ
           = (p σ) >>= (fun (xs : a × s) => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-    show (p σ) >>= (fun (xs : a × s) => (liftF f >>= fun _ => (pure xs.1 : Program s a)) xs.2)
+    show (p σ) >>= (fun (xs : a × s) => (liftF f >>= fun _ => (pure xs.1 : ProgramDenotation s a))
+        xs.2)
        = (p σ) >>= (fun (xs : a × s) =>
                        (pure (xs.1, f xs.2) : SubProbability (a × s)))
     congr 1
@@ -350,8 +360,8 @@ lemma Program.inRange_subprob {s a : Type} {p : Program s a} {R : DetermFootprin
 /-- **wp of a value-only post = expected value under the value-marginal**. For
     any `G : α → ENNReal`, `p.wp (fun aσ => G aσ.1) σ` equals the expected
     value of `G` under the marginal distribution `p σ >>= fun aσ => pure aσ.1`. -/
-lemma Program.wp_value_eq_marginal_expected {s α : Type}
-    (p : Program s α) (G : α → ENNReal) (σ : s) :
+lemma ProgramDenotation.wp_value_eq_marginal_expected {s α : Type}
+    (p : ProgramDenotation s α) (G : α → ENNReal) (σ : s) :
     p.wp (fun aσ : α × s => G aσ.1) σ
       = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G := by
   change (p σ).expected (fun aσ : α × s => G aσ.1)
@@ -366,22 +376,23 @@ lemma Program.wp_value_eq_marginal_expected {s α : Type}
     they agree on the wp of any post of the form `fun aσ => G aσ.1`. This is
     the generic bridge from a SubProb-level transfer theorem to a wp-level
     one — used by `cr_transfer_wp_of_bit`, `ow_transfer_wp_of_bit`, etc. -/
-lemma Program.wp_eq_of_marginal_eq {s α : Type}
-    {p q : Program s α}
+lemma ProgramDenotation.wp_eq_of_marginal_eq {s α : Type}
+    {p q : ProgramDenotation s α}
     (h_marg : ∀ σ : s, (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α))
                        = (q σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)))
     (G : α → ENNReal) (σ : s) :
     p.wp (fun aσ : α × s => G aσ.1) σ = q.wp (fun aσ : α × s => G aσ.1) σ := by
-  rw [Program.wp_value_eq_marginal_expected p G σ,
-      Program.wp_value_eq_marginal_expected q G σ, h_marg σ]
+  rw [ProgramDenotation.wp_value_eq_marginal_expected p G σ,
+      ProgramDenotation.wp_value_eq_marginal_expected q G σ, h_marg σ]
 
 /-- wp form of `inRange`: shifting the input state by `f ∈ Rᶜ` is equivalent to
     post-composing `f` on the state coordinate of the postcondition. -/
-lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : DetermFootprint s}
+lemma ProgramDenotation.wp_shift_input {s a : Type} {p : ProgramDenotation s a} {R : DetermFootprint
+    s}
     (hp : p.inRange R) {f : s → s} (hf : f ∈ Rᶜ.updates) (F : a × s → ENNReal) (σ : s) :
     p.wp F (f σ) = p.wp (fun (xs : a × s) => F (xs.1, f xs.2)) σ := by
   show (p (f σ)).expected F = (p σ).expected (fun (xs : a × s) => F (xs.1, f xs.2))
-  rw [Program.inRange_subprob hp hf σ]
+  rw [ProgramDenotation.inRange_subprob hp hf σ]
   rw [SubProbability.expected_bind]
   congr 1
   funext xs
@@ -392,12 +403,12 @@ lemma Program.wp_shift_input {s a : Type} {p : Program s a} {R : DetermFootprint
     `L.get` as `σ`. We can therefore strengthen the postcondition with an
     `if L.get = L.get σ then F else 0` check without changing the `wp` value.
 
-    Proved by a double-shift via `Program.wp_shift_input`: shifting `F` and the
+    Proved by a double-shift via `ProgramDenotation.wp_shift_input`: shifting `F` and the
     strengthened post by `f := L.liftFunction (Function.const _ (L.get σ))` (which
     forces `L.get` to `L.get σ`) makes both inner posts identical, so the
     `wp` values match. -/
-lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
-    (L : Lens γ s) {p : Program s α} (h_inRange : p.inRange L.compl.range)
+lemma ProgramDenotation.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
+    (L : Lens γ s) {p : ProgramDenotation s α} (h_inRange : p.inRange L.compl.range)
     (F : α × s → ENNReal) (σ : s) :
     p.wp F σ
       = p.wp (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ := by
@@ -413,9 +424,9 @@ lemma Program.wp_strengthen_lens_preserved {s α γ : Type} [DecidableEq γ]
     intro σ'
     show L.get (L.set ((Function.const _ (L.get σ)) (L.get σ')) σ') = L.get σ
     rw [Function.const_apply, L.set_get]
-  have h_shift_F := Program.wp_shift_input h_inRange h_f_in_Rc F σ
+  have h_shift_F := ProgramDenotation.wp_shift_input h_inRange h_f_in_Rc F σ
   rw [h_f_fix] at h_shift_F
-  have h_shift_strong := Program.wp_shift_input h_inRange h_f_in_Rc
+  have h_shift_strong := ProgramDenotation.wp_shift_input h_inRange h_f_in_Rc
     (fun aσ' : α × s => if L.get aσ'.2 = L.get σ then F aσ' else 0) σ
   rw [h_f_fix] at h_shift_strong
   rw [h_shift_F, h_shift_strong]
@@ -434,7 +445,7 @@ namespace IgnoresLens
 /-- L-ignoring is preserved when post-composing with an L-disjoint program. -/
 lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
     {F : β × s → ENNReal} (h_F : IgnoresLens L F)
-    (k : α → Program s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
+    (k : α → ProgramDenotation s β) (h_k : ∀ a, (k a).inRange L.compl.range) :
     IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
   intro aσ v
   have hf : (fun s' : s => L.set v s') ∈ ((L.compl.range : DetermFootprint s)ᶜ).updates := by
@@ -442,7 +453,7 @@ lemma comp_inRange {γ s α β : Type} [DecidableEq γ] {L : Lens γ s}
         rw [DetermFootprint.complement_range, DetermFootprint.compl_compl]]
     exact ⟨Function.const _ v, Set.mem_univ _, rfl⟩
   show (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
-  rw [Program.wp_shift_input (h_k aσ.1) hf]
+  rw [ProgramDenotation.wp_shift_input (h_k aσ.1) hf]
   congr 1
   funext xs
   exact h_F xs v
@@ -458,9 +469,9 @@ end IgnoresLens
     at this `v`), not the full `IgnoresLens` (invariance at every value).
     Callers that have the stronger `IgnoresLens L F` can supply
     `fun aσ => h_F aσ v`. -/
-lemma Program.wp_invariant_under_lens_set
+lemma ProgramDenotation.wp_invariant_under_lens_set
     {s α γ : Type} [DecidableEq γ] (L : Lens γ s)
-    {p : Program s α} (h_p : p.inRange L.compl.range)
+    {p : ProgramDenotation s α} (h_p : p.inRange L.compl.range)
     (v : γ) {F : α × s → ENNReal}
     (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
     (σ : s) :
@@ -474,7 +485,7 @@ lemma Program.wp_invariant_under_lens_set
     show L.set ((Function.const _ v) (L.get σ)) σ = L.set v σ
     rfl
   rw [← h_set_eq]
-  rw [Program.wp_shift_input h_p h_f_updates]
+  rw [ProgramDenotation.wp_shift_input h_p h_f_updates]
   congr 1
   funext xs
   show F (xs.1, L.liftFunction (Function.const _ v) xs.2) = F xs
@@ -486,12 +497,12 @@ lemma Program.wp_invariant_under_lens_set
     post `F` that doesn't observe `L.set v`. Both branches converge:
     when `c` holds, `set L v` is invisible by `h_F`; otherwise `pure ()`
     is a no-op. Captures the "conditional tracking write" pattern. -/
-lemma Program.wp_cond_set_invisible
+lemma ProgramDenotation.wp_cond_set_invisible
     {s γ : Type} (L : Lens γ s) (cond : Prop) [Decidable cond] (v : γ)
     (F : Unit × s → ENNReal)
     (h_F : ∀ aσ : Unit × s, F (aσ.1, L.set v aσ.2) = F aσ)
     (σ : s) :
-    (if cond then Program.set L v else (pure () : Program s Unit)).wp F σ
+    (if cond then ProgramDenotation.set L v else (pure () : ProgramDenotation s Unit)).wp F σ
     = F ((), σ) := by
   by_cases h : cond
   · rw [if_pos h, wp_set]
@@ -504,10 +515,11 @@ lemma Program.wp_cond_set_invisible
     doesn't read `L`. Captures the "tracking variable updated in place"
     pattern: the modification is invisible if downstream code doesn't
     observe `L`. -/
-lemma Program.wp_get_modify_invisible
+lemma ProgramDenotation.wp_get_modify_invisible
     {s γ : Type} (L : Lens γ s) (g : γ → γ)
     (F : Unit × s → ENNReal) (h_F : IgnoresLens L F) (σ : s) :
-    (Program.get L >>= fun a : γ => Program.set L (g a)).wp F σ = F ((), σ) := by
+    (ProgramDenotation.get L >>= fun a : γ => ProgramDenotation.set L (g a)).wp F σ = F ((),
+        σ) := by
   rw [wp_bind, wp_get]
   dsimp only
   rw [wp_set]
@@ -518,13 +530,13 @@ lemma Program.wp_get_modify_invisible
     `p.wp F σ = 0`. Captures the standard "bad-event vanishing" pattern in
     security proofs: once the bad flag is set, all post-outcomes count as bad
     too (and the post assigns them 0), so the wp is 0. -/
-lemma Program.wp_zero_of_lens_preserves {s α γ : Type} [DecidableEq γ]
-    {L : Lens γ s} {p : Program s α} (h_p : p.inRange L.compl.range)
+lemma ProgramDenotation.wp_zero_of_lens_preserves {s α γ : Type} [DecidableEq γ]
+    {L : Lens γ s} {p : ProgramDenotation s α} (h_p : p.inRange L.compl.range)
     {F : α × s → ENNReal} {v : γ}
     (h_F_zero : ∀ aσ : α × s, L.get aσ.2 = v → F aσ = 0)
     {σ : s} (h_σ : L.get σ = v) :
     p.wp F σ = 0 := by
-  rw [Program.wp_strengthen_lens_preserved L h_p]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved L h_p]
   rw [show (fun aσ : α × s =>
             if L.get aσ.2 = L.get σ then F aσ else 0)
           = (fun _ : α × s => (0 : ENNReal)) from by
@@ -533,17 +545,17 @@ lemma Program.wp_zero_of_lens_preserves {s α γ : Type} [DecidableEq γ]
     · simp only [if_pos h]
       exact h_F_zero aσ (h.trans h_σ)
     · simp only [if_neg h]]
-  exact Program.wp_zero_post _ _
+  exact ProgramDenotation.wp_zero_post _ _
 
-/-- **Drop a dead write**: prepending `Program.set L v` to a program `rest` that
+/-- **Drop a dead write**: prepending `ProgramDenotation.set L v` to a program `rest` that
     doesn't touch `L`'s range is a no-op for any post that ignores `L`'s value.
     Useful for cleaning up bookkeeping writes that downstream code doesn't read. -/
-lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ s}
-    {α : Type} {rest : Program s α} (h_rest : rest.inRange L.compl.range)
+lemma ProgramDenotation.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+    {α : Type} {rest : ProgramDenotation s α} (h_rest : rest.inRange L.compl.range)
     (v : γ) (F : α × s → ENNReal)
     (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
     (σ : s) :
-    (Program.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
+    (ProgramDenotation.set L v >>= fun _ => rest).wp F σ = rest.wp F σ := by
   simp only [wp_bind, wp_set]
   set f : s → s := L.liftFunction (Function.const _ v) with hf_def
   have h_f_in_Rc : f ∈ ((L.compl.range : DetermFootprint s)ᶜ).updates := by
@@ -554,7 +566,7 @@ lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ 
     show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
     rw [Function.const_apply]
   rw [← h_f_eq σ]
-  rw [Program.wp_shift_input h_rest h_f_in_Rc]
+  rw [ProgramDenotation.wp_shift_input h_rest h_f_in_Rc]
   congr 1
   funext xs
   rw [h_f_eq xs.2]
@@ -564,17 +576,17 @@ lemma Program.wp_set_disjoint_no_op {s γ : Type} [DecidableEq γ] {L : Lens γ 
     `set` is gated by a `Prop`. Useful for the tracking-variable pattern in
     cryptographic proofs, where an auxiliary flag is conditionally written
     inside a loop body whose remainder doesn't read it. -/
-lemma Program.wp_conditional_set_disjoint_no_op {s γ : Type} [DecidableEq γ]
+lemma ProgramDenotation.wp_conditional_set_disjoint_no_op {s γ : Type} [DecidableEq γ]
     {L : Lens γ s} {α : Type} (cond : Prop) [Decidable cond] (v : γ)
-    {rest : Program s α} (h_rest : rest.inRange L.compl.range)
+    {rest : ProgramDenotation s α} (h_rest : rest.inRange L.compl.range)
     (F : α × s → ENNReal)
     (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
     (σ : s) :
-    ((if cond then Program.set L v else pure ()) >>= fun _ => rest).wp F σ
+    ((if cond then ProgramDenotation.set L v else pure ()) >>= fun _ => rest).wp F σ
     = rest.wp F σ := by
   by_cases h : cond
   · rw [if_pos h]
-    exact Program.wp_set_disjoint_no_op h_rest v F h_F σ
+    exact ProgramDenotation.wp_set_disjoint_no_op h_rest v F h_F σ
   · rw [if_neg h]
     simp only [wp_bind, wp_pure]
 
@@ -582,26 +594,26 @@ lemma Program.wp_conditional_set_disjoint_no_op {s γ : Type} [DecidableEq γ]
     lens whose `compl.range` covers the rest. Captures the common shape
     `get L_get >>= fun cx => (if pred cx then set L_set v else pure) >>= rest`
     used in tracking-variable patterns. -/
-lemma Program.wp_get_then_conditional_set_disjoint_no_op
+lemma ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op
     {s γ δ : Type} [DecidableEq γ] {L_get : Lens δ s} {L_set : Lens γ s}
     {α : Type} (pred : δ → Prop) [DecidablePred pred] (v : γ)
-    {rest : Program s α} (h_rest : rest.inRange L_set.compl.range)
+    {rest : ProgramDenotation s α} (h_rest : rest.inRange L_set.compl.range)
     (F : α × s → ENNReal)
     (h_F : ∀ aσ : α × s, F (aσ.1, L_set.set v aσ.2) = F aσ)
     (σ : s) :
-    (Program.get L_get >>= fun cx =>
-        (if pred cx then Program.set L_set v else (pure () : Program s Unit))
+    (ProgramDenotation.get L_get >>= fun cx =>
+        (if pred cx then ProgramDenotation.set L_set v else (pure () : ProgramDenotation s Unit))
           >>= fun _ => rest).wp F σ
     = rest.wp F σ := by
   rw [wp_bind, wp_get]
-  exact Program.wp_conditional_set_disjoint_no_op (pred (L_get.get σ)) v h_rest F h_F σ
+  exact ProgramDenotation.wp_conditional_set_disjoint_no_op (pred (L_get.get σ)) v h_rest F h_F σ
 
 /-- **Preservation under in-range**: if `prog` modifies only the complement of `L`,
     and the postcondition factors through `L.get` (i.e. depends only on `L`-content),
     then `prog.wp (P ∘ snd) σ ≤ P σ`. The sub-probability mass of `prog σ` only
     decreases the value below `P σ`. -/
-lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
-    {prog : Program s α} (h_inRange : prog.inRange L.compl.range)
+lemma ProgramDenotation.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
+    {prog : ProgramDenotation s α} (h_inRange : prog.inRange L.compl.range)
     {P : s → ENNReal}
     (h_factors : ∀ σ σ', L.get σ' = L.get σ → P σ' = P σ)
     (σ : s) :
@@ -619,46 +631,46 @@ lemma Program.wp_le_of_factors {s α γ : Type} (L : Lens γ s)
     apply h_factors
     show L.get (L.set ((Function.const _ (L.get σ)) (L.get σ')) σ') = L.get σ
     rw [Function.const_apply, L.set_get]
-  have h_shift := Program.wp_shift_input h_inRange h_f_in_Rc
+  have h_shift := ProgramDenotation.wp_shift_input h_inRange h_f_in_Rc
     (fun xs : α × s => P xs.2) σ
   rw [h_f_fix] at h_shift
   rw [h_shift]
   rw [show (fun xs : α × s => P (f xs.2)) = (fun _ : α × s => P σ) from by
     funext xs; exact h_f_P xs.2]
-  exact Program.wp_const_le prog (P σ) σ
+  exact ProgramDenotation.wp_const_le prog (P σ) σ
 
-/-- **Two-lens preservation**: same idea as `Program.wp_le_of_factors`, but `P`
+/-- **Two-lens preservation**: same idea as `ProgramDenotation.wp_le_of_factors`, but `P`
     factors through the pair `(L₁.get, L₂.get)` and `prog` preserves both
     lenses. Iterates `wp_strengthen_lens_preserved` over two lenses. -/
-lemma Program.wp_le_of_factors_two {s α γ₁ γ₂ : Type}
+lemma ProgramDenotation.wp_le_of_factors_two {s α γ₁ γ₂ : Type}
     [DecidableEq γ₁] [DecidableEq γ₂]
     (L₁ : Lens γ₁ s) (L₂ : Lens γ₂ s)
-    {prog : Program s α}
+    {prog : ProgramDenotation s α}
     (h₁ : prog.inRange L₁.compl.range) (h₂ : prog.inRange L₂.compl.range)
     {P : s → ENNReal}
     (h_factors : ∀ σ σ' : s,
         L₁.get σ' = L₁.get σ → L₂.get σ' = L₂.get σ → P σ' = P σ)
     (σ : s) :
     prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  rw [Program.wp_strengthen_lens_preserved L₂ h₂]
-  rw [Program.wp_strengthen_lens_preserved L₁ h₁]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved L₂ h₂]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved L₁ h₁]
   calc prog.wp _ σ
       ≤ prog.wp (fun _ : α × s => P σ) σ := by
-        apply Program.wp_le_wp_of_le
+        apply ProgramDenotation.wp_le_wp_of_le
         rintro ⟨_, σ'⟩; dsimp only
         split_ifs with h1 h2
         · exact le_of_eq (h_factors σ σ' h1 h2)
         all_goals exact bot_le
-    _ ≤ P σ := Program.wp_const_le prog _ σ
+    _ ≤ P σ := ProgramDenotation.wp_const_le prog _ σ
 
-/-- **Three-lens preservation**: same idea as `Program.wp_le_of_factors`, but
+/-- **Three-lens preservation**: same idea as `ProgramDenotation.wp_le_of_factors`, but
     `P` factors through three lens-gets and `prog` preserves all three. Used
     for indicators (e.g. OW's `useful_preimage`) that depend on multiple
     independent pieces of state. -/
-lemma Program.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
+lemma ProgramDenotation.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
     [DecidableEq γ₁] [DecidableEq γ₂] [DecidableEq γ₃]
     (L₁ : Lens γ₁ s) (L₂ : Lens γ₂ s) (L₃ : Lens γ₃ s)
-    {prog : Program s α}
+    {prog : ProgramDenotation s α}
     (h₁ : prog.inRange L₁.compl.range)
     (h₂ : prog.inRange L₂.compl.range)
     (h₃ : prog.inRange L₃.compl.range)
@@ -668,17 +680,17 @@ lemma Program.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
         L₃.get σ' = L₃.get σ → P σ' = P σ)
     (σ : s) :
     prog.wp (fun xs : α × s => P xs.2) σ ≤ P σ := by
-  rw [Program.wp_strengthen_lens_preserved L₃ h₃]
-  rw [Program.wp_strengthen_lens_preserved L₂ h₂]
-  rw [Program.wp_strengthen_lens_preserved L₁ h₁]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved L₃ h₃]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved L₂ h₂]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved L₁ h₁]
   calc prog.wp _ σ
       ≤ prog.wp (fun _ : α × s => P σ) σ := by
-        apply Program.wp_le_wp_of_le
+        apply ProgramDenotation.wp_le_wp_of_le
         rintro ⟨_, σ'⟩; dsimp only
         split_ifs with h1 h2 h3
         · exact le_of_eq (h_factors σ σ' h1 h2 h3)
         all_goals exact bot_le
-    _ ≤ P σ := Program.wp_const_le prog _ σ
+    _ ≤ P σ := ProgramDenotation.wp_const_le prog _ σ
 
 /-! ## Identical-until-bad
 
@@ -694,8 +706,8 @@ queried `chal_x`"), `p` is the original game, `q` is the simplified
 
 /-- **Up-to-bad (wp form)**. If `p` and `q` agree on the restriction of any
     post to `¬ bad`, then `p.wp G σ ≤ q.wp G σ + p.wp (G | bad) σ`. -/
-lemma Program.up_to_bad {s α : Type}
-    {p q : Program s α} {bad : s → Prop} [DecidablePred bad]
+lemma ProgramDenotation.up_to_bad {s α : Type}
+    {p q : ProgramDenotation s α} {bad : s → Prop} [DecidablePred bad]
     (G : α × s → ENNReal)
     (h_agree_on_good : ∀ (σ : s),
         p.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ
@@ -705,12 +717,12 @@ lemma Program.up_to_bad {s α : Type}
     ≤ q.wp G σ
       + p.wp (fun aσ : α × s => if bad aσ.2 then G aσ else 0) σ := by
   -- Split G = (¬ bad ∧ G) + (bad ∧ G) on both sides via wp_add.
-  have h_split : ∀ (r : Program s α),
+  have h_split : ∀ (r : ProgramDenotation s α),
       r.wp G σ
       = r.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ
         + r.wp (fun aσ : α × s => if bad aσ.2 then G aσ else 0) σ := by
     intro r
-    rw [← Program.wp_add]
+    rw [← ProgramDenotation.wp_add]
     congr 1
     funext aσ
     by_cases h : bad aσ.2
@@ -721,7 +733,7 @@ lemma Program.up_to_bad {s α : Type}
   -- Goal: q.wp (good_part G) σ + p.wp (bad_part G) σ ≤ q.wp G σ + p.wp (bad_part G) σ.
   -- It suffices to show q.wp (good_part G) σ ≤ q.wp G σ.
   gcongr
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   intro aσ
   by_cases h : bad aσ.2
   · simp [h]
@@ -753,7 +765,8 @@ def DetermFootprint.HasOrbitCollapse (R : DetermFootprint m) (σ : m) : Prop :=
 
 /-- The orbit fact under the `HasOrbitCollapse` hypothesis: outcomes of `p σ` are
     a.e. in `R`-orbit(σ). -/
-lemma Program.inRange_orbit_of_collapse {s a : Type} {p : Program s a} {R : DetermFootprint s}
+lemma ProgramDenotation.inRange_orbit_of_collapse {s a : Type} {p : ProgramDenotation s a} {R :
+    DetermFootprint s}
     (hp : p.inRange R) (σ : s) (hcoll : R.HasOrbitCollapse σ) :
     (p σ).1 ((Set.univ : Set a) ×ˢ {s' : s | ∀ u ∈ R.updates, u σ ≠ s'}) = 0 := by
   obtain ⟨f, hf_in, hf_fix, hf_collapse⟩ := hcoll
@@ -761,7 +774,7 @@ lemma Program.inRange_orbit_of_collapse {s a : Type} {p : Program s a} {R : Dete
   -- Invariance: p σ = (p σ) >>= (fun (x, s') => pure (x, f s')).
   have h_inv : p σ
       = (p σ) >>= (fun (xs : a × s) => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-    have := Program.inRange_subprob hp hf_in σ
+    have := ProgramDenotation.inRange_subprob hp hf_in σ
     rwa [hf_fix] at this
   -- The "bad" set.
   let A : Set (a × s) := (Set.univ : Set a) ×ˢ {s' : s | ∀ u ∈ R.updates, u σ ≠ s'}
@@ -830,10 +843,11 @@ lemma Lens.range_hasOrbitCollapse {s c : Type} (l : Lens c s) (σ : s) :
 /-- The general orbit fact, packaged with the `HasOrbitCollapse` precondition.
     For arbitrary `DetermFootprint R`, the precondition needs to be supplied externally;
     for lens-derived `R`, `Lens.range_hasOrbitCollapse` discharges it. -/
-lemma Program.inRange_orbit {s a : Type} {p : Program s a} {R : DetermFootprint s}
+lemma ProgramDenotation.inRange_orbit {s a : Type} {p : ProgramDenotation s a} {R : DetermFootprint
+    s}
     (hp : p.inRange R) (σ : s) (hcoll : R.HasOrbitCollapse σ) :
     (p σ).1 ((Set.univ : Set a) ×ˢ {s' : s | ∀ u ∈ R.updates, u σ ≠ s'}) = 0 :=
-  Program.inRange_orbit_of_collapse hp σ hcoll
+  ProgramDenotation.inRange_orbit_of_collapse hp σ hcoll
 
 /-- **Headline payoff lemma**: programs with disjoint ranges commute.
 
@@ -851,7 +865,7 @@ lemma Program.inRange_orbit {s a : Type} {p : Program s a} {R : DetermFootprint 
 
     Proof outline:
     1. `R ≤ R'ᶜ` ⇒ `R.updates ⊆ R'ᶜ.updates` (and symmetrically `R' ≤ Rᶜ`).
-    2. Apply `Program.ext_of_wp` and unfold `wp_bind`/`wp_pure` on both sides.
+    2. Apply `ProgramDenotation.ext_of_wp` and unfold `wp_bind`/`wp_pure` on both sides.
     3. For each outcome `(x, s_p)` of `p σ` in the support: by `inRange_orbit_of_collapse`
        (using `hp_coll`), there is `u_p ∈ R.updates` with `u_p σ = s_p`. Choose via
        `Classical.choice`. Symmetrically `v_q` for `q`.
@@ -863,9 +877,9 @@ lemma Program.inRange_orbit {s a : Type} {p : Program s a} {R : DetermFootprint 
     7. Step (d) — rewrite the inner `(p σ).expected (... V ys xs.2 ...)` to
        `(p ys.2).expected (...)` via `inRange_subprob hp` and `lintegral_congr_ae`.
     8. Result matches RHS by `rfl`. -/
-theorem Program.commute_of_disjoint
+theorem ProgramDenotation.commute_of_disjoint
     {s a b : Type} [Countable a] [Countable b] [Countable s]
-    {p : Program s a} {q : Program s b} {R R' : DetermFootprint s}
+    {p : ProgramDenotation s a} {q : ProgramDenotation s b} {R R' : DetermFootprint s}
     (hp : p.inRange R) (hq : q.inRange R') (hdisj : R ≤ R'ᶜ)
     (hp_coll : ∀ σ, R.HasOrbitCollapse σ)
     (hq_coll : ∀ σ, R'.HasOrbitCollapse σ) :
@@ -889,7 +903,7 @@ theorem Program.commute_of_disjoint
     rw [Submonoid.mem_centralizer_iff] at hu_in_cent
     exact (hu_in_cent v hv).symm
   -- Approach: prove wp equality, expand wp to lintegrals, apply Fubini.
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
   letI : MeasurableSpace (a × s) := ⊤
@@ -927,13 +941,13 @@ theorem Program.commute_of_disjoint
       ext ⟨x, s'⟩
       simp [orbR, Set.mem_compl_iff, Set.mem_setOf_eq, Set.mem_prod, not_exists]
     rw [this]
-    exact Program.inRange_orbit_of_collapse hp σ (hp_coll σ)
+    exact ProgramDenotation.inRange_orbit_of_collapse hp σ (hp_coll σ)
   have hq_orbit : (q σ).1 orbR'ᶜ = 0 := by
     have : orbR'ᶜ = (Set.univ : Set b) ×ˢ {s' : s | ∀ v ∈ R'.updates, v σ ≠ s'} := by
       ext ⟨y, s'⟩
       simp [orbR', Set.mem_compl_iff, Set.mem_setOf_eq, Set.mem_prod, not_exists]
     rw [this]
-    exact Program.inRange_orbit_of_collapse hq σ (hq_coll σ)
+    exact ProgramDenotation.inRange_orbit_of_collapse hq σ (hq_coll σ)
   -- Step (a): on orbR, rewrite the inner q-expected using inRange_subprob q.
   have step_q_shift : ∀ xs ∈ orbR,
       (q xs.2).expected (fun ys : b × s => F ((xs.1, ys.1), ys.2))
@@ -941,7 +955,7 @@ theorem Program.commute_of_disjoint
     intro xs hxs
     have hUxs_in' : U xs ∈ R'ᶜ.updates := hRR' (U xs) (hU_in xs hxs)
     have hUxs_app : U xs σ = xs.2 := hU_app xs hxs
-    have h_sp := Program.inRange_subprob hq hUxs_in' σ
+    have h_sp := ProgramDenotation.inRange_subprob hq hUxs_in' σ
     rw [hUxs_app] at h_sp
     rw [h_sp, SubProbability.expected_bind]
     congr 1
@@ -1026,7 +1040,7 @@ theorem Program.commute_of_disjoint
     have hVys_in : V ys ∈ R'.updates := hV_in ys hys
     have hVys_in' : V ys ∈ Rᶜ.updates := hR'R (V ys) hVys_in
     have hVys_app : V ys σ = ys.2 := hV_app ys hys
-    have h_sp := Program.inRange_subprob hp hVys_in' σ
+    have h_sp := ProgramDenotation.inRange_subprob hp hVys_in' σ
     rw [hVys_app] at h_sp
     rw [h_sp, SubProbability.expected_bind]
     congr 1
@@ -1047,55 +1061,56 @@ theorem Program.commute_of_disjoint
     `range`. The user-facing signature mentions only `p.range` and `q.range` (no
     auxiliary `R, R'`). The two `inRange p p.range` / `inRange q q.range` premises
     must be discharged by the caller. -/
-theorem Program.commute_of_disjoint'
+theorem ProgramDenotation.commute_of_disjoint'
     {s a b : Type} [Countable a] [Countable b] [Countable s]
-    (p : Program s a) (q : Program s b)
+    (p : ProgramDenotation s a) (q : ProgramDenotation s b)
     (hp : p.inRange p.range) (hq : q.inRange q.range)
     (hdisj : p.range ≤ q.rangeᶜ)
     (hp_coll : ∀ σ, p.range.HasOrbitCollapse σ)
     (hq_coll : ∀ σ, q.range.HasOrbitCollapse σ) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
-  Program.commute_of_disjoint hp hq hdisj hp_coll hq_coll
+  ProgramDenotation.commute_of_disjoint hp hq hdisj hp_coll hq_coll
 
 /-- Lens-derived variant: when `p` and `q` live in lens-derived ranges, the
     `HasOrbitCollapse` premises are discharged automatically by
     `Lens.range_hasOrbitCollapse`. So the user only needs to supply
     the `inRange` proofs and the disjointness of the lens ranges. -/
-theorem Program.commute_of_disjoint_lens
+theorem ProgramDenotation.commute_of_disjoint_lens
     {s a b c d : Type} [Countable a] [Countable b] [Countable s]
-    {p : Program s a} {q : Program s b}
+    {p : ProgramDenotation s a} {q : ProgramDenotation s b}
     {l : Lens c s} {l' : Lens d s}
     (hp : p.inRange l.range) (hq : q.inRange l'.range)
     (hdisj : l.range ≤ (l'.range)ᶜ) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
-  Program.commute_of_disjoint hp hq hdisj
+  ProgramDenotation.commute_of_disjoint hp hq hdisj
     (fun σ => Lens.range_hasOrbitCollapse l σ)
     (fun σ => Lens.range_hasOrbitCollapse l' σ)
 
 /-! ## Lens lifting and factoring
 
-If `Adv : Program s a` is confined to a lens window `L : Lens c s`
+If `Adv : ProgramDenotation s a` is confined to a lens window `L : Lens c s`
 (i.e. `Adv.inRange L.range`), then `Adv` is the lifting of some "inner"
-program `Adv' : Program c a` along `L`. This is the converse to the
+program `Adv' : ProgramDenotation c a` along `L`. This is the converse to the
 obvious direction that any lift lives in the lens's range.
 -/
 
 /-- Lift an "inner" program along a lens: `L.lift P` runs `P` on the
     L-content of state and writes the result back, leaving the outside
     untouched. -/
-noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.lift {c s a : Type} (L : Lens c s) (P : Program c a) :
-    Program s a := fun σ =>
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.lift {c s a : Type} (L : Lens c s) (P :
+    ProgramDenotation c a) :
+    ProgramDenotation s a := fun σ =>
   P (L.get σ) >>= fun (xc : a × c) =>
     (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
 
-/-- Given `Adv : Program s a` confined to `L`'s range, factor it through an
-    inner program `Program c a`. The construction picks an arbitrary state
+/-- Given `Adv : ProgramDenotation s a` confined to `L`'s range, factor it through an
+    inner program `ProgramDenotation c a`. The construction picks an arbitrary state
     to "pad" the inner input; `factor_of_inRange` shows this padding doesn't
     matter when `Adv.inRange L.range`. -/
 noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.factor {c s a : Type} [Nonempty s]
-    (L : Lens c s) (Adv : Program s a) : Program c a := fun c₀ =>
+    (L : Lens c s) (Adv : ProgramDenotation s a) : ProgramDenotation c a := fun c₀ =>
   Adv (L.set c₀ (Classical.arbitrary s)) >>= fun (xσ : a × s) =>
     (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))
 
@@ -1118,7 +1133,7 @@ lemma SubProbability.bind_assoc' {α β γ : Type}
     `Adv.inRange L.range` makes `Adv` insensitive to the padding's
     outside content. -/
 theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
-    (L : Lens c s) {Adv : Program s a} (h : Adv.inRange L.range) :
+    (L : Lens c s) {Adv : ProgramDenotation s a} (h : Adv.inRange L.range) :
     Adv = L.lift (L.factor Adv) := by
   funext σ
   -- Abbreviations matching the proof sketch.
@@ -1137,7 +1152,7 @@ theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
   have h_iv : Adv σ = (Adv σ_pad) >>=
               (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
     rw [← h_fσ_pad]
-    exact Program.inRange_subprob h h_f_mem σ_pad
+    exact ProgramDenotation.inRange_subprob h h_f_mem σ_pad
   -- Unfold the RHS of the goal.
   change Adv σ = ((Adv σ_pad) >>= fun (xσ' : a × s) =>
                     (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
@@ -1149,18 +1164,18 @@ theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
   funext xσ'
   rw [SubProbability.pure_bind]
 
-/-- **`Program.uniform` commutes with any program**. Because `Program.uniform`
+/-- **`ProgramDenotation.uniform` commutes with any program**. Because `ProgramDenotation.uniform`
     is state-preserving and produces an independent sample, it can be hoisted
     out of any preceding bind (and its output passed through to the
     continuation). The result of the preceding program is discarded.
 
     Generalises `adv_commutes_uniform` (formerly in `RO.lean`) to arbitrary
     programs and return types — the proof never used RO-specific facts. -/
-theorem Program.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
-    (p : Program s β) (k : α → Program s a) :
-    (p >>= fun _ => (Program.uniform : Program s α) >>= k)
-    = (Program.uniform >>= fun y => p >>= fun _ => k y) := by
-  apply Program.ext_of_wp
+theorem ProgramDenotation.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
+    (p : ProgramDenotation s β) (k : α → ProgramDenotation s a) :
+    (p >>= fun _ => (ProgramDenotation.uniform : ProgramDenotation s α) >>= k)
+    = (ProgramDenotation.uniform >>= fun y => p >>= fun _ => k y) := by
+  apply ProgramDenotation.ext_of_wp
   intro f
   funext σ
   simp only [wp_bind, wp_uniform]
@@ -1182,7 +1197,8 @@ machinery is not needed — the facts are pure lens algebra plus the existing
 `inRange_get`/`inRange_set` extractions. -/
 
 /-- `wp` of a lifted program: run `P` on the `L`-content and re-set the result. -/
-theorem Program.wp_lift {c s α : Type} (L : Lens c s) (P : Program c α) (F : Program.Post s α) :
+theorem ProgramDenotation.wp_lift {c s α : Type} (L : Lens c s) (P : ProgramDenotation c α) (F :
+    ProgramDenotation.Post s α) :
     (L.lift P).wp F = fun σ => P.wp (fun ac => F (ac.1, L.set ac.2 σ)) (L.get σ) := by
   funext σ
   show ((L.lift P) σ).expected F = _
@@ -1191,7 +1207,8 @@ theorem Program.wp_lift {c s α : Type} (L : Lens c s) (P : Program c α) (F : P
 
 /-- **Lift composes via `chain`.**  Lifting `Q` along `v` and then along `L`
     is lifting `Q` along the composite lens `L ∘ v`. -/
-theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q : Program d a) :
+theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q : ProgramDenotation d
+    a) :
     L.lift (v.lift Q) = (L.chain v).lift Q := by
   funext σ
   simp only [Lens.lift, Lens.chain]
@@ -1202,7 +1219,7 @@ theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q :
 
 /-- **A lift lives in its lens's range.**  For any inner program `Q`, the lift
     `M.lift Q` is confined to `M.range`: it only touches the `M`-window. -/
-theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
+theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : ProgramDenotation c a) :
     (M.lift Q).inRange M.range := by
   intro f hf
   -- `f` outside `M.range` preserves `M.get` and commutes with `M.set`.
@@ -1230,10 +1247,10 @@ theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
     change M.liftFunction (Function.const _ y) (f σ) = f (M.liftFunction (Function.const _ y) σ) at hcomm
     simp only [Lens.liftFunction, Function.const_apply] at hcomm
     exact hcomm
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
-  simp only [wp_bind, wp_liftF, wp_pure, Program.wp_lift, h_get]
+  simp only [wp_bind, wp_liftF, wp_pure, ProgramDenotation.wp_lift, h_get]
   congr 1
   funext ac
   rw [h_set]
@@ -1244,30 +1261,33 @@ theorem Lens.lift_inRange_self {c s a : Type} (M : Lens c s) (Q : Program c a) :
     lift composition turns the double lift into a single `(L.chain v)` lift, and
     `lift_inRange_self` confines that to `(L.chain v).range`. -/
 theorem Lens.lift_inRange_chain {c s d a : Type} [Nonempty c] (L : Lens c s) (v : Lens d c)
-    (P : Program c a) (hP : P.inRange v.range) :
+    (P : ProgramDenotation c a) (hP : P.inRange v.range) :
     (L.lift P).inRange (L.chain v).range := by
   rw [Lens.factor_of_inRange v hP, Lens.lift_lift_chain]
   exact Lens.lift_inRange_self (L.chain v) (v.factor P)
 
-/-- `wp` of a sampled value (`μ.toProgram = StateT.lift μ`): it samples its
+/-- `wp` of a sampled value (`μ.toProgramDenotation = StateT.lift μ`): it samples its
     return from `μ` and leaves the state untouched. -/
-theorem Program.wp_toProgram {s a : Type} (μ : SubProbability a) (G : Program.Post s a) :
-    (SubProbability.toProgram μ : Program s a).wp G = fun σ => μ.expected (fun x => G (x, σ)) := by
+theorem ProgramDenotation.wp_toProgramDenotation {s a : Type} (μ : SubProbability a) (G :
+    ProgramDenotation.Post s a) :
+    (SubProbability.toProgramDenotation μ : ProgramDenotation s a).wp G = fun σ => μ.expected (fun x
+        => G (x, σ)) := by
   funext σ
-  show ((SubProbability.toProgram μ : Program s a) σ).expected G = _
+  show ((SubProbability.toProgramDenotation μ : ProgramDenotation s a) σ).expected G = _
   show ((μ >>= fun x => (pure (x, σ) : SubProbability (a × s))).expected G) = _
   rw [SubProbability.expected_bind]
   simp only [expected_pure]
 
-/-- **A sampled value lives in every range.**  `μ.toProgram` only draws its
+/-- **A sampled value lives in every range.**  `μ.toProgramDenotation` only draws its
     return value; it never touches the state, so it commutes with every update. -/
-theorem Program.inRange_toProgram {s a : Type} (μ : SubProbability a) (R : DetermFootprint s) :
-    (SubProbability.toProgram μ : Program s a).inRange R := by
+theorem ProgramDenotation.inRange_toProgramDenotation {s a : Type} (μ : SubProbability a) (R :
+    DetermFootprint s) :
+    (SubProbability.toProgramDenotation μ : ProgramDenotation s a).inRange R := by
   intro f _
-  apply Program.ext_of_wp
+  apply ProgramDenotation.ext_of_wp
   intro F
   funext σ
-  simp only [wp_bind, wp_liftF, wp_pure, Program.wp_toProgram]
+  simp only [wp_bind, wp_liftF, wp_pure, ProgramDenotation.wp_toProgramDenotation]
 
 /-- **Chaining focuses a sub-window**: `(L.chain v).range ≤ L.range`.  Every
     `L∘v`-update is an `L`-update (acting only inside the `L`-window). -/

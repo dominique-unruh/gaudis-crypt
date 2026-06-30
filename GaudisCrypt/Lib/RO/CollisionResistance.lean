@@ -22,7 +22,7 @@ The high-level claims are:
 * `cr_eager_bound` — the same bound for eager, by `cr_transfer`.
 
 All results below are fully proved (no `sorry`): the transfer via the
-`Program.transfer` framework, and the birthday bound by a unary
+`ProgramDenotation.transfer` framework, and the birthday bound by a unary
 wp-expectation induction.
 -/
 
@@ -45,7 +45,7 @@ noncomputable instance : DecidableEq output := Classical.decEq output
 `cr_adv` is a *parameter* (via the `variable` declaration below), not an
 axiom. Every `cr_experiment`-, `cr_lazy_bound`-, `cr_transfer`-style
 definition and theorem in this section takes an arbitrary CR adversary
-`cr_adv : Program state Unit` together with `h_cr_adv : cr_adv.inFootprint ...`.
+`cr_adv : ProgramDenotation state Unit` together with `h_cr_adv : cr_adv.inFootprint ...`.
 
 The adversary may set `oracle_input` (queried each round), may set
 `claim_x` and `claim_x'` (its candidate collision), and may *not* touch
@@ -53,30 +53,30 @@ The adversary may set `oracle_input` (queried each round), may set
 
 section CRParam
 
-variable (cr_adv : Program state Unit)
+variable (cr_adv : ProgramDenotation state Unit)
 
 /-- One round of the CR loop body: the adversary computes, then we run one
     query on whatever `cr_adv` placed in `oracle_input`. Thin alias for the
     generic `oracle_step` in `RO.lean`. -/
-noncomputable def cr_loop_body (oracle : input → Program state output) :
-    Program state Unit := oracle_step cr_adv oracle
+noncomputable def cr_loop_body (oracle : input → ProgramDenotation state output) :
+    ProgramDenotation state Unit := oracle_step cr_adv oracle
 
 /-- Run the adversary-and-query loop for `q` rounds. Thin alias for the
     generic `oracle_loop_n` in `RO.lean`. -/
-noncomputable def cr_loop (q : ℕ) (oracle : input → Program state output) :
-    Program state Unit := oracle_loop_n cr_adv q oracle
+noncomputable def cr_loop (q : ℕ) (oracle : input → ProgramDenotation state output) :
+    ProgramDenotation state Unit := oracle_loop_n cr_adv q oracle
 
 /-- **The CR experiment** parameterised by query budget `q`, init, and oracle.
 
     Run the adversary for `q` rounds, then read its claim `(x, x')`, query the
     oracle at both, and report whether `(x ≠ x') ∧ (y = y')`. -/
 noncomputable def cr_experiment (q : ℕ)
-    (init : Program state Unit)
-    (oracle : input → Program state output) : Program state Bool := do
+    (init : ProgramDenotation state Unit)
+    (oracle : input → ProgramDenotation state output) : ProgramDenotation state Bool := do
   init
   cr_loop cr_adv q oracle
-  let x  ← Program.get claim_x
-  let x' ← Program.get claim_x'
+  let x  ← ProgramDenotation.get claim_x
+  let x' ← ProgramDenotation.get claim_x'
   let y  ← oracle x
   let y' ← oracle x'
   pure (decide (x ≠ x' ∧ y = y'))
@@ -89,54 +89,55 @@ bit agrees under lazy and eager RO. -/
 
 variable (h_cr_adv : cr_adv.inFootprint (random_oracle_state.footprint)ᶜ)
 
-/-! ### Building blocks for `cr_transfer` via the `Program.transfer` framework. -/
+/-! ### Building blocks for `cr_transfer` via the `ProgramDenotation.transfer` framework. -/
 
 include h_cr_adv in
 /-- `cr_adv` transfers to itself: it doesn't touch RO. -/
-private lemma transfer_cr_adv : Program.transfer cr_adv cr_adv :=
-  Program.transfer_refl_of_inFootprint_compl h_cr_adv
+private lemma transfer_cr_adv : ProgramDenotation.transfer cr_adv cr_adv :=
+  ProgramDenotation.transfer_refl_of_inFootprint_compl h_cr_adv
 
 include h_cr_adv in
 /-- One iteration of `cr_loop_body` transfers from lazy to eager. -/
 private lemma transfer_cr_loop_body :
-    Program.transfer (cr_loop_body cr_adv lazy_query)
+    ProgramDenotation.transfer (cr_loop_body cr_adv lazy_query)
                      (cr_loop_body cr_adv random_oracle_query) :=
-  Program.transfer_oracle_step_prob h_cr_adv
+  ProgramDenotation.transfer_oracle_step_prob h_cr_adv
 
 include h_cr_adv in
 /-- `cr_loop q` transfers from lazy to eager. -/
 private lemma transfer_cr_loop (q : ℕ) :
-    Program.transfer (cr_loop cr_adv q lazy_query) (cr_loop cr_adv q random_oracle_query) :=
-  Program.transfer_oracle_loop_n_prob h_cr_adv q
+    ProgramDenotation.transfer (cr_loop cr_adv q lazy_query) (cr_loop cr_adv q
+        random_oracle_query) :=
+  ProgramDenotation.transfer_oracle_loop_n_prob h_cr_adv q
 
 include h_cr_adv in
 /-- The full `cr_experiment q` transfers from lazy to eager. -/
 private lemma transfer_cr_experiment (q : ℕ) :
-    Program.transfer
+    ProgramDenotation.transfer
       (cr_experiment cr_adv q lazy_init lazy_query)
       (cr_experiment cr_adv q random_oracle_init random_oracle_query) := by
-  show Program.transfer
+  show ProgramDenotation.transfer
     (lazy_init >>= fun _ => cr_loop cr_adv q lazy_query >>= fun _ =>
-      Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
+      ProgramDenotation.get claim_x >>= fun x => ProgramDenotation.get claim_x' >>= fun x' =>
         lazy_query x >>= fun y => lazy_query x' >>= fun y' =>
-          (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool))
+          (pure (decide (x ≠ x' ∧ y = y')) : ProgramDenotation state Bool))
     (random_oracle_init >>= fun _ => cr_loop cr_adv q random_oracle_query >>= fun _ =>
-      Program.get claim_x >>= fun x => Program.get claim_x' >>= fun x' =>
+      ProgramDenotation.get claim_x >>= fun x => ProgramDenotation.get claim_x' >>= fun x' =>
         random_oracle_query x >>= fun y => random_oracle_query x' >>= fun y' =>
-          (pure (decide (x ≠ x' ∧ y = y')) : Program state Bool))
-  apply Program.transfer_bind Program.transfer_lazy_init
+          (pure (decide (x ≠ x' ∧ y = y')) : ProgramDenotation state Bool))
+  apply ProgramDenotation.transfer_bind ProgramDenotation.transfer_lazy_init
   intro _
-  apply Program.transfer_bind (transfer_cr_loop cr_adv h_cr_adv q)
+  apply ProgramDenotation.transfer_bind (transfer_cr_loop cr_adv h_cr_adv q)
   intro _
-  apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro claim_x)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_get_of_disjoint_ro claim_x)
   intro x
-  apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro claim_x')
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_get_of_disjoint_ro claim_x')
   intro x'
-  apply Program.transfer_bind (Program.transfer_lazy_query x)
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_lazy_query x)
   intro y
-  apply Program.transfer_bind (Program.transfer_lazy_query x')
+  apply ProgramDenotation.transfer_bind (ProgramDenotation.transfer_lazy_query x')
   intro y'
-  exact Program.transfer_pure _
+  exact ProgramDenotation.transfer_pure _
 
 /-- `convert` is absorbed by the eager `cr_experiment` (it starts with
     `random_oracle_init`, which overwrites RO via a fresh uniform sample).
@@ -156,7 +157,7 @@ theorem cr_transfer (q : ℕ) (σ₀ : state) :
     =
     (cr_experiment cr_adv q random_oracle_init random_oracle_query σ₀ >>=
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool)) :=
-  Program.transfer_value_marginal (transfer_cr_experiment cr_adv h_cr_adv q)
+  ProgramDenotation.transfer_value_marginal (transfer_cr_experiment cr_adv h_cr_adv q)
     (convert_cr_experiment_eager cr_adv q) σ₀
 
 /-! ## Phase 3 — Birthday bound on the lazy CR experiment
@@ -314,9 +315,9 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
         (fun bσ : Bool × state => collision_indicator bσ.2) σ₀ := by
   simp only [cr_experiment, wp_bind, wp_get, wp_pure]
   -- Propagate via wp_le_wp_of_le through init and cr_loop.
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   rintro ⟨_, σ_1⟩
-  apply Program.wp_le_wp_of_le
+  apply ProgramDenotation.wp_le_wp_of_le
   rintro ⟨_, σ_2⟩
   -- Now at σ_2 level: goal is
   --   (lazy_query (claim_x.get σ_2)).wp (fun (y, σ_5) =>
@@ -340,7 +341,7 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
         funext yσ
         simp [h_eq]
       rw [h_const_zero]
-      exact Program.wp_zero_post _ _
+      exact ProgramDenotation.wp_zero_post _ _
     have h_outer_zero :
         (lazy_query (claim_x.get σ_2)).wp (fun yσ : output × state =>
           (lazy_query (claim_x'.get σ_2)).wp
@@ -356,7 +357,7 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
         funext yσ
         exact h_inner_zero yσ.1 yσ.2
       rw [h_const_zero]
-      exact Program.wp_zero_post _ _
+      exact ProgramDenotation.wp_zero_post _ _
     rw [h_outer_zero]
     exact bot_le
   · -- Not equal case: x_v ≠ x'_v where x_v = claim_x.get σ_2, x'_v = claim_x'.get σ_2.
@@ -367,7 +368,7 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
     rw [lazy_query_wp_preserves_disjoint claim_x (claim_x.get σ_2)]
     rw [lazy_query_wp_preserves_disjoint claim_x' (claim_x.get σ_2)]
     -- Descend to σ_5 level.
-    apply Program.wp_le_wp_of_le
+    apply ProgramDenotation.wp_le_wp_of_le
     rintro ⟨y, σ_5⟩
     -- Goal: nested ifs over (y, σ_5) with INNER wp at the bottom.
     -- Split on each if.
@@ -380,7 +381,7 @@ lemma cr_true_implies_collision_wp (q : ℕ) (σ₀ : state) :
       rw [lazy_query_wp_preserves_disjoint claim_x' (claim_x'.get σ_2)]
       rw [lazy_query_wp_preserves_other_RO (claim_x'.get σ_2) (claim_x.get σ_2) h_eq]
       -- Descend to σ_6 level.
-      apply Program.wp_le_wp_of_le
+      apply ProgramDenotation.wp_le_wp_of_le
       rintro ⟨y', σ_6⟩
       -- Goal: nested ifs with leaf `if decide(x_v ≠ x'_v ∧ y = y') then 1 else 0` vs `collision_indicator σ_6`.
       split_ifs with h_RO6_x h_cx'6 h_cx6 h_RO6_x' h_decide
@@ -582,7 +583,7 @@ include h_cr_adv in
 lemma cr_adv_wp_RO_size (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => (RO_size yσ.2 : ENNReal)) σ
     ≤ (RO_size σ : ENNReal) :=
-  Program.wp_le_of_factors_footprint (P := fun σ => (RO_size σ : ENNReal))
+  ProgramDenotation.wp_le_of_factors_footprint (P := fun σ => (RO_size σ : ENNReal))
     random_oracle_state h_cr_adv
     (fun _ _ h => congrArg _ (RO_size_of_get_eq h)) σ
 
@@ -639,7 +640,7 @@ include h_cr_adv in
 lemma cr_adv_wp_collision (σ : state) :
     cr_adv.wp (fun yσ : Unit × state => collision_indicator yσ.2) σ
     ≤ collision_indicator σ :=
-  Program.wp_le_of_factors_footprint (P := collision_indicator)
+  ProgramDenotation.wp_le_of_factors_footprint (P := collision_indicator)
     random_oracle_state h_cr_adv
     (fun _ _ h => collision_indicator_of_get_eq h) σ
 
@@ -672,7 +673,7 @@ lemma cr_loop_body_wp_collision (σ : state) :
                   = (fun yσ : Unit × state =>
                       (1 / Fintype.card output : ENNReal) * (RO_size yσ.2 : ENNReal))
                 from by funext yσ; rw [one_div, ← ENNReal.div_eq_inv_mul]]
-            rw [Program.wp_const_mul]
+            rw [ProgramDenotation.wp_const_mul]
         _ ≤ (1 / Fintype.card output : ENNReal) * (RO_size σ' : ENNReal) := by
             gcongr; exact cr_adv_wp_RO_size cr_adv h_cr_adv σ'
         _ = (RO_size σ' : ENNReal) / Fintype.card output := by
@@ -745,7 +746,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
   have hN_top : N ≠ ⊤ := by rw [hN_def]; exact ENNReal.natCast_ne_top _
   -- Unfold cr_experiment to expose the structure
   simp only [cr_experiment, wp_bind, wp_get, wp_pure, lazy_init, wp_set,
-             Program.set, wp_get_state, wp_set_state]
+             ProgramDenotation.set, wp_get_state, wp_set_state]
   -- After unfolding lazy_init: state becomes σ_1 = RO.set (fun _ => none) σ₀
   set σ_1 : state := random_oracle_state.set (fun _ : input => none) σ₀ with hσ_1
   -- σ_1 has RO_size 0 and collision_indicator 0
@@ -795,7 +796,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
             (fun yσ : output × state => collision_indicator yσ.2) σ_2 +
           (lazy_query (claim_x.get σ_2)).wp
             (fun yσ : output × state => (RO_size yσ.2 : ENNReal) / N) σ_2 := by
-            rw [Program.wp_add]
+            rw [ProgramDenotation.wp_add]
       _ ≤ (collision_indicator σ_2 + (RO_size σ_2 : ENNReal) / N) +
           (lazy_query (claim_x.get σ_2)).wp
             (fun yσ : output × state => (RO_size yσ.2 : ENNReal) / N) σ_2 := by
@@ -807,7 +808,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
             rw [show (fun yσ : output × state => (RO_size yσ.2 : ENNReal) / N)
                   = (fun yσ : output × state => (1 / N) * (RO_size yσ.2 : ENNReal)) from by
                   funext yσ; rw [ENNReal.div_eq_inv_mul]; rw [one_div]]
-            rw [Program.wp_const_mul]
+            rw [ProgramDenotation.wp_const_mul]
       _ ≤ (collision_indicator σ_2 + (RO_size σ_2 : ENNReal) / N) +
           (1 / N) * (RO_size σ_2 + 1 : ENNReal) := by
             gcongr
@@ -840,7 +841,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
             (fun yσ : Unit × state => collision_indicator yσ.2) σ_1 +
           (cr_loop cr_adv q lazy_query).wp
             (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal) / N) σ_1 := by
-            rw [Program.wp_add]
+            rw [ProgramDenotation.wp_add]
       _ ≤ (collision_indicator σ_1 +
             (q * (2 * RO_size σ_1 + q - 1) : ENNReal) / (2 * N)) +
           (cr_loop cr_adv q lazy_query).wp
@@ -859,7 +860,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
                   rw [show (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal) / N)
                        = (fun yσ : Unit × state => (1 / N) * (2 * RO_size yσ.2 + 1)) from by
                     funext yσ; rw [ENNReal.div_eq_inv_mul]; rw [one_div]]
-                  rw [Program.wp_const_mul]
+                  rw [ProgramDenotation.wp_const_mul]
               _ = (1 / N) * ((cr_loop cr_adv q lazy_query).wp
                     (fun yσ : Unit × state => 2 * (RO_size yσ.2 : ENNReal)) σ_1 +
                   (cr_loop cr_adv q lazy_query).wp
@@ -867,16 +868,16 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
                   congr 1
                   rw [show (fun yσ : Unit × state => (2 * RO_size yσ.2 + 1 : ENNReal))
                        = (fun yσ : Unit × state => 2 * (RO_size yσ.2 : ENNReal) + 1) from rfl]
-                  rw [Program.wp_add]
+                  rw [ProgramDenotation.wp_add]
               _ ≤ (1 / N) * (2 * (RO_size σ_1 + q : ENNReal) + 1) := by
                   apply mul_le_mul_left'
                   apply add_le_add
                   · rw [show (fun yσ : Unit × state => 2 * (RO_size yσ.2 : ENNReal))
                          = (fun yσ : Unit × state => 2 * (RO_size yσ.2 : ENNReal)) from rfl]
-                    rw [Program.wp_const_mul]
+                    rw [ProgramDenotation.wp_const_mul]
                     apply mul_le_mul_left'
                     exact cr_loop_RO_size_step cr_adv h_cr_adv q σ_1
-                  · exact Program.wp_const_le (cr_loop cr_adv q lazy_query) 1 σ_1
+                  · exact ProgramDenotation.wp_const_le (cr_loop cr_adv q lazy_query) 1 σ_1
               _ = (2 * (RO_size σ_1 + q) + 1 : ENNReal) / N := by
                   rw [one_div, ← ENNReal.div_eq_inv_mul]
   -- Step 4: substitute σ_1 values and finish arithmetic
@@ -917,13 +918,13 @@ include h_cr_adv in
 /-- **Transfer of `cr_transfer` from the SubProb marginal level to the
     `wp` level**, for postconditions that depend only on the result bit
     `bσ.1`. This bridges Phase 2 and Phase 3 for `cr_eager_bound`. Thin
-    wrapper over the generic `Program.wp_eq_of_marginal_eq`. -/
+    wrapper over the generic `ProgramDenotation.wp_eq_of_marginal_eq`. -/
 lemma cr_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
     (cr_experiment cr_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀
     = (cr_experiment cr_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀ :=
-  Program.wp_eq_of_marginal_eq (cr_transfer cr_adv h_cr_adv q) G σ₀
+  ProgramDenotation.wp_eq_of_marginal_eq (cr_transfer cr_adv h_cr_adv q) G σ₀
 
 include h_cr_adv in
 /-- Birthday bound for the eager (true random oracle) game,
@@ -948,12 +949,12 @@ end CRParam
     `cr_collision_birthday_bound` (which carries two extra challenge queries,
     giving `(q+2)(q+1)/2N`), this is the clean `q(q−1)/2N` for the bare
     `q`-round loop — the `Pr[bad]` input to the PRP/PRF switching lemma. -/
-lemma loop_n_lazy_query_collision_bound (A : Program state Unit)
+lemma loop_n_lazy_query_collision_bound (A : ProgramDenotation state Unit)
     (hA : A.inFootprint (random_oracle_state.footprint)ᶜ) (q : ℕ) (σ₀ : state) :
     (lazy_init >>= fun _ => loop_n q (oracle_step A lazy_query)).wp
         (fun yσ : Unit × state => collision_indicator yσ.2) σ₀
     ≤ ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by
-  simp only [wp_bind, lazy_init, Program.set, wp_get_state, wp_set_state]
+  simp only [wp_bind, lazy_init, ProgramDenotation.set, wp_get_state, wp_set_state]
   have h := loop_n_birthday_bound (oracle_step A lazy_query)
     collision_indicator RO_size (Fintype.card output)
     (by exact_mod_cast Fintype.card_pos.ne') (ENNReal.natCast_ne_top _)

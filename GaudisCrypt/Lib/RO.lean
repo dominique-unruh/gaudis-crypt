@@ -23,9 +23,9 @@ and lemmas live in `PlonkLean/RO/`:
   equations (`lazy_init_convert_eq_random_oracle_init`,
   `lazy_query_convert_eq_convert_random_oracle_query`,
   `lazy_query_conv_eq_conv_random_oracle`, `if_factor_convert`), the
-  `Program.transfer` relation with its closure laws (including
-  `Program.transfer_while_loop`), and the wp/marginal bridges
-  (`Program.transfer_wp_value`, `_marginal`, and the RO-invariant
+  `ProgramDenotation.transfer` relation with its closure laws (including
+  `ProgramDenotation.transfer_while_loop`), and the wp/marginal bridges
+  (`ProgramDenotation.transfer_wp_value`, `_marginal`, and the RO-invariant
   enrichments).
 
 * `PlonkLean.RO.OracleLoop` — scratch state for adversary-driven loops
@@ -40,7 +40,7 @@ and lemmas live in `PlonkLean/RO/`:
 
 * `PlonkLean.RO.ROEquiv` — the lazy = eager equivalence for `oracle_loop`:
   `adv_conv_eq_conv_adv` (`convert` commutes with RO-disjoint adversaries),
-  `Program.transfer_oracle_loop` (full transfer of the while-loop game,
+  `ProgramDenotation.transfer_oracle_loop` (full transfer of the while-loop game,
   built via the framework's `transfer_while_loop` closure law),
   `oracle_loop_lazy_convert_eq_random_oracle_loop` (the foundational
   equation), and the corollary family `oracle_loop_wp_lazy_eq_random_oracle`

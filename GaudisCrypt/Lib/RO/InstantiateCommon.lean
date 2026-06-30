@@ -40,8 +40,8 @@ abbrev roHoles : HoleSigs := HoleSigs.empty.append roSig
 
 
 /-- `convert` lifted from the RO `State` to a procedure state. -/
-noncomputable def convertL {l : Type} : Program (ProcedureState l) Unit :=
-  Program.zoom ProcedureState.globalL convert
+noncomputable def convertL {l : Type} : ProgramDenotation (ProcedureState l) Unit :=
+  ProgramDenotation.zoom ProcedureState.globalL convert
 
 
 /-! ## RO table as a procedure-state lens
@@ -126,9 +126,10 @@ noncomputable def RO_eager : roHoles.Instantiation
 /-! ### `zoom` is a monad morphism, and lifts `transferBy` -/
 
 theorem zoom_pure {s t a : Type} (lens : Lens s t) (x : a) :
-    Program.zoom lens (pure x) = (pure x : Program t a) := by
+    ProgramDenotation.zoom lens (pure x) = (pure x : ProgramDenotation t a) := by
   funext tv
-  show ((pure x : Program s a) (lens.get tv)) >>= (fun as => pure (as.1, lens.set as.2 tv))
+  show ((pure x : ProgramDenotation s a) (lens.get tv)) >>= (fun as => pure (as.1, lens.set as.2
+      tv))
        = (pure (x, tv) : SubProbability (a × t))
   show (pure (x, lens.get tv) : SubProbability (a × s)) >>= (fun as => pure (as.1, lens.set as.2 tv))
        = (pure (x, tv) : SubProbability (a × t))
@@ -137,8 +138,9 @@ theorem zoom_pure {s t a : Type} (lens : Lens s t) (x : a) :
 
 
 theorem zoom_bind {s t a b : Type} (lens : Lens s t)
-    (p : Program s a) (k : a → Program s b) :
-    Program.zoom lens (p >>= k) = Program.zoom lens p >>= fun a => Program.zoom lens (k a) := by
+    (p : ProgramDenotation s a) (k : a → ProgramDenotation s b) :
+    ProgramDenotation.zoom lens (p >>= k) = ProgramDenotation.zoom lens p >>= fun a =>
+        ProgramDenotation.zoom lens (k a) := by
   funext tv
   show (((p (lens.get tv)) >>= fun as => k as.1 as.2) >>= fun bs => pure (bs.1, lens.set bs.2 tv))
        = ((p (lens.get tv)) >>= fun as => pure (as.1, lens.set as.2 tv))
@@ -155,9 +157,9 @@ theorem procDenotation_RO_eager (args : roSig.ParamType) :
     procedureDenotation RO_eager_proc args = random_oracle_query args := by
   funext st
   simp only [procedureDenotation, RO_eager_proc, RO_eager_body, StmtWithHoles.assign,
-    programDenotation, random_oracle_query, Program.get, Program.set,
+    programDenotation, random_oracle_query, ProgramDenotation.get, ProgramDenotation.set,
     bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
-    SubProbability.toProgram, MeasureTheory.Measure.dirac_bind measurable_from_top]
+    SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
   simp only [inpL, outL, roG, Lens.intoParams, Lens.intoVars, Lens.chain, Lens.id, Lens.fst,
     ProcedureState.globalL, ProcedureState.localL, LocalVariableState.paramsL,
@@ -171,9 +173,10 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
     procedureDenotation RO_lazy_proc args = lazy_query args := by
   funext st
   simp only [procedureDenotation, RO_lazy_proc, RO_lazy_body, StmtWithHoles.assign,
-    programDenotation, lazy_query, Program.get, Program.set, Program.uniform,
+    programDenotation, lazy_query, ProgramDenotation.get, ProgramDenotation.set,
+        ProgramDenotation.uniform,
     bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
-    SubProbability.toProgram, MeasureTheory.Measure.dirac_bind measurable_from_top]
+    SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
   simp only [inpL, outL, roG, Lens.intoParams, Lens.intoVars, Lens.chain, Lens.id, Lens.fst,
     ProcedureState.globalL, ProcedureState.localL, LocalVariableState.paramsL,
@@ -204,9 +207,9 @@ theorem denote_call {l : Type} {sig : ProcedureSignature}
     (x : Setter sig.ret (ProcedureState l)) (proc : Procedure sig)
     (p : Getter sig.ParamType (ProcedureState l)) :
     programDenotation (StmtWithHoles.call x proc p)
-      = (Program.get p >>= fun args =>
-          Program.zoom ProcedureState.globalL (procedureDenotation proc args)
-            >>= fun ret => Program.set x ret) := by
+      = (ProgramDenotation.get p >>= fun args =>
+          ProgramDenotation.zoom ProcedureState.globalL (procedureDenotation proc args)
+            >>= fun ret => ProgramDenotation.set x ret) := by
   simp only [StmtWithHoles.call, programDenotation]; rfl
 
 
@@ -214,14 +217,14 @@ theorem denote_call {l : Type} {sig : ProcedureSignature}
 
 Here `A : ProcedureWithHoles roHoles sig` is an adversary procedure carrying the
 single oracle hole.  `A.instantiate RO_lazy` / `A.instantiate RO_eager` fill that
-hole, and `procedureDenotation _ args : Program state sig.ret` runs the result on
+hole, and `procedureDenotation _ args : ProgramDenotation state sig.ret` runs the result on
 the RO global `state`. -/
 
 /-- The procedure denotation as an explicit wrapper: initialise locals, run the
     body, extract `(return_val, global)`. -/
 noncomputable def procWrap {sig : ProcedureSignature} {L : Type}
     (rv : Getter sig.ret (ProcedureState L)) (initL : L)
-    (B : Program (ProcedureState L) Unit) : Program state sig.ret :=
+    (B : ProgramDenotation (ProcedureState L) Unit) : ProgramDenotation state sig.ret :=
   fun st => B ⟨st, initL⟩ >>= fun p => pure (rv.get p.2, p.2.global)
 
 
@@ -266,26 +269,26 @@ theorem roHole_paramType_countable {sig : ProcedureSignature}
     `p.inFootprint p.footprint`.  This is *exactly* the statement that is FALSE for `DetermFootprint`
     (witness: `range_get_fst_eq_bot`), whose failure forced `get_confined_of_fv`/`call'` to be
     `sorry`.  Every leaf bridge below is a corollary. -/
-theorem inFootprint_selfRange {a s : Type} (p : Program s a) :
+theorem inFootprint_selfRange {a s : Type} (p : ProgramDenotation s a) :
     p.inFootprint p.footprint :=
-  Program.inFootprint_of_footprint_le (le_refl _)
+  ProgramDenotation.inFootprint_of_footprint_le (le_refl _)
 
 
 /-- **The `get` bridge over `Footprint` — PROVEN (the litmus).**  The probabilistic counterpart
     of `get_confined_of_fv` (the open `sorry`): where the `DetermFootprint` bridge is self-range for a
     read (false), this is the litmus, which holds for any read with countable result. -/
 theorem get_confinedP_of_fv {a l : Type} (c : Getter a (ProcedureState l))
-    {R : Footprint (ProcedureState l)} (h : (Program.get c).footprint ≤ R) :
-    (Program.get c).inFootprint R :=
-  Program.inFootprint_of_footprint_le h
+    {R : Footprint (ProcedureState l)} (h : (ProgramDenotation.get c).footprint ≤ R) :
+    (ProgramDenotation.get c).inFootprint R :=
+  ProgramDenotation.inFootprint_of_footprint_le h
 
 
 /-- **The setter bridge over `Footprint` — PROVEN (the litmus).**  In `confined_of_fv` the
     setter bridge had to be *assumed* (`hset`); here it is the litmus, for free. -/
 theorem set_confinedP_of_fv {a l : Type} (y : Setter a (ProcedureState l)) (w : a)
-    {R : Footprint (ProcedureState l)} (h : (Program.set y w).footprint ≤ R) :
-    (Program.set y w).inFootprint R :=
-  Program.inFootprint_of_footprint_le h
+    {R : Footprint (ProcedureState l)} (h : (ProgramDenotation.set y w).footprint ≤ R) :
+    (ProgramDenotation.set y w).inFootprint R :=
+  ProgramDenotation.inFootprint_of_footprint_le h
 
 
 /-- **The probabilistic footprint of a statement.**  The `Footprint` analogue of `fv_stmt`,
@@ -297,15 +300,17 @@ noncomputable def fvP_stmt {holes : HoleSigs} {l : Type} :
   | .skip => ⊥
   | .sample x e => (programDenotation (StmtWithHoles.sample x e : Stmt l)).footprint
   | .call' x ls b r p => (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).footprint
-  | .hole _ x p => (Program.get p).footprint ⊔ (⨆ ret, (Program.set x ret).footprint)
+  | .hole _ x p => (ProgramDenotation.get p).footprint ⊔ (⨆ ret, (ProgramDenotation.set x
+      ret).footprint)
   | .seq s1 s2 => fvP_stmt s1 ⊔ fvP_stmt s2
-  | .ifThenElse c t e => (Program.get c).footprint ⊔ fvP_stmt t ⊔ fvP_stmt e
-  | .while c t => (Program.get c).footprint ⊔ fvP_stmt t
+  | .ifThenElse c t e => (ProgramDenotation.get c).footprint ⊔ fvP_stmt t ⊔ fvP_stmt e
+  | .while c t => (ProgramDenotation.get c).footprint ⊔ fvP_stmt t
 
 
 /-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
     inner program on the `L`-content. The `inFootprint` analogue of `Lens.factor_of_inRange`. -/
-theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : Program s a}
+theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : ProgramDenotation s
+    a}
     (h : Adv.inFootprint L.footprint) : Adv = L.lift (L.factor Adv) := by
   funext σ
   set f : s → s := fun σ' => L.set (L.get σ') σ with hf_def
@@ -347,8 +352,8 @@ theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
     `Lens.lift_inRange_self`. The `y`-generator of `(M.lift Q).footprint` is the `M`-localized
     kernel for `Q` conditioned on returning `y`, so `Mlocalized_in_footprint` applies. -/
 theorem lift_inFootprint_self {c s a : Type}
-    (M : Lens c s) (Q : Program c a) : (M.lift Q).inFootprint M.footprint := by
-  refine Program.inFootprint_of_footprint_le ?_
+    (M : Lens c s) (Q : ProgramDenotation c a) : (M.lift Q).inFootprint M.footprint := by
+  refine ProgramDenotation.inFootprint_of_footprint_le ?_
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro k ⟨y, rfl⟩
   show (fun st => (M.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
@@ -375,7 +380,7 @@ theorem lift_inFootprint_self {c s a : Type}
     `Lens.lift_inRange_chain`. Factor `P` as `v.lift (v.factor P)`, fold the double lift into a
     single `(L.chain v)`-lift (`lift_lift_chain`), and confine via `lift_inFootprint_self`. -/
 theorem lift_inFootprint_chain {c s d a : Type} [Nonempty c]
-    (L : Lens c s) (v : Lens d c) (P : Program c a) (hP : P.inFootprint v.footprint) :
+    (L : Lens c s) (v : Lens d c) (P : ProgramDenotation c a) (hP : P.inFootprint v.footprint) :
     (L.lift P).inFootprint (L.chain v).footprint := by
   rw [factor_of_inFootprint v hP, Lens.lift_lift_chain]
   exact lift_inFootprint_self (L.chain v) (v.factor P)
@@ -385,14 +390,14 @@ theorem lift_inFootprint_chain {c s d a : Type} [Nonempty c]
     framework (avoiding the `zoom`-rewrite's `state`/`State` `rw` obstacle): `convertL = globalL.lift
     convert`, and `convert.inFootprint random_oracle_state.footprint` (`convert_inFootprint_ro`). -/
 theorem convertL_inFootprint {l : Type} :
-    (convertL : Program (ProcedureState l) Unit).inFootprint (roLift l).footprint :=
+    (convertL : ProgramDenotation (ProcedureState l) Unit).inFootprint (roLift l).footprint :=
   lift_inFootprint_chain ProcedureState.globalL random_oracle_state convert convert_inFootprint_ro
 
 
 /-- **Probabilistic confinement predicate.** The `inFootprint`/`footprint` analogue of `Confined`:
     each leaf's footprint lies in the adversary region `L_adv`. Crucially the `get`-leaves are now
     soundly derivable from footprint disjointness (litmus), unlike `Confined` (`DetermFootprint`),
-    where `get`'s `Program.range` collapses (the `get_confined_of_fv` sorry). -/
+    where `get`'s `ProgramDenotation.range` collapses (the `get_confined_of_fv` sorry). -/
 def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (ProcedureState l)) :
     StmtWithHoles holes l → Prop
   | .skip => True
@@ -400,12 +405,12 @@ def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (Procedure
       (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint L_adv.footprint
   | .call' x ls b r p =>
       (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint L_adv.footprint
-  | .hole _ x p => (Program.get p).inFootprint L_adv.footprint ∧
-      (∀ ret, (Program.set x ret).inFootprint L_adv.footprint)
+  | .hole _ x p => (ProgramDenotation.get p).inFootprint L_adv.footprint ∧
+      (∀ ret, (ProgramDenotation.set x ret).inFootprint L_adv.footprint)
   | .seq s1 s2 => ConfinedP L_adv s1 ∧ ConfinedP L_adv s2
   | .ifThenElse c t e =>
-      (Program.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t ∧ ConfinedP L_adv e
-  | .while c t => (Program.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t
+      (ProgramDenotation.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t ∧ ConfinedP L_adv e
+  | .while c t => (ProgramDenotation.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t
 
 
 /-- **`fvP`-disjointness ⟹ `ConfinedP` — COMPLETE, no `sorry`.**  The full structural reduction
@@ -422,15 +427,16 @@ theorem confinedP_of_fv {holes : HoleSigs} {l advSt : Type}
   | .skip, _ => trivial
   | .sample x e, h => by
       show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint L_adv.footprint
-      exact Program.inFootprint_of_footprint_le h
+      exact ProgramDenotation.inFootprint_of_footprint_le h
   | .call' x ls b r p, h => by
       show (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint L_adv.footprint
-      exact Program.inFootprint_of_footprint_le h
+      exact ProgramDenotation.inFootprint_of_footprint_le h
   | .hole n x p, h =>
       haveI := hc n
       ⟨get_confinedP_of_fv p (le_sup_left.trans h),
         fun ret => set_confinedP_of_fv x ret
-          ((le_iSup (fun ret => (Program.set x ret).footprint) ret).trans (le_sup_right.trans h))⟩
+          ((le_iSup (fun ret => (ProgramDenotation.set x ret).footprint) ret).trans
+              (le_sup_right.trans h))⟩
   | .seq s1 s2, h =>
       ⟨confinedP_of_fv L_adv hc s1 (le_sup_left.trans h),
         confinedP_of_fv L_adv hc s2 (le_sup_right.trans h)⟩
