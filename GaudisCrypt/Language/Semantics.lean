@@ -251,11 +251,15 @@ structure ProbLensRange (m : Type _) where
   comp : f ∈ updates → g ∈ updates → (f * g) ∈ updates
   double_commutant : (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
 
+private lemma centralizer_carrier_eq' (S : Set (m → SubProbability m)) :
+    (Submonoid.centralizer S).carrier = Set.centralizer S := by
+  ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
+
 instance : Compl (ProbLensRange m) where
   compl range := ⟨(Submonoid.centralizer range.updates).carrier,
     Submonoid.one_mem _,
     fun hf hg => Submonoid.mul_mem _ hf hg,
-    by sorry⟩
+    by simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _⟩
 
 
 def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a)
@@ -268,7 +272,8 @@ def ProbLensRange.from (generators : Set (m -> SubProbability m)) : ProbLensRang
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
   id := Submonoid.one_mem _
   comp := fun hf hg => Submonoid.mul_mem _ hf hg
-  double_commutant := by sorry
+  double_commutant := by
+    simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _
 
 /- The smallest TotLensRange in which `p` lives. -/
 noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.rangeUnit2 {s a : Type} (p : Program s Unit)

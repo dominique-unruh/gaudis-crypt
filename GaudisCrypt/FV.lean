@@ -817,7 +817,7 @@ omit [ProgramSpec] in
     pushing a footprint forward along a lens and pulling it back recovers at most it.
     Proven in full from `updateK` being a monoid homomorphism
     (`centralizer_preimage_image_subset`). -/
-theorem fvP_reduce_extend {a b} (lens : Lens a b) (r : ProbLensRange a) :
+theorem fvP_reduce_extend_le {a b} (lens : Lens a b) (r : ProbLensRange a) :
     fvP_reduce lens (Lens.liftProbLensRange lens r) ≤ r := by
   rw [fvP_reduce_alt_def]
   rw [ProbLensRange.from_le_iff, fvP_reduce_constraint]
@@ -829,6 +829,31 @@ theorem fvP_reduce_extend {a b} (lens : Lens a b) (r : ProbLensRange a) :
   have key := centralizer_preimage_image_subset lens.liftSubProbability (updateK_mul lens) r.updates
   rw [probLensRange_updates_cc] at key
   exact key
+
+omit [ProgramSpec] in
+/-- **`fvP_reduce` is an exact left inverse of `Lens.liftProbLensRange`** (strengthening
+    `fvP_reduce_extend` to equality): every `p ∈ r.updates` is itself
+    `Lens.reduceSubProbability lens (lens.liftSubProbability p, i, o)` for the trivial
+    `i () = pure β` / `o _ = pure ()`, hence lies in the generator set defining `fvP_reduce`. -/
+theorem fvP_reduce_extend {a b} [Nonempty b] (lens : Lens a b) (r : ProbLensRange a) :
+    fvP_reduce lens (Lens.liftProbLensRange lens r) = r := by
+  apply le_antisymm
+  · apply fvP_reduce_extend_le
+  · change r.updates ≤ (fvP_reduce lens (Lens.liftProbLensRange lens r)).updates
+    rw [fvP_reduce_eq_from, ProbLensRange.from_updates]
+    apply Set.Subset.trans _ Set.subset_centralizer_centralizer
+    intro p hp
+    let β : lens.ComplContent := Classical.arbitrary lens.ComplContent
+    refine ⟨(lens.liftSubProbability p, fun _ => pure β, fun _ => pure ()),
+      ⟨?_, Set.mem_univ _, Set.mem_univ _⟩, ?_⟩
+    · change lens.liftSubProbability p ∈ (Lens.liftProbLensRange lens r).updates
+      unfold Lens.liftProbLensRange
+      rw [ProbLensRange.from_updates]
+      exact Set.subset_centralizer_centralizer ⟨p, hp, rfl⟩
+    · funext m
+      simp only [Lens.reduceSubProbability, Lens.liftSubProbability, SubProbability.pure_bind,
+                SubProbability.bind_assoc, splitSpace_invFun_get, splitSpace_invFun_set,
+                SubProbability.bind_pure]
 
 noncomputable
 def fvpInductiveFunctionGS : InductiveFunctionGettersSetters ProbLensRange where
@@ -861,7 +886,7 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
     exact (Lens.liftProbLensRange_sup lens r1 r2).symm.le
   extend_reduce := by
     intro a b lens r
-    exact fvP_reduce_extend lens r
+    exact fvP_reduce_extend_le lens r
   reduce_mono := fun lens h => fvP_reduce_mono lens h
   extend_mono := fun lens h => Lens.liftProbLensRange_mono lens h
 
