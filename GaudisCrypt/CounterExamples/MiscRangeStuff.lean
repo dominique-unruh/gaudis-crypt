@@ -85,13 +85,16 @@ noncomputable def SubProbability.ofVector {a : Type*} [Fintype a]
   letI : MeasurableSpace a := ⊤
   haveI : MeasurableSingletonClass a := ⟨fun _ => trivial⟩
   ⟨∑ x : a, (v x : ENNReal) • MeasureTheory.Measure.dirac x, by
-    change (∑ x : a, (v x : ENNReal) • MeasureTheory.Measure.dirac x) ⊤ ≤ 1
-    simp only [MeasureTheory.Measure.coe_finsetSum, Finset.sum_apply,
-               MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.dirac_apply,
-               smul_eq_mul, Set.top_eq_univ, Set.indicator_univ, Pi.one_apply, mul_one]
-    calc ∑ x : a, (v x : ENNReal)
-        = ↑(∑ x : a, v x) := by push_cast; rfl
-      _ ≤ 1 := by exact_mod_cast hv⟩
+    refine ⟨?_, ?_⟩
+    · change (∑ x : a, (v x : ENNReal) • MeasureTheory.Measure.dirac x) ⊤ ≤ 1
+      simp only [MeasureTheory.Measure.coe_finsetSum, Finset.sum_apply,
+                 MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.dirac_apply,
+                 smul_eq_mul, Set.top_eq_univ, Set.indicator_univ, Pi.one_apply, mul_one]
+      calc ∑ x : a, (v x : ENNReal)
+          = ↑(∑ x : a, v x) := by push_cast; rfl
+        _ ≤ 1 := by exact_mod_cast hv
+    · rw [← MeasureTheory.Measure.sum_fintype]
+      exact discreteMeasure_sum_dirac _⟩
 
 open GaudisCrypt.Language.Semantics in
 /-- Convert a column-sub-stochastic matrix (each column sums to at most 1) into a
