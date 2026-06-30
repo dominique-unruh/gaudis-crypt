@@ -615,7 +615,7 @@ lemma cr_loop_RO_size_step (k : ℕ) (σ : state) :
   have h := oracle_loop_n_wp_linear_bound
     (f := fun s => (RO_size s : ENNReal)) (c := 1)
     (fun σ' => cr_loop_body_wp_RO_size cr_adv h_cr_adv σ') k σ
-  simpa [mul_one] using h
+  simpa [mul_one, cr_loop] using h
 
 /-! ### Collision-side helpers (mirror of the RO_size helpers above) -/
 

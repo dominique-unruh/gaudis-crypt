@@ -208,7 +208,7 @@ instance : CoeFun (SubProbability a) (fun _ => a -> NNReal) where
 
 instance : FunLike (SubProbability a) a NNReal where
   coe μ x := μ.ofEvent {x}
-  coe_injective' μ ν h := by
+  coe_injective μ ν h := by
     apply Subtype.ext
     refine discreteMeasure.ext μ.2.2 ν.2.2 (fun x => ?_)
     have hμ : μ.1 {x} ≠ ⊤ :=

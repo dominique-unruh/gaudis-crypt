@@ -825,7 +825,7 @@ lemma ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad
           if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ :=
   Program.relE.bad_eq (bad := fun σ' => chal_x_queried_gh.get σ' = true)
     (ow_game_tracked_relE ow_adv h_RO h_cx h_flag h_mass q)
-    (fun _ _ h => by dsimp only; rw [h.1]) σ
+    (fun _ _ h => by rw [h.1]) σ
 
 /-- **The up-to-bad hop bound**:
     `Pr[G1 : G] ≤ Pr[G2 : G] + Pr[G1 : bad ∧ G]`. -/
@@ -845,7 +845,7 @@ theorem ow_game_1_tracked_le_ow_game_2_tracked_plus_bad
             if chal_x_queried_gh.get bσ.2 = true then G bσ else 0) σ := by
   refine Program.relE.up_to_bad (bad := fun σ' => chal_x_queried_gh.get σ' = true) G
     (ow_game_tracked_relE ow_adv h_RO h_cx h_flag h_mass q)
-    (fun _ _ h => by dsimp only; rw [h.1]) ?_ σ
+    (fun _ _ h => by rw [h.1]) ?_ σ
   intro u v hpost hb
   have hb' : ¬ chal_x_queried_gh.get u.2 = true := hb
   have hbf : chal_x_queried_gh.get u.2 = false := by

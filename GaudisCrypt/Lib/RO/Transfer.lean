@@ -719,7 +719,6 @@ theorem Program.transfer_wp_value {α : Type}
   have h_wp := congrArg
       (fun (r : Program state α) =>
         r.wp (fun aσ : α × state => G aσ.1) σ₀) h_eq
-  simp only at h_wp
   rw [← h_wp]
   -- Now show: p.wp (G ∘ fst) σ₀ = (p >>= a => convert >>= pure a).wp (G ∘ fst) σ₀.
   rw [wp_bind]
@@ -817,7 +816,6 @@ theorem Program.transfer_wp_ro_invariant {α : Type}
   have h_eq : (p >>= fun a => convert >>= fun _ => (Pure.pure a : Program state α)) = q := by
     rw [h_transfer, h_absorb]
   have h_wp := congrArg (fun (r : Program state α) => r.wp F σ₀) h_eq
-  simp only at h_wp
   rw [← h_wp]
   -- Goal: p.wp F σ₀ = (p >>= a => convert >>= pure a).wp F σ₀.
   rw [wp_bind]

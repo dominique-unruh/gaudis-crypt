@@ -623,9 +623,8 @@ lemma switch_up_to_bad (A : Program state Unit)
     (Pre' := (Eq : state → state → Prop))
     (fun σ₁ σ₂ h => ⟨congrArg _ h, fun _ => h⟩) (fun _ _ h => h)
   exact Program.relE.up_to_bad (bad := fun σ => prp_bad.get σ = true) (fun u => G u.2) hEq
-    (fun x y hxy => by dsimp only; rw [hxy.1])
+    (fun x y hxy => by rw [hxy.1])
     (fun x y hxy hb => by
-      dsimp only at hb ⊢
       rw [Bool.not_eq_true] at hb
       rw [hxy.2 hb])
     σ

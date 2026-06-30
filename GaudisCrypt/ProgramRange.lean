@@ -950,7 +950,7 @@ theorem Program.commute_of_disjoint
   -- Apply ae-rewrite to bring it under the outer p-integral.
   have ae_p_orbit : ∀ᵐ xs ∂(p σ).1, xs ∈ orbR := by
     rw [MeasureTheory.ae_iff]
-    convert hp_orbit using 1
+    exact hp_orbit
   have lhs_shifted :
       (p σ).expected (fun xs : a × s =>
           (q xs.2).expected (fun ys : b × s => F ((xs.1, ys.1), ys.2)))
@@ -993,7 +993,7 @@ theorem Program.commute_of_disjoint
   -- replace U xs ys.2 with V ys xs.2 using Disjoint commute.
   have ae_q_orbit : ∀ᵐ ys ∂(q σ).1, ys ∈ orbR' := by
     rw [MeasureTheory.ae_iff]
-    convert hq_orbit using 1
+    exact hq_orbit
   have step_commute : ∀ ys ∈ orbR', ∀ᵐ xs ∂(p σ).1, U xs ys.2 = V ys xs.2 := by
     intro ys hys
     filter_upwards [ae_p_orbit] with xs hxs

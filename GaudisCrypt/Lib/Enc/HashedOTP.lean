@@ -338,10 +338,9 @@ theorem enc_guess_le_pre (m₀ m₁ : output) (q : ℕ) (σ : state) :
   refine Program.relE.up_to_bad (bad := fun s => chal_x_queried_gh.get s = true)
     (fun bσ => if bσ.1 then (1 : ENNReal) else 0)
     (enc_game_pre_relE enc_adv h_RO h_flag h_cx h_mass m₀ m₁ q)
-    (fun u v h => by dsimp only; rw [h.1]) ?_ σ
+    (fun u v h => by rw [h.1]) ?_ σ
   intro u v h hbad
   have hf : chal_x_queried_gh.get u.2 = false := Bool.not_eq_true _ |>.mp hbad
-  dsimp only
   rw [h.2 hf]
 
 include h_RO h_flag h_cx h_mass in
@@ -458,7 +457,7 @@ theorem enc_pre_bad_eq_nopre (m : output) (q : ℕ) (σ : state) :
       exact (enc_tail_relE enc_adv h_RO h_flag h_cx h_mass k hk q).2 F G hFG _ _
         (enc_bad_invUB k hk m _)
   exact Program.relE.bad_eq (bad := fun s => chal_x_queried_gh.get s = true)
-    hrel (fun u v h => by dsimp only; rw [h.1]) σ
+    hrel (fun u v h => by rw [h.1]) σ
 
 /-- The env of the bad-event guess experiment: lazy oracle, then publish a
     fresh uniform ciphertext (the mask reindex makes `m` disappear). -/
