@@ -14,7 +14,7 @@ The development has three layers:
   procedure states (`P` on globals, equal locals) and state the per-statement honest-locality predicate.
 * **The coupling** (`body_prhl2_gen` → `ro_hhole_prhl` → `prhl_wrapper`): the body
   induction in `prhl2`, the RO-hole coupling, and the procedure wrapper, assembled into the main theorem.
-* **Confinement endpoints** (`prhl2_of_inProbRange_lens` → `confinedP_locP` → `prhl_instantiate_of_fvP`):
+* **Confinement endpoints** (`prhl2_of_inFootprint_lens` → `confinedP_locP` → `prhl_instantiate_of_fvP`):
   discharge `LocP` from the adversary's footprint lying in a `LiftCompat` region.
 -/
 
@@ -285,40 +285,40 @@ theorem prhl2_lift_lens {l γ advSt : Type}
       SubProbability.satisfies_pure _ _ ⟨rfl, hcompat.2 xc.2 ps₁ ps₂ hpre⟩)
 
 
-/-- **Theorem-2 leaf discharge** (probabilistic). A program confined (in the `inProbRange` sense)
-    to an adversary lens `L_adv` compatible with `liftRel P` self-couples. The `ProbLensRange`
-    analogue of `prhl2_of_inRange_lens` — factors through `factor_of_inProbRange` and the
+/-- **Theorem-2 leaf discharge** (probabilistic). A program confined (in the `inFootprint` sense)
+    to an adversary lens `L_adv` compatible with `liftRel P` self-couples. The `Footprint`
+    analogue of `prhl2_of_inRange_lens` — factors through `factor_of_inFootprint` and the
     *range-independent* `prhl2_lift_lens` (reused verbatim). -/
-theorem prhl2_of_inProbRange_lens {l γ advSt : Type} [Nonempty (ProcedureState l)]
+theorem prhl2_of_inFootprint_lens {l γ advSt : Type} [Nonempty (ProcedureState l)]
     (L_adv : Lens advSt (ProcedureState l))
     (hcompat : LiftCompat P L_adv)
-    {p : Program (ProcedureState l) γ} (hp : p.inProbRange L_adv.probRange) :
+    {p : Program (ProcedureState l) γ} (hp : p.inFootprint L_adv.footprint) :
     Program.prhl2 (liftRel P) p p (liftRelPost P) := by
-  rw [factor_of_inProbRange L_adv hp]
+  rw [factor_of_inFootprint L_adv hp]
   exact prhl2_lift_lens L_adv hcompat (L_adv.factor p)
 
 
 /-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
-    `ProbLensRange` analogue of `confined_locP`. -/
+    `Footprint` analogue of `confined_locP`. -/
 theorem confinedP_locP {holes : HoleSigs} {l advSt : Type} [Nonempty (ProcedureState l)]
     (L_adv : Lens advSt (ProcedureState l))
     (hcompat : LiftCompat P L_adv)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
     ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → LocP P A
   | .skip, _ => trivial
-  | .sample _ _, h => prhl2_of_inProbRange_lens L_adv hcompat h
-  | .call' _ _ _ _ _, h => prhl2_of_inProbRange_lens L_adv hcompat h
+  | .sample _ _, h => prhl2_of_inFootprint_lens L_adv hcompat h
+  | .call' _ _ _ _ _, h => prhl2_of_inFootprint_lens L_adv hcompat h
   | .hole n _ _, h =>
       haveI := hc n
-      ⟨prhl2_of_inProbRange_lens L_adv hcompat h.1,
-        fun ret => prhl2_of_inProbRange_lens L_adv hcompat (h.2 ret)⟩
+      ⟨prhl2_of_inFootprint_lens L_adv hcompat h.1,
+        fun ret => prhl2_of_inFootprint_lens L_adv hcompat (h.2 ret)⟩
   | .seq s1 s2, h =>
       ⟨confinedP_locP L_adv hcompat hc s1 h.1, confinedP_locP L_adv hcompat hc s2 h.2⟩
   | .ifThenElse _ t e, h =>
-      ⟨prhl2_of_inProbRange_lens L_adv hcompat h.1, confinedP_locP L_adv hcompat hc t h.2.1,
+      ⟨prhl2_of_inFootprint_lens L_adv hcompat h.1, confinedP_locP L_adv hcompat hc t h.2.1,
         confinedP_locP L_adv hcompat hc e h.2.2⟩
   | .«while» _ t, h =>
-      ⟨prhl2_of_inProbRange_lens L_adv hcompat h.1, confinedP_locP L_adv hcompat hc t h.2⟩
+      ⟨prhl2_of_inFootprint_lens L_adv hcompat h.1, confinedP_locP L_adv hcompat hc t h.2⟩
 
 
 /-- **Theorem 2 — the entry point.**  Relational (coupling) lazy ≈ eager equivalence for an
@@ -332,7 +332,7 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
     [Nonempty (ProcedureState (sig.LocalVariableState A.locals))]
     (h : ∀ inp : input,
         Program.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
-    (hbody : fvP_stmt A.body ≤ L_adv.probRange)
+    (hbody : fvP_stmt A.body ≤ L_adv.footprint)
     (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
     Program.prhl P
       (procedureDenotation (A.instantiate RO_eager) args)

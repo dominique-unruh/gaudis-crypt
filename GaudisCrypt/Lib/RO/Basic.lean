@@ -9,9 +9,9 @@ import GaudisCrypt.Misc
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.TotLensRange
+import GaudisCrypt.DetermFootprint
 import GaudisCrypt.ProgramRange
-import GaudisCrypt.ProbLensRange
+import GaudisCrypt.Footprint
 import GaudisCrypt.ProbProgramRange
 
 open GaudisCrypt.Language.Lens
@@ -96,18 +96,18 @@ theorem lazy_query_inRange_ro (inp : input) :
       intro _
       exact Program.inRange_pure _ _
 
-/-- `lazy_query`'s **probabilistic** footprint lies in `random_oracle_state.probRange` — the prob
+/-- `lazy_query`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob
     analogue of `lazy_query_inRange_ro`, for the countability-free transfer migration. -/
-theorem lazy_query_inProbRange_ro (inp : input) :
-    (lazy_query inp).inProbRange random_oracle_state.probRange := by
-  refine Program.inProbRange_bind (Program.inProbRange_get _) ?_
+theorem lazy_query_inFootprint_ro (inp : input) :
+    (lazy_query inp).inFootprint random_oracle_state.footprint := by
+  refine Program.inFootprint_bind (Program.inFootprint_get _) ?_
   intro h
   cases h inp with
-  | some x => exact Program.inProbRange_pure _ _
+  | some x => exact Program.inFootprint_pure _ _
   | none =>
-    refine Program.inProbRange_bind ?_ ?_
-    · exact Program.inProbRange_mono Program.inProbRange_uniform bot_le
+    refine Program.inFootprint_bind ?_ ?_
+    · exact Program.inFootprint_mono Program.inFootprint_uniform bot_le
     · intro value
-      refine Program.inProbRange_bind (Program.inProbRange_set _ _) ?_
+      refine Program.inFootprint_bind (Program.inFootprint_set _ _) ?_
       intro _
-      exact Program.inProbRange_pure _ _
+      exact Program.inFootprint_pure _ _

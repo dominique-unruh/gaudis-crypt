@@ -18,7 +18,7 @@ instance : Monoid (m → Option m) where
     change some x >>= f = f x
     rfl
 
-/-- Analogue of `TotLensRange` where updates are partial functions `m → Option m`
+/-- Analogue of `DetermFootprint` where updates are partial functions `m → Option m`
     composed via Kleisli composition for `Option`. -/
 structure OptionLensRange (m : Type _) where
   updates : Set (m → Option m)
@@ -52,7 +52,7 @@ instance {m : Type*} : Monoid (m → m → Prop) where
     · rintro ⟨y, rfl, hRy⟩; exact hRy
     · intro hR; exact ⟨x, rfl, hR⟩)
 
-/-- Analogue of `TotLensRange` where updates are relations on `m`
+/-- Analogue of `DetermFootprint` where updates are relations on `m`
     composed via relational composition. -/
 structure RelLensRange (m : Type*) where
   updates : Set (m → m → Prop)
@@ -67,9 +67,9 @@ structure RelLensRange (m : Type*) where
 -- `GaudisCrypt.Language.SubProbability` (imported transitively here).
 
 open GaudisCrypt.Language.Semantics in
-/-- Analogue of `TotLensRange` where updates are sub-probability kernels `m → SubProbability m`
+/-- Analogue of `DetermFootprint` where updates are sub-probability kernels `m → SubProbability m`
     composed via Kleisli composition for `SubProbability`. -/
-structure SubProbLensRange (m : Type _) where
+structure SubProbFootprint (m : Type _) where
   updates : Set (m → SubProbability m)
   one_mem : (1 : m → SubProbability m) ∈ updates
   mul_mem : ∀ {f g : m → SubProbability m}, f ∈ updates → g ∈ updates → f * g ∈ updates
@@ -450,7 +450,7 @@ open GaudisCrypt.Language.Semantics in
 /-- The deterministic bicommutant `C(C(S))` of a set of stochastic kernels `S`: the
     `Submonoid.centralizer` (in the composition monoid `m → m`) of the deterministic centralizer
     `Centralizer commuteST S`.  Returned as a `Set (m → m)` (the submonoid carrier) so it can
-    feed `TotLensRange.from`. -/
+    feed `DetermFootprint.from`. -/
 def hullST {m : Type*} (S : Set (m → SubProbability m)) : Set (Function.End m) :=
   (Submonoid.centralizer (Centralizer commuteST S)).carrier
 
@@ -623,11 +623,11 @@ private lemma centralizer_carrier_eq' {m : Type*} (S : Set (Function.End m)) :
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
 open GaudisCrypt.Language.Semantics in
-/-- `hullST S` is already double-commutant closed, i.e. it is a genuine `TotLensRange`: the
-    `TotLensRange.from` it generates returns exactly `hullST S`.  This holds because `hullST S` is a
+/-- `hullST S` is already double-commutant closed, i.e. it is a genuine `DetermFootprint`: the
+    `DetermFootprint.from` it generates returns exactly `hullST S`.  This holds because `hullST S` is a
     single centralizer and `C∘C∘C = C` (`Set.centralizer_centralizer_centralizer`). -/
 theorem from_hullST_updates {m : Type*} (S : Set (m → SubProbability m)) :
-    (TotLensRange.from (hullST S)).updates = hullST S := by
+    (DetermFootprint.from (hullST S)).updates = hullST S := by
   change (Submonoid.centralizer (Submonoid.centralizer (hullST S)).carrier).carrier = hullST S
   unfold hullST
   simp only [centralizer_carrier_eq']

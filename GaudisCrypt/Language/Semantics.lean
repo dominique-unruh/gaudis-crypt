@@ -245,7 +245,7 @@ noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
 
 
 
-structure ProbLensRange (m : Type _) where
+structure Footprint (m : Type _) where
   updates : Set (m -> SubProbability m)
   id : pure ∈ updates
   comp : f ∈ updates → g ∈ updates → (f * g) ∈ updates
@@ -255,7 +255,7 @@ private lemma centralizer_carrier_eq' (S : Set (m → SubProbability m)) :
     (Submonoid.centralizer S).carrier = Set.centralizer S := by
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
-instance : Compl (ProbLensRange m) where
+instance : Compl (Footprint m) where
   compl range := ⟨(Submonoid.centralizer range.updates).carrier,
     Submonoid.one_mem _,
     fun hf hg => Submonoid.mul_mem _ hf hg,
@@ -263,24 +263,24 @@ instance : Compl (ProbLensRange m) where
 
 
 def _root_.GaudisCrypt.Language.Semantics.Program.inRange {s a : Type} (p : Program s a)
-  (R : ProbLensRange s) : Prop :=
+  (R : Footprint s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (fun st => do let st' <- f st; let (x, st'') <- p st'; return (x,st''))
   = (fun st => do let (x, st') <- p st; let st'' <- f st'; return (x, st''))
 
-def ProbLensRange.from (generators : Set (m -> SubProbability m)) : ProbLensRange m where
+def Footprint.from (generators : Set (m -> SubProbability m)) : Footprint m where
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
   id := Submonoid.one_mem _
   comp := fun hf hg => Submonoid.mul_mem _ hf hg
   double_commutant := by
     simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _
 
-/- The smallest TotLensRange in which `p` lives. -/
+/- The smallest DetermFootprint in which `p` lives. -/
 noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.rangeUnit2 {s a : Type} (p : Program s Unit)
-  : ProbLensRange s := ProbLensRange.from { fun st => do let (_,st') <- p st; return st' }
+  : Footprint s := Footprint.from { fun st => do let (_,st') <- p st; return st' }
 
 noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.range2 {s a : Type} (p : Program s a)
-  : ProbLensRange s := ProbLensRange.from { fun st => do let (x,st') <- p st; if (x ≠ y) then ⊥ else ⊤; return st' | y : a }
+  : Footprint s := Footprint.from { fun st => do let (x,st') <- p st; if (x ≠ y) then ⊥ else ⊤; return st' | y : a }
 
 /- Litmus test: p.inRange R <-> p.range <= R  -/
 

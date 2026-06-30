@@ -1,9 +1,13 @@
+/- This file should import all theory files in GaudisCrypt. Update it occasionally. -/
+
 import GaudisCrypt.Misc
-import GaudisCrypt.CounterExamples.FV
-import GaudisCrypt.TotLensRange
-import GaudisCrypt.ProbLensRange
+import GaudisCrypt.DetermFootprint
+import GaudisCrypt.Footprint
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
+import GaudisCrypt.WeakestPreconditions
+import GaudisCrypt.EquivModuloLens
+import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Language.Modules.InductiveFunctions
@@ -11,22 +15,25 @@ import GaudisCrypt.Language.Programs
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Language.SubProbability
 import GaudisCrypt.Language.Syntax2
-import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.EquivModuloLens
-import GaudisCrypt.ProgramRange
+import GaudisCrypt.CounterExamples.ExtendSupProbe
+import GaudisCrypt.CounterExamples.FV
 import GaudisCrypt.CounterExamples.LeastLens
 import GaudisCrypt.CounterExamples.LensRangeComplDisjoint
+import GaudisCrypt.CounterExamples.MiscRangeStuff
 import GaudisCrypt.Lib.Birthday
 import GaudisCrypt.Lib.Enc.HashedOTP
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.CollisionResistance
+import GaudisCrypt.Lib.RO.InstantiateCommon
 import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.Lib.RO.OracleLoop
 import GaudisCrypt.Lib.RO.QueryHit
+import GaudisCrypt.Lib.RO.ROCouplingEquiv
 import GaudisCrypt.Lib.RO.ROEquiv
 import GaudisCrypt.Lib.RO.Switching
 import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferInstantiate
 import GaudisCrypt.Lib.RO.OneWayness_GameHop
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game1

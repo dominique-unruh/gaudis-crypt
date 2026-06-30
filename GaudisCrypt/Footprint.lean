@@ -4,22 +4,22 @@ open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Lens
 
 /-!
-# Probabilistic lens-ranges (`ProbLensRange`)
+# Probabilistic lens-ranges (`Footprint`)
 
-The sub-probability analogue of `TotLensRange`. A *region* of the state `m` is a set
+The sub-probability analogue of `DetermFootprint`. A *region* of the state `m` is a set
 of sub-probability kernels `m → SubProbability m`, closed under Kleisli composition
 (`*`, with `pure` as identity — see the `Monoid (m → SubProbability m)` instance in
 `GaudisCrypt.Language.SubProbability`) and equal to its own double commutant.
 
 The whole lattice/complement tower (`Compl`, `from`, `PartialOrder`, `Lattice`,
 `BoundedOrder`, `compl_compl`, `CompleteLattice`) is built purely from generic
-monoid–centralizer facts, so it mirrors `TotLensRange` verbatim, only over the
+monoid–centralizer facts, so it mirrors `DetermFootprint` verbatim, only over the
 Kleisli monoid of kernels instead of `Function.End`. The genuinely probabilistic
-content — relating a `Program` to a `ProbLensRange` — lives in `Program.inProbRange`
-and `Program.probRange` at the bottom of this file.
+content — relating a `Program` to a `Footprint` — lives in `Program.inFootprint`
+and `Program.footprint` at the bottom of this file.
 -/
 
-structure ProbLensRange (m : Type _) where
+structure Footprint (m : Type _) where
   updates : Set (m → SubProbability m)
   id : pure ∈ updates
   comp : f ∈ updates → g ∈ updates → (f * g) ∈ updates
@@ -30,13 +30,13 @@ private lemma centralizer_carrier_eq (S : Set (m → SubProbability m)) :
     (Submonoid.centralizer S).carrier = Set.centralizer S := by
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
-instance : Compl (ProbLensRange m) where
+instance : Compl (Footprint m) where
   compl range := ⟨(Submonoid.centralizer range.updates).carrier,
     Submonoid.one_mem _,
     fun hf hg => Submonoid.mul_mem _ hf hg,
     by simp only [centralizer_carrier_eq]; exact Set.centralizer_centralizer_centralizer _⟩
 
-def ProbLensRange.from (generators : Set (m → SubProbability m)) : ProbLensRange m where
+def Footprint.from (generators : Set (m → SubProbability m)) : Footprint m where
   -- TODO: Write Set.centralizer instead of Submonoid.centralizer, more
   updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
   id := Submonoid.one_mem _
@@ -46,14 +46,14 @@ def ProbLensRange.from (generators : Set (m → SubProbability m)) : ProbLensRan
     exact Set.centralizer_centralizer_centralizer _
 
 @[simp]
-lemma ProbLensRange.from_updates {m} (G : Set (m → SubProbability m)) :
-    (ProbLensRange.from G).updates = Set.centralizer (Set.centralizer G) := by
+lemma Footprint.from_updates {m} (G : Set (m → SubProbability m)) :
+    (Footprint.from G).updates = Set.centralizer (Set.centralizer G) := by
   change (Submonoid.centralizer ((Submonoid.centralizer G).carrier) : Set (m → SubProbability m))
       = Set.centralizer (Set.centralizer G)
   rw [Submonoid.coe_centralizer]
   rfl
 
-instance : PartialOrder (ProbLensRange m) where
+instance : PartialOrder (Footprint m) where
   le x y := x.updates ≤ y.updates
   le_refl x := le_refl x.updates
   le_trans _ _ _ h1 h2 := le_trans h1 h2
@@ -65,8 +65,8 @@ instance : PartialOrder (ProbLensRange m) where
     obtain rfl := le_antisymm hxy hyx
     rfl
 
-instance : Lattice (ProbLensRange m) where
-  sup x y := ProbLensRange.from (x.updates ∪ y.updates) -- double commutant of union
+instance : Lattice (Footprint m) where
+  sup x y := Footprint.from (x.updates ∪ y.updates) -- double commutant of union
   inf x y := ⟨x.updates ∩ y.updates, ⟨x.id, y.id⟩,
     fun hf hg => ⟨x.comp hf.1 hg.1, y.comp hf.2 hg.2⟩, by
       simp only [centralizer_carrier_eq]
@@ -101,34 +101,34 @@ instance : Lattice (ProbLensRange m) where
   inf_le_left := fun _ _ => Set.inter_subset_left
   inf_le_right := fun _ _ => Set.inter_subset_right
 
-instance : BoundedOrder (ProbLensRange m) where
+instance : BoundedOrder (Footprint m) where
   top := ⟨⊤, Set.mem_univ _, fun _ _ => Set.mem_univ _, by
     simp only [centralizer_carrier_eq, Set.top_eq_univ, Set.centralizer_univ]
     exact Set.centralizer_eq_top_iff_subset.mpr (Set.Subset.refl _)⟩
-  bot := ProbLensRange.from ∅
+  bot := Footprint.from ∅
   bot_le := fun x => by
     change (Submonoid.centralizer (Submonoid.centralizer ∅).carrier).carrier ⊆ x.updates
     conv_rhs => rw [← x.double_commutant]
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
-theorem ProbLensRange.compl_compl (x : ProbLensRange a) : xᶜᶜ = x := by
-  have key : ∀ {p q : ProbLensRange a}, p.updates = q.updates → p = q := by
+theorem Footprint.compl_compl (x : Footprint a) : xᶜᶜ = x := by
+  have key : ∀ {p q : Footprint a}, p.updates = q.updates → p = q := by
     intro p q h; obtain ⟨_,_,_,_⟩ := p; obtain ⟨_,_,_,_⟩ := q
     simp only at h; subst h; rfl
   apply key; simp only [Compl.compl]; exact x.double_commutant
 
 /-- A range equals the centralizer of its own complement (double-commutant closure,
     stated with the commutant on the inside). -/
-theorem ProbLensRange.updates_eq_centralizer_compl {m : Type _} (R : ProbLensRange m) :
+theorem Footprint.updates_eq_centralizer_compl {m : Type _} (R : Footprint m) :
     R.updates = (Submonoid.centralizer Rᶜ.updates).carrier := by
   show R.updates = (Submonoid.centralizer (Submonoid.centralizer R.updates).carrier).carrier
   exact R.double_commutant.symm
 
 /-- **Galois connection for `from`**: `from G` is the smallest range whose updates
     contain `G`. Since `R` is double-commutant-closed, `from G ≤ R` iff `G ⊆ R.updates`. -/
-theorem ProbLensRange.from_le_iff {m : Type _} (G : Set (m → SubProbability m))
-    (R : ProbLensRange m) : ProbLensRange.from G ≤ R ↔ G ⊆ R.updates := by
+theorem Footprint.from_le_iff {m : Type _} (G : Set (m → SubProbability m))
+    (R : Footprint m) : Footprint.from G ≤ R ↔ G ⊆ R.updates := by
   constructor
   · intro h
     intro x hx
@@ -141,8 +141,8 @@ theorem ProbLensRange.from_le_iff {m : Type _} (G : Set (m → SubProbability m)
     conv_rhs => rw [← R.double_commutant]
     exact Submonoid.centralizer_le (Submonoid.centralizer_le h)
 
-instance : CompleteSemilatticeSup (ProbLensRange m) where
-  sSup s := ProbLensRange.from (⋃ x ∈ s, x.updates)
+instance : CompleteSemilatticeSup (Footprint m) where
+  sSup s := Footprint.from (⋃ x ∈ s, x.updates)
   isLUB_sSup s := by
     constructor
     · intro a ha
@@ -158,7 +158,7 @@ instance : CompleteSemilatticeSup (ProbLensRange m) where
       exact Submonoid.centralizer_le
         (Submonoid.centralizer_le (Set.iUnion₂_subset (fun x hx => hb hx)))
 
-instance : CompleteSemilatticeInf (ProbLensRange m) where
+instance : CompleteSemilatticeInf (Footprint m) where
   sInf s := ⟨⋂ x ∈ s, x.updates,
     Set.mem_iInter₂.mpr fun x hx => x.id,
     fun hf hg => Set.mem_iInter₂.mpr fun x hx =>
@@ -178,11 +178,11 @@ instance : CompleteSemilatticeInf (ProbLensRange m) where
     · intro a ha; exact Set.iInter₂_subset a ha
     · intro b hb; exact Set.subset_iInter₂ (fun x hx => hb hx)
 
-instance : CompleteLattice (ProbLensRange m) where
+instance : CompleteLattice (Footprint m) where
 
-lemma ProbLensRange.from_mono {m} {G G' : Set (m → SubProbability m)} (h : G ⊆ G') :
-    ProbLensRange.from G ≤ ProbLensRange.from G' := by
-  rw [ProbLensRange.from_le_iff]
+lemma Footprint.from_mono {m} {G G' : Set (m → SubProbability m)} (h : G ⊆ G') :
+    Footprint.from G ≤ Footprint.from G' := by
+  rw [Footprint.from_le_iff]
   exact h.trans Set.subset_centralizer_centralizer
 
 
@@ -191,14 +191,14 @@ noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.liftSubProbability
   do let a ← κ (lens.get x); return lens.set a x
 
 noncomputable
-def _root_.GaudisCrypt.Language.Lens.Lens.liftProbLensRange {a b} (lens : Lens a b) (range : ProbLensRange a) : ProbLensRange b :=
-  ProbLensRange.from (lens.liftSubProbability '' range.updates)
+def _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint {a b} (lens : Lens a b) (range : Footprint a) : Footprint b :=
+  Footprint.from (lens.liftSubProbability '' range.updates)
 
-lemma _root_.GaudisCrypt.Language.Lens.Lens.liftProbLensRange_mono {a b} (lens : Lens a b) {r r' : ProbLensRange a} (h : r ≤ r') :
-    Lens.liftProbLensRange lens r ≤ Lens.liftProbLensRange lens r' := by
+lemma _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_mono {a b} (lens : Lens a b) {r r' : Footprint a} (h : r ≤ r') :
+    Lens.liftFootprint lens r ≤ Lens.liftFootprint lens r' := by
   have hsub : r.updates ⊆ r'.updates := h
-  unfold Lens.liftProbLensRange
-  apply ProbLensRange.from_mono
+  unfold Lens.liftFootprint
+  apply Footprint.from_mono
   rintro _ ⟨g, hg, rfl⟩
   exact ⟨g, hsub hg, rfl⟩
 
@@ -211,40 +211,40 @@ lemma _root_.GaudisCrypt.Language.Lens.Lens.liftProbLensRange_mono {a b} (lens :
     kernel outside `R` (i.e. in the commutant `Rᶜ`): running an outside kernel `f`
     on the state and then `p` is the same as running `p` and then `f` on the
     resulting state. This is the sub-probability analogue of `Program.inRange`. -/
-def _root_.GaudisCrypt.Language.Semantics.Program.inProbRange {s a : Type} (p : Program s a)
-    (R : ProbLensRange s) : Prop :=
+def _root_.GaudisCrypt.Language.Semantics.Program.inFootprint {s a : Type} (p : Program s a)
+    (R : Footprint s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (fun st => do let st' ← f st; let (x, st'') ← p st'; return (x, st''))
   = (fun st => do let (x, st') ← p st; let st'' ← f st'; return (x, st''))
 
-/-- The probabilistic range of a `Unit`-returning program: the `ProbLensRange`
+/-- The probabilistic range of a `Unit`-returning program: the `Footprint`
     generated by its single induced state kernel (run `p`, forget the result).
     Ported from the `rangeUnit2` sketch in `Language/Semantics.lean`. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.probRangeUnit {s : Type}
-    (p : Program s Unit) : ProbLensRange s :=
-  ProbLensRange.from {fun st => do let (_, st') ← p st; return st'}
+noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.footprintUnit {s : Type}
+    (p : Program s Unit) : Footprint s :=
+  Footprint.from {fun st => do let (_, st') ← p st; return st'}
 
 open Classical in
-/-- The probabilistic range of a program `p : Program s a`: the `ProbLensRange`
+/-- The probabilistic range of a program `p : Program s a`: the `Footprint`
     generated by the family of return-value-conditioned state kernels. For each
     possible return value `y : a`, the kernel runs `p`, keeps only the mass that
     returns `y` (killing the rest with `⊥`), and forgets the result, leaving a
     kernel `s → SubProbability s`. Indexing by `y` records how the final state
     correlates with what `p` returns. Ported from the `range2` sketch in
     `Language/Semantics.lean`. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.probRange {s a : Type}
-    (p : Program s a) : ProbLensRange s :=
-  ProbLensRange.from
+noncomputable def _root_.GaudisCrypt.Language.Semantics.Program.footprint {s a : Type}
+    (p : Program s a) : Footprint s :=
+  Footprint.from
     (Set.range fun (y : a) (st : s) =>
       (do let (x, st') ← p st; if x = y then pure st' else ⊥ : SubProbability s))
 
-/-! ## Litmus test: `p.inProbRange R ↔ p.probRange ≤ R`
+/-! ## Litmus test: `p.inFootprint R ↔ p.footprint ≤ R`
 
 The probabilistic analogue of the bicommutant litmus test. The key device is the
 return-value slice `projK y`: post-composing a kernel into `a × s` with `projK y`
 keeps only the mass that returns `y` and projects to the state. Slicing turns the
-joint commutation equation defining `inProbRange` into per-`y` commutations of the
-conditioned kernels `kᵧ` (the generators of `probRange`) with the commutant `Rᶜ`,
+joint commutation equation defining `inFootprint` into per-`y` commutations of the
+conditioned kernels `kᵧ` (the generators of `footprint`) with the commutant `Rᶜ`,
 i.e. `kᵧ ∈ centralizer Rᶜ = R.updates`. The forward direction is pure slicing; the
 backward direction reassembles the joint kernel from its slices, which needs the
 return type `a` to be `Countable`. -/
@@ -327,15 +327,15 @@ private lemma ext_of_slices {s a : Type} (μ ν : SubProbability (a × s))
   rw [key μ, key ν, h y]
 
 /-- **Litmus test, forward (soundness)**: if `p` commutes with the commutant `Rᶜ`,
-    its constructive `probRange` is contained in `R`. No countability needed — this is
+    its constructive `footprint` is contained in `R`. No countability needed — this is
     pure slicing of the commutation equation. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_le_of_inProbRange
-    {s a : Type} {p : Program s a} {R : ProbLensRange s}
-    (h : p.inProbRange R) : p.probRange ≤ R := by
-  refine (ProbLensRange.from_le_iff _ R).mpr ?_
+theorem _root_.GaudisCrypt.Language.Semantics.Program.footprint_le_of_inFootprint
+    {s a : Type} {p : Program s a} {R : Footprint s}
+    (h : p.inFootprint R) : p.footprint ≤ R := by
+  refine (Footprint.from_le_iff _ R).mpr ?_
   rintro k ⟨y, rfl⟩
   show (fun st => p st >>= projK y) ∈ R.updates
-  rw [ProbLensRange.updates_eq_centralizer_compl R]
+  rw [Footprint.updates_eq_centralizer_compl R]
   refine Submonoid.mem_centralizer_iff.mpr ?_
   intro f hf
   funext st
@@ -349,20 +349,20 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_le_of_inProbRang
   rw [lhs_slice, rhs_slice] at hs
   exact hs.symm
 
-/-- **Litmus test, backward (completeness)**: if `p`'s constructive `probRange` is
+/-- **Litmus test, backward (completeness)**: if `p`'s constructive `footprint` is
     contained in `R`, then `p` commutes with the commutant `Rᶜ`.  Countability-free (subtask 4):
     the joint kernel is reassembled from its slices via the discreteness invariant
     (`ext_of_slices`), not from countability of the return type. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_of_probRange_le
-    {s a : Type} {p : Program s a} {R : ProbLensRange s}
-    (h : p.probRange ≤ R) : p.inProbRange R := by
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_of_footprint_le
+    {s a : Type} {p : Program s a} {R : Footprint s}
+    (h : p.footprint ≤ R) : p.inFootprint R := by
   intro f hf
-  have h' := (ProbLensRange.from_le_iff _ R).mp h
+  have h' := (Footprint.from_le_iff _ R).mp h
   funext st
   apply ext_of_slices
   intro y
   have hky : (fun st => p st >>= projK y) ∈ R.updates := h' ⟨y, rfl⟩
-  rw [ProbLensRange.updates_eq_centralizer_compl R] at hky
+  rw [Footprint.updates_eq_centralizer_compl R] at hky
   have hcomm := Submonoid.mem_centralizer_iff.mp hky f hf
   show (f st >>= fun st' => p st' >>= fun w : a × s => (pure (w.1, w.2) : SubProbability (a × s)))
          >>= projK y
@@ -372,19 +372,19 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_of_probRange_l
   exact (congrFun hcomm st).symm
 
 /-- **Litmus test**: a program lies in the range `R` (commutes with the commutant)
-    iff its constructive `probRange` is `≤ R`. Ported from the `Litmus test` note in
+    iff its constructive `footprint` is `≤ R`. Ported from the `Litmus test` note in
     `Language/Semantics.lean`. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_iff_probRange_le
-    {s a : Type} {p : Program s a} {R : ProbLensRange s} :
-    p.inProbRange R ↔ p.probRange ≤ R :=
-  ⟨Program.probRange_le_of_inProbRange, Program.inProbRange_of_probRange_le⟩
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_iff_footprint_le
+    {s a : Type} {p : Program s a} {R : Footprint s} :
+    p.inFootprint R ↔ p.footprint ≤ R :=
+  ⟨Program.footprint_le_of_inFootprint, Program.inFootprint_of_footprint_le⟩
 
-/-! ## Closure properties of `inProbRange` / `probRange` -/
+/-! ## Closure properties of `inFootprint` / `footprint` -/
 
-/-- Clean reformulation of `inProbRange`: strip the trailing `pure`-repack from the
+/-- Clean reformulation of `inFootprint`: strip the trailing `pure`-repack from the
     "run outside-kernel first" side via `bind_pure`. -/
-lemma inProbRange_iff_clean {s c : Type} {P : Program s c} {R : ProbLensRange s} :
-    P.inProbRange R ↔ ∀ f ∈ Rᶜ.updates,
+lemma inFootprint_iff_clean {s c : Type} {P : Program s c} {R : Footprint s} :
+    P.inFootprint R ↔ ∀ f ∈ Rᶜ.updates,
       (fun st => f st >>= P)
     = (fun st => P st >>= fun w : c × s =>
         f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (c × s))) := by
@@ -397,9 +397,9 @@ lemma inProbRange_iff_clean {s c : Type} {P : Program s c} {R : ProbLensRange s}
   · intro h f hf; exact (eL f).symm.trans (h f hf)
 
 /-- **Monotonicity**: a larger range still contains the program. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_mono {s c : Type}
-    {P : Program s c} {R R' : ProbLensRange s} (h : P.inProbRange R) (hR : R ≤ R') :
-    P.inProbRange R' := by
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_mono {s c : Type}
+    {P : Program s c} {R R' : Footprint s} (h : P.inFootprint R) (hR : R ≤ R') :
+    P.inFootprint R' := by
   intro f hf
   apply h
   have hsub : R'ᶜ.updates ⊆ Rᶜ.updates := by
@@ -411,13 +411,13 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_mono {s c : Ty
     commutant `Rᶜ`, so does `p >>= q`. Pure Kleisli algebra — no countability needed.
     The slogan is `pre`/`post` (run-`f`-first / run-`f`-last) compose via `bind_assoc`,
     and the hypotheses swap `pre ↔ post` at `p` and at each `q x`. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_bind {s a b : Type}
-    {p : Program s a} {q : a → Program s b} {R : ProbLensRange s}
-    (hp : p.inProbRange R) (hq : ∀ x, (q x).inProbRange R) : (p >>= q).inProbRange R := by
-  rw [inProbRange_iff_clean]
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_bind {s a b : Type}
+    {p : Program s a} {q : a → Program s b} {R : Footprint s}
+    (hp : p.inFootprint R) (hq : ∀ x, (q x).inFootprint R) : (p >>= q).inFootprint R := by
+  rw [inFootprint_iff_clean]
   intro f hf
-  have hp' := (inProbRange_iff_clean.mp hp) f hf
-  have hq' := fun x => (inProbRange_iff_clean.mp (hq x)) f hf
+  have hp' := (inFootprint_iff_clean.mp hp) f hf
+  have hq' := fun x => (inFootprint_iff_clean.mp (hq x)) f hf
   funext st
   calc f st >>= (p >>= q)
       = (f st >>= p) >>= (fun v : a × s => q v.1 v.2) := (SubProbability.bind_assoc (f st) p _).symm
@@ -435,27 +435,27 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_bind {s a b : 
     _ = (p >>= q) st
           >>= (fun u : b × s => f u.2 >>= fun st''' => (pure (u.1, st''') : SubProbability (b × s))) := rfl
 
-/-- **Range of a `bind`**: `(p >>= q).probRange ≤ p.probRange ⊔ ⨆ x, (q x).probRange`.
+/-- **Range of a `bind`**: `(p >>= q).footprint ≤ p.footprint ⊔ ⨆ x, (q x).footprint`.
     The footprint of a sequenced computation is contained in `p`'s footprint together
     with the union of the continuations' footprints. Countability-free (subtask 4): the
-    self-range step (`inProbRange_of_probRange_le`) no longer needs countable return types. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.probRange_bind_le {s a b : Type}
+    self-range step (`inFootprint_of_footprint_le`) no longer needs countable return types. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.footprint_bind_le {s a b : Type}
     (p : Program s a) (q : a → Program s b) :
-    (p >>= q).probRange ≤ p.probRange ⊔ ⨆ x, (q x).probRange := by
-  apply Program.probRange_le_of_inProbRange
-  apply Program.inProbRange_bind
-  · exact Program.inProbRange_of_probRange_le le_sup_left
+    (p >>= q).footprint ≤ p.footprint ⊔ ⨆ x, (q x).footprint := by
+  apply Program.footprint_le_of_inFootprint
+  apply Program.inFootprint_bind
+  · exact Program.inFootprint_of_footprint_le le_sup_left
   · intro x
-    exact Program.inProbRange_of_probRange_le
-      ((le_iSup (fun x => (q x).probRange) x).trans le_sup_right)
+    exact Program.inFootprint_of_footprint_le
+      ((le_iSup (fun x => (q x).footprint) x).trans le_sup_right)
 
 end Litmus
 
-/-! ## Parity primitives: `Lens.probRange` and primitive ranges
+/-! ## Parity primitives: `Lens.footprint` and primitive ranges
 
 The probabilistic analogues of `Lens.range` / `Program.inRange_pure/set/get`, mirroring the
-`TotLensRange` leaves so consumers can migrate. A deterministic state update embeds as a Dirac
-kernel via `diracKer`; `Lens.probRange` is generated by the lens-localized ones. -/
+`DetermFootprint` leaves so consumers can migrate. A deterministic state update embeds as a Dirac
+kernel via `diracKer`; `Lens.footprint` is generated by the lens-localized ones. -/
 
 /-- A deterministic state update `f : Function.End s` as a Dirac kernel. The Kleisli embedding
     `Function.End s ↪ (s → SubProbability s)`. -/
@@ -464,17 +464,17 @@ noncomputable def diracKer {s : Type} (f : Function.End s) : s → SubProbabilit
 
 /-- The probabilistic range of a lens: generated by the Dirac kernels of its localized
     deterministic updates `lens.liftFunction g`. The sub-probability analogue of `Lens.range`. -/
-noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.probRange {a s : Type} (lens : Lens a s) :
-    ProbLensRange s :=
-  ProbLensRange.from (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.footprint {a s : Type} (lens : Lens a s) :
+    Footprint s :=
+  Footprint.from (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))
 
 /-- **Kernel-shift extraction**: a program in range `R` commutes with a deterministic
-    outside-update `f` (as a Dirac kernel). The `inProbRange` analogue of `Program.inRange_subprob`. -/
-theorem inProbRange_subprob
-    {s a : Type} {p : Program s a} {R : ProbLensRange s}
-    (h : p.inProbRange R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
+    outside-update `f` (as a Dirac kernel). The `inFootprint` analogue of `Program.inRange_subprob`. -/
+theorem inFootprint_subprob
+    {s a : Type} {p : Program s a} {R : Footprint s}
+    (h : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
     p (f σ) = (p σ) >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-  have hcs := congrFun ((inProbRange_iff_clean.mp h) (diracKer f) hf) σ
+  have hcs := congrFun ((inFootprint_iff_clean.mp h) (diracKer f) hf) σ
   rw [show (diracKer f σ : SubProbability s) = pure (f σ) from rfl, SubProbability.pure_bind] at hcs
   rw [hcs]; congr 1; funext xs
   rw [show (diracKer f xs.2 : SubProbability s) = pure (f xs.2) from rfl, SubProbability.pure_bind]
@@ -496,9 +496,9 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.get_apply {a s : Type}
   rw [SubProbability.pure_bind]; rfl
 
 /-- `pure x` is in every probabilistic range — it touches no state. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_pure {s a : Type}
-    (x : a) (R : ProbLensRange s) : (pure x : Program s a).inProbRange R := by
-  rw [inProbRange_iff_clean]
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_pure {s a : Type}
+    (x : a) (R : Footprint s) : (pure x : Program s a).inFootprint R := by
+  rw [inFootprint_iff_clean]
   intro f hf
   funext st
   show (f st >>= fun st' => (pure (x, st') : SubProbability (a × s)))
@@ -506,14 +506,14 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_pure {s a : Ty
         >>= (fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
   rw [SubProbability.pure_bind]
 
-/-- `Program.set v x` lives in `v.probRange`. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_set {a s : Type}
-    (v : Lens a s) (x : a) : (Program.set v x).inProbRange v.probRange := by
-  rw [inProbRange_iff_clean]
+/-- `Program.set v x` lives in `v.footprint`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_set {a s : Type}
+    (v : Lens a s) (x : a) : (Program.set v x).inFootprint v.footprint := by
+  rw [inFootprint_iff_clean]
   intro f hf
-  have hmem : diracKer (v.set x) ∈ v.probRange.updates :=
-    (ProbLensRange.from_le_iff (Set.range fun g : Function.End a => diracKer (v.liftFunction g))
-      v.probRange).mp le_rfl ⟨fun _ => x, rfl⟩
+  have hmem : diracKer (v.set x) ∈ v.footprint.updates :=
+    (Footprint.from_le_iff (Set.range fun g : Function.End a => diracKer (v.liftFunction g))
+      v.footprint).mp le_rfl ⟨fun _ => x, rfl⟩
   have hcomm := (Submonoid.mem_centralizer_iff.mp hf) (diracKer (v.set x)) hmem
   funext st
   have key : (f st >>= fun st' => (pure (v.set x st') : SubProbability s)) = f (v.set x st) := by
@@ -531,16 +531,16 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_set {a s : Typ
   congr 1; funext st'
   rw [SubProbability.pure_bind]
 
-/-- `Program.get v` lives in `v.probRange`: it reads `v`, never writes. The extraction
+/-- `Program.get v` lives in `v.footprint`: it reads `v`, never writes. The extraction
     `hstar` says any commutant kernel `f` preserves `v.get` almost surely. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_get {a s : Type}
-    (v : Lens a s) : (Program.get v).inProbRange v.probRange := by
-  rw [inProbRange_iff_clean]
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_get {a s : Type}
+    (v : Lens a s) : (Program.get v).inFootprint v.footprint := by
+  rw [inFootprint_iff_clean]
   intro f hf
   funext st
-  have hmem : diracKer (v.liftFunction (fun _ => v.get st)) ∈ v.probRange.updates :=
-    (ProbLensRange.from_le_iff (Set.range fun g : Function.End a => diracKer (v.liftFunction g))
-      v.probRange).mp le_rfl ⟨fun _ => v.get st, rfl⟩
+  have hmem : diracKer (v.liftFunction (fun _ => v.get st)) ∈ v.footprint.updates :=
+    (Footprint.from_le_iff (Set.range fun g : Function.End a => diracKer (v.liftFunction g))
+      v.footprint).mp le_rfl ⟨fun _ => v.get st, rfl⟩
   have hcomm := (Submonoid.mem_centralizer_iff.mp hf) (diracKer (v.liftFunction (fun _ => v.get st))) hmem
   have hstar : (f st >>= fun st' => (pure (v.set (v.get st) st') : SubProbability s)) = f st := by
     have h0 : (f st >>= fun st' => (pure (v.set (v.get st) st') : SubProbability s))
@@ -575,14 +575,14 @@ lemma diracKer_mul {s : Type} (p q : Function.End s) :
   rw [SubProbability.pure_bind]; rfl
 
 /-- **Disjoint lenses have ranges in each other's complements**: if `disjoint v L`, then every
-    `v`-localized kernel commutes with every `L`-localized kernel, so `v.probRange ≤ (L.probRange)ᶜ`.
+    `v`-localized kernel commutes with every `L`-localized kernel, so `v.footprint ≤ (L.footprint)ᶜ`.
     The sub-probability analogue of `Lens.range_le_compl_of_disjoint`. -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.probRange_le_compl_of_disjoint
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_le_compl_of_disjoint
     {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L] :
-    v.probRange ≤ (L.probRange)ᶜ := by
-  refine (ProbLensRange.from_le_iff _ _).mpr ?_
+    v.footprint ≤ (L.footprint)ᶜ := by
+  refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨g, rfl⟩
-  show diracKer (v.liftFunction g) ∈ Submonoid.centralizer (L.probRange).updates
+  show diracKer (v.liftFunction g) ∈ Submonoid.centralizer (L.footprint).updates
   rw [Submonoid.mem_centralizer_iff]
   intro k hk
   have hjmem : diracKer (v.liftFunction g)
@@ -602,17 +602,17 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.probRange_le_compl_of_disjoint
     exact (hd.commute σ (g (v.get σ)) (h (L.get σ))).symm
   exact (Submonoid.mem_centralizer_iff.mp hk (diracKer (v.liftFunction g)) hjmem).symm
 
-/-- **`Program.set v x` lives in `L.probRangeᶜ`** when `v` is disjoint from `L`. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.set_inProbRange_compl_of_disjoint
+/-- **`Program.set v x` lives in `L.footprintᶜ`** when `v` is disjoint from `L`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.set_inFootprint_compl_of_disjoint
     {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] (x : a) :
-    (Program.set v x).inProbRange (L.probRange)ᶜ :=
-  Program.inProbRange_mono (Program.inProbRange_set v x) (Lens.probRange_le_compl_of_disjoint v L)
+    (Program.set v x).inFootprint (L.footprint)ᶜ :=
+  Program.inFootprint_mono (Program.inFootprint_set v x) (Lens.footprint_le_compl_of_disjoint v L)
 
-/-- **`Program.get v` lives in `L.probRangeᶜ`** when `v` is disjoint from `L`. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.get_inProbRange_compl_of_disjoint
+/-- **`Program.get v` lives in `L.footprintᶜ`** when `v` is disjoint from `L`. -/
+theorem _root_.GaudisCrypt.Language.Semantics.Program.get_inFootprint_compl_of_disjoint
     {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] :
-    (Program.get v).inProbRange (L.probRange)ᶜ :=
-  Program.inProbRange_mono (Program.inProbRange_get v) (Lens.probRange_le_compl_of_disjoint v L)
+    (Program.get v).inFootprint (L.footprint)ᶜ :=
+  Program.inFootprint_mono (Program.inFootprint_get v) (Lens.footprint_le_compl_of_disjoint v L)
 
 /-! ## Sampling: `Program.uniform`
 
@@ -652,9 +652,9 @@ lemma bind_swap {s α γ : Type} (ν : SubProbability s) (μ : SubProbability α
 
 /-- `Program.uniform` lives in the trivial range `⊥` — it samples a value, touching no state.
     Needs only `Fintype α` (the sampled type), not countability of the state. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.inProbRange_uniform {s α : Type}
-    [Fintype α] [Nonempty α] : (Program.uniform : Program s α).inProbRange ⊥ := by
-  rw [inProbRange_iff_clean]
+theorem _root_.GaudisCrypt.Language.Semantics.Program.inFootprint_uniform {s α : Type}
+    [Fintype α] [Nonempty α] : (Program.uniform : Program s α).inFootprint ⊥ := by
+  rw [inFootprint_iff_clean]
   intro f hf
   funext st
   show (f st >>= fun st' =>
@@ -670,18 +670,18 @@ end Uniform
 
 /-! ## Localized kernels lie in the lens's range -/
 
-/-- **An `M`-localized kernel lies in `M.probRange`.** A kernel that reads only `M.get`, samples a
+/-- **An `M`-localized kernel lies in `M.footprint`.** A kernel that reads only `M.get`, samples a
     new `M`-value, and writes it back (`ρ (M.get st) >>= fun mc' => pure (M.set mc' st)`) commutes
-    with the commutant `M.probRangeᶜ` — using that any such `f` preserves `M.get` a.s. and commutes
+    with the commutant `M.footprintᶜ` — using that any such `f` preserves `M.get` a.s. and commutes
     with `M.set`, plus the Fubini swap `bind_swap` (countability-free since subtask 4). -/
-theorem Mlocalized_in_probRange {c s : Type} (M : Lens c s) (ρ : c → SubProbability c) :
+theorem Mlocalized_in_footprint {c s : Type} (M : Lens c s) (ρ : c → SubProbability c) :
     (fun st => ρ (M.get st) >>= fun mc' => (pure (M.set mc' st) : SubProbability s))
-      ∈ M.probRange.updates := by
-  rw [ProbLensRange.updates_eq_centralizer_compl M.probRange]
+      ∈ M.footprint.updates := by
+  rw [Footprint.updates_eq_centralizer_compl M.footprint]
   refine Submonoid.mem_centralizer_iff.mpr ?_
   intro f hf
-  have hgen : ∀ g : Function.End c, diracKer (M.liftFunction g) ∈ M.probRange.updates :=
-    fun g => (ProbLensRange.from_le_iff _ M.probRange).mp le_rfl ⟨g, rfl⟩
+  have hgen : ∀ g : Function.End c, diracKer (M.liftFunction g) ∈ M.footprint.updates :=
+    fun g => (Footprint.from_le_iff _ M.footprint).mp le_rfl ⟨g, rfl⟩
   have hset : ∀ (mc' : c) (st : s),
       (f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) = f (M.set mc' st) := by
     intro mc' st
@@ -716,9 +716,9 @@ theorem Mlocalized_in_probRange {c s : Type} (M : Lens c s) (ρ : c → SubProba
 /-! ## Disjoint programs commute (no orbit machinery)
 
 Programs with disjoint probabilistic ranges can be run in either order with the same joint
-`(output, state)` distribution. Unlike the `TotLensRange` version (`commute_of_disjoint`, which
+`(output, state)` distribution. Unlike the `DetermFootprint` version (`commute_of_disjoint`, which
 needs `HasOrbitCollapse` preconditions *and* `[Countable s]`), this follows directly from the
-constructive `probRange` + litmus: slicing the joint by the return value `(x₀, y₀)` collapses each
+constructive `footprint` + litmus: slicing the joint by the return value `(x₀, y₀)` collapses each
 side to a product of the return-conditioned kernels `kp`/`kq`, which commute because they live in
 the disjoint ranges `R`, `R'`. After subtask 4 this needs **no countability at all** — neither the
 state `s` nor the return types — since slice-reassembly (`ext_of_slices`) goes through the
@@ -729,11 +729,11 @@ open Classical
 
 variable {s a b : Type}
 
-/-- `p`'s state-kernel conditioned on returning `x₀` — the `x₀`-generator of `p.probRange`. -/
+/-- `p`'s state-kernel conditioned on returning `x₀` — the `x₀`-generator of `p.footprint`. -/
 private noncomputable def kp (p : Program s a) (x0 : a) : s → SubProbability s :=
   fun st => p st >>= fun w => if w.1 = x0 then pure w.2 else ⊥
 
-/-- `q`'s state-kernel conditioned on returning `y₀` — the `y₀`-generator of `q.probRange`. -/
+/-- `q`'s state-kernel conditioned on returning `y₀` — the `y₀`-generator of `q.footprint`. -/
 private noncomputable def kq (q : Program s b) (y0 : b) : s → SubProbability s :=
   fun st => q st >>= fun w => if w.1 = y0 then pure w.2 else ⊥
 
@@ -794,9 +794,9 @@ private lemma slice_qp (p : Program s a) (q : Program s b) (x0 : a) (y0 : b) (σ
     analogue of `Program.commute_of_disjoint` — but with **no** `HasOrbitCollapse` hypotheses and,
     after subtask 4, **no countability whatsoever** (the joint kernel is reassembled from its
     slices via the discreteness invariant, not from countable state or return types). -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob
-    {p : Program s a} {q : Program s b} {R R' : ProbLensRange s}
-    (hp : p.inProbRange R) (hq : q.inProbRange R') (hdisj : R ≤ R'ᶜ) :
+theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_footprint
+    {p : Program s a} {q : Program s b} {R R' : Footprint s}
+    (hp : p.inFootprint R) (hq : q.inFootprint R') (hdisj : R ≤ R'ᶜ) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) := by
   funext σ
@@ -809,39 +809,39 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob
   rw [slice_pq, slice_qp]
   have hcomm : kq q y0 * kp p x0 = kp p x0 * kq q y0 :=
     Submonoid.mem_centralizer_iff.mp
-      (hdisj ((Program.probRange_le_of_inProbRange hp)
-        ((ProbLensRange.from_le_iff _ p.probRange).mp le_rfl ⟨x0, rfl⟩)))
+      (hdisj ((Program.footprint_le_of_inFootprint hp)
+        ((Footprint.from_le_iff _ p.footprint).mp le_rfl ⟨x0, rfl⟩)))
       (kq q y0)
-      ((Program.probRange_le_of_inProbRange hq)
-        ((ProbLensRange.from_le_iff _ q.probRange).mp le_rfl ⟨y0, rfl⟩))
+      ((Program.footprint_le_of_inFootprint hq)
+        ((Footprint.from_le_iff _ q.footprint).mp le_rfl ⟨y0, rfl⟩))
   exact congrFun hcomm σ
 
-/-- Lens-range specialisation of `commute_of_disjoint_prob`. A thin wrapper (no
-    `HasOrbitCollapse` to discharge, unlike the `TotLensRange` `commute_of_disjoint_lens`),
+/-- Lens-range specialisation of `commute_of_disjoint_footprint`. A thin wrapper (no
+    `HasOrbitCollapse` to discharge, unlike the `DetermFootprint` `commute_of_disjoint_lens`),
     matching that API for drop-in migration. -/
-theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_prob_lens
+theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_footprint_lens
     {c d : Type}
     {p : Program s a} {q : Program s b} {l : Lens c s} {l' : Lens d s}
-    (hp : p.inProbRange l.probRange) (hq : q.inProbRange l'.probRange)
-    (hdisj : l.probRange ≤ (l'.probRange)ᶜ) :
+    (hp : p.inFootprint l.footprint) (hq : q.inFootprint l'.footprint)
+    (hdisj : l.footprint ≤ (l'.footprint)ᶜ) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
-  Program.commute_of_disjoint_prob hp hq hdisj
+  Program.commute_of_disjoint_footprint hp hq hdisj
 
 /-- When the lenses `l`, `l'` are `disjoint`, the disjointness of their probabilistic ranges is
-    automatic (`Lens.probRange_le_compl_of_disjoint`), so the caller supplies only the two
-    `inProbRange` confinement proofs. -/
+    automatic (`Lens.footprint_le_compl_of_disjoint`), so the caller supplies only the two
+    `inFootprint` confinement proofs. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.commute_of_disjoint_lenses
     {c d : Type}
     {p : Program s a} {q : Program s b} {l : Lens c s} {l' : Lens d s} [disjoint l l']
-    (hp : p.inProbRange l.probRange) (hq : q.inProbRange l'.probRange) :
+    (hp : p.inFootprint l.footprint) (hq : q.inFootprint l'.footprint) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
-  Program.commute_of_disjoint_prob hp hq (Lens.probRange_le_compl_of_disjoint l l')
+  Program.commute_of_disjoint_footprint hp hq (Lens.footprint_le_compl_of_disjoint l l')
 
 /-! ### Corollaries: disjoint reads/writes commute
 
-End-to-end payoff of the toolkit — the primitives (`inProbRange_set`/`get`) feed straight into
+End-to-end payoff of the toolkit — the primitives (`inFootprint_set`/`get`) feed straight into
 `commute_of_disjoint_lenses`, so independent operations on disjoint lenses may be reordered. -/
 
 /-- Two writes to disjoint lenses commute. -/
@@ -849,20 +849,20 @@ theorem _root_.GaudisCrypt.Language.Semantics.Program.set_set_commute_of_disjoin
     {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (x : γ) (y : δ) :
     (Program.set l x >>= fun a => Program.set l' y >>= fun b => pure (a, b))
   = (Program.set l' y >>= fun b => Program.set l x >>= fun a => pure (a, b)) :=
-  Program.commute_of_disjoint_lenses (Program.inProbRange_set l x) (Program.inProbRange_set l' y)
+  Program.commute_of_disjoint_lenses (Program.inFootprint_set l x) (Program.inFootprint_set l' y)
 
 /-- A read and a write to disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.get_set_commute_of_disjoint
     {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (y : δ) :
     (Program.get l >>= fun a => Program.set l' y >>= fun b => pure (a, b))
   = (Program.set l' y >>= fun b => Program.get l >>= fun a => pure (a, b)) :=
-  Program.commute_of_disjoint_lenses (Program.inProbRange_get l) (Program.inProbRange_set l' y)
+  Program.commute_of_disjoint_lenses (Program.inFootprint_get l) (Program.inFootprint_set l' y)
 
 /-- Two reads of disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.Language.Semantics.Program.get_get_commute_of_disjoint
     {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] :
     (Program.get l >>= fun a => Program.get l' >>= fun b => pure (a, b))
   = (Program.get l' >>= fun b => Program.get l >>= fun a => pure (a, b)) :=
-  Program.commute_of_disjoint_lenses (Program.inProbRange_get l) (Program.inProbRange_get l')
+  Program.commute_of_disjoint_lenses (Program.inFootprint_get l) (Program.inFootprint_get l')
 
 end Commute

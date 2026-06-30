@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Last systematic update of this file: 2026-06-30
+
 ## What this is
 
 Gaudí's Crypt is a Lean 4 framework for **cryptographic proofs** (probabilistic
@@ -75,7 +77,7 @@ This is the conceptual core. `notes/REPORT.md` is a long, excellent guided tour 
   discharges the `HasOrbitCollapse` hypotheses automatically for lens-derived
   ranges): disjoint footprints ⟹ programs commute.
 
-Note `ProbLensRange`/`ProbProgramRange`/`ProgramRange`/`TotLensRange`/`FV`/
+Note `Footprint`/`ProbProgramRange`/`ProgramRange`/`DetermFootprint`/`FV`/
 `EquivModuloLens`/`WeakestPreconditions` at the repo top level make up this
 framework. `WeakestPreconditions.lean` provides `wp`, `wp_bind`, `wp_set`, etc.
 
@@ -106,8 +108,8 @@ whose least upper bound doesn't exist as a lens). Not used elsewhere.
 - **The `notes/` directory uses the old project name** (`PlonkLean/...` paths,
   the `.idea` module is `plonk-lean`). The code now lives under `GaudisCrypt/`.
   When following a note, translate `PlonkLean/X.lean` → `GaudisCrypt/X.lean`.
-- **`RENAME.md`** tracks in-progress renamings (e.g. `Program` → `Denotation`,
-  `ProbLensRange` → `Footprint`). Check it before introducing names in the
+- **`RENAME.md`** tracks in-progress renamings (e.g. `Program` → `Denotation`).
+  Check it before introducing names in the
   range framework so you match the intended direction.
 - **Per-game pattern**: `notes/RO/PerGamePattern.md` documents how to add a new
   cryptographic game. Framework-level state/variables (`random_oracle_state`,

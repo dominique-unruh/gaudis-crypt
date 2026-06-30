@@ -445,16 +445,16 @@ theorem transfer_wrapper {sig : ProcedureSignature}
 
 
 /-- **`Stable` from probabilistic footprint disjointness.** A program confined (in the
-    `inProbRange` sense) to the complement of the RO table commutes with `convertL`, i.e. is
-    `Stable`. The `ProbLensRange` analogue of `stable_of_inRange_compl`; the `ᶜ`-form makes the
-    `commute_of_disjoint_prob` disjointness hypothesis `le_refl`, so no `complement_range` analog
+    `inFootprint` sense) to the complement of the RO table commutes with `convertL`, i.e. is
+    `Stable`. The `Footprint` analogue of `stable_of_inRange_compl`; the `ᶜ`-form makes the
+    `commute_of_disjoint_footprint` disjointness hypothesis `le_refl`, so no `complement_range` analog
     is needed. -/
-theorem stable_of_inProbRange_compl {l α : Type}
-    {p : Program (ProcedureState l) α} (hp : p.inProbRange ((roLift l).probRange)ᶜ) : Stable p := by
+theorem stable_of_inFootprint_compl {l α : Type}
+    {p : Program (ProcedureState l) α} (hp : p.inFootprint ((roLift l).footprint)ᶜ) : Stable p := by
   show (p >>= fun a => convertL >>= fun _ => pure a) = (convertL >>= fun _ => p)
   have h_commute : (p >>= fun a => convertL >>= fun b => pure (a, b))
                  = (convertL >>= fun b => p >>= fun a => pure (a, b)) :=
-    Program.commute_of_disjoint_prob hp convertL_inProbRange (le_refl _)
+    Program.commute_of_disjoint_footprint hp convertL_inFootprint (le_refl _)
   have hL : (p >>= fun a => convertL >>= fun b => pure (a, b)) >>=
               (fun ab : α × Unit => (Pure.pure ab.1 : Program (ProcedureState l) α))
           = (p >>= fun a => convertL >>= fun _ => (Pure.pure a : Program (ProcedureState l) α)) := by
@@ -476,18 +476,18 @@ theorem stable_of_inProbRange_compl {l α : Type}
 
 
 /-- **`Stable` from confinement to a lens disjoint from the RO** (probabilistic). The
-    `ProbLensRange` analogue of `stable_of_confined_lens`. No `complement_range` needed — the
-    `ᶜ`-form bound `hdisj` feeds `inProbRange_mono` directly. -/
+    `Footprint` analogue of `stable_of_confined_lens`. No `complement_range` needed — the
+    `ᶜ`-form bound `hdisj` feeds `inFootprint_mono` directly. -/
 theorem stable_of_confinedP_lens {l α advSt : Type}
-    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.probRange ≤ ((roLift l).probRange)ᶜ)
-    {p : Program (ProcedureState l) α} (hp : p.inProbRange L_adv.probRange) : Stable p :=
-  stable_of_inProbRange_compl (Program.inProbRange_mono hp hdisj)
+    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.footprint ≤ ((roLift l).footprint)ᶜ)
+    {p : Program (ProcedureState l) α} (hp : p.inFootprint L_adv.footprint) : Stable p :=
+  stable_of_inFootprint_compl (Program.inFootprint_mono hp hdisj)
 
 
 /-- **`ConfinedP` discharges `Loc`** (theorem-1 locality), leaf by leaf — reusing the existing
-    `Loc`→theorems chain. The `ProbLensRange` analogue of `confined_loc`. -/
+    `Loc`→theorems chain. The `Footprint` analogue of `confined_loc`. -/
 theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
-    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.probRange ≤ ((roLift l).probRange)ᶜ)
+    (L_adv : Lens advSt (ProcedureState l)) (hdisj : L_adv.footprint ≤ ((roLift l).footprint)ᶜ)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
     ∀ (A : StmtWithHoles holes l), ConfinedP L_adv A → Loc A
   | .skip, _ => trivial
@@ -513,9 +513,9 @@ theorem confinedP_loc {holes : HoleSigs} {l advSt : Type}
 theorem Program.transfer_instantiate_of_fvP {sig : ProcedureSignature} {advSt : Type}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (L_adv : Lens advSt (ProcedureState (sig.LocalVariableState A.locals)))
-    (hdisj : L_adv.probRange ≤ ((roLift (sig.LocalVariableState A.locals)).probRange)ᶜ)
-    (hbody : fvP_stmt A.body ≤ L_adv.probRange)
-    (hret : (Program.get A.return_val).probRange ≤ L_adv.probRange) :
+    (hdisj : L_adv.footprint ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
+    (hbody : fvP_stmt A.body ≤ L_adv.footprint)
+    (hret : (Program.get A.return_val).footprint ≤ L_adv.footprint) :
     Program.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=

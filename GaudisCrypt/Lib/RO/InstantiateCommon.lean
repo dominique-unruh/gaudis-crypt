@@ -2,14 +2,14 @@ import GaudisCrypt.Language.Programs
 import GaudisCrypt.Lib.RO.Transfer
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL2
-import GaudisCrypt.ProbLensRange
+import GaudisCrypt.Footprint
 
 /-!
 # Instantiate: shared base
 
 RO procedure setup (`RO_lazy`/`RO_eager`, denotation bridges), the `zoom`/`transferBy`-agnostic
-monad-morphism lemmas, and the ProbLensRange confinement core (`ConfinedP`, `fvP_stmt`,
-`confinedP_of_fv`, the `Lens.lift` framework, `convertL_inProbRange`). Shared by the transfer
+monad-morphism lemmas, and the Footprint confinement core (`ConfinedP`, `fvP_stmt`,
+`confinedP_of_fv`, the `Lens.lift` framework, `convertL_inFootprint`). Shared by the transfer
 (`TransferInstantiate`) and relational (`ROCouplingEquiv`) developments.
 -/
 
@@ -47,8 +47,8 @@ noncomputable def convertL {l : Type} : Program (ProcedureState l) Unit :=
 /-! ## RO table as a procedure-state lens
 
 `roLift` is the RO table viewed inside a procedure state.  The confinement theorems below all hinge
-on `convertL`'s probabilistic footprint `convertL.inProbRange (roLift l).probRange`
-(`convertL_inProbRange`), obtained from `convert_inProbRange_ro` via the `Lens.lift` framework. -/
+on `convertL`'s probabilistic footprint `convertL.inFootprint (roLift l).footprint`
+(`convertL_inFootprint`), obtained from `convert_inFootprint_ro` via the `Lens.lift` framework. -/
 
 /-- The RO table as a lens into a procedure state. -/
 noncomputable def roLift (l : Type) : Lens (input → Option output) (ProcedureState l) :=
@@ -262,74 +262,74 @@ theorem roHole_paramType_countable {sig : ProcedureSignature}
   | succ i => exact nomatch i
 
 
-/-- **Self-range over `ProbLensRange` (PROVEN).**  For any program with countable return,
-    `p.inProbRange p.probRange`.  This is *exactly* the statement that is FALSE for `TotLensRange`
+/-- **Self-range over `Footprint` (PROVEN).**  For any program with countable return,
+    `p.inFootprint p.footprint`.  This is *exactly* the statement that is FALSE for `DetermFootprint`
     (witness: `range_get_fst_eq_bot`), whose failure forced `get_confined_of_fv`/`call'` to be
     `sorry`.  Every leaf bridge below is a corollary. -/
-theorem inProbRange_selfRange {a s : Type} (p : Program s a) :
-    p.inProbRange p.probRange :=
-  Program.inProbRange_of_probRange_le (le_refl _)
+theorem inFootprint_selfRange {a s : Type} (p : Program s a) :
+    p.inFootprint p.footprint :=
+  Program.inFootprint_of_footprint_le (le_refl _)
 
 
-/-- **The `get` bridge over `ProbLensRange` — PROVEN (the litmus).**  The probabilistic counterpart
-    of `get_confined_of_fv` (the open `sorry`): where the `TotLensRange` bridge is self-range for a
+/-- **The `get` bridge over `Footprint` — PROVEN (the litmus).**  The probabilistic counterpart
+    of `get_confined_of_fv` (the open `sorry`): where the `DetermFootprint` bridge is self-range for a
     read (false), this is the litmus, which holds for any read with countable result. -/
 theorem get_confinedP_of_fv {a l : Type} (c : Getter a (ProcedureState l))
-    {R : ProbLensRange (ProcedureState l)} (h : (Program.get c).probRange ≤ R) :
-    (Program.get c).inProbRange R :=
-  Program.inProbRange_of_probRange_le h
+    {R : Footprint (ProcedureState l)} (h : (Program.get c).footprint ≤ R) :
+    (Program.get c).inFootprint R :=
+  Program.inFootprint_of_footprint_le h
 
 
-/-- **The setter bridge over `ProbLensRange` — PROVEN (the litmus).**  In `confined_of_fv` the
+/-- **The setter bridge over `Footprint` — PROVEN (the litmus).**  In `confined_of_fv` the
     setter bridge had to be *assumed* (`hset`); here it is the litmus, for free. -/
 theorem set_confinedP_of_fv {a l : Type} (y : Setter a (ProcedureState l)) (w : a)
-    {R : ProbLensRange (ProcedureState l)} (h : (Program.set y w).probRange ≤ R) :
-    (Program.set y w).inProbRange R :=
-  Program.inProbRange_of_probRange_le h
+    {R : Footprint (ProcedureState l)} (h : (Program.set y w).footprint ≤ R) :
+    (Program.set y w).inFootprint R :=
+  Program.inFootprint_of_footprint_le h
 
 
-/-- **The probabilistic footprint of a statement.**  The `ProbLensRange` analogue of `fv_stmt`,
-    defined *directly* as the join of each leaf's own `probRange` — no `fv_reduce`/`fv_extend`
+/-- **The probabilistic footprint of a statement.**  The `Footprint` analogue of `fv_stmt`,
+    defined *directly* as the join of each leaf's own `footprint` — no `fv_reduce`/`fv_extend`
     machinery is needed, because self-range makes every program its own footprint.  In particular
-    the nested `call'` leaf is just `(programDenotation (call' …)).probRange`. -/
+    the nested `call'` leaf is just `(programDenotation (call' …)).footprint`. -/
 noncomputable def fvP_stmt {holes : HoleSigs} {l : Type} :
-    StmtWithHoles holes l → ProbLensRange (ProcedureState l)
+    StmtWithHoles holes l → Footprint (ProcedureState l)
   | .skip => ⊥
-  | .sample x e => (programDenotation (StmtWithHoles.sample x e : Stmt l)).probRange
-  | .call' x ls b r p => (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).probRange
-  | .hole _ x p => (Program.get p).probRange ⊔ (⨆ ret, (Program.set x ret).probRange)
+  | .sample x e => (programDenotation (StmtWithHoles.sample x e : Stmt l)).footprint
+  | .call' x ls b r p => (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).footprint
+  | .hole _ x p => (Program.get p).footprint ⊔ (⨆ ret, (Program.set x ret).footprint)
   | .seq s1 s2 => fvP_stmt s1 ⊔ fvP_stmt s2
-  | .ifThenElse c t e => (Program.get c).probRange ⊔ fvP_stmt t ⊔ fvP_stmt e
-  | .while c t => (Program.get c).probRange ⊔ fvP_stmt t
+  | .ifThenElse c t e => (Program.get c).footprint ⊔ fvP_stmt t ⊔ fvP_stmt e
+  | .while c t => (Program.get c).footprint ⊔ fvP_stmt t
 
 
 /-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
-    inner program on the `L`-content. The `inProbRange` analogue of `Lens.factor_of_inRange`. -/
-theorem factor_of_inProbRange {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : Program s a}
-    (h : Adv.inProbRange L.probRange) : Adv = L.lift (L.factor Adv) := by
+    inner program on the `L`-content. The `inFootprint` analogue of `Lens.factor_of_inRange`. -/
+theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : Program s a}
+    (h : Adv.inFootprint L.footprint) : Adv = L.lift (L.factor Adv) := by
   funext σ
   set f : s → s := fun σ' => L.set (L.get σ') σ with hf_def
   have h_fσ_pad : f (L.set (L.get σ) (Classical.arbitrary s)) = σ := by
     show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
     rw [L.set_get, L.get_set]
-  have h_f_mem : diracKer f ∈ ((L.probRange)ᶜ).updates := by
+  have h_f_mem : diracKer f ∈ ((L.footprint)ᶜ).updates := by
     refine Submonoid.mem_centralizer_iff.mpr ?_
     intro k hk
     have hfgen : diracKer f ∈
-        Submonoid.centralizer (Set.range fun g : Function.End c => diracKer (L.update g)) := by
+        Submonoid.centralizer (Set.range fun g : Function.End c => diracKer (L.liftFunction g)) := by
       refine Submonoid.mem_centralizer_iff.mpr ?_
       rintro _ ⟨g, rfl⟩
       rw [diracKer_mul, diracKer_mul]; congr 1
-      show L.update g ∘ f = f ∘ L.update g
+      show L.liftFunction g ∘ f = f ∘ L.liftFunction g
       funext σ'
-      show L.update g (f σ') = f (L.update g σ')
-      simp only [Lens.update, hf_def, L.set_get, L.set_set]
+      show L.liftFunction g (f σ') = f (L.liftFunction g σ')
+      simp only [Lens.liftFunction, hf_def, L.set_get, L.set_set]
     exact (Submonoid.mem_centralizer_iff.mp hk (diracKer f) hfgen).symm
   have h_iv : Adv σ
       = (Adv (L.set (L.get σ) (Classical.arbitrary s)))
           >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
     conv_lhs => rw [← h_fσ_pad]
-    exact inProbRange_subprob h h_f_mem _
+    exact inFootprint_subprob h h_f_mem _
   change Adv σ
       = ((Adv (L.set (L.get σ) (Classical.arbitrary s)))
             >>= fun xσ' : a × s => (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
@@ -339,20 +339,20 @@ theorem factor_of_inProbRange {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
   rw [SubProbability.pure_bind]
 
 
--- `Mlocalized_in_probRange` (an `M`-localized kernel lies in `M.probRange`) was a general
--- `ProbLensRange` fact, not RO-specific; it now lives in `GaudisCrypt.ProbLensRange` and is
+-- `Mlocalized_in_footprint` (an `M`-localized kernel lies in `M.footprint`) was a general
+-- `Footprint` fact, not RO-specific; it now lives in `GaudisCrypt.Footprint` and is
 -- reused here (and by the `fvP` footprint layer).
 
-/-- **A lift lives in its lens's probabilistic range** — the `inProbRange` analogue of
-    `Lens.lift_inRange_self`. The `y`-generator of `(M.lift Q).probRange` is the `M`-localized
-    kernel for `Q` conditioned on returning `y`, so `Mlocalized_in_probRange` applies. -/
-theorem lift_inProbRange_self {c s a : Type}
-    (M : Lens c s) (Q : Program c a) : (M.lift Q).inProbRange M.probRange := by
-  refine Program.inProbRange_of_probRange_le ?_
-  refine (ProbLensRange.from_le_iff _ _).mpr ?_
+/-- **A lift lives in its lens's probabilistic range** — the `inFootprint` analogue of
+    `Lens.lift_inRange_self`. The `y`-generator of `(M.lift Q).footprint` is the `M`-localized
+    kernel for `Q` conditioned on returning `y`, so `Mlocalized_in_footprint` applies. -/
+theorem lift_inFootprint_self {c s a : Type}
+    (M : Lens c s) (Q : Program c a) : (M.lift Q).inFootprint M.footprint := by
+  refine Program.inFootprint_of_footprint_le ?_
+  refine (Footprint.from_le_iff _ _).mpr ?_
   rintro k ⟨y, rfl⟩
   show (fun st => (M.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
-       ∈ M.probRange.updates
+       ∈ M.footprint.updates
   have heq : (fun st => (M.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
            = (fun st => (Q (M.get st) >>= fun xc : a × c => if xc.1 = y then pure xc.2 else ⊥)
                >>= fun mc' => (pure (M.set mc' st) : SubProbability s)) := by
@@ -368,69 +368,69 @@ theorem lift_inProbRange_self {c s a : Type}
     · rw [if_pos h, if_pos h, SubProbability.pure_bind]
     · rw [if_neg h, if_neg h, SubProbability.bot_bind]
   rw [heq]
-  exact Mlocalized_in_probRange M (fun mc => Q mc >>= fun xc => if xc.1 = y then pure xc.2 else ⊥)
+  exact Mlocalized_in_footprint M (fun mc => Q mc >>= fun xc => if xc.1 = y then pure xc.2 else ⊥)
 
 
-/-- **Lift confines the footprint through the chained lens** — `inProbRange` analogue of
+/-- **Lift confines the footprint through the chained lens** — `inFootprint` analogue of
     `Lens.lift_inRange_chain`. Factor `P` as `v.lift (v.factor P)`, fold the double lift into a
-    single `(L.chain v)`-lift (`lift_lift_chain`), and confine via `lift_inProbRange_self`. -/
-theorem lift_inProbRange_chain {c s d a : Type} [Nonempty c]
-    (L : Lens c s) (v : Lens d c) (P : Program c a) (hP : P.inProbRange v.probRange) :
-    (L.lift P).inProbRange (L.chain v).probRange := by
-  rw [factor_of_inProbRange v hP, Lens.lift_lift_chain]
-  exact lift_inProbRange_self (L.chain v) (v.factor P)
+    single `(L.chain v)`-lift (`lift_lift_chain`), and confine via `lift_inFootprint_self`. -/
+theorem lift_inFootprint_chain {c s d a : Type} [Nonempty c]
+    (L : Lens c s) (v : Lens d c) (P : Program c a) (hP : P.inFootprint v.footprint) :
+    (L.lift P).inFootprint (L.chain v).footprint := by
+  rw [factor_of_inFootprint v hP, Lens.lift_lift_chain]
+  exact lift_inFootprint_self (L.chain v) (v.factor P)
 
 
 /-- **`convertL` is confined to the (lifted) RO table, as a probabilistic range.** Via the lift
     framework (avoiding the `zoom`-rewrite's `state`/`State` `rw` obstacle): `convertL = globalL.lift
-    convert`, and `convert.inProbRange random_oracle_state.probRange` (`convert_inProbRange_ro`). -/
-theorem convertL_inProbRange {l : Type} :
-    (convertL : Program (ProcedureState l) Unit).inProbRange (roLift l).probRange :=
-  lift_inProbRange_chain ProcedureState.globalL random_oracle_state convert convert_inProbRange_ro
+    convert`, and `convert.inFootprint random_oracle_state.footprint` (`convert_inFootprint_ro`). -/
+theorem convertL_inFootprint {l : Type} :
+    (convertL : Program (ProcedureState l) Unit).inFootprint (roLift l).footprint :=
+  lift_inFootprint_chain ProcedureState.globalL random_oracle_state convert convert_inFootprint_ro
 
 
-/-- **Probabilistic confinement predicate.** The `inProbRange`/`probRange` analogue of `Confined`:
+/-- **Probabilistic confinement predicate.** The `inFootprint`/`footprint` analogue of `Confined`:
     each leaf's footprint lies in the adversary region `L_adv`. Crucially the `get`-leaves are now
-    soundly derivable from footprint disjointness (litmus), unlike `Confined` (`TotLensRange`),
+    soundly derivable from footprint disjointness (litmus), unlike `Confined` (`DetermFootprint`),
     where `get`'s `Program.range` collapses (the `get_confined_of_fv` sorry). -/
 def ConfinedP {holes : HoleSigs} {l advSt : Type} (L_adv : Lens advSt (ProcedureState l)) :
     StmtWithHoles holes l → Prop
   | .skip => True
   | .sample x e =>
-      (programDenotation (StmtWithHoles.sample x e : Stmt l)).inProbRange L_adv.probRange
+      (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint L_adv.footprint
   | .call' x ls b r p =>
-      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inProbRange L_adv.probRange
-  | .hole _ x p => (Program.get p).inProbRange L_adv.probRange ∧
-      (∀ ret, (Program.set x ret).inProbRange L_adv.probRange)
+      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint L_adv.footprint
+  | .hole _ x p => (Program.get p).inFootprint L_adv.footprint ∧
+      (∀ ret, (Program.set x ret).inFootprint L_adv.footprint)
   | .seq s1 s2 => ConfinedP L_adv s1 ∧ ConfinedP L_adv s2
   | .ifThenElse c t e =>
-      (Program.get c).inProbRange L_adv.probRange ∧ ConfinedP L_adv t ∧ ConfinedP L_adv e
-  | .while c t => (Program.get c).inProbRange L_adv.probRange ∧ ConfinedP L_adv t
+      (Program.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t ∧ ConfinedP L_adv e
+  | .while c t => (Program.get c).inFootprint L_adv.footprint ∧ ConfinedP L_adv t
 
 
 /-- **`fvP`-disjointness ⟹ `ConfinedP` — COMPLETE, no `sorry`.**  The full structural reduction
-    that `confined_of_fv` (`TotLensRange`) could only achieve modulo the `get` `sorry`
+    that `confined_of_fv` (`DetermFootprint`) could only achieve modulo the `get` `sorry`
     (`get_confined_of_fv`), the orthogonal `call'` `sorry`, and an *assumed* setter bridge
-    (`hset`).  Over `ProbLensRange` every leaf — get, set, sample, *and the nested `call'`* —
-    discharges by the litmus (self-range, `inProbRange_selfRange`), so the reduction is total.
+    (`hset`).  Over `Footprint` every leaf — get, set, sample, *and the nested `call'`* —
+    discharges by the litmus (self-range, `inFootprint_selfRange`), so the reduction is total.
     Composing with `confinedP_loc`/`confinedP_locP` gives the two main theorems directly from a
     footprint-disjointness hypothesis. -/
 theorem confinedP_of_fv {holes : HoleSigs} {l advSt : Type}
     (L_adv : Lens advSt (ProcedureState l))
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
-    ∀ (A : StmtWithHoles holes l), fvP_stmt A ≤ L_adv.probRange → ConfinedP L_adv A
+    ∀ (A : StmtWithHoles holes l), fvP_stmt A ≤ L_adv.footprint → ConfinedP L_adv A
   | .skip, _ => trivial
   | .sample x e, h => by
-      show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inProbRange L_adv.probRange
-      exact Program.inProbRange_of_probRange_le h
+      show (programDenotation (StmtWithHoles.sample x e : Stmt l)).inFootprint L_adv.footprint
+      exact Program.inFootprint_of_footprint_le h
   | .call' x ls b r p, h => by
-      show (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inProbRange L_adv.probRange
-      exact Program.inProbRange_of_probRange_le h
+      show (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).inFootprint L_adv.footprint
+      exact Program.inFootprint_of_footprint_le h
   | .hole n x p, h =>
       haveI := hc n
       ⟨get_confinedP_of_fv p (le_sup_left.trans h),
         fun ret => set_confinedP_of_fv x ret
-          ((le_iSup (fun ret => (Program.set x ret).probRange) ret).trans (le_sup_right.trans h))⟩
+          ((le_iSup (fun ret => (Program.set x ret).footprint) ret).trans (le_sup_right.trans h))⟩
   | .seq s1 s2, h =>
       ⟨confinedP_of_fv L_adv hc s1 (le_sup_left.trans h),
         confinedP_of_fv L_adv hc s2 (le_sup_right.trans h)⟩

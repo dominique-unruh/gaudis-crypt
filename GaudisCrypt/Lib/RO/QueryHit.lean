@@ -191,9 +191,9 @@ lemma lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl
 /-- Specialization for `ow_challenge_x`. -/
 lemma lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl
     (inp : input) :
-    (lazy_query inp >>= fun y => Program.set oracle_output y).inProbRange
-        (ow_challenge_x.probRange)ᶜ :=
-  lazy_query_then_set_oracle_output_inProbRange_compl ow_challenge_x inp
+    (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+        (ow_challenge_x.footprint)ᶜ :=
+  lazy_query_then_set_oracle_output_inFootprint_compl ow_challenge_x inp
 
 /-- The conditional `set chal_x_queried` step is a no-op for posts that
     ignore `chal_x_queried`, provided the rest is in `chal_x_queried.compl.range`.
@@ -308,38 +308,38 @@ private lemma ow_loop_inRange_chal_x_queried_compl (q : ℕ) :
 
 /-- `ow_loop_body_tracked` is in `ow_challenge_y.compl.range`. -/
 private lemma ow_loop_body_tracked_inRange_ow_challenge_y_compl
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ) :
-    (ow_loop_body_tracked ow_adv lazy_query).inProbRange (ow_challenge_y.probRange)ᶜ := by
-  refine Program.inProbRange_bind h_ow_adv_chal_y ?_
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ) :
+    (ow_loop_body_tracked ow_adv lazy_query).inFootprint (ow_challenge_y.footprint)ᶜ := by
+  refine Program.inFootprint_bind h_ow_adv_chal_y ?_
   intro _
-  refine Program.inProbRange_bind
-    (Program.get_inProbRange_compl_of_disjoint oracle_input ow_challenge_y) ?_
+  refine Program.inFootprint_bind
+    (Program.get_inFootprint_compl_of_disjoint oracle_input ow_challenge_y) ?_
   intro inp
   haveI _disj_cx_cy : disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
-  refine Program.inProbRange_bind
-    (Program.get_inProbRange_compl_of_disjoint ow_challenge_x ow_challenge_y) ?_
+  refine Program.inFootprint_bind
+    (Program.get_inFootprint_compl_of_disjoint ow_challenge_x ow_challenge_y) ?_
   intro cx
-  refine Program.inProbRange_bind ?_ ?_
+  refine Program.inFootprint_bind ?_ ?_
   · by_cases h : inp = cx
     · rw [if_pos h]
-      exact Program.set_inProbRange_compl_of_disjoint chal_x_queried ow_challenge_y _
+      exact Program.set_inFootprint_compl_of_disjoint chal_x_queried ow_challenge_y _
     · rw [if_neg h]
-      exact Program.inProbRange_pure _ _
+      exact Program.inFootprint_pure _ _
   · intro _
-    exact lazy_query_then_set_oracle_output_inProbRange_compl ow_challenge_y inp
+    exact lazy_query_then_set_oracle_output_inFootprint_compl ow_challenge_y inp
 
 /-- `ow_loop_tracked q` is in `ow_challenge_y.compl.range`. -/
 private lemma ow_loop_tracked_inRange_ow_challenge_y_compl
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
     (q : ℕ) :
-    (ow_loop_tracked ow_adv q lazy_query).inProbRange (ow_challenge_y.probRange)ᶜ := by
+    (ow_loop_tracked ow_adv q lazy_query).inFootprint (ow_challenge_y.footprint)ᶜ := by
   induction q with
-  | zero => exact Program.inProbRange_pure _ _
+  | zero => exact Program.inFootprint_pure _ _
   | succ n ih =>
     show (ow_loop_body_tracked ow_adv lazy_query >>= fun _ =>
-          ow_loop_tracked ow_adv n lazy_query).inProbRange _
-    exact Program.inProbRange_bind
+          ow_loop_tracked ow_adv n lazy_query).inFootprint _
+    exact Program.inFootprint_bind
       (ow_loop_body_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y)
       (fun _ => ih)
 
@@ -353,9 +353,9 @@ private lemma ow_loop_wp_chal_x_queried_invariant (q : ℕ)
     (ow_loop ow_adv q lazy_query).wp G (chal_x_queried.set true σ)
     = (ow_loop ow_adv q lazy_query).wp G σ := by
   set f : state → state := chal_x_queried.liftFunction (Function.const _ true) with hf_def
-  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
-    rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
-      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : DetermFootprint state)ᶜ).updates := by
+    rw [show ((chal_x_queried.compl.range : DetermFootprint state)ᶜ) = chal_x_queried.range from by
+      rw [DetermFootprint.complement_range, DetermFootprint.compl_compl]]
     exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
   have h_f_eq : ∀ σ', f σ' = chal_x_queried.set true σ' := fun σ' => by
     show chal_x_queried.set ((Function.const _ true) (chal_x_queried.get σ')) σ'
@@ -569,9 +569,9 @@ private lemma ow_experiment_rest_eq_tracked (q : ℕ)
     show post_loop.wp F (chal_x_queried.set true aσ.2) = post_loop.wp F aσ.2
     -- Apply wp_shift_input.
     set f : state → state := chal_x_queried.liftFunction (Function.const _ true) with hf_def
-    have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
-      rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
-        rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
+    have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : DetermFootprint state)ᶜ).updates := by
+      rw [show ((chal_x_queried.compl.range : DetermFootprint state)ᶜ) = chal_x_queried.range from by
+        rw [DetermFootprint.complement_range, DetermFootprint.compl_compl]]
       exact ⟨Function.const _ true, Set.mem_univ _, rfl⟩
     have h_f_eq : ∀ σ', f σ' = chal_x_queried.set true σ' := fun σ' => by
       show chal_x_queried.set ((Function.const _ true) (chal_x_queried.get σ')) σ'
@@ -676,9 +676,9 @@ lemma ow_experiment_eq_tracked_lazy (q : ℕ)
   -- Step 3: REST.wp F (chal_x_queried.set false σ_a) = REST.wp F σ_a
   --   [wp_shift_input + h_F + REST.inRange chal_x_queried.compl.range]
   set f : state → state := chal_x_queried.liftFunction (Function.const _ false) with hf_def
-  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : TotLensRange state)ᶜ).updates := by
-    rw [show ((chal_x_queried.compl.range : TotLensRange state)ᶜ) = chal_x_queried.range from by
-      rw [TotLensRange.complement_range, TotLensRange.compl_compl]]
+  have h_f_in_Rc : f ∈ ((chal_x_queried.compl.range : DetermFootprint state)ᶜ).updates := by
+    rw [show ((chal_x_queried.compl.range : DetermFootprint state)ᶜ) = chal_x_queried.range from by
+      rw [DetermFootprint.complement_range, DetermFootprint.compl_compl]]
     exact ⟨Function.const _ false, Set.mem_univ _, rfl⟩
   have h_f_eq : ∀ σ', f σ' = chal_x_queried.set false σ' := fun σ' => by
     show chal_x_queried.set ((Function.const _ false) (chal_x_queried.get σ')) σ'
@@ -775,9 +775,9 @@ include h_ow_adv_chal_x_queried in
       and apply IH. Total per outcome ≤ 1 + q; adversary mass ≤ 1 gives q+1.
 -/
 private lemma ow_loop_tracked_chal_x_queried_sum_le
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ) :
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ) :
     ∀ (q : ℕ) (σ : state), chal_x_queried.get σ = false →
     ∑ x : input, (ow_loop_tracked ow_adv q lazy_query).wp
         (fun aσ : Unit × state =>
@@ -840,11 +840,11 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- Step 3: Shift chal_x.set x past ow_adv using wp_shift_input.
     have h_shift_chal_x : ow_challenge_x.set ∈ Set.univ ∧
         ∀ x : input, diracKer (ow_challenge_x.liftFunction (Function.const _ x)) ∈
-            (((ow_challenge_x.probRange : ProbLensRange state)ᶜ)ᶜ).updates := by
+            (((ow_challenge_x.footprint : Footprint state)ᶜ)ᶜ).updates := by
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
-      rw [ProbLensRange.compl_compl]
-      exact (ProbLensRange.from_le_iff _ ow_challenge_x.probRange).mp le_rfl
+      rw [Footprint.compl_compl]
+      exact (Footprint.from_le_iff _ ow_challenge_x.footprint).mp le_rfl
         ⟨Function.const _ x, rfl⟩
     -- Rewrite ow_challenge_x.set x σ = (ow_challenge_x.liftFunction (const x)) σ.
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
@@ -905,9 +905,9 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
       ow_challenge_x.set_get _ _
     -- (lazy_query inp >>= set oracle_output) is in ow_challenge_x.compl.range.
     have h_lqso_inRange_cx_compl :
-        (lazy_query inp >>= fun y => Program.set oracle_output y).inProbRange
-            (ow_challenge_x.probRange)ᶜ :=
-      lazy_query_then_set_oracle_output_inProbRange_compl ow_challenge_x inp
+        (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+            (ow_challenge_x.footprint)ᶜ :=
+      lazy_query_then_set_oracle_output_inFootprint_compl ow_challenge_x inp
     -- (lazy_query inp >>= set oracle_output) is in chal_x_queried.compl.range.
     have h_lqso_inRange_cxq_compl :
         (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
@@ -1011,9 +1011,9 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     renaming in the `inp = x` case and IH application in the `inp ≠ x`
     case (using `RO_setentry_neq_commutes_lazy_query_set_oracle_output`). -/
 private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (h_ow_adv_chal_x_queried' : ow_adv.inRange chal_x_queried.compl.range) :
     ∀ (q : ℕ) (σ : state),
     chal_x_queried.get σ = false →
@@ -1109,17 +1109,17 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       intro y'
       have h_shift_in : diracKer (fun σ' => random_oracle_state.set
           (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
-          ∈ (((random_oracle_state.probRange : ProbLensRange state)ᶜ)ᶜ).updates := by
-        rw [ProbLensRange.compl_compl]
-        exact (ProbLensRange.from_le_iff _ random_oracle_state.probRange).mp le_rfl
+          ∈ (((random_oracle_state.footprint : Footprint state)ᶜ)ᶜ).updates := by
+        rw [Footprint.compl_compl]
+        exact (Footprint.from_le_iff _ random_oracle_state.footprint).mp le_rfl
           ⟨fun h => fun k => if k = x then some y' else h k, rfl⟩
       exact Program.wp_shift_input_prob h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.
     rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
     -- Apply wp_strengthen_lens_preserved 3x: RO, ow_challenge_x, chal_x_queried.
-    rw [Program.wp_strengthen_lens_preserved_prob random_oracle_state h_ow_adv _ σ,
-        Program.wp_strengthen_lens_preserved_prob random_oracle_state h_ow_adv
+    rw [Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv _ σ,
+        Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv
           (fun aσ_adv : Unit × state =>
             (Program.get oracle_input >>= fun inp =>
                 Program.get ow_challenge_x >>= fun cx =>
@@ -1127,8 +1127,8 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
                    else (pure () : Program state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y_lq =>
                       Program.set oracle_output y_lq).wp G aσ_adv.2) σ]
-    rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_ow_adv_chal_x _ σ,
-        Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_ow_adv_chal_x
+    rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
+        Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
           (fun aσ_adv : Unit × state =>
             if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
               (Program.get oracle_input >>= fun inp =>
@@ -1277,17 +1277,17 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
           Program.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
         lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp_a
       have h_inRange_cx : (lazy_query inp_a >>= fun y_lq =>
-          Program.set oracle_output y_lq).inProbRange (ow_challenge_x.probRange)ᶜ :=
+          Program.set oracle_output y_lq).inFootprint (ow_challenge_x.footprint)ᶜ :=
         lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp_a
       -- Strengthen LHS with three conditions stacked (use conv_lhs to disambiguate).
       conv_lhs =>
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       -- Strengthen RHS with same three conditions stacked.
       conv_rhs =>
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       -- Now both sides have the same outer structure. Show post equality per aσ_lq.
       congr 1
@@ -1330,9 +1330,9 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     the response value. Adv's pre-x-query behavior is independent of RO[x].
     So the iter of first hit (if any) has the same distribution. -/
 private lemma ow_loop_tracked_lazy_query_freshness
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (h_ow_adv_chal_x_queried : ow_adv.inRange chal_x_queried.compl.range)
     (q : ℕ) (x : input) (σ : state)
     (h_σ_qf : chal_x_queried.get σ = false)
@@ -1358,8 +1358,8 @@ private lemma ow_loop_tracked_lazy_query_freshness
   have h_σ_in_ro_chal_x : random_oracle_state.get σ_in (ow_challenge_x.get σ_in) = none := by
     rw [h_σ_in_chal_x]; exact h_σ_in_ro_x
   -- inRange for ow_loop_tracked w.r.t. ow_challenge_y.
-  have h_loop_inRange_cy : (ow_loop_tracked ow_adv q lazy_query).inProbRange
-      (ow_challenge_y.probRange)ᶜ :=
+  have h_loop_inRange_cy : (ow_loop_tracked ow_adv q lazy_query).inFootprint
+      (ow_challenge_y.footprint)ᶜ :=
     ow_loop_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y q
   -- F doesn't read ow_challenge_y (only reads chal_x_queried; chal_x_queried ⟂ ow_challenge_y).
   have h_F_no_cy : ∀ v : output, ∀ aσ : Unit × state,
@@ -1372,7 +1372,7 @@ private lemma ow_loop_tracked_lazy_query_freshness
       (Program.set ow_challenge_y v >>= fun _ : Unit =>
           ow_loop_tracked ow_adv q lazy_query).wp F σ'
       = (ow_loop_tracked ow_adv q lazy_query).wp F σ' :=
-    fun v σ' => Program.wp_set_disjoint_no_op_prob h_loop_inRange_cy v F (h_F_no_cy v) σ'
+    fun v σ' => Program.wp_set_disjoint_no_op_footprint h_loop_inRange_cy v F (h_F_no_cy v) σ'
   -- Apply wp_bind on outer and h_drop_chal_y inside.
   rw [wp_bind]
   simp_rw [h_drop_chal_y]
@@ -1459,14 +1459,14 @@ private lemma post_loop_preserves_indep_wp
   have h_lq_inRange_resp : (lazy_query resp_val).inRange ow_response.compl.range :=
     Program.inRange_mono (lazy_query_inRange_ro _)
       (Lens.range_le_compl_of_disjoint random_oracle_state ow_response)
-  have h_lq_inRange_cx : (lazy_query resp_val).inProbRange (ow_challenge_x.probRange)ᶜ :=
-    Program.inProbRange_mono (lazy_query_inProbRange_ro _)
-      (Lens.probRange_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+  have h_lq_inRange_cx : (lazy_query resp_val).inFootprint (ow_challenge_x.footprint)ᶜ :=
+    Program.inFootprint_mono (lazy_query_inFootprint_ro _)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state ow_challenge_x)
   have h_lq_inRange_cxq : (lazy_query resp_val).inRange chal_x_queried.compl.range :=
     Program.inRange_mono (lazy_query_inRange_ro _)
       (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried)
   rw [Program.wp_strengthen_lens_preserved ow_response h_lq_inRange_resp _ σ,
-      Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_lq_inRange_cx _ σ,
+      Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _ σ,
       Program.wp_strengthen_lens_preserved chal_x_queried h_lq_inRange_cxq _ σ]
   refine le_trans
     (Program.wp_le_wp_of_le _ _ (fun _ =>
@@ -1501,9 +1501,9 @@ include h_ow_adv_chal_x_queried in
     `lazy_query x` (which only affects RO[x] = chal_y), then apply the
     strengthened sum lemma. -/
 lemma ow_experiment_tracked_chal_x_queried_bound
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (q : ℕ) (σ₀ : state) :
     (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state =>
@@ -1615,9 +1615,9 @@ include h_ow_adv_chal_x_queried in
     Stronger than `≤ 1`: yields 0 when σ.cxq=true. The strengthened IH at
     cxq=true forces each term to be 0 by positivity. -/
 private lemma ow_loop_tracked_indep_sum_le_strong
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ) :
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ) :
     ∀ (q : ℕ) (σ : state),
     ∑ x : input, (ow_loop_tracked ow_adv q lazy_query).wp
         (fun aσ : Unit × state =>
@@ -1719,11 +1719,11 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     -- Step 3: Apply wp_shift_input on adv to move chal_x.set x past adv.
     have h_shift_chal_x : ow_challenge_x.set ∈ Set.univ ∧
         ∀ x : input, diracKer (ow_challenge_x.liftFunction (Function.const _ x)) ∈
-            (((ow_challenge_x.probRange : ProbLensRange state)ᶜ)ᶜ).updates := by
+            (((ow_challenge_x.footprint : Footprint state)ᶜ)ᶜ).updates := by
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
-      rw [ProbLensRange.compl_compl]
-      exact (ProbLensRange.from_le_iff _ ow_challenge_x.probRange).mp le_rfl
+      rw [Footprint.compl_compl]
+      exact (Footprint.from_le_iff _ ow_challenge_x.footprint).mp le_rfl
         ⟨Function.const _ x, rfl⟩
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
         = (ow_challenge_x.liftFunction (Function.const _ x)) σ := by
@@ -1788,8 +1788,8 @@ private lemma ow_loop_tracked_indep_sum_le_strong
       ow_challenge_x.set_get _ _
     -- (lazy_query inp; set oo) in chal_x.compl.range and chal_x_queried.compl.range.
     have h_lqso_inRange_cx_compl :
-        (lazy_query inp >>= fun y => Program.set oracle_output y).inProbRange
-            (ow_challenge_x.probRange)ᶜ :=
+        (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+            (ow_challenge_x.footprint)ᶜ :=
       lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp
     have h_lqso_inRange_cxq_compl :
         (lazy_query inp >>= fun y => Program.set oracle_output y).inRange
@@ -1831,7 +1831,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
         -- Apply wp_strengthen for chal_x AND chal_x_queried.
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _
               (chal_x_queried.set true (ow_challenge_x.set x aσ_adv.2))]
-        rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_lqso_inRange_cx_compl _
+        rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lqso_inRange_cx_compl _
               (chal_x_queried.set true (ow_challenge_x.set x aσ_adv.2))]
         refine le_trans (Program.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ _)
                         (Program.wp_const_le _ _ _)
@@ -1933,9 +1933,9 @@ include h_ow_adv_chal_x_queried in
     different post. HIT case is simpler: cxq=true at end ⟹ post=0 on both
     sides via strengthened sum lemma. -/
 private lemma ow_loop_tracked_indep_RO_invariance_avg
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (h_ow_adv_chal_x_queried' : ow_adv.inRange chal_x_queried.compl.range) :
     ∀ (q : ℕ) (σ : state),
     chal_x_queried.get σ = false →
@@ -2046,17 +2046,17 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       intro y'
       have h_shift_in : diracKer (fun σ' => random_oracle_state.set
           (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
-          ∈ (((random_oracle_state.probRange : ProbLensRange state)ᶜ)ᶜ).updates := by
-        rw [ProbLensRange.compl_compl]
-        exact (ProbLensRange.from_le_iff _ random_oracle_state.probRange).mp le_rfl
+          ∈ (((random_oracle_state.footprint : Footprint state)ᶜ)ᶜ).updates := by
+        rw [Footprint.compl_compl]
+        exact (Footprint.from_le_iff _ random_oracle_state.footprint).mp le_rfl
           ⟨fun h => fun k => if k = x then some y' else h k, rfl⟩
       exact Program.wp_shift_input_prob h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.
     rw [← Program.wp_finset_sum, ← Program.wp_const_mul]
     -- Apply wp_strengthen_lens_preserved 3x: RO, ow_challenge_x, chal_x_queried.
-    rw [Program.wp_strengthen_lens_preserved_prob random_oracle_state h_ow_adv _ σ,
-        Program.wp_strengthen_lens_preserved_prob random_oracle_state h_ow_adv
+    rw [Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv _ σ,
+        Program.wp_strengthen_lens_preserved_footprint random_oracle_state h_ow_adv
           (fun aσ_adv : Unit × state =>
             (Program.get oracle_input >>= fun inp =>
                 Program.get ow_challenge_x >>= fun cx =>
@@ -2064,8 +2064,8 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
                    else (pure () : Program state Unit)) >>= fun _ =>
                     lazy_query inp >>= fun y_lq =>
                       Program.set oracle_output y_lq).wp G aσ_adv.2) σ]
-    rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_ow_adv_chal_x _ σ,
-        Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_ow_adv_chal_x
+    rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
+        Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
           (fun aσ_adv : Unit × state =>
             if random_oracle_state.get aσ_adv.2 = random_oracle_state.get σ then
               (Program.get oracle_input >>= fun inp =>
@@ -2153,8 +2153,8 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       -- Helper: (lazy_query x; set oo).wp G at cxq=true, chal_x=x state = 0.
       -- Uses strengthened sum lemma.
       have h_lqso_inRange_cx_compl :
-          (lazy_query x >>= fun y => Program.set oracle_output y).inProbRange
-              (ow_challenge_x.probRange)ᶜ :=
+          (lazy_query x >>= fun y => Program.set oracle_output y).inFootprint
+              (ow_challenge_x.footprint)ᶜ :=
         lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl x
       have h_lqso_inRange_cxq_compl :
           (lazy_query x >>= fun y => Program.set oracle_output y).inRange
@@ -2176,7 +2176,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
           (lazy_query x >>= fun y_lq => Program.set oracle_output y_lq).wp G σ_in = 0 := by
         intro σ_in h_cxq_in h_cx_in
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_lqso_inRange_cxq_compl _ σ_in]
-        rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_lqso_inRange_cx_compl _ σ_in]
+        rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lqso_inRange_cx_compl _ σ_in]
         refine le_antisymm ?_ (bot_le)
         refine le_trans
           (Program.wp_le_wp_of_le _ _ (fun _ => (0 : ENNReal)) ?_ σ_in)
@@ -2257,15 +2257,15 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
           Program.set oracle_output y_lq).inRange chal_x_queried.compl.range :=
         lazy_query_then_set_oracle_output_inRange_chal_x_queried_compl inp_a
       have h_inRange_cx : (lazy_query inp_a >>= fun y_lq =>
-          Program.set oracle_output y_lq).inProbRange (ow_challenge_x.probRange)ᶜ :=
+          Program.set oracle_output y_lq).inFootprint (ow_challenge_x.footprint)ᶜ :=
         lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp_a
       conv_lhs =>
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq _ aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       conv_rhs =>
         rw [Program.wp_strengthen_lens_preserved chal_x_queried h_inRange_cxq G aσ_adv.2,
-            Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_inRange_cx _ aσ_adv.2,
+            Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inRange_cx _ aσ_adv.2,
             lazy_query_set_oracle_output_preserves_RO_at_other_key inp_a x h_inp aσ_adv.2 _]
       congr 1
       funext aσ_lq
@@ -2301,20 +2301,20 @@ private lemma body_inner_inRange_chal_x_compl (inp cx : input) :
     ((if inp = cx then Program.set chal_x_queried true
       else (pure () : Program state Unit)) >>= fun _ =>
         lazy_query inp >>= fun y =>
-          Program.set oracle_output y).inProbRange (ow_challenge_x.probRange)ᶜ := by
-  refine Program.inProbRange_bind ?_ ?_
+          Program.set oracle_output y).inFootprint (ow_challenge_x.footprint)ᶜ := by
+  refine Program.inFootprint_bind ?_ ?_
   · by_cases h : inp = cx
     · rw [if_pos h]
-      exact Program.set_inProbRange_compl_of_disjoint chal_x_queried ow_challenge_x _
+      exact Program.set_inFootprint_compl_of_disjoint chal_x_queried ow_challenge_x _
     · rw [if_neg h]
-      exact Program.inProbRange_pure _ _
+      exact Program.inFootprint_pure _ _
   · intro _
     exact lazy_query_then_set_oracle_output_inRange_ow_challenge_x_compl inp
 
 /-- `ow_loop_body_tracked` preserves chal_x value: at any body output state,
     chal_x.get equals input's chal_x.get. -/
 private lemma ow_loop_body_tracked_preserves_chal_x_wp
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (F : Unit × state → ENNReal) (σ : state) :
     (ow_loop_body_tracked ow_adv lazy_query).wp F σ
     = (ow_loop_body_tracked ow_adv lazy_query).wp
@@ -2358,8 +2358,8 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
                     Program.set oracle_output y).wp _ σ = _
     rw [wp_bind]
   rw [h_lhs, h_rhs]
-  rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_ow_adv_chal_x _ σ,
-      Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_ow_adv_chal_x
+  rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x _ σ,
+      Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_ow_adv_chal_x
         (fun aσ_adv : Unit × state =>
           (Program.get oracle_input >>= fun inp =>
             Program.get ow_challenge_x >>= fun cx =>
@@ -2403,10 +2403,10 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
       Program.set chal_x_queried true
       else (pure () : Program state Unit)) >>= fun _ =>
         lazy_query inp >>= fun y =>
-          Program.set oracle_output y).inProbRange (ow_challenge_x.probRange)ᶜ :=
+          Program.set oracle_output y).inFootprint (ow_challenge_x.footprint)ᶜ :=
     body_inner_inRange_chal_x_compl inp cx
-  rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_inner_inRange _ aσ_adv.2,
-      Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_inner_inRange
+  rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inner_inRange _ aσ_adv.2,
+      Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_inner_inRange
         (fun aσ : Unit × state =>
           if ow_challenge_x.get aσ.2 = ow_challenge_x.get σ then F aσ else 0) aσ_adv.2]
   congr 1
@@ -2420,7 +2420,7 @@ private lemma ow_loop_body_tracked_preserves_chal_x_wp
 /-- `ow_loop_tracked q` preserves chal_x value. By induction on q using the
     body preservation lemma. -/
 private lemma ow_loop_tracked_preserves_chal_x_wp
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ) :
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ) :
     ∀ (q : ℕ) (σ : state) (F : Unit × state → ENNReal),
     (ow_loop_tracked ow_adv q lazy_query).wp F σ
     = (ow_loop_tracked ow_adv q lazy_query).wp
@@ -2467,9 +2467,9 @@ private lemma ow_loop_tracked_preserves_chal_x_wp
 /-- F'_x freshness analog of `ow_loop_tracked_lazy_query_freshness` for the
     indep indicator. -/
 private lemma ow_loop_tracked_lazy_query_freshness_indep
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (h_ow_adv_chal_x_queried : ow_adv.inRange chal_x_queried.compl.range)
     (q : ℕ) (x : input) (σ : state)
     (h_σ_qf : chal_x_queried.get σ = false)
@@ -2497,8 +2497,8 @@ private lemma ow_loop_tracked_lazy_query_freshness_indep
     rw [σ_in_def, random_oracle_state.get_of_disjoint_set]; exact h_σ_ro
   have h_σ_in_ro_chal_x : random_oracle_state.get σ_in (ow_challenge_x.get σ_in) = none := by
     rw [h_σ_in_chal_x]; exact h_σ_in_ro_x
-  have h_loop_inRange_cy : (ow_loop_tracked ow_adv q lazy_query).inProbRange
-      (ow_challenge_y.probRange)ᶜ :=
+  have h_loop_inRange_cy : (ow_loop_tracked ow_adv q lazy_query).inFootprint
+      (ow_challenge_y.footprint)ᶜ :=
     ow_loop_tracked_inRange_ow_challenge_y_compl ow_adv h_ow_adv_chal_y q
   -- F doesn't read ow_challenge_y (reads resp, cxq — both ⟂ chal_y).
   have h_F_no_cy : ∀ v : output, ∀ aσ : Unit × state,
@@ -2510,7 +2510,7 @@ private lemma ow_loop_tracked_lazy_query_freshness_indep
       (Program.set ow_challenge_y v >>= fun _ : Unit =>
           ow_loop_tracked ow_adv q lazy_query).wp F σ'
       = (ow_loop_tracked ow_adv q lazy_query).wp F σ' :=
-    fun v σ' => Program.wp_set_disjoint_no_op_prob h_loop_inRange_cy v F (h_F_no_cy v) σ'
+    fun v σ' => Program.wp_set_disjoint_no_op_footprint h_loop_inRange_cy v F (h_F_no_cy v) σ'
   rw [wp_bind]
   simp_rw [h_drop_chal_y]
   have h_lq_compute : ∀ (Q : output × state → ENNReal),
@@ -2554,9 +2554,9 @@ include h_ow_adv_chal_x_queried in
     the adversary's deterministic-from-view response coincides with the
     uniformly-sampled `ow_challenge_x` is `1/|input|`. -/
 lemma ow_experiment_tracked_indep_bound
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (q : ℕ) (σ₀ : state) :
     (ow_experiment_tracked ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state =>
@@ -2641,11 +2641,11 @@ lemma ow_experiment_tracked_indep_bound
     -- For yσ in lazy_query x's support at chal_x.set x σ_a: chal_x.get yσ.2 = x.
     -- chal_x.get (chal_y.set yσ.1 yσ.2) = chal_x.get yσ.2 = x.
     -- So loop.wp F_unit (chal_y.set yσ.1 yσ.2) = loop.wp F'_x (chal_y.set yσ.1 yσ.2).
-    have h_lq_inRange_cx : (lazy_query x).inProbRange (ow_challenge_x.probRange)ᶜ :=
-      Program.inProbRange_mono (lazy_query_inProbRange_ro _)
-        (Lens.probRange_le_compl_of_disjoint random_oracle_state ow_challenge_x)
+    have h_lq_inRange_cx : (lazy_query x).inFootprint (ow_challenge_x.footprint)ᶜ :=
+      Program.inFootprint_mono (lazy_query_inFootprint_ro _)
+        (Lens.footprint_le_compl_of_disjoint random_oracle_state ow_challenge_x)
     -- Apply wp_strengthen on lazy_query x to enforce yσ.2 has chal_x.get = x.
-    rw [Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_lq_inRange_cx _
+    rw [Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _
         (ow_challenge_x.set x σ_a)]
     -- Inner: replace F_unit by F'_x using h_loop_bridge.
     have h_inner_eq : ∀ yσ : output × state,
@@ -2682,7 +2682,7 @@ lemma ow_experiment_tracked_indep_bound
       rw [h_inner_eq yσ_l h_cx]
     -- Now (lazy_query x).wp (if chal_x_pres then (chal_y; loop).wp F'_x yσ.2 else 0) σ'.
     -- Reverse wp_strengthen on lazy_query x.
-    rw [← Program.wp_strengthen_lens_preserved_prob ow_challenge_x h_lq_inRange_cx _
+    rw [← Program.wp_strengthen_lens_preserved_footprint ow_challenge_x h_lq_inRange_cx _
         (ow_challenge_x.set x σ_a)]
     -- Now (lazy_query x).wp (fun yσ => (chal_y; loop).wp F'_x yσ.2) σ' = (chain).wp F'_x σ' (by wp_bind).
     rw [show (lazy_query x).wp
@@ -2771,9 +2771,9 @@ include h_ow_adv_chal_x_queried in
     3. `ow_experiment_tracked_chal_x_queried_bound` (Layer C_obs).
     4. `ow_experiment_tracked_indep_bound` (conditional independence). -/
 theorem ow_experiment_resp_eq_chal_x_bound_via_tracked
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (q : ℕ) (σ₀ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state =>
@@ -2825,9 +2825,9 @@ include h_ow_adv_chal_x_queried in
     end of the experiment. Closes the original `ow_preimage_bound` from
     `OneWayness.lean` without axioms (modulo two clean sub-bounds). -/
 theorem ow_preimage_bound
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (q : ℕ) (σ₀ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => preimage_indicator bσ.2) σ₀
@@ -2866,9 +2866,9 @@ include h_ow_adv_chal_x_queried in
 /-- **Birthday-style bound** for the lazy one-wayness experiment, closed via
     the deferred-sampling tracking variable. -/
 theorem ow_lazy_bound
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (q : ℕ) (σ₀ : state) :
     ((ow_experiment ow_adv q lazy_init lazy_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀
@@ -2882,9 +2882,9 @@ include h_ow_adv_chal_x_queried in
     transferring `ow_lazy_bound` via `ow_transfer`. Closed via the tracking
     variable. -/
 theorem ow_eager_bound
-    (h_ow_adv : ow_adv.inProbRange (random_oracle_state.probRange)ᶜ)
-    (h_ow_adv_chal_y : ow_adv.inProbRange (ow_challenge_y.probRange)ᶜ)
-    (h_ow_adv_chal_x : ow_adv.inProbRange (ow_challenge_x.probRange)ᶜ)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (q : ℕ) (σ₀ : state) :
     ((ow_experiment ow_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0)) σ₀

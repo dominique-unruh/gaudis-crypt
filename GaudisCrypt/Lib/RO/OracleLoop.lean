@@ -80,20 +80,20 @@ lemma lazy_query_then_set_oracle_output_inRange_compl
   · intro y
     exact Program.set_inRange_compl_of_disjoint oracle_output L _
 
-/-- `inProbRange` (countability-free) analogue of
+/-- `inFootprint` (countability-free) analogue of
     `lazy_query_then_set_oracle_output_inRange_compl`. -/
-lemma lazy_query_then_set_oracle_output_inProbRange_compl
+lemma lazy_query_then_set_oracle_output_inFootprint_compl
     {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_output L]
     (inp : input) :
-    (lazy_query inp >>= fun y => Program.set oracle_output y).inProbRange
-        (L.probRange)ᶜ := by
-  refine Program.inProbRange_bind ?_ ?_
-  · exact Program.inProbRange_mono (lazy_query_inProbRange_ro inp)
-      (Lens.probRange_le_compl_of_disjoint random_oracle_state L)
+    (lazy_query inp >>= fun y => Program.set oracle_output y).inFootprint
+        (L.footprint)ᶜ := by
+  refine Program.inFootprint_bind ?_ ?_
+  · exact Program.inFootprint_mono (lazy_query_inFootprint_ro inp)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state L)
   · intro y
-    exact Program.set_inProbRange_compl_of_disjoint oracle_output L _
+    exact Program.set_inFootprint_compl_of_disjoint oracle_output L _
 
 /-- `(lazy_query inp >>= set oracle_output)` preserves `RO[k]` for `inp ≠ k`.
     More precisely, the wp can be strengthened with the `RO[k]`-preserved
@@ -295,10 +295,10 @@ noncomputable def loop_body_eager (adv : Program state Unit) : Program state Uni
 
 /-- `oracle_step adv` transfers from lazy to eager, provided `adv` is RO-disjoint.
     (Countability-free; the inRange original was retired once all consumers moved to
-    `inProbRange`.) -/
+    `inFootprint`.) -/
 lemma Program.transfer_oracle_step_prob
     {adv : Program state Unit}
-    (h_adv : adv.inProbRange (random_oracle_state.probRange)ᶜ) :
+    (h_adv : adv.inFootprint (random_oracle_state.footprint)ᶜ) :
     Program.transfer (oracle_step adv lazy_query)
                      (oracle_step adv random_oracle_query) := by
   show Program.transfer
@@ -306,7 +306,7 @@ lemma Program.transfer_oracle_step_prob
       lazy_query inp >>= fun y => Program.set oracle_output y)
     (adv >>= fun _ => Program.get oracle_input >>= fun inp =>
       random_oracle_query inp >>= fun y => Program.set oracle_output y)
-  apply Program.transfer_bind (Program.transfer_refl_of_inProbRange_compl h_adv)
+  apply Program.transfer_bind (Program.transfer_refl_of_inFootprint_compl h_adv)
   intro _
   apply Program.transfer_bind (Program.transfer_get_of_disjoint_ro oracle_input)
   intro inp
@@ -315,10 +315,10 @@ lemma Program.transfer_oracle_step_prob
   exact Program.transfer_set_of_disjoint_ro oracle_output y
 
 /-- `oracle_loop_n adv q` transfers from lazy to eager. (Countability-free; the inRange
-    original was retired once all consumers moved to `inProbRange`.) -/
+    original was retired once all consumers moved to `inFootprint`.) -/
 lemma Program.transfer_oracle_loop_n_prob
     {adv : Program state Unit}
-    (h_adv : adv.inProbRange (random_oracle_state.probRange)ᶜ)
+    (h_adv : adv.inFootprint (random_oracle_state.footprint)ᶜ)
     (q : ℕ) :
     Program.transfer (oracle_loop_n adv q lazy_query)
                      (oracle_loop_n adv q random_oracle_query) := by
@@ -352,24 +352,24 @@ lemma oracle_step_inRange_compl {γ : Type} (L : Lens γ state)
   intro inp
   exact lazy_query_then_set_oracle_output_inRange_compl L inp
 
-/-- `inProbRange` (countability-free) analogue of `oracle_step_inRange_compl`. -/
-lemma oracle_step_inProbRange_compl {γ : Type} (L : Lens γ state)
+/-- `inFootprint` (countability-free) analogue of `oracle_step_inRange_compl`. -/
+lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
     [disjoint oracle_output L]
     {adv : Program state Unit}
-    (h_adv : adv.inProbRange (L.probRange)ᶜ) :
-    (oracle_step adv lazy_query).inProbRange (L.probRange)ᶜ := by
+    (h_adv : adv.inFootprint (L.footprint)ᶜ) :
+    (oracle_step adv lazy_query).inFootprint (L.footprint)ᶜ := by
   show (adv >>= fun _ =>
         Program.get oracle_input >>= fun inp =>
           lazy_query inp >>= fun y =>
-            Program.set oracle_output y).inProbRange (L.probRange)ᶜ
-  refine Program.inProbRange_bind h_adv ?_
+            Program.set oracle_output y).inFootprint (L.footprint)ᶜ
+  refine Program.inFootprint_bind h_adv ?_
   intro _
-  refine Program.inProbRange_bind
-    (Program.get_inProbRange_compl_of_disjoint oracle_input L) ?_
+  refine Program.inFootprint_bind
+    (Program.get_inFootprint_compl_of_disjoint oracle_input L) ?_
   intro inp
-  exact lazy_query_then_set_oracle_output_inProbRange_compl L inp
+  exact lazy_query_then_set_oracle_output_inFootprint_compl L inp
 
 /-- Generic preservation lifted to the loop, by induction on `q`. -/
 lemma oracle_loop_n_inRange_compl {γ : Type} (L : Lens γ state)
@@ -387,21 +387,21 @@ lemma oracle_loop_n_inRange_compl {γ : Type} (L : Lens γ state)
           oracle_loop_n adv n lazy_query).inRange _
     exact Program.inRange_bind (oracle_step_inRange_compl L h_adv) (fun _ => ih)
 
-/-- `inProbRange` (countability-free) analogue of `oracle_loop_n_inRange_compl`. -/
-lemma oracle_loop_n_inProbRange_compl {γ : Type} (L : Lens γ state)
+/-- `inFootprint` (countability-free) analogue of `oracle_loop_n_inRange_compl`. -/
+lemma oracle_loop_n_inFootprint_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
     [disjoint oracle_output L]
     {adv : Program state Unit}
-    (h_adv : adv.inProbRange (L.probRange)ᶜ)
+    (h_adv : adv.inFootprint (L.footprint)ᶜ)
     (q : ℕ) :
-    (oracle_loop_n adv q lazy_query).inProbRange (L.probRange)ᶜ := by
+    (oracle_loop_n adv q lazy_query).inFootprint (L.footprint)ᶜ := by
   induction q with
-  | zero => exact Program.inProbRange_pure _ _
+  | zero => exact Program.inFootprint_pure _ _
   | succ n ih =>
     show (oracle_step adv lazy_query >>= fun _ =>
-          oracle_loop_n adv n lazy_query).inProbRange _
-    exact Program.inProbRange_bind (oracle_step_inProbRange_compl L h_adv) (fun _ => ih)
+          oracle_loop_n adv n lazy_query).inFootprint _
+    exact Program.inFootprint_bind (oracle_step_inFootprint_compl L h_adv) (fun _ => ih)
 
 /-- **Linear-growth bound for `oracle_loop_n`**. If a single body iteration
     bumps the wp of `f` (against the state-projected post) by at most a

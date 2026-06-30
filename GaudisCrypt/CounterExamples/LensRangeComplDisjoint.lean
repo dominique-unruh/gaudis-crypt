@@ -1,6 +1,6 @@
 import Mathlib.Data.Finset.Sort
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.TotLensRange
+import GaudisCrypt.DetermFootprint
 import Mathlib.Data.List.Basic
 import Mathlib.Data.FinEnum
 import Mathlib.SetTheory.Cardinal.Basic
@@ -39,13 +39,13 @@ private lemma bool_not_centralizer :
   · rintro (rfl | rfl) g (rfl | rfl) <;>
     simp [HMul.hMul, Mul.mul]
 
-private def lr_ext' : ∀ {x y : TotLensRange m}, x.updates = y.updates → x = y := by
+private def lr_ext' : ∀ {x y : DetermFootprint m}, x.updates = y.updates → x = y := by
   intro x y h; obtain ⟨_,_,_,_⟩ := x; obtain ⟨_,_,_,_⟩ := y
   simp only at h; subst h; rfl
 
-/-- Counterexample: `{id, Bool.not}` is a valid `TotLensRange Bool` that is its own complement,
-    disproving `TotLensRange.compl_is_compl` for general `TotLensRange`s. -/
-def flipRange : TotLensRange Bool where
+/-- Counterexample: `{id, Bool.not}` is a valid `DetermFootprint Bool` that is its own complement,
+    disproving `DetermFootprint.compl_is_compl` for general `DetermFootprint`s. -/
+def flipRange : DetermFootprint Bool where
   updates := {id, Bool.not}
   id := Set.mem_insert _ _
   comp := by
