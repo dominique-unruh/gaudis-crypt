@@ -1,27 +1,125 @@
-# subtask 1
-We want to define `glob A` with intended semantics being all global variables of A, or alternatively the part of state which `A` can potentially modify.
+# CLAUDE.md
 
-Here is the plan:
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-- Define a structure Getter with elements get.
-- Let structure Lens inherit from Getter.
-- Define Lens.toGetter (or as a coercion)
-- Define LensRange.global_getter : LensRange m -> Getter <some type>
-- Define Program.range : Program s a -> LensRange m
-- Define Program.range' (progs : a -> Program s b) := Sup of all (progs x).range (for convenience)
- 
-And then you have glob A := A.range.global_getter or A.range'.global_getter, depending on the type.
+## What this is
 
-# subtask 2
-Our goal is to develop enough theory to prove the following theorem (roughly):
+Gaudí's Crypt is a Lean 4 framework for **cryptographic proofs** (probabilistic
+relational reasoning, random-oracle indistinguishability, game hopping). It is
+research-stage and lightly documented. The project is named after the *crypt* of
+Gaudí's Church of Colònia Güell with its *lean*ing pillars.
 
-Theorem: forall Adv, L. If Adv inRange L.range,
-then there exists Adv' such that Adv = L(Adv')
+Lean toolchain: `leanprover/lean4:v4.30.0` (see `lean-toolchain`). Depends on
+mathlib `v4.30.0`, `doc-gen4`, and `Metatheory-Unruh`
+(github.com/dominique-unruh/Lean-Metatheory).
 
-L() :: Program c a -> Program s a  for any lens of type Lens c s
+## Build / develop
 
-L(Adv') defined as:
-do
-  inner_st := L.get st
-  inner_st' <- Adv' inner_st
-  st := lens.set inner_st' st
+- `lake build` — build everything (or `make build`).
+- `lake build GaudisCrypt.Logic.PRHL.Core` — build a single module. Use the
+  dotted module path matching the file path under the repo root. Prefer this
+  for fast iteration over a full `lake build`.
+- `make update` — one-stop refresh after changing `lean-toolchain` or the
+  `[[require]]` deps in `lakefile.toml`: installs the toolchain, runs
+  `lake update`, fetches the mathlib cache (`lake exe cache get`), then builds.
+  Run this (or at least `lake exe cache get`) before a first build so mathlib
+  comes from cache instead of compiling from source.
+- `lake clean` / `make clean`.
+
+There is no test suite and no separate lint step — correctness *is* the build
+(a green `lake build` means all proofs check). `lakefile.toml` enables mathlib's
+standard linter set via `weak.linter.mathlibStandardSet`.
+
+### Lean LSP tooling (MCP)
+
+The `lean-lsp` MCP server is available and is the right way to interact with
+proofs: `lean_goal` (proof state at a position), `lean_diagnostic_messages`
+(errors/warnings for a file), `lean_hover_info`, `lean_multi_attempt` (try
+tactics without editing), and the search tools (`lean_local_search` first, then
+`lean_leansearch`/`lean_loogle`/`lean_state_search`). The MCP does **not** edit
+files — use Edit/Write for that. `lean_build` restarts the LSP and is slow; only
+use it after adding imports.
+
+## Architecture
+
+The dependency flow is **Language → (range framework) → Logic / Lib**.
+`GaudisCrypt.lean` is the barrel importing every module.
+
+### `GaudisCrypt/Language/` — the programming language
+
+- `SubProbability.lean` / `Semantics.lean` — `SubProbability` (a measure of
+  total mass ≤ 1, modelling possibly-failing computation) and the core program
+  type `Program s a := StateT s SubProbability a`, i.e. `s → SubProbability (a × s)`.
+  Monad primitives: `pure`, `bind`, `Program.uniform` (sample a finite type,
+  no state change), `Program.get`/`Program.set` (read/write a lens).
+- `Lens.lean` — `Lens a m` (get/set with the three lens laws), `Getter` (read-only
+  lens), lens `disjoint` (sets commute), and `Lens.compl` (complement lens).
+- `Programs.lean`, `Syntax2.lean`, `Modules.lean` — program/procedure syntax,
+  procedures with holes, and module expressions.
+
+### The range framework (state-footprint analysis)
+
+This is the conceptual core. `notes/REPORT.md` is a long, excellent guided tour —
+**read it before working in this area.** Key types and definitions:
+
+- `LensRange m` — a "region of memory" as a *bicommutant-closed* submonoid of
+  `m → m` (the von-Neumann-algebra trick). Forms a complete lattice; complement
+  `Rᶜ` is the commutant. Lenses give rise to lens-ranges, but not every range is
+  lens-derived (that's why we work with `LensRange`, not `Lens`, for joins/meets).
+- `Program.inRange p R` — "`p` only touches `R`", defined as `p` commuting with
+  every deterministic update in `Rᶜ`. Compositional: `inRange_bind`,
+  `inRange_pure`, `inRange_mono`, plus primitives `inRange_set/get/uniform`.
+- `Program.range p := sInf { R | p.inRange R }`, and `Program.glob` (a `Getter`
+  onto the part of state a program touches — finer than EasyCrypt's `glob`).
+- Headline theorem `Program.commute_of_disjoint` (+ the `_lens` wrapper that
+  discharges the `HasOrbitCollapse` hypotheses automatically for lens-derived
+  ranges): disjoint footprints ⟹ programs commute.
+
+Note `ProbLensRange`/`ProbProgramRange`/`ProgramRange`/`TotLensRange`/`FV`/
+`EquivModuloLens`/`WeakestPreconditions` at the repo top level make up this
+framework. `WeakestPreconditions.lean` provides `wp`, `wp_bind`, `wp_set`, etc.
+
+### `GaudisCrypt/Logic/PRHL/` — probabilistic relational Hoare logic
+
+`Core.lean` (judgments), `Coupling.lean`, `Lenses.lean`, `Loops.lean`,
+`Prhl.lean`, `Tactics.lean`, `UpToBad.lean`. This is the relational reasoning
+layer used to relate two games. `PRHL2*.lean` are a newer/alternate iteration.
+
+### `GaudisCrypt/Lib/RO/` — random-oracle library (main application)
+
+Lazy-vs-eager random-oracle indistinguishability and downstream games. The
+framework lets the adversary's *only* assumption be a single structural fact —
+its footprint is disjoint from the oracle's state — from which the commutativity
+"axioms" become theorems. `Basic.lean` has the RO primitives (`lazy_query`,
+`random_oracle_query`, `convert`, …); `ROEquiv.lean`/`Transfer.lean`/
+`OracleLoop.lean` build the lazy = eager equivalence; `OneWayness*`,
+`CollisionResistance`, `Switching`, `QueryHit` are concrete games.
+`Lib/Enc/HashedOTP.lean` is an encryption example.
+
+### `GaudisCrypt/CounterExamples/`
+
+Standalone theorems showing framework limits (e.g. `LeastLens` — two lenses
+whose least upper bound doesn't exist as a lens). Not used elsewhere.
+
+## Conventions and gotchas
+
+- **The `notes/` directory uses the old project name** (`PlonkLean/...` paths,
+  the `.idea` module is `plonk-lean`). The code now lives under `GaudisCrypt/`.
+  When following a note, translate `PlonkLean/X.lean` → `GaudisCrypt/X.lean`.
+- **`RENAME.md`** tracks in-progress renamings (e.g. `Program` → `Denotation`,
+  `ProbLensRange` → `Footprint`). Check it before introducing names in the
+  range framework so you match the intended direction.
+- **Per-game pattern**: `notes/RO/PerGamePattern.md` documents how to add a new
+  cryptographic game. Framework-level state/variables (`random_oracle_state`,
+  etc.) are shared `axiom`s; game-level adversaries and variables are
+  `variable` section parameters so theorems apply to *any* RO-disjoint adversary.
+  New game variables are still declared axiomatically with axiomatized
+  disjointness, marked `attribute [instance]`.
+- `Test.lean` / `Test2.lean` are untracked scratch files, not part of the build.
+
+## Docs / GitHub Pages
+
+`scripts/build-gh-pages.py` (`make publish-docs`) builds the Jekyll site under
+`docs/website/` plus doc-gen4 API docs and publishes to the `gh-pages` branch.
+Slow. See `docs/gh-pages.md`. The `DocEntrypoint` lean_lib in `lakefile.toml`
+exists only for this script.
