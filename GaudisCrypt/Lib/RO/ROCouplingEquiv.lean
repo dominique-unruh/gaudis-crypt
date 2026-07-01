@@ -12,13 +12,14 @@ the *distributional* version (theorem 1) via transfer; this file is the coupling
 
 The development has three layers:
 
-* **Lifting** (`liftRel`/`liftRelPost`/`GetOK`/`LocP`/`LiftCompat`): lift the state invariant `P` to
+* **Lifting** (`liftRel`/`liftRelPost`/`GetOK`/`LocP`): lift the state invariant `P` to
   procedure states (`P` on globals, equal locals) and state the per-statement honest-locality predicate.
 * **The coupling** (`body_prhl2_gen` → `ro_hhole_prhl` → `prhl_wrapper`): the body
   induction in `prhl2`, the RO-hole coupling, and the procedure wrapper, assembled into the main theorem.
-* **Confinement endpoints** (`FootprintCompat` / `footprintCompat_of_lens` → `confinedP_locP` →
-  `prhl_instantiate_of_fvP`): discharge `LocP` from the adversary's footprint lying in a
-  `FootprintCompat` region (lens-free; a `LiftCompat` lens gives one via `footprintCompat_of_lens`).
+* **Confinement endpoints** (`FootprintCompat` → `confinedP_locP` → `prhl_instantiate_of_fvP`):
+  discharge `LocP` from the adversary's footprint lying in a `FootprintCompat` region (lens-free).
+  The EasyCrypt-style entry point is `prhl_instantiate_of_glob`, whose adversary hypothesis is just
+  footprint disjointness from the oracle (`FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ`).
 -/
 
 namespace GaudisCrypt.Lib.RO.Instantiate
@@ -83,20 +84,10 @@ def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWith
   | .while c t => GetOK P c ∧ LocP P t
 
 
-/-- **`L_adv` is a `liftRel P`-congruence**: it reads equal values from `liftRel P`-related states
-    (`.1`) and its writes preserve `liftRel P` (`.2`). Exactly the compatibility that turns
-    confinement-to-`L_adv` into the relational locality `LocP`. -/
-def LiftCompat {l advSt : Type} (P : state → state → Prop)
-    (L_adv : Lens advSt (ProcedureState l)) : Prop :=
-  (∀ ps₁ ps₂, liftRel P ps₁ ps₂ → L_adv.get ps₁ = L_adv.get ps₂) ∧
-  (∀ (c : advSt) ps₁ ps₂, liftRel P ps₁ ps₂ → liftRel P (L_adv.set c ps₁) (L_adv.set c ps₂))
-
-
 /-- **Footprint-level compatibility with `liftRel P`** (lens-free).  A region `R` is `P`-compatible
     when *every* program confined to `R` self-couples under `liftRel P`.  This is exactly what
-    `confinedP_locP` consumes — it never inspects a lens, only `inFootprint R`.  The lens route
-    `LiftCompat` is one way to discharge it (`footprintCompat_of_lens`); other regions (e.g.
-    joins of compatible footprints) can be supplied directly. -/
+    `confinedP_locP` consumes — it never inspects a lens, only `inFootprint R`.  Discharged for the
+    oracle-complement region by `footprintCompat_of_glob` (the glob/`HasReset` route). -/
 def FootprintCompat {l : Type} (P : state → state → Prop)
     (R : Footprint (ProcedureState l)) : Prop :=
   ∀ {γ : Type} {p : ProgramDenotation (ProcedureState l) γ}, p.inFootprint R →
@@ -287,47 +278,6 @@ theorem prhl_wrapper {sig : ProcedureSignature}
 
 /-! ## Layer 3 — confinement endpoints (discharge `LocP` from a footprint) -/
 
-/-- A program confined to an adversary lens `L_adv` (with `LiftCompat P L_adv`) self-couples under
-    `liftRel P` — the lift form (mirrors `ProgramDenotation.prhl2.adversary`, generalized from
-        `L.get =` to an
-    arbitrary `liftRel P`): `hcompat.1` gives the inner program equal inputs, `hcompat.2` propagates
-    the relation through the write-back. -/
-theorem prhl2_lift_lens {l γ advSt : Type}
-    (L_adv : Lens advSt (ProcedureState l))
-    (hcompat : LiftCompat P L_adv)
-    (p' : ProgramDenotation advSt γ) :
-    ProgramDenotation.prhl2 (liftRel P) (L_adv.lift p') (L_adv.lift p') (liftRelPost P) := by
-  intro ps₁ ps₂ hpre
-  refine ⟨p' (L_adv.get ps₁) >>= fun xc =>
-      pure ((xc.1, L_adv.set xc.2 ps₁), (xc.1, L_adv.set xc.2 ps₂)), ?_, ?_, ?_⟩
-  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind]; rfl
-  · rw [SubProbability.bind_assoc']; simp only [SubProbability.pure_bind]
-    rw [show L_adv.get ps₁ = L_adv.get ps₂ from hcompat.1 ps₁ ps₂ hpre]; rfl
-  · exact SubProbability.satisfies_bind _ (fun xc _ =>
-      SubProbability.satisfies_pure _ _ ⟨rfl, hcompat.2 xc.2 ps₁ ps₂ hpre⟩)
-
-
-/-- **Theorem-2 leaf discharge** (probabilistic). A program confined (in the `inFootprint` sense)
-    to an adversary lens `L_adv` compatible with `liftRel P` self-couples. The `Footprint`
-    analogue of `prhl2_of_inRange_lens` — factors through `factor_of_inFootprint` and the
-    *range-independent* `prhl2_lift_lens` (reused verbatim). -/
-theorem prhl2_of_inFootprint_lens {l γ advSt : Type} [Nonempty (ProcedureState l)]
-    (L_adv : Lens advSt (ProcedureState l))
-    (hcompat : LiftCompat P L_adv)
-    {p : ProgramDenotation (ProcedureState l) γ} (hp : p.inFootprint L_adv.footprint) :
-    ProgramDenotation.prhl2 (liftRel P) p p (liftRelPost P) := by
-  rw [factor_of_inFootprint L_adv hp]
-  exact prhl2_lift_lens L_adv hcompat (L_adv.factor p)
-
-
-/-- **The lens route to `FootprintCompat`.**  A `LiftCompat` lens furnishes a `P`-compatible
-    footprint (its own `footprint`): factor any confined program through the lens, then self-couple
-    via `prhl2_of_inFootprint_lens`.  This is the *only* place the lens / `Nonempty` / factorization
-    is needed — every downstream theorem takes a bare `FootprintCompat`. -/
-theorem footprintCompat_of_lens {l advSt : Type} [Nonempty (ProcedureState l)]
-    (L_adv : Lens advSt (ProcedureState l)) (hcompat : LiftCompat P L_adv) :
-    FootprintCompat P L_adv.footprint :=
-  fun hp => prhl2_of_inFootprint_lens L_adv hcompat hp
 
 
 /-- **Adversary rule — single `Rᶜ`-step** (footprint `glob`).  A program confined to `R`, run from
