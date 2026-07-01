@@ -322,6 +322,15 @@ theorem get_return_val_le_fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
     (A : ProcedureWithHoles holes sig) :
     (ProgramDenotation.get A.return_val).footprint ≤ fvP_proc A := le_sup_right
 
+/-- **`glob A`** — the EasyCrypt-style global window of a procedure: the `touched_getter` of its
+    footprint `fvP_proc A`.  `(glob A).get x = (glob A).get y` iff `x`, `y` agree on everything `A`
+    owns (they differ only outside `fvP_proc A`) — i.e. `={glob A}`. -/
+noncomputable def glob {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig) :
+    Getter (Quotient ((fvP_proc A)ᶜ).orbit_setoid)
+      (ProcedureState (sig.LocalVariableState A.locals)) :=
+  (fvP_proc A).touched_getter
+
 
 /-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
     inner program on the `L`-content. The `inFootprint` analogue of `Lens.factor_of_inRange`. -/

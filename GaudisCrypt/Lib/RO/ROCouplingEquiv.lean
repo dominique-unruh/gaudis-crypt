@@ -329,6 +329,153 @@ theorem footprintCompat_of_lens {l advSt : Type} [Nonempty (ProcedureState l)]
   fun hp => prhl2_of_inFootprint_lens L_adv hcompat hp
 
 
+/-- **Adversary rule — single `Rᶜ`-step** (footprint `glob`).  A program confined to `R`, run from
+    a state `σ` and its image `f σ` under one deterministic `Rᶜ`-update, self-couples: equal
+    results, output states again one `Rᶜ`-step apart.  This is the base case of the `={glob A}`
+    adversary rule for `glob A = R.touched_getter`.  The full rule is its `EqvGen` closure over the
+    `Rᶜ`-orbit — which needs coupling **transitivity** (gluing along a common middle), open in this
+    framework; it is gluing-free exactly when `Rᶜ`'s deterministic updates are invertible (e.g.
+    lens-derived `R`, handled directly by `prhl2.adversary_inRange`). -/
+theorem adversary_couple_step {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
+    ∃ μ : SubProbability ((a × s) × (a × s)),
+      (μ >>= fun x => (pure x.1 : SubProbability (a × s))) = p σ ∧
+      (μ >>= fun x => (pure x.2 : SubProbability (a × s))) = p (f σ) ∧
+      μ.satisfies (fun x => x.1.1 = x.2.1 ∧
+        ∃ g : Function.End s, diracKer g ∈ Rᶜ.updates ∧ g x.1.2 = x.2.2) := by
+  refine ⟨p σ >>= fun xs => pure ((xs.1, xs.2), (xs.1, f xs.2)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind, Prod.mk.eta, SubProbability.bind_pure]
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    exact (inFootprint_subprob hp hf σ).symm
+  · exact SubProbability.satisfies_bind _
+      (fun xs _ => SubProbability.satisfies_pure _ _ ⟨rfl, f, hf, rfl⟩)
+
+
+/-- **Adversary rule (full), footprint `glob`.**  A program confined to `R` self-couples under
+    `={glob A}` (with `glob A = R.touched_getter`): from states agreeing on `glob A` it returns
+    equal results and states that again agree on `glob A`.  The `EqvGen`-closure of
+    `adversary_couple_step` — `refl`/`symm`/`trans` on `prhl2` (the `trans` = coupling gluing,
+    `ProgramDenotation.prhl2.trans`, discrete disintegration). -/
+theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) :
+    ProgramDenotation.prhl2 (fun x y => R.touched_getter.get x = R.touched_getter.get y) p p
+      (fun u v => u.1 = v.1 ∧ R.touched_getter.get u.2 = R.touched_getter.get v.2) := by
+  -- The one-step `Rᶜ`-orbit relation and its equivalence closure.
+  set r : s → s → Prop := fun t t' => ∃ f : Function.End s, diracKer f ∈ Rᶜ.updates ∧ f t = t'
+    with hr
+  set E : s → s → Prop := Relation.EqvGen r with hE
+  -- `touched_getter`-equality is exactly the `EqvGen` relation `E` (via `Quotient.eq`).
+  have hgetter : ∀ x y : s, R.touched_getter.get x = R.touched_getter.get y ↔ E x y := by
+    intro x y
+    change Quotient.mk Rᶜ.orbit_setoid x = Quotient.mk Rᶜ.orbit_setoid y ↔ E x y
+    rw [Quotient.eq]
+    rfl
+  -- Point-precondition auxiliary, proved by induction on the `EqvGen` derivation.
+  have aux : ∀ x y : s, E x y →
+      ProgramDenotation.prhl2 (fun a b => a = x ∧ b = y) p p
+        (fun u v => u.1 = v.1 ∧ E u.2 v.2) := by
+    intro x y h
+    induction h with
+    | rel x y hxy =>
+      obtain ⟨f, hf, hfxy⟩ := hxy
+      intro σ₁ σ₂ hpre
+      obtain ⟨e1, e2⟩ := hpre
+      rw [e1, e2]
+      obtain ⟨μ, hm1, hm2, hsat⟩ := adversary_couple_step hp hf x
+      refine ⟨μ, hm1, ?_, ?_⟩
+      · rw [hm2, hfxy]
+      · intro w hw
+        obtain ⟨heq, g, hg, hgw⟩ := hsat w hw
+        exact ⟨heq, Relation.EqvGen.rel _ _ ⟨g, hg, hgw⟩⟩
+    | refl x =>
+      intro σ₁ σ₂ hpre
+      obtain ⟨e1, e2⟩ := hpre
+      rw [e1, e2]
+      refine ⟨p x >>= fun w => pure (w, w), ?_, ?_, ?_⟩
+      · rw [SubProbability.bind_assoc']
+        simp only [SubProbability.pure_bind, SubProbability.bind_pure]
+      · rw [SubProbability.bind_assoc']
+        simp only [SubProbability.pure_bind, SubProbability.bind_pure]
+      · exact SubProbability.satisfies_bind _
+          (fun w _ => SubProbability.satisfies_pure _ _ ⟨rfl, Relation.EqvGen.refl _⟩)
+    | symm x y _hxy ih =>
+      refine (ih.symm).conseq (fun σ₁ σ₂ hpre => ⟨hpre.2, hpre.1⟩) ?_
+      rintro u v ⟨heq, hEvu⟩
+      exact ⟨heq.symm, Relation.EqvGen.symm _ _ hEvu⟩
+    | trans x m y _hxm _hmy ihxm ihmy =>
+      refine (ihxm.trans ihmy).conseq (fun σ₁ σ₂ hpre => ⟨m, ⟨hpre.1, rfl⟩, rfl, hpre.2⟩) ?_
+      rintro u v ⟨w, ⟨heq₁, hE₁⟩, heq₂, hE₂⟩
+      exact ⟨heq₁.trans heq₂, Relation.EqvGen.trans _ _ _ hE₁ hE₂⟩
+  -- Assemble the main goal from the auxiliary and the getter/`EqvGen` bridge.
+  intro x y hxy
+  have hExy : E x y := (hgetter x y).mp hxy
+  obtain ⟨μ, hm1, hm2, hsat⟩ := aux x y hExy x y ⟨rfl, rfl⟩
+  refine ⟨μ, hm1, hm2, ?_⟩
+  intro w hw
+  obtain ⟨heq, hEw⟩ := hsat w hw
+  exact ⟨heq, (hgetter _ _).mpr hEw⟩
+
+
+/-- **Confinement preserves a complement lens** (the frame linchpin).  A program confined to `R`
+    leaves unchanged the content of any lens `u` disjoint from `R` (`u.footprint ≤ Rᶜ`): every
+    output state agrees with the input on `u.get`.  Proved by an idempotent-fixpoint argument (no
+    orbit collapse): `u.set (u.get σ)` is an `Rᶜ`-update fixing `σ`, so by `inFootprint_subprob`
+    `p σ` is a fixpoint of pushing it, hence supported on `{s | u.get s = u.get σ}`. -/
+theorem inFootprint_preserves_lens {s a γ : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) (u : Lens γ s) (hu : u.footprint ≤ Rᶜ) (σ : s) :
+    (p σ).satisfies (fun xs => u.get xs.2 = u.get σ) := by
+  -- The localized update `f = u.set (u.get σ)` is a generator of `u.footprint`, hence an
+  -- `Rᶜ`-update, and it fixes `σ` (lens law `get_set`).
+  set f : Function.End s := u.liftFunction (fun _ => u.get σ) with hf_def
+  have hgen : diracKer f ∈ u.footprint.updates :=
+    (Footprint.from_le_iff (Set.range fun g : Function.End γ => diracKer (u.liftFunction g))
+      u.footprint).mp le_rfl ⟨fun _ => u.get σ, rfl⟩
+  have hmem : diracKer f ∈ Rᶜ.updates := hu hgen
+  have hfix : f σ = σ := u.get_set σ
+  -- Confinement makes `p σ` a fixpoint of pushing `f`.
+  have hstep := inFootprint_subprob hp hmem σ
+  rw [hfix] at hstep
+  rw [hstep]
+  -- Each pushed atom `u.set (u.get σ) xs.2` reads back `u.get σ` (lens law `set_get`).
+  exact SubProbability.satisfies_bind _
+    (fun xs _ => SubProbability.satisfies_pure _ _ (u.set_get xs.2 (u.get σ)))
+
+/-- **Adversary rule with a frame** (footprint `glob`).  Extends `prhl2_glob` to carry any relation
+    `Q` that factors through a complement lens `u` (`u.footprint ≤ Rᶜ`): a confined program preserves
+    both `={glob A}` and `Q`.  Instantiating `u` with `roLift` and `Q` with the RO part of `liftRel P`
+    bridges the adversary rule to a `liftRel P` post (the `FootprintCompat`/`LocP` shape). -/
+theorem prhl2_glob_frame {s a γ : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) (u : Lens γ s) (hu : u.footprint ≤ Rᶜ) {Q : s → s → Prop}
+    (hQ : ∀ x x' y y', u.get x = u.get x' → u.get y = u.get y' → (Q x y ↔ Q x' y')) :
+    ProgramDenotation.prhl2
+      (fun x y => R.touched_getter.get x = R.touched_getter.get y ∧ Q x y) p p
+      (fun w₁ w₂ => w₁.1 = w₂.1 ∧ R.touched_getter.get w₁.2 = R.touched_getter.get w₂.2
+        ∧ Q w₁.2 w₂.2) := by
+  intro x y hpre
+  obtain ⟨htouch, hQxy⟩ := hpre
+  obtain ⟨μ, hm1, hm2, hsat⟩ := prhl2_glob hp x y htouch
+  refine ⟨μ, hm1, hm2, ?_⟩
+  -- Confinement preserves the complement lens `u` on both marginals.
+  have hgx := inFootprint_preserves_lens hp u hu x
+  have hgy := inFootprint_preserves_lens hp u hu y
+  intro w hw
+  obtain ⟨heq1, htw⟩ := hsat w hw
+  refine ⟨heq1, htw, ?_⟩
+  -- `w.1` (resp. `w.2`) lies in `p x`'s (resp. `p y`'s) support: its marginal atom is positive.
+  have hpx : (p x).1 {w.1} ≠ 0 := by
+    rw [← hm1, SubProbability.marginal_fst_singleton μ w.1]
+    exact fun h0 => hw ((ENNReal.tsum_eq_zero.mp h0) w.2)
+  have hpy : (p y).1 {w.2} ≠ 0 := by
+    rw [← hm2, SubProbability.marginal_snd_singleton μ w.2]
+    exact fun h0 => hw ((ENNReal.tsum_eq_zero.mp h0) w.1)
+  -- Transport `Q x y` along the two `u.get` equalities.
+  have hex : u.get x = u.get w.1.2 := (hgx w.1 hpx).symm
+  have hey : u.get y = u.get w.2.2 := (hgy w.2 hpy).symm
+  exact (hQ x w.1.2 y w.2.2 hex hey).mp hQxy
+
+
 /-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
     `Footprint` analogue of `confined_locP`. -/
 theorem confinedP_locP {holes : HoleSigs} {l : Type}
