@@ -476,6 +476,25 @@ theorem prhl2_glob_frame {s a γ : Type} {R : Footprint s} {p : ProgramDenotatio
   exact (hQ x w.1.2 y w.2.2 hex hey).mp hQxy
 
 
+/-- **Glob-based `FootprintCompat`** (the endpoint).  Reduce `FootprintCompat P R` to a decomposition
+    of `liftRel P` as `={glob}` — agreement on `R` via `R.touched_getter` — conjoined with a frame
+    relation `Q` factoring through a complement lens `u ≤ Rᶜ`.  Every `R`-confined program is
+    discharged by the framed adversary rule `prhl2_glob_frame` + `conseq`.  This is the EasyCrypt
+    `={glob A}` route into theorem 2: supply a complement lens (e.g. `roLift`) and the invariant
+    decomposition, instead of proving `FootprintCompat`/`LiftCompat` directly. -/
+theorem footprintCompat_of_glob {l γ : Type} {R : Footprint (ProcedureState l)}
+    (u : Lens γ (ProcedureState l)) (hu : u.footprint ≤ Rᶜ)
+    {Q : ProcedureState l → ProcedureState l → Prop}
+    (hQ : ∀ x x' y y', u.get x = u.get x' → u.get y = u.get y' → (Q x y ↔ Q x' y'))
+    (hdecomp : ∀ a b : ProcedureState l,
+        liftRel P a b ↔ (R.touched_getter.get a = R.touched_getter.get b ∧ Q a b)) :
+    FootprintCompat P R := by
+  intro γ' p hp
+  refine (prhl2_glob_frame hp u hu hQ).conseq (fun a b => (hdecomp a b).mp) ?_
+  intro w₁ w₂ h
+  exact ⟨h.1, (hdecomp w₁.2 w₂.2).mpr ⟨h.2.1, h.2.2⟩⟩
+
+
 /-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
     `Footprint` analogue of `confined_locP`. -/
 theorem confinedP_locP {holes : HoleSigs} {l : Type}
@@ -570,5 +589,28 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
           (fvP_stmt_body_le_fvP_proc A))))
     (fun _ _ hpre => reads_equal_of_footprintCompat hcompat
       (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
+
+
+/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint).  Relational lazy ≈ eager for any
+    adversary `A` whose invariant decomposes as `={glob A}` (agreement on `fvP_proc A`, via
+    `touched_getter`) conjoined with a frame `Q` factoring through a complement lens `u` — e.g.
+    `u = roLift`, `Q` = RO consistency.  Discharges `FootprintCompat` via `footprintCompat_of_glob`,
+    so the adversary assumption is the glob decomposition instead of `LiftCompat`/`FootprintCompat`. -/
+theorem prhl_instantiate_of_glob {sig : ProcedureSignature} {γ : Type}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (u : Lens γ (ProcedureState (sig.LocalVariableState A.locals)))
+    (hu : u.footprint ≤ (fvP_proc A)ᶜ)
+    {Q : ProcedureState (sig.LocalVariableState A.locals) →
+        ProcedureState (sig.LocalVariableState A.locals) → Prop}
+    (hQ : ∀ x x' y y', u.get x = u.get x' → u.get y = u.get y' → (Q x y ↔ Q x' y'))
+    (hdecomp : ∀ a b, liftRel P a b ↔
+        ((fvP_proc A).touched_getter.get a = (fvP_proc A).touched_getter.get b ∧ Q a b))
+    (h : ∀ inp : input,
+        ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
+    ProgramDenotation.prhl P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (liftPost P) :=
+  prhl_instantiate_of_fvP A args (footprintCompat_of_glob u hu hQ hdecomp) h
 
 end GaudisCrypt.Lib.RO.Instantiate
