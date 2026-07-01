@@ -418,108 +418,56 @@ theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
   exact ⟨heq, (hgetter _ _).mpr hEw⟩
 
 
-/-- **Confinement preserves a complement lens** (the frame linchpin).  A program confined to `R`
-    leaves unchanged the content of any lens `u` disjoint from `R` (`u.footprint ≤ Rᶜ`): every
-    output state agrees with the input on `u.get`.  Proved by an idempotent-fixpoint argument (no
-    orbit collapse): `u.set (u.get σ)` is an `Rᶜ`-update fixing `σ`, so by `inFootprint_subprob`
-    `p σ` is a fixpoint of pushing it, hence supported on `{s | u.get s = u.get σ}`. -/
-theorem inFootprint_preserves_lens {s a γ : Type} {R : Footprint s} {p : ProgramDenotation s a}
-    (hp : p.inFootprint R) (u : Lens γ s) (hu : u.footprint ≤ Rᶜ) (σ : s) :
-    (p σ).satisfies (fun xs => u.get xs.2 = u.get σ) := by
-  -- The localized update `f = u.set (u.get σ)` is a generator of `u.footprint`, hence an
-  -- `Rᶜ`-update, and it fixes `σ` (lens law `get_set`).
-  set f : Function.End s := u.liftFunction (fun _ => u.get σ) with hf_def
-  have hgen : diracKer f ∈ u.footprint.updates :=
-    (Footprint.from_le_iff (Set.range fun g : Function.End γ => diracKer (u.liftFunction g))
-      u.footprint).mp le_rfl ⟨fun _ => u.get σ, rfl⟩
-  have hmem : diracKer f ∈ Rᶜ.updates := hu hgen
-  have hfix : f σ = σ := u.get_set σ
-  -- Confinement makes `p σ` a fixpoint of pushing `f`.
+/-- **Confinement preserves a disjoint footprint's content** (the lens-free frame linchpin).  A
+    program confined to `R` leaves unchanged the content (`S.touched_getter`) of any *resettable*
+    footprint `S` disjoint from `R` (`S ≤ Rᶜ`).  Idempotent-fixpoint argument (no orbit collapse):
+    `S.HasReset`'s overwrite is an `Rᶜ`-update fixing `σ` that collapses `S.touched_getter` to `σ`'s
+    value, so by `inFootprint_subprob` `p σ` is a fixpoint of pushing it.  For `S = roLift.footprint`
+    (a lens), `Lens.footprint_hasReset` discharges `S.HasReset`, so the frame needs only footprint
+    disjointness `S ≤ Rᶜ`. -/
+theorem inFootprint_preserves_touched {s a : Type} {R S : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) (hSc : S ≤ Rᶜ) {σ : s} (hS : S.HasReset σ) :
+    (p σ).satisfies (fun xs => S.touched_getter.get xs.2 = S.touched_getter.get σ) := by
+  obtain ⟨f, hgen, hfix, hcollapse⟩ := hS
+  have hmem : diracKer f ∈ Rᶜ.updates := hSc hgen
   have hstep := inFootprint_subprob hp hmem σ
   rw [hfix] at hstep
   rw [hstep]
-  -- Each pushed atom `u.set (u.get σ) xs.2` reads back `u.get σ` (lens law `set_get`).
   exact SubProbability.satisfies_bind _
-    (fun xs _ => SubProbability.satisfies_pure _ _ (u.set_get xs.2 (u.get σ)))
+    (fun xs _ => SubProbability.satisfies_pure _ _ (hcollapse xs.2))
 
-/-- **Confinement preserves the complement content** (the lens-free frame linchpin).  When `R`
-    collapses to `σ` (`HasOrbitCollapse`), a program confined to `R` leaves the whole `R`-complement
-    content — the `R.global_getter` value — unchanged: every output lies in `σ`'s `R`-orbit.  The
-    `Footprint`/`satisfies` analogue of `ProgramDenotation.inRange_orbit_of_collapse`: the collapse
-    map `f ∈ Rᶜ` fixes `σ`, so `inFootprint_subprob` makes `p σ` a fixpoint of pushing `f`, and `f`
-    lands every state in `σ`'s single-step `R`-orbit, killing the "not-reachable" outputs. -/
-theorem inFootprint_preserves_global {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
-    (hp : p.inFootprint R) {σ : s} (hcoll : R.HasOrbitCollapse σ) :
-    (p σ).satisfies (fun xs => R.global_getter.get xs.2 = R.global_getter.get σ) := by
-  obtain ⟨f, hf_in, hf_fix, hf_collapse⟩ := hcoll
-  letI : MeasurableSpace (a × s) := ⊤
-  -- Invariance: p σ = (p σ) >>= (fun (x, s') => pure (x, f s')).
-  have h_inv : p σ
-      = (p σ) >>= (fun (xs : a × s) => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-    have := inFootprint_subprob hp hf_in σ
-    rwa [hf_fix] at this
-  intro xs hxs
-  -- Reduce the quotient equality to a single directed orbit step.
-  change Quotient.mk R.orbit_setoid xs.2 = Quotient.mk R.orbit_setoid σ
-  rw [Quotient.eq]
-  suffices h : ∃ u : Function.End s, diracKer u ∈ R.updates ∧ u σ = xs.2 by
-    obtain ⟨u, hu_in, hu_eq⟩ := h
-    exact Relation.EqvGen.symm _ _ (Relation.EqvGen.rel _ _ ⟨u, hu_in, hu_eq⟩)
-  by_contra hne
-  simp only [not_exists, not_and] at hne
-  -- `hne : ∀ u, diracKer u ∈ R.updates → u σ ≠ xs.2`; derive `(p σ).1 {xs} = 0`.
-  apply hxs
-  have hS_meas : MeasurableSet ({xs} : Set (a × s)) := trivial
-  -- Rewrite (p σ).1 {xs} using invariance + map structure.
-  have h_meas_eq : (p σ).1 {xs} = (p σ).1 {ws : a × s | (ws.1, f ws.2) ∈ ({xs} : Set (a × s))} := by
-    conv_lhs => rw [h_inv]
-    change (MeasureTheory.Measure.bind (p σ).1
-              (fun ws => (pure (ws.1, f ws.2) : SubProbability (a × s)).1)) {xs}
-         = (p σ).1 {ws : a × s | (ws.1, f ws.2) ∈ ({xs} : Set (a × s))}
-    have hdirac : ∀ ws : a × s,
-        ((pure (ws.1, f ws.2) : SubProbability (a × s)).1
-          : MeasureTheory.Measure (a × s))
-        = @MeasureTheory.Measure.dirac (a × s) ⊤ (ws.1, f ws.2) := fun _ => rfl
-    simp_rw [hdirac]
-    rw [MeasureTheory.Measure.bind_dirac_eq_map (p σ).1 measurable_from_top,
-        MeasureTheory.Measure.map_apply measurable_from_top hS_meas]
-    rfl
-  -- The preimage is empty: `f` collapses every state into `R`-orbit(σ), which excludes `xs.2`.
-  have h_empty : {ws : a × s | (ws.1, f ws.2) ∈ ({xs} : Set (a × s))} = (∅ : Set (a × s)) := by
-    ext ⟨x, s'⟩
-    simp only [Set.mem_setOf_eq, Set.mem_singleton_iff, Set.mem_empty_iff_false, iff_false,
-               Prod.ext_iff]
-    rintro ⟨-, hfs⟩
-    obtain ⟨u, hu_in, hu_eq⟩ := hf_collapse s'
-    exact hne u hu_in (hu_eq.trans hfs)
-  rw [h_meas_eq, h_empty]
-  exact MeasureTheory.measure_empty
+/-- **`FootprintCompat` is antitone**: a smaller footprint is still `P`-compatible.  Lets us prove
+    compatibility once for a large "nice" region (e.g. `Oᶜ`, the oracle-complement) and transport it
+    down to any confined adversary `fvP_proc A ≤ Oᶜ` (disjoint from the oracle). -/
+theorem FootprintCompat.mono {l : Type} {R R' : Footprint (ProcedureState l)}
+    (h : FootprintCompat P R) (hle : R' ≤ R) : FootprintCompat P R' :=
+  fun hp => h (ProgramDenotation.inFootprint_mono hp hle)
 
-/-- **Glob-based `FootprintCompat`** (the endpoint, lens-free, `Q`-free).  Reduce `FootprintCompat P R`
-    to two intrinsic properties of `liftRel P`, via the touched/untouched split (`R.touched_getter` /
-    `R.global_getter`) plus orbit collapse of `R` (free for lens-derived `R`):
-    * `hrefine` — `liftRel P` **refines `={glob A}`**: the touched content is pinned equal.
-    * `hstable` — `liftRel P` is **frame-stable**: it depends only on the untouched content, so
-      overwriting A's touched content identically on both sides (keeping the untouched content fixed)
-      preserves it.
+/-- **Glob-based `FootprintCompat`** (lens-free, `Q`-free, disjointness form).  Reduce
+    `FootprintCompat P R` to two intrinsic properties of `liftRel P` over the split into the touched
+    content `R.touched_getter` and a *resettable* oracle region `O` disjoint from `R` (`O ≤ Rᶜ`,
+    `O.HasReset`):
+    * `hrefine` — `liftRel P` **refines `={glob A}`**: the touched content `R.touched_getter` is equal.
+    * `hstable` — `liftRel P` is **frame-stable on the oracle**: it depends only on `O`'s content, so
+      overwriting the touched content on both sides (keeping `O.touched_getter` fixed) preserves it.
 
     Each confined program self-couples via `prhl2_glob` (touched stays equal) and
-    `inFootprint_preserves_global` (untouched stays fixed), then `hstable` rebuilds `liftRel P`.  The
-    EasyCrypt `={glob A}` route into theorem 2 — no `Lens`, and no auxiliary frame predicate. -/
-theorem footprintCompat_of_glob {l : Type} {R : Footprint (ProcedureState l)}
-    (hcoll : ∀ σ, R.HasOrbitCollapse σ)
+    `inFootprint_preserves_touched` (the oracle content stays fixed, from `O.HasReset` + `O ≤ Rᶜ`),
+    then `hstable` rebuilds `liftRel P`.  No `Lens`, no orbit collapse, no frame predicate. -/
+theorem footprintCompat_of_glob {l : Type} {R O : Footprint (ProcedureState l)}
+    (hOc : O ≤ Rᶜ) (hO : ∀ σ, O.HasReset σ)
     (hrefine : ∀ a b, liftRel P a b → R.touched_getter.get a = R.touched_getter.get b)
     (hstable : ∀ a b u v, liftRel P a b →
         R.touched_getter.get u = R.touched_getter.get v →
-        R.global_getter.get u = R.global_getter.get a →
-        R.global_getter.get v = R.global_getter.get b → liftRel P u v) :
+        O.touched_getter.get u = O.touched_getter.get a →
+        O.touched_getter.get v = O.touched_getter.get b → liftRel P u v) :
     FootprintCompat P R := by
   intro γ' p hp x y hxy
   obtain ⟨μ, hm1, hm2, hsat⟩ := prhl2_glob hp x y (hrefine x y hxy)
   refine ⟨μ, hm1, hm2, ?_⟩
-  -- Confinement preserves the untouched content on both marginals.
-  have hgx := inFootprint_preserves_global hp (hcoll x)
-  have hgy := inFootprint_preserves_global hp (hcoll y)
+  -- Confinement preserves the oracle content on both marginals (`O ≤ Rᶜ`, `O.HasReset`).
+  have hgx := inFootprint_preserves_touched hp hOc (hO x)
+  have hgy := inFootprint_preserves_touched hp hOc (hO y)
   intro w hw
   obtain ⟨heq1, htw⟩ := hsat w hw
   refine ⟨heq1, ?_⟩
@@ -530,7 +478,7 @@ theorem footprintCompat_of_glob {l : Type} {R : Footprint (ProcedureState l)}
   have hpy : (p y).1 {w.2} ≠ 0 := by
     rw [← hm2, SubProbability.marginal_snd_singleton μ w.2]
     exact fun h0 => hw ((ENNReal.tsum_eq_zero.mp h0) w.1)
-  -- `hstable` rebuilds `liftRel P` on the outputs from touched-agreement + preserved untouched.
+  -- `hstable` rebuilds `liftRel P` on the outputs from touched-agreement + preserved oracle content.
   exact hstable x y w.1.2 w.2.2 hxy htw (hgx w.1 hpx) (hgy w.2 hpy)
 
 
@@ -630,29 +578,45 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
       (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
 
 
-/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, lens-free, `Q`-free).  Relational
-    lazy ≈ eager for any adversary `A`, from two intrinsic properties of the invariant `liftRel P`
-    over the touched/untouched split of `fvP_proc A`:
-    * `hrefine` — `liftRel P` refines `={glob A}` (agreement on `A`'s touched content), and
-    * `hstable` — `liftRel P` depends only on the untouched content (frame-stable: overwriting `A`'s
-      touched content on both sides preserves it),
-    plus orbit collapse of `fvP_proc A` (free for lens-derived footprints).  No `Lens`, no auxiliary
-    frame predicate — the adversary assumption is exactly the glob split of the invariant. -/
+/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, disjointness form).  Relational
+    lazy ≈ eager for any adversary `A` whose footprint is **disjoint from the random oracle**
+    (`hdisj : fvP_proc A ≤ (roLift _).footprintᶜ`), from two intrinsic properties of `liftRel P` over
+    the oracle-complement / oracle split:
+    * `hrefine` — `liftRel P` refines agreement **outside** the oracle (`(roLift _).footprintᶜ`), and
+    * `hstable` — `liftRel P` depends only on the **oracle content** (`(roLift _).footprint`):
+      overwriting anything outside the oracle on both sides preserves it.
+
+    Proof: `footprintCompat_of_glob` at `R = (roLift _).footprintᶜ` (whose resettability is discharged
+    by `Lens.footprint_hasReset` — `roLift` is a lens), then `FootprintCompat.mono` transports it down
+    to `fvP_proc A` via `hdisj`.  **No `Lens` parameter, no orbit collapse, no frame predicate** — the
+    entire adversary assumption is footprint disjointness from the oracle. -/
 theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hcoll : ∀ σ, (fvP_proc A).HasOrbitCollapse σ)
+    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
     (hrefine : ∀ a b, liftRel P a b →
-        (fvP_proc A).touched_getter.get a = (fvP_proc A).touched_getter.get b)
+        (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get a
+          = (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get b)
     (hstable : ∀ a b u v, liftRel P a b →
-        (fvP_proc A).touched_getter.get u = (fvP_proc A).touched_getter.get v →
-        (fvP_proc A).global_getter.get u = (fvP_proc A).global_getter.get a →
-        (fvP_proc A).global_getter.get v = (fvP_proc A).global_getter.get b → liftRel P u v)
+        (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get u
+          = (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get v →
+        ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get u
+          = ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get a →
+        ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get v
+          = ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get b →
+        liftRel P u v)
     (h : ∀ inp : input,
         ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
     ProgramDenotation.prhl P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
-  prhl_instantiate_of_fvP A args (footprintCompat_of_glob hcoll hrefine hstable) h
+  prhl_instantiate_of_fvP A args
+    (FootprintCompat.mono
+      (footprintCompat_of_glob
+        (R := ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
+        (O := (roLift (sig.LocalVariableState A.locals)).footprint)
+        (le_of_eq (Footprint.compl_compl _).symm)
+        (fun σ => Lens.footprint_hasReset _ σ)
+        hrefine hstable) hdisj) h
 
 end GaudisCrypt.Lib.RO.Instantiate
