@@ -4,7 +4,7 @@ import GaudisCrypt.FV
 /-!
 # RO coupling equivalence (subtask-3, theorem 2)
 
-Lazy ≈ eager random oracle as a **relational** statement (`ProgramDenotation.prhl`, i.e. a
+Lazy ≈ eager random oracle as a **relational** statement (`ProgramDenotation.prhl2`, i.e. a
     coupling): for a
 syntactic adversary `A`, instantiating `A` against the eager oracle and against the lazy oracle yields
 couplable executions preserving any state invariant `P`. The companion `TransferInstantiate` proves
@@ -38,7 +38,7 @@ def liftPost {α : Type} (P : state → state → Prop) : α × state → α × 
 
 /-! ### Theorem 2 scaffolding: relational invariant preservation
 
-Subtask-3 theorem 2 is the coupling/`prhl` analogue of theorem 1.  We lift the
+Subtask-3 theorem 2 is the coupling/`prhl2` analogue of theorem 1.  We lift the
 state invariant `P` to procedure states (`P` on globals, equal locals), give an
 honest locality predicate `LocP` (each of the adversary's own operations
 preserves the invariant relationally — its guards return equal booleans and its
@@ -193,7 +193,7 @@ theorem prhl2_zoom (l : Type) {γ : Type}
     the procedures with the semantic queries).  This is `body_prhl2_gen`'s `hhole`
     for the RO instantiation. -/
 theorem ro_hhole_prhl {l : Type}
-    (h : ∀ inp : input, ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp)
+    (h : ∀ inp : input, ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp)
         (liftPost P))
     {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
     (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
@@ -217,7 +217,7 @@ theorem ro_hhole_prhl {l : Type}
       refine (ProgramDenotation.prhl2.bind (M := liftRelPost P) ?_ (fun ret₁ ret₂ => ?_)) σ₁ σ₂ hrel
       · -- the zoomed query couples (via `prhl2_zoom`); post normalized to `liftRelPost P`
         rw [procDenotation_RO_eager, procDenotation_RO_lazy]
-        exact ProgramDenotation.prhl2.conseq (prhl2_zoom l ((h args₁).to_prhl2))
+        exact ProgramDenotation.prhl2.conseq (prhl2_zoom l (h args₁))
           (fun _ _ h => h) (fun _ _ hB => ⟨hB.1.1, hB.1.2, hB.2⟩)
       · -- the write couples (equal results from the middle post)
         intro τ₁ τ₂ hpre2
@@ -230,7 +230,7 @@ theorem ro_hhole_prhl {l : Type}
     body preserves the invariant relationally, with the RO oracle.  Combines
     `body_prhl2_gen` with the RO hole coupling `ro_hhole_prhl`. -/
 theorem prhl_instantiate_body {l : Type}
-    (h : ∀ inp : input, ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp)
+    (h : ∀ inp : input, ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp)
         (liftPost P))
     (A : StmtWithHoles roHoles l) (hloc : LocP P A) :
     ProgramDenotation.prhl2 (liftRel P)
@@ -239,8 +239,8 @@ theorem prhl_instantiate_body {l : Type}
   body_prhl2_gen A RO_eager RO_lazy hloc (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
 
 
-/-- **Procedure wrapper for `prhl`** (isolated, analogue of `transfer_wrapper`):
-    a body-level `prhl2` coupling lifts to a state-level `prhl` coupling of the
+/-- **Procedure wrapper for `prhl2`** (isolated, analogue of `transfer_wrapper`):
+    a body-level `prhl2` coupling lifts to a state-level `prhl2` coupling of the
     whole procedure, given the return value is determined by the invariant. -/
 theorem prhl_wrapper {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
@@ -248,10 +248,9 @@ theorem prhl_wrapper {sig : ProcedureSignature}
       (programDenotation (A.body.instantiate RO_eager))
       (programDenotation (A.body.instantiate RO_lazy)) (liftRelPost P))
     (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
-    ProgramDenotation.prhl P
+    ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args) (liftPost P) := by
-  apply ProgramDenotation.prhl2.to_prhl
   intro st₁ st₂ hP
   obtain ⟨μ, hm1, hm2, hsat⟩ :=
     hbody ⟨st₁, sig.localVariableInit A.locals args⟩ ⟨st₂, sig.localVariableInit A.locals args⟩ ⟨hP, rfl⟩
@@ -510,13 +509,13 @@ theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureSt
     `A`'s actual footprint need be compatible, not a larger region — and it subsumes the explicit
     RO-disjointness premise (for the canonical RO-agreement `P`, `FootprintCompat P (fvP_proc A)`
     *is* "`A` is disjoint from the random oracle").  Lens-free, `R`-free; inlines the whole
-    `fvP → ConfinedP → LocP → coupling → prhl` chain. -/
+    `fvP → ConfinedP → LocP → coupling → prhl2` chain. -/
 theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (hcompat : FootprintCompat P (fvP_proc A))
     (h : ∀ inp : input,
-        ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
-    ProgramDenotation.prhl P
+        ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
+    ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
@@ -1154,8 +1153,8 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
         random_oracle_state.get g₁' = random_oracle_state.get g₁ →
         random_oracle_state.get g₂' = random_oracle_state.get g₂ → P g₁' g₂')
     (h : ∀ inp : input,
-        ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
-    ProgramDenotation.prhl P
+        ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
+    ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
