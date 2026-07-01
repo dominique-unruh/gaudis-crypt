@@ -656,6 +656,170 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_hasReset {c m : Type} (l
     refine (Relation.EqvGen.rel _ _ ?_).symm
     exact ⟨l.compl.liftFunction (Function.const _ (l.compl.get s)), hg_mem, hg_eq⟩
 
+/-- `pure` is injective on `SubProbability` (it is the Dirac embedding): `pure x = pure y → x = y`.
+    Lets us extract a *plain* pointwise state equation from a Dirac-kernel commutation identity. -/
+private theorem subProbability_pure_injective {a : Type} :
+    Function.Injective (pure : a → SubProbability a) := by
+  letI : MeasurableSpace a := ⊤
+  intro x y h
+  by_contra hne
+  have hcoe : ((pure x : SubProbability a) : a → NNReal) x
+            = ((pure y : SubProbability a) : a → NNReal) x :=
+    congrFun (congrArg DFunLike.coe h) x
+  have hx : ((pure x : SubProbability a) : a → NNReal) x = 1 := by
+    show ((@MeasureTheory.Measure.dirac a ⊤ x) {x}).toNNReal = 1
+    rw [MeasureTheory.Measure.dirac_apply_of_mem (Set.mem_singleton x)]; rfl
+  have hy : ((pure y : SubProbability a) : a → NNReal) x = 0 := by
+    show ((@MeasureTheory.Measure.dirac a ⊤ y) {x}).toNNReal = 0
+    rw [MeasureTheory.Measure.dirac_apply' y (MeasurableSet.of_discrete),
+      Set.indicator_of_notMem (fun hmem => hne (Set.mem_singleton_iff.mp hmem).symm)]; rfl
+  rw [hx, hy] at hcoe
+  exact one_ne_zero hcoe
+
+/-- **`(l.footprint)ᶜ`-updates preserve `l.get`.** Any deterministic update `f` whose Dirac kernel
+    lives in the complement of `l`'s footprint fixes `l`'s content: `l.get (f a) = l.get a`. It
+    commutes with the overwrite generator `l.liftFunction (const (l.get a))`, and evaluating that
+    commutation at `a` (via `subProbability_pure_injective`) forces `f` to leave `l.get` fixed. -/
+private theorem footprint_compl_update_preserves_get {c m : Type} (l : Lens c m)
+    (f : Function.End m) (hf : diracKer f ∈ (l.footprint)ᶜ.updates) (a : m) :
+    l.get (f a) = l.get a := by
+  have hmem : diracKer (l.liftFunction (Function.const _ (l.get a))) ∈ (l.footprint).updates :=
+    (Footprint.from_le_iff (Set.range fun g : Function.End c => diracKer (l.liftFunction g))
+      l.footprint).mp le_rfl ⟨Function.const _ (l.get a), rfl⟩
+  have hcomm := (Submonoid.mem_centralizer_iff.mp hf)
+      (diracKer (l.liftFunction (Function.const _ (l.get a)))) hmem
+  rw [diracKer_mul, diracKer_mul] at hcomm
+  have hpt := congrFun hcomm a
+  have heq : (l.liftFunction (Function.const _ (l.get a)) * f) a
+           = (f * l.liftFunction (Function.const _ (l.get a))) a :=
+    subProbability_pure_injective hpt
+  have hPfa : (l.liftFunction (Function.const _ (l.get a)) * f) a
+            = l.set (l.get a) (f a) := rfl
+  have hfPa : (f * l.liftFunction (Function.const _ (l.get a))) a = f a := by
+    show f (l.set ((Function.const _ (l.get a)) (l.get a)) a) = f a
+    simp only [Function.const_apply]; rw [l.get_set]
+  rw [hPfa, hfPa] at heq
+  calc l.get (f a) = l.get (l.set (l.get a) (f a)) := by rw [heq]
+    _ = l.get a := l.set_get (f a) (l.get a)
+
+/-- The complement reset generator `l.compl.liftFunction (const (l.compl.get a))` lives in
+    `(l.footprint)ᶜ.updates` — the centralizer step reused from `Lens.footprint_hasReset`. -/
+private theorem footprint_compl_gen_mem {c m : Type} (l : Lens c m) (a : m) :
+    diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
+      ∈ (l.footprint)ᶜ.updates := by
+  show diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
+    ∈ Submonoid.centralizer (l.footprint).updates
+  rw [Submonoid.mem_centralizer_iff]
+  intro k hk
+  have hjmem : diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
+      ∈ Submonoid.centralizer
+          (Set.range fun g : Function.End c => diracKer (l.liftFunction g)) := by
+    rw [Submonoid.mem_centralizer_iff]
+    rintro _ ⟨g, rfl⟩
+    rw [diracKer_mul, diracKer_mul]
+    congr 1
+    show l.liftFunction g ∘ l.compl.liftFunction (Function.const _ (l.compl.get a))
+       = l.compl.liftFunction (Function.const _ (l.compl.get a)) ∘ l.liftFunction g
+    funext x
+    simp only [Function.comp_apply, Lens.liftFunction, Lens.compl, Quotient.lift_mk,
+               Function.const_apply]
+    rw [l.set_get, l.set_get, l.set_set]
+  exact (Submonoid.mem_centralizer_iff.mp hk
+    (diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))) hjmem).symm
+
+/-- **`l.footprint`-updates preserve `l.compl.get`.** The `Oᶜ` mirror of
+    `footprint_compl_update_preserves_get`: any `f` with `diracKer f ∈ (l.footprint).updates` leaves
+    the outside-`l` content fixed, `l.compl.get (f a) = l.compl.get a`.  It commutes with the
+    complement reset generator (`footprint_compl_gen_mem`), evaluated at `a`. -/
+private theorem footprint_update_preserves_compl_get {c m : Type} (l : Lens c m)
+    (f : Function.End m) (hf : diracKer f ∈ (l.footprint).updates) (a : m) :
+    l.compl.get (f a) = l.compl.get a := by
+  rw [Footprint.updates_eq_centralizer_compl l.footprint] at hf
+  have hgen := footprint_compl_gen_mem l a
+  have hcomm := (Submonoid.mem_centralizer_iff.mp hf)
+      (diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))) hgen
+  rw [diracKer_mul, diracKer_mul] at hcomm
+  have hpt := congrFun hcomm a
+  have heq : (l.compl.liftFunction (Function.const _ (l.compl.get a)) * f) a
+           = (f * l.compl.liftFunction (Function.const _ (l.compl.get a))) a :=
+    subProbability_pure_injective hpt
+  have hQfa : (l.compl.liftFunction (Function.const _ (l.compl.get a)) * f) a
+            = l.compl.set (l.compl.get a) (f a) := rfl
+  have hfQa : (f * l.compl.liftFunction (Function.const _ (l.compl.get a))) a = f a := by
+    show f (l.compl.set ((Function.const _ (l.compl.get a)) (l.compl.get a)) a) = f a
+    simp only [Function.const_apply]; rw [l.compl.get_set]
+  rw [hQfa, hfQa] at heq
+  calc l.compl.get (f a) = l.compl.get (l.compl.set (l.compl.get a) (f a)) := by rw [heq]
+    _ = l.compl.get a := l.compl.set_get (f a) (l.compl.get a)
+
+/-- **A lens footprint's touched content is its lens getter.**  For a lens `l`, the opaque orbit
+    quotient `(l.footprint).touched_getter` collapses to `l.get`: two states have equal touched
+    content iff they agree on `l.get`.  Lets glob endpoints state their premises via the concrete
+    `l.get` instead of the quotient. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_touched_getter_eq_iff {c m : Type}
+    (l : Lens c m) (x y : m) :
+    (l.footprint).touched_getter.get x = (l.footprint).touched_getter.get y ↔ l.get x = l.get y := by
+  constructor
+  · intro h
+    -- `h` is a `Quotient.mk` equality on `(l.footprint)ᶜ`-orbits; extract the generating relation.
+    have hrel := Quotient.exact h
+    clear h
+    induction hrel with
+    | rel a b hab =>
+      obtain ⟨f, hf_mem, hf_eq⟩ := hab
+      rw [← hf_eq]
+      exact (footprint_compl_update_preserves_get l f hf_mem a).symm
+    | refl a => rfl
+    | symm a b _ ih => exact ih.symm
+    | trans a b d _ _ ih1 ih2 => exact ih1.trans ih2
+  · intro h
+    -- One generating step suffices: the complement reset `g` maps `x ↦ y` and lives in `(l.footprint)ᶜ`.
+    apply Quotient.sound
+    refine Relation.EqvGen.rel _ _ ?_
+    refine ⟨l.compl.liftFunction (Function.const _ (l.compl.get y)),
+      footprint_compl_gen_mem l y, ?_⟩
+    show l.compl.set ((Function.const _ (l.compl.get y)) (l.compl.get x)) x = y
+    simp only [Function.const_apply, Lens.compl, Quotient.lift_mk]
+    rw [h, l.get_set]
+
+/-- **A lens footprint's *complement* touched content is the complement lens's getter.**  For a lens
+    `l`, `((l.footprint)ᶜ).touched_getter` collapses to `l.compl.get`: two states have equal
+    outside-`l` content iff they agree on `l.compl.get`.  The `Oᶜ` companion of
+    `Lens.footprint_touched_getter_eq_iff` (folds in `compl_compl`). -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_compl_touched_getter_eq_iff {c m : Type}
+    (l : Lens c m) (x y : m) :
+    ((l.footprint)ᶜ).touched_getter.get x = ((l.footprint)ᶜ).touched_getter.get y
+      ↔ l.compl.get x = l.compl.get y := by
+  -- `touched_getter` of `(l.footprint)ᶜ` is `(l.footprint)ᶜᶜ`-orbits; fold in `compl_compl`.
+  show (((l.footprint)ᶜ)ᶜ).global_getter.get x = (((l.footprint)ᶜ)ᶜ).global_getter.get y
+      ↔ l.compl.get x = l.compl.get y
+  rw [Footprint.compl_compl]
+  constructor
+  · intro h
+    have hrel := Quotient.exact h
+    clear h
+    induction hrel with
+    | rel a b hab =>
+      obtain ⟨f, hf_mem, hf_eq⟩ := hab
+      rw [← hf_eq]
+      exact (footprint_update_preserves_compl_get l f hf_mem a).symm
+    | refl a => rfl
+    | symm a b _ ih => exact ih.symm
+    | trans a b d _ _ ih1 ih2 => exact ih1.trans ih2
+  · intro h
+    -- One generating step: the `l`-overwrite generator maps `x ↦ y` and lives in `l.footprint`.
+    apply Quotient.sound
+    refine Relation.EqvGen.rel _ _ ?_
+    refine ⟨l.liftFunction (Function.const _ (l.get y)),
+      (Footprint.from_le_iff (Set.range fun g : Function.End c => diracKer (l.liftFunction g))
+        l.footprint).mp le_rfl ⟨Function.const _ (l.get y), rfl⟩, ?_⟩
+    show l.set ((Function.const _ (l.get y)) (l.get x)) x = y
+    simp only [Function.const_apply]
+    -- `l.set (l.get y) x = l.compl.set (l.compl.get x) y`; then rewrite with `h` and `compl.get_set`.
+    have hid : l.set (l.get y) x = l.compl.set (l.compl.get x) y := rfl
+    rw [hid, h]
+    exact l.compl.get_set y
+
 /-! ## Disjointness bridge -/
 
 /-- **Disjoint lenses have ranges in each other's complements**: if `disjoint v L`, then every

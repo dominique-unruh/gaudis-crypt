@@ -578,32 +578,59 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
       (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
 
 
-/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, disjointness form).  Relational
-    lazy ≈ eager for any adversary `A` whose footprint is **disjoint from the random oracle**
-    (`hdisj : fvP_proc A ≤ (roLift _).footprintᶜ`), from two intrinsic properties of `liftRel P` over
-    the oracle-complement / oracle split:
-    * `hrefine` — `liftRel P` refines agreement **outside** the oracle (`(roLift _).footprintᶜ`), and
-    * `hstable` — `liftRel P` depends only on the **oracle content** (`(roLift _).footprint`):
-      overwriting anything outside the oracle on both sides preserves it.
+/-- **The oracle content of a procedure state is the oracle table of its global**: `roLift` reads
+    through `globalL` into `random_oracle_state`. -/
+theorem roLift_get_global {l : Type} (x : ProcedureState l) :
+    (roLift l).get x = random_oracle_state.get x.global := rfl
 
-    Proof: `footprintCompat_of_glob` at `R = (roLift _).footprintᶜ` (whose resettability is discharged
-    by `Lens.footprint_hasReset` — `roLift` is a lens), then `FootprintCompat.mono` transports it down
-    to `fvP_proc A` via `hdisj`.  **No `Lens` parameter, no orbit collapse, no frame predicate** — the
-    entire adversary assumption is footprint disjointness from the oracle. -/
+/-- **The oracle-complement of a procedure state splits into locals + non-oracle global.**  Two
+    states have equal outside-oracle content (`(roLift l).compl.get`) iff their locals agree and their
+    globals agree away from the oracle (`random_oracle_state.compl.get`).  This is what lets the
+    endpoint phrase its premises purely on the global invariant `P` (on `state`), with the locals
+    handled structurally by the framework. -/
+theorem roLift_compl_get_iff {l : Type} (x y : ProcedureState l) :
+    (roLift l).compl.get x = (roLift l).compl.get y ↔
+      (x.locals = y.locals ∧
+        random_oracle_state.compl.get x.global = random_oracle_state.compl.get y.global) := by
+  -- `compl.get` equality unfolds to `equal_outside` (`∃ t, lens.set t · = ·`) on both sides.
+  have e1 : ((roLift l).compl.get x = (roLift l).compl.get y) ↔ (roLift l).equal_outside x y :=
+    Quotient.eq''
+  have e2 : (random_oracle_state.compl.get x.global = random_oracle_state.compl.get y.global) ↔
+      random_oracle_state.equal_outside x.global y.global := Quotient.eq''
+  rw [e1, e2]
+  constructor
+  · rintro ⟨t, rfl⟩
+    exact ⟨rfl, t, rfl⟩
+  · rintro ⟨hloc, t, ht⟩
+    refine ⟨t, ?_⟩
+    obtain ⟨xg, xl⟩ := x
+    obtain ⟨yg, yl⟩ := y
+    show ProcedureState.mk (random_oracle_state.set t xg) xl = ProcedureState.mk yg yl
+    rw [show random_oracle_state.set t xg = yg from ht, show xl = yl from hloc]
+
+/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, disjointness form, global invariant).
+    Relational lazy ≈ eager for any adversary `A` whose footprint is **disjoint from the random
+    oracle** (`hdisj : fvP_proc A ≤ (roLift _).footprintᶜ`), from two conditions on the **global**
+    invariant `P` (on `state`) — no locals, phrased entirely via `random_oracle_state`:
+    * `hrefine` — `P` forces agreement on the non-oracle globals (`random_oracle_state.compl`), and
+    * `hstable` — `P` is determined by the **oracle table** (`random_oracle_state`): overwriting the
+      non-oracle globals on both sides (keeping each side's table) preserves it.
+
+    Locals never appear: `liftRel`'s `locals`-equality is carried structurally by `prhl2_glob` (A runs
+    identically), which is also why locals *must not* enter a condition that has to survive descent
+    into `call'` (a callee's locals differ).  Internally `footprintCompat_of_glob` runs at
+    `R = (roLift _).footprintᶜ` (resettability discharged by `Lens.footprint_hasReset`); the global
+    `P`-conditions are lifted to procedure states via `roLift_compl_get_iff`/`roLift_get_global` and
+    `FootprintCompat.mono` transports the result down to `fvP_proc A` via `hdisj`. -/
 theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
-    (hrefine : ∀ a b, liftRel P a b →
-        (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get a
-          = (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get b)
-    (hstable : ∀ a b u v, liftRel P a b →
-        (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get u
-          = (((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ).touched_getter.get v →
-        ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get u
-          = ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get a →
-        ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get v
-          = ((roLift (sig.LocalVariableState A.locals)).footprint).touched_getter.get b →
-        liftRel P u v)
+    (hrefine : ∀ g₁ g₂ : state, P g₁ g₂ →
+        random_oracle_state.compl.get g₁ = random_oracle_state.compl.get g₂)
+    (hstable : ∀ g₁ g₂ og₁ og₂ : state, P g₁ g₂ →
+        random_oracle_state.compl.get og₁ = random_oracle_state.compl.get og₂ →
+        random_oracle_state.get og₁ = random_oracle_state.get g₁ →
+        random_oracle_state.get og₂ = random_oracle_state.get g₂ → P og₁ og₂)
     (h : ∀ inp : input,
         ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
     ProgramDenotation.prhl P
@@ -617,6 +644,16 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
         (O := (roLift (sig.LocalVariableState A.locals)).footprint)
         (le_of_eq (Footprint.compl_compl _).symm)
         (fun σ => Lens.footprint_hasReset _ σ)
-        hrefine hstable) hdisj) h
+        (fun a b hab =>
+          (Lens.footprint_compl_touched_getter_eq_iff _ a b).mpr
+            ((roLift_compl_get_iff a b).mpr ⟨hab.2, hrefine a.global b.global hab.1⟩))
+        (fun a b u v hab htouch hgu hgv => by
+          obtain ⟨hloc, hng⟩ := (roLift_compl_get_iff u v).mp
+            ((Lens.footprint_compl_touched_getter_eq_iff _ u v).mp htouch)
+          refine ⟨hstable a.global b.global u.global v.global hab.1 hng ?_ ?_, hloc⟩
+          · rw [← roLift_get_global u, ← roLift_get_global a]
+            exact (Lens.footprint_touched_getter_eq_iff _ u a).mp hgu
+          · rw [← roLift_get_global v, ← roLift_get_global b]
+            exact (Lens.footprint_touched_getter_eq_iff _ v b).mp hgv)) hdisj) h
 
 end GaudisCrypt.Lib.RO.Instantiate
