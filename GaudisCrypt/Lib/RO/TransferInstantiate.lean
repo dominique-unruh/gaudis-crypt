@@ -535,24 +535,22 @@ theorem confinedP_loc {holes : HoleSigs} {l : Type}
 
 
 /-- **Theorem 1, end-to-end from footprint disjointness.**  Lazy/eager indistinguishability for any
-    adversary whose full footprint `fvP_proc A` (body + return) lies in a region `R` disjoint from
-    the RO table — derived entirely from the single footprint bound, with no per-leaf confinement to
-    check by hand (lens-free).  Inlines the whole `fvP → ConfinedP → Loc → transfer` chain — the sole
-    entry point (the intermediate `Loc`/`ConfinedP`-form theorems were collapsed into this one). -/
+    adversary whose full footprint `fvP_proc A` (body + return) is **disjoint from the random-oracle
+    state** — `fvP_proc A ≤ (roLift _).footprintᶜ` — derived from that single bound, with no
+    per-leaf confinement to check by hand (lens-free, `R`-free).  Inlines the whole
+    `fvP → ConfinedP → Loc → transfer` chain — the sole entry point. -/
 theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (R : Footprint (ProcedureState (sig.LocalVariableState A.locals)))
-    (hdisj : R ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
-    (hfp : fvP_proc A ≤ R) :
+    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ) :
     ProgramDenotation.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=
   transfer_wrapper A args
     (transfer_instantiate_body A.body
-      (confinedP_loc R hdisj roHole_paramType_countable A.body
-        (confinedP_of_fv R roHole_paramType_countable A.body
-          ((fvP_stmt_body_le_fvP_proc A).trans hfp))))
-    (stable_of_confinedP_footprint R hdisj
-      (get_confinedP_of_fv A.return_val ((get_return_val_le_fvP_proc A).trans hfp)))
+      (confinedP_loc (fvP_proc A) hdisj roHole_paramType_countable A.body
+        (confinedP_of_fv (fvP_proc A) roHole_paramType_countable A.body
+          (fvP_stmt_body_le_fvP_proc A))))
+    (stable_of_confinedP_footprint (fvP_proc A) hdisj
+      (get_confinedP_of_fv A.return_val (get_return_val_le_fvP_proc A)))
 
 end GaudisCrypt.Lib.RO.Instantiate

@@ -94,8 +94,8 @@ def LiftCompat {l advSt : Type} (P : state → state → Prop)
 /-- **Footprint-level compatibility with `liftRel P`** (lens-free).  A region `R` is `P`-compatible
     when *every* program confined to `R` self-couples under `liftRel P`.  This is exactly what
     `confinedP_locP` consumes — it never inspects a lens, only `inFootprint R`.  The lens route
-    `LiftCompat` is one way to discharge it (`footprintCompat_of_lens`); other regions (e.g. joins of
-    compatible footprints) can be supplied directly. -/
+    `LiftCompat` is one way to discharge it (`footprintCompat_of_lens`); other regions (e.g.
+    joins of compatible footprints) can be supplied directly. -/
 def FootprintCompat {l : Type} (P : state → state → Prop)
     (R : Footprint (ProcedureState l)) : Prop :=
   ∀ {γ : Type} {p : ProgramDenotation (ProcedureState l) γ}, p.inFootprint R →
@@ -353,7 +353,8 @@ theorem confinedP_locP {holes : HoleSigs} {l : Type}
 /-- A getter confined to a `FootprintCompat` region reads **equal** values from `liftRel P`-related
     states — the return-value condition `prhl_wrapper` needs, now derived from the footprint bound
     rather than assumed.  A deterministic `get`/`get` self-coupling has both marginals point masses,
-    so its (a.e.) post `x.1.1 = x.2.1` pins the two reads together.  Replaces the standalone `hret`. -/
+    so its (a.e.) post `x.1.1 = x.2.1` pins the two reads together.  Replaces the standalone
+    `hret`. -/
 theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureState l)}
     (hR : FootprintCompat P R) {g : Getter γ (ProcedureState l)}
     (hg : (ProgramDenotation.get g).inFootprint R)
@@ -400,29 +401,27 @@ theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureSt
 
 
 /-- **Theorem 2 — the entry point.**  Relational (coupling) lazy ≈ eager equivalence for an
-    invariant `P`, from the procedure's full footprint `fvP_proc A` (body + return) lying in a
-    `FootprintCompat` region `R` (lens-free — supply `R` + a `FootprintCompat P R` proof, e.g. via
-    `footprintCompat_of_lens`).  The single `fvP_proc A ≤ R` bound replaces the old `hbody`/`hret`
-    pair (the return-value reads-equal is derived via `reads_equal_of_footprintCompat`).  Inlines the
-    whole `fvP → ConfinedP → LocP → coupling → prhl` chain (the intermediate `LocP`/`ConfinedP`-form
-    entry points were collapsed into this one). -/
+    invariant `P`, for any adversary whose own footprint `fvP_proc A` (body + return) is
+    `P`-compatible (`FootprintCompat P (fvP_proc A)`).  This is the weakest such hypothesis — only
+    `A`'s actual footprint need be compatible, not a larger region — and it subsumes the explicit
+    RO-disjointness premise (for the canonical RO-agreement `P`, `FootprintCompat P (fvP_proc A)`
+    *is* "`A` is disjoint from the random oracle").  Lens-free, `R`-free; inlines the whole
+    `fvP → ConfinedP → LocP → coupling → prhl` chain. -/
 theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (R : Footprint (ProcedureState (sig.LocalVariableState A.locals)))
-    (hR : FootprintCompat P R)
+    (hcompat : FootprintCompat P (fvP_proc A))
     (h : ∀ inp : input,
-        ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P))
-    (hfp : fvP_proc A ≤ R) :
+        ProgramDenotation.prhl P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
     ProgramDenotation.prhl P
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
   prhl_wrapper A args
     (prhl_instantiate_body h A.body
-      (confinedP_locP R hR roHole_paramType_countable A.body
-        (confinedP_of_fv R roHole_paramType_countable A.body
-          ((fvP_stmt_body_le_fvP_proc A).trans hfp))))
-    (fun _ _ hpre => reads_equal_of_footprintCompat hR
-      (ProgramDenotation.inFootprint_of_footprint_le ((get_return_val_le_fvP_proc A).trans hfp)) hpre)
+      (confinedP_locP (fvP_proc A) hcompat roHole_paramType_countable A.body
+        (confinedP_of_fv (fvP_proc A) roHole_paramType_countable A.body
+          (fvP_stmt_body_le_fvP_proc A))))
+    (fun _ _ hpre => reads_equal_of_footprintCompat hcompat
+      (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
 
 end GaudisCrypt.Lib.RO.Instantiate
