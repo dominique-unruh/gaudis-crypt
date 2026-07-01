@@ -442,13 +442,67 @@ theorem inFootprint_preserves_lens {s a γ : Type} {R : Footprint s} {p : Progra
   exact SubProbability.satisfies_bind _
     (fun xs _ => SubProbability.satisfies_pure _ _ (u.set_get xs.2 (u.get σ)))
 
-/-- **Adversary rule with a frame** (footprint `glob`).  Extends `prhl2_glob` to carry any relation
-    `Q` that factors through a complement lens `u` (`u.footprint ≤ Rᶜ`): a confined program preserves
-    both `={glob A}` and `Q`.  Instantiating `u` with `roLift` and `Q` with the RO part of `liftRel P`
-    bridges the adversary rule to a `liftRel P` post (the `FootprintCompat`/`LocP` shape). -/
-theorem prhl2_glob_frame {s a γ : Type} {R : Footprint s} {p : ProgramDenotation s a}
-    (hp : p.inFootprint R) (u : Lens γ s) (hu : u.footprint ≤ Rᶜ) {Q : s → s → Prop}
-    (hQ : ∀ x x' y y', u.get x = u.get x' → u.get y = u.get y' → (Q x y ↔ Q x' y')) :
+/-- **Confinement preserves the complement content** (the lens-free frame linchpin).  When `R`
+    collapses to `σ` (`HasOrbitCollapse`), a program confined to `R` leaves the whole `R`-complement
+    content — the `R.global_getter` value — unchanged: every output lies in `σ`'s `R`-orbit.  The
+    `Footprint`/`satisfies` analogue of `ProgramDenotation.inRange_orbit_of_collapse`: the collapse
+    map `f ∈ Rᶜ` fixes `σ`, so `inFootprint_subprob` makes `p σ` a fixpoint of pushing `f`, and `f`
+    lands every state in `σ`'s single-step `R`-orbit, killing the "not-reachable" outputs. -/
+theorem inFootprint_preserves_global {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) {σ : s} (hcoll : R.HasOrbitCollapse σ) :
+    (p σ).satisfies (fun xs => R.global_getter.get xs.2 = R.global_getter.get σ) := by
+  obtain ⟨f, hf_in, hf_fix, hf_collapse⟩ := hcoll
+  letI : MeasurableSpace (a × s) := ⊤
+  -- Invariance: p σ = (p σ) >>= (fun (x, s') => pure (x, f s')).
+  have h_inv : p σ
+      = (p σ) >>= (fun (xs : a × s) => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
+    have := inFootprint_subprob hp hf_in σ
+    rwa [hf_fix] at this
+  intro xs hxs
+  -- Reduce the quotient equality to a single directed orbit step.
+  change Quotient.mk R.orbit_setoid xs.2 = Quotient.mk R.orbit_setoid σ
+  rw [Quotient.eq]
+  suffices h : ∃ u : Function.End s, diracKer u ∈ R.updates ∧ u σ = xs.2 by
+    obtain ⟨u, hu_in, hu_eq⟩ := h
+    exact Relation.EqvGen.symm _ _ (Relation.EqvGen.rel _ _ ⟨u, hu_in, hu_eq⟩)
+  by_contra hne
+  simp only [not_exists, not_and] at hne
+  -- `hne : ∀ u, diracKer u ∈ R.updates → u σ ≠ xs.2`; derive `(p σ).1 {xs} = 0`.
+  apply hxs
+  have hS_meas : MeasurableSet ({xs} : Set (a × s)) := trivial
+  -- Rewrite (p σ).1 {xs} using invariance + map structure.
+  have h_meas_eq : (p σ).1 {xs} = (p σ).1 {ws : a × s | (ws.1, f ws.2) ∈ ({xs} : Set (a × s))} := by
+    conv_lhs => rw [h_inv]
+    change (MeasureTheory.Measure.bind (p σ).1
+              (fun ws => (pure (ws.1, f ws.2) : SubProbability (a × s)).1)) {xs}
+         = (p σ).1 {ws : a × s | (ws.1, f ws.2) ∈ ({xs} : Set (a × s))}
+    have hdirac : ∀ ws : a × s,
+        ((pure (ws.1, f ws.2) : SubProbability (a × s)).1
+          : MeasureTheory.Measure (a × s))
+        = @MeasureTheory.Measure.dirac (a × s) ⊤ (ws.1, f ws.2) := fun _ => rfl
+    simp_rw [hdirac]
+    rw [MeasureTheory.Measure.bind_dirac_eq_map (p σ).1 measurable_from_top,
+        MeasureTheory.Measure.map_apply measurable_from_top hS_meas]
+    rfl
+  -- The preimage is empty: `f` collapses every state into `R`-orbit(σ), which excludes `xs.2`.
+  have h_empty : {ws : a × s | (ws.1, f ws.2) ∈ ({xs} : Set (a × s))} = (∅ : Set (a × s)) := by
+    ext ⟨x, s'⟩
+    simp only [Set.mem_setOf_eq, Set.mem_singleton_iff, Set.mem_empty_iff_false, iff_false,
+               Prod.ext_iff]
+    rintro ⟨-, hfs⟩
+    obtain ⟨u, hu_in, hu_eq⟩ := hf_collapse s'
+    exact hne u hu_in (hu_eq.trans hfs)
+  rw [h_meas_eq, h_empty]
+  exact MeasureTheory.measure_empty
+
+/-- **Adversary rule with a frame** (footprint `glob`, lens-free).  Extends `prhl2_glob` to carry any
+    relation `Q` that factors through the complement content `R.global_getter`: a confined program
+    (in a footprint `R` with orbit collapse) preserves both `={glob A}` and `Q`.  Instantiating `Q`
+    with the RO part of `liftRel P` bridges the adversary rule to a `liftRel P` post. -/
+theorem prhl2_glob_frame {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) (hcoll : ∀ σ, R.HasOrbitCollapse σ) {Q : s → s → Prop}
+    (hQ : ∀ x x' y y', R.global_getter.get x = R.global_getter.get x' →
+        R.global_getter.get y = R.global_getter.get y' → (Q x y ↔ Q x' y')) :
     ProgramDenotation.prhl2
       (fun x y => R.touched_getter.get x = R.touched_getter.get y ∧ Q x y) p p
       (fun w₁ w₂ => w₁.1 = w₂.1 ∧ R.touched_getter.get w₁.2 = R.touched_getter.get w₂.2
@@ -457,9 +511,9 @@ theorem prhl2_glob_frame {s a γ : Type} {R : Footprint s} {p : ProgramDenotatio
   obtain ⟨htouch, hQxy⟩ := hpre
   obtain ⟨μ, hm1, hm2, hsat⟩ := prhl2_glob hp x y htouch
   refine ⟨μ, hm1, hm2, ?_⟩
-  -- Confinement preserves the complement lens `u` on both marginals.
-  have hgx := inFootprint_preserves_lens hp u hu x
-  have hgy := inFootprint_preserves_lens hp u hu y
+  -- Confinement preserves the complement content on both marginals.
+  have hgx := inFootprint_preserves_global hp (hcoll x)
+  have hgy := inFootprint_preserves_global hp (hcoll y)
   intro w hw
   obtain ⟨heq1, htw⟩ := hsat w hw
   refine ⟨heq1, htw, ?_⟩
@@ -470,27 +524,28 @@ theorem prhl2_glob_frame {s a γ : Type} {R : Footprint s} {p : ProgramDenotatio
   have hpy : (p y).1 {w.2} ≠ 0 := by
     rw [← hm2, SubProbability.marginal_snd_singleton μ w.2]
     exact fun h0 => hw ((ENNReal.tsum_eq_zero.mp h0) w.1)
-  -- Transport `Q x y` along the two `u.get` equalities.
-  have hex : u.get x = u.get w.1.2 := (hgx w.1 hpx).symm
-  have hey : u.get y = u.get w.2.2 := (hgy w.2 hpy).symm
+  -- Transport `Q x y` along the two `global_getter` equalities.
+  have hex : R.global_getter.get x = R.global_getter.get w.1.2 := (hgx w.1 hpx).symm
+  have hey : R.global_getter.get y = R.global_getter.get w.2.2 := (hgy w.2 hpy).symm
   exact (hQ x w.1.2 y w.2.2 hex hey).mp hQxy
 
 
-/-- **Glob-based `FootprintCompat`** (the endpoint).  Reduce `FootprintCompat P R` to a decomposition
-    of `liftRel P` as `={glob}` — agreement on `R` via `R.touched_getter` — conjoined with a frame
-    relation `Q` factoring through a complement lens `u ≤ Rᶜ`.  Every `R`-confined program is
-    discharged by the framed adversary rule `prhl2_glob_frame` + `conseq`.  This is the EasyCrypt
-    `={glob A}` route into theorem 2: supply a complement lens (e.g. `roLift`) and the invariant
-    decomposition, instead of proving `FootprintCompat`/`LiftCompat` directly. -/
-theorem footprintCompat_of_glob {l γ : Type} {R : Footprint (ProcedureState l)}
-    (u : Lens γ (ProcedureState l)) (hu : u.footprint ≤ Rᶜ)
+/-- **Glob-based `FootprintCompat`** (the endpoint, lens-free).  Reduce `FootprintCompat P R` to a
+    decomposition of `liftRel P` as `={glob}` — agreement on the touched content `R.touched_getter` —
+    conjoined with a frame relation `Q` on the untouched content (factoring through `R.global_getter`).
+    Needs `R` to have orbit collapse (`HasOrbitCollapse`, free for lens-derived `R`).  Every confined
+    program is discharged by `prhl2_glob_frame` + `conseq`.  This is the EasyCrypt `={glob A}` route
+    into theorem 2: supply the touched/untouched split of the invariant, no `Lens` in the statement. -/
+theorem footprintCompat_of_glob {l : Type} {R : Footprint (ProcedureState l)}
+    (hcoll : ∀ σ, R.HasOrbitCollapse σ)
     {Q : ProcedureState l → ProcedureState l → Prop}
-    (hQ : ∀ x x' y y', u.get x = u.get x' → u.get y = u.get y' → (Q x y ↔ Q x' y'))
+    (hQ : ∀ x x' y y', R.global_getter.get x = R.global_getter.get x' →
+        R.global_getter.get y = R.global_getter.get y' → (Q x y ↔ Q x' y'))
     (hdecomp : ∀ a b : ProcedureState l,
         liftRel P a b ↔ (R.touched_getter.get a = R.touched_getter.get b ∧ Q a b)) :
     FootprintCompat P R := by
   intro γ' p hp
-  refine (prhl2_glob_frame hp u hu hQ).conseq (fun a b => (hdecomp a b).mp) ?_
+  refine (prhl2_glob_frame hp hcoll hQ).conseq (fun a b => (hdecomp a b).mp) ?_
   intro w₁ w₂ h
   exact ⟨h.1, (hdecomp w₁.2 w₂.2).mpr ⟨h.2.1, h.2.2⟩⟩
 
@@ -591,18 +646,19 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
       (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
 
 
-/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint).  Relational lazy ≈ eager for any
-    adversary `A` whose invariant decomposes as `={glob A}` (agreement on `fvP_proc A`, via
-    `touched_getter`) conjoined with a frame `Q` factoring through a complement lens `u` — e.g.
-    `u = roLift`, `Q` = RO consistency.  Discharges `FootprintCompat` via `footprintCompat_of_glob`,
-    so the adversary assumption is the glob decomposition instead of `LiftCompat`/`FootprintCompat`. -/
-theorem prhl_instantiate_of_glob {sig : ProcedureSignature} {γ : Type}
+/-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, lens-free).  Relational lazy ≈ eager for
+    any adversary `A` whose invariant `liftRel P` splits as `={glob A}` — agreement on the touched
+    content `fvP_proc A` (via `touched_getter`) — conjoined with a frame `Q` on the untouched content
+    (factoring through `global_getter`; e.g. `Q` = RO consistency).  Needs `fvP_proc A` to have orbit
+    collapse (free for lens-derived footprints).  The adversary assumption is this glob split, not a
+    `LiftCompat`/`FootprintCompat` proof — and **no `Lens` appears in the statement**. -/
+theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (u : Lens γ (ProcedureState (sig.LocalVariableState A.locals)))
-    (hu : u.footprint ≤ (fvP_proc A)ᶜ)
+    (hcoll : ∀ σ, (fvP_proc A).HasOrbitCollapse σ)
     {Q : ProcedureState (sig.LocalVariableState A.locals) →
         ProcedureState (sig.LocalVariableState A.locals) → Prop}
-    (hQ : ∀ x x' y y', u.get x = u.get x' → u.get y = u.get y' → (Q x y ↔ Q x' y'))
+    (hQ : ∀ x x' y y', (fvP_proc A).global_getter.get x = (fvP_proc A).global_getter.get x' →
+        (fvP_proc A).global_getter.get y = (fvP_proc A).global_getter.get y' → (Q x y ↔ Q x' y'))
     (hdecomp : ∀ a b, liftRel P a b ↔
         ((fvP_proc A).touched_getter.get a = (fvP_proc A).touched_getter.get b ∧ Q a b))
     (h : ∀ inp : input,
@@ -611,6 +667,6 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature} {γ : Type}
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
-  prhl_instantiate_of_fvP A args (footprintCompat_of_glob u hu hQ hdecomp) h
+  prhl_instantiate_of_fvP A args (footprintCompat_of_glob hcoll hQ hdecomp) h
 
 end GaudisCrypt.Lib.RO.Instantiate
