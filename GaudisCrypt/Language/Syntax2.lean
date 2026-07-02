@@ -519,10 +519,13 @@ than `:` so it needs no extra parentheses inside a type ascription.) -/
 declare_syntax_cat hole_sig
 syntax "(" term,* ")" " → " term : hole_sig
 
-syntax "proctype " "(" term,* ")" " -> " term (" uses " "(" hole_sig,* ")")? : term
+syntax "proctype " "(" term,* ")" (" → " <|> " -> ") term (" uses " "(" hole_sig,* ")")? : term
 
 open Lean in
 macro_rules
+  -- unicode `→` spelling delegates to the `->` arm below (distinguished by the arrow atom)
+  | `(proctype ( $params:term,* ) → $ret:term $[uses ( $holes:hole_sig,* )]?) =>
+      `(proctype ( $params,* ) -> $ret $[uses ( $holes,* )]?)
   | `(proctype ( $params:term,* ) -> $ret:term $[uses ( $holes:hole_sig,* )]?) => do
       let sigTerm ← `(ProcedureSignature.mk [$params,*] $ret)
       match holes with
@@ -552,7 +555,7 @@ open Lean PrettyPrinter in
 def unexpandProcedure : Unexpander
   | `($_ $sig) => do
       let some (ps, r) := procsigParts? sig.raw | throw ()
-      `(proctype ( $ps,* ) -> $r)
+      `(proctype ( $ps,* ) → $r)
   | _ => throw ()
 
 open Lean PrettyPrinter in
@@ -575,7 +578,7 @@ def unexpandProcedureWithHoles : Unexpander
       if holeParts.isEmpty then `(proctype ( $ps,* ) -> $r)
       else
         let holeSyns ← holeParts.mapM fun (hps, hr) => `(hole_sig| ( $hps,* ) → $hr)
-        `(proctype ( $ps,* ) -> $r uses ( $holeSyns,* ))
+        `(proctype ( $ps,* ) → $r uses ( $holeSyns,* ))
   | _ => throw ()
 
 /-! ### Procedure *signature* syntax
@@ -585,15 +588,41 @@ form as `proctype`, minus the holes — a signature has none).  By construction
 `Procedure (procsig …) = proctype …`.  The unexpander is on `ProcedureSignature.mk`, so any
 signature with a literal parameter list prints back as `procsig (…) -> …`. -/
 
-syntax "procsig " "(" term,* ")" " -> " term : term
+syntax "procsig " "(" term,* ")" (" → " <|> " -> ") term : term
 
 macro_rules
+  | `(procsig ( $params:term,* ) → $ret:term) => `(procsig ( $params,* ) -> $ret)
   | `(procsig ( $params:term,* ) -> $ret:term) => `(ProcedureSignature.mk [$params,*] $ret)
 
 open Lean PrettyPrinter in
 @[app_unexpander ProcedureSignature.mk]
 def unexpandProcSig : Unexpander
-  | `($_ [$ps,*] $r) => `(procsig ( $ps,* ) -> $r)
+  | `($_ [$ps,*] $r) => `(procsig ( $ps,* ) → $r)
+  | _ => throw ()
+
+/-! ### Module type of a procedure — `procmod (…) -> R`
+
+`procmod (T, …) -> R` is `ModuleType.proc (procsig (T,…) -> R)`: the same surface as `proctype`,
+but producing a `ModuleType` rather than the `Procedure` type.  The return type is parsed at
+precedence `36` — above both the module product `×` (35) and arrow `→ₘ` (25) — so
+`procmod (…) -> R × …` and `procmod (…) -> R →ₘ …` group as `(procmod (…) -> R) ⊙ …` rather than
+folding the operator into `R`.  A genuine product/function *return* type therefore needs
+parentheses: `procmod (…) -> (A × B)`.  (No `uses` clause: for a procedure-with-holes module
+type write the `→ₘ` arrow explicitly.) -/
+
+syntax "procmod " "(" term,* ")" (" → " <|> " -> ") term:36 : term
+
+macro_rules
+  | `(procmod ( $params:term,* ) → $ret:term) => `(procmod ( $params,* ) -> $ret)
+  | `(procmod ( $params:term,* ) -> $ret:term) =>
+      `(GaudisCrypt.Language.Modules.ModuleType.proc (procsig ( $params,* ) -> $ret))
+
+open Lean PrettyPrinter in
+@[app_unexpander GaudisCrypt.Language.Modules.ModuleType.proc]
+def unexpandProcMod : Unexpander
+  | `($_ $sig) => do
+      let some (ps, r) := procsigParts? sig.raw | throw ()
+      `(procmod ( $ps,* ) → $r)
   | _ => throw ()
 
 end GaudisCrypt.Language.Syntax
@@ -755,18 +784,36 @@ example : Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat := rfl
 #check ProcedureWithHoles (.append .empty (procsig () -> Unit)) (ProcedureSignature.mk [String,String] Nat)
 -- TODO: Can we make test cases that trigger if the terms above don't print the way we want?
 
+-- both arrow spellings accepted: `->` and `→`
+example : (procsig (Nat) → Bool) = (procsig (Nat) -> Bool) := rfl
+example : (proctype (Nat) → Bool) = (proctype (Nat) -> Bool) := rfl
+#check (proc_two_holes : proctype (Nat) → Nat uses ((Nat) → Bool, (Bool) → Nat))
+
 end GaudisCrypt.Language.Syntax.ProgTest
 
 
 open GaudisCrypt.Language.Programs
 open GaudisCrypt.Language.Modules
 
+/-! ## Concrete syntax for `ModuleType`
+
+`×` overloads the product token on `ModuleType.prod` (resolved against the expected type, like
+the `Prod` notation whose token and precedence it shares); `→ₘ` is a custom module arrow for
+`ModuleType.arr`.  `.proc`/`.unit` need no notation — dot notation (or `procmod …` for the
+former) resolves them wherever the expected type is `ModuleType` (both sides of `×`/`→ₘ`, a
+field ascription).  Both are `scoped` to `GaudisCrypt.Language.Modules`, so `open`ing that
+namespace activates them (and the `×` overload stays inert otherwise). -/
+namespace GaudisCrypt.Language.Modules
+scoped infixr:35 " × "  => ModuleType.prod
+scoped infixr:25 " →ₘ " => ModuleType.arr
+end GaudisCrypt.Language.Modules
+
 /-- A field `f : Module T` of a `moduletype` declaration. -/
 /- A field of a `moduletype` declaration: either `module f : T;` (explicit module type)
 or the shorthand `proc f (T₁, …) -> R;` (a procedure field). -/
 declare_syntax_cat moduletypeField
 syntax "module " ident " : " term ";" : moduletypeField
-syntax "proc " ident " (" term,* ")" " -> " term ";" : moduletypeField
+syntax "proc " ident " (" term,* ")" (" → " <|> " -> ") term ";" : moduletypeField
 
 /-- `moduletype Name { module f₁ : T₁; … ; module fₙ : Tₙ }` declares a record-like module
 type, where each `Tᵢ` is a `ModuleType`.  A field may also be written
@@ -786,10 +833,12 @@ elab_rules : command
       let fns ← fields.mapM fun f => match f with
         | `(moduletypeField| module $fn:ident : $_ ;)         => pure fn
         | `(moduletypeField| proc $fn:ident ( $_,* ) -> $_ ;) => pure fn
+        | `(moduletypeField| proc $fn:ident ( $_,* ) → $_ ;)  => pure fn
         | _ => throwUnsupportedSyntax
       let Ts ← fields.mapM fun f => match f with
         | `(moduletypeField| module $_ : $T:term ;) => pure T
-        | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;) =>
+        | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;)
+        | `(moduletypeField| proc $_ ( $ps,* ) → $ret:term ;) =>
             `(ModuleType.proc (ProcedureSignature.mk [$ps,*] $ret))
         | _ => throwUnsupportedSyntax
       -- the field/accessor types are `Module Tᵢ`
@@ -858,13 +907,48 @@ moduletype TestModuleType {
 moduletype TestModuleType {
   -- module main : ModuleType.proc (procsig (String, Nat) -> Bool);
   proc main (String, Nat) -> Bool;
-  module aux : ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) ModuleType.unit;
+  module aux : procmod (Nat) -> String →ₘ .unit;
 }
 
+/- ### `ModuleType` concrete syntax (`procmod`/`.proc`, `×` overloaded, `→ₘ` arrow, `.unit`)
 
+`procmod (…) -> R →ₘ .unit` (or `.proc (procsig (…) -> R) →ₘ .unit`) replaces
+`ModuleType.arr (ModuleType.proc …) ModuleType.unit`.  `×` binds tighter than `→ₘ`
+(35 vs 25), both right-associative. -/
 
-axiom testMain : Module (ModuleType.proc (procsig (String,Nat) -> Bool))
-axiom testAux : Module (ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) (ModuleType.unit))
+-- `procmod (…) -> R` = `ModuleType.proc (procsig (…) -> R)`
+example : (procmod (Nat) -> String : ModuleType) = ModuleType.proc (procsig (Nat) -> String) := rfl
+
+-- `procmod` composes under `→ₘ` (its return type binds tighter than the arrow)
+example : (procmod (Nat) -> String →ₘ .unit : ModuleType)
+    = ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) ModuleType.unit := rfl
+
+example : (.proc (procsig (Nat) -> String) →ₘ .unit : ModuleType)
+    = ModuleType.arr (ModuleType.proc (procsig (Nat) -> String)) ModuleType.unit := rfl
+
+-- `×` overloads `Prod`'s token; the `ModuleType` expected type selects `ModuleType.prod`.
+example : (procmod () -> Bool × .unit : ModuleType)
+    = ModuleType.prod (ModuleType.proc (procsig () -> Bool)) ModuleType.unit := rfl
+
+-- `procmod` and the `moduletype` proc-field accept the `→` arrow spelling too
+example : (procmod (Nat) → String : ModuleType) = procmod (Nat) -> String := rfl
+
+moduletype UnicodeArrowField {
+  proc f (Nat) → Bool;
+  module g : procmod (Bool) → Nat →ₘ .unit;
+}
+
+-- precedence: `×` tighter than `→ₘ`, `→ₘ` right-associative
+example : (.unit × .unit →ₘ .unit →ₘ .unit : ModuleType)
+    = ModuleType.arr (ModuleType.prod .unit .unit) (ModuleType.arr .unit .unit) := rfl
+
+-- prints back in the concrete form (`.proc …` and `procmod …` both print as `procmod …`)
+#check (procmod (Nat) -> String →ₘ .unit : ModuleType)
+#check (.proc (procsig (Nat) -> String) →ₘ .unit : ModuleType)
+#check (.unit × .unit →ₘ .unit : ModuleType)
+
+axiom testMain : Module (procmod (String, Nat) -> Bool)
+axiom testAux : Module (procmod (Nat) -> String →ₘ .unit)
 
 noncomputable
 def myMod := TestModuleType.mk {main := testMain, aux := testAux}
@@ -881,4 +965,5 @@ end Experiment
 -- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
 -- TODO: Allow _ in lvalues (translated to Setter.throwaway)
 -- TODO: Syntax for writing explicit modules (needed? or def + .mk is sufficient?)
--- TODO: Concrete syntax for module types (.arr, .proc, .unit, .proc)
+-- Concrete syntax for module types: `procmod (…) -> R` (proc) / `.proc`, `×` (prod, overloaded),
+--   `→ₘ` (arr), `.unit` via dot notation. See the `ModuleType concrete syntax` block above.

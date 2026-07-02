@@ -17,6 +17,7 @@ measure from its singletons and swap integration order **without any countabilit
 type** — replacing the `[Countable a]` side-conditions (the goal of subtask 4). -/
 
 /-- A measure on the discrete σ-algebra is *discrete* (purely atomic) when `μ A = ∑_{x∈A} μ{x}`. -/
+-- TODO: Alternative name: "trivial measure", following https://www1.essex.ac.uk/maths/people/fremlin/rvmc.pdf, page 3
 def discreteMeasure {a : Type u} (mu : @MeasureTheory.Measure a ⊤) : Prop :=
   ∀ A : Set a, mu A = ∑' x : A, mu {(x : a)}
 
