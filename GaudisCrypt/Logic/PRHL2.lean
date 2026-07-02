@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.PRHL.Prhl
+import GaudisCrypt.Footprint
 
 open GaudisCrypt.Language.Lens
 
@@ -1348,10 +1349,102 @@ theorem ProgramDenotation.relE.to_prhl2 {s₁ s₂ α β : Type}
 /-- The two relational logics **coincide** over countable carriers
     (discrete, modulo the Strassen axiom). -/
 theorem ProgramDenotation.prhl2_iff_relE {s₁ s₂ α β : Type}
-   
+
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop} :
     ProgramDenotation.prhl2 Pre c d Post ↔ c.relE d Pre Post :=
   ⟨fun h => h.to_relE, fun h => h.to_prhl2⟩
+
+
+/-! ## Footprint-confined adversary self-coupling
+
+A program confined to a `Footprint` `R` self-couples under `={glob}` — from states agreeing on the
+touched content it returns equal results and states again agreeing on the touched content.  The
+`EqvGen`-closure of a single deterministic `Rᶜ`-step, glued by coupling transitivity. -/
+
+/-- **Adversary rule — single `Rᶜ`-step** (footprint `glob`).  A program confined to `R`, run from
+    a state `σ` and its image `f σ` under one deterministic `Rᶜ`-update, self-couples: equal
+    results, output states again one `Rᶜ`-step apart.  This is the base case of the `={glob A}`
+    adversary rule for `glob A = R.touched_getter`.  The full rule is its `EqvGen` closure over the
+    `Rᶜ`-orbit. -/
+theorem adversary_couple_step {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
+    ∃ μ : SubProbability ((a × s) × (a × s)),
+      (μ >>= fun x => (pure x.1 : SubProbability (a × s))) = p σ ∧
+      (μ >>= fun x => (pure x.2 : SubProbability (a × s))) = p (f σ) ∧
+      μ.satisfies (fun x => x.1.1 = x.2.1 ∧
+        ∃ g : Function.End s, diracKer g ∈ Rᶜ.updates ∧ g x.1.2 = x.2.2) := by
+  refine ⟨p σ >>= fun xs => pure ((xs.1, xs.2), (xs.1, f xs.2)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind, Prod.mk.eta, SubProbability.bind_pure]
+  · rw [SubProbability.bind_assoc']
+    simp only [SubProbability.pure_bind]
+    exact (inFootprint_subprob hp hf σ).symm
+  · exact SubProbability.satisfies_bind _
+      (fun xs _ => SubProbability.satisfies_pure _ _ ⟨rfl, f, hf, rfl⟩)
+
+/-- **Adversary rule (full), footprint `glob`.**  A program confined to `R` self-couples under
+    `={glob A}` (with `glob A = R.touched_getter`): from states agreeing on `glob A` it returns
+    equal results and states that again agree on `glob A`.  The `EqvGen`-closure of
+    `adversary_couple_step` — `refl`/`symm`/`trans` on `prhl2` (the `trans` = coupling gluing,
+    `ProgramDenotation.prhl2.trans`, discrete disintegration). -/
+theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+    (hp : p.inFootprint R) :
+    ProgramDenotation.prhl2 (fun x y => R.touched_getter.get x = R.touched_getter.get y) p p
+      (fun u v => u.1 = v.1 ∧ R.touched_getter.get u.2 = R.touched_getter.get v.2) := by
+  -- The one-step `Rᶜ`-orbit relation and its equivalence closure.
+  set r : s → s → Prop := fun t t' => ∃ f : Function.End s, diracKer f ∈ Rᶜ.updates ∧ f t = t'
+    with hr
+  set E : s → s → Prop := Relation.EqvGen r with hE
+  -- `touched_getter`-equality is exactly the `EqvGen` relation `E` (via `Quotient.eq`).
+  have hgetter : ∀ x y : s, R.touched_getter.get x = R.touched_getter.get y ↔ E x y := by
+    intro x y
+    change Quotient.mk Rᶜ.orbit_setoid x = Quotient.mk Rᶜ.orbit_setoid y ↔ E x y
+    rw [Quotient.eq]
+    rfl
+  -- Point-precondition auxiliary, proved by induction on the `EqvGen` derivation.
+  have aux : ∀ x y : s, E x y →
+      ProgramDenotation.prhl2 (fun a b => a = x ∧ b = y) p p
+        (fun u v => u.1 = v.1 ∧ E u.2 v.2) := by
+    intro x y h
+    induction h with
+    | rel x y hxy =>
+      obtain ⟨f, hf, hfxy⟩ := hxy
+      intro σ₁ σ₂ hpre
+      obtain ⟨e1, e2⟩ := hpre
+      rw [e1, e2]
+      obtain ⟨μ, hm1, hm2, hsat⟩ := adversary_couple_step hp hf x
+      refine ⟨μ, hm1, ?_, ?_⟩
+      · rw [hm2, hfxy]
+      · intro w hw
+        obtain ⟨heq, g, hg, hgw⟩ := hsat w hw
+        exact ⟨heq, Relation.EqvGen.rel _ _ ⟨g, hg, hgw⟩⟩
+    | refl x =>
+      intro σ₁ σ₂ hpre
+      obtain ⟨e1, e2⟩ := hpre
+      rw [e1, e2]
+      refine ⟨p x >>= fun w => pure (w, w), ?_, ?_, ?_⟩
+      · rw [SubProbability.bind_assoc']
+        simp only [SubProbability.pure_bind, SubProbability.bind_pure]
+      · rw [SubProbability.bind_assoc']
+        simp only [SubProbability.pure_bind, SubProbability.bind_pure]
+      · exact SubProbability.satisfies_bind _
+          (fun w _ => SubProbability.satisfies_pure _ _ ⟨rfl, Relation.EqvGen.refl _⟩)
+    | symm x y _hxy ih =>
+      refine (ih.symm).conseq (fun σ₁ σ₂ hpre => ⟨hpre.2, hpre.1⟩) ?_
+      rintro u v ⟨heq, hEvu⟩
+      exact ⟨heq.symm, Relation.EqvGen.symm _ _ hEvu⟩
+    | trans x m y _hxm _hmy ihxm ihmy =>
+      refine (ihxm.trans ihmy).conseq (fun σ₁ σ₂ hpre => ⟨m, ⟨hpre.1, rfl⟩, rfl, hpre.2⟩) ?_
+      rintro u v ⟨w, ⟨heq₁, hE₁⟩, heq₂, hE₂⟩
+      exact ⟨heq₁.trans heq₂, Relation.EqvGen.trans _ _ _ hE₁ hE₂⟩
+  -- Assemble the main goal from the auxiliary and the getter/`EqvGen` bridge.
+  intro x y hxy
+  have hExy : E x y := (hgetter x y).mp hxy
+  obtain ⟨μ, hm1, hm2, hsat⟩ := aux x y hExy x y ⟨rfl, rfl⟩
+  refine ⟨μ, hm1, hm2, ?_⟩
+  intro w hw
+  obtain ⟨heq, hEw⟩ := hsat w hw
+  exact ⟨heq, (hgetter _ _).mpr hEw⟩
 
 end GaudisCrypt.Language.Semantics

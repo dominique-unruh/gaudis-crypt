@@ -1,4 +1,5 @@
 import GaudisCrypt.Language.Semantics
+import GaudisCrypt.Misc
 
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Lens
@@ -1126,3 +1127,114 @@ theorem _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.get_get_commute_
       (ProgramDenotation.inFootprint_get l')
 
 end Commute
+
+
+/-! ## `while_loop` confinement (fixpoint)
+
+A while loop whose guard and body are confined to `R` is itself confined to `R`.  The loop is the
+least fixpoint of `while_iteration`; each Kleene iterate is confined and confinement is closed under
+ω-suprema of chains. -/
+
+/-- `⊥` (the always-diverging program) lies in every footprint: it commutes with all kernels. -/
+theorem inFootprint_bot {s a : Type} (R : Footprint s) :
+    (⊥ : ProgramDenotation s a).inFootprint R := by
+  rw [inFootprint_iff_clean]
+  intro f hf
+  funext st
+  show (f st >>= fun _ => (⊥ : SubProbability (a × s)))
+     = ((⊥ : SubProbability (a × s)) >>= fun w => f w.2 >>= fun st'' => pure (w.1, st''))
+  rw [SubProbability.bot_bind, SubProbability.bind_bot]
+
+open OmegaCompletePartialOrder in
+/-- The "run outside kernel first" side of the `inFootprint` equation, as a map of the program `p`,
+    is ω-Scott-continuous (rewritten as a `ProgramDenotation` bind so `bind_ωScottContinuous`
+    applies). -/
+theorem inFootprint_sideL_cont {s a : Type} (f : s → SubProbability s) :
+    ωScottContinuous (fun p : ProgramDenotation s a => (fun st => f st >>= fun st' => p st')) := by
+  set pf : ProgramDenotation s Unit :=
+    (fun st => f st >>= fun st' => (pure ((), st') : SubProbability (Unit × s))) with hpf
+  have hbind : ∀ p : ProgramDenotation s a,
+      (fun st => f st >>= fun st' => p st') = pf >>= (fun _ => p) := by
+    intro p; funext st
+    show f st >>= (fun st' => p st')
+       = (f st >>= fun st' => (pure ((), st') : SubProbability (Unit × s))) >>= (fun w => p w.2)
+    rw [SubProbability.bind_assoc]; congr 1; funext st'; rw [SubProbability.pure_bind]
+  rw [show (fun p : ProgramDenotation s a => (fun st => f st >>= fun st' => p st'))
+      = (fun p : ProgramDenotation s a => pf >>= (fun _ => p)) from funext hbind]
+  refine ProgramDenotation.bind_ωScottContinuous (fun _ => pf) (fun p _ => p) ?_
+    ωScottContinuous.const
+  exact ωScottContinuous.of_monotone_map_ωSup ⟨fun _ _ hle _ => hle, fun ch => by funext _; rfl⟩
+
+open OmegaCompletePartialOrder in
+/-- The "run outside kernel last" side of the `inFootprint` equation is ω-Scott-continuous. -/
+theorem inFootprint_sideR_cont {s a : Type} (f : s → SubProbability s) :
+    ωScottContinuous (fun p : ProgramDenotation s a =>
+      (fun st => p st >>= fun w : a × s =>
+        f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))) :=
+  ProgramDenotation.bind_ωScottContinuous (fun p => p)
+    (fun _ (w : a) (st' : s) => f st' >>= fun st'' => (pure (w, st'') : SubProbability (a × s)))
+    ωScottContinuous.const ωScottContinuous.id
+
+open OmegaCompletePartialOrder in
+/-- **`inFootprint R` is closed under ω-suprema of chains.**  Both sides of the clean commutation
+    equation are ω-Scott-continuous in the program, so if every chain element self-commutes, the
+    supremum does too — the admissibility needed for the `while_loop` fixpoint. -/
+theorem inFootprint_ωSup {s a : Type} (R : Footprint s)
+    (c : Chain (ProgramDenotation s a)) (hc : ∀ n, (c n).inFootprint R) :
+    (ωSup c).inFootprint R := by
+  rw [inFootprint_iff_clean]
+  intro f hf
+  have hLeq := (inFootprint_sideL_cont (a := a) f).map_ωSup c
+  have hReq := (inFootprint_sideR_cont (a := a) f).map_ωSup c
+  show (fun st => f st >>= fun st' => (ωSup c) st') = _
+  rw [hLeq, hReq]
+  apply congrArg ωSup
+  refine Chain.ext (funext fun n => ?_)
+  show (fun st => f st >>= fun st' => (c n) st') = _
+  exact (inFootprint_iff_clean.mp (hc n)) f hf
+
+/-- One unrolling of the `while_iteration` operator preserves `inFootprint R` (given the guard and
+    body do). -/
+theorem while_iter_inFootprint {s : Type} (R : Footprint s)
+    (cond : ProgramDenotation s Bool) (body : ProgramDenotation s Unit)
+    (hcond : cond.inFootprint R) (hbody : body.inFootprint R)
+    (g : Unit → ProgramDenotation s Unit) (hg : (g ()).inFootprint R) :
+    ((while_iteration cond body) g ()).inFootprint R := by
+  show ((do if ← cond then body; g () else return ()) : ProgramDenotation s Unit).inFootprint R
+  apply ProgramDenotation.inFootprint_bind hcond
+  intro bc
+  cases bc with
+  | true => exact ProgramDenotation.inFootprint_bind hbody (fun _ => hg)
+  | false => exact ProgramDenotation.inFootprint_pure () R
+
+open OmegaCompletePartialOrder in
+/-- **`while_loop` confinement.**  A while loop whose guard and body are confined to `R` is itself
+    confined to `R`.  The loop is the least fixpoint `⨆ₙ Fⁿ⊥` of `while_iteration`; each Kleene
+    iterate is confined (`inFootprint_bot`/`while_iter_inFootprint`), and `inFootprint_ωSup` passes
+    this to the supremum. -/
+theorem while_loop_inFootprint {s : Type} (R : Footprint s)
+    (cond : ProgramDenotation s Bool) (body : ProgramDenotation s Unit)
+    (hcond : cond.inFootprint R) (hbody : body.inFootprint R) :
+    (while_loop cond body).inFootprint R := by
+  set F := while_iteration cond body with hF
+  have hmono : Monotone (fun n => (⇑F)^[n] ⊥) := by
+    apply monotone_nat_of_le_succ
+    intro n
+    induction n with
+    | zero => simp only [Function.iterate_zero, id_eq, Function.iterate_one]; exact bot_le
+    | succ m ih =>
+        rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
+        exact F.monotone ih
+  have hiter : ∀ n, ((⇑F)^[n] ⊥ ()).inFootprint R := by
+    intro n
+    induction n with
+    | zero => exact inFootprint_bot R
+    | succ m ih =>
+        rw [Function.iterate_succ_apply']
+        exact while_iter_inFootprint R cond body hcond hbody _ ih
+  show (F.lfp ()).inFootprint R
+  rw [show F.lfp
+      = ωSup (⟨fun n => (⇑F)^[n] ⊥, hmono⟩ : Chain (Unit → ProgramDenotation s Unit)) from rfl]
+  show (ωSup (⟨fun n => (⇑F)^[n] ⊥ (), fun _ _ hmn => hmono hmn ()⟩ :
+      Chain (ProgramDenotation s Unit))).inFootprint R
+  exact inFootprint_ωSup R _ hiter

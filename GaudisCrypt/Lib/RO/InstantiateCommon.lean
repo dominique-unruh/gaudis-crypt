@@ -3,6 +3,7 @@ import GaudisCrypt.Lib.RO.Transfer
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Footprint
+import GaudisCrypt.FV
 
 /-!
 # Instantiate: shared base
@@ -472,5 +473,332 @@ theorem confinedP_of_fv {holes : HoleSigs} {l : Type}
   | .«while» c t, h =>
       ⟨get_confinedP_of_fv c (le_sup_left.trans h),
         confinedP_of_fv R hc t (le_sup_right.trans h)⟩
+
+
+
+/-! ### Self-soundness and the `lift`/`procedureDenotation` footprint bounds for `call'`. -/
+
+/-- **Self-soundness of the pipeline footprint**: the denotation of a statement is confined to its
+    own semantic footprint `Instantiate.fvP_stmt s`.  Leaves are equalities; the compound nodes use
+    `footprint_bind_le` + the recursive bound; `while` uses `while_loop_inFootprint`. -/
+theorem programDenotation_footprint_le_fvP_stmt {l : Type} :
+    ∀ (s : Stmt l), (programDenotation s).footprint ≤ fvP_stmt s
+  | .skip => by
+      rw [programDenotation.eq_1]
+      show (ProgramDenotation.skip : ProgramDenotation (ProcedureState l) Unit).footprint
+          ≤ fvP_stmt (StmtWithHoles.skip)
+      rw [show fvP_stmt (StmtWithHoles.skip) = (⊥ : Footprint (ProcedureState l)) from rfl]
+      apply ProgramDenotation.footprint_le_of_inFootprint
+      rw [ProgramDenotation.skip]
+      exact ProgramDenotation.inFootprint_pure () ⊥
+  | .sample x e => by
+      rw [show fvP_stmt (StmtWithHoles.sample x e)
+          = (programDenotation (StmtWithHoles.sample x e : Stmt l)).footprint from rfl]
+  | .call' x ls b r p => by
+      rw [show fvP_stmt (StmtWithHoles.call' x ls b r p)
+          = (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).footprint from rfl]
+  | .seq s1 s2 => by
+      rw [programDenotation.eq_3]
+      rw [show fvP_stmt (StmtWithHoles.seq s1 s2) = fvP_stmt s1 ⊔ fvP_stmt s2 from rfl]
+      refine le_trans (ProgramDenotation.footprint_bind_le _ _) (sup_le ?_ ?_)
+      · exact le_trans (programDenotation_footprint_le_fvP_stmt s1) le_sup_left
+      · exact iSup_le fun _ => le_trans (programDenotation_footprint_le_fvP_stmt s2) le_sup_right
+  | .ifThenElse c t e => by
+      rw [programDenotation.eq_4]
+      rw [show fvP_stmt (StmtWithHoles.ifThenElse c t e)
+          = (ProgramDenotation.get c).footprint ⊔ fvP_stmt t ⊔ fvP_stmt e from rfl]
+      refine le_trans (ProgramDenotation.footprint_bind_le _ _) (sup_le ?_ ?_)
+      · exact le_trans le_sup_left le_sup_left
+      · refine iSup_le fun bcond => ?_
+        cases bcond with
+        | true =>
+            exact le_trans (programDenotation_footprint_le_fvP_stmt t)
+              (le_trans le_sup_right le_sup_left)
+        | false =>
+            exact le_trans (programDenotation_footprint_le_fvP_stmt e) le_sup_right
+  | .while c t => by
+      rw [programDenotation.eq_5]
+      rw [show fvP_stmt (StmtWithHoles.while c t)
+          = (ProgramDenotation.get c).footprint ⊔ fvP_stmt t from rfl]
+      apply ProgramDenotation.footprint_le_of_inFootprint
+      exact while_loop_inFootprint _ (ProgramDenotation.get c) (programDenotation t)
+        (ProgramDenotation.inFootprint_of_footprint_le le_sup_left)
+        (ProgramDenotation.inFootprint_of_footprint_le
+          (le_trans (programDenotation_footprint_le_fvP_stmt t) le_sup_right))
+  termination_by s => s.depth
+  decreasing_by all_goals (simp only [StmtWithHoles.depth]; omega)
+
+/-- **The footprint of a lens-lift is bounded by the `liftFootprint` of the inner footprint.**  Each
+    return-value slice of `L.lift Q` is the `L`-lift of the corresponding slice of `Q`, so every
+    generator of `(L.lift Q).footprint` is a generator of `liftFootprint L Q.footprint`. -/
+theorem lift_footprint_le {c s a : Type} (L : Lens c s) (Q : ProgramDenotation c a) :
+    (L.lift Q).footprint ≤ Lens.liftFootprint L (Q.footprint) := by
+  refine (Footprint.from_le_iff _ _).mpr ?_
+  rintro _ ⟨y, rfl⟩
+  show (fun st => (L.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
+      ∈ (Lens.liftFootprint L Q.footprint).updates
+  have hgen : (fun st => (L.lift Q) st >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
+      = L.liftSubProbability
+          (fun cc => Q cc >>= fun xc : a × c => if xc.1 = y then pure xc.2 else ⊥) := by
+    funext σ
+    show ((Q (L.get σ) >>= fun xc : a × c => (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s)))
+        >>= fun w : a × s => if w.1 = y then pure w.2 else ⊥)
+      = (Q (L.get σ) >>= fun xc : a × c => if xc.1 = y then pure xc.2 else ⊥)
+          >>= fun c' => pure (L.set c' σ)
+    rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+    congr 1; funext xc
+    rw [SubProbability.pure_bind]
+    by_cases h : xc.1 = y
+    · rw [if_pos h, if_pos h, SubProbability.pure_bind]
+    · rw [if_neg h, if_neg h, SubProbability.bot_bind]
+  rw [hgen]
+  unfold Lens.liftFootprint
+  rw [Footprint.from_updates]
+  refine Set.subset_centralizer_centralizer ⟨_, ?_, rfl⟩
+  exact (Footprint.from_le_iff _ Q.footprint).mp le_rfl ⟨y, rfl⟩
+
+open MeasureTheory in
+/-- **Core `call'` commutation.**  Given that the body `pb` and the return getter `r` both commute
+    with `globalL.liftSubProbability f`, the reduced procedure denotation commutes with `f` — the
+    heart of the `procedureDenotation` footprint bound. -/
+theorem procDenot_core {sig : ProcedureSignature}
+    (ls : List (Σ t : Type, Inhabited t))
+    (r : Getter sig.ret (ProcedureState (sig.LocalVariableState ls)))
+    (σ : State)
+    (f : State → SubProbability State)
+    (pb : ProgramDenotation (ProcedureState (sig.LocalVariableState ls)) Unit)
+    (init : sig.LocalVariableState ls)
+    (hbc : (fun st => (ProcedureState.globalL.liftSubProbability f) st >>= pb)
+        = (fun st => pb st >>= fun w =>
+            (ProcedureState.globalL.liftSubProbability f) w.2 >>= fun st'' =>
+              (pure (w.1, st'') :
+                SubProbability (Unit × ProcedureState (sig.LocalVariableState ls)))))
+    (hrc : (fun st =>
+        (ProcedureState.globalL.liftSubProbability f) st >>= (ProgramDenotation.get r))
+        = (fun st => (ProgramDenotation.get r) st >>= fun w =>
+            (ProcedureState.globalL.liftSubProbability f) w.2 >>= fun st'' =>
+              (pure (w.1, st'') :
+                SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))) :
+    (f σ >>= fun σ' => pb ⟨σ', init⟩ >>= fun w =>
+        (pure (r.get w.2, w.2.global) : SubProbability (sig.ret × State)))
+      = (pb ⟨σ, init⟩ >>= fun w =>
+          (pure (r.get w.2, w.2.global) : SubProbability (sig.ret × State)))
+          >>= fun u => f u.2 >>= fun s'' => pure (u.1, s'') := by
+  set F := ProcedureState.globalL.liftSubProbability f with hFdef
+  have step1 : (f σ >>= fun σ' => pb ⟨σ', init⟩) = F ⟨σ, init⟩ >>= pb := by
+    rw [hFdef, globalL_liftSubProbability_pad, SubProbability.bind_assoc]
+    congr 1; funext a; rw [SubProbability.pure_bind]
+  have hLHS : (f σ >>= fun σ' => pb ⟨σ', init⟩ >>= fun w =>
+        (pure (r.get w.2, w.2.global) : SubProbability (sig.ret × State)))
+      = (f σ >>= fun σ' => pb ⟨σ', init⟩) >>= fun w =>
+          (pure (r.get w.2, w.2.global) : SubProbability (sig.ret × State)) := by
+    rw [SubProbability.bind_assoc]
+  rw [hLHS, step1]
+  have hbcσ := congrFun hbc ⟨σ, init⟩
+  rw [hbcσ, SubProbability.bind_assoc, SubProbability.bind_assoc]
+  congr 1; funext w
+  rw [SubProbability.pure_bind, SubProbability.bind_assoc]
+  have hLcont : (F w.2 >>= fun s'' =>
+        (pure (w.1, s'') : SubProbability (Unit × ProcedureState (sig.LocalVariableState ls)))
+        >>= fun w' => pure (r.get w'.2, w'.2.global))
+      = F w.2 >>= fun s'' => (pure (r.get s'', s''.global) : SubProbability (sig.ret × State)) := by
+    congr 1; funext s''; rw [SubProbability.pure_bind]
+  rw [hLcont]
+  have hget : ∀ s' : ProcedureState (sig.LocalVariableState ls),
+      (ProgramDenotation.get r) s' = pure (r.get s', s') := by
+    intro s'
+    simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure,
+      StateT.pure, id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  have hrcw0 := congrFun hrc w.2
+  have hrcw : (F w.2 >>= fun s' =>
+        (pure (r.get s', s') :
+          SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+      = F w.2 >>= fun s'' =>
+          (pure (r.get w.2, s'') :
+            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))) := by
+    have hL : (F w.2 >>= fun s' =>
+          (pure (r.get s', s') :
+            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+        = F w.2 >>= ProgramDenotation.get r := by
+      congr 1; funext s'; rw [hget s']
+    have hR : ((ProgramDenotation.get r) w.2 >>= fun v => F v.2 >>= fun s'' =>
+          (pure (v.1, s'') :
+            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+        = F w.2 >>= fun s'' =>
+            (pure (r.get w.2, s'') :
+              SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))) := by
+      rw [hget w.2, SubProbability.pure_bind]
+    rw [hL, hrcw0, hR]
+  have hsplit : (F w.2 >>= fun s'' =>
+        (pure (r.get s'', s''.global) : SubProbability (sig.ret × State)))
+      = (F w.2 >>= fun s' =>
+          (pure (r.get s', s') :
+            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+          >>= fun u => pure (u.1, u.2.global) := by
+    rw [SubProbability.bind_assoc]; congr 1; funext s''; rw [SubProbability.pure_bind]
+  rw [hsplit, hrcw, SubProbability.bind_assoc]
+  have hfin : (F w.2 >>= fun s'' =>
+        (pure (r.get w.2, s'') :
+          SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls)))
+        >>= fun u => pure (u.1, u.2.global))
+      = F w.2 >>= fun s'' => (pure (r.get w.2, s''.global) : SubProbability (sig.ret × State)) := by
+    congr 1; funext s''; rw [SubProbability.pure_bind]
+  rw [hfin, hFdef, globalL_liftSubProbability_global]
+
+/-- **The reduced procedure denotation is confined to the `globalL`-reduction of its body+return
+    footprint.**  Ingredient of the `call'` FV-soundness case: `f` outside `fvP_reduce globalL Y`
+    lifts to `globalL.liftSubProbability f ∈ Yᶜ` (Fubini), so the body and return getter commute
+    with it, and `procDenot_core` then commutes the whole procedure with `f`. -/
+theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
+    (ls : List (Σ t : Type, Inhabited t))
+    (b : StmtWithHoles HoleSigs.empty (sig.LocalVariableState ls))
+    (r : Getter sig.ret (ProcedureState (sig.LocalVariableState ls)))
+    (av : sig.ParamType)
+    (Y : Footprint (ProcedureState (sig.LocalVariableState ls)))
+    (hb : (programDenotation b).footprint ≤ Y)
+    (hr : (ProgramDenotation.get r).footprint ≤ Y) :
+    (procedureDenotation ⟨ls, b, r⟩ av).inFootprint (fvP_reduce ProcedureState.globalL Y) := by
+  rw [inFootprint_iff_clean]
+  intro f hf
+  have hF : ProcedureState.globalL.liftSubProbability f ∈ Yᶜ.updates := by
+    show ProcedureState.globalL.liftSubProbability f ∈ Submonoid.centralizer Y.updates
+    rw [Submonoid.mem_centralizer_iff]
+    intro k hk
+    apply Lens.reduceSubProbability_ext ProcedureState.globalL
+    intro i o
+    have hgen : Lens.reduceSubProbability ProcedureState.globalL (k, i, o)
+        ∈ (fvP_reduce ProcedureState.globalL Y).updates := by
+      rw [fvP_reduce_eq_from, Footprint.from_updates]
+      exact Set.subset_centralizer_centralizer
+        ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
+    have hcomm : Lens.reduceSubProbability ProcedureState.globalL (k, i, o) * f
+        = f * Lens.reduceSubProbability ProcedureState.globalL (k, i, o) :=
+      (Submonoid.mem_centralizer_iff.mp hf) _ hgen
+    rw [reduceBaseGen_mul_right, reduceBaseGen_mul_left] at hcomm
+    exact hcomm
+  have hbc := (inFootprint_iff_clean.mp (ProgramDenotation.inFootprint_of_footprint_le hb)) _ hF
+  have hrc := (inFootprint_iff_clean.mp (ProgramDenotation.inFootprint_of_footprint_le hr)) _ hF
+  funext σ
+  rw [show procedureDenotation ⟨ls, b, r⟩ av
+      = (fun st => programDenotation b ⟨st, sig.localVariableInit ls av⟩
+          >>= fun w => pure (r.get w.2, w.2.global)) from ?_]
+  · exact procDenot_core ls r σ f (programDenotation b) (sig.localVariableInit ls av) hbc hrc
+  · funext st; rw [procedureDenotation]
+
+/-- **The `call'` leaf's footprint is bounded by FV's syntactic footprint.**  The nested call
+    denotation is `get p; zoom globalL (procedureDenotation …); set x`; each piece is bounded — the
+    `zoom` via `lift_footprint_le` + `procedureDenotation_inFootprint_reduce` + self-soundness of
+    the body — and the transferred sub-body/return footprints match FV's `transfer` summands.  Takes
+    the body's FV soundness `hbody` as a hypothesis (from the recursive `fvP_stmt_le_FVP`). -/
+theorem fvP_stmt_call_le {holes : HoleSigs} {l : Type} {sig : ProcedureSignature}
+    (x : Setter sig.ret (ProcedureState l))
+    (ls : List (Σ t : Type, Inhabited t))
+    (b : StmtWithHoles HoleSigs.empty (sig.LocalVariableState ls))
+    (r : Getter sig.ret (ProcedureState (sig.LocalVariableState ls)))
+    (p : Getter sig.ParamType (ProcedureState l))
+    (hbody : fvP_stmt b ≤ FVP.fvP_stmt b) :
+    fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p)
+      ≤ FVP.fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p) := by
+  rw [show FVP.fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p) =
+      ProgramDenotation.footprint' (ProgramDenotation.set x) ⊔
+      (Lens.liftFootprint ProcedureState.globalL
+          (fvP_reduce ProcedureState.globalL (FVP.fvP_stmt b)) ⊔
+      (Lens.liftFootprint ProcedureState.globalL
+          (fvP_reduce ProcedureState.globalL ((ProgramDenotation.get r).footprint)) ⊔
+      (ProgramDenotation.get p).footprint)) from rfl]
+  rw [show fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p)
+      = (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).footprint from rfl]
+  rw [programDenotation.eq_6]
+  refine le_trans (ProgramDenotation.footprint_bind_le _ _) (sup_le ?_ ?_)
+  · exact le_trans le_sup_right (le_trans le_sup_right le_sup_right)
+  · refine iSup_le fun av => ?_
+    refine le_trans (ProgramDenotation.footprint_bind_le _ _) (sup_le ?_ ?_)
+    · show (ProcedureState.globalL.lift (procedureDenotation ⟨ls, b, r⟩ av)).footprint ≤ _
+      refine le_trans (lift_footprint_le _ _) ?_
+      set Y := (programDenotation b).footprint ⊔ (ProgramDenotation.get r).footprint with hY
+      have hpr : (procedureDenotation ⟨ls, b, r⟩ av).footprint
+          ≤ fvP_reduce ProcedureState.globalL Y :=
+        ProgramDenotation.footprint_le_of_inFootprint
+          (procedureDenotation_inFootprint_reduce ls b r av Y le_sup_left le_sup_right)
+      refine le_trans (Lens.liftFootprint_mono _ hpr) ?_
+      have hYle : Y ≤ FVP.fvP_stmt b ⊔ (ProgramDenotation.get r).footprint := by
+        refine sup_le ?_ le_sup_right
+        exact le_trans (le_trans (programDenotation_footprint_le_fvP_stmt b) hbody) le_sup_left
+      refine le_trans (Lens.liftFootprint_mono _ (fvP_reduce_mono _ hYle)) ?_
+      rw [fvP_reduce_sup, Lens.liftFootprint_sup]
+      exact sup_le (le_trans le_sup_left le_sup_right)
+        (le_trans (le_trans le_sup_left le_sup_right) le_sup_right)
+    · exact iSup_le fun rv => by
+        rw [ProgramDenotation.footprint']
+        exact le_trans (le_iSup (fun z => (ProgramDenotation.set x z).footprint) rv) le_sup_left
+
+/-- **The sample leaf's footprint is bounded by `setter x ⊔ getter e`** — the `sample` case of FV
+    soundness, isolated (so unification never has to reduce `programDenotation` while matching the
+    outer join).  The inner `sample`-body `μ.toProgramDenotation >>= set x` lands in `setter x` (its
+    sampled part is `⊥`), and the leading `get e` in `getter e`. -/
+theorem fvP_stmt_sample_le {holes : HoleSigs} {l a : Type} (x : Setter a (ProcedureState l))
+    (e : Getter (SubProbability a) (ProcedureState l)) :
+    fvP_stmt (StmtWithHoles.sample (h := holes) x e)
+      ≤ FVP.fvP_stmt (StmtWithHoles.sample (h := holes) x e) := by
+  rw [show FVP.fvP_stmt (StmtWithHoles.sample (h := holes) x e) =
+      ProgramDenotation.footprint' (ProgramDenotation.set x) ⊔
+        (ProgramDenotation.get e).footprint from rfl]
+  rw [show fvP_stmt (StmtWithHoles.sample (h := holes) x e)
+      = (programDenotation (StmtWithHoles.sample x e : Stmt l)).footprint from rfl]
+  rw [programDenotation.eq_2]
+  -- Inner bound: the sample-body lands in `footprint' (set x)`.
+  have hinner : ∀ μ : SubProbability a,
+      (μ.toProgramDenotation >>= fun v => ProgramDenotation.set x v).footprint
+        ≤ ProgramDenotation.footprint' (ProgramDenotation.set x) := by
+    intro μ
+    refine le_trans (ProgramDenotation.footprint_bind_le _ _) (sup_le ?_ ?_)
+    · exact le_trans (ProgramDenotation.footprint_le_of_inFootprint
+        (inFootprint_toProgramDenotation μ)) bot_le
+    · exact iSup_le fun v => le_iSup (fun ret => (ProgramDenotation.set x ret).footprint) v
+  refine le_trans (ProgramDenotation.footprint_bind_le _ _) (sup_le ?_ ?_)
+  · exact le_sup_right
+  · exact le_trans (iSup_le hinner) le_sup_left
+
+/-- **FV soundness (statement level)** — ingredient (A): the pipeline's *semantic* per-statement
+    footprint `Instantiate.fvP_stmt s` is bounded by FV's *syntactic* one `FVP.fvP_stmt s`.  By
+    structural recursion on `s`: leaves are bounded via `footprint_bind_le` (matching `setter`/
+    `getter`), the `call'` leaf via `fvP_stmt_call_le` (fed the body's recursive bound), and the
+    structural nodes by `⊔`-monotonicity + the recursive bound. -/
+theorem fvP_stmt_le_FVP {holes : HoleSigs} {l : Type} :
+    ∀ (s : StmtWithHoles holes l), fvP_stmt s ≤ FVP.fvP_stmt s
+  | .skip => by
+      show fvP_stmt (StmtWithHoles.skip) ≤ FVP.fvP_stmt (StmtWithHoles.skip)
+      simp only [fvP_stmt]
+      exact bot_le
+  | .sample x e => fvP_stmt_sample_le x e
+  | .call' x ls b r p => fvP_stmt_call_le x ls b r p (fvP_stmt_le_FVP b)
+  | .hole n x p => by
+      rw [show FVP.fvP_stmt (StmtWithHoles.hole n x p) =
+          ProgramDenotation.footprint' (ProgramDenotation.set x) ⊔
+            (ProgramDenotation.get p).footprint from rfl]
+      rw [show fvP_stmt (StmtWithHoles.hole n x p) =
+          (ProgramDenotation.get p).footprint ⊔
+            (⨆ ret, (ProgramDenotation.set x ret).footprint) from rfl]
+      rw [sup_comm, ProgramDenotation.footprint']
+  | .seq s1 s2 => by
+      rw [show FVP.fvP_stmt (StmtWithHoles.seq s1 s2) =
+          FVP.fvP_stmt s1 ⊔ FVP.fvP_stmt s2 from rfl]
+      rw [show fvP_stmt (StmtWithHoles.seq s1 s2) = fvP_stmt s1 ⊔ fvP_stmt s2 from rfl]
+      exact sup_le_sup (fvP_stmt_le_FVP s1) (fvP_stmt_le_FVP s2)
+  | .ifThenElse c t e => by
+      rw [show FVP.fvP_stmt (StmtWithHoles.ifThenElse c t e) =
+          (ProgramDenotation.get c).footprint ⊔ (FVP.fvP_stmt t ⊔ FVP.fvP_stmt e) from rfl]
+      rw [show fvP_stmt (StmtWithHoles.ifThenElse c t e) =
+          (ProgramDenotation.get c).footprint ⊔ fvP_stmt t ⊔ fvP_stmt e from rfl]
+      rw [sup_assoc]
+      exact sup_le_sup_left (sup_le_sup (fvP_stmt_le_FVP t) (fvP_stmt_le_FVP e)) _
+  | .«while» c t => by
+      rw [show FVP.fvP_stmt (StmtWithHoles.while c t) =
+          (ProgramDenotation.get c).footprint ⊔ FVP.fvP_stmt t from rfl]
+      rw [show fvP_stmt (StmtWithHoles.while c t) =
+          (ProgramDenotation.get c).footprint ⊔ fvP_stmt t from rfl]
+      exact sup_le_sup_left (fvP_stmt_le_FVP t) _
+  termination_by s => s.depth
+  decreasing_by all_goals (simp only [StmtWithHoles.depth]; omega)
 
 end GaudisCrypt.Lib.RO.Instantiate

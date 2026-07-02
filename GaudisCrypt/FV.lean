@@ -925,3 +925,116 @@ def fvP_stmt {s holes} (stmt : StmtWithHoles holes s) : Footprint (ProcedureStat
   fvpInductiveFunctionGS.stmt stmt
 
 end FVP
+
+
+/-! ## Footprint/reduce/lift algebra
+
+General footprint, `fvP_reduce` and `Lens.liftFootprint` facts, independent of any particular
+program spec. -/
+
+/-- **Complement is order-reversing on `Footprint`** (`le`/`compl` swap): `R ≤ Sᶜ ↔ S ≤ Rᶜ`.
+    Both sides say every `R`-update commutes with every `S`-update, so the relation is symmetric in
+    `R`, `S`. -/
+theorem Footprint.le_compl_comm {m : Type} (R S : Footprint m) : R ≤ Sᶜ ↔ S ≤ Rᶜ := by
+  constructor <;>
+  · intro h
+    intro k hk
+    show k ∈ Submonoid.centralizer _
+    rw [Submonoid.mem_centralizer_iff]
+    intro j hj
+    exact ((Submonoid.mem_centralizer_iff.mp (h hj)) k hk).symm
+
+/-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint through the
+    outer lens** (generator-level): `diracKer ((L.chain v).liftFunction g)` is exactly
+    `L.liftSubProbability (diracKer (v.liftFunction g))`.  The chained overwrite is the inner
+    overwrite performed on the `L`-content and written back. -/
+theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
+    (g : Function.End a) :
+    diracKer ((L.chain v).liftFunction g) = L.liftSubProbability (diracKer (v.liftFunction g)) := by
+  funext x
+  show (pure ((L.chain v).liftFunction g x) : SubProbability c)
+     = (diracKer (v.liftFunction g) (L.get x)) >>= fun a' => pure (L.set a' x)
+  rw [show (diracKer (v.liftFunction g) (L.get x) : SubProbability b)
+        = pure (v.liftFunction g (L.get x)) from rfl, SubProbability.pure_bind]
+  rfl
+
+/-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
+    `L`-reduction of `R` is disjoint from `v.footprint`.  For `f ∈ v.footprint.updates` and
+    `k ∈ R.updates`, the reduced generators `reduceSubProbability L (k, i, o)` lie in
+    `(fvP_reduce L R).updates`, so `hred` makes them commute with `f`; the Fubini identities
+    (`reduceBaseGen_mul_left`/`_right`) turn that into commutation of `L.liftSubProbability f`
+    with `k` (via `reduceSubProbability_ext`). -/
+theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
+    {v : Lens t s} {R : Footprint c}
+    (hred : fvP_reduce L R ≤ (v.footprint)ᶜ)
+    {f : s → SubProbability s} (hf : f ∈ v.footprint.updates)
+    {k : c → SubProbability c} (hk : k ∈ R.updates) :
+    L.liftSubProbability f * k = k * L.liftSubProbability f := by
+  apply Lens.reduceSubProbability_ext L
+  intro i o
+  -- Each reduced generator of `k` is a generator of `fvP_reduce L R`, hence (by `hred`)
+  -- commutes with `f ∈ v.footprint.updates`.
+  have hgen : Lens.reduceSubProbability L (k, i, o) ∈ (fvP_reduce L R).updates := by
+    rw [fvP_reduce_eq_from, Footprint.from_updates]
+    exact Set.subset_centralizer_centralizer
+      ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
+  have hcomm : f * Lens.reduceSubProbability L (k, i, o)
+      = Lens.reduceSubProbability L (k, i, o) * f :=
+    (Submonoid.mem_centralizer_iff.mp (hred hgen)) f hf
+  rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right] at hcomm
+  exact hcomm
+
+/-- **A chained lens's footprint lies in `Rᶜ` whenever the inner footprint's `L`-reduction does**:
+    from `fvP_reduce L R ≤ (v.footprint)ᶜ` conclude `R ≤ ((L.chain v).footprint)ᶜ`.  Route: flip the
+    goal via `le_compl_comm` to `(L.chain v).footprint ≤ Rᶜ`, then show each generator
+    `L.liftSubProbability (diracKer (v.liftFunction g))` commutes with every `k ∈ R.updates` via
+    `liftSubProbability_comm_of_reduce_disj`. -/
+theorem reduce_chain_le_compl {t s c : Type} {L : Lens s c} {v : Lens t s} {R : Footprint c}
+    (hred : fvP_reduce L R ≤ (v.footprint)ᶜ) :
+    R ≤ ((L.chain v).footprint)ᶜ := by
+  rw [Footprint.le_compl_comm]
+  refine (Footprint.from_le_iff _ _).mpr ?_
+  rintro _ ⟨g, rfl⟩
+  -- Goal: diracKer ((L.chain v).liftFunction g) ∈ Rᶜ.updates = centralizer R.updates
+  show diracKer ((L.chain v).liftFunction g) ∈ Rᶜ.updates
+  rw [chain_liftFunction_diracKer]
+  show L.liftSubProbability (diracKer (v.liftFunction g)) ∈ Submonoid.centralizer R.updates
+  rw [Submonoid.mem_centralizer_iff]
+  intro k hk
+  have hg_mem : diracKer (v.liftFunction g) ∈ v.footprint.updates :=
+    (Footprint.from_le_iff (Set.range fun h : Function.End t =>
+      diracKer (v.liftFunction h)) v.footprint).mp le_rfl ⟨g, rfl⟩
+  exact (liftSubProbability_comm_of_reduce_disj hred hg_mem hk).symm
+
+open MeasureTheory in
+/-- `globalL.liftSubProbability f` applied to a padded state applies `f` to the global. -/
+theorem globalL_liftSubProbability_pad [ProgramSpec] {l : Type} (f : State → SubProbability State)
+    (g : State) (loc : l) :
+    (ProcedureState.globalL.liftSubProbability f) ⟨g, loc⟩
+      = f g >>= fun a => pure (⟨a, loc⟩ : ProcedureState l) := by
+  simp only [Lens.liftSubProbability]; rfl
+
+/-- Reading the global out of `globalL.liftSubProbability f` recovers `f` on the global. -/
+theorem globalL_liftSubProbability_global [ProgramSpec] {l : Type}
+    (f : State → SubProbability State)
+    (w2 : ProcedureState l) {ρ : Type} (x : ρ) :
+    ((ProcedureState.globalL.liftSubProbability f) w2 >>= fun s'' => pure (x, s''.global))
+      = f w2.global >>= fun a => pure (x, a) := by
+  simp only [Lens.liftSubProbability]
+  rw [SubProbability.bind_assoc]; congr 1; funext a; rw [SubProbability.pure_bind]; rfl
+
+/-- **A sampled value's footprint is trivial** — `μ.toProgramDenotation` only draws its result, it
+    touches no state, so it lies in `⊥` (mirrors `inFootprint_uniform` for an arbitrary `μ`). -/
+theorem inFootprint_toProgramDenotation {s a : Type} (μ : SubProbability a) :
+    (SubProbability.toProgramDenotation μ : ProgramDenotation s a).inFootprint ⊥ := by
+  rw [inFootprint_iff_clean]
+  intro f hf
+  funext st
+  show (f st >>= fun st' =>
+          μ >>= fun v => (pure (v, st') : SubProbability (a × s)))
+     = ((μ >>= fun v => (pure (v, st) : SubProbability (a × s)))
+          >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+  rw [bind_swap (f st) μ (fun v st' => pure (v, st'))]
+  rw [SubProbability.bind_assoc]
+  congr 1; funext v
+  rw [SubProbability.pure_bind]
