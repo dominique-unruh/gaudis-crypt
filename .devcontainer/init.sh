@@ -3,6 +3,9 @@ echo "Running init script"
 
 set -ex
 
+# Install caveman
+( cd / && curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | bash )
+
 claude plugin marketplace add cameronfreer/lean4-skills
 claude plugin install lean4
 if ! claude mcp get lean-lsp >/dev/null 2>&1; then
