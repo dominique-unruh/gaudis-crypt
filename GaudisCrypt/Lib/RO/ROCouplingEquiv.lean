@@ -645,4 +645,29 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
     roHole_paramType_countable
     (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
 
+/-- **Output-decided game transfer for an abstract adversary** (the collision-resistance shape).  For
+    *any* adversary `A` disjoint from the oracle and *any* predicate `Win` on its result, the eager
+    and lazy instantiations couple so the win event coincides: `A` wins against the eager (real)
+    oracle **iff** against the lazy one.  Immediate from `prhl_instantiate_of_glob`, which equates the
+    two results (`u.1 = v.1`) — so *any* event decided by `A`'s output transfers, regardless of the
+    full oracle table.  **Collision resistance** is the instance where `Win r` reads "`r` is a
+    collision `A` produced" (e.g. two distinct queried inputs whose observed answers are equal). -/
+theorem output_win_transfer {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ)
+    (hrefine : ∀ g₁ g₂ : state, P g₁ g₂ →
+        random_oracle_state.compl.get g₁ = random_oracle_state.compl.get g₂)
+    (hstable : ∀ g₁ g₂ g₁' g₂' : state, P g₁ g₂ →
+        random_oracle_state.compl.get g₁' = random_oracle_state.compl.get g₂' →
+        random_oracle_state.get g₁' = random_oracle_state.get g₁ →
+        random_oracle_state.get g₂' = random_oracle_state.get g₂ → P g₁' g₂')
+    (h : ∀ inp : input,
+        ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
+    ProgramDenotation.prhl2 P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (fun u v => Win u.1 ↔ Win v.1) :=
+  (prhl_instantiate_of_glob A args hdisj hrefine hstable h).conseq (fun _ _ hp => hp)
+    (fun _ _ hlift => by rw [hlift.1])
+
 end GaudisCrypt.Lib.RO.Instantiate
