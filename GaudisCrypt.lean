@@ -17,6 +17,7 @@ import GaudisCrypt.Language.SubProbability
 import GaudisCrypt.Language.Syntax2
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
+import GaudisCrypt.CounterExamples.IndistinguishableVsGlob
 import GaudisCrypt.CounterExamples.LeastLens
 import GaudisCrypt.CounterExamples.LensRangeComplDisjoint
 import GaudisCrypt.CounterExamples.MiscRangeStuff

@@ -203,6 +203,27 @@ def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability �
 
 def SubProbability.ofEvent (μ : SubProbability a) (e : Set a) := (μ.1 e).toNNReal
 
+/-- The **total weight** (mass) of a sub-probability: the measure of the whole space.  `1` for a
+    genuine probability, less when the computation can fail.  The observable behind
+    `Footprint.indistinguishable`.
+    TODO: remove that and use : ofEvent ⊤ instead -/
+def SubProbability.mass (μ : SubProbability a) : NNReal := μ.ofEvent Set.univ
+
+/-- Post-composing with a deterministic (Dirac) kernel preserves the total weight. -/
+lemma SubProbability.mass_bind_dirac {α β : Type} (μ : SubProbability α) (f : α → β) :
+    (μ >>= fun x => (pure (f x) : SubProbability β)).mass = μ.mass := by
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  change (((μ >>= fun x => (pure (f x) : SubProbability β)).1) Set.univ).toNNReal
+      = (μ.1 Set.univ).toNNReal
+  congr 1
+  change (MeasureTheory.Measure.bind μ.1 fun x => (pure (f x) : SubProbability β).1) Set.univ
+      = μ.1 Set.univ
+  rw [MeasureTheory.Measure.bind_apply MeasurableSet.univ measurable_from_top.aemeasurable]
+  have hone : ∀ x : α, (pure (f x) : SubProbability β).1 Set.univ = 1 := fun x =>
+    MeasureTheory.Measure.dirac_apply_of_mem (Set.mem_univ (f x))
+  simp only [hone, MeasureTheory.lintegral_one]
+
 instance : CoeFun (SubProbability a) (fun _ => a -> NNReal) where
   coe μ x := μ.ofEvent {x}
 
@@ -380,6 +401,35 @@ lemma SubProbability.bind_pure {α : Type} (m : SubProbability α) :
         = (fun a : α => @MeasureTheory.Measure.dirac α ⊤ (id a)) from rfl]
   rw [MeasureTheory.Measure.bind_dirac_eq_map m.1 measurable_id]
   exact MeasureTheory.Measure.map_id
+
+@[simp]
+lemma SubProbability.mass_pure {α : Type} (x : α) : (pure x : SubProbability α).mass = 1 := by
+  letI : MeasurableSpace α := ⊤
+  show ((pure x : SubProbability α).1 Set.univ).toNNReal = 1
+  rw [show (pure x : SubProbability α).1 = @MeasureTheory.Measure.dirac α ⊤ x from rfl,
+    MeasureTheory.Measure.dirac_apply_of_mem (Set.mem_univ x)]
+  simp
+
+@[simp]
+lemma SubProbability.mass_bot {α : Type} : (⊥ : SubProbability α).mass = 0 := by
+  show ((⊥ : SubProbability α).1 Set.univ).toNNReal = 0
+  rw [show (⊥ : SubProbability α).1 = 0 from rfl]
+  simp
+
+/-- Binding a **probability** (total mass `1`) into a constant `pure` collapses to that `pure`:
+    a lossless computation whose result is discarded is invisible. -/
+lemma SubProbability.bind_const_pure {α β : Type} (ν : SubProbability α)
+    (hν : ν.1 Set.univ = 1) (b : β) :
+    (ν >>= fun _ => (pure b : SubProbability β)) = pure b := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  apply MeasureTheory.Measure.ext
+  intro A hA
+  change (MeasureTheory.Measure.bind ν.1 fun _ => (pure b : SubProbability β).1) A
+      = (pure b : SubProbability β).1 A
+  rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
+    MeasureTheory.lintegral_const, hν, mul_one]
 
 lemma SubProbability.bot_bind {α β : Type} (f : α → SubProbability β) :
     ((⊥ : SubProbability α) >>= f) = ⊥ := by

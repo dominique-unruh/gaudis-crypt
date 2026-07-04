@@ -113,6 +113,13 @@ instance : BoundedOrder (Footprint m) where
     exact Submonoid.centralizer_le (Submonoid.centralizer_le (Set.empty_subset _))
   le_top := fun x => Set.subset_univ _
 
+/-- The complement (commutant) is antitone. -/
+theorem Footprint.compl_le_compl {m : Type _} {R S : Footprint m} (h : R ≤ S) : Sᶜ ≤ Rᶜ := by
+  show (Submonoid.centralizer S.updates).carrier ⊆ (Submonoid.centralizer R.updates).carrier
+  intro x hx
+  exact Submonoid.mem_centralizer_iff.mpr
+    (fun g hg => Submonoid.mem_centralizer_iff.mp hx g (h hg))
+
 theorem Footprint.compl_compl (x : Footprint a) : xᶜᶜ = x := by
   have key : ∀ {p q : Footprint a}, p.updates = q.updates → p = q := by
     intro p q h; obtain ⟨_,_,_,_⟩ := p; obtain ⟨_,_,_,_⟩ := q
@@ -494,6 +501,84 @@ def Footprint.HasReset {m : Type} (S : Footprint m) (σ : m) : Prop :=
   ∃ f : Function.End m, diracKer f ∈ S.updates ∧ f σ = σ ∧
     ∀ s, S.touched_getter.get (f s) = S.touched_getter.get σ
 
+/-! ## Observational indistinguishability through a footprint
+
+An `R`-**test** observes a state by running one `R`-update and reading off its acceptance
+probability — the total weight `SubProbability.mass` of the result.  `Footprint.indistinguishable`
+is the induced observational equivalence: no `R`-test separates the two states
+(`indistinguishable_iff_testsOf`).  The touched getter is *sound* for it
+(`indistinguishable_of_touched_getter_eq`): states agreeing on the content `R` owns pass every
+`R`-test with the same probability.  (Tests comparing the weight against an *interval* rather than
+a single value separate exactly as well as the exact-weight ones formalized here.) -/
+
+/-- Two states are **indistinguishable through `R`** when every update of `R` accepts both with
+    the same total weight (`SubProbability.mass`). -/
+def Footprint.indistinguishable {m : Type _} (R : Footprint m) (σ σ' : m) : Prop :=
+  ∀ h ∈ R.updates, (h σ).mass = (h σ').mass
+
+-- def Footprint.indistinguishable {s : Type} (F : Footprint s) : Setoid s where
+--  r x y := ∀ f ∈ F.updates, (f x).ofEvent ⊤ = (f y).ofEvent ⊤
+--  iseqv := sorry
+
+--def Footprint.read_glob (F : Footprint s) m : Quotient (Footprint.indistinguishable F) := Quotient.mk'' m
+
+/-- `Footprint.indistinguishable` is an equivalence relation. -/
+theorem Footprint.indistinguishable_equivalence {m : Type _} (R : Footprint m) :
+    Equivalence R.indistinguishable where
+  refl _ _ _ := rfl
+  symm h k hk := (h k hk).symm
+  trans h₁ h₂ k hk := (h₁ k hk).trans (h₂ k hk)
+
+/-- `Footprint.indistinguishable` is antitone in the footprint: a larger footprint has more
+    tests, hence a finer indistinguishability. -/
+theorem Footprint.indistinguishable.anti {m : Type _} {R S : Footprint m} {σ σ' : m}
+    (h : S.indistinguishable σ σ') (hRS : R ≤ S) : R.indistinguishable σ σ' :=
+  fun k hk => h k (hRS hk)
+
+/-- The **tests** of a footprint: the state predicates decided by comparing the acceptance
+    probability of a single `R`-update against a fixed weight. -/
+def Footprint.testsOf {m : Type _} (R : Footprint m) : Set (m → Prop) :=
+  { g | ∃ h ∈ R.updates, ∃ r : NNReal, ∀ σ, g σ ↔ (h σ).mass = r }
+
+/-- Indistinguishability is exactly "passing the same tests". -/
+theorem Footprint.indistinguishable_iff_testsOf {m : Type _} (R : Footprint m) (σ σ' : m) :
+    R.indistinguishable σ σ' ↔ ∀ g ∈ R.testsOf, (g σ ↔ g σ') := by
+  constructor
+  · rintro hind g ⟨h, hh, r, hg⟩
+    rw [hg σ, hg σ', hind h hh]
+  · intro htests h hh
+    exact ((htests _ ⟨h, hh, (h σ).mass, fun _ => Iff.rfl⟩).mp rfl).symm
+
+/-- **Soundness of the touched getter for tests**: states with equal `R`-owned content (equal
+    `R.touched_getter` — EasyCrypt's `={glob}`) are indistinguishable through `R`.  Each
+    `Rᶜ`-orbit step is a deterministic outside update; every `R`-update commutes with it (the
+    centralizer equation), and deterministic post-composition preserves mass
+    (`SubProbability.mass_bind_dirac`). -/
+theorem Footprint.indistinguishable_of_touched_getter_eq {m : Type} {R : Footprint m}
+    {σ σ' : m} (hg : R.touched_getter.get σ = R.touched_getter.get σ') :
+    R.indistinguishable σ σ' := by
+  intro h hh
+  have horb : Relation.EqvGen
+      (fun s s' => ∃ f : Function.End m, diracKer f ∈ Rᶜ.updates ∧ f s = s') σ σ' :=
+    Quotient.exact hg
+  clear hg
+  induction horb with
+  | rel s s' hstep =>
+      obtain ⟨f, hf, rfl⟩ := hstep
+      have hf' : diracKer f ∈ (Submonoid.centralizer R.updates).carrier := hf
+      have hcomm : h * diracKer f = diracKer f * h :=
+        Submonoid.mem_centralizer_iff.mp hf' h hh
+      have hkey : h (f s) = h s >>= fun x => (pure (f x) : SubProbability m) :=
+        calc h (f s) = (pure (f s) : SubProbability m) >>= h :=
+              (SubProbability.pure_bind _ _).symm
+          _ = (h * diracKer f) s := rfl
+          _ = (diracKer f * h) s := congrFun hcomm s
+          _ = h s >>= fun x => (pure (f x) : SubProbability m) := rfl
+      rw [hkey, SubProbability.mass_bind_dirac]
+  | refl _ => rfl
+  | symm _ _ _ ih => exact ih.symm
+  | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
+
 /-- The probabilistic range of a lens: generated by the Dirac kernels of its localized
     deterministic updates `lens.liftFunction g`. The sub-probability analogue of `Lens.range`. -/
 noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.footprint {a s : Type} (lens : Lens a s) :
@@ -820,6 +905,172 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_compl_touched_getter_eq_
     have hid : l.set (l.get y) x = l.compl.set (l.compl.get x) y := rfl
     rw [hid, h]
     exact l.compl.get_set y
+
+/-! ## The lens converse: tests recover the lens content
+
+For a **lens** footprint the observational equivalence coincides with the touched getter: the
+*conditional abort* `Lens.testKer l x₀` (keep the state iff the lens reads `x₀`) lies in
+`l.footprint` — it commutes with everything commuting with the lens *writes* — and its acceptance
+mass reads the lens.  So `Footprint.indistinguishable` pins the lens content exactly: this is the
+tomography converse of `Footprint.indistinguishable_of_touched_getter_eq`, which
+`CounterExamples/IndistinguishableVsGlob.lean` shows fails for general (abelian) footprints. -/
+
+open Classical in
+/-- The conditional-abort **test** of a lens at `x₀`: keep the state if the lens reads `x₀`,
+    abort otherwise.  Acceptance probability = "the lens reads `x₀`". -/
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.testKer {a s : Type} (l : Lens a s)
+    (x₀ : a) : s → SubProbability s :=
+  fun σ => if l.get σ = x₀ then pure σ else ⊥
+
+/-- The conditional abort is an honest `l`-test: it lies in the lens footprint.  It commutes with
+    any kernel `k` commuting with the constant writes, because such a `k` satisfies
+    `k σ >>= (pure ∘ l.set c) = k (l.set c σ)` — its output's `l`-content is pinned by a write —
+    so the abort filter passes `k`'s output through untouched (accept branch) or kills it
+    entirely (reject branch). -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.testKer_mem_footprint {a s : Type}
+    (l : Lens a s) (x₀ : a) : l.testKer x₀ ∈ l.footprint.updates := by
+  classical
+  rw [show l.footprint
+      = Footprint.from (Set.range fun g : Function.End a => diracKer (l.liftFunction g)) from rfl,
+    Footprint.from_updates]
+  refine Set.mem_centralizer_iff.mpr (fun k hk => ?_)
+  -- `k` commutes with every constant write
+  have hwrite : ∀ (c : a) (σ : s),
+      (k σ >>= fun τ => (pure (l.set c τ) : SubProbability s)) = k (l.set c σ) := by
+    intro c σ
+    have hcomm := Set.mem_centralizer_iff.mp hk
+      (diracKer (l.liftFunction (Function.const _ c))) ⟨Function.const _ c, rfl⟩
+    calc (k σ >>= fun τ => (pure (l.set c τ) : SubProbability s))
+        = (diracKer (l.liftFunction (Function.const _ c)) * k) σ := rfl
+      _ = (k * diracKer (l.liftFunction (Function.const _ c))) σ := congrFun hcomm σ
+      _ = k (l.set c σ) := by
+          show diracKer (l.liftFunction (Function.const _ c)) σ >>= k = k (l.set c σ)
+          rw [show diracKer (l.liftFunction (Function.const _ c)) σ
+                = (pure (l.set c σ) : SubProbability s) from rfl,
+            SubProbability.pure_bind]
+  funext σ
+  show l.testKer x₀ σ >>= k = k σ >>= l.testKer x₀
+  by_cases h : l.get σ = x₀
+  · -- accept branch: both sides are `k σ`
+    have hset : l.set x₀ σ = σ := by rw [← h]; exact l.get_set σ
+    have hR : k σ >>= l.testKer x₀ = k σ :=
+      calc k σ >>= l.testKer x₀
+          = (k σ >>= fun τ => (pure (l.set x₀ τ) : SubProbability s)) >>= l.testKer x₀ := by
+            rw [hwrite x₀ σ, hset]
+        _ = k σ >>= fun τ => l.testKer x₀ (l.set x₀ τ) := by
+            rw [SubProbability.bind_assoc]; simp only [SubProbability.pure_bind]
+        _ = k σ >>= fun τ => (pure (l.set x₀ τ) : SubProbability s) := by
+            refine congrArg (fun f => k σ >>= f) (funext fun τ => ?_)
+            show (if l.get (l.set x₀ τ) = x₀ then (pure (l.set x₀ τ) : SubProbability s) else ⊥)
+                = (pure (l.set x₀ τ) : SubProbability s)
+            rw [l.set_get, if_pos rfl]
+        _ = k (l.set x₀ σ) := hwrite x₀ σ
+        _ = k σ := by rw [hset]
+    rw [show l.testKer x₀ σ = pure σ from if_pos h, SubProbability.pure_bind, hR]
+  · -- reject branch: both sides are `⊥`
+    have hset : l.set (l.get σ) σ = σ := l.get_set σ
+    have hR : k σ >>= l.testKer x₀ = (⊥ : SubProbability s) :=
+      calc k σ >>= l.testKer x₀
+          = (k σ >>= fun τ => (pure (l.set (l.get σ) τ) : SubProbability s)) >>= l.testKer x₀ := by
+            rw [hwrite (l.get σ) σ, hset]
+        _ = k σ >>= fun τ => l.testKer x₀ (l.set (l.get σ) τ) := by
+            rw [SubProbability.bind_assoc]; simp only [SubProbability.pure_bind]
+        _ = k σ >>= fun _ => (⊥ : SubProbability s) := by
+            refine congrArg (fun f => k σ >>= f) (funext fun τ => ?_)
+            show (if l.get (l.set (l.get σ) τ) = x₀
+                then (pure (l.set (l.get σ) τ) : SubProbability s) else ⊥) = ⊥
+            rw [l.set_get, if_neg h]
+        _ = ⊥ := SubProbability.bind_bot _
+    rw [show l.testKer x₀ σ = ⊥ from if_neg h, SubProbability.bot_bind, hR]
+
+/-- **Tests recover the lens content**: states indistinguishable through a lens footprint have
+    equal lens reads — apply the conditional abort at `l.get σ`. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.get_eq_of_indistinguishable {a s : Type}
+    {l : Lens a s} {σ σ' : s} (h : l.footprint.indistinguishable σ σ') :
+    l.get σ = l.get σ' := by
+  classical
+  have hm := h (l.testKer (l.get σ)) (l.testKer_mem_footprint (l.get σ))
+  by_contra hne
+  rw [show l.testKer (l.get σ) σ = pure σ from if_pos rfl,
+    show l.testKer (l.get σ) σ' = ⊥ from if_neg (fun hc => hne hc.symm),
+    SubProbability.mass_pure, SubProbability.mass_bot] at hm
+  exact one_ne_zero hm
+
+/-- **On lens footprints the two notions agree**: observational indistinguishability = equal
+    touched getter (= equal lens content, via `Lens.footprint_touched_getter_eq_iff`).  This is
+    the tomography converse that fails for general footprints — for a *genuine memory region*,
+    what the tests see is exactly what the getter reads. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_indistinguishable_iff_touched_getter_eq
+    {a s : Type} (l : Lens a s) (σ σ' : s) :
+    l.footprint.indistinguishable σ σ' ↔
+      l.footprint.touched_getter.get σ = l.footprint.touched_getter.get σ' :=
+  ⟨fun h => (l.footprint_touched_getter_eq_iff σ σ').mpr (Lens.get_eq_of_indistinguishable h),
+    Footprint.indistinguishable_of_touched_getter_eq⟩
+
+/-- The lens-content form of the agreement. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_indistinguishable_iff_get_eq
+    {a s : Type} (l : Lens a s) (σ σ' : s) :
+    l.footprint.indistinguishable σ σ' ↔ l.get σ = l.get σ' :=
+  (l.footprint_indistinguishable_iff_touched_getter_eq σ σ').trans
+    (l.footprint_touched_getter_eq_iff σ σ')
+
+/-- The agreement transfers along an identification of a footprint with a lens region — the form
+    consumed for *syntactic* adversaries, whose assigned region (`FVP.fvP_proc`) is a variable
+    (lens) region. -/
+theorem Footprint.indistinguishable_iff_touched_getter_eq_of_eq_lens {a m : Type}
+    {R : Footprint m} {l : Lens a m} (hR : R = l.footprint) (σ σ' : m) :
+    R.indistinguishable σ σ' ↔ R.touched_getter.get σ = R.touched_getter.get σ' := by
+  subst hR
+  exact l.footprint_indistinguishable_iff_touched_getter_eq σ σ'
+
+/-- Tests pin the lens content **pointwise**: any footprint merely *containing the
+    conditional-abort tests of `l`* (not necessarily all of `l.footprint`) already separates
+    states by `l.get`. -/
+theorem Footprint.get_eq_of_indistinguishable_of_testKer_mem {a m : Type} {R : Footprint m}
+    {l : Lens a m} (htest : ∀ x₀ : a, l.testKer x₀ ∈ R.updates)
+    {σ σ' : m} (h : R.indistinguishable σ σ') : l.get σ = l.get σ' := by
+  classical
+  have hm := h (l.testKer (l.get σ)) (htest (l.get σ))
+  by_contra hne
+  rw [show l.testKer (l.get σ) σ = pure σ from if_pos rfl,
+    show l.testKer (l.get σ) σ' = ⊥ from if_neg (fun hc => hne hc.symm),
+    SubProbability.mass_pure, SubProbability.mass_bot] at hm
+  exact one_ne_zero hm
+
+/-- `touched_getter` equality is antitone in the footprint: a smaller footprint has a coarser
+    touched getter, so `S`-touched equality descends to `R`-touched equality along `R ≤ S`. -/
+theorem Footprint.touched_getter_eq_of_le {m : Type} {R S : Footprint m} (h : R ≤ S)
+    {σ σ' : m} (hg : S.touched_getter.get σ = S.touched_getter.get σ') :
+    R.touched_getter.get σ = R.touched_getter.get σ' := by
+  have horb : Relation.EqvGen (fun s s' => ∃ f : Function.End m,
+      diracKer f ∈ Sᶜ.updates ∧ f s = s') σ σ' := Quotient.exact hg
+  clear hg
+  apply Quotient.sound
+  show Relation.EqvGen (fun s s' => ∃ f : Function.End m,
+      diracKer f ∈ Rᶜ.updates ∧ f s = s') σ σ'
+  induction horb with
+  | rel s s' hstep =>
+      obtain ⟨f, hf, rfl⟩ := hstep
+      exact Relation.EqvGen.rel _ _ ⟨f, Footprint.compl_le_compl h hf, rfl⟩
+  | refl s => exact Relation.EqvGen.refl _
+  | symm _ _ _ ih => exact Relation.EqvGen.symm _ _ ih
+  | trans _ _ _ _ _ ih₁ ih₂ => exact Relation.EqvGen.trans _ _ _ ih₁ ih₂
+
+/-- **Pointwise sandwich agreement**: for a footprint `R` that (i) contains `l`'s tests and
+    (ii) is bounded by `l`'s region, indistinguishability through `R` **is** touched-getter
+    equality — no identification `R = l.footprint` needed.  This is the form for syntactic
+    over-approximations (`FVP.fvP_proc`): (ii) is the standard upper-bound computation, and (i)
+    is a single generator membership (the reduced read-slices *are* the tests). -/
+theorem Footprint.indistinguishable_iff_touched_getter_eq_of_sandwich {a m : Type}
+    {R : Footprint m} {l : Lens a m}
+    (htest : ∀ x₀ : a, l.testKer x₀ ∈ R.updates) (hle : R ≤ l.footprint) (σ σ' : m) :
+    R.indistinguishable σ σ' ↔ R.touched_getter.get σ = R.touched_getter.get σ' := by
+  constructor
+  · intro h
+    exact Footprint.touched_getter_eq_of_le hle
+      ((l.footprint_touched_getter_eq_iff σ σ').mpr
+        (Footprint.get_eq_of_indistinguishable_of_testKer_mem htest h))
+  · exact Footprint.indistinguishable_of_touched_getter_eq
 
 /-! ## Disjointness bridge -/
 
