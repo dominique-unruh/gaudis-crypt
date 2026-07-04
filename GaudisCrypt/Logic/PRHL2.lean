@@ -1447,4 +1447,46 @@ theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
   obtain ⟨heq, hEw⟩ := hsat w hw
   exact ⟨heq, (hgetter _ _).mpr hEw⟩
 
+/-- **Coupling through a lossless tail.**  If `q` equals `p` followed by a *lossless* state-only
+    post-processor `c` (which keeps `p`'s result), then `p` and `q` couple from equal initial
+    states with equal results: route the diagonal coupling of `p` through `c` on the right leg.
+    Converts distribution-level *transfer* equations (`Lib/RO/Transfer.lean`) into `prhl2`. -/
+theorem ProgramDenotation.prhl2_of_lossless_tail {s α : Type}
+    {p q : ProgramDenotation s α} {c : ProgramDenotation s Unit}
+    (hc : ∀ σ : s, (c σ).1 Set.univ = 1)
+    (heq : (p >>= fun a => c >>= fun _ => pure a) = q) :
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ : s => σ₁ = σ₂) p q (fun u v => u.1 = v.1) := by
+  intro σ₁ σ₂ hσ
+  subst hσ
+  refine ⟨p σ₁ >>= fun w => c w.2 >>= fun x =>
+      (pure (w, (w.1, x.2)) : SubProbability ((α × s) × (α × s))), ?_, ?_, ?_⟩
+  · -- fst marginal: the tail is lossless, so it disappears
+    rw [SubProbability.bind_assoc]
+    have hbody : ∀ w : α × s,
+        ((c w.2 >>= fun x => (pure (w, (w.1, x.2)) : SubProbability ((α × s) × (α × s))))
+            >>= fun y => (pure y.1 : SubProbability (α × s)))
+          = pure w := by
+      intro w
+      rw [SubProbability.bind_assoc]
+      simp only [SubProbability.pure_bind]
+      exact SubProbability.bind_const_pure _ (hc w.2) w
+    simp only [hbody]
+    exact SubProbability.bind_pure _
+  · -- snd marginal: exactly `p` with the tail, i.e. `q`
+    rw [SubProbability.bind_assoc]
+    have hbody : ∀ w : α × s,
+        ((c w.2 >>= fun x => (pure (w, (w.1, x.2)) : SubProbability ((α × s) × (α × s))))
+            >>= fun y => (pure y.2 : SubProbability (α × s)))
+          = c w.2 >>= fun x => (pure (w.1, x.2) : SubProbability (α × s)) := by
+      intro w
+      rw [SubProbability.bind_assoc]
+      simp only [SubProbability.pure_bind]
+    simp only [hbody]
+    rw [← heq]
+    rfl
+  · -- support: results are equal by construction
+    refine SubProbability.satisfies_bind _ (fun w _ => ?_)
+    refine SubProbability.satisfies_bind _ (fun x _ => ?_)
+    exact SubProbability.satisfies_pure _ _ rfl
+
 end GaudisCrypt.Language.Semantics

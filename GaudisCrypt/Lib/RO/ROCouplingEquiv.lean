@@ -571,33 +571,6 @@ theorem roLift_compl_get_iff {l : Type} (x y : ProcedureState l) :
     rw [show random_oracle_state.set t xg = yg from ht, show xl = yl from hloc]
 
 
-/-- **Bridge: FV's (global, syntactic) `fvP_proc` disjointness ⟹ the pipeline's (procedure-state,
-    semantic) disjointness.**  `FVP.fvP_proc A` (a `Footprint State`, the `globalL`-reduction of A's
-    *syntactic* footprint) over-approximates the pipeline's *semantic* `fvP_proc A` after reduction, so
-    a disjointness from `random_oracle_state` on the global state gives the disjointness from
-    `roLift = globalL.chain random_oracle_state` the confinement needs.  Two ingredients:
-    (1) **FV soundness** — the pipeline's semantic `fvP_stmt` is bounded by FV's syntactic one; and
-    (2) the **`reduce`/`chain` transfer** through `globalL` (where the locals drop out — they are `⊥`
-    to the oracle). -/
-theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
-    (A : ProcedureWithHoles holes sig)
-    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
-    fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ := by
-  -- `FVP.fvP_proc A = fvP_reduce globalL (FVP.fvP_stmt body) ⊔ fvP_reduce globalL (get return)`.
-  rw [show FVP.fvP_proc A =
-      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
-        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get A.return_val).footprint)
-      from rfl] at hdisj
-  -- `roLift = globalL.chain random_oracle_state`; both summands go via `reduce_chain_le_compl`.
-  show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
-      ≤ ((ProcedureState.globalL.chain random_oracle_state).footprint)ᶜ
-  refine sup_le ?_ ?_
-  · -- body: `fvP_reduce (fvP_stmt) ≤ fvP_reduce (FVP.fvP_stmt) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
-    refine reduce_chain_le_compl (le_trans (fvP_reduce_mono _ (fvP_stmt_le_FVP A.body)) ?_)
-    exact le_trans le_sup_left hdisj
-  · -- return: `fvP_reduce (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
-    exact reduce_chain_le_compl (le_trans le_sup_right hdisj)
-
 /-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, disjointness form, global invariant).
     Relational lazy ≈ eager for any adversary `A` whose footprint is **disjoint from the random
     oracle** (`hdisj : fvP_proc A ≤ (roLift _).footprintᶜ`), from two conditions on the **global**
@@ -669,5 +642,9 @@ theorem output_win_transfer {sig : ProcedureSignature}
       (fun u v => Win u.1 ↔ Win v.1) :=
   (prhl_instantiate_of_glob A args hdisj hrefine hstable h).conseq (fun _ _ hp => hp)
     (fun _ _ hlift => by rw [hlift.1])
+
+/- The read-only-tests sketch that lived here is formalized in `GaudisCrypt/Footprint.lean`:
+`Footprint.testsOf`, `Footprint.indistinguishable` (with `indistinguishable_iff_testsOf`), and
+the touched-getter soundness `Footprint.indistinguishable_of_touched_getter_eq`. -/
 
 end GaudisCrypt.Lib.RO.Instantiate

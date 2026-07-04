@@ -553,4 +553,88 @@ theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature}
     (stable_of_confinedP_footprint (fvP_proc A) hdisj
       (get_confinedP_of_fv A.return_val (get_return_val_le_fvP_proc A)))
 
+/-! ## Whole-game form: initialisations included, coupling output
+
+The per-query eager/lazy coupling is pointwise **unsatisfiable** (a fixed eager table entry cannot
+couple with a fresh lazy sample), so theorem 2's `h` cannot be discharged for the genuine RO pair.
+The true lazy = eager statement lives at the *whole-game* level, where `random_oracle_init`
+supplies the eager table's randomness — and that is exactly theorem 1.  The results below convert
+theorem 1 into the coupling format (`prhl2` with a result-decided post), giving the `h`-free
+end-to-end transfer. -/
+
+/-- `convert` is lossless (measure form of `convert_mass`): from any state its run has total
+    mass `1`. -/
+lemma convert_lossless (σ : state) : (convert σ).1 Set.univ = 1 := by
+  have h := convert_mass σ
+  simp only [ProgramDenotation.wp, SubProbability.expected, MeasureTheory.lintegral_one] at h
+  exact h
+
+/-- **Theorem 1 at whole-game level**: with the initialisations *included*, the lazy game followed
+    by a result-preserving `convert` **equals** the eager game.  Unlike the per-query coupling,
+    this is unconditionally true from footprint disjointness — the eager table's randomness is
+    supplied by `random_oracle_init = lazy_init; convert`. -/
+theorem game_transfer_of_fvP {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ) :
+    ((lazy_init >>= fun _ => procedureDenotation (A.instantiate RO_lazy) args) >>= fun a =>
+        convert >>= fun _ => pure a)
+      = random_oracle_init >>= fun _ => procedureDenotation (A.instantiate RO_eager) args := by
+  have ht : (procedureDenotation (A.instantiate RO_lazy) args >>= fun a =>
+        convert >>= fun _ => pure a)
+      = (convert >>= fun _ => procedureDenotation (A.instantiate RO_eager) args) :=
+    ProgramDenotation.transfer_instantiate_of_fvP A args hdisj
+  have h1 : ((lazy_init >>= fun _ => procedureDenotation (A.instantiate RO_lazy) args) >>= fun a =>
+        convert >>= fun _ => pure a)
+      = lazy_init >>= fun _ => (procedureDenotation (A.instantiate RO_lazy) args >>= fun a =>
+          convert >>= fun _ => pure a) :=
+    ProgramDenotation.bind_assoc _ _ _
+  have h2 : (lazy_init >>= fun _ => (procedureDenotation (A.instantiate RO_lazy) args >>= fun a =>
+        convert >>= fun _ => pure a))
+      = lazy_init >>= fun _ =>
+          (convert >>= fun _ => procedureDenotation (A.instantiate RO_eager) args) :=
+    congrArg (fun k => lazy_init >>= k) (funext fun _ => ht)
+  have h3 : (lazy_init >>= fun _ =>
+        (convert >>= fun _ => procedureDenotation (A.instantiate RO_eager) args))
+      = (lazy_init >>= fun _ => convert) >>= fun _ =>
+          procedureDenotation (A.instantiate RO_eager) args :=
+    (ProgramDenotation.bind_assoc _ _ _).symm
+  have h4 : ((lazy_init >>= fun _ => convert) >>= fun _ =>
+        procedureDenotation (A.instantiate RO_eager) args)
+      = random_oracle_init >>= fun _ =>
+          procedureDenotation (A.instantiate RO_eager) args :=
+    congrArg (fun m => m >>= fun _ =>
+        procedureDenotation (A.instantiate RO_eager) args)
+      (show (lazy_init >>= fun _ => convert) = random_oracle_init from
+        lazy_init_convert_eq_random_oracle_init)
+  exact h1.trans (h2.trans (h3.trans h4))
+
+/-- Game-level output-decided transfer, *semantic* disjointness form — see
+    `output_win_transfer_games` for the user-facing (syntactic-`FVP`) statement. -/
+theorem output_win_transfer_games_of_fvP {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
+    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ) :
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
+      (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
+      (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
+      (fun u v => Win u.1 ↔ Win v.1) :=
+  (ProgramDenotation.prhl2_of_lossless_tail convert_lossless
+      (game_transfer_of_fvP A args hdisj)).conseq
+    (fun _ _ h => h) (fun _ _ h => by rw [h])
+
+/-- **Game-level output-decided transfer** — the `h`-free counterpart of `output_win_transfer`,
+    for **any** adversary whose variables avoid the oracle (`FVP.fvP_proc A ≤ oracleᶜ`, the same
+    EasyCrypt-style hypothesis as `prhl_instantiate_of_glob`) and **any** predicate `Win` on its
+    result: the *whole games* (initialisation included) couple with `Win u.1 ↔ Win v.1`.
+    **Collision resistance** is the instance where `Win r` reads "`r` is a collision `A`
+    produced".  Everything is discharged by theorem 1 (`convert`-sliding), which owns the eager
+    table's initialisation randomness — no per-query coupling hypothesis remains. -/
+theorem output_win_transfer_games {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
+      (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
+      (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
+      (fun u v => Win u.1 ↔ Win v.1) :=
+  output_win_transfer_games_of_fvP A args Win (fvP_proc_le_roLift_compl A hdisj)
+
 end GaudisCrypt.Lib.RO.Instantiate

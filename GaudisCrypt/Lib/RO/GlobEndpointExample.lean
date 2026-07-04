@@ -1,4 +1,6 @@
 import GaudisCrypt.Lib.RO.ROCouplingEquiv
+import GaudisCrypt.Lib.RO.TransferInstantiate
+import GaudisCrypt.CounterExamples.IndistinguishableVsGlob
 
 /-!
 # Worked example: the `glob` endpoint on a concrete adversary
@@ -440,6 +442,242 @@ theorem glob_example_collision_transfer (a b : input)
   output_win_transfer (P := P_ex) (A_ex advG) (a, b) (fun r => a ≠ b ∧ r.1 = r.2)
     (hdisj_ex advG) hrefine_ex hstable_ex h
 
+/-- **End-to-end collision transfer for the worked adversary — no coupling hypothesis.**
+    The per-query `h` of `glob_example_collision_transfer` is pointwise unsatisfiable for the
+    genuine eager/lazy pair (a fixed eager entry cannot couple with a fresh lazy sample), so this
+    is the honest form: at the **whole-game** level, with the initialisations included,
+    `random_oracle_init` supplies the eager table's randomness and theorem 1 (the
+    `convert`-sliding engine behind `output_win_transfer_games`) discharges everything.  The only
+    remaining hypothesis is the structural footprint disjointness `hdisj_ex`.  The collision event
+    on `A_ex`'s output transfers between the lazy and eager (real) games unconditionally. -/
+theorem glob_example_collision_transfer_games (a b : input) :
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
+      (do lazy_init; procedureDenotation ((A_ex advG).instantiate RO_lazy) (a, b))
+      (do random_oracle_init; procedureDenotation ((A_ex advG).instantiate RO_eager) (a, b))
+      (fun u v => (a ≠ b ∧ u.1.1 = u.1.2) ↔ (a ≠ b ∧ v.1.1 = v.1.2)) :=
+  output_win_transfer_games (A_ex advG) (a, b) (fun r => a ≠ b ∧ r.1 = r.2) (hdisj_ex advG)
+
 end
+
+/-! ## Second worked example: the counterexample program `q`, in syntax
+
+`CounterExamples/IndistinguishableVsGlob.lean` shows that the *minimal semantic* footprint of the
+"asymmetric lazy flip" `q` separates observational indistinguishability from the touched getter.
+Here the same program is written **syntactically** (`q_syn` — `if b then b ←$ ¾-bias else
+b ←$ fair`), and for the region the syntax assigns it — `FVP.fvP_proc q_syn` — the two notions
+provably **agree** (`qsyn_indistinguishable_iff_touched_getter_eq`), via the pointwise sandwich:
+the region is bounded by `bVar`'s lens region (standard upper-bound assembly) and contains
+`bVar`'s conditional-abort tests (a reduced read-slice of the `if`-condition). -/
+
+section QSyn
+
+variable (bVar : Variable Bool)
+
+/-- The (trivial) signature of the syntactic `q` program: no parameters, `Unit` result. -/
+def sigQ : ProcedureSignature := ⟨[], Unit⟩
+
+/-- The (trivial) local state of `q_syn`. -/
+instance : Nonempty (sigQ.LocalVariableState []) := ⟨⟨(), ()⟩⟩
+
+/-- `bVar` viewed inside the (locals-free) procedure state. -/
+noncomputable def bPS : Lens Bool (ProcedureState (sigQ.LocalVariableState [])) :=
+  ProcedureState.globalL.chain bVar
+
+/-- The ¾-biased sample expression (a constant distribution getter). -/
+noncomputable def biasG : Getter (SubProbability Bool) (ProcedureState (sigQ.LocalVariableState [])) :=
+  ⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.biasPMF⟩
+
+/-- The fair sample expression (a constant distribution getter). -/
+noncomputable def flipG : Getter (SubProbability Bool) (ProcedureState (sigQ.LocalVariableState [])) :=
+  ⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.flipPMF⟩
+
+/-- The body of the syntactic `q`: `if b then b ←$ ¾-bias else b ←$ fair`. -/
+noncomputable def bodyQ : StmtWithHoles .empty (sigQ.LocalVariableState []) :=
+  .ifThenElse (bPS bVar).toGetter
+    (.sample (bPS bVar).toSetter biasG)
+    (.sample (bPS bVar).toSetter flipG)
+
+/-- The (trivial) return value of `q_syn`. -/
+def retQ : Getter Unit (ProcedureState (sigQ.LocalVariableState [])) := ⟨fun _ => ()⟩
+
+/-- **The counterexample program, in syntax** — its denotation's state action is exactly the
+    abelian-footprint kernel `qKer` on the `bVar` component. -/
+noncomputable def q_syn : ProcedureWithHoles .empty sigQ := ⟨[], bodyQ bVar, retQ⟩
+
+/-- Reading a constant getter is `pure` (the leaf footprint of a constant is trivial). -/
+private lemma get_const_eq_pure {γ : Type} (v : γ) :
+    ProgramDenotation.get (⟨fun _ => v⟩ : Getter γ (ProcedureState (sigQ.LocalVariableState [])))
+      = (pure v : ProgramDenotation (ProcedureState (sigQ.LocalVariableState [])) γ) := by
+  funext st
+  change (pure (st, st) : SubProbability (ProcedureState (sigQ.LocalVariableState []) ×
+        ProcedureState (sigQ.LocalVariableState []))) >>=
+      (fun w => (pure (v, w.2) : SubProbability (γ × ProcedureState (sigQ.LocalVariableState []))))
+    = (pure (v, st) : SubProbability (γ × ProcedureState (sigQ.LocalVariableState [])))
+  rw [SubProbability.pure_bind]
+
+/-- **(ii) of the sandwich**: the syntactic region of `q_syn` is bounded by `bVar`'s lens region —
+    every leaf reads/writes `bVar` (through `globalL`) or a constant, and the `globalL`-reduction
+    of the chained region lands in `bVar.footprint`. -/
+theorem fvP_qsyn_le : FVP.fvP_proc (q_syn bVar) ≤ bVar.footprint := by
+  have hget : (ProgramDenotation.get (bPS bVar).toGetter).footprint ≤ (bPS bVar).footprint :=
+    ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_get (bPS bVar))
+  have hset : ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter)
+      ≤ (bPS bVar).footprint := by
+    rw [ProgramDenotation.footprint']
+    exact iSup_le fun ret =>
+      ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_set _ ret)
+  have hbias : (ProgramDenotation.get biasG).footprint ≤ (bPS bVar).footprint := by
+    rw [show biasG = (⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.biasPMF⟩ :
+        Getter (SubProbability Bool) (ProcedureState (sigQ.LocalVariableState []))) from rfl,
+      get_const_eq_pure]
+    exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
+  have hflip : (ProgramDenotation.get flipG).footprint ≤ (bPS bVar).footprint := by
+    rw [show flipG = (⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.flipPMF⟩ :
+        Getter (SubProbability Bool) (ProcedureState (sigQ.LocalVariableState []))) from rfl,
+      get_const_eq_pure]
+    exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
+  rw [show FVP.fvP_proc (q_syn bVar) =
+      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
+        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
+  refine sup_le ?_ ?_
+  · refine le_trans (fvP_reduce_mono _ ?_) (reduce_chain_footprint_le _ bVar)
+    rw [show FVP.fvP_stmt (bodyQ bVar) =
+        (ProgramDenotation.get (bPS bVar).toGetter).footprint ⊔
+          ((ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter) ⊔
+              (ProgramDenotation.get biasG).footprint) ⊔
+            (ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter) ⊔
+              (ProgramDenotation.get flipG).footprint)) from rfl]
+    exact sup_le hget (sup_le (sup_le hset hbias) (sup_le hset hflip))
+  · refine le_trans (fvP_reduce_mono _ ?_) (reduce_chain_footprint_le _ bVar)
+    rw [show retQ = (⟨fun _ => ()⟩ :
+        Getter Unit (ProcedureState (sigQ.LocalVariableState []))) from rfl, get_const_eq_pure]
+    exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
+
+/-- **(i) of the sandwich**: `bVar`'s conditional-abort tests live in `q_syn`'s syntactic region.
+    The `x₀`-slice of the `if`-condition read is the *chained* test `(bPS bVar).testKer x₀`;
+    feeding the `globalL`-reduction a point input on the (trivial) locals and a constant-accept
+    weight reduces it to the state-level test `bVar.testKer x₀`, which is therefore a *generator*
+    of `fvP_reduce globalL (fvP_stmt bodyQ) ≤ FVP.fvP_proc q_syn`. -/
+theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
+    bVar.testKer x₀ ∈ (FVP.fvP_proc (q_syn bVar)).updates := by
+  classical
+  have hgetst : ∀ st, ProgramDenotation.get (bPS bVar).toGetter st
+      = (pure ((bPS bVar).get st, st) :
+          SubProbability (Bool × ProcedureState (sigQ.LocalVariableState []))) := by
+    intro st
+    change (pure (st, st) : SubProbability (ProcedureState (sigQ.LocalVariableState []) ×
+          ProcedureState (sigQ.LocalVariableState []))) >>=
+        (fun w => (pure ((bPS bVar).get w.1, w.2) :
+          SubProbability (Bool × ProcedureState (sigQ.LocalVariableState []))))
+      = _
+    rw [SubProbability.pure_bind]
+  -- the chained test is a generator (an `x₀`-slice) of the condition-read leaf
+  have h1 : (bPS bVar).testKer x₀ ∈
+      ((ProgramDenotation.get (bPS bVar).toGetter).footprint).updates := by
+    refine (Footprint.from_le_iff _ _).mp le_rfl ⟨x₀, ?_⟩
+    funext st
+    simp only [hgetst, SubProbability.pure_bind]
+    by_cases h : (bPS bVar).get st = x₀
+    · rw [if_pos h]
+      exact (show (bPS bVar).testKer x₀ st = pure st from if_pos h).symm
+    · rw [if_neg h]
+      exact (show (bPS bVar).testKer x₀ st = ⊥ from if_neg h).symm
+  -- transport into the body region
+  have h2 : (bPS bVar).testKer x₀ ∈ (FVP.fvP_stmt (bodyQ bVar)).updates := by
+    have hle : (ProgramDenotation.get (bPS bVar).toGetter).footprint
+        ≤ FVP.fvP_stmt (bodyQ bVar) := by
+      rw [show FVP.fvP_stmt (bodyQ bVar) =
+          (ProgramDenotation.get (bPS bVar).toGetter).footprint ⊔
+            ((ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter) ⊔
+                (ProgramDenotation.get biasG).footprint) ⊔
+              (ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter) ⊔
+                (ProgramDenotation.get flipG).footprint)) from rfl]
+      exact le_sup_left
+    exact hle h1
+  -- reduce the chained test to the state-level test
+  obtain ⟨ps₀⟩ : Nonempty (ProcedureState (sigQ.LocalVariableState [])) := inferInstance
+  have hne : Nonempty (ProcedureState (sigQ.LocalVariableState [])) := ⟨ps₀⟩
+  set β₀ := (ProcedureState.globalL (l := sigQ.LocalVariableState [])).compl.get ps₀ with hβ₀
+  have hinv : ∀ m : State,
+      ProcedureState.globalL.get
+        ((ProcedureState.globalL (l := sigQ.LocalVariableState [])).splitSpace.invFun (m, β₀))
+      = m := by
+    intro m
+    simp only [Lens.splitSpace]
+    rw [dif_pos hne]
+    exact ProcedureState.globalL.set_get _ _
+  have h3 : Lens.reduceSubProbability ProcedureState.globalL
+      ((bPS bVar).testKer x₀, fun _ => (pure β₀ : SubProbability _),
+        fun _ => (pure () : SubProbability Unit))
+      = bVar.testKer x₀ := by
+    funext m
+    change ((pure β₀ : SubProbability _) >>= fun m' =>
+        (bPS bVar).testKer x₀ (ProcedureState.globalL.splitSpace.invFun (m, m')) >>= fun m'' =>
+          (pure () : SubProbability Unit) >>= fun _ =>
+            (pure (ProcedureState.globalL.get m'') : SubProbability State))
+      = bVar.testKer x₀ m
+    rw [SubProbability.pure_bind]
+    have hcond : (bPS bVar).get (ProcedureState.globalL.splitSpace.invFun (m, β₀)) = bVar.get m := by
+      change bVar.get (ProcedureState.globalL.get
+          (ProcedureState.globalL.splitSpace.invFun (m, β₀))) = bVar.get m
+      rw [hinv m]
+    by_cases h : bVar.get m = x₀
+    · rw [show (bPS bVar).testKer x₀ (ProcedureState.globalL.splitSpace.invFun (m, β₀))
+            = pure (ProcedureState.globalL.splitSpace.invFun (m, β₀))
+          from if_pos (hcond.trans h), SubProbability.pure_bind, SubProbability.pure_bind,
+        hinv m]
+      exact (show bVar.testKer x₀ m = pure m from if_pos h).symm
+    · rw [show (bPS bVar).testKer x₀ (ProcedureState.globalL.splitSpace.invFun (m, β₀))
+            = ⊥ from if_neg (fun hc => h (hcond.symm.trans hc)), SubProbability.bot_bind]
+      exact (show bVar.testKer x₀ m = ⊥ from if_neg h).symm
+  -- generator membership in the reduction, then into `fvP_proc`
+  have h4 : bVar.testKer x₀
+      ∈ (fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))).updates := by
+    refine (Footprint.from_le_iff _ _).mp le_rfl ?_
+    exact ⟨((bPS bVar).testKer x₀, fun _ => (pure β₀ : SubProbability _),
+        fun _ => (pure () : SubProbability Unit)),
+      ⟨h2, Set.mem_univ _, Set.mem_univ _⟩, h3⟩
+  have h5 : fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))
+      ≤ FVP.fvP_proc (q_syn bVar) := by
+    rw [show FVP.fvP_proc (q_syn bVar) =
+        fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
+          fvP_reduce ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
+    exact le_sup_left
+  exact h5 h4
+
+/-- **For the region syntax assigns to the counterexample program, the notions agree**:
+    observational indistinguishability through `FVP.fvP_proc q_syn` *is* touched-getter equality.
+    Instance of the pointwise sandwich — contrast with the *minimal semantic* footprint of the
+    same program, where the two notions provably differ
+    (`CounterExamples.exists_indistinguishable_touched_getter_ne`). -/
+theorem qsyn_indistinguishable_iff_touched_getter_eq (σ σ' : State) :
+    (FVP.fvP_proc (q_syn bVar)).indistinguishable σ σ' ↔
+      (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ
+        = (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ' :=
+  Footprint.indistinguishable_iff_touched_getter_eq_of_sandwich
+    (testKer_mem_fvP_qsyn bVar) (fvP_qsyn_le bVar) σ σ'
+
+/-- The concrete form: `q_syn`'s tests see exactly the variable `bVar`. -/
+theorem qsyn_indistinguishable_iff_get_eq (σ σ' : State) :
+    (FVP.fvP_proc (q_syn bVar)).indistinguishable σ σ' ↔ bVar.get σ = bVar.get σ' :=
+  ⟨fun h => Footprint.get_eq_of_indistinguishable_of_testKer_mem (testKer_mem_fvP_qsyn bVar) h,
+    fun h => (qsyn_indistinguishable_iff_touched_getter_eq bVar σ σ').mpr
+      (Footprint.touched_getter_eq_of_le (fvP_qsyn_le bVar)
+        ((bVar.footprint_touched_getter_eq_iff σ σ').mpr h))⟩
+
+/-- **`glob q_syn = b`** (EasyCrypt's `glob Q = {b}`), stated with the touched getter: the
+    touched getter of the region syntax assigns to `q_syn` induces **the same equivalence on
+    states** as reading the variable `bVar` — kernel equality of the two getters, which is the
+    only identification `={glob ·}`-style reasoning ever consumes (their codomains differ, so
+    literal equality is ill-typed).  Proved *observationally*: both sides are the
+    indistinguishability relation of the region. -/
+theorem qsyn_touched_getter_eq_iff_get_eq (σ σ' : State) :
+    (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ
+        = (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ'
+      ↔ bVar.get σ = bVar.get σ' :=
+  (qsyn_indistinguishable_iff_touched_getter_eq bVar σ σ').symm.trans
+    (qsyn_indistinguishable_iff_get_eq bVar σ σ')
+
+end QSyn
 
 end GaudisCrypt.Lib.RO.Instantiate

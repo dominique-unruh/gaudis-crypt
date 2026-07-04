@@ -801,4 +801,31 @@ theorem fvP_stmt_le_FVP {holes : HoleSigs} {l : Type} :
   termination_by s => s.depth
   decreasing_by all_goals (simp only [StmtWithHoles.depth]; omega)
 
+/-- **Bridge: FV's (global, syntactic) `fvP_proc` disjointness ⟹ the pipeline's (procedure-state,
+    semantic) disjointness.**  `FVP.fvP_proc A` (a `Footprint State`, the `globalL`-reduction of A's
+    *syntactic* footprint) over-approximates the pipeline's *semantic* `fvP_proc A` after reduction, so
+    a disjointness from `random_oracle_state` on the global state gives the disjointness from
+    `roLift = globalL.chain random_oracle_state` the confinement needs.  Two ingredients:
+    (1) **FV soundness** — the pipeline's semantic `fvP_stmt` is bounded by FV's syntactic one; and
+    (2) the **`reduce`/`chain` transfer** through `globalL` (where the locals drop out — they are `⊥`
+    to the oracle). -/
+theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ := by
+  -- `FVP.fvP_proc A = fvP_reduce globalL (FVP.fvP_stmt body) ⊔ fvP_reduce globalL (get return)`.
+  rw [show FVP.fvP_proc A =
+      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
+        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get A.return_val).footprint)
+      from rfl] at hdisj
+  -- `roLift = globalL.chain random_oracle_state`; both summands go via `reduce_chain_le_compl`.
+  show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
+      ≤ ((ProcedureState.globalL.chain random_oracle_state).footprint)ᶜ
+  refine sup_le ?_ ?_
+  · -- body: `fvP_reduce (fvP_stmt) ≤ fvP_reduce (FVP.fvP_stmt) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
+    refine reduce_chain_le_compl (le_trans (fvP_reduce_mono _ (fvP_stmt_le_FVP A.body)) ?_)
+    exact le_trans le_sup_left hdisj
+  · -- return: `fvP_reduce (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
+    exact reduce_chain_le_compl (le_trans le_sup_right hdisj)
+
 end GaudisCrypt.Lib.RO.Instantiate
