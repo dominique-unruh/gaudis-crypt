@@ -297,5 +297,21 @@ termination_by (proc.body.depth, 1)
 decreasing_by simp [Prod.lex_def]
 
 end
+/-- The procedure denotation as an explicit wrapper: initialise locals, run the
+    body, extract `(return_val, global)`. -/
+noncomputable def procWrap {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (initL : L)
+    (B : ProgramDenotation (ProcedureState L) Unit) : ProgramDenotation State sig.ret :=
+  fun st => B ⟨st, initL⟩ >>= fun p => pure (rv.get p.2, p.2.global)
+
+/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body
+    (generic over the holes and their instantiation). -/
+theorem procedureDenotation_eq_procWrap_gen {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig) (args : sig.ParamType) (inst : holes.Instantiation) :
+    procedureDenotation (A.instantiate inst) args
+      = procWrap A.return_val (sig.localVariableInit A.locals args)
+          (programDenotation (A.body.instantiate inst)) := by
+  funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]
+
 
 end GaudisCrypt.Language.Programs

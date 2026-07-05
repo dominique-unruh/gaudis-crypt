@@ -63,12 +63,12 @@ write on a miss.  With **equal tables** the two sides take the same branch: a hi
 returns the shared cached value; a miss couples the samples diagonally. -/
 
 /-- `ProgramDenotation` bind, applied: the StateT plumbing, definitionally. -/
-private lemma bind_apply {α β : Type} (p : ProgramDenotation state α)
+lemma bind_apply {α β : Type} (p : ProgramDenotation state α)
     (k : α → ProgramDenotation state β) (σ : state) :
     (p >>= k) σ = p σ >>= fun a => k a.1 a.2 := rfl
 
 /-- `ProgramDenotation.get random_oracle_state`, applied: a point mass on the table. -/
-private lemma get_ro_apply (σ : state) :
+lemma get_ro_apply (σ : state) :
     (ProgramDenotation.get random_oracle_state
         : ProgramDenotation state (input → Option output)) σ
       = (pure (random_oracle_state.get σ, σ)
@@ -79,7 +79,7 @@ private lemma get_ro_apply (σ : state) :
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
 
 /-- `ProgramDenotation.set random_oracle_state Z`, applied: the deterministic write. -/
-private lemma set_ro_apply (Z : input → Option output) (σ : state) :
+lemma set_ro_apply (Z : input → Option output) (σ : state) :
     (ProgramDenotation.set random_oracle_state Z : ProgramDenotation state Unit) σ
       = (pure ((), random_oracle_state.set Z σ) : SubProbability (Unit × state)) := by
   simp only [ProgramDenotation.set, bind, StateT.bind, StateT.get, StateT.set, pure,
@@ -88,10 +88,10 @@ private lemma set_ro_apply (Z : input → Option output) (σ : state) :
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
 
 /-- `ProgramDenotation.uniform`, applied: sample, thread the state (definitional). -/
-private lemma uniform_apply (σ : state) :
-    (ProgramDenotation.uniform : ProgramDenotation state output) σ
-      = (SubProbability.uniform : SubProbability output) >>= fun v =>
-          (pure (v, σ) : SubProbability (output × state)) := rfl
+lemma uniform_apply {α : Type} [Fintype α] [Nonempty α] (σ : state) :
+    (ProgramDenotation.uniform : ProgramDenotation state α) σ
+      = (SubProbability.uniform : SubProbability α) >>= fun v =>
+          (pure (v, σ) : SubProbability (α × state)) := rfl
 
 /-- `lazy_query` applied on a cache **hit**: a point mass, state unchanged. -/
 lemma lazy_query_apply_hit (inp : input) {σ : state} {x : output}

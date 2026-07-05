@@ -239,15 +239,6 @@ theorem prhl_instantiate_body {l : Type}
   body_prhl2_gen A RO_eager RO_lazy hloc (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
 
 
-/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body — the
-    oracle-agnostic generalization of `procedureDenotation_eq_procWrap` (over arbitrary `holes`). -/
-theorem procedureDenotation_eq_procWrap_gen {holes : HoleSigs} {sig : ProcedureSignature}
-    (A : ProcedureWithHoles holes sig) (args : sig.ParamType) (inst : holes.Instantiation) :
-    procedureDenotation (A.instantiate inst) args
-      = procWrap A.return_val (sig.localVariableInit A.locals args)
-          (programDenotation (A.body.instantiate inst)) := by
-  funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]; rfl
-
 /-- **Oracle-agnostic procedure wrapper for `prhl2`** (the generalization of `prhl_wrapper`):
     a body-level `prhl2` coupling of `A`'s body under two *arbitrary* hole-instantiations
     `eagerInst`/`lazyInst` lifts to a state-level `prhl2` coupling of the whole procedure, given the

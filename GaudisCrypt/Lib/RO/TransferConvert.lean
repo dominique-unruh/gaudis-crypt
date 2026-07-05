@@ -110,7 +110,7 @@ theorem lazy_init_convert_eq_random_oracle_init :
     type-class instance mismatches at the call site if the lemma is
     elaborated in a module that doesn't see the local instance. Move once
     the duplicate Fintype instance is removed. -/
-private lemma sum_update_eq_card_mul_sum {α β : Type*}
+lemma sum_update_eq_card_mul_sum {α β : Type*}
     [DecidableEq α] [Fintype α] [Fintype β]
     (i : α) (G : (α → β) → ENNReal) :
     ∑ v : β, ∑ y : α → β, G (Function.update y i v)

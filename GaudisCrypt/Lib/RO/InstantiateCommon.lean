@@ -197,21 +197,14 @@ single oracle hole.  `A.instantiate RO_lazy` / `A.instantiate RO_eager` fill tha
 hole, and `procedureDenotation _ args : ProgramDenotation state sig.ret` runs the result on
 the RO global `state`. -/
 
-/-- The procedure denotation as an explicit wrapper: initialise locals, run the
-    body, extract `(return_val, global)`. -/
-noncomputable def procWrap {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L)
-    (B : ProgramDenotation (ProcedureState L) Unit) : ProgramDenotation state sig.ret :=
-  fun st => B ⟨st, initL⟩ >>= fun p => pure (rv.get p.2, p.2.global)
-
-
-/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body. -/
+/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body
+    (`procWrap` now lives in `GaudisCrypt.Language.Programs`). -/
 theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (inst : roHoles.Instantiation) :
     procedureDenotation (A.instantiate inst) args
       = procWrap A.return_val (sig.localVariableInit A.locals args)
-          (programDenotation (A.body.instantiate inst)) := by
-  funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]; rfl
+          (programDenotation (A.body.instantiate inst)) :=
+  procedureDenotation_eq_procWrap_gen A args inst
 
 
 /-! ## Faithful hypothesis: the adversary confined to its private local state
