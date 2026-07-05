@@ -70,20 +70,35 @@ theorem ProgramDenotation.transferBy_bind {s α β : Type} {c : ProgramDenotatio
         = (c >>= fun _ => q) from h]
   rw [ProgramDenotation.bind_assoc]
 
+/-- Re-passing a `Unit` value through `pure` after `c` is a no-op. -/
+private lemma bind_c_pure_unit {s : Type} (c : ProgramDenotation s Unit) :
+    (fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit))
+      = fun _ : Unit => c := by
+  funext u
+  rw [show (Pure.pure u : ProgramDenotation s Unit)
+        = (Pure.pure () : ProgramDenotation s Unit) from rfl]
+  exact ProgramDenotation.bind_pure _
+
 /-- For `Unit`-valued programs the transfer is a plain bind equation:
     `p; c = c; q`. -/
 theorem ProgramDenotation.transferBy_unit_bind {s : Type} {c p q : ProgramDenotation s Unit}
     (h : ProgramDenotation.transferBy c p q) :
     (p >>= fun _ : Unit => c) = (c >>= fun _ : Unit => q) := by
-  calc (p >>= fun _ : Unit => c)
-      = (p >>= fun u : Unit =>
-            c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit)) := by
-        congr 1; funext u
-        change c = c >>= fun _ : Unit => Pure.pure u
-        rw [show (Pure.pure u : ProgramDenotation s Unit)
-              = (Pure.pure () : ProgramDenotation s Unit) from rfl]
-        exact (ProgramDenotation.bind_pure _).symm
-    _ = (c >>= fun _ : Unit => q) := h
+  have h' : (p >>= fun u : Unit =>
+        c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit))
+      = (c >>= fun _ : Unit => q) := h
+  rwa [bind_c_pure_unit] at h'
+
+/-- Converse of `transferBy_unit_bind`: a plain bind equation between
+    `Unit`-valued programs is a transfer. -/
+theorem ProgramDenotation.transferBy_of_unit_bind {s : Type} {c p q : ProgramDenotation s Unit}
+    (h : (p >>= fun _ : Unit => c) = (c >>= fun _ : Unit => q)) :
+    ProgramDenotation.transferBy c p q := by
+  change (p >>= fun u : Unit =>
+        c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit))
+      = (c >>= fun _ : Unit => q)
+  rw [bind_c_pure_unit]
+  exact h
 
 /-- `zoom` lifts `transferBy`: a state-level transfer becomes a zoomed one. -/
 theorem ProgramDenotation.transferBy_zoom {s t α : Type} (lens : Lens s t)
@@ -115,14 +130,16 @@ theorem ProgramDenotation.transferBy_refl_of_commute {s α : Type}
     ProgramDenotation.bind_pure] at h'
   exact h'
 
-/-- A self-transferring program commutes with `c` in continuation-passing form
-    (the converse direction of `transferBy_refl_of_commute`). -/
-theorem ProgramDenotation.transferBy_comm_cont {s α β : Type}
-    {c : ProgramDenotation s Unit} {p : ProgramDenotation s α}
-    (h : ProgramDenotation.transferBy c p p) (k : α → ProgramDenotation s β) :
-    (p >>= fun a => c >>= fun _ => k a) = (c >>= fun _ => p >>= k) := by
+/-- Continuation form of the transfer: `c` slides past `p` in front of any
+    continuation `k`, turning `p` into `q`. At `p = q` this says a
+    self-transferring program commutes with `c` (the converse direction of
+    `transferBy_refl_of_commute`). -/
+theorem ProgramDenotation.transferBy_cont {s α β : Type}
+    {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
+    (h : ProgramDenotation.transferBy c p q) (k : α → ProgramDenotation s β) :
+    (p >>= fun a => c >>= fun _ => k a) = (c >>= fun _ => q >>= k) := by
   have h' := congrArg (fun m : ProgramDenotation s α => m >>= k)
-    (show (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => p) from h)
+    (show (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => q) from h)
   simpa only [ProgramDenotation.bind_assoc, ProgramDenotation.pure_bind] using h'
 
 /-- **Self-transfer from footprint disjointness**: a program whose probabilistic
@@ -229,18 +246,13 @@ theorem ProgramDenotation.transferBy_while_loop {s : Type} {c : ProgramDenotatio
     ProgramDenotation.transferBy c (while_loop cond body_lazy) (while_loop cond body_eager) := by
   have h_cond_comm : ∀ {β : Type} (k : Bool → ProgramDenotation s β),
       (cond >>= fun b => c >>= fun _ => k b) = (c >>= fun _ => cond >>= k) :=
-    fun {β} k => ProgramDenotation.transferBy_comm_cont h_cond k
+    fun {β} k => ProgramDenotation.transferBy_cont h_cond k
   have h_body_bind : (body_lazy >>= fun _ : Unit => c) = (c >>= fun _ : Unit => body_eager) :=
     ProgramDenotation.transferBy_unit_bind h_body
   change (while_loop cond body_lazy >>= fun u : Unit =>
           c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit))
       = (c >>= fun _ : Unit => while_loop cond body_eager)
-  rw [show (fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit))
-        = (fun _ : Unit => c) from by
-        funext u
-        rw [show (Pure.pure u : ProgramDenotation s Unit)
-              = (Pure.pure () : ProgramDenotation s Unit) from rfl]
-        exact ProgramDenotation.bind_pure _]
+  rw [bind_c_pure_unit]
   let F_lazy := while_iteration cond body_lazy
   let F_eager := while_iteration cond body_eager
   have hL_chain : ∀ n, ((F_lazy^[n] ⊥ : Unit → ProgramDenotation s Unit) () >>= (fun _ => c))
