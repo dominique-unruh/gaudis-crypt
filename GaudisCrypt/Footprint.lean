@@ -492,6 +492,17 @@ def Footprint.global_getter {m : Type} (R : Footprint m) : Getter (Quotient R.or
 def Footprint.touched_getter {m : Type} (R : Footprint m) : Getter (Quotient Rᶜ.orbit_setoid) m :=
   Rᶜ.global_getter
 
+/-- A single deterministic `Rᶜ`-update cannot move the touched getter: `f σ` and `σ` lie in
+    the same `Rᶜ`-orbit.  The pointwise engine for "`={glob A}` is preserved by writes outside
+    `A`'s footprint" (e.g. oracle writes, for an oracle-disjoint `A`). -/
+theorem Footprint.touched_getter_get_eq_of_mem {m : Type} {R : Footprint m}
+    {f : Function.End m} (hf : diracKer f ∈ Rᶜ.updates) (σ : m) :
+    R.touched_getter.get (f σ) = R.touched_getter.get σ := by
+  refine (Quotient.sound ?_).symm
+  show Relation.EqvGen (fun s s' => ∃ f : Function.End m, diracKer f ∈ Rᶜ.updates ∧ f s = s')
+    σ (f σ)
+  exact Relation.EqvGen.rel _ _ ⟨f, hf, rfl⟩
+
 /-- A `Footprint S` is **resettable at `σ`** if it admits an `S`-update that overwrites its own
     content (`S.touched_getter`) with `σ`'s value while fixing `σ`.  This is the "`S` is a genuine,
     overwritable memory region" property: every lens footprint has it (`Lens.footprint_hasReset`),

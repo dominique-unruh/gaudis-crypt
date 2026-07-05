@@ -336,6 +336,37 @@ lemma convert_lossless (σ : state) : (convert σ).1 Set.univ = 1 := by
   simp only [ProgramDenotation.wp, SubProbability.expected, MeasureTheory.lintegral_one] at h
   exact h
 
+/-- `convert`'s support only performs a `random_oracle_state` write: any state projection `g`
+    invariant under RO writes is preserved along `convert`'s run.  Via the explicit
+    `convert_wp_eq` formula — no support analysis of the monadic plumbing needed. -/
+lemma convert_satisfies_of_ro_invariant {β : Type} (g : state → β)
+    (hg : ∀ (Z : input → Option output) (σ : state), g (random_oracle_state.set Z σ) = g σ)
+    (σ : state) :
+    (convert σ).satisfies (fun x : Unit × state => g x.2 = g σ) := by
+  refine SubProbability.satisfies_of_range _ _ (fun f hf => ?_)
+  change convert.wp f σ = 0
+  rw [convert_wp_eq]
+  refine Finset.sum_eq_zero (fun y _ => ?_)
+  have h0 := hf ((), random_oracle_state.set
+      (fun x => some ((random_oracle_state.get σ x).getD (y x))) σ) (hg _ σ)
+  rw [h0, ENNReal.zero_div]
+
+/-- **Writes to the RO table do not move `glob A`**, for any `A` whose footprint avoids the
+    oracle: under `hdisj` the write `random_oracle_state.set Z` is a `(fvP_proc A)ᶜ`-orbit
+    step, and the touched getter is constant on `(fvP_proc A)ᶜ`-orbits. -/
+theorem glob_ro_set_invariant {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles sig)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ)
+    (Z : input → Option output) (σ : state) :
+    (FVP.glob A).get (random_oracle_state.set Z σ) = (FVP.glob A).get σ := by
+  have hRO_le : random_oracle_state.footprint ≤ (FVP.fvP_proc A)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp hdisj
+  have hmem : diracKer (random_oracle_state.set Z) ∈ (FVP.fvP_proc A)ᶜ.updates :=
+    hRO_le ((Footprint.from_le_iff
+        (Set.range fun g : Function.End (input → Option output) =>
+          diracKer (random_oracle_state.liftFunction g))
+        random_oracle_state.footprint).mp le_rfl ⟨fun _ => Z, rfl⟩)
+  exact Footprint.touched_getter_get_eq_of_mem hmem σ
+
 /-- **Theorem 1 at whole-game level**: with the initialisations *included*, the lazy game followed
     by a result-preserving `convert` **equals** the eager game.  Unlike the per-query coupling,
     this is unconditionally true from footprint disjointness — the eager table's randomness is
@@ -403,5 +434,39 @@ theorem output_win_transfer_games {sig : ProcedureSignature}
       (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
       (fun u v => Win u.1 ↔ Win v.1) :=
   output_win_transfer_games_of_fvP A args Win (fvP_proc_le_roLift_compl A hdisj)
+
+/-! ## `={glob A}` in the postcondition
+
+`glob A := (FVP.fvP_proc A).touched_getter` (EasyCrypt's `glob A`).  The whole-game coupling
+not only decides the result: the coupled final states also **agree on everything `A` may
+touch**.  The two legs differ by the trailing `convert` only, `convert` writes the RO table
+only, and — under the footprint disjointness — RO writes are `(fvP_proc A)ᶜ`-orbit steps,
+invisible to `glob A`. -/
+
+/-- **Whole-game transfer with `={glob A}` in the postcondition**: from equal initial states,
+    the lazy and eager games couple with equal results *and* `(glob A)`-equal final states.
+    The `glob`-enriched form of the coupling behind `output_win_transfer_games`. -/
+theorem output_glob_transfer_games {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
+      (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
+      (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
+      (fun u v => u.1 = v.1 ∧ (FVP.glob A).get u.2 = (FVP.glob A).get v.2) :=
+  ProgramDenotation.prhl2_of_lossless_tail_proj (FVP.glob A).get convert_lossless
+    (convert_satisfies_of_ro_invariant (FVP.glob A).get (glob_ro_set_invariant A hdisj))
+    (game_transfer_of_fvP A args (fvP_proc_le_roLift_compl A hdisj))
+
+/-- `output_win_transfer_games`, strengthened with `={glob A}`: the games couple with
+    `Win`-agreement on the results *and* `(glob A)`-equal final states. -/
+theorem output_win_transfer_games_glob {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
+      (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
+      (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
+      (fun u v => (Win u.1 ↔ Win v.1) ∧ (FVP.glob A).get u.2 = (FVP.glob A).get v.2) :=
+  (output_glob_transfer_games A args hdisj).conseq
+    (fun _ _ h => h) (fun _ _ h => ⟨by rw [h.1], h.2⟩)
 
 end GaudisCrypt.Lib.RO.Instantiate

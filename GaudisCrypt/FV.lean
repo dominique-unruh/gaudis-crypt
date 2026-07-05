@@ -924,6 +924,15 @@ noncomputable
 def fvP_stmt {s holes} (stmt : StmtWithHoles holes s) : Footprint (ProcedureState s) :=
   fvpInductiveFunctionGS.stmt stmt
 
+/-- **EasyCrypt's `glob A`**: the getter reading everything the procedure `A` may touch —
+    the `touched_getter` of its computed footprint.  `={glob A}` between two states is
+    `(glob A).get σ₁ = (glob A).get σ₂`: the states differ only by updates *outside*
+    `fvP_proc A`. -/
+noncomputable
+def glob {sig holes} (A : ProcedureWithHoles holes sig) :
+    Getter (Quotient ((fvP_proc A)ᶜ.orbit_setoid)) State :=
+  (fvP_proc A).touched_getter
+
 end FVP
 
 
