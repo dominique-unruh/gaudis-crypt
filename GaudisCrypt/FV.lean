@@ -668,7 +668,7 @@ private lemma centralizer_preimage_image_subset {M N : Type*} [Monoid M] [Monoid
 omit [ProgramSpec] in
 /-- A `diracKer` of a localized deterministic update is the `updateK` of the base `diracKer`
     (so the `diracKer` generators of `lens.footprint` all sit inside the localized-kernel image). -/
-private lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
+lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
     lens.liftSubProbability (diracKer g) = diracKer (lens.liftFunction g) := by
   funext st
   show (pure (g (lens.get st)) : SubProbability a) >>= (fun a' => pure (lens.set a' st))
@@ -967,31 +967,41 @@ theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
         = pure (v.liftFunction g (L.get x)) from rfl, SubProbability.pure_bind]
   rfl
 
-/-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
-    `L`-reduction of `R` is disjoint from `v.footprint`.  For `f ∈ v.footprint.updates` and
-    `k ∈ R.updates`, the reduced generators `reduceSubProbability L (k, i, o)` lie in
-    `(fvP_reduce L R).updates`, so `hred` makes them commute with `f`; the Fubini identities
+/-- **The lift of an update commutes with every `R`-update**, when the update commutes with
+    the `L`-reduction of `R` (membership form: `f ∈ (fvP_reduce L R)ᶜ.updates`).  The reduced
+    generators `reduceSubProbability L (k, i, o)` of `k ∈ R.updates` lie in
+    `(fvP_reduce L R).updates`, so `hf` makes them commute with `f`; the Fubini identities
     (`reduceBaseGen_mul_left`/`_right`) turn that into commutation of `L.liftSubProbability f`
     with `k` (via `reduceSubProbability_ext`). -/
-theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
-    {v : Lens t s} {R : Footprint c}
-    (hred : fvP_reduce L R ≤ (v.footprint)ᶜ)
-    {f : s → SubProbability s} (hf : f ∈ v.footprint.updates)
+theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
+    {R : Footprint c}
+    {f : s → SubProbability s} (hf : f ∈ ((fvP_reduce L R)ᶜ).updates)
     {k : c → SubProbability c} (hk : k ∈ R.updates) :
     L.liftSubProbability f * k = k * L.liftSubProbability f := by
   apply Lens.reduceSubProbability_ext L
   intro i o
-  -- Each reduced generator of `k` is a generator of `fvP_reduce L R`, hence (by `hred`)
-  -- commutes with `f ∈ v.footprint.updates`.
+  -- Each reduced generator of `k` is a generator of `fvP_reduce L R`, hence commutes with `f`.
   have hgen : Lens.reduceSubProbability L (k, i, o) ∈ (fvP_reduce L R).updates := by
     rw [fvP_reduce_eq_from, Footprint.from_updates]
     exact Set.subset_centralizer_centralizer
       ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
   have hcomm : f * Lens.reduceSubProbability L (k, i, o)
       = Lens.reduceSubProbability L (k, i, o) * f :=
-    (Submonoid.mem_centralizer_iff.mp (hred hgen)) f hf
+    ((Submonoid.mem_centralizer_iff.mp hf) _ hgen).symm
   rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right] at hcomm
   exact hcomm
+
+/-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
+    `L`-reduction of `R` is disjoint from `v.footprint` — the lens-region instance of
+    `liftSubProbability_comm_of_mem_reduce_compl`. -/
+theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
+    {v : Lens t s} {R : Footprint c}
+    (hred : fvP_reduce L R ≤ (v.footprint)ᶜ)
+    {f : s → SubProbability s} (hf : f ∈ v.footprint.updates)
+    {k : c → SubProbability c} (hk : k ∈ R.updates) :
+    L.liftSubProbability f * k = k * L.liftSubProbability f :=
+  liftSubProbability_comm_of_mem_reduce_compl
+    ((Footprint.le_compl_comm _ _).mp hred hf) hk
 
 /-- **A chained lens's footprint lies in `Rᶜ` whenever the inner footprint's `L`-reduction does**:
     from `fvP_reduce L R ≤ (v.footprint)ᶜ` conclude `R ≤ ((L.chain v).footprint)ᶜ`.  Route: flip the

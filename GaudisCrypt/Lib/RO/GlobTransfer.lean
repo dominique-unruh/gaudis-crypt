@@ -27,17 +27,18 @@ Architecture (chained by `prhl2.trans`):
 * `output_glob_transfer_games_of_glob` — the endpoint: `={glob A}` precondition,
   `u.1 = v.1 ∧ ={glob A}` postcondition, lazy vs eager.
 
-One obligation remains a **hypothesis**, to be discharged in a follow-up:
+Both obligations of the original skeleton are discharged, so the endpoint needs
+**only** the footprint disjointness `hdisj`:
 
-* `hcompat : FootprintCompat (PGlob A) (fvP_proc A)` — the *glob adversary rule*:
-  every `A`-confined program self-couples from `PGlob`-related states.  Planned
-  proof: per-`EqvGen`-orbit-step map-`f` couplings + `prhl2.trans`, with the tables
-  conjunct re-attached from per-leg support facts (`inFootprint_preserves_touched`).
+* the same-side per-query coupling (`lazy_query_self_coupling`) — cache hits agree
+  on the shared cached value, cache misses couple the samples diagonally; and
 
-(The other obligation of the skeleton — the same-side per-query coupling — is
-discharged: `lazy_query_self_coupling` couples cache hits on the shared cached
-value and cache misses diagonally on one uniform sample; unlike the lazy-vs-eager
-per-query coupling, the diagonal one is satisfiable and provable.)
+* the *glob adversary rule* (`footprintCompat_PGlob`) — every `A`-confined program
+  self-couples from `PGlob`-related states, via per-orbit-step map-`f` couplings
+  (`inFootprint_subprob`) chained by `prhl2.refl/symm/trans`
+  (`prhl2_self_of_orbit`), the reduce/lift bridge
+  (`lifted_step_mem_fvP_proc_compl`), and per-leg table preservation re-attached
+  through the coupling marginals.
 -/
 
 namespace GaudisCrypt.Lib.RO.Instantiate
@@ -237,14 +238,263 @@ theorem lazy_init_coupling_glob {sig : ProcedureSignature}
     exact ⟨by rw [glob_ro_set_invariant A hdisj, glob_ro_set_invariant A hdisj]; exact hσ,
            by rw [random_oracle_state.set_get, random_oracle_state.set_get]⟩
 
+/-! ## The glob adversary rule: `FootprintCompat (PGlob A) (fvP_proc A)`
+
+An `A`-confined program self-couples from `PGlob`-related states.  The glob-equality
+precondition is an orbit fact — the two global states are joined by a zig-zag of
+`(FVP.fvP_proc A)ᶜ`-updates (`Quotient.exact`).  Each such update, lifted through
+`globalL` (fixing the locals), commutes with everything `A` may touch as a procedure
+(`lifted_step_mem_fvP_proc_compl`, via the reduce/lift algebra), so a confined `p`
+maps one leg onto the other pointwise (`inFootprint_subprob`), giving a per-step
+coupling; `prhl2.refl/symm/trans` chain the zig-zag (`prhl2_self_of_orbit`).  The
+final states remain in a lifted orbit — equal locals and `={glob A}` globals
+(`glob_locals_of_lifted_orbit`) — while the tables conjunct is re-attached from the
+per-leg supports (`inFootprint_preserves_touched` through the coupling marginals). -/
+
+/-- A `satisfies` of the first marginal holds on the coupling's support. -/
+private lemma coupling_satisfies_fst {γ δ : Type} {μ : SubProbability (γ × δ)}
+    {B : γ → Prop}
+    (h : (μ >>= fun x => (pure x.1 : SubProbability γ)).satisfies B) :
+    μ.satisfies (fun x => B x.1) := by
+  intro x hx
+  apply h x.1
+  rw [SubProbability.marginal_fst_singleton]
+  have hle : μ.1 {(x.1, x.2)} ≤ ∑' b, μ.1 {(x.1, b)} := ENNReal.le_tsum x.2
+  intro h0
+  rw [h0] at hle
+  exact hx (le_antisymm hle zero_le)
+
+/-- A `satisfies` of the second marginal holds on the coupling's support. -/
+private lemma coupling_satisfies_snd {γ δ : Type} {μ : SubProbability (γ × δ)}
+    {B : δ → Prop}
+    (h : (μ >>= fun x => (pure x.2 : SubProbability δ)).satisfies B) :
+    μ.satisfies (fun x => B x.2) := by
+  intro x hx
+  apply h x.2
+  rw [SubProbability.marginal_snd_singleton]
+  have hle : μ.1 {(x.1, x.2)} ≤ ∑' a, μ.1 {(a, x.2)} := ENNReal.le_tsum x.1
+  intro h0
+  rw [h0] at hle
+  exact hx (le_antisymm hle zero_le)
+
+/-- **Self-coupling along an orbit of confined-complement updates.**  A program confined
+    to `F` couples with itself across any zig-zag of updates from `U ⊆ Fᶜ`: each step is
+    mapped through `p` pointwise (`inFootprint_subprob`), and `prhl2.refl/symm/trans`
+    compose the zig-zag.  The coupled final states are again `U`-orbit-related. -/
+theorem prhl2_self_of_orbit {s γ : Type} {F : Footprint s} {p : ProgramDenotation s γ}
+    (hp : p.inFootprint F) (U : Set (Function.End s))
+    (hU : ∀ f ∈ U, diracKer f ∈ (Fᶜ).updates) :
+    ProgramDenotation.prhl2
+      (Relation.EqvGen fun a b => ∃ f ∈ U, f a = b) p p
+      (fun u v => u.1 = v.1 ∧ Relation.EqvGen (fun a b => ∃ f ∈ U, f a = b) u.2 v.2) := by
+  intro σ₁ σ₂ horb
+  suffices hJ : ProgramDenotation.prhl2 (fun x y => x = σ₁ ∧ y = σ₂) p p
+      (fun u v => u.1 = v.1 ∧ Relation.EqvGen (fun a b => ∃ f ∈ U, f a = b) u.2 v.2) from
+    hJ σ₁ σ₂ ⟨rfl, rfl⟩
+  induction horb with
+  | rel a b hab =>
+      intro x y hxy
+      rw [hxy.1, hxy.2]
+      obtain ⟨f, hfU, hfab⟩ := hab
+      refine ⟨p a >>= fun w => pure (w, (w.1, f w.2)), ?_, ?_, ?_⟩
+      · rw [SubProbability.bind_assoc]
+        have hinner : ∀ w : γ × s,
+            ((pure (w, (w.1, f w.2)) : SubProbability ((γ × s) × (γ × s))) >>= fun z =>
+              (pure z.1 : SubProbability (γ × s))) = pure w := by
+          intro w; rw [SubProbability.pure_bind]
+        simp only [hinner]
+        exact SubProbability.bind_pure _
+      · rw [SubProbability.bind_assoc]
+        have hinner : ∀ w : γ × s,
+            ((pure (w, (w.1, f w.2)) : SubProbability ((γ × s) × (γ × s))) >>= fun z =>
+              (pure z.2 : SubProbability (γ × s))) = pure (w.1, f w.2) := by
+          intro w; rw [SubProbability.pure_bind]
+        simp only [hinner]
+        rw [← hfab]
+        exact (inFootprint_subprob hp (hU f hfU) a).symm
+      · refine SubProbability.satisfies_bind _ (fun w _ => ?_)
+        exact SubProbability.satisfies_pure _ _
+          ⟨rfl, Relation.EqvGen.rel _ _ ⟨f, hfU, rfl⟩⟩
+        -- (the recorded step is `f w.2 = f w.2`)
+  | refl a =>
+      intro x y hxy
+      rw [hxy.1, hxy.2]
+      refine ⟨p a >>= fun w => pure (w, w), ?_, ?_, ?_⟩
+      · rw [SubProbability.bind_assoc]
+        have hinner : ∀ w : γ × s,
+            ((pure (w, w) : SubProbability ((γ × s) × (γ × s))) >>= fun z =>
+              (pure z.1 : SubProbability (γ × s))) = pure w := by
+          intro w; rw [SubProbability.pure_bind]
+        simp only [hinner]
+        exact SubProbability.bind_pure _
+      · rw [SubProbability.bind_assoc]
+        have hinner : ∀ w : γ × s,
+            ((pure (w, w) : SubProbability ((γ × s) × (γ × s))) >>= fun z =>
+              (pure z.2 : SubProbability (γ × s))) = pure w := by
+          intro w; rw [SubProbability.pure_bind]
+        simp only [hinner]
+        exact SubProbability.bind_pure _
+      · refine SubProbability.satisfies_bind _ (fun w _ => ?_)
+        exact SubProbability.satisfies_pure _ _ ⟨rfl, Relation.EqvGen.refl _⟩
+  | symm a b _ ih =>
+      exact (ProgramDenotation.prhl2.symm ih).conseq
+        (fun x y h => ⟨h.2, h.1⟩)
+        (fun v u h => ⟨h.1.symm, Relation.EqvGen.symm _ _ h.2⟩)
+  | trans a b c _ _ ih₁ ih₂ =>
+      exact (ProgramDenotation.prhl2.trans ih₁ ih₂).conseq
+        (fun x y h => ⟨b, ⟨h.1, rfl⟩, rfl, h.2⟩)
+        (fun u v h => by
+          obtain ⟨w, hw1, hw2⟩ := h
+          exact ⟨hw1.1.trans hw2.1, Relation.EqvGen.trans _ _ _ hw1.2 hw2.2⟩)
+
+/-- The update set driving the orbit coupling: global `(FVP.fvP_proc A)ᶜ`-updates lifted
+    through `globalL` (fixing the locals). -/
+def liftedGlobSteps {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles sig)
+    (l : Type) : Set (Function.End (ProcedureState l)) :=
+  { fp | ∃ f : Function.End state,
+      diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates ∧
+      fp = (ProcedureState.globalL (l := l)).liftFunction f }
+
+/-- **The bridge**: a global update commuting with everything `A` may touch globally
+    (`(FVP.fvP_proc A)ᶜ`), lifted through `globalL`, commutes with everything `A` may
+    touch as a procedure (`(fvP_proc A)ᶜ`).  Both `fvP_proc`s decompose (definitionally)
+    into body ⊔ return, with the global one the `globalL`-reduction of the procedure one;
+    per component the commutation transfers by `liftSubProbability_comm_of_mem_reduce_compl`. -/
+theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) {f : Function.End state}
+    (hf : diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates) :
+    diracKer ((ProcedureState.globalL
+        (l := sig.LocalVariableState A.locals)).liftFunction f)
+      ∈ ((fvP_proc A)ᶜ).updates := by
+  have hdecompG : FVP.fvP_proc A
+      = fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
+        fvP_reduce ProcedureState.globalL
+          ((ProgramDenotation.get A.return_val).footprint) := rfl
+  -- Per component: `X ≤ (from {lifted step})ᶜ` whenever `f` commutes with `X`'s reduction.
+  have hsing : ∀ X : Footprint (ProcedureState (sig.LocalVariableState A.locals)),
+      diracKer f ∈ ((fvP_reduce ProcedureState.globalL X)ᶜ).updates →
+      X ≤ (Footprint.from
+        {diracKer ((ProcedureState.globalL
+          (l := sig.LocalVariableState A.locals)).liftFunction f)})ᶜ := by
+    intro X hfX
+    rw [← Footprint.le_compl_comm]
+    refine (Footprint.from_le_iff _ _).mpr ?_
+    intro u hu
+    rw [Set.mem_singleton_iff] at hu
+    subst hu
+    show diracKer (ProcedureState.globalL.liftFunction f) ∈ Xᶜ.updates
+    rw [← FVP.updateK_diracKer]
+    show ProcedureState.globalL.liftSubProbability (diracKer f)
+        ∈ Submonoid.centralizer X.updates
+    rw [Submonoid.mem_centralizer_iff]
+    intro k hk
+    exact (liftSubProbability_comm_of_mem_reduce_compl hfX hk).symm
+  -- Transport `hf` to the two components of the global decomposition.
+  have hble : fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ≤ FVP.fvP_proc A := by
+    rw [hdecompG]; exact le_sup_left
+  have hrle : fvP_reduce ProcedureState.globalL
+      ((ProgramDenotation.get A.return_val).footprint) ≤ FVP.fvP_proc A := by
+    rw [hdecompG]; exact le_sup_right
+  have h1 := le_trans (fvP_stmt_le_FVP A.body)
+    (hsing _ (Footprint.compl_le_compl hble hf))
+  have h2 := hsing _ (Footprint.compl_le_compl hrle hf)
+  -- Reassemble at the procedure level.
+  have hsup : fvP_proc A ≤ (Footprint.from
+      {diracKer ((ProcedureState.globalL
+        (l := sig.LocalVariableState A.locals)).liftFunction f)})ᶜ := by
+    show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint ≤ _
+    exact sup_le h1 h2
+  exact (Footprint.from_le_iff _ _).mp
+    ((Footprint.le_compl_comm _ _).mpr hsup) (Set.mem_singleton _)
+
+/-- **Pre-transport**: a global `(FVP.fvP_proc A)ᶜ`-orbit lifts to a `liftedGlobSteps`
+    orbit of procedure states with any fixed locals. -/
+lemma lifted_orbit_of_global {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles sig)
+    {l : Type} (loc : l) {g₁ g₂ : state}
+    (h : Relation.EqvGen (fun a b : state => ∃ f : Function.End state,
+        diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates ∧ f a = b) g₁ g₂) :
+    Relation.EqvGen (fun a b => ∃ fp ∈ liftedGlobSteps A l, fp a = b)
+      (⟨g₁, loc⟩ : ProcedureState l) ⟨g₂, loc⟩ := by
+  induction h with
+  | rel a b hab =>
+      obtain ⟨f, hf, rfl⟩ := hab
+      exact Relation.EqvGen.rel _ _
+        ⟨(ProcedureState.globalL (l := l)).liftFunction f, ⟨f, hf, rfl⟩, rfl⟩
+  | refl a => exact Relation.EqvGen.refl _
+  | symm a b _ ih => exact Relation.EqvGen.symm _ _ ih
+  | trans a b c _ _ ih₁ ih₂ => exact Relation.EqvGen.trans _ _ _ ih₁ ih₂
+
+/-- **Post-transport**: `liftedGlobSteps`-orbit-related procedure states have equal locals
+    and `={glob A}` globals (each step fixes the locals and is invisible to `glob A`). -/
+lemma glob_locals_of_lifted_orbit {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) {l : Type} {x y : ProcedureState l}
+    (h : Relation.EqvGen (fun a b => ∃ fp ∈ liftedGlobSteps A l, fp a = b) x y) :
+    (FVP.glob A).get x.global = (FVP.glob A).get y.global ∧ x.locals = y.locals := by
+  induction h with
+  | rel a b hab =>
+      obtain ⟨fp, ⟨f, hf, rfl⟩, rfl⟩ := hab
+      exact ⟨(Footprint.touched_getter_get_eq_of_mem hf a.global).symm, rfl⟩
+  | refl a => exact ⟨rfl, rfl⟩
+  | symm a b _ ih => exact ⟨ih.1.symm, ih.2.symm⟩
+  | trans a b c _ _ ih₁ ih₂ => exact ⟨ih₁.1.trans ih₂.1, ih₁.2.trans ih₂.2⟩
+
+/-- **The glob adversary rule**: every program confined to `fvP_proc A` self-couples
+    from `PGlob A`-related states — the last obligation of the consume-side endpoint. -/
+theorem footprintCompat_PGlob {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    FootprintCompat (PGlob A) (fvP_proc A) := by
+  intro γ p hp ps₁ ps₂ hpre
+  obtain ⟨⟨hglob, htab⟩, hloc⟩ := hpre
+  -- The lifted-orbit pre, from `={glob A}` + equal locals.
+  have horbG : Relation.EqvGen (fun a b : state => ∃ f : Function.End state,
+      diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates ∧ f a = b) ps₁.global ps₂.global :=
+    Quotient.exact hglob
+  have horb : Relation.EqvGen
+      (fun a b => ∃ fp ∈ liftedGlobSteps A (sig.LocalVariableState A.locals), fp a = b)
+      ps₁ ps₂ := by
+    have h0 := lifted_orbit_of_global A ps₁.locals horbG
+    have h1 : (⟨ps₂.global, ps₁.locals⟩
+        : ProcedureState (sig.LocalVariableState A.locals)) = ps₂ := by
+      rw [hloc]
+    exact h1 ▸ h0
+  -- The orbit coupling.
+  have hU : ∀ fp ∈ liftedGlobSteps A (sig.LocalVariableState A.locals),
+      diracKer fp ∈ ((fvP_proc A)ᶜ).updates := by
+    rintro fp ⟨f, hf, rfl⟩
+    exact lifted_step_mem_fvP_proc_compl A hf
+  obtain ⟨μ, hm1, hm2, hsat⟩ := prhl2_self_of_orbit hp _ hU ps₁ ps₂ horb
+  -- Per-leg table preservation, lifted onto the coupling's support.
+  have hSle : (roLift (sig.LocalVariableState A.locals)).footprint ≤ (fvP_proc A)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (fvP_proc_le_roLift_compl A hdisj)
+  have htabLeg : ∀ ps : ProcedureState (sig.LocalVariableState A.locals),
+      (p ps).satisfies (fun xs =>
+        random_oracle_state.get xs.2.global = random_oracle_state.get ps.global) := by
+    intro ps xs hxs
+    have h' := (Lens.footprint_touched_getter_eq_iff _ _ _).mp
+      (inFootprint_preserves_touched hp hSle (Lens.footprint_hasReset _ ps) xs hxs)
+    rwa [roLift_get_global, roLift_get_global] at h'
+  have hμ₁ : μ.satisfies (fun w =>
+      random_oracle_state.get w.1.2.global = random_oracle_state.get ps₁.global) :=
+    coupling_satisfies_fst (by rw [hm1]; exact htabLeg ps₁)
+  have hμ₂ : μ.satisfies (fun w =>
+      random_oracle_state.get w.2.2.global = random_oracle_state.get ps₂.global) :=
+    coupling_satisfies_snd (by rw [hm2]; exact htabLeg ps₂)
+  refine ⟨μ, hm1, hm2, ?_⟩
+  intro w hw
+  obtain ⟨hres, horbw⟩ := hsat w hw
+  have hgl := glob_locals_of_lifted_orbit A horbw
+  refine ⟨hres, ⟨hgl.1, ?_⟩, hgl.2⟩
+  rw [hμ₁ w hw, hμ₂ w hw]
+  exact htab
+
 /-- **The same-program whole-game glob rule** (lazy side): from `={glob A}` initial
     states, two runs of the lazy game couple with equal results and `={glob A}` final
     states.  `lazy_init` establishes `PGlob A`; the body preserves it via the
     oracle-generic machinery at `eagerInst := lazyInst := RO_lazy`. -/
 theorem glob_self_coupling_lazy {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ)
-    (hcompat : FootprintCompat (PGlob A) (fvP_proc A)) :
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
     ProgramDenotation.prhl2
       (fun σ₁ σ₂ : state => (FVP.glob A).get σ₁ = (FVP.glob A).get σ₂)
       (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
@@ -253,7 +503,8 @@ theorem glob_self_coupling_lazy {sig : ProcedureSignature}
   have hbody : ProgramDenotation.prhl2 (PGlob A)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_lazy) args) (liftPost (PGlob A)) :=
-    instantiate_of_fvP_gen RO_lazy RO_lazy A args hcompat roHole_paramType_countable
+    instantiate_of_fvP_gen RO_lazy RO_lazy A args (footprintCompat_PGlob A hdisj)
+      roHole_paramType_countable
       (fun n x p hp hx =>
         ro_hhole_prhl_lazy (lazy_query_self_coupling_PGlob A hdisj) n x p hp hx)
   exact ProgramDenotation.prhl2.conseq
@@ -268,15 +519,14 @@ theorem glob_self_coupling_lazy {sig : ProcedureSignature}
     `prhl2.trans`. -/
 theorem output_glob_transfer_games_of_glob {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ)
-    (hcompat : FootprintCompat (PGlob A) (fvP_proc A)) :
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
     ProgramDenotation.prhl2
       (fun σ₁ σ₂ : state => (FVP.glob A).get σ₁ = (FVP.glob A).get σ₂)
       (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
       (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
       (fun u v => u.1 = v.1 ∧ (FVP.glob A).get u.2 = (FVP.glob A).get v.2) := by
   have h12 := ProgramDenotation.prhl2.trans
-    (glob_self_coupling_lazy A args hdisj hcompat)
+    (glob_self_coupling_lazy A args hdisj)
     (output_glob_transfer_games A args hdisj)
   refine h12.conseq (fun σ₁ σ₃ h => ⟨σ₃, h, rfl⟩) ?_
   rintro u v ⟨w, hw1, hw2⟩
@@ -287,14 +537,13 @@ theorem output_glob_transfer_games_of_glob {sig : ProcedureSignature}
     states. -/
 theorem output_win_transfer_games_of_glob {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
-    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ)
-    (hcompat : FootprintCompat (PGlob A) (fvP_proc A)) :
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
     ProgramDenotation.prhl2
       (fun σ₁ σ₂ : state => (FVP.glob A).get σ₁ = (FVP.glob A).get σ₂)
       (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
       (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
       (fun u v => (Win u.1 ↔ Win v.1) ∧ (FVP.glob A).get u.2 = (FVP.glob A).get v.2) :=
-  (output_glob_transfer_games_of_glob A args hdisj hcompat).conseq
+  (output_glob_transfer_games_of_glob A args hdisj).conseq
     (fun _ _ h => h) (fun _ _ h => ⟨by rw [h.1], h.2⟩)
 
 end GaudisCrypt.Lib.RO.Instantiate
