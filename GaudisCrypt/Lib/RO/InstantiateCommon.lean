@@ -124,35 +124,11 @@ noncomputable def RO_eager : roHoles.Instantiation
   | _, .zero => RO_eager_proc
 
 
-/-! ### `zoom` is a monad morphism, and lifts `transferBy` -/
+/-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`.
 
-theorem zoom_pure {s t a : Type} (lens : Lens s t) (x : a) :
-    ProgramDenotation.zoom lens (pure x) = (pure x : ProgramDenotation t a) := by
-  funext tv
-  show ((pure x : ProgramDenotation s a) (lens.get tv)) >>= (fun as => pure (as.1, lens.set as.2
-      tv))
-       = (pure (x, tv) : SubProbability (a × t))
-  show (pure (x, lens.get tv) : SubProbability (a × s)) >>= (fun as => pure (as.1, lens.set as.2 tv))
-       = (pure (x, tv) : SubProbability (a × t))
-  rw [SubProbability.pure_bind]
-  simp only [lens.get_set]
-
-
-theorem zoom_bind {s t a b : Type} (lens : Lens s t)
-    (p : ProgramDenotation s a) (k : a → ProgramDenotation s b) :
-    ProgramDenotation.zoom lens (p >>= k) = ProgramDenotation.zoom lens p >>= fun a =>
-        ProgramDenotation.zoom lens (k a) := by
-  funext tv
-  show (((p (lens.get tv)) >>= fun as => k as.1 as.2) >>= fun bs => pure (bs.1, lens.set bs.2 tv))
-       = ((p (lens.get tv)) >>= fun as => pure (as.1, lens.set as.2 tv))
-          >>= fun cs => (k cs.1 (lens.get cs.2)) >>= fun bs => pure (bs.1, lens.set bs.2 cs.2)
-  rw [SubProbability.bind_assoc', SubProbability.bind_assoc']
-  congr 1; funext as
-  rw [SubProbability.pure_bind]
-  simp only [lens.set_get, lens.set_set]
-
-
-/-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`. -/
+(`zoom` being a monad morphism — `ProgramDenotation.zoom_pure`/`zoom_bind` — now
+lives in `GaudisCrypt.Language.Semantics`; the `transferBy` lift `transferBy_zoom`
+in `GaudisCrypt.TransferBy`.) -/
 
 theorem procDenotation_RO_eager (args : roSig.ParamType) :
     procedureDenotation RO_eager_proc args = random_oracle_query args := by

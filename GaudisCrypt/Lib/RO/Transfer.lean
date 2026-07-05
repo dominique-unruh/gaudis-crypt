@@ -1,5 +1,6 @@
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Footprint
+import GaudisCrypt.TransferBy
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
@@ -105,10 +106,8 @@ lemma convert_wp_eq (f : ProgramDenotation.Post state Unit) (s : state) :
     is a probability measure). Specialization of `ProgramDenotation.wp_const_mul` +
     `convert_mass`. -/
 lemma convert_wp_const (c : ENNReal) (σ : state) :
-    convert.wp (fun _ : Unit × state => c) σ = c := by
-  have h := ProgramDenotation.wp_const_mul convert c (fun _ : Unit × state => (1 : ENNReal)) σ
-  simp only [mul_one] at h
-  rw [h, convert_mass, mul_one]
+    convert.wp (fun _ : Unit × state => c) σ = c :=
+  ProgramDenotation.wp_const_of_mass_one convert_mass c σ
 
 /- Helper: setting on a disjoint lens doesn't change `random_oracle_state.get`. -/
 private lemma RO_get_v_set_disjoint {α : Type} (v : Variable α) [disjoint v random_oracle_state]
@@ -368,12 +367,15 @@ lemma convert_bind_random_oracle_init_bind {α : Type} (rest : ProgramDenotation
     same joint `α × state` distribution as `convert` followed by `q`.
 
     Captures "`convert` slides past `p`, turning lazy operations into eager ones".
-    Closed under bind; reflexive on RO-disjoint programs. Together with the base
-    cases `lazy_init ↦ random_oracle_init` (lazy_init_convert_eq_random_oracle_init) and
-    `lazy_query x ↦ random_oracle_query x` (lazy_query_convert_eq_convert_random_oracle_query), this lets us
+    The instance of the generic `ProgramDenotation.transferBy` calculus at
+    `c := convert`: closed under bind; reflexive on RO-disjoint programs.
+    Together with the base cases `lazy_init ↦ random_oracle_init`
+    (lazy_init_convert_eq_random_oracle_init) and
+    `lazy_query x ↦ random_oracle_query x`
+    (lazy_query_convert_eq_convert_random_oracle_query), this lets us
     transfer any program built from these primitives. -/
 def ProgramDenotation.transfer {α : Type} (p q : ProgramDenotation state α) : Prop :=
-  (p >>= fun a => convert >>= fun _ => pure a) = (convert >>= fun _ => q)
+  ProgramDenotation.transferBy convert p q
 
 /-- **Reflexivity on RO-disjoint programs — countability-free** (subtask 4). The `Footprint`
     analogue of `transfer_refl_of_inRange_compl`: a program whose probabilistic footprint avoids the
@@ -382,29 +384,8 @@ def ProgramDenotation.transfer {α : Type} (p q : ProgramDenotation state α) : 
 lemma ProgramDenotation.transfer_refl_of_inFootprint_compl
     {α : Type} {p : ProgramDenotation state α}
     (hp : p.inFootprint (random_oracle_state.footprint)ᶜ) :
-    ProgramDenotation.transfer p p := by
-  show (p >>= fun a => convert >>= fun _ => pure a) = (convert >>= fun _ => p)
-  have h_commute : (p >>= fun a => convert >>= fun b => pure (a, b))
-                 = (convert >>= fun b => p >>= fun a => pure (a, b)) :=
-    ProgramDenotation.commute_of_disjoint_footprint hp convert_inFootprint_ro (le_refl _)
-  have hL : (p >>= fun a => convert >>= fun b => pure (a, b)) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : ProgramDenotation state α))
-          = (p >>= fun a => convert >>= fun _ => (Pure.pure a : ProgramDenotation state α)) := by
-    rw [ProgramDenotation.bind_assoc]; congr 1; funext a
-    rw [ProgramDenotation.bind_assoc]; congr 1; funext _
-    rw [ProgramDenotation.pure_bind]
-  have hR : (convert >>= fun b => p >>= fun a => pure (a, b)) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : ProgramDenotation state α))
-          = (convert >>= fun _ => p) := by
-    rw [ProgramDenotation.bind_assoc]
-    congr 1; funext _
-    rw [ProgramDenotation.bind_assoc]
-    rw [show (fun a : α => pure (a, ()) >>=
-              (fun ab : α × Unit => (Pure.pure ab.1 : ProgramDenotation state α)))
-          = (fun a : α => (Pure.pure a : ProgramDenotation state α)) from by
-        funext a; rw [ProgramDenotation.pure_bind]]
-    exact ProgramDenotation.bind_pure _
-  rw [← hL, h_commute, hR]
+    ProgramDenotation.transfer p p :=
+  ProgramDenotation.transferBy_refl_of_inFootprint_compl convert_inFootprint_ro hp
 
 /-- Any program in `v.footprint`, for a `v` disjoint from `random_oracle_state`, transfers to itself
     — the countability-free `Footprint` analogue of `transfer_of_inRange_disjoint`. -/
@@ -443,30 +424,13 @@ lemma ProgramDenotation.transfer_uniform {α : Type} [Fintype α] [Nonempty α] 
 lemma ProgramDenotation.transfer_bind {α β : Type}
     {p q : ProgramDenotation state α} {p' q' : α → ProgramDenotation state β}
     (h : ProgramDenotation.transfer p q) (h' : ∀ a, ProgramDenotation.transfer (p' a) (q' a)) :
-    ProgramDenotation.transfer (p >>= p') (q >>= q') := by
-  show ((p >>= p') >>= fun b => convert >>= fun _ => pure b)
-      = (convert >>= fun _ => q >>= q')
-  rw [ProgramDenotation.bind_assoc]
-  conv_lhs =>
-    rhs; ext a
-    rw [show (p' a >>= fun b => convert >>= fun _ => (Pure.pure b : ProgramDenotation state β))
-          = (convert >>= fun _ => q' a) from h' a]
-  conv_lhs =>
-    rhs; ext a
-    rw [show (convert >>= fun _ => q' a)
-          = (convert >>= fun _ => (Pure.pure a : ProgramDenotation state α)) >>= q' from by
-        rw [ProgramDenotation.bind_assoc]; congr 1; funext _; rw [ProgramDenotation.pure_bind]]
-  rw [← ProgramDenotation.bind_assoc]
-  rw [show (p >>= fun a => convert >>= fun _ => (Pure.pure a : ProgramDenotation state α))
-        = (convert >>= fun _ => q) from h]
-  rw [ProgramDenotation.bind_assoc]
+    ProgramDenotation.transfer (p >>= p') (q >>= q') :=
+  ProgramDenotation.transferBy_bind h h'
 
 /-- Pure transfers to itself. -/
 lemma ProgramDenotation.transfer_pure {α : Type} (a : α) :
-    ProgramDenotation.transfer (Pure.pure a : ProgramDenotation state α) (Pure.pure a) := by
-  show ((Pure.pure a : ProgramDenotation state α) >>= fun a' => convert >>= fun _ => pure a')
-      = (convert >>= fun _ => Pure.pure a)
-  rw [ProgramDenotation.pure_bind]
+    ProgramDenotation.transfer (Pure.pure a : ProgramDenotation state α) (Pure.pure a) :=
+  ProgramDenotation.transferBy_pure a
 
 /-- `lazy_init` transfers to `random_oracle_init`. -/
 lemma ProgramDenotation.transfer_lazy_init :
@@ -489,232 +453,26 @@ lemma ProgramDenotation.transfer_lazy_query (x : input) :
     ProgramDenotation.transfer (lazy_query x) (random_oracle_query x) :=
   lazy_query_convert_eq_convert_random_oracle_query x
 
-/-! ### Closure under `while_loop`
-
-The transfer relation is preserved by `while_loop`: if the body transfers
-and the condition is RO-disjoint, then the loops transfer. The proof is
-Kleene-style — couple every finite iterate of the lazy and eager loops
-via an intermediate `Ψ_iter` whose else-branch is `convert`, then take
-the ωSup. Internalises what was previously the wrapper-layer
-`loop_kleene_lazy`/`loop_kleene_eager`/`loop_coupling` argument.
--/
-
-/-- The intermediate iteration: same shape as `while_iteration` for the lazy
-    body, but with `convert` in the else branch (representing
-    "loop terminates, then convert"). -/
-private noncomputable def transfer_while_Ψ_iter
-    (cond : ProgramDenotation state Bool) (body_lazy : ProgramDenotation state Unit) :
-    (Unit → ProgramDenotation state Unit) →𝒄 (Unit → ProgramDenotation state Unit) :=
-  OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → ProgramDenotation state Unit) =>
-      fun () =>
-    do if ← cond then body_lazy; fp ()
-       else convert
-
-/-- Kleene induction on the lazy side: at every finite iterate, the lazy
-    iterate composed with `convert` equals the same iterate of `Ψ_iter`. -/
-private lemma transfer_while_kleene_lazy
-    (cond : ProgramDenotation state Bool) (body_lazy : ProgramDenotation state Unit) :
-    ∀ n : ℕ,
-    (((while_iteration cond body_lazy)^[n]
-      (⊥ : Unit → ProgramDenotation state Unit)) () >>= (fun _ => convert))
-    = ((transfer_while_Ψ_iter cond body_lazy)^[n]
-        (⊥ : Unit → ProgramDenotation state Unit)) () := by
-  intro n
-  induction n with
-  | zero =>
-    change ((⊥ : Unit → ProgramDenotation state Unit) () >>= fun _ => convert)
-         = (⊥ : Unit → ProgramDenotation state Unit) ()
-    change ((⊥ : ProgramDenotation state Unit) >>= fun _ => convert) = (⊥ : ProgramDenotation state
-        Unit)
-    exact ProgramDenotation.bot_bind _
-  | succ n ih =>
-    rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
-    change (((cond) >>= fun b =>
-              if b = true then
-                body_lazy >>= fun _ =>
-                  ((while_iteration cond body_lazy)^[n] ⊥) ()
-              else (pure () : ProgramDenotation state Unit)) >>= fun _ => convert)
-        = (cond) >>= fun b =>
-              if b = true then
-                body_lazy >>= fun _ =>
-                  ((transfer_while_Ψ_iter cond body_lazy)^[n] ⊥) ()
-              else convert
-    rw [ProgramDenotation.bind_assoc]
-    congr 1; funext b
-    by_cases h : b = true
-    · simp only [h, if_true]
-      rw [ProgramDenotation.bind_assoc]
-      congr 1; funext _
-      exact ih
-    · simp only [h, if_false]
-      exact ProgramDenotation.pure_bind () _
-
-/-- Kleene induction on the eager side: `convert` prepended to each eager
-    iterate equals the same iterate of `Ψ_iter`. -/
-private lemma transfer_while_kleene_eager
-    {cond : ProgramDenotation state Bool}
-    (h_cond : cond.inRange random_oracle_state.compl.range)
-    {body_lazy body_eager : ProgramDenotation state Unit}
-    (h_body : (body_lazy >>= fun _ : Unit => convert)
-            = (convert >>= fun _ : Unit => body_eager)) :
-    ∀ n : ℕ,
-    convert >>= (fun _ => ((while_iteration cond body_eager)^[n]
-      (⊥ : Unit → ProgramDenotation state Unit)) ())
-    = ((transfer_while_Ψ_iter cond body_lazy)^[n]
-        (⊥ : Unit → ProgramDenotation state Unit)) () := by
-  -- Helper: `cond` (RO-disjoint) commutes with `convert` in continuation form.
-  have h_cond_commutes : ∀ {β : Type} (k : Bool → ProgramDenotation state β),
-      (cond >>= fun b => convert >>= fun _ => k b)
-      = (convert >>= fun _ => cond >>= k) := by
-    intro β k
-    have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
-      le_of_eq (DetermFootprint.complement_range _)
-    have h_pair : (cond >>= fun b => convert >>= fun u => pure (b, u))
-                = (convert >>= fun u => cond >>= fun b => pure (b, u)) :=
-      ProgramDenotation.commute_of_disjoint_lens h_cond convert_inRange_ro h_disj
-    -- Translate the pair-output commutation into the continuation form.
-    have hL : (cond >>= fun b => convert >>= fun _ => k b)
-            = (cond >>= fun b => convert >>= fun u => pure (b, u))
-                >>= fun bu : Bool × Unit => k bu.1 := by
-      simp_rw [ProgramDenotation.bind_assoc]
-      congr 1; funext b; congr 1; funext u
-      rw [ProgramDenotation.pure_bind]
-    have hR : (convert >>= fun _ => cond >>= k)
-            = (convert >>= fun u => cond >>= fun b => pure (b, u))
-                >>= fun bu : Bool × Unit => k bu.1 := by
-      simp_rw [ProgramDenotation.bind_assoc]
-      congr 1; funext u; congr 1; funext b
-      rw [ProgramDenotation.pure_bind]
-    rw [hL, hR, h_pair]
-  intro n
-  induction n with
-  | zero =>
-    change (convert >>= fun _ => (⊥ : Unit → ProgramDenotation state Unit) ())
-         = (⊥ : Unit → ProgramDenotation state Unit) ()
-    change (convert >>= fun _ => (⊥ : ProgramDenotation state Unit)) = (⊥ : ProgramDenotation state
-        Unit)
-    exact ProgramDenotation.bind_bot _
-  | succ n ih =>
-    rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
-    change (convert >>= fun _ => (cond) >>= fun b =>
-              if b = true then
-                body_eager >>= fun _ =>
-                  ((while_iteration cond body_eager)^[n] ⊥) ()
-              else (pure () : ProgramDenotation state Unit))
-        = (cond) >>= fun b =>
-              if b = true then
-                body_lazy >>= fun _ =>
-                  ((transfer_while_Ψ_iter cond body_lazy)^[n] ⊥) ()
-              else convert
-    -- Push `convert` past `cond` using the commutation lemma.
-    rw [show (convert >>= fun _ => (cond) >>=
-              fun b => if b = true then body_eager >>= fun _ =>
-                  ((while_iteration cond body_eager)^[n] ⊥) ()
-                else (pure () : ProgramDenotation state Unit))
-            = ((cond) >>= fun b => convert >>= fun _ =>
-                if b = true then body_eager >>= fun _ =>
-                  ((while_iteration cond body_eager)^[n] ⊥) ()
-                else (pure () : ProgramDenotation state Unit)) from
-        (h_cond_commutes _).symm]
-    congr 1; funext b
-    by_cases h : b = true
-    · simp only [h, if_true]
-      -- LHS: convert >>= body_eager >>= F_eager^[n] ⊥ ()
-      -- Use h_body to swap convert and body.
-      rw [← ProgramDenotation.bind_assoc]
-      rw [show (convert >>= fun _ : Unit => body_eager)
-              = (body_lazy >>= fun _ : Unit => convert) from h_body.symm]
-      rw [ProgramDenotation.bind_assoc]
-      congr 1; funext _
-      exact ih
-    · simp only [h, if_false]
-      exact ProgramDenotation.bind_pure _
-
 /-- **Transfer is preserved by `while_loop`.** If the body transfers (lazy
     to eager) and the condition is RO-disjoint, then the lazy and eager
     while-loops transfer.
 
-    Internalises the Kleene argument that was previously specific to
-    `oracle_loop` in `Wrapper.lean`. Any RO-based while-loop construction
-    inherits the lazy = eager equivalence by this closure law plus the
-    base-case body transfer. -/
+    Instance of the generic Kleene closure `ProgramDenotation.transferBy_while_loop`;
+    the condition's self-transfer comes from its RO-disjointness via
+    `commute_of_disjoint_lens`. Any RO-based while-loop construction inherits
+    the lazy = eager equivalence by this closure law plus the base-case body
+    transfer. -/
 theorem ProgramDenotation.transfer_while_loop
     {cond : ProgramDenotation state Bool}
     (h_cond : cond.inRange random_oracle_state.compl.range)
     {body_lazy body_eager : ProgramDenotation state Unit}
     (h_body : ProgramDenotation.transfer body_lazy body_eager) :
-    ProgramDenotation.transfer (while_loop cond body_lazy) (while_loop cond body_eager) := by
-  -- Convert the transfer hypothesis on body to the bind form:
-  --   body_lazy >>= convert = convert >>= body_eager.
-  have h_body_bind : (body_lazy >>= fun _ : Unit => convert)
-                  = (convert >>= fun _ : Unit => body_eager) := by
-    have h := h_body
-    show (body_lazy >>= fun _ : Unit => convert) = (convert >>= fun _ : Unit => body_eager)
-    calc (body_lazy >>= fun _ : Unit => convert)
-        = (body_lazy >>= fun u : Unit =>
-              convert >>= fun _ : Unit => (Pure.pure u : ProgramDenotation state Unit)) := by
-          congr 1; funext u
-          show convert = convert >>= fun _ : Unit => Pure.pure u
-          rw [show (Pure.pure u : ProgramDenotation state Unit) = (Pure.pure () : ProgramDenotation
-              state Unit) from rfl]
-          exact (ProgramDenotation.bind_pure _).symm
-      _ = (convert >>= fun _ : Unit => body_eager) := h
-  -- Goal: ProgramDenotation.transfer (while_loop cond body_lazy) (while_loop cond body_eager).
-  -- Unfold to: (while_loop cond body_lazy >>= λu. convert >>= pure u)
-  --          = (convert >>= while_loop cond body_eager).
-  show (while_loop cond body_lazy >>= fun u : Unit =>
-          convert >>= fun _ : Unit => (Pure.pure u : ProgramDenotation state Unit))
-      = (convert >>= fun _ : Unit => while_loop cond body_eager)
-  -- For Unit-valued LHS, simplify (λu. convert >>= pure u) = convert.
-  rw [show (fun u : Unit => convert >>= fun _ : Unit => (Pure.pure u : ProgramDenotation state
-      Unit))
-          = (fun _ : Unit => convert) from by
-        funext u
-        rw [show (Pure.pure u : ProgramDenotation state Unit) = (Pure.pure () : ProgramDenotation
-            state Unit) from rfl]
-        exact ProgramDenotation.bind_pure _]
-  -- Goal reduces to:
-  --   (while_loop cond body_lazy >>= λ_. convert) = (convert >>= while_loop cond body_eager).
-  -- This is the abstract loop_coupling. Proof by Kleene ωSup.
-  let F_lazy := while_iteration cond body_lazy
-  let F_eager := while_iteration cond body_eager
-  have hL_chain : ∀ n, ((F_lazy^[n] ⊥ : Unit → ProgramDenotation state Unit) () >>= (fun _ =>
-      convert))
-                     = ((transfer_while_Ψ_iter cond body_lazy)^[n] ⊥
-                         : Unit → ProgramDenotation state Unit) () :=
-    transfer_while_kleene_lazy cond body_lazy
-  have hE_chain : ∀ n, convert >>= (fun _ => (F_eager^[n] ⊥ : Unit → ProgramDenotation state Unit)
-      ())
-                     = ((transfer_while_Ψ_iter cond body_lazy)^[n] ⊥
-                         : Unit → ProgramDenotation state Unit) () :=
-    transfer_while_kleene_eager h_cond h_body_bind
-  have h_bind_convert_cont :
-      OmegaCompletePartialOrder.ωScottContinuous
-        (fun (m : ProgramDenotation state Unit) => m >>= fun _ => convert) := by fun_prop
-  have h_convert_bind_cont :
-      OmegaCompletePartialOrder.ωScottContinuous
-        (fun (m : ProgramDenotation state Unit) => convert >>= fun _ => m) := by fun_prop
-  change (F_lazy.lfp ()) >>= (fun _ => convert) = convert >>= (fun _ => F_eager.lfp ())
-  let chain_lazy : OmegaCompletePartialOrder.Chain (Unit → ProgramDenotation state Unit) :=
-    ⟨fun n => F_lazy^[n] ⊥,
-     Monotone.monotone_iterate_of_le_map F_lazy.monotone (OrderBot.bot_le _)⟩
-  let chain_eager : OmegaCompletePartialOrder.Chain (Unit → ProgramDenotation state Unit) :=
-    ⟨fun n => F_eager^[n] ⊥,
-     Monotone.monotone_iterate_of_le_map F_eager.monotone (OrderBot.bot_le _)⟩
-  have hLfpL : F_lazy.lfp = OmegaCompletePartialOrder.ωSup chain_lazy := rfl
-  have hLfpE : F_eager.lfp = OmegaCompletePartialOrder.ωSup chain_eager := rfl
-  have hLfpL_at : F_lazy.lfp () = OmegaCompletePartialOrder.ωSup
-                    (chain_lazy.map ⟨fun fp => fp (), fun _ _ h => h ()⟩) := by
-    rw [hLfpL]; rfl
-  have hLfpE_at : F_eager.lfp () = OmegaCompletePartialOrder.ωSup
-                    (chain_eager.map ⟨fun fp => fp (), fun _ _ h => h ()⟩) := by
-    rw [hLfpE]; rfl
-  rw [hLfpL_at, hLfpE_at]
-  rw [h_bind_convert_cont.map_ωSup]
-  rw [h_convert_bind_cont.map_ωSup]
-  congr 1
-  ext n
-  exact (hL_chain n).trans (hE_chain n).symm
+    ProgramDenotation.transfer (while_loop cond body_lazy) (while_loop cond body_eager) :=
+  ProgramDenotation.transferBy_while_loop
+    (ProgramDenotation.transferBy_refl_of_commute
+      (ProgramDenotation.commute_of_disjoint_lens h_cond convert_inRange_ro
+        (le_of_eq (DetermFootprint.complement_range _))))
+    h_body
 
 /-- **Transfer at the wp level for value-only postconditions**.
     For `G : α → ENNReal`, the wp of `p` and `q` against `fun aσ => G aσ.1`
@@ -725,29 +483,8 @@ theorem ProgramDenotation.transfer_wp_value {α : Type}
     (h_absorb : (convert >>= fun _ => q) = q)
     (G : α → ENNReal) (σ₀ : state) :
     p.wp (fun aσ : α × state => G aσ.1) σ₀
-  = q.wp (fun aσ : α × state => G aσ.1) σ₀ := by
-  -- Combine transfer + absorb into the master equation:
-  --   (p >>= a => convert >>= pure a) = q.
-  have h_eq : (p >>= fun a => convert >>= fun _ => (Pure.pure a : ProgramDenotation state α)) =
-      q := by
-    rw [h_transfer, h_absorb]
-  -- Apply wp at σ₀ with F = (fun aσ => G aσ.1).
-  have h_wp := congrArg
-      (fun (r : ProgramDenotation state α) =>
-        r.wp (fun aσ : α × state => G aσ.1) σ₀) h_eq
-  rw [← h_wp]
-  -- Now show: p.wp (G ∘ fst) σ₀ = (p >>= a => convert >>= pure a).wp (G ∘ fst) σ₀.
-  rw [wp_bind]
-  congr 1
-  funext aσ_p
-  obtain ⟨a, σ_p⟩ := aσ_p
-  -- Compute the inner wp on convert >>= pure a.
-  show G a = (convert >>= fun _ => (Pure.pure a : ProgramDenotation state α)).wp
-                (fun aσ : α × state => G aσ.1) σ_p
-  rw [wp_bind, wp_pure]
-  -- Goal: G a = convert.wp (fun aσ_c : Unit × state => G a) σ_p.
-  show G a = convert.wp (fun _ : Unit × state => G a) σ_p
-  rw [convert_wp_const]
+  = q.wp (fun aσ : α × state => G aσ.1) σ₀ :=
+  ProgramDenotation.transferBy_wp_value h_transfer h_absorb convert_mass G σ₀
 
 /-- **Value marginal**: SubProb-level statement of the transfer. -/
 theorem ProgramDenotation.transfer_value_marginal {α : Type}
@@ -756,23 +493,8 @@ theorem ProgramDenotation.transfer_value_marginal {α : Type}
     (h_absorb : (convert >>= fun _ => q) = q)
     (σ₀ : state) :
     (p σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α))
-  = (q σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α)) := by
-  apply Subtype.ext
-  letI : MeasurableSpace α := ⊤
-  letI : MeasurableSpace (α × state) := ⊤
-  apply MeasureTheory.Measure.ext
-  intro A hA
-  show MeasureTheory.Measure.bind (p σ₀).1 (fun aσ : α × state =>
-          (@MeasureTheory.Measure.dirac α ⊤ aσ.1)) A
-     = MeasureTheory.Measure.bind (q σ₀).1 (fun aσ : α × state =>
-          (@MeasureTheory.Measure.dirac α ⊤ aσ.1)) A
-  rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
-      MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
-  -- Goal: ∫⁻ aσ, dirac aσ.1 A ∂(p σ₀).1 = ∫⁻ aσ, dirac aσ.1 A ∂(q σ₀).1.
-  -- This is p.wp (fun aσ => dirac aσ.1 A) σ₀ = q.wp (...) σ₀, where the test
-  -- function factors as G aσ.1 with G = fun a => dirac a A.
-  exact ProgramDenotation.transfer_wp_value h_transfer h_absorb
-    (fun a : α => (@MeasureTheory.Measure.dirac α ⊤ a) A) σ₀
+  = (q σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α)) :=
+  ProgramDenotation.transferBy_value_marginal h_transfer h_absorb convert_mass σ₀
 
 /-! ## Enriched transfer: RO-invariant projections of state
 
@@ -827,23 +549,9 @@ theorem ProgramDenotation.transfer_wp_ro_invariant {α : Type}
     (F : α × state → ENNReal)
     (hF_inv : ∀ a σ x, F (a, random_oracle_state.set x σ) = F (a, σ))
     (σ₀ : state) :
-    p.wp F σ₀ = q.wp F σ₀ := by
-  -- Master equation from transfer + absorb.
-  have h_eq : (p >>= fun a => convert >>= fun _ => (Pure.pure a : ProgramDenotation state α)) =
-      q := by
-    rw [h_transfer, h_absorb]
-  have h_wp := congrArg (fun (r : ProgramDenotation state α) => r.wp F σ₀) h_eq
-  rw [← h_wp]
-  -- Goal: p.wp F σ₀ = (p >>= a => convert >>= pure a).wp F σ₀.
-  rw [wp_bind]
-  congr 1
-  funext aσ_p
-  obtain ⟨a, σ_p⟩ := aσ_p
-  show F (a, σ_p)
-      = (convert >>= fun _ => (Pure.pure a : ProgramDenotation state α)).wp F σ_p
-  rw [wp_bind, wp_pure]
-  -- Goal: F (a, σ_p) = convert.wp (fun aσ_c : Unit × state => F (a, aσ_c.2)) σ_p.
-  exact (convert_wp_value_state_of_ro_invariant F hF_inv a σ_p).symm
+    p.wp F σ₀ = q.wp F σ₀ :=
+  ProgramDenotation.transferBy_wp_invariant h_transfer h_absorb F
+    (convert_wp_value_state_of_ro_invariant F hF_inv) σ₀
 
 /-- **Marginal at the (value × RO-invariant projection) level**.
 
@@ -859,20 +567,7 @@ theorem ProgramDenotation.transfer_marginal_ro_invariant {α β : Type}
     (h_inv : ∀ σ x, h (random_oracle_state.set x σ) = h σ)
     (σ₀ : state) :
     (p σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β)))
-  = (q σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) := by
-  apply Subtype.ext
-  letI : MeasurableSpace (α × β) := ⊤
-  letI : MeasurableSpace (α × state) := ⊤
-  apply MeasureTheory.Measure.ext
-  intro A hA
-  show MeasureTheory.Measure.bind (p σ₀).1 (fun aσ : α × state =>
-          (@MeasureTheory.Measure.dirac (α × β) ⊤ (aσ.1, h aσ.2))) A
-     = MeasureTheory.Measure.bind (q σ₀).1 (fun aσ : α × state =>
-          (@MeasureTheory.Measure.dirac (α × β) ⊤ (aσ.1, h aσ.2))) A
-  rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
-      MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable]
-  -- Apply transfer_wp_ro_invariant with F = (fun aσ => dirac (aσ.1, h aσ.2) A).
-  exact ProgramDenotation.transfer_wp_ro_invariant h_transfer h_absorb
-    (fun aσ : α × state =>
-      (@MeasureTheory.Measure.dirac (α × β) ⊤ (aσ.1, h aσ.2)) A)
-    (by intro a σ x; simp only; rw [h_inv]) σ₀
+  = (q σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) :=
+  ProgramDenotation.transferBy_marginal_invariant h_transfer h_absorb h
+    (fun g σ => convert_wp_state_const_of_ro_invariant (fun σ' => g (h σ'))
+      (fun σ' x => by rw [h_inv]) σ) σ₀

@@ -7,6 +7,7 @@ import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.EquivModuloLens
+import GaudisCrypt.TransferBy
 import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
