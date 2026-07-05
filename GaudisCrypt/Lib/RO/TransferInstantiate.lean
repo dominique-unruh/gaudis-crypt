@@ -21,7 +21,7 @@ open Classical
 
 `ProgramDenotation.transfer` is `transferBy convert`.  We need the same relation
 at the `ProcedureState` level (with `convertL`), so we use the generic calculus
-`ProgramDenotation.transferBy` from `GaudisCrypt.TransferBy` — monad-law
+`ProgramDenotation.transferBy` from `GaudisCrypt.Logic.TransferBy` — monad-law
 combinators, the Kleene `while_loop` closure, and the `zoom` lifting lemma
 (`convertL = zoom globalL convert`, and `zoom` is a monad morphism, so any
 state-level transfer lifts to a zoomed `ProcedureState` one). -/

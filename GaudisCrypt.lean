@@ -7,7 +7,6 @@ import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.EquivModuloLens
-import GaudisCrypt.TransferBy
 import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
@@ -35,7 +34,7 @@ import GaudisCrypt.Lib.RO.QueryHit
 import GaudisCrypt.Lib.RO.ROCouplingEquiv
 import GaudisCrypt.Lib.RO.ROEquiv
 import GaudisCrypt.Lib.RO.Switching
-import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Lib.RO.TransferInstantiate
 import GaudisCrypt.Lib.RO.OneWayness_GameHop
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
@@ -45,6 +44,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
+import GaudisCrypt.Logic.TransferBy
 import GaudisCrypt.Logic.PRHL2Demo
 import GaudisCrypt.Logic.PRHL.Clients.SchemaInnerEquation
 import GaudisCrypt.Logic.PRHL.Core

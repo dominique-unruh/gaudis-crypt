@@ -31,9 +31,9 @@ The generic "sliding coupling" relation between programs:
   postconditions, transfer gives wp-equality and equal output marginals.
 
 The lazy/eager random-oracle transfer (`ProgramDenotation.transfer` in
-`GaudisCrypt.Lib.RO.Transfer`) is `transferBy convert`; its `ProcedureState`
-variant (`Stable`/`Loc` in `GaudisCrypt.Lib.RO.TransferInstantiate`) is
-`transferBy convertL`.
+`GaudisCrypt.Lib.RO.TransferConvert`) is `transferBy convert`; its
+`ProcedureState` variant (`Stable`/`Loc` in
+`GaudisCrypt.Lib.RO.TransferInstantiate`) is `transferBy convertL`.
 -/
 
 /-- Generic transfer: `c` slides from after `p` to before `q`, preserving the value. -/

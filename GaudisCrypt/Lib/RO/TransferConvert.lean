@@ -1,6 +1,6 @@
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Footprint
-import GaudisCrypt.TransferBy
+import GaudisCrypt.Logic.TransferBy
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics

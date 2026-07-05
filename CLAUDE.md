@@ -93,8 +93,9 @@ Lazy-vs-eager random-oracle indistinguishability and downstream games. The
 framework lets the adversary's *only* assumption be a single structural fact —
 its footprint is disjoint from the oracle's state — from which the commutativity
 "axioms" become theorems. `Basic.lean` has the RO primitives (`lazy_query`,
-`random_oracle_query`, `convert`, …); `ROEquiv.lean`/`Transfer.lean`/
-`OracleLoop.lean` build the lazy = eager equivalence; `OneWayness*`,
+`random_oracle_query`, `convert`, …); `ROEquiv.lean`/`TransferConvert.lean`/
+`OracleLoop.lean` build the lazy = eager equivalence (on the generic `transferBy`
+calculus in `Logic/TransferBy.lean`); `OneWayness*`,
 `CollisionResistance`, `Switching`, `QueryHit` are concrete games.
 `Lib/Enc/HashedOTP.lean` is an encryption example.
 

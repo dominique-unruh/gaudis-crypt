@@ -1450,7 +1450,7 @@ theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
 /-- **Coupling through a lossless tail.**  If `q` equals `p` followed by a *lossless* state-only
     post-processor `c` (which keeps `p`'s result), then `p` and `q` couple from equal initial
     states with equal results: route the diagonal coupling of `p` through `c` on the right leg.
-    Converts distribution-level *transfer* equations (`Lib/RO/Transfer.lean`) into `prhl2`. -/
+    Converts distribution-level *transfer* equations (`Lib/RO/TransferConvert.lean`) into `prhl2`. -/
 theorem ProgramDenotation.prhl2_of_lossless_tail {s α : Type}
     {p q : ProgramDenotation s α} {c : ProgramDenotation s Unit}
     (hc : ∀ σ : s, (c σ).1 Set.univ = 1)

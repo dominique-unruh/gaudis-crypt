@@ -1,5 +1,5 @@
 import GaudisCrypt.Lib.RO.Basic
-import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferConvert
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics

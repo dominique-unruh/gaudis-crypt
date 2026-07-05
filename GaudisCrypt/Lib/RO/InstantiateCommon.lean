@@ -1,5 +1,5 @@
 import GaudisCrypt.Language.Programs
-import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Footprint
@@ -128,7 +128,7 @@ noncomputable def RO_eager : roHoles.Instantiation
 
 (`zoom` being a monad morphism — `ProgramDenotation.zoom_pure`/`zoom_bind` — now
 lives in `GaudisCrypt.Language.Semantics`; the `transferBy` lift `transferBy_zoom`
-in `GaudisCrypt.TransferBy`.) -/
+in `GaudisCrypt.Logic.TransferBy`.) -/
 
 theorem procDenotation_RO_eager (args : roSig.ParamType) :
     procedureDenotation RO_eager_proc args = random_oracle_query args := by
