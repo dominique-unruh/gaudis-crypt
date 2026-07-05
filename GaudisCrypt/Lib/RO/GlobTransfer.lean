@@ -382,9 +382,8 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
     intro u hu
     rw [Set.mem_singleton_iff] at hu
     subst hu
-    show diracKer (ProcedureState.globalL.liftFunction f) ∈ Xᶜ.updates
     rw [← FVP.updateK_diracKer]
-    show ProcedureState.globalL.liftSubProbability (diracKer f)
+    change ProcedureState.globalL.liftSubProbability (diracKer f)
         ∈ Submonoid.centralizer X.updates
     rw [Submonoid.mem_centralizer_iff]
     intro k hk
@@ -402,7 +401,6 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
   have hsup : fvP_proc A ≤ (Footprint.from
       {diracKer ((ProcedureState.globalL
         (l := sig.LocalVariableState A.locals)).liftFunction f)})ᶜ := by
-    show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint ≤ _
     exact sup_le h1 h2
   exact (Footprint.from_le_iff _ _).mp
     ((Footprint.le_compl_comm _ _).mpr hsup) (Set.mem_singleton _)
