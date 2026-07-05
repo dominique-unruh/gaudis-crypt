@@ -280,6 +280,16 @@ theorem swapLoc_of_loc {holes : HoleSigs} {l : Type} :
       ⟨h.1, swapLoc_of_loc t h.2.1, swapLoc_of_loc e h.2.2⟩
   | .«while» _ t, h => ⟨h.1, swapLoc_of_loc t h.2⟩
 
+/-- The oracle's **procedure-level eager specification** (PROM's `eager_get` in
+    procedure form): the native `eager_query` through the denotation bridges —
+    the input to the `eager call` rule. -/
+theorem eager_query_spec (args : roSig.ParamType) :
+    ProgramDenotation.eagerR convert convert (fun σ₁ σ₂ : state => σ₁ = σ₂)
+      (procedureDenotation RO_eager_proc args) (procedureDenotation RO_lazy_proc args)
+      (fun u v : roSig.ret × state => u = v) := by
+  rw [procDenotation_RO_eager, procDenotation_RO_lazy]
+  exact eager_query args
+
 /-- **`eager_D`**: the abstract adversary is eager for the resampler, from
     footprint disjointness alone — one application of the `eager_call` rule,
     with the per-hole case discharged by the native `eager_query`. -/
@@ -308,11 +318,7 @@ theorem eager_D {sig : ProcedureSignature}
             (programDenotation (StmtWithHoles.call x RO_eager_proc p))
             (programDenotation (StmtWithHoles.call x RO_lazy_proc p))
             (fun u v => u = v)
-        rw [denote_call, denote_call]
-        refine ProgramDenotation.eagerR_seq (eagerR_self_of_transferBy hp) (fun args' => ?_)
-        refine ProgramDenotation.eagerR_seq ?_ (fun ret => eagerR_self_of_transferBy (hx ret))
-        rw [procDenotation_RO_eager, procDenotation_RO_lazy]
-        exact ProgramDenotation.eagerR_zoom ProcedureState.globalL (eager_query args')
+        exact eagerR_call convert RO_eager_proc RO_lazy_proc x p eager_query_spec hp hx
     | succ m => nomatch m
 
 /-- **`convert` self-couples from `={glob A}` states**, preserving `={glob A}`:
