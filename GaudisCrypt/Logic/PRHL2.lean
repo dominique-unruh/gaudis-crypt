@@ -1447,52 +1447,80 @@ theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
   obtain ⟨heq, hEw⟩ := hsat w hw
   exact ⟨heq, (hgetter _ _).mpr hEw⟩
 
-/-- **Coupling through a lossless, projection-preserving tail.**  If `q` equals `p` followed
-    by a *lossless* state-only post-processor `c` (which keeps `p`'s result), then `p` and `q`
-    couple from equal initial states with equal results; moreover any state projection `g`
-    that `c` preserves on its support is equal on the coupled final states.  For
-    `g := (FVP.glob A).get` this produces EasyCrypt's `={glob A}` in the postcondition.
-    Converts distribution-level *transfer* equations (`Lib/RO/TransferConvert.lean`) into
-    `prhl2`. -/
+/-- **Coupling through a lossless, projection-preserving tail, over a base
+    coupling.**  Given a self-coupling of `p` under `P` with equal results and
+    `g`-equal finals, extending the right leg by a *lossless* tail `c` that
+    preserves `g` on its support couples `p` against `q' = p; c` (result kept)
+    with the same pre/post.  The equal-initial-states version
+    (`prhl2_of_lossless_tail_proj`) is the instance at the diagonal coupling. -/
+theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s α β : Type}
+    {p q' : ProgramDenotation s α} {c : ProgramDenotation s Unit} (g : s → β)
+    {P : s → s → Prop}
+    (hself : ProgramDenotation.prhl2 P p p (fun u v => u.1 = v.1 ∧ g u.2 = g v.2))
+    (hc : ∀ σ : s, (c σ).1 Set.univ = 1)
+    (hkeep : ∀ σ : s, (c σ).satisfies (fun x : Unit × s => g x.2 = g σ))
+    (heq : (p >>= fun a => c >>= fun _ => pure a) = q') :
+    ProgramDenotation.prhl2 P p q'
+      (fun u v => u.1 = v.1 ∧ g u.2 = g v.2) := by
+  intro σ₁ σ₂ hP
+  obtain ⟨μ₀, hm1, hm2, hsat⟩ := hself σ₁ σ₂ hP
+  refine ⟨μ₀ >>= fun w => c w.2.2 >>= fun x =>
+      (pure (w.1, (w.2.1, x.2)) : SubProbability ((α × s) × (α × s))), ?_, ?_, ?_⟩
+  · -- fst marginal: the tail is lossless, so it disappears
+    rw [SubProbability.bind_assoc]
+    have hbody : ∀ w : (α × s) × (α × s),
+        ((c w.2.2 >>= fun x =>
+            (pure (w.1, (w.2.1, x.2)) : SubProbability ((α × s) × (α × s))))
+            >>= fun y => (pure y.1 : SubProbability (α × s)))
+          = pure w.1 := by
+      intro w
+      rw [SubProbability.bind_assoc]
+      simp only [SubProbability.pure_bind]
+      exact SubProbability.bind_const_pure _ (hc w.2.2) w.1
+    simp only [hbody]
+    exact hm1
+  · -- snd marginal: the base coupling's second leg extended by the tail is `q'`
+    rw [SubProbability.bind_assoc]
+    have hbody : ∀ w : (α × s) × (α × s),
+        ((c w.2.2 >>= fun x =>
+            (pure (w.1, (w.2.1, x.2)) : SubProbability ((α × s) × (α × s))))
+            >>= fun y => (pure y.2 : SubProbability (α × s)))
+          = c w.2.2 >>= fun x => (pure (w.2.1, x.2) : SubProbability (α × s)) := by
+      intro w
+      rw [SubProbability.bind_assoc]
+      simp only [SubProbability.pure_bind]
+    simp only [hbody]
+    rw [← heq]
+    -- factor through the second marginal of the base coupling
+    have hfactor : (μ₀ >>= fun w => c w.2.2 >>= fun x =>
+          (pure (w.2.1, x.2) : SubProbability (α × s)))
+        = ((μ₀ >>= fun w => (pure w.2 : SubProbability (α × s))) >>= fun w₂ =>
+            c w₂.2 >>= fun x => (pure (w₂.1, x.2) : SubProbability (α × s))) := by
+      rw [SubProbability.bind_assoc]
+      simp only [SubProbability.pure_bind]
+    rw [hfactor, hm2]
+    rfl
+  · -- support: base post on the results and `g`; the tail preserves `g`
+    refine SubProbability.satisfies_bind _ (fun w hw => ?_)
+    refine SubProbability.satisfies_bind _ (fun x hx => ?_)
+    obtain ⟨hres, hg⟩ := hsat w hw
+    exact SubProbability.satisfies_pure _ _ ⟨hres, hg.trans (hkeep w.2.2 x hx).symm⟩
+
+/-- **Coupling through a lossless, projection-preserving tail** (equal initial
+    states): the diagonal instance of `prhl2_of_lossless_tail_proj_inv`.
+    Converts distribution-level *transfer* equations
+    (`Lib/RO/TransferConvert.lean`) into `prhl2`. -/
 theorem ProgramDenotation.prhl2_of_lossless_tail_proj {s α β : Type}
     {p q : ProgramDenotation s α} {c : ProgramDenotation s Unit} (g : s → β)
     (hc : ∀ σ : s, (c σ).1 Set.univ = 1)
     (hkeep : ∀ σ : s, (c σ).satisfies (fun x : Unit × s => g x.2 = g σ))
     (heq : (p >>= fun a => c >>= fun _ => pure a) = q) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
-      (fun u v => u.1 = v.1 ∧ g u.2 = g v.2) := by
-  intro σ₁ σ₂ hσ
-  subst hσ
-  refine ⟨p σ₁ >>= fun w => c w.2 >>= fun x =>
-      (pure (w, (w.1, x.2)) : SubProbability ((α × s) × (α × s))), ?_, ?_, ?_⟩
-  · -- fst marginal: the tail is lossless, so it disappears
-    rw [SubProbability.bind_assoc]
-    have hbody : ∀ w : α × s,
-        ((c w.2 >>= fun x => (pure (w, (w.1, x.2)) : SubProbability ((α × s) × (α × s))))
-            >>= fun y => (pure y.1 : SubProbability (α × s)))
-          = pure w := by
-      intro w
-      rw [SubProbability.bind_assoc]
-      simp only [SubProbability.pure_bind]
-      exact SubProbability.bind_const_pure _ (hc w.2) w
-    simp only [hbody]
-    exact SubProbability.bind_pure _
-  · -- snd marginal: exactly `p` with the tail, i.e. `q`
-    rw [SubProbability.bind_assoc]
-    have hbody : ∀ w : α × s,
-        ((c w.2 >>= fun x => (pure (w, (w.1, x.2)) : SubProbability ((α × s) × (α × s))))
-            >>= fun y => (pure y.2 : SubProbability (α × s)))
-          = c w.2 >>= fun x => (pure (w.1, x.2) : SubProbability (α × s)) := by
-      intro w
-      rw [SubProbability.bind_assoc]
-      simp only [SubProbability.pure_bind]
-    simp only [hbody]
-    rw [← heq]
-    rfl
-  · -- support: results equal by construction; `g` preserved by the tail's support
-    refine SubProbability.satisfies_bind _ (fun w _ => ?_)
-    refine SubProbability.satisfies_bind _ (fun x hx => ?_)
-    exact SubProbability.satisfies_pure _ _ ⟨rfl, (hkeep w.2 x hx).symm⟩
+      (fun u v => u.1 = v.1 ∧ g u.2 = g v.2) :=
+  ProgramDenotation.prhl2_of_lossless_tail_proj_inv g
+    ((ProgramDenotation.prhl2.refl p).conseq (fun _ _ h => h)
+      (fun u v h => by rw [h]; exact ⟨rfl, rfl⟩))
+    hc hkeep heq
 
 /-- **Coupling through a lossless tail.**  If `q` equals `p` followed by a *lossless* state-only
     post-processor `c` (which keeps `p`'s result), then `p` and `q` couple from equal initial

@@ -316,4 +316,43 @@ theorem eager_call {holes : HoleSigs} {sig : ProcedureSignature}
       (fun n x p hp hx => hhole n x p hp hx))
     hret
 
+/-- **EC's `eager proc I` on an abstract procedure**: the equality-level
+    abstract-call rule strengthened to an invariant `P`, given a framing
+    self-coupling of the lazy composite under `P` — the packaged form of EC's
+    per-oracle `fl ~ fl` / `s ~ s : I ==> I` side conditions (which discharge it
+    via the standard relational body machinery). -/
+theorem eager_call_inv {holes : HoleSigs} {sig : ProcedureSignature}
+    (eagerInst lazyInst : holes.Instantiation)
+    (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
+    (S : ProgramDenotation State Unit)
+    {P : State → State → Prop} {Q : sig.ret × State → sig.ret × State → Prop}
+    (hloc : SwapLoc (ProgramDenotation.zoom ProcedureState.globalL S) A.body)
+    (hret : ProgramDenotation.transferBy
+      (ProgramDenotation.zoom ProcedureState.globalL S)
+      (ProgramDenotation.get A.return_val) (ProgramDenotation.get A.return_val))
+    (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
+        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        ProgramDenotation.transferBy (ProgramDenotation.zoom ProcedureState.globalL S)
+          (ProgramDenotation.get p) (ProgramDenotation.get p) →
+        (∀ ret, ProgramDenotation.transferBy (ProgramDenotation.zoom ProcedureState.globalL S)
+          (ProgramDenotation.set x ret) (ProgramDenotation.set x ret)) →
+        ProgramDenotation.eagerR
+          (ProgramDenotation.zoom ProcedureState.globalL S)
+          (ProgramDenotation.zoom ProcedureState.globalL S)
+          (fun σ₁ σ₂ => σ₁ = σ₂)
+          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst n) p))
+          (fun u v => u = v))
+    (hself : ProgramDenotation.prhl2 P
+      (procedureDenotation (A.instantiate lazyInst) args >>= fun a =>
+        S >>= fun _ => pure a)
+      (procedureDenotation (A.instantiate lazyInst) args >>= fun a =>
+        S >>= fun _ => pure a) Q) :
+    ProgramDenotation.eagerR S S P
+      (procedureDenotation (A.instantiate eagerInst) args)
+      (procedureDenotation (A.instantiate lazyInst) args) Q :=
+  ProgramDenotation.eagerR_of_self_right
+    (eager_call eagerInst lazyInst A args S hloc hret hhole) hself
+
 end GaudisCrypt.Language.Programs

@@ -315,6 +315,70 @@ theorem eager_D {sig : ProcedureSignature}
         exact ProgramDenotation.eagerR_zoom ProcedureState.globalL (eager_query args')
     | succ m => nomatch m
 
+/-- **`convert` self-couples from `={glob A}` states**, preserving `={glob A}`:
+    the samples couple diagonally and the fills differ only inside the oracle
+    region (native; EC's `s ~ s : I ==> I` framing condition). -/
+theorem convert_glob_self {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    ProgramDenotation.prhl2
+      (fun σ₁ σ₂ : state => (FVP.glob A).get σ₁ = (FVP.glob A).get σ₂)
+      convert convert
+      (fun u v : Unit × state => (FVP.glob A).get u.2 = (FVP.glob A).get v.2) := by
+  intro σ₁ σ₂ hg
+  refine ⟨(SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
+      pure (((), random_oracle_state.set
+              (fun x => some ((random_oracle_state.get σ₁ x).getD (y x))) σ₁),
+            ((), random_oracle_state.set
+              (fun x => some ((random_oracle_state.get σ₂ x).getD (y x))) σ₂)),
+    ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc, convert_apply]
+    congr 1; funext y
+    rw [SubProbability.pure_bind]
+  · rw [SubProbability.bind_assoc, convert_apply]
+    congr 1; funext y
+    rw [SubProbability.pure_bind]
+  · refine SubProbability.satisfies_bind _ (fun y _ => ?_)
+    refine SubProbability.satisfies_pure _ _ ?_
+    change (FVP.glob A).get (random_oracle_state.set _ σ₁)
+        = (FVP.glob A).get (random_oracle_state.set _ σ₂)
+    rw [glob_ro_set_invariant A hdisj, glob_ro_set_invariant A hdisj]
+    exact hg
+
+/-- **The whole-game invariant eager judgment** — EC's `eager_D` in its native
+    shape `={glob D} ==> ={res, glob D}`: the two games swap with the resampler
+    from `={glob A}` initial states, with equal results and `={glob A}` finals.
+    One `eagerR_of_self_right`: the equality-level judgment
+    (`eagerR_seq eager_init eager_D`) glued to the framing self-coupling of the
+    lazy composite (`glob_self_coupling_lazy` extended by `convert_glob_self`). -/
+theorem eager_D_glob {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    ProgramDenotation.eagerR convert convert
+      (fun σ₁ σ₂ : state => (FVP.glob A).get σ₁ = (FVP.glob A).get σ₂)
+      (random_oracle_init >>= fun _ => procedureDenotation (A.instantiate RO_eager) args)
+      (lazy_init >>= fun _ => procedureDenotation (A.instantiate RO_lazy) args)
+      (fun u v => u.1 = v.1 ∧ (FVP.glob A).get u.2 = (FVP.glob A).get v.2) := by
+  have hpure : ∀ (a : sig.ret), ProgramDenotation.prhl2
+      (fun ρ₁ ρ₂ : state => (FVP.glob A).get ρ₁ = (FVP.glob A).get ρ₂)
+      (pure a) (pure a)
+      (fun u v : sig.ret × state =>
+        u.1 = v.1 ∧ (FVP.glob A).get u.2 = (FVP.glob A).get v.2) := by
+    intro a ρ₁ ρ₂ hgr
+    refine ⟨pure ((a, ρ₁), (a, ρ₂)), ?_, ?_, ?_⟩
+    · rw [SubProbability.pure_bind]; rfl
+    · rw [SubProbability.pure_bind]; rfl
+    · exact SubProbability.satisfies_pure _ _ ⟨rfl, hgr⟩
+  refine ProgramDenotation.eagerR_of_self_right
+    (ProgramDenotation.eagerR_seq eager_init (fun _ => eager_D A args hdisj)) ?_
+  refine ProgramDenotation.prhl2.bind (glob_self_coupling_lazy A args hdisj)
+    (fun a₁ a₂ => ?_)
+  intro τ₁ τ₂ hM
+  obtain ⟨ha, hg⟩ := hM
+  subst ha
+  exact (ProgramDenotation.prhl2.bind (convert_glob_self A hdisj)
+    (fun _ _ => hpure a₁)) τ₁ τ₂ hg
+
 /-- The resampler is swallowed by the eager initialisation (native). -/
 lemma convert_init_absorb {α : Type} (rest : ProgramDenotation state α) :
     (convert >>= fun _ : Unit => random_oracle_init >>= fun _ : Unit => rest)
@@ -344,11 +408,10 @@ lemma convert_init_absorb {α : Type} (rest : ProgramDenotation state α) :
     1. the whole-game eager judgment: `eagerR_seq eager_init eager_D`;
     2. the leading resampler is swallowed by the eager initialisation
        (`convert_init_absorb`);
-    3. the trailing resampler is absorbed into a direct coupling recording
-       `={glob A}` on the finals (`prhl2_of_lossless_tail_proj`);
-    4. the precondition relaxes to `={glob A}` by `prhl2.trans` with the
-       same-program self-coupling and `conseq` (the invariant threading EC's
-       kernel performs inside `eager proc`). -/
+    3. the trailing resampler is absorbed into a coupling over the `={glob A}`
+       self-coupling base (`prhl2_of_lossless_tail_proj_inv`) — the invariant
+       threading EC's kernel performs inside `eager proc`, cf. the judgment-level
+       form `eager_D_glob`. -/
 theorem RO_LRO_glob {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
@@ -365,16 +428,12 @@ theorem RO_LRO_glob {sig : ProcedureSignature}
       = (random_oracle_init >>= fun _ =>
           procedureDenotation (A.instantiate RO_eager) args) :=
     (ProgramDenotation.eagerR_to_eq hgame).symm.trans (convert_init_absorb _)
-  have hproduce := ProgramDenotation.prhl2_of_lossless_tail_proj (FVP.glob A).get
+  -- 3.+4. the tail-absorbing coupling over the ={glob A} self-coupling base
+  exact ProgramDenotation.prhl2_of_lossless_tail_proj_inv (FVP.glob A).get
+    (glob_self_coupling_lazy A args hdisj)
     convert_lossless
     (convert_satisfies_of_ro_invariant (FVP.glob A).get (glob_ro_set_invariant A hdisj))
     hE'
-  -- 4. relax the precondition to `={glob A}`
-  have h12 := ProgramDenotation.prhl2.trans
-    (glob_self_coupling_lazy A args hdisj) hproduce
-  refine h12.conseq (fun σ₁ σ₃ h => ⟨σ₃, h, rfl⟩) ?_
-  rintro u v ⟨w, hw1, hw2⟩
-  exact ⟨hw1.1.trans hw2.1, hw1.2.trans hw2.2⟩
 
 /-- `Win`-form of `RO_LRO_glob`: any event decided by `A`'s output transfers
     between the lazy and eager games, with `={glob A}` throughout. -/

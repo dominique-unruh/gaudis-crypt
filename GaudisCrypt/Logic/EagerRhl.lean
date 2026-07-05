@@ -213,6 +213,90 @@ theorem ProgramDenotation.eagerR_zoom {s t α : Type}
         congr 1; funext _
         rw [ProgramDenotation.zoom_pure]
 
+/-! ## Invariant introduction
+
+EasyCrypt's invariant-carrying eager rules (`eager seq … : R`, `eager while I`,
+`eager proc I`) all decompose the same way, visible in the subgoals their kernel
+generates: the **equality-invariant eager judgment** plus **framing
+self-couplings** of one composite under the invariant (EC's `c ~ c` / `s ~ s :
+I ==> I` side conditions).  The two master rules below are that decomposition as
+a theorem: an invariant eager judgment is a self-coupling of either composite
+glued to the equality judgment by `prhl2.trans`.  The EC-shaped composite rules
+(`eagerR_seq_inv`, `eagerR_while_inv`, `eager_call_inv`) derive from them. -/
+
+/-- **Invariant introduction (left)**: self-couple the eager composite `S₁; p`
+    under the invariant, then glue the equality-invariant judgment on the right. -/
+theorem ProgramDenotation.eagerR_of_self_left {s α : Type}
+    {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
+    {P : s → s → Prop} {Q : α × s → α × s → Prop}
+    (hself : ProgramDenotation.prhl2 P (S₁ >>= fun _ => p) (S₁ >>= fun _ => p) Q)
+    (heq : ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
+      (fun u v : α × s => u = v)) :
+    ProgramDenotation.eagerR S₁ S₂ P p q Q := by
+  have h := ProgramDenotation.prhl2.trans hself heq
+  refine h.conseq (fun σ₁ σ₂ hp => ⟨σ₂, hp, rfl⟩) ?_
+  rintro u v ⟨w, hw1, hw2⟩
+  exact hw2 ▸ hw1
+
+/-- **Invariant introduction (right)**: symmetrically, self-couple the lazy
+    composite `q; S₂` under the invariant. -/
+theorem ProgramDenotation.eagerR_of_self_right {s α : Type}
+    {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
+    {P : s → s → Prop} {Q : α × s → α × s → Prop}
+    (heq : ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
+      (fun u v : α × s => u = v))
+    (hself : ProgramDenotation.prhl2 P
+      (q >>= fun a => S₂ >>= fun _ => pure a)
+      (q >>= fun a => S₂ >>= fun _ => pure a) Q) :
+    ProgramDenotation.eagerR S₁ S₂ P p q Q := by
+  have h := ProgramDenotation.prhl2.trans heq hself
+  refine h.conseq (fun σ₁ σ₂ hp => ⟨σ₁, rfl, hp⟩) ?_
+  rintro u v ⟨w, hw1, hw2⟩
+  exact hw1.symm ▸ hw2
+
+/-- **EC's `eager seq` with invariants** (their four-subgoal form): the two
+    equality-level eager judgments plus framing self-couplings of the eager-side
+    pieces, threaded through a middle relation `M`. -/
+theorem ProgramDenotation.eagerR_seq_inv {s α β : Type}
+    {S₁ S S₂ : ProgramDenotation s Unit}
+    {p₁ q₁ : ProgramDenotation s α} {p₂ q₂ : α → ProgramDenotation s β}
+    {P : s → s → Prop} {M : α × s → α × s → Prop} {Q : β × s → β × s → Prop}
+    (h₁ : ProgramDenotation.eagerR S₁ S (fun σ₁ σ₂ : s => σ₁ = σ₂) p₁ q₁
+      (fun u v : α × s => u = v))
+    (h₂ : ∀ a, ProgramDenotation.eagerR S S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) (p₂ a) (q₂ a)
+      (fun u v : β × s => u = v))
+    (hframe₁ : ProgramDenotation.prhl2 P (S₁ >>= fun _ => p₁) (S₁ >>= fun _ => p₁) M)
+    (hframe₂ : ∀ a₁ a₂, ProgramDenotation.prhl2 (fun τ₁ τ₂ => M (a₁, τ₁) (a₂, τ₂))
+      (p₂ a₁) (p₂ a₂) Q) :
+    ProgramDenotation.eagerR S₁ S₂ P (p₁ >>= p₂) (q₁ >>= q₂) Q := by
+  refine ProgramDenotation.eagerR_of_self_left ?_ (ProgramDenotation.eagerR_seq h₁ h₂)
+  have hb := ProgramDenotation.prhl2.bind hframe₁ hframe₂
+  rw [ProgramDenotation.bind_assoc] at hb
+  exact hb
+
+/-- **EC's `eager while` with invariants** (their six-subgoal form, coupling
+    formulation): the equality-level eager judgments for guard and body, plus
+    framing self-couplings — the block establishes the loop invariant `Inv`, the
+    guard couples to agree under it, and the body preserves it. -/
+theorem ProgramDenotation.eagerR_while_inv {s : Type} {S : ProgramDenotation s Unit}
+    {cond : ProgramDenotation s Bool} {body_e body_l : ProgramDenotation s Unit}
+    {P : s → s → Prop} {Inv : s → s → Prop} {PostC : Bool → s → s → Prop}
+    (h_cond_eq : ProgramDenotation.eagerR S S (fun σ₁ σ₂ : s => σ₁ = σ₂) cond cond
+      (fun u v : Bool × s => u = v))
+    (h_body_eq : ProgramDenotation.eagerR S S (fun σ₁ σ₂ : s => σ₁ = σ₂) body_e body_l
+      (fun u v : Unit × s => u = v))
+    (hS_self : ProgramDenotation.prhl2 P S S (fun u v : Unit × s => Inv u.2 v.2))
+    (h_cond_self : ProgramDenotation.prhl2 Inv cond cond
+      (fun u v => u.1 = v.1 ∧ PostC u.1 u.2 v.2))
+    (h_body_self : ProgramDenotation.prhl2 (PostC true) body_e body_e
+      (fun u v => Inv u.2 v.2)) :
+    ProgramDenotation.eagerR S S P (while_loop cond body_e) (while_loop cond body_l)
+      (fun u v : Unit × s => PostC false u.2 v.2) := by
+  refine ProgramDenotation.eagerR_of_self_left ?_
+    (ProgramDenotation.eagerR_while h_cond_eq h_body_eq)
+  exact ProgramDenotation.prhl2.bind hS_self
+    (fun _ _ => ProgramDenotation.prhl2.while_loop h_cond_self h_body_self)
+
 /-! ## Endpoint conversion -/
 
 /-- **Absorb the trailing block into a direct coupling**: from a diagonal eager
