@@ -26,6 +26,7 @@ import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.CollisionResistance
 import GaudisCrypt.Lib.RO.GlobEndpointExample
+import GaudisCrypt.Lib.RO.GlobTransfer
 import GaudisCrypt.Lib.RO.InstantiateCommon
 import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.Lib.RO.OracleLoop
