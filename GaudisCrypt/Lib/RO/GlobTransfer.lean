@@ -95,7 +95,7 @@ lemma lazy_init_apply (σ : state) :
     lazy_init σ
       = (pure ((), random_oracle_state.set (fun _ => none) σ) : SubProbability (Unit × state)) := by
   simp only [lazy_init, ProgramDenotation.set, bind, StateT.bind, StateT.get, StateT.set,
-    pure, StateT.pure, AsSetter.toS, Lens.toSetter, SubProbability.pure_bind]
+    pure, AsSetter.toS]
   refine Subtype.ext ?_
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
 
