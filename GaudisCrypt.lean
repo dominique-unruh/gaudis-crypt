@@ -25,6 +25,7 @@ import GaudisCrypt.Lib.Enc.HashedOTP
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.CollisionResistance
+import GaudisCrypt.Lib.RO.FullEager
 import GaudisCrypt.Lib.RO.GlobEndpointExample
 import GaudisCrypt.Lib.RO.GlobTransfer
 import GaudisCrypt.Lib.RO.InstantiateCommon
@@ -42,6 +43,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game1
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game2
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
