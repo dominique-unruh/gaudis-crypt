@@ -78,14 +78,17 @@ This is the conceptual core. `notes/REPORT.md` is a long, excellent guided tour 
   ranges): disjoint footprints ⟹ programs commute.
 
 Note `Footprint`/`ProbProgramRange`/`ProgramRange`/`DetermFootprint`/`FV`/
-`EquivModuloLens`/`WeakestPreconditions` at the repo top level make up this
-framework. `WeakestPreconditions.lean` provides `wp`, `wp_bind`, `wp_set`, etc.
+`WeakestPreconditions` at the repo top level make up this framework. `WeakestPreconditions.lean` provides `wp`, `wp_bind`, `wp_set`, etc.
 
 ### `GaudisCrypt/Logic/PRHL/` — probabilistic relational Hoare logic
 
 `Core.lean` (judgments), `Coupling.lean`, `Lenses.lean`, `Loops.lean`,
 `Prhl.lean`, `Tactics.lean`, `UpToBad.lean`. This is the relational reasoning
 layer used to relate two games. `PRHL2*.lean` are a newer/alternate iteration.
+Two further relational calculi live directly in `Logic/`:
+`EquivModuloLens.lean` (wp-equality on posts that ignore a lens) and
+`TransferBy.lean` (the generic "sliding coupling" `transferBy`, instantiated
+by the RO library).
 
 ### `GaudisCrypt/Lib/RO/` — random-oracle library (main application)
 

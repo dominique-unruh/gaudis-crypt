@@ -6,7 +6,6 @@ import GaudisCrypt.Footprint
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.EquivModuloLens
 import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
@@ -42,6 +41,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game1
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game2
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.TransferBy
