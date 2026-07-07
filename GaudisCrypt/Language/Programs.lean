@@ -16,19 +16,37 @@ class ProgramSpec : Type _ where
 def State [spec : ProgramSpec] := spec.state
 
 class GranularProgramSpec extends ProgramSpec where
-  granularity : Set (Footprint state)
+  granularity : Set (Footprint State)
   from_lenses : ∀ f ∈ granularity, f.FromLens
   disjoint : ∀ f ∈ granularity, ∀ g ∈ granularity, f ≠ g → f ≤ gᶜ
 
-def IsGranularFootprint [spec : GranularProgramSpec] (f : Footprint spec.state) :=
-  ∃ (F : Finset _), (∀ f ∈ F, f ∈ spec.granularity) ∧ f = sSup F
+def GranularFootprint [spec : GranularProgramSpec] := Finset spec.granularity
 
-def IsSubGranularFootprint [spec : GranularProgramSpec] (f : Footprint spec.state) :=
-  ∃ (F : Finset _), (∀ f ∈ F, f ∈ spec.granularity) ∧ f ≤ sSup F
+def GranularFootprint.grains [spec : GranularProgramSpec] (F : GranularFootprint) :
+  Set (Footprint State) :=
+    Subtype.val '' (↑(show Finset spec.granularity from F) : Set spec.granularity)
 
-structure GranularFootprint [spec : GranularProgramSpec] where
-  footprint : Footprint State
-  granular : IsGranularFootprint footprint
+def GranularFootprint.grainsFinset [spec : GranularProgramSpec] (F : GranularFootprint) :
+    Finset (Footprint State) :=
+  Finset.map ⟨Subtype.val, Subtype.val_injective⟩ F
+
+theorem GranularFootprint.grains_finite [spec : GranularProgramSpec] (F : GranularFootprint) :
+    (F.grains).Finite :=
+  (F.finite_toSet).image _
+
+theorem GranularFootprint.grains_subset [spec : GranularProgramSpec] (F : GranularFootprint) :
+    F.grains ⊆ spec.granularity := by
+  simp [GranularFootprint.grains]
+
+def GranularFootprint.footprint [spec : GranularProgramSpec]
+    (F : GranularFootprint) : Footprint spec.state :=
+  sSup F.grains
+
+def _root_.Footprint.IsGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+  ∃ (F : GranularFootprint), f = GranularFootprint.footprint F
+
+def _root_.Footprint.IsSubGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+  ∃ (F : GranularFootprint), f ≤ GranularFootprint.footprint F
 
 /-- **Atomicity of the granularity**: a granularity element below the join of a finite
     granularity family is one of the members or trivial.  If `p ∉ F` it is disjoint from every
@@ -52,61 +70,50 @@ theorem GranularProgramSpec.mem_or_eq_bot_of_le_sSup [spec : GranularProgramSpec
     exact l.footprint_eq_bot_of_le_compl (hl ▸ hle.trans hsup)
 
 instance [spec : GranularProgramSpec] : PartialOrder GranularFootprint where
-  le f g := f.footprint ≤ g.footprint
+  le f g := f.grains ⊆ g.grains
   le_refl _ := le_refl _
   le_trans _ _ _ h₁ h₂ := le_trans h₁ h₂
   le_antisymm f g h₁ h₂ := by
-    obtain ⟨ff, hf⟩ := f; obtain ⟨gf, hg⟩ := g
-    obtain rfl : ff = gf := le_antisymm h₁ h₂
-    rfl
+    have hg : f.grains = g.grains := Set.Subset.antisymm h₁ h₂
+    exact Finset.coe_injective (Set.image_injective.2 Subtype.val_injective hg)
+  lt f g := f.grains ⊆ g.grains ∧ ¬ g.grains ⊆ f.grains
+  lt_iff_le_not_ge _ _ := Iff.rfl
 
 instance [spec : GranularProgramSpec] : OrderBot GranularFootprint where
-  bot := ⟨⊥, ∅, by simp, by simp; rfl⟩
-  bot_le f := show (⊥ : Footprint State) ≤ f.footprint from bot_le
+  bot := Finset.empty
+  bot_le f := by
+    change GranularFootprint.grains Finset.empty ⊆ GranularFootprint.grains f
+    exact Set.image_mono (Finset.coe_subset.mpr (Finset.empty_subset f))
 
--- Actually even a lower-complete lattice, but I don't recall the typeclass name for that
+def GranularFootprint.toFinset [spec : GranularProgramSpec] (F : GranularFootprint) :
+    Finset spec.granularity := F
+
+theorem GranularFootprint.le_iff_subset [spec : GranularProgramSpec] {f g : GranularFootprint} :
+    f ≤ g ↔ (show Finset spec.granularity from f) ⊆ (show Finset spec.granularity from g) :=
+  ⟨fun h => Finset.coe_subset.mp ((Set.image_subset_image_iff Subtype.val_injective).mp h),
+   fun h => Set.image_mono (Finset.coe_subset.mpr h)⟩
+
 open Classical in
-noncomputable instance [spec : GranularProgramSpec] : Lattice GranularFootprint := by
-  refine { (inferInstance : PartialOrder GranularFootprint) with
-    sup := fun f g => ⟨f.footprint ⊔ g.footprint, ?_⟩
-    le_sup_left := fun f g => show f.footprint ≤ f.footprint ⊔ g.footprint from le_sup_left
-    le_sup_right := fun f g => show g.footprint ≤ f.footprint ⊔ g.footprint from le_sup_right
-    sup_le := fun f g c h₁ h₂ =>
-      show f.footprint ⊔ g.footprint ≤ c.footprint from sup_le h₁ h₂
-    inf := fun f g =>
-      ⟨sSup ↑(f.granular.choose.filter (fun p => p ≤ g.footprint)),
-        f.granular.choose.filter (fun p => p ≤ g.footprint),
-        fun p hp => f.granular.choose_spec.1 p (Finset.mem_of_mem_filter p hp), rfl⟩
-    inf_le_left := fun f g => ?_
-    inf_le_right := fun f g => ?_
-    le_inf := fun a f g h₁ h₂ => ?_ }
-  · -- the union of the two witnesses covers the join
-    obtain ⟨F, hF, hf⟩ := f.granular
-    obtain ⟨G, hG, hg⟩ := g.granular
-    exact ⟨F ∪ G, fun p hp => (Finset.mem_union.mp hp).elim (hF p) (hG p),
-      by rw [hf, hg, Finset.coe_union, sSup_union]; rfl⟩
-  · -- inf ≤ f : the filtered witness is a sub-family of f's witness
-    change sSup _ ≤ f.footprint
-    refine le_trans (sSup_le_sSup (Finset.coe_subset.mpr (Finset.filter_subset _ _))) ?_
-    exact le_of_eq f.granular.choose_spec.2.symm
-  · -- inf ≤ g : every filtered atom is below g by the filter condition
-    change sSup _ ≤ g.footprint
-    refine sSup_le fun q hq => ?_
-    exact (Finset.mem_filter.mp hq).2
-  · -- le_inf : atomicity — every atom of a is ⊥ or an atom of f below g
-    change a.footprint ≤ sSup _
-    obtain ⟨A, hA, ha⟩ := a.granular
-    rw [ha]
-    refine sSup_le fun p hp => ?_
-    have hpA : p ∈ A := hp
-    have hpa : p ≤ a.footprint := ha ▸ le_sSup hp
-    have hpF : p ∈ f.granular.choose ∨ p = ⊥ :=
-      GranularProgramSpec.mem_or_eq_bot_of_le_sSup (hA p hpA) f.granular.choose_spec.1
-        ((hpa.trans h₁).trans_eq f.granular.choose_spec.2)
-    rcases hpF with hpF | rfl
-    · exact le_sSup (Finset.mem_coe.mpr
-        (Finset.mem_filter.mpr ⟨hpF, hpa.trans h₂⟩))
-    · exact bot_le
+noncomputable instance [spec : GranularProgramSpec] : Lattice GranularFootprint where
+  sup f g := (f.toFinset ∪ g.toFinset : Finset spec.granularity)
+  inf f g := (f.toFinset ∩ g.toFinset : Finset spec.granularity)
+  le_sup_left _ _ := GranularFootprint.le_iff_subset.mpr Finset.subset_union_left
+  le_sup_right _ _ := GranularFootprint.le_iff_subset.mpr Finset.subset_union_right
+  sup_le _ _ _ h₁ h₂ :=
+    GranularFootprint.le_iff_subset.mpr
+      (Finset.union_subset (GranularFootprint.le_iff_subset.mp h₁)
+        (GranularFootprint.le_iff_subset.mp h₂))
+  inf_le_left _ _ := GranularFootprint.le_iff_subset.mpr Finset.inter_subset_left
+  inf_le_right _ _ := GranularFootprint.le_iff_subset.mpr Finset.inter_subset_right
+  le_inf _ _ _ h₁ h₂ :=
+    GranularFootprint.le_iff_subset.mpr
+      (Finset.subset_inter (GranularFootprint.le_iff_subset.mp h₁)
+        (GranularFootprint.le_iff_subset.mp h₂))
+
+theorem GranularFootprint.footprint_mono [spec : GranularProgramSpec] {F G : GranularFootprint}
+    (h : F ≤ G) : F.footprint ≤ G.footprint :=
+  sSup_le_sSup h
+
 
 open Classical in
 /-- A **minimal granular cover** of a sub-granular footprint: a minimal sub-family of the
@@ -116,48 +123,64 @@ open Classical in
     alone already cover `footprint` needs the product-corner structure theorem.  Minimality —
     no strict sub-family of the returned one covers — holds by construction;
     see `IsSubGranularFootprint.le_granular`.) -/
-noncomputable def IsSubGranularFootprint.granular [spec : GranularProgramSpec]
-    (footprint : Footprint State) (h : IsSubGranularFootprint footprint) : GranularFootprint :=
-  have hne : (h.choose.powerset.filter
-      fun G : Finset (Footprint State) => footprint ≤ sSup ↑G).Nonempty :=
-    ⟨h.choose, Finset.mem_filter.mpr ⟨Finset.mem_powerset_self _, h.choose_spec.2⟩⟩
-  have hmin := (h.choose.powerset.filter
-    fun G : Finset (Footprint State) => footprint ≤ sSup ↑G).exists_minimal hne
-  ⟨sSup ↑hmin.choose, hmin.choose,
-    fun p hp => h.choose_spec.1 p
-      (Finset.mem_powerset.mp (Finset.mem_filter.mp hmin.choose_spec.1).1 hp), rfl⟩
+noncomputable def _root_.Footprint.IsSubGranular.granular [spec : GranularProgramSpec]
+    (footprint : Footprint State) (h : footprint.IsSubGranular) : GranularFootprint :=
+  let grains := { f ∈ spec.granularity | ¬ footprint ≤ fᶜ }
+  have finite : grains.Finite := by
+    obtain ⟨F, hF⟩ := h
+    apply Set.Finite.subset (GranularFootprint.grains_finite F)
+    intro f hf
+    have hf' : f ∈ spec.granularity ∧ ¬ footprint ≤ fᶜ := hf
+    obtain ⟨hf_gran, hf_touch⟩ := hf'
+    by_contra hf_not
+    apply hf_touch
+    refine le_trans hF (sSup_le fun g hg => ?_)
+    have hg_gran : g ∈ spec.granularity := GranularFootprint.grains_subset F hg
+    have hne : g ≠ f := fun e => hf_not (e ▸ hg)
+    exact spec.disjoint g hg_gran f hf_gran hne
+  (finite.toFinset).subtype (· ∈ spec.granularity)
+
 
 open Classical in
 /-- The minimal granular cover contains what it covers. -/
-theorem IsSubGranularFootprint.le_granular [spec : GranularProgramSpec]
-    (footprint : Footprint State) (h : IsSubGranularFootprint footprint) :
-    footprint ≤ (IsSubGranularFootprint.granular footprint h).footprint :=
-  (Finset.mem_filter.mp
+theorem _root_.Footprint.IsSubGranular.le_granular [spec : GranularProgramSpec]
+    (footprint : Footprint State) (h : footprint.IsSubGranular) :
+    footprint ≤ (Footprint.IsSubGranular.granular footprint h).footprint :=
+  /- (Finset.mem_filter.mp
     ((h.choose.powerset.filter
         fun G : Finset (Footprint State) => footprint ≤ sSup ↑G).exists_minimal
       ⟨h.choose, Finset.mem_filter.mpr
-        ⟨Finset.mem_powerset_self _, h.choose_spec.2⟩⟩).choose_spec.1).2
+        ⟨Finset.mem_powerset_self _, h.choose_spec.2⟩⟩).choose_spec.1).2 -/
+  sorry
 
-theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) :
+theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State} (h : f.IsGranular) :
   f.FromLens :=
+  -- Construct a lens that's the pairing of all the grains in h
+  -- That lens has footprint f
+  -- Then f.FromLens follows via Lens.footprint_fromLens
   sorry
 
 noncomputable def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Footprint State}
-    (h : IsGranularFootprint f) : Lens (Quotient fᶜ.orbit_setoid) State :=
-  h.fromLens.lens
+    (h : f.IsGranular) : Lens (Quotient fᶜ.orbit_setoid) State :=
+  have : f.FromLens := sorry
+  this.lens
 
 open Classical in
 theorem isSubGranularFootprint_closed_sup [spec : GranularProgramSpec] {f g : Footprint State}
-    (hf : IsSubGranularFootprint f) (hg : IsSubGranularFootprint g) :
-    IsSubGranularFootprint (f ⊔ g) :=
-  ⟨hf.choose ∪ hg.choose,
-    fun p hp => (Finset.mem_union.mp hp).elim (hf.choose_spec.1 p) (hg.choose_spec.1 p),
-    by
-      rw [Finset.coe_union, sSup_union]
-      exact sup_le (hf.choose_spec.2.trans le_sup_left) (hg.choose_spec.2.trans le_sup_right)⟩
+    (hf : f.IsSubGranular) (hg : g.IsSubGranular) :
+    (f ⊔ g).IsSubGranular :=
+  ⟨hf.choose ⊔ hg.choose,
+    sup_le (hf.choose_spec.trans (GranularFootprint.footprint_mono le_sup_left))
+      (hg.choose_spec.trans (GranularFootprint.footprint_mono le_sup_right))⟩
 
--- Theorem: for disjoint lenses, the sup of their granular footprints is the granular footprint of their pair
+theorem Lens.pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {lens2 : Lens b State} [Lens.disjoint lens1 lens2]
+  (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
+  (lens1.pair lens2).footprint.IsSubGranular :=
+  sorry
 
+theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (lens2 : Lens b State) [Lens.disjoint lens1 lens2]
+  (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
+  (Lens.pair_isSubGranular h1 h2).granular.footprint = h1.granular.footprint ⊔ h2.granular.footprint := sorry
 
 variable [ProgramSpec]
 
