@@ -2,14 +2,23 @@ import Lean
 import Lean.Elab.Term
 import Mathlib.Data.Fintype.Basic
 import GaudisCrypt.Language.Semantics
+import GaudisCrypt.Footprint
 
 namespace GaudisCrypt.Language.Programs
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
+open GaudisCrypt.Footprint
 
 class ProgramSpec : Type _ where
   state : Type u
+
+class GranularProgramSpec extends ProgramSpec where
+  granularity : Set (Footprint state)
+  from_lenses : ∀ f ∈ granularity, f.FromLens
+  disjoint : ∀ f g ∈ granularity, f ≠ g → f.disjoint g
+
+
 
 def State [spec : ProgramSpec] := spec.state
 

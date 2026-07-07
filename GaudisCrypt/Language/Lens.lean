@@ -149,12 +149,28 @@ instance disjoint3' [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] 
   intros
   simp [yz.commute, xz.commute]
 
+def Lens.id : Lens m m where
+  get m := m
+  set a _ := a
+  set_set _ _ _ := rfl
+  get_set _ := rfl
+  set_get _ _ := rfl
+
 def Lens.bijection (e : a ≃ b) : Lens a b where
   get := e.symm
   set x _ := e x
   set_get _ x := e.symm_apply_apply x
   set_set _ _ _ := rfl
   get_set s := e.apply_symm_apply s
+
+theorem Lens.bijection_chain {a b c : Type} (e : a ≃ b) (f : b ≃ c) :
+  Lens.chain (Lens.bijection f) (Lens.bijection e) = Lens.bijection (e.trans f) := by
+  sorry
+
+@[simp]
+theorem Lens.bijection_refl {a : Type} : Lens.bijection (Equiv.refl a) = Lens.id := by
+  ext
+  simp [Lens.bijection, Lens.id]
 
 structure LensIn.{u,v} (m : Type u) : Type _ where
   content : Type v
@@ -254,14 +270,6 @@ def Lens.splitSpace (lens : Lens a b) : Equiv b (a × lens.ComplContent) where
 
 theorem Lens.empty_eq [IsEmpty m] (lens1 : Lens a m) (lens2 : Lens a m) : lens1 = lens2 := by
   ext x m; exact of_decide_eq_true rfl
-
-def Lens.id : Lens m m where
-  get m := m
-  set a _ := a
-  set_set _ _ _ := rfl
-  get_set _ := rfl
-  set_get _ _ := rfl
-
 
 lemma lens_leq_content_leq [Nonempty m] (lens1 : LensIn m) (lens2 : LensIn m)
     (h : lens1 ≤ lens2) : Cardinal.mk lens1.content ≤ Cardinal.mk lens2.content := by

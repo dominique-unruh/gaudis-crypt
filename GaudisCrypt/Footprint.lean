@@ -25,7 +25,7 @@ structure Footprint (m : Type _) where
   id : pure ∈ updates
   comp : f ∈ updates → g ∈ updates → (f * g) ∈ updates
   double_commutant :
-    (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
+    (Set.centralizer (Set.centralizer updates)) = updates
 
 private lemma centralizer_carrier_eq (S : Set (m → SubProbability m)) :
     (Submonoid.centralizer S).carrier = Set.centralizer S := by
@@ -70,15 +70,12 @@ instance : Lattice (Footprint m) where
   sup x y := Footprint.from (x.updates ∪ y.updates) -- double commutant of union
   inf x y := ⟨x.updates ∩ y.updates, ⟨x.id, y.id⟩,
     fun hf hg => ⟨x.comp hf.1 hg.1, y.comp hf.2 hg.2⟩, by
-      simp only [centralizer_carrier_eq]
       apply Set.Subset.antisymm
       · apply Set.subset_inter
         · have hx := x.double_commutant
-          simp only [centralizer_carrier_eq] at hx
           conv_rhs => rw [← hx]
           exact Set.centralizer_subset (Set.centralizer_subset Set.inter_subset_left)
         · have hy := y.double_commutant
-          simp only [centralizer_carrier_eq] at hy
           conv_rhs => rw [← hy]
           exact Set.centralizer_subset (Set.centralizer_subset Set.inter_subset_right)
       · exact Set.subset_centralizer_centralizer⟩  -- intersection
@@ -165,12 +162,10 @@ instance : CompleteSemilatticeInf (Footprint m) where
     fun hf hg => Set.mem_iInter₂.mpr fun x hx =>
       x.comp (Set.mem_iInter₂.mp hf x hx) (Set.mem_iInter₂.mp hg x hx),
     by
-      simp only [centralizer_carrier_eq]
       apply Set.Subset.antisymm
       · apply Set.subset_iInter₂
         intro x hx
         have hx_dc := x.double_commutant
-        simp only [centralizer_carrier_eq] at hx_dc
         conv_rhs => rw [← hx_dc]
         exact Set.centralizer_subset (Set.centralizer_subset (Set.iInter₂_subset x hx))
       · exact Set.subset_centralizer_centralizer⟩
@@ -202,9 +197,6 @@ lemma _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_mono {a b} (lens : Len
   apply Footprint.from_mono
   rintro _ ⟨g, hg, rfl⟩
   exact ⟨g, hsub hg, rfl⟩
-
-
-
 
 /-! ## Programs and probabilistic ranges -/
 
@@ -498,7 +490,20 @@ def Footprint.HasReset {m : Type} (S : Footprint m) (σ : m) : Prop :=
     deterministic updates `lens.liftFunction g`. The sub-probability analogue of `Lens.range`. -/
 noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.footprint {a s : Type} (lens : Lens a s) :
     Footprint s :=
-  Footprint.from (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))
+    Footprint.from (Set.range lens.liftSubProbability)
+  -- Was before: Footprint.from (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))
+
+/-- `diracKer (lens.liftFunction g)` is a `lens.footprint` generator: it equals
+    `lens.liftSubProbability (diracKer g)`, hence lies in `lens.footprint.updates`. -/
+lemma _root_.GaudisCrypt.Language.Lens.Lens.diracKer_liftFunction_mem_footprint {a s : Type}
+    (lens : Lens a s) (g : Function.End a) :
+    diracKer (lens.liftFunction g) ∈ lens.footprint.updates := by
+  rw [Lens.footprint, Footprint.from_updates]
+  refine Set.subset_centralizer_centralizer ⟨diracKer g, ?_⟩
+  funext st
+  show (pure (g (lens.get st)) : SubProbability a) >>= (fun a' => pure (lens.set a' st))
+     = pure (lens.liftFunction g st)
+  rw [SubProbability.pure_bind]; rfl
 
 /-- **Kernel-shift extraction**: a program in range `R` commutes with a deterministic
     outside-update `f` (as a Dirac kernel). The `inFootprint` analogue of
@@ -545,8 +550,7 @@ theorem _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.inFootprint_set 
   rw [inFootprint_iff_clean]
   intro f hf
   have hmem : diracKer (v.set x) ∈ v.footprint.updates :=
-    (Footprint.from_le_iff (Set.range fun g : Function.End a => diracKer (v.liftFunction g))
-      v.footprint).mp le_rfl ⟨fun _ => x, rfl⟩
+    v.diracKer_liftFunction_mem_footprint (fun _ => x)
   have hcomm := (Submonoid.mem_centralizer_iff.mp hf) (diracKer (v.set x)) hmem
   funext st
   have key : (f st >>= fun st' => (pure (v.set x st') : SubProbability s)) = f (v.set x st) := by
@@ -573,8 +577,7 @@ theorem _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.inFootprint_get 
   intro f hf
   funext st
   have hmem : diracKer (v.liftFunction (fun _ => v.get st)) ∈ v.footprint.updates :=
-    (Footprint.from_le_iff (Set.range fun g : Function.End a => diracKer (v.liftFunction g))
-      v.footprint).mp le_rfl ⟨fun _ => v.get st, rfl⟩
+    v.diracKer_liftFunction_mem_footprint (fun _ => v.get st)
   have hcomm := (Submonoid.mem_centralizer_iff.mp hf) (diracKer (v.liftFunction (fun _ => v.get st))) hmem
   have hstar : (f st >>= fun st' => (pure (v.set (v.get st) st') : SubProbability s)) = f st := by
     have h0 : (f st >>= fun st' => (pure (v.set (v.get st) st') : SubProbability s))
@@ -606,6 +609,61 @@ lemma diracKer_mul {s : Type} (p q : Function.End s) :
   show (pure (q st) : SubProbability s) >>= diracKer p = pure ((p * q) st)
   rw [SubProbability.pure_bind]; rfl
 
+open MeasureTheory in
+/-- **Commute two binds** — a Fubini swap for sub-probability kernels. -/
+lemma bind_swap {s α γ : Type} (ν : SubProbability s) (μ : SubProbability α)
+    (k : α → s → SubProbability γ) :
+    (ν >>= fun st' => μ >>= fun a => k a st') = (μ >>= fun a => ν >>= fun st' => k a st') := by
+  apply Subtype.ext
+  letI : MeasurableSpace s := ⊤
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace γ := ⊤
+  apply Measure.ext
+  intro C hC
+  show Measure.bind ν.1 (fun st' => (μ >>= fun a => k a st').1) C
+     = Measure.bind μ.1 (fun a => (ν >>= fun st' => k a st').1) C
+  rw [Measure.bind_apply hC (measurable_from_top.aemeasurable),
+      Measure.bind_apply hC (measurable_from_top.aemeasurable)]
+  have hL : ∀ st', (μ >>= fun a => k a st').1 C = ∫⁻ a, (k a st').1 C ∂μ.1 := fun st' => by
+    rw [show (μ >>= fun a => k a st').1 = Measure.bind μ.1 (fun a => (k a st').1) from rfl,
+        Measure.bind_apply hC (measurable_from_top.aemeasurable)]
+  have hR : ∀ a, (ν >>= fun st' => k a st').1 C = ∫⁻ st', (k a st').1 C ∂ν.1 := fun a => by
+    rw [show (ν >>= fun st' => k a st').1 = Measure.bind ν.1 (fun st' => (k a st').1) from rfl,
+        Measure.bind_apply hC (measurable_from_top.aemeasurable)]
+  simp only [hL, hR]
+  exact lintegral_lintegral_swap_discrete μ.2.2 ν.2.2 (fun a st' => (k a st').1 C)
+
+/-- **Disjoint lenses' localized kernels commute** (Fubini via `bind_swap`). -/
+lemma _root_.GaudisCrypt.Language.Lens.Lens.liftSubProbability_comm_of_disjoint
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L]
+    (κ : a → SubProbability a) (ρ : b → SubProbability b) :
+    v.liftSubProbability κ * L.liftSubProbability ρ
+      = L.liftSubProbability ρ * v.liftSubProbability κ := by
+  haveI := hd.symm
+  funext x
+  show (L.liftSubProbability ρ x) >>= (v.liftSubProbability κ)
+     = (v.liftSubProbability κ x) >>= (L.liftSubProbability ρ)
+  simp only [Lens.liftSubProbability, SubProbability.bind_assoc, SubProbability.pure_bind,
+    Lens.get_of_disjoint_set v L, Lens.get_of_disjoint_set L v, hd.commute]
+  exact bind_swap (ρ (L.get x)) (κ (v.get x)) (fun a' b' => pure (L.set b' (v.set a' x)))
+
+/-- **Disjoint lenses have ranges in each other's complements**: `disjoint v L` gives
+    `v.footprint ≤ (L.footprint)ᶜ`. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_le_compl_of_disjoint
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L] :
+    v.footprint ≤ (L.footprint)ᶜ := by
+  refine (Footprint.from_le_iff _ _).mpr ?_
+  rintro _ ⟨g, rfl⟩
+  show v.liftSubProbability g ∈ Submonoid.centralizer (L.footprint).updates
+  rw [Submonoid.mem_centralizer_iff]
+  intro k hk
+  have hg : v.liftSubProbability g ∈ Set.centralizer (Set.range L.liftSubProbability) := by
+    rw [Set.mem_centralizer_iff]
+    rintro _ ⟨ρ, rfl⟩
+    exact (v.liftSubProbability_comm_of_disjoint L g ρ).symm
+  simp only [Lens.footprint, Footprint.from_updates] at hk
+  exact (Set.mem_centralizer_iff.mp hk (v.liftSubProbability g) hg).symm
+
 /-- **Every lens footprint is resettable** — the probabilistic `HasReset` analogue of
     `Lens.range_hasOrbitCollapse`.  The reset is the lens overwrite `l.set (l.get σ)`; it lands every
     state in `σ`'s `(l.footprint)ᶜ`-orbit, so `touched_getter` collapses to `σ`'s value. -/
@@ -613,8 +671,7 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_hasReset {c m : Type} (l
     (l.footprint).HasReset σ := by
   refine ⟨l.liftFunction (Function.const _ (l.get σ)), ?_, ?_, ?_⟩
   · -- generator membership: diracKer (l.liftFunction (const (l.get σ))) ∈ (l.footprint).updates
-    exact (Footprint.from_le_iff (Set.range fun g : Function.End c => diracKer (l.liftFunction g))
-      l.footprint).mp le_rfl ⟨Function.const _ (l.get σ), rfl⟩
+    exact l.diracKer_liftFunction_mem_footprint (Function.const _ (l.get σ))
   · -- f σ = σ
     show l.set ((Function.const _ (l.get σ)) (l.get σ)) σ = σ
     simp only [Function.const_apply]
@@ -625,27 +682,13 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_hasReset {c m : Type} (l
     -- diracKer g ∈ (l.footprint)ᶜ.updates = centralizer (l.footprint).updates
     have hg_mem : diracKer (l.compl.liftFunction (Function.const _ (l.compl.get s)))
         ∈ (l.footprint)ᶜ.updates := by
-      show diracKer (l.compl.liftFunction (Function.const _ (l.compl.get s)))
-        ∈ Submonoid.centralizer (l.footprint).updates
-      rw [Submonoid.mem_centralizer_iff]
-      intro k hk
-      -- diracKer g centralizes the generators of l.footprint …
-      have hjmem : diracKer (l.compl.liftFunction (Function.const _ (l.compl.get s)))
-          ∈ Submonoid.centralizer
-              (Set.range fun g : Function.End c => diracKer (l.liftFunction g)) := by
-        rw [Submonoid.mem_centralizer_iff]
-        rintro _ ⟨g, rfl⟩
-        rw [diracKer_mul, diracKer_mul]
-        congr 1
-        show l.liftFunction g ∘ l.compl.liftFunction (Function.const _ (l.compl.get s))
-           = l.compl.liftFunction (Function.const _ (l.compl.get s)) ∘ l.liftFunction g
-        funext x
-        simp only [Function.comp_apply, Lens.liftFunction, Lens.compl, Quotient.lift_mk,
-                   Function.const_apply]
-        rw [l.set_get, l.set_get, l.set_set]
-      -- … so it commutes with any k in the double-commutant closure (l.footprint).updates.
-      exact (Submonoid.mem_centralizer_iff.mp hk
-        (diracKer (l.compl.liftFunction (Function.const _ (l.compl.get s)))) hjmem).symm
+      haveI : disjoint l.compl l := ⟨fun st v w => by
+        induction v using Quotient.inductionOn
+        rename_i u
+        show l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
+        rw [l.set_get, l.set_set]⟩
+      exact Lens.footprint_le_compl_of_disjoint l.compl l
+        (l.compl.diracKer_liftFunction_mem_footprint (Function.const _ (l.compl.get s)))
     -- g σ = f s  (the lens identity)
     have hg_eq : l.compl.liftFunction (Function.const _ (l.compl.get s)) σ
         = l.liftFunction (Function.const _ (l.get σ)) s := by
@@ -677,6 +720,7 @@ private theorem subProbability_pure_injective {a : Type} :
   rw [hx, hy] at hcoe
   exact one_ne_zero hcoe
 
+
 /-- **`(l.footprint)ᶜ`-updates preserve `l.get`.** Any deterministic update `f` whose Dirac kernel
     lives in the complement of `l`'s footprint fixes `l`'s content: `l.get (f a) = l.get a`. It
     commutes with the overwrite generator `l.liftFunction (const (l.get a))`, and evaluating that
@@ -685,8 +729,7 @@ private theorem footprint_compl_update_preserves_get {c m : Type} (l : Lens c m)
     (f : Function.End m) (hf : diracKer f ∈ (l.footprint)ᶜ.updates) (a : m) :
     l.get (f a) = l.get a := by
   have hmem : diracKer (l.liftFunction (Function.const _ (l.get a))) ∈ (l.footprint).updates :=
-    (Footprint.from_le_iff (Set.range fun g : Function.End c => diracKer (l.liftFunction g))
-      l.footprint).mp le_rfl ⟨Function.const _ (l.get a), rfl⟩
+    l.diracKer_liftFunction_mem_footprint (Function.const _ (l.get a))
   have hcomm := (Submonoid.mem_centralizer_iff.mp hf)
       (diracKer (l.liftFunction (Function.const _ (l.get a)))) hmem
   rw [diracKer_mul, diracKer_mul] at hcomm
@@ -708,25 +751,13 @@ private theorem footprint_compl_update_preserves_get {c m : Type} (l : Lens c m)
 private theorem footprint_compl_gen_mem {c m : Type} (l : Lens c m) (a : m) :
     diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
       ∈ (l.footprint)ᶜ.updates := by
-  show diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
-    ∈ Submonoid.centralizer (l.footprint).updates
-  rw [Submonoid.mem_centralizer_iff]
-  intro k hk
-  have hjmem : diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
-      ∈ Submonoid.centralizer
-          (Set.range fun g : Function.End c => diracKer (l.liftFunction g)) := by
-    rw [Submonoid.mem_centralizer_iff]
-    rintro _ ⟨g, rfl⟩
-    rw [diracKer_mul, diracKer_mul]
-    congr 1
-    show l.liftFunction g ∘ l.compl.liftFunction (Function.const _ (l.compl.get a))
-       = l.compl.liftFunction (Function.const _ (l.compl.get a)) ∘ l.liftFunction g
-    funext x
-    simp only [Function.comp_apply, Lens.liftFunction, Lens.compl, Quotient.lift_mk,
-               Function.const_apply]
-    rw [l.set_get, l.set_get, l.set_set]
-  exact (Submonoid.mem_centralizer_iff.mp hk
-    (diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))) hjmem).symm
+  haveI : disjoint l.compl l := ⟨fun st v w => by
+    induction v using Quotient.inductionOn
+    rename_i u
+    show l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
+    rw [l.set_get, l.set_set]⟩
+  exact Lens.footprint_le_compl_of_disjoint l.compl l
+    (l.compl.diracKer_liftFunction_mem_footprint (Function.const _ (l.compl.get a)))
 
 /-- **`l.footprint`-updates preserve `l.compl.get`.** The `Oᶜ` mirror of
     `footprint_compl_update_preserves_get`: any `f` with `diracKer f ∈ (l.footprint).updates` leaves
@@ -783,6 +814,20 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_touched_getter_eq_iff {c
     simp only [Function.const_apply, Lens.compl, Quotient.lift_mk]
     rw [h, l.get_set]
 
+theorem Footprint.touchedGetter_is_getter [Nonempty s] (lens : Lens a s) :
+  ∃ f : Equiv (Quotient (lens.footprint)ᶜ.orbit_setoid) a,
+    f.toFun ∘ lens.footprint.touched_getter.get = lens.get := by
+  refine ⟨{
+    toFun := Quotient.lift lens.get
+      (fun x y hxy => (lens.footprint_touched_getter_eq_iff x y).mp (Quotient.sound hxy))
+    invFun := fun v => Quotient.mk _ (lens.set v (Classical.arbitrary s))
+    left_inv := Quotient.ind fun x =>
+      (lens.footprint_touched_getter_eq_iff (lens.set (lens.get x) (Classical.arbitrary s)) x).mpr
+        (lens.set_get (Classical.arbitrary s) (lens.get x))
+    right_inv := fun v => lens.set_get (Classical.arbitrary s) v }, ?_⟩
+  funext x
+  rfl
+
 /-- **A lens footprint's *complement* touched content is the complement lens's getter.**  For a lens
     `l`, `((l.footprint)ᶜ).touched_getter` collapses to `l.compl.get`: two states have equal
     outside-`l` content iff they agree on `l.compl.get`.  The `Oᶜ` companion of
@@ -812,8 +857,7 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_compl_touched_getter_eq_
     apply Quotient.sound
     refine Relation.EqvGen.rel _ _ ?_
     refine ⟨l.liftFunction (Function.const _ (l.get y)),
-      (Footprint.from_le_iff (Set.range fun g : Function.End c => diracKer (l.liftFunction g))
-        l.footprint).mp le_rfl ⟨Function.const _ (l.get y), rfl⟩, ?_⟩
+      l.diracKer_liftFunction_mem_footprint (Function.const _ (l.get y)), ?_⟩
     show l.set ((Function.const _ (l.get y)) (l.get x)) x = y
     simp only [Function.const_apply]
     -- `l.set (l.get y) x = l.compl.set (l.compl.get x) y`; then rewrite with `h` and `compl.get_set`.
@@ -823,33 +867,6 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_compl_touched_getter_eq_
 
 /-! ## Disjointness bridge -/
 
-/-- **Disjoint lenses have ranges in each other's complements**: if `disjoint v L`, then every
-    `v`-localized kernel commutes with every `L`-localized kernel, so `v.footprint ≤ (L.footprint)ᶜ`.
-    The sub-probability analogue of `Lens.range_le_compl_of_disjoint`. -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_le_compl_of_disjoint
-    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L] :
-    v.footprint ≤ (L.footprint)ᶜ := by
-  refine (Footprint.from_le_iff _ _).mpr ?_
-  rintro _ ⟨g, rfl⟩
-  show diracKer (v.liftFunction g) ∈ Submonoid.centralizer (L.footprint).updates
-  rw [Submonoid.mem_centralizer_iff]
-  intro k hk
-  have hjmem : diracKer (v.liftFunction g)
-      ∈ Submonoid.centralizer (Set.range fun h : Function.End b => diracKer (L.liftFunction h)) := by
-    rw [Submonoid.mem_centralizer_iff]
-    rintro _ ⟨h, rfl⟩
-    rw [diracKer_mul, diracKer_mul]
-    congr 1
-    show L.liftFunction h ∘ v.liftFunction g = v.liftFunction g ∘ L.liftFunction h
-    funext σ
-    show L.liftFunction h (v.liftFunction g σ) = v.liftFunction g (L.liftFunction h σ)
-    letI := hd.symm
-    simp only [Lens.liftFunction]
-    have hL_get : L.get (v.set (g (v.get σ)) σ) = L.get σ := Lens.get_of_disjoint_set L v _ σ
-    have hv_get : v.get (L.set (h (L.get σ)) σ) = v.get σ := Lens.get_of_disjoint_set v L _ σ
-    rw [hL_get, hv_get]
-    exact (hd.commute σ (g (v.get σ)) (h (L.get σ))).symm
-  exact (Submonoid.mem_centralizer_iff.mp hk (diracKer (v.liftFunction g)) hjmem).symm
 
 /-- **`ProgramDenotation.set v x` lives in `L.footprintᶜ`** when `v` is disjoint from `L`. -/
 theorem _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.set_inFootprint_compl_of_disjoint
@@ -876,31 +893,6 @@ state need be countable. -/
 
 section Uniform
 open MeasureTheory
-
-/-- **Commute two binds** — a Fubini swap for sub-probability kernels.  Countability-free
-    (subtask 4): the swap goes through the discreteness invariant (`lintegral_lintegral_swap_discrete`
-    / `ENNReal.tsum_comm`), not σ-finiteness or product-σ-algebra measurability. -/
-lemma bind_swap {s α γ : Type} (ν : SubProbability s) (μ : SubProbability α)
-    (k : α → s → SubProbability γ) :
-    (ν >>= fun st' => μ >>= fun a => k a st') = (μ >>= fun a => ν >>= fun st' => k a st') := by
-  apply Subtype.ext
-  letI : MeasurableSpace s := ⊤
-  letI : MeasurableSpace α := ⊤
-  letI : MeasurableSpace γ := ⊤
-  apply Measure.ext
-  intro C hC
-  show Measure.bind ν.1 (fun st' => (μ >>= fun a => k a st').1) C
-     = Measure.bind μ.1 (fun a => (ν >>= fun st' => k a st').1) C
-  rw [Measure.bind_apply hC (measurable_from_top.aemeasurable),
-      Measure.bind_apply hC (measurable_from_top.aemeasurable)]
-  have hL : ∀ st', (μ >>= fun a => k a st').1 C = ∫⁻ a, (k a st').1 C ∂μ.1 := fun st' => by
-    rw [show (μ >>= fun a => k a st').1 = Measure.bind μ.1 (fun a => (k a st').1) from rfl,
-        Measure.bind_apply hC (measurable_from_top.aemeasurable)]
-  have hR : ∀ a, (ν >>= fun st' => k a st').1 C = ∫⁻ st', (k a st').1 C ∂ν.1 := fun a => by
-    rw [show (ν >>= fun st' => k a st').1 = Measure.bind ν.1 (fun st' => (k a st').1) from rfl,
-        Measure.bind_apply hC (measurable_from_top.aemeasurable)]
-  simp only [hL, hR]
-  exact lintegral_lintegral_swap_discrete μ.2.2 ν.2.2 (fun a st' => (k a st').1 C)
 
 /-- `ProgramDenotation.uniform` lives in the trivial range `⊥` — it samples a value, touching no
     state.
@@ -935,7 +927,7 @@ theorem Mlocalized_in_footprint {c s : Type} (M : Lens c s) (ρ : c → SubProba
   refine Submonoid.mem_centralizer_iff.mpr ?_
   intro f hf
   have hgen : ∀ g : Function.End c, diracKer (M.liftFunction g) ∈ M.footprint.updates :=
-    fun g => (Footprint.from_le_iff _ M.footprint).mp le_rfl ⟨g, rfl⟩
+    fun g => M.diracKer_liftFunction_mem_footprint g
   have hset : ∀ (mc' : c) (st : s),
       (f st >>= fun st' => (pure (M.set mc' st') : SubProbability s)) = f (M.set mc' st) := by
     intro mc' st
@@ -1238,3 +1230,67 @@ theorem while_loop_inFootprint {s : Type} (R : Footprint s)
   show (ωSup (⟨fun n => (⇑F)^[n] ⊥ (), fun _ _ hmn => hmono hmn ()⟩ :
       Chain (ProgramDenotation s Unit))).inFootprint R
   exact inFootprint_ωSup R _ hiter
+
+/-!
+
+## Reconstructing lenses from footprints
+
+-/
+
+/- Note: the definition would work equivalently with other types instead of
+   `Quotient Fᶜ.orbit_setoid`, as long as we have some construction of a getter
+   with that type that is, for actual lens-footprints, equivalent to the original getter. -/
+def Footprint.FromLens (F : Footprint s) :=
+  ∃ (l : Lens (Quotient Fᶜ.orbit_setoid) s), F = l.footprint
+
+noncomputable
+def Footprint.FromLens.lens {F : Footprint s} (h : F.FromLens) :
+  Lens (Quotient Fᶜ.orbit_setoid) s :=
+  Classical.choose h -- Can probably be made constructive
+
+theorem Lens.liftSubProbability_chain {lens1 : Lens a b} {lens2 : Lens b c} :
+  (lens2.chain lens1).liftSubProbability = lens2.liftSubProbability ∘ lens1.liftSubProbability := by
+  funext κ x
+  simp only [Function.comp_apply, Lens.liftSubProbability, Lens.chain, SubProbability.bind_assoc,
+    SubProbability.pure_bind]
+
+
+/-- **Lifting the top footprint through a lens recovers the lens's own footprint.** -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_top {a b : Type} (lens : Lens a b) :
+    lens.liftFootprint ⊤ = lens.footprint := by
+    simp [Lens.liftFootprint, Lens.footprint, Top.top]
+
+/-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint.** -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_chain {a b c : Type}
+    (lens : Lens b c) (lens2 : Lens a b) (F : Footprint a) :
+    (lens.chain lens2).liftFootprint F = lens.liftFootprint (lens2.liftFootprint F) := by
+    sorry
+
+/-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint.** -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.chain_footprint {a b c : Type}
+    (lens : Lens b c) (lens2 : Lens a b) :
+    (lens.chain lens2).footprint = lens.liftFootprint lens2.footprint := by
+  simp [← Lens.liftFootprint_top, Lens.liftFootprint_chain]
+
+
+@[simp]
+theorem Lens.id_footprint :
+  (Lens.id : Lens s s).footprint = ⊤ := by
+  sorry
+
+/-- **A bijection lens touches all of the state**: its footprint is `⊤`. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.bijection_footprint {a b : Type} (e : a ≃ b) :
+    (Lens.bijection e).footprint = ⊤ := by
+    have := by calc
+      ⊤ = (Lens.bijection e).liftFootprint (Lens.bijection e.symm).footprint := by
+        simp [← Lens.chain_footprint, Lens.bijection_chain]
+      _ ≤ (Lens.bijection e).liftFootprint ⊤ := by
+        apply Lens.liftFootprint_mono
+        exact le_top
+    sorry
+
+theorem Footprint.FromLens.from_lens (lens : Lens a s) : Footprint.FromLens lens.footprint := by
+  wlog ne : Nonempty s; { sorry } -- if Empty s, then Empty (Quotient lens.footprint.orbit_setoid) and the lens is trivial
+  obtain ⟨f, hf⟩ := Footprint.touchedGetter_is_getter lens
+  existsi lens.chain (Lens.bijection f)
+  rw [Lens.chain_footprint, Lens.bijection_footprint, Lens.liftFootprint_top]
