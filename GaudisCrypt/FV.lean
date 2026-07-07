@@ -689,23 +689,7 @@ omit [ProgramSpec] in
 theorem updateK_image_univ_cc {a s : Type} (lens : Lens a s) :
     Set.centralizer (Set.centralizer (lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a))))
       = lens.footprint.updates := by
-  have hI : lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a)) ⊆ lens.footprint.updates := by
-    rintro _ ⟨ρ, _, rfl⟩
-    exact Mlocalized_in_footprint lens ρ
-  have hD : (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))
-      ⊆ lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a)) := by
-    rintro _ ⟨g, rfl⟩
-    exact ⟨diracKer g, Set.mem_univ _, updateK_diracKer lens g⟩
-  have hprD : lens.footprint.updates
-      = Set.centralizer (Set.centralizer
-          (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))) :=
-    Footprint.from_updates _
-  apply Set.Subset.antisymm
-  · calc Set.centralizer (Set.centralizer (lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a))))
-        ⊆ Set.centralizer (Set.centralizer lens.footprint.updates) := cl_mono hI
-      _ = lens.footprint.updates := footprint_updates_cc lens.footprint
-  · rw [hprD]
-    exact cl_mono hD
+  rw [Set.image_univ, Lens.footprint, Footprint.from_updates]
 
 omit [ProgramSpec] in
 /-- `fvP_reduce` is monotone in its range argument (double-antitone via the two centralizers). -/
@@ -741,7 +725,7 @@ private lemma footprint_equivariant {a s : Type} (lens : Lens a s)
   have hsub : lens.compl.footprint.updates ⊆ (lens.footprint)ᶜ.updates :=
     Lens.footprint_le_compl_of_disjoint lens.compl lens
   have hk : diracKer (lens.compl.liftFunction h) ∈ (lens.footprint)ᶜ.updates :=
-    hsub ((Footprint.from_le_iff _ lens.compl.footprint).mp le_rfl ⟨h, rfl⟩)
+    hsub (lens.compl.diracKer_liftFunction_mem_footprint h)
   rw [Footprint.updates_eq_centralizer_compl lens.footprint] at hp
   have hcomm := Submonoid.mem_centralizer_iff.mp hp (diracKer (lens.compl.liftFunction h)) hk
   have hst := congrFun hcomm st
@@ -1014,16 +998,13 @@ theorem reduce_chain_le_compl {t s c : Type} {L : Lens s c} {v : Lens t s} {R : 
   rw [Footprint.le_compl_comm]
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨g, rfl⟩
-  -- Goal: diracKer ((L.chain v).liftFunction g) ∈ Rᶜ.updates = centralizer R.updates
-  show diracKer ((L.chain v).liftFunction g) ∈ Rᶜ.updates
-  rw [chain_liftFunction_diracKer]
-  show L.liftSubProbability (diracKer (v.liftFunction g)) ∈ Submonoid.centralizer R.updates
+  -- Goal: (L.chain v).liftSubProbability g ∈ Rᶜ.updates = centralizer R.updates
+  show (L.chain v).liftSubProbability g ∈ Rᶜ.updates
+  rw [Lens.liftSubProbability_chain]
+  show L.liftSubProbability (v.liftSubProbability g) ∈ Submonoid.centralizer R.updates
   rw [Submonoid.mem_centralizer_iff]
   intro k hk
-  have hg_mem : diracKer (v.liftFunction g) ∈ v.footprint.updates :=
-    (Footprint.from_le_iff (Set.range fun h : Function.End t =>
-      diracKer (v.liftFunction h)) v.footprint).mp le_rfl ⟨g, rfl⟩
-  exact (liftSubProbability_comm_of_reduce_disj hred hg_mem hk).symm
+  exact (liftSubProbability_comm_of_reduce_disj hred (Mlocalized_in_footprint v g) hk).symm
 
 open MeasureTheory in
 /-- `globalL.liftSubProbability f` applied to a padded state applies `f` to the global. -/

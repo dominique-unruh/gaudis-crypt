@@ -30,26 +30,28 @@ structure GranularFootprint [spec : GranularProgramSpec] where
   footprint : Footprint State
   granular : IsGranularFootprint footprint
 
-instance [spec : GranularProgramSpec] LE (GranularFootprint) : LT (GranularFootprint) where
+instance [spec : GranularProgramSpec] : LE GranularFootprint where
   le f g := f.footprint ≤ g.footprint
 
 instance [spec : GranularProgramSpec] : OrderBot GranularFootprint where
-  bot := ⟨⊥, sorry⟩
-  bot_le _ _ := sorry
+  bot := ⟨⊥, ∅, by simp, by simp; rfl⟩
+  bot_le f := show (⊥ : Footprint State) ≤ f.footprint from bot_le
 
 -- Actually even a lower-complete lattice, but I don't recall the typeclass name for that
-instance : Lattice (GranularFootprint [spec : GranularProgramSpec])
+instance [spec : GranularProgramSpec] : Lattice GranularFootprint :=
   sorry
 
-def IsSubGranularFootprint.granular (footprint : Footprint State) (h : IsSubGranularFootprint footprint) : GranularFootprint :=
+def IsSubGranularFootprint.granular [spec : GranularProgramSpec] (footprint : Footprint State)
+    (h : IsSubGranularFootprint footprint) : GranularFootprint :=
   sorry -- least granular footprint containing `footprint`
 
 theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) :
   f.FromLens :=
   sorry
 
-def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) : Lens State State :=
-  (h.fromLens f).lens
+noncomputable def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Footprint State}
+    (h : IsGranularFootprint f) : Lens (Quotient fᶜ.orbit_setoid) State :=
+  h.fromLens.lens
 
 
 

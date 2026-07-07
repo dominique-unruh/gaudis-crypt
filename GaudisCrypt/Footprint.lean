@@ -591,17 +591,22 @@ noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.footprint {a s : Type} (
     Footprint.from (Set.range lens.liftSubProbability)
   -- Was before: Footprint.from (Set.range fun g : Function.End a => diracKer (lens.liftFunction g))
 
+/-- Lifting a Dirac kernel along a lens is the Dirac kernel of the lifted function. -/
+lemma _root_.GaudisCrypt.Language.Lens.Lens.liftSubProbability_diracKer {a s : Type}
+    (lens : Lens a s) (g : Function.End a) :
+    lens.liftSubProbability (diracKer g) = diracKer (lens.liftFunction g) := by
+  funext st
+  show (pure (g (lens.get st)) : SubProbability a) >>= (fun a' => pure (lens.set a' st))
+     = pure (lens.liftFunction g st)
+  rw [SubProbability.pure_bind]; rfl
+
 /-- `diracKer (lens.liftFunction g)` is a `lens.footprint` generator: it equals
     `lens.liftSubProbability (diracKer g)`, hence lies in `lens.footprint.updates`. -/
 lemma _root_.GaudisCrypt.Language.Lens.Lens.diracKer_liftFunction_mem_footprint {a s : Type}
     (lens : Lens a s) (g : Function.End a) :
     diracKer (lens.liftFunction g) ∈ lens.footprint.updates := by
   rw [Lens.footprint, Footprint.from_updates]
-  refine Set.subset_centralizer_centralizer ⟨diracKer g, ?_⟩
-  funext st
-  show (pure (g (lens.get st)) : SubProbability a) >>= (fun a' => pure (lens.set a' st))
-     = pure (lens.liftFunction g st)
-  rw [SubProbability.pure_bind]; rfl
+  exact Set.subset_centralizer_centralizer ⟨diracKer g, lens.liftSubProbability_diracKer g⟩
 
 /-- **Kernel-shift extraction**: a program in range `R` commutes with a deterministic
     outside-update `f` (as a Dirac kernel). The `inFootprint` analogue of
@@ -987,16 +992,15 @@ noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.testKer {a s : Type} (l 
 theorem _root_.GaudisCrypt.Language.Lens.Lens.testKer_mem_footprint {a s : Type}
     (l : Lens a s) (x₀ : a) : l.testKer x₀ ∈ l.footprint.updates := by
   classical
-  rw [show l.footprint
-      = Footprint.from (Set.range fun g : Function.End a => diracKer (l.liftFunction g)) from rfl,
-    Footprint.from_updates]
+  rw [Lens.footprint, Footprint.from_updates]
   refine Set.mem_centralizer_iff.mpr (fun k hk => ?_)
-  -- `k` commutes with every constant write
+  -- `k` commutes with every constant write (a lifted Dirac kernel, hence a generator)
   have hwrite : ∀ (c : a) (σ : s),
       (k σ >>= fun τ => (pure (l.set c τ) : SubProbability s)) = k (l.set c σ) := by
     intro c σ
     have hcomm := Set.mem_centralizer_iff.mp hk
-      (diracKer (l.liftFunction (Function.const _ c))) ⟨Function.const _ c, rfl⟩
+      (diracKer (l.liftFunction (Function.const _ c)))
+      ⟨diracKer (Function.const _ c), l.liftSubProbability_diracKer _⟩
     calc (k σ >>= fun τ => (pure (l.set c τ) : SubProbability s))
         = (diracKer (l.liftFunction (Function.const _ c)) * k) σ := rfl
       _ = (k * diracKer (l.liftFunction (Function.const _ c))) σ := congrFun hcomm σ

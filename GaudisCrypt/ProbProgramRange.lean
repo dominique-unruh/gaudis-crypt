@@ -44,8 +44,7 @@ lemma ProgramDenotation.wp_le_of_factors_footprint {s α γ : Type} (L : Lens γ
   set f : s → s := L.liftFunction (Function.const _ (L.get σ)) with hf_def
   have h_f_in_Rc : diracKer f ∈ (((L.footprint)ᶜ)ᶜ).updates := by
     rw [Footprint.compl_compl]
-    exact (Footprint.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.liftFunction g))
-      L.footprint).mp le_rfl ⟨Function.const _ (L.get σ), rfl⟩
+    exact L.diracKer_liftFunction_mem_footprint _
   have h_f_fix : f σ = σ := by
     show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
     rw [Function.const_apply, L.get_set]
@@ -73,8 +72,7 @@ lemma ProgramDenotation.wp_strengthen_lens_preserved_footprint {s α γ : Type} 
   set f : s → s := L.liftFunction (Function.const _ (L.get σ)) with hf_def
   have h_f_in_Rc : diracKer f ∈ (((L.footprint)ᶜ)ᶜ).updates := by
     rw [Footprint.compl_compl]
-    exact (Footprint.from_le_iff (Set.range fun g : Function.End γ => diracKer (L.liftFunction g))
-      L.footprint).mp le_rfl ⟨Function.const _ (L.get σ), rfl⟩
+    exact L.diracKer_liftFunction_mem_footprint _
   have h_f_fix : f σ = σ := by
     show L.set ((Function.const _ (L.get σ)) (L.get σ)) σ = σ
     rw [Function.const_apply, L.get_set]
@@ -158,7 +156,7 @@ lemma ProgramDenotation.wp_set_disjoint_no_op_footprint {s γ : Type} [Decidable
   set f : s → s := L.liftFunction (Function.const _ v) with hf_def
   have h_f_in_Rc : diracKer f ∈ (((L.footprint)ᶜ)ᶜ).updates := by
     rw [Footprint.compl_compl]
-    exact (Footprint.from_le_iff _ L.footprint).mp le_rfl ⟨Function.const _ v, rfl⟩
+    exact L.diracKer_liftFunction_mem_footprint _
   have h_f_eq : ∀ σ', f σ' = L.set v σ' := fun σ' => by
     show L.set (Function.const _ v (L.get σ')) σ' = L.set v σ'
     rw [Function.const_apply]

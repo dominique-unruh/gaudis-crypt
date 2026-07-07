@@ -361,10 +361,7 @@ theorem glob_ro_set_invariant {sig : ProcedureSignature} (A : ProcedureWithHoles
   have hRO_le : random_oracle_state.footprint ≤ (FVP.fvP_proc A)ᶜ :=
     (Footprint.le_compl_comm _ _).mp hdisj
   have hmem : diracKer (random_oracle_state.set Z) ∈ (FVP.fvP_proc A)ᶜ.updates :=
-    hRO_le ((Footprint.from_le_iff
-        (Set.range fun g : Function.End (input → Option output) =>
-          diracKer (random_oracle_state.liftFunction g))
-        random_oracle_state.footprint).mp le_rfl ⟨fun _ => Z, rfl⟩)
+    hRO_le (random_oracle_state.diracKer_liftFunction_mem_footprint (fun _ => Z))
   exact Footprint.touched_getter_get_eq_of_mem hmem σ
 
 /-- **Theorem 1 at whole-game level**: with the initialisations *included*, the lazy game followed

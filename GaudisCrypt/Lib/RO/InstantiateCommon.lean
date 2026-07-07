@@ -313,18 +313,13 @@ theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
     show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
     rw [L.set_get, L.get_set]
   have h_f_mem : diracKer f ∈ ((L.footprint)ᶜ).updates := by
-    refine Submonoid.mem_centralizer_iff.mpr ?_
-    intro k hk
-    have hfgen : diracKer f ∈
-        Submonoid.centralizer (Set.range fun g : Function.End c => diracKer (L.liftFunction g)) := by
-      refine Submonoid.mem_centralizer_iff.mpr ?_
-      rintro _ ⟨g, rfl⟩
-      rw [diracKer_mul, diracKer_mul]; congr 1
-      show L.liftFunction g ∘ f = f ∘ L.liftFunction g
-      funext σ'
-      show L.liftFunction g (f σ') = f (L.liftFunction g σ')
-      simp only [Lens.liftFunction, hf_def, L.set_get, L.set_set]
-    exact (Submonoid.mem_centralizer_iff.mp hk (diracKer f) hfgen).symm
+    haveI : disjoint L.compl L := ⟨fun st v w => by
+      induction v using Quotient.inductionOn
+      rename_i u
+      show L.set (L.get (L.set w st)) u = L.set w (L.set (L.get st) u)
+      rw [L.set_get, L.set_set]⟩
+    exact Lens.footprint_le_compl_of_disjoint L.compl L
+      (L.compl.diracKer_liftFunction_mem_footprint (Function.const _ (Quotient.mk _ σ)))
   have h_iv : Adv σ
       = (Adv (L.set (L.get σ) (Classical.arbitrary s)))
           >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by

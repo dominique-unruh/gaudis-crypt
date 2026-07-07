@@ -53,18 +53,17 @@ open GaudisCrypt.Language.Programs
 /-! ## Generic footprint helpers (chain footprints and their `globalL`-reduction) -/
 
 /-- **A chained lens's footprint is bounded by the outer lift of the inner footprint.**  Each
-    generator `diracKer ((L.chain v).liftFunction g)` equals `L.liftSubProbability (diracKer
-    (v.liftFunction g))` (`chain_liftFunction_diracKer`), a member of the lifted image. -/
+    generator `(L.chain v).liftSubProbability κ` equals `L.liftSubProbability
+    (v.liftSubProbability κ)` (`Lens.liftSubProbability_chain`), a member of the lifted image. -/
 theorem chain_footprint_le_lift {a b c : Type} (L : Lens b c) (v : Lens a b) :
     (L.chain v).footprint ≤ Lens.liftFootprint L (v.footprint) := by
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨g, rfl⟩
-  simp only [chain_liftFunction_diracKer]
+  rw [Lens.liftSubProbability_chain]
   unfold Lens.liftFootprint
   rw [Footprint.from_updates]
-  refine Set.subset_centralizer_centralizer ⟨diracKer (v.liftFunction g), ?_, rfl⟩
-  exact (Footprint.from_le_iff (Set.range fun h : Function.End a => diracKer (v.liftFunction h))
-    v.footprint).mp le_rfl ⟨g, rfl⟩
+  exact Set.subset_centralizer_centralizer
+    ⟨v.liftSubProbability g, Mlocalized_in_footprint v g, rfl⟩
 
 /-- **`fvP_reduce L` of a chained lens's footprint is bounded by the inner lens's footprint.**
     Combine `chain_footprint_le_lift` with `fvP_reduce`'s exact-left-inverse property
@@ -97,20 +96,19 @@ theorem reduce_le_compl_of_chain {t s c : Type} (L : Lens s c) (v : Lens t s) {R
   intro f hf
   -- `hf : f ∈ v.footprint.updates = C(C(v-gens))`, so `f` commutes with everything in `C(v-gens)`.
   rw [show v.footprint.updates = Set.centralizer (Set.centralizer
-      (Set.range fun g : Function.End t => diracKer (v.liftFunction g))) from by
-        rw [show v.footprint = Footprint.from _ from rfl, Footprint.from_updates]] at hf
+      (Set.range v.liftSubProbability)) from by
+        rw [Lens.footprint, Footprint.from_updates]] at hf
   refine (hf (Lens.reduceSubProbability L (k, i, o)) ?_).symm
   -- The reduced generator commutes with each `v`-generator, via the two Fubini identities.
   rw [Set.mem_centralizer_iff]
   rintro _ ⟨g, rfl⟩
-  have hcomm : L.liftSubProbability (diracKer (v.liftFunction g)) * k
-      = k * L.liftSubProbability (diracKer (v.liftFunction g)) := by
-    have hgen : diracKer ((L.chain v).liftFunction g) ∈ ((L.chain v).footprint).updates :=
-      (Footprint.from_le_iff (Set.range fun h : Function.End t =>
-        diracKer ((L.chain v).liftFunction h)) ((L.chain v).footprint)).mp le_rfl ⟨g, rfl⟩
-    rw [chain_liftFunction_diracKer] at hgen
+  have hcomm : L.liftSubProbability (v.liftSubProbability g) * k
+      = k * L.liftSubProbability (v.liftSubProbability g) := by
+    have hgen : (L.chain v).liftSubProbability g ∈ ((L.chain v).footprint).updates :=
+      Mlocalized_in_footprint (L.chain v) g
+    rw [Lens.liftSubProbability_chain] at hgen
     exact ((Submonoid.mem_centralizer_iff.mp (hdisj hk))
-      (L.liftSubProbability (diracKer (v.liftFunction g))) hgen)
+      (L.liftSubProbability (v.liftSubProbability g)) hgen)
   rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right, hcomm]
 
 /-- **Two lenses chained through a common outer lens are disjoint when their inner lenses are.**
