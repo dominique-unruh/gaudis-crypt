@@ -887,6 +887,65 @@ private theorem footprint_update_preserves_compl_get {c m : Type} (l : Lens c m)
   calc l.compl.get (f a) = l.compl.get (l.compl.set (l.compl.get a) (f a)) := by rw [heq]
     _ = l.compl.get a := l.compl.set_get (f a) (l.compl.get a)
 
+/-- **A lens with subsingleton content has trivial footprint.**  Its localized kernels can only
+    resample the unique content value, so they are scaled identities — central in the kernel
+    monoid, hence inside every footprint, in particular `⊥`. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_eq_bot_of_subsingleton {a s : Type}
+    [Subsingleton a] (l : Lens a s) : l.footprint = ⊥ := by
+  refine le_antisymm ?_ bot_le
+  rw [Lens.footprint, Footprint.from_le_iff]
+  rintro _ ⟨κ, rfl⟩
+  show l.liftSubProbability κ ∈ (Footprint.from ∅).updates
+  rw [Footprint.from_updates]
+  refine Set.mem_centralizer_iff.mpr fun k _ => ?_
+  have hlift : ∀ τ : s, l.liftSubProbability κ τ = κ (l.get τ) >>= fun _ => pure τ := by
+    intro τ
+    show κ (l.get τ) >>= (fun a' => (pure (l.set a' τ) : SubProbability s)) = _
+    congr 1
+    funext a'
+    rw [Subsingleton.elim a' (l.get τ), l.get_set]
+  funext σ
+  show l.liftSubProbability κ σ >>= k = k σ >>= l.liftSubProbability κ
+  calc l.liftSubProbability κ σ >>= k
+      = (κ (l.get σ) >>= fun _ => pure σ) >>= k := by rw [hlift]
+    _ = κ (l.get σ) >>= fun _ => k σ := by
+        rw [SubProbability.bind_assoc]
+        congr 1; funext _; rw [SubProbability.pure_bind]
+    _ = κ (l.get σ) >>= fun _ => k σ >>= fun τ => pure τ := by
+        congr 1; funext _; rw [SubProbability.bind_pure]
+    _ = k σ >>= fun τ => κ (l.get σ) >>= fun _ => pure τ :=
+        (bind_swap (k σ) (κ (l.get σ)) (fun _ τ => pure τ)).symm
+    _ = k σ >>= l.liftSubProbability κ := by
+        congr 1; funext τ
+        rw [hlift τ, Subsingleton.elim (l.get τ) (l.get σ)]
+
+/-- **A lens footprint inside its own commutant is trivial.**  Self-commutation makes any two
+    constant writes commute, which (evaluated at a state and read back through the lens) forces
+    all content values to coincide — so the content is a subsingleton and
+    `Lens.footprint_eq_bot_of_subsingleton` applies. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.footprint_eq_bot_of_le_compl {a s : Type}
+    (l : Lens a s) (h : l.footprint ≤ (l.footprint)ᶜ) : l.footprint = ⊥ := by
+  by_cases hs : Nonempty s
+  · haveI : Subsingleton a := by
+      refine ⟨fun x y => ?_⟩
+      obtain ⟨σ⟩ := hs
+      have hx := l.diracKer_liftFunction_mem_footprint (Function.const _ x)
+      have hy := l.diracKer_liftFunction_mem_footprint (Function.const _ y)
+      have hcomm := Submonoid.mem_centralizer_iff.mp (h hx)
+        (diracKer (l.liftFunction (Function.const _ y))) hy
+      rw [diracKer_mul, diracKer_mul] at hcomm
+      have hpt := subProbability_pure_injective (congrFun hcomm σ)
+      have hxy : l.set y (l.set x σ) = l.set x (l.set y σ) := hpt
+      rw [l.set_set, l.set_set] at hxy
+      calc x = l.get (l.set x σ) := (l.set_get σ x).symm
+        _ = l.get (l.set y σ) := by rw [hxy]
+        _ = y := l.set_get σ y
+    exact l.footprint_eq_bot_of_subsingleton
+  · refine le_antisymm (fun u hu => ?_) bot_le
+    have : u = pure := funext fun σ => absurd ⟨σ⟩ hs
+    rw [this]
+    exact (⊥ : Footprint s).id
+
 /-- **A lens footprint's touched content is its lens getter.**  For a lens `l`, the opaque orbit
     quotient `(l.footprint).touched_getter` collapses to `l.get`: two states have equal touched
     content iff they agree on `l.get`.  Lets glob endpoints state their premises via the concrete

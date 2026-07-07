@@ -30,20 +30,113 @@ structure GranularFootprint [spec : GranularProgramSpec] where
   footprint : Footprint State
   granular : IsGranularFootprint footprint
 
-instance [spec : GranularProgramSpec] : LE GranularFootprint where
+/-- **Atomicity of the granularity**: a granularity element below the join of a finite
+    granularity family is one of the members or trivial.  If `p ∉ F` it is disjoint from every
+    member, hence below `(sSup ↑F)ᶜ ≤ pᶜ` — and a lens footprint inside its own commutant is `⊥`
+    (`Lens.footprint_eq_bot_of_le_compl`). -/
+theorem GranularProgramSpec.mem_or_eq_bot_of_le_sSup [spec : GranularProgramSpec]
+    {p : Footprint State} (hp : p ∈ spec.granularity)
+    {F : Finset (Footprint State)} (hF : ∀ q ∈ F, q ∈ spec.granularity)
+    (hle : p ≤ sSup ↑F) : p ∈ F ∨ p = ⊥ := by
+  by_cases hmem : p ∈ F
+  · exact Or.inl hmem
+  · refine Or.inr ?_
+    have hsup : (sSup ↑F : Footprint State) ≤ pᶜ := by
+      refine sSup_le fun q hq => ?_
+      have hqF : q ∈ F := hq
+      have hne : p ≠ q := fun h => hmem (h ▸ hqF)
+      calc q = qᶜᶜ := (Footprint.compl_compl q).symm
+        _ ≤ pᶜ := Footprint.compl_le_compl (spec.disjoint p hp q (hF q hqF) hne)
+    obtain ⟨l, hl⟩ := spec.from_lenses p hp
+    rw [hl]
+    exact l.footprint_eq_bot_of_le_compl (hl ▸ hle.trans hsup)
+
+instance [spec : GranularProgramSpec] : PartialOrder GranularFootprint where
   le f g := f.footprint ≤ g.footprint
+  le_refl _ := le_refl _
+  le_trans _ _ _ h₁ h₂ := le_trans h₁ h₂
+  le_antisymm f g h₁ h₂ := by
+    obtain ⟨ff, hf⟩ := f; obtain ⟨gf, hg⟩ := g
+    obtain rfl : ff = gf := le_antisymm h₁ h₂
+    rfl
 
 instance [spec : GranularProgramSpec] : OrderBot GranularFootprint where
   bot := ⟨⊥, ∅, by simp, by simp; rfl⟩
   bot_le f := show (⊥ : Footprint State) ≤ f.footprint from bot_le
 
 -- Actually even a lower-complete lattice, but I don't recall the typeclass name for that
-instance [spec : GranularProgramSpec] : Lattice GranularFootprint :=
-  sorry
+open Classical in
+noncomputable instance [spec : GranularProgramSpec] : Lattice GranularFootprint := by
+  refine { (inferInstance : PartialOrder GranularFootprint) with
+    sup := fun f g => ⟨f.footprint ⊔ g.footprint, ?_⟩
+    le_sup_left := fun f g => show f.footprint ≤ f.footprint ⊔ g.footprint from le_sup_left
+    le_sup_right := fun f g => show g.footprint ≤ f.footprint ⊔ g.footprint from le_sup_right
+    sup_le := fun f g c h₁ h₂ =>
+      show f.footprint ⊔ g.footprint ≤ c.footprint from sup_le h₁ h₂
+    inf := fun f g =>
+      ⟨sSup ↑(f.granular.choose.filter (fun p => p ≤ g.footprint)),
+        f.granular.choose.filter (fun p => p ≤ g.footprint),
+        fun p hp => f.granular.choose_spec.1 p (Finset.mem_of_mem_filter p hp), rfl⟩
+    inf_le_left := fun f g => ?_
+    inf_le_right := fun f g => ?_
+    le_inf := fun a f g h₁ h₂ => ?_ }
+  · -- the union of the two witnesses covers the join
+    obtain ⟨F, hF, hf⟩ := f.granular
+    obtain ⟨G, hG, hg⟩ := g.granular
+    exact ⟨F ∪ G, fun p hp => (Finset.mem_union.mp hp).elim (hF p) (hG p),
+      by rw [hf, hg, Finset.coe_union, sSup_union]; rfl⟩
+  · -- inf ≤ f : the filtered witness is a sub-family of f's witness
+    change sSup _ ≤ f.footprint
+    refine le_trans (sSup_le_sSup (Finset.coe_subset.mpr (Finset.filter_subset _ _))) ?_
+    exact le_of_eq f.granular.choose_spec.2.symm
+  · -- inf ≤ g : every filtered atom is below g by the filter condition
+    change sSup _ ≤ g.footprint
+    refine sSup_le fun q hq => ?_
+    exact (Finset.mem_filter.mp hq).2
+  · -- le_inf : atomicity — every atom of a is ⊥ or an atom of f below g
+    change a.footprint ≤ sSup _
+    obtain ⟨A, hA, ha⟩ := a.granular
+    rw [ha]
+    refine sSup_le fun p hp => ?_
+    have hpA : p ∈ A := hp
+    have hpa : p ≤ a.footprint := ha ▸ le_sSup hp
+    have hpF : p ∈ f.granular.choose ∨ p = ⊥ :=
+      GranularProgramSpec.mem_or_eq_bot_of_le_sSup (hA p hpA) f.granular.choose_spec.1
+        ((hpa.trans h₁).trans_eq f.granular.choose_spec.2)
+    rcases hpF with hpF | rfl
+    · exact le_sSup (Finset.mem_coe.mpr
+        (Finset.mem_filter.mpr ⟨hpF, hpa.trans h₂⟩))
+    · exact bot_le
 
-def IsSubGranularFootprint.granular [spec : GranularProgramSpec] (footprint : Footprint State)
-    (h : IsSubGranularFootprint footprint) : GranularFootprint :=
-  sorry -- least granular footprint containing `footprint`
+open Classical in
+/-- A **minimal granular cover** of a sub-granular footprint: a minimal sub-family of the
+    witnessing granularity family that still covers `footprint`.  (This is the least granular
+    footprint containing `footprint` *modulo* the open corner-projection/tensor question: every
+    granular cover contains all atoms that `footprint` genuinely touches, but showing those atoms
+    alone already cover `footprint` needs the product-corner structure theorem.  Minimality —
+    no strict sub-family of the returned one covers — holds by construction;
+    see `IsSubGranularFootprint.le_granular`.) -/
+noncomputable def IsSubGranularFootprint.granular [spec : GranularProgramSpec]
+    (footprint : Footprint State) (h : IsSubGranularFootprint footprint) : GranularFootprint :=
+  have hne : (h.choose.powerset.filter
+      fun G : Finset (Footprint State) => footprint ≤ sSup ↑G).Nonempty :=
+    ⟨h.choose, Finset.mem_filter.mpr ⟨Finset.mem_powerset_self _, h.choose_spec.2⟩⟩
+  have hmin := (h.choose.powerset.filter
+    fun G : Finset (Footprint State) => footprint ≤ sSup ↑G).exists_minimal hne
+  ⟨sSup ↑hmin.choose, hmin.choose,
+    fun p hp => h.choose_spec.1 p
+      (Finset.mem_powerset.mp (Finset.mem_filter.mp hmin.choose_spec.1).1 hp), rfl⟩
+
+open Classical in
+/-- The minimal granular cover contains what it covers. -/
+theorem IsSubGranularFootprint.le_granular [spec : GranularProgramSpec]
+    (footprint : Footprint State) (h : IsSubGranularFootprint footprint) :
+    footprint ≤ (IsSubGranularFootprint.granular footprint h).footprint :=
+  (Finset.mem_filter.mp
+    ((h.choose.powerset.filter
+        fun G : Finset (Footprint State) => footprint ≤ sSup ↑G).exists_minimal
+      ⟨h.choose, Finset.mem_filter.mpr
+        ⟨Finset.mem_powerset_self _, h.choose_spec.2⟩⟩).choose_spec.1).2
 
 theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) :
   f.FromLens :=
