@@ -164,8 +164,8 @@ def Lens.bijection (e : a ≃ b) : Lens a b where
   get_set s := e.apply_symm_apply s
 
 theorem Lens.bijection_chain {a b c : Type} (e : a ≃ b) (f : b ≃ c) :
-  Lens.chain (Lens.bijection f) (Lens.bijection e) = Lens.bijection (e.trans f) := by
-  sorry
+  Lens.chain (Lens.bijection f) (Lens.bijection e) = Lens.bijection (e.trans f) :=
+  rfl
 
 @[simp]
 theorem Lens.bijection_refl {a : Type} : Lens.bijection (Equiv.refl a) = Lens.id := by

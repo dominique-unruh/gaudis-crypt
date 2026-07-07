@@ -1603,21 +1603,37 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.chain_footprint {a b c : Type}
 @[simp]
 theorem Lens.id_footprint :
   (Lens.id : Lens s s).footprint = ⊤ := by
-  sorry
+  refine le_antisymm le_top fun k _ => ?_
+  rw [Lens.footprint, Footprint.from_updates]
+  exact Set.subset_centralizer_centralizer ⟨k, funext fun x => SubProbability.bind_pure (k x)⟩
 
-/-- **A bijection lens touches all of the state**: its footprint is `⊤`. -/
+/-- **A bijection lens touches all of the state**: its footprint is `⊤`.  Every kernel `k` is the
+    lift of its `e`-conjugate, so the generators already exhaust the kernel monoid. -/
 theorem _root_.GaudisCrypt.Language.Lens.Lens.bijection_footprint {a b : Type} (e : a ≃ b) :
     (Lens.bijection e).footprint = ⊤ := by
-    have := by calc
-      ⊤ = (Lens.bijection e).liftFootprint (Lens.bijection e.symm).footprint := by
-        simp [← Lens.chain_footprint, Lens.bijection_chain]
-      _ ≤ (Lens.bijection e).liftFootprint ⊤ := by
-        apply Lens.liftFootprint_mono
-        exact le_top
-    sorry
+  refine le_antisymm le_top fun k _ => ?_
+  rw [Lens.footprint, Footprint.from_updates]
+  refine Set.subset_centralizer_centralizer
+    ⟨fun x => k (e x) >>= fun y => pure (e.symm y), ?_⟩
+  funext σ
+  show (k (e (e.symm σ)) >>= fun y => (pure (e.symm y) : SubProbability a))
+      >>= (fun x => (pure (e x) : SubProbability b)) = k σ
+  rw [e.apply_symm_apply, SubProbability.bind_assoc]
+  calc k σ >>= (fun y =>
+        (pure (e.symm y) : SubProbability a) >>= fun x => (pure (e x) : SubProbability b))
+      = k σ >>= fun y => pure y := by
+        congr 1; funext y; rw [SubProbability.pure_bind, e.apply_symm_apply]
+    _ = k σ := SubProbability.bind_pure (k σ)
 
 theorem Footprint.FromLens.from_lens (lens : Lens a s) : Footprint.FromLens lens.footprint := by
-  wlog ne : Nonempty s; { sorry } -- if Empty s, then Empty (Quotient lens.footprint.orbit_setoid) and the lens is trivial
+  wlog ne : Nonempty s
+  · -- if `s` is empty every kernel is `pure`, so all footprints coincide and any lens works
+    have hall : ∀ R S : Footprint s, R ≤ S := fun R S u _ => by
+      have hu : u = pure := funext fun σ => absurd ⟨σ⟩ ne
+      rw [hu]; exact S.id
+    exact ⟨{ get := fun σ => Quotient.mk _ σ, set := fun _ σ => σ,
+             set_get := fun σ _ => (ne ⟨σ⟩).elim, set_set := fun _ _ _ => rfl,
+             get_set := fun _ => rfl }, le_antisymm (hall _ _) (hall _ _)⟩
   obtain ⟨f, hf⟩ := Footprint.touchedGetter_is_getter lens
   existsi lens.chain (Lens.bijection f)
   rw [Lens.chain_footprint, Lens.bijection_footprint, Lens.liftFootprint_top]
