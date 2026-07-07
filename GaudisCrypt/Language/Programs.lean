@@ -146,7 +146,17 @@ noncomputable def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Foo
     (h : IsGranularFootprint f) : Lens (Quotient fᶜ.orbit_setoid) State :=
   h.fromLens.lens
 
+open Classical in
+theorem isSubGranularFootprint_closed_sup [spec : GranularProgramSpec] {f g : Footprint State}
+    (hf : IsSubGranularFootprint f) (hg : IsSubGranularFootprint g) :
+    IsSubGranularFootprint (f ⊔ g) :=
+  ⟨hf.choose ∪ hg.choose,
+    fun p hp => (Finset.mem_union.mp hp).elim (hf.choose_spec.1 p) (hg.choose_spec.1 p),
+    by
+      rw [Finset.coe_union, sSup_union]
+      exact sup_le (hf.choose_spec.2.trans le_sup_left) (hg.choose_spec.2.trans le_sup_right)⟩
 
+-- Theorem: for disjoint lenses, the sup of their granular footprints is the granular footprint of their pair
 
 
 variable [ProgramSpec]
