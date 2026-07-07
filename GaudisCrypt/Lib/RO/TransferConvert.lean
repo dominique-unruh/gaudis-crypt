@@ -1,0 +1,467 @@
+import GaudisCrypt.Lib.RO.Basic
+import GaudisCrypt.Footprint
+import GaudisCrypt.Logic.TransferBy
+
+open GaudisCrypt.Language.Lens
+open GaudisCrypt.Language.Semantics
+
+/-!
+# Lazy/eager transfer
+
+This file is the bridge between the lazy and eager random oracles.
+
+* `convert` — the operation that fills in undefined RO entries with a
+  fresh uniform function. It's the program-level witness that lazy and
+  eager are interchangeable.
+
+* Convert algebra: how `convert` interacts with `wp`, with `set`/`get` on
+  disjoint variables, and with `random_oracle_init`. Includes the
+  `claim_*` family of foundational lazy/eager equations
+  (`lazy_init_convert_eq_random_oracle_init`,
+  `lazy_query_convert_eq_convert_random_oracle_query`, etc.).
+
+* `ProgramDenotation.transfer` — the lazy/eager transfer relation,
+  `transferBy convert` (see `GaudisCrypt.Logic.TransferBy` for the generic
+  calculus). The closure laws (`bind`, `while_loop`, reflexivity on
+  RO-disjoint programs) and the commutation/continuation forms are all
+  instances of the generic `transferBy_*` lemmas; only the base cases
+  (`transfer_lazy_init`, `transfer_lazy_query`) are proved here.
+
+* `wp`/marginal bridges — `ProgramDenotation.transfer_value_marginal` and
+  the enriched RO-invariant variants (`transfer_wp_ro_invariant`,
+  `transfer_marginal_ro_invariant`), instantiating the generic `transferBy`
+  bridges with `convert_mass` / RO-invariance.
+-/
+
+/-! ## Convert -/
+
+/-- Fill in undefined entries of the random oracle with a fresh uniform
+    function. The bridge between lazy and eager: applied to a lazy state,
+    `convert` produces the same distribution as an eager state. -/
+noncomputable def convert : ProgramDenotation state Unit := do
+  let h <- ProgramDenotation.get random_oracle_state
+  let (y : input -> output) <- ProgramDenotation.uniform
+  ProgramDenotation.set random_oracle_state (fun x => some ((h x).getD (y x)))
+
+/-- `convert` only reads and writes `random_oracle_state` (modulo a uniform sample). -/
+theorem convert_inRange_ro : convert.inRange random_oracle_state.range := by
+  show ((ProgramDenotation.get random_oracle_state) >>= fun h =>
+          (ProgramDenotation.uniform : ProgramDenotation state (input → output)) >>= fun y =>
+            ProgramDenotation.set random_oracle_state (fun x => some ((h x).getD (y x)))).inRange _
+  refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_get _) ?_
+  intro _
+  refine ProgramDenotation.inRange_bind ?_ ?_
+  · exact ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le
+  · intro _
+    exact ProgramDenotation.inRange_set _ _
+
+/-- `convert`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob analogue
+    of `convert_inRange_ro`, used to drive the countability-free transfer-reflexivity. -/
+theorem convert_inFootprint_ro : convert.inFootprint random_oracle_state.footprint := by
+  show ((ProgramDenotation.get random_oracle_state) >>= fun h =>
+          (ProgramDenotation.uniform : ProgramDenotation state (input → output)) >>= fun y =>
+            ProgramDenotation.set random_oracle_state (fun x => some ((h x).getD (y
+                x)))).inFootprint _
+  refine ProgramDenotation.inFootprint_bind (ProgramDenotation.inFootprint_get _) ?_
+  intro _
+  refine ProgramDenotation.inFootprint_bind ?_ ?_
+  · exact ProgramDenotation.inFootprint_mono ProgramDenotation.inFootprint_uniform bot_le
+  · intro _
+    exact ProgramDenotation.inFootprint_set _ _
+
+/-! ## Convert algebra -/
+
+/-- `convert` is a probability measure: its total mass is 1.
+    All pieces (`get`, `uniform`, `set`) preserve mass. -/
+lemma convert_mass (σ : state) : convert.wp (fun _ => 1) σ = 1 := by
+  simp only [convert, wp_bind, wp_get, wp_uniform, wp_set]
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+  have hN_pos : (Fintype.card (input → output) : ENNReal) ≠ 0 := by
+    exact_mod_cast Fintype.card_pos.ne'
+  have hN_top : (Fintype.card (input → output) : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
+  rw [ENNReal.mul_div_cancel hN_pos hN_top]
+
+/-- Explicit `convert.wp` formula derived from the definition. -/
+lemma convert_wp_eq (f : ProgramDenotation.Post state Unit) (s : state) :
+    convert.wp f s = ∑ y : input → output,
+      f ((), random_oracle_state.set
+            (fun x => some ((random_oracle_state.get s x).getD (y x))) s) /
+      (Fintype.card (input → output) : ENNReal) := by
+  simp [convert, wp_bind, wp_set, wp_get, wp_uniform]
+
+/-! ## Foundational lazy/eager equations (the `claim_*` family) -/
+
+/-- **`lazy_init` then `convert` = `random_oracle_init`.** The eager
+    initialisation is exactly the lazy initialisation followed by a fresh
+    uniform sampling that fills the cache. -/
+theorem lazy_init_convert_eq_random_oracle_init :
+    (lazy_init >>= fun _ => convert) = random_oracle_init := by
+  apply ProgramDenotation.ext_of_wp
+  intro f
+  simp [lazy_init, convert, random_oracle_init,
+        wp_bind, wp_set, wp_get, wp_uniform,
+        random_oracle_state.set_get, random_oracle_state.set_set,
+        Option.getD_none]
+
+/-- **Sum-over-`Function.update` reorganization** (would-be-generic). Used by
+    `lazy_query_convert_eq_convert_random_oracle_query`. Cannot be moved out
+    of this file as-is because the local `sorry`'d `Fintype (a → b)`
+    instance in `Basic.lean` shadows Mathlib's `Pi.instFintype`, causing
+    type-class instance mismatches at the call site if the lemma is
+    elaborated in a module that doesn't see the local instance. Move once
+    the duplicate Fintype instance is removed. -/
+lemma sum_update_eq_card_mul_sum {α β : Type*}
+    [DecidableEq α] [Fintype α] [Fintype β]
+    (i : α) (G : (α → β) → ENNReal) :
+    ∑ v : β, ∑ y : α → β, G (Function.update y i v)
+    = (Fintype.card β : ENNReal) * ∑ z : α → β, G z := by
+  let e : β × (α → β) ≃ β × (α → β) :=
+    { toFun := fun p => (p.2 i, Function.update p.2 i p.1)
+      invFun := fun p => (p.2 i, Function.update p.2 i p.1)
+      left_inv := by
+        rintro ⟨v, y⟩
+        ext
+        · exact Function.update_self i v y
+        · simp [Function.update_idem, Function.update_eq_self]
+      right_inv := by
+        rintro ⟨w, z⟩
+        ext
+        · exact Function.update_self i w z
+        · simp [Function.update_idem, Function.update_eq_self] }
+  calc ∑ v : β, ∑ y : α → β, G (Function.update y i v)
+      = ∑ p : β × (α → β), G (Function.update p.2 i p.1) := by
+        rw [Fintype.sum_prod_type]
+    _ = ∑ q : β × (α → β), G q.2 :=
+        Fintype.sum_equiv e _ _ (fun _ => rfl)
+    _ = ∑ w : β, ∑ z : α → β, G z := by
+        rw [Fintype.sum_prod_type]
+    _ = (Fintype.card β : ENNReal) * ∑ z : α → β, G z := by
+        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+
+/-- **Value-passing lazy/eager bridge for `lazy_query`**: `lazy_query` followed
+    by `convert` (passing the value through) equals `convert` followed by
+    `random_oracle_query`. This is the workhorse equation; the continuation form
+    `lazy_query_convert_cont_eq_convert_random_oracle_query` is a corollary. -/
+theorem lazy_query_convert_eq_convert_random_oracle_query (inp : input) :
+    (lazy_query inp >>= fun v => convert >>= fun _ => pure v) =
+    (convert >>= fun _ => random_oracle_query inp) := by
+  apply ProgramDenotation.ext_of_wp
+  intro f
+  funext s
+  change (lazy_query inp >>= fun v => convert >>= fun _ => pure v).wp f s =
+         (convert >>= fun _ => random_oracle_query inp).wp f s
+  simp only [lazy_query, random_oracle_query, convert,
+             wp_bind, wp_set, wp_get, wp_pure, wp_uniform]
+  cases h_eq : random_oracle_state.get s inp with
+  | some x =>
+    simp [wp_pure, h_eq, random_oracle_state.set_get, Option.getD_some]
+  | none =>
+    simp only [wp_bind, wp_set, wp_pure, wp_uniform,
+               random_oracle_state.set_get, random_oracle_state.set_set, h_eq,
+               Option.getD_none, Option.getD_some]
+    have integrand_eq : ∀ (value : output) (y : input → output),
+        (fun x' : input =>
+          some ((if x' = inp then some value else random_oracle_state.get s x').getD (y x')))
+        = (fun x' : input =>
+          some ((random_oracle_state.get s x').getD (Function.update y inp value x'))) := by
+      intros value y
+      funext x'
+      by_cases hx : x' = inp
+      · subst hx; simp [Function.update_self, h_eq]
+      · simp [if_neg hx, Function.update_of_ne hx]
+    simp_rw [integrand_eq]
+    have hO_ne_zero : (Fintype.card output : ENNReal) ≠ 0 := by
+      exact_mod_cast Fintype.card_pos.ne'
+    have hO_ne_top : (Fintype.card output : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
+    have hF_ne_zero : (Fintype.card (input → output) : ENNReal) ≠ 0 := by
+      exact_mod_cast Fintype.card_pos.ne'
+    have hF_ne_top : (Fintype.card (input → output) : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
+    let G : (input → output) → ENNReal := fun z =>
+      f (z inp, random_oracle_state.set
+          (fun x' => some ((random_oracle_state.get s x').getD (z x'))) s)
+    have lhs_rewrite : ∀ (value : output) (y : input → output),
+        f (value, random_oracle_state.set
+            (fun x' => some ((random_oracle_state.get s x').getD (Function.update y inp value x'))) s)
+        = G (Function.update y inp value) := by
+      intros value y
+      change f (value, _) = f ((Function.update y inp value) inp, _)
+      rw [Function.update_self]
+    simp_rw [lhs_rewrite]
+    change (∑ v : output, (∑ y : input → output, G (Function.update y inp v) /
+                          (Fintype.card (input → output) : ENNReal)) /
+                         (Fintype.card output : ENNReal))
+       = ∑ z : input → output, G z / (Fintype.card (input → output) : ENNReal)
+    calc (∑ v : output, (∑ y : input → output, G (Function.update y inp v) /
+                          (Fintype.card (input → output) : ENNReal)) /
+                         (Fintype.card output : ENNReal))
+        = (∑ v : output, ∑ y : input → output, G (Function.update y inp v)) /
+              ((Fintype.card (input → output) : ENNReal) *
+               (Fintype.card output : ENNReal)) := by
+            simp_rw [div_eq_mul_inv]
+            simp_rw [← Finset.sum_mul]
+            rw [mul_assoc]
+            congr 1
+            exact (ENNReal.mul_inv (Or.inl hF_ne_zero) (Or.inl hF_ne_top)).symm
+      _ = ((Fintype.card output : ENNReal) * ∑ z : input → output, G z) /
+              ((Fintype.card (input → output) : ENNReal) *
+               (Fintype.card output : ENNReal)) := by
+            rw [sum_update_eq_card_mul_sum]
+      _ = (∑ z : input → output, G z) /
+            (Fintype.card (input → output) : ENNReal) := by
+            rw [mul_comm (Fintype.card (input → output) : ENNReal)
+                         (Fintype.card output : ENNReal)]
+            exact ENNReal.mul_div_mul_left _ _ hO_ne_zero hO_ne_top
+      _ = ∑ z : input → output, G z /
+            (Fintype.card (input → output) : ENNReal) := by
+            simp_rw [div_eq_mul_inv]
+            rw [Finset.sum_mul]
+
+/-- Continuation-passing variant of `lazy_query_convert_eq_convert_random_oracle_query`. -/
+theorem lazy_query_convert_cont_eq_convert_random_oracle_query
+    {β : Type} (inp : input) (k : output → ProgramDenotation state β) :
+    (lazy_query inp >>= fun v => convert >>= fun _ => k v)
+  = (convert >>= fun _ => random_oracle_query inp >>= k) :=
+  ProgramDenotation.transferBy_cont
+    (lazy_query_convert_eq_convert_random_oracle_query inp) k
+
+/-- Factor `convert` out of an `if`: if the then-branch starts with `convert`
+    and the else-branch IS `convert`, we can move `convert` outside. -/
+lemma if_factor_convert (b : Bool) (X : ProgramDenotation state Unit) :
+    (if b = true then convert >>= fun _ => X else convert)
+  = convert >>= fun _ => (if b = true then X else pure ()) := by
+  cases b
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    exact (ProgramDenotation.bind_pure convert).symm
+  · rfl
+
+/-- `convert` is absorbed by `random_oracle_init`: a fresh uniform sample
+    overwrites any prior RO content. -/
+lemma convert_random_oracle_init :
+    (convert >>= fun _ => random_oracle_init) = random_oracle_init := by
+  apply ProgramDenotation.ext_of_wp
+  intro f
+  funext σ
+  show (convert >>= fun _ => random_oracle_init).wp f σ = random_oracle_init.wp f σ
+  simp only [convert, random_oracle_init, wp_bind, wp_set, wp_get, wp_uniform, wp_pure,
+             random_oracle_state.set_set]
+  -- LHS: ∑ y : input → output, (∑ h : input → output, f ((), RO.set (some ∘ h) σ) / card) / card
+  -- RHS: ∑ h : input → output, f ((), RO.set (some ∘ h) σ) / card
+  -- The inner term doesn't depend on y, so summing 1/card over y gives 1.
+  set N : ENNReal := (Fintype.card (input → output) : ENNReal) with hN
+  set S : ENNReal := ∑ h : input → output,
+      f ((), random_oracle_state.set (fun x => some (h x)) σ) / N
+  have hN_pos : N ≠ 0 := by rw [hN]; exact_mod_cast Fintype.card_pos.ne'
+  have hN_top : N ≠ ⊤ := by rw [hN]; exact ENNReal.natCast_ne_top _
+  -- LHS = ∑ y, S / N = card * (S / N) = N * (S / N) = S = RHS.
+  show ∑ _y : input → output, S / N = S
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← hN,
+      mul_comm N (S / N), ENNReal.div_mul_cancel hN_pos hN_top]
+
+/-- `convert` is absorbed by any program that starts with `random_oracle_init`:
+    `convert >>= (random_oracle_init >>= rest) = random_oracle_init >>= rest`.
+    Used by `convert_*_experiment_eager` lemmas (where the experiment starts
+    with `random_oracle_init`) to absorb a preceding `convert` step. -/
+lemma convert_bind_random_oracle_init_bind {α : Type} (rest : ProgramDenotation state α) :
+    (convert >>= fun _ : Unit =>
+      random_oracle_init >>= fun _ : Unit => rest)
+    = random_oracle_init >>= fun _ : Unit => rest := by
+  rw [← ProgramDenotation.bind_assoc, convert_random_oracle_init]
+
+/-- **Lazy/eager transfer relation**: `p` followed by `convert` produces the
+    same joint `α × state` distribution as `convert` followed by `q`.
+
+    Captures "`convert` slides past `p`, turning lazy operations into eager ones".
+    The instance of the generic `ProgramDenotation.transferBy` calculus at
+    `c := convert`: closed under bind; reflexive on RO-disjoint programs.
+    Together with the base cases `lazy_init ↦ random_oracle_init`
+    (lazy_init_convert_eq_random_oracle_init) and
+    `lazy_query x ↦ random_oracle_query x`
+    (lazy_query_convert_eq_convert_random_oracle_query), this lets us
+    transfer any program built from these primitives. -/
+def ProgramDenotation.transfer {α : Type} (p q : ProgramDenotation state α) : Prop :=
+  ProgramDenotation.transferBy convert p q
+
+/-- **Reflexivity on RO-disjoint programs — countability-free** (subtask 4). The `Footprint`
+    analogue of `transfer_refl_of_inRange_compl`: a program whose probabilistic footprint avoids the
+    RO table commutes with `convert` (via `commute_of_disjoint_footprint`, no `[Countable]`), so transfers
+    to itself.  The `ᶜ`-form makes the disjointness `le_refl`. -/
+lemma ProgramDenotation.transfer_refl_of_inFootprint_compl
+    {α : Type} {p : ProgramDenotation state α}
+    (hp : p.inFootprint (random_oracle_state.footprint)ᶜ) :
+    ProgramDenotation.transfer p p :=
+  ProgramDenotation.transferBy_refl_of_inFootprint_compl convert_inFootprint_ro hp
+
+/-- Any program in `v.footprint`, for a `v` disjoint from `random_oracle_state`, transfers to itself
+    — the countability-free `Footprint` analogue of `transfer_of_inRange_disjoint`. -/
+lemma ProgramDenotation.transfer_of_inFootprint_disjoint {α : Type}
+    (p : ProgramDenotation state α) {β : Type} (v : Lens β state)
+    [disjoint v random_oracle_state]
+    (hp : p.inFootprint v.footprint) :
+    ProgramDenotation.transfer p p :=
+  ProgramDenotation.transfer_refl_of_inFootprint_compl
+    (ProgramDenotation.inFootprint_mono hp
+      (Lens.footprint_le_compl_of_disjoint v random_oracle_state))
+
+/-- `ProgramDenotation.set v x` transfers to itself when `v` is disjoint from `random_oracle_state`.
+    Countability-free (subtask 4): via the `Footprint` transfer-reflexivity. -/
+lemma ProgramDenotation.transfer_set_of_disjoint_ro {α : Type}
+    (v : Lens α state) [disjoint v random_oracle_state] (x : α) :
+    ProgramDenotation.transfer (ProgramDenotation.set v x) (ProgramDenotation.set v x) :=
+  ProgramDenotation.transfer_of_inFootprint_disjoint _ v (ProgramDenotation.inFootprint_set v x)
+
+/-- `ProgramDenotation.get v` transfers to itself when `v` is disjoint from `random_oracle_state`.
+    Countability-free (subtask 4). -/
+lemma ProgramDenotation.transfer_get_of_disjoint_ro {α : Type}
+    (v : Lens α state) [disjoint v random_oracle_state] :
+    ProgramDenotation.transfer (ProgramDenotation.get v) (ProgramDenotation.get v) :=
+  ProgramDenotation.transfer_of_inFootprint_disjoint _ v (ProgramDenotation.inFootprint_get v)
+
+/-- `convert` commutes with `ProgramDenotation.set v x` for any `v` disjoint from
+    `random_oracle_state`: the bind form of `transfer_set_of_disjoint_ro`. -/
+theorem convert_commutes_set {α : Type} (v : Variable α) [disjoint v random_oracle_state]
+    (x : α) :
+    (ProgramDenotation.set v x >>= fun _ => convert)
+    = (convert >>= fun _ => ProgramDenotation.set v x) :=
+  ProgramDenotation.transferBy_unit_bind (ProgramDenotation.transfer_set_of_disjoint_ro v x)
+
+/-- `convert` commutes with `ProgramDenotation.get v` for any `v` disjoint from
+    `random_oracle_state`, in continuation-passing form: the continuation form
+    of `transfer_get_of_disjoint_ro`. -/
+theorem convert_commutes_get {α β : Type} (v : Variable α)
+    [disjoint v random_oracle_state] (k : α → ProgramDenotation state β) :
+    (ProgramDenotation.get v >>= fun y => convert >>= fun _ => k y)
+    = (convert >>= fun _ => ProgramDenotation.get v >>= k) :=
+  ProgramDenotation.transferBy_cont (ProgramDenotation.transfer_get_of_disjoint_ro v) k
+
+/-- `ProgramDenotation.uniform` transfers to itself (it doesn't touch state at all).
+    Countability-free (subtask 4). -/
+lemma ProgramDenotation.transfer_uniform {α : Type} [Fintype α] [Nonempty α] :
+    ProgramDenotation.transfer (ProgramDenotation.uniform : ProgramDenotation state α)
+        ProgramDenotation.uniform :=
+  ProgramDenotation.transfer_refl_of_inFootprint_compl
+    (ProgramDenotation.inFootprint_mono ProgramDenotation.inFootprint_uniform bot_le)
+
+/-- Bind closure: transfer chains under `>>=`. -/
+lemma ProgramDenotation.transfer_bind {α β : Type}
+    {p q : ProgramDenotation state α} {p' q' : α → ProgramDenotation state β}
+    (h : ProgramDenotation.transfer p q) (h' : ∀ a, ProgramDenotation.transfer (p' a) (q' a)) :
+    ProgramDenotation.transfer (p >>= p') (q >>= q') :=
+  ProgramDenotation.transferBy_bind h h'
+
+/-- Pure transfers to itself. -/
+lemma ProgramDenotation.transfer_pure {α : Type} (a : α) :
+    ProgramDenotation.transfer (Pure.pure a : ProgramDenotation state α) (Pure.pure a) :=
+  ProgramDenotation.transferBy_pure a
+
+/-- `lazy_init` transfers to `random_oracle_init`: `lazy_init; convert`
+    equals `random_oracle_init` (the claim), which absorbs a preceding
+    `convert`. -/
+lemma ProgramDenotation.transfer_lazy_init :
+    ProgramDenotation.transfer lazy_init random_oracle_init :=
+  ProgramDenotation.transferBy_of_unit_bind
+    (lazy_init_convert_eq_random_oracle_init.trans convert_random_oracle_init.symm)
+
+/-- `lazy_query x` transfers to `random_oracle_query x`. This is `lazy_query_convert_eq_convert_random_oracle_query`
+    restated in the transfer language. -/
+lemma ProgramDenotation.transfer_lazy_query (x : input) :
+    ProgramDenotation.transfer (lazy_query x) (random_oracle_query x) :=
+  lazy_query_convert_eq_convert_random_oracle_query x
+
+/-- **Transfer is preserved by `while_loop`.** If the body transfers (lazy
+    to eager) and the condition is RO-disjoint, then the lazy and eager
+    while-loops transfer.
+
+    Instance of the generic Kleene closure `ProgramDenotation.transferBy_while_loop`;
+    the condition's self-transfer comes from its RO-disjointness via
+    `commute_of_disjoint_lens`. Any RO-based while-loop construction inherits
+    the lazy = eager equivalence by this closure law plus the base-case body
+    transfer. -/
+theorem ProgramDenotation.transfer_while_loop
+    {cond : ProgramDenotation state Bool}
+    (h_cond : cond.inRange random_oracle_state.compl.range)
+    {body_lazy body_eager : ProgramDenotation state Unit}
+    (h_body : ProgramDenotation.transfer body_lazy body_eager) :
+    ProgramDenotation.transfer (while_loop cond body_lazy) (while_loop cond body_eager) :=
+  ProgramDenotation.transferBy_while_loop
+    (ProgramDenotation.transferBy_refl_of_commute
+      (ProgramDenotation.commute_of_disjoint_lens h_cond convert_inRange_ro
+        (le_of_eq (DetermFootprint.complement_range _))))
+    h_body
+
+/-- **Value marginal**: SubProb-level statement of the transfer. (For the
+    wp-level value-only bridge, use `ProgramDenotation.transferBy_wp_value`
+    with `convert_mass`.) -/
+theorem ProgramDenotation.transfer_value_marginal {α : Type}
+    {p q : ProgramDenotation state α}
+    (h_transfer : ProgramDenotation.transfer p q)
+    (h_absorb : (convert >>= fun _ => q) = q)
+    (σ₀ : state) :
+    (p σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α))
+  = (q σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α)) :=
+  ProgramDenotation.transferBy_value_marginal h_transfer h_absorb convert_mass σ₀
+
+/-! ## Enriched transfer: RO-invariant projections of state
+
+The basic `transfer_wp_value` only delivers wp-equality for posts that
+ignore the state. But `convert` only writes `random_oracle_state` — so
+*any* projection of state that is invariant under `random_oracle_state.set`
+is automatically preserved by `convert`. This means we can transfer
+postconditions that depend on (value, RO-invariant state projection).
+
+These enriched lemmas recover the full strength of the wrapper-style
+`oracle_loop_wp_lazy_eq_random_oracle` and its marginal/compl/glob
+companions, without rebuilding the Kleene argument.
+-/
+
+/-- `convert` preserves any state projection `G : state → ENNReal` that is
+    invariant under writes to `random_oracle_state`. Because `convert` only
+    samples a fresh RO function and writes it, an RO-invariant `G` is constant
+    along the convert trajectory, and `convert`'s total mass is 1. -/
+lemma convert_wp_state_const_of_ro_invariant
+    (G : state → ENNReal)
+    (hG_inv : ∀ σ x, G (random_oracle_state.set x σ) = G σ)
+    (σ : state) :
+    convert.wp (fun aσ : Unit × state => G aσ.2) σ = G σ := by
+  rw [convert_wp_eq]
+  simp_rw [hG_inv]
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+  have hN_pos : (Fintype.card (input → output) : ENNReal) ≠ 0 := by
+    exact_mod_cast Fintype.card_pos.ne'
+  have hN_top : (Fintype.card (input → output) : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top _
+  rw [ENNReal.mul_div_cancel hN_pos hN_top]
+
+/-- **Transfer at the wp level for RO-invariant postconditions**.
+    Strict strengthening of `transfer_wp_value`: instead of requiring the
+    post to ignore state entirely, only requires it to be invariant under
+    writes to `random_oracle_state`.
+
+    Captures the wrapper-style `oracle_loop_wp_lazy_eq_random_oracle`. -/
+theorem ProgramDenotation.transfer_wp_ro_invariant {α : Type}
+    {p q : ProgramDenotation state α}
+    (h_transfer : ProgramDenotation.transfer p q)
+    (h_absorb : (convert >>= fun _ => q) = q)
+    (F : α × state → ENNReal)
+    (hF_inv : ∀ a σ x, F (a, random_oracle_state.set x σ) = F (a, σ))
+    (σ₀ : state) :
+    p.wp F σ₀ = q.wp F σ₀ :=
+  ProgramDenotation.transferBy_wp_invariant h_transfer h_absorb F
+    (fun a σ => convert_wp_state_const_of_ro_invariant (fun σ' => F (a, σ')) (hF_inv a) σ) σ₀
+
+/-- **Marginal at the (value × RO-invariant projection) level**.
+
+    Strict strengthening of `transfer_value_marginal`: instead of projecting
+    to just the value, we additionally include any RO-invariant projection
+    `h : state → β`. Captures the wrapper-style
+    `oracle_loop_marginal_lazy_eq_random_oracle` family. -/
+theorem ProgramDenotation.transfer_marginal_ro_invariant {α β : Type}
+    {p q : ProgramDenotation state α}
+    (h_transfer : ProgramDenotation.transfer p q)
+    (h_absorb : (convert >>= fun _ => q) = q)
+    (h : state → β)
+    (h_inv : ∀ σ x, h (random_oracle_state.set x σ) = h σ)
+    (σ₀ : state) :
+    (p σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β)))
+  = (q σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) :=
+  ProgramDenotation.transferBy_marginal_invariant h_transfer h_absorb h
+    (fun g σ => convert_wp_state_const_of_ro_invariant (fun σ' => g (h σ'))
+      (fun σ' x => by rw [h_inv]) σ) σ₀

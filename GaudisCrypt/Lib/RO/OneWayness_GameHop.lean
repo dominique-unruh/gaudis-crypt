@@ -1,6 +1,6 @@
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.OneWayness
-import GaudisCrypt.EquivModuloLens
+import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad

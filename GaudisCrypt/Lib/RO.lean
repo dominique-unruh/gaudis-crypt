@@ -1,5 +1,5 @@
 import GaudisCrypt.Lib.RO.Basic
-import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Lib.RO.OracleLoop
 import GaudisCrypt.Lib.RO.ROEquiv
 
@@ -16,16 +16,15 @@ and lemmas live in `PlonkLean/RO/`:
   `lazy_init` / `random_oracle_init`, `lazy_query` / `random_oracle_query`,
   and `lazy_query_inRange_ro`. No bridging between lazy and eager.
 
-* `PlonkLean.RO.Transfer` — the lazy/eager bridge: `convert` itself,
-  convert algebra (`convert_wp_eq`, `convert_mass`, `convert_wp_const`,
+* `PlonkLean.RO.TransferConvert` — the lazy/eager bridge: `convert` itself,
+  convert algebra (`convert_wp_eq`, `convert_mass`,
   `convert_commutes_set/get`, `convert_random_oracle_init`,
   `convert_bind_random_oracle_init_bind`), the foundational lazy/eager
   equations (`lazy_init_convert_eq_random_oracle_init`,
-  `lazy_query_convert_eq_convert_random_oracle_query`,
-  `lazy_query_conv_eq_conv_random_oracle`, `if_factor_convert`), the
-  `ProgramDenotation.transfer` relation with its closure laws (including
-  `ProgramDenotation.transfer_while_loop`), and the wp/marginal bridges
-  (`ProgramDenotation.transfer_wp_value`, `_marginal`, and the RO-invariant
+  `lazy_query_convert_eq_convert_random_oracle_query`, `if_factor_convert`),
+  the `ProgramDenotation.transfer` relation (= `transferBy convert`, closure
+  laws inherited from `GaudisCrypt.Logic.TransferBy`), and the wp/marginal
+  bridges (`ProgramDenotation.transfer_value_marginal` and the RO-invariant
   enrichments).
 
 * `PlonkLean.RO.OracleLoop` — scratch state for adversary-driven loops

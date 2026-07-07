@@ -6,7 +6,6 @@ import GaudisCrypt.Footprint
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.EquivModuloLens
 import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
@@ -17,6 +16,7 @@ import GaudisCrypt.Language.SubProbability
 import GaudisCrypt.Language.Syntax2
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
+import GaudisCrypt.CounterExamples.IndistinguishableVsGlob
 import GaudisCrypt.CounterExamples.LeastLens
 import GaudisCrypt.CounterExamples.LensRangeComplDisjoint
 import GaudisCrypt.CounterExamples.MiscRangeStuff
@@ -25,7 +25,9 @@ import GaudisCrypt.Lib.Enc.HashedOTP
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.CollisionResistance
+import GaudisCrypt.Lib.RO.FullEager
 import GaudisCrypt.Lib.RO.GlobEndpointExample
+import GaudisCrypt.Lib.RO.GlobTransfer
 import GaudisCrypt.Lib.RO.InstantiateCommon
 import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.Lib.RO.OracleLoop
@@ -33,7 +35,7 @@ import GaudisCrypt.Lib.RO.QueryHit
 import GaudisCrypt.Lib.RO.ROCouplingEquiv
 import GaudisCrypt.Lib.RO.ROEquiv
 import GaudisCrypt.Lib.RO.Switching
-import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Lib.RO.TransferInstantiate
 import GaudisCrypt.Lib.RO.OneWayness_GameHop
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Definitions
@@ -41,8 +43,12 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game1
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game2
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
+import GaudisCrypt.Logic.EagerProc
+import GaudisCrypt.Logic.EagerRhl
+import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
+import GaudisCrypt.Logic.TransferBy
 import GaudisCrypt.Logic.PRHL2Demo
 import GaudisCrypt.Logic.PRHL.Clients.SchemaInnerEquation
 import GaudisCrypt.Logic.PRHL.Core

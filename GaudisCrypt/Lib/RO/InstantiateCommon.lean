@@ -1,5 +1,5 @@
 import GaudisCrypt.Language.Programs
-import GaudisCrypt.Lib.RO.Transfer
+import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Footprint
@@ -124,35 +124,11 @@ noncomputable def RO_eager : roHoles.Instantiation
   | _, .zero => RO_eager_proc
 
 
-/-! ### `zoom` is a monad morphism, and lifts `transferBy` -/
+/-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`.
 
-theorem zoom_pure {s t a : Type} (lens : Lens s t) (x : a) :
-    ProgramDenotation.zoom lens (pure x) = (pure x : ProgramDenotation t a) := by
-  funext tv
-  show ((pure x : ProgramDenotation s a) (lens.get tv)) >>= (fun as => pure (as.1, lens.set as.2
-      tv))
-       = (pure (x, tv) : SubProbability (a × t))
-  show (pure (x, lens.get tv) : SubProbability (a × s)) >>= (fun as => pure (as.1, lens.set as.2 tv))
-       = (pure (x, tv) : SubProbability (a × t))
-  rw [SubProbability.pure_bind]
-  simp only [lens.get_set]
-
-
-theorem zoom_bind {s t a b : Type} (lens : Lens s t)
-    (p : ProgramDenotation s a) (k : a → ProgramDenotation s b) :
-    ProgramDenotation.zoom lens (p >>= k) = ProgramDenotation.zoom lens p >>= fun a =>
-        ProgramDenotation.zoom lens (k a) := by
-  funext tv
-  show (((p (lens.get tv)) >>= fun as => k as.1 as.2) >>= fun bs => pure (bs.1, lens.set bs.2 tv))
-       = ((p (lens.get tv)) >>= fun as => pure (as.1, lens.set as.2 tv))
-          >>= fun cs => (k cs.1 (lens.get cs.2)) >>= fun bs => pure (bs.1, lens.set bs.2 cs.2)
-  rw [SubProbability.bind_assoc', SubProbability.bind_assoc']
-  congr 1; funext as
-  rw [SubProbability.pure_bind]
-  simp only [lens.set_get, lens.set_set]
-
-
-/-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`. -/
+(`zoom` being a monad morphism — `ProgramDenotation.zoom_pure`/`zoom_bind` — now
+lives in `GaudisCrypt.Language.Semantics`; the `transferBy` lift `transferBy_zoom`
+in `GaudisCrypt.Logic.TransferBy`.) -/
 
 theorem procDenotation_RO_eager (args : roSig.ParamType) :
     procedureDenotation RO_eager_proc args = random_oracle_query args := by
@@ -221,21 +197,14 @@ single oracle hole.  `A.instantiate RO_lazy` / `A.instantiate RO_eager` fill tha
 hole, and `procedureDenotation _ args : ProgramDenotation state sig.ret` runs the result on
 the RO global `state`. -/
 
-/-- The procedure denotation as an explicit wrapper: initialise locals, run the
-    body, extract `(return_val, global)`. -/
-noncomputable def procWrap {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L)
-    (B : ProgramDenotation (ProcedureState L) Unit) : ProgramDenotation state sig.ret :=
-  fun st => B ⟨st, initL⟩ >>= fun p => pure (rv.get p.2, p.2.global)
-
-
-/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body. -/
+/-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body
+    (`procWrap` now lives in `GaudisCrypt.Language.Programs`). -/
 theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (inst : roHoles.Instantiation) :
     procedureDenotation (A.instantiate inst) args
       = procWrap A.return_val (sig.localVariableInit A.locals args)
-          (programDenotation (A.body.instantiate inst)) := by
-  funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]; rfl
+          (programDenotation (A.body.instantiate inst)) :=
+  procedureDenotation_eq_procWrap_gen A args inst
 
 
 /-! ## Faithful hypothesis: the adversary confined to its private local state
@@ -800,5 +769,32 @@ theorem fvP_stmt_le_FVP {holes : HoleSigs} {l : Type} :
       exact sup_le_sup_left (fvP_stmt_le_FVP t) _
   termination_by s => s.depth
   decreasing_by all_goals (simp only [StmtWithHoles.depth]; omega)
+
+/-- **Bridge: FV's (global, syntactic) `fvP_proc` disjointness ⟹ the pipeline's (procedure-state,
+    semantic) disjointness.**  `FVP.fvP_proc A` (a `Footprint State`, the `globalL`-reduction of A's
+    *syntactic* footprint) over-approximates the pipeline's *semantic* `fvP_proc A` after reduction, so
+    a disjointness from `random_oracle_state` on the global state gives the disjointness from
+    `roLift = globalL.chain random_oracle_state` the confinement needs.  Two ingredients:
+    (1) **FV soundness** — the pipeline's semantic `fvP_stmt` is bounded by FV's syntactic one; and
+    (2) the **`reduce`/`chain` transfer** through `globalL` (where the locals drop out — they are `⊥`
+    to the oracle). -/
+theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
+    (A : ProcedureWithHoles holes sig)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
+    fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ := by
+  -- `FVP.fvP_proc A = fvP_reduce globalL (FVP.fvP_stmt body) ⊔ fvP_reduce globalL (get return)`.
+  rw [show FVP.fvP_proc A =
+      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
+        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get A.return_val).footprint)
+      from rfl] at hdisj
+  -- `roLift = globalL.chain random_oracle_state`; both summands go via `reduce_chain_le_compl`.
+  show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
+      ≤ ((ProcedureState.globalL.chain random_oracle_state).footprint)ᶜ
+  refine sup_le ?_ ?_
+  · -- body: `fvP_reduce (fvP_stmt) ≤ fvP_reduce (FVP.fvP_stmt) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
+    refine reduce_chain_le_compl (le_trans (fvP_reduce_mono _ (fvP_stmt_le_FVP A.body)) ?_)
+    exact le_trans le_sup_left hdisj
+  · -- return: `fvP_reduce (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
+    exact reduce_chain_le_compl (le_trans le_sup_right hdisj)
 
 end GaudisCrypt.Lib.RO.Instantiate

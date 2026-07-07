@@ -239,9 +239,48 @@ theorem prhl_instantiate_body {l : Type}
   body_prhl2_gen A RO_eager RO_lazy hloc (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
 
 
+/-- **Oracle-agnostic procedure wrapper for `prhl2`** (the generalization of `prhl_wrapper`):
+    a body-level `prhl2` coupling of `A`'s body under two *arbitrary* hole-instantiations
+    `eagerInst`/`lazyInst` lifts to a state-level `prhl2` coupling of the whole procedure, given the
+    return value is determined by the invariant.  The proof never inspects the instantiations (only
+    uses them via `A.instantiate`/`procedureDenotation`), so `RO_eager`/`RO_lazy` were incidental. -/
+theorem prhl_wrapper_gen {holes : HoleSigs} {sig : ProcedureSignature}
+    (eagerInst lazyInst : holes.Instantiation)
+    (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
+    (hbody : ProgramDenotation.prhl2 (liftRel P)
+      (programDenotation (A.body.instantiate eagerInst))
+      (programDenotation (A.body.instantiate lazyInst)) (liftRelPost P))
+    (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
+    ProgramDenotation.prhl2 P
+      (procedureDenotation (A.instantiate eagerInst) args)
+      (procedureDenotation (A.instantiate lazyInst) args) (liftPost P) := by
+  intro st₁ st₂ hP
+  obtain ⟨μ, hm1, hm2, hsat⟩ :=
+    hbody ⟨st₁, sig.localVariableInit A.locals args⟩ ⟨st₂, sig.localVariableInit A.locals args⟩ ⟨hP, rfl⟩
+  refine ⟨μ >>= fun w => pure ((A.return_val.get w.1.2, w.1.2.global),
+                               (A.return_val.get w.2.2, w.2.2.global)), ?_, ?_, ?_⟩
+  · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
+    rw [procedureDenotation_eq_procWrap_gen]
+    show (μ >>= fun w => pure (A.return_val.get w.1.2, w.1.2.global))
+        = (programDenotation (A.body.instantiate eagerInst))
+            ⟨st₁, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
+    rw [← hm1]
+    simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
+  · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
+    rw [procedureDenotation_eq_procWrap_gen]
+    show (μ >>= fun w => pure (A.return_val.get w.2.2, w.2.2.global))
+        = (programDenotation (A.body.instantiate lazyInst))
+            ⟨st₂, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
+    rw [← hm2]
+    simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
+  · refine SubProbability.satisfies_bind _ (fun w hw => SubProbability.satisfies_pure _ _ ?_)
+    have hlr := hsat w hw
+    exact ⟨hret w.1.2 w.2.2 hlr.2, hlr.2.1⟩
+
 /-- **Procedure wrapper for `prhl2`** (isolated, analogue of `transfer_wrapper`):
     a body-level `prhl2` coupling lifts to a state-level `prhl2` coupling of the
-    whole procedure, given the return value is determined by the invariant. -/
+    whole procedure, given the return value is determined by the invariant.  The RO instantiation of
+    the oracle-agnostic `prhl_wrapper_gen`. -/
 theorem prhl_wrapper {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (hbody : ProgramDenotation.prhl2 (liftRel P)
@@ -250,29 +289,8 @@ theorem prhl_wrapper {sig : ProcedureSignature}
     (hret : ∀ ps₁ ps₂, liftRel P ps₁ ps₂ → A.return_val.get ps₁ = A.return_val.get ps₂) :
     ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate RO_eager) args)
-      (procedureDenotation (A.instantiate RO_lazy) args) (liftPost P) := by
-  intro st₁ st₂ hP
-  obtain ⟨μ, hm1, hm2, hsat⟩ :=
-    hbody ⟨st₁, sig.localVariableInit A.locals args⟩ ⟨st₂, sig.localVariableInit A.locals args⟩ ⟨hP, rfl⟩
-  refine ⟨μ >>= fun w => pure ((A.return_val.get w.1.2, w.1.2.global),
-                               (A.return_val.get w.2.2, w.2.2.global)), ?_, ?_, ?_⟩
-  · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
-    rw [procedureDenotation_eq_procWrap]
-    show (μ >>= fun w => pure (A.return_val.get w.1.2, w.1.2.global))
-        = (programDenotation (A.body.instantiate RO_eager))
-            ⟨st₁, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
-    rw [← hm1]
-    simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
-  · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
-    rw [procedureDenotation_eq_procWrap]
-    show (μ >>= fun w => pure (A.return_val.get w.2.2, w.2.2.global))
-        = (programDenotation (A.body.instantiate RO_lazy))
-            ⟨st₂, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
-    rw [← hm2]
-    simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
-  · refine SubProbability.satisfies_bind _ (fun w hw => SubProbability.satisfies_pure _ _ ?_)
-    have hlr := hsat w hw
-    exact ⟨hret w.1.2 w.2.2 hlr.2, hlr.2.1⟩
+      (procedureDenotation (A.instantiate RO_lazy) args) (liftPost P) :=
+  prhl_wrapper_gen RO_eager RO_lazy A args hbody hret
 
 
 /-! ## Layer 3 — confinement endpoints (discharge `LocP` from a footprint) -/
@@ -413,13 +431,93 @@ theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureSt
   exact one_ne_zero hdirac
 
 
+/-- **Oracle-agnostic footprint endpoint** (the generalization of `prhl_instantiate_of_fvP`).
+    Relational (coupling) `A[eager] ≈ A[lazy]` for an invariant `P` under two *arbitrary*
+    hole-instantiations `eagerInst`/`lazyInst`, given (1) `A`'s own footprint `fvP_proc A` is
+    `P`-compatible (`FootprintCompat P (fvP_proc A)`) and (2) a per-hole coupling `hhole` (the oracle
+    call preserves the invariant).  Nothing about the specific oracle enters: this inlines the
+    `fvP → ConfinedP → LocP → coupling → prhl2` chain with `RO_eager`/`RO_lazy` replaced by the
+    given instantiations and `ro_hhole_prhl` replaced by `hhole`. -/
+theorem instantiate_of_fvP_gen {holes : HoleSigs} {sig : ProcedureSignature}
+    (eagerInst lazyInst : holes.Instantiation)
+    (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
+    (hcompat : FootprintCompat P (fvP_proc A))
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
+        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        GetOK P p →
+        (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
+            (ProgramDenotation.set x ret) (liftRelPost P)) →
+        ProgramDenotation.prhl2 (liftRel P)
+          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) :
+    ProgramDenotation.prhl2 P
+      (procedureDenotation (A.instantiate eagerInst) args)
+      (procedureDenotation (A.instantiate lazyInst) args)
+      (liftPost P) :=
+  prhl_wrapper_gen eagerInst lazyInst A args
+    (body_prhl2_gen A.body eagerInst lazyInst
+      (confinedP_locP (fvP_proc A) hcompat hc A.body
+        (confinedP_of_fv (fvP_proc A) hc A.body
+          (fvP_stmt_body_le_fvP_proc A)))
+      (fun n x p hp hx => hhole n x p hp hx))
+    (fun _ _ hpre => reads_equal_of_footprintCompat hcompat
+      (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
+
+/-- **Oracle-agnostic glob endpoint** — the oracle-agnostic *core* of `prhl_instantiate_of_glob`.
+    Relational (coupling) `A[eager] ≈ A[lazy]` for an invariant `P` under two *arbitrary*
+    hole-instantiations `eagerInst`/`lazyInst`, from a **footprint-disjointness** hypothesis against an
+    arbitrary *resettable* oracle region `O` (`hdisj : fvP_proc A ≤ Oᶜ`) plus the glob-split conditions
+    (`hrefine`/`hstable`) on `liftRel P` over the split into the outside-`O` content (`Oᶜ.touched_getter`)
+    and `O`'s content (`O.touched_getter`), a countability plumbing `hc`, and a per-hole coupling
+    `hhole`.
+
+    Instantiate with `(RO_eager, RO_lazy, roLift.footprint, ro_hhole_prhl h)` for the **random oracle**
+    (this is exactly how `prhl_instantiate_of_glob` is derived).  A **random-permutation oracle** would
+    be another instantiation: it supplies its own two hole-instantiations, its permutation-table region
+    as `O`, and its collision-avoiding per-hole coupling as `hhole`.  The middle
+    (`footprintCompat_of_glob` + `FootprintCompat.mono` + wrapper + body induction) is oracle-agnostic
+    and lives here; the caller supplies only the oracle-specific ingredients. -/
+theorem instantiate_of_glob_gen {holes : HoleSigs} {sig : ProcedureSignature}
+    (eagerInst lazyInst : holes.Instantiation)
+    (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
+    (O : Footprint (ProcedureState (sig.LocalVariableState A.locals)))
+    (hO : ∀ σ, O.HasReset σ)
+    (hdisj : fvP_proc A ≤ Oᶜ)
+    (hrefine : ∀ a b, liftRel P a b → Oᶜ.touched_getter.get a = Oᶜ.touched_getter.get b)
+    (hstable : ∀ a b u v, liftRel P a b →
+        Oᶜ.touched_getter.get u = Oᶜ.touched_getter.get v →
+        O.touched_getter.get u = O.touched_getter.get a →
+        O.touched_getter.get v = O.touched_getter.get b → liftRel P u v)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
+        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        GetOK P p →
+        (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
+            (ProgramDenotation.set x ret) (liftRelPost P)) →
+        ProgramDenotation.prhl2 (liftRel P)
+          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) :
+    ProgramDenotation.prhl2 P
+      (procedureDenotation (A.instantiate eagerInst) args)
+      (procedureDenotation (A.instantiate lazyInst) args)
+      (liftPost P) :=
+  instantiate_of_fvP_gen eagerInst lazyInst A args
+    (FootprintCompat.mono
+      (footprintCompat_of_glob (R := Oᶜ) (O := O)
+        (le_of_eq (Footprint.compl_compl _).symm) hO hrefine hstable)
+      hdisj)
+    hc hhole
+
 /-- **Theorem 2 — the entry point.**  Relational (coupling) lazy ≈ eager equivalence for an
     invariant `P`, for any adversary whose own footprint `fvP_proc A` (body + return) is
     `P`-compatible (`FootprintCompat P (fvP_proc A)`).  This is the weakest such hypothesis — only
     `A`'s actual footprint need be compatible, not a larger region — and it subsumes the explicit
     RO-disjointness premise (for the canonical RO-agreement `P`, `FootprintCompat P (fvP_proc A)`
-    *is* "`A` is disjoint from the random oracle").  Lens-free, `R`-free; inlines the whole
-    `fvP → ConfinedP → LocP → coupling → prhl2` chain. -/
+    *is* "`A` is disjoint from the random oracle").  Lens-free, `R`-free; the RO instantiation of the
+    oracle-agnostic `instantiate_of_fvP_gen`. -/
 theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
     (hcompat : FootprintCompat P (fvP_proc A))
@@ -429,13 +527,8 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
-  prhl_wrapper A args
-    (prhl_instantiate_body h A.body
-      (confinedP_locP (fvP_proc A) hcompat roHole_paramType_countable A.body
-        (confinedP_of_fv (fvP_proc A) roHole_paramType_countable A.body
-          (fvP_stmt_body_le_fvP_proc A))))
-    (fun _ _ hpre => reads_equal_of_footprintCompat hcompat
-      (ProgramDenotation.inFootprint_of_footprint_le (get_return_val_le_fvP_proc A)) hpre)
+  instantiate_of_fvP_gen RO_eager RO_lazy A args hcompat roHole_paramType_countable
+    (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
 
 
 /-- **The oracle content of a procedure state is the oracle table of its global**: `roLift` reads
@@ -469,33 +562,6 @@ theorem roLift_compl_get_iff {l : Type} (x y : ProcedureState l) :
     rw [show random_oracle_state.set t xg = yg from ht, show xl = yl from hloc]
 
 
-/-- **Bridge: FV's (global, syntactic) `fvP_proc` disjointness ⟹ the pipeline's (procedure-state,
-    semantic) disjointness.**  `FVP.fvP_proc A` (a `Footprint State`, the `globalL`-reduction of A's
-    *syntactic* footprint) over-approximates the pipeline's *semantic* `fvP_proc A` after reduction, so
-    a disjointness from `random_oracle_state` on the global state gives the disjointness from
-    `roLift = globalL.chain random_oracle_state` the confinement needs.  Two ingredients:
-    (1) **FV soundness** — the pipeline's semantic `fvP_stmt` is bounded by FV's syntactic one; and
-    (2) the **`reduce`/`chain` transfer** through `globalL` (where the locals drop out — they are `⊥`
-    to the oracle). -/
-theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
-    (A : ProcedureWithHoles holes sig)
-    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
-    fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ := by
-  -- `FVP.fvP_proc A = fvP_reduce globalL (FVP.fvP_stmt body) ⊔ fvP_reduce globalL (get return)`.
-  rw [show FVP.fvP_proc A =
-      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
-        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get A.return_val).footprint)
-      from rfl] at hdisj
-  -- `roLift = globalL.chain random_oracle_state`; both summands go via `reduce_chain_le_compl`.
-  show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
-      ≤ ((ProcedureState.globalL.chain random_oracle_state).footprint)ᶜ
-  refine sup_le ?_ ?_
-  · -- body: `fvP_reduce (fvP_stmt) ≤ fvP_reduce (FVP.fvP_stmt) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
-    refine reduce_chain_le_compl (le_trans (fvP_reduce_mono _ (fvP_stmt_le_FVP A.body)) ?_)
-    exact le_trans le_sup_left hdisj
-  · -- return: `fvP_reduce (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
-    exact reduce_chain_le_compl (le_trans le_sup_right hdisj)
-
 /-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, disjointness form, global invariant).
     Relational lazy ≈ eager for any adversary `A` whose footprint is **disjoint from the random
     oracle** (`hdisj : fvP_proc A ≤ (roLift _).footprintᶜ`), from two conditions on the **global**
@@ -525,24 +591,51 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
       (procedureDenotation (A.instantiate RO_eager) args)
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
-  prhl_instantiate_of_fvP A args
-    (FootprintCompat.mono
-      (footprintCompat_of_glob
-        (R := ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ)
-        (O := (roLift (sig.LocalVariableState A.locals)).footprint)
-        (le_of_eq (Footprint.compl_compl _).symm)
-        (fun σ => Lens.footprint_hasReset _ σ)
-        (fun a b hab =>
-          (Lens.footprint_compl_touched_getter_eq_iff _ a b).mpr
-            ((roLift_compl_get_iff a b).mpr ⟨hab.2, hrefine a.global b.global hab.1⟩))
-        (fun a b u v hab htouch hgu hgv => by
-          obtain ⟨hloc, hng⟩ := (roLift_compl_get_iff u v).mp
-            ((Lens.footprint_compl_touched_getter_eq_iff _ u v).mp htouch)
-          refine ⟨hstable a.global b.global u.global v.global hab.1 hng ?_ ?_, hloc⟩
-          · rw [← roLift_get_global u, ← roLift_get_global a]
-            exact (Lens.footprint_touched_getter_eq_iff _ u a).mp hgu
-          · rw [← roLift_get_global v, ← roLift_get_global b]
-            exact (Lens.footprint_touched_getter_eq_iff _ v b).mp hgv))
-      (fvP_proc_le_roLift_compl A hdisj)) h
+  instantiate_of_glob_gen RO_eager RO_lazy A args
+    (O := (roLift (sig.LocalVariableState A.locals)).footprint)
+    (fun σ => Lens.footprint_hasReset _ σ)
+    (fvP_proc_le_roLift_compl A hdisj)
+    (fun a b hab =>
+      (Lens.footprint_compl_touched_getter_eq_iff _ a b).mpr
+        ((roLift_compl_get_iff a b).mpr ⟨hab.2, hrefine a.global b.global hab.1⟩))
+    (fun a b u v hab htouch hgu hgv => by
+      obtain ⟨hloc, hng⟩ := (roLift_compl_get_iff u v).mp
+        ((Lens.footprint_compl_touched_getter_eq_iff _ u v).mp htouch)
+      refine ⟨hstable a.global b.global u.global v.global hab.1 hng ?_ ?_, hloc⟩
+      · rw [← roLift_get_global u, ← roLift_get_global a]
+        exact (Lens.footprint_touched_getter_eq_iff _ u a).mp hgu
+      · rw [← roLift_get_global v, ← roLift_get_global b]
+        exact (Lens.footprint_touched_getter_eq_iff _ v b).mp hgv)
+    roHole_paramType_countable
+    (fun n x p hp hx => ro_hhole_prhl h n x p hp hx)
+
+/-- **Output-decided game transfer for an abstract adversary** (the collision-resistance shape).  For
+    *any* adversary `A` disjoint from the oracle and *any* predicate `Win` on its result, the eager
+    and lazy instantiations couple so the win event coincides: `A` wins against the eager (real)
+    oracle **iff** against the lazy one.  Immediate from `prhl_instantiate_of_glob`, which equates the
+    two results (`u.1 = v.1`) — so *any* event decided by `A`'s output transfers, regardless of the
+    full oracle table.  **Collision resistance** is the instance where `Win r` reads "`r` is a
+    collision `A` produced" (e.g. two distinct queried inputs whose observed answers are equal). -/
+theorem output_win_transfer {sig : ProcedureSignature}
+    (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
+    (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ)
+    (hrefine : ∀ g₁ g₂ : state, P g₁ g₂ →
+        random_oracle_state.compl.get g₁ = random_oracle_state.compl.get g₂)
+    (hstable : ∀ g₁ g₂ g₁' g₂' : state, P g₁ g₂ →
+        random_oracle_state.compl.get g₁' = random_oracle_state.compl.get g₂' →
+        random_oracle_state.get g₁' = random_oracle_state.get g₁ →
+        random_oracle_state.get g₂' = random_oracle_state.get g₂ → P g₁' g₂')
+    (h : ∀ inp : input,
+        ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp) (liftPost P)) :
+    ProgramDenotation.prhl2 P
+      (procedureDenotation (A.instantiate RO_eager) args)
+      (procedureDenotation (A.instantiate RO_lazy) args)
+      (fun u v => Win u.1 ↔ Win v.1) :=
+  (prhl_instantiate_of_glob A args hdisj hrefine hstable h).conseq (fun _ _ hp => hp)
+    (fun _ _ hlift => by rw [hlift.1])
+
+/- The read-only-tests sketch that lived here is formalized in `GaudisCrypt/Footprint.lean`:
+`Footprint.testsOf`, `Footprint.indistinguishable` (with `indistinguishable_iff_testsOf`), and
+the touched-getter soundness `Footprint.indistinguishable_of_touched_getter_eq`. -/
 
 end GaudisCrypt.Lib.RO.Instantiate
