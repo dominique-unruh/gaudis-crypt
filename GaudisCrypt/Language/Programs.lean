@@ -8,7 +8,7 @@ namespace GaudisCrypt.Language.Programs
 
 open GaudisCrypt.Language.Lens
 open GaudisCrypt.Language.Semantics
-open GaudisCrypt.Footprint
+open GaudisCrypt
 
 class ProgramSpec : Type _ where
   state : Type u
@@ -16,7 +16,7 @@ class ProgramSpec : Type _ where
 class GranularProgramSpec extends ProgramSpec where
   granularity : Set (Footprint state)
   from_lenses : ∀ f ∈ granularity, f.FromLens
-  disjoint : ∀ f g ∈ granularity, f ≠ g → f.disjoint g
+  disjoint : ∀ f ∈ granularity, ∀ g ∈ granularity, f ≠ g → f ≤ gᶜ
 
 
 

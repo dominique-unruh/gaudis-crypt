@@ -4,6 +4,8 @@ import GaudisCrypt.Misc
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Lens
 
+-- TODO Namespace GaudisCrypt
+
 /-!
 # Probabilistic lens-ranges (`Footprint`)
 
