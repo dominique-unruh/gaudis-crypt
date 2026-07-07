@@ -13,14 +13,46 @@ open GaudisCrypt
 class ProgramSpec : Type _ where
   state : Type u
 
+def State [spec : ProgramSpec] := spec.state
+
 class GranularProgramSpec extends ProgramSpec where
   granularity : Set (Footprint state)
   from_lenses : ∀ f ∈ granularity, f.FromLens
   disjoint : ∀ f ∈ granularity, ∀ g ∈ granularity, f ≠ g → f ≤ gᶜ
 
+def IsGranularFootprint [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+  ∃ (F : Finset _), (∀ f ∈ F, f ∈ spec.granularity) ∧ f = sSup F
+
+def IsSubGranularFootprint [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+  ∃ (F : Finset _), (∀ f ∈ F, f ∈ spec.granularity) ∧ f ≤ sSup F
+
+structure GranularFootprint [spec : GranularProgramSpec] where
+  footprint : Footprint State
+  granular : IsGranularFootprint footprint
+
+instance [spec : GranularProgramSpec] LE (GranularFootprint) : LT (GranularFootprint) where
+  le f g := f.footprint ≤ g.footprint
+
+instance [spec : GranularProgramSpec] : OrderBot GranularFootprint where
+  bot := ⟨⊥, sorry⟩
+  bot_le _ _ := sorry
+
+-- Actually even a lower-complete lattice, but I don't recall the typeclass name for that
+instance : Lattice (GranularFootprint [spec : GranularProgramSpec])
+  sorry
+
+def IsSubGranularFootprint.granular (footprint : Footprint State) (h : IsSubGranularFootprint footprint) : GranularFootprint :=
+  sorry -- least granular footprint containing `footprint`
+
+theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) :
+  f.FromLens :=
+  sorry
+
+def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) : Lens State State :=
+  (h.fromLens f).lens
 
 
-def State [spec : ProgramSpec] := spec.state
+
 
 variable [ProgramSpec]
 
