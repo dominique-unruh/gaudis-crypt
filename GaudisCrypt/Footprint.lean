@@ -1612,3 +1612,5 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.bijection_footprint {a b : Type} (
         congr 1; funext y; rw [SubProbability.pure_bind, e.apply_symm_apply]
     _ = k σ := SubProbability.bind_pure (k σ)
 
+theorem Lens.footprint_fromLens {a b : Type} (l : Lens a b) : (l.footprint).FromLens := by
+  sorry

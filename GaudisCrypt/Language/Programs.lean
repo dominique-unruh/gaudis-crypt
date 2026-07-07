@@ -178,6 +178,7 @@ theorem Lens.pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {le
   (lens1.pair lens2).footprint.IsSubGranular :=
   sorry
 
+-- Using FV.pair_footprint ?
 theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (lens2 : Lens b State) [Lens.disjoint lens1 lens2]
   (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (Lens.pair_isSubGranular h1 h2).granular.footprint = h1.granular.footprint ⊔ h2.granular.footprint := sorry

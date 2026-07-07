@@ -1077,3 +1077,30 @@ theorem _root_.Footprint.FromLens.from_lens {a s : Type} (lens : Lens a s) :
   obtain ⟨f, hf⟩ := Footprint.touchedGetter_is_getter lens
   existsi lens.chain (Lens.bijection f)
   rw [Lens.chain_footprint, Lens.bijection_footprint, Lens.liftFootprint_top]
+
+/-- **The footprint of a paired lens is the join of the components' footprints.**
+
+    The `≥` direction is elementary: each component factors through the pair
+    (`pair_fst`/`pair_snd`), so its footprint is a `liftFootprint` of a sub-`⊤`
+    footprint, hence `≤` the pair's own footprint.
+
+    The `≤` direction is the **open product/"corner"-structure question** (see
+    `notes/REPORT.md` and `GranularFootprint`): a *joint* kernel on `a × b`
+    lifted through the pair must lie in the bicommutant of the union of the two
+    components' update sets. Left as `sorry` pending that structure theorem. -/
+theorem pair_footprint {a b m : Type} (x : Lens a m) (y : Lens b m) [disjoint x y] :
+    (Lens.pair x y).footprint = x.footprint ⊔ y.footprint := by
+  refine le_antisymm ?_ ?_
+  · -- OPEN: pair.footprint ≤ x.footprint ⊔ y.footprint (product/corner structure)
+    sorry
+  · refine sup_le ?_ ?_
+    · calc x.footprint
+          = (Lens.chain (Lens.pair x y) Lens.fst).footprint := by rw [pair_fst]
+        _ = (Lens.pair x y).liftFootprint Lens.fst.footprint := Lens.chain_footprint _ _
+        _ ≤ (Lens.pair x y).liftFootprint ⊤ := Lens.liftFootprint_mono _ le_top
+        _ = (Lens.pair x y).footprint := Lens.liftFootprint_top _
+    · calc y.footprint
+          = (Lens.chain (Lens.pair x y) Lens.snd).footprint := by rw [pair_snd]
+        _ = (Lens.pair x y).liftFootprint Lens.snd.footprint := Lens.chain_footprint _ _
+        _ ≤ (Lens.pair x y).liftFootprint ⊤ := Lens.liftFootprint_mono _ le_top
+        _ = (Lens.pair x y).footprint := Lens.liftFootprint_top _
