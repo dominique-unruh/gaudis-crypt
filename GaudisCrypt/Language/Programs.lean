@@ -51,7 +51,11 @@ theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint
 def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Footprint State} (h : IsGranularFootprint f) : Lens State State :=
   (h.fromLens f).lens
 
+theorem isSubGranularFootprint_closed_sup : [spec : GranularProgramSpec] {f g : Footprint State} (hf : IsSubGranularFootprint f) (hg : IsSubGranularFootprint g) :
+  IsSubGranularFootprint (f ⊔ g) :=
+  sorry
 
+-- Theorem: for disjoint lenses, the sup of their granular footprints is the granular footprint of their pair
 
 
 variable [ProgramSpec]
