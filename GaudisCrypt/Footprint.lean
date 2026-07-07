@@ -1587,19 +1587,6 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_top {a b : Type} (le
     lens.liftFootprint ⊤ = lens.footprint := by
     simp [Lens.liftFootprint, Lens.footprint, Top.top]
 
-/-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint.** -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_chain {a b c : Type}
-    (lens : Lens b c) (lens2 : Lens a b) (F : Footprint a) :
-    (lens.chain lens2).liftFootprint F = lens.liftFootprint (lens2.liftFootprint F) := by
-    sorry
-
-/-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint.** -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.chain_footprint {a b c : Type}
-    (lens : Lens b c) (lens2 : Lens a b) :
-    (lens.chain lens2).footprint = lens.liftFootprint lens2.footprint := by
-  simp [← Lens.liftFootprint_top, Lens.liftFootprint_chain]
-
-
 @[simp]
 theorem Lens.id_footprint :
   (Lens.id : Lens s s).footprint = ⊤ := by
@@ -1625,15 +1612,3 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.bijection_footprint {a b : Type} (
         congr 1; funext y; rw [SubProbability.pure_bind, e.apply_symm_apply]
     _ = k σ := SubProbability.bind_pure (k σ)
 
-theorem Footprint.FromLens.from_lens (lens : Lens a s) : Footprint.FromLens lens.footprint := by
-  wlog ne : Nonempty s
-  · -- if `s` is empty every kernel is `pure`, so all footprints coincide and any lens works
-    have hall : ∀ R S : Footprint s, R ≤ S := fun R S u _ => by
-      have hu : u = pure := funext fun σ => absurd ⟨σ⟩ ne
-      rw [hu]; exact S.id
-    exact ⟨{ get := fun σ => Quotient.mk _ σ, set := fun _ σ => σ,
-             set_get := fun σ _ => (ne ⟨σ⟩).elim, set_set := fun _ _ _ => rfl,
-             get_set := fun _ => rfl }, le_antisymm (hall _ _) (hall _ _)⟩
-  obtain ⟨f, hf⟩ := Footprint.touchedGetter_is_getter lens
-  existsi lens.chain (Lens.bijection f)
-  rw [Lens.chain_footprint, Lens.bijection_footprint, Lens.liftFootprint_top]
