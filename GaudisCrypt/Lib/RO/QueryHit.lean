@@ -847,8 +847,7 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
       rw [Footprint.compl_compl]
-      exact (Footprint.from_le_iff _ ow_challenge_x.footprint).mp le_rfl
-        ⟨Function.const _ x, rfl⟩
+      exact ow_challenge_x.diracKer_liftFunction_mem_footprint (Function.const _ x)
     -- Rewrite ow_challenge_x.set x σ = (ow_challenge_x.liftFunction (const x)) σ.
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
         = (ow_challenge_x.liftFunction (Function.const _ x)) σ := by
@@ -1115,8 +1114,8 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
           (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
           ∈ (((random_oracle_state.footprint : Footprint state)ᶜ)ᶜ).updates := by
         rw [Footprint.compl_compl]
-        exact (Footprint.from_le_iff _ random_oracle_state.footprint).mp le_rfl
-          ⟨fun h => fun k => if k = x then some y' else h k, rfl⟩
+        exact random_oracle_state.diracKer_liftFunction_mem_footprint
+          (fun h => fun k => if k = x then some y' else h k)
       exact ProgramDenotation.wp_shift_input_prob h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.
@@ -1731,8 +1730,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
       refine ⟨Set.mem_univ _, ?_⟩
       intro x
       rw [Footprint.compl_compl]
-      exact (Footprint.from_le_iff _ ow_challenge_x.footprint).mp le_rfl
-        ⟨Function.const _ x, rfl⟩
+      exact ow_challenge_x.diracKer_liftFunction_mem_footprint (Function.const _ x)
     have h_set_as_update : ∀ x : input, ow_challenge_x.set x σ
         = (ow_challenge_x.liftFunction (Function.const _ x)) σ := by
       intro x
@@ -2059,8 +2057,8 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
           (fun k => if k = x then some y' else random_oracle_state.get σ' k) σ')
           ∈ (((random_oracle_state.footprint : Footprint state)ᶜ)ᶜ).updates := by
         rw [Footprint.compl_compl]
-        exact (Footprint.from_le_iff _ random_oracle_state.footprint).mp le_rfl
-          ⟨fun h => fun k => if k = x then some y' else h k, rfl⟩
+        exact random_oracle_state.diracKer_liftFunction_mem_footprint
+          (fun h => fun k => if k = x then some y' else h k)
       exact ProgramDenotation.wp_shift_input_prob h_ow_adv h_shift_in _ σ
     simp_rw [h_shift]
     -- Pull sum and 1/|output| inside ow_adv.wp.

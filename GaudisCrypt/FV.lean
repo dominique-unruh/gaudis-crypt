@@ -667,25 +667,16 @@ private lemma centralizer_preimage_image_subset {M N : Type*} [Monoid M] [Monoid
 
 omit [ProgramSpec] in
 /-- A `diracKer` of a localized deterministic update is the `updateK` of the base `diracKer`
-    (so the `diracKer` generators of `lens.footprint` all sit inside the localized-kernel image). -/
+    (alias of `Lens.liftSubProbability_diracKer`, kept under the `updateK` naming of this file). -/
 lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
-    lens.liftSubProbability (diracKer g) = diracKer (lens.liftFunction g) := by
-  funext st
-  show (pure (g (lens.get st)) : SubProbability a) >>= (fun a' => pure (lens.set a' st))
-     = pure (lens.set (g (lens.get st)) st)
-  rw [SubProbability.pure_bind]
+    lens.liftSubProbability (diracKer g) = diracKer (lens.liftFunction g) :=
+  lens.liftSubProbability_diracKer g
 
 omit [ProgramSpec] in
-/-- **The cheap half of the lens-corner double-commutant theorem.** The bicommutant closure of the
-    full set of `lens`-localized kernels is exactly `lens.footprint`: the `diracKer` generators of
-    `lens.footprint` lie inside the localized image (`updateK_diracKer`), and every localized kernel
-    lies in `lens.footprint` (`Mlocalized_in_footprint`), so both sides share a bicommutant closure.
-
-    This is scaffolding toward closing `fvP_reduce_sup` / `fvP_extend_sup`.  The genuinely hard,
-    still-open part is that this image is *already* closed — i.e.
-    `lens.footprint.updates ⊆ lens.liftSubProbability '' univ` (every range element is a localized kernel) plus
-    injectivity of `updateK` — which together would give the lens-corner tensor/commutant
-    factorization the two `_sup` reverse directions need. -/
+/-- The bicommutant closure of the full set of `lens`-localized kernels is exactly
+    `lens.footprint`.  Since `Lens.footprint` is now *generated* by all localized kernels
+    (`Set.range lens.liftSubProbability = lens.liftSubProbability '' univ`), this is definitional
+    — what used to be the hard half of the lens-corner double-commutant theorem. -/
 theorem updateK_image_univ_cc {a s : Type} (lens : Lens a s) :
     Set.centralizer (Set.centralizer (lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a))))
       = lens.footprint.updates := by
