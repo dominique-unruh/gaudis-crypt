@@ -523,7 +523,7 @@ def Footprint.indistinguishable {m : Type _} (R : Footprint m) (σ σ' : m) : Pr
 
 -- def Footprint.indistinguishable {s : Type} (F : Footprint s) : Setoid s where
 --  r x y := ∀ f ∈ F.updates, (f x).ofEvent ⊤ = (f y).ofEvent ⊤
---  iseqv := sorry
+--  iseqv :=
 
 --def Footprint.read_glob (F : Footprint s) m : Quotient (Footprint.indistinguishable F) := Quotient.mk'' m
 
@@ -1612,5 +1612,64 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.bijection_footprint {a b : Type} (
         congr 1; funext y; rw [SubProbability.pure_bind, e.apply_symm_apply]
     _ = k σ := SubProbability.bind_pure (k σ)
 
+/-- **Reindexing a lens's domain by a bijection leaves its footprint unchanged.**  The lift
+    `(l.chain (bijection f)).liftSubProbability` has the same range as `l.liftSubProbability` — each
+    is obtained from the other by conjugating the kernel with `f`, a pure monad-law shuffle. -/
+theorem Lens.footprint_chain_bijection {a b c : Type} (l : Lens a b) (f : c ≃ a) :
+    (Lens.chain l (Lens.bijection f)).footprint = l.footprint := by
+  unfold Lens.footprint
+  congr 1
+  apply Set.eq_of_subset_of_subset
+  · rintro _ ⟨κ, rfl⟩
+    refine ⟨fun v => κ (f.symm v) >>= fun q => pure (f q), ?_⟩
+    funext x
+    change ((κ (f.symm (l.get x)) >>= fun q => pure (f q)) >>= fun a' => pure (l.set a' x))
+        = (κ (f.symm (l.get x)) >>= fun q => pure (l.set (f q) x))
+    rw [SubProbability.bind_assoc]
+    congr 1; funext q; rw [SubProbability.pure_bind]
+  · rintro _ ⟨κ', rfl⟩
+    refine ⟨fun w => κ' (f w) >>= fun a' => pure (f.symm a'), ?_⟩
+    funext x
+    change ((κ' (f (f.symm (l.get x))) >>= fun a' => pure (f.symm a'))
+            >>= fun q => pure (l.set (f q) x))
+        = (κ' (l.get x) >>= fun a' => pure (l.set a' x))
+    rw [Equiv.apply_symm_apply, SubProbability.bind_assoc]
+    congr 1; funext a'; rw [SubProbability.pure_bind, Equiv.apply_symm_apply]
+
+/-- Over an empty state type every footprint coincides: the only update kernel is `pure`. -/
+theorem Footprint.eq_of_isEmpty {m : Type} [IsEmpty m] (R S : Footprint m) : R = S := by
+  refine le_antisymm ?_ ?_ <;>
+  · intro f _
+    rw [show f = pure from funext fun x => isEmptyElim x]
+    first | exact S.id | exact R.id
+
+/-- **Footprint of a chained lens is the outer lens's lift of the inner footprint.**
+    `Lens.chain lens1 lens2` threads through `lens2` first and then `lens1`; the region it
+    touches in the outer state is `lens1.liftFootprint` applied to `lens2`'s footprint.
+
+    Only the `≤` direction is proved here (closure-monotonicity: the chain's generator range is
+    the `lens1`-image of `lens2`'s generator range, which sits inside the double-centralizer
+    closure).  The `≥` direction is open: it needs the corner/bicommutant-splitting structure of
+    `liftSubProbability`, i.e. that `lens1.liftSubProbability` maps the double-centralizer closure
+    of a generator set into the closure of its image. -/
+theorem Lens.footprint_chain {a b c : Type} (lens1 : Lens b c) (lens2 : Lens a b) :
+    (Lens.chain lens1 lens2).footprint = lens1.liftFootprint lens2.footprint := by
+  refine le_antisymm ?_ ?_
+  · unfold Lens.footprint Lens.liftFootprint
+    rw [Lens.liftSubProbability_chain, Set.range_comp]
+    refine Footprint.from_mono (Set.image_mono ?_)
+    rw [Footprint.from_updates]
+    exact Set.subset_centralizer_centralizer
+  · sorry
+
 theorem Lens.footprint_fromLens {a b : Type} (l : Lens a b) : (l.footprint).FromLens := by
-  sorry
+  -- TODO: once `Lens.footprint_chain` is proved, replace the `Nonempty` branch below with the
+  --   modular proof `(Lens.footprint_chain l (Lens.bijection f)).trans` chaining
+  --   `Lens.bijection_footprint` and `Lens.liftFootprint_top`, and then remove
+  --   `Lens.footprint_chain_bijection` (which only exists to sidestep the open `≥` direction).
+  rcases isEmpty_or_nonempty b with hb | hb
+  · exact ⟨{ get := isEmptyElim, set := fun _ => isEmptyElim,
+             set_get := fun _ s => isEmptyElim s, set_set := fun _ _ s => isEmptyElim s,
+             get_set := fun s => isEmptyElim s }, Footprint.eq_of_isEmpty _ _⟩
+  · obtain ⟨f, -⟩ := Footprint.touchedGetter_is_getter l
+    exact ⟨Lens.chain l (Lens.bijection f), (Lens.footprint_chain_bijection l f).symm⟩
