@@ -1090,40 +1090,157 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.compl_footprint {a s : Type} (l : 
     change l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
     rw [l.set_get, l.set_set]⟩
   refine le_antisymm ?_ (Lens.footprint_le_compl_of_disjoint l.compl l)
-  -- SUBSTANTIVE HALF: `(l.footprint)ᶜ ≤ l.compl.footprint`.  Every kernel commuting with all
-  -- `l`-updates must be an `l.compl`-lift — the complement dual of `footprint_updateK_image`
-  -- (which extracts `l.footprint` kernels as `l`-lifts).  Needs that extraction lemma for the
-  -- complement corner; not reducible to the easy `≥` half (the two inclusions are independent).
-  sorry
+  -- SUBSTANTIVE HALF: `(l.footprint)ᶜ ≤ l.compl.footprint`.  Every kernel `t` commuting with all
+  -- `l`-updates is the `l.compl`-lift of its own complement marginal: write-equivariance against
+  -- constant `l`-writes lets the surrounding overwrites reassemble `t` exactly.
+  intro t ht
+  by_cases hs : Nonempty s
+  · obtain ⟨σ₀⟩ := hs
+    -- write-equivariance of `t` against constant `l`-writes
+    have hequiv : ∀ (x : a) (σ : s), t (l.set x σ) = t σ >>= fun τ => pure (l.set x τ) := by
+      intro x σ
+      have hcomm := Submonoid.mem_centralizer_iff.mp ht
+        (diracKer (l.liftFunction (Function.const a x)))
+        (l.diracKer_liftFunction_mem_footprint (Function.const a x))
+      have h1 := congrFun hcomm σ
+      calc t (l.set x σ)
+          = (pure (l.set x σ) : SubProbability s) >>= t := by rw [SubProbability.pure_bind]
+        _ = t σ >>= fun τ => pure (l.set x τ) := h1.symm
+    -- `t` is the `l.compl`-lift of its complement marginal at `σ₀`
+    have hlift : l.compl.liftSubProbability
+        (fun q => t (l.compl.set q σ₀) >>= fun τ => pure (l.compl.get τ)) = t := by
+      funext σ
+      change (t (l.compl.set (l.compl.get σ) σ₀)
+              >>= fun τ => (pure (l.compl.get τ) : SubProbability l.ComplContent))
+          >>= (fun q => (pure (l.compl.set q σ) : SubProbability s)) = t σ
+      have e1 : l.compl.set (l.compl.get σ) σ₀ = l.set (l.get σ₀) σ := rfl
+      rw [e1, hequiv (l.get σ₀) σ, SubProbability.bind_assoc, SubProbability.bind_assoc]
+      have step : ∀ τ' : s,
+          ((pure (l.set (l.get σ₀) τ') : SubProbability s) >>= fun τ =>
+            (pure (l.compl.get τ) : SubProbability l.ComplContent) >>= fun q =>
+              (pure (l.compl.set q σ) : SubProbability s))
+          = pure (l.set (l.get σ) τ') := fun τ' => by
+        rw [SubProbability.pure_bind, SubProbability.pure_bind, compl_get_set]
+        rfl
+      have h2 : t σ >>= (fun τ' => (pure (l.set (l.get σ) τ') : SubProbability s)) = t σ :=
+        (hequiv (l.get σ) σ).symm.trans (congrArg t (l.get_set σ))
+      refine Eq.trans ?_ h2
+      congr 1
+      funext τ'
+      exact step τ'
+    rw [← hlift]
+    exact Mlocalized_in_footprint l.compl
+      (fun q => t (l.compl.set q σ₀) >>= fun τ => pure (l.compl.get τ))
+  · -- empty state: every kernel is `pure`
+    have ht' : t = pure := funext fun σ => absurd ⟨σ⟩ hs
+    rw [ht']
+    exact l.compl.footprint.id
 
 
 /-- **The complement of `Lens.fst`, as a footprint, is `Lens.snd`.** `(Lens.fst).compl`
     has abstract `ComplContent` type, so this is a footprint equality (via the getter
     that identifies `fst.compl.get` with `snd.get`), not a lens equality. -/
 theorem _root_.GaudisCrypt.Language.Lens.Lens.fst_compl_footprint {a b : Type} :
-    (Lens.fst : Lens a (a × b)).compl.footprint = (Lens.snd : Lens b (a × b)).footprint :=
-  sorry
+    (Lens.fst : Lens a (a × b)).compl.footprint = (Lens.snd : Lens b (a × b)).footprint := by
+  haveI : disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
+    ⟨fun st v w => by
+      induction v using Quotient.inductionOn
+      induction w using Quotient.inductionOn
+      rfl⟩
+  haveI : disjoint (Lens.snd : Lens b (a × b)) (Lens.fst : Lens a (a × b)) :=
+    ⟨fun _ _ _ => rfl⟩
+  refine le_antisymm ?_ ?_
+  · have h := Lens.footprint_le_compl_of_disjoint
+      (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl
+    rw [← Lens.compl_footprint (Lens.snd : Lens b (a × b)), Footprint.compl_compl] at h
+    exact h
+  · rw [← Lens.compl_footprint]
+    exact Lens.footprint_le_compl_of_disjoint _ _
 
 
 theorem disjoint_lenses_footprint_inf (l1 : Lens a s) (l2 : Lens b s) [disjoint l1 l2] :
   l1.footprint ⊓ l2.footprint = ⊥ := by
-  sorry
+  refine le_antisymm (fun u hu => ?_) bot_le
+  obtain ⟨hu1, hu2⟩ := hu
+  -- `⊥ = CC ∅` is the centre of the kernel monoid: show `u` commutes with every kernel.
+  show u ∈ (Footprint.from ∅).updates
+  rw [Footprint.from_updates]
+  refine Set.mem_centralizer_iff.mpr fun k _ => ?_
+  by_cases hs : Nonempty s
+  · obtain ⟨σ₀⟩ := hs
+    haveI : Nonempty s := ⟨σ₀⟩
+    haveI : ProgramSpec.{0} := ⟨PUnit⟩   -- vestigial section instance on the extraction lemma
+    -- extraction: `u` is an `l1`-localized kernel
+    obtain ⟨κ, hκ⟩ : ∃ κ, l1.liftSubProbability κ = u :=
+      ⟨_, FVP.footprint_updateK_image l1 σ₀ hu1⟩
+    -- `u` commutes with every `l1`-lift, hence `κ` is central in the base kernel monoid
+    haveI : disjoint l2 l1 := disjoint.symm ‹disjoint l1 l2›
+    have hcompl : u ∈ (l1.footprint)ᶜ.updates :=
+      Lens.footprint_le_compl_of_disjoint l2 l1 hu2
+    have hκcen : ∀ ρ : a → SubProbability a, κ * ρ = ρ * κ := fun ρ => by
+      have hcomm := Submonoid.mem_centralizer_iff.mp hcompl
+        (l1.liftSubProbability ρ) (Mlocalized_in_footprint l1 ρ)
+      refine updateK_injective l1 ?_
+      rw [updateK_mul, updateK_mul, hκ]
+      exact hcomm.symm
+    -- constant-mass transport: `κ v` is `κ (l1.get σ₀)` with the value overwritten
+    have htrans : ∀ v : a, κ v = κ (l1.get σ₀) >>= fun _ => pure v := fun v => by
+      have h := congrFun (hκcen (diracKer (Function.const a v))) (l1.get σ₀)
+      calc κ v
+          = (pure v : SubProbability a) >>= κ := by rw [SubProbability.pure_bind]
+        _ = κ (l1.get σ₀) >>= diracKer (Function.const a v) := h
+        _ = κ (l1.get σ₀) >>= fun _ => pure v := rfl
+    -- hence `u` is a mass-scaled identity …
+    have hu_form : ∀ σ : s, u σ = κ (l1.get σ₀) >>= fun _ => pure σ := fun σ => by
+      rw [← hκ]
+      show κ (l1.get σ) >>= (fun w => (pure (l1.set w σ) : SubProbability s)) = _
+      rw [htrans (l1.get σ), SubProbability.bind_assoc]
+      congr 1; funext _
+      rw [SubProbability.pure_bind, l1.get_set]
+    -- … and mass-scaled identities are central
+    funext σ
+    show u σ >>= k = k σ >>= u
+    rw [hu_form σ, SubProbability.bind_assoc]
+    calc (κ (l1.get σ₀) >>= fun _ => ((pure σ : SubProbability s) >>= k))
+        = κ (l1.get σ₀) >>= fun _ => k σ := by
+          congr 1; funext _; rw [SubProbability.pure_bind]
+      _ = k σ >>= fun τ => κ (l1.get σ₀) >>= fun _ => pure τ := by
+          rw [bind_swap (k σ) (κ (l1.get σ₀)) (fun _ τ => pure τ)]
+          congr 1; funext _
+          rw [SubProbability.bind_pure]
+      _ = k σ >>= u := by
+          congr 1; funext τ
+          rw [hu_form τ]
+  · exact funext fun σ => absurd ⟨σ⟩ hs
 
 
 private theorem pair_footprint_fst_snd :
     (Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint = ⊤ := by
-  have hsnd : (Lens.snd : Lens b (a×b)).footprint = ((Lens.fst : Lens a (a×b)).footprint)ᶜ := by
-    rw [Lens.compl_footprint]; exact Lens.fst_compl_footprint.symm
-  rw [hsnd]
-  /-
-  Proof sketch for the rest:
-  - (Lens.fst.footprint ⊔ Lens.fst.footprintᶜ)ᶜ =
-    Lens.snd.footprint ⊓  Lens.fst.footprint
-    = (by disjoint_lenses_footprint_inf)
-    ⊥ᶜ
-    = ⊤
-  -/
-  sorry
+  haveI : disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
+    ⟨fun st v w => by
+      induction v using Quotient.inductionOn
+      induction w using Quotient.inductionOn
+      rfl⟩
+  -- the complement of the join is the meet of the complement corners, which is trivial
+  have hcompl : ((Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint)ᶜ
+      = ⊥ := by
+    refine le_antisymm ?_ bot_le
+    refine le_trans (le_inf (Footprint.compl_le_compl le_sup_left)
+      (Footprint.compl_le_compl le_sup_right)) ?_
+    rw [Lens.compl_footprint, Lens.compl_footprint]
+    exact le_of_eq (disjoint_lenses_footprint_inf _ _)
+  -- `⊥ᶜ = ⊤`: everything commutes with the centre
+  have hbot : ((⊥ : Footprint (a × b))ᶜ : Footprint (a × b)) = ⊤ := by
+    refine le_antisymm le_top fun u _ => ?_
+    refine Submonoid.mem_centralizer_iff.mpr fun z hz => ?_
+    have hu : u ∈ Set.centralizer (∅ : Set ((a × b) → SubProbability (a × b))) :=
+      Set.mem_centralizer_iff.mpr fun m hm => absurd hm (Set.notMem_empty m)
+    exact (Set.mem_centralizer_iff.mp hz u hu).symm
+  calc (Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint
+      = (((Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint)ᶜ)ᶜ :=
+        (Footprint.compl_compl _).symm
+    _ = ((⊥ : Footprint (a × b))ᶜ : Footprint (a × b)) := by rw [hcompl]
+    _ = ⊤ := hbot
 
 /-- **The footprint of a paired lens is the join of the components' footprints.**
 
@@ -1131,23 +1248,20 @@ private theorem pair_footprint_fst_snd :
     (`pair_fst`/`pair_snd`), so its footprint is a `liftFootprint` of a sub-`⊤`
     footprint, hence `≤` the pair's own footprint.
 
-    The `≤` direction is the **open product/"corner"-structure question** (see
-    `notes/REPORT.md` and `GranularFootprint`): a *joint* kernel on `a × b`
-    lifted through the pair must lie in the bicommutant of the union of the two
-    components' update sets. Left as `sorry` pending that structure theorem. -/
+    The `≤` direction is the product/"corner"-structure theorem: lifting through the
+    pair distributes over `pair_footprint_fst_snd` via `Lens.liftFootprint_sup`, and the
+    two lifted corners are the component footprints by `chain_footprint` + `pair_fst`/`pair_snd`. -/
 theorem pair_footprint {a b m : Type} (x : Lens a m) (y : Lens b m) [disjoint x y] :
     (Lens.pair x y).footprint = x.footprint ⊔ y.footprint := by
-  refine le_antisymm ?_ ?_
-  · -- OPEN: pair.footprint ≤ x.footprint ⊔ y.footprint (product/corner structure)
-    sorry
-  · refine sup_le ?_ ?_
-    · calc x.footprint
-          = (Lens.chain (Lens.pair x y) Lens.fst).footprint := by rw [pair_fst]
-        _ = (Lens.pair x y).liftFootprint Lens.fst.footprint := Lens.chain_footprint _ _
-        _ ≤ (Lens.pair x y).liftFootprint ⊤ := Lens.liftFootprint_mono _ le_top
-        _ = (Lens.pair x y).footprint := Lens.liftFootprint_top _
-    · calc y.footprint
-          = (Lens.chain (Lens.pair x y) Lens.snd).footprint := by rw [pair_snd]
-        _ = (Lens.pair x y).liftFootprint Lens.snd.footprint := Lens.chain_footprint _ _
-        _ ≤ (Lens.pair x y).liftFootprint ⊤ := Lens.liftFootprint_mono _ le_top
-        _ = (Lens.pair x y).footprint := Lens.liftFootprint_top _
+  calc (Lens.pair x y).footprint
+      = (Lens.pair x y).liftFootprint ⊤ := (Lens.liftFootprint_top _).symm
+    _ = (Lens.pair x y).liftFootprint
+          ((Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint) := by
+        rw [pair_footprint_fst_snd]
+    _ = (Lens.pair x y).liftFootprint (Lens.fst : Lens a (a×b)).footprint
+          ⊔ (Lens.pair x y).liftFootprint (Lens.snd : Lens b (a×b)).footprint :=
+        Lens.liftFootprint_sup _ _ _
+    _ = (Lens.chain (Lens.pair x y) Lens.fst).footprint
+          ⊔ (Lens.chain (Lens.pair x y) Lens.snd).footprint := by
+        rw [← Lens.chain_footprint, ← Lens.chain_footprint]
+    _ = x.footprint ⊔ y.footprint := by rw [pair_fst, pair_snd]
