@@ -1078,6 +1078,53 @@ theorem _root_.Footprint.FromLens.from_lens {a s : Type} (lens : Lens a s) :
   existsi lens.chain (Lens.bijection f)
   rw [Lens.chain_footprint, Lens.bijection_footprint, Lens.liftFootprint_top]
 
+/-- **A lens footprint's complement is its complement lens's footprint.**
+    The `≤` inclusion `l.compl.footprint ≤ (l.footprint)ᶜ` already exists
+    (`Lens.footprint_le_compl_of_disjoint l.compl l`, used in `footprint_equivariant`);
+    the reverse `(l.footprint)ᶜ ≤ l.compl.footprint` is the substantive half. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.compl_footprint {a s : Type} (l : Lens a s) :
+    (l.footprint)ᶜ = l.compl.footprint := by
+  haveI : disjoint l.compl l := ⟨fun st v w => by
+    induction v using Quotient.inductionOn
+    rename_i u
+    change l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
+    rw [l.set_get, l.set_set]⟩
+  refine le_antisymm ?_ (Lens.footprint_le_compl_of_disjoint l.compl l)
+  -- SUBSTANTIVE HALF: `(l.footprint)ᶜ ≤ l.compl.footprint`.  Every kernel commuting with all
+  -- `l`-updates must be an `l.compl`-lift — the complement dual of `footprint_updateK_image`
+  -- (which extracts `l.footprint` kernels as `l`-lifts).  Needs that extraction lemma for the
+  -- complement corner; not reducible to the easy `≥` half (the two inclusions are independent).
+  sorry
+
+
+/-- **The complement of `Lens.fst`, as a footprint, is `Lens.snd`.** `(Lens.fst).compl`
+    has abstract `ComplContent` type, so this is a footprint equality (via the getter
+    that identifies `fst.compl.get` with `snd.get`), not a lens equality. -/
+theorem _root_.GaudisCrypt.Language.Lens.Lens.fst_compl_footprint {a b : Type} :
+    (Lens.fst : Lens a (a × b)).compl.footprint = (Lens.snd : Lens b (a × b)).footprint :=
+  sorry
+
+
+theorem disjoint_lenses_footprint_inf (l1 : Lens a s) (l2 : Lens b s) [disjoint l1 l2] :
+  l1.footprint ⊓ l2.footprint = ⊥ := by
+  sorry
+
+
+private theorem pair_footprint_fst_snd :
+    (Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint = ⊤ := by
+  have hsnd : (Lens.snd : Lens b (a×b)).footprint = ((Lens.fst : Lens a (a×b)).footprint)ᶜ := by
+    rw [Lens.compl_footprint]; exact Lens.fst_compl_footprint.symm
+  rw [hsnd]
+  /-
+  Proof sketch for the rest:
+  - (Lens.fst.footprint ⊔ Lens.fst.footprintᶜ)ᶜ =
+    Lens.snd.footprint ⊓  Lens.fst.footprint
+    = (by disjoint_lenses_footprint_inf)
+    ⊥ᶜ
+    = ⊤
+  -/
+  sorry
+
 /-- **The footprint of a paired lens is the join of the components' footprints.**
 
     The `≥` direction is elementary: each component factors through the pair
