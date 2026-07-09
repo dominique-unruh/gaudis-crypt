@@ -19,7 +19,7 @@ read or modify, together with the soundness bound `fvP (m.toModule) ≤ fvPMexpr
 open GaudisCrypt.Language.Modules
 open GaudisCrypt.Language.Modules.InductiveFunctions
 open GaudisCrypt.Language.Programs
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 
@@ -173,7 +173,7 @@ theorem kmul_prod_apply {a b : Type} (F G : a × b → SubProbability (a × b)) 
 instance [Nonempty s] (lens : Lens a s) : Nonempty lens.ComplContent :=
   ⟨Quotient.mk lens.equal_outside_setoid (Classical.arbitrary s)⟩
 
-@[reducible] def _root_.GaudisCrypt.Language.Lens.Lens.instContentNonempty [Nonempty s]
+@[reducible] def _root_.GaudisCrypt.Lens.instContentNonempty [Nonempty s]
     (lens : Lens a s) : Nonempty a := ⟨lens.get (Classical.arbitrary s)⟩
 
 lemma Footprint.empty_trivial (h : ¬ Nonempty a) (r s : Footprint a) : r = s := by
@@ -821,7 +821,7 @@ bicommutant closure adds nothing — is exactly the `FVP.fvP_extend_updates` ext
 
 /-- **A chained lens's footprint-lift composes**: lifting a base footprint through
     `lens.chain lens2` is lifting through `lens2` and then through `lens`. -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_chain {a b c : Type}
+theorem _root_.GaudisCrypt.Lens.liftFootprint_chain {a b c : Type}
     (lens : Lens b c) (lens2 : Lens a b) (F : Footprint a) :
     (lens.chain lens2).liftFootprint F = lens.liftFootprint (lens2.liftFootprint F) := by
   by_cases hb : Nonempty b
@@ -843,7 +843,7 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.liftFootprint_chain {a b c : Type}
     exact le_antisymm (hall _ _) (hall _ _)
 
 /-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint.** -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.chain_footprint {a b c : Type}
+theorem _root_.GaudisCrypt.Lens.chain_footprint {a b c : Type}
     (lens : Lens b c) (lens2 : Lens a b) :
     (lens.chain lens2).footprint = lens.liftFootprint lens2.footprint := by
   simp [← Lens.liftFootprint_top, Lens.liftFootprint_chain]
@@ -866,7 +866,7 @@ theorem _root_.Footprint.FromLens.from_lens {a s : Type} (lens : Lens a s) :
     The `≤` inclusion `l.compl.footprint ≤ (l.footprint)ᶜ` already exists
     (`Lens.footprint_le_compl_of_disjoint l.compl l`, used in `footprint_equivariant`);
     the reverse `(l.footprint)ᶜ ≤ l.compl.footprint` is the substantive half. -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.compl_footprint {a s : Type} (l : Lens a s) :
+theorem _root_.GaudisCrypt.Lens.compl_footprint {a s : Type} (l : Lens a s) :
     (l.footprint)ᶜ = l.compl.footprint := by
   haveI : disjoint l.compl l := ⟨fun st v w => by
     induction v using Quotient.inductionOn
@@ -924,7 +924,7 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.compl_footprint {a s : Type} (l : 
 /-- **The complement of `Lens.fst`, as a footprint, is `Lens.snd`.** `(Lens.fst).compl`
     has abstract `ComplContent` type, so this is a footprint equality (via the getter
     that identifies `fst.compl.get` with `snd.get`), not a lens equality. -/
-theorem _root_.GaudisCrypt.Language.Lens.Lens.fst_compl_footprint {a b : Type} :
+theorem _root_.GaudisCrypt.Lens.fst_compl_footprint {a b : Type} :
     (Lens.fst : Lens a (a × b)).compl.footprint = (Lens.snd : Lens b (a × b)).footprint := by
   haveI : disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
     ⟨fun st v w => by

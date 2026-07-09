@@ -2,7 +2,7 @@ import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.DetermFootprint
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!
@@ -1099,7 +1099,7 @@ obvious direction that any lift lives in the lens's range.
 /-- Lift an "inner" program along a lens: `L.lift P` runs `P` on the
     L-content of state and writes the result back, leaving the outside
     untouched. -/
-noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.lift {c s a : Type} (L : Lens c s) (P :
+noncomputable def _root_.GaudisCrypt.Lens.lift {c s a : Type} (L : Lens c s) (P :
     ProgramDenotation c a) :
     ProgramDenotation s a := fun σ =>
   P (L.get σ) >>= fun (xc : a × c) =>
@@ -1109,7 +1109,7 @@ noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.lift {c s a : Type} (L :
     inner program `ProgramDenotation c a`. The construction picks an arbitrary state
     to "pad" the inner input; `factor_of_inRange` shows this padding doesn't
     matter when `Adv.inRange L.range`. -/
-noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.factor {c s a : Type} [Nonempty s]
+noncomputable def _root_.GaudisCrypt.Lens.factor {c s a : Type} [Nonempty s]
     (L : Lens c s) (Adv : ProgramDenotation s a) : ProgramDenotation c a := fun c₀ =>
   Adv (L.set c₀ (Classical.arbitrary s)) >>= fun (xσ : a × s) =>
     (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))

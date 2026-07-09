@@ -1,7 +1,7 @@
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.ProgramRange
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-- Kleisli composition for `Option`: apply `g` first, then `f` on the result. -/

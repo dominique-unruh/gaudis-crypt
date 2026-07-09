@@ -43,7 +43,7 @@ Both obligations of the original skeleton are discharged, so the endpoint needs
 
 namespace GaudisCrypt.Lib.RO.Instantiate
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Programs
 

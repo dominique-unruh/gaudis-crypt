@@ -10,7 +10,7 @@ bounds (`wp_le_of_factors_footprint` and its 2- and 3-lens forms, `wp_strengthen
 Foundation for migrating the RO crypto stack off `DetermFootprint`/`inRange`.
 -/
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 

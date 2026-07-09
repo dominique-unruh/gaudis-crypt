@@ -6,7 +6,7 @@ import GaudisCrypt.Footprint
 
 namespace GaudisCrypt.Language.Programs
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt
 
@@ -173,13 +173,13 @@ theorem isSubGranularFootprint_closed_sup [spec : GranularProgramSpec] {f g : Fo
     sup_le (hf.choose_spec.trans (GranularFootprint.footprint_mono le_sup_left))
       (hg.choose_spec.trans (GranularFootprint.footprint_mono le_sup_right))⟩
 
-theorem Lens.pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {lens2 : Lens b State} [Lens.disjoint lens1 lens2]
+theorem Lens.pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {lens2 : Lens b State} [disjoint lens1 lens2]
   (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (lens1.pair lens2).footprint.IsSubGranular :=
   sorry
 
 -- Using FV.pair_footprint ?
-theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (lens2 : Lens b State) [Lens.disjoint lens1 lens2]
+theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (lens2 : Lens b State) [disjoint lens1 lens2]
   (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (Lens.pair_isSubGranular h1 h2).granular.footprint = h1.granular.footprint ⊔ h2.granular.footprint := sorry
 
@@ -263,14 +263,14 @@ def LocalVariableState.varsL {paramTypes : List Type}
 /-- Lift a lens into the parameter tuple to a lens into the full procedure state
 (`localL ∘ paramsL`).  Analogous to `Lens.ofst`.  (Defined in the `Lens` namespace via
 `_root_` so dot notation `lens.intoParams` resolves.) -/
-def _root_.GaudisCrypt.Language.Lens.Lens.intoParams {a : Type} {paramTypes : List Type}
+def _root_.GaudisCrypt.Lens.intoParams {a : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} (lens : Lens a (paramListToTuple paramTypes)) :
     Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=
   ProcedureState.localL.chain (LocalVariableState.paramsL.chain lens)
 
 /-- Lift a lens into the local-variable tuple to a lens into the full procedure state
 (`localL ∘ varsL`).  Analogous to `Lens.ofst`. -/
-def _root_.GaudisCrypt.Language.Lens.Lens.intoVars {a : Type} {paramTypes : List Type}
+def _root_.GaudisCrypt.Lens.intoVars {a : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
     (lens : Lens a (paramListToTuple (locals.map (·.fst)))) :
     Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=

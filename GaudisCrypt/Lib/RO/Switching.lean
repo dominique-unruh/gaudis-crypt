@@ -3,7 +3,7 @@ import GaudisCrypt.Logic.PRHL.Coupling
 import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Logic.PRHL.Loops
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

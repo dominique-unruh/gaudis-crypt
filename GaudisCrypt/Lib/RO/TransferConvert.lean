@@ -2,7 +2,7 @@ import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Footprint
 import GaudisCrypt.Logic.TransferBy
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

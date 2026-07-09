@@ -3,7 +3,7 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.GroupTheory.Submonoid.Centralizer
 import GaudisCrypt.Misc
 
-namespace GaudisCrypt.Language.Lens
+namespace GaudisCrypt
 
 /-- A read-only projection. Forgetting the setter of a `Lens` gives a `Getter`. -/
 @[ext]
@@ -387,4 +387,4 @@ example : Lens Nat  Nat                := Lens.insideTuple .here                
 -- Arbitrarily nested tuple `(Nat × Bool) × (String × Nat)`:
 example : Lens String ((Nat × Bool) × (String × Nat)) := Lens.insideTuple (.right (.left .here))
 
-end GaudisCrypt.Language.Lens
+end GaudisCrypt

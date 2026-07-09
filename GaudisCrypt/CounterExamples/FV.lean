@@ -9,7 +9,7 @@ import GaudisCrypt.ProgramRange
 open GaudisCrypt.Language.Modules
 open GaudisCrypt.Language.Modules.InductiveFunctions
 open GaudisCrypt.Language.Programs
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 namespace FV

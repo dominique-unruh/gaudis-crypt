@@ -1,7 +1,7 @@
 import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.Logic.EquivModuloLens
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 namespace GaudisCrypt.Language.Semantics
 
 /-!

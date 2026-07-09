@@ -93,7 +93,7 @@ accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, a
 
 namespace GaudisCrypt.Language.Syntax
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Programs
 open Lean
 
@@ -188,7 +188,7 @@ end GaudisCrypt.Language.Syntax
 
 namespace GaudisCrypt.Language.Syntax.Test
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Programs
 open GaudisCrypt.Language.Syntax
 
@@ -249,7 +249,7 @@ tuple matching the callee's `ParamType`.  (`hole` is still deferred.) -/
 
 namespace GaudisCrypt.Language.Syntax
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Programs
 
 variable [ProgramSpec]
@@ -631,7 +631,7 @@ end GaudisCrypt.Language.Syntax
 
 namespace GaudisCrypt.Language.Syntax.ProgTest
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Programs
 open GaudisCrypt.Language.Syntax
 

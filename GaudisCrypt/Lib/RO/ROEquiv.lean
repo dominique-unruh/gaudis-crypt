@@ -2,7 +2,7 @@ import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Lib.RO.OracleLoop
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-! ## Phase 4 — Oracle loops parameterised by an adversary

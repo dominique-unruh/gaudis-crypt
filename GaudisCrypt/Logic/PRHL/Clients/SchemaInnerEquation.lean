@@ -1,6 +1,6 @@
 import GaudisCrypt.Logic.PRHL
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

@@ -8,7 +8,7 @@ import GaudisCrypt.Language.Lens
 > Retained only for `CounterExamples` and not-yet-migrated consumers. New code: use `Footprint`.
 -/
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 
 -- Use  `Function.End m` instead of `m → m` and drop this instance.
 -- instance : Monoid (m → m) where
@@ -122,7 +122,7 @@ private theorem double_complement [Nonempty m] (lens : Lens a m) :
   induction q using Quotient.inductionOn with
   | h t => simp [Lens.compl, Lens.chain, double_complement_iso_lens, Quotient.lift_mk]
 
-def _root_.GaudisCrypt.Language.Lens.Lens.range (lens : Lens a m) : DetermFootprint m where
+def _root_.GaudisCrypt.Lens.range (lens : Lens a m) : DetermFootprint m where
   updates := Set.image lens.liftFunction ⊤
   id := ⟨_root_.id, Set.mem_univ _, funext fun x => lens.get_set x⟩
   comp := fun hf hg => by

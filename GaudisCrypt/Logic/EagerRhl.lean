@@ -189,7 +189,7 @@ theorem ProgramDenotation.eagerR_while {s : Type} {S : ProgramDenotation s Unit}
 /-- **Zoom-lifting**: an eager judgment on the inner state lifts along a lens
     (the blocks lift with it). -/
 theorem ProgramDenotation.eagerR_zoom {s t α : Type}
-    (lens : GaudisCrypt.Language.Lens.Lens s t)
+    (lens : GaudisCrypt.Lens s t)
     {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h : ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
       (fun u v : α × s => u = v)) :

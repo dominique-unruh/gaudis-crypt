@@ -1,6 +1,6 @@
 import GaudisCrypt.Logic.PRHL2
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 
 namespace GaudisCrypt.Language.Semantics
 

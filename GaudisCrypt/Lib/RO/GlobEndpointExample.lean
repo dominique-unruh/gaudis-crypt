@@ -46,7 +46,7 @@ real invariant fixes this.
 
 namespace GaudisCrypt.Lib.RO.Instantiate
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Programs
 

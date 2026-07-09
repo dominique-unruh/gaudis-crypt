@@ -16,7 +16,7 @@ monad-morphism lemmas, and the Footprint confinement core (`ConfinedP`, `fvP_stm
 
 namespace GaudisCrypt.Lib.RO.Instantiate
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Programs
 open Classical

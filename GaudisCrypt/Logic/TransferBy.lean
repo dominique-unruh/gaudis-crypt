@@ -1,7 +1,7 @@
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Footprint
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 
 namespace GaudisCrypt.Language.Semantics
 

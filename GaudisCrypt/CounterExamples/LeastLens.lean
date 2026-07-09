@@ -15,7 +15,7 @@ Shows that the following theorem is wrong:
 
 namespace GaudisCrypt.CounterExamples
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 
 def example_lens_1 : Lens bit (bit × bit × bit) where
   get := fun (x,y,z) => x + y

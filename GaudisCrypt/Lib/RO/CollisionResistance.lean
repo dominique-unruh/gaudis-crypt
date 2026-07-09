@@ -1,7 +1,7 @@
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.Birthday
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

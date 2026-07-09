@@ -1,7 +1,7 @@
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.CollisionResistance
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

@@ -4,7 +4,7 @@ import GaudisCrypt.Misc
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.SubProbability
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 
 namespace GaudisCrypt.Language.Semantics
 

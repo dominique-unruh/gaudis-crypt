@@ -1,6 +1,6 @@
 import GaudisCrypt.Language.Semantics
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

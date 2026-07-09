@@ -1,7 +1,7 @@
 import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.TransferConvert
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

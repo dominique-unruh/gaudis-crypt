@@ -1,6 +1,6 @@
 import GaudisCrypt.Lib.RO.OneWayness
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

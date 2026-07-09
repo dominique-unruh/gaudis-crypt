@@ -2,7 +2,7 @@ import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.Logic.EquivModuloLens
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-!

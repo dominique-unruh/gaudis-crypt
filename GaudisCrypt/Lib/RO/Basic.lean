@@ -14,7 +14,7 @@ import GaudisCrypt.ProgramRange
 import GaudisCrypt.Footprint
 import GaudisCrypt.ProbProgramRange
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 
 /-- The ambient state of the development. (Moved here from the former scratch

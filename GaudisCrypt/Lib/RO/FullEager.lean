@@ -32,7 +32,7 @@ precondition step exactly where EC's kernel threads `={glob D}`.
 
 namespace GaudisCrypt.Lib.RO.Instantiate
 
-open GaudisCrypt.Language.Lens
+open GaudisCrypt
 open GaudisCrypt.Language.Semantics
 open GaudisCrypt.Language.Programs
 
