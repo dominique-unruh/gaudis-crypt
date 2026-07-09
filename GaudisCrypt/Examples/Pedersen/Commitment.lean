@@ -123,13 +123,25 @@ moduletype Binder {
   proc bind (Value) -> Commitment × Message × OpeningKey × Message × OpeningKey;
 }
 
+/-- The `ModuleType` underlying `CommitmentScheme` (the right-nested product the
+    `moduletype` command generates), named so that functor types over it can be written. -/
+def CommitmentSchemeT : ModuleType :=
+  procmod () -> Value ×
+  procmod (Value, Message) -> (Commitment × OpeningKey) ×
+  procmod (Value, Message, Commitment, OpeningKey) -> Bool
+
+example : CommitmentScheme = Module CommitmentSchemeT := rfl
+
 /-! ## Experiments (parameterized modules)
 
-Each EC functor becomes a procedure with holes; the holes are the parameter modules'
-procedures. -/
+Each EC functor becomes a *module of arrow type* over `CommitmentSchemeT` (& co.): the body
+is a procedure with holes — the holes are the parameter modules' procedures — wrapped by
+`ModuleExpression.abs` into a closed functor module.  The lambda repackages the scheme
+product (declaration order, no unit) into the holes tuple (reverse order, `.unit`-terminated)
+with `fst`/`snd`/`pair`. -/
 
-/-- `Correctness(S).main(m)`: commit and verify honestly. -/
-noncomputable def Correctness := proc (m : Message) uses
+/-- The body of `Correctness(S)`: commit and verify honestly. -/
+noncomputable def Correctness.main := proc (m : Message) uses
     (gen : () → Value,
      commit : (Value, Message) → Commitment × OpeningKey,
      verify : (Value, Message, Commitment, OpeningKey) → Bool) : Bool {
@@ -141,6 +153,20 @@ noncomputable def Correctness := proc (m : Message) uses
   b <- call verify ($x, $m, ($cd).1, ($cd).2);
   return $b
 }
+
+/-- EC's `module Correctness (S : CommitmentScheme)`, as a functor module: apply it to a
+    scheme with `Correctness S` (module application). -/
+noncomputable def Correctness : Module (CommitmentSchemeT →ₘ procmod (Message) -> Bool) :=
+  (ModuleExpression.abs
+    (.app (.procHoles (by trivial) Correctness.main)
+      (.pair (.snd (.snd (.var .zero)))       -- verify
+        (.pair (.fst (.snd (.var .zero)))     -- commit
+          (.pair (.fst (.var .zero))          -- gen
+            .unit))))).toModule
+
+/-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
+noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
+  Correctness S
 
 /-- `HidingExperiment(S,U).main()`: the commitment shall not reveal which message was
     committed to. -/
