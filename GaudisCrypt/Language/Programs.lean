@@ -7,7 +7,7 @@ import GaudisCrypt.Footprint
 namespace GaudisCrypt
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 class ProgramSpec : Type _ where
   state : Type u

@@ -3,7 +3,7 @@ import GaudisCrypt.Footprint
 
 open GaudisCrypt
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # pRHL, version 2 — the literal explicit-coupling judgment
@@ -1534,4 +1534,4 @@ theorem ProgramDenotation.prhl2_of_lossless_tail {s α : Type}
   (ProgramDenotation.prhl2_of_lossless_tail_proj (fun _ => ()) hc
       (fun _ _ _ => rfl) heq).conseq (fun _ _ h => h) (fun _ _ h => h.1)
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

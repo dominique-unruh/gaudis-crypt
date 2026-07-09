@@ -10,7 +10,7 @@ open GaudisCrypt.Language.Modules
 open GaudisCrypt.Language.Modules.InductiveFunctions
 open GaudisCrypt
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 namespace FV
 

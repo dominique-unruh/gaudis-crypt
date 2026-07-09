@@ -15,7 +15,7 @@ import GaudisCrypt.Footprint
 import GaudisCrypt.ProbProgramRange
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-- The ambient state of the development. (Moved here from the former scratch
     `Unsorted.lean` so that the crypto layer doesn't depend on that file.) -/

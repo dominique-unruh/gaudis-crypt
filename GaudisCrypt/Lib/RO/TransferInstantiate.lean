@@ -12,7 +12,7 @@ point `ProgramDenotation.transfer_instantiate_of_fvP`.
 namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open GaudisCrypt
 open Classical
 
@@ -26,7 +26,7 @@ combinators, the Kleene `while_loop` closure, and the `zoom` lifting lemma
 (`convertL = zoom globalL convert`, and `zoom` is a monad morphism, so any
 state-level transfer lifts to a zoomed `ProcedureState` one). -/
 
-open GaudisCrypt.Language.Semantics.ProgramDenotation
+open GaudisCrypt.ProgramDenotation
   (transferBy transferBy_pure transferBy_bind transferBy_zoom)
 
 

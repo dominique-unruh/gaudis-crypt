@@ -1,7 +1,7 @@
 import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.ProgramRange
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # pRHL loop rules
@@ -72,12 +72,12 @@ lemma ProgramDenotation.rel.while_loop {s₁ s₂ : Type}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
     (h_cond : cond₁.rel cond₂ Inv (fun u v => u.1 = v.1 ∧ PostC u.1 u.2 v.2))
     (h_body : body₁.rel body₂ (PostC true) (fun u v => Inv u.2 v.2)) :
-    (GaudisCrypt.Language.Semantics.while_loop cond₁ body₁).rel (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂) Inv
+    (GaudisCrypt.while_loop cond₁ body₁).rel (GaudisCrypt.while_loop cond₂ body₂) Inv
       (fun u v => PostC false u.2 v.2) := by
   intro F G hFG σ₁ σ₂ hpre
   rw [wp_while]
   have hIle : (while_iteration_wp cond₁ body₁ () F).lfp
-      ≤ fun τ₁ => ⨅ τ₂, ⨅ (_ : Inv τ₁ τ₂), (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂).wp G τ₂ := by
+      ≤ fun τ₁ => ⨅ τ₂, ⨅ (_ : Inv τ₁ τ₂), (GaudisCrypt.while_loop cond₂ body₂).wp G τ₂ := by
     apply OrderHom.lfp_le
     intro τ₁
     refine le_iInf₂ fun τ₂ hinv => ?_
@@ -93,15 +93,15 @@ lemma ProgramDenotation.rel.while_loop {s₁ s₂ : Type}
       simp only [↓reduceIte]
       refine h_body _ _ ?_ t₁ t₂ hpc
       rintro ⟨u₁, w₁⟩ ⟨u₂, w₂⟩ hinv'
-      change (⨅ τ₂, ⨅ (_ : Inv w₁ τ₂), (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂).wp G τ₂)
-          ≤ (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂).wp G w₂
+      change (⨅ τ₂, ⨅ (_ : Inv w₁ τ₂), (GaudisCrypt.while_loop cond₂ body₂).wp G τ₂)
+          ≤ (GaudisCrypt.while_loop cond₂ body₂).wp G w₂
       exact iInf₂_le w₂ hinv'
     | false =>
       simp only [Bool.false_eq_true, ↓reduceIte]
       exact hFG _ _ hpc
   calc (while_iteration_wp cond₁ body₁ () F).lfp σ₁
-      ≤ ⨅ τ₂, ⨅ (_ : Inv σ₁ τ₂), (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂).wp G τ₂ := hIle σ₁
-    _ ≤ (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂).wp G σ₂ := iInf₂_le σ₂ hpre
+      ≤ ⨅ τ₂, ⨅ (_ : Inv σ₁ τ₂), (GaudisCrypt.while_loop cond₂ body₂).wp G τ₂ := hIle σ₁
+    _ ≤ (GaudisCrypt.while_loop cond₂ body₂).wp G σ₂ := iInf₂_le σ₂ hpre
 
 /-- Two-sided synchronized while rule. -/
 lemma ProgramDenotation.relE.while_loop {s₁ s₂ : Type}
@@ -110,7 +110,7 @@ lemma ProgramDenotation.relE.while_loop {s₁ s₂ : Type}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
     (h_cond : cond₁.relE cond₂ Inv (fun u v => u.1 = v.1 ∧ PostC u.1 u.2 v.2))
     (h_body : body₁.relE body₂ (PostC true) (fun u v => Inv u.2 v.2)) :
-    (GaudisCrypt.Language.Semantics.while_loop cond₁ body₁).relE (GaudisCrypt.Language.Semantics.while_loop cond₂ body₂) Inv
+    (GaudisCrypt.while_loop cond₁ body₁).relE (GaudisCrypt.while_loop cond₂ body₂) Inv
       (fun u v => PostC false u.2 v.2) := by
   constructor
   · exact ProgramDenotation.rel.while_loop h_cond.1 h_body.1
@@ -119,4 +119,4 @@ lemma ProgramDenotation.relE.while_loop {s₁ s₂ : Type}
     exact h_cond.2.conseq (fun _ _ h => h)
       (fun v u h => ⟨h.1.symm, h.1 ▸ h.2⟩)
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

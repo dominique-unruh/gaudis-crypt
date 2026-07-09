@@ -2,7 +2,7 @@ import GaudisCrypt.Language.Lens
 import GaudisCrypt.ProgramRange
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-- Kleisli composition for `Option`: apply `g` first, then `f` on the result. -/
 instance : Monoid (m → Option m) where
@@ -66,7 +66,7 @@ structure RelLensRange (m : Type*) where
 -- The Kleisli `Monoid (m → SubProbability m)` instance now lives canonically in
 -- `GaudisCrypt.Language.SubProbability` (imported transitively here).
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- Analogue of `DetermFootprint` where updates are sub-probability kernels `m → SubProbability m`
     composed via Kleisli composition for `SubProbability`. -/
 structure SubProbFootprint (m : Type _) where
@@ -76,7 +76,7 @@ structure SubProbFootprint (m : Type _) where
   double_commutant :
     (Submonoid.centralizer (Submonoid.centralizer updates).carrier).carrier = updates
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- Convert a vector of non-negative weights (summing to at most 1) into a
     sub-probability measure on a finite type.  The resulting measure assigns
     mass `v x` to the point `x`. -/
@@ -94,7 +94,7 @@ noncomputable def SubProbability.ofVector {a : Type*} [Fintype a]
     · rw [← MeasureTheory.Measure.sum_fintype]
       exact discreteMeasure_sum_dirac _⟩
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- Convert a column-sub-stochastic matrix (each column sums to at most 1) into a
     probabilistic function `b → SubProbability a`.  Column `j` of `M` gives the
     distribution `ofMatrix M hM j`.
@@ -108,7 +108,7 @@ noncomputable def SubProbability.ofMatrix {a b : Type*} [Fintype a]
 
 section SubProbabilityOfMatrixProperties
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 variable {a b : Type*} [Fintype a] [Fintype b] -- [DecidableEq a] [DecidableEq b]
 
@@ -208,7 +208,7 @@ end SubProbabilityOfMatrixProperties
 
 namespace CE1
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-- The matrix for `p` from Counterexample 1 (column convention: column `j` = distribution
     over outputs given input `j`).
@@ -247,7 +247,7 @@ theorem matrices_not_commute : p_matrix * q_matrix ≠ q_matrix * p_matrix := by
   simp [p_matrix, q_matrix, Matrix.mul_apply, Fin.sum_univ_three] at this
   norm_num at this
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- `p` and `q` do not commute in the Kleisli monoid,
     because `p_matrix` and `q_matrix` do not commute as matrices. -/
 theorem pq_not_commute : p * q ≠ q * p := by
@@ -281,7 +281,7 @@ def commuteMT {m : Type*} [Fintype m] [DecidableEq m]
     (M : Matrix m m NNReal) (f : Function.End m) : Prop :=
   M * functionMatrix f = functionMatrix f * M
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- A stochastic map `F : m → SubProbability m` commutes with a total function `f : m → m`
     if `F * (pure ∘ f) = (pure ∘ f) * F` in the Kleisli monoid,
     i.e., `∀ x, F (f x) = F x >>= fun y => pure (f y)`. -/
@@ -300,14 +300,14 @@ def commuteMP {m : Type*} [Fintype m] [DecidableEq m]
     (M : Matrix m m NNReal) (f : m → Option m) : Prop :=
   M * partialFunctionMatrix f = partialFunctionMatrix f * M
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- The sub-probability kernel of a partial function `f : m → Option m`:
     `f x = some y` maps to `pure y` (Dirac at `y`), and `f x = none` maps to `⊥` (the zero
     sub-probability measure). -/
 noncomputable def partialToKernel {m : Type*} (f : m → Option m) : m → SubProbability m :=
   fun x => (f x).elim ⊥ pure
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- A stochastic map `F : m → SubProbability m` commutes with a partial function
     `f : m → Option m` if `F * partialToKernel f = partialToKernel f * F` in the Kleisli monoid. -/
 def commuteSP {m : Type*} (F : m → SubProbability m) (f : m → Option m) : Prop :=
@@ -316,7 +316,7 @@ def commuteSP {m : Type*} (F : m → SubProbability m) (f : m → Option m) : Pr
 
 section CommuteSTReduction
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 variable {a : Type*} [Fintype a] [DecidableEq a]
 
@@ -372,7 +372,7 @@ end CommuteSTReduction
 
 section CommuteSPReduction
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 variable {a : Type*} [Fintype a] [DecidableEq a]
 
@@ -447,7 +447,7 @@ theorem commuteSP_ofMatrix_iff (M : Matrix a a NNReal) (hM : ∀ j, ∑ i, M i j
 end CommuteSPReduction
 
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- The deterministic bicommutant `C(C(S))` of a set of stochastic kernels `S`: the
     `Submonoid.centralizer` (in the composition monoid `m → m`) of the deterministic centralizer
     `Centralizer commuteST S`.  Returned as a `Set (m → m)` (the submonoid carrier) so it can
@@ -455,7 +455,7 @@ open GaudisCrypt.Language.Semantics in
 def hullST {m : Type*} (S : Set (m → SubProbability m)) : Set (Function.End m) :=
   (Submonoid.centralizer (Centralizer commuteST S)).carrier
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- The partial-function bicommutant `C(C(S))` of a set of stochastic kernels `S`: the
     `Submonoid.centralizer` (in the Kleisli-`Option` monoid `m → Option m`) of the partial
     centralizer `Centralizer commuteSP S`.  The partial analogue of `hullST`. -/
@@ -623,7 +623,7 @@ private lemma centralizer_carrier_eq' {m : Type*} (S : Set (Function.End m)) :
     (Submonoid.centralizer S).carrier = Set.centralizer S := by
   ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
 
-open GaudisCrypt.Language.Semantics in
+open GaudisCrypt in
 /-- `hullST S` is already double-commutant closed, i.e. it is a genuine `DetermFootprint`: the
     `DetermFootprint.from` it generates returns exactly `hullST S`.  This holds because `hullST S` is a
     single centralizer and `C∘C∘C = C` (`Set.centralizer_centralizer_centralizer`). -/
@@ -645,7 +645,7 @@ end CE1
 
 namespace CE2
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-- The matrix for `p` from Counterexample 2: the simple random walk on the 4-cycle
     `0-1-2-3-0` (column convention: column `j` is the output distribution from state `j`).

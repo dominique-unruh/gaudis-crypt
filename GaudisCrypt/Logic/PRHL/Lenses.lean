@@ -2,7 +2,7 @@ import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.Logic.EquivModuloLens
 
 open GaudisCrypt
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # pRHL lens rules: self-shift, framing, and the EquivModuloLens bridge
@@ -180,4 +180,4 @@ lemma ProgramDenotation.relE.to_equivModuloLens {s α γ : Type} {L : Lens γ s}
     _ = F (y.1, y.2) := by rw [hv, h1]
     _ = F y := rfl
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

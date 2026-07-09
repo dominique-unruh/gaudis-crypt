@@ -47,7 +47,7 @@ real invariant fixes this.
 namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open GaudisCrypt
 
 /-! ## Generic footprint helpers (chain footprints and their `globalL`-reduction) -/

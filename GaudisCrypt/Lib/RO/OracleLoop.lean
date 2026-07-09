@@ -2,7 +2,7 @@ import GaudisCrypt.Lib.RO.Basic
 import GaudisCrypt.Lib.RO.TransferConvert
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # Oracle loops

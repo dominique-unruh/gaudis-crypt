@@ -2,7 +2,7 @@ import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.CollisionResistance
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # One-wayness of the random oracle

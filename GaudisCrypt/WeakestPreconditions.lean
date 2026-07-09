@@ -1,7 +1,7 @@
 import GaudisCrypt.Language.Semantics
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # Discrete subprobability monad
@@ -9,7 +9,7 @@ open GaudisCrypt.Language.Semantics
 
 /-- Expected value of f under the distribution μ -/
 noncomputable
-def _root_.GaudisCrypt.Language.Semantics.SubProbability.expected (μ : SubProbability a) (f : a → ENNReal) : ENNReal :=
+def _root_.GaudisCrypt.SubProbability.expected (μ : SubProbability a) (f : a → ENNReal) : ENNReal :=
   ∫⁻ x, f x ∂μ.1
 
 theorem uniform_expected [Fintype a] [Nonempty a] (f : a → ENNReal) :
@@ -154,7 +154,7 @@ def ProgramDenotation.Post s a := a × s → ENNReal
 def ProgramDenotation.Pre s := s → ENNReal
 
 noncomputable
-def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.wp (prog : ProgramDenotation s a) (f :
+def _root_.GaudisCrypt.ProgramDenotation.wp (prog : ProgramDenotation s a) (f :
     ProgramDenotation.Post s a) : ProgramDenotation.Pre s :=
   fun st => (prog st).expected f
 

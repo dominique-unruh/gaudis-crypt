@@ -1,6 +1,6 @@
 import GaudisCrypt.ProgramRange
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # The birthday accumulation bound (generic)

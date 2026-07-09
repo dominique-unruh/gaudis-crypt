@@ -25,7 +25,7 @@ The development has three layers:
 namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open GaudisCrypt
 open Classical
 

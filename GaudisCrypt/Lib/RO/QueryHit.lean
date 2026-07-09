@@ -1,7 +1,7 @@
 import GaudisCrypt.Lib.RO.OneWayness
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # Deferred-sampling infrastructure for one-wayness

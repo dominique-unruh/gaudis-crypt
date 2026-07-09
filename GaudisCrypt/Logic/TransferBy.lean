@@ -3,7 +3,7 @@ import GaudisCrypt.Footprint
 
 open GaudisCrypt
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # The `transferBy` calculus
@@ -383,4 +383,4 @@ theorem ProgramDenotation.transferBy_marginal_invariant {s α β : Type}
     (fun aσ : α × s => (@MeasureTheory.Measure.dirac (α × β) ⊤ (aσ.1, h aσ.2)) A)
     (fun a σ => h_inv (fun b => (@MeasureTheory.Measure.dirac (α × β) ⊤ (a, b)) A) σ) σ₀
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

@@ -2,7 +2,7 @@ import GaudisCrypt.WeakestPreconditions
 
 open GaudisCrypt
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # pRHL core: a relational wp calculus for `ProgramDenotation`
@@ -460,4 +460,4 @@ lemma ite_sync {s₁ s₂ α β : Type} {c₁ c₂ : Prop} [Decidable c₁] [Dec
 
 end ProgramDenotation.relE
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

@@ -44,7 +44,7 @@ Both obligations of the original skeleton are discharged, so the endpoint needs
 namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open GaudisCrypt
 
 /-- The consume-side invariant: agreement on everything `A` may touch (`={glob A}`)

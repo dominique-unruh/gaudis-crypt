@@ -670,7 +670,7 @@ noncomputable def prog_while : Stmt Unit := GaudiProg[
 ]
 
 noncomputable def prog_sample : Stmt Unit := GaudiProg[
-  c <$ GaudisCrypt.Language.Semantics.SubProbability.uniform;
+  c <$ GaudisCrypt.SubProbability.uniform;
 ]
 
 noncomputable def split : Stmt Unit := GaudiProg[

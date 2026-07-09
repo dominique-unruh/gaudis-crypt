@@ -3,7 +3,7 @@ import GaudisCrypt.Logic.PRHL.Lenses
 import GaudisCrypt.Logic.PRHL.Loops
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # pRHL tactic layer (v1)

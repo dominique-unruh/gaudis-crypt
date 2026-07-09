@@ -17,7 +17,7 @@ monad-morphism lemmas, and the Footprint confinement core (`ConfinedP`, `fvP_stm
 namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open GaudisCrypt
 open Classical
 
@@ -127,7 +127,7 @@ noncomputable def RO_eager : roHoles.Instantiation
 /-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`.
 
 (`zoom` being a monad morphism — `ProgramDenotation.zoom_pure`/`zoom_bind` — now
-lives in `GaudisCrypt.Language.Semantics`; the `transferBy` lift `transferBy_zoom`
+lives in `GaudisCrypt`; the `transferBy` lift `transferBy_zoom`
 in `GaudisCrypt.Logic.TransferBy`.) -/
 
 theorem procDenotation_RO_eager (args : roSig.ParamType) :

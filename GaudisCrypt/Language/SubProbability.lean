@@ -2,7 +2,7 @@ import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
 import GaudisCrypt.Misc
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # Discrete subprobability monad
@@ -461,4 +461,4 @@ noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
     change (MeasureTheory.Measure.dirac x).bind (fun a => (f a).1) = (f x).1
     exact MeasureTheory.Measure.dirac_bind measurable_from_top x
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

@@ -28,7 +28,7 @@ metatheory); client derivations only ever *apply* it.
 namespace GaudisCrypt
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 variable [ProgramSpec]
 

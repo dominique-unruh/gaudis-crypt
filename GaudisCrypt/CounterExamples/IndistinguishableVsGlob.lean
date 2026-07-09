@@ -29,7 +29,7 @@ it is not a genuine memory region.  For lens footprints the two notions agree.
 
 namespace GaudisCrypt.CounterExamples
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open scoped ENNReal
 
 /-- Fair coin on `Bool`. -/

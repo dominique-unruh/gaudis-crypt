@@ -6,7 +6,7 @@ import GaudisCrypt.Language.SubProbability
 
 open GaudisCrypt
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # General stuff
@@ -293,7 +293,7 @@ instance : Compl (Footprint m) where
     by simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _⟩
 
 
-def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.inRange {s a : Type} (p :
+def _root_.GaudisCrypt.ProgramDenotation.inRange {s a : Type} (p :
     ProgramDenotation s a)
   (R : Footprint s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
@@ -308,11 +308,11 @@ def Footprint.from (generators : Set (m -> SubProbability m)) : Footprint m wher
     simp only [centralizer_carrier_eq']; exact Set.centralizer_centralizer_centralizer _
 
 /- The smallest DetermFootprint in which `p` lives. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.rangeUnit2 {s a : Type} (p
+noncomputable def _root_.GaudisCrypt.ProgramDenotation.rangeUnit2 {s a : Type} (p
     : ProgramDenotation s Unit)
   : Footprint s := Footprint.from { fun st => do let (_,st') <- p st; return st' }
 
-noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.range2 {s a : Type} (p :
+noncomputable def _root_.GaudisCrypt.ProgramDenotation.range2 {s a : Type} (p :
     ProgramDenotation s a)
   : Footprint s := Footprint.from { fun st => do let (x,st') <- p st; if (x ≠ y) then ⊥ else ⊤; return st' | y : a }
 
@@ -320,4 +320,4 @@ noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.range2
 
 -/
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

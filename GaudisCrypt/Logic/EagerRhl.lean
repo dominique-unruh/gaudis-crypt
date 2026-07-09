@@ -1,7 +1,7 @@
 import GaudisCrypt.Logic.TransferBy
 import GaudisCrypt.Logic.PRHL2
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # The eager relational judgment (EasyCrypt's `eager` logic)
@@ -314,4 +314,4 @@ theorem ProgramDenotation.eagerR_to_coupling {s α β : Type}
   ProgramDenotation.prhl2_of_lossless_tail_proj g hll hkeep
     ((ProgramDenotation.eagerR_eq_iff_transferBy S p q).mp h)
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

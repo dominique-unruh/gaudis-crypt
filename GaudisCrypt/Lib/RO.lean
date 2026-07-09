@@ -4,7 +4,7 @@ import GaudisCrypt.Lib.RO.OracleLoop
 import GaudisCrypt.Lib.RO.ROEquiv
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # Random oracle framework

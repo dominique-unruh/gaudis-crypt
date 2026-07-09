@@ -3,7 +3,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # OneWayness GameHop: Game 2 reduction

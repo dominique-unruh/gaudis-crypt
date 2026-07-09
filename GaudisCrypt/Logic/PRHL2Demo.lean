@@ -2,7 +2,7 @@ import GaudisCrypt.Logic.PRHL2
 
 open GaudisCrypt
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # Demonstration: one-time-pad perfect secrecy via `prhl2`
@@ -221,4 +221,4 @@ theorem double_hash_cr_bound {α s : Type} [DecidableEq α] [Countable α] [Coun
     σ σ rfl
   rwa [ProgramDenotation.bind_pure] at key
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

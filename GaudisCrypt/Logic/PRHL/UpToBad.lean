@@ -1,7 +1,7 @@
 import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.ProgramRange
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # pRHL up-to-bad and rectangular rules
@@ -108,4 +108,4 @@ lemma ProgramDenotation.rel.of_unary {s₁ s₂ α β : Type}
             exact zero_le
   exact hstep1.trans hstep2
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

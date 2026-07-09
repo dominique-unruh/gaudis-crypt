@@ -1,7 +1,7 @@
 import GaudisCrypt.Logic.PRHL.Core
 import GaudisCrypt.Logic.PRHL.Coupling
 
-namespace GaudisCrypt.Language.Semantics
+namespace GaudisCrypt
 
 /-!
 # pRHL with couplings as the primitive judgment (CLAUDE.md subtask 3)
@@ -395,4 +395,4 @@ example :
       cases h
       rfl))
 
-end GaudisCrypt.Language.Semantics
+end GaudisCrypt

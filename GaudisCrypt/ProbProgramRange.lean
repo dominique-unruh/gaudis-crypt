@@ -11,7 +11,7 @@ Foundation for migrating the RO crypto stack off `DetermFootprint`/`inRange`.
 -/
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 
 /-- **`wp_shift_input` over `Footprint`** — countability-free. The probabilistic analogue of

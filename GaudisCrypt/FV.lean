@@ -20,7 +20,7 @@ open GaudisCrypt.Language.Modules
 open GaudisCrypt.Language.Modules.InductiveFunctions
 open GaudisCrypt
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 
 /-! # fvP_extend_sup -/
@@ -381,7 +381,7 @@ variable [ProgramSpec]
 /-- Family version of `ProgramDenotation.footprint`: the supremum of the per-input ranges. Used to
 give a setter (which is a *family* `a → ProgramDenotation s Unit`, one program per written value) a
 single footprint. -/
-noncomputable def _root_.GaudisCrypt.Language.Semantics.ProgramDenotation.footprint'
+noncomputable def _root_.GaudisCrypt.ProgramDenotation.footprint'
     {s a b : Type} (progs : a → ProgramDenotation s b) : Footprint s :=
   ⨆ x, (progs x).footprint
 

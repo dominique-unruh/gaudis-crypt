@@ -7,7 +7,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game1
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game2
 
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # One-wayness via game hopping

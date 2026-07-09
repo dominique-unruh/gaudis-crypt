@@ -3,7 +3,7 @@ import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.Logic.EquivModuloLens
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # OneWayness GameHop: Definitions

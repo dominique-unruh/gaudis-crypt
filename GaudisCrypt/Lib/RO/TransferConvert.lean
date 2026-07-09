@@ -3,7 +3,7 @@ import GaudisCrypt.Footprint
 import GaudisCrypt.Logic.TransferBy
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # Lazy/eager transfer

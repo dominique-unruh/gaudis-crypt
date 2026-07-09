@@ -3,7 +3,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Logic.PRHL
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 
 /-!
 # OneWayness GameHop: Up-to-Bad Hop (Game 1 → Game 2), relationally

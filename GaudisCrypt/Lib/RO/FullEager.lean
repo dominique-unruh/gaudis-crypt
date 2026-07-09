@@ -33,7 +33,7 @@ precondition step exactly where EC's kernel threads `={glob D}`.
 namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
-open GaudisCrypt.Language.Semantics
+open GaudisCrypt
 open GaudisCrypt
 
 /-! ## Applied forms of the RO primitives -/
