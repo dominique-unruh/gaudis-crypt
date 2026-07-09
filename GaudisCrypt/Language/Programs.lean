@@ -42,10 +42,10 @@ def GranularFootprint.footprint [spec : GranularProgramSpec]
     (F : GranularFootprint) : Footprint spec.state :=
   sSup F.grains
 
-def _root_.Footprint.IsGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+def _root_.GaudisCrypt.Footprint.IsGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
   ∃ (F : GranularFootprint), f = GranularFootprint.footprint F
 
-def _root_.Footprint.IsSubGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+def _root_.GaudisCrypt.Footprint.IsSubGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
   ∃ (F : GranularFootprint), f ≤ GranularFootprint.footprint F
 
 /-- **Atomicity of the granularity**: a granularity element below the join of a finite
@@ -123,7 +123,7 @@ open Classical in
     alone already cover `footprint` needs the product-corner structure theorem.  Minimality —
     no strict sub-family of the returned one covers — holds by construction;
     see `IsSubGranularFootprint.le_granular`.) -/
-noncomputable def _root_.Footprint.IsSubGranular.granular [spec : GranularProgramSpec]
+noncomputable def _root_.GaudisCrypt.Footprint.IsSubGranular.granular [spec : GranularProgramSpec]
     (footprint : Footprint State) (h : footprint.IsSubGranular) : GranularFootprint :=
   let grains := { f ∈ spec.granularity | ¬ footprint ≤ fᶜ }
   have finite : grains.Finite := by
@@ -143,7 +143,7 @@ noncomputable def _root_.Footprint.IsSubGranular.granular [spec : GranularProgra
 
 open Classical in
 /-- The minimal granular cover contains what it covers. -/
-theorem _root_.Footprint.IsSubGranular.le_granular [spec : GranularProgramSpec]
+theorem _root_.GaudisCrypt.Footprint.IsSubGranular.le_granular [spec : GranularProgramSpec]
     (footprint : Footprint State) (h : footprint.IsSubGranular) :
     footprint ≤ (Footprint.IsSubGranular.granular footprint h).footprint :=
   /- (Finset.mem_filter.mp

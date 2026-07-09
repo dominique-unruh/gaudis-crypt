@@ -2,9 +2,8 @@ import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Misc
 
 open GaudisCrypt.Language.Semantics
-open GaudisCrypt
 
--- TODO Namespace GaudisCrypt
+namespace GaudisCrypt
 
 /-!
 # Probabilistic lens-ranges (`Footprint`)
@@ -1877,3 +1876,5 @@ theorem Lens.footprint_fromLens {a b : Type} (l : Lens a b) : (l.footprint).From
     -- has footprint `⊤` and `l.liftFootprint ⊤ = l.footprint`.
     refine ⟨Lens.chain l (Lens.bijection f), ?_⟩
     rw [Lens.footprint_chain, Lens.bijection_footprint, Lens.liftFootprint_top]
+
+end GaudisCrypt

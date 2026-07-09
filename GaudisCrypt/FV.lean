@@ -176,7 +176,7 @@ instance [Nonempty s] (lens : Lens a s) : Nonempty lens.ComplContent :=
 @[reducible] def _root_.GaudisCrypt.Lens.instContentNonempty [Nonempty s]
     (lens : Lens a s) : Nonempty a := ⟨lens.get (Classical.arbitrary s)⟩
 
-lemma Footprint.empty_trivial (h : ¬ Nonempty a) (r s : Footprint a) : r = s := by
+lemma _root_.GaudisCrypt.Footprint.empty_trivial (h : ¬ Nonempty a) (r s : Footprint a) : r = s := by
   haveI : IsEmpty a := not_nonempty_iff.mp h
   apply footprint_eq_of_updates
   ext f
@@ -703,7 +703,7 @@ program spec. -/
 /-- **Complement is order-reversing on `Footprint`** (`le`/`compl` swap): `R ≤ Sᶜ ↔ S ≤ Rᶜ`.
     Both sides say every `R`-update commutes with every `S`-update, so the relation is symmetric in
     `R`, `S`. -/
-theorem Footprint.le_compl_comm {m : Type} (R S : Footprint m) : R ≤ Sᶜ ↔ S ≤ Rᶜ := by
+theorem _root_.GaudisCrypt.Footprint.le_compl_comm {m : Type} (R S : Footprint m) : R ≤ Sᶜ ↔ S ≤ Rᶜ := by
   constructor <;>
   · intro h
     intro k hk
@@ -848,7 +848,7 @@ theorem _root_.GaudisCrypt.Lens.chain_footprint {a b c : Type}
     (lens.chain lens2).footprint = lens.liftFootprint lens2.footprint := by
   simp [← Lens.liftFootprint_top, Lens.liftFootprint_chain]
 
-theorem _root_.Footprint.FromLens.from_lens {a s : Type} (lens : Lens a s) :
+theorem _root_.GaudisCrypt.Footprint.FromLens.from_lens {a s : Type} (lens : Lens a s) :
     Footprint.FromLens lens.footprint := by
   wlog ne : Nonempty s
   · -- if `s` is empty every kernel is `pure`, so all footprints coincide and any lens works
