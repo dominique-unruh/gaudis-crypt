@@ -1659,7 +1659,6 @@ lemma Lens.splitSpace_invFun_set {a b} (lens : Lens a b) (m a' : a) (c : lens.Co
         Quotient.sound ⟨lens.get (lens.splitSpace.invFun (m, c)), by rw [lens.set_set, lens.get_set]⟩,
       Lens.splitSpace_invFun_compl_get]
 
--- TODO: check name
 /-- Post-composing with a localized kernel, evaluated pointwise. -/
 private lemma mul_updateK_apply {a b} (lens : Lens a b) (f : b → SubProbability b)
     (h : a → SubProbability a) (s : b) :
@@ -1668,7 +1667,6 @@ private lemma mul_updateK_apply {a b} (lens : Lens a b) (f : b → SubProbabilit
   change lens.liftSubProbability h s >>= f = _
   simp only [Lens.liftSubProbability, SubProbability.bind_assoc, SubProbability.pure_bind]
 
--- TODO: check name
 /-- Pre-composing with a localized kernel, evaluated pointwise. -/
 private lemma updateK_mul_apply {a b} (lens : Lens a b) (f : b → SubProbability b)
     (h : a → SubProbability a) (s : b) :
@@ -1827,7 +1825,6 @@ theorem Lens.reduceSubProbability_ext {a b : Type} (lens : Lens a b) (K L : b �
       splitSpace_eq s₀] at hcomm
   rw [hcomm]
 
--- TODO: check name
 lemma updateK_image_cc_subset {a b : Type} (lens : Lens a b)
     (W : Set (a → SubProbability a)) :
     lens.liftSubProbability '' Set.centralizer (Set.centralizer W)
@@ -1868,7 +1865,7 @@ theorem Lens.footprint_chain {a b c : Type} (lens1 : Lens b c) (lens2 : Lens a b
   · unfold Lens.footprint Lens.liftFootprint
     rw [Lens.liftSubProbability_chain, Set.range_comp, Footprint.from_updates,
         Footprint.from_le_iff, Footprint.from_updates]
-    exact updateK_image_cc_subset lens1 (Set.range lens2.liftSubProbability)
+    exact Lens.liftSubProbability_double_commutant lens1 (Set.range lens2.liftSubProbability)
 
 theorem Lens.footprint_fromLens {a b : Type} (l : Lens a b) : (l.footprint).FromLens := by
   rcases isEmpty_or_nonempty b with hb | hb

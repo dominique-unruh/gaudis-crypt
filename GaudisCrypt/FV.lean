@@ -191,7 +191,7 @@ lemma Footprint.empty_trivial (h : ¬ Nonempty a) (r s : Footprint a) : r = s :=
 /-- **`Lens.liftFootprint` distributes over joins** (i.e. `extend` is a join-homomorphism), for an arbitrary
 lens. The reverse (`≥`) direction is monotonicity; the hard (`≤`) direction reduces — exactly as in
 `fvP_extend_sup_simpler` — to the extend-side double-commutant inclusion, here in its general form
-`updateK_image_cc_subset`. -/
+`Lens.liftSubProbability_double_commutant`. -/
 theorem Lens.liftFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint a) :
     Lens.liftFootprint lens (r₁ ⊔ r₂) = Lens.liftFootprint lens r₁ ⊔ Lens.liftFootprint lens r₂ := by
   wlog ne : Nonempty b; { apply Footprint.empty_trivial ne }
@@ -200,7 +200,7 @@ theorem Lens.liftFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint a)
   unfold Lens.liftFootprint
   rw [footprint_from_union, ← Set.image_union, footprint_sup_updates,
       Footprint.from_le_iff, Footprint.from_updates]
-  exact updateK_image_cc_subset lens _
+  exact Lens.liftSubProbability_double_commutant lens _
 
 /-- **`Lens.liftFootprint` distributes over arbitrary indexed suprema.**
     Generalises `Lens.liftFootprint_sup` from binary joins to indexed families. -/
@@ -225,7 +225,7 @@ theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
   rw [hiSup_rs, hiSup_lift]
   calc lens.liftSubProbability '' Set.centralizer (Set.centralizer (⋃ i, (rs i).updates))
       ⊆ Set.centralizer (Set.centralizer (lens.liftSubProbability '' ⋃ i, (rs i).updates)) :=
-          updateK_image_cc_subset lens _
+          Lens.liftSubProbability_double_commutant lens _
     _ = Set.centralizer (Set.centralizer (⋃ i, lens.liftSubProbability '' (rs i).updates)) := by
           rw [Set.image_iUnion]
     _ ⊆ Set.centralizer (Set.centralizer (⋃ i, (Lens.liftFootprint lens (rs i)).updates)) :=
