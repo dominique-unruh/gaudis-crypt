@@ -6,7 +6,7 @@ import Metatheory.STLCext.Confluence
 
 namespace GaudisCrypt.Language.Modules
 
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 
 variable [ProgramSpec]
 
@@ -34,7 +34,7 @@ def ModuleContextIdx.toNat : ModuleContextIdx Γ T → Nat
 | .zero => 0
 | .succ n => Nat.succ (n.toNat)
 
-def _root_.GaudisCrypt.Language.Programs.HoleSigs.toModuleTypeTuple : HoleSigs → ModuleType
+def _root_.GaudisCrypt.HoleSigs.toModuleTypeTuple : HoleSigs → ModuleType
 | .empty => .unit
 | .append holes sig => .prod (.proc sig) holes.toModuleTypeTuple
 
@@ -421,12 +421,12 @@ def substitute (body : ModuleExpression (Δ.append u) t) (arg : ModuleExpression
   substituteSimultaneously (variableSubstitution arg) body
 
 /-- Convert a `HoleSigs.Instantiation` into the corresponding module-expression tuple. -/
-def _root_.GaudisCrypt.Language.Programs.HoleSigs.Instantiation.toModuleTuple {Δ : ModuleContext} :
+def _root_.GaudisCrypt.HoleSigs.Instantiation.toModuleTuple {Δ : ModuleContext} :
     {holes : HoleSigs} → holes.Instantiation → ModuleExpression Δ holes.toModuleTypeTuple
   | .empty,       _    => .unit
   | .append _ _, inst =>
       .pair (.proc (inst .zero))
-            (GaudisCrypt.Language.Programs.HoleSigs.Instantiation.toModuleTuple
+            (GaudisCrypt.HoleSigs.Instantiation.toModuleTuple
               (fun idx => inst (.succ idx)))
 
 /-- Non-deterministic single-step reduction: all possible one-step reductions. -/
@@ -931,7 +931,7 @@ def basicTermHoleLookup : (holes : HoleSigs) →
       | .succ m => basicTermHoleLookup Γ rest m
 
 open Metatheory.STLCext in
-noncomputable def _root_.GaudisCrypt.Language.Programs.ProcedureWithHoles.toSTLC {holes sig}
+noncomputable def _root_.GaudisCrypt.ProcedureWithHoles.toSTLC {holes sig}
   (proc : ProcedureWithHoles holes sig) : Term :=
     let inputType := holes.toModuleTypeTuple.toSTLC
     let outputType := (ModuleType.proc sig).toSTLC

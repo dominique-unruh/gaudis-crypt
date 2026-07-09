@@ -18,7 +18,7 @@ namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
 open GaudisCrypt.Language.Semantics
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 open Classical
 
 
@@ -198,7 +198,7 @@ hole, and `procedureDenotation _ args : ProgramDenotation state sig.ret` runs th
 the RO global `state`. -/
 
 /-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body
-    (`procWrap` now lives in `GaudisCrypt.Language.Programs`). -/
+    (`procWrap` now lives in `GaudisCrypt`). -/
 theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (inst : roHoles.Instantiation) :
     procedureDenotation (A.instantiate inst) args

@@ -1,7 +1,7 @@
 import GaudisCrypt.Language.Modules
 
 open GaudisCrypt.Language.Modules
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 open GaudisCrypt
 
 namespace GaudisCrypt.Language.Modules.InductiveFunctions

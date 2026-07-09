@@ -129,7 +129,7 @@ whose least upper bound doesn't exist as a lens). Not used elsewhere.
 New content should use it.)
 
 * Files are named after the topic they introduce, singular preferred. (E.g., `Lens.lean`.)
-* All our files use namespace `GaudisCrypt`.
+* All our files use namespace `GaudisCrypt`. (Except for the files under `Counterexamples`.)
 * All types (such as `Lens`, `Procedure`) are defined directly inside `GaudisCrypt`.
 * Theorems, definitions, etc. that relate to an existing type `T` in some way are in the subnamespace `GaudisCrypt.T`. (E.g., `Lens.compl` for lens complements or `Lens.master_theorem` for some master theorem about lenses.)
 * Theorems/definitions that are not prefixed by a type (e.g., because they don't really "belong" to a given type) are named with project-wide unambiguity in mind. (Exception: private theorems/definitions.)

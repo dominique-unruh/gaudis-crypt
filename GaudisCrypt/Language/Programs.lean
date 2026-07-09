@@ -4,11 +4,10 @@ import Mathlib.Data.Fintype.Basic
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Footprint
 
-namespace GaudisCrypt.Language.Programs
+namespace GaudisCrypt
 
 open GaudisCrypt
 open GaudisCrypt.Language.Semantics
-open GaudisCrypt
 
 class ProgramSpec : Type _ where
   state : Type u
@@ -238,7 +237,7 @@ structure LocalVariableState (paramTypes : List Type)
 so `sig.LocalVariableState locals` is defeq to `LocalVariableState sig.params locals`). -/
 @[reducible] def ProcedureSignature.LocalVariableState (sig : ProcedureSignature)
     (locals : List (Σ t : Type, Inhabited t)) : Type :=
-  _root_.GaudisCrypt.Language.Programs.LocalVariableState sig.params locals
+  _root_.GaudisCrypt.LocalVariableState sig.params locals
 
 /-- Lens onto the parameter tuple of a `LocalVariableState`. -/
 def LocalVariableState.paramsL {paramTypes : List Type}
@@ -484,4 +483,4 @@ theorem procedureDenotation_eq_procWrap_gen {holes : HoleSigs} {sig : ProcedureS
   funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]
 
 
-end GaudisCrypt.Language.Programs
+end GaudisCrypt

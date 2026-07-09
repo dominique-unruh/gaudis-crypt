@@ -45,7 +45,7 @@ namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
 open GaudisCrypt.Language.Semantics
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 
 /-- The consume-side invariant: agreement on everything `A` may touch (`={glob A}`)
     **plus equal oracle tables**.  The tables conjunct is what makes the per-query

@@ -34,7 +34,7 @@ namespace GaudisCrypt.Lib.RO.Instantiate
 
 open GaudisCrypt
 open GaudisCrypt.Language.Semantics
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 
 /-! ## Applied forms of the RO primitives -/
 

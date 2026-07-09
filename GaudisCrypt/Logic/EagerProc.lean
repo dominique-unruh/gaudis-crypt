@@ -25,7 +25,7 @@ metatheory); client derivations only ever *apply* it.
 * `eager_call` — the assembled rule at the level of `procedureDenotation`.
 -/
 
-namespace GaudisCrypt.Language.Programs
+namespace GaudisCrypt
 
 open GaudisCrypt
 open GaudisCrypt.Language.Semantics
@@ -420,4 +420,4 @@ theorem eager_call_inv {holes : HoleSigs} {sig : ProcedureSignature}
   ProgramDenotation.eagerR_of_self_right
     (eager_call eagerInst lazyInst A args S hloc hret hhole) hself
 
-end GaudisCrypt.Language.Programs
+end GaudisCrypt

@@ -5,7 +5,7 @@ import GaudisCrypt.Language.Modules
 # Concrete syntax for programs, procedures, and module types
 
 Surface syntax for the imperative probabilistic language (`StmtWithHoles` /
-`ProcedureWithHoles` from `GaudisCrypt.Language.Programs`).  The user-facing notations are
+`ProcedureWithHoles` from `GaudisCrypt`).  The user-facing notations are
 summarised below; see `syntax-ideas.md` for design notes.
 
 ## Expressions — `GaudiExpr[ e ]`
@@ -94,7 +94,7 @@ accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, a
 namespace GaudisCrypt.Language.Syntax
 
 open GaudisCrypt
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 open Lean
 
 variable [ProgramSpec]
@@ -189,7 +189,7 @@ end GaudisCrypt.Language.Syntax
 namespace GaudisCrypt.Language.Syntax.Test
 
 open GaudisCrypt
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 open GaudisCrypt.Language.Syntax
 
 variable [ProgramSpec]
@@ -250,7 +250,7 @@ tuple matching the callee's `ParamType`.  (`hole` is still deferred.) -/
 namespace GaudisCrypt.Language.Syntax
 
 open GaudisCrypt
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 
 variable [ProgramSpec]
 
@@ -632,7 +632,7 @@ end GaudisCrypt.Language.Syntax
 namespace GaudisCrypt.Language.Syntax.ProgTest
 
 open GaudisCrypt
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 open GaudisCrypt.Language.Syntax
 
 variable [ProgramSpec]
@@ -792,7 +792,7 @@ example : (proctype (Nat) → Bool) = (proctype (Nat) -> Bool) := rfl
 end GaudisCrypt.Language.Syntax.ProgTest
 
 
-open GaudisCrypt.Language.Programs
+open GaudisCrypt
 open GaudisCrypt.Language.Modules
 
 /-! ## Concrete syntax for `ModuleType`
