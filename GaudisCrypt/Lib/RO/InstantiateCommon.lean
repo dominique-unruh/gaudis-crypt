@@ -638,7 +638,7 @@ theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
     have hcomm : Lens.reduceSubProbability ProcedureState.globalL (k, i, o) * f
         = f * Lens.reduceSubProbability ProcedureState.globalL (k, i, o) :=
       (Submonoid.mem_centralizer_iff.mp hf) _ hgen
-    rw [reduceBaseGen_mul_right, reduceBaseGen_mul_left] at hcomm
+    rw [Lens.reduceSubProbability_mul_right, Lens.reduceSubProbability_mul_left] at hcomm
     exact hcomm
   have hbc := (inFootprint_iff_clean.mp (ProgramDenotation.inFootprint_of_footprint_le hb)) _ hF
   have hrc := (inFootprint_iff_clean.mp (ProgramDenotation.inFootprint_of_footprint_le hr)) _ hF

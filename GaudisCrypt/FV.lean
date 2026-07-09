@@ -118,14 +118,15 @@ lemma updateK_injective {a s : Type} [Nonempty s] (lens : Lens a s) :
   exact hsub
 
 
-private lemma kmul_apply {m} (f g : m → SubProbability m) (x : m) : (f * g) x = g x >>= f := rfl
-
 /-- **`lens.liftSubProbability` is multiplicative**, hence a monoid homomorphism on kernels. The lens
     laws (`set_get`, `set_set`) make the two localizations of a Kleisli composition agree. -/
 lemma updateK_mul {a b} (lens : Lens a b) (κ₁ κ₂ : a → SubProbability a) :
     lens.liftSubProbability (κ₁ * κ₂) = lens.liftSubProbability κ₁ * lens.liftSubProbability κ₂ := by
   funext st
-  simp only [kmul_apply, Lens.liftSubProbability]
+  -- `(f * g) x` is definitionally `g x >>= f`; unfold both Kleisli products directly.
+  change lens.liftSubProbability (fun x => κ₂ x >>= κ₁) st
+      = lens.liftSubProbability κ₂ st >>= lens.liftSubProbability κ₁
+  simp only [Lens.liftSubProbability]
   rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
   congr 1
   funext a'
@@ -163,210 +164,11 @@ private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → 
   simp only [hB]
   rfl
 
-/-- The generator transform underlying `fvP_reduce`: given a joint kernel `f` on `a × b`,
-an input distribution `i` on `b`, and a weighting `o` on the `b`-output, produce the `a`-kernel
-that feeds `i`, runs `f`, and weights/discards the `b`-component via `o`. Named so the
-`fvP_reduce_sup` reasoning can manipulate the generator set without the inline lambda. -/
-noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.reduceSubProbability {a b : Type} (lens : Lens a b)
-    (p : (b → SubProbability b) × (Unit → SubProbability lens.ComplContent) × (lens.ComplContent → SubProbability Unit)) :
-    a → SubProbability a :=
-  fun m => do
-    let m' ← p.2.1 ()
-    let m'' ← p.1 (lens.splitSpace.invFun (m, m'))
-    let _ ← p.2.2 (lens.compl.get m'')
-    return lens.get m''
-
-/-- Reading the focus of a reconstructed state recovers the focus component. -/
-private lemma splitSpace_invFun_get {a b} (lens : Lens a b) (m : a) (c : lens.ComplContent) :
-    lens.get (lens.splitSpace.invFun (m, c)) = m :=
-  congrArg Prod.fst (lens.splitSpace.apply_symm_apply (m, c))
-
-/-- Reading the complement of a reconstructed state recovers the complement component. -/
-private lemma splitSpace_invFun_compl_get {a b} (lens : Lens a b) (m : a) (c : lens.ComplContent) :
-    lens.compl.get (lens.splitSpace.invFun (m, c)) = c :=
-  congrArg Prod.snd (lens.splitSpace.apply_symm_apply (m, c))
-
-/-- Overwriting the focus of a reconstructed state is the same as reconstructing with a new focus. -/
-private lemma splitSpace_invFun_set {a b} (lens : Lens a b) (m a' : a) (c : lens.ComplContent) :
-    lens.set a' (lens.splitSpace.invFun (m, c)) = lens.splitSpace.invFun (a', c) := by
-  apply lens.splitSpace.injective
-  rw [show lens.splitSpace (lens.splitSpace.invFun (a', c)) = (a', c) from
-        lens.splitSpace.apply_symm_apply (a', c)]
-  refine Prod.ext ?_ ?_
-  · show lens.get (lens.set a' (lens.splitSpace.invFun (m, c))) = a'
-    rw [lens.set_get]
-  · show lens.compl.get (lens.set a' (lens.splitSpace.invFun (m, c))) = c
-    rw [show lens.compl.get (lens.set a' (lens.splitSpace.invFun (m, c)))
-          = lens.compl.get (lens.splitSpace.invFun (m, c)) from
-        Quotient.sound ⟨lens.get (lens.splitSpace.invFun (m, c)), by rw [lens.set_set, lens.get_set]⟩,
-      splitSpace_invFun_compl_get]
-
 /-- Kleisli product of `a × b`-kernels in bind form. -/
 -- TODO not needed, just use def on *
 theorem kmul_prod_apply {a b : Type} (F G : a × b → SubProbability (a × b)) (x : a × b) :
     (F * G) x = G x >>= F := rfl
 
-
-/-- Post-composing with a localized kernel, evaluated pointwise. -/
-private lemma mul_updateK_apply {a b} (lens : Lens a b) (f : b → SubProbability b)
-    (h : a → SubProbability a) (s : b) :
-    (f * lens.liftSubProbability h) s = h (lens.get s) >>= fun a'' => f (lens.set a'' s) := by
-  simp only [kmul_apply, Lens.liftSubProbability, SubProbability.bind_assoc, SubProbability.pure_bind]
-
-/-- Pre-composing with a localized kernel, evaluated pointwise. -/
-private lemma updateK_mul_apply {a b} (lens : Lens a b) (f : b → SubProbability b)
-    (h : a → SubProbability a) (s : b) :
-    (lens.liftSubProbability h * f) s
-      = f s >>= fun s' => h (lens.get s') >>= fun a'' => pure (lens.set a'' s') := by
-  rw [kmul_apply]; rfl
-
-/-- Overwriting the focus leaves the complement class unchanged. -/
-private lemma compl_get_set {a b} (lens : Lens a b) (a' : a) (x : b) :
-    lens.compl.get (lens.set a' x) = lens.compl.get x :=
-  Quotient.sound ⟨lens.get x, by rw [lens.set_set, lens.get_set]⟩
-
-/-- **Left Fubini identity.** Pre-composing a reduced generator with `h` equals reducing the joint
-kernel pre-composed with the lift `lens.liftSubProbability h`. -/
-theorem reduceBaseGen_mul_left {a b : Type} (lens : Lens a b)
-    (f : b → SubProbability b) (i : Unit → SubProbability lens.ComplContent)
-    (o : lens.ComplContent → SubProbability Unit) (h : a → SubProbability a) :
-    h * Lens.reduceSubProbability lens (f, i, o)
-      = Lens.reduceSubProbability lens (lens.liftSubProbability h * f, i, o) := by
-  funext m
-  have lhs : (h * Lens.reduceSubProbability lens (f, i, o)) m
-      = i () >>= fun m' => f (lens.splitSpace.invFun (m, m')) >>= fun m'' =>
-          o (lens.compl.get m'') >>= fun _ => h (lens.get m'') := by
-    change Lens.reduceSubProbability lens (f, i, o) m >>= h = _
-    simp only [Lens.reduceSubProbability]
-    rw [SubProbability.bind_assoc]
-    congr 1; funext m'
-    rw [SubProbability.bind_assoc]
-    congr 1; funext m''
-    rw [SubProbability.bind_assoc]
-    congr 1; funext _
-    rw [SubProbability.pure_bind]
-  have rhs : Lens.reduceSubProbability lens (lens.liftSubProbability h * f, i, o) m
-      = i () >>= fun m' => f (lens.splitSpace.invFun (m, m')) >>= fun m'' =>
-          h (lens.get m'') >>= fun a'' => o (lens.compl.get m'') >>= fun _ => pure a'' := by
-    simp only [Lens.reduceSubProbability]
-    congr 1; funext m'
-    rw [updateK_mul_apply, SubProbability.bind_assoc]
-    congr 1; funext m''
-    rw [SubProbability.bind_assoc]
-    congr 1; funext a''
-    rw [SubProbability.pure_bind, compl_get_set, lens.set_get]
-  have inner : ∀ m'' : b,
-      o (lens.compl.get m'') >>= (fun _ => h (lens.get m''))
-        = h (lens.get m'') >>= fun a'' => o (lens.compl.get m'') >>= fun _ => pure a'' := by
-    intro m''
-    conv_lhs => rw [← SubProbability.bind_pure (h (lens.get m''))]
-    exact bind_swap (o (lens.compl.get m'')) (h (lens.get m'')) (fun a'' _ => pure a'')
-  rw [lhs, rhs]
-  congr 1; funext m'
-  congr 1; funext m''
-  exact inner m''
-
-/-- **Right Fubini identity.** Post-composing a reduced generator with `h` equals reducing the
-joint kernel post-composed with the lift `lens.liftSubProbability h`. -/
-theorem reduceBaseGen_mul_right {a b : Type} (lens : Lens a b)
-    (f : b → SubProbability b) (i : Unit → SubProbability lens.ComplContent)
-    (o : lens.ComplContent → SubProbability Unit) (h : a → SubProbability a) :
-    Lens.reduceSubProbability lens (f, i, o) * h = Lens.reduceSubProbability lens (f * lens.liftSubProbability h, i, o) := by
-  funext m
-  have lhs : (Lens.reduceSubProbability lens (f, i, o) * h) m
-      = h m >>= fun a'' => i () >>= fun m' =>
-          f (lens.splitSpace.invFun (a'', m')) >>= fun m'' =>
-            o (lens.compl.get m'') >>= fun _ => pure (lens.get m'') := rfl
-  have rhs : Lens.reduceSubProbability lens (f * lens.liftSubProbability h, i, o) m
-      = i () >>= fun m' => h m >>= fun a'' =>
-          f (lens.splitSpace.invFun (a'', m')) >>= fun m'' =>
-            o (lens.compl.get m'') >>= fun _ => pure (lens.get m'') := by
-    simp only [Lens.reduceSubProbability]
-    congr 1; funext m'
-    rw [mul_updateK_apply, splitSpace_invFun_get, SubProbability.bind_assoc]
-    congr 1; funext a''
-    rw [splitSpace_invFun_set]
-  rw [lhs, rhs]
-  exact bind_swap (h m) (i ()) (fun m' a'' =>
-    f (lens.splitSpace.invFun (a'', m')) >>= fun m'' =>
-      o (lens.compl.get m'') >>= fun _ => pure (lens.get m''))
-
-open Classical MeasureTheory in
-/-- **Slice determination.** A kernel `K : b → SubProbability b` is determined by all its reduced
-generators for a fixed `lens`: feeding a point input `i = δ_β` and an indicator weight `o = [· = γ]`
-recovers `K` on the slice `splitSpace.invFun (·, β)` restricted to complement-output `γ`. Ranging
-over all `(β, γ)` pins down `K` on every state. This is the one genuinely measure-theoretic
-ingredient (`discreteMeasure.ext` on singletons). -/
-theorem Lens.reduceSubProbability_ext {a b : Type} (lens : Lens a b) (K L : b → SubProbability b)
-    (hKL : ∀ i o, Lens.reduceSubProbability lens (K, i, o) = Lens.reduceSubProbability lens (L, i, o)) : K = L := by
-  -- A point input + indicator weight turns `Lens.reduceSubProbability` into a coordinate slice.
-  have reduceEq : ∀ (M : b → SubProbability b) (m : a) (β γ : lens.ComplContent),
-      Lens.reduceSubProbability lens (M, (fun _ => pure β), (fun c => if c = γ then pure () else ⊥)) m
-        = M (lens.splitSpace.invFun (m, β)) >>= fun s =>
-            if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥ := by
-    intro M m β γ
-    simp only [Lens.reduceSubProbability]
-    rw [SubProbability.pure_bind]
-    congr 1; funext s
-    by_cases hs : lens.compl.get s = γ
-    · rw [if_pos hs, if_pos hs, SubProbability.pure_bind]
-    · rw [if_neg hs, if_neg hs, SubProbability.bot_bind]
-  -- The slice's mass is the joint kernel's mass on the lens-rectangle `get⁻¹ B ∩ compl⁻¹ {γ}`.
-  have slice_apply2 : ∀ (μ : SubProbability b) (γ : lens.ComplContent) (B : Set a),
-      (μ >>= fun s =>
-          if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥).1 B
-        = μ.1 (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ}) := by
-    intro μ γ B
-    letI : MeasurableSpace b := ⊤
-    letI : MeasurableSpace a := ⊤
-    change (Measure.bind μ.1 (fun s =>
-        (if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥).1)) B
-      = μ.1 (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ})
-    rw [Measure.bind_apply (by trivial) (measurable_from_top.aemeasurable)]
-    rw [show (fun s : b =>
-          (if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥).1 B)
-          = Set.indicator (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ}) 1 from ?_]
-    · rw [lintegral_indicator_one (by trivial)]
-    · funext s
-      by_cases hs : lens.compl.get s = γ
-      · rw [if_pos hs]
-        change (@MeasureTheory.Measure.dirac a ⊤ (lens.get s)) B
-            = Set.indicator (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ}) 1 s
-        rw [MeasureTheory.Measure.dirac_apply' (lens.get s) (by trivial)]
-        simp only [Set.indicator, Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, hs,
-          and_true, Pi.one_apply]
-      · rw [if_neg hs]
-        rw [show ((⊥ : SubProbability a).1 : Measure a) = 0 from rfl]
-        simp only [Measure.coe_zero, Pi.zero_apply, Set.indicator, Set.mem_inter_iff,
-          Set.mem_preimage, Set.mem_singleton_iff, hs, and_false, if_false]
-  have splitSpace_eq : ∀ s : b, lens.splitSpace.invFun (lens.get s, lens.compl.get s) = s :=
-    fun s => lens.splitSpace.symm_apply_apply s
-  funext s₀
-  apply Subtype.ext
-  refine discreteMeasure.ext (K s₀).2.2 (L s₀).2.2 (fun s => ?_)
-  have hsingle : lens.get ⁻¹' {lens.get s} ∩ lens.compl.get ⁻¹' {lens.compl.get s} = {s} := by
-    ext s'
-    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-    constructor
-    · rintro ⟨h1, h2⟩
-      apply lens.splitSpace.injective
-      show (lens.get s', lens.compl.get s') = (lens.get s, lens.compl.get s)
-      rw [h1, h2]
-    · rintro rfl; exact ⟨rfl, rfl⟩
-  have key : ∀ ρ : SubProbability b,
-      ρ.1 {s}
-        = (ρ >>= fun s' =>
-            if lens.compl.get s' = lens.compl.get s then (pure (lens.get s') : SubProbability a)
-            else ⊥).1 {lens.get s} := by
-    intro ρ
-    rw [slice_apply2 ρ (lens.compl.get s) {lens.get s}, hsingle]
-  rw [key (K s₀), key (L s₀)]
-  have hcomm := congrFun (hKL (fun _ => pure (lens.compl.get s₀))
-    (fun c => if c = lens.compl.get s then pure () else ⊥)) (lens.get s₀)
-  rw [reduceEq K (lens.get s₀) (lens.compl.get s₀) (lens.compl.get s),
-      reduceEq L (lens.get s₀) (lens.compl.get s₀) (lens.compl.get s),
-      splitSpace_eq s₀] at hcomm
-  rw [hcomm]
 
 instance [Nonempty s] (lens : Lens a s) : Nonempty lens.ComplContent :=
   ⟨Quotient.mk lens.equal_outside_setoid (Classical.arbitrary s)⟩
@@ -382,26 +184,6 @@ lemma Footprint.empty_trivial (h : ¬ Nonempty a) (r s : Footprint a) : r = s :=
   subst hf
   exact ⟨fun _ => s.id, fun _ => r.id⟩
 
-
-lemma updateK_image_cc_subset {a b : Type} (lens : Lens a b)
-    (W : Set (a → SubProbability a)) :
-    lens.liftSubProbability '' Set.centralizer (Set.centralizer W)
-      ⊆ Set.centralizer (Set.centralizer (lens.liftSubProbability '' W)) := by
-  rintro _ ⟨h, hh, rfl⟩
-  rw [Set.mem_centralizer_iff]
-  intro G hG
-  -- Every reduced generator of `G` commutes with `W`.
-  have hred : ∀ i o, Lens.reduceSubProbability lens (G, i, o) ∈ Set.centralizer W := by
-    intro i o
-    rw [Set.mem_centralizer_iff]
-    intro w hw
-    rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right]
-    rw [(Set.mem_centralizer_iff.mp hG) (lens.liftSubProbability w) ⟨w, hw, rfl⟩]
-  -- `h` commutes with each of those generators, so the lifts agree on every slice.
-  apply Lens.reduceSubProbability_ext lens
-  intro i o
-  rw [← reduceBaseGen_mul_right, ← reduceBaseGen_mul_left]
-  exact (Set.mem_centralizer_iff.mp hh) (Lens.reduceSubProbability lens (G, i, o)) (hred i o)
 
 
 
@@ -493,12 +275,12 @@ theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b) (range : 
   · intro hcomm g hg
     apply Lens.reduceSubProbability_ext lens
     intro i o
-    rw [← reduceBaseGen_mul_left, ← reduceBaseGen_mul_right]
+    rw [← Lens.reduceSubProbability_mul_left, ← Lens.reduceSubProbability_mul_right]
     exact (hcomm (Lens.reduceSubProbability lens (g, i, o))
       ⟨(g, i, o), ⟨hg, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩).symm
   · intro hcon k hk
     obtain ⟨⟨g, i, o⟩, ⟨hg, -, -⟩, rfl⟩ := hk
-    rw [reduceBaseGen_mul_right, reduceBaseGen_mul_left, hcon g hg]
+    rw [Lens.reduceSubProbability_mul_right, Lens.reduceSubProbability_mul_left, hcon g hg]
 
 
 theorem fvP_reduce_alt_def {a b : Type} (lens : Lens a b) (range : Footprint b) :
@@ -536,7 +318,7 @@ closure of the union of the two reduced generator sets — the double-commutant 
 
 The proof needs **no disintegration**: with `ĥ = Lens.fst.liftSubProbability h` the `h ⊗ id_b` lift, the two
 Fubini
-identities (`reduceBaseGen_mul_left`/`_right`) turn `h`-commutation of reduced generators into
+identities (`Lens.reduceSubProbability_mul_left`/`_right`) turn `h`-commutation of reduced generators into
 `ĥ`-commutation of the joint kernels. Slice determination (`reduceBaseExt`) lifts any
 `h ∈ commutant(gen r₁ ∪ gen r₂)` to `ĥ ∈ commutant(r₁.updates ∪ r₂.updates)`; then `f` in the
 bicommutant commutes with `ĥ`, and the identities push that back down to `h`. -/
@@ -555,7 +337,7 @@ theorem reduceBaseGen_sup_subset {a b : Type} (lens : Lens a b) (r₁ r₂ : Foo
     intro g hg
     apply Lens.reduceSubProbability_ext lens
     intro i' o'
-    rw [← reduceBaseGen_mul_right, ← reduceBaseGen_mul_left]
+    rw [← Lens.reduceSubProbability_mul_right, ← Lens.reduceSubProbability_mul_left]
     have hmem : Lens.reduceSubProbability lens (g, i', o')
         ∈ (Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
           ∪ (Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)) := by
@@ -568,7 +350,7 @@ theorem reduceBaseGen_sup_subset {a b : Type} (lens : Lens a b) (r₁ r₂ : Foo
       = f * lens.liftSubProbability h := by
     rw [footprint_sup_updates] at hf
     exact (Set.mem_centralizer_iff.mp hf) (lens.liftSubProbability h) hĥ
-  rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right, hfĥ]
+  rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right, hfĥ]
 
 
 theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint b) :
@@ -720,7 +502,9 @@ private lemma footprint_equivariant {a s : Type} (lens : Lens a s)
   rw [Footprint.updates_eq_centralizer_compl lens.footprint] at hp
   have hcomm := Submonoid.mem_centralizer_iff.mp hp (diracKer (lens.compl.liftFunction h)) hk
   have hst := congrFun hcomm st
-  simp only [kmul_apply] at hst
+  -- `(f * g) st` is definitionally `g st >>= f`; unfold both Kleisli products directly.
+  change p st >>= diracKer (lens.compl.liftFunction h)
+      = diracKer (lens.compl.liftFunction h) st >>= p at hst
   rw [show (diracKer (lens.compl.liftFunction h) st) = pure (lens.compl.liftFunction h st) from rfl,
       SubProbability.pure_bind] at hst
   exact hst.symm
@@ -829,7 +613,7 @@ theorem fvP_reduce_extend {a b} [Nonempty b] (lens : Lens a b) (r : Footprint a)
       exact Set.subset_centralizer_centralizer ⟨p, hp, rfl⟩
     · funext m
       simp only [Lens.reduceSubProbability, Lens.liftSubProbability, SubProbability.pure_bind,
-                SubProbability.bind_assoc, splitSpace_invFun_get, splitSpace_invFun_set,
+                SubProbability.bind_assoc, Lens.splitSpace_invFun_get, Lens.splitSpace_invFun_set,
                 SubProbability.bind_pure]
 
 noncomputable
@@ -946,7 +730,7 @@ theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
     the `L`-reduction of `R` (membership form: `f ∈ (fvP_reduce L R)ᶜ.updates`).  The reduced
     generators `reduceSubProbability L (k, i, o)` of `k ∈ R.updates` lie in
     `(fvP_reduce L R).updates`, so `hf` makes them commute with `f`; the Fubini identities
-    (`reduceBaseGen_mul_left`/`_right`) turn that into commutation of `L.liftSubProbability f`
+    (`Lens.reduceSubProbability_mul_left`/`_right`) turn that into commutation of `L.liftSubProbability f`
     with `k` (via `reduceSubProbability_ext`). -/
 theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
     {R : Footprint c}
@@ -963,7 +747,7 @@ theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
   have hcomm : f * Lens.reduceSubProbability L (k, i, o)
       = Lens.reduceSubProbability L (k, i, o) * f :=
     ((Submonoid.mem_centralizer_iff.mp hf) _ hgen).symm
-  rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right] at hcomm
+  rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right] at hcomm
   exact hcomm
 
 /-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
@@ -1120,7 +904,7 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.compl_footprint {a s : Type} (l : 
             (pure (l.compl.get τ) : SubProbability l.ComplContent) >>= fun q =>
               (pure (l.compl.set q σ) : SubProbability s))
           = pure (l.set (l.get σ) τ') := fun τ' => by
-        rw [SubProbability.pure_bind, SubProbability.pure_bind, compl_get_set]
+        rw [SubProbability.pure_bind, SubProbability.pure_bind, Lens.compl_get_set]
         rfl
       have h2 : t σ >>= (fun τ' => (pure (l.set (l.get σ) τ') : SubProbability s)) = t σ :=
         (hequiv (l.get σ) σ).symm.trans (congrArg t (l.get_set σ))

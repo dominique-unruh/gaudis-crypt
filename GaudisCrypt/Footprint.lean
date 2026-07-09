@@ -1612,36 +1612,241 @@ theorem _root_.GaudisCrypt.Language.Lens.Lens.bijection_footprint {a b : Type} (
         congr 1; funext y; rw [SubProbability.pure_bind, e.apply_symm_apply]
     _ = k σ := SubProbability.bind_pure (k σ)
 
-/-- **Reindexing a lens's domain by a bijection leaves its footprint unchanged.**  The lift
-    `(l.chain (bijection f)).liftSubProbability` has the same range as `l.liftSubProbability` — each
-    is obtained from the other by conjugating the kernel with `f`, a pure monad-law shuffle. -/
-theorem Lens.footprint_chain_bijection {a b c : Type} (l : Lens a b) (f : c ≃ a) :
-    (Lens.chain l (Lens.bijection f)).footprint = l.footprint := by
-  unfold Lens.footprint
-  congr 1
-  apply Set.eq_of_subset_of_subset
-  · rintro _ ⟨κ, rfl⟩
-    refine ⟨fun v => κ (f.symm v) >>= fun q => pure (f q), ?_⟩
-    funext x
-    change ((κ (f.symm (l.get x)) >>= fun q => pure (f q)) >>= fun a' => pure (l.set a' x))
-        = (κ (f.symm (l.get x)) >>= fun q => pure (l.set (f q) x))
-    rw [SubProbability.bind_assoc]
-    congr 1; funext q; rw [SubProbability.pure_bind]
-  · rintro _ ⟨κ', rfl⟩
-    refine ⟨fun w => κ' (f w) >>= fun a' => pure (f.symm a'), ?_⟩
-    funext x
-    change ((κ' (f (f.symm (l.get x))) >>= fun a' => pure (f.symm a'))
-            >>= fun q => pure (l.set (f q) x))
-        = (κ' (l.get x) >>= fun a' => pure (l.set a' x))
-    rw [Equiv.apply_symm_apply, SubProbability.bind_assoc]
-    congr 1; funext a'; rw [SubProbability.pure_bind, Equiv.apply_symm_apply]
-
 /-- Over an empty state type every footprint coincides: the only update kernel is `pure`. -/
 theorem Footprint.eq_of_isEmpty {m : Type} [IsEmpty m] (R S : Footprint m) : R = S := by
   refine le_antisymm ?_ ?_ <;>
   · intro f _
     rw [show f = pure from funext fun x => isEmptyElim x]
     first | exact S.id | exact R.id
+
+/-! ### Corner / slice machinery (relocated from `FV.lean`) -/
+
+/-- Given a joint kernel `f` on `a × b`,
+an input distribution `i` on `b`, and a weighting `o` on the `b`-output, produce the `a`-kernel
+that feeds `i`, runs `f`, and weights/discards the `b`-component via `o`. -/
+noncomputable def _root_.GaudisCrypt.Language.Lens.Lens.reduceSubProbability {a b : Type} (lens : Lens a b)
+    (p : (b → SubProbability b) × (Unit → SubProbability lens.ComplContent) × (lens.ComplContent → SubProbability Unit)) :
+    a → SubProbability a :=
+  fun m => do
+    let m' ← p.2.1 ()
+    let m'' ← p.1 (lens.splitSpace.invFun (m, m'))
+    let _ ← p.2.2 (lens.compl.get m'')
+    return lens.get m''
+
+/-- Reading the focus of a reconstructed state recovers the focus component. -/
+@[simp]
+lemma Lens.splitSpace_invFun_get {a b} (lens : Lens a b) (m : a) (c : lens.ComplContent) :
+    lens.get (lens.splitSpace.invFun (m, c)) = m :=
+  congrArg Prod.fst (lens.splitSpace.apply_symm_apply (m, c))
+
+/-- Reading the complement of a reconstructed state recovers the complement component. -/
+lemma Lens.splitSpace_invFun_compl_get {a b} (lens : Lens a b) (m : a) (c : lens.ComplContent) :
+    lens.compl.get (lens.splitSpace.invFun (m, c)) = c :=
+  congrArg Prod.snd (lens.splitSpace.apply_symm_apply (m, c))
+
+/-- Overwriting the focus of a reconstructed state is the same as reconstructing with a new focus. -/
+lemma Lens.splitSpace_invFun_set {a b} (lens : Lens a b) (m a' : a) (c : lens.ComplContent) :
+    lens.set a' (lens.splitSpace.invFun (m, c)) = lens.splitSpace.invFun (a', c) := by
+  apply lens.splitSpace.injective
+  rw [show lens.splitSpace (lens.splitSpace.invFun (a', c)) = (a', c) from
+        lens.splitSpace.apply_symm_apply (a', c)]
+  refine Prod.ext ?_ ?_
+  · show lens.get (lens.set a' (lens.splitSpace.invFun (m, c))) = a'
+    rw [lens.set_get]
+  · show lens.compl.get (lens.set a' (lens.splitSpace.invFun (m, c))) = c
+    rw [show lens.compl.get (lens.set a' (lens.splitSpace.invFun (m, c)))
+          = lens.compl.get (lens.splitSpace.invFun (m, c)) from
+        Quotient.sound ⟨lens.get (lens.splitSpace.invFun (m, c)), by rw [lens.set_set, lens.get_set]⟩,
+      Lens.splitSpace_invFun_compl_get]
+
+-- TODO: check name
+/-- Post-composing with a localized kernel, evaluated pointwise. -/
+private lemma mul_updateK_apply {a b} (lens : Lens a b) (f : b → SubProbability b)
+    (h : a → SubProbability a) (s : b) :
+    (f * lens.liftSubProbability h) s = h (lens.get s) >>= fun a'' => f (lens.set a'' s) := by
+  -- `(f * g) s` is definitionally `g s >>= f`; unfold the Kleisli product directly.
+  change lens.liftSubProbability h s >>= f = _
+  simp only [Lens.liftSubProbability, SubProbability.bind_assoc, SubProbability.pure_bind]
+
+-- TODO: check name
+/-- Pre-composing with a localized kernel, evaluated pointwise. -/
+private lemma updateK_mul_apply {a b} (lens : Lens a b) (f : b → SubProbability b)
+    (h : a → SubProbability a) (s : b) :
+    (lens.liftSubProbability h * f) s
+      = f s >>= fun s' => h (lens.get s') >>= fun a'' => pure (lens.set a'' s') := by
+  -- Both sides are definitionally `f s >>= lens.liftSubProbability h`.
+  rfl
+
+/-- Overwriting the focus leaves the complement class unchanged. -/
+@[simp]
+lemma Lens.compl_get_set {a b} (lens : Lens a b) (a' : a) (x : b) :
+    lens.compl.get (lens.set a' x) = lens.compl.get x :=
+  Quotient.sound ⟨lens.get x, by rw [lens.set_set, lens.get_set]⟩
+
+/-- **Left Fubini identity.** Pre-composing a reduced generator with `h` equals reducing the joint
+kernel pre-composed with the lift `lens.liftSubProbability h`. -/
+theorem Lens.reduceSubProbability_mul_left {a b : Type} (lens : Lens a b)
+    (f : b → SubProbability b) (i : Unit → SubProbability lens.ComplContent)
+    (o : lens.ComplContent → SubProbability Unit) (h : a → SubProbability a) :
+    h * Lens.reduceSubProbability lens (f, i, o)
+      = Lens.reduceSubProbability lens (lens.liftSubProbability h * f, i, o) := by
+  funext m
+  have lhs : (h * Lens.reduceSubProbability lens (f, i, o)) m
+      = i () >>= fun m' => f (lens.splitSpace.invFun (m, m')) >>= fun m'' =>
+          o (lens.compl.get m'') >>= fun _ => h (lens.get m'') := by
+    change Lens.reduceSubProbability lens (f, i, o) m >>= h = _
+    simp only [Lens.reduceSubProbability]
+    rw [SubProbability.bind_assoc]
+    congr 1; funext m'
+    rw [SubProbability.bind_assoc]
+    congr 1; funext m''
+    rw [SubProbability.bind_assoc]
+    congr 1; funext _
+    rw [SubProbability.pure_bind]
+  have rhs : Lens.reduceSubProbability lens (lens.liftSubProbability h * f, i, o) m
+      = i () >>= fun m' => f (lens.splitSpace.invFun (m, m')) >>= fun m'' =>
+          h (lens.get m'') >>= fun a'' => o (lens.compl.get m'') >>= fun _ => pure a'' := by
+    simp only [Lens.reduceSubProbability]
+    congr 1; funext m'
+    rw [updateK_mul_apply, SubProbability.bind_assoc]
+    congr 1; funext m''
+    rw [SubProbability.bind_assoc]
+    congr 1; funext a''
+    rw [SubProbability.pure_bind, Lens.compl_get_set, lens.set_get]
+  have inner : ∀ m'' : b,
+      o (lens.compl.get m'') >>= (fun _ => h (lens.get m''))
+        = h (lens.get m'') >>= fun a'' => o (lens.compl.get m'') >>= fun _ => pure a'' := by
+    intro m''
+    conv_lhs => rw [← SubProbability.bind_pure (h (lens.get m''))]
+    exact bind_swap (o (lens.compl.get m'')) (h (lens.get m'')) (fun a'' _ => pure a'')
+  rw [lhs, rhs]
+  congr 1; funext m'
+  congr 1; funext m''
+  exact inner m''
+
+/-- **Right Fubini identity.** Post-composing a reduced generator with `h` equals reducing the
+joint kernel post-composed with the lift `lens.liftSubProbability h`. -/
+theorem Lens.reduceSubProbability_mul_right {a b : Type} (lens : Lens a b)
+    (f : b → SubProbability b) (i : Unit → SubProbability lens.ComplContent)
+    (o : lens.ComplContent → SubProbability Unit) (h : a → SubProbability a) :
+    Lens.reduceSubProbability lens (f, i, o) * h = Lens.reduceSubProbability lens (f * lens.liftSubProbability h, i, o) := by
+  funext m
+  have lhs : (Lens.reduceSubProbability lens (f, i, o) * h) m
+      = h m >>= fun a'' => i () >>= fun m' =>
+          f (lens.splitSpace.invFun (a'', m')) >>= fun m'' =>
+            o (lens.compl.get m'') >>= fun _ => pure (lens.get m'') := rfl
+  have rhs : Lens.reduceSubProbability lens (f * lens.liftSubProbability h, i, o) m
+      = i () >>= fun m' => h m >>= fun a'' =>
+          f (lens.splitSpace.invFun (a'', m')) >>= fun m'' =>
+            o (lens.compl.get m'') >>= fun _ => pure (lens.get m'') := by
+    simp only [Lens.reduceSubProbability]
+    congr 1; funext m'
+    rw [mul_updateK_apply, Lens.splitSpace_invFun_get, SubProbability.bind_assoc]
+    congr 1; funext a''
+    rw [Lens.splitSpace_invFun_set]
+  rw [lhs, rhs]
+  exact bind_swap (h m) (i ()) (fun m' a'' =>
+    f (lens.splitSpace.invFun (a'', m')) >>= fun m'' =>
+      o (lens.compl.get m'') >>= fun _ => pure (lens.get m''))
+
+open Classical MeasureTheory in
+/-- **Slice determination.** A kernel `K : b → SubProbability b` is determined by all its reduced
+generators for a fixed `lens`: feeding a point input `i = δ_β` and an indicator weight `o = [· = γ]`
+recovers `K` on the slice `splitSpace.invFun (·, β)` restricted to complement-output `γ`. Ranging
+over all `(β, γ)` pins down `K` on every state. This is the one genuinely measure-theoretic
+ingredient (`discreteMeasure.ext` on singletons). -/
+theorem Lens.reduceSubProbability_ext {a b : Type} (lens : Lens a b) (K L : b → SubProbability b)
+    (hKL : ∀ i o, Lens.reduceSubProbability lens (K, i, o)
+                = Lens.reduceSubProbability lens (L, i, o)) : K = L := by
+  -- A point input + indicator weight turns `Lens.reduceSubProbability` into a coordinate slice.
+  have reduceEq : ∀ (M : b → SubProbability b) (m : a) (β γ : lens.ComplContent),
+      Lens.reduceSubProbability lens (M, (fun _ => pure β), (fun c => if c = γ then pure () else ⊥)) m
+        = M (lens.splitSpace.invFun (m, β)) >>= fun s =>
+            if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥ := by
+    intro M m β γ
+    simp only [Lens.reduceSubProbability]
+    rw [SubProbability.pure_bind]
+    congr 1; funext s
+    by_cases hs : lens.compl.get s = γ
+    · rw [if_pos hs, if_pos hs, SubProbability.pure_bind]
+    · rw [if_neg hs, if_neg hs, SubProbability.bot_bind]
+  -- The slice's mass is the joint kernel's mass on the lens-rectangle `get⁻¹ B ∩ compl⁻¹ {γ}`.
+  have slice_apply2 : ∀ (μ : SubProbability b) (γ : lens.ComplContent) (B : Set a),
+      (μ >>= fun s =>
+          if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥).1 B
+        = μ.1 (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ}) := by
+    intro μ γ B
+    letI : MeasurableSpace b := ⊤
+    letI : MeasurableSpace a := ⊤
+    change (Measure.bind μ.1 (fun s =>
+        (if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥).1)) B
+      = μ.1 (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ})
+    rw [Measure.bind_apply (by trivial) (measurable_from_top.aemeasurable)]
+    rw [show (fun s : b =>
+          (if lens.compl.get s = γ then (pure (lens.get s) : SubProbability a) else ⊥).1 B)
+          = Set.indicator (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ}) 1 from ?_]
+    · rw [lintegral_indicator_one (by trivial)]
+    · funext s
+      by_cases hs : lens.compl.get s = γ
+      · rw [if_pos hs]
+        change (@MeasureTheory.Measure.dirac a ⊤ (lens.get s)) B
+            = Set.indicator (lens.get ⁻¹' B ∩ lens.compl.get ⁻¹' {γ}) 1 s
+        rw [MeasureTheory.Measure.dirac_apply' (lens.get s) (by trivial)]
+        simp only [Set.indicator, Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, hs,
+          and_true, Pi.one_apply]
+      · rw [if_neg hs]
+        rw [show ((⊥ : SubProbability a).1 : Measure a) = 0 from rfl]
+        simp only [Measure.coe_zero, Pi.zero_apply, Set.indicator, Set.mem_inter_iff,
+          Set.mem_preimage, Set.mem_singleton_iff, hs, and_false, if_false]
+  have splitSpace_eq : ∀ s : b, lens.splitSpace.invFun (lens.get s, lens.compl.get s) = s :=
+    fun s => lens.splitSpace.symm_apply_apply s
+  funext s₀
+  apply Subtype.ext
+  refine discreteMeasure.ext (K s₀).2.2 (L s₀).2.2 (fun s => ?_)
+  have hsingle : lens.get ⁻¹' {lens.get s} ∩ lens.compl.get ⁻¹' {lens.compl.get s} = {s} := by
+    ext s'
+    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
+    constructor
+    · rintro ⟨h1, h2⟩
+      apply lens.splitSpace.injective
+      show (lens.get s', lens.compl.get s') = (lens.get s, lens.compl.get s)
+      rw [h1, h2]
+    · rintro rfl; exact ⟨rfl, rfl⟩
+  have key : ∀ ρ : SubProbability b,
+      ρ.1 {s}
+        = (ρ >>= fun s' =>
+            if lens.compl.get s' = lens.compl.get s then (pure (lens.get s') : SubProbability a)
+            else ⊥).1 {lens.get s} := by
+    intro ρ
+    rw [slice_apply2 ρ (lens.compl.get s) {lens.get s}, hsingle]
+  rw [key (K s₀), key (L s₀)]
+  have hcomm := congrFun (hKL (fun _ => pure (lens.compl.get s₀))
+    (fun c => if c = lens.compl.get s then pure () else ⊥)) (lens.get s₀)
+  rw [reduceEq K (lens.get s₀) (lens.compl.get s₀) (lens.compl.get s),
+      reduceEq L (lens.get s₀) (lens.compl.get s₀) (lens.compl.get s),
+      splitSpace_eq s₀] at hcomm
+  rw [hcomm]
+
+-- TODO: check name
+lemma updateK_image_cc_subset {a b : Type} (lens : Lens a b)
+    (W : Set (a → SubProbability a)) :
+    lens.liftSubProbability '' Set.centralizer (Set.centralizer W)
+      ⊆ Set.centralizer (Set.centralizer (lens.liftSubProbability '' W)) := by
+  rintro _ ⟨h, hh, rfl⟩
+  rw [Set.mem_centralizer_iff]
+  intro G hG
+  -- Every reduced generator of `G` commutes with `W`.
+  have hred : ∀ i o, Lens.reduceSubProbability lens (G, i, o) ∈ Set.centralizer W := by
+    intro i o
+    rw [Set.mem_centralizer_iff]
+    intro w hw
+    rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right]
+    rw [(Set.mem_centralizer_iff.mp hG) (lens.liftSubProbability w) ⟨w, hw, rfl⟩]
+  -- `h` commutes with each of those generators, so the lifts agree on every slice.
+  apply Lens.reduceSubProbability_ext lens
+  intro i o
+  rw [← Lens.reduceSubProbability_mul_right, ← Lens.reduceSubProbability_mul_left]
+  exact (Set.mem_centralizer_iff.mp hh) (Lens.reduceSubProbability lens (G, i, o)) (hred i o)
 
 /-- **Footprint of a chained lens is the outer lens's lift of the inner footprint.**
     `Lens.chain lens1 lens2` threads through `lens2` first and then `lens1`; the region it
@@ -1660,16 +1865,18 @@ theorem Lens.footprint_chain {a b c : Type} (lens1 : Lens b c) (lens2 : Lens a b
     refine Footprint.from_mono (Set.image_mono ?_)
     rw [Footprint.from_updates]
     exact Set.subset_centralizer_centralizer
-  · sorry
+  · unfold Lens.footprint Lens.liftFootprint
+    rw [Lens.liftSubProbability_chain, Set.range_comp, Footprint.from_updates,
+        Footprint.from_le_iff, Footprint.from_updates]
+    exact updateK_image_cc_subset lens1 (Set.range lens2.liftSubProbability)
 
 theorem Lens.footprint_fromLens {a b : Type} (l : Lens a b) : (l.footprint).FromLens := by
-  -- TODO: once `Lens.footprint_chain` is proved, replace the `Nonempty` branch below with the
-  --   modular proof `(Lens.footprint_chain l (Lens.bijection f)).trans` chaining
-  --   `Lens.bijection_footprint` and `Lens.liftFootprint_top`, and then remove
-  --   `Lens.footprint_chain_bijection` (which only exists to sidestep the open `≥` direction).
   rcases isEmpty_or_nonempty b with hb | hb
   · exact ⟨{ get := isEmptyElim, set := fun _ => isEmptyElim,
              set_get := fun _ s => isEmptyElim s, set_set := fun _ _ s => isEmptyElim s,
              get_set := fun s => isEmptyElim s }, Footprint.eq_of_isEmpty _ _⟩
   · obtain ⟨f, -⟩ := Footprint.touchedGetter_is_getter l
-    exact ⟨Lens.chain l (Lens.bijection f), (Lens.footprint_chain_bijection l f).symm⟩
+    -- The witness reindexes `l` by the bijection `f`; its footprint is `l`'s own, since a bijection
+    -- has footprint `⊤` and `l.liftFootprint ⊤ = l.footprint`.
+    refine ⟨Lens.chain l (Lens.bijection f), ?_⟩
+    rw [Lens.footprint_chain, Lens.bijection_footprint, Lens.liftFootprint_top]

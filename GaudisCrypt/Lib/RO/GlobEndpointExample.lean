@@ -76,7 +76,7 @@ theorem reduce_chain_footprint_le {a b c : Type} [Nonempty c] (L : Lens b c) (v 
 /-- **The `L`-reduction of a footprint disjoint from `L.chain v` is disjoint from `v`** (the honest
     converse of `reduce_chain_le_compl`).  Each reduced generator `reduceSubProbability L (k, i, o)`
     commutes with every generator `v.liftSubProbability g` of `v.footprint`: the two Fubini
-    identities (`reduceBaseGen_mul_left`/`_right`) turn the goal into commutation of
+    identities (`Lens.reduceSubProbability_mul_left`/`_right`) turn the goal into commutation of
     `L.liftSubProbability (v.liftSubProbability g)` (= the `L.chain v` generator, by
     `Lens.liftSubProbability_chain`) with `k`, which
     `hdisj : R ≤ ((L.chain v).footprint)ᶜ` supplies. -/
@@ -109,7 +109,7 @@ theorem reduce_le_compl_of_chain {t s c : Type} (L : Lens s c) (v : Lens t s) {R
     rw [Lens.liftSubProbability_chain] at hgen
     exact ((Submonoid.mem_centralizer_iff.mp (hdisj hk))
       (L.liftSubProbability (v.liftSubProbability g)) hgen)
-  rw [reduceBaseGen_mul_left, reduceBaseGen_mul_right, hcomm]
+  rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right, hcomm]
 
 /-- **Two lenses chained through a common outer lens are disjoint when their inner lenses are.**
     The two chained overwrites both go through `L`; commutation reduces to
