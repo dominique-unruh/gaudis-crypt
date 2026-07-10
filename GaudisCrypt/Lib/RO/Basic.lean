@@ -11,7 +11,7 @@ import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.DetermFootprint
 import GaudisCrypt.ProgramRange
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 import GaudisCrypt.ProbProgramRange
 
 open GaudisCrypt

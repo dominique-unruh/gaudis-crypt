@@ -1,5 +1,5 @@
 import GaudisCrypt.Lib.RO.Basic
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 import GaudisCrypt.Logic.TransferBy
 
 open GaudisCrypt

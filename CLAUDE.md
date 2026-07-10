@@ -77,8 +77,8 @@ This is the conceptual core. `notes/REPORT.md` is a long, excellent guided tour 
   discharges the `HasOrbitCollapse` hypotheses automatically for lens-derived
   ranges): disjoint footprints ⟹ programs commute.
 
-Note `Footprint`/`ProbProgramRange`/`ProgramRange`/`DetermFootprint`/`FV`/
-`WeakestPreconditions` at the repo top level make up this framework. `WeakestPreconditions.lean` provides `wp`, `wp_bind`, `wp_set`, etc.
+Note `Language/Footprint`/`ProbProgramRange`/`ProgramRange`/`DetermFootprint`/`FV`/
+`WeakestPreconditions` make up this framework. `WeakestPreconditions.lean` provides `wp`, `wp_bind`, `wp_set`, etc.
 
 ### `GaudisCrypt/Logic/PRHL/` — probabilistic relational Hoare logic
 

@@ -2,7 +2,7 @@ import Lean
 import Lean.Elab.Term
 import Mathlib.Data.Fintype.Basic
 import GaudisCrypt.Language.Semantics
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 
 namespace GaudisCrypt
 

@@ -1,4 +1,4 @@
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 
 /-!
 # Observational indistinguishability does not determine the touched getter

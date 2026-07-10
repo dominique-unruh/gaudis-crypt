@@ -2,7 +2,7 @@ import GaudisCrypt.Language.Programs
 import GaudisCrypt.Lib.RO.TransferConvert
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL2
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 import GaudisCrypt.FV
 
 /-!
@@ -335,7 +335,7 @@ theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
 
 
 -- `Mlocalized_in_footprint` (an `M`-localized kernel lies in `M.footprint`) was a general
--- `Footprint` fact, not RO-specific; it now lives in `GaudisCrypt.Footprint` and is
+-- `Footprint` fact, not RO-specific; it now lives in `GaudisCrypt.Language.Footprint` and is
 -- reused here (and by the `fvP` footprint layer).
 
 /-- **A lift lives in its lens's probabilistic range** — the `inFootprint` analogue of

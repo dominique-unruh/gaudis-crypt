@@ -1,5 +1,5 @@
 import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 
 open GaudisCrypt
 

@@ -2,7 +2,7 @@
 
 import GaudisCrypt.Misc
 import GaudisCrypt.DetermFootprint
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions

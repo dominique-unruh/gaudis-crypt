@@ -1,5 +1,5 @@
 import GaudisCrypt.Logic.PRHL.Prhl
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 
 open GaudisCrypt
 

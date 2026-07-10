@@ -1,5 +1,5 @@
 import GaudisCrypt.Language.Modules.InductiveFunctions
-import GaudisCrypt.Footprint
+import GaudisCrypt.Language.Footprint
 
 /-!
 # `fvP`: the computed-footprint (free-variables) layer over `Footprint`

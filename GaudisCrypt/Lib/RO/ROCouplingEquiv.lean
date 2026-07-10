@@ -634,7 +634,7 @@ theorem output_win_transfer {sig : ProcedureSignature}
   (prhl_instantiate_of_glob A args hdisj hrefine hstable h).conseq (fun _ _ hp => hp)
     (fun _ _ hlift => by rw [hlift.1])
 
-/- The read-only-tests sketch that lived here is formalized in `GaudisCrypt/Footprint.lean`:
+/- The read-only-tests sketch that lived here is formalized in `GaudisCrypt/Language/Footprint.lean`:
 `Footprint.testsOf`, `Footprint.indistinguishable` (with `indistinguishable_iff_testsOf`), and
 the touched-getter soundness `Footprint.indistinguishable_of_touched_getter_eq`. -/
 
