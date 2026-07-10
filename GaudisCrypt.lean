@@ -14,6 +14,7 @@ import GaudisCrypt.Language.Programs
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Language.SubProbability
 import GaudisCrypt.Language.Syntax2
+import GaudisCrypt.Language.Granularity
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
 import GaudisCrypt.CounterExamples.IndistinguishableVsGlob

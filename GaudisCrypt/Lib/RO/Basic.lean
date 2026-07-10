@@ -9,7 +9,6 @@ import GaudisCrypt.Misc
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.DetermFootprint
 import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Footprint
 import GaudisCrypt.ProbProgramRange
