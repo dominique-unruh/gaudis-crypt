@@ -9,7 +9,6 @@ import GaudisCrypt.Misc
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.ProgramRange
 import GaudisCrypt.Language.Footprint
 import GaudisCrypt.ProbProgramRange
 
@@ -80,20 +79,6 @@ noncomputable def random_oracle_query (inp : input) : ProgramDenotation state ou
   let h <- ProgramDenotation.get random_oracle_state
   return (h inp).getD default
 
-/-- `lazy_query` only reads and writes `random_oracle_state`. -/
-theorem lazy_query_inRange_ro (inp : input) :
-    (lazy_query inp).inRange random_oracle_state.range := by
-  refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_get _) ?_
-  intro h
-  cases h inp with
-  | some x => exact ProgramDenotation.inRange_pure _ _
-  | none =>
-    refine ProgramDenotation.inRange_bind ?_ ?_
-    · exact ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le
-    · intro value
-      refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_set _ _) ?_
-      intro _
-      exact ProgramDenotation.inRange_pure _ _
 
 /-- `lazy_query`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob
     analogue of `lazy_query_inRange_ro`, for the countability-free transfer migration. -/

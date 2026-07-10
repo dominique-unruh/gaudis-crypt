@@ -145,9 +145,9 @@ body coupling `body_relE` verbatim. -/
 section EncStage1
 
 variable (enc_adv : ProgramDenotation state Unit)
-variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
-variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
-variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
+variable (h_RO : enc_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+variable (h_flag : enc_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+variable (h_cx : enc_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
 variable (h_mass : ∀ σ, enc_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
 
 /-- Reading the guess through the `RO[k]`-overwrite is invisible. -/
@@ -320,9 +320,9 @@ end EncMiniHop
 section EncIndist
 
 variable (enc_adv : ProgramDenotation state Unit)
-variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
-variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
-variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
+variable (h_RO : enc_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+variable (h_flag : enc_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+variable (h_cx : enc_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
 variable (h_mass : ∀ σ, enc_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
 
 include h_RO h_flag h_cx h_mass in
@@ -388,9 +388,9 @@ noncomputable def enc_game_nopre (m : output) (q : ℕ) : ProgramDenotation stat
   oracle_loop_n enc_adv q lazy_query_tracked
   ProgramDenotation.get guess_var
 
-variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
-variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
-variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
+variable (h_RO : enc_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+variable (h_flag : enc_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+variable (h_cx : enc_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
 variable (h_mass : ∀ σ, enc_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
 
 /-- State algebra: after the (differing) preprogramming step, the
@@ -471,7 +471,7 @@ include h_cx h_flag in
     the uniform key with probability `≤ (q+1)/|input|`. Reuses OW's
     `game_1_correspondence` (env-generic) + the generic interim bound. -/
 theorem gexp_env_c_bound
-    (h_qi : enc_adv.inRange queries_input.compl.range)
+    (h_qi : enc_adv.inFootprint (queries_input.footprint)ᶜ)
     (q : ℕ) (σ : state) :
     (guess_experiment env_c ProgramDenotation.uniform ow_challenge_x chal_x_queried_gh
         (body_game_1 enc_adv) final_game_1 q).wp
@@ -654,7 +654,7 @@ theorem enc_nopre_bad_le_gexp (m : output) (q : ℕ) (σ : state) :
 include h_RO h_flag h_cx h_mass in
 /-- **The bad-event bound**: `Pr[adversary queries the key] ≤ (q+1)/|input|`.
     Mini-hop → drop preprogramming → guess-experiment bound. -/
-theorem enc_bad_bound (h_qi : enc_adv.inRange queries_input.compl.range)
+theorem enc_bad_bound (h_qi : enc_adv.inFootprint (queries_input.footprint)ᶜ)
     (m : output) (q : ℕ) (σ : state) :
     (enc_game enc_adv m q).wp
         (fun bσ : Bool × state => if chal_x_queried_gh.get bσ.2 = true then (1 : ENNReal) else 0) σ
@@ -670,10 +670,10 @@ end EncBad
 section EncMain
 
 variable (enc_adv : ProgramDenotation state Unit)
-variable (h_RO : enc_adv.inRange random_oracle_state.compl.range)
-variable (h_flag : enc_adv.inRange chal_x_queried_gh.compl.range)
-variable (h_cx : enc_adv.inRange ow_challenge_x.compl.range)
-variable (h_qi : enc_adv.inRange queries_input.compl.range)
+variable (h_RO : enc_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+variable (h_flag : enc_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+variable (h_cx : enc_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+variable (h_qi : enc_adv.inFootprint (queries_input.footprint)ᶜ)
 variable (h_mass : ∀ σ, enc_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
 
 include h_RO h_flag h_cx h_qi h_mass in

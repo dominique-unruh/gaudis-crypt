@@ -1,4 +1,4 @@
-import GaudisCrypt.ProgramRange
+import GaudisCrypt.ProbProgramRange
 
 namespace GaudisCrypt
 
@@ -22,8 +22,8 @@ lens `L`, value `v`). Tracking-flag elision proofs reduce to short
 chains of these rules.
 -/
 
--- `IgnoresLens` and `IgnoresLens.comp_inRange` moved to PlonkLean.ProgramRange
--- (they don't depend on the EquivModuloLens calculus; they're foundational
+-- `IgnoresLens` lives in `WeakestPreconditions.lean`; `IgnoresLens.comp_inFootprint` in
+-- `ProbProgramRange.lean` (foundational
 -- lens-post-invariance facts useful beyond this module).
 
 /-- `ProgramDenotation.EquivModuloLens L p q` — `p` and `q` have equal wps on any
@@ -55,11 +55,11 @@ lemma trans {p q r : ProgramDenotation s α}
 lemma bind_eq_k [DecidableEq γ]
     {p p' : ProgramDenotation s α} {k : α → ProgramDenotation s β}
     (h_p : ProgramDenotation.EquivModuloLens L p p')
-    (h_k : ∀ a, (k a).inRange L.compl.range) :
+    (h_k : ∀ a, (k a).inFootprint (L.footprint)ᶜ) :
     ProgramDenotation.EquivModuloLens L (p >>= k) (p' >>= k) := by
   intro F h_F σ
   rw [wp_bind, wp_bind]
-  exact h_p _ (IgnoresLens.comp_inRange h_F k h_k) σ
+  exact h_p _ (IgnoresLens.comp_inFootprint h_F k h_k) σ
 
 /-- Bind with the SAME prefix and equivalent continuations: if `∀ a, k a ≈_L k' a`,
     then `p >>= k ≈_L p >>= k'`. -/
@@ -79,9 +79,9 @@ lemma bind [DecidableEq γ]
     {p p' : ProgramDenotation s α} {k k' : α → ProgramDenotation s β}
     (h_p : ProgramDenotation.EquivModuloLens L p p')
     (h_k : ∀ a, ProgramDenotation.EquivModuloLens L (k a) (k' a))
-    (h_k_inRange : ∀ a, (k a).inRange L.compl.range) :
+    (h_k_inFootprint : ∀ a, (k a).inFootprint (L.footprint)ᶜ) :
     ProgramDenotation.EquivModuloLens L (p >>= k) (p' >>= k') :=
-  (h_p.bind_eq_k h_k_inRange).trans (bind_eq_p h_k)
+  (h_p.bind_eq_k h_k_inFootprint).trans (bind_eq_p h_k)
 
 /-- A `set L v` is equivalent (modulo L) to `pure ()`. -/
 lemma set_equiv_pure (v : γ) :
@@ -119,7 +119,7 @@ end ProgramDenotation.EquivModuloLens
     by the bind congruence in the inductive step). -/
 lemma loop_n_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     {body body' : ProgramDenotation s Unit}
-    (h_body : body.inRange L.compl.range)
+    (h_body : body.inFootprint (L.footprint)ᶜ)
     (h_eq : ProgramDenotation.EquivModuloLens L body body')
     (n : ℕ) :
     ProgramDenotation.EquivModuloLens L (loop_n n body) (loop_n n body') := by
@@ -129,7 +129,7 @@ lemma loop_n_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     show ProgramDenotation.EquivModuloLens L (body >>= fun _ => loop_n n body)
                                    (body' >>= fun _ => loop_n n body')
     exact ProgramDenotation.EquivModuloLens.bind h_eq (fun _ => ih)
-      (fun _ => loop_n_inRange body h_body n)
+      (fun _ => loop_n_inFootprint body h_body n)
 
 /-- **Loop + trailing congruence**: if `body ≈_L body'` and `final ≈_L final'`,
     with both `body` and `final` being `L`-disjoint, then
@@ -138,9 +138,9 @@ lemma loop_n_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     Combines `loop_n_congr` and `ProgramDenotation.EquivModuloLens.bind` in one step. -/
 lemma loop_n_then_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     {body body' final final' : ProgramDenotation s Unit}
-    (h_body : body.inRange L.compl.range)
+    (h_body : body.inFootprint (L.footprint)ᶜ)
     (h_body_eq : ProgramDenotation.EquivModuloLens L body body')
-    (h_final : final.inRange L.compl.range)
+    (h_final : final.inFootprint (L.footprint)ᶜ)
     (h_final_eq : ProgramDenotation.EquivModuloLens L final final')
     (n : ℕ) :
     ProgramDenotation.EquivModuloLens L

@@ -302,36 +302,9 @@ noncomputable def glob {holes : HoleSigs} {sig : ProcedureSignature}
   (fvP_proc A).touched_getter
 
 
-/-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
-    inner program on the `L`-content. The `inFootprint` analogue of `Lens.factor_of_inRange`. -/
-theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : ProgramDenotation s
-    a}
-    (h : Adv.inFootprint L.footprint) : Adv = L.lift (L.factor Adv) := by
-  funext σ
-  set f : s → s := fun σ' => L.set (L.get σ') σ with hf_def
-  have h_fσ_pad : f (L.set (L.get σ) (Classical.arbitrary s)) = σ := by
-    show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
-    rw [L.set_get, L.get_set]
-  have h_f_mem : diracKer f ∈ ((L.footprint)ᶜ).updates := by
-    haveI : disjoint L.compl L := ⟨fun st v w => by
-      induction v using Quotient.inductionOn
-      rename_i u
-      show L.set (L.get (L.set w st)) u = L.set w (L.set (L.get st) u)
-      rw [L.set_get, L.set_set]⟩
-    exact Lens.footprint_le_compl_of_disjoint L.compl L
-      (L.compl.diracKer_liftFunction_mem_footprint (Function.const _ (Quotient.mk _ σ)))
-  have h_iv : Adv σ
-      = (Adv (L.set (L.get σ) (Classical.arbitrary s)))
-          >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
-    conv_lhs => rw [← h_fσ_pad]
-    exact inFootprint_subprob h h_f_mem _
-  change Adv σ
-      = ((Adv (L.set (L.get σ) (Classical.arbitrary s)))
-            >>= fun xσ' : a × s => (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
-          >>= fun xc : a × c => (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
-  rw [h_iv, SubProbability.bind_assoc']
-  congr 1; funext xσ'
-  rw [SubProbability.pure_bind]
+-- `factor_of_inFootprint` (the `inFootprint` factorization through a lens window) was
+-- generic, not RO-specific; it now lives in `GaudisCrypt.ProbProgramRange` and is
+-- reused here and by the pRHL adversary rule.
 
 
 -- `Mlocalized_in_footprint` (an `M`-localized kernel lies in `M.footprint`) was a general

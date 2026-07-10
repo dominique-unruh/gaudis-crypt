@@ -33,9 +33,9 @@ This module also defines `lazy_query_tracked` (the flag-flipping variant of
 section GameHopParam
 
 variable (ow_adv : ProgramDenotation state Unit)
-variable (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-variable (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-variable (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
+variable (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+variable (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+variable (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
 
 /-! ## Game 0 — the original OW experiment
 
@@ -149,7 +149,7 @@ The strategy:
   set to `true` whenever a `lazy_query` is invoked at input
   `chal_x`.
 * Show the tracked games are wp-equivalent to the untracked games on
-  posts that ignore the flag (`ProgramDenotation.wp_conditional_set_disjoint_no_op`).
+  posts that ignore the flag (`ProgramDenotation.wp_conditional_set_disjoint_no_op_footprint`).
 * Show the tracked Game 1 and tracked Game 2 are *identical until bad*:
   their wp's agree on posts that vanish whenever the flag is `true`.
 * Apply `ProgramDenotation.up_to_bad` to derive
@@ -335,7 +335,7 @@ instance : disjoint chal_x_queried_gh queries_output :=
 section GameHopParam_Tracked
 
 variable (ow_adv : ProgramDenotation state Unit)
-variable (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
+variable (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
 
 /-- Tracked Game 1: same as `ow_game_1`, but every `lazy_query` is replaced
     by `lazy_query_tracked` so the `chal_x_queried_gh` flag tracks whether
@@ -367,36 +367,36 @@ noncomputable def ow_game_2_tracked (q : ℕ) : ProgramDenotation state Bool := 
   pure (decide (y_check = y))
 
 
-lemma lazy_query_tracked_inRange_ow_challenge_y (inp : input) :
-    (lazy_query_tracked inp).inRange ow_challenge_y.compl.range := by
+lemma lazy_query_tracked_inFootprint_ow_challenge_y (inp : input) :
+    (lazy_query_tracked inp).inFootprint (ow_challenge_y.footprint)ᶜ := by
   haveI : disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
   unfold lazy_query_tracked
-  refine ProgramDenotation.inRange_bind ?_ (fun y => ?_)
-  · exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state ow_challenge_y)
-  refine ProgramDenotation.inRange_bind ?_ (fun cx => ?_)
-  · exact ProgramDenotation.get_inRange_compl_of_disjoint ow_challenge_x ow_challenge_y
-  refine ProgramDenotation.inRange_bind ?_ (fun _ => ProgramDenotation.inRange_pure _ _)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun y => ?_)
+  · exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state ow_challenge_y)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun cx => ?_)
+  · exact ProgramDenotation.get_inFootprint_compl_of_disjoint ow_challenge_x ow_challenge_y
+  refine ProgramDenotation.inFootprint_bind ?_ (fun _ => ProgramDenotation.inFootprint_pure _ _)
   by_cases h : inp = cx
   · simp only [if_pos h]
-    exact ProgramDenotation.set_inRange_compl_of_disjoint
+    exact ProgramDenotation.set_inFootprint_compl_of_disjoint
       chal_x_queried_gh ow_challenge_y true
   · simp only [if_neg h]
-    exact ProgramDenotation.inRange_pure _ _
+    exact ProgramDenotation.inFootprint_pure _ _
 
 /-- `oracle_step adv lazy_query_tracked` is ow_challenge_y-disjoint when
     `adv` is. -/
-lemma oracle_step_lazy_query_tracked_inRange_ow_challenge_y
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range) :
-    (oracle_step ow_adv lazy_query_tracked).inRange ow_challenge_y.compl.range := by
+lemma oracle_step_lazy_query_tracked_inFootprint_ow_challenge_y
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ) :
+    (oracle_step ow_adv lazy_query_tracked).inFootprint (ow_challenge_y.footprint)ᶜ := by
   unfold oracle_step
-  refine ProgramDenotation.inRange_bind h_ow_adv_chal_y (fun _ => ?_)
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.get_inRange_compl_of_disjoint oracle_input ow_challenge_y) (fun inp => ?_)
-  refine ProgramDenotation.inRange_bind (lazy_query_tracked_inRange_ow_challenge_y inp)
+  refine ProgramDenotation.inFootprint_bind h_ow_adv_chal_y (fun _ => ?_)
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint oracle_input ow_challenge_y) (fun inp => ?_)
+  refine ProgramDenotation.inFootprint_bind (lazy_query_tracked_inFootprint_ow_challenge_y inp)
     (fun y => ?_)
-  exact ProgramDenotation.set_inRange_compl_of_disjoint oracle_output ow_challenge_y y
+  exact ProgramDenotation.set_inFootprint_compl_of_disjoint oracle_output ow_challenge_y y
 
 
 end GameHopParam_Tracked

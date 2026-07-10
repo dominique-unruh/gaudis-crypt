@@ -144,6 +144,26 @@ lemma ProgramDenotation.wp_le_of_factors_three_footprint {s α γ₁ γ₂ γ₃
         all_goals exact bot_le
     _ ≤ P σ := ProgramDenotation.wp_const_le prog _ σ
 
+/-- **wp vanishes on a preserved-lens zero region** — the `inFootprint` analogue of
+    `ProgramDenotation.wp_zero_of_lens_preserves`: if `p` avoids `L`, `F` vanishes whenever
+    `L.get = v`, and we start at `L.get σ = v`, then `p.wp F σ = 0`. -/
+lemma ProgramDenotation.wp_zero_of_lens_preserves_footprint {s α γ : Type} [DecidableEq γ]
+    {L : Lens γ s} {p : ProgramDenotation s α} (h_p : p.inFootprint (L.footprint)ᶜ)
+    {F : α × s → ENNReal} {v : γ}
+    (h_F_zero : ∀ aσ : α × s, L.get aσ.2 = v → F aσ = 0)
+    {σ : s} (h_σ : L.get σ = v) :
+    p.wp F σ = 0 := by
+  rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint L h_p]
+  rw [show (fun aσ : α × s =>
+            if L.get aσ.2 = L.get σ then F aσ else 0)
+          = (fun _ : α × s => (0 : ENNReal)) from by
+    funext aσ
+    by_cases h : L.get aσ.2 = L.get σ
+    · simp only [if_pos h]
+      exact h_F_zero aσ (h.trans h_σ)
+    · simp only [if_neg h]]
+  exact ProgramDenotation.wp_zero_post _ _
+
 /-- **Dead write across a disjoint footprint** — the `inFootprint` analogue of
     `ProgramDenotation.wp_set_disjoint_no_op`. If `rest` lives in `(L.footprint)ᶜ` and the post `F`
     ignores `L`, then a preceding `ProgramDenotation.set L v` is a no-op for the `wp`. -/
@@ -167,5 +187,119 @@ lemma ProgramDenotation.wp_set_disjoint_no_op_footprint {s γ : Type} [Decidable
   funext xs
   rw [h_f_eq xs.2]
   exact h_F xs
+
+/-- **Conditional dead write across a disjoint footprint** — the `inFootprint` analogue of
+    `ProgramDenotation.wp_conditional_set_disjoint_no_op`. -/
+lemma ProgramDenotation.wp_conditional_set_disjoint_no_op_footprint {s γ : Type} [DecidableEq γ]
+    {L : Lens γ s} {α : Type} (cond : Prop) [Decidable cond] (v : γ)
+    {rest : ProgramDenotation s α} (h_rest : rest.inFootprint (L.footprint)ᶜ)
+    (F : α × s → ENNReal)
+    (h_F : ∀ aσ : α × s, F (aσ.1, L.set v aσ.2) = F aσ)
+    (σ : s) :
+    ((if cond then ProgramDenotation.set L v else pure ()) >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  by_cases h : cond
+  · rw [if_pos h]
+    exact ProgramDenotation.wp_set_disjoint_no_op_footprint h_rest v F h_F σ
+  · rw [if_neg h]
+    simp only [wp_bind, wp_pure]
+
+/-- **Get-then-conditional-set is a no-op** across a disjoint footprint — the `inFootprint`
+    analogue of `ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op`. -/
+lemma ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op_footprint
+    {s γ δ : Type} [DecidableEq γ] {L_get : Lens δ s} {L_set : Lens γ s}
+    {α : Type} (pred : δ → Prop) [DecidablePred pred] (v : γ)
+    {rest : ProgramDenotation s α} (h_rest : rest.inFootprint (L_set.footprint)ᶜ)
+    (F : α × s → ENNReal)
+    (h_F : ∀ aσ : α × s, F (aσ.1, L_set.set v aσ.2) = F aσ)
+    (σ : s) :
+    (ProgramDenotation.get L_get >>= fun cx =>
+        (if pred cx then ProgramDenotation.set L_set v else (pure () : ProgramDenotation s Unit))
+          >>= fun _ => rest).wp F σ
+    = rest.wp F σ := by
+  rw [wp_bind, wp_get]
+  exact ProgramDenotation.wp_conditional_set_disjoint_no_op_footprint
+    (pred (L_get.get σ)) v h_rest F h_F σ
+
+/-- **A state-independent sampled value has trivial probabilistic footprint** — the `Footprint`
+    analogue of `ProgramDenotation.inRange_toProgramDenotation` (at `⊥`; lift to any `R` with
+    `inFootprint_mono … bot_le`). Same swap argument as `inFootprint_uniform`. -/
+theorem ProgramDenotation.inFootprint_toProgramDenotation {s a : Type} (μ : SubProbability a) :
+    (SubProbability.toProgramDenotation μ : ProgramDenotation s a).inFootprint ⊥ := by
+  rw [inFootprint_iff_clean]
+  intro f hf
+  funext st
+  change (f st >>= fun st' => μ >>= fun x => (pure (x, st') : SubProbability (a × s)))
+     = ((μ >>= fun x => (pure (x, st) : SubProbability (a × s)))
+          >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
+  rw [bind_swap (f st) μ (fun x st' => pure (x, st'))]
+  rw [SubProbability.bind_assoc]
+  congr 1; funext x
+  rw [SubProbability.pure_bind]
+
+/-- `ProgramDenotation.uniformOfFinset` has trivial probabilistic footprint — the `Footprint`
+    analogue of `ProgramDenotation.inRange_uniformOfFinset`. -/
+theorem ProgramDenotation.inFootprint_uniformOfFinset {s α : Type}
+    (fs : Finset α) (hs : fs.Nonempty) :
+    (ProgramDenotation.uniformOfFinset fs hs : ProgramDenotation s α).inFootprint ⊥ :=
+  ProgramDenotation.inFootprint_toProgramDenotation _
+
+/-- `loop_n n body` stays in the same footprint as `body` — the `Footprint` analogue of
+    `loop_n_inRange`. -/
+lemma loop_n_inFootprint {s : Type} {R : Footprint s}
+    (body : ProgramDenotation s Unit) (h_body : body.inFootprint R) (n : ℕ) :
+    (loop_n n body).inFootprint R := by
+  induction n with
+  | zero => exact ProgramDenotation.inFootprint_pure _ _
+  | succ n ih =>
+    change (body >>= fun _ => loop_n n body).inFootprint R
+    exact ProgramDenotation.inFootprint_bind h_body (fun _ => ih)
+
+/-- `L`-ignoring is preserved when post-composing with an `L`-disjoint program — the `Footprint`
+    analogue of `IgnoresLens.comp_inRange`. -/
+lemma IgnoresLens.comp_inFootprint {γ s α β : Type} {L : Lens γ s}
+    {F : β × s → ENNReal} (h_F : IgnoresLens L F)
+    (k : α → ProgramDenotation s β) (h_k : ∀ a, (k a).inFootprint (L.footprint)ᶜ) :
+    IgnoresLens L (fun aσ : α × s => (k aσ.1).wp F aσ.2) := by
+  intro aσ v
+  have hf : diracKer (fun s' : s => L.set v s') ∈ (((L.footprint)ᶜ)ᶜ).updates := by
+    rw [Footprint.compl_compl]
+    exact L.diracKer_liftFunction_mem_footprint (Function.const _ v)
+  change (k aσ.1).wp F (L.set v aσ.2) = (k aσ.1).wp F aσ.2
+  rw [ProgramDenotation.wp_shift_input_prob (h_k aσ.1) hf]
+  congr 1
+  funext xs
+  exact h_F xs v
+
+/-- **Factorization**: a program confined to `L`'s probabilistic range comes from running some
+    inner program on the `L`-content. The `inFootprint` analogue of `Lens.factor_of_inRange`. -/
+theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : ProgramDenotation s
+    a}
+    (h : Adv.inFootprint L.footprint) : Adv = L.lift (L.factor Adv) := by
+  funext σ
+  set f : s → s := fun σ' => L.set (L.get σ') σ with hf_def
+  have h_fσ_pad : f (L.set (L.get σ) (Classical.arbitrary s)) = σ := by
+    show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
+    rw [L.set_get, L.get_set]
+  have h_f_mem : diracKer f ∈ ((L.footprint)ᶜ).updates := by
+    haveI : disjoint L.compl L := ⟨fun st v w => by
+      induction v using Quotient.inductionOn
+      rename_i u
+      show L.set (L.get (L.set w st)) u = L.set w (L.set (L.get st) u)
+      rw [L.set_get, L.set_set]⟩
+    exact Lens.footprint_le_compl_of_disjoint L.compl L
+      (L.compl.diracKer_liftFunction_mem_footprint (Function.const _ (Quotient.mk _ σ)))
+  have h_iv : Adv σ
+      = (Adv (L.set (L.get σ) (Classical.arbitrary s)))
+          >>= (fun xs : a × s => (pure (xs.1, f xs.2) : SubProbability (a × s))) := by
+    conv_lhs => rw [← h_fσ_pad]
+    exact inFootprint_subprob h h_f_mem _
+  change Adv σ
+      = ((Adv (L.set (L.get σ) (Classical.arbitrary s)))
+            >>= fun xσ' : a × s => (pure (xσ'.1, L.get xσ'.2) : SubProbability (a × c)))
+          >>= fun xc : a × c => (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
+  rw [h_iv, SubProbability.bind_assoc']
+  congr 1; funext xσ'
+  rw [SubProbability.pure_bind]
 
 end GaudisCrypt

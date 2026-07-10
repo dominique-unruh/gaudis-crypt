@@ -54,9 +54,9 @@ omit [DecidableEq T] [disjoint matched_var queries_list_var]
 /-- The shared query program relates to itself across the three-lens
     overwrite: same answer, overwrite carried to the output states. -/
 private lemma q_shift (q : ProgramDenotation s T)
-    (h_m : q.inRange matched_var.compl.range)
-    (h_qs : q.inRange queries_list_var.compl.range)
-    (h_tv : q.inRange target_var.compl.range)
+    (h_m : q.inFootprint (matched_var.footprint)ᶜ)
+    (h_qs : q.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_tv : q.inFootprint (target_var.footprint)ᶜ)
     (l : List T) (m₀ : Bool) (tv₀ : T) :
     q.relE q
       (fun σ₁ σ₂ =>
@@ -144,9 +144,9 @@ omit [disjoint queries_list_var target_var] in
 /-- **The body judgment**: one match-tracking iteration relates to one
     recording iteration, preserving `Inv`. -/
 private lemma body_relE (q : ProgramDenotation s T)
-    (h_m : q.inRange matched_var.compl.range)
-    (h_qs : q.inRange queries_list_var.compl.range)
-    (h_tv : q.inRange target_var.compl.range)
+    (h_m : q.inFootprint (matched_var.footprint)ᶜ)
+    (h_qs : q.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_tv : q.inFootprint (target_var.footprint)ᶜ)
     (t : T) (m₀ : Bool) (tv₀ : T) :
     (q >>= fun a : T =>
       if a = t then ProgramDenotation.set matched_var true
@@ -225,12 +225,12 @@ omit [disjoint queries_list_var target_var] in
     disjointness assumptions. -/
 theorem schema_inner_equation_prhl
     (q_body q_final : ProgramDenotation s T)
-    (h_q_body_matched : q_body.inRange matched_var.compl.range)
-    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
-    (h_q_body_target : q_body.inRange target_var.compl.range)
-    (h_q_final_matched : q_final.inRange matched_var.compl.range)
-    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
-    (h_q_final_target : q_final.inRange target_var.compl.range)
+    (h_q_body_matched : q_body.inFootprint (matched_var.footprint)ᶜ)
+    (h_q_body_qs : q_body.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_q_body_target : q_body.inFootprint (target_var.footprint)ᶜ)
+    (h_q_final_matched : q_final.inFootprint (matched_var.footprint)ᶜ)
+    (h_q_final_qs : q_final.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_q_final_target : q_final.inFootprint (target_var.footprint)ᶜ)
     (n : ℕ) (σ' : s) (t : T) :
     (ProgramDenotation.set target_var t >>= fun _ : Unit =>
      ProgramDenotation.set matched_var false >>= fun _ : Unit =>

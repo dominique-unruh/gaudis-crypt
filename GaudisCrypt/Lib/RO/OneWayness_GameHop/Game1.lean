@@ -66,7 +66,7 @@ private noncomputable def guess_experiment_game_1 (q : ℕ) : ProgramDenotation 
     Used for G2 bad-event reduction. -/
 private lemma chal_y_block_pure_decide_eliminate
     (k : ProgramDenotation state output)
-    (h_k : k.inRange ow_challenge_y.compl.range)
+    (h_k : k.inFootprint (ow_challenge_y.footprint)ᶜ)
     (σ : state) :
     ((ProgramDenotation.uniform : ProgramDenotation state output) >>= fun y =>
       ProgramDenotation.set ow_challenge_y y >>= fun _ =>
@@ -106,7 +106,7 @@ private lemma chal_y_block_pure_decide_eliminate
         (fun aσ : Unit × state => k.wp
           (fun aσ' : output × state =>
             if chal_x_queried_gh.get aσ'.2 = true then (1 : ENNReal) else 0) aσ.2) :=
-      IgnoresLens.comp_inRange (L := ow_challenge_y) h_F (fun _ : Unit => k)
+      IgnoresLens.comp_inFootprint (L := ow_challenge_y) h_F (fun _ : Unit => k)
         (fun _ => h_k)
     exact h_k_wp_inv ((), σ) y
   simp_rw [h_inner]
@@ -122,7 +122,7 @@ private lemma chal_y_block_pure_decide_eliminate
     differ only by chal_x_qg-invisible steps (sampling chal_y, setting
     oracle_output) that the bad-event post doesn't observe. -/
 private lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
     (q : ℕ) (σ : state) :
     (ow_game_2_tracked ow_adv q).wp
         (fun bσ : Bool × state =>
@@ -183,15 +183,15 @@ private lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
     rw [h_GE1_eq]
     exact h_trailing_absorb _ σ
   rw [h_RHS]
-  -- k is chal_y-disjoint (composed from loop_n_inRange + lqt_inRange_chal_y).
-  have h_k_chal_y : k.inRange ow_challenge_y.compl.range := by
+  -- k is chal_y-disjoint (composed from loop_n_inFootprint + lqt_inFootprint_chal_y).
+  have h_k_chal_y : k.inFootprint (ow_challenge_y.footprint)ᶜ := by
     rw [k_def]
-    refine ProgramDenotation.inRange_bind ?_ (fun _ => ?_)
-    · exact loop_n_inRange _ (oracle_step_lazy_query_tracked_inRange_ow_challenge_y
+    refine ProgramDenotation.inFootprint_bind ?_ (fun _ => ?_)
+    · exact loop_n_inFootprint _ (oracle_step_lazy_query_tracked_inFootprint_ow_challenge_y
         ow_adv h_ow_adv_chal_y) q
-    refine ProgramDenotation.inRange_bind
-      (ProgramDenotation.get_inRange_compl_of_disjoint ow_response ow_challenge_y) (fun _ => ?_)
-    exact lazy_query_tracked_inRange_ow_challenge_y _
+    refine ProgramDenotation.inFootprint_bind
+      (ProgramDenotation.get_inFootprint_compl_of_disjoint ow_response ow_challenge_y) (fun _ => ?_)
+    exact lazy_query_tracked_inFootprint_ow_challenge_y _
   -- (a) LHS: trailing pure-decide absorbed + chal_y block eliminated.
   have h_OG2_eq : ow_game_2_tracked ow_adv q
       = (lazy_init >>= fun _ =>
@@ -249,20 +249,20 @@ private lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
 
 
 /-- `lazy_query_tracked` is queries_input-disjoint. -/
-lemma lazy_query_tracked_inRange_queries_input (inp : input) :
-    (lazy_query_tracked inp).inRange queries_input.compl.range := by
+lemma lazy_query_tracked_inFootprint_queries_input (inp : input) :
+    (lazy_query_tracked inp).inFootprint (queries_input.footprint)ᶜ := by
   unfold lazy_query_tracked
-  refine ProgramDenotation.inRange_bind ?_ (fun y => ?_)
-  · exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state queries_input)
-  refine ProgramDenotation.inRange_bind ?_ (fun cx => ?_)
-  · exact ProgramDenotation.get_inRange_compl_of_disjoint ow_challenge_x queries_input
-  refine ProgramDenotation.inRange_bind ?_ (fun _ => ProgramDenotation.inRange_pure _ _)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun y => ?_)
+  · exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state queries_input)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun cx => ?_)
+  · exact ProgramDenotation.get_inFootprint_compl_of_disjoint ow_challenge_x queries_input
+  refine ProgramDenotation.inFootprint_bind ?_ (fun _ => ProgramDenotation.inFootprint_pure _ _)
   by_cases h : inp = cx
   · simp only [if_pos h]
-    exact ProgramDenotation.set_inRange_compl_of_disjoint chal_x_queried_gh queries_input true
+    exact ProgramDenotation.set_inFootprint_compl_of_disjoint chal_x_queried_gh queries_input true
   · simp only [if_neg h]
-    exact ProgramDenotation.inRange_pure _ _
+    exact ProgramDenotation.inFootprint_pure _ _
 
 
 
@@ -288,7 +288,7 @@ noncomputable def final_recording_game_1 : ProgramDenotation state Unit := do
 /-- body_recording_game_1 bumps queries_input.length by at most 1 per iteration. -/
 lemma body_recording_game_1_qs_length_bump
     (adv : ProgramDenotation state Unit)
-    (h_adv : adv.inRange queries_input.compl.range)
+    (h_adv : adv.inFootprint (queries_input.footprint)ᶜ)
     (σ : state) :
     (body_recording_game_1 adv).wp
       (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal)) σ
@@ -328,8 +328,8 @@ lemma body_recording_game_1_qs_length_bump
         (fun yσ : output × state => ((queries_input.get yσ.2).length : ENNReal))
         (fun _ : output × state => (1 : ENNReal))]
     refine add_le_add ?_ ?_
-    · exact ProgramDenotation.wp_qs_length_preserved_of_inRange queries_input
-        (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
+    · exact ProgramDenotation.wp_qs_length_preserved_of_inFootprint queries_input
+        (lazy_query_tracked _) (lazy_query_tracked_inFootprint_queries_input _) _
     · exact ProgramDenotation.wp_const_le _ _ _
   refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
       (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal) + 1)
@@ -340,7 +340,7 @@ lemma body_recording_game_1_qs_length_bump
       (fun aσ : Unit × state => ((queries_input.get aσ.2).length : ENNReal))
       (fun _ : Unit × state => (1 : ENNReal))]
   refine add_le_add ?_ ?_
-  · exact ProgramDenotation.wp_qs_length_preserved_of_inRange queries_input adv h_adv σ
+  · exact ProgramDenotation.wp_qs_length_preserved_of_inFootprint queries_input adv h_adv σ
   · exact ProgramDenotation.wp_const_le _ _ _
 
 /-- final_recording_game_1 bumps queries_input.length by at most 1. -/
@@ -373,8 +373,8 @@ lemma final_recording_game_1_qs_length_bump (σ : state) :
       (fun yσ : output × state => ((queries_input.get yσ.2).length : ENNReal))
       (fun _ : output × state => (1 : ENNReal))]
   refine add_le_add ?_ ?_
-  · exact ProgramDenotation.wp_qs_length_preserved_of_inRange queries_input
-      (lazy_query_tracked _) (lazy_query_tracked_inRange_queries_input _) _
+  · exact ProgramDenotation.wp_qs_length_preserved_of_inFootprint queries_input
+      (lazy_query_tracked _) (lazy_query_tracked_inFootprint_queries_input _) _
   · exact ProgramDenotation.wp_const_le _ _ _
 
 /-! ### The relational correspondence
@@ -593,9 +593,9 @@ private lemma lqt_pair_relE (t tv inp : input) (l : List input) (m : Bool) :
 /-- The adversary relates to itself across the overwrite, remembering the
     two pinned left-side values (`q_shift`-style triple shift + frames). -/
 private lemma adv_shift_rel
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_qi : ow_adv.inRange queries_input.compl.range)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_qi : ow_adv.inFootprint (queries_input.footprint)ᶜ)
     (t tv : input) (l : List input) (m : Bool) :
     ow_adv.rel ow_adv
       (fun σ₁ σ₂ => σ₂ = queries_input.set l (chal_x_queried_gh.set m
@@ -684,9 +684,9 @@ lemma ending_g1_rel (t tv : input) :
 
 /-- **Loop-body judgment**: one tracking step vs one recording step. -/
 lemma body_game_1_rel
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_qi : ow_adv.inRange queries_input.compl.range)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_qi : ow_adv.inFootprint (queries_input.footprint)ᶜ)
     (t tv : input) :
     (body_game_1 ow_adv t).rel (body_recording_game_1 ow_adv)
       (InvG1 t tv) (fun u v => InvG1 t tv u.2 v.2) := by
@@ -789,9 +789,9 @@ private lemma final_game_1_rel (t tv : input) :
     the target lands in the recorded query list. One synchronized
     invariant (`InvG1`) through the loop, the final query, and the ending. -/
 theorem game_1_correspondence (ow_adv : ProgramDenotation state Unit)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_qg : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_ow_adv_qi : ow_adv.inRange queries_input.compl.range)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_ow_adv_chal_x_qg : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_ow_adv_qi : ow_adv.inFootprint (queries_input.footprint)ᶜ)
     (q : ℕ)
     (σ' : state) (t : input) :
     (ProgramDenotation.set ow_challenge_x t >>= fun _ : Unit =>
@@ -846,11 +846,11 @@ theorem game_1_correspondence (ow_adv : ProgramDenotation state Unit)
 
     Routes via `guess_experiment_game_1` → `interim` → `collector` → bound. -/
 theorem ow_game_1_tracked_bad_le_guess_input_bound
-    (h_ow_adv_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_ow_adv_queries : ow_adv.inRange queries_input.compl.range)
+    (h_ow_adv_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_ow_adv_chal_x_queried_gh : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_ow_adv_queries : ow_adv.inFootprint (queries_input.footprint)ᶜ)
     (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
@@ -918,7 +918,7 @@ private lemma lazy_query_equiv_lazy_query_tracked (inp : input) :
   -- Apply lazy_query_tracked_eq_lazy_query_wp with k := pure.
   have h_eq := lazy_query_tracked_eq_lazy_query_wp
     (k := fun y => (pure y : ProgramDenotation state output))
-    (fun y => ProgramDenotation.inRange_pure _ _) F h_F inp σ
+    (fun y => ProgramDenotation.inFootprint_pure _ _) F h_F inp σ
   -- h_eq : (lazy_query_tracked inp >>= pure).wp F σ = (lazy_query inp >>= pure).wp F σ.
   simp only [ProgramDenotation.bind_pure] at h_eq
   exact h_eq.symm
@@ -933,70 +933,70 @@ private lemma oracle_step_equiv_lazy_query_lazy_query_tracked :
   dsimp only [oracle_step]
   -- The continuation `fun _ => get input >>= lazy_query inp >>= set oo` is
   -- flag-disjoint (LHS uses lazy_query, which is flag-disjoint).
-  have h_inner_lq_inRange : ∀ _ : Unit, (do
+  have h_inner_lq_inFootprint : ∀ _ : Unit, (do
       let inp ← ProgramDenotation.get oracle_input
       let y ← lazy_query inp
-      ProgramDenotation.set oracle_output y : ProgramDenotation state Unit).inRange
-        chal_x_queried_gh.compl.range := by
+      ProgramDenotation.set oracle_output y : ProgramDenotation state Unit).inFootprint
+        (chal_x_queried_gh.footprint)ᶜ := by
     intro _
-    refine ProgramDenotation.inRange_bind
-      (ProgramDenotation.get_inRange_compl_of_disjoint oracle_input chal_x_queried_gh)
+    refine ProgramDenotation.inFootprint_bind
+      (ProgramDenotation.get_inFootprint_compl_of_disjoint oracle_input chal_x_queried_gh)
       (fun inp => ?_)
-    refine ProgramDenotation.inRange_bind ?_ (fun y =>
-      ProgramDenotation.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
-    exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+    refine ProgramDenotation.inFootprint_bind ?_ (fun y =>
+      ProgramDenotation.set_inFootprint_compl_of_disjoint oracle_output chal_x_queried_gh y)
+    exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
   refine ProgramDenotation.EquivModuloLens.bind (ProgramDenotation.EquivModuloLens.refl ow_adv)
-    (fun _ => ?_) h_inner_lq_inRange
+    (fun _ => ?_) h_inner_lq_inFootprint
   -- Inner: get input >>= ... [lq vs lqt] >>= set oo.
-  have h_lq_set_oo_inRange : ∀ inp : input, (do
+  have h_lq_set_oo_inFootprint : ∀ inp : input, (do
       let y ← lazy_query inp
-      ProgramDenotation.set oracle_output y : ProgramDenotation state Unit).inRange
-        chal_x_queried_gh.compl.range := by
+      ProgramDenotation.set oracle_output y : ProgramDenotation state Unit).inFootprint
+        (chal_x_queried_gh.footprint)ᶜ := by
     intro inp
-    refine ProgramDenotation.inRange_bind ?_ (fun y =>
-      ProgramDenotation.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
-    exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+    refine ProgramDenotation.inFootprint_bind ?_ (fun y =>
+      ProgramDenotation.set_inFootprint_compl_of_disjoint oracle_output chal_x_queried_gh y)
+    exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
   refine ProgramDenotation.EquivModuloLens.bind
     (ProgramDenotation.EquivModuloLens.refl (ProgramDenotation.get oracle_input))
-    (fun inp => ?_) h_lq_set_oo_inRange
+    (fun inp => ?_) h_lq_set_oo_inFootprint
   -- After get input: lazy_query[_t] inp >>= set oo y.
   refine ProgramDenotation.EquivModuloLens.bind
     (lazy_query_equiv_lazy_query_tracked inp)
     (fun _ => ProgramDenotation.EquivModuloLens.refl _)
-    (fun y => ProgramDenotation.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
+    (fun y => ProgramDenotation.set_inFootprint_compl_of_disjoint oracle_output chal_x_queried_gh y)
 
 /-- `oracle_step ow_adv lazy_query` is flag-disjoint. Used by the calculus
     chains in flag elision. -/
-private lemma oracle_step_lazy_query_inRange_chal_x_queried_gh
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) :
-    (oracle_step ow_adv lazy_query).inRange chal_x_queried_gh.compl.range := by
+private lemma oracle_step_lazy_query_inFootprint_chal_x_queried_gh
+    (h_ow_adv_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ) :
+    (oracle_step ow_adv lazy_query).inFootprint (chal_x_queried_gh.footprint)ᶜ := by
   dsimp only [oracle_step]
-  refine ProgramDenotation.inRange_bind h_ow_adv_flag (fun _ => ?_)
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.get_inRange_compl_of_disjoint oracle_input chal_x_queried_gh)
+  refine ProgramDenotation.inFootprint_bind h_ow_adv_flag (fun _ => ?_)
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint oracle_input chal_x_queried_gh)
     (fun inp => ?_)
-  refine ProgramDenotation.inRange_bind ?_ (fun y =>
-    ProgramDenotation.set_inRange_compl_of_disjoint oracle_output chal_x_queried_gh y)
-  exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-    (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun y =>
+    ProgramDenotation.set_inFootprint_compl_of_disjoint oracle_output chal_x_queried_gh y)
+  exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
+    (Lens.footprint_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
 
 /-- Loop-level: `oracle_loop_n adv q lazy_query ≈_L oracle_loop_n adv q lazy_query_tracked`. -/
 private lemma oracle_loop_n_equiv_lazy_query_lazy_query_tracked
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) (q : ℕ) :
+    (h_ow_adv_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ) (q : ℕ) :
     ProgramDenotation.EquivModuloLens chal_x_queried_gh
       (oracle_loop_n ow_adv q lazy_query)
       (oracle_loop_n ow_adv q lazy_query_tracked) := by
   -- Convert both to loop_n form via oracle_loop_n_eq_loop_n, then loop_n_congr.
   rw [oracle_loop_n_eq_loop_n, oracle_loop_n_eq_loop_n]
   exact loop_n_congr
-    (oracle_step_lazy_query_inRange_chal_x_queried_gh ow_adv h_ow_adv_flag)
+    (oracle_step_lazy_query_inFootprint_chal_x_queried_gh ow_adv h_ow_adv_flag)
     (oracle_step_equiv_lazy_query_lazy_query_tracked ow_adv) q
 
 /-- The "tail after lazy_init" of `ow_game_1` is flag-disjoint. -/
-private lemma ow_game_1_tail_inRange_chal_x_queried_gh
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+private lemma ow_game_1_tail_inFootprint_chal_x_queried_gh
+    (h_ow_adv_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (q : ℕ) : (do
       let x ← ProgramDenotation.uniform
       ProgramDenotation.set ow_challenge_x x
@@ -1006,30 +1006,30 @@ private lemma ow_game_1_tail_inRange_chal_x_queried_gh
       oracle_loop_n ow_adv q lazy_query
       let resp ← ProgramDenotation.get ow_response
       let y_check ← lazy_query resp
-      pure (decide (y_check = y)) : ProgramDenotation state Bool).inRange
-        chal_x_queried_gh.compl.range := by
-  refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_mono
-      ProgramDenotation.inRange_uniform bot_le) (fun x => ?_)
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.set_inRange_compl_of_disjoint ow_challenge_x chal_x_queried_gh x) (fun _ =>
+      pure (decide (y_check = y)) : ProgramDenotation state Bool).inFootprint
+        (chal_x_queried_gh.footprint)ᶜ := by
+  refine ProgramDenotation.inFootprint_bind (ProgramDenotation.inFootprint_mono
+      ProgramDenotation.inFootprint_uniform bot_le) (fun x => ?_)
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.set_inFootprint_compl_of_disjoint ow_challenge_x chal_x_queried_gh x) (fun _ =>
         ?_)
-  refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_mono
-      ProgramDenotation.inRange_uniform bot_le) (fun y => ?_)
-  refine ProgramDenotation.inRange_bind ?_ (fun _ => ?_)
-  · -- set random_oracle_state ... in flag.compl.range
-    exact ProgramDenotation.set_inRange_compl_of_disjoint random_oracle_state chal_x_queried_gh _
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.set_inRange_compl_of_disjoint ow_challenge_y chal_x_queried_gh y) (fun _ =>
+  refine ProgramDenotation.inFootprint_bind (ProgramDenotation.inFootprint_mono
+      ProgramDenotation.inFootprint_uniform bot_le) (fun y => ?_)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun _ => ?_)
+  · -- set random_oracle_state ... in (flag.footprint)ᶜ
+    exact ProgramDenotation.set_inFootprint_compl_of_disjoint random_oracle_state chal_x_queried_gh _
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.set_inFootprint_compl_of_disjoint ow_challenge_y chal_x_queried_gh y) (fun _ =>
         ?_)
-  refine ProgramDenotation.inRange_bind ?_ (fun _ => ?_)
-  · -- oracle_loop_n adv q lazy_query in flag.compl.range
-    exact oracle_loop_n_inRange_compl chal_x_queried_gh h_ow_adv_flag q
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.get_inRange_compl_of_disjoint ow_response chal_x_queried_gh) (fun resp => ?_)
-  refine ProgramDenotation.inRange_bind ?_ (fun y_check => ProgramDenotation.inRange_pure _ _)
-  -- lazy_query resp in flag.compl.range
-  exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro resp)
-    (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun _ => ?_)
+  · -- oracle_loop_n adv q lazy_query in (flag.footprint)ᶜ
+    exact oracle_loop_n_inFootprint_compl chal_x_queried_gh h_ow_adv_flag q
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint ow_response chal_x_queried_gh) (fun resp => ?_)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun y_check => ProgramDenotation.inFootprint_pure _ _)
+  -- lazy_query resp in (flag.footprint)ᶜ
+  exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro resp)
+    (Lens.footprint_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
 
 /-- Post-loop tail (get response + final lazy_query + pure check) is
     equivalent under flag-ignoring posts when we replace `lazy_query` with
@@ -1049,31 +1049,31 @@ private lemma ow_game_1_post_loop_equiv (y : output) :
   intro resp
   -- Inner: lazy_query resp >>= pure ≈ lazy_query_tracked resp >>= pure.
   -- Here prefixes differ (lq vs lqt), so use `bind`. The continuation is
-  -- `pure (decide ...)`, whose inRange is `inRange_pure`.
+  -- `pure (decide ...)`, whose inFootprint is `inFootprint_pure`.
   refine ProgramDenotation.EquivModuloLens.bind
     (lazy_query_equiv_lazy_query_tracked resp)
     (fun _ => ProgramDenotation.EquivModuloLens.refl _)
-    (fun _ => ProgramDenotation.inRange_pure _ _)
+    (fun _ => ProgramDenotation.inFootprint_pure _ _)
 
 /-- Post-loop tail (get response + final lazy_query + pure check) is
     flag-disjoint. -/
-private lemma ow_game_1_post_loop_inRange (y : output) :
+private lemma ow_game_1_post_loop_inFootprint (y : output) :
     (do
       let resp ← ProgramDenotation.get ow_response
       let y_check ← lazy_query resp
-      pure (decide (y_check = y)) : ProgramDenotation state Bool).inRange
-        chal_x_queried_gh.compl.range := by
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.get_inRange_compl_of_disjoint ow_response chal_x_queried_gh)
+      pure (decide (y_check = y)) : ProgramDenotation state Bool).inFootprint
+        (chal_x_queried_gh.footprint)ᶜ := by
+  refine ProgramDenotation.inFootprint_bind
+    (ProgramDenotation.get_inFootprint_compl_of_disjoint ow_response chal_x_queried_gh)
     (fun resp => ?_)
-  refine ProgramDenotation.inRange_bind ?_ (fun _ => ProgramDenotation.inRange_pure _ _)
-  exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro resp)
-    (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine ProgramDenotation.inFootprint_bind ?_ (fun _ => ProgramDenotation.inFootprint_pure _ _)
+  exact ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro resp)
+    (Lens.footprint_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
 
 /-- Loop + post-loop tail equivalence — the `oracle_loop_n` call composed
     with the `get ow_response; lazy_query resp; pure (decide ...)` tail. -/
 private lemma ow_game_1_loop_tail_equiv
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_ow_adv_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (q : ℕ) (y : output) :
     ProgramDenotation.EquivModuloLens chal_x_queried_gh
       (do
@@ -1090,7 +1090,7 @@ private lemma ow_game_1_loop_tail_equiv
   refine ProgramDenotation.EquivModuloLens.bind
     (oracle_loop_n_equiv_lazy_query_lazy_query_tracked ow_adv h_ow_adv_flag q)
     (fun _ => ow_game_1_post_loop_equiv y)
-    (fun _ => ow_game_1_post_loop_inRange y)
+    (fun _ => ow_game_1_post_loop_inFootprint y)
 
 /-- The full tail of `ow_game_1` (after `lazy_init`) is equivalent (modulo
     `chal_x_queried_gh`) to the full tail of `ow_game_1_tracked` (after
@@ -1098,9 +1098,9 @@ private lemma ow_game_1_loop_tail_equiv
 
     The 5-layer prefix (uniform / set chal_x / uniform / set ro / set chal_y)
     is *identical* on both sides, so we use `bind_eq_p` repeatedly — no
-    inRange proofs needed for the prefix. -/
+    inFootprint proofs needed for the prefix. -/
 private lemma ow_game_1_full_tail_equiv_lazy_query_tracked
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range) (q : ℕ) :
+    (h_ow_adv_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ) (q : ℕ) :
     ProgramDenotation.EquivModuloLens chal_x_queried_gh
       (do
         let x ← ProgramDenotation.uniform
@@ -1136,7 +1136,7 @@ private lemma ow_game_1_full_tail_equiv_lazy_query_tracked
     `oracle_loop_n_equiv` (loop-level), `lazy_query_equiv_lazy_query_tracked`
     (final query), and `set_equiv_pure` (initial set chal_x_queried_gh false). -/
 theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
-    (h_ow_adv_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_ow_adv_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (q : ℕ) (F : Bool × state → ENNReal)
     (h_F : IgnoresLens chal_x_queried_gh F)
     (σ : state) :
@@ -1156,7 +1156,7 @@ theorem ow_game_1_wp_eq_ow_game_1_tracked_wp_of_flag_ignoring
   --   lq with lqt under same prefix; uses bind_eq_p with full-tail equiv).
   have h_dead_set := ProgramDenotation.EquivModuloLens.bind_eq_k
     (ProgramDenotation.EquivModuloLens.pure_equiv_set (L := chal_x_queried_gh) false)
-    (fun _ : Unit => ow_game_1_tail_inRange_chal_x_queried_gh ow_adv h_ow_adv_flag q)
+    (fun _ : Unit => ow_game_1_tail_inFootprint_chal_x_queried_gh ow_adv h_ow_adv_flag q)
   -- h_dead_set : (pure () >>= fun _ => REST_lq) ≈_L (set L false >>= fun _ => REST_lq)
   rw [ProgramDenotation.pure_bind] at h_dead_set
   -- h_dead_set : REST_lq ≈_L (set L false >>= fun _ => REST_lq)

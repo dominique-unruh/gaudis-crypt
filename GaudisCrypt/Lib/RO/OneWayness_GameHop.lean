@@ -93,13 +93,13 @@ variable (ow_adv : ProgramDenotation state Unit)
     Matches the existing `ow_lazy_bound` (in `QueryHit.lean`), proved via
     the game-hopping + up-to-bad chain. -/
 theorem ow_lazy_bound_via_gamehop
-    (h_ow_adv : ow_adv.inRange random_oracle_state.compl.range)
-    (h_ow_adv_chal_y : ow_adv.inRange ow_challenge_y.compl.range)
-    (h_ow_adv_chal_x : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_ow_adv_chal_x_queried_gh : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_ow_adv_matched_chal_y : ow_adv.inRange matched_chal_y.compl.range)
-    (h_ow_adv_queries_output : ow_adv.inRange queries_output.compl.range)
-    (h_ow_adv_queries_input : ow_adv.inRange queries_input.compl.range)
+    (h_ow_adv : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_ow_adv_chal_y : ow_adv.inFootprint (ow_challenge_y.footprint)ᶜ)
+    (h_ow_adv_chal_x : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_ow_adv_chal_x_queried_gh : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_ow_adv_matched_chal_y : ow_adv.inFootprint (matched_chal_y.footprint)ᶜ)
+    (h_ow_adv_queries_output : ow_adv.inFootprint (queries_output.footprint)ᶜ)
+    (h_ow_adv_queries_input : ow_adv.inFootprint (queries_input.footprint)ᶜ)
     (h_ow_adv_mass_one : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (ow_experiment ow_adv q lazy_init lazy_query).wp

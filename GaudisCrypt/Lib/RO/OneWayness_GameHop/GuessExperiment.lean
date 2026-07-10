@@ -86,7 +86,7 @@ noncomputable def guess_experiment {T s : Type}
 
 
 
--- `loop_n_inRange` is defined generically in PlonkLean.ProgramRange.
+-- `loop_n_inFootprint` is defined generically in PlonkLean.ProgramRange.
 -- `loop_n_congr` and `loop_n_then_congr` are defined generically in PlonkLean.EquivModuloLens.
 
 /-! ### Collector-game route to the bound.
@@ -341,12 +341,12 @@ lemma schema_inner_equation
     [disjoint matched_var target_var]
     [disjoint queries_list_var target_var]
     (q_body q_final : ProgramDenotation state T)
-    (h_q_body_matched : q_body.inRange matched_var.compl.range)
-    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
-    (h_q_body_target : q_body.inRange target_var.compl.range)
-    (h_q_final_matched : q_final.inRange matched_var.compl.range)
-    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
-    (h_q_final_target : q_final.inRange target_var.compl.range)
+    (h_q_body_matched : q_body.inFootprint (matched_var.footprint)ᶜ)
+    (h_q_body_qs : q_body.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_q_body_target : q_body.inFootprint (target_var.footprint)ᶜ)
+    (h_q_final_matched : q_final.inFootprint (matched_var.footprint)ᶜ)
+    (h_q_final_qs : q_final.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_q_final_target : q_final.inFootprint (target_var.footprint)ᶜ)
     (n : ℕ) (σ' : state) (t : T) :
     (ProgramDenotation.set target_var t >>= fun _ : Unit =>
      ProgramDenotation.set matched_var false >>= fun _ : Unit =>
@@ -394,12 +394,12 @@ theorem guess_experiment_le_interim_via_schema
     [disjoint matched_var target_var]
     [disjoint queries_list_var target_var]
     (q_body q_final : ProgramDenotation state T)
-    (h_q_body_matched : q_body.inRange matched_var.compl.range)
-    (h_q_body_qs : q_body.inRange queries_list_var.compl.range)
-    (h_q_body_target : q_body.inRange target_var.compl.range)
-    (h_q_final_matched : q_final.inRange matched_var.compl.range)
-    (h_q_final_qs : q_final.inRange queries_list_var.compl.range)
-    (h_q_final_target : q_final.inRange target_var.compl.range)
+    (h_q_body_matched : q_body.inFootprint (matched_var.footprint)ᶜ)
+    (h_q_body_qs : q_body.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_q_body_target : q_body.inFootprint (target_var.footprint)ᶜ)
+    (h_q_final_matched : q_final.inFootprint (matched_var.footprint)ᶜ)
+    (h_q_final_qs : q_final.inFootprint (queries_list_var.footprint)ᶜ)
+    (h_q_final_target : q_final.inFootprint (target_var.footprint)ᶜ)
     (body : T → ProgramDenotation state Unit) (final : T → ProgramDenotation state Unit)
     (body_recording : ProgramDenotation state Unit) (final_recording : ProgramDenotation state Unit)
     (h_body : ∀ t, body t = q_body >>= fun a : T =>
@@ -460,13 +460,13 @@ theorem guess_experiment_interim_wp_bound
 
 /-- For a program `p` that doesn't write to `qs_var`, the expected list
     length at output is bounded by the initial length (up to mass ≤ 1). -/
-lemma ProgramDenotation.wp_qs_length_preserved_of_inRange
+lemma ProgramDenotation.wp_qs_length_preserved_of_inFootprint
     {T : Type} [DecidableEq T]
     (qs_var : Lens (List T) state) {α : Type} (p : ProgramDenotation state α)
-    (h_p : p.inRange qs_var.compl.range) (σ : state) :
+    (h_p : p.inFootprint (qs_var.footprint)ᶜ) (σ : state) :
     p.wp (fun aσ : α × state => ((qs_var.get aσ.2).length : ENNReal)) σ
     ≤ ((qs_var.get σ).length : ENNReal) := by
-  rw [ProgramDenotation.wp_strengthen_lens_preserved qs_var h_p]
+  rw [ProgramDenotation.wp_strengthen_lens_preserved_footprint qs_var h_p]
   refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _
       (fun _ : α × state => ((qs_var.get σ).length : ENNReal)) ?_ σ) ?_
   · intro aσ

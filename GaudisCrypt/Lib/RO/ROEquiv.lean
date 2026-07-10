@@ -11,7 +11,7 @@ Below, `adv` and `h_adv` are *parameters* (via a `variable` declaration), not
 axioms. Every `oracle_loop`-style definition and `adv_conv_eq_conv_adv`–`oracle_loop_wp_lazy_eq_random_oracle*`-style
 theorem in this section is parameterised over an arbitrary adversary
 `adv : ProgramDenotation state Unit` together with its RO-disjointness hypothesis
-`h_adv : adv.inRange random_oracle_state.compl.range`.
+`h_adv : adv.inFootprint (random_oracle_state.footprint)ᶜ`.
 
 This enables instantiation with wrapped/composed adversaries (CR reductions,
 hybrid games, etc.) without re-axiomatising or re-deriving the framework. -/
@@ -28,19 +28,16 @@ noncomputable def conv_adv : ProgramDenotation state Unit := do
   convert
   adv
 
-variable (h_adv : adv.inRange random_oracle_state.compl.range)
+variable (h_adv : adv.inFootprint (random_oracle_state.footprint)ᶜ)
 
 
 include h_adv in
 theorem adv_conv_eq_conv_adv : adv_conv adv = conv_adv adv := by
   change (adv >>= fun _ => convert) = (convert >>= fun _ => adv)
-  -- Disjointness of the lens-complement with the lens itself (an equality, hence ≤).
-  have h_disj : random_oracle_state.compl.range ≤ (random_oracle_state.range)ᶜ :=
-    le_of_eq (DetermFootprint.complement_range _)
-  -- Pair-output commutation from the headline lemma.
+  -- Pair-output commutation from the headline footprint lemma (`ᶜ`-form: hdisj is `le_refl`).
   have h_commute : (adv >>= fun x => convert >>= fun y => pure (x, y))
                  = (convert >>= fun y => adv >>= fun x => pure (x, y)) :=
-    ProgramDenotation.commute_of_disjoint_lens h_adv convert_inRange_ro h_disj
+    ProgramDenotation.commute_of_disjoint_footprint h_adv convert_inFootprint_ro (le_refl _)
   -- Massage both sides of the goal into the pair-output form so we can rewrite.
   have hL : (adv >>= fun _ => convert)
           = (adv >>= fun x => convert >>= fun y => pure (x, y)) >>= fun _ => pure () := by
@@ -153,7 +150,7 @@ theorem ProgramDenotation.transfer_oracle_loop :
   refine ProgramDenotation.transfer_bind ?_ ?_
   · -- while_loop transfers via the closure law.
     refine ProgramDenotation.transfer_while_loop
-      (ProgramDenotation.get_inRange_compl_of_disjoint want_more random_oracle_state) ?_
+      (ProgramDenotation.get_inFootprint_compl_of_disjoint want_more random_oracle_state) ?_
     exact transfer_loop_body adv h_adv
   intro _
   exact ProgramDenotation.transfer_get_of_disjoint_ro adversary_result
@@ -247,43 +244,5 @@ theorem oracle_loop_marginal_lazy_eq_random_oracle_compl (σ₀ : state) :
   exact Quotient.sound ⟨random_oracle_state.get σ,
     (random_oracle_state.set_set σ x (random_oracle_state.get σ)).trans
       (random_oracle_state.get_set σ)⟩
-
-include h_adv in
-/-- **Form (b) — `ProgramDenotation.glob` projection.** The joint distribution of
-    (adv's bit, what `adv` can see/modify) is identical under lazy and
-    eager. Specialisation via `(ProgramDenotation.glob adv).get`. -/
-theorem oracle_loop_marginal_lazy_eq_random_oracle_glob (σ₀ : state) :
-    (oracle_loop adv lazy_init lazy_query σ₀ >>=
-        fun bσ : Bool × state =>
-          (Pure.pure (bσ.1, (ProgramDenotation.glob adv).get bσ.2) :
-            SubProbability (Bool × adv.Globals)))
-    =
-    (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
-        fun bσ : Bool × state =>
-          (Pure.pure (bσ.1, (ProgramDenotation.glob adv).get bσ.2) :
-            SubProbability (Bool × adv.Globals))) := by
-  refine oracle_loop_marginal_lazy_eq_random_oracle adv h_adv
-    (ProgramDenotation.glob adv).get ?_ σ₀
-  intro σ x
-  apply Quotient.sound
-  change Relation.EqvGen
-      (fun s s' : state => ∃ f ∈ ((adv.range)ᶜ : DetermFootprint state).updates, f s = s')
-      (random_oracle_state.set x σ) σ
-  apply Relation.EqvGen.symm
-  apply Relation.EqvGen.rel
-  refine ⟨random_oracle_state.set x, ?_, rfl⟩
-  have h_in_ro : random_oracle_state.set x ∈ random_oracle_state.range.updates := by
-    refine ⟨Function.const _ x, Set.mem_univ _, ?_⟩
-    funext σ'
-    simp [Lens.liftFunction]
-  have hadv_le : adv.range ≤ random_oracle_state.compl.range :=
-    sInf_le h_adv
-  have h_le : random_oracle_state.range ≤ (adv.range)ᶜ := by
-    have hflip : (random_oracle_state.compl.range)ᶜ ≤ (adv.range)ᶜ := by
-      change (Submonoid.centralizer random_oracle_state.compl.range.updates).carrier
-           ⊆ (Submonoid.centralizer adv.range.updates).carrier
-      exact Submonoid.centralizer_le hadv_le
-    rwa [DetermFootprint.complement_range, DetermFootprint.compl_compl] at hflip
-  exact h_le h_in_ro
 
 end AdvParam
