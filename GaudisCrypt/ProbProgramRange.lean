@@ -11,7 +11,8 @@ Foundation for migrating the RO crypto stack off `DetermFootprint`/`inRange`.
 -/
 
 open GaudisCrypt
-open GaudisCrypt
+
+namespace GaudisCrypt
 
 
 /-- **`wp_shift_input` over `Footprint`** — countability-free. The probabilistic analogue of
@@ -166,3 +167,5 @@ lemma ProgramDenotation.wp_set_disjoint_no_op_footprint {s γ : Type} [Decidable
   funext xs
   rw [h_f_eq xs.2]
   exact h_F xs
+
+end GaudisCrypt

@@ -91,10 +91,8 @@ accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, a
 `@[simp]` lemmas relating them.
 -/
 
-namespace GaudisCrypt.Language.Syntax
+namespace GaudisCrypt
 
-open GaudisCrypt
-open GaudisCrypt
 open Lean
 
 variable [ProgramSpec]
@@ -182,15 +180,13 @@ scoped macro:max "GaudiExpr[" e:term "]" : term => do
   let e' : Term := ⟨← fixExpr e⟩
   `(Getter.mk (fun st => letI : CurrentState _ := ⟨st⟩; $e'))
 
-end GaudisCrypt.Language.Syntax
+end GaudisCrypt
 
 /-! ## Experiments for expressions -/
 
-namespace GaudisCrypt.Language.Syntax.Test
+namespace GaudisCrypt.Test
 
 open GaudisCrypt
-open GaudisCrypt
-open GaudisCrypt.Language.Syntax
 
 variable [ProgramSpec]
 
@@ -222,7 +218,7 @@ example (st : ProcedureState Unit) :
       = a.get st.global + loc.get st := by
   simp
 
-end GaudisCrypt.Language.Syntax.Test
+end GaudisCrypt.Test
 
 /-! ## Syntax for programs (`StmtWithHoles`)
 
@@ -247,10 +243,7 @@ Surface forms (`gaudi_stmt`):
 The call argument list `( … )` is always required (even `()`); the arguments form a
 tuple matching the callee's `ParamType`.  (`hole` is still deferred.) -/
 
-namespace GaudisCrypt.Language.Syntax
-
-open GaudisCrypt
-open GaudisCrypt
+namespace GaudisCrypt
 
 variable [ProgramSpec]
 
@@ -615,25 +608,23 @@ syntax "procmod " "(" term,* ")" (" → " <|> " -> ") term:36 : term
 macro_rules
   | `(procmod ( $params:term,* ) → $ret:term) => `(procmod ( $params,* ) -> $ret)
   | `(procmod ( $params:term,* ) -> $ret:term) =>
-      `(GaudisCrypt.Language.Modules.ModuleType.proc (procsig ( $params,* ) -> $ret))
+      `(_root_.GaudisCrypt.ModuleType.proc (procsig ( $params,* ) -> $ret))
 
 open Lean PrettyPrinter in
-@[app_unexpander GaudisCrypt.Language.Modules.ModuleType.proc]
+@[app_unexpander _root_.GaudisCrypt.ModuleType.proc]
 def unexpandProcMod : Unexpander
   | `($_ $sig) => do
       let some (ps, r) := procsigParts? sig.raw | throw ()
       `(procmod ( $ps,* ) → $r)
   | _ => throw ()
 
-end GaudisCrypt.Language.Syntax
+end GaudisCrypt
 
 /-! ## Experiments for programs -/
 
-namespace GaudisCrypt.Language.Syntax.ProgTest
+namespace GaudisCrypt.ProgTest
 
 open GaudisCrypt
-open GaudisCrypt
-open GaudisCrypt.Language.Syntax
 
 variable [ProgramSpec]
 
@@ -789,11 +780,10 @@ example : (procsig (Nat) → Bool) = (procsig (Nat) -> Bool) := rfl
 example : (proctype (Nat) → Bool) = (proctype (Nat) -> Bool) := rfl
 #check (proc_two_holes : proctype (Nat) → Nat uses ((Nat) → Bool, (Bool) → Nat))
 
-end GaudisCrypt.Language.Syntax.ProgTest
+end GaudisCrypt.ProgTest
 
 
 open GaudisCrypt
-open GaudisCrypt.Language.Modules
 
 /-! ## Concrete syntax for `ModuleType`
 
@@ -801,12 +791,12 @@ open GaudisCrypt.Language.Modules
 the `Prod` notation whose token and precedence it shares); `→ₘ` is a custom module arrow for
 `ModuleType.arr`.  `.proc`/`.unit` need no notation — dot notation (or `procmod …` for the
 former) resolves them wherever the expected type is `ModuleType` (both sides of `×`/`→ₘ`, a
-field ascription).  Both are `scoped` to `GaudisCrypt.Language.Modules`, so `open`ing that
+field ascription).  Both are `scoped` to `GaudisCrypt`, so `open`ing that
 namespace activates them (and the `×` overload stays inert otherwise). -/
-namespace GaudisCrypt.Language.Modules
-scoped infixr:35 " × "  => ModuleType.prod
-scoped infixr:25 " →ₘ " => ModuleType.arr
-end GaudisCrypt.Language.Modules
+namespace GaudisCrypt
+scoped infixr:35 " × "  => _root_.GaudisCrypt.ModuleType.prod
+scoped infixr:25 " →ₘ " => _root_.GaudisCrypt.ModuleType.arr
+end GaudisCrypt
 
 /-- A field `f : Module T` of a `moduletype` declaration. -/
 /- A field of a `moduletype` declaration: either `module f : T;` (explicit module type)

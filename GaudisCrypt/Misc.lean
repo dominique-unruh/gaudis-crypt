@@ -7,7 +7,9 @@ Maybe some should be in mathlib.
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Order.OmegaCompletePartialOrder
 
-def OmegaCompletePartialOrder.ContinuousHom.lfp [OmegaCompletePartialOrder a] [OrderBot a]
+namespace GaudisCrypt
+
+def _root_.OmegaCompletePartialOrder.ContinuousHom.lfp [OmegaCompletePartialOrder a] [OrderBot a]
     (f : a →𝒄 a) :=
   have prf := Monotone.monotone_iterate_of_le_map f.monotone (OrderBot.bot_le _)
   OmegaCompletePartialOrder.ωSup ⟨fun n => f^[n] ⊥, prf⟩
@@ -245,4 +247,6 @@ lemma ENNReal.natCast_succ_sub_one (n : ℕ) :
     ((n + 1 : ℕ) : ENNReal) - 1 = (n : ENNReal) := by
   push_cast
   exact ENNReal.add_sub_cancel_right (by norm_num)
+
+end GaudisCrypt
 

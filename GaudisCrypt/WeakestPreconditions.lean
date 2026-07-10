@@ -1,7 +1,8 @@
 import GaudisCrypt.Language.Semantics
 
 open GaudisCrypt
-open GaudisCrypt
+
+namespace GaudisCrypt
 
 /-!
 # Discrete subprobability monad
@@ -480,3 +481,5 @@ theorem ProgramDenotation.mass_bind {s α β : Type}
     exact hk aσ.1 aσ.2
   rw [h_post]
   exact hp σ
+
+end GaudisCrypt
