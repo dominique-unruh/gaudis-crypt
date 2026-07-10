@@ -1,10 +1,4 @@
 import GaudisCrypt.Language.Programs
--- TODO: layering debt. `pair_footprint` and its ~18-declaration closure (`liftFootprint_sup`,
--- `chain_footprint`, the `updateK`/bicommutant scaffolding) are Footprint-level results that
--- currently live in `GaudisCrypt.FV`, a range-framework file. Importing FV from `Language/`
--- inverts the documented Language → range-framework layering. Fix by splitting the
--- Footprint-level half of `FV.lean` into `Language/Footprint.lean`, then drop this import.
-import GaudisCrypt.FV
 
 namespace GaudisCrypt
 
@@ -146,54 +140,6 @@ theorem _root_.GaudisCrypt.Footprint.IsSubGranular.le_granular [spec : GranularP
         ⟨Finset.mem_powerset_self _, h.choose_spec.2⟩⟩).choose_spec.1).2 -/
   sorry
 
--- TODO: the next four declarations are general `Lens`/`Footprint` facts, not granularity facts.
--- `Lens.punit` belongs in `Language/Lens.lean`; `Footprint.fromLens_bot` and
--- `Lens.disjoint_of_footprint_le_compl` belong in `Language/Footprint.lean` (next to its converse
--- `Lens.footprint_le_compl_of_disjoint`). `Footprint.FromLens.sup` can only join them there once
--- `pair_footprint` moves out of `FV.lean` — see the layering TODO at the top of this file.
-
-/-- The trivial lens onto `PUnit`: reads nothing, writes nothing. -/
--- TODO: Generalize: works with any singleton type
--- TODO: Rename → Lens.empty
-def Lens.punit {s : Type} : Lens PUnit s where
-  get _ := PUnit.unit
-  set _ σ := σ
-  set_set _ _ _ := rfl
-  set_get _ _ := rfl
-  get_set _ := rfl
-
-/-- The empty footprint comes from the trivial lens. -/
-theorem _root_.GaudisCrypt.Footprint.fromLens_bot {s : Type} : (⊥ : Footprint s).FromLens := by
-  have h : (Lens.punit : Lens PUnit s).footprint = ⊥ := Lens.footprint_eq_bot_of_subsingleton _
-  rw [← h]
-  exact Lens.footprint_fromLens _
-
-/-- **Converse of `Lens.footprint_le_compl_of_disjoint`**: lenses whose footprints lie in each
-    other's commutant have commuting setters.  Both constant writes are Dirac kernels in their
-    lens's footprint, so the commutant hypothesis makes them commute as kernels; evaluating at a
-    state and stripping `pure` yields the plain set-commutation law. -/
-theorem Lens.disjoint_of_footprint_le_compl {a b s : Type} (x : Lens a s) (y : Lens b s)
-    (h : x.footprint ≤ (y.footprint)ᶜ) : disjoint x y := by
-  refine ⟨fun st v w => ?_⟩
-  have hx := x.diracKer_liftFunction_mem_footprint (Function.const _ v)
-  have hy := y.diracKer_liftFunction_mem_footprint (Function.const _ w)
-  have hcomm := Submonoid.mem_centralizer_iff.mp (h hx)
-    (diracKer (y.liftFunction (Function.const _ w))) hy
-  rw [diracKer_mul, diracKer_mul] at hcomm
-  exact (SubProbability.pure_injective (congrFun hcomm st)).symm
-
-/-- **Lens-derived footprints are closed under disjoint joins**: pair the two lenses (the
-    disjointness instance comes from `Lens.disjoint_of_footprint_le_compl`) and read off
-    `pair_footprint`. -/
-theorem _root_.GaudisCrypt.Footprint.FromLens.sup {s : Type} {f g : Footprint s}
-    (hf : f.FromLens) (hg : g.FromLens) (hd : f ≤ gᶜ) : (f ⊔ g).FromLens := by
-  obtain ⟨l1, hl1⟩ := hf
-  obtain ⟨l2, hl2⟩ := hg
-  haveI : disjoint l1 l2 :=
-    Lens.disjoint_of_footprint_le_compl l1 l2 (by rw [← hl1, ← hl2]; exact hd)
-  rw [hl1, hl2, ← pair_footprint l1 l2]
-  exact Lens.footprint_fromLens _
-
 -- TODO: Used only once. Inline
 private theorem sSup_grains_fromLens [spec : GranularProgramSpec]
     (F : Finset spec.granularity) :
@@ -264,6 +210,5 @@ theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (len
   rw [Footprint.IsSubGranular.granular_footprint, Footprint.IsSubGranular.granular_footprint,
     Footprint.IsSubGranular.granular_footprint, hset, sSup_union]
   rfl
-
 
 end GaudisCrypt
