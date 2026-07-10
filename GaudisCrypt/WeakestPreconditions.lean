@@ -1,4 +1,5 @@
 import GaudisCrypt.Language.Semantics
+import GaudisCrypt.Language.Programs
 
 open GaudisCrypt
 open GaudisCrypt
@@ -480,3 +481,59 @@ theorem ProgramDenotation.mass_bind {s α β : Type}
     exact hk aσ.1 aσ.2
   rw [h_post]
   exact hp σ
+
+/-! ## Getter/setter, `zoom`, and procedure-wrapper rules
+
+The `wp` rules for the remaining `ProgramDenotation` primitives (generic getters and setters,
+`zoom`), and for running procedures (`procWrap`): together they let a game's `wp` be pushed
+through its whole call structure. -/
+
+theorem wp_get_g {s α T : Type} [AsGetter T α s] (v : T) (f : ProgramDenotation.Post s α) :
+    (ProgramDenotation.get v).wp f = fun st => f ((AsGetter.toG v).get st, st) := by
+  simp [ProgramDenotation.get, wp_bind, wp_pure, wp_get_state]
+
+theorem wp_set_g {s α T : Type} [AsSetter T α s] (v : T) (x : α)
+    (f : ProgramDenotation.Post s Unit) :
+    (ProgramDenotation.set v x).wp f = fun st => f ((), (AsSetter.toS v).set x st) := by
+  simp [ProgramDenotation.set, wp_bind, wp_get_state, wp_set_state]
+
+theorem wp_zoom {s t α : Type} (L : Lens s t) (p : ProgramDenotation s α)
+    (f : ProgramDenotation.Post t α) :
+    (ProgramDenotation.zoom L p).wp f
+      = fun st => p.wp (fun as' => f (as'.1, L.set as'.2 st)) (L.get st) := by
+  funext st
+  change (p (L.get st) >>= fun as' =>
+      (pure (as'.1, L.set as'.2 st) : SubProbability _)).expected f = _
+  rw [SubProbability.expected_bind]
+  congr 1
+  funext as'
+  rw [expected_pure]
+
+/-- `procedureDenotation` of a plain procedure is `procWrap` of its body (the closed-procedure
+    sibling of `GaudisCrypt.procedureDenotation_eq_procWrap_gen`). -/
+theorem GaudisCrypt.procedureDenotation_eq_procWrap [ProgramSpec] {sig : ProcedureSignature}
+    (p : Procedure sig) (args : sig.ParamType) :
+    procedureDenotation p args
+      = procWrap p.return_val (sig.localVariableInit p.locals args)
+          (programDenotation p.body) := by
+  funext st
+  simp only [procedureDenotation, procWrap]
+
+theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature} {L : Type}
+    (rv : Getter sig.ret (ProcedureState L)) (init : L)
+    (B : ProgramDenotation (ProcedureState L) Unit) (f : ProgramDenotation.Post State sig.ret) :
+    (procWrap rv init B).wp f
+      = fun st => B.wp (fun p => f (rv.get p.2, p.2.global)) ⟨st, init⟩ := by
+  funext st
+  change (B ⟨st, init⟩ >>= fun p =>
+      (pure (rv.get p.2, p.2.global) : SubProbability _)).expected f = _
+  rw [SubProbability.expected_bind]
+  congr 1
+  funext p
+  rw [expected_pure]
+
+/-- Structure-eta for procedures, as a simp lemma: instantiation (and the `call\'` denotation)
+    decompose a procedure into its fields; this resurfaces the named procedure. -/
+@[simp] theorem GaudisCrypt.procedureWithHoles_eta [ProgramSpec] {holes : HoleSigs}
+    {sig : ProcedureSignature} (p : ProcedureWithHoles holes sig) :
+    (⟨p.locals, p.body, p.return_val⟩ : ProcedureWithHoles holes sig) = p := rfl

@@ -223,65 +223,8 @@ theorem Correctness_Pedersen_procedure :
   injection h2 with hΔ hsig h
   exact h.symm
 
-/-! ## The wp toolkit (generic — `WeakestPreconditions.lean` candidates) -/
-
-omit [ProgramSpec] [PedersenGroup] in
-theorem wp_get_g {s α T : Type} [AsGetter T α s] (v : T) (f : ProgramDenotation.Post s α) :
-    (ProgramDenotation.get v).wp f = fun st => f ((AsGetter.toG v).get st, st) := by
-  simp [ProgramDenotation.get, wp_bind, wp_pure, wp_get_state]
-
-omit [ProgramSpec] [PedersenGroup] in
-theorem wp_set_g {s α T : Type} [AsSetter T α s] (v : T) (x : α)
-    (f : ProgramDenotation.Post s Unit) :
-    (ProgramDenotation.set v x).wp f = fun st => f ((), (AsSetter.toS v).set x st) := by
-  simp [ProgramDenotation.set, wp_bind, wp_get_state, wp_set_state]
-
-omit [ProgramSpec] [PedersenGroup] in
-theorem wp_zoom {s t α : Type} (L : Lens s t) (p : ProgramDenotation s α)
-    (f : ProgramDenotation.Post t α) :
-    (ProgramDenotation.zoom L p).wp f
-      = fun st => p.wp (fun as' => f (as'.1, L.set as'.2 st)) (L.get st) := by
-  funext st
-  change (p (L.get st) >>= fun as' =>
-      (pure (as'.1, L.set as'.2 st) : SubProbability _)).expected f = _
-  rw [SubProbability.expected_bind]
-  congr 1
-  funext as'
-  rw [expected_pure]
-
-omit [PedersenGroup] in
-/-- `procedureDenotation` of a plain procedure is `procWrap` of its body (the closed-procedure
-    sibling of `procedureDenotation_eq_procWrap_gen`). -/
-theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
-    (p : Procedure sig) (args : sig.ParamType) :
-    procedureDenotation p args
-      = procWrap p.return_val (sig.localVariableInit p.locals args)
-          (programDenotation p.body) := by
-  funext st
-  simp only [procedureDenotation, procWrap]
-
-omit [PedersenGroup] in
-theorem wp_procWrap {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (init : L)
-    (B : ProgramDenotation (ProcedureState L) Unit) (f : ProgramDenotation.Post State sig.ret) :
-    (procWrap rv init B).wp f
-      = fun st => B.wp (fun p => f (rv.get p.2, p.2.global)) ⟨st, init⟩ := by
-  funext st
-  change (B ⟨st, init⟩ >>= fun p =>
-      (pure (rv.get p.2, p.2.global) : SubProbability _)).expected f = _
-  rw [SubProbability.expected_bind]
-  congr 1
-  funext p
-  rw [expected_pure]
-
 /-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure) -/
 
-omit [PedersenGroup] in
-/-- Structure-eta for procedures, as a simp lemma (the `call'` denotation rebuilds the
-    procedure from its fields). -/
-@[simp] theorem procedureWithHoles_eta {holes : HoleSigs} {sig : ProcedureSignature}
-    (p : ProcedureWithHoles holes sig) :
-    (⟨p.locals, p.body, p.return_val⟩ : ProcedureWithHoles holes sig) = p := rfl
 
 /-- The wp of each Pedersen procedure, stated at the `CommitmentTypes`-spelled signature the
     instantiated game carries (definitionally `G`/`F`; the spelling makes the simp keys match). -/
