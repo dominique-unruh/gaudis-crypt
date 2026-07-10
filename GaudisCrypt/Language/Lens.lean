@@ -156,6 +156,16 @@ def Lens.id : Lens m m where
   get_set _ := rfl
   set_get _ _ := rfl
 
+/-- The trivial lens onto a subsingleton-with-default content type: reads nothing, writes
+    nothing.  Its footprint is `⊥`. -/
+-- TODO rename → Lens.empty
+def Lens.punit {s t : Type*} [Unique t] : Lens t s where
+  get _ := default
+  set _ σ := σ
+  set_set _ _ _ := rfl
+  set_get _ _ := (Unique.uniq _ _).symm
+  get_set _ := rfl
+
 def Lens.bijection (e : a ≃ b) : Lens a b where
   get := e.symm
   set x _ := e x
