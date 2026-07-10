@@ -17,9 +17,28 @@ A transliteration of EasyCrypt's `theories/crypto/Commitment.ec` (theory
 
 namespace GaudisCrypt.Examples.Pedersen
 
+/-
+
+Dominique's TODOs:
+
+- rename ModuleType -> ModuleTypeRep
+- class IsModule
+- instances for that class (see below)
+- →ₘ should be `Type -> Type -> Type` (using the instance)
+- (For ModuleTypeRep: no pretty syntax)
+- extend `moduletype X` command
+  - also define X.moduleTypeRep
+  - do: `instance IsModule X`
+
+
+In a different iteration:
+- module A : X { ...} syntax (does def A : X := lambda-expression)
+- Maybe also support `let A := module...` or `def A := module...` etc
+
+-/
+
 open GaudisCrypt
-open GaudisCrypt.Language.Modules
-open GaudisCrypt.Language.Syntax
+
 
 /-- The abstract types of EC's `theory CommitmentProtocol`: the public value (key), the
     message space, commitments, and opening keys.  `Inhabited` is needed for program
@@ -30,11 +49,42 @@ class CommitmentTypes where
   Message : Type
   Commitment : Type
   OpeningKey : Type
+  /-- TODO: change Nonempty -/
+  -- NOTE: required because local variables need to be inhabited
+  -- TODO  Use individual [Nonempty types.Value] etc. instead of NonEmptyCommitmentTypes
   value_inhabited : Inhabited Value
   message_inhabited : Inhabited Message
   commitment_inhabited : Inhabited Commitment
   openingKey_inhabited : Inhabited OpeningKey
+  -- TODO: remove this and use classical
   message_deceq : DecidableEq Message
+
+
+
+-- TODO Make CommitmentTypes into a structure
+-- variable (types : CommitmentTypes) in the section
+
+/- DON'T DO:
+
+class NonEmptyCommitmentTypes (types : CommitmentTypes) where
+  nonempty_value : Nonempty types.Value
+  nonempty_message : Nonempty types.Message
+  nonempty_commitment : Nonempty types.Commitment
+  nonempty_openingKey : Nonempty types.OpeningKey
+
+  instance (t : CommitmentTypes) [NonEmptyCommitmentTypes t] : Nonempty t.Value := sorry
+  instance (t : CommitmentTypes) [NonEmptyCommitmentTypes t] : Nonempty t.Message := sorry
+  instance (t : CommitmentTypes) [NonEmptyCommitmentTypes t] : Nonempty t.Commitment := sorry
+  instance (t : CommitmentTypes) [NonEmptyCommitmentTypes t] : Nonempty t.OpeningKey := sorry
+
+instance (t : CommitmentTypes) [Nonempty t.Value] [Nonempty t.Message] [Nonempty t.Commitment]
+[Nonempty t.OpeningKey] : NonEmptyCommitmentTypes t :=
+sorry
+
+  variable (types : CommitmentTypes)
+  variable [NonEmptyCommitmentTypes types]
+-/
+
 
 instance [CommitmentTypes] : Inhabited CommitmentTypes.Value :=
   CommitmentTypes.value_inhabited
@@ -47,6 +97,7 @@ instance [CommitmentTypes] : Inhabited CommitmentTypes.OpeningKey :=
 instance [CommitmentTypes] : DecidableEq CommitmentTypes.Message :=
   CommitmentTypes.message_deceq
 
+-- TODO: move to the proper place (unless already exist)
 /-! ### Disjointness of tuple-projection lenses
 
 The `proc` macro binds each local variable to a `Lens.id.ofst/.osnd` projection chain into
@@ -83,10 +134,12 @@ instance Lens.disjoint_osnd_osnd {a b m m' : Type*} (x : Lens a m) (y : Lens b m
     [disjoint x y] : disjoint (Lens.osnd (m' := m') x) (Lens.osnd (m' := m') y) :=
   Lens.disjoint_chain Lens.snd x y
 
+-- TODO: changes to named variable if CommitmentTypes becomes a structure
 variable [ProgramSpec] [CommitmentTypes]
 
 /-- Local program variables are `Lens.intoVars` of their slot projections; distinct slots
     are disjoint, and `intoVars` (two `chain` layers) preserves that. -/
+-- TODO move to Programs.lean (unless already there)
 instance Lens.disjoint_intoVars {a b : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
     {x : Lens a (paramListToTuple (locals.map (·.fst)))}
@@ -94,6 +147,7 @@ instance Lens.disjoint_intoVars {a b : Type} {paramTypes : List Type}
     disjoint (Lens.intoVars (paramTypes := paramTypes) x) (Lens.intoVars y) :=
   Lens.disjoint_chain ProcedureState.localL _ _
 
+-- With structure, replace by `local(?) abbrev Value := CommitmentTypes.Value types` etc. and remove the `open` below
 open CommitmentTypes (Value Message Commitment OpeningKey)
 
 /-! ## Module types
@@ -130,6 +184,15 @@ def CommitmentSchemeT : ModuleType :=
   procmod (Value, Message) -> (Commitment × OpeningKey) ×
   procmod (Value, Message, Commitment, OpeningKey) -> Bool
 
+/-
+Need: CommitmentSchemeM = Module CommitmentSchemeT
+
+Currently: CommitmentScheme, not-provided
+Could: CommitmentScheme, CommitmentScheme.ModuleT
+Could: CommitmentScheme.Module, CommitmentScheme
+Could: `Module CommitmentScheme`, CommitmentScheme
+
+-/
 example : CommitmentScheme = Module CommitmentSchemeT := rfl
 
 /-! ## Experiments (parameterized modules)
@@ -154,9 +217,36 @@ noncomputable def Correctness.main := proc (m : Message) uses
   return $b
 }
 
+
+-- def Module.arr {A B : ModuleType} (M : Module A) (f : Module (A →ₘ B)) : Module B :=
+--   ⟨fun _ => f.toProc⟩
+
+-- If `X := Module A` and `Y := Module B`, want to write `X --> Y` for `Module (A →ₘ B)`.
+
+class ModuleTypeOfModule (M : Type _) where
+  toModuleType : ModuleType
+  h : M = Module toModuleType
+
+def moduleTypeOfModule (M : Type _) [ModuleTypeOfModule M] : ModuleType :=
+  ModuleTypeOfModule.toModuleType M
+
+def Module.arr (X : Type _) (Y : Type _) [ModuleTypeOfModule X] [ModuleTypeOfModule Y] : Type _ :=
+  Module (ModuleType.arr (moduleTypeOfModule X) (moduleTypeOfModule Y))
+
+instance : ModuleTypeOfModule CommitmentScheme where
+  toModuleType := CommitmentSchemeT
+  h := rfl
+
+instance : ModuleTypeOfModule (Module t) where
+  toModuleType := t
+  h := rfl
+
 /-- EC's `module Correctness (S : CommitmentScheme)`, as a functor module: apply it to a
     scheme with `Correctness S` (module application). -/
-noncomputable def Correctness : Module (CommitmentSchemeT →ₘ procmod (Message) -> Bool) :=
+noncomputable def Correctness :
+  Module (CommitmentSchemeT →ₘ procmod (Message) -> Bool) :=
+  -- Module (CommitmentSchemeT →ₘ CorrectnessGameT (which has named procedures)) :=
+  -- Module.arr  CommitmentScheme (Module (procmod (Message) -> Bool)) :=
   (ModuleExpression.abs
     (.app (.procHoles (by trivial) Correctness.main)
       (.pair (.snd (.snd (.var .zero)))       -- verify

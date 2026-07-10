@@ -52,6 +52,7 @@ class LocalState : Type _ where
   params : List Type
   locals : List Type
 
+-- TODO: rename -> typeListToTuple
 def paramListToTuple : List Type → Type
   | []      => Unit
   | [x]     => x
@@ -61,9 +62,11 @@ def paramListToTuple : List Type → Type
 values (`vars`).  Indexed by the parameter *types* and the local declarations only
 (not the return type), so it can be formed before the return type is known — this is
 what lets a `proc` with an omitted return type elaborate. -/
+-- TODO: Rename LocalVariableState to ProcedureScope
 structure LocalVariableState (paramTypes : List Type)
     (locals : List (Σ t : Type, Inhabited t)) where
   params : paramListToTuple paramTypes
+  -- TODO: rename vars to localVars
   vars : paramListToTuple (locals.map (·.fst))
 
 /-- The local state for a full signature (delegates to `LocalVariableState`; reducible
@@ -95,14 +98,15 @@ def LocalVariableState.varsL {paramTypes : List Type}
 /-- Lift a lens into the parameter tuple to a lens into the full procedure state
 (`localL ∘ paramsL`).  Analogous to `Lens.ofst`.  (Defined in the `Lens` namespace via
 `_root_` so dot notation `lens.intoParams` resolves.) -/
-def _root_.GaudisCrypt.Lens.intoParams {a : Type} {paramTypes : List Type}
+def Lens.intoParams {a : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} (lens : Lens a (paramListToTuple paramTypes)) :
     Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=
   ProcedureState.localL.chain (LocalVariableState.paramsL.chain lens)
 
 /-- Lift a lens into the local-variable tuple to a lens into the full procedure state
 (`localL ∘ varsL`).  Analogous to `Lens.ofst`. -/
-def _root_.GaudisCrypt.Lens.intoVars {a : Type} {paramTypes : List Type}
+-- TODO: paramsToScoped
+def Lens.intoVars {a : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
     (lens : Lens a (paramListToTuple (locals.map (·.fst)))) :
     Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=
