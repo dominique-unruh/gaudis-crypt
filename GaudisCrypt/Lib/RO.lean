@@ -14,7 +14,8 @@ and lemmas live in `PlonkLean/RO/`:
 
 * `PlonkLean.RO.Basic` — RO primitives only: `random_oracle_state` axiom,
   `lazy_init` / `random_oracle_init`, `lazy_query` / `random_oracle_query`,
-  and `lazy_query_inRange_ro`. No bridging between lazy and eager.
+  and `lazy_query_inFootprint_ro`. No bridging between lazy and eager. (The legacy
+  `inRange` duals live in `PlonkLean.RO.LegacyRange`, kept only for `QueryHit`.)
 
 * `PlonkLean.RO.TransferConvert` — the lazy/eager bridge: `convert` itself,
   convert algebra (`convert_wp_eq`, `convert_mass`,

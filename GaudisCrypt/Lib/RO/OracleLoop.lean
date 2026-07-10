@@ -64,21 +64,6 @@ theorem query_set_convert_eq :
            lazy_query_convert_cont_eq_convert_random_oracle_query]
   exact convert_commutes_get oracle_input _
 
-/-- `(lazy_query inp >>= set oracle_output)` is in `L.compl.range` for any
-    lens `L` disjoint from both `random_oracle_state` and `oracle_output`.
-    Useful for `wp_strengthen_lens_preserved` arguments downstream. -/
-lemma lazy_query_then_set_oracle_output_inRange_compl
-    {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L]
-    [disjoint oracle_output L]
-    (inp : input) :
-    (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inRange
-        L.compl.range := by
-  refine ProgramDenotation.inRange_bind ?_ ?_
-  · exact ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state L)
-  · intro y
-    exact ProgramDenotation.set_inRange_compl_of_disjoint oracle_output L _
 
 /-- `inFootprint` (countability-free) analogue of
     `lazy_query_then_set_oracle_output_inRange_compl`. -/
@@ -335,26 +320,6 @@ lemma ProgramDenotation.transfer_oracle_loop_n_prob
     exact ProgramDenotation.transfer_bind (ProgramDenotation.transfer_oracle_step_prob h_adv) (fun _
         => ih)
 
-/-- Generic preservation: `oracle_step adv` stays in `L.compl.range` for any
-    lens `L` disjoint from `random_oracle_state`, `oracle_input`, and
-    `oracle_output`, provided the adversary stays in `L.compl.range`. -/
-lemma oracle_step_inRange_compl {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L]
-    [disjoint oracle_input L]
-    [disjoint oracle_output L]
-    {adv : ProgramDenotation state Unit}
-    (h_adv : adv.inRange L.compl.range) :
-    (oracle_step adv lazy_query).inRange L.compl.range := by
-  show (adv >>= fun _ =>
-        ProgramDenotation.get oracle_input >>= fun inp =>
-          lazy_query inp >>= fun y =>
-            ProgramDenotation.set oracle_output y).inRange L.compl.range
-  refine ProgramDenotation.inRange_bind h_adv ?_
-  intro _
-  refine ProgramDenotation.inRange_bind
-    (ProgramDenotation.get_inRange_compl_of_disjoint oracle_input L) ?_
-  intro inp
-  exact lazy_query_then_set_oracle_output_inRange_compl L inp
 
 /-- `inFootprint` (countability-free) analogue of `oracle_step_inRange_compl`. -/
 lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
@@ -375,21 +340,6 @@ lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
   intro inp
   exact lazy_query_then_set_oracle_output_inFootprint_compl L inp
 
-/-- Generic preservation lifted to the loop, by induction on `q`. -/
-lemma oracle_loop_n_inRange_compl {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L]
-    [disjoint oracle_input L]
-    [disjoint oracle_output L]
-    {adv : ProgramDenotation state Unit}
-    (h_adv : adv.inRange L.compl.range)
-    (q : ℕ) :
-    (oracle_loop_n adv q lazy_query).inRange L.compl.range := by
-  induction q with
-  | zero => exact ProgramDenotation.inRange_pure _ _
-  | succ n ih =>
-    show (oracle_step adv lazy_query >>= fun _ =>
-          oracle_loop_n adv n lazy_query).inRange _
-    exact ProgramDenotation.inRange_bind (oracle_step_inRange_compl L h_adv) (fun _ => ih)
 
 /-- `inFootprint` (countability-free) analogue of `oracle_loop_n_inRange_compl`. -/
 lemma oracle_loop_n_inFootprint_compl {γ : Type} (L : Lens γ state)

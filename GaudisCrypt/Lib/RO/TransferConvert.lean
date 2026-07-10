@@ -43,17 +43,6 @@ noncomputable def convert : ProgramDenotation state Unit := do
   let (y : input -> output) <- ProgramDenotation.uniform
   ProgramDenotation.set random_oracle_state (fun x => some ((h x).getD (y x)))
 
-/-- `convert` only reads and writes `random_oracle_state` (modulo a uniform sample). -/
-theorem convert_inRange_ro : convert.inRange random_oracle_state.range := by
-  show ((ProgramDenotation.get random_oracle_state) >>= fun h =>
-          (ProgramDenotation.uniform : ProgramDenotation state (input → output)) >>= fun y =>
-            ProgramDenotation.set random_oracle_state (fun x => some ((h x).getD (y x)))).inRange _
-  refine ProgramDenotation.inRange_bind (ProgramDenotation.inRange_get _) ?_
-  intro _
-  refine ProgramDenotation.inRange_bind ?_ ?_
-  · exact ProgramDenotation.inRange_mono ProgramDenotation.inRange_uniform bot_le
-  · intro _
-    exact ProgramDenotation.inRange_set _ _
 
 /-- `convert`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob analogue
     of `convert_inRange_ro`, used to drive the countability-free transfer-reflexivity. -/
@@ -372,20 +361,18 @@ lemma ProgramDenotation.transfer_lazy_query (x : input) :
     while-loops transfer.
 
     Instance of the generic Kleene closure `ProgramDenotation.transferBy_while_loop`;
-    the condition's self-transfer comes from its RO-disjointness via
-    `commute_of_disjoint_lens`. Any RO-based while-loop construction inherits
+    the condition's self-transfer comes from its RO-disjointness via the footprint
+    transfer-reflexivity. Any RO-based while-loop construction inherits
     the lazy = eager equivalence by this closure law plus the base-case body
     transfer. -/
 theorem ProgramDenotation.transfer_while_loop
     {cond : ProgramDenotation state Bool}
-    (h_cond : cond.inRange random_oracle_state.compl.range)
+    (h_cond : cond.inFootprint (random_oracle_state.footprint)ᶜ)
     {body_lazy body_eager : ProgramDenotation state Unit}
     (h_body : ProgramDenotation.transfer body_lazy body_eager) :
     ProgramDenotation.transfer (while_loop cond body_lazy) (while_loop cond body_eager) :=
   ProgramDenotation.transferBy_while_loop
-    (ProgramDenotation.transferBy_refl_of_commute
-      (ProgramDenotation.commute_of_disjoint_lens h_cond convert_inRange_ro
-        (le_of_eq (DetermFootprint.complement_range _))))
+    (ProgramDenotation.transferBy_refl_of_inFootprint_compl convert_inFootprint_ro h_cond)
     h_body
 
 /-- **Value marginal**: SubProb-level statement of the transfer. (For the

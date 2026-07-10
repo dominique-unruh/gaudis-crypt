@@ -57,7 +57,7 @@ variable (ow_adv : ProgramDenotation state Unit)
     flag-ignoring continuation whose post is also flag-ignoring. -/
 lemma lazy_query_tracked_eq_lazy_query_wp
     {α : Type} (k : output → ProgramDenotation state α)
-    (h_k_inRange : ∀ y, (k y).inRange chal_x_queried_gh.compl.range)
+    (h_k_inFootprint : ∀ y, (k y).inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (F : α × state → ENNReal) (h_F_inv : IgnoresLens chal_x_queried_gh F)
     (inp : input) (σ : state) :
     (lazy_query_tracked inp >>= k).wp F σ
@@ -82,9 +82,9 @@ lemma lazy_query_tracked_eq_lazy_query_wp
   rw [wp_bind, wp_bind]
   congr 1
   funext yσ
-  exact ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op
+  exact ProgramDenotation.wp_get_then_conditional_set_disjoint_no_op_footprint
     (L_get := ow_challenge_x) (L_set := chal_x_queried_gh)
-    (fun cx : input => inp = cx) true (h_k_inRange yσ.1) F
+    (fun cx : input => inp = cx) true (h_k_inFootprint yσ.1) F
     (fun aσ => h_F_inv aσ true) yσ.2
 
 /-! ### The RO[chal_x] insertion point
@@ -123,11 +123,10 @@ private lemma RO_get_insRO (x : input) (y : output) (σ : state) :
 
 /-- `insRO x y` is an update inside the RO's footprint. -/
 private lemma insRO_mem (x : input) (y : output) :
-    insRO x y ∈ ((random_oracle_state.compl.range : DetermFootprint state)ᶜ).updates := by
-  rw [show ((random_oracle_state.compl.range : DetermFootprint state)ᶜ)
-        = random_oracle_state.range from by
-    rw [DetermFootprint.complement_range, DetermFootprint.compl_compl]]
-  exact ⟨fun h k => if k = x then some y else h k, Set.mem_univ _, rfl⟩
+    diracKer (insRO x y) ∈ (((random_oracle_state.footprint)ᶜ)ᶜ).updates := by
+  rw [Footprint.compl_compl]
+  exact random_oracle_state.diracKer_liftFunction_mem_footprint
+    (fun h k => if k = x then some y else h k)
 
 /-- **The coupling invariant** between the Game-1 run (left) and the
     Game-2 run (right): flags agree; on good runs the left state is the
@@ -363,10 +362,10 @@ lemma lqt_flag_zero {inp : input} {F : output × state → ENNReal}
     {σ : state} (h : chal_x_queried_gh.get σ = true) :
     (lazy_query_tracked inp).wp F σ = 0 := by
   rw [wp_lqt]
-  have h_lq : (lazy_query inp).inRange chal_x_queried_gh.compl.range :=
-    ProgramDenotation.inRange_mono (lazy_query_inRange_ro inp)
-      (Lens.range_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
-  refine ProgramDenotation.wp_zero_of_lens_preserves h_lq ?_ h
+  have h_lq : (lazy_query inp).inFootprint (chal_x_queried_gh.footprint)ᶜ :=
+    ProgramDenotation.inFootprint_mono (lazy_query_inFootprint_ro inp)
+      (Lens.footprint_le_compl_of_disjoint random_oracle_state chal_x_queried_gh)
+  refine ProgramDenotation.wp_zero_of_lens_preserves_footprint h_lq ?_ h
   intro u hu
   by_cases hc : inp = ow_challenge_x.get u.2
   · rw [if_pos hc]
@@ -411,7 +410,7 @@ lemma wp_flag_one {α : Type} (p : ProgramDenotation state α) {σ : state}
   exact h.symm
 
 lemma body_flag_zero
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     {F : Unit × state → ENNReal}
     (hF : ∀ u : Unit × state, chal_x_queried_gh.get u.2 = true → F u = 0)
     {σ : state} (h : chal_x_queried_gh.get σ = true) :
@@ -421,7 +420,7 @@ lemma body_flag_zero
     lazy_query_tracked inp >>= fun y' =>
     ProgramDenotation.set oracle_output y').wp F σ = 0
   simp only [wp_bind, wp_get]
-  refine ProgramDenotation.wp_zero_of_lens_preserves h_flag ?_ h
+  refine ProgramDenotation.wp_zero_of_lens_preserves_footprint h_flag ?_ h
   rintro ⟨u, s⟩ hu
   change (lazy_query_tracked (oracle_input.get s)).wp _ s = 0
   refine lqt_flag_zero ?_ hu
@@ -496,7 +495,7 @@ private lemma final_mass (y_v : output) (σ : state) :
 /-! ## The rectangular (after-bad) judgments -/
 
 lemma body_bad_relE
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (x : input) (y : output) :
     (oracle_step ow_adv lazy_query_tracked).relE
@@ -573,9 +572,9 @@ private lemma final_bad_relE
 /-! ## The good-phase judgments -/
 
 lemma body_good_relE
-    (h_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (x : input) (y : output) :
     (oracle_step ow_adv lazy_query_tracked).relE
       (oracle_step ow_adv lazy_query_tracked)
@@ -650,9 +649,9 @@ lemma body_good_relE
 
 /-- The full loop-body judgment: `Inv` is preserved by one oracle step. -/
 lemma body_relE
-    (h_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
+    (h_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (x : input) (y : output) :
     (oracle_step ow_adv lazy_query_tracked).relE
@@ -733,9 +732,9 @@ private lemma init_inv (x : input) (y : output) (σ : state) :
     states differ only by the pre-programmed RO entry". All three
     up-to-bad theorems are corollaries. -/
 theorem ow_game_tracked_relE
-    (h_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) :
     (ow_game_1_tracked ow_adv q).relE (ow_game_2_tracked ow_adv q) Eq
@@ -782,9 +781,9 @@ theorem ow_game_tracked_relE
     `ow_game_1_tracked_eq_ow_game_2_tracked_until_bad` plus its ~390 lines
     of RO-invariance machinery; here it needs the extra mass hypothesis). -/
 private theorem ow_game_1_tracked_eq_ow_game_2_tracked_until_bad
-    (h_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (G : Bool × state → ENNReal)
     (h_G_RO_inv : ∀ (bσ : Bool × state) (y : output),
@@ -812,9 +811,9 @@ private theorem ow_game_1_tracked_eq_ow_game_2_tracked_until_bad
 /-- **Bad-event probability equality** (the unary original needed a
     138-line mass-conservation + ENNReal-cancellation chain). -/
 lemma ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad
-    (h_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (σ : state) :
     (ow_game_1_tracked ow_adv q).wp
@@ -830,9 +829,9 @@ lemma ow_game_1_tracked_bad_eq_ow_game_2_tracked_bad
 /-- **The up-to-bad hop bound**:
     `Pr[G1 : G] ≤ Pr[G2 : G] + Pr[G1 : bad ∧ G]`. -/
 theorem ow_game_1_tracked_le_ow_game_2_tracked_plus_bad
-    (h_RO : ow_adv.inRange random_oracle_state.compl.range)
-    (h_cx : ow_adv.inRange ow_challenge_x.compl.range)
-    (h_flag : ow_adv.inRange chal_x_queried_gh.compl.range)
+    (h_RO : ow_adv.inFootprint (random_oracle_state.footprint)ᶜ)
+    (h_cx : ow_adv.inFootprint (ow_challenge_x.footprint)ᶜ)
+    (h_flag : ow_adv.inFootprint (chal_x_queried_gh.footprint)ᶜ)
     (h_mass : ∀ σ, ow_adv.wp (fun _ => (1 : ENNReal)) σ = 1)
     (q : ℕ) (G : Bool × state → ENNReal)
     (h_G_RO_inv : ∀ (bσ : Bool × state) (y : output),

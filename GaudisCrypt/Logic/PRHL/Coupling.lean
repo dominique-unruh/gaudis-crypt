@@ -1,5 +1,5 @@
 import GaudisCrypt.Logic.PRHL.Core
-import GaudisCrypt.ProgramRange
+import GaudisCrypt.WeakestPreconditions
 
 namespace GaudisCrypt
 

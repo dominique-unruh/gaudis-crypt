@@ -1,4 +1,5 @@
 import GaudisCrypt.Lib.RO.OneWayness
+import GaudisCrypt.Lib.RO.LegacyRange
 
 open GaudisCrypt
 open GaudisCrypt

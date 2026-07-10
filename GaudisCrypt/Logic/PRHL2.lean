@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.PRHL.Prhl
+import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.Language.Footprint
 
 open GaudisCrypt
@@ -1038,14 +1039,13 @@ theorem ProgramDenotation.prhl2.adversary {c s γ : Type}
     rw [L.set_get, L.set_get]
 
 /-- **Adversary call**, abstract form: any `A` confined to the window `L`
-    (`A.inRange L.range`) satisfies the same rule, via the factorization
+    (`A.inFootprint L.footprint`) satisfies the same rule, via the factorization
     `A = L.lift (L.factor A)`. This is the modular adversary principle. -/
-theorem ProgramDenotation.prhl2.adversary_inRange {c s γ : Type} [Nonempty s]
-   
-    (L : Lens c s) (A : ProgramDenotation s γ) (hA : A.inRange L.range) :
+theorem ProgramDenotation.prhl2.adversary_inFootprint {c s γ : Type} [Nonempty s]
+    (L : Lens c s) (A : ProgramDenotation s γ) (hA : A.inFootprint L.footprint) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) A A
       (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
-  rw [Lens.factor_of_inRange L hA]
+  rw [factor_of_inFootprint L hA]
   exact ProgramDenotation.prhl2.adversary L (L.factor A)
 
 /-! ## Smoke tests -/

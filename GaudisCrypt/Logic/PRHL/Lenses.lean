@@ -11,11 +11,11 @@ These are the rules that interact with the lens-based memory model:
 
 * `ProgramDenotation.rel.self_shift` / `ProgramDenotation.relE.self_lens_set` — relate a program
   to itself from two starting states that differ by an update outside its
-  footprint (the relational packaging of `ProgramDenotation.wp_shift_input`). This is
+  footprint (the relational packaging of `ProgramDenotation.wp_shift_input_prob`). This is
   the rule every client involving an abstract adversary needs.
 * `ProgramDenotation.rel.frame` — strengthen a judgment with value constraints on
   lenses outside each side's footprint (the relational packaging of
-  `ProgramDenotation.wp_strengthen_lens_preserved`).
+  `ProgramDenotation.wp_strengthen_lens_preserved_footprint`).
 * `ProgramDenotation.EquivModuloLens.to_relE` / `ProgramDenotation.relE.to_equivModuloLens` —
   `EquivModuloLens L p q` is exactly the diagonal `relE` whose post relates
   pairs with equal results and equal `L`-complement content. The existing
@@ -27,24 +27,24 @@ namespace ProgramDenotation.rel
 
 /-- **Self-shift**: running `p` from `f σ` (for `f` outside `p`'s footprint)
     relates to running `p` from `σ` with the shift carried into the post. -/
-lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : DetermFootprint s}
-    (hp : p.inRange R) {f : s → s} (hf : f ∈ Rᶜ.updates) :
+lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : Footprint s}
+    (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) :
     p.rel p (fun σ₁ σ₂ => σ₂ = f σ₁) (fun x y => y.1 = x.1 ∧ y.2 = f x.2) := by
   intro F G hFG σ₁ σ₂ hpre
   subst hpre
-  rw [ProgramDenotation.wp_shift_input hp hf]
+  rw [ProgramDenotation.wp_shift_input_prob hp hf]
   apply ProgramDenotation.wp_le_wp_of_le
   intro xs
   exact hFG xs (xs.1, f xs.2) ⟨rfl, rfl⟩
 
 /-- **Framing**: a judgment can be strengthened with value constraints on a
     lens outside each side's footprint. The proof strengthens the left post
-    with the `L`-frame (`wp_strengthen_lens_preserved`) and interpolates the
+    with the `L`-frame (`wp_strengthen_lens_preserved_footprint`) and interpolates the
     right post with a `⊤`-override off the `M`-frame. -/
 lemma frame {s₁ s₂ α β γ₁ γ₂ : Type}
     (L : Lens γ₁ s₁) (M : Lens γ₂ s₂)
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
-    (hp : p.inRange L.compl.range) (hq : q.inRange M.compl.range)
+    (hp : p.inFootprint (L.footprint)ᶜ) (hq : q.inFootprint (M.footprint)ᶜ)
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : p.rel q Pre Post) (v : γ₁) (w : γ₂) :
     p.rel q (fun σ₁ σ₂ => Pre σ₁ σ₂ ∧ L.get σ₁ = v ∧ M.get σ₂ = w)
@@ -54,7 +54,7 @@ lemma frame {s₁ s₂ α β γ₁ γ₂ : Type}
   obtain ⟨hpre, hL, hM⟩ := hpre
   calc p.wp F σ₁
       = p.wp (fun x : α × s₁ => if L.get x.2 = L.get σ₁ then F x else 0) σ₁ :=
-        ProgramDenotation.wp_strengthen_lens_preserved L hp F σ₁
+        ProgramDenotation.wp_strengthen_lens_preserved_footprint L hp F σ₁
     _ ≤ q.wp (fun y : β × s₂ => if M.get y.2 = w then G y else ⊤) σ₂ := by
         apply h.wp_le ?_ hpre
         intro x y hxy
@@ -69,7 +69,7 @@ lemma frame {s₁ s₂ α β γ₁ γ₂ : Type}
           exact le_top
     _ = q.wp (fun y : β × s₂ => if M.get y.2 = M.get σ₂ then
           (if M.get y.2 = w then G y else ⊤) else 0) σ₂ :=
-        ProgramDenotation.wp_strengthen_lens_preserved M hq _ σ₂
+        ProgramDenotation.wp_strengthen_lens_preserved_footprint M hq _ σ₂
     _ ≤ q.wp G σ₂ := by
         apply ProgramDenotation.wp_le_wp_of_le
         intro y
@@ -83,13 +83,13 @@ end ProgramDenotation.rel
 namespace ProgramDenotation.relE
 
 /-- Two-sided form of `ProgramDenotation.rel.self_shift`. -/
-lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : DetermFootprint s}
-    (hp : p.inRange R) {f : s → s} (hf : f ∈ Rᶜ.updates) :
+lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : Footprint s}
+    (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) :
     p.relE p (fun σ₁ σ₂ => σ₂ = f σ₁) (fun x y => y.1 = x.1 ∧ y.2 = f x.2) := by
   refine ⟨ProgramDenotation.rel.self_shift hp hf, ?_⟩
   intro F G hFG σ₂ σ₁ hpre
   subst hpre
-  rw [ProgramDenotation.wp_shift_input hp hf]
+  rw [ProgramDenotation.wp_shift_input_prob hp hf]
   apply ProgramDenotation.wp_le_wp_of_le
   intro xs
   exact hFG (xs.1, f xs.2) xs ⟨rfl, rfl⟩
@@ -97,20 +97,19 @@ lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : DetermFootprint
 /-- Self-shift specialized to a lens write outside `p`'s footprint:
     running `p` from `L.set v σ` vs from `σ`. -/
 lemma self_lens_set {s α γ : Type}
-    {p : ProgramDenotation s α} (L : Lens γ s) (hp : p.inRange L.compl.range) (v : γ) :
+    {p : ProgramDenotation s α} (L : Lens γ s) (hp : p.inFootprint (L.footprint)ᶜ) (v : γ) :
     p.relE p (fun σ₁ σ₂ => σ₂ = L.set v σ₁)
              (fun x y => y.1 = x.1 ∧ y.2 = L.set v x.2) := by
-  have hf : L.liftFunction (Function.const γ v) ∈ ((L.compl.range : DetermFootprint s)ᶜ).updates := by
-    rw [show ((L.compl.range : DetermFootprint s)ᶜ) = L.range from by
-        rw [DetermFootprint.complement_range, DetermFootprint.compl_compl]]
-    exact ⟨Function.const γ v, Set.mem_univ _, rfl⟩
+  have hf : diracKer (L.liftFunction (Function.const γ v)) ∈ (((L.footprint)ᶜ)ᶜ).updates := by
+    rw [Footprint.compl_compl]
+    exact L.diracKer_liftFunction_mem_footprint (Function.const γ v)
   exact ProgramDenotation.relE.self_shift hp hf
 
 /-- Two-sided framing. -/
 lemma frame {s₁ s₂ α β γ₁ γ₂ : Type}
     (L : Lens γ₁ s₁) (M : Lens γ₂ s₂)
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
-    (hp : p.inRange L.compl.range) (hq : q.inRange M.compl.range)
+    (hp : p.inFootprint (L.footprint)ᶜ) (hq : q.inFootprint (M.footprint)ᶜ)
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : p.relE q Pre Post) (v : γ₁) (w : γ₂) :
     p.relE q (fun σ₁ σ₂ => Pre σ₁ σ₂ ∧ L.get σ₁ = v ∧ M.get σ₂ = w)

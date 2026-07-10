@@ -13,9 +13,11 @@ namespace GaudisCrypt
 > **Deprecated / quarantined.** This is the deterministic `DetermFootprint`/`inRange` program-range
 > theory, superseded by `Footprint` + `ProbProgramRange` (the `inFootprint` analogues — they are
 > countability-free and a read's range does not collapse). Retained only for `CounterExamples` (which
-> need the `DetermFootprint` pathology) and not-yet-migrated consumers; new code should use
-> `Footprint`/`inFootprint`. The probabilistic wp-layer (`ProgramDenotation.wp_*_prob`) lives in
-> `ProbProgramRange`.
+> need the `DetermFootprint` pathology) and for `QueryHit.lean` (via `Lib/RO/LegacyRange.lean`, the
+> last not-yet-migrated consumer); new code should use `Footprint`/`inFootprint`. The probabilistic
+> wp-layer lives in `ProbProgramRange`; the range-free generic material that used to live here
+> (`liftF`, `loop_n`, `up_to_bad`, `IgnoresLens`, `Lens.lift`/`factor`, …) is now in
+> `WeakestPreconditions`.
 
 This file defines
 
@@ -29,22 +31,6 @@ in `R` iff `p` commutes with everything outside `R`. By the bicommutant closure 
 this is equivalent to "the actions of `p` (lifted to deterministic updates) lie in `R`".
 -/
 
-/-- Lift a deterministic state update `f : s → s` to a `ProgramDenotation s Unit`. -/
-noncomputable def liftF {s : Type} (f : s → s) : ProgramDenotation s Unit :=
-  fun st => pure ((), f st)
-
-/-- Programs equal at all postconditions of their `wp` are equal. -/
-theorem ProgramDenotation.ext_of_wp {s a : Type} (p q : ProgramDenotation s a)
-    (h : ∀ f, p.wp f = q.wp f) : p = q := by
-  funext st
-  apply Subtype.ext
-  letI : MeasurableSpace (a × s) := ⊤
-  apply MeasureTheory.Measure.ext
-  intro A hA
-  have hf := congrFun (h (A.indicator 1)) st
-  simp only [ProgramDenotation.wp, SubProbability.expected] at hf
-  rwa [MeasureTheory.lintegral_indicator_one hA,
-       MeasureTheory.lintegral_indicator_one hA] at hf
 
 /-- A program is *in* a DetermFootprint `R` iff it commutes with every update in `Rᶜ`
     (the commutant of `R`). By bicommutant closure, this is equivalent to
@@ -146,13 +132,6 @@ theorem ProgramDenotation.inRange_mono {s a : Type} {p : ProgramDenotation s a} 
     exact Submonoid.centralizer_le hR
   exact this hf
 
-/-- The wp of `liftF f` simply applies the postcondition at the f-shifted state. -/
-lemma wp_liftF {s : Type} (f : s → s) (F : ProgramDenotation.Post s Unit) :
-    (liftF f).wp F = fun st => F ((), f st) := by
-  funext st
-  show ((liftF f st).expected F : ENNReal) = F ((), f st)
-  show ((pure ((), f st) : SubProbability (Unit × s)).expected F : ENNReal) = F ((), f st)
-  exact expected_pure ((), f st)
 
 /-! ## Primitive `inRange` lemmas
 
@@ -250,16 +229,6 @@ lemma ProgramDenotation.get_inRange_compl_of_disjoint
   ProgramDenotation.inRange_mono (ProgramDenotation.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)
 
-/-! ## Bounded-loop combinator
-
-A generic `n`-fold iterator and its basic invariance/bound theorems. -/
-
-/-- Run `body` exactly `n` times. Generic bounded loop combinator. -/
-noncomputable def loop_n {s : Type} (n : ℕ) (body : ProgramDenotation s Unit) : ProgramDenotation s
-    Unit :=
-  match n with
-  | 0 => pure ()
-  | n + 1 => body >>= fun _ => loop_n n body
 
 /-- `loop_n n body` stays in the same range as `body`. -/
 lemma loop_n_inRange {s : Type} {R : DetermFootprint s}
@@ -271,58 +240,6 @@ lemma loop_n_inRange {s : Type} {R : DetermFootprint s}
     show (body >>= fun _ => loop_n n body).inRange R
     exact ProgramDenotation.inRange_bind h_body (fun _ => ih)
 
-/-- **Mass conservation for `loop_n`**: if `body` has mass 1 at every state,
-    then so does `loop_n n body`. -/
-lemma loop_n_mass_one {s : Type}
-    (body : ProgramDenotation s Unit)
-    (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
-    (n : ℕ) (σ : s) :
-    (loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1 := by
-  induction n generalizing σ with
-  | zero => rw [show loop_n 0 body = pure () from rfl, wp_pure]
-  | succ n ih =>
-    show (body >>= fun _ => loop_n n body).wp (fun _ => (1 : ENNReal)) σ = 1
-    rw [wp_bind]
-    have h_post : (fun aσ : Unit × s =>
-        (loop_n n body).wp (fun _ => (1 : ENNReal)) aσ.2)
-      = fun _ : Unit × s => (1 : ENNReal) := by
-      funext aσ
-      exact ih aσ.2
-    rw [h_post]
-    exact h_body σ
-
-/-- **Linear bump bound for `loop_n`** with respect to a state-projected potential.
-    If `body` bumps `f` by ≤ `c` per iteration, then `loop_n n body` bumps `f` by ≤ `n*c`. -/
-lemma loop_n_wp_linear_bound {s : Type}
-    (body : ProgramDenotation s Unit)
-    (f : s → ENNReal) (c : ENNReal)
-    (h_body : ∀ σ, body.wp (fun aσ : Unit × s => f aσ.2) σ ≤ f σ + c)
-    (n : ℕ) (σ : s) :
-    (loop_n n body).wp (fun aσ : Unit × s => f aσ.2) σ
-    ≤ f σ + (n : ENNReal) * c := by
-  induction n generalizing σ with
-  | zero =>
-    show (pure () : ProgramDenotation s Unit).wp _ σ ≤ _
-    rw [wp_pure]; simp
-  | succ n ih =>
-    show (body >>= fun _ => loop_n n body).wp _ σ ≤ _
-    rw [wp_bind]
-    calc body.wp (fun yσ : Unit × s =>
-            (loop_n n body).wp
-              (fun yσ' : Unit × s => f yσ'.2) yσ.2) σ
-        ≤ body.wp (fun yσ : Unit × s => f yσ.2 + (n : ENNReal) * c) σ := by
-          apply ProgramDenotation.wp_le_wp_of_le
-          intro yσ
-          exact ih yσ.2
-      _ = body.wp (fun yσ : Unit × s => f yσ.2) σ +
-          body.wp (fun _ : Unit × s => (n : ENNReal) * c) σ := by
-          rw [ProgramDenotation.wp_add]
-      _ ≤ (f σ + c) + (n : ENNReal) * c := by
-          gcongr
-          · exact h_body σ
-          · exact ProgramDenotation.wp_const_le _ _ _
-      _ = f σ + ((n + 1 : ℕ) : ENNReal) * c := by
-          push_cast; ring
 
 /-! ## SubProbability-level characterization of `inRange` -/
 
@@ -358,33 +275,6 @@ lemma ProgramDenotation.inRange_subprob {s a : Type} {p : ProgramDenotation s a}
     rw [SubProbability.pure_bind]
   rw [← hL, h_eq, hR]
 
-/-- **wp of a value-only post = expected value under the value-marginal**. For
-    any `G : α → ENNReal`, `p.wp (fun aσ => G aσ.1) σ` equals the expected
-    value of `G` under the marginal distribution `p σ >>= fun aσ => pure aσ.1`. -/
-lemma ProgramDenotation.wp_value_eq_marginal_expected {s α : Type}
-    (p : ProgramDenotation s α) (G : α → ENNReal) (σ : s) :
-    p.wp (fun aσ : α × s => G aσ.1) σ
-      = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G := by
-  change (p σ).expected (fun aσ : α × s => G aσ.1)
-       = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G
-  rw [SubProbability.expected_bind]
-  congr 1
-  funext aσ
-  exact (expected_pure _).symm
-
-/-- **Marginal-equality lifts to wp-equality for value-only posts**. If two
-    programs agree on the value-marginal distribution at every starting state,
-    they agree on the wp of any post of the form `fun aσ => G aσ.1`. This is
-    the generic bridge from a SubProb-level transfer theorem to a wp-level
-    one — used by `cr_transfer_wp_of_bit`, `ow_transfer_wp_of_bit`, etc. -/
-lemma ProgramDenotation.wp_eq_of_marginal_eq {s α : Type}
-    {p q : ProgramDenotation s α}
-    (h_marg : ∀ σ : s, (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α))
-                       = (q σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)))
-    (G : α → ENNReal) (σ : s) :
-    p.wp (fun aσ : α × s => G aσ.1) σ = q.wp (fun aσ : α × s => G aσ.1) σ := by
-  rw [ProgramDenotation.wp_value_eq_marginal_expected p G σ,
-      ProgramDenotation.wp_value_eq_marginal_expected q G σ, h_marg σ]
 
 /-- wp form of `inRange`: shifting the input state by `f ∈ Rᶜ` is equivalent to
     post-composing `f` on the state coordinate of the postcondition. -/
@@ -436,10 +326,6 @@ lemma ProgramDenotation.wp_strengthen_lens_preserved {s α γ : Type} [Decidable
   show F (xs.1, f xs.2) = if L.get (f xs.2) = L.get σ then F (xs.1, f xs.2) else 0
   rw [if_pos (h_f_L_get xs.2)]
 
-/-- A post `F` ignores lens `L` if it doesn't depend on `L`-content of
-    its state argument: setting `L` to any value leaves `F` unchanged. -/
-def IgnoresLens {γ s α : Type} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
-  ∀ (aσ : α × s) (v : γ), F (aσ.1, L.set v aσ.2) = F aσ
 
 namespace IgnoresLens
 
@@ -693,52 +579,6 @@ lemma ProgramDenotation.wp_le_of_factors_three {s α γ₁ γ₂ γ₃ : Type}
         all_goals exact bot_le
     _ ≤ P σ := ProgramDenotation.wp_const_le prog _ σ
 
-/-! ## Identical-until-bad
-
-The "fundamental lemma of game-playing" (Bellare-Rogaway, one-sided form):
-if two programs `p` and `q` agree on every postcondition that vanishes on
-"bad" outcomes, then `p.wp G σ ≤ q.wp G σ + p.wp (G restricted to bad)`.
-
-In our applications, `bad` is a state predicate (e.g., "the adversary
-queried `chal_x`"), `p` is the original game, `q` is the simplified
-"branch-eliminated" game, and `G` is the win indicator. We get
-`P[p wins] ≤ P[q wins] + P[p triggered bad]`.
--/
-
-/-- **Up-to-bad (wp form)**. If `p` and `q` agree on the restriction of any
-    post to `¬ bad`, then `p.wp G σ ≤ q.wp G σ + p.wp (G | bad) σ`. -/
-lemma ProgramDenotation.up_to_bad {s α : Type}
-    {p q : ProgramDenotation s α} {bad : s → Prop} [DecidablePred bad]
-    (G : α × s → ENNReal)
-    (h_agree_on_good : ∀ (σ : s),
-        p.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ
-        = q.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ)
-    (σ : s) :
-    p.wp G σ
-    ≤ q.wp G σ
-      + p.wp (fun aσ : α × s => if bad aσ.2 then G aσ else 0) σ := by
-  -- Split G = (¬ bad ∧ G) + (bad ∧ G) on both sides via wp_add.
-  have h_split : ∀ (r : ProgramDenotation s α),
-      r.wp G σ
-      = r.wp (fun aσ : α × s => if bad aσ.2 then 0 else G aσ) σ
-        + r.wp (fun aσ : α × s => if bad aσ.2 then G aσ else 0) σ := by
-    intro r
-    rw [← ProgramDenotation.wp_add]
-    congr 1
-    funext aσ
-    by_cases h : bad aσ.2
-    · simp [h]
-    · simp [h]
-  rw [h_split p]
-  rw [h_agree_on_good σ]
-  -- Goal: q.wp (good_part G) σ + p.wp (bad_part G) σ ≤ q.wp G σ + p.wp (bad_part G) σ.
-  -- It suffices to show q.wp (good_part G) σ ≤ q.wp G σ.
-  gcongr
-  apply ProgramDenotation.wp_le_wp_of_le
-  intro aσ
-  by_cases h : bad aσ.2
-  · simp [h]
-  · simp [h]
 
 /-! ## Orbit fact
 
@@ -1097,34 +937,6 @@ program `Adv' : ProgramDenotation c a` along `L`. This is the converse to the
 obvious direction that any lift lives in the lens's range.
 -/
 
-/-- Lift an "inner" program along a lens: `L.lift P` runs `P` on the
-    L-content of state and writes the result back, leaving the outside
-    untouched. -/
-noncomputable def _root_.GaudisCrypt.Lens.lift {c s a : Type} (L : Lens c s) (P :
-    ProgramDenotation c a) :
-    ProgramDenotation s a := fun σ =>
-  P (L.get σ) >>= fun (xc : a × c) =>
-    (pure (xc.1, L.set xc.2 σ) : SubProbability (a × s))
-
-/-- Given `Adv : ProgramDenotation s a` confined to `L`'s range, factor it through an
-    inner program `ProgramDenotation c a`. The construction picks an arbitrary state
-    to "pad" the inner input; `factor_of_inRange` shows this padding doesn't
-    matter when `Adv.inRange L.range`. -/
-noncomputable def _root_.GaudisCrypt.Lens.factor {c s a : Type} [Nonempty s]
-    (L : Lens c s) (Adv : ProgramDenotation s a) : ProgramDenotation c a := fun c₀ =>
-  Adv (L.set c₀ (Classical.arbitrary s)) >>= fun (xσ : a × s) =>
-    (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))
-
-/-- SubProbability bind is associative. -/
-lemma SubProbability.bind_assoc' {α β γ : Type}
-    (μ : SubProbability α) (g : α → SubProbability β) (h' : β → SubProbability γ) :
-    (μ >>= g) >>= h' = μ >>= fun x => g x >>= h' := by
-  apply Subtype.ext
-  letI : MeasurableSpace α := ⊤
-  letI : MeasurableSpace β := ⊤
-  letI : MeasurableSpace γ := ⊤
-  exact MeasureTheory.Measure.bind_bind
-    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
 /-- **Factorization theorem**: every program confined to a lens window comes
     from running some inner program on the L-content.
@@ -1165,30 +977,6 @@ theorem Lens.factor_of_inRange {c s a : Type} [Nonempty s]
   funext xσ'
   rw [SubProbability.pure_bind]
 
-/-- **`ProgramDenotation.uniform` commutes with any program**. Because `ProgramDenotation.uniform`
-    is state-preserving and produces an independent sample, it can be hoisted
-    out of any preceding bind (and its output passed through to the
-    continuation). The result of the preceding program is discarded.
-
-    Generalises `adv_commutes_uniform` (formerly in `RO.lean`) to arbitrary
-    programs and return types — the proof never used RO-specific facts. -/
-theorem ProgramDenotation.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
-    (p : ProgramDenotation s β) (k : α → ProgramDenotation s a) :
-    (p >>= fun _ => (ProgramDenotation.uniform : ProgramDenotation s α) >>= k)
-    = (ProgramDenotation.uniform >>= fun y => p >>= fun _ => k y) := by
-  apply ProgramDenotation.ext_of_wp
-  intro f
-  funext σ
-  simp only [wp_bind, wp_uniform]
-  change (p σ).expected (fun x => ∑ y, (k y).wp f x.2 / (Fintype.card α : ENNReal))
-      = ∑ y, (p σ).expected (fun x => (k y).wp f x.2) / (Fintype.card α : ENNReal)
-  simp only [SubProbability.expected]
-  letI : MeasurableSpace (β × s) := ⊤
-  rw [MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)]
-  apply Finset.sum_congr rfl
-  intro y _
-  simp_rw [div_eq_mul_inv]
-  exact MeasureTheory.lintegral_mul_const _ measurable_from_top
 
 /-! ## Lifting a confined program along a chained lens
 
@@ -1197,26 +985,6 @@ equivalence development.  All ranges here are *lens* ranges, so the orbit
 machinery is not needed — the facts are pure lens algebra plus the existing
 `inRange_get`/`inRange_set` extractions. -/
 
-/-- `wp` of a lifted program: run `P` on the `L`-content and re-set the result. -/
-theorem ProgramDenotation.wp_lift {c s α : Type} (L : Lens c s) (P : ProgramDenotation c α) (F :
-    ProgramDenotation.Post s α) :
-    (L.lift P).wp F = fun σ => P.wp (fun ac => F (ac.1, L.set ac.2 σ)) (L.get σ) := by
-  funext σ
-  show ((L.lift P) σ).expected F = _
-  simp only [Lens.lift, SubProbability.expected_bind, expected_pure]
-  rfl
-
-/-- **Lift composes via `chain`.**  Lifting `Q` along `v` and then along `L`
-    is lifting `Q` along the composite lens `L ∘ v`. -/
-theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q : ProgramDenotation d
-    a) :
-    L.lift (v.lift Q) = (L.chain v).lift Q := by
-  funext σ
-  simp only [Lens.lift, Lens.chain]
-  rw [SubProbability.bind_assoc']
-  congr 1
-  funext xd
-  rw [SubProbability.pure_bind]
 
 /-- **A lift lives in its lens's range.**  For any inner program `Q`, the lift
     `M.lift Q` is confined to `M.range`: it only touches the `M`-window. -/
@@ -1267,17 +1035,6 @@ theorem Lens.lift_inRange_chain {c s d a : Type} [Nonempty c] (L : Lens c s) (v 
   rw [Lens.factor_of_inRange v hP, Lens.lift_lift_chain]
   exact Lens.lift_inRange_self (L.chain v) (v.factor P)
 
-/-- `wp` of a sampled value (`μ.toProgramDenotation = StateT.lift μ`): it samples its
-    return from `μ` and leaves the state untouched. -/
-theorem ProgramDenotation.wp_toProgramDenotation {s a : Type} (μ : SubProbability a) (G :
-    ProgramDenotation.Post s a) :
-    (SubProbability.toProgramDenotation μ : ProgramDenotation s a).wp G = fun σ => μ.expected (fun x
-        => G (x, σ)) := by
-  funext σ
-  show ((SubProbability.toProgramDenotation μ : ProgramDenotation s a) σ).expected G = _
-  show ((μ >>= fun x => (pure (x, σ) : SubProbability (a × s))).expected G) = _
-  rw [SubProbability.expected_bind]
-  simp only [expected_pure]
 
 /-- **A sampled value lives in every range.**  `μ.toProgramDenotation` only draws its
     return value; it never touches the state, so it commutes with every update. -/
