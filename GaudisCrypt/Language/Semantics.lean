@@ -180,6 +180,7 @@ noncomputable
 def ProgramDenotation.skip : ProgramDenotation s Unit := pure ()
 
 -- TODO: Does this already exist somewhere?
+-- TODO: Should be called Lens.liftProgramDenotation by analogy
 noncomputable
 def ProgramDenotation.zoom (lens : Lens s t) (p : ProgramDenotation s a) : ProgramDenotation t a :=
     fun t_val => do
