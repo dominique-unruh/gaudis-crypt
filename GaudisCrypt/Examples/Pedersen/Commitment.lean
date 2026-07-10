@@ -168,42 +168,5 @@ noncomputable def Correctness : Module (CommitmentSchemeT →ₘ procmod (Messag
 noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
   Correctness S
 
-/-- `HidingExperiment(S,U).main()`: the commitment shall not reveal which message was
-    committed to. -/
-noncomputable def HidingExperiment := proc () uses
-    (gen : () → Value,
-     commit : (Value, Message) → Commitment × OpeningKey,
-     choose : (Value) → Message × Message,
-     guess : (Commitment) → Bool) : Bool {
-  var x : Value;
-  var ms : Message × Message;
-  var b : Bool;
-  var b' : Bool;
-  var cd : Commitment × OpeningKey;
-  x <- call gen ();
-  ms <- call choose ($x);
-  b <$ SubProbability.uniform;
-  cd <- call commit ($x, if $b then ($ms).2 else ($ms).1);
-  b' <- call guess (($cd).1);
-  return $b == $b'
-}
-
-/-- `BindingExperiment(S,B).main()`: the binder shall not produce one commitment that
-    opens to two different messages. -/
-noncomputable def BindingExperiment := proc () uses
-    (gen : () → Value,
-     verify : (Value, Message, Commitment, OpeningKey) → Bool,
-     bind : (Value) → Commitment × Message × OpeningKey × Message × OpeningKey) : Bool {
-  var x : Value;
-  -- `r = (c, m, d, m', d')`, projected below (tuple assignment: see the note above)
-  var r : Commitment × Message × OpeningKey × Message × OpeningKey;
-  var v : Bool;
-  var v' : Bool;
-  x <- call gen ();
-  r <- call bind ($x);
-  v <- call verify ($x, ($r).2.1, ($r).1, ($r).2.2.1);
-  v' <- call verify ($x, ($r).2.2.2.1, ($r).1, ($r).2.2.2.2);
-  return $v && $v' && (($r).2.1 != ($r).2.2.2.1)
-}
 
 end GaudisCrypt.Examples.Pedersen
