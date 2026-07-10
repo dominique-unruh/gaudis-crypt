@@ -461,4 +461,25 @@ noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
     change (MeasureTheory.Measure.dirac x).bind (fun a => (f a).1) = (f x).1
     exact MeasureTheory.Measure.dirac_bind measurable_from_top x
 
+/-- `pure` is injective on `SubProbability` (it is the Dirac embedding):
+    `pure x = pure y → x = y`.  Lets us extract a *plain* pointwise state equation from a
+    Dirac-kernel commutation identity. -/
+theorem SubProbability.pure_injective {a : Type} :
+    Function.Injective (pure : a → SubProbability a) := by
+  letI : MeasurableSpace a := ⊤
+  intro x y h
+  by_contra hne
+  have hcoe : ((pure x : SubProbability a) : a → NNReal) x
+            = ((pure y : SubProbability a) : a → NNReal) x :=
+    congrFun (congrArg DFunLike.coe h) x
+  have hx : ((pure x : SubProbability a) : a → NNReal) x = 1 := by
+    change ((@MeasureTheory.Measure.dirac a ⊤ x) {x}).toNNReal = 1
+    rw [MeasureTheory.Measure.dirac_apply_of_mem (Set.mem_singleton x)]; rfl
+  have hy : ((pure y : SubProbability a) : a → NNReal) x = 0 := by
+    change ((@MeasureTheory.Measure.dirac a ⊤ y) {x}).toNNReal = 0
+    rw [MeasureTheory.Measure.dirac_apply' y (MeasurableSet.of_discrete),
+      Set.indicator_of_notMem (fun hmem => hne (Set.mem_singleton_iff.mp hmem).symm)]; rfl
+  rw [hx, hy] at hcoe
+  exact one_ne_zero hcoe
+
 end GaudisCrypt

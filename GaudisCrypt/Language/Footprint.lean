@@ -802,31 +802,10 @@ theorem _root_.GaudisCrypt.Lens.footprint_hasReset {c m : Type} (l : Lens c m) (
     refine (Relation.EqvGen.rel _ _ ?_).symm
     exact ⟨l.compl.liftFunction (Function.const _ (l.compl.get s)), hg_mem, hg_eq⟩
 
-/-- `pure` is injective on `SubProbability` (it is the Dirac embedding): `pure x = pure y → x = y`.
-    Lets us extract a *plain* pointwise state equation from a Dirac-kernel commutation identity. -/
-private theorem subProbability_pure_injective {a : Type} :
-    Function.Injective (pure : a → SubProbability a) := by
-  letI : MeasurableSpace a := ⊤
-  intro x y h
-  by_contra hne
-  have hcoe : ((pure x : SubProbability a) : a → NNReal) x
-            = ((pure y : SubProbability a) : a → NNReal) x :=
-    congrFun (congrArg DFunLike.coe h) x
-  have hx : ((pure x : SubProbability a) : a → NNReal) x = 1 := by
-    show ((@MeasureTheory.Measure.dirac a ⊤ x) {x}).toNNReal = 1
-    rw [MeasureTheory.Measure.dirac_apply_of_mem (Set.mem_singleton x)]; rfl
-  have hy : ((pure y : SubProbability a) : a → NNReal) x = 0 := by
-    show ((@MeasureTheory.Measure.dirac a ⊤ y) {x}).toNNReal = 0
-    rw [MeasureTheory.Measure.dirac_apply' y (MeasurableSet.of_discrete),
-      Set.indicator_of_notMem (fun hmem => hne (Set.mem_singleton_iff.mp hmem).symm)]; rfl
-  rw [hx, hy] at hcoe
-  exact one_ne_zero hcoe
-
-
 /-- **`(l.footprint)ᶜ`-updates preserve `l.get`.** Any deterministic update `f` whose Dirac kernel
     lives in the complement of `l`'s footprint fixes `l`'s content: `l.get (f a) = l.get a`. It
     commutes with the overwrite generator `l.liftFunction (const (l.get a))`, and evaluating that
-    commutation at `a` (via `subProbability_pure_injective`) forces `f` to leave `l.get` fixed. -/
+    commutation at `a` (via `SubProbability.pure_injective`) forces `f` to leave `l.get` fixed. -/
 private theorem footprint_compl_update_preserves_get {c m : Type} (l : Lens c m)
     (f : Function.End m) (hf : diracKer f ∈ (l.footprint)ᶜ.updates) (a : m) :
     l.get (f a) = l.get a := by
@@ -838,7 +817,7 @@ private theorem footprint_compl_update_preserves_get {c m : Type} (l : Lens c m)
   have hpt := congrFun hcomm a
   have heq : (l.liftFunction (Function.const _ (l.get a)) * f) a
            = (f * l.liftFunction (Function.const _ (l.get a))) a :=
-    subProbability_pure_injective hpt
+    SubProbability.pure_injective hpt
   have hPfa : (l.liftFunction (Function.const _ (l.get a)) * f) a
             = l.set (l.get a) (f a) := rfl
   have hfPa : (f * l.liftFunction (Function.const _ (l.get a))) a = f a := by
@@ -876,7 +855,7 @@ private theorem footprint_update_preserves_compl_get {c m : Type} (l : Lens c m)
   have hpt := congrFun hcomm a
   have heq : (l.compl.liftFunction (Function.const _ (l.compl.get a)) * f) a
            = (f * l.compl.liftFunction (Function.const _ (l.compl.get a))) a :=
-    subProbability_pure_injective hpt
+    SubProbability.pure_injective hpt
   have hQfa : (l.compl.liftFunction (Function.const _ (l.compl.get a)) * f) a
             = l.compl.set (l.compl.get a) (f a) := rfl
   have hfQa : (f * l.compl.liftFunction (Function.const _ (l.compl.get a))) a = f a := by
@@ -933,7 +912,7 @@ theorem _root_.GaudisCrypt.Lens.footprint_eq_bot_of_le_compl {a s : Type}
       have hcomm := Submonoid.mem_centralizer_iff.mp (h hx)
         (diracKer (l.liftFunction (Function.const _ y))) hy
       rw [diracKer_mul, diracKer_mul] at hcomm
-      have hpt := subProbability_pure_injective (congrFun hcomm σ)
+      have hpt := SubProbability.pure_injective (congrFun hcomm σ)
       have hxy : l.set y (l.set x σ) = l.set x (l.set y σ) := hpt
       rw [l.set_set, l.set_set] at hxy
       calc x = l.get (l.set x σ) := (l.set_get σ x).symm
