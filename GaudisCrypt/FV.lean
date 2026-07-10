@@ -505,6 +505,7 @@ private lemma footprint_equivariant {a s : Type} (lens : Lens a s)
       SubProbability.pure_bind] at hst
   exact hst.symm
 
+omit [ProgramSpec] in
 /-- **Extraction**: every kernel in `lens.footprint` is `lens.liftSubProbability` of a base kernel. The witness
     reads the base at a fixed `st₀`; equivariance + the `Lens.compl.set ⟦st⟧ st' = lens.set (lens.get st') st`
     identity make `lens.liftSubProbability (read-back) = p`. -/
@@ -532,6 +533,7 @@ private lemma footprint_updateK_image {a s : Type} (lens : Lens a s) (st₀ : s)
   rw [heq]
   congr 1
 
+omit [ProgramSpec] in
 /-- **`Lens.liftFootprint` is exactly the lens-image of the footprint** (`[Nonempty b]`). The `⊇` half is the
     generic `X ⊆ CC X`; the `⊆` half is the proof sketch: `Lens.liftFootprint` lands in `lens.footprint`, every
     such element extracts as `lens.liftSubProbability q`, and (`updateK` being an injective hom) `q` inherits the
