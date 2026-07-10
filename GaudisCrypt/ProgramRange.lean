@@ -3,7 +3,8 @@ import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.DetermFootprint
 
 open GaudisCrypt
-open GaudisCrypt
+
+namespace GaudisCrypt
 
 /-!
 # ProgramDenotation.range and `glob` foundations  — **LEGACY `DetermFootprint` theory
@@ -1296,3 +1297,5 @@ theorem Lens.chain_range_le {a b c : Type} (L : Lens b c) (v : Lens a b) :
   rintro _ ⟨f, -, rfl⟩
   exact ⟨fun s => v.set (f (v.get s)) s, Set.mem_univ _, by
     funext s; simp [Lens.chain, Lens.liftFunction]⟩
+
+end GaudisCrypt

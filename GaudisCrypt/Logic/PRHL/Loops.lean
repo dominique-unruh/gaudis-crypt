@@ -32,8 +32,8 @@ lemma loop_n {s₁ s₂ : Type}
   | zero =>
     exact ProgramDenotation.rel.pure_pure (fun σ₁ σ₂ hpre => hpre)
   | succ n ih =>
-    change (body₁ >>= fun _ => _root_.loop_n n body₁).rel
-           (body₂ >>= fun _ => _root_.loop_n n body₂) Inv _
+    change (body₁ >>= fun _ => _root_.GaudisCrypt.loop_n n body₁).rel
+           (body₂ >>= fun _ => _root_.GaudisCrypt.loop_n n body₂) Inv _
     exact ProgramDenotation.rel.bind h (fun _ _ => ih)
 
 end ProgramDenotation.rel

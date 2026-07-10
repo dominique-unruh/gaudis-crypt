@@ -199,13 +199,6 @@ lemma SubProbability.swap_sample {s α' β' γ : Type}
   simp only [SubProbability.toProgram_bind_apply]
   exact SubProbability.bind_comm μ ν (fun x y => (k x y) σ)
 
-/-- Associativity of bind. -/
-lemma SubProbability.bind_assoc' {A B C : Type} (μ : SubProbability A)
-    (f : A → SubProbability B) (g : B → SubProbability C) :
-    (μ >>= f) >>= g = μ >>= fun a => f a >>= g := by
-  refine SubProbability.ext_of_expected (fun test => ?_)
-  simp only [SubProbability.expected_bind]
-
 /-- A bind whose continuation reads only the first coordinate factors through
     the first marginal. -/
 lemma SubProbability.bind_fst_left {A B C : Type} (μ : SubProbability (A × B))

@@ -4,7 +4,7 @@ import GaudisCrypt.Language.Programs
 import Metatheory.STLCext.Normalization
 import Metatheory.STLCext.Confluence
 
-namespace GaudisCrypt.Language.Modules
+namespace GaudisCrypt
 
 open GaudisCrypt
 
@@ -657,7 +657,7 @@ theorem cbvReductionStep_is_reductionStep (m : ModuleExpression Γ T) (nn : ¬ N
           simp only [dif_pos hph]
           cases f with
           | procHoles ne proc =>
-              nth_rw 1 [← Language.Modules.procTupleLookup_toModuleTuple arg hph.2]
+              nth_rw 1 [← procTupleLookup_toModuleTuple arg hph.2]
               exact .delta _
           | abs _ | var _ | app _ _ | fst _ | snd _ => exact absurd hph.1 (by simp [IsProcHoles])
         · simp only [dif_neg hph]
@@ -1443,8 +1443,8 @@ theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
                 | appR step => exact (iharg.1 ha) _ step
                 | funcApp d g N' hbasic =>
                     exact absurd
-                      (Language.Modules.toModuleTuple_of_basicType arg hbasic ▸
-                        Language.Modules.toModuleTuple_isProcTuple _)
+                      (toModuleTuple_of_basicType arg hbasic ▸
+                        toModuleTuple_isProcTuple _)
                       hpt
             | abs _ => exact absurd hph (by simp [IsProcHoles])
             | var _ | app _ _ | fst _ | snd _ => exact absurd hph (by simp [IsProcHoles])
@@ -1472,8 +1472,8 @@ theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
                 | appR step => exact (iharg.1 ha) _ step
                 | funcApp d g N' hbasic =>
                     exact absurd
-                      (Language.Modules.toModuleTuple_of_basicType arg hbasic ▸
-                        Language.Modules.toModuleTuple_isProcTuple _)
+                      (toModuleTuple_of_basicType arg hbasic ▸
+                        toModuleTuple_isProcTuple _)
                       hpt
               · intro h; cases h
               · intro h; cases h
@@ -1877,4 +1877,4 @@ theorem test : myMod.main = testMain := by
 
 end Demo
 
-end GaudisCrypt.Language.Modules
+end GaudisCrypt

@@ -2,7 +2,8 @@ import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Language.Programs
 
 open GaudisCrypt
-open GaudisCrypt
+
+namespace GaudisCrypt
 
 /-!
 # Discrete subprobability monad
@@ -510,8 +511,8 @@ theorem wp_zoom {s t α : Type} (L : Lens s t) (p : ProgramDenotation s α)
   rw [expected_pure]
 
 /-- `procedureDenotation` of a plain procedure is `procWrap` of its body (the closed-procedure
-    sibling of `GaudisCrypt.procedureDenotation_eq_procWrap_gen`). -/
-theorem GaudisCrypt.procedureDenotation_eq_procWrap [ProgramSpec] {sig : ProcedureSignature}
+    sibling of `procedureDenotation_eq_procWrap_gen`). -/
+theorem procedureDenotation_eq_procWrap [ProgramSpec] {sig : ProcedureSignature}
     (p : Procedure sig) (args : sig.ParamType) :
     procedureDenotation p args
       = procWrap p.return_val (sig.localVariableInit p.locals args)
@@ -532,8 +533,10 @@ theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature} {L : Type}
   funext p
   rw [expected_pure]
 
-/-- Structure-eta for procedures, as a simp lemma: instantiation (and the `call\'` denotation)
+/-- Structure-eta for procedures, as a simp lemma: instantiation (and the `call'` denotation)
     decompose a procedure into its fields; this resurfaces the named procedure. -/
-@[simp] theorem GaudisCrypt.procedureWithHoles_eta [ProgramSpec] {holes : HoleSigs}
+@[simp] theorem procedureWithHoles_eta [ProgramSpec] {holes : HoleSigs}
     {sig : ProcedureSignature} (p : ProcedureWithHoles holes sig) :
     (⟨p.locals, p.body, p.return_val⟩ : ProcedureWithHoles holes sig) = p := rfl
+
+end GaudisCrypt

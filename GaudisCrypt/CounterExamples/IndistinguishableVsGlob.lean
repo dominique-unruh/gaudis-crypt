@@ -41,8 +41,8 @@ noncomputable def flipPMF : PMF Bool :=
 noncomputable def biasPMF : PMF Bool :=
   PMF.ofFintype (fun b => cond b (3 * 4⁻¹) 4⁻¹) (by
     rw [Fintype.sum_bool]
-    show (3 : ℝ≥0∞) * 4⁻¹ + 4⁻¹ = 1
-    rw [← one_mul (4⁻¹ : ℝ≥0∞), ← mul_assoc, mul_one, ← add_mul]
+    show (3 : ENNReal) * 4⁻¹ + 4⁻¹ = 1
+    rw [← one_mul (4⁻¹ : ENNReal), ← mul_assoc, mul_one, ← add_mul]
     norm_num
     exact ENNReal.mul_inv_cancel (by norm_num) (by norm_num))
 
@@ -152,7 +152,7 @@ theorem qCentralizer_indistinguishable : qCentralizer.indistinguishable false tr
           - 2⁻¹ * (h false).1 Set.univ := by rw [hboth]
       _ = 2⁻¹ * (h false).1 Set.univ := ENNReal.add_sub_cancel_left hAfin
   have key : (h false).1 Set.univ = (h true).1 Set.univ := by
-    have h2 := congrArg (fun z => (2 : ℝ≥0∞) * z) hhalf
+    have h2 := congrArg (fun z => (2 : ENNReal) * z) hhalf
     simp only [← mul_assoc, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top,
       one_mul] at h2
     exact h2.symm
@@ -183,7 +183,7 @@ theorem eq_id_of_comm (f : Function.End Bool)
     · -- the swap: `¼ = ½`
       rw [hff, diracKer_apply₀ f false hff, diracKer_apply₁ f true hft,
         qKer_true_apply_false, mul_zero, mul_one, zero_add] at hev
-      have h42 : (4 : ℝ≥0∞) = 2 := inv_inj.mp hev
+      have h42 : (4 : ENNReal) = 2 := inv_inj.mp hev
       norm_num at h42
     · -- constant-to-`true`: `¼ = 0`
       rw [hff, diracKer_apply₀ f false hff, diracKer_apply₀ f true hft,

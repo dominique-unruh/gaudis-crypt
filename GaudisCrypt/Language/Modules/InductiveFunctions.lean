@@ -1,10 +1,8 @@
 import GaudisCrypt.Language.Modules
 
-open GaudisCrypt.Language.Modules
-open GaudisCrypt
 open GaudisCrypt
 
-namespace GaudisCrypt.Language.Modules.InductiveFunctions
+namespace GaudisCrypt
 
 variable [ProgramSpec]
 
@@ -672,4 +670,4 @@ instance {ind : InductiveFunctionGettersSetters T} [red: ReducibleGettersSetters
   delta_bound := by apply proc_instantiate
 
 
-end GaudisCrypt.Language.Modules.InductiveFunctions
+end GaudisCrypt
