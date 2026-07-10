@@ -30,7 +30,6 @@ import GaudisCrypt.Lib.RO.FullEager
 import GaudisCrypt.Lib.RO.GlobEndpointExample
 import GaudisCrypt.Lib.RO.GlobTransfer
 import GaudisCrypt.Lib.RO.InstantiateCommon
-import GaudisCrypt.Lib.RO.LegacyRange
 import GaudisCrypt.Lib.RO.OneWayness
 import GaudisCrypt.Lib.RO.OracleLoop
 import GaudisCrypt.Lib.RO.QueryHit

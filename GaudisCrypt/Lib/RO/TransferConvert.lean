@@ -44,8 +44,8 @@ noncomputable def convert : ProgramDenotation state Unit := do
   ProgramDenotation.set random_oracle_state (fun x => some ((h x).getD (y x)))
 
 
-/-- `convert`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob analogue
-    of `convert_inRange_ro`, used to drive the countability-free transfer-reflexivity. -/
+/-- `convert` only reads and writes `random_oracle_state` (probabilistic footprint form;
+    drives the countability-free transfer-reflexivity). -/
 theorem convert_inFootprint_ro : convert.inFootprint random_oracle_state.footprint := by
   show ((ProgramDenotation.get random_oracle_state) >>= fun h =>
           (ProgramDenotation.uniform : ProgramDenotation state (input → output)) >>= fun y =>

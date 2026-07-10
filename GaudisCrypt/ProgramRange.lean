@@ -12,12 +12,11 @@ namespace GaudisCrypt
 
 > **Deprecated / quarantined.** This is the deterministic `DetermFootprint`/`inRange` program-range
 > theory, superseded by `Footprint` + `ProbProgramRange` (the `inFootprint` analogues — they are
-> countability-free and a read's range does not collapse). Retained only for `CounterExamples` (which
-> need the `DetermFootprint` pathology) and for `QueryHit.lean` (via `Lib/RO/LegacyRange.lean`, the
-> last not-yet-migrated consumer); new code should use `Footprint`/`inFootprint`. The probabilistic
-> wp-layer lives in `ProbProgramRange`; the range-free generic material that used to live here
-> (`liftF`, `loop_n`, `up_to_bad`, `IgnoresLens`, `Lens.lift`/`factor`, …) is now in
-> `WeakestPreconditions`.
+> countability-free and a read's range does not collapse). Retained only for `CounterExamples`,
+> which need the `DetermFootprint` pathology — nothing in the main development imports this file;
+> new code should use `Footprint`/`inFootprint`. The probabilistic wp-layer lives in
+> `ProbProgramRange`; the range-free generic material that used to live here (`liftF`, `loop_n`,
+> `up_to_bad`, `IgnoresLens`, `Lens.lift`/`factor`, …) is now in `WeakestPreconditions`.
 
 This file defines
 

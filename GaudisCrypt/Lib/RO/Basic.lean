@@ -80,8 +80,8 @@ noncomputable def random_oracle_query (inp : input) : ProgramDenotation state ou
   return (h inp).getD default
 
 
-/-- `lazy_query`'s **probabilistic** footprint lies in `random_oracle_state.footprint` — the prob
-    analogue of `lazy_query_inRange_ro`, for the countability-free transfer migration. -/
+/-- `lazy_query` only reads and writes `random_oracle_state` (probabilistic footprint form,
+    countability-free). -/
 theorem lazy_query_inFootprint_ro (inp : input) :
     (lazy_query inp).inFootprint random_oracle_state.footprint := by
   refine ProgramDenotation.inFootprint_bind (ProgramDenotation.inFootprint_get _) ?_

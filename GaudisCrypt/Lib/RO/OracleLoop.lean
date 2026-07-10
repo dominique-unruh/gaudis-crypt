@@ -65,8 +65,8 @@ theorem query_set_convert_eq :
   exact convert_commutes_get oracle_input _
 
 
-/-- `inFootprint` (countability-free) analogue of
-    `lazy_query_then_set_oracle_output_inRange_compl`. -/
+/-- `(lazy_query inp >>= set oracle_output)` avoids any lens `L` disjoint from both
+    `random_oracle_state` and `oracle_output` (probabilistic footprint form). -/
 lemma lazy_query_then_set_oracle_output_inFootprint_compl
     {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
@@ -321,7 +321,8 @@ lemma ProgramDenotation.transfer_oracle_loop_n_prob
         => ih)
 
 
-/-- `inFootprint` (countability-free) analogue of `oracle_step_inRange_compl`. -/
+/-- Generic preservation: `oracle_step adv` avoids any lens `L` disjoint from
+    `random_oracle_state`, `oracle_input`, and `oracle_output`, provided the adversary avoids it. -/
 lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]
@@ -341,7 +342,7 @@ lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
   exact lazy_query_then_set_oracle_output_inFootprint_compl L inp
 
 
-/-- `inFootprint` (countability-free) analogue of `oracle_loop_n_inRange_compl`. -/
+/-- Generic preservation lifted to the loop, by induction on `q`. -/
 lemma oracle_loop_n_inFootprint_compl {γ : Type} (L : Lens γ state)
     [disjoint random_oracle_state L]
     [disjoint oracle_input L]

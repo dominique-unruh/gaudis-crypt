@@ -14,8 +14,7 @@ and lemmas live in `PlonkLean/RO/`:
 
 * `PlonkLean.RO.Basic` — RO primitives only: `random_oracle_state` axiom,
   `lazy_init` / `random_oracle_init`, `lazy_query` / `random_oracle_query`,
-  and `lazy_query_inFootprint_ro`. No bridging between lazy and eager. (The legacy
-  `inRange` duals live in `PlonkLean.RO.LegacyRange`, kept only for `QueryHit`.)
+  and `lazy_query_inFootprint_ro`. No bridging between lazy and eager.
 
 * `PlonkLean.RO.TransferConvert` — the lazy/eager bridge: `convert` itself,
   convert algebra (`convert_wp_eq`, `convert_mass`,
@@ -32,7 +31,7 @@ and lemmas live in `PlonkLean/RO/`:
   (`want_more`, `oracle_input`, `oracle_output`, `adversary_result`,
   `skip`, disjointness instances), the `lazy_query + set oracle_output`
   key-reasoning lemmas (`query_set_convert_eq`,
-  `lazy_query_then_set_oracle_output_inRange_compl`,
+  `lazy_query_then_set_oracle_output_inFootprint_compl`,
   `lazy_query_set_oracle_output_preserves_RO_at_other_key`,
   `RO_setentry_neq_commutes_lazy_query_set_oracle_output`), the three
   oracle loop variants (`oracle_step`, `oracle_loop_n`, `oracle_loop`),
@@ -44,5 +43,5 @@ and lemmas live in `PlonkLean/RO/`:
   built via the framework's `transfer_while_loop` closure law),
   `oracle_loop_lazy_convert_eq_random_oracle_loop` (the foundational
   equation), and the corollary family `oracle_loop_wp_lazy_eq_random_oracle`
-  / `oracle_loop_marginal_lazy_eq_random_oracle` / `..._compl` / `..._glob`.
+  / `oracle_loop_marginal_lazy_eq_random_oracle` / `..._compl`.
 -/
