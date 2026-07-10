@@ -22,6 +22,7 @@ variable [ProgramSpec]
 `State × l` product so that the two halves are named. -/
 structure ProcedureState (l : Type) where
   global : State
+  -- Rename → scoped
   locals : l
 
 /-- Lens onto the global part of a `ProcedureState`. -/
@@ -33,7 +34,7 @@ def ProcedureState.globalL {l : Type} : Lens State (ProcedureState l) where
   get_set _ := rfl
 
 /-- Lens onto the local part of a `ProcedureState`. -/
--- TODO: rename to .localsL
+-- TODO: rename to .scopedL
 def ProcedureState.localL {l : Type} : Lens l (ProcedureState l) where
   get s := s.locals
   set v s := { s with locals := v }
@@ -86,6 +87,7 @@ def LocalVariableState.paramsL {paramTypes : List Type}
   get_set _ := rfl
 
 /-- Lens onto the local-variable tuple of a `LocalVariableState`. -/
+-- TODO Rename to .localVarsL
 def LocalVariableState.varsL {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} :
     Lens (paramListToTuple (locals.map (·.fst))) (LocalVariableState paramTypes locals) where
@@ -105,7 +107,7 @@ def Lens.intoParams {a : Type} {paramTypes : List Type}
 
 /-- Lift a lens into the local-variable tuple to a lens into the full procedure state
 (`localL ∘ varsL`).  Analogous to `Lens.ofst`. -/
--- TODO: paramsToScoped
+-- TODO: rename → intoLocalVars
 def Lens.intoVars {a : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
     (lens : Lens a (paramListToTuple (locals.map (·.fst)))) :

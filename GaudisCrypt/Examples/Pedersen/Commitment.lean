@@ -32,8 +32,11 @@ Dominique's TODOs:
 
 
 In a different iteration:
-- module A : X { ...} syntax (does def A : X := lambda-expression)
-- Maybe also support `let A := module...` or `def A := module...` etc
+- `module A(params) : X { ... }` syntax (does def A : X := lambda-expression).
+  `(params)` optional.
+- Maybe also support `let A := module ...` or `def A := module ...` etc
+
+DoesnotUse A X.op (in proof, do induction, proof ⊥ from X.op use)
 
 -/
 
