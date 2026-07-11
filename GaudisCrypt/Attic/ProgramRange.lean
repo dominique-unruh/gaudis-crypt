@@ -1,6 +1,6 @@
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.DetermFootprint
+import GaudisCrypt.Attic.DetermFootprint
 
 open GaudisCrypt
 

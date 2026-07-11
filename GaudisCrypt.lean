@@ -1,12 +1,12 @@
 /- This file should import all theory files in GaudisCrypt. Update it occasionally. -/
 
 import GaudisCrypt.Misc
-import GaudisCrypt.DetermFootprint
+import GaudisCrypt.Attic.DetermFootprint
 import GaudisCrypt.Language.Footprint
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions
-import GaudisCrypt.ProgramRange
+import GaudisCrypt.Attic.ProgramRange
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Language.Modules.InductiveFunctions

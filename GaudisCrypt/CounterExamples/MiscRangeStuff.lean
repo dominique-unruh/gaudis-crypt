@@ -1,5 +1,5 @@
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.ProgramRange
+import GaudisCrypt.Attic.ProgramRange
 
 open GaudisCrypt
 open GaudisCrypt

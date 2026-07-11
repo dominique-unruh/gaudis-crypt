@@ -3,8 +3,8 @@
 -- `Footprint` (see `Lib/RO/InstantiateCommon`). Quarantined here; kept for reference only.
 
 import GaudisCrypt.Language.Modules.InductiveFunctions
-import GaudisCrypt.DetermFootprint
-import GaudisCrypt.ProgramRange
+import GaudisCrypt.Attic.DetermFootprint
+import GaudisCrypt.Attic.ProgramRange
 
 open GaudisCrypt
 
