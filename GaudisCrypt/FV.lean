@@ -129,55 +129,9 @@ theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
 /-! # Lens.reduceFootprint_sup -/
 
 
-noncomputable
-def Lens.reduceFootprint {a b} (lens : Lens a b) (range : Footprint b) : Footprint a :=
-  Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
-
-
-/-- `Lens.reduceFootprint` is monotone: a larger range gives a larger reduced range. -/
--- TODO rename to Lens.reduceFootprint_mono
-theorem Lens.reduceFootprint_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
-    Lens.reduceFootprint lens r ≤ Lens.reduceFootprint lens r' := by
-  have hsub : r.updates ⊆ r'.updates := h
-  apply Footprint.from_mono
-  gcongr
-
-
-/-- `Lens.reduceFootprint` as `Footprint.from` of the named generator set. -/
--- TODO: this is literally the definition of Lens.reduceFootprint; remove this theorem (instead, directly unfold/simp/rw Lens.reduceFootprint)
-theorem Lens.reduceFootprint_eq_from {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    Lens.reduceFootprint lens range
-      = Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ)) :=
-      rfl
-
-theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    Set.centralizer (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
-      = { f | ∀ g ∈ range.updates,
-          (lens.liftSubProbability f : b → SubProbability b) * g
-            = g * lens.liftSubProbability f } := by
-  ext h
-  simp only [Set.mem_setOf_eq, Set.mem_centralizer_iff]
-  constructor
-  · intro hcomm g hg
-    apply Lens.reduceSubProbability_ext lens
-    intro i o
-    rw [← Lens.reduceSubProbability_mul_left, ← Lens.reduceSubProbability_mul_right]
-    exact (hcomm (Lens.reduceSubProbability lens (g, i, o))
-      ⟨(g, i, o), ⟨hg, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩).symm
-  · intro hcon k hk
-    obtain ⟨⟨g, i, o⟩, ⟨hg, -, -⟩, rfl⟩ := hk
-    rw [Lens.reduceSubProbability_mul_right, Lens.reduceSubProbability_mul_left, hcon g hg]
-
-
-theorem Lens.reduceFootprint_alt_def {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    Lens.reduceFootprint lens range =
-    Footprint.from
-    { f | ∀ g ∈ range.updates,
-        (lens.liftSubProbability f : b → SubProbability b) * g
-          = g * lens.liftSubProbability f }.centralizer := by
-  apply Footprint.ext
-  rw [Lens.reduceFootprint_eq_from, Footprint.from_updates, centralizer_reduceBaseGen_image]
-  rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
+-- `Lens.reduceFootprint`, `Lens.reduceFootprint_mono`, `Lens.reduceFootprint_eq_from`,
+-- `centralizer_reduceBaseGen_image` and `Lens.reduceFootprint_alt_def` moved to
+-- `GaudisCrypt/Language/Footprint.lean`.
 
 
 /-- For a **bijective** monoid homomorphism `u`, the bicommutant transports through the image:
@@ -199,61 +153,8 @@ private lemma image_cc_subset {M N : Type*} [Monoid M] [Monoid N]
   have hc := (Set.mem_centralizer_iff.mp hx) y' hy'
   rw [← hu, ← hu, hc]
 
-/-- **The crux of `Lens.reduceFootprint_sup2`.** Every generator of the reduced join lies in the bicommutant
-closure of the union of the two reduced generator sets — the double-commutant direction.
-
-The proof needs **no disintegration**: with `ĥ = Lens.fst.liftSubProbability h` the `h ⊗ id_b` lift, the two
-Fubini
-identities (`Lens.reduceSubProbability_mul_left`/`_right`) turn `h`-commutation of reduced generators into
-`ĥ`-commutation of the joint kernels. Slice determination (`reduceBaseExt`) lifts any
-`h ∈ commutant(gen r₁ ∪ gen r₂)` to `ĥ ∈ commutant(r₁.updates ∪ r₂.updates)`; then `f` in the
-bicommutant commutes with `ĥ`, and the identities push that back down to `h`. -/
-theorem reduceBaseGen_sup_subset {a b : Type} (lens : Lens a b) (r₁ r₂ : Footprint b) :
-    Lens.reduceSubProbability lens '' ((r₁ ⊔ r₂).updates ×ˢ Set.univ ×ˢ Set.univ)
-      ⊆ Set.centralizer (Set.centralizer
-          ((Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
-            ∪ (Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)))) := by
-  rintro _ ⟨⟨f, i, o⟩, ⟨hf, -, -⟩, rfl⟩
-  rw [Set.mem_centralizer_iff]
-  intro h hh
-  -- The `h ⊗ id_b` lift commutes with `r₁.updates ∪ r₂.updates`.
-  have hĥ : (lens.liftSubProbability h : b → _)
-      ∈ Set.centralizer (r₁.updates ∪ r₂.updates) := by
-    rw [Set.mem_centralizer_iff]
-    intro g hg
-    apply Lens.reduceSubProbability_ext lens
-    intro i' o'
-    rw [← Lens.reduceSubProbability_mul_right, ← Lens.reduceSubProbability_mul_left]
-    have hmem : Lens.reduceSubProbability lens (g, i', o')
-        ∈ (Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
-          ∪ (Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)) := by
-      cases hg with
-      | inl hg1 => exact Or.inl ⟨(g, i', o'), ⟨hg1, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
-      | inr hg2 => exact Or.inr ⟨(g, i', o'), ⟨hg2, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
-    exact (Set.mem_centralizer_iff.mp hh) (Lens.reduceSubProbability lens (g, i', o')) hmem
-  -- `f` is in the bicommutant of the union, so it commutes with the lift.
-  have hfĥ : (lens.liftSubProbability h : b → _) * f
-      = f * lens.liftSubProbability h := by
-    rw [Footprint.sup_updates] at hf
-    exact (Set.mem_centralizer_iff.mp hf) (lens.liftSubProbability h) hĥ
-  rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right, hfĥ]
-
-
-theorem Lens.reduceFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint b) :
-    Lens.reduceFootprint lens (r₁ ⊔ r₂) = Lens.reduceFootprint lens r₁ ⊔ Lens.reduceFootprint lens r₂ := by
-  apply le_antisymm
-  · rw [Lens.reduceFootprint_eq_from, Lens.reduceFootprint_eq_from, Lens.reduceFootprint_eq_from,
-      Footprint.from_le_iff]
-    set Z := Footprint.from (Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
-        ⊔ Footprint.from (Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)) with hZ
-    have h1 : Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ) ⊆ Z.updates :=
-      (Footprint.from_le_iff _ _).mp le_sup_left
-    have h2 : Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ) ⊆ Z.updates :=
-      (Footprint.from_le_iff _ _).mp le_sup_right
-    refine (reduceBaseGen_sup_subset lens r₁ r₂).trans ?_
-    rw [← Footprint.double_commutant_closed Z]
-    exact Set.centralizer_subset (Set.centralizer_subset (Set.union_subset h1 h2))
-  · exact sup_le (Lens.reduceFootprint_mono lens le_sup_left) (Lens.reduceFootprint_mono lens le_sup_right)
+-- `reduceBaseGen_sup_subset` and `Lens.reduceFootprint_sup` moved to
+-- `GaudisCrypt/Language/Footprint.lean`.
 
 
 
@@ -341,15 +242,6 @@ lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
   lens.liftSubProbability_diracKer g
 
 -- `updateK_image_univ_cc` moved to `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
-
-omit [ProgramSpec] in
-/-- `Lens.reduceFootprint` is monotone in its range argument (double-antitone via the two centralizers). -/
-private lemma Lens.reduceFootprint_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
-    Lens.reduceFootprint lens r ≤ Lens.reduceFootprint lens r' := by
-  have hsub : r.updates ⊆ r'.updates := h
-  unfold Lens.reduceFootprint
-  apply Footprint.from_mono
-  gcongr
 
 -- `footprint_equivariant`, `footprint_liftSubProbability_image` and
 -- `Lens.liftFootprint_updates` moved to `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
@@ -481,17 +373,7 @@ end FVP
 General footprint, `Lens.reduceFootprint` and `Lens.liftFootprint` facts, independent of any particular
 program spec. -/
 
-/-- **Complement is order-reversing on `Footprint`** (`le`/`compl` swap): `R ≤ Sᶜ ↔ S ≤ Rᶜ`.
-    Both sides say every `R`-update commutes with every `S`-update, so the relation is symmetric in
-    `R`, `S`. -/
-theorem _root_.GaudisCrypt.Footprint.le_compl_comm {m : Type} (R S : Footprint m) : R ≤ Sᶜ ↔ S ≤ Rᶜ := by
-  constructor <;>
-  · intro h
-    intro k hk
-    show k ∈ Submonoid.centralizer _
-    rw [Submonoid.mem_centralizer_iff]
-    intro j hj
-    exact ((Submonoid.mem_centralizer_iff.mp (h hj)) k hk).symm
+-- `Footprint.le_compl_comm` moved to `GaudisCrypt/Language/Footprint.lean`.
 
 /-- **A chained lens's footprint is the `liftFootprint` of the inner lens's footprint through the
     outer lens** (generator-level): `diracKer ((L.chain v).liftFunction g)` is exactly
@@ -507,29 +389,8 @@ theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
         = pure (v.liftFunction g (L.get x)) from rfl, SubProbability.pure_bind]
   rfl
 
-/-- **The lift of an update commutes with every `R`-update**, when the update commutes with
-    the `L`-reduction of `R` (membership form: `f ∈ (Lens.reduceFootprint L R)ᶜ.updates`).  The reduced
-    generators `reduceSubProbability L (k, i, o)` of `k ∈ R.updates` lie in
-    `(Lens.reduceFootprint L R).updates`, so `hf` makes them commute with `f`; the Fubini identities
-    (`Lens.reduceSubProbability_mul_left`/`_right`) turn that into commutation of `L.liftSubProbability f`
-    with `k` (via `reduceSubProbability_ext`). -/
-theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
-    {R : Footprint c}
-    {f : s → SubProbability s} (hf : f ∈ ((Lens.reduceFootprint L R)ᶜ).updates)
-    {k : c → SubProbability c} (hk : k ∈ R.updates) :
-    L.liftSubProbability f * k = k * L.liftSubProbability f := by
-  apply Lens.reduceSubProbability_ext L
-  intro i o
-  -- Each reduced generator of `k` is a generator of `Lens.reduceFootprint L R`, hence commutes with `f`.
-  have hgen : Lens.reduceSubProbability L (k, i, o) ∈ (Lens.reduceFootprint L R).updates := by
-    rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
-    exact Set.subset_centralizer_centralizer
-      ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
-  have hcomm : f * Lens.reduceSubProbability L (k, i, o)
-      = Lens.reduceSubProbability L (k, i, o) * f :=
-    ((Submonoid.mem_centralizer_iff.mp hf) _ hgen).symm
-  rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right] at hcomm
-  exact hcomm
+-- `liftSubProbability_comm_of_mem_reduce_compl` moved to
+-- `GaudisCrypt/Language/Footprint.lean`.
 
 /-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
     `L`-reduction of `R` is disjoint from `v.footprint` — the lens-region instance of
