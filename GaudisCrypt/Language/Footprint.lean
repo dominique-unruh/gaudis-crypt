@@ -1858,7 +1858,6 @@ lemma footprint_eq_of_updates {m} {x y : Footprint m} (h : x.updates = y.updates
   subst h
   rfl
 
--- TODO rename → Footprint.double_commutant_closed
 /-- Every `Footprint` is its own bicommutant (the `double_commutant` field, in `Set` form). -/
 @[simp]
 lemma Footprint.double_commutant_closed {m} (r : Footprint m) :
@@ -1872,7 +1871,8 @@ lemma Footprint.sup_updates {m} (x y : Footprint m) :
   change (Footprint.from (x.updates ∪ y.updates)).updates = _
   exact Footprint.from_updates _
 
--- TODO rename → double_commutant_mono, move to Misc.lean
+-- TODO rename → SubProbability.double_commutant_mono
+-- TODO move to SubProbability.lean
 /-- Bicommutant closure is monotone. -/
 lemma double_commutant_mono {m} {A B : Set (m → SubProbability m)} (h : A ⊆ B) :
     Set.centralizer (Set.centralizer A) ⊆ Set.centralizer (Set.centralizer B) :=
@@ -1894,9 +1894,7 @@ lemma Footprint.from_union {m} (A B : Set (m → SubProbability m)) :
   · exact double_commutant_mono (Set.union_subset_union Set.subset_centralizer_centralizer
       Set.subset_centralizer_centralizer)
 
--- TODO check name
-/-- **`lens.liftSubProbability` is injective** when the state is inhabited
-    (every focus value is some `lens.get st`, and read-back recovers the kernel there). -/
+-- TODO: Rename to Lens.liftSubProbability_injective
 lemma updateK_injective {a s : Type} [Nonempty s] (lens : Lens a s) :
     Function.Injective lens.liftSubProbability := by
   intro κ κ' h
@@ -1922,7 +1920,7 @@ lemma updateK_injective {a s : Type} [Nonempty s] (lens : Lens a s) :
   rw [reduce κ, reduce κ'] at hsub
   exact hsub
 
--- TODO check name
+-- TODO: Rename to Lens.liftSubProbability_mul
 /-- **`lens.liftSubProbability` is multiplicative**, hence a monoid homomorphism on kernels. The lens
     laws (`set_get`, `set_set`) make the two localizations of a Kleisli composition agree. -/
 lemma updateK_mul {a b} (lens : Lens a b) (κ₁ κ₂ : a → SubProbability a) :
@@ -1940,22 +1938,17 @@ lemma updateK_mul {a b} (lens : Lens a b) (κ₁ κ₂ : a → SubProbability a)
   funext a''
   rw [lens.set_set]
 
--- TODO check name
-lemma _root_.GaudisCrypt.Footprint.empty_trivial (h : ¬ Nonempty a) (r s : Footprint a) : r = s := by
-  haveI : IsEmpty a := not_nonempty_iff.mp h
-  apply footprint_eq_of_updates
-  ext f
-  have hf : f = pure := funext fun x => isEmptyElim x
-  subst hf
-  exact ⟨fun _ => s.id, fun _ => r.id⟩
+instance [IsEmpty s] : Unique (Footprint s) where
+  default := ⊥
+  uniq x := by
+    ext f
+    have hf : f = pure := funext fun x => isEmptyElim x
+    subst hf
+    exact ⟨fun _ => Footprint.id ⊥, fun _ => x.id⟩
 
--- TODO check name
-/-- **`Lens.liftFootprint` distributes over joins** (i.e. `extend` is a join-homomorphism), for an
-arbitrary lens. The reverse (`≥`) direction is monotonicity; the hard (`≤`) direction reduces to the
-extend-side double-commutant inclusion `Lens.liftSubProbability_double_commutant`. -/
 theorem Lens.liftFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint a) :
     Lens.liftFootprint lens (r₁ ⊔ r₂) = Lens.liftFootprint lens r₁ ⊔ Lens.liftFootprint lens r₂ := by
-  wlog ne : Nonempty b; { apply Footprint.empty_trivial ne }
+  wlog ne : Nonempty b; { have := not_nonempty_iff.mp ne; simp [Unique.eq_default] }
   refine le_antisymm ?_
     (sup_le (Lens.liftFootprint_mono lens le_sup_left) (Lens.liftFootprint_mono lens le_sup_right))
   unfold Lens.liftFootprint
@@ -1963,18 +1956,15 @@ theorem Lens.liftFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint a)
       Footprint.from_le_iff, Footprint.from_updates]
   exact Lens.liftSubProbability_double_commutant lens _
 
--- TODO check name
 /-- The bicommutant closure of the full set of `lens`-localized kernels is exactly
     `lens.footprint`.  Since `Lens.footprint` is now *generated* by all localized kernels
     (`Set.range lens.liftSubProbability = lens.liftSubProbability '' univ`), this is definitional
     — what used to be the hard half of the lens-corner double-commutant theorem. -/
-theorem updateK_image_univ_cc {a s : Type} (lens : Lens a s) :
-    Set.centralizer
-        (Set.centralizer (lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a))))
-      = lens.footprint.updates := by
+theorem Lens.footprint_updates {a s : Type} (lens : Lens a s) :
+    lens.footprint.updates = Set.centralizer (Set.centralizer
+          (lens.liftSubProbability '' (Set.univ : Set (a → SubProbability a)))) := by
   rw [Set.image_univ, Lens.footprint, Footprint.from_updates]
 
--- TODO check name
 /-- A kernel in `lens.footprint` is **equivariant under complement updates**: it commutes with every
     Dirac complement-update (`diracKer (lens.compl.update h) ∈ lens.footprintᶜ`), so it intertwines
     `lens.compl.update h`. -/
@@ -1986,7 +1976,7 @@ private lemma footprint_equivariant {a s : Type} (lens : Lens a s)
   haveI : disjoint lens.compl lens := ⟨fun st v w => by
     induction v using Quotient.inductionOn
     rename_i u
-    show lens.set (lens.get (lens.set w st)) u = lens.set w (lens.set (lens.get st) u)
+    change lens.set (lens.get (lens.set w st)) u = lens.set w (lens.set (lens.get st) u)
     rw [lens.set_get, lens.set_set]⟩
   have hsub : lens.compl.footprint.updates ⊆ (lens.footprint)ᶜ.updates :=
     Lens.footprint_le_compl_of_disjoint lens.compl lens
@@ -2002,7 +1992,7 @@ private lemma footprint_equivariant {a s : Type} (lens : Lens a s)
       SubProbability.pure_bind] at hst
   exact hst.symm
 
--- TODO check name
+-- TODO rename to footprint_liftSubProbability_image
 /-- **Extraction**: every kernel in `lens.footprint` is `lens.liftSubProbability` of a base kernel.
     The witness reads the base at a fixed `st₀`; equivariance + the
     `Lens.compl.set ⟦st⟧ st' = lens.set (lens.get st') st` identity make
@@ -2014,7 +2004,7 @@ private lemma footprint_updateK_image {a s : Type} (lens : Lens a s) (st₀ : s)
   have hLHS :
       lens.liftSubProbability (fun v => p (lens.set v st₀) >>= fun st' => pure (lens.get st')) st
       = p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.set (lens.get st') st) := by
-    show ((p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.get st'))
+    change ((p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.get st'))
             >>= fun a' => pure (lens.set a' st))
        = p (lens.set (lens.get st) st₀) >>= fun st' => pure (lens.set (lens.get st') st)
     rw [SubProbability.bind_assoc]
@@ -2023,7 +2013,7 @@ private lemma footprint_updateK_image {a s : Type} (lens : Lens a s) (st₀ : s)
   rw [hLHS]
   have hrecon : lens.compl.liftFunction (Function.const _ (lens.compl.get st))
       (lens.set (lens.get st) st₀) = st := by
-    show lens.set (lens.get (lens.set (lens.get st) st₀)) st = st
+    change lens.set (lens.get (lens.set (lens.get st) st₀)) st = st
     rw [lens.set_get]; exact lens.get_set st
   have heq := footprint_equivariant lens hp (Function.const _ (lens.compl.get st))
     (lens.set (lens.get st) st₀)
@@ -2043,7 +2033,7 @@ theorem fvP_extend_updates {a b} [Nonempty b] (lens : Lens a b) (range : Footpri
   · intro p hp
     have hp_lens : p ∈ lens.footprint.updates := by
       have h1 : (Lens.liftFootprint lens range).updates ⊆ lens.footprint.updates := by
-        rw [← updateK_image_univ_cc lens]
+        rw [Lens.footprint_updates]
         unfold Lens.liftFootprint
         rw [Footprint.from_updates]
         exact double_commutant_mono (Set.image_mono (Set.subset_univ _))

@@ -96,7 +96,7 @@ instance [Nonempty s] (lens : Lens a s) : Nonempty lens.ComplContent :=
 theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
     (rs : ι → Footprint a) :
     Lens.liftFootprint lens (⨆ i, rs i) = ⨆ i, Lens.liftFootprint lens (rs i) := by
-  wlog ne : Nonempty b; { apply Footprint.empty_trivial ne }
+  wlog ne : Nonempty b; { have := not_nonempty_iff.mp ne; apply Subsingleton.elim }
   refine le_antisymm ?_ (iSup_le fun i => Lens.liftFootprint_mono lens (le_iSup rs i))
   change Footprint.from (lens.liftSubProbability '' (⨆ i, rs i).updates) ≤
        ⨆ i, Lens.liftFootprint lens (rs i)

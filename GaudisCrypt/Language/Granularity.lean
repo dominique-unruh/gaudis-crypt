@@ -267,20 +267,7 @@ theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (len
   rfl
 
 
--- TODO: DOMINIQUE CHECK FROM HERE
-
-/-! ### Corner order-iso and `corner_crux`
-
-`corner_crux` (the product-corner structure theorem) is proved by reducing through the complement
-lens `L := l.compl` of the splitter `B = l.footprint`: `Bᶜ = L.footprint`, and footprints below the
-corner `L.footprint` are recovered by `L.liftFootprint ∘ Lens.reduceFootprint L` (the corner order-iso).  All
-helpers are general `Footprint` facts, stated for an arbitrary state type (TODO check name /
-relocate to `Language/Footprint.lean` with the `Lens.reduceFootprint` machinery). -/
-
--- TODO check name / relocate to `Language/Footprint.lean`.
-/-- **Reducing the complement corner kills it.**  `Lens.reduceFootprint L` sends `(L.footprint)ᶜ` to `⊥`:
-    every `L`-lift already lies in `L.footprint`, which commutes with all of `(L.footprint)ᶜ`, so
-    the reduce-generator condition holds vacuously for every base kernel. -/
+-- TODO relocate to `Language/Footprint.lean`, name is ok
 @[simp]
 theorem Lens.reduceFootprint_compl_footprint {d s : Type} (L : Lens d s) :
     Lens.reduceFootprint L ((L.footprint)ᶜ) = ⊥ := by
@@ -297,6 +284,7 @@ theorem Lens.reduceFootprint_compl_footprint {d s : Type} (L : Lens d s) :
   change Set.centralizer Set.univ = (Footprint.from ∅).updates
   rw [Footprint.from_updates, Set.centralizer_empty, Set.top_eq_univ]
 
+-- TODO used only once, inline it.
 private theorem compl_updates {m : Type} (R : Footprint m) :
     (Rᶜ).updates = Set.centralizer R.updates := by
   rw [Footprint.updates_eq_centralizer_compl (Rᶜ), Footprint.compl_compl]; rfl
@@ -310,112 +298,93 @@ theorem reduce_updates_eq {d s : Type} (L : Lens d s) (R : Footprint s) :
           (L.liftSubProbability f : s → SubProbability s) ∈ (Rᶜ).updates } := by
   rw [Lens.reduceFootprint_alt_def, Footprint.from_updates, Set.centralizer_centralizer_centralizer]
   congr 1; ext f
-  simp only [Set.mem_setOf_eq, compl_updates, Set.mem_centralizer_iff]
+  simp only [Set.mem_setOf_eq]
   constructor <;> intro h g hg <;> exact (h g hg).symm
 
--- TODO check name / relocate to `Language/Footprint.lean`.
-/-- **Corner order-iso.**  On `[⊥, L.footprint]`, `L.liftFootprint ∘ Lens.reduceFootprint L` is the identity:
-    a footprint below the corner is exactly the lift of its reduction.
-
-    `≥` (easy): each `u ∈ S.updates` is an `L`-lift (extraction), commuting with the reduce
-    generators via `updateK` injectivity.  `≤` (hard): the pure-commutant obstruction (the center)
-    is dissolved by the key set identity
-    `{f | L.lift f ∈ Sᶜ} = centralizer {f | L.lift f ∈ S}` — whose `⊇` direction extracts each
-    `k ∈ S.updates` as an `L`-lift (using `S ≤ L.footprint`) — giving
-    `Lens.reduceFootprint L S ≤ (Lens.reduceFootprint L Sᶜ)ᶜ`, after which `liftSubProbability_comm_of_mem_reduce_compl`
-    forces every lifted reduce-generator to commute with `Sᶜ`, i.e. to lie in `S`. -/
+-- TODO relocate to `Language/Footprint.lean`.
+-- TODO rename to Footprint.lift_reduceFootprint_eq
 theorem liftFootprint_reduce_eq {d s : Type} (L : Lens d s) (S : Footprint s)
     (hS : S ≤ L.footprint) : L.liftFootprint (Lens.reduceFootprint L S) = S := by
-  rcases isEmpty_or_nonempty s with hE | hNe
-  · exact Footprint.empty_trivial (by rwa [not_nonempty_iff]) _ _
-  · haveI := hNe
-    have hextract : ∀ k ∈ L.footprint.updates, ∃ p, L.liftSubProbability p = k := by
-      intro k hk
-      have : k ∈ L.liftSubProbability '' (⊤ : Footprint d).updates := by
-        rw [← fvP_extend_updates L ⊤, Lens.liftFootprint_top]; exact hk
-      obtain ⟨p, -, hp⟩ := this; exact ⟨p, hp⟩
-    refine le_antisymm ?_ ?_
-    · -- `≤`: `L.liftFootprint (Lens.reduceFootprint L S) ≤ S`
-      have hScomm' : (Sᶜ).updates = Set.centralizer S.updates := compl_updates S
-      have hkey : { f : d → SubProbability d |
-            (L.liftSubProbability f : s → SubProbability s) ∈ (Sᶜ).updates }
-          = Set.centralizer { f : d → SubProbability d |
-            (L.liftSubProbability f : s → SubProbability s) ∈ S.updates } := by
-        ext f
-        simp only [Set.mem_setOf_eq, Set.mem_centralizer_iff]
-        constructor
-        · intro hf h hh
-          have hcomm : L.liftSubProbability h * L.liftSubProbability f
-              = L.liftSubProbability f * L.liftSubProbability h := by
-            rw [hScomm'] at hf; exact (Set.mem_centralizer_iff.mp hf) _ hh
-          rw [← updateK_mul, ← updateK_mul] at hcomm; exact updateK_injective L hcomm
-        · intro hf
-          rw [hScomm', Set.mem_centralizer_iff]; intro k hk
-          obtain ⟨p, rfl⟩ := hextract k (hS hk)
-          have hpf : p * f = f * p := hf p hk
-          rw [← updateK_mul, ← updateK_mul, hpf]
-      have hH : Lens.reduceFootprint L S ≤ (Lens.reduceFootprint L Sᶜ)ᶜ := by
-        intro p hp
-        rw [reduce_updates_eq L S, hkey] at hp
-        rw [compl_updates (Lens.reduceFootprint L Sᶜ), reduce_updates_eq L Sᶜ, Footprint.compl_compl S]
-        exact hp
-      intro u hu
-      rw [fvP_extend_updates L (Lens.reduceFootprint L S)] at hu
-      obtain ⟨f, hf, rfl⟩ := hu
-      have hfc : f ∈ ((Lens.reduceFootprint L Sᶜ)ᶜ).updates := hH hf
-      rw [show S.updates = Set.centralizer (Sᶜ).updates by
-          rw [Footprint.updates_eq_centralizer_compl S]; rfl, Set.mem_centralizer_iff]
-      intro w hw
-      exact (liftSubProbability_comm_of_mem_reduce_compl hfc hw).symm
-    · -- `≥`: `S ≤ L.liftFootprint (Lens.reduceFootprint L S)`
-      intro u hu
-      obtain ⟨u₀, hu₀⟩ := hextract u (hS hu)
-      rw [fvP_extend_updates L (Lens.reduceFootprint L S)]
-      refine ⟨u₀, ?_, hu₀⟩
-      rw [Lens.reduceFootprint_alt_def, Footprint.from_updates]
-      apply Set.subset_centralizer_centralizer
-      rw [Set.mem_centralizer_iff]; intro f hf
-      simp only [Set.mem_setOf_eq] at hf
-      have hcomm : L.liftSubProbability f * u = u * L.liftSubProbability f := hf u hu
-      rw [← hu₀, ← updateK_mul, ← updateK_mul] at hcomm
-      exact updateK_injective L hcomm
+  wlog hNe : Nonempty s; { have := not_nonempty_iff.mp hNe; apply Subsingleton.elim }
+  haveI := hNe
+  have hextract : ∀ k ∈ L.footprint.updates, ∃ p, L.liftSubProbability p = k := by
+    intro k hk
+    have : k ∈ L.liftSubProbability '' (⊤ : Footprint d).updates := by
+      rw [← fvP_extend_updates L ⊤, Lens.liftFootprint_top]; exact hk
+    obtain ⟨p, -, hp⟩ := this; exact ⟨p, hp⟩
+  refine le_antisymm ?_ ?_
+  · -- `≤`: `L.liftFootprint (Lens.reduceFootprint L S) ≤ S`
+    have hScomm' : (Sᶜ).updates = Set.centralizer S.updates := rfl
+    have hkey : { f : d → SubProbability d |
+          (L.liftSubProbability f : s → SubProbability s) ∈ (Sᶜ).updates }
+        = Set.centralizer { f : d → SubProbability d |
+          (L.liftSubProbability f : s → SubProbability s) ∈ S.updates } := by
+      ext f
+      simp only [Set.mem_setOf_eq, Set.mem_centralizer_iff]
+      constructor
+      · intro hf h hh
+        have hcomm : L.liftSubProbability h * L.liftSubProbability f
+            = L.liftSubProbability f * L.liftSubProbability h := by
+          rw [hScomm'] at hf; exact (Set.mem_centralizer_iff.mp hf) _ hh
+        rw [← updateK_mul, ← updateK_mul] at hcomm; exact updateK_injective L hcomm
+      · intro hf
+        rw [hScomm', Set.mem_centralizer_iff]; intro k hk
+        obtain ⟨p, rfl⟩ := hextract k (hS hk)
+        have hpf : p * f = f * p := hf p hk
+        rw [← updateK_mul, ← updateK_mul, hpf]
+    have hH : Lens.reduceFootprint L S ≤ (Lens.reduceFootprint L Sᶜ)ᶜ := by
+      intro p hp
+      rw [reduce_updates_eq L S, hkey] at hp
+      rw [compl_updates (Lens.reduceFootprint L Sᶜ), reduce_updates_eq L Sᶜ, Footprint.compl_compl S]
+      exact hp
+    intro u hu
+    rw [fvP_extend_updates L (Lens.reduceFootprint L S)] at hu
+    obtain ⟨f, hf, rfl⟩ := hu
+    have hfc : f ∈ ((Lens.reduceFootprint L Sᶜ)ᶜ).updates := hH hf
+    rw [show S.updates = Set.centralizer (Sᶜ).updates by
+        rw [Footprint.updates_eq_centralizer_compl S]; rfl, Set.mem_centralizer_iff]
+    intro w hw
+    exact (liftSubProbability_comm_of_mem_reduce_compl hfc hw).symm
+  · -- `≥`: `S ≤ L.liftFootprint (Lens.reduceFootprint L S)`
+    intro u hu
+    obtain ⟨u₀, hu₀⟩ := hextract u (hS hu)
+    rw [fvP_extend_updates L (Lens.reduceFootprint L S)]
+    refine ⟨u₀, ?_, hu₀⟩
+    rw [Lens.reduceFootprint_alt_def, Footprint.from_updates]
+    apply Set.subset_centralizer_centralizer
+    rw [Set.mem_centralizer_iff]; intro f hf
+    simp only [Set.mem_setOf_eq] at hf
+    have hcomm : L.liftSubProbability f * u = u * L.liftSubProbability f := hf u hu
+    rw [← hu₀, ← updateK_mul, ← updateK_mul] at hcomm
+    exact updateK_injective L hcomm
 
--- TODO check name / relocate to `Language/Footprint.lean`.
-/-- **Product-corner structure theorem, corner form.**  Reducing through `L`:
-    `x ≤ A ⊔ (L.footprint)ᶜ`
-    gives `Lens.reduceFootprint L x ≤ Lens.reduceFootprint L A` (the complement corner reduces to `⊥`), and the corner
-    order-iso lifts that back to `x ≤ A`. -/
-theorem corner_crux_aux {d s : Type} (L : Lens d s) {x A : Footprint s}
-    (hAL : A ≤ L.footprint) (hxL : x ≤ L.footprint)
-    (hx_sup : x ≤ A ⊔ (L.footprint)ᶜ) : x ≤ A := by
-  have hred : Lens.reduceFootprint L x ≤ Lens.reduceFootprint L A := by
+-- TODO inline inside corner_crux
+theorem corner_crux_aux {d s : Type} (L : Lens d s) {A B : Footprint s}
+    (hAL : B ≤ L.footprint) (hxL : A ≤ L.footprint)
+    (hx_sup : A ≤ B ⊔ (L.footprint)ᶜ) : A ≤ B := by
+  have hred : Lens.reduceFootprint L A ≤ Lens.reduceFootprint L B := by
     have h1 := Lens.reduceFootprint_mono L hx_sup
     rw [Lens.reduceFootprint_sup, Lens.reduceFootprint_compl_footprint] at h1
     simpa using h1
-  calc x = L.liftFootprint (Lens.reduceFootprint L x) := (liftFootprint_reduce_eq L x hxL).symm
-    _ ≤ L.liftFootprint (Lens.reduceFootprint L A) := Lens.liftFootprint_mono L hred
-    _ = A := liftFootprint_reduce_eq L A hAL
+  calc A = L.liftFootprint (Lens.reduceFootprint L A) := (liftFootprint_reduce_eq L A hxL).symm
+    _ ≤ L.liftFootprint (Lens.reduceFootprint L B) := Lens.liftFootprint_mono L hred
+    _ = B := liftFootprint_reduce_eq L B hAL
 
 /-- **Product-corner structure theorem.**  For a lens-derived splitter `B`, an algebra `x` below
     `A ⊔ B` and orthogonal to `B` already lies below `A`.  Reduces to `corner_crux_aux` through the
     complement lens of `B` (`Bᶜ = l.compl.footprint`). -/
-theorem corner_crux {s : Type} {x A B : Footprint s}
-    (hB : B.FromLens) (hAB : A ≤ Bᶜ) (hx_sup : x ≤ A ⊔ B) (hx_perp : x ≤ Bᶜ) : x ≤ A := by
+-- TODO inline inside Footprint.IsSubGranular.le_granular
+theorem corner_crux {s : Type} {A B C : Footprint s}
+    (hB : C.FromLens) (hAB : B ≤ Cᶜ) (hx_sup : A ≤ B ⊔ C) (hx_perp : A ≤ Cᶜ) : A ≤ B := by
   obtain ⟨l, hl⟩ := hB
-  have hBc : Bᶜ = (l.compl).footprint := (congrArg (·ᶜ) hl).trans (Lens.compl_footprint l)
-  have hBB : ((l.compl).footprint)ᶜ = B := by
+  have hBc : Cᶜ = (l.compl).footprint := (congrArg (·ᶜ) hl).trans (Lens.compl_footprint l)
+  have hBB : ((l.compl).footprint)ᶜ = C := by
     rw [← Lens.compl_footprint l, Footprint.compl_compl]; exact hl.symm
   refine corner_crux_aux l.compl (hBc ▸ hAB) (hBc ▸ hx_perp) ?_
   rw [hBB]; exact hx_sup
 
 open Classical in
-/-- The minimal granular cover contains what it covers.
-
-    The whole difficulty is isolated in `corner_crux` (the product-corner theorem): after
-    rewriting with `granular_footprint`, the witnessing grain family splits into the touched grains
-    `Tf` (which lie in the cover) and the untouched grains `U` (with `footprint ≤ gᶜ`).  The join
-    `sSup U` is lens-derived and orthogonal to `sSup Tf`, and `footprint` is `≤ sSup Tf ⊔ sSup U`
-    and `≤ (sSup U)ᶜ`, so `corner_crux` gives `footprint ≤ sSup Tf ≤ sSup (touched grains)`. -/
+-- TODO rename → Footprint.IsSubGranular.granularCover_ge
 theorem Footprint.IsSubGranular.le_granular [spec : GranularProgramSpec]
     (footprint : Footprint State) (h : footprint.IsSubGranular) :
     footprint ≤ h.granularCover.footprint := by
