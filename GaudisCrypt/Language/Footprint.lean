@@ -28,24 +28,17 @@ structure Footprint (m : Type _) where
   double_commutant :
     (Set.centralizer (Set.centralizer updates)) = updates
 
-private lemma centralizer_carrier_eq (S : Set (m → SubProbability m)) :
-    (Submonoid.centralizer S).carrier = Set.centralizer S := by
-  ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
-
 instance : Compl (Footprint m) where
-  compl range := ⟨(Submonoid.centralizer range.updates).carrier,
-    Submonoid.one_mem _,
-    fun hf hg => Submonoid.mul_mem _ hf hg,
-    by simp only [centralizer_carrier_eq]; exact Set.centralizer_centralizer_centralizer _⟩
+  compl range := ⟨(Set.centralizer range.updates),
+    sorry,
+    sorry,
+    sorry⟩
 
 def Footprint.from (generators : Set (m → SubProbability m)) : Footprint m where
-  -- TODO: Write Set.centralizer instead of Submonoid.centralizer, more
-  updates := Submonoid.centralizer (Submonoid.centralizer generators).carrier
-  id := Submonoid.one_mem _
-  comp := fun hf hg => Submonoid.mul_mem _ hf hg
-  double_commutant := by
-    simp only [centralizer_carrier_eq]
-    exact Set.centralizer_centralizer_centralizer _
+  updates := Set.centralizer (Set.centralizer generators)
+  id := sorry
+  comp := sorry
+  double_commutant := sorry
 
 @[simp]
 lemma Footprint.from_updates {m} (G : Set (m → SubProbability m)) :
@@ -102,7 +95,7 @@ instance : Lattice (Footprint m) where
 
 instance : BoundedOrder (Footprint m) where
   top := ⟨⊤, Set.mem_univ _, fun _ _ => Set.mem_univ _, by
-    simp only [centralizer_carrier_eq, Set.top_eq_univ, Set.centralizer_univ]
+    simp only [Set.top_eq_univ, Set.centralizer_univ]
     exact Set.centralizer_eq_top_iff_subset.mpr (Set.Subset.refl _)⟩
   bot := Footprint.from ∅
   bot_le := fun x => by
@@ -113,7 +106,6 @@ instance : BoundedOrder (Footprint m) where
 
 /-- The complement (commutant) is antitone. -/
 theorem Footprint.compl_le_compl {m : Type _} {R S : Footprint m} (h : R ≤ S) : Sᶜ ≤ Rᶜ := by
-  show (Submonoid.centralizer S.updates).carrier ⊆ (Submonoid.centralizer R.updates).carrier
   intro x hx
   exact Submonoid.mem_centralizer_iff.mpr
     (fun g hg => Submonoid.mem_centralizer_iff.mp hx g (h hg))
@@ -128,7 +120,6 @@ theorem Footprint.compl_compl (x : Footprint a) : xᶜᶜ = x := by
     stated with the commutant on the inside). -/
 theorem Footprint.updates_eq_centralizer_compl {m : Type _} (R : Footprint m) :
     R.updates = (Submonoid.centralizer Rᶜ.updates).carrier := by
-  show R.updates = (Submonoid.centralizer (Submonoid.centralizer R.updates).carrier).carrier
   exact R.double_commutant.symm
 
 /-- **Galois connection for `from`**: `from G` is the smallest range whose updates
@@ -136,14 +127,11 @@ theorem Footprint.updates_eq_centralizer_compl {m : Type _} (R : Footprint m) :
 theorem Footprint.from_le_iff {m : Type _} (G : Set (m → SubProbability m))
     (R : Footprint m) : Footprint.from G ≤ R ↔ G ⊆ R.updates := by
   constructor
-  · intro h
-    intro x hx
+  · intro h x hx
     apply h
-    show x ∈ (Submonoid.centralizer (Submonoid.centralizer G).carrier).carrier
-    simp only [centralizer_carrier_eq]
     exact Set.subset_centralizer_centralizer hx
   · intro h
-    show (Submonoid.centralizer (Submonoid.centralizer G).carrier).carrier ⊆ R.updates
+    show (Set.centralizer (Set.centralizer G)) ⊆ R.updates
     conv_rhs => rw [← R.double_commutant]
     exact Submonoid.centralizer_le (Submonoid.centralizer_le h)
 
@@ -1856,16 +1844,10 @@ theorem Lens.footprint_fromLens {a b : Type} (l : Lens a b) : (l.footprint).From
     refine ⟨Lens.chain l (Lens.bijection f), ?_⟩
     rw [Lens.footprint_chain, Lens.bijection_footprint, Lens.liftFootprint_top]
 
-/-! ## Bicommutant scaffolding, lens-corner extraction, and `pair_footprint`
+/-! ## Bicommutant scaffolding, lens-corner extraction, and `pair_footprint` -/
+-- TODO: this is a claude generated section header, replace by something meaningful and/or move the theorems into different sections
 
-Moved here from `GaudisCrypt/FV.lean`, which is a range-framework file: these are all
-`Footprint`-level results with no `fvP`/`FVP` content, and `Language/Granularity.lean` needs
-`pair_footprint` without taking a dependency on `FV`.  Names are carried over verbatim from
-`FV.lean`; each is flagged `TODO check name` because most do not follow the project's
-`GaudisCrypt.T.lemma_name` convention (several are unprefixed, and `Lens.chain_footprint` may
-duplicate `Lens.footprint_chain` above). -/
-
--- TODO check name
+-- TODO Rename → Footprint.ext
 /-- Two `Footprint`s with the same `updates` are equal. -/
 @[ext]
 lemma footprint_eq_of_updates {m} {x y : Footprint m} (h : x.updates = y.updates) :
@@ -1876,48 +1858,40 @@ lemma footprint_eq_of_updates {m} {x y : Footprint m} (h : x.updates = y.updates
   subst h
   rfl
 
--- TODO check name
-private lemma submonoid_centralizer_carrier {m} (S : Set (m → SubProbability m)) :
-    (Submonoid.centralizer S).carrier = Set.centralizer S := by
-  ext x; simp [Submonoid.mem_centralizer_iff, Set.mem_centralizer_iff]
-
--- TODO check name
+-- TODO rename → Footprint.double_commutant_closed
 /-- Every `Footprint` is its own bicommutant (the `double_commutant` field, in `Set` form). -/
 @[simp]
-lemma footprint_updates_cc {m} (r : Footprint m) :
+lemma Footprint.double_commutant_closed {m} (r : Footprint m) :
     Set.centralizer (Set.centralizer r.updates) = r.updates := by
   have h := r.double_commutant
-  simpa only [submonoid_centralizer_carrier] using h
+  simpa only using h
 
--- TODO check name
 /-- The `updates` of a join is the double centralizer of the union of the `updates`. -/
-lemma footprint_sup_updates {m} (x y : Footprint m) :
+lemma Footprint.sup_updates {m} (x y : Footprint m) :
     (x ⊔ y).updates = Set.centralizer (Set.centralizer (x.updates ∪ y.updates)) := by
   change (Footprint.from (x.updates ∪ y.updates)).updates = _
   exact Footprint.from_updates _
 
--- TODO check name
-/-- Bicommutant closure `cⁿ²` is monotone. -/
-lemma cl_mono {m} {A B : Set (m → SubProbability m)} (h : A ⊆ B) :
+-- TODO rename → double_commutant_mono, move to Misc.lean
+/-- Bicommutant closure is monotone. -/
+lemma double_commutant_mono {m} {A B : Set (m → SubProbability m)} (h : A ⊆ B) :
     Set.centralizer (Set.centralizer A) ⊆ Set.centralizer (Set.centralizer B) :=
   Set.centralizer_subset (Set.centralizer_subset h)
 
--- TODO check name
-/-- `Footprint.from` turns unions into joins. -/
-lemma footprint_from_union {m} (A B : Set (m → SubProbability m)) :
+lemma Footprint.from_union {m} (A B : Set (m → SubProbability m)) :
     Footprint.from A ⊔ Footprint.from B = Footprint.from (A ∪ B) := by
   apply footprint_eq_of_updates
-  rw [footprint_sup_updates, Footprint.from_updates, Footprint.from_updates,
+  rw [Footprint.sup_updates, Footprint.from_updates, Footprint.from_updates,
       Footprint.from_updates]
   apply Set.Subset.antisymm
   · calc Set.centralizer (Set.centralizer
             (Set.centralizer (Set.centralizer A) ∪ Set.centralizer (Set.centralizer B)))
         ⊆ Set.centralizer (Set.centralizer (Set.centralizer (Set.centralizer (A ∪ B)))) :=
-          cl_mono (Set.union_subset (cl_mono Set.subset_union_left)
-            (cl_mono Set.subset_union_right))
+          double_commutant_mono (Set.union_subset (double_commutant_mono Set.subset_union_left)
+            (double_commutant_mono Set.subset_union_right))
       _ = Set.centralizer (Set.centralizer (A ∪ B)) :=
           Set.centralizer_centralizer_centralizer (Set.centralizer (A ∪ B))
-  · exact cl_mono (Set.union_subset_union Set.subset_centralizer_centralizer
+  · exact double_commutant_mono (Set.union_subset_union Set.subset_centralizer_centralizer
       Set.subset_centralizer_centralizer)
 
 -- TODO check name
@@ -1985,7 +1959,7 @@ theorem Lens.liftFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint a)
   refine le_antisymm ?_
     (sup_le (Lens.liftFootprint_mono lens le_sup_left) (Lens.liftFootprint_mono lens le_sup_right))
   unfold Lens.liftFootprint
-  rw [footprint_from_union, ← Set.image_union, footprint_sup_updates,
+  rw [Footprint.from_union, ← Set.image_union, Footprint.sup_updates,
       Footprint.from_le_iff, Footprint.from_updates]
   exact Lens.liftSubProbability_double_commutant lens _
 
@@ -2072,7 +2046,7 @@ theorem fvP_extend_updates {a b} [Nonempty b] (lens : Lens a b) (range : Footpri
         rw [← updateK_image_univ_cc lens]
         unfold Lens.liftFootprint
         rw [Footprint.from_updates]
-        exact cl_mono (Set.image_mono (Set.subset_univ _))
+        exact double_commutant_mono (Set.image_mono (Set.subset_univ _))
       exact h1 hp
     have hpC : p ∈ Set.centralizer
         (Set.centralizer (lens.liftSubProbability '' range.updates)) := by
@@ -2083,7 +2057,7 @@ theorem fvP_extend_updates {a b} [Nonempty b] (lens : Lens a b) (range : Footpri
     obtain ⟨q, hq⟩ : ∃ q, lens.liftSubProbability q = p :=
       ⟨_, footprint_updateK_image lens (Classical.arbitrary b) hp_lens⟩
     refine ⟨q, ?_, hq⟩
-    rw [← footprint_updates_cc range, Set.mem_centralizer_iff]
+    rw [← Footprint.double_commutant_closed range, Set.mem_centralizer_iff]
     intro r hr
     have hur : lens.liftSubProbability r
         ∈ Set.centralizer (lens.liftSubProbability '' range.updates) := by

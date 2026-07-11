@@ -367,12 +367,12 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
         (l := sig.LocalVariableState A.locals)).liftFunction f)
       ∈ ((fvP_proc A)ᶜ).updates := by
   have hdecompG : FVP.fvP_proc A
-      = fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
-        fvP_reduce ProcedureState.globalL
+      = Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
+        Lens.reduceFootprint ProcedureState.globalL
           ((ProgramDenotation.get A.return_val).footprint) := rfl
   -- Per component: `X ≤ (from {lifted step})ᶜ` whenever `f` commutes with `X`'s reduction.
   have hsing : ∀ X : Footprint (ProcedureState (sig.LocalVariableState A.locals)),
-      diracKer f ∈ ((fvP_reduce ProcedureState.globalL X)ᶜ).updates →
+      diracKer f ∈ ((Lens.reduceFootprint ProcedureState.globalL X)ᶜ).updates →
       X ≤ (Footprint.from
         {diracKer ((ProcedureState.globalL
           (l := sig.LocalVariableState A.locals)).liftFunction f)})ᶜ := by
@@ -389,9 +389,9 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
     intro k hk
     exact (liftSubProbability_comm_of_mem_reduce_compl hfX hk).symm
   -- Transport `hf` to the two components of the global decomposition.
-  have hble : fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ≤ FVP.fvP_proc A := by
+  have hble : Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt A.body) ≤ FVP.fvP_proc A := by
     rw [hdecompG]; exact le_sup_left
-  have hrle : fvP_reduce ProcedureState.globalL
+  have hrle : Lens.reduceFootprint ProcedureState.globalL
       ((ProgramDenotation.get A.return_val).footprint) ≤ FVP.fvP_proc A := by
     rw [hdecompG]; exact le_sup_right
   have h1 := le_trans (fvP_stmt_le_FVP A.body)

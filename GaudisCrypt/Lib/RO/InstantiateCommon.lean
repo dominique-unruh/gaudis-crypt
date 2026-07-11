@@ -583,7 +583,7 @@ theorem procDenot_core {sig : ProcedureSignature}
   rw [hfin, hFdef, globalL_liftSubProbability_global]
 
 /-- **The reduced procedure denotation is confined to the `globalL`-reduction of its body+return
-    footprint.**  Ingredient of the `call'` FV-soundness case: `f` outside `fvP_reduce globalL Y`
+    footprint.**  Ingredient of the `call'` FV-soundness case: `f` outside `Lens.reduceFootprint globalL Y`
     lifts to `globalL.liftSubProbability f ∈ Yᶜ` (Fubini), so the body and return getter commute
     with it, and `procDenot_core` then commutes the whole procedure with `f`. -/
 theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
@@ -594,7 +594,7 @@ theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
     (Y : Footprint (ProcedureState (sig.LocalVariableState ls)))
     (hb : (programDenotation b).footprint ≤ Y)
     (hr : (ProgramDenotation.get r).footprint ≤ Y) :
-    (procedureDenotation ⟨ls, b, r⟩ av).inFootprint (fvP_reduce ProcedureState.globalL Y) := by
+    (procedureDenotation ⟨ls, b, r⟩ av).inFootprint (Lens.reduceFootprint ProcedureState.globalL Y) := by
   rw [inFootprint_iff_clean]
   intro f hf
   have hF : ProcedureState.globalL.liftSubProbability f ∈ Yᶜ.updates := by
@@ -604,8 +604,8 @@ theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
     apply Lens.reduceSubProbability_ext ProcedureState.globalL
     intro i o
     have hgen : Lens.reduceSubProbability ProcedureState.globalL (k, i, o)
-        ∈ (fvP_reduce ProcedureState.globalL Y).updates := by
-      rw [fvP_reduce_eq_from, Footprint.from_updates]
+        ∈ (Lens.reduceFootprint ProcedureState.globalL Y).updates := by
+      rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
       exact Set.subset_centralizer_centralizer
         ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
     have hcomm : Lens.reduceSubProbability ProcedureState.globalL (k, i, o) * f
@@ -639,9 +639,9 @@ theorem fvP_stmt_call_le {holes : HoleSigs} {l : Type} {sig : ProcedureSignature
   rw [show FVP.fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p) =
       ProgramDenotation.footprint' (ProgramDenotation.set x) ⊔
       (Lens.liftFootprint ProcedureState.globalL
-          (fvP_reduce ProcedureState.globalL (FVP.fvP_stmt b)) ⊔
+          (Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt b)) ⊔
       (Lens.liftFootprint ProcedureState.globalL
-          (fvP_reduce ProcedureState.globalL ((ProgramDenotation.get r).footprint)) ⊔
+          (Lens.reduceFootprint ProcedureState.globalL ((ProgramDenotation.get r).footprint)) ⊔
       (ProgramDenotation.get p).footprint)) from rfl]
   rw [show fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p)
       = (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)).footprint from rfl]
@@ -654,15 +654,15 @@ theorem fvP_stmt_call_le {holes : HoleSigs} {l : Type} {sig : ProcedureSignature
       refine le_trans (lift_footprint_le _ _) ?_
       set Y := (programDenotation b).footprint ⊔ (ProgramDenotation.get r).footprint with hY
       have hpr : (procedureDenotation ⟨ls, b, r⟩ av).footprint
-          ≤ fvP_reduce ProcedureState.globalL Y :=
+          ≤ Lens.reduceFootprint ProcedureState.globalL Y :=
         ProgramDenotation.footprint_le_of_inFootprint
           (procedureDenotation_inFootprint_reduce ls b r av Y le_sup_left le_sup_right)
       refine le_trans (Lens.liftFootprint_mono _ hpr) ?_
       have hYle : Y ≤ FVP.fvP_stmt b ⊔ (ProgramDenotation.get r).footprint := by
         refine sup_le ?_ le_sup_right
         exact le_trans (le_trans (programDenotation_footprint_le_fvP_stmt b) hbody) le_sup_left
-      refine le_trans (Lens.liftFootprint_mono _ (fvP_reduce_mono _ hYle)) ?_
-      rw [fvP_reduce_sup, Lens.liftFootprint_sup]
+      refine le_trans (Lens.liftFootprint_mono _ (Lens.reduceFootprint_mono _ hYle)) ?_
+      rw [Lens.reduceFootprint_sup, Lens.liftFootprint_sup]
       exact sup_le (le_trans le_sup_left le_sup_right)
         (le_trans (le_trans le_sup_left le_sup_right) le_sup_right)
     · exact iSup_le fun rv => by
@@ -750,19 +750,19 @@ theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
     (A : ProcedureWithHoles holes sig)
     (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
     fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ := by
-  -- `FVP.fvP_proc A = fvP_reduce globalL (FVP.fvP_stmt body) ⊔ fvP_reduce globalL (get return)`.
+  -- `FVP.fvP_proc A = Lens.reduceFootprint globalL (FVP.fvP_stmt body) ⊔ Lens.reduceFootprint globalL (get return)`.
   rw [show FVP.fvP_proc A =
-      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
-        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get A.return_val).footprint)
+      Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
+        Lens.reduceFootprint ProcedureState.globalL ((ProgramDenotation.get A.return_val).footprint)
       from rfl] at hdisj
   -- `roLift = globalL.chain random_oracle_state`; both summands go via `reduce_chain_le_compl`.
   show fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
       ≤ ((ProcedureState.globalL.chain random_oracle_state).footprint)ᶜ
   refine sup_le ?_ ?_
-  · -- body: `fvP_reduce (fvP_stmt) ≤ fvP_reduce (FVP.fvP_stmt) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
-    refine reduce_chain_le_compl (le_trans (fvP_reduce_mono _ (fvP_stmt_le_FVP A.body)) ?_)
+  · -- body: `Lens.reduceFootprint (fvP_stmt) ≤ Lens.reduceFootprint (FVP.fvP_stmt) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
+    refine reduce_chain_le_compl (le_trans (Lens.reduceFootprint_mono _ (fvP_stmt_le_FVP A.body)) ?_)
     exact le_trans le_sup_left hdisj
-  · -- return: `fvP_reduce (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
+  · -- return: `Lens.reduceFootprint (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
     exact reduce_chain_le_compl (le_trans le_sup_right hdisj)
 
 end GaudisCrypt.Lib.RO.Instantiate

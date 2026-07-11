@@ -65,13 +65,13 @@ theorem chain_footprint_le_lift {a b c : Type} (L : Lens b c) (v : Lens a b) :
   exact Set.subset_centralizer_centralizer
     ⟨v.liftSubProbability g, Mlocalized_in_footprint v g, rfl⟩
 
-/-- **`fvP_reduce L` of a chained lens's footprint is bounded by the inner lens's footprint.**
-    Combine `chain_footprint_le_lift` with `fvP_reduce`'s exact-left-inverse property
-    (`FVP.fvP_reduce_extend`).  Needs `[Nonempty c]` for the extend/reduce round trip. -/
+/-- **`Lens.reduceFootprint L` of a chained lens's footprint is bounded by the inner lens's footprint.**
+    Combine `chain_footprint_le_lift` with `Lens.reduceFootprint`'s exact-left-inverse property
+    (`FVP.Lens.reduceFootprint_extend`).  Needs `[Nonempty c]` for the extend/reduce round trip. -/
 theorem reduce_chain_footprint_le {a b c : Type} [Nonempty c] (L : Lens b c) (v : Lens a b) :
-    fvP_reduce L ((L.chain v).footprint) ≤ v.footprint := by
-  refine le_trans (fvP_reduce_mono L (chain_footprint_le_lift L v)) ?_
-  exact le_of_eq (FVP.fvP_reduce_extend L v.footprint)
+    Lens.reduceFootprint L ((L.chain v).footprint) ≤ v.footprint := by
+  refine le_trans (Lens.reduceFootprint_mono L (chain_footprint_le_lift L v)) ?_
+  exact le_of_eq (FVP.Lens.reduceFootprint_extend L v.footprint)
 
 /-- **The `L`-reduction of a footprint disjoint from `L.chain v` is disjoint from `v`** (the honest
     converse of `reduce_chain_le_compl`).  Each reduced generator `reduceSubProbability L (k, i, o)`
@@ -82,9 +82,9 @@ theorem reduce_chain_footprint_le {a b c : Type} [Nonempty c] (L : Lens b c) (v 
     `hdisj : R ≤ ((L.chain v).footprint)ᶜ` supplies. -/
 theorem reduce_le_compl_of_chain {t s c : Type} (L : Lens s c) (v : Lens t s) {R : Footprint c}
     (hdisj : R ≤ ((L.chain v).footprint)ᶜ) :
-    fvP_reduce L R ≤ (v.footprint)ᶜ := by
+    Lens.reduceFootprint L R ≤ (v.footprint)ᶜ := by
   -- It suffices that every reduced generator lies in `(v.footprint)ᶜ.updates`.
-  rw [fvP_reduce_eq_from]
+  rw [Lens.reduceFootprint_eq_from]
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨⟨k, i, o⟩, ⟨hk, -, -⟩, rfl⟩
   -- Membership in `(v.footprint)ᶜ.updates = centralizer (v.footprint.updates)`: commute with every
@@ -375,8 +375,8 @@ theorem retExG_le_roLift_compl :
 /-- **The example's footprint disjointness from the random oracle — fully discharged.** -/
 theorem hdisj_ex : FVP.fvP_proc (A_ex advG) ≤ (random_oracle_state.footprint)ᶜ := by
   rw [show FVP.fvP_proc (A_ex advG) =
-      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyEx advG)) ⊔
-        fvP_reduce ProcedureState.globalL
+      Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyEx advG)) ⊔
+        Lens.reduceFootprint ProcedureState.globalL
           ((ProgramDenotation.get retExG).footprint)
       from rfl]
   refine sup_le ?_ ?_
@@ -535,10 +535,10 @@ theorem fvP_qsyn_le : FVP.fvP_proc (q_syn bVar) ≤ bVar.footprint := by
       get_const_eq_pure]
     exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
   rw [show FVP.fvP_proc (q_syn bVar) =
-      fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
-        fvP_reduce ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
+      Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
+        Lens.reduceFootprint ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
   refine sup_le ?_ ?_
-  · refine le_trans (fvP_reduce_mono _ ?_) (reduce_chain_footprint_le _ bVar)
+  · refine le_trans (Lens.reduceFootprint_mono _ ?_) (reduce_chain_footprint_le _ bVar)
     rw [show FVP.fvP_stmt (bodyQ bVar) =
         (ProgramDenotation.get (bPS bVar).toGetter).footprint ⊔
           ((ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter) ⊔
@@ -546,7 +546,7 @@ theorem fvP_qsyn_le : FVP.fvP_proc (q_syn bVar) ≤ bVar.footprint := by
             (ProgramDenotation.footprint' (ProgramDenotation.set (bPS bVar).toSetter) ⊔
               (ProgramDenotation.get flipG).footprint)) from rfl]
     exact sup_le hget (sup_le (sup_le hset hbias) (sup_le hset hflip))
-  · refine le_trans (fvP_reduce_mono _ ?_) (reduce_chain_footprint_le _ bVar)
+  · refine le_trans (Lens.reduceFootprint_mono _ ?_) (reduce_chain_footprint_le _ bVar)
     rw [show retQ = (⟨fun _ => ()⟩ :
         Getter Unit (ProcedureState (sigQ.LocalVariableState []))) from rfl, get_const_eq_pure]
     exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
@@ -555,7 +555,7 @@ theorem fvP_qsyn_le : FVP.fvP_proc (q_syn bVar) ≤ bVar.footprint := by
     The `x₀`-slice of the `if`-condition read is the *chained* test `(bPS bVar).testKer x₀`;
     feeding the `globalL`-reduction a point input on the (trivial) locals and a constant-accept
     weight reduces it to the state-level test `bVar.testKer x₀`, which is therefore a *generator*
-    of `fvP_reduce globalL (fvP_stmt bodyQ) ≤ FVP.fvP_proc q_syn`. -/
+    of `Lens.reduceFootprint globalL (fvP_stmt bodyQ) ≤ FVP.fvP_proc q_syn`. -/
 theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
     bVar.testKer x₀ ∈ (FVP.fvP_proc (q_syn bVar)).updates := by
   classical
@@ -630,16 +630,16 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
       exact (show bVar.testKer x₀ m = ⊥ from if_neg h).symm
   -- generator membership in the reduction, then into `fvP_proc`
   have h4 : bVar.testKer x₀
-      ∈ (fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))).updates := by
+      ∈ (Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))).updates := by
     refine (Footprint.from_le_iff _ _).mp le_rfl ?_
     exact ⟨((bPS bVar).testKer x₀, fun _ => (pure β₀ : SubProbability _),
         fun _ => (pure () : SubProbability Unit)),
       ⟨h2, Set.mem_univ _, Set.mem_univ _⟩, h3⟩
-  have h5 : fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))
+  have h5 : Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))
       ≤ FVP.fvP_proc (q_syn bVar) := by
     rw [show FVP.fvP_proc (q_syn bVar) =
-        fvP_reduce ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
-          fvP_reduce ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
+        Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
+          Lens.reduceFootprint ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
     exact le_sup_left
   exact h5 h4
 

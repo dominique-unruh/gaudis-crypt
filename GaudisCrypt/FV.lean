@@ -16,15 +16,15 @@ read or modify, together with the soundness bound `fvP (m.toModule) ≤ fvPMexpr
 
 -/
 
-open GaudisCrypt
+namespace GaudisCrypt
 
 
 /-! # fvP_extend_sup -/
 
 -- fvP_extend_sup now called Lens.liftFootprint
 
--- `footprint_eq_of_updates`, `submonoid_centralizer_carrier`, `footprint_updates_cc`,
--- `footprint_sup_updates`, `cl_mono` and `footprint_from_union` moved to
+-- `footprint_eq_of_updates`, `submonoid_centralizer_carrier`, `Footprint.double_commutant_closed`,
+-- `Footprint.sup_updates`, `double_commutant_mono` and `Footprint.from_union` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
 
 /-- **Read-back**: post-composing a localized kernel with `lens.get` recovers the base kernel
@@ -45,7 +45,7 @@ private lemma updateK_get_inv {a s : Type} (lens : Lens a s) (κ : a → SubProb
 /-- **Bridge identity.** Pushing a lens-localized kernel `lens.liftSubProbability f` through the split
 bijection `b ≃ a × lens.ComplContent` yields exactly the `a`-component lift `Lens.fst.liftSubProbability f`.
 This is what
-makes the centralizer footprint `fvP_reduce` agree with the split-then-reduce construction. -/
+makes the centralizer footprint `Lens.reduceFootprint` agree with the split-then-reduce construction. -/
 private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → SubProbability a) :
     (Lens.bijection (Lens.splitSpace lens)).liftSubProbability (lens.liftSubProbability f)
       = (Lens.fst).liftSubProbability f := by
@@ -118,41 +118,36 @@ theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
     _ = Set.centralizer (Set.centralizer (⋃ i, lens.liftSubProbability '' (rs i).updates)) := by
           rw [Set.image_iUnion]
     _ ⊆ Set.centralizer (Set.centralizer (⋃ i, (Lens.liftFootprint lens (rs i)).updates)) :=
-          cl_mono (Set.iUnion_mono fun i => by
+          double_commutant_mono (Set.iUnion_mono fun i => by
             simp only [Lens.liftFootprint, Footprint.from_updates]
             exact Set.subset_centralizer_centralizer)
 
 /-! # End of fvP_extend_sup -/
 
-/-! # fvP_reduce_sup -/
+/-! # Lens.reduceFootprint_sup -/
 
-
--- DOMINIQUE READING
 
 noncomputable
-def fvP_reduce {a b} (lens : Lens a b) (range : Footprint b) : Footprint a :=
+def Lens.reduceFootprint {a b} (lens : Lens a b) (range : Footprint b) : Footprint a :=
   Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
 
 
-/-- `fvP_reduce` is monotone: a larger range gives a larger reduced range. -/
-theorem fvP_reduce_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
-    fvP_reduce lens r ≤ fvP_reduce lens r' := by
+/-- `Lens.reduceFootprint` is monotone: a larger range gives a larger reduced range. -/
+-- TODO rename to Lens.reduceFootprint_mono
+theorem Lens.reduceFootprint_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
+    Lens.reduceFootprint lens r ≤ Lens.reduceFootprint lens r' := by
   have hsub : r.updates ⊆ r'.updates := h
   apply Footprint.from_mono
   gcongr
 
 
-/-- `fvP_reduce` as `Footprint.from` of the named generator set. -/
-theorem fvP_reduce_eq_from {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    fvP_reduce lens range
-      = Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ)) := rfl
+/-- `Lens.reduceFootprint` as `Footprint.from` of the named generator set. -/
+-- TODO: this is literally the definition of Lens.reduceFootprint; remove this theorem (instead, directly unfold/simp/rw Lens.reduceFootprint)
+theorem Lens.reduceFootprint_eq_from {a b : Type} (lens : Lens a b) (range : Footprint b) :
+    Lens.reduceFootprint lens range
+      = Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ)) :=
+      rfl
 
-/-- **`fvP_reduce'` and `fvP_reduce` have the same generator centralizer.** The
-centralizer of the reduced-generator image is exactly the lift-commutation constraint defining
-`fvP_reduce'`: by the Fubini identities, `h` commutes with every `Lens.reduceSubProbability (g, i, o)`
-(over all `i, o`) iff `Lens.fst.liftSubProbability h` commutes with `g` (the `⟸` direction is immediate;
-the `⟹` uses
-slice determination `reduceBaseExt`). -/
 theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b) (range : Footprint b) :
     Set.centralizer (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
       = { f | ∀ g ∈ range.updates,
@@ -172,14 +167,14 @@ theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b) (range : 
     rw [Lens.reduceSubProbability_mul_right, Lens.reduceSubProbability_mul_left, hcon g hg]
 
 
-theorem fvP_reduce_alt_def {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    fvP_reduce lens range =
+theorem Lens.reduceFootprint_alt_def {a b : Type} (lens : Lens a b) (range : Footprint b) :
+    Lens.reduceFootprint lens range =
     Footprint.from
     { f | ∀ g ∈ range.updates,
         (lens.liftSubProbability f : b → SubProbability b) * g
           = g * lens.liftSubProbability f }.centralizer := by
   apply footprint_eq_of_updates
-  rw [fvP_reduce_eq_from, Footprint.from_updates, centralizer_reduceBaseGen_image]
+  rw [Lens.reduceFootprint_eq_from, Footprint.from_updates, centralizer_reduceBaseGen_image]
   rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
 
 
@@ -202,7 +197,7 @@ private lemma image_cc_subset {M N : Type*} [Monoid M] [Monoid N]
   have hc := (Set.mem_centralizer_iff.mp hx) y' hy'
   rw [← hu, ← hu, hc]
 
-/-- **The crux of `fvP_reduce_sup2`.** Every generator of the reduced join lies in the bicommutant
+/-- **The crux of `Lens.reduceFootprint_sup2`.** Every generator of the reduced join lies in the bicommutant
 closure of the union of the two reduced generator sets — the double-commutant direction.
 
 The proof needs **no disintegration**: with `ĥ = Lens.fst.liftSubProbability h` the `h ⊗ id_b` lift, the two
@@ -237,15 +232,15 @@ theorem reduceBaseGen_sup_subset {a b : Type} (lens : Lens a b) (r₁ r₂ : Foo
   -- `f` is in the bicommutant of the union, so it commutes with the lift.
   have hfĥ : (lens.liftSubProbability h : b → _) * f
       = f * lens.liftSubProbability h := by
-    rw [footprint_sup_updates] at hf
+    rw [Footprint.sup_updates] at hf
     exact (Set.mem_centralizer_iff.mp hf) (lens.liftSubProbability h) hĥ
   rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right, hfĥ]
 
 
-theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint b) :
-    fvP_reduce lens (r₁ ⊔ r₂) = fvP_reduce lens r₁ ⊔ fvP_reduce lens r₂ := by
+theorem Lens.reduceFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint b) :
+    Lens.reduceFootprint lens (r₁ ⊔ r₂) = Lens.reduceFootprint lens r₁ ⊔ Lens.reduceFootprint lens r₂ := by
   apply le_antisymm
-  · rw [fvP_reduce_eq_from, fvP_reduce_eq_from, fvP_reduce_eq_from,
+  · rw [Lens.reduceFootprint_eq_from, Lens.reduceFootprint_eq_from, Lens.reduceFootprint_eq_from,
       Footprint.from_le_iff]
     set Z := Footprint.from (Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
         ⊔ Footprint.from (Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ)) with hZ
@@ -254,14 +249,14 @@ theorem fvP_reduce_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint b) :
     have h2 : Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ) ⊆ Z.updates :=
       (Footprint.from_le_iff _ _).mp le_sup_right
     refine (reduceBaseGen_sup_subset lens r₁ r₂).trans ?_
-    rw [← footprint_updates_cc Z]
+    rw [← Footprint.double_commutant_closed Z]
     exact Set.centralizer_subset (Set.centralizer_subset (Set.union_subset h1 h2))
-  · exact sup_le (fvP_reduce_mono lens le_sup_left) (fvP_reduce_mono lens le_sup_right)
+  · exact sup_le (Lens.reduceFootprint_mono lens le_sup_left) (Lens.reduceFootprint_mono lens le_sup_right)
 
 
 
 
-/-! # End of fvP_reduce_sup -/
+/-! # End of Lens.reduceFootprint_sup -/
 
 namespace FVP
 
@@ -286,22 +281,22 @@ def fvP_setter (setter : Setter a s) : Footprint s := ProgramDenotation.footprin
 
 noncomputable
 -- TODO rename to something Lens-related
-def fvP_reduce_new {a b : Type} (lens : Lens a b) (range : Footprint b) :
+def Lens.reduceFootprint_new {a b : Type} (lens : Lens a b) (range : Footprint b) :
     Footprint a :=
   -- transport `range` along `lens.splitSpace : b ≃ a × lens.ComplContent` (via the bijection lens),
-  -- then reduce away the complement component with `fvP_reduce`.
-  fvP_reduce Lens.fst (Lens.liftFootprint (Lens.bijection (Lens.splitSpace lens)) range)
+  -- then reduce away the complement component with `Lens.reduceFootprint`.
+  Lens.reduceFootprint Lens.fst (Lens.liftFootprint (Lens.bijection (Lens.splitSpace lens)) range)
 
 
 
-/-! ### Properties of `fvP_reduce` / `Lens.liftFootprint` needed for the framework instance.
+/-! ### Properties of `Lens.reduceFootprint` / `Lens.liftFootprint` needed for the framework instance.
 
  -/
 
 
 omit [ProgramSpec] in
-/-- The `fvP_reduce` constraint set is `lens.liftSubProbability ⁻¹'` of a centralizer. -/
-private lemma fvP_reduce_constraint {a b} (lens : Lens a b) (V : Set (b → SubProbability b)) :
+/-- The `Lens.reduceFootprint` constraint set is `lens.liftSubProbability ⁻¹'` of a centralizer. -/
+private lemma Lens.reduceFootprint_constraint {a b} (lens : Lens a b) (V : Set (b → SubProbability b)) :
     {f : a → SubProbability a | ∀ g ∈ V, lens.liftSubProbability f * g = g * lens.liftSubProbability f}
       = lens.liftSubProbability ⁻¹' (Set.centralizer V) := by
   ext f
@@ -320,7 +315,7 @@ lemma updateK_one {a b} (lens : Lens a b) :
 
 omit [ProgramSpec] in
 /-- The bicommutant retraction inequality for a multiplicative `u`:
-    `C(u⁻¹'(C(u '' R))) ⊆ CC(R)`.  The engine behind `fvP_reduce_extend`: if `q` commutes
+    `C(u⁻¹'(C(u '' R))) ⊆ CC(R)`.  The engine behind `Lens.reduceFootprint_extend`: if `q` commutes
     with `R` then `u q` commutes with `u '' R` (by multiplicativity), so `q` lies in the
     preimage that `f` centralizes, whence `q * f = f * q`. -/
 private lemma centralizer_preimage_image_subset {M N : Type*} [Monoid M] [Monoid N]
@@ -346,11 +341,11 @@ lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
 -- `updateK_image_univ_cc` moved to `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
 
 omit [ProgramSpec] in
-/-- `fvP_reduce` is monotone in its range argument (double-antitone via the two centralizers). -/
-private lemma fvP_reduce_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
-    fvP_reduce lens r ≤ fvP_reduce lens r' := by
+/-- `Lens.reduceFootprint` is monotone in its range argument (double-antitone via the two centralizers). -/
+private lemma Lens.reduceFootprint_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
+    Lens.reduceFootprint lens r ≤ Lens.reduceFootprint lens r' := by
   have hsub : r.updates ⊆ r'.updates := h
-  unfold fvP_reduce
+  unfold Lens.reduceFootprint
   apply Footprint.from_mono
   gcongr
 
@@ -358,34 +353,34 @@ private lemma fvP_reduce_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : 
 -- `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
 
 omit [ProgramSpec] in
-/-- **`fvP_reduce` is a retraction of `Lens.liftFootprint`** (`reduce (extend r) ≤ r`):
+/-- **`Lens.reduceFootprint` is a retraction of `Lens.liftFootprint`** (`reduce (extend r) ≤ r`):
     pushing a footprint forward along a lens and pulling it back recovers at most it.
     Proven in full from `updateK` being a monoid homomorphism
     (`centralizer_preimage_image_subset`). -/
-theorem fvP_reduce_extend_le {a b} (lens : Lens a b) (r : Footprint a) :
-    fvP_reduce lens (Lens.liftFootprint lens r) ≤ r := by
-  rw [fvP_reduce_alt_def]
-  rw [Footprint.from_le_iff, fvP_reduce_constraint]
+theorem Lens.reduceFootprint_extend_le {a b} (lens : Lens a b) (r : Footprint a) :
+    Lens.reduceFootprint lens (Lens.liftFootprint lens r) ≤ r := by
+  rw [Lens.reduceFootprint_alt_def]
+  rw [Footprint.from_le_iff, Lens.reduceFootprint_constraint]
   have hext : Set.centralizer (Lens.liftFootprint lens r).updates
             = Set.centralizer (lens.liftSubProbability '' r.updates) := by
     unfold Lens.liftFootprint
     rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
   rw [hext]
   have key := centralizer_preimage_image_subset lens.liftSubProbability (updateK_mul lens) r.updates
-  rw [footprint_updates_cc] at key
+  rw [Footprint.double_commutant_closed] at key
   exact key
 
 omit [ProgramSpec] in
-/-- **`fvP_reduce` is an exact left inverse of `Lens.liftFootprint`** (strengthening
-    `fvP_reduce_extend` to equality): every `p ∈ r.updates` is itself
+/-- **`Lens.reduceFootprint` is an exact left inverse of `Lens.liftFootprint`** (strengthening
+    `Lens.reduceFootprint_extend` to equality): every `p ∈ r.updates` is itself
     `Lens.reduceSubProbability lens (lens.liftSubProbability p, i, o)` for the trivial
-    `i () = pure β` / `o _ = pure ()`, hence lies in the generator set defining `fvP_reduce`. -/
-theorem fvP_reduce_extend {a b} [Nonempty b] (lens : Lens a b) (r : Footprint a) :
-    fvP_reduce lens (Lens.liftFootprint lens r) = r := by
+    `i () = pure β` / `o _ = pure ()`, hence lies in the generator set defining `Lens.reduceFootprint`. -/
+theorem Lens.reduceFootprint_extend {a b} [Nonempty b] (lens : Lens a b) (r : Footprint a) :
+    Lens.reduceFootprint lens (Lens.liftFootprint lens r) = r := by
   apply le_antisymm
-  · apply fvP_reduce_extend_le
-  · change r.updates ≤ (fvP_reduce lens (Lens.liftFootprint lens r)).updates
-    rw [fvP_reduce_eq_from, Footprint.from_updates]
+  · apply Lens.reduceFootprint_extend_le
+  · change r.updates ≤ (Lens.reduceFootprint lens (Lens.liftFootprint lens r)).updates
+    rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
     apply Set.Subset.trans _ Set.subset_centralizer_centralizer
     intro p hp
     let β : lens.ComplContent := Classical.arbitrary lens.ComplContent
@@ -406,7 +401,7 @@ def fvpInductiveFunctionGS : InductiveFunctionGettersSetters Footprint where
   join := (· ⊔ ·)
   getter g := ProgramDenotation.footprint (ProgramDenotation.get g)
   setter s := ProgramDenotation.footprint' (ProgramDenotation.set s)
-  reduce := fvP_reduce
+  reduce := Lens.reduceFootprint
   extend := Lens.liftFootprint
 
 noncomputable
@@ -425,14 +420,14 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   nothing_le := fun _ => bot_le
   reduce_join := by
     intro a b r1 r2 lens
-    exact le_of_eq (fvP_reduce_sup lens r1 r2)
+    exact le_of_eq (Lens.reduceFootprint_sup lens r1 r2)
   extend_join := by
     intro a b r1 r2 lens
     exact (Lens.liftFootprint_sup lens r1 r2).symm.le
   extend_reduce := by
     intro a b lens r
-    exact fvP_reduce_extend_le lens r
-  reduce_mono := fun lens h => fvP_reduce_mono lens h
+    exact Lens.reduceFootprint_extend_le lens r
+  reduce_mono := fun lens h => Lens.reduceFootprint_mono lens h
   extend_mono := fun lens h => Lens.liftFootprint_mono lens h
 
 
@@ -481,7 +476,7 @@ end FVP
 
 /-! ## Footprint/reduce/lift algebra
 
-General footprint, `fvP_reduce` and `Lens.liftFootprint` facts, independent of any particular
+General footprint, `Lens.reduceFootprint` and `Lens.liftFootprint` facts, independent of any particular
 program spec. -/
 
 /-- **Complement is order-reversing on `Footprint`** (`le`/`compl` swap): `R ≤ Sᶜ ↔ S ≤ Rᶜ`.
@@ -511,21 +506,21 @@ theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
   rfl
 
 /-- **The lift of an update commutes with every `R`-update**, when the update commutes with
-    the `L`-reduction of `R` (membership form: `f ∈ (fvP_reduce L R)ᶜ.updates`).  The reduced
+    the `L`-reduction of `R` (membership form: `f ∈ (Lens.reduceFootprint L R)ᶜ.updates`).  The reduced
     generators `reduceSubProbability L (k, i, o)` of `k ∈ R.updates` lie in
-    `(fvP_reduce L R).updates`, so `hf` makes them commute with `f`; the Fubini identities
+    `(Lens.reduceFootprint L R).updates`, so `hf` makes them commute with `f`; the Fubini identities
     (`Lens.reduceSubProbability_mul_left`/`_right`) turn that into commutation of `L.liftSubProbability f`
     with `k` (via `reduceSubProbability_ext`). -/
 theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
     {R : Footprint c}
-    {f : s → SubProbability s} (hf : f ∈ ((fvP_reduce L R)ᶜ).updates)
+    {f : s → SubProbability s} (hf : f ∈ ((Lens.reduceFootprint L R)ᶜ).updates)
     {k : c → SubProbability c} (hk : k ∈ R.updates) :
     L.liftSubProbability f * k = k * L.liftSubProbability f := by
   apply Lens.reduceSubProbability_ext L
   intro i o
-  -- Each reduced generator of `k` is a generator of `fvP_reduce L R`, hence commutes with `f`.
-  have hgen : Lens.reduceSubProbability L (k, i, o) ∈ (fvP_reduce L R).updates := by
-    rw [fvP_reduce_eq_from, Footprint.from_updates]
+  -- Each reduced generator of `k` is a generator of `Lens.reduceFootprint L R`, hence commutes with `f`.
+  have hgen : Lens.reduceSubProbability L (k, i, o) ∈ (Lens.reduceFootprint L R).updates := by
+    rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
     exact Set.subset_centralizer_centralizer
       ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
   have hcomm : f * Lens.reduceSubProbability L (k, i, o)
@@ -539,7 +534,7 @@ theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
     `liftSubProbability_comm_of_mem_reduce_compl`. -/
 theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
     {v : Lens t s} {R : Footprint c}
-    (hred : fvP_reduce L R ≤ (v.footprint)ᶜ)
+    (hred : Lens.reduceFootprint L R ≤ (v.footprint)ᶜ)
     {f : s → SubProbability s} (hf : f ∈ v.footprint.updates)
     {k : c → SubProbability c} (hk : k ∈ R.updates) :
     L.liftSubProbability f * k = k * L.liftSubProbability f :=
@@ -547,12 +542,12 @@ theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
     ((Footprint.le_compl_comm _ _).mp hred hf) hk
 
 /-- **A chained lens's footprint lies in `Rᶜ` whenever the inner footprint's `L`-reduction does**:
-    from `fvP_reduce L R ≤ (v.footprint)ᶜ` conclude `R ≤ ((L.chain v).footprint)ᶜ`.  Route: flip the
+    from `Lens.reduceFootprint L R ≤ (v.footprint)ᶜ` conclude `R ≤ ((L.chain v).footprint)ᶜ`.  Route: flip the
     goal via `le_compl_comm` to `(L.chain v).footprint ≤ Rᶜ`, then show each generator
     `L.liftSubProbability (diracKer (v.liftFunction g))` commutes with every `k ∈ R.updates` via
     `liftSubProbability_comm_of_reduce_disj`. -/
 theorem reduce_chain_le_compl {t s c : Type} {L : Lens s c} {v : Lens t s} {R : Footprint c}
-    (hred : fvP_reduce L R ≤ (v.footprint)ᶜ) :
+    (hred : Lens.reduceFootprint L R ≤ (v.footprint)ᶜ) :
     R ≤ ((L.chain v).footprint)ᶜ := by
   rw [Footprint.le_compl_comm]
   refine (Footprint.from_le_iff _ _).mpr ?_
@@ -646,3 +641,5 @@ theorem _root_.GaudisCrypt.Lens.fst_compl_footprint {a b : Type} :
 
 -- `disjoint_lenses_footprint_inf`, `pair_footprint_fst_snd` and `pair_footprint` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
+
+end GaudisCrypt
