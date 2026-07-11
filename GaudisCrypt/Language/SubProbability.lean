@@ -482,4 +482,9 @@ theorem SubProbability.pure_injective {a : Type} :
   rw [hx, hy] at hcoe
   exact one_ne_zero hcoe
 
+/-- Bicommutant closure is monotone. -/
+lemma SubProbability.double_commutant_mono {m} {A B : Set (m → SubProbability m)} (h : A ⊆ B) :
+    Set.centralizer (Set.centralizer A) ⊆ Set.centralizer (Set.centralizer B) :=
+  Set.centralizer_subset (Set.centralizer_subset h)
+
 end GaudisCrypt

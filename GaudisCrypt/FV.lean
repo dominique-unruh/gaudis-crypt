@@ -23,9 +23,10 @@ namespace GaudisCrypt
 
 -- fvP_extend_sup now called Lens.liftFootprint
 
--- `footprint_eq_of_updates`, `submonoid_centralizer_carrier`, `Footprint.double_commutant_closed`,
--- `Footprint.sup_updates`, `double_commutant_mono` and `Footprint.from_union` moved to
--- `GaudisCrypt/Language/Footprint.lean`.
+-- `Footprint.ext`, `submonoid_centralizer_carrier`, `Footprint.double_commutant_closed`,
+-- `Footprint.sup_updates` and `Footprint.from_union` moved to
+-- `GaudisCrypt/Language/Footprint.lean`;
+-- `SubProbability.double_commutant_mono` moved to `GaudisCrypt/Language/SubProbability.lean`.
 
 /-- **Read-back**: post-composing a localized kernel with `lens.get` recovers the base kernel
     (`lens.set_get` collapses the write, `bind_pure` the trivial bind). -/
@@ -40,7 +41,8 @@ private lemma updateK_get_inv {a s : Type} (lens : Lens a s) (κ : a → SubProb
   exact SubProbability.bind_pure _
 
 
--- `updateK_injective` and `updateK_mul` moved to `GaudisCrypt/Language/Footprint.lean`.
+-- `Lens.liftSubProbability_injective` and `Lens.liftSubProbability_mul` moved to
+-- `GaudisCrypt/Language/Footprint.lean`.
 
 /-- **Bridge identity.** Pushing a lens-localized kernel `lens.liftSubProbability f` through the split
 bijection `b ≃ a × lens.ComplContent` yields exactly the `a`-component lift `Lens.fst.liftSubProbability f`.
@@ -118,7 +120,7 @@ theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
     _ = Set.centralizer (Set.centralizer (⋃ i, lens.liftSubProbability '' (rs i).updates)) := by
           rw [Set.image_iUnion]
     _ ⊆ Set.centralizer (Set.centralizer (⋃ i, (Lens.liftFootprint lens (rs i)).updates)) :=
-          double_commutant_mono (Set.iUnion_mono fun i => by
+          SubProbability.double_commutant_mono (Set.iUnion_mono fun i => by
             simp only [Lens.liftFootprint, Footprint.from_updates]
             exact Set.subset_centralizer_centralizer)
 
@@ -173,7 +175,7 @@ theorem Lens.reduceFootprint_alt_def {a b : Type} (lens : Lens a b) (range : Foo
     { f | ∀ g ∈ range.updates,
         (lens.liftSubProbability f : b → SubProbability b) * g
           = g * lens.liftSubProbability f }.centralizer := by
-  apply footprint_eq_of_updates
+  apply Footprint.ext
   rw [Lens.reduceFootprint_eq_from, Footprint.from_updates, centralizer_reduceBaseGen_image]
   rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
 
@@ -349,8 +351,8 @@ private lemma Lens.reduceFootprint_mono {a b} (lens : Lens a b) {r r' : Footprin
   apply Footprint.from_mono
   gcongr
 
--- `footprint_equivariant`, `footprint_updateK_image` and `fvP_extend_updates` moved to
--- `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
+-- `footprint_equivariant`, `footprint_liftSubProbability_image` and
+-- `Lens.liftFootprint_updates` moved to `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
 
 omit [ProgramSpec] in
 /-- **`Lens.reduceFootprint` is a retraction of `Lens.liftFootprint`** (`reduce (extend r) ≤ r`):
@@ -366,7 +368,7 @@ theorem Lens.reduceFootprint_extend_le {a b} (lens : Lens a b) (r : Footprint a)
     unfold Lens.liftFootprint
     rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
   rw [hext]
-  have key := centralizer_preimage_image_subset lens.liftSubProbability (updateK_mul lens) r.updates
+  have key := centralizer_preimage_image_subset lens.liftSubProbability (Lens.liftSubProbability_mul lens) r.updates
   rw [Footprint.double_commutant_closed] at key
   exact key
 
@@ -596,7 +598,7 @@ theorem inFootprint_toProgramDenotation {s a : Type} (μ : SubProbability a) :
 /-! ## Chained and `FromLens` footprints
 
 Moved here from `Footprint.lean`: the chain law's nontrivial inclusion — the intermediate
-bicommutant closure adds nothing — is exactly the `FVP.fvP_extend_updates` extraction. -/
+bicommutant closure adds nothing — is exactly the `Lens.liftFootprint_updates` extraction. -/
 
 -- `Lens.liftFootprint_chain` and `Lens.chain_footprint` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
@@ -613,7 +615,7 @@ theorem _root_.GaudisCrypt.Footprint.FromLens.from_lens {a s : Type} (lens : Len
              get_set := fun _ => rfl }, le_antisymm (hall _ _) (hall _ _)⟩
   obtain ⟨f, hf⟩ := Footprint.touchedGetter_is_getter lens
   existsi lens.chain (Lens.bijection f)
-  rw [Lens.chain_footprint, Lens.bijection_footprint, Lens.liftFootprint_top]
+  rw [Lens.footprint_chain, Lens.bijection_footprint, Lens.liftFootprint_top]
 
 -- `Lens.compl_footprint` moved to `GaudisCrypt/Language/Footprint.lean`.
 
@@ -639,7 +641,7 @@ theorem _root_.GaudisCrypt.Lens.fst_compl_footprint {a b : Type} :
     exact Lens.footprint_le_compl_of_disjoint _ _
 
 
--- `disjoint_lenses_footprint_inf`, `pair_footprint_fst_snd` and `pair_footprint` moved to
--- `GaudisCrypt/Language/Footprint.lean`.
+-- `Footprint.disjoint_lens_footprint_inf`, `pair_footprint_fst_snd` and `Footprint.lens_pair`
+-- moved to `GaudisCrypt/Language/Footprint.lean`.
 
 end GaudisCrypt

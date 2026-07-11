@@ -204,7 +204,7 @@ theorem GranularFootprint.footprint_fromLens [spec : GranularProgramSpec]
   | empty => simpa using Footprint.fromLens_bot
   | @insert p F hp ih =>
       rw [Finset.coe_insert, Set.image_insert_eq, sSup_insert]
-      refine Footprint.FromLens.sup (spec.from_lenses p.val p.property) ih ?_
+      refine Footprint.fromLens_sup (spec.from_lenses p.val p.property) ih ?_
       have hsup : (sSup (Subtype.val '' (↑F : Set spec.grains)) : Footprint State)
           ≤ (p.val)ᶜ := by
         refine sSup_le ?_
@@ -248,7 +248,7 @@ theorem Footprint.IsSubGranular.granular_footprint [spec : GranularProgramSpec]
 theorem lens_pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {lens2 : Lens b State}
   [disjoint lens1 lens2] (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (lens1.pair lens2).footprint.IsSubGranular :=
-  pair_footprint lens1 lens2 ▸ isSubGranularFootprint_closed_sup h1 h2
+  Footprint.lens_pair lens1 lens2 ▸ isSubGranularFootprint_closed_sup h1 h2
 
 -- TODO rename → Granularity.lens_pair_isSubGranular_sup
 -- TODO make lens1, lens2 implicit args
@@ -260,7 +260,7 @@ theorem Lens.pair_granular_sup [GranularProgramSpec] (lens1 : Lens a State) (len
       = { g ∈ GranularProgramSpec.grains | ¬ lens1.footprint ≤ gᶜ }
         ∪ { g ∈ GranularProgramSpec.grains | ¬ lens2.footprint ≤ gᶜ } := by
     ext g
-    simp only [pair_footprint, Set.mem_setOf_eq, Set.mem_union, sup_le_iff, not_and_or]
+    simp only [Footprint.lens_pair, Set.mem_setOf_eq, Set.mem_union, sup_le_iff, not_and_or]
     tauto
   rw [Footprint.IsSubGranular.granular_footprint, Footprint.IsSubGranular.granular_footprint,
     Footprint.IsSubGranular.granular_footprint, hset, sSup_union]
@@ -279,7 +279,7 @@ theorem Lens.reduceFootprint_compl_footprint {d s : Type} (L : Lens d s) :
     have hlift := Mlocalized_in_footprint L f
     rw [Footprint.updates_eq_centralizer_compl (L.footprint)ᶜ, Footprint.compl_compl] at hg
     exact (Submonoid.mem_centralizer_iff.mp hg) _ hlift
-  rw [hset]; apply footprint_eq_of_updates
+  rw [hset]; apply Footprint.ext
   rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
   change Set.centralizer Set.univ = (Footprint.from ∅).updates
   rw [Footprint.from_updates, Set.centralizer_empty, Set.top_eq_univ]
@@ -310,7 +310,7 @@ theorem liftFootprint_reduce_eq {d s : Type} (L : Lens d s) (S : Footprint s)
   have hextract : ∀ k ∈ L.footprint.updates, ∃ p, L.liftSubProbability p = k := by
     intro k hk
     have : k ∈ L.liftSubProbability '' (⊤ : Footprint d).updates := by
-      rw [← fvP_extend_updates L ⊤, Lens.liftFootprint_top]; exact hk
+      rw [← Lens.liftFootprint_updates L ⊤, Lens.liftFootprint_top]; exact hk
     obtain ⟨p, -, hp⟩ := this; exact ⟨p, hp⟩
   refine le_antisymm ?_ ?_
   · -- `≤`: `L.liftFootprint (Lens.reduceFootprint L S) ≤ S`
@@ -326,19 +326,19 @@ theorem liftFootprint_reduce_eq {d s : Type} (L : Lens d s) (S : Footprint s)
         have hcomm : L.liftSubProbability h * L.liftSubProbability f
             = L.liftSubProbability f * L.liftSubProbability h := by
           rw [hScomm'] at hf; exact (Set.mem_centralizer_iff.mp hf) _ hh
-        rw [← updateK_mul, ← updateK_mul] at hcomm; exact updateK_injective L hcomm
+        rw [← Lens.liftSubProbability_mul, ← Lens.liftSubProbability_mul] at hcomm; exact Lens.liftSubProbability_injective L hcomm
       · intro hf
         rw [hScomm', Set.mem_centralizer_iff]; intro k hk
         obtain ⟨p, rfl⟩ := hextract k (hS hk)
         have hpf : p * f = f * p := hf p hk
-        rw [← updateK_mul, ← updateK_mul, hpf]
+        rw [← Lens.liftSubProbability_mul, ← Lens.liftSubProbability_mul, hpf]
     have hH : Lens.reduceFootprint L S ≤ (Lens.reduceFootprint L Sᶜ)ᶜ := by
       intro p hp
       rw [reduce_updates_eq L S, hkey] at hp
       rw [compl_updates (Lens.reduceFootprint L Sᶜ), reduce_updates_eq L Sᶜ, Footprint.compl_compl S]
       exact hp
     intro u hu
-    rw [fvP_extend_updates L (Lens.reduceFootprint L S)] at hu
+    rw [Lens.liftFootprint_updates L (Lens.reduceFootprint L S)] at hu
     obtain ⟨f, hf, rfl⟩ := hu
     have hfc : f ∈ ((Lens.reduceFootprint L Sᶜ)ᶜ).updates := hH hf
     rw [show S.updates = Set.centralizer (Sᶜ).updates by
@@ -348,15 +348,15 @@ theorem liftFootprint_reduce_eq {d s : Type} (L : Lens d s) (S : Footprint s)
   · -- `≥`: `S ≤ L.liftFootprint (Lens.reduceFootprint L S)`
     intro u hu
     obtain ⟨u₀, hu₀⟩ := hextract u (hS hu)
-    rw [fvP_extend_updates L (Lens.reduceFootprint L S)]
+    rw [Lens.liftFootprint_updates L (Lens.reduceFootprint L S)]
     refine ⟨u₀, ?_, hu₀⟩
     rw [Lens.reduceFootprint_alt_def, Footprint.from_updates]
     apply Set.subset_centralizer_centralizer
     rw [Set.mem_centralizer_iff]; intro f hf
     simp only [Set.mem_setOf_eq] at hf
     have hcomm : L.liftSubProbability f * u = u * L.liftSubProbability f := hf u hu
-    rw [← hu₀, ← updateK_mul, ← updateK_mul] at hcomm
-    exact updateK_injective L hcomm
+    rw [← hu₀, ← Lens.liftSubProbability_mul, ← Lens.liftSubProbability_mul] at hcomm
+    exact Lens.liftSubProbability_injective L hcomm
 
 -- TODO inline inside corner_crux
 theorem corner_crux_aux {d s : Type} (L : Lens d s) {A B : Footprint s}
