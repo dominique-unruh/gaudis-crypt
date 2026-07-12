@@ -159,7 +159,7 @@ omit [PedersenGroup] in
 holes.  (`reduce_of_normal`/`reduce_proc` are generic — Modules.lean candidates.) -/
 
 omit [PedersenGroup] in
-theorem reduce_of_normal {Γ : ModuleContext} {t : ModuleType} {m : ModuleExpression Γ t}
+theorem reduce_of_normal {Γ : ModuleContext} {t : ModuleTypeRep} {m : ModuleExpression Γ t}
     (h : Normal m) : reduce m = m := by
   unfold reduce
   rw [dif_pos h]

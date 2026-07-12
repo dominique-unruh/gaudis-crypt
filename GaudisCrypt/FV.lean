@@ -172,7 +172,7 @@ noncomputable def _root_.GaudisCrypt.ProgramDenotation.footprint'
     {s a b : Type} (progs : a → ProgramDenotation s b) : Footprint s :=
   ⨆ x, (progs x).footprint
 
-noncomputable
+/- noncomputable
 -- TODO: Inline
 def fvP_getter (getter : Getter a s) : Footprint s := ProgramDenotation.footprint
     (ProgramDenotation.get getter)
@@ -181,15 +181,16 @@ noncomputable
 -- TODO: Inline
 def fvP_setter (setter : Setter a s) : Footprint s := ProgramDenotation.footprint'
     (ProgramDenotation.set setter)
+ -/
 
-noncomputable
+/- noncomputable
 -- TODO rename to something Lens-related
 def Lens.reduceFootprint_new {a b : Type} (lens : Lens a b) (range : Footprint b) :
     Footprint a :=
   -- transport `range` along `lens.splitSpace : b ≃ a × lens.ComplContent` (via the bijection lens),
   -- then reduce away the complement component with `Lens.reduceFootprint`.
   Lens.reduceFootprint Lens.fst (Lens.liftFootprint (Lens.bijection (Lens.splitSpace lens)) range)
-
+ -/
 
 
 /-! ### Properties of `Lens.reduceFootprint` / `Lens.liftFootprint` needed for the framework instance.
@@ -303,7 +304,7 @@ def fvPMexpr {ctx t} (m : ModuleExpression ctx t) : (Footprint State) :=
   fvpInductiveFunctionGS.evalMexpr m
 
 noncomputable
-def fvP (m : Module t) : Footprint State := fvpInductiveFunctionGS.eval m
+def fvP [IsModule M] (m : M) : Footprint State := fvpInductiveFunctionGS.eval m
 
 scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   comm := ⟨sup_comm⟩
@@ -328,24 +329,24 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
 theorem fvPMexpr_upper_bound : fvP (m.toModule) ≤ fvPMexpr m :=
   evalMexpr_upper_bound fvpInductiveFunctionGS.inductiveFunction m
 
-theorem fvP_app (a : Module (.arr A B)) (b : Module A) :
-    fvP (.app a b) ≤ fvP a ⊔ fvP b :=
+theorem fvP_app [IsModule A] [IsModule B] (a : Module.arr A B) (b : A) :
+    fvP (Module.app a b) ≤ fvP a ⊔ fvP b :=
     InductiveFunction.app _ _ _
 
-theorem fvP_pair (a : Module A) (b : Module B) :
-    fvP (.pair a b) = fvP a ⊔ fvP b :=
+theorem fvP_pair [IsModule A] [IsModule B] (a : A) (b : B) :
+    fvP (Module.pair a b) = fvP a ⊔ fvP b :=
     InductiveFunction.pair _ _ _
 
-theorem fvP_fst (a : Module (.prod A B)) :
-    fvP (.fst a) ≤ fvP a :=
+theorem fvP_fst [IsModule A] [IsModule B] (a : Module.prod A B) :
+    fvP (Module.fst a) ≤ fvP a :=
     InductiveFunction.fst _ _
 
-theorem fvP_snd (a : Module (.prod A B)) :
-    fvP (.snd a) ≤ fvP a :=
+theorem fvP_snd [IsModule A] [IsModule B] (a : Module.prod A B) :
+    fvP (Module.snd a) ≤ fvP a :=
     InductiveFunction.snd _ _
 
 @[simp]
-theorem fvP_unit (a : Module .unit) : fvP a = ⊥ :=
+theorem fvP_unit (a : Module.Unit) : fvP a = ⊥ :=
  InductiveFunction.unit _ _
 
 noncomputable

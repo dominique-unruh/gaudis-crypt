@@ -159,20 +159,20 @@ theorem fvMexpr_upper_bound : fv (m.toModule) ≤ fvMexpr m :=
   evalMexpr_upper_bound fvInductiveFunctionGS.inductiveFunction m
 
 theorem fv_app (a : Module (.arr A B)) (b : Module A) :
-    fv (.app a b) ≤ fv a ⊔ fv b :=
-    InductiveFunction.app _ _ _
+    fv (.app' a b) ≤ fv a ⊔ fv b :=
+    InductiveFunction.app' _ _ _
 
 theorem fv_pair (a : Module A) (b : Module B) :
     fv (.pair a b) = fv a ⊔ fv b :=
     InductiveFunction.pair _ _ _
 
 theorem fv_fst (a : Module (.prod A B)) :
-    fv (.fst a) ≤ fv a :=
-    InductiveFunction.fst _ _
+    fv (.fst' a) ≤ fv a :=
+    InductiveFunction.fst' _ _
 
 theorem fv_snd (a : Module (.prod A B)) :
-    fv (.snd a) ≤ fv a :=
-    InductiveFunction.snd _ _
+    fv (.snd' a) ≤ fv a :=
+    InductiveFunction.snd' _ _
 
 @[simp]
 theorem fv_unit (a : Module .unit) : fv a = ⊥ :=

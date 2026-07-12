@@ -21,14 +21,14 @@ namespace GaudisCrypt.Examples.Pedersen
 
 Dominique's TODOs:
 
-- rename ModuleType -> ModuleTypeRep
-- class IsModule
-- instances for that class (see below)
-- →ₘ should be `Type -> Type -> Type` (using the instance)
-- (For ModuleTypeRep: no pretty syntax)
-- extend `moduletype X` command
-  - also define X.moduleTypeRep
-  - do: `instance IsModule X`
+- [X] rename ModuleTypeRep -> ModuleTypeRepRep
+- [X] class IsModule
+- [X] instances for that class (see below)
+- [ ] →ₘ should be `Type -> Type -> Type` (using the instance)
+-     (For ModuleTypeRepRep: no pretty syntax)
+- [ ] extend `moduletype X` command
+  - [X] also define X.moduleTypeRep (Is: X.typeRep)
+  - [ ] do: `instance IsModule X`
 
 
 In a different iteration:
@@ -180,12 +180,13 @@ moduletype Binder {
   proc bind (Value) -> Commitment × Message × OpeningKey × Message × OpeningKey;
 }
 
-/-- The `ModuleType` underlying `CommitmentScheme` (the right-nested product the
+/- /-- The `ModuleTypeRep` underlying `CommitmentScheme` (the right-nested product the
     `moduletype` command generates), named so that functor types over it can be written. -/
-def CommitmentSchemeT : ModuleType :=
+def CommitmentSchemeT : ModuleTypeRep :=
   procmod () -> Value ×
   procmod (Value, Message) -> (Commitment × OpeningKey) ×
   procmod (Value, Message, Commitment, OpeningKey) -> Bool
+ -/
 
 /-
 Need: CommitmentSchemeM = Module CommitmentSchemeT
@@ -196,7 +197,7 @@ Could: CommitmentScheme.Module, CommitmentScheme
 Could: `Module CommitmentScheme`, CommitmentScheme
 
 -/
-example : CommitmentScheme = Module CommitmentSchemeT := rfl
+example : CommitmentScheme = Module CommitmentScheme.typeRep := rfl
 
 /-! ## Experiments (parameterized modules)
 
@@ -221,33 +222,21 @@ noncomputable def Correctness.main := proc (m : Message) uses
 }
 
 
--- def Module.arr {A B : ModuleType} (M : Module A) (f : Module (A →ₘ B)) : Module B :=
+-- def Module.arr {A B : ModuleTypeRep} (M : Module A) (f : Module (A →ₘ B)) : Module B :=
 --   ⟨fun _ => f.toProc⟩
 
 -- If `X := Module A` and `Y := Module B`, want to write `X --> Y` for `Module (A →ₘ B)`.
 
-class ModuleTypeOfModule (M : Type _) where
-  toModuleType : ModuleType
-  h : M = Module toModuleType
 
-def moduleTypeOfModule (M : Type _) [ModuleTypeOfModule M] : ModuleType :=
-  ModuleTypeOfModule.toModuleType M
 
-def Module.arr (X : Type _) (Y : Type _) [ModuleTypeOfModule X] [ModuleTypeOfModule Y] : Type _ :=
-  Module (ModuleType.arr (moduleTypeOfModule X) (moduleTypeOfModule Y))
-
-instance : ModuleTypeOfModule CommitmentScheme where
-  toModuleType := CommitmentSchemeT
-  h := rfl
-
-instance : ModuleTypeOfModule (Module t) where
-  toModuleType := t
-  h := rfl
+instance : IsModule CommitmentScheme where
+  moduleTypeRep := CommitmentScheme.typeRep
+  isModule := rfl
 
 /-- EC's `module Correctness (S : CommitmentScheme)`, as a functor module: apply it to a
     scheme with `Correctness S` (module application). -/
 noncomputable def Correctness :
-  Module (CommitmentSchemeT →ₘ procmod (Message) -> Bool) :=
+  Module.arr CommitmentScheme (Module (procmod (Message) -> Bool)) :=
   -- Module (CommitmentSchemeT →ₘ CorrectnessGameT (which has named procedures)) :=
   -- Module.arr  CommitmentScheme (Module (procmod (Message) -> Bool)) :=
   (ModuleExpression.abs
@@ -259,7 +248,7 @@ noncomputable def Correctness :
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
 noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
-  Correctness S
+  Module.app Correctness S
 
 
 end GaudisCrypt.Examples.Pedersen

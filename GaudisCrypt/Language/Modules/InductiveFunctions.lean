@@ -48,7 +48,7 @@ def InductiveFunction.evalMexpr {t mctx mt} (ind : InductiveFunction t)
   | .unit => ind.nothing
 
 lemma InductiveFunction.evalMexpr_rename {t : Type _} (ind : InductiveFunction t)
-    {Δ Γ : ModuleContext} {T : ModuleType} (m : ModuleExpression Δ T)
+    {Δ Γ : ModuleContext} {T : ModuleTypeRep} (m : ModuleExpression Δ T)
     (ρ : ∀ {T}, ModuleContextIdx Δ T → ModuleContextIdx Γ T) :
     ind.evalMexpr (m.rename ρ) = ind.evalMexpr m := by
   induction m generalizing Γ with
@@ -94,7 +94,7 @@ lemma InductiveFunction.join_join_right_join_of_idem {t : Type _} (ind : Inducti
 
 lemma InductiveFunction.evalMexpr_substituteSimultaneously_le {t : Type _} (ind : InductiveFunction t)
     [Reducible ind] :
-    ∀ {Δ Γ : ModuleContext} {T : ModuleType} (m : ModuleExpression Δ T)
+    ∀ {Δ Γ : ModuleContext} {T : ModuleTypeRep} (m : ModuleExpression Δ T)
       (σ : ∀ {T}, ModuleContextIdx Δ T → ModuleExpression Γ T) (extra : t)
       (hσ : ∀ {T} (r : ModuleContextIdx Δ T), ind.evalMexpr (σ r) ≤ ind.join ind.nothing extra),
         ind.evalMexpr (substituteSimultaneously σ m) ≤ ind.join (ind.evalMexpr m) extra := by
@@ -199,7 +199,7 @@ lemma InductiveFunction.evalMexpr_substituteSimultaneously_le {t : Type _} (ind 
 
 lemma InductiveFunction.evalMexpr_substitute_le {t : Type _} (ind : InductiveFunction t)
     [Reducible ind]
-    {Δ : ModuleContext} {A T : ModuleType}
+    {Δ : ModuleContext} {A T : ModuleTypeRep}
     (body : ModuleExpression (ModuleContext.append Δ A) T) (arg : ModuleExpression Δ A) :
     ind.evalMexpr (substitute body arg) ≤ ind.join (ind.evalMexpr body) (ind.evalMexpr arg) := by
   let σ : ∀ {T}, ModuleContextIdx (ModuleContext.append Δ A) T → ModuleExpression Δ T :=
@@ -216,10 +216,14 @@ lemma InductiveFunction.evalMexpr_substitute_le {t : Type _} (ind : InductiveFun
     (InductiveFunction.evalMexpr_substituteSimultaneously_le (ind := ind)
       (m := body) (σ := σ) (extra := ind.evalMexpr arg) hσ)
 
-def InductiveFunction.eval {t mt} (ind : InductiveFunction t) (m : Module mt) :=
-  InductiveFunction.evalMexpr ind (m.expression)
+def InductiveFunction.eval' {t mt} (ind : InductiveFunction t) (m : Module mt) :=
+  ind.evalMexpr m.expression
 
-lemma InductiveFunction.evalMexpr_toModuleTuple {t : Type _} (ind : InductiveFunction t) {Δ : ModuleContext} :
+def InductiveFunction.eval {t} (ind : InductiveFunction t) [i : IsModule M] (m : M) :=
+  ind.eval' (Module.cast M m)
+
+lemma InductiveFunction.evalMexpr_toModuleTuple
+    {t : Type _} (ind : InductiveFunction t) {Δ : ModuleContext} :
     {holes : HoleSigs} → (inst : holes.Instantiation) →
       ind.evalMexpr (HoleSigs.Instantiation.toModuleTuple (Δ := Δ) inst)
         = ind.evalInstantiationFold (holes := holes) inst
@@ -268,7 +272,7 @@ theorem eval_induction_step {t mctx mt} (ind : InductiveFunction t)
       simpa [InductiveFunction.evalMexpr] using ih
   | delta inst =>
       rename_i Δ holes sigs ne proc
-      let tuple : ModuleExpression Δ holes.toModuleTypeTuple :=
+      let tuple : ModuleExpression Δ holes.toModuleTypeRepTuple :=
         HoleSigs.Instantiation.toModuleTuple (Δ := Δ) (holes := holes) inst
       -- Abbreviation for folding instantiated procedures.
       let f : (Σ sig, Procedure sig) → t → t := fun p acc => ind.join (ind.proc p.2) acc
@@ -353,24 +357,37 @@ theorem InductiveFunction.app_moduleExpression (ind : InductiveFunction t)
     ind.evalMexpr (.app a b) = ind.join (ind.evalMexpr a) (ind.evalMexpr b) := by
     simp [InductiveFunction.evalMexpr]
 
-theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] (a : Module (.arr A B)) (b : Module A) :
-    ind.eval (Module.app a b) ≤ ind.join (ind.eval a) (ind.eval b) :=
-  calc ind.eval (Module.app a b)
+theorem InductiveFunction.app' (ind : InductiveFunction t) [Reducible ind] (a : Module (.arr A B)) (b : Module A) :
+    ind.eval' (Module.app' a b) ≤ ind.join (ind.eval a) (ind.eval b) :=
+  calc ind.eval' (Module.app' a b)
       ≤ ind.evalMexpr (a.expression.pair b.expression) := evalMexpr_reduce ind _
     _ = ind.join (ind.eval a) (ind.eval b) := rfl
+
+theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
+    (a : Module.arr A B) (b : A) :
+    ind.eval (Module.app a b) ≤ ind.join (ind.eval a) (ind.eval b) := by
+  simp only [InductiveFunction.eval, Module.cast_app]
+  apply ind.app'
+
 
 theorem InductiveFunction.pair_moduleExpression (ind : InductiveFunction t)
   (a : ModuleExpression Γ A) (b : ModuleExpression Γ B) :
     ind.evalMexpr (.pair a b) = ind.join (ind.evalMexpr a) (ind.evalMexpr b) := by
     simp [InductiveFunction.evalMexpr]
 
-theorem InductiveFunction.pair (ind : InductiveFunction t) (a : Module A) (b : Module B) :
-    ind.eval (Module.pair a b) = ind.join (ind.eval a) (ind.eval b) := by
+theorem InductiveFunction.pair' (ind : InductiveFunction t) (a : Module A) (b : Module B) :
+    ind.eval' (Module.pair' a b) = ind.join (ind.eval' a) (ind.eval' b) := by
   have h : reduce (a.expression.pair b.expression) = a.expression.pair b.expression :=
     Module.reduce_expression ⟨_, NormalClosed.pair a.normal b.normal⟩
   change ind.evalMexpr (reduce (a.expression.pair b.expression)) = _
   rw [h]
   rfl
+
+theorem InductiveFunction.pair (ind : InductiveFunction t) [IsModule A] [IsModule B]
+    (a : A) (b : B) :
+    ind.eval (Module.pair a b) = ind.join (ind.eval a) (ind.eval b) := by
+  simp only [InductiveFunction.eval, Module.cast, Module.pair, Module.moduleTypeRep, eqRec_eq_cast]
+  exact ind.pair' _ _
 
 @[simp]
 theorem InductiveFunction.fst_moduleExpression (ind : InductiveFunction t)
@@ -378,12 +395,19 @@ theorem InductiveFunction.fst_moduleExpression (ind : InductiveFunction t)
     ind.evalMexpr (.fst a) = ind.evalMexpr a := by
     simp [InductiveFunction.evalMexpr]
 
-theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind]
+theorem InductiveFunction.fst' (ind : InductiveFunction t) [Reducible ind]
   (a : Module (.prod A B)) :
-    ind.eval (.fst a) ≤ ind.eval a :=
-  calc ind.eval (Module.fst a)
+    ind.eval' (.fst' a) ≤ ind.eval a :=
+  calc ind.eval (Module.fst' a)
       ≤ ind.evalMexpr a.expression.fst := evalMexpr_reduce ind _
     _ = ind.eval a := InductiveFunction.fst_moduleExpression ind _
+
+theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
+    (a : Module.prod A B) :
+    ind.eval (Module.fst a) ≤ ind.eval a := by
+  simp only [InductiveFunction.eval, Module.cast, Module.fst, Module.moduleTypeRep, eqRec_eq_cast,
+    cast_cast, cast_eq]
+  exact ind.fst' _
 
 @[simp]
 theorem InductiveFunction.snd_moduleExpression (ind : InductiveFunction t)
@@ -391,12 +415,19 @@ theorem InductiveFunction.snd_moduleExpression (ind : InductiveFunction t)
     ind.evalMexpr (.snd a) = ind.evalMexpr a := by
     simp [InductiveFunction.evalMexpr]
 
-theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind]
+theorem InductiveFunction.snd' (ind : InductiveFunction t) [Reducible ind]
   (a : Module (.prod A B)) :
-    ind.eval (.snd a) ≤ ind.eval a :=
-  calc ind.eval (Module.snd a)
+    ind.eval' (.snd' a) ≤ ind.eval a :=
+  calc ind.eval (Module.snd' a)
       ≤ ind.evalMexpr a.expression.snd := evalMexpr_reduce ind _
     _ = ind.eval a := InductiveFunction.snd_moduleExpression ind _
+
+theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
+    (a : Module.prod A B) :
+    ind.eval (Module.snd a) ≤ ind.eval a := by
+  simp only [InductiveFunction.eval, Module.cast, Module.snd, Module.moduleTypeRep, eqRec_eq_cast,
+    cast_cast, cast_eq]
+  exact ind.snd' _
 
 @[simp]
 theorem InductiveFunction.unit_moduleExpression {ctxt} (ind : InductiveFunction t) :
@@ -653,8 +684,11 @@ def InductiveFunctionGettersSetters.inductiveFunction (ind : InductiveFunctionGe
 def InductiveFunctionGettersSetters.evalMexpr {ctx} (ind : InductiveFunctionGettersSetters T) :
     ModuleExpression ctx t → T State := ind.inductiveFunction.evalMexpr
 
-def InductiveFunctionGettersSetters.eval (ind : InductiveFunctionGettersSetters T) :
-    Module t → T State := ind.inductiveFunction.eval
+def InductiveFunctionGettersSetters.eval' (ind : InductiveFunctionGettersSetters T) :
+    Module t → T State := ind.inductiveFunction.eval'
+
+def InductiveFunctionGettersSetters.eval (ind : InductiveFunctionGettersSetters T) [IsModule M] :
+    M → T State := ind.inductiveFunction.eval
 
 instance {ind : InductiveFunctionGettersSetters T} [red: ReducibleGettersSetters ind] : Reducible ind.inductiveFunction where
   le := red.preorder.le
