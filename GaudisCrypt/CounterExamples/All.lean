@@ -1,4 +1,5 @@
-/- This file should import all counterexample and attic files. Update it occasionally. -/
+/- This file should import all counterexample and attic files.
+   Update it occasionally. -/
 
 import GaudisCrypt.Attic.DetermFootprint
 import GaudisCrypt.Attic.ProgramRange
