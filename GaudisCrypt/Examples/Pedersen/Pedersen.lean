@@ -167,7 +167,7 @@ theorem reduce_of_normal {Γ : ModuleContext} {t : ModuleTypeRep} {m : ModuleExp
 omit [PedersenGroup] in
 @[simp] theorem reduce_proc {Γ : ModuleContext} {sig : ProcedureSignature} (p : Procedure sig) :
     reduce (ModuleExpression.proc p : ModuleExpression Γ _) = .proc p :=
-  reduce_of_normal .const
+  reduce_of_normal .proc
 
 /-- The instantiation of `Correctness.main`'s holes by Pedersen's procedures.
     (`HoleIndex` counts from the *last-declared* hole: `.zero` is `verify`.) -/

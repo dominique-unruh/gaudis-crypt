@@ -329,7 +329,7 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
 theorem fvPMexpr_upper_bound : fvP (m.toModule) ≤ fvPMexpr m :=
   evalMexpr_upper_bound fvpInductiveFunctionGS.inductiveFunction m
 
-theorem fvP_app [IsModule A] [IsModule B] (a : Module.arr A B) (b : A) :
+theorem fvP_app [IsModule A] [IsModule B] (a : Module.Arr A B) (b : A) :
     fvP (Module.app a b) ≤ fvP a ⊔ fvP b :=
     InductiveFunction.app _ _ _
 
@@ -337,11 +337,11 @@ theorem fvP_pair [IsModule A] [IsModule B] (a : A) (b : B) :
     fvP (Module.pair a b) = fvP a ⊔ fvP b :=
     InductiveFunction.pair _ _ _
 
-theorem fvP_fst [IsModule A] [IsModule B] (a : Module.prod A B) :
+theorem fvP_fst [IsModule A] [IsModule B] (a : Module.Prod A B) :
     fvP (Module.fst a) ≤ fvP a :=
     InductiveFunction.fst _ _
 
-theorem fvP_snd [IsModule A] [IsModule B] (a : Module.prod A B) :
+theorem fvP_snd [IsModule A] [IsModule B] (a : Module.Prod A B) :
     fvP (Module.snd a) ≤ fvP a :=
     InductiveFunction.snd _ _
 

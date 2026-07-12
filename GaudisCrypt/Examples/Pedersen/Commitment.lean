@@ -222,7 +222,7 @@ noncomputable def Correctness.main := proc (m : Message) uses
 }
 
 
--- def Module.arr {A B : ModuleTypeRep} (M : Module A) (f : Module (A →ₘ B)) : Module B :=
+-- def Module.Arr {A B : ModuleTypeRep} (M : Module A) (f : Module (A →ₘ B)) : Module B :=
 --   ⟨fun _ => f.toProc⟩
 
 -- If `X := Module A` and `Y := Module B`, want to write `X --> Y` for `Module (A →ₘ B)`.
@@ -236,9 +236,9 @@ instance : IsModule CommitmentScheme where
 /-- EC's `module Correctness (S : CommitmentScheme)`, as a functor module: apply it to a
     scheme with `Correctness S` (module application). -/
 noncomputable def Correctness :
-  Module.arr CommitmentScheme (Module (procmod (Message) -> Bool)) :=
+  Module.Arr CommitmentScheme (Module (procmod (Message) -> Bool)) :=
   -- Module (CommitmentSchemeT →ₘ CorrectnessGameT (which has named procedures)) :=
-  -- Module.arr  CommitmentScheme (Module (procmod (Message) -> Bool)) :=
+  -- Module.Arr  CommitmentScheme (Module (procmod (Message) -> Bool)) :=
   (ModuleExpression.abs
     (.app (.procHoles (by trivial) Correctness.main)
       (.pair (.snd (.snd (.var .zero)))       -- verify

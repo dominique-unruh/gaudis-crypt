@@ -364,7 +364,7 @@ theorem InductiveFunction.app' (ind : InductiveFunction t) [Reducible ind] (a : 
     _ = ind.join (ind.eval a) (ind.eval b) := rfl
 
 theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
-    (a : Module.arr A B) (b : A) :
+    (a : Module.Arr A B) (b : A) :
     ind.eval (Module.app a b) ≤ ind.join (ind.eval a) (ind.eval b) := by
   simp only [InductiveFunction.eval, Module.cast_app]
   apply ind.app'
@@ -403,7 +403,7 @@ theorem InductiveFunction.fst' (ind : InductiveFunction t) [Reducible ind]
     _ = ind.eval a := InductiveFunction.fst_moduleExpression ind _
 
 theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
-    (a : Module.prod A B) :
+    (a : Module.Prod A B) :
     ind.eval (Module.fst a) ≤ ind.eval a := by
   simp only [InductiveFunction.eval, Module.cast, Module.fst, Module.moduleTypeRep, eqRec_eq_cast,
     cast_cast, cast_eq]
@@ -423,7 +423,7 @@ theorem InductiveFunction.snd' (ind : InductiveFunction t) [Reducible ind]
     _ = ind.eval a := InductiveFunction.snd_moduleExpression ind _
 
 theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
-    (a : Module.prod A B) :
+    (a : Module.Prod A B) :
     ind.eval (Module.snd a) ≤ ind.eval a := by
   simp only [InductiveFunction.eval, Module.cast, Module.snd, Module.moduleTypeRep, eqRec_eq_cast,
     cast_cast, cast_eq]
