@@ -177,7 +177,7 @@ mutual
     | abs {body : ModuleExpression (ModuleContext.append Δ A) B} : Normal body → Normal (.abs body)
     | pair {a : ModuleExpression Δ A} {b : ModuleExpression Δ B} :
              Normal a → Normal b → Normal (.pair a b)
-    -- TODO rename const -> proc, constHoles -> procHoles
+    -- TODO-CLAUDE rename const -> proc, constHoles -> procHoles
     | const : Normal (.proc p)
     | constHoles {holes sig} {ne : holes.NonEmpty} {p : ProcedureWithHoles holes sig} :
         Normal (.procHoles ne p)
@@ -599,7 +599,6 @@ def cbvReductionStep (m : ModuleExpression Δ t) (nn : ¬ Normal m) :
   | .unit => absurd .unit nn
 
 
--- TODO move to Modules.lean
 theorem cbvReductionStep_is_reductionStep (m : ModuleExpression Γ T) (nn : ¬ Normal m) :
     ReductionStep m (cbvReductionStep m nn) := by
   induction m with
@@ -902,17 +901,20 @@ theorem ModuleExpression.erasedEqual_neutral_eq {Γ : ModuleContext} {T1 T2 : Mo
 
 -- TODO Make basically everything private here
 
+-- TODO-CLAUDE make private
 scoped instance instModuleExpressionSTLCspec : Metatheory.STLCext.STLCspec where
   baseTypes := ProcedureSignature
   baseTypeValue := Procedure
   funcData := Σ holes : HoleSigs, Σ sig : ProcedureSignature, ProcedureWithHoles holes sig
 
+-- TODO-CLAUDE make private
 def ModuleTypeRep.toSTLC : ModuleTypeRep → Metatheory.STLCext.Ty
 | .prod A B => .prod A.toSTLC B.toSTLC
 | .arr A B => .arr A.toSTLC B.toSTLC
 | .proc sig => .base sig
 | .unit => .unit
 
+-- TODO-CLAUDE make private
 private lemma toModuleTypeRepTuple_isArrowFree (holes : HoleSigs) :
     holes.toModuleTypeRepTuple.toSTLC.isArrowFree := by
   induction holes with
@@ -920,6 +922,7 @@ private lemma toModuleTypeRepTuple_isArrowFree (holes : HoleSigs) :
   | append _ _ ih =>
       simp [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC, Metatheory.STLCext.Ty.isArrowFree, ih]
 
+-- TODO-CLAUDE make private
 open Metatheory.STLCext in
 def basicTermHoleLookup : (holes : HoleSigs) →
     BasicTerm (holes.toModuleTypeRepTuple.toSTLC) →
@@ -930,6 +933,7 @@ def basicTermHoleLookup : (holes : HoleSigs) →
       | .zero   => v
       | .succ m => basicTermHoleLookup Γ rest m
 
+-- TODO-CLAUDE make private
 open Metatheory.STLCext in
 noncomputable def _root_.GaudisCrypt.ProcedureWithHoles.toSTLC {holes sig}
   (proc : ProcedureWithHoles holes sig) : Term :=
@@ -945,6 +949,7 @@ noncomputable def _root_.GaudisCrypt.ProcedureWithHoles.toSTLC {holes sig}
       (ht := inputArrowFree) (hu := outputArrowFree) ⟨holes, sig, proc⟩ substitution
 
 
+-- TODO-CLAUDE make private
 noncomputable def ModuleExpression.toSTLC :
     ModuleExpression Γ T → Metatheory.STLCext.Term
   | .unit => .unit
@@ -957,6 +962,7 @@ noncomputable def ModuleExpression.toSTLC :
   | .abs M => .lam M.toSTLC
   | .pair M N => .pair M.toSTLC N.toSTLC
 
+-- TODO-CLAUDE make private
 def ModuleContext.toSTLC : ModuleContext → Metatheory.STLCext.Context
 | .empty => []
 | .append Γ T => T.toSTLC :: Γ.toSTLC
@@ -1020,6 +1026,7 @@ private lemma ModuleExpression.toSTLC_rename_shift (d : Nat)
         simp only [liftRenaming, ModuleContextIdx.toNat] at *
         have := hhi r' (by omega); omega
 
+-- TODO-CLAUDE make private
 lemma ModuleExpression.toSTLC_substAll_level
     (N_stlc : Metatheory.STLCext.Term)
     {Δ' : ModuleContext} {T : ModuleTypeRep} (m : ModuleExpression Δ' T) :
@@ -1093,6 +1100,7 @@ lemma ModuleExpression.toSTLC_substAll_level
                  show ¬ (r'.toNat < (0 : Nat)) from Nat.not_lt.mpr (Nat.zero_le _), ite_false]
       norm_cast
 
+-- TODO-CLAUDE make private
 lemma ModuleExpression.toSTLC_subst
     {Δ : ModuleContext} {u T : ModuleTypeRep}
     (body : ModuleExpression (Δ.append u) T) (arg : ModuleExpression Δ u) :
@@ -1176,6 +1184,7 @@ lemma toModuleTuple_isProcTuple {Δ : ModuleContext} {holes : HoleSigs}
 
 /-- Round-trip from the STLC side: if `arg.toSTLC` is a basic term of the hole-tuple type,
     then recovering the instantiation from that basic term and converting back gives `arg`. -/
+-- TODO-CLAUDE make private
 lemma toModuleTuple_of_basicType {Δ : ModuleContext} :
     {holes : HoleSigs} → (arg : ModuleExpression Δ holes.toModuleTypeRepTuple) →
     (h : Metatheory.STLCext.Term.isBasicType holes.toModuleTypeRepTuple.toSTLC arg.toSTLC) →
@@ -1205,6 +1214,7 @@ lemma toModuleTuple_of_basicType {Δ : ModuleContext} :
           simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC,
                 Metatheory.STLCext.Term.isBasicType] at h
 
+-- TODO-CLAUDE make private
 theorem reductionStep_stlc_compat (m m' : ModuleExpression Γ T) :
     ReductionStep m m' →
     Metatheory.STLCext.Step (ModuleExpression.toSTLC m) (ModuleExpression.toSTLC m') := by
@@ -1238,6 +1248,7 @@ theorem reductionStep_stlc_compat (m m' : ModuleExpression Γ T) :
               exact congrArg Metatheory.STLCext.Term.value (instantiate_congr (Δ := Δ) args proc).symm]
       exact Metatheory.STLCext.Step.funcApp _ _ _ _
 
+-- TODO-CLAUDE make private
 theorem ModuleExpression.toSTLC_hasType (m : ModuleExpression Γ T) :
   Metatheory.STLCext.HasType (ModuleContext.toSTLC Γ) m.toSTLC T.toSTLC
    := by induction m with
@@ -1271,6 +1282,7 @@ theorem ModuleExpression.toSTLC_hasType (m : ModuleExpression Γ T) :
     | succ n ih =>
       simp [ModuleContextIdx.toNat, ModuleContext.toSTLC, ih]
 
+-- TODO-CLAUDE make private
 theorem reductionStep_stlc_complete
   (m : ModuleExpression Γ T) (M' : Metatheory.STLCext.Term)
   (h : Metatheory.STLCext.Step (ModuleExpression.toSTLC m) M') :
@@ -1365,6 +1377,7 @@ theorem reductionStep_stlc_complete
               obtain ⟨e', hnd, heq⟩ := ih _ step
               exact ⟨.snd e', .snd hnd, by simp [ModuleExpression.toSTLC, heq]⟩
 
+-- TODO-CLAUDE make private
 theorem multiStepReduction_to_stlc_star {m m' : ModuleExpression Γ T}
     (h : MultiStepReduction m m') :
     Rewriting.Star Metatheory.STLCext.Step (ModuleExpression.toSTLC m) (ModuleExpression.toSTLC m')
@@ -1373,6 +1386,7 @@ theorem multiStepReduction_to_stlc_star {m m' : ModuleExpression Γ T}
   | refl => exact Rewriting.Star.refl _
   | tail hab hbc ih => exact Rewriting.Star.tail ih (reductionStep_stlc_compat _ _ hbc)
 
+-- TODO-CLAUDE make private
 theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
     Normal m ↔ Rewriting.IsNormalForm Metatheory.STLCext.Step (ModuleExpression.toSTLC m) := by
   constructor
@@ -1525,6 +1539,7 @@ theorem ModuleExpression.toSTLC_Normal_iff {m : ModuleExpression Γ T} :
 
 /-- The STLC translation of a procedure-with-holes determines the procedure (and its
     hole/return signatures). -/
+-- TODO-CLAUDE make private
 theorem ProcedureWithHoles.toSTLC_inj {holes holes' : HoleSigs} {sig sig' : ProcedureSignature}
     {p : ProcedureWithHoles holes sig} {p' : ProcedureWithHoles holes' sig'} :
     ProcedureWithHoles.toSTLC p = ProcedureWithHoles.toSTLC p' → holes = holes' ∧ sig = sig' ∧ p ≍ p' := by
@@ -1539,6 +1554,7 @@ theorem ProcedureWithHoles.toSTLC_inj {holes holes' : HoleSigs} {sig sig' : Proc
   subst h3
   exact ⟨rfl, rfl, h4⟩
 
+-- TODO-CLAUDE make private
 theorem ModuleExpression.toSTLC_injective {Γ Γ' : ModuleContext} {T T' : ModuleTypeRep}
     (m : ModuleExpression Γ T) (m' : ModuleExpression Γ' T') :
     ModuleExpression.toSTLC m = ModuleExpression.toSTLC m' → ModuleExpression.erasedEqual m m' := by
@@ -1598,6 +1614,7 @@ theorem ModuleExpression.toSTLC_injective {Γ Γ' : ModuleContext} {T T' : Modul
       exact ih body' h
     | _ => simp [ModuleExpression.toSTLC, ProcedureWithHoles.toSTLC] at h
 
+-- TODO-CLAUDE make private
 theorem ModuleExpression.toSTLC_injective_normal {Γ : ModuleContext} {T : ModuleTypeRep}
     {n1 n2 : ModuleExpression Γ T} (hn1 : Normal n1)
     (h : ModuleExpression.toSTLC n1 = ModuleExpression.toSTLC n2) : n1 = n2 :=
@@ -1622,6 +1639,7 @@ private theorem reduce_acc {Γ : ModuleContext} {T : ModuleTypeRep} (m : ModuleE
     rw [heq] at step
     exact ih _ step q rfl
 
+-- TODO-CLAUDE make private
 scoped instance (priority := 1001) instWellFoundedRelationModuleExpressionReduction {Γ : ModuleContext} {T : ModuleTypeRep} :
     WellFoundedRelation (ModuleExpression Γ T) :=
   ⟨fun p q => ReductionStep q p,
@@ -1862,7 +1880,7 @@ def Module.cast (T : Type _) [inst : IsModule T] (m : T) : Module (Module.module
 def Module.cast' (T : Type _) [inst : IsModule T] (m : Module (Module.moduleTypeRep T)) : T :=
   inst.isModule.symm ▸ m
 
--- TODO renasme → Module.Arr
+-- TODO-CLAUDE rename → Module.Arr
 def Module.arr (M : Type _) (N : Type _) [IsModule M] [IsModule N] : Type _ :=
   Module (ModuleTypeRep.arr (Module.moduleTypeRep M) (Module.moduleTypeRep N))
 
@@ -1885,7 +1903,7 @@ theorem Module.cast_app [IsModule M] [IsModule N] (a : Module.arr M N) (b : M) :
   simp only [eqRec_eq_cast, cast_cast, cast_eq]
   rfl
 
--- TODO rename → Module.Prod
+-- TODO-CLAUDE rename → Module.Prod
 def Module.prod (M : Type _) (N : Type _) [IsModule M] [IsModule N] : Type _ :=
   Module (ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N))
 

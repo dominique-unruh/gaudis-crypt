@@ -359,7 +359,7 @@ def liftedGlobSteps {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles s
     (`(FVP.fvP_proc A)ᶜ`), lifted through `globalL`, commutes with everything `A` may
     touch as a procedure (`(fvP_proc A)ᶜ`).  Both `fvP_proc`s decompose (definitionally)
     into body ⊔ return, with the global one the `globalL`-reduction of the procedure one;
-    per component the commutation transfers by `liftSubProbability_comm_of_mem_reduce_compl`. -/
+    per component the commutation transfers by `Footprint.liftSubProbability_comm_reduce_compl`. -/
 theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) {f : Function.End state}
     (hf : diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates) :
@@ -387,7 +387,7 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
         ∈ Submonoid.centralizer X.updates
     rw [Submonoid.mem_centralizer_iff]
     intro k hk
-    exact (liftSubProbability_comm_of_mem_reduce_compl hfX hk).symm
+    exact (Footprint.liftSubProbability_comm_reduce_compl hfX hk).symm
   -- Transport `hf` to the two components of the global decomposition.
   have hble : Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt A.body) ≤ FVP.fvP_proc A := by
     rw [hdecompG]; exact le_sup_left
@@ -395,8 +395,8 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
       ((ProgramDenotation.get A.return_val).footprint) ≤ FVP.fvP_proc A := by
     rw [hdecompG]; exact le_sup_right
   have h1 := le_trans (fvP_stmt_le_FVP A.body)
-    (hsing _ (Footprint.compl_le_compl hble hf))
-  have h2 := hsing _ (Footprint.compl_le_compl hrle hf)
+    (hsing _ (Footprint.compl_antimono hble hf))
+  have h2 := hsing _ (Footprint.compl_antimono hrle hf)
   -- Reassemble at the procedure level.
   have hsup : fvP_proc A ≤ (Footprint.from
       {diracKer ((ProcedureState.globalL

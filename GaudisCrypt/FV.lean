@@ -129,7 +129,7 @@ theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
 /-! # Lens.reduceFootprint_sup -/
 
 
--- `Lens.reduceFootprint`, `Lens.reduceFootprint_mono`, `Lens.reduceFootprint_eq_from`,
+-- `Lens.reduceFootprint`, `Lens.reduceFootprint_mono`,
 -- `centralizer_reduceBaseGen_image` and `Lens.reduceFootprint_alt_def` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
 
@@ -153,7 +153,7 @@ private lemma image_cc_subset {M N : Type*} [Monoid M] [Monoid N]
   have hc := (Set.mem_centralizer_iff.mp hx) y' hy'
   rw [← hu, ← hu, hc]
 
--- `reduceBaseGen_sup_subset` and `Lens.reduceFootprint_sup` moved to
+-- `reduceSubProbability_sup_subset` and `Lens.reduceFootprint_sup` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
 
 
@@ -275,7 +275,7 @@ theorem Lens.reduceFootprint_extend {a b} [Nonempty b] (lens : Lens a b) (r : Fo
   apply le_antisymm
   · apply Lens.reduceFootprint_extend_le
   · change r.updates ≤ (Lens.reduceFootprint lens (Lens.liftFootprint lens r)).updates
-    rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
+    rw [Lens.reduceFootprint, Footprint.from_updates]
     apply Set.Subset.trans _ Set.subset_centralizer_centralizer
     intro p hp
     let β : lens.ComplContent := Classical.arbitrary lens.ComplContent
@@ -390,19 +390,19 @@ theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
         = pure (v.liftFunction g (L.get x)) from rfl, SubProbability.pure_bind]
   rfl
 
--- `liftSubProbability_comm_of_mem_reduce_compl` moved to
+-- `Footprint.liftSubProbability_comm_reduce_compl` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
 
 /-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
     `L`-reduction of `R` is disjoint from `v.footprint` — the lens-region instance of
-    `liftSubProbability_comm_of_mem_reduce_compl`. -/
+    `Footprint.liftSubProbability_comm_reduce_compl`. -/
 theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
     {v : Lens t s} {R : Footprint c}
     (hred : Lens.reduceFootprint L R ≤ (v.footprint)ᶜ)
     {f : s → SubProbability s} (hf : f ∈ v.footprint.updates)
     {k : c → SubProbability c} (hk : k ∈ R.updates) :
     L.liftSubProbability f * k = k * L.liftSubProbability f :=
-  liftSubProbability_comm_of_mem_reduce_compl
+  Footprint.liftSubProbability_comm_reduce_compl
     ((Footprint.le_compl_comm _ _).mp hred hf) hk
 
 /-- **A chained lens's footprint lies in `Rᶜ` whenever the inner footprint's `L`-reduction does**:

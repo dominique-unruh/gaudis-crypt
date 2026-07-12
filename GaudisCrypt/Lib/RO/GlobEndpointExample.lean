@@ -84,7 +84,7 @@ theorem reduce_le_compl_of_chain {t s c : Type} (L : Lens s c) (v : Lens t s) {R
     (hdisj : R ≤ ((L.chain v).footprint)ᶜ) :
     Lens.reduceFootprint L R ≤ (v.footprint)ᶜ := by
   -- It suffices that every reduced generator lies in `(v.footprint)ᶜ.updates`.
-  rw [Lens.reduceFootprint_eq_from]
+  rw [Lens.reduceFootprint]
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨⟨k, i, o⟩, ⟨hk, -, -⟩, rfl⟩
   -- Membership in `(v.footprint)ᶜ.updates = centralizer (v.footprint.updates)`: commute with every

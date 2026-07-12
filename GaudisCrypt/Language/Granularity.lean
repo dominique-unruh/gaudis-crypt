@@ -205,7 +205,7 @@ theorem GranularFootprint.footprint_fromLens [spec : GranularProgramSpec]
         refine spec.disjoint q hq p.val p.property (fun e => hp ?_)
         exact (Subtype.ext e : (⟨q, hq⟩ : spec.grains) = p) ▸ hqF
       calc (p.val : Footprint State) = (p.val)ᶜᶜ := (Footprint.compl_compl _).symm
-        _ ≤ _ := Footprint.compl_le_compl hsup
+        _ ≤ _ := Footprint.compl_antimono hsup
 
 theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State}
     (h : f.IsGranular) : f.FromLens := by
@@ -259,7 +259,7 @@ theorem Granularity.lens_pair_isSubGranular_sup [GranularProgramSpec]
   rfl
 
 
--- `Lens.reduceFootprint_compl_footprint`, `reduce_updates_eq` and
+-- `Lens.reduceFootprint_compl_footprint`, `Footprint.reduceFootprint_updates` and
 -- `Footprint.lift_reduceFootprint_eq` moved to `GaudisCrypt/Language/Footprint.lean`.
 
 open Classical in

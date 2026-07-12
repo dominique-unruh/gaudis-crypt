@@ -605,7 +605,7 @@ theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
     intro i o
     have hgen : Lens.reduceSubProbability ProcedureState.globalL (k, i, o)
         ∈ (Lens.reduceFootprint ProcedureState.globalL Y).updates := by
-      rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
+      rw [Lens.reduceFootprint, Footprint.from_updates]
       exact Set.subset_centralizer_centralizer
         ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
     have hcomm : Lens.reduceSubProbability ProcedureState.globalL (k, i, o) * f

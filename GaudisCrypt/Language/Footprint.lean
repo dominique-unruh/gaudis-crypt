@@ -105,7 +105,7 @@ instance : BoundedOrder (Footprint m) where
   le_top := fun x => Set.subset_univ _
 
 /-- The complement (commutant) is antitone. -/
-theorem Footprint.compl_le_compl {m : Type _} {R S : Footprint m} (h : R ≤ S) : Sᶜ ≤ Rᶜ := by
+theorem Footprint.compl_antimono {m : Type _} {R S : Footprint m} (h : R ≤ S) : Sᶜ ≤ Rᶜ := by
   intro x hx
   exact Submonoid.mem_centralizer_iff.mpr
     (fun g hg => Submonoid.mem_centralizer_iff.mp hx g (h hg))
@@ -1137,7 +1137,7 @@ theorem Footprint.touched_getter_eq_of_le {m : Type} {R S : Footprint m} (h : R 
   induction horb with
   | rel s s' hstep =>
       obtain ⟨f, hf, rfl⟩ := hstep
-      exact Relation.EqvGen.rel _ _ ⟨f, Footprint.compl_le_compl h hf, rfl⟩
+      exact Relation.EqvGen.rel _ _ ⟨f, Footprint.compl_antimono h hf, rfl⟩
   | refl s => exact Relation.EqvGen.refl _
   | symm _ _ _ ih => exact Relation.EqvGen.symm _ _ ih
   | trans _ _ _ _ _ ih₁ ih₂ => exact Relation.EqvGen.trans _ _ _ ih₁ ih₂
@@ -2194,8 +2194,8 @@ private theorem pair_footprint_fst_snd :
   have hcompl : ((Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint)ᶜ
       = ⊥ := by
     refine le_antisymm ?_ bot_le
-    refine le_trans (le_inf (Footprint.compl_le_compl le_sup_left)
-      (Footprint.compl_le_compl le_sup_right)) ?_
+    refine le_trans (le_inf (Footprint.compl_antimono le_sup_left)
+      (Footprint.compl_antimono le_sup_right)) ?_
     rw [Lens.compl_footprint, Lens.compl_footprint]
     exact le_of_eq (Footprint.disjoint_lens_footprint_inf _ _)
   -- `⊥ᶜ = ⊤`: everything commutes with the centre
@@ -2273,28 +2273,19 @@ theorem Footprint.fromLens_sup {s : Type} {f g : Footprint s}
 
 /-! ## `Lens.reduceFootprint` (relocated from `FV.lean`) -/
 
--- TODO check name
 noncomputable
 def Lens.reduceFootprint {a b} (lens : Lens a b) (range : Footprint b) : Footprint a :=
   Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
 
 /-- `Lens.reduceFootprint` is monotone: a larger range gives a larger reduced range. -/
--- TODO check name
 theorem Lens.reduceFootprint_mono {a b} (lens : Lens a b) {r r' : Footprint b} (h : r ≤ r') :
     Lens.reduceFootprint lens r ≤ Lens.reduceFootprint lens r' := by
   have hsub : r.updates ⊆ r'.updates := h
   apply Footprint.from_mono
   gcongr
 
-/-- `Lens.reduceFootprint` as `Footprint.from` of the named generator set. -/
--- TODO check name
-theorem Lens.reduceFootprint_eq_from {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    Lens.reduceFootprint lens range
-      = Footprint.from (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ)) :=
-      rfl
-
--- TODO check name
-theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b) (range : Footprint b) :
+private theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b)
+    (range : Footprint b) :
     Set.centralizer (Lens.reduceSubProbability lens '' (range.updates ×ˢ Set.univ ×ˢ Set.univ))
       = { f | ∀ g ∈ range.updates,
           (lens.liftSubProbability f : b → SubProbability b) * g
@@ -2312,7 +2303,7 @@ theorem centralizer_reduceBaseGen_image {a b : Type} (lens : Lens a b) (range : 
     obtain ⟨⟨g, i, o⟩, ⟨hg, -, -⟩, rfl⟩ := hk
     rw [Lens.reduceSubProbability_mul_right, Lens.reduceSubProbability_mul_left, hcon g hg]
 
--- TODO check name
+
 theorem Lens.reduceFootprint_alt_def {a b : Type} (lens : Lens a b) (range : Footprint b) :
     Lens.reduceFootprint lens range =
     Footprint.from
@@ -2320,7 +2311,7 @@ theorem Lens.reduceFootprint_alt_def {a b : Type} (lens : Lens a b) (range : Foo
         (lens.liftSubProbability f : b → SubProbability b) * g
           = g * lens.liftSubProbability f }.centralizer := by
   apply Footprint.ext
-  rw [Lens.reduceFootprint_eq_from, Footprint.from_updates, centralizer_reduceBaseGen_image]
+  rw [Lens.reduceFootprint, Footprint.from_updates, centralizer_reduceBaseGen_image]
   rw [Footprint.from_updates, Set.centralizer_centralizer_centralizer]
 
 /-- **The crux of `Lens.reduceFootprint_sup`.** Every generator of the reduced join lies in the
@@ -2331,8 +2322,8 @@ the two Fubini identities (`Lens.reduceSubProbability_mul_left`/`_right`) turn `
 reduced generators into `ĥ`-commutation of the joint kernels. Slice determination (`reduceBaseExt`)
 lifts any `h ∈ commutant(gen r₁ ∪ gen r₂)` to `ĥ ∈ commutant(r₁.updates ∪ r₂.updates)`; then `f` in
 the bicommutant commutes with `ĥ`, and the identities push that back down to `h`. -/
--- TODO check name
-theorem reduceBaseGen_sup_subset {a b : Type} (lens : Lens a b) (r₁ r₂ : Footprint b) :
+private theorem reduceSubProbability_sup_subset {a b : Type} (lens : Lens a b)
+    (r₁ r₂ : Footprint b) :
     Lens.reduceSubProbability lens '' ((r₁ ⊔ r₂).updates ×ˢ Set.univ ×ˢ Set.univ)
       ⊆ Set.centralizer (Set.centralizer
           ((Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
@@ -2362,12 +2353,11 @@ theorem reduceBaseGen_sup_subset {a b : Type} (lens : Lens a b) (r₁ r₂ : Foo
     exact (Set.mem_centralizer_iff.mp hf) (lens.liftSubProbability h) hĥ
   rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right, hfĥ]
 
--- TODO check name
 theorem Lens.reduceFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint b) :
     Lens.reduceFootprint lens (r₁ ⊔ r₂)
       = Lens.reduceFootprint lens r₁ ⊔ Lens.reduceFootprint lens r₂ := by
   apply le_antisymm
-  · rw [Lens.reduceFootprint_eq_from, Lens.reduceFootprint_eq_from, Lens.reduceFootprint_eq_from,
+  · rw [Lens.reduceFootprint, Lens.reduceFootprint, Lens.reduceFootprint,
       Footprint.from_le_iff]
     set Z := Footprint.from (Lens.reduceSubProbability lens '' (r₁.updates ×ˢ Set.univ ×ˢ Set.univ))
         ⊔ Footprint.from (Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ))
@@ -2376,7 +2366,7 @@ theorem Lens.reduceFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint 
       (Footprint.from_le_iff _ _).mp le_sup_left
     have h2 : Lens.reduceSubProbability lens '' (r₂.updates ×ˢ Set.univ ×ˢ Set.univ) ⊆ Z.updates :=
       (Footprint.from_le_iff _ _).mp le_sup_right
-    refine (reduceBaseGen_sup_subset lens r₁ r₂).trans ?_
+    refine (reduceSubProbability_sup_subset lens r₁ r₂).trans ?_
     rw [← Footprint.double_commutant_closed Z]
     exact Set.centralizer_subset (Set.centralizer_subset (Set.union_subset h1 h2))
   · exact sup_le (Lens.reduceFootprint_mono lens le_sup_left)
@@ -2388,8 +2378,7 @@ theorem Lens.reduceFootprint_sup {a b} (lens : Lens a b) (r₁ r₂ : Footprint 
     `(Lens.reduceFootprint L R).updates`, so `hf` makes them commute with `f`; the Fubini identities
     (`Lens.reduceSubProbability_mul_left`/`_right`) turn that into commutation of
     `L.liftSubProbability f` with `k` (via `reduceSubProbability_ext`). -/
--- TODO check name
-theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
+theorem Footprint.liftSubProbability_comm_reduce_compl {s c : Type} {L : Lens s c}
     {R : Footprint c}
     {f : s → SubProbability s} (hf : f ∈ ((Lens.reduceFootprint L R)ᶜ).updates)
     {k : c → SubProbability c} (hk : k ∈ R.updates) :
@@ -2398,7 +2387,7 @@ theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
   intro i o
   -- Each reduced generator of `k` is a generator of `Lens.reduceFootprint L R`, hence commutes with `f`.
   have hgen : Lens.reduceSubProbability L (k, i, o) ∈ (Lens.reduceFootprint L R).updates := by
-    rw [Lens.reduceFootprint_eq_from, Footprint.from_updates]
+    rw [Lens.reduceFootprint, Footprint.from_updates]
     exact Set.subset_centralizer_centralizer
       ⟨(k, i, o), ⟨hk, Set.mem_univ _, Set.mem_univ _⟩, rfl⟩
   have hcomm : f * Lens.reduceSubProbability L (k, i, o)
@@ -2407,7 +2396,6 @@ theorem liftSubProbability_comm_of_mem_reduce_compl {s c : Type} {L : Lens s c}
   rw [Lens.reduceSubProbability_mul_left, Lens.reduceSubProbability_mul_right] at hcomm
   exact hcomm
 
--- TODO check name
 @[simp]
 theorem Lens.reduceFootprint_compl_footprint {d s : Type} (L : Lens d s) :
     Lens.reduceFootprint L ((L.footprint)ᶜ) = ⊥ := by
@@ -2424,11 +2412,10 @@ theorem Lens.reduceFootprint_compl_footprint {d s : Type} (L : Lens d s) :
   change Set.centralizer Set.univ = (Footprint.from ∅).updates
   rw [Footprint.from_updates, Set.centralizer_empty, Set.top_eq_univ]
 
--- TODO check name
 /-- **`Lens.reduceFootprint` in commutant form.**  `(Lens.reduceFootprint L R).updates` is the
     centralizer of the base kernels whose `L`-lift lands in `Rᶜ` (folding
     `Lens.reduceFootprint_alt_def` through `Footprint.from`). -/
-theorem reduce_updates_eq {d s : Type} (L : Lens d s) (R : Footprint s) :
+theorem Footprint.reduceFootprint_updates {d s : Type} (L : Lens d s) (R : Footprint s) :
     (Lens.reduceFootprint L R).updates
       = Set.centralizer { f : d → SubProbability d |
           (L.liftSubProbability f : s → SubProbability s) ∈ (Rᶜ).updates } := by
@@ -2437,7 +2424,6 @@ theorem reduce_updates_eq {d s : Type} (L : Lens d s) (R : Footprint s) :
   simp only [Set.mem_setOf_eq]
   constructor <;> intro h g hg <;> exact (h g hg).symm
 
--- TODO check name
 theorem Footprint.lift_reduceFootprint_eq {d s : Type} (L : Lens d s) (S : Footprint s)
     (hS : S ≤ L.footprint) : L.liftFootprint (Lens.reduceFootprint L S) = S := by
   wlog hNe : Nonempty s; { have := not_nonempty_iff.mp hNe; apply Subsingleton.elim }
@@ -2470,12 +2456,12 @@ theorem Footprint.lift_reduceFootprint_eq {d s : Type} (L : Lens d s) (S : Footp
         rw [← Lens.liftSubProbability_mul, ← Lens.liftSubProbability_mul, hpf]
     have hH : Lens.reduceFootprint L S ≤ (Lens.reduceFootprint L Sᶜ)ᶜ := by
       intro p hp
-      rw [reduce_updates_eq L S, hkey] at hp
+      rw [Footprint.reduceFootprint_updates L S, hkey] at hp
       have hcompl : ((Lens.reduceFootprint L Sᶜ)ᶜ).updates
           = Set.centralizer (Lens.reduceFootprint L Sᶜ).updates := by
         rw [Footprint.updates_eq_centralizer_compl ((Lens.reduceFootprint L Sᶜ)ᶜ),
           Footprint.compl_compl]; rfl
-      rw [hcompl, reduce_updates_eq L Sᶜ, Footprint.compl_compl S]
+      rw [hcompl, Footprint.reduceFootprint_updates L Sᶜ, Footprint.compl_compl S]
       exact hp
     intro u hu
     rw [Lens.liftFootprint_updates L (Lens.reduceFootprint L S)] at hu
@@ -2484,7 +2470,7 @@ theorem Footprint.lift_reduceFootprint_eq {d s : Type} (L : Lens d s) (S : Footp
     rw [show S.updates = Set.centralizer (Sᶜ).updates by
         rw [Footprint.updates_eq_centralizer_compl S]; rfl, Set.mem_centralizer_iff]
     intro w hw
-    exact (liftSubProbability_comm_of_mem_reduce_compl hfc hw).symm
+    exact (Footprint.liftSubProbability_comm_reduce_compl hfc hw).symm
   · -- `≥`: `S ≤ L.liftFootprint (Lens.reduceFootprint L S)`
     intro u hu
     obtain ⟨u₀, hu₀⟩ := hextract u (hS hu)
@@ -2501,7 +2487,6 @@ theorem Footprint.lift_reduceFootprint_eq {d s : Type} (L : Lens d s) (S : Footp
 /-- **Complement is order-reversing on `Footprint`** (`le`/`compl` swap): `R ≤ Sᶜ ↔ S ≤ Rᶜ`.
     Both sides say every `R`-update commutes with every `S`-update, so the relation is symmetric in
     `R`, `S`. -/
--- TODO check name
 theorem Footprint.le_compl_comm {m : Type} (R S : Footprint m) : R ≤ Sᶜ ↔ S ≤ Rᶜ := by
   constructor <;>
   · intro h
