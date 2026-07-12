@@ -59,3 +59,5 @@ import GaudisCrypt.Logic.PRHL.Loops
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
+import GaudisCrypt.Examples.Pedersen.Commitment
+import GaudisCrypt.Examples.Pedersen.Pedersen

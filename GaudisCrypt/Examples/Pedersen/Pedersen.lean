@@ -20,8 +20,6 @@ A transliteration of EasyCrypt's `examples/Pedersen.ec`:
 namespace GaudisCrypt.Examples.Pedersen
 
 open GaudisCrypt
-open GaudisCrypt.Language.Modules
-open GaudisCrypt.Language.Syntax
 
 -- the scheme is deliberately named like the enclosing example namespace (EC: `module Pedersen`)
 set_option linter.dupNamespace false
@@ -129,14 +127,14 @@ theorem proc_type_is_proc {sig : ProcedureSignature}
 /-- The procedure of a proc-typed module.  (`Classical.choose` only escapes the
     Prop-to-data restriction; the witness is unique — see `Module.procedure_spec` and
     `Module.procedure_proc`.) -/
-noncomputable def _root_.GaudisCrypt.Language.Modules.Module.procedure
+noncomputable def _root_.GaudisCrypt.Module.procedure
     {sig : ProcedureSignature} (m : Module (.proc sig)) : Procedure sig :=
   (proc_type_is_proc m.normal).choose
 
 omit [PedersenGroup] in
 /-- `Module.procedure` is characterized by its defining equation (the witness of
     `proc_type_is_proc` is unique by constructor injectivity). -/
-theorem _root_.GaudisCrypt.Language.Modules.Module.procedure_spec
+theorem _root_.GaudisCrypt.Module.procedure_spec
     {sig : ProcedureSignature} (m : Module (.proc sig)) :
     m.expression = .proc m.procedure :=
   (proc_type_is_proc m.normal).choose_spec
@@ -187,8 +185,8 @@ noncomputable def pedersenInst :
 
 /-- **The bridge**: the procedure of the applied functor module is the instantiated body. -/
 theorem Correctness_Pedersen_procedure :
-    (Correctness Pedersen).procedure = Correctness.main.instantiate pedersenInst := by
-  have hexp : (Correctness Pedersen).expression
+    (Module.app Correctness Pedersen).procedure = Correctness.main.instantiate pedersenInst := by
+  have hexp : (Module.app Correctness Pedersen).expression
       = .proc (Correctness.main.instantiate pedersenInst) := by
     change (ModuleExpression.toModule
         (.app Correctness.expression Pedersen.expression)).expression = _
@@ -197,7 +195,7 @@ theorem Correctness_Pedersen_procedure :
     have hP : Pedersen.expression
         = .pair (.proc Pedersen.gen)
             (.pair (.proc Pedersen.commit) (.proc Pedersen.verify)) := by
-      simp [Pedersen, CommitmentScheme.mk, Module.pair, reduce_pair]
+      simp [Pedersen, CommitmentScheme.mk, Module.pair', reduce_pair]
     -- Correctness's expression is literally its λ-term (the body is normal)
     have hC : Correctness.expression
         = .abs (.app (.procHoles (by trivial) Correctness.main)
@@ -218,7 +216,7 @@ theorem Correctness_Pedersen_procedure :
     refine Rewriting.Star.head (.appR (.pairR (.pairL .fstPair))) ?_
     refine Rewriting.Star.head (.appR (.pairR (.pairR (.pairL .fstPair)))) ?_
     exact Rewriting.Star.head (.delta pedersenInst) (Rewriting.Star.refl _)
-  have h2 := Module.procedure_spec (Correctness Pedersen)
+  have h2 := Module.procedure_spec (Module.app Correctness Pedersen)
   rw [hexp] at h2
   injection h2 with hΔ hsig h
   exact h.symm
@@ -276,7 +274,7 @@ set_option linter.flexible false in
     `hoare[Correctness(Pedersen).main : true ==> res]`: from any initial state, the
     correctness game never returns `false`. -/
 theorem pedersen_correctness (m : F) (σ : State) :
-    (procedureDenotation (Correctness Pedersen).procedure m σ).ofEvent
+    (procedureDenotation (Module.app Correctness Pedersen).procedure m σ).ofEvent
       {r : Bool × State | r.1 = false} = 0 := by
   rw [Correctness_Pedersen_procedure]
   -- reduce `ofEvent` to a `wp` with the indicator postcondition
