@@ -114,6 +114,15 @@ def Lens.intoVars {a : Type} {paramTypes : List Type}
     Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=
   ProcedureState.localL.chain (LocalVariableState.varsL.chain lens)
 
+/-- Local program variables are `Lens.intoVars` of their slot projections; distinct slots
+    are disjoint, and `intoVars` (two `chain` layers) preserves that. -/
+instance Programs.disjoint_intoVars {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple (locals.map (·.fst)))}
+    {y : Lens b (paramListToTuple (locals.map (·.fst)))} [disjoint x y] :
+    disjoint (Lens.intoVars (paramTypes := paramTypes) x) y.intoVars :=
+  Lens.disjoint_chain ProcedureState.localL _ _
+
 def ProcedureSignature.ParamType (sig : ProcedureSignature) := paramListToTuple sig.params
 
 private def localDefaults : (ls : List (Σ t : Type, Inhabited t)) → paramListToTuple (ls.map (·.fst))

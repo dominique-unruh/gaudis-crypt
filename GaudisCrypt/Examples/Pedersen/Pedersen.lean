@@ -122,7 +122,7 @@ theorem proc_type_is_proc {sig : ProcedureSignature}
     {m : ModuleExpression .empty (.proc sig)} (h : NormalClosed m) :
     ∃ p : Procedure sig, m = .proc p := by
   cases h with
-  | const => exact ⟨_, rfl⟩
+  | «proc» => exact ⟨_, rfl⟩
 
 /-- The procedure of a proc-typed module.  (`Classical.choose` only escapes the
     Prop-to-data restriction; the witness is unique — see `Module.procedure_spec` and
@@ -145,7 +145,7 @@ omit [PedersenGroup] in
     {sig : ProcedureSignature} (p : Procedure sig) :
     ((ModuleExpression.proc p).toModule).procedure = p := by
   have h1 : ((ModuleExpression.proc p).toModule).expression = .proc p :=
-    Module.reduce_expression ⟨.proc p, .const⟩
+    Module.reduce_expression ⟨.proc p, .proc⟩
   have h2 := Module.procedure_spec ((ModuleExpression.proc p).toModule)
   rw [h1] at h2
   injection h2 with hΔ hsig h

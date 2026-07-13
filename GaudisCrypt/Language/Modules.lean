@@ -146,16 +146,10 @@ def IsProcArgType : ModuleTypeRep → Prop
   | .prod (.proc _) rest => IsProcArgType rest
   | _ => False
 
--- TODO-CLAUDE inline this lemma
-omit [ProgramSpec] in
-lemma isProcArgType_procHolesArgType (holes : HoleSigs) :
-    IsProcArgType (holes.toModuleTypeRepTuple) :=
-  holes.rec trivial (fun _ _ ih => ih)
-
 lemma IsProcHoles.isProcArgType {Δ : ModuleContext} {A B : ModuleTypeRep}
     {f : ModuleExpression Δ (.arr A B)} (h : IsProcHoles f) : IsProcArgType A := by
   cases f with
-  | procHoles _ _ => exact isProcArgType_procHolesArgType _
+  | procHoles _ _ => rename_i holes _ _ _; exact holes.rec trivial (fun _ _ ih => ih)
   | abs _ => exact absurd h (by simp [IsProcHoles])
   | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcHoles])
 
@@ -272,9 +266,8 @@ instance (m : ModuleExpression Γ A) : Decidable (Neutral m) := (decidableNormal
     so this has fewer cases than `Normal`. The `abs` body is in a one-variable context
     and therefore still uses the general `Normal`. -/
 inductive NormalClosed : ModuleExpression .empty T → Prop where
--- TODO-CLAUDE rename const -> proc, constHoles -> procHoles
-  | const : NormalClosed (.proc p)
-  | constHoles : NormalClosed (.procHoles n p)
+  | proc : NormalClosed (.proc p)
+  | procHoles : NormalClosed (.procHoles n p)
   | abs {body : ModuleExpression (ModuleContext.append .empty A) B} :
                 Normal body → NormalClosed (.abs body)
   | pair {a : ModuleExpression .empty A} {b : ModuleExpression .empty B} :
@@ -332,16 +325,16 @@ lemma empty_context_not_neutral {T : ModuleTypeRep} {m : ModuleExpression .empty
 lemma Normal.normalClosed {T : ModuleTypeRep} {m : ModuleExpression .empty T} :
     Normal m → NormalClosed m
   | .neutral h  => absurd h empty_context_not_neutral
-  | .proc       => .const
-  | .procHoles  => .constHoles
+  | .proc       => .proc
+  | .procHoles  => .procHoles
   | .abs hb     => .abs hb
   | .pair ha hb => .pair ha.normalClosed hb.normalClosed
   | .unit       => .unit
 
 lemma NormalClosed.normal {T : ModuleTypeRep} {m : ModuleExpression .empty T} :
     NormalClosed m → Normal m
-  | .const      => .proc
-  | .constHoles => .procHoles
+  | .proc       => .proc
+  | .procHoles  => .procHoles
   | .abs hb     => .abs hb
   | .pair ha hb => .pair ha.normal hb.normal
   | .unit       => .unit

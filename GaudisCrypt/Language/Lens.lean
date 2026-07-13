@@ -150,6 +150,29 @@ instance disjoint3' [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] 
   intros
   simp [yz.commute, xz.commute]
 
+instance Lens.disjoint_ofst_osnd {a b m m' : Type*} (x : Lens a m) (y : Lens b m') :
+    disjoint (Lens.ofst (m' := m') x) (Lens.osnd (m' := m) y) :=
+  ⟨fun _ _ _ => rfl⟩
+
+instance Lens.disjoint_osnd_ofst {a b m m' : Type*} (x : Lens a m') (y : Lens b m) :
+    disjoint (Lens.osnd (m' := m) x) (Lens.ofst (m' := m') y) :=
+  ⟨fun _ _ _ => rfl⟩
+
+instance Lens.disjoint_chain {a₁ a₂ b c : Type*} (L : Lens b c) (x : Lens a₁ b) (y : Lens a₂ b)
+    [d : disjoint x y] : disjoint (L.chain x) (L.chain y) :=
+  ⟨fun s v w => by
+    change L.set (x.set v (L.get (L.set (y.set w (L.get s)) s))) (L.set (y.set w (L.get s)) s)
+       = L.set (y.set w (L.get (L.set (x.set v (L.get s)) s))) (L.set (x.set v (L.get s)) s)
+    rw [L.set_get, L.set_get, L.set_set, L.set_set, d.commute]⟩
+
+instance Lens.disjoint_ofst_ofst {a b m m' : Type*} (x : Lens a m) (y : Lens b m)
+    [disjoint x y] : disjoint (Lens.ofst (m' := m') x) (Lens.ofst (m' := m') y) :=
+  Lens.disjoint_chain Lens.fst x y
+
+instance Lens.disjoint_osnd_osnd {a b m m' : Type*} (x : Lens a m) (y : Lens b m)
+    [disjoint x y] : disjoint (Lens.osnd (m' := m') x) (Lens.osnd (m' := m') y) :=
+  Lens.disjoint_chain Lens.snd x y
+
 def Lens.id : Lens m m where
   get m := m
   set a _ := a
