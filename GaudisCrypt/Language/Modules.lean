@@ -479,6 +479,13 @@ theorem multiStepReduction_fst
   | refl => exact Rewriting.Star.refl _
   | tail _ hbc ih => exact Rewriting.Star.tail ih (.fst hbc)
 
+theorem multiStepReduction_snd
+    {e e' : ModuleExpression Γ (.prod A B)} (h : MultiStepReduction e e') :
+    MultiStepReduction (ModuleExpression.snd e) (ModuleExpression.snd e') := by
+  induction h with
+  | refl => exact Rewriting.Star.refl _
+  | tail _ hbc ih => exact Rewriting.Star.tail ih (.snd hbc)
+
 theorem multiStepReduction_pair
     {a a' : ModuleExpression Γ A} {b b' : ModuleExpression Γ B}
     (h1 : MultiStepReduction a a') (h2 : MultiStepReduction b b') :
@@ -1740,6 +1747,17 @@ theorem reduce_fst_cong (m m' : ModuleExpression Γ (.prod T U)) :
       (confluence multiStepReduction_reduce (multiStepReduction_fst multiStepReduction_reduce))
   rw [eq1, eq2, h]
 
+theorem reduce_snd_cong (m m' : ModuleExpression Γ (.prod T U)) :
+    reduce m = reduce m' → reduce (ModuleExpression.snd m) = reduce (ModuleExpression.snd m') := by
+  intro h
+  have eq1 : reduce (ModuleExpression.snd m) = reduce (ModuleExpression.snd (reduce m)) :=
+    (reduce_idempotent _).symm.trans
+      (confluence multiStepReduction_reduce (multiStepReduction_snd multiStepReduction_reduce))
+  have eq2 : reduce (ModuleExpression.snd m') = reduce (ModuleExpression.snd (reduce m')) :=
+    (reduce_idempotent _).symm.trans
+      (confluence multiStepReduction_reduce (multiStepReduction_snd multiStepReduction_reduce))
+  rw [eq1, eq2, h]
+
 
 theorem reduce_pair {T U} (m1 : ModuleExpression Γ T) (m2 : ModuleExpression Γ U) :
     reduce (ModuleExpression.pair m1 m2) = ModuleExpression.pair (reduce m1) (reduce m2) := by
@@ -1757,11 +1775,6 @@ theorem pair_type_is_pair {m : ModuleExpression _ (.prod t1 t2)} (_ : NormalClos
   rename_i h
   cases h
   exact ⟨_, _, rfl⟩
-
-theorem unit_type_is_unit {m : ModuleExpression .empty .unit} (_ : NormalClosed m) : m = .unit := by
-  rename_i h
-  cases h
-  rfl
 
 /- # Modules -/
 
@@ -1841,15 +1854,6 @@ theorem Module.pair_fst_snd' : (Module.fst' m).pair' (Module.snd' m) = m := by
 
 abbrev Module.Unit := Module .unit
 def Module.unit : Module .unit := ModuleExpression.unit.toModule
-
-theorem Module.unit_eq (x : Module .unit) : x = Module.unit := by
-  apply Module.ext
-  have h1 : x.expression = ModuleExpression.unit := unit_type_is_unit x.normal
-  have h2 : (Module.unit : Module .unit).expression = ModuleExpression.unit := by
-    change reduce ModuleExpression.unit = ModuleExpression.unit
-    unfold reduce
-    exact dif_pos Normal.unit
-  rw [h1, h2]
 
 class IsModule (T : Type _) where
   moduleTypeRep : ModuleTypeRep

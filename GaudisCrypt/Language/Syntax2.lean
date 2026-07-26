@@ -833,12 +833,8 @@ elab_rules : command
         | _ => throwUnsupportedSyntax
       -- the field/accessor types are `Module Tᵢ`
       let fts ← Ts.mapM fun T => `(Module $T)
-      -- right-nested product of the underlying types, reversed (last-declared field
-      -- outermost) and unit-terminated — matches `HoleSigs.toModuleTypeRepTuple`'s
-      -- convention, so a functor's `uses (...)` holes line up with a scheme's fields
-      -- without needing a rearrangement.
-      let unitT ← `(ModuleTypeRep.unit)
-      let prodT ← Ts.foldlM (fun acc T => `(ModuleTypeRep.prod $T $acc)) unitT
+      -- right-nested product of the underlying types
+      let prodT ← Ts.pop.foldrM (fun T acc => `(ModuleTypeRep.prod $T $acc)) Ts.back!
       -- generated names
       let nb := nm.getId
       let structId := mkIdent (nb.str "Structure")
@@ -856,19 +852,19 @@ elab_rules : command
       -- (2) the record structure
       elabCommand (← `(structure $structId where $[$fns:ident : $fts:term]*))
       -- (3) accessors: field `i` (0-indexed, declaration order) sits at depth `n-1-i`
-      -- from the outside (last-declared field is outermost); peel off `n-1-i` `snd'`s,
-      -- then one `fst'` to reach the field paired with the (possibly-unit) remainder.
+      -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last
       for i in [0:n] do
         let accId := accIds[i]!
         let ft := fts[i]!
         let mut e : Term := mId
-        for _ in [0:(n-1-i)] do e ← `(Module.snd' $e)
-        e ← `(Module.fst' $e)
+        for _ in [0:i] do e ← `(Module.snd' $e)
+        if i + 1 < n then e ← `(Module.fst' $e)
         elabCommand (← `(def $accId ($mId : $nm) : $ft := $e))
-      -- (4) constructor: right-nested `Module.pair'`, unit-terminated, last field outermost
-      let mut mkBody : Term ← `(Module.unit)
-      for i in [0:n] do
-        let pj := projId i
+      -- (4) constructor: right-nested `Module.pair`
+      let mut mkBody : Term ← `($(projId (n-1)) $sId)
+      for i in [0:n-1] do
+        let j := n - 2 - i
+        let pj := projId j
         mkBody ← `(Module.pair' ($pj $sId) $mkBody)
       elabCommand (← `(@[reducible] def $mkId ($sId : $structId) : $nm := $mkBody))
       -- (5) destructor
@@ -880,23 +876,9 @@ elab_rules : command
       let baseLemmas : Array Ident := #[mkId, structFn] ++ accIds
       elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "mk_destruct")) ($sId : $structId) :
           $structFn ($mkId $sId) = $sId := by simp [$[$baseLemmas:ident],*]))
-      -- `mkId (structFn m) = m` unfolds to the same unit-terminated `Module.pair'` chain as
-      -- `mkBody`, just built from the raw `snd'`-chain into `m` instead of from field
-      -- projections of `structFn m` (the two agree definitionally, field by field).  Plain
-      -- `simp` can't discover the hidden unit at the bottom (it never appears as a
-      -- subterm to rewrite), so the proof term is built explicitly, mirroring (4)'s loop:
-      -- start from the base case `Module.unit = snd'^n m` (via `Module.unit_eq`), then
-      -- peel one `snd'` layer per field via `Module.pair_fst_snd'`, outermost field last.
-      let mut tails : Array Term := #[mId]
-      for _ in [0:n] do
-        tails := tails.push (← `(Module.snd' $(tails.back!)))
-      let mut destructProof : Term ← `((Module.unit_eq $(tails[n]!)).symm)
-      for i in [0:n] do
-        let tailK := tails[n - 1 - i]!
-        destructProof ← `((congrArg (Module.pair' (Module.fst' $tailK)) $destructProof).trans
-          (Module.pair_fst_snd' (m := $tailK)))
+      let dmLemmas : Array Ident := baseLemmas.push (mkIdent `Module.pair_fst_snd')
       elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "destruct_mk")) ($mId : $nm) :
-          $mkId ($structFn $mId) = $mId := $destructProof))
+          $mkId ($structFn $mId) = $mId := by simp [$[$dmLemmas:ident],*]))
 
 namespace Experiment
 variable [ProgramSpec]

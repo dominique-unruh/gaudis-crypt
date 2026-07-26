@@ -189,31 +189,50 @@ theorem proc1_proc2 : @Module.procedure = @Module.procedure2 := by
   funext inst sig m
   exact (t1 (Module.procedure_spec m)).symm
 
+/-- Proves `Normal r` for any rearrangement `r` built purely from `.pair`/`.fst`/`.snd`/`.var`/
+    `.unit` (no `.app`/`.abs`/`.proc`/`.procHoles`): such a proof is fully determined by `r`'s
+    own syntax, so it never needs to be hand-mirrored alongside `r` at each call site. -/
+macro "normal_proj" : tactic =>
+  `(tactic| repeat first
+    | exact Normal.unit
+    | apply Normal.pair
+    | exact Neutral.var
+    | apply Normal.neutral
+    | apply Neutral.fst
+    | apply Neutral.snd)
+
 omit [PedersenGroup] in
-/-- **Functor-generic bridge**: applying *any* functor of the identity-rearrangement shape
-    `(ModuleExpression.abs (.app (.procHoles ne main) (.var .zero))).toModule` — i.e. one
-    whose `uses (...)` holes are declared in the same order as its parameter module's
-    fields, so no fst/snd/pair rearrangement is needed — to a scheme `S` whose expression is
-    a ground proc-tuple `inst.toModuleTuple` reduces to `main.instantiate inst`.  Not tied to
-    `Correctness`/`CommitmentScheme`/`Pedersen` at all: generic over the hole signature and
-    the procedure-with-holes body. -/
-theorem functorApp_procedure {holes : HoleSigs} {sig : ProcedureSignature}
+/-- **Functor-generic bridge**: applying a functor `(ModuleExpression.abs (.app (.procHoles ne
+    main) r)).toModule` — for *any* rearrangement term `r` connecting the functor's parameter
+    to `main`'s holes — to a scheme `S` reduces to `main.instantiate inst`, given that
+    substituting `S`'s expression into `r` reduces to `inst.toModuleTuple`.  The rearrangement
+    `r` (how a scheme's named fields map onto a functor's holes) stays genuinely per-functor
+    content: a scheme's raw representation is never sound to feed directly as a
+    procedure-with-holes argument, so `r` and its correctness (`hSr`) are supplied by the
+    caller, not assumed to be the identity. Everything past that — the β/δ-reduction to
+    `main.instantiate inst` — is fully generic over the hole signature and procedure body.
+    `r` is implicit: once a functor's own definition is unfolded (`simp [Correctness]` or
+    similar) the goal already pins it down by unification, so callers never retype it. -/
+theorem functorApp_procedure {A : ModuleTypeRep} {holes : HoleSigs} {sig : ProcedureSignature}
     (ne : holes.NonEmpty) (main : ProcedureWithHoles holes sig)
-    {S : Module holes.toModuleTypeRepTuple} {inst : holes.Instantiation}
-    (hS : S.expression = inst.toModuleTuple) :
+    {r : ModuleExpression (ModuleContext.empty.append A) holes.toModuleTypeRepTuple}
+    (hr : Normal r) (hrpt : ¬ IsProcTuple r)
+    {S : Module A} {inst : holes.Instantiation}
+    (hSr : reduce (substitute r S.expression) = inst.toModuleTuple) :
     (Module.app'
-        ((ModuleExpression.abs (.app (.procHoles ne main) (.var .zero))).toModule) S).procedure
+        ((ModuleExpression.abs (.app (.procHoles ne main) r)).toModule) S).procedure
       = main.instantiate inst := by
   simp only [Module.app', proc1_proc2]
   apply t1
   simp only [Module.toModule_expression]
-  have hC : reduce (ModuleExpression.abs (.app (.procHoles ne main) (.var .zero)) :
+  have hC : reduce (ModuleExpression.abs (.app (.procHoles ne main) r) :
         ModuleExpression .empty _)
-      = .abs (.app (.procHoles ne main) (.var .zero)) := by
-    refine reduce_of_normal (.abs (.neutral (.appProcHoles trivial ?_ ?_)))
-    · exact .neutral .var
-    · simp [IsProcTuple]
-  rw [hC, hS, reduce_beta]
+      = .abs (.app (.procHoles ne main) r) :=
+    reduce_of_normal (.abs (.neutral (.appProcHoles trivial hr hrpt)))
+  rw [hC, reduce_beta]
+  change reduce (ModuleExpression.app (ModuleExpression.procHoles ne main)
+    (substitute r S.expression)) = _
+  rw [reduce_app, reduce_of_normal Normal.procHoles, hSr]
   exact Eq.trans (confluence (Rewriting.Star.refl _)
     (.head (.delta inst) (.refl _))) (reduce_proc _)
 
@@ -234,15 +253,34 @@ noncomputable def pedersenInst :
     pedersenInst (HoleIndex.succ (HoleIndex.succ HoleIndex.zero)) = Pedersen.gen := rfl
 
 /-- **The bridge**: the procedure of the applied functor module is the instantiated body —
-    a corollary of `functorApp_procedure`. `Correctness`'s functor parameter is the identity
-    (verified by `simp [Correctness]` unfolding to that exact shape); the only Pedersen-
-    specific content is `Pedersen.expression`'s tuple, `pedersenInst.toModuleTuple`. -/
+    a corollary of `functorApp_procedure`. `Correctness`'s rearrangement (`gen`/`commit`/
+    `verify` extracted from the scheme parameter by hand, in the order `Correctness.main`'s
+    holes expect) is genuinely per-functor content; the only Pedersen-specific piece beyond
+    that is `hS`, unfolding `Pedersen.expression` to its packed procedure tuple. -/
 theorem Correctness_Pedersen_procedure :
     (Module.app Correctness Pedersen).procedure = Correctness.main.instantiate pedersenInst := by
   simp only [Module.app, Module.Arr, Correctness]
-  exact functorApp_procedure (by trivial) Correctness.main (S := Pedersen) (inst := pedersenInst)
-    (by simp [Pedersen, CommitmentScheme.mk, Module.pair', Module.unit, reduce_pair,
-      HoleSigs.Instantiation.toModuleTuple])
+  refine functorApp_procedure (by trivial) Correctness.main
+    (hr := by normal_proj) (hrpt := by simp [IsProcTuple]) (S := Pedersen) (inst := pedersenInst)
+    ?_
+  have hS : Pedersen.expression =
+      .pair (.proc Pedersen.gen) (.pair (.proc Pedersen.commit) (.proc Pedersen.verify)) := by
+    simp [Pedersen, CommitmentScheme.mk, Module.pair', reduce_pair]
+  have hVerify : reduce (ModuleExpression.snd (ModuleExpression.snd Pedersen.expression))
+      = .proc Pedersen.verify := by
+    rw [reduce_snd_cong _ (.pair (.proc Pedersen.commit) (.proc Pedersen.verify))
+      (by rw [hS]; simp)]
+    simp
+  have hCommit : reduce (ModuleExpression.fst (ModuleExpression.snd Pedersen.expression))
+      = .proc Pedersen.commit := by
+    rw [reduce_fst_cong _ (.pair (.proc Pedersen.commit) (.proc Pedersen.verify))
+      (by rw [hS]; simp)]
+    simp
+  have hGen : reduce (ModuleExpression.fst Pedersen.expression) = .proc Pedersen.gen := by
+    rw [hS]; simp
+  simp only [substitute, substituteSimultaneously, variableSubstitution]
+  rw [reduce_pair, hVerify, reduce_pair, hCommit, reduce_pair, hGen, reduce_unit]
+  simp [HoleSigs.Instantiation.toModuleTuple]
 
 /-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure) -/
 
