@@ -189,6 +189,34 @@ theorem proc1_proc2 : @Module.procedure = @Module.procedure2 := by
   funext inst sig m
   exact (t1 (Module.procedure_spec m)).symm
 
+omit [PedersenGroup] in
+/-- **Functor-generic bridge**: applying *any* functor of the identity-rearrangement shape
+    `(ModuleExpression.abs (.app (.procHoles ne main) (.var .zero))).toModule` — i.e. one
+    whose `uses (...)` holes are declared in the same order as its parameter module's
+    fields, so no fst/snd/pair rearrangement is needed — to a scheme `S` whose expression is
+    a ground proc-tuple `inst.toModuleTuple` reduces to `main.instantiate inst`.  Not tied to
+    `Correctness`/`CommitmentScheme`/`Pedersen` at all: generic over the hole signature and
+    the procedure-with-holes body. -/
+theorem functorApp_procedure {holes : HoleSigs} {sig : ProcedureSignature}
+    (ne : holes.NonEmpty) (main : ProcedureWithHoles holes sig)
+    {S : Module holes.toModuleTypeRepTuple} {inst : holes.Instantiation}
+    (hS : S.expression = inst.toModuleTuple) :
+    (Module.app'
+        ((ModuleExpression.abs (.app (.procHoles ne main) (.var .zero))).toModule) S).procedure
+      = main.instantiate inst := by
+  simp only [Module.app', proc1_proc2]
+  apply t1
+  simp only [Module.toModule_expression]
+  have hC : reduce (ModuleExpression.abs (.app (.procHoles ne main) (.var .zero)) :
+        ModuleExpression .empty _)
+      = .abs (.app (.procHoles ne main) (.var .zero)) := by
+    refine reduce_of_normal (.abs (.neutral (.appProcHoles trivial ?_ ?_)))
+    · exact .neutral .var
+    · simp [IsProcTuple]
+  rw [hC, hS, reduce_beta]
+  exact Eq.trans (confluence (Rewriting.Star.refl _)
+    (.head (.delta inst) (.refl _))) (reduce_proc _)
+
 /-- The instantiation of `Correctness.main`'s holes by Pedersen's procedures.
     (`HoleIndex` counts from the *last-declared* hole: `.zero` is `verify`.) -/
 noncomputable def pedersenInst :
@@ -205,29 +233,16 @@ noncomputable def pedersenInst :
 @[simp] theorem pedersenInst_two :
     pedersenInst (HoleIndex.succ (HoleIndex.succ HoleIndex.zero)) = Pedersen.gen := rfl
 
-/-- **The bridge**: the procedure of the applied functor module is the instantiated body.
-    `CommitmentScheme`'s fields and `Correctness.main`'s holes share one convention
-    (last-declared outermost, unit-terminated), so `Correctness`'s functor parameter is the
-    identity and `Pedersen.expression`'s tuple is literally `pedersenInst.toModuleTuple` —
-    no rearrangement needed, straight to the δ-reduction. -/
+/-- **The bridge**: the procedure of the applied functor module is the instantiated body —
+    a corollary of `functorApp_procedure`. `Correctness`'s functor parameter is the identity
+    (verified by `simp [Correctness]` unfolding to that exact shape); the only Pedersen-
+    specific content is `Pedersen.expression`'s tuple, `pedersenInst.toModuleTuple`. -/
 theorem Correctness_Pedersen_procedure :
     (Module.app Correctness Pedersen).procedure = Correctness.main.instantiate pedersenInst := by
-  simp [Module.app, Module.app', ModuleExpression.toModule, proc1_proc2, Correctness]
-  apply t1
-  change (ModuleExpression.toModule
-    (.app Correctness.expression Pedersen.expression)).expression = _
-  rw [Module.toModule_expression]
-  have hC : Correctness.expression
-      = .abs (.app (.procHoles (by trivial) Correctness.main) (.var .zero)) := by
-    refine reduce_of_normal (.abs (.neutral (.appProcHoles trivial ?_ ?_)))
-    · exact .neutral .var
-    · simp [IsProcTuple]
-  have hS : Pedersen.expression = .pair (.proc Pedersen.verify)
-      (.pair (.proc Pedersen.commit) (.pair (.proc Pedersen.gen) .unit)) := by
-    simp [Pedersen, CommitmentScheme.mk, Module.pair', Module.unit, reduce_pair]
-  rw [hC, hS, reduce_beta]
-  exact Eq.trans (confluence (Rewriting.Star.refl _)
-    (.head (.delta pedersenInst) (.refl _))) (reduce_proc _)
+  simp only [Module.app, Module.Arr, Correctness]
+  exact functorApp_procedure (by trivial) Correctness.main (S := Pedersen) (inst := pedersenInst)
+    (by simp [Pedersen, CommitmentScheme.mk, Module.pair', Module.unit, reduce_pair,
+      HoleSigs.Instantiation.toModuleTuple])
 
 /-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure) -/
 
