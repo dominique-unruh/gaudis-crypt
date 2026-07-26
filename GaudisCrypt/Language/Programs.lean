@@ -145,7 +145,7 @@ def HoleSigs.length : HoleSigs → Nat
   | .empty => 0
   | .append h _ => h.length.succ
 
-def HoleSigs.NonEmpty : HoleSigs → Prop
+@[reducible] def HoleSigs.NonEmpty : HoleSigs → Prop
 | .empty => False
 | _ => True
 

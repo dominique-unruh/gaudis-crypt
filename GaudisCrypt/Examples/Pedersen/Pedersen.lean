@@ -131,6 +131,12 @@ noncomputable def _root_.GaudisCrypt.Module.procedure
     {sig : ProcedureSignature} (m : Module (.proc sig)) : Procedure sig :=
   (proc_type_is_proc m.normal).choose
 
+noncomputable def _root_.GaudisCrypt.Module.procedure2
+    {sig : ProcedureSignature} (m : Module (.proc sig)) : Procedure sig :=
+    match m.expression with
+    | .proc p => p
+    | _ => False.elim sorry
+
 omit [PedersenGroup] in
 /-- `Module.procedure` is characterized by its defining equation (the witness of
     `proc_type_is_proc` is unique by constructor injectivity). -/
@@ -167,6 +173,22 @@ omit [PedersenGroup] in
     reduce (ModuleExpression.proc p : ModuleExpression Γ _) = .proc p :=
   reduce_of_normal .proc
 
+omit [PedersenGroup] in
+@[simp] theorem reduce_unit {Γ : ModuleContext} :
+    reduce (ModuleExpression.unit : ModuleExpression Γ .unit) = .unit :=
+  reduce_of_normal .unit
+
+omit [PedersenGroup] in
+theorem t1 {sig : ProcedureSignature} {m : Module (.proc sig)} {p : Procedure sig}
+    (h : m.expression = .proc p) : Module.procedure2 m = p := by
+  unfold Module.procedure2
+  simp [h]
+
+omit [PedersenGroup] [ProgramSpec] in
+theorem proc1_proc2 : @Module.procedure = @Module.procedure2 := by
+  funext inst sig m
+  exact (t1 (Module.procedure_spec m)).symm
+
 /-- The instantiation of `Correctness.main`'s holes by Pedersen's procedures.
     (`HoleIndex` counts from the *last-declared* hole: `.zero` is `verify`.) -/
 noncomputable def pedersenInst :
@@ -183,43 +205,29 @@ noncomputable def pedersenInst :
 @[simp] theorem pedersenInst_two :
     pedersenInst (HoleIndex.succ (HoleIndex.succ HoleIndex.zero)) = Pedersen.gen := rfl
 
-/-- **The bridge**: the procedure of the applied functor module is the instantiated body. -/
+/-- **The bridge**: the procedure of the applied functor module is the instantiated body.
+    `CommitmentScheme`'s fields and `Correctness.main`'s holes share one convention
+    (last-declared outermost, unit-terminated), so `Correctness`'s functor parameter is the
+    identity and `Pedersen.expression`'s tuple is literally `pedersenInst.toModuleTuple` —
+    no rearrangement needed, straight to the δ-reduction. -/
 theorem Correctness_Pedersen_procedure :
     (Module.app Correctness Pedersen).procedure = Correctness.main.instantiate pedersenInst := by
-  have hexp : (Module.app Correctness Pedersen).expression
-      = .proc (Correctness.main.instantiate pedersenInst) := by
-    change (ModuleExpression.toModule
-        (.app Correctness.expression Pedersen.expression)).expression = _
-    rw [Module.toModule_expression]
-    -- Pedersen's expression is the ground pair of its three procedures
-    have hP : Pedersen.expression
-        = .pair (.proc Pedersen.gen)
-            (.pair (.proc Pedersen.commit) (.proc Pedersen.verify)) := by
-      simp [Pedersen, CommitmentScheme.mk, Module.pair', reduce_pair]
-    -- Correctness's expression is literally its λ-term (the body is normal)
-    have hC : Correctness.expression
-        = .abs (.app (.procHoles (by trivial) Correctness.main)
-            (.pair (.snd (.snd (.var .zero)))
-              (.pair (.fst (.snd (.var .zero)))
-                (.pair (.fst (.var .zero)) .unit)))) := by
-      refine reduce_of_normal (.abs (.neutral (.appProcHoles trivial ?_ ?_)))
-      · exact .pair (.neutral (.snd (.snd .var)))
-          (.pair (.neutral (.fst (.snd .var)))
-            (.pair (.neutral (.fst .var)) .unit))
-      · simp [IsProcTuple]
-    rw [hC, hP, reduce_beta]
-    -- the substitution computes by whnf; one explicit reduction chain into `confluence`
-    refine Eq.trans (confluence (Rewriting.Star.refl _) ?_) (reduce_proc _)
-    refine Rewriting.Star.head (.appR (.pairL (.snd .sndPair))) ?_
-    refine Rewriting.Star.head (.appR (.pairL .sndPair)) ?_
-    refine Rewriting.Star.head (.appR (.pairR (.pairL (.fst .sndPair)))) ?_
-    refine Rewriting.Star.head (.appR (.pairR (.pairL .fstPair))) ?_
-    refine Rewriting.Star.head (.appR (.pairR (.pairR (.pairL .fstPair)))) ?_
-    exact Rewriting.Star.head (.delta pedersenInst) (Rewriting.Star.refl _)
-  have h2 := Module.procedure_spec (Module.app Correctness Pedersen)
-  rw [hexp] at h2
-  injection h2 with hΔ hsig h
-  exact h.symm
+  simp [Module.app, Module.app', ModuleExpression.toModule, proc1_proc2, Correctness]
+  apply t1
+  change (ModuleExpression.toModule
+    (.app Correctness.expression Pedersen.expression)).expression = _
+  rw [Module.toModule_expression]
+  have hC : Correctness.expression
+      = .abs (.app (.procHoles (by trivial) Correctness.main) (.var .zero)) := by
+    refine reduce_of_normal (.abs (.neutral (.appProcHoles trivial ?_ ?_)))
+    · exact .neutral .var
+    · simp [IsProcTuple]
+  have hS : Pedersen.expression = .pair (.proc Pedersen.verify)
+      (.pair (.proc Pedersen.commit) (.pair (.proc Pedersen.gen) .unit)) := by
+    simp [Pedersen, CommitmentScheme.mk, Module.pair', Module.unit, reduce_pair]
+  rw [hC, hS, reduce_beta]
+  exact Eq.trans (confluence (Rewriting.Star.refl _)
+    (.head (.delta pedersenInst) (.refl _))) (reduce_proc _)
 
 /-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure) -/
 

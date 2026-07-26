@@ -34,7 +34,7 @@ def ModuleContextIdx.toNat : ModuleContextIdx Γ T → Nat
 | .zero => 0
 | .succ n => Nat.succ (n.toNat)
 
-def _root_.GaudisCrypt.HoleSigs.toModuleTypeRepTuple : HoleSigs → ModuleTypeRep
+@[reducible] def _root_.GaudisCrypt.HoleSigs.toModuleTypeRepTuple : HoleSigs → ModuleTypeRep
 | .empty => .unit
 | .append holes sig => .prod (.proc sig) holes.toModuleTypeRepTuple
 
@@ -1758,6 +1758,11 @@ theorem pair_type_is_pair {m : ModuleExpression _ (.prod t1 t2)} (_ : NormalClos
   cases h
   exact ⟨_, _, rfl⟩
 
+theorem unit_type_is_unit {m : ModuleExpression .empty .unit} (_ : NormalClosed m) : m = .unit := by
+  rename_i h
+  cases h
+  rfl
+
 /- # Modules -/
 
 structure Module (T : ModuleTypeRep) where
@@ -1837,6 +1842,15 @@ theorem Module.pair_fst_snd' : (Module.fst' m).pair' (Module.snd' m) = m := by
 abbrev Module.Unit := Module .unit
 def Module.unit : Module .unit := ModuleExpression.unit.toModule
 
+theorem Module.unit_eq (x : Module .unit) : x = Module.unit := by
+  apply Module.ext
+  have h1 : x.expression = ModuleExpression.unit := unit_type_is_unit x.normal
+  have h2 : (Module.unit : Module .unit).expression = ModuleExpression.unit := by
+    change reduce ModuleExpression.unit = ModuleExpression.unit
+    unfold reduce
+    exact dif_pos Normal.unit
+  rw [h1, h2]
+
 class IsModule (T : Type _) where
   moduleTypeRep : ModuleTypeRep
   isModule : T = Module moduleTypeRep
@@ -1846,7 +1860,7 @@ instance : IsModule (Module t) where
   moduleTypeRep := t
   isModule := rfl
 
-def Module.moduleTypeRep (T : Type _) [inst : IsModule T] := inst.moduleTypeRep
+@[reducible] def Module.moduleTypeRep (T : Type _) [inst : IsModule T] := inst.moduleTypeRep
 
 def Module.cast (T : Type _) [inst : IsModule T] (m : T) : Module (Module.moduleTypeRep T) :=
   inst.isModule ▸ m
@@ -1874,7 +1888,6 @@ theorem Module.cast_app [IsModule M] [IsModule N] (a : Module.Arr M N) (b : M) :
       = Module.app' (Module.cast (Module.Arr M N) a) (Module.cast M b) := by
   unfold Module.cast Module.app
   simp only [eqRec_eq_cast, cast_cast, cast_eq]
-  rfl
 
 def Module.Prod (M : Type _) (N : Type _) [IsModule M] [IsModule N] : Type _ :=
   Module (ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N))
