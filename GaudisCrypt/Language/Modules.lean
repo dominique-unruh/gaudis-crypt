@@ -1839,7 +1839,7 @@ def Module.unit : Module .unit := ModuleExpression.unit.toModule
 
 class IsModule (T : Type _) where
   moduleTypeRep : ModuleTypeRep
-  isModule : T = Module moduleTypeRep
+  isModule : T = Module moduleTypeRep := by rfl
 
 @[reducible]
 instance : IsModule (Module t) where
@@ -1860,6 +1860,12 @@ def Module.Arr (M : Type _) (N : Type _) [IsModule M] [IsModule N] : Type _ :=
 instance (M : Type _) (N : Type _) [IsModule M] [IsModule N] : IsModule (Module.Arr M N) where
   moduleTypeRep := ModuleTypeRep.arr (Module.moduleTypeRep M) (Module.moduleTypeRep N)
   isModule := rfl
+
+def Module.Proc (sig : ProcedureSignature) : Type _ :=
+  Module (ModuleTypeRep.proc sig)
+
+instance {sig} : IsModule (Module.Proc sig) where
+  moduleTypeRep := ModuleTypeRep.proc sig
 
 def Module.app' (m : Module (.arr A B)) (m' : Module A) :=
   (m.expression.app m'.expression).toModule
@@ -1926,32 +1932,33 @@ theorem Module.pair_fst_snd {M N : Type max 1 u} [IsModule M] [IsModule N] (m : 
 section Demo
 
 axiom sig : ProcedureSignature
-def TestModuleTypeRep := Module (ModuleTypeRep.prod (ModuleTypeRep.proc sig) (ModuleTypeRep.proc sig))
+def TestModule := Module (ModuleTypeRep.prod (ModuleTypeRep.proc sig) (ModuleTypeRep.proc sig))
 
 noncomputable
-def TestModuleTypeRep.main (m : TestModuleTypeRep) : Module (ModuleTypeRep.proc sig) := m.fst'
+def TestModule.main (m : TestModule) : Module (ModuleTypeRep.proc sig) := m.fst'
 noncomputable
-def TestModuleTypeRep.aux (m : TestModuleTypeRep) : Module (ModuleTypeRep.proc sig) := m.snd'
+def TestModule.aux (m : TestModule) : Module (ModuleTypeRep.proc sig) := m.snd'
 
-structure TestModuleTypeRepStruct where
+structure TestModuleStruct where
   main : Module (ModuleTypeRep.proc sig)
   aux : Module (ModuleTypeRep.proc sig)
 
 noncomputable
-def TestModuleTypeRepStruct.destruct (str : TestModuleTypeRepStruct) : TestModuleTypeRep :=
+def TestModuleStruct.destruct (str : TestModuleStruct) : TestModule :=
   str.main.pair' str.aux
 
 noncomputable
-def TestModuleTypeRep.mk (str : TestModuleTypeRepStruct) : TestModuleTypeRep := str.main.pair' str.aux
+def TestModule.mk (str : TestModuleStruct) : TestModule := str.main.pair' str.aux
 
 axiom testMain : Module (ModuleTypeRep.proc sig)
 axiom testAux : Module (ModuleTypeRep.proc sig)
 
 noncomputable
-def myMod := TestModuleTypeRep.mk {main := testMain, aux := testAux}
+def myMod := TestModule.mk {main := testMain, aux := testAux}
 
 theorem test : myMod.main = testMain := by
-  simp [TestModuleTypeRep.main, myMod, TestModuleTypeRep.mk]
+  simp [TestModule.main, myMod, TestModule.mk]
+
 
 end Demo
 

@@ -896,11 +896,15 @@ moduletype TestModuleTypeRep {
 
 -/
 
-moduletype TestModuleTypeRep {
+moduletype TestModule {
   -- module main : ModuleTypeRep.proc (procsig (String, Nat) -> Bool);
   proc main (String, Nat) -> Bool;
   module aux : procmod (Nat) -> String →ₘ .unit;
 }
+
+-- TODO Auto-implement this
+instance : IsModule TestModule where
+  moduleTypeRep := TestModule.typeRep
 
 /- ### `ModuleTypeRep` concrete syntax (`procmod`/`.proc`, `×` overloaded, `→ₘ` arrow, `.unit`)
 
@@ -943,10 +947,52 @@ axiom testMain : Module (procmod (String, Nat) -> Bool)
 axiom testAux : Module (procmod (Nat) -> String →ₘ .unit)
 
 noncomputable
-def myMod := TestModuleTypeRep.mk {main := testMain, aux := testAux}
+def myMod := TestModule.mk {main := testMain, aux := testAux}
 
 theorem test : myMod.main = testMain := by
-  simp [TestModuleTypeRep.main, myMod]
+  simp [TestModule.main, myMod]
+
+moduletype M2 {
+  proc g() -> Unit;
+  proc h() -> Unit;
+}
+
+
+/-
+module X(A : Module.Arr TestModule (procmod () → Unit), B : TestModule) : M2 {
+  proc g() : Unit = {
+    _ <- call (A(myMod)) ();
+    _ <- call (myMod.main)  ("hello", 5);
+    return ();
+  };
+  proc h() : Unit = {
+    return ();
+  };
+}
+
+-- Should convert to:
+
+def X.g : Module.Arr
+  (Module.Prod (Module.Arr TestModule (Module (procmod () → Unit))) TestModule)
+  (Module.Proc (procsig () -> Unit)) :=
+
+  proc () : Unit {
+    return ();
+  }
+
+def
+
+  (proc () : Unit {
+    _ <- call (A(myMod)) ();
+    _ <- call (myMod.main)  ("hello", 5);
+  })
+
+
+def X : Module.Arr (Module.Prod (Arr TestModule (procmod () → Unit)) TestModule) M2 :=
+
+ -/
+
+
 
 end Experiment
 
