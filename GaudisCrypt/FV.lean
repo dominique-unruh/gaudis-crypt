@@ -17,6 +17,7 @@ read or modify, together with the soundness bound `fvP (m.toModule) ≤ fvPMexpr
 -/
 
 namespace GaudisCrypt
+open GaudisCrypt.UM
 
 
 /-! # fvP_extend_sup -/
@@ -300,7 +301,7 @@ def fvpInductiveFunctionGS : InductiveFunctionGettersSetters Footprint where
   extend := Lens.liftFootprint
 
 noncomputable
-def fvPMexpr {ctx t} (m : ModuleExpression ctx t) : (Footprint State) :=
+def fvPMexpr (m : ModuleExpression) : (Footprint State) :=
   fvpInductiveFunctionGS.evalMexpr m
 
 noncomputable
@@ -326,8 +327,9 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   extend_mono := fun lens h => Lens.liftFootprint_mono lens h
 
 
-theorem fvPMexpr_upper_bound : fvP (m.toModule) ≤ fvPMexpr m :=
-  evalMexpr_upper_bound fvpInductiveFunctionGS.inductiveFunction m
+theorem fvPMexpr_upper_bound {mt} {m : ModuleExpression} (h : m.Typed .empty mt) :
+    fvP (m.toModule h) ≤ fvPMexpr m :=
+  evalMexpr_upper_bound fvpInductiveFunctionGS.inductiveFunction m h
 
 theorem fvP_app [IsModule A] [IsModule B] (a : Module.Arr A B) (b : A) :
     fvP (Module.app a b) ≤ fvP a ⊔ fvP b :=

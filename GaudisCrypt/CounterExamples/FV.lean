@@ -7,6 +7,7 @@ import GaudisCrypt.Attic.DetermFootprint
 import GaudisCrypt.Attic.ProgramRange
 
 open GaudisCrypt
+open GaudisCrypt.UM
 
 namespace FV
 
@@ -122,7 +123,7 @@ def fvInductiveFunctionGS : InductiveFunctionGettersSetters DetermFootprint wher
   extend := fv_extend
 
 noncomputable
-def fvMexpr {ctx t} (m : ModuleExpression ctx t) : (DetermFootprint State) := fvInductiveFunctionGS.evalMexpr m
+def fvMexpr (m : ModuleExpression) : (DetermFootprint State) := fvInductiveFunctionGS.evalMexpr m
 
 noncomputable
 def fv (m : Module t) : FV := fvInductiveFunctionGS.eval m
@@ -155,8 +156,9 @@ scoped instance : ReducibleGettersSetters fvInductiveFunctionGS where
       _ = fv_extend lens r2 := by rw [sup_eq_right.mpr h]
 
 
-theorem fvMexpr_upper_bound : fv (m.toModule) ≤ fvMexpr m :=
-  evalMexpr_upper_bound fvInductiveFunctionGS.inductiveFunction m
+theorem fvMexpr_upper_bound {t} {m : ModuleExpression} (h : m.Typed .empty t) :
+    fv (m.toModule h) ≤ fvMexpr m :=
+  evalMexpr_upper_bound fvInductiveFunctionGS.inductiveFunction m h
 
 theorem fv_app (a : Module (.arr A B)) (b : Module A) :
     fv (.app' a b) ≤ fv a ⊔ fv b :=

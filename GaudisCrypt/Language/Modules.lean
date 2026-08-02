@@ -4,7 +4,7 @@ import GaudisCrypt.Language.Programs
 import Metatheory.STLCext.Normalization
 import Metatheory.STLCext.Confluence
 
-namespace GaudisCrypt
+namespace GaudisCrypt.TM
 
 open GaudisCrypt
 
@@ -1962,4 +1962,4 @@ theorem test : myMod.main = testMain := by
 
 end Demo
 
-end GaudisCrypt
+end GaudisCrypt.TM

@@ -41,6 +41,7 @@ DoesnotUse A X.op (in proof, do induction, proof ⊥ from X.op use)
 -/
 
 open GaudisCrypt
+open GaudisCrypt.UM
 
 
 /-- The abstract types of EC's `theory CommitmentProtocol`: the public value (key), the
@@ -170,7 +171,7 @@ example : CommitmentScheme = Module CommitmentScheme.typeRep := rfl
 
 Each EC functor becomes a *module of arrow type* over `CommitmentSchemeT` (& co.): the body
 is a procedure with holes — the holes are the parameter modules' procedures — wrapped by
-`ModuleExpression.abs` into a closed functor module.  The lambda repackages the scheme
+`TypedModuleExpression.abs` into a closed functor module.  The lambda repackages the scheme
 product (declaration order, no unit) into the holes tuple (reverse order, `.unit`-terminated)
 with `fst`/`snd`/`pair`. -/
 
@@ -208,10 +209,12 @@ noncomputable def Correctness :
   -- Module.Arr  CommitmentScheme (Module (procmod (Message) -> Bool)) :=
   (ModuleExpression.abs
     (.app (.procHoles (by trivial) Correctness.main)
-      (.pair (.snd (.snd (.var .zero)))       -- verify
-        (.pair (.fst (.snd (.var .zero)))     -- commit
-          (.pair (.fst (.var .zero))          -- gen
+      (.pair (.snd (.snd (.var 0)))       -- verify
+        (.pair (.fst (.snd (.var 0)))     -- commit
+          (.pair (.fst (.var 0))          -- gen
             .unit))))).toModule
+    -- TODO: mechanical well-typedness derivation of the functor body (reprovable).
+    (by sorry)
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
 noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=

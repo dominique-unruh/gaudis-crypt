@@ -1,6 +1,8 @@
 import GaudisCrypt.Language.Modules
+import GaudisCrypt.Language.Modules2
 
 open GaudisCrypt
+open GaudisCrypt.UM
 
 namespace GaudisCrypt
 
@@ -35,8 +37,8 @@ def InductiveFunction.evalInstantiationFold {t : Type _} (ind : InductiveFunctio
     (fun p acc => ind.join (ind.proc p.2) acc)
     ind.nothing
 
-def InductiveFunction.evalMexpr {t mctx mt} (ind : InductiveFunction t)
-  (m : ModuleExpression mctx mt) : t := match m with
+def InductiveFunction.evalMexpr {t} (ind : InductiveFunction t)
+  (m : ModuleExpression) : t := match m with
   | .proc p => ind.proc p
   | .procHoles _ p => ind.proc p
   | .var _ => ind.nothing
@@ -48,26 +50,25 @@ def InductiveFunction.evalMexpr {t mctx mt} (ind : InductiveFunction t)
   | .unit => ind.nothing
 
 lemma InductiveFunction.evalMexpr_rename {t : Type _} (ind : InductiveFunction t)
-    {Δ Γ : ModuleContext} {T : ModuleTypeRep} (m : ModuleExpression Δ T)
-    (ρ : ∀ {T}, ModuleContextIdx Δ T → ModuleContextIdx Γ T) :
+    (m : ModuleExpression) (ρ : Nat → Nat) :
     ind.evalMexpr (m.rename ρ) = ind.evalMexpr m := by
-  induction m generalizing Γ with
+  induction m generalizing ρ with
   | unit => rfl
   | proc p => rfl
   | procHoles ne p => rfl
   | var r => rfl
   | app f a ihf iha =>
-      simp [ModuleExpression.rename, InductiveFunction.evalMexpr, ihf (Γ := Γ) ρ, iha (Γ := Γ) ρ]
+      simp [ModuleExpression.rename, InductiveFunction.evalMexpr, ihf ρ, iha ρ]
   | fst e ihe =>
-      simpa [ModuleExpression.rename, InductiveFunction.evalMexpr] using ihe (Γ := Γ) ρ
+      simpa [ModuleExpression.rename, InductiveFunction.evalMexpr] using ihe ρ
   | snd e ihe =>
-      simpa [ModuleExpression.rename, InductiveFunction.evalMexpr] using ihe (Γ := Γ) ρ
+      simpa [ModuleExpression.rename, InductiveFunction.evalMexpr] using ihe ρ
   | abs body ih =>
       -- `evalMexpr` ignores binders.
       simpa [ModuleExpression.rename, InductiveFunction.evalMexpr] using
-        ih (Γ := ModuleContext.append Γ _) (ρ := liftRenaming ρ)
+        ih (ModuleExpression.liftRen ρ)
   | pair a b iha ihb =>
-      simp [ModuleExpression.rename, InductiveFunction.evalMexpr, iha (Γ := Γ) ρ, ihb (Γ := Γ) ρ]
+      simp [ModuleExpression.rename, InductiveFunction.evalMexpr, iha ρ, ihb ρ]
 
 lemma InductiveFunction.join_join_right_join_of_idem {t : Type _} (ind : InductiveFunction t)
     [Reducible ind]
@@ -94,45 +95,44 @@ lemma InductiveFunction.join_join_right_join_of_idem {t : Type _} (ind : Inducti
 
 lemma InductiveFunction.evalMexpr_substituteSimultaneously_le {t : Type _} (ind : InductiveFunction t)
     [Reducible ind] :
-    ∀ {Δ Γ : ModuleContext} {T : ModuleTypeRep} (m : ModuleExpression Δ T)
-      (σ : ∀ {T}, ModuleContextIdx Δ T → ModuleExpression Γ T) (extra : t)
-      (hσ : ∀ {T} (r : ModuleContextIdx Δ T), ind.evalMexpr (σ r) ≤ ind.join ind.nothing extra),
-        ind.evalMexpr (substituteSimultaneously σ m) ≤ ind.join (ind.evalMexpr m) extra := by
-  intro Δ Γ T m
-  induction m generalizing Γ with
+    ∀ (m : ModuleExpression) (σ : Nat → ModuleExpression) (extra : t)
+      (_ : ∀ n, ind.evalMexpr (σ n) ≤ ind.join ind.nothing extra),
+        ind.evalMexpr (m.substituteSimultaneously σ) ≤ ind.join (ind.evalMexpr m) extra := by
+  intro m
+  induction m with
   | unit =>
       intro σ extra hσ
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using
         (Reducible.le_join_left (ind := ind) ind.nothing extra)
   | proc p =>
       intro σ extra hσ
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using
         (Reducible.le_join_left (ind := ind) (ind.proc p) extra)
   | procHoles ne p =>
       intro σ extra hσ
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using
         (Reducible.le_join_left (ind := ind) (ind.proc p) extra)
-  | var r =>
+  | var n =>
       intro σ extra hσ
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using (hσ r)
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using (hσ n)
   | app f a ihf iha =>
       intro σ extra hσ
-      have hf := ihf (Γ := Γ) (σ := σ) (extra := extra) hσ
-      have ha := iha (Γ := Γ) (σ := σ) (extra := extra) hσ
+      have hf := ihf σ extra hσ
+      have ha := iha σ extra hσ
       have h1 :
-          ind.join (ind.evalMexpr (substituteSimultaneously σ f))
-              (ind.evalMexpr (substituteSimultaneously σ a))
+          ind.join (ind.evalMexpr (f.substituteSimultaneously σ))
+              (ind.evalMexpr (a.substituteSimultaneously σ))
             ≤ ind.join (ind.join (ind.evalMexpr f) extra) (ind.join (ind.evalMexpr a) extra) := by
         have hleft :
-            ind.join (ind.evalMexpr (substituteSimultaneously σ f))
-                (ind.evalMexpr (substituteSimultaneously σ a))
+            ind.join (ind.evalMexpr (f.substituteSimultaneously σ))
+                (ind.evalMexpr (a.substituteSimultaneously σ))
               ≤ ind.join (ind.join (ind.evalMexpr f) extra)
-                  (ind.evalMexpr (substituteSimultaneously σ a)) :=
+                  (ind.evalMexpr (a.substituteSimultaneously σ)) :=
           Reducible.join_mono_left (ind := ind)
-            (b := ind.evalMexpr (substituteSimultaneously σ a)) hf
+            (b := ind.evalMexpr (a.substituteSimultaneously σ)) hf
         have hright :
             ind.join (ind.join (ind.evalMexpr f) extra)
-                (ind.evalMexpr (substituteSimultaneously σ a))
+                (ind.evalMexpr (a.substituteSimultaneously σ))
               ≤ ind.join (ind.join (ind.evalMexpr f) extra)
                   (ind.join (ind.evalMexpr a) extra) :=
           Reducible.join_mono_right (ind := ind)
@@ -143,50 +143,47 @@ lemma InductiveFunction.evalMexpr_substituteSimultaneously_le {t : Type _} (ind 
             ≤ ind.join (ind.join (ind.evalMexpr f) (ind.evalMexpr a)) extra :=
         InductiveFunction.join_join_right_join_of_idem ind (Reducible.join_idem (ind := ind)) _ _ _
       -- `evalMexpr` is homomorphic on `app`, so conclude by composing inequalities.
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using h1.trans h2
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using h1.trans h2
   | fst e ihe =>
       intro σ extra hσ
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using
-        ihe (Γ := Γ) (σ := σ) (extra := extra) hσ
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using
+        ihe σ extra hσ
   | snd e ihe =>
       intro σ extra hσ
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using
-        ihe (Γ := Γ) (σ := σ) (extra := extra) hσ
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using
+        ihe σ extra hσ
   | abs body ih =>
       intro σ extra hσ
-      -- `evalMexpr` ignores binders, so we can reuse the IH by instantiating `Γ` and `σ`.
-      -- This avoids reasoning about `liftSubstitution`.
-      have ih' := ih (Γ := ModuleContext.append Γ _)
-        (σ := liftSubstitution (A := _) σ) (extra := extra) (hσ := by
-          intro T r
-          -- In the lifted context, `.zero` maps to `.var .zero` and `.succ r` maps to a rename of `σ r`.
-          cases r with
+      -- `evalMexpr` ignores binders; reuse the IH under `liftSubst σ`.
+      have ih' := ih (ModuleExpression.liftSubst σ) extra (by
+          intro n
+          cases n with
           | zero =>
-              simpa [liftSubstitution, InductiveFunction.evalMexpr] using
+              simpa [ModuleExpression.liftSubst, InductiveFunction.evalMexpr] using
                 (Reducible.le_join_left (ind := ind) ind.nothing extra)
-          | succ r =>
-              have := hσ r
-              simpa [liftSubstitution,
-                InductiveFunction.evalMexpr_rename ind (m := σ r)
-                  (ρ := fun {_} r => ModuleContextIdx.succ r)] using this)
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using ih'
+          | succ n =>
+              have := hσ n
+              simpa [ModuleExpression.liftSubst,
+                InductiveFunction.evalMexpr_rename ind (σ n) Nat.succ] using this)
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using ih'
   | pair a b iha ihb =>
       intro σ extra hσ
-      have ha := iha (Γ := Γ) (σ := σ) (extra := extra) hσ
-      have hb := ihb (Γ := Γ) (σ := σ) (extra := extra) hσ
+      have ha := iha σ extra hσ
+      have hb := ihb σ extra hσ
       have h1 :
-          ind.join (ind.evalMexpr (substituteSimultaneously σ a))
-              (ind.evalMexpr (substituteSimultaneously σ b))
+          ind.join (ind.evalMexpr (a.substituteSimultaneously σ))
+              (ind.evalMexpr (b.substituteSimultaneously σ))
             ≤ ind.join (ind.join (ind.evalMexpr a) extra) (ind.join (ind.evalMexpr b) extra) := by
         have hleft :
-            ind.join (ind.evalMexpr (substituteSimultaneously σ a))
-                (ind.evalMexpr (substituteSimultaneously σ b))
+            ind.join (ind.evalMexpr (a.substituteSimultaneously σ))
+                (ind.evalMexpr (b.substituteSimultaneously σ))
               ≤ ind.join (ind.join (ind.evalMexpr a) extra)
-                  (ind.evalMexpr (substituteSimultaneously σ b)) :=
-          Reducible.join_mono_left (ind := ind) (b := ind.evalMexpr (substituteSimultaneously σ b)) ha
+                  (ind.evalMexpr (b.substituteSimultaneously σ)) :=
+          Reducible.join_mono_left (ind := ind)
+            (b := ind.evalMexpr (b.substituteSimultaneously σ)) ha
         have hright :
             ind.join (ind.join (ind.evalMexpr a) extra)
-                (ind.evalMexpr (substituteSimultaneously σ b))
+                (ind.evalMexpr (b.substituteSimultaneously σ))
               ≤ ind.join (ind.join (ind.evalMexpr a) extra)
                   (ind.join (ind.evalMexpr b) extra) :=
           Reducible.join_mono_right (ind := ind) (a := ind.join (ind.evalMexpr a) extra) hb
@@ -195,26 +192,24 @@ lemma InductiveFunction.evalMexpr_substituteSimultaneously_le {t : Type _} (ind 
           ind.join (ind.join (ind.evalMexpr a) extra) (ind.join (ind.evalMexpr b) extra)
             ≤ ind.join (ind.join (ind.evalMexpr a) (ind.evalMexpr b)) extra :=
         InductiveFunction.join_join_right_join_of_idem ind (Reducible.join_idem (ind := ind)) _ _ _
-      simpa [substituteSimultaneously, InductiveFunction.evalMexpr] using h1.trans h2
+      simpa [ModuleExpression.substituteSimultaneously, InductiveFunction.evalMexpr] using h1.trans h2
 
 lemma InductiveFunction.evalMexpr_substitute_le {t : Type _} (ind : InductiveFunction t)
-    [Reducible ind]
-    {Δ : ModuleContext} {A T : ModuleTypeRep}
-    (body : ModuleExpression (ModuleContext.append Δ A) T) (arg : ModuleExpression Δ A) :
-    ind.evalMexpr (substitute body arg) ≤ ind.join (ind.evalMexpr body) (ind.evalMexpr arg) := by
-  let σ : ∀ {T}, ModuleContextIdx (ModuleContext.append Δ A) T → ModuleExpression Δ T :=
-    variableSubstitution arg
-  have hσ : ∀ {T} (r : ModuleContextIdx (ModuleContext.append Δ A) T),
-      ind.evalMexpr (σ r) ≤ ind.join ind.nothing (ind.evalMexpr arg) := by
-    intro T r
-    cases r with
+    [Reducible ind] (body arg : ModuleExpression) :
+    ind.evalMexpr (body.substitute arg) ≤ ind.join (ind.evalMexpr body) (ind.evalMexpr arg) := by
+  have hσ : ∀ n, ind.evalMexpr (ModuleExpression.variableSubstitution arg n)
+      ≤ ind.join ind.nothing (ind.evalMexpr arg) := by
+    intro n
+    cases n with
     | zero =>
-        simpa [σ, variableSubstitution] using Reducible.le_join_right (ind := ind) ind.nothing (ind.evalMexpr arg)
-    | succ r =>
-        simpa [σ, variableSubstitution, InductiveFunction.evalMexpr] using Reducible.le_join_left (ind := ind) ind.nothing (ind.evalMexpr arg)
-  simpa [substitute] using
+        simpa [ModuleExpression.variableSubstitution] using
+          Reducible.le_join_right (ind := ind) ind.nothing (ind.evalMexpr arg)
+    | succ n =>
+        simpa [ModuleExpression.variableSubstitution, InductiveFunction.evalMexpr] using
+          Reducible.le_join_left (ind := ind) ind.nothing (ind.evalMexpr arg)
+  simpa [ModuleExpression.substitute] using
     (InductiveFunction.evalMexpr_substituteSimultaneously_le (ind := ind)
-      (m := body) (σ := σ) (extra := ind.evalMexpr arg) hσ)
+      body (ModuleExpression.variableSubstitution arg) (ind.evalMexpr arg) hσ)
 
 def InductiveFunction.eval' {t mt} (ind : InductiveFunction t) (m : Module mt) :=
   ind.evalMexpr m.expression
@@ -223,24 +218,24 @@ def InductiveFunction.eval {t} (ind : InductiveFunction t) [i : IsModule M] (m :
   ind.eval' (Module.cast M m)
 
 lemma InductiveFunction.evalMexpr_toModuleTuple
-    {t : Type _} (ind : InductiveFunction t) {Δ : ModuleContext} :
+    {t : Type _} (ind : InductiveFunction t) :
     {holes : HoleSigs} → (inst : holes.Instantiation) →
-      ind.evalMexpr (HoleSigs.Instantiation.toModuleTuple (Δ := Δ) inst)
+      ind.evalMexpr (HoleSigs.Instantiation.toModuleExpr inst)
         = ind.evalInstantiationFold (holes := holes) inst
   | .empty,       _    => rfl
   | .append _ _, inst => by
-      -- Unfold `toModuleTuple` / `evalMexpr` / `evalInstantiation` and apply IH on the tail.
-      simp [HoleSigs.Instantiation.toModuleTuple, InductiveFunction.evalMexpr,
+      -- Unfold `toModuleExpr` / `evalMexpr` / `evalInstantiation` and apply IH on the tail.
+      simp [HoleSigs.Instantiation.toModuleExpr, InductiveFunction.evalMexpr,
         InductiveFunction.evalInstantiationFold, HoleSigs.Instantiation.toList,
         InductiveFunction.evalMexpr_toModuleTuple]
 
-theorem eval_induction_step {t mctx mt} (ind : InductiveFunction t)
+theorem eval_induction_step {t} (ind : InductiveFunction t)
     [Reducible ind]
-    {m m' : ModuleExpression mctx mt} (h : ReductionStep m m') :
+    {m m' : ModuleExpression} (h : ModuleExpression.ReductionStep m m') :
     ind.evalMexpr m' ≤ ind.evalMexpr m := by
   induction h with
   | beta =>
-      rename_i Δ A T body arg
+      rename_i body arg
       -- `eval (app (abs body) arg)` is `join (eval body) (eval arg)`.
       simpa [InductiveFunction.evalMexpr] using
         InductiveFunction.evalMexpr_substitute_le (ind := ind) body arg
@@ -259,27 +254,26 @@ theorem eval_induction_step {t mctx mt} (ind : InductiveFunction t)
       simpa [InductiveFunction.evalMexpr] using
         (Reducible.join_mono_right (ind := ind) (a := ind.evalMexpr _) ih)
   | fstPair =>
-      rename_i Δ A B a b
+      rename_i a b
       simpa [InductiveFunction.evalMexpr] using
         (Reducible.le_join_left (ind := ind) (ind.evalMexpr a) (ind.evalMexpr b))
   | fst _ ih =>
       simpa [InductiveFunction.evalMexpr] using ih
   | sndPair =>
-      rename_i Δ A B a b
+      rename_i a b
       simpa [InductiveFunction.evalMexpr] using
         (Reducible.le_join_right (ind := ind) (ind.evalMexpr a) (ind.evalMexpr b))
   | snd _ ih =>
       simpa [InductiveFunction.evalMexpr] using ih
-  | delta inst =>
-      rename_i Δ holes sigs ne proc
-      let tuple : ModuleExpression Δ holes.toModuleTypeRepTuple :=
-        HoleSigs.Instantiation.toModuleTuple (Δ := Δ) (holes := holes) inst
+  | delta ne proc inst =>
+      rename_i holes sigs
+      let tuple : ModuleExpression := HoleSigs.Instantiation.toModuleExpr inst
       -- Abbreviation for folding instantiated procedures.
       let f : (Σ sig, Procedure sig) → t → t := fun p acc => ind.join (ind.proc p.2) acc
       let instVal : t := (HoleSigs.Instantiation.toList (holes := holes) inst).foldr f ind.nothing
       have htup0 : ind.evalMexpr tuple = ind.evalInstantiationFold (holes := holes) inst := by
         simpa [tuple] using
-          InductiveFunction.evalMexpr_toModuleTuple (ind := ind) (Δ := Δ) (holes := holes) inst
+          InductiveFunction.evalMexpr_toModuleTuple (ind := ind) (holes := holes) inst
       have htup : ind.evalMexpr tuple = instVal := by
         simpa [InductiveFunction.evalInstantiationFold, instVal, f] using htup0
 
@@ -330,30 +324,28 @@ theorem eval_induction_step {t mctx mt} (ind : InductiveFunction t)
       -- Unfold `evalMexpr` on the δ-redex.
       simpa [InductiveFunction.evalMexpr, tuple] using hδ'
 
-theorem evalMexpr_reduce {t mctx mt} (ind : InductiveFunction t)
-    [Reducible ind] (m : ModuleExpression mctx mt) :
-    ind.evalMexpr (reduce m) ≤ ind.evalMexpr m := by
-  -- `reduce` computes a normal form reachable by multi-step reduction.
-  -- Lift `eval_induction_step` along the `Rewriting.Star` proof.
-  have hStar : ∀ {m m' : ModuleExpression mctx mt},
-      MultiStepReduction m m' → ind.evalMexpr m' ≤ ind.evalMexpr m := by
-    intro m m' h
+theorem evalMexpr_reduce {t} (ind : InductiveFunction t)
+    [Reducible ind] (m : ModuleExpression) :
+    ind.evalMexpr m.reduce ≤ ind.evalMexpr m := by
+  -- `reduce` reaches a normal form by multi-step reduction; lift `eval_induction_step`.
+  have hStar : ∀ {a b : ModuleExpression},
+      a.MultiStepReduction b → ind.evalMexpr b ≤ ind.evalMexpr a := by
+    intro a b h
     induction h with
-    | refl =>
-        exact le_rfl
+    | refl => exact le_rfl
     | tail _ hstep ih =>
         exact le_trans (eval_induction_step (ind := ind) hstep) ih
-  exact hStar (multiStepReduction_reduce (m := m))
+  exact hStar ModuleExpression.multiStepReduction_reduce
 
 
 theorem evalMexpr_upper_bound {t mt} (ind : InductiveFunction t)
-    [Reducible ind] (m : ModuleExpression .empty mt) :
-    ind.eval m.toModule ≤ ind.evalMexpr m := by
-  change ind.evalMexpr (reduce m) ≤ ind.evalMexpr m
+    [Reducible ind] (m : ModuleExpression) (h : m.Typed .empty mt) :
+    ind.eval (m.toModule h) ≤ ind.evalMexpr m := by
+  change ind.evalMexpr m.reduce ≤ ind.evalMexpr m
   exact evalMexpr_reduce ind m
 
 theorem InductiveFunction.app_moduleExpression (ind : InductiveFunction t)
-  (a : ModuleExpression Γ (.arr A B)) (b : ModuleExpression Γ A) :
+  (a b : ModuleExpression) :
     ind.evalMexpr (.app a b) = ind.join (ind.evalMexpr a) (ind.evalMexpr b) := by
     simp [InductiveFunction.evalMexpr]
 
@@ -371,15 +363,17 @@ theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] [IsMod
 
 
 theorem InductiveFunction.pair_moduleExpression (ind : InductiveFunction t)
-  (a : ModuleExpression Γ A) (b : ModuleExpression Γ B) :
+  (a b : ModuleExpression) :
     ind.evalMexpr (.pair a b) = ind.join (ind.evalMexpr a) (ind.evalMexpr b) := by
     simp [InductiveFunction.evalMexpr]
 
 theorem InductiveFunction.pair' (ind : InductiveFunction t) (a : Module A) (b : Module B) :
     ind.eval' (Module.pair' a b) = ind.join (ind.eval' a) (ind.eval' b) := by
-  have h : reduce (a.expression.pair b.expression) = a.expression.pair b.expression :=
-    Module.reduce_expression ⟨_, NormalClosed.pair a.normal b.normal⟩
-  change ind.evalMexpr (reduce (a.expression.pair b.expression)) = _
+  have h : (a.expression.pair b.expression).reduce = a.expression.pair b.expression :=
+    Module.reduce_expression
+      ⟨_, ModuleExpression.Typed.pair a.typed b.typed,
+        ModuleExpression.NormalClosed.pair a.normal b.normal⟩
+  change ind.evalMexpr (a.expression.pair b.expression).reduce = _
   rw [h]
   rfl
 
@@ -391,7 +385,7 @@ theorem InductiveFunction.pair (ind : InductiveFunction t) [IsModule A] [IsModul
 
 @[simp]
 theorem InductiveFunction.fst_moduleExpression (ind : InductiveFunction t)
-  (a : ModuleExpression Γ (.prod A B)) :
+  (a : ModuleExpression) :
     ind.evalMexpr (.fst a) = ind.evalMexpr a := by
     simp [InductiveFunction.evalMexpr]
 
@@ -411,7 +405,7 @@ theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind] [IsMod
 
 @[simp]
 theorem InductiveFunction.snd_moduleExpression (ind : InductiveFunction t)
-  (a : ModuleExpression Γ (.prod A B)) :
+  (a : ModuleExpression) :
     ind.evalMexpr (.snd a) = ind.evalMexpr a := by
     simp [InductiveFunction.evalMexpr]
 
@@ -430,8 +424,8 @@ theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind] [IsMod
   exact ind.snd' _
 
 @[simp]
-theorem InductiveFunction.unit_moduleExpression {ctxt} (ind : InductiveFunction t) :
-  ind.evalMexpr (.unit : ModuleExpression ctxt _) = ind.nothing := by
+theorem InductiveFunction.unit_moduleExpression (ind : InductiveFunction t) :
+  ind.evalMexpr (.unit : ModuleExpression) = ind.nothing := by
     simp [InductiveFunction.evalMexpr]
 
 @[simp]
@@ -439,9 +433,14 @@ theorem InductiveFunction.unit (ind : InductiveFunction t) (m : Module .unit) :
   ind.eval m = ind.nothing := by
     have h : m.expression = ModuleExpression.unit := by
       have hn := m.normal
-      generalize m.expression = e at hn
-      cases hn
-      rfl
+      have ht := m.typed
+      generalize he : m.expression = e at hn ht
+      cases hn with
+      | unit => rfl
+      | proc => cases ht
+      | procHoles => cases ht
+      | abs _ => cases ht
+      | pair _ _ => cases ht
     change ind.evalMexpr m.expression = _
     rw [h, InductiveFunction.unit_moduleExpression]
 
@@ -681,8 +680,8 @@ def InductiveFunctionGettersSetters.inductiveFunction (ind : InductiveFunctionGe
   join := ind.join
   proc (p : ProcedureWithHoles _ _) := ind.proc p
 
-def InductiveFunctionGettersSetters.evalMexpr {ctx} (ind : InductiveFunctionGettersSetters T) :
-    ModuleExpression ctx t → T State := ind.inductiveFunction.evalMexpr
+def InductiveFunctionGettersSetters.evalMexpr (ind : InductiveFunctionGettersSetters T) :
+    ModuleExpression → T State := ind.inductiveFunction.evalMexpr
 
 def InductiveFunctionGettersSetters.eval' (ind : InductiveFunctionGettersSetters T) :
     Module t → T State := ind.inductiveFunction.eval'
