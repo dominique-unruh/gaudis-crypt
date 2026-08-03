@@ -338,7 +338,7 @@ theorem evalMexpr_reduce {t} (ind : InductiveFunction t)
 
 
 theorem evalMexpr_upper_bound {t mt} (ind : InductiveFunction t)
-    [Reducible ind] {m : ModuleExpression} (h : m.Typed .empty mt) :
+    [Reducible ind] {m : ModuleExpression} (h : m.Typed [] mt) :
     ind.eval (m.toModule h) ≤ ind.evalMexpr m := by
   change ind.evalMexpr m.reduce ≤ ind.evalMexpr m
   exact evalMexpr_reduce ind _ h.terminating

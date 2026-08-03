@@ -120,7 +120,7 @@ are generic module-calculus material — candidates for `Language/Modules.lean`.
 
 omit [PedersenGroup] in
 theorem proc_type_is_proc {sig : ProcedureSignature}
-    {m : ModuleExpression} (ht : m.Typed .empty (.proc sig)) (h : m.NormalClosed) :
+    {m : ModuleExpression} (ht : m.Typed [] (.proc sig)) (h : m.NormalClosed) :
     ∃ p : Procedure sig, m = .proc p := by
   cases h with
   | «proc» =>

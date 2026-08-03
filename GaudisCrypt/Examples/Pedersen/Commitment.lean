@@ -213,8 +213,7 @@ noncomputable def Correctness :
         (.pair (.fst (.snd (.var 0)))     -- commit
           (.pair (.fst (.var 0))          -- gen
             .unit))))).toModule
-    -- TODO: mechanical well-typedness derivation of the functor body (reprovable).
-    (by sorry)
+    -- Note: toModule does not need a typing proof because it automatically tries using `moduletyping!` (which succeeds).
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
 noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
