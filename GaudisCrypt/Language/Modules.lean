@@ -1588,6 +1588,10 @@ theorem reduce_equireducible {m n : ModuleExpression} (_ : equireducible m n) :
   | symm x y _ ih => exact ih.symm
   | trans x y z _ _ ih1 ih2 => exact ih1.trans ih2
 
+theorem reduce_multiStepReduction {m n : ModuleExpression} (h : m.MultiStepReduction n) :
+    reduce m = reduce n :=
+  reduce_equireducible (equireducible_of_multiStep h)
+
 theorem reduce_equireducible_iff {m n : ModuleExpression} :
   equireducible m n ↔ reduce m = reduce n := by
   constructor
@@ -1842,6 +1846,66 @@ theorem reduce_snd_cong (m m' : ModuleExpression) :
   | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
   | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
 
+/-- Unconditional analogue of `reduce_app` for `.pair`: pushing `reduce` onto both components
+    before re-`reduce`ing the pair gives the same answer. Note this is a *weaker* claim than
+    `reduce_pair_terminating` — it never asserts the result is manifestly `.pair`-shaped, only
+    that both sides denote the same `reduce`-class, which holds even when a component diverges
+    (unlike `reduce_pair_terminating`, no `Terminating` hypothesis is needed: `equireducible_reduce`
+    holds unconditionally, and `pairL`/`pairR` lift it through `.pair` just like `appL`/`appR` do
+    for `.app` in `reduce_app`). -/
+theorem reduce_pair (a b : ModuleExpression) :
+    reduce (.pair a b) = reduce (.pair (reduce a) (reduce b)) := by
+  have congL : ∀ {a b c : ModuleExpression}, equireducible a b →
+      equireducible (.pair a c) (.pair b c) := by
+    intro a b c h
+    induction h with
+    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.pairL hxy)
+    | refl x => exact Relation.EqvGen.refl _
+    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
+    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
+  have congR : ∀ {a b c : ModuleExpression}, equireducible b c →
+      equireducible (.pair a b) (.pair a c) := by
+    intro a b c h
+    induction h with
+    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.pairR hxy)
+    | refl x => exact Relation.EqvGen.refl _
+    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
+    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
+  rw [← reduce_equireducible_iff]
+  exact Relation.EqvGen.trans _ _ _
+    (congL equireducible_reduce) (congR equireducible_reduce)
+
+/-- Unconditional analogue of `reduce_app`/`reduce_pair` for `.abs` (same technique, lifted
+    through the single-component `.lam` congruence constructor). -/
+theorem reduce_abs (a : ModuleExpression) :
+    reduce (.abs a) = reduce (.abs (reduce a)) := by
+  rw [← reduce_equireducible_iff]
+  have : ∀ {a b : ModuleExpression}, equireducible a b → equireducible (.abs a) (.abs b) := by
+    intro a b h
+    induction h with
+    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.lam hxy)
+    | refl x => exact Relation.EqvGen.refl _
+    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
+    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
+  exact this equireducible_reduce
+
+/-- Congruence form of `reduce_pair`: usable to combine two independently-computed
+    simplifications `reduce a = a'` / `reduce b = b'` (however they were obtained — `a'`/`b'`
+    need not themselves be fully reduced) into one for the surrounding `.pair`. -/
+theorem reduce_pair_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb : reduce b = b') :
+    reduce (.pair a b) = reduce (.pair a' b') := by
+  rw [reduce_pair, ha, hb]
+
+/-- Congruence form of `reduce_app`, matching `reduce_pair_cong`/`reduce_abs_cong`. -/
+theorem reduce_app_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb : reduce b = b') :
+    reduce (.app a b) = reduce (.app a' b') := by
+  rw [reduce_app, ha, hb]
+
+/-- Congruence form of `reduce_abs`, matching `reduce_pair_cong`/`reduce_app_cong`. -/
+theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
+    reduce (.abs a) = reduce (.abs a') := by
+  rw [reduce_abs, ha]
+
 /-- A well-typed closed normal term of product type is a pair (untyped analogue of
     `TypedModules.pair_type_is_pair`). -/
 theorem pair_type_is_pair {m : ModuleExpression} {t1 t2}
@@ -1951,6 +2015,7 @@ example : ModuleExpression.Typed (.fst (.pair .unit .unit)) [] .unit := by modul
 /-- `.unit` applied to `.unit` is not well-typed (`.unit` isn't a function). `moduletyping`
     peels the outer `.app`, closes the argument side (`Typed .unit [] ?A` via `.unit`, forcing
     `?A := .unit`), and leaves the un-closable function side open instead of failing. -/
+-- TODO-CLAUDE: use #guard_msgs or similar mechanism here instead of `sorry`. (Avoid adding permanent sorries in the document)
 example : ModuleExpression.Typed (.app .unit .unit) [] .unit := by
   moduletyping
   guard_target = ModuleExpression.Typed .unit [] (.arr .unit .unit)
@@ -2024,33 +2089,248 @@ example {sig : ProcedureSignature} (p : Procedure sig) (body : ModuleExpression)
 
 /-! ## `normalmodule` -/
 
-/- TODO-CLAUDE:
-Write a tactic for proving `Neutral m` or `Normal m`.
+/-- Syntax-directed closer for `Normal m` / `Neutral m`: peels the constructor matching `m`'s
+    head, disambiguating `.app`'s two constructors by checking whether the function side is a
+    literal `.procHoles` node, and leaves whatever it cannot close open. See `normalmodule!` for
+    a variant that fails loudly instead. -/
+macro "normalmodule" : tactic =>
+  `(tactic| repeat' first
+    | assumption
+    | apply ModuleExpression.Normal.unit
+    | apply ModuleExpression.Normal.proc
+    | apply ModuleExpression.Normal.procHoles
+    | apply ModuleExpression.Normal.abs
+    | apply ModuleExpression.Normal.pair
+    | apply ModuleExpression.Neutral.var
+    | apply ModuleExpression.Neutral.fst
+    | apply ModuleExpression.Neutral.snd
+    | (apply ModuleExpression.Neutral.appProcHoles
+       (first | assumption | (simp [ModuleExpression.IsProcHoles] <;> done))
+       all_goals try (first | assumption | (simp [ModuleExpression.IsProcTuple] <;> done)))
+    | apply ModuleExpression.Neutral.app
+    | apply ModuleExpression.Normal.neutral)
 
-Like moduletyping, there should be a failing variant
-with informative error messages.
+open Lean Elab Tactic Meta in
+/-- Describe why a single leftover goal (from `normalmodule`'s core script) couldn't be closed.
+    Recognises the shapes that script can actually leave behind: a `¬ IsProcTuple arg` residual
+    (the `.appProcHoles` side condition), a `Neutral m` residual whose head is a `Normal`-only
+    constructor (a genuine impossibility — that shape is never neutral), and a bare `Normal`/
+    `Neutral` of an opaque free subterm (no matching hypothesis in scope). Falls back to the raw
+    goal for anything else. -/
+def describeStuckNormalModuleGoal (g : MVarId) : MetaM MessageData := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  if ty.isAppOfArity ``Not 1 then
+    let inner := ty.getAppArgs[0]!
+    if inner.isAppOfArity ``ModuleExpression.IsProcTuple 2 then
+      let arg := inner.getAppArgs[1]!
+      return m!"could not show `{arg}` is not a hole-free procedure tuple (needed so the \
+        `.procHoles`-applied-to-`{arg}` node stays stuck, i.e. genuinely `Neutral`)"
+  -- `Normal`/`Neutral`'s constructors all carry the ambient `[ProgramSpec]` as their first
+  -- (instance-implicit) argument, hence arity `1 + 1` below.
+  if ty.isAppOfArity ``ModuleExpression.Neutral 2 then
+    let m := ty.getAppArgs[1]!
+    let head := m.getAppFn
+    if head.isConstOf ``ModuleExpression.unit then
+      return m!"`.unit` is always `Normal` (via `.unit`), never `Neutral` — it has no \
+        variable/`.procHoles`-application head for a redex to get stuck on"
+    else if head.isConstOf ``ModuleExpression.proc then
+      return m!"`.proc _` is always `Normal` (via `.proc`), never `Neutral`"
+    else if head.isConstOf ``ModuleExpression.procHoles then
+      return m!"`.procHoles _ _` is always `Normal` (via `.procHoles`) when bare; it's only \
+        ever `Neutral` once applied to an argument (`.app`), never on its own"
+    else if head.isConstOf ``ModuleExpression.pair then
+      return m!"`.pair _ _` is always `Normal` (via `.pair`), never `Neutral`"
+    else if head.isConstOf ``ModuleExpression.abs then
+      return m!"`.abs _` is always `Normal` (via `.abs`), never `Neutral`"
+    else if m.isFVar then
+      return m!"`{m}` is an opaque subterm; no `Normal`/`Neutral` hypothesis for it is in \
+        scope (`assumption` failed)"
+  if ty.isAppOfArity ``ModuleExpression.Normal 2 then
+    let m := ty.getAppArgs[1]!
+    if m.isFVar then
+      return m!"`{m}` is an opaque subterm; no `Normal`/`Neutral` hypothesis for it is in \
+        scope (`assumption` failed)"
+  return m!"could not close:\n{← ppGoal g}"
 
- -/
+open Lean Elab Tactic Meta in
+/-- `normalmodule`, but fails loudly instead of leaving unclosed goals open. Not fail-fast: it
+    still runs the core script to completion (closing everything it can) before reporting, one
+    "Cannot show ‹original goal›: ‹reason›" line per leftover goal, with the reason coming from
+    `describeStuckNormalModuleGoal`. -/
+elab "normalmodule!" : tactic => do
+  let origGoal ← getMainGoal
+  let origType ← origGoal.withContext (instantiateMVars (← origGoal.getType))
+  let numSiblings := (← getGoals).length - 1
+  evalTactic (← `(tactic| normalmodule))
+  let after ← getGoals
+  let leftover := after.take (after.length - numSiblings)
+  unless leftover.isEmpty do
+    let lines ← leftover.mapM fun g => do
+      return m!"Cannot show {origType}: {← describeStuckNormalModuleGoal g}"
+    throwError MessageData.joinSep lines "\n\n"
 
-/-! ## `reduce_simproc` -/
+/-! ### Smoke tests -/
 
-/- TODO-CLAUDE: Write a simproc for `reduce`.
+example : ModuleExpression.Normal .unit := by normalmodule
 
-It should reduce a term of the form `reduce ...`
-by first applying `ReductionStep`s to the argument
-or its subterms.
+example {sig : ProcedureSignature} (p : Procedure sig) :
+    ModuleExpression.Normal (.proc p) := by normalmodule
 
-Also if there are hypotheses of the form:
-`m.ReductionStep n` or `m.MultiStepReduction n`
-or `equireducible m n`,
-or `reduce m = reduce n`, then it should use those to reduce
-subterms as well.
-(Whenever m matches a subterm.)
+example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
+    (p : ProcedureWithHoles holes sig) :
+    ModuleExpression.Normal (.procHoles ne p) := by normalmodule
 
-Once the term is fully reduced to some `reduce m`,
-it should also check whether the term `m` is `Normal` or `Neutral`,
-and if so, it should replace `reduce m` by `m`.
+example : ModuleExpression.Normal (.var 3 : ModuleExpression) := by normalmodule
 
+example (a b : ModuleExpression) (ha : a.Normal) (hb : b.Normal) :
+    ModuleExpression.Normal (.pair a b) := by normalmodule
+
+example (body : ModuleExpression) (hbody : body.Normal) :
+    ModuleExpression.Normal (.abs body) := by normalmodule
+
+-- `.app` of a bare `.procHoles` node to a non-tuple normal argument: the `.appProcHoles` branch.
+example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
+    (p : ProcedureWithHoles holes sig) :
+    ModuleExpression.Neutral (.app (.procHoles ne p) (.var 0)) := by normalmodule
+
+-- `.app` of a genuine variable head: the `.app` branch, not `.appProcHoles`.
+example (arg : ModuleExpression) (harg : arg.Normal) :
+    ModuleExpression.Neutral (.app (.var 0) arg) := by normalmodule
+
+example : ModuleExpression.Neutral (.fst (.var 0 : ModuleExpression)) := by normalmodule
+
+-- `.pair _ _` can never be `Neutral` (only `Normal`); `normalmodule` leaves it open rather
+-- than failing, since it's a lenient tactic. (No constructor even applies, so the tactic makes
+-- zero progress here — silence the linter that would otherwise flag that.)
+set_option linter.unusedTactic false in
+example (a b : ModuleExpression) : ModuleExpression.Neutral (.pair a b) := by
+  -- TODO-CLAUDE: normalmodule should fail if no progress is made at all
+  normalmodule
+  guard_target = ModuleExpression.Neutral (.pair a b)
+  sorry  -- genuinely false; documents that the goal was left open, not proved
+
+-- `normalmodule!` fails loudly on the same goal, pinpointing *why* `.pair` can't be `Neutral`.
+/-- error: Cannot show (a.pair b).Neutral: `.pair _ _` is always `Normal` (via `.pair`), never `Neutral` -/
+#guard_msgs (whitespace := lax) in
+example (a b : ModuleExpression) : ModuleExpression.Neutral (.pair a b) := by
+  normalmodule!
+
+/-- error: Cannot show ModuleExpression.unit.Neutral: `.unit` is always `Normal` (via `.unit`), never `Neutral` — it has no variable/`.procHoles`-application head for a redex to get stuck on -/
+#guard_msgs (whitespace := lax) in
+example : ModuleExpression.Neutral (.unit : ModuleExpression) := by
+  normalmodule!
+
+/-- error: Cannot show (ModuleExpression.proc p).Neutral: `.proc _` is always `Normal` (via `.proc`), never `Neutral` -/
+#guard_msgs (whitespace := lax) in
+example {sig : ProcedureSignature} (p : Procedure sig) :
+    ModuleExpression.Neutral (.proc p) := by
+  normalmodule!
+
+/-- error: Cannot show (ModuleExpression.procHoles ne p).Neutral: `.procHoles _ _` is always `Normal` (via `.procHoles`) when bare; it's only ever `Neutral` once applied to an argument (`.app`), never on its own -/
+#guard_msgs (whitespace := lax) in
+example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
+    (p : ProcedureWithHoles holes sig) :
+    ModuleExpression.Neutral (.procHoles ne p) := by
+  normalmodule!
+
+/-- error: Cannot show body.abs.Neutral: `.abs _` is always `Normal` (via `.abs`), never `Neutral` -/
+#guard_msgs (whitespace := lax) in
+example (body : ModuleExpression) : ModuleExpression.Neutral (.abs body) := by
+  normalmodule!
+
+-- Opaque subterm, no hypothesis: `assumption` fails, no constructor matches an fvar head.
+/-- error: Cannot show m.Normal: `m` is an opaque subterm; no `Normal`/`Neutral` hypothesis for it is in scope (`assumption` failed) -/
+#guard_msgs (whitespace := lax) in
+example (m : ModuleExpression) : ModuleExpression.Normal m := by
+  normalmodule!
+
+-- The `.appProcHoles` side condition, genuinely undecidable: `arg` is opaque (so `decide` can't
+-- reduce it) and only `Normal arg` is in context, not `¬ IsProcTuple arg`.
+/-- error: Cannot show ((ModuleExpression.procHoles ne p).app arg).Neutral: could not show `arg` is not a hole-free procedure tuple (needed so the `.procHoles`-applied-to-`arg` node stays stuck, i.e. genuinely `Neutral`) -/
+#guard_msgs (whitespace := lax) in
+example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
+    (p : ProcedureWithHoles holes sig) (arg : ModuleExpression) (harg : arg.Normal) :
+    ModuleExpression.Neutral (.app (.procHoles ne p) arg) := by
+  normalmodule!
+
+/-! ## `reduce_simproc`
+
+Plan:
+* Goal: a simp-usable procedure that simplifies subterms of shape `reduce m` — either to `m`
+  itself (once known normal) or to `reduce n` for some smaller/known-equireducible `n`.
+* Available lemmas to build on (all present above, none need re-deriving):
+  - `reduce_of_normal : Normal m → reduce m = m`, already `@[simp]`. This alone handles the
+    "check `m` is `Normal`, replace `reduce m` by `m`" half of the request, *if* simp's
+    discharger can prove `Normal m` — the default discharger can't (it's just recursive simp),
+    but we now have `normalmodule` ([Modules.lean:2025](GaudisCrypt/Language/Modules.lean#L2025))
+    for exactly this. So: run with `discharger := normalmodule` (wrapped to also try
+    `assumption`/`normalmodule!`'s core, since `normalmodule` alone leaves-open rather than
+    fails, which is a `discharger`-safe failure mode).
+  - `reduce_step : m.ReductionStep n → reduce m = reduce n` and
+    `reduce_equireducible : equireducible m n → reduce m = reduce n` — turn a *hypothesis* of
+    exactly the two relation shapes named in the original request into a rewrite of `reduce m`.
+    A raw `reduce m = reduce n` hypothesis is already usable by plain `simp [*]`, no lemma
+    needed.
+  - `reduce_beta`, `reduce_fst`, `reduce_snd` (`fst`/`snd` are `@[simp]` already) — unconditional
+    one-step reductions, safe to fire eagerly regardless of context.
+  - **Two different "push through `.pair`/`.app`" claims, only one of which is true in
+    general** — worth keeping apart since it's easy to conflate them:
+    - *Strong* (false without extra hypotheses): `reduce (.pair a b) = .pair (reduce a)
+      (reduce b)`, i.e. the result is *manifestly* `.pair`-shaped. `reduce_pair_terminating`
+      (line ~1751) proves exactly this, but needs `Terminating` on both components — the
+      comment right above it explains why: a divergent component makes the whole pair's
+      `reduce` fall back to the `omega`-style non-terminating representative, not a `.pair`.
+    - *Weak* (always true, no termination needed): substituting a reduce-equal part preserves
+      `reduce`-equality of the whole, e.g. `reduce a = reduce b → reduce c = reduce d →
+      reduce (.pair a c) = reduce (.pair b d)`. This never claims the result is normal or even
+      `.pair`-shaped — it just lets the simproc keep rewriting under `reduce`, deferring the
+      "is *this* stuck now" question to the next recursive pass. It's true unconditionally by
+      the same technique `reduce_app`'s proof already uses (lifting the `ReductionStep`
+      congruence-closure constructors `pairL`/`pairR`/`appL`/`appR`/`lam` through `EqvGen`) —
+      no `Terminating` hypothesis anywhere in that argument.
+    Inventory of the weak (cong) form: `reduce_fst_cong`/`reduce_snd_cong` (line ~1825) already
+    exist in exactly this shape. `.app`'s version is a one-line corollary of the already-
+    unconditional `reduce_app` (rewrite both sides with it, then `congrArg`). `.pair`'s and
+    `.abs`'s don't exist yet (`reduce_pair_cong`, `reduce_abs_cong`, say) but are provable the
+    same way as `reduce_fst_cong`/`reduce_app`'s internal `congL`/`congR` haves — new lemmas to
+    add, not new proof techniques.
+  - So "reduce subterms" per the original request means two distinct things the simproc must
+    combine: (a) use a *hypothesis* the caller supplies (`m.ReductionStep n` /
+    `m.MultiStepReduction n` / `equireducible m n` / `reduce m = reduce n`) to rewrite an
+    occurrence of `reduce m` wherever `m` shows up, and (b) recursively simplify `.pair`/`.app`/
+    `.abs`'s *components* under `reduce` via the weak cong lemmas above, folding whatever (a)
+    or `Normal`/one-step-reduction managed to establish about them back into the parent.
+* Design (a genuine `simproc`, not just a `@[simp]` lemma set, because steps 2 and 4 below need
+  custom context inspection / recursive self-invocation simp lemmas alone can't do): on meeting
+  a subterm `reduce m`,
+  1. Try `Normal m` via a bundled discharge (`normalmodule`'s core script, or `assumption`) —
+     if it closes, rewrite to `m` (via `reduce_of_normal`) and stop (`m` is stuck, nothing left
+     to do).
+  2. Else scan the local context for a hypothesis of shape `m.ReductionStep n`,
+     `m.MultiStepReduction n`, `equireducible m n`, or `reduce m = reduce n` (allow `m` to match
+     up to defeq, not just syntactically) — if found, rewrite `reduce m ↦ reduce n` (via
+     `reduce_step`/`reduce_equireducible`/directly) and recurse on `reduce n` (bounded by
+     `Simp.Config.maxSteps`, no separate loop guard needed since simp already has one).
+  3. Else try the unconditional one-step lemmas (`reduce_beta`/`reduce_fst`/`reduce_snd`) if `m`
+     matches their LHS shape.
+  4. Else, if `m` is `.pair a c` / `.app a c` / `.abs a`, recursively run this same simproc on
+     `reduce a` (and `reduce c`, for the two-component shapes) to get back whatever it could
+     simplify each to, then combine via the matching weak cong lemma
+     (`reduce_pair_cong`/`reduce_app` (or a `reduce_app_cong` corollary of it)/`reduce_abs_cong`)
+     into a rewrite of the parent `reduce m`. If neither component's recursive call made
+     progress, this step makes no progress either — falls through to 5.
+  5. Else leave `reduce m` unchanged (`Simp.Step.continue`/no-op) — mirrors `moduletyping`'s
+     leniency: don't fail, just don't claim more than is derivable.
+* No `!`/fail-loud variant planned: unlike `moduletyping`/`normalmodule`, this runs *inside*
+  `simp` as a subroutine, not as a standalone closing tactic — `simp`'s own "simp made no
+  progress" error already signals the all-cases-stuck outcome; a separate strict entry point
+  isn't a natural fit for a simproc.
+* Open question before implementing: whether the "up to defeq" context scan in step 2 is cheap
+  enough to run at every `reduce _` site simp visits, or whether it should be opt-in (e.g. only
+  scanning for the *exact* `m` simp is currently looking at, via `isDefEq` short-circuited by a
+  fast syntactic pre-filter on head symbol) — worth timing on the existing `reduce`-heavy proofs
+  in this file (`reduce_idempotent`, `confluence`, `pair_type_is_pair`-adjacent lemmas) once a
+  first version exists.
 -/
 
 /- # Modules -/
