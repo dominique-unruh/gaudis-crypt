@@ -325,7 +325,7 @@ theorem eval_induction_step {t} (ind : InductiveFunction t)
       simpa [InductiveFunction.evalMexpr, tuple] using hδ'
 
 theorem evalMexpr_reduce {t} (ind : InductiveFunction t)
-    [Reducible ind] (m : ModuleExpression) :
+    [Reducible ind] (m : ModuleExpression) (h : m.Terminating) :
     ind.evalMexpr m.reduce ≤ ind.evalMexpr m := by
   -- `reduce` reaches a normal form by multi-step reduction; lift `eval_induction_step`.
   have hStar : ∀ {a b : ModuleExpression},
@@ -335,14 +335,14 @@ theorem evalMexpr_reduce {t} (ind : InductiveFunction t)
     | refl => exact le_rfl
     | tail _ hstep ih =>
         exact le_trans (eval_induction_step (ind := ind) hstep) ih
-  exact hStar ModuleExpression.multiStepReduction_reduce
+  exact hStar (ModuleExpression.multiStepReduction_reduce h)
 
 
 theorem evalMexpr_upper_bound {t mt} (ind : InductiveFunction t)
-    [Reducible ind] (m : ModuleExpression) (h : m.Typed .empty mt) :
+    [Reducible ind] {m : ModuleExpression} (h : m.Typed .empty mt) :
     ind.eval (m.toModule h) ≤ ind.evalMexpr m := by
   change ind.evalMexpr m.reduce ≤ ind.evalMexpr m
-  exact evalMexpr_reduce ind m
+  exact evalMexpr_reduce ind _ h.terminating
 
 theorem InductiveFunction.app_moduleExpression (ind : InductiveFunction t)
   (a b : ModuleExpression) :
@@ -352,7 +352,8 @@ theorem InductiveFunction.app_moduleExpression (ind : InductiveFunction t)
 theorem InductiveFunction.app' (ind : InductiveFunction t) [Reducible ind] (a : Module (.arr A B)) (b : Module A) :
     ind.eval' (Module.app' a b) ≤ ind.join (ind.eval a) (ind.eval b) :=
   calc ind.eval' (Module.app' a b)
-      ≤ ind.evalMexpr (a.expression.pair b.expression) := evalMexpr_reduce ind _
+      ≤ ind.evalMexpr (a.expression.pair b.expression) :=
+        evalMexpr_reduce ind _ (ModuleExpression.Typed.terminating (.app a.typed b.typed))
     _ = ind.join (ind.eval a) (ind.eval b) := rfl
 
 theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
@@ -393,7 +394,8 @@ theorem InductiveFunction.fst' (ind : InductiveFunction t) [Reducible ind]
   (a : Module (.prod A B)) :
     ind.eval' (.fst' a) ≤ ind.eval a :=
   calc ind.eval (Module.fst' a)
-      ≤ ind.evalMexpr a.expression.fst := evalMexpr_reduce ind _
+      ≤ ind.evalMexpr a.expression.fst :=
+        evalMexpr_reduce ind _ (ModuleExpression.Typed.terminating (.fst a.typed))
     _ = ind.eval a := InductiveFunction.fst_moduleExpression ind _
 
 theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
@@ -413,7 +415,8 @@ theorem InductiveFunction.snd' (ind : InductiveFunction t) [Reducible ind]
   (a : Module (.prod A B)) :
     ind.eval' (.snd' a) ≤ ind.eval a :=
   calc ind.eval (Module.snd' a)
-      ≤ ind.evalMexpr a.expression.snd := evalMexpr_reduce ind _
+      ≤ ind.evalMexpr a.expression.snd :=
+        evalMexpr_reduce ind _ (ModuleExpression.Typed.terminating (.snd a.typed))
     _ = ind.eval a := InductiveFunction.snd_moduleExpression ind _
 
 theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
