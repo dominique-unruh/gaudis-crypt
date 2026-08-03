@@ -7,7 +7,7 @@ import GaudisCrypt.Attic.DetermFootprint
 import GaudisCrypt.Attic.ProgramRange
 
 open GaudisCrypt
-open GaudisCrypt.UM
+open GaudisCrypt
 
 namespace FV
 

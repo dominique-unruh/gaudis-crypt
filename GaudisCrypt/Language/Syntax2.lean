@@ -1,8 +1,7 @@
 import GaudisCrypt.Language.Programs
 import GaudisCrypt.Language.Modules
-import GaudisCrypt.Language.Modules2
 
-open GaudisCrypt.UM
+open GaudisCrypt
 
 /-!
 # Concrete syntax for programs, procedures, and module types
@@ -611,10 +610,10 @@ syntax "procmod " "(" term,* ")" (" → " <|> " -> ") term:36 : term
 macro_rules
   | `(procmod ( $params:term,* ) → $ret:term) => `(procmod ( $params,* ) -> $ret)
   | `(procmod ( $params:term,* ) -> $ret:term) =>
-      `(_root_.GaudisCrypt.TM.ModuleTypeRep.proc (procsig ( $params,* ) -> $ret))
+      `(_root_.GaudisCrypt.ModuleTypeRep.proc (procsig ( $params,* ) -> $ret))
 
 open Lean PrettyPrinter in
-@[app_unexpander _root_.GaudisCrypt.TM.ModuleTypeRep.proc]
+@[app_unexpander _root_.GaudisCrypt.ModuleTypeRep.proc]
 def unexpandProcMod : Unexpander
   | `($_ $sig) => do
       let some (ps, r) := procsigParts? sig.raw | throw ()
@@ -797,8 +796,8 @@ former) resolves them wherever the expected type is `ModuleTypeRep` (both sides 
 field ascription).  Both are `scoped` to `GaudisCrypt`, so `open`ing that
 namespace activates them (and the `×` overload stays inert otherwise). -/
 namespace GaudisCrypt
-scoped infixr:35 " × "  => _root_.GaudisCrypt.TM.ModuleTypeRep.prod
-scoped infixr:25 " →ₘ " => _root_.GaudisCrypt.TM.ModuleTypeRep.arr
+scoped infixr:35 " × "  => _root_.GaudisCrypt.ModuleTypeRep.prod
+scoped infixr:25 " →ₘ " => _root_.GaudisCrypt.ModuleTypeRep.arr
 end GaudisCrypt
 
 /-- A field `f : Module T` of a `moduletype` declaration. -/
@@ -832,13 +831,13 @@ elab_rules : command
         | `(moduletypeField| module $_ : $T:term ;) => pure T
         | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;)
         | `(moduletypeField| proc $_ ( $ps,* ) → $ret:term ;) =>
-            `(_root_.GaudisCrypt.TM.ModuleTypeRep.proc (ProcedureSignature.mk [$ps,*] $ret))
+            `(_root_.GaudisCrypt.ModuleTypeRep.proc (ProcedureSignature.mk [$ps,*] $ret))
         | _ => throwUnsupportedSyntax
       -- the field/accessor types are `Module Tᵢ`
-      let fts ← Ts.mapM fun T => `(_root_.GaudisCrypt.UM.Module $T)
+      let fts ← Ts.mapM fun T => `(_root_.GaudisCrypt.Module $T)
       -- right-nested product of the underlying types
       let prodT ← Ts.pop.foldrM
-        (fun T acc => `(_root_.GaudisCrypt.TM.ModuleTypeRep.prod $T $acc)) Ts.back!
+        (fun T acc => `(_root_.GaudisCrypt.ModuleTypeRep.prod $T $acc)) Ts.back!
       -- generated names
       let nb := nm.getId
       let structId := mkIdent (nb.str "Structure")
@@ -851,8 +850,8 @@ elab_rules : command
       let mId := mkIdent `m
       let sId := mkIdent `s
       -- (1) `X.typeRep` names the underlying `ModuleTypeRep`; `X := Module X.typeRep`
-      elabCommand (← `(def $moduleTypeId : _root_.GaudisCrypt.TM.ModuleTypeRep := $prodT))
-      elabCommand (← `(def $nm := _root_.GaudisCrypt.UM.Module $moduleTypeId))
+      elabCommand (← `(def $moduleTypeId : _root_.GaudisCrypt.ModuleTypeRep := $prodT))
+      elabCommand (← `(def $nm := _root_.GaudisCrypt.Module $moduleTypeId))
       -- (2) the record structure
       elabCommand (← `(structure $structId where $[$fns:ident : $fts:term]*))
       -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last
@@ -860,15 +859,15 @@ elab_rules : command
         let accId := accIds[i]!
         let ft := fts[i]!
         let mut e : Term := mId
-        for _ in [0:i] do e ← `(_root_.GaudisCrypt.UM.Module.snd' $e)
-        if i + 1 < n then e ← `(_root_.GaudisCrypt.UM.Module.fst' $e)
+        for _ in [0:i] do e ← `(_root_.GaudisCrypt.Module.snd' $e)
+        if i + 1 < n then e ← `(_root_.GaudisCrypt.Module.fst' $e)
         elabCommand (← `(noncomputable def $accId ($mId : $nm) : $ft := $e))
       -- (4) constructor: right-nested `Module.pair`
       let mut mkBody : Term ← `($(projId (n-1)) $sId)
       for i in [0:n-1] do
         let j := n - 2 - i
         let pj := projId j
-        mkBody ← `(_root_.GaudisCrypt.UM.Module.pair' ($pj $sId) $mkBody)
+        mkBody ← `(_root_.GaudisCrypt.Module.pair' ($pj $sId) $mkBody)
       elabCommand (← `(@[reducible] noncomputable def $mkId ($sId : $structId) : $nm := $mkBody))
       -- (5) destructor
       let args ← (Array.range n).mapM fun i => do
@@ -916,19 +915,19 @@ instance : IsModule TestModule where
 `ModuleTypeRep.arr (ModuleTypeRep.proc …) ModuleTypeRep.unit`.  `×` binds tighter than `→ₘ`
 (35 vs 25), both right-associative. -/
 
--- `procmod (…) -> R` = `TM.ModuleTypeRep.proc (procsig (…) -> R)`
-example : (procmod (Nat) -> String : ModuleTypeRep) = TM.ModuleTypeRep.proc (procsig (Nat) -> String) := rfl
+-- `procmod (…) -> R` = `ModuleTypeRep.proc (procsig (…) -> R)`
+example : (procmod (Nat) -> String : ModuleTypeRep) = ModuleTypeRep.proc (procsig (Nat) -> String) := rfl
 
 -- `procmod` composes under `→ₘ` (its return type binds tighter than the arrow)
 example : (procmod (Nat) -> String →ₘ .unit : ModuleTypeRep)
-    = TM.ModuleTypeRep.arr (TM.ModuleTypeRep.proc (procsig (Nat) -> String)) TM.ModuleTypeRep.unit := rfl
+    = ModuleTypeRep.arr (ModuleTypeRep.proc (procsig (Nat) -> String)) ModuleTypeRep.unit := rfl
 
 example : (.proc (procsig (Nat) -> String) →ₘ .unit : ModuleTypeRep)
-    = TM.ModuleTypeRep.arr (TM.ModuleTypeRep.proc (procsig (Nat) -> String)) TM.ModuleTypeRep.unit := rfl
+    = ModuleTypeRep.arr (ModuleTypeRep.proc (procsig (Nat) -> String)) ModuleTypeRep.unit := rfl
 
--- `×` overloads `Prod`'s token; the `ModuleTypeRep` expected type selects `TM.ModuleTypeRep.prod`.
+-- `×` overloads `Prod`'s token; the `ModuleTypeRep` expected type selects `ModuleTypeRep.prod`.
 example : (procmod () -> Bool × .unit : ModuleTypeRep)
-    = TM.ModuleTypeRep.prod (TM.ModuleTypeRep.proc (procsig () -> Bool)) TM.ModuleTypeRep.unit := rfl
+    = ModuleTypeRep.prod (ModuleTypeRep.proc (procsig () -> Bool)) ModuleTypeRep.unit := rfl
 
 -- `procmod` and the `moduletype` proc-field accept the `→` arrow spelling too
 example : (procmod (Nat) → String : ModuleTypeRep) = procmod (Nat) -> String := rfl
@@ -940,7 +939,7 @@ moduletype UnicodeArrowField {
 
 -- precedence: `×` tighter than `→ₘ`, `→ₘ` right-associative
 example : (.unit × .unit →ₘ .unit →ₘ .unit : ModuleTypeRep)
-    = TM.ModuleTypeRep.arr (TM.ModuleTypeRep.prod .unit .unit) (TM.ModuleTypeRep.arr .unit .unit) := rfl
+    = ModuleTypeRep.arr (ModuleTypeRep.prod .unit .unit) (ModuleTypeRep.arr .unit .unit) := rfl
 
 -- prints back in the concrete form (`.proc …` and `procmod …` both print as `procmod …`)
 #check (procmod (Nat) -> String →ₘ .unit : ModuleTypeRep)

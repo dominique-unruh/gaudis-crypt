@@ -1,8 +1,7 @@
 import GaudisCrypt.Language.Modules
-import GaudisCrypt.Language.Modules2
 
 open GaudisCrypt
-open GaudisCrypt.UM
+open GaudisCrypt
 
 namespace GaudisCrypt
 

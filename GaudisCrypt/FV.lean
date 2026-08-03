@@ -17,7 +17,7 @@ read or modify, together with the soundness bound `fvP (m.toModule) ≤ fvPMexpr
 -/
 
 namespace GaudisCrypt
-open GaudisCrypt.UM
+open GaudisCrypt
 
 
 /-! # fvP_extend_sup -/

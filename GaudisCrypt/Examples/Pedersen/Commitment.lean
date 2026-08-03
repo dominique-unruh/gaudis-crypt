@@ -41,7 +41,7 @@ DoesnotUse A X.op (in proof, do induction, proof ⊥ from X.op use)
 -/
 
 open GaudisCrypt
-open GaudisCrypt.UM
+open GaudisCrypt
 
 
 /-- The abstract types of EC's `theory CommitmentProtocol`: the public value (key), the
