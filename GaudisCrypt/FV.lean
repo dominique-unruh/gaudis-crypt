@@ -327,7 +327,7 @@ scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   extend_mono := fun lens h => Lens.liftFootprint_mono lens h
 
 
-theorem fvPMexpr_upper_bound {mt} {m : ModuleExpression} (h : m.Typed [] mt) :
+theorem fvPMexpr_upper_bound {mt} {m : ModuleExpression} (h : m.HasType [] mt) :
     fvP (m.toModule h) ≤ fvPMexpr m :=
   evalMexpr_upper_bound fvpInductiveFunctionGS.inductiveFunction h
 

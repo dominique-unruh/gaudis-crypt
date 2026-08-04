@@ -338,7 +338,7 @@ theorem evalMexpr_reduce {t} (ind : InductiveFunction t)
 
 
 theorem evalMexpr_upper_bound {t mt} (ind : InductiveFunction t)
-    [Reducible ind] {m : ModuleExpression} (h : m.Typed [] mt) :
+    [Reducible ind] {m : ModuleExpression} (h : m.HasType [] mt) :
     ind.eval (m.toModule h) ≤ ind.evalMexpr m := by
   change ind.evalMexpr m.reduce ≤ ind.evalMexpr m
   exact evalMexpr_reduce ind _ h.terminating
@@ -352,7 +352,7 @@ theorem InductiveFunction.app' (ind : InductiveFunction t) [Reducible ind] (a : 
     ind.eval' (Module.app' a b) ≤ ind.join (ind.eval a) (ind.eval b) :=
   calc ind.eval' (Module.app' a b)
       ≤ ind.evalMexpr (a.expression.pair b.expression) :=
-        evalMexpr_reduce ind _ (ModuleExpression.Typed.terminating (.app a.typed b.typed))
+        evalMexpr_reduce ind _ (ModuleExpression.HasType.terminating (.app a.typed b.typed))
     _ = ind.join (ind.eval a) (ind.eval b) := rfl
 
 theorem InductiveFunction.app (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
@@ -371,7 +371,7 @@ theorem InductiveFunction.pair' (ind : InductiveFunction t) (a : Module A) (b : 
     ind.eval' (Module.pair' a b) = ind.join (ind.eval' a) (ind.eval' b) := by
   have h : (a.expression.pair b.expression).reduce = a.expression.pair b.expression :=
     Module.reduce_expression
-      ⟨_, ModuleExpression.Typed.pair a.typed b.typed,
+      ⟨_, ModuleExpression.HasType.pair a.typed b.typed,
         ModuleExpression.NormalClosed.pair a.normal b.normal⟩
   change ind.evalMexpr (a.expression.pair b.expression).reduce = _
   rw [h]
@@ -394,7 +394,7 @@ theorem InductiveFunction.fst' (ind : InductiveFunction t) [Reducible ind]
     ind.eval' (.fst' a) ≤ ind.eval a :=
   calc ind.eval (Module.fst' a)
       ≤ ind.evalMexpr a.expression.fst :=
-        evalMexpr_reduce ind _ (ModuleExpression.Typed.terminating (.fst a.typed))
+        evalMexpr_reduce ind _ (ModuleExpression.HasType.terminating (.fst a.typed))
     _ = ind.eval a := InductiveFunction.fst_moduleExpression ind _
 
 theorem InductiveFunction.fst (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
@@ -415,7 +415,7 @@ theorem InductiveFunction.snd' (ind : InductiveFunction t) [Reducible ind]
     ind.eval' (.snd' a) ≤ ind.eval a :=
   calc ind.eval (Module.snd' a)
       ≤ ind.evalMexpr a.expression.snd :=
-        evalMexpr_reduce ind _ (ModuleExpression.Typed.terminating (.snd a.typed))
+        evalMexpr_reduce ind _ (ModuleExpression.HasType.terminating (.snd a.typed))
     _ = ind.eval a := InductiveFunction.snd_moduleExpression ind _
 
 theorem InductiveFunction.snd (ind : InductiveFunction t) [Reducible ind] [IsModule A] [IsModule B]
