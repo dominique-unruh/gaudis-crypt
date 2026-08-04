@@ -4,32 +4,7 @@ import Metatheory.STLCext.Confluence
 import Mathlib.Data.List.AList
 import Mathlib.Logic.Equiv.Defs
 
-/-!
-# Untyped module expressions (experimental)
-
-The untyped module-expression calculus.  The intrinsic (typed) development this ports from now
-lives in namespace `GaudisCrypt.TypedModules` (file `Attic/TypesModules.lean`).
-
-This file ports *every* definition and theorem of `TypedModules` (including the `private` ones),
-rewritten to the untyped setting: where the intrinsic type index carried information, the untyped
-statement takes an explicit `Typed` hypothesis.  Proofs are given where they translate directly and
-are unprove otherwise.  `reduce` is the `Terminating`/`Classical.choose` definition (not
-`TypedModules`'s well-founded-recursion one), so `TypedModules`'s global
-`WellFoundedRelation ModuleExpression` instance and WF-recursive `reduce` are *not* ported — on
-untyped terms that relation is not well-founded, so porting them would be a false statement.  STLC
-helpers that clash with `TypedModules`'s `private` homonyms on the shared
-`ModuleTypeRep`/`ProcedureWithHoles`/`ModuleContext` are renamed
-(`tyToSTLC`/`pwhToSTLC`/`ctxToSTLC`).
--/
-
 namespace GaudisCrypt
-
--- The foundational (type-level) pieces of the module calculus, defined natively here so that this
--- file does not depend on the intrinsic `TypedModules` development (`Attic/TypesModules.lean`).
--- (These mirror `TypedModules.ModuleTypeRep`/`ModuleContext`.  Unlike `TypedModules`, contexts here
--- are plain `List ModuleTypeRep` and variables plain `Nat` de Bruijn indices — there is no
--- `ModuleContextIdx`; well-typedness of a variable is instead the explicit bound `n < Δ.length`
--- carried by `Typed.var`.)
 
 /-- Possible types of modules. -/
 inductive ModuleTypeRep where
@@ -38,9 +13,6 @@ inductive ModuleTypeRep where
   | arr  : ModuleTypeRep → ModuleTypeRep → ModuleTypeRep
   | unit : ModuleTypeRep
 
-/-- Module context typing: the types of a module context, just a list of module types.
-    (Was a bespoke `inductive`; now literally `List ModuleTypeRep`, newest binder at index `0`,
-    matching `List.cons`.) -/
 abbrev ModuleContext := List ModuleTypeRep
 
 /-- The right-nested product type of a hole signature (native UM copy of the TypedModules definition;
@@ -53,8 +25,8 @@ variable [ProgramSpec]
 
 /-- Untyped module expressions: the raw syntax tree of the module calculus, with no
     context/type indices.  Well-typedness is captured extrinsically by the predicate
-    `ModuleExpression.Typed`.  Variables are de Bruijn indices (`Nat`); `abs` carries no
-    domain annotation (the domain is recovered by `Typed`). -/
+    `ModuleExpression.HasType`.  Variables are de Bruijn indices (`Nat`); `abs` carries no
+    domain annotation (the domain is recovered by `HasType`). -/
 inductive ModuleExpression : Type _ where
   | proc {sig} : Procedure sig → ModuleExpression
   | procHoles {holes} {sig} : holes.NonEmpty → ProcedureWithHoles holes sig → ModuleExpression
@@ -66,58 +38,58 @@ inductive ModuleExpression : Type _ where
   | pair : ModuleExpression → ModuleExpression → ModuleExpression
   | unit : ModuleExpression
 
-/-- `ModuleExpression.Typed m Δ T` holds when the untyped expression `m` is well-typed in
+/-- `ModuleExpression.HasType m Δ T` holds when the untyped expression `m` is well-typed in
     module context `Δ` with type `T`.  This is the extrinsic counterpart of the indices of
     `TypedModules.ModuleExpression`: every `TypedModules.ModuleExpression Δ T` erases (via
-    `TypedModules.ModuleExpression.erase`) to an `m` with `Typed m Δ T`, and conversely. -/
-inductive ModuleExpression.Typed : ModuleExpression → ModuleContext → ModuleTypeRep → Prop where
-  | proc {Δ sig} (p : Procedure sig) : Typed (.proc p) Δ (.proc sig)
+    `TypedModules.ModuleExpression.erase`) to an `m` with `HasType m Δ T`, and conversely. -/
+inductive ModuleExpression.HasType : ModuleExpression → ModuleContext → ModuleTypeRep → Prop where
+  | proc {Δ sig} (p : Procedure sig) : HasType (.proc p) Δ (.proc sig)
   | procHoles {Δ holes sig} (ne : holes.NonEmpty) (p : ProcedureWithHoles holes sig) :
-        Typed (.procHoles ne p) Δ (.arr (HoleSigs.toModuleTypeRepTuple holes) (.proc sig))
-  | var {Δ} (n : Nat) (h : n < Δ.length) : Typed (.var n) Δ Δ[n]
-  | app {Δ A B m n} : Typed m Δ (.arr A B) → Typed n Δ A → Typed (.app m n) Δ B
-  | fst {Δ A B m} : Typed m Δ (.prod A B) → Typed (.fst m) Δ A
-  | snd {Δ A B m} : Typed m Δ (.prod A B) → Typed (.snd m) Δ B
-  | abs {Δ A B m} : Typed m (A :: Δ) B → Typed (.abs m) Δ (.arr A B)
-  | pair {Δ A B m n} : Typed m Δ A → Typed n Δ B → Typed (.pair m n) Δ (.prod A B)
-  | unit {Δ} : Typed .unit Δ .unit
+        HasType (.procHoles ne p) Δ (.arr (HoleSigs.toModuleTypeRepTuple holes) (.proc sig))
+  | var {Δ} (n : Nat) (h : n < Δ.length) : HasType (.var n) Δ Δ[n]
+  | app {Δ A B m n} : HasType m Δ (.arr A B) → HasType n Δ A → HasType (.app m n) Δ B
+  | fst {Δ A B m} : HasType m Δ (.prod A B) → HasType (.fst m) Δ A
+  | snd {Δ A B m} : HasType m Δ (.prod A B) → HasType (.snd m) Δ B
+  | abs {Δ A B m} : HasType m (A :: Δ) B → HasType (.abs m) Δ (.arr A B)
+  | pair {Δ A B m n} : HasType m Δ A → HasType n Δ B → HasType (.pair m n) Δ (.prod A B)
+  | unit {Δ} : HasType .unit Δ .unit
 
 
-namespace ModuleExpression.Typed
+namespace ModuleExpression.HasType
 
-theorem proc_inv {Δ T sig} {p : Procedure sig} (h : Typed (.proc p) Δ T) : T = .proc sig := by
+theorem proc_inv {Δ T sig} {p : Procedure sig} (h : HasType (.proc p) Δ T) : T = .proc sig := by
   cases h with | proc _ => rfl
 
 theorem procHoles_inv {Δ T holes sig} {ne : holes.NonEmpty} {p : ProcedureWithHoles holes sig}
-    (h : Typed (.procHoles ne p) Δ T) :
+    (h : HasType (.procHoles ne p) Δ T) :
     T = .arr (HoleSigs.toModuleTypeRepTuple holes) (.proc sig) := by
   cases h with | procHoles _ _ => rfl
 
-theorem var_inv {Δ T n} (h : Typed (.var n) Δ T) : ∃ hn : n < Δ.length, Δ[n]'hn = T := by
+theorem var_inv {Δ T n} (h : HasType (.var n) Δ T) : ∃ hn : n < Δ.length, Δ[n]'hn = T := by
   cases h with | var _ h => exact ⟨h, rfl⟩
 
-theorem app_inv {Δ B m n} (h : Typed (.app m n) Δ B) :
-    ∃ A, Typed m Δ (.arr A B) ∧ Typed n Δ A := by
+theorem app_inv {Δ B m n} (h : HasType (.app m n) Δ B) :
+    ∃ A, HasType m Δ (.arr A B) ∧ HasType n Δ A := by
   cases h with | app hm hn => exact ⟨_, hm, hn⟩
 
-theorem fst_inv {Δ A m} (h : Typed (.fst m) Δ A) : ∃ B, Typed m Δ (.prod A B) := by
+theorem fst_inv {Δ A m} (h : HasType (.fst m) Δ A) : ∃ B, HasType m Δ (.prod A B) := by
   cases h with | fst hm => exact ⟨_, hm⟩
 
-theorem snd_inv {Δ B m} (h : Typed (.snd m) Δ B) : ∃ A, Typed m Δ (.prod A B) := by
+theorem snd_inv {Δ B m} (h : HasType (.snd m) Δ B) : ∃ A, HasType m Δ (.prod A B) := by
   cases h with | snd hm => exact ⟨_, hm⟩
 
-theorem abs_inv {Δ T m} (h : Typed (.abs m) Δ T) :
-    ∃ A B, T = .arr A B ∧ Typed m (A :: Δ) B := by
+theorem abs_inv {Δ T m} (h : HasType (.abs m) Δ T) :
+    ∃ A B, T = .arr A B ∧ HasType m (A :: Δ) B := by
   cases h with | abs hm => exact ⟨_, _, rfl, hm⟩
 
-theorem pair_inv {Δ T m n} (h : Typed (.pair m n) Δ T) :
-    ∃ A B, T = .prod A B ∧ Typed m Δ A ∧ Typed n Δ B := by
+theorem pair_inv {Δ T m n} (h : HasType (.pair m n) Δ T) :
+    ∃ A B, T = .prod A B ∧ HasType m Δ A ∧ HasType n Δ B := by
   cases h with | pair hm hn => exact ⟨_, _, rfl, hm, hn⟩
 
-theorem unit_inv {Δ T} (h : Typed .unit Δ T) : T = .unit := by
+theorem unit_inv {Δ T} (h : HasType .unit Δ T) : T = .unit := by
   cases h with | unit => rfl
 
-end ModuleExpression.Typed
+end ModuleExpression.HasType
 /-! ## De Bruijn renaming and substitution on the untyped tree
 
 The untyped analogues of `TypedModules.ModuleExpression.rename`/`substitute`: since there are no type
@@ -176,14 +148,15 @@ def substitute (body arg : ModuleExpression) : ModuleExpression :=
   body.substituteSimultaneously (variableSubstitution arg)
 
 end ModuleExpression
+
 /-! ## Reduction on the untyped tree, and type preservation
 
-`ReductionStep` mirrors the intrinsic one but on raw syntax; the payoff is `Typed.preservation`
+`ReductionStep` mirrors the intrinsic one but on raw syntax; the payoff is `HasType.preservation`
 — what intrinsic typing gave for free must now be proved.  All permanent. -/
 
 /-- The untyped tuple of procedures corresponding to an instantiation (untyped analogue of
     `HoleSigs.Instantiation.toModuleTuple`). -/
-def _root_.GaudisCrypt.HoleSigs.Instantiation.toModuleExpr :
+def HoleSigs.Instantiation.toModuleExpr :
     {holes : HoleSigs} → holes.Instantiation → ModuleExpression
   | .empty,      _    => .unit
   | .append _ _, inst =>
@@ -210,7 +183,7 @@ inductive ModuleExpression.ReductionStep : ModuleExpression → ModuleExpression
 def ModuleExpression.MultiStepReduction : ModuleExpression → ModuleExpression → Prop :=
   Rewriting.Star ModuleExpression.ReductionStep
 
-namespace ModuleExpression.Typed
+namespace ModuleExpression.HasType
 
 /-- A de Bruijn renaming `ρ` maps context `Δ` into `Γ` if every `Δ`-index has a `Γ`-index of
     the same type sitting at the renamed position. -/
@@ -237,8 +210,8 @@ theorem IsRenaming.lift {Δ Γ A ρ} (h : IsRenaming Δ Γ ρ) :
       exact heq
 
 /-- Renaming preserves typing along a context renaming. -/
-theorem rename {m Δ T} (h : Typed m Δ T) :
-    ∀ {Γ : ModuleContext} {ρ : Nat → Nat}, IsRenaming Δ Γ ρ → Typed (m.rename ρ) Γ T := by
+theorem rename {m Δ T} (h : HasType m Δ T) :
+    ∀ {Γ : ModuleContext} {ρ : Nat → Nat}, IsRenaming Δ Γ ρ → HasType (m.rename ρ) Γ T := by
   induction h with
   | proc p => intro Γ ρ _; exact .proc p
   | procHoles ne p => intro Γ ρ _; exact .procHoles ne p
@@ -257,7 +230,7 @@ theorem rename {m Δ T} (h : Typed m Δ T) :
 
 /-- A substitution `σ` maps `Δ` into `Γ` if it sends every `Δ`-index to a `Γ`-typed term. -/
 def IsSubst (Δ Γ : ModuleContext) (σ : Nat → ModuleExpression) : Prop :=
-  ∀ {n} (h : n < Δ.length), Typed (σ n) Γ (Δ[n]'h)
+  ∀ {n} (h : n < Δ.length), HasType (σ n) Γ (Δ[n]'h)
 
 /-- A well-typed substitution lifts under one binder to `liftSubst σ`. -/
 theorem IsSubst.lift {Δ Γ A σ} (h : IsSubst Δ Γ σ) :
@@ -266,16 +239,16 @@ theorem IsSubst.lift {Δ Γ A σ} (h : IsSubst Δ Γ σ) :
   cases n with
   | zero =>
       simp only [ModuleExpression.liftSubst]
-      exact Typed.var 0 (by simp)
+      exact HasType.var 0 (by simp)
   | succ n' =>
       have hn' : n' < Δ.length := by simpa using hn
       simp only [ModuleExpression.liftSubst, List.getElem_cons_succ]
       exact (h hn').rename isRenaming_succ
 
 /-- Simultaneous substitution preserves typing along a well-typed substitution. -/
-theorem substituteSimultaneously {m Δ T} (h : Typed m Δ T) :
+theorem substituteSimultaneously {m Δ T} (h : HasType m Δ T) :
     ∀ {Γ : ModuleContext} {σ : Nat → ModuleExpression},
-      IsSubst Δ Γ σ → Typed (m.substituteSimultaneously σ) Γ T := by
+      IsSubst Δ Γ σ → HasType (m.substituteSimultaneously σ) Γ T := by
   induction h with
   | proc p => intro Γ σ _; exact .proc p
   | procHoles ne p => intro Γ σ _; exact .procHoles ne p
@@ -289,8 +262,8 @@ theorem substituteSimultaneously {m Δ T} (h : Typed m Δ T) :
 
 /-- Single-variable substitution preserves typing (the β-substitution lemma). -/
 theorem substitute {Δ u t body arg}
-    (hb : Typed body (u :: Δ) t) (ha : Typed arg Δ u) :
-    Typed (body.substitute arg) Δ t := by
+    (hb : HasType body (u :: Δ) t) (ha : HasType arg Δ u) :
+    HasType (body.substitute arg) Δ t := by
   unfold ModuleExpression.substitute
   refine hb.substituteSimultaneously ?_
   intro n hn
@@ -305,7 +278,7 @@ theorem substitute {Δ u t body arg}
     the extrinsic replacement for what the intrinsic `TypedModules.ModuleExpression` guaranteed by
     construction. -/
 theorem preservation {m m'} (hstep : m.ReductionStep m') :
-    ∀ {Δ T}, Typed m Δ T → Typed m' Δ T := by
+    ∀ {Δ T}, HasType m Δ T → HasType m' Δ T := by
   induction hstep with
   | beta =>
       intro Δ T h
@@ -348,10 +321,9 @@ theorem preservation {m m'} (hstep : m.ReductionStep m') :
       subst hTeq
       exact .proc _
 
-end ModuleExpression.Typed
+end ModuleExpression.HasType
 
-/-- `T` is a *procedure-argument type*: a right-nested product of `proc` types (or `unit`).
-    Untyped analogue of `TypedModules.IsProcArgType`; lives on the shared `ModuleTypeRep`. -/
+-- TODO check needed
 def IsProcArgType : ModuleTypeRep → Prop
   | .unit => True
   | .prod (.proc _) rest => IsProcArgType rest
@@ -365,9 +337,24 @@ mirror the intrinsic versions structurally. -/
 namespace ModuleExpression
 
 /-- `m` is a procedure-with-holes node. -/
+-- TODO check needed
 def IsProcHoles : ModuleExpression → Prop
   | .procHoles _ _ => True
   | _              => False
+
+instance : (m : ModuleExpression) → Decidable (ModuleExpression.IsProcHoles m)
+  | .procHoles _ _ => isTrue trivial
+  | .proc _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .unit =>
+      isFalse (by simp [ModuleExpression.IsProcHoles])
+
+/-- A `procHoles` node decomposed into its holes/signature/procedure (untyped analogue of
+    `TypedModules.IsProcHoles.destruct`; no type-index equation is produced). -/
+def IsProcHoles.destruct {m : ModuleExpression} (h : m.IsProcHoles) :
+    Σ holes : HoleSigs, Σ sig : ProcedureSignature,
+      holes.NonEmpty ×' ProcedureWithHoles holes sig := by
+  cases m with
+  | procHoles ne p => exact ⟨_, _, ne, p⟩
+  | _ => simp [IsProcHoles] at h
 
 /-- `m` is a right-nested tuple of hole-free procedures (`.unit`, or `.pair (.proc _) rest`
     with `IsProcTuple rest`) — the ground arguments a procedure-with-holes accepts. -/
@@ -375,6 +362,20 @@ def IsProcTuple : ModuleExpression → Prop
   | .unit               => True
   | .pair (.proc _) rest => IsProcTuple rest
   | _                   => False
+
+instance instDecidableIsProcTuple : (m : ModuleExpression) → Decidable (IsProcTuple m)
+  | .unit => isTrue trivial
+  | .pair a rest =>
+      match a with
+      | .proc _ =>
+          match instDecidableIsProcTuple rest with
+          | isTrue h => isTrue h
+          | isFalse h => isFalse h
+      | .unit | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .procHoles _ _ =>
+          isFalse (by simp [IsProcTuple])
+  | .proc _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .procHoles _ _ =>
+      isFalse (by simp [IsProcTuple])
+
 
 mutual
 
@@ -399,6 +400,76 @@ inductive Neutral : ModuleExpression → Prop where
 
 end
 
+/-- Joint decidability of `Normal`/`Neutral`, sharing one structural recursion (untyped port of
+    `TypedModules.decidableNormalNeutral`). -/
+private def decidableNormalNeutral (m : ModuleExpression) :
+    Decidable (Normal m) × Decidable (Neutral m) :=
+  match m with
+  | .unit => ⟨.isTrue .unit, .isFalse fun h => nomatch h⟩
+  | .var _  => ⟨.isTrue (.neutral .var), .isTrue .var⟩
+  | .proc _ => ⟨.isTrue .proc, .isFalse fun h => nomatch h⟩
+  | .procHoles _ _ => ⟨.isTrue .procHoles, .isFalse fun h => nomatch h⟩
+  | .abs body =>
+      match (decidableNormalNeutral body).1 with
+      | .isTrue hn   => ⟨.isTrue (.abs hn), .isFalse fun h => nomatch h⟩
+      | .isFalse hnn =>
+          ⟨.isFalse fun h => hnn (match h with | .abs hb => hb | .neutral ne => nomatch ne),
+           .isFalse fun h => nomatch h⟩
+  | .pair a b =>
+      match (decidableNormalNeutral a).1, (decidableNormalNeutral b).1 with
+      | .isTrue ha, .isTrue hb =>
+          ⟨.isTrue (.pair ha hb), .isFalse fun h => nomatch h⟩
+      | .isFalse ha, _ =>
+          ⟨.isFalse fun h => ha (match h with | .pair hp _ => hp | .neutral ne => nomatch ne),
+           .isFalse fun h => nomatch h⟩
+      | .isTrue _, .isFalse hb =>
+          ⟨.isFalse fun h => hb (match h with | .pair _ hq => hq | .neutral ne => nomatch ne),
+           .isFalse fun h => nomatch h⟩
+  | .app f arg => by
+      have df := decidableNormalNeutral f
+      have da := decidableNormalNeutral arg
+      have dN : Decidable (Neutral (.app f arg)) := by
+        match df.2, da.1 with
+        | .isTrue nf, .isTrue na => exact .isTrue (.app nf na)
+        | _, .isFalse na =>
+            exact .isFalse fun h => by
+              cases h with
+              | app _ na' => exact na na'
+              | appProcHoles _ na' _ => exact na na'
+        | .isFalse nf, .isTrue na =>
+            if hph : IsProcHoles f then
+              match instDecidableIsProcTuple arg with
+              | .isFalse hpt => exact .isTrue (.appProcHoles hph na hpt)
+              | .isTrue hpt =>
+                  exact .isFalse fun h => by
+                    cases h with
+                    | app nf' _ => exact nf nf'
+                    | appProcHoles _ _ hpt' => exact hpt' hpt
+            else
+              exact .isFalse fun h => by
+                cases h with
+                | app nf' _ => exact nf nf'
+                | appProcHoles hph' _ _ => exact hph hph'
+      exact ⟨(match dN with
+              | .isTrue h => .isTrue (.neutral h)
+              | .isFalse h =>
+                  .isFalse fun hn => by cases hn with | neutral hne => exact h hne), dN⟩
+  | .fst e =>
+      match (decidableNormalNeutral e).2 with
+      | .isTrue hn   => ⟨.isTrue (.neutral (.fst hn)), .isTrue (.fst hn)⟩
+      | .isFalse hnn =>
+          ⟨.isFalse fun h => hnn (match h with | .neutral (.fst he) => he),
+           .isFalse fun h => hnn (match h with | .fst he => he)⟩
+  | .snd e =>
+      match (decidableNormalNeutral e).2 with
+      | .isTrue hn   => ⟨.isTrue (.neutral (.snd hn)), .isTrue (.snd hn)⟩
+      | .isFalse hnn =>
+          ⟨.isFalse fun h => hnn (match h with | .neutral (.snd he) => he),
+           .isFalse fun h => hnn (match h with | .snd he => he)⟩
+
+instance (m : ModuleExpression) : Decidable (Normal m) := (decidableNormalNeutral m).1
+instance (m : ModuleExpression) : Decidable (Neutral m) := (decidableNormalNeutral m).2
+
 /-- Normal form of a closed term.  Neutral terms cannot occur closed (they need a free
     variable), so there are fewer cases than `Normal`; the `abs` body is still general
     `Normal` (it lives under one binder). -/
@@ -412,7 +483,7 @@ inductive NormalClosed : ModuleExpression → Prop where
 
 omit [ProgramSpec] in
 /-- A hole-signature's argument tuple type is always a procedure-argument type. -/
-theorem toModuleTypeRepTuple_isProcArgType (holes : HoleSigs) :
+private theorem toModuleTypeRepTuple_isProcArgType (holes : HoleSigs) :
     IsProcArgType (HoleSigs.toModuleTypeRepTuple holes) := by
   induction holes with
   | empty => simp [HoleSigs.toModuleTypeRepTuple, IsProcArgType]
@@ -420,8 +491,8 @@ theorem toModuleTypeRepTuple_isProcArgType (holes : HoleSigs) :
 
 /-- The domain of a well-typed procedure-with-holes is a procedure-argument type
     (untyped analogue of `TypedModules.IsProcHoles.isProcArgType`). -/
-theorem isProcArgType_of_procHoles {m : ModuleExpression} {Δ A B}
-    (hty : m.Typed Δ (.arr A B)) (h : m.IsProcHoles) : IsProcArgType A := by
+private theorem isProcArgType_of_procHoles {m : ModuleExpression} {Δ A B}
+    (hty : m.HasType Δ (.arr A B)) (h : m.IsProcHoles) : IsProcArgType A := by
   cases m with
   | procHoles ne p =>
       have he := hty.procHoles_inv
@@ -430,11 +501,16 @@ theorem isProcArgType_of_procHoles {m : ModuleExpression} {Δ A B}
       exact toModuleTypeRepTuple_isProcArgType _
   | _ => simp [IsProcHoles] at h
 
+/-- The domain of a (well-typed) procedure-with-holes is a procedure-argument type. -/
+theorem IsProcHoles.isProcArgType {m : ModuleExpression} {Δ A B}
+    (_hty : m.HasType Δ (.arr A B)) (_h : m.IsProcHoles) : IsProcArgType A :=
+  isProcArgType_of_procHoles _hty _h
+
 /-- Progress for the closed fragment: a well-typed closed term is never neutral, and a closed
     normal term of procedure-argument type is a procedure tuple.  Untyped port of
-    `TypedModules.closed_progress`; the intrinsic index becomes an explicit `Typed` hypothesis. -/
+    `TypedModules.closed_progress`; the intrinsic index becomes an explicit `HasType` hypothesis. -/
 private theorem closedProgress : ∀ {m : ModuleExpression} {T},
-    m.Typed [] T → (¬ Neutral m) ∧ (IsProcArgType T → Normal m → IsProcTuple m) := by
+    m.HasType [] T → (¬ Neutral m) ∧ (IsProcArgType T → Normal m → IsProcTuple m) := by
   intro m
   induction m with
   | unit => intro T hty; exact ⟨(fun hne => nomatch hne), fun _ _ => trivial⟩
@@ -495,6 +571,8 @@ private theorem closedProgress : ∀ {m : ModuleExpression} {T},
 
 On the untyped tree `erasedEqual` coincides with equality; the family is kept to mirror `TypedModules`. -/
 
+-- TODO remove whole section
+
 /-- Structural "erased equality": equal up to the (already-absent) type indices. -/
 def erasedEqual : ModuleExpression → ModuleExpression → Prop
   | .proc p, .proc p' => p ≍ p'
@@ -528,41 +606,31 @@ theorem erasedEqual_pair_left {a a' : ModuleExpression} (b : ModuleExpression)
     (h : erasedEqual a a') : erasedEqual (.pair a b) (.pair a' b) :=
   ⟨h, erasedEqual_refl b⟩
 
-/-! #### Embedding into `Metatheory.STLCext` (untyped port of `TypedModules`'s SN machinery)
-
-`TypedModules` proves `reduce` terminating by embedding into simply-typed λ-calculus.  `UM`'s `reduce` is
-choice-based and needs none of this, but the development is ported for parity.  Intrinsic type
-indices become explicit `Typed` hypotheses (untyped λ-terms are not strongly normalising, so the
-SN-flavoured facts genuinely require typing).  Proofs are unproven unless they translate directly.
-
-Two `TypedModules` items are deliberately *not* ported: the global `WellFoundedRelation ModuleExpression`
-instance and the well-founded-recursion definition of `reduce` — on untyped terms the relation is
-not well-founded (e.g. `Ω`), so porting them would be a false statement.  `UM` uses
-the `Terminating`/`Classical.choose` `reduce` instead. -/
+/-! #### Embedding into `Metatheory.STLCext` -/
 
 private scoped instance instModuleExpressionSTLCspec : Metatheory.STLCext.STLCspec where
   baseTypes := ProcedureSignature
   baseTypeValue := fun sig => { s : ProcedureSignature // s = sig } × Procedure sig
   funcData := Σ holes : HoleSigs, Σ sig : ProcedureSignature, ProcedureWithHoles holes sig
 
-/-- Erase a `ModuleTypeRep` to an STLC type (untyped port of `TypedModules.ModuleTypeRep.toSTLC`; named
-    without dot-notation to avoid `TypedModules`'s private homonym on the shared `ModuleTypeRep`). -/
-def tyToSTLC : ModuleTypeRep → Metatheory.STLCext.Ty
-  | .prod A B => .prod (tyToSTLC A) (tyToSTLC B)
-  | .arr A B => .arr (tyToSTLC A) (tyToSTLC B)
+/-- Erase a `ModuleTypeRep` to an STLC type (untyped port of `TypedModules.ModuleTypeRep.toSTLC`;
+    `TypedModules`'s homonym is `private`, so it gets a hygienic mangled name and does not clash). -/
+private def ModuleTypeRep.toSTLC : ModuleTypeRep → Metatheory.STLCext.Ty
+  | .prod A B => .prod (ModuleTypeRep.toSTLC A) (ModuleTypeRep.toSTLC B)
+  | .arr A B => .arr (ModuleTypeRep.toSTLC A) (ModuleTypeRep.toSTLC B)
   | .proc sig => .base sig
   | .unit => .unit
 
 private theorem toModuleTypeRepTuple_isArrowFree (holes : HoleSigs) :
-    (tyToSTLC (HoleSigs.toModuleTypeRepTuple holes)).isArrowFree := by
+    (ModuleTypeRep.toSTLC (HoleSigs.toModuleTypeRepTuple holes)).isArrowFree := by
   induction holes with
-  | empty => simp [HoleSigs.toModuleTypeRepTuple, tyToSTLC, Metatheory.STLCext.Ty.isArrowFree]
+  | empty => simp [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC, Metatheory.STLCext.Ty.isArrowFree]
   | append _ _ ih =>
-      simp [HoleSigs.toModuleTypeRepTuple, tyToSTLC, Metatheory.STLCext.Ty.isArrowFree, ih]
+      simp [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC, Metatheory.STLCext.Ty.isArrowFree, ih]
 
 open Metatheory.STLCext in
 private def basicTermHoleLookup : (holes : HoleSigs) →
-    BasicTerm (tyToSTLC (HoleSigs.toModuleTypeRepTuple holes)) → holes.Instantiation
+    BasicTerm (ModuleTypeRep.toSTLC (HoleSigs.toModuleTypeRepTuple holes)) → holes.Instantiation
   | .empty, _ => fun n => nomatch n
   | .append Γ _, .pair (.value v) rest => fun n =>
       match n with
@@ -572,19 +640,17 @@ private def basicTermHoleLookup : (holes : HoleSigs) →
 open Metatheory.STLCext in
 private noncomputable def pwhToSTLC {holes sig}
     (proc : ProcedureWithHoles holes sig) : Term :=
-    let inputType := tyToSTLC (HoleSigs.toModuleTypeRepTuple holes)
-    let outputType := tyToSTLC (ModuleTypeRep.proc sig)
+    let inputType := ModuleTypeRep.toSTLC (HoleSigs.toModuleTypeRepTuple holes)
+    let outputType := ModuleTypeRep.toSTLC (ModuleTypeRep.proc sig)
     let inputArrowFree : inputType.isArrowFree := toModuleTypeRepTuple_isArrowFree holes
     let outputArrowFree : outputType.isArrowFree := by
-      simp [outputType, tyToSTLC, Metatheory.STLCext.Ty.isArrowFree]
+      simp [outputType, ModuleTypeRep.toSTLC, Metatheory.STLCext.Ty.isArrowFree]
     let substitution : BasicTerm inputType → BasicTerm outputType :=
       fun basicTerm => .value (⟨sig, rfl⟩, proc.instantiate (basicTermHoleLookup holes basicTerm))
     .func (t := inputType) (u := outputType)
       (ht := inputArrowFree) (hu := outputArrowFree) ⟨holes, sig, proc⟩ substitution
 
-/-- Erase an untyped module expression to an STLC term (untyped port of
-    `TypedModules.ModuleExpression.toSTLC`; variables map directly since they are already `Nat`). -/
-noncomputable def toSTLC : ModuleExpression → Metatheory.STLCext.Term
+private noncomputable def toSTLC : ModuleExpression → Metatheory.STLCext.Term
   | .unit => .unit
   | .proc (sig := sig) p => .value (⟨sig, rfl⟩, p)
   | .procHoles _ p => pwhToSTLC p
@@ -595,20 +661,20 @@ noncomputable def toSTLC : ModuleExpression → Metatheory.STLCext.Term
   | .abs M => .lam (toSTLC M)
   | .pair M N => .pair (toSTLC M) (toSTLC N)
 
-private def ctxToSTLC : ModuleContext → Metatheory.STLCext.Context
+private def ModuleContext.toSTLC : ModuleContext → Metatheory.STLCext.Context
   | [] => []
-  | T :: Γ => tyToSTLC T :: ctxToSTLC Γ
+  | T :: Γ => ModuleTypeRep.toSTLC T :: ModuleContext.toSTLC Γ
 
-private theorem ctxToSTLC_getElem {Δ : ModuleContext} {n} (h : n < Δ.length) :
-    (ctxToSTLC Δ)[n]? = some (tyToSTLC (Δ[n]'h)) := by
+private theorem ModuleContext.toSTLC_getElem {Δ : ModuleContext} {n} (h : n < Δ.length) :
+    (ModuleContext.toSTLC Δ)[n]? = some (ModuleTypeRep.toSTLC (Δ[n]'h)) := by
   induction Δ generalizing n with
   | nil => simp only [List.length_nil] at h; omega
   | cons T Γ ih =>
       cases n with
-      | zero => simp [ctxToSTLC]
+      | zero => simp [ModuleContext.toSTLC]
       | succ n' =>
           have hn' : n' < Γ.length := by simpa using h
-          simp only [ctxToSTLC, List.getElem_cons_succ]
+          simp only [ModuleContext.toSTLC, List.getElem_cons_succ]
           exact ih hn'
 
 private theorem toSTLC_rename_shift (d : Nat) (m : ModuleExpression) :
@@ -724,7 +790,7 @@ private theorem toSTLC_subst (body arg : ModuleExpression) :
       simp [show r' + 1 > 0 from Nat.succ_pos _]
 
 private def isBasicType_toModuleTuple {holes : HoleSigs} (inst : holes.Instantiation) :
-    Metatheory.STLCext.Term.isBasicType (tyToSTLC (HoleSigs.toModuleTypeRepTuple holes))
+    Metatheory.STLCext.Term.isBasicType (ModuleTypeRep.toSTLC (HoleSigs.toModuleTypeRepTuple holes))
         (toSTLC (HoleSigs.Instantiation.toModuleExpr inst)) := by
   induction holes with
   | empty => trivial
@@ -764,7 +830,8 @@ private theorem instantiate_congr {holes : HoleSigs} (args : holes.Instantiation
     (fun n => basicTermHoleLookup_toModuleTuple args n)
 
 private theorem toModuleTuple_of_basicType {holes : HoleSigs} (arg : ModuleExpression)
-    (h : Metatheory.STLCext.Term.isBasicType (tyToSTLC (HoleSigs.toModuleTypeRepTuple holes)) (toSTLC arg)) :
+    (h : Metatheory.STLCext.Term.isBasicType
+      (ModuleTypeRep.toSTLC (HoleSigs.toModuleTypeRepTuple holes)) (toSTLC arg)) :
     HoleSigs.Instantiation.toModuleExpr
       (basicTermHoleLookup holes (Metatheory.STLCext.Term.toBasicTerm _ _ h)) = arg := by
   induction holes generalizing arg with
@@ -772,7 +839,7 @@ private theorem toModuleTuple_of_basicType {holes : HoleSigs} (arg : ModuleExpre
       cases arg with
       | unit => rfl
       | proc _ | procHoles _ _ | var _ | app _ _ | fst _ | snd _ | abs _ | pair _ _ =>
-          simp only [toSTLC, pwhToSTLC, tyToSTLC, HoleSigs.toModuleTypeRepTuple,
+          simp only [toSTLC, pwhToSTLC, ModuleTypeRep.toSTLC, HoleSigs.toModuleTypeRepTuple,
             Metatheory.STLCext.Term.isBasicType] at h
   | append holeTail sig ih =>
       cases arg with
@@ -780,14 +847,14 @@ private theorem toModuleTuple_of_basicType {holes : HoleSigs} (arg : ModuleExpre
           cases a with
           | proc p =>
               obtain ⟨h1, h2⟩ := h
-              simp only [toSTLC, tyToSTLC, Metatheory.STLCext.Term.isBasicType] at h1
+              simp only [toSTLC, ModuleTypeRep.toSTLC, Metatheory.STLCext.Term.isBasicType] at h1
               subst h1
               exact congrArg (ModuleExpression.pair (.proc p)) (ih rest h2)
           | procHoles _ _ | var _ | app _ _ | fst _ | snd _ | abs _ | pair _ _ | unit =>
-              simp only [toSTLC, pwhToSTLC, tyToSTLC, HoleSigs.toModuleTypeRepTuple,
+              simp only [toSTLC, pwhToSTLC, ModuleTypeRep.toSTLC, HoleSigs.toModuleTypeRepTuple,
                 Metatheory.STLCext.Term.isBasicType, false_and] at h
       | proc _ | procHoles _ _ | var _ | app _ _ | fst _ | snd _ | abs _ | unit =>
-          simp only [toSTLC, pwhToSTLC, tyToSTLC, HoleSigs.toModuleTypeRepTuple,
+          simp only [toSTLC, pwhToSTLC, ModuleTypeRep.toSTLC, HoleSigs.toModuleTypeRepTuple,
             Metatheory.STLCext.Term.isBasicType] at h
 
 private theorem reductionStep_stlc_compat (m m' : ModuleExpression) (h : m.ReductionStep m') :
@@ -808,8 +875,8 @@ private theorem reductionStep_stlc_compat (m m' : ModuleExpression) (h : m.Reduc
       rw [(instantiate_congr inst proc).symm]
       exact Metatheory.STLCext.Step.funcApp _ _ _ (isBasicType_toModuleTuple inst)
 
-private theorem toSTLC_hasType {m : ModuleExpression} {Δ T} (h : m.Typed Δ T) :
-    Metatheory.STLCext.HasType (ctxToSTLC Δ) (toSTLC m) (tyToSTLC T) := by
+private theorem toSTLC_hasType {m : ModuleExpression} {Δ T} (h : m.HasType Δ T) :
+    Metatheory.STLCext.HasType (ModuleContext.toSTLC Δ) (toSTLC m) (ModuleTypeRep.toSTLC T) := by
   induction h with
   | proc p => simp only [toSTLC]; exact Metatheory.STLCext.HasType.value _
   | procHoles ne p => exact Metatheory.STLCext.HasType.func _ _
@@ -817,13 +884,13 @@ private theorem toSTLC_hasType {m : ModuleExpression} {Δ T} (h : m.Typed Δ T) 
   | fst _ ih => simp only [toSTLC]; exact Metatheory.STLCext.HasType.fst ih
   | snd _ ih => simp only [toSTLC]; exact Metatheory.STLCext.HasType.snd ih
   | abs _ ih =>
-      simp only [toSTLC, tyToSTLC, ctxToSTLC] at *
+      simp only [toSTLC, ModuleTypeRep.toSTLC, ModuleContext.toSTLC] at *
       exact Metatheory.STLCext.HasType.lam ih
   | pair _ _ ihm ihn => simp only [toSTLC]; exact Metatheory.STLCext.HasType.pair ihm ihn
   | unit => exact Metatheory.STLCext.HasType.unit
   | var n hn =>
       simp only [toSTLC]
-      exact Metatheory.STLCext.HasType.var (ctxToSTLC_getElem hn)
+      exact Metatheory.STLCext.HasType.var (ModuleContext.toSTLC_getElem hn)
 
 private theorem reductionStep_stlc_complete (m : ModuleExpression) (M' : Metatheory.STLCext.Term)
     (h : Metatheory.STLCext.Step (toSTLC m) M') :
@@ -1103,22 +1170,26 @@ private theorem toSTLC_injective_new (m m' : ModuleExpression) :
 /-! ### Shape predicates for call-by-value reduction (untyped analogues) -/
 
 /-- `m` is a lambda-abstraction. -/
+-- TODO check needed
 def IsAbs : ModuleExpression → Prop
   | .abs _ => True
   | _      => False
 
+-- TODO check needed
 instance : (m : ModuleExpression) → Decidable (IsAbs m)
   | .abs _ => isTrue trivial
   | .proc _ | .procHoles _ _ | .var _ | .app _ _ | .fst _ | .snd _ | .pair _ _ | .unit =>
       isFalse (by simp [IsAbs])
 
 /-- The body of an abstraction. -/
+-- TODO check needed
 def IsAbs.body {m : ModuleExpression} (h : IsAbs m) : ModuleExpression := by
   cases m with
   | abs body => exact body
   | _ => simp [IsAbs] at h
 
 /-- `m` is a pair. -/
+-- TODO check needed
 def IsPair : ModuleExpression → Prop
   | .pair _ _ => True
   | _         => False
@@ -1137,24 +1208,6 @@ def IsPair.split {m : ModuleExpression} (h : IsPair m) : ModuleExpression × Mod
 def IsPair.fst {m : ModuleExpression} (h : IsPair m) : ModuleExpression := h.split.1
 def IsPair.snd {m : ModuleExpression} (h : IsPair m) : ModuleExpression := h.split.2
 
-instance : (m : ModuleExpression) → Decidable (ModuleExpression.IsProcHoles m)
-  | .procHoles _ _ => isTrue trivial
-  | .proc _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .unit =>
-      isFalse (by simp [ModuleExpression.IsProcHoles])
-
-instance instDecidableIsProcTuple : (m : ModuleExpression) → Decidable (IsProcTuple m)
-  | .unit => isTrue trivial
-  | .pair a rest =>
-      match a with
-      | .proc _ =>
-          match instDecidableIsProcTuple rest with
-          | isTrue h => isTrue h
-          | isFalse h => isFalse h
-      | .unit | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .procHoles _ _ =>
-          isFalse (by simp [IsProcTuple])
-  | .proc _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .procHoles _ _ =>
-      isFalse (by simp [IsProcTuple])
-
 theorem NormalClosed.normal {m : ModuleExpression} (h : m.NormalClosed) : m.Normal := by
   induction h with
   | proc => exact .proc
@@ -1164,11 +1217,11 @@ theorem NormalClosed.normal {m : ModuleExpression} (h : m.NormalClosed) : m.Norm
   | unit => exact .unit
 
 /-- Typing is preserved along multi-step reduction. -/
-theorem Typed.preservation_multi {m m' : ModuleExpression} {Δ T} (hm : m.Typed Δ T)
-    (h : m.MultiStepReduction m') : m'.Typed Δ T := by
+theorem HasType.preservation_multi {m m' : ModuleExpression} {Δ T} (hm : m.HasType Δ T)
+    (h : m.MultiStepReduction m') : m'.HasType Δ T := by
   induction h with
   | refl => exact hm
-  | tail _ hstep ih => exact ModuleExpression.Typed.preservation hstep ih
+  | tail _ hstep ih => exact ModuleExpression.HasType.preservation hstep ih
 
 def Stuck (m : ModuleExpression) : Prop := ¬∃ n, m.ReductionStep n
 
@@ -1176,18 +1229,14 @@ theorem Normal.stuck {m : ModuleExpression} (h : m.Normal) : Stuck m := by
   rintro ⟨n, hstep⟩
   exact toSTLC_normal_isNormalForm h _ (reductionStep_stlc_compat _ _ hstep)
 
-theorem Stuck.unit : Stuck .unit := by
-  rintro ⟨n, hstep⟩
-  cases hstep
-
 /-- `m` terminates: it multi-step reduces to some normal form. -/
 def Terminating (m : ModuleExpression) : Prop :=
   ∃ n : ModuleExpression, n.Stuck ∧ m.MultiStepReduction n
 
-lemma Terminating.if_stuck {m : ModuleExpression} (h : Stuck m) : Terminating m := ⟨m, h, .refl m⟩
+lemma Stuck.terminating {m : ModuleExpression} (h : Stuck m) : Terminating m := ⟨m, h, .refl m⟩
 
-lemma Terminating.if_normal {m : ModuleExpression} (h : Normal m) : Terminating m :=
-  Terminating.if_stuck h.stuck
+lemma Normal.terminating {m : ModuleExpression} (h : Normal m) : Terminating m :=
+  h.stuck.terminating
 
 -- TODO: check whether we actually want to keep this
 def reduce_all (m : ModuleExpression) : Set ModuleExpression :=
@@ -1213,6 +1262,7 @@ theorem Terminating.reduce_all_nonempty {m : ModuleExpression} (h : Terminating 
   cases h with
   | intro n hn => exact ⟨n, hn⟩
 
+-- TODO check needed
 def omega : ModuleExpression :=
   .app (.abs (.app (.var 0) (.var 0))) (.abs (.app (.var 0) (.var 0)))
 
@@ -1237,9 +1287,9 @@ theorem omega_nonterminating : ¬Terminating omega := by
   subst hn
   exact hstuck ⟨_, ReductionStep.beta⟩
 
-/-- Equireducibility: the equivalence relation generated by `ReductionStep`, i.e. its
+/-- Convertibility: the equivalence relation generated by `ReductionStep`, i.e. its
     reflexive, symmetric, transitive closure. -/
-def equireducible : ModuleExpression → ModuleExpression → Prop :=
+def convertible : ModuleExpression → ModuleExpression → Prop :=
   Relation.EqvGen ReductionStep
 
 open Classical in
@@ -1247,7 +1297,7 @@ open Classical in
 noncomputable def reduce (m : ModuleExpression) : ModuleExpression :=
   if h : Terminating m
   then h.choose
-  else Set.Nonempty.some (⟨m, Relation.EqvGen.refl m⟩ : {n | equireducible m n}.Nonempty)
+  else Set.Nonempty.some (⟨m, Relation.EqvGen.refl m⟩ : {n | convertible m n}.Nonempty)
 
 
 @[simp] theorem reduce_all_of_stuck {m : ModuleExpression} (h : m.Stuck) :
@@ -1260,7 +1310,7 @@ noncomputable def reduce (m : ModuleExpression) : ModuleExpression :=
   | tail _ hbc ih => exact absurd ⟨_, ih ▸ hbc⟩ h
 
 @[simp] theorem reduce_of_stuck {m : ModuleExpression} (h : m.Stuck) : reduce m = m := by
-  have ht : Terminating m := Terminating.if_stuck h
+  have ht : Terminating m := h.terminating
   have hmem : reduce m ∈ reduce_all m := by
     rw [reduce, dif_pos ht]; exact ht.choose_spec
   rw [reduce_all_of_stuck h] at hmem
@@ -1315,26 +1365,19 @@ theorem multiStepReduction_reduce {m : ModuleExpression} (h : Terminating m) :
   rw [reduce, dif_pos h]
   exact h.choose_spec.2
 
-omit [ProgramSpec] in
-/-- `Set.Nonempty.some` depends only on the set: equal sets give equal representatives
-    (the nonempty witnesses are proof-irrelevant). -/
-theorem Set.Nonempty.some_congr {α : Type _} {s t : Set α} (hst : s = t)
-    (hs : s.Nonempty) (ht : t.Nonempty) : hs.some = ht.some := by
-  subst hst; rfl
-
-/-- Multi-step reduction refines equireducibility. -/
-theorem equireducible_of_multiStep {a b : ModuleExpression} (h : a.MultiStepReduction b) :
-    equireducible a b := by
-  unfold equireducible
+/-- Multi-step reduction refines convertibility. -/
+theorem convertible_of_multiStep {a b : ModuleExpression} (h : a.MultiStepReduction b) :
+    convertible a b := by
+  unfold convertible
   induction h with
   | refl => exact Relation.EqvGen.refl _
   | tail _ hbc ih => exact Relation.EqvGen.trans _ _ _ ih (Relation.EqvGen.rel _ _ hbc)
 
 /-- Termination is invariant along equireducibility: each `ReductionStep` preserves it via
     `multiStepReduction_terminating`, and refl/symm/trans closure is immediate. -/
-theorem equireducible_terminating {m n : ModuleExpression} (h : equireducible m n) :
+theorem convertible_terminating {m n : ModuleExpression} (h : convertible m n) :
     Terminating m ↔ Terminating n := by
-  unfold equireducible at h
+  unfold convertible at h
   induction h with
   | rel x y hxy =>
       exact multiStepReduction_terminating (Rewriting.Star.head hxy (Rewriting.Star.refl _))
@@ -1342,24 +1385,30 @@ theorem equireducible_terminating {m n : ModuleExpression} (h : equireducible m 
   | symm x y _ ih => exact ih.symm
   | trans x y z _ _ ih1 ih2 => exact ih1.trans ih2
 
-/-- On a non-terminating input, `reduce` is the chosen representative of the equireducible class. -/
+/-- On a non-terminating input, `reduce` is the chosen representative of the convertible class. -/
+-- TODO remove
 theorem reduce_of_not_terminating {m : ModuleExpression} (h : ¬Terminating m) :
     reduce m =
-      Set.Nonempty.some (⟨m, Relation.EqvGen.refl m⟩ : {n | equireducible m n}.Nonempty) := by
+      Set.Nonempty.some (⟨m, Relation.EqvGen.refl m⟩ : {n | convertible m n}.Nonempty) := by
   rw [reduce, dif_neg h]
 
-/-- `reduce m` is always equireducible to `m` (a reduct if terminating, a class rep otherwise). -/
-theorem equireducible_reduce {m : ModuleExpression} : equireducible m (reduce m) := by
+/-- `reduce m` is always convertible to `m` (a reduct if terminating, a class rep otherwise). -/
+theorem convertible_reduce {m : ModuleExpression} : convertible m (reduce m) := by
   by_cases h : Terminating m
-  · exact equireducible_of_multiStep (multiStepReduction_reduce h)
+  · exact convertible_of_multiStep (multiStepReduction_reduce h)
   · rw [reduce_of_not_terminating h]; exact Set.Nonempty.some_mem _
 
-/-- `reduce` is constant on an equireducible class of non-terminating expressions. -/
-theorem reduce_eq_of_equireducible_not_term {m n : ModuleExpression}
-    (h : equireducible m n) (hm : ¬Terminating m) (hn : ¬Terminating n) :
+/-- `reduce` is constant on a convertible class of non-terminating expressions. -/
+private theorem reduce_eq_of_convertible_not_term {m n : ModuleExpression}
+    (h : convertible m n) (hm : ¬Terminating m) (hn : ¬Terminating n) :
     reduce m = reduce n := by
   rw [reduce_of_not_terminating hm, reduce_of_not_terminating hn]
-  apply Set.Nonempty.some_congr
+  -- `Set.Nonempty.some` depends only on the set: equal sets give equal representatives
+  -- (the nonempty witnesses are proof-irrelevant).
+  have some_congr : ∀ {α : Type _} {s t : Set α} (_ : s = t)
+      (hs : s.Nonempty) (ht : t.Nonempty), hs.some = ht.some := by
+    intro α s t hst hs ht; subst hst; rfl
+  apply some_congr
   ext k
   simp only [Set.mem_setOf_eq]
   constructor
@@ -1368,12 +1417,12 @@ theorem reduce_eq_of_equireducible_not_term {m n : ModuleExpression}
 
 theorem reduce_terminating {m : ModuleExpression} : Terminating m ↔ Terminating (reduce m) := by
   constructor
-  · intro h; exact Terminating.if_stuck (reduce_stuck h)
+  · intro h; exact (reduce_stuck h).terminating
   · intro h
     by_contra hm
-    exact hm ((equireducible_terminating equireducible_reduce).mpr h)
+    exact hm ((convertible_terminating convertible_reduce).mpr h)
 
-theorem Typed.terminating {m Δ T} (h : m.Typed Δ T) : Terminating m := by
+theorem HasType.terminating {m Δ T} (h : m.HasType Δ T) : Terminating m := by
   obtain ⟨N, hstar, hnf⟩ :=
     Metatheory.STLCext.hasNormalForm_of_SN
       (Metatheory.STLCext.strong_normalization (toSTLC_hasType h))
@@ -1383,14 +1432,14 @@ theorem Typed.terminating {m Δ T} (h : m.Typed Δ T) : Terminating m := by
   exact hnf (toSTLC k) (heq ▸ reductionStep_stlc_compat _ _ hstep)
 
 /-- Reduction preserves typing. -/
-theorem reduce_typed {m Δ T} (h : m.Typed Δ T) : (reduce m).Typed Δ T :=
+theorem reduce_hasType {m Δ T} (h : m.HasType Δ T) : (reduce m).HasType Δ T :=
   h.preservation_multi (multiStepReduction_reduce h.terminating)
 
 /-- A well-typed proc-tuple is the module-expression image of some instantiation (the existence
     content of `procTupleLookup`/`procTupleLookup_toModuleTuple`, but as a `Prop`). -/
 private theorem exists_toModuleExpr {holes : HoleSigs} :
     ∀ {Δ : ModuleContext} {a : ModuleExpression},
-      a.Typed Δ (HoleSigs.toModuleTypeRepTuple holes) → a.IsProcTuple →
+      a.HasType Δ (HoleSigs.toModuleTypeRepTuple holes) → a.IsProcTuple →
       ∃ inst : holes.Instantiation, a = inst.toModuleExpr := by
   induction holes with
   | empty =>
@@ -1439,8 +1488,8 @@ private theorem exists_toModuleExpr {holes : HoleSigs} :
       | abs _ => exact absurd h (by simp [IsProcTuple])
 
 /-- Progress for well-typed (possibly open) terms: a non-normal well-typed term reduces. -/
-private theorem progress {m : ModuleExpression} :
-    ∀ {Δ T}, m.Typed Δ T → ¬ m.Normal → ∃ n, m.ReductionStep n := by
+theorem progress {m : ModuleExpression} :
+    ∀ {Δ T}, m.HasType Δ T → ¬ m.Normal → ∃ n, m.ReductionStep n := by
   induction m with
   | unit => intro Δ T hty nn; exact absurd .unit nn
   | var n => intro Δ T hty nn; exact absurd (.neutral .var) nn
@@ -1507,14 +1556,14 @@ private theorem progress {m : ModuleExpression} :
         · obtain ⟨n, hn⟩ := iharg harg hnarg; exact ⟨_, .appR hn⟩
       · obtain ⟨n, hn⟩ := ihf hf hnf; exact ⟨_, .appL hn⟩
 
-theorem Stuck.normal {m : ModuleExpression} (h : m.Stuck) (hty : m.Typed Δ T) :
+theorem Stuck.normal {m : ModuleExpression} (h : m.Stuck) (hty : m.HasType Δ T) :
   m.Normal := by
   by_contra nn
   exact h (progress hty nn)
 
 /-- A normal well-typed closed term is closed-normal. -/
-theorem Normal.normalClosed {m : ModuleExpression} {T} (_hty : m.Typed [] T)
-    (_h : Normal m) : NormalClosed m := by
+theorem Normal.normalClosed {m : ModuleExpression} {T} (_h : Normal m)
+    (_hty : m.HasType [] T) : NormalClosed m := by
   induction m generalizing T with
   | proc p => exact .proc
   | procHoles ne p => exact .procHoles
@@ -1533,23 +1582,23 @@ theorem Normal.normalClosed {m : ModuleExpression} {T} (_hty : m.Typed [] T)
   | pair a b iha ihb =>
       obtain ⟨A, B, rfl, hta, htb⟩ := _hty.pair_inv
       cases _h with
-      | pair ha hb => exact .pair (iha hta ha) (ihb htb hb)
+      | pair ha hb => exact .pair (iha ha hta) (ihb hb htb)
       | neutral hne => exact absurd hne (closedProgress _hty).1
 
 /-- The reduct of a well-typed closed term is closed-normal. -/
-theorem reduce_normal {m} (h : m.Typed Δ T) : (reduce m).Normal :=
-  Stuck.normal (reduce_stuck h.terminating) (reduce_typed h)
+theorem reduce_normal {m} (h : m.HasType Δ T) : (reduce m).Normal :=
+  Stuck.normal (reduce_stuck h.terminating) (reduce_hasType h)
 
 /-- The reduct of a well-typed closed term is closed-normal. -/
-theorem reduce_normalClosed {m T} (h : m.Typed [] T) : (reduce m).NormalClosed :=
-  Normal.normalClosed (reduce_typed h) (reduce_normal h)
+theorem reduce_normalClosed {m T} (h : m.HasType [] T) : (reduce m).NormalClosed :=
+  Normal.normalClosed (reduce_normal h) (reduce_hasType h)
 
 theorem reduce_idempotent (m : ModuleExpression) : reduce (reduce m) = reduce m := by
   by_cases h : Terminating m
   · exact reduce_of_stuck (reduce_stuck h)
   · have hnr : ¬Terminating (reduce m) := fun hh =>
-      h ((equireducible_terminating equireducible_reduce).mpr hh)
-    exact reduce_eq_of_equireducible_not_term (Relation.EqvGen.symm _ _ equireducible_reduce) hnr h
+      h ((convertible_terminating convertible_reduce).mpr hh)
+    exact reduce_eq_of_convertible_not_term (Relation.EqvGen.symm _ _ convertible_reduce) hnr h
 
 /-- A normal term is its own reduct (normal terms are stuck). -/
 @[simp] theorem reduce_of_normal {m : ModuleExpression} (h : m.Normal) : reduce m = m :=
@@ -1570,18 +1619,18 @@ theorem confluence {m m1 m2 : ModuleExpression}
     exact reduce_all_subsingleton hmem1 hmem2
   · have ht2 : ¬ Terminating m2 := fun h =>
       ht ((multiStepReduction_terminating h1).mp ((multiStepReduction_terminating h2).mpr h))
-    have h12 : equireducible m1 m2 :=
-      Relation.EqvGen.trans _ _ _ (Relation.EqvGen.symm _ _ (equireducible_of_multiStep h1))
-        (equireducible_of_multiStep h2)
-    exact reduce_eq_of_equireducible_not_term h12 ht ht2
+    have h12 : convertible m1 m2 :=
+      Relation.EqvGen.trans _ _ _ (Relation.EqvGen.symm _ _ (convertible_of_multiStep h1))
+        (convertible_of_multiStep h2)
+    exact reduce_eq_of_convertible_not_term h12 ht ht2
 
 theorem reduce_step {m n : ModuleExpression} (h : m.ReductionStep n) : reduce m = reduce n :=
   confluence (.refl _) (Rewriting.Star.head h (Rewriting.Star.refl _))
 
-theorem reduce_equireducible {m n : ModuleExpression} (_ : equireducible m n) :
+theorem reduce_convertible {m n : ModuleExpression} (_ : convertible m n) :
   reduce m = reduce n := by
   rename_i h
-  unfold equireducible at h
+  unfold convertible at h
   induction h with
   | rel x y hxy => exact reduce_step hxy
   | refl x => rfl
@@ -1590,123 +1639,34 @@ theorem reduce_equireducible {m n : ModuleExpression} (_ : equireducible m n) :
 
 theorem reduce_multiStepReduction {m n : ModuleExpression} (h : m.MultiStepReduction n) :
     reduce m = reduce n :=
-  reduce_equireducible (equireducible_of_multiStep h)
+  reduce_convertible (convertible_of_multiStep h)
 
-theorem reduce_equireducible_iff {m n : ModuleExpression} :
-  equireducible m n ↔ reduce m = reduce n := by
+theorem reduce_convertible_iff {m n : ModuleExpression} :
+  convertible m n ↔ reduce m = reduce n := by
   constructor
-  · exact reduce_equireducible
+  · exact reduce_convertible
   · intro h
-    exact Relation.EqvGen.trans _ _ _ (h ▸ equireducible_reduce)
-      (Relation.EqvGen.symm _ _ equireducible_reduce)
+    exact Relation.EqvGen.trans _ _ _ (h ▸ convertible_reduce)
+      (Relation.EqvGen.symm _ _ convertible_reduce)
 
 
 theorem reduce_beta (body arg : ModuleExpression) :
     reduce (.app (.abs body) arg) = reduce (body.substitute arg) :=
   confluence (.refl _) (Rewriting.Star.head ReductionStep.beta (Rewriting.Star.refl _))
 
-/-! ### Further untyped ports from the intrinsic `TypedModules` development
-
-Shape decomposition, decidability of `Normal`/`Neutral`, closed-term progress, multi-step
-congruences, the call-by-value step, type erasure, and the remaining `reduce` specification
-lemmas.  Statements that relied on the intrinsic type index now carry an explicit `Typed`
-hypothesis.  Proofs are unproven unless they translate directly. -/
-
-/-- A `procHoles` node decomposed into its holes/signature/procedure (untyped analogue of
-    `TypedModules.IsProcHoles.destruct`; no type-index equation is produced). -/
-def IsProcHoles.destruct {m : ModuleExpression} (h : m.IsProcHoles) :
-    Σ holes : HoleSigs, Σ sig : ProcedureSignature,
-      holes.NonEmpty ×' ProcedureWithHoles holes sig := by
-  cases m with
-  | procHoles ne p => exact ⟨_, _, ne, p⟩
-  | _ => simp [IsProcHoles] at h
-
-/-- The domain of a (well-typed) procedure-with-holes is a procedure-argument type. -/
-theorem IsProcHoles.isProcArgType {m : ModuleExpression} {Δ A B}
-    (_hty : m.Typed Δ (.arr A B)) (_h : m.IsProcHoles) : IsProcArgType A :=
-  isProcArgType_of_procHoles _hty _h
-
-/-- Joint decidability of `Normal`/`Neutral`, sharing one structural recursion (untyped port of
-    `TypedModules.decidableNormalNeutral`). -/
-private def decidableNormalNeutral (m : ModuleExpression) :
-    Decidable (Normal m) × Decidable (Neutral m) :=
-  match m with
-  | .unit => ⟨.isTrue .unit, .isFalse fun h => nomatch h⟩
-  | .var _  => ⟨.isTrue (.neutral .var), .isTrue .var⟩
-  | .proc _ => ⟨.isTrue .proc, .isFalse fun h => nomatch h⟩
-  | .procHoles _ _ => ⟨.isTrue .procHoles, .isFalse fun h => nomatch h⟩
-  | .abs body =>
-      match (decidableNormalNeutral body).1 with
-      | .isTrue hn   => ⟨.isTrue (.abs hn), .isFalse fun h => nomatch h⟩
-      | .isFalse hnn =>
-          ⟨.isFalse fun h => hnn (match h with | .abs hb => hb | .neutral ne => nomatch ne),
-           .isFalse fun h => nomatch h⟩
-  | .pair a b =>
-      match (decidableNormalNeutral a).1, (decidableNormalNeutral b).1 with
-      | .isTrue ha, .isTrue hb =>
-          ⟨.isTrue (.pair ha hb), .isFalse fun h => nomatch h⟩
-      | .isFalse ha, _ =>
-          ⟨.isFalse fun h => ha (match h with | .pair hp _ => hp | .neutral ne => nomatch ne),
-           .isFalse fun h => nomatch h⟩
-      | .isTrue _, .isFalse hb =>
-          ⟨.isFalse fun h => hb (match h with | .pair _ hq => hq | .neutral ne => nomatch ne),
-           .isFalse fun h => nomatch h⟩
-  | .app f arg => by
-      have df := decidableNormalNeutral f
-      have da := decidableNormalNeutral arg
-      have dN : Decidable (Neutral (.app f arg)) := by
-        match df.2, da.1 with
-        | .isTrue nf, .isTrue na => exact .isTrue (.app nf na)
-        | _, .isFalse na =>
-            exact .isFalse fun h => by
-              cases h with
-              | app _ na' => exact na na'
-              | appProcHoles _ na' _ => exact na na'
-        | .isFalse nf, .isTrue na =>
-            if hph : IsProcHoles f then
-              match instDecidableIsProcTuple arg with
-              | .isFalse hpt => exact .isTrue (.appProcHoles hph na hpt)
-              | .isTrue hpt =>
-                  exact .isFalse fun h => by
-                    cases h with
-                    | app nf' _ => exact nf nf'
-                    | appProcHoles _ _ hpt' => exact hpt' hpt
-            else
-              exact .isFalse fun h => by
-                cases h with
-                | app nf' _ => exact nf nf'
-                | appProcHoles hph' _ _ => exact hph hph'
-      exact ⟨(match dN with
-              | .isTrue h => .isTrue (.neutral h)
-              | .isFalse h =>
-                  .isFalse fun hn => by cases hn with | neutral hne => exact h hne), dN⟩
-  | .fst e =>
-      match (decidableNormalNeutral e).2 with
-      | .isTrue hn   => ⟨.isTrue (.neutral (.fst hn)), .isTrue (.fst hn)⟩
-      | .isFalse hnn =>
-          ⟨.isFalse fun h => hnn (match h with | .neutral (.fst he) => he),
-           .isFalse fun h => hnn (match h with | .fst he => he)⟩
-  | .snd e =>
-      match (decidableNormalNeutral e).2 with
-      | .isTrue hn   => ⟨.isTrue (.neutral (.snd hn)), .isTrue (.snd hn)⟩
-      | .isFalse hnn =>
-          ⟨.isFalse fun h => hnn (match h with | .neutral (.snd he) => he),
-           .isFalse fun h => hnn (match h with | .snd he => he)⟩
-
-instance (m : ModuleExpression) : Decidable (Normal m) := (decidableNormalNeutral m).1
-instance (m : ModuleExpression) : Decidable (Neutral m) := (decidableNormalNeutral m).2
+/-! ### Misc -/
 
 /-- Progress for the closed fragment (untyped analogue of `TypedModules.closed_progress`); typing pins the
     empty context. -/
-private theorem closed_progress {m : ModuleExpression} {T} (_h : m.Typed [] T) :
+private theorem closed_progress {m : ModuleExpression} {T} (_h : m.HasType [] T) :
     (¬ Neutral m) ∧ (IsProcArgType T → Normal m → IsProcTuple m) := closedProgress _h
 
 /-- A well-typed closed term is never neutral. -/
-theorem empty_context_not_neutral {m : ModuleExpression} {T} (h : m.Typed [] T) :
+theorem hasType_empty_context_not_neutral {m : ModuleExpression} {T} (h : m.HasType [] T) :
     ¬ Neutral m := (closed_progress h).1
 
 /-- `app` is a congruence for multi-step reduction. -/
-theorem multiStepReduction_app {m1 m1' m2 m2' : ModuleExpression}
+theorem multiStepReduction_app_cong {m1 m1' m2 m2' : ModuleExpression}
     (h1 : m1.MultiStepReduction m1') (h2 : m2.MultiStepReduction m2') :
     (ModuleExpression.app m1 m2).MultiStepReduction (ModuleExpression.app m1' m2') := by
   have left : (ModuleExpression.app m1 m2).MultiStepReduction (ModuleExpression.app m1' m2) := by
@@ -1720,14 +1680,14 @@ theorem multiStepReduction_app {m1 m1' m2 m2' : ModuleExpression}
   exact Rewriting.Star.trans left right
 
 /-- `fst` is a congruence for multi-step reduction. -/
-theorem multiStepReduction_fst {e e' : ModuleExpression} (h : e.MultiStepReduction e') :
+theorem multiStepReduction_fst_cong {e e' : ModuleExpression} (h : e.MultiStepReduction e') :
     (ModuleExpression.fst e).MultiStepReduction (ModuleExpression.fst e') := by
   induction h with
   | refl => exact Rewriting.Star.refl _
   | tail _ hbc ih => exact Rewriting.Star.tail ih (.fst hbc)
 
 /-- `pair` is a congruence for multi-step reduction. -/
-theorem multiStepReduction_pair {a a' b b' : ModuleExpression}
+theorem multiStepReduction_pair_cong {a a' b b' : ModuleExpression}
     (h1 : a.MultiStepReduction a') (h2 : b.MultiStepReduction b') :
     (ModuleExpression.pair a b).MultiStepReduction (ModuleExpression.pair a' b') := by
   have left : (ModuleExpression.pair a b).MultiStepReduction (ModuleExpression.pair a' b) := by
@@ -1748,53 +1708,26 @@ theorem stuck_pair {a b : ModuleExpression} (ha : Stuck a) (hb : Stuck b) :
   | pairL h => exact ha ⟨_, h⟩
   | pairR h => exact hb ⟨_, h⟩
 
-/-- Salvaged `reduce_pair`: with both components terminating, `reduce` commutes with `pair`.
-    The unconditional version is **false** in the untyped calculus — if a component diverges,
-    `reduce (.pair m1 m2)` is the non-`pair` fallback `omega`, whereas the RHS is a `.pair`.
-    (Header of `reduce_pair` needs a `Terminating` hypothesis; use `/lean4:formalize`.) -/
 theorem reduce_pair_terminating {m1 m2 : ModuleExpression}
     (h1 : Terminating m1) (h2 : Terminating m2) :
     reduce (.pair m1 m2) = .pair (reduce m1) (reduce m2) := by
   have hst : Stuck (.pair (reduce m1) (reduce m2)) :=
     stuck_pair (reduce_stuck h1) (reduce_stuck h2)
   have hred : (ModuleExpression.pair m1 m2).MultiStepReduction (.pair (reduce m1) (reduce m2)) :=
-    multiStepReduction_pair (multiStepReduction_reduce h1) (multiStepReduction_reduce h2)
+    multiStepReduction_pair_cong (multiStepReduction_reduce h1) (multiStepReduction_reduce h2)
   have hterm : Terminating (.pair m1 m2) := ⟨_, hst, hred⟩
   exact reduce_all_subsingleton
     ⟨reduce_stuck hterm, multiStepReduction_reduce hterm⟩ ⟨hst, hred⟩
 
 /-- `toModuleExpr inst` is always a proc-tuple (untyped analogue of
     `TypedModules.toModuleTuple_isProcTuple`). -/
-theorem toModuleExpr_isProcTuple {holes : HoleSigs} (inst : holes.Instantiation) :
+private theorem toModuleExpr_isProcTuple {holes : HoleSigs} (inst : holes.Instantiation) :
     (HoleSigs.Instantiation.toModuleExpr inst).IsProcTuple := by
   induction holes with
   | empty => simp [HoleSigs.Instantiation.toModuleExpr, IsProcTuple]
   | append holeTail sig ih =>
       simp only [HoleSigs.Instantiation.toModuleExpr]
       exact ih (fun idx => inst (.succ idx))
-
-/- /-- Extract an instantiation from a (well-typed) proc-tuple expression for a hole signature
-    (untyped analogue of `TypedModules.procTupleLookup`; the shape match is guaranteed by typing). -/
-noncomputable def procTupleLookup {Δ : ModuleContext} (holes : HoleSigs) (m : ModuleExpression)
-    (_hty : m.Typed Δ (HoleSigs.toModuleTypeRepTuple holes)) (_h : m.IsProcTuple) : holes.Instantiation :=
-
-
-/-- Round-trip: recovering an instantiation from a proc-tuple and converting back is the identity
-    (untyped analogue of `TypedModules.procTupleLookup_toModuleTuple`). -/
-theorem procTupleLookup_toModuleTuple {Δ : ModuleContext} (holes : HoleSigs)
-    (m : ModuleExpression) (hty : m.Typed Δ (HoleSigs.toModuleTypeRepTuple holes)) (h : m.IsProcTuple) :
-    HoleSigs.Instantiation.toModuleExpr (procTupleLookup holes m hty h) = m :=
- -/
-
-/- /-- One call-by-value reduction step of a non-normal term (untyped analogue of
-    `TypedModules.cbvReductionStep`).  Unlike `TypedModules`, `UM`'s `reduce` does not use this, so it is left as a
-    stub. -/
-noncomputable def cbvReductionStep (m : ModuleExpression) (_nn : ¬ Normal m) :
-    ModuleExpression :=
-
-/-- The call-by-value step is a reduction step. -/
-theorem cbvReductionStep_is_reductionStep (m : ModuleExpression) (nn : ¬ Normal m) :
-    m.ReductionStep (cbvReductionStep m nn) :=  -/
 
 /-! #### Remaining `reduce` specification lemmas -/
 
@@ -1804,31 +1737,9 @@ theorem cbvReductionStep_is_reductionStep (m : ModuleExpression) (nn : ¬ Normal
 @[simp] theorem reduce_snd (m m' : ModuleExpression) :
     reduce (.snd (.pair m m')) = reduce m' := reduce_step .sndPair
 
-theorem reduce_app (m m' : ModuleExpression) :
-    reduce (.app m m') = reduce (.app (reduce m) (reduce m')) := by
-  have congL : ∀ {a b c : ModuleExpression}, equireducible a b →
-      equireducible (.app a c) (.app b c) := by
-    intro a b c h
-    induction h with
-    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.appL hxy)
-    | refl x => exact Relation.EqvGen.refl _
-    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
-    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
-  have congR : ∀ {a b c : ModuleExpression}, equireducible b c →
-      equireducible (.app a b) (.app a c) := by
-    intro a b c h
-    induction h with
-    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.appR hxy)
-    | refl x => exact Relation.EqvGen.refl _
-    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
-    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
-  rw [← reduce_equireducible_iff]
-  exact Relation.EqvGen.trans _ _ _
-    (congL equireducible_reduce) (congR equireducible_reduce)
-
 theorem reduce_fst_cong (m m' : ModuleExpression) :
     reduce m = reduce m' → reduce (.fst m) = reduce (.fst m') := by
-  rw [← reduce_equireducible_iff, ← reduce_equireducible_iff]
+  rw [← reduce_convertible_iff, ← reduce_convertible_iff]
   intro h
   induction h with
   | rel x y hxy => exact Relation.EqvGen.rel _ _ (.fst hxy)
@@ -1838,7 +1749,7 @@ theorem reduce_fst_cong (m m' : ModuleExpression) :
 
 theorem reduce_snd_cong (m m' : ModuleExpression) :
     reduce m = reduce m' → reduce (.snd m) = reduce (.snd m') := by
-  rw [← reduce_equireducible_iff, ← reduce_equireducible_iff]
+  rw [← reduce_convertible_iff, ← reduce_convertible_iff]
   intro h
   induction h with
   | rel x y hxy => exact Relation.EqvGen.rel _ _ (.snd hxy)
@@ -1846,70 +1757,73 @@ theorem reduce_snd_cong (m m' : ModuleExpression) :
   | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
   | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
 
-/-- Unconditional analogue of `reduce_app` for `.pair`: pushing `reduce` onto both components
-    before re-`reduce`ing the pair gives the same answer. Note this is a *weaker* claim than
-    `reduce_pair_terminating` — it never asserts the result is manifestly `.pair`-shaped, only
-    that both sides denote the same `reduce`-class, which holds even when a component diverges
-    (unlike `reduce_pair_terminating`, no `Terminating` hypothesis is needed: `equireducible_reduce`
-    holds unconditionally, and `pairL`/`pairR` lift it through `.pair` just like `appL`/`appR` do
-    for `.app` in `reduce_app`). -/
-theorem reduce_pair (a b : ModuleExpression) :
-    reduce (.pair a b) = reduce (.pair (reduce a) (reduce b)) := by
-  have congL : ∀ {a b c : ModuleExpression}, equireducible a b →
-      equireducible (.pair a c) (.pair b c) := by
+/-- Congruence form for `.pair`: combines two independently-computed simplifications
+    `reduce a = a'` / `reduce b = b'` (however they were obtained — `a'`/`b'` need not
+    themselves be fully reduced) into one for the surrounding `.pair`. Proved directly via
+    `convertible`: `pairL`/`pairR` lift `convertible_reduce` through `.pair` on each side, and
+    `reduce_convertible_iff` turns the resulting `convertible` witness back into a `reduce`
+    equation. -/
+theorem reduce_pair_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb : reduce b = b') :
+    reduce (.pair a b) = reduce (.pair a' b') := by
+  have congL : ∀ {a b c : ModuleExpression}, convertible a b →
+      convertible (.pair a c) (.pair b c) := by
     intro a b c h
     induction h with
     | rel x y hxy => exact Relation.EqvGen.rel _ _ (.pairL hxy)
     | refl x => exact Relation.EqvGen.refl _
     | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
     | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
-  have congR : ∀ {a b c : ModuleExpression}, equireducible b c →
-      equireducible (.pair a b) (.pair a c) := by
+  have congR : ∀ {a b c : ModuleExpression}, convertible b c →
+      convertible (.pair a b) (.pair a c) := by
     intro a b c h
     induction h with
     | rel x y hxy => exact Relation.EqvGen.rel _ _ (.pairR hxy)
     | refl x => exact Relation.EqvGen.refl _
     | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
     | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
-  rw [← reduce_equireducible_iff]
+  rw [← reduce_convertible_iff]
   exact Relation.EqvGen.trans _ _ _
-    (congL equireducible_reduce) (congR equireducible_reduce)
+    (congL (ha ▸ convertible_reduce)) (congR (hb ▸ convertible_reduce))
 
-/-- Unconditional analogue of `reduce_app`/`reduce_pair` for `.abs` (same technique, lifted
-    through the single-component `.lam` congruence constructor). -/
-theorem reduce_abs (a : ModuleExpression) :
-    reduce (.abs a) = reduce (.abs (reduce a)) := by
-  rw [← reduce_equireducible_iff]
-  have : ∀ {a b : ModuleExpression}, equireducible a b → equireducible (.abs a) (.abs b) := by
+/-- Congruence form for `.app`, matching `reduce_pair_cong`. -/
+theorem reduce_app_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb : reduce b = b') :
+    reduce (.app a b) = reduce (.app a' b') := by
+  have congL : ∀ {a b c : ModuleExpression}, convertible a b →
+      convertible (.app a c) (.app b c) := by
+    intro a b c h
+    induction h with
+    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.appL hxy)
+    | refl x => exact Relation.EqvGen.refl _
+    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
+    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
+  have congR : ∀ {a b c : ModuleExpression}, convertible b c →
+      convertible (.app a b) (.app a c) := by
+    intro a b c h
+    induction h with
+    | rel x y hxy => exact Relation.EqvGen.rel _ _ (.appR hxy)
+    | refl x => exact Relation.EqvGen.refl _
+    | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
+    | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
+  rw [← reduce_convertible_iff]
+  exact Relation.EqvGen.trans _ _ _
+    (congL (ha ▸ convertible_reduce)) (congR (hb ▸ convertible_reduce))
+
+/-- Congruence form for `.abs`, matching `reduce_pair_cong`/`reduce_app_cong`. -/
+theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
+    reduce (.abs a) = reduce (.abs a') := by
+  have cong : ∀ {a b : ModuleExpression}, convertible a b → convertible (.abs a) (.abs b) := by
     intro a b h
     induction h with
     | rel x y hxy => exact Relation.EqvGen.rel _ _ (.lam hxy)
     | refl x => exact Relation.EqvGen.refl _
     | symm x y _ ih => exact Relation.EqvGen.symm _ _ ih
     | trans x y z _ _ ih1 ih2 => exact Relation.EqvGen.trans _ _ _ ih1 ih2
-  exact this equireducible_reduce
+  rw [← reduce_convertible_iff]
+  exact cong (ha ▸ convertible_reduce)
 
-/-- Congruence form of `reduce_pair`: usable to combine two independently-computed
-    simplifications `reduce a = a'` / `reduce b = b'` (however they were obtained — `a'`/`b'`
-    need not themselves be fully reduced) into one for the surrounding `.pair`. -/
-theorem reduce_pair_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb : reduce b = b') :
-    reduce (.pair a b) = reduce (.pair a' b') := by
-  rw [reduce_pair, ha, hb]
-
-/-- Congruence form of `reduce_app`, matching `reduce_pair_cong`. -/
-theorem reduce_app_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb : reduce b = b') :
-    reduce (.app a b) = reduce (.app a' b') := by
-  rw [reduce_app, ha, hb]
-
-/-- Congruence form of `reduce_abs`, matching `reduce_pair_cong`/`reduce_app_cong`. -/
-theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
-    reduce (.abs a) = reduce (.abs a') := by
-  rw [reduce_abs, ha]
-
-/-- A well-typed closed normal term of product type is a pair (untyped analogue of
-    `TypedModules.pair_type_is_pair`). -/
+/-- A well-typed closed normal term of product type is a pair. -/
 theorem pair_type_is_pair {m : ModuleExpression} {t1 t2}
-    (hty : m.Typed [] (.prod t1 t2)) (h : NormalClosed m) :
+    (hty : m.HasType [] (.prod t1 t2)) (h : NormalClosed m) :
     ∃ m1 m2, m = .pair m1 m2 := by
   cases h with
   | pair => exact ⟨_, _, rfl⟩
@@ -1924,33 +1838,33 @@ end ModuleExpression
 
 /-! ## `moduletyping` -/
 
-/-- Syntax-directed closer for `ModuleExpression.Typed m Δ T`: peels off the `Typed`
+/-- Syntax-directed closer for `ModuleExpression.HasType m Δ T`: peels off the `HasType`
     constructor matching `m`'s head, leaves whatever it cannot close (e.g. an unprovable
     `.var` bound) as an open goal. See `moduletyping!` for a variant that fails loudly
     instead. -/
 macro "moduletyping" : tactic =>
   `(tactic| repeat' first
-    | apply ModuleExpression.Typed.proc
-    | apply ModuleExpression.Typed.procHoles
-    | apply ModuleExpression.Typed.unit
-    | apply ModuleExpression.Typed.pair
-    | apply ModuleExpression.Typed.abs
-    | apply ModuleExpression.Typed.app
-    | apply ModuleExpression.Typed.fst
-    | apply ModuleExpression.Typed.snd
-    | (apply ModuleExpression.Typed.var
+    | apply ModuleExpression.HasType.proc
+    | apply ModuleExpression.HasType.procHoles
+    | apply ModuleExpression.HasType.unit
+    | apply ModuleExpression.HasType.pair
+    | apply ModuleExpression.HasType.abs
+    | apply ModuleExpression.HasType.app
+    | apply ModuleExpression.HasType.fst
+    | apply ModuleExpression.HasType.snd
+    | (apply ModuleExpression.HasType.var
        try (simp only [List.length_cons, List.length_nil]; omega)))
 
 open Lean Elab Tactic Meta in
 /-- Describe why a single leftover goal (from `moduletyping`'s core script) couldn't be
     closed. Recognises the two shapes that script can actually leave behind: an
     `n < Δ.length` residual (the `.var` bound, when `simp`/`omega` couldn't discharge it) and
-    a `Typed m Δ T` residual whose head constructor's conclusion type didn't match `T`
+    a `HasType m Δ T` residual whose head constructor's conclusion type didn't match `T`
     (`.proc`/`.procHoles`/`.unit`/`.var`/`.abs`/`.pair` are the constructors with a
     target-type-shape requirement; `.app`/`.fst`/`.snd` are fully generic in their conclusion
     type and so never get stuck at their own node, only inside a premise). Falls back to the
     raw goal for anything else. -/
-def describeStuckModuleTypingGoal (g : MVarId) : MetaM MessageData := g.withContext do
+private def describeStuckModuleTypingGoal (g : MVarId) : MetaM MessageData := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   if ty.isAppOfArity ``LT.lt 4 then
     let rhs := ty.getAppArgs[3]!
@@ -1959,9 +1873,9 @@ def describeStuckModuleTypingGoal (g : MVarId) : MetaM MessageData := g.withCont
       let ctx := rhs.getAppArgs[1]!
       return m!"`.var {n}` occurs in typing context {ctx}, which does not (provably) \
         contain more than {n} element(s) (need `{n} < {rhs}`)"
-  -- `Typed`/`ModuleExpression`'s constructors all carry the ambient `[ProgramSpec]` as their
+  -- `HasType`/`ModuleExpression`'s constructors all carry the ambient `[ProgramSpec]` as their
   -- first (instance-implicit) argument, hence arity `3 + 1` / `k + 1` below.
-  if ty.isAppOfArity ``ModuleExpression.Typed 4 then
+  if ty.isAppOfArity ``ModuleExpression.HasType 4 then
     let #[_inst, m, ctx, t] := ty.getAppArgs | pure ()
     let head := m.getAppFn
     if head.isConstOf ``ModuleExpression.var then
@@ -2003,64 +1917,69 @@ elab "moduletyping!" : tactic => do
 
 /-! ### Smoke tests -/
 
-example : ModuleExpression.Typed .unit [] .unit := by moduletyping
+example : ModuleExpression.HasType .unit [] .unit := by moduletyping
 
-example (A : ModuleTypeRep) : ModuleExpression.Typed (.var 0) [A] A := by moduletyping
+example (A : ModuleTypeRep) : ModuleExpression.HasType (.var 0) [A] A := by moduletyping
 
 example :
-    ModuleExpression.Typed (.pair .unit .unit) [] (.prod .unit .unit) := by moduletyping
+    ModuleExpression.HasType (.pair .unit .unit) [] (.prod .unit .unit) := by moduletyping
 
-example : ModuleExpression.Typed (.fst (.pair .unit .unit)) [] .unit := by moduletyping
+example : ModuleExpression.HasType (.fst (.pair .unit .unit)) [] .unit := by moduletyping
 
-/-- `.unit` applied to `.unit` is not well-typed (`.unit` isn't a function). `moduletyping`
-    peels the outer `.app`, closes the argument side (`Typed .unit [] ?A` via `.unit`, forcing
-    `?A := .unit`), and leaves the un-closable function side open instead of failing. -/
--- TODO-CLAUDE: use #guard_msgs or similar mechanism here instead of `sorry`. (Avoid adding permanent sorries in the document)
-example : ModuleExpression.Typed (.app .unit .unit) [] .unit := by
+-- `.unit` applied to `.unit` is not well-typed (`.unit` isn't a function). `moduletyping`
+-- peels the outer `.app`, closes the argument side (`HasType .unit [] ?A` via `.unit`, forcing
+-- `?A := .unit`), and leaves the un-closable function side open instead of failing — so the
+-- tactic block below ends with a genuine (and genuinely false) unsolved goal, caught by
+-- `#guard_msgs` rather than papered over with a permanent `sorry`.
+/-- error: unsolved goals
+case a
+inst✝ : ProgramSpec
+⊢ ModuleExpression.unit.HasType [] (ModuleTypeRep.unit.arr ModuleTypeRep.unit) -/
+#guard_msgs (whitespace := lax) in
+example : ModuleExpression.HasType (.app .unit .unit) [] .unit := by
   moduletyping
-  guard_target = ModuleExpression.Typed .unit [] (.arr .unit .unit)
-  sorry  -- genuinely false; documents that the goal was left open, not proved
+  guard_target = ModuleExpression.HasType .unit [] (.arr .unit .unit)
 
 -- `moduletyping!` fails loudly on the same goal, with a message pinpointing the `.unit` node
 -- (not a function) rather than just the outer `.app` goal.
-/-- error: Cannot show (ModuleExpression.unit.app ModuleExpression.unit).Typed [] ModuleTypeRep.unit: `.unit` has type `.unit`, but the expected type ModuleTypeRep.unit.arr ModuleTypeRep.unit is not `.unit` -/
+/-- error: Cannot show (ModuleExpression.unit.app ModuleExpression.unit).HasType [] ModuleTypeRep.unit: `.unit` has type `.unit`, but the expected type ModuleTypeRep.unit.arr ModuleTypeRep.unit is not `.unit` -/
 #guard_msgs (whitespace := lax) in
-example : ModuleExpression.Typed (.app .unit .unit) [] .unit := by
+example : ModuleExpression.HasType (.app .unit .unit) [] .unit := by
   moduletyping!
 
 -- `.proc _` mismatch.
-/-- error: Cannot show (ModuleExpression.proc p).Typed [] T: `.proc _` always has a `.proc sig`-shaped type, but the expected type T is not of that shape -/
+/-- error: Cannot show (ModuleExpression.proc p).HasType [] T: `.proc _` always has a `.proc sig`-shaped type, but the expected type T is not of that shape -/
 #guard_msgs (whitespace := lax) in
 example {sig : ProcedureSignature} (p : Procedure sig) (T : ModuleTypeRep) :
-    ModuleExpression.Typed (.proc p) [] T := by
+    ModuleExpression.HasType (.proc p) [] T := by
   moduletyping!
 
 -- `.procHoles _ _` mismatch.
-/-- error: Cannot show (ModuleExpression.procHoles ne p).Typed [] T: `.procHoles _ _` always has an `.arr _ (.proc sig)`-shaped type, but the expected type T is not of that shape -/
+/-- error: Cannot show (ModuleExpression.procHoles ne p).HasType [] T: `.procHoles _ _` always has an `.arr _ (.proc sig)`-shaped type, but the expected type T is not of that shape -/
 #guard_msgs (whitespace := lax) in
 example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
     (p : ProcedureWithHoles holes sig) (T : ModuleTypeRep) :
-    ModuleExpression.Typed (.procHoles ne p) [] T := by
+    ModuleExpression.HasType (.procHoles ne p) [] T := by
   moduletyping!
 
 -- `.abs _` mismatch (expected type isn't `.arr _ _`-shaped).
-/-- error: Cannot show body.abs.Typed [] T: `.abs _` always has an `.arr _ _`-shaped (function) type, but the expected type T is not of that shape -/
+/-- error: Cannot show body.abs.HasType [] T: `.abs _` always has an `.arr _ _`-shaped (function) type, but the expected type T is not of that shape -/
 #guard_msgs (whitespace := lax) in
 example (body : ModuleExpression) (T : ModuleTypeRep) :
-    ModuleExpression.Typed (.abs body) [] T := by
+    ModuleExpression.HasType (.abs body) [] T := by
   moduletyping!
 
 -- `.pair _ _` mismatch (expected type isn't `.prod _ _`-shaped).
-/-- error: Cannot show (a.pair b).Typed [] T: `.pair _ _` always has a `.prod _ _`-shaped type, but the expected type T is not of that shape -/
+/-- error: Cannot show (a.pair b).HasType [] T: `.pair _ _` always has a `.prod _ _`-shaped type, but the expected type T is not of that shape -/
 #guard_msgs (whitespace := lax) in
 example (a b : ModuleExpression) (T : ModuleTypeRep) :
-    ModuleExpression.Typed (.pair a b) [] T := by
+    ModuleExpression.HasType (.pair a b) [] T := by
   moduletyping!
 
 -- `.var _` mismatch: no context can supply an entry of an unrelated, opaque type `T`.
-/-- error: Cannot show (ModuleExpression.var 0).Typed [] T: `.var 0` does not type-check in context [] at type T: that context does not provide a `0`-th entry of that type -/
+/-- error: Cannot show (ModuleExpression.var 0).HasType [] T: `.var 0` does not type-check in context [] at type T: that context does not provide a `0`-th entry of that type -/
 #guard_msgs (whitespace := lax) in
-example (T : ModuleTypeRep) : ModuleExpression.Typed (.var 0) [] T := by
+example (T : ModuleTypeRep) : ModuleExpression.HasType (.var 0) [] T := by
   moduletyping!
 
 -- `.var _`'s bound, genuinely un-dischargeable by `moduletyping`: `A :: Γ` is a real (if
@@ -2069,46 +1988,55 @@ example (T : ModuleTypeRep) : ModuleExpression.Typed (.var 0) [] T := by
 -- outer bound `1 < (A :: Γ).length` as a genuine residual goal. It's actually true — `hΓ`
 -- witnesses `Γ` is nonempty — but `hΓ` is `Nonempty`-wrapped rather than a plain arithmetic
 -- hypothesis, so `simp`/`omega` (which only look at arithmetic hypotheses) can't see it.
-/-- error: Cannot show (ModuleExpression.var 1).Typed (A :: Γ) Γ[0]:
+/-- error: Cannot show (ModuleExpression.var 1).HasType (A :: Γ) Γ[0]:
     `.var 1` occurs in typing context A :: Γ, which does not (provably) contain more than 1 element(s) (need `1 < (A :: Γ).length`) -/
 #guard_msgs (whitespace := lax) in
 example (A : ModuleTypeRep) (Γ : ModuleContext) (hΓ : Nonempty (0 < Γ.length)) :
-    ModuleExpression.Typed (.var 1) (A :: Γ) (Γ[0]'hΓ.some) := by
+    ModuleExpression.HasType (.var 1) (A :: Γ) (Γ[0]'hΓ.some) := by
   moduletyping!
 
 -- No fail-fast: both branches of a `.pair` are independently un-closable, and both reasons are
 -- reported together in one error instead of stopping at the first.
-/-- error: Cannot show ((ModuleExpression.proc p).pair body.abs).Typed [] (T.prod U): `.proc _` always has a `.proc sig`-shaped type, but the expected type T is not of that shape
+/-- error: Cannot show ((ModuleExpression.proc p).pair body.abs).HasType [] (T.prod U): `.proc _` always has a `.proc sig`-shaped type, but the expected type T is not of that shape
 
-Cannot show ((ModuleExpression.proc p).pair body.abs).Typed [] (T.prod U): `.abs _` always has an `.arr _ _`-shaped (function) type, but the expected type U is not of that shape -/
+Cannot show ((ModuleExpression.proc p).pair body.abs).HasType [] (T.prod U): `.abs _` always has an `.arr _ _`-shaped (function) type, but the expected type U is not of that shape -/
 #guard_msgs (whitespace := lax) in
 example {sig : ProcedureSignature} (p : Procedure sig) (body : ModuleExpression)
     (T U : ModuleTypeRep) :
-    ModuleExpression.Typed (.pair (.proc p) (.abs body)) [] (.prod T U) := by
+    ModuleExpression.HasType (.pair (.proc p) (.abs body)) [] (.prod T U) := by
   moduletyping!
 
 /-! ## `normalmodule` -/
 
+/-- One step of `normalmodule`'s core script, factored out so `normalmodule` can require it to
+    fire at least once (see below) while still repeating it leniently afterwards. -/
+syntax "normalmoduleStep" : tactic
+macro_rules
+  | `(tactic| normalmoduleStep) =>
+    `(tactic| first
+      | assumption
+      | apply ModuleExpression.Normal.unit
+      | apply ModuleExpression.Normal.proc
+      | apply ModuleExpression.Normal.procHoles
+      | apply ModuleExpression.Normal.abs
+      | apply ModuleExpression.Normal.pair
+      | apply ModuleExpression.Neutral.var
+      | apply ModuleExpression.Neutral.fst
+      | apply ModuleExpression.Neutral.snd
+      | (apply ModuleExpression.Neutral.appProcHoles
+         (first | assumption | (simp [ModuleExpression.IsProcHoles] <;> done))
+         all_goals try (first | assumption | (simp [ModuleExpression.IsProcTuple] <;> done)))
+      | apply ModuleExpression.Neutral.app
+      | apply ModuleExpression.Normal.neutral)
+
 /-- Syntax-directed closer for `Normal m` / `Neutral m`: peels the constructor matching `m`'s
     head, disambiguating `.app`'s two constructors by checking whether the function side is a
-    literal `.procHoles` node, and leaves whatever it cannot close open. See `normalmodule!` for
-    a variant that fails loudly instead. -/
+    literal `.procHoles` node, and leaves whatever it cannot close open. Fails outright if it
+    cannot make even one step of progress (e.g. `Neutral (.pair _ _)`, which no constructor can
+    ever produce) rather than silently no-op'ing. See `normalmodule!` for a variant that fails
+    loudly with a diagnosed reason on *every* unclosed goal, not just a wholly-stuck one. -/
 macro "normalmodule" : tactic =>
-  `(tactic| repeat' first
-    | assumption
-    | apply ModuleExpression.Normal.unit
-    | apply ModuleExpression.Normal.proc
-    | apply ModuleExpression.Normal.procHoles
-    | apply ModuleExpression.Normal.abs
-    | apply ModuleExpression.Normal.pair
-    | apply ModuleExpression.Neutral.var
-    | apply ModuleExpression.Neutral.fst
-    | apply ModuleExpression.Neutral.snd
-    | (apply ModuleExpression.Neutral.appProcHoles
-       (first | assumption | (simp [ModuleExpression.IsProcHoles] <;> done))
-       all_goals try (first | assumption | (simp [ModuleExpression.IsProcTuple] <;> done)))
-    | apply ModuleExpression.Neutral.app
-    | apply ModuleExpression.Normal.neutral)
+  `(tactic| (normalmoduleStep; repeat' normalmoduleStep))
 
 open Lean Elab Tactic Meta in
 /-- Describe why a single leftover goal (from `normalmodule`'s core script) couldn't be closed.
@@ -2117,7 +2045,7 @@ open Lean Elab Tactic Meta in
     constructor (a genuine impossibility — that shape is never neutral), and a bare `Normal`/
     `Neutral` of an opaque free subterm (no matching hypothesis in scope). Falls back to the raw
     goal for anything else. -/
-def describeStuckNormalModuleGoal (g : MVarId) : MetaM MessageData := g.withContext do
+private def describeStuckNormalModuleGoal (g : MVarId) : MetaM MessageData := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   if ty.isAppOfArity ``Not 1 then
     let inner := ty.getAppArgs[0]!
@@ -2161,7 +2089,7 @@ elab "normalmodule!" : tactic => do
   let origGoal ← getMainGoal
   let origType ← origGoal.withContext (instantiateMVars (← origGoal.getType))
   let numSiblings := (← getGoals).length - 1
-  evalTactic (← `(tactic| normalmodule))
+  evalTactic (← `(tactic| repeat' normalmoduleStep))
   let after ← getGoals
   let leftover := after.take (after.length - numSiblings)
   unless leftover.isEmpty do
@@ -2199,15 +2127,23 @@ example (arg : ModuleExpression) (harg : arg.Normal) :
 
 example : ModuleExpression.Neutral (.fst (.var 0 : ModuleExpression)) := by normalmodule
 
--- `.pair _ _` can never be `Neutral` (only `Normal`); `normalmodule` leaves it open rather
--- than failing, since it's a lenient tactic. (No constructor even applies, so the tactic makes
--- zero progress here — silence the linter that would otherwise flag that.)
-set_option linter.unusedTactic false in
+-- `.pair _ _` can never be `Neutral` (only `Normal`); no branch of `normalmodule`'s core script
+-- applies to this goal at all, so it now fails outright (rather than silently leaving the goal
+-- untouched) — the error is `first`'s report of its last alternative's failure.
+/-- error: Tactic `apply` failed: could not unify the conclusion of `@ModuleExpression.Normal.neutral`
+  ModuleExpression.Normal ?e
+with the goal
+  (a.pair b).Neutral
+
+Note: The full type of `@ModuleExpression.Normal.neutral` is
+  ∀ [inst : ProgramSpec] {e : ModuleExpression}, e.Neutral → e.Normal
+
+inst✝ : ProgramSpec
+a b : ModuleExpression
+⊢ (a.pair b).Neutral -/
+#guard_msgs (whitespace := lax) in
 example (a b : ModuleExpression) : ModuleExpression.Neutral (.pair a b) := by
-  -- TODO-CLAUDE: normalmodule should fail if no progress is made at all
   normalmodule
-  guard_target = ModuleExpression.Neutral (.pair a b)
-  sorry  -- genuinely false; documents that the goal was left open, not proved
 
 -- `normalmodule!` fails loudly on the same goal, pinpointing *why* `.pair` can't be `Neutral`.
 /-- error: Cannot show (a.pair b).Neutral: `.pair _ _` is always `Normal` (via `.pair`), never `Neutral` -/
@@ -2259,8 +2195,9 @@ Rejected approach (kept here as a warning, not a plan): configuring plain `simp`
 `reduce_of_normal`/`reduce_step`/`reduce_pair_cong`/etc. as a lemma set plus a custom
 discharger. It *looked* declarative and simple, but tuning it was pure trial-and-error —
 `reduce_step`-shaped lemmas (result determined only by a hypothesis, not the LHS pattern)
-silently refuse to fire at all under `simp`, and unconditional lemmas like `reduce_app` compete
-with `reduce_beta` in an order-sensitive way that only showed up empirically. None of that is
+silently refuse to fire at all under `simp`, and unconditional lemmas like the old (now-removed)
+`reduce_app` compete with `reduce_beta` in an order-sensitive way that only showed up
+empirically. None of that is
 predictable from reading the tactic; it has to be discovered by testing, which is exactly the
 failure mode to avoid.
 
@@ -2276,8 +2213,8 @@ freshly-exposed `reduce _` subterms without any extra looping logic on our part.
 `reduce_simp_head`'s branches, matching `ModuleExpression`'s 9 constructors:
 * `.app (.abs _) _` (a β-redex): `reduce_beta`.
 * `.fst (.pair _ _)` / `.snd (.pair _ _)`: `reduce_fst`/`reduce_snd`.
-* A context hypothesis `x.ReductionStep n` / `x.MultiStepReduction n` / `equireducible x n`:
-  `reduce_step`/`reduce_multiStepReduction`/`reduce_equireducible` applied, `n` pinned by
+* A context hypothesis `x.ReductionStep n` / `x.MultiStepReduction n` / `convertible x n`:
+  `reduce_step`/`reduce_multiStepReduction`/`reduce_convertible` applied, `n` pinned by
   `assumption` (this works because `apply`'s unification handles an output metavariable
   determined only by a later hypothesis just fine — unlike `simp`'s conditional rewriting, which
   is where the earlier design broke).
@@ -2316,7 +2253,7 @@ macro_rules
          | apply ModuleExpression.reduce_snd
          | (apply ModuleExpression.reduce_step; assumption)
          | (apply ModuleExpression.reduce_multiStepReduction; assumption)
-         | (apply ModuleExpression.reduce_equireducible; assumption)
+         | (apply ModuleExpression.reduce_convertible; assumption)
          | assumption
          -- Tried *before* structural decomposition: if the whole term is already `Normal`
          -- outright (e.g. after a recursive call below has already simplified its components),
@@ -2363,7 +2300,7 @@ open Lean Meta Simp in
     step of progress — matching `moduletyping`/`normalmodule`'s leniency: an unreducible term
     (e.g. containing an opaque free variable with no matching hypothesis) is left as-is rather
     than treated as an error. -/
-def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
+private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
   try
     let mTarget ← mkFreshExprMVar (← inferType e)
     let target ← mkEq e mTarget
@@ -2445,7 +2382,7 @@ example (m n : ModuleExpression) (h : m.MultiStepReduction n) (hn : n.Normal) :
     ModuleExpression.reduce m = n := by
   reduce_simp
 
-example (m n : ModuleExpression) (h : ModuleExpression.equireducible m n) (hn : n.Normal) :
+example (m n : ModuleExpression) (h : ModuleExpression.convertible m n) (hn : n.Normal) :
     ModuleExpression.reduce m = n := by
   reduce_simp
 
@@ -2471,13 +2408,13 @@ example (a c : ModuleExpression) (ha : a.Normal) (hc : c.Normal) :
 
 structure Module (T : ModuleTypeRep) where
   expression : ModuleExpression
-  typed : expression.Typed [] T
+  typed : expression.HasType [] T
   normal : expression.NormalClosed
 
 /-- Build a `Module` from a well-typed closed expression by normalising it. -/
 noncomputable def ModuleExpression.toModule {T : ModuleTypeRep}
-    {m : ModuleExpression} (h : m.Typed [] T := by moduletyping!) : Module T :=
-  ⟨m.reduce, m.reduce_typed h, m.reduce_normalClosed h⟩
+    {m : ModuleExpression} (h : m.HasType [] T := by moduletyping!) : Module T :=
+  ⟨m.reduce, m.reduce_hasType h, m.reduce_normalClosed h⟩
 
 noncomputable instance : CoeFun (Module (.arr T U)) (fun _ ↦ Module T → Module U) where
   coe f x := (f.expression.app x.expression).toModule (.app f.typed x.typed)
@@ -2507,7 +2444,7 @@ theorem Module.expression_snd' {T U} (m : Module (.prod T U)) :
 
 
 @[simp]
-theorem Module.toModule_expression {T} (m : ModuleExpression) (h : m.Typed [] T) :
+theorem Module.toModule_expression {T} (m : ModuleExpression) (h : m.HasType [] T) :
     (m.toModule h).expression = m.reduce := rfl
 
 @[simp]
@@ -2641,6 +2578,65 @@ theorem Module.pair_fst_snd {M N : Type max 1 u} [IsModule M] [IsModule N] (m : 
     Module.pair (Module.fst m) (Module.snd m) = m := by
   simp only [Module.fst, Module.snd, Module.pair, Module.moduleTypeRep, eqRec_eq_cast, cast_cast,
     cast_eq, Module.pair_fst_snd']
+
+noncomputable def Module.proc {sig} (p : Procedure sig) : Module.Proc sig :=
+  (ModuleExpression.proc p).toModule (.proc p)
+
+/-- Renaming by a function that's pointwise the identity is the identity, regardless of `ρ`'s
+    behavior elsewhere (needed below since `IsRenaming [] Δ ρ` holds vacuously for *any* `ρ`,
+    but we specifically want the renamed term to be syntactically unchanged). -/
+private theorem ModuleExpression.rename_id :
+    ∀ (m : ModuleExpression) (ρ : Nat → Nat), (∀ n, ρ n = n) → m.rename ρ = m := by
+  intro m
+  induction m with
+  | unit => intro ρ _; rfl
+  | proc p => intro ρ _; rfl
+  | procHoles ne p => intro ρ _; rfl
+  | var n => intro ρ hρ; simp [ModuleExpression.rename, hρ]
+  | app f a ihf iha => intro ρ hρ; simp [ModuleExpression.rename, ihf ρ hρ, iha ρ hρ]
+  | fst e ih => intro ρ hρ; simp [ModuleExpression.rename, ih ρ hρ]
+  | snd e ih => intro ρ hρ; simp [ModuleExpression.rename, ih ρ hρ]
+  | pair a b iha ihb => intro ρ hρ; simp [ModuleExpression.rename, iha ρ hρ, ihb ρ hρ]
+  | abs body ih =>
+      intro ρ hρ
+      simp only [ModuleExpression.rename]
+      congr 1
+      apply ih
+      intro n
+      cases n with
+      | zero => rfl
+      | succ n' => simp [ModuleExpression.liftRen, hρ]
+
+/-- A closed term (well-typed in the empty context) is well-typed in *any* context: `Δ = []`
+    makes `IsRenaming [] Δ' ρ` hold vacuously for any `ρ`, so picking `ρ := id` and cancelling
+    the resulting `rename id` via `rename_id` gives back `m` itself, unchanged, in the wider
+    context `Δ'`. -/
+private theorem ModuleExpression.HasType.weaken_of_empty {m : ModuleExpression} {T : ModuleTypeRep}
+    (h : m.HasType [] T) (Δ : ModuleContext) : m.HasType Δ T := by
+  have hIsRen : ModuleExpression.HasType.IsRenaming [] Δ id :=
+    fun {n} hn => absurd hn (Nat.not_lt_zero n)
+  have hren := h.rename hIsRen
+  rwa [ModuleExpression.rename_id m id (fun _ => rfl)] at hren
+
+noncomputable def Module.const {T U} [IsModule T] [iu : IsModule U] (m : U) : Module.Arr T U :=
+  let expr : ModuleExpression := (iu.isModule ▸ m).expression
+  have h : expr.HasType [] (Module.moduleTypeRep U) := by
+    exact (iu.isModule ▸ m).typed
+  let abs : ModuleExpression := .abs expr
+  have habs :
+      abs.HasType [] (ModuleTypeRep.arr (Module.moduleTypeRep T) (Module.moduleTypeRep U)) := by
+    exact .abs (h.weaken_of_empty _)
+  abs.toModule habs
+
+noncomputable def Module.procWithHoles {holes : HoleSigs} {sig : ProcedureSignature}
+    (p : ProcedureWithHoles holes sig) :
+    Module.Arr (Module holes.toModuleTypeRepTuple) (Module.Proc sig) :=
+  match h : holes with
+  | .empty =>
+    Module.const (Module.proc p)
+  | .append x y =>
+    show Module (.arr (HoleSigs.append x y).toModuleTypeRepTuple (.proc sig))
+    from (ModuleExpression.procHoles (by trivial) p).toModule
 
 /- # Demo -/
 
