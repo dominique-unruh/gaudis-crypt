@@ -335,26 +335,6 @@ mirror the intrinsic versions structurally. -/
 
 namespace ModuleExpression
 
-/-- `m` is a procedure-with-holes node. -/
--- TODO check needed
-def IsProcHoles : ModuleExpression → Prop
-  | .procHoles _ _ => True
-  | _              => False
-
-instance : (m : ModuleExpression) → Decidable (ModuleExpression.IsProcHoles m)
-  | .procHoles _ _ => isTrue trivial
-  | .proc _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .unit =>
-      isFalse (by simp [ModuleExpression.IsProcHoles])
-
-/-- A `procHoles` node decomposed into its holes/signature/procedure (untyped analogue of
-    `TypedModules.IsProcHoles.destruct`; no type-index equation is produced). -/
-def IsProcHoles.destruct {m : ModuleExpression} (h : m.IsProcHoles) :
-    Σ holes : HoleSigs, Σ sig : ProcedureSignature,
-      holes.NonEmpty ×' ProcedureWithHoles holes sig := by
-  cases m with
-  | procHoles ne p => exact ⟨_, _, ne, p⟩
-  | _ => simp [IsProcHoles] at h
-
 /-- `m` is a right-nested tuple of hole-free procedures (`.unit`, or `.pair (.proc _) rest`
     with `IsProcTuple rest`) — the ground arguments a procedure-with-holes accepts. -/
 def IsProcTuple : ModuleExpression → Prop
@@ -393,10 +373,8 @@ inductive Normal : ModuleExpression → Prop where
 inductive Neutral : ModuleExpression → Prop where
   | var {n} : Neutral (.var n)
   | app {f arg} : Neutral f → Normal arg → Neutral (.app f arg)
-  | appProcHoles {f arg} : IsProcHoles f → Normal arg → ¬ IsProcTuple arg → Neutral (.app f arg)
-  -- TODO use this instead:
-  -- | appProcHoles {holes sig arg} {p : ProcedureWithHoles holes sig} (ne : holes.NonEmpty) :
-      --  Normal arg → ¬ IsProcTuple arg → Neutral (.app (.procHoles sorry p) arg)
+  | appProcHoles {holes sig arg} {p : ProcedureWithHoles holes sig} (ne : holes.NonEmpty) :
+       Normal arg → ¬ IsProcTuple arg → Neutral (.app (.procHoles ne p) arg)
   | fst {e} : Neutral e → Neutral (.fst e)
   | snd {e} : Neutral e → Neutral (.snd e)
 
@@ -439,19 +417,20 @@ private def decidableNormalNeutral (m : ModuleExpression) :
               | app _ na' => exact na na'
               | appProcHoles _ na' _ => exact na na'
         | .isFalse nf, .isTrue na =>
-            if hph : IsProcHoles f then
-              match instDecidableIsProcTuple arg with
-              | .isFalse hpt => exact .isTrue (.appProcHoles hph na hpt)
-              | .isTrue hpt =>
-                  exact .isFalse fun h => by
-                    cases h with
-                    | app nf' _ => exact nf nf'
-                    | appProcHoles _ _ hpt' => exact hpt' hpt
-            else
-              exact .isFalse fun h => by
-                cases h with
-                | app nf' _ => exact nf nf'
-                | appProcHoles hph' _ _ => exact hph hph'
+            match f, nf with
+            | .procHoles ne p, nf =>
+                match instDecidableIsProcTuple arg with
+                | .isFalse hpt => exact .isTrue (.appProcHoles ne na hpt)
+                | .isTrue hpt =>
+                    exact .isFalse fun h => by
+                      cases h with
+                      | app nf' _ => exact nf nf'
+                      | appProcHoles _ _ hpt' => exact hpt' hpt
+            | .proc _, nf | .var _, nf | .app _ _, nf | .fst _, nf | .snd _, nf
+            | .abs _, nf | .pair _ _, nf | .unit, nf =>
+                exact .isFalse fun h => by
+                  cases h with
+                  | app nf' _ => exact nf nf'
       exact ⟨(match dN with
               | .isTrue h => .isTrue (.neutral h)
               | .isFalse h =>
@@ -491,22 +470,6 @@ private theorem toModuleTypeRepTuple_isProcArgType (holes : HoleSigs) :
   | empty => simp [HoleSigs.toModuleTypeRepTuple, IsProcArgType]
   | append rest sig ih => exact ih
 
-/-- The domain of a well-typed procedure-with-holes is a procedure-argument type
-    (untyped analogue of `TypedModules.IsProcHoles.isProcArgType`). -/
-private theorem isProcArgType_of_procHoles {m : ModuleExpression} {Δ A B}
-    (hty : m.HasType Δ (.arr A B)) (h : m.IsProcHoles) : IsProcArgType A := by
-  cases m with
-  | procHoles ne p =>
-      have he := hty.procHoles_inv
-      rw [ModuleTypeRep.arr.injEq] at he
-      obtain ⟨rfl, _⟩ := he
-      exact toModuleTypeRepTuple_isProcArgType _
-  | _ => simp [IsProcHoles] at h
-
-/-- The domain of a (well-typed) procedure-with-holes is a procedure-argument type. -/
-theorem IsProcHoles.isProcArgType {m : ModuleExpression} {Δ A B}
-    (_hty : m.HasType Δ (.arr A B)) (_h : m.IsProcHoles) : IsProcArgType A :=
-  isProcArgType_of_procHoles _hty _h
 
 /-- Progress for the closed fragment: a well-typed closed term is never neutral, and a closed
     normal term of procedure-argument type is a procedure tuple.  Untyped port of
@@ -532,7 +495,10 @@ private theorem closedProgress : ∀ {m : ModuleExpression} {T},
         cases hne with
         | app nf _ => exact (ihf hf).1 nf
         | appProcHoles hph ha hpt =>
-            exact hpt ((iharg harg).2 (isProcArgType_of_procHoles hf hph) ha)
+            have he := hf.procHoles_inv
+            rw [ModuleTypeRep.arr.injEq] at he
+            obtain ⟨rfl, _⟩ := he
+            exact hpt ((iharg harg).2 (toModuleTypeRepTuple_isProcArgType _) ha)
       exact ⟨h1, fun _ hn => by cases hn with | neutral hne => exact absurd hne h1⟩
   | fst e ihe =>
       intro T hty
@@ -1051,17 +1017,13 @@ private theorem toSTLC_normal_isNormalForm {m : ModuleExpression} :
             | appR step => exact (iharg.1 harg_n) _ step
             | funcApp => cases hf_n <;> simp [toSTLC] at hF
           | appProcHoles hph ha hpt =>
-            cases f with
-            | procHoles ne p =>
-                simp only [toSTLC, pwhToSTLC] at h
-                cases h with
-                | appL step => nomatch step
-                | appR step => exact (iharg.1 ha) _ step
-                | funcApp d g N' hbasic =>
-                    exact absurd
-                      (toModuleTuple_of_basicType arg hbasic ▸ tuple_isProcTuple _) hpt
-            | abs _ | proc _ | var _ | app _ _ | fst _ | snd _ | pair _ _ | unit =>
-                exact absurd hph (by simp [IsProcHoles])
+            simp only [toSTLC, pwhToSTLC] at h
+            cases h with
+            | appL step => nomatch step
+            | appR step => exact (iharg.1 ha) _ step
+            | funcApp d g N' hbasic =>
+                exact absurd
+                  (toModuleTuple_of_basicType arg hbasic ▸ tuple_isProcTuple _) hpt
       · intro hne
         cases hne with
         | app hf_n harg_n =>
@@ -1077,20 +1039,16 @@ private theorem toSTLC_normal_isNormalForm {m : ModuleExpression} :
           · intro h; cases h
           · intro h; cases h
         | appProcHoles hph ha hpt =>
-          cases f with
-          | procHoles ne p =>
-              refine ⟨fun N h => ?_, fun _ => ?_, fun _ _ => ?_⟩
-              · simp only [toSTLC, pwhToSTLC] at h
-                cases h with
-                | appL step => nomatch step
-                | appR step => exact (iharg.1 ha) _ step
-                | funcApp d g N' hbasic =>
-                    exact absurd
-                      (toModuleTuple_of_basicType arg hbasic ▸ tuple_isProcTuple _) hpt
-              · intro h; cases h
-              · intro h; cases h
-          | abs _ | proc _ | var _ | app _ _ | fst _ | snd _ | pair _ _ | unit =>
-              exact absurd hph (by simp [IsProcHoles])
+          refine ⟨fun N h => ?_, fun _ => ?_, fun _ _ => ?_⟩
+          · simp only [toSTLC, pwhToSTLC] at h
+            cases h with
+            | appL step => nomatch step
+            | appR step => exact (iharg.1 ha) _ step
+            | funcApp d g N' hbasic =>
+                exact absurd
+                  (toModuleTuple_of_basicType arg hbasic ▸ tuple_isProcTuple _) hpt
+          · intro h; cases h
+          · intro h; cases h
     | fst e ihe =>
       constructor
       · intro hn N h
@@ -2038,7 +1996,6 @@ macro_rules
       | apply ModuleExpression.Neutral.fst
       | apply ModuleExpression.Neutral.snd
       | (apply ModuleExpression.Neutral.appProcHoles
-         (first | assumption | (simp [ModuleExpression.IsProcHoles] <;> done))
          all_goals try (first | assumption | (simp [ModuleExpression.IsProcTuple] <;> done)))
       | apply ModuleExpression.Neutral.app
       | apply ModuleExpression.Normal.neutral)
