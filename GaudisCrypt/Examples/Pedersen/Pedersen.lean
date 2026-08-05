@@ -115,50 +115,8 @@ noncomputable def Pedersen : CommitmentScheme :=
 /-! ## Correctness (statement only)
 
 To *run* an applied functor module we extract its procedure: a normal closed module
-expression of procedure type is a `.proc` node.  (`proc_type_is_proc`/`Module.procedure`
-are generic module-calculus material — candidates for `Language/Modules.lean`.) -/
-
-omit [PedersenGroup] in
-theorem proc_type_is_proc {sig : ProcedureSignature}
-    {m : ModuleExpression} (ht : m.HasType [] (.proc sig)) (h : m.NormalClosed) :
-    ∃ p : Procedure sig, m = .proc p := by
-  cases h with
-  | «proc» =>
-      rename_i p
-      injection ht.proc_inv with hs
-      subst hs
-      exact ⟨p, rfl⟩
-  | procHoles => cases ht
-  | abs _ => cases ht
-  | pair _ _ => cases ht
-  | unit => cases ht
-
-/-- The procedure of a proc-typed module.  (`Classical.choose` only escapes the
-    Prop-to-data restriction; the witness is unique — see `Module.procedure_spec` and
-    `Module.procedure_proc`.) -/
-noncomputable def _root_.GaudisCrypt.Module.procedure
-    {sig : ProcedureSignature} (m : Module (.proc sig)) : Procedure sig :=
-  (proc_type_is_proc m.typed m.normal).choose
-
-omit [PedersenGroup] in
-/-- `Module.procedure` is characterized by its defining equation (the witness of
-    `proc_type_is_proc` is unique by constructor injectivity). -/
-theorem _root_.GaudisCrypt.Module.procedure_spec
-    {sig : ProcedureSignature} (m : Module (.proc sig)) :
-    m.expression = .proc m.procedure :=
-  (proc_type_is_proc m.typed m.normal).choose_spec
-
-omit [PedersenGroup] in
-/-- Round-trip: wrapping a procedure as a module and extracting recovers it. -/
-@[simp] theorem _root_.GaudisCrypt.Module.procedure_proc
-    {sig : ProcedureSignature} (p : Procedure sig) :
-    ((ModuleExpression.proc p).toModule (.proc p)).procedure = p := by
-  have h1 : ((ModuleExpression.proc p).toModule (.proc p)).expression = .proc p :=
-    Module.reduce_expression ⟨.proc p, .proc p, .proc⟩
-  have h2 := Module.procedure_spec ((ModuleExpression.proc p).toModule (.proc p))
-  rw [h1] at h2
-  injection h2 with hsig h
-  exact h.symm
+expression of procedure type is a `.proc` node (`proc_type_is_proc` / `Module.procedure`,
+now in `Language/Modules.lean`). -/
 
 /-! ## The computation bridge
 

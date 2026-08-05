@@ -2553,6 +2553,51 @@ theorem Module.pair_fst_snd {M N : Type max 1 u} [IsModule M] [IsModule N] (m : 
 noncomputable def Module.proc {sig} (p : Procedure sig) : Module.Proc sig :=
   (ModuleExpression.proc p).toModule (.proc p)
 
+/-- Canonical forms at procedure type: a *closed normal* expression of type `.proc sig` is
+    literally a `.proc p` node. -/
+theorem proc_type_is_proc {sig : ProcedureSignature}
+    {m : ModuleExpression} (ht : m.HasType [] (.proc sig)) (h : m.NormalClosed) :
+    ∃ p : Procedure sig, m = .proc p := by
+  cases h with
+  | «proc» =>
+      rename_i p
+      injection ht.proc_inv with hs
+      subst hs
+      exact ⟨p, rfl⟩
+  | procHoles => cases ht
+  | abs _ => cases ht
+  | pair _ _ => cases ht
+  | unit => cases ht
+
+/-- The procedure of a proc-typed module — the inverse of `Module.proc`.  (`Classical.choose`
+    only escapes the Prop-to-data restriction; the witness is unique — see
+    `Module.procedure_spec` and `Module.procedure_proc`.) -/
+-- TODO don't use choose but pattern match
+-- TODO use Module.Proc
+noncomputable def Module.procedure
+    {sig : ProcedureSignature} (m : Module (.proc sig)) : Procedure sig :=
+  (proc_type_is_proc m.typed m.normal).choose
+
+/-- `Module.procedure` is characterized by its defining equation (the witness of
+    `proc_type_is_proc` is unique by constructor injectivity). -/
+-- TODO use Module.Proc
+theorem Module.procedure_spec
+    {sig : ProcedureSignature} (m : Module (.proc sig)) :
+    m.expression = .proc m.procedure :=
+  (proc_type_is_proc m.typed m.normal).choose_spec
+
+/-- Round-trip: wrapping a procedure as a module and extracting recovers it. -/
+-- TODO use Module.Proc
+@[simp] theorem Module.procedure_proc
+    {sig : ProcedureSignature} (p : Procedure sig) :
+    ((ModuleExpression.proc p).toModule (.proc p)).procedure = p := by
+  have h1 : ((ModuleExpression.proc p).toModule (.proc p)).expression = .proc p :=
+    Module.reduce_expression ⟨.proc p, .proc p, .proc⟩
+  have h2 := Module.procedure_spec ((ModuleExpression.proc p).toModule (.proc p))
+  rw [h1] at h2
+  injection h2 with hsig h
+  exact h.symm
+
 /-- Renaming by a function that's pointwise the identity is the identity, regardless of `ρ`'s
     behavior elsewhere (needed below since `IsRenaming [] Δ ρ` holds vacuously for *any* `ρ`,
     but we specifically want the renamed term to be syntactically unchanged). -/

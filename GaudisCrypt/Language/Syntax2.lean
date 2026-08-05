@@ -291,6 +291,11 @@ scoped syntax "[lval| " term,+ "]" : term
 macro_rules
   | `([lval| $xs:term,*]) => `(liftLens [lvalRawList| $xs,*])
 
+/-- A single `_` l-value discards the value written to it (`Setter.throwaway`).  Declared
+after the general rule so it takes priority. -/
+macro_rules
+  | `([lval| _]) => `(Setter.throwaway)
+
 /- ### Concrete syntax -/
 
 declare_syntax_cat gaudi_stmt
@@ -882,6 +887,286 @@ elab_rules : command
       elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "destruct_mk")) ($mId : $nm) :
           $mkId ($structFn $mId) = $mId := by simp [$[$dmLemmas:ident],*]))
 
+/-! ## Module definitions — `module X (…) : T { proc f (…) : R { … }; … }`
+
+```
+module X (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModule) : M2 {
+  proc g () : Unit {
+    _ <- call (Module.app A myMod) ();
+    _ <- call (myMod.main) ("hello", 5);
+    return ();
+  };
+  proc h () : Unit { return (); };
+}
+```
+declares a module `X` with module *parameters* `A`, `B` (the parameter list is optional) whose
+fields are the procedures `g`, `h`.  Procedure bodies use the ordinary statement syntax, except
+that the callee of a `call` is a *module* (`Module.Proc sig`) rather than a bare `Procedure sig`.
+
+Elaboration is in two passes.  First the whole body of each procedure is type-checked *as
+written* — with the module parameters in the local context and every callee in place (each callee
+that mentions a parameter ascribed to `Module (.proc ?sig)`).  Only then, from the signatures that
+this typing assigns to those `?sig`, is each procedure emitted as a constant
+`X.<f>.procedure : ProcedureWithHoles …`, in which
+* a `call` whose callee mentions a module parameter has become a **hole** (the callee, having
+  done its job for typing, is dropped).  Two calls with the same callee syntax share one hole;
+* every other callee is a closed module expression, converted with `Module.procedure`.
+
+(TODO: also emit `X.<f>` and `X` itself — the `Module.Arr … ` values built from these
+procedures with `Module.procWithHoles`/`Module.app'`.) -/
+
+/-- One procedure of a `module` declaration: `proc f (x : T, …) : R { … };`.  Same shape as
+the `proc` *term* syntax (which it expands to), plus a name and a trailing `;`. -/
+declare_syntax_cat gaudi_module_proc
+
+-- the type ascriptions are parsed at `term:max` (as in the `proc` term syntax): a lower
+-- precedence would let the type swallow the `{ … }` block that follows it as a structure instance
+syntax "proc " ident "(" proc_binder,* ")" (" : " term:max)? "{"
+         ("var" proc_binder,* ";")*
+         gaudi_stmt*
+         "return" term (";")?
+       "}" (";")? : gaudi_module_proc
+
+syntax "module " ident ("(" proc_binder,* ")")? (" : " term:max)? "{"
+         gaudi_module_proc*
+       "}" : command
+
+namespace GaudisCrypt.ModuleDecl
+
+open Lean Elab Command Meta Term
+
+/-- The name of the `i`-th generated hole (both the `uses` binder and its call sites). -/
+def holeIdent (i : Nat) : Ident := mkIdent (Name.mkSimple s!"_hole{i}")
+
+/-- `holeIdent` in callee position. -/
+def holeCallee (i : Nat) : Term := holeIdent i
+
+/-- Does `s` mention one of the identifiers `names` (the module's parameters)? -/
+partial def mentions (names : List Name) (s : Syntax) : Bool :=
+  if s.isIdent then names.contains s.getId else s.getArgs.any (mentions names)
+
+/-- Syntactic equality ignoring source positions — two calls of the same module argument
+should share a single hole. -/
+partial def sameSyntax : Syntax → Syntax → Bool
+  | .missing, .missing => true
+  | .atom _ v, .atom _ v' => v == v'
+  | .ident _ _ v _, .ident _ _ v' _ => v == v'
+  | .node _ k as, .node _ k' as' =>
+      k == k' && as.size == as'.size && (as.zip as').all fun (a, b) => sameSyntax a b
+  | _, _ => false
+
+/-- Rewrite the `call`s of a module body (recursing through the whole statement tree).  A callee
+that mentions a module parameter is replaced by `mkCallee i` for its (deduplicated) hole number
+`i`, and the state accumulates those callees in hole order.  Any other callee is a `Module.Proc`,
+so `Module.procedure` extracts the procedure the `call` statement expects.
+
+Two runs with the same `params` produce the same hole numbering, which is what lets the
+type-checking pass and the final pass agree on it. -/
+partial def rewriteCalls (params : List Name) (mkCallee : Nat → Term) (s : Syntax) :
+    StateM (Array Term) Syntax := do
+  let k := s.getKind
+  if k == ``GaudisCrypt.callStore || k == ``GaudisCrypt.callVoid then
+    let i := if k == ``GaudisCrypt.callStore then 3 else 1
+    let callee : Term := ⟨s.getArg i⟩
+    if mentions params callee.raw then
+      let holes ← get
+      let idx := (holes.findIdx? fun c => sameSyntax c.raw callee.raw).getD holes.size
+      if idx == holes.size then set (holes.push callee)
+      return s.setArg i (mkCallee idx)
+    else
+      return s.setArg i (Syntax.mkCApp ``GaudisCrypt.Module.procedure #[callee])
+  else match s with
+    | .node info k args => return .node info k (← args.mapM (rewriteCalls params mkCallee))
+    | _ => return s
+
+/-- The named metavariable `?_holeSigᵢ` standing for the signature of the `i`-th hole: it is
+solved by elaborating the body with the real callees in place, and read back afterwards. -/
+def sigHole (i : Nat) : Term :=
+  ⟨mkNode ``Lean.Parser.Term.syntheticHole #[mkAtom "?", mkIdent (sigName i)]⟩
+  where sigName (i : Nat) : Name := Name.mkSimple s!"_holeSig{i}"
+
+/-- Bring the module parameters into the local context (with their declared types) so that a
+callee mentioning them can be elaborated. -/
+def withParams {α} : List (Ident × Term) → TermElabM α → TermElabM α
+  | [], k => k
+  | (id, ty) :: rest, k => do
+      let tyE ← Term.elabType ty
+      Term.synthesizeSyntheticMVarsNoPostponing
+      withLocalDeclD id.getId (← instantiateMVars tyE) fun _ => withParams rest k
+
+/-- Read a `List` literal off an `Expr`. -/
+partial def listLit? (e : Lean.Expr) : MetaM (Option (List Lean.Expr)) := do
+  let e ← whnf e
+  if e.isAppOfArity ``List.nil 1 then
+    return some []
+  else if e.isAppOfArity ``List.cons 3 then
+    let args := e.getAppArgs
+    match ← listLit? args[2]! with
+    | some rest => return some (args[1]! :: rest)
+    | none => return none
+  else
+    return none
+
+/-- How many errors a message log holds (used to tell whether the type-checking pass failed). -/
+def errorCount (msgs : MessageLog) : Nat :=
+  msgs.toList.countP (·.severity == MessageSeverity.error)
+
+/-- Split a solved `?_holeSigᵢ` into the syntax of its parameter types and its return type (for
+the `uses` clause of the generated `proc`). -/
+def sigSyntax (callee : Term) (sigMVar : Lean.Expr) : TermElabM (Array Term × Term) := do
+  let sig ← whnf (← instantiateMVars sigMVar)
+  let fail {α} : TermElabM α :=
+    throwErrorAt callee
+      "module: the signature of this call must elaborate to a literal `procsig (…) -> …`, \
+       but it is{indentExpr sig}"
+  unless sig.isAppOfArity ``GaudisCrypt.ProcedureSignature.mk 2 do fail
+  let args := sig.getAppArgs
+  let some ps ← listLit? args[0]! | fail
+  let psStx ← ps.toArray.mapM fun p => PrettyPrinter.delab p
+  return (psStx, ← PrettyPrinter.delab args[1]!)
+
+/-- Type-check a procedure body with the module parameters in the local context and the *real*
+callees in place (each hole callee ascribed to `Module (.proc ?_holeSigᵢ)`), and return the
+signatures that this elaboration assigns to the `?_holeSigᵢ`.  Holes are made only afterwards,
+from these signatures — so a call is typed exactly as written before it loses its callee. -/
+def checkBody (paramBs : List (Ident × Term)) (callees : Array Term) (body : Term) :
+    TermElabM (Array (Array Term × Term)) :=
+  withParams paramBs do
+    -- create the `?_holeSigᵢ` up front: `elabSyntheticHole` reuses a metavariable of that name
+    let mvars ← (Array.range callees.size).mapM fun i =>
+      mkFreshExprMVar (Lean.mkConst ``GaudisCrypt.ProcedureSignature)
+        (userName := sigHole.sigName i)
+    discard <| Term.elabTerm body none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    (callees.zip mvars).mapM fun (c, mv) => sigSyntax c mv
+
+/-- A link that inserts `suggestion` over `range` and then moves the cursor to `newSelection`.
+Same idea as `Lean.Meta.Hint.textInsertionWidget` — whose link text is fixed to `[apply]` and
+which leaves the cursor where it was — and as ProofWidgets' `MakeEditLink`, which needs the
+document's URI up front; here it is read from the infoview's position context instead. -/
+@[widget_module]
+def insertLinkWidget : Widget.Module where
+  javascript := "
+import * as React from 'react';
+import { EditorContext, EnvPosContext } from '@leanprover/infoview';
+
+const e = React.createElement;
+export default function ({ range, suggestion, newSelection, hoverText, linkText }) {
+  const pos = React.useContext(EnvPosContext)
+  const ec = React.useContext(EditorContext)
+  async function onClick() {
+    await ec.api.applyEdit({ changes: { [pos.uri]: [{ range, newText: suggestion }] } })
+    if (newSelection) await ec.revealLocation({ uri: pos.uri, range: newSelection })
+  }
+  return e('span', {
+      onClick,
+      title: hoverText,
+      className: 'link pointer dim font-code',
+      style: { color: 'var(--vscode-textLink-foreground)' }
+    },
+    linkText)
+}"
+
+/-- The width of `s` in UTF-16 code units — what LSP positions count in. -/
+private def utf16Width (s : String) : Nat := s.foldl (fun w c => w + c.utf16Size.toNat) 0
+
+/-- Report the declarations a `module` command generated, as
+```
+Defined:
+  X.g.procedure — body of proc g
+```
+where each *name* is a link that inserts `#check <name>` right after the command and puts the
+cursor at the end of the inserted line (the same edit is also offered as a code action).
+`declared` pairs each name with a short description of what it is. -/
+def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElabM Unit := do
+  if declared.isEmpty then return
+  -- the edit's range is empty and sits at the command's tail, so applying it *inserts* the
+  -- `#check` on the following line rather than overwriting anything
+  let some tailPos := ref.getTailPos? | return
+  let range : Lean.Syntax.Range := ⟨tailPos, tailPos⟩
+  let lspRange := (← getFileMap).utf8RangeToLspRange range
+  let mut msg : MessageData := "Defined:"
+  for (n, descr) in declared do
+    let line := s!"#check {n}"
+    let newText := "\n" ++ line
+    let title := s!"Insert `{line}`"
+    -- end of the inserted line: one line below the command, past the text just written
+    let caret : Lsp.Position := ⟨lspRange.start.line + 1, utf16Width line⟩
+    -- the code-action (lightbulb) counterpart of the link
+    pushInfoLeaf <| .ofCustomInfo {
+      stx := Syntax.ofRange (ref.getRange?.getD range)
+      value := Dynamic.mk ({ edit := { range := lspRange, newText := newText }
+                             codeActionTitle := title
+                             suggestion := { suggestion := newText } } :
+                           Lean.Meta.Tactic.TryThis.TryThisInfo) }
+    let link : MessageData := .ofWidget
+      { id := ``insertLinkWidget
+        javascriptHash := insertLinkWidget.javascriptHash
+        props := return json%
+          { range: $(lspRange),
+            suggestion: $(newText),
+            newSelection: $(({ start := caret, «end» := caret } : Lsp.Range)),
+            hoverText: $(title),
+            linkText: $(n.toString) } }
+      n.toString
+    msg := msg ++ m!"\n• {link} — {descr}"
+  msg := msg ++ "\n(Click to insert `#check symbolname`.)"
+  logInfoAt ref msg
+
+end GaudisCrypt.ModuleDecl
+
+open Lean Elab Command GaudisCrypt.ModuleDecl in
+elab_rules : command
+  | `(module $nm:ident $[( $params:proc_binder,* )]? $[: $_mt:term]? {
+        $procs:gaudi_module_proc*
+      }) => do
+    let paramStx := match params with | some ps => ps.getElems | none => #[]
+    let paramBs ← paramStx.mapM fun b => match b with
+      | `(proc_binder| $id:ident : $ty:term) => pure (id, ty)
+      | _ => throwUnsupportedSyntax
+    let paramNames := paramBs.toList.map (·.1.getId)
+    let mut declared : Array (Name × String) := #[]
+    for p in procs do
+      let `(gaudi_module_proc| proc $fn:ident ( $ps:proc_binder,* ) $[: $rty:term]? {
+              $[var $locals:proc_binder,* ;]*
+              $stmts:gaudi_stmt*
+              return $rv:term $[;]?
+            } $[;]?) := p | throwUnsupportedSyntax
+      -- (`uses` is a keyword, hence the name `hbs?`)
+      let mkProc (body : Array (TSyntax `gaudi_stmt))
+          (hbs? : Option (Array (TSyntax `hole_binder))) : CommandElabM Term :=
+        match hbs? with
+        | none | some #[] =>
+            `(proc ( $ps,* ) $[: $rty]? { $[var $locals,* ;]* $body* return $rv })
+        | some hbs =>
+            `(proc ( $ps,* ) uses ( $hbs,* ) $[: $rty]? { $[var $locals,* ;]* $body* return $rv })
+      -- the final (hole) form of the body, and with it the callees in hole order
+      let (holeStmts, callees) :=
+        (stmts.mapM fun s => rewriteCalls paramNames holeCallee s.raw).run #[]
+      -- pass 1: the body with its callees intact, elaborated with the module parameters in the
+      -- local context — this is where the whole body (holes included) is type-checked, and what
+      -- determines the hole signatures
+      let checked ← callees.mapIdxM fun i c =>
+        `(GaudisCrypt.Module.procedure
+            ($c : GaudisCrypt.Module (GaudisCrypt.ModuleTypeRep.proc $(sigHole i))))
+      let (checkStmts, _) :=
+        (stmts.mapM fun s => rewriteCalls paramNames (checked[·]!) s.raw).run #[]
+      let checkTerm ← mkProc (checkStmts.map (⟨·⟩)) none
+      let errsBefore := errorCount (← get).messages
+      let holeSigs ← runTermElabM fun _ => checkBody paramBs.toList callees checkTerm
+      -- a body that does not type-check has already been reported against its real callees;
+      -- elaborating the hole version too would only duplicate the errors
+      if errorCount (← get).messages > errsBefore then continue
+      -- pass 2: now that they are typed, the parameter calls become holes
+      let holeBinders ← holeSigs.mapIdxM fun i (hps, hret) =>
+        `(hole_binder| $(holeIdent i):ident : ( $hps,* ) → $hret)
+      let procTerm ← mkProc (holeStmts.map (⟨·⟩)) (some holeBinders)
+      let declId := mkIdent (nm.getId ++ fn.getId ++ `procedure)
+      elabCommand (← `(command| noncomputable def $declId:ident := $procTerm))
+      -- the short name: the `#check` is inserted right after the command, in the same namespace
+      declared := declared.push (declId.getId, s!"body of proc {fn.getId}")
+    logDeclared (← getRef) declared
+
 namespace Experiment
 variable [ProgramSpec]
 
@@ -961,27 +1246,39 @@ moduletype M2 {
 }
 
 
-/-
-module X(A : Module.Arr TestModule (procmod () → Unit), B : TestModule) : M2 {
-  proc g() : Unit = {
-    _ <- call (A(myMod)) ();
-    _ <- call (myMod.main)  ("hello", 5);
+/- ### `module` declarations -/
+
+module X (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModule) : M2 {
+  proc g() : Unit {
+    _ <- call (Module.app A myMod) ();
+    _ <- call (Module.app A myMod) ();   -- same callee ⇒ same hole
+    -- the `(5 : Nat)` ascription is needed because `paramListToTuple` is not reducible, so the
+    -- expected type of the literal is stuck (see the TODO at the end of the file)
+    _ <- call (myMod.main)  ("hello", (5 : Nat));
     return ();
   };
-  proc h() : Unit = {
+  proc h() : Unit {
     return ();
   };
 }
 
+-- `g` calls the parameter `A` (⇒ one hole) and the closed module `myMod.main` (⇒ a plain call)
+#check (X.g.procedure : proctype () -> Unit uses (() → Unit))
+#check X.g.procedure
+#check X.h.procedure
+#check (X.h.procedure : proctype () -> Unit)
+#print X.g.procedure
+
+-- the parameter list is optional
+module NoParams : M2 {
+  proc g() : Unit { return (); };
+  proc h() : Unit { return (); };
+}
+#check (NoParams.g.procedure : proctype () -> Unit)
+
+/-
 -- Should convert to:
 
-def X.g.procedure : ProcWithHoles [procsig () → Unit] (procsig () → Unit) := proc () {
-  _ <- hole 0 ();
-  _ <- call (myMod.main.proc) ("hello", 5);
-  return ();
-}
-
-def X.h.procedure : Procedure (procsig () → Unit) := proc () { return (); }
 
 def X.g : Module.Arr
   (Module.Prod (Module.Arr TestModule (Module (procmod () → Unit))) TestModule)
@@ -1008,7 +1305,11 @@ end Experiment
 -- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
 -- TODO: Make all things not only parseable, but also printable
 -- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
--- TODO: Allow _ in lvalues (translated to Setter.throwaway)
+-- TODO: Allow _ inside a *tuple* lvalue too (a bare `_` already becomes Setter.throwaway)
+-- TODO: `paramListToTuple` is not reducible, so a numeral argument of a `call` has a stuck
+--   expected type (`OfNat (paramListToTuple [Nat]) 5`) and needs an ascription.
+-- TODO: `module X …` only emits `X.f.procedure` so far; still missing are the `X.f` modules
+--   (`Module.procWithHoles` applied to the parameter tuple) and `X` itself.
 -- TODO: Syntax for writing explicit modules (needed? or def + .mk is sufficient?)
 -- Concrete syntax for module types: `procmod (…) -> R` (proc) / `.proc`, `×` (prod, overloaded),
 --   `→ₘ` (arr), `.unit` via dot notation. See the `ModuleTypeRep concrete syntax` block above.
