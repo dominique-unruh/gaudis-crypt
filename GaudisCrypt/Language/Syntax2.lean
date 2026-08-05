@@ -981,22 +981,18 @@ def X.g.procedure : ProcWithHoles [procsig () → Unit] (procsig () → Unit) :=
   return ();
 }
 
-def X.h.procedure : Procedure (procsig () → )
+def X.h.procedure : Procedure (procsig () → Unit) := proc () { return (); }
 
 def X.g : Module.Arr
   (Module.Prod (Module.Arr TestModule (Module (procmod () → Unit))) TestModule)
   (Module.Proc (procsig () -> Unit)) :=
+  let procmod : Module.Arr ([procsig () → Unit].toModuleTypeRepTuple)
+                      (Module.Proc (procsig () → Unit))
+      := Module.procWithHoles X.g.procedure
+  let arg1 : Module.Proc (procsig () → Unit) := ...
+  Module.app' procmod arg1
 
-  proc () : Unit {
-    return ();
-  }
-
-def
-
-  (proc () : Unit {
-    _ <- call (A(myMod)) ();
-    _ <- call (myMod.main)  ("hello", 5);
-  })
+def X.h : Module.Proc (procsig () → Unit) := Module.proc X.h.procedure
 
 
 def X : Module.Arr (Module.Prod (Arr TestModule (procmod () → Unit)) TestModule) M2 :=

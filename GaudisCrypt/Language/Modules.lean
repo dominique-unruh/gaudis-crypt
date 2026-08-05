@@ -323,7 +323,6 @@ theorem preservation {m m'} (hstep : m.ReductionStep m') :
 
 end ModuleExpression.HasType
 
--- TODO check needed
 def IsProcArgType : ModuleTypeRep → Prop
   | .unit => True
   | .prod (.proc _) rest => IsProcArgType rest
@@ -395,6 +394,9 @@ inductive Neutral : ModuleExpression → Prop where
   | var {n} : Neutral (.var n)
   | app {f arg} : Neutral f → Normal arg → Neutral (.app f arg)
   | appProcHoles {f arg} : IsProcHoles f → Normal arg → ¬ IsProcTuple arg → Neutral (.app f arg)
+  -- TODO use this instead:
+  -- | appProcHoles {holes sig arg} {p : ProcedureWithHoles holes sig} (ne : holes.NonEmpty) :
+      --  Normal arg → ¬ IsProcTuple arg → Neutral (.app (.procHoles sorry p) arg)
   | fst {e} : Neutral e → Neutral (.fst e)
   | snd {e} : Neutral e → Neutral (.snd e)
 
@@ -567,7 +569,7 @@ private theorem closedProgress : ∀ {m : ModuleExpression} {T},
           | pair _ _ => obtain ⟨A', B', rfl, _, _⟩ := ha.pair_inv; simp [IsProcArgType] at ht
 
 
-/-! #### Type erasure (untyped analogue)
+/- /-! #### Type erasure (untyped analogue)
 
 On the untyped tree `erasedEqual` coincides with equality; the family is kept to mirror `TypedModules`. -/
 
@@ -605,6 +607,7 @@ theorem erasedEqual_pair_right (a : ModuleExpression) {b b' : ModuleExpression}
 theorem erasedEqual_pair_left {a a' : ModuleExpression} (b : ModuleExpression)
     (h : erasedEqual a a') : erasedEqual (.pair a b) (.pair a' b) :=
   ⟨h, erasedEqual_refl b⟩
+ -/
 
 /-! #### Embedding into `Metatheory.STLCext` -/
 
@@ -1169,7 +1172,7 @@ private theorem toSTLC_injective_new (m m' : ModuleExpression) :
 
 /-! ### Shape predicates for call-by-value reduction (untyped analogues) -/
 
-/-- `m` is a lambda-abstraction. -/
+/- /-- `m` is a lambda-abstraction. -/
 -- TODO check needed
 def IsAbs : ModuleExpression → Prop
   | .abs _ => True
@@ -1186,9 +1189,9 @@ instance : (m : ModuleExpression) → Decidable (IsAbs m)
 def IsAbs.body {m : ModuleExpression} (h : IsAbs m) : ModuleExpression := by
   cases m with
   | abs body => exact body
-  | _ => simp [IsAbs] at h
+  | _ => simp [IsAbs] at h -/
 
-/-- `m` is a pair. -/
+/- /-- `m` is a pair. -/
 -- TODO check needed
 def IsPair : ModuleExpression → Prop
   | .pair _ _ => True
@@ -1207,6 +1210,7 @@ def IsPair.split {m : ModuleExpression} (h : IsPair m) : ModuleExpression × Mod
 
 def IsPair.fst {m : ModuleExpression} (h : IsPair m) : ModuleExpression := h.split.1
 def IsPair.snd {m : ModuleExpression} (h : IsPair m) : ModuleExpression := h.split.2
+ -/
 
 theorem NormalClosed.normal {m : ModuleExpression} (h : m.NormalClosed) : m.Normal := by
   induction h with
@@ -1238,11 +1242,26 @@ lemma Stuck.terminating {m : ModuleExpression} (h : Stuck m) : Terminating m := 
 lemma Normal.terminating {m : ModuleExpression} (h : Normal m) : Terminating m :=
   h.stuck.terminating
 
--- TODO: check whether we actually want to keep this
+/- -- TODO: check whether we actually want to keep this
 def reduce_all (m : ModuleExpression) : Set ModuleExpression :=
-  { n | n.Stuck ∧ m.MultiStepReduction n }
+  { n | n.Stuck ∧ m.MultiStepReduction n } -/
 
-theorem reduce_all_subsingleton {m : ModuleExpression} :
+theorem multiStepReduction_confluence {m n1 n2 : ModuleExpression}
+  (_ : m.MultiStepReduction n1) (_ : m.MultiStepReduction n2)
+  (_ : n1.Stuck) (_ : n2.Stuck) :
+  n1 = n2 := by
+  have stuck_nf : ∀ {k : ModuleExpression}, Stuck k →
+      Rewriting.IsNormalForm Metatheory.STLCext.Step (toSTLC k) := by
+    intro k hk M' hstep
+    obtain ⟨k', hnd, _⟩ := reductionStep_stlc_complete k M' hstep
+    exact hk ⟨k', hnd⟩
+  exact toSTLC_injective_new n1 n2
+    (Rewriting.normalForm_unique Metatheory.STLCext.step_confluent
+      (multiStepReduction_to_stlc_star ‹m.MultiStepReduction n1›)
+      (multiStepReduction_to_stlc_star ‹m.MultiStepReduction n2›)
+      (stuck_nf ‹n1.Stuck›) (stuck_nf ‹n2.Stuck›))
+
+/- theorem reduce_all_subsingleton {m : ModuleExpression} :
     Set.Subsingleton (reduce_all m) := by
   have stuck_nf : ∀ {k : ModuleExpression}, Stuck k →
       Rewriting.IsNormalForm Metatheory.STLCext.Step (toSTLC k) := by
@@ -1255,14 +1274,14 @@ theorem reduce_all_subsingleton {m : ModuleExpression} :
   exact toSTLC_injective_new x y
     (Rewriting.normalForm_unique Metatheory.STLCext.step_confluent
       (multiStepReduction_to_stlc_star hxred) (multiStepReduction_to_stlc_star hyred)
-      (stuck_nf hxstuck) (stuck_nf hystuck))
+      (stuck_nf hxstuck) (stuck_nf hystuck)) -/
 
-theorem Terminating.reduce_all_nonempty {m : ModuleExpression} (h : Terminating m) :
+/- theorem Terminating.reduce_all_nonempty {m : ModuleExpression} (h : Terminating m) :
     (reduce_all m).Nonempty := by
   cases h with
-  | intro n hn => exact ⟨n, hn⟩
+  | intro n hn => exact ⟨n, hn⟩ -/
 
--- TODO check needed
+/- -- TODO check needed
 def omega : ModuleExpression :=
   .app (.abs (.app (.var 0) (.var 0))) (.abs (.app (.var 0) (.var 0)))
 
@@ -1285,7 +1304,7 @@ theorem omega_nonterminating : ¬Terminating omega := by
   rintro ⟨n, hstuck, hred⟩
   have hn : n = omega := red_omega n hred
   subst hn
-  exact hstuck ⟨_, ReductionStep.beta⟩
+  exact hstuck ⟨_, ReductionStep.beta⟩ -/
 
 /-- Convertibility: the equivalence relation generated by `ReductionStep`, i.e. its
     reflexive, symmetric, transitive closure. -/
@@ -1300,24 +1319,17 @@ noncomputable def reduce (m : ModuleExpression) : ModuleExpression :=
   else Set.Nonempty.some (⟨m, Relation.EqvGen.refl m⟩ : {n | convertible m n}.Nonempty)
 
 
-@[simp] theorem reduce_all_of_stuck {m : ModuleExpression} (h : m.Stuck) :
+/- @[simp] theorem reduce_all_of_stuck {m : ModuleExpression} (h : m.Stuck) :
     reduce_all m = {m} := by
   apply Set.eq_singleton_iff_unique_mem.2
   refine ⟨⟨h, .refl m⟩, ?_⟩
   rintro n ⟨-, hred⟩
   induction hred with
   | refl => rfl
-  | tail _ hbc ih => exact absurd ⟨_, ih ▸ hbc⟩ h
+  | tail _ hbc ih => exact absurd ⟨_, ih ▸ hbc⟩ h -/
 
-@[simp] theorem reduce_of_stuck {m : ModuleExpression} (h : m.Stuck) : reduce m = m := by
-  have ht : Terminating m := h.terminating
-  have hmem : reduce m ∈ reduce_all m := by
-    rw [reduce, dif_pos ht]; exact ht.choose_spec
-  rw [reduce_all_of_stuck h] at hmem
-  exact hmem
-
-theorem reduce_all_stuck {m : ModuleExpression} (n : ModuleExpression) (h : n ∈ reduce_all m) :
-  n.Stuck := h.1
+/- theorem reduce_all_stuck {m : ModuleExpression} (n : ModuleExpression) (h : n ∈ reduce_all m) :
+  n.Stuck := h.1 -/
 
 theorem reduce_stuck {m : ModuleExpression} (ht : Terminating m) : (reduce m).Stuck := by
   rw [reduce]
@@ -1325,8 +1337,8 @@ theorem reduce_stuck {m : ModuleExpression} (ht : Terminating m) : (reduce m).St
   · rename_i h; exact h.choose_spec.1
   · rename_i h; exact absurd ht h
 
-theorem multiStepReduction_reduce_all {m n : ModuleExpression} (h : n ∈ reduce_all m) :
-  m.MultiStepReduction n := h.2
+/- theorem multiStepReduction_reduce_all {m n : ModuleExpression} (h : n ∈ reduce_all m) :
+  m.MultiStepReduction n := h.2 -/
 
 /-- Reflect a multi-step STLC reduction out of the `toSTLC` image back to a module reduction:
     everything reachable from `toSTLC m` is `toSTLC` of a reduct of `m`. -/
@@ -1365,6 +1377,10 @@ theorem multiStepReduction_reduce {m : ModuleExpression} (h : Terminating m) :
   rw [reduce, dif_pos h]
   exact h.choose_spec.2
 
+@[simp] theorem reduce_of_stuck {m : ModuleExpression} (h : m.Stuck) : reduce m = m :=
+  multiStepReduction_confluence
+    (multiStepReduction_reduce h.terminating) (Rewriting.Star.refl m) (reduce_stuck h.terminating) h
+
 /-- Multi-step reduction refines convertibility. -/
 theorem convertible_of_multiStep {a b : ModuleExpression} (h : a.MultiStepReduction b) :
     convertible a b := by
@@ -1386,8 +1402,7 @@ theorem convertible_terminating {m n : ModuleExpression} (h : convertible m n) :
   | trans x y z _ _ ih1 ih2 => exact ih1.trans ih2
 
 /-- On a non-terminating input, `reduce` is the chosen representative of the convertible class. -/
--- TODO remove
-theorem reduce_of_not_terminating {m : ModuleExpression} (h : ¬Terminating m) :
+private theorem reduce_of_not_terminating {m : ModuleExpression} (h : ¬Terminating m) :
     reduce m =
       Set.Nonempty.some (⟨m, Relation.EqvGen.refl m⟩ : {n | convertible m n}.Nonempty) := by
   rw [reduce, dif_neg h]
@@ -1612,11 +1627,10 @@ theorem confluence {m m1 m2 : ModuleExpression}
   by_cases ht : Terminating m1
   · have ht2 : Terminating m2 :=
       (multiStepReduction_terminating h2).mp ((multiStepReduction_terminating h1).mpr ht)
-    have hmem1 : reduce m1 ∈ reduce_all m :=
-      ⟨reduce_stuck ht, Rewriting.Star.trans h1 (multiStepReduction_reduce ht)⟩
-    have hmem2 : reduce m2 ∈ reduce_all m :=
-      ⟨reduce_stuck ht2, Rewriting.Star.trans h2 (multiStepReduction_reduce ht2)⟩
-    exact reduce_all_subsingleton hmem1 hmem2
+    exact multiStepReduction_confluence
+      (Rewriting.Star.trans h1 (multiStepReduction_reduce ht))
+      (Rewriting.Star.trans h2 (multiStepReduction_reduce ht2))
+      (reduce_stuck ht) (reduce_stuck ht2)
   · have ht2 : ¬ Terminating m2 := fun h =>
       ht ((multiStepReduction_terminating h1).mp ((multiStepReduction_terminating h2).mpr h))
     have h12 : convertible m1 m2 :=
@@ -1716,8 +1730,8 @@ theorem reduce_pair_terminating {m1 m2 : ModuleExpression}
   have hred : (ModuleExpression.pair m1 m2).MultiStepReduction (.pair (reduce m1) (reduce m2)) :=
     multiStepReduction_pair_cong (multiStepReduction_reduce h1) (multiStepReduction_reduce h2)
   have hterm : Terminating (.pair m1 m2) := ⟨_, hst, hred⟩
-  exact reduce_all_subsingleton
-    ⟨reduce_stuck hterm, multiStepReduction_reduce hterm⟩ ⟨hst, hred⟩
+  exact multiStepReduction_confluence
+    (multiStepReduction_reduce hterm) hred (reduce_stuck hterm) hst
 
 /-- `toModuleExpr inst` is always a proc-tuple (untyped analogue of
     `TypedModules.toModuleTuple_isProcTuple`). -/
