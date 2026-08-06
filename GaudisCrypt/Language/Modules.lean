@@ -274,6 +274,31 @@ theorem substitute {Δ u t body arg}
       simp only [ModuleExpression.variableSubstitution, List.getElem_cons_succ]
       exact .var n' hn'
 
+/-- A term only mentions the variables its context declares, so a substitution that is the
+    identity on those leaves it alone — whatever it does to the indices beyond `Δ`.  For a *closed*
+    term (`Δ = []`) the hypothesis is vacuous: `Module.substituteSimultaneously_expression`. -/
+theorem substituteSimultaneously_eq_self {m Δ T} (h : HasType m Δ T) :
+    ∀ {σ : Nat → ModuleExpression}, (∀ n, n < Δ.length → σ n = .var n) →
+      m.substituteSimultaneously σ = m := by
+  induction h with
+  | proc p => intro σ _; rfl
+  | procHoles ne p => intro σ _; rfl
+  | var n hn => intro σ hσ; exact hσ n hn
+  | app _ _ ihf iha => intro σ hσ; simp [ModuleExpression.substituteSimultaneously, ihf hσ, iha hσ]
+  | fst _ ihe => intro σ hσ; simp [ModuleExpression.substituteSimultaneously, ihe hσ]
+  | snd _ ihe => intro σ hσ; simp [ModuleExpression.substituteSimultaneously, ihe hσ]
+  | pair _ _ iha ihb => intro σ hσ; simp [ModuleExpression.substituteSimultaneously, iha hσ, ihb hσ]
+  | unit => intro σ _; rfl
+  | abs _ ihb =>
+      intro σ hσ
+      simp only [ModuleExpression.substituteSimultaneously]
+      rw [ihb ?_]
+      intro n hn
+      cases n with
+      | zero => rfl
+      | succ n' =>
+          simp [ModuleExpression.liftSubst, hσ n' (by simpa using hn), ModuleExpression.rename]
+
 /-- **Type preservation** (subject reduction): reduction preserves the typing judgment.  This is
     the extrinsic replacement for what the intrinsic `TypedModules.ModuleExpression` guaranteed by
     construction. -/
@@ -1793,6 +1818,33 @@ theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
   rw [← reduce_convertible_iff]
   exact cong (ha ▸ convertible_reduce)
 
+/-! #### Stripping an inner `reduce`
+
+`reduce` only cares about its argument up to convertibility, so a subterm that is already a
+`reduce` can be replaced by what it reduces (`reduce_idempotent` on both sides of the matching
+`_cong` lemma).  This is what makes the `.reduce`s that `toModule` leaves behind disappear when a
+composite expression is reduced — see `Module.reduce_pair_expression`. -/
+
+theorem reduce_app_left (f x : ModuleExpression) :
+    (ModuleExpression.app f.reduce x).reduce = (ModuleExpression.app f x).reduce := by
+  rw [(reduce_app_cong rfl rfl : reduce (.app f x) = reduce (.app f.reduce x.reduce)),
+    (reduce_app_cong rfl rfl :
+      reduce (.app f.reduce x) = reduce (.app f.reduce.reduce x.reduce)), reduce_idempotent]
+
+theorem reduce_app_right (f x : ModuleExpression) :
+    (ModuleExpression.app f x.reduce).reduce = (ModuleExpression.app f x).reduce := by
+  rw [(reduce_app_cong rfl rfl : reduce (.app f x) = reduce (.app f.reduce x.reduce)),
+    (reduce_app_cong rfl rfl :
+      reduce (.app f x.reduce) = reduce (.app f.reduce x.reduce.reduce)), reduce_idempotent]
+
+theorem reduce_fst_inner (m : ModuleExpression) :
+    (ModuleExpression.fst m.reduce).reduce = (ModuleExpression.fst m).reduce :=
+  reduce_fst_cong _ _ (reduce_idempotent m)
+
+theorem reduce_snd_inner (m : ModuleExpression) :
+    (ModuleExpression.snd m.reduce).reduce = (ModuleExpression.snd m).reduce :=
+  reduce_snd_cong _ _ (reduce_idempotent m)
+
 /-- A well-typed closed normal term of product type is a pair. -/
 theorem pair_type_is_pair {m : ModuleExpression} {t1 t2}
     (hty : m.HasType [] (.prod t1 t2)) (h : NormalClosed m) :
@@ -2429,6 +2481,30 @@ theorem Module.toModule_expression {T} (m : ModuleExpression) (h : m.HasType [] 
 theorem Module.reduce_expression {T} (m : Module T) :
   m.expression.reduce = m.expression :=
   ModuleExpression.reduce_of_stuck m.normal.normal.stuck
+
+/-- A module's expression is closed, so a substitution leaves it alone. -/
+@[simp]
+theorem Module.substituteSimultaneously_expression {T} (m : Module T)
+    (σ : Nat → ModuleExpression) :
+    m.expression.substituteSimultaneously σ = m.expression :=
+  m.typed.substituteSimultaneously_eq_self (by simp)
+
+/-- Pairing two modules pairs their expressions — no `reduce` left over, both being normal. -/
+theorem Module.expression_pair' {T U} (m1 : Module T) (m2 : Module U) :
+    (m1.pair' m2).expression = .pair m1.expression m2.expression :=
+  ModuleExpression.reduce_of_normal (.pair m1.normal.normal m2.normal.normal)
+
+/-- Reducing a pair componentwise: if the components reduce to the expressions of the modules
+    `m1`/`m2`, the pair reduces to the expression of their `Module.pair'`.  The engine behind the
+    `X.apply_simp` lemmas of the `module` command (`GaudisCrypt/Language/Syntax2.lean`): it turns a
+    `reduce` of a whole record of procedures into the record of the reduced procedures, with no
+    detour through termination — normality of the *result* comes from the modules `m1`/`m2`. -/
+theorem Module.reduce_pair_expression {T U} {a b : ModuleExpression}
+    (m1 : Module T) (m2 : Module U)
+    (ha : a.reduce = m1.expression) (hb : b.reduce = m2.expression) :
+    (ModuleExpression.pair a b).reduce = (m1.pair' m2).expression := by
+  rw [ModuleExpression.reduce_pair_cong ha hb, Module.expression_pair',
+    ModuleExpression.reduce_of_normal (.pair m1.normal.normal m2.normal.normal)]
 
 @[simp]
 theorem Module.fst_pair' {T U} (m1 : Module T) (m2 : Module U) :

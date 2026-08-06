@@ -948,6 +948,52 @@ syntax "module " ident ("(" proc_binder,* ")")? (" : " term:max)? "{"
          gaudi_module_proc*
        "}" : command
 
+/-- Proves `Module.app X t = <record of the procedures of X, applied to their parameters>` for the
+module `X` of a `module X (…) { … }` declaration and a *variable* parameter tuple `t` — the generic
+form of the `X.apply_simp` lemma the command emits (`ModuleDecl.elabApplySimp`).  `X` must be given
+as its name, which the script unfolds.
+
+Both sides are `.reduce`s of concrete expressions, so this is a normalisation proof — but a
+directed one, not a search:
+* the left-hand side is normalised on its own (`conv_lhs`).  Unfolding `X` exposes the β-redex
+  `.app (.abs body) t`; `reduce_app_left`/`_right` strip the inner `.reduce`s that `toModule` left
+  behind, `reduce_beta` fires the redex, and the substitution then computes — through the
+  procedures' own expressions, which are closed (`Module.substituteSimultaneously_expression`).
+  What is left is `reduce` of the record `.pair f₁ (… fₙ)` of the applied procedures;
+* the right-hand side is *not* unfolded, so its fields are still modules.
+  `Module.reduce_pair_expression` peels the record one field at a time against them, and each
+  field's obligation `reduce fᵢ = (…).expression` is then closed by the same stripping lemmas —
+  no normal-form search and no termination side conditions anywhere. -/
+syntax "module_apply " ident : tactic
+
+macro_rules
+  | `(tactic| module_apply $x:ident) =>
+    `(tactic|
+        (apply GaudisCrypt.Module.ext
+         conv_lhs =>
+           simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
+             GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
+             GaudisCrypt.ModuleExpression.reduce_app_left,
+             GaudisCrypt.ModuleExpression.reduce_app_right,
+             GaudisCrypt.ModuleExpression.reduce_fst_inner,
+             GaudisCrypt.ModuleExpression.reduce_snd_inner,
+             GaudisCrypt.ModuleExpression.reduce_beta, GaudisCrypt.ModuleExpression.substitute,
+             GaudisCrypt.ModuleExpression.substituteSimultaneously,
+             GaudisCrypt.ModuleExpression.variableSubstitution,
+             GaudisCrypt.ModuleExpression.liftSubst,
+             GaudisCrypt.Module.substituteSimultaneously_expression]
+         repeat' refine GaudisCrypt.Module.reduce_pair_expression _ _ ?_ ?_
+         all_goals
+           simp only [GaudisCrypt.Module.app, GaudisCrypt.Module.app', GaudisCrypt.Module.fst,
+             GaudisCrypt.Module.fst', GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
+             GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
+             GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
+             GaudisCrypt.ModuleExpression.reduce_app_left,
+             GaudisCrypt.ModuleExpression.reduce_app_right,
+             GaudisCrypt.ModuleExpression.reduce_fst_inner,
+             GaudisCrypt.ModuleExpression.reduce_snd_inner,
+             GaudisCrypt.Module.reduce_expression]))
+
 namespace GaudisCrypt.ModuleDecl
 
 open Lean Elab Command Meta Term
@@ -1217,7 +1263,7 @@ def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElab
             linkText: $(n.toString) } }
       n.toString
     msg := msg ++ m!"\n• {link} — {descr}"
-  msg := msg ++ "\n(Click to insert `#check symbolname`.)"
+  msg := msg ++ "\n\n(Click to insert `#check symbolname`.)"
   logInfoAt ref msg
 
 /-- What `elabProcedure` leaves for `elabProcModule` to work with. -/
@@ -1348,6 +1394,70 @@ def moduletypeMk? (mt? : Option Term) (fns : Array Name) : CommandElabM (Option 
   unless fields.size == fns.size && fns.all fields.contains do return none
   return some (mkIdent (n.str "mk"))
 
+/-- The record whose field `i` is `fields[i]`: `N.mk { f₁ := …, fₙ := … }` when `mkId?` is the
+constructor of a `moduletype` with exactly these fields (see `moduletypeMk?`), and the right-nested
+`Module.pair` of them — which is the same record, only anonymous — otherwise. -/
+def mkRecord (mkId? : Option Ident) (procs : Array ProcResult) (fields : Array Term) :
+    CommandElabM Term := do
+  match mkId? with
+  | some mkId =>
+      let fs ← procs.mapIdxM fun i r =>
+        `(Lean.Parser.Term.structInstField| $(r.fn):ident := $(fields[i]!))
+      `($mkId { $fs:structInstField,* })
+  | none => rightNest (fun a b => `(GaudisCrypt.Module.pair $a $b)) fields
+
+/-- Declare `X.apply_simp`, the `@[simp]` lemma that applies `X` to its parameters:
+```
+theorem X.apply_simp (A : T₁) … (Z : Tₙ) :
+    Module.app X (Module.pair A (… Z)) = N.mk { f₁ := Module.app X.f₁ A, … }
+```
+— the record of the procedures, each applied to the parameters *it* uses (`Module.pair` in place of
+`N.mk` when the module type is not a `moduletype` name, as in `mkRecord`).  For an empty parameter
+list the tuple is the only argument `X` can take, a variable of `Module.Unit`.
+
+Proved from the generic form (`X` applied to a *variable* tuple `t`, whose fields therefore get
+`Module.fst`/`Module.snd` chains) by the `module_apply` tactic; rewriting with that form leaves the
+projections of the concrete tuple, which `Module.fst_pair`/`Module.snd_pair` collapse. -/
+def elabApplySimp (nm : Ident) (paramBs : Array (Ident × Term)) (paramProd : Term)
+    (mkId? : Option Ident) (procs : Array ProcResult) : CommandElabM Ident := do
+  let n := paramBs.size
+  let tId := mkIdent `t
+  -- the parameter at position `i`, projected out of the argument tuple `t`
+  let proj ← (Array.range n).mapM fun i => do
+    let mut e : Term := tId
+    for _ in [0 : i] do e ← `(GaudisCrypt.Module.snd $e)
+    if i + 1 < n then e ← `(GaudisCrypt.Module.fst $e)
+    pure e
+  -- the record of the procedures, each applied to the arguments at its `usedPos`
+  let recordOf (args : Array Term) : CommandElabM Term := do
+    mkRecord mkId? procs (← procs.mapM fun r => do
+      let mut e : Term := procModId nm r
+      for i in r.usedPos do e ← `(GaudisCrypt.Module.app $e $(args[i]!))
+      pure e)
+  let paramTerms : Array Term := paramBs.map fun b => b.1
+  let rhs ← recordOf paramTerms
+  let rhsGeneric ← recordOf proj
+  let argTuple : Term ←
+    if n == 0 then pure (tId : Term)
+    else rightNest (fun a b => `(GaudisCrypt.Module.pair $a $b)) paramTerms
+  -- the statement, as a `(x : T) → …` chain (there is no binder syntax to splice into a `theorem`)
+  let mut stmt ← `(GaudisCrypt.Module.app $nm $argTuple = $rhs)
+  if n == 0 then
+    stmt ← `(($tId : GaudisCrypt.Module.Unit) → $stmt)
+  else
+    for i in [0 : n] do
+      let (x, ty) := paramBs[n - 1 - i]!
+      stmt ← `(($x : $ty) → $stmt)
+  let ids := if n == 0 then #[tId] else paramBs.map (·.1)
+  let thmId := mkIdent (nm.getId ++ `apply_simp)
+  elabCommand (← `(command| @[simp] theorem $thmId:ident : $stmt := by
+    intro $ids*
+    have generic : ∀ ($tId : $paramProd),
+        GaudisCrypt.Module.app $nm $tId = $rhsGeneric := fun $tId => by module_apply $nm
+    rw [generic]
+    all_goals simp))
+  return thmId
+
 /-- Declare the module `X` itself: the record of its procedures (a right-nested `.pair`, as
 `moduletype` nests its fields) — each of them the constant `X.<f>` declared by `elabProcModule`,
 applied to the parameters that `f` uses — abstracted over *all* the parameters at once, used or
@@ -1364,33 +1474,31 @@ whole thing stays at the `Module` level: `X` is then `Module.pair X.f₁ (… X.
 through `ModuleExpression` and `toModule` — and when the declared module type is a `moduletype`
 name `N` with exactly these fields, the named form `N.mk { f₁ := X.f₁, … }` instead.
 
-Declares nothing (and returns `none`) if the declaration has no procedures. -/
+With a parameter list `X` also gets the `@[simp]` lemma `X.apply_simp` for applying it to one (see
+`elabApplySimp`).
+
+Declares nothing (and returns `#[]`) if the declaration has no procedures.  The result lists what
+was declared, for `logDeclared`. -/
 def elabModule (nm : Ident) (params? : Option (Array (Ident × Term))) (mt? : Option Term)
-    (procs : Array ProcResult) : CommandElabM (Option Ident) := do
-  if procs.isEmpty then return none
+    (procs : Array ProcResult) : CommandElabM (Array (Name × String)) := do
+  if procs.isEmpty then return #[]
   let paramBs := params?.getD #[]
   let n := paramBs.size
   let prod := fun (a b : Term) => `(GaudisCrypt.Module.Prod $a $b)
+  let mkId? ← moduletypeMk? mt? (procs.map (·.fn.getId))
   let mt ← match mt? with
     | some mt => pure mt
     | none => rightNest prod (← procs.mapM fun r => do
         `(GaudisCrypt.Module.Proc $(← runTermElabM fun _ => procSig r.declId)))
+  let paramProd ←
+    if n == 0 then `(GaudisCrypt.Module.Unit) else rightNest prod (paramBs.map (·.2))
   let ty ← match params? with
     | none => pure mt
-    | some _ =>
-        let paramProd ←
-          if n == 0 then `(GaudisCrypt.Module.Unit) else rightNest prod (paramBs.map (·.2))
-        `(GaudisCrypt.Module.Arr $paramProd $mt)
+    | some _ => `(GaudisCrypt.Module.Arr $paramProd $mt)
   if params?.isNone then
-    let procMods : Array Term := procs.map fun r => procModId nm r
-    let body ← match ← moduletypeMk? mt? (procs.map (·.fn.getId)) with
-      | some mkId =>
-          let fs ← procs.mapIdxM fun i r =>
-            `(Lean.Parser.Term.structInstField| $(r.fn):ident := $(procMods[i]!))
-          `($mkId { $fs:structInstField,* })
-      | none => rightNest (fun a b => `(GaudisCrypt.Module.pair $a $b)) procMods
+    let body ← mkRecord mkId? procs (procs.map fun r => procModId nm r)
     elabCommand (← `(command| noncomputable def $nm:ident : $ty := $body))
-    return some nm
+    return #[(nm.getId, "the module itself")]
   -- the parameter at position `i` is the `i`-th component of the argument tuple `.var 0`
   let subst ← (Array.range n).mapM fun i => do
     let mut e ← `(GaudisCrypt.ModuleExpression.var 0)
@@ -1407,7 +1515,8 @@ def elabModule (nm : Ident) (params? : Option (Array (Ident × Term))) (mt? : Op
   if params?.isSome then body ← `(GaudisCrypt.ModuleExpression.abs $body)
   elabCommand (← `(command| noncomputable def $nm:ident : $ty :=
     GaudisCrypt.ModuleExpression.toModule (m := $body)))
-  return some nm
+  let thmId ← elabApplySimp nm paramBs paramProd mkId? procs
+  return #[(nm.getId, "the module itself"), (thmId.getId, "applying it to its parameters")]
 
 end GaudisCrypt.ModuleDecl
 
@@ -1434,8 +1543,7 @@ elab_rules : command
         else s!"proc {r.fn.getId} as a module, in {used}")
     -- `X` itself — only when every procedure made it (a missing field would not type-check)
     if results.size == procs.size then
-      if let some modId ← elabModule nm paramBs? mt results then
-        declared := declared.push (modId.getId, "the module itself")
+      declared := declared ++ (← elabModule nm paramBs? mt results)
     logDeclared (← getRef) declared
 
 namespace Experiment
@@ -1573,6 +1681,20 @@ module Y (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
 #check fun (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) =>
   (M2.g (Module.app X (Module.pair a b)) : Module (procmod () -> Unit))
 
+-- `X.apply_simp` does that application: each field gets the parameters *it* uses (`g` gets `A`
+-- alone, `h` none), so a projection out of an applied module reduces to an applied procedure
+#print X.apply_simp
+#print Y.apply_simp
+example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
+    M2.g (Module.app X (Module.pair a b))
+      = (Module.app X.g a : Module (procmod () -> Unit)) := by simp [M2.g, M2.mk]
+example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
+    M2.h (Module.app X (Module.pair a b)) = (X.h : Module (procmod () -> Unit)) := by
+  simp [M2.h, M2.mk]
+example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
+    M2.g (Module.app Y (Module.pair a b))
+      = (Module.app (Module.app Y.g a) b : Module (procmod () -> Unit)) := by simp [M2.g, M2.mk]
+
 def M3 := M2
 
 -- the parameter list is optional; without it `X` is the module type itself …
@@ -1583,13 +1705,15 @@ module NoParams : M2 {
 #check (NoParams.g.procedure : proctype () -> Unit)
 #check (NoParams.g : Module.Proc (procsig () -> Unit))
 #check (NoParams : M2)
-#print NoParams
+-- (no `NoParams.apply_simp`: with no parameter list there is nothing to apply `NoParams` to)
+#check X.apply_simp
 
 -- … whereas an empty one still makes it a function, of the empty tuple
 module EmptyParams () : M2 {
   proc g() : Unit { return (); };
   proc h() : Unit { return (); };
 }
+#check EmptyParams.apply_simp
 #check (EmptyParams : Module.Arr Module.Unit M2)
 
 -- the module type is optional too; without it `X` gets the anonymous record of its procedures
