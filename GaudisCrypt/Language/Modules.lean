@@ -2391,7 +2391,7 @@ structure Module (T : ModuleTypeRep) where
 
 /-- Build a `Module` from a well-typed closed expression by normalising it. -/
 noncomputable def ModuleExpression.toModule {T : ModuleTypeRep}
-    {m : ModuleExpression} (h : m.HasType [] T := by moduletyping!) : Module T :=
+    (m : ModuleExpression) (h : m.HasType [] T := by moduletyping!) : Module T :=
   ⟨m.reduce, m.reduce_hasType h, m.reduce_normalClosed h⟩
 
 noncomputable instance : CoeFun (Module (.arr T U)) (fun _ ↦ Module T → Module U) where

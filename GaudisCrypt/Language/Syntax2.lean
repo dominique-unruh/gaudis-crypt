@@ -604,11 +604,10 @@ def unexpandProcSig : Unexpander
 
 `procmod (T, …) -> R` is `ModuleTypeRep.proc (procsig (T,…) -> R)`: the same surface as `proctype`,
 but producing a `ModuleTypeRep` rather than the `Procedure` type.  The return type is parsed at
-precedence `36` — above both the module product `×` (35) and arrow `→ₘ` (25) — so
-`procmod (…) -> R × …` and `procmod (…) -> R →ₘ …` group as `(procmod (…) -> R) ⊙ …` rather than
-folding the operator into `R`.  A genuine product/function *return* type therefore needs
-parentheses: `procmod (…) -> (A × B)`.  (No `uses` clause: for a procedure-with-holes module
-type write the `→ₘ` arrow explicitly.) -/
+precedence `36`, above the usual infix operators, so a trailing one groups as
+`(procmod (…) -> R) ⊙ …` rather than folding into `R`.  A product/function *return* type therefore
+needs parentheses: `procmod (…) -> (A × B)`.  (No `uses` clause: for a procedure-with-holes module
+type write `ModuleTypeRep.arr` explicitly.) -/
 
 syntax "procmod " "(" term,* ")" (" → " <|> " -> ") term:36 : term
 
@@ -792,17 +791,18 @@ end GaudisCrypt.ProgTest
 
 open GaudisCrypt
 
-/-! ## Concrete syntax for `ModuleTypeRep`
+/-! ## Concrete syntax for module types
 
-`×` overloads the product token on `ModuleTypeRep.prod` (resolved against the expected type, like
-the `Prod` notation whose token and precedence it shares); `→ₘ` is a custom module arrow for
-`ModuleTypeRep.arr`.  `.proc`/`.unit` need no notation — dot notation (or `procmod …` for the
-former) resolves them wherever the expected type is `ModuleTypeRep` (both sides of `×`/`→ₘ`, a
-field ascription).  Both are `scoped` to `GaudisCrypt`, so `open`ing that
-namespace activates them (and the `×` overload stays inert otherwise). -/
+`M →ₘ N` is `Module.Arr M N` and `M ×ₘ N` is `Module.Prod M N`: the arrow and the product on the
+*types* of modules (`Module T`, a name declared by `moduletype`, …), each side classified by an
+`IsModule` instance.  Precedences mirror `→`/`×`: `×ₘ` (35) binds tighter than `→ₘ` (25), both
+right-associative.  Both are `scoped` to `GaudisCrypt`, so `open`ing that namespace activates them.
+
+`ModuleTypeRep` itself has no infix notation; its constructors are written `.arr`/`.prod`/`.unit`
+by dot notation (and `.proc` also as `procmod (…) -> R`). -/
 namespace GaudisCrypt
-scoped infixr:35 " × "  => _root_.GaudisCrypt.ModuleTypeRep.prod
-scoped infixr:25 " →ₘ " => _root_.GaudisCrypt.ModuleTypeRep.arr
+scoped infixr:35 " ×ₘ " => _root_.GaudisCrypt.Module.Prod
+scoped infixr:25 " →ₘ " => _root_.GaudisCrypt.Module.Arr
 end GaudisCrypt
 
 /-- A field `f : Module T` of a `moduletype` declaration. -/
@@ -1295,13 +1295,16 @@ def procApplied (r : ProcResult) (subst : Array Term) : CommandElabM Term := do
     `(GaudisCrypt.ModuleExpression.app
         (GaudisCrypt.Module.expression (GaudisCrypt.Module.procWithHoles $(r.declId))) $tuple)
 
+/-- The constant `X.<f>` that `elabProcModule` declares for the procedure `r` of `module X`. -/
+def procModId (nm : Ident) (r : ProcResult) : Ident := mkIdent (nm.getId ++ r.fn.getId)
+
 /-- Declare the module `X.<f>` of a procedure already declared by `elabProcedure`: either
 `Module.proc X.<f>.procedure` (no module parameter used), or `procApplied` abstracted over the
 parameters it does use, of type `Module.Arr T₁ (… (Module.Arr Tₖ (Module.Proc sig)))`.  Returns
 the constant it declared. -/
 def elabProcModule (nm : Ident) (paramBs : Array (Ident × Term)) (r : ProcResult) :
     CommandElabM Ident := do
-  let modId := mkIdent (nm.getId ++ r.fn.getId)
+  let modId := procModId nm r
   if r.calleeExprs.isEmpty then
     elabCommand (← `(command| noncomputable def $modId:ident :=
       GaudisCrypt.Module.proc $(r.declId)))
@@ -1329,15 +1332,37 @@ def rightNest (f : Term → Term → CommandElabM Term) (xs : Array Term) : Comm
   for j in [0 : xs.size - 1] do acc ← f xs[xs.size - 2 - j]! acc
   return acc
 
+/-- If the declared module type is a name introduced by `moduletype` whose fields are exactly the
+procedures declared here (same names, order immaterial), its constructor `N.mk`; `none` otherwise.
+`N.mk` takes the record `N.Structure`, so the module can then be written
+`N.mk { f₁ := …, fₙ := … }` rather than as a nest of `Module.pair`s. -/
+def moduletypeMk? (mt? : Option Term) (fns : Array Name) : CommandElabM (Option Ident) := do
+  let some mt := mt? | return none
+  let `($id:ident) := mt | return none
+  let some n ← (try pure (some (← resolveGlobalConstNoOverload id)) catch _ => pure none)
+    | return none
+  let env ← getEnv
+  let structName := n.str "Structure"
+  unless env.contains (n.str "mk") && isStructure env structName do return none
+  let fields := getStructureFields env structName
+  unless fields.size == fns.size && fns.all fields.contains do return none
+  return some (mkIdent (n.str "mk"))
+
 /-- Declare the module `X` itself: the record of its procedures (a right-nested `.pair`, as
-`moduletype` nests its fields), abstracted over *all* the parameters at once — used or not — which
-it takes as one right-nested tuple.  So `X : Module.Arr (Module.Prod T₁ (… Tₙ)) M`, with `M` the
-declared module type, degenerating to `Module.Arr Module.Unit M` for an empty parameter list and to
-plain `M` when the declaration has no parameter list at all.
+`moduletype` nests its fields) — each of them the constant `X.<f>` declared by `elabProcModule`,
+applied to the parameters that `f` uses — abstracted over *all* the parameters at once, used or
+not, which it takes as one right-nested tuple.  So `X : Module.Arr (Module.Prod T₁ (… Tₙ)) M`, with
+`M` the declared module type, degenerating to `Module.Arr Module.Unit M` for an empty parameter list
+and to plain `M` when the declaration has no parameter list at all.
 
 A declaration without a module type gets the record of the procedures' own types for `M`, i.e.
 `Module.Prod (Module.Proc sig₁) (… (Module.Proc sigₙ))` — which is what a `moduletype` of these
 procedures unfolds to anyway, only anonymous.
+
+With no parameter list there is no `.abs`, and no procedure can call a parameter either, so the
+whole thing stays at the `Module` level: `X` is then `Module.pair X.f₁ (… X.fₙ)`, with no detour
+through `ModuleExpression` and `toModule` — and when the declared module type is a `moduletype`
+name `N` with exactly these fields, the named form `N.mk { f₁ := X.f₁, … }` instead.
 
 Declares nothing (and returns `none`) if the declaration has no procedures. -/
 def elabModule (nm : Ident) (params? : Option (Array (Ident × Term))) (mt? : Option Term)
@@ -1356,13 +1381,28 @@ def elabModule (nm : Ident) (params? : Option (Array (Ident × Term))) (mt? : Op
         let paramProd ←
           if n == 0 then `(GaudisCrypt.Module.Unit) else rightNest prod (paramBs.map (·.2))
         `(GaudisCrypt.Module.Arr $paramProd $mt)
+  if params?.isNone then
+    let procMods : Array Term := procs.map fun r => procModId nm r
+    let body ← match ← moduletypeMk? mt? (procs.map (·.fn.getId)) with
+      | some mkId =>
+          let fs ← procs.mapIdxM fun i r =>
+            `(Lean.Parser.Term.structInstField| $(r.fn):ident := $(procMods[i]!))
+          `($mkId { $fs:structInstField,* })
+      | none => rightNest (fun a b => `(GaudisCrypt.Module.pair $a $b)) procMods
+    elabCommand (← `(command| noncomputable def $nm:ident : $ty := $body))
+    return some nm
   -- the parameter at position `i` is the `i`-th component of the argument tuple `.var 0`
   let subst ← (Array.range n).mapM fun i => do
     let mut e ← `(GaudisCrypt.ModuleExpression.var 0)
     for _ in [0 : i] do e ← `(GaudisCrypt.ModuleExpression.snd $e)
     if i + 1 < n then e ← `(GaudisCrypt.ModuleExpression.fst $e)
     pure e
-  let fields ← procs.mapM fun r => procApplied r subst
+  -- each field is the already-declared `X.<f>`, applied to the parameters that `f` uses (in
+  -- declaration order, the order `elabProcModule` abstracted them in)
+  let fields ← procs.mapM fun r => do
+    let mut e ← `(GaudisCrypt.Module.expression $(procModId nm r))
+    for i in r.usedPos do e ← `(GaudisCrypt.ModuleExpression.app $e $(subst[i]!))
+    pure e
   let mut body ← rightNest (fun a b => `(GaudisCrypt.ModuleExpression.pair $a $b)) fields
   if params?.isSome then body ← `(GaudisCrypt.ModuleExpression.abs $body)
   elabCommand (← `(command| noncomputable def $nm:ident : $ty :=
@@ -1418,27 +1458,27 @@ moduletype TestModuleTypeRep {
 moduletype TestModule {
   -- module main : ModuleTypeRep.proc (procsig (String, Nat) -> Bool);
   proc main (String, Nat) -> Bool;
-  module aux : procmod (Nat) -> String →ₘ .unit;
+  module aux : .arr (procmod (Nat) -> String) .unit;
 }
+#check TestModule.mk
 
-/- ### `ModuleTypeRep` concrete syntax (`procmod`/`.proc`, `×` overloaded, `→ₘ` arrow, `.unit`)
+/- ### `ModuleTypeRep` concrete syntax (`procmod`/`.proc`, `.arr`, `.prod`, `.unit`)
 
-`procmod (…) -> R →ₘ .unit` (or `.proc (procsig (…) -> R) →ₘ .unit`) replaces
-`ModuleTypeRep.arr (ModuleTypeRep.proc …) ModuleTypeRep.unit`.  `×` binds tighter than `→ₘ`
-(35 vs 25), both right-associative. -/
+`ModuleTypeRep`'s constructors are written by dot notation wherever the expected type says so;
+`procmod (…) -> R` abbreviates `.proc (procsig (…) -> R)`.  The infix `→ₘ`/`×ₘ` are *not* these:
+they are `Module.Arr`/`Module.Prod`, on module **types** (see below). -/
 
 -- `procmod (…) -> R` = `ModuleTypeRep.proc (procsig (…) -> R)`
 example : (procmod (Nat) -> String : ModuleTypeRep) = ModuleTypeRep.proc (procsig (Nat) -> String) := rfl
 
--- `procmod` composes under `→ₘ` (its return type binds tighter than the arrow)
-example : (procmod (Nat) -> String →ₘ .unit : ModuleTypeRep)
+-- `procmod` composes under `.arr` (its return type binds tighter than any trailing operator)
+example : (.arr (procmod (Nat) -> String) .unit : ModuleTypeRep)
     = ModuleTypeRep.arr (ModuleTypeRep.proc (procsig (Nat) -> String)) ModuleTypeRep.unit := rfl
 
-example : (.proc (procsig (Nat) -> String) →ₘ .unit : ModuleTypeRep)
+example : (.arr (.proc (procsig (Nat) -> String)) .unit : ModuleTypeRep)
     = ModuleTypeRep.arr (ModuleTypeRep.proc (procsig (Nat) -> String)) ModuleTypeRep.unit := rfl
 
--- `×` overloads `Prod`'s token; the `ModuleTypeRep` expected type selects `ModuleTypeRep.prod`.
-example : (procmod () -> Bool × .unit : ModuleTypeRep)
+example : (.prod (procmod () -> Bool) .unit : ModuleTypeRep)
     = ModuleTypeRep.prod (ModuleTypeRep.proc (procsig () -> Bool)) ModuleTypeRep.unit := rfl
 
 -- `procmod` and the `moduletype` proc-field accept the `→` arrow spelling too
@@ -1446,20 +1486,25 @@ example : (procmod (Nat) → String : ModuleTypeRep) = procmod (Nat) -> String :
 
 moduletype UnicodeArrowField {
   proc f (Nat) → Bool;
-  module g : procmod (Bool) → Nat →ₘ .unit;
+  module g : .arr (procmod (Bool) → Nat) .unit;
 }
 
--- precedence: `×` tighter than `→ₘ`, `→ₘ` right-associative
-example : (.unit × .unit →ₘ .unit →ₘ .unit : ModuleTypeRep)
-    = ModuleTypeRep.arr (ModuleTypeRep.prod .unit .unit) (ModuleTypeRep.arr .unit .unit) := rfl
-
 -- prints back in the concrete form (`.proc …` and `procmod …` both print as `procmod …`)
-#check (procmod (Nat) -> String →ₘ .unit : ModuleTypeRep)
-#check (.proc (procsig (Nat) -> String) →ₘ .unit : ModuleTypeRep)
-#check (.unit × .unit →ₘ .unit : ModuleTypeRep)
+#check (.arr (procmod (Nat) -> String) .unit : ModuleTypeRep)
+#check (.arr (.proc (procsig (Nat) -> String)) .unit : ModuleTypeRep)
+#check (.arr (.prod .unit .unit) .unit : ModuleTypeRep)
+
+/- ### Module-type concrete syntax (`→ₘ` = `Module.Arr`, `×ₘ` = `Module.Prod`) -/
+
+example : (TestModule →ₘ TestModule ×ₘ TestModule) = Module.Arr TestModule
+    (Module.Prod TestModule TestModule) := rfl
+
+-- `×ₘ` binds tighter than `→ₘ`, and `→ₘ` is right-associative
+example : (TestModule ×ₘ TestModule →ₘ TestModule →ₘ TestModule)
+    = Module.Arr (Module.Prod TestModule TestModule) (Module.Arr TestModule TestModule) := rfl
 
 axiom testMain : Module (procmod (String, Nat) -> Bool)
-axiom testAux : Module (procmod (Nat) -> String →ₘ .unit)
+axiom testAux : Module (.arr (procmod (Nat) -> String) .unit)
 
 noncomputable
 def myMod := TestModule.mk {main := testMain, aux := testAux}
@@ -1493,12 +1538,14 @@ module X (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
 #check (X.g.procedure : proctype () -> Unit uses (() → Unit))
 #check (X.h.procedure : proctype () -> Unit)
 #print X.g.procedure
+#print X
 
 -- `g` uses `A` but not `B`, so `X.g` abstracts over `A` alone; `h` uses no parameter at all
 #check (X.g : Module.Arr (Module.Arr TestModule (Module (procmod () → Unit)))
                 (Module.Proc (procsig () -> Unit)))
 #check (X.h : Module.Proc (procsig () -> Unit))
 #print X.g
+#print X
 
 -- two parameters, two holes; `B.main` reaches the parameter through a `moduletype` accessor
 module Y (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModule) : M2 {
@@ -1526,6 +1573,8 @@ module Y (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
 #check fun (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) =>
   (M2.g (Module.app X (Module.pair a b)) : Module (procmod () -> Unit))
 
+def M3 := M2
+
 -- the parameter list is optional; without it `X` is the module type itself …
 module NoParams : M2 {
   proc g() : Unit { return (); };
@@ -1534,6 +1583,7 @@ module NoParams : M2 {
 #check (NoParams.g.procedure : proctype () -> Unit)
 #check (NoParams.g : Module.Proc (procsig () -> Unit))
 #check (NoParams : M2)
+#print NoParams
 
 -- … whereas an empty one still makes it a function, of the empty tuple
 module EmptyParams () : M2 {
@@ -1576,5 +1626,6 @@ end Experiment
 --   parameters `f` uses (both sides are `.reduce` of concrete expressions, so this needs more than
 --   the current `reduce_simp`).
 -- TODO: Syntax for writing explicit modules (needed? or def + .mk is sufficient?)
--- Concrete syntax for module types: `procmod (…) -> R` (proc) / `.proc`, `×` (prod, overloaded),
---   `→ₘ` (arr), `.unit` via dot notation. See the `ModuleTypeRep concrete syntax` block above.
+-- Concrete syntax for module types: `procmod (…) -> R` (proc), `.proc`/`.arr`/`.prod`/`.unit` via
+--   dot notation for `ModuleTypeRep`, and `→ₘ`/`×ₘ` (`Module.Arr`/`Module.Prod`) on module types.
+--   See the `ModuleTypeRep concrete syntax` block above.
