@@ -1814,8 +1814,15 @@ end ModuleExpression
     constructor matching `m`'s head, leaves whatever it cannot close (e.g. an unprovable
     `.var` bound) as an open goal. See `moduletyping!` for a variant that fails loudly
     instead. -/
-macro "moduletyping" : tactic =>
+macro "moduletyping" : tactic => do
+  -- `Module.typed_weaken` is declared further down this file, so a quotation identifier cannot
+  -- name it: hygiene resolves those *here*, where it does not exist yet.  `mkIdent` builds a
+  -- macro-scope-free identifier instead, which is resolved at the expansion site.
+  let weaken := Lean.mkIdent `GaudisCrypt.Module.typed_weaken
   `(tactic| repeat' first
+    -- a leaf that is an already-formed module (`m.expression`): closed, hence well-typed in
+    -- any context.  Tried first, since it is the only rule matching that head.
+    | exact $weaken _ _
     | apply ModuleExpression.HasType.proc
     | apply ModuleExpression.HasType.procHoles
     | apply ModuleExpression.HasType.unit
@@ -2633,6 +2640,12 @@ private theorem ModuleExpression.HasType.weaken_of_empty {m : ModuleExpression} 
     fun {n} hn => absurd hn (Nat.not_lt_zero n)
   have hren := h.rename hIsRen
   rwa [ModuleExpression.rename_id m id (fun _ => rfl)] at hren
+
+/-- A module's expression is well-typed in *any* context, not just the empty one — it is closed.
+This is what lets `moduletyping` type an expression built from already-formed modules (whose
+leaves are `m.expression` rather than a `HasType` constructor). -/
+theorem Module.typed_weaken {T : ModuleTypeRep} (m : Module T) (Δ : ModuleContext) :
+    m.expression.HasType Δ T := m.typed.weaken_of_empty Δ
 
 noncomputable def Module.const {T U} [IsModule T] [iu : IsModule U] (m : U) : Module.Arr T U :=
   let expr : ModuleExpression := (iu.isModule ▸ m).expression

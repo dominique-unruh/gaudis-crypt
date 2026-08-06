@@ -218,6 +218,11 @@ structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : Procedur
 
 def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
+/-- The signature of a procedure-with-holes as a *term* — `sig` is otherwise only reachable as
+an implicit argument of the type, which makes it awkward to name in generated code. -/
+abbrev ProcedureWithHoles.signature [ProgramSpec] {holes sig}
+    (_p : ProcedureWithHoles holes sig) : ProcedureSignature := sig
+
 @[match_pattern]
 def StmtWithHoles.call [ProgramSpec] {sig} (x : Setter sig.ret (ProcedureState l)) (proc : Procedure sig)
       (params : Getter sig.ParamType (ProcedureState l)) : StmtWithHoles h l :=
