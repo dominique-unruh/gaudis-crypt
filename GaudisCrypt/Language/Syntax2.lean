@@ -854,9 +854,13 @@ elab_rules : command
       let projId : Nat → Ident := fun i => mkIdent ((nb.str "Structure") ++ fns[i]!.getId)
       let mId := mkIdent `m
       let sId := mkIdent `s
-      -- (1) `X.typeRep` names the underlying `ModuleTypeRep`; `X := Module X.typeRep`
+      -- (1) `X.typeRep` names the underlying `ModuleTypeRep`; `X := Module X.typeRep`.  `X` is a
+      -- plain (non-reducible) def, so the `IsModule (Module t)` instance does not apply to it and
+      -- it gets its own — without which `X` could not appear in a `Module.Arr`/`Module.Prod`.
       elabCommand (← `(def $moduleTypeId : _root_.GaudisCrypt.ModuleTypeRep := $prodT))
       elabCommand (← `(def $nm := _root_.GaudisCrypt.Module $moduleTypeId))
+      elabCommand (← `(instance : _root_.GaudisCrypt.IsModule $nm where
+        moduleTypeRep := $moduleTypeId))
       -- (2) the record structure
       elabCommand (← `(structure $structId where $[$fns:ident : $fts:term]*))
       -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last
@@ -921,7 +925,12 @@ binders.  The callees are *read back* from their elaborated form for this: each 
 possibly after unfolding — a callee that is anything else has no `ModuleExpression` counterpart
 and is rejected.
 
-(TODO: also emit `X` itself, the record of the `X.<f>` abstracted over all the parameters.) -/
+Finally `X` itself is the record of those procedures (a right-nested `.pair`, as `moduletype`
+nests its fields), abstracted over *all* the parameters — used or not — which it takes as one
+right-nested tuple: `X : Module.Arr (Module.Prod T₁ (… Tₙ)) M`, where `M` is the module type
+written after the `:`, or `Module.Prod (Module.Proc sig₁) (… (Module.Proc sigₙ))` — the anonymous
+record of the procedures' own types — when there is none.  With an empty parameter list that tuple
+is `Module.Unit`; with no parameter list at all `X` is not a function but an `M`. -/
 
 /-- One procedure of a `module` declaration: `proc f (x : T, …) : R { … };`.  Same shape as
 the `proc` *term* syntax (which it expands to), plus a name and a trailing `;`. -/
@@ -1037,9 +1046,28 @@ def sigSyntax (callee : Term) (sigMVar : Lean.Expr) : TermElabM (Array Term × T
   let psStx ← ps.toArray.mapM fun p => PrettyPrinter.delab p
   return (psStx, ← PrettyPrinter.delab args[1]!)
 
+/-- The name of the placeholder standing for the module parameter declared at position `i`
+inside a callee's `ModuleExpression`. -/
+def paramName (i : Nat) : Name := Name.mkSimple s!"_param{i}"
+
+/-- The placeholder for the `i`-th module parameter.  A callee is read back with these in place of
+the parameters, because the two consumers need different things there: `X.<f>` substitutes a de
+Bruijn `.var` (it is curried over the parameters it uses), `X` a projection of its single argument
+tuple. -/
+def paramPlaceholder (i : Nat) : Term := mkIdent (paramName i)
+
+/-- Replace the parameter placeholders of `s`: the one for position `i` by `subst[i]`. -/
+partial def substParams (subst : Array Term) (s : Syntax) : Syntax :=
+  if s.isIdent then
+    match (Array.range subst.size).find? fun i => s.getId == paramName i with
+    | some i => subst[i]!
+    | none => s
+  else match s with
+    | .node info k args => .node info k (args.map (substParams subst))
+    | _ => s
+
 /-- Translate a module-valued term into `ModuleExpression` *syntax*, with the module parameters
-(given as `params`, each with the de Bruijn index it will have under the `.abs` binders) becoming
-`.var` nodes.
+(given as `params`, each with the position at which it was declared) becoming `paramPlaceholder`s.
 
 A subterm mentioning no parameter is closed, so it is emitted as `Module.expression ‹subterm›`.
 Otherwise the head has to be one of the module operations handled below; anything else is
@@ -1055,7 +1083,7 @@ partial def toModuleExpr (params : List (FVarId × Nat)) (e : Lean.Expr) : TermE
     return Syntax.mkCApp ``GaudisCrypt.Module.expression #[← PrettyPrinter.delab e]
   if let .fvar id := e then
     if let some (_, i) := params.find? (·.1 == id) then
-      return Syntax.mkCApp ``GaudisCrypt.ModuleExpression.var #[Syntax.mkNatLit i]
+      return paramPlaceholder i
   let args := e.getAppArgs
   let n := args.size
   -- the arguments of interest are the last ones (`Module.app` & co. carry leading implicit and
@@ -1096,12 +1124,11 @@ def procSig (procId : Ident) : TermElabM Term := do
 /-- Type-check a procedure body with the module parameters in the local context and the *real*
 callees in place (each hole callee ascribed to `Module (.proc ?_holeSigᵢ)`), and return, for each
 hole, the signature that this elaboration assigns to its `?_holeSigᵢ` together with the callee
-read back as a `ModuleExpression` over the parameters (`varIdx` gives the de Bruijn index of the
-parameter declared at a given position, or `none` if the procedure does not use it).
+read back as a `ModuleExpression` over the parameters (which appear in it as `paramPlaceholder`s).
 
 Holes are made only afterwards, from these signatures — so a call is typed exactly as written
 before it loses its callee. -/
-def checkBody (paramBs : List (Ident × Term)) (varIdx : Nat → Option Nat) (callees : Array Term)
+def checkBody (paramBs : List (Ident × Term)) (callees : Array Term)
     (body : Term) : TermElabM (Array (Array Term × Term) × Array Term) :=
   withParams paramBs fun fvars => do
     -- create the `?_holeSigᵢ` up front: `elabSyntheticHole` reuses a metavariable of that name
@@ -1111,9 +1138,8 @@ def checkBody (paramBs : List (Ident × Term)) (varIdx : Nat → Option Nat) (ca
     discard <| Term.elabTerm body none
     Term.synthesizeSyntheticMVarsNoPostponing
     let sigs ← (callees.zip mvars).mapM fun (c, mv) => sigSyntax c mv
-    let mut params : List (FVarId × Nat) := []
-    for i in [0 : fvars.size] do
-      if let some d := varIdx i then params := (fvars[i]!.fvarId!, d) :: params
+    let params : List (FVarId × Nat) :=
+      (fvars.toList.zipIdx).map fun (x, i) => (x.fvarId!, i)
     -- re-elaborate each callee on its own (same ascription as in the body, whose elaboration has
     -- by now solved `?_holeSigᵢ`) to get hold of its `Expr`
     let exprs ← callees.mapIdxM fun i c => do
@@ -1203,7 +1229,8 @@ structure ProcResult where
   /-- The positions (in the module's parameter list) of the parameters this procedure uses,
   in declaration order. -/
   usedPos : Array Nat
-  /-- Its hole callees as `ModuleExpression`s over those parameters, in hole order. -/
+  /-- Its hole callees as `ModuleExpression`s over the module parameters (which appear in them as
+  `paramPlaceholder`s), in hole order. -/
   calleeExprs : Array Term
 
 /-- Declare `X.<f>.procedure` for one `proc f (…) : R { … }` of a `module X (…)` declaration.
@@ -1236,15 +1263,12 @@ def elabProcedure (nm : Ident) (paramBs : Array (Ident × Term))
   let (checkStmts, _) :=
     (stmts.mapM fun s => rewriteCalls paramNames (checked[·]!) s.raw).run #[]
   let checkTerm ← mkProc (checkStmts.map (⟨·⟩)) none
-  -- the parameters this procedure uses; under the `.abs` binders of its module, the `j`-th of
-  -- them is `.var (k-1-j)` (the first parameter is the outermost binder)
+  -- the parameters this procedure uses
   let usedPos := (Array.range paramBs.size).filter fun i =>
     callees.any fun c => mentions [paramBs[i]!.1.getId] c.raw
-  let varIdx (i : Nat) : Option Nat :=
-    (usedPos.findIdx? (· == i)).map (usedPos.size - 1 - ·)
   let errsBefore := errorCount (← get).messages
   let (holeSigs, calleeExprs) ←
-    runTermElabM fun _ => checkBody paramBs.toList varIdx callees checkTerm
+    runTermElabM fun _ => checkBody paramBs.toList callees checkTerm
   -- a body that does not type-check has already been reported against its real callees;
   -- elaborating the hole version too would only duplicate the errors
   if errorCount (← get).messages > errsBefore then return none
@@ -1256,10 +1280,25 @@ def elabProcedure (nm : Ident) (paramBs : Array (Ident × Term))
   elabCommand (← `(command| noncomputable def $declId:ident := $procTerm))
   return some { fn, declId, usedPos, calleeExprs }
 
+/-- The `ModuleExpression` of the procedure `r`, with `subst[i]` put for the module parameter
+declared at position `i`: either the closed `Module.proc X.<f>.procedure`, or
+`Module.procWithHoles X.<f>.procedure` applied to the tuple of its callees.  That tuple is
+right-nested and *reversed*, matching `HoleSigs.toModuleTypeRepTuple` (the last-declared hole is
+the outermost `.fst`). -/
+def procApplied (r : ProcResult) (subst : Array Term) : CommandElabM Term := do
+  if r.calleeExprs.isEmpty then
+    `(GaudisCrypt.Module.expression (GaudisCrypt.Module.proc $(r.declId)))
+  else
+    let mut tuple ← `(GaudisCrypt.ModuleExpression.unit)
+    for c in r.calleeExprs do
+      tuple ← `(GaudisCrypt.ModuleExpression.pair $(⟨substParams subst c⟩) $tuple)
+    `(GaudisCrypt.ModuleExpression.app
+        (GaudisCrypt.Module.expression (GaudisCrypt.Module.procWithHoles $(r.declId))) $tuple)
+
 /-- Declare the module `X.<f>` of a procedure already declared by `elabProcedure`: either
-`Module.proc X.<f>.procedure` (no module parameter used), or `Module.procWithHoles X.<f>.procedure`
-applied to the callee tuple and abstracted over the parameters it uses, of type
-`Module.Arr T₁ (… (Module.Arr Tₖ (Module.Proc sig)))`.  Returns the constant it declared. -/
+`Module.proc X.<f>.procedure` (no module parameter used), or `procApplied` abstracted over the
+parameters it does use, of type `Module.Arr T₁ (… (Module.Arr Tₖ (Module.Proc sig)))`.  Returns
+the constant it declared. -/
 def elabProcModule (nm : Ident) (paramBs : Array (Ident × Term)) (r : ProcResult) :
     CommandElabM Ident := do
   let modId := mkIdent (nm.getId ++ r.fn.getId)
@@ -1267,33 +1306,85 @@ def elabProcModule (nm : Ident) (paramBs : Array (Ident × Term)) (r : ProcResul
     elabCommand (← `(command| noncomputable def $modId:ident :=
       GaudisCrypt.Module.proc $(r.declId)))
   else
-    -- the argument tuple is right-nested and *reversed*, matching
-    -- `HoleSigs.toModuleTypeRepTuple` (the last-declared hole is the outermost `.fst`)
     let mut ty ← `(GaudisCrypt.Module.Proc $(← runTermElabM fun _ => procSig r.declId))
     for i in r.usedPos.reverse do ty ← `(GaudisCrypt.Module.Arr $(paramBs[i]!.2) $ty)
-    let mut tuple ← `(GaudisCrypt.ModuleExpression.unit)
-    for c in r.calleeExprs do tuple ← `(GaudisCrypt.ModuleExpression.pair $c $tuple)
-    let mut body ← `(GaudisCrypt.ModuleExpression.app
-      (GaudisCrypt.Module.expression (GaudisCrypt.Module.procWithHoles $(r.declId))) $tuple)
+    -- the `j`-th used parameter is `.var (k-1-j)`: the first one is the outermost binder.  A
+    -- parameter outside `usedPos` does not occur, so what it maps to is immaterial.
+    let subst := (Array.range paramBs.size).map fun i =>
+      match r.usedPos.findIdx? (· == i) with
+      | some j => Syntax.mkCApp ``GaudisCrypt.ModuleExpression.var
+                    #[Syntax.mkNatLit (r.usedPos.size - 1 - j)]
+      | none => paramPlaceholder i
+    let mut body ← procApplied r subst
     for _ in r.usedPos do body ← `(GaudisCrypt.ModuleExpression.abs $body)
     elabCommand (← `(command| noncomputable def $modId:ident : $ty :=
       GaudisCrypt.ModuleExpression.toModule (m := $body)))
   return modId
 
+/-- `f x₁ (f x₂ (… xₙ))` — every tuple built here is right-nested, and a one-element one is just
+its element (as in `moduletype`, whose product of `n` field types has `n-1` `.prod`s).  `xs` must
+not be empty. -/
+def rightNest (f : Term → Term → CommandElabM Term) (xs : Array Term) : CommandElabM Term := do
+  let mut acc := xs[xs.size - 1]!
+  for j in [0 : xs.size - 1] do acc ← f xs[xs.size - 2 - j]! acc
+  return acc
+
+/-- Declare the module `X` itself: the record of its procedures (a right-nested `.pair`, as
+`moduletype` nests its fields), abstracted over *all* the parameters at once — used or not — which
+it takes as one right-nested tuple.  So `X : Module.Arr (Module.Prod T₁ (… Tₙ)) M`, with `M` the
+declared module type, degenerating to `Module.Arr Module.Unit M` for an empty parameter list and to
+plain `M` when the declaration has no parameter list at all.
+
+A declaration without a module type gets the record of the procedures' own types for `M`, i.e.
+`Module.Prod (Module.Proc sig₁) (… (Module.Proc sigₙ))` — which is what a `moduletype` of these
+procedures unfolds to anyway, only anonymous.
+
+Declares nothing (and returns `none`) if the declaration has no procedures. -/
+def elabModule (nm : Ident) (params? : Option (Array (Ident × Term))) (mt? : Option Term)
+    (procs : Array ProcResult) : CommandElabM (Option Ident) := do
+  if procs.isEmpty then return none
+  let paramBs := params?.getD #[]
+  let n := paramBs.size
+  let prod := fun (a b : Term) => `(GaudisCrypt.Module.Prod $a $b)
+  let mt ← match mt? with
+    | some mt => pure mt
+    | none => rightNest prod (← procs.mapM fun r => do
+        `(GaudisCrypt.Module.Proc $(← runTermElabM fun _ => procSig r.declId)))
+  let ty ← match params? with
+    | none => pure mt
+    | some _ =>
+        let paramProd ←
+          if n == 0 then `(GaudisCrypt.Module.Unit) else rightNest prod (paramBs.map (·.2))
+        `(GaudisCrypt.Module.Arr $paramProd $mt)
+  -- the parameter at position `i` is the `i`-th component of the argument tuple `.var 0`
+  let subst ← (Array.range n).mapM fun i => do
+    let mut e ← `(GaudisCrypt.ModuleExpression.var 0)
+    for _ in [0 : i] do e ← `(GaudisCrypt.ModuleExpression.snd $e)
+    if i + 1 < n then e ← `(GaudisCrypt.ModuleExpression.fst $e)
+    pure e
+  let fields ← procs.mapM fun r => procApplied r subst
+  let mut body ← rightNest (fun a b => `(GaudisCrypt.ModuleExpression.pair $a $b)) fields
+  if params?.isSome then body ← `(GaudisCrypt.ModuleExpression.abs $body)
+  elabCommand (← `(command| noncomputable def $nm:ident : $ty :=
+    GaudisCrypt.ModuleExpression.toModule (m := $body)))
+  return some nm
+
 end GaudisCrypt.ModuleDecl
 
 open Lean Elab Command GaudisCrypt.ModuleDecl in
 elab_rules : command
-  | `(module $nm:ident $[( $params:proc_binder,* )]? $[: $_mt:term]? {
+  | `(module $nm:ident $[( $params:proc_binder,* )]? $[: $mt:term]? {
         $procs:gaudi_module_proc*
       }) => do
-    let paramStx := match params with | some ps => ps.getElems | none => #[]
-    let paramBs ← paramStx.mapM fun b => match b with
+    let paramBs? ← params.mapM fun ps => ps.getElems.mapM fun b => match b with
       | `(proc_binder| $id:ident : $ty:term) => pure (id, ty)
       | _ => throwUnsupportedSyntax
+    let paramBs := paramBs?.getD #[]
     let mut declared : Array (Name × String) := #[]
+    let mut results : Array ProcResult := #[]
     for p in procs do
       let some r ← elabProcedure nm paramBs p | continue
+      results := results.push r
       -- the short names: the `#check`s are inserted right after the command, in the same namespace
       declared := declared.push (r.declId.getId, s!"body of proc {r.fn.getId}")
       let modId ← elabProcModule nm paramBs r
@@ -1301,6 +1392,10 @@ elab_rules : command
       declared := declared.push (modId.getId,
         if r.usedPos.isEmpty then s!"proc {r.fn.getId} as a module"
         else s!"proc {r.fn.getId} as a module, in {used}")
+    -- `X` itself — only when every procedure made it (a missing field would not type-check)
+    if results.size == procs.size then
+      if let some modId ← elabModule nm paramBs? mt results then
+        declared := declared.push (modId.getId, "the module itself")
     logDeclared (← getRef) declared
 
 namespace Experiment
@@ -1325,10 +1420,6 @@ moduletype TestModule {
   proc main (String, Nat) -> Bool;
   module aux : procmod (Nat) -> String →ₘ .unit;
 }
-
--- TODO Auto-implement this
-instance : IsModule TestModule where
-  moduleTypeRep := TestModule.typeRep
 
 /- ### `ModuleTypeRep` concrete syntax (`procmod`/`.proc`, `×` overloaded, `→ₘ` arrow, `.unit`)
 
@@ -1397,12 +1488,9 @@ module X (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
     return ();
   };
 }
-#check X.g
 
 -- `g` calls the parameter `A` (⇒ one hole) and the closed module `myMod.main` (⇒ a plain call)
 #check (X.g.procedure : proctype () -> Unit uses (() → Unit))
-#check X.g.procedure
-#check X.h.procedure
 #check (X.h.procedure : proctype () -> Unit)
 #print X.g.procedure
 
@@ -1428,22 +1516,49 @@ module Y (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
 #check fun (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) =>
   (Module.app (Module.app Y.g a) b : Module.Proc (procsig () -> Unit))
 
--- the parameter list is optional
+-- `X` itself takes *all* the parameters — `B` too, which only `Y` uses — as one tuple
+#check (X : Module.Arr (Module.Prod (Module.Arr TestModule (Module (procmod () → Unit))) TestModule)
+             M2)
+#check (Y : Module.Arr (Module.Prod (Module.Arr TestModule (Module (procmod () → Unit))) TestModule)
+             M2)
+#print X
+-- it applies to a tuple of them, and the fields are then projected out with the `M2` accessors
+#check fun (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) =>
+  (M2.g (Module.app X (Module.pair a b)) : Module (procmod () -> Unit))
+
+-- the parameter list is optional; without it `X` is the module type itself …
 module NoParams : M2 {
   proc g() : Unit { return (); };
   proc h() : Unit { return (); };
 }
 #check (NoParams.g.procedure : proctype () -> Unit)
 #check (NoParams.g : Module.Proc (procsig () -> Unit))
+#check (NoParams : M2)
 
-/-
--- Still missing: `X` itself, i.e. the record of its procedures, abstracted over the parameters:
+-- … whereas an empty one still makes it a function, of the empty tuple
+module EmptyParams () : M2 {
+  proc g() : Unit { return (); };
+  proc h() : Unit { return (); };
+}
+#check (EmptyParams : Module.Arr Module.Unit M2)
 
-def X : Module.Arr (Module.Arr TestModule (Module (procmod () → Unit)))
-                   (Module.Arr TestModule M2) := …
+-- the module type is optional too; without it `X` gets the anonymous record of its procedures
+module NoType (A : Module.Arr TestModule (Module (procmod () → Unit))) {
+  proc g() : Unit {
+    _ <- call (Module.app A myMod) ();
+    return ();
+  };
+  proc h() : Bool { return true; };
+}
+#check (NoType : Module.Arr (Module.Arr TestModule (Module (procmod () → Unit)))
+                   (Module.Prod (Module.Proc (procsig () -> Unit))
+                                (Module.Proc (procsig () -> Bool))))
 
- -/
-
+module NoTypeNoParams {
+  proc g() : Unit { return (); };
+}
+-- a one-procedure record is that procedure (`moduletype` nests its fields the same way)
+#check (NoTypeNoParams : Module.Proc (procsig () -> Unit))
 
 
 end Experiment
@@ -1456,8 +1571,10 @@ end Experiment
 -- TODO: Allow _ inside a *tuple* lvalue too (a bare `_` already becomes Setter.throwaway)
 -- TODO: `paramListToTuple` is not reducible, so a numeral argument of a `call` has a stuck
 --   expected type (`OfNat (paramListToTuple [Nat]) 5`) and needs an ascription.
--- TODO: `module X …` emits `X.f.procedure` and `X.f`; still missing is `X` itself (the record of
---   the `X.f`, abstracted over all the parameters).
+-- TODO: `module X …` emits `X.f.procedure`, `X.f` and `X`, but no lemmas relating them: applying
+--   `X` to a parameter tuple and projecting field `f` should reduce to `X.f` applied to the
+--   parameters `f` uses (both sides are `.reduce` of concrete expressions, so this needs more than
+--   the current `reduce_simp`).
 -- TODO: Syntax for writing explicit modules (needed? or def + .mk is sufficient?)
 -- Concrete syntax for module types: `procmod (…) -> R` (proc) / `.proc`, `×` (prod, overloaded),
 --   `→ₘ` (arr), `.unit` via dot notation. See the `ModuleTypeRep concrete syntax` block above.
