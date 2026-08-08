@@ -88,9 +88,10 @@ moduletype TwoProcs {
 ```
 where each field's type is a `ModuleTypeRep`.  A field may also be written `proc fᵢ (A₁, …) -> R;` as
 shorthand for `module fᵢ : ModuleTypeRep.proc (procsig (A₁, …) -> R);`.  It generates `Name`
-(the corresponding `Module`), a record `Name.Structure` with fields `fᵢ : Module Tᵢ`,
-accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, and round-trip
-`@[simp]` lemmas relating them.
+(the corresponding `Module`), a record `Name.Structure` with fields `fᵢ : Module Tᵢ` — a `proc`
+field getting the `Module.Proc (procsig …)` spelling of that, the one a `module`-declared procedure
+carries — accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, and
+round-trip `@[simp]` lemmas relating them.
 -/
 
 namespace GaudisCrypt
@@ -816,7 +817,10 @@ syntax "proc " ident " (" term,* ")" (" → " <|> " -> ") term ";" : moduletypeF
 type, where each `Tᵢ` is a `ModuleTypeRep`.  A field may also be written
 `proc fᵢ (A₁, …) -> R;`, shorthand for `module fᵢ : ModuleTypeRep.proc (procsig (A₁, …) -> R);`.
 It expands to: `Name := Module (ModuleTypeRep.prod T₁ (… Tₙ))` (right-nested product of the
-field types), a record `Name.Structure` with fields `fᵢ : Module Tᵢ`, accessors `Name.fᵢ`
+field types), a record `Name.Structure` with fields `fᵢ : Module Tᵢ` — written `Module.Proc sig`
+for a `proc` field, so that the record and the procedures a `module` declaration puts into it are
+stated in the same terms, which is what lets `simp` chain `X.apply_simp` into `X.f.apply_simp` —
+accessors `Name.fᵢ`
 (via `Module.fst'`/`Module.snd'`), a constructor `Name.mk`, a destructor `Name.structure`, and
 the two round-trip `@[simp]` lemmas `Name.mk_destruct` / `Name.destruct_mk`. -/
 syntax "moduletype " ident "{" moduletypeField* "}" : command
@@ -838,8 +842,15 @@ elab_rules : command
         | `(moduletypeField| proc $_ ( $ps,* ) → $ret:term ;) =>
             `(_root_.GaudisCrypt.ModuleTypeRep.proc (ProcedureSignature.mk [$ps,*] $ret))
         | _ => throwUnsupportedSyntax
-      -- the field/accessor types are `Module Tᵢ`
-      let fts ← Ts.mapM fun T => `(_root_.GaudisCrypt.Module $T)
+      -- the field/accessor types are `Module Tᵢ` — except for a `proc` field, which gets the
+      -- `Module.Proc sig` spelling of it, the one `module`-declared procedures carry (so that the
+      -- record built by `mk` and the procedures put into it are stated in the same terms)
+      let fts ← fields.mapM fun f => match f with
+        | `(moduletypeField| module $_ : $T:term ;) => `(_root_.GaudisCrypt.Module $T)
+        | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;)
+        | `(moduletypeField| proc $_ ( $ps,* ) → $ret:term ;) =>
+            `(_root_.GaudisCrypt.Module.Proc (ProcedureSignature.mk [$ps,*] $ret))
+        | _ => throwUnsupportedSyntax
       -- right-nested product of the underlying types
       let prodT ← Ts.pop.foldrM
         (fun T acc => `(_root_.GaudisCrypt.ModuleTypeRep.prod $T $acc)) Ts.back!
@@ -1786,7 +1797,7 @@ module Y (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
 #print X
 -- it applies to a tuple of them, and the fields are then projected out with the `M2` accessors
 #check fun (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) =>
-  (M2.g (Module.app X (Module.pair a b)) : Module (procmod () -> Unit))
+  (M2.g (Module.app X (Module.pair a b)) : Module.Proc (procsig () -> Unit))
 
 -- `X.apply_simp` does that application: each field gets the parameters *it* uses (`g` gets `A`
 -- alone, `h` none), so a projection out of an applied module reduces to an applied procedure
@@ -1794,9 +1805,10 @@ module Y (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModu
 #print Y.apply_simp
 example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
     M2.g (Module.app X (Module.pair a b))
-      = (Module.app X.g a : Module (procmod () -> Unit)) := by simp [M2.g, M2.mk]
+      = (Module.app X.g a : Module.Proc (procsig () -> Unit)) := by
+  simp only [M2.g, M2.mk, X.apply_simp, Module.fst_pair']
 example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
-    M2.h (Module.app X (Module.pair a b)) = (X.h : Module (procmod () -> Unit)) := by
+    M2.h (Module.app X (Module.pair a b)) = (X.h : Module.Proc (procsig () -> Unit)) := by
   simp [M2.h, M2.mk]
 
 -- `X.g.apply_simp` carries the application on down to a procedure: `X.g` applied to `A` is
@@ -1827,17 +1839,13 @@ example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModu
       = Module.proc (X.g.procedure.instantiate
           (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
             (Module.procedure (Module.app a myMod)))) := by
-  simp only [M2.g, M2.mk, X.apply_simp, Module.fst_pair']
-  -- the last step has to be `exact`: `M2`'s field type is `Module (procmod () → Unit)` whereas
-  -- `X.g`'s codomain is `Module.Proc (procsig () → Unit)` — the same type, but `Module.Proc` is a
-  -- plain `def`, so `simp` does not see through it to match `X.g.apply_simp` here
-  exact X.g.apply_simp a
+  simp [M2.g, M2.mk]
 
 -- TODO: Something like that should be autogenerated by moduletype command!
 lemma M2.mk_g : M2.g (M2.mk s) = s.g := by simp [M2.mk, M2.g]
 example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
     M2.g (Module.app Y (Module.pair a b))
-      = (Module.app (Module.app Y.g a) b : Module (procmod () -> Unit)) := by
+      = (Module.app (Module.app Y.g a) b : Module.Proc (procsig () -> Unit)) := by
       simp only [Y.apply_simp, M2.mk_g]
 
 
@@ -1935,3 +1943,4 @@ end Experiment
 -- Concrete syntax for module types: `procmod (…) -> R` (proc), `.proc`/`.arr`/`.prod`/`.unit` via
 --   dot notation for `ModuleTypeRep`, and `→ₘ`/`×ₘ` (`Module.Arr`/`Module.Prod`) on module types.
 --   See the `ModuleTypeRep concrete syntax` block above.
+-- TODO: procmod should be a module, not a module-type-rep
