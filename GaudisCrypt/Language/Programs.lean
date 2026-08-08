@@ -251,6 +251,16 @@ def HoleSigs.Instantiation.push {holes : HoleSigs} {sig : ProcedureSignature}
     | .zero => p
     | .succ i => inst i
 
+/-- Looking up the hole a `push` was made for. -/
+@[simp] theorem HoleSigs.Instantiation.push_zero {holes : HoleSigs} {sig : ProcedureSignature}
+    (inst : holes.Instantiation) (p : Procedure sig) :
+    HoleSigs.Instantiation.push inst p HoleIndex.zero = p := rfl
+
+/-- Looking up any other hole of a `push` falls through to the instantiation it extends. -/
+@[simp] theorem HoleSigs.Instantiation.push_succ {holes : HoleSigs} {sig sig' : ProcedureSignature}
+    (inst : holes.Instantiation) (p : Procedure sig) (i : HoleIndex holes sig') :
+    HoleSigs.Instantiation.push inst p (HoleIndex.succ i) = inst i := rfl
+
 /-- Convert an instantiation into a plain list of procedures (tagged by their signature),
 in the same right-nested order as `HoleSigs.Instantiation.toModuleTuple`.
 

@@ -953,7 +953,18 @@ Every procedure gets one of its own, `X.<f>.apply_simp`, which carries the appli
 down to a procedure: `Module.app (… (Module.app X.f A) …) Z = Module.proc
 (X.f.procedure.instantiate …)`, the holes filled by the callees they were made from (each of them
 as written, with the arguments in place of the module parameters).  A procedure with no holes uses
-no parameter either, and the lemma is then just `X.f = Module.proc X.f.procedure`. -/
+no parameter either, and the lemma is then just `X.f = Module.proc X.f.procedure`.
+
+The last step — getting rid of the `instantiate` — is `X.<f>.procedure.apply_simp`, also `@[simp]`:
+```
+theorem X.f.procedure.apply_simp (args : ‹hole context›.Instantiation) :
+    X.f.procedure.instantiate args = proc (x : T, …) : R { … }
+```
+whose right-hand side is the procedure as it was declared, only with each hole call written back as
+an ordinary `call args ‹the hole's index›` (so the callees of the body appear as
+`args HoleIndex.zero`, `args HoleIndex.zero.succ`, …, the last-declared hole being `.zero`).  After
+`X.<f>.apply_simp` — and with `HoleSigs.Instantiation.push_zero`/`_succ` to look the indices up —
+`simp` takes an application of `X` all the way to a hole-free `Procedure`. -/
 
 /-- One procedure of a `module` declaration: `proc f (x : T, …) : R { … };`.  Same shape as
 the `proc` *term* syntax (which it expands to), plus a name and a trailing `;`. -/
@@ -1363,6 +1374,8 @@ structure ProcResult where
   name, in hole order.  `X.<f>.apply_simp` states what applying `X.<f>` to those parameters is, and
   names the callees this way (`Module.procedure` of each). -/
   callees : Array Term
+  /-- The name of the `X.<f>.procedure.apply_simp` lemma declared alongside `X.<f>.procedure`. -/
+  instThmId : Ident
 
 /-- Declare `X.<f>.procedure` for one `proc f (…) : R { … }` of a `module X (…)` declaration.
 Returns `none` if the body does not type-check (the errors have then been reported already). -/
@@ -1409,7 +1422,26 @@ def elabProcedure (nm : Ident) (paramBs : Array (Ident × Term))
   let procTerm ← mkProc (holeStmts.map (⟨·⟩)) (some holeBinders)
   let declId := mkIdent (nm.getId ++ fn.getId ++ `procedure)
   elabCommand (← `(command| noncomputable def $declId:ident := $procTerm))
-  return some { fn, declId, usedPos, calleeExprs, callees := callees.map (⟨·⟩) }
+  -- pass 3: the same body once more, with each hole call `call args ‹its index›` instead — the
+  -- right-hand side of `X.<f>.procedure.apply_simp`
+  let argsId := mkIdent `args
+  let nh := callees.size
+  let instCallees ← (Array.range nh).mapM fun k => do
+    let mut idx ← `(GaudisCrypt.HoleIndex.zero)
+    for _ in [0 : nh - 1 - k] do idx ← `(GaudisCrypt.HoleIndex.succ $idx)
+    `($argsId $idx)
+  let (instStmts, _) :=
+    (stmts.mapM fun s => rewriteCalls paramNames (instCallees[·]!) s.raw).run #[]
+  let instTerm ← mkProc (instStmts.map (⟨·⟩)) none
+  let mut hCtx ← `(GaudisCrypt.HoleSigs.empty)
+  for (hps, hret) in holeSigs do
+    hCtx ← `(GaudisCrypt.HoleSigs.append $hCtx (procsig ( $hps,* ) -> $hret))
+  let instThmId := mkIdent (declId.getId ++ `apply_simp)
+  elabCommand (← `(command| @[simp] theorem $instThmId:ident :
+    ($argsId : GaudisCrypt.HoleSigs.Instantiation $hCtx) →
+      GaudisCrypt.ProcedureWithHoles.instantiate $declId $argsId = $instTerm :=
+    fun $argsId => rfl))
+  return some { fn, declId, usedPos, calleeExprs, callees := callees.map (⟨·⟩), instThmId }
 
 /-- The `ModuleExpression` of the procedure `r`, with `subst[i]` put for the module parameter
 declared at position `i`: either the closed `Module.proc X.<f>.procedure`, or
@@ -1649,6 +1681,8 @@ elab_rules : command
       results := results.push r
       -- the short names: the `#check`s are inserted right after the command, in the same namespace
       declared := declared.push (r.declId.getId, s!"body of proc {r.fn.getId}")
+      declared := declared.push (r.instThmId.getId,
+        s!"instantiating the holes of proc {r.fn.getId}")
       let modId ← elabProcModule nm paramBs r
       let used := ", ".intercalate (r.usedPos.toList.map (paramBs[·]!.1.getId.toString))
       declared := declared.push (modId.getId,
@@ -1841,6 +1875,45 @@ example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModu
             (Module.procedure (Module.app a myMod)))) := by
   simp [M2.g, M2.mk]
 
+-- `X.g.procedure.apply_simp` takes the last step, from the `instantiate` to a hole-free procedure:
+-- the body as declared, with the hole calls turned back into ordinary calls of `args <index>`
+#check (X.g.procedure.apply_simp :
+  ∀ (args : (HoleSigs.empty.append (procsig () → Unit)).Instantiation),
+    X.g.procedure.instantiate args
+      = proc () : Unit {
+          _ <- call (args HoleIndex.zero) ();
+          _ <- call (args HoleIndex.zero) ();
+          _ <- call (myMod.main.procedure) ("hello", (5 : Nat));
+          return ();
+        })
+
+-- two holes: the *first*-declared one is the outermost `.succ` (`.zero` is the last)
+#check (Y.g.procedure.apply_simp :
+  ∀ (args : ((HoleSigs.empty.append (procsig (String, Nat) → Bool)).append
+        (procsig () → Unit)).Instantiation),
+    Y.g.procedure.instantiate args
+      = proc () : Unit {
+          _ <- call (args HoleIndex.zero.succ) ("hi", (3 : Nat));
+          _ <- call (args HoleIndex.zero) ();
+          return ();
+        })
+
+-- nothing to fill: the lemma of a hole-free procedure is that procedure, unchanged
+#check (X.h.procedure.apply_simp :
+  ∀ (args : HoleSigs.empty.Instantiation),
+    X.h.procedure.instantiate args = proc () : Unit { return (); })
+
+-- and now all three families chain: a field of an applied `X` all the way to a plain `Procedure`
+example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
+    M2.g (Module.app X (Module.pair a b))
+      = Module.proc (proc () : Unit {
+          _ <- call ((Module.app a myMod).procedure) ();
+          _ <- call ((Module.app a myMod).procedure) ();
+          _ <- call (myMod.main.procedure) ("hello", (5 : Nat));
+          return ();
+        }) := by
+  simp [M2.g, M2.mk]
+
 -- TODO: Something like that should be autogenerated by moduletype command!
 lemma M2.mk_g : M2.g (M2.mk s) = s.g := by simp [M2.mk, M2.g]
 example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
@@ -1930,17 +2003,8 @@ end Experiment
 
 
 
--- TODO: When this works, make sure closed procedures have Stmt and Procedure in their types, not StmtWithHoles .empty, ProcedureWithHoles .empty
 -- TODO: Make all things not only parseable, but also printable
--- TODO: Allow $-syntax in the lvalues. For individual names it's redundant, but one can use $(...) to construct setters explicitly
 -- TODO: Allow _ inside a *tuple* lvalue too (a bare `_` already becomes Setter.throwaway)
 -- TODO: `paramListToTuple` is not reducible, so a numeral argument of a `call` has a stuck
 --   expected type (`OfNat (paramListToTuple [Nat]) 5`) and needs an ascription.
--- TODO: `X.apply_simp` relates `X` and the `X.f`, but nothing yet relates `X.f` and
---   `X.f.procedure` (`Module.procedure (Module.app X.f A) = X.f.procedure` with the holes filled
---   by `A`'s procedures).
--- TODO: Syntax for writing explicit modules (needed? or def + .mk is sufficient?)
--- Concrete syntax for module types: `procmod (…) -> R` (proc), `.proc`/`.arr`/`.prod`/`.unit` via
---   dot notation for `ModuleTypeRep`, and `→ₘ`/`×ₘ` (`Module.Arr`/`Module.Prod`) on module types.
---   See the `ModuleTypeRep concrete syntax` block above.
 -- TODO: procmod should be a module, not a module-type-rep
