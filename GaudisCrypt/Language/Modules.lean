@@ -1805,6 +1805,32 @@ theorem reduce_app_cong {a a' b b' : ModuleExpression} (ha : reduce a = a') (hb 
   exact Relation.EqvGen.trans _ _ _
     (congL (ha ▸ convertible_reduce)) (congR (hb ▸ convertible_reduce))
 
+/-! One-sided congruences.  `reduce_pair_cong`/`reduce_app_cong` replace *both* components, so
+simplifying only one of them means proving `reduce b = b'` for the other by `rfl`, i.e. putting
+`reduce b` there — a `reduce` around a component that had none.  These leave the other component
+exactly as it is.  (The hypothesis `reduce a = a'` already forces `a'` to be `reduce a`, hence
+`reduce a' = a'` by idempotence, which is what makes the untouched side go through.) -/
+
+theorem reduce_pair_cong_left {a a' b : ModuleExpression} (ha : reduce a = a') :
+    reduce (.pair a b) = reduce (.pair a' b) :=
+  have ha' : reduce a' = a' := ha ▸ reduce_idempotent a
+  (reduce_pair_cong ha rfl).trans (reduce_pair_cong ha' rfl).symm
+
+theorem reduce_pair_cong_right {a b b' : ModuleExpression} (hb : reduce b = b') :
+    reduce (.pair a b) = reduce (.pair a b') :=
+  have hb' : reduce b' = b' := hb ▸ reduce_idempotent b
+  (reduce_pair_cong rfl hb).trans (reduce_pair_cong rfl hb').symm
+
+theorem reduce_app_cong_left {a a' b : ModuleExpression} (ha : reduce a = a') :
+    reduce (.app a b) = reduce (.app a' b) :=
+  have ha' : reduce a' = a' := ha ▸ reduce_idempotent a
+  (reduce_app_cong ha rfl).trans (reduce_app_cong ha' rfl).symm
+
+theorem reduce_app_cong_right {a b b' : ModuleExpression} (hb : reduce b = b') :
+    reduce (.app a b) = reduce (.app a b') :=
+  have hb' : reduce b' = b' := hb ▸ reduce_idempotent b
+  (reduce_app_cong rfl hb).trans (reduce_app_cong rfl hb').symm
+
 /-- Congruence form for `.abs`, matching `reduce_pair_cong`/`reduce_app_cong`. -/
 theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
     reduce (.abs a) = reduce (.abs a') := by
@@ -2219,88 +2245,58 @@ example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
     ModuleExpression.Neutral (.app (.procHoles ne p) arg) := by
   normalmodule!
 
-/-! ## `reduce_simp`
+/-! ## `reduce_simp` -/
 
-Rejected approach (kept here as a warning, not a plan): configuring plain `simp` with
-`reduce_of_normal`/`reduce_step`/`reduce_pair_cong`/etc. as a lemma set plus a custom
-discharger. It *looked* declarative and simple, but tuning it was pure trial-and-error —
-`reduce_step`-shaped lemmas (result determined only by a hypothesis, not the LHS pattern)
-silently refuse to fire at all under `simp`, and unconditional lemmas like the old (now-removed)
-`reduce_app` compete with `reduce_beta` in an order-sensitive way that only showed up
-empirically. None of that is
-predictable from reading the tactic; it has to be discovered by testing, which is exactly the
-failure mode to avoid.
-
-Actual design: a small, fully explicit, deterministic tactic (`reduce_simp_head`) that performs
-*one* reduction step on a goal of shape `ModuleExpression.reduce x = ?m` — every branch is a
-plain `apply`/`assumption`, no `simp`, no discharger, nothing whose behavior depends on lemma
-declaration order or internal heuristics. Then a thin `simproc` wrapper runs `reduce_simp_head`
-at each `reduce _` site and hands the single resulting step to `simp`'s traversal machinery,
-which *is* reliable (the earlier failures were all in simp's conditional-rewrite *discharge*
-step, not its ordinary congruence-based subterm traversal) — so it naturally keeps visiting
-freshly-exposed `reduce _` subterms without any extra looping logic on our part.
-
-`reduce_simp_head`'s branches, matching `ModuleExpression`'s 9 constructors:
-* `.app (.abs _) _` (a β-redex): `reduce_beta`.
-* `.fst (.pair _ _)` / `.snd (.pair _ _)`: `reduce_fst`/`reduce_snd`.
-* A context hypothesis `x.ReductionStep n` / `x.MultiStepReduction n` / `convertible x n`:
-  `reduce_step`/`reduce_multiStepReduction`/`reduce_convertible` applied, `n` pinned by
-  `assumption` (this works because `apply`'s unification handles an output metavariable
-  determined only by a later hypothesis just fine — unlike `simp`'s conditional rewriting, which
-  is where the earlier design broke).
-* A direct `x.reduce = n` hypothesis: `assumption`.
-* `.pair a b` / `.app a b` / `.abs a` (general case, not caught by the direct rules above —
-  covers e.g. a neutral `.app` whose argument still has work to do): `reduce_pair_cong`/
-  `reduce_app_cong`/`reduce_abs_cong`, whose side conditions `reduce a = ?a'` (etc.) are filled
-  by *recursively calling `reduce_simp_head`* — genuine recursion, not simp discharge.
-* `.fst e` / `.snd e` for `e` not literally `.pair`-shaped yet: `reduce_fst_cong`/
-  `reduce_snd_cong`, same recursive-fill pattern.
-* Otherwise (`.unit`/`.proc`/`.procHoles`/`.var`, or any of the above once fully decomposed):
-  `reduce_of_normal`, with `normalmodule!` proving the `Normal x` side condition. Fails loudly
-  (via `normalmodule!`) if `x` isn't actually normal and no earlier branch matched — which means
-  every one-step call either succeeds or points at a genuine gap in the branch list, not a
-  silent no-op.
-
-Each branch produces *one* step, so its result can itself still be `reduce`-headed (e.g.
-`reduce_beta`'s RHS is `reduce (body.substitute arg)`, not a fully collapsed value) — that's
-intentional, matching the "single reduction step" contract; full normalization comes from the
-`simproc` below re-visiting whatever it exposes. -/
+open Lean Elab Tactic Meta in
 
 syntax "reduce_simp_head" : tactic
 
+private lemma reduce_eq_guard_aux1 m n : ModuleExpression.reduce m = ModuleExpression.reduce n → ModuleExpression.reduce m = ModuleExpression.reduce n := by intro; assumption
+private lemma reduce_eq_guard_aux2 m n : ModuleExpression.reduce m = n →
+    ModuleExpression.reduce m = ModuleExpression.reduce n := by
+  -- `n` *is* `reduce m`, so reducing it again changes nothing
+  intro h
+  rw [← h, ModuleExpression.reduce_idempotent]
+
+
+/--
+
+`reduce_simp_head` takes a goal of the form `reduce M = reduce ?m` or `reduce M = ?m`
+and solves it by instantiating the rhs as `reduce M'`
+where M' is the result of applying a single reduction step.
+
+Rules of the form `reduce X = reduce Y` or `reduce X = Y`
+or `convertible X Y` or `MultiStepReduction X Y` or `Step X Y`
+in the context are also used as reduction steps.
+
+It fails when no step applies.  In particular a term that is already normal is *not* its business:
+it never uses `reduce_of_normal`, so it neither succeeds without reducing nor leaves a `reduce`
+around a component it did not touch.  Collapsing the `reduce` of a normal term is the second rule
+of `reduceSimpProcImpl` instead.
+
+-/
 macro_rules
   | `(tactic| reduce_simp_head) =>
     `(tactic|
-        (-- `reduce_beta`'s RHS, `body.substitute arg`, is *not* automatically reduced to a plain
-         -- `ModuleExpression` constructor tree — `substitute` is a separate structurally-recursive
-         -- `def`, and every branch below matches on literal constructors. Unfold it first (safe,
-         -- terminates: purely structural on the `ModuleExpression` argument, no loops).
-         try simp only [ModuleExpression.substitute, ModuleExpression.substituteSimultaneously,
-           ModuleExpression.variableSubstitution, ModuleExpression.liftSubst]
-         first
-         | apply ModuleExpression.reduce_beta
+        (first
+         | (apply ModuleExpression.reduce_beta;
+            try simp only [ModuleExpression.substitute, ModuleExpression.substituteSimultaneously,
+                           ModuleExpression.variableSubstitution, ModuleExpression.liftSubst])
          | apply ModuleExpression.reduce_fst
          | apply ModuleExpression.reduce_snd
          | (apply ModuleExpression.reduce_step; assumption)
          | (apply ModuleExpression.reduce_multiStepReduction; assumption)
          | (apply ModuleExpression.reduce_convertible; assumption)
-         | assumption
-         -- Tried *before* structural decomposition: if the whole term is already `Normal`
-         -- outright (e.g. after a recursive call below has already simplified its components),
-         -- stop here rather than always re-decomposing via `.pair`/`.app`/`.abs`-cong, which
-         -- would keep re-deriving the same answer without ever collapsing the `reduce` wrapper.
-         | (apply ModuleExpression.reduce_of_normal; normalmodule!)
-         -- `apply`, not `refine ... ?_ rfl`: `refine` tries to eagerly resolve the *other*
-         -- implicit (`a'`/`b'`) at refine-time and fails ("don't know how to synthesize implicit
-         -- argument"), since nothing pins it down yet apart from the later goal. `apply` defers
-         -- both hypotheses to goals normally, so they can just be handled positionally.
-         | (apply ModuleExpression.reduce_pair_cong; reduce_simp_head; rfl) -- pair-left
-         | (apply ModuleExpression.reduce_pair_cong; rfl; reduce_simp_head) -- pair-right
-         | (apply ModuleExpression.reduce_app_cong; reduce_simp_head; rfl) -- app-left
-         | (apply ModuleExpression.reduce_app_cong; rfl; reduce_simp_head) -- app-right
+         | (apply reduce_eq_guard_aux1; assumption)
+         | (apply reduce_eq_guard_aux2; assumption)
+         | (apply ModuleExpression.reduce_pair_cong_left; reduce_simp_head) -- pair-left
+         | (apply ModuleExpression.reduce_pair_cong_right; reduce_simp_head) -- pair-right
+         | (apply ModuleExpression.reduce_app_cong_left; reduce_simp_head) -- app-left
+         | (apply ModuleExpression.reduce_app_cong_right; reduce_simp_head) -- app-right
          | (apply ModuleExpression.reduce_abs_cong; reduce_simp_head)
          | (apply ModuleExpression.reduce_fst_cong; reduce_simp_head)
          | (apply ModuleExpression.reduce_snd_cong; reduce_simp_head)))
+
 
 /-! ### `reduce_simp_head` smoke tests
 
@@ -2317,37 +2313,39 @@ example : ∃ m, ModuleExpression.reduce (.app (.abs .unit) .unit) = m := ⟨_, 
 example (m n : ModuleExpression) (h : m.ReductionStep n) :
     ∃ m', ModuleExpression.reduce m = m' := ⟨_, by reduce_simp_head⟩
 
--- General `.pair` case: recurses into both components independently.
-example (a b : ModuleExpression) (ha : a.Normal) (hb : b.Normal) :
-    ∃ m, ModuleExpression.reduce (.pair a b) = m := ⟨_, by reduce_simp_head⟩
-
--- Base case, no redex anywhere: falls through to `reduce_of_normal` + `normalmodule!`.
-example : ∃ m, ModuleExpression.reduce (.unit : ModuleExpression) = m := ⟨_, by reduce_simp_head⟩
-
 open Lean Meta Simp in
-/-- Run `reduce_simp_head` on a fresh `ModuleExpression.reduce x = ?m` goal and report the result
-    as a `Simp.Step`. Returns `.continue` (no rewrite) if `reduce_simp_head` can't make even one
-    step of progress — matching `moduletyping`/`normalmodule`'s leniency: an unreducible term
-    (e.g. containing an opaque free variable with no matching hypothesis) is left as-is rather
-    than treated as an error. -/
-private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
+/-- Solve a fresh `e = ?m` goal with `tac` and report the outcome as a `Simp.Result`, or `none` if
+    `tac` fails or leaves the goal open.  `?m`, which `tac` assigns, is the replacement term. -/
+private def reduceSimpRun (e : Lean.Expr) (tac : TSyntax `tactic) : SimpM (Option Simp.Result) := do
   try
     let mTarget ← mkFreshExprMVar (← inferType e)
-    let target ← mkEq e mTarget
-    let goalMVar ← mkFreshExprMVar target
-    let remaining ← Elab.Tactic.run goalMVar.mvarId!
-      (Elab.Tactic.evalTactic (← `(tactic| reduce_simp_head))) |>.run'
+    let goalMVar ← mkFreshExprMVar (← mkEq e mTarget)
+    let remaining ← Elab.Tactic.run goalMVar.mvarId! (Elab.Tactic.evalTactic tac) |>.run'
     if !remaining.isEmpty then
-      return .continue
-    let m ← instantiateMVars mTarget
-    let proof ← instantiateMVars goalMVar
-    return .visit { expr := m, proof? := some proof }
+      return none
+    return some { expr := ← instantiateMVars mTarget, proof? := some (← instantiateMVars goalMVar) }
   catch _ =>
-    -- `reduce_simp_head` genuinely throwing (rather than just leaving goals open) means every
-    -- branch failed outright — e.g. `normalmodule!` couldn't prove `Normal` for an opaque
-    -- subterm with no matching hypothesis. Lenient like `moduletyping`/`normalmodule`: leave the
-    -- site untouched rather than aborting the whole `reduce_simp` call.
-    return .continue
+    return none
+
+open Lean Meta Simp in
+/-- The rewrite `reduce_simp` performs at a `ModuleExpression.reduce x` subterm: one reduction
+    step via `reduce_simp_head`, or — when nothing reduces — collapsing the `reduce` outright via
+    `reduce_of_normal`, whose `Normal x` side condition `normalmodule` discharges.  The two are
+    complementary: `reduce_simp_head` only ever reports a genuine step (it neither succeeds
+    without reducing nor invents `reduce`s along the way), and it no longer knows about normal
+    terms, which is exactly what the second rule is for.
+
+    Returns `.continue` (no rewrite) when neither applies — matching `moduletyping`/
+    `normalmodule`'s leniency: an unreducible term (e.g. containing an opaque free variable with
+    no matching hypothesis, whose normality is therefore not provable either) is left as it is
+    rather than treated as an error. -/
+private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
+  if let some r ← reduceSimpRun e (← `(tactic| reduce_simp_head)) then
+    return .visit r
+  if let some r ← reduceSimpRun e
+      (← `(tactic| (apply ModuleExpression.reduce_of_normal; normalmodule))) then
+    return .visit r
+  return .continue
 
 /- The obvious next step, `simproc reduceSimp (ModuleExpression.reduce _) := reduceSimpProcImpl`,
    doesn't work: the `simproc` command elaborates its *pattern* in an isolated `TermElabM`
@@ -2366,15 +2364,25 @@ private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
    Simp's own bottom-up traversal (confirmed reliable all along — only its conditional-rewrite
    *discharge* step was ever the problem) still does the "keep visiting exposed subterms" work. -/
 open Lean Meta Elab Tactic in
-/-- Fully normalize `reduce m` subterms via `reduce_simp_head`, repeatedly, including inside
-    freshly-exposed nested `reduce`s (handled by `simp`'s own subterm traversal, not by this
-    tactic). Lenient: leaves whatever it can't reduce untouched; closes the goal outright if it
-    simplifies all the way to `True`. -/
+/-- Fully normalize `reduce m` subterms — one reduction step at a time via `reduce_simp_head`,
+    then the `reduce` collapsed via `reduce_of_normal` (see `reduceSimpProcImpl`) — repeatedly,
+    including inside freshly-exposed nested `reduce`s (handled by `simp`'s own subterm traversal,
+    not by this tactic). Lenient per subterm — whatever it can't reduce is left as it is — but,
+    like `simp`, it fails when that is *every* subterm and the goal comes back unchanged.  Closes
+    the goal outright if it simplifies all the way to `True`.
+
+    `substitute` and friends are in the simp set because `reduce_beta`'s result is
+    `reduce (body.substitute arg)`, with `substitute` a structurally recursive `def` that no
+    `reduce_simp_head` branch matches on: unfolding it is what turns that result back into a
+    constructor tree the next step can work on. -/
 elab "reduce_simp" : tactic => do
   let goal ← getMainGoal
   goal.withContext do
     let target ← instantiateMVars (← goal.getType)
     let simpTheorems ← Lean.Elab.Tactic.simpOnlyBuiltins.foldlM (·.addConst ·) ({} : SimpTheorems)
+    let simpTheorems ← [``ModuleExpression.substitute, ``ModuleExpression.substituteSimultaneously,
+      ``ModuleExpression.variableSubstitution, ``ModuleExpression.liftSubst].foldlM
+      (·.addDeclToUnfold ·) simpTheorems
     let congrTheorems ← getSimpCongrTheorems
     let ctx ← Simp.mkContext (simpTheorems := #[simpTheorems]) (congrTheorems := congrTheorems)
     -- `post`: try our own hook first, then fall through to `Simp.postDefault` (no simprocs of
@@ -2395,6 +2403,8 @@ elab "reduce_simp" : tactic => do
       | some proof => goal.assign (← mkOfEqTrue proof)
       | none => goal.assign (mkConst ``True.intro)
       replaceMainGoal []
+    else if (← instantiateMVars r.expr) == target then
+      throwError "reduce_simp made no progress"
     else
       replaceMainGoal [← applySimpResultToTarget goal target r]
 
@@ -2420,9 +2430,9 @@ example (m : ModuleExpression) (h : ModuleExpression.reduce m = .unit) :
     ModuleExpression.reduce (.fst (.pair m .unit)) = .unit := by
   reduce_simp
 
--- The pair as a whole isn't (yet provably) `Normal` — its first component
--- `.fst (.pair .unit .unit)` is a genuine redex — so `reduceSimp` can't collapse it in one visit
--- at the top; `reduce_pair_cong` (inside `reduce_simp_head`) peels each component, and `simp`'s
+-- The pair as a whole isn't `Normal` — its first component `.fst (.pair .unit .unit)` is a
+-- genuine redex — so the `reduce_of_normal` rule can't collapse it in one visit at the top;
+-- `reduce_pair_cong_left` (inside `reduce_simp_head`) reduces that component, and `simp`'s
 -- traversal revisits the result, which *is* now directly `Normal`.
 example (b : ModuleExpression) (hb : b.Normal) :
     ModuleExpression.reduce (.pair (.fst (.pair .unit .unit)) b) = .pair .unit b := by
