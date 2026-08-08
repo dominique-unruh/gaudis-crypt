@@ -151,9 +151,9 @@ moduletype Binder {
 /- /-- The `ModuleTypeRep` underlying `CommitmentScheme` (the right-nested product the
     `moduletype` command generates), named so that functor types over it can be written. -/
 def CommitmentSchemeT : ModuleTypeRep :=
-  procmod () -> Value ×
-  procmod (Value, Message) -> (Commitment × OpeningKey) ×
-  procmod (Value, Message, Commitment, OpeningKey) -> Bool
+  .prod (.proc (procsig () -> Value))
+    (.prod (.proc (procsig (Value, Message) -> (Commitment × OpeningKey)))
+      (.proc (procsig (Value, Message, Commitment, OpeningKey) -> Bool)))
  -/
 
 /-
@@ -204,9 +204,9 @@ instance : IsModule CommitmentScheme where
 /-- EC's `module Correctness (S : CommitmentScheme)`, as a functor module: apply it to a
     scheme with `Correctness S` (module application). -/
 noncomputable def Correctness :
-  Module.Arr CommitmentScheme (Module (procmod (Message) -> Bool)) :=
+  Module.Arr CommitmentScheme (procmod (Message) -> Bool) :=
   -- Module (CommitmentSchemeT →ₘ CorrectnessGameT (which has named procedures)) :=
-  -- Module.Arr  CommitmentScheme (Module (procmod (Message) -> Bool)) :=
+  -- Module.Arr  CommitmentScheme (procmod (Message) -> Bool) :=
   (ModuleExpression.abs
     (.app (.procHoles (by trivial) Correctness.main)
       (.pair (.snd (.snd (.var 0)))       -- verify
@@ -216,7 +216,7 @@ noncomputable def Correctness :
     -- Note: toModule does not need a typing proof because it automatically tries using `moduletyping!` (which succeeds).
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
-noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
+noncomputable example (S : CommitmentScheme) : procmod (Message) -> Bool :=
   Module.app Correctness S
 
 
