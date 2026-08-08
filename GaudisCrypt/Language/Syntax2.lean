@@ -954,51 +954,53 @@ syntax "module " ident ("(" proc_binder,* ")")? (" : " term:max)? "{"
          gaudi_module_proc*
        "}" : command
 
-/-- Proves `Module.app X t = <record of the procedures of X, applied to their parameters>` for the
-module `X` of a `module X (…) { … }` declaration and a *variable* parameter tuple `t` — the generic
-form of the `X.apply_simp` lemma the command emits (`ModuleDecl.elabApplySimp`).  `X` must be given
-as its name, which the script unfolds.
+/-- Proves `Module.app X (Module.pair A (… Z)) = <record of the procedures of X, applied to the
+parameters each of them uses>` for the module `X` of a `module X (…) { … }` declaration — the
+`X.apply_simp` lemma the command emits (`ModuleDecl.elabApplySimp`).  `X` must be given as its
+name, which the script unfolds.
 
-Both sides are `.reduce`s of concrete expressions, so this is a normalisation proof — but a
-directed one, not a search:
-* the left-hand side is normalised on its own (`conv_lhs`).  Unfolding `X` exposes the β-redex
-  `.app (.abs body) t`; `reduce_app_left`/`_right` strip the inner `.reduce`s that `toModule` left
-  behind, `reduce_beta` fires the redex, and the substitution then computes — through the
-  procedures' own expressions, which are closed (`Module.substituteSimultaneously_expression`).
-  What is left is `reduce` of the record `.pair f₁ (… fₙ)` of the applied procedures;
-* the right-hand side is *not* unfolded, so its fields are still modules.
-  `Module.reduce_pair_expression` peels the record one field at a time against them, and each
-  field's obligation `reduce fᵢ = (…).expression` is then closed by the same stripping lemmas —
-  no normal-form search and no termination side conditions anywhere. -/
+Both sides are `.reduce`s of concrete expressions, so this is a normalisation proof: unfold both
+sides down to `ModuleExpression`s, normalise, compare.
+
+* the first `simp only` unfolds — `X` itself, then the `Module`-level combinators, down to the
+  `toModule`s they are built from.  The four `reduce_app_left`/`_right`/`reduce_pair_left`/`_right`
+  (and the `fst`/`snd` variants) strip the `.reduce`s those `toModule`s leave behind *inside* a
+  composite expression, which is what exposes the β-redex `.app (.abs body) (.pair …)` to the next
+  step;
+* `reduce_simp` then normalises: β, the substitution it produces, and the projections
+  `.fst`/`.snd` of the argument tuple that the substitution puts in place;
+* the last `simp only` finishes at the `Module` level, where `reduce_simp` cannot reach:
+  `Module.substituteSimultaneously_expression` (a procedure's own expression is closed, so the
+  substitution passes through it) and `Module.reduce_expression` (a module's expression is already
+  normal) — `Module` is defined *after* `reduce_simp` in `Modules.lean`, so its simp set can't know
+  either.  The stripping lemmas run once more, to put the `.reduce`s that surface here in the same
+  places on both sides. -/
 syntax "module_apply " ident : tactic
 
 macro_rules
   | `(tactic| module_apply $x:ident) =>
     `(tactic|
         (apply GaudisCrypt.Module.ext
-         conv_lhs =>
-           simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
-             GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
-             GaudisCrypt.ModuleExpression.reduce_app_left,
-             GaudisCrypt.ModuleExpression.reduce_app_right,
-             GaudisCrypt.ModuleExpression.reduce_fst_inner,
-             GaudisCrypt.ModuleExpression.reduce_snd_inner,
-             GaudisCrypt.ModuleExpression.reduce_beta, GaudisCrypt.ModuleExpression.substitute,
-             GaudisCrypt.ModuleExpression.substituteSimultaneously,
-             GaudisCrypt.ModuleExpression.variableSubstitution,
-             GaudisCrypt.ModuleExpression.liftSubst,
-             GaudisCrypt.Module.substituteSimultaneously_expression]
-         repeat' refine GaudisCrypt.Module.reduce_pair_expression _ _ ?_ ?_
-         all_goals
-           simp only [GaudisCrypt.Module.app, GaudisCrypt.Module.app', GaudisCrypt.Module.fst,
-             GaudisCrypt.Module.fst', GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
-             GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
-             GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
-             GaudisCrypt.ModuleExpression.reduce_app_left,
-             GaudisCrypt.ModuleExpression.reduce_app_right,
-             GaudisCrypt.ModuleExpression.reduce_fst_inner,
-             GaudisCrypt.ModuleExpression.reduce_snd_inner,
-             GaudisCrypt.Module.reduce_expression]))
+         simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
+           GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
+           GaudisCrypt.Module.fst, GaudisCrypt.Module.fst',
+           GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
+           GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
+           GaudisCrypt.ModuleExpression.reduce_app_left,
+           GaudisCrypt.ModuleExpression.reduce_app_right,
+           GaudisCrypt.ModuleExpression.reduce_pair_left,
+           GaudisCrypt.ModuleExpression.reduce_pair_right,
+           GaudisCrypt.ModuleExpression.reduce_fst_inner,
+           GaudisCrypt.ModuleExpression.reduce_snd_inner]
+         reduce_simp
+         simp only [GaudisCrypt.Module.substituteSimultaneously_expression,
+           GaudisCrypt.Module.reduce_expression,
+           GaudisCrypt.ModuleExpression.reduce_app_left,
+           GaudisCrypt.ModuleExpression.reduce_app_right,
+           GaudisCrypt.ModuleExpression.reduce_pair_left,
+           GaudisCrypt.ModuleExpression.reduce_pair_right,
+           GaudisCrypt.ModuleExpression.reduce_fst_inner,
+           GaudisCrypt.ModuleExpression.reduce_snd_inner]))
 
 namespace GaudisCrypt.ModuleDecl
 
@@ -1421,28 +1423,17 @@ theorem X.apply_simp (A : T₁) … (Z : Tₙ) :
 `N.mk` when the module type is not a `moduletype` name, as in `mkRecord`).  For an empty parameter
 list the tuple is the only argument `X` can take, a variable of `Module.Unit`.
 
-Proved from the generic form (`X` applied to a *variable* tuple `t`, whose fields therefore get
-`Module.fst`/`Module.snd` chains) by the `module_apply` tactic; rewriting with that form leaves the
-projections of the concrete tuple, which `Module.fst_pair`/`Module.snd_pair` collapse. -/
-def elabApplySimp (nm : Ident) (paramBs : Array (Ident × Term)) (paramProd : Term)
+Proved by the `module_apply` tactic, which normalises both sides. -/
+def elabApplySimp (nm : Ident) (paramBs : Array (Ident × Term))
     (mkId? : Option Ident) (procs : Array ProcResult) : CommandElabM Ident := do
   let n := paramBs.size
   let tId := mkIdent `t
-  -- the parameter at position `i`, projected out of the argument tuple `t`
-  let proj ← (Array.range n).mapM fun i => do
-    let mut e : Term := tId
-    for _ in [0 : i] do e ← `(GaudisCrypt.Module.snd $e)
-    if i + 1 < n then e ← `(GaudisCrypt.Module.fst $e)
-    pure e
   -- the record of the procedures, each applied to the arguments at its `usedPos`
-  let recordOf (args : Array Term) : CommandElabM Term := do
-    mkRecord mkId? procs (← procs.mapM fun r => do
-      let mut e : Term := procModId nm r
-      for i in r.usedPos do e ← `(GaudisCrypt.Module.app $e $(args[i]!))
-      pure e)
   let paramTerms : Array Term := paramBs.map fun b => b.1
-  let rhs ← recordOf paramTerms
-  let rhsGeneric ← recordOf proj
+  let rhs ← mkRecord mkId? procs (← procs.mapM fun r => do
+    let mut e : Term := procModId nm r
+    for i in r.usedPos do e ← `(GaudisCrypt.Module.app $e $(paramTerms[i]!))
+    pure e)
   let argTuple : Term ←
     if n == 0 then pure (tId : Term)
     else rightNest (fun a b => `(GaudisCrypt.Module.pair $a $b)) paramTerms
@@ -1458,10 +1449,7 @@ def elabApplySimp (nm : Ident) (paramBs : Array (Ident × Term)) (paramProd : Te
   let thmId := mkIdent (nm.getId ++ `apply_simp)
   elabCommand (← `(command| @[simp] theorem $thmId:ident : $stmt := by
     intro $ids*
-    have generic : ∀ ($tId : $paramProd),
-        GaudisCrypt.Module.app $nm $tId = $rhsGeneric := fun $tId => by module_apply $nm
-    rw [generic]
-    all_goals simp))
+    module_apply $nm))
   return thmId
 
 /-- Declare the module `X` itself: the record of its procedures (a right-nested `.pair`, as
@@ -1521,7 +1509,7 @@ def elabModule (nm : Ident) (params? : Option (Array (Ident × Term))) (mt? : Op
   if params?.isSome then body ← `(GaudisCrypt.ModuleExpression.abs $body)
   elabCommand (← `(command| noncomputable def $nm:ident : $ty :=
     GaudisCrypt.ModuleExpression.toModule (m := $body)))
-  let thmId ← elabApplySimp nm paramBs paramProd mkId? procs
+  let thmId ← elabApplySimp nm paramBs mkId? procs
   return #[(nm.getId, "the module itself"), (thmId.getId, "applying it to its parameters")]
 
 end GaudisCrypt.ModuleDecl
@@ -1745,8 +1733,8 @@ example (a : Module.Arr TestModule (Module (procmod () → Unit))) :
     Module.fst (Module.app NoType a) = (Module.app NoType.g a : Module.Proc (procsig () -> Unit)) :=
   by simp
 
--- three parameters, so the generic form of `apply_simp` reaches them through the deeper
--- projections `fst (snd t)` and `snd (snd t)` — and `g` takes two of them, in declaration order
+-- three parameters, so `apply_simp`'s proof has to get through the deeper projections
+-- `fst (snd t)` and `snd (snd t)` — and `g` takes two of them, in declaration order
 module Deep (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestModule,
              C : Module.Arr TestModule (Module (procmod () → Unit))) : M2 {
   proc g() : Unit {

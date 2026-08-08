@@ -1849,7 +1849,8 @@ theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
 `reduce` only cares about its argument up to convertibility, so a subterm that is already a
 `reduce` can be replaced by what it reduces (`reduce_idempotent` on both sides of the matching
 `_cong` lemma).  This is what makes the `.reduce`s that `toModule` leaves behind disappear when a
-composite expression is reduced — see `Module.reduce_pair_expression`. -/
+composite expression is reduced — the `module_apply` tactic (`GaudisCrypt/Language/Syntax2.lean`)
+uses all six of them to bring the two sides of an `X.apply_simp` goal into the same shape. -/
 
 theorem reduce_app_left (f x : ModuleExpression) :
     (ModuleExpression.app f.reduce x).reduce = (ModuleExpression.app f x).reduce := by
@@ -1862,6 +1863,14 @@ theorem reduce_app_right (f x : ModuleExpression) :
   rw [(reduce_app_cong rfl rfl : reduce (.app f x) = reduce (.app f.reduce x.reduce)),
     (reduce_app_cong rfl rfl :
       reduce (.app f x.reduce) = reduce (.app f.reduce x.reduce.reduce)), reduce_idempotent]
+
+theorem reduce_pair_left (a b : ModuleExpression) :
+    (ModuleExpression.pair a.reduce b).reduce = (ModuleExpression.pair a b).reduce :=
+  (reduce_pair_cong_left (a := a) (b := b) rfl).symm
+
+theorem reduce_pair_right (a b : ModuleExpression) :
+    (ModuleExpression.pair a b.reduce).reduce = (ModuleExpression.pair a b).reduce :=
+  (reduce_pair_cong_right (a := a) (b := b) rfl).symm
 
 theorem reduce_fst_inner (m : ModuleExpression) :
     (ModuleExpression.fst m.reduce).reduce = (ModuleExpression.fst m).reduce :=
@@ -2505,10 +2514,11 @@ theorem Module.expression_pair' {T U} (m1 : Module T) (m2 : Module U) :
   ModuleExpression.reduce_of_normal (.pair m1.normal.normal m2.normal.normal)
 
 /-- Reducing a pair componentwise: if the components reduce to the expressions of the modules
-    `m1`/`m2`, the pair reduces to the expression of their `Module.pair'`.  The engine behind the
-    `X.apply_simp` lemmas of the `module` command (`GaudisCrypt/Language/Syntax2.lean`): it turns a
-    `reduce` of a whole record of procedures into the record of the reduced procedures, with no
-    detour through termination — normality of the *result* comes from the modules `m1`/`m2`. -/
+    `m1`/`m2`, the pair reduces to the expression of their `Module.pair'`.  Turns a `reduce` of a
+    whole record into the record of the reduced components, with no detour through termination —
+    normality of the *result* comes from the modules `m1`/`m2`.  (Currently unused: `module_apply`
+    used to peel `X.apply_simp`'s record with it, but now normalises both sides with
+    `reduce_simp` instead.) -/
 theorem Module.reduce_pair_expression {T U} {a b : ModuleExpression}
     (m1 : Module T) (m2 : Module U)
     (ha : a.reduce = m1.expression) (hb : b.reduce = m2.expression) :
