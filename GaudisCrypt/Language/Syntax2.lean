@@ -936,7 +936,13 @@ A declaration *with* a parameter list also gets the `@[simp]` lemma `X.apply_sim
 `X`: `Module.app X (Module.pair A (… Z)) = M.mk { f₁ := Module.app X.f₁ A, … }`, i.e. the record of
 the procedures, each applied to the parameters it uses (`Module.pair` in place of `M.mk` when `M`
 is not a `moduletype` name).  So the two ways of instantiating a module — applying the record `X`
-or applying the individual `X.f` — agree, by `simp`. -/
+or applying the individual `X.f` — agree, by `simp`.
+
+Every procedure gets one of its own, `X.<f>.apply_simp`, which carries the application all the way
+down to a procedure: `Module.app (… (Module.app X.f A) …) Z = Module.proc
+(X.f.procedure.instantiate …)`, the holes filled by the callees they were made from (each of them
+as written, with the arguments in place of the module parameters).  A procedure with no holes uses
+no parameter either, and the lemma is then just `X.f = Module.proc X.f.procedure`. -/
 
 /-- One procedure of a `module` declaration: `proc f (x : T, …) : R { … };`.  Same shape as
 the `proc` *term* syntax (which it expands to), plus a name and a trailing `;`. -/
@@ -1001,6 +1007,62 @@ macro_rules
            GaudisCrypt.ModuleExpression.reduce_pair_right,
            GaudisCrypt.ModuleExpression.reduce_fst_inner,
            GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+
+/-- Proves `Module.app (… (Module.app X.f A₁) …) Aₖ = Module.proc (X.f.procedure.instantiate …)`
+for one procedure `f` of a `module X (…) { … }` declaration — the `X.f.apply_simp` lemma the
+command emits (`ModuleDecl.elabProcApplySimp`).  `X.f` must be given as its name, which the script
+unfolds.
+
+Like `module_apply` this is a normalisation proof, but it ends at the δ-rule rather than at a
+record: `X.f` is `Module.procWithHoles X.f.procedure` applied to the tuple of its callees, under
+one `.abs` per parameter it uses.
+
+* the first `simp only` unfolds `X.f` and the `Module`-level combinators down to `toModule`s, the
+  stripping lemmas removing the `.reduce`s those leave inside a composite expression (as in
+  `module_apply`);
+* the loop then alternates `reduce_simp` with the `Module`-level rewrites it cannot do itself:
+  β-reducing one parameter at a time leaves both a substitution and a `rename` (from `liftSubst`,
+  going under the *next* binder) sitting on the argument's expression, and only
+  `Module.substituteSimultaneously_expression`/`Module.rename_expression` — a module's expression
+  being closed — get them out of the way so that the next redex becomes visible.  `Module` is
+  defined after `reduce_simp` in `Modules.lean`, hence the alternation;
+* what is left is `reduce (.app (Module.procWithHoles p).expression <tuple of callees>)`, which
+  `Module.reduce_app_procWithHoles` turns into the instantiated procedure once its side goal — the
+  tuple reduces to the instantiation's own tuple — is peeled off component by component with
+  `Module.reduce_tuple_cons`, each component being a callee whose expression is the `reduce` of what
+  stands in the tuple, i.e. `rfl`. -/
+syntax "proc_apply " ident : tactic
+
+macro_rules
+  | `(tactic| proc_apply $x:ident) =>
+    `(tactic|
+        (apply GaudisCrypt.Module.ext
+         simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
+           GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
+           GaudisCrypt.Module.fst, GaudisCrypt.Module.fst',
+           GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
+           GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
+           GaudisCrypt.ModuleExpression.reduce_app_left,
+           GaudisCrypt.ModuleExpression.reduce_app_right,
+           GaudisCrypt.ModuleExpression.reduce_pair_left,
+           GaudisCrypt.ModuleExpression.reduce_pair_right,
+           GaudisCrypt.ModuleExpression.reduce_fst_inner,
+           GaudisCrypt.ModuleExpression.reduce_snd_inner]
+         repeat (first
+           | reduce_simp
+           | simp only [GaudisCrypt.Module.substituteSimultaneously_expression,
+               GaudisCrypt.Module.rename_expression, GaudisCrypt.Module.reduce_expression,
+               GaudisCrypt.Module.proc, GaudisCrypt.Module.toModule_expression,
+               GaudisCrypt.ModuleExpression.reduce_proc,
+               GaudisCrypt.ModuleExpression.reduce_app_left,
+               GaudisCrypt.ModuleExpression.reduce_app_right,
+               GaudisCrypt.ModuleExpression.reduce_pair_left,
+               GaudisCrypt.ModuleExpression.reduce_pair_right,
+               GaudisCrypt.ModuleExpression.reduce_fst_inner,
+               GaudisCrypt.ModuleExpression.reduce_snd_inner])
+         refine GaudisCrypt.Module.reduce_app_procWithHoles _ _ _ ?_
+         repeat refine GaudisCrypt.Module.reduce_tuple_cons _ _ _ _ rfl ?_
+         exact GaudisCrypt.Module.reduce_tuple_nil))
 
 namespace GaudisCrypt.ModuleDecl
 
@@ -1286,6 +1348,10 @@ structure ProcResult where
   /-- Its hole callees as `ModuleExpression`s over the module parameters (which appear in them as
   `paramPlaceholder`s), in hole order. -/
   calleeExprs : Array Term
+  /-- The same callees as they were written — module terms, mentioning the module parameters by
+  name, in hole order.  `X.<f>.apply_simp` states what applying `X.<f>` to those parameters is, and
+  names the callees this way (`Module.procedure` of each). -/
+  callees : Array Term
 
 /-- Declare `X.<f>.procedure` for one `proc f (…) : R { … }` of a `module X (…)` declaration.
 Returns `none` if the body does not type-check (the errors have then been reported already). -/
@@ -1332,7 +1398,7 @@ def elabProcedure (nm : Ident) (paramBs : Array (Ident × Term))
   let procTerm ← mkProc (holeStmts.map (⟨·⟩)) (some holeBinders)
   let declId := mkIdent (nm.getId ++ fn.getId ++ `procedure)
   elabCommand (← `(command| noncomputable def $declId:ident := $procTerm))
-  return some { fn, declId, usedPos, calleeExprs }
+  return some { fn, declId, usedPos, calleeExprs, callees := callees.map (⟨·⟩) }
 
 /-- The `ModuleExpression` of the procedure `r`, with `subst[i]` put for the module parameter
 declared at position `i`: either the closed `Module.proc X.<f>.procedure`, or
@@ -1377,6 +1443,48 @@ def elabProcModule (nm : Ident) (paramBs : Array (Ident × Term)) (r : ProcResul
     elabCommand (← `(command| noncomputable def $modId:ident : $ty :=
       GaudisCrypt.ModuleExpression.toModule (m := $body)))
   return modId
+
+/-- Declare `X.<f>.apply_simp`, the `@[simp]` lemma that applies the procedure module `X.<f>` to the
+parameters `f` uses:
+```
+theorem X.f.apply_simp (A : T₁) … (Z : Tₖ) :
+    Module.app (… (Module.app X.f A) …) Z
+      = Module.proc (X.f.procedure.instantiate
+          (HoleSigs.Instantiation.nil.push (Module.procedure c₁) |>.push … ))
+```
+— the procedure with its holes filled by the callees `c₁ …` they were made from, each written as it
+was in the body (with `A … Z` in place of the module parameters) and turned into a `Procedure` by
+`Module.procedure`.  Pushed in hole order, so the *last* declared hole ends up at `HoleIndex.zero`,
+which is how `HoleSigs.Instantiation.toModuleExpr` reads a tuple back.
+
+A procedure with no holes uses no parameter either (a hole is exactly a call to a callee mentioning
+one), and `X.<f>` is then `Module.proc X.<f>.procedure` by definition — the lemma says just that.
+
+Proved by the `proc_apply` tactic. -/
+def elabProcApplySimp (nm : Ident) (paramBs : Array (Ident × Term)) (r : ProcResult) :
+    CommandElabM Ident := do
+  let modId := procModId nm r
+  let thmId := mkIdent (modId.getId ++ `apply_simp)
+  if r.callees.isEmpty then
+    elabCommand (← `(command| @[simp] theorem $thmId:ident :
+      $modId = GaudisCrypt.Module.proc $(r.declId) := rfl))
+    return thmId
+  let mut inst ← `(GaudisCrypt.HoleSigs.Instantiation.nil)
+  for c in r.callees do
+    inst ← `(GaudisCrypt.HoleSigs.Instantiation.push $inst (GaudisCrypt.Module.procedure $c))
+  let mut lhs : Term := modId
+  for i in r.usedPos do lhs ← `(GaudisCrypt.Module.app $lhs $(paramBs[i]!.1))
+  -- the statement, as a `(x : T) → …` chain (there is no binder syntax to splice into a `theorem`)
+  let mut stmt ← `($lhs = GaudisCrypt.Module.proc
+    (GaudisCrypt.ProcedureWithHoles.instantiate $(r.declId) $inst))
+  for i in [0 : r.usedPos.size] do
+    let (x, ty) := paramBs[r.usedPos[r.usedPos.size - 1 - i]!]!
+    stmt ← `(($x : $ty) → $stmt)
+  let ids := r.usedPos.map (paramBs[·]!.1)
+  elabCommand (← `(command| @[simp] theorem $thmId:ident : $stmt := by
+    intro $ids*
+    proc_apply $modId))
+  return thmId
 
 /-- `f x₁ (f x₂ (… xₙ))` — every tuple built here is right-nested, and a one-element one is just
 its element (as in `moduletype`, whose product of `n` field types has `n-1` `.prod`s).  `xs` must
@@ -1535,6 +1643,10 @@ elab_rules : command
       declared := declared.push (modId.getId,
         if r.usedPos.isEmpty then s!"proc {r.fn.getId} as a module"
         else s!"proc {r.fn.getId} as a module, in {used}")
+      let procThmId ← elabProcApplySimp nm paramBs r
+      declared := declared.push (procThmId.getId,
+        if r.usedPos.isEmpty then s!"proc {r.fn.getId} as the procedure itself"
+        else s!"applying proc {r.fn.getId} to {used}")
     -- `X` itself — only when every procedure made it (a missing field would not type-check)
     if results.size == procs.size then
       declared := declared ++ (← elabModule nm paramBs? mt results)
@@ -1687,6 +1799,40 @@ example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModu
     M2.h (Module.app X (Module.pair a b)) = (X.h : Module (procmod () -> Unit)) := by
   simp [M2.h, M2.mk]
 
+-- `X.g.apply_simp` carries the application on down to a procedure: `X.g` applied to `A` is
+-- `X.g.procedure` with its one hole filled by the callee that hole was made from
+#check (X.g.apply_simp :
+  ∀ (A : Module.Arr TestModule (Module (procmod () → Unit))),
+    Module.app X.g A
+      = Module.proc (X.g.procedure.instantiate
+          (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
+            (Module.procedure (Module.app A myMod)))))
+
+-- `h` has no hole to fill — and hence no parameter to take: it *is* its procedure
+#check (X.h.apply_simp : X.h = Module.proc X.h.procedure)
+
+-- two holes, pushed in declaration order: the last-declared one is the outermost push, which is
+-- what `HoleIndex.zero` picks out
+#check (Y.g.apply_simp :
+  ∀ (A : Module.Arr TestModule (Module (procmod () → Unit))) (B : TestModule),
+    Module.app (Module.app Y.g A) B
+      = Module.proc (Y.g.procedure.instantiate
+          (HoleSigs.Instantiation.push
+            (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil (Module.procedure B.main))
+            (Module.procedure (Module.app A myMod)))))
+
+-- the two lemmas chain: projecting a field out of an applied `X` gets all the way to the procedure
+example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
+    M2.g (Module.app X (Module.pair a b))
+      = Module.proc (X.g.procedure.instantiate
+          (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
+            (Module.procedure (Module.app a myMod)))) := by
+  simp only [M2.g, M2.mk, X.apply_simp, Module.fst_pair']
+  -- the last step has to be `exact`: `M2`'s field type is `Module (procmod () → Unit)` whereas
+  -- `X.g`'s codomain is `Module.Proc (procsig () → Unit)` — the same type, but `Module.Proc` is a
+  -- plain `def`, so `simp` does not see through it to match `X.g.apply_simp` here
+  exact X.g.apply_simp a
+
 -- TODO: Something like that should be autogenerated by moduletype command!
 lemma M2.mk_g : M2.g (M2.mk s) = s.g := by simp [M2.mk, M2.g]
 example (a : Module.Arr TestModule (Module (procmod () → Unit))) (b : TestModule) :
@@ -1752,6 +1898,18 @@ module Deep (A : Module.Arr TestModule (Module (procmod () → Unit)), B : TestM
     (C : Module.Arr TestModule (Module (procmod () → Unit))),
   Module.app Deep (Module.pair A (Module.pair B C))
     = M2.mk { g := Module.app (Module.app Deep.g A) C, h := Module.app Deep.h B })
+
+-- `g` takes two of the three parameters, so its `apply_simp` binds those two — and has to β-reduce
+-- twice, with the argument of the first β sitting under the second binder in between
+#check (Deep.g.apply_simp :
+  ∀ (A : Module.Arr TestModule (Module (procmod () → Unit)))
+    (C : Module.Arr TestModule (Module (procmod () → Unit))),
+    Module.app (Module.app Deep.g A) C
+      = Module.proc (Deep.g.procedure.instantiate
+          (HoleSigs.Instantiation.push
+            (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
+              (Module.procedure (Module.app C myMod)))
+            (Module.procedure (Module.app A myMod)))))
 
 module NoTypeNoParams {
   proc g() : Unit { return (); };

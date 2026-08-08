@@ -299,6 +299,29 @@ theorem substituteSimultaneously_eq_self {m Δ T} (h : HasType m Δ T) :
       | succ n' =>
           simp [ModuleExpression.liftSubst, hσ n' (by simpa using hn), ModuleExpression.rename]
 
+/-- The same for a renaming: a term only mentions the variables its context declares, so a renaming
+    that is the identity on those leaves it alone.  For a *closed* term (`Δ = []`) the hypothesis is
+    vacuous: `Module.rename_expression`. -/
+theorem rename_eq_self {m Δ T} (h : HasType m Δ T) :
+    ∀ {ρ : Nat → Nat}, (∀ n, n < Δ.length → ρ n = n) → m.rename ρ = m := by
+  induction h with
+  | «proc» p => intro ρ _; rfl
+  | procHoles ne p => intro ρ _; rfl
+  | «var» n hn => intro ρ hρ; simp [ModuleExpression.rename, hρ n hn]
+  | app _ _ ihf iha => intro ρ hρ; simp [ModuleExpression.rename, ihf hρ, iha hρ]
+  | fst _ ihe => intro ρ hρ; simp [ModuleExpression.rename, ihe hρ]
+  | snd _ ihe => intro ρ hρ; simp [ModuleExpression.rename, ihe hρ]
+  | pair _ _ iha ihb => intro ρ hρ; simp [ModuleExpression.rename, iha hρ, ihb hρ]
+  | unit => intro ρ _; rfl
+  | abs _ ihb =>
+      intro ρ hρ
+      simp only [ModuleExpression.rename]
+      rw [ihb ?_]
+      intro n hn
+      cases n with
+      | zero => rfl
+      | succ n' => simp [ModuleExpression.liftRen, hρ n' (by simpa using hn)]
+
 /-- **Type preservation** (subject reduction): reduction preserves the typing judgment.  This is
     the extrinsic replacement for what the intrinsic `TypedModules.ModuleExpression` guaranteed by
     construction. -/
@@ -2508,6 +2531,14 @@ theorem Module.substituteSimultaneously_expression {T} (m : Module T)
     m.expression.substituteSimultaneously σ = m.expression :=
   m.typed.substituteSimultaneously_eq_self (by simp)
 
+/-- A module's expression is closed, so a renaming leaves it alone.  (This is what a substitution
+going under a binder does to it — `liftSubst` renames by `Nat.succ` — so normalising an application
+of a *curried* module needs this as well as `Module.substituteSimultaneously_expression`.) -/
+@[simp]
+theorem Module.rename_expression {T} (m : Module T) (ρ : Nat → Nat) :
+    m.expression.rename ρ = m.expression :=
+  m.typed.rename_eq_self (by simp)
+
 /-- Pairing two modules pairs their expressions — no `reduce` left over, both being normal. -/
 theorem Module.expression_pair' {T U} (m1 : Module T) (m2 : Module U) :
     (m1.pair' m2).expression = .pair m1.expression m2.expression :=
@@ -2762,6 +2793,82 @@ noncomputable def Module.procWithHoles {holes : HoleSigs} {sig : ProcedureSignat
   | .append x y =>
     show Module (.arr (HoleSigs.append x y).toModuleTypeRepTuple (.proc sig))
     from (ModuleExpression.procHoles (by trivial) p).toModule
+
+/-! ## Applying a procedure-with-holes to its callees
+
+The δ-rule `ReductionStep.delta` fires only on a *literal* tuple of `.proc` nodes
+(`HoleSigs.Instantiation.toModuleExpr`).  What one has in practice is a tuple of arbitrary module
+expressions — the callees, as they were written — which merely *reduce* to such a tuple, each of
+them to the `.proc` of a `Module.procedure`.  These lemmas bridge the two: `reduce_tuple_nil`/
+`reduce_tuple_cons` build the reduction of the tuple component by component, and
+`reduce_app_procWithHoles` then takes the δ-step.  Together they are what the `proc_apply` tactic
+(`GaudisCrypt/Language/Syntax2.lean`) runs on the `X.<f>.apply_simp` goals the `module` command
+emits. -/
+
+@[simp] theorem HoleSigs.Instantiation.toModuleExpr_nil :
+    HoleSigs.Instantiation.toModuleExpr HoleSigs.Instantiation.nil = .unit := rfl
+
+@[simp] theorem HoleSigs.Instantiation.toModuleExpr_push {holes : HoleSigs}
+    {sig : ProcedureSignature} (inst : holes.Instantiation) (p : Procedure sig) :
+    HoleSigs.Instantiation.toModuleExpr (HoleSigs.Instantiation.push inst p)
+      = .pair (.proc p) (HoleSigs.Instantiation.toModuleExpr inst) := rfl
+
+/-- A tuple of procedures is normal: it is built from `.proc` nodes and `.unit` alone. -/
+theorem HoleSigs.Instantiation.toModuleExpr_normal {holes : HoleSigs}
+    (inst : holes.Instantiation) : (HoleSigs.Instantiation.toModuleExpr inst).Normal := by
+  induction holes with
+  | empty => exact .unit
+  | append holeTail sig ih => exact .pair .proc (ih _)
+
+/-- The empty tuple: `.unit` is already the instantiation of no holes. -/
+theorem Module.reduce_tuple_nil :
+    (ModuleExpression.unit).reduce
+      = HoleSigs.Instantiation.toModuleExpr HoleSigs.Instantiation.nil :=
+  ModuleExpression.reduce_of_normal .unit
+
+/-- One component of the tuple: if `c` reduces to the expression of a proc-typed module `m` — which
+by canonicity *is* a `.proc` node, namely `.proc m.procedure` — and the rest of the tuple reduces to
+`inst`'s, then the whole pair reduces to that of `inst` extended by `m.procedure`. -/
+theorem Module.reduce_tuple_cons {holes : HoleSigs} {sig : ProcedureSignature}
+    (inst : holes.Instantiation) (m : Module (.proc sig)) (c rest : ModuleExpression)
+    (hc : c.reduce = m.expression)
+    (hrest : rest.reduce = HoleSigs.Instantiation.toModuleExpr inst) :
+    (ModuleExpression.pair c rest).reduce
+      = HoleSigs.Instantiation.toModuleExpr
+          (HoleSigs.Instantiation.push inst m.procedure) := by
+  rw [HoleSigs.Instantiation.toModuleExpr_push, ← Module.procedure_spec m,
+    ModuleExpression.reduce_pair_cong hc hrest,
+    ModuleExpression.reduce_of_normal
+      (.pair m.normal.normal (HoleSigs.Instantiation.toModuleExpr_normal inst))]
+
+/-- The δ-step, on an argument that only *reduces* to a tuple of procedures: applying
+`Module.procWithHoles p` to it is the procedure `p` with its holes instantiated.  With no holes at
+all `Module.procWithHoles p` is the constant function `Module.proc p`, and instantiating changes
+nothing (`ProcedureWithHoles.instantiate_empty`) — so the statement covers that case too. -/
+theorem Module.reduce_app_procWithHoles {holes : HoleSigs} {sig : ProcedureSignature}
+    (p : ProcedureWithHoles holes sig) (T : ModuleExpression) (inst : holes.Instantiation)
+    (h : T.reduce = HoleSigs.Instantiation.toModuleExpr inst) :
+    (ModuleExpression.app (Module.procWithHoles p).expression T).reduce
+      = .proc (p.instantiate inst) := by
+  rw [← ModuleExpression.reduce_app_right, h]
+  cases holes with
+  | empty =>
+      rw [ProcedureWithHoles.instantiate_empty]
+      have hexpr : (Module.procWithHoles p).expression
+          = ModuleExpression.abs (ModuleExpression.proc p) := by
+        simp only [Module.procWithHoles, Module.const, Module.proc,
+          Module.toModule_expression, ModuleExpression.reduce_proc]
+        exact ModuleExpression.reduce_of_normal (.abs .proc)
+      rw [hexpr]
+      reduce_simp
+      trivial
+  | append holeTail s =>
+      have hexpr : (Module.procWithHoles p).expression
+          = ModuleExpression.procHoles (holes := holeTail.append s) trivial p :=
+        ModuleExpression.reduce_of_normal .procHoles
+      rw [hexpr, ModuleExpression.reduce_step
+          (.delta (holes := holeTail.append s) trivial p inst),
+        ModuleExpression.reduce_proc]
 
 /- # Demo -/
 
