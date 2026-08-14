@@ -47,16 +47,34 @@ class PedersenGroup where
   g_inhabited : Inhabited G
   f_inhabited : Inhabited F
   f_fintype : Fintype F
+  /-- EC's exponent type is the prime field `DL.GP.ZModE`; the hiding proof forms `d + x * m`
+      and its inverse `d - x * m`, so the additive group and the multiplication are both needed.
+      (Only the ring structure is required — nothing here uses inverses.) -/
+  f_commring : CommRing F
+  /-- EC's `expD`: exponentiation turns addition into multiplication. -/
+  gpow_add : ∀ (h : G) (a b : F), gpow h (a + b) = gmul (gpow h a) (gpow h b)
+  /-- EC's `expM`: iterated exponentiation multiplies the exponents. -/
+  gpow_mul : ∀ (h : G) (a b : F), gpow (gpow h a) b = gpow h (a * b)
 
 namespace PedersenGroup
 variable [PedersenGroup]
 instance : Inhabited G := g_inhabited
 noncomputable instance : DecidableEq G := Classical.decEq G
 instance : Inhabited F := f_inhabited
+instance : CommRing F := f_commring
 noncomputable instance : DecidableEq F := Classical.decEq F
 instance : Fintype F := f_fintype
 instance : Mul G := ⟨gmul⟩
 instance : Pow G F := ⟨gpow⟩
+
+/-- `gpow_add` at the `^`/`*` notation.  The class fields have to be stated with the raw
+    `gmul`/`gpow` (the instances below them do not exist yet), but every use site sees the
+    notation, and `rw` matches on the notation's head — not the raw field. -/
+theorem pow_add (h : G) (a b : F) : h ^ (a + b) = h ^ a * h ^ b := gpow_add h a b
+
+/-- `gpow_mul` at the `^` notation. -/
+theorem pow_mul (h : G) (a b : F) : (h ^ a) ^ b = h ^ (a * b) := gpow_mul h a b
+
 end PedersenGroup
 
 open PedersenGroup (G F g)

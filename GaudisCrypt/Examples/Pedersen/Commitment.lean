@@ -79,9 +79,6 @@ class CommitmentTypes where
   -- If it is worth doing, the place is `localDefaults` itself: have locals require `Nonempty` and
   -- take the default classically *once*, so every downstream class benefits and `PedersenGroup`
   -- does not end up inconsistent with this one.
-  --
-  -- TODO  Use individual [Nonempty types.Value] etc. instead of NonEmptyCommitmentTypes
-  -- (that separate-class approach is the one sketched, and rejected, in the DON'T DO block below)
   value_inhabited : Inhabited Value
   message_inhabited : Inhabited Message
   commitment_inhabited : Inhabited Commitment
@@ -91,10 +88,38 @@ class CommitmentTypes where
 
 -- TODO Make CommitmentTypes into a structure
 -- variable (types : CommitmentTypes) in the section
--- ⚠ This looks blocked, not merely pending: the class form is *forced*, because the
--- `moduletype`-generated definitions only re-resolve instance-implicit section parameters (the
--- same reason `[ProgramSpec]` is a class).  A plain `variable (types : CommitmentTypes)` would
--- not reach them.  Worth confirming before spending time on it.
+--
+-- Investigated 2026-08-07.  NOT fundamentally blocked — it is a fixable limitation of the
+-- `moduletype` command, in two specific places.  What actually fails:
+--
+--  (1) The command emits a chain of definitions in which the later ones reference the earlier
+--      ones *by bare name*:
+--          def X.typeRep : ModuleTypeRep := …
+--          def X := Module X.typeRep                    -- ← bare `X.typeRep`
+--          instance : IsModule X where moduleTypeRep := X.typeRep
+--      With a *class* section variable this works by luck: `X.typeRep` picks up an
+--      instance-implicit parameter and each bare reference re-resolves it by instance synthesis.
+--      With an explicit `(types : CTypes)` the auto-bound variable makes it
+--      `X.typeRep : CTypes → ModuleTypeRep`, and the bare reference is then a *function* where a
+--      `ModuleTypeRep` is wanted:
+--          "Application type mismatch: X.typeRep has type CTypes → ModuleTypeRep but is
+--           expected to have type ModuleTypeRep"
+--      Fix: thread the explicit section variables through the command's own cross-references.
+--
+--  (2) The generated accessors are plain `def`s.  Lean infers `noncomputable` for them by itself
+--      in the class form (checked: `CommitmentScheme.gen` is noncomputable today), but in the
+--      structure form it demands the keyword.  Fix: emit `noncomputable def` — harmless either
+--      way, since they are noncomputable regardless.
+--
+-- Everything else is fine.  The `Inhabited` facts stay reachable (`instance : Inhabited
+-- types.Value := types.value_inhabited` works — the goal determines `types` by inverting the
+-- projection), and hand-writing what `moduletype` *would* emit, with `types` threaded through,
+-- elaborates completely, accessors and `mk`/round-trip lemma included.
+--
+-- So the earlier note here ("the class form is forced") was right about the *mechanism* but
+-- wrong to call it inherent.  Cost of doing it: the two command fixes above, plus writing
+-- `types.Value` instead of `Value` everywhere (the `open CommitmentTypes (Value …)` shorthand
+-- goes away).  That is a `Language/Syntax2.lean` change, i.e. Dominique's call.
 
 /- DON'T DO:
 
@@ -118,6 +143,56 @@ sorry
 -/
 
 
+/-
+
+module type T {t} (x:Nat) ...
+
+module T {t} (x) using (B:Module) : ... {...}
+
+module  {t} (x): T (B:Module) : ... {...}
+
+module Correctness using (S:CommitmentScheme) : @T Nat 17 {...}
+
+module Correctness (S:CommitmentScheme) : @T Nat 17 {...}
+
+module A [{t} (x:Nat) (C:Module)] (B:Module ...) : @T Nat 17 {...}
+
+module {params : X} A (C : Module ...) : @T Nat 17 {...}
+
+module A (C : Module ...) using (params : ZZ) : @T Nat 17 {...}
+
+module A (params : ZZ) [C : Module ...]  : @T Nat 17 {...}
+
+module A params (moduleparameters)
+
+Rules:
+- if nothing behind A: clear.
+- if something behind A, last thing in parens with commans (tuple) -> last is module params
+- if something behind A, last thing not in parents -> no module params
+- if word `using` in between -> module params are after `using`
+- something behind A, last thing in parens -> heuristic:
+  - if argument has IsModule instance, module param
+  - else not
+
+Alternative:
+- module A (moduleparamsters)
+- module A params using (moduleparameters)
+- module A
+- module A params using
+
+Alternative:
+- module A params using (moduleparameters)
+- module A using (moduleparameters)
+- module A
+- module A params
+  - if last param is (...), and tuple (has comma) -> syntax error but with hint: "maybe you meant to use `using`"
+  - if last param is (x:T) and `IsModule T` -> warning: "maybe you meant to use `using`"
+    can be disabled by linter exception options
+
+-/
+
+def f (x y : Nat) : Nat := x + y
+
 instance [CommitmentTypes] : Inhabited CommitmentTypes.Value :=
   CommitmentTypes.value_inhabited
 instance [CommitmentTypes] : Inhabited CommitmentTypes.Message :=
@@ -138,10 +213,17 @@ and they are no longer declared in this file.
 
 ⚠ They still do **not** make tuple assignment of *locals* work (re-tested 2026-08-07): the macro
 binds locals as `let`-variables, and instance search does not unfold local `let`s, so
-`disjoint c d` is searched at the opaque variables and never reaches these instances —
-`c, d <- call commit (…)` fails with `failed to synthesize instance of type class disjoint c d`.
-Until the macro binds locals differently (or registers the disjointness facts itself), the
-experiments below use pair-typed locals and `$`-projections instead of tuple assignment. -/
+`disjoint c d` is searched at the opaque variables and never reaches these instances.
+
+**Both** spellings fail, identically — `[lvalRaw|]` sends the parenthesised tuple to `Lens.pair`
+just as the comma-list does, so there is no way around it by rewriting the assignment:
+```
+c, d   <- call S.commit (…);   -- failed to synthesize instance of type class  disjoint c d
+(c, d) <- call S.commit (…);   -- same
+```
+Until the macro binds locals differently (inlining the lens chains, or registering the
+disjointness facts itself), the experiments below use pair-typed locals and `$`-projections
+instead — `var cd : Commitment × OpeningKey` then `($cd).1`/`($cd).2`. -/
 
 -- TODO: changes to named variable if CommitmentTypes becomes a structure (but see the
 -- ⚠ above: that may be blocked)
@@ -193,6 +275,108 @@ repackages the parameter record (declaration order, no unit) into the holes tupl
 order, `.unit`-terminated) with `fst`/`snd`/`pair`. -/
 
 
+/-! ### Disjointness of `intoParams` / `intoVars` liftings
+
+Every implicit here has to be named and `paramTypes` / `locals` *pinned* by name at the use
+site.  The short spelling `instance [disjoint x y] : disjoint x.intoVars y.intoVars` does not
+elaborate: auto-bound implicits do introduce `x` and `y`, but `Lens.intoVars`'s `paramTypes` is
+only ever an *implicit argument*, never a free identifier, so it never becomes a binder — and
+nothing else determines it, since `disjoint`'s own state type `m` would have to come from
+`x.intoVars` in the first place.  Hence
+`don't know how to synthesize implicit argument paramTypes` (and dually `locals` for
+`intoParams`).  Pinning one of the two occurrences breaks the cycle; the other is then forced.
+
+The vars/vars case is *not* repeated here — it already exists, proven, as
+`Programs.disjoint_intoVars` in `Language/Programs.lean`, and is in scope via `Syntax2`. -/
+
+/-- `params` and `vars` are distinct fields of `LocalVariableState`, so writes through
+    projections of the two commute — no hypothesis on `x`, `y` needed. -/
+instance LocalVariableState.disjoint_varsL_paramsL {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple (locals.map (·.fst)))}
+    {y : Lens b (paramListToTuple paramTypes)} :
+    disjoint (LocalVariableState.varsL.chain x) (LocalVariableState.paramsL.chain y) :=
+  ⟨fun _ _ _ => rfl⟩
+
+/-- The mirror image of `LocalVariableState.disjoint_varsL_paramsL`; `disjoint.symm` is a
+    theorem, not an instance, so search needs both orientations spelled out. -/
+instance LocalVariableState.disjoint_paramsL_varsL {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple paramTypes)}
+    {y : Lens b (paramListToTuple (locals.map (·.fst)))} :
+    disjoint (LocalVariableState.paramsL.chain x) (LocalVariableState.varsL.chain y) :=
+  ⟨fun _ _ _ => rfl⟩
+
+/-- Parameter-slot counterpart of `Programs.disjoint_intoVars`: distinct parameter slots stay
+    disjoint after `intoParams` (two `chain` layers). -/
+instance Programs.disjoint_intoParams {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple paramTypes)}
+    {y : Lens b (paramListToTuple paramTypes)} [disjoint x y] :
+    disjoint (Lens.intoParams (locals := locals) x) y.intoParams :=
+  Lens.disjoint_chain ProcedureState.localL _ _
+
+/-- A local variable is disjoint from *any* parameter: they live in different fields of the
+    scope record, so no `disjoint x y` hypothesis is required. -/
+instance Programs.disjoint_intoVars_intoParams {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple (locals.map (·.fst)))}
+    {y : Lens b (paramListToTuple paramTypes)} :
+    disjoint (Lens.intoVars (paramTypes := paramTypes) x) (Lens.intoParams (locals := locals) y) :=
+  Lens.disjoint_chain ProcedureState.localL _ _
+
+/-- The other orientation of `Programs.disjoint_intoVars_intoParams`. -/
+instance Programs.disjoint_intoParams_intoVars {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple paramTypes)}
+    {y : Lens b (paramListToTuple (locals.map (·.fst)))} :
+    disjoint (Lens.intoParams (locals := locals) x) (Lens.intoVars (paramTypes := paramTypes) y) :=
+  Lens.disjoint_chain ProcedureState.localL _ _
+
+/-- The vars/vars case needs nothing new: `Programs.disjoint_intoVars` already covers it. -/
+example {a b : Type} {paramTypes : List Type} {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple (locals.map (·.fst)))}
+    {y : Lens b (paramListToTuple (locals.map (·.fst)))} [disjoint x y] :
+    disjoint (Lens.intoVars (paramTypes := paramTypes) x) y.intoVars :=
+  inferInstance
+
+/-! ### Disjointness of `ofst` / `osnd` liftings
+
+All four of these already exist, proven, in `Language/Lens.lean` — `Lens.disjoint_ofst_osnd`,
+`Lens.disjoint_osnd_ofst`, `Lens.disjoint_ofst_ofst`, `Lens.disjoint_osnd_osnd` (this is what
+the note at the top of the file records).  So they are recorded here as `example`s discharged by
+`inferInstance` rather than re-declared, which would only give instance search four duplicate
+candidates.
+
+The short spellings do not elaborate, and the two pairs fail *differently*:
+
+* `instance : disjoint x.ofst y.osnd` — `Unknown identifier x.ofst`.  With no binder mentioning
+  `x`, auto-bound implicits never introduce it, so the dot notation has no type to resolve
+  against.  Note that adding `[disjoint x y]` is not the fix here: in the mixed case `x` and `y`
+  live in *different* memories (`Lens a m` and `Lens b m'`), so `disjoint x y` is not even
+  well-formed.  These two hold unconditionally.
+* `instance [disjoint x y] : disjoint x.ofst y.ofst` — here `x` and `y` do get auto-bound, but
+  `m'`, the *other* component of the product, appears only as an implicit argument of
+  `Lens.ofst`, so it never becomes a binder and nothing determines it (`disjoint`'s `m` would
+  have to come from `x.ofst`, whose `m'` would have to come from `m`).  Same cycle as
+  `paramTypes` above; same fix — pin `m'` by name once. -/
+
+/-- Different components of a product: disjoint unconditionally. -/
+example {a b m m' : Type*} {x : Lens a m} {y : Lens b m'} :
+    disjoint (Lens.ofst (m' := m') x) (Lens.osnd (m' := m) y) := inferInstance
+
+/-- The other orientation. -/
+example {a b m m' : Type*} {x : Lens a m'} {y : Lens b m} :
+    disjoint (Lens.osnd (m' := m) x) (Lens.ofst (m' := m') y) := inferInstance
+
+/-- Same component: disjointness of the underlying lenses is what carries over. -/
+example {a b m m' : Type*} {x : Lens a m} {y : Lens b m} [disjoint x y] :
+    disjoint (Lens.ofst (m' := m') x) y.ofst := inferInstance
+
+/-- Likewise for the second component. -/
+example {a b m m' : Type*} {x : Lens a m} {y : Lens b m} [disjoint x y] :
+    disjoint (Lens.osnd (m' := m') x) y.osnd := inferInstance
+
 
 /- EC's `module Correctness (S : CommitmentScheme) = { proc main(m) = { … } }` — the module
 command takes the parameter directly, so the calls are written against `S`'s own fields and the
@@ -210,6 +394,22 @@ by hand any more (which is what Dominique's TODO at the bottom of `Syntax2.lean`
 
 It declares `Correctness.main.procedure` (the body, with its holes), `Correctness.main` (that
 procedure as a functor of `S`), `Correctness` itself, and `Correctness.apply_simp`. -/
+/-
+
+TODO make this work (use let's not have's in proc-parser)
+module Correctness (S : CommitmentScheme) {
+  proc main(m : Message) : Bool {
+    var x : Value;
+    var c : Commitment;
+    var d : OpeningKey;
+    var b : Bool;
+    x <- call S.gen ();
+    c,d <- call S.commit ($x, $m);
+    b <- call S.verify ($x, $m, $c, $d);
+    return $b
+  };
+} -/
+
 module Correctness (S : CommitmentScheme) {
   proc main(m : Message) : Bool {
     var x : Value;
@@ -221,10 +421,96 @@ module Correctness (S : CommitmentScheme) {
     return $b
   };
 }
+#check Correctness.main.procedure
+#print Correctness.main.procedure
+#check Correctness.main
+#print Correctness.main
+#print Correctness
+
+
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
 noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
   Module.app Correctness S
+
+/- EC's
+```
+module HidingExperiment (S:CommitmentScheme, U:Unhider) = {
+  proc main() : bool = {
+    x        <@ S.gen();
+    (m0, m1) <@ U.choose(x);
+    b        <$ {0,1};
+    (c, d)   <@ S.commit(x, b ? m1 : m0);
+    b'       <@ U.guess(c);
+    return (b = b');
+  }
+}.
+```
+Two module parameters, so `HidingExperiment` is a functor of the *pair* and each field is a
+functor of the parameters it uses (both, here).  `{0,1}` is `SubProbability.uniform` at `Bool`.
+
+`(m0, m1)` and `(c, d)` stay pair-typed locals read through `$`-projections rather than tuple
+assignments — see the ⚠ above; `mm, m1 <- call U.choose (…)` does not elaborate yet. -/
+module HidingExperiment (S : CommitmentScheme, U : Unhider) {
+  proc main() : Bool {
+    var x : Value;
+    var mm : Message × Message;
+    var b : Bool;
+    var cd : Commitment × OpeningKey;
+    var bg : Bool;
+    x <- call S.gen ();
+    mm <- call U.choose ($x);
+    b <$ SubProbability.uniform;
+    cd <- call S.commit ($x, if $b then ($mm).2 else ($mm).1);
+    bg <- call U.guess (($cd).1);
+    return $b == $bg
+  };
+}
+
+/-- `HidingExperiment(S, U)` elaborates, for any scheme and any adversary. -/
+noncomputable example (S : CommitmentScheme) (U : Unhider) :
+    Module (procmod () -> Bool) :=
+  Module.app (Module.app HidingExperiment.main S) U
+
+/- `BindingExperiment` is the one place a *message comparison* is needed (`m <> m'`).  Rather than
+a `DecidableEq` field on `CommitmentTypes` — see the note there — it is supplied classically right
+where it is used: the program is never executed, so the comparison only has to denote a `Bool`.
+`local`, so it does not leak to importers. -/
+noncomputable local instance : DecidableEq Message := Classical.decEq _
+
+/- EC's
+```
+module BindingExperiment (S:CommitmentScheme, B:Binder) = {
+  proc main() : bool = {
+    x                 <@ S.gen();
+    (c, m, d, m', d') <@ B.bind(x);
+    v                 <@ S.verify(x, m , c, d );
+    v'                <@ S.verify(x, m', c, d');
+    return v /\ v' /\ (m <> m');
+  }
+}.
+```
+`Binder.bind` returns `commitment * message * openingkey * message * openingkey`, right-nested,
+so the projections off `r` are `c = r.1`, `m = r.2.1`, `d = r.2.2.1`, `m' = r.2.2.2.1`,
+`d' = r.2.2.2.2` — and `verify` takes them in the order `(x, m, c, d)`. -/
+module BindingExperiment (S : CommitmentScheme, B : Binder) {
+  proc main() : Bool {
+    var x : Value;
+    var r : Commitment × Message × OpeningKey × Message × OpeningKey;
+    var v : Bool;
+    var v' : Bool;
+    x <- call S.gen ();
+    r <- call B.bind ($x);
+    v <- call S.verify ($x, ($r).2.1, ($r).1, ($r).2.2.1);
+    v' <- call S.verify ($x, ($r).2.2.2.1, ($r).1, ($r).2.2.2.2);
+    return $v && $v' && !(($r).2.1 == ($r).2.2.2.1)
+  };
+}
+
+/-- `BindingExperiment(S, B)` elaborates, for any scheme and any binder. -/
+noncomputable example (S : CommitmentScheme) (B : Binder) :
+    Module (procmod () -> Bool) :=
+  Module.app (Module.app BindingExperiment.main S) B
 
 
 end GaudisCrypt.Examples.Pedersen
