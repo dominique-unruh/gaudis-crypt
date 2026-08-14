@@ -2639,6 +2639,26 @@ theorem Module.cast_app [IsModule M] [IsModule N] (a : Module.Arr M N) (b : M) :
   simp only [eqRec_eq_cast, cast_cast, cast_eq]
   rfl
 
+/-- What is derivable about a field accessor `acc : M → T` of a module type, bundled into one
+declaration.
+
+The `moduletype` command emits one of these per field, as `X.f.utilities`, rather than a separate
+declaration per fact — the facts are reached as `X.f.utilities.accessorModule` and so on.  It is a
+structure and not a class: there is nothing to synthesise, the command hands the value over by
+name. -/
+structure ModuleTypeUtilities (M T : Type _) [IsModule M] [IsModule T] (acc : M → T) where
+  /-- The projection `acc` implements, as it acts on `ModuleExpression`s
+  (`fun e => e.snd.fst`, …). -/
+  proj : ModuleExpression → ModuleExpression
+  /-- The accessor as a module of its own: a projection is a module morphism. -/
+  accessorModule : Module.Arr M T
+  /-- …and applying that module is the accessor. -/
+  apply_simp : ∀ m : M, Module.app accessorModule m = acc m
+  /-- The accessor at the level of expressions: it is `proj`, reduced.  The `.reduce` is not
+  removable — `Module.expression` is always a reduct, and `proj m.expression` need not be normal. -/
+  expression_eq : ∀ m : M,
+    (Module.cast T (acc m)).expression = (proj (Module.cast M m).expression).reduce
+
 def Module.Prod (M : Type _) (N : Type _) [IsModule M] [IsModule N] : Type _ :=
   Module (ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N))
 

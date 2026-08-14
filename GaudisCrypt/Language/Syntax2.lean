@@ -896,6 +896,59 @@ def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElab
 
 end GaudisCrypt.ModuleDecl
 
+/-- Proves the `apply_simp` field of the `X.f.utilities : ModuleTypeUtilities …` that `moduletype`
+emits for each field — `∀ m, Module.app accessorModule m = X.f m`, relating the accessor *as a
+module* (a projection `.abs` of `ModuleExpression`s) to the accessor *as a Lean function* (a chain
+of `Module.fst'`s and `Module.snd'`s).  `acc` is the accessor, unfolded by name; the module needs no
+name, being the sibling field's value and hence already inlined in the goal.
+
+Same shape as `module_apply`: normalise both sides.  Unfolding `acc` and the `Module`-level
+combinators leaves `ModuleExpression`s under `.reduce`; the stripping lemmas remove the inner
+`.reduce`s that `toModule` left behind, exposing the β-redex `.app (.abs proj) m.expression`, and
+`reduce_simp` takes it.  The two trailing steps are `try`: for the *single-field* case the accessor
+is the identity, the first `simp only` already closes the goal, and a bare `reduce_simp` would then
+fail with "no goals". -/
+syntax "accessor_apply " ident : tactic
+
+macro_rules
+  | `(tactic| accessor_apply $acc:ident) =>
+    `(tactic|
+        (intro _
+         simp only [$acc:ident]
+         apply GaudisCrypt.Module.ext
+         simp only [GaudisCrypt.Module.app, GaudisCrypt.Module.app',
+           GaudisCrypt.Module.fst, GaudisCrypt.Module.fst',
+           GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
+           GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
+           GaudisCrypt.ModuleExpression.reduce_app_left,
+           GaudisCrypt.ModuleExpression.reduce_app_right,
+           GaudisCrypt.ModuleExpression.reduce_fst_inner,
+           GaudisCrypt.ModuleExpression.reduce_snd_inner]
+         try reduce_simp
+         try simp only [GaudisCrypt.Module.reduce_expression,
+           GaudisCrypt.ModuleExpression.reduce_fst_inner,
+           GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+
+/-- Proves the `expression_eq` field of `X.f.utilities` — `∀ m, (X.f m).expression =
+(proj m.expression).reduce`, the accessor read at the level of expressions.  `acc` is the accessor.
+
+No normalisation here, only unfolding: `Module.fst'`/`snd'` are `toModule`s of the projection, and
+each of them leaves a `.reduce` *inside* the next, which the two stripping lemmas pull out until
+what is left is one `.reduce` of the whole chain — the right-hand side.  `Module.reduce_expression`
+is for the single-field case, where the chain is empty and the two sides differ by exactly the
+outermost `.reduce`. -/
+syntax "accessor_expression " ident : tactic
+
+macro_rules
+  | `(tactic| accessor_expression $acc:ident) =>
+    `(tactic|
+        (intro _
+         simp only [$acc:ident, GaudisCrypt.Module.cast,
+           GaudisCrypt.Module.fst', GaudisCrypt.Module.snd',
+           GaudisCrypt.ModuleExpression.toModule, GaudisCrypt.Module.reduce_expression,
+           GaudisCrypt.ModuleExpression.reduce_fst_inner,
+           GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+
 /-- A field `f : Module T` of a `moduletype` declaration. -/
 /- A field of a `moduletype` declaration: either `module f : T;` (explicit module type)
 or the shorthand `proc f (T₁, …) -> R;` (a procedure field). -/
@@ -912,7 +965,16 @@ for a `proc` field, so that the record and the procedures a `module` declaration
 stated in the same terms, which is what lets `simp` chain `X.apply_simp` into `X.f.apply_simp` —
 accessors `Name.fᵢ`
 (via `Module.fst'`/`Module.snd'`), a constructor `Name.mk`, a destructor `Name.structure`, and
-the two round-trip `@[simp]` lemmas `Name.mk_destruct` / `Name.destruct_mk`. -/
+the two round-trip `@[simp]` lemmas `Name.mk_destruct` / `Name.destruct_mk`.
+
+What is derivable about an accessor goes into a single `Name.fᵢ.utilities :
+ModuleTypeUtilities …` per field — the accessor as a *module* (a projection is a module morphism),
+`Name.fᵢ.utilities.accessorModule : Name →ₘ Tᵢ`, plus `…utilities.apply_simp`
+(`Module.app …accessorModule m = Name.fᵢ m`) and `…utilities.expression_eq` (the accessor at the
+level of expressions: `(Name.fᵢ m).expression = (proj m.expression).reduce`).  Bundling them keeps
+one name per field in the namespace instead of one per fact.
+
+Everything it declares is reported by `logDeclared`. -/
 syntax "moduletype " ident "{" moduletypeField* "}" : command
 
 open Lean Elab Command in
@@ -968,14 +1030,35 @@ elab_rules : command
       elabCommand (← `(instance $instId:ident : $instTy where moduleTypeRep := $moduleTypeId))
       -- (2) the record structure
       elabCommand (← `(structure $structId where $[$fns:ident : $fts:term]*))
-      -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last
+      -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last.  Beside the
+      -- accessor `X.fᵢ` itself, what is derivable about it goes into one `X.fᵢ.utilities :
+      -- ModuleTypeUtilities …` — the accessor as a *module* (a projection is a module morphism),
+      -- and the two lemmas relating that module and the accessor's expression to the projection.
+      -- One declaration per field, rather than one per fact.
+      let utilIds := accIds.map fun a => mkIdent (a.getId.str "utilities")
+      let eId := mkIdent `e
       for i in [0:n] do
         let accId := accIds[i]!
         let ft := fts[i]!
         let mut e : Term := mId
-        for _ in [0:i] do e ← `(_root_.GaudisCrypt.Module.snd' $e)
-        if i + 1 < n then e ← `(_root_.GaudisCrypt.Module.fst' $e)
+        let mut me ← `(_root_.GaudisCrypt.ModuleExpression.var 0)
+        let mut pe : Term := eId
+        for _ in [0:i] do
+          e ← `(_root_.GaudisCrypt.Module.snd' $e)
+          me ← `(_root_.GaudisCrypt.ModuleExpression.snd $me)
+          pe ← `(_root_.GaudisCrypt.ModuleExpression.snd $pe)
+        if i + 1 < n then
+          e ← `(_root_.GaudisCrypt.Module.fst' $e)
+          me ← `(_root_.GaudisCrypt.ModuleExpression.fst $me)
+          pe ← `(_root_.GaudisCrypt.ModuleExpression.fst $pe)
         elabCommand (← `(noncomputable def $accId ($mId : $nm) : $ft := $e))
+        elabCommand (← `(noncomputable def $(utilIds[i]!) :
+            _root_.GaudisCrypt.ModuleTypeUtilities $nm $ft $accId where
+          proj := fun $eId => $pe
+          accessorModule := _root_.GaudisCrypt.ModuleExpression.toModule
+            (m := _root_.GaudisCrypt.ModuleExpression.abs $me)
+          apply_simp := by accessor_apply $accId
+          expression_eq := by accessor_expression $accId))
       -- (4) constructor: right-nested `Module.pair`
       let mut mkBody : Term ← `($(projId (n-1)) $sId)
       for i in [0:n-1] do
@@ -1003,6 +1086,8 @@ elab_rules : command
           (structId.getId, "the record of its fields")]
       for i in [0:n] do
         declared := declared.push (accIds[i]!.getId, s!"the field {fns[i]!.getId}")
+        declared := declared.push (utilIds[i]!.getId,
+          s!"that field as a module, and the lemmas about it")
       declared := declared ++
         #[(mkId.getId, "the module built from a record"),
           (structFn.getId, "the record of a module's fields"),
@@ -1755,6 +1840,15 @@ moduletype TestModule {
   module aux : .arr (.proc (procsig (Nat) -> String)) .unit;
 }
 #check TestModule.mk
+
+/- With a *single* field the accessor is the identity and its `accessorModule` is `.abs (.var 0)` —
+the one case where `accessor_apply` has nothing left to normalise after the first `simp only`, which
+is why its trailing steps are `try`s. -/
+moduletype OneField {
+  proc only (Nat) -> Bool;
+}
+#check OneField.only.utilities.apply_simp
+#check OneField.only.utilities.expression_eq
 
 /- ### `ModuleTypeRep` concrete syntax (`.proc`, `.arr`, `.prod`, `.unit`)
 
