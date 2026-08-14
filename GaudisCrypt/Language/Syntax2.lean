@@ -1051,7 +1051,7 @@ elab_rules : command
           e ← `(_root_.GaudisCrypt.Module.fst' $e)
           me ← `(_root_.GaudisCrypt.ModuleExpression.fst $me)
           pe ← `(_root_.GaudisCrypt.ModuleExpression.fst $pe)
-        elabCommand (← `(noncomputable def $accId ($mId : $nm) : $ft := $e))
+        elabCommand (← `(@[module_accessor] noncomputable def $accId ($mId : $nm) : $ft := $e))
         elabCommand (← `(noncomputable def $(utilIds[i]!) :
             _root_.GaudisCrypt.ModuleTypeUtilities $nm $ft $accId where
           proj := fun $eId => $pe
@@ -1223,6 +1223,32 @@ macro_rules
            GaudisCrypt.ModuleExpression.reduce_fst_inner,
            GaudisCrypt.ModuleExpression.reduce_snd_inner]))
 
+/-- Discharges one component of the callee tuple in `proc_apply`: `c.reduce = m.expression`, where
+`c` is the adapter expression the `module` command derived from the call site and `m` the callee
+module itself.
+
+Both sides are the same term up to `reduce`s sitting at *inner* positions, and `reduce ∘ reduce =
+reduce` is propositional, not definitional — so `rfl` only works when the adapter is trivial:
+
+* callee a bare module parameter (`c = B.expression`): `Module.reduce_expression`;
+* callee a field of a module parameter (`c = S.expression.snd.snd`): the accessor `S.verify` is a
+  chain of `Module.fst'`/`Module.snd'`, each of which wraps its argument in a `toModule`, i.e. in a
+  `reduce`.  Unfolding the accessor — hence the `module_accessor` simp set, since its name is not
+  known here — and pushing those `reduce`s out with `reduce_fst_inner`/`reduce_snd_inner` makes the
+  two sides equal. -/
+syntax "module_callee" : tactic
+
+macro_rules
+  | `(tactic| module_callee) =>
+    `(tactic|
+        (first
+          | rfl
+          | simp only [module_accessor, GaudisCrypt.Module.cast, GaudisCrypt.Module.cast',
+              GaudisCrypt.Module.fst', GaudisCrypt.Module.snd',
+              GaudisCrypt.ModuleExpression.toModule, GaudisCrypt.Module.reduce_expression,
+              GaudisCrypt.ModuleExpression.reduce_fst_inner,
+              GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+
 /-- Proves `Module.app (… (Module.app X.f A₁) …) Aₖ = Module.proc (X.f.procedure.instantiate …)`
 for one procedure `f` of a `module X (…) { … }` declaration — the `X.f.apply_simp` lemma the
 command emits (`ModuleDecl.elabProcApplySimp`).  `X.f` must be given as its name, which the script
@@ -1244,8 +1270,7 @@ one `.abs` per parameter it uses.
 * what is left is `reduce (.app (Module.procWithHoles p).expression <tuple of callees>)`, which
   `Module.reduce_app_procWithHoles` turns into the instantiated procedure once its side goal — the
   tuple reduces to the instantiation's own tuple — is peeled off component by component with
-  `Module.reduce_tuple_cons`, each component being a callee whose expression is the `reduce` of what
-  stands in the tuple, i.e. `rfl`. -/
+  `Module.reduce_tuple_cons`, each component being discharged by `module_callee`. -/
 syntax "proc_apply " ident : tactic
 
 macro_rules
@@ -1276,8 +1301,10 @@ macro_rules
                GaudisCrypt.ModuleExpression.reduce_fst_inner,
                GaudisCrypt.ModuleExpression.reduce_snd_inner])
          refine GaudisCrypt.Module.reduce_app_procWithHoles _ _ _ ?_
-         repeat refine GaudisCrypt.Module.reduce_tuple_cons _ _ _ _ rfl ?_
-         exact GaudisCrypt.Module.reduce_tuple_nil))
+         repeat (first
+           | exact GaudisCrypt.Module.reduce_tuple_nil
+           | refine GaudisCrypt.Module.reduce_tuple_cons _ _ _ _ ?_ ?_
+           | module_callee)))
 
 namespace GaudisCrypt.ModuleDecl
 

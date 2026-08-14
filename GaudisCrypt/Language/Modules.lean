@@ -2639,6 +2639,14 @@ theorem Module.cast_app [IsModule M] [IsModule N] (a : Module.Arr M N) (b : M) :
   simp only [eqRec_eq_cast, cast_cast, cast_eq]
   rfl
 
+/-- Simp set collecting the field accessors `moduletype` emits (`X.f : X → Tᵢ`, a chain of
+`Module.fst'`/`Module.snd'`).
+
+A goal about a field of an *abstract* module — `S : CommitmentScheme` a parameter, not a literal
+record — can only make progress by unfolding the accessor, and a tactic cannot know the accessor's
+name.  This set is how `proc_apply` reaches them. -/
+register_simp_attr module_accessor
+
 /-- What is derivable about a field accessor `acc : M → T` of a module type, bundled into one
 declaration.
 

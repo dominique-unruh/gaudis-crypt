@@ -327,7 +327,6 @@ module Correctness (S : CommitmentScheme) {
   };
 } -/
 
--- TODO: Dominique: why error?
 module Correctness (S : CommitmentScheme) {
   proc main(m : Message) : Bool {
     var x : Value;
@@ -344,7 +343,6 @@ module Correctness (S : CommitmentScheme) {
 #check Correctness.main
 #print Correctness.main
 #print Correctness
-
 
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
