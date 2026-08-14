@@ -811,6 +811,91 @@ scoped infixr:35 " ×ₘ " => _root_.GaudisCrypt.Module.Prod
 scoped infixr:25 " →ₘ " => _root_.GaudisCrypt.Module.Arr
 end GaudisCrypt
 
+/-! ## Reporting what a command declared
+
+`moduletype` and `module` both emit a whole batch of declarations from one command.  `logDeclared`
+is the shared way of telling the user what they were: an info message listing every generated name
+as a link that inserts `#check <name>` after the command.  It lives here, ahead of both commands,
+because `moduletype` (below) is the first user. -/
+namespace GaudisCrypt.ModuleDecl
+
+open Lean Elab Command
+
+/-- A link that inserts `suggestion` over `range` and then moves the cursor to `newSelection`.
+Same idea as `Lean.Meta.Hint.textInsertionWidget` — whose link text is fixed to `[apply]` and
+which leaves the cursor where it was — and as ProofWidgets' `MakeEditLink`, which needs the
+document's URI up front; here it is read from the infoview's position context instead. -/
+@[widget_module]
+def insertLinkWidget : Widget.Module where
+  javascript := "
+import * as React from 'react';
+import { EditorContext, EnvPosContext } from '@leanprover/infoview';
+
+const e = React.createElement;
+export default function ({ range, suggestion, newSelection, hoverText, linkText }) {
+  const pos = React.useContext(EnvPosContext)
+  const ec = React.useContext(EditorContext)
+  async function onClick() {
+    await ec.api.applyEdit({ changes: { [pos.uri]: [{ range, newText: suggestion }] } })
+    if (newSelection) await ec.revealLocation({ uri: pos.uri, range: newSelection })
+  }
+  return e('span', {
+      onClick,
+      title: hoverText,
+      className: 'link pointer dim font-code',
+      style: { color: 'var(--vscode-textLink-foreground)' }
+    },
+    linkText)
+}"
+
+/-- The width of `s` in UTF-16 code units — what LSP positions count in. -/
+private def utf16Width (s : String) : Nat := s.foldl (fun w c => w + c.utf16Size.toNat) 0
+
+/-- Report the declarations a `module`/`moduletype` command generated, as
+```
+Defined:
+  X.g.procedure — body of proc g
+```
+where each *name* is a link that inserts `#check <name>` right after the command and puts the
+cursor at the end of the inserted line (the same edit is also offered as a code action).
+`declared` pairs each name with a short description of what it is. -/
+def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElabM Unit := do
+  if declared.isEmpty then return
+  -- the edit's range is empty and sits at the command's tail, so applying it *inserts* the
+  -- `#check` on the following line rather than overwriting anything
+  let some tailPos := ref.getTailPos? | return
+  let range : Lean.Syntax.Range := ⟨tailPos, tailPos⟩
+  let lspRange := (← getFileMap).utf8RangeToLspRange range
+  let mut msg : MessageData := "Defined:"
+  for (n, descr) in declared do
+    let line := s!"#check {n}"
+    let newText := "\n" ++ line
+    let title := s!"Insert `{line}`"
+    -- end of the inserted line: one line below the command, past the text just written
+    let caret : Lsp.Position := ⟨lspRange.start.line + 1, utf16Width line⟩
+    -- the code-action (lightbulb) counterpart of the link
+    pushInfoLeaf <| .ofCustomInfo {
+      stx := Syntax.ofRange (ref.getRange?.getD range)
+      value := Dynamic.mk ({ edit := { range := lspRange, newText := newText }
+                             codeActionTitle := title
+                             suggestion := { suggestion := newText } } :
+                           Lean.Meta.Tactic.TryThis.TryThisInfo) }
+    let link : MessageData := .ofWidget
+      { id := ``insertLinkWidget
+        javascriptHash := insertLinkWidget.javascriptHash
+        props := return json%
+          { range: $(lspRange),
+            suggestion: $(newText),
+            newSelection: $(({ start := caret, «end» := caret } : Lsp.Range)),
+            hoverText: $(title),
+            linkText: $(n.toString) } }
+      n.toString
+    msg := msg ++ m!"\n• {link} — {descr}"
+  msg := msg ++ "\n\n(Click to insert `#check symbolname`.)"
+  logInfoAt ref msg
+
+end GaudisCrypt.ModuleDecl
+
 /-- A field `f : Module T` of a `moduletype` declaration. -/
 /- A field of a `moduletype` declaration: either `module f : T;` (explicit module type)
 or the shorthand `proc f (T₁, …) -> R;` (a procedure field). -/
@@ -875,8 +960,12 @@ elab_rules : command
       -- it gets its own — without which `X` could not appear in a `Module.Arr`/`Module.Prod`.
       elabCommand (← `(def $moduleTypeId : _root_.GaudisCrypt.ModuleTypeRep := $prodT))
       elabCommand (← `(def $nm := _root_.GaudisCrypt.Module $moduleTypeId))
-      elabCommand (← `(instance : _root_.GaudisCrypt.IsModule $nm where
-        moduleTypeRep := $moduleTypeId))
+      -- the instance is named explicitly with the very name Lean's own `mkInstanceName` would
+      -- have invented for it (`instIsModuleX`), so that it can be reported below — the two cannot
+      -- drift apart, since it is the same function that picks it
+      let instTy ← `(_root_.GaudisCrypt.IsModule $nm)
+      let instId := mkIdent (← mkInstanceName #[] instTy)
+      elabCommand (← `(instance $instId:ident : $instTy where moduleTypeRep := $moduleTypeId))
       -- (2) the record structure
       elabCommand (← `(structure $structId where $[$fns:ident : $fts:term]*))
       -- (3) accessors: field `i` is `fst (snd^i m)`, or `snd^(n-1) m` for the last
@@ -906,6 +995,20 @@ elab_rules : command
       let dmLemmas : Array Ident := baseLemmas.push (mkIdent `Module.pair_fst_snd')
       elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "destruct_mk")) ($mId : $nm) :
           $mkId ($structFn $mId) = $mId := by simp [$[$dmLemmas:ident],*]))
+      -- (8) report the batch, the same way the `module` command does
+      let mut declared : Array (Name × String) :=
+        #[(moduleTypeId.getId, "the underlying ModuleTypeRep"),
+          (nb, "the module type itself"),
+          (instId.getId, "its IsModule instance"),
+          (structId.getId, "the record of its fields")]
+      for i in [0:n] do
+        declared := declared.push (accIds[i]!.getId, s!"the field {fns[i]!.getId}")
+      declared := declared ++
+        #[(mkId.getId, "the module built from a record"),
+          (structFn.getId, "the record of a module's fields"),
+          (nb.str "mk_destruct", "round-trip: destructing a built module"),
+          (nb.str "destruct_mk", "round-trip: rebuilding a destructed module")]
+      GaudisCrypt.ModuleDecl.logDeclared (← getRef) declared
 
 /-! ## Module definitions — `module X (…) : T { proc f (…) : R { … }; … }`
 
@@ -1289,79 +1392,6 @@ def checkBody (paramBs : List (Ident × Term)) (callees : Array Term)
       let stx ← `(($c : GaudisCrypt.Module (GaudisCrypt.ModuleTypeRep.proc $(sigHole i))))
       toModuleExpr params (← instantiateMVars (← Term.elabTerm stx none))
     return (sigs, exprs)
-
-/-- A link that inserts `suggestion` over `range` and then moves the cursor to `newSelection`.
-Same idea as `Lean.Meta.Hint.textInsertionWidget` — whose link text is fixed to `[apply]` and
-which leaves the cursor where it was — and as ProofWidgets' `MakeEditLink`, which needs the
-document's URI up front; here it is read from the infoview's position context instead. -/
-@[widget_module]
-def insertLinkWidget : Widget.Module where
-  javascript := "
-import * as React from 'react';
-import { EditorContext, EnvPosContext } from '@leanprover/infoview';
-
-const e = React.createElement;
-export default function ({ range, suggestion, newSelection, hoverText, linkText }) {
-  const pos = React.useContext(EnvPosContext)
-  const ec = React.useContext(EditorContext)
-  async function onClick() {
-    await ec.api.applyEdit({ changes: { [pos.uri]: [{ range, newText: suggestion }] } })
-    if (newSelection) await ec.revealLocation({ uri: pos.uri, range: newSelection })
-  }
-  return e('span', {
-      onClick,
-      title: hoverText,
-      className: 'link pointer dim font-code',
-      style: { color: 'var(--vscode-textLink-foreground)' }
-    },
-    linkText)
-}"
-
-/-- The width of `s` in UTF-16 code units — what LSP positions count in. -/
-private def utf16Width (s : String) : Nat := s.foldl (fun w c => w + c.utf16Size.toNat) 0
-
-/-- Report the declarations a `module` command generated, as
-```
-Defined:
-  X.g.procedure — body of proc g
-```
-where each *name* is a link that inserts `#check <name>` right after the command and puts the
-cursor at the end of the inserted line (the same edit is also offered as a code action).
-`declared` pairs each name with a short description of what it is. -/
-def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElabM Unit := do
-  if declared.isEmpty then return
-  -- the edit's range is empty and sits at the command's tail, so applying it *inserts* the
-  -- `#check` on the following line rather than overwriting anything
-  let some tailPos := ref.getTailPos? | return
-  let range : Lean.Syntax.Range := ⟨tailPos, tailPos⟩
-  let lspRange := (← getFileMap).utf8RangeToLspRange range
-  let mut msg : MessageData := "Defined:"
-  for (n, descr) in declared do
-    let line := s!"#check {n}"
-    let newText := "\n" ++ line
-    let title := s!"Insert `{line}`"
-    -- end of the inserted line: one line below the command, past the text just written
-    let caret : Lsp.Position := ⟨lspRange.start.line + 1, utf16Width line⟩
-    -- the code-action (lightbulb) counterpart of the link
-    pushInfoLeaf <| .ofCustomInfo {
-      stx := Syntax.ofRange (ref.getRange?.getD range)
-      value := Dynamic.mk ({ edit := { range := lspRange, newText := newText }
-                             codeActionTitle := title
-                             suggestion := { suggestion := newText } } :
-                           Lean.Meta.Tactic.TryThis.TryThisInfo) }
-    let link : MessageData := .ofWidget
-      { id := ``insertLinkWidget
-        javascriptHash := insertLinkWidget.javascriptHash
-        props := return json%
-          { range: $(lspRange),
-            suggestion: $(newText),
-            newSelection: $(({ start := caret, «end» := caret } : Lsp.Range)),
-            hoverText: $(title),
-            linkText: $(n.toString) } }
-      n.toString
-    msg := msg ++ m!"\n• {link} — {descr}"
-  msg := msg ++ "\n\n(Click to insert `#check symbolname`.)"
-  logInfoAt ref msg
 
 /-- What `elabProcedure` leaves for `elabProcModule` to work with. -/
 structure ProcResult where

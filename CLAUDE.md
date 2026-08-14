@@ -11,8 +11,8 @@ relational reasoning, random-oracle indistinguishability, game hopping). It is
 research-stage and lightly documented. The project is named after the *crypt* of
 Gaudí's Church of Colònia Güell with its *lean*ing pillars.
 
-Lean toolchain: `leanprover/lean4:v4.30.0` (see `lean-toolchain`). Depends on
-mathlib `v4.30.0`, `doc-gen4`, and `Metatheory-Unruh`
+Lean toolchain: `leanprover/lean4:v4.31.0` (see `lean-toolchain`). Depends on
+mathlib `v4.31.0`, `doc-gen4` (`v4.31.0`), and `Metatheory-Unruh` (`main`)
 (github.com/dominique-unruh/Lean-Metatheory).
 
 ## Build / develop
