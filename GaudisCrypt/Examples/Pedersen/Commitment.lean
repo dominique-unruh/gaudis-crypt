@@ -18,26 +18,6 @@ A transliteration of EasyCrypt's `theories/crypto/Commitment.ec` (theory
 namespace GaudisCrypt.Examples.Pedersen
 
 /-
-
-Dominique's TODOs.  Status re-checked against the code 2026-08-07 (after the untyped-calculus
-refactor + the `module` command); each entry below was verified, not assumed.
-
-Done since the list was written:
-- [X] class IsModule, and instances for it
-- [X] `→ₘ` is `Type → Type → Type` via the instance
-      (`Module.Arr (M N : Type _) [IsModule M] [IsModule N]`, Modules.lean)
-- [X] `moduletype X` also defines `X.typeRep` …
-- [X] … and emits `instance IsModule X` itself (Syntax2.lean) — so a hand-written
-      `instance : IsModule CommitmentScheme` here is now redundant and has been removed
-- [X] `module A(params) : X { ... }` syntax, `(params)` optional — used by `Correctness` below
-      and by `Pedersen` in `Pedersen.lean`
-
-Abandoned:
-- `rename ModuleTypeRep -> ModuleTypeRepRep` was ticked, but no `ModuleTypeRepRep` exists
-  anywhere; the type is still `ModuleTypeRep`.  Reading it as dropped rather than pending.
-  (The related note "no pretty syntax for it" *is* the current state, and is documented at
-  its source in Syntax2.lean: `ModuleTypeRep`'s constructors stay `.arr`/`.prod`/`.unit`.)
-
 Still open:
 - Maybe also support `let A := module ...` or `def A := module ...`
 - `DoesNotUse A X.op` (in a proof, do induction, derive ⊥ from a use of `X.op`) — nothing of
@@ -263,29 +243,8 @@ moduletype Binder {
 
 example : CommitmentScheme = Module CommitmentScheme.typeRep := rfl
 
-/-! ## Experiments (parameterized modules)
 
-Each EC functor becomes a `module X (P : T) { … }` declaration.  The command builds what used to
-be written out by hand here: a procedure with holes — the holes being the parameter modules'
-procedures, discovered from the call sites — wrapped in a `ModuleExpression.abs` whose body
-repackages the parameter record (declaration order, no unit) into the holes tuple (reverse
-order, `.unit`-terminated) with `fst`/`snd`/`pair`. -/
-
-
-/-! ### Disjointness of `intoParams` / `intoVars` liftings
-
-Every implicit here has to be named and `paramTypes` / `locals` *pinned* by name at the use
-site.  The short spelling `instance [disjoint x y] : disjoint x.intoVars y.intoVars` does not
-elaborate: auto-bound implicits do introduce `x` and `y`, but `Lens.intoVars`'s `paramTypes` is
-only ever an *implicit argument*, never a free identifier, so it never becomes a binder — and
-nothing else determines it, since `disjoint`'s own state type `m` would have to come from
-`x.intoVars` in the first place.  Hence
-`don't know how to synthesize implicit argument paramTypes` (and dually `locals` for
-`intoParams`).  Pinning one of the two occurrences breaks the cycle; the other is then forced.
-
-The vars/vars case is *not* repeated here — it already exists, proven, as
-`Programs.disjoint_intoVars` in `Language/Programs.lean`, and is in scope via `Syntax2`. -/
-
+-- TODO: Dominique: move somewhere probably
 /-- `params` and `vars` are distinct fields of `LocalVariableState`, so writes through
     projections of the two commute — no hypothesis on `x`, `y` needed. -/
 instance LocalVariableState.disjoint_varsL_paramsL {a b : Type} {paramTypes : List Type}
@@ -295,6 +254,7 @@ instance LocalVariableState.disjoint_varsL_paramsL {a b : Type} {paramTypes : Li
     disjoint (LocalVariableState.varsL.chain x) (LocalVariableState.paramsL.chain y) :=
   ⟨fun _ _ _ => rfl⟩
 
+-- TODO: Dominique: move somewhere probably
 /-- The mirror image of `LocalVariableState.disjoint_varsL_paramsL`; `disjoint.symm` is a
     theorem, not an instance, so search needs both orientations spelled out. -/
 instance LocalVariableState.disjoint_paramsL_varsL {a b : Type} {paramTypes : List Type}
@@ -304,6 +264,7 @@ instance LocalVariableState.disjoint_paramsL_varsL {a b : Type} {paramTypes : Li
     disjoint (LocalVariableState.paramsL.chain x) (LocalVariableState.varsL.chain y) :=
   ⟨fun _ _ _ => rfl⟩
 
+-- TODO: Dominique: move somewhere probably
 /-- Parameter-slot counterpart of `Programs.disjoint_intoVars`: distinct parameter slots stay
     disjoint after `intoParams` (two `chain` layers). -/
 instance Programs.disjoint_intoParams {a b : Type} {paramTypes : List Type}
@@ -313,6 +274,7 @@ instance Programs.disjoint_intoParams {a b : Type} {paramTypes : List Type}
     disjoint (Lens.intoParams (locals := locals) x) y.intoParams :=
   Lens.disjoint_chain ProcedureState.localL _ _
 
+-- TODO: Dominique: move somewhere probably
 /-- A local variable is disjoint from *any* parameter: they live in different fields of the
     scope record, so no `disjoint x y` hypothesis is required. -/
 instance Programs.disjoint_intoVars_intoParams {a b : Type} {paramTypes : List Type}
@@ -322,6 +284,7 @@ instance Programs.disjoint_intoVars_intoParams {a b : Type} {paramTypes : List T
     disjoint (Lens.intoVars (paramTypes := paramTypes) x) (Lens.intoParams (locals := locals) y) :=
   Lens.disjoint_chain ProcedureState.localL _ _
 
+-- TODO: Dominique: move somewhere probably
 /-- The other orientation of `Programs.disjoint_intoVars_intoParams`. -/
 instance Programs.disjoint_intoParams_intoVars {a b : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
@@ -330,49 +293,6 @@ instance Programs.disjoint_intoParams_intoVars {a b : Type} {paramTypes : List T
     disjoint (Lens.intoParams (locals := locals) x) (Lens.intoVars (paramTypes := paramTypes) y) :=
   Lens.disjoint_chain ProcedureState.localL _ _
 
-/-- The vars/vars case needs nothing new: `Programs.disjoint_intoVars` already covers it. -/
-example {a b : Type} {paramTypes : List Type} {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (paramListToTuple (locals.map (·.fst)))}
-    {y : Lens b (paramListToTuple (locals.map (·.fst)))} [disjoint x y] :
-    disjoint (Lens.intoVars (paramTypes := paramTypes) x) y.intoVars :=
-  inferInstance
-
-/-! ### Disjointness of `ofst` / `osnd` liftings
-
-All four of these already exist, proven, in `Language/Lens.lean` — `Lens.disjoint_ofst_osnd`,
-`Lens.disjoint_osnd_ofst`, `Lens.disjoint_ofst_ofst`, `Lens.disjoint_osnd_osnd` (this is what
-the note at the top of the file records).  So they are recorded here as `example`s discharged by
-`inferInstance` rather than re-declared, which would only give instance search four duplicate
-candidates.
-
-The short spellings do not elaborate, and the two pairs fail *differently*:
-
-* `instance : disjoint x.ofst y.osnd` — `Unknown identifier x.ofst`.  With no binder mentioning
-  `x`, auto-bound implicits never introduce it, so the dot notation has no type to resolve
-  against.  Note that adding `[disjoint x y]` is not the fix here: in the mixed case `x` and `y`
-  live in *different* memories (`Lens a m` and `Lens b m'`), so `disjoint x y` is not even
-  well-formed.  These two hold unconditionally.
-* `instance [disjoint x y] : disjoint x.ofst y.ofst` — here `x` and `y` do get auto-bound, but
-  `m'`, the *other* component of the product, appears only as an implicit argument of
-  `Lens.ofst`, so it never becomes a binder and nothing determines it (`disjoint`'s `m` would
-  have to come from `x.ofst`, whose `m'` would have to come from `m`).  Same cycle as
-  `paramTypes` above; same fix — pin `m'` by name once. -/
-
-/-- Different components of a product: disjoint unconditionally. -/
-example {a b m m' : Type*} {x : Lens a m} {y : Lens b m'} :
-    disjoint (Lens.ofst (m' := m') x) (Lens.osnd (m' := m) y) := inferInstance
-
-/-- The other orientation. -/
-example {a b m m' : Type*} {x : Lens a m'} {y : Lens b m} :
-    disjoint (Lens.osnd (m' := m) x) (Lens.ofst (m' := m') y) := inferInstance
-
-/-- Same component: disjointness of the underlying lenses is what carries over. -/
-example {a b m m' : Type*} {x : Lens a m} {y : Lens b m} [disjoint x y] :
-    disjoint (Lens.ofst (m' := m') x) y.ofst := inferInstance
-
-/-- Likewise for the second component. -/
-example {a b m m' : Type*} {x : Lens a m} {y : Lens b m} [disjoint x y] :
-    disjoint (Lens.osnd (m' := m') x) y.osnd := inferInstance
 
 
 /- EC's `module Correctness (S : CommitmentScheme) = { proc main(m) = { … } }` — the module
@@ -407,6 +327,7 @@ module Correctness (S : CommitmentScheme) {
   };
 } -/
 
+-- TODO: Dominique: why error?
 module Correctness (S : CommitmentScheme) {
   proc main(m : Message) : Bool {
     var x : Value;
@@ -466,7 +387,7 @@ module HidingExperiment (S : CommitmentScheme, U : Unhider) {
 
 /-- `HidingExperiment(S, U)` elaborates, for any scheme and any adversary. -/
 noncomputable example (S : CommitmentScheme) (U : Unhider) :
-    Module (procmod () -> Bool) :=
+    procmod () -> Bool :=
   Module.app (Module.app HidingExperiment.main S) U
 
 /- `BindingExperiment` is the one place a *message comparison* is needed (`m <> m'`).  Rather than
@@ -506,7 +427,7 @@ module BindingExperiment (S : CommitmentScheme, B : Binder) {
 
 /-- `BindingExperiment(S, B)` elaborates, for any scheme and any binder. -/
 noncomputable example (S : CommitmentScheme) (B : Binder) :
-    Module (procmod () -> Bool) :=
+    procmod () -> Bool :=
   Module.app (Module.app BindingExperiment.main S) B
 
 

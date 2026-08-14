@@ -20,7 +20,6 @@ A transliteration of EasyCrypt's `examples/Pedersen.ec`:
 namespace GaudisCrypt.Examples.Pedersen
 
 open GaudisCrypt
-open GaudisCrypt
 
 -- the scheme is deliberately named like the enclosing example namespace (EC: `module Pedersen`)
 set_option linter.dupNamespace false
