@@ -260,10 +260,7 @@ moduletype Binder {
   proc bind (Value) -> Commitment × Message × OpeningKey × Message × OpeningKey;
 }
 
-/- The naming question that used to be deliberated here ("what do we call the underlying
-`ModuleTypeRep`, and what the `Module` over it?") is settled by what `moduletype` generates:
-the type is `CommitmentScheme` and its representation is `CommitmentScheme.typeRep`.  A
-hand-written `CommitmentSchemeT` is no longer needed; the `example` below records the bridge. -/
+
 example : CommitmentScheme = Module CommitmentScheme.typeRep := rfl
 
 /-! ## Experiments (parameterized modules)
@@ -430,7 +427,7 @@ module Correctness (S : CommitmentScheme) {
 
 
 /-- `Correctness(S)` elaborates: the functor applies to any `S : CommitmentScheme`. -/
-noncomputable example (S : CommitmentScheme) : Module (procmod (Message) -> Bool) :=
+noncomputable example (S : CommitmentScheme) : procmod (Message) -> Bool :=
   Module.app Correctness S
 
 /- EC's

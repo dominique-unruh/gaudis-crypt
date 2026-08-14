@@ -239,6 +239,28 @@ def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret (ProcedureState l)) (proc 
 
 def HoleSigs.Instantiation (holes : HoleSigs) := ∀ {sig}, HoleIndex holes sig → Procedure sig
 
+/-- The only instantiation of no holes at all. -/
+def HoleSigs.Instantiation.nil : HoleSigs.empty.Instantiation := fun {_} idx => nomatch idx
+
+/-- Extend an instantiation by one more procedure, for one more (last-appended) hole.  Written in
+the order the holes were appended, `nil.push p₀ |>.push p₁ …`, this is how an instantiation is
+built up from concrete procedures — note `HoleIndex.zero` is the *last* one pushed. -/
+def HoleSigs.Instantiation.push {holes : HoleSigs} {sig : ProcedureSignature}
+    (inst : holes.Instantiation) (p : Procedure sig) : (holes.append sig).Instantiation :=
+  fun {_} idx => match idx with
+    | .zero => p
+    | .succ i => inst i
+
+/-- Looking up the hole a `push` was made for. -/
+@[simp] theorem HoleSigs.Instantiation.push_zero {holes : HoleSigs} {sig : ProcedureSignature}
+    (inst : holes.Instantiation) (p : Procedure sig) :
+    HoleSigs.Instantiation.push inst p HoleIndex.zero = p := rfl
+
+/-- Looking up any other hole of a `push` falls through to the instantiation it extends. -/
+@[simp] theorem HoleSigs.Instantiation.push_succ {holes : HoleSigs} {sig sig' : ProcedureSignature}
+    (inst : holes.Instantiation) (p : Procedure sig) (i : HoleIndex holes sig') :
+    HoleSigs.Instantiation.push inst p (HoleIndex.succ i) = inst i := rfl
+
 /-- Convert an instantiation into a plain list of procedures (tagged by their signature),
 in the same right-nested order as `HoleSigs.Instantiation.toModuleTuple`.
 
@@ -287,6 +309,29 @@ def StmtWithHoles.depth {h l} : StmtWithHoles h l → Nat
   | .seq p q        => max p.depth q.depth + 1
   | .ifThenElse _ p q => max p.depth q.depth + 1
   | .while _ p      => p.depth + 1
+
+/-- A hole-free statement has nothing to instantiate: every constructor is re-typed as itself, and
+the `.hole` case cannot occur (`HoleIndex .empty _` is empty).  Recursion is on `depth` — the
+statement's own index `HoleSigs.empty` is not a variable, so the equation compiler cannot recurse
+on it structurally. -/
+theorem StmtWithHoles.instantiate_empty {l : Type} (inst : HoleSigs.empty.Instantiation) :
+    ∀ s : Stmt l, s.instantiate inst = s
+  | .skip => rfl
+  | .sample _ _ => rfl
+  | .call' _ _ _ _ _ => rfl
+  | .seq s1 s2 => by
+      simp only [StmtWithHoles.instantiate, instantiate_empty inst s1, instantiate_empty inst s2]
+  | .ifThenElse _ s1 s2 => by
+      simp only [StmtWithHoles.instantiate, instantiate_empty inst s1, instantiate_empty inst s2]
+  | .while _ s => by simp only [StmtWithHoles.instantiate, instantiate_empty inst s]
+termination_by s => s.depth
+decreasing_by all_goals simp only [StmtWithHoles.depth]; omega
+
+/-- Instantiating a procedure that has no holes leaves it alone. -/
+@[simp] theorem ProcedureWithHoles.instantiate_empty {sig} (p : ProcedureWithHoles .empty sig)
+    (inst : HoleSigs.empty.Instantiation) : p.instantiate inst = p := by
+  obtain ⟨locals, body, ret⟩ := p
+  simp only [ProcedureWithHoles.instantiate, StmtWithHoles.instantiate_empty]
 
 mutual
 noncomputable
