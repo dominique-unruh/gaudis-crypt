@@ -765,4 +765,30 @@ theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
   · -- return: `Lens.reduceFootprint (get return) ≤ FVP.fvP_proc ≤ (ros)ᶜ`.
     exact reduce_chain_le_compl (le_trans le_sup_right hdisj)
 
+/-- **Procedure confinement at the global state**: a procedure's denotation lies in the footprint
+FV computes for it.  `(procedureDenotation P args).inFootprint (FVP.fvP_proc P)`.
+
+This is the companion of `FVP.glob` — `glob P` reads what `P` may touch, and this says `P` only
+*acts* there — and it is what a `={glob P}` adversary rule has to be fed: with it,
+`prhl2_self_of_orbit` (`GlobTransfer.lean`) applies to any procedure, since the orbit precondition
+there is exactly what `(FVP.fvP_proc P).touched_getter`-equality unfolds to.
+
+Nothing here is RO-specific; it is assembled from the generic parts of this file
+(`procedureDenotation_inFootprint_reduce` at `Y := FVP.fvP_stmt body ⊔ (get return).footprint`,
+plus FV soundness `programDenotation_footprint_le_fvP_stmt`/`fvP_stmt_le_FVP` for the body),
+together with `FVP.fvP_proc` being definitionally the `globalL`-reduction of that same `Y`.  Like
+those ingredients it would sit better beside `FVP.fvP_proc` in `FV.lean`; that move is blocked
+only by the fact that the whole generic block lives here, downstream of `FV.lean`. -/
+theorem procedureDenotation_inFootprint_fvP_proc {sig : ProcedureSignature}
+    (P : Procedure sig) (args : sig.ParamType) :
+    (procedureDenotation P args).inFootprint (FVP.fvP_proc P) := by
+  obtain ⟨ls, b, r⟩ := P
+  have hbody : (programDenotation b).footprint ≤ FVP.fvP_stmt b :=
+    le_trans (programDenotation_footprint_le_fvP_stmt b) (fvP_stmt_le_FVP b)
+  have h := procedureDenotation_inFootprint_reduce ls b r args
+    (FVP.fvP_stmt b ⊔ (ProgramDenotation.get r).footprint)
+    (le_trans hbody le_sup_left) le_sup_right
+  rw [Lens.reduceFootprint_sup] at h
+  exact h
+
 end GaudisCrypt.Lib.RO.Instantiate
