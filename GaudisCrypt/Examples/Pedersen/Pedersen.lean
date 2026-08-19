@@ -248,19 +248,13 @@ theorem pedersen_correctness (m : F) (σ : State) :
       (procedureDenotation (Module.app Correctness Pedersen).procedure m σ)
       {r : Bool × State | r.1 = false} 1
     rw [one_mul] at hi
-    have h' : (↑((procedureDenotation
-        (Module.app Correctness Pedersen).procedure m σ).ofEvent
-        {r : Bool × State | r.1 = false}) : ENNReal) = 0 := by
-      rw [← hi]; exact h
-    exact_mod_cast h'
+    exact_mod_cast hi.symm.trans h
   -- β/δ-reduce the applied functor down to `Correctness.main`'s body with Pedersen's three
   -- procedures in the holes — the `module` command's own `@[simp]` lemmas do all of it.
-  rw [Correctness.apply_simp, Correctness.main.apply_simp,
-    Correctness.main.procedure.apply_simp]
-  simp only [Module.proc, Module.procedure_proc]
-  -- unfold the game and push `wp` through.  `apply_simp` leaves a *closed* procedure rather than
-  -- a `ProcedureWithHoles.instantiate`, so this is the plain `procedureDenotation_eq_procWrap`
-  -- and not its `_gen` variant.
+  simp only [Correctness.apply_simp, Correctness.main.apply_simp,
+    Correctness.main.procedure.apply_simp, Module.proc, Module.procedure_proc]
+  -- unfold the game and push `wp` through.  Kept as `rw`, not folded into the `simp only` above:
+  -- as simp lemmas these two also fire on the *callees*, and `wp_gen` then no longer matches.
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   simp [module_accessor, Pedersen, Module.proc, Module.procedure_proc, programDenotation,
     StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
@@ -272,11 +266,9 @@ theorem pedersen_correctness (m : F) (σ : State) :
     Set.indicator, Set.mem_setOf_eq]
   -- descend through the two samplings with `rw` (full-defeq unification), summand by summand
   rw [wp_gen]
-  refine Finset.sum_eq_zero fun x _ => ?_
-  refine ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
+  refine Finset.sum_eq_zero fun x _ => ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
   rw [wp_commit]
-  refine Finset.sum_eq_zero fun d _ => ?_
-  refine ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
+  refine Finset.sum_eq_zero fun d _ => ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
   rw [wp_verify]
   simp
 
