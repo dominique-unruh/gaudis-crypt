@@ -7,14 +7,17 @@ import GaudisCrypt.WeakestPreconditions
 A transliteration of EasyCrypt's `examples/Pedersen.ec`:
 
 * EC's `clone DLog` (cyclic group `group` with generator `g`, prime exponent field `exp`)
-  becomes the class `PedersenGroup` — for now only the *operations* the programs mention;
-  the algebraic laws will be added as hypotheses when the proofs need them.
+  becomes the class `PedersenGroup`: the operations the programs mention, plus the laws the
+  proofs turned out to need (`f_commring`, `gpow_add`, `gpow_mul` — the last two are EC's
+  `expD`/`expM`).
 * EC's `PedersenTypes` + the `Commitment` clone become the `CommitmentTypes` instance
   (value/commitment = group, message/openingkey = exponent).
 * `module Pedersen : CommitmentScheme` becomes a `module Pedersen : CommitmentScheme { … }`
   declaration — EC's own syntax, near enough, now that the `module` command exists.
 * Correctness is stated as EC states it (`hoare[Correctness(Pedersen).main : true ==> res]`):
-  the output distribution puts no mass on `res = false`.  No proof yet.
+  the output distribution puts no mass on `res = false`.  Proven (`pedersen_correctness`), on
+  standard axioms only, entirely on the `module` command's generated lemmas — this file declares
+  nothing of its own for it beyond the per-procedure `wp_*` lemmas.
 -/
 
 namespace GaudisCrypt.Examples.Pedersen
@@ -27,9 +30,11 @@ set_option linter.dupNamespace false
 /-! ## The group setup (EC's `DLog` clone) -/
 
 /-- A cyclic group `G` with generator `g` and exponent type `F` (EC's `group`/`exp`).
-    Only the operations for now: multiplication, exponentiation, and what programs genuinely need
-    of the types — a default element (`Inhabited`, so local variables can be declared) and
-    `Fintype F` (real content: `SubProbability.uniform` samples it, and the wp lemmas sum over it).
+    Multiplication and exponentiation, what the programs genuinely need of the types — a default
+    element (`Inhabited`, so local variables can be declared) and `Fintype F` (real content:
+    `SubProbability.uniform` samples it, and the wp lemmas sum over it) — and the algebraic laws
+    the proofs need, which are the three fields documented individually below.  Correctness needs
+    none of the laws; they are all for `Hiding.lean`.
 
     Decidable equality is *not* a field.  `verify` does compare (`$c == $c'`), and `==` is `BEq`
     derived from `DecidableEq` — but these programs are never executed: every `proc` is
@@ -134,138 +139,26 @@ module Pedersen : CommitmentScheme {
   };
 }
 
-/-! ## Correctness (statement only)
+/-! ## Correctness
 
 To *run* an applied functor module we extract its procedure: a normal closed module
 expression of procedure type is a `.proc` node (`proc_type_is_proc` / `Module.procedure`,
-now in `Language/Modules.lean`). -/
-
-/-! ## The computation bridge
+now in `Language/Modules.lean`).
 
 `Correctness Pedersen` β/δ-normalizes to `Correctness.main` with Pedersen's procedures in the
-holes.  (`reduce_of_normal`/`reduce_proc` are generic — Modules.lean candidates.) -/
+holes.  That reduction used to be done by hand here, by a `functorApp_procedure` bridge lemma, a
+`functor_procedure` tactic, a `Pedersen_expression` record equation and a `pedersenInst` naming
+the hole filling.  None of it is needed any more, and all of it is gone (see the history of this
+file if you want it back): the `module`/`moduletype` commands emit `@[simp]` `apply_simp` lemmas
+and tag their accessors `@[module_accessor]`, and those do the whole reduction inline in
+`pedersen_correctness`. -/
 
-omit [PedersenGroup] in
-theorem reduce_of_normal {m : ModuleExpression} (h : m.Normal) : m.reduce = m :=
-  ModuleExpression.reduce_of_normal h
+/-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure)
 
-omit [PedersenGroup] in
-@[simp] theorem reduce_proc {sig : ProcedureSignature} (p : Procedure sig) :
-    (ModuleExpression.proc p).reduce = .proc p :=
-  ModuleExpression.reduce_proc p
+All three are stated at the `CommitmentTypes`-spelled signature the instantiated game carries,
+not at `G`/`F`.  The two are definitionally equal, but `Eq` carries its type as an index, so the
+spelling is what makes them the same proposition as the goal — see the ⚠ below. -/
 
-/-- The instantiation of `Correctness.main`'s holes by Pedersen's procedures.
-    (`HoleIndex` counts from the *last-declared* hole: `.zero` is `verify`.) -/
-noncomputable def pedersenInst :
-    (((HoleSigs.empty.append (procsig () -> G)).append
-        (procsig (G, F) -> (G × F))).append
-      (procsig (G, F, G, F) -> Bool)).Instantiation
-  | _, .zero => Pedersen.verify.procedure
-  | _, .succ .zero => Pedersen.commit.procedure
-  | _, .succ (.succ .zero) => Pedersen.gen.procedure
-
-@[simp] theorem pedersenInst_zero : pedersenInst HoleIndex.zero = Pedersen.verify.procedure := rfl
-@[simp] theorem pedersenInst_one :
-    pedersenInst (HoleIndex.succ HoleIndex.zero) = Pedersen.commit.procedure := rfl
-@[simp] theorem pedersenInst_two :
-    pedersenInst (HoleIndex.succ (HoleIndex.succ HoleIndex.zero)) = Pedersen.gen.procedure := rfl
-
-omit [PedersenGroup] in
-/-- `Module.procedure` read off a known expression: the witness of `proc_type_is_proc` is unique
-    by constructor injectivity, so exhibiting `m.expression` as a `.proc` node determines it. -/
-theorem procedure_eq {sig : ProcedureSignature} {m : Module (.proc sig)} {p : Procedure sig}
-    (h : m.expression = .proc p) : m.procedure = p := by
-  have h2 := Module.procedure_spec m
-  rw [h] at h2
-  injection h2 with hsig hp
-  exact hp.symm
-
-omit [PedersenGroup] in
-/-- `Module.procWithHoles` at a non-empty hole list is just the `.procHoles` node.  The `module`
-command emits its functors through `Module.procWithHoles`, so this is what lets a generated
-functor match `functorApp_procedure`'s pattern. -/
-@[simp] theorem procWithHoles_expression {holes : HoleSigs} {s : ProcedureSignature}
-    {sig : ProcedureSignature} (p : ProcedureWithHoles (HoleSigs.append holes s) sig) :
-    (Module.procWithHoles p).expression = .procHoles (by trivial) p := by
-  simp only [Module.procWithHoles, ModuleExpression.toModule]
-  exact ModuleExpression.reduce_of_normal .procHoles
-
-omit [PedersenGroup] in
-/-- **Generic functor-application bridge.**  Applying a one-parameter functor module — anything
-of the shape `(.abs (.app (.procHoles ne main) r)).toModule`, which is exactly what both a
-hand-written functor and the `module X (A) { … }` command produce — to an argument `S` yields
-`main` with its holes instantiated.
-
-Everything reduction-theoretic is done here, once: `reduce_app_left` strips `toModule`'s
-`.reduce`, `reduce_beta` fires the β-redex, the substitution computes, and `.delta` fires.  The
-caller is left with `hSr` alone — "the rearrangement `r`, with `S` substituted in, reduces to the
-instantiation's argument tuple" — which is the only genuinely per-functor content, since how a
-parameter's fields map onto `main`'s holes is what makes one functor differ from another.  It is
-also mechanical to discharge: `reduce_simp` normalises it given the parameter's record equation. -/
-theorem functorApp_procedure {A : ModuleTypeRep} {holes : HoleSigs} {sig : ProcedureSignature}
-    {ne : holes.NonEmpty} {main : ProcedureWithHoles holes sig} {r : ModuleExpression}
-    {S : Module A} {inst : holes.Instantiation}
-    {hF : ModuleExpression.HasType (.abs (.app (.procHoles ne main) r)) [] (.arr A (.proc sig))}
-    (hSr : (r.substitute S.expression).reduce
-      = HoleSigs.Instantiation.toModuleExpr inst) :
-    (Module.app' ((ModuleExpression.abs (.app (.procHoles ne main) r)).toModule hF) S).procedure
-      = main.instantiate inst := by
-  apply procedure_eq
-  simp only [Module.app', ModuleExpression.toModule]
-  rw [ModuleExpression.reduce_app_left, ModuleExpression.reduce_beta]
-  change ((ModuleExpression.procHoles ne main).app (r.substitute S.expression)).reduce = _
-  rw [← ModuleExpression.reduce_app_right, hSr,
-    ModuleExpression.reduce_step (.delta ne main inst)]
-  exact ModuleExpression.reduce_proc _
-
-/-- Proves `(Module.app F S).procedure = main.instantiate inst` for a one-parameter functor `F`
-(given by name) whose argument `S` has the record equation `hS : S.expression = …` (also by
-name).  Everything is generic: unfold `F` to expose the `.abs`, hand the β/δ reduction to
-`functorApp_procedure`, compute the substitution, rewrite by `hS`, and let `reduce_simp`
-normalise the rearrangement.  The closing `rfl` is the last defeq step onto
-`inst.toModuleExpr` — `toModuleExpr` computes, so it never needs a proof.
-
-The companion of Dominique's `module_apply`: that one applies a `module`-declared functor to its
-parameters (stopping at the record of applied procedures); this one takes the extra δ-step to the
-procedure with its holes filled in. -/
-macro "functor_procedure" f:ident hS:ident : tactic =>
-  `(tactic|
-      (simp only [GaudisCrypt.Module.app, GaudisCrypt.Module.moduleTypeRep, $f:ident,
-         procWithHoles_expression]
-       apply functorApp_procedure
-       simp only [GaudisCrypt.ModuleExpression.substitute,
-         GaudisCrypt.ModuleExpression.substituteSimultaneously,
-         GaudisCrypt.ModuleExpression.variableSubstitution]
-       rw [$hS:ident]
-       reduce_simp
-       try rfl))
-
-/-- `Pedersen`'s expression is the ground record of its three procedures.  This is the only fact
-about *the scheme* any bridge lemma needs; everything else is generic. -/
-theorem Pedersen_expression : Pedersen.expression
-    = .pair (.proc Pedersen.gen.procedure)
-        (.pair (.proc Pedersen.commit.procedure) (.proc Pedersen.verify.procedure)) := by
-  simp only [Pedersen, CommitmentScheme.mk, Module.pair', Module.proc,
-    ModuleExpression.toModule, Pedersen.gen, Pedersen.commit, Pedersen.verify,
-    ModuleExpression.reduce_proc]
-  rw [ModuleExpression.reduce_of_normal (ModuleExpression.Normal.pair .proc .proc)]
-  exact ModuleExpression.reduce_of_normal (.pair .proc (.pair .proc .proc))
-
-/-- **The bridge**: the procedure of the applied functor module is the instantiated body.  All
-the reduction work lives in `functorApp_procedure`; what is left here is only `Correctness`'s own
-rearrangement — its `gen`/`commit`/`verify` projections, in the order its holes expect — which
-`reduce_simp` normalises from `Pedersen_expression`. -/
-theorem Correctness_Pedersen_procedure :
-    (Module.app Correctness Pedersen).procedure
-      = Correctness.main.procedure.instantiate pedersenInst := by
-  rw [Correctness.apply_simp]
-  functor_procedure Correctness.main Pedersen_expression
-
-/-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure) -/
-
-
-/-- The wp of each Pedersen procedure, stated at the `CommitmentTypes`-spelled signature the
-    instantiated game carries (definitionally `G`/`F`; the spelling makes the simp keys match). -/
 theorem wp_gen (f : ProgramDenotation.Post State CommitmentTypes.Value) :
     (procedureDenotation (sig := procsig () -> CommitmentTypes.Value)
         Pedersen.gen.procedure ()).wp f
@@ -314,6 +207,32 @@ theorem wp_verify (args : G × F × G × F) (f : ProgramDenotation.Post State Bo
     Lens.fst, Lens.snd, Lens.id, ProcedureState.localL,
     LocalVariableState.paramsL, LocalVariableState.varsL]
 
+/-! ### Reducing the applied functor
+
+`Correctness.main.procedure.apply_simp` fills `Correctness.main`'s holes with the callees they
+were made from — which, since `Correctness`'s body calls `S.gen`, are the moduletype *accessors*
+`CommitmentScheme.gen Pedersen` and friends.  The `wp_*` lemmas above are stated at
+`Pedersen.gen.procedure`, a separate definition the `module` command emits.  Adding
+`module_accessor` (the simp set the accessors are tagged with), `Pedersen`, and the
+`Module.proc`/`Module.procedure_proc` round-trip to the main `simp` call is all it takes to close
+that gap.  So the whole reduction is the commands' own lemmas plus one `simp` set: no bridge
+lemma, no hand-written hole instantiation, nothing declared for the purpose.
+
+(`Module.procedure_proc` has to be paired with unfolding `Module.proc`: the library states the
+round-trip with `Module.proc` already unfolded, as `(ModuleExpression.proc p).toModule (.proc p)`,
+so on its own it never fires against the folded `Module.proc` that `X.<f>.apply_simp` emits.)
+
+⚠ One thing to know before touching this: `CommitmentScheme.gen Pedersen` and `Pedersen.gen`
+**both print as `Pedersen.gen`** (dot-notation collision) and are *not* defeq — the accessor is a
+chain of `Module.fst'`/`Module.snd'` through `Pedersen`'s expression.  So a lemma or rewrite
+aimed at the wrong one of the two fails with the two sides displaying identically, or with "did
+not find an occurrence of the pattern" against a goal in which the pattern is apparently right
+there.  `set_option pp.explicit true` is what tells them apart.  A second, similar trap: signature
+spellings must be `CommitmentTypes.*`, not `G`/`F` — those are defeq, but `Eq` carries its type
+as an index, so the two are *different propositions* and `exact` rejects the mismatch, again
+printing identically (`convert … using 2` exposes that one).  The `wp_*` lemmas above are spelled
+`CommitmentTypes.*` for exactly this reason. -/
+
 set_option linter.flexible false in
 /-- **Correctness of Pedersen** — EC's
     `hoare[Correctness(Pedersen).main : true ==> res]`: from any initial state, the
@@ -321,22 +240,29 @@ set_option linter.flexible false in
 theorem pedersen_correctness (m : F) (σ : State) :
     (procedureDenotation (Module.app Correctness Pedersen).procedure m σ).ofEvent
       {r : Bool × State | r.1 = false} = 0 := by
-  rw [Correctness_Pedersen_procedure]
-  -- reduce `ofEvent` to a `wp` with the indicator postcondition
-  suffices h : (procedureDenotation (Correctness.main.procedure.instantiate pedersenInst) m).wp
+  -- reduce `ofEvent` to a `wp` with the indicator postcondition.  Done *before* the module
+  -- reduction, so nothing here ever has to name the reduced procedure.
+  suffices h : (procedureDenotation (Module.app Correctness Pedersen).procedure m).wp
       (({r : Bool × State | r.1 = false}).indicator fun _ => 1) σ = 0 by
     have hi := expectation_indicator
-      (procedureDenotation (Correctness.main.procedure.instantiate pedersenInst) m σ)
+      (procedureDenotation (Module.app Correctness Pedersen).procedure m σ)
       {r : Bool × State | r.1 = false} 1
     rw [one_mul] at hi
     have h' : (↑((procedureDenotation
-        (Correctness.main.procedure.instantiate pedersenInst) m σ).ofEvent
+        (Module.app Correctness Pedersen).procedure m σ).ofEvent
         {r : Bool × State | r.1 = false}) : ENNReal) = 0 := by
       rw [← hi]; exact h
     exact_mod_cast h'
-  -- unfold the game and push `wp` through
-  rw [procedureDenotation_eq_procWrap_gen, wp_procWrap]
-  simp [Correctness.main.procedure, StmtWithHoles.instantiate, programDenotation,
+  -- β/δ-reduce the applied functor down to `Correctness.main`'s body with Pedersen's three
+  -- procedures in the holes — the `module` command's own `@[simp]` lemmas do all of it.
+  rw [Correctness.apply_simp, Correctness.main.apply_simp,
+    Correctness.main.procedure.apply_simp]
+  simp only [Module.proc, Module.procedure_proc]
+  -- unfold the game and push `wp` through.  `apply_simp` leaves a *closed* procedure rather than
+  -- a `ProcedureWithHoles.instantiate`, so this is the plain `procedureDenotation_eq_procWrap`
+  -- and not its `_gen` variant.
+  rw [procedureDenotation_eq_procWrap, wp_procWrap]
+  simp [module_accessor, Pedersen, Module.proc, Module.procedure_proc, programDenotation,
     StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
