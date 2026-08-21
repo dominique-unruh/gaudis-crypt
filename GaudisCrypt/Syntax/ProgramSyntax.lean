@@ -1,0 +1,457 @@
+import GaudisCrypt.Syntax.ExpressionSyntax
+
+open GaudisCrypt
+
+/-!
+# Concrete syntax for programs and procedures
+
+Surface syntax for the imperative probabilistic language (`StmtWithHoles` /
+`ProcedureWithHoles` from `GaudisCrypt`).  Expression syntax (`GaudiExpr[ ]` and the `$`
+sigil) is in `ExpressionSyntax.lean`; module syntax is in `ModuleSyntax.lean`.  See
+`syntax-ideas.md` for design notes.
+
+## Statements / programs — `GaudiProg[ … ]`
+
+A `;`-terminated sequence of statements.  The statement forms are:
+* `skip;`
+* `x <- e;`                       — assignment;
+* `a, b <- e;`  /  `(a, b) <- e;` — tuple assignment (the parentheses are optional);
+* `x <$ e;`                       — sample `x` from distribution `e`;
+* `x <- call p (e₁, …, eₙ);`      — call procedure `p`, storing the result in `x`;
+* `call p (e₁, …, eₙ);`           — call `p`, discarding the result;
+* `if (e) { … } else { … }`       — the `else` branch is optional;
+* `while (e) { … }`
+* `{ … }`                         — a nested block.
+
+The argument list `( … )` of a `call` is always required (write `()` for no arguments).
+
+Example (`a b c : Lens Nat State`, `inc : Procedure …`):
+```
+GaudiProg[
+  a <- $a + 1;
+  b, c <- ($a, $a * 2);
+  if ($a == 0) { a <- 1; } else { skip; }
+  while ($b == 0) { b <- $b + 1; }
+  a <- call inc ($a);
+]
+```
+
+## Procedures — `proc (…) [uses (…)] [: R] { … }`
+
+A procedure *term*:
+```
+proc (x : T, y : U) uses (A : (Nat) → Bool, B : (Bool) → Nat) : R {
+  var u : V, w : W;     -- zero or more `var …;` lines of local variables
+  <statements>
+  return e
+}
+```
+* parameters `(x : T, …)` (possibly none);
+* an optional `uses (…)` clause declaring *holes* (abstract sub-procedures), each written
+  `name : (T₁, …, Tₙ) → R`.  Inside the body a hole is invoked with the ordinary
+  `call A (…)` syntax — `A` resolves to a hole when it is one of the declared names, and to
+  a concrete procedure otherwise;
+* an optional return type `: R` (inferred from `return e` when omitted);
+* local variables via one or more `var name : T, …;` lines;
+* a body of statements ending in `return e`.
+
+## Procedure types and signatures
+
+* `proctype (T, U, …) -> W`                    — the type of a closed procedure;
+* `proctype (T, …) -> W uses ((T₁,…) → R, …)`   — the type of a procedure with holes;
+* `procsig (T, U, …) -> W`                      — the bare `ProcedureSignature`.
+
+`->` is used (rather than `:`) so these nest inside type ascriptions without extra
+parentheses; they also pretty-print back into this form.
+
+e.g. `proctype (Nat, Bool) -> Nat`, `proctype (Nat) -> Nat uses ((Nat) → Bool, (Bool) → Nat)`,
+`procsig (Nat, Bool) -> Nat`.  Note `Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat`.
+
+The *module* type of a procedure, `procmod (…) -> R`, is in `ModuleSyntax.lean`.
+-/
+
+/-! ## Syntax for programs (`StmtWithHoles`)
+
+Statement syntax over `StmtWithHoles h l`.  Each expression position (assignment
+RHS, sampling distribution, `if`/`while` condition) is wrapped with `GaudiExpr[ ]`
+so the `$x` sigil works.  An l-value (assignment/sample LHS) is a *lens*, lifted
+into the current full state `State × l` by `liftLens` — so a global `Lens a State`
+may be written bare and is lifted with `.ofst`.
+
+Surface forms (`gaudi_stmt`):
+
+    skip;
+    x <- e;                       -- assignment
+    a, b <- e;   (a,b) <- e;      -- tuple l-value (parens optional), via `Lens.pair`
+    x <$ e;                       -- sampling (e : a distribution expression)
+    x <- call p (e₁, …, eₙ);      -- procedure call, result stored in `x`
+    call p (e₁, …, eₙ);           -- procedure call, result discarded (Lens.throwaway)
+    if (e) { … } else { … }       -- the `else` branch is optional
+    while (e) { … }
+    { … }                         -- a block (sequence)
+
+The call argument list `( … )` is always required (even `()`); the arguments form a
+tuple matching the callee's `ParamType`.  (`hole` is still deferred.) -/
+
+namespace GaudisCrypt
+
+variable [ProgramSpec]
+
+/-- Lift a program variable used as an l-value into a lens on the full current state
+`State × S`.  Dispatch is on the lens's *container* `M`: a global lens (`M = State`)
+is lifted with `.ofst`, a full-state lens (`M = State × S`) is kept as-is.  The
+content type `A` is deliberately *not* a class parameter — resolution then only needs
+`M` (always concrete from the argument), and the result's content unifies with the
+expected type as an ordinary, postponable constraint.  (That is what lets a `call`
+result l-value resolve even before the callee's `sig` is known.) -/
+class LiftLens (S : Type) (M : Type) where
+  lift {A : Type} : Lens A M → Setter A (ProcedureState S)
+
+instance {S : Type} : LiftLens S State where
+  lift x := (ProcedureState.globalL.chain x).toSetter
+instance {S : Type} : LiftLens S (ProcedureState S) where lift x := x.toSetter
+
+/-- User-facing l-value lift; `S`, the container `M`, and the content `A` are inferred.
+The result is a `Setter` (l-values only ever `set`). -/
+def liftLens {S A M} [LiftLens S M] (x : Lens A M) : Setter A (ProcedureState S) :=
+  LiftLens.lift x
+
+/-- The raw (un-lifted) lens for an l-value: a tuple `(x, y, …)` becomes a nested
+`Lens.pair`; a single term is itself.  Pairing needs the components to be disjoint
+lenses in the same container — the `disjoint` instance is resolved at the concrete
+lenses, so `(a, b)` requires `disjoint a b`. -/
+scoped syntax "[lvalRaw| " term "]" : term
+macro_rules
+  | `([lvalRaw| ($x:term, $y:term)]) => `(Lens.pair [lvalRaw| $x] [lvalRaw| $y])
+  | `([lvalRaw| $x:term]) => `($x)
+
+/-- Raw nested `Lens.pair` of a comma-list of l-value components (each component
+may itself be a paren-tuple, handled by `[lvalRaw|]`). -/
+scoped syntax "[lvalRawList| " term,+ "]" : term
+macro_rules
+  | `([lvalRawList| $x:term]) => `([lvalRaw| $x])
+  | `([lvalRawList| $x:term, $xs:term,*]) => `(Lens.pair [lvalRaw| $x] [lvalRawList| $xs,*])
+
+/-- An l-value lifted into the current full state `State × S`.  Accepts a single
+lens, a parenthesised tuple `(a, b)`, or a bare comma-list `a, b` (top-level
+parens optional) — all interpreted via `Lens.pair`. -/
+scoped syntax "[lval| " term,+ "]" : term
+macro_rules
+  | `([lval| $xs:term,*]) => `(liftLens [lvalRawList| $xs,*])
+
+/-- A single `_` l-value discards the value written to it (`Setter.throwaway`).  Declared
+after the general rule so it takes priority. -/
+macro_rules
+  | `([lval| _]) => `(Setter.throwaway)
+
+/- ### Concrete syntax -/
+
+declare_syntax_cat gaudi_stmt
+
+syntax "skip" ";" : gaudi_stmt
+syntax term:max,+ " <- " term ";" : gaudi_stmt
+syntax term:max,+ " <$ " term ";" : gaudi_stmt
+syntax (name := callStore) term:max,+ " <- " "call" term:max "(" term,* ")" ";" : gaudi_stmt
+syntax (name := callVoid)  "call" term:max "(" term,* ")" ";" : gaudi_stmt
+-- internal: generated by `proc` from `call <holeName>` (users never write `holecall`)
+syntax (name := holecallStore) term:max,+ " <- " "holecall" term:max "(" term,* ")" ";" : gaudi_stmt
+syntax (name := holecallVoid)  "holecall" term:max "(" term,* ")" ";" : gaudi_stmt
+syntax "if" "(" term ")" "{" gaudi_stmt* "}" "else" "{" gaudi_stmt* "}" : gaudi_stmt
+syntax "if" "(" term ")" "{" gaudi_stmt* "}" : gaudi_stmt
+syntax "while" "(" term ")" "{" gaudi_stmt* "}" : gaudi_stmt
+syntax "{" gaudi_stmt* "}" : gaudi_stmt
+
+/-- Translate one statement to a `StmtWithHoles` term. -/
+scoped syntax "[gstmt| " gaudi_stmt "]" : term
+/-- Translate a statement sequence (fold with `seq`; empty ↦ `skip`). -/
+scoped syntax "[gseq| " gaudi_stmt* "]" : term
+/-- Top-level program bracket. -/
+scoped syntax "GaudiProg[" gaudi_stmt* "]" : term
+
+macro_rules
+  | `([gseq| ]) => `(StmtWithHoles.skip)
+  | `([gseq| $s:gaudi_stmt]) => `([gstmt| $s])
+  | `([gseq| $s:gaudi_stmt $ss:gaudi_stmt*]) =>
+      `(StmtWithHoles.seq [gstmt| $s] [gseq| $ss*])
+
+macro_rules
+  | `([gstmt| skip;]) => `(StmtWithHoles.skip)
+  | `([gstmt| $xs:term,* <- $e:term;]) =>
+      `(StmtWithHoles.assign [lval| $xs,*] (GaudiExpr[ $e ]))
+  | `([gstmt| $xs:term,* <$ $e:term;]) =>
+      `(StmtWithHoles.sample [lval| $xs,*] (GaudiExpr[ $e ]))
+  | `([gstmt| if ($c:term) { $t:gaudi_stmt* } else { $e:gaudi_stmt* }]) =>
+      `(StmtWithHoles.ifThenElse (GaudiExpr[ $c ]) [gseq| $t*] [gseq| $e*])
+  | `([gstmt| if ($c:term) { $t:gaudi_stmt* }]) =>
+      `(StmtWithHoles.ifThenElse (GaudiExpr[ $c ]) [gseq| $t*] StmtWithHoles.skip)
+  | `([gstmt| while ($c:term) { $body:gaudi_stmt* }]) =>
+      `(StmtWithHoles.while (GaudiExpr[ $c ]) [gseq| $body*])
+  | `([gstmt| { $ss:gaudi_stmt* }]) => `([gseq| $ss*])
+
+open Lean in
+/-- Build the (right-nested) argument tuple from a comma-list of arg expressions:
+`[]` ↦ `()`, `[e]` ↦ `e`, `e :: es` ↦ `(e, <es>)` — matching `paramListToTuple`. -/
+private def mkArgTuple (args : List Term) : MacroM Term := do
+  match args with
+  | []      => `(())
+  | [e]     => pure e
+  | e :: es => do `(($e, $(← mkArgTuple es)))
+
+-- `call` (procedure) and `holecall` (hole) statements.  `holecall` is *internal*: the
+-- `proc` macro rewrites `call <holeName>` to it; users only ever write `call`.  In both
+-- cases the callee is listed first so its `sig` is unified before the result l-value/args.
+open Lean in
+macro_rules
+  | `([gstmt| $xs:term,* <- call $p:term ( $args:term,* );]) => do
+      `(StmtWithHoles.call [lval| $xs,*] $p (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+  | `([gstmt| call $p:term ( $args:term,* );]) => do
+      `(StmtWithHoles.call Setter.throwaway $p (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+  | `([gstmt| $xs:term,* <- holecall $n:term ( $args:term,* );]) => do
+      `(StmtWithHoles.hole $n [lval| $xs,*] (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+  | `([gstmt| holecall $n:term ( $args:term,* );]) => do
+      `(StmtWithHoles.hole $n Setter.throwaway (GaudiExpr[ $(← mkArgTuple args.getElems.toList) ]))
+
+macro_rules
+  | `(GaudiProg[ $ss:gaudi_stmt* ]) => `([gseq| $ss*])
+
+/- ### Procedures
+
+`proc (x : T, …) [: R] { var u : U, …; <stmts> ; return e }` builds a
+`ProcedureWithHoles .empty sig`.  Each param/local name is `let`-bound — the user's
+identifier spliced in, so hygiene lines up — to its projection lens into the full
+state `State × l`, written as a plain `Lens.id.ofst.osnd…` chain.  The body's `$x`
+and `x <- …` then resolve via the ordinary expression machinery.  `: R` is optional;
+without it the return type is inferred from `return e`. -/
+
+open Lean in section
+
+declare_syntax_cat proc_binder
+syntax ident " : " term : proc_binder
+
+/-- `Lens.id` followed by a chain of `.ofst` (`true`) / `.osnd` (`false`). -/
+private def mkChain (steps : List Bool) : MacroM Term := do
+  let mut acc ← `(Lens.id)
+  for s in steps do
+    acc ← if s then `($(acc).ofst) else `($(acc).osnd)
+  pure acc
+
+/-- Steps to reach slot `k` of a right-nested `n`-tuple (the last element is
+un-wrapped, so it needs no final `.ofst`). -/
+private def navSteps (k n : Nat) : List Bool :=
+  if k + 1 == n then List.replicate k false else true :: List.replicate k false
+
+private def parseBinder : TSyntax `proc_binder → MacroM (Ident × Term)
+  | `(proc_binder| $id:ident : $ty:term) => pure (id, ty)
+  | _ => Macro.throwUnsupported
+
+/-- A hole declaration `A : (T₁, …, Tₙ) → R` (an abstract procedure with no locals). -/
+declare_syntax_cat hole_binder
+syntax ident " : " "(" term,* ")" " → " term : hole_binder
+
+private def parseHoleBinder : TSyntax `hole_binder → MacroM (Ident × List Term × Term)
+  | `(hole_binder| $id:ident : ( $ps:term,* ) → $ret:term) => pure (id, ps.getElems.toList, ret)
+  | _ => Macro.throwUnsupported
+
+/-- Rewrite `call A (…)` → `holecall A (…)` for every callee `A` whose name is a hole
+(recursing into `if`/`while`/block bodies); everything else is left untouched. -/
+partial def rewriteHoles (holeNames : List Name) (s : TSyntax `gaudi_stmt) :
+    MacroM (TSyntax `gaudi_stmt) := do
+  let k := s.raw.getKind
+  -- `call`/`holecall` statements carry a sepBy arg-list inside parens, which category
+  -- quotations cannot match, so we dispatch on the production kind at the `Syntax` level.
+  if k == ``callStore || k == ``callVoid then
+    -- callee position: `callStore` is `xs,* "<-" "call" callee …`; `callVoid` is `"call" callee …`.
+    let calleeIdx := if k == ``callStore then 3 else 1
+    let args := s.raw.getArgs
+    let callee := args[calleeIdx]!
+    if callee.isIdent && holeNames.contains callee.getId then
+      -- swap kind to the `holecall*` production and the `"call"` atom → `"holecall"`.
+      let newKind := if k == ``callStore then ``holecallStore else ``holecallVoid
+      let newArgs := args.map fun a =>
+        match a with
+        | .atom info "call" => .atom info "holecall"
+        | _ => a
+      return ⟨(s.raw.setArgs newArgs).setKind newKind⟩
+    else
+      return s
+  match s with
+  | `(gaudi_stmt| if ($c:term) { $t:gaudi_stmt* } else { $e:gaudi_stmt* }) => do
+      `(gaudi_stmt| if ($c) { $(← t.mapM (rewriteHoles holeNames))* }
+                          else { $(← e.mapM (rewriteHoles holeNames))* })
+  | `(gaudi_stmt| if ($c:term) { $t:gaudi_stmt* }) => do
+      `(gaudi_stmt| if ($c) { $(← t.mapM (rewriteHoles holeNames))* })
+  | `(gaudi_stmt| while ($c:term) { $b:gaudi_stmt* }) => do
+      `(gaudi_stmt| while ($c) { $(← b.mapM (rewriteHoles holeNames))* })
+  | `(gaudi_stmt| { $ss:gaudi_stmt* }) => do
+      `(gaudi_stmt| { $(← ss.mapM (rewriteHoles holeNames))* })
+  | _ => pure s
+
+syntax "proc" "(" proc_binder,* ")" ("uses" "(" hole_binder,* ")")? (" : " term:max)? "{"
+         ("var" proc_binder,* ";")*
+         gaudi_stmt*
+         "return" term (";")?
+       "}" : term
+
+macro_rules
+  | `(proc ( $params:proc_binder,* ) $[uses ( $holes:hole_binder,* )]? $[: $retTy:term]? {
+        $[var $locals:proc_binder,* ;]*
+        $stmts:gaudi_stmt*
+        return $ret:term $[;]?
+      }) => do
+    let paramBs := (← params.getElems.toList.mapM parseBinder).toArray
+    -- multiple `var …;` lines are concatenated into a single local-variable list
+    let localBs := (← (locals.toList.flatMap (·.getElems.toList)).mapM parseBinder).toArray
+    let holeBs := (← match holes with
+      | some hs => hs.getElems.toList.mapM parseHoleBinder
+      | none    => pure []).toArray
+    let np := paramBs.size
+    let nl := localBs.size
+    -- the signature and local-variable list; the local-state `L` is the
+    -- `LocalVariableState` *structure* (params tuple + vars tuple).
+    let paramTys := paramBs.map (·.2)
+    let localSigmas ← localBs.mapM fun (_, ty) => `(⟨$ty, inferInstance⟩)
+    let retTyTerm ← match retTy with | some r => pure r | none => `(_)
+    let sigTerm ← `(({ params := [$paramTys,*], ret := $retTyTerm } : ProcedureSignature))
+    let localsTerm ← `([$localSigmas,*])
+    -- `L` is the local-state structure, indexed by param *types* (no `ret`), so it is
+    -- fully determined even when the return type is omitted.
+    let L ← `(LocalVariableState [$paramTys,*] $localsTerm)
+    -- one `let` per name, binding it to its lens into `ProcedureState L`.  A variable
+    -- lens navigates `ProcedureState L` → (`localL`) `L` → (`paramsL`/`varsL`) the
+    -- params/vars tuple → (`mkChain`/`navSteps`) the individual slot.
+    let mut binds : Array (Ident × Term × Term) := #[]
+    for k in [0:np] do
+      let (id, ty) := paramBs[k]!
+      let slot ← mkChain (navSteps k np)
+      let chain ← `(Lens.intoParams $slot)
+      binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
+    for j in [0:nl] do
+      let (id, ty) := localBs[j]!
+      let slot ← mkChain (navSteps j nl)
+      let chain ← `(Lens.intoVars $slot)
+      binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
+    -- holes: a `ProcedureSignature` (no locals) each, folded into a `HoleSigs` context,
+    -- and one `let` per name binding it to its `HoleIndex` (last-declared = `.zero`).
+    let nh := holeBs.size
+    let holeSigTerms ← holeBs.mapM fun (_, ps, ret) =>
+      `(({ params := [$(ps.toArray),*], ret := $ret } : ProcedureSignature))
+    let mut hCtx ← `(HoleSigs.empty)
+    for sigT in holeSigTerms do hCtx ← `(($hCtx).append $sigT)
+    let mut holeBinds : Array (Ident × Term × Term) := #[]
+    for k in [0:nh] do
+      let (id, _, _) := holeBs[k]!
+      let mut idx ← `(HoleIndex.zero)
+      for _ in [0 : nh - 1 - k] do idx ← `(HoleIndex.succ $idx)
+      holeBinds := holeBinds.push (id, ← `(HoleIndex $hCtx $(holeSigTerms[k]!)), idx)
+    let wrap (bs : Array (Ident × Term × Term)) (inner : Term) : MacroM Term :=
+      bs.foldrM (fun (id, ty, val) acc => `(let $id : $ty := $val; $acc)) inner
+    -- annotate with the explicit local-state `L` (so expressions see `S = L`) and hole
+    -- context `hCtx`; the `L = sig.LocalVariableState` check happens in ordinary elaboration.
+    -- rewrite `call A (…)` → `holecall A (…)` for every callee `A` that is a declared hole
+    let holeNames := holeBs.toList.map (·.1.getId)
+    let stmts' ← stmts.mapM (rewriteHoles holeNames)
+    let body ← wrap (binds ++ holeBinds) (← `((GaudiProg[ $stmts'* ] : StmtWithHoles $hCtx $L)))
+    let retval ← wrap binds (← `((GaudiExpr[ $ret ] : Getter _ (ProcedureState $L))))
+    `((⟨$localsTerm, $body, $retval⟩ : ProcedureWithHoles $hCtx $sigTerm))
+
+end
+
+/-! ### Procedure *type* syntax
+
+`proctype (T, U, V) -> W` is the type `Procedure { params := [T, U, V], ret := W }`, and
+`proctype (…) -> W uses ((A₁,…) → R₁, …)` is the corresponding `ProcedureWithHoles`, whose
+hole context is built from the listed (nameless) procedure signatures.  (Uses `->` rather
+than `:` so it needs no extra parentheses inside a type ascription.) -/
+
+/-- A nameless hole signature `(T₁, …, Tₙ) → R` inside a `proctype … uses (…)` clause. -/
+declare_syntax_cat hole_sig
+syntax "(" term,* ")" " → " term : hole_sig
+
+syntax "proctype " "(" term,* ")" (" → " <|> " -> ") term (" uses " "(" hole_sig,* ")")? : term
+
+open Lean in
+macro_rules
+  -- unicode `→` spelling delegates to the `->` arm below (distinguished by the arrow atom)
+  | `(proctype ( $params:term,* ) → $ret:term $[uses ( $holes:hole_sig,* )]?) =>
+      `(proctype ( $params,* ) -> $ret $[uses ( $holes,* )]?)
+  | `(proctype ( $params:term,* ) -> $ret:term $[uses ( $holes:hole_sig,* )]?) => do
+      let sigTerm ← `(ProcedureSignature.mk [$params,*] $ret)
+      match holes with
+      | none    => `(Procedure $sigTerm)
+      | some hs =>
+        let mut hCtx ← `(HoleSigs.empty)
+        for h in hs.getElems do
+          match h with
+          | `(hole_sig| ( $ps:term,* ) → $r:term) =>
+              hCtx ← `(($hCtx).append (ProcedureSignature.mk [$ps,*] $r))
+          | _ => Macro.throwUnsupported
+        `(ProcedureWithHoles $hCtx $sigTerm)
+
+/-! `proctype` unexpanders.  A signature already prints as `procsig (…) -> …` (the
+`ProcedureSignature.mk` unexpander), so we just rewrite `Procedure (procsig …)` and
+`ProcedureWithHoles … (procsig …)` to `proctype …`.  Parameter lists are read off the raw
+`procsig` node (a category quotation can't match the sepBy inside the parens). -/
+
+open Lean PrettyPrinter in
+/-- If `s` is a `procsig ( … ) -> …` node, return its parameter list and return type.
+    (Not `private`: `ModuleSyntax.lean` unexpands `procmod` with it.) -/
+def procsigParts? (s : Syntax) : Option (Syntax.TSepArray `term "," × TSyntax `term) :=
+  let a := s.getArgs
+  if a.size == 6 && a[0]!.getAtomVal == "procsig" then some (⟨a[2]!.getArgs⟩, ⟨a[5]!⟩) else none
+
+open Lean PrettyPrinter in
+@[app_unexpander Procedure]
+def unexpandProcedure : Unexpander
+  | `($_ $sig) => do
+      let some (ps, r) := procsigParts? sig.raw | throw ()
+      `(proctype ( $ps,* ) → $r)
+  | _ => throw ()
+
+open Lean PrettyPrinter in
+/-- Collect every `procsig ( … ) -> …` node in `s`, left to right.  (Matching field
+notation on `HoleSigs.append` in a quotation is brittle, so we just gather the leaves.)
+A hole context `HoleSigs.empty.append s₁ … .append sₙ` has the hole signatures as its
+only `procsig` nodes, in declaration order. -/
+private partial def collectProcsigParts (s : Syntax) :
+    Array (Syntax.TSepArray `term "," × TSyntax `term) :=
+  match procsigParts? s with
+  | some pr => #[pr]
+  | none    => s.getArgs.foldl (fun acc a => acc ++ collectProcsigParts a) #[]
+
+open Lean PrettyPrinter in
+@[app_unexpander ProcedureWithHoles]
+def unexpandProcedureWithHoles : Unexpander
+  | `($_ $holes $sig) => do
+      let some (ps, r) := procsigParts? sig.raw | throw ()
+      let holeParts := collectProcsigParts holes.raw
+      if holeParts.isEmpty then `(proctype ( $ps,* ) -> $r)
+      else
+        let holeSyns ← holeParts.mapM fun (hps, hr) => `(hole_sig| ( $hps,* ) → $hr)
+        `(proctype ( $ps,* ) → $r uses ( $holeSyns,* ))
+  | _ => throw ()
+
+/-! ### Procedure *signature* syntax
+
+`procsig (T, U, V) -> W` is the bare `ProcedureSignature.mk [T, U, V] W` (the same surface
+form as `proctype`, minus the holes — a signature has none).  By construction
+`Procedure (procsig …) = proctype …`.  The unexpander is on `ProcedureSignature.mk`, so any
+signature with a literal parameter list prints back as `procsig (…) -> …`. -/
+
+syntax "procsig " "(" term,* ")" (" → " <|> " -> ") term : term
+
+macro_rules
+  | `(procsig ( $params:term,* ) → $ret:term) => `(procsig ( $params,* ) -> $ret)
+  | `(procsig ( $params:term,* ) -> $ret:term) => `(ProcedureSignature.mk [$params,*] $ret)
+
+open Lean PrettyPrinter in
+@[app_unexpander ProcedureSignature.mk]
+def unexpandProcSig : Unexpander
+  | `($_ [$ps,*] $r) => `(procsig ( $ps,* ) → $r)
+  | _ => throw ()
+
+end GaudisCrypt
+
+-- TODO: Make all things not only parseable, but also printable
+-- TODO: Allow _ inside a *tuple* lvalue too (a bare `_` already becomes Setter.throwaway)
+-- TODO: `paramListToTuple` is not reducible, so a numeral argument of a `call` has a stuck
+--   expected type (`OfNat (paramListToTuple [Nat]) 5`) and needs an ascription.

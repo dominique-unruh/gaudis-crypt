@@ -56,8 +56,22 @@ The dependency flow is **Language → (range framework) → Logic / Lib**.
   no state change), `Program.get`/`Program.set` (read/write a lens).
 - `Lens.lean` — `Lens a m` (get/set with the three lens laws), `Getter` (read-only
   lens), lens `disjoint` (sets commute), and `Lens.compl` (complement lens).
-- `Programs.lean`, `Syntax2.lean`, `Modules.lean` — program/procedure syntax,
-  procedures with holes, and module expressions.
+- `Programs.lean` — statements, procedures with holes, procedure signatures.
+- `ModuleExpressions.lean` — `ModuleTypeRep`, the untyped `ModuleExpression` tree with
+  extrinsic typing (`HasType`), renaming/substitution, reduction and normal forms, plus
+  the `moduletyping`, `normalmodule` and `reduce_simp` tactics.
+- `Modules.lean` — `Module T` (a closed, well-typed, normal expression) and the
+  operations on modules; `IsModule`.
+
+### `GaudisCrypt/Syntax/` — concrete syntax
+
+`Syntax.lean` is the barrel. `ExpressionSyntax.lean` (`GaudiExpr[ ]` and the `$` sigil,
+`CurrentState`/`Evaluatable`/`eval`), `ProgramSyntax.lean` (statements `GaudiProg[ ]`,
+the `proc` term, `proctype`/`procsig`), `ModuleSyntax.lean` (`procmod`, `×ₘ`/`→ₘ`, the
+`moduletype` and `module` commands and the tactics they emit proofs with).
+
+Each file `X.lean` here and in `Language/` may have a sibling `XTest.lean` holding its
+demos and smoke tests; those are imported from `GaudisCrypt.lean`, not from `Syntax.lean`.
 
 ### The range framework (state-footprint analysis)
 

@@ -1,4 +1,4 @@
-import GaudisCrypt.Language.Syntax2
+import GaudisCrypt.Syntax.Syntax
 
 /-!
 # Generic commitment schemes
