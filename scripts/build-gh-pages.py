@@ -51,6 +51,7 @@ def run(
     cwd: Path | None = None,
     check: bool = True,
     verbose: bool = False,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a subprocess command and capture combined stdout/stderr.
 
@@ -71,6 +72,7 @@ def run(
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env={**os.environ, **env} if env else None,
     )
 
 
@@ -984,7 +986,8 @@ def build_docs(root: Path, *, target: str, do_update: bool = True) -> tuple[bool
         cp_cache = run(["lake", "exe", "cache", "get"], cwd=root, check=False)
         logs.append(cp_cache.stdout)
 
-    cp = run(["lake", "build", target], cwd=root, check=False)
+    # Single-threaded build to avoid OOM (see notes in CLAUDE.md / commit history).
+    cp = run(["lake", "build", target], cwd=root, check=False, env={"LEAN_NUM_THREADS": "1"})
     logs.append(cp.stdout)
 
     # doc-gen4 writes to `.lake/build/doc`.
