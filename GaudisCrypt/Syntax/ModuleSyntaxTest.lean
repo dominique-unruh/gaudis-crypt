@@ -170,7 +170,7 @@ example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
     Module.app X.g A
       = Module.proc (X.g.procedure.instantiate
           (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-            (Module.procedure (Module.app A myMod)))))
+            (Module.Proc.procedure (Module.app A myMod)))))
 
 -- `h` has no hole to fill — and hence no parameter to take: it *is* its procedure
 #check (X.h.apply_simp : X.h = Module.proc X.h.procedure)
@@ -182,15 +182,15 @@ example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
     Module.app (Module.app Y.g A) B
       = Module.proc (Y.g.procedure.instantiate
           (HoleSigs.Instantiation.push
-            (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil (Module.procedure B.main))
-            (Module.procedure (Module.app A myMod)))))
+            (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil (Module.Proc.procedure B.main))
+            (Module.Proc.procedure (Module.app A myMod)))))
 
 -- the two lemmas chain: projecting a field out of an applied `X` gets all the way to the procedure
 example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
     M2.g (Module.app X (Module.pair a b))
       = Module.proc (X.g.procedure.instantiate
           (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-            (Module.procedure (Module.app a myMod)))) := by
+            (Module.Proc.procedure (Module.app a myMod)))) := by
   simp [M2.g, M2.mk]
 
 -- `X.g.procedure.apply_simp` takes the last step, from the `instantiate` to a hole-free procedure:
@@ -222,15 +222,15 @@ example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
     X.h.procedure.instantiate args = proc () : Unit { return (); })
 
 -- and now all three families chain: a field of an applied `X` all the way to a plain `Procedure`.
--- (`Module.procedure (Module.app …)` rather than `(Module.app …).procedure`: written prefix, the
--- expected type `Module (.proc _)` reaches `Module.app`'s result type before `a`'s type does, which
--- is how the generated lemmas spell it — the two are defeq but not syntactically equal.)
+-- (`Module.Proc.procedure (Module.app …)` rather than `(Module.app …).procedure`: written prefix,
+-- the expected type `Module (.proc _)` reaches `Module.app`'s result type before `a`'s type does,
+-- which is how the generated lemmas spell it — the two are defeq but not syntactically equal.)
 example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
     M2.g (Module.app X (Module.pair a b))
       = Module.proc (proc () : Unit {
-          _ <- call (Module.procedure (Module.app a myMod)) ();
-          _ <- call (Module.procedure (Module.app a myMod)) ();
-          _ <- call (Module.procedure myMod.main) ("hello", (5 : Nat));
+          _ <- call (Module.Proc.procedure (Module.app a myMod)) ();
+          _ <- call (Module.Proc.procedure (Module.app a myMod)) ();
+          _ <- call (Module.Proc.procedure myMod.main) ("hello", (5 : Nat));
           return ();
         }) := by
   simp [M2.g, M2.mk]
@@ -310,8 +310,8 @@ module Deep (A : Module.Arr TestModule (procmod () → Unit), B : TestModule,
       = Module.proc (Deep.g.procedure.instantiate
           (HoleSigs.Instantiation.push
             (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-              (Module.procedure (Module.app C myMod)))
-            (Module.procedure (Module.app A myMod)))))
+              (Module.Proc.procedure (Module.app C myMod)))
+            (Module.Proc.procedure (Module.app A myMod)))))
 
 module NoTypeNoParams {
   proc g() : Unit { return (); };

@@ -268,25 +268,39 @@ theorem proc_type_is_proc {sig : ProcedureSignature}
 /-- The procedure of a proc-typed module — the inverse of `Module.proc`.  (`Classical.choose`
     only escapes the Prop-to-data restriction; the witness is unique — see
     `Module.procedure_spec` and `Module.procedure_proc`.) -/
--- TODO don't use choose but pattern match
--- TODO use Module.Proc
-noncomputable def Module.procedure
-    {sig : ProcedureSignature} (m : Module (.proc sig)) : Procedure sig :=
-  (proc_type_is_proc m.typed m.normal).choose
+noncomputable def Module.Proc.procedure
+    {sig : ProcedureSignature} (m : Module.Proc sig) : Procedure sig :=
+    match he : m.expression with
+    | @ModuleExpression.proc _ sig' p =>
+        -- The signature the `.proc` node carries is the module's own: its typing says so.
+        have hsig : sig' = sig := by
+          injection (he ▸ m.typed).proc_inv with hs
+          exact hs.symm
+        hsig ▸ p
+    | .procHoles _ _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .pair _ _ | .unit =>
+        -- Impossible: `.var`/`.app`/`.fst`/`.snd` are not normal, and the remaining nodes cannot
+        -- have a procedure type.
+        (show False by cases he ▸ m.normal <;> cases he ▸ m.typed).elim
 
 /-- `Module.procedure` is characterized by its defining equation (the witness of
     `proc_type_is_proc` is unique by constructor injectivity). -/
--- TODO use Module.Proc
 theorem Module.procedure_spec
-    {sig : ProcedureSignature} (m : Module (.proc sig)) :
-    m.expression = .proc m.procedure :=
-  (proc_type_is_proc m.typed m.normal).choose_spec
+    {sig : ProcedureSignature} (m : Module.Proc sig) :
+    m.expression = .proc m.procedure := by
+  have key : ∀ {a b : ProcedureSignature} (h : a = b) (q : Procedure a),
+      ModuleExpression.proc q = ModuleExpression.proc (h ▸ q) := by
+    rintro a b rfl q; rfl
+  unfold Module.Proc.procedure
+  split
+  case _ sig' p he => exact he.trans (key _ p)
+  all_goals
+    rename_i he
+    exact (show False by cases he ▸ m.normal <;> cases he ▸ m.typed).elim
 
 /-- Round-trip: wrapping a procedure as a module and extracting recovers it. -/
--- TODO use Module.Proc
 @[simp] theorem Module.procedure_proc
     {sig : ProcedureSignature} (p : Procedure sig) :
-    ((ModuleExpression.proc p).toModule (.proc p)).procedure = p := by
+    Module.Proc.procedure ((ModuleExpression.proc p).toModule (.proc p)) = p := by
   have h1 : ((ModuleExpression.proc p).toModule (.proc p)).expression = .proc p :=
     Module.reduce_expression ⟨.proc p, .proc p, .proc⟩
   have h2 := Module.procedure_spec ((ModuleExpression.proc p).toModule (.proc p))
@@ -397,7 +411,7 @@ theorem Module.reduce_tuple_cons {holes : HoleSigs} {sig : ProcedureSignature}
     (hrest : rest.reduce = HoleSigs.Instantiation.toModuleExpr inst) :
     (ModuleExpression.pair c rest).reduce
       = HoleSigs.Instantiation.toModuleExpr
-          (HoleSigs.Instantiation.push inst m.procedure) := by
+          (HoleSigs.Instantiation.push inst (Module.Proc.procedure m)) := by
   rw [HoleSigs.Instantiation.toModuleExpr_push, ← Module.procedure_spec m,
     ModuleExpression.reduce_pair_cong hc hrest,
     ModuleExpression.reduce_of_normal
