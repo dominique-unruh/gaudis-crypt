@@ -993,6 +993,9 @@ def build_docs(root: Path, *, target: str, do_update: bool = True) -> tuple[bool
         logs.append(cp_cache.stdout)
 
     # Single-threaded build to avoid OOM (see notes in CLAUDE.md / commit history).
+    # `LEAN_NUM_THREADS=1` sizes Lake's job scheduler (built on the Lean task runtime)
+    # down to a single worker, so at most one memory-hungry `doc-gen4` process runs at
+    # a time. This Lake version has no `-j`/`--jobs` flag; the env var is the lever.
     cp = run(["lake", "build", target], cwd=root, check=False, env={"LEAN_NUM_THREADS": "1"})
     logs.append(cp.stdout)
 
