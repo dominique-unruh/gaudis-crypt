@@ -173,30 +173,8 @@ noncomputable def _root_.GaudisCrypt.ProgramDenotation.footprint'
     {s a b : Type} (progs : a → ProgramDenotation s b) : Footprint s :=
   ⨆ x, (progs x).footprint
 
-/- noncomputable
--- TODO: Inline
-def fvP_getter (getter : Getter a s) : Footprint s := ProgramDenotation.footprint
-    (ProgramDenotation.get getter)
 
-noncomputable
--- TODO: Inline
-def fvP_setter (setter : Setter a s) : Footprint s := ProgramDenotation.footprint'
-    (ProgramDenotation.set setter)
- -/
-
-/- noncomputable
--- TODO rename to something Lens-related
-def Lens.reduceFootprint_new {a b : Type} (lens : Lens a b) (range : Footprint b) :
-    Footprint a :=
-  -- transport `range` along `lens.splitSpace : b ≃ a × lens.ComplContent` (via the bijection lens),
-  -- then reduce away the complement component with `Lens.reduceFootprint`.
-  Lens.reduceFootprint Lens.fst (Lens.liftFootprint (Lens.bijection (Lens.splitSpace lens)) range)
- -/
-
-
-/-! ### Properties of `Lens.reduceFootprint` / `Lens.liftFootprint` needed for the framework instance.
-
- -/
+/-! ### Properties of `Lens.reduceFootprint` / `Lens.liftFootprint` needed for the framework instance. -/
 
 
 omit [ProgramSpec] in

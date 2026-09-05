@@ -21,7 +21,10 @@ A `;`-terminated sequence of statements.  The statement forms are:
 * `call p (e₁, …, eₙ);`           — call `p`, discarding the result;
 * `if (e) { … } else { … }`       — the `else` branch is optional;
 * `while (e) { … }`
-* `{ … }`                         — a nested block.
+* `{ … }`                         — a nested block;
+* `let x := e;` / `have h : P := prf;` / `letI …;` / `haveI …;` — an ordinary *Lean*
+  binder (not a program statement), scoping over the statements that follow it in the
+  same block.
 
 The argument list `( … )` of a `call` is always required (write `()` for no arguments).
 
@@ -54,6 +57,11 @@ proc (x : T, y : U) uses (A : (Nat) → Bool, B : (Bool) → Nat) : R {
 * an optional return type `: R` (inferred from `return e` when omitted);
 * local variables via one or more `var name : T, …;` lines;
 * a body of statements ending in `return e`.
+
+A `let`/`have`/`letI`/`haveI` statement in the body scopes over the rest of the body but
+**not** over `return e` — body and return value are two separate fields of
+`ProcedureWithHoles`, so a binder can only be duplicated into the second, and the copy that
+does not use it would draw an unused-variable warning.  Bind before the `proc` instead.
 
 ## Procedure types and signatures
 
@@ -97,9 +105,16 @@ Surface forms (`gaudi_stmt`):
     if (e) { … } else { … }       -- the `else` branch is optional
     while (e) { … }
     { … }                         -- a block (sequence)
+    let x := e;   have h : P := prf;   letI …;   haveI …;   -- a Lean binder
 
 The call argument list `( … )` is always required (even `()`); the arguments form a
-tuple matching the callee's `ParamType`.  (`hole` is still deferred.) -/
+tuple matching the callee's `ParamType`.  (`hole` is still deferred.)
+
+The four binder forms are not `StmtWithHoles` constructors: they are the ordinary Lean
+term binders.  Each *carries* the statements it scopes over as a nested statement list, so
+`let x := e;` followed by more statements is a single `gaudi_stmt` holding them, and the
+binder is visible exactly there — in the statements that follow it in its own block, and
+nowhere else. -/
 
 namespace GaudisCrypt
 
@@ -176,6 +191,29 @@ syntax ppLine ppGroup("if" " (" term ") " "{") gaudi_stmt* ppLine ppGroup("}" " 
 syntax ppLine ppGroup("if" " (" term ") " "{") gaudi_stmt* ppLine "}" : gaudi_stmt
 syntax ppLine ppGroup("while" " (" term ") " "{") gaudi_stmt* ppLine "}" : gaudi_stmt
 syntax ppLine "{" gaudi_stmt* ppLine "}" : gaudi_stmt
+-- Lean binders in statement position.  The atoms are spelled exactly as in the core term
+-- parsers (`Lean.Parser.Term.let` etc.), whose `letDecl` opens with its own `ppSpace`.
+--
+-- Each of these *carries the statements it scopes over* rather than being a statement in its
+-- own right, and each is declared at a higher priority than the productions above.  Both are
+-- forced by `letI`/`haveI`: unlike `let`/`have` (which are `leadPrec` term parsers), the core
+-- `letI`/`haveI` parsers are `maxPrec`, so in
+--     letI n : Nat := 1; a <- e;
+-- the l-value parser `term:max` of the assignment production happily reads the whole
+-- `letI n : Nat := 1; a` as one term.  That parse ends exactly where ours does, so it is only
+-- taking the rest of the sequence into the production that makes ours a contender at all
+-- (`longestMatch` prefers the longer parse), and only the priority that then settles the tie
+-- (without it the two are returned as an ambiguous `choice` node).
+-- the `ppGroup` keeps the binder itself on one line; the statements it carries print at the
+-- same level as it does, since they are a continuation of the same block, not a nested one
+syntax (priority := high) ppLine ppGroup("let" Lean.Parser.Term.letDecl ";")
+  ppDedent(gaudi_stmt*) : gaudi_stmt
+syntax (priority := high) ppLine ppGroup("have" Lean.Parser.Term.letDecl ";")
+  ppDedent(gaudi_stmt*) : gaudi_stmt
+syntax (priority := high) ppLine ppGroup("letI " Lean.Parser.Term.letDecl ";")
+  ppDedent(gaudi_stmt*) : gaudi_stmt
+syntax (priority := high) ppLine ppGroup("haveI " Lean.Parser.Term.letDecl ";")
+  ppDedent(gaudi_stmt*) : gaudi_stmt
 
 /-- Translate one statement to a `StmtWithHoles` term. -/
 scoped syntax "[gstmt| " gaudi_stmt "]" : term
@@ -190,6 +228,7 @@ macro_rules
   | `([gseq| $s:gaudi_stmt $ss:gaudi_stmt*]) =>
       `(StmtWithHoles.seq [gstmt| $s] [gseq| $ss*])
 
+
 macro_rules
   | `([gstmt| skip;]) => `(StmtWithHoles.skip)
   | `([gstmt| $xs:term,* <- $e:term;]) =>
@@ -203,6 +242,11 @@ macro_rules
   | `([gstmt| while ($c:term) { $body:gaudi_stmt* }]) =>
       `(StmtWithHoles.while (GaudiExpr[ $c ]) [gseq| $body*])
   | `([gstmt| { $ss:gaudi_stmt* }]) => `([gseq| $ss*])
+  -- a Lean binder around the translation of the statements it carries
+  | `([gstmt| let $d:letDecl; $ss:gaudi_stmt*]) => `(let $d:letDecl; [gseq| $ss*])
+  | `([gstmt| have $d:letDecl; $ss:gaudi_stmt*]) => `(have $d:letDecl; [gseq| $ss*])
+  | `([gstmt| letI $d:letDecl; $ss:gaudi_stmt*]) => `(letI $d:letDecl; [gseq| $ss*])
+  | `([gstmt| haveI $d:letDecl; $ss:gaudi_stmt*]) => `(haveI $d:letDecl; [gseq| $ss*])
 
 open Lean in
 /-- Build the (right-nested) argument tuple from a comma-list of arg expressions:
@@ -300,6 +344,14 @@ partial def rewriteHoles (holeNames : List Name) (s : TSyntax `gaudi_stmt) :
       `(gaudi_stmt| while ($c) { $(← b.mapM (rewriteHoles holeNames))* })
   | `(gaudi_stmt| { $ss:gaudi_stmt* }) => do
       `(gaudi_stmt| { $(← ss.mapM (rewriteHoles holeNames))* })
+  | `(gaudi_stmt| let $d:letDecl; $ss:gaudi_stmt*) => do
+      `(gaudi_stmt| let $d:letDecl; $(← ss.mapM (rewriteHoles holeNames))*)
+  | `(gaudi_stmt| have $d:letDecl; $ss:gaudi_stmt*) => do
+      `(gaudi_stmt| have $d:letDecl; $(← ss.mapM (rewriteHoles holeNames))*)
+  | `(gaudi_stmt| letI $d:letDecl; $ss:gaudi_stmt*) => do
+      `(gaudi_stmt| letI $d:letDecl; $(← ss.mapM (rewriteHoles holeNames))*)
+  | `(gaudi_stmt| haveI $d:letDecl; $ss:gaudi_stmt*) => do
+      `(gaudi_stmt| haveI $d:letDecl; $(← ss.mapM (rewriteHoles holeNames))*)
   | _ => pure s
 
 syntax ppGroup("proc" " (" proc_binder,* ")" (ppSpace "uses" " (" hole_binder,* ")")?
@@ -480,7 +532,11 @@ the two places where the printed form deviates from what one would write by hand
   a flat sequence would re-associate it;
 * a hole call prints as `call A (…)` only inside the `proc` that declares `A` in its `uses`
   clause (which is where the macro turns `call` back into a hole call), and as the internal
-  `holecall n (…)` anywhere else.
+  `holecall n (…)` anywhere else;
+* `let`/`have` statements print with their type ascribed (`let x : T := v;`), and `letI`/
+  `haveI` do not print at all — they *inline* their value during elaboration, so no binder
+  of theirs survives in the term to be printed.  What is printed is then the inlined term,
+  which is what re-parsing gives back, so the round trip still holds.
 
 Whenever a term does not fit the surface syntax — a `Getter` that is not of the shape
 `GaudiExpr[ ]` builds, an l-value that is not a lifted lens, `let`s that `proc` would not
@@ -616,11 +672,31 @@ private partial def withPeeledLets {α} [Inhabited α] (n : Nat) (isOk : Lean.Ex
 private def isHoleIndex (v : Lean.Expr) : Bool :=
   v.isAppOf ``HoleIndex.zero || v.isAppOf ``HoleIndex.succ
 
+/-- The `letDecl` node for `x : T := v`.  `letDecl` is a parser, not a syntax category, so
+there is no `` `(letDecl| …) `` quotation for it; we quote a whole `let` term instead and
+pick the declaration out of it. -/
+private def mkLetDecl (x : Ident) (t v : Term) :
+    DelabM (TSyntax ``Lean.Parser.Term.letDecl) := do
+  let stx ← `(let $x : $t := $v; ())
+  let some d := stx.raw.find? (·.isOfKind ``Lean.Parser.Term.letDecl) | failure
+  return ⟨d⟩
+
 mutual
 
-/-- A statement sequence: the right `seq` spine, flattened. -/
+/-- A statement sequence: the right `seq` spine, flattened.  A Lean binder wrapping the rest
+of the sequence (what a `let`/`have` statement elaborates to) becomes one statement carrying
+that rest; `have` is the nondependent `let`, which is the only thing that tells the two apart
+in the term. -/
 private partial def delabGaudiStmts (holeNames : Array Name) :
     DelabM (Array (TSyntax `gaudi_stmt)) := do
+  if let .letE nm _ _ _ nonDep := (← getExpr) then
+    guard <| !nm.hasMacroScopes
+    let ty ← withLetVarType delab
+    let val ← withLetValue delab
+    let decl ← mkLetDecl (mkIdent nm) ty val
+    let body ← withLetBody (delabGaudiStmts holeNames)
+    return #[← if nonDep then `(gaudi_stmt| have $decl:letDecl; $body:gaudi_stmt*)
+               else `(gaudi_stmt| let $decl:letDecl; $body:gaudi_stmt*)]
   match (← getExpr).getAppFnArgs with
   | (``StmtWithHoles.seq, args) => do
       guard (args.size == 5)
@@ -630,10 +706,11 @@ private partial def delabGaudiStmts (holeNames : Array Name) :
   | _ => return #[← delabGaudiStmt holeNames]
 
 /-- A statement in the *left* position of a `seq`.  A `seq` there is printed as a block
-`{ … }`, or re-parsing would re-associate it. -/
+`{ … }`, or re-parsing would re-associate it; so is a Lean binder, whose carried statement
+list would otherwise be re-parsed greedily and swallow the rest of the enclosing sequence. -/
 private partial def delabGaudiStmtNested (holeNames : Array Name) :
     DelabM (TSyntax `gaudi_stmt) := do
-  if (← getExpr).isAppOf ``StmtWithHoles.seq then
+  if (← getExpr).isAppOf ``StmtWithHoles.seq || (← getExpr).isLet then
     let ss ← delabGaudiStmts holeNames
     `(gaudi_stmt| { $ss:gaudi_stmt* })
   else

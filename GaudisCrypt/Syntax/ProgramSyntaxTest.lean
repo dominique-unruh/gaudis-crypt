@@ -247,6 +247,92 @@ info: GaudiProg[
 #guard_msgs in
 #roundtrip GaudiProg[ { a <- 1; b <- 2; } a <- 3; ]
 
+-- Lean binders in statement position.  A binder at the very top of a program wraps the whole
+-- `StmtWithHoles`, so the term's head is a `let`, not a `StmtWithHoles` constructor, and it is
+-- Lean's own `let` delaborator that prints it — outside the `GaudiProg[ ]` brackets.  That
+-- re-parses to the same term, so the round trip holds either way.
+/--
+info: let n := 1;
+have m := n + 1;
+GaudiProg[
+    a <- n;
+    b <- m;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  let n := 1;
+  have m : Nat := n + 1;
+  a <- n;
+  b <- m;
+]
+
+-- `letI`/`haveI` inline their value during elaboration, so no binder of theirs is left in the
+-- term: what prints is the inlined program
+/--
+info: GaudiProg[
+    a <- 1;
+    b <- 2;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  letI n : Nat := 1;
+  haveI m : Nat := 2;
+  a <- n;
+  b <- m;
+]
+
+-- a binder carries the statements it scopes over, so in the *left* position of a `seq` it has
+-- to print as a block — re-parsing it flat would let it swallow the statements that follow
+/--
+info: GaudiProg[
+    {
+      let n : ℕ := 1;
+      a <- n;
+    }
+    b <- 2;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ { let n := 1; a <- n; } b <- 2; ]
+
+-- a binder inside a branch scopes over the rest of that branch only
+/--
+info: GaudiProg[
+    if (§a == 0) {
+      let n : ℕ := 1;
+      a <- n;
+    }
+    b <- 2;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  if ($a == 0) {
+    let n := 1;
+    a <- n;
+  }
+  b <- 2;
+]
+
+-- in a `proc`: the parameter and local-variable lenses are in scope in the binder's value
+/--
+info: proc (x : ℕ) : ℕ {
+    var u : ℕ;
+    let k : ℕ := 7;
+    u <- §x + k;
+    return §u
+}
+-/
+#guard_msgs in
+#roundtrip proc (x : Nat) : Nat {
+  var u : Nat;
+  let k := 7;
+  u <- $x + k;
+  return $u
+}
+
 -- sampling and calls: no arguments, one argument, two arguments, result discarded
 /--
 info: GaudiProg[

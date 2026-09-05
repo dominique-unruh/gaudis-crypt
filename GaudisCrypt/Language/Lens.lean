@@ -57,7 +57,7 @@ theorem Lens.ext (l r : Lens a m) (h : (∀ x y, l.set x y = r.set x y)) : l = r
   cases l; cases r; simp_all [Getter.ext_iff, Setter.ext_iff]
 
 /-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
--- TODO: Rename → Lens.Disjoint
+-- CLAUDE-TODO: Rename → Lens.Disjoint; also rename follow-up thms like disjoint.iff etc.
 class disjoint (x : Lens a m) (y : Lens b m) where
   commute : ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s)
 
