@@ -251,6 +251,8 @@ theorem pedersen_correctness (m : F) (σ : State) :
     exact_mod_cast hi.symm.trans h
   -- β/δ-reduce the applied functor down to `Correctness.main`'s body with Pedersen's three
   -- procedures in the holes — the `module` command's own `@[simp]` lemmas do all of it.
+  simp [Correctness.apply_simp, Correctness.main.apply_simp,
+     Correctness.main.procedure.apply_simp]
   simp only [Correctness.apply_simp, Correctness.main.apply_simp,
     Correctness.main.procedure.apply_simp, Module.proc, Module.procedure_proc]
   -- unfold the game and push `wp` through.  Kept as `rw`, not folded into the `simp only` above:

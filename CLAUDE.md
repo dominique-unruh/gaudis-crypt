@@ -65,10 +65,16 @@ The dependency flow is **Language → (range framework) → Logic / Lib**.
 
 ### `GaudisCrypt/Syntax/` — concrete syntax
 
-`Syntax.lean` is the barrel. `ExpressionSyntax.lean` (`GaudiExpr[ ]` and the `$` sigil,
-`CurrentState`/`Evaluatable`/`eval`), `ProgramSyntax.lean` (statements `GaudiProg[ ]`,
-the `proc` term, `proctype`/`procsig`), `ModuleSyntax.lean` (`procmod`, `×ₘ`/`→ₘ`, the
-`moduletype` and `module` commands and the tactics they emit proofs with).
+`Syntax.lean` is the barrel. `ExpressionSyntax.lean` (`GaudiExpr[ ]`, the `$` sigil and its
+printable twin `§`, `CurrentState`/`Evaluatable`/`eval`), `ProgramSyntax.lean` (statements
+`GaudiProg[ ]`, the `proc` term, `proctype`/`procsig`), `ModuleSyntax.lean` (`procmod`,
+`×ₘ`/`→ₘ`, the `moduletype` and `module` commands and the tactics they emit proofs with).
+
+Statements and procedures also **print** in that surface syntax (delaborators at the end of
+`ProgramSyntax.lean`), round-trip faithfully: what is printed parses back to the same term.
+`$x` cannot be printed (it is a Lean antiquotation node, unformattable inside infix
+operators), so variable reads print as `§x`. `ProgramSyntaxTest.lean` has a `#roundtrip`
+command that prints, re-parses, re-elaborates and checks defeq; use it for new syntax.
 
 Each file `X.lean` here and in `Language/` may have a sibling `XTest.lean` holding its
 demos and smoke tests; those are imported from `GaudisCrypt.lean`, not from `Syntax.lean`.

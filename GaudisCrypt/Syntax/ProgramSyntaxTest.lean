@@ -162,4 +162,188 @@ example : (procsig (Nat) → Bool) = (procsig (Nat) -> Bool) := rfl
 example : (proctype (Nat) → Bool) = (proctype (Nat) -> Bool) := rfl
 #check (proc_two_holes : proctype (Nat) → Nat uses ((Nat) → Bool, (Bool) → Nat))
 
+/-! ### Printing and round-tripping
+
+`#roundtrip t` prints `t` with the delaborators of `ProgramSyntax.lean`, parses the printed
+text again and checks that what comes back is definitionally equal to `t`.  The printed text
+is logged and pinned by the `#guard_msgs` docstrings — a delaborator that quietly gave up
+(so that Lean printed the raw constructor term) would still round-trip, but would not print
+the surface syntax, and the docstring catches that. -/
+
+open Lean Elab Command Term PrettyPrinter in
+/-- `#roundtrip t`: print `t`, parse the printed text, elaborate it, and check the result is
+defeq to `t`.  Logs the printed text. -/
+elab "#roundtrip " t:term : command => Command.runTermElabM fun _ => do
+  let e ← Term.elabTerm t none
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let e ← instantiateMVars e
+  let ty ← Meta.inferType e
+  let text := (← ppExpr e).pretty
+  let stx ← match Parser.runParserCategory (← getEnv) `term text "<roundtrip>" with
+    | .ok stx => pure stx
+    | .error msg => throwError "printed term does not parse:{indentD text}\n{msg}"
+  let e' ← Term.elabTerm (TSyntax.mk stx : Term) (some ty)
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let e' ← instantiateMVars e'
+  unless ← Meta.isDefEq e e' do
+    throwError "round-trip changed the term:{indentD text}\nelaborated back to\
+      {indentD (← Meta.ppExpr e')}"
+  logInfo text
+
+/--
+info: GaudiProg[
+    a <- §a + 1;
+    b <- §a + §b;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ a <- $a + 1; b <- $a + $b; ]
+
+-- tuple l-values, a nested tuple, and the throwaway `_`
+/--
+info: GaudiProg[
+    a, b <- (1, 2);
+    (a, b), d <- ((1, 2), 3);
+    _ <- 4;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ a, b <- (1, 2); (a, b), d <- ((1, 2), 3); _ <- 4; ]
+
+-- control flow; `if` without an `else` prints in its short form again
+/--
+info: GaudiProg[
+    if (§a == 0) {
+      a <- 1;
+    } else {
+      a <- 2;
+    }
+    if (§a == 0) {
+      a <- 1;
+    }
+    while (§a == 0) {
+      a <- §a + 1;
+    }
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  if ($a == 0) { a <- 1; } else { a <- 2; }
+  if ($a == 0) { a <- 1; }
+  while ($a == 0) { a <- $a + 1; }
+]
+
+-- a `seq` in the left position of a `seq` has to print as a block, or re-parsing would
+-- re-associate it
+/--
+info: GaudiProg[
+    {
+      a <- 1;
+      b <- 2;
+    }
+    a <- 3;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ { a <- 1; b <- 2; } a <- 3; ]
+
+-- sampling and calls: no arguments, one argument, two arguments, result discarded
+/--
+info: GaudiProg[
+    c <$ SubProbability.uniform;
+    a <- call proc_loop ();
+    a <- call proc_inc (§a);
+    a <- call proc_sum (§a, §b);
+    call proc_inc (§a);
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  c <$ GaudisCrypt.SubProbability.uniform;
+  a <- call proc_loop ();
+  a <- call proc_inc ($a);
+  a <- call proc_sum ($a, $b);
+  call proc_inc ($a);
+]
+
+-- outside of a `proc` there is no name for a hole, so the internal `holecall` is printed
+/--
+info: GaudiProg[
+    a <- holecall HoleIndex.zero (§a);
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  a <- holecall (HoleIndex.zero (Γ := .empty) (a := procsig (Nat) -> Nat)) ($a);
+]
+
+-- procedures: parameters, locals, an explicit return type (always printed)
+/--
+info: proc (x : ℕ, y : ℕ) : ℕ {
+    var u : ℕ;
+    u <- §x + §y;
+    return §u
+}
+-/
+#guard_msgs in
+#roundtrip proc (x : Nat, y : Nat) : Nat {
+  var u : Nat;
+  u <- $x + $y;
+  return $u
+}
+
+-- no parameters, no locals, empty body (the body is `skip`)
+/--
+info: proc () : ℕ {
+    skip;
+    return 0
+}
+-/
+#guard_msgs in
+#roundtrip proc () { return 0 }
+
+-- holes print as `call A (…)` inside the `proc` that declares `A`
+/--
+info: proc (x : ℕ) uses (A : (ℕ) → Bool, B : (Bool) → ℕ) : ℕ {
+    var u : Bool, v : ℕ;
+    u <- call A (§x);
+    v <- call B (§u);
+    call A (§x);
+    return §v
+}
+-/
+#guard_msgs in
+#roundtrip proc (x : Nat) uses (A : (Nat) → Bool, B : (Bool) → Nat) : Nat {
+  var u : Bool;
+  var v : Nat;
+  u <- call A ($x);
+  v <- call B ($u);
+  call A ($x);
+  return $v
+}
+
+-- a procedure literal in callee position prints (and re-parses) as one
+/--
+info: GaudiProg[
+    a <- call
+    (proc (x : ℕ) : ℕ {
+        skip;
+        return §x + 1
+  }) (§a);
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ a <- call (proc (x : Nat) : Nat { return $x + 1 }) ($a); ]
+
+-- the surface syntax steps aside when Lean is told to print the term as it is
+/-- info: StmtWithHoles.assign (liftLens a) { get := fun st ↦ 1 } : StmtWithHoles HoleSigs.empty Unit -/
+#guard_msgs in
+set_option pp.notation false in
+#check (GaudiProg[ a <- 1; ] : Stmt Unit)
+
+/-- info: @StmtWithHoles.skip inst✝ HoleSigs.empty Unit : @StmtWithHoles inst✝ HoleSigs.empty Unit -/
+#guard_msgs in
+set_option pp.explicit true in
+#check (GaudiProg[ skip; ] : Stmt Unit)
+
 end GaudisCrypt.ProgTest

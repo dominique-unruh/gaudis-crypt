@@ -17,6 +17,10 @@ variables:
 
 e.g. `GaudiExpr[ $a + $b * 2 ]`.  Every expression position in a statement is already an
 `GaudiExpr`, so `$` may be used directly there (see `ProgramSyntax.lean`).
+
+`§x` is a second spelling of `$x`, with the same meaning.  It exists because it can be
+*printed*: `$x` parses as a Lean antiquotation node, and antiquotation nodes cannot be
+pretty-printed (`$a + 1` fails to format), so `§x` is what the delaborators emit.
 -/
 
 namespace GaudisCrypt
@@ -107,5 +111,24 @@ private def fixExpr (stx : Syntax) : MacroM Syntax :=
 scoped macro:max "GaudiExpr[" e:term "]" : term => do
   let e' : Term := ⟨← fixExpr e⟩
   `(Getter.mk (fun st => letI : CurrentState _ := ⟨st⟩; $e'))
+
+/-! ### The printable sigil `§`
+
+`$x` is an antiquotation node, which Lean's formatter cannot print (it fails inside infix
+operators, so `$a + 1` would be unprintable).  `§x` means exactly the same — it expands to
+`eval x` just like `$x` does — but is an ordinary piece of syntax, so it both parses and
+prints.  The `eval` unexpander turns every variable read back into it. -/
+
+/-- `§x` — the value of program variable / lens `x` in the ambient `CurrentState`; the
+printable spelling of `$x`. -/
+syntax:max "§" noWs term:max : term
+
+macro_rules | `(§$x:term) => `(eval $x)
+
+open Lean PrettyPrinter in
+@[app_unexpander GaudisCrypt.eval]
+def unexpandEval : Unexpander
+  | `($_ $x) => `(§$x)
+  | _ => throw ()
 
 end GaudisCrypt
