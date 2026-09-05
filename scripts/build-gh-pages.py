@@ -975,6 +975,33 @@ def write_doc_entrypoint(root: Path, *, excluded: set[str], top: str = "GaudisCr
     return path
 
 
+def warn_if_overcommit_disabled() -> None:
+    """Warn (but don't fail) if Linux memory overcommit isn't set to 'always'.
+
+    The doc build spawns `doc-gen4` once per module -- thousands of times -- by
+    `fork()`-ing the large (~8 GB) `lake` driver. Under the default heuristic
+    overcommit (`vm.overcommit_memory=0`, or strict mode 2), those forks can be
+    refused with ENOMEM ("cannot allocate memory") even when plenty of RAM is
+    free, aborting the doc build partway. Mode 1 (always overcommit) avoids it;
+    the duplicated pages are copy-on-write and backed by RAM+swap anyway.
+    """
+    try:
+        mode = Path("/proc/sys/vm/overcommit_memory").read_text().strip()
+    except OSError:
+        return  # Not Linux (or no procfs): nothing to check.
+    if mode == "1":
+        return
+    print(
+        f"WARNING: vm.overcommit_memory={mode!r} (not '1'). The doc build fork()s a\n"
+        "large `lake` process thousands of times to run doc-gen4; under this setting\n"
+        "those forks may fail with ENOMEM ('cannot allocate memory') even with free\n"
+        "RAM, aborting the build. Recommended:\n"
+        "  sudo sysctl -w vm.overcommit_memory=1\n"
+        "(persist via /etc/sysctl.d/99-overcommit.conf). Continuing anyway...",
+        file=sys.stderr,
+    )
+
+
 def build_docs(root: Path, *, target: str, do_update: bool = True) -> tuple[bool, str, Path | None]:
     """Build a Lake target and return (ok, combined_log, doc_dir)."""
     """Return (success, log_output, doc_dir)."""
@@ -1235,6 +1262,9 @@ def main() -> int:
             except Exception:
                 pass
             run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, check=False)
+
+    # The doc build is fork-heavy; warn (non-fatally) if overcommit isn't enabled.
+    warn_if_overcommit_disabled()
 
     # Generated entrypoint is created in the repo root; remove it afterwards.
     entrypoint_path = root / "DocEntrypoint.lean"
