@@ -6,3 +6,4 @@
 /dist/
 /DocEntrypoint.lean
 /scripts/__pycache__/
+/.tmp/

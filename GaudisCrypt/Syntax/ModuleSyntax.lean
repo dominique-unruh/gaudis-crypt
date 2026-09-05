@@ -383,7 +383,7 @@ this typing assigns to those `?sig`, is each procedure emitted as a constant
 `X.<f>.procedure : ProcedureWithHoles …`, in which
 * a `call` whose callee mentions a module parameter has become a **hole** (the callee, having
   done its job for typing, is dropped).  Two calls with the same callee syntax share one hole;
-* every other callee is a closed module expression, converted with `Module.procedure`.
+* every other callee is a closed module expression, converted with `Module.Proc.procedure`.
 
 Each procedure also gets a *module* `X.<f>`.  When it uses no module parameter that is simply
 `Module.proc X.<f>.procedure`.  Otherwise it is curried over the parameters it does use, in
@@ -600,7 +600,7 @@ partial def sameSyntax : Syntax → Syntax → Bool
 /-- Rewrite the `call`s of a module body (recursing through the whole statement tree).  A callee
 that mentions a module parameter is replaced by `mkCallee i` for its (deduplicated) hole number
 `i`, and the state accumulates those callees in hole order.  Any other callee is a `Module.Proc`,
-so `Module.procedure` extracts the procedure the `call` statement expects.
+so `Module.Proc.procedure` extracts the procedure the `call` statement expects.
 
 Two runs with the same `params` produce the same hole numbering, which is what lets the
 type-checking pass and the final pass agree on it. -/
@@ -616,7 +616,7 @@ partial def rewriteCalls (params : List Name) (mkCallee : Nat → Term) (s : Syn
       if idx == holes.size then set (holes.push callee)
       return s.setArg i (mkCallee idx)
     else
-      return s.setArg i (Syntax.mkCApp ``GaudisCrypt.Module.procedure #[callee])
+      return s.setArg i (Syntax.mkCApp ``GaudisCrypt.Module.Proc.procedure #[callee])
   else match s with
     | .node info k args => return .node info k (← args.mapM (rewriteCalls params mkCallee))
     | _ => return s
@@ -784,7 +784,7 @@ structure ProcResult where
   calleeExprs : Array Term
   /-- The same callees as they were written — module terms, mentioning the module parameters by
   name, in hole order.  `X.<f>.apply_simp` states what applying `X.<f>` to those parameters is, and
-  names the callees this way (`Module.procedure` of each). -/
+  names the callees this way (`Module.Proc.procedure` of each). -/
   callees : Array Term
   /-- The name of the `X.<f>.procedure.apply_simp` lemma declared alongside `X.<f>.procedure`. -/
   instThmId : Ident
@@ -814,7 +814,7 @@ def elabProcedure (nm : Ident) (paramBs : Array (Ident × Term))
   -- local context — this is where the whole body (holes included) is type-checked, and what
   -- determines the hole signatures
   let checked ← callees.mapIdxM fun i c =>
-    `(GaudisCrypt.Module.procedure
+    `(GaudisCrypt.Module.Proc.procedure
         ($c : GaudisCrypt.Module (GaudisCrypt.ModuleTypeRep.proc $(sigHole i))))
   let (checkStmts, _) :=
     (stmts.mapM fun s => rewriteCalls paramNames (checked[·]!) s.raw).run #[]
@@ -905,12 +905,12 @@ parameters `f` uses:
 theorem X.f.apply_simp (A : T₁) … (Z : Tₖ) :
     Module.app (… (Module.app X.f A) …) Z
       = Module.proc (X.f.procedure.instantiate
-          (HoleSigs.Instantiation.nil.push (Module.procedure c₁) |>.push … ))
+          (HoleSigs.Instantiation.nil.push (Module.Proc.procedure c₁) |>.push … ))
 ```
 — the procedure with its holes filled by the callees `c₁ …` they were made from, each written as it
 was in the body (with `A … Z` in place of the module parameters) and turned into a `Procedure` by
-`Module.procedure`.  Pushed in hole order, so the *last* declared hole ends up at `HoleIndex.zero`,
-which is how `HoleSigs.Instantiation.toModuleExpr` reads a tuple back.
+`Module.Proc.procedure`.  Pushed in hole order, so the *last* declared hole ends up at
+`HoleIndex.zero`, which is how `HoleSigs.Instantiation.toModuleExpr` reads a tuple back.
 
 A procedure with no holes uses no parameter either (a hole is exactly a call to a callee mentioning
 one), and `X.<f>` is then `Module.proc X.<f>.procedure` by definition — the lemma says just that.
@@ -926,7 +926,7 @@ def elabProcApplySimp (nm : Ident) (paramBs : Array (Ident × Term)) (r : ProcRe
     return thmId
   let mut inst ← `(GaudisCrypt.HoleSigs.Instantiation.nil)
   for c in r.callees do
-    inst ← `(GaudisCrypt.HoleSigs.Instantiation.push $inst (GaudisCrypt.Module.procedure $c))
+    inst ← `(GaudisCrypt.HoleSigs.Instantiation.push $inst (GaudisCrypt.Module.Proc.procedure $c))
   let mut lhs : Term := modId
   for i in r.usedPos do lhs ← `(GaudisCrypt.Module.app $lhs $(paramBs[i]!.1))
   -- the statement, as a `(x : T) → …` chain (there is no binder syntax to splice into a `theorem`)
