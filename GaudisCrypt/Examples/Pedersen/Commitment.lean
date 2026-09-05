@@ -191,19 +191,31 @@ deriving that (`Lens.disjoint_ofst_osnd`, `Lens.disjoint_chain`, …) now live i
 `Language/Lens.lean` — the "move them to the proper place" TODO that used to sit here is done,
 and they are no longer declared in this file.
 
-⚠ They still do **not** make tuple assignment of *locals* work (re-tested 2026-08-07): the macro
-binds locals as `let`-variables, and instance search does not unfold local `let`s, so
-`disjoint c d` is searched at the opaque variables and never reaches these instances.
-
-**Both** spellings fail, identically — `[lvalRaw|]` sends the parenthesised tuple to `Lens.pair`
-just as the comma-list does, so there is no way around it by rewriting the assignment:
+⚠ They still do **not** fire *by themselves* for tuple assignment of *locals*, for two reasons
+that stack (re-tested 2026-09-05).  First, the macro binds locals as `let`-variables and
+instance search does not unfold local `let`s, so `disjoint c d` is searched at the opaque
+variables.  Second, even written out the two lenses live in `paramListToTuple
+(locals.map (·.fst))`, which is not reducible, so the goal never presents the `_ × _` that
+`Lens.disjoint_ofst_osnd` and the `o`-instances are stated for.  Neither spelling of the
+assignment avoids it — `[lvalRaw|]` sends the parenthesised tuple to `Lens.pair` just as the
+comma-list does:
 ```
 c, d   <- call S.commit (…);   -- failed to synthesize instance of type class  disjoint c d
 (c, d) <- call S.commit (…);   -- same
 ```
-Until the macro binds locals differently (inlining the lens chains, or registering the
-disjointness facts itself), the experiments below use pair-typed locals and `$`-projections
-instead — `var cd : Commitment × OpeningKey` then `($cd).1`/`($cd).2`. -/
+Since `let`/`have`/`letI`/`haveI` became statements of the `proc` body, though, the instance
+can simply be supplied where it is needed.  Elaboration unfolds both the local `let`s and
+`paramListToTuple`, so applying the instances by hand does go through — peel the `chain`
+prefix the two lenses share and finish at the slot where they differ:
+```
+haveI : disjoint c d :=
+  Lens.disjoint_chain _ _ _ (d := Lens.disjoint_chain _ _ _ (d :=
+    Lens.disjoint_chain _ _ _ (d := Lens.disjoint_ofst_osnd _ _)));
+```
+`Correctness` below is written that way.  A macro that binds locals differently (inlining the
+lens chains, or registering the disjointness facts itself) would remove the need; until then
+`HidingExperiment` and `BindingExperiment` still take the cheaper route of pair-typed locals
+read through `$`-projections — `var cd : Commitment × OpeningKey` then `($cd).1`/`($cd).2`. -/
 
 -- TODO: changes to named variable if CommitmentTypes becomes a structure (but see the
 -- ⚠ above: that may be blocked)
@@ -274,6 +286,13 @@ instance Programs.disjoint_intoParams {a b : Type} {paramTypes : List Type}
     disjoint (Lens.intoParams (locals := locals) x) y.intoParams :=
   Lens.disjoint_chain ProcedureState.localL _ _
 
+instance Programs.disjoint_intoVars {a b : Type} {paramTypes : List Type}
+    {locals : List (Σ t : Type, Inhabited t)}
+    {x : Lens a (paramListToTuple (locals.map (·.fst)))}
+    {y : Lens b (paramListToTuple (locals.map (·.fst)))} [disjoint x y] :
+    disjoint (Lens.intoVars (paramTypes := paramTypes) x) y.intoVars :=
+  Lens.disjoint_chain ProcedureState.localL _ _
+
 -- TODO: Dominique: move somewhere probably
 /-- A local variable is disjoint from *any* parameter: they live in different fields of the
     scope record, so no `disjoint x y` hypothesis is required. -/
@@ -311,33 +330,24 @@ by hand any more (which is what Dominique's TODO at the bottom of `Syntax2.lean`
 
 It declares `Correctness.main.procedure` (the body, with its holes), `Correctness.main` (that
 procedure as a functor of `S`), `Correctness` itself, and `Correctness.apply_simp`. -/
-/-
-
-TODO make this work (use let's not have's in proc-parser)
 module Correctness (S : CommitmentScheme) {
   proc main(m : Message) : Bool {
     var x : Value;
     var c : Commitment;
     var d : OpeningKey;
     var b : Bool;
+    haveI : disjoint c d :=
+      Lens.disjoint_chain _ _ _ (d :=
+        Lens.disjoint_chain _ _ _ (d :=
+          Lens.disjoint_chain _ _ _ (d :=
+            Lens.disjoint_ofst_osnd _ _)));
     x <- call S.gen ();
     c,d <- call S.commit ($x, $m);
     b <- call S.verify ($x, $m, $c, $d);
     return $b
   };
-} -/
-
-module Correctness (S : CommitmentScheme) {
-  proc main(m : Message) : Bool {
-    var x : Value;
-    var cd : Commitment × OpeningKey;
-    var b : Bool;
-    x <- call S.gen ();
-    cd <- call S.commit ($x, $m);
-    b <- call S.verify ($x, $m, ($cd).1, ($cd).2);
-    return $b
-  };
 }
+
 #check Correctness.main.procedure
 #print Correctness.main.procedure
 #check Correctness.main

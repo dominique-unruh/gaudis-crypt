@@ -272,6 +272,8 @@ theorem pedersen_correctness (m : F) (σ : State) :
   rw [wp_commit]
   refine Finset.sum_eq_zero fun d _ => ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
   rw [wp_verify]
-  simp
+  -- `Lens.pair`: the game stores `commit`'s result through the tuple l-value `c, d <- …`, so
+  -- the final read has to compute back through that pair lens.
+  simp [Lens.pair]
 
 end GaudisCrypt.Examples.Pedersen
