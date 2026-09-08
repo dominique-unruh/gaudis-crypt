@@ -79,8 +79,8 @@ theorem body_transfer_gen :
           (x : Setter sig.ret (ProcedureState l))
           (p : Getter sig.ParamType (ProcedureState l)),
           Stable (ProgramDenotation.get p) → (∀ ret, Stable (ProgramDenotation.set x ret)) →
-          transferBy convertL (programDenotation (StmtWithHoles.call x (lazyInst n) p))
-            (programDenotation (StmtWithHoles.call x (eagerInst n) p))) →
+          transferBy convertL (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p))
+            (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))) →
       transferBy convertL (programDenotation (A.instantiate lazyInst))
         (programDenotation (A.instantiate eagerInst)) := by
   intro holes l A
@@ -129,8 +129,8 @@ theorem body_transfer_gen :
 theorem ro_hhole {l : Type} {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
     (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
     (hp : Stable (ProgramDenotation.get p)) (hx : ∀ ret, Stable (ProgramDenotation.set x ret)) :
-    transferBy convertL (programDenotation (StmtWithHoles.call x (RO_lazy n) p))
-      (programDenotation (StmtWithHoles.call x (RO_eager n) p)) := by
+    transferBy convertL (programDenotation (StmtWithHoles.call x (RO_lazy.lookup n) p))
+      (programDenotation (StmtWithHoles.call x (RO_eager.lookup n) p)) := by
   cases n with
   | zero =>
       show transferBy convertL (programDenotation (StmtWithHoles.call x RO_lazy_proc p))

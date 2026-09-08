@@ -431,17 +431,19 @@ macro_rules
       let chain ← `(Lens.intoVars $slot)
       binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
     -- holes: a `ProcedureSignature` (no locals) each, folded into a `HoleSigs` context,
-    -- and one `let` per name binding it to its `HoleIndex` (last-declared = `.zero`).
+    -- and one `let` per name binding it to its `HoleIndex` (first-declared = `.zero`).
     let nh := holeBs.size
     let holeSigTerms ← holeBs.mapM fun (_, ps, ret) =>
       `(({ params := [$(ps.toArray),*], ret := $ret } : ProcedureSignature))
+    -- a cons list, so it is built from the back of the list forwards; the resulting term still
+    -- reads in declaration order, `HoleSigs.cons s₁ (… (HoleSigs.cons sₙ HoleSigs.empty))`
     let mut hCtx ← `(HoleSigs.empty)
-    for sigT in holeSigTerms do hCtx ← `(($hCtx).append $sigT)
+    for sigT in holeSigTerms.reverse do hCtx ← `(HoleSigs.cons $sigT $hCtx)
     let mut holeBinds : Array (Ident × Term × Term) := #[]
     for k in [0:nh] do
       let (id, _, _) := holeBs[k]!
       let mut idx ← `(HoleIndex.zero)
-      for _ in [0 : nh - 1 - k] do idx ← `(HoleIndex.succ $idx)
+      for _ in [0 : k] do idx ← `(HoleIndex.succ $idx)
       holeBinds := holeBinds.push (id, ← `(HoleIndex $hCtx $(holeSigTerms[k]!)), idx)
     let wrap (bs : Array (Ident × Term × Term)) (inner : Term) : MacroM Term :=
       bs.foldrM (fun (id, ty, val) acc => `(let $id : $ty := $val; $acc)) inner
@@ -482,10 +484,10 @@ macro_rules
       | none    => `(Procedure $sigTerm)
       | some hs =>
         let mut hCtx ← `(HoleSigs.empty)
-        for h in hs.getElems do
+        for h in hs.getElems.reverse do
           match h with
           | `(hole_sig| ( $ps:term,* ) → $r:term) =>
-              hCtx ← `(($hCtx).append (ProcedureSignature.mk [$ps,*] $r))
+              hCtx ← `(HoleSigs.cons (ProcedureSignature.mk [$ps,*] $r) $hCtx)
           | _ => Macro.throwUnsupported
         `(ProcedureWithHoles $hCtx $sigTerm)
 
@@ -511,9 +513,9 @@ def unexpandProcedure : Unexpander
 
 open Lean PrettyPrinter in
 /-- Collect every `procsig ( … ) -> …` node in `s`, left to right.  (Matching field
-notation on `HoleSigs.append` in a quotation is brittle, so we just gather the leaves.)
-A hole context `HoleSigs.empty.append s₁ … .append sₙ` has the hole signatures as its
-only `procsig` nodes, in declaration order. -/
+notation on `HoleSigs.cons` in a quotation is brittle, so we just gather the leaves.)
+A hole context `HoleSigs.cons s₁ (… (HoleSigs.cons sₙ HoleSigs.empty))` has the hole signatures as
+its only `procsig` nodes, in declaration order. -/
 private partial def collectProcsigParts (s : Syntax) :
     Array (Syntax.TSepArray `term "," × TSyntax `term) :=
   match procsigParts? s with
@@ -645,15 +647,15 @@ private def delabSigParts : DelabM (Array Term × Term) := do
   guard ((← getExpr).isAppOfArity ``ProcedureSignature.mk 2)
   return (← withNaryArg 0 delabListElems, ← withNaryArg 1 delab)
 
-/-- `HoleSigs.empty.append s₁ … .append sₙ` ↦ the `sᵢ`, in declaration order. -/
+/-- `HoleSigs.cons s₁ (… (HoleSigs.cons sₙ HoleSigs.empty))` ↦ the `sᵢ`, in declaration order. -/
 private partial def delabHoleSigs : DelabM (Array (Array Term × Term)) := do
   match (← getExpr).getAppFnArgs with
   | (``HoleSigs.empty, _) => return #[]
-  | (``HoleSigs.append, args) => do
+  | (``HoleSigs.cons, args) => do
       guard (args.size == 2)
-      let init ← withNaryArg 0 delabHoleSigs
-      let sig ← withNaryArg 1 delabSigParts
-      return init.push sig
+      let sig ← withNaryArg 0 delabSigParts
+      let rest ← withNaryArg 1 delabHoleSigs
+      return #[sig] ++ rest
   | _ => failure
 
 /-- `Getter.mk fun st => e` — what `GaudiExpr[ e ]` builds — ↦ `e`.  Fails when the state

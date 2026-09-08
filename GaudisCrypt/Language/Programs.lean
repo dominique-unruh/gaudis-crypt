@@ -205,27 +205,32 @@ def ProcedureSignature.localVariableInit
     (params : paramListToTuple sig.params) : sig.LocalVariableState locals :=
   ⟨params, localDefaults locals⟩
 
-/-- A sequences of procedure signatures, intended to be used to describe the type
-    of holes in a program -/
+/-- A sequence of procedure signatures, describing the holes of a program.
+
+A **cons** list, head first: `.cons X (.cons Y .empty)` is the context of a body that calls `X`
+and then `Y`.  Everything indexed by it agrees on that order — `HoleIndex.zero` is the head,
+`HoleSigs.Instantiation` is the tuple with the head's procedure first, `toList`,
+`toModuleTypeRepTuple` and `toModuleExpr` all put the head first, and the `uses (…)` display lists
+it first.  So "hole 0" means one thing throughout: the first hole the body declares. -/
 inductive HoleSigs where
-  | empty  : HoleSigs
-  | append : HoleSigs → ProcedureSignature → HoleSigs
+  | empty : HoleSigs
+  | cons  : ProcedureSignature → HoleSigs → HoleSigs
 
 def HoleSigs.length : HoleSigs → Nat
-  | .empty => 0
-  | .append h _ => h.length.succ
+  | .empty     => 0
+  | .cons _ h => h.length.succ
 
 def HoleSigs.NonEmpty : HoleSigs → Prop
 | .empty => False
 | _ => True
 
 def HoleSigs.toList : HoleSigs → List ProcedureSignature
-  | .empty => []
-  | .append h sig => HoleSigs.toList h ++ [sig]
+  | .empty      => []
+  | .cons sig h => sig :: HoleSigs.toList h
 
 inductive HoleIndex : HoleSigs → ProcedureSignature → Type _ where
-  | zero {a} {Γ : HoleSigs} : HoleIndex (Γ.append a) a
-  | succ {a b} : HoleIndex Γ a → HoleIndex (Γ.append b) a
+  | zero {a} {Γ : HoleSigs} : HoleIndex (.cons a Γ) a
+  | succ {a b} : HoleIndex Γ a → HoleIndex (.cons b Γ) a
   deriving DecidableEq
 
 def HoleIndex.toFin {holes sig} : HoleIndex holes sig → Fin holes.length
@@ -307,40 +312,79 @@ def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret (ProcedureState l)) (proc 
       (params : Getter sig.ParamType (ProcedureState l)) : Stmt l
      := StmtWithHoles.call x proc params
 
-def HoleSigs.Instantiation (holes : HoleSigs) := ∀ {sig}, HoleIndex holes sig → Procedure sig
+/-- The procedures filling the holes `holes`, as a **tuple**: right-nested, with `HoleIndex.zero`
+— the *last*-appended hole — as the first component, the same order as
+`HoleSigs.Instantiation.toList` and `HoleSigs.Instantiation.toModuleExpr`.  No holes at all is
+`PUnit`, so what one writes is
 
-/-- The only instantiation of no holes at all. -/
-def HoleSigs.Instantiation.nil : HoleSigs.empty.Instantiation := fun {_} idx => nomatch idx
+```
+p.instantiate (c₁, c₂, c₃)   -- three holes, in the order the body declares them
+p.instantiate c              -- one hole: the tuple is its element
+```
 
-/-- Extend an instantiation by one more procedure, for one more (last-appended) hole.  Written in
-the order the holes were appended, `nil.push p₀ |>.push p₁ …`, this is how an instantiation is
-built up from concrete procedures — note `HoleIndex.zero` is the *last* one pushed. -/
-def HoleSigs.Instantiation.push {holes : HoleSigs} {sig : ProcedureSignature}
-    (inst : holes.Instantiation) (p : Procedure sig) : (holes.append sig).Instantiation :=
-  fun {_} idx => match idx with
-    | .zero => p
-    | .succ i => inst i
+and nothing else is needed to build one: `Prod.mk` is the only constructor involved.  Reading a
+hole out is `HoleSigs.Instantiation.lookup`.
 
-/-- Looking up the hole a `push` was made for. -/
-@[simp] theorem HoleSigs.Instantiation.push_zero {holes : HoleSigs} {sig : ProcedureSignature}
-    (inst : holes.Instantiation) (p : Procedure sig) :
-    HoleSigs.Instantiation.push inst p HoleIndex.zero = p := rfl
+A one-hole instantiation is the procedure itself rather than a pair with `PUnit`, which is what
+keeps the written form free of a trailing `⟨⟩`.  The cost is that knowing `Instantiation (cons sig
+holes)` is a pair takes *two* constructors, not one — so every function that recurses on `holes`
+and takes an instantiation apart splits on both levels, `cons _ .empty` beside `cons _ (.cons ..)`.
+Do that split in the function itself; routing it through `head`/`tail` helpers instead makes them
+stuck at a variable `holes`, and then nothing about them is `rfl` any more.
 
-/-- Looking up any other hole of a `push` falls through to the instantiation it extends. -/
-@[simp] theorem HoleSigs.Instantiation.push_succ {holes : HoleSigs} {sig sig' : ProcedureSignature}
-    (inst : holes.Instantiation) (p : Procedure sig) (i : HoleIndex holes sig') :
-    HoleSigs.Instantiation.push inst p (HoleIndex.succ i) = inst i := rfl
+It is a tuple rather than the function `∀ {sig}, HoleIndex holes sig → Procedure sig` it used to
+be so that instantiations can be *written* and *read* as ordinary Lean tuples — the function form
+made every instantiation an implicit-lambda chain, in the source and in every goal that mentioned
+one.  The price is that `holes` has to be concrete for the type to reduce: an instantiation at a
+symbolic `holes` can still be taken as a hypothesis and looked up (`lookup` recurses on the index,
+which refines `holes`), but not built or taken apart without recursing on `holes` in step.
+
+The universe is written out only because `PUnit` would otherwise take one of its own: nothing in the
+`.empty` branch constrains its level, so `Type _` gives the definition a universe parameter that no
+argument determines, and a use site inside an inductive (`ModuleExpression.ReductionStep`) then has
+nothing to infer it from.  Spelled this way the signature is the one the function representation
+had, `[ProgramSpec] → HoleSigs → Type (max 1 u)` — no generality is lost. -/
+def HoleSigs.Instantiation.{instU} [ProgramSpec.{instU}] : HoleSigs → Type (max 1 instU)
+  | .empty           => PUnit
+  | .cons sig .empty => Procedure sig
+  | .cons sig holes  => Procedure sig × HoleSigs.Instantiation holes
+
+/-- The procedure filling hole `idx`.  Recursion is on the index, which refines `holes` as it goes
+— which is what lets this work at a `holes` that is still a variable. -/
+def HoleSigs.Instantiation.lookup : {holes : HoleSigs} → {sig : ProcedureSignature} →
+    holes.Instantiation → HoleIndex holes sig → Procedure sig
+  | .cons _ .empty,     _, inst, .zero   => inst
+  | .cons _ .empty,     _, _,    .succ j => nomatch j
+  | .cons _ (.cons ..), _, inst, .zero   => inst.1
+  | .cons _ (.cons ..), _, inst, .succ j => HoleSigs.Instantiation.lookup inst.2 j
+
+/-- The only hole of a one-hole instantiation is the instantiation itself. -/
+@[simp] theorem HoleSigs.Instantiation.lookup_zero_single {sig : ProcedureSignature}
+    (inst : (HoleSigs.cons sig .empty).Instantiation) :
+    inst.lookup HoleIndex.zero = inst := rfl
+
+/-- The first hole of a tuple of two or more: its first component. -/
+@[simp] theorem HoleSigs.Instantiation.lookup_zero_cons {holes : HoleSigs}
+    {sig sig' : ProcedureSignature}
+    (inst : (HoleSigs.cons sig (.cons sig' holes)).Instantiation) :
+    inst.lookup HoleIndex.zero = inst.1 := rfl
+
+/-- Any later hole: the rest of the tuple. -/
+@[simp] theorem HoleSigs.Instantiation.lookup_succ {holes : HoleSigs}
+    {sig sig' sig'' : ProcedureSignature}
+    (inst : (HoleSigs.cons sig (.cons sig' holes)).Instantiation)
+    (i : HoleIndex (HoleSigs.cons sig' holes) sig'') :
+    inst.lookup (HoleIndex.succ i) = inst.2.lookup i := rfl
 
 /-- Convert an instantiation into a plain list of procedures (tagged by their signature),
-in the same right-nested order as `HoleSigs.Instantiation.toModuleTuple`.
+in the same right-nested order as the tuple itself and as `HoleSigs.Instantiation.toModuleExpr`.
 
 The head of the list corresponds to the most-recently appended hole signature. -/
-def HoleSigs.Instantiation.toList : {holes : HoleSigs} → holes.Instantiation → List (Σ sig, Procedure sig)
-  | .empty,       _    => []
-  | .append _ sig, inst =>
-      ⟨sig, inst .zero⟩ ::
-        HoleSigs.Instantiation.toList (holes := _)
-          (fun {sig'} idx => inst (.succ idx))
+def HoleSigs.Instantiation.toList :
+    {holes : HoleSigs} → holes.Instantiation → List (Σ sig, Procedure sig)
+  | .empty,               _    => []
+  | .cons sig .empty,     inst => [⟨sig, inst⟩]
+  | .cons sig (.cons ..), inst => ⟨sig, inst.1⟩ :: HoleSigs.Instantiation.toList inst.2
 
 /-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
     `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
@@ -352,7 +396,7 @@ def StmtWithHoles.instantiate {holes : HoleSigs} {l : Type}
   -- | .assign x e      => .assign x e
   | .sample x e      => .sample x e
   | .call' x ls b r p => .call' x ls b r p
-  | .hole n x p      => StmtWithHoles.call x (instantiation n) p
+  | .hole n x p      => StmtWithHoles.call x (instantiation.lookup n) p
   | .seq s1 s2       =>
       .seq (s1.instantiate instantiation) (s2.instantiate instantiation)
   | .ifThenElse c t e =>

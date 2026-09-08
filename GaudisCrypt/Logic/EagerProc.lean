@@ -90,8 +90,8 @@ theorem eager_body (S : ProgramDenotation State Unit) :
             (ProgramDenotation.zoom ProcedureState.globalL S)
             (ProgramDenotation.zoom ProcedureState.globalL S)
             (fun σ₁ σ₂ : ProcedureState l => σ₁ = σ₂)
-            (programDenotation (StmtWithHoles.call x (eagerInst n) p))
-            (programDenotation (StmtWithHoles.call x (lazyInst n) p))
+            (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
+            (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p))
             (fun u v : Unit × ProcedureState l => u = v)) →
       ProgramDenotation.eagerR
         (ProgramDenotation.zoom ProcedureState.globalL S)
@@ -304,8 +304,8 @@ theorem eager_call {holes : HoleSigs} {sig : ProcedureSignature}
           (ProgramDenotation.zoom ProcedureState.globalL S)
           (ProgramDenotation.zoom ProcedureState.globalL S)
           (fun σ₁ σ₂ => σ₁ = σ₂)
-          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
-          (programDenotation (StmtWithHoles.call x (lazyInst n) p))
+          (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p))
           (fun u v => u = v)) :
     ProgramDenotation.eagerR S S (fun σ₁ σ₂ : State => σ₁ = σ₂)
       (procedureDenotation (A.instantiate eagerInst) args)
@@ -406,8 +406,8 @@ theorem eager_call_inv {holes : HoleSigs} {sig : ProcedureSignature}
           (ProgramDenotation.zoom ProcedureState.globalL S)
           (ProgramDenotation.zoom ProcedureState.globalL S)
           (fun σ₁ σ₂ => σ₁ = σ₂)
-          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
-          (programDenotation (StmtWithHoles.call x (lazyInst n) p))
+          (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p))
           (fun u v => u = v))
     (hself : ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate lazyInst) args >>= fun a =>

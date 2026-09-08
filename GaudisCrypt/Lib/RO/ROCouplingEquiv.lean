@@ -114,8 +114,8 @@ theorem body_prhl2_gen :
           (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
               (ProgramDenotation.set x ret) (liftRelPost P)) →
           ProgramDenotation.prhl2 (liftRel P)
-            (programDenotation (StmtWithHoles.call x (eagerInst n) p))
-            (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) →
+            (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
+            (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p)) (liftRelPost P)) →
       ProgramDenotation.prhl2 (liftRel P)
         (programDenotation (A.instantiate eagerInst))
         (programDenotation (A.instantiate lazyInst)) (liftRelPost P) := by
@@ -201,8 +201,8 @@ theorem ro_hhole_prhl {l : Type}
     (hx : ∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
         (ProgramDenotation.set x ret) (liftRelPost P)) :
     ProgramDenotation.prhl2 (liftRel P)
-      (programDenotation (StmtWithHoles.call x (RO_eager n) p))
-      (programDenotation (StmtWithHoles.call x (RO_lazy n) p)) (liftRelPost P) := by
+      (programDenotation (StmtWithHoles.call x (RO_eager.lookup n) p))
+      (programDenotation (StmtWithHoles.call x (RO_lazy.lookup n) p)) (liftRelPost P) := by
   cases n with
   | zero =>
       haveI : Countable roSig.ParamType := inferInstanceAs (Countable input)
@@ -450,8 +450,8 @@ theorem instantiate_of_fvP_gen {holes : HoleSigs} {sig : ProcedureSignature}
         (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
             (ProgramDenotation.set x ret) (liftRelPost P)) →
         ProgramDenotation.prhl2 (liftRel P)
-          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
-          (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) :
+          (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p)) (liftRelPost P)) :
     ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate eagerInst) args)
       (procedureDenotation (A.instantiate lazyInst) args)
@@ -498,8 +498,8 @@ theorem instantiate_of_glob_gen {holes : HoleSigs} {sig : ProcedureSignature}
         (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
             (ProgramDenotation.set x ret) (liftRelPost P)) →
         ProgramDenotation.prhl2 (liftRel P)
-          (programDenotation (StmtWithHoles.call x (eagerInst n) p))
-          (programDenotation (StmtWithHoles.call x (lazyInst n) p)) (liftRelPost P)) :
+          (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
+          (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p)) (liftRelPost P)) :
     ProgramDenotation.prhl2 P
       (procedureDenotation (A.instantiate eagerInst) args)
       (procedureDenotation (A.instantiate lazyInst) args)

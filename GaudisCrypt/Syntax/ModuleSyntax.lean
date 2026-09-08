@@ -709,8 +709,9 @@ theorem X.f.procedure.apply_simp (args : ‹hole context›.Instantiation) :
 ```
 whose right-hand side is the procedure as it was declared, only with each hole call written back as
 an ordinary `call args ‹the hole's index›` (so the callees of the body appear as
-`args HoleIndex.zero`, `args HoleIndex.zero.succ`, …, the last-declared hole being `.zero`).  After
-`X.<f>.apply_simp` — and with `HoleSigs.Instantiation.push_zero`/`_succ` to look the indices up —
+`args.lookup HoleIndex.zero`, `args.lookup HoleIndex.zero.succ`, …, the *first*-declared hole
+being `.zero`).  After
+`X.<f>.apply_simp` — and with `HoleSigs.Instantiation.lookup_zero`/`_succ` to look the indices up —
 naming it takes an application of `X` all the way to a hole-free `Procedure`.
 
 It is left out of the `simp` set on purpose.  Its right-hand side is the whole procedure body, so as
@@ -799,6 +800,8 @@ reduce` is propositional, not definitional — so `rfl` only works when the adap
   `reduce`.  Unfolding the accessor — hence the `module_accessor` simp set, since its name is not
   known here — and pushing those `reduce`s out with `reduce_fst_inner`/`reduce_snd_inner` makes the
   two sides equal. -/
+/- TODO: with this and other internal tactics: figure out whether we actually need syntax space polution.
+         In order to do this for one tactic at a time, can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other. -/
 syntax "module_callee" : tactic
 
 macro_rules
@@ -832,8 +835,13 @@ one `.abs` per parameter it uses.
   defined after `reduce_simp` in `Modules.lean`, hence the alternation;
 * what is left is `reduce (.app (Module.procWithHoles p).expression <tuple of callees>)`, which
   `Module.reduce_app_procWithHoles` turns into the instantiated procedure once its side goal — the
-  tuple reduces to the instantiation's own tuple — is peeled off component by component with
-  `Module.reduce_tuple_cons`, each component being discharged by `module_callee`. -/
+  tuple reduces to the instantiation's own tuple — is discharged.  That side goal carries a
+  *written-out* instantiation, so `HoleSigs.Instantiation.toModuleExpr` computes on it and both
+  sides become plain expression tuples; `Module.reduce_pair_of` then peels them component by
+  component, each component discharged by `module_callee` (after `Module.procedure_spec` turns the
+  `.proc` node back into the callee's expression).  Peeling at the expression level keeps
+  `HoleSigs.Instantiation` out of the unification problem, which matters because it does not reduce
+  while its hole context is a metavariable. -/
 syntax "proc_apply " ident : tactic
 
 macro_rules
@@ -864,9 +872,20 @@ macro_rules
                GaudisCrypt.ModuleExpression.reduce_fst_inner,
                GaudisCrypt.ModuleExpression.reduce_snd_inner])
          refine GaudisCrypt.Module.reduce_app_procWithHoles _ _ _ ?_
-         repeat (first
-           | exact GaudisCrypt.Module.reduce_tuple_nil
-           | refine GaudisCrypt.Module.reduce_tuple_cons _ _ _ _ ?_ ?_
+         -- the instantiation in the goal is a written-out tuple, so `toModuleExpr` computes: the
+         -- right-hand side becomes a plain expression pair, peeled component by component with
+         -- `Module.reduce_pair_of` and each component discharged by `module_callee`
+         simp only [GaudisCrypt.HoleSigs.Instantiation.toModuleExpr]
+         repeat' (first
+           | exact GaudisCrypt.ModuleExpression.reduce_of_normal .unit
+           | exact GaudisCrypt.ModuleExpression.Normal.unit
+           | exact GaudisCrypt.ModuleExpression.Normal.proc
+           | refine GaudisCrypt.ModuleExpression.Normal.pair ?_ ?_
+           | refine GaudisCrypt.Module.reduce_pair_of .proc ?_ ?_ ?_
+           -- the component goal is `c.reduce = .proc m.procedure`, while `module_callee` proves
+           -- `c.reduce = m.expression`; `procedure_spec` is the step between
+           | rw [← GaudisCrypt.Module.procedure_spec]
+           | (rw [← GaudisCrypt.Module.procedure_spec]; module_callee)
            | module_callee)))
 
 namespace GaudisCrypt.ModuleDecl
@@ -1225,14 +1244,15 @@ def elabProcedure (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)
   let nh := callees.size
   let instCallees ← (Array.range nh).mapM fun k => do
     let mut idx ← `(GaudisCrypt.HoleIndex.zero)
-    for _ in [0 : nh - 1 - k] do idx ← `(GaudisCrypt.HoleIndex.succ $idx)
-    `($argsId $idx)
+    for _ in [0 : k] do idx ← `(GaudisCrypt.HoleIndex.succ $idx)
+    `(GaudisCrypt.HoleSigs.Instantiation.lookup $argsId $idx)
   let (instStmts, _) :=
     (stmts.mapM fun s => rewriteCalls paramNames (instCallees[·]!) s.raw).run #[]
   let instTerm ← mkProc (instStmts.map (⟨·⟩)) none
+  -- a cons list, built from the back forwards; the term still reads in declaration order
   let mut hCtx ← `(GaudisCrypt.HoleSigs.empty)
-  for (hps, hret) in holeSigs do
-    hCtx ← `(GaudisCrypt.HoleSigs.append $hCtx (procsig ( $hps,* ) -> $hret))
+  for (hps, hret) in holeSigs.reverse do
+    hCtx ← `(GaudisCrypt.HoleSigs.cons (procsig ( $hps,* ) -> $hret) $hCtx)
   let instThmId := mkIdent (declId.getId ++ `apply_simp)
   let instLhs ← instantiateR declRef argsId
   -- deliberately *not* `@[simp]`, unlike the other `apply_simp` lemmas: its right-hand side is the
@@ -1248,14 +1268,14 @@ def elabProcedure (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)
 /-- The `ModuleExpression` of the procedure `r`, with `subst[i]` put for the module parameter
 declared at position `i`: either the closed `Module.proc X.<f>.procedure`, or
 `Module.procWithHoles X.<f>.procedure` applied to the tuple of its callees.  That tuple is
-right-nested and *reversed*, matching `HoleSigs.toModuleTypeRepTuple` (the last-declared hole is
-the outermost `.fst`). -/
+right-nested in declaration order, matching `HoleSigs.toModuleTypeRepTuple` (the first-declared
+hole is the outermost `.fst`). -/
 def procApplied (r : ProcResult) (subst : Array Term) : CommandElabM Term := do
   if r.calleeExprs.isEmpty then
     `(GaudisCrypt.Module.expression (GaudisCrypt.Module.proc $(r.declRef)))
   else
     let mut tuple ← `(GaudisCrypt.ModuleExpression.unit)
-    for c in r.calleeExprs do
+    for c in r.calleeExprs.reverse do
       tuple ← `(GaudisCrypt.ModuleExpression.pair $(⟨substParams subst c⟩) $tuple)
     `(GaudisCrypt.ModuleExpression.app
         (GaudisCrypt.Module.expression (GaudisCrypt.Module.procWithHoles $(r.declRef))) $tuple)
@@ -1296,12 +1316,13 @@ parameters `f` uses:
 theorem X.f.apply_simp (A : T₁) … (Z : Tₖ) :
     Module.app (… (Module.app X.f A) …) Z
       = Module.proc (X.f.procedure.instantiate
-          (HoleSigs.Instantiation.nil.push (Module.Proc.procedure c₁) |>.push … ))
+          (Module.Proc.procedure c₁, …, Module.Proc.procedure cₙ))
 ```
 — the procedure with its holes filled by the callees `c₁ …` they were made from, each written as it
 was in the body (with `A … Z` in place of the module parameters) and turned into a `Procedure` by
-`Module.Proc.procedure`.  Pushed in hole order, so the *last* declared hole ends up at
-`HoleIndex.zero`, which is how `HoleSigs.Instantiation.toModuleExpr` reads a tuple back.
+`Module.Proc.procedure`.  An instantiation is a tuple in declaration order, which is also index
+order: `HoleIndex.zero` is the first hole the body declared, and a one-hole instantiation is its
+procedure rather than a pair.
 
 A procedure with no holes uses no parameter either (a hole is exactly a call to a callee mentioning
 one), and `X.<f>` is then `Module.proc X.<f>.procedure` by definition — the lemma says just that.
@@ -1317,9 +1338,12 @@ def elabProcApplySimp (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × T
     elabCommand (← `(command| @[simp] theorem $thmId:ident $bs* :
       $modRef = GaudisCrypt.Module.proc $(r.declRef) := rfl))
     return thmId
-  let mut inst ← `(GaudisCrypt.HoleSigs.Instantiation.nil)
-  for c in r.callees do
-    inst ← `(GaudisCrypt.HoleSigs.Instantiation.push $inst (GaudisCrypt.Module.Proc.procedure $c))
+  -- the instantiation as a tuple, in declaration order — which is index order, `HoleIndex.zero`
+  -- being the first hole the body declared.  A one-hole instantiation is its procedure, so the
+  -- fold starts at the last callee rather than at `⟨⟩`; `r.callees` is non-empty here.
+  let procs ← r.callees.mapM fun c => `(GaudisCrypt.Module.Proc.procedure $c)
+  let mut inst : Term := procs.back!
+  for c in procs.pop.reverse do inst ← `(($c, $inst))
   let mut lhs : Term := modRef
   for i in r.usedPos do lhs ← appR lhs paramBs[i]!.1
   -- the statement, as a `(x : T) → …` chain (there is no binder syntax to splice into a `theorem`)

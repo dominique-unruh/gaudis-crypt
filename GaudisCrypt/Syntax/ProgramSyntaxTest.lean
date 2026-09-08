@@ -154,7 +154,7 @@ example : Procedure (procsig (Nat) -> Nat) = proctype (Nat) -> Nat := rfl
 #check procsig (Nat, Bool) -> Nat
 #check ProcedureSignature.mk [String,String] Nat
 #check Procedure (ProcedureSignature.mk [String,String] Nat)
-#check ProcedureWithHoles (.append .empty (procsig () -> Unit)) (ProcedureSignature.mk [String,String] Nat)
+#check ProcedureWithHoles (.cons (procsig () -> Unit) .empty) (ProcedureSignature.mk [String,String] Nat)
 -- TODO: Can we make test cases that trigger if the terms above don't print the way we want?
 
 -- both arrow spellings accepted: `->` and `→`

@@ -221,8 +221,11 @@ lemma InductiveFunction.evalMexpr_toModuleTuple
     {holes : HoleSigs} → (inst : holes.Instantiation) →
       ind.evalMexpr (HoleSigs.Instantiation.toModuleExpr inst)
         = ind.evalInstantiationFold (holes := holes) inst
-  | .empty,       _    => rfl
-  | .append _ _, inst => by
+  | .empty,             _    => rfl
+  | .cons _ .empty,     _    => by
+      simp [HoleSigs.Instantiation.toModuleExpr, InductiveFunction.evalMexpr,
+        InductiveFunction.evalInstantiationFold, HoleSigs.Instantiation.toList]
+  | .cons _ (.cons ..), inst => by
       -- Unfold `toModuleExpr` / `evalMexpr` / `evalInstantiation` and apply IH on the tail.
       simp [HoleSigs.Instantiation.toModuleExpr, InductiveFunction.evalMexpr,
         InductiveFunction.evalInstantiationFold, HoleSigs.Instantiation.toList,
@@ -584,15 +587,19 @@ private theorem foldr_sup_base (ind : InductiveFunctionGettersSetters T)
 private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] :
     letI pre := @red.preorder
     ∀ {holes sig} (n : HoleIndex holes sig) (args : holes.Instantiation),
-      ind.proc (args n)
+      ind.proc (args.lookup n)
         ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)
-  | _, _, .zero, args => by
+  | .cons _ .empty,     _, .zero,    _    => by
       letI := @red.preorder
       simp only [HoleSigs.Instantiation.toList, List.foldr_cons]; exact red.le_join_left _ _
-  | _, _, .succ n', args => by
+  | .cons _ .empty,     _, .succ n', _    => nomatch n'
+  | .cons _ (.cons ..), _, .zero,    _    => by
+      letI := @red.preorder
+      simp only [HoleSigs.Instantiation.toList, List.foldr_cons]; exact red.le_join_left _ _
+  | .cons _ (.cons ..), _, .succ n', args => by
       letI := @red.preorder
       simp only [HoleSigs.Instantiation.toList, List.foldr_cons]
-      exact le_trans (proc_le_toList ind n' (fun idx => args idx.succ)) (le_join_right _ _)
+      exact le_trans (proc_le_toList ind n' args.2) (le_join_right _ _)
 
 /-- Instantiating a statement only adds the (transferred) footprints of the procedures
 plugged into its holes. -/
@@ -622,10 +629,10 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
       intro args
       have hmem := proc_le_toList ind n args
       simp only [InductiveFunctionGettersSetters.proc] at hmem
-      have hb : ind.reduce ProcedureState.globalL (ind.stmt (args n).body)
+      have hb : ind.reduce ProcedureState.globalL (ind.stmt (args.lookup n).body)
           ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
         le_trans (red.le_join_left _ _) hmem
-      have hr : ind.reduce ProcedureState.globalL (ind.getter (args n).return_val)
+      have hr : ind.reduce ProcedureState.globalL (ind.getter (args.lookup n).return_val)
           ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
         le_trans (le_join_right _ _) hmem
       simp only [StmtWithHoles.instantiate, StmtWithHoles.call,

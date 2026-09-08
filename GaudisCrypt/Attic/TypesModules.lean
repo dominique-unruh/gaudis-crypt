@@ -41,7 +41,7 @@ def ModuleContextIdx.toNat : ModuleContextIdx Γ T → Nat
     it; write `HoleSigs.toModuleTypeRepTuple holes`. -/
 def HoleSigs.toModuleTypeRepTuple : HoleSigs → ModuleTypeRep
 | .empty => .unit
-| .append holes sig => .prod (.proc sig) (HoleSigs.toModuleTypeRepTuple holes)
+| .cons sig holes => .prod (.proc sig) (HoleSigs.toModuleTypeRepTuple holes)
 
 omit [ProgramSpec] in
 lemma ModuleContextIdx.toNat_inj' {Γ : ModuleContext} :
@@ -425,11 +425,11 @@ def substitute (body : ModuleExpression (Δ.append u) t) (arg : ModuleExpression
 def HoleSigs.Instantiation.toModuleTuple {Δ : ModuleContext} :
     {holes : HoleSigs} → holes.Instantiation →
       ModuleExpression Δ (HoleSigs.toModuleTypeRepTuple holes)
-  | .empty,       _    => .unit
-  | .append _ _, inst =>
-      .pair (.proc (inst .zero))
-            (HoleSigs.Instantiation.toModuleTuple
-              (fun idx => inst (.succ idx)))
+  | .empty,             _    => .unit
+  | .cons _ .empty,     inst => .pair (.proc inst) .unit
+  | .cons _ (.cons ..), inst =>
+      .pair (.proc inst.1)
+            (HoleSigs.Instantiation.toModuleTuple inst.2)
 
 /-- Non-deterministic single-step reduction: all possible one-step reductions. -/
 inductive ReductionStep : ModuleExpression Δ T → ModuleExpression Δ T → Prop where
@@ -511,15 +511,19 @@ theorem multiStepReduction_pair
 def procTupleLookup {Δ : ModuleContext} :
     {holes : HoleSigs} → (m : ModuleExpression Δ (HoleSigs.toModuleTypeRepTuple holes)) →
     IsProcTuple m → holes.Instantiation
-  | .empty, _, _ => fun n => nomatch n
-  | .append _ _, m, h => fun n => by
+  | .empty, _, _ => ⟨⟩
+  | .cons _ .empty, m, h => by
+      cases m with
+      | pair a _ =>
+          cases a with
+          | proc p => exact p
+          | var _ | app _ _ | fst _ | snd _ => simp [IsProcTuple] at h
+      | var _ | app _ _ | fst _ | snd _ => simp [IsProcTuple] at h
+  | .cons _ (.cons ..), m, h => by
       cases m with
       | pair a rest =>
           cases a with
-          | proc p =>
-              cases n with
-              | zero => exact p
-              | succ n' => exact procTupleLookup rest h n'
+          | proc p => exact (p, procTupleLookup rest h)
           | var _ | app _ _ | fst _ | snd _ => simp [IsProcTuple] at h
       | var _ | app _ _ | fst _ | snd _ => simp [IsProcTuple] at h
 
@@ -533,7 +537,16 @@ lemma procTupleLookup_toModuleTuple {Δ : ModuleContext} :
       cases m with
       | unit => rfl
       | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcTuple])
-  | .append _ _, m, h => by
+  | .cons _ .empty, m, h => by
+      cases m with
+      | pair a rest =>
+          cases a with
+          | proc p =>
+              have ih := procTupleLookup_toModuleTuple (Δ := Δ) rest h
+              exact congrArg (ModuleExpression.pair (.proc p)) ih
+          | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcTuple])
+      | var _ | app _ _ | fst _ | snd _ => exact absurd h (by simp [IsProcTuple])
+  | .cons _ (.cons ..), m, h => by
       cases m with
       | pair a rest =>
           cases a with
@@ -917,18 +930,16 @@ private lemma toModuleTypeRepTuple_isArrowFree (holes : HoleSigs) :
     (HoleSigs.toModuleTypeRepTuple holes).toSTLC.isArrowFree := by
   induction holes with
   | empty => simp [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC, Metatheory.STLCext.Ty.isArrowFree]
-  | append _ _ ih =>
+  | cons _ _ ih =>
       simp [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC, Metatheory.STLCext.Ty.isArrowFree, ih]
 
 open Metatheory.STLCext in
 private def basicTermHoleLookup : (holes : HoleSigs) →
     BasicTerm ((HoleSigs.toModuleTypeRepTuple holes).toSTLC) →
     holes.Instantiation
-  | .empty, _ => fun n => nomatch n
-  | .append Γ _, .pair (.value v) rest => fun n =>
-      match n with
-      | .zero   => v
-      | .succ m => basicTermHoleLookup Γ rest m
+  | .empty, _ => ⟨⟩
+  | .cons _ .empty, .pair (.value v) _ => v
+  | .cons _ (.cons a b), .pair (.value v) rest => (v, basicTermHoleLookup (.cons a b) rest)
 
 open Metatheory.STLCext in
 private noncomputable def ProcedureWithHoles.toSTLC {holes sig}
@@ -1119,22 +1130,25 @@ private def isBasicType_toModuleTuple {Δ : ModuleContext} :
     {holes : HoleSigs} → (inst : holes.Instantiation) →
     Metatheory.STLCext.Term.isBasicType (HoleSigs.toModuleTypeRepTuple holes).toSTLC
         (HoleSigs.Instantiation.toModuleTuple (Δ := Δ) inst).toSTLC
-  | .empty,    _    => trivial
-  | .append _ _, inst =>
-      -- isBasicType (.base sig) (.value (inst .zero)) reduces to (sig = sig) = rfl, not True
-      ⟨rfl, isBasicType_toModuleTuple (fun idx => inst (.succ idx))⟩
+  | .empty,             _    => trivial
+  -- isBasicType (.base sig) (.value inst) reduces to (sig = sig) = rfl, not True
+  | .cons _ .empty,     _    => ⟨rfl, trivial⟩
+  | .cons _ (.cons ..), inst => ⟨rfl, isBasicType_toModuleTuple inst.2⟩
 
 /-- Reading the procedures back from the STLC encoding of `toModuleTuple inst` recovers `inst`.
     Term-mode so `isBasicType_toModuleTuple` unfolds and `rfl`/direct recursion closes goals. -/
 private def basicTermHoleLookup_toModuleTuple {Δ : ModuleContext} :
     {holes : HoleSigs} → (inst : holes.Instantiation) →
     {sig : ProcedureSignature} → (n : HoleIndex holes sig) →
-    basicTermHoleLookup holes
-      (Metatheory.STLCext.Term.toBasicTerm _ _ (isBasicType_toModuleTuple (Δ := Δ) inst)) n = inst n
-  | .empty,    _,    _, n => nomatch n
-  | .append _ _, _, _, .zero   => rfl
-  | .append _ _, inst, _, .succ m =>
-      basicTermHoleLookup_toModuleTuple (fun idx => inst (.succ idx)) m
+    (basicTermHoleLookup holes
+      (Metatheory.STLCext.Term.toBasicTerm _ _
+        (isBasicType_toModuleTuple (Δ := Δ) inst))).lookup n = inst.lookup n
+  | .empty,             _,    _, n       => nomatch n
+  | .cons _ .empty,     _,    _, .zero   => rfl
+  | .cons _ .empty,     _,    _, .succ m => nomatch m
+  | .cons _ (.cons ..), _,    _, .zero   => rfl
+  | .cons _ (.cons ..), inst, _, .succ m =>
+      basicTermHoleLookup_toModuleTuple inst.2 m
 
 
 -- Two instantiations that agree on every hole index produce the same statement.
@@ -1142,7 +1156,7 @@ private def basicTermHoleLookup_toModuleTuple {Δ : ModuleContext} :
 -- unlike inducting on a procedure body, whose `l` is a fixed `sig.LocalVariableState …`.
 private lemma StmtWithHoles.instantiate_congr_of_agree {holes : HoleSigs} {l : Type}
     (s : StmtWithHoles holes l) {f g : holes.Instantiation}
-    (h : ∀ {sig} (n : HoleIndex holes sig), f n = g n) :
+    (h : ∀ {sig} (n : HoleIndex holes sig), f.lookup n = g.lookup n) :
     s.instantiate f = s.instantiate g := by
   induction s with
   | hole n _ _ => simp only [StmtWithHoles.instantiate]; rw [h n]
@@ -1170,9 +1184,14 @@ lemma toModuleTuple_isProcTuple {Δ : ModuleContext} {holes : HoleSigs}
     IsProcTuple (HoleSigs.Instantiation.toModuleTuple (Δ := Δ) inst) := by
   induction holes with
   | empty => simp [HoleSigs.Instantiation.toModuleTuple, IsProcTuple]
-  | append holeTail sig ih =>
-      simp only [HoleSigs.Instantiation.toModuleTuple]
-      exact ih (fun idx => inst (.succ idx))
+  | cons sig holeTail ih =>
+      cases holeTail with
+      | empty    =>
+          simp only [HoleSigs.Instantiation.toModuleTuple]
+          exact ih ⟨⟩
+      | cons _ _ =>
+          simp only [HoleSigs.Instantiation.toModuleTuple]
+          exact ih inst.2
 
 /-- Round-trip from the STLC side: if `arg.toSTLC` is a basic term of the hole-tuple type,
     then recovering the instantiation from that basic term and converting back gives `arg`. -/
@@ -1188,14 +1207,31 @@ private lemma toModuleTuple_of_basicType {Δ : ModuleContext} :
       | var _ | app _ _ | fst _ | snd _ =>
           simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC,
                 Metatheory.STLCext.Term.isBasicType] at h
-  | .append holeTail sig, arg, h => by
+  | .cons _ .empty, arg, h => by
       cases arg with
       | pair a rest =>
           cases a with
           | proc p =>
               obtain ⟨h1, h2⟩ := h
-              simp only [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC, ModuleExpression.toSTLC,
-                         Metatheory.STLCext.Term.toBasicTerm,
+              simp only [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC,
+                         ModuleExpression.toSTLC, Metatheory.STLCext.Term.toBasicTerm,
+                         HoleSigs.Instantiation.toModuleTuple]
+              exact congrArg (ModuleExpression.pair (.proc p))
+                (toModuleTuple_of_basicType (Δ := Δ) rest h2)
+          | var _ | app _ _ | fst _ | snd _ =>
+              simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC,
+                    Metatheory.STLCext.Term.isBasicType] at h
+      | var _ | app _ _ | fst _ | snd _ =>
+          simp [ModuleExpression.toSTLC, HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC,
+                Metatheory.STLCext.Term.isBasicType] at h
+  | .cons _ (.cons ..), arg, h => by
+      cases arg with
+      | pair a rest =>
+          cases a with
+          | proc p =>
+              obtain ⟨h1, h2⟩ := h
+              simp only [HoleSigs.toModuleTypeRepTuple, ModuleTypeRep.toSTLC,
+                         ModuleExpression.toSTLC, Metatheory.STLCext.Term.toBasicTerm,
                          HoleSigs.Instantiation.toModuleTuple]
               exact congrArg (ModuleExpression.pair (.proc p))
                 (toModuleTuple_of_basicType (Δ := Δ) rest h2)

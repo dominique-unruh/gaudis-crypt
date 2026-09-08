@@ -366,8 +366,8 @@ noncomputable def Module.procWithHoles {holes : HoleSigs} {sig : ProcedureSignat
   match h : holes with
   | .empty =>
     Module.const (Module.proc p)
-  | .append x y =>
-    show Module (.arr (HoleSigs.append x y).toModuleTypeRepTuple (.proc sig))
+  | .cons y x =>
+    show Module (.arr (HoleSigs.cons y x).toModuleTypeRepTuple (.proc sig))
     from (ModuleExpression.procHoles (by trivial) p).toModule
 
 /-! ## Applying a procedure-with-holes to its callees
@@ -375,18 +375,23 @@ noncomputable def Module.procWithHoles {holes : HoleSigs} {sig : ProcedureSignat
 The δ-rule `ReductionStep.delta` fires only on a *literal* tuple of `.proc` nodes
 (`HoleSigs.Instantiation.toModuleExpr`).  What one has in practice is a tuple of arbitrary module
 expressions — the callees, as they were written — which merely *reduce* to such a tuple, each of
-them to the `.proc` of a `Module.procedure`.  These lemmas bridge the two: `reduce_tuple_nil`/
-`reduce_tuple_cons` build the reduction of the tuple component by component, and
-`reduce_app_procWithHoles` then takes the δ-step.  Together they are what the `proc_apply` tactic
+them to the `.proc` of a `Module.procedure`.  `reduce_pair_of` bridges the two, peeling the tuple
+component by component, and `reduce_app_procWithHoles` then takes the δ-step.  Together they are what the `proc_apply` tactic
 (`GaudisCrypt/Language/Syntax2.lean`) runs on the `X.<f>.apply_simp` goals the `module` command
 emits. -/
 
 @[simp] theorem HoleSigs.Instantiation.toModuleExpr_nil :
-    HoleSigs.Instantiation.toModuleExpr HoleSigs.Instantiation.nil = .unit := rfl
+    HoleSigs.Instantiation.toModuleExpr (holes := .empty) ⟨⟩ = .unit := rfl
 
-@[simp] theorem HoleSigs.Instantiation.toModuleExpr_push {holes : HoleSigs}
-    {sig : ProcedureSignature} (inst : holes.Instantiation) (p : Procedure sig) :
-    HoleSigs.Instantiation.toModuleExpr (HoleSigs.Instantiation.push inst p)
+@[simp] theorem HoleSigs.Instantiation.toModuleExpr_single {sig : ProcedureSignature}
+    (p : Procedure sig) :
+    HoleSigs.Instantiation.toModuleExpr (holes := .cons sig .empty) p
+      = .pair (.proc p) .unit := rfl
+
+@[simp] theorem HoleSigs.Instantiation.toModuleExpr_cons {holes : HoleSigs}
+    {sig sig' : ProcedureSignature} (inst : (HoleSigs.cons sig' holes).Instantiation)
+    (p : Procedure sig) :
+    HoleSigs.Instantiation.toModuleExpr (holes := .cons sig (.cons sig' holes)) (p, inst)
       = .pair (.proc p) (HoleSigs.Instantiation.toModuleExpr inst) := rfl
 
 /-- A tuple of procedures is normal: it is built from `.proc` nodes and `.unit` alone. -/
@@ -394,28 +399,27 @@ theorem HoleSigs.Instantiation.toModuleExpr_normal {holes : HoleSigs}
     (inst : holes.Instantiation) : (HoleSigs.Instantiation.toModuleExpr inst).Normal := by
   induction holes with
   | empty => exact .unit
-  | append holeTail sig ih => exact .pair .proc (ih _)
+  | cons sig holeTail ih =>
+      cases holeTail with
+      | empty    => exact .pair .proc .unit
+      | cons _ _ => exact .pair .proc (ih _)
 
-/-- The empty tuple: `.unit` is already the instantiation of no holes. -/
-theorem Module.reduce_tuple_nil :
-    (ModuleExpression.unit).reduce
-      = HoleSigs.Instantiation.toModuleExpr HoleSigs.Instantiation.nil :=
-  ModuleExpression.reduce_of_normal .unit
+/-- Peeling one component of the callee tuple, at the level of `ModuleExpression` alone.
 
-/-- One component of the tuple: if `c` reduces to the expression of a proc-typed module `m` — which
-by canonicity *is* a `.proc` node, namely `.proc m.procedure` — and the rest of the tuple reduces to
-`inst`'s, then the whole pair reduces to that of `inst` extended by `m.procedure`. -/
-theorem Module.reduce_tuple_cons {holes : HoleSigs} {sig : ProcedureSignature}
-    (inst : holes.Instantiation) (m : Module (.proc sig)) (c rest : ModuleExpression)
-    (hc : c.reduce = m.expression)
-    (hrest : rest.reduce = HoleSigs.Instantiation.toModuleExpr inst) :
-    (ModuleExpression.pair c rest).reduce
-      = HoleSigs.Instantiation.toModuleExpr
-          (HoleSigs.Instantiation.push inst (Module.Proc.procedure m)) := by
-  rw [HoleSigs.Instantiation.toModuleExpr_push, ← Module.procedure_spec m,
-    ModuleExpression.reduce_pair_cong hc hrest,
-    ModuleExpression.reduce_of_normal
-      (.pair m.normal.normal (HoleSigs.Instantiation.toModuleExpr_normal inst))]
+Stating this at the level of expressions, rather than with the instantiation still folded up, is
+what makes it usable: in `proc_apply` the goal carries a *written-out* instantiation, so
+`HoleSigs.Instantiation.toModuleExpr` computes and the right-hand side is an ordinary expression
+pair.  A lemma phrased in terms of `Instantiation` could not be applied there at all —
+`Instantiation (.cons sig holes)` does not reduce while `holes` is a metavariable, and the
+elaborator will not solve `holes` from a sibling argument first.
+
+`hc` is discharged by `module_callee`, `hrest` by the next round of this same lemma. -/
+theorem Module.reduce_pair_of {c rest e₁ e₂ : ModuleExpression}
+    (h₁ : e₁.Normal) (h₂ : e₂.Normal)
+    (hc : c.reduce = e₁) (hrest : rest.reduce = e₂) :
+    (ModuleExpression.pair c rest).reduce = ModuleExpression.pair e₁ e₂ := by
+  rw [ModuleExpression.reduce_pair_cong hc hrest,
+    ModuleExpression.reduce_of_normal (.pair h₁ h₂)]
 
 /-- The δ-step, on an argument that only *reduces* to a tuple of procedures: applying
 `Module.procWithHoles p` to it is the procedure `p` with its holes instantiated.  With no holes at
@@ -438,12 +442,12 @@ theorem Module.reduce_app_procWithHoles {holes : HoleSigs} {sig : ProcedureSigna
       rw [hexpr]
       reduce_simp
       trivial
-  | append holeTail s =>
+  | cons s holeTail =>
       have hexpr : (Module.procWithHoles p).expression
-          = ModuleExpression.procHoles (holes := holeTail.append s) trivial p :=
+          = ModuleExpression.procHoles (holes := .cons s holeTail) trivial p :=
         ModuleExpression.reduce_of_normal .procHoles
       rw [hexpr, ModuleExpression.reduce_step
-          (.delta (holes := holeTail.append s) trivial p inst),
+          (.delta (holes := .cons s holeTail) trivial p inst),
         ModuleExpression.reduce_proc]
 
 

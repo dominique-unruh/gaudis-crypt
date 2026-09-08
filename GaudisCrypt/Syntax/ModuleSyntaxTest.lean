@@ -167,50 +167,46 @@ example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
   ∀ (A : Module.Arr TestModule (procmod () → Unit)),
     Module.app X.g A
       = Module.proc (X.g.procedure.instantiate
-          (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-            (Module.Proc.procedure (Module.app A myMod)))))
+          (Module.Proc.procedure (Module.app A myMod))))
 
 -- `h` has no hole to fill — and hence no parameter to take: it *is* its procedure
 #check (X.h.apply_simp : X.h = Module.proc X.h.procedure)
 
--- two holes, pushed in declaration order: the last-declared one is the outermost push, which is
--- what `HoleIndex.zero` picks out
+-- two holes: an instantiation is a tuple in declaration order, which is index order — the
+-- *first*-declared hole is `HoleIndex.zero` and the first component of the tuple
 #check (Y.g.apply_simp :
   ∀ (A : Module.Arr TestModule (procmod () → Unit)) (B : TestModule),
     Module.app (Module.app Y.g A) B
       = Module.proc (Y.g.procedure.instantiate
-          (HoleSigs.Instantiation.push
-            (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil (Module.Proc.procedure B.main))
-            (Module.Proc.procedure (Module.app A myMod)))))
+          (Module.Proc.procedure B.main, Module.Proc.procedure (Module.app A myMod))))
 
 -- the two lemmas chain: projecting a field out of an applied `X` gets all the way to the procedure
 example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
     M2.g (Module.app X (Module.pair a b))
       = Module.proc (X.g.procedure.instantiate
-          (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-            (Module.Proc.procedure (Module.app a myMod)))) := by
+          (Module.Proc.procedure (Module.app a myMod))) := by
   simp [M2.g, M2.mk]
 
 -- `X.g.procedure.apply_simp` takes the last step, from the `instantiate` to a hole-free procedure:
 -- the body as declared, with the hole calls turned back into ordinary calls of `args <index>`
 #check (X.g.procedure.apply_simp :
-  ∀ (args : (HoleSigs.empty.append (procsig () → Unit)).Instantiation),
+  ∀ (args : (HoleSigs.cons (procsig () → Unit) HoleSigs.empty).Instantiation),
     X.g.procedure.instantiate args
       = proc () : Unit {
-          _ <- call (args HoleIndex.zero) ();
-          _ <- call (args HoleIndex.zero) ();
+          _ <- call (args.lookup HoleIndex.zero) ();
+          _ <- call (args.lookup HoleIndex.zero) ();
           _ <- call (myMod.main.procedure) ("hello", (5 : Nat));
           return ();
         })
 
--- two holes: the *first*-declared one is the outermost `.succ` (`.zero` is the last)
+-- two holes: the *first*-declared one is `.zero`, the second is `.zero.succ`
 #check (Y.g.procedure.apply_simp :
-  ∀ (args : ((HoleSigs.empty.append (procsig (String, Nat) → Bool)).append
-        (procsig () → Unit)).Instantiation),
+  ∀ (args : (HoleSigs.cons (procsig (String, Nat) → Bool)
+        (HoleSigs.cons (procsig () → Unit) HoleSigs.empty)).Instantiation),
     Y.g.procedure.instantiate args
       = proc () : Unit {
-          _ <- call (args HoleIndex.zero.succ) ("hi", (3 : Nat));
-          _ <- call (args HoleIndex.zero) ();
+          _ <- call (args.lookup HoleIndex.zero) ("hi", (3 : Nat));
+          _ <- call (args.lookup HoleIndex.zero.succ) ();
           return ();
         })
 
@@ -218,6 +214,28 @@ example (a : Module.Arr TestModule (procmod () → Unit)) (b : TestModule) :
 #check (X.h.procedure.apply_simp :
   ∀ (args : HoleSigs.empty.Instantiation),
     X.h.procedure.instantiate args = proc () : Unit { return (); })
+
+/- ### An instantiation is a tuple
+
+`HoleSigs.Instantiation` is the tuple of the procedures filling the holes, right-nested and in
+declaration order — which is also index order, `HoleIndex.zero` being the first hole the body
+declared.  A one-hole instantiation is its procedure rather than a pair, so there is no trailing
+unit: one is written and read as an ordinary Lean tuple, in the order the calls appear. -/
+
+noncomputable example (a : Procedure (procsig (String, Nat) -> Bool))
+    (b : Procedure (procsig () -> Unit)) : Procedure (procsig () -> Unit) :=
+  Y.g.procedure.instantiate (a, b)
+
+-- `Y.g` calls the `(String, Nat) → Bool` hole first, so `a` is `HoleIndex.zero` and comes first
+example (a : Procedure (procsig (String, Nat) -> Bool)) (b : Procedure (procsig () -> Unit)) :
+    (Y.g.procedure.instantiate (a, b)).body
+      = (Y.g.procedure.instantiate (a, b)).body := by
+  simp only [Y.g.procedure.apply_simp]
+
+example (args : (HoleSigs.cons (procsig (String, Nat) → Bool)
+      (HoleSigs.cons (procsig () → Unit) HoleSigs.empty)).Instantiation) :
+    args.lookup HoleIndex.zero = args.1 ∧ args.lookup HoleIndex.zero.succ = args.2 :=
+  ⟨rfl, rfl⟩
 
 -- and now all three families chain: a field of an applied `X` all the way to a plain `Procedure`.
 -- The last of them, `X.g.procedure.apply_simp`, has to be named: it is deliberately not `@[simp]`,
@@ -312,10 +330,8 @@ module Deep using (A : Module.Arr TestModule (procmod () → Unit), B : TestModu
     (C : Module.Arr TestModule (procmod () → Unit)),
     Module.app (Module.app Deep.g A) C
       = Module.proc (Deep.g.procedure.instantiate
-          (HoleSigs.Instantiation.push
-            (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-              (Module.Proc.procedure (Module.app C myMod)))
-            (Module.Proc.procedure (Module.app A myMod)))))
+          (Module.Proc.procedure (Module.app C myMod),
+           Module.Proc.procedure (Module.app A myMod))))
 
 -- one `using` binder may name several parameters of the same module type, exactly as writing
 -- them out one by one does
@@ -378,10 +394,7 @@ module Twice (n : Nat) using (S : Sized n) {
 #check (Twice : (n : Nat) → Module.Arr (Sized n) (Module.Proc (procsig () -> Bool)))
 #check (Twice.main.apply_simp : ∀ (n : Nat) (S : Sized n),
   Module.app (Twice.main n) S = Module.proc ((Twice.main.procedure n).instantiate
-    (HoleSigs.Instantiation.push
-      (HoleSigs.Instantiation.push HoleSigs.Instantiation.nil
-        (Module.Proc.procedure (Sized.gen n S)))
-      (Module.Proc.procedure (Sized.use n S)))))
+    (Module.Proc.procedure (Sized.gen n S), Module.Proc.procedure (Sized.use n S))))
 
 -- Lean parameters with no `using`: the module is a function, but not a module function
 module Fixed (k : Nat) {
@@ -504,7 +517,7 @@ example (S : Sized three) : Module.app (WrapSized three) S
     = Module.app (WrapSized three) S := by simp only [WrapSized.apply_simp]
 example (S : Sized three) : Module.app (WrapSized.gen three) S
     = Module.app (WrapSized.gen three) S := by simp only [WrapSized.gen.apply_simp]
-example (holeArgs : (HoleSigs.empty.append (procsig () -> (Fin (three+1)))).Instantiation) :
+example (holeArgs : (HoleSigs.cons (procsig () -> (Fin (three+1))) HoleSigs.empty).Instantiation) :
     (WrapSized.gen.procedure three).instantiate holeArgs
       = (WrapSized.gen.procedure three).instantiate holeArgs := by
   simp only [WrapSized.gen.procedure.apply_simp]

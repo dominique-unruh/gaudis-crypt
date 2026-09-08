@@ -317,6 +317,7 @@ theorem pedersen_correctness (m : group.F) (σ : State) :
   simp [Lens.pair]
 
 omit [ProgramSpec] in
+-- TODO Maybe delete (unused)
 /-- An event of null points is null.  No `[Countable α]`: `μ.2.2` is the discreteness invariant
     `μ A = ∑_{x ∈ A} μ {x}`, so the sum over `E` is a `tsum` of zeroes whatever the cardinality. -/
 lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
@@ -334,6 +335,15 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 
 section UnfinitedExperimentsByDominique
 
+def hoare (A : ProcedureState l → Prop) (p : Stmt l) (B : ProcedureState l → Prop) :=
+  ∀ σ, A σ → (programDenotation p σ).ofEvent (fun (_, σ') => B σ') = 0
+
+#print HoleSigs.Instantiation
+
+-- def hoare_proc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → ProcedureState ? → Prop) :=
+--   -- TODO A hoare triple where the postcondition refers to the internal state of the procedure (i.e., incl. the local variables/parameters); define by reduction to `hoare ... p.body`
+
+
 /-- A single point's mass as a `wp`: the postcondition that picks out `x` is the indicator of
     `{x}`, and `expectation_indicator` at `c = 1` identifies the two. -/
 lemma tmp {sig m σ E} {p : Procedure sig} :
@@ -344,8 +354,11 @@ lemma tmp {sig m σ E} {p : Procedure sig} :
   simp only [ProgramDenotation.wp, expectation_indicator, one_mul, ENNReal.coe_eq_zero] at h
   exact h
 
--- TODO: Can we make p.instantiate (h1,...,hn) work (instead of HoleInstantiation.push etc etc...)?
--- TODO: Concrete syntax for Module.app
+-- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
+
+@[simp]
+lemma tmp2: (Module.proc p).procedure = p := by
+  sorry
 
 theorem pedersen_correctness2 (m : group.F) (σ : State) :
     (procedureDenotation

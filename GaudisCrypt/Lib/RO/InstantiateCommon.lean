@@ -37,7 +37,7 @@ abbrev roSig : ProcedureSignature := { params := [input], ret := output }
 
 
 /-- One oracle hole. -/
-abbrev roHoles : HoleSigs := HoleSigs.empty.append roSig
+abbrev roHoles : HoleSigs := HoleSigs.cons roSig HoleSigs.empty
 
 
 /-- `convert` lifted from the RO `State` to a procedure state. -/
@@ -115,13 +115,11 @@ noncomputable def RO_eager_proc : Procedure roSig := ⟨roLocals, RO_eager_body,
 
 
 /-- The lazy instantiation of the single oracle hole. -/
-noncomputable def RO_lazy : roHoles.Instantiation
-  | _, .zero => RO_lazy_proc
+noncomputable def RO_lazy : roHoles.Instantiation := RO_lazy_proc
 
 
 /-- The eager instantiation of the single oracle hole. -/
-noncomputable def RO_eager : roHoles.Instantiation
-  | _, .zero => RO_eager_proc
+noncomputable def RO_eager : roHoles.Instantiation := RO_eager_proc
 
 
 /-! ### Denotation bridges: the procedures *are* `lazy_query`/`random_oracle_query`.

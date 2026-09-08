@@ -186,8 +186,8 @@ theorem ro_hhole_prhl_lazy {P : state → state → Prop} {l : Type}
     (hx : ∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
         (ProgramDenotation.set x ret) (liftRelPost P)) :
     ProgramDenotation.prhl2 (liftRel P)
-      (programDenotation (StmtWithHoles.call x (RO_lazy n) p))
-      (programDenotation (StmtWithHoles.call x (RO_lazy n) p)) (liftRelPost P) := by
+      (programDenotation (StmtWithHoles.call x (RO_lazy.lookup n) p))
+      (programDenotation (StmtWithHoles.call x (RO_lazy.lookup n) p)) (liftRelPost P) := by
   cases n with
   | zero =>
       haveI : Countable roSig.ParamType := inferInstanceAs (Countable input)
