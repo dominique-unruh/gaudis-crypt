@@ -232,13 +232,15 @@ were made from — which, since `Correctness`'s body calls `S.gen`, are the modu
 `CommitmentScheme.gen Pedersen` and friends.  The `wp_*` lemmas above are stated at
 `Pedersen.gen.procedure`, a separate definition the `module` command emits.  Adding
 `module_accessor` (the simp set the accessors are tagged with), `Pedersen`, and the
-`Module.proc`/`Module.procedure_proc` round-trip to the main `simp` call is all it takes to close
-that gap.  So the whole reduction is the commands' own lemmas plus one `simp` set: no bridge
-lemma, no hand-written hole instantiation, nothing declared for the purpose.
+`Module.procedure_proc'` round-trip to the main `simp` call is all it takes to close that gap.  So
+the whole reduction is the commands' own lemmas plus one `simp` set: no bridge lemma, no
+hand-written hole instantiation, nothing declared for the purpose.
 
-(`Module.procedure_proc` has to be paired with unfolding `Module.proc`: the library states the
-round-trip with `Module.proc` already unfolded, as `(ModuleExpression.proc p).toModule (.proc p)`,
-so on its own it never fires against the folded `Module.proc` that `X.<f>.apply_simp` emits.)
+(`Module.procedure_proc'`, with the prime, is the one to name: the unprimed
+`Module.procedure_proc` states the round-trip with `Module.proc` already unfolded, as
+`(ModuleExpression.proc p).toModule (.proc p)`, and so never fires against the folded `Module.proc`
+that `X.<f>.apply_simp` emits — before the primed companion existed, every caller had to unfold
+`Module.proc` alongside it.)
 
 ⚠ One thing to know before touching this: `CommitmentScheme.gen Pedersen` and `Pedersen.gen`
 **both print as `Pedersen.gen`** (dot-notation collision) and are *not* defeq — the accessor is a
@@ -294,11 +296,11 @@ theorem pedersen_correctness (m : group.F) (σ : State) :
   -- own `@[simp]` lemma for the accessor
   simp only [CorrectnessT.main.mk_simp]
   rw [Correctness.main.apply_simp, Correctness.main.procedure.apply_simp]
-  simp only [Module.proc, Module.procedure_proc]
+  simp only [Module.procedure_proc']
   -- unfold the game and push `wp` through.  Kept as `rw`, not folded into the `simp only` above:
   -- as simp lemmas these two also fire on the *callees*, and `wp_gen` then no longer matches.
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  simp [module_accessor, Pedersen, Module.proc, Module.procedure_proc, programDenotation,
+  simp [module_accessor, Pedersen, Module.procedure_proc', programDenotation,
     StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
@@ -336,16 +338,148 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 section UnfinitedExperimentsByDominique
 
 def hoare (A : ProcedureState l → Prop) (p : Stmt l) (B : ProcedureState l → Prop) :=
-  ∀ σ, A σ → (programDenotation p σ).ofEvent (fun (_, σ') => B σ') = 0
+  ∀ σ, A σ → (programDenotation p σ).ofEvent (fun (_, σ') => ¬ B σ') = 0
 
 #print HoleSigs.Instantiation
 
--- def hoare_proc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → ProcedureState ? → Prop) :=
---   -- TODO A hoare triple where the postcondition refers to the internal state of the procedure (i.e., incl. the local variables/parameters); define by reduction to `hoare ... p.body`
+/-- A Hoare triple for a whole procedure whose postcondition may mention the procedure's
+    *internal* state — its parameters and local variables — and not only the return value and the
+    globals.
 
+    Reduced to `hoare` on the body.  The body's state is a `ProcedureState`, so the precondition
+    `hoare` gets says: the global half satisfies `A args`, and the local half is exactly the scope
+    the call would set up, `sig.localVariableInit p.locals args`.  The postcondition applies `B` to
+    the value `p.return_val` reads off the final state and to that final state itself — which is
+    where the extra information over an ordinary triple comes from, since the final state still has
+    the locals in it (`procedureDenotation` projects them away with `.global`).
+
+    Note the argument order: `p` comes before `B` because `B`'s domain mentions `p.locals`.
+    Polarity is inherited from `hoare`: `B` has to hold almost surely, i.e. the event `¬ B` has
+    mass `0`. -/
+def hoareProc' {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
+    (B : sig.ret → ProcedureState (sig.LocalVariableState p.locals) → Prop) :=
+  ∀ args : sig.ParamType,
+    hoare (fun σ => A args σ.global ∧ σ.locals = sig.localVariableInit p.locals args)
+      p.body (fun σ => B (p.return_val.get σ) σ)
+
+def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → State → Prop) :=
+  ∀ args σ, A args σ → (procedureDenotation p args σ).ofEvent (fun (ret, σ') => B ret σ') = 0
+
+/-- `hoareProc` is the special case of `hoareProc'` in which the postcondition ignores the locals.
+
+    Two adjustments turn one `B` into the other, and both are forced.  Polarity: `hoareProc`'s `B`
+    names the event that must *not* happen, `hoareProc'` inherits `hoare`'s convention that `B` must
+    hold almost surely — hence the `¬`.  Domain: `hoareProc'` offers the whole final
+    `ProcedureState`, so the globals-only `B` is read off it with `.global`, and the locals are
+    dropped — which is what `procedureDenotation` does to them anyway.  That is why this is an
+    equivalence and `hoareProc'_imp_hoareProc` below, for a `B` that does look at the locals, is
+    only an implication. -/
+lemma hoareProc_iff_hoareProc' {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
+    {B : sig.ret → State → Prop} :
+    hoareProc A p B ↔ hoareProc' A p (fun r σ => ¬ B r σ.global) := by
+  -- `ofEvent E = 0` and `expected (indicator E 1) = 0` are the same statement; working with
+  -- `expected` lets `wp_procWrap` do the rest.
+  have ofEvent_iff : ∀ {α : Type} (μ : SubProbability α) (E : Set α),
+      μ.ofEvent E = 0 ↔ μ.expected (E.indicator fun _ => 1) = 0 := fun μ E => by
+    rw [expectation_indicator, one_mul, ENNReal.coe_eq_zero]
+  -- the procedure's distribution is the body's, pushed along `τ ↦ (return_val.get τ, τ.global)`
+  have key : ∀ (args : sig.ParamType) (σ : State) (F : ProgramDenotation.Post State sig.ret),
+      (procedureDenotation p args σ).expected F
+        = (programDenotation p.body ⟨σ, sig.localVariableInit p.locals args⟩).expected
+            (fun q => F (p.return_val.get q.2, q.2.global)) := by
+    intro args σ F
+    change (procedureDenotation p args).wp F σ = _
+    rw [procedureDenotation_eq_procWrap, wp_procWrap]
+    rfl
+  -- the two events are each other's image/preimage under that push-forward, so the masses agree
+  have iff0 : ∀ (args : sig.ParamType) (σ : State),
+      (procedureDenotation p args σ).ofEvent (fun (ret, σ') => B ret σ') = 0
+        ↔ (programDenotation p.body ⟨σ, sig.localVariableInit p.locals args⟩).ofEvent
+            (fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global) = 0 := by
+    intro args σ
+    have hfun : (fun q : Unit × ProcedureState (sig.LocalVariableState p.locals) =>
+        Set.indicator (fun (ret, σ') => B ret σ') (fun _ => (1 : ENNReal))
+          (p.return_val.get q.2, q.2.global))
+        = Set.indicator (fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global)
+            (fun _ => (1 : ENNReal)) := by
+      -- drop the double negation, after which the two events are the same event, one written on
+      -- the body's states and one on the pushed-forward pairs — `rfl` up to `Set.indicator`
+      have hnn : ((fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global) :
+            Set (Unit × ProcedureState (sig.LocalVariableState p.locals)))
+          = fun q => B (p.return_val.get q.2) q.2.global := by
+        funext q
+        simp
+      rw [hnn]
+      rfl
+    rw [ofEvent_iff, ofEvent_iff, key, hfun]
+  constructor
+  · intro h args σ hσ
+    obtain ⟨hA, hloc⟩ := hσ
+    -- the precondition pins the local half, and `⟨σ.global, σ.locals⟩` is `σ` by structure eta
+    have hσ' : σ = ⟨σ.global, sig.localVariableInit p.locals args⟩ := by rw [← hloc]
+    rw [hσ']
+    exact (iff0 args σ.global).mp (h args σ.global hA)
+  · intro h args σ hA
+    exact (iff0 args σ).mpr (h args ⟨σ, sig.localVariableInit p.locals args⟩ ⟨hA, rfl⟩)
+
+omit [ProgramSpec] in
+/-- A subset of a null event is null.  (`ofEvent` is `toNNReal` of the measure, and the measure is
+    finite — bounded by `1` — so the two vanish together, which is what lets
+    `measure_mono_null` be used through the `toNNReal`.) -/
+lemma _root_.GaudisCrypt.SubProbability.ofEvent_eq_zero_of_subset {α : Type u}
+    {μ : SubProbability α} {E₁ E₂ : Set α} (hsub : E₁ ⊆ E₂) (h : μ.ofEvent E₂ = 0) :
+    μ.ofEvent E₁ = 0 := by
+  have hzero : ∀ s : Set α, μ.ofEvent s = 0 ↔ μ.1 s = 0 := fun s => by
+    rw [SubProbability.ofEvent, ENNReal.toNNReal_eq_zero_iff]
+    exact or_iff_left
+      (((MeasureTheory.measure_mono (Set.subset_univ s)).trans μ.2.1).trans_lt
+        ENNReal.one_lt_top).ne
+  rw [hzero] at h ⊢
+  exact MeasureTheory.measure_mono_null hsub h
+
+/-- `hoare` is monotone in its postcondition: a weaker `B` is a weaker triple, because the null
+    event `¬ B` only shrinks. -/
+lemma hoare_mono {l} {A : ProcedureState l → Prop} {p : Stmt l}
+    {B₁ B₂ : ProcedureState l → Prop} (hB : ∀ σ, B₁ σ → B₂ σ) (h : hoare A p B₁) :
+    hoare A p B₂ := by
+  intro σ hA
+  refine SubProbability.ofEvent_eq_zero_of_subset ?_ (h σ hA)
+  intro q hq hb
+  exact hq (hB _ hb)
+
+/-- `hoareProc'` inherits that monotonicity, postcondition by postcondition. -/
+lemma hoareProc'_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
+    {B₁ B₂ : sig.ret → ProcedureState (sig.LocalVariableState p.locals) → Prop}
+    (hB : ∀ r σ, B₁ r σ → B₂ r σ) (h : hoareProc' A p B₁) : hoareProc' A p B₂ :=
+  fun args => hoare_mono (fun _ hb => hB _ _ hb) (h args)
+
+/-- The observable content of a `hoareProc'` triple, in `hoareProc` form: what survives the call is
+    that the *bad* event — the outcomes for which `B` fails whatever the final scope was — is null.
+
+    An implication, and not an equivalence like `hoareProc_iff_hoareProc'`, which is not a
+    shortcoming of the proof.  `procedureDenotation` hands back `(return value, globals)`; the final
+    scope is projected away with `.global`, so the locals `B` may talk about are not observable in a
+    `hoareProc` at all.  The `∀ l` is the strongest observable consequence, and the converse fails:
+    take a body that samples a local `x : Bool` and `B r σ := σ.locals.x = true`.  The bad event is
+    then empty — no `σ'` has *every* scope satisfying `B` — so the `hoareProc` holds, while the
+    `hoareProc'` is false, the body putting mass `1/2` on `¬ B`.  Replacing `∀ l` by `∃ l` turns the
+    implication around and is equally not an equivalence.
+
+    For an actual equivalence, either restrict to a `B` that only reads the globals — that is
+    `hoareProc_iff_hoareProc'` — or have the procedure return its own scope, so that the locals
+    become observable.
+
+    Proof: `hoareProc_iff_hoareProc'` turns the goal into a `hoareProc'` triple with postcondition
+    `¬ ∀ l, ¬ B r ⟨σ.global, l⟩`, which is weaker than `B` — instantiate the `∀ l` at the scope in
+    hand, `σ.locals` — so `hoareProc'_mono` closes it. -/
+lemma hoareProc'_imp_hoareProc {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
+    {B : sig.ret → ProcedureState (sig.LocalVariableState p.locals) → Prop}
+    (h : hoareProc' A p B) : hoareProc A p (fun ret σ => ∀ l, ¬ B ret ⟨σ, l⟩) :=
+  hoareProc_iff_hoareProc'.mpr (hoareProc'_mono (fun _ σ hb hc => hc σ.locals hb) h)
 
 /-- A single point's mass as a `wp`: the postcondition that picks out `x` is the indicator of
     `{x}`, and `expectation_indicator` at `c = 1` identifies the two. -/
+-- TODO rename and move to suitable file? Or drop and just use `hoare`?
 lemma tmp {sig m σ E} {p : Procedure sig} :
   (procedureDenotation p m).wp (Set.indicator E fun _ => 1) σ = 0 →
   (procedureDenotation p m σ).ofEvent E = 0
@@ -354,20 +488,76 @@ lemma tmp {sig m σ E} {p : Procedure sig} :
   simp only [ProgramDenotation.wp, expectation_indicator, one_mul, ENNReal.coe_eq_zero] at h
   exact h
 
+/-- `tmp` at the level of a whole triple: to prove a `hoareProc`, it is enough to kill the `wp` of
+    the bad event's indicator from every state the precondition admits.  `apply` it to a `hoareProc`
+    goal and what is left is the `wp` calculation the `wp_*` lemmas do.
+
+    One-directional for the same reason `tmp` is — nothing here needs the converse, though it holds
+    (`expectation_indicator` is an equation, and the `ENNReal`/`NNReal` coercion reflects `0`). -/
+lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
+    {B : sig.ret → State → Prop}
+    (h : ∀ args σ, A args σ →
+      (procedureDenotation p args).wp
+        (Set.indicator {r | B r.1 r.2} fun _ => 1) σ = 0) :
+    hoareProc A p B :=
+  fun args σ hA => tmp (h args σ hA)
+
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
-@[simp]
-lemma tmp2: (Module.proc p).procedure = p := by
-  sorry
-
-theorem pedersen_correctness2 (m : group.F) (σ : State) :
-    (procedureDenotation
-        (Module.app (Correctness group.types) (Pedersen group)).main.procedure m σ).ofEvent
-      {r : Bool × State | r.1 = false} = 0 := by
-  apply tmp
+theorem pedersen_correctness2 :
+    hoareProc (fun _ _ => True)
+      (Module.app (Correctness group.types) (Pedersen group)).main.procedure
+      (fun r _ => r = false) := by
+  apply hoareProc_of_wp
+  intro args σ
+  -- Inlining everything (should be a tactic)
   simp
   -- TODO: why does this not use proc syntax?
   simp only [Correctness.main.procedure.apply_simp]
+  simp
+  simp only [Pedersen]
+  simp
+  simp only [Pedersen.commit.procedure]
+  simp only [Pedersen.gen.procedure]
+  simp only [Pedersen.verify.procedure]
+  simp
+
+  -- Doing wp calculus
+  simp only [procedureDenotation_eq_procWrap]
+  rw [wp_procWrap]
+  simp only [programDenotation]
+  simp only [StmtWithHoles.call]
+  simp only [StmtWithHoles.assign]
+  simp only [wp_bind]
+  simp only [programDenotation]
+  simp only [procedureDenotation_eq_procWrap]
+  simp only [wp_bind]
+  simp only [wp_get_g]
+  simp only [wp_zoom]
+  simp only [wp_set_g]
+  simp only [AsGetter.toG]
+  simp only [id_eq]
+  rw [wp_procWrap]
+  simp only [programDenotation]
+  simp only [wp_bind]
+  simp only [wp_get_g]
+  simp only [wp_set_g]
+  simp only [wp_lift]
+  simp only [AsGetter.toG]
+  simp only [id_eq]
+  simp only [uniform_expected]
+  simp only [expected_pure]
+  simp only [ProcedureSignature.localVariableInit]
+  -- `args` still carries the `group.types.Message` spelling of its type, which blocks every
+  -- further `simp` (the goal is then not type-correct at `instances` transparency); unfolding
+  -- `ParamType` in the hypothesis puts it in the tuple form the goal expects
+  simp only [ProcedureSignature.ParamType] at args
+  simp only [Set.indicator]
+  simp only [Set.mem_setOf_eq]
+  -- Stalls here: the `commit` and `verify` calls' `procWrap`s sit under the `fun as' ↦ …` binders
+  -- `wp_bind` introduced, so `rw [wp_procWrap]` cannot reach them, and `simp only [wp_procWrap]`
+  -- refuses because the goal is no longer type-correct at `instances` transparency (`Set` vs
+  -- `_ → Prop`, `Stmt` vs `StmtWithHoles .empty`, `ParamType` vs the tuple — all plain `def`s).
   sorry
 
 end UnfinitedExperimentsByDominique

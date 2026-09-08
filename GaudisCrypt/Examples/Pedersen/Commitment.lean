@@ -60,6 +60,7 @@ moduletype CommitmentScheme {
   proc commit (types.Value, types.Message) -> types.Commitment × types.OpeningKey;
   proc verify (types.Value, types.Message, types.Commitment, types.OpeningKey) -> Bool;
 }
+#check CommitmentScheme.gen.utilities
 
 -- EC's `Unhider`: the hiding-game adversary.
 moduletype Unhider {

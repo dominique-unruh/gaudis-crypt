@@ -179,7 +179,7 @@ theorem fakeGame_inline (U : Unhider group.types) :
   refine SubProbability.ext_of_expected fun post => ?_
   change (procedureDenotation (fakeGame group U).procedure ()).wp post σ = _
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
-    FakeCommit.main.procedure.apply_simp, Module.proc, Module.procedure_proc]
+    FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   change _ = ((ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun _mm =>
@@ -214,7 +214,7 @@ theorem hidingGame_inline (U : Unhider group.types) :
   refine SubProbability.ext_of_expected fun post => ?_
   change (procedureDenotation (hidingGame group U).procedure ()).wp post σ = _
   simp only [hidingGame, HidingExperiment.main.apply_simp,
-    HidingExperiment.main.procedure.apply_simp, Module.proc, Module.procedure_proc]
+    HidingExperiment.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   change _ = ((ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun mm =>
@@ -223,7 +223,7 @@ theorem hidingGame_inline (U : Unhider group.types) :
         procedureDenotation (Unhider.guess group.types U).procedure
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg)).wp post σ
-  simp [module_accessor, Pedersen, Module.proc, Module.procedure_proc, programDenotation,
+  simp [module_accessor, Pedersen, Module.procedure_proc', programDenotation,
     StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,
     wp_uniform, wp_pure, uniform_expected,
     ProcedureSignature.localVariableInit,
@@ -338,7 +338,7 @@ theorem hi_ll (U : Unhider group.types)
     IsLossless (fakeGame group U).procedure := by
   intro args τ
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
-    FakeCommit.main.procedure.apply_simp, Module.proc, Module.procedure_proc]
+    FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   simp [programDenotation,
     StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,
@@ -394,7 +394,7 @@ theorem fakecommit_half (U : Unhider group.types) (σ : State)
   have hhalf : ((1 / 2 : NNReal) : ENNReal) = (1 / 2 : ENNReal) := by norm_num
   rw [hhalf]
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
-    FakeCommit.main.procedure.apply_simp, Module.proc, Module.procedure_proc]
+    FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   simp [programDenotation,
     StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,

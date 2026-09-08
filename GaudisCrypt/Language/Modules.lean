@@ -267,7 +267,7 @@ theorem proc_type_is_proc {sig : ProcedureSignature}
 
 /-- The procedure of a proc-typed module — the inverse of `Module.proc`.  (`Classical.choose`
     only escapes the Prop-to-data restriction; the witness is unique — see
-    `Module.procedure_spec` and `Module.procedure_proc`.) -/
+    `Module.procedure_spec` and `Module.procedure_proc`/`Module.procedure_proc'`.) -/
 noncomputable def Module.Proc.procedure
     {sig : ProcedureSignature} (m : Module.Proc sig) : Procedure sig :=
     match he : m.expression with
@@ -307,6 +307,14 @@ theorem Module.procedure_spec
   rw [h1] at h2
   injection h2 with hsig h
   exact h.symm
+
+/-- `Module.procedure_proc` with `Module.proc` folded — the form the generated `apply_simp` lemmas
+actually produce.  The unfolded statement above is filed under a discrimination key mentioning
+`ModuleExpression.toModule`, so it never fires against a `Module.proc` on its own and every caller
+had to unfold `Module.proc` alongside it.  Both are `@[simp]`, so whichever form a goal is in, one
+of them matches. -/
+@[simp] theorem Module.procedure_proc' {sig : ProcedureSignature} (p : Procedure sig) :
+    (Module.proc p).procedure = p := Module.procedure_proc p
 
 /-- Renaming by a function that's pointwise the identity is the identity, regardless of `ρ`'s
     behavior elsewhere (needed below since `IsRenaming [] Δ ρ` holds vacuously for *any* `ρ`,
