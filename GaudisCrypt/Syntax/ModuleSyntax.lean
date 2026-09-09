@@ -412,6 +412,7 @@ combinators leaves `ModuleExpression`s under `.reduce`; the stripping lemmas rem
 `reduce_simp` takes it.  The two trailing steps are `try`: for the *single-field* case the accessor
 is the identity, the first `simp only` already closes the goal, and a bare `reduce_simp` would then
 fail with "no goals". -/
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "accessor_apply " ident : tactic
 
 macro_rules
@@ -441,6 +442,7 @@ each of them leaves a `.reduce` *inside* the next, which the two stripping lemma
 what is left is one `.reduce` of the whole chain — the right-hand side.  `Module.reduce_expression`
 is for the single-field case, where the chain is empty and the two sides differ by exactly the
 outermost `.reduce`. -/
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "accessor_expression " ident : tactic
 
 macro_rules
@@ -760,6 +762,7 @@ sides down to `ModuleExpression`s, normalise, compare.
   normal) — `Module` is defined *after* `reduce_simp` in `Modules.lean`, so its simp set can't know
   either.  The stripping lemmas run once more, to put the `.reduce`s that surface here in the same
   places on both sides. -/
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "module_apply " ident : tactic
 
 macro_rules
@@ -800,8 +803,7 @@ reduce` is propositional, not definitional — so `rfl` only works when the adap
   `reduce`.  Unfolding the accessor — hence the `module_accessor` simp set, since its name is not
   known here — and pushing those `reduce`s out with `reduce_fst_inner`/`reduce_snd_inner` makes the
   two sides equal. -/
-/- TODO: with this and other internal tactics: figure out whether we actually need syntax space polution.
-         In order to do this for one tactic at a time, can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other. -/
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "module_callee" : tactic
 
 macro_rules
@@ -842,6 +844,7 @@ one `.abs` per parameter it uses.
   `.proc` node back into the callee's expression).  Peeling at the expression level keeps
   `HoleSigs.Instantiation` out of the unification problem, which matters because it does not reduce
   while its hole context is a metavariable. -/
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "proc_apply " ident : tactic
 
 macro_rules

@@ -2034,6 +2034,7 @@ elab "moduletyping!" : tactic => do
 
 /-- One step of `normalmodule`'s core script, factored out so `normalmodule` can require it to
     fire at least once (see below) while still repeating it leniently afterwards. -/
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "normalmoduleStep" : tactic
 macro_rules
   | `(tactic| normalmoduleStep) =>
@@ -2124,7 +2125,7 @@ elab "normalmodule!" : tactic => do
 /-! ## `reduce_simp` -/
 
 open Lean Elab Tactic Meta in
-
+-- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
 syntax "reduce_simp_head" : tactic
 
 private lemma reduce_eq_guard_aux1 m n : ModuleExpression.reduce m = ModuleExpression.reduce n → ModuleExpression.reduce m = ModuleExpression.reduce n := by intro; assumption
