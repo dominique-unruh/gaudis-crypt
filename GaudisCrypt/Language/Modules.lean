@@ -1,10 +1,11 @@
-import GaudisCrypt.Language.ModuleExpressions
+import GaudisCrypt.Language.ModuleExpression
 
 /-! # Modules
 
 A `Module T` is a closed, well-typed, normal `ModuleExpression` of type `T`, together with the
 operations on such (application, projections, pairing) and the `IsModule` bridge from Lean types
-to `ModuleTypeRep`s.  The underlying expression calculus lives in `ModuleExpressions.lean`. -/
+to `ModuleTypeRep`s.  The underlying expression calculus lives in `ModuleExpression.lean` (and
+the files it imports). -/
 
 namespace GaudisCrypt
 

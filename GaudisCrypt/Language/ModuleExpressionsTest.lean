@@ -1,4 +1,4 @@
-import GaudisCrypt.Language.ModuleExpressions
+import GaudisCrypt.Language.ModuleExpression
 
 /-! # Tests for `ModuleExpressions`
 

@@ -9,7 +9,10 @@ import GaudisCrypt.FV
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Attic.ProgramRange
 import GaudisCrypt.Language.Lens
-import GaudisCrypt.Language.ModuleExpressions
+import GaudisCrypt.Language.ModuleExpression
+import GaudisCrypt.Language.ModuleExpressionBasics
+import GaudisCrypt.Language.ModuleExpressionConfluence
+import GaudisCrypt.Language.ModuleExpressionNormalization
 import GaudisCrypt.Language.ModuleExpressionsTest
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Language.ModulesTest
