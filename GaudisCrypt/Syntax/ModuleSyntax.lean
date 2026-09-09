@@ -409,6 +409,21 @@ def introAnonymous : TacticM Unit :=
   liftMetaTactic fun g => return [(← g.intro `_).2]
 
 open Lean Elab Tactic Meta in
+/-- `apply c` for a constant `c`, named rather than parsed.  `Elab.Tactic.evalApply` on an ident
+resolves it to exactly this constant (`Term.resolveId?`) and then calls `MVarId.apply`; the
+`synthesizeSyntheticMVarsNoPostponing` afterwards is its too, for the instance metavariables the
+`apply` may leave. -/
+def applyConst (c : Name) : TacticM Unit := withMainContext do
+  let e ← mkConstWithFreshMVarLevels c
+  let gs ← (← getMainGoal).apply e (term? := some m!"`{e}`")
+  Term.synthesizeSyntheticMVarsNoPostponing
+  replaceMainGoal gs
+
+/-- `try tac`, which is `first | tac | skip`. -/
+def tryTac (tac : Lean.Elab.Tactic.TacticM Unit) : Lean.Elab.Tactic.TacticM Unit :=
+  tac <|> pure ()
+
+open Lean Elab Tactic Meta in
 /-- `simp only [c₁, …, cₙ]` on the main goal, as a `TacticM` function, with the constants given as
 `Name`s instead of as syntax — so that a rename of one of them is a compile error here rather than
 a proof that stops working somewhere downstream.
@@ -460,27 +475,20 @@ is the identity, the first `simp only` already closes the goal, and a bare `redu
 fail with "no goals".
 
 A `TacticM` function rather than a `syntax`/`macro_rules` pair, so it adds nothing to the tactic
-grammar; the script itself stays a quotation, run via `evalTactic`.  The accessor is passed as a
-`Name` rather than as syntax, since the only caller is `moduletype`'s elaborator, which has the
-name and reaches this through `run_tac`. -/
+grammar, and no tactic quotation either: every lemma it names is a `` `` ``-literal, checked when
+this file compiles.  `moduletype`'s elaborator passes the accessor's `Name` and invokes it with
+`run_tac`. -/
 def accessorApply (acc : Name) : TacticM Unit := do
-  let acc := mkIdent acc
-  evalTactic (← `(tactic|
-        (intro _
-         simp only [$acc:ident]
-         apply GaudisCrypt.Module.ext
-         simp only [GaudisCrypt.Module.app, GaudisCrypt.Module.app',
-           GaudisCrypt.Module.fst, GaudisCrypt.Module.fst',
-           GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
-           GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
-           GaudisCrypt.ModuleExpression.reduce_app_left,
-           GaudisCrypt.ModuleExpression.reduce_app_right,
-           GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner]
-         try reduce_simp
-         try simp only [GaudisCrypt.Module.reduce_expression,
-           GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner])))
+  introAnonymous
+  simpOnlyConsts #[← resolveHere acc]
+  applyConst ``Module.ext
+  simpOnlyConsts #[``Module.app, ``Module.app', ``Module.fst, ``Module.fst',
+    ``Module.snd, ``Module.snd', ``Module.moduleTypeRep, ``ModuleExpression.toModule,
+    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
+    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  tryTac reduceSimp
+  tryTac <| simpOnlyConsts #[``Module.reduce_expression,
+    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
 
 open Lean Elab Tactic in
 /-- Proves the `expression_eq` field of `X.f.utilities` — `∀ m, (X.f m).expression =

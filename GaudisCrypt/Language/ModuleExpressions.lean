@@ -2131,8 +2131,12 @@ open Lean Meta Elab Tactic in
     `substitute` and friends are in the simp set because `reduce_beta`'s result is
     `reduce (body.substitute arg)`, with `substitute` a structurally recursive `def` that no
     `reduceSimpHead` branch matches on: unfolding it is what turns that result back into a
-    constructor tree the next step can work on. -/
-elab "reduce_simp" : tactic => do
+    constructor tree the next step can work on.
+
+    The tactic keyword `reduce_simp` is this function; it stays a keyword because proofs are
+    written with it by hand.  Tactics that want it as a step call `reduceSimp` directly rather
+    than going back through the grammar. -/
+def reduceSimp : TacticM Unit := do
   let goal ← getMainGoal
   goal.withContext do
     let target ← instantiateMVars (← goal.getType)
@@ -2165,5 +2169,7 @@ elab "reduce_simp" : tactic => do
     else
       replaceMainGoal [← applySimpResultToTarget goal target r]
 
+@[inherit_doc reduceSimp]
+elab "reduce_simp" : tactic => reduceSimp
 
 end GaudisCrypt
