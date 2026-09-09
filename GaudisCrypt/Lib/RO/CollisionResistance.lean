@@ -31,8 +31,8 @@ axiom claim_x : Variable input
 axiom claim_x' : Variable input
 
 /-- Disjointness: the claim variables don't alias the RO state. -/
-axiom disjoint_claim_x_ro : disjoint claim_x random_oracle_state
-axiom disjoint_claim_x'_ro : disjoint claim_x' random_oracle_state
+axiom disjoint_claim_x_ro : Lens.Disjoint claim_x random_oracle_state
+axiom disjoint_claim_x'_ro : Lens.Disjoint claim_x' random_oracle_state
 
 attribute [instance] disjoint_claim_x_ro disjoint_claim_x'_ro
 
@@ -243,13 +243,13 @@ lemma lazy_query_wp_writes_output
 /-- **`lazy_query` preserves disjoint state**: querying doesn't change
     the value of any variable disjoint from `random_oracle_state`. -/
 lemma lazy_query_wp_preserves_disjoint {α : Type} [DecidableEq α]
-    (v : Variable α) [disjoint v random_oracle_state]
+    (v : Variable α) [Lens.Disjoint v random_oracle_state]
     (x : input) (F : output × state → ENNReal) (σ : state) :
     (lazy_query x).wp F σ
       = (lazy_query x).wp
           (fun yσ : output × state =>
             if v.get yσ.2 = v.get σ then F yσ else 0) σ :=
-  letI := (inferInstance : disjoint v random_oracle_state).symm
+  letI := (inferInstance : Lens.Disjoint v random_oracle_state).symm
   lazy_query_wp_strengthen
     (I := fun _ σ' => v.get σ' = v.get σ)
     (fun _ _ => rfl)
@@ -588,7 +588,7 @@ lemma cr_adv_wp_RO_size (σ : state) :
     (fun _ _ h => congrArg _ (RO_size_of_get_eq h)) σ
 
 /-- Setting a variable disjoint from `random_oracle_state` doesn't change `RO_size`. -/
-lemma RO_size_set_disjoint {α : Type} (v : Variable α) [disjoint v random_oracle_state]
+lemma RO_size_set_disjoint {α : Type} (v : Variable α) [Lens.Disjoint v random_oracle_state]
     (x : α) (σ : state) : RO_size (v.set x σ) = RO_size σ :=
   RO_size_of_get_eq (random_oracle_state.get_of_disjoint_set v x σ)
 
@@ -647,7 +647,7 @@ lemma cr_adv_wp_collision (σ : state) :
 /-- Setting a variable disjoint from `random_oracle_state` doesn't change
     `collision_indicator`. -/
 lemma collision_indicator_set_disjoint {α : Type} (v : Variable α)
-    [disjoint v random_oracle_state] (x : α) (σ : state) :
+    [Lens.Disjoint v random_oracle_state] (x : α) (σ : state) :
     collision_indicator (v.set x σ) = collision_indicator σ :=
   collision_indicator_of_get_eq (random_oracle_state.get_of_disjoint_set v x σ)
 

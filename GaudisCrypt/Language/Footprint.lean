@@ -725,7 +725,7 @@ lemma bind_swap {s α γ : Type} (ν : SubProbability s) (μ : SubProbability α
 
 /-- **Disjoint lenses' localized kernels commute** (Fubini via `bind_swap`). -/
 lemma _root_.GaudisCrypt.Lens.liftSubProbability_comm_of_disjoint
-    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L]
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : Lens.Disjoint v L]
     (κ : a → SubProbability a) (ρ : b → SubProbability b) :
     v.liftSubProbability κ * L.liftSubProbability ρ
       = L.liftSubProbability ρ * v.liftSubProbability κ := by
@@ -737,10 +737,10 @@ lemma _root_.GaudisCrypt.Lens.liftSubProbability_comm_of_disjoint
     Lens.get_of_disjoint_set v L, Lens.get_of_disjoint_set L v, hd.commute]
   exact bind_swap (ρ (L.get x)) (κ (v.get x)) (fun a' b' => pure (L.set b' (v.set a' x)))
 
-/-- **Disjoint lenses have ranges in each other's complements**: `disjoint v L` gives
+/-- **Disjoint lenses have ranges in each other's complements**: `Lens.Disjoint v L` gives
     `v.footprint ≤ (L.footprint)ᶜ`. -/
 theorem _root_.GaudisCrypt.Lens.footprint_le_compl_of_disjoint
-    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : disjoint v L] :
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [hd : Lens.Disjoint v L] :
     v.footprint ≤ (L.footprint)ᶜ := by
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨g, rfl⟩
@@ -772,7 +772,7 @@ theorem _root_.GaudisCrypt.Lens.footprint_hasReset {c m : Type} (l : Lens c m) (
     -- diracKer g ∈ (l.footprint)ᶜ.updates = centralizer (l.footprint).updates
     have hg_mem : diracKer (l.compl.liftFunction (Function.const _ (l.compl.get s)))
         ∈ (l.footprint)ᶜ.updates := by
-      haveI : disjoint l.compl l := ⟨fun st v w => by
+      haveI : Lens.Disjoint l.compl l := ⟨fun st v w => by
         induction v using Quotient.inductionOn
         rename_i u
         show l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
@@ -820,7 +820,7 @@ private theorem footprint_compl_update_preserves_get {c m : Type} (l : Lens c m)
 private theorem footprint_compl_gen_mem {c m : Type} (l : Lens c m) (a : m) :
     diracKer (l.compl.liftFunction (Function.const _ (l.compl.get a)))
       ∈ (l.footprint)ᶜ.updates := by
-  haveI : disjoint l.compl l := ⟨fun st v w => by
+  haveI : Lens.Disjoint l.compl l := ⟨fun st v w => by
     induction v using Quotient.inductionOn
     rename_i u
     show l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
@@ -1163,14 +1163,14 @@ theorem Footprint.indistinguishable_iff_touched_getter_eq_of_sandwich {a m : Typ
 
 /-- **`ProgramDenotation.set v x` lives in `L.footprintᶜ`** when `v` is disjoint from `L`. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.set_inFootprint_compl_of_disjoint
-    {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] (x : a) :
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [Lens.Disjoint v L] (x : a) :
     (ProgramDenotation.set v x).inFootprint (L.footprint)ᶜ :=
   ProgramDenotation.inFootprint_mono (ProgramDenotation.inFootprint_set v x)
       (Lens.footprint_le_compl_of_disjoint v L)
 
 /-- **`ProgramDenotation.get v` lives in `L.footprintᶜ`** when `v` is disjoint from `L`. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.get_inFootprint_compl_of_disjoint
-    {a b s : Type} (v : Lens a s) (L : Lens b s) [disjoint v L] :
+    {a b s : Type} (v : Lens a s) (L : Lens b s) [Lens.Disjoint v L] :
     (ProgramDenotation.get v).inFootprint (L.footprint)ᶜ :=
   ProgramDenotation.inFootprint_mono (ProgramDenotation.inFootprint_get v)
       (Lens.footprint_le_compl_of_disjoint v L)
@@ -1370,13 +1370,13 @@ theorem _root_.GaudisCrypt.ProgramDenotation.commute_of_disjoint_footprint_lens
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
   ProgramDenotation.commute_of_disjoint_footprint hp hq hdisj
 
-/-- When the lenses `l`, `l'` are `disjoint`, the disjointness of their probabilistic ranges is
+/-- When the lenses `l`, `l'` are `Lens.Disjoint`, the disjointness of their probabilistic ranges is
     automatic (`Lens.footprint_le_compl_of_disjoint`), so the caller supplies only the two
     `inFootprint` confinement proofs. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.commute_of_disjoint_lenses
     {c d : Type}
-    {p : ProgramDenotation s a} {q : ProgramDenotation s b} {l : Lens c s} {l' : Lens d s} [disjoint
-        l l']
+    {p : ProgramDenotation s a} {q : ProgramDenotation s b} {l : Lens c s} {l' : Lens d s}
+    [Lens.Disjoint l l']
     (hp : p.inFootprint l.footprint) (hq : q.inFootprint l'.footprint) :
     (p >>= fun x => q >>= fun y => pure (x, y))
   = (q >>= fun y => p >>= fun x => pure (x, y)) :=
@@ -1389,7 +1389,7 @@ End-to-end payoff of the toolkit — the primitives (`inFootprint_set`/`get`) fe
 
 /-- Two writes to disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.set_set_commute_of_disjoint
-    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (x : γ) (y : δ) :
+    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [Lens.Disjoint l l'] (x : γ) (y : δ) :
     (ProgramDenotation.set l x >>= fun a => ProgramDenotation.set l' y >>= fun b => pure (a, b))
   = (ProgramDenotation.set l' y >>= fun b => ProgramDenotation.set l x >>= fun a => pure (a, b)) :=
   ProgramDenotation.commute_of_disjoint_lenses (ProgramDenotation.inFootprint_set l x)
@@ -1397,7 +1397,7 @@ theorem _root_.GaudisCrypt.ProgramDenotation.set_set_commute_of_disjoint
 
 /-- A read and a write to disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.get_set_commute_of_disjoint
-    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] (y : δ) :
+    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [Lens.Disjoint l l'] (y : δ) :
     (ProgramDenotation.get l >>= fun a => ProgramDenotation.set l' y >>= fun b => pure (a, b))
   = (ProgramDenotation.set l' y >>= fun b => ProgramDenotation.get l >>= fun a => pure (a, b)) :=
   ProgramDenotation.commute_of_disjoint_lenses (ProgramDenotation.inFootprint_get l)
@@ -1405,7 +1405,7 @@ theorem _root_.GaudisCrypt.ProgramDenotation.get_set_commute_of_disjoint
 
 /-- Two reads of disjoint lenses commute. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.get_get_commute_of_disjoint
-    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [disjoint l l'] :
+    {γ δ : Type} (l : Lens γ s) (l' : Lens δ s) [Lens.Disjoint l l'] :
     (ProgramDenotation.get l >>= fun a => ProgramDenotation.get l' >>= fun b => pure (a, b))
   = (ProgramDenotation.get l' >>= fun b => ProgramDenotation.get l >>= fun a => pure (a, b)) :=
   ProgramDenotation.commute_of_disjoint_lenses (ProgramDenotation.inFootprint_get l)
@@ -1963,7 +1963,7 @@ private lemma footprint_equivariant {a s : Type} (lens : Lens a s)
     (h : Function.End lens.ComplContent) (st : s) :
     p (lens.compl.liftFunction h st)
       = (p st >>= fun st' => pure (lens.compl.liftFunction h st')) := by
-  haveI : disjoint lens.compl lens := ⟨fun st v w => by
+  haveI : Lens.Disjoint lens.compl lens := ⟨fun st v w => by
     induction v using Quotient.inductionOn
     rename_i u
     change lens.set (lens.get (lens.set w st)) u = lens.set w (lens.set (lens.get st) u)
@@ -2077,7 +2077,7 @@ theorem Lens.liftFootprint_chain {a b c : Type}
     the reverse `(l.footprint)ᶜ ≤ l.compl.footprint` is the substantive half. -/
 theorem Lens.compl_footprint {a s : Type} (l : Lens a s) :
     (l.footprint)ᶜ = l.compl.footprint := by
-  haveI : disjoint l.compl l := ⟨fun st v w => by
+  haveI : Lens.Disjoint l.compl l := ⟨fun st v w => by
     induction v using Quotient.inductionOn
     rename_i u
     change l.set (l.get (l.set w st)) u = l.set w (l.set (l.get st) u)
@@ -2129,7 +2129,8 @@ theorem Lens.compl_footprint {a s : Type} (l : Lens a s) :
     rw [ht']
     exact l.compl.footprint.id
 
-theorem Footprint.disjoint_lens_footprint_inf (l1 : Lens a s) (l2 : Lens b s) [disjoint l1 l2] :
+theorem Footprint.disjoint_lens_footprint_inf (l1 : Lens a s) (l2 : Lens b s)
+    [Lens.Disjoint l1 l2] :
   l1.footprint ⊓ l2.footprint = ⊥ := by
   refine le_antisymm (fun u hu => ?_) bot_le
   obtain ⟨hu1, hu2⟩ := hu
@@ -2144,7 +2145,7 @@ theorem Footprint.disjoint_lens_footprint_inf (l1 : Lens a s) (l2 : Lens b s) [d
     obtain ⟨κ, hκ⟩ : ∃ κ, l1.liftSubProbability κ = u :=
       ⟨_, footprint_liftSubProbability_image l1 σ₀ hu1⟩
     -- `u` commutes with every `l1`-lift, hence `κ` is central in the base kernel monoid
-    haveI : disjoint l2 l1 := disjoint.symm ‹disjoint l1 l2›
+    haveI : Lens.Disjoint l2 l1 := Lens.Disjoint.symm ‹Lens.Disjoint l1 l2›
     have hcompl : u ∈ (l1.footprint)ᶜ.updates :=
       Lens.footprint_le_compl_of_disjoint l2 l1 hu2
     have hκcen : ∀ ρ : a → SubProbability a, κ * ρ = ρ * κ := fun ρ => by
@@ -2185,7 +2186,7 @@ theorem Footprint.disjoint_lens_footprint_inf (l1 : Lens a s) (l2 : Lens b s) [d
 
 private theorem pair_footprint_fst_snd :
     (Lens.fst : Lens a (a×b)).footprint ⊔ (Lens.snd : Lens b (a×b)).footprint = ⊤ := by
-  haveI : disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
+  haveI : Lens.Disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
     ⟨fun st v w => by
       induction v using Quotient.inductionOn
       induction w using Quotient.inductionOn
@@ -2220,7 +2221,7 @@ private theorem pair_footprint_fst_snd :
     The `≤` direction is the product/"corner"-structure theorem: lifting through the
     pair distributes over `pair_footprint_fst_snd` via `Lens.liftFootprint_sup`, and the
     two lifted corners are the component footprints by `chain_footprint` + `pair_fst`/`pair_snd`. -/
-theorem Footprint.lens_pair {a b m : Type} (x : Lens a m) (y : Lens b m) [disjoint x y] :
+theorem Footprint.lens_pair {a b m : Type} (x : Lens a m) (y : Lens b m) [Lens.Disjoint x y] :
     (Lens.pair x y).footprint = x.footprint ⊔ y.footprint := by
   calc (Lens.pair x y).footprint
       = (Lens.pair x y).liftFootprint ⊤ := (Lens.liftFootprint_top _).symm
@@ -2250,7 +2251,7 @@ theorem Footprint.fromLens_bot {s : Type} : (⊥ : Footprint s).FromLens := by
     lens's footprint, so the commutant hypothesis makes them commute as kernels; evaluating at a
     state and stripping `pure` yields the plain set-commutation law. -/
 theorem Lens.disjoint_of_footprint_le_compl {a b s : Type} (x : Lens a s) (y : Lens b s)
-    (h : x.footprint ≤ (y.footprint)ᶜ) : disjoint x y := by
+    (h : x.footprint ≤ (y.footprint)ᶜ) : Lens.Disjoint x y := by
   refine ⟨fun st v w => ?_⟩
   have hx := x.diracKer_liftFunction_mem_footprint (Function.const _ v)
   have hy := y.diracKer_liftFunction_mem_footprint (Function.const _ w)
@@ -2266,7 +2267,7 @@ theorem Footprint.fromLens_sup {s : Type} {f g : Footprint s}
     (hf : f.FromLens) (hg : g.FromLens) (hd : f ≤ gᶜ) : (f ⊔ g).FromLens := by
   obtain ⟨l1, hl1⟩ := hf
   obtain ⟨l2, hl2⟩ := hg
-  haveI : disjoint l1 l2 :=
+  haveI : Lens.Disjoint l1 l2 :=
     Lens.disjoint_of_footprint_le_compl l1 l2 (by rw [← hl1, ← hl2]; exact hd)
   rw [hl1, hl2, ← Footprint.lens_pair l1 l2]
   exact Lens.footprint_fromLens _

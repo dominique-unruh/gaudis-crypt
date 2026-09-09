@@ -34,8 +34,7 @@ def ProcedureState.globalL {l : Type} : Lens State (ProcedureState l) where
   get_set _ := rfl
 
 /-- Lens onto the local part of a `ProcedureState`. -/
--- TODO: rename to .scopedL
-def ProcedureState.localL {l : Type} : Lens l (ProcedureState l) where
+def ProcedureState.scopedL {l : Type} : Lens l (ProcedureState l) where
   get s := s.locals
   set v s := { s with locals := v }
   set_get _ _ := rfl
@@ -48,28 +47,22 @@ structure ProcedureSignature where
   params : List Type
   ret : Type
 
--- TODO is this used?
-class LocalState : Type _ where
-  params : List Type
-  locals : List Type
-
--- TODO: rename -> typeListToTuple
 /-- Reducible on purpose: at a concrete parameter list the tuple type has to be visible to
 unification at `reducible` transparency, or everything stated about `_ × _` gets stuck on it —
-typeclass resolution (`OfNat (paramListToTuple [Nat]) 5` for a numeral argument of a `call`,
-`disjoint` of two projection lenses) is where it shows. -/
-@[reducible] def paramListToTuple : List Type → Type
+typeclass resolution (`OfNat (typeListToTuple [Nat]) 5` for a numeral argument of a `call`,
+`Lens.Disjoint` of two projection lenses) is where it shows. -/
+@[reducible] def typeListToTuple : List Type → Type
   | []      => Unit
   | [x]     => x
-  | x :: xs => x × paramListToTuple xs
+  | x :: xs => x × typeListToTuple xs
 
 /-- The declared types of a local-variable list, i.e. `ls.map (·.fst)`.
 
 Spelled out by recursion rather than as `List.map` *because* it has to be reducible, for the
-same reason `paramListToTuple` is: `List.map` is not, so `paramListToTuple (ls.map (·.fst))`
-stays stuck at `reducible` transparency — `paramListToTuple` cannot match on an argument it
+same reason `typeListToTuple` is: `List.map` is not, so `typeListToTuple (ls.map (·.fst))`
+stays stuck at `reducible` transparency — `typeListToTuple` cannot match on an argument it
 cannot evaluate, and the tuple type never becomes a `_ × _` that instance search can use.
-With this, `disjoint` of two local-variable lenses is synthesized on its own. -/
+With this, `Lens.Disjoint` of two local-variable lenses is synthesized on its own. -/
 @[reducible] def localTypes : List (Σ t : Type, Inhabited t) → List Type
   | []             => []
   | ⟨t, _⟩ :: rest => t :: localTypes rest
@@ -85,124 +78,122 @@ theorem localTypes_eq_map (ls : List (Σ t : Type, Inhabited t)) :
   | cons h t ih => cases h; simp [localTypes, ih]
 
 /-- The local state of a procedure: parameter values (`params`) and local-variable
-values (`vars`).  Indexed by the parameter *types* and the local declarations only
+values (`localVars`).  Indexed by the parameter *types* and the local declarations only
 (not the return type), so it can be formed before the return type is known — this is
 what lets a `proc` with an omitted return type elaborate. -/
--- TODO: Rename LocalVariableState to ProcedureScope
-structure LocalVariableState (paramTypes : List Type)
+structure ProcedureScope (paramTypes : List Type)
     (locals : List (Σ t : Type, Inhabited t)) where
-  params : paramListToTuple paramTypes
-  -- TODO: rename vars to localVars
-  vars : paramListToTuple (localTypes locals)
+  params : typeListToTuple paramTypes
+  localVars : typeListToTuple (localTypes locals)
 
-/-- The local state for a full signature (delegates to `LocalVariableState`; reducible
-so `sig.LocalVariableState locals` is defeq to `LocalVariableState sig.params locals`). -/
-@[reducible] def ProcedureSignature.LocalVariableState (sig : ProcedureSignature)
+/-- The local state for a full signature (delegates to `ProcedureScope`; reducible
+so `sig.ProcedureScope locals` is defeq to `ProcedureScope sig.params locals`). -/
+@[reducible] def ProcedureSignature.ProcedureScope (sig : ProcedureSignature)
     (locals : List (Σ t : Type, Inhabited t)) : Type :=
-  _root_.GaudisCrypt.LocalVariableState sig.params locals
+  _root_.GaudisCrypt.ProcedureScope sig.params locals
 
-/-- Lens onto the parameter tuple of a `LocalVariableState`. -/
-def LocalVariableState.paramsL {paramTypes : List Type}
+/-- Lens onto the parameter tuple of a `ProcedureScope`. -/
+def ProcedureScope.paramsL {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} :
-    Lens (paramListToTuple paramTypes) (LocalVariableState paramTypes locals) where
+    Lens (typeListToTuple paramTypes) (ProcedureScope paramTypes locals) where
   get s := s.params
   set v s := { s with params := v }
   set_get _ _ := rfl
   set_set _ _ _ := rfl
   get_set _ := rfl
 
-/-- Lens onto the local-variable tuple of a `LocalVariableState`. -/
--- TODO Rename to .localVarsL
-def LocalVariableState.varsL {paramTypes : List Type}
+/-- Lens onto the local-variable tuple of a `ProcedureScope`. -/
+def ProcedureScope.localVarsL {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} :
-    Lens (paramListToTuple (localTypes locals)) (LocalVariableState paramTypes locals) where
-  get s := s.vars
-  set v s := { s with vars := v }
+    Lens (typeListToTuple (localTypes locals)) (ProcedureScope paramTypes locals) where
+  get s := s.localVars
+  set v s := { s with localVars := v }
   set_get _ _ := rfl
   set_set _ _ _ := rfl
   get_set _ := rfl
 
-/-- `params` and `vars` are distinct fields of `LocalVariableState`, so writes through the two
+/-- `params` and `localVars` are distinct fields of `ProcedureScope`, so writes through the two
     field lenses commute. -/
-instance LocalVariableState.disjoint_varsL_paramsL {paramTypes : List Type}
+instance ProcedureScope.disjoint_localVarsL_paramsL {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} :
-    disjoint (LocalVariableState.varsL (paramTypes := paramTypes) (locals := locals))
-      (LocalVariableState.paramsL (paramTypes := paramTypes) (locals := locals)) :=
+    Lens.Disjoint (ProcedureScope.localVarsL (paramTypes := paramTypes) (locals := locals))
+      (ProcedureScope.paramsL (paramTypes := paramTypes) (locals := locals)) :=
   ⟨fun _ _ _ => rfl⟩
 
-/-- The mirror image of `LocalVariableState.disjoint_varsL_paramsL`; `disjoint.symm` is a
+/-- The mirror image of `ProcedureScope.disjoint_localVarsL_paramsL`; `Lens.Disjoint.symm` is a
     theorem, not an instance, so search needs both orientations spelled out. -/
-instance LocalVariableState.disjoint_paramsL_varsL {paramTypes : List Type}
+instance ProcedureScope.disjoint_paramsL_localVarsL {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)} :
-    disjoint (LocalVariableState.paramsL (paramTypes := paramTypes) (locals := locals))
-      (LocalVariableState.varsL (paramTypes := paramTypes) (locals := locals)) :=
+    Lens.Disjoint (ProcedureScope.paramsL (paramTypes := paramTypes) (locals := locals))
+      (ProcedureScope.localVarsL (paramTypes := paramTypes) (locals := locals)) :=
   ⟨fun _ _ _ => rfl⟩
 
 /-- Lift a lens into the parameter tuple to a lens into the full procedure state
-(`localL ∘ paramsL`).  Analogous to `Lens.ofst`.  (Defined in the `Lens` namespace via
+(`scopedL ∘ paramsL`).  Analogous to `Lens.ofst`.  (Defined in the `Lens` namespace via
 `_root_` so dot notation `lens.intoParams` resolves.) -/
 def Lens.intoParams {a : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)} (lens : Lens a (paramListToTuple paramTypes)) :
-    Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=
-  ProcedureState.localL.chain (LocalVariableState.paramsL.chain lens)
+    {locals : List (Σ t : Type, Inhabited t)} (lens : Lens a (typeListToTuple paramTypes)) :
+    Lens a (ProcedureState (ProcedureScope paramTypes locals)) :=
+  ProcedureState.scopedL.chain (ProcedureScope.paramsL.chain lens)
 
 /-- Procedure parameters are `Lens.intoParams` of their slot projections; distinct slots are
     disjoint, and `intoParams` (two `chain` layers) preserves that. -/
 instance Programs.disjoint_intoParams {a b : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (paramListToTuple paramTypes)}
-    {y : Lens b (paramListToTuple paramTypes)} [disjoint x y] :
-    disjoint (Lens.intoParams (locals := locals) x) y.intoParams :=
-  Lens.disjoint_chain ProcedureState.localL _ _
+    {x : Lens a (typeListToTuple paramTypes)}
+    {y : Lens b (typeListToTuple paramTypes)} [Lens.Disjoint x y] :
+    Lens.Disjoint (Lens.intoParams (locals := locals) x) y.intoParams :=
+  Lens.disjoint_chain ProcedureState.scopedL _ _
 
 /-- Lift a lens into the local-variable tuple to a lens into the full procedure state
-(`localL ∘ varsL`).  Analogous to `Lens.ofst`. -/
--- TODO: rename → intoLocalVars
-def Lens.intoVars {a : Type} {paramTypes : List Type}
+(`scopedL ∘ localVarsL`).  Analogous to `Lens.ofst`. -/
+def Lens.intoLocalVars {a : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
-    (lens : Lens a (paramListToTuple (localTypes locals))) :
-    Lens a (ProcedureState (LocalVariableState paramTypes locals)) :=
-  ProcedureState.localL.chain (LocalVariableState.varsL.chain lens)
+    (lens : Lens a (typeListToTuple (localTypes locals))) :
+    Lens a (ProcedureState (ProcedureScope paramTypes locals)) :=
+  ProcedureState.scopedL.chain (ProcedureScope.localVarsL.chain lens)
 
-/-- Local program variables are `Lens.intoVars` of their slot projections; distinct slots
-    are disjoint, and `intoVars` (two `chain` layers) preserves that. -/
-instance Programs.disjoint_intoVars {a b : Type} {paramTypes : List Type}
+/-- Local program variables are `Lens.intoLocalVars` of their slot projections; distinct slots
+    are disjoint, and `intoLocalVars` (two `chain` layers) preserves that. -/
+instance Programs.disjoint_intoLocalVars {a b : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (paramListToTuple (localTypes locals))}
-    {y : Lens b (paramListToTuple (localTypes locals))} [disjoint x y] :
-    disjoint (Lens.intoVars (paramTypes := paramTypes) x) y.intoVars :=
-  Lens.disjoint_chain ProcedureState.localL _ _
+    {x : Lens a (typeListToTuple (localTypes locals))}
+    {y : Lens b (typeListToTuple (localTypes locals))} [Lens.Disjoint x y] :
+    Lens.Disjoint (Lens.intoLocalVars (paramTypes := paramTypes) x) y.intoLocalVars :=
+  Lens.disjoint_chain ProcedureState.scopedL _ _
 
-/-- A local variable is disjoint from *any* parameter: `params` and `vars` are distinct fields
+/-- A local variable is disjoint from *any* parameter: `params` and `localVars` are distinct fields
     of the scope record, so writes through projections of the two commute outright — no
-    `disjoint x y` hypothesis, and no lemma about the `chain` prefix they share. -/
-instance Programs.disjoint_intoVars_intoParams {a b : Type} {paramTypes : List Type}
+    `Lens.Disjoint x y` hypothesis, and no lemma about the `chain` prefix they share. -/
+instance Programs.disjoint_intoLocalVars_intoParams {a b : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (paramListToTuple (localTypes locals))}
-    {y : Lens b (paramListToTuple paramTypes)} :
-    disjoint (Lens.intoVars (paramTypes := paramTypes) x) (Lens.intoParams (locals := locals) y) :=
+    {x : Lens a (typeListToTuple (localTypes locals))}
+    {y : Lens b (typeListToTuple paramTypes)} :
+    Lens.Disjoint (Lens.intoLocalVars (paramTypes := paramTypes) x)
+      (Lens.intoParams (locals := locals) y) :=
   ⟨fun _ _ _ => rfl⟩
 
-/-- The other orientation of `Programs.disjoint_intoVars_intoParams`; `disjoint.symm` is a
-    theorem, not an instance, so search needs both spelled out. -/
-instance Programs.disjoint_intoParams_intoVars {a b : Type} {paramTypes : List Type}
+/-- The other orientation of `Programs.disjoint_intoLocalVars_intoParams`;
+    `Lens.Disjoint.symm` is a theorem, not an instance, so search needs both spelled out. -/
+instance Programs.disjoint_intoParams_intoLocalVars {a b : Type} {paramTypes : List Type}
     {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (paramListToTuple paramTypes)}
-    {y : Lens b (paramListToTuple (localTypes locals))} :
-    disjoint (Lens.intoParams (locals := locals) x) (Lens.intoVars (paramTypes := paramTypes) y) :=
+    {x : Lens a (typeListToTuple paramTypes)}
+    {y : Lens b (typeListToTuple (localTypes locals))} :
+    Lens.Disjoint (Lens.intoParams (locals := locals) x)
+      (Lens.intoLocalVars (paramTypes := paramTypes) y) :=
   ⟨fun _ _ _ => rfl⟩
 
-def ProcedureSignature.ParamType (sig : ProcedureSignature) := paramListToTuple sig.params
+def ProcedureSignature.ParamType (sig : ProcedureSignature) := typeListToTuple sig.params
 
 private def localDefaults : (ls : List (Σ t : Type, Inhabited t)) →
-    paramListToTuple (localTypes ls)
+    typeListToTuple (localTypes ls)
   | [] => ()
   | [⟨_, inst⟩] => inst.default
   | ⟨_, inst⟩ :: h :: t => (inst.default, localDefaults (h :: t))
 
 def ProcedureSignature.localVariableInit
     (sig : ProcedureSignature) (locals : List (Σ t : Type, Inhabited t))
-    (params : paramListToTuple sig.params) : sig.LocalVariableState locals :=
+    (params : typeListToTuple sig.params) : sig.ProcedureScope locals :=
   ⟨params, localDefaults locals⟩
 
 /-- A sequence of procedure signatures, describing the holes of a program.
@@ -276,8 +267,8 @@ inductive StmtWithHoles [ProgramSpec]: HoleSigs → Type → Type _ where
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
       Setter sig.ret (ProcedureState l) → (locals : List (Σ t : Type, Inhabited t))
-        → StmtWithHoles .empty (sig.LocalVariableState locals)
-        → Getter sig.ret (ProcedureState (sig.LocalVariableState locals))
+        → StmtWithHoles .empty (sig.ProcedureScope locals)
+        → Getter sig.ret (ProcedureState (sig.ProcedureScope locals))
         → Getter sig.ParamType (ProcedureState l) → StmtWithHoles h l
   | hole {sig} (n: HoleIndex h sig) : Setter sig.ret (ProcedureState l) → Getter sig.ParamType (ProcedureState l) → StmtWithHoles h l
   | seq : StmtWithHoles h l → StmtWithHoles h l → StmtWithHoles h l                   -- c1; c2
@@ -288,8 +279,8 @@ def Stmt [ProgramSpec] := StmtWithHoles .empty
 
 structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : ProcedureSignature) where
   locals : List (Σ t : Type, Inhabited t)
-  body : StmtWithHoles holeSigs (sig.LocalVariableState locals)
-  return_val : Getter sig.ret (ProcedureState (sig.LocalVariableState locals))
+  body : StmtWithHoles holeSigs (sig.ProcedureScope locals)
+  return_val : Getter sig.ret (ProcedureState (sig.ProcedureScope locals))
 
 def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
@@ -471,7 +462,7 @@ def procedureDenotation {sig} (proc : Procedure sig) (args : sig.ParamType) :
    ProgramDenotation State sig.ret := fun st => do
     let procLocalSt := sig.localVariableInit proc.locals args
     let (_, procFinalSt) <-
-      programDenotation (l := sig.LocalVariableState proc.locals) proc.body ⟨st, procLocalSt⟩
+      programDenotation (l := sig.ProcedureScope proc.locals) proc.body ⟨st, procLocalSt⟩
     let retVal := proc.return_val.get procFinalSt
     return (retVal, procFinalSt.global)
 termination_by (proc.body.depth, 1)

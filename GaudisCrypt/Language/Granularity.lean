@@ -238,13 +238,15 @@ theorem Footprint.IsSubGranular.granularCover_footprint_eq_sSup [spec : Granular
 
 
 theorem lens_pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {lens2 : Lens b State}
-  [disjoint lens1 lens2] (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
+  [Lens.Disjoint lens1 lens2]
+  (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (lens1.pair lens2).footprint.IsSubGranular :=
   Footprint.lens_pair lens1 lens2 ▸ isSubGranularFootprint_closed_sup h1 h2
 
 theorem Granularity.lens_pair_isSubGranular_sup [GranularProgramSpec]
   {lens1 : Lens a State} {lens2 : Lens b State}
-  [disjoint lens1 lens2] (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
+  [Lens.Disjoint lens1 lens2]
+  (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (lens_pair_isSubGranular h1 h2).granularCover.footprint
    = h1.granularCover.footprint ⊔ h2.granularCover.footprint := by
   have hset : { g ∈ GranularProgramSpec.grains | ¬ (lens1.pair lens2).footprint ≤ gᶜ }

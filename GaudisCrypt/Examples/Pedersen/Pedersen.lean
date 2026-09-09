@@ -184,8 +184,8 @@ theorem wp_gen (f : ProgramDenotation.Post State group.types.Value) :
     wp_set_g,
     wp_lift, uniform_expected, expected_pure, ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL, LocalVariableState.varsL]
+    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureScope.localVarsL]
 
 theorem wp_commit (args : group.G × group.F)
     (f : ProgramDenotation.Post State
@@ -203,9 +203,9 @@ theorem wp_commit (args : group.G × group.F)
     wp_set_g,
     wp_lift, uniform_expected, expected_pure, ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoParams, Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL,
-    LocalVariableState.paramsL, LocalVariableState.varsL]
+    Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL,
+    ProcedureScope.paramsL, ProcedureScope.localVarsL]
 
 theorem wp_verify (args : group.G × group.F × group.G × group.F)
     (f : ProgramDenotation.Post State Bool) :
@@ -221,9 +221,9 @@ theorem wp_verify (args : group.G × group.F × group.G × group.F)
     wp_set_g,
     wp_lift, expected_pure, ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoParams, Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL,
-    LocalVariableState.paramsL, LocalVariableState.varsL]
+    Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL,
+    ProcedureScope.paramsL, ProcedureScope.localVarsL]
 
 /-! ### Reducing the applied functor
 
@@ -304,9 +304,9 @@ theorem pedersen_correctness (m : group.F) (σ : State) :
     StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoParams, Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL, ProcedureState.globalL,
-    LocalVariableState.paramsL, LocalVariableState.varsL,
+    Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
+    ProcedureScope.paramsL, ProcedureScope.localVarsL,
     Set.indicator, Set.mem_setOf_eq]
   -- descend through the two samplings with `rw` (full-defeq unification), summand by summand
   rw [wp_gen]
@@ -357,7 +357,7 @@ def hoare (A : ProcedureState l → Prop) (p : Stmt l) (B : ProcedureState l →
     Polarity is inherited from `hoare`: `B` has to hold almost surely, i.e. the event `¬ B` has
     mass `0`. -/
 def hoareProc' {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
-    (B : sig.ret → ProcedureState (sig.LocalVariableState p.locals) → Prop) :=
+    (B : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop) :=
   ∀ args : sig.ParamType,
     hoare (fun σ => A args σ.global ∧ σ.locals = sig.localVariableInit p.locals args)
       p.body (fun σ => B (p.return_val.get σ) σ)
@@ -397,7 +397,7 @@ lemma hoareProc_iff_hoareProc' {sig} {A : sig.ParamType → State → Prop} {p :
         ↔ (programDenotation p.body ⟨σ, sig.localVariableInit p.locals args⟩).ofEvent
             (fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global) = 0 := by
     intro args σ
-    have hfun : (fun q : Unit × ProcedureState (sig.LocalVariableState p.locals) =>
+    have hfun : (fun q : Unit × ProcedureState (sig.ProcedureScope p.locals) =>
         Set.indicator (fun (ret, σ') => B ret σ') (fun _ => (1 : ENNReal))
           (p.return_val.get q.2, q.2.global))
         = Set.indicator (fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global)
@@ -405,7 +405,7 @@ lemma hoareProc_iff_hoareProc' {sig} {A : sig.ParamType → State → Prop} {p :
       -- drop the double negation, after which the two events are the same event, one written on
       -- the body's states and one on the pushed-forward pairs — `rfl` up to `Set.indicator`
       have hnn : ((fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global) :
-            Set (Unit × ProcedureState (sig.LocalVariableState p.locals)))
+            Set (Unit × ProcedureState (sig.ProcedureScope p.locals)))
           = fun q => B (p.return_val.get q.2) q.2.global := by
         funext q
         simp
@@ -449,7 +449,7 @@ lemma hoare_mono {l} {A : ProcedureState l → Prop} {p : Stmt l}
 
 /-- `hoareProc'` inherits that monotonicity, postcondition by postcondition. -/
 lemma hoareProc'_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B₁ B₂ : sig.ret → ProcedureState (sig.LocalVariableState p.locals) → Prop}
+    {B₁ B₂ : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop}
     (hB : ∀ r σ, B₁ r σ → B₂ r σ) (h : hoareProc' A p B₁) : hoareProc' A p B₂ :=
   fun args => hoare_mono (fun _ hb => hB _ _ hb) (h args)
 
@@ -473,7 +473,7 @@ lemma hoareProc'_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedur
     `¬ ∀ l, ¬ B r ⟨σ.global, l⟩`, which is weaker than `B` — instantiate the `∀ l` at the scope in
     hand, `σ.locals` — so `hoareProc'_mono` closes it. -/
 lemma hoareProc'_imp_hoareProc {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B : sig.ret → ProcedureState (sig.LocalVariableState p.locals) → Prop}
+    {B : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop}
     (h : hoareProc' A p B) : hoareProc A p (fun ret σ => ∀ l, ¬ B ret ⟨σ, l⟩) :=
   hoareProc_iff_hoareProc'.mpr (hoareProc'_mono (fun _ σ hb hc => hc σ.locals hb) h)
 

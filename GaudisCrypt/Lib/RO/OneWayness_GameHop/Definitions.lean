@@ -164,16 +164,16 @@ end GameHopParam
     `chal_x_queried` to avoid cross-contamination). -/
 axiom chal_x_queried_gh : Variable Bool
 
-axiom disjoint_chal_x_queried_gh_ro : disjoint chal_x_queried_gh random_oracle_state
+axiom disjoint_chal_x_queried_gh_ro : Lens.Disjoint chal_x_queried_gh random_oracle_state
 axiom disjoint_chal_x_queried_gh_ow_challenge_x :
-  disjoint chal_x_queried_gh ow_challenge_x
+  Lens.Disjoint chal_x_queried_gh ow_challenge_x
 axiom disjoint_chal_x_queried_gh_ow_challenge_y :
-  disjoint chal_x_queried_gh ow_challenge_y
-axiom disjoint_chal_x_queried_gh_ow_response : disjoint chal_x_queried_gh ow_response
+  Lens.Disjoint chal_x_queried_gh ow_challenge_y
+axiom disjoint_chal_x_queried_gh_ow_response : Lens.Disjoint chal_x_queried_gh ow_response
 axiom disjoint_chal_x_queried_gh_oracle_input :
-  disjoint chal_x_queried_gh oracle_input
+  Lens.Disjoint chal_x_queried_gh oracle_input
 axiom disjoint_chal_x_queried_gh_oracle_output :
-  disjoint chal_x_queried_gh oracle_output
+  Lens.Disjoint chal_x_queried_gh oracle_output
 
 attribute [instance] disjoint_chal_x_queried_gh_ro
                      disjoint_chal_x_queried_gh_ow_challenge_x
@@ -183,17 +183,17 @@ attribute [instance] disjoint_chal_x_queried_gh_ro
                      disjoint_chal_x_queried_gh_oracle_output
 
 /-- Symmetric instances. -/
-instance : disjoint random_oracle_state chal_x_queried_gh :=
+instance : Lens.Disjoint random_oracle_state chal_x_queried_gh :=
   disjoint_chal_x_queried_gh_ro.symm
-instance : disjoint ow_challenge_x chal_x_queried_gh :=
+instance : Lens.Disjoint ow_challenge_x chal_x_queried_gh :=
   disjoint_chal_x_queried_gh_ow_challenge_x.symm
-instance : disjoint ow_challenge_y chal_x_queried_gh :=
+instance : Lens.Disjoint ow_challenge_y chal_x_queried_gh :=
   disjoint_chal_x_queried_gh_ow_challenge_y.symm
-instance : disjoint ow_response chal_x_queried_gh :=
+instance : Lens.Disjoint ow_response chal_x_queried_gh :=
   disjoint_chal_x_queried_gh_ow_response.symm
-instance : disjoint oracle_input chal_x_queried_gh :=
+instance : Lens.Disjoint oracle_input chal_x_queried_gh :=
   disjoint_chal_x_queried_gh_oracle_input.symm
-instance : disjoint oracle_output chal_x_queried_gh :=
+instance : Lens.Disjoint oracle_output chal_x_queried_gh :=
   disjoint_chal_x_queried_gh_oracle_output.symm
 
 /-- A `lazy_query` that *also* sets `chal_x_queried_gh` to `true` if the
@@ -220,14 +220,14 @@ is captured by a dedicated flag, exposing it as a `guess_experiment` instance. -
 /-- Matched flag for the output-side guess (against `chal_y`). -/
 axiom matched_chal_y : Variable Bool
 
-axiom disjoint_matched_chal_y_ro : disjoint matched_chal_y random_oracle_state
-axiom disjoint_matched_chal_y_chal_x : disjoint matched_chal_y ow_challenge_x
-axiom disjoint_matched_chal_y_chal_y : disjoint matched_chal_y ow_challenge_y
-axiom disjoint_matched_chal_y_response : disjoint matched_chal_y ow_response
-axiom disjoint_matched_chal_y_input : disjoint matched_chal_y oracle_input
-axiom disjoint_matched_chal_y_output : disjoint matched_chal_y oracle_output
+axiom disjoint_matched_chal_y_ro : Lens.Disjoint matched_chal_y random_oracle_state
+axiom disjoint_matched_chal_y_chal_x : Lens.Disjoint matched_chal_y ow_challenge_x
+axiom disjoint_matched_chal_y_chal_y : Lens.Disjoint matched_chal_y ow_challenge_y
+axiom disjoint_matched_chal_y_response : Lens.Disjoint matched_chal_y ow_response
+axiom disjoint_matched_chal_y_input : Lens.Disjoint matched_chal_y oracle_input
+axiom disjoint_matched_chal_y_output : Lens.Disjoint matched_chal_y oracle_output
 axiom disjoint_matched_chal_y_chal_x_queried_gh :
-  disjoint matched_chal_y chal_x_queried_gh
+  Lens.Disjoint matched_chal_y chal_x_queried_gh
 
 attribute [instance] disjoint_matched_chal_y_ro
                      disjoint_matched_chal_y_chal_x
@@ -237,19 +237,19 @@ attribute [instance] disjoint_matched_chal_y_ro
                      disjoint_matched_chal_y_output
                      disjoint_matched_chal_y_chal_x_queried_gh
 
-instance : disjoint random_oracle_state matched_chal_y :=
+instance : Lens.Disjoint random_oracle_state matched_chal_y :=
   disjoint_matched_chal_y_ro.symm
-instance : disjoint ow_challenge_x matched_chal_y :=
+instance : Lens.Disjoint ow_challenge_x matched_chal_y :=
   disjoint_matched_chal_y_chal_x.symm
-instance : disjoint ow_challenge_y matched_chal_y :=
+instance : Lens.Disjoint ow_challenge_y matched_chal_y :=
   disjoint_matched_chal_y_chal_y.symm
-instance : disjoint ow_response matched_chal_y :=
+instance : Lens.Disjoint ow_response matched_chal_y :=
   disjoint_matched_chal_y_response.symm
-instance : disjoint oracle_input matched_chal_y :=
+instance : Lens.Disjoint oracle_input matched_chal_y :=
   disjoint_matched_chal_y_input.symm
-instance : disjoint oracle_output matched_chal_y :=
+instance : Lens.Disjoint oracle_output matched_chal_y :=
   disjoint_matched_chal_y_output.symm
-instance : disjoint chal_x_queried_gh matched_chal_y :=
+instance : Lens.Disjoint chal_x_queried_gh matched_chal_y :=
   disjoint_matched_chal_y_chal_x_queried_gh.symm
 
 /-- Queries list for the input-side collector (Game 1 bad reduction).
@@ -261,24 +261,24 @@ axiom queries_input : Variable (List input)
 axiom queries_output : Variable (List output)
 
 axiom disjoint_queries_input_chal_x_queried_gh :
-  disjoint queries_input chal_x_queried_gh
-axiom disjoint_queries_input_ro : disjoint queries_input random_oracle_state
-axiom disjoint_queries_input_chal_x : disjoint queries_input ow_challenge_x
-axiom disjoint_queries_input_chal_y : disjoint queries_input ow_challenge_y
-axiom disjoint_queries_input_response : disjoint queries_input ow_response
-axiom disjoint_queries_input_oracle_input : disjoint queries_input oracle_input
-axiom disjoint_queries_input_oracle_output : disjoint queries_input oracle_output
+  Lens.Disjoint queries_input chal_x_queried_gh
+axiom disjoint_queries_input_ro : Lens.Disjoint queries_input random_oracle_state
+axiom disjoint_queries_input_chal_x : Lens.Disjoint queries_input ow_challenge_x
+axiom disjoint_queries_input_chal_y : Lens.Disjoint queries_input ow_challenge_y
+axiom disjoint_queries_input_response : Lens.Disjoint queries_input ow_response
+axiom disjoint_queries_input_oracle_input : Lens.Disjoint queries_input oracle_input
+axiom disjoint_queries_input_oracle_output : Lens.Disjoint queries_input oracle_output
 
 axiom disjoint_queries_output_matched_chal_y :
-  disjoint queries_output matched_chal_y
-axiom disjoint_queries_output_ro : disjoint queries_output random_oracle_state
-axiom disjoint_queries_output_chal_x : disjoint queries_output ow_challenge_x
-axiom disjoint_queries_output_chal_y : disjoint queries_output ow_challenge_y
-axiom disjoint_queries_output_response : disjoint queries_output ow_response
-axiom disjoint_queries_output_oracle_input : disjoint queries_output oracle_input
-axiom disjoint_queries_output_oracle_output : disjoint queries_output oracle_output
+  Lens.Disjoint queries_output matched_chal_y
+axiom disjoint_queries_output_ro : Lens.Disjoint queries_output random_oracle_state
+axiom disjoint_queries_output_chal_x : Lens.Disjoint queries_output ow_challenge_x
+axiom disjoint_queries_output_chal_y : Lens.Disjoint queries_output ow_challenge_y
+axiom disjoint_queries_output_response : Lens.Disjoint queries_output ow_response
+axiom disjoint_queries_output_oracle_input : Lens.Disjoint queries_output oracle_input
+axiom disjoint_queries_output_oracle_output : Lens.Disjoint queries_output oracle_output
 axiom disjoint_queries_output_chal_x_queried_gh :
-  disjoint queries_output chal_x_queried_gh
+  Lens.Disjoint queries_output chal_x_queried_gh
 
 attribute [instance] disjoint_queries_input_chal_x_queried_gh
                      disjoint_queries_input_ro
@@ -296,36 +296,36 @@ attribute [instance] disjoint_queries_input_chal_x_queried_gh
                      disjoint_queries_output_oracle_output
                      disjoint_queries_output_chal_x_queried_gh
 
-instance : disjoint chal_x_queried_gh queries_input :=
+instance : Lens.Disjoint chal_x_queried_gh queries_input :=
   disjoint_queries_input_chal_x_queried_gh.symm
-instance : disjoint random_oracle_state queries_input :=
+instance : Lens.Disjoint random_oracle_state queries_input :=
   disjoint_queries_input_ro.symm
-instance : disjoint ow_challenge_x queries_input :=
+instance : Lens.Disjoint ow_challenge_x queries_input :=
   disjoint_queries_input_chal_x.symm
-instance : disjoint ow_challenge_y queries_input :=
+instance : Lens.Disjoint ow_challenge_y queries_input :=
   disjoint_queries_input_chal_y.symm
-instance : disjoint ow_response queries_input :=
+instance : Lens.Disjoint ow_response queries_input :=
   disjoint_queries_input_response.symm
-instance : disjoint oracle_input queries_input :=
+instance : Lens.Disjoint oracle_input queries_input :=
   disjoint_queries_input_oracle_input.symm
-instance : disjoint oracle_output queries_input :=
+instance : Lens.Disjoint oracle_output queries_input :=
   disjoint_queries_input_oracle_output.symm
 
-instance : disjoint matched_chal_y queries_output :=
+instance : Lens.Disjoint matched_chal_y queries_output :=
   disjoint_queries_output_matched_chal_y.symm
-instance : disjoint random_oracle_state queries_output :=
+instance : Lens.Disjoint random_oracle_state queries_output :=
   disjoint_queries_output_ro.symm
-instance : disjoint ow_challenge_x queries_output :=
+instance : Lens.Disjoint ow_challenge_x queries_output :=
   disjoint_queries_output_chal_x.symm
-instance : disjoint ow_challenge_y queries_output :=
+instance : Lens.Disjoint ow_challenge_y queries_output :=
   disjoint_queries_output_chal_y.symm
-instance : disjoint ow_response queries_output :=
+instance : Lens.Disjoint ow_response queries_output :=
   disjoint_queries_output_response.symm
-instance : disjoint oracle_input queries_output :=
+instance : Lens.Disjoint oracle_input queries_output :=
   disjoint_queries_output_oracle_input.symm
-instance : disjoint oracle_output queries_output :=
+instance : Lens.Disjoint oracle_output queries_output :=
   disjoint_queries_output_oracle_output.symm
-instance : disjoint chal_x_queried_gh queries_output :=
+instance : Lens.Disjoint chal_x_queried_gh queries_output :=
   disjoint_queries_output_chal_x_queried_gh.symm
 
 -- Note: in the `guess_experiment`-based design, the match-check is placed
@@ -369,7 +369,7 @@ noncomputable def ow_game_2_tracked (q : ℕ) : ProgramDenotation state Bool := 
 
 lemma lazy_query_tracked_inFootprint_ow_challenge_y (inp : input) :
     (lazy_query_tracked inp).inFootprint (ow_challenge_y.footprint)ᶜ := by
-  haveI : disjoint ow_challenge_x ow_challenge_y :=
+  haveI : Lens.Disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
   unfold lazy_query_tracked
   refine ProgramDenotation.inFootprint_bind ?_ (fun y => ?_)

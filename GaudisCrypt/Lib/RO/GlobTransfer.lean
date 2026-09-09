@@ -364,18 +364,18 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) {f : Function.End state}
     (hf : diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates) :
     diracKer ((ProcedureState.globalL
-        (l := sig.LocalVariableState A.locals)).liftFunction f)
+        (l := sig.ProcedureScope A.locals)).liftFunction f)
       ∈ ((fvP_proc A)ᶜ).updates := by
   have hdecompG : FVP.fvP_proc A
       = Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔
         Lens.reduceFootprint ProcedureState.globalL
           ((ProgramDenotation.get A.return_val).footprint) := rfl
   -- Per component: `X ≤ (from {lifted step})ᶜ` whenever `f` commutes with `X`'s reduction.
-  have hsing : ∀ X : Footprint (ProcedureState (sig.LocalVariableState A.locals)),
+  have hsing : ∀ X : Footprint (ProcedureState (sig.ProcedureScope A.locals)),
       diracKer f ∈ ((Lens.reduceFootprint ProcedureState.globalL X)ᶜ).updates →
       X ≤ (Footprint.from
         {diracKer ((ProcedureState.globalL
-          (l := sig.LocalVariableState A.locals)).liftFunction f)})ᶜ := by
+          (l := sig.ProcedureScope A.locals)).liftFunction f)})ᶜ := by
     intro X hfX
     rw [← Footprint.le_compl_comm]
     refine (Footprint.from_le_iff _ _).mpr ?_
@@ -400,7 +400,7 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
   -- Reassemble at the procedure level.
   have hsup : fvP_proc A ≤ (Footprint.from
       {diracKer ((ProcedureState.globalL
-        (l := sig.LocalVariableState A.locals)).liftFunction f)})ᶜ := by
+        (l := sig.ProcedureScope A.locals)).liftFunction f)})ᶜ := by
     exact sup_le h1 h2
   exact (Footprint.from_le_iff _ _).mp
     ((Footprint.le_compl_comm _ _).mpr hsup) (Set.mem_singleton _)
@@ -449,23 +449,23 @@ theorem footprintCompat_PGlob {sig : ProcedureSignature}
       diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates ∧ f a = b) ps₁.global ps₂.global :=
     Quotient.exact hglob
   have horb : Relation.EqvGen
-      (fun a b => ∃ fp ∈ liftedGlobSteps A (sig.LocalVariableState A.locals), fp a = b)
+      (fun a b => ∃ fp ∈ liftedGlobSteps A (sig.ProcedureScope A.locals), fp a = b)
       ps₁ ps₂ := by
     have h0 := lifted_orbit_of_global A ps₁.locals horbG
     have h1 : (⟨ps₂.global, ps₁.locals⟩
-        : ProcedureState (sig.LocalVariableState A.locals)) = ps₂ := by
+        : ProcedureState (sig.ProcedureScope A.locals)) = ps₂ := by
       rw [hloc]
     exact h1 ▸ h0
   -- The orbit coupling.
-  have hU : ∀ fp ∈ liftedGlobSteps A (sig.LocalVariableState A.locals),
+  have hU : ∀ fp ∈ liftedGlobSteps A (sig.ProcedureScope A.locals),
       diracKer fp ∈ ((fvP_proc A)ᶜ).updates := by
     rintro fp ⟨f, hf, rfl⟩
     exact lifted_step_mem_fvP_proc_compl A hf
   obtain ⟨μ, hm1, hm2, hsat⟩ := prhl2_self_of_orbit hp _ hU ps₁ ps₂ horb
   -- Per-leg table preservation, lifted onto the coupling's support.
-  have hSle : (roLift (sig.LocalVariableState A.locals)).footprint ≤ (fvP_proc A)ᶜ :=
+  have hSle : (roLift (sig.ProcedureScope A.locals)).footprint ≤ (fvP_proc A)ᶜ :=
     (Footprint.le_compl_comm _ _).mp (fvP_proc_le_roLift_compl A hdisj)
-  have htabLeg : ∀ ps : ProcedureState (sig.LocalVariableState A.locals),
+  have htabLeg : ∀ ps : ProcedureState (sig.ProcedureScope A.locals),
       (p ps).satisfies (fun xs =>
         random_oracle_state.get xs.2.global = random_oracle_state.get ps.global) := by
     intro ps xs hxs

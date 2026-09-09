@@ -4,7 +4,6 @@ import GaudisCrypt.Language.Programs
 import Metatheory.STLCext.Normalization
 import Metatheory.STLCext.Confluence
 
--- CLAUDE-TODO: Rename this file to TypedModules.lean
 namespace GaudisCrypt.TypedModules
 
 open GaudisCrypt
@@ -1153,7 +1152,7 @@ private def basicTermHoleLookup_toModuleTuple {Δ : ModuleContext} :
 
 -- Two instantiations that agree on every hole index produce the same statement.
 -- Generic in the local-state `l` (a variable here), so `induction` is well-formed —
--- unlike inducting on a procedure body, whose `l` is a fixed `sig.LocalVariableState …`.
+-- unlike inducting on a procedure body, whose `l` is a fixed `sig.ProcedureScope …`.
 private lemma StmtWithHoles.instantiate_congr_of_agree {holes : HoleSigs} {l : Type}
     (s : StmtWithHoles holes l) {f g : holes.Instantiation}
     (h : ∀ {sig} (n : HoleIndex holes sig), f.lookup n = g.lookup n) :

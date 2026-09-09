@@ -38,23 +38,23 @@ Fundamental-Lemma assembly (Phases 3–4) build on these definitions.
     both `lazy_query_rf` and `lazy_query_rp` maintain it identically. -/
 axiom prp_bad : Variable Bool
 
-axiom disjoint_prp_bad_ro : disjoint prp_bad random_oracle_state
-axiom disjoint_prp_bad_oracle_input : disjoint prp_bad oracle_input
-axiom disjoint_prp_bad_oracle_output : disjoint prp_bad oracle_output
+axiom disjoint_prp_bad_ro : Lens.Disjoint prp_bad random_oracle_state
+axiom disjoint_prp_bad_oracle_input : Lens.Disjoint prp_bad oracle_input
+axiom disjoint_prp_bad_oracle_output : Lens.Disjoint prp_bad oracle_output
 
 attribute [instance] disjoint_prp_bad_ro
                      disjoint_prp_bad_oracle_input
                      disjoint_prp_bad_oracle_output
 
 /-- Symmetric instances. -/
-instance : disjoint random_oracle_state prp_bad := disjoint_prp_bad_ro.symm
-instance : disjoint oracle_input prp_bad := disjoint_prp_bad_oracle_input.symm
-instance : disjoint oracle_output prp_bad := disjoint_prp_bad_oracle_output.symm
+instance : Lens.Disjoint random_oracle_state prp_bad := disjoint_prp_bad_ro.symm
+instance : Lens.Disjoint oracle_input prp_bad := disjoint_prp_bad_oracle_input.symm
+instance : Lens.Disjoint oracle_output prp_bad := disjoint_prp_bad_oracle_output.symm
 
 /-- The symmetric forms of the OracleLoop RO-disjointness axioms, needed to
     frame the RO read/write inside the oracles against the scratch lenses. -/
-instance : disjoint random_oracle_state oracle_input := disjoint_oracle_input_ro.symm
-instance : disjoint random_oracle_state oracle_output := disjoint_oracle_output_ro.symm
+instance : Lens.Disjoint random_oracle_state oracle_input := disjoint_oracle_input_ro.symm
+instance : Lens.Disjoint random_oracle_state oracle_output := disjoint_oracle_output_ro.symm
 
 /-- Outputs already assigned to some input *other than* `inp` — i.e. the values
     a fresh draw at `inp` would collide with, and (when `inp` is uncached) the
@@ -177,7 +177,7 @@ lemma lazy_query_rp_wp_miss {inp : input} {σ : state}
 /-- `lazy_query_rf` touches only `random_oracle_state` and `prp_bad`: it lives in
     the complement of any lens disjoint from both. -/
 lemma lazy_query_rf_inFootprint {α : Type} (L : Variable α)
-    [disjoint random_oracle_state L] [disjoint prp_bad L] (inp : input) :
+    [Lens.Disjoint random_oracle_state L] [Lens.Disjoint prp_bad L] (inp : input) :
     (lazy_query_rf inp).inFootprint (L.footprint)ᶜ := by
   unfold lazy_query_rf
   refine ProgramDenotation.inFootprint_bind
@@ -199,7 +199,7 @@ lemma lazy_query_rf_inFootprint {α : Type} (L : Variable α)
 
 /-- `lazy_query_rp` touches only `random_oracle_state` and `prp_bad`. -/
 lemma lazy_query_rp_inFootprint {α : Type} (L : Variable α)
-    [disjoint random_oracle_state L] [disjoint prp_bad L] (inp : input) :
+    [Lens.Disjoint random_oracle_state L] [Lens.Disjoint prp_bad L] (inp : input) :
     (lazy_query_rp inp).inFootprint (L.footprint)ᶜ := by
   unfold lazy_query_rp
   refine ProgramDenotation.inFootprint_bind

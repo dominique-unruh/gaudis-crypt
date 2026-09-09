@@ -36,10 +36,10 @@ noncomputable def skip : ProgramDenotation state Unit := do
   return ()
 
 /- The non-RO state variables are disjoint from `random_oracle_state`. -/
-axiom disjoint_want_more_ro : disjoint want_more random_oracle_state
-axiom disjoint_oracle_input_ro : disjoint oracle_input random_oracle_state
-axiom disjoint_oracle_output_ro : disjoint oracle_output random_oracle_state
-axiom disjoint_adversary_result_ro : disjoint adversary_result random_oracle_state
+axiom disjoint_want_more_ro : Lens.Disjoint want_more random_oracle_state
+axiom disjoint_oracle_input_ro : Lens.Disjoint oracle_input random_oracle_state
+axiom disjoint_oracle_output_ro : Lens.Disjoint oracle_output random_oracle_state
+axiom disjoint_adversary_result_ro : Lens.Disjoint adversary_result random_oracle_state
 
 attribute [instance] disjoint_want_more_ro disjoint_oracle_input_ro
                      disjoint_oracle_output_ro disjoint_adversary_result_ro
@@ -69,8 +69,8 @@ theorem query_set_convert_eq :
     `random_oracle_state` and `oracle_output` (probabilistic footprint form). -/
 lemma lazy_query_then_set_oracle_output_inFootprint_compl
     {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L]
-    [disjoint oracle_output L]
+    [Lens.Disjoint random_oracle_state L]
+    [Lens.Disjoint oracle_output L]
     (inp : input) :
     (lazy_query inp >>= fun y => ProgramDenotation.set oracle_output y).inFootprint
         (L.footprint)ᶜ := by
@@ -90,7 +90,7 @@ lemma lazy_query_set_oracle_output_preserves_RO_at_other_key
         (fun aσ_lq =>
           if random_oracle_state.get aσ_lq.2 k = random_oracle_state.get σ k
           then F aσ_lq else 0) σ := by
-  haveI _disj_oo_ro : disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
+  haveI _disj_oo_ro : Lens.Disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
   simp only [lazy_query, wp_bind, wp_get, wp_uniform, wp_pure, wp_set]
   cases h_eq : random_oracle_state.get σ inp with
   | some v =>
@@ -127,7 +127,7 @@ lemma RO_setentry_neq_commutes_lazy_query_set_oracle_output
                               (fun k => if k = x then some y
                                        else random_oracle_state.get aσ_lq.2 k) aσ_lq.2))
       σ := by
-  haveI _disj_oo_ro : disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
+  haveI _disj_oo_ro : Lens.Disjoint oracle_output random_oracle_state := disjoint_oracle_output_ro
   have h_state_eq : ∀ (v : output) (σ' : state),
       oracle_output.set v (random_oracle_state.set
         (fun k => if k = x then some y else random_oracle_state.get σ' k) σ')
@@ -324,9 +324,9 @@ lemma ProgramDenotation.transfer_oracle_loop_n_prob
 /-- Generic preservation: `oracle_step adv` avoids any lens `L` disjoint from
     `random_oracle_state`, `oracle_input`, and `oracle_output`, provided the adversary avoids it. -/
 lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L]
-    [disjoint oracle_input L]
-    [disjoint oracle_output L]
+    [Lens.Disjoint random_oracle_state L]
+    [Lens.Disjoint oracle_input L]
+    [Lens.Disjoint oracle_output L]
     {adv : ProgramDenotation state Unit}
     (h_adv : adv.inFootprint (L.footprint)ᶜ) :
     (oracle_step adv lazy_query).inFootprint (L.footprint)ᶜ := by
@@ -344,9 +344,9 @@ lemma oracle_step_inFootprint_compl {γ : Type} (L : Lens γ state)
 
 /-- Generic preservation lifted to the loop, by induction on `q`. -/
 lemma oracle_loop_n_inFootprint_compl {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L]
-    [disjoint oracle_input L]
-    [disjoint oracle_output L]
+    [Lens.Disjoint random_oracle_state L]
+    [Lens.Disjoint oracle_input L]
+    [Lens.Disjoint oracle_output L]
     {adv : ProgramDenotation state Unit}
     (h_adv : adv.inFootprint (L.footprint)ᶜ)
     (q : ℕ) :

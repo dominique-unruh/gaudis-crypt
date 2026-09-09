@@ -241,7 +241,7 @@ private lemma ow_game_2_tracked_bad_eq_guess_experiment_game_1
     funext σ_pre
     simp only [wp_bind, wp_set]
     congr 1
-    exact ((inferInstance : disjoint chal_x_queried_gh ow_challenge_x).commute
+    exact ((inferInstance : Lens.Disjoint chal_x_queried_gh ow_challenge_x).commute
       σ_pre false x).symm
   rw [h_prefix_eq]
   -- Final cleanup: both sides are now structurally equal modulo bind_assoc.
@@ -405,8 +405,8 @@ abbrev InvG1 (t tv : input) (σ₁ σ₂ : state) : Prop :=
 /-- Reading any lens disjoint from the three bookkeeping lenses through
     the overwrite is invisible. -/
 private lemma get_ovw {γ : Type} (L : Lens γ state)
-    [disjoint queries_input L] [disjoint chal_x_queried_gh L]
-    [disjoint ow_challenge_x L]
+    [Lens.Disjoint queries_input L] [Lens.Disjoint chal_x_queried_gh L]
+    [Lens.Disjoint ow_challenge_x L]
     (tv : input) (l : List input) (m : Bool) (σ : state) :
     L.get (queries_input.set l (chal_x_queried_gh.set m
       (ow_challenge_x.set tv σ))) = L.get σ := by
@@ -433,9 +433,9 @@ private lemma RO_write_ovw (tv inp : input) (l : List input) (m : Bool)
         (random_oracle_state.set (fun k => if k = inp then some w
           else random_oracle_state.get σ₁ k) σ₁))) := by
   rw [get_ovw random_oracle_state,
-      (inferInstance : disjoint random_oracle_state queries_input).commute,
-      (inferInstance : disjoint random_oracle_state chal_x_queried_gh).commute,
-      (inferInstance : disjoint random_oracle_state ow_challenge_x).commute]
+      (inferInstance : Lens.Disjoint random_oracle_state queries_input).commute,
+      (inferInstance : Lens.Disjoint random_oracle_state chal_x_queried_gh).commute,
+      (inferInstance : Lens.Disjoint random_oracle_state ow_challenge_x).commute]
 
 /-- Fold an `if` of applications into an application of an `if`. -/
 private lemma ite_app (F : output × state → ENNReal) (v : output)
@@ -461,17 +461,17 @@ private lemma lqt_post_alg (t tv inp : input) (l : List input) (m : Bool)
         = (decide (t ∈ l) || decide (inp = t))
     ∧ ow_challenge_x.get
         (if inp = t then chal_x_queried_gh.set true τ₁ else τ₁) = t := by
-  haveI hxq : disjoint ow_challenge_x chal_x_queried_gh :=
+  haveI hxq : Lens.Disjoint ow_challenge_x chal_x_queried_gh :=
     disjoint_chal_x_queried_gh_ow_challenge_x.symm
   subst hτ
   refine ⟨⟨if inp = tv then true else m, ?_⟩, ?_, ?_⟩
   · by_cases hiv : inp = tv
     · by_cases hit : inp = t
       · simp only [if_pos hiv, if_pos hit]
-        rw [(inferInstance : disjoint chal_x_queried_gh queries_input).commute,
+        rw [(inferInstance : Lens.Disjoint chal_x_queried_gh queries_input).commute,
             chal_x_queried_gh.set_set, hxq.commute, chal_x_queried_gh.set_set]
       · simp only [if_pos hiv, if_neg hit]
-        rw [(inferInstance : disjoint chal_x_queried_gh queries_input).commute,
+        rw [(inferInstance : Lens.Disjoint chal_x_queried_gh queries_input).commute,
             chal_x_queried_gh.set_set]
     · by_cases hit : inp = t
       · simp only [if_neg hiv, if_pos hit]
@@ -654,10 +654,10 @@ private lemma record_step_rel (t tv inp : input) (l : List input) (y : output) :
   refine hFG _ _ ⟨l ++ [inp], m', ?_, ?_, ?_⟩
   · rw [Lens.get_of_disjoint_set queries_input oracle_output,
         Lens.set_get queries_input,
-        (inferInstance : disjoint oracle_output queries_input).commute,
+        (inferInstance : Lens.Disjoint oracle_output queries_input).commute,
         queries_input.set_set,
-        (inferInstance : disjoint oracle_output chal_x_queried_gh).commute,
-        (inferInstance : disjoint oracle_output ow_challenge_x).commute]
+        (inferInstance : Lens.Disjoint oracle_output chal_x_queried_gh).commute,
+        (inferInstance : Lens.Disjoint oracle_output ow_challenge_x).commute]
   · rw [Lens.get_of_disjoint_set chal_x_queried_gh oracle_output, hf,
         decide_eq_decide.mpr (show (t ∈ l ++ [inp]) ↔ (t ∈ l ∨ inp = t) from by
           rw [List.mem_append, List.mem_singleton]
@@ -690,7 +690,7 @@ lemma body_game_1_rel
     (t tv : input) :
     (body_game_1 ow_adv t).rel (body_recording_game_1 ow_adv)
       (InvG1 t tv) (fun u v => InvG1 t tv u.2 v.2) := by
-  haveI : disjoint ow_challenge_x oracle_input :=
+  haveI : Lens.Disjoint ow_challenge_x oracle_input :=
     disjoint_oracle_input_ow_challenge_x.symm
   change (ow_adv >>= fun _ =>
     ProgramDenotation.get oracle_input >>= fun inp =>
@@ -744,7 +744,7 @@ lemma body_game_1_rel
 private lemma final_game_1_rel (t tv : input) :
     (final_game_1 t).rel final_recording_game_1
       (InvG1 t tv) (fun u v => InvG1 t tv u.2 v.2) := by
-  haveI : disjoint ow_challenge_x ow_response :=
+  haveI : Lens.Disjoint ow_challenge_x ow_response :=
     disjoint_ow_response_ow_challenge_x.symm
   change (ProgramDenotation.get ow_response >>= fun resp =>
     lazy_query_tracked resp >>= fun y =>
@@ -808,7 +808,7 @@ theorem game_1_correspondence (ow_adv : ProgramDenotation state Unit)
      ProgramDenotation.set chal_x_queried_gh (decide (t ∈ qs)) >>= fun _ : Unit =>
      ProgramDenotation.get chal_x_queried_gh).wp
        (fun bσ : Bool × state => if bσ.1 then (1 : ENNReal) else 0) σ' := by
-  haveI hxq : disjoint ow_challenge_x chal_x_queried_gh :=
+  haveI hxq : Lens.Disjoint ow_challenge_x chal_x_queried_gh :=
     disjoint_chal_x_queried_gh_ow_challenge_x.symm
   have hTail : (loop_n q (body_game_1 ow_adv t) >>= fun _ : Unit =>
       final_game_1 t >>= fun _ : Unit =>

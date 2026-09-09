@@ -16,11 +16,11 @@ axiom c : Lens Bool State
 axiom d : Lens Nat State
 
 -- `Lens.pair` needs disjointness of the paired lenses (resolved at the concrete lenses).
--- For nested tuples `(a, b), d` the `disjoint3'` instance derives `disjoint (a.pair b) d`
--- from the pairwise ones.
-axiom a_b_disjoint : disjoint a b
-axiom a_d_disjoint : disjoint a d
-axiom b_d_disjoint : disjoint b d
+-- For nested tuples `(a, b), d` the `disjoint3'` instance derives
+-- `Lens.Disjoint (a.pair b) d` from the pairwise ones.
+axiom a_b_disjoint : Lens.Disjoint a b
+axiom a_d_disjoint : Lens.Disjoint a d
+axiom b_d_disjoint : Lens.Disjoint b d
 attribute [instance] a_b_disjoint a_d_disjoint b_d_disjoint
 
 noncomputable def prog_assign : Stmt Unit := GaudiProg[
@@ -507,11 +507,11 @@ set_option pp.explicit true in
 info: { locals := [⟨ℕ, inferInstance⟩],
   body :=
     let x := Lens.id.intoParams;
-    let u := Lens.id.intoVars;
+    let u := Lens.id.intoLocalVars;
     StmtWithHoles.assign (liftLens u) { get := fun st ↦ §x },
   return_val :=
     let x := Lens.id.intoParams;
-    let u := Lens.id.intoVars;
+    let u := Lens.id.intoLocalVars;
     { get := fun st ↦ §u } } : proctype (ℕ) -> ℕ
 -/
 #guard_msgs in

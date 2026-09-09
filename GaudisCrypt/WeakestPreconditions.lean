@@ -370,7 +370,7 @@ def while_iteration_wp (c : ProgramDenotation s Bool) (p : ProgramDenotation s U
      by fun_prop⟩,
    by fun_prop⟩
 
--- TODO allow types to depend on a
+-- TODO allow types to depend on `a`
 theorem wp_recursion_tailrec_simplify [CompleteLattice b] [CompleteLattice c]
     (Φ : a → b →o (c →o c)) post x :
     (tailrec_wp Φ).lfp x post = (Φ x post).lfp := by

@@ -444,8 +444,8 @@ theorem instantiate_of_fvP_gen {holes : HoleSigs} {sig : ProcedureSignature}
     (hcompat : FootprintCompat P (fvP_proc A))
     (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
     (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
-        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
-        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        (x : Setter sig'.ret (ProcedureState (sig.ProcedureScope A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.ProcedureScope A.locals))),
         GetOK P p →
         (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
             (ProgramDenotation.set x ret) (liftRelPost P)) →
@@ -482,7 +482,7 @@ theorem instantiate_of_fvP_gen {holes : HoleSigs} {sig : ProcedureSignature}
 theorem instantiate_of_glob_gen {holes : HoleSigs} {sig : ProcedureSignature}
     (eagerInst lazyInst : holes.Instantiation)
     (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
-    (O : Footprint (ProcedureState (sig.LocalVariableState A.locals)))
+    (O : Footprint (ProcedureState (sig.ProcedureScope A.locals)))
     (hO : ∀ σ, O.HasReset σ)
     (hdisj : fvP_proc A ≤ Oᶜ)
     (hrefine : ∀ a b, liftRel P a b → Oᶜ.touched_getter.get a = Oᶜ.touched_getter.get b)
@@ -492,8 +492,8 @@ theorem instantiate_of_glob_gen {holes : HoleSigs} {sig : ProcedureSignature}
         O.touched_getter.get v = O.touched_getter.get b → liftRel P u v)
     (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
     (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
-        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
-        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        (x : Setter sig'.ret (ProcedureState (sig.ProcedureScope A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.ProcedureScope A.locals))),
         GetOK P p →
         (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
             (ProgramDenotation.set x ret) (liftRelPost P)) →
@@ -592,7 +592,7 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
   instantiate_of_glob_gen RO_eager RO_lazy A args
-    (O := (roLift (sig.LocalVariableState A.locals)).footprint)
+    (O := (roLift (sig.ProcedureScope A.locals)).footprint)
     (fun σ => Lens.footprint_hasReset _ σ)
     (fvP_proc_le_roLift_compl A hdisj)
     (fun a b hab =>

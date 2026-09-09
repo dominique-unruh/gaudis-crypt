@@ -74,12 +74,6 @@ private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → 
   simp only [hB]
   rfl
 
-/-- Kleisli product of `a × b`-kernels in bind form. -/
--- TODO not needed, just use def on *
-theorem kmul_prod_apply {a b : Type} (F G : a × b → SubProbability (a × b)) (x : a × b) :
-    (F * G) x = G x >>= F := rfl
-
-
 instance [Nonempty s] (lens : Lens a s) : Nonempty lens.ComplContent :=
   ⟨Quotient.mk lens.equal_outside_setoid (Classical.arbitrary s)⟩
 
@@ -467,12 +461,12 @@ theorem _root_.GaudisCrypt.Footprint.FromLens.from_lens {a s : Type} (lens : Len
     that identifies `fst.compl.get` with `snd.get`), not a lens equality. -/
 theorem _root_.GaudisCrypt.Lens.fst_compl_footprint {a b : Type} :
     (Lens.fst : Lens a (a × b)).compl.footprint = (Lens.snd : Lens b (a × b)).footprint := by
-  haveI : disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
+  haveI : Lens.Disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
     ⟨fun st v w => by
       induction v using Quotient.inductionOn
       induction w using Quotient.inductionOn
       rfl⟩
-  haveI : disjoint (Lens.snd : Lens b (a × b)) (Lens.fst : Lens a (a × b)) :=
+  haveI : Lens.Disjoint (Lens.snd : Lens b (a × b)) (Lens.fst : Lens a (a × b)) :=
     ⟨fun _ _ _ => rfl⟩
   refine le_antisymm ?_ ?_
   · have h := Lens.footprint_le_compl_of_disjoint

@@ -57,27 +57,27 @@ theorem Lens.ext (l r : Lens a m) (h : (∀ x y, l.set x y = r.set x y)) : l = r
   cases l; cases r; simp_all [Getter.ext_iff, Setter.ext_iff]
 
 /-- Lenses `x` and `y` are disjoint, i.e., refer to different parts of the memory -/
--- CLAUDE-TODO: Rename → Lens.Disjoint; also rename follow-up thms like disjoint.iff etc.
-class disjoint (x : Lens a m) (y : Lens b m) where
+class Lens.Disjoint (x : Lens a m) (y : Lens b m) where
   commute : ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s)
 
-theorem disjoint.iff : disjoint x y ↔ ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s) :=
+theorem Lens.Disjoint.iff :
+    Lens.Disjoint x y ↔ ∀ s v w, x.set v (y.set w s) = y.set w (x.set v s) :=
   ⟨fun h => h.commute, fun h => ⟨h⟩⟩
 
 /-- Disjointness is symmetric. Not an instance (would loop). -/
-theorem disjoint.symm {a b m : Type} {x : Lens a m} {y : Lens b m}
-    (h : disjoint x y) : disjoint y x where
+theorem Lens.Disjoint.symm {a b m : Type} {x : Lens a m} {y : Lens b m}
+    (h : Lens.Disjoint x y) : Lens.Disjoint y x where
   commute s v w := (h.commute s w v).symm
 
 /-- Setting through a disjoint lens leaves the other lens's `get` unchanged.
-    Disjointness is recorded as `disjoint M L` (setter then reader). -/
+    Disjointness is recorded as `Lens.Disjoint M L` (setter then reader). -/
 theorem Lens.get_of_disjoint_set {a b m : Type} (L : Lens a m) (M : Lens b m)
-    [hd : disjoint M L] (v : b) (s : m) :
+    [hd : Lens.Disjoint M L] (v : b) (s : m) :
     L.get (M.set v s) = L.get s := by
   conv_lhs => rw [show s = L.set (L.get s) s from (L.get_set s).symm]
   rw [hd.commute, L.set_get]
 
-def Lens.pair (x : Lens a m) (y : Lens b m) [disj : disjoint x y] : Lens (a × b) m :=
+def Lens.pair (x : Lens a m) (y : Lens b m) [disj : Lens.Disjoint x y] : Lens (a × b) m :=
   { get := fun s => (x.get s, y.get s)
     set := fun (u,v) s => x.set u (y.set v s)
     set_get := by
@@ -129,48 +129,48 @@ def Setter.throwaway : Setter a m where
   set _ s := s
   set_set := by intros; rfl
 
-theorem pair_fst (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
+theorem pair_fst (x : Lens a m) (y : Lens b m) [disj : Lens.Disjoint x y] :
   Lens.chain (Lens.pair x y) Lens.fst = x := by
     simp [Lens.chain, Lens.pair, Lens.fst, y.get_set]
 
-theorem pair_snd (x : Lens a m) (y : Lens b m) [disj : disjoint x y] :
+theorem pair_snd (x : Lens a m) (y : Lens b m) [disj : Lens.Disjoint x y] :
   Lens.chain (@Lens.pair _ _ _ x y disj) Lens.snd = y :=
     by simp [Lens.chain, Lens.pair, Lens.snd, disj.commute, x.get_set]
 
-instance disjoint3 [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] :
-  disjoint x (Lens.pair y z) :=
+instance disjoint3 [xy : Lens.Disjoint x y] [xz : Lens.Disjoint x z] [yz : Lens.Disjoint y z] :
+  Lens.Disjoint x (Lens.pair y z) :=
   by
-    simp only [Lens.pair, disjoint.iff]
+    simp only [Lens.pair, Lens.Disjoint.iff]
     intros
     simp [xy.commute, xz.commute]
 
-instance disjoint3' [xy : disjoint x y] [xz : disjoint x z] [yz : disjoint y z] :
-    disjoint (Lens.pair x y) z := by
-  simp only [Lens.pair, disjoint.iff]
+instance disjoint3' [xy : Lens.Disjoint x y] [xz : Lens.Disjoint x z] [yz : Lens.Disjoint y z] :
+    Lens.Disjoint (Lens.pair x y) z := by
+  simp only [Lens.pair, Lens.Disjoint.iff]
   intros
   simp [yz.commute, xz.commute]
 
 instance Lens.disjoint_ofst_osnd {a b m m' : Type*} (x : Lens a m) (y : Lens b m') :
-    disjoint (Lens.ofst (m' := m') x) (Lens.osnd (m' := m) y) :=
+    Lens.Disjoint (Lens.ofst (m' := m') x) (Lens.osnd (m' := m) y) :=
   ⟨fun _ _ _ => rfl⟩
 
 instance Lens.disjoint_osnd_ofst {a b m m' : Type*} (x : Lens a m') (y : Lens b m) :
-    disjoint (Lens.osnd (m' := m) x) (Lens.ofst (m' := m') y) :=
+    Lens.Disjoint (Lens.osnd (m' := m) x) (Lens.ofst (m' := m') y) :=
   ⟨fun _ _ _ => rfl⟩
 
 instance Lens.disjoint_chain {a₁ a₂ b c : Type*} (L : Lens b c) (x : Lens a₁ b) (y : Lens a₂ b)
-    [d : disjoint x y] : disjoint (L.chain x) (L.chain y) :=
+    [d : Lens.Disjoint x y] : Lens.Disjoint (L.chain x) (L.chain y) :=
   ⟨fun s v w => by
     change L.set (x.set v (L.get (L.set (y.set w (L.get s)) s))) (L.set (y.set w (L.get s)) s)
        = L.set (y.set w (L.get (L.set (x.set v (L.get s)) s))) (L.set (x.set v (L.get s)) s)
     rw [L.set_get, L.set_get, L.set_set, L.set_set, d.commute]⟩
 
 instance Lens.disjoint_ofst_ofst {a b m m' : Type*} (x : Lens a m) (y : Lens b m)
-    [disjoint x y] : disjoint (Lens.ofst (m' := m') x) (Lens.ofst (m' := m') y) :=
+    [Lens.Disjoint x y] : Lens.Disjoint (Lens.ofst (m' := m') x) (Lens.ofst (m' := m') y) :=
   Lens.disjoint_chain Lens.fst x y
 
 instance Lens.disjoint_osnd_osnd {a b m m' : Type*} (x : Lens a m) (y : Lens b m)
-    [disjoint x y] : disjoint (Lens.osnd (m' := m') x) (Lens.osnd (m' := m') y) :=
+    [Lens.Disjoint x y] : Lens.Disjoint (Lens.osnd (m' := m') x) (Lens.osnd (m' := m') y) :=
   Lens.disjoint_chain Lens.snd x y
 
 def Lens.id : Lens m m where
@@ -413,7 +413,7 @@ set_option linter.dupNamespace false in
 tuple type `M` and component type `A` are deduced from the expected output type. -/
 def Lens.insideTuple (p : TuplePath) {M A : Type} [g : ProjAt p M A] : Lens A M := g.proj
 
--- Right-nested tuple `Nat × Bool × Nat` (the `paramListToTuple` shape):
+-- Right-nested tuple `Nat × Bool × Nat` (the `typeListToTuple` shape):
 example : Lens Nat  (Nat × Bool × Nat) := Lens.insideTuple (.left .here)          -- first
 example : Lens Bool (Nat × Bool × Nat) := Lens.insideTuple (.right (.left .here))  -- middle
 example : Lens Nat  (Nat × Bool × Nat) := Lens.insideTuple (.right (.right .here)) -- last

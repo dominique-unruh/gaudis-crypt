@@ -214,7 +214,7 @@ theorem ProgramDenotation.inRange_get {s a : Type} (v : Lens a s) :
     from the reader `L`. Common one-liner replacing
     `inRange_mono (inRange_set _ _) (Lens.range_le_compl_of_disjoint v L)`. -/
 lemma ProgramDenotation.set_inRange_compl_of_disjoint
-    {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] (x : α) :
+    {s α β : Type} (v : Lens α s) (L : Lens β s) [Lens.Disjoint v L] (x : α) :
     (ProgramDenotation.set v x).inRange L.compl.range :=
   ProgramDenotation.inRange_mono (ProgramDenotation.inRange_set v x)
     (Lens.range_le_compl_of_disjoint v L)
@@ -223,7 +223,7 @@ lemma ProgramDenotation.set_inRange_compl_of_disjoint
     from `L`. Common one-liner replacing
     `inRange_mono (inRange_get _) (Lens.range_le_compl_of_disjoint v L)`. -/
 lemma ProgramDenotation.get_inRange_compl_of_disjoint
-    {s α β : Type} (v : Lens α s) (L : Lens β s) [disjoint v L] :
+    {s α β : Type} (v : Lens α s) (L : Lens β s) [Lens.Disjoint v L] :
     (ProgramDenotation.get v).inRange L.compl.range :=
   ProgramDenotation.inRange_mono (ProgramDenotation.inRange_get v)
     (Lens.range_le_compl_of_disjoint v L)

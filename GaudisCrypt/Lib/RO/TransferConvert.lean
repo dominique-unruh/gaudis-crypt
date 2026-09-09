@@ -284,7 +284,7 @@ lemma ProgramDenotation.transfer_refl_of_inFootprint_compl
     — the countability-free `Footprint` analogue of `transfer_of_inRange_disjoint`. -/
 lemma ProgramDenotation.transfer_of_inFootprint_disjoint {α : Type}
     (p : ProgramDenotation state α) {β : Type} (v : Lens β state)
-    [disjoint v random_oracle_state]
+    [Lens.Disjoint v random_oracle_state]
     (hp : p.inFootprint v.footprint) :
     ProgramDenotation.transfer p p :=
   ProgramDenotation.transfer_refl_of_inFootprint_compl
@@ -294,20 +294,20 @@ lemma ProgramDenotation.transfer_of_inFootprint_disjoint {α : Type}
 /-- `ProgramDenotation.set v x` transfers to itself when `v` is disjoint from `random_oracle_state`.
     Countability-free (subtask 4): via the `Footprint` transfer-reflexivity. -/
 lemma ProgramDenotation.transfer_set_of_disjoint_ro {α : Type}
-    (v : Lens α state) [disjoint v random_oracle_state] (x : α) :
+    (v : Lens α state) [Lens.Disjoint v random_oracle_state] (x : α) :
     ProgramDenotation.transfer (ProgramDenotation.set v x) (ProgramDenotation.set v x) :=
   ProgramDenotation.transfer_of_inFootprint_disjoint _ v (ProgramDenotation.inFootprint_set v x)
 
 /-- `ProgramDenotation.get v` transfers to itself when `v` is disjoint from `random_oracle_state`.
     Countability-free (subtask 4). -/
 lemma ProgramDenotation.transfer_get_of_disjoint_ro {α : Type}
-    (v : Lens α state) [disjoint v random_oracle_state] :
+    (v : Lens α state) [Lens.Disjoint v random_oracle_state] :
     ProgramDenotation.transfer (ProgramDenotation.get v) (ProgramDenotation.get v) :=
   ProgramDenotation.transfer_of_inFootprint_disjoint _ v (ProgramDenotation.inFootprint_get v)
 
 /-- `convert` commutes with `ProgramDenotation.set v x` for any `v` disjoint from
     `random_oracle_state`: the bind form of `transfer_set_of_disjoint_ro`. -/
-theorem convert_commutes_set {α : Type} (v : Variable α) [disjoint v random_oracle_state]
+theorem convert_commutes_set {α : Type} (v : Variable α) [Lens.Disjoint v random_oracle_state]
     (x : α) :
     (ProgramDenotation.set v x >>= fun _ => convert)
     = (convert >>= fun _ => ProgramDenotation.set v x) :=
@@ -317,7 +317,7 @@ theorem convert_commutes_set {α : Type} (v : Variable α) [disjoint v random_or
     `random_oracle_state`, in continuation-passing form: the continuation form
     of `transfer_get_of_disjoint_ro`. -/
 theorem convert_commutes_get {α β : Type} (v : Variable α)
-    [disjoint v random_oracle_state] (k : α → ProgramDenotation state β) :
+    [Lens.Disjoint v random_oracle_state] (k : α → ProgramDenotation state β) :
     (ProgramDenotation.get v >>= fun y => convert >>= fun _ => k y)
     = (convert >>= fun _ => ProgramDenotation.get v >>= k) :=
   ProgramDenotation.transferBy_cont (ProgramDenotation.transfer_get_of_disjoint_ro v) k

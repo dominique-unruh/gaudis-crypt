@@ -194,9 +194,9 @@ theorem fakeGame_inline (U : Unhider group.types) :
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     -- `Lens.pair`: `m0,m1 <- call U.choose (…)` stores through a tuple l-value
     Lens.pair,
-    Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL, ProcedureState.globalL,
-    LocalVariableState.varsL]
+    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
+    ProcedureScope.localVarsL]
 
 set_option linter.flexible false in
 /-- `HidingExperiment(Pedersen, U).main`, inlined.  Pedersen's own `gen`/`commit` are inlined too
@@ -230,9 +230,9 @@ theorem hidingGame_inline (U : Unhider group.types) :
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     -- `Lens.pair`: `m0,m1 <- …` and `c,d <- …` store through tuple l-values
     Lens.pair,
-    Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL, ProcedureState.globalL,
-    LocalVariableState.varsL]
+    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
+    ProcedureScope.localVarsL]
   -- now inline Pedersen's own `gen`/`commit` (their internal samplings are the `x` and `d` draws).
   -- `wp_gen` is at the top so `rw` reaches it; `wp_commit` sits under two binders, and `simp only`
   -- will not match it in its `= fun st => …` form — the pointwise `congrFun` version does.
@@ -345,9 +345,9 @@ theorem hi_ll (U : Unhider group.types)
     uniform_expected, expected_pure,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL, ProcedureState.globalL,
-    LocalVariableState.varsL]
+    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
+    ProcedureScope.localVarsL]
   have hcard : (Fintype.card group.F : ENNReal) ≠ 0 := by simp [Fintype.card_ne_zero]
   have hcard' : (Fintype.card group.F : ENNReal) ≠ ⊤ := by simp
   have hsum : (Fintype.card group.F : ENNReal) * (1 / (Fintype.card group.F : ENNReal)) = 1 :=
@@ -401,9 +401,9 @@ theorem fakecommit_half (U : Unhider group.types) (σ : State)
     uniform_expected, expected_pure,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.localL, ProcedureState.globalL,
-    LocalVariableState.varsL,
+    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
+    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
+    ProcedureScope.localVarsL,
     resIndicator, Set.indicator, Set.mem_setOf_eq]
   have hcard : (Fintype.card group.F : ENNReal) ≠ 0 := by simp [Fintype.card_ne_zero]
   have hcard' : (Fintype.card group.F : ENNReal) ≠ ⊤ := by simp

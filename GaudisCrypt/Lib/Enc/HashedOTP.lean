@@ -64,30 +64,30 @@ axiom chal_c : Variable output
 /-- The adversary's guess bit. -/
 axiom guess_var : Variable Bool
 
-axiom disjoint_chal_c_ro : disjoint chal_c random_oracle_state
-axiom disjoint_chal_c_chal_x : disjoint chal_c ow_challenge_x
-axiom disjoint_chal_c_flag : disjoint chal_c chal_x_queried_gh
-axiom disjoint_chal_c_oracle_input : disjoint chal_c oracle_input
-axiom disjoint_chal_c_oracle_output : disjoint chal_c oracle_output
-axiom disjoint_guess_ro : disjoint guess_var random_oracle_state
-axiom disjoint_guess_chal_x : disjoint guess_var ow_challenge_x
-axiom disjoint_guess_flag : disjoint guess_var chal_x_queried_gh
-axiom disjoint_guess_chal_c : disjoint guess_var chal_c
+axiom disjoint_chal_c_ro : Lens.Disjoint chal_c random_oracle_state
+axiom disjoint_chal_c_chal_x : Lens.Disjoint chal_c ow_challenge_x
+axiom disjoint_chal_c_flag : Lens.Disjoint chal_c chal_x_queried_gh
+axiom disjoint_chal_c_oracle_input : Lens.Disjoint chal_c oracle_input
+axiom disjoint_chal_c_oracle_output : Lens.Disjoint chal_c oracle_output
+axiom disjoint_guess_ro : Lens.Disjoint guess_var random_oracle_state
+axiom disjoint_guess_chal_x : Lens.Disjoint guess_var ow_challenge_x
+axiom disjoint_guess_flag : Lens.Disjoint guess_var chal_x_queried_gh
+axiom disjoint_guess_chal_c : Lens.Disjoint guess_var chal_c
 
 attribute [instance] disjoint_chal_c_ro disjoint_chal_c_chal_x
   disjoint_chal_c_flag disjoint_chal_c_oracle_input
   disjoint_chal_c_oracle_output disjoint_guess_ro disjoint_guess_chal_x
   disjoint_guess_flag disjoint_guess_chal_c
 
-instance : disjoint random_oracle_state chal_c := disjoint_chal_c_ro.symm
-instance : disjoint ow_challenge_x chal_c := disjoint_chal_c_chal_x.symm
-instance : disjoint chal_x_queried_gh chal_c := disjoint_chal_c_flag.symm
-instance : disjoint oracle_input chal_c := disjoint_chal_c_oracle_input.symm
-instance : disjoint oracle_output chal_c := disjoint_chal_c_oracle_output.symm
-instance : disjoint random_oracle_state guess_var := disjoint_guess_ro.symm
-instance : disjoint ow_challenge_x guess_var := disjoint_guess_chal_x.symm
-instance : disjoint chal_x_queried_gh guess_var := disjoint_guess_flag.symm
-instance : disjoint chal_c guess_var := disjoint_guess_chal_c.symm
+instance : Lens.Disjoint random_oracle_state chal_c := disjoint_chal_c_ro.symm
+instance : Lens.Disjoint ow_challenge_x chal_c := disjoint_chal_c_chal_x.symm
+instance : Lens.Disjoint chal_x_queried_gh chal_c := disjoint_chal_c_flag.symm
+instance : Lens.Disjoint oracle_input chal_c := disjoint_chal_c_oracle_input.symm
+instance : Lens.Disjoint oracle_output chal_c := disjoint_chal_c_oracle_output.symm
+instance : Lens.Disjoint random_oracle_state guess_var := disjoint_guess_ro.symm
+instance : Lens.Disjoint ow_challenge_x guess_var := disjoint_guess_chal_x.symm
+instance : Lens.Disjoint chal_x_queried_gh guess_var := disjoint_guess_flag.symm
+instance : Lens.Disjoint chal_c guess_var := disjoint_guess_chal_c.symm
 
 section EncRO
 
@@ -197,7 +197,7 @@ private lemma enc_otp_tail_relE (m₀ m₁ : output) (k : input) (q : ℕ) :
       oracle_loop_n enc_adv q lazy_query_tracked >>= fun _ =>
       ProgramDenotation.get guess_var)
     (fun σ₁ σ₂ => σ₁ = σ₂ ∧ ow_challenge_x.get σ₂ = k) encPost := by
-  haveI : disjoint random_oracle_state chal_x_queried_gh :=
+  haveI : Lens.Disjoint random_oracle_state chal_x_queried_gh :=
     disjoint_chal_x_queried_gh_ro.symm
   -- couple the masks: hk₁ = hk₀ + (m₀ − m₁)
   refine ProgramDenotation.relE.bind
@@ -231,8 +231,8 @@ private lemma enc_otp_tail_relE (m₀ m₁ : output) (k : input) (q : ℕ) :
                   else if j = k then some hk₁ else none)
               = (fun j => if j = k then some hk₀ else none) from by
             funext j; by_cases hj : j = k <;> simp [hj]]
-        rw [(inferInstance : disjoint random_oracle_state chal_c).commute,
-            (inferInstance : disjoint random_oracle_state chal_x_queried_gh).commute,
+        rw [(inferInstance : Lens.Disjoint random_oracle_state chal_c).commute,
+            (inferInstance : Lens.Disjoint random_oracle_state chal_x_queried_gh).commute,
             random_oracle_state.set_set]
       · rw [Lens.get_of_disjoint_set ow_challenge_x chal_c,
             Lens.get_of_disjoint_set ow_challenge_x chal_x_queried_gh,
@@ -402,7 +402,7 @@ private lemma enc_bad_invUB (k : input) (hk m : output) (s : state) :
           (ow_challenge_x.set k (random_oracle_state.set (fun _ => none) s)))))
       (chal_c.set (hk + m) (chal_x_queried_gh.set false
         (ow_challenge_x.set k (random_oracle_state.set (fun _ => none) s)))) := by
-  haveI : disjoint random_oracle_state chal_x_queried_gh :=
+  haveI : Lens.Disjoint random_oracle_state chal_x_queried_gh :=
     disjoint_chal_x_queried_gh_ro.symm
   refine invUB_of_good ?_ ?_ ?_
   · rw [Lens.get_of_disjoint_set chal_x_queried_gh chal_c, chal_x_queried_gh.set_get]
@@ -414,8 +414,8 @@ private lemma enc_bad_invUB (k : input) (hk m : output) (s : state) :
       Lens.get_of_disjoint_set random_oracle_state chal_x_queried_gh,
       Lens.get_of_disjoint_set random_oracle_state ow_challenge_x,
       random_oracle_state.set_get]
-    rw [(inferInstance : disjoint random_oracle_state chal_c).commute,
-        (inferInstance : disjoint random_oracle_state chal_x_queried_gh).commute]
+    rw [(inferInstance : Lens.Disjoint random_oracle_state chal_c).commute,
+        (inferInstance : Lens.Disjoint random_oracle_state chal_x_queried_gh).commute]
 
 include h_RO h_flag h_cx h_mass in
 /-- **Dropping the preprogramming is invisible to the bad event.** The two
@@ -589,8 +589,8 @@ private lemma enc_state_comm (m : output) (k : input) (hk : output) (s : state) 
       (ow_challenge_x.set k (random_oracle_state.set (fun _ => none) s)))
     = chal_x_queried_gh.set false (ow_challenge_x.set k
         (chal_c.set (hk + m) (random_oracle_state.set (fun _ => none) s))) := by
-  rw [(inferInstance : disjoint chal_c chal_x_queried_gh).commute,
-      (inferInstance : disjoint chal_c ow_challenge_x).commute]
+  rw [(inferInstance : Lens.Disjoint chal_c chal_x_queried_gh).commute,
+      (inferInstance : Lens.Disjoint chal_c ow_challenge_x).commute]
 
 /-- Pull both averaging factors out of a doubly-averaged sum. -/
 private lemma sum_sum_div {α β : Type} [Fintype α] [Fintype β]

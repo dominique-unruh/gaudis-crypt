@@ -216,7 +216,7 @@ private theorem guess_experiment_collector_wp_bound
     (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
-    [disjoint queries_list_var matched_var]
+    [Lens.Disjoint queries_list_var matched_var]
     (body_recording : ProgramDenotation state Unit)
     (final_recording : ProgramDenotation state Unit)
     (n : ℕ)
@@ -337,9 +337,9 @@ lemma schema_inner_equation
     {T : Type} [DecidableEq T]
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
-    [disjoint matched_var queries_list_var]
-    [disjoint matched_var target_var]
-    [disjoint queries_list_var target_var]
+    [Lens.Disjoint matched_var queries_list_var]
+    [Lens.Disjoint matched_var target_var]
+    [Lens.Disjoint queries_list_var target_var]
     (q_body q_final : ProgramDenotation state T)
     (h_q_body_matched : q_body.inFootprint (matched_var.footprint)ᶜ)
     (h_q_body_qs : q_body.inFootprint (queries_list_var.footprint)ᶜ)
@@ -390,9 +390,9 @@ theorem guess_experiment_le_interim_via_schema
     (env : ProgramDenotation state Unit)
     (target_var : Lens T state) (matched_var : Lens Bool state)
     (queries_list_var : Lens (List T) state)
-    [disjoint matched_var queries_list_var]
-    [disjoint matched_var target_var]
-    [disjoint queries_list_var target_var]
+    [Lens.Disjoint matched_var queries_list_var]
+    [Lens.Disjoint matched_var target_var]
+    [Lens.Disjoint queries_list_var target_var]
     (q_body q_final : ProgramDenotation state T)
     (h_q_body_matched : q_body.inFootprint (matched_var.footprint)ᶜ)
     (h_q_body_qs : q_body.inFootprint (queries_list_var.footprint)ᶜ)
@@ -436,7 +436,7 @@ theorem guess_experiment_interim_wp_bound
     (env : ProgramDenotation state Unit)
     (queries_list_var : Lens (List T) state)
     (matched_var : Lens Bool state)
-    [disjoint queries_list_var matched_var]
+    [Lens.Disjoint queries_list_var matched_var]
     (body_recording : ProgramDenotation state Unit)
     (final_recording : ProgramDenotation state Unit)
     (n : ℕ)

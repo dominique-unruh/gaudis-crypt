@@ -70,16 +70,16 @@ def roLocals : List (Σ t : Type, Inhabited t) := [⟨output, inferInstance⟩]
 
 
 /-- The procedure's local state. -/
-abbrev roLocalState : Type := roSig.LocalVariableState roLocals
+abbrev roLocalState : Type := roSig.ProcedureScope roLocals
 
 
-/-- Read the query input.  `paramListToTuple [input] = input`, so the lens into
+/-- Read the query input.  `typeListToTuple [input] = input`, so the lens into
     the parameter tuple is the identity, lifted into the procedure state. -/
 def inpL : Lens input (ProcedureState roLocalState) := (Lens.id (m := input)).intoParams
 
 
-/-- Read/write the result.  `paramListToTuple [output] = output`, so likewise. -/
-def outL : Lens output (ProcedureState roLocalState) := (Lens.id (m := output)).intoVars
+/-- Read/write the result.  `typeListToTuple [output] = output`, so likewise. -/
+def outL : Lens output (ProcedureState roLocalState) := (Lens.id (m := output)).intoLocalVars
 
 
 /-- Read/write the RO table living in the global state. -/
@@ -136,9 +136,9 @@ theorem procDenotation_RO_eager (args : roSig.ParamType) :
     bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
     SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
-  simp only [inpL, outL, roG, Lens.intoParams, Lens.intoVars, Lens.chain, Lens.id, Lens.fst,
-    ProcedureState.globalL, ProcedureState.localL, LocalVariableState.paramsL,
-    LocalVariableState.varsL, Lens.toGetter, Lens.toSetter, AsGetter.toG, AsSetter.toS,
+  simp only [inpL, outL, roG, Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.id, Lens.fst,
+    ProcedureState.globalL, ProcedureState.scopedL, ProcedureScope.paramsL,
+    ProcedureScope.localVarsL, Lens.toGetter, Lens.toSetter, AsGetter.toG, AsSetter.toS,
     id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top,
     ProcedureSignature.localVariableInit]
   rfl
@@ -153,9 +153,9 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
     bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
     SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
-  simp only [inpL, outL, roG, Lens.intoParams, Lens.intoVars, Lens.chain, Lens.id, Lens.fst,
-    ProcedureState.globalL, ProcedureState.localL, LocalVariableState.paramsL,
-    LocalVariableState.varsL, Lens.toGetter, Lens.toSetter, AsGetter.toG, AsSetter.toS,
+  simp only [inpL, outL, roG, Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.id, Lens.fst,
+    ProcedureState.globalL, ProcedureState.scopedL, ProcedureScope.paramsL,
+    ProcedureScope.localVarsL, Lens.toGetter, Lens.toSetter, AsGetter.toG, AsSetter.toS,
     id_eq, ProcedureSignature.localVariableInit]
   cases hc : random_oracle_state.get st args with
   | some y =>
@@ -208,7 +208,7 @@ theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
 /-! ## Faithful hypothesis: the adversary confined to its private local state
 
 The honest "`fv(A)` disjoint from `oracle_state`" reading: the adversary's own
-operations live in its **private local state** `ProcedureState.localL`, which is
+operations live in its **private local state** `ProcedureState.scopedL`, which is
 disjoint from the oracle (the RO table sits in `global`).  The magic is that
 `liftRel P` *pins the locals to equality* — so the same confinement assumption
 discharges **both** `Loc` (theorem 1) and `LocP` (theorem 2), the latter with
@@ -216,7 +216,7 @@ discharges **both** `Loc` (theorem 1) and `LocP` (theorem 2), the latter with
 
 /-- The locals and the global part of a `ProcedureState` are disjoint lenses. -/
 instance instDisjointLocalGlobal {l : Type} :
-    disjoint (ProcedureState.localL : Lens l (ProcedureState l)) ProcedureState.globalL :=
+    Lens.Disjoint (ProcedureState.scopedL : Lens l (ProcedureState l)) ProcedureState.globalL :=
   ⟨fun _ _ _ => rfl⟩
 
 
@@ -280,7 +280,7 @@ noncomputable def fvP_stmt {holes : HoleSigs} {l : Type} :
     return-value condition — replacing the separate `hbody`/`hret` hypotheses. -/
 noncomputable def fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
     (A : ProcedureWithHoles holes sig) :
-    Footprint (ProcedureState (sig.LocalVariableState A.locals)) :=
+    Footprint (ProcedureState (sig.ProcedureScope A.locals)) :=
   fvP_stmt A.body ⊔ (ProgramDenotation.get A.return_val).footprint
 
 theorem fvP_stmt_body_le_fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
@@ -296,7 +296,7 @@ theorem get_return_val_le_fvP_proc {holes : HoleSigs} {sig : ProcedureSignature}
 noncomputable def glob {holes : HoleSigs} {sig : ProcedureSignature}
     (A : ProcedureWithHoles holes sig) :
     Getter (Quotient ((fvP_proc A)ᶜ).orbit_setoid)
-      (ProcedureState (sig.LocalVariableState A.locals)) :=
+      (ProcedureState (sig.ProcedureScope A.locals)) :=
   (fvP_proc A).touched_getter
 
 
@@ -498,22 +498,22 @@ open MeasureTheory in
     heart of the `procedureDenotation` footprint bound. -/
 theorem procDenot_core {sig : ProcedureSignature}
     (ls : List (Σ t : Type, Inhabited t))
-    (r : Getter sig.ret (ProcedureState (sig.LocalVariableState ls)))
+    (r : Getter sig.ret (ProcedureState (sig.ProcedureScope ls)))
     (σ : State)
     (f : State → SubProbability State)
-    (pb : ProgramDenotation (ProcedureState (sig.LocalVariableState ls)) Unit)
-    (init : sig.LocalVariableState ls)
+    (pb : ProgramDenotation (ProcedureState (sig.ProcedureScope ls)) Unit)
+    (init : sig.ProcedureScope ls)
     (hbc : (fun st => (ProcedureState.globalL.liftSubProbability f) st >>= pb)
         = (fun st => pb st >>= fun w =>
             (ProcedureState.globalL.liftSubProbability f) w.2 >>= fun st'' =>
               (pure (w.1, st'') :
-                SubProbability (Unit × ProcedureState (sig.LocalVariableState ls)))))
+                SubProbability (Unit × ProcedureState (sig.ProcedureScope ls)))))
     (hrc : (fun st =>
         (ProcedureState.globalL.liftSubProbability f) st >>= (ProgramDenotation.get r))
         = (fun st => (ProgramDenotation.get r) st >>= fun w =>
             (ProcedureState.globalL.liftSubProbability f) w.2 >>= fun st'' =>
               (pure (w.1, st'') :
-                SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))) :
+                SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))) :
     (f σ >>= fun σ' => pb ⟨σ', init⟩ >>= fun w =>
         (pure (r.get w.2, w.2.global) : SubProbability (sig.ret × State)))
       = (pb ⟨σ, init⟩ >>= fun w =>
@@ -534,12 +534,12 @@ theorem procDenot_core {sig : ProcedureSignature}
   congr 1; funext w
   rw [SubProbability.pure_bind, SubProbability.bind_assoc]
   have hLcont : (F w.2 >>= fun s'' =>
-        (pure (w.1, s'') : SubProbability (Unit × ProcedureState (sig.LocalVariableState ls)))
+        (pure (w.1, s'') : SubProbability (Unit × ProcedureState (sig.ProcedureScope ls)))
         >>= fun w' => pure (r.get w'.2, w'.2.global))
       = F w.2 >>= fun s'' => (pure (r.get s'', s''.global) : SubProbability (sig.ret × State)) := by
     congr 1; funext s''; rw [SubProbability.pure_bind]
   rw [hLcont]
-  have hget : ∀ s' : ProcedureState (sig.LocalVariableState ls),
+  have hget : ∀ s' : ProcedureState (sig.ProcedureScope ls),
       (ProgramDenotation.get r) s' = pure (r.get s', s') := by
     intro s'
     simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure,
@@ -547,34 +547,34 @@ theorem procDenot_core {sig : ProcedureSignature}
   have hrcw0 := congrFun hrc w.2
   have hrcw : (F w.2 >>= fun s' =>
         (pure (r.get s', s') :
-          SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+          SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))
       = F w.2 >>= fun s'' =>
           (pure (r.get w.2, s'') :
-            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))) := by
+            SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))) := by
     have hL : (F w.2 >>= fun s' =>
           (pure (r.get s', s') :
-            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+            SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))
         = F w.2 >>= ProgramDenotation.get r := by
       congr 1; funext s'; rw [hget s']
     have hR : ((ProgramDenotation.get r) w.2 >>= fun v => F v.2 >>= fun s'' =>
           (pure (v.1, s'') :
-            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+            SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))
         = F w.2 >>= fun s'' =>
             (pure (r.get w.2, s'') :
-              SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))) := by
+              SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))) := by
       rw [hget w.2, SubProbability.pure_bind]
     rw [hL, hrcw0, hR]
   have hsplit : (F w.2 >>= fun s'' =>
         (pure (r.get s'', s''.global) : SubProbability (sig.ret × State)))
       = (F w.2 >>= fun s' =>
           (pure (r.get s', s') :
-            SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls))))
+            SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))
           >>= fun u => pure (u.1, u.2.global) := by
     rw [SubProbability.bind_assoc]; congr 1; funext s''; rw [SubProbability.pure_bind]
   rw [hsplit, hrcw, SubProbability.bind_assoc]
   have hfin : (F w.2 >>= fun s'' =>
         (pure (r.get w.2, s'') :
-          SubProbability (sig.ret × ProcedureState (sig.LocalVariableState ls)))
+          SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls)))
         >>= fun u => pure (u.1, u.2.global))
       = F w.2 >>= fun s'' => (pure (r.get w.2, s''.global) : SubProbability (sig.ret × State)) := by
     congr 1; funext s''; rw [SubProbability.pure_bind]
@@ -586,10 +586,10 @@ theorem procDenot_core {sig : ProcedureSignature}
     with it, and `procDenot_core` then commutes the whole procedure with `f`. -/
 theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
     (ls : List (Σ t : Type, Inhabited t))
-    (b : StmtWithHoles HoleSigs.empty (sig.LocalVariableState ls))
-    (r : Getter sig.ret (ProcedureState (sig.LocalVariableState ls)))
+    (b : StmtWithHoles HoleSigs.empty (sig.ProcedureScope ls))
+    (r : Getter sig.ret (ProcedureState (sig.ProcedureScope ls)))
     (av : sig.ParamType)
-    (Y : Footprint (ProcedureState (sig.LocalVariableState ls)))
+    (Y : Footprint (ProcedureState (sig.ProcedureScope ls)))
     (hb : (programDenotation b).footprint ≤ Y)
     (hr : (ProgramDenotation.get r).footprint ≤ Y) :
     (procedureDenotation ⟨ls, b, r⟩ av).inFootprint (Lens.reduceFootprint ProcedureState.globalL Y) := by
@@ -628,8 +628,8 @@ theorem procedureDenotation_inFootprint_reduce {sig : ProcedureSignature}
 theorem fvP_stmt_call_le {holes : HoleSigs} {l : Type} {sig : ProcedureSignature}
     (x : Setter sig.ret (ProcedureState l))
     (ls : List (Σ t : Type, Inhabited t))
-    (b : StmtWithHoles HoleSigs.empty (sig.LocalVariableState ls))
-    (r : Getter sig.ret (ProcedureState (sig.LocalVariableState ls)))
+    (b : StmtWithHoles HoleSigs.empty (sig.ProcedureScope ls))
+    (r : Getter sig.ret (ProcedureState (sig.ProcedureScope ls)))
     (p : Getter sig.ParamType (ProcedureState l))
     (hbody : fvP_stmt b ≤ FVP.fvP_stmt b) :
     fvP_stmt (StmtWithHoles.call' (h := holes) x ls b r p)
@@ -747,7 +747,7 @@ theorem fvP_stmt_le_FVP {holes : HoleSigs} {l : Type} :
 theorem fvP_proc_le_roLift_compl {holes : HoleSigs} {sig : ProcedureSignature}
     (A : ProcedureWithHoles holes sig)
     (hdisj : FVP.fvP_proc A ≤ (random_oracle_state.footprint)ᶜ) :
-    fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ := by
+    fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ := by
   -- `FVP.fvP_proc A = Lens.reduceFootprint globalL (FVP.fvP_stmt body) ⊔ Lens.reduceFootprint globalL (get return)`.
   rw [show FVP.fvP_proc A =
       Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt A.body) ⊔

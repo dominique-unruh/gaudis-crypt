@@ -282,7 +282,7 @@ theorem factor_of_inFootprint {c s a : Type} [Nonempty s] (L : Lens c s) {Adv : 
     show L.set (L.get (L.set (L.get σ) (Classical.arbitrary s))) σ = σ
     rw [L.set_get, L.get_set]
   have h_f_mem : diracKer f ∈ ((L.footprint)ᶜ).updates := by
-    haveI : disjoint L.compl L := ⟨fun st v w => by
+    haveI : Lens.Disjoint L.compl L := ⟨fun st v w => by
       induction v using Quotient.inductionOn
       rename_i u
       show L.set (L.get (L.set w st)) u = L.set w (L.set (L.get st) u)

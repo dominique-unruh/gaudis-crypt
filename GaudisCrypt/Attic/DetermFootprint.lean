@@ -251,9 +251,9 @@ theorem DetermFootprint.compl_compl (x : DetermFootprint a) : xᶜᶜ = x := by
   apply key; simp only [Compl.compl]; exact x.double_commutant
 
 /-- Disjoint lenses have ranges contained in each other's complements: if
-    `disjoint v L`, then every `v`-update lives in `L.compl.range`. -/
+    `Lens.Disjoint v L`, then every `v`-update lives in `L.compl.range`. -/
 theorem Lens.range_le_compl_of_disjoint {a b m : Type} (v : Lens a m) (L : Lens b m)
-    [hd : disjoint v L] : v.range ≤ L.compl.range := by
+    [hd : Lens.Disjoint v L] : v.range ≤ L.compl.range := by
   rw [DetermFootprint.complement_range]
   rintro _ ⟨g, -, rfl⟩
   show v.liftFunction g ∈ Submonoid.centralizer L.range.updates

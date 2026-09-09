@@ -308,7 +308,7 @@ theorem confinedP_loc {holes : HoleSigs} {l : Type}
     `fvP → ConfinedP → Loc → transfer` chain — the sole entry point. -/
 theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ) :
+    (hdisj : fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ) :
     ProgramDenotation.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=
@@ -370,7 +370,7 @@ theorem glob_ro_set_invariant {sig : ProcedureSignature} (A : ProcedureWithHoles
     supplied by `random_oracle_init = lazy_init; convert`. -/
 theorem game_transfer_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ) :
+    (hdisj : fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ) :
     ((lazy_init >>= fun _ => procedureDenotation (A.instantiate RO_lazy) args) >>= fun a =>
         convert >>= fun _ => pure a)
       = random_oracle_init >>= fun _ => procedureDenotation (A.instantiate RO_eager) args := by
@@ -407,7 +407,7 @@ theorem game_transfer_of_fvP {sig : ProcedureSignature}
     `output_win_transfer_games` for the user-facing (syntactic-`FVP`) statement. -/
 theorem output_win_transfer_games_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
-    (hdisj : fvP_proc A ≤ ((roLift (sig.LocalVariableState A.locals)).footprint)ᶜ) :
+    (hdisj : fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
       (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
       (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)

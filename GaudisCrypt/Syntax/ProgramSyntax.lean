@@ -144,8 +144,8 @@ def liftLens {S A M} [LiftLens S M] (x : Lens A M) : Setter A (ProcedureState S)
 
 /-- The raw (un-lifted) lens for an l-value: a tuple `(x, y, …)` becomes a nested
 `Lens.pair`; a single term is itself.  Pairing needs the components to be disjoint
-lenses in the same container — the `disjoint` instance is resolved at the concrete
-lenses, so `(a, b)` requires `disjoint a b`. -/
+lenses in the same container — the `Lens.Disjoint` instance is resolved at the concrete
+lenses, so `(a, b)` requires `Lens.Disjoint a b`. -/
 scoped syntax "[lvalRaw| " term "]" : term
 macro_rules
   | `([lvalRaw| ($x:term, $y:term)]) => `(Lens.pair [lvalRaw| $x] [lvalRaw| $y])
@@ -253,7 +253,7 @@ macro_rules
 
 open Lean in
 /-- Build the (right-nested) argument tuple from a comma-list of arg expressions:
-`[]` ↦ `()`, `[e]` ↦ `e`, `e :: es` ↦ `(e, <es>)` — matching `paramListToTuple`. -/
+`[]` ↦ `()`, `[e]` ↦ `e`, `e :: es` ↦ `(e, <es>)` — matching `typeListToTuple`. -/
 private def mkArgTuple (args : List Term) : MacroM Term := do
   match args with
   | []      => `(())
@@ -407,7 +407,7 @@ macro_rules
     let np := paramBs.size
     let nl := localBs.size
     -- the signature and local-variable list; the local-state `L` is the
-    -- `LocalVariableState` *structure* (params tuple + vars tuple).
+    -- `ProcedureScope` *structure* (params tuple + localVars tuple).
     let paramTys := paramBs.map (·.2)
     let localSigmas ← localBs.mapM fun (_, ty) => `(⟨$ty, inferInstance⟩)
     let retTyTerm ← match retTy with | some r => pure r | none => `(_)
@@ -415,10 +415,10 @@ macro_rules
     let localsTerm ← `([$localSigmas,*])
     -- `L` is the local-state structure, indexed by param *types* (no `ret`), so it is
     -- fully determined even when the return type is omitted.
-    let L ← `(LocalVariableState [$paramTys,*] $localsTerm)
+    let L ← `(ProcedureScope [$paramTys,*] $localsTerm)
     -- one `let` per name, binding it to its lens into `ProcedureState L`.  A variable
-    -- lens navigates `ProcedureState L` → (`localL`) `L` → (`paramsL`/`varsL`) the
-    -- params/vars tuple → (`mkChain`/`navSteps`) the individual slot.
+    -- lens navigates `ProcedureState L` → (`scopedL`) `L` → (`paramsL`/`localVarsL`) the
+    -- params/localVars tuple → (`mkChain`/`navSteps`) the individual slot.
     let mut binds : Array (Ident × Term × Term) := #[]
     for k in [0:np] do
       let (id, ty) := paramBs[k]!
@@ -428,7 +428,7 @@ macro_rules
     for j in [0:nl] do
       let (id, ty) := localBs[j]!
       let slot ← mkChain (navSteps j nl)
-      let chain ← `(Lens.intoVars $slot)
+      let chain ← `(Lens.intoLocalVars $slot)
       binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
     -- holes: a `ProcedureSignature` (no locals) each, folded into a `HoleSigs` context,
     -- and one `let` per name binding it to its `HoleIndex` (first-declared = `.zero`).
@@ -448,7 +448,7 @@ macro_rules
     let wrap (bs : Array (Ident × Term × Term)) (inner : Term) : MacroM Term :=
       bs.foldrM (fun (id, ty, val) acc => `(let $id : $ty := $val; $acc)) inner
     -- annotate with the explicit local-state `L` (so expressions see `S = L`) and hole
-    -- context `hCtx`; the `L = sig.LocalVariableState` check happens in ordinary elaboration.
+    -- context `hCtx`; the `L = sig.ProcedureScope` check happens in ordinary elaboration.
     -- rewrite `call A (…)` → `holecall A (…)` for every callee `A` that is a declared hole
     let holeNames := holeBs.toList.map (·.1.getId)
     let stmts' ← stmts.mapM (rewriteHoles holeNames)
@@ -880,7 +880,7 @@ private def delabProc : Delab := do
   -- the body: the parameter, local-variable and hole `let`s, then the statements
   let (paramNames, localNames, holeNames, stmts) ← withNaryArg 4 <|
     withPeeledLets paramTys.size (·.isAppOf ``Lens.intoParams) #[] fun ps =>
-      withPeeledLets localTys.size (·.isAppOf ``Lens.intoVars) #[] fun ls =>
+      withPeeledLets localTys.size (·.isAppOf ``Lens.intoLocalVars) #[] fun ls =>
         withPeeledLets holeSigs.size isHoleIndex #[] fun hs => do
           return (ps, ls, hs, ← delabGaudiStmts hs)
   -- the return value repeats the parameter and local-variable `let`s (but not the holes), and
@@ -888,7 +888,7 @@ private def delabProc : Delab := do
   let spineNames := spineLetNames stmts
   let (retParams, retLocals, retSpine, ret) ← withNaryArg 5 <|
     withPeeledLets paramTys.size (·.isAppOf ``Lens.intoParams) #[] fun ps =>
-      withPeeledLets localTys.size (·.isAppOf ``Lens.intoVars) #[] fun ls =>
+      withPeeledLets localTys.size (·.isAppOf ``Lens.intoLocalVars) #[] fun ls =>
         withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
           return (ps, ls, bs, ← delabGaudiExpr)
   guard (retParams == paramNames && retLocals == localNames && retSpine == spineNames)

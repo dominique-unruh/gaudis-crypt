@@ -2,7 +2,7 @@
 
 import GaudisCrypt.Misc
 import GaudisCrypt.Attic.DetermFootprint
-import GaudisCrypt.Attic.TypesModules
+import GaudisCrypt.Attic.TypedModules
 import GaudisCrypt.Language.Footprint
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.FV

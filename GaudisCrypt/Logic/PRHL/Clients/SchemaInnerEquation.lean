@@ -37,9 +37,9 @@ namespace PRHLSchema
 variable {s T : Type} [DecidableEq T]
 variable (target_var : Lens T s) (matched_var : Lens Bool s)
 variable (queries_list_var : Lens (List T) s)
-variable [disjoint matched_var queries_list_var]
-variable [disjoint matched_var target_var]
-variable [disjoint queries_list_var target_var]
+variable [Lens.Disjoint matched_var queries_list_var]
+variable [Lens.Disjoint matched_var target_var]
+variable [Lens.Disjoint queries_list_var target_var]
 
 /-- The coupling invariant between the match-tracking run (left) and the
     recording run (right). `m₀`/`tv₀` are the right run's (constant)
@@ -49,8 +49,8 @@ private abbrev Inv (t : T) (m₀ : Bool) (tv₀ : T) (σ₁ σ₂ : s) : Prop :=
     σ₂ = queries_list_var.set l (matched_var.set m₀ (target_var.set tv₀ σ₁))
     ∧ matched_var.get σ₁ = decide (t ∈ l)
 
-omit [DecidableEq T] [disjoint matched_var queries_list_var]
-  [disjoint matched_var target_var] [disjoint queries_list_var target_var] in
+omit [DecidableEq T] [Lens.Disjoint matched_var queries_list_var]
+  [Lens.Disjoint matched_var target_var] [Lens.Disjoint queries_list_var target_var] in
 /-- The shared query program relates to itself across the three-lens
     overwrite: same answer, overwrite carried to the output states. -/
 private lemma q_shift (q : ProgramDenotation s T)
@@ -71,7 +71,7 @@ private lemma q_shift (q : ProgramDenotation s T)
   · rintro x z ⟨y, ⟨ha1, ha2⟩, y', ⟨hb1, hb2⟩, hc1, hc2⟩
     exact ⟨hc1.trans (hb1.trans ha1), by rw [hc2, hb2, ha2]⟩
 
-omit [disjoint matched_var queries_list_var] [disjoint queries_list_var target_var] in
+omit [Lens.Disjoint matched_var queries_list_var] [Lens.Disjoint queries_list_var target_var] in
 /-- The two loop tails (match-check vs record-append) preserve the
     invariant, with witness `l ++ [a]`. -/
 private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a₂ : T) :
@@ -84,7 +84,7 @@ private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a�
           ∧ τ₂ = queries_list_var.set l (matched_var.set m₀ (target_var.set tv₀ τ₁)))
         ∧ matched_var.get τ₁ = decide (t ∈ l))
       (fun x y => Inv target_var matched_var queries_list_var t m₀ tv₀ x.2 y.2) := by
-  haveI htm : disjoint target_var matched_var := disjoint.symm inferInstance
+  haveI htm : Lens.Disjoint target_var matched_var := Lens.Disjoint.symm inferInstance
   have hL : ∀ (F : Unit × s → ENNReal) (τ : s),
       (if a₁ = t then ProgramDenotation.set matched_var true
         else (pure () : ProgramDenotation s Unit)).wp F τ
@@ -140,7 +140,7 @@ private lemma tail_relE (t : T) (l : List T) (m₀ : Bool) (tv₀ : T) (a₁ a�
     exact hFG _ _ ⟨l ++ [a₁], hstate τ₁, hinv τ₁ hm⟩
 
 
-omit [disjoint queries_list_var target_var] in
+omit [Lens.Disjoint queries_list_var target_var] in
 /-- **The body judgment**: one match-tracking iteration relates to one
     recording iteration, preserving `Inv`. -/
 private lemma body_relE (q : ProgramDenotation s T)
@@ -156,7 +156,7 @@ private lemma body_relE (q : ProgramDenotation s T)
       ProgramDenotation.set queries_list_var (qs ++ [a]))
     (Inv target_var matched_var queries_list_var t m₀ tv₀)
     (fun x y => Inv target_var matched_var queries_list_var t m₀ tv₀ x.2 y.2) := by
-  haveI hqm : disjoint queries_list_var matched_var := disjoint.symm inferInstance
+  haveI hqm : Lens.Disjoint queries_list_var matched_var := Lens.Disjoint.symm inferInstance
   apply ProgramDenotation.relE.exists_pre
   intro l
   refine ProgramDenotation.relE.bind
@@ -174,8 +174,8 @@ private lemma body_relE (q : ProgramDenotation s T)
   · intro x y hpost
     exact ⟨⟨hpost.1.1.symm, hpost.1.2⟩, hpost.2.1⟩
 
-omit [disjoint matched_var queries_list_var] [disjoint matched_var target_var]
-  [disjoint queries_list_var target_var] in
+omit [Lens.Disjoint matched_var queries_list_var] [Lens.Disjoint matched_var target_var]
+  [Lens.Disjoint queries_list_var target_var] in
 /-- **The ending judgment**: reading the matched flag (left) returns the
     same boolean as the deferred membership test (right). -/
 private lemma ending_relE (t : T) (m₀ : Bool) (tv₀ : T) :
@@ -218,7 +218,7 @@ private lemma wp_set_seq {γ α : Type} (L : Lens γ s) (v : γ) (P : ProgramDen
     (ProgramDenotation.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
   rw [wp_bind, wp_set]
 
-omit [disjoint queries_list_var target_var] in
+omit [Lens.Disjoint queries_list_var target_var] in
 /-- **`schema_inner_equation`, relationally.** Same statement as the unary
     original, but generic in the state type, without `Fintype`/`Nonempty`
     assumptions on `T`, and needing only two of the original's three
@@ -255,7 +255,7 @@ theorem schema_inner_equation_prhl
        ProgramDenotation.set matched_var (decide (t ∈ qs)) >>= fun _ : Unit =>
        ProgramDenotation.get matched_var).wp
        (fun bσ : Bool × s => if bσ.1 then (1 : ENNReal) else 0) σ' := by
-  haveI htm : disjoint target_var matched_var := disjoint.symm inferInstance
+  haveI htm : Lens.Disjoint target_var matched_var := Lens.Disjoint.symm inferInstance
   -- The full relational judgment: loop, then final iteration, then ending.
   have hmain := ProgramDenotation.relE.bind
     (ProgramDenotation.relE.loop_n (body_relE target_var matched_var queries_list_var q_body

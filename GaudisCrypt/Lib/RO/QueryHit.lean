@@ -59,17 +59,17 @@ axiom chal_x_queried : Variable Bool
 /-! ### Disjointness axioms for `chal_x_queried` -/
 
 axiom disjoint_chal_x_queried_ro :
-  disjoint chal_x_queried random_oracle_state
+  Lens.Disjoint chal_x_queried random_oracle_state
 axiom disjoint_chal_x_queried_ow_challenge_x :
-  disjoint chal_x_queried ow_challenge_x
+  Lens.Disjoint chal_x_queried ow_challenge_x
 axiom disjoint_chal_x_queried_ow_challenge_y :
-  disjoint chal_x_queried ow_challenge_y
+  Lens.Disjoint chal_x_queried ow_challenge_y
 axiom disjoint_chal_x_queried_ow_response :
-  disjoint chal_x_queried ow_response
+  Lens.Disjoint chal_x_queried ow_response
 axiom disjoint_chal_x_queried_oracle_input :
-  disjoint chal_x_queried oracle_input
+  Lens.Disjoint chal_x_queried oracle_input
 axiom disjoint_chal_x_queried_oracle_output :
-  disjoint chal_x_queried oracle_output
+  Lens.Disjoint chal_x_queried oracle_output
 
 attribute [instance] disjoint_chal_x_queried_ro
                      disjoint_chal_x_queried_ow_challenge_x
@@ -79,21 +79,21 @@ attribute [instance] disjoint_chal_x_queried_ro
                      disjoint_chal_x_queried_oracle_output
 
 /-- Symmetric disjoint instances. -/
-instance : disjoint random_oracle_state chal_x_queried :=
+instance : Lens.Disjoint random_oracle_state chal_x_queried :=
   disjoint_chal_x_queried_ro.symm
-instance : disjoint ow_challenge_x chal_x_queried :=
+instance : Lens.Disjoint ow_challenge_x chal_x_queried :=
   disjoint_chal_x_queried_ow_challenge_x.symm
-instance : disjoint ow_challenge_y chal_x_queried :=
+instance : Lens.Disjoint ow_challenge_y chal_x_queried :=
   disjoint_chal_x_queried_ow_challenge_y.symm
-instance : disjoint ow_response chal_x_queried :=
+instance : Lens.Disjoint ow_response chal_x_queried :=
   disjoint_chal_x_queried_ow_response.symm
-instance : disjoint oracle_input chal_x_queried :=
+instance : Lens.Disjoint oracle_input chal_x_queried :=
   disjoint_chal_x_queried_oracle_input.symm
-instance : disjoint oracle_output chal_x_queried :=
+instance : Lens.Disjoint oracle_output chal_x_queried :=
   disjoint_chal_x_queried_oracle_output.symm
-instance : disjoint ow_challenge_x ow_response :=
+instance : Lens.Disjoint ow_challenge_x ow_response :=
   disjoint_ow_response_ow_challenge_x.symm
-instance : disjoint ow_challenge_y ow_response :=
+instance : Lens.Disjoint ow_challenge_y ow_response :=
   disjoint_ow_response_ow_challenge_y.symm
 
 section OWParam
@@ -315,7 +315,7 @@ private lemma ow_loop_body_tracked_inFootprint_ow_challenge_y_compl
   refine ProgramDenotation.inFootprint_bind
     (ProgramDenotation.get_inFootprint_compl_of_disjoint oracle_input ow_challenge_y) ?_
   intro inp
-  haveI _disj_cx_cy : disjoint ow_challenge_x ow_challenge_y :=
+  haveI _disj_cx_cy : Lens.Disjoint ow_challenge_x ow_challenge_y :=
     disjoint_ow_challenge_y_ow_challenge_x.symm
   refine ProgramDenotation.inFootprint_bind
     (ProgramDenotation.get_inFootprint_compl_of_disjoint ow_challenge_x ow_challenge_y) ?_
@@ -894,7 +894,7 @@ private lemma ow_loop_tracked_chal_x_queried_sum_le
     -- Show: ∑ x : input, post_adv.wp G (ow_challenge_x.set x aσ_adv.2) ≤ 1 + q.
     set inp := oracle_input.get aσ_adv.2 with h_inp_def
     -- helpers for state operations on chal_x.set x aσ_adv.2.
-    haveI _disj_cx_oi : disjoint ow_challenge_x oracle_input :=
+    haveI _disj_cx_oi : Lens.Disjoint ow_challenge_x oracle_input :=
       disjoint_oracle_input_ow_challenge_x.symm
     have h_inp_get : ∀ x : input,
         oracle_input.get (ow_challenge_x.set x aσ_adv.2) = inp := by
@@ -1174,7 +1174,7 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
     -- Step 1: unfold post_adv via wp_bind + wp_get.
     simp only [wp_bind, wp_get]
     -- For RO_setentry x y aσ_adv.2: oracle_input.get and ow_challenge_x.get are same as on aσ_adv.2.
-    haveI _disj_ro_oi : disjoint random_oracle_state oracle_input :=
+    haveI _disj_ro_oi : Lens.Disjoint random_oracle_state oracle_input :=
       disjoint_oracle_input_ro.symm
     have h_oi_RO : ∀ y_arg : output,
         oracle_input.get (random_oracle_state.set
@@ -1202,7 +1202,7 @@ private lemma ow_loop_tracked_chal_x_queried_RO_invariance_avg
       -- By wp_bind + wp_set on `set chal_x_queried true`:
       simp only [wp_bind, wp_set]
       -- Now both sides involve (lazy_query x; set oracle_output).wp G (chal_x_queried.set true ...).
-      haveI _disj_cxq_ro : disjoint chal_x_queried random_oracle_state :=
+      haveI _disj_cxq_ro : Lens.Disjoint chal_x_queried random_oracle_state :=
         disjoint_chal_x_queried_ro
       -- LHS state at chal_x_queried.set true (RO_setentry x y aσ_adv.2)
       --      = RO_setentry x y (chal_x_queried.set true aσ_adv.2) (by disjoint commute).
@@ -1781,7 +1781,7 @@ private lemma ow_loop_tracked_indep_sum_le_strong
     simp only [if_pos h_cxq_adv]
     -- Set inp = oracle_input.get aσ_adv.2.
     set inp := oracle_input.get aσ_adv.2 with h_inp_def
-    haveI _disj_cx_oi : disjoint ow_challenge_x oracle_input :=
+    haveI _disj_cx_oi : Lens.Disjoint ow_challenge_x oracle_input :=
       disjoint_oracle_input_ow_challenge_x.symm
     have h_inp_get : ∀ x : input,
         oracle_input.get (ow_challenge_x.set x aσ_adv.2) = inp := by
@@ -2116,7 +2116,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
     -- Goal: (1/|output|) ∑ y, post_adv.wp G (RO_setentry x y aσ_adv.2) = post_adv.wp G aσ_adv.2.
     -- Step 1: unfold post_adv via wp_bind + wp_get.
     simp only [wp_bind, wp_get]
-    haveI _disj_ro_oi : disjoint random_oracle_state oracle_input :=
+    haveI _disj_ro_oi : Lens.Disjoint random_oracle_state oracle_input :=
       disjoint_oracle_input_ro.symm
     have h_oi_RO : ∀ y_arg : output,
         oracle_input.get (random_oracle_state.set
@@ -2139,7 +2139,7 @@ private lemma ow_loop_tracked_indep_RO_invariance_avg
       simp only [wp_bind, wp_set]
       -- LHS state at chal_x_queried.set true (RO_setentry x y aσ_adv.2)
       --      = RO_setentry x y (chal_x_queried.set true aσ_adv.2) (by disjoint commute).
-      haveI _disj_cxq_ro : disjoint chal_x_queried random_oracle_state :=
+      haveI _disj_cxq_ro : Lens.Disjoint chal_x_queried random_oracle_state :=
         disjoint_chal_x_queried_ro
       have h_commute_LHS : ∀ y_arg : output,
           chal_x_queried.set true

@@ -294,8 +294,8 @@ theorem eager_call {holes : HoleSigs} {sig : ProcedureSignature}
       (ProgramDenotation.zoom ProcedureState.globalL S)
       (ProgramDenotation.get A.return_val) (ProgramDenotation.get A.return_val))
     (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
-        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
-        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        (x : Setter sig'.ret (ProcedureState (sig.ProcedureScope A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.ProcedureScope A.locals))),
         ProgramDenotation.transferBy (ProgramDenotation.zoom ProcedureState.globalL S)
           (ProgramDenotation.get p) (ProgramDenotation.get p) →
         (∀ ret, ProgramDenotation.transferBy (ProgramDenotation.zoom ProcedureState.globalL S)
@@ -396,8 +396,8 @@ theorem eager_call_inv {holes : HoleSigs} {sig : ProcedureSignature}
       (ProgramDenotation.zoom ProcedureState.globalL S)
       (ProgramDenotation.get A.return_val) (ProgramDenotation.get A.return_val))
     (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
-        (x : Setter sig'.ret (ProcedureState (sig.LocalVariableState A.locals)))
-        (p : Getter sig'.ParamType (ProcedureState (sig.LocalVariableState A.locals))),
+        (x : Setter sig'.ret (ProcedureState (sig.ProcedureScope A.locals)))
+        (p : Getter sig'.ParamType (ProcedureState (sig.ProcedureScope A.locals))),
         ProgramDenotation.transferBy (ProgramDenotation.zoom ProcedureState.globalL S)
           (ProgramDenotation.get p) (ProgramDenotation.get p) →
         (∀ ret, ProgramDenotation.transferBy (ProgramDenotation.zoom ProcedureState.globalL S)

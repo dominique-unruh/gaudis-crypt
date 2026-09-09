@@ -41,26 +41,26 @@ axiom ow_challenge_x : Variable input
 axiom ow_response : Variable input
 
 /-- Disjointness: game-specific variables don't alias the random oracle. -/
-axiom disjoint_ow_challenge_y_ro : disjoint ow_challenge_y random_oracle_state
-axiom disjoint_ow_challenge_x_ro : disjoint ow_challenge_x random_oracle_state
-axiom disjoint_ow_response_ro : disjoint ow_response random_oracle_state
+axiom disjoint_ow_challenge_y_ro : Lens.Disjoint ow_challenge_y random_oracle_state
+axiom disjoint_ow_challenge_x_ro : Lens.Disjoint ow_challenge_x random_oracle_state
+axiom disjoint_ow_response_ro : Lens.Disjoint ow_response random_oracle_state
 
 /-- Game-specific variables are disjoint from the loop's scratch variables.
     Needed so that `ow_loop_body`'s `ProgramDenotation.get oracle_input` /
     `ProgramDenotation.set oracle_output` / `random_oracle_state` operations preserve
     `ow_challenge_y` (and similarly for `ow_response`). -/
-axiom disjoint_oracle_input_ow_challenge_y : disjoint oracle_input ow_challenge_y
-axiom disjoint_oracle_output_ow_challenge_y : disjoint oracle_output ow_challenge_y
-axiom disjoint_ro_ow_challenge_y : disjoint random_oracle_state ow_challenge_y
-axiom disjoint_oracle_input_ow_challenge_x : disjoint oracle_input ow_challenge_x
-axiom disjoint_oracle_output_ow_challenge_x : disjoint oracle_output ow_challenge_x
-axiom disjoint_ro_ow_challenge_x : disjoint random_oracle_state ow_challenge_x
-axiom disjoint_ow_challenge_y_ow_challenge_x : disjoint ow_challenge_y ow_challenge_x
-axiom disjoint_oracle_input_ow_response : disjoint oracle_input ow_response
-axiom disjoint_oracle_output_ow_response : disjoint oracle_output ow_response
-axiom disjoint_ro_ow_response : disjoint random_oracle_state ow_response
-axiom disjoint_ow_response_ow_challenge_x : disjoint ow_response ow_challenge_x
-axiom disjoint_ow_response_ow_challenge_y : disjoint ow_response ow_challenge_y
+axiom disjoint_oracle_input_ow_challenge_y : Lens.Disjoint oracle_input ow_challenge_y
+axiom disjoint_oracle_output_ow_challenge_y : Lens.Disjoint oracle_output ow_challenge_y
+axiom disjoint_ro_ow_challenge_y : Lens.Disjoint random_oracle_state ow_challenge_y
+axiom disjoint_oracle_input_ow_challenge_x : Lens.Disjoint oracle_input ow_challenge_x
+axiom disjoint_oracle_output_ow_challenge_x : Lens.Disjoint oracle_output ow_challenge_x
+axiom disjoint_ro_ow_challenge_x : Lens.Disjoint random_oracle_state ow_challenge_x
+axiom disjoint_ow_challenge_y_ow_challenge_x : Lens.Disjoint ow_challenge_y ow_challenge_x
+axiom disjoint_oracle_input_ow_response : Lens.Disjoint oracle_input ow_response
+axiom disjoint_oracle_output_ow_response : Lens.Disjoint oracle_output ow_response
+axiom disjoint_ro_ow_response : Lens.Disjoint random_oracle_state ow_response
+axiom disjoint_ow_response_ow_challenge_x : Lens.Disjoint ow_response ow_challenge_x
+axiom disjoint_ow_response_ow_challenge_y : Lens.Disjoint ow_response ow_challenge_y
 
 attribute [instance] disjoint_ow_challenge_y_ro disjoint_ow_challenge_x_ro
                      disjoint_ow_response_ro
@@ -450,8 +450,8 @@ private lemma useful_preimage_indicator_of_three_get_eq {σ σ' : state}
 /-- Setting a variable disjoint from `random_oracle_state`, `ow_challenge_x`,
     and `ow_challenge_y` doesn't change `useful_preimage_indicator`. -/
 private lemma useful_preimage_indicator_set_disjoint {α : Type} (v : Variable α)
-    [disjoint v random_oracle_state] [disjoint v ow_challenge_x]
-    [disjoint v ow_challenge_y] (a : α) (σ : state) :
+    [Lens.Disjoint v random_oracle_state] [Lens.Disjoint v ow_challenge_x]
+    [Lens.Disjoint v ow_challenge_y] (a : α) (σ : state) :
     useful_preimage_indicator (v.set a σ) = useful_preimage_indicator σ :=
   useful_preimage_indicator_of_three_get_eq
     (random_oracle_state.get_of_disjoint_set v a σ)

@@ -110,7 +110,7 @@ noncomputable def insRO (x : input) (y : output) (σ : state) : state :=
 
 /-- Reading any RO-disjoint lens through `insRO` is invisible. -/
 lemma get_insRO {γ : Type} (L : Lens γ state)
-    [disjoint random_oracle_state L] (x : input) (y : output) (σ : state) :
+    [Lens.Disjoint random_oracle_state L] (x : input) (y : output) (σ : state) :
     L.get (insRO x y σ) = L.get σ := by
   unfold insRO
   rw [Lens.get_of_disjoint_set L random_oracle_state]
@@ -579,7 +579,7 @@ lemma body_good_relE
     (oracle_step ow_adv lazy_query_tracked).relE
       (oracle_step ow_adv lazy_query_tracked)
       (GoodPre x y) (fun u v => InvUB x y u.2 v.2) := by
-  haveI : disjoint random_oracle_state oracle_input := disjoint_oracle_input_ro.symm
+  haveI : Lens.Disjoint random_oracle_state oracle_input := disjoint_oracle_input_ro.symm
   -- the adversary across the shift, framed by the flag and chal_x values
   have h_adv : ow_adv.relE ow_adv (GoodPre x y)
       (fun u v : Unit × state => GoodPre x y u.2 v.2) := by
