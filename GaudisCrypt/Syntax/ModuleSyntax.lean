@@ -452,6 +452,15 @@ def simpOnlyConsts (names : Array Name) (extraSets : Array SimpTheorems := #[]) 
     | none => replaceMainGoal []
     | some (_, mvarId) => replaceMainGoal [mvarId]
 
+open Lean Elab Tactic Meta in
+/-- The `module_accessor` simp set (`Modules.lean`), as `simp only [module_accessor]` picks it up:
+a whole extension, pushed into its own slot of the theorem array rather than merged in with the
+named constants. -/
+def moduleAccessorTheorems : TacticM SimpTheorems := do
+  let some ext ← getSimpExtension? `module_accessor
+    | throwError "the `module_accessor` simp set is not registered"
+  ext.getTheorems
+
 open Lean Elab Tactic in
 /-- The accessor `moduletype` hands these tactics is spelled relative to the namespace the
 declaration sits in (`TestModule.f` inside `namespace Experiment`), so it has to be resolved where
@@ -868,16 +877,20 @@ reduce` is propositional, not definitional — so `rfl` only works when the adap
   two sides equal.
 
 A `TacticM` function, not a `syntax`/`macro_rules` pair.  Its only caller is `procApply`, which is
-one too and so can call it directly — no tactic keyword is needed for the two to compose. -/
+one too and so can call it directly — no tactic keyword is needed for the two to compose.
+
+`rfl` stays a quotation, and is the one step here that does.  It is not a single tactic but three
+`macro_rules` alternatives in core (`exact HEq.rfl`, `eq_refl`, `apply_rfl`, tried in that order),
+so spelling it out by hand would freeze a copy of that chain that core could later grow past.  It
+also names no lemma of ours, so writing it out would buy none of the compile-time checking that is
+the point of the rest. -/
 def moduleCallee : TacticM Unit := do
-  evalTactic (← `(tactic|
-        (first
-          | rfl
-          | simp only [module_accessor, GaudisCrypt.Module.cast, GaudisCrypt.Module.cast',
-              GaudisCrypt.Module.fst', GaudisCrypt.Module.snd',
-              GaudisCrypt.ModuleExpression.toModule, GaudisCrypt.Module.reduce_expression,
-              GaudisCrypt.ModuleExpression.reduce_fst_inner,
-              GaudisCrypt.ModuleExpression.reduce_snd_inner])))
+  (do evalTactic (← `(tactic| rfl))) <|> do
+    simpOnlyConsts
+      #[``Module.cast, ``Module.cast', ``Module.fst', ``Module.snd',
+        ``ModuleExpression.toModule, ``Module.reduce_expression,
+        ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+      (extraSets := #[← moduleAccessorTheorems])
 
 open Lean Elab Tactic in
 /-- Proves `Module.app (… (Module.app X.f A₁) …) Aₖ = Module.proc (X.f.procedure.instantiate …)`
