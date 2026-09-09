@@ -491,6 +491,32 @@ around it need none of this: they are `` `` ``-literals, resolved when this file
 def resolveHere (n : Name) : TacticM Name :=
   realizeGlobalConstNoOverload (mkIdent n)
 
+/-! The lemma lists these scripts share.  They were spelled out in each script while the scripts
+were tactic quotations, where nothing could be named or reused; as `Array Name`s they are written
+once. -/
+
+/-- Pushes a `.reduce` out of a `.fst`/`.snd`, undoing what a `toModule` left *inside* a composite
+expression. -/
+def reduceStripInner : Array Lean.Name :=
+  #[``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+
+/-- `reduceStripInner` with the `.app` and `.pair` positions in front of it: the whole set of
+stripping lemmas, for the scripts that unfold `Module.pair` as well. -/
+def reduceStripComposite : Array Lean.Name :=
+  #[``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
+    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right] ++ reduceStripInner
+
+/-- The `Module`-level combinators, unfolded down to the `toModule`s they are built from. -/
+def moduleCombinators : Array Lean.Name :=
+  #[``Module.app, ``Module.app', ``Module.pair, ``Module.pair',
+    ``Module.fst, ``Module.fst', ``Module.snd, ``Module.snd',
+    ``Module.moduleTypeRep, ``ModuleExpression.toModule]
+
+/-- The opening step `moduleApply` and `procApply` share: unfold the declaration `x`, then the
+`Module` combinators, then strip the `.reduce`s that exposes. -/
+def moduleUnfoldStep (x : Lean.Name) : Array Lean.Name :=
+  #[x] ++ moduleCombinators ++ reduceStripComposite
+
 open Lean Elab Tactic in
 /-- Proves the `apply_simp` field of the `X.f.utilities : ModuleTypeUtilities …` that `moduletype`
 emits for each field — `∀ m, Module.app accessorModule m = X.f m`, relating the accessor *as a
@@ -513,13 +539,13 @@ def accessorApply (acc : Name) : TacticM Unit := do
   introAnonymous
   simpOnlyConsts #[← resolveHere acc]
   applyConst ``Module.ext
-  simpOnlyConsts #[``Module.app, ``Module.app', ``Module.fst, ``Module.fst',
+  -- not `moduleCombinators`/`reduceStripComposite`: the accessor is a `.fst`/`.snd` chain, so the
+  -- `.pair` cases of both are not in this script's set and adding them would change what it does
+  simpOnlyConsts <| #[``Module.app, ``Module.app', ``Module.fst, ``Module.fst',
     ``Module.snd, ``Module.snd', ``Module.moduleTypeRep, ``ModuleExpression.toModule,
-    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
-    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right] ++ reduceStripInner
   tryTac reduceSimp
-  tryTac <| simpOnlyConsts #[``Module.reduce_expression,
-    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  tryTac <| simpOnlyConsts <| #[``Module.reduce_expression] ++ reduceStripInner
 
 open Lean Elab Tactic in
 /-- Proves the `expression_eq` field of `X.f.utilities` — `∀ m, (X.f m).expression =
@@ -537,10 +563,9 @@ passes the accessor's `Name` and invokes it with `run_tac`.  No tactic quotation
 is checked when this file compiles. -/
 def accessorExpression (acc : Name) : TacticM Unit := do
   introAnonymous
-  simpOnlyConsts #[← resolveHere acc,
+  simpOnlyConsts <| #[← resolveHere acc,
     ``Module.cast, ``Module.fst', ``Module.snd',
-    ``ModuleExpression.toModule, ``Module.reduce_expression,
-    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+    ``ModuleExpression.toModule, ``Module.reduce_expression] ++ reduceStripInner
 
 end GaudisCrypt
 
@@ -860,18 +885,11 @@ and no tactic quotation either.  `X` comes in as a `Name`, since the only caller
 `elabApplySimp`, which reaches this through `run_tac`. -/
 def moduleApply (x : Name) : TacticM Unit := do
   applyConst ``Module.ext
-  simpOnlyConsts #[← resolveHere x,
-    ``Module.app, ``Module.app', ``Module.pair, ``Module.pair',
-    ``Module.fst, ``Module.fst', ``Module.snd, ``Module.snd',
-    ``Module.moduleTypeRep, ``ModuleExpression.toModule,
-    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
-    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
-    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  simpOnlyConsts (moduleUnfoldStep (← resolveHere x))
   reduceSimp
-  simpOnlyConsts #[``Module.substituteSimultaneously_expression, ``Module.reduce_expression,
-    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
-    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
-    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  simpOnlyConsts <|
+    #[``Module.substituteSimultaneously_expression, ``Module.reduce_expression]
+      ++ reduceStripComposite
 
 open Lean Elab Tactic in
 /-- Discharges one component of the callee tuple in `procApply`: `c.reduce = m.expression`, where
@@ -899,9 +917,8 @@ the point of the rest. -/
 def moduleCallee : TacticM Unit := do
   (do evalTactic (← `(tactic| rfl))) <|> do
     simpOnlyConsts
-      #[``Module.cast, ``Module.cast', ``Module.fst', ``Module.snd',
-        ``ModuleExpression.toModule, ``Module.reduce_expression,
-        ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+      (#[``Module.cast, ``Module.cast', ``Module.fst', ``Module.snd',
+         ``ModuleExpression.toModule, ``Module.reduce_expression] ++ reduceStripInner)
       (extraSets := #[← moduleAccessorTheorems])
 
 open Lean Elab Tactic in
@@ -946,20 +963,11 @@ The `_`/`?_` placeholders and the dot-notation (`.unit`, `.proc`) have to stay i
 they are resolved from the expected type. -/
 def procApply (x : Name) : TacticM Unit := do
   applyConst ``Module.ext
-  simpOnlyConsts #[← resolveHere x,
-    ``Module.app, ``Module.app', ``Module.pair, ``Module.pair',
-    ``Module.fst, ``Module.fst', ``Module.snd, ``Module.snd',
-    ``Module.moduleTypeRep, ``ModuleExpression.toModule,
-    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
-    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
-    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  simpOnlyConsts (moduleUnfoldStep (← resolveHere x))
   repeatTac <| reduceSimp <|> simpOnlyConsts
-    #[``Module.substituteSimultaneously_expression, ``Module.rename_expression,
-      ``Module.reduce_expression, ``Module.proc, ``Module.toModule_expression,
-      ``ModuleExpression.reduce_proc,
-      ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
-      ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
-      ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+    (#[``Module.substituteSimultaneously_expression, ``Module.rename_expression,
+       ``Module.reduce_expression, ``Module.proc, ``Module.toModule_expression,
+       ``ModuleExpression.reduce_proc] ++ reduceStripComposite)
   evalTactic (← `(tactic|
     refine $(mkIdent ``Module.reduce_app_procWithHoles) _ _ _ ?_))
   -- the instantiation in the goal is a written-out tuple, so `toModuleExpr` computes: the
