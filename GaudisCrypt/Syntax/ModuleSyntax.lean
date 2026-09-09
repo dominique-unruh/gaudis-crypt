@@ -419,9 +419,31 @@ def applyConst (c : Name) : TacticM Unit := withMainContext do
   Term.synthesizeSyntheticMVarsNoPostponing
   replaceMainGoal gs
 
-/-- `try tac`, which is `first | tac | skip`. -/
+/-- `try tac`, which is `first | tac | skip`.
+
+The `first | t₁ | … | tₙ` these scripts use is spelled `t₁ <|> … <|> tₙ` below: that is what
+`Elab.Tactic.evalFirst` chains its alternatives with, and `TacticM`'s `MonadExcept` instance is the
+backtracking one (`Tactic.tryCatchRestore`), so a failed alternative is rolled back. -/
 def tryTac (tac : Lean.Elab.Tactic.TacticM Unit) : Lean.Elab.Tactic.TacticM Unit :=
   tac <|> pure ()
+
+open Lean Elab Tactic in
+/-- `repeat tac`: run `tac` on the main goal until it fails, rolling the failing attempt back.
+The loop `Elab.Tactic.evalRepeat` runs, including its `withoutRecover`. -/
+def repeatTac (tac : TacticM Unit) : TacticM Unit :=
+  withoutRecover do
+    while true do
+      try tac
+      catch _ => break
+
+open Lean Elab Tactic Meta in
+/-- `repeat' tac`: apply `tac` to every goal, recursively to the subgoals it produces, until it
+fails on all of them.  `Elab.Tactic.evalRepeat'` is `Meta.repeat'` over the goal list with `tac`
+run on one goal at a time, which is what this is. -/
+def repeatAllTac (tac : TacticM Unit) : TacticM Unit := do
+  let step (g : MVarId) : TacticM (List MVarId) := do
+    setGoals [g]; tac; getGoals
+  setGoals (← Meta.repeat' step (← getGoals))
 
 open Lean Elab Tactic Meta in
 /-- `simp only [c₁, …, cₙ]` on the main goal, as a `TacticM` function, with the constants given as
@@ -913,59 +935,52 @@ one `.abs` per parameter it uses.
 
 A `TacticM` function, not a `syntax`/`macro_rules` pair, so it adds nothing to the tactic grammar;
 `X.f` comes in as a `Name`, since the only caller is `elabProcApplySimp`, which reaches this
-through `run_tac`.  Everything up to the last step is one quotation run via `evalTactic`.  The last
-step cannot be, because its `first` alternatives end in `moduleCallee`, which is no longer a tactic
-keyword: the alternation is spelled with `<|>` (what `first` itself expands to) and the `repeat'`
-with `Meta.repeat'` (what `repeat'` itself is), so the semantics are unchanged. -/
+through `run_tac`.
+
+`exact`, `refine` and `rw` are the steps that stay quotations, for the reason `rfl` does in
+`moduleCallee`: reproducing them means reproducing elaboration against an expected type, postponed
+synthetic holes, and `rw`'s motive — where a hand-written copy can silently drift from the tactic.
+What does *not* stay syntax is any name of ours: every lemma below is spliced in from a
+`` `` ``-literal, so a rename is an error here rather than a proof that stops working downstream.
+The `_`/`?_` placeholders and the dot-notation (`.unit`, `.proc`) have to stay in the quotation, as
+they are resolved from the expected type. -/
 def procApply (x : Name) : TacticM Unit := do
-  let x := mkIdent x
+  applyConst ``Module.ext
+  simpOnlyConsts #[← resolveHere x,
+    ``Module.app, ``Module.app', ``Module.pair, ``Module.pair',
+    ``Module.fst, ``Module.fst', ``Module.snd, ``Module.snd',
+    ``Module.moduleTypeRep, ``ModuleExpression.toModule,
+    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
+    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
+    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  repeatTac <| reduceSimp <|> simpOnlyConsts
+    #[``Module.substituteSimultaneously_expression, ``Module.rename_expression,
+      ``Module.reduce_expression, ``Module.proc, ``Module.toModule_expression,
+      ``ModuleExpression.reduce_proc,
+      ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
+      ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
+      ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
   evalTactic (← `(tactic|
-        (apply GaudisCrypt.Module.ext
-         simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
-           GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
-           GaudisCrypt.Module.fst, GaudisCrypt.Module.fst',
-           GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
-           GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
-           GaudisCrypt.ModuleExpression.reduce_app_left,
-           GaudisCrypt.ModuleExpression.reduce_app_right,
-           GaudisCrypt.ModuleExpression.reduce_pair_left,
-           GaudisCrypt.ModuleExpression.reduce_pair_right,
-           GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner]
-         repeat (first
-           | reduce_simp
-           | simp only [GaudisCrypt.Module.substituteSimultaneously_expression,
-               GaudisCrypt.Module.rename_expression, GaudisCrypt.Module.reduce_expression,
-               GaudisCrypt.Module.proc, GaudisCrypt.Module.toModule_expression,
-               GaudisCrypt.ModuleExpression.reduce_proc,
-               GaudisCrypt.ModuleExpression.reduce_app_left,
-               GaudisCrypt.ModuleExpression.reduce_app_right,
-               GaudisCrypt.ModuleExpression.reduce_pair_left,
-               GaudisCrypt.ModuleExpression.reduce_pair_right,
-               GaudisCrypt.ModuleExpression.reduce_fst_inner,
-               GaudisCrypt.ModuleExpression.reduce_snd_inner])
-         refine GaudisCrypt.Module.reduce_app_procWithHoles _ _ _ ?_
-         -- the instantiation in the goal is a written-out tuple, so `toModuleExpr` computes: the
-         -- right-hand side becomes a plain expression pair, peeled component by component with
-         -- `Module.reduce_pair_of` and each component discharged by `moduleCallee`
-         simp only [GaudisCrypt.HoleSigs.Instantiation.toModuleExpr])))
-  -- the alternatives that need no `moduleCallee`, as one quotation
+    refine $(mkIdent ``Module.reduce_app_procWithHoles) _ _ _ ?_))
+  -- the instantiation in the goal is a written-out tuple, so `toModuleExpr` computes: the
+  -- right-hand side becomes a plain expression pair, peeled component by component with
+  -- `Module.reduce_pair_of` and each component discharged by `moduleCallee`
+  simpOnlyConsts #[``HoleSigs.Instantiation.toModuleExpr]
+  -- the alternatives that need no `moduleCallee`
   let peel : TacticM Unit := do
     evalTactic (← `(tactic|
         (first
-          | exact GaudisCrypt.ModuleExpression.reduce_of_normal .unit
-          | exact GaudisCrypt.ModuleExpression.Normal.unit
-          | exact GaudisCrypt.ModuleExpression.Normal.proc
-          | refine GaudisCrypt.ModuleExpression.Normal.pair ?_ ?_
-          | refine GaudisCrypt.Module.reduce_pair_of .proc ?_ ?_ ?_
+          | exact $(mkIdent ``ModuleExpression.reduce_of_normal) .unit
+          | exact $(mkIdent ``ModuleExpression.Normal.unit)
+          | exact $(mkIdent ``ModuleExpression.Normal.proc)
+          | refine $(mkIdent ``ModuleExpression.Normal.pair) ?_ ?_
+          | refine $(mkIdent ``Module.reduce_pair_of) .proc ?_ ?_ ?_
           -- the component goal is `c.reduce = .proc m.procedure`, while `moduleCallee` proves
           -- `c.reduce = m.expression`; `procedure_spec` is the step between
-          | rw [← GaudisCrypt.Module.procedure_spec])))
-  let spec : TacticM Unit := evalTactic (← `(tactic| rw [← GaudisCrypt.Module.procedure_spec]))
-  let step : TacticM Unit := peel <|> (do spec; moduleCallee) <|> moduleCallee
-  let stepAt (g : MVarId) : TacticM (List MVarId) := do
-    setGoals [g]; step; getGoals
-  setGoals (← Meta.repeat' stepAt (← getGoals))
+          | rw [← $(mkIdent ``Module.procedure_spec)])))
+  let spec : TacticM Unit := do
+    evalTactic (← `(tactic| rw [← $(mkIdent ``Module.procedure_spec)]))
+  repeatAllTac <| peel <|> (do spec; moduleCallee) <|> moduleCallee
 
 end GaudisCrypt
 
