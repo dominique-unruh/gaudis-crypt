@@ -402,6 +402,49 @@ end GaudisCrypt.ModuleDecl
 
 namespace GaudisCrypt
 
+open Lean Elab Tactic Meta in
+/-- `intro _`: introduce one hypothesis under an inaccessible name.  Same step
+`Elab.Tactic.evalIntro` takes for a `_` argument (`MVarId.intro `_`). -/
+def introAnonymous : TacticM Unit :=
+  liftMetaTactic fun g => return [(← g.intro `_).2]
+
+open Lean Elab Tactic Meta in
+/-- `simp only [c₁, …, cₙ]` on the main goal, as a `TacticM` function, with the constants given as
+`Name`s instead of as syntax — so that a rename of one of them is a compile error here rather than
+a proof that stops working somewhere downstream.
+
+Assembled the way `Elab.Tactic.mkSimpContext` assembles a `simp only`: the theorem set starts from
+`simpOnlyBuiltins` (`eq_self`, `iff_self`) and nothing else, there are no simprocs, and each
+argument is added as a rewrite rule or as a definition to unfold according to whether its type is a
+`Prop` — the same split `Elab.Tactic.elabDeclToUnfoldOrTheorem` makes.  `extraSets` are whole simp
+sets (`simp only [module_accessor]`), which `simp only` keeps in their own slots of the theorem
+array rather than merging into the argument set.
+
+Failure on a goal it does not change is `Simp.Config.failIfUnchanged`, on by default and left that
+way: the `try`s and `first`s around these scripts depend on it. -/
+def simpOnlyConsts (names : Array Name) (extraSets : Array SimpTheorems := #[]) : TacticM Unit := do
+  let mvarId ← getMainGoal
+  mvarId.withContext do
+    let mut thms ← simpOnlyBuiltins.foldlM (·.addConst ·) ({} : SimpTheorems)
+    for n in names do
+      if (← isProp (← getConstVal n).type) then
+        thms ← thms.addConst n
+      else
+        thms ← thms.addDeclToUnfold n
+    let ctx ← Simp.mkContext (simpTheorems := #[thms] ++ extraSets)
+      (congrTheorems := ← getSimpCongrTheorems)
+    match (← simpGoal mvarId ctx (simprocs := #[])).1 with
+    | none => replaceMainGoal []
+    | some (_, mvarId) => replaceMainGoal [mvarId]
+
+open Lean Elab Tactic in
+/-- The accessor `moduletype` hands these tactics is spelled relative to the namespace the
+declaration sits in (`TestModule.f` inside `namespace Experiment`), so it has to be resolved where
+the proof runs, exactly as the ident spliced into a `simp only` used to be.  The fixed lemma names
+around it need none of this: they are `` `` ``-literals, resolved when this file compiles. -/
+def resolveHere (n : Name) : TacticM Name :=
+  realizeGlobalConstNoOverload (mkIdent n)
+
 open Lean Elab Tactic in
 /-- Proves the `apply_simp` field of the `X.f.utilities : ModuleTypeUtilities …` that `moduletype`
 emits for each field — `∀ m, Module.app accessorModule m = X.f m`, relating the accessor *as a
@@ -450,16 +493,15 @@ is for the single-field case, where the chain is empty and the two sides differ 
 outermost `.reduce`.
 
 A `TacticM` function, like `accessorApply`, and reached the same way — `moduletype`'s elaborator
-passes the accessor's `Name` and invokes it with `run_tac`. -/
+passes the accessor's `Name` and invokes it with `run_tac`.  No tactic quotation: the script is
+`intro _` followed by one `simp only`, both spelled against the `Meta` API, so every lemma it names
+is checked when this file compiles. -/
 def accessorExpression (acc : Name) : TacticM Unit := do
-  let acc := mkIdent acc
-  evalTactic (← `(tactic|
-        (intro _
-         simp only [$acc:ident, GaudisCrypt.Module.cast,
-           GaudisCrypt.Module.fst', GaudisCrypt.Module.snd',
-           GaudisCrypt.ModuleExpression.toModule, GaudisCrypt.Module.reduce_expression,
-           GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner])))
+  introAnonymous
+  simpOnlyConsts #[← resolveHere acc,
+    ``Module.cast, ``Module.fst', ``Module.snd',
+    ``ModuleExpression.toModule, ``Module.reduce_expression,
+    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
 
 end GaudisCrypt
 
