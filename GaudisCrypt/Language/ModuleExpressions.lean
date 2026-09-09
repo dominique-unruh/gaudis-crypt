@@ -2006,10 +2006,6 @@ elab "normalmodule!" : tactic => do
 
 /-! ## `reduce_simp` -/
 
-open Lean Elab Tactic Meta in
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "reduce_simp_head" : tactic
-
 private lemma reduce_eq_guard_aux1 m n : ModuleExpression.reduce m = ModuleExpression.reduce n → ModuleExpression.reduce m = ModuleExpression.reduce n := by intro; assumption
 private lemma reduce_eq_guard_aux2 m n : ModuleExpression.reduce m = n →
     ModuleExpression.reduce m = ModuleExpression.reduce n := by
@@ -2018,10 +2014,9 @@ private lemma reduce_eq_guard_aux2 m n : ModuleExpression.reduce m = n →
   rw [← h, ModuleExpression.reduce_idempotent]
 
 
-/--
-
-`reduce_simp_head` takes a goal of the form `reduce M = reduce ?m` or `reduce M = ?m`
-and solves it by instantiating the rhs as `reduce M'`
+open Lean Elab Tactic Meta in
+/-- `reduceSimpHead` (surfaced as the `reduce_simp_head` tactic) takes a goal of the form
+`reduce M = reduce ?m` or `reduce M = ?m` and solves it by instantiating the rhs as `reduce M'`
 where M' is the result of applying a single reduction step.
 
 Rules of the form `reduce X = reduce Y` or `reduce X = Y`
@@ -2033,10 +2028,14 @@ it never uses `reduce_of_normal`, so it neither succeeds without reducing nor le
 around a component it did not touch.  Collapsing the `reduce` of a normal term is the second rule
 of `reduceSimpProcImpl` instead.
 
+A `TacticM` function rather than a `syntax`/`macro_rules` pair, so it doesn't add a recursive
+production to the tactic grammar. The head-step alternatives stay a `first | …` quotation run
+via `evalTactic`; the congruence rules — the only recursive part — are tried in order by hand,
+each followed by a recursive call, with backtracking between them.
 -/
-macro_rules
-  | `(tactic| reduce_simp_head) =>
-    `(tactic|
+private partial def reduceSimpHead : TacticM Unit := do
+  let headStep : TacticM Unit := do
+    evalTactic (← `(tactic|
         (first
          | (apply ModuleExpression.reduce_beta;
             try simp only [ModuleExpression.substitute, ModuleExpression.substituteSimultaneously,
@@ -2047,25 +2046,40 @@ macro_rules
          | (apply ModuleExpression.reduce_multiStepReduction; assumption)
          | (apply ModuleExpression.reduce_convertible; assumption)
          | (apply reduce_eq_guard_aux1; assumption)
-         | (apply reduce_eq_guard_aux2; assumption)
-         | (apply ModuleExpression.reduce_pair_cong_left; reduce_simp_head) -- pair-left
-         | (apply ModuleExpression.reduce_pair_cong_right; reduce_simp_head) -- pair-right
-         | (apply ModuleExpression.reduce_app_cong_left; reduce_simp_head) -- app-left
-         | (apply ModuleExpression.reduce_app_cong_right; reduce_simp_head) -- app-right
-         | (apply ModuleExpression.reduce_abs_cong; reduce_simp_head)
-         | (apply ModuleExpression.reduce_fst_cong; reduce_simp_head)
-         | (apply ModuleExpression.reduce_snd_cong; reduce_simp_head)))
+         | (apply reduce_eq_guard_aux2; assumption))))
+  let congRules : List Name :=
+    [``ModuleExpression.reduce_pair_cong_left, ``ModuleExpression.reduce_pair_cong_right,
+     ``ModuleExpression.reduce_app_cong_left, ``ModuleExpression.reduce_app_cong_right,
+     ``ModuleExpression.reduce_abs_cong, ``ModuleExpression.reduce_fst_cong,
+     ``ModuleExpression.reduce_snd_cong]
+  let congStep : TacticM Unit := do
+    let saved ← Elab.Tactic.saveState
+    for rule in congRules do
+      try
+        evalTactic (← `(tactic| apply $(mkIdent rule)))
+        reduceSimpHead
+        return
+      catch _ =>
+        saved.restore
+    throwError "reduce_simp_head: no reduction step applies"
+  try headStep
+  catch _ => congStep
+
+/-- Surface `reduceSimpHead` as a tactic (a few smoke tests invoke `reduce_simp_head` directly).
+    The implementation lives in `reduceSimpHead`. -/
+elab "reduce_simp_head" : tactic => reduceSimpHead
 
 
 
 open Lean Meta Simp in
 /-- Solve a fresh `e = ?m` goal with `tac` and report the outcome as a `Simp.Result`, or `none` if
     `tac` fails or leaves the goal open.  `?m`, which `tac` assigns, is the replacement term. -/
-private def reduceSimpRun (e : Lean.Expr) (tac : TSyntax `tactic) : SimpM (Option Simp.Result) := do
+private def reduceSimpRun (e : Lean.Expr) (tac : Elab.Tactic.TacticM Unit) :
+    SimpM (Option Simp.Result) := do
   try
     let mTarget ← mkFreshExprMVar (← inferType e)
     let goalMVar ← mkFreshExprMVar (← mkEq e mTarget)
-    let remaining ← Elab.Tactic.run goalMVar.mvarId! (Elab.Tactic.evalTactic tac) |>.run'
+    let remaining ← Elab.Tactic.run goalMVar.mvarId! tac |>.run'
     if !remaining.isEmpty then
       return none
     return some { expr := ← instantiateMVars mTarget, proof? := some (← instantiateMVars goalMVar) }
@@ -2085,10 +2099,12 @@ open Lean Meta Simp in
     no matching hypothesis, whose normality is therefore not provable either) is left as it is
     rather than treated as an error. -/
 private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
-  if let some r ← reduceSimpRun e (← `(tactic| reduce_simp_head)) then
+  if let some r ← reduceSimpRun e reduceSimpHead then
     return .visit r
-  if let some r ← reduceSimpRun e
-      (← `(tactic| (apply ModuleExpression.reduce_of_normal; normalmodule))) then
+  let collapseNormal : Elab.Tactic.TacticM Unit := do
+    Elab.Tactic.evalTactic
+      (← `(tactic| (apply ModuleExpression.reduce_of_normal; normalmodule)))
+  if let some r ← reduceSimpRun e collapseNormal then
     return .visit r
   return .continue
 
