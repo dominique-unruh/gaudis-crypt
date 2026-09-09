@@ -79,13 +79,53 @@ end GaudisCrypt
 
 /-! ## Reporting what a command declared
 
-`moduletype` and `module` both emit a whole batch of declarations from one command.  `logDeclared`
-is the shared way of telling the user what they were: an info message listing every generated name
-as a link that inserts `#check <name>` after the command.  It lives here, ahead of both commands,
-because `moduletype` (below) is the first user. -/
+`moduletype` and `module` both emit a whole batch of declarations from one command.  Each of them
+is described by a `DeclInfo`, which carries the two things a user can be told about a generated
+name: a one-line `blurb`, listed by `logDeclared` in an info message right after the command, and
+a full `doc`, attached by `docDeclared` as the declaration's docstring so that hovering over
+`X.f.apply_simp` explains what that lemma is.  Both live here, ahead of both commands, because
+`moduletype` (below) is the first user. -/
 namespace GaudisCrypt.ModuleDecl
 
 open Lean Elab Command
+
+/-- One declaration a `module`/`moduletype` command generated, and what to say about it: `blurb`
+is the one-line description `logDeclared` puts in the `Defined:` listing, `doc` the Markdown
+docstring `docDeclared` attaches to the declaration itself.
+
+`name` is the *short* name, as the command spelled it — it is resolved against the current
+namespace, which is where the commands put what they declare. -/
+structure DeclInfo where
+  /-- The generated declaration's name, as the command spelled it (short, unqualified by the
+  current namespace). -/
+  name : Name
+  /-- One line, for the `Defined:` listing: what this declaration is. -/
+  blurb : String
+  /-- The docstring to attach, in Markdown: what this declaration is *for*, spelled out. -/
+  doc : String
+
+/-- The full name of a generated declaration: `declared` holds short names, and the commands put
+what they declare in the current namespace.  `none` if no such constant exists — a `moduletype`
+field or a `proc` whose declaration failed leaves gaps. -/
+private def resolveDeclared (n : Name) : CommandElabM (Option Name) := do
+  let env ← getEnv
+  let qualified := (← getCurrNamespace) ++ n
+  if env.contains qualified then return some qualified
+  if env.contains n then return some n
+  return none
+
+/-- Attach each generated declaration's docstring, so that hovering over it in the editor — and
+doc-gen4's API docs — explain what the command made it for.  The declarations these commands emit
+have no source text of their own to carry a doc comment, so the docstring is put into the
+environment directly (`addDocStringCore`, i.e. Markdown, as if it had been written as `/-- … -/`
+in front of the declaration).
+
+Silently skips a name that does not resolve: a batch is reported even when a field or a procedure
+failed to elaborate. -/
+def docDeclared (declared : Array DeclInfo) : CommandElabM Unit := do
+  for d in declared do
+    if let some n ← resolveDeclared d.name then
+      addDocStringCore n d.doc
 
 /-- A link that inserts `suggestion` over `range` and then moves the cursor to `newSelection`.
 Same idea as `Lean.Meta.Hint.textInsertionWidget` — whose link text is fixed to `[apply]` and
@@ -123,12 +163,13 @@ Defined:
   X.g.procedure — body of proc g
 ```
 where each *name* is a link that inserts `#check <name>` right after the command and puts the
-cursor at the end of the inserted line (the same edit is also offered as a code action).
-`declared` pairs each name with a short description of what it is.
+cursor at the end of the inserted line (the same edit is also offered as a code action).  Each
+`DeclInfo`'s `blurb` is the description shown after the name; its `doc` is what `docDeclared`
+attaches to the declaration, and is not repeated here.
 
 A generated lemma that carries `@[simp]` is shown with that attribute in front of its name, so the
 listing says not only what exists but what will fire on its own. -/
-def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElabM Unit := do
+def logDeclared (ref : Syntax) (declared : Array DeclInfo) : CommandElabM Unit := do
   if declared.isEmpty then return
   -- read off the attribute rather than being told about it: the commands apply `@[simp]` with the
   -- declaration, so the extension's state is the one thing that cannot drift from what was emitted.
@@ -144,7 +185,7 @@ def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElab
   let range : Lean.Syntax.Range := ⟨tailPos, tailPos⟩
   let lspRange := (← getFileMap).utf8RangeToLspRange range
   let mut msg : MessageData := "Defined:"
-  for (n, descr) in declared do
+  for ⟨n, blurb, _⟩ in declared do
     let line := s!"#check {n}"
     let newText := "\n" ++ line
     let title := s!"Insert `{line}`"
@@ -168,7 +209,7 @@ def logDeclared (ref : Syntax) (declared : Array (Name × String)) : CommandElab
             linkText: $(n.toString) } }
       n.toString
     let attrs := if isSimp n then "@[simp] " else ""
-    msg := msg ++ m!"\n• {attrs}{link} — {descr}"
+    msg := msg ++ m!"\n• {attrs}{link} — {blurb}"
   msg := msg ++ "\n\n(Click to insert `#check symbolname`.)"
   logInfoAt ref msg
 
@@ -734,23 +775,75 @@ elab_rules : command
       let dmLemmas : Array Ident := baseLemmas.push (mkIdent `Module.pair_fst_snd')
       elabCommand (← `(@[simp] theorem $(mkIdent (nb.str "destruct_mk")) $bs* ($mId : $nmR) :
           $mkR ($structFnR $mId) = $mId := by simp [$[$dmLemmas:ident],*]))
-      -- (9) report the batch, the same way the `module` command does
-      let mut declared : Array (Name × String) :=
-        #[(moduleTypeId.getId, "the underlying ModuleTypeRep"),
-          (nb, "the module type itself"),
-          (instId.getId, "its IsModule instance"),
-          (structId.getId, "the record of its fields")]
+      -- (9) report the batch, the same way the `module` command does: a docstring on every
+      -- generated declaration, and the `Defined:` listing
+      let accList := ", ".intercalate (accIds.toList.map fun a => s!"`{a.getId}`")
+      let mkSimpList := ", ".intercalate (accIds.toList.map fun a => s!"`{a.getId}.mk_simp`")
+      let fieldList := ", ".intercalate (fns.toList.map fun f => s!"`{f.getId}`")
+      let mut declared : Array DeclInfo :=
+        #[⟨moduleTypeId.getId, "the underlying ModuleTypeRep",
+            s!"The `ModuleTypeRep` underlying `{nb}`, the module type declared by `moduletype \
+              {nb}`: the right-nested product of its {n} field types, in declaration order.\n\n\
+              `{nb}` is by definition `Module {nb}.typeRep`."⟩,
+          ⟨nb, "the module type itself",
+            s!"The module type declared by `moduletype {nb}`, with fields {fieldList}: the type \
+              `Module {nb}.typeRep` of modules that are a right-nested tuple of the field types.\n\
+              \nBuild one from a record of its fields with `{nb}.mk`, read a single field off one \
+              with the accessors {accList}, and get the whole record back with \
+              `{nb}.structure`."⟩,
+          ⟨instId.getId, "its IsModule instance",
+            s!"The `IsModule {nb}` instance: `{nb}` is a module type, with representation \
+              `{nb}.typeRep`.\n\nIt is what lets the *name* `{nb}` stand where a module type is \
+              expected — in `Module.Arr`/`Module.Prod` (`→ₘ`/`×ₘ`), say — which the underlying \
+              `Module {nb}.typeRep` would do on its own but `{nb}`, a plain (non-reducible) `def`, \
+              would not."⟩,
+          ⟨structId.getId, "the record of its fields",
+            s!"The record of the fields of a module of type `{nb}`: the fields {fieldList}, one \
+              per `moduletype` field, each of that field's own module type.\n\n`{nb}.mk` turns \
+              such a record into a `{nb}`, `{nb}.structure` turns a `{nb}` back into one."⟩]
       for i in [0:n] do
-        declared := declared.push (accIds[i]!.getId, s!"the field {fns[i]!.getId}")
-        declared := declared.push (utilIds[i]!.getId,
-          s!"that field as a module, and the lemmas about it")
-        declared := declared.push (mkSimpIds[i]!.getId,
-          s!"that field of a module built by mk")
+        let acc := accIds[i]!.getId
+        let fn := fns[i]!.getId
+        declared := declared.push ⟨acc, s!"the field {fn}",
+          s!"The field `{fn}` of a module of type `{nb}`: the projection onto component {i} of \
+            the right-nested tuple `{nb}.typeRep`, as a chain of `Module.fst'`/`Module.snd'`. \
+            Tagged `@[module_accessor]`.\n\n`{acc}.mk_simp` reads this field back off a module \
+            built by `{nb}.mk`; `{acc}.utilities` has the accessor as a module, and the lemmas \
+            about it."⟩
+        declared := declared.push ⟨utilIds[i]!.getId,
+          s!"that field as a module, and the lemmas about it",
+          s!"What is derivable about the accessor `{acc}`, bundled into one \
+            `ModuleTypeUtilities` (one name per field in the namespace, rather than one per \
+            fact):\n\n\
+            * `{acc}.utilities.accessorModule : {nb} →ₘ …` — the accessor as a *module*, a \
+            projection being a module morphism;\n\
+            * `{acc}.utilities.apply_simp` — `Module.app {acc}.utilities.accessorModule m = \
+            {acc} m`: applying that module is the accessor;\n\
+            * `{acc}.utilities.expression_eq` — the same at the level of expressions: \
+            `({acc} m).expression = ({acc}.utilities.proj m.expression).reduce`."⟩
+        declared := declared.push ⟨mkSimpIds[i]!.getId,
+          s!"that field of a module built by mk",
+          s!"`@[simp]`: reading the field `{fn}` back off a module built from a record — \
+            `{acc} ({nb}.mk r) = r.{fn}`.\n\nIt is what carries the right-hand side of an \
+            `X.apply_simp` (which is an `{nb}.mk`) on to the field the caller actually asked \
+            for, so that `simp` chains `X.apply_simp` into `X.{fn}.apply_simp`."⟩
       declared := declared ++
-        #[(mkId.getId, "the module built from a record"),
-          (structFn.getId, "the record of a module's fields"),
-          (nb.str "mk_destruct", "round-trip: destructing a built module"),
-          (nb.str "destruct_mk", "round-trip: rebuilding a destructed module")]
+        #[⟨mkId.getId, "the module built from a record",
+            s!"Builds a module of type `{nb}` from the record `{nb}.Structure` of its fields, as \
+              a right-nested `Module.pair'`.  `@[reducible]`.\n\nInverse of `{nb}.structure` \
+              (`{nb}.mk_destruct`, `{nb}.destruct_mk`); a single field of a module built this way \
+              is read back by the `@[simp]` lemmas {mkSimpList}."⟩,
+          ⟨structFn.getId, "the record of a module's fields",
+            s!"The record of a module's fields: `{nb}.structure m` is `{nb}.Structure.mk` applied \
+              to {accList} of `m`.\n\nInverse of `{nb}.mk` (`{nb}.mk_destruct`, \
+              `{nb}.destruct_mk`)."⟩,
+          ⟨nb.str "mk_destruct", "round-trip: destructing a built module",
+            s!"`@[simp]`: `{nb}.structure ({nb}.mk r) = r` — destructing a module built from a \
+              record gives that record back."⟩,
+          ⟨nb.str "destruct_mk", "round-trip: rebuilding a destructed module",
+            s!"`@[simp]`: `{nb}.mk ({nb}.structure m) = m` — rebuilding a module from its own \
+              fields gives that module back."⟩]
+      GaudisCrypt.ModuleDecl.docDeclared declared
       GaudisCrypt.ModuleDecl.logDeclared (← getRef) declared
 
 /-! ## Module definitions — `module X … using (…) : T { proc f (…) : R { … }; … }`
@@ -1579,7 +1672,7 @@ With a parameter list `X` also gets the `@[simp]` lemma `X.apply_simp` for apply
 Declares nothing (and returns `#[]`) if the declaration has no procedures.  The result lists what
 was declared, for `logDeclared`. -/
 def elabModule (nm : Ident) (P : LeanParams) (params? : Option (Array (Ident × Term)))
-    (mt? : Option Term) (procs : Array ProcResult) : CommandElabM (Array (Name × String)) := do
+    (mt? : Option Term) (procs : Array ProcResult) : CommandElabM (Array DeclInfo) := do
   if procs.isEmpty then return #[]
   let bs := P.binders
   let paramBs := params?.getD #[]
@@ -1595,10 +1688,29 @@ def elabModule (nm : Ident) (P : LeanParams) (params? : Option (Array (Ident × 
   let ty ← match params? with
     | none => pure mt
     | some _ => `(GaudisCrypt.Module.Arr $paramProd $mt)
+  -- what the docstrings of `X` and `X.apply_simp` say about the declaration
+  let procList := ", ".intercalate (procs.toList.map fun r => s!"`{nm.getId ++ r.fn.getId}`")
+  let applyList := ", ".intercalate
+    (procs.toList.map fun r => s!"`{nm.getId ++ r.fn.getId}.apply_simp`")
+  let names := ", ".intercalate (paramBs.toList.map fun b => s!"`{b.1.getId}`")
+  let paramList :=
+    if n == 0 then "its empty parameter list"
+    else if n == 1 then s!"its single parameter {names}"
+    else s!"its {n} parameters {names}"
+  -- `M`, the module type of the result: the one declared, or the anonymous product of the
+  -- procedures' own types when the declaration named none
+  let resultType :=
+    if mt?.isSome then "with `M` the module type it was declared with"
+    else "with `M` the anonymous product of the procedures' own types, the declaration naming no \
+      module type"
   if params?.isNone then
     let body ← mkRecord mkId? procs (← procs.mapM fun r => P.ref (procModId nm r))
     elabCommand (← `(command| noncomputable def $nm:ident $bs* : $ty := $body))
-    return #[(nm.getId, "the module itself")]
+    return #[⟨nm.getId, "the module itself",
+      s!"The module declared by `module {nm.getId}`: the record of its procedures {procList}.\n\n\
+        The declaration has no parameter list, so no procedure of it can call one either and the \
+        module is not a function — it is the plain record itself, and there is no \
+        `{nm.getId}.apply_simp` to apply it with."⟩]
   -- the parameter at position `i` is the `i`-th component of the argument tuple `.var 0`
   let subst ← (Array.range n).mapM fun i => do
     let mut e ← `(GaudisCrypt.ModuleExpression.var 0)
@@ -1616,7 +1728,26 @@ def elabModule (nm : Ident) (P : LeanParams) (params? : Option (Array (Ident × 
   elabCommand (← `(command| noncomputable def $nm:ident $bs* : $ty :=
     GaudisCrypt.ModuleExpression.toModule (m := $body)))
   let thmId ← elabApplySimp nm P paramBs mkId? procs
-  return #[(nm.getId, "the module itself"), (thmId.getId, "applying it to its parameters")]
+  let abstraction :=
+    if n == 0 then
+      s!"abstracted over {paramList}: `Module.Arr Module.Unit M`, {resultType}, so that the only \
+        argument it takes is the empty tuple"
+    else
+      s!"abstracted over {paramList}, which it takes as one right-nested tuple: `Module.Arr \
+        (T₁ ×ₘ (… ×ₘ Tₙ)) M`, {resultType}"
+  let applied :=
+    if n == 0 then s!"applying `{nm.getId}` to the empty tuple"
+    else s!"applying `{nm.getId}` to a tuple of {paramList}"
+  return #[⟨nm.getId, "the module itself",
+      s!"The module declared by `module {nm.getId}`, {abstraction}.\n\nApplied to such a tuple it \
+        is the record of its procedures {procList}, each applied to the parameters that procedure \
+        itself uses — which is what the `@[simp]` lemma `{thmId.getId}` says."⟩,
+    ⟨thmId.getId, "applying it to its parameters",
+      s!"`@[simp]`: {applied} — the record of its \
+        procedures {procList}, each applied to the parameters it uses.\n\nThis is the lemma that \
+        unfolds a module *use*: `simp` rewrites with it, then with the field lemmas of the module \
+        type (`N.f.mk_simp`) to get at the one procedure the goal is about, and then with \
+        {applyList} to fill that procedure's holes."⟩]
 
 end GaudisCrypt.ModuleDecl
 
@@ -1634,29 +1765,66 @@ elab_rules : command
       | `(proc_binder| $id:ident $ids:ident* : $ty:term) => pure ((#[id] ++ ids).map (·, ty))
       | _ => throwUnsupportedSyntax).flatten
     let paramBs := paramBs?.getD #[]
-    let mut declared : Array (Name × String) := #[]
+    let mut declared : Array DeclInfo := #[]
     let mut results : Array ProcResult := #[]
     for p in procs do
       let some r ← elabProcedure nm P paramBs p | continue
       results := results.push r
+      let fn := r.fn.getId
+      let used := ", ".intercalate (r.usedPos.toList.map fun i => s!"`{paramBs[i]!.1.getId}`")
+      let holes :=
+        if r.callees.isEmpty then "it calls no module parameter, so it has no holes"
+        else if r.callees.size == 1 then
+          s!"the one call it makes to a module parameter ({used}) is its single hole"
+        else s!"the {r.callees.size} calls it makes to module parameters ({used}) are its holes, \
+          in the order the body makes them"
       -- the short names: the `#check`s are inserted right after the command, in the same namespace
-      declared := declared.push (r.declId.getId, s!"body of proc {r.fn.getId}")
-      declared := declared.push (r.instThmId.getId,
-        s!"instantiating the holes of proc {r.fn.getId}")
+      declared := declared.push ⟨r.declId.getId, s!"body of proc {fn}",
+        s!"The body of `proc {fn}` of `module {nm.getId}`, as a procedure of its own: {holes}.\n\n\
+          A hole stands for a call whose callee is not known here — a module parameter is supplied \
+          only when the module is applied — so the body is a `ProcedureWithHoles`, to be \
+          instantiated (see `{r.instThmId.getId}`) rather than run.  Use `{nm.getId ++ fn}` for \
+          this procedure as a *module*."⟩
+      declared := declared.push ⟨r.instThmId.getId,
+        s!"instantiating the holes of proc {fn}",
+        s!"Instantiating the holes of `{r.declId.getId}` with a tuple `holeArgs` of procedures: \
+          the body of `proc {fn}` as written, with each hole call replaced by the matching \
+          `holeArgs.lookup` (`HoleIndex.zero` being the first hole the body declared).  True by \
+          `rfl`.\n\nDeliberately *not* `@[simp]`, unlike the other `apply_simp` lemmas: its \
+          right-hand side is the whole body written out, so letting it fire on its own would turn \
+          any goal mentioning an instantiated procedure into that body.  Inlining a procedure is a \
+          step to ask for by name (`simp [{r.instThmId.getId}]`)."⟩
       let modId ← elabProcModule nm P paramBs r
-      let used := ", ".intercalate (r.usedPos.toList.map (paramBs[·]!.1.getId.toString))
-      declared := declared.push (modId.getId,
-        if r.usedPos.isEmpty then s!"proc {r.fn.getId} as a module"
-        else s!"proc {r.fn.getId} as a module, in {used}")
+      declared := declared.push ⟨modId.getId,
+        if r.usedPos.isEmpty then s!"proc {fn} as a module"
+        else s!"proc {fn} as a module, in {used}",
+        if r.usedPos.isEmpty then
+          s!"`proc {fn}` of `module {nm.getId}` as a module: `Module.proc {r.declId.getId}`, of \
+            type `Module.Proc (procsig …)`.  It uses no module parameter, so it is not a function \
+            — `{modId.getId}.apply_simp` says exactly that."
+        else
+          s!"`proc {fn}` of `module {nm.getId}` as a module, abstracted over the module \
+            parameters it uses ({used}, in declaration order): `Module.Arr … (Module.Proc \
+            (procsig …))`.\n\nApply it with the `@[simp]` lemma `{modId.getId}.apply_simp`, which \
+            fills the holes of `{r.declId.getId}` with the callees the body called."⟩
       let procThmId ← elabProcApplySimp nm P paramBs r
-      declared := declared.push (procThmId.getId,
-        if r.usedPos.isEmpty then s!"proc {r.fn.getId} as the procedure itself"
-        else s!"applying proc {r.fn.getId} to {used}")
+      declared := declared.push ⟨procThmId.getId,
+        if r.usedPos.isEmpty then s!"proc {fn} as the procedure itself"
+        else s!"applying proc {fn} to {used}",
+        if r.usedPos.isEmpty then
+          s!"`@[simp]`: `{modId.getId} = Module.proc {r.declId.getId}` — true by definition, \
+            `proc {fn}` using no module parameter and so having no holes to fill."
+        else
+          s!"`@[simp]`: applying `{modId.getId}` to the parameters `proc {fn}` uses ({used}) is \
+            `Module.proc ({r.declId.getId}.instantiate …)` — the procedure with its holes filled \
+            by the callees they were made from, each written as it was in the body (with the \
+            arguments in place of the module parameters) and turned into a `Procedure` by \
+            `Module.Proc.procedure`."⟩
     -- `X` itself — only when every procedure made it (a missing field would not type-check)
     if results.size == procs.size then
       declared := declared ++ (← elabModule nm P paramBs? mt results)
+    docDeclared declared
     logDeclared (← getRef) declared
 
 
 -- TODO: `Defined:` info in InfoView should show `def` or `lemma` in front of the names.
--- TODO: Autogenerated lemmas should get an autogenerated docstring
