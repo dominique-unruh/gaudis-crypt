@@ -12,164 +12,14 @@ namespace GaudisCrypt
 
 variable [ProgramSpec]
 
-namespace ModuleExpression
-
-/-! ## The de Bruijn σ-calculus laws
-
-`rename` and `substituteSimultaneously` compose in the four standard ways.  The confluence proof
-needs them to push a substitution through a β-contractum. -/
-
-omit [ProgramSpec] in
-theorem liftRen_comp (ρ ρ' : Nat → Nat) : liftRen ρ' ∘ liftRen ρ = liftRen (ρ' ∘ ρ) :=
-  funext fun n => by cases n <;> rfl
-
-theorem rename_rename (ρ ρ' : Nat → Nat) (m : ModuleExpression) :
-    (m.rename ρ).rename ρ' = m.rename (ρ' ∘ ρ) := by
-  induction m generalizing ρ ρ' with
-  | proc p => rfl
-  | procHoles ne p => rfl
-  | var n => rfl
-  | app f a ihf iha => simp only [rename, ihf, iha]
-  | fst e ih => simp only [rename, ih]
-  | snd e ih => simp only [rename, ih]
-  | abs body ih => simp only [rename, ih, liftRen_comp]
-  | pair a b iha ihb => simp only [rename, iha, ihb]
-  | unit => rfl
-
-theorem liftSubst_comp_liftRen (σ : Nat → ModuleExpression) (ρ : Nat → Nat) :
-    liftSubst σ ∘ liftRen ρ = liftSubst (σ ∘ ρ) :=
-  funext fun n => by cases n <;> rfl
-
-/-- Substituting into a renamed term is substituting along the composite. -/
-theorem substituteSimultaneously_rename (ρ : Nat → Nat) (σ : Nat → ModuleExpression)
-    (m : ModuleExpression) :
-    (m.rename ρ).substituteSimultaneously σ = m.substituteSimultaneously (σ ∘ ρ) := by
-  induction m generalizing ρ σ with
-  | proc p => rfl
-  | procHoles ne p => rfl
-  | var n => rfl
-  | app f a ihf iha => simp only [rename, substituteSimultaneously, ihf, iha]
-  | fst e ih => simp only [rename, substituteSimultaneously, ih]
-  | snd e ih => simp only [rename, substituteSimultaneously, ih]
-  | abs body ih => simp only [rename, substituteSimultaneously, ih, liftSubst_comp_liftRen]
-  | pair a b iha ihb => simp only [rename, substituteSimultaneously, iha, ihb]
-  | unit => rfl
-
-theorem liftSubst_rename (σ : Nat → ModuleExpression) (ρ : Nat → Nat) :
-    liftSubst (fun k => (σ k).rename ρ) = fun n => (liftSubst σ n).rename (liftRen ρ) :=
-  funext fun n => by
-    cases n with
-    | zero => rfl
-    | succ n => simp only [liftSubst, rename_rename]; rfl
-
-/-- Renaming a substituted term is substituting along the renamed substitution. -/
-theorem rename_substituteSimultaneously (ρ : Nat → Nat) (σ : Nat → ModuleExpression)
-    (m : ModuleExpression) :
-    (m.substituteSimultaneously σ).rename ρ =
-      m.substituteSimultaneously (fun n => (σ n).rename ρ) := by
-  induction m generalizing ρ σ with
-  | proc p => rfl
-  | procHoles ne p => rfl
-  | var n => rfl
-  | app f a ihf iha => simp only [rename, substituteSimultaneously, ihf, iha]
-  | fst e ih => simp only [rename, substituteSimultaneously, ih]
-  | snd e ih => simp only [rename, substituteSimultaneously, ih]
-  | abs body ih => simp only [rename, substituteSimultaneously, ih, liftSubst_rename]
-  | pair a b iha ihb => simp only [rename, substituteSimultaneously, iha, ihb]
-  | unit => rfl
-
-theorem liftSubst_substituteSimultaneously (σ τ : Nat → ModuleExpression) :
-    liftSubst (fun k => (σ k).substituteSimultaneously τ) =
-      fun n => (liftSubst σ n).substituteSimultaneously (liftSubst τ) :=
-  funext fun n => by
-    cases n with
-    | zero => rfl
-    | succ n =>
-        simp only [liftSubst, substituteSimultaneously_rename, rename_substituteSimultaneously]
-        rfl
-
-/-- Two substitutions in a row are one substitution along the composite. -/
-theorem substituteSimultaneously_substituteSimultaneously (σ τ : Nat → ModuleExpression)
-    (m : ModuleExpression) :
-    (m.substituteSimultaneously σ).substituteSimultaneously τ =
-      m.substituteSimultaneously (fun n => (σ n).substituteSimultaneously τ) := by
-  induction m generalizing σ τ with
-  | proc p => rfl
-  | procHoles ne p => rfl
-  | var n => rfl
-  | app f a ihf iha => simp only [substituteSimultaneously, ihf, iha]
-  | fst e ih => simp only [substituteSimultaneously, ih]
-  | snd e ih => simp only [substituteSimultaneously, ih]
-  | abs body ih => simp only [substituteSimultaneously, ih, liftSubst_substituteSimultaneously]
-  | pair a b iha ihb => simp only [substituteSimultaneously, iha, ihb]
-  | unit => rfl
-
-theorem substituteSimultaneously_var (m : ModuleExpression) :
-    m.substituteSimultaneously (fun n => .var n) = m := by
-  induction m with
-  | proc p => rfl
-  | procHoles ne p => rfl
-  | var n => rfl
-  | app f a ihf iha => simp only [substituteSimultaneously, ihf, iha]
-  | fst e ih => simp only [substituteSimultaneously, ih]
-  | snd e ih => simp only [substituteSimultaneously, ih]
-  | abs body ih =>
-      simp only [substituteSimultaneously]
-      rw [show liftSubst (fun n => ModuleExpression.var n) = fun n => ModuleExpression.var n from
-        funext fun n => by cases n <;> rfl, ih]
-  | pair a b iha ihb => simp only [substituteSimultaneously, iha, ihb]
-  | unit => rfl
-
-/-- Renaming commutes with β-substitution. -/
-theorem rename_substitute (ρ : Nat → Nat) (body arg : ModuleExpression) :
-    (body.substitute arg).rename ρ = (body.rename (liftRen ρ)).substitute (arg.rename ρ) := by
-  simp only [substitute, rename_substituteSimultaneously, substituteSimultaneously_rename]
-  refine congrFun (congrArg substituteSimultaneously (funext fun n => ?_)) body
-  cases n <;> rfl
-
-/-- A simultaneous substitution commutes with β-substitution. -/
-theorem substituteSimultaneously_substitute (σ : Nat → ModuleExpression)
-    (body arg : ModuleExpression) :
-    (body.substitute arg).substituteSimultaneously σ =
-      (body.substituteSimultaneously (liftSubst σ)).substitute
-        (arg.substituteSimultaneously σ) := by
-  simp only [substitute, substituteSimultaneously_substituteSimultaneously]
-  refine congrFun (congrArg substituteSimultaneously (funext fun n => ?_)) body
-  cases n with
-  | zero => rfl
-  | succ n =>
-      have hcomp : (variableSubstitution (arg.substituteSimultaneously σ)) ∘ Nat.succ
-          = fun k => ModuleExpression.var k := funext fun _ => rfl
-      simp only [variableSubstitution, liftSubst, substituteSimultaneously_rename, hcomp,
-        substituteSimultaneously_var]
-      rfl
-
-end ModuleExpression
-
 /-! ## The argument of a δ-redex
 
-`inst.toModuleExpr` is a closed tuple of procedures: renaming and substitution leave it alone, it
-determines `inst`, and — once parallel reduction is in place — nothing reduces inside it.  Together
-these say the δ-rule has no critical pair with anything. -/
+`inst.toModuleExpr` is a closed tuple of procedures: it determines `inst`, and — once parallel
+reduction is in place — nothing reduces inside it.  Together with the renaming/substitution
+invariance proved in `ModuleExpressionBasics.lean`, these say the δ-rule has no critical pair
+with anything. -/
 
 namespace HoleSigs.Instantiation
-
-theorem toModuleExpr_rename :
-    ∀ {holes : HoleSigs} (inst : holes.Instantiation) (ρ : Nat → Nat),
-      inst.toModuleExpr.rename ρ = inst.toModuleExpr
-  | .empty,             _,    _ => rfl
-  | .cons _ .empty,     _,    _ => rfl
-  | .cons _ (.cons ..), inst, ρ => by
-      simp only [toModuleExpr, ModuleExpression.rename, toModuleExpr_rename inst.2 ρ]
-
-theorem toModuleExpr_substituteSimultaneously :
-    ∀ {holes : HoleSigs} (inst : holes.Instantiation) (σ : Nat → ModuleExpression),
-      inst.toModuleExpr.substituteSimultaneously σ = inst.toModuleExpr
-  | .empty,             _,    _ => rfl
-  | .cons _ .empty,     _,    _ => rfl
-  | .cons _ (.cons ..), inst, σ => by
-      simp only [toModuleExpr, ModuleExpression.substituteSimultaneously,
-        toModuleExpr_substituteSimultaneously inst.2 σ]
 
 /-- Distinct instantiations give distinct tuples: the δ-rule's contractum is determined by the
     redex. -/
@@ -215,20 +65,6 @@ inductive ParStep : ModuleExpression → ModuleExpression → Prop where
   | delta {holes sigs} (ne : holes.NonEmpty) (p : ProcedureWithHoles holes sigs)
       (inst : holes.Instantiation) :
       ParStep (.app (.procHoles ne p) inst.toModuleExpr) (.proc (p.instantiate inst))
-
-/-- `abs` is a congruence for multi-step reduction. -/
-theorem multiStepReduction_abs_cong {b b' : ModuleExpression} (h : b.MultiStepReduction b') :
-    (ModuleExpression.abs b).MultiStepReduction (ModuleExpression.abs b') := by
-  induction h with
-  | refl => exact .refl
-  | tail _ hbc ih => exact ih.tail (.lam hbc)
-
-/-- `snd` is a congruence for multi-step reduction. -/
-theorem multiStepReduction_snd_cong {e e' : ModuleExpression} (h : e.MultiStepReduction e') :
-    (ModuleExpression.snd e).MultiStepReduction (ModuleExpression.snd e') := by
-  induction h with
-  | refl => exact .refl
-  | tail _ hbc ih => exact ih.tail (.snd hbc)
 
 namespace ParStep
 

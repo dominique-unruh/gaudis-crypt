@@ -317,41 +317,16 @@ of them matches. -/
 @[simp] theorem Module.procedure_proc' {sig : ProcedureSignature} (p : Procedure sig) :
     (Module.proc p).procedure = p := Module.procedure_proc p
 
-/-- Renaming by a function that's pointwise the identity is the identity, regardless of `ρ`'s
-    behavior elsewhere (needed below since `IsRenaming [] Δ ρ` holds vacuously for *any* `ρ`,
-    but we specifically want the renamed term to be syntactically unchanged). -/
-private theorem ModuleExpression.rename_id :
-    ∀ (m : ModuleExpression) (ρ : Nat → Nat), (∀ n, ρ n = n) → m.rename ρ = m := by
-  intro m
-  induction m with
-  | unit => intro ρ _; rfl
-  | proc p => intro ρ _; rfl
-  | procHoles ne p => intro ρ _; rfl
-  | var n => intro ρ hρ; simp [ModuleExpression.rename, hρ]
-  | app f a ihf iha => intro ρ hρ; simp [ModuleExpression.rename, ihf ρ hρ, iha ρ hρ]
-  | fst e ih => intro ρ hρ; simp [ModuleExpression.rename, ih ρ hρ]
-  | snd e ih => intro ρ hρ; simp [ModuleExpression.rename, ih ρ hρ]
-  | pair a b iha ihb => intro ρ hρ; simp [ModuleExpression.rename, iha ρ hρ, ihb ρ hρ]
-  | abs body ih =>
-      intro ρ hρ
-      simp only [ModuleExpression.rename]
-      congr 1
-      apply ih
-      intro n
-      cases n with
-      | zero => rfl
-      | succ n' => simp [ModuleExpression.liftRen, hρ]
-
 /-- A closed term (well-typed in the empty context) is well-typed in *any* context: `Δ = []`
     makes `IsRenaming [] Δ' ρ` hold vacuously for any `ρ`, so picking `ρ := id` and cancelling
-    the resulting `rename id` via `rename_id` gives back `m` itself, unchanged, in the wider
-    context `Δ'`. -/
+    the resulting `rename id` via `ModuleExpression.rename_id` gives back `m` itself, unchanged,
+    in the wider context `Δ'`. -/
 private theorem ModuleExpression.HasType.weaken_of_empty {m : ModuleExpression} {T : ModuleTypeRep}
     (h : m.HasType [] T) (Δ : ModuleContext) : m.HasType Δ T := by
   have hIsRen : ModuleExpression.HasType.IsRenaming [] Δ id :=
     fun {n} hn => absurd hn (Nat.not_lt_zero n)
   have hren := h.rename hIsRen
-  rwa [ModuleExpression.rename_id m id (fun _ => rfl)] at hren
+  rwa [ModuleExpression.rename_id m] at hren
 
 /-- A module's expression is well-typed in *any* context, not just the empty one — it is closed.
 This is what lets `moduletyping` type an expression built from already-formed modules (whose

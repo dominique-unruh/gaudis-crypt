@@ -12,6 +12,7 @@ weak.linter.style.header = false
 maxSynthPendingDepth = 3
 
 [[require]]
+# TODO only used in Attic => remove dependency
 name = "Metatheory-Unruh"
 git = "https://github.com/dominique-unruh/Lean-Metatheory.git"
 rev = "main"
