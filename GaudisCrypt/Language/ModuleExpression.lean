@@ -19,6 +19,23 @@ variable [ProgramSpec]
 
 namespace ModuleExpression
 
+theorem multiStepReduction_confluence {m n1 n2 : ModuleExpression}
+  (_ : m.MultiStepReduction n1) (_ : m.MultiStepReduction n2)
+  (_ : n1.Stuck) (_ : n2.Stuck) :
+  n1 = n2 := by
+  rename_i h1 h2 s1 s2
+  obtain ⟨d, hd1, hd2⟩ := multiStepReduction_confluent h1 h2
+  rw [s1.eq_of_multiStepReduction hd1, s2.eq_of_multiStepReduction hd2]
+
+theorem multiStepReduction_terminating {m n} (h : m.MultiStepReduction n) :
+    Terminating m ↔ Terminating n := by
+  constructor
+  · rintro ⟨s, hs, hms⟩
+    obtain ⟨d, hsd, hnd⟩ := multiStepReduction_confluent hms h
+    exact ⟨d, hs.eq_of_multiStepReduction hsd ▸ hs, hnd⟩
+  · rintro ⟨s, hs, hns⟩
+    exact ⟨s, hs, h.trans hns⟩
+
 @[simp] theorem reduce_of_stuck {m : ModuleExpression} (h : m.Stuck) : reduce m = m :=
   multiStepReduction_confluence
     (multiStepReduction_reduce h.terminating) .refl (reduce_stuck h.terminating) h
