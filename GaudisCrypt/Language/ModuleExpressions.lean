@@ -1769,7 +1769,7 @@ theorem reduce_abs_cong {a a' : ModuleExpression} (ha : reduce a = a') :
 `reduce` only cares about its argument up to convertibility, so a subterm that is already a
 `reduce` can be replaced by what it reduces (`reduce_idempotent` on both sides of the matching
 `_cong` lemma).  This is what makes the `.reduce`s that `toModule` leaves behind disappear when a
-composite expression is reduced — the `module_apply` tactic (`GaudisCrypt/Language/Syntax2.lean`)
+composite expression is reduced — the `moduleApply` tactic (`GaudisCrypt/Language/Syntax2.lean`)
 uses all six of them to bring the two sides of an `X.apply_simp` goal into the same shape. -/
 
 theorem reduce_app_left (f x : ModuleExpression) :

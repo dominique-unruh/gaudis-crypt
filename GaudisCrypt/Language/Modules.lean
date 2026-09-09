@@ -81,7 +81,7 @@ theorem Module.expression_pair' {T U} (m1 : Module T) (m2 : Module U) :
 /-- Reducing a pair componentwise: if the components reduce to the expressions of the modules
     `m1`/`m2`, the pair reduces to the expression of their `Module.pair'`.  Turns a `reduce` of a
     whole record into the record of the reduced components, with no detour through termination —
-    normality of the *result* comes from the modules `m1`/`m2`.  (Currently unused: `module_apply`
+    normality of the *result* comes from the modules `m1`/`m2`.  (Currently unused: `moduleApply`
     used to peel `X.apply_simp`'s record with it, but now normalises both sides with
     `reduce_simp` instead.) -/
 theorem Module.reduce_pair_expression {T U} {a b : ModuleExpression}
@@ -178,7 +178,7 @@ theorem Module.cast_app [IsModule M] [IsModule N] (a : Module.Arr M N) (b : M) :
 
 A goal about a field of an *abstract* module — `S : CommitmentScheme` a parameter, not a literal
 record — can only make progress by unfolding the accessor, and a tactic cannot know the accessor's
-name.  This set is how `proc_apply` reaches them. -/
+name.  This set is how `procApply` reaches them. -/
 register_simp_attr module_accessor
 
 /-- What is derivable about a field accessor `acc : M → T` of a module type, bundled into one
@@ -384,9 +384,9 @@ The δ-rule `ReductionStep.delta` fires only on a *literal* tuple of `.proc` nod
 (`HoleSigs.Instantiation.toModuleExpr`).  What one has in practice is a tuple of arbitrary module
 expressions — the callees, as they were written — which merely *reduce* to such a tuple, each of
 them to the `.proc` of a `Module.procedure`.  `reduce_pair_of` bridges the two, peeling the tuple
-component by component, and `reduce_app_procWithHoles` then takes the δ-step.  Together they are what the `proc_apply` tactic
-(`GaudisCrypt/Language/Syntax2.lean`) runs on the `X.<f>.apply_simp` goals the `module` command
-emits. -/
+component by component, and `reduce_app_procWithHoles` then takes the δ-step.  Together they are
+what `procApply` (`GaudisCrypt/Language/Syntax2.lean`) runs on the `X.<f>.apply_simp` goals the
+`module` command emits. -/
 
 @[simp] theorem HoleSigs.Instantiation.toModuleExpr_nil :
     HoleSigs.Instantiation.toModuleExpr (holes := .empty) ⟨⟩ = .unit := rfl
@@ -415,13 +415,13 @@ theorem HoleSigs.Instantiation.toModuleExpr_normal {holes : HoleSigs}
 /-- Peeling one component of the callee tuple, at the level of `ModuleExpression` alone.
 
 Stating this at the level of expressions, rather than with the instantiation still folded up, is
-what makes it usable: in `proc_apply` the goal carries a *written-out* instantiation, so
+what makes it usable: in `procApply` the goal carries a *written-out* instantiation, so
 `HoleSigs.Instantiation.toModuleExpr` computes and the right-hand side is an ordinary expression
 pair.  A lemma phrased in terms of `Instantiation` could not be applied there at all —
 `Instantiation (.cons sig holes)` does not reduce while `holes` is a metavariable, and the
 elaborator will not solve `holes` from a sibling argument first.
 
-`hc` is discharged by `module_callee`, `hrest` by the next round of this same lemma. -/
+`hc` is discharged by `moduleCallee`, `hrest` by the next round of this same lemma. -/
 theorem Module.reduce_pair_of {c rest e₁ e₂ : ModuleExpression}
     (h₁ : e₁.Normal) (h₂ : e₂.Normal)
     (hc : c.reduce = e₁) (hrest : rest.reduce = e₂) :

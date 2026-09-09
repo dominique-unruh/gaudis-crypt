@@ -409,7 +409,7 @@ module* (a projection `.abs` of `ModuleExpression`s) to the accessor *as a Lean 
 of `Module.fst'`s and `Module.snd'`s).  `acc` is the accessor, unfolded by name; the module needs no
 name, being the sibling field's value and hence already inlined in the goal.
 
-Same shape as `module_apply`: normalise both sides.  Unfolding `acc` and the `Module`-level
+Same shape as `moduleApply`: normalise both sides.  Unfolding `acc` and the `Module`-level
 combinators leaves `ModuleExpression`s under `.reduce`; the stripping lemmas remove the inner
 `.reduce`s that `toModule` left behind, exposing the β-redex `.app (.abs proj) m.expression`, and
 `reduce_simp` takes it.  The two trailing steps are `try`: for the *single-field* case the accessor
@@ -439,8 +439,7 @@ def accessorApply (acc : Name) : TacticM Unit := do
            GaudisCrypt.ModuleExpression.reduce_fst_inner,
            GaudisCrypt.ModuleExpression.reduce_snd_inner])))
 
-end GaudisCrypt
-
+open Lean Elab Tactic in
 /-- Proves the `expression_eq` field of `X.f.utilities` — `∀ m, (X.f m).expression =
 (proj m.expression).reduce`, the accessor read at the level of expressions.  `acc` is the accessor.
 
@@ -448,19 +447,21 @@ No normalisation here, only unfolding: `Module.fst'`/`snd'` are `toModule`s of t
 each of them leaves a `.reduce` *inside* the next, which the two stripping lemmas pull out until
 what is left is one `.reduce` of the whole chain — the right-hand side.  `Module.reduce_expression`
 is for the single-field case, where the chain is empty and the two sides differ by exactly the
-outermost `.reduce`. -/
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "accessor_expression " ident : tactic
+outermost `.reduce`.
 
-macro_rules
-  | `(tactic| accessor_expression $acc:ident) =>
-    `(tactic|
+A `TacticM` function, like `accessorApply`, and reached the same way — `moduletype`'s elaborator
+passes the accessor's `Name` and invokes it with `run_tac`. -/
+def accessorExpression (acc : Name) : TacticM Unit := do
+  let acc := mkIdent acc
+  evalTactic (← `(tactic|
         (intro _
          simp only [$acc:ident, GaudisCrypt.Module.cast,
            GaudisCrypt.Module.fst', GaudisCrypt.Module.snd',
            GaudisCrypt.ModuleExpression.toModule, GaudisCrypt.Module.reduce_expression,
            GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+           GaudisCrypt.ModuleExpression.reduce_snd_inner])))
+
+end GaudisCrypt
 
 /-- A field `f : Module T` of a `moduletype` declaration. -/
 /- A field of a `moduletype` declaration: either `module f : T;` (explicit module type)
@@ -593,7 +594,7 @@ elab_rules : command
           accessorModule := _root_.GaudisCrypt.ModuleExpression.toModule
             (m := _root_.GaudisCrypt.ModuleExpression.abs $me)
           apply_simp := by run_tac _root_.GaudisCrypt.accessorApply $(quote accId.getId)
-          expression_eq := by accessor_expression $accId))
+          expression_eq := by run_tac _root_.GaudisCrypt.accessorExpression $(quote accId.getId)))
       -- (4) constructor: right-nested `Module.pair`
       let mut mkBody : Term ← `($(projRs[n-1]!) $sId)
       for i in [0:n-1] do
@@ -748,6 +749,9 @@ syntax "module " ident (atomic(ppSpace gaudi_param))*
          gaudi_module_proc*
        "}" : command
 
+namespace GaudisCrypt
+
+open Lean Elab Tactic in
 /-- Proves `Module.app X (Module.pair A (… Z)) = <record of the procedures of X, applied to the
 parameters each of them uses>` for the module `X` of a `module X (…) { … }` declaration — the
 `X.apply_simp` lemma the command emits (`ModuleDecl.elabApplySimp`).  `X` must be given as its
@@ -768,13 +772,14 @@ sides down to `ModuleExpression`s, normalise, compare.
   substitution passes through it) and `Module.reduce_expression` (a module's expression is already
   normal) — `Module` is defined *after* `reduce_simp` in `Modules.lean`, so its simp set can't know
   either.  The stripping lemmas run once more, to put the `.reduce`s that surface here in the same
-  places on both sides. -/
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "module_apply " ident : tactic
+  places on both sides.
 
-macro_rules
-  | `(tactic| module_apply $x:ident) =>
-    `(tactic|
+A `TacticM` function, not a `syntax`/`macro_rules` pair, so it adds nothing to the tactic grammar;
+`X` comes in as a `Name`, since the only caller is `elabApplySimp`, which reaches this through
+`run_tac`. -/
+def moduleApply (x : Name) : TacticM Unit := do
+  let x := mkIdent x
+  evalTactic (← `(tactic|
         (apply GaudisCrypt.Module.ext
          simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
            GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
@@ -795,9 +800,10 @@ macro_rules
            GaudisCrypt.ModuleExpression.reduce_pair_left,
            GaudisCrypt.ModuleExpression.reduce_pair_right,
            GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+           GaudisCrypt.ModuleExpression.reduce_snd_inner])))
 
-/-- Discharges one component of the callee tuple in `proc_apply`: `c.reduce = m.expression`, where
+open Lean Elab Tactic in
+/-- Discharges one component of the callee tuple in `procApply`: `c.reduce = m.expression`, where
 `c` is the adapter expression the `module` command derived from the call site and `m` the callee
 module itself.
 
@@ -809,33 +815,33 @@ reduce` is propositional, not definitional — so `rfl` only works when the adap
   chain of `Module.fst'`/`Module.snd'`, each of which wraps its argument in a `toModule`, i.e. in a
   `reduce`.  Unfolding the accessor — hence the `module_accessor` simp set, since its name is not
   known here — and pushing those `reduce`s out with `reduce_fst_inner`/`reduce_snd_inner` makes the
-  two sides equal. -/
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "module_callee" : tactic
+  two sides equal.
 
-macro_rules
-  | `(tactic| module_callee) =>
-    `(tactic|
+A `TacticM` function, not a `syntax`/`macro_rules` pair.  Its only caller is `procApply`, which is
+one too and so can call it directly — no tactic keyword is needed for the two to compose. -/
+def moduleCallee : TacticM Unit := do
+  evalTactic (← `(tactic|
         (first
           | rfl
           | simp only [module_accessor, GaudisCrypt.Module.cast, GaudisCrypt.Module.cast',
               GaudisCrypt.Module.fst', GaudisCrypt.Module.snd',
               GaudisCrypt.ModuleExpression.toModule, GaudisCrypt.Module.reduce_expression,
               GaudisCrypt.ModuleExpression.reduce_fst_inner,
-              GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+              GaudisCrypt.ModuleExpression.reduce_snd_inner])))
 
+open Lean Elab Tactic in
 /-- Proves `Module.app (… (Module.app X.f A₁) …) Aₖ = Module.proc (X.f.procedure.instantiate …)`
 for one procedure `f` of a `module X (…) { … }` declaration — the `X.f.apply_simp` lemma the
 command emits (`ModuleDecl.elabProcApplySimp`).  `X.f` must be given as its name, which the script
 unfolds.
 
-Like `module_apply` this is a normalisation proof, but it ends at the δ-rule rather than at a
+Like `moduleApply` this is a normalisation proof, but it ends at the δ-rule rather than at a
 record: `X.f` is `Module.procWithHoles X.f.procedure` applied to the tuple of its callees, under
 one `.abs` per parameter it uses.
 
 * the first `simp only` unfolds `X.f` and the `Module`-level combinators down to `toModule`s, the
   stripping lemmas removing the `.reduce`s those leave inside a composite expression (as in
-  `module_apply`);
+  `moduleApply`);
 * the loop then alternates `reduce_simp` with the `Module`-level rewrites it cannot do itself:
   β-reducing one parameter at a time leaves both a substitution and a `rename` (from `liftSubst`,
   going under the *next* binder) sitting on the argument's expression, and only
@@ -847,16 +853,20 @@ one `.abs` per parameter it uses.
   tuple reduces to the instantiation's own tuple — is discharged.  That side goal carries a
   *written-out* instantiation, so `HoleSigs.Instantiation.toModuleExpr` computes on it and both
   sides become plain expression tuples; `Module.reduce_pair_of` then peels them component by
-  component, each component discharged by `module_callee` (after `Module.procedure_spec` turns the
+  component, each component discharged by `moduleCallee` (after `Module.procedure_spec` turns the
   `.proc` node back into the callee's expression).  Peeling at the expression level keeps
   `HoleSigs.Instantiation` out of the unification problem, which matters because it does not reduce
-  while its hole context is a metavariable. -/
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "proc_apply " ident : tactic
+  while its hole context is a metavariable.
 
-macro_rules
-  | `(tactic| proc_apply $x:ident) =>
-    `(tactic|
+A `TacticM` function, not a `syntax`/`macro_rules` pair, so it adds nothing to the tactic grammar;
+`X.f` comes in as a `Name`, since the only caller is `elabProcApplySimp`, which reaches this
+through `run_tac`.  Everything up to the last step is one quotation run via `evalTactic`.  The last
+step cannot be, because its `first` alternatives end in `moduleCallee`, which is no longer a tactic
+keyword: the alternation is spelled with `<|>` (what `first` itself expands to) and the `repeat'`
+with `Meta.repeat'` (what `repeat'` itself is), so the semantics are unchanged. -/
+def procApply (x : Name) : TacticM Unit := do
+  let x := mkIdent x
+  evalTactic (← `(tactic|
         (apply GaudisCrypt.Module.ext
          simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
            GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
@@ -884,19 +894,27 @@ macro_rules
          refine GaudisCrypt.Module.reduce_app_procWithHoles _ _ _ ?_
          -- the instantiation in the goal is a written-out tuple, so `toModuleExpr` computes: the
          -- right-hand side becomes a plain expression pair, peeled component by component with
-         -- `Module.reduce_pair_of` and each component discharged by `module_callee`
-         simp only [GaudisCrypt.HoleSigs.Instantiation.toModuleExpr]
-         repeat' (first
-           | exact GaudisCrypt.ModuleExpression.reduce_of_normal .unit
-           | exact GaudisCrypt.ModuleExpression.Normal.unit
-           | exact GaudisCrypt.ModuleExpression.Normal.proc
-           | refine GaudisCrypt.ModuleExpression.Normal.pair ?_ ?_
-           | refine GaudisCrypt.Module.reduce_pair_of .proc ?_ ?_ ?_
-           -- the component goal is `c.reduce = .proc m.procedure`, while `module_callee` proves
-           -- `c.reduce = m.expression`; `procedure_spec` is the step between
-           | rw [← GaudisCrypt.Module.procedure_spec]
-           | (rw [← GaudisCrypt.Module.procedure_spec]; module_callee)
-           | module_callee)))
+         -- `Module.reduce_pair_of` and each component discharged by `moduleCallee`
+         simp only [GaudisCrypt.HoleSigs.Instantiation.toModuleExpr])))
+  -- the alternatives that need no `moduleCallee`, as one quotation
+  let peel : TacticM Unit := do
+    evalTactic (← `(tactic|
+        (first
+          | exact GaudisCrypt.ModuleExpression.reduce_of_normal .unit
+          | exact GaudisCrypt.ModuleExpression.Normal.unit
+          | exact GaudisCrypt.ModuleExpression.Normal.proc
+          | refine GaudisCrypt.ModuleExpression.Normal.pair ?_ ?_
+          | refine GaudisCrypt.Module.reduce_pair_of .proc ?_ ?_ ?_
+          -- the component goal is `c.reduce = .proc m.procedure`, while `moduleCallee` proves
+          -- `c.reduce = m.expression`; `procedure_spec` is the step between
+          | rw [← GaudisCrypt.Module.procedure_spec])))
+  let spec : TacticM Unit := evalTactic (← `(tactic| rw [← GaudisCrypt.Module.procedure_spec]))
+  let step : TacticM Unit := peel <|> (do spec; moduleCallee) <|> moduleCallee
+  let stepAt (g : MVarId) : TacticM (List MVarId) := do
+    setGoals [g]; step; getGoals
+  setGoals (← Meta.repeat' stepAt (← getGoals))
+
+end GaudisCrypt
 
 namespace GaudisCrypt.ModuleDecl
 
@@ -1337,7 +1355,7 @@ procedure rather than a pair.
 A procedure with no holes uses no parameter either (a hole is exactly a call to a callee mentioning
 one), and `X.<f>` is then `Module.proc X.<f>.procedure` by definition — the lemma says just that.
 
-Proved by the `proc_apply` tactic. -/
+Proved by `procApply`. -/
 def elabProcApplySimp (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term))
     (r : ProcResult) : CommandElabM Ident := do
   let bs := P.binders
@@ -1365,7 +1383,7 @@ def elabProcApplySimp (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × T
   let ids := r.usedPos.map (paramBs[·]!.1)
   elabCommand (← `(command| @[simp] theorem $thmId:ident $bs* : $stmt := by
     intro $ids*
-    proc_apply $modId))
+    run_tac _root_.GaudisCrypt.procApply $(quote modId.getId)))
   return thmId
 
 /-- `f x₁ (f x₂ (… xₙ))` — every tuple built here is right-nested, and a one-element one is just
@@ -1433,7 +1451,7 @@ theorem X.apply_simp (A : T₁) … (Z : Tₙ) :
 `N.mk` when the module type is not a `moduletype` name, as in `mkRecord`).  For an empty parameter
 list the tuple is the only argument `X` can take, a variable of `Module.Unit`.
 
-Proved by the `module_apply` tactic, which normalises both sides. -/
+Proved by `moduleApply`, which normalises both sides. -/
 def elabApplySimp (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term))
     (mkId? : Option Term) (procs : Array ProcResult) : CommandElabM Ident := do
   let bs := P.binders
@@ -1460,7 +1478,7 @@ def elabApplySimp (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)
   let thmId := mkIdent (nm.getId ++ `apply_simp)
   elabCommand (← `(command| @[simp] theorem $thmId:ident $bs* : $stmt := by
     intro $ids*
-    module_apply $nm))
+    run_tac _root_.GaudisCrypt.moduleApply $(quote nm.getId)))
   return thmId
 
 /-- Declare the module `X` itself: the record of its procedures (a right-nested `.pair`, as
