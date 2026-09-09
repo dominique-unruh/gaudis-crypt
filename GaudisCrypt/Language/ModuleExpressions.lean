@@ -592,45 +592,6 @@ private theorem closedProgress : ∀ {m : ModuleExpression} {T},
           | pair _ _ => obtain ⟨A', B', rfl, _, _⟩ := ha.pair_inv; simp [IsProcArgType] at ht
 
 
-/- /-! #### Type erasure (untyped analogue)
-
-On the untyped tree `erasedEqual` coincides with equality; the family is kept to mirror `TypedModules`. -/
-
--- TODO remove whole section
-
-/-- Structural "erased equality": equal up to the (already-absent) type indices. -/
-def erasedEqual : ModuleExpression → ModuleExpression → Prop
-  | .proc p, .proc p' => p ≍ p'
-  | .procHoles _ p, .procHoles _ p' => p ≍ p'
-  | .var r, .var r' => r = r'
-  | .app f a, .app f' a' => erasedEqual f f' ∧ erasedEqual a a'
-  | .fst e, .fst e' => erasedEqual e e'
-  | .snd e, .snd e' => erasedEqual e e'
-  | .pair a b, .pair a' b' => erasedEqual a a' ∧ erasedEqual b b'
-  | .abs body, .abs body' => erasedEqual body body'
-  | .unit, .unit => True
-  | _, _ => False
-
-theorem erasedEqual_refl (m : ModuleExpression) : erasedEqual m m := by
-  induction m with
-  | unit => trivial
-  | proc => exact HEq.refl _
-  | procHoles => exact HEq.refl _
-  | var r => simp [erasedEqual]
-  | app f a ihf iha => exact ⟨ihf, iha⟩
-  | fst e ih => exact ih
-  | snd e ih => exact ih
-  | pair a b iha ihb => exact ⟨iha, ihb⟩
-  | abs body ih => exact ih
-
-theorem erasedEqual_pair_right (a : ModuleExpression) {b b' : ModuleExpression}
-    (h : erasedEqual b b') : erasedEqual (.pair a b) (.pair a b') :=
-  ⟨erasedEqual_refl a, h⟩
-
-theorem erasedEqual_pair_left {a a' : ModuleExpression} (b : ModuleExpression)
-    (h : erasedEqual a a') : erasedEqual (.pair a b) (.pair a' b) :=
-  ⟨h, erasedEqual_refl b⟩
- -/
 
 /-! #### Embedding into `Metatheory.STLCext` -/
 
@@ -1200,46 +1161,6 @@ private theorem toSTLC_injective_new (m m' : ModuleExpression) :
 
 /-! ### Shape predicates for call-by-value reduction (untyped analogues) -/
 
-/- /-- `m` is a lambda-abstraction. -/
--- TODO check needed
-def IsAbs : ModuleExpression → Prop
-  | .abs _ => True
-  | _      => False
-
--- TODO check needed
-instance : (m : ModuleExpression) → Decidable (IsAbs m)
-  | .abs _ => isTrue trivial
-  | .proc _ | .procHoles _ _ | .var _ | .app _ _ | .fst _ | .snd _ | .pair _ _ | .unit =>
-      isFalse (by simp [IsAbs])
-
-/-- The body of an abstraction. -/
--- TODO check needed
-def IsAbs.body {m : ModuleExpression} (h : IsAbs m) : ModuleExpression := by
-  cases m with
-  | abs body => exact body
-  | _ => simp [IsAbs] at h -/
-
-/- /-- `m` is a pair. -/
--- TODO check needed
-def IsPair : ModuleExpression → Prop
-  | .pair _ _ => True
-  | _         => False
-
-instance : (m : ModuleExpression) → Decidable (IsPair m)
-  | .pair _ _ => isTrue trivial
-  | .proc _ | .procHoles _ _ | .var _ | .app _ _ | .fst _ | .snd _ | .abs _ | .unit =>
-      isFalse (by simp [IsPair])
-
-/-- The two components of a pair. -/
-def IsPair.split {m : ModuleExpression} (h : IsPair m) : ModuleExpression × ModuleExpression := by
-  cases m with
-  | pair a b => exact (a, b)
-  | _ => simp [IsPair] at h
-
-def IsPair.fst {m : ModuleExpression} (h : IsPair m) : ModuleExpression := h.split.1
-def IsPair.snd {m : ModuleExpression} (h : IsPair m) : ModuleExpression := h.split.2
- -/
-
 theorem NormalClosed.normal {m : ModuleExpression} (h : m.NormalClosed) : m.Normal := by
   induction h with
   | proc => exact .proc
@@ -1270,10 +1191,6 @@ lemma Stuck.terminating {m : ModuleExpression} (h : Stuck m) : Terminating m := 
 lemma Normal.terminating {m : ModuleExpression} (h : Normal m) : Terminating m :=
   h.stuck.terminating
 
-/- -- TODO: check whether we actually want to keep this
-def reduce_all (m : ModuleExpression) : Set ModuleExpression :=
-  { n | n.Stuck ∧ m.MultiStepReduction n } -/
-
 theorem multiStepReduction_confluence {m n1 n2 : ModuleExpression}
   (_ : m.MultiStepReduction n1) (_ : m.MultiStepReduction n2)
   (_ : n1.Stuck) (_ : n2.Stuck) :
@@ -1288,51 +1205,6 @@ theorem multiStepReduction_confluence {m n1 n2 : ModuleExpression}
       (multiStepReduction_to_stlc_star ‹m.MultiStepReduction n1›)
       (multiStepReduction_to_stlc_star ‹m.MultiStepReduction n2›)
       (stuck_nf ‹n1.Stuck›) (stuck_nf ‹n2.Stuck›))
-
-/- theorem reduce_all_subsingleton {m : ModuleExpression} :
-    Set.Subsingleton (reduce_all m) := by
-  have stuck_nf : ∀ {k : ModuleExpression}, Stuck k →
-      Rewriting.IsNormalForm Metatheory.STLCext.Step (toSTLC k) := by
-    intro k hk M' hstep
-    obtain ⟨k', hnd, _⟩ := reductionStep_stlc_complete k M' hstep
-    exact hk ⟨k', hnd⟩
-  intro x hx y hy
-  obtain ⟨hxstuck, hxred⟩ := hx
-  obtain ⟨hystuck, hyred⟩ := hy
-  exact toSTLC_injective_new x y
-    (Rewriting.normalForm_unique Metatheory.STLCext.step_confluent
-      (multiStepReduction_to_stlc_star hxred) (multiStepReduction_to_stlc_star hyred)
-      (stuck_nf hxstuck) (stuck_nf hystuck)) -/
-
-/- theorem Terminating.reduce_all_nonempty {m : ModuleExpression} (h : Terminating m) :
-    (reduce_all m).Nonempty := by
-  cases h with
-  | intro n hn => exact ⟨n, hn⟩ -/
-
-/- -- TODO check needed
-def omega : ModuleExpression :=
-  .app (.abs (.app (.var 0) (.var 0))) (.abs (.app (.var 0) (.var 0)))
-
-theorem omega_nonterminating : ¬Terminating omega := by
-  have step_omega : ∀ c, omega.ReductionStep c → c = omega := by
-    intro c h
-    cases h with
-    | beta => rfl
-    | appL h' => cases h' with | lam h'' => cases h'' with
-        | appL h3 => cases h3
-        | appR h3 => cases h3
-    | appR h' => cases h' with | lam h'' => cases h'' with
-        | appL h3 => cases h3
-        | appR h3 => cases h3
-  have red_omega : ∀ n, omega.MultiStepReduction n → n = omega := by
-    intro n h
-    induction h with
-    | refl => rfl
-    | tail _ hbc ih => exact step_omega _ (ih ▸ hbc)
-  rintro ⟨n, hstuck, hred⟩
-  have hn : n = omega := red_omega n hred
-  subst hn
-  exact hstuck ⟨_, ReductionStep.beta⟩ -/
 
 /-- Convertibility: the equivalence relation generated by `ReductionStep`, i.e. its
     reflexive, symmetric, transitive closure. -/
