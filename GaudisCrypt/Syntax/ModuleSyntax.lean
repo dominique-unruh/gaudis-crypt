@@ -127,6 +127,26 @@ def docDeclared (declared : Array DeclInfo) : CommandElabM Unit := do
     if let some n ← resolveDeclared d.name then
       addDocStringCore n d.doc
 
+/-- The keyword a generated declaration would carry had it been written by hand — `def`, `lemma`,
+`instance`, `structure` — so that the `Defined:` listing says what kind of thing each name is.
+
+Read off the environment rather than being told by the command: what was actually declared cannot
+drift from what is reported.  `none` when the name does not resolve, a batch being reported even
+when a field or a procedure failed to elaborate. -/
+private def declKeyword (n : Name) : CommandElabM (Option String) := do
+  let some n ← resolveDeclared n | return none
+  let env ← getEnv
+  let some info := env.find? n | return none
+  -- an instance is a `def` in the environment; the attribute is what tells the two apart
+  if Meta.isInstanceCore env n then return some "instance"
+  return some <| match info with
+    | .thmInfo _ => "lemma"
+    | .axiomInfo _ => "axiom"
+    | .opaqueInfo _ => "opaque"
+    | .inductInfo _ => if isStructure env n then "structure" else "inductive"
+    | .ctorInfo _ => "constructor"
+    | _ => "def"
+
 /-- A link that inserts `suggestion` over `range` and then moves the cursor to `newSelection`.
 Same idea as `Lean.Meta.Hint.textInsertionWidget` — whose link text is fixed to `[apply]` and
 which leaves the cursor where it was — and as ProofWidgets' `MakeEditLink`, which needs the
@@ -160,15 +180,17 @@ private def utf16Width (s : String) : Nat := s.foldl (fun w c => w + c.utf16Size
 /-- Report the declarations a `module`/`moduletype` command generated, as
 ```
 Defined:
-  X.g.procedure — body of proc g
+  def X.g.procedure — body of proc g
 ```
 where each *name* is a link that inserts `#check <name>` right after the command and puts the
 cursor at the end of the inserted line (the same edit is also offered as a code action).  Each
 `DeclInfo`'s `blurb` is the description shown after the name; its `doc` is what `docDeclared`
 attaches to the declaration, and is not repeated here.
 
-A generated lemma that carries `@[simp]` is shown with that attribute in front of its name, so the
-listing says not only what exists but what will fire on its own. -/
+Each name is prefixed as it would be written by hand: the `@[simp]` attribute when the generated
+lemma carries it — so the listing says not only what exists but what will fire on its own — and
+then the declaration's keyword (`declKeyword`), which distinguishes the definitions from the
+lemmas about them. -/
 def logDeclared (ref : Syntax) (declared : Array DeclInfo) : CommandElabM Unit := do
   if declared.isEmpty then return
   -- read off the attribute rather than being told about it: the commands apply `@[simp]` with the
@@ -209,7 +231,8 @@ def logDeclared (ref : Syntax) (declared : Array DeclInfo) : CommandElabM Unit :
             linkText: $(n.toString) } }
       n.toString
     let attrs := if isSimp n then "@[simp] " else ""
-    msg := msg ++ m!"\n• {attrs}{link} — {blurb}"
+    let kw := ((← declKeyword n).map (· ++ " ")).getD ""
+    msg := msg ++ m!"\n{attrs}{kw}{link} — {blurb}"
   msg := msg ++ "\n\n(Click to insert `#check symbolname`.)"
   logInfoAt ref msg
 
@@ -1826,5 +1849,3 @@ elab_rules : command
     docDeclared declared
     logDeclared (← getRef) declared
 
-
--- TODO: `Defined:` info in InfoView should show `def` or `lemma` in front of the names.
