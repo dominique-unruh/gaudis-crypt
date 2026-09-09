@@ -400,6 +400,9 @@ Disable this warning with `set_option linter.gaudisCrypt.using false`."
 
 end GaudisCrypt.ModuleDecl
 
+namespace GaudisCrypt
+
+open Lean Elab Tactic in
 /-- Proves the `apply_simp` field of the `X.f.utilities : ModuleTypeUtilities …` that `moduletype`
 emits for each field — `∀ m, Module.app accessorModule m = X.f m`, relating the accessor *as a
 module* (a projection `.abs` of `ModuleExpression`s) to the accessor *as a Lean function* (a chain
@@ -411,13 +414,15 @@ combinators leaves `ModuleExpression`s under `.reduce`; the stripping lemmas rem
 `.reduce`s that `toModule` left behind, exposing the β-redex `.app (.abs proj) m.expression`, and
 `reduce_simp` takes it.  The two trailing steps are `try`: for the *single-field* case the accessor
 is the identity, the first `simp only` already closes the goal, and a bare `reduce_simp` would then
-fail with "no goals". -/
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "accessor_apply " ident : tactic
+fail with "no goals".
 
-macro_rules
-  | `(tactic| accessor_apply $acc:ident) =>
-    `(tactic|
+A `TacticM` function rather than a `syntax`/`macro_rules` pair, so it adds nothing to the tactic
+grammar; the script itself stays a quotation, run via `evalTactic`.  The accessor is passed as a
+`Name` rather than as syntax, since the only caller is `moduletype`'s elaborator, which has the
+name and reaches this through `run_tac`. -/
+def accessorApply (acc : Name) : TacticM Unit := do
+  let acc := mkIdent acc
+  evalTactic (← `(tactic|
         (intro _
          simp only [$acc:ident]
          apply GaudisCrypt.Module.ext
@@ -432,7 +437,9 @@ macro_rules
          try reduce_simp
          try simp only [GaudisCrypt.Module.reduce_expression,
            GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner]))
+           GaudisCrypt.ModuleExpression.reduce_snd_inner])))
+
+end GaudisCrypt
 
 /-- Proves the `expression_eq` field of `X.f.utilities` — `∀ m, (X.f m).expression =
 (proj m.expression).reduce`, the accessor read at the level of expressions.  `acc` is the accessor.
@@ -585,7 +592,7 @@ elab_rules : command
           proj := fun $eId => $pe
           accessorModule := _root_.GaudisCrypt.ModuleExpression.toModule
             (m := _root_.GaudisCrypt.ModuleExpression.abs $me)
-          apply_simp := by accessor_apply $accId
+          apply_simp := by run_tac _root_.GaudisCrypt.accessorApply $(quote accId.getId)
           expression_eq := by accessor_expression $accId))
       -- (4) constructor: right-nested `Module.pair`
       let mut mkBody : Term ← `($(projRs[n-1]!) $sId)

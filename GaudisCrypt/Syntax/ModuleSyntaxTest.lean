@@ -29,7 +29,7 @@ moduletype TestModule {
 #check TestModule.mk
 
 /- With a *single* field the accessor is the identity and its `accessorModule` is `.abs (.var 0)` —
-the one case where `accessor_apply` has nothing left to normalise after the first `simp only`, which
+the one case where `accessorApply` has nothing left to normalise after the first `simp only`, which
 is why its trailing steps are `try`s. -/
 moduletype OneField {
   proc only (Nat) -> Bool;
