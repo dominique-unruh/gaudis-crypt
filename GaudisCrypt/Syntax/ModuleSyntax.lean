@@ -833,33 +833,23 @@ sides down to `ModuleExpression`s, normalise, compare.
   either.  The stripping lemmas run once more, to put the `.reduce`s that surface here in the same
   places on both sides.
 
-A `TacticM` function, not a `syntax`/`macro_rules` pair, so it adds nothing to the tactic grammar;
-`X` comes in as a `Name`, since the only caller is `elabApplySimp`, which reaches this through
-`run_tac`. -/
+A `TacticM` function, not a `syntax`/`macro_rules` pair, so it adds nothing to the tactic grammar,
+and no tactic quotation either.  `X` comes in as a `Name`, since the only caller is
+`elabApplySimp`, which reaches this through `run_tac`. -/
 def moduleApply (x : Name) : TacticM Unit := do
-  let x := mkIdent x
-  evalTactic (← `(tactic|
-        (apply GaudisCrypt.Module.ext
-         simp only [$x:ident, GaudisCrypt.Module.app, GaudisCrypt.Module.app',
-           GaudisCrypt.Module.pair, GaudisCrypt.Module.pair',
-           GaudisCrypt.Module.fst, GaudisCrypt.Module.fst',
-           GaudisCrypt.Module.snd, GaudisCrypt.Module.snd',
-           GaudisCrypt.Module.moduleTypeRep, GaudisCrypt.ModuleExpression.toModule,
-           GaudisCrypt.ModuleExpression.reduce_app_left,
-           GaudisCrypt.ModuleExpression.reduce_app_right,
-           GaudisCrypt.ModuleExpression.reduce_pair_left,
-           GaudisCrypt.ModuleExpression.reduce_pair_right,
-           GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner]
-         reduce_simp
-         simp only [GaudisCrypt.Module.substituteSimultaneously_expression,
-           GaudisCrypt.Module.reduce_expression,
-           GaudisCrypt.ModuleExpression.reduce_app_left,
-           GaudisCrypt.ModuleExpression.reduce_app_right,
-           GaudisCrypt.ModuleExpression.reduce_pair_left,
-           GaudisCrypt.ModuleExpression.reduce_pair_right,
-           GaudisCrypt.ModuleExpression.reduce_fst_inner,
-           GaudisCrypt.ModuleExpression.reduce_snd_inner])))
+  applyConst ``Module.ext
+  simpOnlyConsts #[← resolveHere x,
+    ``Module.app, ``Module.app', ``Module.pair, ``Module.pair',
+    ``Module.fst, ``Module.fst', ``Module.snd, ``Module.snd',
+    ``Module.moduleTypeRep, ``ModuleExpression.toModule,
+    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
+    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
+    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
+  reduceSimp
+  simpOnlyConsts #[``Module.substituteSimultaneously_expression, ``Module.reduce_expression,
+    ``ModuleExpression.reduce_app_left, ``ModuleExpression.reduce_app_right,
+    ``ModuleExpression.reduce_pair_left, ``ModuleExpression.reduce_pair_right,
+    ``ModuleExpression.reduce_fst_inner, ``ModuleExpression.reduce_snd_inner]
 
 open Lean Elab Tactic in
 /-- Discharges one component of the callee tuple in `procApply`: `c.reduce = m.expression`, where
