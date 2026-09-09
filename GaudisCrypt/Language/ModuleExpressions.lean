@@ -1904,35 +1904,45 @@ elab "moduletyping!" : tactic => do
 
 /-! ## `normalmodule` -/
 
+open Lean Elab Tactic Meta in
 /-- One step of `normalmodule`'s core script, factored out so `normalmodule` can require it to
-    fire at least once (see below) while still repeating it leniently afterwards. -/
--- TODO: Rewrite this tactic to be a TacticM function (not a syntax declaration), to avoid syntax pollution. (Note: can use `run_tac` and `evalTactic` to interface syntax-directed and implemented tactics with each other and minimize the fallout of this change.)
-syntax "normalmoduleStep" : tactic
-macro_rules
-  | `(tactic| normalmoduleStep) =>
-    `(tactic| first
-      | assumption
-      | apply ModuleExpression.Normal.unit
-      | apply ModuleExpression.Normal.proc
-      | apply ModuleExpression.Normal.procHoles
-      | apply ModuleExpression.Normal.abs
-      | apply ModuleExpression.Normal.pair
-      | apply ModuleExpression.Neutral.var
-      | apply ModuleExpression.Neutral.fst
-      | apply ModuleExpression.Neutral.snd
-      | (apply ModuleExpression.Neutral.appProcHoles
-         all_goals try (first | assumption | (simp [ModuleExpression.IsProcTuple] <;> done)))
-      | apply ModuleExpression.Neutral.app
-      | apply ModuleExpression.Normal.neutral)
+    fire at least once while still repeating it leniently afterwards. A `TacticM` function
+    rather than a `syntax` extension, so it does not pollute the tactic grammar; it still
+    delegates to a `first | …` quotation via `evalTactic`. -/
+private def normalmoduleStep : TacticM Unit := do
+  evalTactic (← `(tactic| first
+    | assumption
+    | apply ModuleExpression.Normal.unit
+    | apply ModuleExpression.Normal.proc
+    | apply ModuleExpression.Normal.procHoles
+    | apply ModuleExpression.Normal.abs
+    | apply ModuleExpression.Normal.pair
+    | apply ModuleExpression.Neutral.var
+    | apply ModuleExpression.Neutral.fst
+    | apply ModuleExpression.Neutral.snd
+    | (apply ModuleExpression.Neutral.appProcHoles
+       all_goals try (first | assumption | (simp [ModuleExpression.IsProcTuple] <;> done)))
+    | apply ModuleExpression.Neutral.app
+    | apply ModuleExpression.Normal.neutral))
 
+open Lean Elab Tactic Meta in
+/-- `normalmoduleStep` applied the way `repeat' normalmoduleStep` used to: run it on every goal,
+    recursively on the subgoals it produces, until it fails on all of them. Always succeeds. -/
+private def normalmoduleRepeat : TacticM Unit := do
+  let step (g : MVarId) : TacticM (List MVarId) := do
+    setGoals [g]; normalmoduleStep; getGoals
+  setGoals (← Meta.repeat' step (← getGoals))
+
+open Lean Elab Tactic Meta in
 /-- Syntax-directed closer for `Normal m` / `Neutral m`: peels the constructor matching `m`'s
     head, disambiguating `.app`'s two constructors by checking whether the function side is a
     literal `.procHoles` node, and leaves whatever it cannot close open. Fails outright if it
     cannot make even one step of progress (e.g. `Neutral (.pair _ _)`, which no constructor can
     ever produce) rather than silently no-op'ing. See `normalmodule!` for a variant that fails
     loudly with a diagnosed reason on *every* unclosed goal, not just a wholly-stuck one. -/
-macro "normalmodule" : tactic =>
-  `(tactic| (normalmoduleStep; repeat' normalmoduleStep))
+elab "normalmodule" : tactic => do
+  normalmoduleStep
+  normalmoduleRepeat
 
 open Lean Elab Tactic Meta in
 /-- Describe why a single leftover goal (from `normalmodule`'s core script) couldn't be closed.
@@ -1985,7 +1995,7 @@ elab "normalmodule!" : tactic => do
   let origGoal ← getMainGoal
   let origType ← origGoal.withContext (instantiateMVars (← origGoal.getType))
   let numSiblings := (← getGoals).length - 1
-  evalTactic (← `(tactic| repeat' normalmoduleStep))
+  normalmoduleRepeat
   let after ← getGoals
   let leftover := after.take (after.length - numSiblings)
   unless leftover.isEmpty do
