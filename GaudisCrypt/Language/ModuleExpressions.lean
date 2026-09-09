@@ -2015,7 +2015,7 @@ private lemma reduce_eq_guard_aux2 m n : ModuleExpression.reduce m = n →
 
 
 open Lean Elab Tactic Meta in
-/-- `reduceSimpHead` (surfaced as the `reduce_simp_head` tactic) takes a goal of the form
+/-- `reduceSimpHead` takes a goal of the form
 `reduce M = reduce ?m` or `reduce M = ?m` and solves it by instantiating the rhs as `reduce M'`
 where M' is the result of applying a single reduction step.
 
@@ -2028,12 +2028,12 @@ it never uses `reduce_of_normal`, so it neither succeeds without reducing nor le
 around a component it did not touch.  Collapsing the `reduce` of a normal term is the second rule
 of `reduceSimpProcImpl` instead.
 
-A `TacticM` function rather than a `syntax`/`macro_rules` pair, so it doesn't add a recursive
-production to the tactic grammar. The head-step alternatives stay a `first | …` quotation run
-via `evalTactic`; the congruence rules — the only recursive part — are tried in order by hand,
-each followed by a recursive call, with backtracking between them.
+A plain `TacticM` function, not a `syntax`/`macro_rules` pair, so it adds nothing to the tactic
+grammar. The head-step alternatives stay a `first | …` quotation run via `evalTactic`; the
+congruence rules — the only recursive part — are tried in order by hand, each followed by a
+recursive call, with backtracking between them. Invoke it from a proof with `run_tac`.
 -/
-private partial def reduceSimpHead : TacticM Unit := do
+partial def reduceSimpHead : TacticM Unit := do
   let headStep : TacticM Unit := do
     evalTactic (← `(tactic|
         (first
@@ -2061,13 +2061,9 @@ private partial def reduceSimpHead : TacticM Unit := do
         return
       catch _ =>
         saved.restore
-    throwError "reduce_simp_head: no reduction step applies"
+    throwError "reduceSimpHead: no reduction step applies"
   try headStep
   catch _ => congStep
-
-/-- Surface `reduceSimpHead` as a tactic (a few smoke tests invoke `reduce_simp_head` directly).
-    The implementation lives in `reduceSimpHead`. -/
-elab "reduce_simp_head" : tactic => reduceSimpHead
 
 
 
@@ -2088,9 +2084,9 @@ private def reduceSimpRun (e : Lean.Expr) (tac : Elab.Tactic.TacticM Unit) :
 
 open Lean Meta Simp in
 /-- The rewrite `reduce_simp` performs at a `ModuleExpression.reduce x` subterm: one reduction
-    step via `reduce_simp_head`, or — when nothing reduces — collapsing the `reduce` outright via
+    step via `reduceSimpHead`, or — when nothing reduces — collapsing the `reduce` outright via
     `reduce_of_normal`, whose `Normal x` side condition `normalmodule` discharges.  The two are
-    complementary: `reduce_simp_head` only ever reports a genuine step (it neither succeeds
+    complementary: `reduceSimpHead` only ever reports a genuine step (it neither succeeds
     without reducing nor invents `reduce`s along the way), and it no longer knows about normal
     terms, which is exactly what the second rule is for.
 
@@ -2125,7 +2121,7 @@ private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
    Simp's own bottom-up traversal (confirmed reliable all along — only its conditional-rewrite
    *discharge* step was ever the problem) still does the "keep visiting exposed subterms" work. -/
 open Lean Meta Elab Tactic in
-/-- Fully normalize `reduce m` subterms — one reduction step at a time via `reduce_simp_head`,
+/-- Fully normalize `reduce m` subterms — one reduction step at a time via `reduceSimpHead`,
     then the `reduce` collapsed via `reduce_of_normal` (see `reduceSimpProcImpl`) — repeatedly,
     including inside freshly-exposed nested `reduce`s (handled by `simp`'s own subterm traversal,
     not by this tactic). Lenient per subterm — whatever it can't reduce is left as it is — but,
@@ -2134,7 +2130,7 @@ open Lean Meta Elab Tactic in
 
     `substitute` and friends are in the simp set because `reduce_beta`'s result is
     `reduce (body.substitute arg)`, with `substitute` a structurally recursive `def` that no
-    `reduce_simp_head` branch matches on: unfolding it is what turns that result back into a
+    `reduceSimpHead` branch matches on: unfolding it is what turns that result back into a
     constructor tree the next step can work on. -/
 elab "reduce_simp" : tactic => do
   let goal ← getMainGoal

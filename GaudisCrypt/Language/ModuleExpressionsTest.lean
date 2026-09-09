@@ -190,20 +190,23 @@ example {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
     (p : ProcedureWithHoles holes sig) (arg : ModuleExpression) (harg : arg.Normal) :
     ModuleExpression.Neutral (.app (.procHoles ne p) arg) := by
   normalmodule!
-/-! ### `reduce_simp_head` smoke tests
+/-! ### `reduceSimpHead` smoke tests
 
-Written as `∃ m, reduce x = m`, proved by `⟨_, by reduce_simp_head⟩`: the witness `_` is a
+`reduceSimpHead` is a `TacticM` function, not a tactic, so it is invoked with `run_tac`.
+Written as `∃ m, reduce x = m`, proved by `⟨_, by run_tac reduceSimpHead⟩`: the witness `_` is a
 genuine metavariable the tactic assigns via unification, unlike `example : reduce x = _ := ...`
 directly (there, the `_` sits in the *stated type*, which Lean fully elaborates — including
 resolving its own holes — before the tactic block ever runs, so it can't be left for the tactic
 to fill; confirmed empirically, "don't know how to synthesize placeholder"). The anonymous
 constructor's fields, by contrast, are genuinely elaborated together with the tactic proof. -/
 
-example : ∃ m, ModuleExpression.reduce (.fst (.pair .unit .unit)) = m := ⟨_, by reduce_simp_head⟩
-example : ∃ m, ModuleExpression.reduce (.app (.abs .unit) .unit) = m := ⟨_, by reduce_simp_head⟩
+example : ∃ m, ModuleExpression.reduce (.fst (.pair .unit .unit)) = m :=
+  ⟨_, by run_tac reduceSimpHead⟩
+example : ∃ m, ModuleExpression.reduce (.app (.abs .unit) .unit) = m :=
+  ⟨_, by run_tac reduceSimpHead⟩
 
 example (m n : ModuleExpression) (h : m.ReductionStep n) :
-    ∃ m', ModuleExpression.reduce m = m' := ⟨_, by reduce_simp_head⟩
+    ∃ m', ModuleExpression.reduce m = m' := ⟨_, by run_tac reduceSimpHead⟩
 /-! ### Smoke tests -/
 
 example : ModuleExpression.reduce (.fst (.pair .unit .unit)) = .unit := by reduce_simp
@@ -228,7 +231,7 @@ example (m : ModuleExpression) (h : ModuleExpression.reduce m = .unit) :
 
 -- The pair as a whole isn't `Normal` — its first component `.fst (.pair .unit .unit)` is a
 -- genuine redex — so the `reduce_of_normal` rule can't collapse it in one visit at the top;
--- `reduce_pair_cong_left` (inside `reduce_simp_head`) reduces that component, and `simp`'s
+-- `reduce_pair_cong_left` (inside `reduceSimpHead`) reduces that component, and `simp`'s
 -- traversal revisits the result, which *is* now directly `Normal`.
 example (b : ModuleExpression) (hb : b.Normal) :
     ModuleExpression.reduce (.pair (.fst (.pair .unit .unit)) b) = .pair .unit b := by
