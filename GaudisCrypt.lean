@@ -57,6 +57,8 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Logic.EagerProc
 import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
+import GaudisCrypt.Logic.Inline
+import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.TransferBy
