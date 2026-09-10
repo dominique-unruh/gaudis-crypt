@@ -1,4 +1,5 @@
 import GaudisCrypt.Syntax.ProgramSyntax
+import GaudisCrypt.Language.Modules
 
 /-!
 # `flattenProcedureCalls` — flattening concretely-spelled-out `call`s (PLAN ONLY, no code yet)
@@ -360,6 +361,20 @@ def flattenCallCleaned (n : Nat) (stmt : Expr) : MetaM FlattenStep
 def flattenProcedureCalls (stmt : Expr) : MetaM FlatteningResult
 ```
 
+Two more, in §11 — a callee named through modules is not spelled out at the call site, so §2
+refuses it until it has been evaluated:
+
+```lean
+/-- 11 — evaluate a term built from modules to the procedure it denotes. -/
+def unfoldProcedure (e : Expr) : MetaM Simp.Result
+
+/-- 11 — do that to the callee of call site `n`. -/
+def inlineProcedureRaw (n : Nat) (stmt : Expr) : MetaM Simp.Result
+
+/-- 11 — and then flatten that call site (6.4). -/
+def inlineProcedure (n : Nat) (stmt : Expr) : MetaM FlattenStep
+```
+
 ### 6.1 `flattenCall` — the only interesting one, and deliberately dumb
 
 Recursion down to call `n`; **every subprogram that does not contain the call is replaced
@@ -684,7 +699,8 @@ Done (this file, below the plan):
   `programDenotation_assign_apply` — and `flattenSeq`'s equations
   (`StmtWithHoles.Equiv.{seq_assoc, skip_seq, seq_skip}`).
 
-* **§6.1 `flattenCall`** and its helpers (`unfoldStmt`, `listLitElems`, `countCalls`, `callData?`,
+* **§6.1 `flattenCall`** and its helpers (`unfoldStmt`, `listLitElems`, `countCallSites`,
+  `callData?`,
   `planCall`, `rebuildPath`), plus the `#flattenCall` command and a first end-to-end case in
   `InlineTest.lean`.  Three things the implementation settled:
   - statement positions are seen through with `whnf` at **`zeta := false`** (`unfoldStmt`), so
@@ -706,7 +722,11 @@ Done (this file, below the plan):
   and `#flattenProc`, each `Meta.check`ing both the term and the proof, over the case list below
   — several calls with a name collision, nested calls (two rounds), calls inside `if` and
   `while`, several parameters, a zero-parameter/zero-local callee, and the two error cases
-  (`#guard_msgs`-pinned).
+  (`#guard_msgs`-pinned);
+* **§11** — `unfoldProcedure`, which evaluates a term built from modules to the procedure it
+  denotes, and the two functions that put it to work on a statement, `inlineProcedureRaw` and
+  `inlineProcedure`.  See the section itself, below §8, for what it steps with and why it is all
+  head-position; `InlineTest.lean` has `#unfoldProc`, `#inlineRaw` and `#inline`.
 
 Four things that stage settled:
 
@@ -729,9 +749,9 @@ Not done:
 * a rewriting tactic (deliberately out of scope, §0);
 * the §8 wrapper for procedures that still have holes (see §8);
 * the plain, meta-free tests of §4/§5 that §10 asks for below the pass-level ones;
-* proper *inlining* — looking a callee up by name rather than requiring it to be spelled out
-  (§2).  That is what this file is named for, and it is the natural next step: it only has to
-  produce the literal callee that §6.1 already knows what to do with.
+* inlining a callee named by a plain *definition* rather than by a module expression.  §11 does
+  reach that case — a constant at a procedure position is unfolded — but only a module term gets
+  the head-position evaluation that makes the result predictable.
 -/
 
 namespace GaudisCrypt
@@ -2090,25 +2110,31 @@ partial def listLitElems (e : Expr) : MetaM (List Expr) := do
   | (``List.cons, #[_, hd, tl]) => return hd :: (← listLitElems tl)
   | _ => throwError "expected a literal list, got{indentExpr e}"
 
-/-- Is this application one of the two call forms? -/
-def isCall (e : Expr) : Bool :=
-  e.isAppOf ``StmtWithHoles.call' || e.isAppOf ``StmtWithHoles.call
+/-- Is this application a **call site** — one of the two call forms, or a hole?
 
-/-- How many calls the statement contains, in the pre-order the flattener numbers them by.  A
-callee's own body is *not* searched: its calls belong to a later round. -/
-partial def countCalls (e₀ : Expr) : MetaM Nat := do
+A hole is a call whose callee is not known yet, so it is one of the things a user counts when
+numbering the call sites of a statement, even though neither flattening nor inlining can do
+anything with it.  Numbering it along with the rest is what keeps the call-site numbers of a
+statement independent of which sites happen to be flattenable. -/
+def isCallSite (e : Expr) : Bool :=
+  e.isAppOf ``StmtWithHoles.call' || e.isAppOf ``StmtWithHoles.call
+    || e.isAppOf ``StmtWithHoles.hole
+
+/-- How many call sites the statement contains, in the pre-order they are numbered by.  A callee's
+own body is *not* searched: its calls belong to a later round. -/
+partial def countCallSites (e₀ : Expr) : MetaM Nat := do
   let e ← unfoldStmt e₀
-  if isCall e then return 1
+  if isCallSite e then return 1
   match e with
-  | .letE _ _ _ body _ => countCalls body
+  | .letE _ _ _ body _ => countCallSites body
   | _ =>
     let args := e.getAppArgs
     match e.getAppFn.constName? with
     | some ``StmtWithHoles.seq =>
-        return (← countCalls args[3]!) + (← countCalls args[4]!)
+        return (← countCallSites args[3]!) + (← countCallSites args[4]!)
     | some ``StmtWithHoles.ifThenElse =>
-        return (← countCalls args[4]!) + (← countCalls args[5]!)
-    | some ``StmtWithHoles.while => countCalls args[4]!
+        return (← countCallSites args[4]!) + (← countCallSites args[5]!)
+    | some ``StmtWithHoles.while => countCallSites args[4]!
     | _ => return 0
 
 /-- The pieces of a call: its signature, result l-value, callee locals/body/return value, and
@@ -2145,21 +2171,21 @@ def callData? (e : Expr) : MetaM (Option CallData) := do
                     retVal := pargs[5]!, args := args[6]! }
   | _ => return none
 
-/-- The call at the given pre-order index, if there is one. -/
-partial def findCall? (idx : Nat) (e₀ : Expr) : MetaM (Option Expr) := do
+/-- The call site at the given pre-order index, if there is one. -/
+partial def findCallSite? (idx : Nat) (e₀ : Expr) : MetaM (Option Expr) := do
   let e ← unfoldStmt e₀
-  if isCall e then return if idx == 0 then some e else none
+  if isCallSite e then return if idx == 0 then some e else none
   match e with
-  | .letE _ _ _ body _ => findCall? idx body
+  | .letE _ _ _ body _ => findCallSite? idx body
   | _ =>
     let args := e.getAppArgs
     let two (a b : Expr) : MetaM (Option Expr) := do
-      let na ← countCalls a
-      if idx < na then findCall? idx a else findCall? (idx - na) b
+      let na ← countCallSites a
+      if idx < na then findCallSite? idx a else findCallSite? (idx - na) b
     match e.getAppFn.constName? with
     | some ``StmtWithHoles.seq => two args[3]! args[4]!
     | some ``StmtWithHoles.ifThenElse => two args[4]! args[5]!
-    | some ``StmtWithHoles.while => findCall? idx args[4]!
+    | some ``StmtWithHoles.while => findCallSite? idx args[4]!
     | _ => return none
 
 /-- A proof of an (iterated ∀ over an) equation, by `rfl`.  All the freshness side conditions of
@@ -2415,7 +2441,9 @@ inside whatever `let` binders enclose it, since the call mentions their variable
 the path is re-targeted wholesale with `applyLens`, without being inspected. -/
 partial def rebuildPath (inst hCtx P Ls : Expr) (idx : Nat) (stmt₀ : Expr) : MetaM PathResult := do
   let stmt ← unfoldStmt stmt₀
-  if isCall stmt then
+  if stmt.isAppOf ``StmtWithHoles.hole then
+    throwError "this call site is a hole: it has no callee to flatten"
+  if isCallSite stmt then
     let some cd ← callData? stmt
       | throwError "the call is not flattenable: its callee is not spelled out"
     let plan ← planCall inst hCtx P Ls cd
@@ -2438,7 +2466,7 @@ partial def rebuildPath (inst hCtx P Ls : Expr) (idx : Nat) (stmt₀ : Expr) : M
     | some ``StmtWithHoles.seq =>
         let a := args[3]!
         let b := args[4]!
-        let na ← countCalls a
+        let na ← countCallSites a
         let (res, a', pa, b', pb) ←
           if idx < na then do
             let res ← rebuildPath inst hCtx P Ls idx a
@@ -2455,7 +2483,7 @@ partial def rebuildPath (inst hCtx P Ls : Expr) (idx : Nat) (stmt₀ : Expr) : M
         let c := args[3]!
         let t := args[4]!
         let e := args[5]!
-        let nt ← countCalls t
+        let nt ← countCallSites t
         let (res, t', pt, e', pe) ←
           if idx < nt then do
             let res ← rebuildPath inst hCtx P Ls idx t
@@ -2494,9 +2522,9 @@ def flattenCall (n : Nat) (stmt : Expr) : MetaM FlattenStep := do
   -- callee, they may be reached through definitions (`someProc.locals`), so reduce them
   let P ← whnf scope.getAppArgs[0]!
   let Ls ← whnf scope.getAppArgs[1]!
-  let total ← countCalls stmt
+  let total ← countCallSites stmt
   if n ≥ total then
-    throwError "there is no call number {n}: the statement has {total}"
+    throwError "there is no call site number {n}: the statement has {total}"
   let res ← rebuildPath inst hCtx P Ls n stmt
   return { stmt := res.stmt, newLocals := res.plan.newLocals, trafo := res.plan.trafo,
            proof := res.proof, inst, hCtx, params := P, oldLocals := Ls,
@@ -2616,14 +2644,18 @@ def foldAssign (e : Expr) : MetaM Expr := do
     #[some args[3]!, some args[1]!, some args[2]!, some args[0]!, some args[4]!, some ge]
 
 /-- Expose a statement position: reduce until a statement head (or a `let`) is visible, without
-zeta-reducing and without paying the `assign` unfolding. -/
-partial def openStmt (e : Expr) : MetaM Expr := do
+zeta-reducing and without paying the `assign` unfolding.
+
+`heads` is which heads count as "a statement is visible".  The inliner passes `stmtHeads` plus
+`StmtWithHoles.call`, whose callee is one sub-term: `whnf` steps through `call` to the `call'` it
+is defined as, which spreads the callee over three arguments. -/
+partial def openStmt (e : Expr) (heads : Array Name := stmtHeads) : MetaM Expr := do
   let e' ← whnfNoZeta e
   if e'.isLet then return e'
   if let some n := e'.getAppFn.constName? then
-    if stmtHeads.contains n then return e'
+    if heads.contains n then return e'
   let e'' ← foldAssign (← unfoldStmt e')
-  if e'' == e' then return e' else openStmt e''
+  if e'' == e' then return e' else openStmt e'' heads
 
 mutual
 
@@ -2875,7 +2907,7 @@ structure FlatteningResult extends FlattenStep where
 
 /-- Flatten the first call that *can* be flattened, or report that there is none. -/
 def flattenSomeCall (stmt : Expr) : MetaM (Option FlattenStep × MessageData) := do
-  let total ← countCalls stmt
+  let total ← countCallSites stmt
   let mut why : MessageData := m!"the statement contains no call"
   for i in [0:total] do
     try
@@ -2941,6 +2973,329 @@ def flattenProcedure (p : Expr) : MetaM (Expr × Expr × Nat) := do
   let proof ← inStep "the return-value condition" <| appRfl proof  -- hret
   let proof ← inStep "the global-state condition" <| appRfl proof  -- hglob
   return (proc', proof, res.count)
+
+/-! ## §11 — unfolding a module expression to a procedure
+
+A call site may name its callee through *modules*: `call (Module.Proc.procedure (T.f (Module.app
+M A))) …`.  §6 cannot flatten that — §2 wants the callee spelled out at the call site — so this
+section provides the step before it: evaluate such a term to the procedure it denotes.
+
+### What it evaluates, and how far
+
+The term is built from `Module.app`, the constants the `module` and `moduletype` commands emit,
+`Module.pair`/`Module.fst`/`Module.snd`, `Module.proc` and `Module.Proc.procedure`.  Two shapes
+matter (`ModuleSyntax.lean` documents what each command declares):
+
+* `T.f stuff` for a `moduletype` accessor `T.f` — the argument is evaluated **only as far as the
+  accessor needs**: to a record, i.e. a `T.mk` or a `Module.pair`, and no further.  What comes
+  out is the field, which is then evaluated in turn;
+* `M.f stuff` for a `module`-declared procedure `M.f`, which for a module with no module
+  parameters is a straight substitution of the definition.
+
+The steps are the generated lemmas, each applied **at the head of the term and nowhere else**:
+`M.apply_simp` (applying a module to its parameters, giving the record of its procedures),
+`T.f.mk_simp` (reading a field off that record), `Module.fst_pair`/`snd_pair` (the same for the
+anonymous record a `module` without a module type builds), `M.f.apply_simp` (applying a procedure
+of a module to the parameters it uses, giving `Module.proc (M.f.procedure.instantiate ‹callees›)`)
+and finally `M.f.procedure.apply_simp` (the body as written, with the hole calls turned back into
+calls of those callees).  Nothing is rewritten *inside* the body: the callees it calls are left
+exactly as the module wrote them.
+
+Everything is head-position, so there is no simp set here and no risk of a lemma firing somewhere
+unintended; what the pass cannot step is an error, not a silent stop.  In particular, a module
+that is not concrete — `T.f (Module.app M A)` for a `M` that is a variable or an axiom — has no
+body to find, and `unfoldProcedure` fails.
+
+### And back into a statement
+
+`inlineProcedureRaw n` rewrites call site `n` of a statement with `unfoldProcedure`, so that its
+callee becomes literal; `inlineProcedure n` does that and then flattens the site with
+`flattenCallCleaned n` — which is what "inlining" means here.  Call sites are numbered by
+`countCallSites`, which counts `call`, `call'` *and* `hole` nodes: all three are calls as far as
+someone reading the statement is concerned, and numbering them together makes the numbers
+independent of which sites happen to be flattenable.  A hole has no callee, so both functions
+fail on one. -/
+
+/-- One rewrite with a named equation, at the head of `e` and nowhere else: instantiate the
+lemma's binders with metavariables, unify its left-hand side with `e`, and hand back the
+instantiated right-hand side together with the instantiated lemma as its proof.
+
+`none` if the lemma does not exist (the callers name lemmas that a `module`/`moduletype`
+declaration *may* have emitted), if it does not match, or if matching leaves anything open —
+whatever comes back is a closed term. -/
+def rewriteHead? (lem : Name) (e : Expr) : MetaM (Option (Expr × Expr)) := do
+  unless (← getEnv).contains lem do return none
+  -- the whole attempt is speculative: a failed match must not leave assignments behind, and the
+  -- results are checked to be metavariable-free before the state is dropped
+  withoutModifyingState do
+    let c ← mkConstWithFreshMVarLevels lem
+    let (mvars, bis, body) ← forallMetaTelescope (← inferType c)
+    let some (_, lhs, _) := body.eq? | return none
+    unless ← isDefEq lhs e do return none
+    -- an instance argument the unification did not pin down (there is none in practice: every
+    -- generated lemma mentions its `ProgramSpec` in its statement)
+    for (m, bi) in mvars.zip bis do
+      if bi.isInstImplicit && !(← m.mvarId!.isAssigned) then
+        let .some inst ← trySynthInstance (← inferType m) | return none
+        unless ← isDefEq m inst do return none
+    let proof ← instantiateMVars (mkAppN c mvars)
+    let rhs ← instantiateMVars (← inferType proof)
+    let some (_, _, rhs) := rhs.eq? | return none
+    if proof.hasExprMVar || proof.hasLevelMVar || rhs.hasExprMVar || rhs.hasLevelMVar then
+      return none
+    return some (rhs, proof)
+
+/-- Replace argument `i` of an application. -/
+def setArg (e : Expr) (i : Nat) (x : Expr) : Expr :=
+  mkAppN e.getAppFn (e.getAppArgs.set! i x)
+
+/-- `congrArg` at argument `i` of an application: from `h : ‹arg i› = x` to `e = e[arg i := x]`. -/
+def congrArgAt (e : Expr) (i : Nat) (h : Expr) : MetaM Expr := do
+  let args := e.getAppArgs
+  withLocalDeclD `x (← inferType args[i]!) fun x => do
+    mkCongrArg (← mkLambdaFVars #[x] (setArg e i x)) h
+
+/-- Lift a rewrite of argument `i` to the whole application. -/
+def liftResultAt (e : Expr) (i : Nat) (r : Simp.Result) : MetaM Simp.Result := do
+  match r.proof? with
+  | none   => return { expr := setArg e i r.expr }
+  | some h => return { expr := setArg e i r.expr, proof? := some (← congrArgAt e i h) }
+
+/-- Peel the `let` telescope off a procedure and look at what is underneath. -/
+partial def procCore (e : Expr) : MetaM Expr := do
+  match ← whnfNoZeta e with
+  | .letE _ _ v b _ => procCore (b.instantiate1 v)
+  | e' => return e'
+
+/-- Is this a procedure written out — a `ProcedureWithHoles.mk`, possibly under the `let`
+telescope that carries its variable names? -/
+def isProcLiteral (e : Expr) : MetaM Bool :=
+  return (← procCore e).isAppOfArity ``ProcedureWithHoles.mk 6
+
+/-- `‹literal tuple›.lookup ‹literal index›`, computed.  This is what the three
+`HoleSigs.Instantiation.lookup_*` lemmas say, and each of them is `rfl`, so the result is
+*definitionally* the term it replaces — no proof is needed for the step, only a re-typing of the
+proof that mentions it. -/
+partial def lookupComponent? (e : Expr) : Option Expr := do
+  guard (e.isAppOf ``HoleSigs.Instantiation.lookup)
+  let args := e.getAppArgs
+  guard (args.size ≥ 2)
+  go args[args.size - 2]! args[args.size - 1]!
+where
+  /-- Walk the index, taking the tuple apart as it goes.  A one-hole instantiation is its
+  procedure rather than a pair, which is the `tuple` that is not a `Prod.mk`. -/
+  go (tuple idx : Expr) : Option Expr :=
+    if idx.isAppOf ``HoleIndex.succ then
+      if tuple.isAppOfArity ``Prod.mk 4 then go tuple.appArg! idx.appArg! else none
+    else if idx.isAppOf ``HoleIndex.zero then
+      some (if tuple.isAppOfArity ``Prod.mk 4 then tuple.getAppArgs[2]! else tuple)
+    else none
+
+/-- Compute away every `lookup` of a literal instantiation. -/
+def reduceLookups (e : Expr) : Expr :=
+  e.replace lookupComponent?
+
+/-- Reduce a projection function applied to a record — the shape a `mk_simp` leaves behind
+(`T.Structure.f {f := …, …}`).  Anything else is returned unchanged. -/
+def reduceStructProj (e : Expr) : MetaM Expr := do
+  let some n := e.getAppFn.constName? | return e
+  let some _ ← getProjectionFnInfo? n | return e
+  let some e' ← unfoldDefinition? e | return e
+  let e'' ← whnfNoZeta e'
+  -- only accept it if the projection really went away
+  if e''.isProj || e''.getAppFn.constName? == some n then return e else return e''
+
+/-- Spell a procedure out: `M.f.procedure.instantiate ‹callees›` becomes the body as it was
+written — with each hole call turned back into a call of the callee it was made from — by the
+`M.f.procedure.apply_simp` lemma the `module` command emits; a procedure named by a constant is
+unfolded, its definition *being* the body.  Fails when no body can be reached. -/
+partial def spellOutProcedure (e : Expr) (fuel : Nat := 32) : MetaM Simp.Result := do
+  if ← isProcLiteral e then return { expr := e }
+  if fuel == 0 then throwError "gave up looking for a procedure body in{indentExpr e}"
+  if e.isAppOf ``ProcedureWithHoles.instantiate then
+    let args := e.getAppArgs
+    let p := args[args.size - 2]!
+    let some c := p.getAppFn.constName?
+      | throwError "no procedure body: the instantiated procedure is not a constant{indentExpr p}"
+    let some (rhs, h) ← rewriteHead? (c ++ `apply_simp) e
+      | throwError "no procedure body: `{c ++ `apply_simp}` does not apply to{indentExpr e}"
+    -- the lemma's right-hand side calls `holeArgs.lookup ‹index›`; at a literal instantiation
+    -- those are the callees themselves, definitionally
+    let rhs' := reduceLookups rhs
+    let h ← if rhs' == rhs then pure h else mkExpectedTypeHint h (← mkEq e rhs')
+    let r ← spellOutProcedure rhs' (fuel - 1)
+    ({ expr := rhs', proof? := some h } : Simp.Result).mkEqTrans r
+  else if let some v ← unfoldDefinition? e then
+    -- `v` is `e` by definition, so the step needs no proof of its own
+    ({ expr := v } : Simp.Result).mkEqTrans (← spellOutProcedure v (fuel - 1))
+  else
+    throwError "no concrete procedure body:{indentExpr e}"
+
+/-- The function argument of a `Module.app` — the last argument is what it is applied *to*. -/
+def moduleAppFn? (e : Expr) : Option Nat :=
+  if e.isAppOf ``Module.app && e.getAppNumArgs ≥ 2 then some (e.getAppNumArgs - 2) else none
+
+/-- The head of a `Module.app` spine: `Module.app (… (Module.app h x₁) …) xₖ` ↦ `h`. -/
+partial def moduleAppHead (e : Expr) : Expr :=
+  match moduleAppFn? e with
+  | some i => moduleAppHead e.getAppArgs[i]!
+  | none   => e
+
+/-- The lemma that reads a projection off a `Module.pair` — the anonymous record a `module`
+without a module type builds. -/
+def pairLemma? : Name → Option Name
+  | ``Module.fst  => some ``Module.fst_pair
+  | ``Module.snd  => some ``Module.snd_pair
+  | ``Module.fst' => some ``Module.fst_pair'
+  | ``Module.snd' => some ``Module.snd_pair'
+  | _ => none
+
+/-- Is this constant an accessor of a `moduletype` declaration?  It is exactly when the command
+emitted the `mk_simp` lemma that reads the field back off a built module. -/
+def isAccessor (c : Name) : MetaM Bool :=
+  return (← getEnv).contains (c ++ `mk_simp)
+
+/-- One step of head evaluation of a module expression: applying a module or one of its procedures
+to its parameters, reading a field off a record, or — when none of those applies yet — the same
+one step in the position that has to be evaluated first (the function of a `Module.app`, the
+module a projection is taken of). -/
+partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
+  let some c := e.getAppFn.constName? | return none
+  let args := e.getAppArgs
+  -- (1) applying a `module`-declared module, or one of its procedures, to its parameters
+  if let some hc := (moduleAppHead e).getAppFn.constName? then
+    if let some (rhs, h) ← rewriteHead? (hc ++ `apply_simp) e then
+      return some { expr := rhs, proof? := some h }
+  -- (2) a `moduletype` accessor of a module built by `mk`
+  if let some (rhs, h) ← rewriteHead? (c ++ `mk_simp) e then
+    return some { expr := ← reduceStructProj rhs, proof? := some h }
+  -- (3) a projection out of a `Module.pair`
+  if let some lem := pairLemma? c then
+    if let some (rhs, h) ← rewriteHead? lem e then
+      return some { expr := rhs, proof? := some h }
+  -- (4) not yet: evaluate the position that has to come first, one step
+  let i? : Option Nat ←
+    match moduleAppFn? e with                                      -- its function
+    | some i => pure (some i)
+    | none =>
+      if (pairLemma? c).isSome || (← isAccessor c) then pure (some (args.size - 1))
+      else pure none
+  let some i := i? | return none
+  let some r ← moduleStep? args[i]! | return none
+  return some (← liftResultAt e i r)
+
+/-- Evaluate a module expression until its head is `Module.proc`, then spell that procedure out.
+Fails as soon as no step applies — which is exactly the case where the term has no concrete
+procedure body. -/
+partial def unfoldModuleExpr (e : Expr) (fuel : Nat := 64) : MetaM Simp.Result := do
+  if e.isAppOf ``Module.proc then
+    let i := e.getAppNumArgs - 1
+    return ← liftResultAt e i (← spellOutProcedure e.appArg!)
+  if fuel == 0 then throwError "gave up unfolding{indentExpr e}"
+  let some step ← moduleStep? e
+    | throwError "no concrete procedure body: nothing to unfold at the head of{indentExpr e}"
+  step.mkEqTrans (← unfoldModuleExpr step.expr (fuel - 1))
+
+/-- **§11** — unfold a term built from modules that evaluates to a procedure, and hand back the
+result with a proof that it equals the term.
+
+Accepts both levels: a module term of type `Module.Proc sig`, whose result is
+`Module.proc ‹procedure›`, and a procedure term — `Module.Proc.procedure ‹module›`, the shape a
+call site carries — whose result is the procedure itself.  Fails if no concrete body can be
+found.
+
+This is the pass itself; `unfoldProcedure` wraps it. -/
+def unfoldProcedureCore (e : Expr) : MetaM Simp.Result := do
+  let ty ← whnf (← inferType e)
+  if ty.isAppOfArity ``ProcedureWithHoles 3 then
+    unless e.isAppOf ``Module.Proc.procedure do
+      -- a procedure named some other way: nothing module-ish to evaluate, only a body to reach
+      return ← spellOutProcedure e
+    let i := e.getAppNumArgs - 1
+    let r₁ ← liftResultAt e i (← unfoldModuleExpr e.appArg!)
+    let some (rhs, h) ← rewriteHead? ``Module.procedure_proc' r₁.expr
+      | throwError "unexpected: the module did not unfold to a `Module.proc`{indentExpr r₁.expr}"
+    let r ← r₁.mkEqTrans { expr := rhs, proof? := some h }
+    r.mkEqTrans (← spellOutProcedure rhs)
+  else if ty.isAppOf ``GaudisCrypt.Module then
+    unfoldModuleExpr e
+  else
+    throwError "not a module or a procedure:{indentExpr (← inferType e)}"
+
+/-- **§11** — `unfoldProcedureCore`, with the proof re-typed to say what it proves.
+
+A step that unfolds a *definition* carries no proof of its own — `none` is `rfl` — so what the
+composed proof states can end at a term that is only definitionally the result.  Both are
+correct; this is the one a caller (and a `#check`) would rather read. -/
+def unfoldProcedure (e : Expr) : MetaM Simp.Result := do
+  let r ← unfoldProcedureCore e
+  let some h := r.proof? | return r
+  return { r with proof? := some (← mkExpectedTypeHint h (← mkEq e r.expr)) }
+
+/-- Rewrite call site `idx` of a statement by unfolding its callee, and prove that the result
+*equals* the statement.  The traversal is the one that numbers the call sites, with the single
+difference that it stops at a `StmtWithHoles.call`: `whnf` would step through it to the `call'` it
+is defined as, which spreads the callee over three arguments instead of one. -/
+partial def rewriteCalleeAt (idx : Nat) (e₀ : Expr) : MetaM Simp.Result := do
+  let e ← openStmt e₀ (stmtHeads.push ``StmtWithHoles.call)
+  if isCallSite e then
+    unless idx == 0 do throwError "there is no call site number {idx} here:{indentExpr e}"
+    match e.getAppFn.constName? with
+    | some ``StmtWithHoles.call =>
+        let i := e.getAppNumArgs - 2
+        liftResultAt e i (← unfoldProcedure e.getAppArgs[i]!)
+    | some ``StmtWithHoles.call' =>
+        throwError "this call site has no callee to unfold: its callee is already spelled out"
+    | _ => throwError "this call site is a hole: it has no callee to unfold"
+  else match e with
+  | .letE n ty val body _ =>
+      withLetDecl n ty val fun fv => do
+        let r ← rewriteCalleeAt idx (body.instantiate1 fv)
+        let expr ← mkLetFVars #[fv] r.expr (usedLetOnly := false)
+        match r.proof? with
+        | none => return { expr }
+        | some h =>
+            -- `let x := v; (a = b)` and `(let x := v; a) = (let x := v; b)` differ by zeta
+            let h ← mkLetFVars #[fv] h (usedLetOnly := false)
+            return { expr, proof? := some (← mkExpectedTypeHint h (← mkEq e expr)) }
+  | _ =>
+    let args := e.getAppArgs
+    let one (i : Nat) : MetaM Simp.Result := do
+      liftResultAt e i (← rewriteCalleeAt idx args[i]!)
+    let two (i j : Nat) : MetaM Simp.Result := do
+      let ni ← countCallSites args[i]!
+      if idx < ni then one i
+      else liftResultAt e j (← rewriteCalleeAt (idx - ni) args[j]!)
+    match e.getAppFn.constName? with
+    | some ``StmtWithHoles.seq => two 3 4
+    | some ``StmtWithHoles.ifThenElse => two 4 5
+    | some ``StmtWithHoles.while => one 4
+    | _ => throwError "no call site here:{indentExpr e}"
+
+/-- **§11** — unfold the callee of call site `n`, leaving the call itself alone.  The proof is an
+equation: the statement is rewritten, not re-targeted. -/
+def inlineProcedureRaw (n : Nat) (stmt : Expr) : MetaM Simp.Result := do
+  let total ← countCallSites stmt
+  if n ≥ total then
+    throwError "there is no call site number {n}: the statement has {total}"
+  let r ← rewriteCalleeAt n stmt
+  let some h := r.proof? | return r
+  return { r with proof? := some (← mkExpectedTypeHint h (← mkEq stmt r.expr)) }
+
+/-- **§11** — inline call site `n`: unfold its callee (`inlineProcedureRaw`), then flatten the
+call (`flattenCallCleaned`).  The two proofs compose: the first is an equation, which transports
+the second's `EquivInLens` back to the statement it started from. -/
+def inlineProcedure (n : Nat) (stmt : Expr) : MetaM FlattenStep := do
+  let r ← inlineProcedureRaw n stmt
+  let step ← flattenCallCleaned n r.expr
+  let some h := r.proof? | return step
+  let scopeNew ← mkAppM ``ProcedureScope #[step.params, step.newLocals]
+  let L₁ := (← whnf (← inferType stmt)).getAppArgs[2]!
+  let motive ← withLocalDeclD `s (← mkAppM ``StmtWithHoles #[step.hCtx, L₁]) fun s => do
+    mkLambdaFVars #[s] (← mkAppOptM ``StmtWithHoles.EquivInLens
+      #[some step.inst, some step.hCtx, some L₁, some scopeNew, some s, some step.stmt,
+        some step.trafo])
+  return { step with proof := ← mkEqNDRec motive step.proof (← mkEqSymm h) }
 
 end Flatten
 

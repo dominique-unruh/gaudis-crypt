@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.Inline
+import GaudisCrypt.Syntax.ModuleSyntax
 
 /-! # Tests for `Inline.lean`
 
@@ -61,6 +62,43 @@ elab "#flattenSeq " t:term : command =>
     Meta.check r
     Meta.check p
     logInfo m!"result:{indentExpr r}\n\nproves:{indentExpr (← Meta.inferType p)}"
+
+/-- §11: unfold a module term to the procedure it denotes. -/
+elab "#unfoldProc " t:term : command =>
+  runTermElabM fun _ => do
+    let e ← elabTerm t none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let e ← instantiateMVars e
+    let r ← Flatten.unfoldProcedure e
+    Meta.check r.expr
+    let proof ← match r.proof? with
+      | some h => Meta.check h; pure m!"\n\nproves:{indentExpr (← Meta.inferType h)}"
+      | none   => pure m!"\n\n(by definition)"
+    logInfo m!"unfolds to:{indentExpr r.expr}{proof}"
+
+/-- §11: unfold the callee of one call site. -/
+elab "#inlineRaw " n:num " in " t:term : command =>
+  runTermElabM fun _ => do
+    let e ← elabTerm t none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let e ← instantiateMVars e
+    let r ← Flatten.inlineProcedureRaw n.getNat e
+    Meta.check r.expr
+    let some h := r.proof? | throwError "expected a proof"
+    Meta.check h
+    logInfo m!"statement:{indentExpr r.expr}\n\nproves:{indentExpr (← Meta.inferType h)}"
+
+/-- §11: unfold the callee of one call site, then flatten it. -/
+elab "#inline " n:num " in " t:term : command =>
+  runTermElabM fun _ => do
+    let e ← elabTerm t none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let e ← instantiateMVars e
+    let step ← Flatten.inlineProcedure n.getNat e
+    Meta.check step.stmt
+    Meta.check step.proof
+    logInfo m!"new locals: {step.newLocals}\n\nstatement:{indentExpr step.stmt}\n\n\
+      proves:{indentExpr (← Meta.inferType step.proof)}"
 
 /-- §8: the whole pass on a procedure, printed in surface syntax. -/
 elab "#flattenProc " t:term : command =>
@@ -222,5 +260,145 @@ noncomputable def callFree : proctype () -> Nat :=
 /-- error: nothing to flatten: the statement contains no call -/
 #guard_msgs in
 #flatten callFree.body
+
+/-! ## §11 — modules
+
+A module type with one procedure, a module over it that calls a parameter, and a module that
+calls nothing: the two shapes of §11, `T.f ‹module expression›` and `M.f`. -/
+
+moduletype U {
+  proc g (Nat) -> Nat;
+}
+
+moduletype T {
+  proc f (Nat) -> Nat;
+  proc h () -> Nat;
+}
+
+/- `f` calls the parameter `A` (so it has a hole), `h` does not (so it is its procedure). -/
+module M using (A : U) : T {
+  proc f (x : Nat) : Nat {
+    var y : Nat;
+    y <- call A.g (§x);
+    return §y + 1;
+  };
+  proc h () : Nat {
+    return 5;
+  };
+}
+
+/- The same, with no module parameters at all: case (b). -/
+module N : T {
+  proc f (x : Nat) : Nat {
+    var y : Nat;
+    y <- §x * 2;
+    return §y;
+  };
+  proc h () : Nat {
+    return 7;
+  };
+}
+
+/- Two parameters and two holes: the module is applied to a `Module.pair`, and the instantiation
+that fills the holes is a tuple, looked up by index. -/
+module Q using (A B : U) : T {
+  proc f (x : Nat) : Nat {
+    var y : Nat;
+    y <- call A.g (§x);
+    y <- call B.g (§y);
+    return §y;
+  };
+  proc h () : Nat {
+    return 1;
+  };
+}
+
+axiom someU : U
+axiom otherU : U
+
+/- (a): the accessor of a module applied to a parameter.  Only `M` is evaluated — the callee
+`U.g someU` the body calls is left exactly as the module wrote it. -/
+#unfoldProc (T.f (Module.app M someU))
+
+/- the same at procedure level: the shape a call site carries -/
+#unfoldProc (Module.Proc.procedure (T.f (Module.app M someU)))
+
+/- a procedure of the same module that uses no parameter: `M.h` is `Module.proc M.h.procedure`
+by definition, so the unfolding is a substitution -/
+#unfoldProc (T.h (Module.app M someU))
+
+/- two parameters, two holes: the argument tuple is taken apart, and so is the instantiation -/
+#unfoldProc (T.f (Module.app Q (Module.pair someU otherU)))
+
+/- (b): a module with an empty using-clause, read through the module type … -/
+#unfoldProc (T.f N)
+
+/- … and directly -/
+#unfoldProc N.f
+
+/- an abstract module has no body to find -/
+axiom absM : Module.Arr U T
+
+/--
+error: no concrete procedure body: nothing to unfold at the head of
+  (Module.app absM someU).f
+-/
+#guard_msgs in
+#unfoldProc (T.f (Module.app absM someU))
+
+/-- A caller whose callee is named through modules: §6 cannot flatten it (the callee is not
+spelled out at the call site), §11 can unfold it first. -/
+noncomputable def modCaller : proctype () -> Nat :=
+  proc () : Nat {
+    var n : Nat;
+    n <- 3;
+    n <- call (Module.Proc.procedure (T.f (Module.app M someU))) (§n);
+    return §n
+  }
+
+#inlineRaw 0 in modCaller.body
+
+#inline 0 in modCaller.body
+
+/-! ### Call sites are numbered including holes
+
+`P.f` calls its module parameter first and a concrete module second, so its body has two call
+sites: number 0 is the hole, number 1 the call — and neither pass will renumber them. -/
+
+module P using (A : U) : T {
+  proc f (x : Nat) : Nat {
+    var y z : Nat;
+    y <- call A.g (§x);
+    z <- call N.f (§y);
+    return §z;
+  };
+  proc h () : Nat {
+    return 0;
+  };
+}
+
+/-- error: this call site is a hole: it has no callee to unfold -/
+#guard_msgs in
+#inlineRaw 0 in P.f.procedure.body
+
+/- `M.f`'s body has one call site, and it is a hole: neither pass has anything to work with. -/
+/-- error: nothing to flatten: this call site is a hole: it has no callee to flatten -/
+#guard_msgs in
+#flatten M.f.procedure.body
+
+#inline 1 in P.f.procedure.body
+
+/- A callee named through a module is not spelled out at the call site, so §6 on its own has
+nothing to flatten: §11 has to run first. -/
+/--
+error: nothing to flatten: the call is not flattenable: its callee is not spelled out at the call site
+  N.f.procedure.1
+-/
+#guard_msgs in
+#flattenProc (proc () : Nat {
+    var n : Nat;
+    n <- call (Module.Proc.procedure (T.f N)) (§n);
+    return §n
+  })
 
 end GaudisCrypt.InlineTest
