@@ -373,6 +373,9 @@ def inlineProcedureRaw (n : Nat) (stmt : Expr) : MetaM Simp.Result
 
 /-- 11 — and then flatten that call site (6.4). -/
 def inlineProcedure (n : Nat) (stmt : Expr) : MetaM FlattenStep
+
+/-- 11 — the same on a procedure rather than a statement, through the §8 wrapper. -/
+def inlineInProcedure (n : Nat) (p : Expr) : MetaM (Expr × Expr)
 ```
 
 ### 6.1 `flattenCall` — the only interesting one, and deliberately dumb
@@ -724,9 +727,11 @@ Done (this file, below the plan):
   `while`, several parameters, a zero-parameter/zero-local callee, and the two error cases
   (`#guard_msgs`-pinned);
 * **§11** — `unfoldProcedure`, which evaluates a term built from modules to the procedure it
-  denotes, and the two functions that put it to work on a statement, `inlineProcedureRaw` and
-  `inlineProcedure`.  See the section itself, below §8, for what it steps with and why it is all
-  head-position; `InlineTest.lean` has `#unfoldProc`, `#inlineRaw` and `#inline`.
+  denotes, the two functions that put it to work on a statement (`inlineProcedureRaw` and
+  `inlineProcedure`), and `inlineInProcedure`, which does that to a procedure through the §8
+  wrapper (now `inProcedure`, shared with `flattenProcedure`).  See the section itself, below §8,
+  for what it steps with and why it is all head-position; `InlineTest.lean` has `#unfoldProc`,
+  `#inlineRaw`, `#inline` and `#inlineProc`.
 
 Four things that stage settled:
 
@@ -2939,9 +2944,13 @@ Bookkeeping only: run §6.5 on the body, put the new locals into the `locals` fi
 `return_val` along the composite lens, and re-bind it with *the same* telescope the body got —
 `delabProc` peels both fields in step and requires the two name lists to agree. -/
 
-/-- **§8** — flatten the calls of a hole-free procedure.  Returns the new procedure, a proof that
-it has the same `procedureDenotation`, and the number of calls flattened. -/
-def flattenProcedure (p : Expr) : MetaM (Expr × Expr × Nat) := do
+/-- **§8** — run a pass on the body of a hole-free procedure and put the procedure back together:
+the new locals into the `locals` field, the `return_val` re-targeted along the pass's lens, and
+`procedureDenotation_congr` for the proof.  Whatever else the pass reports (`α`) is passed on.
+
+Every user of §8 goes through this — §6.5 below, and §11's `inlineInProcedure`. -/
+def inProcedure {α : Type} (p : Expr) (pass : Expr → MetaM (FlattenStep × α)) :
+    MetaM (Expr × Expr × α) := do
   let ty ← whnf (← inferType p)
   unless ty.isAppOfArity ``ProcedureWithHoles 3 do
     throwError "not a procedure:{indentExpr ty}"
@@ -2956,7 +2965,7 @@ def flattenProcedure (p : Expr) : MetaM (Expr × Expr × Nat) := do
   let locals := pW.getAppArgs[3]!
   let body := pW.getAppArgs[4]!
   let retVal := pW.getAppArgs[5]!
-  let res ← flattenProcedureCalls body
+  let (res, a) ← pass body
   -- the return value travels along the composite lens, is cleaned, and is re-bound with the
   -- body's telescope so that the two `proc` fields agree on the variable names
   let ref ← IO.mkRef (#[] : VarTable)
@@ -2972,7 +2981,14 @@ def flattenProcedure (p : Expr) : MetaM (Expr × Expr × Nat) := do
   let proof ← inStep "the entry-state condition" <| appRfl proof   -- hinit
   let proof ← inStep "the return-value condition" <| appRfl proof  -- hret
   let proof ← inStep "the global-state condition" <| appRfl proof  -- hglob
-  return (proc', proof, res.count)
+  return (proc', proof, a)
+
+/-- **§8** — flatten the calls of a hole-free procedure.  Returns the new procedure, a proof that
+it has the same `procedureDenotation`, and the number of calls flattened. -/
+def flattenProcedure (p : Expr) : MetaM (Expr × Expr × Nat) :=
+  inProcedure p fun body => do
+    let res ← flattenProcedureCalls body
+    return (res.toFlattenStep, res.count)
 
 /-! ## §11 — unfolding a module expression to a procedure
 
@@ -3296,6 +3312,17 @@ def inlineProcedure (n : Nat) (stmt : Expr) : MetaM FlattenStep := do
       #[some step.inst, some step.hCtx, some L₁, some scopeNew, some s, some step.stmt,
         some step.trafo])
   return { step with proof := ← mkEqNDRec motive step.proof (← mkEqSymm h) }
+
+/-- **§11** — `inlineProcedure` at the procedure level: inline call site `n` of the body of a
+hole-free procedure that is spelled out, and hand back the new procedure together with a proof
+that it has the same `procedureDenotation` (§8).
+
+`proc (…) { xxx; call bla; yyy }` becomes `proc (…) { xxx; ‹the body of bla›; yyy }`, with the
+callee's locals added to the procedure's own (renamed where they collide) and its result stored
+where the call stored it. -/
+def inlineInProcedure (n : Nat) (p : Expr) : MetaM (Expr × Expr) := do
+  let (p', proof, _) ← inProcedure p fun body => return (← inlineProcedure n body, ())
+  return (p', proof)
 
 end Flatten
 

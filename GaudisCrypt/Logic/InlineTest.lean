@@ -100,6 +100,18 @@ elab "#inline " n:num " in " t:term : command =>
     logInfo m!"new locals: {step.newLocals}\n\nstatement:{indentExpr step.stmt}\n\n\
       proves:{indentExpr (← Meta.inferType step.proof)}"
 
+/-- §11 at procedure level: inline one call site of a procedure, printed in surface syntax. -/
+elab "#inlineProc " n:num " in " t:term : command =>
+  runTermElabM fun _ => do
+    let e ← elabTerm t none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let e ← instantiateMVars e
+    let (p, proof) ← Flatten.inlineInProcedure n.getNat e
+    Meta.check p
+    Meta.check proof
+    logInfo m!"inlined call site {n.getNat}:{indentExpr p}\n\n\
+      proves:{indentExpr (← Meta.inferType proof)}"
+
 /-- §8: the whole pass on a procedure, printed in surface syntax. -/
 elab "#flattenProc " t:term : command =>
   runTermElabM fun _ => do
@@ -359,6 +371,14 @@ noncomputable def modCaller : proctype () -> Nat :=
 #inlineRaw 0 in modCaller.body
 
 #inline 0 in modCaller.body
+
+/- and the same at procedure level (§8): the callee's body lands in the caller's, its local `y`
+becomes a local of the caller, and the `return` travels along -/
+#inlineProc 0 in modCaller
+
+/- a callee that is an ordinary definition rather than a module expression: §11 unfolds the
+constant, which is what makes `opaqueCallee` — the callee §6 refuses — inlinable -/
+#inlineProc 0 in callsOpaque
 
 /-! ### Call sites are numbered including holes
 
