@@ -362,21 +362,26 @@ def hoareProc' {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
     hoare (fun σ => A args σ.global ∧ σ.locals = sig.localVariableInit p.locals args)
       p.body (fun σ => B (p.return_val.get σ) σ)
 
-def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → State → Prop) :=
-  ∀ args σ, A args σ → (procedureDenotation p args σ).ofEvent (fun (ret, σ') => B ret σ') = 0
+/-- An ordinary Hoare triple for a whole procedure: the postcondition sees only the return value
+    and the globals, the procedure's own scope having been projected away by `procedureDenotation`.
+
+    Same polarity as `hoare` and `hoareProc'`: `B` has to hold almost surely, i.e. it is the event
+    `¬ B` that carries mass `0`. -/
+def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
+    (B : sig.ret → State → Prop) :=
+  ∀ args σ, A args σ → (procedureDenotation p args σ).ofEvent (fun (ret, σ') => ¬ B ret σ') = 0
 
 /-- `hoareProc` is the special case of `hoareProc'` in which the postcondition ignores the locals.
 
-    Two adjustments turn one `B` into the other, and both are forced.  Polarity: `hoareProc`'s `B`
-    names the event that must *not* happen, `hoareProc'` inherits `hoare`'s convention that `B` must
-    hold almost surely — hence the `¬`.  Domain: `hoareProc'` offers the whole final
-    `ProcedureState`, so the globals-only `B` is read off it with `.global`, and the locals are
-    dropped — which is what `procedureDenotation` does to them anyway.  That is why this is an
-    equivalence and `hoareProc'_imp_hoareProc` below, for a `B` that does look at the locals, is
-    only an implication. -/
+    Only one adjustment turns one `B` into the other, and it is forced.  Polarity is already
+    shared — both read `B` as the condition that must hold almost surely — so what is left is the
+    domain: `hoareProc'` offers the whole final `ProcedureState`, so the globals-only `B` is read
+    off it with `.global`, and the locals are dropped — which is what `procedureDenotation` does to
+    them anyway.  That is why this is an equivalence and `hoareProc'_imp_hoareProc` below, for a
+    `B` that does look at the locals, is only an implication. -/
 lemma hoareProc_iff_hoareProc' {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
     {B : sig.ret → State → Prop} :
-    hoareProc A p B ↔ hoareProc' A p (fun r σ => ¬ B r σ.global) := by
+    hoareProc A p B ↔ hoareProc' A p (fun r σ => B r σ.global) := by
   -- `ofEvent E = 0` and `expected (indicator E 1) = 0` are the same statement; working with
   -- `expected` lets `wp_procWrap` do the rest.
   have ofEvent_iff : ∀ {α : Type} (μ : SubProbability α) (E : Set α),
@@ -391,26 +396,20 @@ lemma hoareProc_iff_hoareProc' {sig} {A : sig.ParamType → State → Prop} {p :
     change (procedureDenotation p args).wp F σ = _
     rw [procedureDenotation_eq_procWrap, wp_procWrap]
     rfl
-  -- the two events are each other's image/preimage under that push-forward, so the masses agree
+  -- the two bad events are each other's image/preimage under that push-forward, so the masses
+  -- agree
   have iff0 : ∀ (args : sig.ParamType) (σ : State),
-      (procedureDenotation p args σ).ofEvent (fun (ret, σ') => B ret σ') = 0
+      (procedureDenotation p args σ).ofEvent (fun (ret, σ') => ¬ B ret σ') = 0
         ↔ (programDenotation p.body ⟨σ, sig.localVariableInit p.locals args⟩).ofEvent
-            (fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global) = 0 := by
+            (fun (_, τ) => ¬ B (p.return_val.get τ) τ.global) = 0 := by
     intro args σ
+    -- the two events are the same event, one written on the body's states and one on the
+    -- pushed-forward pairs — `rfl` up to `Set.indicator`
     have hfun : (fun q : Unit × ProcedureState (sig.ProcedureScope p.locals) =>
-        Set.indicator (fun (ret, σ') => B ret σ') (fun _ => (1 : ENNReal))
+        Set.indicator (fun (ret, σ') => ¬ B ret σ') (fun _ => (1 : ENNReal))
           (p.return_val.get q.2, q.2.global))
-        = Set.indicator (fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global)
-            (fun _ => (1 : ENNReal)) := by
-      -- drop the double negation, after which the two events are the same event, one written on
-      -- the body's states and one on the pushed-forward pairs — `rfl` up to `Set.indicator`
-      have hnn : ((fun (_, τ) => ¬ ¬ B (p.return_val.get τ) τ.global) :
-            Set (Unit × ProcedureState (sig.ProcedureScope p.locals)))
-          = fun q => B (p.return_val.get q.2) q.2.global := by
-        funext q
-        simp
-      rw [hnn]
-      rfl
+        = Set.indicator (fun (_, τ) => ¬ B (p.return_val.get τ) τ.global)
+            (fun _ => (1 : ENNReal)) := rfl
     rw [ofEvent_iff, ofEvent_iff, key, hfun]
   constructor
   · intro h args σ hσ
@@ -454,15 +453,15 @@ lemma hoareProc'_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedur
   fun args => hoare_mono (fun _ hb => hB _ _ hb) (h args)
 
 /-- The observable content of a `hoareProc'` triple, in `hoareProc` form: what survives the call is
-    that the *bad* event — the outcomes for which `B` fails whatever the final scope was — is null.
+    that almost surely *some* final scope makes `B` hold.
 
     An implication, and not an equivalence like `hoareProc_iff_hoareProc'`, which is not a
     shortcoming of the proof.  `procedureDenotation` hands back `(return value, globals)`; the final
     scope is projected away with `.global`, so the locals `B` may talk about are not observable in a
-    `hoareProc` at all.  The `∀ l` is the strongest observable consequence, and the converse fails:
-    take a body that samples a local `x : Bool` and `B r σ := σ.locals.x = true`.  The bad event is
-    then empty — no `σ'` has *every* scope satisfying `B` — so the `hoareProc` holds, while the
-    `hoareProc'` is false, the body putting mass `1/2` on `¬ B`.  Replacing `∀ l` by `∃ l` turns the
+    `hoareProc` at all.  The `∃ l` is the strongest observable consequence, and the converse fails:
+    take a body that samples a local `x : Bool` and `B r σ := σ.locals.x = true`.  Then `∃ l`
+    holds everywhere — pick the scope with `x = true` — so the `hoareProc` holds, while the
+    `hoareProc'` is false, the body putting mass `1/2` on `¬ B`.  Replacing `∃ l` by `∀ l` turns the
     implication around and is equally not an equivalence.
 
     For an actual equivalence, either restrict to a `B` that only reads the globals — that is
@@ -470,12 +469,12 @@ lemma hoareProc'_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedur
     become observable.
 
     Proof: `hoareProc_iff_hoareProc'` turns the goal into a `hoareProc'` triple with postcondition
-    `¬ ∀ l, ¬ B r ⟨σ.global, l⟩`, which is weaker than `B` — instantiate the `∀ l` at the scope in
-    hand, `σ.locals` — so `hoareProc'_mono` closes it. -/
+    `∃ l, B r ⟨σ.global, l⟩`, which is weaker than `B` — witness the `∃ l` with the scope in hand,
+    `σ.locals` — so `hoareProc'_mono` closes it. -/
 lemma hoareProc'_imp_hoareProc {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
     {B : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop}
-    (h : hoareProc' A p B) : hoareProc A p (fun ret σ => ∀ l, ¬ B ret ⟨σ, l⟩) :=
-  hoareProc_iff_hoareProc'.mpr (hoareProc'_mono (fun _ σ hb hc => hc σ.locals hb) h)
+    (h : hoareProc' A p B) : hoareProc A p (fun ret σ => ∃ l, B ret ⟨σ, l⟩) :=
+  hoareProc_iff_hoareProc'.mpr (hoareProc'_mono (fun _ σ hb => ⟨σ.locals, hb⟩) h)
 
 /-- A single point's mass as a `wp`: the postcondition that picks out `x` is the indicator of
     `{x}`, and `expectation_indicator` at `c = 1` identifies the two. -/
@@ -498,16 +497,18 @@ lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedur
     {B : sig.ret → State → Prop}
     (h : ∀ args σ, A args σ →
       (procedureDenotation p args).wp
-        (Set.indicator {r | B r.1 r.2} fun _ => 1) σ = 0) :
+        (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ = 0) :
     hoareProc A p B :=
   fun args σ hA => tmp (h args σ hA)
 
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
+-- `hoareProc`'s `B` is what must hold almost surely, so this is EC's `==> res` spelled directly,
+-- rather than the `res = false` bad event `pedersen_correctness` above names.
 theorem pedersen_correctness2 :
     hoareProc (fun _ _ => True)
       (Module.app (Correctness group.types) (Pedersen group)).main.procedure
-      (fun r _ => r = false) := by
+      (fun r _ => r = true) := by
   apply hoareProc_of_wp
   intro args σ
   -- Inlining everything (should be a tactic)
@@ -521,6 +522,7 @@ theorem pedersen_correctness2 :
   simp only [Pedersen.gen.procedure]
   simp only [Pedersen.verify.procedure]
   simp
+
 
   -- Doing wp calculus
   simp only [procedureDenotation_eq_procWrap]
