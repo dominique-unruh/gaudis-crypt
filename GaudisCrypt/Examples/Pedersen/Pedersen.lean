@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.WeakestPreconditions
+import GaudisCrypt.Logic.Hoare
 
 /-!
 # The Pedersen commitment scheme
@@ -94,10 +95,10 @@ theorem pow_mul (h : group.G) (a b : group.F) : (h ^ a) ^ b = h ^ (a * b) := gro
 
 /-- EC's `PedersenTypes` + `clone Commitment with …`: value/commitment are group elements,
     message/openingkey are exponents. -/
-/- Reducible on purpose.  It used to be an `instance`, which carries `@[reducible]` implicitly, and
+/- Reducible on purpose. It used to be an `instance`, which carries `@[reducible]` implicitly, and
 the `wp_*` proofs below rely on it: they are stated at `group.types.Commitment` and worked on at
 `group.G`, and every `simp` that has to see through that spelling needs the record to unfold at
-`reducible` transparency.  A plain `def` leaves `programDenotation` stuck on the `.seq` of the
+`reducible` transparency. A plain `def` leaves `programDenotation` stuck on the `.seq` of the
 procedure's body. -/
 @[reducible] def PedersenGroup.types : CommitmentTypes where
   Value := group.G
@@ -337,169 +338,6 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 
 section UnfinitedExperimentsByDominique
 
-def hoare (A : ProcedureState l → Prop) (p : Stmt l) (B : ProcedureState l → Prop) :=
-  ∀ σ, A σ → (programDenotation p σ).ofEvent (fun (_, σ') => ¬ B σ') = 0
-
-#print HoleSigs.Instantiation
-
-/-- A Hoare triple for a whole procedure whose postcondition may mention the procedure's
-    *internal* state — its parameters and local variables — and not only the return value and the
-    globals.
-
-    Reduced to `hoare` on the body.  The body's state is a `ProcedureState`, so the precondition
-    `hoare` gets says: the global half satisfies `A args`, and the local half is exactly the scope
-    the call would set up, `sig.localVariableInit p.locals args`.  The postcondition applies `B` to
-    the value `p.return_val` reads off the final state and to that final state itself — which is
-    where the extra information over an ordinary triple comes from, since the final state still has
-    the locals in it (`procedureDenotation` projects them away with `.global`).
-
-    Note the argument order: `p` comes before `B` because `B`'s domain mentions `p.locals`.
-    Polarity is inherited from `hoare`: `B` has to hold almost surely, i.e. the event `¬ B` has
-    mass `0`. -/
-def hoareProc' {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
-    (B : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop) :=
-  ∀ args : sig.ParamType,
-    hoare (fun σ => A args σ.global ∧ σ.locals = sig.localVariableInit p.locals args)
-      p.body (fun σ => B (p.return_val.get σ) σ)
-
-/-- An ordinary Hoare triple for a whole procedure: the postcondition sees only the return value
-    and the globals, the procedure's own scope having been projected away by `procedureDenotation`.
-
-    Same polarity as `hoare` and `hoareProc'`: `B` has to hold almost surely, i.e. it is the event
-    `¬ B` that carries mass `0`. -/
-def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
-    (B : sig.ret → State → Prop) :=
-  ∀ args σ, A args σ → (procedureDenotation p args σ).ofEvent (fun (ret, σ') => ¬ B ret σ') = 0
-
-/-- `hoareProc` is the special case of `hoareProc'` in which the postcondition ignores the locals.
-
-    Only one adjustment turns one `B` into the other, and it is forced.  Polarity is already
-    shared — both read `B` as the condition that must hold almost surely — so what is left is the
-    domain: `hoareProc'` offers the whole final `ProcedureState`, so the globals-only `B` is read
-    off it with `.global`, and the locals are dropped — which is what `procedureDenotation` does to
-    them anyway.  That is why this is an equivalence and `hoareProc'_imp_hoareProc` below, for a
-    `B` that does look at the locals, is only an implication. -/
-lemma hoareProc_iff_hoareProc' {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B : sig.ret → State → Prop} :
-    hoareProc A p B ↔ hoareProc' A p (fun r σ => B r σ.global) := by
-  -- `ofEvent E = 0` and `expected (indicator E 1) = 0` are the same statement; working with
-  -- `expected` lets `wp_procWrap` do the rest.
-  have ofEvent_iff : ∀ {α : Type} (μ : SubProbability α) (E : Set α),
-      μ.ofEvent E = 0 ↔ μ.expected (E.indicator fun _ => 1) = 0 := fun μ E => by
-    rw [expectation_indicator, one_mul, ENNReal.coe_eq_zero]
-  -- the procedure's distribution is the body's, pushed along `τ ↦ (return_val.get τ, τ.global)`
-  have key : ∀ (args : sig.ParamType) (σ : State) (F : ProgramDenotation.Post State sig.ret),
-      (procedureDenotation p args σ).expected F
-        = (programDenotation p.body ⟨σ, sig.localVariableInit p.locals args⟩).expected
-            (fun q => F (p.return_val.get q.2, q.2.global)) := by
-    intro args σ F
-    change (procedureDenotation p args).wp F σ = _
-    rw [procedureDenotation_eq_procWrap, wp_procWrap]
-    rfl
-  -- the two bad events are each other's image/preimage under that push-forward, so the masses
-  -- agree
-  have iff0 : ∀ (args : sig.ParamType) (σ : State),
-      (procedureDenotation p args σ).ofEvent (fun (ret, σ') => ¬ B ret σ') = 0
-        ↔ (programDenotation p.body ⟨σ, sig.localVariableInit p.locals args⟩).ofEvent
-            (fun (_, τ) => ¬ B (p.return_val.get τ) τ.global) = 0 := by
-    intro args σ
-    -- the two events are the same event, one written on the body's states and one on the
-    -- pushed-forward pairs — `rfl` up to `Set.indicator`
-    have hfun : (fun q : Unit × ProcedureState (sig.ProcedureScope p.locals) =>
-        Set.indicator (fun (ret, σ') => ¬ B ret σ') (fun _ => (1 : ENNReal))
-          (p.return_val.get q.2, q.2.global))
-        = Set.indicator (fun (_, τ) => ¬ B (p.return_val.get τ) τ.global)
-            (fun _ => (1 : ENNReal)) := rfl
-    rw [ofEvent_iff, ofEvent_iff, key, hfun]
-  constructor
-  · intro h args σ hσ
-    obtain ⟨hA, hloc⟩ := hσ
-    -- the precondition pins the local half, and `⟨σ.global, σ.locals⟩` is `σ` by structure eta
-    have hσ' : σ = ⟨σ.global, sig.localVariableInit p.locals args⟩ := by rw [← hloc]
-    rw [hσ']
-    exact (iff0 args σ.global).mp (h args σ.global hA)
-  · intro h args σ hA
-    exact (iff0 args σ).mpr (h args ⟨σ, sig.localVariableInit p.locals args⟩ ⟨hA, rfl⟩)
-
-omit [ProgramSpec] in
-/-- A subset of a null event is null.  (`ofEvent` is `toNNReal` of the measure, and the measure is
-    finite — bounded by `1` — so the two vanish together, which is what lets
-    `measure_mono_null` be used through the `toNNReal`.) -/
-lemma _root_.GaudisCrypt.SubProbability.ofEvent_eq_zero_of_subset {α : Type u}
-    {μ : SubProbability α} {E₁ E₂ : Set α} (hsub : E₁ ⊆ E₂) (h : μ.ofEvent E₂ = 0) :
-    μ.ofEvent E₁ = 0 := by
-  have hzero : ∀ s : Set α, μ.ofEvent s = 0 ↔ μ.1 s = 0 := fun s => by
-    rw [SubProbability.ofEvent, ENNReal.toNNReal_eq_zero_iff]
-    exact or_iff_left
-      (((MeasureTheory.measure_mono (Set.subset_univ s)).trans μ.2.1).trans_lt
-        ENNReal.one_lt_top).ne
-  rw [hzero] at h ⊢
-  exact MeasureTheory.measure_mono_null hsub h
-
-/-- `hoare` is monotone in its postcondition: a weaker `B` is a weaker triple, because the null
-    event `¬ B` only shrinks. -/
-lemma hoare_mono {l} {A : ProcedureState l → Prop} {p : Stmt l}
-    {B₁ B₂ : ProcedureState l → Prop} (hB : ∀ σ, B₁ σ → B₂ σ) (h : hoare A p B₁) :
-    hoare A p B₂ := by
-  intro σ hA
-  refine SubProbability.ofEvent_eq_zero_of_subset ?_ (h σ hA)
-  intro q hq hb
-  exact hq (hB _ hb)
-
-/-- `hoareProc'` inherits that monotonicity, postcondition by postcondition. -/
-lemma hoareProc'_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B₁ B₂ : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop}
-    (hB : ∀ r σ, B₁ r σ → B₂ r σ) (h : hoareProc' A p B₁) : hoareProc' A p B₂ :=
-  fun args => hoare_mono (fun _ hb => hB _ _ hb) (h args)
-
-/-- The observable content of a `hoareProc'` triple, in `hoareProc` form: what survives the call is
-    that almost surely *some* final scope makes `B` hold.
-
-    An implication, and not an equivalence like `hoareProc_iff_hoareProc'`, which is not a
-    shortcoming of the proof.  `procedureDenotation` hands back `(return value, globals)`; the final
-    scope is projected away with `.global`, so the locals `B` may talk about are not observable in a
-    `hoareProc` at all.  The `∃ l` is the strongest observable consequence, and the converse fails:
-    take a body that samples a local `x : Bool` and `B r σ := σ.locals.x = true`.  Then `∃ l`
-    holds everywhere — pick the scope with `x = true` — so the `hoareProc` holds, while the
-    `hoareProc'` is false, the body putting mass `1/2` on `¬ B`.  Replacing `∃ l` by `∀ l` turns the
-    implication around and is equally not an equivalence.
-
-    For an actual equivalence, either restrict to a `B` that only reads the globals — that is
-    `hoareProc_iff_hoareProc'` — or have the procedure return its own scope, so that the locals
-    become observable.
-
-    Proof: `hoareProc_iff_hoareProc'` turns the goal into a `hoareProc'` triple with postcondition
-    `∃ l, B r ⟨σ.global, l⟩`, which is weaker than `B` — witness the `∃ l` with the scope in hand,
-    `σ.locals` — so `hoareProc'_mono` closes it. -/
-lemma hoareProc'_imp_hoareProc {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B : sig.ret → ProcedureState (sig.ProcedureScope p.locals) → Prop}
-    (h : hoareProc' A p B) : hoareProc A p (fun ret σ => ∃ l, B ret ⟨σ, l⟩) :=
-  hoareProc_iff_hoareProc'.mpr (hoareProc'_mono (fun _ σ hb => ⟨σ.locals, hb⟩) h)
-
-/-- A single point's mass as a `wp`: the postcondition that picks out `x` is the indicator of
-    `{x}`, and `expectation_indicator` at `c = 1` identifies the two. -/
--- TODO rename and move to suitable file? Or drop and just use `hoare`?
-lemma tmp {sig m σ E} {p : Procedure sig} :
-  (procedureDenotation p m).wp (Set.indicator E fun _ => 1) σ = 0 →
-  (procedureDenotation p m σ).ofEvent E = 0
-  := by
-  intro h
-  simp only [ProgramDenotation.wp, expectation_indicator, one_mul, ENNReal.coe_eq_zero] at h
-  exact h
-
-/-- `tmp` at the level of a whole triple: to prove a `hoareProc`, it is enough to kill the `wp` of
-    the bad event's indicator from every state the precondition admits.  `apply` it to a `hoareProc`
-    goal and what is left is the `wp` calculation the `wp_*` lemmas do.
-
-    One-directional for the same reason `tmp` is — nothing here needs the converse, though it holds
-    (`expectation_indicator` is an equation, and the `ENNReal`/`NNReal` coercion reflects `0`). -/
-lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B : sig.ret → State → Prop}
-    (h : ∀ args σ, A args σ →
-      (procedureDenotation p args).wp
-        (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ = 0) :
-    hoareProc A p B :=
-  fun args σ hA => tmp (h args σ hA)
 
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
