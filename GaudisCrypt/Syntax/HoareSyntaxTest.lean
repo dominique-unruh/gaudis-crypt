@@ -79,12 +79,12 @@ example : Prop := hoare[ §x = 1 ==> §x = 1 ] {
 
 /- ### What the notation elaborates to
 
-`hoare[ P ==> Q ] { s }` is `hoare` applied to the two predicates and the statement, all
+`hoare[ P ==> Q ] { s }` is `hoareStmt` applied to the two predicates and the statement, all
 over the local state `ProcedureScope [] locals`. -/
 
 example :
     (hoare[ §x = 1 ==> §x = 2 ] { x <- §x + 1; })
-      = hoare (l := ProcedureScope [] [])
+      = hoareStmt (l := ProcedureScope [] [])
           (fun σ => x.get σ.global = 1)
           GaudiProg[ x <- $x + 1; ]
           (fun σ => x.get σ.global = 2) := rfl
@@ -99,13 +99,13 @@ private abbrev uLens : Lens Int (ProcedureState (ProcedureScope [] oneInt)) :=
 -- a `var` makes the local state carry that slot, and the variable is its `intoLocalVars` lens
 example :
     (hoare[ True ==> §u = 2 ] { var u : Int; u <- 2; })
-      = hoare (l := ProcedureScope [] oneInt)
+      = hoareStmt (l := ProcedureScope [] oneInt)
           (fun _ => True)
           GaudiProg[ uLens <- (2 : Int); ]
           (fun σ => uLens.get σ = 2) := rfl
 
 /--
-info: hoare { get := fun st ↦ §x = 1 }.get
+info: hoareStmt { get := fun st ↦ §x = 1 }.get
   (GaudiProg[
       x <- §x + 1;
 ])

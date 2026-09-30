@@ -4,7 +4,7 @@ import GaudisCrypt.Syntax.ProgramSyntax
 /-!
 # Concrete syntax for Hoare triples
 
-`hoare[ P ==> Q ] { … }` is the triple `hoare P p Q`, where the body is parsed by the
+`hoare[ P ==> Q ] { … }` is the triple `hoareStmt P p Q`, where the body is parsed by the
 statement parser of `ProgramSyntax.lean` (the same one `proc` and the module syntax use):
 
     hoare[ §x = 1 ==> §x = 2 ] {
@@ -27,12 +27,18 @@ parameters; a triple about a procedure is `hoareProc`, which has no notation yet
 
 ## Why `hoare[` and not `hoare [`
 
-The leading atom is glued to the bracket on purpose.  A term-level syntax cannot start
-with a *non-reserved* identifier-like atom (Lean's leading-parser table never reaches it),
-so `hoare [ … ] { … }` would require making `hoare` a keyword — which would break every
-ordinary application `hoare A p B` and print the constant as `«hoare»`.  Gluing makes
-`hoare[` a token of its own while leaving the identifier `hoare` untouched.  EasyCrypt
-spells its triples `hoare[ … : pre ==> post ]`, so this is also the familiar form.
+The leading atom is glued to the bracket on purpose.  A term-level syntax cannot start with
+a *non-reserved* identifier-like atom — Lean's leading-parser table never reaches it, so a
+production opening with `&"hoare"` is simply never tried — and the spaced form `hoare [ … ]`
+would therefore have to make `hoare` a reserved keyword.  Gluing makes `hoare[` a token of
+its own and leaves the bare word `hoare` available as an ordinary identifier (a keyword is
+banned in every position, binders and `unfold`/attribute arguments included, and a constant
+so named prints as `«hoare»`).  EasyCrypt spells its triples `hoare[ … : pre ==> post ]`, so
+this is also the familiar form.
+
+The underlying definition is `hoareStmt`, not `hoare`, so reserving the keyword would no
+longer collide with anything today — the spaced form is available should we want it, at the
+price of that project-wide reservation.
 -/
 
 namespace GaudisCrypt
@@ -70,11 +76,11 @@ macro_rules
       bs.foldrM (fun (id, ty, val) acc => `(let $id : $ty := $val; $acc)) inner
     let body ← wrap binds (← `((GaudiProg[ $stmts* ] : Stmt $L)))
     -- a condition sees the local lenses *and* the body's spine binders; `GaudiExpr[ ]`
-    -- gives a `Getter Prop …`, and `hoare` wants the underlying predicate
+    -- gives a `Getter Prop …`, and `hoareStmt` wants the underlying predicate
     let cond (p : Term) : MacroM Term := do
       wrap binds (← ProgramSyntax.wrapSpineBinders stmts
         (← `((GaudiExpr[ $p ] : Getter Prop (ProcedureState $L)).get)))
-    `(hoare $(← cond pre) $body $(← cond post))
+    `(hoareStmt $(← cond pre) $body $(← cond post))
 
 end
 
