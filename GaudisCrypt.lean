@@ -24,6 +24,7 @@ import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Syntax.ExpressionSyntaxTest
 import GaudisCrypt.Syntax.ProgramSyntaxTest
 import GaudisCrypt.Syntax.ModuleSyntaxTest
+import GaudisCrypt.Syntax.HoareSyntaxTest
 import GaudisCrypt.Language.Granularity
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
@@ -57,6 +58,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Logic.EagerProc
 import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
+import GaudisCrypt.Logic.Hoare
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PRHL

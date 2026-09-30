@@ -295,8 +295,13 @@ syntax ident " : " term : proc_binder
 -- not overlap: this one needs at least two names.
 syntax ident ident+ " : " term : proc_binder
 
+-- The `ProgramSyntax.*` helpers below are implementation details of this file's syntax, but not
+-- `private`: `HoareSyntax.lean` builds its own block syntax out of the same pieces, so that
+-- the local-variable lenses and the binder wrapping stay in one place.  The `ProgramSyntax`
+-- prefix keeps them out of `GaudisCrypt` proper.
+
 /-- `Lens.id` followed by a chain of `.ofst` (`true`) / `.osnd` (`false`). -/
-private def mkChain (steps : List Bool) : MacroM Term := do
+def ProgramSyntax.mkChain (steps : List Bool) : MacroM Term := do
   let mut acc ← `(Lens.id)
   for s in steps do
     acc ← if s then `($(acc).ofst) else `($(acc).osnd)
@@ -304,11 +309,11 @@ private def mkChain (steps : List Bool) : MacroM Term := do
 
 /-- Steps to reach slot `k` of a right-nested `n`-tuple (the last element is
 un-wrapped, so it needs no final `.ofst`). -/
-private def navSteps (k n : Nat) : List Bool :=
+def ProgramSyntax.navSteps (k n : Nat) : List Bool :=
   if k + 1 == n then List.replicate k false else true :: List.replicate k false
 
 /-- The names a binder declares, each paired with the (shared) declared type. -/
-private def parseBinder : TSyntax `proc_binder → MacroM (List (Ident × Term))
+def ProgramSyntax.parseBinder : TSyntax `proc_binder → MacroM (List (Ident × Term))
   | `(proc_binder| $id:ident : $ty:term) => pure [(id, ty)]
   | `(proc_binder| $id:ident $ids:ident* : $ty:term) =>
       pure ((id :: ids.toList).map (·, ty))
@@ -318,13 +323,14 @@ private def parseBinder : TSyntax `proc_binder → MacroM (List (Ident × Term))
 declare_syntax_cat hole_binder
 syntax ident " : " "(" term,* ")" " → " term : hole_binder
 
-private def parseHoleBinder : TSyntax `hole_binder → MacroM (Ident × List Term × Term)
+private def ProgramSyntax.parseHoleBinder :
+    TSyntax `hole_binder → MacroM (Ident × List Term × Term)
   | `(hole_binder| $id:ident : ( $ps:term,* ) → $ret:term) => pure (id, ps.getElems.toList, ret)
   | _ => Macro.throwUnsupported
 
 /-- Rewrite `call A (…)` → `holecall A (…)` for every callee `A` whose name is a hole
 (recursing into `if`/`while`/block bodies); everything else is left untouched. -/
-partial def rewriteHoles (holeNames : List Name) (s : TSyntax `gaudi_stmt) :
+partial def ProgramSyntax.rewriteHoles (holeNames : List Name) (s : TSyntax `gaudi_stmt) :
     MacroM (TSyntax `gaudi_stmt) := do
   let k := s.raw.getKind
   -- `call`/`holecall` statements carry a sepBy arg-list inside parens, which category
@@ -369,7 +375,8 @@ partial def rewriteHoles (holeNames : List Name) (s : TSyntax `gaudi_stmt) :
 `if`/`while`/block.  Each such statement carries the rest of its sequence, so the spine is a
 chain — at most one binder per level, recursed into.  `proc` uses this to repeat the body's
 binders around the return value, which is a separate field of `ProcedureWithHoles`. -/
-partial def wrapSpineBinders (ss : Array (TSyntax `gaudi_stmt)) (e : Term) : MacroM Term := do
+partial def ProgramSyntax.wrapSpineBinders (ss : Array (TSyntax `gaudi_stmt)) (e : Term) :
+    MacroM Term := do
   for s in ss do
     match s with
     | `(gaudi_stmt| let $d:letDecl; $rest:gaudi_stmt*) =>
@@ -397,12 +404,12 @@ macro_rules
         return $ret:term $[;]?
       }) => do
     -- a binder may declare several names of one type, and is flattened into one entry each
-    let paramBs := (← params.getElems.toList.mapM parseBinder).flatten.toArray
+    let paramBs := (← params.getElems.toList.mapM ProgramSyntax.parseBinder).flatten.toArray
     -- multiple `var …;` lines are concatenated into a single local-variable list
-    let localBs :=
-      (← (locals.toList.flatMap (·.getElems.toList)).mapM parseBinder).flatten.toArray
+    let localBs := (← (locals.toList.flatMap (·.getElems.toList)).mapM
+      ProgramSyntax.parseBinder).flatten.toArray
     let holeBs := (← match holes with
-      | some hs => hs.getElems.toList.mapM parseHoleBinder
+      | some hs => hs.getElems.toList.mapM ProgramSyntax.parseHoleBinder
       | none    => pure []).toArray
     let np := paramBs.size
     let nl := localBs.size
@@ -422,12 +429,12 @@ macro_rules
     let mut binds : Array (Ident × Term × Term) := #[]
     for k in [0:np] do
       let (id, ty) := paramBs[k]!
-      let slot ← mkChain (navSteps k np)
+      let slot ← ProgramSyntax.mkChain (ProgramSyntax.navSteps k np)
       let chain ← `(Lens.intoParams $slot)
       binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
     for j in [0:nl] do
       let (id, ty) := localBs[j]!
-      let slot ← mkChain (navSteps j nl)
+      let slot ← ProgramSyntax.mkChain (ProgramSyntax.navSteps j nl)
       let chain ← `(Lens.intoLocalVars $slot)
       binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
     -- holes: a `ProcedureSignature` (no locals) each, folded into a `HoleSigs` context,
@@ -451,11 +458,12 @@ macro_rules
     -- context `hCtx`; the `L = sig.ProcedureScope` check happens in ordinary elaboration.
     -- rewrite `call A (…)` → `holecall A (…)` for every callee `A` that is a declared hole
     let holeNames := holeBs.toList.map (·.1.getId)
-    let stmts' ← stmts.mapM (rewriteHoles holeNames)
+    let stmts' ← stmts.mapM (ProgramSyntax.rewriteHoles holeNames)
     let body ← wrap (binds ++ holeBinds) (← `((GaudiProg[ $stmts'* ] : StmtWithHoles $hCtx $L)))
     -- the return value repeats the parameter/local `let`s and the body's spine binders
     let retval ← wrap binds
-      (← wrapSpineBinders stmts' (← `((GaudiExpr[ $ret ] : Getter _ (ProcedureState $L)))))
+      (← ProgramSyntax.wrapSpineBinders stmts'
+        (← `((GaudiExpr[ $ret ] : Getter _ (ProcedureState $L)))))
     `((⟨$localsTerm, $body, $retval⟩ : ProcedureWithHoles $hCtx $sigTerm))
 
 end
@@ -918,3 +926,50 @@ end GaudisCrypt
 -- TODO: A `Getter` on its own still prints as `{ get := fun st => … }`, not as
 --   `GaudiExpr[ … ]` (statements and procedures do print in surface syntax).
 -- TODO: Allow _ inside a *tuple* lvalue too (a bare `_` already becomes Setter.throwaway)
+--   (see "L-value pairing" below)
+-- TODO: Allow `(x,y) <- ...` where x is a global and y is a local var
+--   (see "L-value pairing" below)
+
+/- ### L-value pairing — diagnosis for the two l-value TODOs above
+
+The two are one gap, in `[lvalRaw|]`/`[lvalRawList|]`/`[lval|]` near the top of this file.
+`[lval| xs,*]` expands to `liftLens [lvalRawList| xs,*]`: the components are **paired first and
+lifted second**.  So `Lens.pair` sees the raw components, and must find two `Lens`es in one
+and the same container, while `LiftLens` resolves exactly once, on the finished pair.
+
+Hence:
+
+* a mixed tuple fails to elaborate.  `(x, y) <- …` with `x` a local and `y : Lens Int State`
+  gives
+
+      Application type mismatch: The argument
+        y
+      has type
+        Lens ℤ State
+      but is expected to have type
+        Lens ℤ (ProcedureState (ProcedureScope [] [⟨ℤ, inferInstance⟩]))
+      in the application
+        @Lens.pair ℤ (ProcedureState (ProcedureScope [] [⟨ℤ, inferInstance⟩])) ℤ x y
+
+  All-global works (`LiftLens S State` lifts the pair with `globalL.chain`) and all-local
+  works (`LiftLens S (ProcedureState S)` keeps it), because there the two components already
+  agree; a mixed pair has no single `M` for the class to be resolved at.
+* `_` works only at the top level.  `[lval| _]` short-circuits to `Setter.throwaway`, but a `_`
+  *inside* a tuple goes through `[lvalRaw| _]` into `Lens.pair`, which wants a `Lens` — and a
+  throwaway is a `Setter`, deliberately (it has no getter).
+
+Two ways out:
+
+1. Pair at the `Setter` level: lift each leaf with `liftLens` and combine with a `Setter.pair`
+   (which does not exist yet).  This fixes both TODOs at once — `Setter.throwaway` is already a
+   `Setter`, so a `_` leaf needs no special case — at the cost of stating the disjointness side
+   condition for setters rather than for lenses.
+2. Lift each leaf into `ProcedureState S` and keep pairing lenses there.  Needs a `Lens`-valued
+   variant of `LiftLens` (`LiftLens.lift` currently lands in `Setter`), plus the missing
+   `Lens.Disjoint (ProcedureState.globalL.chain x) (ProcedureState.scopedL.chain y)` instances
+   and their mirror image — `ProcedureState` has no `globalL`/`scopedL` disjointness at all,
+   unlike `ProcedureScope.disjoint_paramsL_localVarsL`.  This does not fix the `_` TODO.
+
+Either way the delaborators have to follow, or printing stops round-tripping: `delabLValue`
+matches `liftLens` at the root of an l-value and `delabLValueList`/`delabLValueComponent` walk
+the `Lens.pair` spine underneath it. -/
