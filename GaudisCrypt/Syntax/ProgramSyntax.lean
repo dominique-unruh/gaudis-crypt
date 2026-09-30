@@ -75,6 +75,11 @@ block, on the other hand, ends with that block and does not reach `return e`.
 `->` is used (rather than `:`) so these nest inside type ascriptions without extra
 parentheses; they also pretty-print back into this form.
 
+An argument of any of these may be *named* — `procsig (h : G, m : F) -> Bool` — which a
+`ProcedureSignature` cannot record and which is therefore dropped, except by `moduletype`,
+which keeps the names in the `@[gaudiProcParamNames]` attribute.  See the *Signature argument
+lists* section below.
+
 ## Printing
 
 Statements, procedures and the two type forms all *print* in this syntax again, and do so
@@ -118,6 +123,42 @@ term binders.  Each *carries* the statements it scopes over as a nested statemen
 `let x := e;` followed by more statements is a single `gaudi_stmt` holding them, and the
 binder is visible exactly there — in the statements that follow it in its own block, and
 nowhere else. -/
+
+/-! ## The `@[gaudiProcParamNames]` attribute
+
+A `ProcedureSignature` records parameter *types* only, so the names written in a
+`moduletype` field or a `module` procedure would be lost.  They are kept in this attribute
+instead, on the declaration that names the procedure — a `moduletype` accessor `MT.f`, a
+`module`'s procedure module `X.f` and its `X.f.procedure` — so that notation about a
+procedure can bind its parameters by name even when the procedure itself is abstract (a field
+of an arbitrary module of a declared module type has no body to read names off).
+
+The attribute's syntax has to be declared under `Lean.Parser.Attr` — that is the namespace
+Lean strips to get an attribute's name from its syntax kind — and an `initialize` block cannot
+be *used* in the file that declares it, which is why both live here rather than next to the
+commands that write them (`ModuleSyntax.lean`). -/
+
+namespace Lean.Parser.Attr
+
+/-- `@[gaudiProcParamNames x, m]` records the parameter names of a procedure-valued
+declaration.  Written by the `moduletype` and `module` commands; may also be attached by hand
+to an axiomatized procedure. -/
+syntax (name := gaudiProcParamNames) "gaudiProcParamNames" ident,* : attr
+
+end Lean.Parser.Attr
+
+open Lean in
+/-- The parameter names recorded for a procedure-valued declaration by
+`@[gaudiProcParamNames …]`, if any.  Read with
+`GaudisCrypt.gaudiProcParamNamesAttr.getParam? env declName`. -/
+initialize GaudisCrypt.gaudiProcParamNamesAttr : ParametricAttribute (Array Name) ←
+  registerParametricAttribute {
+    name := `gaudiProcParamNames
+    descr := "the parameter names of this procedure-valued declaration"
+    getParam := fun _ stx => match stx with
+      | `(attr| gaudiProcParamNames $ids,*) => return ids.getElems.map (·.getId)
+      | _ => throwError "invalid `gaudiProcParamNames` attribute"
+  }
 
 namespace GaudisCrypt
 
@@ -468,6 +509,49 @@ macro_rules
 
 end
 
+/-! ### Signature argument lists — `proc_arg`
+
+The argument list of a `procsig`/`proctype`/`procmod`, and of a `proc` field of a
+`moduletype`, is a list of types, each of which may carry a name:
+`procsig (h : G, m : F) -> Bool`.  A `ProcedureSignature` records only the types, so the names
+are dropped everywhere except by `moduletype` and `module`, which put them in
+`@[gaudiProcParamNames]`.
+
+Deliberately *not* `proc_binder` (the named binder of `proc`/`var`/`using`).  Serving both
+from one category would mean adding a bare-type production to it, and a syntax category being
+global, that production would also turn up in the five positions where a name is mandatory:
+`var Int;`, `proc (Int) { … }` and `module X using (Int)` would then parse and fail late in
+`ProgramSyntax.parseBinder` instead of at the parser. -/
+
+declare_syntax_cat proc_arg
+/-- A named argument slot, `x : T`.  The name is documentation except in a `moduletype`. -/
+syntax ident " : " term : proc_arg
+/-- An unnamed argument slot: just the type. -/
+syntax term : proc_arg
+
+open Lean in section
+
+/-- The name (if one was written) and the declared type of one argument slot. -/
+def ProgramSyntax.procArgParts? : TSyntax `proc_arg → Option (Option Ident × Term)
+  | `(proc_arg| $id:ident : $ty:term) => some (some id, ty)
+  | `(proc_arg| $ty:term)             => some (none, ty)
+  | _                                 => none
+
+/-- The declared types of an argument list, with the names dropped. -/
+def ProgramSyntax.procArgTypes (as : Array (TSyntax `proc_arg)) : Option (Array Term) :=
+  as.mapM fun a => (·.2) <$> ProgramSyntax.procArgParts? a
+
+/-- The names an argument list wrote, `none` for a slot that was left unnamed. -/
+def ProgramSyntax.procArgNames (as : Array (TSyntax `proc_arg)) : Option (Array (Option Ident)) :=
+  as.mapM fun a => (·.1) <$> ProgramSyntax.procArgParts? a
+
+/-- An unnamed argument slot from its type — what the unexpanders build, a printed signature
+having no names to show. -/
+def ProgramSyntax.mkProcArg {m : Type → Type} [Monad m] [MonadQuotation m] (ty : Term) :
+    m (TSyntax `proc_arg) := `(proc_arg| $ty:term)
+
+end
+
 /-! ### Procedure *type* syntax
 
 `proctype (T, U, V) -> W` is the type `Procedure { params := [T, U, V], ret := W }`, and
@@ -479,15 +563,17 @@ than `:` so it needs no extra parentheses inside a type ascription.) -/
 declare_syntax_cat hole_sig
 syntax "(" term,* ")" " → " term : hole_sig
 
-syntax "proctype " "(" term,* ")" (" → " <|> " -> ") term (" uses " "(" hole_sig,* ")")? : term
+syntax "proctype " "(" proc_arg,* ")" (" → " <|> " -> ") term
+         (" uses " "(" hole_sig,* ")")? : term
 
 open Lean in
 macro_rules
   -- unicode `→` spelling delegates to the `->` arm below (distinguished by the arrow atom)
-  | `(proctype ( $params:term,* ) → $ret:term $[uses ( $holes:hole_sig,* )]?) =>
+  | `(proctype ( $params:proc_arg,* ) → $ret:term $[uses ( $holes:hole_sig,* )]?) =>
       `(proctype ( $params,* ) -> $ret $[uses ( $holes,* )]?)
-  | `(proctype ( $params:term,* ) -> $ret:term $[uses ( $holes:hole_sig,* )]?) => do
-      let sigTerm ← `(ProcedureSignature.mk [$params,*] $ret)
+  | `(proctype ( $params:proc_arg,* ) -> $ret:term $[uses ( $holes:hole_sig,* )]?) => do
+      let some paramTys := ProgramSyntax.procArgTypes params.getElems | Macro.throwUnsupported
+      let sigTerm ← `(ProcedureSignature.mk [$paramTys,*] $ret)
       match holes with
       | none    => `(Procedure $sigTerm)
       | some hs =>
@@ -507,7 +593,7 @@ macro_rules
 open Lean PrettyPrinter in
 /-- If `s` is a `procsig ( … ) -> …` node, return its parameter list and return type.
     (Not `private`: `ModuleSyntax.lean` unexpands `procmod` with it.) -/
-def procsigParts? (s : Syntax) : Option (Syntax.TSepArray `term "," × TSyntax `term) :=
+def procsigParts? (s : Syntax) : Option (Syntax.TSepArray `proc_arg "," × TSyntax `term) :=
   let a := s.getArgs
   if a.size == 6 && a[0]!.getAtomVal == "procsig" then some (⟨a[2]!.getArgs⟩, ⟨a[5]!⟩) else none
 
@@ -525,7 +611,7 @@ notation on `HoleSigs.cons` in a quotation is brittle, so we just gather the lea
 A hole context `HoleSigs.cons s₁ (… (HoleSigs.cons sₙ HoleSigs.empty))` has the hole signatures as
 its only `procsig` nodes, in declaration order. -/
 private partial def collectProcsigParts (s : Syntax) :
-    Array (Syntax.TSepArray `term "," × TSyntax `term) :=
+    Array (Syntax.TSepArray `proc_arg "," × TSyntax `term) :=
   match procsigParts? s with
   | some pr => #[pr]
   | none    => s.getArgs.foldl (fun acc a => acc ++ collectProcsigParts a) #[]
@@ -538,7 +624,11 @@ def unexpandProcedureWithHoles : Unexpander
       let holeParts := collectProcsigParts holes.raw
       if holeParts.isEmpty then `(proctype ( $ps,* ) -> $r)
       else
-        let holeSyns ← holeParts.mapM fun (hps, hr) => `(hole_sig| ( $hps,* ) → $hr)
+        -- a `hole_sig` is a bare type list (holes are named as a whole, their arguments never),
+        -- so the names — which a printed signature has none of anyway — are dropped here
+        let holeSyns ← holeParts.mapM fun (hps, hr) => do
+          let some htys := ProgramSyntax.procArgTypes hps.getElems | throw ()
+          `(hole_sig| ( $htys,* ) → $hr)
         `(proctype ( $ps,* ) → $r uses ( $holeSyns,* ))
   | _ => throw ()
 
@@ -549,16 +639,22 @@ form as `proctype`, minus the holes — a signature has none).  By construction
 `Procedure (procsig …) = proctype …`.  The unexpander is on `ProcedureSignature.mk`, so any
 signature with a literal parameter list prints back as `procsig (…) -> …`. -/
 
-syntax "procsig " "(" term,* ")" (" → " <|> " -> ") term : term
+syntax "procsig " "(" proc_arg,* ")" (" → " <|> " -> ") term : term
 
+open Lean in
 macro_rules
-  | `(procsig ( $params:term,* ) → $ret:term) => `(procsig ( $params,* ) -> $ret)
-  | `(procsig ( $params:term,* ) -> $ret:term) => `(ProcedureSignature.mk [$params,*] $ret)
+  | `(procsig ( $params:proc_arg,* ) → $ret:term) => `(procsig ( $params,* ) -> $ret)
+  | `(procsig ( $params:proc_arg,* ) -> $ret:term) => do
+      let some paramTys := ProgramSyntax.procArgTypes params.getElems | Macro.throwUnsupported
+      `(ProcedureSignature.mk [$paramTys,*] $ret)
 
 open Lean PrettyPrinter in
+/-- A signature holds no names, so it prints with unnamed argument slots. -/
 @[app_unexpander ProcedureSignature.mk]
 def unexpandProcSig : Unexpander
-  | `($_ [$ps,*] $r) => `(procsig ( $ps,* ) → $r)
+  | `($_ [$ps,*] $r) => do
+      let args ← ps.getElems.mapM ProgramSyntax.mkProcArg
+      `(procsig ( $args,* ) → $r)
   | _ => throw ()
 
 /-! ## Printing

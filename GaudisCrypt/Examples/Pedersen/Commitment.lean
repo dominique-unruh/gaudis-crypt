@@ -55,27 +55,30 @@ module type CommitmentScheme = {
 }.
 ``` -/
 
+-- the parameters are named as in the EC module type above, which is what puts those names
+-- within reach of notation about a `CommitmentScheme` field (`@[gaudiProcParamNames]`)
 moduletype CommitmentScheme {
   proc gen () -> (types.Value);
-  proc commit (types.Value, types.Message) -> types.Commitment × types.OpeningKey;
-  proc verify (types.Value, types.Message, types.Commitment, types.OpeningKey) -> Bool;
+  proc commit (x : types.Value, m : types.Message) -> types.Commitment × types.OpeningKey;
+  proc verify (x : types.Value, m : types.Message, c : types.Commitment,
+    d : types.OpeningKey) -> Bool;
 }
 #check CommitmentScheme.gen.utilities
 
 -- EC's `Unhider`: the hiding-game adversary.
 moduletype Unhider {
-  proc choose (types.Value) -> types.Message × types.Message;
-  proc guess (types.Commitment) -> Bool;
+  proc choose (x : types.Value) -> types.Message × types.Message;
+  proc guess (c : types.Commitment) -> Bool;
 }
 
 -- EC's `Binder`: the binding-game adversary.
 moduletype Binder {
-  proc bind (types.Value) ->
+  proc bind (x : types.Value) ->
     types.Commitment × types.Message × types.OpeningKey × types.Message × types.OpeningKey;
 }
 
 moduletype CorrectnessT {
-  proc main (types.Message) -> Bool;
+  proc main (m : types.Message) -> Bool;
 }
 
 module Correctness using (S : CommitmentScheme types) : (CorrectnessT types) {

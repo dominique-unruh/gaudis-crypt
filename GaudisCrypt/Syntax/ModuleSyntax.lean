@@ -15,12 +15,14 @@ syntax is in `ProgramSyntax.lean`.
 A top-level command declaring a record-like module type, e.g.:
 ```
 moduletype TwoProcs {
-  proc enc (Nat, Nat) -> Bool;
+  proc enc (k : Nat, m : Nat) -> Bool;
   module aux : ModuleTypeRep.arr (ModuleTypeRep.proc (procsig (Nat) -> Nat)) ModuleTypeRep.unit;
 }
 ```
 where each field's type is a `ModuleTypeRep`.  A field may also be written `proc fᵢ (A₁, …) -> R;` as
-shorthand for `module fᵢ : ModuleTypeRep.proc (procsig (A₁, …) -> R);`.  It generates `Name`
+shorthand for `module fᵢ : ModuleTypeRep.proc (procsig (A₁, …) -> R);`, with the arguments
+optionally named as above — the one place where a parameter name is kept (in
+`@[gaudiProcParamNames]`, a `ProcedureSignature` holding only types).  It generates `Name`
 (the corresponding `Module`), a record `Name.Structure` with fields `fᵢ : Module Tᵢ` — a `proc`
 field getting the `Module.Proc (procsig …)` spelling of that, the one a `module`-declared procedure
 carries — accessors `Name.fᵢ`, a constructor `Name.mk`, a destructor `Name.structure`, and
@@ -40,13 +42,18 @@ the `ModuleTypeRep` constructors — for a type rep write `.proc (procsig (…) 
 The return type is parsed at precedence `36`, above the usual infix operators, so a trailing one
 groups as `(procmod (…) -> R) ⊙ …` rather than folding into `R`.  A product/function *return* type
 therefore needs parentheses: `procmod (…) -> (A × B)`.  (No `uses` clause: for a
-procedure-with-holes module type write `ModuleTypeRep.arr` explicitly.) -/
+procedure-with-holes module type write `ModuleTypeRep.arr` explicitly.)
 
-syntax "procmod " "(" term,* ")" (" → " <|> " -> ") term:36 : term
+An argument may be named — `procmod (h : G, m : F) -> Bool` — and the name is then dropped, a
+`ProcedureSignature` recording types only.  `moduletype` is the one place where a name is kept
+(in `@[gaudiProcParamNames]`). -/
+
+syntax "procmod " "(" proc_arg,* ")" (" → " <|> " -> ") term:36 : term
 
 macro_rules
-  | `(procmod ( $params:term,* ) → $ret:term) => `(procmod ( $params,* ) -> $ret)
-  | `(procmod ( $params:term,* ) -> $ret:term) =>
+  | `(procmod ( $params:proc_arg,* ) → $ret:term) => `(procmod ( $params,* ) -> $ret)
+  | `(procmod ( $params:proc_arg,* ) -> $ret:term) =>
+      -- the names, if any, go the same way as in `procsig`: nowhere
       `(_root_.GaudisCrypt.Module.Proc (procsig ( $params,* ) -> $ret))
 
 open Lean PrettyPrinter in
@@ -638,7 +645,7 @@ end GaudisCrypt
 or the shorthand `proc f (T₁, …) -> R;` (a procedure field). -/
 declare_syntax_cat moduletypeField
 syntax "module " ident " : " term ";" : moduletypeField
-syntax "proc " ident " (" term,* ")" (" → " <|> " -> ") term ";" : moduletypeField
+syntax "proc " ident " (" proc_arg,* ")" (" → " <|> " -> ") term ";" : moduletypeField
 
 /-- `moduletype Name { module f₁ : T₁; … ; module fₙ : Tₙ }` declares a record-like module
 type, where each `Tᵢ` is a `ModuleTypeRep`.  A field may also be written
@@ -659,6 +666,14 @@ ModuleTypeUtilities …` per field — the accessor as a *module* (a projection 
 (`Module.app …accessorModule m = Name.fᵢ m`) and `…utilities.expression_eq` (the accessor at the
 level of expressions: `(Name.fᵢ m).expression = (proj m.expression).reduce`).  Bundling them keeps
 one name per field in the namespace instead of one per fact.
+
+A `proc` field may **name** its arguments — `proc commit (h : Value, m : Message) -> Bool;` —
+which a `ProcedureSignature` cannot record, holding only their types.  When every argument of a
+field has a name, the names are put on that field's accessor in the
+`@[gaudiProcParamNames]` attribute (and into its docstring, printing having nowhere to show
+them), so that notation about `Name.fᵢ` can bind the parameters by name even for an *abstract*
+module of this type — which has no procedure body to read names off.  Naming only some
+arguments of a field records nothing and warns.
 
 `Name` may take ordinary Lean parameters, written as for a `def`:
 `moduletype Sized (n : Nat) { proc f (Fin n) -> Bool; }`.  Every declaration above is then
@@ -684,20 +699,45 @@ elab_rules : command
         | `(moduletypeField| proc $fn:ident ( $_,* ) -> $_ ;) => pure fn
         | `(moduletypeField| proc $fn:ident ( $_,* ) → $_ ;)  => pure fn
         | _ => throwUnsupportedSyntax
-      let Ts ← fields.mapM fun f => match f with
+      -- the argument list of a `proc` field: the declared types, and the names where the field
+      -- wrote them (`proc f (h : G, m : F) -> Bool;`).  A `module` field has neither.
+      let procArgs ← fields.mapM fun f => match f with
+        | `(moduletypeField| proc $_ ( $ps:proc_arg,* ) -> $_ ;)
+        | `(moduletypeField| proc $_ ( $ps:proc_arg,* ) → $_ ;) => do
+            let some ns := ProgramSyntax.procArgNames ps.getElems | throwUnsupportedSyntax
+            let some tys := ProgramSyntax.procArgTypes ps.getElems | throwUnsupportedSyntax
+            return some (ns, tys)
+        | _ => pure none
+      -- the names to record in `@[gaudiProcParamNames]`: all of a field's slots or none of them.
+      -- An empty list is still a record — "this procedure is known to take no parameters".
+      let mut fieldParamNames : Array (Option (Array Ident)) := #[]
+      for i in [0:n] do
+        match procArgs[i]! with
+        | none => fieldParamNames := fieldParamNames.push none
+        | some (ns, _) =>
+            if ns.all (·.isSome) then
+              fieldParamNames := fieldParamNames.push (some (ns.map (·.get!)))
+            else
+              if ns.any (·.isSome) then
+                logWarningAt fields[i]! "only some parameters of this procedure are named; \
+                  names are recorded only if all are"
+              fieldParamNames := fieldParamNames.push none
+      let Ts ← fields.mapIdxM fun i f => match f with
         | `(moduletypeField| module $_ : $T:term ;) => pure T
-        | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;)
-        | `(moduletypeField| proc $_ ( $ps,* ) → $ret:term ;) =>
-            `(_root_.GaudisCrypt.ModuleTypeRep.proc (ProcedureSignature.mk [$ps,*] $ret))
+        | `(moduletypeField| proc $_ ( $_,* ) -> $ret:term ;)
+        | `(moduletypeField| proc $_ ( $_,* ) → $ret:term ;) => do
+            let some (_, tys) := procArgs[i]! | throwUnsupportedSyntax
+            `(_root_.GaudisCrypt.ModuleTypeRep.proc (ProcedureSignature.mk [$tys,*] $ret))
         | _ => throwUnsupportedSyntax
       -- the field/accessor types are `Module Tᵢ` — except for a `proc` field, which gets the
       -- `Module.Proc sig` spelling of it, the one `module`-declared procedures carry (so that the
       -- record built by `mk` and the procedures put into it are stated in the same terms)
-      let fts ← fields.mapM fun f => match f with
+      let fts ← fields.mapIdxM fun i f => match f with
         | `(moduletypeField| module $_ : $T:term ;) => `(_root_.GaudisCrypt.Module $T)
-        | `(moduletypeField| proc $_ ( $ps,* ) -> $ret:term ;)
-        | `(moduletypeField| proc $_ ( $ps,* ) → $ret:term ;) =>
-            `(_root_.GaudisCrypt.Module.Proc (ProcedureSignature.mk [$ps,*] $ret))
+        | `(moduletypeField| proc $_ ( $_,* ) -> $ret:term ;)
+        | `(moduletypeField| proc $_ ( $_,* ) → $ret:term ;) => do
+            let some (_, tys) := procArgs[i]! | throwUnsupportedSyntax
+            `(_root_.GaudisCrypt.Module.Proc (ProcedureSignature.mk [$tys,*] $ret))
         | _ => throwUnsupportedSyntax
       -- right-nested product of the underlying types
       let prodT ← Ts.pop.foldrM
@@ -756,8 +796,15 @@ elab_rules : command
           e ← `(_root_.GaudisCrypt.Module.fst' $e)
           me ← `(_root_.GaudisCrypt.ModuleExpression.fst $me)
           pe ← `(_root_.GaudisCrypt.ModuleExpression.fst $pe)
-        elabCommand (← `(@[module_accessor] noncomputable def $accId $bs* ($mId : $nmR) : $ft :=
-          $e))
+        -- a `proc` field whose parameters are all named also records those names, so that
+        -- notation about `MT.f` can bind them even for an abstract module of this type
+        match fieldParamNames[i]! with
+        | some pns =>
+            elabCommand (← `(@[module_accessor, gaudiProcParamNames $pns,*]
+              noncomputable def $accId $bs* ($mId : $nmR) : $ft := $e))
+        | none =>
+            elabCommand (← `(@[module_accessor] noncomputable def $accId $bs* ($mId : $nmR) :
+              $ft := $e))
         elabCommand (← `(noncomputable def $(utilIds[i]!) $bs* :
             _root_.GaudisCrypt.ModuleTypeUtilities $nmR $ft $(accRs[i]!) where
           proj := fun $eId => $pe
@@ -827,12 +874,23 @@ elab_rules : command
       for i in [0:n] do
         let acc := accIds[i]!.getId
         let fn := fns[i]!.getId
+        -- a signature records types only, so a printed one shows `proc f (G) -> Bool` even for a
+        -- field declared `proc f (h : G) -> Bool`; the docstring is where the names can be read
+        let paramNote := match fieldParamNames[i]! with
+          | none => ""
+          | some pns =>
+            let l := ", ".intercalate (pns.toList.map fun (p : Ident) => s!"`{p.getId}`")
+            if pns.isEmpty then
+              s!"\n\nIt takes no parameters (recorded in `@[gaudiProcParamNames]`)."
+            else
+              s!"\n\nIts parameters are named {l}, in that order (recorded in \
+                `@[gaudiProcParamNames]`, a `ProcedureSignature` holding only their types)."
         declared := declared.push ⟨acc, s!"the field {fn}",
           s!"The field `{fn}` of a module of type `{nb}`: the projection onto component {i} of \
             the right-nested tuple `{nb}.typeRep`, as a chain of `Module.fst'`/`Module.snd'`. \
             Tagged `@[module_accessor]`.\n\n`{acc}.mk_simp` reads this field back off a module \
             built by `{nb}.mk`; `{acc}.utilities` has the accessor as a module, and the lemmas \
-            about it."⟩
+            about it.{paramNote}"⟩
         declared := declared.push ⟨utilIds[i]!.getId,
           s!"that field as a module, and the lemmas about it",
           s!"What is derivable about the accessor `{acc}`, bundled into one \
@@ -904,6 +962,10 @@ this typing assigns to those `?sig`, is each procedure emitted as a constant
   The hole is named after that callee, `S.gen` giving the hole `S_gen`, so that a printed
   procedure still says which call each of its holes stands for;
 * every other callee is a closed module expression, converted with `Module.Proc.procedure`.
+
+A procedure's parameter names are recorded in `@[gaudiProcParamNames]` on both
+`X.<f>.procedure` and `X.<f>`, as `moduletype` does for a named `proc` field — the names are in
+the source but not in the `ProcedureSignature`, which holds only their types.
 
 Each procedure also gets a *module* `X.<f>`.  When it uses no module parameter that is simply
 `Module.proc X.<f>.procedure`.  Otherwise it is curried over the parameters it does use, in
@@ -1403,6 +1465,10 @@ structure ProcResult where
   callees : Array Term
   /-- The name of the `X.<f>.procedure.apply_simp` lemma declared alongside `X.<f>.procedure`. -/
   instThmId : Ident
+  /-- Its parameter names, as the declaration wrote them (a binder naming several parameters
+  contributing one each).  Recorded in `@[gaudiProcParamNames]` on both `X.<f>.procedure` and
+  `X.<f>`. -/
+  paramNames : Array Ident
 
 /-- Declare `X.<f>.procedure` for one `proc f (…) : R { … }` of a `module X (…)` declaration.
 Returns `none` if the body does not type-check (the errors have then been reported already). -/
@@ -1456,7 +1522,11 @@ def elabProcedure (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)
     `(hole_binder| $(holeIds[i]!):ident : ( $hps,* ) → $hret)
   let procTerm ← mkProc (holeStmts.map (⟨·⟩)) (some holeBinders)
   let declId := mkIdent (nm.getId ++ fn.getId ++ `procedure)
-  elabCommand (← `(command| noncomputable def $declId:ident $bs* := $procTerm))
+  -- the parameter names as the declaration wrote them (a binder naming several contributes one
+  -- each).  A `ProcedureSignature` keeps only their types, so they are recorded separately.
+  let procParamIds := (ps.getElems.map binderNames).flatten
+  elabCommand (← `(command| @[gaudiProcParamNames $procParamIds,*]
+    noncomputable def $declId:ident $bs* := $procTerm))
   let declRef ← P.ref declId
   -- pass 3: the same body once more, with each hole call `call args ‹its index›` instead — the
   -- right-hand side of `X.<f>.procedure.apply_simp`
@@ -1472,7 +1542,8 @@ def elabProcedure (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)
   -- a cons list, built from the back forwards; the term still reads in declaration order
   let mut hCtx ← `(GaudisCrypt.HoleSigs.empty)
   for (hps, hret) in holeSigs.reverse do
-    hCtx ← `(GaudisCrypt.HoleSigs.cons (procsig ( $hps,* ) -> $hret) $hCtx)
+    let hargs ← hps.mapM GaudisCrypt.ProgramSyntax.mkProcArg
+    hCtx ← `(GaudisCrypt.HoleSigs.cons (procsig ( $hargs,* ) -> $hret) $hCtx)
   let instThmId := mkIdent (declId.getId ++ `apply_simp)
   let instLhs ← instantiateR declRef argsId
   -- deliberately *not* `@[simp]`, unlike the other `apply_simp` lemmas: its right-hand side is the
@@ -1483,7 +1554,7 @@ def elabProcedure (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term)
       $instLhs = $instTerm :=
     fun $argsId => rfl))
   return some { fn, declId, declRef, usedPos, calleeExprs, callees := callees.map (⟨·⟩),
-                instThmId }
+                instThmId, paramNames := procParamIds }
 
 /-- The `ModuleExpression` of the procedure `r`, with `subst[i]` put for the module parameter
 declared at position `i`: either the closed `Module.proc X.<f>.procedure`, or
@@ -1511,9 +1582,10 @@ def elabProcModule (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term
     (r : ProcResult) : CommandElabM Ident := do
   let bs := P.binders
   let modId := procModId nm r
+  let pns := r.paramNames
   if r.calleeExprs.isEmpty then
-    elabCommand (← `(command| noncomputable def $modId:ident $bs* :=
-      GaudisCrypt.Module.proc $(r.declRef)))
+    elabCommand (← `(command| @[gaudiProcParamNames $pns,*]
+      noncomputable def $modId:ident $bs* := GaudisCrypt.Module.proc $(r.declRef)))
   else
     let mut ty ← `(GaudisCrypt.Module.Proc $(← runTermElabM fun _ => procSig P r.declRef))
     for i in r.usedPos.reverse do ty ← `(GaudisCrypt.Module.Arr $(paramBs[i]!.2) $ty)
@@ -1526,8 +1598,9 @@ def elabProcModule (nm : Ident) (P : LeanParams) (paramBs : Array (Ident × Term
       | none => paramPlaceholder i
     let mut body ← procApplied r subst
     for _ in r.usedPos do body ← `(GaudisCrypt.ModuleExpression.abs $body)
-    elabCommand (← `(command| noncomputable def $modId:ident $bs* : $ty :=
-      GaudisCrypt.ModuleExpression.toModule (m := $body)))
+    elabCommand (← `(command| @[gaudiProcParamNames $pns,*]
+      noncomputable def $modId:ident $bs* : $ty :=
+        GaudisCrypt.ModuleExpression.toModule (m := $body)))
   return modId
 
 /-- Declare `X.<f>.apply_simp`, the `@[simp]` lemma that applies the procedure module `X.<f>` to the

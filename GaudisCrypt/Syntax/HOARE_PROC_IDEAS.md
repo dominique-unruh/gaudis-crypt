@@ -52,7 +52,7 @@ Note what this does **not** say:
   machinery, which wants a container with `CurrentState`/`LiftLens` instances, does not apply
   to `State` directly.
 * **The postcondition cannot mention the parameters at all**, and that stays so (decision 1 in
-  §6). It is a definitional choice in `Logic/Hoare.lean`, not something the syntax could paper
+  §7). It is a definitional choice in `Logic/Hoare.lean`, not something the syntax could paper
   over: a property relating the result to an argument is not a `hoareProc` triple and must be
   stated another way (save the argument into a global, or use a relational judgment). EasyCrypt
   imposes the same restriction. The notation therefore binds `res` and the globals in the
@@ -305,7 +305,18 @@ declaration. But `(M)` is defensible and cheaper; it is not worth a long argumen
   lookup also needs a negative test: a module expression with no recoverable accessor must
   produce a readable error, not a `sorry`-shaped mess.
 
-## 6. Decisions
+## 6. Status
+
+Decisions 5-8 below are **implemented**: signature positions take named arguments
+(`proc_arg`), and `moduletype`/`module` record the names in `@[gaudiProcParamNames]`.  See
+`ProgramSyntax.lean` (the category, the helpers, the attribute) and `ModuleSyntax.lean` (the
+two commands), with tests in `ProgramSyntaxTest.lean` and `ModuleSyntaxTest.lean`.
+`Pedersen/Commitment.lean` names the `CommitmentScheme`, `Unhider`, `Binder` and
+`CorrectnessT` parameters as the EasyCrypt module types it transcribes do.
+
+The notation itself — decisions 1-4, 9, 10 — is not built yet.
+
+## 7. Decisions
 
 1. **`hoareProc` keeps its signature.** The postcondition sees `sig.ret` and `State`, *not* the
    entry parameters. A property that relates the result to an argument is not expressible as a

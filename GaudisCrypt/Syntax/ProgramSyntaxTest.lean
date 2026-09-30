@@ -162,6 +162,35 @@ example : (procsig (Nat) → Bool) = (procsig (Nat) -> Bool) := rfl
 example : (proctype (Nat) → Bool) = (proctype (Nat) -> Bool) := rfl
 #check (proc_two_holes : proctype (Nat) → Nat uses ((Nat) → Bool, (Bool) → Nat))
 
+/- ### Named argument slots
+
+An argument of a `procsig`/`proctype` may carry a name (`proc_arg`).  A `ProcedureSignature`
+records types only, so the name is documentation here — `moduletype` and `module` are the two
+commands that keep it (in `@[gaudiProcParamNames]`, see `ModuleSyntaxTest.lean`). -/
+
+example : (procsig (n : Nat, b : Bool) -> Nat) = (procsig (Nat, Bool) -> Nat) := rfl
+example : (proctype (n : Nat) -> Bool) = (proctype (Nat) -> Bool) := rfl
+-- named and unnamed slots may be mixed
+example : (procsig (Nat, b : Bool) -> Nat) = (procsig (Nat, Bool) -> Nat) := rfl
+-- the name is not part of the elaborated signature, so it cannot print back
+/-- info: procsig (ℕ, Bool) → ℕ : ProcedureSignature -/
+#guard_msgs in
+#check procsig (n : Nat, b : Bool) -> Nat
+
+-- a slot's type is still parsed as a full term, names or not
+example : (procsig (p : Nat × Bool) -> Nat) = (procsig (Nat × Bool) -> Nat) := rfl
+
+-- the attribute the two module commands write can also be attached by hand, to an
+-- axiomatized procedure that has no declaration to read names off
+@[gaudiProcParamNames lo, hi]
+axiom procAxiomatized : proctype (Nat, Nat) -> Bool
+
+open Lean in
+/-- info: some #[`lo, `hi] -/
+#guard_msgs in
+#eval show CoreM _ from do
+  return gaudiProcParamNamesAttr.getParam? (← getEnv) ``procAxiomatized
+
 /-! ### Printing and round-tripping
 
 `#roundtrip t` prints `t` with the delaborators of `ProgramSyntax.lean`, parses the printed

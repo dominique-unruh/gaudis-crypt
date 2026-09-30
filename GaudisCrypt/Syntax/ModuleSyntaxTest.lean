@@ -582,5 +582,75 @@ fun [ProgramSpec] ↦
 #guard_msgs in
 #print HoleNames.g.procedure
 
+/- ### Named parameters and `@[gaudiProcParamNames]`
+
+A `proc` field of a `moduletype` may name its arguments, and a `module`'s procedures name them
+anyway.  A `ProcedureSignature` records types only, so the names go into the
+`@[gaudiProcParamNames]` attribute on the declaration that names the procedure — the accessor
+`MT.f`, and a `module`'s `X.f` and `X.f.procedure`.  That is what lets notation about a
+procedure bind its parameters by name even when the procedure is abstract (a field of an
+arbitrary module of a declared module type has no body to read names off). -/
+
+moduletype NamedParams {
+  proc commit (h : Nat, m : Bool) -> Bool;
+  proc gen () -> Nat;
+  proc unnamed (Nat) -> Nat;
+  module plain : ModuleTypeRep.unit;
+}
+
+module NamedProcs {
+  proc p (a b : Nat) : Nat { return $a; };
+}
+
+open Lean in
+/--
+info: NamedParams.commit: (some #[h, m])
+NamedParams.gen: (some #[])
+NamedParams.unnamed: none
+NamedParams.plain: none
+NamedProcs.p: (some #[a, b])
+NamedProcs.p.procedure: (some #[a, b])
+-/
+#guard_msgs in
+#eval show CoreM Unit from do
+  let env ← getEnv
+  for d in [``NamedParams.commit, ``NamedParams.gen, ``NamedParams.unnamed,
+            ``NamedParams.plain, ``NamedProcs.p, ``NamedProcs.p.procedure] do
+    IO.println s!"{d.replacePrefix `Experiment .anonymous}: \
+      {gaudiProcParamNamesAttr.getParam? env d}"
+
+-- the names are documentation for the *signature*: it holds only the types, and prints that way
+example : (NamedParams.typeRep) = (NamedParams.typeRep) := rfl
+#check (NamedParams.commit : NamedParams → procmod (Nat, Bool) -> Bool)
+
+-- naming only some of a field's parameters records nothing, and says so
+/--
+warning: only some parameters of this procedure are named; names are recorded only if all are
+---
+info: Defined:
+def PartlyNamed.typeRep — the underlying ModuleTypeRep
+def PartlyNamed — the module type itself
+instance instIsModulePartlyNamed — its IsModule instance
+structure PartlyNamed.Structure — the record of its fields
+def PartlyNamed.f — the field f
+def PartlyNamed.f.utilities — that field as a module, and the lemmas about it
+@[simp] lemma PartlyNamed.f.mk_simp — that field of a module built by mk
+def PartlyNamed.mk — the module built from a record
+def PartlyNamed.structure — the record of a module's fields
+@[simp] lemma PartlyNamed.mk_destruct — round-trip: destructing a built module
+@[simp] lemma PartlyNamed.destruct_mk — round-trip: rebuilding a destructed module
+
+(Click to insert `#check symbolname`.)
+-/
+#guard_msgs in
+moduletype PartlyNamed {
+  proc f (h : Nat, Bool) -> Bool;
+}
+
+open Lean in
+/-- info: none -/
+#guard_msgs in
+#eval show CoreM _ from do
+  return gaudiProcParamNamesAttr.getParam? (← getEnv) ``PartlyNamed.f
 
 end Experiment
