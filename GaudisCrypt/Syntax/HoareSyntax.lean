@@ -62,13 +62,13 @@ The two conditions are plain lambdas of exactly the shape `hoareProc` asks for:
 
     hoareProc (sig := ‹sig›)
       (fun args σ =>
-        letI params : Getter _ (ProcedureState Unit) := Getter.mk fun _ => args
-        letI x : Getter _ (ProcedureState Unit) := Getter.mk fun _ => (Lens.id.ofst).get args
-        letI m : Getter _ (ProcedureState Unit) := Getter.mk fun _ => (Lens.id.osnd).get args
+        let params : Getter _ (ProcedureState Unit) := Getter.mk fun _ => args
+        let x : Getter _ (ProcedureState Unit) := Getter.mk fun _ => (Lens.id.ofst).get args
+        let m : Getter _ (ProcedureState Unit) := Getter.mk fun _ => (Lens.id.osnd).get args
         (GaudiExpr[ P ] : Getter Prop (ProcedureState Unit)).get ⟨σ, ()⟩)
       (Module.Proc.procedure M)
       (fun res σ =>
-        letI res : Getter _ (ProcedureState Unit) := Getter.mk fun _ => res
+        let res : Getter _ (ProcedureState Unit) := Getter.mk fun _ => res
         (GaudiExpr[ Q ] : Getter Prop (ProcedureState Unit)).get ⟨σ, ()⟩)
 
 Points worth knowing:
@@ -85,6 +85,11 @@ Points worth knowing:
   `$slot`, applied rather than composed.  The two encodings of "parameter `k` of `n`"
   therefore coincide, which is what lets a tactic relate a triple's parameter getter to the
   body's parameter lens.
+* The parameter binders are plain `let`s, not `letI`s: they have to *survive* elaboration, so
+  that a condition mentioning a parameter prints as `§x` rather than as the inlined slot getter,
+  and so that the written names stay recoverable from the term.  Every name is bound whether a
+  condition uses it or not; the binder idents carry no source position, so an unmentioned one
+  does not trip the unused-variable linter.
 * `sig` is passed explicitly, because `ProcedureSignature.ParamType ?sig ≟ A × B` does not
   determine `?sig`.  This is a term elaborator rather than a macro for that reason: it
   elaborates `M` first, and then has `sig` as an `Expr` to hand to `exprToSyntax` — which is
@@ -249,8 +254,10 @@ elab_rules : term <= expectedType?
     for k in [0:n] do
       let slot ← liftMacroM (ProgramSyntax.mkChain (ProgramSyntax.navSteps k n))
       preBs := preBs.push (← bind (mkIdent names[k]!) (← `(($slot).get $argsId)))
+    -- a plain `let`, not `letI`: the binder has to *survive* in the elaborated term, so that a
+    -- condition mentioning a parameter reads back as `§x` rather than as the inlined slot getter
     let wrap (bs : Array (Ident × Term)) (body : Term) : TermElabM Term :=
-      bs.foldrM (fun (id, val) acc => `(letI $id := $val; $acc)) body
+      bs.foldrM (fun (id, val) acc => `(let $id := $val; $acc)) body
     let cond (bs : Array (Ident × Term)) (p : Term) : TermElabM Term := do
       wrap bs (← `((GaudiExpr[ $p ] : Getter Prop (ProcedureState Unit)).get $pack))
     let paramTy ← exprToSyntax (← whnf (mkApp (mkConst ``ProcedureSignature.ParamType) sig))

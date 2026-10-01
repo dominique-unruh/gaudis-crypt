@@ -221,12 +221,22 @@ info: expected a procedure or a procedure module `Module.Proc …`, but this has
 /- ### Printing
 
 A procedure triple has no delaborator yet, so it prints as the `hoareProc` application it is:
-the conditions as `GaudiExpr[ ]`s applied to the repacked state, with each parameter a nested
-`§GaudiExpr[ ]` — the constant getter the notation binds the parameter name to. -/
+the conditions as `GaudiExpr[ ]`s applied to the repacked state, under the `let`s that bind the
+parameter names to their slot getters.  Those `let`s print because the elaborator uses `let` and
+not `letI` — the binders are meant to survive, so a condition mentioning a parameter reads back
+as `§a` instead of the inlined getter.  Every name is bound whether the conditions use it or
+not, which is what would let a delaborator recover the written list. -/
 
 /--
-info: hoareProc (fun args σ ↦ GaudiExpr[ §GaudiExpr[ Lens.id.ofst.get args ] = 1 ].get { global := σ, locals := () })
-  m.f.procedure fun res σ ↦ GaudiExpr[ §GaudiExpr[ res ] = 2 ].get { global := σ, locals := () } : Prop
+info: hoareProc
+  (fun args σ ↦
+    let params := GaudiExpr[ args ];
+    let a := GaudiExpr[ Lens.id.ofst.get args ];
+    let b := GaudiExpr[ Lens.id.osnd.get args ];
+    GaudiExpr[ §a = 1 ].get { global := σ, locals := () })
+  m.f.procedure fun res σ ↦
+  let res := GaudiExpr[ res ];
+  GaudiExpr[ §res = 2 ].get { global := σ, locals := () } : Prop
 -/
 #guard_msgs in
 #check hoare[ m.f (a, b) : §a = 1 ==> §res = 2 ]
