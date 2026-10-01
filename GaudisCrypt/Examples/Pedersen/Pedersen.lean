@@ -342,11 +342,14 @@ section UnfinitedExperimentsByDominique
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
 -- `hoareProc`'s `B` is what must hold almost surely, so this is EC's `==> res` spelled directly,
--- rather than the `res = false` bad event `pedersen_correctness` above names.
+-- rather than the `res = false` bad event `pedersen_correctness` above names.  In the `hoare[ ]`
+-- notation, with the callee left as a *module* (the notation inserts `Module.Proc.procedure`) and
+-- the parameter name taken from the `CorrectnessT` field's `@[gaudiProcParamNames]`.  The callee
+-- needs the outer parentheses: it is parsed at `term:max`, so an applied functor has to be
+-- bracketed.
 theorem pedersen_correctness2 :
-    hoareProc (fun _ _ => True)
-      (Module.app (Correctness group.types) (Pedersen group)).main.procedure
-      (fun r _ => r = true) := by
+    hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
+      True ==> $res = true ] := by
   apply hoareProc_of_wp
   intro args σ
   -- Inlining everything (should be a tactic)
