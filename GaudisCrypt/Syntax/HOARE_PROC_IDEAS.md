@@ -337,14 +337,31 @@ declaration. But `(M)` is defensible and cheaper; it is not worth a long argumen
 
 ## 6. Status
 
-Decisions 5-8 below are **implemented**: signature positions take named arguments
-(`proc_arg`), and `moduletype`/`module` record the names in `@[gaudiProcParamNames]`.  See
-`ProgramSyntax.lean` (the category, the helpers, the attribute) and `ModuleSyntax.lean` (the
-two commands), with tests in `ProgramSyntaxTest.lean` and `ModuleSyntaxTest.lean`.
-`Pedersen/Commitment.lean` names the `CommitmentScheme`, `Unhider`, `Binder` and
-`CorrectnessT` parameters as the EasyCrypt module types it transcribes do.
+**All of it is implemented.**
 
-The notation itself — decisions 1-4 and 9-13 — is not built yet.
+Decisions 5-8: signature positions take named arguments (`proc_arg`), and
+`moduletype`/`module` record the names in `@[gaudiProcParamNames]`.  See `ProgramSyntax.lean`
+(the category, the helpers, the attribute) and `ModuleSyntax.lean` (the two commands), with
+tests in `ProgramSyntaxTest.lean` and `ModuleSyntaxTest.lean`.  `Pedersen/Commitment.lean`
+names the `CommitmentScheme`, `Unhider`, `Binder` and `CorrectnessT` parameters as the
+EasyCrypt module types it transcribes do.
+
+Decisions 1-4 and 9-13: the `hoare[ M (x, m) : P ==> Q ]` notation, in `HoareSyntax.lean`,
+with tests in `HoareSyntaxTest.lean`.
+
+Two things the plan did not anticipate:
+
+* **`M` is parsed at `term:max`**, so an applied module expression needs parentheses —
+  `hoare[ (Module.app X A) (x) : … ]`.  At any lower precedence the parameter list is parsed as
+  an application of `M` to a tuple and vanishes into it.  `S.commit`, the common case, is a
+  single identifier token, so this bites only for explicitly applied functors.
+* **`ProcedureWithHoles .empty sig` has to be accepted** alongside `Procedure sig`: that is the
+  spelling a `module`-declared `X.f.procedure` carries, since `Procedure` is a `def` for it.
+  A procedure with non-empty holes is rejected with "instantiate them first".
+
+Still open, and separate: no delaborator, so a procedure triple prints as the `hoareProc`
+application it is.  The `Getter` printing TODO at the end of `ProgramSyntax.lean` is the
+prerequisite for both triple forms.
 
 ## 7. Decisions
 

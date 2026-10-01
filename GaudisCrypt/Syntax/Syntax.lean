@@ -9,5 +9,6 @@ Barrel module for the surface syntax of the language: expressions
 (`ExpressionSyntax.lean`), statements and procedures (`ProgramSyntax.lean`), modules
 (`ModuleSyntax.lean`), and Hoare triples (`HoareSyntax.lean`).
 
-`HoareSyntax.lean` is the one file here that reaches past `Language/` — `hoareStmt` itself lives
-in `Logic/Hoare.lean` — so this barrel pulls that in too. -/
+`HoareSyntax.lean` is the one file here that reaches past `Language/` — `hoareStmt` and
+`hoareProc` themselves live in `Logic/Hoare.lean` — so this barrel pulls that in too.  It also
+imports its sibling `ModuleSyntax.lean`, the procedure-triple form being about a module. -/
