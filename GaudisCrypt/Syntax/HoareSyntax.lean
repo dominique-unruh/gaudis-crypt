@@ -25,6 +25,11 @@ mention the local program variables and the body's `let`s.
 are read with the `$`/`§` sigil.  The local state is `ProcedureScope [] locals` — no
 parameters; a triple about a procedure is the second form below.
 
+Both forms also **print** in this surface syntax, and round-trip: the delaborators are at the
+end of each of the two sections below, and like the ones in `ProgramSyntax.lean` they step
+aside under `pp.gaudisCrypt false` and whenever the term is not of the shape the notation
+builds.
+
 # Concrete syntax for procedure triples
 
 `hoare[ M (x, m) : P ==> Q ]` is `hoareProc P' M.procedure Q'`, where `M` is a procedure
@@ -155,6 +160,55 @@ macro_rules
 
 end
 
+/-! ### Printing a statement triple
+
+`hoareStmt A p B` prints as `hoare[ P ==> Q ] { … }` when all three parts agree on the
+`let`-bound prefix the macro repeats around them: one `Lens.intoLocalVars` binder per `var`,
+and then — in the conditions only — the `let`/`have` binders on the body's spine.  If they
+disagree, or either condition is not a `GaudiExpr[ ]` getter, the delaborator steps aside and
+the `hoareStmt` application prints as it is. -/
+
+section Printing
+open Lean PrettyPrinter Delaborator SubExpr
+
+/-- A condition of a statement triple: the local-variable and spine `let`s, then
+`(GaudiExpr[ P ]).get` with no state argument of its own. -/
+private def delabStmtCond (nl : Nat) (spineNames : Array Name) :
+    DelabM (Array Name × Array Name × Term) :=
+  withPeeledLets nl (·.isAppOf ``Lens.intoLocalVars) #[] fun ls =>
+    withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
+      guard ((← getExpr).isAppOfArity ``Getter.get 3)
+      return (ls, bs, ← withNaryArg 2 delabGaudiExpr)
+
+/-- Print a statement triple as `hoare[ P ==> Q ] { … }`. -/
+@[delab app.GaudisCrypt.hoareStmt]
+private def delabHoareStmt : Delab := do
+  guardSurfaceSyntax
+  guard ((← getExpr).getAppNumArgs == 5)
+  -- the local state has to be the one the macro builds: no parameters, only declared locals
+  let localTys ← withNaryArg 1 do
+    guard ((← getExpr).isAppOfArity ``ProcedureScope 2)
+    guard ((← getExpr).getArg! 0 |>.isAppOfArity ``List.nil 1)
+    withNaryArg 1 delabLocalTypes
+  let nl := localTys.size
+  let (localNames, stmts) ← withNaryArg 3 <|
+    withPeeledLets nl (·.isAppOf ``Lens.intoLocalVars) #[] fun ls => do
+      return (ls, ← delabGaudiStmts #[])
+  let spineNames := spineLetNames stmts
+  let (preLocals, preSpine, pre) ← withNaryArg 2 (delabStmtCond nl spineNames)
+  let (postLocals, postSpine, post) ← withNaryArg 4 (delabStmtCond nl spineNames)
+  guard (preLocals == localNames && postLocals == localNames)
+  guard (preSpine == spineNames && postSpine == spineNames)
+  let locals ← (localNames.zip localTys).mapM fun (n, t) =>
+    `(proc_binder| $(mkIdent n):ident : $t)
+  let varLines : Array (Syntax.TSepArray `proc_binder ",") :=
+    if locals.isEmpty then #[] else #[locals]
+  `(hoare[ $pre ==> $post ] {
+      $[var $varLines:proc_binder,* ;]*
+      $stmts:gaudi_stmt* })
+
+end Printing
+
 /-! ## Procedure triples -/
 
 -- `M` at `term:max`: at any lower precedence the parameter list would be parsed as an
@@ -269,5 +323,69 @@ elab_rules : term <= expectedType?
       expectedType?
 
 end
+
+/-! ### Printing a procedure triple
+
+`hoareProc A p B` prints as `hoare[ M (x, y) : P ==> Q ]` when both conditions have the shape
+the elaborator builds: `fun args σ => let … ; (GaudiExpr[ P ]).get ⟨σ, ()⟩`, with one
+`Getter.mk` `let` per bound name.  The shape is checked on the raw term, which is also where
+the two things a printed triple could otherwise get wrong are ruled out: that the condition is
+read at *this* triple's `σ` and not at some other state in scope, and that it goes through the
+`let`-bound getters rather than mentioning `args`/`σ` itself (neither has a surface spelling).
+
+The parameter names are always printed, whether they were written at the triple or taken from
+the callee's `@[gaudiProcParamNames]` — printing them is faithful either way, and does not
+depend on the attribute still being there. -/
+
+section Printing
+open Lean PrettyPrinter Delaborator SubExpr
+
+private partial def packedCondGo (e : Lean.Expr) (d : Nat) : Option Nat :=
+  match e with
+  | .letE _ _ v b _ => if v.isAppOf ``Getter.mk then (· + 1) <$> packedCondGo b (d + 1) else none
+  | _ =>
+    if e.isAppOfArity ``Getter.get 4 then
+      -- inside `d` `let`s and the two lambdas, `σ` is `bvar d` and `args` is `bvar (d + 1)`
+      let self := e.getArg! 2
+      let pack := e.getArg! 3
+      if pack.isAppOfArity ``ProcedureState.mk 4 && pack.getArg! 2 == Lean.Expr.bvar d
+          && !self.hasLooseBVar d && !self.hasLooseBVar (d + 1) then some 0 else none
+    else none
+
+/-- The number of `let`s in a condition of the shape the procedure-triple elaborator builds,
+or `none` if it has some other shape.  (The `locals` component of the repacked state is not
+checked: it is a `Unit`, so it carries nothing.) -/
+private def packedCondLets? : Lean.Expr → Option Nat
+  | .lam _ _ (.lam _ _ b _) _ => packedCondGo b 0
+  | _ => none
+
+/-- The bound names and the condition term of one side of a procedure triple. -/
+private def delabProcCond (n : Nat) : DelabM (Array Name × Term) :=
+  withBindingBody `args <| withBindingBody `σ <|
+    withPeeledLets n (·.isAppOf ``Getter.mk) #[] fun names => do
+      return (names, ← withNaryArg 2 delabGaudiExpr)
+
+/-- Print a procedure triple as `hoare[ M (x, y) : P ==> Q ]`. -/
+@[delab app.GaudisCrypt.hoareProc]
+private def delabHoareProc : Delab := do
+  guardSurfaceSyntax
+  guard ((← getExpr).getAppNumArgs == 5)
+  let some nPre := packedCondLets? ((← getExpr).getArg! 2) | failure
+  let some nPost := packedCondLets? ((← getExpr).getArg! 4) | failure
+  guard (nPre ≥ 1 && nPost == 1)
+  let (preNames, pre) ← withNaryArg 2 (delabProcCond nPre)
+  let (postNames, post) ← withNaryArg 4 (delabProcCond nPost)
+  -- the elaborator binds `params` ahead of the parameters, and `res` in the postcondition
+  guard (preNames[0]! == `params && postNames == #[`res])
+  let ids := (preNames.extract 1 preNames.size).map mkIdent
+  -- a procedure module prints as the module itself; the notation re-inserts `.procedure`
+  let callee ← withNaryArg 3 do
+    if (← getExpr).isAppOfArity ``Module.Proc.procedure 3 then withNaryArg 2 delab else delab
+  if ids.isEmpty then
+    `(hoare[ $callee:term : $pre ==> $post ])
+  else
+    `(hoare[ $callee:term ( $ids,* ) : $pre ==> $post ])
+
+end Printing
 
 end GaudisCrypt

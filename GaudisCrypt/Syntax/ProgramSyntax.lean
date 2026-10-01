@@ -700,6 +700,11 @@ as `proctype (…) -> R` under `pp.gaudisCrypt false`; `pp.notation false` turns
 section Printing
 open Lean PrettyPrinter Delaborator SubExpr
 
+/- The pieces that are not `private` — `guardSurfaceSyntax`, `delabLocalTypes`,
+`delabGaudiExpr`, `withPeeledLets`, `delabGaudiStmts`, `spineLetNames` — are shared with the
+`hoare[ ]` delaborators in `HoareSyntax.lean`, which has to take a triple apart the same way:
+peel the `let`s a `proc`-style binder emits, then print what is underneath. -/
+
 /-- Name given to the state binder of a `GaudiExpr[ ]` getter while delaborating it. -/
 private def stateBinderName : Name := `st
 
@@ -720,7 +725,7 @@ private def getPPGaudisCrypt (o : Options) : Bool :=
 
 /-- Surface syntax is printed only when Lean is printing readably, and only while
 `pp.gaudisCrypt` is on. -/
-private def guardSurfaceSyntax : DelabM Unit := do
+def guardSurfaceSyntax : DelabM Unit := do
   guard (← getPPOption getPPGaudisCrypt)
   guard (← getPPOption getPPNotation)
   guard <| !(← getPPOption getPPExplicit)
@@ -742,7 +747,7 @@ private def delabLocalType : DelabM Term := do
   withNaryArg 2 delab
 
 /-- The declared types of a `locals` list. -/
-private partial def delabLocalTypes : DelabM (Array Term) := do
+partial def delabLocalTypes : DelabM (Array Term) := do
   match (← getExpr).getAppFnArgs with
   | (``List.nil, _) => return #[]
   | (``List.cons, args) => do
@@ -770,7 +775,7 @@ private partial def delabHoleSigs : DelabM (Array (Array Term × Term)) := do
 
 /-- `Getter.mk fun st => e` — what `GaudiExpr[ e ]` builds — ↦ `e`.  Fails when the state
 binder really occurs in `e`, since then `e` is not expressible in the surface syntax. -/
-private def delabGaudiExpr : DelabM Term := do
+def delabGaudiExpr : DelabM Term := do
   guard ((← getExpr).isAppOfArity ``Getter.mk 3)
   withNaryArg 2 do
     guard (← getExpr).isLambda
@@ -852,7 +857,7 @@ private partial def syntaxHasExactIdent (n : Name) : Syntax → Bool
 /-- Peel `n` `let`/`have` binders whose values satisfy `isOk`, then run `k` on the binder
 names, inside the local context they introduce.  With `anon`, an inaccessible binder is peeled
 too and reported under its printed name (see `binderPrintName`). -/
-private partial def withPeeledLets {α} [Inhabited α] (n : Nat) (isOk : Lean.Expr → Bool)
+partial def withPeeledLets {α} [Inhabited α] (n : Nat) (isOk : Lean.Expr → Bool)
     (acc : Array Name) (k : Array Name → DelabM α) (anon : Bool := false) : DelabM α := do
   if n == 0 then k acc
   else
@@ -881,7 +886,7 @@ mutual
 of the sequence (what a `let`/`have` statement elaborates to) becomes one statement carrying
 that rest; `have` is the nondependent `let`, which is the only thing that tells the two apart
 in the term. -/
-private partial def delabGaudiStmts (holeNames : Array Name) :
+partial def delabGaudiStmts (holeNames : Array Name) :
     DelabM (Array (TSyntax `gaudi_stmt)) := do
   if let .letE nm _ _ _ nonDep := (← getExpr) then
     let ty ← withLetVarType delab
@@ -979,7 +984,7 @@ private def delabGaudiProg : Delab := do
 /-- The names bound by the `let`/`have` statements on the spine of a printed statement
 sequence, outermost first — exactly the binders `wrapSpineBinders` repeats around the return
 value.  (`letI`/`haveI` inline during elaboration, so no binder of theirs is in either term.) -/
-private partial def spineLetNames (ss : Array (TSyntax `gaudi_stmt)) : Array Name := Id.run do
+partial def spineLetNames (ss : Array (TSyntax `gaudi_stmt)) : Array Name := Id.run do
   for s in ss do
     match s with
     | `(gaudi_stmt| let $d:letDecl; $rest:gaudi_stmt*)

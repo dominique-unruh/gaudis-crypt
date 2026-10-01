@@ -108,14 +108,63 @@ example :
           GaudiProg[ uLens <- (2 : Int); ]
           (fun σ => uLens.get σ = 2) := rfl
 
+/- ### Printing a statement triple
+
+A statement triple prints back in surface syntax: the `var` lines are recovered from the
+`Lens.intoLocalVars` `let`s, and the three parts have to agree on that prefix. -/
+
 /--
-info: hoareStmt GaudiExpr[ §x = 1 ].get
-  (GaudiProg[
-      x <- §x + 1;
-])
-  GaudiExpr[ §x = 2 ].get : Prop
+info: hoare[ §x = 1 ==> §x = 2 ] {
+    x <- §x + 1;
+} : Prop
 -/
 #guard_msgs in
+#check hoare[ §x = 1 ==> §x = 2 ] { x <- §x + 1; }
+
+-- `var` lines and the binders on the body's spine come back too
+/--
+info: hoare[ True ==> §u = 2 ] {
+    var u : ℤ;
+    u <- 2;
+} : Prop
+-/
+#guard_msgs in
+#check hoare[ True ==> §u = 2 ] { var u : Int; u <- 2; }
+
+/--
+info: hoare[ §u = 0 ∧ §v = 0 ==> §u = 1 ] {
+    var u : ℤ, v : ℤ;
+    u <- §u + 1;
+} : Prop
+-/
+#guard_msgs in
+#check hoare[ §u = 0 ∧ §v = 0 ==> §u = 1 ] { var u v : Int; u <- §u + 1; }
+
+/--
+info: hoare[ §x = two - 1 ==> §x = two ] {
+    let two : ℤ := 2;
+    x <- §x + 1;
+} : Prop
+-/
+#guard_msgs in
+#check hoare[ §x = two - 1 ==> §x = two ] { let two := (2 : Int); x <- §x + 1; }
+
+-- an empty body is the `skip` it elaborated to
+/--
+info: hoare[ §x = 1 ==> §x = 1 ] {
+    skip;
+} : Prop
+-/
+#guard_msgs in
+#check hoare[ §x = 1 ==> §x = 1 ] { }
+
+-- `pp.gaudisCrypt false` steps aside, here as everywhere else
+/--
+info: hoareStmt { get := fun st ↦ §x = 1 }.get (StmtWithHoles.assign (liftLens x) { get := fun st ↦ §x + 1 })
+  { get := fun st ↦ §x = 2 }.get : Prop
+-/
+#guard_msgs in
+set_option pp.gaudisCrypt false in
 #check hoare[ §x = 1 ==> §x = 2 ] { x <- §x + 1; }
 
 /- ### Procedure triples — `hoare[ M (x, m) : P ==> Q ]` -/
@@ -220,25 +269,87 @@ info: expected a procedure or a procedure module `Module.Proc …`, but this has
 
 /- ### Printing
 
-A procedure triple has no delaborator yet, so it prints as the `hoareProc` application it is:
-the conditions as `GaudiExpr[ ]`s applied to the repacked state, under the `let`s that bind the
-parameter names to their slot getters.  Those `let`s print because the elaborator uses `let` and
-not `letI` — the binders are meant to survive, so a condition mentioning a parameter reads back
-as `§a` instead of the inlined getter.  Every name is bound whether the conditions use it or
-not, which is what would let a delaborator recover the written list. -/
+A procedure triple prints back in surface syntax, the parameter names recovered from the `let`s
+the elaborator binds them with. -/
 
+/-- info: hoare[ m.f (a, b) : §a = 1 ==> §res = 2 ] : Prop -/
+#guard_msgs in
+#check hoare[ m.f (a, b) : §a = 1 ==> §res = 2 ]
+
+-- the names print whether they were written at the triple or taken from the callee's
+-- `@[gaudiProcParamNames]`, so a triple written without them gains them
+/-- info: hoare[ m.f (a, b) : §a = 1 ∧ §b = 2 ==> §res = 2 ] : Prop -/
+#guard_msgs in
+#check hoare[ m.f : §a = 1 ∧ §b = 2 ==> §res = 2 ]
+
+-- no parameters: the list is left out rather than printed as `()`
+/-- info: hoare[ m.g : §y = 0 ==> §res = true ] : Prop -/
+#guard_msgs in
+#check hoare[ m.g : §y = 0 ==> §res = true ]
+
+-- a callee given as a module prints as that module (the notation re-inserts `.procedure`); one
+-- given as the procedure prints as the procedure
+/-- info: hoare[ TestMod.p (u) : §u = 1 ==> §res = 1 ] : Prop -/
+#guard_msgs in
+#check hoare[ TestMod.p : §u = 1 ==> §res = 1 ]
+
+/-- info: hoare[ TestMod.p.procedure (u) : §u = 1 ==> §res = 1 ] : Prop -/
+#guard_msgs in
+#check hoare[ TestMod.p.procedure : §u = 1 ==> §res = 1 ]
+
+-- a `hoareProc` that is not of the notation's shape prints as the application it is
+/-- info: hoareProc (fun x x_1 ↦ True) q fun x x_1 ↦ True : Prop -/
+#guard_msgs in
+#check hoareProc (sig := procsig (Int) -> Int) (fun _ (_ : State) => True) q
+  (fun _ (_ : State) => True)
+
+-- …and so does one of the right *shape* whose first `let` is not the `params` the elaborator
+-- always binds ahead of the parameters
+/--
+info: hoareProc
+  (fun x σ ↦
+    let v := GaudiExpr[ true ];
+    GaudiExpr[ §v = true ].get { global := σ, locals := () })
+  q fun x σ ↦
+  let res := GaudiExpr[ true ];
+  GaudiExpr[ §res = true ].get { global := σ, locals := () } : Prop
+-/
+#guard_msgs in
+#check hoareProc (sig := procsig (Int) -> Int)
+  (fun _ (σ : State) =>
+    let v : Getter _ (ProcedureState Unit) := Getter.mk fun _ => true
+    (GaudiExpr[ §v = true ] : Getter Prop (ProcedureState Unit)).get ⟨σ, ()⟩) q
+  (fun _ (σ : State) =>
+    let res : Getter _ (ProcedureState Unit) := Getter.mk fun _ => true
+    (GaudiExpr[ §res = true ] : Getter Prop (ProcedureState Unit)).get ⟨σ, ()⟩)
+
+/- The three places where a printed triple is not literally what was written: an omitted name
+list is filled in, an empty body becomes `skip;`, and a multi-name `var` line becomes one
+binder each.  In each case the printed form elaborates to the same term. -/
+
+example : (hoare[ m.f : §a = 1 ∧ §b = 2 ==> §res = 2 ])
+    = (hoare[ m.f (a, b) : §a = 1 ∧ §b = 2 ==> §res = 2 ]) := rfl
+
+example : (hoare[ §x = 1 ==> §x = 1 ] { }) = (hoare[ §x = 1 ==> §x = 1 ] { skip; }) := rfl
+
+example : (hoare[ §u = 0 ∧ §v = 0 ==> §u = 1 ] { var u v : Int; u <- §u + 1; })
+    = (hoare[ §u = 0 ∧ §v = 0 ==> §u = 1 ] { var u : Int, v : Int; u <- §u + 1; }) := rfl
+
+-- `pp.gaudisCrypt false` switches off these delaborators *and* the `GaudiExpr[ ]` one, leaving
+-- the term as it is
 /--
 info: hoareProc
   (fun args σ ↦
-    let params := GaudiExpr[ args ];
-    let a := GaudiExpr[ Lens.id.ofst.get args ];
-    let b := GaudiExpr[ Lens.id.osnd.get args ];
-    GaudiExpr[ §a = 1 ].get { global := σ, locals := () })
+    let params := { get := fun x ↦ args };
+    let a := { get := fun x ↦ Lens.id.ofst.get args };
+    let b := { get := fun x ↦ Lens.id.osnd.get args };
+    { get := fun st ↦ §a = 1 }.get { global := σ, locals := () })
   m.f.procedure fun res σ ↦
-  let res := GaudiExpr[ res ];
-  GaudiExpr[ §res = 2 ].get { global := σ, locals := () } : Prop
+  let res := { get := fun x ↦ res };
+  { get := fun st ↦ §res = 2 }.get { global := σ, locals := () } : Prop
 -/
 #guard_msgs in
+set_option pp.gaudisCrypt false in
 #check hoare[ m.f (a, b) : §a = 1 ==> §res = 2 ]
 
 end GaudisCrypt.HoareSyntaxTest
