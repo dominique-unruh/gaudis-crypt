@@ -48,9 +48,9 @@ def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
 
 Note what this does **not** say:
 
-* The pre/postcondition see `State` (globals), not a `ProcedureState`. So the `GaudiExpr[ ]`
-  machinery, which wants a container with `CurrentState`/`LiftLens` instances, does not apply
-  to `State` directly.
+* The pre/postcondition see `State` (globals) and their own argument, not a `ProcedureState`.
+  `GaudiExpr[ ]` always reads from a `ProcedureState S` (that is `CurrentState`'s field type),
+  so the notation installs one — at `S := Unit`, see below — rather than bending either side.
 * **The postcondition cannot mention the parameters at all**, and that stays so (decision 1 in
   §7). It is a definitional choice in `Logic/Hoare.lean`, not something the syntax could paper
   over: a property relating the result to an argument is not a `hoareProc` triple and must be
@@ -58,31 +58,61 @@ Note what this does **not** say:
   imposes the same restriction. The notation therefore binds `res` and the globals in the
   postcondition, and the parameter names only in the precondition.
 
-### The carrier trick — reuse `ProcedureState`, add no instances
+### The conditions are plain lambdas — no combinator, no packing
 
-Both conditions can be elaborated as ordinary `GaudiExpr[ ]` over a `ProcedureState` carrier,
-which means `$y` for a global, `Lens.intoParams` for a parameter, and every `LiftLens`
-instance keeps working with zero additions:
+Target `hoareProc` directly, with each condition a lambda of exactly the shape it asks for.
+The elaborator writes no types at all: the binders take theirs from `hoareProc`'s expected
+argument type, so `sig` is never named in generated syntax — which was the one thing that
+looked as though it needed a helper definition.
 
-* precondition: `Getter Prop (ProcedureState (ProcedureScope sig.params []))`
-  — `global` is the `State`, `params` is the argument tuple, no locals.
-  Bridge: `fun args σ => A.get ⟨σ, ⟨args, ()⟩⟩`.
-* postcondition: `Getter Prop (ProcedureState (ProcedureScope [sig.ret] []))`
-  — the result masquerading as a single parameter.
-  Bridge: `fun r σ => B.get ⟨σ, ⟨r, ()⟩⟩`.
+For `hoare[ M (x, m) : P ==> Q ]`:
 
-`typeListToTuple [x] = x` reducibly, so the one-slot case is exactly `sig.ret` and the pun
-typechecks. It *is* a pun though; give it a name (`abbrev ProcedureExitState (sig) := …`) so
-that a type error in a postcondition does not talk about a `ProcedureScope` with parameters
-the user never wrote.
+```lean
+hoareProc
+  (fun args σ =>
+    letI : CurrentState Unit := ⟨⟨σ, ()⟩⟩
+    let x := Getter.mk fun _ => Lens.get ‹slot 0 of 2› args
+    let m := Getter.mk fun _ => Lens.get ‹slot 1 of 2› args
+    let params := Getter.mk fun _ => args
+    ⟪P⟫)
+  (Module.Proc.procedure M)
+  (fun res σ =>
+    letI : CurrentState Unit := ⟨⟨σ, ()⟩⟩
+    let res := Getter.mk fun _ => res
+    ⟪Q⟫)
+```
 
-Then `$params` and `$res` are both just `Lens.intoParams Lens.id` in their respective
-carriers — pleasingly uniform, and nothing new is needed to support them.
+Why each piece:
 
-### Put the typing in a combinator, not in the generated syntax
+* **Carrier `ProcedureState Unit`.**  `GaudiExpr`'s ambient state is a `ProcedureState S`
+  (`CurrentState.state : ProcedureState S`, `ExpressionSyntax.lean`), so a condition that wants
+  the same `§`/`$` sigil as a statement body has to install one.  `Unit` locals is the smallest
+  choice, mentions no `sig`, and is writable with zero knowledge — `⟨σ, ()⟩` needs at most the
+  closed ascription `ProcedureState Unit`.  A global `y : Lens Int State` then reads through the
+  existing `Evaluatable S (Lens T State) T` instance, and there are no locals, which is right.
+  **No `ProcedureScope`, hence no `⟨σ, ⟨args, ()⟩⟩` and no result-as-parameter pun.**
+* **Parameters are constant getters, read with the sigil** — `§x`, not bare `x`.  One spelling
+  for every variable, so a condition can be lifted out of a procedure body unchanged, and
+  anything processing triples mechanically sees the same `eval`-shaped read throughout.
+* **The slot is the *same lens chain* the body uses.**  `proc` binds its `k`-th parameter to
+  `Lens.intoParams $slot` with `slot = ProgramSyntax.mkChain (ProgramSyntax.navSteps k np)`; the
+  triple emits that identical `$slot` and applies it, `Lens.get $slot args`.  So a parameter
+  getter in a triple and the parameter lens in the body are visibly the same navigation, which
+  is what lets a tactic match one against the other instead of having to know two unrelated
+  encodings.  Both helpers are already public for `HoareSyntax.lean`.
+* **`$params` is a constant getter onto `args`** itself, and **`$res`** onto the result binder.
+  Neither is special; both are the degenerate case of the above.
 
-The macro should not have to *write* the types of the lenses, because at macro time it does not
-know `sig`. Define
+Nothing here needs a new definition in `Logic/Hoare.lean`, a new instance in
+`ExpressionSyntax.lean`, or a type reconstructed from an elaborated `sig`.  The elaborator
+needs `sig` for exactly two things: the **arity**, to know how many slots to emit, and the
+check that a written binder list matches it.
+
+### Rejected: a `Getter`-valued combinator
+
+For the record, since it shaped the earlier draft.  Elaborating the conditions over
+`ProcedureState (ProcedureScope sig.params [])` and `ProcedureState (ProcedureScope [sig.ret]
+[])` also works, with
 
 ```lean
 def hoareProcG {sig} (p : Procedure sig)
@@ -91,20 +121,20 @@ def hoareProcG {sig} (p : Procedure sig)
   hoareProc (fun args σ => A.get ⟨σ, ⟨args, ()⟩⟩) p (fun r σ => B.get ⟨σ, ⟨r, ()⟩⟩)
 ```
 
-and emit `hoareProcG $M GaudiExpr[ let x := Lens.intoParams Lens.fst; … $P ] …`. Unification
-flows `sig` from `M` into the carrier and from there into every `Lens.intoParams`, so the
-generated `let`s need **no type ascriptions** — unlike `proc`, which knows its parameter types
-from the source. That removes the whole problem of reconstructing type *syntax* from an
-elaborated `sig`. (Risk to check early: elaboration order. The ascription that fixes the
-carrier is outside the `let`s, so each `Lens.intoParams`'s implicit `paramTypes` is only
-determined by postponement. If it stalls, `letI`, or an explicit
-`(… : Getter Prop (ProcedureState (ProcedureScope sig.params [])))` where `sig` comes from a
-first-stage elaboration of `M`, is the fallback.)
+so that `sig` flows from `p` into the carrier by unification and the parameters are the
+`Lens.intoParams $slot` lenses the body uses, verbatim.
+
+Three things are wrong with it.  It needs the packing `⟨σ, ⟨args, ()⟩⟩`; the postcondition's
+carrier is the result pretending to be a one-element parameter list, a pun belonging to no
+layer in particular; and it introduces a second name for the triple that every proof then has
+to unfold before reaching `hoareProc_mono` and friends.  The lambda form above has none of
+these, and loses nothing: the `$slot` chain still appears, just applied rather than
+composed.
 
 ## 2. `M'` — which terms to accept
 
-`M.procedure` is `Module.Proc.procedure`, so `hoareProcG (Module.Proc.procedure $M) …`.
-Suggestions:
+`M.procedure` is `Module.Proc.procedure`, so the middle argument is
+`Module.Proc.procedure $M`.  Suggestions:
 
 * Accept a bare `Procedure sig` too, not only a `Module.Proc sig`. `proc (…) {…}` literals and
   `X.f.procedure` are the things one reaches for in a smoke test, and they are what the
@@ -314,7 +344,7 @@ two commands), with tests in `ProgramSyntaxTest.lean` and `ModuleSyntaxTest.lean
 `Pedersen/Commitment.lean` names the `CommitmentScheme`, `Unhider`, `Binder` and
 `CorrectnessT` parameters as the EasyCrypt module types it transcribes do.
 
-The notation itself — decisions 1-4, 9, 10 — is not built yet.
+The notation itself — decisions 1-4 and 9-13 — is not built yet.
 
 ## 7. Decisions
 
@@ -342,11 +372,11 @@ The notation itself — decisions 1-4, 9, 10 — is not built yet.
 9. **The notation goes in `HoareSyntax.lean`**, which gains
    `import GaudisCrypt.Syntax.ModuleSyntax` (for `Module.Proc`, `Module.Proc.procedure` and
    `listLit?`). No cycle — `ModuleSyntax` imports only `ProgramSyntax` and
-   `Language/Modules.lean`. The two triple forms share the `hoare[` token, the carrier trick
-   and the condition-building code, so splitting them into a second file would mean exporting
-   those helpers. Knock-on: the barrel docstring at `Syntax/Syntax.lean:12` says
-   `HoareSyntax.lean` is the one file there reaching past `Language/`; it now also reaches into
-   its sibling `ModuleSyntax.lean`.
+   `Language/Modules.lean`. The two triple forms share the `hoare[` token and the
+   condition-building code, so splitting them into a second file would mean exporting those
+   helpers. Knock-on: the barrel docstring at `Syntax/Syntax.lean:12` says `HoareSyntax.lean`
+   is the one file there reaching past `Language/`; it now also reaches into its sibling
+   `ModuleSyntax.lean`.
 10. **The procedure form takes no block at all** — no `{ … }`, no `var` lines, no `let`/`have`.
     The whole triple is `hoare[ M (x, m) : P ==> Q ]` and nothing follows the bracket. There is
     no body at the triple site, and the procedure's own locals are invisible to `hoareProc`
@@ -359,3 +389,16 @@ The notation itself — decisions 1-4, 9, 10 — is not built yet.
     `hoare[ P ==> Q ] { var u : Int; let two := 2; … }` keeps its `var` lines and spine
     binders, and keeps repeating both around `P` and `Q`, exactly as
     `HoareSyntax.lean` does today.
+11. **The conditions are lambdas applied straight to `hoareProc`** — no intermediate
+    combinator, and nothing new in `Logic/Hoare.lean`. The ambient state is installed at the
+    closed carrier `ProcedureState Unit`, so no `ProcedureScope` appears, no `⟨σ, ⟨args, ()⟩⟩`
+    packing is needed, and the result never has to masquerade as a parameter (§1).
+12. **Parameters, `params` and `res` are bound as constant getters and read with the sigil** —
+    `§x`, `§params`, `§res`, not bare names. One spelling for every variable, so a condition
+    lifted out of a procedure body still parses and anything processing triples mechanically
+    sees one `eval`-shaped read everywhere.
+13. **A parameter's slot is the lens chain the body uses.** `proc` binds its `k`-th parameter to
+    `Lens.intoParams $slot` for `slot = ProgramSyntax.mkChain (ProgramSyntax.navSteps k np)`;
+    the triple emits the same `$slot` and applies it, `Lens.get $slot args`. The two encodings
+    of "parameter `k` of `n`" then coincide, which is what lets a tactic relate a triple's
+    parameter getter to the body's parameter lens.
