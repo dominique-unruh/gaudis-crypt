@@ -108,7 +108,9 @@ private def fixExpr (stx : Syntax) : MacroM Syntax :=
     else
       pure none
 
-scoped macro:max "GaudiExpr[" e:term "]" : term => do
+-- the atoms carry pretty-printing spaces (`GaudiExpr[ e ]`); tokenization ignores them, so
+-- `GaudiExpr[e]` still parses
+scoped macro:max "GaudiExpr[ " e:term " ]" : term => do
   let e' : Term := ⟨← fixExpr e⟩
   `(Getter.mk (fun st => letI : CurrentState _ := ⟨st⟩; $e'))
 

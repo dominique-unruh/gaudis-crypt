@@ -660,8 +660,14 @@ def unexpandProcSig : Unexpander
 /-! ## Printing
 
 Delaborators that render elaborated terms back into the surface syntax above: a procedure
-built by `proc` prints as `proc (…) uses (…) : R { … }`, and a statement prints as
-`GaudiProg[ … ]` (with variable reads as the `§x` sigil, the printable spelling of `$x`).
+built by `proc` prints as `proc (…) uses (…) : R { … }`, a statement prints as
+`GaudiProg[ … ]`, and a `Getter` standing on its own prints as `GaudiExpr[ … ]` (with variable
+reads as the `§x` sigil, the printable spelling of `$x`).
+
+A `Getter` prints that way only over a `ProcedureState`, the only carrier `GaudiExpr[ ]` can
+build — a `Getter a State` (an `Expr a`) would print as something that does not elaborate
+back.  Inside a statement the expression slots are printed by `delabGaudiExpr` directly, with
+no `GaudiExpr[ ]` wrapper, since `$`/`§` already works there.
 
 Printing is *round-trip faithful*: parsing what was printed yields the same term back
 (`ProgramSyntaxTest.lean` checks this by printing, re-parsing and re-elaborating).  Hence
@@ -772,6 +778,18 @@ private def delabGaudiExpr : DelabM Term := do
       let stx ← delab
       guard <| !syntaxHasIdent stateBinderName stx
       return stx
+
+/-- A `Getter` standing on its own — not as the expression slot of a statement, where
+`delabGaudiExpr` is called directly — prints as `GaudiExpr[ e ]`.
+
+Restricted to getters over a `ProcedureState`: that is the only carrier `GaudiExpr[ ]` can
+build, since the `CurrentState` instance it installs holds one.  Without the guard a
+`Getter a State` (an `Expr a`) would print as something that does not elaborate back. -/
+@[delab app.GaudisCrypt.Getter.mk]
+private def delabGaudiExprTerm : Delab := do
+  guardSurfaceSyntax
+  guard (((← getExpr).getArg! 1).isAppOf ``ProcedureState)
+  `(GaudiExpr[ $(← delabGaudiExpr) ])
 
 /-- One component of an l-value: a nested `Lens.pair` prints as the tuple `(a, b)`. -/
 private partial def delabLValueComponent : DelabM Term := do
@@ -1019,8 +1037,6 @@ end Printing
 
 end GaudisCrypt
 
--- TODO: A `Getter` on its own still prints as `{ get := fun st => … }`, not as
---   `GaudiExpr[ … ]` (statements and procedures do print in surface syntax).
 -- TODO: Allow _ inside a *tuple* lvalue too (a bare `_` already becomes Setter.throwaway)
 --   (see "L-value pairing" below)
 -- TODO: Allow `(x,y) <- ...` where x is a global and y is a local var

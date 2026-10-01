@@ -109,11 +109,11 @@ example :
           (fun σ => uLens.get σ = 2) := rfl
 
 /--
-info: hoareStmt { get := fun st ↦ §x = 1 }.get
+info: hoareStmt GaudiExpr[ §x = 1 ].get
   (GaudiProg[
       x <- §x + 1;
 ])
-  { get := fun st ↦ §x = 2 }.get : Prop
+  GaudiExpr[ §x = 2 ].get : Prop
 -/
 #guard_msgs in
 #check hoare[ §x = 1 ==> §x = 2 ] { x <- §x + 1; }
@@ -220,14 +220,13 @@ info: expected a procedure or a procedure module `Module.Proc …`, but this has
 
 /- ### Printing
 
-A procedure triple has no delaborator yet, so it prints as the `hoareProc` application it is
-(the conditions as `Getter`s applied to the repacked state — see the `Getter` printing TODO at
-the end of `ProgramSyntax.lean`). -/
+A procedure triple has no delaborator yet, so it prints as the `hoareProc` application it is:
+the conditions as `GaudiExpr[ ]`s applied to the repacked state, with each parameter a nested
+`§GaudiExpr[ ]` — the constant getter the notation binds the parameter name to. -/
 
 /--
-info: hoareProc
-  (fun args σ ↦ { get := fun st ↦ §{ get := fun x ↦ Lens.id.ofst.get args } = 1 }.get { global := σ, locals := () })
-  m.f.procedure fun res σ ↦ { get := fun st ↦ §{ get := fun x ↦ res } = 2 }.get { global := σ, locals := () } : Prop
+info: hoareProc (fun args σ ↦ GaudiExpr[ §GaudiExpr[ Lens.id.ofst.get args ] = 1 ].get { global := σ, locals := () })
+  m.f.procedure fun res σ ↦ GaudiExpr[ §GaudiExpr[ res ] = 2 ].get { global := σ, locals := () } : Prop
 -/
 #guard_msgs in
 #check hoare[ m.f (a, b) : §a = 1 ==> §res = 2 ]

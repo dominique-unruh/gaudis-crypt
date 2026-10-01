@@ -519,6 +519,30 @@ info: GaudiProg[
 #guard_msgs in
 #roundtrip GaudiProg[ a <- call (proc (x : Nat) : Nat { return $x + 1 }) ($a); ]
 
+/- #### A `Getter` on its own
+
+Outside a statement, where `$`/`§` is available without a wrapper, a `Getter` prints as the
+`GaudiExpr[ … ]` that builds it. -/
+
+/-- info: GaudiExpr[ §a + 1 ] : Getter ℕ (ProcedureState Unit) -/
+#guard_msgs in
+#check (GaudiExpr[ §a + 1 ] : Getter Nat (ProcedureState Unit))
+
+#roundtrip (GaudiExpr[ §a + 1 ] : Getter Nat (ProcedureState Unit))
+
+-- a getter whose body reads the state binder is not `GaudiExpr[ ]`-shaped, so it prints as the
+-- structure it is
+/-- info: { get := fun st ↦ st.global } : Getter State (ProcedureState Unit) -/
+#guard_msgs in
+#check (Getter.mk (fun st : ProcedureState Unit => st.global) : Getter State (ProcedureState Unit))
+
+-- `GaudiExpr[ ]` can only build a getter over a `ProcedureState` — its `CurrentState` instance
+-- holds one — so a getter over the global `State` (an `Expr`) is left alone, or printing it
+-- would not parse back
+/-- info: { get := fun st ↦ a.get st } : Getter ℕ State -/
+#guard_msgs in
+#check (Getter.mk (fun st => a.get st) : Expr Nat)
+
 -- the surface syntax steps aside when Lean is told to print the term as it is
 /-- info: StmtWithHoles.assign (liftLens a) { get := fun st ↦ 1 } : StmtWithHoles HoleSigs.empty Unit -/
 #guard_msgs in
