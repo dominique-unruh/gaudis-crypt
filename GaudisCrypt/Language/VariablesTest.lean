@@ -1,9 +1,12 @@
-import GaudisCrypt.Language.VariableName
+import GaudisCrypt.Language.Variables
 
-/-! Tests for `VariableName`: the key is filled in as a literal, and `NameNe` is found by
-instance search. -/
+/-! Tests for `Variables`: the key of a `VariableName` is filled in as a literal, `NameNe` and
+disjointness of variable slots are found by instance search, and `setParams` writes the
+parameter slots. -/
 
 namespace GaudisCrypt
+
+/-! ### Variable names -/
 
 -- the key is filled in as a literal, and `nonempty` by instance search, through the constructor …
 /--
@@ -65,8 +68,8 @@ example : VariableName.NameNe testVarX testVarY := inferInstance
 -- same name: not found, whatever the types
 /--
 error: failed to synthesize instance of type class
-  { name := "x", type := Int, nonempty := ⋯, key := 121, keyCorrect := ⋯ }.NameNe
-    { name := "x", type := Int, nonempty := ⋯, key := 121, keyCorrect := ⋯ }
+  { name := "x", type := ℤ, nonempty := ⋯, key := 121, keyCorrect := ⋯ }.NameNe
+    { name := "x", type := ℤ, nonempty := ⋯, key := 121, keyCorrect := ⋯ }
 
 Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
 -/
@@ -75,8 +78,8 @@ example : VariableName.NameNe (.mk "x" Int) (.mk "x" Int) := inferInstance
 
 /--
 error: failed to synthesize instance of type class
-  { name := "x", type := Int, nonempty := ⋯, key := 121, keyCorrect := ⋯ }.NameNe
-    { name := "x", type := Nat, nonempty := ⋯, key := 121, keyCorrect := ⋯ }
+  { name := "x", type := ℤ, nonempty := ⋯, key := 121, keyCorrect := ⋯ }.NameNe
+    { name := "x", type := ℕ, nonempty := ⋯, key := 121, keyCorrect := ⋯ }
 
 Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
 -/
@@ -86,5 +89,49 @@ example : VariableName.NameNe (.mk "x" Int) (.mk "x" Nat) := inferInstance
 -- equality depends on name and type only, not on how the key was written
 example : VariableName.mk "x" Int = @VariableName.mk "x" Int ⟨0⟩ (VariableName.encode "x") rfl :=
   VariableName.ext' rfl rfl
+
+/-! ### Variable slots -/
+
+-- slots of different literal names are disjoint, whatever the types
+example : Lens.Disjoint (varLens (.mk "x" Int)) (varLens (.mk "y" Int)) := inferInstance
+example : Lens.Disjoint (varLens (.mk "x" Int)) (varLens (.mk "y" Bool)) := inferInstance
+
+-- the same name with two types is not found disjoint (the slots are different, but instance
+-- search only compares names)
+/--
+error: failed to synthesize instance of type class
+  (varLens { name := "x", type := ℤ, nonempty := ⋯, key := 121, keyCorrect := ⋯ }).Disjoint
+    (varLens { name := "x", type := Bool, nonempty := ⋯, key := 121, keyCorrect := ⋯ })
+
+Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.
+-/
+#guard_msgs in
+example : Lens.Disjoint (varLens (.mk "x" Int)) (varLens (.mk "x" Bool)) := inferInstance
+
+-- `setParams` writes the parameter slots.  Its slots carry the key `encode "x"`, not the literal
+-- `121`, so the last step is by unfolding, not by `simp` …
+example : VariableAssignment.setParams ["x", "y"] [Int, Bool] rfl (3, true)
+    VariableAssignment.init (.mk "x" Int) = (3 : Int) := by
+  classical
+  simp only [VariableAssignment.setParams, varLens_set]
+  rw [Function.update_of_ne (by simp)]
+  exact Function.update_self _ _ _
+
+-- … and leaves the other slots alone
+example (m : VariableAssignment) : VariableAssignment.setParams ["x", "y"] [Int, Bool] rfl
+    (3, true) m (.mk "z" Int) = m (.mk "z" Int) :=
+  VariableAssignment.setParams_apply_of_notMem _ _ _ _ _ _ (by decide)
+
+section
+
+variable [ProgramSpec]
+
+-- local slots stay disjoint inside the program state, and are disjoint from the globals
+example : Lens.Disjoint (varLens (.mk "x" Int)).intoLocal (varLens (.mk "y" Bool)).intoLocal :=
+  inferInstance
+example (g : Lens Nat State) : Lens.Disjoint (varLens (.mk "x" Int)).intoLocal g.intoGlobal :=
+  inferInstance
+
+end
 
 end GaudisCrypt

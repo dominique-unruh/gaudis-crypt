@@ -3,11 +3,16 @@
 Status: **plan**, written 2026-10-03 against `main` at `ba64a93`.  Implemented so far
 (2026-10-04): `VariableName` with fields `name`, `type`, instance-implicit
 `nonempty : Nonempty type`, implicit `key` (a literal) and `keyCorrect`, the injective
-`VariableName.encode`, and the `NameNe` instance via `NatNe` keys, in
-`GaudisCrypt/Language/VariableName.lean` (+ `VariableNameTest.lean`).  This settles §1.3 in
+`VariableName.encode`, and the `NameNe` instance via `NatNe` keys.  This settles §1.3 in
 favour of the `Nat` key, variant (d′), and §1.1 in favour of option B (the `Nonempty` proof
 lives in the name, so `VariableAssignment := (v : VariableName) → v.type` is inhabited, with
-`Classical.choice` as the initial value).
+`Classical.choice` as the initial value).  Phase 0 (universe generalisation) is done.  Phase 1 is
+done.  All of it is in `GaudisCrypt/Language/Variables.lean` (+ `VariablesTest.lean`): the
+above, and `VariableAssignment`,
+`init`, `varLens` (disjointness by instance search), `setParams` (the `Nonempty` instance of each
+parameter slot comes from the argument value), `embed`/`rename` (via
+`VariableName.withName`), `ProgramState` with `globals : State`, `globalL`/`localL`,
+`Lens.intoLocal`/`intoGlobal`.
 
 ## 0. The request, restated
 
