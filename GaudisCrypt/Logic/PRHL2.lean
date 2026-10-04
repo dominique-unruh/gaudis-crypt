@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.ProbProgramRange
 import GaudisCrypt.Language.Footprint
+import GaudisCrypt.Strassen
 
 open GaudisCrypt
 
@@ -1165,25 +1166,21 @@ example (e : Bool → Bool) :
   · exact ProgramDenotation.prhl2.pure_pure (fun _ _ _ => trivial)
   · exact ProgramDenotation.prhl2.pure_pure (fun _ _ _ => trivial)
 
-/-! ## Completeness (`relE → prhl`): the forward half, and the open step
+/-! ## Completeness (`relE → prhl2`)
 
 The converse of `prhl2.to_relE` — that the wp-lifting judgment yields a
-coupling — is **discrete Strassen** (the coupling-lifting theorem). Its
-only proofs go through max-flow–min-cut / LP-duality, none of which is in
-Mathlib (no transportation feasibility, no fractional Hall, no
-Birkhoff–von Neumann), so it would be a from-scratch standalone
-formalization. It remains the single open step between the two logics.
+coupling — is **discrete Strassen** (the coupling-lifting theorem), proved
+in `GaudisCrypt/Strassen.lean` as `PMF.exists_coupling_of_hall`.
 
-What the wp judgment *does* give directly is the **forward half**:
-plugging in indicator post-conditions turns `rel` into Hall's
-marginal-domination condition. By the classical (discrete) Strassen
-theorem this condition is also *sufficient* for a coupling — so this lemma
-isolates exactly the combinatorial fact that is missing. -/
+The wp judgment gives Hall's marginal-domination condition directly:
+plugging in indicator post-conditions turns `rel` into it (`rel.hall`
+below). Strassen's theorem says this condition is also *sufficient* for a
+coupling. -/
 
 /-- **Hall's condition from `rel`** (the necessary half of discrete
     Strassen): the mass `c` places on any set `A` is dominated by the mass
     `d` places on the `Post`-image of `A`. The converse (Hall ⇒ coupling)
-    is the open Strassen step. -/
+    is `SubProbability.exists_coupling_of_hall`. -/
 theorem ProgramDenotation.rel.hall {s₁ s₂ : Type (max u v)} {α β : Type v}
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
@@ -1238,57 +1235,18 @@ lemma SubProbability.scale_satisfies {X : Type u} (c : ENNReal) (ν : SubProbabi
   show (c • ν.1) {w} = 0
   rw [MeasureTheory.Measure.smul_apply, h0, smul_zero]
 
-/-- **Discrete Strassen / coupling lifting (axiom), probability-measure
-    form.** This is Strassen's 1965 theorem verbatim: over countable
-    carriers, two *probability* measures satisfying Hall's marginal-
-    domination condition `p(A) ≤ q(R(A))` admit a coupling with those
-    marginals supported on the relation. It is **not** available in Mathlib
-    (no max-flow–min-cut / fractional Hall / transportation feasibility),
-    so we take it as an axiom; `SubProbability.exists_coupling_of_hall`
-    below derives the sub-probability form from it by normalization, and
-    `ProgramDenotation.rel.hall` shows the hypothesis is exactly what `relE` supplies.
+/-- **Coupling lifting, sub-probability form** — derived from discrete
+    Strassen (`PMF.exists_coupling_of_hall`, `GaudisCrypt/Strassen.lean`) by
+    mass normalization. Two-sided Hall forces equal total mass; the zero-mass
+    case is the empty coupling, and otherwise we normalize both sides to
+    probability measures, transfer them to `PMF`s via `SubProbability.toPMF`,
+    apply Strassen, and scale the resulting coupling back.
+    `ProgramDenotation.rel.hall` shows the hypotheses are exactly what `relE`
+    supplies.
 
-    **Why the statement needs no countability (or universe) hypothesis.**  The
-    references below are about countable spaces, whereas `X`, `Y` here are
-    arbitrary types in an arbitrary universe.  The reduction (argued here, not
-    formalized): a `SubProbability` is the sum of its atoms with total mass
-    `≤ 1`, so `p` and `q` have countable supports `X₀`, `Y₀`.  Hall's condition
-    restricts to them, since `q (R A) = q (R A ∩ Y₀)`.  The countable theorem on
-    `X₀ × Y₀`, pushed forward along the inclusions, gives the coupling, which is
-    again discrete.  The universe of `X`, `Y` plays no role in this argument.
-
-    References (this is a true, classical theorem):
-    * V. Strassen, "The existence of probability measures with given
-      marginals", Ann. Math. Statist. 36(2):423–439, 1965 — the general
-      theorem. A countable discrete space is Polish and every relation on
-      it is closed, so the 1965 result applies here directly.
-      https://projecteuclid.org/euclid.aoms/1177700153
-    * T. Koperberg, "Couplings and Matchings: combinatorial notes on
-      Strassen's theorem", Statist. Probab. Lett. (2024), arXiv:2202.02092
-      — the finite case in exactly this Hall form, shown equivalent to
-      Hall's marriage theorem.
-    * Combinatorial proof: max-flow–min-cut / weighted Hall; see
-      Lovász & Plummer, "Matching Theory" (1986).
-    * Use in coupling-based program logics (the `relE ↔ prhl2`
-      correspondence here): Barthe, Espitau, Grégoire, Hsu, Strub,
-      "Probabilistic Couplings for Probabilistic Reasoning",
-      arXiv:1710.09951. -/
--- TODO Prove this
-axiom SubProbability.exists_coupling_of_hall_prob {X Y : Type u}
-    (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
-    (hp : p.1 Set.univ = 1) (hq : q.1 Set.univ = 1)
-    (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y}) :
-    ∃ μ : SubProbability (X × Y),
-      (μ >>= fun w => (pure w.1 : SubProbability X)) = p ∧
-      (μ >>= fun w => (pure w.2 : SubProbability Y)) = q ∧
-      μ.satisfies (fun w => R w.1 w.2)
-
-/-- **Coupling lifting, sub-probability form** — *derived* from the
-    probability-measure axiom `exists_coupling_of_hall_prob` by mass
-    normalization (no new assumption). Two-sided Hall forces equal total
-    mass; the zero-mass case is the empty coupling, and otherwise we
-    normalize both sides to probability measures, invoke the axiom, and
-    scale the resulting coupling back. -/
+    Use in coupling-based program logics (the `relE ↔ prhl2` correspondence
+    here): Barthe, Espitau, Grégoire, Hsu, Strub, "Probabilistic Couplings for
+    Probabilistic Reasoning", arXiv:1710.09951. -/
 theorem SubProbability.exists_coupling_of_hall {X Y : Type u}
     (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
     (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y})
@@ -1306,39 +1264,34 @@ theorem SubProbability.exists_coupling_of_hall {X Y : Type u}
     have hp0 : p = ⊥ := Subtype.ext (by
       rw [MeasureTheory.Measure.measure_univ_eq_zero.mp hm0]; rfl)
     have hq0 : q = ⊥ := Subtype.ext (by
-      have hqm0 : q.1 Set.univ = 0 := by rw [← hmass]; exact hm0
-      rw [MeasureTheory.Measure.measure_univ_eq_zero.mp hqm0]; rfl)
+      rw [MeasureTheory.Measure.measure_univ_eq_zero.mp (hmass ▸ hm0 : q.1 Set.univ = 0)]; rfl)
     exact ⟨⊥, by rw [SubProbability.bot_bind, hp0], by rw [SubProbability.bot_bind, hq0],
       SubProbability.satisfies_bot _⟩
   · -- Positive mass: normalize both sides to probability measures.
     have hm_le : p.1 Set.univ ≤ 1 := p.2.1
     have hm_top : p.1 Set.univ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hm_le
-    have hpscale : (p.1 Set.univ)⁻¹ * p.1 Set.univ ≤ 1 :=
-      le_of_eq (ENNReal.inv_mul_cancel hm0 hm_top)
-    have hqscale : (p.1 Set.univ)⁻¹ * q.1 Set.univ ≤ 1 :=
-      le_of_eq (by rw [← hmass]; exact ENNReal.inv_mul_cancel hm0 hm_top)
-    have hp'1 : (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).1 Set.univ = 1 := by
-      show ((p.1 Set.univ)⁻¹ • p.1) Set.univ = 1
-      rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, ENNReal.inv_mul_cancel hm0 hm_top]
-    have hq'1 : (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).1 Set.univ = 1 := by
-      show ((p.1 Set.univ)⁻¹ • q.1) Set.univ = 1
-      rw [MeasureTheory.Measure.smul_apply, smul_eq_mul, ← hmass,
-        ENNReal.inv_mul_cancel hm0 hm_top]
-    have hp'hall : ∀ A : Set X, (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).1 A
-        ≤ (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).1 {y | ∃ x ∈ A, R x y} := by
-      intro A
-      show ((p.1 Set.univ)⁻¹ • p.1) A ≤ ((p.1 Set.univ)⁻¹ • q.1) _
-      rw [MeasureTheory.Measure.smul_apply, MeasureTheory.Measure.smul_apply,
-        smul_eq_mul, smul_eq_mul]
-      gcongr
-      exact hpq A
-    obtain ⟨ν, hν1, hν2, hνsat⟩ := SubProbability.exists_coupling_of_hall_prob
-      (SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale)
-      (SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale) R hp'1 hq'1 hp'hall
-    have hνmass : p.1 Set.univ * ν.1 Set.univ ≤ 1 := by
-      calc p.1 Set.univ * ν.1 Set.univ ≤ p.1 Set.univ * 1 := by gcongr; exact ν.2.1
-        _ = p.1 Set.univ := mul_one _
-        _ ≤ 1 := hm_le
+    have hp1 : (p.1 Set.univ)⁻¹ * p.1 Set.univ = 1 := ENNReal.inv_mul_cancel hm0 hm_top
+    have hq1 : (p.1 Set.univ)⁻¹ * q.1 Set.univ = 1 := hmass ▸ hp1
+    have hpscale := hp1.le
+    have hqscale := hq1.le
+    -- Strassen for the normalized measures, transferred through `toPMF`.
+    obtain ⟨ν₀, h1, h2, hR⟩ := PMF.exists_coupling_of_hall
+      ((SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale).toPMF hp1)
+      ((SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale).toPMF hq1) R fun A => by
+        rw [SubProbability.toPMF_toOuterMeasure, SubProbability.toPMF_toOuterMeasure]
+        exact mul_le_mul_right (hpq A) _
+    have hν1 : (toSubProbability ν₀ >>= fun w => (pure w.1 : SubProbability X))
+        = SubProbability.scale (p.1 Set.univ)⁻¹ p hpscale := by
+      rw [toSubProbability_bind_pure, h1, toSubProbability_toPMF]
+    have hν2 : (toSubProbability ν₀ >>= fun w => (pure w.2 : SubProbability Y))
+        = SubProbability.scale (p.1 Set.univ)⁻¹ q hqscale := by
+      rw [toSubProbability_bind_pure, h2, toSubProbability_toPMF]
+    have hνsat : (toSubProbability ν₀).satisfies (fun w => R w.1 w.2) := fun w hw => hR w (by
+      letI : MeasurableSpace (X × Y) := ⊤
+      rw [PMF.mem_support_iff, ← PMF.toMeasure_apply_singleton ν₀ w MeasurableSet.of_discrete]
+      exact hw)
+    generalize toSubProbability ν₀ = ν at hν1 hν2 hνsat
+    have hνmass : p.1 Set.univ * ν.1 Set.univ ≤ 1 := (mul_le_of_le_one_right' ν.2.1).trans hm_le
     refine ⟨SubProbability.scale (p.1 Set.univ) ν hνmass, ?_, ?_, ?_⟩
     · refine SubProbability.ext_of_expected (fun G => ?_)
       have hν1' : ν.expected (fun w => G w.1) = (p.1 Set.univ)⁻¹ * p.expected G := by
@@ -1354,15 +1307,11 @@ theorem SubProbability.exists_coupling_of_hall {X Y : Type u}
         ← mul_assoc, ENNReal.mul_inv_cancel hm0 hm_top, one_mul]
     · exact SubProbability.scale_satisfies (p.1 Set.univ) ν hνmass hνsat
 
-/-- **Completeness** `relE → prhl2` (discrete, modulo the Strassen axiom):
-    the wp-lifting judgment yields a coupling. The reduction is real — it
-    extracts Hall's condition in both directions from `relE` via
-    `rel.hall` and feeds it to `exists_coupling_of_hall`; only the
-    combinatorial coupling-existence step is assumed. Together with
-    `prhl2.to_relE` this shows the two logics coincide over countable
-    carriers. -/
+/-- **Completeness** `relE → prhl2`: the wp-lifting judgment yields a
+    coupling. Extracts Hall's condition in both directions from `relE` via
+    `rel.hall` and feeds it to `exists_coupling_of_hall`. Together with
+    `prhl2.to_relE` this shows the two logics coincide. -/
 theorem ProgramDenotation.relE.to_prhl2 {s₁ s₂ : Type (max u v)} {α β : Type v}
-
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : c.relE d Pre Post) : ProgramDenotation.prhl2 Pre c d Post :=
@@ -1370,10 +1319,8 @@ theorem ProgramDenotation.relE.to_prhl2 {s₁ s₂ : Type (max u v)} {α β : Ty
     SubProbability.exists_coupling_of_hall (c σ₁) (d σ₂) Post
       (fun A => h.1.hall hpre A) (fun B => ProgramDenotation.relE.hall_right h hpre B)
 
-/-- The two relational logics **coincide** over countable carriers
-    (discrete, modulo the Strassen axiom). -/
+/-- The two relational logics **coincide**. -/
 theorem ProgramDenotation.prhl2_iff_relE {s₁ s₂ : Type (max u v)} {α β : Type v}
-
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop} :
     ProgramDenotation.prhl2 Pre c d Post ↔ c.relE d Pre Post :=
