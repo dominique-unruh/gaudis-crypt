@@ -35,8 +35,8 @@ Design notes:
 /-- **Relational wp judgment** (asymmetric form). `p.rel q Pre Post` holds iff
     for all post-pairs `F ≤ G` along `Post` and all `Pre`-related starting
     states, `p.wp F ≤ q.wp G`. -/
-def ProgramDenotation.rel {s₁ s₂ α β : Type} (p : ProgramDenotation s₁ α) (q : ProgramDenotation s₂
-    β)
+def ProgramDenotation.rel {s₁ s₂ α β : Type*} (p : ProgramDenotation s₁ α)
+    (q : ProgramDenotation s₂ β)
     (Pre : s₁ → s₂ → Prop) (Post : α × s₁ → β × s₂ → Prop) : Prop :=
   ∀ (F : α × s₁ → ENNReal) (G : β × s₂ → ENNReal),
     (∀ x y, Post x y → F x ≤ G y) →
@@ -44,8 +44,8 @@ def ProgramDenotation.rel {s₁ s₂ α β : Type} (p : ProgramDenotation s₁ �
 
 /-- **Relational wp equivalence**: `rel` in both directions (with flipped
     relations). The two-sided judgment used for bridging game hops. -/
-def ProgramDenotation.relE {s₁ s₂ α β : Type} (p : ProgramDenotation s₁ α) (q : ProgramDenotation s₂
-    β)
+def ProgramDenotation.relE {s₁ s₂ α β : Type*} (p : ProgramDenotation s₁ α)
+    (q : ProgramDenotation s₂ β)
     (Pre : s₁ → s₂ → Prop) (Post : α × s₁ → β × s₂ → Prop) : Prop :=
   p.rel q Pre Post ∧ q.rel p (fun σ₂ σ₁ => Pre σ₁ σ₂) (fun y x => Post x y)
 
@@ -55,7 +55,7 @@ namespace ProgramDenotation.rel
 
 /-- Elimination form (definitional): a `rel` judgment yields a wp inequality
     at any compatible post-pair. -/
-lemma wp_le {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma wp_le {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : p.rel q Pre Post)
     {F : α × s₁ → ENNReal} {G : β × s₂ → ENNReal}
@@ -67,7 +67,7 @@ lemma wp_le {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : Progra
 /-! ## Structural rules -/
 
 /-- Consequence: weaken the precondition, strengthen the postcondition. -/
-lemma conseq {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma conseq {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre Pre' : s₁ → s₂ → Prop} {Post Post' : α × s₁ → β × s₂ → Prop}
     (h : p.rel q Pre Post)
     (hPre : ∀ σ₁ σ₂, Pre' σ₁ σ₂ → Pre σ₁ σ₂)
@@ -77,7 +77,7 @@ lemma conseq {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : Progr
     h F G (fun x y hxy => hFG x y (hPost x y hxy)) σ₁ σ₂ (hPre σ₁ σ₂ hpre)
 
 /-- Reflexivity at the diagonal. -/
-lemma refl {s α : Type} (p : ProgramDenotation s α) : p.rel p Eq Eq := by
+lemma refl {s α : Type*} (p : ProgramDenotation s α) : p.rel p Eq Eq := by
   intro F G hFG σ₁ σ₂ hpre
   subst hpre
   exact ProgramDenotation.wp_le_wp_of_le p F G (fun x => hFG x x rfl) σ₁
@@ -86,7 +86,7 @@ lemma refl {s α : Type} (p : ProgramDenotation s α) : p.rel p Eq Eq := by
     No PER or losslessness side conditions: the middle postcondition is
     interpolated by `fun y => ⨆ x, ⨆ (_ : Post₁ x y), F x` (possible because
     posts are `ENNReal`-valued and need no measurability). -/
-lemma trans {s₁ s₂ s₃ α β γ : Type}
+lemma trans {s₁ s₂ s₃ α β γ : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {r : ProgramDenotation s₃ γ}
     {Pre₁ : s₁ → s₂ → Prop} {Post₁ : α × s₁ → β × s₂ → Prop}
     {Pre₂ : s₂ → s₃ → Prop} {Post₂ : β × s₂ → γ × s₃ → Prop}
@@ -104,7 +104,7 @@ lemma trans {s₁ s₂ s₃ α β γ : Type}
           σ₂ σ₃ hpre₂
 
 /-- Eliminate an existential in the precondition. -/
-lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
+lemma exists_pre {s₁ s₂ α β : Type*} {ι : Sort*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : ι → s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ i, p.rel q (Pre i) Post) :
@@ -113,7 +113,7 @@ lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
     hpre.elim fun i hi => h i F G hFG σ₁ σ₂ hi
 
 /-- Case split on the precondition. -/
-lemma or_pre {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma or_pre {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre₁ Pre₂ : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h₁ : p.rel q Pre₁ Post) (h₂ : p.rel q Pre₂ Post) :
     p.rel q (fun σ₁ σ₂ => Pre₁ σ₁ σ₂ ∨ Pre₂ σ₁ σ₂) Post :=
@@ -121,7 +121,7 @@ lemma or_pre {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : Progr
     hpre.elim (h₁ F G hFG σ₁ σ₂) (h₂ F G hFG σ₁ σ₂)
 
 /-- Two-sided `pure`. -/
-lemma pure_pure {s₁ s₂ α β : Type} {x₁ : α} {x₂ : β}
+lemma pure_pure {s₁ s₂ α β : Type*} {x₁ : α} {x₂ : β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (x₁, σ₁) (x₂, σ₂)) :
     (pure x₁ : ProgramDenotation s₁ α).rel (pure x₂ : ProgramDenotation s₂ β) Pre Post := by
@@ -131,7 +131,7 @@ lemma pure_pure {s₁ s₂ α β : Type} {x₁ : α} {x₂ : β}
 
 /-- **Sequence rule** (the workhorse): relate the prefixes at a middle
     relation `Mid`, then the continuations from every `Mid`-related pair. -/
-lemma bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
+lemma bind {s₁ s₂ : Type*} {α₁ β₁ : Type v₁} {α₂ β₂ : Type v₂}
     {p₁ : ProgramDenotation s₁ α₁} {p₂ : ProgramDenotation s₂ α₂}
     {k₁ : α₁ → ProgramDenotation s₁ β₁} {k₂ : α₂ → ProgramDenotation s₂ β₂}
     {Pre : s₁ → s₂ → Prop} {Mid : α₁ × s₁ → α₂ × s₂ → Prop}
@@ -149,7 +149,7 @@ lemma bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
 /-- Prepend a left-only prefix (e.g. a ghost write): if `p₀ ~ skip` carries
     `Pre` to `Mid`, and `k ~ q` from `Mid`, then `(p₀; k) ~ q` from `Pre`.
     Avoids inserting `pure () >>=` on the right by hand. -/
-lemma prefix_left {s₁ s₂ α β : Type}
+lemma prefix_left {s₁ s₂ β : Type*} {α : Type}
     {p₀ : ProgramDenotation s₁ Unit} {k : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre Mid : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h₀ : p₀.rel (pure () : ProgramDenotation s₂ Unit) Pre (fun x y => Mid x.2 y.2))
@@ -163,7 +163,7 @@ lemma prefix_left {s₁ s₂ α β : Type}
     _ = q.wp G σ₂ := by rw [wp_pure]
 
 /-- Prepend a right-only prefix: mirror image of `prefix_left`. -/
-lemma prefix_right {s₁ s₂ α β : Type}
+lemma prefix_right {s₁ s₂ α : Type*} {β : Type}
     {p : ProgramDenotation s₁ α} {q₀ : ProgramDenotation s₂ Unit} {k : ProgramDenotation s₂ β}
     {Pre Mid : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h₀ : (pure () : ProgramDenotation s₁ Unit).rel q₀ Pre (fun x y => Mid x.2 y.2))
@@ -181,7 +181,7 @@ lemma prefix_right {s₁ s₂ α β : Type}
     state-dependent guards, the guards become values bound by `bind`, so they
     are static by the time this rule applies; for genuinely one-sided
     conditionals use `by_cases` at the meta level.) -/
-lemma ite_sync {s₁ s₂ α β : Type} {c₁ c₂ : Prop} [Decidable c₁] [Decidable c₂]
+lemma ite_sync {s₁ s₂ α β : Type*} {c₁ c₂ : Prop} [Decidable c₁] [Decidable c₂]
     {p₁ q₁ : ProgramDenotation s₁ α} {p₂ q₂ : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h_iff : c₁ ↔ c₂)
@@ -197,7 +197,7 @@ lemma ite_sync {s₁ s₂ α β : Type} {c₁ c₂ : Prop} [Decidable c₁] [Dec
 /-! ## Assignment rules (`ProgramDenotation.set` / `ProgramDenotation.get`) -/
 
 /-- Two-sided `set`. -/
-lemma set_set {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
+lemma set_set {s₁ s₂ γ₁ γ₂ : Type*} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
     {v₁ : γ₁} {v₂ : γ₂}
     {Pre : s₁ → s₂ → Prop} {Post : Unit × s₁ → Unit × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post ((), L₁.set v₁ σ₁) ((), L₂.set v₂ σ₂)) :
@@ -207,7 +207,7 @@ lemma set_set {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Le
   exact hFG _ _ (h σ₁ σ₂ hpre)
 
 /-- Left-only `set` (against `pure` on the right): the ghost-write rule. -/
-lemma set_left {s₁ s₂ γ β : Type} {L : Lens γ s₁} {v : γ} {x₂ : β}
+lemma set_left {s₁ s₂ γ β : Type*} {L : Lens γ s₁} {v : γ} {x₂ : β}
     {Pre : s₁ → s₂ → Prop} {Post : Unit × s₁ → β × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post ((), L.set v σ₁) (x₂, σ₂)) :
     (ProgramDenotation.set L v).rel (pure x₂ : ProgramDenotation s₂ β) Pre Post := by
@@ -216,7 +216,7 @@ lemma set_left {s₁ s₂ γ β : Type} {L : Lens γ s₁} {v : γ} {x₂ : β}
   exact hFG _ _ (h σ₁ σ₂ hpre)
 
 /-- Right-only `set` (against `pure` on the left). -/
-lemma set_right {s₁ s₂ γ α : Type} {x₁ : α} {L : Lens γ s₂} {v : γ}
+lemma set_right {s₁ s₂ γ α : Type*} {x₁ : α} {L : Lens γ s₂} {v : γ}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → Unit × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (x₁, σ₁) ((), L.set v σ₂)) :
     (pure x₁ : ProgramDenotation s₁ α).rel (ProgramDenotation.set L v) Pre Post := by
@@ -225,7 +225,7 @@ lemma set_right {s₁ s₂ γ α : Type} {x₁ : α} {L : Lens γ s₂} {v : γ}
   exact hFG _ _ (h σ₁ σ₂ hpre)
 
 /-- Two-sided `get`. -/
-lemma get_get {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
+lemma get_get {s₁ s₂ γ₁ γ₂ : Type*} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
     {Pre : s₁ → s₂ → Prop} {Post : γ₁ × s₁ → γ₂ × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (L₁.get σ₁, σ₁) (L₂.get σ₂, σ₂)) :
     (ProgramDenotation.get L₁).rel (ProgramDenotation.get L₂) Pre Post := by
@@ -234,7 +234,7 @@ lemma get_get {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Le
   exact hFG _ _ (h σ₁ σ₂ hpre)
 
 /-- Left-only `get`. -/
-lemma get_left {s₁ s₂ γ β : Type} {L : Lens γ s₁} {x₂ : β}
+lemma get_left {s₁ s₂ γ β : Type*} {L : Lens γ s₁} {x₂ : β}
     {Pre : s₁ → s₂ → Prop} {Post : γ × s₁ → β × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (L.get σ₁, σ₁) (x₂, σ₂)) :
     (ProgramDenotation.get L).rel (pure x₂ : ProgramDenotation s₂ β) Pre Post := by
@@ -243,7 +243,7 @@ lemma get_left {s₁ s₂ γ β : Type} {L : Lens γ s₁} {x₂ : β}
   exact hFG _ _ (h σ₁ σ₂ hpre)
 
 /-- Right-only `get`. -/
-lemma get_right {s₁ s₂ γ α : Type} {x₁ : α} {L : Lens γ s₂}
+lemma get_right {s₁ s₂ γ α : Type*} {x₁ : α} {L : Lens γ s₂}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → γ × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (x₁, σ₁) (L.get σ₂, σ₂)) :
     (pure x₁ : ProgramDenotation s₁ α).rel (ProgramDenotation.get L) Pre Post := by
@@ -255,7 +255,7 @@ lemma get_right {s₁ s₂ γ α : Type} {x₁ : α} {L : Lens γ s₂}
 
 /-- **Coupled sampling along a bijection** (the `rnd` rule): two uniform
     samples are related by pairing `v` with `e v`. -/
-lemma uniform_bij {s₁ s₂ α β : Type} [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
+lemma uniform_bij {s₁ s₂ α β : Type*} [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
     (e : α ≃ β)
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ v σ₁ σ₂, Pre σ₁ σ₂ → Post (v, σ₁) (e v, σ₂)) :
@@ -275,7 +275,7 @@ lemma uniform_bij {s₁ s₂ α β : Type} [Fintype α] [Nonempty α] [Fintype �
 
 /-- **Left-only sampling**: an average is below any uniform upper bound.
     No mass side condition. -/
-lemma sample_left {s₁ s₂ α β₁ β₂ : Type} [Fintype α] [Nonempty α]
+lemma sample_left {s₁ s₂ β₂ : Type*} {α β₁ : Type v} [Fintype α] [Nonempty α]
     {k : α → ProgramDenotation s₁ β₁} {q : ProgramDenotation s₂ β₂}
     {Pre : s₁ → s₂ → Prop} {Post : β₁ × s₁ → β₂ × s₂ → Prop}
     (h : ∀ v, (k v).rel q Pre Post) :
@@ -299,7 +299,7 @@ lemma sample_left {s₁ s₂ α β₁ β₂ : Type} [Fintype α] [Nonempty α]
 
 /-- **Right-only sampling** (sample introduction): a uniform average of lower
     bounds is a lower bound. Mass-1 of `uniform` is what makes this sound. -/
-lemma sample_right {s₁ s₂ α β₁ β₂ : Type} [Fintype α] [Nonempty α]
+lemma sample_right {s₁ s₂ β₁ : Type*} {α β₂ : Type v} [Fintype α] [Nonempty α]
     {p : ProgramDenotation s₁ β₁} {k : α → ProgramDenotation s₂ β₂}
     {Pre : s₁ → s₂ → Prop} {Post : β₁ × s₁ → β₂ × s₂ → Prop}
     (h : ∀ v, p.rel (k v) Pre Post) :
@@ -329,7 +329,7 @@ namespace ProgramDenotation.relE
 
 /-- Elimination form: a `relE` judgment yields wp *equality* at any post-pair
     that agrees along `Post`. -/
-lemma wp_eq {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma wp_eq {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : p.relE q Pre Post)
     {F : α × s₁ → ENNReal} {G : β × s₂ → ENNReal}
@@ -341,25 +341,25 @@ lemma wp_eq {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : Progra
     (h.2 G F (fun y x hxy => (hFG x y hxy).ge) σ₂ σ₁ hpre)
 
 /-- Reflexivity. -/
-lemma refl {s α : Type} (p : ProgramDenotation s α) : p.relE p Eq Eq :=
+lemma refl {s α : Type*} (p : ProgramDenotation s α) : p.relE p Eq Eq :=
   ⟨ProgramDenotation.rel.refl p,
    (ProgramDenotation.rel.refl p).conseq (fun _ _ h => h.symm) (fun _ _ h => h.symm)⟩
 
 /-- ProgramDenotation equality gives the diagonal `relE`. -/
-lemma of_eq {s α : Type} {p q : ProgramDenotation s α} (h : p = q) :
+lemma of_eq {s α : Type*} {p q : ProgramDenotation s α} (h : p = q) :
     p.relE q Eq Eq := by
   subst h
   exact ProgramDenotation.relE.refl p
 
 /-- Symmetry (with flipped relations). -/
-lemma symm {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma symm {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : p.relE q Pre Post) :
     q.relE p (fun σ₂ σ₁ => Pre σ₁ σ₂) (fun y x => Post x y) :=
   ⟨h.2, h.1⟩
 
 /-- Transitivity for `relE` (composed pre/post relations). -/
-lemma trans {s₁ s₂ s₃ α β γ : Type}
+lemma trans {s₁ s₂ s₃ α β γ : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {r : ProgramDenotation s₃ γ}
     {Pre₁ : s₁ → s₂ → Prop} {Post₁ : α × s₁ → β × s₂ → Prop}
     {Pre₂ : s₂ → s₃ → Prop} {Post₂ : β × s₂ → γ × s₃ → Prop}
@@ -372,7 +372,7 @@ lemma trans {s₁ s₂ s₃ α β γ : Type}
     (fun z x h => h.elim fun y hh => ⟨y, hh.2, hh.1⟩)
 
 /-- Eliminate an existential in the precondition. -/
-lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
+lemma exists_pre {s₁ s₂ α β : Type*} {ι : Sort*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : ι → s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ i, p.relE q (Pre i) Post) :
@@ -382,14 +382,14 @@ lemma exists_pre {s₁ s₂ α β : Type} {ι : Sort*}
      hpre.elim fun i hi => (h i).2 F G hFG σ₂ σ₁ hi⟩
 
 /-- Case split on the precondition, for `relE`. -/
-lemma or_pre {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma or_pre {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre₁ Pre₂ : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h₁ : p.relE q Pre₁ Post) (h₂ : p.relE q Pre₂ Post) :
     p.relE q (fun σ₁ σ₂ => Pre₁ σ₁ σ₂ ∨ Pre₂ σ₁ σ₂) Post :=
   ⟨ProgramDenotation.rel.or_pre h₁.1 h₂.1, ProgramDenotation.rel.or_pre h₁.2 h₂.2⟩
 
 /-- Consequence for `relE`. -/
-lemma conseq {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
+lemma conseq {s₁ s₂ α β : Type*} {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre Pre' : s₁ → s₂ → Prop} {Post Post' : α × s₁ → β × s₂ → Prop}
     (h : p.relE q Pre Post)
     (hPre : ∀ σ₁ σ₂, Pre' σ₁ σ₂ → Pre σ₁ σ₂)
@@ -399,7 +399,7 @@ lemma conseq {s₁ s₂ α β : Type} {p : ProgramDenotation s₁ α} {q : Progr
    h.2.conseq (fun σ₂ σ₁ hpre => hPre σ₁ σ₂ hpre) (fun y x hxy => hPost x y hxy)⟩
 
 /-- Two-sided `pure` for `relE`. -/
-lemma pure_pure {s₁ s₂ α β : Type} {x₁ : α} {x₂ : β}
+lemma pure_pure {s₁ s₂ α β : Type*} {x₁ : α} {x₂ : β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (x₁, σ₁) (x₂, σ₂)) :
     (pure x₁ : ProgramDenotation s₁ α).relE (pure x₂ : ProgramDenotation s₂ β) Pre Post :=
@@ -407,7 +407,7 @@ lemma pure_pure {s₁ s₂ α β : Type} {x₁ : α} {x₂ : β}
       hpre)⟩
 
 /-- Sequence rule for `relE`. -/
-lemma bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
+lemma bind {s₁ s₂ : Type*} {α₁ β₁ : Type v₁} {α₂ β₂ : Type v₂}
     {p₁ : ProgramDenotation s₁ α₁} {p₂ : ProgramDenotation s₂ α₂}
     {k₁ : α₁ → ProgramDenotation s₁ β₁} {k₂ : α₂ → ProgramDenotation s₂ β₂}
     {Pre : s₁ → s₂ → Prop} {Mid : α₁ × s₁ → α₂ × s₂ → Prop}
@@ -420,7 +420,7 @@ lemma bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
    ProgramDenotation.rel.bind h_p.2 (fun x₂ x₁ => (h_k x₁ x₂).2)⟩
 
 /-- Two-sided `set` for `relE`. -/
-lemma set_set {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
+lemma set_set {s₁ s₂ γ₁ γ₂ : Type*} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
     {v₁ : γ₁} {v₂ : γ₂}
     {Pre : s₁ → s₂ → Prop} {Post : Unit × s₁ → Unit × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post ((), L₁.set v₁ σ₁) ((), L₂.set v₂ σ₂)) :
@@ -428,14 +428,14 @@ lemma set_set {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Le
   ⟨ProgramDenotation.rel.set_set h, ProgramDenotation.rel.set_set (fun σ₂ σ₁ hpre => h σ₁ σ₂ hpre)⟩
 
 /-- Two-sided `get` for `relE`. -/
-lemma get_get {s₁ s₂ γ₁ γ₂ : Type} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
+lemma get_get {s₁ s₂ γ₁ γ₂ : Type*} {L₁ : Lens γ₁ s₁} {L₂ : Lens γ₂ s₂}
     {Pre : s₁ → s₂ → Prop} {Post : γ₁ × s₁ → γ₂ × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → Post (L₁.get σ₁, σ₁) (L₂.get σ₂, σ₂)) :
     (ProgramDenotation.get L₁).relE (ProgramDenotation.get L₂) Pre Post :=
   ⟨ProgramDenotation.rel.get_get h, ProgramDenotation.rel.get_get (fun σ₂ σ₁ hpre => h σ₁ σ₂ hpre)⟩
 
 /-- Coupled sampling along a bijection, for `relE`. -/
-lemma uniform_bij {s₁ s₂ α β : Type} [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
+lemma uniform_bij {s₁ s₂ α β : Type*} [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
     (e : α ≃ β)
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ v σ₁ σ₂, Pre σ₁ σ₂ → Post (v, σ₁) (e v, σ₂)) :
@@ -447,7 +447,7 @@ lemma uniform_bij {s₁ s₂ α β : Type} [Fintype α] [Nonempty α] [Fintype �
   rwa [e.apply_symm_apply] at this
 
 /-- Synchronized conditional for `relE`. -/
-lemma ite_sync {s₁ s₂ α β : Type} {c₁ c₂ : Prop} [Decidable c₁] [Decidable c₂]
+lemma ite_sync {s₁ s₂ α β : Type*} {c₁ c₂ : Prop} [Decidable c₁] [Decidable c₂]
     {p₁ q₁ : ProgramDenotation s₁ α} {p₂ q₂ : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h_iff : c₁ ↔ c₂)

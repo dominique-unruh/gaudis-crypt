@@ -29,22 +29,22 @@ clients:
 
 /-! ## Peel lemmas -/
 
-lemma ProgramDenotation.wp_set_seq {s γ α : Type} (L : Lens γ s) (v : γ)
+lemma ProgramDenotation.wp_set_seq {s γ : Type*} {α : Type} (L : Lens γ s) (v : γ)
     (P : ProgramDenotation s α) (F : α × s → ENNReal) (σ : s) :
     (ProgramDenotation.set L v >>= fun _ : Unit => P).wp F σ = P.wp F (L.set v σ) := by
   rw [wp_bind, wp_set]
 
-lemma ProgramDenotation.wp_get_seq {s γ α : Type} (L : Lens γ s)
+lemma ProgramDenotation.wp_get_seq {s : Type*} {γ α : Type v} (L : Lens γ s)
     (k : γ → ProgramDenotation s α) (F : α × s → ENNReal) (σ : s) :
     (ProgramDenotation.get L >>= k).wp F σ = (k (L.get σ)).wp F σ := by
   rw [wp_bind, wp_get]
 
-lemma ProgramDenotation.wp_pure_seq {s α β : Type} (x : α)
+lemma ProgramDenotation.wp_pure_seq {s : Type*} {α β : Type v} (x : α)
     (k : α → ProgramDenotation s β) (F : β × s → ENNReal) (σ : s) :
     ((pure x : ProgramDenotation s α) >>= k).wp F σ = (k x).wp F σ := by
   rw [ProgramDenotation.pure_bind]
 
-lemma ProgramDenotation.wp_uniform_seq {s α β : Type} [Fintype α] [Nonempty α]
+lemma ProgramDenotation.wp_uniform_seq {s : Type*} {α β : Type v} [Fintype α] [Nonempty α]
     (k : α → ProgramDenotation s β) (F : β × s → ENNReal) (σ : s) :
     ((ProgramDenotation.uniform : ProgramDenotation s α) >>= k).wp F σ
     = ∑ v : α, (k v).wp F σ / Fintype.card α := by
@@ -93,15 +93,15 @@ macro "rel_step" : tactic =>
 
 /-! ## Smoke tests -/
 
-example {s : Type} (p : ProgramDenotation s Bool) : p.relE p Eq Eq := by
+example {s : Type*} (p : ProgramDenotation s Bool) : p.relE p Eq Eq := by
   rel_step
 
-example {s γ : Type} (L : Lens γ s) (v : γ) (q : ProgramDenotation s Bool)
+example {s γ : Type*} (L : Lens γ s) (v : γ) (q : ProgramDenotation s Bool)
     (F : Bool × s → ENNReal) (σ : s) :
     (ProgramDenotation.set L v >>= fun _ : Unit => q).wp F σ = q.wp F (L.set v σ) := by
   wp_peel
 
-example {s γ : Type} (L M : Lens γ s) (v : γ) :
+example {s : Type*} {γ : Type} (L M : Lens γ s) (v : γ) :
     (ProgramDenotation.set L v >>= fun _ => ProgramDenotation.get M).relE
     (ProgramDenotation.set L v >>= fun _ => ProgramDenotation.get M) Eq
     (fun u v => u.1 = v.1) := by

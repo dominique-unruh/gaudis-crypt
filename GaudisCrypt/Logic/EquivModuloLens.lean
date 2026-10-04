@@ -28,13 +28,16 @@ chains of these rules.
 
 /-- `ProgramDenotation.EquivModuloLens L p q` — `p` and `q` have equal wps on any
     `L`-ignoring post. -/
-def ProgramDenotation.EquivModuloLens {γ s α : Type} (L : Lens γ s)
+def ProgramDenotation.EquivModuloLens {γ s α : Type*} (L : Lens γ s)
     (p q : ProgramDenotation s α) : Prop :=
   ∀ (F : α × s → ENNReal), IgnoresLens L F → ∀ σ : s, p.wp F σ = q.wp F σ
 
 namespace ProgramDenotation.EquivModuloLens
 
-variable {γ s α β : Type} {L : Lens γ s}
+-- Universes as in `Language/Footprint.lean`: state `Type (max u v)`, results `Type v`.
+universe u v
+
+variable {γ : Type*} {s : Type (max u v)} {α β : Type v} {L : Lens γ s}
 
 @[refl]
 lemma refl (p : ProgramDenotation s α) : ProgramDenotation.EquivModuloLens L p p :=
@@ -92,8 +95,10 @@ lemma set_equiv_pure (v : γ) :
 
 /-- `pure ()` is equivalent (modulo L) to `set L v` (symmetric form). -/
 lemma pure_equiv_set (v : γ) :
-    ProgramDenotation.EquivModuloLens L (pure ()) (ProgramDenotation.set L v) :=
-  (set_equiv_pure v).symm
+    ProgramDenotation.EquivModuloLens L (pure ()) (ProgramDenotation.set L v) := by
+  intro F h_F σ
+  rw [wp_set, wp_pure]
+  exact (h_F ((), σ) v).symm
 
 /-- A conditional `set L v` is equivalent to `pure ()`. -/
 lemma cond_set_equiv_pure (cond : Prop) [Decidable cond] (v : γ) :
@@ -117,7 +122,7 @@ end ProgramDenotation.EquivModuloLens
     `≈_L`-equivalent, so are their `loop_n` iterates. Requires the reference body
     `body` to be `L`-disjoint so that `loop_n n body` is also `L`-disjoint (needed
     by the bind congruence in the inductive step). -/
-lemma loop_n_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+lemma loop_n_congr {s γ : Type*} [DecidableEq γ] {L : Lens γ s}
     {body body' : ProgramDenotation s Unit}
     (h_body : body.inFootprint (L.footprint)ᶜ)
     (h_eq : ProgramDenotation.EquivModuloLens L body body')
@@ -136,7 +141,7 @@ lemma loop_n_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
     `loop_n n body >>= final  ≈_L  loop_n n body' >>= final'`.
 
     Combines `loop_n_congr` and `ProgramDenotation.EquivModuloLens.bind` in one step. -/
-lemma loop_n_then_congr {s γ : Type} [DecidableEq γ] {L : Lens γ s}
+lemma loop_n_then_congr {s γ : Type*} [DecidableEq γ] {L : Lens γ s}
     {body body' final final' : ProgramDenotation s Unit}
     (h_body : body.inFootprint (L.footprint)ᶜ)
     (h_body_eq : ProgramDenotation.EquivModuloLens L body body')

@@ -23,7 +23,7 @@ namespace ProgramDenotation.rel
 /-- **Synchronized loop rule**: if the bodies preserve the relational
     invariant `Inv` (as a state relation), so do `n` synchronized
     iterations. -/
-lemma loop_n {s₁ s₂ : Type}
+lemma loop_n {s₁ s₂ : Type*}
     {body₁ : ProgramDenotation s₁ Unit} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop}
     (h : body₁.rel body₂ Inv (fun x y => Inv x.2 y.2)) (n : ℕ) :
@@ -41,7 +41,7 @@ end ProgramDenotation.rel
 namespace ProgramDenotation.relE
 
 /-- Two-sided synchronized loop rule. -/
-lemma loop_n {s₁ s₂ : Type}
+lemma loop_n {s₁ s₂ : Type*}
     {body₁ : ProgramDenotation s₁ Unit} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop}
     (h : body₁.relE body₂ Inv (fun x y => Inv x.2 y.2)) (n : ℕ) :
@@ -53,7 +53,7 @@ end ProgramDenotation.relE
 /-! ## Synchronized `while_loop` rule -/
 
 /-- Unfold one application of the wp loop functional (definitional). -/
-private lemma while_iteration_wp_apply {s : Type}
+private lemma while_iteration_wp_apply {s : Type*}
     (c : ProgramDenotation s Bool) (p : ProgramDenotation s Unit) (post : ProgramDenotation.Post s
         Unit)
     (fp : ProgramDenotation.Pre s) (σ : s) :
@@ -66,7 +66,7 @@ private lemma while_iteration_wp_apply {s : Type}
     (`PostC b` records the invariant refined by the guard value `b`), the
     bodies preserve the invariant from `PostC true`, and the loops relate
     at `PostC false`. -/
-lemma ProgramDenotation.rel.while_loop {s₁ s₂ : Type}
+lemma ProgramDenotation.rel.while_loop {s₁ s₂ : Type*}
     {cond₁ : ProgramDenotation s₁ Bool} {body₁ : ProgramDenotation s₁ Unit}
     {cond₂ : ProgramDenotation s₂ Bool} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
@@ -104,7 +104,7 @@ lemma ProgramDenotation.rel.while_loop {s₁ s₂ : Type}
     _ ≤ (GaudisCrypt.while_loop cond₂ body₂).wp G σ₂ := iInf₂_le σ₂ hpre
 
 /-- Two-sided synchronized while rule. -/
-lemma ProgramDenotation.relE.while_loop {s₁ s₂ : Type}
+lemma ProgramDenotation.relE.while_loop {s₁ s₂ : Type*}
     {cond₁ : ProgramDenotation s₁ Bool} {body₁ : ProgramDenotation s₁ Unit}
     {cond₂ : ProgramDenotation s₂ Bool} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}

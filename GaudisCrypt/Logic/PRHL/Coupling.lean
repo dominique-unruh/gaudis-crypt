@@ -30,7 +30,7 @@ the CertiCrypt/FCF lifting, deliberately confined to its sweet spot:
     subdistribution on output pairs with the two runs as marginals and
     support inside `Post` (stated in CertiCrypt's `range` form, which needs
     no decidability). -/
-structure ProgramDenotation.Coupling {s₁ s₂ α β : Type}
+structure ProgramDenotation.Coupling {s₁ s₂ α β : Type*}
     (p : ProgramDenotation s₁ α) (q : ProgramDenotation s₂ β) (σ₁ : s₁) (σ₂ : s₂)
     (Post : α × s₁ → β × s₂ → Prop) where
   /-- The joint subdistribution. -/
@@ -45,38 +45,38 @@ structure ProgramDenotation.Coupling {s₁ s₂ α β : Type}
 
 /-! ## Expected-value helpers -/
 
-lemma SubProbability.expected_mono_pt {γ : Type} (μ : SubProbability γ)
+lemma SubProbability.expected_mono_pt {γ : Type*} (μ : SubProbability γ)
     {f g : γ → ENNReal} (h : ∀ x, f x ≤ g x) :
     μ.expected f ≤ μ.expected g := by
   letI : MeasurableSpace γ := ⊤
   exact MeasureTheory.lintegral_mono h
 
-lemma SubProbability.expected_add {γ : Type} (μ : SubProbability γ)
+lemma SubProbability.expected_add {γ : Type*} (μ : SubProbability γ)
     (f g : γ → ENNReal) :
     μ.expected (fun x => f x + g x) = μ.expected f + μ.expected g := by
   letI : MeasurableSpace γ := ⊤
   exact MeasureTheory.lintegral_add_left measurable_from_top g
 
 /-- Expected value of the constant-zero post. -/
-lemma SubProbability.expected_zero {γ : Type} (μ : SubProbability γ) :
+lemma SubProbability.expected_zero {γ : Type*} (μ : SubProbability γ) :
     μ.expected (fun _ => (0 : ENNReal)) = 0 := by
   letI : MeasurableSpace γ := ⊤
   exact MeasureTheory.lintegral_zero
 
 /-- Expected value over the zero subdistribution. -/
-lemma SubProbability.expected_bot {γ : Type} (f : γ → ENNReal) :
+lemma SubProbability.expected_bot {γ : Type*} (f : γ → ENNReal) :
     (⊥ : SubProbability γ).expected f = 0 := by
   letI : MeasurableSpace γ := ⊤
   exact MeasureTheory.lintegral_zero_measure f
 
 /-- Pointwise congruence for `expected`. -/
-lemma SubProbability.expected_congr {γ : Type} (μ : SubProbability γ)
+lemma SubProbability.expected_congr {γ : Type*} (μ : SubProbability γ)
     {f g : γ → ENNReal} (h : ∀ x, f x = g x) :
     μ.expected f = μ.expected g := by
   rw [funext h]
 
 /-- Collapse a constant average. -/
-lemma sum_const_div_card {T : Type} [Fintype T] [Nonempty T] (c : ENNReal) :
+lemma sum_const_div_card {T : Type*} [Fintype T] [Nonempty T] (c : ENNReal) :
     (∑ _t : T, c / Fintype.card T) = c := by
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
       ENNReal.mul_div_cancel
@@ -85,7 +85,7 @@ lemma sum_const_div_card {T : Type} [Fintype T] [Nonempty T] (c : ENNReal) :
 
 namespace ProgramDenotation.Coupling
 
-variable {s₁ s₂ α β : Type}
+variable {s₁ s₂ α β : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {σ₁ : s₁} {σ₂ : s₂}
     {Post : α × s₁ → β × s₂ → Prop}
 
@@ -122,14 +122,14 @@ noncomputable def of_pure (u₀ : α × s₁) (v₀ : β × s₂)
 /-- **Sampling coupling along a shared index** (the `rnd` rule with an
     explicit branch matching): both runs are uniform averages over `T`,
     coupled branch-by-branch. -/
-noncomputable def of_uniform {T : Type} [Fintype T] [Nonempty T]
+noncomputable def of_uniform {T : Type*} [Fintype T] [Nonempty T]
     (f₁ : T → α × s₁) (f₂ : T → β × s₂)
     (h₁ : ∀ F, p.wp F σ₁ = ∑ t : T, F (f₁ t) / Fintype.card T)
     (h₂ : ∀ G, q.wp G σ₂ = ∑ t : T, G (f₂ t) / Fintype.card T)
     (hP : ∀ t, Post (f₁ t) (f₂ t)) : ProgramDenotation.Coupling p q σ₁ σ₂ Post where
-  w := (SubProbability.uniform : SubProbability T) >>= fun t => pure (f₁ t, f₂ t)
+  w := (SubProbability.uniform : SubProbability T).hbind fun t => pure (f₁ t, f₂ t)
   marg₁ F := by
-    rw [SubProbability.expected_bind]
+    rw [SubProbability.expected_hbind]
     refine Eq.trans (SubProbability.expected_congr _
       (g := fun t : T => F (f₁ t)) (fun t => ?_)) ?_
     · change ((pure (f₁ t, f₂ t) : SubProbability ((α × s₁) × (β × s₂))).expected
@@ -138,7 +138,7 @@ noncomputable def of_uniform {T : Type} [Fintype T] [Nonempty T]
     · rw [uniform_expected]
       exact (h₁ F).symm
   marg₂ G := by
-    rw [SubProbability.expected_bind]
+    rw [SubProbability.expected_hbind]
     refine Eq.trans (SubProbability.expected_congr _
       (g := fun t : T => G (f₂ t)) (fun t => ?_)) ?_
     · change ((pure (f₁ t, f₂ t) : SubProbability ((α × s₁) × (β × s₂))).expected
@@ -147,7 +147,7 @@ noncomputable def of_uniform {T : Type} [Fintype T] [Nonempty T]
     · rw [uniform_expected]
       exact (h₂ G).symm
   supp f hf := by
-    rw [SubProbability.expected_bind]
+    rw [SubProbability.expected_hbind]
     refine Eq.trans (SubProbability.expected_congr _
       (g := fun _ : T => (0 : ENNReal)) (fun t => ?_)) ?_
     · change ((pure (f₁ t, f₂ t) : SubProbability ((α × s₁) × (β × s₂))).expected f)
@@ -162,7 +162,7 @@ end ProgramDenotation.Coupling
 /-- **Coupling introduction** (the symmetric proof principle): a coupling
     witness at every `Pre`-related state pair yields the full two-sided
     `relE` judgment — both directions from the same witness. -/
-lemma ProgramDenotation.relE.of_coupling {s₁ s₂ α β : Type}
+lemma ProgramDenotation.relE.of_coupling {s₁ s₂ α β : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : ∀ σ₁ σ₂, Pre σ₁ σ₂ → ProgramDenotation.Coupling p q σ₁ σ₂ Post) :

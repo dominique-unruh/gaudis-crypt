@@ -52,7 +52,7 @@ exactly where countability is needed.
 
 /-- **Coupling-based pRHL** (subtask-3 argument order: predicate, program,
     program, predicate). -/
-def ProgramDenotation.prhl {s₁ s₂ α β : Type} (A : s₁ → s₂ → Prop)
+def ProgramDenotation.prhl {s₁ s₂ α β : Type*} (A : s₁ → s₂ → Prop)
     (c : ProgramDenotation s₁ α) (d : ProgramDenotation s₂ β)
     (B : α × s₁ → β × s₂ → Prop) : Prop :=
   ∀ σ₁ σ₂, A σ₁ σ₂ → Nonempty (ProgramDenotation.Coupling c d σ₁ σ₂ B)
@@ -60,7 +60,7 @@ def ProgramDenotation.prhl {s₁ s₂ α β : Type} (A : s₁ → s₂ → Prop)
 /-! ## The witness fields recover the literal subtask-3 conditions -/
 
 /-- Subprobabilities with equal expected values are equal. -/
-lemma SubProbability.ext_of_expected {γ : Type} {μ ν : SubProbability γ}
+lemma SubProbability.ext_of_expected {γ : Type*} {μ ν : SubProbability γ}
     (h : ∀ f, μ.expected f = ν.expected f) : μ = ν := by
   apply Subtype.ext
   letI : MeasurableSpace γ := ⊤
@@ -73,15 +73,15 @@ lemma SubProbability.ext_of_expected {γ : Type} {μ ν : SubProbability γ}
 
 namespace ProgramDenotation.Coupling
 
-variable {s₁ s₂ α β : Type}
+variable {s₁ s₂ α β : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {σ₁ : s₁} {σ₂ : s₂}
     {Post : α × s₁ → β × s₂ → Prop}
 
 /-- `map fst μ = c m₁`, literally. -/
 lemma map_fst (c : ProgramDenotation.Coupling p q σ₁ σ₂ Post) :
-    (c.w >>= fun uv => (pure uv.1 : SubProbability (α × s₁))) = p σ₁ := by
+    (c.w.hbind fun uv => (pure uv.1 : SubProbability (α × s₁))) = p σ₁ := by
   refine SubProbability.ext_of_expected fun f => ?_
-  rw [SubProbability.expected_bind]
+  rw [SubProbability.expected_hbind]
   refine Eq.trans (SubProbability.expected_congr _
     (g := fun uv => f uv.1) (fun uv => ?_)) (c.marg₁ f)
   change ((pure uv.1 : SubProbability (α × s₁)).expected f) = f uv.1
@@ -89,9 +89,9 @@ lemma map_fst (c : ProgramDenotation.Coupling p q σ₁ σ₂ Post) :
 
 /-- `map snd μ = d m₂`, literally. -/
 lemma map_snd (c : ProgramDenotation.Coupling p q σ₁ σ₂ Post) :
-    (c.w >>= fun uv => (pure uv.2 : SubProbability (β × s₂))) = q σ₂ := by
+    (c.w.hbind fun uv => (pure uv.2 : SubProbability (β × s₂))) = q σ₂ := by
   refine SubProbability.ext_of_expected fun f => ?_
-  rw [SubProbability.expected_bind]
+  rw [SubProbability.expected_hbind]
   refine Eq.trans (SubProbability.expected_congr _
     (g := fun uv => f uv.2) (fun uv => ?_)) (c.marg₂ f)
   change ((pure uv.2 : SubProbability (β × s₂)).expected f) = f uv.2
@@ -116,12 +116,12 @@ state — and the proof shows exactly where countability enters: only in
 the direction pointwise → range (summing the atoms). -/
 
 /-- The literal subtask-3 `satisfy`. -/
-def SubProbability.satisfies {γ : Type} (μ : SubProbability γ)
+def SubProbability.satisfies {γ : Type*} (μ : SubProbability γ)
     (B : γ → Prop) : Prop :=
   ∀ x, μ.1 {x} ≠ 0 → B x
 
 /-- Range form implies pointwise form — no countability needed. -/
-lemma SubProbability.satisfies_of_range {γ : Type} (μ : SubProbability γ)
+lemma SubProbability.satisfies_of_range {γ : Type*} (μ : SubProbability γ)
     (B : γ → Prop)
     (h : ∀ f : γ → ENNReal, (∀ x, B x → f x = 0) → μ.expected f = 0) :
     μ.satisfies B := by
@@ -144,7 +144,7 @@ lemma SubProbability.satisfies_of_range {γ : Type} (μ : SubProbability γ)
 /-- Pointwise form implies range form — **this is where discreteness is used**: the integral is the
     sum of its atoms.  Countability-free (subtask 4): via the discreteness invariant
     (`lintegral_eq_tsum_smul`) rather than `lintegral_countable'`. -/
-lemma SubProbability.range_of_satisfies {γ : Type}
+lemma SubProbability.range_of_satisfies {γ : Type*}
     (μ : SubProbability γ) (B : γ → Prop) (h : μ.satisfies B) :
     ∀ f : γ → ENNReal, (∀ x, B x → f x = 0) → μ.expected f = 0 := by
   intro f hf
@@ -157,7 +157,7 @@ lemma SubProbability.range_of_satisfies {γ : Type}
   · rw [hf x (h x hx), mul_zero]
 
 /-- For discrete state the two `satisfy` formulations coincide. -/
-theorem SubProbability.satisfies_iff_range {γ : Type}
+theorem SubProbability.satisfies_iff_range {γ : Type*}
     (μ : SubProbability γ) (B : γ → Prop) :
     μ.satisfies B
     ↔ ∀ f : γ → ENNReal, (∀ x, B x → f x = 0) → μ.expected f = 0 :=
@@ -168,7 +168,7 @@ theorem SubProbability.satisfies_iff_range {γ : Type}
 /-- Every coupling judgment yields the (two-sided) wp-lifting judgment;
     all `relE` elimination forms transfer. The converse is discrete
     Strassen — see the module header. -/
-theorem ProgramDenotation.prhl.to_relE {s₁ s₂ α β : Type} {A : s₁ → s₂ → Prop}
+theorem ProgramDenotation.prhl.to_relE {s₁ s₂ α β : Type*} {A : s₁ → s₂ → Prop}
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β} {B : α × s₁ → β × s₂ → Prop}
     (h : ProgramDenotation.prhl A c d B) : c.relE d A B :=
   ProgramDenotation.relE.of_coupling fun σ₁ σ₂ hA => (h σ₁ σ₂ hA).some
@@ -177,7 +177,7 @@ theorem ProgramDenotation.prhl.to_relE {s₁ s₂ α β : Type} {A : s₁ → s�
 
 namespace ProgramDenotation.prhl
 
-variable {s₁ s₂ α β : Type} {A : s₁ → s₂ → Prop}
+variable {s₁ s₂ α β : Type*} {A : s₁ → s₂ → Prop}
     {B : α × s₁ → β × s₂ → Prop}
 
 /-- Consequence. The same witness works: the support condition only
@@ -204,7 +204,7 @@ theorem pure_pure {x₁ : α} {x₂ : β}
       (h σ₁ σ₂ hA)⟩
 
 /-- Diagonal coupling: any program relates to itself at equal states. -/
-noncomputable def diagCoupling {s : Type} {γ : Type} (p : ProgramDenotation s γ) (σ : s) :
+noncomputable def diagCoupling {s : Type*} {γ : Type*} (p : ProgramDenotation s γ) (σ : s) :
     ProgramDenotation.Coupling p p σ σ (fun u v : γ × s => u = v) where
   w := (p σ) >>= fun x => (pure (x, x) : SubProbability ((γ × s) × (γ × s)))
   marg₁ F := by
@@ -229,14 +229,14 @@ noncomputable def diagCoupling {s : Type} {γ : Type} (p : ProgramDenotation s �
     exact hf _ rfl
 
 /-- Reflexivity. -/
-theorem refl {s γ : Type} (p : ProgramDenotation s γ) :
+theorem refl {s γ : Type*} (p : ProgramDenotation s γ) :
     ProgramDenotation.prhl Eq p p (fun u v : γ × s => u = v) := by
   intro σ₁ σ₂ hA
   cases hA
   exact ⟨diagCoupling p σ₁⟩
 
 /-- The `rnd` rule: uniform samples coupled along a bijection. -/
-theorem uniform {α' β' : Type} [Fintype α'] [Nonempty α'] [Fintype β'] [Nonempty β']
+theorem uniform {α' β' : Type*} [Fintype α'] [Nonempty α'] [Fintype β'] [Nonempty β']
     (e : α' ≃ β') {B : α' × s₁ → β' × s₂ → Prop}
     (h : ∀ t σ₁ σ₂, A σ₁ σ₂ → B (t, σ₁) (e t, σ₂)) :
     ProgramDenotation.prhl A (ProgramDenotation.uniform : ProgramDenotation s₁ α')
@@ -278,7 +278,8 @@ measurable, so a plain `Classical.choice` per support point suffices and
 the composite below typechecks with no side conditions. -/
 
 /-- Projection-form `wp_bind` (avoids the pattern-matching lambda). -/
-private lemma wp_bind' {s α β : Type} (p : ProgramDenotation s α) (k : α → ProgramDenotation s β)
+private lemma wp_bind' {s : Type*} {α β : Type v} (p : ProgramDenotation s α)
+    (k : α → ProgramDenotation s β)
     (F : β × s → ENNReal) (σ : s) :
     (p >>= k).wp F σ = p.wp (fun x : α × s => (k x.1).wp F x.2) σ := by
   rw [wp_bind]
@@ -288,7 +289,7 @@ open scoped Classical in
     prefixes plus a coupling for the continuations at every support point
     yields a coupling for the composites. -/
 noncomputable def ProgramDenotation.Coupling.comp
-    {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
+    {s₁ s₂ : Type*} {α₁ β₁ : Type v₁} {α₂ β₂ : Type v₂}
     {p₁ : ProgramDenotation s₁ α₁} {p₂ : ProgramDenotation s₂ α₂}
     {k₁ : α₁ → ProgramDenotation s₁ β₁} {k₂ : α₂ → ProgramDenotation s₂ β₂}
     {σ₁ : s₁} {σ₂ : s₂}
@@ -322,7 +323,7 @@ noncomputable def ProgramDenotation.Coupling.comp
         exact SubProbability.expected_bot f
 
 /-- **The seq rule.** -/
-theorem ProgramDenotation.prhl.bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
+theorem ProgramDenotation.prhl.bind {s₁ s₂ : Type*} {α₁ β₁ : Type v₁} {α₂ β₂ : Type v₂}
     {p₁ : ProgramDenotation s₁ α₁} {p₂ : ProgramDenotation s₂ α₂}
     {k₁ : α₁ → ProgramDenotation s₁ β₁} {k₂ : α₂ → ProgramDenotation s₂ β₂}
     {A : s₁ → s₂ → Prop} {M : α₁ × s₁ → α₂ × s₂ → Prop}
@@ -341,7 +342,7 @@ theorem ProgramDenotation.prhl.bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
     unchanged; only the support condition is rebalanced). This is how
     `inRange`-style footprint facts enter the coupling logic. -/
 noncomputable def ProgramDenotation.Coupling.strengthen_left
-    {s₁ s₂ α β : Type}
+    {s₁ s₂ α β : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {σ₁ : s₁} {σ₂ : s₂}
     {Post : α × s₁ → β × s₂ → Prop} {C : α × s₁ → Prop} [DecidablePred C]
     (c : ProgramDenotation.Coupling p q σ₁ σ₂ Post)
@@ -381,7 +382,7 @@ noncomputable def ProgramDenotation.Coupling.strengthen_left
 
 /-! ## Smoke tests -/
 
-example {s γ : Type} (p : ProgramDenotation s γ) :
+example {s γ : Type*} (p : ProgramDenotation s γ) :
     ProgramDenotation.prhl Eq p p (fun u v : γ × s => u = v) :=
   ProgramDenotation.prhl.refl p
 

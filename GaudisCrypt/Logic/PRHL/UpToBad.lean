@@ -21,7 +21,7 @@ namespace GaudisCrypt
 /-- **Up-to-bad** (Fundamental Lemma, relational form). From a diagonal
     `relE` whose post forces agreement of the bad flag and of `G` on good
     runs, conclude `Pr[p : G] ≤ Pr[q : G] + Pr[p : bad ∧ G]`. -/
-lemma ProgramDenotation.relE.up_to_bad {s α : Type} {p q : ProgramDenotation s α}
+lemma ProgramDenotation.relE.up_to_bad {s α : Type*} {p q : ProgramDenotation s α}
     {bad : s → Prop} [DecidablePred bad]
     {Post : α × s → α × s → Prop}
     (G : α × s → ENNReal)
@@ -43,7 +43,7 @@ lemma ProgramDenotation.relE.up_to_bad {s α : Type} {p q : ProgramDenotation s 
 /-- The bad-event probabilities agree under the same `relE` judgment
     (companion to `ProgramDenotation.relE.up_to_bad`; in the unary development this
     took a separate mass-conservation chain). -/
-lemma ProgramDenotation.relE.bad_eq {s α : Type} {p q : ProgramDenotation s α}
+lemma ProgramDenotation.relE.bad_eq {s α : Type*} {p q : ProgramDenotation s α}
     {bad : s → Prop} [DecidablePred bad]
     {Post : α × s → α × s → Prop}
     (h : p.relE q Eq Post)
@@ -60,7 +60,7 @@ lemma ProgramDenotation.relE.bad_eq {s α : Type} {p q : ProgramDenotation s α}
 /-- **Rectangular rule**: if `p` almost surely lands in `P` (from
     `Pre`-related states) and `q` has full mass on `Q`, then `p ~ q` at the
     rectangular post `P × Q`. The two sides need not be coupled at all. -/
-lemma ProgramDenotation.rel.of_unary {s₁ s₂ α β : Type}
+lemma ProgramDenotation.rel.of_unary {s₁ s₂ α β : Type*}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop}
     {P : α × s₁ → Prop} [DecidablePred P]

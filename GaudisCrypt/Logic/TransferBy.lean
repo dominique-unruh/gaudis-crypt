@@ -37,19 +37,20 @@ The lazy/eager random-oracle transfer (`ProgramDenotation.transfer` in
 -/
 
 /-- Generic transfer: `c` slides from after `p` to before `q`, preserving the value. -/
-def ProgramDenotation.transferBy {s α : Type} (c : ProgramDenotation s Unit)
+def ProgramDenotation.transferBy {s : Type*} {α : Type} (c : ProgramDenotation s Unit)
     (p q : ProgramDenotation s α) : Prop :=
   (p >>= fun a => c >>= fun _ => pure a) = (c >>= fun _ => q)
 
 /-! ## Monad-law combinators -/
 
 /-- `pure` transfers to itself. -/
-theorem ProgramDenotation.transferBy_pure {s α : Type} {c : ProgramDenotation s Unit} (a : α) :
+theorem ProgramDenotation.transferBy_pure {s : Type*} {α : Type} {c : ProgramDenotation s Unit}
+    (a : α) :
     ProgramDenotation.transferBy c (pure a) (pure a) :=
   ProgramDenotation.pure_bind a _
 
 /-- `transferBy` chains under `>>=`. -/
-theorem ProgramDenotation.transferBy_bind {s α β : Type} {c : ProgramDenotation s Unit}
+theorem ProgramDenotation.transferBy_bind {s : Type*} {α β : Type} {c : ProgramDenotation s Unit}
     {p q : ProgramDenotation s α} {p' q' : α → ProgramDenotation s β}
     (h : ProgramDenotation.transferBy c p q)
     (h' : ∀ a, ProgramDenotation.transferBy c (p' a) (q' a)) :
@@ -71,7 +72,7 @@ theorem ProgramDenotation.transferBy_bind {s α β : Type} {c : ProgramDenotatio
   rw [ProgramDenotation.bind_assoc]
 
 /-- Re-passing a `Unit` value through `pure` after `c` is a no-op. -/
-private lemma bind_c_pure_unit {s : Type} (c : ProgramDenotation s Unit) :
+private lemma bind_c_pure_unit {s : Type*} (c : ProgramDenotation s Unit) :
     (fun u : Unit => c >>= fun _ : Unit => (Pure.pure u : ProgramDenotation s Unit))
       = fun _ : Unit => c := by
   funext u
@@ -81,7 +82,7 @@ private lemma bind_c_pure_unit {s : Type} (c : ProgramDenotation s Unit) :
 
 /-- For `Unit`-valued programs the transfer is a plain bind equation:
     `p; c = c; q`. -/
-theorem ProgramDenotation.transferBy_unit_bind {s : Type} {c p q : ProgramDenotation s Unit}
+theorem ProgramDenotation.transferBy_unit_bind {s : Type*} {c p q : ProgramDenotation s Unit}
     (h : ProgramDenotation.transferBy c p q) :
     (p >>= fun _ : Unit => c) = (c >>= fun _ : Unit => q) := by
   have h' : (p >>= fun u : Unit =>
@@ -91,7 +92,7 @@ theorem ProgramDenotation.transferBy_unit_bind {s : Type} {c p q : ProgramDenota
 
 /-- Converse of `transferBy_unit_bind`: a plain bind equation between
     `Unit`-valued programs is a transfer. -/
-theorem ProgramDenotation.transferBy_of_unit_bind {s : Type} {c p q : ProgramDenotation s Unit}
+theorem ProgramDenotation.transferBy_of_unit_bind {s : Type*} {c p q : ProgramDenotation s Unit}
     (h : (p >>= fun _ : Unit => c) = (c >>= fun _ : Unit => q)) :
     ProgramDenotation.transferBy c p q := by
   change (p >>= fun u : Unit =>
@@ -101,7 +102,7 @@ theorem ProgramDenotation.transferBy_of_unit_bind {s : Type} {c p q : ProgramDen
   exact h
 
 /-- `zoom` lifts `transferBy`: a state-level transfer becomes a zoomed one. -/
-theorem ProgramDenotation.transferBy_zoom {s t α : Type} (lens : Lens s t)
+theorem ProgramDenotation.transferBy_zoom {s t : Type*} {α : Type} (lens : Lens s t)
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h : ProgramDenotation.transferBy c p q) :
     ProgramDenotation.transferBy (ProgramDenotation.zoom lens c)
@@ -119,7 +120,7 @@ theorem ProgramDenotation.transferBy_zoom {s t α : Type} (lens : Lens s t)
 /-! ## Reflexivity from commutation -/
 
 /-- Self-transfer from pair-output commutation with `c`. -/
-theorem ProgramDenotation.transferBy_refl_of_commute {s α : Type}
+theorem ProgramDenotation.transferBy_refl_of_commute {s : Type*} {α : Type}
     {c : ProgramDenotation s Unit} {p : ProgramDenotation s α}
     (h : (p >>= fun a => c >>= fun b => pure (a, b))
        = (c >>= fun b => p >>= fun a => pure (a, b))) :
@@ -134,7 +135,7 @@ theorem ProgramDenotation.transferBy_refl_of_commute {s α : Type}
     continuation `k`, turning `p` into `q`. At `p = q` this says a
     self-transferring program commutes with `c` (the converse direction of
     `transferBy_refl_of_commute`). -/
-theorem ProgramDenotation.transferBy_cont {s α β : Type}
+theorem ProgramDenotation.transferBy_cont {s : Type*} {α β : Type}
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h : ProgramDenotation.transferBy c p q) (k : α → ProgramDenotation s β) :
     (p >>= fun a => c >>= fun _ => k a) = (c >>= fun _ => q >>= k) := by
@@ -146,7 +147,7 @@ theorem ProgramDenotation.transferBy_cont {s α β : Type}
     footprint avoids `c`'s footprint commutes with `c`
     (`commute_of_disjoint_footprint`), so transfers to itself. The `ᶜ`-form makes
     the disjointness hypothesis `le_refl`. -/
-theorem ProgramDenotation.transferBy_refl_of_inFootprint_compl {s α : Type}
+theorem ProgramDenotation.transferBy_refl_of_inFootprint_compl {s : Type*} {α : Type}
     {F : Footprint s} {c : ProgramDenotation s Unit} (hc : c.inFootprint F)
     {p : ProgramDenotation s α} (hp : p.inFootprint Fᶜ) :
     ProgramDenotation.transferBy c p p :=
@@ -160,7 +161,7 @@ whose else-branch is `c` (representing "loop terminates, then couple"), then
 take the ωSup. -/
 
 /-- Intermediate iteration: the lazy body, but with `c` in the else branch. -/
-private noncomputable def whileBy_Ψ {s : Type} (c : ProgramDenotation s Unit)
+private noncomputable def whileBy_Ψ {s : Type*} (c : ProgramDenotation s Unit)
     (cond : ProgramDenotation s Bool) (body_lazy : ProgramDenotation s Unit) :
     (Unit → ProgramDenotation s Unit) →𝒄 (Unit → ProgramDenotation s Unit) :=
   OmegaCompletePartialOrder.ContinuousHom.ofFun fun (fp : Unit → ProgramDenotation s Unit) =>
@@ -168,7 +169,7 @@ private noncomputable def whileBy_Ψ {s : Type} (c : ProgramDenotation s Unit)
     do if ← cond then body_lazy; fp () else c
 
 /-- Lazy iterate composed with `c` equals the `Ψ`-iterate. -/
-private lemma whileBy_kleene_lazy {s : Type} (c : ProgramDenotation s Unit)
+private lemma whileBy_kleene_lazy {s : Type*} (c : ProgramDenotation s Unit)
     (cond : ProgramDenotation s Bool) (body_lazy : ProgramDenotation s Unit) :
     ∀ n : ℕ,
     (((while_iteration cond body_lazy)^[n] (⊥ : Unit → ProgramDenotation s Unit)) ()
@@ -194,7 +195,7 @@ private lemma whileBy_kleene_lazy {s : Type} (c : ProgramDenotation s Unit)
     · simp only [h]; exact ProgramDenotation.pure_bind () _
 
 /-- `c` prepended to the eager iterate equals the `Ψ`-iterate. -/
-private lemma whileBy_kleene_eager {s : Type} (c : ProgramDenotation s Unit)
+private lemma whileBy_kleene_eager {s : Type*} (c : ProgramDenotation s Unit)
     {cond : ProgramDenotation s Bool}
     (h_cond_comm : ∀ {β : Type} (k : Bool → ProgramDenotation s β),
         (cond >>= fun b => c >>= fun _ => k b) = (c >>= fun _ => cond >>= k))
@@ -238,7 +239,7 @@ private lemma whileBy_kleene_eager {s : Type} (c : ProgramDenotation s Unit)
 /-- **`transferBy` is preserved by `while_loop`.** If the condition transfers to
     itself (e.g. by `transferBy_refl_of_inFootprint_compl`) and the body
     transfers, then the two loops transfer. -/
-theorem ProgramDenotation.transferBy_while_loop {s : Type} {c : ProgramDenotation s Unit}
+theorem ProgramDenotation.transferBy_while_loop {s : Type*} {c : ProgramDenotation s Unit}
     {cond : ProgramDenotation s Bool}
     (h_cond : ProgramDenotation.transferBy c cond cond)
     {body_lazy body_eager : ProgramDenotation s Unit}
@@ -286,7 +287,7 @@ theorem ProgramDenotation.transferBy_while_loop {s : Type} {c : ProgramDenotatio
 /-! ## Consequences at the `wp` and marginal level -/
 
 /-- `c.wp` of a constant post is that constant, provided `c` has total mass 1. -/
-lemma ProgramDenotation.wp_const_of_mass_one {s : Type} {c : ProgramDenotation s Unit}
+lemma ProgramDenotation.wp_const_of_mass_one {s : Type*} {c : ProgramDenotation s Unit}
     (h_mass : ∀ σ, c.wp (fun _ : Unit × s => (1 : ENNReal)) σ = 1) (k : ENNReal) (σ : s) :
     c.wp (fun _ : Unit × s => k) σ = k := by
   have h := ProgramDenotation.wp_const_mul c k (fun _ : Unit × s => (1 : ENNReal)) σ
@@ -296,7 +297,7 @@ lemma ProgramDenotation.wp_const_of_mass_one {s : Type} {c : ProgramDenotation s
 /-- **Transfer at the wp level for `c`-invariant postconditions**: if the post
     `F` is invariant under running `c` (in the wp sense), then transfer +
     absorption give wp-equality of `p` and `q` on `F` at any starting state. -/
-theorem ProgramDenotation.transferBy_wp_invariant {s α : Type}
+theorem ProgramDenotation.transferBy_wp_invariant {s : Type*} {α : Type}
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h_transfer : ProgramDenotation.transferBy c p q)
     (h_absorb : (c >>= fun _ => q) = q)
@@ -322,7 +323,7 @@ theorem ProgramDenotation.transferBy_wp_invariant {s α : Type}
 /-- **Transfer at the wp level for value-only postconditions**: for
     `G : α → ENNReal`, the wps of `p` and `q` against `fun aσ => G aσ.1` agree,
     given transfer, absorption, and that `c` is a probability (mass 1). -/
-theorem ProgramDenotation.transferBy_wp_value {s α : Type}
+theorem ProgramDenotation.transferBy_wp_value {s : Type*} {α : Type}
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h_transfer : ProgramDenotation.transferBy c p q)
     (h_absorb : (c >>= fun _ => q) = q)
@@ -333,14 +334,14 @@ theorem ProgramDenotation.transferBy_wp_value {s α : Type}
     (fun a σ => ProgramDenotation.wp_const_of_mass_one h_mass (G a) σ) σ₀
 
 /-- **Value marginal**: SubProb-level statement of the transfer. -/
-theorem ProgramDenotation.transferBy_value_marginal {s α : Type}
+theorem ProgramDenotation.transferBy_value_marginal {s : Type*} {α : Type}
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h_transfer : ProgramDenotation.transferBy c p q)
     (h_absorb : (c >>= fun _ => q) = q)
     (h_mass : ∀ σ, c.wp (fun _ : Unit × s => (1 : ENNReal)) σ = 1)
     (σ₀ : s) :
-    (p σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α))
-  = (q σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α)) := by
+    ((p σ₀).hbind fun aσ => (Pure.pure aσ.1 : SubProbability α))
+  = ((q σ₀).hbind fun aσ => (Pure.pure aσ.1 : SubProbability α)) := by
   apply Subtype.ext
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace (α × s) := ⊤
@@ -358,7 +359,7 @@ theorem ProgramDenotation.transferBy_value_marginal {s α : Type}
 /-- **Marginal at the (value × `c`-invariant projection) level**: instead of
     projecting to just the value, additionally include any state projection
     `h : s → β` that is invariant under running `c` (in the wp sense). -/
-theorem ProgramDenotation.transferBy_marginal_invariant {s α β : Type}
+theorem ProgramDenotation.transferBy_marginal_invariant {s : Type*} {α β : Type}
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h_transfer : ProgramDenotation.transferBy c p q)
     (h_absorb : (c >>= fun _ => q) = q)
@@ -366,8 +367,8 @@ theorem ProgramDenotation.transferBy_marginal_invariant {s α β : Type}
     (h_inv : ∀ (g : β → ENNReal) (σ : s),
         c.wp (fun uσ : Unit × s => g (h uσ.2)) σ = g (h σ))
     (σ₀ : s) :
-    (p σ₀ >>= fun aσ : α × s => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β)))
-  = (q σ₀ >>= fun aσ : α × s => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) := by
+    ((p σ₀).hbind fun aσ : α × s => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β)))
+  = ((q σ₀).hbind fun aσ : α × s => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) := by
   apply Subtype.ext
   letI : MeasurableSpace (α × β) := ⊤
   letI : MeasurableSpace (α × s) := ⊤

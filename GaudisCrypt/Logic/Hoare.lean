@@ -79,7 +79,7 @@ lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedur
 
 /-- The trivial lens onto `Unit`: the one value to read, and writing it is a no-op.  The lens laws
     hold by `Unit`'s eta — in particular `set_get` is `() = v`. -/
-def Lens.unit {m : Type} : Lens Unit m where
+def Lens.unit {m : Type*} : Lens Unit m where
   get _ := ()
   set _ s := s
   set_get _ _ := rfl

@@ -23,11 +23,15 @@ These are the rules that interact with the lens-based memory model:
   case; this bridge lets its lemmas feed `rel` chains and vice versa.
 -/
 
+-- Universes as in `Language/Footprint.lean`: state `Type (max u v)`, results `Type v`
+-- (separately for the two sides of a relational judgment).
+universe u v u₁ v₁ u₂ v₂
+
 namespace ProgramDenotation.rel
 
 /-- **Self-shift**: running `p` from `f σ` (for `f` outside `p`'s footprint)
     relates to running `p` from `σ` with the shift carried into the post. -/
-lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : Footprint s}
+lemma self_shift {s : Type (max u v)} {α : Type v} {p : ProgramDenotation s α} {R : Footprint s}
     (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) :
     p.rel p (fun σ₁ σ₂ => σ₂ = f σ₁) (fun x y => y.1 = x.1 ∧ y.2 = f x.2) := by
   intro F G hFG σ₁ σ₂ hpre
@@ -41,7 +45,8 @@ lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : Footprint s}
     lens outside each side's footprint. The proof strengthens the left post
     with the `L`-frame (`wp_strengthen_lens_preserved_footprint`) and interpolates the
     right post with a `⊤`-override off the `M`-frame. -/
-lemma frame {s₁ s₂ α β γ₁ γ₂ : Type}
+lemma frame {s₁ : Type (max u₁ v₁)} {α : Type v₁} {s₂ : Type (max u₂ v₂)} {β : Type v₂}
+    {γ₁ γ₂ : Type*}
     (L : Lens γ₁ s₁) (M : Lens γ₂ s₂)
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     (hp : p.inFootprint (L.footprint)ᶜ) (hq : q.inFootprint (M.footprint)ᶜ)
@@ -83,7 +88,7 @@ end ProgramDenotation.rel
 namespace ProgramDenotation.relE
 
 /-- Two-sided form of `ProgramDenotation.rel.self_shift`. -/
-lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : Footprint s}
+lemma self_shift {s : Type (max u v)} {α : Type v} {p : ProgramDenotation s α} {R : Footprint s}
     (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) :
     p.relE p (fun σ₁ σ₂ => σ₂ = f σ₁) (fun x y => y.1 = x.1 ∧ y.2 = f x.2) := by
   refine ⟨ProgramDenotation.rel.self_shift hp hf, ?_⟩
@@ -96,7 +101,7 @@ lemma self_shift {s α : Type} {p : ProgramDenotation s α} {R : Footprint s}
 
 /-- Self-shift specialized to a lens write outside `p`'s footprint:
     running `p` from `L.set v σ` vs from `σ`. -/
-lemma self_lens_set {s α γ : Type}
+lemma self_lens_set {s : Type (max u v)} {α : Type v} {γ : Type*}
     {p : ProgramDenotation s α} (L : Lens γ s) (hp : p.inFootprint (L.footprint)ᶜ) (v : γ) :
     p.relE p (fun σ₁ σ₂ => σ₂ = L.set v σ₁)
              (fun x y => y.1 = x.1 ∧ y.2 = L.set v x.2) := by
@@ -106,7 +111,8 @@ lemma self_lens_set {s α γ : Type}
   exact ProgramDenotation.relE.self_shift hp hf
 
 /-- Two-sided framing. -/
-lemma frame {s₁ s₂ α β γ₁ γ₂ : Type}
+lemma frame {s₁ : Type (max u₁ v₁)} {α : Type v₁} {s₂ : Type (max u₂ v₂)} {β : Type v₂}
+    {γ₁ γ₂ : Type*}
     (L : Lens γ₁ s₁) (M : Lens γ₂ s₂)
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β}
     (hp : p.inFootprint (L.footprint)ᶜ) (hq : q.inFootprint (M.footprint)ᶜ)
@@ -124,7 +130,7 @@ end ProgramDenotation.relE
 /-! ## The EquivModuloLens bridge -/
 
 /-- One direction of the bridge, as a `rel`. -/
-private lemma rel_of_equivModuloLens {s α γ : Type} {L : Lens γ s}
+private lemma rel_of_equivModuloLens {s : Type (max u v)} {α : Type v} {γ : Type*} {L : Lens γ s}
     {p q : ProgramDenotation s α} (h : ProgramDenotation.EquivModuloLens L p q) :
     p.rel q Eq (fun x y => x.1 = y.1 ∧ L.compl.get x.2 = L.compl.get y.2) := by
   intro F G hFG σ₁ σ₂ hpre
@@ -153,7 +159,8 @@ private lemma rel_of_equivModuloLens {s α γ : Type} {L : Lens γ s}
 
 /-- **EquivModuloLens → relE**: an equivalence-modulo-`L` is the diagonal
     `relE` at the post "equal results, equal `L`-complement content". -/
-lemma ProgramDenotation.EquivModuloLens.to_relE {s α γ : Type} {L : Lens γ s}
+lemma ProgramDenotation.EquivModuloLens.to_relE {s : Type (max u v)} {α : Type v} {γ : Type*}
+    {L : Lens γ s}
     {p q : ProgramDenotation s α} (h : ProgramDenotation.EquivModuloLens L p q) :
     p.relE q Eq (fun x y => x.1 = y.1 ∧ L.compl.get x.2 = L.compl.get y.2) :=
   ⟨rel_of_equivModuloLens h,
@@ -163,7 +170,8 @@ lemma ProgramDenotation.EquivModuloLens.to_relE {s α γ : Type} {L : Lens γ s}
 
 /-- **relE → EquivModuloLens**: conversely, the diagonal `relE` at the
     `L`-complement-equality post yields an equivalence-modulo-`L`. -/
-lemma ProgramDenotation.relE.to_equivModuloLens {s α γ : Type} {L : Lens γ s}
+lemma ProgramDenotation.relE.to_equivModuloLens {s : Type (max u v)} {α : Type v} {γ : Type*}
+    {L : Lens γ s}
     {p q : ProgramDenotation s α}
     (h : p.relE q Eq (fun x y => x.1 = y.1 ∧ L.compl.get x.2 = L.compl.get y.2)) :
     ProgramDenotation.EquivModuloLens L p q := by
