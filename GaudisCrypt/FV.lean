@@ -336,7 +336,7 @@ def fvP_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Footprint State
   fvpInductiveFunctionGS.proc proc
 
 noncomputable
-def fvP_stmt {s holes} (stmt : StmtWithHoles holes s) : Footprint (ProcedureState s) :=
+def fvP_stmt {holes} (stmt : StmtWithHoles holes) : Footprint ProgramState :=
   fvpInductiveFunctionGS.stmt stmt
 
 /-- **EasyCrypt's `glob A`**: the getter reading everything the procedure `A` may touch —
@@ -408,18 +408,18 @@ theorem reduce_chain_le_compl {t s c : Type*} {L : Lens s c} {v : Lens t s} {R :
 
 open MeasureTheory in
 /-- `globalL.liftSubProbability f` applied to a padded state applies `f` to the global. -/
-theorem globalL_liftSubProbability_pad [ProgramSpec] {l : Type} (f : State → SubProbability State)
-    (g : State) (loc : l) :
-    (ProcedureState.globalL.liftSubProbability f) ⟨g, loc⟩
-      = f g >>= fun a => pure (⟨a, loc⟩ : ProcedureState l) := by
+theorem globalL_liftSubProbability_pad [ProgramSpec] (f : State → SubProbability State)
+    (g : State) (loc : VariableAssignment) :
+    (ProgramState.globalL.liftSubProbability f) ⟨g, loc⟩
+      = f g >>= fun a => pure (⟨a, loc⟩ : ProgramState) := by
   simp only [Lens.liftSubProbability]; rfl
 
 /-- Reading the global out of `globalL.liftSubProbability f` recovers `f` on the global. -/
-theorem globalL_liftSubProbability_global [ProgramSpec] {l : Type}
+theorem globalL_liftSubProbability_global [ProgramSpec]
     (f : State → SubProbability State)
-    (w2 : ProcedureState l) {ρ : Type} (x : ρ) :
-    ((ProcedureState.globalL.liftSubProbability f) w2 >>= fun s'' => pure (x, s''.global))
-      = f w2.global >>= fun a => pure (x, a) := by
+    (w2 : ProgramState) {ρ : Type} (x : ρ) :
+    ((ProgramState.globalL.liftSubProbability f) w2 >>= fun s'' => pure (x, s''.globals))
+      = f w2.globals >>= fun a => pure (x, a) := by
   simp only [Lens.liftSubProbability]
   rw [SubProbability.hbind_bind, SubProbability.hbind_eq_bind]
   congr 1; funext a; rw [SubProbability.pure_bind]; rfl
