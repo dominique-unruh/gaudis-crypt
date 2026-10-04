@@ -12,173 +12,11 @@ open GaudisCrypt
 
 variable [ProgramSpec]
 
-/-- The state a statement runs in: the `global` program state together with the
-`local` state `l` (procedure parameters + local variables).  Replaces the former
-`State × l` product so that the two halves are named. -/
-structure ProcedureState (l : Type) where
-  global : State
-  -- Rename → scoped
-  locals : l
-
-/-- Lens onto the global part of a `ProcedureState`. -/
-def ProcedureState.globalL {l : Type} : Lens State (ProcedureState l) where
-  get s := s.global
-  set v s := { s with global := v }
-  set_get _ _ := rfl
-  set_set _ _ _ := rfl
-  get_set _ := rfl
-
-/-- Lens onto the local part of a `ProcedureState`. -/
-def ProcedureState.scopedL {l : Type} : Lens l (ProcedureState l) where
-  get s := s.locals
-  set v s := { s with locals := v }
-  set_get _ _ := rfl
-  set_set _ _ _ := rfl
-  get_set _ := rfl
-
 structure ProcedureSignature where
   params : List Type
   ret : Type
 
-/-- The declared types of a local-variable list, i.e. `ls.map (·.fst)`.
-
-Spelled out by recursion rather than as `List.map` *because* it has to be reducible, for the
-same reason `typeListToTuple` is: `List.map` is not, so `typeListToTuple (ls.map (·.fst))`
-stays stuck at `reducible` transparency — `typeListToTuple` cannot match on an argument it
-cannot evaluate, and the tuple type never becomes a `_ × _` that instance search can use.
-With this, `Lens.Disjoint` of two local-variable lenses is synthesized on its own. -/
-@[reducible] def localTypes : List (Σ t : Type, Inhabited t) → List Type
-  | []             => []
-  | ⟨t, _⟩ :: rest => t :: localTypes rest
-
-omit [ProgramSpec] in
-/-- `localTypes` is `List.map (·.fst)`, for interop with lemmas stated that way.  Deliberately
-*not* `@[simp]`: rewriting towards `List.map` puts back exactly the non-reducible head that
-`localTypes` exists to avoid. -/
-theorem localTypes_eq_map (ls : List (Σ t : Type, Inhabited t)) :
-    localTypes ls = ls.map (·.fst) := by
-  induction ls with
-  | nil => rfl
-  | cons h t ih => cases h; simp [localTypes, ih]
-
-/-- The local state of a procedure: parameter values (`params`) and local-variable
-values (`localVars`).  Indexed by the parameter *types* and the local declarations only
-(not the return type), so it can be formed before the return type is known — this is
-what lets a `proc` with an omitted return type elaborate. -/
-structure ProcedureScope (paramTypes : List Type)
-    (locals : List (Σ t : Type, Inhabited t)) where
-  params : typeListToTuple paramTypes
-  localVars : typeListToTuple (localTypes locals)
-
-/-- The local state for a full signature (delegates to `ProcedureScope`; reducible
-so `sig.ProcedureScope locals` is defeq to `ProcedureScope sig.params locals`). -/
-@[reducible] def ProcedureSignature.ProcedureScope (sig : ProcedureSignature)
-    (locals : List (Σ t : Type, Inhabited t)) : Type :=
-  _root_.GaudisCrypt.ProcedureScope sig.params locals
-
-/-- Lens onto the parameter tuple of a `ProcedureScope`. -/
-def ProcedureScope.paramsL {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)} :
-    Lens (typeListToTuple paramTypes) (ProcedureScope paramTypes locals) where
-  get s := s.params
-  set v s := { s with params := v }
-  set_get _ _ := rfl
-  set_set _ _ _ := rfl
-  get_set _ := rfl
-
-/-- Lens onto the local-variable tuple of a `ProcedureScope`. -/
-def ProcedureScope.localVarsL {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)} :
-    Lens (typeListToTuple (localTypes locals)) (ProcedureScope paramTypes locals) where
-  get s := s.localVars
-  set v s := { s with localVars := v }
-  set_get _ _ := rfl
-  set_set _ _ _ := rfl
-  get_set _ := rfl
-
-/-- `params` and `localVars` are distinct fields of `ProcedureScope`, so writes through the two
-    field lenses commute. -/
-instance ProcedureScope.disjoint_localVarsL_paramsL {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)} :
-    Lens.Disjoint (ProcedureScope.localVarsL (paramTypes := paramTypes) (locals := locals))
-      (ProcedureScope.paramsL (paramTypes := paramTypes) (locals := locals)) :=
-  ⟨fun _ _ _ => rfl⟩
-
-/-- The mirror image of `ProcedureScope.disjoint_localVarsL_paramsL`; `Lens.Disjoint.symm` is a
-    theorem, not an instance, so search needs both orientations spelled out. -/
-instance ProcedureScope.disjoint_paramsL_localVarsL {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)} :
-    Lens.Disjoint (ProcedureScope.paramsL (paramTypes := paramTypes) (locals := locals))
-      (ProcedureScope.localVarsL (paramTypes := paramTypes) (locals := locals)) :=
-  ⟨fun _ _ _ => rfl⟩
-
-/-- Lift a lens into the parameter tuple to a lens into the full procedure state
-(`scopedL ∘ paramsL`).  Analogous to `Lens.ofst`.  (Defined in the `Lens` namespace via
-`_root_` so dot notation `lens.intoParams` resolves.) -/
-def Lens.intoParams {a : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)} (lens : Lens a (typeListToTuple paramTypes)) :
-    Lens a (ProcedureState (ProcedureScope paramTypes locals)) :=
-  ProcedureState.scopedL.chain (ProcedureScope.paramsL.chain lens)
-
-/-- Procedure parameters are `Lens.intoParams` of their slot projections; distinct slots are
-    disjoint, and `intoParams` (two `chain` layers) preserves that. -/
-instance Programs.disjoint_intoParams {a b : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (typeListToTuple paramTypes)}
-    {y : Lens b (typeListToTuple paramTypes)} [Lens.Disjoint x y] :
-    Lens.Disjoint (Lens.intoParams (locals := locals) x) y.intoParams :=
-  Lens.disjoint_chain ProcedureState.scopedL _ _
-
-/-- Lift a lens into the local-variable tuple to a lens into the full procedure state
-(`scopedL ∘ localVarsL`).  Analogous to `Lens.ofst`. -/
-def Lens.intoLocalVars {a : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)}
-    (lens : Lens a (typeListToTuple (localTypes locals))) :
-    Lens a (ProcedureState (ProcedureScope paramTypes locals)) :=
-  ProcedureState.scopedL.chain (ProcedureScope.localVarsL.chain lens)
-
-/-- Local program variables are `Lens.intoLocalVars` of their slot projections; distinct slots
-    are disjoint, and `intoLocalVars` (two `chain` layers) preserves that. -/
-instance Programs.disjoint_intoLocalVars {a b : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (typeListToTuple (localTypes locals))}
-    {y : Lens b (typeListToTuple (localTypes locals))} [Lens.Disjoint x y] :
-    Lens.Disjoint (Lens.intoLocalVars (paramTypes := paramTypes) x) y.intoLocalVars :=
-  Lens.disjoint_chain ProcedureState.scopedL _ _
-
-/-- A local variable is disjoint from *any* parameter: `params` and `localVars` are distinct fields
-    of the scope record, so writes through projections of the two commute outright — no
-    `Lens.Disjoint x y` hypothesis, and no lemma about the `chain` prefix they share. -/
-instance Programs.disjoint_intoLocalVars_intoParams {a b : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (typeListToTuple (localTypes locals))}
-    {y : Lens b (typeListToTuple paramTypes)} :
-    Lens.Disjoint (Lens.intoLocalVars (paramTypes := paramTypes) x)
-      (Lens.intoParams (locals := locals) y) :=
-  ⟨fun _ _ _ => rfl⟩
-
-/-- The other orientation of `Programs.disjoint_intoLocalVars_intoParams`;
-    `Lens.Disjoint.symm` is a theorem, not an instance, so search needs both spelled out. -/
-instance Programs.disjoint_intoParams_intoLocalVars {a b : Type} {paramTypes : List Type}
-    {locals : List (Σ t : Type, Inhabited t)}
-    {x : Lens a (typeListToTuple paramTypes)}
-    {y : Lens b (typeListToTuple (localTypes locals))} :
-    Lens.Disjoint (Lens.intoParams (locals := locals) x)
-      (Lens.intoLocalVars (paramTypes := paramTypes) y) :=
-  ⟨fun _ _ _ => rfl⟩
-
 def ProcedureSignature.ParamType (sig : ProcedureSignature) := typeListToTuple sig.params
-
-private def localDefaults : (ls : List (Σ t : Type, Inhabited t)) →
-    typeListToTuple (localTypes ls)
-  | [] => ()
-  | [⟨_, inst⟩] => inst.default
-  | ⟨_, inst⟩ :: h :: t => (inst.default, localDefaults (h :: t))
-
-def ProcedureSignature.localVariableInit
-    (sig : ProcedureSignature) (locals : List (Σ t : Type, Inhabited t))
-    (params : typeListToTuple sig.params) : sig.ProcedureScope locals :=
-  ⟨params, localDefaults locals⟩
 
 /-- A sequence of procedure signatures, describing the holes of a program.
 
@@ -242,29 +80,40 @@ noncomputable instance {holes sig} : Fintype (HoleIndex holes sig) := by
 abbrev Var [ProgramSpec] a := Lens a State
 abbrev Expr [ProgramSpec] a := Getter a State
 
-/-- Syntactic program (with arbitrary Lean terms as expressions) -/
-inductive StmtWithHoles [ProgramSpec]: HoleSigs → Type → Type _ where
-  | skip : StmtWithHoles h l
-  -- | assign {a : Type} : Lens a (ProcedureState l) → Getter a (ProcedureState l) → StmtWithHoles h l
-  | sample {a : Type} : Setter a (ProcedureState l) → Getter (SubProbability a) (ProcedureState l) → StmtWithHoles h l
+/-- Syntactic program (with arbitrary Lean terms as expressions).  Every statement runs on a
+`ProgramState`: the globals, and the locals of the running procedure (its parameters among
+them). -/
+inductive StmtWithHoles [ProgramSpec] : HoleSigs → Type _ where
+  | skip : StmtWithHoles h
+  | sample {a : Type} : Setter a ProgramState → Getter (SubProbability a) ProgramState →
+      StmtWithHoles h
   | call' {sig : ProcedureSignature} :
       -- We have to spell out all parts of the procedure, unfortunately
       -- (Lean forbids the mutual induction with `Procedure`)
-      Setter sig.ret (ProcedureState l) → (locals : List (Σ t : Type, Inhabited t))
-        → StmtWithHoles .empty (sig.ProcedureScope locals)
-        → Getter sig.ret (ProcedureState (sig.ProcedureScope locals))
-        → Getter sig.ParamType (ProcedureState l) → StmtWithHoles h l
-  | hole {sig} (n: HoleIndex h sig) : Setter sig.ret (ProcedureState l) → Getter sig.ParamType (ProcedureState l) → StmtWithHoles h l
-  | seq : StmtWithHoles h l → StmtWithHoles h l → StmtWithHoles h l                   -- c1; c2
-  | ifThenElse : Getter Bool (ProcedureState l) → StmtWithHoles h l → StmtWithHoles h l → StmtWithHoles h l
-  | while : Getter Bool (ProcedureState l) → StmtWithHoles h l → StmtWithHoles h l          -- while b do c
+      Setter sig.ret ProgramState
+        → (parameterNames : List String) → parameterNames.length = sig.params.length
+        → parameterNames.Nodup
+        → StmtWithHoles .empty                    -- callee body
+        → Getter sig.ret ProgramState             -- callee return value
+        → Getter sig.ParamType ProgramState       -- arguments, read in the caller's state
+        → StmtWithHoles h
+  | hole {sig} (n : HoleIndex h sig) : Setter sig.ret ProgramState →
+      Getter sig.ParamType ProgramState → StmtWithHoles h
+  | seq : StmtWithHoles h → StmtWithHoles h → StmtWithHoles h                   -- c1; c2
+  | ifThenElse : Getter Bool ProgramState → StmtWithHoles h → StmtWithHoles h → StmtWithHoles h
+  | while : Getter Bool ProgramState → StmtWithHoles h → StmtWithHoles h          -- while b do c
 
 def Stmt [ProgramSpec] := StmtWithHoles .empty
 
+/-- A procedure: its body and return value run on a `ProgramState`, and on a call the arguments
+are written into the local slots named `parameterNames` (with the types `sig.params`), see
+`ProcedureWithHoles.initLocals`. -/
 structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : ProcedureSignature) where
-  locals : List (Σ t : Type, Inhabited t)
-  body : StmtWithHoles holeSigs (sig.ProcedureScope locals)
-  return_val : Getter sig.ret (ProcedureState (sig.ProcedureScope locals))
+  parameterNames : List String
+  parameterNames_length : parameterNames.length = sig.params.length := by rfl
+  parameterNames_nodup : parameterNames.Nodup := by decide
+  body : StmtWithHoles holeSigs
+  return_val : Getter sig.ret ProgramState
 
 def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
 
@@ -273,18 +122,26 @@ an implicit argument of the type, which makes it awkward to name in generated co
 abbrev ProcedureWithHoles.signature [ProgramSpec] {holes sig}
     (_p : ProcedureWithHoles holes sig) : ProcedureSignature := sig
 
+/-- The locals a call of `p` with arguments `args` starts with: the arguments in the parameter
+slots, everything else at `VariableAssignment.init`. -/
+noncomputable def ProcedureWithHoles.initLocals {holes sig} (p : ProcedureWithHoles holes sig)
+    (args : sig.ParamType) : VariableAssignment :=
+  VariableAssignment.setParams p.parameterNames sig.params p.parameterNames_length args
+    VariableAssignment.init
+
 @[match_pattern]
-def StmtWithHoles.call [ProgramSpec] {sig} (x : Setter sig.ret (ProcedureState l)) (proc : Procedure sig)
-      (params : Getter sig.ParamType (ProcedureState l)) : StmtWithHoles h l :=
-  StmtWithHoles.call' x proc.locals proc.body proc.return_val params
+def StmtWithHoles.call [ProgramSpec] {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
+      (params : Getter sig.ParamType ProgramState) : StmtWithHoles h :=
+  StmtWithHoles.call' x proc.parameterNames proc.parameterNames_length proc.parameterNames_nodup
+    proc.body proc.return_val params
 
 noncomputable
 def StmtWithHoles.assign [ProgramSpec]
-  (x : Setter a (ProcedureState l)) (e : Getter a (ProcedureState l)) : StmtWithHoles h l :=
+  (x : Setter a ProgramState) (e : Getter a ProgramState) : StmtWithHoles h :=
   StmtWithHoles.sample x ⟨fun st => pure (e.get st)⟩
 
-def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret (ProcedureState l)) (proc : Procedure sig)
-      (params : Getter sig.ParamType (ProcedureState l)) : Stmt l
+def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
+      (params : Getter sig.ParamType ProgramState) : Stmt
      := StmtWithHoles.call x proc params
 
 /-- The procedures filling the holes `holes`, as a **tuple**: right-nested, with `HoleIndex.zero`
@@ -363,14 +220,13 @@ def HoleSigs.Instantiation.toList :
 
 /-- Instantiate all holes in a statement using `resolve`, turning each `.hole` into a
     `.call'` of the resolved procedure.  Hole-free constructors are simply re-typed. -/
-def StmtWithHoles.instantiate {holes : HoleSigs} {l : Type}
-    (stmt : StmtWithHoles holes l)
+def StmtWithHoles.instantiate {holes : HoleSigs}
+    (stmt : StmtWithHoles holes)
     (instantiation : holes.Instantiation) :
-    Stmt l := match stmt with
+    Stmt := match stmt with
   | .skip            => .skip
-  -- | .assign x e      => .assign x e
   | .sample x e      => .sample x e
-  | .call' x ls b r p => .call' x ls b r p
+  | .call' x ns hl hn b r p => .call' x ns hl hn b r p
   | .hole n x p      => StmtWithHoles.call x (instantiation.lookup n) p
   | .seq s1 s2       =>
       .seq (s1.instantiate instantiation) (s2.instantiate instantiation)
@@ -383,18 +239,19 @@ def ProcedureWithHoles.instantiate {holes : HoleSigs} {sig}
     (proc : ProcedureWithHoles holes sig)
     (instantiation : holes.Instantiation)
      : Procedure sig :=
-  ⟨proc.locals, StmtWithHoles.instantiate proc.body instantiation, proc.return_val⟩
+  ⟨proc.parameterNames, proc.parameterNames_length, proc.parameterNames_nodup,
+    StmtWithHoles.instantiate proc.body instantiation, proc.return_val⟩
 
 
 /-- A structural size measure used to justify termination of `programDenotation`.
     The auto-generated `sizeOf` for `StmtWithHoles` is trivially `0` (the inductive
     lives in a higher universe because its constructors quantify over `a : Type`), so
     we define our own. -/
-def StmtWithHoles.depth {h l} : StmtWithHoles h l → Nat
+def StmtWithHoles.depth {h} : StmtWithHoles h → Nat
   | .skip           => 0
   | .sample _ _     => 0
   | .hole _ _ _     => 0
-  | .call' _ _ body _ _ => body.depth + 1
+  | .call' _ _ _ _ body _ _ => body.depth + 1
   | .seq p q        => max p.depth q.depth + 1
   | .ifThenElse _ p q => max p.depth q.depth + 1
   | .while _ p      => p.depth + 1
@@ -403,11 +260,11 @@ def StmtWithHoles.depth {h l} : StmtWithHoles h l → Nat
 the `.hole` case cannot occur (`HoleIndex .empty _` is empty).  Recursion is on `depth` — the
 statement's own index `HoleSigs.empty` is not a variable, so the equation compiler cannot recurse
 on it structurally. -/
-theorem StmtWithHoles.instantiate_empty {l : Type} (inst : HoleSigs.empty.Instantiation) :
-    ∀ s : Stmt l, s.instantiate inst = s
+theorem StmtWithHoles.instantiate_empty (inst : HoleSigs.empty.Instantiation) :
+    ∀ s : Stmt, s.instantiate inst = s
   | .skip => rfl
   | .sample _ _ => rfl
-  | .call' _ _ _ _ _ => rfl
+  | .call' _ _ _ _ _ _ _ => rfl
   | .seq s1 s2 => by
       simp only [StmtWithHoles.instantiate, instantiate_empty inst s1, instantiate_empty inst s2]
   | .ifThenElse _ s1 s2 => by
@@ -419,55 +276,69 @@ decreasing_by all_goals simp only [StmtWithHoles.depth]; omega
 /-- Instantiating a procedure that has no holes leaves it alone. -/
 @[simp] theorem ProcedureWithHoles.instantiate_empty {sig} (p : ProcedureWithHoles .empty sig)
     (inst : HoleSigs.empty.Instantiation) : p.instantiate inst = p := by
-  obtain ⟨locals, body, ret⟩ := p
+  obtain ⟨names, hlen, hnodup, body, ret⟩ := p
   simp only [ProcedureWithHoles.instantiate, StmtWithHoles.instantiate_empty]
 
-mutual
 noncomputable
-def programDenotation : Stmt l → ProgramDenotation (ProcedureState l) Unit
+def programDenotation : Stmt → ProgramDenotation ProgramState Unit
 | .skip => ProgramDenotation.skip
--- | .assign x e => do let v <- ProgramDenotation.get e; ProgramDenotation.set x v
 | .sample x e => do let μ : SubProbability _ <- ProgramDenotation.get e; let v <-
     μ.toProgramDenotation; ProgramDenotation.set x v
 | .seq p q => do let _ <- programDenotation p; programDenotation q
 | .ifThenElse c p q => do if ← ProgramDenotation.get c then programDenotation p else
     programDenotation q
 | .while c p => while_loop (ProgramDenotation.get c) (programDenotation p)
-| .call' (sig:=sig) (x : Setter sig.ret _) locals body ret args => do
-    let proc : Procedure sig := ⟨locals, body, ret⟩
+| .call' (sig:=sig) (x : Setter sig.ret _) names hlen hnodup body ret args => do
+    let proc : Procedure sig := ⟨names, hlen, hnodup, body, ret⟩
     let argValues <- ProgramDenotation.get args
-    let retVal <- ProgramDenotation.zoom ProcedureState.globalL (procedureDenotation proc argValues)
+    -- `procedureDenotation proc argValues`, spelled out (see there)
+    let retVal <- ProgramDenotation.zoom ProgramState.globalL fun st =>
+      (programDenotation body ⟨st, proc.initLocals argValues⟩).hbind fun p =>
+        pure (ret.get p.2, p.2.globals)
     ProgramDenotation.set x retVal
-termination_by stmt => (stmt.depth, 0)
-decreasing_by all_goals simp [StmtWithHoles.depth, Prod.lex_def]
+termination_by stmt => stmt.depth
+decreasing_by all_goals simp [StmtWithHoles.depth]; try omega
 
+/-- Run `proc` on fresh locals (`ProcedureWithHoles.initLocals`); the callee's locals are
+discarded at the end, only the globals are kept.  The state and the result live in different
+universes, hence `hbind` in place of `do`.
+
+Not mutual with `programDenotation` (whose `call'` case repeats this body): a mutual block needs
+its result types in one universe, and `ProgramState` is in `Type (max 1 u)` while `State` is in
+`Type u`. -/
 noncomputable
 def procedureDenotation {sig} (proc : Procedure sig) (args : sig.ParamType) :
-   ProgramDenotation State sig.ret := fun st => do
-    let procLocalSt := sig.localVariableInit proc.locals args
-    let (_, procFinalSt) <-
-      programDenotation (l := sig.ProcedureScope proc.locals) proc.body ⟨st, procLocalSt⟩
-    let retVal := proc.return_val.get procFinalSt
-    return (retVal, procFinalSt.global)
-termination_by (proc.body.depth, 1)
-decreasing_by simp [Prod.lex_def]
+   ProgramDenotation State sig.ret := fun st =>
+    (programDenotation proc.body ⟨st, proc.initLocals args⟩).hbind fun p =>
+      pure (proc.return_val.get p.2, p.2.globals)
 
-end
+/-- The `call'` case of `programDenotation`, with the callee run folded into
+`procedureDenotation`. -/
+-- TODO-CLAUDE Analogue theorem programDenotation_call for call instead of call'
+theorem programDenotation_call' {sig : ProcedureSignature} (x : Setter sig.ret ProgramState)
+    (names hlen hnodup) (body : Stmt) (ret : Getter sig.ret ProgramState)
+    (args : Getter sig.ParamType ProgramState) :
+    programDenotation (.call' x names hlen hnodup body ret args) = (do
+      let argValues <- ProgramDenotation.get args
+      let retVal <- ProgramDenotation.zoom ProgramState.globalL
+        (procedureDenotation ⟨names, hlen, hnodup, body, ret⟩ argValues)
+      ProgramDenotation.set x retVal) := by
+  rw [programDenotation]; rfl
 /-- The procedure denotation as an explicit wrapper: initialise locals, run the
-    body, extract `(return_val, global)`. -/
-noncomputable def procWrap {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L)
-    (B : ProgramDenotation (ProcedureState L) Unit) : ProgramDenotation State sig.ret :=
-  fun st => B ⟨st, initL⟩ >>= fun p => pure (rv.get p.2, p.2.global)
+    body, extract `(return_val, globals)`. -/
+noncomputable def procWrap {sig : ProcedureSignature}
+    (rv : Getter sig.ret ProgramState) (initL : VariableAssignment)
+    (B : ProgramDenotation ProgramState Unit) : ProgramDenotation State sig.ret :=
+  fun st => (B ⟨st, initL⟩).hbind fun p => pure (rv.get p.2, p.2.globals)
 
 /-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body
     (generic over the holes and their instantiation). -/
 theorem procedureDenotation_eq_procWrap_gen {holes : HoleSigs} {sig : ProcedureSignature}
     (A : ProcedureWithHoles holes sig) (args : sig.ParamType) (inst : holes.Instantiation) :
     procedureDenotation (A.instantiate inst) args
-      = procWrap A.return_val (sig.localVariableInit A.locals args)
+      = procWrap A.return_val (A.initLocals args)
           (programDenotation (A.body.instantiate inst)) := by
-  funext st; simp only [procedureDenotation, ProcedureWithHoles.instantiate, procWrap]
+  rfl
 
 
 end GaudisCrypt
