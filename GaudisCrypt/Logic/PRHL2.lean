@@ -47,14 +47,26 @@ hypothesis: the atom-sum identity was `lintegral_countable'`.  **Since subtask 4
 `SubProbability` discreteness invariant gives the atom-sum (`lintegral_eq_tsum_smul`), the marginals
 (`discreteMeasure_measure_iUnion`), and the sampling swap (`lintegral_lintegral_swap_discrete`) with
 no countability of the carriers.  So `prhl2` and all its rules are now **countability-free**.
+
+## Universes
+
+As in `Language/Footprint.lean`: states live in `Type (max u v)` and results in `Type v`, here for
+*both* sides of a judgment, so that a side `α × s₁` and the joint `(α × s₁) × (β × s₂)` share one
+universe and the marginals are plain `>>=`.  A state in `Type 1` with results in `Type` is
+covered.  The `SubProbability` helpers are stated in a single universe `u`; where a sampled value
+is bound directly into the state (`toProgram_bind_apply`, `swap_sample`, `rnd`) the bind is
+`SubProbability.hbind`.  The rules that chain a `Unit`-valued program with the results
+(`prefix_*`, `cond`, the lossless-tail rules) keep the results in `Type`.
 -/
+
+universe u v w
 
 /-! ## The judgment -/
 
 /-- **Literal coupling-based pRHL**: the subtask-3 existential, with
     marginals as distribution equality and support as the pointwise
     `SubProbability.satisfies`. -/
-def ProgramDenotation.prhl2 {s₁ s₂ α β : Type} (A : s₁ → s₂ → Prop)
+def ProgramDenotation.prhl2 {s₁ s₂ : Type (max u v)} {α β : Type v} (A : s₁ → s₂ → Prop)
     (c : ProgramDenotation s₁ α) (d : ProgramDenotation s₂ β)
     (B : α × s₁ → β × s₂ → Prop) : Prop :=
   ∀ σ₁ σ₂, A σ₁ σ₂ →
@@ -66,7 +78,7 @@ def ProgramDenotation.prhl2 {s₁ s₂ α β : Type} (A : s₁ → s₂ → Prop
 /-- Pushforward of `expected` along a deterministic map: integrating `F`
     against `map g μ` is integrating `F ∘ g` against `μ`. The workhorse for
     manipulating the literal map-marginals. -/
-lemma SubProbability.expected_map {γ δ : Type} (μ : SubProbability γ)
+lemma SubProbability.expected_map {γ δ : Type u} (μ : SubProbability γ)
     (g : γ → δ) (F : δ → ENNReal) :
     (μ >>= fun x => (pure (g x) : SubProbability δ)).expected F
       = μ.expected (fun x => F (g x)) := by
@@ -82,7 +94,7 @@ atomic measure and reason about its marginals by `tsum` algebra. -/
 
 /-- Integral as a sum of atoms.  Countability-free (subtask 4): via the discreteness invariant
     (`lintegral_eq_tsum_smul`) rather than `lintegral_countable'`. -/
-lemma SubProbability.expected_eq_tsum {T : Type}
+lemma SubProbability.expected_eq_tsum {T : Type u}
     (μ : SubProbability T) (F : T → ENNReal) :
     μ.expected F = ∑' t, F t * μ.1 {t} := by
   letI : MeasurableSpace T := ⊤
@@ -91,7 +103,7 @@ lemma SubProbability.expected_eq_tsum {T : Type}
   exact tsum_congr (fun t => mul_comm _ _)
 
 /-- An atomic sub-probability built from a summable weight function. -/
-noncomputable def SubProbability.ofWeights {T : Type}
+noncomputable def SubProbability.ofWeights {T : Type u}
     (w : T → ENNReal) (h : ∑' t, w t ≤ 1) : SubProbability T :=
   letI : MeasurableSpace T := ⊤
   ⟨MeasureTheory.Measure.sum (fun t => w t • MeasureTheory.Measure.dirac t), ⟨by
@@ -101,7 +113,7 @@ noncomputable def SubProbability.ofWeights {T : Type}
     exact h, discreteMeasure_sum_dirac w⟩⟩
 
 /-- The integral against an atomic measure is the weighted sum. -/
-lemma SubProbability.ofWeights_expected {T : Type}
+lemma SubProbability.ofWeights_expected {T : Type u}
     (w : T → ENNReal) (h : ∑' t, w t ≤ 1) (F : T → ENNReal) :
     (SubProbability.ofWeights w h).expected F = ∑' t, F t * w t := by
   letI : MeasurableSpace T := ⊤
@@ -114,7 +126,7 @@ lemma SubProbability.ofWeights_expected {T : Type}
 
 /-- A left-marginal atom is the sum of the joint atoms over the fiber. Countability-free
     (subtask 4): `discreteMeasure_measure_iUnion` instead of `measure_iUnion`. -/
-lemma SubProbability.marginal_fst_singleton {A B : Type}
+lemma SubProbability.marginal_fst_singleton {A B : Type u}
     (μ : SubProbability (A × B)) (a : A) :
     (μ >>= fun w => (pure w.1 : SubProbability A)).1 {a} = ∑' b, μ.1 {(a, b)} := by
   letI : MeasurableSpace A := ⊤
@@ -133,7 +145,7 @@ lemma SubProbability.marginal_fst_singleton {A B : Type}
 
 /-- A right-marginal atom is the sum of the joint atoms over the fiber. Countability-free
     (subtask 4): `discreteMeasure_measure_iUnion` instead of `measure_iUnion`. -/
-lemma SubProbability.marginal_snd_singleton {A B : Type}
+lemma SubProbability.marginal_snd_singleton {A B : Type u}
     (μ : SubProbability (A × B)) (b : B) :
     (μ >>= fun w => (pure w.2 : SubProbability B)).1 {b} = ∑' a, μ.1 {(a, b)} := by
   letI : MeasurableSpace A := ⊤
@@ -152,7 +164,7 @@ lemma SubProbability.marginal_snd_singleton {A B : Type}
 
 /-- The atom weights of a sub-probability sum to at most one.  Countability-free (subtask 4):
     `∑' t, ν{t} = ν univ` directly from the discreteness invariant at `univ`. -/
-lemma SubProbability.tsum_singleton_le_one {T : Type}
+lemma SubProbability.tsum_singleton_le_one {T : Type u}
     (ν : SubProbability T) : ∑' t, ν.1 {t} ≤ 1 := by
   have h : ∑' t, ν.1 {t} = ν.1 Set.univ := by
     rw [ν.2.2 Set.univ, tsum_subtype Set.univ (fun t => ν.1 {t}), Set.indicator_univ]
@@ -164,21 +176,22 @@ lemma SubProbability.tsum_singleton_le_one {T : Type}
 -- (imported transitively here).
 
 /-- A lifted sampling unfolded at a state. -/
-lemma SubProbability.toProgram_apply {s α : Type} (μ : SubProbability α) (σ : s) :
+lemma SubProbability.toProgram_apply {s α : Type u} (μ : SubProbability α) (σ : s) :
     SubProbability.toProgramDenotation μ σ = μ >>= fun a => (pure (a, σ) : SubProbability (α ×
         s)) := rfl
 
-/-- A lifted sampling threads the state unchanged: `(sample; K) σ = μ >>= K(·,σ)`. -/
-lemma SubProbability.toProgram_bind_apply {s α γ : Type} (μ : SubProbability α)
+/-- A lifted sampling threads the state unchanged: `(sample; K) σ = μ.hbind K(·,σ)` (`hbind`:
+    the state may live in a different universe from the sampled values). -/
+lemma SubProbability.toProgram_bind_apply {s : Type w} {α γ : Type v} (μ : SubProbability α)
     (K : α → ProgramDenotation s γ) (σ : s) :
-    (SubProbability.toProgramDenotation μ >>= K) σ = μ >>= fun a => K a σ := by
-  show (SubProbability.toProgramDenotation μ σ) >>= (fun p => K p.1 p.2) = μ >>= fun a => K a σ
-  rw [SubProbability.toProgram_apply, SubProbability.bind_assoc']
+    (SubProbability.toProgramDenotation μ >>= K) σ = μ.hbind fun a => K a σ := by
+  change (μ.hbind fun a => (pure (a, σ) : SubProbability (α × s))) >>= (fun p => K p.1 p.2) = _
+  rw [SubProbability.hbind_bind]
   simp only [SubProbability.pure_bind]
 
 /-- **Commutativity of independent sampling** (Tonelli): two state-free
     samplings can be drawn in either order. -/
-lemma SubProbability.bind_comm {α β γ : Type}
+lemma SubProbability.bind_comm {α β γ : Type u}
     (μ : SubProbability α) (ν : SubProbability β) (f : α → β → SubProbability γ) :
     (μ >>= fun x => ν >>= fun y => f x y) = (ν >>= fun y => μ >>= fun x => f x y) := by
   letI : MeasurableSpace α := ⊤
@@ -190,7 +203,7 @@ lemma SubProbability.bind_comm {α β γ : Type}
   exact (lintegral_lintegral_swap_discrete μ.2.2 ν.2.2 (fun x y => (f x y).expected g)).symm
 
 /-- **Swap** two independent (state-free) samplings in a program. -/
-lemma SubProbability.swap_sample {s α' β' γ : Type}
+lemma SubProbability.swap_sample {s : Type w} {α' β' γ : Type v}
     (μ : SubProbability α') (ν : SubProbability β') (k : α' → β' → ProgramDenotation s γ) :
     (SubProbability.toProgramDenotation μ >>= fun x => SubProbability.toProgramDenotation ν >>= fun
         y => k x y)
@@ -198,11 +211,11 @@ lemma SubProbability.swap_sample {s α' β' γ : Type}
           fun x => k x y) := by
   funext σ
   simp only [SubProbability.toProgram_bind_apply]
-  exact SubProbability.bind_comm μ ν (fun x y => (k x y) σ)
+  exact bind_swap μ ν (fun y x => (k x y) σ)
 
 /-- A bind whose continuation reads only the first coordinate factors through
     the first marginal. -/
-lemma SubProbability.bind_fst_left {A B C : Type} (μ : SubProbability (A × B))
+lemma SubProbability.bind_fst_left {A B C : Type u} (μ : SubProbability (A × B))
     (H : A → SubProbability C) :
     (μ >>= fun ab => H ab.1) = (μ >>= fun ab => (pure ab.1 : SubProbability A)) >>= H := by
   refine SubProbability.ext_of_expected (fun test => ?_)
@@ -210,14 +223,14 @@ lemma SubProbability.bind_fst_left {A B C : Type} (μ : SubProbability (A × B))
 
 /-- A bind whose continuation reads only the second coordinate factors through
     the second marginal. -/
-lemma SubProbability.bind_snd_left {A B C : Type} (μ : SubProbability (A × B))
+lemma SubProbability.bind_snd_left {A B C : Type u} (μ : SubProbability (A × B))
     (H : B → SubProbability C) :
     (μ >>= fun ab => H ab.2) = (μ >>= fun ab => (pure ab.2 : SubProbability B)) >>= H := by
   refine SubProbability.ext_of_expected (fun test => ?_)
   simp only [SubProbability.expected_bind, expected_pure]
 
 /-- Two binds with continuations agreeing on the support are equal. -/
-lemma SubProbability.bind_congr_support {A C : Type}
+lemma SubProbability.bind_congr_support {A C : Type u}
     (μ : SubProbability A) {F F' : A → SubProbability C}
     (h : ∀ a, μ.1 {a} ≠ 0 → F a = F' a) : μ >>= F = μ >>= F' := by
   refine SubProbability.ext_of_expected (fun test => ?_)
@@ -230,7 +243,7 @@ lemma SubProbability.bind_congr_support {A C : Type}
 
 /-- The integral against a least fixed point is the supremum of the integrals
     against the Kleene iterates (monotone convergence). -/
-lemma SubProbability.expected_lfp_eq_iSup {a : Type} {b : a → Type}
+lemma SubProbability.expected_lfp_eq_iSup {a : Type*} {b : a → Type u}
     (F : ((x : a) → SubProbability (b x)) →𝒄 ((x : a) → SubProbability (b x)))
     (y : a) (g : b y → ENNReal) :
     (F.lfp y).expected g = ⨆ n, (F^[n] ⊥ y).expected g := by
@@ -241,7 +254,7 @@ lemma SubProbability.expected_lfp_eq_iSup {a : Type} {b : a → Type}
   rw [show (F.lfp y).1 = ⨆ n, (F^[n] ⊥ y).1 from rfl, lintegral_iSup_measure_nat hmono]
 
 /-- If every Kleene iterate is supported in `B`, so is the least fixed point. -/
-lemma SubProbability.satisfies_lfp {a : Type} {b : a → Type}
+lemma SubProbability.satisfies_lfp {a : Type*} {b : a → Type u}
     (F : ((x : a) → SubProbability (b x)) →𝒄 ((x : a) → SubProbability (b x)))
     (y : a) (B : b y → Prop) (h : ∀ n, (F^[n] ⊥ y).satisfies B) :
     (F.lfp y).satisfies B := by
@@ -252,14 +265,14 @@ lemma SubProbability.satisfies_lfp {a : Type} {b : a → Type}
   simp [hz]
 
 /-- The zero sub-probability is supported anywhere (vacuously). -/
-lemma SubProbability.satisfies_bot {C : Type} (B : C → Prop) :
+lemma SubProbability.satisfies_bot {C : Type u} (B : C → Prop) :
     (⊥ : SubProbability C).satisfies B := by
   intro y hy
   simp only [show (⊥ : SubProbability C).1 = 0 from rfl, MeasureTheory.Measure.coe_zero,
     Pi.zero_apply, ne_eq, not_true_eq_false] at hy
 
 /-- A point mass is supported at its point. -/
-lemma SubProbability.satisfies_pure {C : Type} (x : C) (B : C → Prop) (hB : B x) :
+lemma SubProbability.satisfies_pure {C : Type u} (x : C) (B : C → Prop) (hB : B x) :
     (pure x : SubProbability C).satisfies B := by
   letI : MeasurableSpace C := ⊤
   haveI : MeasurableSingletonClass C := ⟨fun _ => trivial⟩
@@ -273,7 +286,7 @@ lemma SubProbability.satisfies_pure {C : Type} (x : C) (B : C → Prop) (hB : B 
   rwa [hyx]
 
 /-- Support of a bind: if each fibre is supported in `B`, so is the bind. -/
-lemma SubProbability.satisfies_bind {A C : Type}
+lemma SubProbability.satisfies_bind {A C : Type u}
     (μ : SubProbability A) {F : A → SubProbability C} {B : C → Prop}
     (h : ∀ a, μ.1 {a} ≠ 0 → (F a).satisfies B) : (μ >>= F).satisfies B := by
   refine SubProbability.satisfies_of_range _ _ (fun f hf => ?_)
@@ -283,9 +296,20 @@ lemma SubProbability.satisfies_bind {A C : Type}
   · rw [ha, mul_zero]
   · rw [(F a).range_of_satisfies B (h a ha) f hf, zero_mul]
 
+/-- `satisfies_bind` across universes. -/
+lemma SubProbability.satisfies_hbind {A : Type u} {C : Type w}
+    (μ : SubProbability A) {F : A → SubProbability C} {B : C → Prop}
+    (h : ∀ a, μ.1 {a} ≠ 0 → (F a).satisfies B) : (μ.hbind F).satisfies B := by
+  refine SubProbability.satisfies_of_range _ _ (fun f hf => ?_)
+  rw [SubProbability.expected_hbind, SubProbability.expected_eq_tsum]
+  refine ENNReal.tsum_eq_zero.mpr (fun a => ?_)
+  by_cases ha : μ.1 {a} = 0
+  · rw [ha, mul_zero]
+  · rw [(F a).range_of_satisfies B (h a ha) f hf, zero_mul]
+
 /-- Monotone convergence for the program `while_loop` (curried fixed point). -/
-lemma expected_while_lfp_iSup {s : Type} (cond : ProgramDenotation s Bool) (body : ProgramDenotation
-    s Unit)
+lemma expected_while_lfp_iSup {s : Type u} (cond : ProgramDenotation s Bool)
+    (body : ProgramDenotation s Unit)
     (σ : s) (G : Unit × s → ENNReal) :
     (while_loop cond body σ).expected G
       = ⨆ n, ((while_iteration cond body)^[n] ⊥ () σ).expected G := by
@@ -300,8 +324,8 @@ lemma expected_while_lfp_iSup {s : Type} (cond : ProgramDenotation s Bool) (body
       lintegral_iSup_measure_nat hmono]
 
 /-- Unfold one step of the `while_iteration` functional at a state. -/
-lemma while_iteration_apply {s : Type} (cond : ProgramDenotation s Bool) (body : ProgramDenotation s
-    Unit)
+lemma while_iteration_apply {s : Type u} (cond : ProgramDenotation s Bool)
+    (body : ProgramDenotation s Unit)
     (fp : Unit → ProgramDenotation s Unit) (σ : s) :
     while_iteration cond body fp () σ
       = cond σ >>= fun bσ =>
@@ -319,7 +343,7 @@ lemma while_iteration_apply {s : Type} (cond : ProgramDenotation s Bool) (body :
     yields the literal one. Marginals come from `Coupling.map_fst/map_snd`;
     the pointwise support comes from the range support via
     `satisfies_of_range`. -/
-theorem ProgramDenotation.prhl.to_prhl2 {s₁ s₂ α β : Type} {A : s₁ → s₂ → Prop}
+theorem ProgramDenotation.prhl.to_prhl2 {s₁ s₂ : Type (max u v)} {α β : Type v} {A : s₁ → s₂ → Prop}
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β} {B : α × s₁ → β × s₂ → Prop}
     (h : ProgramDenotation.prhl A c d B) : ProgramDenotation.prhl2 A c d B := by
   intro σ₁ σ₂ hA
@@ -332,7 +356,7 @@ theorem ProgramDenotation.prhl.to_prhl2 {s₁ s₂ α β : Type} {A : s₁ → s
     expected-value marginals by integrating both sides; the pointwise
     support becomes the range support via `range_of_satisfies` (countability-free
     since subtask 4, via the discreteness invariant). -/
-theorem ProgramDenotation.prhl2.to_prhl {s₁ s₂ α β : Type}
+theorem ProgramDenotation.prhl2.to_prhl {s₁ s₂ : Type (max u v)} {α β : Type v}
     {A : s₁ → s₂ → Prop}
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β} {B : α × s₁ → β × s₂ → Prop}
     (h : ProgramDenotation.prhl2 A c d B) : ProgramDenotation.prhl A c d B := by
@@ -352,7 +376,7 @@ theorem ProgramDenotation.prhl2.to_prhl {s₁ s₂ α β : Type}
   · exact μ.range_of_satisfies (fun x => B x.1 x.2) hsat
 
 /-- For discrete (countable) joint type the two formulations coincide. -/
-theorem ProgramDenotation.prhl2_iff_prhl {s₁ s₂ α β : Type}
+theorem ProgramDenotation.prhl2_iff_prhl {s₁ s₂ : Type (max u v)} {α β : Type v}
     {A : s₁ → s₂ → Prop}
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β} {B : α × s₁ → β × s₂ → Prop} :
     ProgramDenotation.prhl2 A c d B ↔ ProgramDenotation.prhl A c d B :=
@@ -362,7 +386,7 @@ theorem ProgramDenotation.prhl2_iff_prhl {s₁ s₂ α β : Type}
 
 /-- Every literal coupling judgment yields the two-sided wp-lifting
     judgment (discrete); all `relE` elimination forms transfer. -/
-theorem ProgramDenotation.prhl2.to_relE {s₁ s₂ α β : Type}
+theorem ProgramDenotation.prhl2.to_relE {s₁ s₂ : Type (max u v)} {α β : Type v}
     {A : s₁ → s₂ → Prop}
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β} {B : α × s₁ → β × s₂ → Prop}
     (h : ProgramDenotation.prhl2 A c d B) : c.relE d A B :=
@@ -375,7 +399,7 @@ inherits the discreteness hypothesis (see the module header). -/
 
 namespace ProgramDenotation.prhl2
 
-variable {s₁ s₂ α β : Type} {A : s₁ → s₂ → Prop}
+variable {s₁ s₂ : Type (max u v)} {α β : Type v} {A : s₁ → s₂ → Prop}
     {B : α × s₁ → β × s₂ → Prop}
 
 /-- Consequence — same witness, the support and precondition only weaken. -/
@@ -397,12 +421,12 @@ theorem pure_pure {x₁ : α} {x₂ : β}
   (ProgramDenotation.prhl.pure_pure h).to_prhl2
 
 /-- Reflexivity. -/
-theorem refl {s γ : Type} (p : ProgramDenotation s γ) :
+theorem refl {s : Type (max u v)} {γ : Type v} (p : ProgramDenotation s γ) :
     ProgramDenotation.prhl2 Eq p p (fun u v : γ × s => u = v) :=
   (ProgramDenotation.prhl.refl p).to_prhl2
 
 /-- The `rnd` rule: uniform samples coupled along a bijection. -/
-theorem uniform {α' β' : Type} [Fintype α'] [Nonempty α'] [Fintype β'] [Nonempty β']
+theorem uniform {α' β' : Type v} [Fintype α'] [Nonempty α'] [Fintype β'] [Nonempty β']
     (e : α' ≃ β') {B : α' × s₁ → β' × s₂ → Prop}
     (h : ∀ t σ₁ σ₂, A σ₁ σ₂ → B (t, σ₁) (e t, σ₂)) :
     ProgramDenotation.prhl2 A (ProgramDenotation.uniform : ProgramDenotation s₁ α')
@@ -426,8 +450,7 @@ theorem or_pre {A₁ A₂ : s₁ → s₂ → Prop}
 /-- **The seq rule** (discrete). The composite coupling is built by
     `ProgramDenotation.prhl.bind`; the discreteness hypotheses are what let the
     pointwise-`satisfies` prefixes and continuations be reassembled. -/
-theorem bind {s₁ s₂ α₁ α₂ β₁ β₂ : Type}
-   
+theorem bind {s₁ s₂ : Type (max u v)} {α₁ α₂ β₁ β₂ : Type v}
     {p₁ : ProgramDenotation s₁ α₁} {p₂ : ProgramDenotation s₂ α₂}
     {k₁ : α₁ → ProgramDenotation s₁ β₁} {k₂ : α₂ → ProgramDenotation s₂ β₂}
     {A : s₁ → s₂ → Prop} {M : α₁ × s₁ → α₂ × s₂ → Prop}
@@ -463,7 +486,7 @@ theorem symm
 
 /-- **Read coupling**: two `get`s relate when the read values (and unchanged
     states) satisfy the post. Unconditional leaf. -/
-theorem get {γ₁ γ₂ : Type} (L₁ : Lens γ₁ s₁) (L₂ : Lens γ₂ s₂)
+theorem get {γ₁ γ₂ : Type v} (L₁ : Lens γ₁ s₁) (L₂ : Lens γ₂ s₂)
     {B : γ₁ × s₁ → γ₂ × s₂ → Prop}
     (h : ∀ σ₁ σ₂, A σ₁ σ₂ → B (L₁.get σ₁, σ₁) (L₂.get σ₂, σ₂)) :
     ProgramDenotation.prhl2 A (ProgramDenotation.get L₁) (ProgramDenotation.get L₂) B :=
@@ -473,7 +496,7 @@ theorem get {γ₁ γ₂ : Type} (L₁ : Lens γ₁ s₁) (L₂ : Lens γ₂ s�
 
 /-- **Write coupling**: two `set`s relate when the updated states satisfy the
     post. Unconditional leaf. -/
-theorem set {γ₁ γ₂ : Type} (L₁ : Lens γ₁ s₁) (L₂ : Lens γ₂ s₂) (v₁ : γ₁) (v₂ : γ₂)
+theorem set {γ₁ γ₂ : Type*} (L₁ : Lens γ₁ s₁) (L₂ : Lens γ₂ s₂) (v₁ : γ₁) (v₂ : γ₂)
     {B : Unit × s₁ → Unit × s₂ → Prop}
     (h : ∀ σ₁ σ₂, A σ₁ σ₂ → B ((), L₁.set v₁ σ₁) ((), L₂.set v₂ σ₂)) :
     ProgramDenotation.prhl2 A (ProgramDenotation.set L₁ v₁) (ProgramDenotation.set L₂ v₂) B :=
@@ -512,7 +535,7 @@ theorem strengthen_left
 /-- **Right footprint**: the mirror of `strengthen_left`, obtained by
     symmetry. -/
 theorem strengthen_right
-   
+
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β} {C : β × s₂ → Prop} [DecidablePred C]
     (h : ProgramDenotation.prhl2 A c d B)
     (hC : ∀ σ₁ σ₂, A σ₁ σ₂ → d.wp (fun v => if C v then 0 else 1) σ₂ = 0) :
@@ -526,7 +549,7 @@ theorem strengthen_right
     gives `(p₀; k) ~ q`. Avoids inserting `pure () >>=` on the right by
     hand. Derived from `bind` + the monad law. -/
 theorem prefix_left {β₁ β₂ : Type}
-   
+
     {p₀ : ProgramDenotation s₁ Unit} {k : ProgramDenotation s₁ β₁} {q : ProgramDenotation s₂ β₂}
     {Pre Mid : s₁ → s₂ → Prop} {Post : β₁ × s₁ → β₂ × s₂ → Prop}
     (h₀ : ProgramDenotation.prhl2 Pre p₀ (pure ()) (fun u v => Mid u.2 v.2))
@@ -537,7 +560,7 @@ theorem prefix_left {β₁ β₂ : Type}
 
 /-- **Right frame**: the mirror of `prefix_left`. -/
 theorem prefix_right {β₁ β₂ : Type}
-   
+
     {p : ProgramDenotation s₁ β₁} {q₀ : ProgramDenotation s₂ Unit} {k : ProgramDenotation s₂ β₂}
     {Pre Mid : s₁ → s₂ → Prop} {Post : β₁ × s₁ → β₂ × s₂ → Prop}
     (h₀ : ProgramDenotation.prhl2 Pre (pure ()) q₀ (fun u v => Mid u.2 v.2))
@@ -549,7 +572,7 @@ theorem prefix_right {β₁ β₂ : Type}
 /-- **Left ghost write**: a left-only `set L v` matched against `skip`. The
     coupling analogue of `EquivModuloLens.set_equiv_pure`. Unconditional
     (both sides are point masses). -/
-theorem set_skip_left {γ : Type} (L : Lens γ s₁) (v : γ)
+theorem set_skip_left {γ : Type*} (L : Lens γ s₁) (v : γ)
     {B : Unit × s₁ → Unit × s₂ → Prop}
     (h : ∀ σ₁ σ₂, A σ₁ σ₂ → B ((), L.set v σ₁) ((), σ₂)) :
     ProgramDenotation.prhl2 A (ProgramDenotation.set L v) (pure ()) B :=
@@ -559,7 +582,7 @@ theorem set_skip_left {γ : Type} (L : Lens γ s₁) (v : γ)
       (fun F => by rw [wp_set]) (fun G => by rw [wp_pure]) (h σ₁ σ₂ hA)⟩).to_prhl2
 
 /-- **Right ghost write**: the mirror of `set_skip_left`. -/
-theorem set_skip_right {γ : Type} (L : Lens γ s₂) (v : γ)
+theorem set_skip_right {γ : Type*} (L : Lens γ s₂) (v : γ)
     {B : Unit × s₁ → Unit × s₂ → Prop}
     (h : ∀ σ₁ σ₂, A σ₁ σ₂ → B ((), σ₁) ((), L.set v σ₂)) :
     ProgramDenotation.prhl2 A (pure ()) (ProgramDenotation.set L v) B :=
@@ -570,7 +593,7 @@ theorem set_skip_right {γ : Type} (L : Lens γ s₂) (v : γ)
 
 /-- **Synchronized sampling** (`rnd` with the identity coupling): both runs
     draw the *same* uniform value. The common special case of `uniform`. -/
-theorem uniform_id {α' : Type} [Fintype α'] [Nonempty α']
+theorem uniform_id {α' : Type v} [Fintype α'] [Nonempty α']
     {B : α' × s₁ → α' × s₂ → Prop}
     (h : ∀ t σ₁ σ₂, A σ₁ σ₂ → B (t, σ₁) (t, σ₂)) :
     ProgramDenotation.prhl2 A (ProgramDenotation.uniform : ProgramDenotation s₁ α')
@@ -585,8 +608,7 @@ theorem uniform_id {α' : Type} [Fintype α'] [Nonempty α']
     `ν{(x,z)} = ∑ₘ μ₁{(x,m)}·μ₂{(m,z)} / q{m}` — the discrete disintegration
     (independent given the middle), with the middle weights cancelling in
     each marginal. Countability-free since subtask 4 (the discreteness invariant). -/
-theorem trans {s₁ s₂ s₃ α β γ : Type}
-   
+theorem trans {s₁ s₂ s₃ : Type (max u v)} {α β γ : Type v}
     {p : ProgramDenotation s₁ α} {q : ProgramDenotation s₂ β} {r : ProgramDenotation s₃ γ}
     {Pre₁ : s₁ → s₂ → Prop} {Post₁ : α × s₁ → β × s₂ → Prop}
     {Pre₂ : s₂ → s₃ → Prop} {Post₂ : β × s₂ → γ × s₃ → Prop}
@@ -693,9 +715,7 @@ theorem trans {s₁ s₂ s₃ α β γ : Type}
     `PostC true`, and the loops relate at `PostC false`. The witness coupling
     is `Φ.lfp`, the least fixed point of the coupling transformer that runs
     the guard coupling and, while it fires, the body coupling. -/
-theorem while_loop {s₁ s₂ : Type}
-   
-   
+theorem while_loop {s₁ s₂ : Type u}
     {cond₁ : ProgramDenotation s₁ Bool} {body₁ : ProgramDenotation s₁ Unit}
     {cond₂ : ProgramDenotation s₂ Bool} {body₂ : ProgramDenotation s₂ Unit}
     {Inv : s₁ → s₂ → Prop} {PostC : Bool → s₁ → s₂ → Prop}
@@ -854,7 +874,7 @@ theorem while_loop {s₁ s₂ : Type}
     produce equal booleans (carrying `Mid`), and the branches are related
     from `Mid`, then the conditionals are related. -/
 theorem cond {β₁ β₂ : Type}
-   
+
     {g₁ : ProgramDenotation s₁ Bool} {g₂ : ProgramDenotation s₂ Bool}
     {ct₁ ce₁ : ProgramDenotation s₁ β₁} {ct₂ ce₂ : ProgramDenotation s₂ β₂}
     {Mid : s₁ → s₂ → Prop} {B : β₁ × s₁ → β₂ × s₂ → Prop}
@@ -884,7 +904,7 @@ theorem case (P : s₁ → s₂ → Prop) {c : ProgramDenotation s₁ α} {d : P
     that pushes `μ` to `ν` (`map e μ = ν`); the post must hold for every
     drawn `a` paired with `e a`. Subsumes `uniform`/`uniform_id` (take `μ`,
     `ν` uniform and `e` a bijection). -/
-theorem rnd {α' β' : Type}
+theorem rnd {α' β' : Type v}
     (μ : SubProbability α') (ν : SubProbability β') (e : α' → β')
     (he : (μ >>= fun a => (pure (e a) : SubProbability β')) = ν)
     {B : α' × s₁ → β' × s₂ → Prop}
@@ -892,15 +912,16 @@ theorem rnd {α' β' : Type}
     ProgramDenotation.prhl2 A (SubProbability.toProgramDenotation μ)
         (SubProbability.toProgramDenotation ν) B := by
   intro σ₁ σ₂ hA
-  refine ⟨μ >>= fun a => pure ((a, σ₁), (e a, σ₂)), ?_, ?_, ?_⟩
-  · rw [SubProbability.bind_assoc']
+  refine ⟨μ.hbind fun a => pure ((a, σ₁), (e a, σ₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.hbind_bind]
     simp only [SubProbability.pure_bind]
     rfl
-  · rw [SubProbability.bind_assoc']
+  · rw [SubProbability.hbind_bind]
     simp only [SubProbability.pure_bind]
-    rw [SubProbability.toProgram_apply, ← he, SubProbability.bind_assoc']
-    simp only [SubProbability.pure_bind]
-  · exact SubProbability.satisfies_bind μ (fun a _ =>
+    change _ = ν.hbind fun b => (pure (b, σ₂) : SubProbability (β' × s₂))
+    rw [← he, SubProbability.bind_hbind]
+    simp only [SubProbability.pure_hbind]
+  · exact SubProbability.satisfies_hbind μ (fun a _ =>
       SubProbability.satisfies_pure _ _ (h a σ₁ σ₂ hA))
 
 /-- **Kill** a lossless left-only statement: a lossless `p₀` whose output
@@ -934,7 +955,7 @@ theorem kill_left
       SubProbability.satisfies_pure _ _ (hsupp σ₁ σ₂ hA u hu))
 
 /-- **Swap** two independent samplings on the left program. -/
-theorem swap_left {α' β' γ δ : Type}
+theorem swap_left {α' β' γ δ : Type v}
     {μ : SubProbability α'} {ν : SubProbability β'} {k : α' → β' → ProgramDenotation s₁ γ}
     {d : ProgramDenotation s₂ δ} {B : γ × s₁ → δ × s₂ → Prop}
     (h : ProgramDenotation.prhl2 A
@@ -946,7 +967,7 @@ theorem swap_left {α' β' γ δ : Type}
   rw [SubProbability.swap_sample]; exact h
 
 /-- **Swap** two independent samplings on the right program. -/
-theorem swap_right {α' β' γ δ : Type}
+theorem swap_right {α' β' γ δ : Type v}
     {c : ProgramDenotation s₁ γ} {μ : SubProbability α'} {ν : SubProbability β'}
     {k : α' → β' → ProgramDenotation s₂ δ} {B : γ × s₁ → δ × s₂ → Prop}
     (h : ProgramDenotation.prhl2 A c
@@ -1023,8 +1044,7 @@ run the inner program once and write its result back into both states. -/
 /-- **Adversary call**, constructive form: `L.lift P` (an adversary acting
     through window `L`) from `L`-agreeing states gives equal results and
     `L`-agreeing states. -/
-theorem ProgramDenotation.prhl2.adversary {c s γ : Type}
-   
+theorem ProgramDenotation.prhl2.adversary {c s : Type (max u v)} {γ : Type v}
     (L : Lens c s) (P : ProgramDenotation c γ) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) (L.lift P) (L.lift P)
       (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
@@ -1041,7 +1061,8 @@ theorem ProgramDenotation.prhl2.adversary {c s γ : Type}
 /-- **Adversary call**, abstract form: any `A` confined to the window `L`
     (`A.inFootprint L.footprint`) satisfies the same rule, via the factorization
     `A = L.lift (L.factor A)`. This is the modular adversary principle. -/
-theorem ProgramDenotation.prhl2.adversary_inFootprint {c s γ : Type} [Nonempty s]
+theorem ProgramDenotation.prhl2.adversary_inFootprint {c s : Type (max u v)} {γ : Type v}
+    [Nonempty s]
     (L : Lens c s) (A : ProgramDenotation s γ) (hA : A.inFootprint L.footprint) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ => L.get σ₁ = L.get σ₂) A A
       (fun u v => u.1 = v.1 ∧ L.get u.2 = L.get v.2) := by
@@ -1163,8 +1184,8 @@ isolates exactly the combinatorial fact that is missing. -/
     Strassen): the mass `c` places on any set `A` is dominated by the mass
     `d` places on the `Post`-image of `A`. The converse (Hall ⇒ coupling)
     is the open Strassen step. -/
-theorem ProgramDenotation.rel.hall {s₁ s₂ α β : Type} {c : ProgramDenotation s₁ α} {d :
-    ProgramDenotation s₂ β}
+theorem ProgramDenotation.rel.hall {s₁ s₂ : Type (max u v)} {α β : Type v}
+    {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : c.rel d Pre Post) {σ₁ : s₁} {σ₂ : s₂} (hpre : Pre σ₁ σ₂)
     (A : Set (α × s₁)) :
@@ -1186,8 +1207,8 @@ theorem ProgramDenotation.rel.hall {s₁ s₂ α β : Type} {c : ProgramDenotati
 /-- For a two-sided `relE`, Hall's condition holds in **both** directions:
     `d`'s mass on `B` is dominated by `c`'s mass on the `Post`-preimage of
     `B`. -/
-theorem ProgramDenotation.relE.hall_right {s₁ s₂ α β : Type} {c : ProgramDenotation s₁ α} {d :
-    ProgramDenotation s₂ β}
+theorem ProgramDenotation.relE.hall_right {s₁ s₂ : Type (max u v)} {α β : Type v}
+    {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : c.relE d Pre Post) {σ₁ : s₁} {σ₂ : s₂} (hpre : Pre σ₁ σ₂)
     (B : Set (β × s₂)) :
@@ -1198,18 +1219,18 @@ theorem ProgramDenotation.relE.hall_right {s₁ s₂ α β : Type} {c : ProgramD
 
 /-- Scale a sub-probability by `c` (well-defined as a sub-probability when
     `c · (total mass) ≤ 1`). -/
-noncomputable def SubProbability.scale {X : Type} (c : ENNReal) (ν : SubProbability X)
+noncomputable def SubProbability.scale {X : Type u} (c : ENNReal) (ν : SubProbability X)
     (h : c * ν.1 Set.univ ≤ 1) : SubProbability X :=
   ⟨c • ν.1, ⟨by
     rw [MeasureTheory.Measure.smul_apply, smul_eq_mul]; exact h, discreteMeasure_smul c ν.2.2⟩⟩
 
-@[simp] lemma SubProbability.scale_expected {X : Type} (c : ENNReal) (ν : SubProbability X)
+@[simp] lemma SubProbability.scale_expected {X : Type u} (c : ENNReal) (ν : SubProbability X)
     (h : c * ν.1 Set.univ ≤ 1) (g : X → ENNReal) :
     (SubProbability.scale c ν h).expected g = c * ν.expected g := by
   show ∫⁻ x, g x ∂(c • ν.1) = c * ∫⁻ x, g x ∂ν.1
   rw [MeasureTheory.lintegral_smul_measure, smul_eq_mul]
 
-lemma SubProbability.scale_satisfies {X : Type} (c : ENNReal) (ν : SubProbability X)
+lemma SubProbability.scale_satisfies {X : Type u} (c : ENNReal) (ν : SubProbability X)
     (h : c * ν.1 Set.univ ≤ 1) {B : X → Prop} (hν : ν.satisfies B) :
     (SubProbability.scale c ν h).satisfies B := by
   intro w hw
@@ -1227,6 +1248,15 @@ lemma SubProbability.scale_satisfies {X : Type} (c : ENNReal) (ν : SubProbabili
     below derives the sub-probability form from it by normalization, and
     `ProgramDenotation.rel.hall` shows the hypothesis is exactly what `relE` supplies.
 
+    **Why the statement needs no countability (or universe) hypothesis.**  The
+    references below are about countable spaces, whereas `X`, `Y` here are
+    arbitrary types in an arbitrary universe.  The reduction (argued here, not
+    formalized): a `SubProbability` is the sum of its atoms with total mass
+    `≤ 1`, so `p` and `q` have countable supports `X₀`, `Y₀`.  Hall's condition
+    restricts to them, since `q (R A) = q (R A ∩ Y₀)`.  The countable theorem on
+    `X₀ × Y₀`, pushed forward along the inclusions, gives the coupling, which is
+    again discrete.  The universe of `X`, `Y` plays no role in this argument.
+
     References (this is a true, classical theorem):
     * V. Strassen, "The existence of probability measures with given
       marginals", Ann. Math. Statist. 36(2):423–439, 1965 — the general
@@ -1243,7 +1273,8 @@ lemma SubProbability.scale_satisfies {X : Type} (c : ENNReal) (ν : SubProbabili
       correspondence here): Barthe, Espitau, Grégoire, Hsu, Strub,
       "Probabilistic Couplings for Probabilistic Reasoning",
       arXiv:1710.09951. -/
-axiom SubProbability.exists_coupling_of_hall_prob {X Y : Type}
+-- TODO Prove this
+axiom SubProbability.exists_coupling_of_hall_prob {X Y : Type u}
     (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
     (hp : p.1 Set.univ = 1) (hq : q.1 Set.univ = 1)
     (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y}) :
@@ -1258,7 +1289,7 @@ axiom SubProbability.exists_coupling_of_hall_prob {X Y : Type}
     mass; the zero-mass case is the empty coupling, and otherwise we
     normalize both sides to probability measures, invoke the axiom, and
     scale the resulting coupling back. -/
-theorem SubProbability.exists_coupling_of_hall {X Y : Type}
+theorem SubProbability.exists_coupling_of_hall {X Y : Type u}
     (p : SubProbability X) (q : SubProbability Y) (R : X → Y → Prop)
     (hpq : ∀ A : Set X, p.1 A ≤ q.1 {y | ∃ x ∈ A, R x y})
     (hqp : ∀ B : Set Y, q.1 B ≤ p.1 {x | ∃ y ∈ B, R x y}) :
@@ -1330,8 +1361,8 @@ theorem SubProbability.exists_coupling_of_hall {X Y : Type}
     combinatorial coupling-existence step is assumed. Together with
     `prhl2.to_relE` this shows the two logics coincide over countable
     carriers. -/
-theorem ProgramDenotation.relE.to_prhl2 {s₁ s₂ α β : Type}
-   
+theorem ProgramDenotation.relE.to_prhl2 {s₁ s₂ : Type (max u v)} {α β : Type v}
+
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop}
     (h : c.relE d Pre Post) : ProgramDenotation.prhl2 Pre c d Post :=
@@ -1341,7 +1372,7 @@ theorem ProgramDenotation.relE.to_prhl2 {s₁ s₂ α β : Type}
 
 /-- The two relational logics **coincide** over countable carriers
     (discrete, modulo the Strassen axiom). -/
-theorem ProgramDenotation.prhl2_iff_relE {s₁ s₂ α β : Type}
+theorem ProgramDenotation.prhl2_iff_relE {s₁ s₂ : Type (max u v)} {α β : Type v}
 
     {c : ProgramDenotation s₁ α} {d : ProgramDenotation s₂ β}
     {Pre : s₁ → s₂ → Prop} {Post : α × s₁ → β × s₂ → Prop} :
@@ -1360,8 +1391,9 @@ touched content it returns equal results and states again agreeing on the touche
     results, output states again one `Rᶜ`-step apart.  This is the base case of the `={glob A}`
     adversary rule for `glob A = R.touched_getter`.  The full rule is its `EqvGen` closure over the
     `Rᶜ`-orbit. -/
-theorem adversary_couple_step {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
-    (hp : p.inFootprint R) {f : s → s} (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
+theorem adversary_couple_step {s : Type (max u v)} {a : Type v} {R : Footprint s}
+    {p : ProgramDenotation s a} (hp : p.inFootprint R) {f : s → s}
+    (hf : diracKer f ∈ Rᶜ.updates) (σ : s) :
     ∃ μ : SubProbability ((a × s) × (a × s)),
       (μ >>= fun x => (pure x.1 : SubProbability (a × s))) = p σ ∧
       (μ >>= fun x => (pure x.2 : SubProbability (a × s))) = p (f σ) ∧
@@ -1381,7 +1413,7 @@ theorem adversary_couple_step {s a : Type} {R : Footprint s} {p : ProgramDenotat
     equal results and states that again agree on `glob A`.  The `EqvGen`-closure of
     `adversary_couple_step` — `refl`/`symm`/`trans` on `prhl2` (the `trans` = coupling gluing,
     `ProgramDenotation.prhl2.trans`, discrete disintegration). -/
-theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
+theorem prhl2_glob {s : Type (max u v)} {a : Type v} {R : Footprint s} {p : ProgramDenotation s a}
     (hp : p.inFootprint R) :
     ProgramDenotation.prhl2 (fun x y => R.touched_getter.get x = R.touched_getter.get y) p p
       (fun u v => u.1 = v.1 ∧ R.touched_getter.get u.2 = R.touched_getter.get v.2) := by
@@ -1446,7 +1478,7 @@ theorem prhl2_glob {s a : Type} {R : Footprint s} {p : ProgramDenotation s a}
     preserves `g` on its support couples `p` against `q' = p; c` (result kept)
     with the same pre/post.  The equal-initial-states version
     (`prhl2_of_lossless_tail_proj`) is the instance at the diagonal coupling. -/
-theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s α β : Type}
+theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s : Type u} {α β : Type}
     {p q' : ProgramDenotation s α} {c : ProgramDenotation s Unit} (g : s → β)
     {P : s → s → Prop}
     (hself : ProgramDenotation.prhl2 P p p (fun u v => u.1 = v.1 ∧ g u.2 = g v.2))
@@ -1503,7 +1535,7 @@ theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s α β : Type}
     states): the diagonal instance of `prhl2_of_lossless_tail_proj_inv`.
     Converts distribution-level *transfer* equations
     (`Lib/RO/TransferConvert.lean`) into `prhl2`. -/
-theorem ProgramDenotation.prhl2_of_lossless_tail_proj {s α β : Type}
+theorem ProgramDenotation.prhl2_of_lossless_tail_proj {s : Type u} {α β : Type}
     {p q : ProgramDenotation s α} {c : ProgramDenotation s Unit} (g : s → β)
     (hc : ∀ σ : s, (c σ).1 Set.univ = 1)
     (hkeep : ∀ σ : s, (c σ).satisfies (fun x : Unit × s => g x.2 = g σ))
@@ -1519,7 +1551,7 @@ theorem ProgramDenotation.prhl2_of_lossless_tail_proj {s α β : Type}
     post-processor `c` (which keeps `p`'s result), then `p` and `q` couple from equal initial
     states with equal results: route the diagonal coupling of `p` through `c` on the right leg.
     The projection-free instance of `prhl2_of_lossless_tail_proj`. -/
-theorem ProgramDenotation.prhl2_of_lossless_tail {s α : Type}
+theorem ProgramDenotation.prhl2_of_lossless_tail {s : Type u} {α : Type}
     {p q : ProgramDenotation s α} {c : ProgramDenotation s Unit}
     (hc : ∀ σ : s, (c σ).1 Set.univ = 1)
     (heq : (p >>= fun a => c >>= fun _ => pure a) = q) :

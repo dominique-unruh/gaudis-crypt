@@ -36,12 +36,17 @@ The equality-invariant rules (`eagerR_pure`, `eagerR_seq`, `eagerR_while`,
 EasyCrypt's own `eager` workflow runs at `={glob …}` invariants, which in this
 shallow embedding are handled by composing the equality-invariant judgment with
 invariant self-couplings (see the abstract-call rule in `Logic/EagerProc.lean`).
+
+The state is universe-polymorphic; the results stay in `Type`, since the blocks `S₁`, `S₂`
+return `Unit` and are chained with the programs.
 -/
+
+universe u w
 
 /-- **The eager judgment** (EasyCrypt's `eager [S₁, p ~ q, S₂] : P ==> Q`):
     `{P} S₁; p ~ q; S₂ {Q}` as a `prhl2` coupling; the trailing block keeps `q`'s
     result. -/
-def ProgramDenotation.eagerR {s α : Type} (S₁ S₂ : ProgramDenotation s Unit)
+def ProgramDenotation.eagerR {s : Type u} {α : Type} (S₁ S₂ : ProgramDenotation s Unit)
     (P : s → s → Prop) (p q : ProgramDenotation s α)
     (Q : α × s → α × s → Prop) : Prop :=
   ProgramDenotation.prhl2 P (S₁ >>= fun _ => p)
@@ -52,7 +57,7 @@ def ProgramDenotation.eagerR {s α : Type} (S₁ S₂ : ProgramDenotation s Unit
 /-- **Completeness**: a coupling with equality pre/post forces pointwise equal
     distributions — off-diagonal atoms vanish, so the two marginals agree atom
     by atom. -/
-theorem ProgramDenotation.eq_of_prhl2_eq {s α : Type} {p q : ProgramDenotation s α}
+theorem ProgramDenotation.eq_of_prhl2_eq {s : Type u} {α : Type} {p q : ProgramDenotation s α}
     (h : ProgramDenotation.prhl2 (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
       (fun u v : α × s => u = v)) (σ : s) :
     p σ = q σ := by
@@ -68,7 +73,7 @@ theorem ProgramDenotation.eq_of_prhl2_eq {s α : Type} {p q : ProgramDenotation 
   · rw [hsat x hx]
 
 /-- **Soundness**: pointwise equal programs couple diagonally. -/
-theorem ProgramDenotation.prhl2_of_eq {s α : Type} {p q : ProgramDenotation s α}
+theorem ProgramDenotation.prhl2_of_eq {s : Type u} {α : Type} {p q : ProgramDenotation s α}
     (h : ∀ σ, p σ = q σ) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
       (fun u v : α × s => u = v) := by
@@ -77,7 +82,7 @@ theorem ProgramDenotation.prhl2_of_eq {s α : Type} {p q : ProgramDenotation s �
   exact ProgramDenotation.prhl2.refl p
 
 /-- **Equality couplings ↔ program equality.** -/
-theorem ProgramDenotation.prhl2_eq_iff {s α : Type} (p q : ProgramDenotation s α) :
+theorem ProgramDenotation.prhl2_eq_iff {s : Type u} {α : Type} (p q : ProgramDenotation s α) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
         (fun u v : α × s => u = v)
       ↔ ∀ σ, p σ = q σ :=
@@ -85,7 +90,7 @@ theorem ProgramDenotation.prhl2_eq_iff {s α : Type} (p q : ProgramDenotation s 
 
 /-- Introduce an equality-invariant eager judgment from program equality of the
     two composites (the semantic entry point for per-operation eager lemmas). -/
-theorem ProgramDenotation.eagerR_of_eq {s α : Type}
+theorem ProgramDenotation.eagerR_of_eq {s : Type u} {α : Type}
     {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h : (S₁ >>= fun _ => p) = (q >>= fun a => S₂ >>= fun _ => pure a)) :
     ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
@@ -94,7 +99,7 @@ theorem ProgramDenotation.eagerR_of_eq {s α : Type}
 
 /-- Extract program equality of the composites from an equality-invariant eager
     judgment. -/
-theorem ProgramDenotation.eagerR_to_eq {s α : Type}
+theorem ProgramDenotation.eagerR_to_eq {s : Type u} {α : Type}
     {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h : ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
       (fun u v : α × s => u = v)) :
@@ -103,7 +108,7 @@ theorem ProgramDenotation.eagerR_to_eq {s α : Type}
 
 /-- **The bridge**: the diagonal equality-invariant eager judgment is the
     distributional transfer relation (note the side swap: `q` is the lazy side). -/
-theorem ProgramDenotation.eagerR_eq_iff_transferBy {s α : Type}
+theorem ProgramDenotation.eagerR_eq_iff_transferBy {s : Type u} {α : Type}
     (S : ProgramDenotation s Unit) (p q : ProgramDenotation s α) :
     ProgramDenotation.eagerR S S (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
         (fun u v : α × s => u = v)
@@ -114,7 +119,7 @@ theorem ProgramDenotation.eagerR_eq_iff_transferBy {s α : Type}
 /-! ## The eager rule set (equality invariants) -/
 
 /-- Rule of consequence for the eager judgment (native, any invariants). -/
-theorem ProgramDenotation.eagerR_conseq {s α : Type}
+theorem ProgramDenotation.eagerR_conseq {s : Type u} {α : Type}
     {S₁ S₂ : ProgramDenotation s Unit}
     {P P' : s → s → Prop} {p q : ProgramDenotation s α}
     {Q Q' : α × s → α × s → Prop}
@@ -124,7 +129,7 @@ theorem ProgramDenotation.eagerR_conseq {s α : Type}
   ProgramDenotation.prhl2.conseq h hP hQ
 
 /-- `pure` swaps with any block. -/
-theorem ProgramDenotation.eagerR_pure {s α : Type} (S : ProgramDenotation s Unit)
+theorem ProgramDenotation.eagerR_pure {s : Type u} {α : Type} (S : ProgramDenotation s Unit)
     (a : α) :
     ProgramDenotation.eagerR S S (fun σ₁ σ₂ : s => σ₁ = σ₂) (pure a) (pure a)
       (fun u v : α × s => u = v) :=
@@ -132,7 +137,7 @@ theorem ProgramDenotation.eagerR_pure {s α : Type} (S : ProgramDenotation s Uni
     (ProgramDenotation.transferBy_pure a)
 
 /-- The composite-equation form of `eager seq` (three blocks). -/
-private lemma eager_seq_eq {s α β : Type} {S₁ S S₂ : ProgramDenotation s Unit}
+private lemma eager_seq_eq {s : Type u} {α β : Type} {S₁ S S₂ : ProgramDenotation s Unit}
     {p₁ q₁ : ProgramDenotation s α} {p₂ q₂ : α → ProgramDenotation s β}
     (h₁ : (S₁ >>= fun _ => p₁) = (q₁ >>= fun a => S >>= fun _ => pure a))
     (h₂ : ∀ a, (S >>= fun _ => p₂ a) = (q₂ a >>= fun b => S₂ >>= fun _ => pure b)) :
@@ -156,7 +161,7 @@ private lemma eager_seq_eq {s α β : Type} {S₁ S S₂ : ProgramDenotation s U
 /-- **EC's `eager seq`**: eager judgments chain under `>>=` through a *middle*
     block `S` — `eager[S₁,p₁~q₁,S]` then `eager[S,p₂~q₂,S₂]` give
     `eager[S₁, p₁;p₂ ~ q₁;q₂, S₂]`. -/
-theorem ProgramDenotation.eagerR_seq {s α β : Type}
+theorem ProgramDenotation.eagerR_seq {s : Type u} {α β : Type}
     {S₁ S S₂ : ProgramDenotation s Unit}
     {p₁ q₁ : ProgramDenotation s α} {p₂ q₂ : α → ProgramDenotation s β}
     (h₁ : ProgramDenotation.eagerR S₁ S (fun σ₁ σ₂ : s => σ₁ = σ₂) p₁ q₁
@@ -171,7 +176,7 @@ theorem ProgramDenotation.eagerR_seq {s α β : Type}
 
 /-- **EC's `eager while`** (same block at both ends): if the condition swaps with
     `S` and the body is eager, the loops are eager. -/
-theorem ProgramDenotation.eagerR_while {s : Type} {S : ProgramDenotation s Unit}
+theorem ProgramDenotation.eagerR_while {s : Type u} {S : ProgramDenotation s Unit}
     {cond : ProgramDenotation s Bool}
     (h_cond : ProgramDenotation.eagerR S S (fun σ₁ σ₂ : s => σ₁ = σ₂) cond cond
       (fun u v : Bool × s => u = v))
@@ -188,7 +193,7 @@ theorem ProgramDenotation.eagerR_while {s : Type} {S : ProgramDenotation s Unit}
 
 /-- **Zoom-lifting**: an eager judgment on the inner state lifts along a lens
     (the blocks lift with it). -/
-theorem ProgramDenotation.eagerR_zoom {s t α : Type}
+theorem ProgramDenotation.eagerR_zoom {s : Type u} {t : Type w} {α : Type}
     (lens : GaudisCrypt.Lens s t)
     {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h : ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
@@ -226,7 +231,7 @@ glued to the equality judgment by `prhl2.trans`.  The EC-shaped composite rules
 
 /-- **Invariant introduction (left)**: self-couple the eager composite `S₁; p`
     under the invariant, then glue the equality-invariant judgment on the right. -/
-theorem ProgramDenotation.eagerR_of_self_left {s α : Type}
+theorem ProgramDenotation.eagerR_of_self_left {s : Type u} {α : Type}
     {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     {P : s → s → Prop} {Q : α × s → α × s → Prop}
     (hself : ProgramDenotation.prhl2 P (S₁ >>= fun _ => p) (S₁ >>= fun _ => p) Q)
@@ -240,7 +245,7 @@ theorem ProgramDenotation.eagerR_of_self_left {s α : Type}
 
 /-- **Invariant introduction (right)**: symmetrically, self-couple the lazy
     composite `q; S₂` under the invariant. -/
-theorem ProgramDenotation.eagerR_of_self_right {s α : Type}
+theorem ProgramDenotation.eagerR_of_self_right {s : Type u} {α : Type}
     {S₁ S₂ : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     {P : s → s → Prop} {Q : α × s → α × s → Prop}
     (heq : ProgramDenotation.eagerR S₁ S₂ (fun σ₁ σ₂ : s => σ₁ = σ₂) p q
@@ -257,7 +262,7 @@ theorem ProgramDenotation.eagerR_of_self_right {s α : Type}
 /-- **EC's `eager seq` with invariants** (their four-subgoal form): the two
     equality-level eager judgments plus framing self-couplings of the eager-side
     pieces, threaded through a middle relation `M`. -/
-theorem ProgramDenotation.eagerR_seq_inv {s α β : Type}
+theorem ProgramDenotation.eagerR_seq_inv {s : Type u} {α β : Type}
     {S₁ S S₂ : ProgramDenotation s Unit}
     {p₁ q₁ : ProgramDenotation s α} {p₂ q₂ : α → ProgramDenotation s β}
     {P : s → s → Prop} {M : α × s → α × s → Prop} {Q : β × s → β × s → Prop}
@@ -278,7 +283,7 @@ theorem ProgramDenotation.eagerR_seq_inv {s α β : Type}
     formulation): the equality-level eager judgments for guard and body, plus
     framing self-couplings — the block establishes the loop invariant `Inv`, the
     guard couples to agree under it, and the body preserves it. -/
-theorem ProgramDenotation.eagerR_while_inv {s : Type} {S : ProgramDenotation s Unit}
+theorem ProgramDenotation.eagerR_while_inv {s : Type u} {S : ProgramDenotation s Unit}
     {cond : ProgramDenotation s Bool} {body_e body_l : ProgramDenotation s Unit}
     {P : s → s → Prop} {Inv : s → s → Prop} {PostC : Bool → s → s → Prop}
     (h_cond_eq : ProgramDenotation.eagerR S S (fun σ₁ σ₂ : s => σ₁ = σ₂) cond cond
@@ -303,7 +308,7 @@ theorem ProgramDenotation.eagerR_while_inv {s : Type} {S : ProgramDenotation s U
     judgment and losslessness of `S`, couple the lazy side `q` directly against
     the `S`-led eager side, with equal results and any `S`-preserved state
     projection `g` (e.g. `={glob A}`) equal on the final states. -/
-theorem ProgramDenotation.eagerR_to_coupling {s α β : Type}
+theorem ProgramDenotation.eagerR_to_coupling {s : Type u} {α β : Type}
     {S : ProgramDenotation s Unit} {p q : ProgramDenotation s α} (g : s → β)
     (hll : ∀ σ : s, (S σ).1 Set.univ = 1)
     (hkeep : ∀ σ : s, (S σ).satisfies (fun x : Unit × s => g x.2 = g σ))

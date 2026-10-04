@@ -62,7 +62,7 @@ def SwapLoc {holes : HoleSigs} {l : Type}
 
 omit [ProgramSpec] in
 /-- A self-`transferBy` fact is a (diagonal) self-eager judgment. -/
-theorem eagerR_self_of_transferBy {s α : Type}
+theorem eagerR_self_of_transferBy {s : Type*} {α : Type}
     {SL : ProgramDenotation s Unit} {p : ProgramDenotation s α}
     (h : ProgramDenotation.transferBy SL p p) :
     ProgramDenotation.eagerR SL SL (fun σ₁ σ₂ : s => σ₁ = σ₂) p p
