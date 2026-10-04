@@ -246,21 +246,22 @@ theorem wp_map {s : Type u} {α β : Type v} (f : α → β) (prog : ProgramDeno
   pure consequences of `wp = lintegral against the SubProb measure`. -/
 
 /-- Pointwise monotonicity of `wp` in the postcondition. -/
-theorem ProgramDenotation.wp_le_wp_of_le {s a : Type} (p : ProgramDenotation s a)
+theorem ProgramDenotation.wp_le_wp_of_le {s a : Type*} (p : ProgramDenotation s a)
     (F G : ProgramDenotation.Post s a) (h : ∀ x, F x ≤ G x) (σ : s) :
     p.wp F σ ≤ p.wp G σ := by
   letI : MeasurableSpace (a × s) := ⊤
   exact MeasureTheory.lintegral_mono h
 
 /-- `wp` of the constant `0` postcondition is `0`. -/
-theorem ProgramDenotation.wp_zero_post {s a : Type} (p : ProgramDenotation s a) (σ : s) :
+theorem ProgramDenotation.wp_zero_post {s a : Type*} (p : ProgramDenotation s a) (σ : s) :
     p.wp (fun _ => (0 : ENNReal)) σ = 0 := by
   letI : MeasurableSpace (a × s) := ⊤
   exact MeasureTheory.lintegral_zero
 
 /-- `wp` of the constant `c` postcondition is at most `c`, since the underlying
     measure is a sub-probability (total mass ≤ 1). -/
-theorem ProgramDenotation.wp_const_le {s a : Type} (p : ProgramDenotation s a) (c : ENNReal) (σ : s)
+theorem ProgramDenotation.wp_const_le {s a : Type*} (p : ProgramDenotation s a) (c : ENNReal)
+    (σ : s)
     :
     p.wp (fun _ => c) σ ≤ c := by
   letI : MeasurableSpace (a × s) := ⊤
@@ -270,7 +271,7 @@ theorem ProgramDenotation.wp_const_le {s a : Type} (p : ProgramDenotation s a) (
     _ = c := mul_one _
 
 /-- Linearity of `wp` in the postcondition. -/
-theorem ProgramDenotation.wp_add {s a : Type} (p : ProgramDenotation s a)
+theorem ProgramDenotation.wp_add {s a : Type*} (p : ProgramDenotation s a)
     (F G : ProgramDenotation.Post s a) (σ : s) :
     p.wp (fun aσ : a × s => F aσ + G aσ) σ = p.wp F σ + p.wp G σ := by
   letI : MeasurableSpace (a × s) := ⊤
@@ -278,7 +279,7 @@ theorem ProgramDenotation.wp_add {s a : Type} (p : ProgramDenotation s a)
   exact MeasureTheory.lintegral_add_left measurable_from_top G
 
 /-- Constant scaling of `wp`. -/
-theorem ProgramDenotation.wp_const_mul {s a : Type} (p : ProgramDenotation s a)
+theorem ProgramDenotation.wp_const_mul {s a : Type*} (p : ProgramDenotation s a)
     (c : ENNReal) (F : ProgramDenotation.Post s a) (σ : s) :
     p.wp (fun aσ : a × s => c * F aσ) σ = c * p.wp F σ := by
   letI : MeasurableSpace (a × s) := ⊤
@@ -286,14 +287,14 @@ theorem ProgramDenotation.wp_const_mul {s a : Type} (p : ProgramDenotation s a)
   exact MeasureTheory.lintegral_const_mul c measurable_from_top
 
 /-- `wp` commutes with finite sums of postconditions. -/
-theorem ProgramDenotation.wp_finset_sum {s α β : Type} [Fintype β]
+theorem ProgramDenotation.wp_finset_sum {s α β : Type*} [Fintype β]
     (p : ProgramDenotation s α) (F : β → α × s → ENNReal) (σ : s) :
     p.wp (fun aσ => ∑ b : β, F b aσ) σ = ∑ b : β, p.wp (F b) σ := by
   letI : MeasurableSpace (α × s) := ⊤
   show ∫⁻ aσ, (∑ b, F b aσ) ∂(p σ).1 = ∑ b, ∫⁻ aσ, F b aσ ∂(p σ).1
   exact MeasureTheory.lintegral_finset_sum _ (fun _ _ => measurable_from_top)
 
-theorem wp_ite {α : Type} (b : Bool) (p1 p2 : ProgramDenotation s α)
+theorem wp_ite {α : Type*} (b : Bool) (p1 p2 : ProgramDenotation s α)
     (f : α × s → ENNReal) (st : s) :
     (if b then p1 else p2).wp f st = if b then p1.wp f st else p2.wp f st := by
   cases b <;> rfl
@@ -452,23 +453,23 @@ identical-until-bad analyses and similar mass-conservation arguments compose
 mass-1 facts cleanly. -/
 
 /-- `pure x` has mass 1. -/
-theorem ProgramDenotation.pure_mass_one {s α : Type} (x : α) (σ : s) :
+theorem ProgramDenotation.pure_mass_one {s α : Type*} (x : α) (σ : s) :
     (pure x : ProgramDenotation s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_pure]
 
 /-- `ProgramDenotation.get L` has mass 1. -/
-theorem ProgramDenotation.get_mass_one {s α : Type} (L : Lens α s) (σ : s) :
+theorem ProgramDenotation.get_mass_one {s α : Type*} (L : Lens α s) (σ : s) :
     (ProgramDenotation.get L).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_get]
 
 /-- `ProgramDenotation.set L v` has mass 1. -/
-theorem ProgramDenotation.set_mass_one {s α : Type} (L : Lens α s) (v : α) (σ : s) :
+theorem ProgramDenotation.set_mass_one {s α : Type*} (L : Lens α s) (v : α) (σ : s) :
     (ProgramDenotation.set L v).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_set]
 
 /-- `ProgramDenotation.uniform` has mass 1 (the uniform distribution sums to 1 over its
     finite, non-empty support). -/
-theorem ProgramDenotation.uniform_mass_one {s α : Type} [Fintype α] [Nonempty α] (σ : s) :
+theorem ProgramDenotation.uniform_mass_one {s α : Type*} [Fintype α] [Nonempty α] (σ : s) :
     (ProgramDenotation.uniform : ProgramDenotation s α).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_uniform]
   show ∑ _i : α, (1 : ENNReal) / (Fintype.card α : ENNReal) = 1
@@ -478,7 +479,7 @@ theorem ProgramDenotation.uniform_mass_one {s α : Type} [Fintype α] [Nonempty 
         (ENNReal.natCast_ne_top _)]
 
 /-- `ProgramDenotation.uniformOfFinset` has mass 1. -/
-theorem ProgramDenotation.uniformOfFinset_mass_one {s α : Type} [Fintype α]
+theorem ProgramDenotation.uniformOfFinset_mass_one {s α : Type*} [Fintype α]
     (fs : Finset α) (hs : fs.Nonempty) (σ : s) :
     (ProgramDenotation.uniformOfFinset fs hs).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_uniformOfFinset]
@@ -491,7 +492,7 @@ theorem ProgramDenotation.uniformOfFinset_mass_one {s α : Type} [Fintype α]
 /-- **Mass-1 composes through `>>=`**: if `p` and every `k a` have mass 1, then
     so does `p >>= k`. The workhorse for chaining mass-conservation facts
     through composite programs. -/
-theorem ProgramDenotation.mass_bind {s α β : Type}
+theorem ProgramDenotation.mass_bind {s : Type u} {α β : Type v}
     (p : ProgramDenotation s α) (k : α → ProgramDenotation s β)
     (hp : ∀ σ, p.wp (fun _ => (1 : ENNReal)) σ = 1)
     (hk : ∀ a σ, (k a).wp (fun _ => (1 : ENNReal)) σ = 1)
@@ -574,11 +575,11 @@ None of it mentions `DetermFootprint`/`inRange`; footprint-hypothesis variants l
 `ProgramRange.lean` (legacy) and `ProbProgramRange.lean` (current). -/
 
 /-- Lift a deterministic state update `f : s → s` to a `ProgramDenotation s Unit`. -/
-noncomputable def liftF {s : Type} (f : s → s) : ProgramDenotation s Unit :=
+noncomputable def liftF {s : Type*} (f : s → s) : ProgramDenotation s Unit :=
   fun st => pure ((), f st)
 
 /-- Programs equal at all postconditions of their `wp` are equal. -/
-theorem ProgramDenotation.ext_of_wp {s a : Type} (p q : ProgramDenotation s a)
+theorem ProgramDenotation.ext_of_wp {s a : Type*} (p q : ProgramDenotation s a)
     (h : ∀ f, p.wp f = q.wp f) : p = q := by
   funext st
   apply Subtype.ext
@@ -591,7 +592,7 @@ theorem ProgramDenotation.ext_of_wp {s a : Type} (p q : ProgramDenotation s a)
        MeasureTheory.lintegral_indicator_one hA] at hf
 
 /-- The wp of `liftF f` simply applies the postcondition at the f-shifted state. -/
-lemma wp_liftF {s : Type} (f : s → s) (F : ProgramDenotation.Post s Unit) :
+lemma wp_liftF {s : Type*} (f : s → s) (F : ProgramDenotation.Post s Unit) :
     (liftF f).wp F = fun st => F ((), f st) := by
   funext st
   show ((liftF f st).expected F : ENNReal) = F ((), f st)
@@ -603,7 +604,7 @@ lemma wp_liftF {s : Type} (f : s → s) (F : ProgramDenotation.Post s Unit) :
 A generic `n`-fold iterator and its basic invariance/bound theorems. -/
 
 /-- Run `body` exactly `n` times. Generic bounded loop combinator. -/
-noncomputable def loop_n {s : Type} (n : ℕ) (body : ProgramDenotation s Unit) : ProgramDenotation s
+noncomputable def loop_n {s : Type*} (n : ℕ) (body : ProgramDenotation s Unit) : ProgramDenotation s
     Unit :=
   match n with
   | 0 => pure ()
@@ -611,7 +612,7 @@ noncomputable def loop_n {s : Type} (n : ℕ) (body : ProgramDenotation s Unit) 
 
 /-- **Mass conservation for `loop_n`**: if `body` has mass 1 at every state,
     then so does `loop_n n body`. -/
-lemma loop_n_mass_one {s : Type}
+lemma loop_n_mass_one {s : Type*}
     (body : ProgramDenotation s Unit)
     (h_body : ∀ σ, body.wp (fun _ => (1 : ENNReal)) σ = 1)
     (n : ℕ) (σ : s) :
@@ -631,7 +632,7 @@ lemma loop_n_mass_one {s : Type}
 
 /-- **Linear bump bound for `loop_n`** with respect to a state-projected potential.
     If `body` bumps `f` by ≤ `c` per iteration, then `loop_n n body` bumps `f` by ≤ `n*c`. -/
-lemma loop_n_wp_linear_bound {s : Type}
+lemma loop_n_wp_linear_bound {s : Type*}
     (body : ProgramDenotation s Unit)
     (f : s → ENNReal) (c : ENNReal)
     (h_body : ∀ σ, body.wp (fun aσ : Unit × s => f aσ.2) σ ≤ f σ + c)
@@ -664,14 +665,15 @@ lemma loop_n_wp_linear_bound {s : Type}
 
 /-- **wp of a value-only post = expected value under the value-marginal**. For
     any `G : α → ENNReal`, `p.wp (fun aσ => G aσ.1) σ` equals the expected
-    value of `G` under the marginal distribution `p σ >>= fun aσ => pure aσ.1`. -/
-lemma ProgramDenotation.wp_value_eq_marginal_expected {s α : Type}
+    value of `G` under the marginal distribution `(p σ).hbind fun aσ => pure aσ.1` (`hbind`:
+    `α × s` and `α` may live in different universes). -/
+lemma ProgramDenotation.wp_value_eq_marginal_expected {s : Type u} {α : Type v}
     (p : ProgramDenotation s α) (G : α → ENNReal) (σ : s) :
     p.wp (fun aσ : α × s => G aσ.1) σ
-      = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G := by
+      = ((p σ).hbind fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G := by
   change (p σ).expected (fun aσ : α × s => G aσ.1)
-       = (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G
-  rw [SubProbability.expected_bind]
+       = ((p σ).hbind fun aσ : α × s => (pure aσ.1 : SubProbability α)).expected G
+  rw [SubProbability.expected_hbind]
   congr 1
   funext aσ
   exact (expected_pure _).symm
@@ -681,10 +683,10 @@ lemma ProgramDenotation.wp_value_eq_marginal_expected {s α : Type}
     they agree on the wp of any post of the form `fun aσ => G aσ.1`. This is
     the generic bridge from a SubProb-level transfer theorem to a wp-level
     one — used by `cr_transfer_wp_of_bit`, `ow_transfer_wp_of_bit`, etc. -/
-lemma ProgramDenotation.wp_eq_of_marginal_eq {s α : Type}
+lemma ProgramDenotation.wp_eq_of_marginal_eq {s : Type u} {α : Type v}
     {p q : ProgramDenotation s α}
-    (h_marg : ∀ σ : s, (p σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α))
-                       = (q σ >>= fun aσ : α × s => (pure aσ.1 : SubProbability α)))
+    (h_marg : ∀ σ : s, ((p σ).hbind fun aσ : α × s => (pure aσ.1 : SubProbability α))
+                       = ((q σ).hbind fun aσ : α × s => (pure aσ.1 : SubProbability α)))
     (G : α → ENNReal) (σ : s) :
     p.wp (fun aσ : α × s => G aσ.1) σ = q.wp (fun aσ : α × s => G aσ.1) σ := by
   rw [ProgramDenotation.wp_value_eq_marginal_expected p G σ,
@@ -692,7 +694,7 @@ lemma ProgramDenotation.wp_eq_of_marginal_eq {s α : Type}
 
 /-- A post `F` ignores lens `L` if it doesn't depend on `L`-content of
     its state argument: setting `L` to any value leaves `F` unchanged. -/
-def IgnoresLens {γ s α : Type} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
+def IgnoresLens {γ s α : Type*} (L : Lens γ s) (F : α × s → ENNReal) : Prop :=
   ∀ (aσ : α × s) (v : γ), F (aσ.1, L.set v aσ.2) = F aσ
 
 /-! ## Identical-until-bad
@@ -709,7 +711,7 @@ queried `chal_x`"), `p` is the original game, `q` is the simplified
 
 /-- **Up-to-bad (wp form)**. If `p` and `q` agree on the restriction of any
     post to `¬ bad`, then `p.wp G σ ≤ q.wp G σ + p.wp (G | bad) σ`. -/
-lemma ProgramDenotation.up_to_bad {s α : Type}
+lemma ProgramDenotation.up_to_bad {s α : Type*}
     {p q : ProgramDenotation s α} {bad : s → Prop} [DecidablePred bad]
     (G : α × s → ENNReal)
     (h_agree_on_good : ∀ (σ : s),
@@ -745,7 +747,7 @@ lemma ProgramDenotation.up_to_bad {s α : Type}
 /-- Lift an "inner" program along a lens: `L.lift P` runs `P` on the
     L-content of state and writes the result back, leaving the outside
     untouched. -/
-noncomputable def _root_.GaudisCrypt.Lens.lift {c s a : Type} (L : Lens c s) (P :
+noncomputable def _root_.GaudisCrypt.Lens.lift {c s : Type u} {a : Type v} (L : Lens c s) (P :
     ProgramDenotation c a) :
     ProgramDenotation s a := fun σ =>
   P (L.get σ) >>= fun (xc : a × c) =>
@@ -755,13 +757,13 @@ noncomputable def _root_.GaudisCrypt.Lens.lift {c s a : Type} (L : Lens c s) (P 
     inner program `ProgramDenotation c a`. The construction picks an arbitrary state
     to "pad" the inner input; `factor_of_inRange` shows this padding doesn't
     matter when `Adv.inRange L.range`. -/
-noncomputable def _root_.GaudisCrypt.Lens.factor {c s a : Type} [Nonempty s]
+noncomputable def _root_.GaudisCrypt.Lens.factor {c s : Type u} {a : Type v} [Nonempty s]
     (L : Lens c s) (Adv : ProgramDenotation s a) : ProgramDenotation c a := fun c₀ =>
   Adv (L.set c₀ (Classical.arbitrary s)) >>= fun (xσ : a × s) =>
     (pure (xσ.1, L.get xσ.2) : SubProbability (a × c))
 
 /-- SubProbability bind is associative. -/
-lemma SubProbability.bind_assoc' {α β γ : Type}
+lemma SubProbability.bind_assoc' {α β γ : Type u}
     (μ : SubProbability α) (g : α → SubProbability β) (h' : β → SubProbability γ) :
     (μ >>= g) >>= h' = μ >>= fun x => g x >>= h' := by
   apply Subtype.ext
@@ -778,7 +780,7 @@ lemma SubProbability.bind_assoc' {α β γ : Type}
 
     Generalises `adv_commutes_uniform` (formerly in `RO.lean`) to arbitrary
     programs and return types — the proof never used RO-specific facts. -/
-theorem ProgramDenotation.bind_uniform_comm {s α β a : Type} [Fintype α] [Nonempty α]
+theorem ProgramDenotation.bind_uniform_comm {s : Type u} {α β a : Type v} [Fintype α] [Nonempty α]
     (p : ProgramDenotation s β) (k : α → ProgramDenotation s a) :
     (p >>= fun _ => (ProgramDenotation.uniform : ProgramDenotation s α) >>= k)
     = (ProgramDenotation.uniform >>= fun y => p >>= fun _ => k y) := by
@@ -797,8 +799,8 @@ theorem ProgramDenotation.bind_uniform_comm {s α β a : Type} [Fintype α] [Non
   exact MeasureTheory.lintegral_mul_const _ measurable_from_top
 
 /-- `wp` of a lifted program: run `P` on the `L`-content and re-set the result. -/
-theorem ProgramDenotation.wp_lift {c s α : Type} (L : Lens c s) (P : ProgramDenotation c α) (F :
-    ProgramDenotation.Post s α) :
+theorem ProgramDenotation.wp_lift {c s : Type u} {α : Type v} (L : Lens c s)
+    (P : ProgramDenotation c α) (F : ProgramDenotation.Post s α) :
     (L.lift P).wp F = fun σ => P.wp (fun ac => F (ac.1, L.set ac.2 σ)) (L.get σ) := by
   funext σ
   show ((L.lift P) σ).expected F = _
@@ -807,8 +809,8 @@ theorem ProgramDenotation.wp_lift {c s α : Type} (L : Lens c s) (P : ProgramDen
 
 /-- **Lift composes via `chain`.**  Lifting `Q` along `v` and then along `L`
     is lifting `Q` along the composite lens `L ∘ v`. -/
-theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q : ProgramDenotation d
-    a) :
+theorem Lens.lift_lift_chain {c s d : Type u} {a : Type v} (L : Lens c s) (v : Lens d c)
+    (Q : ProgramDenotation d a) :
     L.lift (v.lift Q) = (L.chain v).lift Q := by
   funext σ
   simp only [Lens.lift, Lens.chain]
@@ -819,14 +821,14 @@ theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q :
 
 /-- `wp` of a sampled value (`μ.toProgramDenotation`, the lift of `μ`): it samples its
     return from `μ` and leaves the state untouched. -/
-theorem ProgramDenotation.wp_toProgramDenotation {s a : Type} (μ : SubProbability a) (G :
+theorem ProgramDenotation.wp_toProgramDenotation {s a : Type*} (μ : SubProbability a) (G :
     ProgramDenotation.Post s a) :
     (SubProbability.toProgramDenotation μ : ProgramDenotation s a).wp G = fun σ => μ.expected (fun x
         => G (x, σ)) := by
   funext σ
   show ((SubProbability.toProgramDenotation μ : ProgramDenotation s a) σ).expected G = _
-  show ((μ >>= fun x => (pure (x, σ) : SubProbability (a × s))).expected G) = _
-  rw [SubProbability.expected_bind]
+  change ((μ.hbind fun x => (pure (x, σ) : SubProbability (a × s))).expected G) = _
+  rw [SubProbability.expected_hbind]
   simp only [expected_pure]
 
 end GaudisCrypt

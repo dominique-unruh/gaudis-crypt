@@ -726,7 +726,8 @@ lemma ow_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
         (fun bσ : Bool × state => G bσ.1) σ₀
     = (ow_experiment ow_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀ :=
-  ProgramDenotation.wp_eq_of_marginal_eq (ow_transfer ow_adv h_ow_adv q) G σ₀
+  ProgramDenotation.wp_eq_of_marginal_eq (fun σ => by
+    simp only [SubProbability.hbind_eq_bind]; exact ow_transfer ow_adv h_ow_adv q σ) G σ₀
 
 end OWParam
 

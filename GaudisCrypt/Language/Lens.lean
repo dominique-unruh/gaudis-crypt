@@ -65,13 +65,13 @@ theorem Lens.Disjoint.iff :
   ⟨fun h => h.commute, fun h => ⟨h⟩⟩
 
 /-- Disjointness is symmetric. Not an instance (would loop). -/
-theorem Lens.Disjoint.symm {a b m : Type} {x : Lens a m} {y : Lens b m}
+theorem Lens.Disjoint.symm {a b m : Type*} {x : Lens a m} {y : Lens b m}
     (h : Lens.Disjoint x y) : Lens.Disjoint y x where
   commute s v w := (h.commute s w v).symm
 
 /-- Setting through a disjoint lens leaves the other lens's `get` unchanged.
     Disjointness is recorded as `Lens.Disjoint M L` (setter then reader). -/
-theorem Lens.get_of_disjoint_set {a b m : Type} (L : Lens a m) (M : Lens b m)
+theorem Lens.get_of_disjoint_set {a b m : Type*} (L : Lens a m) (M : Lens b m)
     [hd : Lens.Disjoint M L] (v : b) (s : m) :
     L.get (M.set v s) = L.get s := by
   conv_lhs => rw [show s = L.set (L.get s) s from (L.get_set s).symm]
@@ -197,12 +197,12 @@ def Lens.bijection (e : a ≃ b) : Lens a b where
   set_set _ _ _ := rfl
   get_set s := e.apply_symm_apply s
 
-theorem Lens.bijection_chain {a b c : Type} (e : a ≃ b) (f : b ≃ c) :
+theorem Lens.bijection_chain {a b c : Type*} (e : a ≃ b) (f : b ≃ c) :
   Lens.chain (Lens.bijection f) (Lens.bijection e) = Lens.bijection (e.trans f) :=
   rfl
 
 @[simp]
-theorem Lens.bijection_refl {a : Type} : Lens.bijection (Equiv.refl a) = Lens.id := by
+theorem Lens.bijection_refl {a : Type*} : Lens.bijection (Equiv.refl a) = Lens.id := by
   ext
   simp [Lens.bijection, Lens.id]
 

@@ -19,6 +19,9 @@ read or modify, together with the soundness bound `fvP (m.toModule) ≤ fvPMexpr
 namespace GaudisCrypt
 open GaudisCrypt
 
+-- Universes as in `Language/Footprint.lean`: state `Type (max u v)`, results `Type v`.
+universe u v
+
 
 /-! # fvP_extend_sup -/
 
@@ -31,14 +34,17 @@ open GaudisCrypt
 
 /-- **Read-back**: post-composing a localized kernel with `lens.get` recovers the base kernel
     (`lens.set_get` collapses the write, `bind_pure` the trivial bind). -/
-private lemma updateK_get_inv {a s : Type} (lens : Lens a s) (κ : a → SubProbability a) (st : s) :
-    (lens.liftSubProbability κ st >>= fun st' => pure (lens.get st')) = κ (lens.get st) := by
-  show (κ (lens.get st) >>= fun a' => pure (lens.set a' st)) >>= (fun st' => pure (lens.get st'))
+private lemma updateK_get_inv {a s : Type*} (lens : Lens a s) (κ : a → SubProbability a) (st : s) :
+    ((lens.liftSubProbability κ st).hbind fun st' => (pure (lens.get st') : SubProbability a))
+      = κ (lens.get st) := by
+  change ((κ (lens.get st)).hbind fun a' => (pure (lens.set a' st) : SubProbability s)).hbind
+      (fun st' => (pure (lens.get st') : SubProbability a))
      = κ (lens.get st)
-  rw [SubProbability.bind_assoc]
-  rw [show (fun a' => (pure (lens.set a' st) : SubProbability s) >>= fun st' => pure (lens.get st'))
+  rw [SubProbability.hbind_assoc]
+  rw [show (fun a' => (pure (lens.set a' st) : SubProbability s).hbind
+          fun st' => (pure (lens.get st') : SubProbability a))
         = (fun a' => (pure a' : SubProbability a)) from by
-      funext a'; rw [SubProbability.pure_bind, lens.set_get]]
+      funext a'; rw [SubProbability.pure_hbind, lens.set_get]]
   exact SubProbability.bind_pure _
 
 
@@ -49,7 +55,7 @@ private lemma updateK_get_inv {a s : Type} (lens : Lens a s) (κ : a → SubProb
 bijection `b ≃ a × lens.ComplContent` yields exactly the `a`-component lift `Lens.fst.liftSubProbability f`.
 This is what
 makes the centralizer footprint `Lens.reduceFootprint` agree with the split-then-reduce construction. -/
-private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → SubProbability a) :
+private lemma bijection_split_updateK {a b : Type*} (lens : Lens a b) (f : a → SubProbability a) :
     (Lens.bijection (Lens.splitSpace lens)).liftSubProbability (lens.liftSubProbability f)
       = (Lens.fst).liftSubProbability f := by
   funext p
@@ -69,7 +75,8 @@ private lemma bijection_split_updateK {a b : Type} (lens : Lens a b) (f : a → 
     show (lens.get (lens.set a' ((Lens.splitSpace lens).symm p)),
           lens.compl.get (lens.set a' ((Lens.splitSpace lens).symm p))) = (a', p.2)
     rw [lens.set_get, hcompl, hp2]
-  simp only [Lens.liftSubProbability, Lens.bijection, SubProbability.bind_assoc, SubProbability.pure_bind]
+  simp only [Lens.liftSubProbability, Lens.bijection, SubProbability.hbind_assoc,
+    SubProbability.pure_hbind]
   rw [hA]
   simp only [hB]
   rfl
@@ -90,7 +97,7 @@ instance [Nonempty s] (lens : Lens a s) : Nonempty lens.ComplContent :=
 
 /-- **`Lens.liftFootprint` distributes over arbitrary indexed suprema.**
     Generalises `Lens.liftFootprint_sup` from binary joins to indexed families. -/
-theorem Lens.liftFootprint_iSup {a b : Type} {ι : Sort*} (lens : Lens a b)
+theorem Lens.liftFootprint_iSup {a b : Type*} {ι : Sort*} (lens : Lens a b)
     (rs : ι → Footprint a) :
     Lens.liftFootprint lens (⨆ i, rs i) = ⨆ i, Lens.liftFootprint lens (rs i) := by
   wlog ne : Nonempty b; { have := not_nonempty_iff.mp ne; apply Subsingleton.elim }
@@ -164,7 +171,8 @@ variable [ProgramSpec]
 give a setter (which is a *family* `a → ProgramDenotation s Unit`, one program per written value) a
 single footprint. -/
 noncomputable def _root_.GaudisCrypt.ProgramDenotation.footprint'
-    {s a b : Type} (progs : a → ProgramDenotation s b) : Footprint s :=
+    {a : Type*} {s : Type (max u v)} {b : Type v} (progs : a → ProgramDenotation s b) :
+    Footprint s :=
   ⨆ x, (progs x).footprint
 
 
@@ -187,8 +195,8 @@ omit [ProgramSpec] in
 lemma updateK_one {a b} (lens : Lens a b) :
     lens.liftSubProbability (1 : a → SubProbability a) = 1 := by
   funext st
-  show (pure (lens.get st) : SubProbability a) >>= (fun a' => pure (lens.set a' st)) = pure st
-  rw [SubProbability.pure_bind, lens.get_set]
+  change (pure (lens.get st) : SubProbability a).hbind (fun a' => pure (lens.set a' st)) = pure st
+  rw [SubProbability.pure_hbind, lens.get_set]
 
 omit [ProgramSpec] in
 /-- The bicommutant retraction inequality for a multiplicative `u`:
@@ -211,7 +219,7 @@ private lemma centralizer_preimage_image_subset {M N : Type*} [Monoid M] [Monoid
 omit [ProgramSpec] in
 /-- A `diracKer` of a localized deterministic update is the `updateK` of the base `diracKer`
     (alias of `Lens.liftSubProbability_diracKer`, kept under the `updateK` naming of this file). -/
-lemma updateK_diracKer {a s : Type} (lens : Lens a s) (g : Function.End a) :
+lemma updateK_diracKer {a s : Type*} (lens : Lens a s) (g : Function.End a) :
     lens.liftSubProbability (diracKer g) = diracKer (lens.liftFunction g) :=
   lens.liftSubProbability_diracKer g
 
@@ -259,9 +267,9 @@ theorem Lens.reduceFootprint_extend {a b} [Nonempty b] (lens : Lens a b) (r : Fo
       rw [Footprint.from_updates]
       exact Set.subset_centralizer_centralizer ⟨p, hp, rfl⟩
     · funext m
-      simp only [Lens.reduceSubProbability, Lens.liftSubProbability, SubProbability.pure_bind,
-                SubProbability.bind_assoc, Lens.splitSpace_invFun_get, Lens.splitSpace_invFun_set,
-                SubProbability.bind_pure]
+      simp only [Lens.reduceSubProbability, Lens.liftSubProbability, SubProbability.pure_hbind,
+                SubProbability.hbind_assoc, Lens.splitSpace_invFun_get, Lens.splitSpace_invFun_set,
+                SubProbability.hbind_eq_bind, SubProbability.bind_pure]
 
 noncomputable
 def fvpInductiveFunctionGS : InductiveFunctionGettersSetters Footprint where
@@ -354,14 +362,14 @@ program spec. -/
     outer lens** (generator-level): `diracKer ((L.chain v).liftFunction g)` is exactly
     `L.liftSubProbability (diracKer (v.liftFunction g))`.  The chained overwrite is the inner
     overwrite performed on the `L`-content and written back. -/
-theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
+theorem chain_liftFunction_diracKer {a b c : Type*} (L : Lens b c) (v : Lens a b)
     (g : Function.End a) :
     diracKer ((L.chain v).liftFunction g) = L.liftSubProbability (diracKer (v.liftFunction g)) := by
   funext x
-  show (pure ((L.chain v).liftFunction g x) : SubProbability c)
-     = (diracKer (v.liftFunction g) (L.get x)) >>= fun a' => pure (L.set a' x)
+  change (pure ((L.chain v).liftFunction g x) : SubProbability c)
+     = (diracKer (v.liftFunction g) (L.get x)).hbind fun a' => pure (L.set a' x)
   rw [show (diracKer (v.liftFunction g) (L.get x) : SubProbability b)
-        = pure (v.liftFunction g (L.get x)) from rfl, SubProbability.pure_bind]
+        = pure (v.liftFunction g (L.get x)) from rfl, SubProbability.pure_hbind]
   rfl
 
 -- `Footprint.liftSubProbability_comm_reduce_compl` moved to
@@ -370,7 +378,7 @@ theorem chain_liftFunction_diracKer {a b c : Type} (L : Lens b c) (v : Lens a b)
 /-- **The lift of a `v.footprint`-update commutes with every `R`-update**, when the
     `L`-reduction of `R` is disjoint from `v.footprint` — the lens-region instance of
     `Footprint.liftSubProbability_comm_reduce_compl`. -/
-theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
+theorem liftSubProbability_comm_of_reduce_disj {t s c : Type*} {L : Lens s c}
     {v : Lens t s} {R : Footprint c}
     (hred : Lens.reduceFootprint L R ≤ (v.footprint)ᶜ)
     {f : s → SubProbability s} (hf : f ∈ v.footprint.updates)
@@ -384,7 +392,7 @@ theorem liftSubProbability_comm_of_reduce_disj {t s c : Type} {L : Lens s c}
     goal via `le_compl_comm` to `(L.chain v).footprint ≤ Rᶜ`, then show each generator
     `L.liftSubProbability (diracKer (v.liftFunction g))` commutes with every `k ∈ R.updates` via
     `liftSubProbability_comm_of_reduce_disj`. -/
-theorem reduce_chain_le_compl {t s c : Type} {L : Lens s c} {v : Lens t s} {R : Footprint c}
+theorem reduce_chain_le_compl {t s c : Type*} {L : Lens s c} {v : Lens t s} {R : Footprint c}
     (hred : Lens.reduceFootprint L R ≤ (v.footprint)ᶜ) :
     R ≤ ((L.chain v).footprint)ᶜ := by
   rw [Footprint.le_compl_comm]
@@ -413,23 +421,25 @@ theorem globalL_liftSubProbability_global [ProgramSpec] {l : Type}
     ((ProcedureState.globalL.liftSubProbability f) w2 >>= fun s'' => pure (x, s''.global))
       = f w2.global >>= fun a => pure (x, a) := by
   simp only [Lens.liftSubProbability]
-  rw [SubProbability.bind_assoc]; congr 1; funext a; rw [SubProbability.pure_bind]; rfl
+  rw [SubProbability.hbind_bind, SubProbability.hbind_eq_bind]
+  congr 1; funext a; rw [SubProbability.pure_bind]; rfl
 
 /-- **A sampled value's footprint is trivial** — `μ.toProgramDenotation` only draws its result, it
     touches no state, so it lies in `⊥` (mirrors `inFootprint_uniform` for an arbitrary `μ`). -/
-theorem inFootprint_toProgramDenotation {s a : Type} (μ : SubProbability a) :
+theorem inFootprint_toProgramDenotation {s : Type (max u v)} {a : Type v} (μ : SubProbability a) :
     (SubProbability.toProgramDenotation μ : ProgramDenotation s a).inFootprint ⊥ := by
   rw [inFootprint_iff_clean]
   intro f hf
   funext st
-  show (f st >>= fun st' =>
-          μ >>= fun v => (pure (v, st') : SubProbability (a × s)))
-     = ((μ >>= fun v => (pure (v, st) : SubProbability (a × s)))
+  change ((f st).hbind fun st' =>
+          μ.hbind fun v => (pure (v, st') : SubProbability (a × s)))
+     = ((μ.hbind fun v => (pure (v, st) : SubProbability (a × s)))
           >>= fun w : a × s => f w.2 >>= fun st'' => (pure (w.1, st'') : SubProbability (a × s)))
   rw [bind_swap (f st) μ (fun v st' => pure (v, st'))]
-  rw [SubProbability.bind_assoc]
+  rw [SubProbability.hbind_bind]
   congr 1; funext v
   rw [SubProbability.pure_bind]
+  rfl
 
 /-! ## Chained and `FromLens` footprints
 
@@ -439,7 +449,7 @@ bicommutant closure adds nothing — is exactly the `Lens.liftFootprint_updates`
 -- `Lens.liftFootprint_chain` and `Lens.chain_footprint` moved to
 -- `GaudisCrypt/Language/Footprint.lean`.
 
-theorem _root_.GaudisCrypt.Footprint.FromLens.from_lens {a s : Type} (lens : Lens a s) :
+theorem _root_.GaudisCrypt.Footprint.FromLens.from_lens {a s : Type*} (lens : Lens a s) :
     Footprint.FromLens lens.footprint := by
   wlog ne : Nonempty s
   · -- if `s` is empty every kernel is `pure`, so all footprints coincide and any lens works
@@ -459,7 +469,7 @@ theorem _root_.GaudisCrypt.Footprint.FromLens.from_lens {a s : Type} (lens : Len
 /-- **The complement of `Lens.fst`, as a footprint, is `Lens.snd`.** `(Lens.fst).compl`
     has abstract `ComplContent` type, so this is a footprint equality (via the getter
     that identifies `fst.compl.get` with `snd.get`), not a lens equality. -/
-theorem _root_.GaudisCrypt.Lens.fst_compl_footprint {a b : Type} :
+theorem _root_.GaudisCrypt.Lens.fst_compl_footprint {a b : Type*} :
     (Lens.fst : Lens a (a × b)).compl.footprint = (Lens.snd : Lens b (a × b)).footprint := by
   haveI : Lens.Disjoint (Lens.fst : Lens a (a × b)).compl (Lens.snd : Lens b (a × b)).compl :=
     ⟨fun st v w => by

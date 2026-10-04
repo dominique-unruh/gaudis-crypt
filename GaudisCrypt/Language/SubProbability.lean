@@ -72,7 +72,7 @@ lemma lintegral_eq_tsum_smul {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
 
 /-- **Fubini for discrete measures** — integration order swaps with no σ-finiteness/countability
     side-condition, via `ENNReal.tsum_comm`. -/
-lemma lintegral_lintegral_swap_discrete {α s : Type u} {μ : @MeasureTheory.Measure α ⊤}
+lemma lintegral_lintegral_swap_discrete {α : Type u} {s : Type v} {μ : @MeasureTheory.Measure α ⊤}
     {ν : @MeasureTheory.Measure s ⊤} (hμ : discreteMeasure μ) (hν : discreteMeasure ν)
     (g : α → s → ENNReal) :
     ∫⁻ st', ∫⁻ a, g a st' ∂μ ∂ν = ∫⁻ a, ∫⁻ st', g a st' ∂ν ∂μ := by
@@ -435,6 +435,18 @@ lemma SubProbability.hbind_assoc {α : Type u} {β : Type v} {γ : Type w}
   exact MeasureTheory.Measure.bind_bind
     measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
+/-- `hbind_assoc` with the second bind in one universe (`>>=`). -/
+lemma SubProbability.hbind_bind {α : Type u} {β γ : Type v}
+    (m : SubProbability α) (f : α → SubProbability β) (g : β → SubProbability γ) :
+    (m.hbind f) >>= g = m.hbind fun x => f x >>= g :=
+  SubProbability.hbind_assoc m f g
+
+/-- `hbind_assoc` with the first bind in one universe (`>>=`). -/
+lemma SubProbability.bind_hbind {α β : Type u} {γ : Type v}
+    (m : SubProbability α) (f : α → SubProbability β) (g : β → SubProbability γ) :
+    (m >>= f).hbind g = m.hbind fun x => (f x).hbind g :=
+  SubProbability.hbind_assoc m f g
+
 lemma SubProbability.bind_pure {α : Type u} (m : SubProbability α) :
     m >>= pure = m := by
   apply Subtype.ext
@@ -481,6 +493,18 @@ lemma SubProbability.bot_bind {α β : Type u} (f : α → SubProbability β) :
 
 lemma SubProbability.bind_bot {α β : Type u} (m : SubProbability α) :
     (m >>= fun _ => (⊥ : SubProbability β)) = ⊥ := by
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_right' _
+
+/-- `bot_bind` across universes. -/
+lemma SubProbability.bot_hbind {α : Type u} {β : Type v} (f : α → SubProbability β) :
+    (⊥ : SubProbability α).hbind f = ⊥ := by
+  apply Subtype.ext
+  exact MeasureTheory.Measure.bind_zero_left _
+
+/-- `bind_bot` across universes. -/
+lemma SubProbability.hbind_bot {α : Type u} {β : Type v} (m : SubProbability α) :
+    (m.hbind fun _ => (⊥ : SubProbability β)) = ⊥ := by
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
 
