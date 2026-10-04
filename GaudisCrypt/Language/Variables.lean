@@ -41,10 +41,13 @@ namespace GaudisCrypt
 
 /-! ## Global state and argument tuples
 
-Defined here rather than in `Programs.lean`, which builds on this file. -/
+Defined here rather than in `Programs.lean`, which builds on this file.
 
-class ProgramSpec : Type _ where
-  state : Type u
+The global state lives in `Type 1`, the universe of `VariableAssignment`, so that `State` and
+`ProgramState` share a universe. -/
+
+class ProgramSpec : Type 2 where
+  state : Type 1
 
 def State [spec : ProgramSpec] := spec.state
 

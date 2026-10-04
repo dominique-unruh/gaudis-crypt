@@ -174,9 +174,8 @@ which refines `holes`), but not built or taken apart without recursing on `holes
 The universe is written out only because `PUnit` would otherwise take one of its own: nothing in the
 `.empty` branch constrains its level, so `Type _` gives the definition a universe parameter that no
 argument determines, and a use site inside an inductive (`ModuleExpression.ReductionStep`) then has
-nothing to infer it from.  Spelled this way the signature is the one the function representation
-had, `[ProgramSpec] → HoleSigs → Type (max 1 u)` — no generality is lost. -/
-def HoleSigs.Instantiation.{instU} [ProgramSpec.{instU}] : HoleSigs → Type (max 1 instU)
+nothing to infer it from. -/
+def HoleSigs.Instantiation [ProgramSpec] : HoleSigs → Type 1
   | .empty           => PUnit
   | .cons sig .empty => Procedure sig
   | .cons sig holes  => Procedure sig × HoleSigs.Instantiation holes
@@ -303,9 +302,7 @@ decreasing_by all_goals simp [StmtWithHoles.depth]; try omega
 discarded at the end, only the globals are kept.  The state and the result live in different
 universes, hence `hbind` in place of `do`.
 
-Not mutual with `programDenotation` (whose `call'` case repeats this body): a mutual block needs
-its result types in one universe, and `ProgramState` is in `Type (max 1 u)` while `State` is in
-`Type u`. -/
+Not mutual with `programDenotation`, whose `call'` case repeats this body. -/
 noncomputable
 def procedureDenotation {sig} (proc : Procedure sig) (args : sig.ParamType) :
    ProgramDenotation State sig.ret := fun st =>
