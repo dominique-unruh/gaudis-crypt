@@ -541,20 +541,18 @@ theorem wp_zoom {s : Type u} {t : Type v} {α : Type w} (L : Lens s t)
 theorem procedureDenotation_eq_procWrap [ProgramSpec] {sig : ProcedureSignature}
     (p : Procedure sig) (args : sig.ParamType) :
     procedureDenotation p args
-      = procWrap p.return_val (sig.localVariableInit p.locals args)
-          (programDenotation p.body) := by
-  funext st
-  simp only [procedureDenotation, procWrap]
+      = procWrap p.return_val (p.initLocals args) (programDenotation p.body) :=
+  rfl
 
-theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (init : L)
-    (B : ProgramDenotation (ProcedureState L) Unit) (f : ProgramDenotation.Post State sig.ret) :
+theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature}
+    (rv : Getter sig.ret ProgramState) (init : VariableAssignment)
+    (B : ProgramDenotation ProgramState Unit) (f : ProgramDenotation.Post State sig.ret) :
     (procWrap rv init B).wp f
-      = fun st => B.wp (fun p => f (rv.get p.2, p.2.global)) ⟨st, init⟩ := by
+      = fun st => B.wp (fun p => f (rv.get p.2, p.2.globals)) ⟨st, init⟩ := by
   funext st
-  change (B ⟨st, init⟩ >>= fun p =>
-      (pure (rv.get p.2, p.2.global) : SubProbability _)).expected f = _
-  rw [SubProbability.expected_bind]
+  change ((B ⟨st, init⟩).hbind fun p =>
+      (pure (rv.get p.2, p.2.globals) : SubProbability _)).expected f = _
+  rw [SubProbability.expected_hbind]
   congr 1
   funext p
   rw [expected_pure]
@@ -563,7 +561,8 @@ theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature} {L : Type}
     decompose a procedure into its fields; this resurfaces the named procedure. -/
 @[simp] theorem procedureWithHoles_eta [ProgramSpec] {holes : HoleSigs}
     {sig : ProcedureSignature} (p : ProcedureWithHoles holes sig) :
-    (⟨p.locals, p.body, p.return_val⟩ : ProcedureWithHoles holes sig) = p := rfl
+    (⟨p.parameterNames, p.parameterNames_length, p.parameterNames_nodup, p.body, p.return_val⟩
+      : ProcedureWithHoles holes sig) = p := rfl
 
 
 /-! ## Generic program/wp toolkit (re-homed from `ProgramRange.lean`)
