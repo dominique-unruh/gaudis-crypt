@@ -1485,12 +1485,6 @@ theorem StmtWithHoles.Equiv.refl {hCtx : HoleSigs} {L : Type} (a : StmtWithHoles
 
 The one step with real content.  Everything else above is congruence and transport. -/
 
-omit [ProgramSpec] in
-/-- `>>=` of denotations, applied at a state. -/
-theorem ProgramDenotation.bind_apply {s α β : Type} (m : ProgramDenotation s α)
-    (k : α → ProgramDenotation s β) (st : s) :
-    (m >>= k) st = m st >>= fun p => k p.1 p.2 := rfl
-
 /-- A procedure, run at a global state: initialise its scope, run its body, read its return
 value off the final scope. -/
 theorem procedureDenotation_apply {sig : ProcedureSignature} (p : Procedure sig)

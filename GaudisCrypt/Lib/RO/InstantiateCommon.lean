@@ -133,7 +133,7 @@ theorem procDenotation_RO_eager (args : roSig.ParamType) :
   funext st
   simp only [procedureDenotation, RO_eager_proc, RO_eager_body, StmtWithHoles.assign,
     programDenotation, random_oracle_query, ProgramDenotation.get, ProgramDenotation.set,
-    bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
+    bind, ProgramDenotation.get_state, ProgramDenotation.set_state, pure,
     SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
   simp only [inpL, outL, roG, Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.id, Lens.fst,
@@ -150,7 +150,7 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
   simp only [procedureDenotation, RO_lazy_proc, RO_lazy_body, StmtWithHoles.assign,
     programDenotation, lazy_query, ProgramDenotation.get, ProgramDenotation.set,
         ProgramDenotation.uniform,
-    bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure,
+    bind, ProgramDenotation.get_state, ProgramDenotation.set_state, pure,
     SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
   simp only [inpL, outL, roG, Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.id, Lens.fst,
@@ -167,7 +167,7 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
         · rw [if_neg hj]
       rw [hfun, random_oracle_state.get_set]; rfl
   | none =>
-      simp only [hc, bind, StateT.bind, StateT.get, StateT.set, StateT.lift, pure, StateT.pure]
+      simp only [hc, bind, ProgramDenotation.get_state, ProgramDenotation.set_state, pure]
       generalize (SubProbability.uniform : SubProbability output) = U
       obtain ⟨mu, hmu⟩ := U
       simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -542,8 +542,8 @@ theorem procDenot_core {sig : ProcedureSignature}
   have hget : ∀ s' : ProcedureState (sig.ProcedureScope ls),
       (ProgramDenotation.get r) s' = pure (r.get s', s') := by
     intro s'
-    simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure,
-      StateT.pure, id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+    simp only [ProgramDenotation.get, ProgramDenotation.get_state, AsGetter.toG, bind, pure,
+      id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
   have hrcw0 := congrFun hrc w.2
   have hrcw : (F w.2 >>= fun s' =>
         (pure (r.get s', s') :

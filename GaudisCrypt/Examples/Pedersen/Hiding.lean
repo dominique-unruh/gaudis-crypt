@@ -188,8 +188,8 @@ theorem fakeGame_inline (U : Unhider group.types) :
         procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d) >>= fun bg =>
         pure (b == bg)).wp post σ
   simp [programDenotation,
-    StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,
-    wp_uniform, wp_pure, uniform_expected, expected_pure,
+    StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_map, wp_get_g, wp_set_g, wp_zoom,
+    wp_lift, wp_uniform, wp_pure, uniform_expected, expected_pure,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     -- `Lens.pair`: `m0,m1 <- call U.choose (…)` stores through a tuple l-value
@@ -224,7 +224,7 @@ theorem hidingGame_inline (U : Unhider group.types) :
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg)).wp post σ
   simp [module_accessor, Pedersen, Module.procedure_proc', programDenotation,
-    StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,
+    StmtWithHoles.call, wp_bind, wp_map, wp_get_g, wp_set_g, wp_zoom, wp_lift,
     wp_uniform, wp_pure, uniform_expected,
     ProcedureSignature.localVariableInit,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,

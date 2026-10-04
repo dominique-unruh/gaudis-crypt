@@ -148,8 +148,7 @@ theorem procWrap_block_in {sig : ProcedureSignature} {L : Type}
     procWrap rv initL (ProgramDenotation.zoom ProcedureState.globalL S >>= fun _ => B)
       = (S >>= fun _ => procWrap rv initL B) := by
   funext st
-  simp only [procWrap, ProgramDenotation.zoom, bind, StateT.bind, pure,
-    ProcedureState.globalL]
+  simp only [procWrap, ProgramDenotation.zoom, bind, pure, ProcedureState.globalL]
   generalize S st = U
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -162,8 +161,8 @@ theorem programGet_eq' {sig : ProcedureSignature} {L : Type}
     (ProgramDenotation.get rv : ProgramDenotation (ProcedureState L) sig.ret)
       = fun ps => pure (rv.get ps, ps) := by
   funext ps
-  simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure,
-    StateT.pure, id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  simp only [ProgramDenotation.get, ProgramDenotation.get_state, AsGetter.toG, bind, pure,
+    id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
 
 /-- From the return-value swap: reading `rv` commutes with the lifted block
     (clean form). -/
@@ -178,8 +177,8 @@ theorem rv_block_stable {sig : ProcedureSignature} {L : Type}
       = ((ProgramDenotation.zoom ProcedureState.globalL S) ps >>= fun q =>
           pure (rv.get q.2, q.2)) := by
   have h := congrFun hret ps
-  simp only [programGet_eq', bind, StateT.bind, pure, StateT.pure,
-    MeasureTheory.Measure.dirac_bind measurable_from_top] at h
+  simp only [programGet_eq', bind, pure, MeasureTheory.Measure.dirac_bind measurable_from_top]
+    at h
   exact h
 
 /-- Reading `rv` is invariant under the block changing the global component. -/
@@ -220,8 +219,7 @@ theorem procWrap_block_out {sig : ProcedureSignature} {L : Type}
       = procWrap rv initL (B >>= fun a =>
           ProgramDenotation.zoom ProcedureState.globalL S >>= fun _ => pure a) := by
   funext st
-  simp only [procWrap, ProgramDenotation.zoom, ProcedureState.globalL, bind, StateT.bind,
-    pure, StateT.pure]
+  simp only [procWrap, ProgramDenotation.zoom, ProcedureState.globalL, bind, pure]
   generalize B ⟨st, initL⟩ = Bv
   obtain ⟨mb, hb⟩ := Bv
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable

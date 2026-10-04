@@ -218,6 +218,15 @@ theorem wp_pure {s α : Type} (x : α) (f : ProgramDenotation.Post s α) :
     ext
     simp [h, ProgramDenotation.wp, expected_pure]
 
+/-- `wp` of `f <$> prog`.  Needed since `ProgramDenotation` is a `LawfulMonad`: `simp` then
+rewrites `prog >>= fun x => pure (f x)` (e.g. `ProgramDenotation.get`) to `f <$> prog` with the
+core lemma `bind_pure_comp`. -/
+theorem wp_map {α β : Type} (f : α → β) (prog : ProgramDenotation s α)
+    (g : ProgramDenotation.Post s β) :
+    (f <$> prog).wp g = prog.wp (fun (a, s') => g (f a, s')) := by
+  rw [map_eq_pure_bind, wp_bind]
+  simp only [wp_pure]
+
 /-! ### Postcondition combinators for `wp`
 
   Basic monotonicity, the `0`-postcondition, the constant-postcondition bound
@@ -278,14 +287,13 @@ theorem wp_ite {α : Type} (b : Bool) (p1 p2 : ProgramDenotation s α)
   cases b <;> rfl
 
 theorem wp_set_state (st' : s) (f : Unit × s → ENNReal) (st : s) :
-    ProgramDenotation.wp (StateT.set st' : ProgramDenotation s Unit) f st = f ((), st') := by
-           -- Why doesn't (...).wp syntax work?
-  simp [ProgramDenotation.wp, StateT.set, expected_pure]
+    (ProgramDenotation.set_state st').wp f st = f ((), st') := by
+  simp [ProgramDenotation.wp, ProgramDenotation.set_state, expected_pure]
 
 theorem wp_get_state (f : ProgramDenotation.Post s s) :
-    ProgramDenotation.wp (StateT.get) f = fun st => f (st, st) := by
+    ProgramDenotation.get_state.wp f = fun st => f (st, st) := by
   ext
-  simp [ProgramDenotation.wp, StateT.get, expected_pure]
+  simp [ProgramDenotation.wp, ProgramDenotation.get_state, expected_pure]
 
 @[fun_prop]
 theorem wp_mono [Preorder i]
@@ -414,7 +422,7 @@ theorem wp_while_invariant (b : ProgramDenotation s Bool) (body : ProgramDenotat
 
 theorem wp_get {α : Type} (v : Lens α s) (f : ProgramDenotation.Post s α) :
     (ProgramDenotation.get v).wp f = fun st => f (v.get st, st) := by
-    simp [ProgramDenotation.get, wp_bind, wp_pure, wp_get_state, AsGetter.toG]
+    simp [ProgramDenotation.get, wp_map, wp_get_state, AsGetter.toG]
 
 theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : ProgramDenotation.Post s Unit) :
     (ProgramDenotation.set v x).wp f = fun st => f ((), v.set x st) := by
@@ -491,7 +499,7 @@ through its whole call structure. -/
 
 theorem wp_get_g {s α T : Type} [AsGetter T α s] (v : T) (f : ProgramDenotation.Post s α) :
     (ProgramDenotation.get v).wp f = fun st => f ((AsGetter.toG v).get st, st) := by
-  simp [ProgramDenotation.get, wp_bind, wp_pure, wp_get_state]
+  simp [ProgramDenotation.get, wp_map, wp_get_state]
 
 theorem wp_set_g {s α T : Type} [AsSetter T α s] (v : T) (x : α)
     (f : ProgramDenotation.Post s Unit) :
@@ -792,7 +800,7 @@ theorem Lens.lift_lift_chain {c s d a : Type} (L : Lens c s) (v : Lens d c) (Q :
   funext xd
   rw [SubProbability.pure_bind]
 
-/-- `wp` of a sampled value (`μ.toProgramDenotation = StateT.lift μ`): it samples its
+/-- `wp` of a sampled value (`μ.toProgramDenotation`, the lift of `μ`): it samples its
     return from `μ` and leaves the state untouched. -/
 theorem ProgramDenotation.wp_toProgramDenotation {s a : Type} (μ : SubProbability a) (G :
     ProgramDenotation.Post s a) :

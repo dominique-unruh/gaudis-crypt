@@ -62,7 +62,7 @@ def PGlob {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles sig) :
 write on a miss.  With **equal tables** the two sides take the same branch: a hit
 returns the shared cached value; a miss couples the samples diagonally. -/
 
-/-- `ProgramDenotation` bind, applied: the StateT plumbing, definitionally. -/
+/-- `ProgramDenotation` bind, applied, definitionally (as `ProgramDenotation.bind_apply`). -/
 lemma bind_apply {α β : Type} (p : ProgramDenotation state α)
     (k : α → ProgramDenotation state β) (σ : state) :
     (p >>= k) σ = p σ >>= fun a => k a.1 a.2 := rfl
@@ -73,8 +73,7 @@ lemma get_ro_apply (σ : state) :
         : ProgramDenotation state (input → Option output)) σ
       = (pure (random_oracle_state.get σ, σ)
           : SubProbability ((input → Option output) × state)) := by
-  simp only [ProgramDenotation.get, bind, StateT.bind, StateT.get, pure, StateT.pure,
-    AsGetter.toG]
+  simp only [ProgramDenotation.get, bind, ProgramDenotation.get_state, pure, AsGetter.toG]
   refine Subtype.ext ?_
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
 
@@ -82,8 +81,8 @@ lemma get_ro_apply (σ : state) :
 lemma set_ro_apply (Z : input → Option output) (σ : state) :
     (ProgramDenotation.set random_oracle_state Z : ProgramDenotation state Unit) σ
       = (pure ((), random_oracle_state.set Z σ) : SubProbability (Unit × state)) := by
-  simp only [ProgramDenotation.set, bind, StateT.bind, StateT.get, StateT.set, pure,
-    AsSetter.toS]
+  simp only [ProgramDenotation.set, bind, ProgramDenotation.get_state,
+    ProgramDenotation.set_state, pure, AsSetter.toS]
   refine Subtype.ext ?_
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
 

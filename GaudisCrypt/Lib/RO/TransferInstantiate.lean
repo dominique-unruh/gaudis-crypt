@@ -159,8 +159,7 @@ theorem procWrap_convertL_in {sig : ProcedureSignature} {L : Type}
         Unit) :
     procWrap rv initL (convertL >>= fun _ => B) = (convert >>= fun _ => procWrap rv initL B) := by
   funext st
-  simp only [procWrap, convertL, ProgramDenotation.zoom, bind, StateT.bind, pure, StateT.pure,
-    ProcedureState.globalL]
+  simp only [procWrap, convertL, ProgramDenotation.zoom, bind, pure, ProcedureState.globalL]
   generalize convert st = U
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -173,7 +172,7 @@ theorem programGet_eq {sig : ProcedureSignature} {L : Type} (rv : Getter sig.ret
     (ProgramDenotation.get rv : ProgramDenotation (ProcedureState L) sig.ret) = fun ps => pure
         (rv.get ps, ps) := by
   funext ps
-  simp only [ProgramDenotation.get, StateT.get, AsGetter.toG, bind, StateT.bind, pure, StateT.pure,
+  simp only [ProgramDenotation.get, ProgramDenotation.get_state, AsGetter.toG, bind, pure,
     id_eq, SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top]
 
 
@@ -183,8 +182,7 @@ theorem rv_convertL_stable {sig : ProcedureSignature} {L : Type}
         ProcedureState L) :
     (convertL ps >>= fun q => pure (rv.get ps, q.2)) = (convertL ps >>= fun q => pure (rv.get q.2, q.2)) := by
   have h := congrFun hret ps
-  simp only [Stable, transferBy, programGet_eq, bind, StateT.bind, pure, StateT.pure,
-    SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top] at h
+  simp only [Stable, transferBy, programGet_eq, bind, pure, SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top] at h
   exact h
 
 
@@ -198,8 +196,7 @@ theorem rv_convert_invariant {sig : ProcedureSignature} {L : Type}
   have hc := rv_convertL_stable rv hret ps
   have hp := congrArg (fun (m : SubProbability (sig.ret × ProcedureState L)) =>
       m >>= fun p => (pure (p.1, p.2.global) : SubProbability (sig.ret × state))) hc
-  simp only [convertL, ProgramDenotation.zoom, ProcedureState.globalL, bind, StateT.bind, pure,
-      StateT.pure,
+  simp only [convertL, ProgramDenotation.zoom, ProcedureState.globalL, bind, pure,
     SubProbability.bind_assoc', SubProbability.pure_bind] at hp ⊢
   generalize convert ps.global = U at hp ⊢
   obtain ⟨mu, hmu⟩ := U
@@ -219,8 +216,7 @@ theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
     (procWrap rv initL B >>= fun r => convert >>= fun _ => pure r)
       = procWrap rv initL (B >>= fun a => convertL >>= fun _ => pure a) := by
   funext st
-  simp only [procWrap, convertL, ProgramDenotation.zoom, ProcedureState.globalL, bind, StateT.bind,
-    pure, StateT.pure]
+  simp only [procWrap, convertL, ProgramDenotation.zoom, ProcedureState.globalL, bind, pure]
   generalize B ⟨st, initL⟩ = Bv
   obtain ⟨mb, hb⟩ := Bv
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -230,7 +226,7 @@ theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
   congr 1
   funext p
   have h := congrArg Subtype.val (rv_convert_invariant rv hret p.2)
-  simp only [bind, StateT.bind, pure, StateT.pure] at h ⊢
+  simp only [bind, pure] at h ⊢
   generalize convert p.2.global = U at h ⊢
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable

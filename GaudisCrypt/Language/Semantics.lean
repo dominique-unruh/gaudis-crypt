@@ -22,15 +22,27 @@ def recursion {a} {b : a → Type*} [∀ x, OmegaCompletePartialOrder (b x)] [�
 # Stateful programs
 -/
 
-def ProgramDenotation (state : Type) : Type → Type := StateT state SubProbability
+/-- A probabilistic program with state `state` and result `a`: from an initial state, a
+sub-distribution over results and final states.
+
+This is `StateT state SubProbability a` unfolded, and deliberately *not* defined as that:
+`StateT` puts the state and the result in one universe, but a program's state will have to live
+in a higher universe than its results (procedure-local variables are indexed by `VariableName`,
+which contains a `Type`, so the local state is in `Type 1`, while results are `Unit`, `Bool`, …;
+see `NEW_PROCEDURES.md`).  The `Monad` instance below and the instances after the monad laws are
+`StateT`'s, written out.  For now everything is still in `Type`; making the definition
+universe-polymorphic is a separate step. -/
+def ProgramDenotation (state : Type) (a : Type) : Type :=
+  state → SubProbability (a × state)
+
+/-- Run a sub-probability as a program that leaves the state alone (`StateT.lift`). -/
+noncomputable
+def SubProbability.toProgramDenotation (p : SubProbability a) : ProgramDenotation s a :=
+  fun st => p >>= fun x => pure (x, st)
 
 noncomputable
-def SubProbability.toProgramDenotation (p : SubProbability a) : ProgramDenotation s a := StateT.lift
-    p
-
-noncomputable
-def PMF.toProgramDenotation {st α} (p : PMF α) : ProgramDenotation st α := StateT.lift
-    (toSubProbability p)
+def PMF.toProgramDenotation {st α} (p : PMF α) : ProgramDenotation st α :=
+  (toSubProbability p).toProgramDenotation
 
 noncomputable
 def ProgramDenotation.uniform [h : Fintype α] [h : Nonempty α] : ProgramDenotation s α :=
@@ -88,8 +100,26 @@ noncomputable instance : OmegaCompletePartialOrder (ProgramDenotation s a) where
     apply h n s
 
 noncomputable
-instance : Monad (ProgramDenotation s) :=
-  (inferInstance : Monad (StateT s SubProbability))
+instance : Monad (ProgramDenotation s) where
+  pure x := fun st => pure (x, st)
+  bind p f := fun st => p st >>= fun r => f r.1 r.2
+
+/-- `pure`, applied to a state.  (What `StateT.pure` unfolded to.) -/
+theorem ProgramDenotation.pure_apply {s a : Type} (x : a) (st : s) :
+    (pure x : ProgramDenotation s a) st = pure (x, st) := rfl
+
+/-- `bind`, applied to a state.  (What `StateT.bind` unfolded to.) -/
+theorem ProgramDenotation.bind_apply {s a b : Type} (p : ProgramDenotation s a)
+    (f : a → ProgramDenotation s b) (st : s) :
+    (p >>= f) st = p st >>= fun r => f r.1 r.2 := rfl
+
+/-- Running a sub-probability as a program that leaves the state alone (`StateT.lift`). -/
+noncomputable instance {s : Type} : MonadLift SubProbability (ProgramDenotation s) where
+  monadLift := SubProbability.toProgramDenotation
+
+theorem ProgramDenotation.toProgramDenotation_apply {s a : Type}
+    (μ : SubProbability a) (st : s) :
+    μ.toProgramDenotation st = μ >>= fun x => pure (x, st) := rfl
 
 @[fun_prop]
 theorem ProgramDenotation.bind_mono [Preorder i]
@@ -148,7 +178,11 @@ theorem while_unroll (cond : ProgramDenotation s Bool) (body : ProgramDenotation
   _ = _ := rfl
 
 noncomputable
-def ProgramDenotation.get_state : ProgramDenotation s s := StateT.get
+def ProgramDenotation.get_state : ProgramDenotation s s := fun st => pure (st, st)
+
+/-- Overwrite the whole state. -/
+noncomputable
+def ProgramDenotation.set_state (st' : s) : ProgramDenotation s Unit := fun _ => pure ((), st')
 
 /-- `ProgramDenotation.get`/`ProgramDenotation.set` accept anything that forgets to a
     `Getter`/`Setter`
@@ -166,14 +200,14 @@ instance {a s : Type} : AsSetter (Lens a s) a s := ⟨Lens.toSetter⟩
 noncomputable
 def ProgramDenotation.set {T a s : Type} [AsSetter T a s] (v : T) (x : a) : ProgramDenotation s
     Unit := do
-    let st <- StateT.get
+    let st <- ProgramDenotation.get_state
     let st' := (AsSetter.toS v).set x st
-    StateT.set st'
+    ProgramDenotation.set_state st'
 
 
 noncomputable
 def ProgramDenotation.get {T a s : Type} [AsGetter T a s] (v : T) : ProgramDenotation s a := do
-    let s <- StateT.get
+    let s <- ProgramDenotation.get_state
     pure ((AsGetter.toG v).get s)
 
 noncomputable
@@ -189,7 +223,8 @@ def ProgramDenotation.zoom (lens : Lens s t) (p : ProgramDenotation s a) : Progr
 
 /-! ## Monad laws for `ProgramDenotation s` -/
 
--- TODO remove (should already exist for all Monad typeclasses directly)
+-- The three laws below are what `LawfulMonad (ProgramDenotation s)` is built from (after
+-- `bind_bot`); `SubProbability` has no `LawfulMonad` instance to derive them from.
 lemma ProgramDenotation.bind_assoc {s a b c : Type}
     (p : ProgramDenotation s a) (f : a → ProgramDenotation s b) (g : b → ProgramDenotation s c) :
     (p >>= f) >>= g = p >>= fun x => f x >>= g := by
@@ -201,7 +236,6 @@ lemma ProgramDenotation.bind_assoc {s a b c : Type}
   exact MeasureTheory.Measure.bind_bind
     measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
--- TODO remove (should already exist for all Monad typeclasses directly)
 lemma ProgramDenotation.pure_bind {s a b : Type} (x : a) (f : a → ProgramDenotation s b) :
     (pure x : ProgramDenotation s a) >>= f = f x := by
   funext st
@@ -210,7 +244,6 @@ lemma ProgramDenotation.pure_bind {s a b : Type} (x : a) (f : a → ProgramDenot
   letI : MeasurableSpace (b × s) := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (x, st)
 
--- TODO remove (should already exist for all Monad typeclasses directly)
 lemma ProgramDenotation.bind_pure {s a : Type} (m : ProgramDenotation s a) :
     m >>= pure = m := by
   funext st
@@ -234,6 +267,24 @@ lemma ProgramDenotation.bind_bot {s a b : Type} (m : ProgramDenotation s a) :
   funext st
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
+
+/-! ## The instances `StateT` used to provide -/
+
+/-- The monad laws.  `StateT` would only have given this from a `LawfulMonad SubProbability`,
+which does not exist; here it comes from the three laws proved above. -/
+instance {s : Type} : LawfulMonad (ProgramDenotation s) :=
+  LawfulMonad.mk'
+    (id_map := fun x => ProgramDenotation.bind_pure x)
+    (pure_bind := fun x f => ProgramDenotation.pure_bind x f)
+    (bind_assoc := fun p f g => ProgramDenotation.bind_assoc p f g)
+
+/-- Reading and writing the whole state (`get`/`set`/`modify` in `do` notation).  (Lean's
+`MonadStateOf` puts the state and the results in one universe; once `ProgramDenotation` is
+universe-polymorphic, this instance will only exist where the two coincide.) -/
+noncomputable instance {s : Type} : MonadStateOf s (ProgramDenotation s) where
+  get := ProgramDenotation.get_state
+  set st' := fun _ => pure (PUnit.unit, st')
+  modifyGet f := fun st => pure (f st)
 
 /-! ## `zoom` is a monad morphism -/
 
