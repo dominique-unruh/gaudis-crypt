@@ -451,23 +451,23 @@ theorem InductiveFunction.unit (ind : InductiveFunction t) (m : Module .unit) :
 
 
 
-structure InductiveFunctionGettersSetters (T : Type → Type) :=
+structure InductiveFunctionGettersSetters (T : Type 1 → Type _) :=
   nothing : T t
   join : T t → T t → T t
-  getter {a s : Type}: Getter a s → T s
-  setter {a s : Type}: Setter a s → T s
+  getter {a : Type} {s : Type 1} : Getter a s → T s
+  setter {a : Type} {s : Type 1} : Setter a s → T s
   reduce (lens : Lens a b) (x : T b) : T a
   extend (lens : Lens a b) (x : T a) : T b
 
 def InductiveFunctionGettersSetters.transfer
-  (ind : InductiveFunctionGettersSetters T) (x : T (ProcedureState s)) : T (ProcedureState t) :=
-  ind.extend ProcedureState.globalL (ind.reduce ProcedureState.globalL x)
+  (ind : InductiveFunctionGettersSetters T) (x : T ProgramState) : T ProgramState :=
+  ind.extend ProgramState.globalL (ind.reduce ProgramState.globalL x)
 
-def InductiveFunctionGettersSetters.stmt (ind : InductiveFunctionGettersSetters T) {s} {holes} :
-  StmtWithHoles holes s → T (ProcedureState s)
+def InductiveFunctionGettersSetters.stmt (ind : InductiveFunctionGettersSetters T) {holes} :
+  StmtWithHoles holes → T ProgramState
 | .skip => ind.nothing
 | .sample x e => ind.join (ind.setter x) (ind.getter e)
-| .call' x _ b r p =>
+| .call' x _ _ _ b r p =>
     ind.join (ind.setter x)
     (ind.join (ind.transfer (ind.stmt b))
     (ind.join (ind.transfer (ind.getter r)) (ind.getter p)))
@@ -479,11 +479,11 @@ def InductiveFunctionGettersSetters.stmt (ind : InductiveFunctionGettersSetters 
 def InductiveFunctionGettersSetters.proc (ind : InductiveFunctionGettersSetters T) {sig holes}
   (proc : ProcedureWithHoles holes sig) : T State :=
   ind.join
-  (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
-  (ind.reduce ProcedureState.globalL (ind.getter proc.return_val))
+  (ind.reduce ProgramState.globalL (ind.stmt proc.body))
+  (ind.reduce ProgramState.globalL (ind.getter proc.return_val))
 
 
-class ReducibleGettersSetters {T : Type → Type} (ind : InductiveFunctionGettersSetters T) where
+class ReducibleGettersSetters {T : Type 1 → Type _} (ind : InductiveFunctionGettersSetters T) where
   [preorder : ∀ {t}, Preorder (T t)]
   [comm  : ∀ {t}, Std.Commutative (@ind.join t)]
   [assoc  : ∀ {t}, Std.Associative (@ind.join t)]
@@ -502,7 +502,7 @@ class ReducibleGettersSetters {T : Type → Type} (ind : InductiveFunctionGetter
 
 /-! ### Abstract join helpers (replacements for the lattice lemmas `le_sup_*`, `sup_le`, …). -/
 section JoinHelpers
-variable {T : Type → Type} {ind : InductiveFunctionGettersSetters T}
+variable {T : Type 1 → Type _} {ind : InductiveFunctionGettersSetters T}
 variable [red : ReducibleGettersSetters ind]
 omit [ProgramSpec]
 
@@ -603,12 +603,12 @@ private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : 
 
 /-- Instantiating a statement only adds the (transferred) footprints of the procedures
 plugged into its holes. -/
-private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] {holes l} (stmt : StmtWithHoles holes l)
+private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [red : ReducibleGettersSetters ind] {holes} (stmt : StmtWithHoles holes)
     (args : holes.Instantiation) :
     letI pre := @red.preorder
     ind.stmt (stmt.instantiate args)
       ≤ ind.join (ind.stmt stmt)
-        (ind.extend ProcedureState.globalL
+        (ind.extend ProgramState.globalL
             (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))) := by
   letI := @red.preorder
   revert args
@@ -621,7 +621,7 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
       intro args
       simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
       exact red.le_join_left _ _
-  | call' x ls b r p _ =>
+  | call' x _ _ _ b r p _ =>
       intro args
       simp only [StmtWithHoles.instantiate, InductiveFunctionGettersSetters.stmt]
       exact red.le_join_left _ _
@@ -629,10 +629,10 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
       intro args
       have hmem := proc_le_toList ind n args
       simp only [InductiveFunctionGettersSetters.proc] at hmem
-      have hb : ind.reduce ProcedureState.globalL (ind.stmt (args.lookup n).body)
+      have hb : ind.reduce ProgramState.globalL (ind.stmt (args.lookup n).body)
           ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
         le_trans (red.le_join_left _ _) hmem
-      have hr : ind.reduce ProcedureState.globalL (ind.getter (args.lookup n).return_val)
+      have hr : ind.reduce ProgramState.globalL (ind.getter (args.lookup n).return_val)
           ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
         le_trans (le_join_right _ _) hmem
       simp only [StmtWithHoles.instantiate, StmtWithHoles.call,
@@ -667,17 +667,17 @@ private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red 
       (ind.proc proc) args.toList := by
   letI := @red.preorder
   have key2 :
-      ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args))
-        ≤ ind.join (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
+      ind.reduce ProgramState.globalL (ind.stmt (proc.body.instantiate args))
+        ≤ ind.join (ind.reduce ProgramState.globalL (ind.stmt proc.body))
             (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)) := by
     refine le_trans (red.reduce_mono _ (stmt_instantiate_le ind proc.body args)) ?_
     exact le_trans (red.reduce_join _) (join_mono_right (red.extend_reduce _ _))
   refine le_trans ?_ (foldr_sup_base ind (ind.proc proc) args.toList)
-  change ind.join (ind.reduce ProcedureState.globalL (ind.stmt (proc.body.instantiate args)))
-        (ind.reduce ProcedureState.globalL (ind.getter proc.return_val))
+  change ind.join (ind.reduce ProgramState.globalL (ind.stmt (proc.body.instantiate args)))
+        (ind.reduce ProgramState.globalL (ind.getter proc.return_val))
       ≤ ind.join
-          (ind.join (ind.reduce ProcedureState.globalL (ind.stmt proc.body))
-            (ind.reduce ProcedureState.globalL (ind.getter proc.return_val)))
+          (ind.join (ind.reduce ProgramState.globalL (ind.stmt proc.body))
+            (ind.reduce ProgramState.globalL (ind.getter proc.return_val)))
           (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))
   refine join_le ?_ ?_
   · exact le_trans key2 (join_mono (red.le_join_left _ _) le_rfl)
