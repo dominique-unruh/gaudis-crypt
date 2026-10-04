@@ -2,6 +2,7 @@
 
 import GaudisCrypt.Misc
 import GaudisCrypt.Strassen
+import GaudisCrypt.MeasureFree
 import GaudisCrypt.Attic.DetermFootprint
 import GaudisCrypt.Attic.TypedModules
 import GaudisCrypt.Language.Footprint

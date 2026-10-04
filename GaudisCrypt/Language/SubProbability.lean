@@ -1,6 +1,7 @@
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.Probability.Distributions.Uniform
 import GaudisCrypt.Misc
+import GaudisCrypt.MeasureFree
 
 namespace GaudisCrypt
 
@@ -58,6 +59,11 @@ lemma discreteMeasure.ext {a : Type u} {mu nu : @MeasureTheory.Measure a ⊤}
   letI : MeasurableSpace a := ⊤
   apply MeasureTheory.Measure.ext; intro A _
   rw [hmu A, hnu A]; exact tsum_congr (fun z => h ↑z)
+
+/-- On a measure-free type, every s-finite measure on the discrete σ-algebra is discrete. -/
+lemma discreteMeasure.of_measureFree {a : Type u} [MeasureFree a] (mu : @MeasureTheory.Measure a ⊤)
+    [@MeasureTheory.SFinite a ⊤ mu] : discreteMeasure mu :=
+  MeasureFree.measure_eq_tsum_singleton mu
 
 /-- Integration against a discrete measure is the weighted sum of point evaluations. -/
 lemma lintegral_eq_tsum_smul {a : Type u} {mu : @MeasureTheory.Measure a ⊤}
