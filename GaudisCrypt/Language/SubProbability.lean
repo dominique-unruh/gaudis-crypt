@@ -198,6 +198,38 @@ def toSubProbability (p : PMF α) : SubProbability α :=
     exact le_of_eq MeasureTheory.IsProbabilityMeasure.measure_univ,
    discreteMeasure_pmf p⟩⟩
 
+/-- A sub-probability of total mass `1`, as a `PMF` (inverse of `toSubProbability`). -/
+noncomputable
+def SubProbability.toPMF (μ : SubProbability α) (h : μ.1 Set.univ = 1) : PMF α :=
+  ⟨fun x => μ.1 {x}, by
+    have h1 : ∑' x, μ.1 {x} = 1 :=
+      (tsum_univ (f := fun x => μ.1 {x})).symm.trans ((μ.2.2 Set.univ).symm.trans h)
+    have := (ENNReal.summable (f := fun x => μ.1 {x})).hasSum
+    rwa [h1] at this⟩
+
+lemma SubProbability.toPMF_toOuterMeasure (μ : SubProbability α) (h : μ.1 Set.univ = 1)
+    (s : Set α) : (μ.toPMF h).toOuterMeasure s = μ.1 s := by
+  rw [PMF.toOuterMeasure_apply, ← tsum_subtype, μ.2.2 s]
+  rfl
+
+lemma toSubProbability_toPMF (μ : SubProbability α) (h : μ.1 Set.univ = 1) :
+    toSubProbability (μ.toPMF h) = μ := by
+  letI : MeasurableSpace α := ⊤
+  exact Subtype.ext (discreteMeasure.ext (discreteMeasure_pmf _) μ.2.2 fun z =>
+    PMF.toMeasure_apply_singleton _ z MeasurableSet.of_discrete)
+
+/-- Post-composing with a deterministic function is `PMF.map`. -/
+lemma toSubProbability_bind_pure {β : Type u} (ν : PMF α) (f : α → β) :
+    (toSubProbability ν >>= fun w => (pure (f w) : SubProbability β))
+      = toSubProbability (ν.map f) := by
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  apply Subtype.ext
+  change MeasureTheory.Measure.bind ν.toMeasure (fun w => MeasureTheory.Measure.dirac (f w))
+    = (ν.map f).toMeasure
+  rw [MeasureTheory.Measure.bind_dirac_eq_map _ measurable_from_top,
+    PMF.toMeasure_map _ _ measurable_from_top]
+
 noncomputable
 def SubProbability.uniform [h : Fintype α] [h : Nonempty α] : SubProbability α :=
   toSubProbability (PMF.uniformOfFintype α)

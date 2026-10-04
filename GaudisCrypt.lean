@@ -1,6 +1,7 @@
 /- This file should import all theory files in GaudisCrypt. Update it occasionally. -/
 
 import GaudisCrypt.Misc
+import GaudisCrypt.Strassen
 import GaudisCrypt.Attic.DetermFootprint
 import GaudisCrypt.Attic.TypedModules
 import GaudisCrypt.Language.Footprint
