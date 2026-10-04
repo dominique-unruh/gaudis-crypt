@@ -1,5 +1,6 @@
 import Lean
-import GaudisCrypt.Language.Programs
+import Mathlib.Data.Fintype.Basic
+import GaudisCrypt.Language.Semantics
 
 /-!
 # Variables
@@ -37,6 +38,24 @@ writes `⟨"x", Int⟩` or `{ name := "x", type := Int }` and gets `@VariableNam
 -/
 
 namespace GaudisCrypt
+
+/-! ## Global state and argument tuples
+
+Defined here rather than in `Programs.lean`, which builds on this file. -/
+
+class ProgramSpec : Type _ where
+  state : Type u
+
+def State [spec : ProgramSpec] := spec.state
+
+/-- Reducible on purpose: at a concrete parameter list the tuple type has to be visible to
+unification at `reducible` transparency, or everything stated about `_ × _` gets stuck on it —
+typeclass resolution (`OfNat (typeListToTuple [Nat]) 5` for a numeral argument of a `call`,
+`Lens.Disjoint` of two projection lenses) is where it shows. -/
+@[reducible] def typeListToTuple : List Type → Type
+  | []      => Unit
+  | [x]     => x
+  | x :: xs => x × typeListToTuple xs
 
 /-! ## Variable names -/
 

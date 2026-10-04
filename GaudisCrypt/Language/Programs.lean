@@ -3,17 +3,12 @@ import Lean.Elab.Term
 import Mathlib.Data.Fintype.Basic
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Language.Footprint
+import GaudisCrypt.Language.Variables
 
 namespace GaudisCrypt
 
 open GaudisCrypt
 open GaudisCrypt
-
-class ProgramSpec : Type _ where
-  state : Type u
-
-def State [spec : ProgramSpec] := spec.state
-
 
 variable [ProgramSpec]
 
@@ -44,15 +39,6 @@ def ProcedureState.scopedL {l : Type} : Lens l (ProcedureState l) where
 structure ProcedureSignature where
   params : List Type
   ret : Type
-
-/-- Reducible on purpose: at a concrete parameter list the tuple type has to be visible to
-unification at `reducible` transparency, or everything stated about `_ × _` gets stuck on it —
-typeclass resolution (`OfNat (typeListToTuple [Nat]) 5` for a numeral argument of a `call`,
-`Lens.Disjoint` of two projection lenses) is where it shows. -/
-@[reducible] def typeListToTuple : List Type → Type
-  | []      => Unit
-  | [x]     => x
-  | x :: xs => x × typeListToTuple xs
 
 /-- The declared types of a local-variable list, i.e. `ls.map (·.fst)`.
 
