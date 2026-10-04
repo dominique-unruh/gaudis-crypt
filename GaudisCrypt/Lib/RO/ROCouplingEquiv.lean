@@ -394,10 +394,7 @@ theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureSt
   obtain ⟨μ, hm1, hm2, hsat⟩ := hR hg ps₁ ps₂ hpre
   -- Push each marginal to its first *value* component; the two `get`/`get` marginals are point
   -- masses, so `pure (g.get ps₁) = pure (g.get ps₂)` follows from the a.e. post `x.1.1 = x.2.1`.
-  have hget : ∀ ps, (ProgramDenotation.get g) ps = pure (g.get ps, ps) := by
-    intro ps
-    simp only [ProgramDenotation.get, ProgramDenotation.get_state, AsGetter.toG, bind, pure,
-      id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+  have hget : ∀ ps, (ProgramDenotation.get g) ps = pure (g.get ps, ps) := fun _ => rfl
   have h1 : (μ >>= fun x => (pure x.1.1 : SubProbability γ)) = pure (g.get ps₁) := by
     have hrw : (μ >>= fun x => (pure x.1.1 : SubProbability γ))
         = (μ >>= fun x => (pure x.1 : SubProbability (γ × ProcedureState l)))

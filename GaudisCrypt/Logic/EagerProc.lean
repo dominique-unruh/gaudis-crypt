@@ -148,7 +148,8 @@ theorem procWrap_block_in {sig : ProcedureSignature} {L : Type}
     procWrap rv initL (ProgramDenotation.zoom ProcedureState.globalL S >>= fun _ => B)
       = (S >>= fun _ => procWrap rv initL B) := by
   funext st
-  simp only [procWrap, ProgramDenotation.zoom, bind, pure, ProcedureState.globalL]
+  simp only [procWrap, ProgramDenotation.zoom, SubProbability.hbind, bind, pure,
+    ProcedureState.globalL]
   generalize S st = U
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -159,10 +160,7 @@ theorem procWrap_block_in {sig : ProcedureSignature} {L : Type}
 theorem programGet_eq' {sig : ProcedureSignature} {L : Type}
     (rv : Getter sig.ret (ProcedureState L)) :
     (ProgramDenotation.get rv : ProgramDenotation (ProcedureState L) sig.ret)
-      = fun ps => pure (rv.get ps, ps) := by
-  funext ps
-  simp only [ProgramDenotation.get, ProgramDenotation.get_state, AsGetter.toG, bind, pure,
-    id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+      = fun ps => pure (rv.get ps, ps) := rfl
 
 /-- From the return-value swap: reading `rv` commutes with the lifted block
     (clean form). -/
@@ -194,7 +192,8 @@ theorem rv_block_invariant {sig : ProcedureSignature} {L : Type}
   have hc := rv_block_stable S rv hret ps
   have hp := congrArg (fun (m : SubProbability (sig.ret × ProcedureState L)) =>
       m >>= fun p => (pure (p.1, p.2.global) : SubProbability (sig.ret × State))) hc
-  simp only [ProgramDenotation.zoom, ProcedureState.globalL, bind, pure] at hp ⊢
+  simp only [ProgramDenotation.zoom, SubProbability.hbind, ProcedureState.globalL, bind, pure]
+    at hp ⊢
   generalize S ps.global = U at hp ⊢
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -219,7 +218,8 @@ theorem procWrap_block_out {sig : ProcedureSignature} {L : Type}
       = procWrap rv initL (B >>= fun a =>
           ProgramDenotation.zoom ProcedureState.globalL S >>= fun _ => pure a) := by
   funext st
-  simp only [procWrap, ProgramDenotation.zoom, ProcedureState.globalL, bind, pure]
+  simp only [procWrap, ProgramDenotation.zoom, SubProbability.hbind, ProcedureState.globalL,
+    bind, pure]
   generalize B ⟨st, initL⟩ = Bv
   obtain ⟨mb, hb⟩ := Bv
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable

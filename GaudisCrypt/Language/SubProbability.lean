@@ -86,7 +86,7 @@ lemma lintegral_lintegral_swap_discrete {α s : Type u} {μ : @MeasureTheory.Mea
   exact tsum_congr (fun st' => tsum_congr (fun a => by ring))
 
 /-- **Bind preserves discreteness** (the keystone — countability-free, via `ENNReal.tsum_comm`). -/
-lemma discreteMeasure_bind {a b : Type u} {mu : @MeasureTheory.Measure a ⊤}
+lemma discreteMeasure_bind {a : Type u} {b : Type v} {mu : @MeasureTheory.Measure a ⊤}
     (hmu : discreteMeasure mu) {k : a → @MeasureTheory.Measure b ⊤}
     (hk : ∀ x, discreteMeasure (k x)) :
     discreteMeasure (MeasureTheory.Measure.bind mu k) := by
@@ -191,6 +191,29 @@ instance : Monad SubProbability where
           _ ≤ 1 := hmu.1,
        discreteMeasure_bind hmu.2 (fun a => (f a).2.2)⟩⟩
 
+/-- `bind` across universes: the argument and the result may live in different universes, which
+`Monad.bind` does not allow.  (Needed to run a sub-probability over `Type`-valued results inside a
+program whose state is in a higher universe.)  In one universe it is `>>=`
+(`SubProbability.hbind_eq_bind`); the body is the instance's, word for word, so that the two
+unfold to the same terms. -/
+noncomputable
+def SubProbability.hbind {a : Type u} {b : Type v} :
+    SubProbability a → (a → SubProbability b) → SubProbability b :=
+  fun ⟨mu, hmu⟩ f =>
+    ⟨MeasureTheory.Measure.bind mu (fun a => (f a).1),
+      ⟨by
+        simp only [Set.top_eq_univ]
+        rw [MeasureTheory.Measure.bind_apply MeasurableSet.univ measurable_from_top.aemeasurable]
+        calc ∫⁻ a, (f a).1 ⊤ ∂mu
+            ≤ ∫⁻ _, 1 ∂mu := MeasureTheory.lintegral_mono (fun a => (f a).2.1)
+          _ = mu ⊤ := MeasureTheory.lintegral_one
+          _ ≤ 1 := hmu.1,
+       discreteMeasure_bind hmu.2 (fun a => (f a).2.2)⟩⟩
+
+@[simp]
+theorem SubProbability.hbind_eq_bind {a b : Type u} (μ : SubProbability a)
+    (f : a → SubProbability b) : μ.hbind f = μ >>= f := rfl
+
 noncomputable
 def toSubProbability (p : PMF α) : SubProbability α :=
   ⟨@PMF.toMeasure _ ⊤ p, ⟨by
@@ -211,7 +234,7 @@ def SubProbability.ofEvent (μ : SubProbability a) (e : Set a) := (μ.1 e).toNNR
 def SubProbability.mass (μ : SubProbability a) : NNReal := μ.ofEvent Set.univ
 
 /-- Post-composing with a deterministic (Dirac) kernel preserves the total weight. -/
-lemma SubProbability.mass_bind_dirac {α β : Type} (μ : SubProbability α) (f : α → β) :
+lemma SubProbability.mass_bind_dirac {α β : Type u} (μ : SubProbability α) (f : α → β) :
     (μ >>= fun x => (pure (f x) : SubProbability β)).mass = μ.mass := by
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace β := ⊤
@@ -376,14 +399,14 @@ theorem SubProbability.bind_mono [Preorder i]
     exact Measure.bind_mono (fun x => (f x).1) (fun x r => (g x r).1)
       (fun _ _ h => hf h) (fun _ _ h r => hg h r) (fun _ => measurable_from_top) hxy
 
-lemma SubProbability.pure_bind {α β : Type} (x : α) (f : α → SubProbability β) :
+lemma SubProbability.pure_bind {α β : Type u} (x : α) (f : α → SubProbability β) :
     (pure x : SubProbability α) >>= f = f x := by
   apply Subtype.ext
   letI : MeasurableSpace α := ⊤
   letI : MeasurableSpace β := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top x
 
-lemma SubProbability.bind_assoc {α β γ : Type}
+lemma SubProbability.bind_assoc {α β γ : Type u}
     (m : SubProbability α) (f : α → SubProbability β) (g : β → SubProbability γ) :
     (m >>= f) >>= g = m >>= fun x => f x >>= g := by
   apply Subtype.ext
@@ -393,7 +416,26 @@ lemma SubProbability.bind_assoc {α β γ : Type}
   exact MeasureTheory.Measure.bind_bind
     measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
-lemma SubProbability.bind_pure {α : Type} (m : SubProbability α) :
+/-- `pure_bind` across universes. -/
+lemma SubProbability.pure_hbind {α : Type u} {β : Type v} (x : α) (f : α → SubProbability β) :
+    (pure x : SubProbability α).hbind f = f x := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  exact MeasureTheory.Measure.dirac_bind measurable_from_top x
+
+/-- `bind_assoc` across universes. -/
+lemma SubProbability.hbind_assoc {α : Type u} {β : Type v} {γ : Type w}
+    (m : SubProbability α) (f : α → SubProbability β) (g : β → SubProbability γ) :
+    (m.hbind f).hbind g = m.hbind fun x => (f x).hbind g := by
+  apply Subtype.ext
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  letI : MeasurableSpace γ := ⊤
+  exact MeasureTheory.Measure.bind_bind
+    measurable_from_top.aemeasurable measurable_from_top.aemeasurable
+
+lemma SubProbability.bind_pure {α : Type u} (m : SubProbability α) :
     m >>= pure = m := by
   apply Subtype.ext
   letI : MeasurableSpace α := ⊤
@@ -404,7 +446,7 @@ lemma SubProbability.bind_pure {α : Type} (m : SubProbability α) :
   exact MeasureTheory.Measure.map_id
 
 @[simp]
-lemma SubProbability.mass_pure {α : Type} (x : α) : (pure x : SubProbability α).mass = 1 := by
+lemma SubProbability.mass_pure {α : Type u} (x : α) : (pure x : SubProbability α).mass = 1 := by
   letI : MeasurableSpace α := ⊤
   show ((pure x : SubProbability α).1 Set.univ).toNNReal = 1
   rw [show (pure x : SubProbability α).1 = @MeasureTheory.Measure.dirac α ⊤ x from rfl,
@@ -412,14 +454,14 @@ lemma SubProbability.mass_pure {α : Type} (x : α) : (pure x : SubProbability �
   simp
 
 @[simp]
-lemma SubProbability.mass_bot {α : Type} : (⊥ : SubProbability α).mass = 0 := by
+lemma SubProbability.mass_bot {α : Type u} : (⊥ : SubProbability α).mass = 0 := by
   show ((⊥ : SubProbability α).1 Set.univ).toNNReal = 0
   rw [show (⊥ : SubProbability α).1 = 0 from rfl]
   simp
 
 /-- Binding a **probability** (total mass `1`) into a constant `pure` collapses to that `pure`:
     a lossless computation whose result is discarded is invisible. -/
-lemma SubProbability.bind_const_pure {α β : Type} (ν : SubProbability α)
+lemma SubProbability.bind_const_pure {α β : Type u} (ν : SubProbability α)
     (hν : ν.1 Set.univ = 1) (b : β) :
     (ν >>= fun _ => (pure b : SubProbability β)) = pure b := by
   apply Subtype.ext
@@ -432,12 +474,12 @@ lemma SubProbability.bind_const_pure {α β : Type} (ν : SubProbability α)
   rw [MeasureTheory.Measure.bind_apply hA measurable_from_top.aemeasurable,
     MeasureTheory.lintegral_const, hν, mul_one]
 
-lemma SubProbability.bot_bind {α β : Type} (f : α → SubProbability β) :
+lemma SubProbability.bot_bind {α β : Type u} (f : α → SubProbability β) :
     ((⊥ : SubProbability α) >>= f) = ⊥ := by
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_left _
 
-lemma SubProbability.bind_bot {α β : Type} (m : SubProbability α) :
+lemma SubProbability.bind_bot {α β : Type u} (m : SubProbability α) :
     (m >>= fun _ => (⊥ : SubProbability β)) = ⊥ := by
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_right' _
@@ -464,7 +506,7 @@ noncomputable instance {m : Type*} : Monoid (m → SubProbability m) where
 /-- `pure` is injective on `SubProbability` (it is the Dirac embedding):
     `pure x = pure y → x = y`.  Lets us extract a *plain* pointwise state equation from a
     Dirac-kernel commutation identity. -/
-theorem SubProbability.pure_injective {a : Type} :
+theorem SubProbability.pure_injective {a : Type u} :
     Function.Injective (pure : a → SubProbability a) := by
   letI : MeasurableSpace a := ⊤
   intro x y h

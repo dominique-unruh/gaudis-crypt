@@ -745,8 +745,7 @@ lemma cr_collision_birthday_bound (q : ℕ) (σ₀ : state) :
   have hN_pos : N ≠ 0 := by rw [hN_def]; exact_mod_cast Fintype.card_pos.ne'
   have hN_top : N ≠ ⊤ := by rw [hN_def]; exact ENNReal.natCast_ne_top _
   -- Unfold cr_experiment to expose the structure
-  simp only [cr_experiment, wp_bind, wp_get, wp_pure, lazy_init, wp_set,
-             ProgramDenotation.set, wp_get_state, wp_set_state]
+  simp only [cr_experiment, wp_bind, wp_get, wp_pure, lazy_init, wp_set]
   -- After unfolding lazy_init: state becomes σ_1 = RO.set (fun _ => none) σ₀
   set σ_1 : state := random_oracle_state.set (fun _ : input => none) σ₀ with hσ_1
   -- σ_1 has RO_size 0 and collision_indicator 0
@@ -954,7 +953,7 @@ lemma loop_n_lazy_query_collision_bound (A : ProgramDenotation state Unit)
     (lazy_init >>= fun _ => loop_n q (oracle_step A lazy_query)).wp
         (fun yσ : Unit × state => collision_indicator yσ.2) σ₀
     ≤ ((q : ENNReal) * ((q : ENNReal) - 1)) / (2 * Fintype.card output) := by
-  simp only [wp_bind, lazy_init, ProgramDenotation.set, wp_get_state, wp_set_state]
+  simp only [wp_bind, lazy_init, wp_set]
   have h := loop_n_birthday_bound (oracle_step A lazy_query)
     collision_indicator RO_size (Fintype.card output)
     (by exact_mod_cast Fintype.card_pos.ne') (ENNReal.natCast_ne_top _)

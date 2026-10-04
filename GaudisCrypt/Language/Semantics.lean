@@ -30,15 +30,15 @@ This is `StateT state SubProbability a` unfolded, and deliberately *not* defined
 in a higher universe than its results (procedure-local variables are indexed by `VariableName`,
 which contains a `Type`, so the local state is in `Type 1`, while results are `Unit`, `Bool`, …;
 see `NEW_PROCEDURES.md`).  The `Monad` instance below and the instances after the monad laws are
-`StateT`'s, written out.  For now everything is still in `Type`; making the definition
-universe-polymorphic is a separate step. -/
-def ProgramDenotation (state : Type) (a : Type) : Type :=
+`StateT`'s, written out.  The state and the results have independent universes. -/
+def ProgramDenotation (state : Type u) (a : Type v) : Type (max u v) :=
   state → SubProbability (a × state)
 
-/-- Run a sub-probability as a program that leaves the state alone (`StateT.lift`). -/
+/-- Run a sub-probability as a program that leaves the state alone (`StateT.lift`).  The bind is
+`SubProbability.hbind` since `a` and `a × s` may live in different universes. -/
 noncomputable
 def SubProbability.toProgramDenotation (p : SubProbability a) : ProgramDenotation s a :=
-  fun st => p >>= fun x => pure (x, st)
+  fun st => p.hbind fun x => pure (x, st)
 
 noncomputable
 def PMF.toProgramDenotation {st α} (p : PMF α) : ProgramDenotation st α :=
@@ -50,14 +50,14 @@ def ProgramDenotation.uniform [h : Fintype α] [h : Nonempty α] : ProgramDenota
 
 /-- Uniform subprobability over a nonempty finset. -/
 noncomputable
-def SubProbability.uniformOfFinset {α : Type} (fs : Finset α) (hs : fs.Nonempty) :
+def SubProbability.uniformOfFinset {α : Type u} (fs : Finset α) (hs : fs.Nonempty) :
     SubProbability α :=
   toSubProbability (PMF.uniformOfFinset fs hs)
 
 /-- Uniform sampling over a nonempty finset (used e.g. for "sample without
     replacement" — uniform over the complement of the values seen so far). -/
 noncomputable
-def ProgramDenotation.uniformOfFinset {s α : Type} (fs : Finset α) (hs : fs.Nonempty) :
+def ProgramDenotation.uniformOfFinset {s : Type u} {α : Type v} (fs : Finset α) (hs : fs.Nonempty) :
     ProgramDenotation s α :=
   (SubProbability.uniformOfFinset fs hs).toProgramDenotation
 
@@ -105,21 +105,23 @@ instance : Monad (ProgramDenotation s) where
   bind p f := fun st => p st >>= fun r => f r.1 r.2
 
 /-- `pure`, applied to a state.  (What `StateT.pure` unfolded to.) -/
-theorem ProgramDenotation.pure_apply {s a : Type} (x : a) (st : s) :
+theorem ProgramDenotation.pure_apply {s : Type u} {a : Type v} (x : a) (st : s) :
     (pure x : ProgramDenotation s a) st = pure (x, st) := rfl
 
 /-- `bind`, applied to a state.  (What `StateT.bind` unfolded to.) -/
-theorem ProgramDenotation.bind_apply {s a b : Type} (p : ProgramDenotation s a)
+theorem ProgramDenotation.bind_apply {s : Type u} {a b : Type v} (p : ProgramDenotation s a)
     (f : a → ProgramDenotation s b) (st : s) :
     (p >>= f) st = p st >>= fun r => f r.1 r.2 := rfl
 
 /-- Running a sub-probability as a program that leaves the state alone (`StateT.lift`). -/
-noncomputable instance {s : Type} : MonadLift SubProbability (ProgramDenotation s) where
+noncomputable instance {s : Type u} : MonadLift SubProbability (ProgramDenotation s) where
   monadLift := SubProbability.toProgramDenotation
 
-theorem ProgramDenotation.toProgramDenotation_apply {s a : Type}
+/-- `toProgramDenotation`, applied to a state.  (In one universe, `SubProbability.hbind_eq_bind`
+turns the `hbind` into `>>=`.) -/
+theorem ProgramDenotation.toProgramDenotation_apply {s : Type u} {a : Type v}
     (μ : SubProbability a) (st : s) :
-    μ.toProgramDenotation st = μ >>= fun x => pure (x, st) := rfl
+    μ.toProgramDenotation st = μ.hbind fun x => pure (x, st) := rfl
 
 @[fun_prop]
 theorem ProgramDenotation.bind_mono [Preorder i]
@@ -189,43 +191,45 @@ def ProgramDenotation.set_state (st' : s) : ProgramDenotation s Unit := fun _ =>
     — a `Getter`/`Setter` itself, or a full `Lens`/`Variable`. The value/state
     types are `outParam`s recovered from the argument, which sidesteps the Lean
     4.30 coercion that no longer fires when the value type is a metavariable. -/
-class AsGetter (T : Type) (a s : outParam Type) where toG : T → Getter a s
-class AsSetter (T : Type) (a s : outParam Type) where toS : T → Setter a s
+class AsGetter (T : Type w) (a : outParam (Type u)) (s : outParam (Type v)) where
+  toG : T → Getter a s
+class AsSetter (T : Type w) (a : outParam (Type u)) (s : outParam (Type v)) where
+  toS : T → Setter a s
 
-instance {a s : Type} : AsGetter (Getter a s) a s := ⟨id⟩
-instance {a s : Type} : AsGetter (Lens a s) a s := ⟨Lens.toGetter⟩
-instance {a s : Type} : AsSetter (Setter a s) a s := ⟨id⟩
-instance {a s : Type} : AsSetter (Lens a s) a s := ⟨Lens.toSetter⟩
+instance {a : Type u} {s : Type v} : AsGetter (Getter a s) a s := ⟨id⟩
+instance {a : Type u} {s : Type v} : AsGetter (Lens a s) a s := ⟨Lens.toGetter⟩
+instance {a : Type u} {s : Type v} : AsSetter (Setter a s) a s := ⟨id⟩
+instance {a : Type u} {s : Type v} : AsSetter (Lens a s) a s := ⟨Lens.toSetter⟩
+
+-- `set` and `get` are written on the state directly, not with `do` over `get_state`: that `do`
+-- would bind a state-typed result into a `Unit`- or `a`-typed one, and `>>=` needs both result
+-- types in one universe.
+noncomputable
+def ProgramDenotation.set {T : Type w} {a : Type u} {s : Type v} [AsSetter T a s] (v : T) (x : a) :
+    ProgramDenotation s Unit :=
+  fun st => pure ((), (AsSetter.toS v).set x st)
 
 noncomputable
-def ProgramDenotation.set {T a s : Type} [AsSetter T a s] (v : T) (x : a) : ProgramDenotation s
-    Unit := do
-    let st <- ProgramDenotation.get_state
-    let st' := (AsSetter.toS v).set x st
-    ProgramDenotation.set_state st'
-
-
-noncomputable
-def ProgramDenotation.get {T a s : Type} [AsGetter T a s] (v : T) : ProgramDenotation s a := do
-    let s <- ProgramDenotation.get_state
-    pure ((AsGetter.toG v).get s)
+def ProgramDenotation.get {T : Type w} {a : Type u} {s : Type v} [AsGetter T a s] (v : T) :
+    ProgramDenotation s a :=
+  fun st => pure ((AsGetter.toG v).get st, st)
 
 noncomputable
 def ProgramDenotation.skip : ProgramDenotation s Unit := pure ()
 
 -- TODO: Does this already exist somewhere?
 -- TODO: Should be called Lens.liftProgramDenotation by analogy
+/-- Run `p` on the part of the state that `lens` selects.  (`s` and `t` may live in different
+universes, hence `SubProbability.hbind`.) -/
 noncomputable
 def ProgramDenotation.zoom (lens : Lens s t) (p : ProgramDenotation s a) : ProgramDenotation t a :=
-    fun t_val => do
-  let (a, s') ← p (lens.get t_val)
-  return (a, lens.set s' t_val)
+  fun t_val => (p (lens.get t_val)).hbind fun as => pure (as.1, lens.set as.2 t_val)
 
 /-! ## Monad laws for `ProgramDenotation s` -/
 
 -- The three laws below are what `LawfulMonad (ProgramDenotation s)` is built from (after
 -- `bind_bot`); `SubProbability` has no `LawfulMonad` instance to derive them from.
-lemma ProgramDenotation.bind_assoc {s a b c : Type}
+lemma ProgramDenotation.bind_assoc {s : Type u} {a b c : Type v}
     (p : ProgramDenotation s a) (f : a → ProgramDenotation s b) (g : b → ProgramDenotation s c) :
     (p >>= f) >>= g = p >>= fun x => f x >>= g := by
   funext st
@@ -236,7 +240,8 @@ lemma ProgramDenotation.bind_assoc {s a b c : Type}
   exact MeasureTheory.Measure.bind_bind
     measurable_from_top.aemeasurable measurable_from_top.aemeasurable
 
-lemma ProgramDenotation.pure_bind {s a b : Type} (x : a) (f : a → ProgramDenotation s b) :
+lemma ProgramDenotation.pure_bind {s : Type u} {a b : Type v} (x : a)
+    (f : a → ProgramDenotation s b) :
     (pure x : ProgramDenotation s a) >>= f = f x := by
   funext st
   apply Subtype.ext
@@ -244,7 +249,7 @@ lemma ProgramDenotation.pure_bind {s a b : Type} (x : a) (f : a → ProgramDenot
   letI : MeasurableSpace (b × s) := ⊤
   exact MeasureTheory.Measure.dirac_bind measurable_from_top (x, st)
 
-lemma ProgramDenotation.bind_pure {s a : Type} (m : ProgramDenotation s a) :
+lemma ProgramDenotation.bind_pure {s : Type u} {a : Type v} (m : ProgramDenotation s a) :
     m >>= pure = m := by
   funext st
   apply Subtype.ext
@@ -256,13 +261,13 @@ lemma ProgramDenotation.bind_pure {s a : Type} (m : ProgramDenotation s a) :
   rw [MeasureTheory.Measure.bind_dirac_eq_map (m st).1 measurable_id]
   exact MeasureTheory.Measure.map_id
 
-lemma ProgramDenotation.bot_bind {s a b : Type} (f : a → ProgramDenotation s b) :
+lemma ProgramDenotation.bot_bind {s : Type u} {a b : Type v} (f : a → ProgramDenotation s b) :
     (⊥ : ProgramDenotation s a) >>= f = ⊥ := by
   funext st
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_left _
 
-lemma ProgramDenotation.bind_bot {s a b : Type} (m : ProgramDenotation s a) :
+lemma ProgramDenotation.bind_bot {s : Type u} {a b : Type v} (m : ProgramDenotation s a) :
     m >>= (fun _ => (⊥ : ProgramDenotation s b)) = ⊥ := by
   funext st
   apply Subtype.ext
@@ -272,42 +277,43 @@ lemma ProgramDenotation.bind_bot {s a b : Type} (m : ProgramDenotation s a) :
 
 /-- The monad laws.  `StateT` would only have given this from a `LawfulMonad SubProbability`,
 which does not exist; here it comes from the three laws proved above. -/
-instance {s : Type} : LawfulMonad (ProgramDenotation s) :=
+instance {s : Type u} : LawfulMonad (ProgramDenotation.{u, v} s) :=
   LawfulMonad.mk'
     (id_map := fun x => ProgramDenotation.bind_pure x)
     (pure_bind := fun x f => ProgramDenotation.pure_bind x f)
     (bind_assoc := fun p f g => ProgramDenotation.bind_assoc p f g)
 
-/-- Reading and writing the whole state (`get`/`set`/`modify` in `do` notation).  (Lean's
-`MonadStateOf` puts the state and the results in one universe; once `ProgramDenotation` is
-universe-polymorphic, this instance will only exist where the two coincide.) -/
-noncomputable instance {s : Type} : MonadStateOf s (ProgramDenotation s) where
+/-- Reading and writing the whole state (`get`/`set`/`modify` in `do` notation).  Lean's
+`MonadStateOf` puts the state and the results in one universe, so this instance only exists for
+results in the state's universe. -/
+noncomputable instance {s : Type u} : MonadStateOf s (ProgramDenotation.{u, u} s) where
   get := ProgramDenotation.get_state
   set st' := fun _ => pure (PUnit.unit, st')
   modifyGet f := fun st => pure (f st)
 
 /-! ## `zoom` is a monad morphism -/
 
-theorem ProgramDenotation.zoom_pure {s t a : Type} (lens : Lens s t) (x : a) :
-    ProgramDenotation.zoom lens (pure x) = (pure x : ProgramDenotation t a) := by
+theorem ProgramDenotation.zoom_pure {s : Type u} {t : Type v} {a : Type w} (lens : Lens s t)
+    (x : a) : ProgramDenotation.zoom lens (pure x) = (pure x : ProgramDenotation t a) := by
   funext tv
-  change (pure (x, lens.get tv) : SubProbability (a × s))
-          >>= (fun as => pure (as.1, lens.set as.2 tv))
+  change (pure (x, lens.get tv) : SubProbability (a × s)).hbind
+          (fun as => pure (as.1, lens.set as.2 tv))
        = (pure (x, tv) : SubProbability (a × t))
-  rw [SubProbability.pure_bind]
+  rw [SubProbability.pure_hbind]
   simp only [lens.get_set]
 
-theorem ProgramDenotation.zoom_bind {s t a b : Type} (lens : Lens s t)
+theorem ProgramDenotation.zoom_bind {s : Type u} {t : Type v} {a b : Type w} (lens : Lens s t)
     (p : ProgramDenotation s a) (k : a → ProgramDenotation s b) :
     ProgramDenotation.zoom lens (p >>= k) = ProgramDenotation.zoom lens p >>= fun a =>
         ProgramDenotation.zoom lens (k a) := by
   funext tv
-  change (((p (lens.get tv)) >>= fun as => k as.1 as.2) >>= fun bs => pure (bs.1, lens.set bs.2 tv))
-       = ((p (lens.get tv)) >>= fun as => pure (as.1, lens.set as.2 tv))
-          >>= fun cs => (k cs.1 (lens.get cs.2)) >>= fun bs => pure (bs.1, lens.set bs.2 cs.2)
-  rw [SubProbability.bind_assoc, SubProbability.bind_assoc]
+  change (((p (lens.get tv)).hbind fun as => k as.1 as.2).hbind
+            fun bs => pure (bs.1, lens.set bs.2 tv))
+       = ((p (lens.get tv)).hbind fun as => pure (as.1, lens.set as.2 tv)).hbind
+            fun cs => (k cs.1 (lens.get cs.2)).hbind fun bs => pure (bs.1, lens.set bs.2 cs.2)
+  rw [SubProbability.hbind_assoc, SubProbability.hbind_assoc]
   congr 1; funext as
-  rw [SubProbability.pure_bind]
+  rw [SubProbability.pure_hbind]
   simp only [lens.set_get, lens.set_set]
 
 /-

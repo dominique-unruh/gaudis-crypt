@@ -72,19 +72,12 @@ lemma get_ro_apply (σ : state) :
     (ProgramDenotation.get random_oracle_state
         : ProgramDenotation state (input → Option output)) σ
       = (pure (random_oracle_state.get σ, σ)
-          : SubProbability ((input → Option output) × state)) := by
-  simp only [ProgramDenotation.get, bind, ProgramDenotation.get_state, pure, AsGetter.toG]
-  refine Subtype.ext ?_
-  exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
+          : SubProbability ((input → Option output) × state)) := rfl
 
 /-- `ProgramDenotation.set random_oracle_state Z`, applied: the deterministic write. -/
 lemma set_ro_apply (Z : input → Option output) (σ : state) :
     (ProgramDenotation.set random_oracle_state Z : ProgramDenotation state Unit) σ
-      = (pure ((), random_oracle_state.set Z σ) : SubProbability (Unit × state)) := by
-  simp only [ProgramDenotation.set, bind, ProgramDenotation.get_state,
-    ProgramDenotation.set_state, pure, AsSetter.toS]
-  refine Subtype.ext ?_
-  exact MeasureTheory.Measure.dirac_bind measurable_from_top (σ, σ)
+      = (pure ((), random_oracle_state.set Z σ) : SubProbability (Unit × state)) := rfl
 
 /-- `ProgramDenotation.uniform`, applied: sample, thread the state (definitional). -/
 lemma uniform_apply {α : Type} [Fintype α] [Nonempty α] (σ : state) :

@@ -144,11 +144,7 @@ theorem get_read_footprint_le {a s γ : Type} (l : Lens a s) (k : a → γ) :
       = ProgramDenotation.get l >>= fun x => (pure (k x) : ProgramDenotation s γ) := by
     funext st
     have hlhs : (ProgramDenotation.get (⟨fun st => k (l.get st)⟩ : Getter γ s)) st
-        = pure (k (l.get st), st) := by
-      change (pure (st, st) : SubProbability (s × s))
-          >>= (fun p : s × s => (pure (k (l.get p.1), p.2) : SubProbability (γ × s)))
-        = pure (k (l.get st), st)
-      rw [SubProbability.pure_bind]
+        = pure (k (l.get st), st) := rfl
     rw [hlhs]
     change (pure (k (l.get st), st) : SubProbability (γ × s))
         = ProgramDenotation.get l st >>= fun w : a × s => pure (k w.1, w.2)
@@ -351,12 +347,7 @@ theorem retExG_le_roLift_compl :
             (pure (a, b) : ProgramDenotation (ProcedureState stateEx) (output × output)) := by
     funext st
     have hlhs : (ProgramDenotation.get retExG) st
-        = pure ((raLocalL.get st, rbLocalL.get st), st) := by
-      change (pure (st, st) : SubProbability (ProcedureState stateEx × ProcedureState stateEx))
-          >>= (fun p => (pure (retExG.get p.1, p.2)
-            : SubProbability ((output × output) × ProcedureState stateEx)))
-        = pure ((raLocalL.get st, rbLocalL.get st), st)
-      rw [SubProbability.pure_bind]; rfl
+        = pure ((raLocalL.get st, rbLocalL.get st), st) := rfl
     rw [hlhs]
     change _ = ProgramDenotation.get raLocalL st >>= fun w : output × ProcedureState stateEx =>
       (ProgramDenotation.get rbLocalL w.2 >>= fun w' : output × ProcedureState stateEx =>
@@ -505,13 +496,7 @@ noncomputable def q_syn : ProcedureWithHoles .empty sigQ := ⟨[], bodyQ bVar, r
 /-- Reading a constant getter is `pure` (the leaf footprint of a constant is trivial). -/
 private lemma get_const_eq_pure {γ : Type} (v : γ) :
     ProgramDenotation.get (⟨fun _ => v⟩ : Getter γ (ProcedureState (sigQ.ProcedureScope [])))
-      = (pure v : ProgramDenotation (ProcedureState (sigQ.ProcedureScope [])) γ) := by
-  funext st
-  change (pure (st, st) : SubProbability (ProcedureState (sigQ.ProcedureScope []) ×
-        ProcedureState (sigQ.ProcedureScope []))) >>=
-      (fun w => (pure (v, w.2) : SubProbability (γ × ProcedureState (sigQ.ProcedureScope []))))
-    = (pure (v, st) : SubProbability (γ × ProcedureState (sigQ.ProcedureScope [])))
-  rw [SubProbability.pure_bind]
+      = (pure v : ProgramDenotation (ProcedureState (sigQ.ProcedureScope [])) γ) := rfl
 
 /-- **(ii) of the sandwich**: the syntactic region of `q_syn` is bounded by `bVar`'s lens region —
     every leaf reads/writes `bVar` (through `globalL`) or a constant, and the `globalL`-reduction
@@ -561,14 +546,7 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
   classical
   have hgetst : ∀ st, ProgramDenotation.get (bPS bVar).toGetter st
       = (pure ((bPS bVar).get st, st) :
-          SubProbability (Bool × ProcedureState (sigQ.ProcedureScope []))) := by
-    intro st
-    change (pure (st, st) : SubProbability (ProcedureState (sigQ.ProcedureScope []) ×
-          ProcedureState (sigQ.ProcedureScope []))) >>=
-        (fun w => (pure ((bPS bVar).get w.1, w.2) :
-          SubProbability (Bool × ProcedureState (sigQ.ProcedureScope []))))
-      = _
-    rw [SubProbability.pure_bind]
+          SubProbability (Bool × ProcedureState (sigQ.ProcedureScope []))) := fun _ => rfl
   -- the chained test is a generator (an `x₀`-slice) of the condition-read leaf
   have h1 : (bPS bVar).testKer x₀ ∈
       ((ProgramDenotation.get (bPS bVar).toGetter).footprint).updates := by

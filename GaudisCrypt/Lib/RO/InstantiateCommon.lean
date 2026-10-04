@@ -133,8 +133,9 @@ theorem procDenotation_RO_eager (args : roSig.ParamType) :
   funext st
   simp only [procedureDenotation, RO_eager_proc, RO_eager_body, StmtWithHoles.assign,
     programDenotation, random_oracle_query, ProgramDenotation.get, ProgramDenotation.set,
-    bind, ProgramDenotation.get_state, ProgramDenotation.set_state, pure,
-    SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
+    bind, pure,
+    SubProbability.toProgramDenotation, SubProbability.hbind,
+    MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
   simp only [inpL, outL, roG, Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.id, Lens.fst,
     ProcedureState.globalL, ProcedureState.scopedL, ProcedureScope.paramsL,
@@ -150,8 +151,9 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
   simp only [procedureDenotation, RO_lazy_proc, RO_lazy_body, StmtWithHoles.assign,
     programDenotation, lazy_query, ProgramDenotation.get, ProgramDenotation.set,
         ProgramDenotation.uniform,
-    bind, ProgramDenotation.get_state, ProgramDenotation.set_state, pure,
-    SubProbability.toProgramDenotation, MeasureTheory.Measure.dirac_bind measurable_from_top]
+    bind, pure,
+    SubProbability.toProgramDenotation, SubProbability.hbind,
+    MeasureTheory.Measure.dirac_bind measurable_from_top]
   refine Subtype.ext ?_
   simp only [inpL, outL, roG, Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.id, Lens.fst,
     ProcedureState.globalL, ProcedureState.scopedL, ProcedureScope.paramsL,
@@ -167,7 +169,6 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
         · rw [if_neg hj]
       rw [hfun, random_oracle_state.get_set]; rfl
   | none =>
-      simp only [hc, bind, ProgramDenotation.get_state, ProgramDenotation.set_state, pure]
       generalize (SubProbability.uniform : SubProbability output) = U
       obtain ⟨mu, hmu⟩ := U
       simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -540,10 +541,7 @@ theorem procDenot_core {sig : ProcedureSignature}
     congr 1; funext s''; rw [SubProbability.pure_bind]
   rw [hLcont]
   have hget : ∀ s' : ProcedureState (sig.ProcedureScope ls),
-      (ProgramDenotation.get r) s' = pure (r.get s', s') := by
-    intro s'
-    simp only [ProgramDenotation.get, ProgramDenotation.get_state, AsGetter.toG, bind, pure,
-      id_eq, MeasureTheory.Measure.dirac_bind measurable_from_top]
+      (ProgramDenotation.get r) s' = pure (r.get s', s') := fun _ => rfl
   have hrcw0 := congrFun hrc w.2
   have hrcw : (F w.2 >>= fun s' =>
         (pure (r.get s', s') :
@@ -554,8 +552,7 @@ theorem procDenot_core {sig : ProcedureSignature}
     have hL : (F w.2 >>= fun s' =>
           (pure (r.get s', s') :
             SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))
-        = F w.2 >>= ProgramDenotation.get r := by
-      congr 1; funext s'; rw [hget s']
+        = F w.2 >>= ProgramDenotation.get r := rfl
     have hR : ((ProgramDenotation.get r) w.2 >>= fun v => F v.2 >>= fun s'' =>
           (pure (v.1, s'') :
             SubProbability (sig.ret × ProcedureState (sig.ProcedureScope ls))))

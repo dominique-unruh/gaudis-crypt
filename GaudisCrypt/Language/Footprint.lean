@@ -609,19 +609,13 @@ theorem inFootprint_subprob
 
 /-- `ProgramDenotation.set v x` applied at a state: a deterministic write. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.set_apply {a s : Type}
-    (v : Lens a s) (x : a) (st : s) : (ProgramDenotation.set v x) st = pure ((), v.set x st) := by
-  show (pure (st, st) : SubProbability (s × s))
-        >>= (fun p : s × s => (pure ((), (AsSetter.toS v).set x p.1) : SubProbability (Unit × s)))
-      = pure ((), v.set x st)
-  rw [SubProbability.pure_bind]; rfl
+    (v : Lens a s) (x : a) (st : s) : (ProgramDenotation.set v x) st = pure ((), v.set x st) :=
+  rfl
 
 /-- `ProgramDenotation.get v` applied at a state: a read leaving the state unchanged. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.get_apply {a s : Type}
-    (v : Lens a s) (st : s) : (ProgramDenotation.get v) st = pure (v.get st, st) := by
-  show (pure (st, st) : SubProbability (s × s))
-        >>= (fun p : s × s => (pure ((AsGetter.toG v).get p.1, p.2) : SubProbability (a × s)))
-      = pure (v.get st, st)
-  rw [SubProbability.pure_bind]; rfl
+    (v : Lens a s) (st : s) : (ProgramDenotation.get v) st = pure (v.get st, st) :=
+  rfl
 
 /-- `pure x` is in every probabilistic range — it touches no state. -/
 theorem _root_.GaudisCrypt.ProgramDenotation.inFootprint_pure {s a : Type}

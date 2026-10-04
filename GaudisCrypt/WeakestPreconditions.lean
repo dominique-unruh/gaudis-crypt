@@ -24,7 +24,7 @@ theorem uniform_expected [Fintype a] [Nonempty a] (f : a → ENNReal) :
   rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
       PMF.uniformOfFintype_apply, ← div_eq_mul_inv]
 
-theorem uniformOfFinset_expected {a : Type} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
+theorem uniformOfFinset_expected {a : Type u} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
     (f : a → ENNReal) :
     (SubProbability.uniformOfFinset fs hs).expected f = ∑ x ∈ fs, f x / fs.card := by
   classical
@@ -47,7 +47,7 @@ theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := 
 
 /-- SubProbability expected-bind: integrate `F` against `μ >>= k` by integrating
     `(k ·).expected F` against `μ`. -/
-lemma SubProbability.expected_bind {α β : Type} (μ : SubProbability α)
+lemma SubProbability.expected_bind {α β : Type u} (μ : SubProbability α)
     (k : α → SubProbability β) (F : β → ENNReal) :
     (μ >>= k).expected F = μ.expected (fun a => (k a).expected F) := by
   letI : MeasurableSpace α := ⊤
@@ -56,6 +56,18 @@ lemma SubProbability.expected_bind {α β : Type} (μ : SubProbability α)
   have heq : ((μ >>= k).1 : MeasureTheory.Measure β)
       = MeasureTheory.Measure.bind μ.1 (fun a => (k a).1) := rfl
   rw [heq, MeasureTheory.Measure.lintegral_bind
+        measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
+  rfl
+
+/-- `SubProbability.expected_bind` across universes. -/
+lemma SubProbability.expected_hbind {α : Type u} {β : Type v} (μ : SubProbability α)
+    (k : α → SubProbability β) (F : β → ENNReal) :
+    (μ.hbind k).expected F = μ.expected (fun a => (k a).expected F) := by
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  change ∫⁻ x, F x ∂(MeasureTheory.Measure.bind μ.1 (fun a => (k a).1))
+    = ∫⁻ a, (k a).expected F ∂μ.1
+  rw [MeasureTheory.Measure.lintegral_bind
         measurable_from_top.aemeasurable measurable_from_top.aemeasurable]
   rfl
 
@@ -76,7 +88,7 @@ theorem expectation_mono [Preorder i]
     intro x y hxy; exact MeasureTheory.lintegral_mono' (hμ hxy) (hf hxy)
 
 
-theorem recursion_expected {b : a → Type}
+theorem recursion_expected {b : a → Type u}
   (F : ((x : a) → SubProbability (b x)) →𝒄 ((x : a) → SubProbability (b x)))
   (Ψ : ((x : a) → (b x → ENNReal) →o ENNReal) →o ((x : a) → (b x → ENNReal) →o ENNReal))
   (h : ∀ (X : (x : a) → SubProbability (b x)),
@@ -177,7 +189,7 @@ theorem final_probability_wp' [DecidableEq a] (prog : ProgramDenotation s a) (st
   prog.finalProb1 st x = (prog.wp (fun (y, _) => if y = x then 1 else 0) st).toNNReal :=
     (ENNReal.toNNReal_coe _).symm.trans (congrArg ENNReal.toNNReal (final_probability_wp prog st x))
 
-theorem wp_lift {s : Type} (μ : SubProbability a) (f : ProgramDenotation.Post s a) :
+theorem wp_lift {s : Type u} {a : Type v} (μ : SubProbability a) (f : ProgramDenotation.Post s a) :
     μ.toProgramDenotation.wp f = fun st => μ.expected (fun x => f (x, st)) := by
   letI : MeasurableSpace a := ⊤
   letI : MeasurableSpace s := ⊤
@@ -192,13 +204,13 @@ theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : ProgramDenotation.Post 
   ProgramDenotation.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
   simp [ProgramDenotation.uniform, wp_lift, uniform_expected]
 
-theorem wp_uniformOfFinset {st a : Type} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
+theorem wp_uniformOfFinset {st : Type u} {a : Type v} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
     (f : ProgramDenotation.Post st a) :
     (ProgramDenotation.uniformOfFinset fs hs).wp f = (fun σ => ∑ i ∈ fs, f (i, σ) / fs.card) := by
   simp [ProgramDenotation.uniformOfFinset, wp_lift, uniformOfFinset_expected]
 
 
-theorem wp_bind {α β : Type} (prog : ProgramDenotation s α) (f : α → ProgramDenotation s β)
+theorem wp_bind {s : Type u} {α β : Type v} (prog : ProgramDenotation s α) (f : α → ProgramDenotation s β)
     (g : ProgramDenotation.Post s β) :
     (prog >>= f).wp g = prog.wp (fun (a, s') => (f a).wp g s') := by
   letI : MeasurableSpace (α × s) := ⊤
@@ -211,7 +223,7 @@ theorem wp_bind {α β : Type} (prog : ProgramDenotation s α) (f : α → Progr
   rw [heq, MeasureTheory.Measure.lintegral_bind measurable_from_top.aemeasurable
         measurable_from_top.aemeasurable]
 
-theorem wp_pure {s α : Type} (x : α) (f : ProgramDenotation.Post s α) :
+theorem wp_pure {s : Type u} {α : Type v} (x : α) (f : ProgramDenotation.Post s α) :
     (pure x : ProgramDenotation s α).wp f = fun st => f (x, st) := by
     have h : (pure x : ProgramDenotation s α) = fun s => pure (x, s) := rfl
              -- Can't we somehow unfold `pure x` without auxiliary def?
@@ -221,7 +233,7 @@ theorem wp_pure {s α : Type} (x : α) (f : ProgramDenotation.Post s α) :
 /-- `wp` of `f <$> prog`.  Needed since `ProgramDenotation` is a `LawfulMonad`: `simp` then
 rewrites `prog >>= fun x => pure (f x)` (e.g. `ProgramDenotation.get`) to `f <$> prog` with the
 core lemma `bind_pure_comp`. -/
-theorem wp_map {α β : Type} (f : α → β) (prog : ProgramDenotation s α)
+theorem wp_map {s : Type u} {α β : Type v} (f : α → β) (prog : ProgramDenotation s α)
     (g : ProgramDenotation.Post s β) :
     (f <$> prog).wp g = prog.wp (fun (a, s') => g (f a, s')) := by
   rw [map_eq_pure_bind, wp_bind]
@@ -302,7 +314,7 @@ theorem wp_mono [Preorder i]
   Monotone fun x => (μ x).wp (f x) := by
     intro x y hxy st; exact MeasureTheory.lintegral_mono' (hμ hxy st) (hf hxy)
 
-theorem recursion_wp {s : a → Type} {b : a → Type}
+theorem recursion_wp {s : a → Type u} {b : a → Type v}
   (F : ((x : a) → ProgramDenotation (s x) (b x)) →𝒄 ((x : a) → ProgramDenotation (s x) (b x)))
   (Ψ : ((x : a) → ProgramDenotation.Post (s x) (b x) →o ProgramDenotation.Pre (s x)) →o
        ((x : a) → ProgramDenotation.Post (s x) (b x) →o ProgramDenotation.Pre (s x)))
@@ -420,13 +432,15 @@ theorem wp_while_invariant (b : ProgramDenotation s Bool) (body : ProgramDenotat
     simp only [wp_while]
     apply (while_iteration_wp b body () f).lfp_le h
 
-theorem wp_get {α : Type} (v : Lens α s) (f : ProgramDenotation.Post s α) :
+theorem wp_get {α : Type v} (v : Lens α s) (f : ProgramDenotation.Post s α) :
     (ProgramDenotation.get v).wp f = fun st => f (v.get st, st) := by
-    simp [ProgramDenotation.get, wp_map, wp_get_state, AsGetter.toG]
+  funext st
+  exact expected_pure _
 
-theorem wp_set {α : Type} (v : Lens α s) (x : α) (f : ProgramDenotation.Post s Unit) :
+theorem wp_set {α : Type v} (v : Lens α s) (x : α) (f : ProgramDenotation.Post s Unit) :
     (ProgramDenotation.set v x).wp f = fun st => f ((), v.set x st) := by
-    simp [ProgramDenotation.set, wp_bind, wp_get_state, wp_set_state, AsSetter.toS]
+  funext st
+  exact expected_pure _
 
 /-! ## Mass-1 (full probability) lemmas
 
@@ -497,23 +511,26 @@ The `wp` rules for the remaining `ProgramDenotation` primitives (generic getters
 `zoom`), and for running procedures (`procWrap`): together they let a game's `wp` be pushed
 through its whole call structure. -/
 
-theorem wp_get_g {s α T : Type} [AsGetter T α s] (v : T) (f : ProgramDenotation.Post s α) :
+theorem wp_get_g {s : Type u} {α : Type v} {T : Type w} [AsGetter T α s] (v : T)
+    (f : ProgramDenotation.Post s α) :
     (ProgramDenotation.get v).wp f = fun st => f ((AsGetter.toG v).get st, st) := by
-  simp [ProgramDenotation.get, wp_map, wp_get_state]
+  funext st
+  exact expected_pure _
 
-theorem wp_set_g {s α T : Type} [AsSetter T α s] (v : T) (x : α)
+theorem wp_set_g {s : Type u} {α : Type v} {T : Type w} [AsSetter T α s] (v : T) (x : α)
     (f : ProgramDenotation.Post s Unit) :
     (ProgramDenotation.set v x).wp f = fun st => f ((), (AsSetter.toS v).set x st) := by
-  simp [ProgramDenotation.set, wp_bind, wp_get_state, wp_set_state]
+  funext st
+  exact expected_pure _
 
-theorem wp_zoom {s t α : Type} (L : Lens s t) (p : ProgramDenotation s α)
-    (f : ProgramDenotation.Post t α) :
+theorem wp_zoom {s : Type u} {t : Type v} {α : Type w} (L : Lens s t)
+    (p : ProgramDenotation s α) (f : ProgramDenotation.Post t α) :
     (ProgramDenotation.zoom L p).wp f
       = fun st => p.wp (fun as' => f (as'.1, L.set as'.2 st)) (L.get st) := by
   funext st
-  change (p (L.get st) >>= fun as' =>
+  change ((p (L.get st)).hbind fun as' =>
       (pure (as'.1, L.set as'.2 st) : SubProbability _)).expected f = _
-  rw [SubProbability.expected_bind]
+  rw [SubProbability.expected_hbind]
   congr 1
   funext as'
   rw [expected_pure]

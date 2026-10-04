@@ -1034,18 +1034,14 @@ TODO(move): these belong next to `ProgramDenotation.zoom_pure`/`zoom_bind` in
 omit [ProgramSpec] in
 /-- `ProgramDenotation.get` applied at a state — the `Getter` version of
 `ProgramDenotation.get_apply` (which is stated for a `Lens`). -/
-theorem ProgramDenotation.get_apply' {s a : Type} (g : Getter a s) (st : s) :
-    ProgramDenotation.get g st = pure (g.get st, st) := by
-  change (pure (st, st) : SubProbability (s × s)) >>= (fun as => pure (g.get as.1, as.2)) = _
-  rw [SubProbability.pure_bind]
+theorem ProgramDenotation.get_apply' {s : Type u} {a : Type v} (g : Getter a s) (st : s) :
+    ProgramDenotation.get g st = pure (g.get st, st) := rfl
 
 omit [ProgramSpec] in
 /-- `ProgramDenotation.set` applied at a state — the `Setter` version of
 `ProgramDenotation.set_apply` (which is stated for a `Lens`). -/
-theorem ProgramDenotation.set_apply' {s a : Type} (x : Setter a s) (v : a) (st : s) :
-    ProgramDenotation.set x v st = pure ((), x.set v st) := by
-  change (pure (st, st) : SubProbability (s × s)) >>= (fun as => pure ((), x.set v as.1)) = _
-  rw [SubProbability.pure_bind]
+theorem ProgramDenotation.set_apply' {s : Type u} {a : Type v} (x : Setter a s) (v : a)
+    (st : s) : ProgramDenotation.set x v st = pure ((), x.set v st) := rfl
 
 omit [ProgramSpec] in
 /-- Zooming twice is zooming along the chained lens. -/
@@ -1590,9 +1586,9 @@ theorem programDenotation_assign_apply {L a : Type} (y : Setter a (ProcedureStat
   simp only [StmtWithHoles.assign, programDenotation]
   rw [ProgramDenotation.bind_apply, ProgramDenotation.get_apply', SubProbability.pure_bind,
     ProgramDenotation.bind_apply]
-  change ((Pure.pure (e.get τ) : SubProbability a) >>= fun v => Pure.pure (v, τ))
+  change ((Pure.pure (e.get τ) : SubProbability a).hbind fun v => Pure.pure (v, τ))
       >>= (fun p => ProgramDenotation.set y p.1 p.2) = _
-  rw [SubProbability.pure_bind, SubProbability.pure_bind, ProgramDenotation.set_apply']
+  rw [SubProbability.pure_hbind, SubProbability.pure_bind, ProgramDenotation.set_apply']
 
 /-! ### What `flattenSeq` rewrites with -/
 
