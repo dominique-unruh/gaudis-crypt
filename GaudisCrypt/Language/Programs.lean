@@ -41,8 +41,6 @@ def ProcedureState.scopedL {l : Type} : Lens l (ProcedureState l) where
   set_set _ _ _ := rfl
   get_set _ := rfl
 
-def VariableName := String
-
 structure ProcedureSignature where
   params : List Type
   ret : Type

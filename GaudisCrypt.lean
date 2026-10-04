@@ -20,6 +20,8 @@ import GaudisCrypt.Language.Modules.InductiveFunctions
 import GaudisCrypt.Language.Programs
 import GaudisCrypt.Language.Semantics
 import GaudisCrypt.Language.SubProbability
+import GaudisCrypt.Language.VariableName
+import GaudisCrypt.Language.VariableNameTest
 import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Syntax.ExpressionSyntaxTest
 import GaudisCrypt.Syntax.ProgramSyntaxTest
