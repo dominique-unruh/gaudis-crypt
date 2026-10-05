@@ -55,7 +55,7 @@ open GaudisCrypt
 /-- **A chained lens's footprint is bounded by the outer lift of the inner footprint.**  Each
     generator `(L.chain v).liftSubProbability κ` equals `L.liftSubProbability
     (v.liftSubProbability κ)` (`Lens.liftSubProbability_chain`), a member of the lifted image. -/
-theorem chain_footprint_le_lift {a b c : Type} (L : Lens b c) (v : Lens a b) :
+theorem chain_footprint_le_lift {a b c : Type*} (L : Lens b c) (v : Lens a b) :
     (L.chain v).footprint ≤ Lens.liftFootprint L (v.footprint) := by
   refine (Footprint.from_le_iff _ _).mpr ?_
   rintro _ ⟨g, rfl⟩
@@ -68,7 +68,7 @@ theorem chain_footprint_le_lift {a b c : Type} (L : Lens b c) (v : Lens a b) :
 /-- **`Lens.reduceFootprint L` of a chained lens's footprint is bounded by the inner lens's footprint.**
     Combine `chain_footprint_le_lift` with `Lens.reduceFootprint`'s exact-left-inverse property
     (`FVP.Lens.reduceFootprint_extend`).  Needs `[Nonempty c]` for the extend/reduce round trip. -/
-theorem reduce_chain_footprint_le {a b c : Type} [Nonempty c] (L : Lens b c) (v : Lens a b) :
+theorem reduce_chain_footprint_le {a b c : Type*} [Nonempty c] (L : Lens b c) (v : Lens a b) :
     Lens.reduceFootprint L ((L.chain v).footprint) ≤ v.footprint := by
   refine le_trans (Lens.reduceFootprint_mono L (chain_footprint_le_lift L v)) ?_
   exact le_of_eq (FVP.Lens.reduceFootprint_extend L v.footprint)
@@ -80,7 +80,7 @@ theorem reduce_chain_footprint_le {a b c : Type} [Nonempty c] (L : Lens b c) (v 
     `L.liftSubProbability (v.liftSubProbability g)` (= the `L.chain v` generator, by
     `Lens.liftSubProbability_chain`) with `k`, which
     `hdisj : R ≤ ((L.chain v).footprint)ᶜ` supplies. -/
-theorem reduce_le_compl_of_chain {t s c : Type} (L : Lens s c) (v : Lens t s) {R : Footprint c}
+theorem reduce_le_compl_of_chain {t s c : Type*} (L : Lens s c) (v : Lens t s) {R : Footprint c}
     (hdisj : R ≤ ((L.chain v).footprint)ᶜ) :
     Lens.reduceFootprint L R ≤ (v.footprint)ᶜ := by
   -- It suffices that every reduced generator lies in `(v.footprint)ᶜ.updates`.
@@ -115,7 +115,7 @@ theorem reduce_le_compl_of_chain {t s c : Type} (L : Lens s c) (v : Lens t s) {R
     The two chained overwrites both go through `L`; commutation reduces to
     `inA.set _ (inB.set _ ·) = inB.set _ (inA.set _ ·)` on the `L`-content, i.e. the inner
     `Lens.Disjoint inA inB`. -/
-instance disjoint_chain_common {m outer a b : Type} (L : Lens m outer) {inA : Lens a m}
+instance disjoint_chain_common {m outer a b : Type*} (L : Lens m outer) {inA : Lens a m}
     {inB : Lens b m} [hd : Lens.Disjoint inA inB] :
     Lens.Disjoint (Lens.chain L inA) (Lens.chain L inB) where
   commute s v w := by
@@ -125,8 +125,8 @@ instance disjoint_chain_common {m outer a b : Type} (L : Lens m outer) {inA : Le
 
 /-- **A lens chained through `L` is disjoint from one chained through a disjoint outer lens `M`.**
     Each chained overwrite preserves the other outer lens's `get`, so the two commute. -/
-instance disjoint_chain_of_disjoint {mL mM outer a b : Type} {L : Lens mL outer} {M : Lens mM outer}
-    {inA : Lens a mL} {inB : Lens b mM} [hd : Lens.Disjoint L M] :
+instance disjoint_chain_of_disjoint {mL mM outer a b : Type*} {L : Lens mL outer}
+    {M : Lens mM outer} {inA : Lens a mL} {inB : Lens b mM} [hd : Lens.Disjoint L M] :
     Lens.Disjoint (Lens.chain L inA) (Lens.chain M inB) where
   commute s v w := by
     haveI hds : Lens.Disjoint M L := hd.symm
@@ -138,7 +138,7 @@ instance disjoint_chain_of_disjoint {mL mM outer a b : Type} {L : Lens mL outer}
     a getter factors as `ProgramDenotation.get l >>= (pure ∘ k)`, so `footprint_bind_le` bounds it
     by `(get l).footprint ⊔ ⊥ ≤ l.footprint`.  Handles both a raw lens read and the wrapped getter
     that `StmtWithHoles.assign` builds. -/
-theorem get_read_footprint_le {a s γ : Type} (l : Lens a s) (k : a → γ) :
+theorem get_read_footprint_le {a γ : Type} {s : Type*} (l : Lens a s) (k : a → γ) :
     (ProgramDenotation.get (⟨fun st => k (l.get st)⟩ : Getter γ s)).footprint ≤ l.footprint := by
   have hEq : (ProgramDenotation.get (⟨fun st => k (l.get st)⟩ : Getter γ s))
       = ProgramDenotation.get l >>= fun x => (pure (k x) : ProgramDenotation s γ) := by
@@ -162,41 +162,23 @@ theorem get_read_footprint_le {a s γ : Type} (l : Lens a s) (k : a → γ) :
     answers is the crux: the collision statement is read off the *result*, not off the table. -/
 abbrev sigEx : ProcedureSignature := { params := [input, input], ret := output × output }
 
-/-- The example's locals: a `Nat` scratch local and **two** `output` locals `r_a`, `r_b` receiving
-    the two oracle answers.  So `localsEx.map (·.fst) = [Nat, output, output]`. -/
-abbrev localsEx : List (Σ t : Type, Inhabited t) :=
-  [⟨Nat, inferInstance⟩, ⟨output, inferInstance⟩, ⟨output, inferInstance⟩]
+/-- The `Nat` scratch local `n`, as a lens into the program state. -/
+noncomputable def natLocalL : Lens Nat ProgramState := (varLens (.mk "n" Nat)).intoLocal
 
-/-- The procedure state of the example. -/
-abbrev stateEx : Type := (sigEx).ProcedureScope localsEx
+/-- The first answer local `r_a`. -/
+noncomputable def raLocalL : Lens output ProgramState := (varLens (.mk "r_a" output)).intoLocal
 
-/-- The `Nat` scratch local, viewed inside the procedure state (`.intoLocalVars` at the first
-    component of the localVars tuple `Nat × (output × output)`). -/
-def natLocalL : Lens Nat (ProcedureState stateEx) :=
-  (Lens.fst : Lens Nat (Nat × output × output)).intoLocalVars
+/-- The second answer local `r_b`. -/
+noncomputable def rbLocalL : Lens output ProgramState := (varLens (.mk "r_b" output)).intoLocal
 
-/-- The first answer local `r_a` (`.intoLocalVars` at the second-then-first component of
-    `Nat × (output × output)`). -/
-def raLocalL : Lens output (ProcedureState stateEx) :=
-  ((Lens.snd : Lens (output × output) (Nat × output × output)).chain
-    (Lens.fst : Lens output (output × output))).intoLocalVars
+/-- The first `input` parameter `a` (a local slot, written on entry). -/
+noncomputable def aParamL : Lens input ProgramState := (varLens (.mk "a" input)).intoLocal
 
-/-- The second answer local `r_b` (`.intoLocalVars` at the second-then-second component). -/
-def rbLocalL : Lens output (ProcedureState stateEx) :=
-  ((Lens.snd : Lens (output × output) (Nat × output × output)).chain
-    (Lens.snd : Lens output (output × output))).intoLocalVars
-
-/-- The first `input` parameter `a`, viewed inside the procedure state (`.intoParams`, params tuple
-    is `input × input`, so `Lens.fst`). -/
-def aParamL : Lens input (ProcedureState stateEx) :=
-  (Lens.fst : Lens input (input × input)).intoParams
-
-/-- The second `input` parameter `b` (`.intoParams`, `Lens.snd`). -/
-def bParamL : Lens input (ProcedureState stateEx) :=
-  (Lens.snd : Lens input (input × input)).intoParams
+/-- The second `input` parameter `b`. -/
+noncomputable def bParamL : Lens input ProgramState := (varLens (.mk "b" input)).intoLocal
 
 /-- The return getter: read back the pair of observed answers `(r_a, r_b)`. -/
-def retExG : Getter (output × output) (ProcedureState stateEx) :=
+noncomputable def retExG : Getter (output × output) ProgramState :=
   ⟨fun ps => (raLocalL.get ps, rbLocalL.get ps)⟩
 
 section
@@ -205,15 +187,15 @@ section
 -- the random oracle — the *only* structural assumption on the adversary.
 variable (advG : Variable Nat) [instDisj : Lens.Disjoint advG random_oracle_state]
 
-/-- The global variable `advG` viewed inside the procedure state. -/
-noncomputable def advGL : Lens Nat (ProcedureState stateEx) :=
-  ProcedureState.globalL.chain advG
+/-- The global variable `advG` viewed inside the program state. -/
+noncomputable def advGL : Lens Nat ProgramState :=
+  ProgramState.globalL.chain advG
 
 /-- The example adversary body.  It exercises **global + local + oracle** memory:
     copy the global into itself (touches `advG`), query the oracle at parameter `a` storing the
     answer in local `r_a` (first oracle hole), query at `b` storing in `r_b` (second oracle hole),
     then read the global into the `Nat` scratch local (touches both a local and `advG`). -/
-noncomputable def bodyEx : StmtWithHoles roHoles stateEx :=
+noncomputable def bodyEx : StmtWithHoles roHoles :=
   StmtWithHoles.seq
     (StmtWithHoles.assign (advGL advG).toSetter (advGL advG).toGetter)
     (StmtWithHoles.seq
@@ -224,7 +206,7 @@ noncomputable def bodyEx : StmtWithHoles roHoles stateEx :=
 
 /-- The example adversary procedure: `bodyEx` returning the observed answer pair `(r_a, r_b)`. -/
 noncomputable def A_ex : ProcedureWithHoles roHoles sigEx :=
-  { locals := localsEx
+  { parameterNames := ["a", "b"]
     body := bodyEx advG
     return_val := retExG }
 
@@ -254,74 +236,74 @@ def P_ex : state → state → Prop :=
 
 /-! ### Discharging `FVP.fvP_proc A_ex ≤ (random_oracle_state.footprint)ᶜ`
 
-Everything `A_ex` touches — the global `advG`, the two locals, and the input parameter — is a lens
-disjoint from `roLift stateEx = globalL.chain random_oracle_state` (`advG` by hypothesis
-`instDisj`, the locals/param through the `scopedL`/`globalL` split).  So the whole syntactic
-footprint lands in `((roLift stateEx).footprint)ᶜ`; reducing through `globalL`
-(`reduce_le_compl_of_chain`) then lands it in `(random_oracle_state.footprint)ᶜ`. -/
+Everything `A_ex` touches — the global `advG`, the locals, and the input parameters — is a lens
+disjoint from `roLift = globalL.chain random_oracle_state` (`advG` by hypothesis `instDisj`, the
+locals/params through the `localL`/`globalL` split).  So the whole syntactic footprint lands in
+`(roLift.footprint)ᶜ`; reducing through `globalL` (`reduce_le_compl_of_chain`) then lands it in
+`(random_oracle_state.footprint)ᶜ`. -/
 
--- Each lens the body touches is disjoint from the oracle-table lens `roLift stateEx`.
+-- Each lens the body touches is disjoint from the oracle-table lens `roLift`.
 include instDisj in
-/-- The global adversary lens `advGL` is disjoint from the oracle-table lens `roLift stateEx`. -/
-theorem advGL_disj_roLift : Lens.Disjoint (advGL advG) (roLift stateEx) := by
+/-- The global adversary lens `advGL` is disjoint from the oracle-table lens `roLift`. -/
+theorem advGL_disj_roLift : Lens.Disjoint (advGL advG) roLift := by
   unfold advGL roLift
   exact disjoint_chain_common (inA := advG) (inB := random_oracle_state) (hd := instDisj)
-    ProcedureState.globalL
+    ProgramState.globalL
 
-theorem natLocalL_disj_roLift : Lens.Disjoint natLocalL (roLift stateEx) := by
-  unfold natLocalL roLift Lens.intoLocalVars; exact disjoint_chain_of_disjoint
+theorem natLocalL_disj_roLift : Lens.Disjoint natLocalL roLift := by
+  unfold natLocalL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
 
-theorem raLocalL_disj_roLift : Lens.Disjoint raLocalL (roLift stateEx) := by
-  unfold raLocalL roLift Lens.intoLocalVars; exact disjoint_chain_of_disjoint
+theorem raLocalL_disj_roLift : Lens.Disjoint raLocalL roLift := by
+  unfold raLocalL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
 
-theorem rbLocalL_disj_roLift : Lens.Disjoint rbLocalL (roLift stateEx) := by
-  unfold rbLocalL roLift Lens.intoLocalVars; exact disjoint_chain_of_disjoint
+theorem rbLocalL_disj_roLift : Lens.Disjoint rbLocalL roLift := by
+  unfold rbLocalL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
 
-theorem aParamL_disj_roLift : Lens.Disjoint aParamL (roLift stateEx) := by
-  unfold aParamL roLift Lens.intoParams; exact disjoint_chain_of_disjoint
+theorem aParamL_disj_roLift : Lens.Disjoint aParamL roLift := by
+  unfold aParamL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
 
-theorem bParamL_disj_roLift : Lens.Disjoint bParamL (roLift stateEx) := by
-  unfold bParamL roLift Lens.intoParams; exact disjoint_chain_of_disjoint
+theorem bParamL_disj_roLift : Lens.Disjoint bParamL roLift := by
+  unfold bParamL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
 
-/-- A lens read's footprint (raw or `assign`-wrapped) lands in `((roLift stateEx).footprint)ᶜ`. -/
-theorem get_lens_le_roLift_compl {γ : Type} (l : Lens γ (ProcedureState stateEx))
-    (hd : Lens.Disjoint l (roLift stateEx)) (k : γ → SubProbability γ) :
+/-- A lens read's footprint (raw or `assign`-wrapped) lands in `(roLift.footprint)ᶜ`. -/
+theorem get_lens_le_roLift_compl {γ : Type} (l : Lens γ ProgramState)
+    (hd : Lens.Disjoint l roLift) (k : γ → SubProbability γ) :
     (ProgramDenotation.get (⟨fun st => k (l.get st)⟩ :
-        Getter (SubProbability γ) (ProcedureState stateEx))).footprint
-      ≤ ((roLift stateEx).footprint)ᶜ :=
+        Getter (SubProbability γ) ProgramState)).footprint
+      ≤ (roLift.footprint)ᶜ :=
   le_trans (get_read_footprint_le l k)
-    (@Lens.footprint_le_compl_of_disjoint _ _ _ l (roLift stateEx) hd)
+    (@Lens.footprint_le_compl_of_disjoint _ _ _ l roLift hd)
 
-/-- A raw lens read lands in `((roLift stateEx).footprint)ᶜ`. -/
-theorem get_le_roLift_compl {γ : Type} (l : Lens γ (ProcedureState stateEx))
-    (hd : Lens.Disjoint l (roLift stateEx)) :
-    (ProgramDenotation.get l).footprint ≤ ((roLift stateEx).footprint)ᶜ :=
+/-- A raw lens read lands in `(roLift.footprint)ᶜ`. -/
+theorem get_le_roLift_compl {γ : Type} (l : Lens γ ProgramState)
+    (hd : Lens.Disjoint l roLift) :
+    (ProgramDenotation.get l).footprint ≤ (roLift.footprint)ᶜ :=
   le_trans (ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_get l))
-    (@Lens.footprint_le_compl_of_disjoint _ _ _ l (roLift stateEx) hd)
+    (@Lens.footprint_le_compl_of_disjoint _ _ _ l roLift hd)
 
-/-- A lens write's family footprint lands in `((roLift stateEx).footprint)ᶜ`. -/
-theorem set_le_roLift_compl {γ : Type} (l : Lens γ (ProcedureState stateEx))
-    (hd : Lens.Disjoint l (roLift stateEx)) :
-    ProgramDenotation.footprint' (ProgramDenotation.set l) ≤ ((roLift stateEx).footprint)ᶜ := by
+/-- A lens write's family footprint lands in `(roLift.footprint)ᶜ`. -/
+theorem set_le_roLift_compl {γ : Type} (l : Lens γ ProgramState)
+    (hd : Lens.Disjoint l roLift) :
+    ProgramDenotation.footprint' (ProgramDenotation.set l) ≤ (roLift.footprint)ᶜ := by
   refine iSup_le fun x => ?_
   exact le_trans
     (ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_set l x))
-    (@Lens.footprint_le_compl_of_disjoint _ _ _ l (roLift stateEx) hd)
+    (@Lens.footprint_le_compl_of_disjoint _ _ _ l roLift hd)
 
 /-- The body's syntactic footprint is disjoint from the oracle table.  Two oracle holes just add one
     more `set/get` `sup` summand of the same shape as the single-hole case. -/
-theorem fvP_stmt_bodyEx_le : FVP.fvP_stmt (bodyEx advG) ≤ ((roLift stateEx).footprint)ᶜ := by
+theorem fvP_stmt_bodyEx_le : FVP.fvP_stmt (bodyEx advG) ≤ (roLift.footprint)ᶜ := by
   rw [show FVP.fvP_stmt (bodyEx advG) =
       (ProgramDenotation.footprint' (ProgramDenotation.set (advGL advG).toSetter) ⊔
         (ProgramDenotation.get (⟨fun st => pure ((advGL advG).toGetter.get st)⟩ :
-          Getter (SubProbability Nat) (ProcedureState stateEx))).footprint) ⊔
+          Getter (SubProbability Nat) ProgramState)).footprint) ⊔
       ((ProgramDenotation.footprint' (ProgramDenotation.set raLocalL.toSetter) ⊔
           (ProgramDenotation.get aParamL.toGetter).footprint) ⊔
         ((ProgramDenotation.footprint' (ProgramDenotation.set rbLocalL.toSetter) ⊔
             (ProgramDenotation.get bParamL.toGetter).footprint) ⊔
           (ProgramDenotation.footprint' (ProgramDenotation.set natLocalL.toSetter) ⊔
             (ProgramDenotation.get (⟨fun st => pure ((advGL advG).toGetter.get st)⟩ :
-              Getter (SubProbability Nat) (ProcedureState stateEx))).footprint)))
+              Getter (SubProbability Nat) ProgramState)).footprint)))
       from rfl]
   refine sup_le
     (sup_le (set_le_roLift_compl _ (advGL_disj_roLift advG))
@@ -336,21 +318,21 @@ theorem fvP_stmt_bodyEx_le : FVP.fvP_stmt (bodyEx advG) ≤ ((roLift stateEx).fo
           (get_lens_le_roLift_compl _ (advGL_disj_roLift advG) _))))
 
 /-- The return getter `retExG` (reading the two answer locals `r_a`, `r_b`) has footprint in
-    `((roLift stateEx).footprint)ᶜ`.  It factors as `get raLocalL >>= get rbLocalL >>= pure ∘ pair`,
+    `(roLift.footprint)ᶜ`.  It factors as `get raLocalL >>= get rbLocalL >>= pure ∘ pair`,
     so `footprint_bind_le` bounds it by `raLocalL.footprint ⊔ rbLocalL.footprint ⊔ ⊥`, both disjoint
     from the oracle. -/
 theorem retExG_le_roLift_compl :
-    (ProgramDenotation.get retExG).footprint ≤ ((roLift stateEx).footprint)ᶜ := by
+    (ProgramDenotation.get retExG).footprint ≤ (roLift.footprint)ᶜ := by
   have hEq : (ProgramDenotation.get retExG)
       = ProgramDenotation.get raLocalL >>= fun a =>
           ProgramDenotation.get rbLocalL >>= fun b =>
-            (pure (a, b) : ProgramDenotation (ProcedureState stateEx) (output × output)) := by
+            (pure (a, b) : ProgramDenotation ProgramState (output × output)) := by
     funext st
     have hlhs : (ProgramDenotation.get retExG) st
         = pure ((raLocalL.get st, rbLocalL.get st), st) := rfl
     rw [hlhs]
-    change _ = ProgramDenotation.get raLocalL st >>= fun w : output × ProcedureState stateEx =>
-      (ProgramDenotation.get rbLocalL w.2 >>= fun w' : output × ProcedureState stateEx =>
+    change _ = ProgramDenotation.get raLocalL st >>= fun w : output × ProgramState =>
+      (ProgramDenotation.get rbLocalL w.2 >>= fun w' : output × ProgramState =>
         pure ((w.1, w'.1), w'.2))
     rw [ProgramDenotation.get_apply, SubProbability.pure_bind, ProgramDenotation.get_apply,
       SubProbability.pure_bind]
@@ -366,14 +348,14 @@ theorem retExG_le_roLift_compl :
 /-- **The example's footprint disjointness from the random oracle — fully discharged.** -/
 theorem hdisj_ex : FVP.fvP_proc (A_ex advG) ≤ (random_oracle_state.footprint)ᶜ := by
   rw [show FVP.fvP_proc (A_ex advG) =
-      Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyEx advG)) ⊔
-        Lens.reduceFootprint ProcedureState.globalL
+      Lens.reduceFootprint ProgramState.globalL (FVP.fvP_stmt (bodyEx advG)) ⊔
+        Lens.reduceFootprint ProgramState.globalL
           ((ProgramDenotation.get retExG).footprint)
       from rfl]
   refine sup_le ?_ ?_
-  · exact reduce_le_compl_of_chain ProcedureState.globalL random_oracle_state
+  · exact reduce_le_compl_of_chain ProgramState.globalL random_oracle_state
       (fvP_stmt_bodyEx_le advG)
-  · exact reduce_le_compl_of_chain ProcedureState.globalL random_oracle_state
+  · exact reduce_le_compl_of_chain ProgramState.globalL random_oracle_state
       retExG_le_roLift_compl
 
 /-! ### The example invariant's endpoint premises
@@ -465,38 +447,38 @@ variable (bVar : Variable Bool)
 /-- The (trivial) signature of the syntactic `q` program: no parameters, `Unit` result. -/
 def sigQ : ProcedureSignature := ⟨[], Unit⟩
 
-/-- The (trivial) local state of `q_syn`. -/
-instance : Nonempty (sigQ.ProcedureScope []) := ⟨⟨(), ()⟩⟩
-
-/-- `bVar` viewed inside the (locals-free) procedure state. -/
-noncomputable def bPS : Lens Bool (ProcedureState (sigQ.ProcedureScope [])) :=
-  ProcedureState.globalL.chain bVar
+/-- `bVar` viewed inside the program state. -/
+noncomputable def bPS : Lens Bool ProgramState :=
+  ProgramState.globalL.chain bVar
 
 /-- The ¾-biased sample expression (a constant distribution getter). -/
-noncomputable def biasG : Getter (SubProbability Bool) (ProcedureState (sigQ.ProcedureScope [])) :=
+noncomputable def biasG : Getter (SubProbability Bool) ProgramState :=
   ⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.biasPMF⟩
 
 /-- The fair sample expression (a constant distribution getter). -/
-noncomputable def flipG : Getter (SubProbability Bool) (ProcedureState (sigQ.ProcedureScope [])) :=
+noncomputable def flipG : Getter (SubProbability Bool) ProgramState :=
   ⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.flipPMF⟩
 
 /-- The body of the syntactic `q`: `if b then b ←$ ¾-bias else b ←$ fair`. -/
-noncomputable def bodyQ : StmtWithHoles .empty (sigQ.ProcedureScope []) :=
+noncomputable def bodyQ : Stmt :=
   .ifThenElse (bPS bVar).toGetter
     (.sample (bPS bVar).toSetter biasG)
     (.sample (bPS bVar).toSetter flipG)
 
 /-- The (trivial) return value of `q_syn`. -/
-def retQ : Getter Unit (ProcedureState (sigQ.ProcedureScope [])) := ⟨fun _ => ()⟩
+def retQ : Getter Unit ProgramState := ⟨fun _ => ()⟩
 
 /-- **The counterexample program, in syntax** — its denotation's state action is exactly the
     abelian-footprint kernel `qKer` on the `bVar` component. -/
-noncomputable def q_syn : ProcedureWithHoles .empty sigQ := ⟨[], bodyQ bVar, retQ⟩
+noncomputable def q_syn : ProcedureWithHoles .empty sigQ where
+  parameterNames := []
+  body := bodyQ bVar
+  return_val := retQ
 
 /-- Reading a constant getter is `pure` (the leaf footprint of a constant is trivial). -/
 private lemma get_const_eq_pure {γ : Type} (v : γ) :
-    ProgramDenotation.get (⟨fun _ => v⟩ : Getter γ (ProcedureState (sigQ.ProcedureScope [])))
-      = (pure v : ProgramDenotation (ProcedureState (sigQ.ProcedureScope [])) γ) := rfl
+    ProgramDenotation.get (⟨fun _ => v⟩ : Getter γ ProgramState)
+      = (pure v : ProgramDenotation ProgramState γ) := rfl
 
 /-- **(ii) of the sandwich**: the syntactic region of `q_syn` is bounded by `bVar`'s lens region —
     every leaf reads/writes `bVar` (through `globalL`) or a constant, and the `globalL`-reduction
@@ -511,17 +493,17 @@ theorem fvP_qsyn_le : FVP.fvP_proc (q_syn bVar) ≤ bVar.footprint := by
       ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_set _ ret)
   have hbias : (ProgramDenotation.get biasG).footprint ≤ (bPS bVar).footprint := by
     rw [show biasG = (⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.biasPMF⟩ :
-        Getter (SubProbability Bool) (ProcedureState (sigQ.ProcedureScope []))) from rfl,
+        Getter (SubProbability Bool) ProgramState) from rfl,
       get_const_eq_pure]
     exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
   have hflip : (ProgramDenotation.get flipG).footprint ≤ (bPS bVar).footprint := by
     rw [show flipG = (⟨fun _ => toSubProbability GaudisCrypt.CounterExamples.flipPMF⟩ :
-        Getter (SubProbability Bool) (ProcedureState (sigQ.ProcedureScope []))) from rfl,
+        Getter (SubProbability Bool) ProgramState) from rfl,
       get_const_eq_pure]
     exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
   rw [show FVP.fvP_proc (q_syn bVar) =
-      Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
-        Lens.reduceFootprint ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
+      Lens.reduceFootprint ProgramState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
+        Lens.reduceFootprint ProgramState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
   refine sup_le ?_ ?_
   · refine le_trans (Lens.reduceFootprint_mono _ ?_) (reduce_chain_footprint_le _ bVar)
     rw [show FVP.fvP_stmt (bodyQ bVar) =
@@ -533,7 +515,7 @@ theorem fvP_qsyn_le : FVP.fvP_proc (q_syn bVar) ≤ bVar.footprint := by
     exact sup_le hget (sup_le (sup_le hset hbias) (sup_le hset hflip))
   · refine le_trans (Lens.reduceFootprint_mono _ ?_) (reduce_chain_footprint_le _ bVar)
     rw [show retQ = (⟨fun _ => ()⟩ :
-        Getter Unit (ProcedureState (sigQ.ProcedureScope []))) from rfl, get_const_eq_pure]
+        Getter Unit ProgramState) from rfl, get_const_eq_pure]
     exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
 
 /-- **(i) of the sandwich**: `bVar`'s conditional-abort tests live in `q_syn`'s syntactic region.
@@ -546,7 +528,7 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
   classical
   have hgetst : ∀ st, ProgramDenotation.get (bPS bVar).toGetter st
       = (pure ((bPS bVar).get st, st) :
-          SubProbability (Bool × ProcedureState (sigQ.ProcedureScope []))) := fun _ => rfl
+          SubProbability (Bool × ProgramState)) := fun _ => rfl
   -- the chained test is a generator (an `x₀`-slice) of the condition-read leaf
   have h1 : (bPS bVar).testKer x₀ ∈
       ((ProgramDenotation.get (bPS bVar).toGetter).footprint).updates := by
@@ -571,53 +553,53 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
       exact le_sup_left
     exact hle h1
   -- reduce the chained test to the state-level test
-  obtain ⟨ps₀⟩ : Nonempty (ProcedureState (sigQ.ProcedureScope [])) := inferInstance
-  have hne : Nonempty (ProcedureState (sigQ.ProcedureScope [])) := ⟨ps₀⟩
-  set β₀ := (ProcedureState.globalL (l := sigQ.ProcedureScope [])).compl.get ps₀ with hβ₀
+  obtain ⟨ps₀⟩ : Nonempty ProgramState := inferInstance
+  have hne : Nonempty ProgramState := ⟨ps₀⟩
+  set β₀ := ProgramState.globalL.compl.get ps₀ with hβ₀
   have hinv : ∀ m : State,
-      ProcedureState.globalL.get
-        ((ProcedureState.globalL (l := sigQ.ProcedureScope [])).splitSpace.invFun (m, β₀))
+      ProgramState.globalL.get
+        (ProgramState.globalL.splitSpace.invFun (m, β₀))
       = m := by
     intro m
     simp only [Lens.splitSpace]
     rw [dif_pos hne]
-    exact ProcedureState.globalL.set_get _ _
-  have h3 : Lens.reduceSubProbability ProcedureState.globalL
+    exact ProgramState.globalL.set_get _ _
+  have h3 : Lens.reduceSubProbability ProgramState.globalL
       ((bPS bVar).testKer x₀, fun _ => (pure β₀ : SubProbability _),
         fun _ => (pure () : SubProbability Unit))
       = bVar.testKer x₀ := by
     funext m
-    change ((pure β₀ : SubProbability _) >>= fun m' =>
-        (bPS bVar).testKer x₀ (ProcedureState.globalL.splitSpace.invFun (m, m')) >>= fun m'' =>
-          (pure () : SubProbability Unit) >>= fun _ =>
-            (pure (ProcedureState.globalL.get m'') : SubProbability State))
+    change ((pure β₀ : SubProbability _).hbind fun m' =>
+        ((bPS bVar).testKer x₀ (ProgramState.globalL.splitSpace.invFun (m, m'))).hbind fun m'' =>
+          (pure () : SubProbability Unit).hbind fun _ =>
+            (pure (ProgramState.globalL.get m'') : SubProbability State))
       = bVar.testKer x₀ m
-    rw [SubProbability.pure_bind]
-    have hcond : (bPS bVar).get (ProcedureState.globalL.splitSpace.invFun (m, β₀)) = bVar.get m := by
-      change bVar.get (ProcedureState.globalL.get
-          (ProcedureState.globalL.splitSpace.invFun (m, β₀))) = bVar.get m
+    simp only [SubProbability.pure_hbind]
+    rw [SubProbability.hbind_eq_bind]
+    have hcond : (bPS bVar).get (ProgramState.globalL.splitSpace.invFun (m, β₀)) = bVar.get m := by
+      change bVar.get (ProgramState.globalL.get
+          (ProgramState.globalL.splitSpace.invFun (m, β₀))) = bVar.get m
       rw [hinv m]
     by_cases h : bVar.get m = x₀
-    · rw [show (bPS bVar).testKer x₀ (ProcedureState.globalL.splitSpace.invFun (m, β₀))
-            = pure (ProcedureState.globalL.splitSpace.invFun (m, β₀))
-          from if_pos (hcond.trans h), SubProbability.pure_bind, SubProbability.pure_bind,
-        hinv m]
+    · rw [show (bPS bVar).testKer x₀ (ProgramState.globalL.splitSpace.invFun (m, β₀))
+            = pure (ProgramState.globalL.splitSpace.invFun (m, β₀))
+          from if_pos (hcond.trans h), SubProbability.pure_bind, hinv m]
       exact (show bVar.testKer x₀ m = pure m from if_pos h).symm
-    · rw [show (bPS bVar).testKer x₀ (ProcedureState.globalL.splitSpace.invFun (m, β₀))
+    · rw [show (bPS bVar).testKer x₀ (ProgramState.globalL.splitSpace.invFun (m, β₀))
             = ⊥ from if_neg (fun hc => h (hcond.symm.trans hc)), SubProbability.bot_bind]
       exact (show bVar.testKer x₀ m = ⊥ from if_neg h).symm
   -- generator membership in the reduction, then into `fvP_proc`
   have h4 : bVar.testKer x₀
-      ∈ (Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))).updates := by
+      ∈ (Lens.reduceFootprint ProgramState.globalL (FVP.fvP_stmt (bodyQ bVar))).updates := by
     refine (Footprint.from_le_iff _ _).mp le_rfl ?_
     exact ⟨((bPS bVar).testKer x₀, fun _ => (pure β₀ : SubProbability _),
         fun _ => (pure () : SubProbability Unit)),
       ⟨h2, Set.mem_univ _, Set.mem_univ _⟩, h3⟩
-  have h5 : Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar))
+  have h5 : Lens.reduceFootprint ProgramState.globalL (FVP.fvP_stmt (bodyQ bVar))
       ≤ FVP.fvP_proc (q_syn bVar) := by
     rw [show FVP.fvP_proc (q_syn bVar) =
-        Lens.reduceFootprint ProcedureState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
-          Lens.reduceFootprint ProcedureState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
+        Lens.reduceFootprint ProgramState.globalL (FVP.fvP_stmt (bodyQ bVar)) ⊔
+          Lens.reduceFootprint ProgramState.globalL ((ProgramDenotation.get retQ).footprint) from rfl]
     exact le_sup_left
   exact h5 h4
 
