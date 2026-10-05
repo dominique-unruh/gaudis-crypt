@@ -1425,7 +1425,7 @@ theorem prhl2_glob {s : Type (max u v)} {a : Type v} {R : Footprint s} {p : Prog
     preserves `g` on its support couples `p` against `q' = p; c` (result kept)
     with the same pre/post.  The equal-initial-states version
     (`prhl2_of_lossless_tail_proj`) is the instance at the diagonal coupling. -/
-theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s : Type u} {α β : Type}
+theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s : Type u} {α : Type} {β : Type*}
     {p q' : ProgramDenotation s α} {c : ProgramDenotation s Unit} (g : s → β)
     {P : s → s → Prop}
     (hself : ProgramDenotation.prhl2 P p p (fun u v => u.1 = v.1 ∧ g u.2 = g v.2))
@@ -1482,7 +1482,7 @@ theorem ProgramDenotation.prhl2_of_lossless_tail_proj_inv {s : Type u} {α β : 
     states): the diagonal instance of `prhl2_of_lossless_tail_proj_inv`.
     Converts distribution-level *transfer* equations
     (`Lib/RO/TransferConvert.lean`) into `prhl2`. -/
-theorem ProgramDenotation.prhl2_of_lossless_tail_proj {s : Type u} {α β : Type}
+theorem ProgramDenotation.prhl2_of_lossless_tail_proj {s : Type u} {α : Type} {β : Type*}
     {p q : ProgramDenotation s α} {c : ProgramDenotation s Unit} (g : s → β)
     (hc : ∀ σ : s, (c σ).1 Set.univ = 1)
     (hkeep : ∀ σ : s, (c σ).satisfies (fun x : Unit × s => g x.2 = g σ))

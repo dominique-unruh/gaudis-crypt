@@ -20,11 +20,11 @@ open Classical
 /-! ## The generic `transferBy` calculus
 
 `ProgramDenotation.transfer` is `transferBy convert`.  We need the same relation
-at the `ProcedureState` level (with `convertL`), so we use the generic calculus
+at the `ProgramState` level (with `convertL`), so we use the generic calculus
 `ProgramDenotation.transferBy` from `GaudisCrypt.Logic.TransferBy` — monad-law
 combinators, the Kleene `while_loop` closure, and the `zoom` lifting lemma
 (`convertL = zoom globalL convert`, and `zoom` is a monad morphism, so any
-state-level transfer lifts to a zoomed `ProcedureState` one). -/
+state-level transfer lifts to a zoomed `ProgramState` one). -/
 
 open GaudisCrypt.ProgramDenotation
   (transferBy transferBy_pure transferBy_bind transferBy_zoom)
@@ -40,17 +40,18 @@ oracle hole is exempt — it is handled by the `hhole` hypothesis (later
 discharged by the per-query transfer lemma). -/
 
 /-- `p` commutes with `convertL` ("transfers to itself"). -/
-def Stable {l α : Type} (p : ProgramDenotation (ProcedureState l) α) : Prop :=
+def Stable {α : Type} (p : ProgramDenotation ProgramState α) : Prop :=
   transferBy convertL p p
 
 
 /-- Locality: every operation of `A` *outside the oracle interface* is `Stable`.
     For a hole, this is the surrounding read (`get p`) and write (`set x`) — the
     oracle query itself is *not* required stable (it transfers, lazy↦eager). -/
-def Loc {holes : HoleSigs} {l : Type} : StmtWithHoles holes l → Prop
+def Loc {holes : HoleSigs} : StmtWithHoles holes → Prop
   | .skip => True
-  | .sample x e => Stable (programDenotation (StmtWithHoles.sample x e : Stmt l))
-  | .call' x ls b r p => Stable (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l))
+  | .sample x e => Stable (programDenotation (StmtWithHoles.sample x e : Stmt))
+  | .call' x ns hl hn b r p =>
+      Stable (programDenotation (StmtWithHoles.call' x ns hl hn b r p : Stmt))
   | .hole _ x p => Stable (ProgramDenotation.get p) ∧ (∀ ret, Stable (ProgramDenotation.set x ret))
   | .seq s1 s2 => Loc s1 ∧ Loc s2
   | .ifThenElse c t e => Stable (ProgramDenotation.get c) ∧ Loc t ∧ Loc e
@@ -60,8 +61,8 @@ def Loc {holes : HoleSigs} {l : Type} : StmtWithHoles holes l → Prop
     `while_loop`.  Instantiates the generic Kleene closure
     `ProgramDenotation.transferBy_while_loop` with `c := convertL`; the
     condition's self-transfer is literally `Stable c`. -/
-theorem transferL_while_loop {l : Type} {c : ProgramDenotation (ProcedureState l) Bool}
-    {body_lazy body_eager : ProgramDenotation (ProcedureState l) Unit}
+theorem transferL_while_loop {c : ProgramDenotation ProgramState Bool}
+    {body_lazy body_eager : ProgramDenotation ProgramState Unit}
     (hc : Stable c) (hbody : transferBy convertL body_lazy body_eager) :
     transferBy convertL (while_loop c body_lazy) (while_loop c body_eager) :=
   ProgramDenotation.transferBy_while_loop hc hbody
@@ -72,18 +73,18 @@ theorem transferL_while_loop {l : Type} {c : ProgramDenotation (ProcedureState l
     and a per-hole transfer hypothesis (`hhole`).  Generic over the holes so the
     induction goes through; specialized to the RO hole below. -/
 theorem body_transfer_gen :
-    ∀ {holes : HoleSigs} {l : Type} (A : StmtWithHoles holes l)
+    ∀ {holes : HoleSigs} (A : StmtWithHoles holes)
       (lazyInst eagerInst : holes.Instantiation),
       Loc A →
       (∀ {sig} (n : HoleIndex holes sig)
-          (x : Setter sig.ret (ProcedureState l))
-          (p : Getter sig.ParamType (ProcedureState l)),
+          (x : Setter sig.ret ProgramState)
+          (p : Getter sig.ParamType ProgramState),
           Stable (ProgramDenotation.get p) → (∀ ret, Stable (ProgramDenotation.set x ret)) →
           transferBy convertL (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p))
             (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))) →
       transferBy convertL (programDenotation (A.instantiate lazyInst))
         (programDenotation (A.instantiate eagerInst)) := by
-  intro holes l A
+  intro holes A
   induction A with
   | skip =>
       intro lazyInst eagerInst _ _
@@ -93,7 +94,7 @@ theorem body_transfer_gen :
       intro lazyInst eagerInst hloc _
       simp only [StmtWithHoles.instantiate]
       exact hloc
-  | call' x ls b r p =>
+  | call' x ns hl hn b r p =>
       intro lazyInst eagerInst hloc _
       simp only [StmtWithHoles.instantiate]
       exact hloc
@@ -126,8 +127,8 @@ theorem body_transfer_gen :
     query itself transfers by `ProgramDenotation.transfer_lazy_query` (lifted via
     `transferBy_zoom`), and the bridges identify the procedures with the
     semantic queries. -/
-theorem ro_hhole {l : Type} {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
-    (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
+theorem ro_hhole {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
+    (x : Setter sig.ret ProgramState) (p : Getter sig.ParamType ProgramState)
     (hp : Stable (ProgramDenotation.get p)) (hx : ∀ ret, Stable (ProgramDenotation.set x ret)) :
     transferBy convertL (programDenotation (StmtWithHoles.call x (RO_lazy.lookup n) p))
       (programDenotation (StmtWithHoles.call x (RO_eager.lookup n) p)) := by
@@ -138,15 +139,15 @@ theorem ro_hhole {l : Type} {sig : ProcedureSignature} (n : HoleIndex roHoles si
       rw [denote_call, denote_call]
       refine transferBy_bind hp (fun args => transferBy_bind ?_ (fun ret => hx ret))
       rw [procDenotation_RO_lazy, procDenotation_RO_eager]
-      exact transferBy_zoom ProcedureState.globalL (ProgramDenotation.transfer_lazy_query args)
+      exact transferBy_zoom ProgramState.globalL (ProgramDenotation.transfer_lazy_query args)
   | succ m => nomatch m
 
 
 /-- **Body-level RO transfer** — fully assembled (only `transferL_while_loop`
     remains, via `body_transfer_gen`).  For any syntactic adversary body `A`
     that is `Loc`al (touches the RO table only through the oracle hole), the
-    lazy and eager instantiations transfer at the `ProcedureState` level. -/
-theorem transfer_instantiate_body {l : Type} (A : StmtWithHoles roHoles l) (hloc : Loc A) :
+    lazy and eager instantiations transfer at the `ProgramState` level. -/
+theorem transfer_instantiate_body (A : StmtWithHoles roHoles) (hloc : Loc A) :
     transferBy convertL (programDenotation (A.instantiate RO_lazy))
       (programDenotation (A.instantiate RO_eager)) :=
   body_transfer_gen A RO_lazy RO_eager hloc (fun n x p hp hx => ro_hhole n x p hp hx)
@@ -154,13 +155,13 @@ theorem transfer_instantiate_body {l : Type} (A : StmtWithHoles roHoles l) (hloc
 
 /-- **`convertL` slides in**: `convert` before the wrapper = `convertL` before the
     body, inside the wrapper.  Structural (no return-value hypothesis). -/
-theorem procWrap_convertL_in {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : ProgramDenotation (ProcedureState L)
-        Unit) :
+theorem procWrap_convertL_in {sig : ProcedureSignature}
+    (rv : Getter sig.ret ProgramState) (initL : VariableAssignment)
+    (B : ProgramDenotation ProgramState Unit) :
     procWrap rv initL (convertL >>= fun _ => B) = (convert >>= fun _ => procWrap rv initL B) := by
   funext st
   simp only [procWrap, convertL, ProgramDenotation.zoom, SubProbability.hbind, bind, pure,
-    ProcedureState.globalL]
+    ProgramState.globalL]
   generalize convert st = U
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -169,15 +170,15 @@ theorem procWrap_convertL_in {sig : ProcedureSignature} {L : Type}
 
 
 /-- `ProgramDenotation.get rv` reads `rv` and threads the state through unchanged. -/
-theorem programGet_eq {sig : ProcedureSignature} {L : Type} (rv : Getter sig.ret (ProcedureState L)) :
-    (ProgramDenotation.get rv : ProgramDenotation (ProcedureState L) sig.ret) = fun ps => pure
+theorem programGet_eq {sig : ProcedureSignature} (rv : Getter sig.ret ProgramState) :
+    (ProgramDenotation.get rv : ProgramDenotation ProgramState sig.ret) = fun ps => pure
         (rv.get ps, ps) := rfl
 
 
 /-- From `hret`: reading `rv` commutes with `convertL` (clean `convertL`-form). -/
-theorem rv_convertL_stable {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (ProgramDenotation.get rv)) (ps :
-        ProcedureState L) :
+theorem rv_convertL_stable {sig : ProcedureSignature}
+    (rv : Getter sig.ret ProgramState) (hret : Stable (ProgramDenotation.get rv))
+    (ps : ProgramState) :
     (convertL ps >>= fun q => pure (rv.get ps, q.2)) = (convertL ps >>= fun q => pure (rv.get q.2, q.2)) := by
   have h := congrFun hret ps
   simp only [Stable, transferBy, programGet_eq, bind, pure, SubProbability.pure_bind, MeasureTheory.Measure.dirac_bind measurable_from_top] at h
@@ -186,17 +187,17 @@ theorem rv_convertL_stable {sig : ProcedureSignature} {L : Type}
 
 /-- `key`: reading `rv` is invariant under `convert` changing the table (the global
     component of `rv_convertL_stable`). -/
-theorem rv_convert_invariant {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (hret : Stable (ProgramDenotation.get rv)) (ps :
-        ProcedureState L) :
-    (convert ps.global >>= fun w => pure (rv.get ps, w.2))
-      = (convert ps.global >>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
+theorem rv_convert_invariant {sig : ProcedureSignature}
+    (rv : Getter sig.ret ProgramState) (hret : Stable (ProgramDenotation.get rv))
+    (ps : ProgramState) :
+    (convert ps.globals >>= fun w => pure (rv.get ps, w.2))
+      = (convert ps.globals >>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
   have hc := rv_convertL_stable rv hret ps
-  have hp := congrArg (fun (m : SubProbability (sig.ret × ProcedureState L)) =>
-      m >>= fun p => (pure (p.1, p.2.global) : SubProbability (sig.ret × state))) hc
-  simp only [convertL, ProgramDenotation.zoom, SubProbability.hbind, ProcedureState.globalL,
+  have hp := congrArg (fun (m : SubProbability (sig.ret × ProgramState)) =>
+      m >>= fun p => (pure (p.1, p.2.globals) : SubProbability (sig.ret × state))) hc
+  simp only [convertL, ProgramDenotation.zoom, SubProbability.hbind, ProgramState.globalL,
     bind, pure, SubProbability.bind_assoc', SubProbability.pure_bind] at hp ⊢
-  generalize convert ps.global = U at hp ⊢
+  generalize convert ps.globals = U at hp ⊢
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
     measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top] at hp ⊢
@@ -207,15 +208,15 @@ set_option maxHeartbeats 1000000 in
 /-- **`convert` slides out**: `convert` after the wrapper = `convertL` after the
     body, inside the wrapper.  Consumes `hret` (the return value is RO-disjoint,
     so reading it commutes with `convert` changing the table) via `rv_convert_invariant`. -/
-theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
-    (rv : Getter sig.ret (ProcedureState L)) (initL : L) (B : ProgramDenotation (ProcedureState L)
-        Unit)
+theorem procWrap_convert_out {sig : ProcedureSignature}
+    (rv : Getter sig.ret ProgramState) (initL : VariableAssignment)
+    (B : ProgramDenotation ProgramState Unit)
     (hret : Stable (ProgramDenotation.get rv)) :
     (procWrap rv initL B >>= fun r => convert >>= fun _ => pure r)
       = procWrap rv initL (B >>= fun a => convertL >>= fun _ => pure a) := by
   funext st
   simp only [procWrap, convertL, ProgramDenotation.zoom, SubProbability.hbind,
-    ProcedureState.globalL, bind, pure]
+    ProgramState.globalL, bind, pure]
   generalize B ⟨st, initL⟩ = Bv
   obtain ⟨mb, hb⟩ := Bv
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
@@ -226,7 +227,7 @@ theorem procWrap_convert_out {sig : ProcedureSignature} {L : Type}
   funext p
   have h := congrArg Subtype.val (rv_convert_invariant rv hret p.2)
   simp only [bind, pure] at h ⊢
-  generalize convert p.2.global = U at h ⊢
+  generalize convert p.2.globals = U at h ⊢
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
     measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top] at h ⊢
@@ -246,12 +247,12 @@ theorem transfer_wrapper {sig : ProcedureSignature}
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) := by
   rw [procedureDenotation_eq_procWrap A args RO_lazy, procedureDenotation_eq_procWrap A args RO_eager]
-  show (procWrap A.return_val (sig.localVariableInit A.locals args)
+  show (procWrap A.return_val (A.initLocals args)
           (programDenotation (A.body.instantiate RO_lazy)) >>= fun r => convert >>= fun _ => pure r)
-      = (convert >>= fun _ => procWrap A.return_val (sig.localVariableInit A.locals args)
+      = (convert >>= fun _ => procWrap A.return_val (A.initLocals args)
           (programDenotation (A.body.instantiate RO_eager)))
   rw [procWrap_convert_out _ _ _ hret,
-      congrArg (procWrap A.return_val (sig.localVariableInit A.locals args)) hbody,
+      congrArg (procWrap A.return_val (A.initLocals args)) hbody,
       procWrap_convertL_in]
 
 
@@ -260,8 +261,8 @@ theorem transfer_wrapper {sig : ProcedureSignature}
     `Stable`. The `Footprint` analogue of `stable_of_inRange_compl`; the `ᶜ`-form makes the
     `commute_of_disjoint_footprint` disjointness hypothesis `le_refl`, so no `complement_range` analog
     is needed. -/
-theorem stable_of_inFootprint_compl {l α : Type}
-    {p : ProgramDenotation (ProcedureState l) α} (hp : p.inFootprint ((roLift l).footprint)ᶜ) :
+theorem stable_of_inFootprint_compl {α : Type}
+    {p : ProgramDenotation ProgramState α} (hp : p.inFootprint (roLift.footprint)ᶜ) :
         Stable p :=
   ProgramDenotation.transferBy_refl_of_inFootprint_compl convertL_inFootprint hp
 
@@ -269,21 +270,21 @@ theorem stable_of_inFootprint_compl {l α : Type}
 /-- **`Stable` from confinement to a footprint disjoint from the RO** (probabilistic). The
     `Footprint` analogue of `stable_of_confined_lens`. No `complement_range` needed — the
     `ᶜ`-form bound `hdisj` feeds `inFootprint_mono` directly. -/
-theorem stable_of_confinedP_footprint {l α : Type}
-    (R : Footprint (ProcedureState l)) (hdisj : R ≤ ((roLift l).footprint)ᶜ)
-    {p : ProgramDenotation (ProcedureState l) α} (hp : p.inFootprint R) : Stable p :=
+theorem stable_of_confinedP_footprint {α : Type}
+    (R : Footprint ProgramState) (hdisj : R ≤ (roLift.footprint)ᶜ)
+    {p : ProgramDenotation ProgramState α} (hp : p.inFootprint R) : Stable p :=
   stable_of_inFootprint_compl (ProgramDenotation.inFootprint_mono hp hdisj)
 
 
 /-- **`ConfinedP` discharges `Loc`** (theorem-1 locality), leaf by leaf — reusing the existing
     `Loc`→theorems chain. The `Footprint` analogue of `confined_loc`. -/
-theorem confinedP_loc {holes : HoleSigs} {l : Type}
-    (R : Footprint (ProcedureState l)) (hdisj : R ≤ ((roLift l).footprint)ᶜ)
+theorem confinedP_loc {holes : HoleSigs}
+    (R : Footprint ProgramState) (hdisj : R ≤ (roLift.footprint)ᶜ)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
-    ∀ (A : StmtWithHoles holes l), ConfinedP R A → Loc A
+    ∀ (A : StmtWithHoles holes), ConfinedP R A → Loc A
   | .skip, _ => trivial
   | .sample _ _, h => stable_of_confinedP_footprint R hdisj h
-  | .call' _ _ _ _ _, h => stable_of_confinedP_footprint R hdisj h
+  | .call' _ _ _ _ _ _ _, h => stable_of_confinedP_footprint R hdisj h
   | .hole n _ _, h =>
       haveI := hc n
       ⟨stable_of_confinedP_footprint R hdisj h.1,
@@ -303,7 +304,7 @@ theorem confinedP_loc {holes : HoleSigs} {l : Type}
     `fvP → ConfinedP → Loc → transfer` chain — the sole entry point. -/
 theorem ProgramDenotation.transfer_instantiate_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hdisj : fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ) :
+    (hdisj : fvP_proc A ≤ (roLift.footprint)ᶜ) :
     ProgramDenotation.transfer
       (procedureDenotation (A.instantiate RO_lazy) args)
       (procedureDenotation (A.instantiate RO_eager) args) :=
@@ -334,7 +335,7 @@ lemma convert_lossless (σ : state) : (convert σ).1 Set.univ = 1 := by
 /-- `convert`'s support only performs a `random_oracle_state` write: any state projection `g`
     invariant under RO writes is preserved along `convert`'s run.  Via the explicit
     `convert_wp_eq` formula — no support analysis of the monadic plumbing needed. -/
-lemma convert_satisfies_of_ro_invariant {β : Type} (g : state → β)
+lemma convert_satisfies_of_ro_invariant {β : Type*} (g : state → β)
     (hg : ∀ (Z : input → Option output) (σ : state), g (random_oracle_state.set Z σ) = g σ)
     (σ : state) :
     (convert σ).satisfies (fun x : Unit × state => g x.2 = g σ) := by
@@ -365,7 +366,7 @@ theorem glob_ro_set_invariant {sig : ProcedureSignature} (A : ProcedureWithHoles
     supplied by `random_oracle_init = lazy_init; convert`. -/
 theorem game_transfer_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType)
-    (hdisj : fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ) :
+    (hdisj : fvP_proc A ≤ (roLift.footprint)ᶜ) :
     ((lazy_init >>= fun _ => procedureDenotation (A.instantiate RO_lazy) args) >>= fun a =>
         convert >>= fun _ => pure a)
       = random_oracle_init >>= fun _ => procedureDenotation (A.instantiate RO_eager) args := by
@@ -402,7 +403,7 @@ theorem game_transfer_of_fvP {sig : ProcedureSignature}
     `output_win_transfer_games` for the user-facing (syntactic-`FVP`) statement. -/
 theorem output_win_transfer_games_of_fvP {sig : ProcedureSignature}
     (A : ProcedureWithHoles roHoles sig) (args : sig.ParamType) (Win : sig.ret → Prop)
-    (hdisj : fvP_proc A ≤ ((roLift (sig.ProcedureScope A.locals)).footprint)ᶜ) :
+    (hdisj : fvP_proc A ≤ (roLift.footprint)ᶜ) :
     ProgramDenotation.prhl2 (fun σ₁ σ₂ : state => σ₁ = σ₂)
       (do lazy_init; procedureDenotation (A.instantiate RO_lazy) args)
       (do random_oracle_init; procedureDenotation (A.instantiate RO_eager) args)
