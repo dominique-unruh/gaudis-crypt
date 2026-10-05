@@ -32,7 +32,7 @@ The generic "sliding coupling" relation between programs:
 
 The lazy/eager random-oracle transfer (`ProgramDenotation.transfer` in
 `GaudisCrypt.Lib.RO.TransferConvert`) is `transferBy convert`; its
-`ProcedureState` variant (`Stable`/`Loc` in
+`ProgramState` variant (`Stable`/`Loc` in
 `GaudisCrypt.Lib.RO.TransferInstantiate`) is `transferBy convertL`.
 -/
 
