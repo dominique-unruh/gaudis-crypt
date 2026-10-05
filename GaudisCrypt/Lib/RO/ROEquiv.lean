@@ -210,15 +210,15 @@ include h_adv in
     projection `h : state → β`, the joint `(bit, h σ)` distribution agrees
     under lazy and eager `oracle_loop`. Specialisation of
     `ProgramDenotation.transfer_marginal_ro_invariant`. -/
-theorem oracle_loop_marginal_lazy_eq_random_oracle {β : Type}
+theorem oracle_loop_marginal_lazy_eq_random_oracle {β : Type*}
     (h : state → β)
     (h_inv : ∀ (σ : state) (x : input → Option output),
         h (random_oracle_state.set x σ) = h σ)
     (σ₀ : state) :
-    (oracle_loop adv lazy_init lazy_query σ₀ >>=
+    ((oracle_loop adv lazy_init lazy_query σ₀).hbind
         fun bσ : Bool × state => (Pure.pure (bσ.1, h bσ.2) : SubProbability (Bool × β)))
     =
-    (oracle_loop adv random_oracle_init random_oracle_query σ₀ >>=
+    ((oracle_loop adv random_oracle_init random_oracle_query σ₀).hbind
         fun bσ : Bool × state => (Pure.pure (bσ.1, h bσ.2) : SubProbability (Bool × β))) :=
   ProgramDenotation.transfer_marginal_ro_invariant
     (ProgramDenotation.transfer_oracle_loop adv h_adv)

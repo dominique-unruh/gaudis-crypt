@@ -152,10 +152,10 @@ include h_cr_adv in
 /-- **Transfer theorem**: The marginal distribution of the result bit is
     identical under lazy and eager random oracle. -/
 theorem cr_transfer (q : ℕ) (σ₀ : state) :
-    (cr_experiment cr_adv q lazy_init lazy_query σ₀ >>=
+    ((cr_experiment cr_adv q lazy_init lazy_query σ₀).hbind
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool))
     =
-    (cr_experiment cr_adv q random_oracle_init random_oracle_query σ₀ >>=
+    ((cr_experiment cr_adv q random_oracle_init random_oracle_query σ₀).hbind
         fun bσ : Bool × state => (pure bσ.1 : SubProbability Bool)) :=
   ProgramDenotation.transfer_value_marginal (transfer_cr_experiment cr_adv h_cr_adv q)
     (convert_cr_experiment_eager cr_adv q) σ₀
@@ -923,8 +923,7 @@ lemma cr_transfer_wp_of_bit (q : ℕ) (σ₀ : state) (G : Bool → ENNReal) :
         (fun bσ : Bool × state => G bσ.1) σ₀
     = (cr_experiment cr_adv q random_oracle_init random_oracle_query).wp
         (fun bσ : Bool × state => G bσ.1) σ₀ :=
-  ProgramDenotation.wp_eq_of_marginal_eq (fun σ => by
-    simp only [SubProbability.hbind_eq_bind]; exact cr_transfer cr_adv h_cr_adv q σ) G σ₀
+  ProgramDenotation.wp_eq_of_marginal_eq (fun σ => cr_transfer cr_adv h_cr_adv q σ) G σ₀
 
 include h_cr_adv in
 /-- Birthday bound for the eager (true random oracle) game,

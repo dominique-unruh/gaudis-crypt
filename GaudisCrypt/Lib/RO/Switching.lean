@@ -270,9 +270,9 @@ lemma lazy_query_switch_step (inp : input) :
         (prp_bad.set true σ₁)) = true := fun y => by
       rw [prp_bad.get_of_disjoint_set random_oracle_state, prp_bad.set_get]
     refine
-      { w := (SubProbability.uniform : SubProbability output) >>= fun y =>
+      { w := (SubProbability.uniform : SubProbability output).hbind fun y =>
           if y ∈ colliding_outputs (random_oracle_state.get σ₁) inp then
-            rp_resample_sub (random_oracle_state.get σ₁) inp y >>= fun y' =>
+            (rp_resample_sub (random_oracle_state.get σ₁) inp y).hbind fun y' =>
               (pure
                 ((y, random_oracle_state.set
                       (fun k => if k = inp then some y else random_oracle_state.get σ₁ k)
@@ -290,30 +290,30 @@ lemma lazy_query_switch_step (inp : input) :
               : SubProbability ((output × state) × (output × state)))
         marg₁ := ?_, marg₂ := ?_, supp := ?_ }
     · intro F
-      rw [SubProbability.expected_bind, uniform_expected, lazy_query_rf_wp_miss hc]
+      rw [SubProbability.expected_hbind, uniform_expected, lazy_query_rf_wp_miss hc]
       apply Finset.sum_congr rfl
       intro y _
       congr 1
       by_cases hbb : y ∈ colliding_outputs (random_oracle_state.get σ₁) inp
-      · simp only [if_pos hbb, SubProbability.expected_bind, expected_pure]
+      · simp only [if_pos hbb, SubProbability.expected_hbind, expected_pure]
         exact rp_resample_sub_expected_const _ _ _ _
       · simp only [if_neg hbb, expected_pure]
     · intro G
-      rw [SubProbability.expected_bind, uniform_expected, lazy_query_rp_wp_miss hc]
+      rw [SubProbability.expected_hbind, uniform_expected, lazy_query_rp_wp_miss hc]
       apply Finset.sum_congr rfl
       intro y _
       congr 1
       by_cases hbb : y ∈ colliding_outputs (random_oracle_state.get σ₁) inp
-      · simp only [if_pos hbb, SubProbability.expected_bind, expected_pure]
+      · simp only [if_pos hbb, SubProbability.expected_hbind, expected_pure]
       · simp only [if_neg hbb, expected_pure]
     · intro f hf
-      rw [SubProbability.expected_bind]
+      rw [SubProbability.expected_hbind]
       refine Eq.trans
         (SubProbability.expected_congr _ (g := fun _ : output => (0 : ENNReal)) (fun y => ?_))
         (SubProbability.expected_zero _)
       by_cases hbb : y ∈ colliding_outputs (random_oracle_state.get σ₁) inp
       · simp only [if_pos hbb]
-        rw [SubProbability.expected_bind]
+        rw [SubProbability.expected_hbind]
         refine Eq.trans
           (SubProbability.expected_congr _ (g := fun _ : output => (0 : ENNReal)) (fun y' => ?_))
           (SubProbability.expected_zero _)

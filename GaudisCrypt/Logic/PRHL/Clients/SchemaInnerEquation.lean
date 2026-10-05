@@ -34,7 +34,7 @@ state type, and no `Fintype`/`Nonempty` assumptions on `T`.
 
 namespace PRHLSchema
 
-variable {s T : Type} [DecidableEq T]
+variable {s : Type*} {T : Type} [DecidableEq T]
 variable (target_var : Lens T s) (matched_var : Lens Bool s)
 variable (queries_list_var : Lens (List T) s)
 variable [Lens.Disjoint matched_var queries_list_var]

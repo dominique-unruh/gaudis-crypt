@@ -68,7 +68,7 @@ hit a uniform target" game. -/
     Returns the matched flag's final value (Bool). Cryptographic reductions
     relate ow_game_*'s win/bad events to the matched flag via specialized
     bridges. -/
-noncomputable def guess_experiment {T s : Type}
+noncomputable def guess_experiment {T : Type} {s : Type*}
     (env : ProgramDenotation s Unit)
     (sample_target : ProgramDenotation s T)
     (target_var : Lens T s)

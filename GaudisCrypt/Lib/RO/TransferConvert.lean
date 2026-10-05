@@ -383,8 +383,8 @@ theorem ProgramDenotation.transfer_value_marginal {α : Type}
     (h_transfer : ProgramDenotation.transfer p q)
     (h_absorb : (convert >>= fun _ => q) = q)
     (σ₀ : state) :
-    (p σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α))
-  = (q σ₀ >>= fun aσ => (Pure.pure aσ.1 : SubProbability α)) :=
+    ((p σ₀).hbind fun aσ => (Pure.pure aσ.1 : SubProbability α))
+  = ((q σ₀).hbind fun aσ => (Pure.pure aσ.1 : SubProbability α)) :=
   ProgramDenotation.transferBy_value_marginal h_transfer h_absorb convert_mass σ₀
 
 /-! ## Enriched transfer: RO-invariant projections of state
@@ -440,15 +440,17 @@ theorem ProgramDenotation.transfer_wp_ro_invariant {α : Type}
     to just the value, we additionally include any RO-invariant projection
     `h : state → β`. Captures the wrapper-style
     `oracle_loop_marginal_lazy_eq_random_oracle` family. -/
-theorem ProgramDenotation.transfer_marginal_ro_invariant {α β : Type}
+theorem ProgramDenotation.transfer_marginal_ro_invariant {α : Type} {β : Type*}
     {p q : ProgramDenotation state α}
     (h_transfer : ProgramDenotation.transfer p q)
     (h_absorb : (convert >>= fun _ => q) = q)
     (h : state → β)
     (h_inv : ∀ σ x, h (random_oracle_state.set x σ) = h σ)
     (σ₀ : state) :
-    (p σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β)))
-  = (q σ₀ >>= fun aσ : α × state => (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) :=
+    ((p σ₀).hbind fun aσ : α × state =>
+      (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β)))
+  = ((q σ₀).hbind fun aσ : α × state =>
+      (Pure.pure (aσ.1, h aσ.2) : SubProbability (α × β))) :=
   ProgramDenotation.transferBy_marginal_invariant h_transfer h_absorb h
     (fun g σ => convert_wp_state_const_of_ro_invariant (fun σ' => g (h σ'))
       (fun σ' x => by rw [h_inv]) σ) σ₀

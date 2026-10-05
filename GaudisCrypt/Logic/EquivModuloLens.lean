@@ -86,22 +86,26 @@ lemma bind [DecidableEq γ]
     ProgramDenotation.EquivModuloLens L (p >>= k) (p' >>= k') :=
   (h_p.bind_eq_k h_k_inFootprint).trans (bind_eq_p h_k)
 
+/-! The three `set`/`pure ()` lemmas below mention no result type, so the section's
+`s : Type (max u v)` would leave `v` free and `max ?u ?v =?= 1` unsolvable at a `Type 1` state.
+They bind their own `s : Type*` instead. -/
+
 /-- A `set L v` is equivalent (modulo L) to `pure ()`. -/
-lemma set_equiv_pure (v : γ) :
+lemma set_equiv_pure {s : Type*} {L : Lens γ s} (v : γ) :
     ProgramDenotation.EquivModuloLens L (ProgramDenotation.set L v) (pure ()) := by
   intro F h_F σ
   rw [wp_set, wp_pure]
   exact h_F ((), σ) v
 
 /-- `pure ()` is equivalent (modulo L) to `set L v` (symmetric form). -/
-lemma pure_equiv_set (v : γ) :
+lemma pure_equiv_set {s : Type*} {L : Lens γ s} (v : γ) :
     ProgramDenotation.EquivModuloLens L (pure ()) (ProgramDenotation.set L v) := by
   intro F h_F σ
   rw [wp_set, wp_pure]
   exact (h_F ((), σ) v).symm
 
 /-- A conditional `set L v` is equivalent to `pure ()`. -/
-lemma cond_set_equiv_pure (cond : Prop) [Decidable cond] (v : γ) :
+lemma cond_set_equiv_pure {s : Type*} {L : Lens γ s} (cond : Prop) [Decidable cond] (v : γ) :
     ProgramDenotation.EquivModuloLens L
       (if cond then ProgramDenotation.set L v else (pure () : ProgramDenotation s Unit))
       (pure ()) := by

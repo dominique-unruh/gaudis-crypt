@@ -16,8 +16,9 @@ open GaudisCrypt
 open GaudisCrypt
 
 /-- The ambient state of the development. (Moved here from the former scratch
-    `Unsorted.lean` so that the crypto layer doesn't depend on that file.) -/
-structure state where
+    `Unsorted.lean` so that the crypto layer doesn't depend on that file.)
+    It lives in `Type 1`, the universe of `ProgramSpec.state`. -/
+structure state : Type 1 where
   x : Nat
   y : Nat
   z : String

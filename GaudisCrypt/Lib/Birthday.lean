@@ -59,7 +59,7 @@ private lemma layer_C_combine_div (m k : ℕ) (N : ENNReal)
 /-- **The birthday accumulation bound.** If `body` bumps `coll` by at most
     `size/N` and `size` by at most `1` per iteration, then `loop_n k body`
     bumps `coll` by at most `k(2·size + k − 1)/2N`. -/
-lemma loop_n_birthday_bound {s : Type} (body : ProgramDenotation s Unit)
+lemma loop_n_birthday_bound {s : Type*} (body : ProgramDenotation s Unit)
     (coll : s → ENNReal) (size : s → ℕ) (N : ENNReal)
     (hN_pos : N ≠ 0) (hN_top : N ≠ ⊤)
     (h_coll : ∀ σ, body.wp (fun yσ : Unit × s => coll yσ.2) σ

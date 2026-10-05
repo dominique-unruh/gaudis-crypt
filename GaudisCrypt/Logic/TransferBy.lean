@@ -359,7 +359,7 @@ theorem ProgramDenotation.transferBy_value_marginal {s : Type*} {α : Type}
 /-- **Marginal at the (value × `c`-invariant projection) level**: instead of
     projecting to just the value, additionally include any state projection
     `h : s → β` that is invariant under running `c` (in the wp sense). -/
-theorem ProgramDenotation.transferBy_marginal_invariant {s : Type*} {α β : Type}
+theorem ProgramDenotation.transferBy_marginal_invariant {s : Type*} {α : Type} {β : Type*}
     {c : ProgramDenotation s Unit} {p q : ProgramDenotation s α}
     (h_transfer : ProgramDenotation.transferBy c p q)
     (h_absorb : (c >>= fun _ => q) = q)
