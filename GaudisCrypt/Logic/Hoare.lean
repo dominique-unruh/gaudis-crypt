@@ -5,7 +5,7 @@ namespace GaudisCrypt
 
 variable [ProgramSpec]
 
-def hoareStmt (A : ProcedureState l → Prop) (p : Stmt l) (B : ProcedureState l → Prop) :=
+def hoareStmt (A : ProgramState → Prop) (p : Stmt) (B : ProgramState → Prop) :=
   ∀ σ, A σ → (programDenotation p σ).ofEvent (fun (_, σ') => ¬ B σ') = 0
 
 def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
@@ -28,8 +28,8 @@ lemma SubProbability.ofEvent_eq_zero_of_subset {α} {μ : SubProbability α} {E 
 
 /-- `hoareStmt` is monotone in its postcondition: a weaker `B` is a weaker triple, because the null
     event `¬ B` only shrinks. -/
-lemma hoareStmt_mono {l} {A : ProcedureState l → Prop} {p : Stmt l}
-    {B₁ B₂ : ProcedureState l → Prop} (hB : ∀ σ, B₁ σ → B₂ σ) (h : hoareStmt A p B₁) :
+lemma hoareStmt_mono {A : ProgramState → Prop} {p : Stmt}
+    {B₁ B₂ : ProgramState → Prop} (hB : ∀ σ, B₁ σ → B₂ σ) (h : hoareStmt A p B₁) :
     hoareStmt A p B₂ := fun σ hA =>
   SubProbability.ofEvent_eq_zero_of_subset (fun _ hq hb => hq (hB _ hb)) (h σ hA)
 
@@ -41,8 +41,8 @@ lemma hoareProc_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedure
 
 /-- A `hoareStmt` triple *is* a `wp` statement: `wp` against the indicator of the failure event is
     that event's mass (`expectation_indicator`), so the triple is exactly that `wp` being `0`. -/
-theorem hoareStmt_iff_wp {l} {A : ProcedureState l → Prop} {p : Stmt l}
-    {B : ProcedureState l → Prop} :
+theorem hoareStmt_iff_wp {A : ProgramState → Prop} {p : Stmt}
+    {B : ProgramState → Prop} :
     hoareStmt A p B ↔ ∀ σ, A σ →
       (programDenotation p).wp (Set.indicator {r | ¬ B r.2} fun _ => 1) σ = 0 := by
   simp only [hoareStmt, ProgramDenotation.wp, expectation_indicator, one_mul, ENNReal.coe_eq_zero]
@@ -58,7 +58,7 @@ theorem hoareProc_iff_wp {sig} {A : sig.ParamType → State → Prop} {p : Proce
 
 /-- A `hoareStmt` triple from a `wp` computation — the direction of `hoareStmt_iff_wp` that proofs
     actually use. -/
-lemma hoareStmt_of_wp {l} {A : ProcedureState l → Prop} {p : Stmt l} {B : ProcedureState l → Prop}
+lemma hoareStmt_of_wp {A : ProgramState → Prop} {p : Stmt} {B : ProgramState → Prop}
     (h : ∀ σ, A σ →
       (programDenotation p).wp (Set.indicator {r | ¬ B r.2} fun _ => 1) σ = 0) :
     hoareStmt A p B :=
@@ -73,100 +73,32 @@ lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedur
     hoareProc A p B :=
   hoareProc_iff_wp.mpr h
 
-
--- TODO: the three lenses below belong in `Language/Lens.lean` / next to `typeListToTuple` in
--- `Language/Programs.lean`; they are here while `hoareProc_as_hoareStmt` is being drafted.
-
-/-- The trivial lens onto `Unit`: the one value to read, and writing it is a no-op.  The lens laws
-    hold by `Unit`'s eta — in particular `set_get` is `() = v`. -/
-def Lens.unit {m : Type*} : Lens Unit m where
-  get _ := ()
-  set _ s := s
-  set_get _ _ := rfl
-  set_set _ _ _ := rfl
-  get_set _ := rfl
-
-/-- The head component of `typeListToTuple (x :: xs)`.  Two cases, because a one-element
-    `typeListToTuple` *is* that element rather than a pair with `Unit`. -/
-def typeListToTuple.headL : (x : Type) → (xs : List Type) → Lens x (typeListToTuple (x :: xs))
-  | _, []     => Lens.id
-  | _, _ :: _ => Lens.fst
-
-/-- The tail components of `typeListToTuple (x :: xs)`, i.e. `typeListToTuple xs`.  At `xs = []`
-    that is `Unit`, which no component of the tuple holds — hence `Lens.unit`. -/
-def typeListToTuple.tailL : (x : Type) → (xs : List Type) →
-    Lens (typeListToTuple xs) (typeListToTuple (x :: xs))
-  | _, []     => Lens.unit
-  | _, _ :: _ => Lens.snd
-
-/-- `typeListToTuple (x :: xs)` assembled from a head and a tail — the constructor matching
-    `typeListToTuple.headL` and `typeListToTuple.tailL`.  At `xs = []` the tail carries no
-    information and is discarded. -/
-def typeListToTuple.cons : (x : Type) → (xs : List Type) → x → typeListToTuple xs →
-    typeListToTuple (x :: xs)
-  | _, [],     v, _  => v
-  | _, _ :: _, v, vs => (v, vs)
-
-omit [ProgramSpec] in
-@[simp] theorem typeListToTuple.headL_get_cons (x : Type) (xs : List Type) (v : x)
-    (vs : typeListToTuple xs) :
-    (typeListToTuple.headL x xs).get (typeListToTuple.cons x xs v vs) = v := by
-  cases xs <;> rfl
-
-omit [ProgramSpec] in
-@[simp] theorem typeListToTuple.tailL_get_cons (x : Type) (xs : List Type) (v : x)
-    (vs : typeListToTuple xs) :
-    (typeListToTuple.tailL x xs).get (typeListToTuple.cons x xs v vs) = vs := by
-  cases xs <;> rfl
-
-/-- `res`, the head slot of the caller's local state `typeListToTuple (sig.ret :: sig.params)`.
-    That local state is a raw tuple, not a `ProcedureScope`, so nothing here needs
-    `Inhabited sig.ret`, as a `var res : sig.ret;` declaration would. -/
-abbrev ProcedureSignature.resL (sig : ProcedureSignature) :
-    Lens sig.ret (ProcedureState (typeListToTuple (sig.ret :: sig.params))) :=
-  ProcedureState.scopedL.chain (typeListToTuple.headL sig.ret sig.params)
-
-/-- The argument expression of the call: the parameter slots of the caller's local state. -/
-abbrev ProcedureSignature.argsL (sig : ProcedureSignature) :
-    Lens sig.ParamType (ProcedureState (typeListToTuple (sig.ret :: sig.params))) :=
-  ProcedureState.scopedL.chain (typeListToTuple.tailL sig.ret sig.params)
-
-/-- Writing `res` leaves the global state alone — it goes into the `locals` field. -/
-@[simp] theorem ProcedureSignature.global_resL_set (sig : ProcedureSignature) (r : sig.ret)
-    (τ : ProcedureState (typeListToTuple (sig.ret :: sig.params))) :
-    (sig.resL.set r τ).global = τ.global := rfl
-
-/-- The caller state assembled from a result value and an argument tuple has those arguments. -/
-@[simp] theorem ProcedureSignature.argsL_get_cons (sig : ProcedureSignature) (st : State)
-    (r : sig.ret) (args : sig.ParamType) :
-    sig.argsL.get ⟨st, typeListToTuple.cons sig.ret sig.params r args⟩ = args := by
-  simp [ProcedureSignature.argsL, Lens.chain, ProcedureState.scopedL]
-
 /-- A procedure triple is the statement triple about the one-line body
 
       res <- p(args);
 
-    run in a local state that is the result slot followed by `sig`'s own parameter slots.  The
-    parameters being the caller's, `args` is just the projection onto them — no assignment is
-    needed to set the call up, and `res` needs no `var` declaration.  `hoareStmt` quantifies over
-    every initial state, i.e. over every `(res₀, args, σ)`, which is
-    `hoareProc`'s `∀ args σ` plus an unconstrained `res₀` that neither side's condition mentions —
-    so the two are equivalent, not merely one-directional. -/
+    where `res` and `args` are any two lenses into the caller's locals.  The callee runs in its own
+    frame, so the two need not be disjoint, and neither needs to avoid `p`'s parameter names.
+    `args` is read before `res` is written, and only `res` and the globals are read afterwards.
+    `hoareStmt` quantifies over every initial state; the `←` direction picks one whose `args` slot
+    holds the given arguments.  Typical instances are `varLens` slots, e.g. `varLens ("res", ret)`
+    and one slot per parameter. -/
 theorem hoareProc_as_hoareStmt {sig : ProcedureSignature}
+    (resL : Lens sig.ret VariableAssignment) (argsL : Lens sig.ParamType VariableAssignment)
     (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → State → Prop) :
     hoareProc A p B ↔
-      hoareStmt (l := typeListToTuple (sig.ret :: sig.params))
-        (fun σ => A (sig.argsL.get σ) σ.global)
-        (Stmt.call sig.resL p sig.argsL)
-        (fun σ => B (sig.resL.get σ) σ.global) := by
+      hoareStmt
+        (fun σ => A (argsL.get σ.locals) σ.globals)
+        (Stmt.call resL.intoLocal p argsL.intoLocal)
+        (fun σ => B (resL.get σ.locals) σ.globals) := by
   rw [hoareProc_iff_wp, hoareStmt_iff_wp]
   -- The statement's `wp` is the procedure's own: reading `args` and writing `res` are both
   -- deterministic, and neither touches the global state the postcondition looks at.
-  have key : ∀ σ : ProcedureState (typeListToTuple (sig.ret :: sig.params)),
-      (programDenotation (Stmt.call sig.resL p sig.argsL)).wp
-          (Set.indicator {r | ¬ B (sig.resL.get r.2) r.2.global} fun _ => 1) σ
-        = (procedureDenotation p (sig.argsL.get σ)).wp
-            (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ.global := by
+  have key : ∀ σ : ProgramState,
+      (programDenotation (Stmt.call resL.intoLocal p argsL.intoLocal)).wp
+          (Set.indicator {r | ¬ B (resL.get r.2.locals) r.2.globals} fun _ => 1) σ
+        = (procedureDenotation p (argsL.get σ.locals)).wp
+            (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ.globals := by
     intro σ
     simp only [Stmt.call, StmtWithHoles.call, programDenotation, procedureWithHoles_eta,
       wp_bind, wp_get_g, wp_zoom, wp_set_g, AsGetter.toG, AsSetter.toS, id_eq]
@@ -174,10 +106,10 @@ theorem hoareProc_as_hoareStmt {sig : ProcedureSignature}
     funext as'
     -- the failure events correspond: `res` reads back `as'.1`, and writing it leaves the global
     -- state at `as'.2`
-    have hmem : (((), sig.resL.set as'.1 (ProcedureState.globalL.set as'.2 σ))
-          ∈ {r | ¬ B (sig.resL.get r.2) r.2.global}) ↔ as' ∈ {r | ¬ B r.1 r.2} := by
-      simp only [Set.mem_setOf_eq, Lens.set_get,
-        ProcedureSignature.global_resL_set, ProcedureState.globalL]
+    have hmem : (((), resL.intoLocal.set as'.1 (ProgramState.globalL.set as'.2 σ))
+          ∈ {r | ¬ B (resL.get r.2.locals) r.2.globals}) ↔ as' ∈ {r | ¬ B r.1 r.2} := by
+      simp only [Set.mem_setOf_eq, Lens.intoLocal, Lens.chain, ProgramState.localL,
+        ProgramState.globalL, Lens.set_get]
     by_cases h : as' ∈ {r : sig.ret × State | ¬ B r.1 r.2}
     · rw [Set.indicator_of_mem (hmem.mpr h), Set.indicator_of_mem h]
     · rw [Set.indicator_of_notMem (fun hc => h (hmem.mp hc)), Set.indicator_of_notMem h]
@@ -186,11 +118,8 @@ theorem hoareProc_as_hoareStmt {sig : ProcedureSignature}
     rw [key]
     exact h _ _ hA
   · intro h args st hA
-    -- the caller state witnessing `(args, st)`: the result slot can be filled with the value the
-    -- procedure itself would return, so no `Inhabited sig.ret` is needed
-    have hget := h ⟨st, typeListToTuple.cons _ _
-      (p.return_val.get ⟨st, sig.localVariableInit p.locals args⟩) args⟩ (by simpa using hA)
+    have hget := h ⟨st, argsL.set args VariableAssignment.init⟩ (by simpa [Lens.set_get] using hA)
     rw [key] at hget
-    simpa using hget
+    simpa [Lens.set_get] using hget
 
 end GaudisCrypt
