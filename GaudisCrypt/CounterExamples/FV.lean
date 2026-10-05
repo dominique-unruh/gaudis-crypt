@@ -17,12 +17,12 @@ abbrev FV := DetermFootprint State
 
 
 noncomputable
-def fv_getter (getter : Getter a s) : DetermFootprint s := ProgramDenotation.range
-    (ProgramDenotation.get getter)
+def fv_getter {a : Type} {s : Type*} (getter : Getter a s) : DetermFootprint s :=
+  ProgramDenotation.range (ProgramDenotation.get getter)
 
 noncomputable
-def fv_setter (setter : Setter a s) : DetermFootprint s := ProgramDenotation.range'
-    (ProgramDenotation.set setter)
+def fv_setter {a : Type} {s : Type*} (setter : Setter a s) : DetermFootprint s :=
+  ProgramDenotation.range' (ProgramDenotation.set setter)
 
 def fv_reduce {a b} (lens : Lens a b) (range : DetermFootprint b) : DetermFootprint a :=
   DetermFootprint.from { f | ∀ g ∈ range.updates, lens.liftFunction f * g = g * lens.liftFunction f}.centralizer
@@ -184,6 +184,7 @@ noncomputable
 def fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : DetermFootprint State := fvInductiveFunctionGS.proc proc
 
 noncomputable
-def fv_stmt {s holes} (stmt : StmtWithHoles holes s) : DetermFootprint (ProcedureState s) := fvInductiveFunctionGS.stmt stmt
+def fv_stmt {holes} (stmt : StmtWithHoles holes) : DetermFootprint ProgramState :=
+  fvInductiveFunctionGS.stmt stmt
 
 end FV

@@ -38,20 +38,21 @@ this is equivalent to "the actions of `p` (lifted to deterministic updates) lie 
     The two sides are compared as `ProgramDenotation s a`: on the left, `f` runs before `p`
     and `p`'s return is preserved; on the right, `p`'s return is captured, then
     `f` runs, then the saved return is produced. -/
-def _root_.GaudisCrypt.ProgramDenotation.inRange {s a : Type} (p :
+def _root_.GaudisCrypt.ProgramDenotation.inRange {s : Type*} {a : Type} (p :
     ProgramDenotation s a) (R : DetermFootprint s) : Prop :=
   ∀ f ∈ Rᶜ.updates,
     (liftF f >>= fun _ => p)
   = (p >>= fun x => liftF f >>= fun _ => pure x)
 
 /-- The smallest DetermFootprint in which `p` lives. -/
-noncomputable def _root_.GaudisCrypt.ProgramDenotation.range {s a : Type} (p :
+noncomputable def _root_.GaudisCrypt.ProgramDenotation.range {s : Type*} {a : Type} (p :
     ProgramDenotation s a) : DetermFootprint s :=
   sInf { R | p.inRange R }
 
 /-- Family version: the smallest DetermFootprint in which every `progs x` lives.
     Equivalently the supremum `⨆ x, (progs x).range`. -/
-noncomputable def ProgramDenotation.range' {s a b : Type} (progs : a → ProgramDenotation s b) :
+noncomputable def ProgramDenotation.range' {s : Type*} {a b : Type}
+    (progs : a → ProgramDenotation s b) :
     DetermFootprint s :=
   sInf { R | ∀ x, (progs x).inRange R }
 
