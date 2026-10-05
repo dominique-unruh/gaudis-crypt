@@ -186,14 +186,14 @@ theorem rv_block_invariant {sig : ProcedureSignature}
       (ProgramDenotation.zoom ProgramState.globalL S)
       (ProgramDenotation.get rv) (ProgramDenotation.get rv))
     (ps : ProgramState) :
-    (S ps.globals>>= fun w => pure (rv.get ps, w.2))
-      = (S ps.globals>>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
+    (S ps.globals >>= fun w => pure (rv.get ps, w.2))
+      = (S ps.globals >>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
   have hc := rv_block_stable S rv hret ps
   have hp := congrArg (fun (m : SubProbability (sig.ret × ProgramState)) =>
       m >>= fun p => (pure (p.1, p.2.globals) : SubProbability (sig.ret × State))) hc
   simp only [ProgramDenotation.zoom, SubProbability.hbind, ProgramState.globalL, bind, pure]
     at hp ⊢
-  generalize S ps.globals= U at hp ⊢
+  generalize S ps.globals = U at hp ⊢
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
     measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top]
@@ -229,7 +229,7 @@ theorem procWrap_block_out {sig : ProcedureSignature}
   funext p
   have h := congrArg Subtype.val (rv_block_invariant S rv hret p.2)
   simp only [bind, pure] at h ⊢
-  generalize S p.2.globals= U at h ⊢
+  generalize S p.2.globals = U at h ⊢
   obtain ⟨mu, hmu⟩ := U
   simp only [MeasureTheory.Measure.bind_bind measurable_from_top.aemeasurable
     measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top]
