@@ -50,25 +50,25 @@ lemma random_oracle_query_apply (inp : input) (σ : state) :
 /-- `convert` applied: one uniform draw filling the table's holes. -/
 lemma convert_apply (σ : state) :
     convert σ
-      = (SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
+      = (SubProbability.uniform : SubProbability (input → output)).hbind fun y =>
           (pure ((), random_oracle_state.set
               (fun x => some ((random_oracle_state.get σ x).getD (y x))) σ)
             : SubProbability (Unit × state)) := by
   unfold convert
   rw [bind_apply, get_ro_apply, SubProbability.pure_bind]
   simp only []
-  rw [bind_apply, uniform_apply, SubProbability.bind_assoc]
+  rw [bind_apply, uniform_apply, SubProbability.hbind_bind]
   congr 1; funext y
   rw [SubProbability.pure_bind, set_ro_apply]
 
 /-- `random_oracle_init` applied: one uniform draw of the full table. -/
 lemma random_oracle_init_apply (σ : state) :
     random_oracle_init σ
-      = (SubProbability.uniform : SubProbability (input → output)) >>= fun h =>
+      = (SubProbability.uniform : SubProbability (input → output)).hbind fun h =>
           (pure ((), random_oracle_state.set (fun x => some (h x)) σ)
             : SubProbability (Unit × state)) := by
   unfold random_oracle_init
-  rw [bind_apply, uniform_apply, SubProbability.bind_assoc]
+  rw [bind_apply, uniform_apply, SubProbability.hbind_bind]
   congr 1; funext h
   rw [SubProbability.pure_bind]
   change (ProgramDenotation.set random_oracle_state fun x => some (h x)) σ = _
@@ -90,6 +90,15 @@ lemma SubProbability.bind_const {α β : Type} (ν : SubProbability α)
     (ν >>= fun _ => m) = m := by
   refine SubProbability.ext_of_expected (fun F => ?_)
   rw [SubProbability.expected_bind]
+  change (∫⁻ _, m.expected F ∂ν.1) = m.expected F
+  rw [MeasureTheory.lintegral_const, hν, mul_one]
+
+/-- `SubProbability.bind_const` across universes (`hbind`). -/
+lemma SubProbability.hbind_const {α : Type*} {β : Type*} (ν : SubProbability α)
+    (hν : ν.1 Set.univ = 1) (m : SubProbability β) :
+    (ν.hbind fun _ => m) = m := by
+  refine SubProbability.ext_of_expected (fun F => ?_)
+  rw [SubProbability.expected_hbind]
   change (∫⁻ _, m.expected F ∂ν.1) = m.expected F
   rw [MeasureTheory.lintegral_const, hν, mul_one]
 
@@ -143,14 +152,14 @@ theorem eager_init :
   refine ProgramDenotation.eagerR_of_eq ?_
   funext σ
   have hL : (convert >>= fun _ => random_oracle_init) σ
-      = (SubProbability.uniform : SubProbability (input → output)) >>= fun h =>
+      = (SubProbability.uniform : SubProbability (input → output)).hbind fun h =>
           pure ((), random_oracle_state.set (fun x => some (h x)) σ) := by
-    rw [bind_apply, convert_apply, SubProbability.bind_assoc]
+    rw [bind_apply, convert_apply, SubProbability.hbind_bind]
     have hinner : ∀ y : input → output,
         ((pure ((), random_oracle_state.set
             (fun x => some ((random_oracle_state.get σ x).getD (y x))) σ)
           : SubProbability (Unit × state)) >>= fun a => random_oracle_init a.2)
-        = (SubProbability.uniform : SubProbability (input → output)) >>= fun h =>
+        = (SubProbability.uniform : SubProbability (input → output)).hbind fun h =>
             pure ((), random_oracle_state.set (fun x => some (h x)) σ) := by
       intro y
       rw [SubProbability.pure_bind]
@@ -159,13 +168,13 @@ theorem eager_init :
       congr 1; funext h
       rw [random_oracle_state.set_set]
     simp only [hinner]
-    exact SubProbability.bind_const _ uniform_mass _
+    exact SubProbability.hbind_const _ uniform_mass _
   have hR : (lazy_init >>= fun u => convert >>= fun _ => pure u) σ
-      = (SubProbability.uniform : SubProbability (input → output)) >>= fun h =>
+      = (SubProbability.uniform : SubProbability (input → output)).hbind fun h =>
           pure ((), random_oracle_state.set (fun x => some (h x)) σ) := by
     rw [bind_apply, lazy_init_apply, SubProbability.pure_bind]
     change (convert >>= fun _ => pure ()) (random_oracle_state.set _ σ) = _
-    rw [bind_apply, convert_apply, SubProbability.bind_assoc]
+    rw [bind_apply, convert_apply, SubProbability.hbind_bind]
     congr 1; funext y
     rw [SubProbability.pure_bind]
     change (pure ((), random_oracle_state.set _ (random_oracle_state.set _ σ))
@@ -184,11 +193,11 @@ theorem eager_query (x : input) :
   refine ProgramDenotation.eagerR_of_eq ?_
   funext σ
   have hLshape : (convert >>= fun _ => random_oracle_query x) σ
-      = (SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
+      = (SubProbability.uniform : SubProbability (input → output)).hbind fun y =>
           pure (((fun x' => some ((random_oracle_state.get σ x').getD (y x'))) x).getD default,
             random_oracle_state.set
               (fun x' => some ((random_oracle_state.get σ x').getD (y x'))) σ) := by
-    rw [bind_apply, convert_apply, SubProbability.bind_assoc]
+    rw [bind_apply, convert_apply, SubProbability.hbind_bind]
     congr 1; funext y
     rw [SubProbability.pure_bind]
     change random_oracle_query x (random_oracle_state.set _ σ) = _
@@ -197,19 +206,19 @@ theorem eager_query (x : input) :
   | some x₀ =>
       -- hit: both sides return the cached value around the same fill
       have hL : (convert >>= fun _ => random_oracle_query x) σ
-          = (SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
+          = (SubProbability.uniform : SubProbability (input → output)).hbind fun y =>
               pure (x₀, random_oracle_state.set
                 (fun x' => some ((random_oracle_state.get σ x').getD (y x'))) σ) := by
         rw [hLshape]
         congr 1; funext y
         simp only [hc, Option.getD_some]
       have hR : (lazy_query x >>= fun v => convert >>= fun _ => pure v) σ
-          = (SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
+          = (SubProbability.uniform : SubProbability (input → output)).hbind fun y =>
               pure (x₀, random_oracle_state.set
                 (fun x' => some ((random_oracle_state.get σ x').getD (y x'))) σ) := by
         rw [bind_apply, lazy_query_apply_hit x hc, SubProbability.pure_bind]
         change (convert >>= fun _ => pure x₀) σ = _
-        rw [bind_apply, convert_apply, SubProbability.bind_assoc]
+        rw [bind_apply, convert_apply, SubProbability.hbind_bind]
         congr 1; funext y
         rw [SubProbability.pure_bind]
         rfl
@@ -217,7 +226,7 @@ theorem eager_query (x : input) :
   | none =>
       -- miss: exchange the fresh sample and the fill coordinate
       have hL : (convert >>= fun _ => random_oracle_query x) σ
-          = (SubProbability.uniform : SubProbability (input → output)) >>= fun z =>
+          = (SubProbability.uniform : SubProbability (input → output)).hbind fun z =>
               pure (z x, random_oracle_state.set
                 (fun x' => some ((random_oracle_state.get σ x').getD (z x'))) σ) := by
         rw [hLshape]
@@ -226,18 +235,22 @@ theorem eager_query (x : input) :
       have hR : (lazy_query x >>= fun v => convert >>= fun _ => pure v) σ
           = ((SubProbability.uniform : SubProbability output) >>= fun v =>
               (SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
-                (pure (Function.update y x v) : SubProbability (input → output)))
-            >>= fun z =>
+                (pure (Function.update y x v) : SubProbability (input → output))).hbind
+            fun z =>
               pure (z x, random_oracle_state.set
                 (fun x' => some ((random_oracle_state.get σ x').getD (z x'))) σ) := by
-        rw [bind_apply, lazy_query_apply_miss x hc, SubProbability.bind_assoc]
-        rw [SubProbability.bind_assoc]
+        rw [bind_apply, lazy_query_apply_miss x hc, SubProbability.hbind_bind]
+        rw [← SubProbability.hbind_eq_bind (SubProbability.uniform : SubProbability output),
+          SubProbability.hbind_assoc]
         congr 1; funext v
-        rw [SubProbability.pure_bind, SubProbability.bind_assoc]
+        rw [SubProbability.pure_bind,
+          ← SubProbability.hbind_eq_bind
+            (SubProbability.uniform : SubProbability (input → output)),
+          SubProbability.hbind_assoc]
         change (convert >>= fun _ => pure v) (random_oracle_state.set _ σ) = _
-        rw [bind_apply, convert_apply, SubProbability.bind_assoc]
+        rw [bind_apply, convert_apply, SubProbability.hbind_bind]
         congr 1; funext y
-        rw [SubProbability.pure_bind, SubProbability.pure_bind]
+        rw [SubProbability.pure_bind, SubProbability.pure_hbind]
         change (pure (v, random_oracle_state.set _ (random_oracle_state.set _ σ))
             : SubProbability (output × state)) = _
         rw [random_oracle_state.set_set]
@@ -268,12 +281,12 @@ theorem eager_query (x : input) :
 
 /-- `Loc` (the footprint-discharged locality) is swap-locality for the lifted
     `convert` block. -/
-theorem swapLoc_of_loc {holes : HoleSigs} {l : Type} :
-    ∀ (A : StmtWithHoles holes l), Loc A →
-      SwapLoc (ProgramDenotation.zoom ProcedureState.globalL convert) A
+theorem swapLoc_of_loc {holes : HoleSigs} :
+    ∀ (A : StmtWithHoles holes), Loc A →
+      SwapLoc (ProgramDenotation.zoom ProgramState.globalL convert) A
   | .skip, _ => trivial
   | .sample _ _, h => h
-  | .call' _ _ _ _ _, h => h
+  | .call' _ _ _ _ _ _ _, h => h
   | .hole _ _ _, h => ⟨h.1, h.2⟩
   | .seq s1 s2, h => ⟨swapLoc_of_loc s1 h.1, swapLoc_of_loc s2 h.2⟩
   | .ifThenElse _ t e, h =>
@@ -312,8 +325,8 @@ theorem eager_D {sig : ProcedureSignature}
     cases n with
     | zero =>
         change ProgramDenotation.eagerR
-            (ProgramDenotation.zoom ProcedureState.globalL convert)
-            (ProgramDenotation.zoom ProcedureState.globalL convert)
+            (ProgramDenotation.zoom ProgramState.globalL convert)
+            (ProgramDenotation.zoom ProgramState.globalL convert)
             (fun σ₁ σ₂ => σ₁ = σ₂)
             (programDenotation (StmtWithHoles.call x RO_eager_proc p))
             (programDenotation (StmtWithHoles.call x RO_lazy_proc p))
@@ -332,19 +345,19 @@ theorem convert_glob_self {sig : ProcedureSignature}
       convert convert
       (fun u v : Unit × state => (FVP.glob A).get u.2 = (FVP.glob A).get v.2) := by
   intro σ₁ σ₂ hg
-  refine ⟨(SubProbability.uniform : SubProbability (input → output)) >>= fun y =>
+  refine ⟨(SubProbability.uniform : SubProbability (input → output)).hbind fun y =>
       pure (((), random_oracle_state.set
               (fun x => some ((random_oracle_state.get σ₁ x).getD (y x))) σ₁),
             ((), random_oracle_state.set
               (fun x => some ((random_oracle_state.get σ₂ x).getD (y x))) σ₂)),
     ?_, ?_, ?_⟩
-  · rw [SubProbability.bind_assoc, convert_apply]
+  · rw [SubProbability.hbind_bind, convert_apply]
     congr 1; funext y
     rw [SubProbability.pure_bind]
-  · rw [SubProbability.bind_assoc, convert_apply]
+  · rw [SubProbability.hbind_bind, convert_apply]
     congr 1; funext y
     rw [SubProbability.pure_bind]
-  · refine SubProbability.satisfies_bind _ (fun y _ => ?_)
+  · refine SubProbability.satisfies_hbind _ (fun y _ => ?_)
     refine SubProbability.satisfies_pure _ _ ?_
     change (FVP.glob A).get (random_oracle_state.set _ σ₁)
         = (FVP.glob A).get (random_oracle_state.set _ σ₂)
@@ -390,7 +403,7 @@ lemma convert_init_absorb {α : Type} (rest : ProgramDenotation state α) :
     (convert >>= fun _ : Unit => random_oracle_init >>= fun _ : Unit => rest)
       = (random_oracle_init >>= fun _ : Unit => rest) := by
   funext σ
-  rw [bind_apply, convert_apply, SubProbability.bind_assoc]
+  rw [bind_apply, convert_apply, SubProbability.hbind_bind]
   have hinner : ∀ y : input → output,
       ((pure ((), random_oracle_state.set
           (fun x => some ((random_oracle_state.get σ x).getD (y x))) σ)
@@ -400,10 +413,10 @@ lemma convert_init_absorb {α : Type} (rest : ProgramDenotation state α) :
     intro y
     rw [SubProbability.pure_bind]
     change (random_oracle_init >>= fun _ : Unit => rest) (random_oracle_state.set _ σ) = _
-    simp only [bind_apply, random_oracle_init_apply, SubProbability.bind_assoc,
+    simp only [bind_apply, random_oracle_init_apply, SubProbability.hbind_bind,
       SubProbability.pure_bind, random_oracle_state.set_set]
   simp only [hinner]
-  exact SubProbability.bind_const _ uniform_mass _
+  exact SubProbability.hbind_const _ uniform_mass _
 
 /-! ## The headline (PROM's `RO_LRO`) -/
 
