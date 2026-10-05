@@ -163,19 +163,19 @@ theorem get_read_footprint_le {a γ : Type} {s : Type*} (l : Lens a s) (k : a �
 abbrev sigEx : ProcedureSignature := { params := [input, input], ret := output × output }
 
 /-- The `Nat` scratch local `n`, as a lens into the program state. -/
-noncomputable def natLocalL : Lens Nat ProgramState := (varLens (.mk "n" Nat)).intoLocal
+noncomputable def natLocalL : Lens Nat ProgramState := localVarLens "n" Nat
 
 /-- The first answer local `r_a`. -/
-noncomputable def raLocalL : Lens output ProgramState := (varLens (.mk "r_a" output)).intoLocal
+noncomputable def raLocalL : Lens output ProgramState := localVarLens "r_a" output
 
 /-- The second answer local `r_b`. -/
-noncomputable def rbLocalL : Lens output ProgramState := (varLens (.mk "r_b" output)).intoLocal
+noncomputable def rbLocalL : Lens output ProgramState := localVarLens "r_b" output
 
 /-- The first `input` parameter `a` (a local slot, written on entry). -/
-noncomputable def aParamL : Lens input ProgramState := (varLens (.mk "a" input)).intoLocal
+noncomputable def aParamL : Lens input ProgramState := localVarLens "a" input
 
 /-- The second `input` parameter `b`. -/
-noncomputable def bParamL : Lens input ProgramState := (varLens (.mk "b" input)).intoLocal
+noncomputable def bParamL : Lens input ProgramState := localVarLens "b" input
 
 /-- The return getter: read back the pair of observed answers `(r_a, r_b)`. -/
 noncomputable def retExG : Getter (output × output) ProgramState :=
@@ -251,19 +251,19 @@ theorem advGL_disj_roLift : Lens.Disjoint (advGL advG) roLift := by
     ProgramState.globalL
 
 theorem natLocalL_disj_roLift : Lens.Disjoint natLocalL roLift := by
-  unfold natLocalL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
+  unfold natLocalL roLift localVarLens Lens.intoLocal; exact disjoint_chain_of_disjoint
 
 theorem raLocalL_disj_roLift : Lens.Disjoint raLocalL roLift := by
-  unfold raLocalL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
+  unfold raLocalL roLift localVarLens Lens.intoLocal; exact disjoint_chain_of_disjoint
 
 theorem rbLocalL_disj_roLift : Lens.Disjoint rbLocalL roLift := by
-  unfold rbLocalL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
+  unfold rbLocalL roLift localVarLens Lens.intoLocal; exact disjoint_chain_of_disjoint
 
 theorem aParamL_disj_roLift : Lens.Disjoint aParamL roLift := by
-  unfold aParamL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
+  unfold aParamL roLift localVarLens Lens.intoLocal; exact disjoint_chain_of_disjoint
 
 theorem bParamL_disj_roLift : Lens.Disjoint bParamL roLift := by
-  unfold bParamL roLift Lens.intoLocal; exact disjoint_chain_of_disjoint
+  unfold bParamL roLift localVarLens Lens.intoLocal; exact disjoint_chain_of_disjoint
 
 /-- A lens read's footprint (raw or `assign`-wrapped) lands in `(roLift.footprint)ᶜ`. -/
 theorem get_lens_le_roLift_compl {γ : Type} (l : Lens γ ProgramState)

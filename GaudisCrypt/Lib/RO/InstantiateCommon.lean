@@ -56,20 +56,12 @@ noncomputable def roLift : Lens (input → Option output) ProgramState :=
   ProgramState.globalL.chain random_oracle_state
 
 
-/-- The oracle's parameter slot `inp : input`. -/
-abbrev inpVar : VariableName := .mk "inp" input
+/-- Read the query input: the oracle's parameter slot `inp : input`. -/
+noncomputable def inpL : Lens input ProgramState := localVarLens "inp" input
 
 
-/-- The oracle's local `out : output`, holding the result that `return_val` reads back. -/
-abbrev outVar : VariableName := .mk "out" output
-
-
-/-- Read the query input. -/
-noncomputable def inpL : Lens input ProgramState := (varLens inpVar).intoLocal
-
-
-/-- Read/write the result. -/
-noncomputable def outL : Lens output ProgramState := (varLens outVar).intoLocal
+/-- Read/write the result: the oracle's local `out : output`, which `return_val` reads back. -/
+noncomputable def outL : Lens output ProgramState := localVarLens "out" output
 
 
 /-- Read/write the RO table living in the global state. -/
@@ -127,11 +119,11 @@ in `GaudisCrypt.Logic.TransferBy`.) -/
 /-- On entry, `inp` holds the query (both oracle procedures have the parameter names `["inp"]`). -/
 theorem inpL_get_entry (st : State) (args : roSig.ParamType) :
     inpL.get ⟨st, RO_lazy_proc.initLocals args⟩ = args :=
-  (varLens inpVar).set_get _ _
+  inpL.set_get ⟨st, VariableAssignment.init⟩ args
 
 theorem inpL_get_entry_eager (st : State) (args : roSig.ParamType) :
     inpL.get ⟨st, RO_eager_proc.initLocals args⟩ = args :=
-  (varLens inpVar).set_get _ _
+  inpL.set_get ⟨st, VariableAssignment.init⟩ args
 
 /-- Writing `out` leaves `inp` alone. -/
 theorem inpL_get_outL_set (v : output) (s : ProgramState) : inpL.get (outL.set v s) = inpL.get s :=
