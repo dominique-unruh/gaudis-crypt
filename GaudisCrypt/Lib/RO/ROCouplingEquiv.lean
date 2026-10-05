@@ -48,19 +48,19 @@ in `prhl2` (the richer relational calculus). -/
 /-- Lift `P` (on the global RO state) to a relation on procedure states:
     `P` on the globals, identical locals (the adversary's local computation is
     the same on the eager and lazy sides). -/
-def liftRel {l : Type} (P : state → state → Prop) : ProcedureState l → ProcedureState l → Prop :=
-  fun ps₁ ps₂ => P ps₁.global ps₂.global ∧ ps₁.locals = ps₂.locals
+def liftRel (P : state → state → Prop) : ProgramState → ProgramState → Prop :=
+  fun ps₁ ps₂ => P ps₁.globals ps₂.globals ∧ ps₁.locals = ps₂.locals
 
 
 /-- Post-relation on `(result, procedure state)`: equal results, `liftRel P` on states. -/
-def liftRelPost {l α : Type} (P : state → state → Prop) :
-    α × ProcedureState l → α × ProcedureState l → Prop :=
+def liftRelPost {α : Type} (P : state → state → Prop) :
+    α × ProgramState → α × ProgramState → Prop :=
   fun u v => u.1 = v.1 ∧ liftRel P u.2 v.2
 
 
 /-- Read coupling: a getter returns equal values and preserves `liftRel P`.
     Used both for `Bool` guards (`if`/`while`) and the oracle's params getter. -/
-def GetOK {γ l : Type} (P : state → state → Prop) (g : Getter γ (ProcedureState l)) : Prop :=
+def GetOK {γ : Type} (P : state → state → Prop) (g : Getter γ ProgramState) : Prop :=
   ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.get g) (ProgramDenotation.get g)
       (liftRelPost P)
 
@@ -68,14 +68,14 @@ def GetOK {γ l : Type} (P : state → state → Prop) (g : Getter γ (Procedure
 /-- Honest locality for theorem 2: every operation of `A` *outside the oracle*
     preserves the invariant relationally (self-couples under `liftRel P`).  The
     oracle hole is exempt (handled by the per-query hypothesis). -/
-def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWithHoles holes l → Prop
+def LocP {holes : HoleSigs} (P : state → state → Prop) : StmtWithHoles holes → Prop
   | .skip => True
   | .sample x e => ProgramDenotation.prhl2 (liftRel P) (programDenotation (StmtWithHoles.sample x e
-      : Stmt l))
-      (programDenotation (StmtWithHoles.sample x e : Stmt l)) (liftRelPost P)
-  | .call' x ls b r p => ProgramDenotation.prhl2 (liftRel P)
-      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l))
-      (programDenotation (StmtWithHoles.call' x ls b r p : Stmt l)) (liftRelPost P)
+      : Stmt))
+      (programDenotation (StmtWithHoles.sample x e : Stmt)) (liftRelPost P)
+  | .call' x ns hl hn b r p => ProgramDenotation.prhl2 (liftRel P)
+      (programDenotation (StmtWithHoles.call' x ns hl hn b r p : Stmt))
+      (programDenotation (StmtWithHoles.call' x ns hl hn b r p : Stmt)) (liftRelPost P)
   | .hole _ x p => GetOK P p ∧
       (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
           (ProgramDenotation.set x ret) (liftRelPost P))
@@ -88,9 +88,9 @@ def LocP {holes : HoleSigs} {l : Type} (P : state → state → Prop) : StmtWith
     when *every* program confined to `R` self-couples under `liftRel P`.  This is exactly what
     `confinedP_locP` consumes — it never inspects a lens, only `inFootprint R`.  Discharged for the
     oracle-complement region by `footprintCompat_of_glob` (the glob/`HasReset` route). -/
-def FootprintCompat {l : Type} (P : state → state → Prop)
-    (R : Footprint (ProcedureState l)) : Prop :=
-  ∀ {γ : Type} {p : ProgramDenotation (ProcedureState l) γ}, p.inFootprint R →
+def FootprintCompat (P : state → state → Prop)
+    (R : Footprint ProgramState) : Prop :=
+  ∀ {γ : Type} {p : ProgramDenotation ProgramState γ}, p.inFootprint R →
     ProgramDenotation.prhl2 (liftRel P) p p (liftRelPost P)
 
 
@@ -104,12 +104,12 @@ variable {P : state → state → Prop}
     given `LocP` and a per-hole coupling `hhole` (the oracle preserves the invariant).  Threads the
     `prhl2` composition rules (`bind`/`cond`/`while_loop`) over the statement structure. -/
 theorem body_prhl2_gen :
-    ∀ {holes : HoleSigs} {l : Type} (A : StmtWithHoles holes l)
+    ∀ {holes : HoleSigs} (A : StmtWithHoles holes)
       (eagerInst lazyInst : holes.Instantiation),
       LocP P A →
       (∀ {sig} (n : HoleIndex holes sig)
-          (x : Setter sig.ret (ProcedureState l))
-          (p : Getter sig.ParamType (ProcedureState l)),
+          (x : Setter sig.ret ProgramState)
+          (p : Getter sig.ParamType ProgramState),
           GetOK P p →
           (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
               (ProgramDenotation.set x ret) (liftRelPost P)) →
@@ -119,7 +119,7 @@ theorem body_prhl2_gen :
       ProgramDenotation.prhl2 (liftRel P)
         (programDenotation (A.instantiate eagerInst))
         (programDenotation (A.instantiate lazyInst)) (liftRelPost P) := by
-  intro holes l A
+  intro holes A
   induction A with
   | skip =>
       intro eagerInst lazyInst _ _
@@ -129,7 +129,7 @@ theorem body_prhl2_gen :
       intro eagerInst lazyInst hloc _
       simp only [StmtWithHoles.instantiate]
       exact hloc
-  | call' x ls b r p =>
+  | call' x ns hl hn b r p =>
       intro eagerInst lazyInst hloc _
       simp only [StmtWithHoles.instantiate]
       exact hloc
@@ -160,27 +160,27 @@ theorem body_prhl2_gen :
 
 /-- **Coupling lift through `zoom globalL`** (the `prhl2` analogue of
     `transferBy_zoom`): a state-level coupling of `c`, `d` under `P` lifts to a
-    `ProcedureState` coupling of their `zoom`s under `liftRel P`, threading the
+    `ProgramState` coupling of their `zoom`s under `liftRel P`, threading the
     (equal) locals.  Used to lift the per-query hypothesis `h` to the oracle hole. -/
-theorem prhl2_zoom (l : Type) {γ : Type}
+theorem prhl2_zoom {γ : Type}
     {c d : ProgramDenotation state γ} {B : γ × state → γ × state → Prop}
     (hcd : ProgramDenotation.prhl2 P c d B) :
-    ProgramDenotation.prhl2 (liftRel (l := l) P)
-      (ProgramDenotation.zoom (ProcedureState.globalL (l := l)) c)
-      (ProgramDenotation.zoom (ProcedureState.globalL (l := l)) d)
-      (fun u v => B (u.1, u.2.global) (v.1, v.2.global) ∧ u.2.locals = v.2.locals) := by
+    ProgramDenotation.prhl2 (liftRel P)
+      (ProgramDenotation.zoom ProgramState.globalL c)
+      (ProgramDenotation.zoom ProgramState.globalL d)
+      (fun u v => B (u.1, u.2.globals) (v.1, v.2.globals) ∧ u.2.locals = v.2.locals) := by
   intro ps₁ ps₂ hrel
-  obtain ⟨μ, hm1, hm2, hsat⟩ := hcd ps₁.global ps₂.global hrel.1
-  refine ⟨μ >>= fun w => pure ((w.1.1, (⟨w.1.2, ps₁.locals⟩ : ProcedureState l)),
-                               (w.2.1, (⟨w.2.2, ps₂.locals⟩ : ProcedureState l))), ?_, ?_, ?_⟩
+  obtain ⟨μ, hm1, hm2, hsat⟩ := hcd ps₁.globals ps₂.globals hrel.1
+  refine ⟨μ >>= fun w => pure ((w.1.1, (⟨w.1.2, ps₁.locals⟩ : ProgramState)),
+                               (w.2.1, (⟨w.2.2, ps₂.locals⟩ : ProgramState))), ?_, ?_, ?_⟩
   · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
-    show (μ >>= fun w => pure (w.1.1, (⟨w.1.2, ps₁.locals⟩ : ProcedureState l)))
-        = c ps₁.global >>= fun as => pure (as.1, (⟨as.2, ps₁.locals⟩ : ProcedureState l))
+    show (μ >>= fun w => pure (w.1.1, (⟨w.1.2, ps₁.locals⟩ : ProgramState)))
+        = c ps₁.globals >>= fun as => pure (as.1, (⟨as.2, ps₁.locals⟩ : ProgramState))
     rw [← hm1]
     simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
   · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
-    show (μ >>= fun w => pure (w.2.1, (⟨w.2.2, ps₂.locals⟩ : ProcedureState l)))
-        = d ps₂.global >>= fun as => pure (as.1, (⟨as.2, ps₂.locals⟩ : ProcedureState l))
+    show (μ >>= fun w => pure (w.2.1, (⟨w.2.2, ps₂.locals⟩ : ProgramState)))
+        = d ps₂.globals >>= fun as => pure (as.1, (⟨as.2, ps₂.locals⟩ : ProgramState))
     rw [← hm2]
     simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
   · exact SubProbability.satisfies_bind _
@@ -192,11 +192,11 @@ theorem prhl2_zoom (l : Type) {γ : Type}
     via `prhl2_zoom` of the per-query hypothesis `h` (with the bridges identifying
     the procedures with the semantic queries).  This is `body_prhl2_gen`'s `hhole`
     for the RO instantiation. -/
-theorem ro_hhole_prhl {l : Type}
+theorem ro_hhole_prhl
     (h : ∀ inp : input, ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp)
         (liftPost P))
     {sig : ProcedureSignature} (n : HoleIndex roHoles sig)
-    (x : Setter sig.ret (ProcedureState l)) (p : Getter sig.ParamType (ProcedureState l))
+    (x : Setter sig.ret ProgramState) (p : Getter sig.ParamType ProgramState)
     (hp : GetOK P p)
     (hx : ∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
         (ProgramDenotation.set x ret) (liftRelPost P)) :
@@ -217,7 +217,7 @@ theorem ro_hhole_prhl {l : Type}
       refine (ProgramDenotation.prhl2.bind (M := liftRelPost P) ?_ (fun ret₁ ret₂ => ?_)) σ₁ σ₂ hrel
       · -- the zoomed query couples (via `prhl2_zoom`); post normalized to `liftRelPost P`
         rw [procDenotation_RO_eager, procDenotation_RO_lazy]
-        exact ProgramDenotation.prhl2.conseq (prhl2_zoom l (h args₁))
+        exact ProgramDenotation.prhl2.conseq (prhl2_zoom (h args₁))
           (fun _ _ h => h) (fun _ _ hB => ⟨hB.1.1, hB.1.2, hB.2⟩)
       · -- the write couples (equal results from the middle post)
         intro τ₁ τ₂ hpre2
@@ -229,10 +229,10 @@ theorem ro_hhole_prhl {l : Type}
 /-- **Body-level theorem 2** — fully assembled: an arbitrary `Loc`al adversary
     body preserves the invariant relationally, with the RO oracle.  Combines
     `body_prhl2_gen` with the RO hole coupling `ro_hhole_prhl`. -/
-theorem prhl_instantiate_body {l : Type}
+theorem prhl_instantiate_body
     (h : ∀ inp : input, ProgramDenotation.prhl2 P (random_oracle_query inp) (lazy_query inp)
         (liftPost P))
-    (A : StmtWithHoles roHoles l) (hloc : LocP P A) :
+    (A : StmtWithHoles roHoles) (hloc : LocP P A) :
     ProgramDenotation.prhl2 (liftRel P)
       (programDenotation (A.instantiate RO_eager))
       (programDenotation (A.instantiate RO_lazy)) (liftRelPost P) :=
@@ -256,21 +256,21 @@ theorem prhl_wrapper_gen {holes : HoleSigs} {sig : ProcedureSignature}
       (procedureDenotation (A.instantiate lazyInst) args) (liftPost P) := by
   intro st₁ st₂ hP
   obtain ⟨μ, hm1, hm2, hsat⟩ :=
-    hbody ⟨st₁, sig.localVariableInit A.locals args⟩ ⟨st₂, sig.localVariableInit A.locals args⟩ ⟨hP, rfl⟩
-  refine ⟨μ >>= fun w => pure ((A.return_val.get w.1.2, w.1.2.global),
-                               (A.return_val.get w.2.2, w.2.2.global)), ?_, ?_, ?_⟩
+    hbody ⟨st₁, A.initLocals args⟩ ⟨st₂, A.initLocals args⟩ ⟨hP, rfl⟩
+  refine ⟨μ >>= fun w => pure ((A.return_val.get w.1.2, w.1.2.globals),
+                               (A.return_val.get w.2.2, w.2.2.globals)), ?_, ?_, ?_⟩
   · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
     rw [procedureDenotation_eq_procWrap_gen]
-    show (μ >>= fun w => pure (A.return_val.get w.1.2, w.1.2.global))
+    show (μ >>= fun w => pure (A.return_val.get w.1.2, w.1.2.globals))
         = (programDenotation (A.body.instantiate eagerInst))
-            ⟨st₁, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
+            ⟨st₁, A.initLocals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.globals)
     rw [← hm1]
     simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
   · simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
     rw [procedureDenotation_eq_procWrap_gen]
-    show (μ >>= fun w => pure (A.return_val.get w.2.2, w.2.2.global))
+    show (μ >>= fun w => pure (A.return_val.get w.2.2, w.2.2.globals))
         = (programDenotation (A.body.instantiate lazyInst))
-            ⟨st₂, sig.localVariableInit A.locals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.global)
+            ⟨st₂, A.initLocals args⟩ >>= fun p => pure (A.return_val.get p.2, p.2.globals)
     rw [← hm2]
     simp only [SubProbability.bind_assoc', SubProbability.pure_bind]
   · refine SubProbability.satisfies_bind _ (fun w hw => SubProbability.satisfies_pure _ _ ?_)
@@ -303,7 +303,8 @@ theorem prhl_wrapper {sig : ProcedureSignature}
     value, so by `inFootprint_subprob` `p σ` is a fixpoint of pushing it.  For `S = roLift.footprint`
     (a lens), `Lens.footprint_hasReset` discharges `S.HasReset`, so the frame needs only footprint
     disjointness `S ≤ Rᶜ`. -/
-theorem inFootprint_preserves_touched {s a : Type} {R S : Footprint s} {p : ProgramDenotation s a}
+theorem inFootprint_preserves_touched {s : Type*} {a : Type} {R S : Footprint s}
+    {p : ProgramDenotation s a}
     (hp : p.inFootprint R) (hSc : S ≤ Rᶜ) {σ : s} (hS : S.HasReset σ) :
     (p σ).satisfies (fun xs => S.touched_getter.get xs.2 = S.touched_getter.get σ) := by
   obtain ⟨f, hgen, hfix, hcollapse⟩ := hS
@@ -317,7 +318,7 @@ theorem inFootprint_preserves_touched {s a : Type} {R S : Footprint s} {p : Prog
 /-- **`FootprintCompat` is antitone**: a smaller footprint is still `P`-compatible.  Lets us prove
     compatibility once for a large "nice" region (e.g. `Oᶜ`, the oracle-complement) and transport it
     down to any confined adversary `fvP_proc A ≤ Oᶜ` (disjoint from the oracle). -/
-theorem FootprintCompat.mono {l : Type} {R R' : Footprint (ProcedureState l)}
+theorem FootprintCompat.mono {R R' : Footprint ProgramState}
     (h : FootprintCompat P R) (hle : R' ≤ R) : FootprintCompat P R' :=
   fun hp => h (ProgramDenotation.inFootprint_mono hp hle)
 
@@ -332,7 +333,7 @@ theorem FootprintCompat.mono {l : Type} {R R' : Footprint (ProcedureState l)}
     Each confined program self-couples via `prhl2_glob` (touched stays equal) and
     `inFootprint_preserves_touched` (the oracle content stays fixed, from `O.HasReset` + `O ≤ Rᶜ`),
     then `hstable` rebuilds `liftRel P`.  No `Lens`, no orbit collapse, no frame predicate. -/
-theorem footprintCompat_of_glob {l : Type} {R O : Footprint (ProcedureState l)}
+theorem footprintCompat_of_glob {R O : Footprint ProgramState}
     (hOc : O ≤ Rᶜ) (hO : ∀ σ, O.HasReset σ)
     (hrefine : ∀ a b, liftRel P a b → R.touched_getter.get a = R.touched_getter.get b)
     (hstable : ∀ a b u v, liftRel P a b →
@@ -362,14 +363,14 @@ theorem footprintCompat_of_glob {l : Type} {R O : Footprint (ProcedureState l)}
 
 /-- **`ConfinedP` discharges `LocP`** (theorem-2 locality) for any invariant `P` — the
     `Footprint` analogue of `confined_locP`. -/
-theorem confinedP_locP {holes : HoleSigs} {l : Type}
-    (R : Footprint (ProcedureState l))
+theorem confinedP_locP {holes : HoleSigs}
+    (R : Footprint ProgramState)
     (hR : FootprintCompat P R)
     (hc : ∀ {sig : ProcedureSignature}, HoleIndex holes sig → Countable sig.ParamType) :
-    ∀ (A : StmtWithHoles holes l), ConfinedP R A → LocP P A
+    ∀ (A : StmtWithHoles holes), ConfinedP R A → LocP P A
   | .skip, _ => trivial
   | .sample _ _, h => hR h
-  | .call' _ _ _ _ _, h => hR h
+  | .call' _ _ _ _ _ _ _, h => hR h
   | .hole n _ _, h =>
       haveI := hc n
       ⟨hR h.1, fun ret => hR (h.2 ret)⟩
@@ -386,45 +387,53 @@ theorem confinedP_locP {holes : HoleSigs} {l : Type}
     rather than assumed.  A deterministic `get`/`get` self-coupling has both marginals point masses,
     so its (a.e.) post `x.1.1 = x.2.1` pins the two reads together.  Replaces the standalone
     `hret`. -/
-theorem reads_equal_of_footprintCompat {l γ : Type} {R : Footprint (ProcedureState l)}
-    (hR : FootprintCompat P R) {g : Getter γ (ProcedureState l)}
+theorem reads_equal_of_footprintCompat {γ : Type} {R : Footprint ProgramState}
+    (hR : FootprintCompat P R) {g : Getter γ ProgramState}
     (hg : (ProgramDenotation.get g).inFootprint R)
-    {ps₁ ps₂ : ProcedureState l} (hpre : liftRel P ps₁ ps₂) :
+    {ps₁ ps₂ : ProgramState} (hpre : liftRel P ps₁ ps₂) :
     g.get ps₁ = g.get ps₂ := by
   obtain ⟨μ, hm1, hm2, hsat⟩ := hR hg ps₁ ps₂ hpre
   -- Push each marginal to its first *value* component; the two `get`/`get` marginals are point
   -- masses, so `pure (g.get ps₁) = pure (g.get ps₂)` follows from the a.e. post `x.1.1 = x.2.1`.
+  -- The values are lifted to `ULift γ`, the universe of `μ` (the state is in `Type 1`).
+  suffices hU : (ULift.up (g.get ps₁) : ULift.{1} γ) = ULift.up (g.get ps₂) from
+    ULift.up.inj hU
   have hget : ∀ ps, (ProgramDenotation.get g) ps = pure (g.get ps, ps) := fun _ => rfl
-  have h1 : (μ >>= fun x => (pure x.1.1 : SubProbability γ)) = pure (g.get ps₁) := by
-    have hrw : (μ >>= fun x => (pure x.1.1 : SubProbability γ))
-        = (μ >>= fun x => (pure x.1 : SubProbability (γ × ProcedureState l)))
-          >>= fun y => (pure y.1 : SubProbability γ) := by
+  have h1 : (μ >>= fun x => (pure (ULift.up x.1.1) : SubProbability (ULift.{1} γ)))
+      = pure (ULift.up (g.get ps₁)) := by
+    have hrw : (μ >>= fun x => (pure (ULift.up x.1.1) : SubProbability (ULift.{1} γ)))
+        = (μ >>= fun x => (pure x.1 : SubProbability (γ × ProgramState)))
+          >>= fun y => (pure (ULift.up y.1) : SubProbability (ULift.{1} γ)) := by
       rw [SubProbability.bind_assoc]
       exact SubProbability.bind_congr_support _ (fun x _ => by rw [SubProbability.pure_bind])
     rw [hrw, hm1, hget, SubProbability.pure_bind]
-  have h2 : (μ >>= fun x => (pure x.2.1 : SubProbability γ)) = pure (g.get ps₂) := by
-    have hrw : (μ >>= fun x => (pure x.2.1 : SubProbability γ))
-        = (μ >>= fun x => (pure x.2 : SubProbability (γ × ProcedureState l)))
-          >>= fun y => (pure y.1 : SubProbability γ) := by
+  have h2 : (μ >>= fun x => (pure (ULift.up x.2.1) : SubProbability (ULift.{1} γ)))
+      = pure (ULift.up (g.get ps₂)) := by
+    have hrw : (μ >>= fun x => (pure (ULift.up x.2.1) : SubProbability (ULift.{1} γ)))
+        = (μ >>= fun x => (pure x.2 : SubProbability (γ × ProgramState)))
+          >>= fun y => (pure (ULift.up y.1) : SubProbability (ULift.{1} γ)) := by
       rw [SubProbability.bind_assoc]
       exact SubProbability.bind_congr_support _ (fun x _ => by rw [SubProbability.pure_bind])
     rw [hrw, hm2, hget, SubProbability.pure_bind]
-  have h12 : (μ >>= fun x => (pure x.1.1 : SubProbability γ))
-      = (μ >>= fun x => (pure x.2.1 : SubProbability γ)) :=
-    SubProbability.bind_congr_support _ (fun x hx => congrArg pure (hsat x hx).1)
-  have hpe : (pure (g.get ps₁) : SubProbability γ) = pure (g.get ps₂) := by
+  have h12 : (μ >>= fun x => (pure (ULift.up x.1.1) : SubProbability (ULift.{1} γ)))
+      = (μ >>= fun x => (pure (ULift.up x.2.1) : SubProbability (ULift.{1} γ))) :=
+    SubProbability.bind_congr_support _ (fun x hx => by rw [(hsat x hx).1])
+  have hpe : (pure (ULift.up (g.get ps₁)) : SubProbability (ULift.{1} γ))
+      = pure (ULift.up (g.get ps₂)) := by
     rw [← h1, ← h2, h12]
-  -- `pure`-injectivity on `SubProbability γ`: evaluate the dirac measures at `{g.get ps₁}`.
-  letI : MeasurableSpace γ := ⊤
-  haveI : MeasurableSingletonClass γ := ⟨fun _ => trivial⟩
-  have hdirac : (MeasureTheory.Measure.dirac (g.get ps₁)) {g.get ps₁}
-      = (MeasureTheory.Measure.dirac (g.get ps₂)) {g.get ps₁} :=
-    congrFun (congrArg DFunLike.coe (congrArg Subtype.val hpe)) {g.get ps₁}
+  -- `pure`-injectivity on `SubProbability (ULift γ)`: evaluate the dirac measures at a singleton.
+  letI : MeasurableSpace (ULift.{1} γ) := ⊤
+  haveI : MeasurableSingletonClass (ULift.{1} γ) := ⟨fun _ => trivial⟩
+  have hdirac : (MeasureTheory.Measure.dirac (ULift.up (g.get ps₁) : ULift.{1} γ))
+        {ULift.up (g.get ps₁)}
+      = (MeasureTheory.Measure.dirac (ULift.up (g.get ps₂) : ULift.{1} γ))
+        {ULift.up (g.get ps₁)} :=
+    congrFun (congrArg DFunLike.coe (congrArg Subtype.val hpe)) {ULift.up (g.get ps₁)}
   by_contra hne
   rw [MeasureTheory.Measure.dirac_apply' _ (MeasurableSet.singleton _),
     MeasureTheory.Measure.dirac_apply' _ (MeasurableSet.singleton _)] at hdirac
   rw [Set.indicator_of_mem (Set.mem_singleton _),
-    Set.indicator_of_notMem (by simpa [Set.mem_singleton_iff] using fun h => hne h.symm)] at hdirac
+    Set.indicator_of_notMem (fun h => hne (Set.mem_singleton_iff.mp h).symm)] at hdirac
   exact one_ne_zero hdirac
 
 
@@ -441,8 +450,8 @@ theorem instantiate_of_fvP_gen {holes : HoleSigs} {sig : ProcedureSignature}
     (hcompat : FootprintCompat P (fvP_proc A))
     (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
     (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
-        (x : Setter sig'.ret (ProcedureState (sig.ProcedureScope A.locals)))
-        (p : Getter sig'.ParamType (ProcedureState (sig.ProcedureScope A.locals))),
+        (x : Setter sig'.ret ProgramState)
+        (p : Getter sig'.ParamType ProgramState),
         GetOK P p →
         (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
             (ProgramDenotation.set x ret) (liftRelPost P)) →
@@ -479,7 +488,7 @@ theorem instantiate_of_fvP_gen {holes : HoleSigs} {sig : ProcedureSignature}
 theorem instantiate_of_glob_gen {holes : HoleSigs} {sig : ProcedureSignature}
     (eagerInst lazyInst : holes.Instantiation)
     (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
-    (O : Footprint (ProcedureState (sig.ProcedureScope A.locals)))
+    (O : Footprint ProgramState)
     (hO : ∀ σ, O.HasReset σ)
     (hdisj : fvP_proc A ≤ Oᶜ)
     (hrefine : ∀ a b, liftRel P a b → Oᶜ.touched_getter.get a = Oᶜ.touched_getter.get b)
@@ -489,8 +498,8 @@ theorem instantiate_of_glob_gen {holes : HoleSigs} {sig : ProcedureSignature}
         O.touched_getter.get v = O.touched_getter.get b → liftRel P u v)
     (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
     (hhole : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig')
-        (x : Setter sig'.ret (ProcedureState (sig.ProcedureScope A.locals)))
-        (p : Getter sig'.ParamType (ProcedureState (sig.ProcedureScope A.locals))),
+        (x : Setter sig'.ret ProgramState)
+        (p : Getter sig'.ParamType ProgramState),
         GetOK P p →
         (∀ ret, ProgramDenotation.prhl2 (liftRel P) (ProgramDenotation.set x ret)
             (ProgramDenotation.set x ret) (liftRelPost P)) →
@@ -530,23 +539,23 @@ theorem prhl_instantiate_of_fvP {sig : ProcedureSignature}
 
 /-- **The oracle content of a procedure state is the oracle table of its global**: `roLift` reads
     through `globalL` into `random_oracle_state`. -/
-theorem roLift_get_global {l : Type} (x : ProcedureState l) :
-    (roLift l).get x = random_oracle_state.get x.global := rfl
+theorem roLift_get_global (x : ProgramState) :
+    roLift.get x = random_oracle_state.get x.globals := rfl
 
 /-- **The oracle-complement of a procedure state splits into locals + non-oracle global.**  Two
-    states have equal outside-oracle content (`(roLift l).compl.get`) iff their locals agree and their
+    states have equal outside-oracle content (`roLift.compl.get`) iff their locals agree and their
     globals agree away from the oracle (`random_oracle_state.compl.get`).  This is what lets the
     endpoint phrase its premises purely on the global invariant `P` (on `state`), with the locals
     handled structurally by the framework. -/
-theorem roLift_compl_get_iff {l : Type} (x y : ProcedureState l) :
-    (roLift l).compl.get x = (roLift l).compl.get y ↔
+theorem roLift_compl_get_iff (x y : ProgramState) :
+    roLift.compl.get x = roLift.compl.get y ↔
       (x.locals = y.locals ∧
-        random_oracle_state.compl.get x.global = random_oracle_state.compl.get y.global) := by
+        random_oracle_state.compl.get x.globals = random_oracle_state.compl.get y.globals) := by
   -- `compl.get` equality unfolds to `equal_outside` (`∃ t, lens.set t · = ·`) on both sides.
-  have e1 : ((roLift l).compl.get x = (roLift l).compl.get y) ↔ (roLift l).equal_outside x y :=
+  have e1 : (roLift.compl.get x = roLift.compl.get y) ↔ roLift.equal_outside x y :=
     Quotient.eq''
-  have e2 : (random_oracle_state.compl.get x.global = random_oracle_state.compl.get y.global) ↔
-      random_oracle_state.equal_outside x.global y.global := Quotient.eq''
+  have e2 : (random_oracle_state.compl.get x.globals = random_oracle_state.compl.get y.globals) ↔
+      random_oracle_state.equal_outside x.globals y.globals := Quotient.eq''
   rw [e1, e2]
   constructor
   · rintro ⟨t, rfl⟩
@@ -555,13 +564,13 @@ theorem roLift_compl_get_iff {l : Type} (x y : ProcedureState l) :
     refine ⟨t, ?_⟩
     obtain ⟨xg, xl⟩ := x
     obtain ⟨yg, yl⟩ := y
-    show ProcedureState.mk (random_oracle_state.set t xg) xl = ProcedureState.mk yg yl
+    show ProgramState.mk (random_oracle_state.set t xg) xl = ProgramState.mk yg yl
     rw [show random_oracle_state.set t xg = yg from ht, show xl = yl from hloc]
 
 
 /-- **Theorem 2 via `glob`** (the EasyCrypt-style endpoint, disjointness form, global invariant).
     Relational lazy ≈ eager for any adversary `A` whose footprint is **disjoint from the random
-    oracle** (`hdisj : fvP_proc A ≤ (roLift _).footprintᶜ`), from two conditions on the **global**
+    oracle** (`hdisj : fvP_proc A ≤ roLift.footprintᶜ`), from two conditions on the **global**
     invariant `P` (on `state`) — no locals, phrased entirely via `random_oracle_state`:
     * `hrefine` — `P` forces agreement on the non-oracle globals (`random_oracle_state.compl`), and
     * `hstable` — `P` is determined by the **oracle table** (`random_oracle_state`): overwriting the
@@ -570,7 +579,7 @@ theorem roLift_compl_get_iff {l : Type} (x y : ProcedureState l) :
     Locals never appear: `liftRel`'s `locals`-equality is carried structurally by `prhl2_glob` (A runs
     identically), which is also why locals *must not* enter a condition that has to survive descent
     into `call'` (a callee's locals differ).  Internally `footprintCompat_of_glob` runs at
-    `R = (roLift _).footprintᶜ` (resettability discharged by `Lens.footprint_hasReset`); the global
+    `R = roLift.footprintᶜ` (resettability discharged by `Lens.footprint_hasReset`); the global
     `P`-conditions are lifted to procedure states via `roLift_compl_get_iff`/`roLift_get_global` and
     `FootprintCompat.mono` transports the result down to `fvP_proc A` via `hdisj`. -/
 theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
@@ -589,16 +598,16 @@ theorem prhl_instantiate_of_glob {sig : ProcedureSignature}
       (procedureDenotation (A.instantiate RO_lazy) args)
       (liftPost P) :=
   instantiate_of_glob_gen RO_eager RO_lazy A args
-    (O := (roLift (sig.ProcedureScope A.locals)).footprint)
+    (O := roLift.footprint)
     (fun σ => Lens.footprint_hasReset _ σ)
     (fvP_proc_le_roLift_compl A hdisj)
     (fun a b hab =>
       (Lens.footprint_compl_touched_getter_eq_iff _ a b).mpr
-        ((roLift_compl_get_iff a b).mpr ⟨hab.2, hrefine a.global b.global hab.1⟩))
+        ((roLift_compl_get_iff a b).mpr ⟨hab.2, hrefine a.globals b.globals hab.1⟩))
     (fun a b u v hab htouch hgu hgv => by
       obtain ⟨hloc, hng⟩ := (roLift_compl_get_iff u v).mp
         ((Lens.footprint_compl_touched_getter_eq_iff _ u v).mp htouch)
-      refine ⟨hstable a.global b.global u.global v.global hab.1 hng ?_ ?_, hloc⟩
+      refine ⟨hstable a.globals b.globals u.globals v.globals hab.1 hng ?_ ?_, hloc⟩
       · rw [← roLift_get_global u, ← roLift_get_global a]
         exact (Lens.footprint_touched_getter_eq_iff _ u a).mp hgu
       · rw [← roLift_get_global v, ← roLift_get_global b]

@@ -873,9 +873,9 @@ theorem while_loop {s₁ s₂ : Type u}
 
 /-- **Synchronized conditional** (`if`): if the guards are coupled to
     produce equal booleans (carrying `Mid`), and the branches are related
-    from `Mid`, then the conditionals are related. -/
-theorem cond {β₁ β₂ : Type}
-
+    from `Mid`, then the conditionals are related.  (Binds its own `s₁ s₂ : Type u`: it mentions
+    neither `α` nor `β`, so the section's `Type (max u v)` would leave `v` free.) -/
+theorem cond {s₁ s₂ : Type u} {A : s₁ → s₂ → Prop} {β₁ β₂ : Type}
     {g₁ : ProgramDenotation s₁ Bool} {g₂ : ProgramDenotation s₂ Bool}
     {ct₁ ce₁ : ProgramDenotation s₁ β₁} {ct₂ ce₂ : ProgramDenotation s₂ β₂}
     {Mid : s₁ → s₂ → Prop} {B : β₁ × s₁ → β₂ × s₂ → Prop}
