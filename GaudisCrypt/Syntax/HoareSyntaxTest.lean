@@ -83,35 +83,28 @@ example : Prop := hoare[ §x = 1 ==> §x = 1 ] {
 
 /- ### What the notation elaborates to
 
-`hoare[ P ==> Q ] { s }` is `hoareStmt` applied to the two predicates and the statement, all
-over the local state `ProcedureScope [] locals`. -/
+`hoare[ P ==> Q ] { s }` is `hoareStmt` applied to the two predicates and the statement, the
+predicates over the whole `ProgramState`. -/
 
 example :
     (hoare[ §x = 1 ==> §x = 2 ] { x <- §x + 1; })
-      = hoareStmt (l := ProcedureScope [] [])
-          (fun σ => x.get σ.global = 1)
+      = hoareStmt
+          (fun σ => x.get σ.globals = 1)
           GaudiProg[ x <- $x + 1; ]
-          (fun σ => x.get σ.global = 2) := rfl
+          (fun σ => x.get σ.globals = 2) := rfl
 
-/-- The local-state description that a single `var u : Int;` declaration produces. -/
-private abbrev oneInt : List (Σ t : Type, Inhabited t) := [⟨Int, inferInstance⟩]
-
-/-- The lens a single `var u : Int;` declaration binds `u` to. -/
-private abbrev uLens : Lens Int (ProcedureState (ProcedureScope [] oneInt)) :=
-  Lens.intoLocalVars Lens.id
-
--- a `var` makes the local state carry that slot, and the variable is its `intoLocalVars` lens
+-- a `var u : Int` is the slot `localVarLens "u" Int`, in the body and in the conditions alike
 example :
     (hoare[ True ==> §u = 2 ] { var u : Int; u <- 2; })
-      = hoareStmt (l := ProcedureScope [] oneInt)
+      = hoareStmt
           (fun _ => True)
-          GaudiProg[ uLens <- (2 : Int); ]
-          (fun σ => uLens.get σ = 2) := rfl
+          GaudiProg[ (localVarLens "u" Int) <- (2 : Int); ]
+          (fun σ => (localVarLens "u" Int).get σ = 2) := rfl
 
 /- ### Printing a statement triple
 
 A statement triple prints back in surface syntax: the `var` lines are recovered from the
-`Lens.intoLocalVars` `let`s, and the three parts have to agree on that prefix. -/
+`localVarLens` slots in the body and the two conditions, as for a `proc`. -/
 
 /--
 info: hoare[ §x = 1 ==> §x = 2 ] {
@@ -139,6 +132,22 @@ info: hoare[ §u = 0 ∧ §v = 0 ==> §u = 1 ] {
 -/
 #guard_msgs in
 #check hoare[ §u = 0 ∧ §v = 0 ==> §u = 1 ] { var u v : Int; u <- §u + 1; }
+
+-- the `var`s are read off the slots in the precondition, the body and the postcondition, in
+-- that order of first occurrence
+/--
+info: hoare[ §v = 0 ==> §u = 1 ∧ §v = 0 ] {
+    var v : ℤ, u : ℤ;
+    u <- 1;
+} : Prop
+-/
+#guard_msgs in
+#check hoare[ §v = 0 ==> §u = 1 ∧ §v = 0 ] { var u v : Int; u <- 1; }
+
+-- the `var`s are checked like those of a `proc`
+/-- error: `u` is declared twice -/
+#guard_msgs in
+example : Prop := hoare[ True ==> True ] { var u : Int, u : Nat; }
 
 /--
 info: hoare[ §x = two - 1 ==> §x = two ] {
@@ -309,19 +318,19 @@ the elaborator binds them with. -/
 info: hoareProc
   (fun x σ ↦
     let v := GaudiExpr[ true ];
-    GaudiExpr[ §v = true ].get { global := σ, locals := () })
+    GaudiExpr[ §v = true ].get { globals := σ, locals := VariableAssignment.init })
   q fun x σ ↦
   let res := GaudiExpr[ true ];
-  GaudiExpr[ §res = true ].get { global := σ, locals := () } : Prop
+  GaudiExpr[ §res = true ].get { globals := σ, locals := VariableAssignment.init } : Prop
 -/
 #guard_msgs in
 #check hoareProc (sig := procsig (Int) -> Int)
   (fun _ (σ : State) =>
-    let v : Getter _ (ProcedureState Unit) := Getter.mk fun _ => true
-    (GaudiExpr[ §v = true ] : Getter Prop (ProcedureState Unit)).get ⟨σ, ()⟩) q
+    let v : Getter _ ProgramState := Getter.mk fun _ => true
+    (GaudiExpr[ §v = true ] : Getter Prop ProgramState).get ⟨σ, VariableAssignment.init⟩) q
   (fun _ (σ : State) =>
-    let res : Getter _ (ProcedureState Unit) := Getter.mk fun _ => true
-    (GaudiExpr[ §res = true ] : Getter Prop (ProcedureState Unit)).get ⟨σ, ()⟩)
+    let res : Getter _ ProgramState := Getter.mk fun _ => true
+    (GaudiExpr[ §res = true ] : Getter Prop ProgramState).get ⟨σ, VariableAssignment.init⟩)
 
 /- The three places where a printed triple is not literally what was written: an omitted name
 list is filled in, an empty body becomes `skip;`, and a multi-name `var` line becomes one
@@ -343,10 +352,10 @@ info: hoareProc
     let params := { get := fun x ↦ args };
     let a := { get := fun x ↦ Lens.id.ofst.get args };
     let b := { get := fun x ↦ Lens.id.osnd.get args };
-    { get := fun st ↦ §a = 1 }.get { global := σ, locals := () })
+    { get := fun st ↦ §a = 1 }.get { globals := σ, locals := VariableAssignment.init })
   m.f.procedure fun res σ ↦
   let res := { get := fun x ↦ res };
-  { get := fun st ↦ §res = 2 }.get { global := σ, locals := () } : Prop
+  { get := fun st ↦ §res = 2 }.get { globals := σ, locals := VariableAssignment.init } : Prop
 -/
 #guard_msgs in
 set_option pp.gaudisCrypt false in

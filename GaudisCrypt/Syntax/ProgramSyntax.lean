@@ -744,7 +744,8 @@ section Printing
 open Lean PrettyPrinter Delaborator SubExpr
 
 /- The pieces that are not `private` — `guardSurfaceSyntax`,
-`delabGaudiExpr`, `withPeeledLets`, `delabGaudiStmts`, `spineLetNames` — are shared with the
+`delabGaudiExpr`, `withPeeledLets`, `delabGaudiStmts`, `spineLetNames`, and the frame-variable
+helpers in `ProgramSyntax` — are shared with the
 `hoare[ ]` delaborators in `HoareSyntax.lean`, which has to take a triple apart the same way:
 peel the `let`s a `proc`-style binder emits, then print what is underneath. -/
 
@@ -938,7 +939,13 @@ print it under its name again, the delaborators
 
 A variable that is not printable keeps its slot, which prints as
 `§(localVarLens "x" T)` and re-parses to the same term.  A parameter
-that is not printable makes the `proc` delaborator step aside: the header has to name it. -/
+that is not printable makes the `proc` delaborator step aside: the header has to name it.
+
+`FrameVar`, `frameVars`, `withVarLocals`, `withExpr` and `varBinder` live in `ProgramSyntax` and
+are not `private`: the `hoare[ ]` delaborator prints the frame of a statement triple the same
+way. -/
+
+namespace ProgramSyntax
 
 /-- `localVarLens "x" T` ↦ `("x", T)`. -/
 private def varSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
@@ -985,7 +992,7 @@ private def nameClashes (n : String) (e : Lean.Expr) : Bool :=
 
 /-- A program variable of a frame: its name, its type, the occurrences of its slot, and whether
 it prints under its name. -/
-private structure FrameVar where
+structure FrameVar where
   name : String
   type : Lean.Expr
   slots : Array Lean.Expr
@@ -994,7 +1001,7 @@ private structure FrameVar where
 
 /-- The program variables of the frame whose terms are `es`: the parameters `params` first (in
 order), then every other variable whose slot occurs in `es`, in order of first occurrence. -/
-private def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
+def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
     MetaM (Array FrameVar) := do
   let mut vars : Array FrameVar := params.map fun (n, ty) => ⟨n, ty, #[], true⟩
   for (n, ty, t) in es.foldl (fun acc e => collectVarSlots e acc) #[] do
@@ -1012,7 +1019,7 @@ private def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Exp
 
 /-- Bind each variable of `vars` to a let-variable of its name, replace its slots in `es` by it,
 and run `k` on the rewritten terms. -/
-private partial def withVarLocals {α} (vars : List FrameVar) (es : Array Lean.Expr)
+partial def withVarLocals {α} (vars : List FrameVar) (es : Array Lean.Expr)
     (k : Array Lean.Expr → DelabM α) : DelabM α :=
   match vars with
   | [] => k es
@@ -1022,12 +1029,16 @@ private partial def withVarLocals {α} (vars : List FrameVar) (es : Array Lean.E
         withVarLocals rest (es.map (replaceVarSlots v.slots fv)) k
 
 /-- Run `d` on `e` in place of the current expression. -/
-private def withExpr {α} (e : Lean.Expr) (d : DelabM α) : DelabM α :=
+def withExpr {α} (e : Lean.Expr) (d : DelabM α) : DelabM α :=
   withTheReader SubExpr (fun s => { s with expr := e }) d
 
 /-- The binder `x : T` of a printable variable, as written after `var`. -/
-private def varBinder (v : FrameVar) : DelabM (TSyntax `proc_binder) := do
+def varBinder (v : FrameVar) : DelabM (TSyntax `proc_binder) := do
   `(proc_binder| $(mkIdent (.mkSimple v.name)):ident : $(← withExpr v.type delab))
+
+end ProgramSyntax
+
+open ProgramSyntax
 
 /-- A local variable slot prints as `localVarLens "x" T`, which is how it is written (the key and
 its proof are filled in by elaboration). -/
