@@ -412,6 +412,16 @@ def Lens.intoLocal {a : Type*} (x : Lens a VariableAssignment) : Lens a ProgramS
 def Lens.intoGlobal {a : Type*} (x : Lens a State) : Lens a ProgramState :=
   ProgramState.globalL.chain x
 
+/-- The local variable `n : T`: its slot in the locals, as a lens into the program state.  This
+is what a parameter or `var` of a `proc` stands for.  The key of the variable name is filled in
+at the use site by `variable_name_key`, so for a literal `n` it is a literal, and two local
+variables with different literal names are found disjoint by instance search (through
+`Lens.disjoint_intoLocal` and `varLens.instDisjoint`; an `abbrev`, so that instance search sees
+the slot). -/
+noncomputable abbrev localVarLens (n : String) (T : Type) [Nonempty T] {key : Nat}
+    (keyCorrect : key = VariableName.encode n := by variable_name_key) : Lens T ProgramState :=
+  (varLens (@VariableName.mk n T _ key keyCorrect)).intoLocal
+
 instance Lens.disjoint_intoLocal_intoGlobal {a b : Type*} (x : Lens a VariableAssignment)
     (y : Lens b State) : Lens.Disjoint x.intoLocal y.intoGlobal :=
   ⟨fun _ _ _ => rfl⟩

@@ -28,6 +28,10 @@ A `;`-terminated sequence of statements.  The statement forms are:
 
 The argument list `( … )` of a `call` is always required (write `()` for no arguments).
 
+The sequence may start with `var x : T, …;` lines, `GaudiProg[ var i : Nat; i <- 0; … ]`, which
+declare local variables exactly as in a `proc` (below): each name stands for its slot in the
+locals of the `ProgramState`.
+
 Example (`a b c : Lens Nat State`, `inc : Procedure …`):
 ```
 GaudiProg[
@@ -57,7 +61,10 @@ proc (x : T, y : U) uses (A : (Nat) → Bool, B : (Bool) → Nat) : R {
   `call A (…)` syntax — `A` resolves to a hole when it is one of the declared names, and to
   a concrete procedure otherwise;
 * an optional return type `: R` (inferred from `return e` when omitted);
-* local variables via one or more `var name : T, …;` lines (`var u w : V;` declares two);
+* local variables via one or more `var name : T, …;` lines (`var u w : V;` declares two).  A
+  parameter or local `x : T` stands for the slot `localVarLens "x" T`
+  of the locals; a fresh local starts at an unspecified value (`VariableAssignment.init`), so
+  it should be written before it is read;
 * a body of statements ending in `return e`.
 
 A `let`/`have`/`letI`/`haveI` statement in the body scopes over the rest of the body *and*
@@ -96,11 +103,12 @@ The *module* type of a procedure, `procmod (…) -> R`, is in `ModuleSyntax.lean
 
 /-! ## Syntax for programs (`StmtWithHoles`)
 
-Statement syntax over `StmtWithHoles h l`.  Each expression position (assignment
+Statement syntax over `StmtWithHoles h`.  Each expression position (assignment
 RHS, sampling distribution, `if`/`while` condition) is wrapped with `GaudiExpr[ ]`
 so the `$x` sigil works.  An l-value (assignment/sample LHS) is a *lens*, lifted
-into the current full state `State × l` by `liftLens` — so a global `Lens a State`
-may be written bare and is lifted with `.ofst`.
+into the current full state `ProgramState` by `liftLens` — so a global `Lens a State`
+may be written bare and is lifted with `Lens.intoGlobal`, and a local variable (a lens into
+`ProgramState`) is used as it is.
 
 Surface forms (`gaudi_stmt`):
 
@@ -164,23 +172,24 @@ namespace GaudisCrypt
 
 variable [ProgramSpec]
 
-/-- Lift a program variable used as an l-value into a lens on the full current state
-`State × S`.  Dispatch is on the lens's *container* `M`: a global lens (`M = State`)
-is lifted with `.ofst`, a full-state lens (`M = State × S`) is kept as-is.  The
-content type `A` is deliberately *not* a class parameter — resolution then only needs
-`M` (always concrete from the argument), and the result's content unifies with the
-expected type as an ordinary, postponable constraint.  (That is what lets a `call`
-result l-value resolve even before the callee's `sig` is known.) -/
-class LiftLens (S : Type) (M : Type) where
-  lift {A : Type} : Lens A M → Setter A (ProcedureState S)
+/-- Lift a program variable used as an l-value into a setter on the full current state
+`ProgramState`.  Dispatch is on the lens's *container* `M`: a global lens (`M = State`)
+is lifted with `Lens.intoGlobal`, a full-state lens (`M = ProgramState`, e.g. a local
+variable `localVarLens "x" T`) is kept as-is.  The content type `A` is deliberately
+*not* a class parameter — resolution then only needs `M` (always concrete from the
+argument), and the result's content unifies with the expected type as an ordinary,
+postponable constraint.  (That is what lets a `call` result l-value resolve even before
+the callee's `sig` is known.) -/
+class LiftLens (M : Type u) where
+  lift {A : Type} : Lens A M → Setter A ProgramState
 
-instance {S : Type} : LiftLens S State where
-  lift x := (ProcedureState.globalL.chain x).toSetter
-instance {S : Type} : LiftLens S (ProcedureState S) where lift x := x.toSetter
+instance : LiftLens State where
+  lift x := x.intoGlobal.toSetter
+instance : LiftLens ProgramState where lift x := x.toSetter
 
-/-- User-facing l-value lift; `S`, the container `M`, and the content `A` are inferred.
+/-- User-facing l-value lift; the container `M` and the content `A` are inferred.
 The result is a `Setter` (l-values only ever `set`). -/
-def liftLens {S A M} [LiftLens S M] (x : Lens A M) : Setter A (ProcedureState S) :=
+def liftLens {A : Type} {M : Type u} [LiftLens M] (x : Lens A M) : Setter A ProgramState :=
   LiftLens.lift x
 
 /-- The raw (un-lifted) lens for an l-value: a tuple `(x, y, …)` becomes a nested
@@ -199,7 +208,7 @@ macro_rules
   | `([lvalRawList| $x:term]) => `([lvalRaw| $x])
   | `([lvalRawList| $x:term, $xs:term,*]) => `(Lens.pair [lvalRaw| $x] [lvalRawList| $xs,*])
 
-/-- An l-value lifted into the current full state `State × S`.  Accepts a single
+/-- An l-value lifted into the current full state `ProgramState`.  Accepts a single
 lens, a parenthesised tuple `(a, b)`, or a bare comma-list `a, b` (top-level
 parens optional) — all interpreted via `Lens.pair`. -/
 scoped syntax "[lval| " term,+ "]" : term
@@ -321,11 +330,22 @@ macro_rules
 /- ### Procedures
 
 `proc (x : T, …) [: R] { var u : U, …; <stmts> ; return e }` builds a
-`ProcedureWithHoles .empty sig`.  Each param/local name is `let`-bound — the user's
-identifier spliced in, so hygiene lines up — to its projection lens into the full
-state `State × l`, written as a plain `Lens.id.ofst.osnd…` chain.  The body's `$x`
-and `x <- …` then resolve via the ordinary expression machinery.  `: R` is optional;
-without it the return type is inferred from `return e`. -/
+`ProcedureWithHoles .empty sig` with `parameterNames := ["x", …]`.  Each parameter and
+local-variable name `x : T` is `letI`-bound — the user's identifier spliced in, so hygiene
+lines up — to its slot `localVarLens "x" T` in the locals of the
+`ProgramState`; a parameter is just a local whose slot the call initialises.  `letI` inlines
+its value during elaboration, so the elaborated term holds the slot at every use
+and no binder, and Lean's own scoping decides what `x` refers to (a Lean binder in the body
+named `x` shadows it).  The body's `$x` and `x <- …` then resolve via the ordinary expression
+machinery.  `: R` is optional; without it the return type is inferred from `return e`.
+
+Variable names are strings: an identifier must be atomic (`a.b` is rejected, since it and
+`«a.b»` would name the same string), and a name may be declared only once per `proc` (as a
+parameter, a local or a hole), so that one name never stands for two slots.
+
+Program variables are *frame-relative* names: inside a `proc` literal nested in another
+`proc`'s body (a callee written in place), an outer `x` that the inner `proc` does not declare
+still elaborates to the slot `"x"`, which is then the *callee's* slot `"x"`. -/
 
 open Lean in section
 
@@ -341,7 +361,33 @@ syntax ident ident+ " : " term : proc_binder
 -- the local-variable lenses and the binder wrapping stay in one place.  The `ProgramSyntax`
 -- prefix keeps them out of `GaudisCrypt` proper.
 
-/-- `Lens.id` followed by a chain of `.ofst` (`true`) / `.osnd` (`false`). -/
+/-- The string name of a program variable: the identifier's name, which must be atomic. -/
+def ProgramSyntax.varNameString (id : Ident) : MacroM String :=
+  match id.getId.eraseMacroScopes with
+  | .str .anonymous s => pure s
+  | n => Macro.throwErrorAt id s!"program variable names must be atomic, but `{n}` is not"
+
+/-- Reject a name declared twice among the parameters, local variables and holes of one
+`proc` (or the `var`s of one `GaudiProg[ ]`). -/
+def ProgramSyntax.checkDistinct (ids : Array Ident) : MacroM Unit := do
+  let mut seen : Array String := #[]
+  for id in ids do
+    let s ← ProgramSyntax.varNameString id
+    if seen.contains s then Macro.throwErrorAt id s!"`{s}` is declared twice"
+    seen := seen.push s
+
+/-- The `letI` binding of a program variable `x : T`: `x` stands for its local slot
+`localVarLens "x" T`. -/
+def ProgramSyntax.varBinding (id : Ident) (ty : Term) : MacroM (Ident × Term × Term) := do
+  let s := Syntax.mkStrLit (← ProgramSyntax.varNameString id)
+  return (id, ← `(Lens $ty ProgramState), ← `(localVarLens $s $ty))
+
+/-- Wrap `inner` in the `letI` bindings `bs` (outermost first). -/
+def ProgramSyntax.wrapLetI (bs : Array (Ident × Term × Term)) (inner : Term) : MacroM Term :=
+  bs.foldrM (fun (id, ty, val) acc => `(letI $id : $ty := $val; $acc)) inner
+
+/-- `Lens.id` followed by a chain of `.ofst` (`true`) / `.osnd` (`false`).  Used for argument
+tuples (`hoare[ M (x, m) : … ]`), no longer for local variables. -/
 def ProgramSyntax.mkChain (steps : List Bool) : MacroM Term := do
   let mut acc ← `(Lens.id)
   for s in steps do
@@ -452,32 +498,15 @@ macro_rules
     let holeBs := (← match holes with
       | some hs => hs.getElems.toList.mapM ProgramSyntax.parseHoleBinder
       | none    => pure []).toArray
-    let np := paramBs.size
-    let nl := localBs.size
-    -- the signature and local-variable list; the local-state `L` is the
-    -- `ProcedureScope` *structure* (params tuple + localVars tuple).
+    ProgramSyntax.checkDistinct ((paramBs ++ localBs).map (·.1) ++ holeBs.map (·.1))
+    -- the signature and the parameter names
     let paramTys := paramBs.map (·.2)
-    let localSigmas ← localBs.mapM fun (_, ty) => `(⟨$ty, inferInstance⟩)
     let retTyTerm ← match retTy with | some r => pure r | none => `(_)
     let sigTerm ← `(({ params := [$paramTys,*], ret := $retTyTerm } : ProcedureSignature))
-    let localsTerm ← `([$localSigmas,*])
-    -- `L` is the local-state structure, indexed by param *types* (no `ret`), so it is
-    -- fully determined even when the return type is omitted.
-    let L ← `(ProcedureScope [$paramTys,*] $localsTerm)
-    -- one `let` per name, binding it to its lens into `ProcedureState L`.  A variable
-    -- lens navigates `ProcedureState L` → (`scopedL`) `L` → (`paramsL`/`localVarsL`) the
-    -- params/localVars tuple → (`mkChain`/`navSteps`) the individual slot.
-    let mut binds : Array (Ident × Term × Term) := #[]
-    for k in [0:np] do
-      let (id, ty) := paramBs[k]!
-      let slot ← ProgramSyntax.mkChain (ProgramSyntax.navSteps k np)
-      let chain ← `(Lens.intoParams $slot)
-      binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
-    for j in [0:nl] do
-      let (id, ty) := localBs[j]!
-      let slot ← ProgramSyntax.mkChain (ProgramSyntax.navSteps j nl)
-      let chain ← `(Lens.intoLocalVars $slot)
-      binds := binds.push (id, ← `(Lens $ty (ProcedureState $L)), chain)
+    let paramNames : Array Term ← paramBs.mapM fun (id, _) => do
+      pure ⟨(Syntax.mkStrLit (← ProgramSyntax.varNameString id)).raw⟩
+    -- one `letI` per parameter and local variable, binding it to its local slot
+    let binds ← (paramBs ++ localBs).mapM fun (id, ty) => ProgramSyntax.varBinding id ty
     -- holes: a `ProcedureSignature` (no locals) each, folded into a `HoleSigs` context,
     -- and one `let` per name binding it to its `HoleIndex` (first-declared = `.zero`).
     let nh := holeBs.size
@@ -493,19 +522,33 @@ macro_rules
       let mut idx ← `(HoleIndex.zero)
       for _ in [0 : k] do idx ← `(HoleIndex.succ $idx)
       holeBinds := holeBinds.push (id, ← `(HoleIndex $hCtx $(holeSigTerms[k]!)), idx)
-    let wrap (bs : Array (Ident × Term × Term)) (inner : Term) : MacroM Term :=
+    let wrapLet (bs : Array (Ident × Term × Term)) (inner : Term) : MacroM Term :=
       bs.foldrM (fun (id, ty, val) acc => `(let $id : $ty := $val; $acc)) inner
-    -- annotate with the explicit local-state `L` (so expressions see `S = L`) and hole
-    -- context `hCtx`; the `L = sig.ProcedureScope` check happens in ordinary elaboration.
     -- rewrite `call A (…)` → `holecall A (…)` for every callee `A` that is a declared hole
     let holeNames := holeBs.toList.map (·.1.getId)
     let stmts' ← stmts.mapM (ProgramSyntax.rewriteHoles holeNames)
-    let body ← wrap (binds ++ holeBinds) (← `((GaudiProg[ $stmts'* ] : StmtWithHoles $hCtx $L)))
-    -- the return value repeats the parameter/local `let`s and the body's spine binders
-    let retval ← wrap binds
+    let body ← ProgramSyntax.wrapLetI binds
+      (← wrapLet holeBinds (← `((GaudiProg[ $stmts'* ] : StmtWithHoles $hCtx))))
+    -- the return value repeats the variable bindings and the body's spine binders
+    let retval ← ProgramSyntax.wrapLetI binds
       (← ProgramSyntax.wrapSpineBinders stmts'
-        (← `((GaudiExpr[ $ret ] : Getter _ (ProcedureState $L)))))
-    `((⟨$localsTerm, $body, $retval⟩ : ProcedureWithHoles $hCtx $sigTerm))
+        (← `((GaudiExpr[ $ret ] : Getter _ ProgramState))))
+    `(({ parameterNames := [$paramNames,*], body := $body, return_val := $retval }
+        : ProcedureWithHoles $hCtx $sigTerm))
+
+/-- `GaudiProg[ var x : T, …; <stmts> ]`: a statement sequence with local variables, each bound
+to its local slot exactly as in a `proc`.  (The form without `var` lines is the plain
+`GaudiProg[ … ]` above.) -/
+scoped syntax "GaudiProg[" (ppIndent(ppLine ppGroup("var " proc_binder,* ";")))+ gaudi_stmt*
+  ppDedent(ppDedent(ppLine)) "]" : term
+
+macro_rules
+  | `(GaudiProg[ $[var $locals:proc_binder,* ;]* $ss:gaudi_stmt* ]) => do
+    let localBs := (← (locals.toList.flatMap (·.getElems.toList)).mapM
+      ProgramSyntax.parseBinder).flatten.toArray
+    ProgramSyntax.checkDistinct (localBs.map (·.1))
+    let binds ← localBs.mapM fun (id, ty) => ProgramSyntax.varBinding id ty
+    ProgramSyntax.wrapLetI binds (← `([gseq| $ss*]))
 
 end
 
@@ -664,7 +707,7 @@ built by `proc` prints as `proc (…) uses (…) : R { … }`, a statement print
 `GaudiProg[ … ]`, and a `Getter` standing on its own prints as `GaudiExpr[ … ]` (with variable
 reads as the `§x` sigil, the printable spelling of `$x`).
 
-A `Getter` prints that way only over a `ProcedureState`, the only carrier `GaudiExpr[ ]` can
+A `Getter` prints that way only over a `ProgramState`, the only carrier `GaudiExpr[ ]` can
 build — a `Getter a State` (an `Expr a`) would print as something that does not elaborate
 back.  Inside a statement the expression slots are printed by `delabGaudiExpr` directly, with
 no `GaudiExpr[ ]` wrapper, since `$`/`§` already works there.
@@ -700,7 +743,7 @@ as `proctype (…) -> R` under `pp.gaudisCrypt false`; `pp.notation false` turns
 section Printing
 open Lean PrettyPrinter Delaborator SubExpr
 
-/- The pieces that are not `private` — `guardSurfaceSyntax`, `delabLocalTypes`,
+/- The pieces that are not `private` — `guardSurfaceSyntax`,
 `delabGaudiExpr`, `withPeeledLets`, `delabGaudiStmts`, `spineLetNames` — are shared with the
 `hoare[ ]` delaborators in `HoareSyntax.lean`, which has to take a triple apart the same way:
 peel the `let`s a `proc`-style binder emits, then print what is underneath. -/
@@ -741,21 +784,18 @@ private partial def delabListElems : DelabM (Array Term) := do
       return #[hd] ++ tl
   | _ => failure
 
-/-- `⟨T, inst⟩ : Σ t, Inhabited t` ↦ `T`. -/
-private def delabLocalType : DelabM Term := do
-  guard ((← getExpr).isAppOfArity ``Sigma.mk 4)
-  withNaryArg 2 delab
+/-- The elements of a literal list expression `[a, b, c]`. -/
+private partial def listLitElems? (e : Lean.Expr) : Option (Array Lean.Expr) :=
+  match e.getAppFnArgs with
+  | (``List.nil, _) => some #[]
+  | (``List.cons, #[_, hd, tl]) => (#[hd] ++ ·) <$> listLitElems? tl
+  | _ => none
 
-/-- The declared types of a `locals` list. -/
-partial def delabLocalTypes : DelabM (Array Term) := do
-  match (← getExpr).getAppFnArgs with
-  | (``List.nil, _) => return #[]
-  | (``List.cons, args) => do
-      guard (args.size == 3)
-      let hd ← withNaryArg 1 delabLocalType
-      let tl ← withNaryArg 2 delabLocalTypes
-      return #[hd] ++ tl
-  | _ => failure
+/-- The strings of a literal list of string literals `["x", "y"]`. -/
+private def stringListLit? (e : Lean.Expr) : Option (Array String) := do
+  (← listLitElems? e).mapM fun
+    | .lit (.strVal s) => some s
+    | _ => none
 
 /-- `ProcedureSignature.mk [T₁, …] R` ↦ its parameter types and its return type. -/
 private def delabSigParts : DelabM (Array Term × Term) := do
@@ -787,13 +827,13 @@ def delabGaudiExpr : DelabM Term := do
 /-- A `Getter` standing on its own — not as the expression slot of a statement, where
 `delabGaudiExpr` is called directly — prints as `GaudiExpr[ e ]`.
 
-Restricted to getters over a `ProcedureState`: that is the only carrier `GaudiExpr[ ]` can
+Restricted to getters over a `ProgramState`: that is the only carrier `GaudiExpr[ ]` can
 build, since the `CurrentState` instance it installs holds one.  Without the guard a
 `Getter a State` (an `Expr a`) would print as something that does not elaborate back. -/
 @[delab app.GaudisCrypt.Getter.mk]
 private def delabGaudiExprTerm : Delab := do
   guardSurfaceSyntax
-  guard (((← getExpr).getArg! 1).isAppOf ``ProcedureState)
+  guard (((← getExpr).getArg! 1).isAppOf ``ProgramState)
   `(GaudiExpr[ $(← delabGaudiExpr) ])
 
 /-- One component of an l-value: a nested `Lens.pair` prints as the tuple `(a, b)`. -/
@@ -822,8 +862,8 @@ private def delabLValue : DelabM (Array Term) := do
   match (← getExpr).getAppFnArgs with
   | (``Setter.throwaway, _) => return #[← `(_)]
   | (``liftLens, args) => do
-      guard (args.size == 6)
-      withNaryArg 5 delabLValueList
+      guard (args.size == 5)
+      withNaryArg 4 delabLValueList
   | _ => failure
 
 /-- Is the current sub-expression the throwaway l-value (a `call` with no result)? -/
@@ -880,6 +920,124 @@ private def mkLetDecl (x : Ident) (t v : Term) :
   let some d := stx.raw.find? (·.isOfKind ``Lean.Parser.Term.letDecl) | failure
   return ⟨d⟩
 
+/-! #### Program variables
+
+A parameter or `var` of a `proc` (or of a `GaudiProg[ var …; ]`) is `letI`-bound, so the term
+holds its slot `localVarLens "x" T` at every use and no binder.  To
+print it under its name again, the delaborators
+
+1. *collect* the slots of the frame — every such term with a literal name, outside nested
+   `proc` literals (which are frames of their own and print their own variables), together
+   with the parameters;
+2. *decide* which of them print under their name: exactly one type per name (up to reducible
+   defeq), a non-empty name without `»`, and no clash with a constant or a binder of the same
+   name in the frame (a clashing name could not be told apart from the variable when parsing
+   back);
+3. *bind* each printable one to a let-variable of its name, replacing its slot by it, and print
+   that term with the ordinary machinery, which shows the variable as `x` (`§x` when read).
+
+A variable that is not printable keeps its slot, which prints as
+`§(localVarLens "x" T)` and re-parses to the same term.  A parameter
+that is not printable makes the `proc` delaborator step aside: the header has to name it. -/
+
+/-- `localVarLens "x" T` ↦ `("x", T)`. -/
+private def varSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
+  guard (e.isAppOfArity ``localVarLens 6)
+  let .lit (.strVal n) := e.getArg! 1 | none
+  return (n, e.getArg! 2)
+
+/-- The variable slots in `e`, outside nested `proc` literals, in order of first occurrence,
+each with its name and type. -/
+private partial def collectVarSlots (e : Lean.Expr)
+    (acc : Array (String × Lean.Expr × Lean.Expr)) : Array (String × Lean.Expr × Lean.Expr) :=
+  if e.isAppOf ``ProcedureWithHoles.mk then acc
+  else if let some (n, ty) := varSlot? e then
+    if e.hasLooseBVars || acc.any (·.2.2 == e) then acc else acc.push (n, ty, e)
+  else match e with
+    | .app f a => collectVarSlots a (collectVarSlots f acc)
+    | .lam _ t b _ | .forallE _ t b _ => collectVarSlots b (collectVarSlots t acc)
+    | .letE _ t v b _ => collectVarSlots b (collectVarSlots v (collectVarSlots t acc))
+    | .mdata _ b | .proj _ _ b => collectVarSlots b acc
+    | _ => acc
+
+/-- `e` with every subterm in `ts` replaced by `fv`, outside nested `proc` literals. -/
+private partial def replaceVarSlots (ts : Array Lean.Expr) (fv : Lean.Expr) (e : Lean.Expr) :
+    Lean.Expr :=
+  if e.isAppOf ``ProcedureWithHoles.mk then e
+  else if ts.contains e then fv
+  else match e with
+    | .app f a => .app (replaceVarSlots ts fv f) (replaceVarSlots ts fv a)
+    | .lam n t b bi => .lam n (replaceVarSlots ts fv t) (replaceVarSlots ts fv b) bi
+    | .forallE n t b bi => .forallE n (replaceVarSlots ts fv t) (replaceVarSlots ts fv b) bi
+    | .letE n t v b nd =>
+        .letE n (replaceVarSlots ts fv t) (replaceVarSlots ts fv v) (replaceVarSlots ts fv b) nd
+    | .mdata d b => .mdata d (replaceVarSlots ts fv b)
+    | .proj s i b => .proj s i (replaceVarSlots ts fv b)
+    | e => e
+
+/-- Does a constant or a binder in `e` carry the name `n`?  Then a variable `n` printed as an
+identifier could not be told apart from it. -/
+private def nameClashes (n : String) (e : Lean.Expr) : Bool :=
+  (e.find? fun
+    | .const c _ => match c with | .str _ s => s == n | _ => false
+    | .lam nm .. | .forallE nm .. | .letE nm .. => nm.eraseMacroScopes == .str .anonymous n
+    | _ => false).isSome
+
+/-- A program variable of a frame: its name, its type, the occurrences of its slot, and whether
+it prints under its name. -/
+private structure FrameVar where
+  name : String
+  type : Lean.Expr
+  slots : Array Lean.Expr
+  printable : Bool
+  deriving Inhabited
+
+/-- The program variables of the frame whose terms are `es`: the parameters `params` first (in
+order), then every other variable whose slot occurs in `es`, in order of first occurrence. -/
+private def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
+    MetaM (Array FrameVar) := do
+  let mut vars : Array FrameVar := params.map fun (n, ty) => ⟨n, ty, #[], true⟩
+  for (n, ty, t) in es.foldl (fun acc e => collectVarSlots e acc) #[] do
+    match vars.findIdx? (·.name == n) with
+    | some i =>
+        let v := vars[i]!
+        if ← Meta.withReducible (Meta.isDefEq v.type ty) then
+          vars := vars.set! i { v with slots := v.slots.push t }
+        else
+          vars := vars.set! i { v with printable := false }
+    | none => vars := vars.push ⟨n, ty, #[t], true⟩
+  return vars.map fun v =>
+    { v with printable := v.printable && !v.name.isEmpty && !v.name.contains '»'
+                          && !es.any (nameClashes v.name) }
+
+/-- Bind each variable of `vars` to a let-variable of its name, replace its slots in `es` by it,
+and run `k` on the rewritten terms. -/
+private partial def withVarLocals {α} (vars : List FrameVar) (es : Array Lean.Expr)
+    (k : Array Lean.Expr → DelabM α) : DelabM α :=
+  match vars with
+  | [] => k es
+  | v :: rest => do
+      let some t := v.slots[0]? | withVarLocals rest es k
+      Meta.withLetDecl (.mkSimple v.name) (← Meta.inferType t) t fun fv =>
+        withVarLocals rest (es.map (replaceVarSlots v.slots fv)) k
+
+/-- Run `d` on `e` in place of the current expression. -/
+private def withExpr {α} (e : Lean.Expr) (d : DelabM α) : DelabM α :=
+  withTheReader SubExpr (fun s => { s with expr := e }) d
+
+/-- The binder `x : T` of a printable variable, as written after `var`. -/
+private def varBinder (v : FrameVar) : DelabM (TSyntax `proc_binder) := do
+  `(proc_binder| $(mkIdent (.mkSimple v.name)):ident : $(← withExpr v.type delab))
+
+/-- A local variable slot prints as `localVarLens "x" T`, which is how it is written (the key and
+its proof are filled in by elaboration). -/
+@[delab app.GaudisCrypt.localVarLens]
+private def delabLocalVarLens : Delab := do
+  guardSurfaceSyntax
+  guard ((← getExpr).getAppNumArgs == 6)
+  let f := mkIdent (← unresolveNameGlobal ``localVarLens)
+  `($f $(← withNaryArg 1 delab) $(← withNaryArg 2 delab))
+
 mutual
 
 /-- A statement sequence: the right `seq` spine, flattened.  A Lean binder wrapping the rest
@@ -899,9 +1057,9 @@ partial def delabGaudiStmts (holeNames : Array Name) :
                else `(gaudi_stmt| let $decl:letDecl; $body:gaudi_stmt*)]
   match (← getExpr).getAppFnArgs with
   | (``StmtWithHoles.seq, args) => do
-      guard (args.size == 5)
-      let hd ← withNaryArg 3 (delabGaudiStmtNested holeNames)
-      let tl ← withNaryArg 4 (delabGaudiStmts holeNames)
+      guard (args.size == 4)
+      let hd ← withNaryArg 2 (delabGaudiStmtNested holeNames)
+      let tl ← withNaryArg 3 (delabGaudiStmts holeNames)
       return #[hd] ++ tl
   | _ => return #[← delabGaudiStmt holeNames]
 
@@ -921,29 +1079,29 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
   match (← getExpr).getAppFnArgs with
   | (``StmtWithHoles.skip, _) => `(gaudi_stmt| skip;)
   | (``StmtWithHoles.assign, args) => do
-      guard (args.size == 6)
-      let lv ← withNaryArg 4 delabLValue
-      let e ← withNaryArg 5 delabGaudiExpr
+      guard (args.size == 5)
+      let lv ← withNaryArg 3 delabLValue
+      let e ← withNaryArg 4 delabGaudiExpr
       `(gaudi_stmt| $lv:term,* <- $e;)
   | (``StmtWithHoles.sample, args) => do
-      guard (args.size == 6)
-      let lv ← withNaryArg 4 delabLValue
-      let e ← withNaryArg 5 delabGaudiExpr
+      guard (args.size == 5)
+      let lv ← withNaryArg 3 delabLValue
+      let e ← withNaryArg 4 delabGaudiExpr
       `(gaudi_stmt| $lv:term,* <$ $e;)
   | (``StmtWithHoles.call, args) => do
-      guard (args.size == 7)
-      let void ← withNaryArg 4 isThrowaway
-      let lv ← withNaryArg 4 delabLValue
-      let p ← withNaryArg 5 delab
-      let as := splitArgTuple (← withNaryArg 6 delabGaudiExpr)
+      guard (args.size == 6)
+      let void ← withNaryArg 3 isThrowaway
+      let lv ← withNaryArg 3 delabLValue
+      let p ← withNaryArg 4 delab
+      let as := splitArgTuple (← withNaryArg 5 delabGaudiExpr)
       if void then `(gaudi_stmt| call $p ( $as:term,* );)
       else `(gaudi_stmt| $lv:term,* <- call $p ( $as:term,* );)
   | (``StmtWithHoles.hole, args) => do
-      guard (args.size == 7)
-      let idx ← withNaryArg 4 delab
-      let void ← withNaryArg 5 isThrowaway
-      let lv ← withNaryArg 5 delabLValue
-      let as := splitArgTuple (← withNaryArg 6 delabGaudiExpr)
+      guard (args.size == 6)
+      let idx ← withNaryArg 3 delab
+      let void ← withNaryArg 4 isThrowaway
+      let lv ← withNaryArg 4 delabLValue
+      let as := splitArgTuple (← withNaryArg 5 delabGaudiExpr)
       -- inside its `proc`, a hole is called with `call` (that is what the macro rewrites);
       -- anywhere else the internal `holecall` form is the only faithful spelling.
       if idx.raw.isIdent && holeNames.contains idx.raw.getId then
@@ -953,19 +1111,19 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
         if void then `(gaudi_stmt| holecall $idx ( $as:term,* );)
         else `(gaudi_stmt| $lv:term,* <- holecall $idx ( $as:term,* );)
   | (``StmtWithHoles.ifThenElse, args) => do
-      guard (args.size == 6)
-      let c ← withNaryArg 3 delabGaudiExpr
-      let t ← withNaryArg 4 (delabGaudiStmts holeNames)
+      guard (args.size == 5)
+      let c ← withNaryArg 2 delabGaudiExpr
+      let t ← withNaryArg 3 (delabGaudiStmts holeNames)
       -- `if (c) { … }` elaborates with `skip` as its else branch, so print the short form
-      let noElse ← withNaryArg 5 (return (← getExpr).isAppOf ``StmtWithHoles.skip)
+      let noElse ← withNaryArg 4 (return (← getExpr).isAppOf ``StmtWithHoles.skip)
       if noElse then `(gaudi_stmt| if ($c) { $t:gaudi_stmt* })
       else
-        let f ← withNaryArg 5 (delabGaudiStmts holeNames)
+        let f ← withNaryArg 4 (delabGaudiStmts holeNames)
         `(gaudi_stmt| if ($c) { $t:gaudi_stmt* } else { $f:gaudi_stmt* })
   | (``StmtWithHoles.while, args) => do
-      guard (args.size == 5)
-      let c ← withNaryArg 3 delabGaudiExpr
-      let body ← withNaryArg 4 (delabGaudiStmts holeNames)
+      guard (args.size == 4)
+      let c ← withNaryArg 2 delabGaudiExpr
+      let body ← withNaryArg 3 (delabGaudiStmts holeNames)
       `(gaudi_stmt| while ($c) { $body:gaudi_stmt* })
   | _ => failure
 
@@ -978,8 +1136,12 @@ end
   delab app.GaudisCrypt.StmtWithHoles.ifThenElse, delab app.GaudisCrypt.StmtWithHoles.while]
 private def delabGaudiProg : Delab := do
   guardSurfaceSyntax
-  let stmts ← delabGaudiStmts #[]
-  `(GaudiProg[ $stmts:gaudi_stmt* ])
+  let vars := (← frameVars #[← getExpr] #[]).filter (·.printable)
+  withVarLocals vars.toList #[← getExpr] fun es => do
+    let stmts ← withExpr es[0]! (delabGaudiStmts #[])
+    let locals ← vars.mapM varBinder
+    if locals.isEmpty then `(GaudiProg[ $stmts:gaudi_stmt* ])
+    else `(GaudiProg[ var $locals:proc_binder,* ; $stmts:gaudi_stmt* ])
 
 /-- The names bound by the `let`/`have` statements on the spine of a printed statement
 sequence, outermost first — exactly the binders `wrapSpineBinders` repeats around the return
@@ -1000,43 +1162,45 @@ partial def spineLetNames (ss : Array (TSyntax `gaudi_stmt)) : Array Name := Id.
 @[delab app.GaudisCrypt.ProcedureWithHoles.mk]
 private def delabProc : Delab := do
   guardSurfaceSyntax
-  guard ((← getExpr).getAppNumArgs == 6)
+  let e ← getExpr
+  guard (e.getAppNumArgs == 8)
   let (paramTys, retTy) ← withNaryArg 2 delabSigParts
   let holeSigs ← withNaryArg 1 delabHoleSigs
-  let localTys ← withNaryArg 3 delabLocalTypes
-  -- the body: the parameter, local-variable and hole `let`s, then the statements
-  let (paramNames, localNames, holeNames, stmts) ← withNaryArg 4 <|
-    withPeeledLets paramTys.size (·.isAppOf ``Lens.intoParams) #[] fun ps =>
-      withPeeledLets localTys.size (·.isAppOf ``Lens.intoLocalVars) #[] fun ls =>
-        withPeeledLets holeSigs.size isHoleIndex #[] fun hs => do
-          return (ps, ls, hs, ← delabGaudiStmts hs)
-  -- the return value repeats the parameter and local-variable `let`s (but not the holes), and
-  -- then the binders on the body's spine, which scope over it too
-  let spineNames := spineLetNames stmts
-  let (retParams, retLocals, retSpine, ret) ← withNaryArg 5 <|
-    withPeeledLets paramTys.size (·.isAppOf ``Lens.intoParams) #[] fun ps =>
-      withPeeledLets localTys.size (·.isAppOf ``Lens.intoLocalVars) #[] fun ls =>
-        withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
-          return (ps, ls, bs, ← delabGaudiExpr)
-  guard (retParams == paramNames && retLocals == localNames && retSpine == spineNames)
-  let params ← (paramNames.zip paramTys).mapM fun (n, t) =>
-    `(proc_binder| $(mkIdent n):ident : $t)
-  let locals ← (localNames.zip localTys).mapM fun (n, t) =>
-    `(proc_binder| $(mkIdent n):ident : $t)
-  let holes ← (holeNames.zip holeSigs).mapM fun (n, (ps, r)) =>
-    `(hole_binder| $(mkIdent n):ident : ( $ps:term,* ) → $r)
-  let varLines : Array (Syntax.TSepArray `proc_binder ",") :=
-    if locals.isEmpty then #[] else #[locals]
-  if holes.isEmpty then
-    `(proc ( $params:proc_binder,* ) : $retTy {
-        $[var $varLines:proc_binder,* ;]*
-        $stmts:gaudi_stmt*
-        return $ret })
-  else
-    `(proc ( $params:proc_binder,* ) uses ( $holes:hole_binder,* ) : $retTy {
-        $[var $varLines:proc_binder,* ;]*
-        $stmts:gaudi_stmt*
-        return $ret })
+  let some paramNames := stringListLit? (e.getArg! 3) | failure
+  let some paramTyEs := listLitElems? ((e.getArg! 2).getArg! 0) | failure
+  guard (paramNames.size == paramTyEs.size)
+  -- the program variables, parameters first; the header has to name every parameter
+  let vars ← frameVars #[e.getArg! 6, e.getArg! 7] (paramNames.zip paramTyEs)
+  guard ((vars.extract 0 paramNames.size).all (·.printable))
+  let printable := vars.filter (·.printable)
+  withVarLocals printable.toList #[e.getArg! 6, e.getArg! 7] fun es => do
+    -- the body: the hole `let`s, then the statements
+    let (holeNames, stmts) ← withExpr es[0]! <|
+      withPeeledLets holeSigs.size isHoleIndex #[] fun hs => do
+        return (hs, ← delabGaudiStmts hs)
+    -- the return value repeats the binders on the body's spine, which scope over it too
+    let spineNames := spineLetNames stmts
+    let (retSpine, ret) ← withExpr es[1]! <|
+      withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
+        return (bs, ← delabGaudiExpr)
+    guard (retSpine == spineNames)
+    let params ← (paramNames.zip paramTys).mapM fun (n, t) =>
+      `(proc_binder| $(mkIdent (.mkSimple n)):ident : $t)
+    let locals ← (printable.extract paramNames.size printable.size).mapM varBinder
+    let holes ← (holeNames.zip holeSigs).mapM fun (n, (ps, r)) =>
+      `(hole_binder| $(mkIdent n):ident : ( $ps:term,* ) → $r)
+    let varLines : Array (Syntax.TSepArray `proc_binder ",") :=
+      if locals.isEmpty then #[] else #[locals]
+    if holes.isEmpty then
+      `(proc ( $params:proc_binder,* ) : $retTy {
+          $[var $varLines:proc_binder,* ;]*
+          $stmts:gaudi_stmt*
+          return $ret })
+    else
+      `(proc ( $params:proc_binder,* ) uses ( $holes:hole_binder,* ) : $retTy {
+          $[var $varLines:proc_binder,* ;]*
+          $stmts:gaudi_stmt*
+          return $ret })
 
 end Printing
 
@@ -1064,13 +1228,15 @@ Hence:
       has type
         Lens ℤ State
       but is expected to have type
-        Lens ℤ (ProcedureState (ProcedureScope [] [⟨ℤ, inferInstance⟩]))
+        Lens ℤ ProgramState
       in the application
-        @Lens.pair ℤ (ProcedureState (ProcedureScope [] [⟨ℤ, inferInstance⟩])) ℤ x y
+        @Lens.pair ℤ ProgramState ℤ x y
 
-  All-global works (`LiftLens S State` lifts the pair with `globalL.chain`) and all-local
-  works (`LiftLens S (ProcedureState S)` keeps it), because there the two components already
-  agree; a mixed pair has no single `M` for the class to be resolved at.
+  All-global works (`LiftLens State` lifts the pair with `Lens.intoGlobal`) and all-local
+  works (`LiftLens ProgramState` keeps it), because there the two components already agree; a
+  mixed pair has no single `M` for the class to be resolved at.  Lifting the global by hand,
+  `(x, y.intoGlobal) <- …`, works (the disjointness instance
+  `Lens.disjoint_intoLocal_intoGlobal` exists) and round-trips.
 * `_` works only at the top level.  `[lval| _]` short-circuits to `Setter.throwaway`, but a `_`
   *inside* a tuple goes through `[lvalRaw| _]` into `Lens.pair`, which wants a `Lens` — and a
   throwaway is a `Setter`, deliberately (it has no getter).
@@ -1081,11 +1247,10 @@ Two ways out:
    (which does not exist yet).  This fixes both TODOs at once — `Setter.throwaway` is already a
    `Setter`, so a `_` leaf needs no special case — at the cost of stating the disjointness side
    condition for setters rather than for lenses.
-2. Lift each leaf into `ProcedureState S` and keep pairing lenses there.  Needs a `Lens`-valued
-   variant of `LiftLens` (`LiftLens.lift` currently lands in `Setter`), plus the missing
-   `Lens.Disjoint (ProcedureState.globalL.chain x) (ProcedureState.scopedL.chain y)` instances
-   and their mirror image — `ProcedureState` has no `globalL`/`scopedL` disjointness at all,
-   unlike `ProcedureScope.disjoint_paramsL_localVarsL`.  This does not fix the `_` TODO.
+2. Lift each leaf into `ProgramState` and keep pairing lenses there.  Needs a `Lens`-valued
+   variant of `LiftLens` (`LiftLens.lift` currently lands in `Setter`); the disjointness
+   instances between `Lens.intoGlobal` and `Lens.intoLocal` lenses exist.  This is what the
+   hand-written `y.intoGlobal` above does.  It does not fix the `_` TODO.
 
 Either way the delaborators have to follow, or printing stops round-tripping: `delabLValue`
 matches `liftLens` at the root of an l-value and `delabLValueList`/`delabLValueComponent` walk

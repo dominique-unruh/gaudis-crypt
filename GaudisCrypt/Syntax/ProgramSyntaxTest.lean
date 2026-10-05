@@ -23,12 +23,12 @@ axiom a_d_disjoint : Lens.Disjoint a d
 axiom b_d_disjoint : Lens.Disjoint b d
 attribute [instance] a_b_disjoint a_d_disjoint b_d_disjoint
 
-noncomputable def prog_assign : Stmt Unit := GaudiProg[
+noncomputable def prog_assign : Stmt := GaudiProg[
   a <- $a + 1;
   b <- $a + $b;
 ]
 
-noncomputable def prog_if : Stmt Unit := GaudiProg[
+noncomputable def prog_if : Stmt := GaudiProg[
   if ($a == $b) {
     a <- 0;
   } else {
@@ -36,25 +36,25 @@ noncomputable def prog_if : Stmt Unit := GaudiProg[
   }
 ]
 
-noncomputable def prog_while : Stmt Unit := GaudiProg[
+noncomputable def prog_while : Stmt := GaudiProg[
   while ($a == 0) {
     a <- $a + 1;
   }
 ]
 
-noncomputable def prog_sample : Stmt Unit := GaudiProg[
+noncomputable def prog_sample : Stmt := GaudiProg[
   c <$ GaudisCrypt.SubProbability.uniform;
 ]
 
-noncomputable def split : Stmt Unit := GaudiProg[
+noncomputable def split : Stmt := GaudiProg[
   (a,b) <- (1,2);
 ]
 
-noncomputable def split2 : Stmt Unit := GaudiProg[
+noncomputable def split2 : Stmt := GaudiProg[
   a,b <- (1,2);
 ]
 
-noncomputable def split3 : Stmt Unit := GaudiProg[
+noncomputable def split3 : Stmt := GaudiProg[
   (a,b),d <- ((1,3),2);
 ]
 
@@ -93,18 +93,18 @@ noncomputable def proc_loop := proc () {
 /- ### Procedure calls -/
 
 -- store the result of a one-argument call
-noncomputable def prog_call : Stmt Unit := GaudiProg[
+noncomputable def prog_call : Stmt := GaudiProg[
   a <- call proc_inc ($a);
 ]
 #print prog_call
 
 -- a two-argument call (the argument tuple matches the callee's `ParamType`)
-noncomputable def prog_call2 : Stmt Unit := GaudiProg[
+noncomputable def prog_call2 : Stmt := GaudiProg[
   a <- call proc_sum ($a, $b);
 ]
 
 -- discard the result (uses `Lens.throwaway`); `()` still required
-noncomputable def prog_call_void : Stmt Unit := GaudiProg[
+noncomputable def prog_call_void : Stmt := GaudiProg[
   call proc_inc ($a);
 ]
 #check @prog_call_void
@@ -524,19 +524,19 @@ info: GaudiProg[
 Outside a statement, where `$`/`§` is available without a wrapper, a `Getter` prints as the
 `GaudiExpr[ … ]` that builds it. -/
 
-/-- info: GaudiExpr[ §a + 1 ] : Getter ℕ (ProcedureState Unit) -/
+/-- info: GaudiExpr[ §a + 1 ] : Getter ℕ ProgramState -/
 #guard_msgs in
-#check (GaudiExpr[ §a + 1 ] : Getter Nat (ProcedureState Unit))
+#check (GaudiExpr[ §a + 1 ] : Getter Nat ProgramState)
 
-#roundtrip (GaudiExpr[ §a + 1 ] : Getter Nat (ProcedureState Unit))
+#roundtrip (GaudiExpr[ §a + 1 ] : Getter Nat ProgramState)
 
 -- a getter whose body reads the state binder is not `GaudiExpr[ ]`-shaped, so it prints as the
 -- structure it is
-/-- info: { get := fun st ↦ st.global } : Getter State (ProcedureState Unit) -/
+/-- info: { get := fun st ↦ st.globals } : Getter State ProgramState -/
 #guard_msgs in
-#check (Getter.mk (fun st : ProcedureState Unit => st.global) : Getter State (ProcedureState Unit))
+#check (Getter.mk (fun st : ProgramState => st.globals) : Getter State ProgramState)
 
--- `GaudiExpr[ ]` can only build a getter over a `ProcedureState` — its `CurrentState` instance
+-- `GaudiExpr[ ]` can only build a getter over a `ProgramState` — its `CurrentState` instance
 -- holds one — so a getter over the global `State` (an `Expr`) is left alone, or printing it
 -- would not parse back
 /-- info: { get := fun st ↦ a.get st } : Getter ℕ State -/
@@ -544,31 +544,140 @@ Outside a statement, where `$`/`§` is available without a wrapper, a `Getter` p
 #check (Getter.mk (fun st => a.get st) : Expr Nat)
 
 -- the surface syntax steps aside when Lean is told to print the term as it is
-/-- info: StmtWithHoles.assign (liftLens a) { get := fun st ↦ 1 } : StmtWithHoles HoleSigs.empty Unit -/
+/-- info: StmtWithHoles.assign (liftLens a) { get := fun st ↦ 1 } : StmtWithHoles HoleSigs.empty -/
 #guard_msgs in
 set_option pp.notation false in
-#check (GaudiProg[ a <- 1; ] : Stmt Unit)
+#check (GaudiProg[ a <- 1; ] : Stmt)
 
-/-- info: @StmtWithHoles.skip inst✝ HoleSigs.empty Unit : @StmtWithHoles inst✝ HoleSigs.empty Unit -/
+/-- info: @StmtWithHoles.skip inst✝ HoleSigs.empty : @StmtWithHoles inst✝ HoleSigs.empty -/
 #guard_msgs in
 set_option pp.explicit true in
-#check (GaudiProg[ skip; ] : Stmt Unit)
+#check (GaudiProg[ skip; ] : Stmt)
 
 -- `pp.gaudisCrypt false` steps aside too, but only these delaborators: Lean's own notation
--- is untouched, so the `locals` list still prints as `[…]` and not as `List.cons … List.nil`.
+-- is untouched, so the `parameterNames` list still prints as `[…]` and not as
+-- `List.cons … List.nil`.  The variables show as the slots they elaborate to.
 /--
-info: { locals := [⟨ℕ, inferInstance⟩],
-  body :=
-    let x := Lens.id.intoParams;
-    let u := Lens.id.intoLocalVars;
-    StmtWithHoles.assign (liftLens u) { get := fun st ↦ §x },
-  return_val :=
-    let x := Lens.id.intoParams;
-    let u := Lens.id.intoLocalVars;
-    { get := fun st ↦ §u } } : proctype (ℕ) -> ℕ
+info: { parameterNames := ["x"], parameterNames_length := ⋯, parameterNames_nodup := ⋯,
+  body := StmtWithHoles.assign (liftLens (localVarLens "u" ℕ ⋯)) { get := fun st ↦ §(localVarLens "x" ℕ ⋯) },
+  return_val := { get := fun st ↦ §(localVarLens "u" ℕ ⋯) } } : proctype (ℕ) -> ℕ
 -/
 #guard_msgs in
 set_option pp.gaudisCrypt false in
 #check (proc (x : Nat) : Nat { var u : Nat; u <- $x; return $u })
+
+/-! ### Program variables
+
+A parameter or `var` stands for its slot `localVarLens "x" T` in the locals; printing turns the
+slots back into names where it can. -/
+
+-- the variable is the slot: no binder is left in the term
+example : (proc (x : Nat) : Nat { return $x })
+    = { parameterNames := ["x"], body := .skip,
+        return_val := ⟨fun st => (localVarLens "x" Nat).get st⟩ } := rfl
+
+-- a statement sequence with local variables
+/--
+info: GaudiProg[
+    var i : ℕ, j : ℕ;
+    i <- 0;
+    j <- §i + §a;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ var i j : Nat; i <- 0; j <- $i + $a; ]
+
+-- a tuple of two locals: their disjointness is found by instance search (distinct names)
+/--
+info: proc () : ℕ {
+    var u : ℕ, w : ℕ;
+    u, w <- (1, 2);
+    return §u + §w
+}
+-/
+#guard_msgs in
+#roundtrip proc () : Nat { var u w : Nat; u, w <- (1, 2); return $u + $w }
+
+-- a global next to a local in a tuple has to be lifted by hand (`.intoGlobal`): the components
+-- are paired before they are lifted (see *L-value pairing* in `ProgramSyntax.lean`)
+/--
+info: proc () : ℕ {
+    var u : ℕ;
+    u, a.intoGlobal <- (1, 2);
+    return §u
+}
+-/
+#guard_msgs in
+#roundtrip proc () : Nat { var u : Nat; u, a.intoGlobal <- (1, 2); return $u }
+
+-- a name that is not a plain identifier prints with `«»` quoting
+/--
+info: proc («x y» : ℕ) : ℕ {
+    skip;
+    return §«x y»
+}
+-/
+#guard_msgs in
+#roundtrip proc («x y» : Nat) : Nat { return $«x y» }
+
+-- two types for one name: the name is ambiguous, so the slots stay printed as slots
+/--
+info: GaudiProg[
+    (localVarLens "x" ℕ) <- 1;
+    (localVarLens "x" Bool) <- true;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[
+  (localVarLens "x" Nat) <- 1;
+  (localVarLens "x" Bool) <- true;
+]
+
+-- a local named like a global constant (`a`) could not be told apart from it, so it stays a slot
+/--
+info: GaudiProg[
+    (localVarLens "a" ℕ) <- §a;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ (localVarLens "a" Nat) <- $a; ]
+
+-- a `proc` literal nested in another `proc` is a frame of its own and declares its own variables
+/--
+info: proc (x : ℕ) : ℕ {
+    var y : ℕ;
+    y <- call
+    (proc (x : ℕ) : ℕ {
+        var z : ℕ;
+        z <- §x + 1;
+        return §z
+  }) (§x);
+    return §y
+}
+-/
+#guard_msgs in
+#roundtrip proc (x : Nat) : Nat {
+  var y : Nat;
+  y <- call (proc (x : Nat) : Nat { var z : Nat; z <- $x + 1; return $z }) ($x);
+  return $y
+}
+
+-- a Lean binder of the same name shadows the program variable, as any Lean binder does
+set_option linter.unusedVariables false in
+example : (proc (x : Nat) : Nat { let x := 5; return x }).return_val.get = fun _ => 5 := rfl
+
+/-! #### Rejected declarations -/
+
+/-- error: `x` is declared twice -/
+#guard_msgs in
+#check proc (x : Nat) { var x : Nat; return $x }
+
+/-- error: `u` is declared twice -/
+#guard_msgs in
+#check GaudiProg[ var u : Nat, u : Bool; skip; ]
+
+/-- error: program variable names must be atomic, but `a.b` is not -/
+#guard_msgs in
+#check proc (a.b : Nat) { return 0 }
 
 end GaudisCrypt.ProgTest
