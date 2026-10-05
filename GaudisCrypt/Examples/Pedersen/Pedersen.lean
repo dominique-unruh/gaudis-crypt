@@ -183,10 +183,9 @@ theorem wp_gen (f : ProgramDenotation.Post State group.types.Value) :
   funext st
   simp [Pedersen.gen.procedure, programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g,
     wp_set_g,
-    wp_lift, uniform_expected, expected_pure, ProcedureSignature.localVariableInit,
+    wp_lift, uniform_expected, expected_pure,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureScope.localVarsL]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
 theorem wp_commit (args : group.G × group.F)
     (f : ProgramDenotation.Post State
@@ -199,14 +198,18 @@ theorem wp_commit (args : group.G × group.F)
           / Fintype.card group.F := by
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   funext st
-  simp [PedersenGroup.types,
-    Pedersen.commit.procedure, programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g,
-    wp_set_g,
-    wp_lift, uniform_expected, expected_pure, ProcedureSignature.localVariableInit,
+  -- write the arguments into the parameter slots first: in the full simp set below, the
+  -- equation lemmas of `setParams` loop
+  obtain ⟨a, b⟩ := args
+  simp only [Pedersen.commit.procedure, ProcedureWithHoles.initLocals,
+    VariableAssignment.setParams]
+  -- `setParams` keys its slots by `VariableName.encode "h"`, the body by the literal it
+  -- evaluates to; unfolding `encode` lets simp see that they are the same slot
+  simp [programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g,
+    wp_lift, uniform_expected, expected_pure,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL,
-    ProcedureScope.paramsL, ProcedureScope.localVarsL]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    VariableName.encode, VariableName.encodeChars]
 
 theorem wp_verify (args : group.G × group.F × group.G × group.F)
     (f : ProgramDenotation.Post State Bool) :
@@ -217,14 +220,14 @@ theorem wp_verify (args : group.G × group.F × group.G × group.F)
       = fun st => f (args.2.2.1 == group.g ^ args.2.2.2 * args.1 ^ args.2.1, st) := by
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   funext st
-  simp [PedersenGroup.types,
-    Pedersen.verify.procedure, programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g,
-    wp_set_g,
-    wp_lift, expected_pure, ProcedureSignature.localVariableInit,
+  obtain ⟨a, b, c, d⟩ := args
+  simp only [Pedersen.verify.procedure, ProcedureWithHoles.initLocals,
+    VariableAssignment.setParams]
+  simp [programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g,
+    wp_lift, expected_pure,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL,
-    ProcedureScope.paramsL, ProcedureScope.localVarsL]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    VariableName.encode, VariableName.encodeChars]
 
 /-! ### Reducing the applied functor
 
@@ -302,12 +305,11 @@ theorem pedersen_correctness (m : group.F) (σ : State) :
   -- as simp lemmas these two also fire on the *callees*, and `wp_gen` then no longer matches.
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
   simp [module_accessor, Pedersen, Module.procedure_proc', programDenotation,
-    StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
-    ProcedureSignature.localVariableInit,
+    programDenotation_call', StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
+    ProcedureWithHoles.initLocals, VariableAssignment.setParams,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoParams, Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
-    ProcedureScope.paramsL, ProcedureScope.localVarsL,
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    ProgramState.globalL, VariableName.encode, VariableName.encodeChars,
     Set.indicator, Set.mem_setOf_eq]
   -- descend through the two samplings with `rw` (full-defeq unification), summand by summand
   rw [wp_gen]
@@ -373,34 +375,20 @@ theorem pedersen_correctness2 :
   simp only [StmtWithHoles.assign]
   simp only [wp_bind]
   simp only [programDenotation]
-  simp only [procedureDenotation_eq_procWrap]
   simp only [wp_bind]
   simp only [wp_get_g]
   simp only [wp_zoom]
   simp only [wp_set_g]
   simp only [AsGetter.toG]
   simp only [id_eq]
-  rw [wp_procWrap]
-  simp only [programDenotation]
-  simp only [wp_bind]
-  simp only [wp_get_g]
-  simp only [wp_set_g]
-  simp only [wp_lift]
-  simp only [AsGetter.toG]
-  simp only [id_eq]
-  simp only [uniform_expected]
-  simp only [expected_pure]
-  simp only [ProcedureSignature.localVariableInit]
-  -- `args` still carries the `group.types.Message` spelling of its type, which blocks every
-  -- further `simp` (the goal is then not type-correct at `instances` transparency); unfolding
-  -- `ParamType` in the hypothesis puts it in the tuple form the goal expects
-  simp only [ProcedureSignature.ParamType] at args
-  simp only [Set.indicator]
-  simp only [Set.mem_setOf_eq]
-  -- Stalls here: the `commit` and `verify` calls' `procWrap`s sit under the `fun as' ↦ …` binders
-  -- `wp_bind` introduced, so `rw [wp_procWrap]` cannot reach them, and `simp only [wp_procWrap]`
-  -- refuses because the goal is no longer type-correct at `instances` transparency (`Set` vs
-  -- `_ → Prop`, `Stmt` vs `StmtWithHoles .empty`, `ParamType` vs the tuple — all plain `def`s).
+  -- Stalls here (new procedure model): the callees were unfolded above, so the `call'` case of
+  -- `programDenotation` inlines their bodies directly and there is no `procWrap` left to rewrite.
+  -- The next `simp only [programDenotation]` refuses because the goal is no longer type-correct
+  -- at `instances` transparency: `gen`'s argument getter `GaudiExpr[ () ]` has type
+  -- `ProgramState → Unit` where `ProgramState → (procsig () → group.G).ParamType` is expected
+  -- (`ParamType` is a plain `def`).  Before the migration the experiment got further, through
+  -- `wp_procWrap` and the `localVariableInit` unfolding, and stalled on the `commit`/`verify`
+  -- `procWrap`s under the `fun as' ↦ …` binders of `wp_bind`.
   sorry
 
 end UnfinitedExperimentsByDominique
