@@ -1151,10 +1151,8 @@ private def basicTermHoleLookup_toModuleTuple {Δ : ModuleContext} :
 
 
 -- Two instantiations that agree on every hole index produce the same statement.
--- Generic in the local-state `l` (a variable here), so `induction` is well-formed —
--- unlike inducting on a procedure body, whose `l` is a fixed `sig.ProcedureScope …`.
-private lemma StmtWithHoles.instantiate_congr_of_agree {holes : HoleSigs} {l : Type}
-    (s : StmtWithHoles holes l) {f g : holes.Instantiation}
+private lemma StmtWithHoles.instantiate_congr_of_agree {holes : HoleSigs}
+    (s : StmtWithHoles holes) {f g : holes.Instantiation}
     (h : ∀ {sig} (n : HoleIndex holes sig), f.lookup n = g.lookup n) :
     s.instantiate f = s.instantiate g := by
   induction s with
@@ -1171,7 +1169,7 @@ private lemma instantiate_congr {Δ : ModuleContext} {holes : HoleSigs} (args : 
     proc.instantiate (basicTermHoleLookup holes
       (Metatheory.STLCext.Term.toBasicTerm _ _ (isBasicType_toModuleTuple (Δ := Δ) args)))
     = proc.instantiate args := by
-  obtain ⟨_, body, _⟩ := proc
+  obtain ⟨_, _, _, body, _⟩ := proc
   simp only [ProcedureWithHoles.instantiate]
   congr 1
   exact StmtWithHoles.instantiate_congr_of_agree body
@@ -1916,7 +1914,7 @@ instance {sig} : IsModule (Module.Proc sig) where
 def Module.app' (m : Module (.arr A B)) (m' : Module A) :=
   (m.expression.app m'.expression).toModule
 
-def Module.app {M N : Type max 1 u} [iM : IsModule M] [iN : IsModule N] (m : Module.Arr M N) (m' : M) : N :=
+def Module.app {M N : Type 1} [iM : IsModule M] [iN : IsModule N] (m : Module.Arr M N) (m' : M) : N :=
   have hMN : Module.Arr M N = Module (ModuleTypeRep.arr (Module.moduleTypeRep M) (Module.moduleTypeRep N)) := by
     simp [Module.Arr]
   iN.isModule.symm ▸ Module.app' (hMN ▸ m) (iM.isModule ▸ m')
@@ -1935,19 +1933,19 @@ instance (M : Type _) (N : Type _) [IsModule M] [IsModule N] : IsModule (Module.
   moduleTypeRep := ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N)
   isModule := rfl
 
-def Module.fst {M N : Type max 1 u} [iM : IsModule M] [iN : IsModule N] (m : Module.Prod M N) : M :=
+def Module.fst {M N : Type 1} [iM : IsModule M] [iN : IsModule N] (m : Module.Prod M N) : M :=
   have hMN : Module.Prod M N
       = Module (ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N)) := by
     simp [Module.Prod]
   iM.isModule.symm ▸ Module.fst' (hMN ▸ m)
 
-def Module.snd {M N : Type max 1 u} [iM : IsModule M] [iN : IsModule N] (m : Module.Prod M N) : N :=
+def Module.snd {M N : Type 1} [iM : IsModule M] [iN : IsModule N] (m : Module.Prod M N) : N :=
   have hMN : Module.Prod M N
       = Module (ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N)) := by
     simp [Module.Prod]
   iN.isModule.symm ▸ Module.snd' (hMN ▸ m)
 
-def Module.pair {M N : Type max 1 u} [iM : IsModule M] [iN : IsModule N] (m1 : M) (m2 : N) :
+def Module.pair {M N : Type 1} [iM : IsModule M] [iN : IsModule N] (m1 : M) (m2 : N) :
     Module.Prod M N :=
   have hMN : Module.Prod M N
       = Module (ModuleTypeRep.prod (Module.moduleTypeRep M) (Module.moduleTypeRep N)) := by
@@ -1955,18 +1953,18 @@ def Module.pair {M N : Type max 1 u} [iM : IsModule M] [iN : IsModule N] (m1 : M
   hMN ▸ Module.pair' (iM.isModule ▸ m1) (iN.isModule ▸ m2)
 
 @[simp]
-theorem Module.fst_pair {M N : Type max 1 u} [IsModule M] [IsModule N] (m1 : M) (m2 : N) :
+theorem Module.fst_pair {M N : Type 1} [IsModule M] [IsModule N] (m1 : M) (m2 : N) :
     Module.fst (Module.pair m1 m2) = m1 := by
   simp only [Module.fst, Module.pair, Module.moduleTypeRep, eqRec_eq_cast, cast_cast, cast_eq,
     Module.fst_pair']
 
 @[simp]
-theorem Module.snd_pair {M N : Type max 1 u} [IsModule M] [IsModule N] (m1 : M) (m2 : N) :
+theorem Module.snd_pair {M N : Type 1} [IsModule M] [IsModule N] (m1 : M) (m2 : N) :
     Module.snd (Module.pair m1 m2) = m2 := by
   simp only [Module.snd, Module.pair, Module.moduleTypeRep, eqRec_eq_cast, cast_cast, cast_eq,
     Module.snd_pair']
 
-theorem Module.pair_fst_snd {M N : Type max 1 u} [IsModule M] [IsModule N] (m : Module.Prod M N) :
+theorem Module.pair_fst_snd {M N : Type 1} [IsModule M] [IsModule N] (m : Module.Prod M N) :
     Module.pair (Module.fst m) (Module.snd m) = m := by
   simp only [Module.fst, Module.snd, Module.pair, Module.moduleTypeRep, eqRec_eq_cast, cast_cast,
     cast_eq, Module.pair_fst_snd']
