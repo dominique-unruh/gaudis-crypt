@@ -152,9 +152,20 @@ end
 
 /-! ### Printing a statement triple
 
-`hoareStmt A p B` prints as `hoare[ P ==> Q ] { … }` when both conditions are a `GaudiExpr[ ]`
-getter under exactly the `let`/`have` binders on the body's spine (the ones the macro repeats).
-Otherwise the delaborator steps aside and the `hoareStmt` application prints as it is.
+`hoareStmt A p B` prints as `hoare[ P ==> Q ] { … }` whenever the body prints as statements.
+A condition of the shape the macro builds — a `GaudiExpr[ ]` getter under exactly the
+`let`/`have` binders on the body's spine — prints as the `P` it was written as.  Any other
+condition `c : ProgramState → Prop` (one a rewrite or `dsimp` produced, say) prints as
+
+    let σ := CurrentState.state; c σ
+
+with `c σ` β-reduced.  `CurrentState.state` is the state `GaudiExpr[ ]` reads at, so this
+re-elaborates to `(Getter.mk fun st => let σ := st; c σ).get`, which is `c` up to ζ and η.  The
+state is named by a Lean `let` rather than read with a sigil (`§Lens.id`) on purpose: a sigil reads
+the *innermost* `CurrentState`, and `c` may itself contain a `GaudiExpr[ ]` that mentions `σ`.
+
+A condition without the spine binders is printed as it is, and the macro wraps it in them again.
+That is sound when it mentions none of their names, and otherwise the delaborator steps aside.
 
 The `var`s are recovered the way the `proc` delaborator recovers them (see "Program variables"
 in `ProgramSyntax.lean`), over the body and both conditions together: a slot
@@ -162,14 +173,46 @@ in `ProgramSyntax.lean`), over the body and both conditions together: a slot
 and `x` in the body print under the same name and the same `var` line. -/
 
 section Printing
-open Lean PrettyPrinter Delaborator SubExpr ProgramSyntax
+open Lean Meta PrettyPrinter Delaborator SubExpr ProgramSyntax
 
-/-- A condition of a statement triple: the spine `let`s, then `(GaudiExpr[ P ]).get` with no
-state argument of its own. -/
+private partial def syntaxMentions (n : Name) : Syntax → Bool
+  | .ident _ _ v _ => v.eraseMacroScopes == n
+  | .node _ _ args => args.any (syntaxMentions n)
+  | _ => false
+
+/-- `c : ProgramState → Prop` ↦ the getter `Getter.mk fun st => let σ := CurrentState.state; c σ`,
+whose `get` is `c` up to ζ and η.  The binder is named after `c`'s own if it is a lambda. -/
+private def condAsGetter (c : Lean.Expr) : MetaM Lean.Expr := do
+  let .forallE _ ps _ _ ← whnfR (← inferType c) | failure
+  guard (ps.isAppOfArity ``ProgramState 1)
+  let inst := ps.appArg!
+  let nm := match c with
+    | .lam n .. => if n.hasMacroScopes then `σ else n
+    | _ => `σ
+  withLocalDeclD `st ps fun st => do
+    let cur ← mkAppOptM ``CurrentState.mk #[some inst, some st]
+    let v ← mkAppOptM ``CurrentState.state #[some inst, some cur]
+    withLetDecl nm ps v fun σ => do
+      let body ← mkLetFVars #[σ] (c.beta #[σ])
+      mkAppM ``Getter.mk #[← mkLambdaFVars #[st] body]
+
+/-- The `P` of a condition `c` (after the spine binders): `(GaudiExpr[ P ]).get` with no state
+argument of its own, or failing that, `let σ := CurrentState.state; c σ` (see `condAsGetter`). -/
+private def delabCondBody : DelabM Term :=
+  (do guard ((← getExpr).isAppOfArity ``Getter.get 3)
+      withNaryArg 2 delabGaudiExpr) <|>
+  (do withExpr (← condAsGetter (← getExpr)) delabGaudiExpr)
+
+/-- A condition of a statement triple: the spine `let`s, then the condition proper.  A
+condition without them is printed as it is, the macro wraps it in them again; that is only
+faithful if it mentions none of their names. -/
 private def delabStmtCond (spineNames : Array Name) : DelabM (Array Name × Term) :=
-  withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
-    guard ((← getExpr).isAppOfArity ``Getter.get 3)
-    return (bs, ← withNaryArg 2 delabGaudiExpr)
+  (withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
+      guard (bs == spineNames)
+      return (bs, ← delabCondBody)) <|>
+  (do let p ← delabCondBody
+      guard <| !spineNames.any (syntaxMentions · p)
+      return (spineNames, p))
 
 /-- Print a statement triple as `hoare[ P ==> Q ] { … }`. -/
 @[delab app.GaudisCrypt.hoareStmt]

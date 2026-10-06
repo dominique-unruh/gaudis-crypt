@@ -1,4 +1,6 @@
 import GaudisCrypt.Syntax.HoareSyntax
+-- for `#roundtrip`
+import GaudisCrypt.Syntax.ProgramSyntaxTest
 
 /-! # Tests for `HoareSyntax` -/
 
@@ -175,6 +177,99 @@ info: hoareStmt { get := fun st ↦ §x = 1 }.get (StmtWithHoles.assign (liftLen
 #guard_msgs in
 set_option pp.gaudisCrypt false in
 #check hoare[ §x = 1 ==> §x = 2 ] { x <- §x + 1; }
+
+/- ### Conditions of any shape
+
+A condition the macro did not build (one a rewrite or `dsimp` left behind) prints as
+`let σ := CurrentState.state; …`, and still round-trips. -/
+
+/--
+info: hoare[ True ==>
+    let σ := CurrentState.state;
+    x.get σ.globals = 2 ]
+    {
+    x <- §x + 1;
+}
+-/
+#guard_msgs in
+#roundtrip hoareStmt (fun _ => True) GaudiProg[ x <- §x + 1; ] (fun σ => x.get σ.globals = 2)
+
+-- a condition that is not a lambda
+/--
+info: fun P ↦
+  hoare[
+      let σ := CurrentState.state;
+      P σ ==>
+      let σ := CurrentState.state;
+      P σ ]
+      {
+      x <- §x + 1;
+}
+-/
+#guard_msgs in
+#roundtrip fun P : ProgramState → Prop => hoareStmt P GaudiProg[ x <- §x + 1; ] P
+
+-- a `GaudiExpr[ ]` inside the condition, mentioning the outer state: `σ` is a Lean binder, so it
+-- is not captured by the inner `CurrentState`
+/--
+info: hoare[
+    let σ := CurrentState.state;
+    GaudiExpr[ §x = 1 ].get { globals := σ.globals, locals := VariableAssignment.init } ==>
+    let σ := CurrentState.state;
+    GaudiExpr[ u.get σ = §u ].get { globals := σ.globals, locals := VariableAssignment.init } ]
+    {
+    var u : ℤ;
+    x <- §x + 1;
+}
+-/
+#guard_msgs in
+#roundtrip hoareStmt
+  (fun σ => GaudiExpr[ §x = 1 ].get ⟨σ.globals, VariableAssignment.init⟩)
+  GaudiProg[ x <- §x + 1; ]
+  (fun σ => GaudiExpr[ (localVarLens "u" Int).get σ = §(localVarLens "u" Int) ].get
+    ⟨σ.globals, VariableAssignment.init⟩)
+
+-- a local slot in such a condition is still recovered as a `var`
+/--
+info: hoare[ True ==>
+    let σ := CurrentState.state;
+    u.get σ = 2 ]
+    {
+    var u : ℤ;
+    u <- 2;
+}
+-/
+#guard_msgs in
+#roundtrip hoareStmt (fun _ => True) GaudiProg[ (localVarLens "u" Int) <- (2 : Int); ]
+  (fun σ => (localVarLens "u" Int).get σ = 2)
+
+-- a condition without the body's spine binders: the macro wraps it in them again
+/--
+info: hoare[
+    let σ := CurrentState.state;
+    x.get σ.globals = 1 ==>
+    True ] {
+    let two : ℤ := 2;
+    x <- two;
+}
+-/
+#guard_msgs in
+#roundtrip hoareStmt (fun σ => x.get σ.globals = 1) GaudiProg[ let two := (2 : Int); x <- two; ]
+  (fun _ => True)
+
+-- …unless it mentions one of their names, which the binder would then capture
+/--
+info: fun two ↦
+  hoareStmt (fun σ ↦ x.get σ.globals = two)
+    (let two := 2;
+    GaudiProg[
+        x <- two;
+  ])
+    fun x ↦ True : ℤ → Prop
+-/
+#guard_msgs in
+#check fun two : Int => hoareStmt (fun σ => x.get σ.globals = two)
+  GaudiProg[ let two := (2 : Int); x <- two; ] (fun _ => True)
 
 /- ### Procedure triples — `hoare[ M (x, m) : P ==> Q ]` -/
 
