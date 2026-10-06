@@ -158,9 +158,9 @@ noncomputable abbrev fakeGame (U : Unhider group.types) : procmod () -> Bool :=
 /-! ## Inlining (EC's `inline*`)
 
 The `prhl2` rules consume `>>=`-chains, but a module procedure is a `procWrap` over a
-`programDenotation` on its own local-state type — and the two games do not even have the same
-locals (seven against eight, differently typed).  These two lemmas are EC's `inline*`: each
-game *as a module* equals
+`programDenotation` on the program state, globals and its own frame of locals — and the two games
+do not even have the same locals (seven against eight, differently typed).  These two lemmas are
+EC's `inline*`: each game *as a module* equals
 a bind chain on `State`, with the adversary calls left as opaque denotations.  Proven by
 `SubProbability.ext_of_expected`, i.e. by checking the `wp` at an arbitrary postcondition, which
 is the same reduction `fakecommit_half` runs. -/
@@ -187,16 +187,15 @@ theorem fakeGame_inline (U : Unhider group.types) :
         (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d) >>= fun bg =>
         pure (b == bg)).wp post σ
-  simp [programDenotation,
+  simp [programDenotation, programDenotation_call',
     StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_map, wp_get_g, wp_set_g, wp_zoom,
-    wp_lift, wp_uniform, wp_pure, uniform_expected, expected_pure,
-    ProcedureSignature.localVariableInit,
+    wp_lift, wp_uniform, uniform_expected, expected_pure,
+    ProcedureWithHoles.initLocals, VariableAssignment.setParams,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     -- `Lens.pair`: `m0,m1 <- call U.choose (…)` stores through a tuple l-value
     Lens.pair,
-    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
-    ProcedureScope.localVarsL]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    ProgramState.globalL]
 
 set_option linter.flexible false in
 /-- `HidingExperiment(Pedersen, U).main`, inlined.  Pedersen's own `gen`/`commit` are inlined too
@@ -224,15 +223,15 @@ theorem hidingGame_inline (U : Unhider group.types) :
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg)).wp post σ
   simp [module_accessor, Pedersen, Module.procedure_proc', programDenotation,
+    programDenotation_call',
     StmtWithHoles.call, wp_bind, wp_map, wp_get_g, wp_set_g, wp_zoom, wp_lift,
-    wp_uniform, wp_pure, uniform_expected,
-    ProcedureSignature.localVariableInit,
+    wp_uniform, uniform_expected,
+    ProcedureWithHoles.initLocals, VariableAssignment.setParams,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     -- `Lens.pair`: `m0,m1 <- …` and `c,d <- …` store through tuple l-values
     Lens.pair,
-    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
-    ProcedureScope.localVarsL]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    ProgramState.globalL]
   -- now inline Pedersen's own `gen`/`commit` (their internal samplings are the `x` and `d` draws).
   -- `wp_gen` is at the top so `rw` reaches it; `wp_commit` sits under two binders, and `simp only`
   -- will not match it in its `= fun st => …` form — the pointwise `congrFun` version does.
@@ -340,14 +339,13 @@ theorem hi_ll (U : Unhider group.types)
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
     FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  simp [programDenotation,
+  simp [programDenotation, programDenotation_call',
     StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,
     uniform_expected, expected_pure,
-    ProcedureSignature.localVariableInit,
+    ProcedureWithHoles.initLocals, VariableAssignment.setParams,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
-    ProcedureScope.localVarsL]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    ProgramState.globalL]
   have hcard : (Fintype.card group.F : ENNReal) ≠ 0 := by simp [Fintype.card_ne_zero]
   have hcard' : (Fintype.card group.F : ENNReal) ≠ ⊤ := by simp
   have hsum : (Fintype.card group.F : ENNReal) * (1 / (Fintype.card group.F : ENNReal)) = 1 :=
@@ -396,14 +394,13 @@ theorem fakecommit_half (U : Unhider group.types) (σ : State)
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
     FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  simp [programDenotation,
+  simp [programDenotation, programDenotation_call',
     StmtWithHoles.call, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g, wp_zoom, wp_lift,
     uniform_expected, expected_pure,
-    ProcedureSignature.localVariableInit,
+    ProcedureWithHoles.initLocals, VariableAssignment.setParams,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    Lens.intoLocalVars, Lens.chain, Lens.ofst, Lens.osnd,
-    Lens.fst, Lens.snd, Lens.id, ProcedureState.scopedL, ProcedureState.globalL,
-    ProcedureScope.localVarsL,
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
+    ProgramState.globalL,
     resIndicator, Set.indicator, Set.mem_setOf_eq]
   have hcard : (Fintype.card group.F : ENNReal) ≠ 0 := by simp [Fintype.card_ne_zero]
   have hcard' : (Fintype.card group.F : ENNReal) ≠ ⊤ := by simp
