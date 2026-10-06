@@ -139,26 +139,28 @@ noncomputable def caller : proctype () -> Nat :=
 set_option pp.gaudisCrypt false in
 #flattenCall 0 in caller.body
 
+/- one round alone: the callee's variables have the made-up names `«@.z»`, `«@.w»` -/
 /--
-info: renaming: Flatten.trafo [("z", "z"), ("w", "w")]
+info: renaming: Flatten.trafo
 GaudiProg[
-    var x : ℕ, z : ℕ, w : ℕ, y : ℕ;
+    var x : ℕ, «@.z» : ℕ, «@.w» : ℕ, y : ℕ;
     x <- 1;
-    (Flatten.calleeFrame [("z", "z"), ("w", "w")]).resetSetter <- ();
-    z <- §x + §x;
-    w <- 2 * §z;
-    y <- §w * §w;
+    Flatten.calleeFrame.resetSetter <- ();
+    «@.z» <- §x + §x;
+    «@.w» <- 2 * §«@.z»;
+    y <- §«@.w» * §«@.w»;
 ]
 -/
 #guard_msgs in
 #flattenCallCleaned 0 in caller.body
 
+/- the whole pass ends with the cleanup renaming -/
 /--
-info: flattened 1 call(s), renaming: Flatten.trafo [("z", "z"), ("w", "w")]
+info: flattened 1 call(s), renaming: (Flatten.rename [("@.z", "z"), ("@.w", "w")]).chain Flatten.trafo
 GaudiProg[
     var x : ℕ, z : ℕ, w : ℕ, y : ℕ;
     x <- 1;
-    (Flatten.calleeFrame [("z", "z"), ("w", "w")]).resetSetter <- ();
+    ((Flatten.rename [("@.z", "z"), ("@.w", "w")]).chain Flatten.calleeFrame).resetSetter <- ();
     z <- §x + §x;
     w <- 2 * §z;
     y <- §w * §w;
@@ -172,7 +174,7 @@ info: flattened 1 call(s):
 proc () : ℕ {
     var x : ℕ, z : ℕ, w : ℕ, y : ℕ;
     x <- 1;
-    (Flatten.calleeFrame [("z", "z"), ("w", "w")]).resetSetter <- ();
+    ((Flatten.rename [("@.z", "z"), ("@.w", "w")]).chain Flatten.calleeFrame).resetSetter <- ();
     z <- §x + §x;
     w <- 2 * §z;
     y <- §w * §w;
@@ -196,17 +198,20 @@ noncomputable def twoCalls : proctype () -> Nat :=
   }
 
 /--
-info: flattened 2 call(s), renaming: (Flatten.trafo [("z", "z0"), ("w", "w1")]).chain
-  (Flatten.trafo [("z", "z"), ("w", "w0")])
+info: flattened 2 call(s), renaming: (Flatten.rename [("@@.z", "z"), ("@@.w", "w0"), ("@.z", "z0"), ("@.w", "w1")]).chain
+  (Flatten.trafo.chain Flatten.trafo)
 GaudiProg[
     var w : ℕ, z : ℕ, w0 : ℕ, z0 : ℕ, w1 : ℕ;
     w <- 1;
-    ((Flatten.trafo [("z", "z0"), ("w", "w1")]).chain (Flatten.calleeFrame [("z", "z"), ("w", "w0")])).resetSetter <-
+    ((Flatten.rename [("@@.z", "z"), ("@@.w", "w0"), ("@.z", "z0"), ("@.w", "w1")]).chain
+        (Flatten.trafo.chain Flatten.calleeFrame)).resetSetter <-
     ();
     z <- §w;
     w0 <- §z + 1;
     w <- §w0;
-    (Flatten.calleeFrame [("z", "z0"), ("w", "w1")]).resetSetter <- ();
+    ((Flatten.rename [("@@.z", "z"), ("@@.w", "w0"), ("@.z", "z0"), ("@.w", "w1")]).chain
+        Flatten.calleeFrame).resetSetter <-
+    ();
     z0 <- §w;
     w1 <- §z0 * 3;
     w <- §w1;
@@ -229,13 +234,16 @@ noncomputable def nested : proctype () -> Nat :=
   }
 
 /--
-info: flattened 2 call(s), renaming: (Flatten.trafo [("v", "v")]).chain (Flatten.trafo [("u", "u"), ("b", "b")])
+info: flattened 2 call(s), renaming: (Flatten.rename [("@@.u", "u"), ("@.v", "v"), ("@@.b", "b")]).chain
+  (Flatten.trafo.chain Flatten.trafo)
 GaudiProg[
     var a : ℕ, u : ℕ, v : ℕ, b : ℕ;
     a <- 7;
-    ((Flatten.trafo [("v", "v")]).chain (Flatten.calleeFrame [("u", "u"), ("b", "b")])).resetSetter <- ();
+    ((Flatten.rename [("@@.u", "u"), ("@.v", "v"), ("@@.b", "b")]).chain
+        (Flatten.trafo.chain Flatten.calleeFrame)).resetSetter <-
+    ();
     u <- §a;
-    (Flatten.calleeFrame [("v", "v")]).resetSetter <- ();
+    ((Flatten.rename [("@@.u", "u"), ("@.v", "v"), ("@@.b", "b")]).chain Flatten.calleeFrame).resetSetter <- ();
     v <- §u;
     b <- §v + 1;
     a <- §b * 2;
@@ -262,11 +270,13 @@ noncomputable def branching : proctype (Bool) -> Nat :=
   }
 
 /--
-info: flattened 2 call(s), renaming: (Flatten.trafo [("z", "z0"), ("t", "t0")]).chain (Flatten.trafo [("z", "z"), ("t", "t")])
+info: flattened 2 call(s), renaming: (Flatten.rename [("@@.z", "z"), ("@@.t", "t"), ("@.z", "z0"), ("@.t", "t0")]).chain
+  (Flatten.trafo.chain Flatten.trafo)
 GaudiProg[
     var c : Bool, z : ℕ, i : ℕ, t : ℕ, n : ℕ, z0 : ℕ, t0 : ℕ;
     if (§c) {
-      ((Flatten.trafo [("z", "z0"), ("t", "t0")]).chain (Flatten.calleeFrame [("z", "z"), ("t", "t")])).resetSetter <-
+      ((Flatten.rename [("@@.z", "z"), ("@@.t", "t"), ("@.z", "z0"), ("@.t", "t0")]).chain
+          (Flatten.trafo.chain Flatten.calleeFrame)).resetSetter <-
       ();
       z <- §i;
       t <- §z + 1;
@@ -276,7 +286,9 @@ GaudiProg[
     }
     while (decide (§i < 3)) {
       i <- §i + 1;
-      (Flatten.calleeFrame [("z", "z0"), ("t", "t0")]).resetSetter <- ();
+      ((Flatten.rename [("@@.z", "z"), ("@@.t", "t"), ("@.z", "z0"), ("@.t", "t0")]).chain
+          Flatten.calleeFrame).resetSetter <-
+      ();
       z0 <- §n;
       t0 <- §z0 + §z0;
       n <- §t0;
@@ -291,9 +303,11 @@ info: flattened 2 call(s):
 proc () : ℕ {
     var a : ℕ, u : ℕ, v : ℕ, b : ℕ;
     a <- 7;
-    ((Flatten.trafo [("v", "v")]).chain (Flatten.calleeFrame [("u", "u"), ("b", "b")])).resetSetter <- ();
+    ((Flatten.rename [("@@.u", "u"), ("@.v", "v"), ("@@.b", "b")]).chain
+        (Flatten.trafo.chain Flatten.calleeFrame)).resetSetter <-
+    ();
     u <- §a;
-    (Flatten.calleeFrame [("v", "v")]).resetSetter <- ();
+    ((Flatten.rename [("@@.u", "u"), ("@.v", "v"), ("@@.b", "b")]).chain Flatten.calleeFrame).resetSetter <- ();
     v <- §u;
     b <- §v + 1;
     a <- §b * 2;
@@ -308,7 +322,8 @@ info: flattened 2 call(s):
 proc (c : Bool) : ℕ {
     var z : ℕ, i : ℕ, t : ℕ, n : ℕ, z0 : ℕ, t0 : ℕ;
     if (§c) {
-      ((Flatten.trafo [("z", "z0"), ("t", "t0")]).chain (Flatten.calleeFrame [("z", "z"), ("t", "t")])).resetSetter <-
+      ((Flatten.rename [("@@.z", "z"), ("@@.t", "t"), ("@.z", "z0"), ("@.t", "t0")]).chain
+          (Flatten.trafo.chain Flatten.calleeFrame)).resetSetter <-
       ();
       z <- §i;
       t <- §z + 1;
@@ -318,7 +333,9 @@ proc (c : Bool) : ℕ {
     }
     while (decide (§i < 3)) {
       i <- §i + 1;
-      (Flatten.calleeFrame [("z", "z0"), ("t", "t0")]).resetSetter <- ();
+      ((Flatten.rename [("@@.z", "z"), ("@@.t", "t"), ("@.z", "z0"), ("@.t", "t0")]).chain
+          Flatten.calleeFrame).resetSetter <-
+      ();
       z0 <- §n;
       t0 <- §z0 + §z0;
       n <- §t0;
@@ -339,12 +356,12 @@ noncomputable def twoParams : proctype () -> Nat :=
   }
 
 /--
-info: flattened 1 call(s), renaming: Flatten.trafo [("a", "a"), ("b", "b")]
+info: flattened 1 call(s), renaming: (Flatten.rename [("@.a", "a"), ("@.b", "b")]).chain Flatten.trafo
 GaudiProg[
     var x : ℕ, y : ℕ, a : ℕ, b : ℕ;
     x <- 2;
     y <- 5;
-    (Flatten.calleeFrame [("a", "a"), ("b", "b")]).resetSetter <- ();
+    ((Flatten.rename [("@.a", "a"), ("@.b", "b")]).chain Flatten.calleeFrame).resetSetter <- ();
     a, b <- (§x, §y);
     x <- §a * §b;
 ]
@@ -361,10 +378,10 @@ noncomputable def degenerate : proctype (Nat) -> Nat :=
   }
 
 /--
-info: flattened 1 call(s), renaming: Flatten.trafo []
+info: flattened 1 call(s), renaming: Flatten.trafo
 GaudiProg[
     var r : ℕ;
-    (Flatten.calleeFrame []).resetSetter <- ();
+    Flatten.calleeFrame.resetSetter <- ();
     r <- 42;
 ]
 -/
@@ -385,7 +402,7 @@ noncomputable def unusedParam : proctype (Nat) -> Nat :=
 info: flattened 1 call(s):
 proc (q : ℕ) : ℕ {
     var q0 : ℕ, r : ℕ;
-    (Flatten.calleeFrame [("q", "q0")]).resetSetter <- ();
+    ((Flatten.rename [("@.q", "q0")]).chain Flatten.calleeFrame).resetSetter <- ();
     q0 <- Nat.succ 0;
     r <- §q0 + 1;
     return §r
@@ -623,11 +640,11 @@ info: GaudiProg[
 #inlineRaw 0 in modCaller.body
 
 /--
-info: renaming: Flatten.trafo [("x", "x"), ("y", "y")]
+info: renaming: (Flatten.rename [("@.x", "x"), ("@.y", "y")]).chain Flatten.trafo
 GaudiProg[
     var n : ℕ, x : ℕ, y : ℕ;
     n <- 3;
-    (Flatten.calleeFrame [("x", "x"), ("y", "y")]).resetSetter <- ();
+    ((Flatten.rename [("@.x", "x"), ("@.y", "y")]).chain Flatten.calleeFrame).resetSetter <- ();
     x <- §n;
     y <- call someU.g.procedure (§x);
     n <- §y + 1;
@@ -642,7 +659,7 @@ becomes a local of the caller, and the `return` travels along -/
 info: proc () : ℕ {
     var n : ℕ, x : ℕ, y : ℕ;
     n <- 3;
-    (Flatten.calleeFrame [("x", "x"), ("y", "y")]).resetSetter <- ();
+    ((Flatten.rename [("@.x", "x"), ("@.y", "y")]).chain Flatten.calleeFrame).resetSetter <- ();
     x <- §n;
     y <- call someU.g.procedure (§x);
     n <- §y + 1;
@@ -658,7 +675,7 @@ constant, which is what makes `opaqueCallee` — the callee flattening refuses �
 info: proc () : ℕ {
     var x : ℕ, z : ℕ, t : ℕ;
     x <- 1;
-    (Flatten.calleeFrame [("z", "z"), ("t", "t")]).resetSetter <- ();
+    ((Flatten.rename [("@.z", "z"), ("@.t", "t")]).chain Flatten.calleeFrame).resetSetter <- ();
     z <- §x;
     t <- §z + 1;
     x <- §t;
@@ -696,12 +713,12 @@ module P using (A : U) : T {
 
 /- the hole stays, and so does the `let` that names it -/
 /--
-info: renaming: Flatten.trafo [("x", "x0"), ("y", "y0")]
+info: renaming: (Flatten.rename [("@.x", "x0"), ("@.y", "y0")]).chain Flatten.trafo
 let A_g := HoleIndex.zero;
 GaudiProg[
     var y : ℕ, x : ℕ, x0 : ℕ, y0 : ℕ, z : ℕ;
     y <- holecall A_g (§x);
-    (Flatten.calleeFrame [("x", "x0"), ("y", "y0")]).resetSetter <- ();
+    ((Flatten.rename [("@.x", "x0"), ("@.y", "y0")]).chain Flatten.calleeFrame).resetSetter <- ();
     x0 <- §y;
     y0 <- §x0 * 2;
     z <- §y0;

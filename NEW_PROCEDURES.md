@@ -17,19 +17,21 @@ parameter slot comes from the argument value), `embed`/`rename` (via
 Phase 6 (flattening, `Logic/Inline.lean`) is done (2026-10-06), along §4 with these choices:
 
 * the injections of §4.3 are `Flatten.escape` (caller) and `Flatten.tag` (`n ↦ "@.n"`, callee;
-  no round number is needed, since each round escapes the names of the one before), and the
-  cosmetic permutation of §4.5 is folded into both: a round's lenses are
-  `Flatten.trafo ren`/`Flatten.emb ren`, renaming by `Flatten.perm ren ∘ escape`/`∘ tag`,
-  where `ren` lists the new name of each callee variable (`w ↦ w0` on a clash);
+  no round number is needed, since each round escapes the names of the one before).  A round's
+  lenses `Flatten.trafo`/`Flatten.emb` rename by exactly these, so every round is the same;
+* the cosmetic renaming of §4.5 is a pass of its own after all rounds (`Flatten.renameNames`):
+  one permutation `Flatten.rename ren` of the whole statement, where `ren` gives each made-up
+  name (`@.w`, `@@.w`, …) a readable one (`w`, or `w0` on a clash);
 * the reset of §4.4 is `assign R.resetSetter ⟨fun _ => ()⟩` (`Lens.resetSetter`, a `Setter Unit`
   that writes `init` through `R` and ignores its value): the frame is a `VariableAssignment`, in
   `Type 1`, so it cannot be the value of an `assign` itself.  It prints as
-  `(Flatten.calleeFrame ren).resetSetter <- ();`: any `Setter` on the program state is an
+  `Flatten.calleeFrame.resetSetter <- ();`: any `Setter` on the program state is an
   l-value (`lval%`), which settles Q8 without a dedicated statement.  The parameters are then
   written by one tuple assignment `z₁, …, zₙ <- (args);`;
 * every side condition is a generic lemma (`Flatten.equivInLens_call`), proved once; the
   procedure level (`Flatten.procedureDenotation_congr`) needs the caller's parameter names to
-  stay fixed, which the meta code ensures by not choosing them as new names.
+  stay fixed, which `escape` does for every name not starting with `@`, and the cleanup renaming
+  by not choosing them as new names.
 
 ## 0. The request, restated
 

@@ -1,6 +1,7 @@
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Logic.Hoare
+import GaudisCrypt.Logic.Inline
 
 /-!
 # The Pedersen commitment scheme
@@ -349,6 +350,7 @@ theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
   hoare_proc_to_stmt
+  hoare_inline
 
   sorry
 
