@@ -728,9 +728,21 @@ the two places where the printed form deviates from what one would write by hand
   of theirs survives in the term to be printed.  What is printed is then the inlined term,
   which is what re-parsing gives back, so the round trip still holds.
 
-Whenever a term does not fit the surface syntax — a `Getter` that is not of the shape
-`GaudiExpr[ ]` builds, an l-value that is not a lifted lens, `let`s that `proc` would not
-have generated — the delaborators fail and Lean falls back to its default output.  They also
+A statement the macros did not build (by hand, or left behind by a rewrite) prints too, in a
+spelling that re-elaborates to a defeq term:
+
+* an expression slot that is not of the shape `GaudiExpr[ ]` builds prints as
+  `let σ := CurrentState.state; …` when it is a `Getter.mk`, and as the read `§g` otherwise
+  (`delabStmtExpr`);
+* an l-value that is a lens used as a setter directly prints as that lens, which `liftLens`
+  turns back into the same setter;
+* `Stmt.call` prints as the `call` statement;
+* a local slot written as what `localVarLens "x" T` unfolds to, `(varLens ⟨"x", T, …⟩).intoLocal`,
+  is the variable `x` like the folded one, and otherwise prints folded.
+
+Whenever a term does not fit the surface syntax even so — an l-value that is a setter but not a
+lens, `let`s that `proc` would not have generated — the delaborators fail and Lean falls back to
+its default output.  They also
 step aside under `pp.explicit` and `set_option pp.notation false`, and under the dedicated
 `set_option pp.gaudisCrypt false`, which switches *only* them off and leaves the rest of
 Lean's notation alone — the way to look at the underlying term.
@@ -825,6 +837,43 @@ def delabGaudiExpr : DelabM Term := do
       guard <| !syntaxHasIdent stateBinderName stx
       return stx
 
+/-- `f : ProgramState → A` ↦ the getter `Getter.mk fun st => let σ := CurrentState.state; f σ`
+(with `f σ` β-reduced), which `delabGaudiExpr` prints as `let σ := CurrentState.state; f σ`.
+Its `get` is `f` up to ζ and η, so this is how a function of the state that is not of the shape
+`GaudiExpr[ ]` builds is printed faithfully.  `CurrentState.state` is the state `GaudiExpr[ ]`
+reads at.  It is bound by a Lean `let` rather than read with a sigil (`§Lens.id`): a sigil reads
+the *innermost* `CurrentState`, and `f` may itself contain a `GaudiExpr[ ]` that mentions `σ`.
+The binder is named after `f`'s own if `f` is a lambda, unless that is the name of the getter's
+own state binder (`delabGaudiExpr` checks that one is not mentioned). -/
+def ProgramSyntax.getterViaState (f : Lean.Expr) : MetaM Lean.Expr := do
+  let .forallE _ ps _ _ ← Meta.whnfR (← Meta.inferType f) | failure
+  guard (ps.isAppOfArity ``ProgramState 1)
+  let inst := ps.appArg!
+  let nm := match f with
+    | .lam n .. =>
+      if n.hasMacroScopes || n.eraseMacroScopes == stateBinderName then `σ else n
+    | _ => `σ
+  Meta.withLocalDeclD stateBinderName ps fun st => do
+    let cur ← Meta.mkAppOptM ``CurrentState.mk #[some inst, some st]
+    let v ← Meta.mkAppOptM ``CurrentState.state #[some inst, some cur]
+    Meta.withLetDecl nm ps v fun σ => do
+      let body ← Meta.mkLetFVars #[σ] (f.beta #[σ])
+      Meta.mkAppM ``Getter.mk #[← Meta.mkLambdaFVars #[st] body]
+
+/-- An expression slot of a statement.  What `GaudiExpr[ e ]` builds prints as `e`; any other
+`Getter.mk f` as `let σ := CurrentState.state; f σ` (`getterViaState`); and any other getter
+`g` as the read `§g` — `§L` for a lens `L` used as a getter.  Each re-elaborates to the same
+getter up to ζ, η and structure η. -/
+def delabStmtExpr : DelabM Term := do
+  let e ← getExpr
+  delabGaudiExpr <|>
+  (do guard (e.isAppOfArity ``Getter.mk 3)
+      let g ← ProgramSyntax.getterViaState (e.getArg! 2)
+      withTheReader SubExpr (fun s => { s with expr := g }) delabGaudiExpr) <|>
+  (if e.isAppOfArity ``Lens.toGetter 3 then do `(§$(← withNaryArg 2 delab))
+   -- a `Getter.mk` would print as `{ get := … }`, which `§` cannot elaborate
+   else do guard !(e.isAppOf ``Getter.mk); `(§$(← delab)))
+
 /-- A `Getter` standing on its own — not as the expression slot of a statement, where
 `delabGaudiExpr` is called directly — prints as `GaudiExpr[ e ]`.
 
@@ -858,13 +907,20 @@ private partial def delabLValueList : DelabM (Array Term) := do
   | _ => return #[← delab]
 
 /-- The l-value of an assignment/sample/call: `liftLens x` ↦ the components of `x`,
-`Setter.throwaway` ↦ `_`. -/
+`Setter.throwaway` ↦ `_`.  A lens used as a setter directly is what `liftLens` reduces to, so it
+prints the same way: `x.intoGlobal.toSetter` ↦ `x` (a global), `L.toSetter` ↦ `L` (a lens into
+the `ProgramState`).  Any other setter has no l-value spelling, and the delaborator fails. -/
 private def delabLValue : DelabM (Array Term) := do
   match (← getExpr).getAppFnArgs with
   | (``Setter.throwaway, _) => return #[← `(_)]
   | (``liftLens, args) => do
       guard (args.size == 5)
       withNaryArg 4 delabLValueList
+  | (``Lens.toSetter, args) => do
+      guard (args.size == 3)
+      withNaryArg 2 do
+        if (← getExpr).isAppOfArity ``Lens.intoGlobal 3 then withNaryArg 2 delabLValueList
+        else delabLValueList
   | _ => failure
 
 /-- Is the current sub-expression the throwaway l-value (a `call` with no result)? -/
@@ -947,11 +1003,33 @@ way. -/
 
 namespace ProgramSyntax
 
-/-- `localVarLens "x" T` ↦ `("x", T)`. -/
+/-- Is `k` a key that is `VariableName.encode n` by evaluation alone: a numeral, or `encode n`
+itself?  (Any key carries a proof that it *equals* `encode n`, but only these are defeq to it.) -/
+private def isEvaluatedKey (n : String) (k : Lean.Expr) : Bool :=
+  match k with
+  | .lit (.natVal _) => true
+  | _ =>
+    (k.isAppOfArity ``OfNat.ofNat 3 && (k.getArg! 1).isRawNatLit)
+      || (k.isAppOfArity ``VariableName.encode 1 && k.appArg! == .lit (.strVal n))
+
+/-- `(varLens ⟨"x", T, …⟩).intoLocal` — what `localVarLens "x" T` unfolds to, and what a lemma
+stated over an arbitrary `varLens` slot leaves behind — ↦ `("x", T)`. -/
+def unfoldedVarSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
+  guard (e.isAppOfArity ``Lens.intoLocal 3)
+  let v := e.getArg! 2
+  guard (v.isAppOfArity ``varLens 1)
+  let nm := v.appArg!
+  guard (nm.isAppOfArity ``VariableName.mk 5)
+  let .lit (.strVal n) := nm.getArg! 0 | none
+  guard (isEvaluatedKey n (nm.getArg! 3))
+  return (n, nm.getArg! 1)
+
+/-- `localVarLens "x" T`, or its unfolding (`unfoldedVarSlot?`), ↦ `("x", T)`. -/
 private def varSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
-  guard (e.isAppOfArity ``localVarLens 6)
-  let .lit (.strVal n) := e.getArg! 1 | none
-  return (n, e.getArg! 2)
+  if e.isAppOfArity ``localVarLens 6 then
+    let .lit (.strVal n) := e.getArg! 1 | none
+    return (n, e.getArg! 2)
+  unfoldedVarSlot? e
 
 /-- The variable slots in `e`, outside nested `proc` literals, in order of first occurrence,
 each with its name and type. -/
@@ -1049,6 +1127,41 @@ private def delabLocalVarLens : Delab := do
   let f := mkIdent (← unresolveNameGlobal ``localVarLens)
   `($f $(← withNaryArg 1 delab) $(← withNaryArg 2 delab))
 
+/-- A variable name `⟨"x", T, …⟩` prints as `VariableName.mk "x" T`, which is how it is written:
+the record would print its proofs elided (`⋯`), unparseably.  Only for a literal name with a key
+that is `encode "x"` by evaluation (`isEvaluatedKey`), so that the key elaboration fills in is
+defeq to it; `nonempty` is a proof. -/
+@[delab app.GaudisCrypt.VariableName.mk]
+private def delabVariableName : Delab := do
+  guardSurfaceSyntax
+  let e ← getExpr
+  guard (e.getAppNumArgs == 5)
+  let .lit (.strVal n) := e.getArg! 0 | failure
+  guard (isEvaluatedKey n (e.getArg! 3))
+  let f := mkIdent (← unresolveNameGlobal ``VariableName.mk)
+  `($f $(← withNaryArg 0 delab) $(← withNaryArg 1 delab))
+
+/-- The unfolding `(varLens ⟨"x", T, …⟩).intoLocal` of a local slot prints folded, as
+`localVarLens "x" T`.  The two are defeq: the key is a numeral or `encode "x"`
+(`unfoldedVarSlot?` checks), and `nonempty` is a proof. -/
+@[delab app.GaudisCrypt.Lens.intoLocal]
+private def delabUnfoldedVarSlot : Delab := do
+  guardSurfaceSyntax
+  let some _ := unfoldedVarSlot? (← getExpr) | failure
+  let f := mkIdent (← unresolveNameGlobal ``localVarLens)
+  withNaryArg 2 <| withNaryArg 0 do
+    `($f $(← withNaryArg 0 delab) $(← withNaryArg 1 delab))
+
+/-- A procedure call whose l-value, callee and argument getter are the arguments `i`, `i + 1`
+and `i + 2` of the current application. -/
+private def delabCall (i : Nat) : DelabM (TSyntax `gaudi_stmt) := do
+  let void ← withNaryArg i isThrowaway
+  let lv ← withNaryArg i delabLValue
+  let p ← withNaryArg (i + 1) delab
+  let as := splitArgTuple (← withNaryArg (i + 2) delabStmtExpr)
+  if void then `(gaudi_stmt| call $p ( $as:term,* );)
+  else `(gaudi_stmt| $lv:term,* <- call $p ( $as:term,* );)
+
 mutual
 
 /-- A statement sequence: the right `seq` spine, flattened.  A Lean binder wrapping the rest
@@ -1092,27 +1205,27 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
   | (``StmtWithHoles.assign, args) => do
       guard (args.size == 5)
       let lv ← withNaryArg 3 delabLValue
-      let e ← withNaryArg 4 delabGaudiExpr
+      let e ← withNaryArg 4 delabStmtExpr
       `(gaudi_stmt| $lv:term,* <- $e;)
   | (``StmtWithHoles.sample, args) => do
       guard (args.size == 5)
       let lv ← withNaryArg 3 delabLValue
-      let e ← withNaryArg 4 delabGaudiExpr
+      let e ← withNaryArg 4 delabStmtExpr
       `(gaudi_stmt| $lv:term,* <$ $e;)
   | (``StmtWithHoles.call, args) => do
       guard (args.size == 6)
-      let void ← withNaryArg 3 isThrowaway
-      let lv ← withNaryArg 3 delabLValue
-      let p ← withNaryArg 4 delab
-      let as := splitArgTuple (← withNaryArg 5 delabGaudiExpr)
-      if void then `(gaudi_stmt| call $p ( $as:term,* );)
-      else `(gaudi_stmt| $lv:term,* <- call $p ( $as:term,* );)
+      delabCall 3
+  -- `Stmt.call` is `StmtWithHoles.call` at no holes, as a definition of its own (lemmas about
+  -- statements state calls with it); the `call` statement elaborates to a defeq term
+  | (``Stmt.call, args) => do
+      guard (args.size == 5)
+      delabCall 2
   | (``StmtWithHoles.hole, args) => do
       guard (args.size == 6)
       let idx ← withNaryArg 3 delab
       let void ← withNaryArg 4 isThrowaway
       let lv ← withNaryArg 4 delabLValue
-      let as := splitArgTuple (← withNaryArg 5 delabGaudiExpr)
+      let as := splitArgTuple (← withNaryArg 5 delabStmtExpr)
       -- inside its `proc`, a hole is called with `call` (that is what the macro rewrites);
       -- anywhere else the internal `holecall` form is the only faithful spelling.
       if idx.raw.isIdent && holeNames.contains idx.raw.getId then
@@ -1123,7 +1236,7 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
         else `(gaudi_stmt| $lv:term,* <- holecall $idx ( $as:term,* );)
   | (``StmtWithHoles.ifThenElse, args) => do
       guard (args.size == 5)
-      let c ← withNaryArg 2 delabGaudiExpr
+      let c ← withNaryArg 2 delabStmtExpr
       let t ← withNaryArg 3 (delabGaudiStmts holeNames)
       -- `if (c) { … }` elaborates with `skip` as its else branch, so print the short form
       let noElse ← withNaryArg 4 (return (← getExpr).isAppOf ``StmtWithHoles.skip)
@@ -1133,7 +1246,7 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
         `(gaudi_stmt| if ($c) { $t:gaudi_stmt* } else { $f:gaudi_stmt* })
   | (``StmtWithHoles.while, args) => do
       guard (args.size == 4)
-      let c ← withNaryArg 2 delabGaudiExpr
+      let c ← withNaryArg 2 delabStmtExpr
       let body ← withNaryArg 3 (delabGaudiStmts holeNames)
       `(gaudi_stmt| while ($c) { $body:gaudi_stmt* })
   | _ => failure
@@ -1144,7 +1257,8 @@ end
 @[delab app.GaudisCrypt.StmtWithHoles.skip, delab app.GaudisCrypt.StmtWithHoles.assign,
   delab app.GaudisCrypt.StmtWithHoles.sample, delab app.GaudisCrypt.StmtWithHoles.call,
   delab app.GaudisCrypt.StmtWithHoles.hole, delab app.GaudisCrypt.StmtWithHoles.seq,
-  delab app.GaudisCrypt.StmtWithHoles.ifThenElse, delab app.GaudisCrypt.StmtWithHoles.while]
+  delab app.GaudisCrypt.StmtWithHoles.ifThenElse, delab app.GaudisCrypt.StmtWithHoles.while,
+  delab app.GaudisCrypt.Stmt.call]
 private def delabGaudiProg : Delab := do
   guardSurfaceSyntax
   let vars := (← frameVars #[← getExpr] #[]).filter (·.printable)

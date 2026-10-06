@@ -666,6 +666,76 @@ info: proc (x : ℕ) : ℕ {
 set_option linter.unusedVariables false in
 example : (proc (x : Nat) : Nat { let x := 5; return x }).return_val.get = fun _ => 5 := rfl
 
+/-! #### Statements the macros did not build
+
+A statement built by hand or left behind by a rewrite prints as well, as long as its l-values
+are lenses. -/
+
+-- an expression slot that reads the state directly; the l-value is a lens used as a setter
+/--
+info: GaudiProg[
+    a <-
+    let σ := CurrentState.state;
+    a.get σ.globals + 1;
+]
+-/
+#guard_msgs in
+#roundtrip (StmtWithHoles.assign a.intoGlobal.toSetter ⟨fun st => a.get st.globals + 1⟩ : Stmt)
+
+-- a getter that is not a `Getter.mk`, and a lens used as a getter
+/--
+info: fun g ↦
+  GaudiProg[
+      a <- §g;
+]
+-/
+#guard_msgs in
+#roundtrip fun g : Getter Nat ProgramState => (StmtWithHoles.assign (liftLens a) g : Stmt)
+
+/--
+info: GaudiProg[
+    var u : ℕ;
+    a <- §u;
+]
+-/
+#guard_msgs in
+#roundtrip (StmtWithHoles.assign (liftLens a) (localVarLens "u" Nat).toGetter : Stmt)
+
+-- a condition of the same kind
+/--
+info: GaudiProg[
+    while (let σ := CurrentState.state;
+      decide (a.get σ.globals = 0))
+      {
+      a <- 1;
+    }
+]
+-/
+#guard_msgs in
+#roundtrip (StmtWithHoles.while ⟨fun st => decide (a.get st.globals = 0)⟩ GaudiProg[ a <- 1; ]
+  : Stmt)
+
+-- `Stmt.call`, with local slots written as the `varLens` they unfold to
+/--
+info: fun p ↦
+  GaudiProg[
+      var r : Bool, n : ℕ;
+      r <- call p (§n);
+]
+-/
+#guard_msgs in
+#roundtrip fun p : Procedure (procsig (Nat) -> Bool) =>
+  Stmt.call (varLens (.mk "r" Bool)).intoLocal.toSetter p (varLens (.mk "n" Nat)).intoLocal.toGetter
+
+-- such a slot that cannot print under its name (`a` is a constant) prints as `localVarLens`
+/--
+info: GaudiProg[
+    (localVarLens "a" ℕ) <- §a;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ ((varLens (.mk "a" Nat)).intoLocal) <- $a; ]
+
 /-! #### Rejected declarations -/
 
 /-- error: `x` is declared twice -/

@@ -159,10 +159,8 @@ condition `c : ProgramState → Prop` (one a rewrite or `dsimp` produced, say) p
 
     let σ := CurrentState.state; c σ
 
-with `c σ` β-reduced.  `CurrentState.state` is the state `GaudiExpr[ ]` reads at, so this
-re-elaborates to `(Getter.mk fun st => let σ := st; c σ).get`, which is `c` up to ζ and η.  The
-state is named by a Lean `let` rather than read with a sigil (`§Lens.id`) on purpose: a sigil reads
-the *innermost* `CurrentState`, and `c` may itself contain a `GaudiExpr[ ]` that mentions `σ`.
+with `c σ` β-reduced, which re-elaborates to `c` up to ζ and η (`ProgramSyntax.getterViaState`,
+which also prints the expression slots of statements that are not of the shape the macros build).
 
 A condition without the spine binders is printed as it is, and the macro wraps it in them again.
 That is sound when it mentions none of their names, and otherwise the delaborator steps aside.
@@ -173,35 +171,20 @@ in `ProgramSyntax.lean`), over the body and both conditions together: a slot
 and `x` in the body print under the same name and the same `var` line. -/
 
 section Printing
-open Lean Meta PrettyPrinter Delaborator SubExpr ProgramSyntax
+open Lean PrettyPrinter Delaborator SubExpr ProgramSyntax
 
 private partial def syntaxMentions (n : Name) : Syntax → Bool
   | .ident _ _ v _ => v.eraseMacroScopes == n
   | .node _ _ args => args.any (syntaxMentions n)
   | _ => false
 
-/-- `c : ProgramState → Prop` ↦ the getter `Getter.mk fun st => let σ := CurrentState.state; c σ`,
-whose `get` is `c` up to ζ and η.  The binder is named after `c`'s own if it is a lambda. -/
-private def condAsGetter (c : Lean.Expr) : MetaM Lean.Expr := do
-  let .forallE _ ps _ _ ← whnfR (← inferType c) | failure
-  guard (ps.isAppOfArity ``ProgramState 1)
-  let inst := ps.appArg!
-  let nm := match c with
-    | .lam n .. => if n.hasMacroScopes then `σ else n
-    | _ => `σ
-  withLocalDeclD `st ps fun st => do
-    let cur ← mkAppOptM ``CurrentState.mk #[some inst, some st]
-    let v ← mkAppOptM ``CurrentState.state #[some inst, some cur]
-    withLetDecl nm ps v fun σ => do
-      let body ← mkLetFVars #[σ] (c.beta #[σ])
-      mkAppM ``Getter.mk #[← mkLambdaFVars #[st] body]
-
 /-- The `P` of a condition `c` (after the spine binders): `(GaudiExpr[ P ]).get` with no state
-argument of its own, or failing that, `let σ := CurrentState.state; c σ` (see `condAsGetter`). -/
+argument of its own, or failing that, `let σ := CurrentState.state; c σ` (see
+`ProgramSyntax.getterViaState`). -/
 private def delabCondBody : DelabM Term :=
   (do guard ((← getExpr).isAppOfArity ``Getter.get 3)
       withNaryArg 2 delabGaudiExpr) <|>
-  (do withExpr (← condAsGetter (← getExpr)) delabGaudiExpr)
+  (do withExpr (← getterViaState (← getExpr)) delabGaudiExpr)
 
 /-- A condition of a statement triple: the spine `let`s, then the condition proper.  A
 condition without them is printed as it is, the macro wraps it in them again; that is only

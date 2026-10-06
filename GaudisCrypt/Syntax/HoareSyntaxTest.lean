@@ -271,6 +271,24 @@ info: fun two ↦
 #check fun two : Int => hoareStmt (fun σ => x.get σ.globals = two)
   GaudiProg[ let two := (2 : Int); x <- two; ] (fun _ => True)
 
+-- the shape `hoareProc_as_hoareStmt` leaves (after a `dsimp`): a `Stmt.call` on `varLens` slots,
+-- and a postcondition reading the result slot off the locals
+/--
+info: fun q ↦
+  hoare[ True ==>
+      let σ := CurrentState.state;
+      (varLens (VariableName.mk "res" ℤ)).get σ.locals = 2 ]
+      {
+      var res : ℤ, args : ℤ;
+      res <- call q (§args);
+}
+-/
+#guard_msgs in
+#roundtrip fun q : Procedure (procsig (Int) -> Int) => hoareStmt (fun _ => True)
+  (Stmt.call (varLens (.mk "res" Int)).intoLocal.toSetter q
+    (varLens (.mk "args" Int)).intoLocal.toGetter)
+  (fun σ => (varLens (.mk "res" Int)).get σ.locals = 2)
+
 /- ### Procedure triples — `hoare[ M (x, m) : P ==> Q ]` -/
 
 moduletype TestSig {
