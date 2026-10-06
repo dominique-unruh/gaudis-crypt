@@ -732,8 +732,8 @@ A statement the macros did not build (by hand, or left behind by a rewrite) prin
 spelling that re-elaborates to a defeq term:
 
 * an expression slot that is not of the shape `GaudiExpr[ ]` builds prints as
-  `let σ := CurrentState.state; …` when it is a `Getter.mk`, and as the read `§g` otherwise
-  (`delabStmtExpr`);
+  `f CurrentState.state` when it is a `Getter.mk f` (`getterViaState`), and as the read `§g`
+  otherwise (`delabStmtExpr`);
 * an l-value that is a lens used as a setter directly prints as that lens, which `liftLens`
   turns back into the same setter;
 * `Stmt.call` prints as the `call` statement;
@@ -837,14 +837,35 @@ def delabGaudiExpr : DelabM Term := do
       guard <| !syntaxHasIdent stateBinderName stx
       return stx
 
-/-- `f : ProgramState → A` ↦ the getter `Getter.mk fun st => let σ := CurrentState.state; f σ`
-(with `f σ` β-reduced), which `delabGaudiExpr` prints as `let σ := CurrentState.state; f σ`.
-Its `get` is `f` up to ζ and η, so this is how a function of the state that is not of the shape
-`GaudiExpr[ ]` builds is printed faithfully.  `CurrentState.state` is the state `GaudiExpr[ ]`
-reads at.  It is bound by a Lean `let` rather than read with a sigil (`§Lens.id`): a sigil reads
-the *innermost* `CurrentState`, and `f` may itself contain a `GaudiExpr[ ]` that mentions `σ`.
-The binder is named after `f`'s own if `f` is a lambda, unless that is the name of the getter's
-own state binder (`delabGaudiExpr` checks that one is not mentioned). -/
+/-- Does the free variable `x` occur in `e` inside a nested `GaudiExpr[ ]` — under a `Getter.mk`,
+or under a binder over a `ProgramState` (a statement's or a `proc`'s getter)?  There a
+`CurrentState.state` written in place of `x` would read the nested expression's state. -/
+private partial def occursNested (x : FVarId) (e : Lean.Expr) (nested : Bool := false) : Bool :=
+  if !e.containsFVar x then false
+  else
+    let nested := nested || e.isAppOf ``Getter.mk
+    match e with
+    | .fvar _ => nested
+    | .app f a => occursNested x f nested || occursNested x a nested
+    | .lam _ t b _ | .forallE _ t b _ =>
+        occursNested x t nested || occursNested x b (nested || t.isAppOf ``ProgramState)
+    | .letE _ t v b _ => occursNested x t nested || occursNested x v nested
+        || occursNested x b nested
+    | .mdata _ b | .proj _ _ b => occursNested x b nested
+    | _ => false
+
+/-- `f : ProgramState → A` ↦ the getter `Getter.mk fun st => f CurrentState.state` (with `f`
+applied β-reduced), which `delabGaudiExpr` prints as `f CurrentState.state`.  Its `get` is `f` up
+to η, so this is how a function of the state that is not of the shape `GaudiExpr[ ]` builds is
+printed faithfully.  `CurrentState.state` is the state `GaudiExpr[ ]` reads at.
+
+`CurrentState.state` reads the *innermost* `CurrentState`, though, and a `GaudiExpr[ ]` nested in
+`f` installs its own: written there, it would read the nested state.  When `f` mentions its
+argument inside one (`occursNested`), the state is bound by a Lean `let` instead, which nothing
+captures: `Getter.mk fun st => let σ := CurrentState.state; f σ`, printed as
+`let σ := CurrentState.state; f σ`, and the same up to ζ.  The binder is named after `f`'s own if
+`f` is a lambda, unless that is the name of the getter's own state binder (`delabGaudiExpr` checks
+that one is not mentioned). -/
 def ProgramSyntax.getterViaState (f : Lean.Expr) : MetaM Lean.Expr := do
   let .forallE _ ps _ _ ← Meta.whnfR (← Meta.inferType f) | failure
   guard (ps.isAppOfArity ``ProgramState 1)
@@ -857,13 +878,15 @@ def ProgramSyntax.getterViaState (f : Lean.Expr) : MetaM Lean.Expr := do
     let cur ← Meta.mkAppOptM ``CurrentState.mk #[some inst, some st]
     let v ← Meta.mkAppOptM ``CurrentState.state #[some inst, some cur]
     Meta.withLetDecl nm ps v fun σ => do
-      let body ← Meta.mkLetFVars #[σ] (f.beta #[σ])
+      let applied := f.beta #[σ]
+      let body ← if occursNested σ.fvarId! applied then Meta.mkLetFVars #[σ] applied
+        else pure (applied.replaceFVar σ v)
       Meta.mkAppM ``Getter.mk #[← Meta.mkLambdaFVars #[st] body]
 
 /-- An expression slot of a statement.  What `GaudiExpr[ e ]` builds prints as `e`; any other
-`Getter.mk f` as `let σ := CurrentState.state; f σ` (`getterViaState`); and any other getter
-`g` as the read `§g` — `§L` for a lens `L` used as a getter.  Each re-elaborates to the same
-getter up to ζ, η and structure η. -/
+`Getter.mk f` as `f CurrentState.state` (`getterViaState`); and any other getter `g` as the
+read `§g` — `§L` for a lens `L` used as a getter.  Each re-elaborates to the same getter up to
+ζ, η and structure η. -/
 def delabStmtExpr : DelabM Term := do
   let e ← getExpr
   delabGaudiExpr <|>

@@ -180,14 +180,12 @@ set_option pp.gaudisCrypt false in
 
 /- ### Conditions of any shape
 
-A condition the macro did not build (one a rewrite or `dsimp` left behind) prints as
-`let σ := CurrentState.state; …`, and still round-trips. -/
+A condition the macro did not build (one a rewrite or `dsimp` left behind) prints applied to
+`CurrentState.state`, or with it `let`-bound where a nested `GaudiExpr[ ]` would capture it, and
+still round-trips. -/
 
 /--
-info: hoare[ True ==>
-    let σ := CurrentState.state;
-    x.get σ.globals = 2 ]
-    {
+info: hoare[ True ==> x.get CurrentState.state.globals = 2 ] {
     x <- §x + 1;
 }
 -/
@@ -197,24 +195,18 @@ info: hoare[ True ==>
 -- a condition that is not a lambda
 /--
 info: fun P ↦
-  hoare[
-      let σ := CurrentState.state;
-      P σ ==>
-      let σ := CurrentState.state;
-      P σ ]
-      {
+  hoare[ P CurrentState.state ==> P CurrentState.state ] {
       x <- §x + 1;
 }
 -/
 #guard_msgs in
 #roundtrip fun P : ProgramState → Prop => hoareStmt P GaudiProg[ x <- §x + 1; ] P
 
--- a `GaudiExpr[ ]` inside the condition, mentioning the outer state: `σ` is a Lean binder, so it
--- is not captured by the inner `CurrentState`
+-- a `GaudiExpr[ ]` inside the condition.  The postcondition mentions the outer state inside it,
+-- so the state is `let`-bound there (a Lean binder, which the inner `CurrentState` cannot
+-- capture); the precondition mentions it only outside, so it is inlined
 /--
-info: hoare[
-    let σ := CurrentState.state;
-    GaudiExpr[ §x = 1 ].get { globals := σ.globals, locals := VariableAssignment.init } ==>
+info: hoare[ GaudiExpr[ §x = 1 ].get { globals := CurrentState.state.globals, locals := VariableAssignment.init } ==>
     let σ := CurrentState.state;
     GaudiExpr[ u.get σ = §u ].get { globals := σ.globals, locals := VariableAssignment.init } ]
     {
@@ -231,10 +223,7 @@ info: hoare[
 
 -- a local slot in such a condition is still recovered as a `var`
 /--
-info: hoare[ True ==>
-    let σ := CurrentState.state;
-    u.get σ = 2 ]
-    {
+info: hoare[ True ==> u.get CurrentState.state = 2 ] {
     var u : ℤ;
     u <- 2;
 }
@@ -245,10 +234,7 @@ info: hoare[ True ==>
 
 -- a condition without the body's spine binders: the macro wraps it in them again
 /--
-info: hoare[
-    let σ := CurrentState.state;
-    x.get σ.globals = 1 ==>
-    True ] {
+info: hoare[ x.get CurrentState.state.globals = 1 ==> True ] {
     let two : ℤ := 2;
     x <- two;
 }
@@ -275,10 +261,7 @@ info: fun two ↦
 -- and a postcondition reading the result slot off the locals
 /--
 info: fun q ↦
-  hoare[ True ==>
-      let σ := CurrentState.state;
-      (varLens (VariableName.mk "res" ℤ)).get σ.locals = 2 ]
-      {
+  hoare[ True ==> (varLens (VariableName.mk "res" ℤ)).get CurrentState.state.locals = 2 ] {
       var res : ℤ, args : ℤ;
       res <- call q (§args);
 }

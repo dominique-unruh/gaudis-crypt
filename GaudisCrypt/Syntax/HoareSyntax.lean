@@ -156,11 +156,10 @@ end
 A condition of the shape the macro builds — a `GaudiExpr[ ]` getter under exactly the
 `let`/`have` binders on the body's spine — prints as the `P` it was written as.  Any other
 condition `c : ProgramState → Prop` (one a rewrite or `dsimp` produced, say) prints as
-
-    let σ := CurrentState.state; c σ
-
-with `c σ` β-reduced, which re-elaborates to `c` up to ζ and η (`ProgramSyntax.getterViaState`,
-which also prints the expression slots of statements that are not of the shape the macros build).
+`c CurrentState.state`, β-reduced, which re-elaborates to `c` up to η.  If `c` mentions its
+argument inside a nested `GaudiExpr[ ]`, where `CurrentState.state` would read the nested state,
+it prints as `let σ := CurrentState.state; c σ` instead (`ProgramSyntax.getterViaState`, which
+also prints the expression slots of statements that are not of the shape the macros build).
 
 A condition without the spine binders is printed as it is, and the macro wraps it in them again.
 That is sound when it mentions none of their names, and otherwise the delaborator steps aside.
@@ -179,7 +178,7 @@ private partial def syntaxMentions (n : Name) : Syntax → Bool
   | _ => false
 
 /-- The `P` of a condition `c` (after the spine binders): `(GaudiExpr[ P ]).get` with no state
-argument of its own, or failing that, `let σ := CurrentState.state; c σ` (see
+argument of its own, or failing that, `c CurrentState.state` (see
 `ProgramSyntax.getterViaState`). -/
 private def delabCondBody : DelabM Term :=
   (do guard ((← getExpr).isAppOfArity ``Getter.get 3)
