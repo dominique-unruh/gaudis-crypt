@@ -22,11 +22,15 @@ Phase 6 (flattening, `Logic/Inline.lean`) is done (2026-10-06), along §4 with t
 * the cosmetic renaming of §4.5 is a pass of its own after all rounds (`Flatten.renameNames`):
   one permutation `Flatten.rename ren` of the whole statement, where `ren` gives each made-up
   name (`@.w`, `@@.w`, …) a readable one (`w`, or `w0` on a clash);
-* the reset of §4.4 is `assign R.resetSetter ⟨fun _ => ()⟩` (`Lens.resetSetter`, a `Setter Unit`
-  that writes `init` through `R` and ignores its value): the frame is a `VariableAssignment`, in
-  `Type 1`, so it cannot be the value of an `assign` itself.  It prints as
-  `Flatten.calleeFrame.resetSetter <- ();`: any `Setter` on the program state is an
-  l-value (`lval%`), which settles Q8 without a dedicated statement.  The parameters are then
+* the reset of §4.4 is `assign (resetSetter S) ⟨fun _ => ()⟩` (`resetSetter`, a `Setter Unit`
+  that puts every local with a name in `S : Set String` back to `init` and ignores its value):
+  the values put back are a `VariableAssignment`, in `Type 1`, so they cannot be the value of an
+  `assign` themselves.  Flattening emits `emb.chainSetter (resetSetter Set.univ)`; later rounds
+  and the cleanup renaming map the set, which the cleaning keeps in a normal form
+  (`Flatten.cleanNameSet?`), so that it prints as, e.g.,
+  `(resetSetter ({"z", "w0"} ∪ Flatten.prefixed "@@." \ {"@@.z", "@@.w"})) <- ();`: any
+  `Setter` on the program state is an l-value (`lval%`), which settles Q8 without a dedicated
+  statement.  The parameters are then
   written by one tuple assignment `z₁, …, zₙ <- (args);`;
 * every side condition is a generic lemma (`Flatten.equivInLens_call`), proved once; the
   procedure level (`Flatten.procedureDenotation_congr`) needs the caller's parameter names to

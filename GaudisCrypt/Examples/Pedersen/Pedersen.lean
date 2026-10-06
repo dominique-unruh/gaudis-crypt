@@ -350,7 +350,7 @@ theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
   hoare_proc_to_stmt
-  hoare_inline
+  hoare_inline 0
 
   sorry
 

@@ -741,12 +741,12 @@ info: GaudiProg[
 -- initial values; flattening emits this for a callee's frame)
 /--
 info: GaudiProg[
-    ProgramState.localL.resetSetter <- ();
+    (resetSetter Set.univ) <- ();
     a <- 1;
 ]
 -/
 #guard_msgs in
-#roundtrip GaudiProg[ ProgramState.localL.resetSetter <- (); a <- 1; ]
+#roundtrip GaudiProg[ (resetSetter Set.univ) <- (); a <- 1; ]
 
 /-! #### Rejected declarations -/
 

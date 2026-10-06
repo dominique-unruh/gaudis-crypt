@@ -209,7 +209,7 @@ macro_rules
   | `([lvalRawList| $x:term, $xs:term,*]) => `(Lens.pair [lvalRaw| $x] [lvalRawList| $xs,*])
 
 /-- `lval% x`: `x` as an l-value.  A setter on the program state is one already and is used as
-it is (`(Flatten.calleeFrame ren).resetSetter`, say: a setter that is not a lens); anything else
+it is (`resetSetter S`, say: a setter that is not a lens); anything else
 is a lens and goes through `liftLens`. -/
 syntax (name := lvalElab) "lval% " term:max : term
 

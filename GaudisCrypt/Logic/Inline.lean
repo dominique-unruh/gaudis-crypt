@@ -19,8 +19,8 @@ frame moves to names the caller cannot have (`Flatten.emb`, renaming `n` to `@.n
 `Flatten.tag`), and the call becomes
 
 ```
-Flatten.calleeFrame.resetSetter <- ();   -- the callee's frame back to its initial values
-«@.z₁», …, «@.zₙ» <- (args);             -- the arguments, in the callee's parameter slots
+(resetSetter (Flatten.prefixed "@.")) <- ();  -- the callee's frame back to its initial values
+«@.z₁», …, «@.zₙ» <- (args);                  -- the arguments, in the callee's parameter slots
 ‹callee body, renamed›
 x <- ‹callee return value, renamed›;
 ```
@@ -29,6 +29,11 @@ The two renamings have disjoint images, which is what makes the callee's frame d
 caller's without looking at either.  Readable names come last, in a pass of their own
 (`Flatten.renameNames`): a permutation of names (`Flatten.rename ren`, `«@.w» ↦ w0`), which is
 sound for any choice of names.
+
+What a reset puts back is given by a set of names, which every later round and the cleanup
+renaming map along with the rest.  The cleaning keeps such a set in a normal form,
+`{"z", "w0"} ∪ Flatten.prefixed "@@." \ {"@@.z", "@@.w"}` say (section *Reset regions*, and
+`Flatten.cleanNameSet?`, the only meta code that knows that form).
 -/
 
 namespace GaudisCrypt
@@ -134,6 +139,197 @@ theorem VariableAssignment.embed_get_embed_set {ι₁ ι₂ : String → String}
   · rintro ⟨b, hb⟩
     exact hd _ _ hb.symm
 
+/-! ## Reset regions
+
+The names a flattened call resets start out as all of the callee's (`Set.univ`, seen through
+`emb`), and every later round and the cleanup renaming map them along with the rest.  The
+cleaning keeps such a set in the normal form `nf p add rem`, that is
+`{add…} ∪ prefixed p \ {rem…}`: the names that start with `p`, except those in `rem`, and those
+in `add`.  The three name maps keep that form: `tag` and `escape` move the prefix (`@.`, `@@.`,
+…), and each swap of the cleanup renaming moves at most one name out of the set and one into it.
+
+This section and `cleanNameSet?` (which computes the normal form, with these lemmas as proofs)
+are all there is to the form; another one replaces both. -/
+
+namespace Flatten
+
+/-- The names that start with `p`. -/
+def prefixed (p : String) : Set String := {n | p.toList <+: n.toList}
+
+/-- The names in `l`.  Never printed: the cleaning writes it as a set literal (`ofList_cons`,
+`ofList_singleton`). -/
+def ofList (l : List String) : Set String := {n | n ∈ l}
+
+theorem ofList_singleton (a : String) : ofList [a] = {a} := by ext n; simp [ofList]
+
+theorem ofList_cons (a b : String) (l : List String) :
+    ofList (a :: b :: l) = insert a (ofList (b :: l)) := by
+  ext n; simp [ofList]
+
+/-- The normal form of a reset region: the names that start with `p` and are not in `rem`, and
+those in `add`.  Never printed: the cleaning writes it out without its empty parts
+(`nf_eq_pretty` and the rest). -/
+def nf (p : String) (add rem : List String) : Set String := ofList add ∪ prefixed p \ ofList rem
+
+/-- Membership in `nf p add rem`, as a computation. -/
+def memB (p : String) (add rem : List String) (n : String) : Bool :=
+  add.contains n || (p.toList.isPrefixOf n.toList && !rem.contains n)
+
+theorem nf_eq_setOf (p : String) (add rem : List String) :
+    nf p add rem = {n | n ∈ add ∨ (p.toList <+: n.toList ∧ n ∉ rem)} := by
+  ext n; simp [nf, ofList, prefixed]
+
+theorem nf_eq_setOf_memB (p : String) (add rem : List String) :
+    nf p add rem = {n | memB p add rem n = true} := by
+  ext n; simp [nf, ofList, prefixed, memB, List.isPrefixOf_iff_prefix]
+
+/-! `nf p add rem` written out, given the set literals `A`, `R` of `add`, `rem`. -/
+
+theorem nf_nil_nil (p : String) : nf p [] [] = prefixed p := by ext n; simp [nf, ofList]
+
+theorem nf_nil_eq (p : String) (add : List String) (A : Set String) (hA : ofList add = A) :
+    nf p add [] = A ∪ prefixed p := by
+  subst hA; ext n; simp [nf, ofList]
+
+theorem nf_nil_left_eq (p : String) (rem : List String) (R : Set String) (hR : ofList rem = R) :
+    nf p [] rem = prefixed p \ R := by
+  subst hR; ext n; simp [nf, ofList]
+
+theorem nf_eq_pretty (p : String) (add rem : List String) (A R : Set String)
+    (hA : ofList add = A) (hR : ofList rem = R) : nf p add rem = A ∪ prefixed p \ R := by
+  subst hA hR; rfl
+
+theorem univ_eq_nf : (Set.univ : Set String) = nf "" [] [] := by
+  ext n; simp [nf, ofList, prefixed]
+
+/-- The image of a normal form under an injective name map that maps the names with prefix `p`
+onto those with prefix `p'`. -/
+theorem image_nf {ι : String → String} (hι : ι.Injective) {p p' : String}
+    (h₁ : ∀ n : String, p.toList <+: n.toList → p'.toList <+: (ι n).toList)
+    (h₂ : ∀ m : String, p'.toList <+: m.toList → ∃ n, ι n = m ∧ p.toList <+: n.toList)
+    (add rem : List String) :
+    ι '' nf p add rem = nf p' (add.map ι) (rem.map ι) := by
+  rw [nf_eq_setOf, nf_eq_setOf]
+  ext w
+  simp only [Set.mem_image, Set.mem_setOf_eq, List.mem_map]
+  constructor
+  · rintro ⟨n, hn, he⟩
+    rcases hn with hn | ⟨hp, hr⟩
+    · exact Or.inl ⟨n, hn, he⟩
+    · refine Or.inr ⟨he ▸ h₁ n hp, ?_⟩
+      rintro ⟨x, hx, hxe⟩
+      exact hr (hι (hxe.trans he.symm) ▸ hx)
+  · rintro (⟨n, hn, he⟩ | ⟨hp, hr⟩)
+    · exact ⟨n, Or.inl hn, he⟩
+    · obtain ⟨n, he, hn⟩ := h₂ _ hp
+      exact ⟨n, Or.inr ⟨hn, fun h => hr ⟨n, h, he⟩⟩, he⟩
+
+theorem image_tag_nf (p : String) (add rem : List String) :
+    tag '' nf p add rem = nf (tag p) (add.map tag) (rem.map tag) := by
+  refine image_nf tag_injective (fun n hn => ?_) (fun m hm => ?_) add rem
+  · simpa [tag, String.toList_ofList] using hn
+  · obtain ⟨t, ht⟩ := hm
+    refine ⟨String.ofList (p.toList ++ t), ?_, ⟨t, by simp⟩⟩
+    apply String.toList_injective
+    simpa [tag, String.toList_ofList] using ht
+
+/-- `escape` moves a nonempty prefix along (the empty one it would not: `escape` maps the names
+starting with `@` to those starting with `@@`, not onto all). -/
+theorem image_escape_nf (p : String) (hp : p ≠ "") (add rem : List String) :
+    escape '' nf p add rem = nf (escape p) (add.map escape) (rem.map escape) := by
+  obtain ⟨c, cs, hpc⟩ : ∃ c cs, p.toList = c :: cs := by
+    cases h : p.toList with
+    | nil => exact absurd (String.toList_injective (h.trans String.toList_empty.symm)) hp
+    | cons c cs => exact ⟨c, cs, rfl⟩
+  refine image_nf escape_injective (fun n hn => ?_) (fun m hm => ?_) add rem
+  · obtain ⟨t, ht⟩ := hn
+    refine ⟨t, ?_⟩
+    simp only [escape, String.toList_ofList, hpc, ← ht]
+    by_cases hc : c = '@' <;> simp [escapeChars, hc]
+  · obtain ⟨t, ht⟩ := hm
+    simp only [escape, String.toList_ofList, hpc] at ht
+    by_cases hc : c = '@'
+    · refine ⟨String.ofList ('@' :: cs ++ t), ?_, ⟨t, by simp [hpc, hc]⟩⟩
+      apply String.toList_injective
+      simp [escape, escapeChars, ← ht, hc]
+    · refine ⟨m, ?_, ⟨t, ?_⟩⟩
+      · apply String.toList_injective
+        simp [escape, escapeChars, ← ht, hc]
+      · simpa [escapeChars, hc, hpc] using ht
+
+/-- `nf p add' rem'` is the image of `nf p add rem` under the swap of `a` and `f`: `a` and `f`
+trade membership, and the lists agree on every other name. -/
+def swapOK (p : String) (add rem add' rem' : List String) (a f : String) : Bool :=
+  memB p add' rem' a == memB p add rem f && memB p add' rem' f == memB p add rem a &&
+  (add ++ add').all (fun x => x == a || x == f || add.contains x == add'.contains x) &&
+  (rem ++ rem').all (fun x => x == a || x == f || rem.contains x == rem'.contains x)
+
+theorem contains_eq_of_all {l l' : List String} {a f : String}
+    (h : (l ++ l').all (fun x => x == a || x == f || l.contains x == l'.contains x) = true)
+    {m : String} (ha : m ≠ a) (hf : m ≠ f) : l.contains m = l'.contains m := by
+  simp only [List.all_eq_true, List.mem_append, Bool.or_eq_true, beq_iff_eq] at h
+  by_cases hm : m ∈ l ∨ m ∈ l'
+  · rcases h m hm with (h | h) | h
+    · exact absurd h ha
+    · exact absurd h hf
+    · exact h
+  · simp only [not_or] at hm
+    simp [hm.1, hm.2]
+
+theorem memB_swap {p : String} {add rem add' rem' : List String} {a f : String}
+    (h : swapOK p add rem add' rem' a f = true) (m : String) :
+    memB p add' rem' m = memB p add rem (Equiv.swap a f m) := by
+  simp only [swapOK, Bool.and_eq_true, beq_iff_eq] at h
+  obtain ⟨⟨⟨ha, hf⟩, hadd⟩, hrem⟩ := h
+  by_cases hma : m = a
+  · subst hma; rw [Equiv.swap_apply_left, ha]
+  by_cases hmf : m = f
+  · subst hmf; rw [Equiv.swap_apply_right, hf]
+  rw [Equiv.swap_apply_of_ne_of_ne hma hmf]
+  simp only [memB, contains_eq_of_all hadd hma hmf, contains_eq_of_all hrem hma hmf]
+
+/-! The steps of `cleanNameSet?`: each takes the region in normal form and a check that the
+meta code proves by evaluation (`rfl`). -/
+
+theorem image_tag_eq (S : Set String) (p : String) (add rem : List String) (p' : String)
+    (add' rem' : List String) (hS : S = nf p add rem)
+    (h : (tag p == p' && add.map tag == add' && rem.map tag == rem') = true) :
+    tag '' S = nf p' add' rem' := by
+  simp only [Bool.and_eq_true, beq_iff_eq] at h
+  obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h
+  rw [hS, image_tag_nf]
+
+theorem image_escape_eq (S : Set String) (p : String) (add rem : List String) (p' : String)
+    (add' rem' : List String) (hS : S = nf p add rem)
+    (h : (p != "" && escape p == p' && add.map escape == add' && rem.map escape == rem') = true) :
+    escape '' S = nf p' add' rem' := by
+  simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne] at h
+  obtain ⟨⟨⟨hp, rfl⟩, rfl⟩, rfl⟩ := h
+  rw [hS, image_escape_nf p hp]
+
+theorem image_renameName_nil (S : Set String) (p : String) (add rem : List String)
+    (hS : S = nf p add rem) : renameName [] '' S = nf p add rem := by
+  rw [← hS]
+  exact Set.image_id S
+
+theorem image_renameName_cons (S : Set String) (a f : String)
+    (ren : List (String × String)) (p : String) (add rem add' rem' : List String)
+    (hS : renameName ren '' S = nf p add rem)
+    (h : swapOK p add rem add' rem' a f = true) :
+    renameName ((a, f) :: ren) '' S = nf p add' rem' := by
+  have : renameName ((a, f) :: ren) '' S = Equiv.swap a f '' (renameName ren '' S) := by
+    rw [Set.image_image]; rfl
+  rw [this, hS, nf_eq_setOf_memB, nf_eq_setOf_memB]
+  ext w
+  simp only [Set.mem_image, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨n, hn, he⟩
+    rw [memB_swap h, ← he, Equiv.swap_apply_self]; exact hn
+  · intro hw
+    exact ⟨Equiv.swap a f w, by rw [← memB_swap h]; exact hw, Equiv.swap_apply_self _ _ _⟩
+
+end Flatten
+
 /-- The slot of a variable whose name is given as another term for the same string. -/
 theorem varLens_rename {n n' : String} {T : Type} (i : Nonempty T) (k : Nat)
     (hk : k = VariableName.encode n) (k' : Nat) (hk' : k' = VariableName.encode n') (h : n = n') :
@@ -207,6 +403,42 @@ theorem ProgramState.mapLocal_embed_get_entry (ι : String → String) (hι : ι
       VariableAssignment.setParams_apply_of_notMem _ _ _ _ _ _ hv]
     rfl
 
+open Classical in
+/-- **Cleaning**: a reset seen through a renaming of the locals resets the renamed names. -/
+theorem ProgramState.mapLocal_embed_chainSetter_resetSetter (ι : String → String)
+    (hι : ι.Injective) (S : Set String) :
+    (mapLocal (VariableAssignment.embed ι hι)).chainSetter (resetSetter S)
+      = resetSetter (ι '' S) := by
+  ext x σ
+  change (⟨σ.globals, fun w => if w.name ∈ Set.range ι then
+      (if Function.invFun ι w.name ∈ S then VariableAssignment.init _
+        else σ.locals ((w.withName (Function.invFun ι w.name)).withName
+          (ι (Function.invFun ι w.name)))) else σ.locals w⟩ : ProgramState)
+    = ⟨σ.globals, fun w => if w.name ∈ ι '' S then VariableAssignment.init w else σ.locals w⟩
+  congr 1
+  funext w
+  by_cases hw : w.name ∈ Set.range ι
+  · have hinv : ι (Function.invFun ι w.name) = w.name := Function.invFun_eq hw
+    have hmem : Function.invFun ι w.name ∈ S ↔ w.name ∈ ι '' S := by
+      constructor
+      · intro h
+        exact ⟨_, h, hinv⟩
+      · rintro ⟨n, hn, he⟩
+        rwa [← he, Function.leftInverse_invFun hι n]
+    rw [if_pos hw]
+    by_cases hS : w.name ∈ ι '' S
+    · -- `init` does not look at the name
+      rw [if_pos (hmem.mpr hS), if_pos hS]
+    · rw [if_neg (fun h => hS (hmem.mp h)), if_neg hS]
+      exact σ.locals.apply_withName w hinv
+  · have hS : w.name ∉ ι '' S := fun h => hw (Set.image_subset_range ι S h)
+    rw [if_neg hw, if_neg hS]
+
+/-- Resetting every variable. -/
+theorem resetSetter_univ_set (x : Unit) (σ : ProgramState) :
+    (resetSetter Set.univ).set x σ = ⟨σ.globals, VariableAssignment.init⟩ := by
+  simp [resetSetter]
+
 namespace Flatten
 
 /-- The caller's side of a flattening round: its locals, renamed by `escape` (which keeps every
@@ -217,11 +449,6 @@ noncomputable def trafo : Lens ProgramState ProgramState :=
 /-- The callee's frame inside the caller's locals, renamed by `tag` (`n ↦ @.n`). -/
 noncomputable def emb : Lens ProgramState ProgramState :=
   ProgramState.mapLocal (VariableAssignment.embed tag tag_injective)
-
-/-- The callee's frame alone, as the region `Lens.resetSetter` puts back to its initial
-values. -/
-noncomputable def calleeFrame : Lens VariableAssignment ProgramState :=
-  ProgramState.localL.chain (VariableAssignment.embed tag tag_injective)
 
 /-- The cleanup renaming `ren`, on the locals: a permutation of the names, hence an
 isomorphism. -/
@@ -246,8 +473,14 @@ theorem trafo_get_emb_set (v τ : ProgramState) :
   rw [VariableAssignment.embed_get_embed_set _ _ escape_ne_tag]
   rfl
 
-theorem calleeFrame_set (w : VariableAssignment) (τ : ProgramState) :
-    calleeFrame.set w τ = emb.set ⟨τ.globals, w⟩ τ := rfl
+/-- The reset a flattened call starts with: every variable of the callee, seen through `emb`,
+which is the callee's frame. -/
+theorem emb_chainSetter_resetSetter_univ_set (τ : ProgramState) :
+    (emb.chainSetter (resetSetter Set.univ)).set () τ
+      = emb.set ⟨τ.globals, VariableAssignment.init⟩ τ := by
+  change emb.set ((resetSetter Set.univ).set () (emb.get τ)) τ = _
+  rw [resetSetter_univ_set]
+  rfl
 
 /-- **Cleaning**: a caller's local variable, seen through `trafo`, is the escaped variable. -/
 @[simp] theorem trafo_chain_varLens (n : String) (T : Type) (i : Nonempty T) (k : Nat)
@@ -1065,22 +1298,23 @@ theorem equivInLens_call {hCtx : HoleSigs} {sig : ProcedureSignature}
     (hP : IsParamWriter emb names sig.params hlen P) :
     (StmtWithHoles.call' (h := hCtx) x names hlen hnodup b r args).EquivInLens
       -- the binder is named: an anonymous one is `x✝`, which the printer takes for an `x`
-      ((StmtWithHoles.assign calleeFrame.resetSetter ⟨fun _st => ()⟩).seq
+      ((StmtWithHoles.assign (emb.chainSetter (resetSetter Set.univ)) ⟨fun _st => ()⟩).seq
         ((StmtWithHoles.assign (a := typeListToTuple sig.params) P (trafo.chainGetter args)).seq
           ((StmtWithHoles.weaken (b.applyLens emb)).seq
             (StmtWithHoles.assign (trafo.chainSetter x) (emb.chainGetter r)))))
       trafo := by
   -- the frame after the reset, and after the arguments are written
-  let σ₁ : ProgramState → ProgramState := fun τ => calleeFrame.set VariableAssignment.init τ
+  let σ₁ : ProgramState → ProgramState := fun τ =>
+    (emb.chainSetter (resetSetter Set.univ)).set () τ
   let f : ProgramState → ProgramState := fun τ => P.set (args.get (trafo.get (σ₁ τ))) (σ₁ τ)
   have hvis₁ : ∀ τ, trafo.get (σ₁ τ) = trafo.get τ := fun τ => by
-    simp only [σ₁, calleeFrame_set, trafo_get_emb_set]
+    simp only [σ₁, emb_chainSetter_resetSetter_univ_set, trafo_get_emb_set]
     rfl
   have hemb₁ : ∀ τ, emb.get (σ₁ τ) = ⟨τ.globals, VariableAssignment.init⟩ := fun τ => by
-    simp only [σ₁, calleeFrame_set, emb.set_get]
+    simp only [σ₁, emb_chainSetter_resetSetter_univ_set, emb.set_get]
   have hpre := StmtWithHoles.equivInLens_flattenCall (hCtx := hCtx) trafo emb
     trafo_chain_globalL emb_chain_globalL trafo_get_emb_set x names hlen hnodup
-    args b r ((StmtWithHoles.assign calleeFrame.resetSetter ⟨fun _st => ()⟩).seq
+    args b r ((StmtWithHoles.assign (emb.chainSetter (resetSetter Set.univ)) ⟨fun _st => ()⟩).seq
       (StmtWithHoles.assign P (trafo.chainGetter args))) f
     (fun _ τ => programDenotation_seq_apply_det (programDenotation_assign_apply _ _)
       (programDenotation_assign_apply _ _) τ)
@@ -1394,11 +1628,6 @@ omit [ProgramSpec] in
     l.chainSetter (Setter.throwaway (a := A)) = Setter.throwaway := by
   ext v τ; exact l.get_set τ
 
-/-- Resetting a region, seen through a lens, resets the region seen through it. -/
-@[simp] theorem Lens.chainSetter_resetSetter (l : Lens ProgramState ProgramState)
-    (R : Lens VariableAssignment ProgramState) :
-    l.chainSetter R.resetSetter = (l.chain R).resetSetter := rfl
-
 omit [ProgramSpec] in
 /-- A lens used as an l-value composes as a lens. -/
 @[simp] theorem Lens.chainSetter_toSetter {a : Type u} {s : Type v} {t : Type w} (l : Lens s t)
@@ -1489,6 +1718,23 @@ namespace Flatten
     (τ : ProgramState) (g : Getter A State) :
     (eval (cs := ⟨(rename ren).get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
+/-! ### Resets
+
+A renaming around a reset resets the renamed region; `cleanNameSet?` then puts the region back in
+normal form. -/
+
+@[simp] theorem trafo_chainSetter_resetSetter (S : Set String) :
+    trafo.chainSetter (resetSetter S) = resetSetter (escape '' S) :=
+  ProgramState.mapLocal_embed_chainSetter_resetSetter _ _ S
+
+@[simp] theorem emb_chainSetter_resetSetter (S : Set String) :
+    emb.chainSetter (resetSetter S) = resetSetter (tag '' S) :=
+  ProgramState.mapLocal_embed_chainSetter_resetSetter _ _ S
+
+@[simp] theorem rename_chainSetter_resetSetter (ren : List (String × String)) (S : Set String) :
+    (rename ren).chainSetter (resetSetter S) = resetSetter (renameName ren '' S) :=
+  ProgramState.mapLocal_embed_chainSetter_resetSetter _ _ S
+
 end Flatten
 
 end Clean
@@ -1558,6 +1804,154 @@ simproc_decl reduceVarName (varLens _) := fun e => do
     #[some a[0]!, some (mkStrLit n'), some a[1]!, some a[2]!, some a[3]!, some a[4]!, some b[3]!,
       some b[4]!, some h]
   return .done { expr := mkApp (mkConst ``varLens) new, proof? := some proof }
+
+/-! ## Reset regions in normal form
+
+Everything the meta code knows about the normal form of a reset region (section *Reset regions*
+above) is in this section; `cleanNameSet?` is its entry point. -/
+
+/-- `nf p add rem`, as a term. -/
+def nfExpr (p : String) (add rem : List String) : Expr :=
+  mkAppN (mkConst ``nf) #[mkStrLit p, toExpr add, toExpr rem]
+
+/-- A nonempty `ofList l` as a set literal `{a, b, …}`, with a proof of `ofList l = ‹it›`. -/
+partial def ofListToLit (l : List String) : MetaM (Expr × Expr) := do
+  let setString := mkApp (mkConst ``Set [.zero]) (mkConst ``String)
+  let (e, proof) ← match l with
+    | [] => throwError "ofListToLit: empty list"
+    | [a] => pure (← mkAppOptM ``Singleton.singleton
+          #[some (mkConst ``String), some setString, none, some (mkStrLit a)],
+        mkApp (mkConst ``ofList_singleton) (mkStrLit a))
+    | a :: b :: l' => do
+        let (e', h') ← ofListToLit (b :: l')
+        let ins ← mkAppOptM ``Insert.insert
+          #[some (mkConst ``String), some setString, none, some (mkStrLit a)]
+        let h₁ := mkAppN (mkConst ``ofList_cons) #[mkStrLit a, mkStrLit b, toExpr l']
+        pure (mkApp ins e', ← mkEqTrans h₁ (← mkCongrArg ins h'))
+  return (e, ← mkExpectedTypeHint proof (← mkEq (mkApp (mkConst ``ofList) (toExpr l)) e))
+
+/-- A set literal `{a, b, …}` of strings, read back. -/
+partial def litToList? (e : Expr) : Option (List String) :=
+  match e.getAppFnArgs with
+  | (``Singleton.singleton, #[_, _, _, .lit (.strVal a)]) => some [a]
+  | (``Insert.insert, #[_, _, _, .lit (.strVal a), rest]) => return a :: (← litToList? rest)
+  | _ => none
+
+/-- `nf p add rem`, written out without its empty parts, with a proof of `nf p add rem = ‹it›`. -/
+def nfToPretty (p : String) (add rem : List String) : MetaM (Expr × Expr) := do
+  let pre := mkApp (mkConst ``prefixed) (mkStrLit p)
+  let (e, proof) ← match add, rem with
+    | [], [] => pure (pre, mkApp (mkConst ``nf_nil_nil) (mkStrLit p))
+    | _, [] => do
+        let (A, hA) ← ofListToLit add
+        pure (← mkAppM ``Union.union #[A, pre],
+          mkAppN (mkConst ``nf_nil_eq) #[mkStrLit p, toExpr add, A, hA])
+    | [], _ => do
+        let (R, hR) ← ofListToLit rem
+        pure (← mkAppM ``SDiff.sdiff #[pre, R],
+          mkAppN (mkConst ``nf_nil_left_eq) #[mkStrLit p, toExpr rem, R, hR])
+    | _, _ => do
+        let (A, hA) ← ofListToLit add
+        let (R, hR) ← ofListToLit rem
+        pure (← mkAppM ``Union.union #[A, ← mkAppM ``SDiff.sdiff #[pre, R]],
+          mkAppN (mkConst ``nf_eq_pretty) #[mkStrLit p, toExpr add, toExpr rem, A, R, hA, hR])
+  return (e, ← mkExpectedTypeHint proof (← mkEq (nfExpr p add rem) e))
+
+/-- A reset region as `nfToPretty` writes it (or `Set.univ`), read back as `nf p add rem`, with
+a proof of `S = nf p add rem`. -/
+def nfOfExpr? (S : Expr) : MetaM (Option (String × List String × List String × Expr)) := do
+  if S.isAppOfArity ``Set.univ 1 then return some ("", [], [], mkConst ``univ_eq_nf)
+  let pre? (e : Expr) : Option String := match e.getAppFnArgs with
+    | (``prefixed, #[.lit (.strVal p)]) => some p
+    | _ => none
+  let diff? (e : Expr) : Option (String × List String) := match e.getAppFnArgs with
+    | (``SDiff.sdiff, #[_, _, a, b]) => do return (← pre? a, ← litToList? b)
+    | _ => none
+  let some (p, add, rem) := (match S.getAppFnArgs with
+      | (``prefixed, _) => (pre? S).map fun p => (p, [], [])
+      | (``SDiff.sdiff, _) => (diff? S).map fun (p, rem) => (p, [], rem)
+      | (``Union.union, #[_, _, a, b]) => do
+          let add ← litToList? a
+          match pre? b, diff? b with
+          | some p, _ => some (p, add, [])
+          | none, some (p, rem) => some (p, add, rem)
+          | none, none => none
+      | _ => none) | return none
+  let (_, h) ← nfToPretty p add rem
+  return some (p, add, rem, ← mkExpectedTypeHint (← mkEqSymm h) (← mkEq S (nfExpr p add rem)))
+
+/-- The image of `nf p add rem` under the swap of `a` and `f`, in normal form: a name leaving
+the set goes out of `add` and, if it has the prefix, into `rem`; a name entering it goes out of
+`rem` if it has the prefix, and into `add` otherwise.  New names go to the front, so that after a
+whole renaming (whose last pair is swapped first) `add` and `rem` are in the order of the
+renaming. -/
+def swapNF (p : String) (add rem : List String) (a f : String) : List String × List String :=
+  let ma := memB p add rem a
+  let mf := memB p add rem f
+  if ma == mf then (add, rem) else
+  let (out, into) := if ma then (a, f) else (f, a)
+  let hasPrefix (n : String) := p.toList.isPrefixOf n.toList
+  let add := add.filter (· != out)
+  let rem := if hasPrefix out && !rem.contains out then out :: rem else rem
+  if hasPrefix into then (add, rem.filter (· != into)) else (into :: add, rem)
+
+/-- Apply the lemma `lem` (partially applied) to a proof, by evaluation, of its next hypothesis,
+a `Bool` check `… = true`. -/
+def applyCheck (lem : Expr) : MetaM Expr := do
+  let .forallE _ dom _ _ ← whnfR (← inferType lem) | throwError "applyCheck: not a check"
+  return mkApp lem (← mkExpectedTypeHint (← mkEqRefl (toExpr true)) dom)
+
+/-- `renameName ren '' S` in normal form, given `S` in normal form: the swaps of `ren`
+one at a time, the last pair first (`image_renameName_nil`/`_cons`). -/
+partial def renameNF (S : Expr) (p : String) (add rem : List String) (hS : Expr) (renE : Expr) :
+    MetaM (Option (List String × List String × Expr)) := do
+  match renE.getAppFnArgs with
+  | (``List.nil, _) =>
+      return some (add, rem, mkAppN (mkConst ``image_renameName_nil)
+        #[S, mkStrLit p, toExpr add, toExpr rem, hS])
+  | (``List.cons, #[_, hd, tl]) =>
+      let (``Prod.mk, #[_, _, .lit (.strVal a), .lit (.strVal f)]) := hd.getAppFnArgs
+        | return none
+      let some (add₁, rem₁, h₁) ← renameNF S p add rem hS tl | return none
+      let (add₂, rem₂) := swapNF p add₁ rem₁ a f
+      unless swapOK p add₁ rem₁ add₂ rem₂ a f do return none
+      let lem := mkAppN (mkConst ``image_renameName_cons)
+        #[S, mkStrLit a, mkStrLit f, tl, mkStrLit p, toExpr add₁, toExpr rem₁, toExpr add₂,
+          toExpr rem₂, h₁]
+      return some (add₂, rem₂, ← applyCheck lem)
+  | _ => return none
+
+/-- **The set cleaning**: `ι '' S`, for `S` in normal form (or `Set.univ`) and `ι` one of `tag`,
+`escape`, `renameName ren` (with `ren` a literal), in normal form again, written out
+(`nfToPretty`).  `none` when the term is not of that shape. -/
+def cleanNameSet? (e : Expr) : MetaM (Option Simp.Result) := do
+  unless e.isAppOfArity ``Set.image 4 do return none
+  let (ι, S) := (e.getArg! 2, e.getArg! 3)
+  let some (p, add, rem, hS) ← nfOfExpr? S | return none
+  let args (p' : String) (add' rem' : List String) : Array Expr :=
+    #[S, mkStrLit p, toExpr add, toExpr rem, mkStrLit p', toExpr add', toExpr rem', hS]
+  let some (p', add', rem', h) ← (match ι.getAppFnArgs with
+      | (``tag, #[]) => do
+          let (p', add', rem') := (tag p, add.map tag, rem.map tag)
+          let h ← applyCheck (mkAppN (mkConst ``image_tag_eq) (args p' add' rem'))
+          return some (p', add', rem', h)
+      | (``escape, #[]) => do
+          if p.isEmpty then return none
+          let (p', add', rem') := (escape p, add.map escape, rem.map escape)
+          let h ← applyCheck (mkAppN (mkConst ``image_escape_eq) (args p' add' rem'))
+          return some (p', add', rem', h)
+      | (``renameName, #[renE]) => do
+          let some (add', rem', h) ← renameNF S p add rem hS renE | return none
+          return some (p, add', rem', h)
+      | _ => return none) | return none
+  let (pretty, hp) ← nfToPretty p' add' rem'
+  let proof ← mkExpectedTypeHint (← mkEqTrans h hp) (← mkEq e pretty)
+  return some { expr := pretty, proof? := some proof }
+
+/-- See `cleanNameSet?`. -/
+simproc_decl reduceNameSet (Set.image _ _) := fun e => do
+  let some r ← cleanNameSet? e | return .continue
+  return .done r
 
 /-- `l.chain (Lens.pair x y)` ↦ `Lens.pair x' y'`, where `x'`, `y'` are `l.chain x`, `l.chain y`
 cleaned (renamed, typically) and the `Disjoint` instance is synthesized for them anew.  Not a
@@ -1967,7 +2361,8 @@ def cleanLemmas : List Name :=
    ``StmtWithHoles.weaken_applyLens,
   -- into l-values
    ``Lens.chainSetter_liftLens, ``Lens.chainSetter_throwaway, ``Lens.chainSetter_toSetter,
-   ``Lens.chainSetter_resetSetter,
+   ``trafo_chainSetter_resetSetter, ``emb_chainSetter_resetSetter,
+   ``rename_chainSetter_resetSetter,
    ``Lens.chainSetter_chainSetter, ``Lens.chainGetter_chainGetter, ``Lens.chainGetter_toGetter,
    ``trafo_chainSetter_liftLens_global, ``emb_chainSetter_liftLens_global,
    ``rename_chainSetter_liftLens_global,
@@ -1980,13 +2375,17 @@ def cleanLemmas : List Name :=
    ``eval_trafo_global_lens, ``eval_emb_global_lens, ``eval_rename_global_lens,
    ``eval_trafo_global_getter, ``eval_emb_global_getter, ``eval_rename_global_getter]
 
+/-- The lemmas of the cleaning pass that have to apply before `Lens.chainGetter` is unfolded. -/
+def cleanPreLemmas : List Name := [``Lens.chainGetter_toGetter, ``Lens.chainGetter_chainGetter]
+
 /-- The definitions the cleaning pass unfolds: `Lens.chainGetter`, and `typeListToTuple`, which
 the content type of the parameter writer is spelled with (`Flatten.equivInLens_call`) — a
 variable renamed in a later round would otherwise take that spelling for its type. -/
 def cleanUnfold : List Name := [``Lens.chainGetter, ``typeListToTuple]
 
-/-- The simprocs of the cleaning pass: evaluating the new names, and renaming inside a tuple. -/
-def cleanSimprocs : List Name := [``reduceVarName, ``reduceChainPair]
+/-- The simprocs of the cleaning pass: evaluating the new names, renaming inside a tuple, and
+the reset regions. -/
+def cleanSimprocs : List Name := [``reduceVarName, ``reduceChainPair, ``reduceNameSet]
 
 /-- The simp context and simprocs of the cleaning pass, and nothing else. -/
 def cleanContext : MetaM (Simp.Context × Simp.SimprocsArray) := do
@@ -1997,6 +2396,12 @@ def cleanContext : MetaM (Simp.Context × Simp.SimprocsArray) := do
   -- evaluating names (`(x.chain y).chain z =?= x.chain (y.chain z)` first tries `x.chain y =?= x`)
   for n in cleanLemmas do
     for thm in ← mkSimpTheoremFromConst n do
+      thms := thms.addSimpTheorem { thm with rfl := false }
+  -- `chainGetter` is unfolded on the way down, so the lemmas about a `chainGetter` have to fire
+  -- before that: as pre-lemmas (a lens read as a getter, `L.toGetter`, has no `eval` in it for the
+  -- expression lemmas to find)
+  for n in cleanPreLemmas do
+    for thm in ← mkSimpTheoremFromConst n (post := false) do
       thms := thms.addSimpTheorem { thm with rfl := false }
   for n in cleanUnfold do thms ← thms.addDeclToUnfold n
   let mut procs : Simprocs := {}
@@ -2674,13 +3079,6 @@ def inlineInProcedure (n : Nat) (p : Expr) : MetaM (Expr × Expr) := do
   let (p', proof, _) ← inProcedure p fun body avoid => return (← inlineProcedure n body avoid, ())
   return (p', proof)
 
-/-- Inline call sites until none is left that can be inlined — callees spelled out, named by a
-definition or through modules; holes and abstract callees stay calls — then give the made-up names
-readable ones (avoiding `avoid` too). -/
-def inlineAll (stmt : Expr) (avoid : Array String := #[]) : MetaM FlatteningResult := do
-  let res ← stepAllCalls inlineCall stmt
-  return { (← withRenaming avoid res.toFlattenStep) with count := res.count }
-
 end Flatten
 
 /-! ## Hoare triples
@@ -2743,18 +3141,15 @@ def cleanCondition (C l : Expr) : MetaM (Expr × Expr) := do
   let r ← cleanStmt lam
   return (r.expr, ← r.getProof)
 
-/-- On a goal `hoareStmt A s B`: inline the calls of `s` (`inlineAll`, or `inlineProcedure n`
-for `hoare_inline n`) and continue with the triple about the result, its conditions read through
-the renaming and cleaned.  The names the conditions use count as taken. -/
-def hoareInline (n? : Option Nat) (g : MVarId) : MetaM MVarId := g.withContext do
+/-- On a goal `hoareStmt A s B`: inline call site `n` of `s` (`inlineProcedure`) and continue with
+the triple about the result, its conditions read through the renaming and cleaned.  The names the
+conditions use count as taken. -/
+def hoareInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   unless ty.isAppOfArity ``hoareStmt 4 do
     throwError "hoare_inline: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
   let (A, s, B) := (ty.getArg! 1, ty.getArg! 2, ty.getArg! 3)
-  let avoid := namesIn B (namesIn A)
-  let step ← match n? with
-    | some n => inlineProcedure n s avoid
-    | none => pure (← inlineAll s avoid).toFlattenStep
+  let step ← inlineProcedure n s (namesIn B (namesIn A))
   let (A', hA) ← cleanCondition A step.trafo
   let (B', hB) ← cleanCondition B step.trafo
   let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[A', step.stmt, B']) (← g.getTag)
@@ -2763,11 +3158,11 @@ def hoareInline (n? : Option Nat) (g : MVarId) : MetaM MVarId := g.withContext d
       some step.trafo, some step.proof, some hA, some hB, some g'])
   return g'.mvarId!
 
-/-- `hoare_inline`: on a goal `hoareStmt A s B`, inline every call of `s` that can be inlined
-(callees spelled out, named by a definition or through modules), and continue with the triple
-about the flattened statement.  `hoare_inline n` inlines call site `n` only. -/
-elab "hoare_inline" n:(ppSpace num)? : tactic =>
-  liftMetaTactic1 fun g => some <$> hoareInline (n.map (·.getNat)) g
+/-- `hoare_inline n`: on a goal `hoareStmt A s B`, inline call site `n` of `s` (numbered in
+pre-order, holes included; the callee spelled out, named by a definition or through modules), and
+continue with the triple about the result.  The callee's own calls stay calls. -/
+elab "hoare_inline " n:num : tactic =>
+  liftMetaTactic1 fun g => some <$> hoareInline n.getNat g
 
 end Flatten
 

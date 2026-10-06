@@ -140,16 +140,20 @@ def StmtWithHoles.assign [ProgramSpec]
   (x : Setter a ProgramState) (e : Getter a ProgramState) : StmtWithHoles h :=
   StmtWithHoles.sample x ⟨fun st => pure (e.get st)⟩
 
-/-- The setter that puts the region `R` of the locals back to `VariableAssignment.init`, the
-value every local has when a procedure starts; the value written, `()`, is ignored.  `R` is a
-whole `VariableAssignment` (or a part of one renamed, see `VariableAssignment.embed`), which lives
-in `Type 1`, so it cannot itself be the value of an `assign`; `assign R.resetSetter ⟨fun _ => ()⟩`
-is the reset.  Flattening (`Logic/Inline.lean`) emits it for the frame of the callee it
-inlines. -/
+open Classical in
+/-- The setter that puts the local variables with a name in `S` (of every type) back to
+`VariableAssignment.init`, the value every local has when a procedure starts, and leaves every
+other one alone; the value written, `()`, is ignored.  The values put back form a
+`VariableAssignment`, which lives in `Type 1`, so they cannot themselves be the value of an
+`assign`; `assign (resetSetter S) ⟨fun _ => ()⟩` is the reset.  Flattening (`Logic/Inline.lean`)
+emits it for the frame of the callee it inlines. -/
 noncomputable
-def Lens.resetSetter (R : Lens VariableAssignment ProgramState) : Setter Unit ProgramState where
-  set _ σ := R.set VariableAssignment.init σ
-  set_set σ _ _ := R.set_set σ _ _
+def resetSetter (S : Set String) : Setter Unit ProgramState where
+  set _ σ := ⟨σ.globals, fun v => if v.name ∈ S then VariableAssignment.init v else σ.locals v⟩
+  set_set σ _ _ := by
+    congr 1
+    funext v
+    by_cases h : v.name ∈ S <;> simp [h]
 
 def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
       (params : Getter sig.ParamType ProgramState) : Stmt
