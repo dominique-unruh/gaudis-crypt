@@ -23,9 +23,10 @@ Phase 6 (flattening, `Logic/Inline.lean`) is done (2026-10-06), along §4 with t
   where `ren` lists the new name of each callee variable (`w ↦ w0` on a clash);
 * the reset of §4.4 is `assign R.resetSetter ⟨fun _ => ()⟩` (`Lens.resetSetter`, a `Setter Unit`
   that writes `init` through `R` and ignores its value): the frame is a `VariableAssignment`, in
-  `Type 1`, so it cannot be the value of an `assign` itself.  It does not print as surface syntax
-  yet (Q8; planned: let any `Setter` be an l-value).  The parameters are then written by one
-  tuple assignment `z₁, …, zₙ <- (args);`;
+  `Type 1`, so it cannot be the value of an `assign` itself.  It prints as
+  `(Flatten.calleeFrame ren).resetSetter <- ();`: any `Setter` on the program state is an
+  l-value (`lval%`), which settles Q8 without a dedicated statement.  The parameters are then
+  written by one tuple assignment `z₁, …, zₙ <- (args);`;
 * every side condition is a generic lemma (`Flatten.equivInLens_call`), proved once; the
   procedure level (`Flatten.procedureDenotation_congr`) needs the caller's parameter names to
   stay fixed, which the meta code ensures by not choosing them as new names.

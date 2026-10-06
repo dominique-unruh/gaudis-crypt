@@ -1041,7 +1041,8 @@ theorem equivInLens_call {hCtx : HoleSigs} {sig : ProcedureSignature} (ren : Lis
     (P : Setter (typeListToTuple sig.params) ProgramState)
     (hP : IsParamWriter (emb ren) names sig.params hlen P) :
     (StmtWithHoles.call' (h := hCtx) x names hlen hnodup b r args).EquivInLens
-      ((StmtWithHoles.assign (calleeFrame ren).resetSetter ⟨fun _ => ()⟩).seq
+      -- the binder is named: an anonymous one is `x✝`, which the printer takes for an `x`
+      ((StmtWithHoles.assign (calleeFrame ren).resetSetter ⟨fun _st => ()⟩).seq
         ((StmtWithHoles.assign (a := typeListToTuple sig.params) P
             ((trafo ren).chainGetter args)).seq
           ((StmtWithHoles.weaken (b.applyLens (emb ren))).seq
@@ -1057,7 +1058,7 @@ theorem equivInLens_call {hCtx : HoleSigs} {sig : ProcedureSignature} (ren : Lis
     simp only [σ₁, calleeFrame_set, (emb ren).set_get]
   have hpre := StmtWithHoles.equivInLens_flattenCall (hCtx := hCtx) (trafo ren) (emb ren)
     (trafo_chain_globalL ren) (emb_chain_globalL ren) (trafo_get_emb_set ren) x names hlen hnodup
-    args b r ((StmtWithHoles.assign (calleeFrame ren).resetSetter ⟨fun _ => ()⟩).seq
+    args b r ((StmtWithHoles.assign (calleeFrame ren).resetSetter ⟨fun _st => ()⟩).seq
       (StmtWithHoles.assign P ((trafo ren).chainGetter args))) f
     (fun _ τ => programDenotation_seq_apply_det (programDenotation_assign_apply _ _)
       (programDenotation_assign_apply _ _) τ)

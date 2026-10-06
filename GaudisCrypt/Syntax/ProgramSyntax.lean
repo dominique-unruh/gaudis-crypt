@@ -208,12 +208,29 @@ macro_rules
   | `([lvalRawList| $x:term]) => `([lvalRaw| $x])
   | `([lvalRawList| $x:term, $xs:term,*]) => `(Lens.pair [lvalRaw| $x] [lvalRawList| $xs,*])
 
+/-- `lval% x`: `x` as an l-value.  A setter on the program state is one already and is used as
+it is (`(Flatten.calleeFrame ren).resetSetter`, say: a setter that is not a lens); anything else
+is a lens and goes through `liftLens`. -/
+syntax (name := lvalElab) "lval% " term:max : term
+
+open Lean Elab Term Meta in
+@[term_elab lvalElab, inherit_doc lvalElab]
+def elabLVal : TermElab := fun stx expectedType? => do
+  let e ← elabTerm stx[1] none
+  let ty ← whnfR (← instantiateMVars (← inferType e))
+  if ty.isAppOf ``Setter then
+    ensureHasType expectedType? e
+  else
+    elabAppArgs (← mkConstWithFreshMVarLevels ``liftLens) #[] #[.expr e] expectedType?
+      (explicit := false) (ellipsis := false)
+
 /-- An l-value lifted into the current full state `ProgramState`.  Accepts a single
 lens, a parenthesised tuple `(a, b)`, or a bare comma-list `a, b` (top-level
-parens optional) — all interpreted via `Lens.pair`. -/
+parens optional) — all interpreted via `Lens.pair` — or a single setter on the program state
+(`lval%`). -/
 scoped syntax "[lval| " term,+ "]" : term
 macro_rules
-  | `([lval| $xs:term,*]) => `(liftLens [lvalRawList| $xs,*])
+  | `([lval| $xs:term,*]) => `(lval% ([lvalRawList| $xs,*]))
 
 /-- A single `_` l-value discards the value written to it (`Setter.throwaway`).  Declared
 after the general rule so it takes priority. -/
@@ -1038,7 +1055,8 @@ private partial def delabLValueList : DelabM (Array Term) := do
 /-- The l-value of an assignment/sample/call: `liftLens x` ↦ the components of `x`,
 `Setter.throwaway` ↦ `_`.  A lens used as a setter directly is what `liftLens` reduces to, so it
 prints the same way: `x.intoGlobal.toSetter` ↦ `x` (a global), `L.toSetter` ↦ `L` (a lens into
-the `ProgramState`).  Any other setter has no l-value spelling, and the delaborator fails. -/
+the `ProgramState`).  Any other setter is an l-value as it is (`lval%`) and prints as itself —
+except a structure literal `{ set := …, … }`, whose proof field does not print. -/
 private def delabLValue : DelabM (Array Term) := do
   match (← getExpr).getAppFnArgs with
   | (``Setter.throwaway, _) => return #[← `(_)]
@@ -1050,7 +1068,8 @@ private def delabLValue : DelabM (Array Term) := do
       withNaryArg 2 do
         if (← getExpr).isAppOfArity ``Lens.intoGlobal 3 then withNaryArg 2 delabLValueList
         else delabLValueList
-  | _ => failure
+  | (``Setter.mk, _) => failure
+  | _ => return #[← delab]
 
 /-- Is the current sub-expression the throwaway l-value (a `call` with no result)? -/
 private def isThrowaway : DelabM Bool := return (← getExpr).isAppOf ``Setter.throwaway

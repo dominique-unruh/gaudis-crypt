@@ -737,6 +737,17 @@ info: GaudiProg[
 #guard_msgs in
 #roundtrip GaudiProg[ ((varLens (.mk "a" Nat)).intoLocal) <- $a; ]
 
+-- a setter that is not a lens is an l-value as it is (here: put the locals back to their
+-- initial values; flattening emits this for a callee's frame)
+/--
+info: GaudiProg[
+    ProgramState.localL.resetSetter <- ();
+    a <- 1;
+]
+-/
+#guard_msgs in
+#roundtrip GaudiProg[ ProgramState.localL.resetSetter <- (); a <- 1; ]
+
 /-! #### Rejected declarations -/
 
 /-- error: `x` is declared twice -/
