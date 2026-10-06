@@ -674,7 +674,7 @@ are lenses. -/
 -- an expression slot that reads the state directly; the l-value is a lens used as a setter
 /--
 info: GaudiProg[
-    a <- a.get CurrentState.state.globals + 1;
+    a <- §a + 1;
 ]
 -/
 #guard_msgs in
@@ -702,7 +702,7 @@ info: GaudiProg[
 -- a condition of the same kind
 /--
 info: GaudiProg[
-    while (decide (a.get CurrentState.state.globals = 0)) {
+    while (decide (§a = 0)) {
       a <- 1;
     }
 ]

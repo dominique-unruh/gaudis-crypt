@@ -854,10 +854,107 @@ private partial def occursNested (x : FVarId) (e : Lean.Expr) (nested : Bool := 
     | .mdata _ b | .proj _ _ b => occursNested x b nested
     | _ => false
 
+/-- `L.get s`, that is `Getter.get (Lens.toGetter L) s`, ↦ `(L, s)`. -/
+private def lensGet? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr) := do
+  guard (e.isAppOfArity ``Getter.get 4)
+  let g := e.getArg! 2
+  guard (g.isAppOfArity ``Lens.toGetter 3)
+  return (g.getArg! 2, e.getArg! 3)
+
+/-- `s.globals` (`i = 0`) or `s.locals` (`i = 1`), as a projection function or a primitive
+projection, ↦ `s`. -/
+private def stateProj? (i : Nat) (e : Lean.Expr) : Option Lean.Expr :=
+  let fn := if i == 0 then ``ProgramState.globals else ``ProgramState.locals
+  if e.isAppOfArity fn 2 then some e.appArg!
+  else match e with
+    | .proj ``ProgramState j s => if j == i then some s else none
+    | _ => none
+
+/-- Rewrite, up to defeq, the reads in a function of the state into the forms the surface syntax
+prints well:
+
+* `§GaudiExpr[ e ]` with `e` not reading its own state is `e`, whatever state it is read at
+  (what substituting a `let res := GaudiExpr[ … ]` leaves behind);
+* `(varLens v).get s.locals` is the read `(varLens v).intoLocal.get s` of the local slot, which
+  prints as a variable.
+
+Each rewrite is checked with `isDefEq` (the second holds by unfolding `Lens.intoLocal`). -/
+private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun e => do
+    if e.isAppOfArity ``eval 6 then
+      let g := e.getArg! 5
+      if g.isAppOfArity ``Getter.mk 3 then
+        if let .lam _ _ b _ := g.getArg! 2 then
+          if !b.hasLooseBVar 0 then
+            let b' := b.lowerLooseBVars 1 1
+            if ← Meta.isDefEq e b' then return .done b'
+    if let some (l, s) := lensGet? e then
+      if l.isAppOfArity ``varLens 1 then
+        if let some s' := stateProj? 1 s then
+          let r ← try
+              let slot ← Meta.mkAppOptM ``Lens.intoLocal #[some inst, none, some l]
+              some <$> Meta.mkAppM ``Getter.get #[← Meta.mkAppM ``Lens.toGetter #[slot], s']
+            catch _ => pure none
+          if let some r := r then
+            if ← Meta.isDefEq r e then return .done r
+    return .continue)
+
+/-- Rewrite every read at the current state `cur` — `L.get CurrentState.state`, or
+`x.get CurrentState.state.globals` for a global — into the sigil read `eval L`, which prints as
+`§L`. -/
+private def sigilReads (inst cur : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun e => do
+    let some (l, s) := lensGet? e | return .continue
+    let isCur (s : Lean.Expr) := s.isAppOfArity ``CurrentState.state 2 && s.appArg! == cur
+    unless isCur s || (stateProj? 0 s).any isCur do return .continue
+    let r ← try some <$> Meta.mkAppOptM ``eval #[some inst, none, none, none, some cur, some l]
+      catch _ => pure none
+    let some r := r | return .continue
+    if ← Meta.isDefEq r e then return .done r else return .continue)
+
+/-- Rewrite every `eval x` in `e` that does not read at the `CurrentState` in scope — the
+innermost enclosing `GaudiExpr[ ]`'s, `amb` outside all of them — into `Evaluatable.eval s x`,
+which names the state `s` it reads at.  The `eval` unexpander prints `§x` whatever the instance,
+and `§x` re-elaborates to a read at the state in scope. -/
+private partial def pinEvals (amb : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr := do
+  if (e.find? (·.isConstOf ``eval)).isNone then return e
+  if e.isAppOfArity ``Getter.mk 3 then
+    if let .lam n t b bi := e.getArg! 2 then
+      if t.isAppOfArity ``ProgramState 1 then
+        let f ← Meta.withLocalDecl n bi t fun st => do
+          let amb' ← Meta.mkAppOptM ``CurrentState.mk #[some t.appArg!, some st]
+          Meta.mkLambdaFVars #[st] (← pinEvals amb' (b.instantiate1 st))
+        return mkApp3 e.getAppFn (e.getArg! 0) (e.getArg! 1) f
+  if e.isAppOfArity ``eval 6 then
+    let args := e.getAppArgs
+    let x ← pinEvals amb args[5]!
+    let cs := args[4]!
+    if cs == amb then return mkAppN e.getAppFn (args.set! 5 x)
+    let s := if cs.isAppOfArity ``CurrentState.mk 2 then cs.appArg!
+      else mkApp2 (mkConst ``CurrentState.state) args[0]! cs
+    return ← Meta.mkAppOptM ``Evaluatable.eval
+      #[some args[0]!, some args[1]!, some args[2]!, some args[3]!, some s, some x]
+  match e with
+  | .app f a => return .app (← pinEvals amb f) (← pinEvals amb a)
+  | .lam n t b bi => Meta.withLocalDecl n bi t fun x => do
+      Meta.mkLambdaFVars #[x] (← pinEvals amb (b.instantiate1 x))
+  | .forallE n t b bi => Meta.withLocalDecl n bi t fun x => do
+      Meta.mkForallFVars #[x] (← pinEvals amb (b.instantiate1 x))
+  | .letE n t v b _ => Meta.withLetDecl n t (← pinEvals amb v) fun x => do
+      Meta.mkLetFVars #[x] (← pinEvals amb (b.instantiate1 x)) (usedLetOnly := false)
+  | .mdata d b => return .mdata d (← pinEvals amb b)
+  | .proj s i b => return .proj s i (← pinEvals amb b)
+  | e => return e
+
 /-- `f : ProgramState → A` ↦ the getter `Getter.mk fun st => f CurrentState.state` (with `f`
 applied β-reduced), which `delabGaudiExpr` prints as `f CurrentState.state`.  Its `get` is `f` up
 to η, so this is how a function of the state that is not of the shape `GaudiExpr[ ]` builds is
 printed faithfully.  `CurrentState.state` is the state `GaudiExpr[ ]` reads at.
+
+Before that, the reads in `f` are brought into printable form, each step up to defeq:
+`simplifyReads` first; then, once the state is `CurrentState.state`, a read of a lens at it
+becomes the sigil read `§L` (`sigilReads`); and a sigil read at any *other* state is pinned to
+it (`pinEvals`), since `§x` would read at the current one.
 
 `CurrentState.state` reads the *innermost* `CurrentState`, though, and a `GaudiExpr[ ]` nested in
 `f` installs its own: written there, it would read the nested state.  When `f` mentions its
@@ -878,9 +975,10 @@ def ProgramSyntax.getterViaState (f : Lean.Expr) : MetaM Lean.Expr := do
     let cur ← Meta.mkAppOptM ``CurrentState.mk #[some inst, some st]
     let v ← Meta.mkAppOptM ``CurrentState.state #[some inst, some cur]
     Meta.withLetDecl nm ps v fun σ => do
-      let applied := f.beta #[σ]
-      let body ← if occursNested σ.fvarId! applied then Meta.mkLetFVars #[σ] applied
-        else pure (applied.replaceFVar σ v)
+      let applied ← simplifyReads inst (f.beta #[σ])
+      let body ← if occursNested σ.fvarId! applied then
+          Meta.mkLetFVars #[σ] (← pinEvals cur applied)
+        else pinEvals cur (← sigilReads inst cur (applied.replaceFVar σ v))
       Meta.mkAppM ``Getter.mk #[← Meta.mkLambdaFVars #[st] body]
 
 /-- An expression slot of a statement.  What `GaudiExpr[ e ]` builds prints as `e`; any other
@@ -1141,12 +1239,25 @@ end ProgramSyntax
 
 open ProgramSyntax
 
+/-- The frame variable (`withVarLocals`) that the slot `(n, T)` is bound to, if one is in scope
+under that name.  A slot built after the frame was collected — by `getterViaState` rewriting a
+condition — is not replaced by the variable, but is still the same slot. -/
+private def frameVarFor? (n : String) (ty : Lean.Expr) : MetaM (Option Name) := do
+  let some d := (← getLCtx).findFromUserName? (.mkSimple n) | return none
+  let some v := d.value? | return none
+  let some (n', ty') := varSlot? v | return none
+  unless n' == n && (← Meta.withReducible (Meta.isDefEq ty ty')) do return none
+  return some d.userName
+
 /-- A local variable slot prints as `localVarLens "x" T`, which is how it is written (the key and
-its proof are filled in by elaboration). -/
+its proof are filled in by elaboration) — or as the frame variable `x` bound to it, if there is
+one. -/
 @[delab app.GaudisCrypt.localVarLens]
 private def delabLocalVarLens : Delab := do
   guardSurfaceSyntax
   guard ((← getExpr).getAppNumArgs == 6)
+  if let some (n, ty) := varSlot? (← getExpr) then
+    if let some nm ← frameVarFor? n ty then return mkIdent nm
   let f := mkIdent (← unresolveNameGlobal ``localVarLens)
   `($f $(← withNaryArg 1 delab) $(← withNaryArg 2 delab))
 
@@ -1165,12 +1276,14 @@ private def delabVariableName : Delab := do
   `($f $(← withNaryArg 0 delab) $(← withNaryArg 1 delab))
 
 /-- The unfolding `(varLens ⟨"x", T, …⟩).intoLocal` of a local slot prints folded, as
-`localVarLens "x" T`.  The two are defeq: the key is a numeral or `encode "x"`
+`localVarLens "x" T` (or as the frame variable bound to it, as above).  The two are defeq: the
+key is a numeral or `encode "x"`
 (`unfoldedVarSlot?` checks), and `nonempty` is a proof. -/
 @[delab app.GaudisCrypt.Lens.intoLocal]
 private def delabUnfoldedVarSlot : Delab := do
   guardSurfaceSyntax
-  let some _ := unfoldedVarSlot? (← getExpr) | failure
+  let some (n, ty) := unfoldedVarSlot? (← getExpr) | failure
+  if let some nm ← frameVarFor? n ty then return mkIdent nm
   let f := mkIdent (← unresolveNameGlobal ``localVarLens)
   withNaryArg 2 <| withNaryArg 0 do
     `($f $(← withNaryArg 0 delab) $(← withNaryArg 1 delab))

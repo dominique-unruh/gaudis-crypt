@@ -185,7 +185,7 @@ A condition the macro did not build (one a rewrite or `dsimp` left behind) print
 still round-trips. -/
 
 /--
-info: hoare[ True ==> x.get CurrentState.state.globals = 2 ] {
+info: hoare[ True ==> §x = 2 ] {
     x <- §x + 1;
 }
 -/
@@ -223,7 +223,7 @@ info: hoare[ GaudiExpr[ §x = 1 ].get { globals := CurrentState.state.globals, l
 
 -- a local slot in such a condition is still recovered as a `var`
 /--
-info: hoare[ True ==> u.get CurrentState.state = 2 ] {
+info: hoare[ True ==> §u = 2 ] {
     var u : ℤ;
     u <- 2;
 }
@@ -234,7 +234,7 @@ info: hoare[ True ==> u.get CurrentState.state = 2 ] {
 
 -- a condition without the body's spine binders: the macro wraps it in them again
 /--
-info: hoare[ x.get CurrentState.state.globals = 1 ==> True ] {
+info: hoare[ §x = 1 ==> True ] {
     let two : ℤ := 2;
     x <- two;
 }
@@ -257,11 +257,25 @@ info: fun two ↦
 #check fun two : Int => hoareStmt (fun σ => x.get σ.globals = two)
   GaudiProg[ let two := (2 : Int); x <- two; ] (fun _ => True)
 
+-- a sigil read at a state other than the current one names that state: `§u` would read at the
+-- current state, whose locals are not reset
+/--
+info: hoare[ Evaluatable.eval { globals := CurrentState.state.globals, locals := VariableAssignment.init } u = 0 ==> True ] {
+    var u : ℤ;
+    u <- 2;
+}
+-/
+#guard_msgs in
+#roundtrip hoareStmt
+  (fun σ => (letI : CurrentState := ⟨⟨σ.globals, VariableAssignment.init⟩⟩;
+    §(localVarLens "u" Int)) = 0)
+  GaudiProg[ (localVarLens "u" Int) <- (2 : Int); ] (fun _ => True)
+
 -- the shape `hoareProc_as_hoareStmt` leaves (after a `dsimp`): a `Stmt.call` on `varLens` slots,
 -- and a postcondition reading the result slot off the locals
 /--
 info: fun q ↦
-  hoare[ True ==> (varLens (VariableName.mk "res" ℤ)).get CurrentState.state.locals = 2 ] {
+  hoare[ True ==> §res = 2 ] {
       var res : ℤ, args : ℤ;
       res <- call q (§args);
 }
