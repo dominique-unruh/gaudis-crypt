@@ -203,13 +203,10 @@ theorem wp_commit (args : group.G × group.F)
   obtain ⟨a, b⟩ := args
   simp only [Pedersen.commit.procedure, ProcedureWithHoles.initLocals,
     VariableAssignment.setParams]
-  -- `setParams` keys its slots by `VariableName.encode "h"`, the body by the literal it
-  -- evaluates to; unfolding `encode` lets simp see that they are the same slot
   simp [programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g,
     wp_lift, uniform_expected, expected_pure,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
-    VariableName.encode, VariableName.encodeChars]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
 theorem wp_verify (args : group.G × group.F × group.G × group.F)
     (f : ProgramDenotation.Post State Bool) :
@@ -226,8 +223,7 @@ theorem wp_verify (args : group.G × group.F × group.G × group.F)
   simp [programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g,
     wp_lift, expected_pure,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
-    VariableName.encode, VariableName.encodeChars]
+    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
 /-! ### Reducing the applied functor
 
@@ -309,8 +305,7 @@ theorem pedersen_correctness (m : group.F) (σ : State) :
     ProcedureWithHoles.initLocals, VariableAssignment.setParams,
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
-    ProgramState.globalL, VariableName.encode, VariableName.encodeChars,
-    Set.indicator, Set.mem_setOf_eq]
+    ProgramState.globalL, Set.indicator, Set.mem_setOf_eq]
   -- descend through the two samplings with `rw` (full-defeq unification), summand by summand
   rw [wp_gen]
   refine Finset.sum_eq_zero fun x _ => ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)

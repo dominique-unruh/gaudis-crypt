@@ -128,6 +128,20 @@ elab "variable_name_key" : tactic => do
     throwError "variable_name_key: the key{indentExpr key}\nis not{indentExpr value}"
   goal.refl
 
+open Lean Meta Simp in
+/-- `VariableName.encode "x"` ↦ the literal `variable_name_key` assigns for `"x"`.  A slot built
+from a name that is a variable (as in `setParams`) carries the key `encode n`, and once `n` is
+instantiated to `"x"` it is still `encode "x"`, while the slot `localVarLens "x" T` written in a
+program carries the literal.  The two are defeq but not syntactically equal, so without this
+`simp` treats them as different slots (`Function.update_self` does not fire).  The rewrite
+is by `rfl`: `encode` reduces on literals.  A `dsimproc`, not a `simproc`: the key is an argument
+other arguments depend on (`keyCorrect`, and the value written in a `Function.update`), and
+`simp` rewrites such positions only with definitional steps. -/
+dsimproc VariableName.reduceEncode (VariableName.encode _) := fun e => do
+  unless e.isAppOfArity ``VariableName.encode 1 do return .continue
+  let .lit (.strVal str) := e.appArg! | return .continue
+  return .done (mkNatLit (VariableName.encode str))
+
 /-- A program variable's name and type.  `key` is `encode name` as a literal and is filled in
 automatically, together with its proof (see the module docstring).  Two `VariableName`s are
 equal iff their names and types are (`nonempty` is a proposition, and `key`/`keyCorrect` are

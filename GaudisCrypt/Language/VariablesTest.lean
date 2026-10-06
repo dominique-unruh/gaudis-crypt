@@ -109,13 +109,16 @@ Hint: Type class instance resolution failures can be inspected with the `set_opt
 example : Lens.Disjoint (varLens (.mk "x" Int)) (varLens (.mk "x" Bool)) := inferInstance
 
 -- `setParams` writes the parameter slots.  Its slots carry the key `encode "x"`, not the literal
--- `121`, so the last step is by unfolding, not by `simp` …
+-- `121`; the `VariableName.reduceEncode` simproc evaluates it, so `simp` sees one slot …
 example : VariableAssignment.setParams ["x", "y"] [Int, Bool] rfl (3, true)
     VariableAssignment.init (.mk "x" Int) = (3 : Int) := by
   classical
   simp only [VariableAssignment.setParams, varLens_set]
-  rw [Function.update_of_ne (by simp)]
-  exact Function.update_self _ _ _
+  simp
+
+-- the dsimproc on its own (`dsimp only` fails when nothing is rewritten)
+example : VariableName.encode "x" = 121 := by
+  dsimp only [VariableName.reduceEncode]
 
 -- … and leaves the other slots alone
 example (m : VariableAssignment) : VariableAssignment.setParams ["x", "y"] [Int, Bool] rfl
