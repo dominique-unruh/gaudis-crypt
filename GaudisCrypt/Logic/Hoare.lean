@@ -81,8 +81,8 @@ lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedur
     frame, so the two need not be disjoint, and neither needs to avoid `p`'s parameter names.
     `args` is read before `res` is written, and only `res` and the globals are read afterwards.
     `hoareStmt` quantifies over every initial state; the `←` direction picks one whose `args` slot
-    holds the given arguments.  Typical instances are `varLens` slots, e.g. `varLens ("res", ret)`
-    and one slot per parameter. -/
+    holds the given arguments.  The tactic `hoare_proc_to_stmt` (`Syntax/HoareSyntax.lean`) picks
+    the two for a given triple: one local variable per parameter, and one for the result. -/
 theorem hoareProc_as_hoareStmt {sig : ProcedureSignature}
     (resL : Lens sig.ret VariableAssignment) (argsL : Lens sig.ParamType VariableAssignment)
     (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → State → Prop) :

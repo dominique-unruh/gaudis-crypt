@@ -855,7 +855,7 @@ private partial def occursNested (x : FVarId) (e : Lean.Expr) (nested : Bool := 
     | _ => false
 
 /-- `L.get s`, that is `Getter.get (Lens.toGetter L) s`, ↦ `(L, s)`. -/
-private def lensGet? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr) := do
+def ProgramSyntax.lensGet? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr) := do
   guard (e.isAppOfArity ``Getter.get 4)
   let g := e.getArg! 2
   guard (g.isAppOfArity ``Lens.toGetter 3)
@@ -873,6 +873,8 @@ private def stateProj? (i : Nat) (e : Lean.Expr) : Option Lean.Expr :=
 /-- Rewrite, up to defeq, the reads in a function of the state into the forms the surface syntax
 prints well:
 
+* `GaudiExpr[ e ].get s` is `e` read at `s` (its sigil reads then read at `s`, which
+  `pinEvals` moves back to the current state where that is the same);
 * `§GaudiExpr[ e ]` with `e` not reading its own state is `e`, whatever state it is read at
   (what substituting a `let res := GaudiExpr[ … ]` leaves behind);
 * `(varLens v).get s.locals` is the read `(varLens v).intoLocal.get s` of the local slot, which
@@ -881,6 +883,9 @@ prints well:
 Each rewrite is checked with `isDefEq` (the second holds by unfolding `Lens.intoLocal`). -/
 private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
   Meta.transform e (post := fun e => do
+    -- `GaudiExpr[ e ].get s` is `e` read at `s`: the projection of the constructor
+    if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isAppOfArity ``Getter.mk 3 then
+      return .visit (((e.getArg! 2).getArg! 2).beta #[e.getArg! 3])
     if e.isAppOfArity ``eval 6 then
       let g := e.getArg! 5
       if g.isAppOfArity ``Getter.mk 3 then
@@ -888,7 +893,7 @@ private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :
           if !b.hasLooseBVar 0 then
             let b' := b.lowerLooseBVars 1 1
             if ← Meta.isDefEq e b' then return .done b'
-    if let some (l, s) := lensGet? e then
+    if let some (l, s) := ProgramSyntax.lensGet? e then
       if l.isAppOfArity ``varLens 1 then
         if let some s' := stateProj? 1 s then
           let r ← try
@@ -904,7 +909,7 @@ private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :
 `§L`. -/
 private def sigilReads (inst cur : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
   Meta.transform e (post := fun e => do
-    let some (l, s) := lensGet? e | return .continue
+    let some (l, s) := ProgramSyntax.lensGet? e | return .continue
     let isCur (s : Lean.Expr) := s.isAppOfArity ``CurrentState.state 2 && s.appArg! == cur
     unless isCur s || (stateProj? 0 s).any isCur do return .continue
     let r ← try some <$> Meta.mkAppOptM ``eval #[some inst, none, none, none, some cur, some l]
@@ -913,7 +918,8 @@ private def sigilReads (inst cur : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr 
     if ← Meta.isDefEq r e then return .done r else return .continue)
 
 /-- Rewrite every `eval x` in `e` that does not read at the `CurrentState` in scope — the
-innermost enclosing `GaudiExpr[ ]`'s, `amb` outside all of them — into `Evaluatable.eval s x`,
+innermost enclosing `GaudiExpr[ ]`'s, `amb` outside all of them — into a read at that one if
+that is defeq (a global read at `⟨σ.globals, …⟩`, say), and otherwise into `Evaluatable.eval s x`,
 which names the state `s` it reads at.  The `eval` unexpander prints `§x` whatever the instance,
 and `§x` re-elaborates to a read at the state in scope. -/
 private partial def pinEvals (amb : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr := do
@@ -929,7 +935,9 @@ private partial def pinEvals (amb : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr
     let args := e.getAppArgs
     let x ← pinEvals amb args[5]!
     let cs := args[4]!
-    if cs == amb then return mkAppN e.getAppFn (args.set! 5 x)
+    let atAmb := mkAppN e.getAppFn ((args.set! 5 x).set! 4 amb)
+    if cs == amb then return atAmb
+    if ← Meta.isDefEq atAmb e then return atAmb
     let s := if cs.isAppOfArity ``CurrentState.mk 2 then cs.appArg!
       else mkApp2 (mkConst ``CurrentState.state) args[0]! cs
     return ← Meta.mkAppOptM ``Evaluatable.eval

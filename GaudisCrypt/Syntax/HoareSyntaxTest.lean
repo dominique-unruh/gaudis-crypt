@@ -202,13 +202,11 @@ info: fun P ↦
 #guard_msgs in
 #roundtrip fun P : ProgramState → Prop => hoareStmt P GaudiProg[ x <- §x + 1; ] P
 
--- a `GaudiExpr[ ]` inside the condition.  The postcondition mentions the outer state inside it,
--- so the state is `let`-bound there (a Lean binder, which the inner `CurrentState` cannot
--- capture); the precondition mentions it only outside, so it is inlined
+-- a `GaudiExpr[ ]` read at another state, as the procedure-triple notation builds its conditions:
+-- it is read off at that state.  A global read there is the global read at the current state; a
+-- local one is not (the locals are reset), so it names the state it reads at
 /--
-info: hoare[ GaudiExpr[ §x = 1 ].get { globals := CurrentState.state.globals, locals := VariableAssignment.init } ==>
-    let σ := CurrentState.state;
-    GaudiExpr[ u.get σ = §u ].get { globals := σ.globals, locals := VariableAssignment.init } ]
+info: hoare[ §x = 1 ==> §u = Evaluatable.eval { globals := CurrentState.state.globals, locals := VariableAssignment.init } u ]
     {
     var u : ℤ;
     x <- §x + 1;
@@ -220,6 +218,11 @@ info: hoare[ GaudiExpr[ §x = 1 ].get { globals := CurrentState.state.globals, l
   GaudiProg[ x <- §x + 1; ]
   (fun σ => GaudiExpr[ (localVarLens "u" Int).get σ = §(localVarLens "u" Int) ].get
     ⟨σ.globals, VariableAssignment.init⟩)
+
+-- a `GaudiExpr[ ]` inside the condition that is not read off, and mentions the outer state: the
+-- state is `let`-bound (a Lean binder, which the inner `CurrentState` cannot capture)
+#roundtrip fun P : Getter Int ProgramState → Prop => hoareStmt
+  (fun σ => P GaudiExpr[ (localVarLens "u" Int).get σ ]) GaudiProg[ skip; ] (fun _ => True)
 
 -- a local slot in such a condition is still recovered as a `var`
 /--
@@ -367,7 +370,7 @@ example : Prop := hoare[ m.f (c, d) : §c = 1 ==> True ]
 
 -- nothing to take the names from
 /--
-info: no parameter names are recorded for this procedure; write them at the triple, as in `hoare[ M (x, y) : … ]`
+info: no parameter names are known for this procedure; write them at the triple, as in `hoare[ M (x, y) : … ]`
 -/
 #guard_msgs in
 #check_failure hoare[ q : True ==> True ]
@@ -470,5 +473,113 @@ info: hoareProc
 #guard_msgs in
 set_option pp.gaudisCrypt false in
 #check hoare[ m.f (a, b) : §a = 1 ==> §res = 2 ]
+
+/- ### From a procedure triple to a statement triple
+
+`hoare_proc_to_stmt` turns `hoare[ M : P ==> Q ]` into the statement triple about
+`res <- call M (x₁, …, xₙ);`, one local variable per parameter.  Each example closes the goal with
+the statement triple written out, so the result is checked as well as printed. -/
+
+-- two parameters, named as `moduletype` recorded them: one local variable each
+/--
+trace: inst✝ : ProgramSpec
+m : TestSig
+q : proctype (ℤ) → ℤ
+h :
+  hoare[ True ==> §res = 2 ] {
+      var res : ℤ, a : ℤ, b : ℤ;
+      res <- call m.f.procedure (§a, §b);
+}
+⊢ hoare[ True ==> §res = 2 ] {
+      var res : ℤ, a : ℤ, b : ℤ;
+      res <- call m.f.procedure (§a, §b);
+}
+-/
+#guard_msgs in
+example (h : hoare[ True ==> §res = 2 ] { var res : Int, a : Int, b : Int;
+      res <- call m.f.procedure (§a, §b); }) :
+    hoare[ m.f : True ==> §res = 2 ] := by
+  hoare_proc_to_stmt
+  trace_state
+  exact h
+
+-- one parameter, named as the `module` command recorded it; it is read in the precondition.
+-- (`h` names the procedure as `Module.Proc.procedure TestMod.p`, which is what the triple is about:
+-- the constant `TestMod.p.procedure` prints the same but is not defeq to it.)
+/--
+trace: inst✝ : ProgramSpec
+m : TestSig
+q : proctype (ℤ) → ℤ
+h :
+  hoare[ §u = 1 ==> §res = 1 ] {
+      var u : ℤ, res : ℤ;
+      res <- call TestMod.p.procedure (§u);
+}
+⊢ hoare[ §u = 1 ==> §res = 1 ] {
+      var u : ℤ, res : ℤ;
+      res <- call TestMod.p.procedure (§u);
+}
+-/
+#guard_msgs in
+example (h : hoare[ §u = 1 ==> §res = 1 ] { var u : Int, res : Int;
+      res <- call (Module.Proc.procedure TestMod.p) (§u); }) :
+    hoare[ TestMod.p : §u = 1 ==> §res = 1 ] := by
+  hoare_proc_to_stmt
+  trace_state
+  exact h
+
+-- no parameters; a global is read in the precondition
+/--
+trace: inst✝ : ProgramSpec
+m : TestSig
+q : proctype (ℤ) → ℤ
+h :
+  hoare[ §y = 0 ==> §res = true ] {
+      var res : Bool;
+      res <- call m.g.procedure ();
+}
+⊢ hoare[ §y = 0 ==> §res = true ] {
+      var res : Bool;
+      res <- call m.g.procedure ();
+}
+-/
+#guard_msgs in
+example (h : hoare[ §y = 0 ==> §res = true ] { var res : Bool;
+      res <- call m.g.procedure (); }) :
+    hoare[ m.g : §y = 0 ==> §res = true ] := by
+  hoare_proc_to_stmt
+  trace_state
+  exact h
+
+-- a parameter named `res` (read off the `proc` literal itself): the result variable is renamed
+/--
+trace: inst✝ : ProgramSpec
+m : TestSig
+q : proctype (ℤ) → ℤ
+⊢ hoare[ True ==> §res' = 1 ] {
+      var res' : ℤ, res : ℤ;
+      res' <- call
+      (proc (res : ℤ) : ℤ {
+          skip;
+          return §res
+    }) (§res);
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example : hoare[ (proc (res : Int) : Int { return $res }) : True ==> §res = 1 ] := by
+  hoare_proc_to_stmt
+  trace_state
+  sorry
+
+-- anything but a procedure triple is rejected
+/--
+error: expected a procedure triple `hoareProc A p B`, got
+  True
+-/
+#guard_msgs in
+example : True := by
+  hoare_proc_to_stmt
 
 end GaudisCrypt.HoareSyntaxTest

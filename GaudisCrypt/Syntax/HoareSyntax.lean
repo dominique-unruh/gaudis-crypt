@@ -52,8 +52,9 @@ every variable, so a condition can be lifted out of a procedure body unchanged.
 The parameter names may be left out — `hoare[ S.commit : … ]` — in which case they are looked
 up in the `@[gaudiProcParamNames]` attribute that `moduletype` and `module` record them in.
 Names written at the triple win over the recorded ones, with a warning if they disagree; an
-explicit `()` asserts that the procedure takes none.  A procedure with no recorded names (a
-`proc` literal, say) has to have them written.
+explicit `()` asserts that the procedure takes none.  Without recorded names, they are read off
+the procedure itself if its `parameterNames` reduce to a literal list (as for a `proc` literal);
+a procedure whose names cannot be found either way (a variable, say) has to have them written.
 
 `M` is parsed at `term:max`, so an applied module expression needs parentheses:
 `hoare[ (Module.app X A) (x) : … ]`.  Without that, `M (x, m)` would parse as an application
@@ -230,9 +231,9 @@ open Lean Elab Term Meta in section
 
 variable [ProgramSpec]
 
-/-- The procedure a triple is about: its elaborated form (which carries the parameter names,
-if any are recorded), the same thing as syntax, and its signature.  `M` may be a procedure
-module — then the triple is about `M.procedure` — or already a `Procedure`. -/
+/-- The procedure a triple is about, elaborated (`M.procedure` for a procedure module `M`), the
+same thing as syntax, and its signature.  `M` may be a procedure module — then the triple is
+about `M.procedure` — or already a `Procedure`. -/
 private def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) := do
   let e ← withSynthesize <| elabTerm M none
   -- `M` itself did not elaborate; its own error has been reported, and a second one about the
@@ -241,7 +242,8 @@ private def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) 
   let mut ty ← instantiateMVars (← inferType e)
   for _ in [0:8] do
     if ty.isAppOfArity ``Module.Proc 2 then
-      return (e, ← `(Module.Proc.procedure $(← exprToSyntax e)), ty.appArg!)
+      return (← mkAppM ``Module.Proc.procedure #[e],
+        ← `(Module.Proc.procedure $(← exprToSyntax e)), ty.appArg!)
     if ty.isAppOfArity ``Procedure 2 then
       return (e, ← exprToSyntax e, ty.appArg!)
     -- `Procedure sig` is `ProcedureWithHoles .empty sig`, and that is the spelling a
@@ -263,15 +265,40 @@ private def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) 
 /-- The parameter names `@[gaudiProcParamNames]` records for the procedure `e`, if any.  A
 procedure written as `X.f.procedure` carries them on that constant, so no special case is
 needed for the `Module.Proc.procedure` wrapper. -/
-private def recordedParamNames? (e : Lean.Expr) : TermElabM (Option (Array Name)) := do
+private def recordedParamNames? {m} [Monad m] [MonadEnv m] (e : Lean.Expr) :
+    m (Option (Array Name)) := do
   let some c := e.getAppFn.constName? | return none
   return gaudiProcParamNamesAttr.getParam? (← getEnv) c
 
-/-- The parameter names of a triple: the ones written at the triple if there are any (they win,
-with a warning when the recorded names disagree), else the recorded ones. -/
-private def paramNamesOf (M : Term) (written? : Option (Array Ident)) (e : Lean.Expr) (n : Nat) :
+/-- `Module.Proc.procedure M` ↦ the procedure module `M` it is the procedure of. -/
+private def procModule? (p : Lean.Expr) : Option Lean.Expr :=
+  if p.isAppOfArity ``Module.Proc.procedure 3 then some p.appArg! else none
+
+/-- The strings of a list that reduces (`whnf`, element by element) to a literal list of string
+literals. -/
+private partial def stringList? (e : Lean.Expr) : MetaM (Option (List String)) := do
+  match (← whnf e).getAppFnArgs with
+  | (``List.nil, _) => return some []
+  | (``List.cons, #[_, h, t]) =>
+      let .lit (.strVal s) ← whnf h | return none
+      return (s :: ·) <$> (← stringList? t)
+  | _ => return none
+
+/-- The parameter names of the procedure `p` that can be found without being written: the ones
+`@[gaudiProcParamNames]` records (on `M` for `p = Module.Proc.procedure M`), else
+`p.parameterNames` if it reduces to a literal list (a `proc` literal, say). -/
+def knownParamNames? (p : Lean.Expr) : MetaM (Option (Array Name)) := do
+  if let some ns ← recordedParamNames? ((procModule? p).getD p) then return some ns
+  let reduced ← try stringList? (← mkAppM ``ProcedureWithHoles.parameterNames #[p])
+    catch _ => pure none
+  return reduced.map fun ns => ns.toArray.map Name.mkSimple
+
+/-- The parameter names of a triple about the procedure `p`: the ones written at the triple if
+there are any (they win, with a warning when the known names disagree), else the known ones
+(`knownParamNames?`). -/
+private def paramNamesOf (M : Term) (written? : Option (Array Ident)) (p : Lean.Expr) (n : Nat) :
     TermElabM (Array Name) := do
-  let recorded? ← recordedParamNames? e
+  let recorded? ← knownParamNames? p
   match written? with
   | some ids =>
       let written := ids.map (·.getId)
@@ -286,12 +313,12 @@ private def paramNamesOf (M : Term) (written? : Option (Array Ident)) (e : Lean.
       match recorded? with
       | some recorded =>
           unless recorded.size == n do
-            throwErrorAt M "this procedure takes {n} parameter(s), but the names recorded for \
+            throwErrorAt M "this procedure takes {n} parameter(s), but the names known for \
               it are {recorded.toList}"
           return recorded
       | none =>
           if n == 0 then return #[]
-          throwErrorAt M "no parameter names are recorded for this procedure; write them at \
+          throwErrorAt M "no parameter names are known for this procedure; write them at \
             the triple, as in `hoare[ M (x, y) : … ]`"
 
 elab_rules : term <= expectedType?
@@ -390,12 +417,153 @@ private def delabHoareProc : Delab := do
   let ids := (preNames.extract 1 preNames.size).map mkIdent
   -- a procedure module prints as the module itself; the notation re-inserts `.procedure`
   let callee ← withNaryArg 3 do
-    if (← getExpr).isAppOfArity ``Module.Proc.procedure 3 then withNaryArg 2 delab else delab
+    if (procModule? (← getExpr)).isSome then withNaryArg 2 delab else delab
   if ids.isEmpty then
     `(hoare[ $callee:term : $pre ==> $post ])
   else
     `(hoare[ $callee:term ( $ids,* ) : $pre ==> $post ])
 
 end Printing
+
+/-! ## From a procedure triple to a statement triple
+
+`hoareProcToStmt` is `hoareProc_as_hoareStmt` as a conversion — in the shape of an
+Isabelle `conv` (`cterm -> thm`), `Expr → MetaM Simp.Result`: the term it rewrites to and the
+proof of the equation.  The two lenses the lemma quantifies over are chosen here: one local
+variable per parameter of the procedure, under the parameter's name, and one for the result, so
+that the statement prints as
+
+    hoare[ P ==> Q ] { var res : R, x : X, y : Y; res <- call p (§x, §y); }
+
+The signature is read off the term, so the `Nonempty` instances the slots need are found at the
+concrete types. -/
+
+section Conv
+open Lean Meta Elab Tactic
+
+/-- The parameter names of the procedure `p` with `n` parameters: `knownParamNames?`, else
+`arg1`, …, `argn`. -/
+private def procParamNames (p : Lean.Expr) (n : Nat) : MetaM (Array String) := do
+  if let some ns ← knownParamNames? p then
+    if ns.size == n then return ns.map (·.toString (escape := false))
+  return (Array.range n).map fun i => s!"arg{i + 1}"
+
+/-- The local variable `n : T`: its slot `varLens ⟨n, T, …⟩` in the locals, and the same slot as
+`localVarLens n T` in the program state.  The key is the literal `variable_name_key` gives. -/
+private def mkVarSlots (inst : Lean.Expr) (n : String) (T : Lean.Expr) :
+    MetaM (Lean.Expr × Lean.Expr) := do
+  let ne ← synthInstance (← mkAppM ``Nonempty #[T])
+  let key := mkNatLit (VariableName.encode n)
+  let keyCorrect ← mkExpectedTypeHint (← mkEqRefl key)
+    (← mkEq key (mkApp (mkConst ``VariableName.encode) (mkStrLit n)))
+  let name := mkAppN (mkConst ``VariableName.mk) #[mkStrLit n, T, ne, key, keyCorrect]
+  return (mkApp (mkConst ``varLens) name,
+    mkAppN (mkConst ``localVarLens) #[inst, mkStrLit n, T, ne, key, keyCorrect])
+
+/-- The tuple lens of the slots `ls` over the carrier `m` (`typeListToTuple`'s shape): `Lens.punit`
+for none, the slot itself for one, `Lens.pair` on the right-nested rest otherwise.  Only the
+lemma's side needs it; the statement reads the slots one by one. -/
+private def mkTupleLens (m : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
+  | [] => mkAppOptM ``Lens.punit #[some m, some (mkConst ``Unit), none]
+  | [l] => pure l
+  -- `mkAppOptM`, not `mkAppM`: the trailing `Lens.Disjoint` instance has to be synthesized too
+  | l :: ls => do
+      mkAppOptM ``Lens.pair #[none, none, none, some l, some (← mkTupleLens m ls), none]
+
+/-- `L.get s`, read through `getter`. -/
+private def mkLensGet (L s : Lean.Expr) : MetaM Lean.Expr := do
+  mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[L], s]
+
+/-- The tuple `(x₁.get s, …, xₙ.get s)` of reads of the slots `ls` at `s` (`typeListToTuple`'s
+shape, `()` for none). -/
+private def mkTupleRead (s : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
+  | [] => pure (mkConst ``Unit.unit)
+  | [l] => mkLensGet l s
+  | l :: ls => do mkAppM ``Prod.mk #[← mkLensGet l s, ← mkTupleRead s ls]
+
+/-- Reduce, up to defeq, the projections a procedure triple's precondition takes of the argument
+tuple, once that tuple is a literal tuple: `Lens.id.get t` ↦ `t`, `L.ofst.get t` ↦ `L.get t.1`,
+`L.osnd.get t` ↦ `L.get t.2`, `(x, y).1` ↦ `x`, `(x, y).2` ↦ `y`. -/
+private def reduceArgProjections (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun e => do
+    let r? ← do
+      if let some (l, t) := ProgramSyntax.lensGet? e then
+        if l.isAppOf ``Lens.id then pure (some t)
+        else if l.isAppOfArity ``Lens.ofst 4 then
+          some <$> mkLensGet l.appArg! (← mkAppM ``Prod.fst #[t])
+        else if l.isAppOfArity ``Lens.osnd 4 then
+          some <$> mkLensGet l.appArg! (← mkAppM ``Prod.snd #[t])
+        else pure none
+      else if e.isAppOfArity ``Prod.fst 3 && e.appArg!.isAppOfArity ``Prod.mk 4 then
+        pure (some (e.appArg!.getArg! 2))
+      else if e.isAppOfArity ``Prod.snd 3 && e.appArg!.isAppOfArity ``Prod.mk 4 then
+        pure (some (e.appArg!.getArg! 3))
+      else pure none
+    let some r := r? | return .continue
+    if ← isDefEq r e then return .visit r else return .continue)
+
+/-- `hoareProc A p B` ↦ the `hoareStmt` about `res <- call p (x₁, …, xₙ);`, with one local
+variable per parameter of `p` (see the section docstring), and the proof of the equation.
+
+The conditions are `A`/`B` applied to the reads of the slots, with their `let`s substituted (the
+procedure-triple notation binds the parameter names, which would shadow the variables) and the
+parameter projections reduced, so that the parameter `x` reads as the variable `§x`; then put in
+the shape `GaudiExpr[ P ].get` by `ProgramSyntax.getterViaState`. -/
+def hoareProcToStmt (e : Lean.Expr) : MetaM Simp.Result := do
+  let e ← instantiateMVars e
+  unless e.isAppOfArity ``hoareProc 5 do
+    throwError "expected a procedure triple `hoareProc A p B`, got{indentExpr e}"
+  let #[inst, sig, A, p, B] := e.getAppArgs | unreachable!
+  let some tys ← ModuleDecl.listLit? (← whnf (mkApp (mkConst ``ProcedureSignature.params) sig))
+    | throwError "the parameter list of{indentExpr sig}\nis not a list literal"
+  let ret ← whnf (mkApp (mkConst ``ProcedureSignature.ret) sig)
+  let names ← procParamNames p tys.length
+  -- the result variable must not be one of the parameters
+  let resName := Id.run do
+    let mut r := "res"
+    while names.contains r do r := r ++ "'"
+    return r
+  let (resVA, resPS) ← mkVarSlots inst resName ret
+  let slots ← (names.toList.zip tys).mapM fun (n, T) => mkVarSlots inst n T
+  let va := mkConst ``VariableAssignment
+  let ps := mkApp (mkConst ``ProgramState) inst
+  let argsVA ← mkTupleLens va (slots.map (·.1))
+  let argSlots := slots.map (·.2)
+  -- the statement, over the slots in the program state
+  -- each condition in the shape the statement-triple notation builds, `GaudiExpr[ P ].get`, with
+  -- its reads brought into printable form by `getterViaState` (the same rewrites the printer
+  -- applies to a condition of any other shape)
+  let cond (C : Lean.Expr) (val : Lean.Expr → MetaM Lean.Expr) : MetaM Lean.Expr := do
+    let f ← withLocalDeclD `σ ps fun σ => do
+      let c := C.beta #[← val σ, ← mkAppM ``ProgramState.globals #[σ]]
+      mkLambdaFVars #[σ] (← reduceArgProjections (← zetaReduce c))
+    mkAppM ``Getter.get #[← ProgramSyntax.getterViaState f]
+  let pre ← cond A (mkTupleRead · argSlots)
+  let post ← cond B (mkLensGet resPS ·)
+  -- the arguments as the call reads them: the slot itself for one, the tuple of reads otherwise
+  let argsGetter ← match argSlots with
+    | [l] => mkAppM ``Lens.toGetter #[l]
+    | _ => withLocalDeclD `st ps fun st => do
+        mkAppM ``Getter.mk #[← mkLambdaFVars #[st] (← mkTupleRead st argSlots)]
+  -- `sig` explicitly: `ProcedureSignature.ret ?sig =?= R` does not determine it
+  let body ← mkAppOptM ``Stmt.call #[some inst, some sig, some (← mkAppM ``Lens.toSetter #[resPS]),
+    some p, some argsGetter]
+  let rhs ← mkAppM ``hoareStmt #[pre, body, post]
+  -- the proof: the lemma at the same slots in the locals, which is the statement up to unfolding
+  -- `Lens.intoLocal`, `Lens.pair` (against the tuple of reads) and the `let`s and projections
+  let pf ← mkAppOptM ``hoareProc_as_hoareStmt
+    #[some inst, some sig, some resVA, some argsVA, some A, some p, some B]
+  let goal ← mkEq e rhs
+  unless ← isDefEq (← mkEq e (← instantiateMVars (← inferType pf)).iff?.get!.2) goal do
+    throwError "hoareProcToStmt: the statement built is not the lemma's"
+  return { expr := rhs, proof? := some (← mkExpectedTypeHint (← mkPropExt pf) goal) }
+
+/-- Rewrite a goal `hoareProc A p B` to the `hoareStmt` about `res <- call p (x₁, …, xₙ);`, one
+local variable per parameter — the conversion `hoareProcToStmt` applied to the goal. -/
+elab "hoare_proc_to_stmt" : tactic => liftMetaTactic1 fun g => do
+  let r ← hoareProcToStmt (← g.getType)
+  applySimpResultToTarget g (← g.getType) r
+
+end Conv
 
 end GaudisCrypt

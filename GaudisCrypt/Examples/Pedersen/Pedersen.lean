@@ -336,6 +336,7 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 section UnfinitedExperimentsByDominique
 
 
+
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
 -- `hoareProc`'s `B` is what must hold almost surely, so this is EC's `==> res` spelled directly,
@@ -347,44 +348,10 @@ section UnfinitedExperimentsByDominique
 theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
-  apply hoareProc_of_wp
-  intro args σ
-  -- Inlining everything (should be a tactic)
-  simp
-  -- TODO: why does this not use proc syntax?
-  simp only [Correctness.main.procedure.apply_simp]
-  simp
-  simp only [Pedersen]
-  simp
-  simp only [Pedersen.commit.procedure]
-  simp only [Pedersen.gen.procedure]
-  simp only [Pedersen.verify.procedure]
-  simp
+  hoare_proc_to_stmt
 
-
-  -- Doing wp calculus
-  simp only [procedureDenotation_eq_procWrap]
-  rw [wp_procWrap]
-  simp only [programDenotation]
-  simp only [StmtWithHoles.call]
-  simp only [StmtWithHoles.assign]
-  simp only [wp_bind]
-  simp only [programDenotation]
-  simp only [wp_bind]
-  simp only [wp_get_g]
-  simp only [wp_zoom]
-  simp only [wp_set_g]
-  simp only [AsGetter.toG]
-  simp only [id_eq]
-  -- Stalls here (new procedure model): the callees were unfolded above, so the `call'` case of
-  -- `programDenotation` inlines their bodies directly and there is no `procWrap` left to rewrite.
-  -- The next `simp only [programDenotation]` refuses because the goal is no longer type-correct
-  -- at `instances` transparency: `gen`'s argument getter `GaudiExpr[ () ]` has type
-  -- `ProgramState → Unit` where `ProgramState → (procsig () → group.G).ParamType` is expected
-  -- (`ParamType` is a plain `def`).  Before the migration the experiment got further, through
-  -- `wp_procWrap` and the `localVariableInit` unfolding, and stalled on the `commit`/`verify`
-  -- `procWrap`s under the `fun as' ↦ …` binders of `wp_bind`.
   sorry
+
 
 end UnfinitedExperimentsByDominique
 
