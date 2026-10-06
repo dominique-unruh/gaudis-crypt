@@ -1,11 +1,14 @@
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Syntax.ModuleSyntax
+import GaudisCrypt.Syntax.ProgramSyntaxTest
 
 /-! # Tests for `Inline.lean`
 
-One command per pass (§10), so a failure localizes.  `#flattenCall` prints the **uncleaned**
-output of §6.1 — full of `applyLens` and `chain*`, which is exactly what makes it a stable
-expected-output test: its shape is determined by the input's shape, with no simp set in the loop.
+One command per pass, so a failure localizes.  Every command checks the proof it gets
+(`Meta.check`, and that it proves the expected statement about the input), and every command
+that prints surface syntax also re-parses what it printed (`ProgTest.roundtrip`).  `#flattenCall`
+prints the **uncleaned** output of `Flatten.flattenCall` — full of `applyLens` and `chain*`; its
+shape is determined by the input's shape, with no simp set in the loop.
 -/
 
 namespace GaudisCrypt.InlineTest
@@ -13,120 +16,118 @@ namespace GaudisCrypt.InlineTest
 open GaudisCrypt Lean Elab Command Term Meta
 
 /-- A concrete state, so the test procedures are closed terms. -/
-instance : ProgramSpec := ⟨Unit⟩
+instance : ProgramSpec := ⟨PUnit⟩
 
-/-- Flatten call `n` of a statement and report the result and the type of its proof. -/
+/-- Elaborate a test's input term. -/
+def elabInput (t : Term) : TermElabM Lean.Expr := do
+  let e ← elabTerm t none
+  Term.synthesizeSyntheticMVarsNoPostponing
+  instantiateMVars e
+
+/-- Check that `step.proof` proves `input.EquivInLens step.stmt step.trafo`. -/
+def checkStep (input : Lean.Expr) (step : Flatten.FlattenStep) : MetaM Unit := do
+  Meta.check step.stmt
+  Meta.check step.proof
+  let expected ← Flatten.mkEquivInLens step.inst step.hCtx input step.stmt step.trafo
+  unless ← isDefEq (← inferType step.proof) expected do
+    throwError "the proof proves{indentExpr (← inferType step.proof)}\nnot{indentExpr expected}"
+
+/-- Check that `proof` proves `procedureDenotation p' = procedureDenotation p`. -/
+def checkProc (p p' proof : Lean.Expr) : MetaM Unit := do
+  Meta.check p'
+  Meta.check proof
+  let expected ← mkEq (← mkAppM ``procedureDenotation #[p'])
+    (← mkAppM ``procedureDenotation #[p])
+  unless ← isDefEq (← inferType proof) expected do
+    throwError "the proof proves{indentExpr (← inferType proof)}\nnot{indentExpr expected}"
+
+/-- Flatten call `n` of a statement, uncleaned. -/
 elab "#flattenCall " n:num " in " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let step ← Flatten.flattenCall n.getNat e
-    Meta.check step.stmt
-    Meta.check step.proof
-    let ty ← Meta.inferType step.proof
-    logInfo m!"new locals: {step.newLocals}\n\nstatement:{indentExpr step.stmt}\n\n\
-      proves:{indentExpr ty}"
+    checkStep e step
+    logInfo m!"{step.stmt}"
 
-/-- Flatten call `n` of a statement, cleaned (§6.4). -/
+/-- Flatten call `n` of a statement, cleaned. -/
 elab "#flattenCallCleaned " n:num " in " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let step ← Flatten.flattenCallCleaned n.getNat e
-    Meta.check step.stmt
-    Meta.check step.proof
-    logInfo m!"new locals: {step.newLocals}\n\nstatement:{indentExpr step.stmt}\n\n\
-      proves:{indentExpr (← Meta.inferType step.proof)}"
+    checkStep e step
+    logInfo m!"renaming: {step.trafo}\n{← ProgTest.roundtrip step.stmt}"
 
-/-- Run the whole pass (§6.5). -/
+/-- The whole pass on a statement. -/
 elab "#flatten " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let res ← Flatten.flattenProcedureCalls e
-    Meta.check res.stmt
-    Meta.check res.proof
-    logInfo m!"flattened {res.count} call(s); new locals: {res.newLocals}\n\n\
-      statement:{indentExpr res.stmt}\n\nproves:{indentExpr (← Meta.inferType res.proof)}"
+    checkStep e res.toFlattenStep
+    logInfo m!"flattened {res.count} call(s), renaming: {res.trafo}\n\
+      {← ProgTest.roundtrip res.stmt}"
 
-/-- §6.3 alone, on a hand-written statement. -/
+/-- The whole pass on a procedure. -/
+elab "#flattenProc " t:term : command =>
+  runTermElabM fun _ => do
+    let e ← elabInput t
+    let (p, proof, count) ← Flatten.flattenProcedure e
+    checkProc e p proof
+    logInfo m!"flattened {count} call(s):\n{← ProgTest.roundtrip p}"
+
+/-- `flattenSeq` alone. -/
 elab "#flattenSeq " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let (r, p) ← Flatten.flattenSeq e
     Meta.check r
     Meta.check p
-    logInfo m!"result:{indentExpr r}\n\nproves:{indentExpr (← Meta.inferType p)}"
+    unless ← isDefEq (← inferType p) (← mkAppM ``StmtWithHoles.Equiv #[e, r]) do
+      throwError "the proof proves{indentExpr (← inferType p)}"
+    logInfo (← ProgTest.roundtrip r)
 
-/-- §11: unfold a module term to the procedure it denotes. -/
+/-- Unfold a module term to the procedure it denotes. -/
 elab "#unfoldProc " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let r ← Flatten.unfoldProcedure e
     Meta.check r.expr
-    let proof ← match r.proof? with
-      | some h => Meta.check h; pure m!"\n\nproves:{indentExpr (← Meta.inferType h)}"
-      | none   => pure m!"\n\n(by definition)"
-    logInfo m!"unfolds to:{indentExpr r.expr}{proof}"
+    if let some h := r.proof? then
+      Meta.check h
+      unless ← isDefEq (← inferType h) (← mkEq e r.expr) do
+        throwError "the proof proves{indentExpr (← inferType h)}"
+    logInfo (← ProgTest.roundtrip r.expr)
 
-/-- §11: unfold the callee of one call site. -/
+/-- Unfold the callee of one call site. -/
 elab "#inlineRaw " n:num " in " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let r ← Flatten.inlineProcedureRaw n.getNat e
     Meta.check r.expr
     let some h := r.proof? | throwError "expected a proof"
     Meta.check h
-    logInfo m!"statement:{indentExpr r.expr}\n\nproves:{indentExpr (← Meta.inferType h)}"
+    unless ← isDefEq (← inferType h) (← mkEq e r.expr) do
+      throwError "the proof proves{indentExpr (← inferType h)}"
+    logInfo (← ProgTest.roundtrip r.expr)
 
-/-- §11: unfold the callee of one call site, then flatten it. -/
+/-- Unfold the callee of one call site, then flatten it. -/
 elab "#inline " n:num " in " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let step ← Flatten.inlineProcedure n.getNat e
-    Meta.check step.stmt
-    Meta.check step.proof
-    logInfo m!"new locals: {step.newLocals}\n\nstatement:{indentExpr step.stmt}\n\n\
-      proves:{indentExpr (← Meta.inferType step.proof)}"
+    checkStep e step
+    logInfo m!"renaming: {step.trafo}\n{← ProgTest.roundtrip step.stmt}"
 
-/-- §11 at procedure level: inline one call site of a procedure, printed in surface syntax. -/
+/-- Inline one call site of a procedure. -/
 elab "#inlineProc " n:num " in " t:term : command =>
   runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
+    let e ← elabInput t
     let (p, proof) ← Flatten.inlineInProcedure n.getNat e
-    Meta.check p
-    Meta.check proof
-    logInfo m!"inlined call site {n.getNat}:{indentExpr p}\n\n\
-      proves:{indentExpr (← Meta.inferType proof)}"
-
-/-- §8: the whole pass on a procedure, printed in surface syntax. -/
-elab "#flattenProc " t:term : command =>
-  runTermElabM fun _ => do
-    let e ← elabTerm t none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let e ← instantiateMVars e
-    let (p, proof, count) ← Flatten.flattenProcedure e
-    Meta.check p
-    Meta.check proof
-    logInfo m!"flattened {count} call(s):{indentExpr p}\n\n\
-      proves:{indentExpr (← Meta.inferType proof)}"
+    checkProc e p proof
+    logInfo (← ProgTest.roundtrip p)
 
 /-! ## A first end-to-end case -/
 
-/-- The callee is spelled out at the call site: §2 accepts only literal callees. -/
+/-- The callee is spelled out at the call site: only literal callees are flattened. -/
 noncomputable def caller : proctype () -> Nat :=
   proc () : Nat {
     var x y : Nat;
@@ -138,13 +139,50 @@ noncomputable def caller : proctype () -> Nat :=
 set_option pp.gaudisCrypt false in
 #flattenCall 0 in caller.body
 
+/--
+info: renaming: Flatten.trafo [("z", "z"), ("w", "w")]
+GaudiProg[
+    var x : ℕ, z : ℕ, w : ℕ, y : ℕ;
+    x <- 1;
+    reset (Flatten.calleeFrame [("z", "z"), ("w", "w")]);
+    z <- §x + §x;
+    w <- 2 * §z;
+    y <- §w * §w;
+]
+-/
+#guard_msgs in
 #flattenCallCleaned 0 in caller.body
 
+/--
+info: flattened 1 call(s), renaming: Flatten.trafo [("z", "z"), ("w", "w")]
+GaudiProg[
+    var x : ℕ, z : ℕ, w : ℕ, y : ℕ;
+    x <- 1;
+    reset (Flatten.calleeFrame [("z", "z"), ("w", "w")]);
+    z <- §x + §x;
+    w <- 2 * §z;
+    y <- §w * §w;
+]
+-/
+#guard_msgs in
 #flatten caller.body
 
+/--
+info: flattened 1 call(s):
+proc () : ℕ {
+    var x : ℕ, z : ℕ, w : ℕ, y : ℕ;
+    x <- 1;
+    reset (Flatten.calleeFrame [("z", "z"), ("w", "w")]);
+    z <- §x + §x;
+    w <- 2 * §z;
+    y <- §w * §w;
+    return §y
+}
+-/
+#guard_msgs in
 #flattenProc caller
 
-/-! ## The case list of §10 -/
+/-! ## More cases -/
 
 /-- Two calls in one body, and a name collision: both callees call their local `w`, and so does
 the caller.  The caller's `w` keeps its name; the callees' are renamed. -/
@@ -157,9 +195,26 @@ noncomputable def twoCalls : proctype () -> Nat :=
     return §w
   }
 
+/--
+info: flattened 2 call(s), renaming: (Flatten.trafo [("z", "z0"), ("w", "w1")]).chain
+  (Flatten.trafo [("z", "z"), ("w", "w0")])
+GaudiProg[
+    var w : ℕ, z : ℕ, w0 : ℕ, z0 : ℕ, w1 : ℕ;
+    w <- 1;
+    reset ((Flatten.trafo [("z", "z0"), ("w", "w1")]).chain (Flatten.calleeFrame [("z", "z"), ("w", "w0")]));
+    z <- §w;
+    w0 <- §z + 1;
+    w <- §w0;
+    reset (Flatten.calleeFrame [("z", "z0"), ("w", "w1")]);
+    z0 <- §w;
+    w1 <- §z0 * 3;
+    w <- §w1;
+]
+-/
+#guard_msgs in
 #flatten twoCalls.body
 
-/-- A callee that itself calls: the fixed point of §6.5 needs two rounds. -/
+/-- A callee that itself calls: the fixed point needs two rounds. -/
 noncomputable def nested : proctype () -> Nat :=
   proc () : Nat {
     var a : Nat;
@@ -172,10 +227,24 @@ noncomputable def nested : proctype () -> Nat :=
     return §a
   }
 
+/--
+info: flattened 2 call(s), renaming: (Flatten.trafo [("v", "v")]).chain (Flatten.trafo [("u", "u"), ("b", "b")])
+GaudiProg[
+    var a : ℕ, u : ℕ, v : ℕ, b : ℕ;
+    a <- 7;
+    reset ((Flatten.trafo [("v", "v")]).chain (Flatten.calleeFrame [("u", "u"), ("b", "b")]));
+    u <- §a;
+    reset (Flatten.calleeFrame [("v", "v")]);
+    v <- §u;
+    b <- §v + 1;
+    a <- §b * 2;
+]
+-/
+#guard_msgs in
 #flatten nested.body
 
 /-- A call inside `if` and one inside `while`: the guards travel along the lens, and the callee's
-locals are re-initialised on every iteration. -/
+frame is reset on every iteration. -/
 noncomputable def branching : proctype (Bool) -> Nat :=
   proc (c : Bool) : Nat {
     var n i : Nat;
@@ -191,12 +260,73 @@ noncomputable def branching : proctype (Bool) -> Nat :=
     return §n
   }
 
+/--
+info: flattened 2 call(s), renaming: (Flatten.trafo [("z", "z0"), ("t", "t0")]).chain (Flatten.trafo [("z", "z"), ("t", "t")])
+GaudiProg[
+    var c : Bool, z : ℕ, i : ℕ, t : ℕ, n : ℕ, z0 : ℕ, t0 : ℕ;
+    if (§c) {
+      reset ((Flatten.trafo [("z", "z0"), ("t", "t0")]).chain (Flatten.calleeFrame [("z", "z"), ("t", "t")]));
+      z <- §i;
+      t <- §z + 1;
+      n <- §t;
+    } else {
+      n <- 0;
+    }
+    while (decide (§i < 3)) {
+      i <- §i + 1;
+      reset (Flatten.calleeFrame [("z", "z0"), ("t", "t0")]);
+      z0 <- §n;
+      t0 <- §z0 + §z0;
+      n <- §t0;
+    }
+]
+-/
+#guard_msgs in
 #flatten branching.body
 
+/--
+info: flattened 2 call(s):
+proc () : ℕ {
+    var a : ℕ, u : ℕ, v : ℕ, b : ℕ;
+    a <- 7;
+    reset ((Flatten.trafo [("v", "v")]).chain (Flatten.calleeFrame [("u", "u"), ("b", "b")]));
+    u <- §a;
+    reset (Flatten.calleeFrame [("v", "v")]);
+    v <- §u;
+    b <- §v + 1;
+    a <- §b * 2;
+    return §a
+}
+-/
+#guard_msgs in
 #flattenProc nested
+
+/--
+info: flattened 2 call(s):
+proc (c : Bool) : ℕ {
+    var z : ℕ, i : ℕ, t : ℕ, n : ℕ, z0 : ℕ, t0 : ℕ;
+    if (§c) {
+      reset ((Flatten.trafo [("z", "z0"), ("t", "t0")]).chain (Flatten.calleeFrame [("z", "z"), ("t", "t")]));
+      z <- §i;
+      t <- §z + 1;
+      n <- §t;
+    } else {
+      n <- 0;
+    }
+    while (decide (§i < 3)) {
+      i <- §i + 1;
+      reset (Flatten.calleeFrame [("z", "z0"), ("t", "t0")]);
+      z0 <- §n;
+      t0 <- §z0 + §z0;
+      n <- §t0;
+    }
+    return §n
+}
+-/
+#guard_msgs in
 #flattenProc branching
 
-/-- Several parameters (tuple splitting), and a callee with no locals at all. -/
+/-- Several parameters (a tuple assignment), and a callee with no variables but its parameters. -/
 noncomputable def twoParams : proctype () -> Nat :=
   proc () : Nat {
     var x y : Nat;
@@ -205,10 +335,21 @@ noncomputable def twoParams : proctype () -> Nat :=
     return §x
   }
 
+/--
+info: flattened 1 call(s), renaming: Flatten.trafo [("a", "a"), ("b", "b")]
+GaudiProg[
+    var x : ℕ, y : ℕ, a : ℕ, b : ℕ;
+    x <- 2;
+    y <- 5;
+    reset (Flatten.calleeFrame [("a", "a"), ("b", "b")]);
+    a, b <- (§x, §y);
+    x <- §a * §b;
+]
+-/
+#guard_msgs in
 #flatten twoParams.body
 
-/-- A callee with neither parameters nor locals, called from a statement with no locals of its
-own — every base case of §4 at once. -/
+/-- A callee with no parameters and no variables. -/
 noncomputable def degenerate : proctype (Nat) -> Nat :=
   proc (p : Nat) : Nat {
     var r : Nat;
@@ -216,9 +357,41 @@ noncomputable def degenerate : proctype (Nat) -> Nat :=
     return §r + §p
   }
 
+/--
+info: flattened 1 call(s), renaming: Flatten.trafo []
+GaudiProg[
+    var r : ℕ;
+    reset (Flatten.calleeFrame []);
+    r <- 42;
+]
+-/
+#guard_msgs in
 #flatten degenerate.body
 
-/-! ## §6.3 on its own
+/-- A callee whose variable has the name of a parameter of the caller that the body never
+mentions: the parameter keeps its name (the entry state has to stay the same), the callee's
+variable is renamed. -/
+noncomputable def unusedParam : proctype (Nat) -> Nat :=
+  proc (q : Nat) : Nat {
+    var r : Nat;
+    r <- call (proc (q : Nat) : Nat { return §q + 1 }) (Nat.succ 0);
+    return §r
+  }
+
+/--
+info: flattened 1 call(s):
+proc (q : ℕ) : ℕ {
+    var q0 : ℕ, r : ℕ;
+    reset (Flatten.calleeFrame [("q", "q0")]);
+    q0 <- Nat.succ 0;
+    r <- §q0 + 1;
+    return §r
+}
+-/
+#guard_msgs in
+#flattenProc unusedParam
+
+/-! ## `flattenSeq` on its own
 
 Nested blocks and `skip`s, with no call anywhere: the spine is re-associated to the right and the
 `skip`s disappear, and the proof is a chain of `seq_assoc`/`skip_seq`/`seq_skip`. -/
@@ -239,14 +412,24 @@ noncomputable def blocky : proctype () -> Nat :=
     return §x
   }
 
+/--
+info: GaudiProg[
+    var x : ℕ;
+    x <- 1;
+    x <- 2;
+    x <- 3;
+    x <- 4;
+]
+-/
+#guard_msgs in
 #flattenSeq blocky.body
 
 /-! ## What is left alone
 
-A callee that is not spelled out at the call site stays a call (§2), and a statement with no
+A callee that is not spelled out at the call site stays a call, and a statement with no
 flattenable call at all is an error. -/
 
-/-- Called through a name, so §2 refuses it: the callee is not literal. -/
+/-- Called through a name, so it is not flattened: the callee is not literal. -/
 noncomputable def opaqueCallee : Procedure (procsig (Nat) -> Nat) :=
   proc (z : Nat) : Nat { var t : Nat; t <- §z + 1; return §t }
 
@@ -260,7 +443,7 @@ noncomputable def callsOpaque : proctype () -> Nat :=
 
 /--
 error: nothing to flatten: the call is not flattenable: its callee is not spelled out at the call site
-  opaqueCallee.1
+  opaqueCallee.parameterNames
 -/
 #guard_msgs in
 #flatten callsOpaque.body
@@ -273,10 +456,10 @@ noncomputable def callFree : proctype () -> Nat :=
 #guard_msgs in
 #flatten callFree.body
 
-/-! ## §11 — modules
+/-! ## Inlining: callees named through modules
 
 A module type with one procedure, a module over it that calls a parameter, and a module that
-calls nothing: the two shapes of §11, `T.f ‹module expression›` and `M.f`. -/
+calls nothing: the two shapes inlining evaluates, `T.f ‹module expression›` and `M.f`. -/
 
 moduletype U {
   proc g (Nat) -> Nat;
@@ -330,22 +513,75 @@ axiom otherU : U
 
 /- (a): the accessor of a module applied to a parameter.  Only `M` is evaluated — the callee
 `U.g someU` the body calls is left exactly as the module wrote it. -/
+/--
+info: Module.proc
+  (proc (x : ℕ) : ℕ {
+      var y : ℕ;
+      y <- call someU.g.procedure (§x);
+      return §y + 1
+})
+-/
+#guard_msgs in
 #unfoldProc (T.f (Module.app M someU))
 
 /- the same at procedure level: the shape a call site carries -/
+/--
+info: proc (x : ℕ) : ℕ {
+    var y : ℕ;
+    y <- call someU.g.procedure (§x);
+    return §y + 1
+}
+-/
+#guard_msgs in
 #unfoldProc (Module.Proc.procedure (T.f (Module.app M someU)))
 
 /- a procedure of the same module that uses no parameter: `M.h` is `Module.proc M.h.procedure`
 by definition, so the unfolding is a substitution -/
+/--
+info: Module.proc
+  (proc () : ℕ {
+      skip;
+      return 5
+})
+-/
+#guard_msgs in
 #unfoldProc (T.h (Module.app M someU))
 
 /- two parameters, two holes: the argument tuple is taken apart, and so is the instantiation -/
+/--
+info: Module.proc
+  (proc (x : ℕ) : ℕ {
+      var y : ℕ;
+      y <- call someU.g.procedure (§x);
+      y <- call otherU.g.procedure (§y);
+      return §y
+})
+-/
+#guard_msgs in
 #unfoldProc (T.f (Module.app Q (Module.pair someU otherU)))
 
 /- (b): a module with an empty using-clause, read through the module type … -/
+/--
+info: Module.proc
+  (proc (x : ℕ) : ℕ {
+      var y : ℕ;
+      y <- §x * 2;
+      return §y
+})
+-/
+#guard_msgs in
 #unfoldProc (T.f N)
 
 /- … and directly -/
+/--
+info: Module.proc
+  (proc (x : ℕ) : ℕ {
+      var y : ℕ;
+      y <- §x * 2;
+      return §y
+})
+-/
+#guard_msgs in
 #unfoldProc N.f
 
 /- an abstract module has no body to find -/
@@ -358,8 +594,8 @@ error: no concrete procedure body: nothing to unfold at the head of
 #guard_msgs in
 #unfoldProc (T.f (Module.app absM someU))
 
-/-- A caller whose callee is named through modules: §6 cannot flatten it (the callee is not
-spelled out at the call site), §11 can unfold it first. -/
+/-- A caller whose callee is named through modules: flattening cannot handle it (the callee is not
+spelled out at the call site), inlining can unfold it first. -/
 noncomputable def modCaller : proctype () -> Nat :=
   proc () : Nat {
     var n : Nat;
@@ -368,16 +604,65 @@ noncomputable def modCaller : proctype () -> Nat :=
     return §n
   }
 
+/--
+info: GaudiProg[
+    var n : ℕ;
+    n <- 3;
+    n <- call
+    (proc (x : ℕ) : ℕ {
+        var y : ℕ;
+        y <- call someU.g.procedure (§x);
+        return §y + 1
+  }) (§n);
+]
+-/
+#guard_msgs in
 #inlineRaw 0 in modCaller.body
 
+/--
+info: renaming: Flatten.trafo [("x", "x"), ("y", "y")]
+GaudiProg[
+    var n : ℕ, x : ℕ, y : ℕ;
+    n <- 3;
+    reset (Flatten.calleeFrame [("x", "x"), ("y", "y")]);
+    x <- §n;
+    y <- call someU.g.procedure (§x);
+    n <- §y + 1;
+]
+-/
+#guard_msgs in
 #inline 0 in modCaller.body
 
-/- and the same at procedure level (§8): the callee's body lands in the caller's, its local `y`
+/- and the same at procedure level: the callee's body lands in the caller's, its local `y`
 becomes a local of the caller, and the `return` travels along -/
+/--
+info: proc () : ℕ {
+    var n : ℕ, x : ℕ, y : ℕ;
+    n <- 3;
+    reset (Flatten.calleeFrame [("x", "x"), ("y", "y")]);
+    x <- §n;
+    y <- call someU.g.procedure (§x);
+    n <- §y + 1;
+    return §n
+}
+-/
+#guard_msgs in
 #inlineProc 0 in modCaller
 
-/- a callee that is an ordinary definition rather than a module expression: §11 unfolds the
-constant, which is what makes `opaqueCallee` — the callee §6 refuses — inlinable -/
+/- a callee that is an ordinary definition rather than a module expression: inlining unfolds the
+constant, which is what makes `opaqueCallee` — the callee flattening refuses — inlinable -/
+/--
+info: proc () : ℕ {
+    var x : ℕ, z : ℕ, t : ℕ;
+    x <- 1;
+    reset (Flatten.calleeFrame [("z", "z"), ("t", "t")]);
+    z <- §x;
+    t <- §z + 1;
+    x <- §t;
+    return §x
+}
+-/
+#guard_msgs in
 #inlineProc 0 in callsOpaque
 
 /-! ### Call sites are numbered including holes
@@ -406,13 +691,27 @@ module P using (A : U) : T {
 #guard_msgs in
 #flatten M.f.procedure.body
 
+/- the hole stays, and so does the `let` that names it -/
+/--
+info: renaming: Flatten.trafo [("x", "x0"), ("y", "y0")]
+let A_g := HoleIndex.zero;
+GaudiProg[
+    var y : ℕ, x : ℕ, x0 : ℕ, y0 : ℕ, z : ℕ;
+    y <- holecall A_g (§x);
+    reset (Flatten.calleeFrame [("x", "x0"), ("y", "y0")]);
+    x0 <- §y;
+    y0 <- §x0 * 2;
+    z <- §y0;
+]
+-/
+#guard_msgs in
 #inline 1 in P.f.procedure.body
 
-/- A callee named through a module is not spelled out at the call site, so §6 on its own has
-nothing to flatten: §11 has to run first. -/
+/- A callee named through a module is not spelled out at the call site, so flattening on its own
+has nothing to flatten: inlining has to run first. -/
 /--
 error: nothing to flatten: the call is not flattenable: its callee is not spelled out at the call site
-  N.f.procedure.1
+  N.f.procedure.parameterNames
 -/
 #guard_msgs in
 #flattenProc (proc () : Nat {

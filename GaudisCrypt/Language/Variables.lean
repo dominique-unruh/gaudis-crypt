@@ -156,6 +156,19 @@ structure VariableName : Type 1 where
   {key : Nat}
   keyCorrect : key = VariableName.encode name := by variable_name_key
 
+open Lean Meta in
+/-- The variable name `n : T` as a term, the way `localVarLens "n" T` elaborates it: the
+`Nonempty T` instance synthesized (unless given), the key the literal `variable_name_key`
+computes.  For meta code that makes up variables (`hoare_proc_to_stmt`, flattening). -/
+def VariableName.mkTerm (n : String) (T : Expr) (ne? : Option Expr := none) : MetaM Expr := do
+  let ne ← match ne? with
+    | some ne => pure ne
+    | none => synthInstance (← mkAppM ``Nonempty #[T])
+  let key := mkNatLit (VariableName.encode n)
+  let keyCorrect ← mkExpectedTypeHint (← mkEqRefl key)
+    (← mkEq key (mkApp (mkConst ``VariableName.encode) (mkStrLit n)))
+  return mkAppN (mkConst ``VariableName.mk) #[mkStrLit n, T, ne, key, keyCorrect]
+
 /-- `a < b`, for natural-number literals, found by instance search in one step: unifying
 `?k + a + 1 =?= b` is solved by the unifier's literal-offset rule as `?k := b - a - 1`, at any
 size of the literals.  (The unknown has to be the leftmost summand for that rule to apply.) -/

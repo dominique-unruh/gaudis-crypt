@@ -14,6 +14,22 @@ parameter slot comes from the argument value), `embed`/`rename` (via
 `VariableName.withName`), `ProgramState` with `globals : State`, `globalL`/`localL`,
 `Lens.intoLocal`/`intoGlobal`.
 
+Phase 6 (flattening, `Logic/Inline.lean`) is done (2026-10-06), along §4 with these choices:
+
+* the injections of §4.3 are `Flatten.escape` (caller) and `Flatten.tag` (`n ↦ "@.n"`, callee;
+  no round number is needed, since each round escapes the names of the one before), and the
+  cosmetic permutation of §4.5 is folded into both: a round's lenses are
+  `Flatten.trafo ren`/`Flatten.emb ren`, renaming by `Flatten.perm ren ∘ escape`/`∘ tag`,
+  where `ren` lists the new name of each callee variable (`w ↦ w0` on a clash);
+* the reset of §4.4 is `assign R.resetSetter ⟨fun _ => ()⟩` (`Lens.resetSetter`, a `Setter Unit`
+  that writes `init` through `R` and ignores its value): the frame is a `VariableAssignment`, in
+  `Type 1`, so it cannot be the value of an `assign` itself.  It does not print as surface syntax
+  yet (Q8; planned: let any `Setter` be an l-value).  The parameters are then written by one
+  tuple assignment `z₁, …, zₙ <- (args);`;
+* every side condition is a generic lemma (`Flatten.equivInLens_call`), proved once; the
+  procedure level (`Flatten.procedureDenotation_congr`) needs the caller's parameter names to
+  stay fixed, which the meta code ensures by not choosing them as new names.
+
 ## 0. The request, restated
 
 1. `VariableName := String × Type`.

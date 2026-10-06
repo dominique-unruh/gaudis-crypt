@@ -199,13 +199,10 @@ is logged and pinned by the `#guard_msgs` docstrings — a delaborator that quie
 (so that Lean printed the raw constructor term) would still round-trip, but would not print
 the surface syntax, and the docstring catches that. -/
 
-open Lean Elab Command Term PrettyPrinter in
-/-- `#roundtrip t`: print `t`, parse the printed text, elaborate it, and check the result is
-defeq to `t`.  Logs the printed text. -/
-elab "#roundtrip " t:term : command => Command.runTermElabM fun _ => do
-  let e ← Term.elabTerm t none
-  Term.synthesizeSyntheticMVarsNoPostponing
-  let e ← instantiateMVars e
+open Lean Elab Term PrettyPrinter in
+/-- Print `e`, parse the printed text, elaborate it at `e`'s type, and check the result is defeq
+to `e`.  Returns the printed text.  (Also used by the flattening tests, on what they produce.) -/
+def roundtrip (e : Lean.Expr) : TermElabM String := do
   let ty ← Meta.inferType e
   let text := (← ppExpr e).pretty
   let stx ← match Parser.runParserCategory (← getEnv) `term text "<roundtrip>" with
@@ -217,7 +214,15 @@ elab "#roundtrip " t:term : command => Command.runTermElabM fun _ => do
   unless ← Meta.isDefEq e e' do
     throwError "round-trip changed the term:{indentD text}\nelaborated back to\
       {indentD (← Meta.ppExpr e')}"
-  logInfo text
+  return text
+
+open Lean Elab Command Term in
+/-- `#roundtrip t`: print `t`, parse the printed text, elaborate it, and check the result is
+defeq to `t`.  Logs the printed text. -/
+elab "#roundtrip " t:term : command => Command.runTermElabM fun _ => do
+  let e ← Term.elabTerm t none
+  Term.synthesizeSyntheticMVarsNoPostponing
+  logInfo (← roundtrip (← instantiateMVars e))
 
 /--
 info: GaudiProg[

@@ -452,13 +452,10 @@ private def procParamNames (p : Lean.Expr) (n : Nat) : MetaM (Array String) := d
 `localVarLens n T` in the program state.  The key is the literal `variable_name_key` gives. -/
 private def mkVarSlots (inst : Lean.Expr) (n : String) (T : Lean.Expr) :
     MetaM (Lean.Expr × Lean.Expr) := do
-  let ne ← synthInstance (← mkAppM ``Nonempty #[T])
-  let key := mkNatLit (VariableName.encode n)
-  let keyCorrect ← mkExpectedTypeHint (← mkEqRefl key)
-    (← mkEq key (mkApp (mkConst ``VariableName.encode) (mkStrLit n)))
-  let name := mkAppN (mkConst ``VariableName.mk) #[mkStrLit n, T, ne, key, keyCorrect]
+  let name ← VariableName.mkTerm n T
+  let a := name.getAppArgs
   return (mkApp (mkConst ``varLens) name,
-    mkAppN (mkConst ``localVarLens) #[inst, mkStrLit n, T, ne, key, keyCorrect])
+    mkAppN (mkConst ``localVarLens) #[inst, mkStrLit n, T, a[2]!, a[3]!, a[4]!])
 
 /-- The tuple lens of the slots `ls` over the carrier `m` (`typeListToTuple`'s shape): `Lens.punit`
 for none, the slot itself for one, `Lens.pair` on the right-nested rest otherwise.  Only the
