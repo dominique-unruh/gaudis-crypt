@@ -171,10 +171,10 @@ set_option linter.flexible false in
 /-- `FakeCommit(U).main`, inlined. -/
 theorem fakeGame_inline (U : Unhider group.types) :
     procedureDenotation (fakeGame group U).procedure ()
-      = (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
+      = (ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun _mm =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment Bool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d) >>= fun bg =>
         pure (b == bg) := by
   funext σ
@@ -183,10 +183,11 @@ theorem fakeGame_inline (U : Unhider group.types) :
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
     FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  change _ = ((ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
+  change _ = ((ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F)
+          >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun _mm =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment Bool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d) >>= fun bg =>
         pure (b == bg)).wp post σ
   simp [programDenotation, programDenotation_call',
@@ -204,10 +205,10 @@ set_option linter.flexible false in
     (their internal samplings become the `x` and `d` draws), via `wp_gen`/`wp_commit`. -/
 theorem hidingGame_inline (U : Unhider group.types) :
     procedureDenotation (hidingGame group U).procedure ()
-      = (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
+      = (ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun mm =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment Bool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg) := by
@@ -217,10 +218,11 @@ theorem hidingGame_inline (U : Unhider group.types) :
   simp only [hidingGame, HidingExperiment.main.apply_simp,
     HidingExperiment.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  change _ = ((ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
+  change _ = ((ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F)
+          >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun mm =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment Bool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignment group.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg)).wp post σ
