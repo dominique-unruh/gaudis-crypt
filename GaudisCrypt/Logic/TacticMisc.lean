@@ -121,6 +121,62 @@ def hoareOnStmt (f : Lean.Expr → MetaM (Lean.Expr × Lean.Expr)) (g : MVarId) 
       (← mkAppOptM ``hoareStmt_of_equiv #[some A, some B, some s, some s', some p, some g'])
     return g'.mvarId!
 
+/-! ## Weakest preconditions of straight-line statements -/
+
+/-- Close a goal `hoareStmt ?A s B`, `?A` a metavariable, by the wp rules: `hoare_seq` (the second
+statement first, which fixes the intermediate condition), `hoare_assign_wp` (resets included),
+`hoare_sample_wp` and `hoare_skip_wp`.  `?A` ends up assigned the weakest precondition.  `let`s
+in the statement are zeta-reduced.  Fails on anything else (`call`, `if`, `while`, holes). -/
+partial def hoareWpClose (g : MVarId) : MetaM Unit := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``hoareStmt 3 do
+    throwError "hoareWp: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
+  let (A, B) := (ty.getArg! 0, ty.getArg! 2)
+  let s ← openStmt (ty.getArg! 1)
+  if let .letE _ _ v b _ := s then
+    let g' ← g.replaceTargetDefEq (← mkAppM ``hoareStmt #[A, b.instantiate1 v, B])
+    return ← hoareWpClose g'
+  let pr ← match s.getAppFn.constName? with
+    | some ``StmtWithHoles.seq =>
+        let (p, q) := (s.getArg! 1, s.getArg! 2)
+        let mid ← mkFreshExprMVar (← inferType B)
+        let gq ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[mid, q, B])
+        hoareWpClose gq.mvarId!
+        let gp ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[A, p, ← instantiateMVars mid])
+        hoareWpClose gp.mvarId!
+        mkAppM ``hoare_seq #[gq, gp]
+    | some ``StmtWithHoles.assign => mkAppM ``hoare_assign_wp #[s.getArg! 2, s.getArg! 3, B]
+    | some ``StmtWithHoles.sample =>
+        mkAppOptM ``hoare_sample_wp #[none, some (s.getArg! 3), some (s.getArg! 2), some B]
+    | some ``StmtWithHoles.skip => mkAppM ``hoare_skip_wp #[B]
+    | _ => throwError "hoareWp: no wp rule for the statement{indentExpr s}"
+  unless ← isDefEq (← inferType pr) ty do
+    throwError "hoareWp: the wp rule{indentExpr (← inferType pr)}\ndoes not match the goal\
+      {indentExpr ty}"
+  g.assign pr
+
+/-- On a goal `hoareStmt A s B` with `s` straight-line code (assignments, resets, samplings,
+`skip`, in sequence): if `A` is a metavariable, close the goal and assign `A` the weakest
+precondition (`hoareWpClose`); otherwise reduce it, by `hoare_pre`, to the goal
+`∀ σ, A σ → wp σ`, which is returned. -/
+def hoareWpFull (g : MVarId) : MetaM (List MVarId) := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``hoareStmt 3 do
+    throwError "hoareWp: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
+  let (A, s, B) := (ty.getArg! 0, ty.getArg! 1, ty.getArg! 2)
+  if A.isMVar then
+    hoareWpClose g
+    return []
+  let wp ← mkFreshExprMVar (← inferType A)
+  let gt ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[wp, s, B])
+  hoareWpClose gt.mvarId!
+  let wp ← instantiateMVars wp
+  let impl ← withLocalDeclD `σ (mkConst ``ProgramState) fun σ => do
+    mkForallFVars #[σ] (← mkArrow (A.beta #[σ]) (wp.beta #[σ]))
+  let gi ← mkFreshExprSyntheticOpaqueMVar impl (← g.getTag)
+  g.assign (← mkAppM ``hoare_pre #[gt, gi])
+  return [gi.mvarId!]
+
 /-! ## Reads of the state as plain values
 
 What the Hoare rules leave is a goal `∀ σ, … x.get σ …`: the state is only read, through lenses

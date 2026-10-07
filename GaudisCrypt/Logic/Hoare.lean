@@ -103,6 +103,27 @@ theorem hoare_post {A : ProgramState → Prop} {p : Stmt} {B B' : ProgramState �
 theorem hoare_skip {A B : ProgramState → Prop} (h : ∀ σ, A σ → B σ) : hoareStmt A .skip B :=
   hoareStmt_of_wp fun σ hA => by simp [programDenotation, ProgramDenotation.skip, wp_pure, h σ hA]
 
+/-- The wp rule for `skip`: the postcondition itself. -/
+theorem hoare_skip_wp (B : ProgramState → Prop) : hoareStmt B .skip B :=
+  hoare_skip fun _ h => h
+
+/-- An expectation is `0` when the function vanishes outside a null event. -/
+theorem SubProbability.expected_eq_zero_of_null {α : Type*} {μ : SubProbability α}
+    {f : α → ENNReal} {S : Set α} (hS : μ.ofEvent S = 0) (h : ∀ a ∉ S, f a = 0) :
+    μ.expected f = 0 :=
+  SubProbability.expected_eq_zero_of_support fun a ha => h a fun haS =>
+    ha (SubProbability.ofEvent_eq_zero_of_subset (Set.singleton_subset_iff.mpr haS) hS)
+
+/-- Sequencing: the postcondition of the first statement is the precondition of the second.  The
+second statement's triple comes first, so that `apply hoare_seq` leaves it with the open
+intermediate condition `?B` to be filled by the wp steps, and the first statement's after it. -/
+theorem hoare_seq {A B C : ProgramState → Prop} {p q : Stmt} (hq : hoareStmt B q C)
+    (hp : hoareStmt A p B) : hoareStmt A (.seq p q) C := by
+  rw [hoareStmt_iff_wp] at hq ⊢
+  intro σ hA
+  simp only [programDenotation, wp_bind]
+  exact SubProbability.expected_eq_zero_of_null (hp σ hA) fun r hr => hq r.2 (not_not.mp hr)
+
 /-- The wp rule for sampling: the postcondition must hold after writing any value in the
     support of the sampled distribution. -/
 theorem hoare_sample_wp {α} {e : Getter (SubProbability α) ProgramState}

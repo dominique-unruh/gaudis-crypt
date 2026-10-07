@@ -64,6 +64,7 @@ import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.Hoare
 import GaudisCrypt.Logic.HoareSplit
+import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PRHL
