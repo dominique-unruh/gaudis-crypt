@@ -63,10 +63,13 @@ import GaudisCrypt.Logic.EagerProc
 import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.Hoare
+import GaudisCrypt.Logic.HoareSplit
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
+import GaudisCrypt.Logic.StmtEquiv
+import GaudisCrypt.Logic.TacticMisc
 import GaudisCrypt.Logic.TransferBy
 import GaudisCrypt.Logic.PRHL2Demo
 import GaudisCrypt.Logic.PRHL.Clients.SchemaInnerEquation

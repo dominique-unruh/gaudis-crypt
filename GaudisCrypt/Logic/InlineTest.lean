@@ -75,7 +75,7 @@ elab "#flattenProc " t:term : command =>
 elab "#flattenSeq " t:term : command =>
   runTermElabM fun _ => do
     let e ← elabInput t
-    let (r, p) ← Flatten.flattenSeq e
+    let (r, p) ← TacticMisc.flattenSeq e
     Meta.check r
     Meta.check p
     unless ← isDefEq (← inferType p) (← mkAppM ``StmtWithHoles.Equiv #[e, r]) do

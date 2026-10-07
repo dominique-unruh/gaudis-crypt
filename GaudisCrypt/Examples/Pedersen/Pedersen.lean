@@ -2,6 +2,7 @@ import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Logic.Hoare
 import GaudisCrypt.Logic.Inline
+import GaudisCrypt.Logic.HoareSplit
 
 /-!
 # The Pedersen commitment scheme
@@ -394,64 +395,99 @@ theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
   hoare_proc_to_stmt
-  hoare_inline 0
-
-  -- TODO Write a meta-function to rewrite {x1;...;xn} to {{x1;...;x_...};{x_...;...;xn}}
-  --      length of the second half given as argument to the function
-  --      Returns a proof of denotational equivalence
-  -- TODO Write a meta-function to apply the prior function to the body of a hoare triple (Isabelle-conv-like)
-  -- TODO Write a tactic to apply this to the current hoare[...] goal
-  -- TODO Call that tactic here with len=1 (ignore that this breaks the rest of the proof here)
 
   hoare_inline 0
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_inline 2
+  simp_reads
+  -- TODO simplification incomplete
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_inline 1
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_sample_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
+  simp_reads
+
   hoare_inline 0
-  hoare_inline 0
+
+  hoare_split 1
   apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_seq
-  apply hoare_assign_wp
+  · apply hoare_assign_wp
   simp_reads
-  apply hoare_assign_wp
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
   simp_reads
-  apply hoare_assign_wp
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_sample_wp
   simp_reads
-  apply hoare_assign_wp
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
   simp_reads
-  apply hoare_assign_wp
+
+  hoare_split 1
+  apply hoare_seq
+  · apply hoare_assign_wp
   simp_reads
-  apply hoare_assign_wp
-  simp_reads
-  apply hoare_assign_wp
-  simp_reads
-  apply hoare_sample_wp
-  simp_reads
-  simp
-  apply hoare_assign_wp
-  simp_reads
-  simp
-  apply hoare_assign_wp
-  apply hoare_assign_wp
-  apply hoare_assign_wp
-  apply hoare_sample_wp
-  simp
-  apply hoare_assign_wp
-  apply hoare_assign_wp
-  apply hoare_pre
-  apply hoare_assign_wp
-  simp
-  done
+
+  -- hoare_split 1
+  -- TODO: should not fail
+  -- apply hoare_seq
+  -- apply hoare_assign_wp
+  -- simp_reads
+
+  sorry
 
 end UnfinitedExperimentsByDominique
 
