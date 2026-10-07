@@ -155,27 +155,7 @@ module Pedersen : (CommitmentScheme group.types) {
   };
 }
 
-/-! ## Correctness
-
-To *run* an applied functor module we extract its procedure: a normal closed module
-expression of procedure type is a `.proc` node (`proc_type_is_proc` / `Module.procedure`,
-now in `Language/Modules.lean`).
-
-`Correctness group.types (Pedersen group)` β/δ-normalizes to `Correctness.main` with Pedersen's
-procedures in the holes.  That reduction used to be done by hand here, by a `functorApp_procedure`
-bridge lemma, a `functor_procedure` tactic, a `Pedersen_expression` record equation and a
-`pedersenInst` naming the hole filling.  None of it is needed any more, and all of it is gone (see
-the history of this file if you want it back): the `module`/`moduletype` commands emit `@[simp]`
-`apply_simp` lemmas
-and tag their accessors `@[module_accessor]`, and those do the whole reduction inline in
-`pedersen_correctness`. -/
-
-/-! ### Per-procedure wp lemmas (EC's `inline`+`auto` steps, done once per procedure)
-
-All three are stated at the `group.types`-spelled signature the instantiated game carries,
-not at `group.G`/`group.F`.  The two are definitionally equal, but `Eq` carries its type as an
-index, so the spelling is what makes them the same proposition as the goal — see the ⚠ below. -/
-
+-- Still used by Hiding
 theorem wp_gen (f : ProgramDenotation.Post VariableAssignment group.types.Value) :
     (procedureDenotation (sig := procsig () -> group.types.Value)
         (Pedersen.gen.procedure group) ()).wp f
@@ -188,6 +168,7 @@ theorem wp_gen (f : ProgramDenotation.Post VariableAssignment group.types.Value)
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
+-- Still used by Hiding
 theorem wp_commit (args : group.G × group.F)
     (f : ProgramDenotation.Post VariableAssignment
       (group.types.Commitment × group.types.OpeningKey)) :
@@ -209,138 +190,7 @@ theorem wp_commit (args : group.G × group.F)
     AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
     localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
-theorem wp_verify (args : group.G × group.F × group.G × group.F)
-    (f : ProgramDenotation.Post VariableAssignment Bool) :
-    (procedureDenotation
-        (sig := procsig (group.types.Value, group.types.Message,
-          group.types.Commitment, group.types.OpeningKey) -> Bool)
-        (Pedersen.verify.procedure group) args).wp f
-      = fun st => f (args.2.2.1 == group.g ^ args.2.2.2 * args.1 ^ args.2.1, st) := by
-  rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  funext st
-  obtain ⟨a, b, c, d⟩ := args
-  simp only [Pedersen.verify.procedure, ProcedureWithHoles.initLocals,
-    VariableAssignment.setParams]
-  simp [programDenotation, StmtWithHoles.assign, wp_bind, wp_get_g, wp_set_g,
-    wp_lift, expected_pure,
-    AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
-
-/-! ### Reducing the applied functor
-
-`Correctness.main.procedure.apply_simp` fills `Correctness.main`'s holes with the callees they
-were made from — which, since `Correctness`'s body calls `S.gen`, are the moduletype *accessors*
-`CommitmentScheme.gen Pedersen` and friends.  The `wp_*` lemmas above are stated at
-`Pedersen.gen.procedure`, a separate definition the `module` command emits.  Adding
-`module_accessor` (the simp set the accessors are tagged with), `Pedersen`, and the
-`Module.procedure_proc'` round-trip to the main `simp` call is all it takes to close that gap.  So
-the whole reduction is the commands' own lemmas plus one `simp` set: no bridge lemma, no
-hand-written hole instantiation, nothing declared for the purpose.
-
-(`Module.procedure_proc'`, with the prime, is the one to name: the unprimed
-`Module.procedure_proc` states the round-trip with `Module.proc` already unfolded, as
-`(ModuleExpression.proc p).toModule (.proc p)`, and so never fires against the folded `Module.proc`
-that `X.<f>.apply_simp` emits — before the primed companion existed, every caller had to unfold
-`Module.proc` alongside it.)
-
-⚠ One thing to know before touching this: `CommitmentScheme.gen Pedersen` and `Pedersen.gen`
-**both print as `Pedersen.gen`** (dot-notation collision) and are *not* defeq — the accessor is a
-chain of `Module.fst'`/`Module.snd'` through `Pedersen`'s expression.  So a lemma or rewrite
-aimed at the wrong one of the two fails with the two sides displaying identically, or with "did
-not find an occurrence of the pattern" against a goal in which the pattern is apparently right
-there.  `set_option pp.explicit true` is what tells them apart.  A second, similar trap: signature
-spellings must be `group.types.*`, not `group.G`/`group.F` — those are defeq, but `Eq` carries its
-type as an index, so the two are *different propositions* and `exact` rejects the mismatch, again
-printing identically (`convert … using 2` exposes that one).  The `wp_*` lemmas above are spelled
-`group.types.*` for exactly this reason.
-
-A third, from `PedersenGroup.types` being `@[reducible]`: `simp` files a lemma under the
-discrimination key of its *statement*, and indexes the goal with `group.types.Message` already
-reduced to `group.F`, so a lemma stated over an abstract `types` — every `apply_simp` the `module`
-command emits — used to be looked up under a key the goal no longer had, and silently did not fire
-("This simp argument is unused").  The commands now keep those positions out of the key with
-`no_index` (see "Keeping the generated `@[simp]` lemmas findable" in `Syntax/ModuleSyntax.lean`), so
-the lemmas are found at a reducible instantiation too: `pedersen_correctness2` below reduces the
-whole applied functor with a single `simp`.
-
-`pedersen_correctness` still reduces it by `rw`, for a different reason: reaching the goal through
-the `suffices` leaves it type-incorrect at the `instances` transparency simp works at (`m :
-group.F` where `(procsig (group.F) → Bool).ParamType` is expected), and simp then declines.  `rw`
-unifies at default transparency and is unaffected. -/
-
-set_option linter.flexible false in
-/-- **Correctness of Pedersen** — EC's
-    `hoare[Correctness(Pedersen).main : true ==> res]`: from any initial state, the
-    correctness game never returns `false`. -/
-theorem pedersen_correctness (m : group.F) (σ : VariableAssignment) :
-    (procedureDenotation
-        (Module.app (Correctness group.types) (Pedersen group)).main.procedure m σ).ofEvent
-      {r : Bool × VariableAssignment | r.1 = false} = 0 := by
-  -- reduce `ofEvent` to a `wp` with the indicator postcondition.  Done *before* the module
-  -- reduction, so nothing here ever has to name the reduced procedure.
-  suffices h : (procedureDenotation
-      (Module.app (Correctness group.types) (Pedersen group)).main.procedure m).wp
-      (({r : Bool × VariableAssignment | r.1 = false}).indicator fun _ => 1) σ = 0 by
-    have hi := expectation_indicator
-      (procedureDenotation
-        (Module.app (Correctness group.types) (Pedersen group)).main.procedure m σ)
-      {r : Bool × VariableAssignment | r.1 = false} 1
-    rw [one_mul] at hi
-    exact_mod_cast hi.symm.trans h
-  -- β/δ-reduce the applied functor down to `Correctness.main`'s body with Pedersen's three
-  -- procedures in the holes — the `module`/`moduletype` commands' own `@[simp]` lemmas do all of
-  -- it.  `rw` rather than `simp` here: the goal the `suffices` above leaves is not type-correct at
-  -- the `instances` transparency simp works at, and simp declines to rewrite in it (see the ⚠
-  -- above); `rw` unifies at default transparency instead.
-  rw [Correctness.apply_simp]
-  -- read `main` back off the record `Correctness.apply_simp` builds — the `moduletype` command's
-  -- own `@[simp]` lemma for the accessor
-  simp only [CorrectnessT.main.mk_simp]
-  rw [Correctness.main.apply_simp, Correctness.main.procedure.apply_simp]
-  simp only [Module.procedure_proc']
-  -- unfold the game and push `wp` through.  Kept as `rw`, not folded into the `simp only` above:
-  -- as simp lemmas these two also fire on the *callees*, and `wp_gen` then no longer matches.
-  rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  simp [module_accessor, Pedersen, Module.procedure_proc', programDenotation,
-    programDenotation_call', StmtWithHoles.call, wp_bind, wp_get_g, wp_set_g, wp_zoom,
-    ProcedureWithHoles.initLocals, VariableAssignment.setParams,
-    AsGetter.toG, AsSetter.toS, liftLens, LiftLens.lift,
-    localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL,
-    ProgramState.globalL, Set.indicator, Set.mem_setOf_eq]
-  -- descend through the two samplings with `rw` (full-defeq unification), summand by summand
-  rw [wp_gen]
-  refine Finset.sum_eq_zero fun x _ => ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
-  rw [wp_commit]
-  refine Finset.sum_eq_zero fun d _ => ENNReal.div_eq_zero_iff.mpr (Or.inl ?_)
-  rw [wp_verify]
-  -- `Lens.pair`: the game stores `commit`'s result through the tuple l-value `c, d <- …`, so
-  -- the final read has to compute back through that pair lens.
-  simp [Lens.pair]
-
--- TODO Maybe delete (unused)
-/-- An event of null points is null.  No `[Countable α]`: `μ.2.2` is the discreteness invariant
-    `μ A = ∑_{x ∈ A} μ {x}`, so the sum over `E` is a `tsum` of zeroes whatever the cardinality. -/
-lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
-    (∀ x ∈ E, μ x = 0) → μ.ofEvent E = 0 := by
-  intro h
-  -- `ofEvent` is `toNNReal` of the measure, and the measure is finite (`≤ 1`), so the two
-  -- vanish together
-  have hzero : ∀ s : Set α, μ.ofEvent s = 0 ↔ μ.1 s = 0 := fun s => by
-    rw [SubProbability.ofEvent, ENNReal.toNNReal_eq_zero_iff]
-    exact or_iff_left
-      (((MeasureTheory.measure_mono (Set.subset_univ s)).trans μ.2.1).trans_lt
-        ENNReal.one_lt_top).ne
-  rw [hzero, μ.2.2 E, ENNReal.tsum_eq_zero]
-  exact fun x => (hzero {(x : α)}).mp (h x x.2)
-
-section UnfinitedExperimentsByDominique
-
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
-
-/-- `HoareWp.simpReads` (`Logic/HoareWp.lean`) on the main goal: reads through writes, in the
-    postcondition. -/
-macro "simp_reads" : tactic =>
-  `(tactic| run_tac Lean.Elab.Tactic.liftMetaTactic1 (some <$> GaudisCrypt.HoareWp.simpReads ·))
 
 theorem pedersen_correctness2 :
     hoare[
@@ -360,7 +210,5 @@ theorem pedersen_correctness2 :
   hoare_wp 6
   hoare_skip
   simp
-
-end UnfinitedExperimentsByDominique
 
 end GaudisCrypt.Examples.Pedersen
