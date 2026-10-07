@@ -19,8 +19,8 @@ frame moves to names the caller cannot have (`Flatten.emb`, renaming `n` to `@.n
 `Flatten.tag`), and the call becomes
 
 ```
-(resetSetter (Flatten.prefixed "@.")) <- ();  -- the callee's frame back to its initial values
-«@.z₁», …, «@.zₙ» <- (args);                  -- the arguments, in the callee's parameter slots
+reset Flatten.prefixed "@.";  -- the callee's frame back to its initial values
+«@.z₁», …, «@.zₙ» <- (args);  -- the arguments, in the callee's parameter slots
 ‹callee body, renamed›
 x <- ‹callee return value, renamed›;
 ```

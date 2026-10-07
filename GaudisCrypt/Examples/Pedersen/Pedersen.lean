@@ -351,6 +351,9 @@ theorem pedersen_correctness2 :
       True ==> $res = true ] := by
   hoare_proc_to_stmt
   hoare_inline 0
+  -- TODO: after inlining, check and deal with pretty-printing issues
+
+  -- TODO: do wp
 
   sorry
 

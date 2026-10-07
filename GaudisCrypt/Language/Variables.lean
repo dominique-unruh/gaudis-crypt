@@ -78,6 +78,7 @@ neighbouring blocks with `a ||| (b <<< w)` in `log n` passes, each pass recursin
 and the passes on a counter.  Both recursions are structural, so it still reduces by `rfl`,
 which `variable_name_key` relies on.  Splitting at the midpoint instead would need well-founded
 recursion, which does not reduce.) -/
+-- TODO: investigate: can we use `String.toUTF8` instead of `toList`? That would lead to shorter nats probably
 def VariableName.encode (s : String) : Nat := encodeChars s.toList
 
 /-- A code point is below `0x110000`. -/
