@@ -361,11 +361,6 @@ theorem pedersen_correctness2 :
   hoare_skip
   simp
 
-lemma test : hoare[ True ==> True ] { skip; } := by
-  hoare_skip
-  -- TODO: why doesn't this give `True ==> True`?
-  simp
-
 end UnfinitedExperimentsByDominique
 
 end GaudisCrypt.Examples.Pedersen

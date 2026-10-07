@@ -231,12 +231,97 @@ where
     let .lit (.strVal n) ← instantiateMVars (name.getArg! 0) | return none
     return some n
 
-/-- The reads `Getter.get g σ` in `e`, in order of appearance, without syntactic duplicates.  Only
-closed ones (a read under a binder that mentions the bound variable cannot be generalized), and
-only through a getter that does not itself mention `σ`. -/
+/-- `s` is the state `σ`, or its globals or locals. -/
+def isStateOf (σ : FVarId) (s : Lean.Expr) : Bool :=
+  s.isFVarOf σ ||
+    ((s.isAppOfArity ``ProgramState.globals 1 || s.isAppOfArity ``ProgramState.locals 1)
+      && s.appArg!.isFVarOf σ)
+
+/-- `x.get s` for `x` a lens or getter into `ProgramState` or `VariableAssignment` (its type `X`):
+a lens read through `Lens.toGetter`, and a read of the globals at `s.globals`.  `none` for any
+other type. -/
+def readOfContainer (X x s : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let X ← whnfR X
+  let isLens := X.isAppOfArity ``Lens 2
+  unless isLens || X.isAppOfArity ``Getter 2 do return none
+  let M := X.appArg!
+  let s ← if ← withReducible (isDefEq M (mkConst ``ProgramState)) then pure s
+    else if ← withReducible (isDefEq M (mkConst ``VariableAssignment)) then
+      pure (mkApp (mkConst ``ProgramState.globals) s)
+    else return none
+  let g ← if isLens then mkAppM ``Lens.toGetter #[x] else pure x
+  return some (← mkAppM ``Getter.get #[g, s])
+
+/-- One step of `unfoldReads` at `e`, if a rule applies.  Every rule is a definitional unfolding,
+and fires only on a read of the state `σ` itself:
+
+* `(Getter.mk f).get σ` ↦ `f σ`, and a `let` of the `CurrentState` (as `GaudiExpr[ ]` binds it)
+  is substituted;
+* `eval x` in the current state `⟨σ⟩` ↦ `x.get σ` (or `x.get σ.globals` for a global);
+* `(AsGetter.toG x).get σ` ↦ `x.get σ`;
+* `(x.pair y).get σ` ↦ `(x.get σ, y.get σ)`;
+* `(x.chain Lens.fst).get σ` ↦ `(x.get σ).1`, and likewise for `Lens.snd`.
+
+`eval`/`CurrentState` (`Syntax/ExpressionSyntax.lean`) are not imported here, so they are matched
+by name. -/
+partial def unfoldReadStep (σ : FVarId) (e : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  if e.isAppOfArity `GaudisCrypt.eval 5 then
+    let cs := e.getArg! 3
+    unless cs.isAppOfArity `GaudisCrypt.CurrentState.mk 1 && cs.appArg!.isFVarOf σ do
+      return none
+    return ← readOfContainer (← inferType (e.getArg! 4)) (e.getArg! 4) cs.appArg!
+  unless e.isAppOfArity ``Getter.get 4 && isStateOf σ e.appArg! do return none
+  let s := e.appArg!
+  let g := e.getArg! 2
+  if g.isAppOfArity ``Getter.mk 3 then
+    let mut r := g.appArg!.beta #[s]
+    while true do
+      let .letE _ t v b _ := r | break
+      unless t.isConstOf `GaudisCrypt.CurrentState do break
+      r := b.instantiate1 v
+    return some r
+  if g.isAppOfArity ``AsGetter.toG 5 then
+    return ← readOfContainer (← inferType g.appArg!) g.appArg! s
+  unless g.isAppOfArity ``Lens.toGetter 3 do return none
+  let l := g.appArg!
+  let getAt (x s : Lean.Expr) : MetaM Lean.Expr := do
+    mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], s]
+  if l.isAppOfArity ``Lens.pair 6 then
+    return some (← mkAppM ``Prod.mk #[← getAt (l.getArg! 3) s, ← getAt (l.getArg! 4) s])
+  if l.isAppOfArity ``Lens.chain 5 then
+    let y := l.getArg! 4
+    let fst := y.isAppOfArity ``Lens.fst 2
+    unless fst || y.isAppOfArity ``Lens.snd 2 do return none
+    let inner ← getAt (l.getArg! 3) s
+    -- the component of a pair read directly, not as a projection of the pair
+    if let some p ← unfoldReadStep σ inner then
+      if p.isAppOfArity ``Prod.mk 4 then return some (p.getArg! (if fst then 2 else 3))
+    return some (← mkAppM (if fst then ``Prod.fst else ``Prod.snd) #[inner])
+  -- a pair or a component of one in the locals or globals: read it there
+  if s.isFVarOf σ && (l.isAppOfArity ``Lens.intoGlobal 2 || l.isAppOfArity ``Lens.intoLocal 2) then
+    let x := l.appArg!
+    if x.isAppOfArity ``Lens.pair 6 || x.isAppOfArity ``Lens.chain 5 then
+      let part := if l.isAppOfArity ``Lens.intoGlobal 2 then ``ProgramState.globals
+        else ``ProgramState.locals
+      return some (← getAt x (mkApp (mkConst part) s))
+  return none
+
+/-- Unfold the reads of `σ` in `e` that are not reads of a lens or getter as it is, but of
+an expression built around them (`unfoldReadStep`), until none is left: what remains are reads
+`x.get σ` (or `x.get σ.globals`) of the lenses and getters themselves.  A definitional rewrite. -/
+def unfoldReads (σ : FVarId) (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun e => do
+    match ← unfoldReadStep σ e with
+    | some r => return .visit r
+    | none => return .done e)
+
+/-- The reads `Getter.get g s` in `e`, `s` the state `σ` or its globals or locals, in order of
+appearance, without syntactic duplicates.  Only closed ones (a read under a binder that mentions the
+bound variable cannot be generalized), and only through a getter that does not itself mention
+`σ`. -/
 partial def collectReadsOf (σ : FVarId) (e : Lean.Expr) (acc : Array Lean.Expr := #[]) :
     Array Lean.Expr :=
-  if e.isAppOfArity ``Getter.get 4 && e.appArg!.isFVarOf σ && !e.hasLooseBVars
+  if e.isAppOfArity ``Getter.get 4 && isStateOf σ e.appArg! && !e.hasLooseBVars
       && !(e.getArg! 2).containsFVar σ then
     if acc.contains e then acc else acc.push e
   else match e with
@@ -264,10 +349,13 @@ def freshIn (used : Array String) (base : String) : String := Id.run do
   while used.contains (base ++ toString i) do i := i + 1
   return base ++ toString i
 
-/-- On a goal `∀ σ : ProgramState, P σ`: generalize every read `g.get σ` to a universally
-quantified value (`readBaseName`, made unique against the context, the goal's binders and each
-other).  Reads that agree up to reducible unfolding become one value.  If `σ` is then unused it is
-dropped, giving `∀ m x …, P'`; otherwise it stays in front, `∀ σ m x …, P'`. -/
+/-- On a goal `∀ σ : ProgramState, P σ`: first unfold the reads of `σ` through expressions,
+pairs and the like down to reads of lenses and getters (`unfoldReads`), then generalize every read
+`g.get σ` (or `g.get σ.globals`) to a universally quantified value (`readBaseName`, made unique
+against the context, the goal's binders and each other).  Reads that agree up to reducible
+unfolding become one value.  If `σ` is then unused it is dropped, giving `∀ m x …, P'`; otherwise
+it stays in front, `∀ σ m x …, P'`.  With no read left, only the unfolding is done (and `σ`
+dropped if unused). -/
 def generalizeReads (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← whnfR (← instantiateMVars (← g.getType))
   let .forallE _ dom _ _ := ty
@@ -276,6 +364,7 @@ def generalizeReads (g : MVarId) : MetaM MVarId := g.withContext do
     throwError "generalizeReads: the first binder is not a `ProgramState`:{indentExpr ty}"
   let (σ, g) ← g.intro1
   g.withContext do
+    let g ← g.change (← unfoldReads σ (← instantiateMVars (← g.getType)))
     let body ← instantiateMVars (← g.getType)
     let mut used := binderNamesIn body
     for d in ← getLCtx do
@@ -290,9 +379,7 @@ def generalizeReads (g : MVarId) : MetaM MVarId := g.withContext do
       let n := freshIn used (← readBaseName (r.getArg! 2))
       used := used.push n
       args := args.push { expr := r, xName? := some (Name.mkSimple n) }
-    if args.isEmpty then
-      throwError "generalizeReads: no read of the state in{indentExpr ty}"
-    let (xs, g) ← g.generalize args
+    let (xs, g) ← if args.isEmpty then pure (#[], g) else g.generalize args
     let (g, keepσ) ← try pure (← g.clear σ, false) catch _ => pure (g, true)
     let (_, g) ← g.revert (if keepσ then #[σ] ++ xs else xs) (preserveOrder := true)
     return g
