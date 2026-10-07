@@ -390,7 +390,7 @@ macro "simp_reads" : tactic =>
     intoLocal_varLens_get_resetSetter, Set.mem_union, Set.mem_insert_iff, Set.mem_singleton_iff,
     Set.mem_sdiff, mem_prefixed_iff, if_pos, if_neg, not_false_eq_true])
 
-
+set_option linter.style.emptyLine false in
 theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
@@ -404,8 +404,6 @@ theorem pedersen_correctness2 :
   simp_reads
 
   hoare_inline 2
-  simp_reads
-  -- TODO simplification incomplete
 
   hoare_split 1
   apply hoare_seq
@@ -487,9 +485,15 @@ theorem pedersen_correctness2 :
   simp_reads
 
   apply hoare_skip
+  run_tac Lean.Elab.Tactic.liftMetaTactic1 fun g => some <$> TacticMisc.generalizeReads g
 
+  simp
 
-  sorry
+-- TODO a tactic hoare_wp_full (as a meta-function, not syntax-bound)
+-- that takes a subgoal hoareStmt ?A p B, and repeatedly applies
+-- hoare_assign_wp, hoare_sample_wp, hoare_seq, hoare_skip
+-- until the goal is gone (in the process instantiating ?A).
+
 
 end UnfinitedExperimentsByDominique
 
