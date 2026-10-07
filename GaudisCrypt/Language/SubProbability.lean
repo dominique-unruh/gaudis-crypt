@@ -302,6 +302,13 @@ instance : FunLike (SubProbability a) a NNReal where
     rw [← ENNReal.coe_toNNReal hμ, ← ENNReal.coe_toNNReal hν]
     exact_mod_cast hnn
 
+/-- The points with positive mass (cf. `PMF.support`).  The measure is discrete, so the points
+outside the support together carry no mass. -/
+def SubProbability.support (μ : SubProbability a) : Set a := Function.support μ
+
+@[simp] theorem SubProbability.mem_support_iff (μ : SubProbability a) (x : a) :
+    x ∈ μ.support ↔ μ x ≠ 0 := Iff.rfl
+
 instance : PartialOrder (SubProbability a) where
   le p q := p.1 <= q.1
   le_refl _ _ := le_refl _

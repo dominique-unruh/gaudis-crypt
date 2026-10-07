@@ -333,13 +333,111 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 
 section UnfinitedExperimentsByDominique
 
-theorem hoare_seq (hq : hoareStmt B q C) (hp : hoareStmt A p B) :
-  hoareStmt A (.seq p q) C := sorry
+/-- An expectation is `0` when the function vanishes on the support: the measure is discrete,
+    so the points outside the support carry no mass. -/
+theorem _root_.GaudisCrypt.SubProbability.expected_eq_zero_of_support {μ : SubProbability α}
+    {f : α → ENNReal} (h : ∀ a ∈ μ.support, f a = 0) : μ.expected f = 0 := by
+  rw [SubProbability.expected, lintegral_eq_tsum_smul μ.2.2]
+  refine ENNReal.tsum_eq_zero.mpr fun a => ?_
+  by_cases ha : a ∈ μ.support
+  · rw [h a ha, mul_zero]
+  · have hfin : μ.1 {a} ≠ ⊤ :=
+      (((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt
+        ENNReal.one_lt_top).ne
+    have h0 : (μ.1 {a}).toNNReal = 0 := not_not.mp ha
+    rw [(ENNReal.toNNReal_eq_zero_iff _).mp h0 |>.resolve_right hfin, zero_mul]
 
-theorem hoare_assign (x : Setter α ProgramState) (e : Getter α ProgramState) (B : ProgramState → Prop) :
-  hoareStmt (fun σ => B (x.set (e.get σ) σ)) (.assign x e) B := sorry
+/-- An expectation is `0` when the function vanishes outside a null event. -/
+theorem _root_.GaudisCrypt.SubProbability.expected_eq_zero_of_null {μ : SubProbability α}
+    {f : α → ENNReal} {S : Set α} (hS : μ.ofEvent S = 0) (h : ∀ a ∉ S, f a = 0) :
+    μ.expected f = 0 :=
+  SubProbability.expected_eq_zero_of_support fun a ha => h a fun haS =>
+    ha (SubProbability.ofEvent_eq_zero_of_subset (Set.singleton_subset_iff.mpr haS) hS)
+
+theorem hoare_seq (hq : hoareStmt B q C) (hp : hoareStmt A p B) :
+    hoareStmt A (.seq p q) C := by
+  rw [hoareStmt_iff_wp] at hq ⊢
+  intro σ hA
+  simp only [programDenotation, wp_bind]
+  exact SubProbability.expected_eq_zero_of_null (hp σ hA) fun r hr => hq r.2 (not_not.mp hr)
+
+/-- Strengthening the precondition.  The triple comes first, so that `apply hoare_pre` leaves
+    it with an open precondition `?A'`, to be filled by the wp steps, and the implication into
+    it as the last goal. -/
+theorem hoare_pre (h : hoareStmt A' p B) (hA : ∀ σ, A σ → A' σ) : hoareStmt A p B :=
+  fun σ hσ => h σ (hA σ hσ)
+
+theorem hoare_sample_wp (x : Setter α ProgramState) (B : ProgramState → Prop) :
+    hoareStmt (fun σ => ∀ a ∈ (e.get σ).support, B (x.set a σ)) (.sample x e) B := by
+  refine hoareStmt_of_wp fun σ hA => ?_
+  simp only [programDenotation, wp_bind, wp_get_g, wp_lift, wp_set_g, AsGetter.toG,
+    AsSetter.toS, id_eq]
+  exact SubProbability.expected_eq_zero_of_support fun a ha =>
+    Set.indicator_of_notMem (not_not.mpr (hA a ha)) _
+
+theorem hoare_assign_wp (x : Setter α ProgramState) (e : Getter α ProgramState)
+    (B : ProgramState → Prop) :
+    hoareStmt (fun σ => B (x.set (e.get σ) σ)) (.assign x e) B := by
+  refine hoareStmt_of_wp fun σ hA => ?_
+  simp only [StmtWithHoles.assign, programDenotation, wp_bind, wp_get_g, wp_lift, wp_set_g,
+    AsGetter.toG, AsSetter.toS, id_eq, expected_pure]
+  exact Set.indicator_of_notMem (not_not.mpr hA) _
 
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
+
+open Classical in
+/-- A local variable read after a reset: its initial value if the reset covers its name, else
+    what it was before.  Unconditional, so that `simp` needs no discharger for it; the condition
+    is decided afterwards, on the literal set the reset prints with.  The slot is spelled with
+    its fields and `@Lens.intoLocal T`, as a slot in a program is: stated for a variable `v`,
+    the content type would be the projection `v.type`, which does not unify with `T` before `v`
+    is known. -/
+theorem intoLocal_varLens_get_resetSetter (n : String) (T : Type) (i : Nonempty T) (k : Nat)
+    (hk : k = VariableName.encode n) (S : Set String) (u : Unit) (σ : ProgramState) :
+    (@Lens.intoLocal T (varLens (@VariableName.mk n T i k hk))).get ((resetSetter S).set u σ)
+      = if n ∈ S then VariableAssignment.init (@VariableName.mk n T i k hk)
+        else (@Lens.intoLocal T (varLens (@VariableName.mk n T i k hk))).get σ := by
+  by_cases h : n ∈ S <;> simp [resetSetter, Lens.intoLocal, Lens.chain,
+    ProgramState.localL, h]
+
+/-- Membership in a prefix region, as a statement about character lists that `decide` settles on
+    literals.  A rewrite of the membership only: unfolding `Flatten.prefixed` itself would also
+    change how the resets in the program print. -/
+theorem mem_prefixed_iff (p n : String) : n ∈ Flatten.prefixed p ↔ p.toList <+: n.toList :=
+  Iff.rfl
+
+/-- Reads through writes, in the conditions `hoare_assign_wp` leaves: `liftLens` of a
+    program-state lens is the lens itself, `Lens.pair` splits a tuple write into one write per
+    slot, `eval_lens_full` turns a read pinned at a written state into a `get`, a read of the
+    written slot is the value (`Lens.set_get`), and a read of a disjoint slot ignores the write
+    (`Lens.get_of_disjoint_set`; disjointness by instance search, so for slots with literal
+    names), and a read after a reset is decided by whether the reset covers the name
+    (`intoLocal_varLens_get_resetSetter`, then membership in the literal set the reset prints
+    with, by `decide`).  A tactic rather than a simp attribute, which could not be used in this
+    file.
+
+    Only the postcondition (argument 3 of `hoareStmt`) is rewritten: the same lemmas would also
+    unfold the lenses of the statement itself (a tuple l-value into a raw `Setter` structure),
+    which then no longer prints in the program syntax. -/
+macro "simp_reads" : tactic =>
+  `(tactic| conv => arg 3; simp (config := { decide := true }) only [liftLens, LiftLens.lift,
+    eval_lens_full, Lens.pair, Lens.set_get, Lens.get_of_disjoint_set,
+    intoLocal_varLens_get_resetSetter, Set.mem_union, Set.mem_insert_iff, Set.mem_singleton_iff,
+    Set.mem_sdiff, mem_prefixed_iff, if_pos, if_neg, not_false_eq_true])
+
+
+@[simp]
+lemma SubProbability.uniform_support {α : Type} [Fintype α] [Nonempty α] :
+ (SubProbability.uniform : SubProbability α).support = Set.univ := by
+  letI : MeasurableSpace α := ⊤
+  ext x
+  simp only [SubProbability.mem_support_iff, Set.mem_univ, iff_true]
+  change (@PMF.toMeasure _ ⊤ (PMF.uniformOfFintype α) {x}).toNNReal ≠ 0
+  rw [PMF.toMeasure_apply_singleton _ x MeasurableSet.of_discrete, PMF.uniformOfFintype_apply]
+  simp [Fintype.card_ne_zero]
+
+lemma hoare_pre_metavariable (h : hoareStmt A p B) (h' : A' = A) :
+  hoareStmt A' p B := h' ▸ h
 
 theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
@@ -364,43 +462,37 @@ theorem pedersen_correctness2 :
   apply hoare_seq
   apply hoare_seq
   apply hoare_seq
-  apply hoare_assign
-  simp [Lens.set_get]
-  apply hoare_assign
-  apply hoare_assign
-  -- TODO: add a simp [] here that simp's c1.get ((liftLens c').set ...) -> c1.get ...
-  apply hoare_assign
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_assign_wp
+  simp_reads
+  apply hoare_sample_wp
+  simp_reads
   simp
-  apply hoare_assign
+  apply hoare_assign_wp
+  simp_reads
   simp
-  apply hoare_assign
+  apply hoare_assign_wp
+  apply hoare_assign_wp
+  apply hoare_assign_wp
+  apply hoare_sample_wp
   simp
-  apply hoare_assign
+  apply hoare_assign_wp
+  apply hoare_assign_wp
+  apply hoare_pre
+  apply hoare_assign_wp
   simp
-
-
-  -- TODO: helper function to split the code at a position (i.e., {x1;...;xn} -> {x1;...;xi} ; {xi+1;...;xn})
-  -- TODO: apply hoare_seq
-  -- TODO: do wp
-
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-  sorry
-
+  done
 
 end UnfinitedExperimentsByDominique
 
