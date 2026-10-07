@@ -333,20 +333,6 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 
 section UnfinitedExperimentsByDominique
 
-/-- An expectation is `0` when the function vanishes on the support: the measure is discrete,
-    so the points outside the support carry no mass. -/
-theorem _root_.GaudisCrypt.SubProbability.expected_eq_zero_of_support {μ : SubProbability α}
-    {f : α → ENNReal} (h : ∀ a ∈ μ.support, f a = 0) : μ.expected f = 0 := by
-  rw [SubProbability.expected, lintegral_eq_tsum_smul μ.2.2]
-  refine ENNReal.tsum_eq_zero.mpr fun a => ?_
-  by_cases ha : a ∈ μ.support
-  · rw [h a ha, mul_zero]
-  · have hfin : μ.1 {a} ≠ ⊤ :=
-      (((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt
-        ENNReal.one_lt_top).ne
-    have h0 : (μ.1 {a}).toNNReal = 0 := not_not.mp ha
-    rw [(ENNReal.toNNReal_eq_zero_iff _).mp h0 |>.resolve_right hfin, zero_mul]
-
 /-- An expectation is `0` when the function vanishes outside a null event. -/
 theorem _root_.GaudisCrypt.SubProbability.expected_eq_zero_of_null {μ : SubProbability α}
     {f : α → ENNReal} {S : Set α} (hS : μ.ofEvent S = 0) (h : ∀ a ∉ S, f a = 0) :
@@ -360,28 +346,6 @@ theorem hoare_seq (hq : hoareStmt B q C) (hp : hoareStmt A p B) :
   intro σ hA
   simp only [programDenotation, wp_bind]
   exact SubProbability.expected_eq_zero_of_null (hp σ hA) fun r hr => hq r.2 (not_not.mp hr)
-
-/-- Strengthening the precondition.  The triple comes first, so that `apply hoare_pre` leaves
-    it with an open precondition `?A'`, to be filled by the wp steps, and the implication into
-    it as the last goal. -/
-theorem hoare_pre (h : hoareStmt A' p B) (hA : ∀ σ, A σ → A' σ) : hoareStmt A p B :=
-  fun σ hσ => h σ (hA σ hσ)
-
-theorem hoare_sample_wp (x : Setter α ProgramState) (B : ProgramState → Prop) :
-    hoareStmt (fun σ => ∀ a ∈ (e.get σ).support, B (x.set a σ)) (.sample x e) B := by
-  refine hoareStmt_of_wp fun σ hA => ?_
-  simp only [programDenotation, wp_bind, wp_get_g, wp_lift, wp_set_g, AsGetter.toG,
-    AsSetter.toS, id_eq]
-  exact SubProbability.expected_eq_zero_of_support fun a ha =>
-    Set.indicator_of_notMem (not_not.mpr (hA a ha)) _
-
-theorem hoare_assign_wp (x : Setter α ProgramState) (e : Getter α ProgramState)
-    (B : ProgramState → Prop) :
-    hoareStmt (fun σ => B (x.set (e.get σ) σ)) (.assign x e) B := by
-  refine hoareStmt_of_wp fun σ hA => ?_
-  simp only [StmtWithHoles.assign, programDenotation, wp_bind, wp_get_g, wp_lift, wp_set_g,
-    AsGetter.toG, AsSetter.toS, id_eq, expected_pure]
-  exact Set.indicator_of_notMem (not_not.mpr hA) _
 
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
@@ -426,24 +390,19 @@ macro "simp_reads" : tactic =>
     Set.mem_sdiff, mem_prefixed_iff, if_pos, if_neg, not_false_eq_true])
 
 
-@[simp]
-lemma SubProbability.uniform_support {α : Type} [Fintype α] [Nonempty α] :
- (SubProbability.uniform : SubProbability α).support = Set.univ := by
-  letI : MeasurableSpace α := ⊤
-  ext x
-  simp only [SubProbability.mem_support_iff, Set.mem_univ, iff_true]
-  change (@PMF.toMeasure _ ⊤ (PMF.uniformOfFintype α) {x}).toNNReal ≠ 0
-  rw [PMF.toMeasure_apply_singleton _ x MeasurableSet.of_discrete, PMF.uniformOfFintype_apply]
-  simp [Fintype.card_ne_zero]
-
-lemma hoare_pre_metavariable (h : hoareStmt A p B) (h' : A' = A) :
-  hoareStmt A' p B := h' ▸ h
-
 theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
   hoare_proc_to_stmt
   hoare_inline 0
+
+  -- TODO Write a meta-function to rewrite {x1;...;xn} to {{x1;...;x_...};{x_...;...;xn}}
+  --      length of the second half given as argument to the function
+  --      Returns a proof of denotational equivalence
+  -- TODO Write a meta-function to apply the prior function to the body of a hoare triple (Isabelle-conv-like)
+  -- TODO Write a tactic to apply this to the current hoare[...] goal
+  -- TODO Call that tactic here with len=1 (ignore that this breaks the rest of the proof here)
+
   hoare_inline 0
   hoare_inline 0
   hoare_inline 0

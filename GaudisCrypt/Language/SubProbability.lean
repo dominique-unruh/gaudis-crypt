@@ -309,6 +309,16 @@ def SubProbability.support (μ : SubProbability a) : Set a := Function.support �
 @[simp] theorem SubProbability.mem_support_iff (μ : SubProbability a) (x : a) :
     x ∈ μ.support ↔ μ x ≠ 0 := Iff.rfl
 
+/-- The uniform distribution charges every point. -/
+@[simp] theorem SubProbability.uniform_support {α : Type u} [Fintype α] [Nonempty α] :
+    (SubProbability.uniform : SubProbability α).support = Set.univ := by
+  letI : MeasurableSpace α := ⊤
+  ext x
+  simp only [SubProbability.mem_support_iff, Set.mem_univ, iff_true]
+  change (@PMF.toMeasure _ ⊤ (PMF.uniformOfFintype α) {x}).toNNReal ≠ 0
+  rw [PMF.toMeasure_apply_singleton _ x MeasurableSet.of_discrete, PMF.uniformOfFintype_apply]
+  simp [Fintype.card_ne_zero]
+
 instance : PartialOrder (SubProbability a) where
   le p q := p.1 <= q.1
   le_refl _ _ := le_refl _

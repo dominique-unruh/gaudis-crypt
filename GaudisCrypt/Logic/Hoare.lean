@@ -23,6 +23,20 @@ lemma SubProbability.ofEvent_eq_zero_of_subset {α} {μ : SubProbability α} {E 
   exact Or.inl (nonpos_iff_eq_zero.mp
     ((MeasureTheory.measure_mono hEF).trans_eq (h.resolve_right hfin)))
 
+/-- An expectation is `0` when the function vanishes on the support: the measure is discrete,
+    so the points outside the support carry no mass. -/
+theorem SubProbability.expected_eq_zero_of_support {α} {μ : SubProbability α}
+    {f : α → ENNReal} (h : ∀ a ∈ μ.support, f a = 0) : μ.expected f = 0 := by
+  rw [SubProbability.expected, lintegral_eq_tsum_smul μ.2.2]
+  refine ENNReal.tsum_eq_zero.mpr fun a => ?_
+  by_cases ha : a ∈ μ.support
+  · rw [h a ha, mul_zero]
+  · have hfin : μ.1 {a} ≠ ⊤ :=
+      (((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt
+        ENNReal.one_lt_top).ne
+    have h0 : (μ.1 {a}).toNNReal = 0 := not_not.mp ha
+    rw [(ENNReal.toNNReal_eq_zero_iff _).mp h0 |>.resolve_right hfin, zero_mul]
+
 /-- `hoareStmt` is monotone in its postcondition: a weaker `B` is a weaker triple, because the null
     event `¬ B` only shrinks. -/
 lemma hoareStmt_mono {A : ProgramState → Prop} {p : Stmt}
@@ -70,6 +84,40 @@ lemma hoareProc_of_wp {sig} {A : sig.ParamType → VariableAssignment → Prop} 
         (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ = 0) :
     hoareProc A p B :=
   hoareProc_iff_wp.mpr h
+
+/-- Strengthening the precondition.  The triple comes first, so that `apply hoare_pre` leaves
+    it with an open precondition `?A'`, to be filled by the wp steps, and the implication into
+    it as the last goal. -/
+theorem hoare_pre {A A' : ProgramState → Prop} {p : Stmt} {B : ProgramState → Prop}
+    (h : hoareStmt A' p B) (hA : ∀ σ, A σ → A' σ) : hoareStmt A p B :=
+  fun σ hσ => h σ (hA σ hσ)
+
+/-- Weakening the postcondition (`hoareStmt_mono`, with the triple first as in `hoare_pre`):
+    `apply hoare_post` leaves the triple with an open postcondition `?B'` and the implication out
+    of it as the last goal. -/
+theorem hoare_post {A : ProgramState → Prop} {p : Stmt} {B B' : ProgramState → Prop}
+    (h : hoareStmt A p B') (hB : ∀ σ, B' σ → B σ) : hoareStmt A p B :=
+  hoareStmt_mono hB h
+
+/-- The wp rule for sampling: the postcondition must hold after writing any value in the
+    support of the sampled distribution. -/
+theorem hoare_sample_wp {α} {e : Getter (SubProbability α) ProgramState}
+    (x : Setter α ProgramState) (B : ProgramState → Prop) :
+    hoareStmt (fun σ => ∀ a ∈ (e.get σ).support, B (x.set a σ)) (.sample x e) B := by
+  refine hoareStmt_of_wp fun σ hA => ?_
+  simp only [programDenotation, wp_bind, wp_get_g, wp_lift, wp_set_g, AsGetter.toG,
+    AsSetter.toS, id_eq]
+  exact SubProbability.expected_eq_zero_of_support fun a ha =>
+    Set.indicator_of_notMem (not_not.mpr (hA a ha)) _
+
+/-- The wp rule for assignment: the postcondition, at the state with the value written. -/
+theorem hoare_assign_wp {α} (x : Setter α ProgramState) (e : Getter α ProgramState)
+    (B : ProgramState → Prop) :
+    hoareStmt (fun σ => B (x.set (e.get σ) σ)) (.assign x e) B := by
+  refine hoareStmt_of_wp fun σ hA => ?_
+  simp only [StmtWithHoles.assign, programDenotation, wp_bind, wp_get_g, wp_lift, wp_set_g,
+    AsGetter.toG, AsSetter.toS, id_eq, expected_pure]
+  exact Set.indicator_of_notMem (not_not.mpr hA) _
 
 /-- A procedure triple is the statement triple about the one-line body
 
