@@ -99,6 +99,10 @@ theorem hoare_post {A : ProgramState → Prop} {p : Stmt} {B B' : ProgramState �
     (h : hoareStmt A p B') (hB : ∀ σ, B' σ → B σ) : hoareStmt A p B :=
   hoareStmt_mono hB h
 
+/-- The rule for `skip`: the precondition implies the postcondition. -/
+theorem hoare_skip {A B : ProgramState → Prop} (h : ∀ σ, A σ → B σ) : hoareStmt A .skip B :=
+  hoareStmt_of_wp fun σ hA => by simp [programDenotation, ProgramDenotation.skip, wp_pure, h σ hA]
+
 /-- The wp rule for sampling: the postcondition must hold after writing any value in the
     support of the sampled distribution. -/
 theorem hoare_sample_wp {α} {e : Getter (SubProbability α) ProgramState}
