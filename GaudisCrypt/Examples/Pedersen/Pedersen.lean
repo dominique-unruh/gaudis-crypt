@@ -342,7 +342,6 @@ section UnfinitedExperimentsByDominique
 macro "simp_reads" : tactic =>
   `(tactic| run_tac Lean.Elab.Tactic.liftMetaTactic1 (some <$> GaudisCrypt.HoareWp.simpReads ·))
 
-set_option linter.style.emptyLine false in
 theorem pedersen_correctness2 :
     hoare[
       ((Module.app (Correctness group.types) (Pedersen group)).main) :
@@ -360,9 +359,12 @@ theorem pedersen_correctness2 :
   hoare_inline 0
   hoare_wp 6
   hoare_skip
-
   simp
 
+lemma test : hoare[ True ==> True ] { skip; } := by
+  hoare_skip
+  -- TODO: why doesn't this give `True ==> True`?
+  simp
 
 end UnfinitedExperimentsByDominique
 

@@ -42,7 +42,7 @@ instance : Inhabited output := sorry
 instance : Fintype output := sorry
 noncomputable instance : DecidableEq output := Classical.decEq output
 
-axiom random_oracle_state : Variable (input -> Option output)
+global_var random_oracle_state : input -> Option output
 
 -- Removed this because there's Pi.instFintype, which just needs an extra DecidableEq
 -- instance [Fintype a] [Fintype b] : Fintype (a → b) := sorry

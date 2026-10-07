@@ -11,8 +11,15 @@ done.  All of it is in `GaudisCrypt/Language/Variables.lean` (+ `VariablesTest.l
 above, and `VariableAssignment`,
 `init`, `varLens` (disjointness by instance search), `setParams` (the `Nonempty` instance of each
 parameter slot comes from the argument value), `embed`/`rename` (via
-`VariableName.withName`), `ProgramState` with `globals : State`, `globalL`/`localL`,
-`Lens.intoLocal`/`intoGlobal`.
+`VariableName.withName`), `ProgramState` with `globals : VariableAssignment` (Phase 7),
+`globalL`/`localL`, `Lens.intoLocal`/`intoGlobal`.
+
+Phase 7 (globals) is done (2026-10-07): `State := VariableAssignment` and `ProgramSpec` removed
+(step 1); `global_var x : T` declares a global as the slot of `⟨"N.x", T⟩`, named by the full
+declaration name `N.x` (which settles the cross-library collision pitfall of §6), with a
+`Lens.IsGlobalVar` instance from which any two globals are disjoint by instance search (step 2);
+all RO/Enc globals are `global_var`s and their disjointness axioms are theorems (step 3).
+The variables in the syntax test files are still axioms.
 
 Phase 6 (flattening, `Logic/Inline.lean`) is done (2026-10-06), along §4 with these choices:
 

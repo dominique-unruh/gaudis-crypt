@@ -54,47 +54,25 @@ P[adv's output = chal_x in lazy game]
     `true` by the *experiment* (not the adversary) whenever it observes
     `oracle_input.get = ow_challenge_x.get` at the moment of a lazy_query
     in `ow_loop_body`. -/
-axiom chal_x_queried : Variable Bool
+global_var chal_x_queried : Bool
 
-/-! ### Disjointness axioms for `chal_x_queried` -/
+/-! ### Disjointness of `chal_x_queried`
 
-axiom disjoint_chal_x_queried_ro :
-  Lens.Disjoint chal_x_queried random_oracle_state
-axiom disjoint_chal_x_queried_ow_challenge_x :
-  Lens.Disjoint chal_x_queried ow_challenge_x
-axiom disjoint_chal_x_queried_ow_challenge_y :
-  Lens.Disjoint chal_x_queried ow_challenge_y
-axiom disjoint_chal_x_queried_ow_response :
-  Lens.Disjoint chal_x_queried ow_response
-axiom disjoint_chal_x_queried_oracle_input :
-  Lens.Disjoint chal_x_queried oracle_input
-axiom disjoint_chal_x_queried_oracle_output :
-  Lens.Disjoint chal_x_queried oracle_output
+By instance search, in both directions, as for all globals; named for the proofs that cite
+them. -/
 
-attribute [instance] disjoint_chal_x_queried_ro
-                     disjoint_chal_x_queried_ow_challenge_x
-                     disjoint_chal_x_queried_ow_challenge_y
-                     disjoint_chal_x_queried_ow_response
-                     disjoint_chal_x_queried_oracle_input
-                     disjoint_chal_x_queried_oracle_output
-
-/-- Symmetric disjoint instances. -/
-instance : Lens.Disjoint random_oracle_state chal_x_queried :=
-  disjoint_chal_x_queried_ro.symm
-instance : Lens.Disjoint ow_challenge_x chal_x_queried :=
-  disjoint_chal_x_queried_ow_challenge_x.symm
-instance : Lens.Disjoint ow_challenge_y chal_x_queried :=
-  disjoint_chal_x_queried_ow_challenge_y.symm
-instance : Lens.Disjoint ow_response chal_x_queried :=
-  disjoint_chal_x_queried_ow_response.symm
-instance : Lens.Disjoint oracle_input chal_x_queried :=
-  disjoint_chal_x_queried_oracle_input.symm
-instance : Lens.Disjoint oracle_output chal_x_queried :=
-  disjoint_chal_x_queried_oracle_output.symm
-instance : Lens.Disjoint ow_challenge_x ow_response :=
-  disjoint_ow_response_ow_challenge_x.symm
-instance : Lens.Disjoint ow_challenge_y ow_response :=
-  disjoint_ow_response_ow_challenge_y.symm
+theorem disjoint_chal_x_queried_ro :
+  Lens.Disjoint chal_x_queried random_oracle_state := inferInstance
+theorem disjoint_chal_x_queried_ow_challenge_x :
+  Lens.Disjoint chal_x_queried ow_challenge_x := inferInstance
+theorem disjoint_chal_x_queried_ow_challenge_y :
+  Lens.Disjoint chal_x_queried ow_challenge_y := inferInstance
+theorem disjoint_chal_x_queried_ow_response :
+  Lens.Disjoint chal_x_queried ow_response := inferInstance
+theorem disjoint_chal_x_queried_oracle_input :
+  Lens.Disjoint chal_x_queried oracle_input := inferInstance
+theorem disjoint_chal_x_queried_oracle_output :
+  Lens.Disjoint chal_x_queried oracle_output := inferInstance
 
 section OWParam
 

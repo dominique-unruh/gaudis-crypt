@@ -221,8 +221,8 @@ bijection coupling; everything else is plumbing or reuse.
 The file is ~690 lines in five sections. Reading top to bottom:
 
 **Setup.** `outputCommGroup` (the group on `output`, axiomatized like the
-type's other instances), the registers `chal_c`/`guess_var`, their
-disjointness axioms, and the two games `enc_game` / `enc_game_pre`.
+type's other instances), the registers `chal_c`/`guess_var` (`global_var`s;
+their disjointness facts are theorems, by instance search), and the two games `enc_game` / `enc_game_pre`.
 
 **§ EncStage1 — the coupling (indistinguishability up to bad).**
 

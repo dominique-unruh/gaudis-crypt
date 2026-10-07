@@ -60,34 +60,21 @@ axiom outputCommGroup : AddCommGroup output
 attribute [instance] outputCommGroup
 
 /-- The published ciphertext, readable by the adversary. -/
-axiom chal_c : Variable output
+global_var chal_c : output
 /-- The adversary's guess bit. -/
-axiom guess_var : Variable Bool
+global_var guess_var : Bool
 
-axiom disjoint_chal_c_ro : Lens.Disjoint chal_c random_oracle_state
-axiom disjoint_chal_c_chal_x : Lens.Disjoint chal_c ow_challenge_x
-axiom disjoint_chal_c_flag : Lens.Disjoint chal_c chal_x_queried_gh
-axiom disjoint_chal_c_oracle_input : Lens.Disjoint chal_c oracle_input
-axiom disjoint_chal_c_oracle_output : Lens.Disjoint chal_c oracle_output
-axiom disjoint_guess_ro : Lens.Disjoint guess_var random_oracle_state
-axiom disjoint_guess_chal_x : Lens.Disjoint guess_var ow_challenge_x
-axiom disjoint_guess_flag : Lens.Disjoint guess_var chal_x_queried_gh
-axiom disjoint_guess_chal_c : Lens.Disjoint guess_var chal_c
-
-attribute [instance] disjoint_chal_c_ro disjoint_chal_c_chal_x
-  disjoint_chal_c_flag disjoint_chal_c_oracle_input
-  disjoint_chal_c_oracle_output disjoint_guess_ro disjoint_guess_chal_x
-  disjoint_guess_flag disjoint_guess_chal_c
-
-instance : Lens.Disjoint random_oracle_state chal_c := disjoint_chal_c_ro.symm
-instance : Lens.Disjoint ow_challenge_x chal_c := disjoint_chal_c_chal_x.symm
-instance : Lens.Disjoint chal_x_queried_gh chal_c := disjoint_chal_c_flag.symm
-instance : Lens.Disjoint oracle_input chal_c := disjoint_chal_c_oracle_input.symm
-instance : Lens.Disjoint oracle_output chal_c := disjoint_chal_c_oracle_output.symm
-instance : Lens.Disjoint random_oracle_state guess_var := disjoint_guess_ro.symm
-instance : Lens.Disjoint ow_challenge_x guess_var := disjoint_guess_chal_x.symm
-instance : Lens.Disjoint chal_x_queried_gh guess_var := disjoint_guess_flag.symm
-instance : Lens.Disjoint chal_c guess_var := disjoint_guess_chal_c.symm
+/- Disjointness is by instance search, in both directions, as for all globals; these are named
+   for the proofs that cite them. -/
+theorem disjoint_chal_c_ro : Lens.Disjoint chal_c random_oracle_state := inferInstance
+theorem disjoint_chal_c_chal_x : Lens.Disjoint chal_c ow_challenge_x := inferInstance
+theorem disjoint_chal_c_flag : Lens.Disjoint chal_c chal_x_queried_gh := inferInstance
+theorem disjoint_chal_c_oracle_input : Lens.Disjoint chal_c oracle_input := inferInstance
+theorem disjoint_chal_c_oracle_output : Lens.Disjoint chal_c oracle_output := inferInstance
+theorem disjoint_guess_ro : Lens.Disjoint guess_var random_oracle_state := inferInstance
+theorem disjoint_guess_chal_x : Lens.Disjoint guess_var ow_challenge_x := inferInstance
+theorem disjoint_guess_flag : Lens.Disjoint guess_var chal_x_queried_gh := inferInstance
+theorem disjoint_guess_chal_c : Lens.Disjoint guess_var chal_c := inferInstance
 
 section EncRO
 

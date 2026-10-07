@@ -32,50 +32,49 @@ challenge value `y`.
 
 /-- The challenge value `y` published to the adversary (= `oracle(x)` for a
     random `x`). -/
-axiom ow_challenge_y : Variable output
+global_var ow_challenge_y : output
 
 /-- The original challenge input `x` (kept in state for the bound analysis). -/
-axiom ow_challenge_x : Variable input
+global_var ow_challenge_x : input
 
 /-- The adversary's response: its candidate preimage of the challenge. -/
-axiom ow_response : Variable input
+global_var ow_response : input
 
-/-- Disjointness: game-specific variables don't alias the random oracle. -/
-axiom disjoint_ow_challenge_y_ro : Lens.Disjoint ow_challenge_y random_oracle_state
-axiom disjoint_ow_challenge_x_ro : Lens.Disjoint ow_challenge_x random_oracle_state
-axiom disjoint_ow_response_ro : Lens.Disjoint ow_response random_oracle_state
+/-- Disjointness: game-specific variables don't alias the random oracle.  (All globals are
+    disjoint by instance search; these are named for the proofs that cite them.) -/
+theorem disjoint_ow_challenge_y_ro : Lens.Disjoint ow_challenge_y random_oracle_state :=
+  inferInstance
+theorem disjoint_ow_challenge_x_ro : Lens.Disjoint ow_challenge_x random_oracle_state :=
+  inferInstance
+theorem disjoint_ow_response_ro : Lens.Disjoint ow_response random_oracle_state := inferInstance
 
 /-- Game-specific variables are disjoint from the loop's scratch variables.
     Needed so that `ow_loop_body`'s `ProgramDenotation.get oracle_input` /
     `ProgramDenotation.set oracle_output` / `random_oracle_state` operations preserve
     `ow_challenge_y` (and similarly for `ow_response`). -/
-axiom disjoint_oracle_input_ow_challenge_y : Lens.Disjoint oracle_input ow_challenge_y
-axiom disjoint_oracle_output_ow_challenge_y : Lens.Disjoint oracle_output ow_challenge_y
-axiom disjoint_ro_ow_challenge_y : Lens.Disjoint random_oracle_state ow_challenge_y
-axiom disjoint_oracle_input_ow_challenge_x : Lens.Disjoint oracle_input ow_challenge_x
-axiom disjoint_oracle_output_ow_challenge_x : Lens.Disjoint oracle_output ow_challenge_x
-axiom disjoint_ro_ow_challenge_x : Lens.Disjoint random_oracle_state ow_challenge_x
-axiom disjoint_ow_challenge_y_ow_challenge_x : Lens.Disjoint ow_challenge_y ow_challenge_x
-axiom disjoint_oracle_input_ow_response : Lens.Disjoint oracle_input ow_response
-axiom disjoint_oracle_output_ow_response : Lens.Disjoint oracle_output ow_response
-axiom disjoint_ro_ow_response : Lens.Disjoint random_oracle_state ow_response
-axiom disjoint_ow_response_ow_challenge_x : Lens.Disjoint ow_response ow_challenge_x
-axiom disjoint_ow_response_ow_challenge_y : Lens.Disjoint ow_response ow_challenge_y
-
-attribute [instance] disjoint_ow_challenge_y_ro disjoint_ow_challenge_x_ro
-                     disjoint_ow_response_ro
-                     disjoint_oracle_input_ow_challenge_y
-                     disjoint_oracle_output_ow_challenge_y
-                     disjoint_ro_ow_challenge_y
-                     disjoint_oracle_input_ow_challenge_x
-                     disjoint_oracle_output_ow_challenge_x
-                     disjoint_ro_ow_challenge_x
-                     disjoint_ow_challenge_y_ow_challenge_x
-                     disjoint_oracle_input_ow_response
-                     disjoint_oracle_output_ow_response
-                     disjoint_ro_ow_response
-                     disjoint_ow_response_ow_challenge_x
-                     disjoint_ow_response_ow_challenge_y
+theorem disjoint_oracle_input_ow_challenge_y : Lens.Disjoint oracle_input ow_challenge_y :=
+  inferInstance
+theorem disjoint_oracle_output_ow_challenge_y : Lens.Disjoint oracle_output ow_challenge_y :=
+  inferInstance
+theorem disjoint_ro_ow_challenge_y : Lens.Disjoint random_oracle_state ow_challenge_y :=
+  inferInstance
+theorem disjoint_oracle_input_ow_challenge_x : Lens.Disjoint oracle_input ow_challenge_x :=
+  inferInstance
+theorem disjoint_oracle_output_ow_challenge_x : Lens.Disjoint oracle_output ow_challenge_x :=
+  inferInstance
+theorem disjoint_ro_ow_challenge_x : Lens.Disjoint random_oracle_state ow_challenge_x :=
+  inferInstance
+theorem disjoint_ow_challenge_y_ow_challenge_x : Lens.Disjoint ow_challenge_y ow_challenge_x :=
+  inferInstance
+theorem disjoint_oracle_input_ow_response : Lens.Disjoint oracle_input ow_response :=
+  inferInstance
+theorem disjoint_oracle_output_ow_response : Lens.Disjoint oracle_output ow_response :=
+  inferInstance
+theorem disjoint_ro_ow_response : Lens.Disjoint random_oracle_state ow_response := inferInstance
+theorem disjoint_ow_response_ow_challenge_x : Lens.Disjoint ow_response ow_challenge_x :=
+  inferInstance
+theorem disjoint_ow_response_ow_challenge_y : Lens.Disjoint ow_response ow_challenge_y :=
+  inferInstance
 
 -- DecidableEq on `output` moved to RO.lean (needed by RO infrastructure).
 

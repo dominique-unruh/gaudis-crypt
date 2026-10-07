@@ -136,11 +136,12 @@ whose least upper bound doesn't exist as a lens). Not used elsewhere.
   Check it before introducing names in the
   range framework so you match the intended direction.
 - **Per-game pattern**: `notes/RO/PerGamePattern.md` documents how to add a new
-  cryptographic game. Framework-level state/variables (`random_oracle_state`,
-  etc.) are shared `axiom`s; game-level adversaries and variables are
-  `variable` section parameters so theorems apply to *any* RO-disjoint adversary.
-  New game variables are still declared axiomatically with axiomatized
-  disjointness, marked `attribute [instance]`.
+  cryptographic game. Framework-level and game-level variables
+  (`random_oracle_state`, `claim_x`, …) are global variables declared with
+  `global_var x : T` (`Language/Variables.lean`): the slot `⟨"<full name of x>", T⟩`
+  in the globals, disjoint from every other `global_var` by instance search
+  (no axioms). Game-level adversaries are `variable` section parameters so
+  theorems apply to *any* RO-disjoint adversary.
 - `Test.lean` / `Test2.lean` are untracked scratch files, not part of the build.
 
 ### Name spaces, file names, naming convention

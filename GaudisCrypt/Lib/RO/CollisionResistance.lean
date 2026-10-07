@@ -27,14 +27,13 @@ wp-expectation induction.
 -/
 
 /-- The CR adversary's two collision claims, stored in state. -/
-axiom claim_x : Variable input
-axiom claim_x' : Variable input
+global_var claim_x : input
+global_var claim_x' : input
 
-/-- Disjointness: the claim variables don't alias the RO state. -/
-axiom disjoint_claim_x_ro : Lens.Disjoint claim_x random_oracle_state
-axiom disjoint_claim_x'_ro : Lens.Disjoint claim_x' random_oracle_state
-
-attribute [instance] disjoint_claim_x_ro disjoint_claim_x'_ro
+/-- Disjointness: the claim variables don't alias the RO state (by instance search, as all
+    globals; named for the proofs that cite them). -/
+theorem disjoint_claim_x_ro : Lens.Disjoint claim_x random_oracle_state := inferInstance
+theorem disjoint_claim_x'_ro : Lens.Disjoint claim_x' random_oracle_state := inferInstance
 
 /-- Output equality needed for the collision check. We get it for free
     from classical logic (the rest of the file is noncomputable anyway). -/

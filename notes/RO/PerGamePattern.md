@@ -7,20 +7,23 @@ cryptographic game to plonk-lean, given the current state of the framework.
 
 The framework is laid out in two tiers:
 
-- **Framework-level state and variables** (in `RO.lean`): `state`,
+- **Framework-level state and variables** (`Lib/RO/Basic.lean`,
+  `Lib/RO/OracleLoop.lean`): `state` (= `VariableAssignment`, the globals),
   `random_oracle_state`, `want_more`, `oracle_input`, `oracle_output`,
-  `adversary_result`. These are declared as `axiom`s and shared across all
-  games. They support `oracle_loop`, the `adv_conv_eq_conv_adv` /
-  `oracle_loop_*_lazy_eq_random_oracle` lemmas, `Program.transfer`,
-  and the transfer framework.
+  `adversary_result`. These are global variables declared with `global_var`
+  (see Step 1) and shared across all games. They support `oracle_loop`, the
+  `adv_conv_eq_conv_adv` / `oracle_loop_*_lazy_eq_random_oracle` lemmas,
+  `Program.transfer`, and the transfer framework.
 
-- **Game-level state, variables, and adversary** (in `CollisionResistance.lean`):
-  things like `claim_x`, `claim_x'`, and `cr_adv`. These are NOT axiomatic —
-  they're *section parameters* via `variable` declarations. This means CR's
-  theorems take the adversary (and its RO-disjointness) as parameters, so they
-  apply to *any* RO-disjoint adversary.
+- **Game-level variables** (e.g. `claim_x`, `claim_x'` in
+  `CollisionResistance.lean`): also `global_var`s.
 
-Why this split? The framework axioms encode "every game shares the same
+- **Adversaries** (e.g. `cr_adv`): *section parameters* via `variable`
+  declarations. This means CR's theorems take the adversary (and its
+  RO-disjointness) as parameters, so they apply to *any* RO-disjoint
+  adversary.
+
+Why this split? The framework variables encode "every game shares the same
 random-oracle setup, with the same scratch variables." Refactoring them out
 would buy little (since the framework setup is genuinely shared) at high cost
 (framework defs/proofs touch them pervasively, and Lean doesn't auto-apply
@@ -36,23 +39,23 @@ Suppose we're adding a new game `MyGame` with:
   state variables and read/write `oracle_input`/`oracle_output`/`want_more`.
 - Game-specific Variables, e.g., `myVar1 : Variable Foo`, `myVar2 : Variable Bar`.
 
-### Step 1. Declare game-specific Variables (still axiomatic)
+### Step 1. Declare game-specific variables
 
 ```lean
-import GaudisCrypt.CollisionResistance  -- or just RO.lean if not building on CR
+import GaudisCrypt.Lib.RO.CollisionResistance  -- or just Lib.RO.Basic if not building on CR
 
-axiom myVar1 : Variable Foo
-axiom myVar2 : Variable Bar
-
-axiom disjoint_myVar1_ro : disjoint myVar1 random_oracle_state
-axiom disjoint_myVar2_ro : disjoint myVar2 random_oracle_state
-
-attribute [instance] disjoint_myVar1_ro disjoint_myVar2_ro
+global_var myVar1 : Foo
+global_var myVar2 : Bar
 ```
 
-Yes, these are axiomatic. Until the state-polymorphism refactor (deferred —
-see below), this is how new variables are added. Disjointness with each
-framework variable that you actually use must be axiomatized.
+`global_var x : T` (in `Language/Variables.lean`) defines
+`x : Lens T VariableAssignment` as the slot of the variable `⟨"N.x", T⟩` in the
+globals, `N.x` being the full name of the declaration (`T` must be
+`Nonempty`). No axioms: any two `global_var`s are disjoint by instance search,
+in both directions (`Lens.IsGlobalVar.instDisjoint`), and so are their
+`intoGlobal` lifts. A named disjointness fact, where a proof wants to cite one,
+is `theorem disjoint_myVar1_ro : Lens.Disjoint myVar1 random_oracle_state :=
+inferInstance`.
 
 ### Step 2. Parameterize the adversary
 
@@ -105,16 +108,17 @@ parameters. Future code can instantiate them with any adversary.
 
 ## What this pattern doesn't give you
 
-- **Game isolation**: `myVar1`, `myVar2` axioms are visible globally. A second
-  game that doesn't care about MyGame still sees these names in its namespace.
-  This is the remaining "state pollution" pain — see below.
+- **Game isolation**: `myVar1`, `myVar2` are declarations visible globally. A
+  second game that doesn't care about MyGame still sees these names in its
+  namespace (they cannot clash with its own variables' slots, though: slots
+  are named by full declaration names). See below.
 
 ## Deferred: state polymorphism
 
 A larger refactor (deferred) would make `state` itself a type parameter,
 moving framework variables (`random_oracle_state`, etc.) and game variables
-(`myVar1`, etc.) into a per-game record or typeclass. This would eliminate
-all axioms in favor of per-game instances.
+(`myVar1`, etc.) into a per-game record or typeclass. (This was originally
+also meant to eliminate the variable axioms; `global_var` has done that.)
 
 The reason it's deferred: the framework defs (`lazy_init`, `convert`,
 `lazy_query`, `oracle_loop`, etc.) reference framework variables ~200 times
@@ -134,11 +138,12 @@ in the chat history of the 2026-06-03 session (see project memory). Briefly:
   instance-resolution auto-fills. Cleanest at call sites; tripped over
   elaboration corner cases in the prototype.
 - **Concretize the framework state (option 1)**: state becomes a record;
-  framework variables are real lenses (no axioms, no parameters). Loses
-  per-game state separation but no axioms.
+  framework variables are concrete lenses (no axioms, no parameters). Loses
+  per-game state separation but no axioms. (The `global_var` scheme is a
+  variant of this, with `VariableAssignment` as the record.)
 
 ## Reference
 
-`PlonkLean/RO/CollisionResistance.lean` is the canonical worked example. Read
+`GaudisCrypt/Lib/RO/CollisionResistance.lean` is the canonical worked example. Read
 its outline (the `section CRParam` block; `cr_adv` and `h_cr_adv` parameters;
 `include h_cr_adv in` annotations) for the template.

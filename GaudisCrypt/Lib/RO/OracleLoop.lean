@@ -27,22 +27,22 @@ Scratch state and loop primitives for adversary-driven oracle protocols.
 
 /-! ## Scratch state -/
 
-axiom want_more : Variable Bool
-axiom oracle_input : Variable input
-axiom oracle_output : Variable output
-axiom adversary_result : Variable Bool
+global_var want_more : Bool
+global_var oracle_input : input
+global_var oracle_output : output
+global_var adversary_result : Bool
 
 noncomputable def skip : ProgramDenotation state Unit := do
   return ()
 
-/- The non-RO state variables are disjoint from `random_oracle_state`. -/
-axiom disjoint_want_more_ro : Lens.Disjoint want_more random_oracle_state
-axiom disjoint_oracle_input_ro : Lens.Disjoint oracle_input random_oracle_state
-axiom disjoint_oracle_output_ro : Lens.Disjoint oracle_output random_oracle_state
-axiom disjoint_adversary_result_ro : Lens.Disjoint adversary_result random_oracle_state
-
-attribute [instance] disjoint_want_more_ro disjoint_oracle_input_ro
-                     disjoint_oracle_output_ro disjoint_adversary_result_ro
+/- The non-RO state variables are disjoint from `random_oracle_state` (by instance search, as
+   all globals are; named here for the proofs that cite them). -/
+theorem disjoint_want_more_ro : Lens.Disjoint want_more random_oracle_state := inferInstance
+theorem disjoint_oracle_input_ro : Lens.Disjoint oracle_input random_oracle_state := inferInstance
+theorem disjoint_oracle_output_ro : Lens.Disjoint oracle_output random_oracle_state :=
+  inferInstance
+theorem disjoint_adversary_result_ro : Lens.Disjoint adversary_result random_oracle_state :=
+  inferInstance
 
 /-! ## `lazy_query + set oracle_output` — the "deferred sampling" combinator
 

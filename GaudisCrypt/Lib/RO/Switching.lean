@@ -36,25 +36,11 @@ Fundamental-Lemma assembly (Phases 3–4) build on these definitions.
 /-- Shared "a collision has occurred" flag for the switching coupling. Set to
     `true` the first time a freshly drawn output already appears in the image;
     both `lazy_query_rf` and `lazy_query_rp` maintain it identically. -/
-axiom prp_bad : Variable Bool
+global_var prp_bad : Bool
 
-axiom disjoint_prp_bad_ro : Lens.Disjoint prp_bad random_oracle_state
-axiom disjoint_prp_bad_oracle_input : Lens.Disjoint prp_bad oracle_input
-axiom disjoint_prp_bad_oracle_output : Lens.Disjoint prp_bad oracle_output
-
-attribute [instance] disjoint_prp_bad_ro
-                     disjoint_prp_bad_oracle_input
-                     disjoint_prp_bad_oracle_output
-
-/-- Symmetric instances. -/
-instance : Lens.Disjoint random_oracle_state prp_bad := disjoint_prp_bad_ro.symm
-instance : Lens.Disjoint oracle_input prp_bad := disjoint_prp_bad_oracle_input.symm
-instance : Lens.Disjoint oracle_output prp_bad := disjoint_prp_bad_oracle_output.symm
-
-/-- The symmetric forms of the OracleLoop RO-disjointness axioms, needed to
-    frame the RO read/write inside the oracles against the scratch lenses. -/
-instance : Lens.Disjoint random_oracle_state oracle_input := disjoint_oracle_input_ro.symm
-instance : Lens.Disjoint random_oracle_state oracle_output := disjoint_oracle_output_ro.symm
+theorem disjoint_prp_bad_ro : Lens.Disjoint prp_bad random_oracle_state := inferInstance
+theorem disjoint_prp_bad_oracle_input : Lens.Disjoint prp_bad oracle_input := inferInstance
+theorem disjoint_prp_bad_oracle_output : Lens.Disjoint prp_bad oracle_output := inferInstance
 
 /-- Outputs already assigned to some input *other than* `inp` — i.e. the values
     a fresh draw at `inp` would collide with, and (when `inp` is uncached) the

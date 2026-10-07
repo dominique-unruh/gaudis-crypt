@@ -16,8 +16,9 @@ The memory model of the new procedures (`NEW_PROCEDURES.md`, §2.1, §2.3, §4.2
 * `VariableAssignment.setParams` — write an argument tuple into the parameter slots.
 * `VariableAssignment.embed`/`rename` — view an assignment through an injective name map
   (types are kept, so no casts), used for flattening.
-
-Nothing uses these yet.
+* `global_var x : T` — declares the global variable `x`, the slot of `⟨"N.x", T⟩` in the
+  globals (`N.x` the full declaration name), disjoint from all other globals by instance search
+  (`Lens.IsGlobalVar`).
 
 ## Variable names
 
@@ -460,5 +461,50 @@ instance Lens.disjoint_intoGlobal {a b : Type*} (x : Lens a VariableAssignment)
   Lens.disjoint_chain _ x y
 
 end ProgramState
+
+/-! ## Global variables
+
+`global_var x : T` declares the global variable `x`: the slot of the variable name
+`⟨"N.x", T⟩` in the globals, where `N.x` is the full name of the declaration, so two globals
+declared in different places never share a slot.  It is a plain `def` (simp does not see through
+it), and `Lens.IsGlobalVar` records which slot it is, which is what instance search uses to find
+two globals disjoint (`Lens.IsGlobalVar.instDisjoint`). -/
+
+/-- `x` is the slot of the variable name `v` (as the instance `global_var` emits says).  `v` is an
+`outParam`, found from `x`. -/
+class Lens.IsGlobalVar {T : Type} (x : Lens T VariableAssignment) (v : outParam VariableName) :
+    Prop where
+  type_eq : v.type = T
+  heq : HEq x (varLens v)
+
+/-- Two slots of differently named variables are disjoint. -/
+theorem Lens.IsGlobalVar.disjoint {T U : Type} {x : Lens T VariableAssignment}
+    {y : Lens U VariableAssignment} {v w : VariableName} (hx : Lens.IsGlobalVar x v)
+    (hy : Lens.IsGlobalVar y w) (h : v ≠ w) : Lens.Disjoint x y := by
+  obtain ⟨hvT, hvx⟩ := hx
+  obtain ⟨hwU, hwy⟩ := hy
+  cases v; cases w
+  subst hvT hwU
+  cases eq_of_heq hvx; cases eq_of_heq hwy
+  exact varLens_disjoint h
+
+/-- Globals with different (literal) names are disjoint. -/
+instance Lens.IsGlobalVar.instDisjoint {T U : Type} (x : Lens T VariableAssignment)
+    (y : Lens U VariableAssignment) {v w : VariableName} [hx : Lens.IsGlobalVar x v]
+    [hy : Lens.IsGlobalVar y w] [VariableName.NameNe v w] : Lens.Disjoint x y :=
+  hx.disjoint hy VariableName.ne_of_nameNe
+
+/-- `global_var x : T` declares the global variable `x : Lens T VariableAssignment`, the slot of
+`⟨"N.x", T⟩` with `N.x` the full name of the declaration (`T` must be nonempty), together with
+its `Lens.IsGlobalVar` instance, so that globals are found disjoint by instance search. -/
+syntax (docComment)? "global_var " ident " : " term : command
+
+macro_rules
+  | `($[$doc?]? global_var $x : $T) => do
+    let full := (← Lean.Macro.getCurrNamespace) ++ x.getId.eraseMacroScopes
+    let n := Lean.quote full.toString
+    `($[$doc?]? noncomputable def $x : Lens $T VariableAssignment :=
+        varLens (VariableName.mk $n $T)
+      instance : Lens.IsGlobalVar $x (VariableName.mk $n $T) := ⟨rfl, HEq.rfl⟩)
 
 end GaudisCrypt
