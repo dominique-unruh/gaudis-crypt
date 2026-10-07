@@ -12,7 +12,7 @@ input (`StmtWithHoles.EquivInLens`) along a lens that renames the locals.
 `Flatten.flattenProcedure` does the same to a procedure, with a proof that its
 `procedureDenotation` is unchanged.
 `Flatten.unfoldProcedure` and `Flatten.inlineProcedure` first evaluate a callee named through
-modules, so that it can be flattened.  The design is §4 of `NEW_PROCEDURES.md`.
+modules, so that it can be flattened.
 
 One call is flattened by renaming the locals: the caller's keep their names (`Flatten.trafo`,
 renaming by `Flatten.escape`, the identity on every name not starting with `@`), the callee's

@@ -26,10 +26,10 @@ def recursion {a} {b : a → Type*} [∀ x, OmegaCompletePartialOrder (b x)] [�
 sub-distribution over results and final states.
 
 This is `StateT state SubProbability a` unfolded, and deliberately *not* defined as that:
-`StateT` puts the state and the result in one universe, but a program's state will have to live
-in a higher universe than its results (procedure-local variables are indexed by `VariableName`,
-which contains a `Type`, so the local state is in `Type 1`, while results are `Unit`, `Bool`, …;
-see `NEW_PROCEDURES.md`).  The `Monad` instance below and the instances after the monad laws are
+`StateT` puts the state and the result in one universe, but a program's state lives in a higher
+universe than its results (variables are indexed by `VariableName`, which contains a `Type`, so
+`VariableAssignment` and `ProgramState` are in `Type 1`, while results are `Unit`, `Bool`, …).
+The `Monad` instance below and the instances after the monad laws are
 `StateT`'s, written out.  The state and the results have independent universes. -/
 def ProgramDenotation (state : Type u) (a : Type v) : Type (max u v) :=
   state → SubProbability (a × state)

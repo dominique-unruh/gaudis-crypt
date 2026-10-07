@@ -5,7 +5,7 @@ import GaudisCrypt.Language.Semantics
 /-!
 # Variables
 
-The memory model of the new procedures (`NEW_PROCEDURES.md`, §2.1, §2.3, §4.2):
+The memory model of programs and procedures:
 
 * `VariableName` — a program variable's name together with its type (see below).
 * `VariableAssignment` — a value for every `VariableName`, with `VariableAssignment.init` as the
@@ -29,7 +29,7 @@ told apart by `VariableName.NameNe` in a single unification step, whatever their
 is what lets disjointness of two variables be found automatically.  (Instance search cannot
 compare strings in one step: a string literal is opened into a list of characters, and every
 character then costs a step and a level of recursion.  `Nat` literals are the one kind of data
-the unifier has built-in arithmetic for.  See `NEW_PROCEDURES.md`, §1.3.)
+the unifier has built-in arithmetic for.)
 
 `key` and its correctness proof `keyCorrect` are filled in automatically: `key` is an implicit
 argument of the constructor, and the `variable_name_key` tactic behind `keyCorrect` evaluates
@@ -141,7 +141,7 @@ equal iff their names and types are (`nonempty` is a proposition, and `key`/`key
 determined by the name).
 
 The type has to be nonempty, so that an assignment of values to all variable names exists at
-all (`NEW_PROCEDURES.md`, §1.1).  The instance is found by instance search. -/
+all (`VariableAssignment.init`).  The instance is found by instance search. -/
 structure VariableName : Type 1 where
   name : String
   type : Type
@@ -222,7 +222,7 @@ nonempty type.  Reducible, so that `m v` typechecks at every transparency (rewri
 this). -/
 abbrev VariableAssignment : Type 1 := (v : VariableName) → v.type
 
-/-- The initial assignment: an unspecified value in every slot (`NEW_PROCEDURES.md`, §1.1). -/
+/-- The initial assignment: an unspecified value in every slot. -/
 noncomputable def VariableAssignment.init : VariableAssignment :=
   fun v => Classical.choice v.nonempty
 
@@ -315,7 +315,7 @@ theorem VariableAssignment.setParams_apply_of_notMem : (names : List String) →
 open Classical in
 /-- View an assignment through an injective name map `ι`: slot `n : T` of the view is slot
 `ι n : T` of the assignment.  Writing a view back overwrites exactly the slots in the range of
-`ι`.  Types are kept, so no casts are needed (`NEW_PROCEDURES.md`, §4.2). -/
+`ι`.  Types are kept, so no casts are needed. -/
 noncomputable def VariableAssignment.embed (ι : String → String) (hι : ι.Injective) :
     Lens VariableAssignment VariableAssignment where
   get m v := m (v.withName (ι v.name))
@@ -396,7 +396,7 @@ section ProgramState
 
 /-- The state a statement runs in: the program's `globals` and the running procedure's
 `locals`.  Both are variable assignments, the globals named by full declaration names
-(`NEW_PROCEDURES.md` §1.4, Phase 7). -/
+(see `global_var`). -/
 structure ProgramState where
   globals : VariableAssignment
   locals : VariableAssignment
