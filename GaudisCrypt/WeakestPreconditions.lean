@@ -538,15 +538,16 @@ theorem wp_zoom {s : Type u} {t : Type v} {α : Type w} (L : Lens s t)
 
 /-- `procedureDenotation` of a plain procedure is `procWrap` of its body (the closed-procedure
     sibling of `procedureDenotation_eq_procWrap_gen`). -/
-theorem procedureDenotation_eq_procWrap [ProgramSpec] {sig : ProcedureSignature}
+theorem procedureDenotation_eq_procWrap {sig : ProcedureSignature}
     (p : Procedure sig) (args : sig.ParamType) :
     procedureDenotation p args
       = procWrap p.return_val (p.initLocals args) (programDenotation p.body) :=
   rfl
 
-theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature}
+theorem wp_procWrap {sig : ProcedureSignature}
     (rv : Getter sig.ret ProgramState) (init : VariableAssignment)
-    (B : ProgramDenotation ProgramState Unit) (f : ProgramDenotation.Post State sig.ret) :
+    (B : ProgramDenotation ProgramState Unit)
+    (f : ProgramDenotation.Post VariableAssignment sig.ret) :
     (procWrap rv init B).wp f
       = fun st => B.wp (fun p => f (rv.get p.2, p.2.globals)) ⟨st, init⟩ := by
   funext st
@@ -559,7 +560,7 @@ theorem wp_procWrap [ProgramSpec] {sig : ProcedureSignature}
 
 /-- Structure-eta for procedures, as a simp lemma: instantiation (and the `call'` denotation)
     decompose a procedure into its fields; this resurfaces the named procedure. -/
-@[simp] theorem procedureWithHoles_eta [ProgramSpec] {holes : HoleSigs}
+@[simp] theorem procedureWithHoles_eta {holes : HoleSigs}
     {sig : ProcedureSignature} (p : ProcedureWithHoles holes sig) :
     (⟨p.parameterNames, p.parameterNames_length, p.parameterNames_nodup, p.body, p.return_val⟩
       : ProcedureWithHoles holes sig) = p := rfl

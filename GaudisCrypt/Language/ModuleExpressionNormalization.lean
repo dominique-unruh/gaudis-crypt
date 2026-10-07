@@ -21,8 +21,6 @@ means *normal* neutral).  `HasType.red_substituteSimultaneously` is the fundamen
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 namespace ModuleExpression
 
 /-! ## Renaming preserves reduction and normal forms
@@ -142,10 +140,8 @@ theorem WeaklyNormalizing.pair {a b : ModuleExpression} (ha : a.WeaklyNormalizin
 
 namespace HasType
 
-omit [ProgramSpec] in
 theorem isRenaming_id {Γ : ModuleContext} : IsRenaming Γ Γ id := fun h => ⟨h, rfl⟩
 
-omit [ProgramSpec] in
 theorem IsRenaming.comp {Δ Γ Ξ : ModuleContext} {ρ ρ' : Nat → Nat} (h : IsRenaming Δ Γ ρ)
     (h' : IsRenaming Γ Ξ ρ') : IsRenaming Δ Ξ (ρ' ∘ ρ) := fun hn => by
   obtain ⟨h1, e1⟩ := h hn

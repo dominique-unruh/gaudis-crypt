@@ -15,9 +15,6 @@ namespace GaudisCrypt.InlineTest
 
 open GaudisCrypt Lean Elab Command Term Meta
 
-/-- A concrete state, so the test procedures are closed terms. -/
-instance : ProgramSpec := ⟨PUnit⟩
-
 /-- Elaborate a test's input term. -/
 def elabInput (t : Term) : TermElabM Lean.Expr := do
   let e ← elabTerm t none
@@ -28,7 +25,7 @@ def elabInput (t : Term) : TermElabM Lean.Expr := do
 def checkStep (input : Lean.Expr) (step : Flatten.FlattenStep) : MetaM Unit := do
   Meta.check step.stmt
   Meta.check step.proof
-  let expected ← Flatten.mkEquivInLens step.inst step.hCtx input step.stmt step.trafo
+  let expected ← Flatten.mkEquivInLens step.hCtx input step.stmt step.trafo
   unless ← isDefEq (← inferType step.proof) expected do
     throwError "the proof proves{indentExpr (← inferType step.proof)}\nnot{indentExpr expected}"
 

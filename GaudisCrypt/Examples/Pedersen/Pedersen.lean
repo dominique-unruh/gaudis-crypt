@@ -111,8 +111,6 @@ procedure's body. -/
   commitment_inhabited := inferInstance
   openingKey_inhabited := inferInstance
 
-variable [ProgramSpec]
-
 /-! ## The scheme
 
 EC's
@@ -176,7 +174,7 @@ All three are stated at the `group.types`-spelled signature the instantiated gam
 not at `group.G`/`group.F`.  The two are definitionally equal, but `Eq` carries its type as an
 index, so the spelling is what makes them the same proposition as the goal — see the ⚠ below. -/
 
-theorem wp_gen (f : ProgramDenotation.Post State group.types.Value) :
+theorem wp_gen (f : ProgramDenotation.Post VariableAssignment group.types.Value) :
     (procedureDenotation (sig := procsig () -> group.types.Value)
         (Pedersen.gen.procedure group) ()).wp f
       = fun st => ∑ x : group.F, f (group.g ^ x, st) / Fintype.card group.F := by
@@ -189,7 +187,7 @@ theorem wp_gen (f : ProgramDenotation.Post State group.types.Value) :
     localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
 theorem wp_commit (args : group.G × group.F)
-    (f : ProgramDenotation.Post State
+    (f : ProgramDenotation.Post VariableAssignment
       (group.types.Commitment × group.types.OpeningKey)) :
     (procedureDenotation
         (sig := procsig (group.types.Value, group.types.Message) ->
@@ -210,7 +208,7 @@ theorem wp_commit (args : group.G × group.F)
     localVarLens, Lens.intoLocal, Lens.chain, varLens_set, ProgramState.localL]
 
 theorem wp_verify (args : group.G × group.F × group.G × group.F)
-    (f : ProgramDenotation.Post State Bool) :
+    (f : ProgramDenotation.Post VariableAssignment Bool) :
     (procedureDenotation
         (sig := procsig (group.types.Value, group.types.Message,
           group.types.Commitment, group.types.OpeningKey) -> Bool)
@@ -272,19 +270,19 @@ set_option linter.flexible false in
 /-- **Correctness of Pedersen** — EC's
     `hoare[Correctness(Pedersen).main : true ==> res]`: from any initial state, the
     correctness game never returns `false`. -/
-theorem pedersen_correctness (m : group.F) (σ : State) :
+theorem pedersen_correctness (m : group.F) (σ : VariableAssignment) :
     (procedureDenotation
         (Module.app (Correctness group.types) (Pedersen group)).main.procedure m σ).ofEvent
-      {r : Bool × State | r.1 = false} = 0 := by
+      {r : Bool × VariableAssignment | r.1 = false} = 0 := by
   -- reduce `ofEvent` to a `wp` with the indicator postcondition.  Done *before* the module
   -- reduction, so nothing here ever has to name the reduced procedure.
   suffices h : (procedureDenotation
       (Module.app (Correctness group.types) (Pedersen group)).main.procedure m).wp
-      (({r : Bool × State | r.1 = false}).indicator fun _ => 1) σ = 0 by
+      (({r : Bool × VariableAssignment | r.1 = false}).indicator fun _ => 1) σ = 0 by
     have hi := expectation_indicator
       (procedureDenotation
         (Module.app (Correctness group.types) (Pedersen group)).main.procedure m σ)
-      {r : Bool × State | r.1 = false} 1
+      {r : Bool × VariableAssignment | r.1 = false} 1
     rw [one_mul] at hi
     exact_mod_cast hi.symm.trans h
   -- β/δ-reduce the applied functor down to `Correctness.main`'s body with Pedersen's three
@@ -317,7 +315,6 @@ theorem pedersen_correctness (m : group.F) (σ : State) :
   -- the final read has to compute back through that pair lens.
   simp [Lens.pair]
 
-omit [ProgramSpec] in
 -- TODO Maybe delete (unused)
 /-- An event of null points is null.  No `[Countable α]`: `μ.2.2` is the discreteness invariant
     `μ A = ∑_{x ∈ A} μ {x}`, so the sum over `E` is a `tsum` of zeroes whatever the cardinality. -/
@@ -336,25 +333,72 @@ lemma _root_.GaudisCrypt.SubProbability.ofEvent0I {μ : SubProbability α} :
 
 section UnfinitedExperimentsByDominique
 
+theorem hoare_seq (hq : hoareStmt B q C) (hp : hoareStmt A p B) :
+  hoareStmt A (.seq p q) C := sorry
 
+theorem hoare_assign (x : Setter α ProgramState) (e : Getter α ProgramState) (B : ProgramState → Prop) :
+  hoareStmt (fun σ => B (x.set (e.get σ) σ)) (.assign x e) B := sorry
 
 -- TODO: Concrete syntax for Module.app. Either a special infix symbol, or a coercion that allows M(A,B).
 
--- `hoareProc`'s `B` is what must hold almost surely, so this is EC's `==> res` spelled directly,
--- rather than the `res = false` bad event `pedersen_correctness` above names.  In the `hoare[ ]`
--- notation, with the callee left as a *module* (the notation inserts `Module.Proc.procedure`) and
--- the parameter name taken from the `CorrectnessT` field's `@[gaudiProcParamNames]`.  The callee
--- needs the outer parentheses: it is parsed at `term:max`, so an applied functor has to be
--- bracketed.
 theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
   hoare_proc_to_stmt
   hoare_inline 0
-  -- TODO: after inlining, check and deal with pretty-printing issues
+  hoare_inline 0
+  hoare_inline 0
+  hoare_inline 0
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_seq
+  apply hoare_assign
+  simp [Lens.set_get]
+  apply hoare_assign
+  apply hoare_assign
+  -- TODO: add a simp [] here that simp's c1.get ((liftLens c').set ...) -> c1.get ...
+  apply hoare_assign
+  simp
+  apply hoare_assign
+  simp
+  apply hoare_assign
+  simp
+  apply hoare_assign
+  simp
 
+
+  -- TODO: helper function to split the code at a position (i.e., {x1;...;xn} -> {x1;...;xi} ; {xi+1;...;xn})
+  -- TODO: apply hoare_seq
   -- TODO: do wp
 
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
+  sorry
   sorry
 
 

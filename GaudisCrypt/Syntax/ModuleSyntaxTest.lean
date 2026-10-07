@@ -5,7 +5,6 @@ import GaudisCrypt.Syntax.ModuleSyntax
 open GaudisCrypt
 
 namespace Experiment
-variable [ProgramSpec]
 
 /-
 
@@ -374,7 +373,7 @@ moduletype Sized (n : Nat) {
 example (n : Nat) (s : Sized.Structure n) : Sized.use n (Sized.mk n s) = s.use := by simp
 
 -- implicit and instance parameters too; `Poly.typeRep` needs `α` passed to it *by name*, since
--- `@` would also expose the auto-included section variable `[ProgramSpec]`
+-- `@` would also expose any auto-included section variable
 moduletype Poly {α : Type} [Inhabited α] {
   proc gen () -> α;
   proc use (α) -> Bool;
@@ -569,14 +568,12 @@ module HoleNames using (S : TestModule, T : TestModule) : M2 {
 }
 
 /--
-info: def Experiment.HoleNames.g.procedure : [inst : ProgramSpec] →
-  proctype () → Unit uses ((String, ℕ) → Bool, (String, ℕ) → Bool) :=
-fun [ProgramSpec] ↦
-  proc () uses (S_main2 : (String, ℕ) → Bool, T_main : (String, ℕ) → Bool) : Unit {
-      var S_main : Bool;
-      S_main <- call S_main2 ("hi", 3);
-      call T_main ("ho", 4);
-      return ()
+info: def Experiment.HoleNames.g.procedure : proctype () → Unit uses ((String, ℕ) → Bool, (String, ℕ) → Bool) :=
+proc () uses (S_main2 : (String, ℕ) → Bool, T_main : (String, ℕ) → Bool) : Unit {
+    var S_main : Bool;
+    S_main <- call S_main2 ("hi", 3);
+    call T_main ("ho", 4);
+    return ()
 }
 -/
 #guard_msgs in

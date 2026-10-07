@@ -338,8 +338,6 @@ theorem varLens_rename {n n' : String} {T : Type} (i : Nonempty T) (k : Nat)
   subst h hk hk'
   rfl
 
-variable [ProgramSpec]
-
 /-- A lens on the locals, as a lens on the program state that keeps the globals. -/
 def ProgramState.mapLocal (m : Lens VariableAssignment VariableAssignment) :
     Lens ProgramState ProgramState where
@@ -360,7 +358,7 @@ theorem ProgramState.mapLocal_chain_globalL (m : Lens VariableAssignment Variabl
     (mapLocal m).chain L.intoLocal = (m.chain L).intoLocal := rfl
 
 @[simp] theorem ProgramState.mapLocal_chain_intoGlobal {A : Type u}
-    (m : Lens VariableAssignment VariableAssignment) (g : Lens A State) :
+    (m : Lens VariableAssignment VariableAssignment) (g : Lens A VariableAssignment) :
     (mapLocal m).chain g.intoGlobal = g.intoGlobal := by
   refine Lens.ext _ _ fun v s => ?_
   change (⟨g.set v s.globals, m.set (m.get s.locals) s.locals⟩ : ProgramState)
@@ -373,7 +371,7 @@ latter in the term before it looks for lemmas, so a lemma indexed by it would ne
 theorem ProgramState.mapLocal_embed_chain_varLens (ι : String → String) (hι : ι.Injective)
     (n : String) (T : Type) (i : Nonempty T) (k : Nat) (hk : k = VariableName.encode n) :
     @Lens.chain T _ _ (mapLocal (VariableAssignment.embed ι hι))
-      (@Lens.intoLocal _ T (varLens (@VariableName.mk n T i k hk)))
+      (@Lens.intoLocal T (varLens (@VariableName.mk n T i k hk)))
       = (varLens (@VariableName.mk (ι n) T i (VariableName.encode (ι n)) rfl)).intoLocal := by
   rw [mapLocal_chain_intoLocal, VariableAssignment.embed_chain_varLens]
   rfl
@@ -383,7 +381,7 @@ of the parameters: the parameters are where they were, and every other slot is `
 it is called. -/
 theorem ProgramState.mapLocal_embed_get_entry (ι : String → String) (hι : ι.Injective)
     (names : List String) (tys : List Type) (hlen : names.length = tys.length)
-    (hfix : ∀ n ∈ names, ι n = n) (args : typeListToTuple tys) (st : State) :
+    (hfix : ∀ n ∈ names, ι n = n) (args : typeListToTuple tys) (st : VariableAssignment) :
     (mapLocal (VariableAssignment.embed ι hι)).get
         ⟨st, VariableAssignment.setParams names tys hlen args VariableAssignment.init⟩
       = ⟨st, VariableAssignment.setParams names tys hlen args VariableAssignment.init⟩ := by
@@ -485,7 +483,7 @@ theorem emb_chainSetter_resetSetter_univ_set (τ : ProgramState) :
 /-- **Cleaning**: a caller's local variable, seen through `trafo`, is the escaped variable. -/
 @[simp] theorem trafo_chain_varLens (n : String) (T : Type) (i : Nonempty T) (k : Nat)
     (hk : k = VariableName.encode n) :
-    @Lens.chain T _ _ trafo (@Lens.intoLocal _ T (varLens (@VariableName.mk n T i k hk)))
+    @Lens.chain T _ _ trafo (@Lens.intoLocal T (varLens (@VariableName.mk n T i k hk)))
       = (varLens (@VariableName.mk (escape n) T i
           (VariableName.encode (escape n)) rfl)).intoLocal :=
   ProgramState.mapLocal_embed_chain_varLens _ _ n T i k hk
@@ -493,7 +491,7 @@ theorem emb_chainSetter_resetSetter_univ_set (τ : ProgramState) :
 /-- **Cleaning**: a callee's local variable, seen through `emb`, is the tagged variable. -/
 @[simp] theorem emb_chain_varLens (n : String) (T : Type) (i : Nonempty T) (k : Nat)
     (hk : k = VariableName.encode n) :
-    @Lens.chain T _ _ emb (@Lens.intoLocal _ T (varLens (@VariableName.mk n T i k hk)))
+    @Lens.chain T _ _ emb (@Lens.intoLocal T (varLens (@VariableName.mk n T i k hk)))
       = (varLens (@VariableName.mk (tag n) T i (VariableName.encode (tag n)) rfl)).intoLocal :=
   ProgramState.mapLocal_embed_chain_varLens _ _ n T i k hk
 
@@ -501,7 +499,7 @@ theorem emb_chainSetter_resetSetter_univ_set (τ : ProgramState) :
 variable. -/
 @[simp] theorem rename_chain_varLens (ren : List (String × String)) (n : String) (T : Type)
     (i : Nonempty T) (k : Nat) (hk : k = VariableName.encode n) :
-    @Lens.chain T _ _ (rename ren) (@Lens.intoLocal _ T (varLens (@VariableName.mk n T i k hk)))
+    @Lens.chain T _ _ (rename ren) (@Lens.intoLocal T (varLens (@VariableName.mk n T i k hk)))
       = (varLens (@VariableName.mk (renameName ren n) T i
           (VariableName.encode (renameName ren n)) rfl)).intoLocal :=
   ProgramState.mapLocal_embed_chain_varLens _ _ n T i k hk
@@ -519,7 +517,6 @@ theorem emb_chain_varLens_eq (n : String) (T : Type) (i : Nonempty T) (k : Nat)
 
 end Flatten
 
-omit [ProgramSpec] in
 /-- A lens composed with a pair is the pair of the composites — stated with the composites
 given up to an equation (and any `Disjoint` instance for them), so that the cleaning pass can
 rewrite the components and re-synthesize the instance (`Flatten.reduceChainPair`). -/
@@ -599,19 +596,16 @@ abbrev StmtWithHoles.Equiv {hCtx : HoleSigs} (a b : StmtWithHoles hCtx) : Prop :
 
 /-! ## `zoom` against the primitives -/
 
-omit [ProgramSpec] in
 /-- `ProgramDenotation.get` applied at a state — the `Getter` version of
 `ProgramDenotation.get_apply` (which is stated for a `Lens`). -/
 theorem ProgramDenotation.get_apply' {s : Type u} {a : Type v} (g : Getter a s) (st : s) :
     ProgramDenotation.get g st = pure (g.get st, st) := rfl
 
-omit [ProgramSpec] in
 /-- `ProgramDenotation.set` applied at a state — the `Setter` version of
 `ProgramDenotation.set_apply` (which is stated for a `Lens`). -/
 theorem ProgramDenotation.set_apply' {s : Type u} {a : Type v} (x : Setter a s) (v : a)
     (st : s) : ProgramDenotation.set x v st = pure ((), x.set v st) := rfl
 
-omit [ProgramSpec] in
 /-- Zooming twice is zooming along the chained lens. -/
 theorem ProgramDenotation.zoom_chain {s : Type u₁} {t : Type u₂} {u : Type u₃} {a : Type v}
     (x : Lens t u) (y : Lens s t) (p : ProgramDenotation s a) :
@@ -625,7 +619,6 @@ theorem ProgramDenotation.zoom_chain {s : Type u₁} {t : Type u₂} {u : Type u
   congr 1; funext as
   rw [SubProbability.pure_hbind]
 
-omit [ProgramSpec] in
 /-- Reading through a zoomed lens is reading through the composed getter. -/
 theorem ProgramDenotation.zoom_get {s t : Type u} {a : Type v} (l : Lens s t) (g : Getter a s) :
     ProgramDenotation.zoom l (ProgramDenotation.get g)
@@ -637,7 +630,6 @@ theorem ProgramDenotation.zoom_get {s t : Type u} {a : Type v} (l : Lens s t) (g
   simp only [l.get_set]
   rfl
 
-omit [ProgramSpec] in
 /-- Writing through a zoomed lens is writing through the composed setter. -/
 theorem ProgramDenotation.zoom_set {s t : Type u} {a : Type v} (l : Lens s t) (x : Setter a s)
     (v : a) :
@@ -649,7 +641,6 @@ theorem ProgramDenotation.zoom_set {s t : Type u} {a : Type v} (l : Lens s t) (x
   rw [ProgramDenotation.set_apply', ProgramDenotation.set_apply', SubProbability.pure_hbind]
   rfl
 
-omit [ProgramSpec] in
 /-- A state-blind draw is unaffected by zooming. -/
 theorem ProgramDenotation.zoom_lift {s t : Type u} {a : Type v} (l : Lens s t)
     (μ : SubProbability a) :
@@ -663,7 +654,6 @@ theorem ProgramDenotation.zoom_lift {s t : Type u} {a : Type v} (l : Lens s t)
   rw [SubProbability.pure_hbind]
   simp only [l.get_set]
 
-omit [ProgramSpec] in
 /-- Zooming the everywhere-diverging program diverges. -/
 theorem ProgramDenotation.zoom_bot {s t : Type u} {a : Type v} (l : Lens s t) :
     ProgramDenotation.zoom l (⊥ : ProgramDenotation s a) = ⊥ := by
@@ -671,7 +661,6 @@ theorem ProgramDenotation.zoom_bot {s t : Type u} {a : Type v} (l : Lens s t) :
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_left _
 
-omit [ProgramSpec] in
 /-- `zoom` is ω-continuous in its program argument — what the loop case needs. -/
 theorem ProgramDenotation.zoom_ωScottContinuous {s t : Type u} {a : Type v} (l : Lens s t) :
     OmegaCompletePartialOrder.ωScottContinuous
@@ -691,7 +680,6 @@ theorem ProgramDenotation.zoom_ωScottContinuous {s t : Type u} {a : Type v} (l 
     · exact OmegaCompletePartialOrder.ωScottContinuous.of_monotone_map_ωSup
         ⟨fun _ _ hh => Pi.le_def.mp hh (l.get τ), fun _ => rfl⟩
 
-omit [ProgramSpec] in
 /-- **`zoom` commutes with `while_loop`** (Kleene/ωSup argument): running the whole loop in the
 sublens and writing back once is the same as writing back after every iteration. -/
 theorem ProgramDenotation.zoom_while {s t : Type u} (l : Lens s t)
@@ -784,7 +772,6 @@ theorem programDenotation_applyLens (l : Lens ProgramState ProgramState)
   termination_by s => s.depth
   decreasing_by all_goals simp only [StmtWithHoles.depth]; omega
 
-omit [ProgramSpec] in
 /-- Zooming is always a correct replacement: projecting the result of the zoomed program back
 gives the original program's result. -/
 theorem ProgramDenotation.equivInLens_zoom {s t : Type u} {α : Type v} (l : Lens s t)
@@ -815,12 +802,10 @@ theorem StmtWithHoles.equivInLens_applyLens {hCtx : HoleSigs} (l : Lens ProgramS
 
 What the flattener needs along the path down to the call it is rewriting. -/
 
-omit [ProgramSpec] in
 /-- `mapState` spelled out as a `bind`, for rewriting. -/
 theorem SubProbability.mapState_eq {α : Type v} {s t : Type u} (f : t → s)
     (μ : SubProbability (α × t)) : μ.mapState f = μ >>= fun q => pure (q.1, f q.2) := rfl
 
-omit [ProgramSpec] in
 /-- `pure` is equivalent to itself. -/
 theorem ProgramDenotation.EquivInLens.pure {s t : Type u} {α : Type v} {l : Lens s t} (a : α) :
     (Pure.pure a : ProgramDenotation s α).EquivInLens (Pure.pure a) l := by
@@ -830,7 +815,6 @@ theorem ProgramDenotation.EquivInLens.pure {s t : Type u} {α : Type v} {l : Len
   rw [SubProbability.pure_bind]
   rfl
 
-omit [ProgramSpec] in
 /-- Diverging is equivalent to diverging. -/
 theorem ProgramDenotation.EquivInLens.bot {s t : Type u} {α : Type v} {l : Lens s t} :
     (⊥ : ProgramDenotation s α).EquivInLens ⊥ l := by
@@ -838,7 +822,6 @@ theorem ProgramDenotation.EquivInLens.bot {s t : Type u} {α : Type v} {l : Lens
   apply Subtype.ext
   exact MeasureTheory.Measure.bind_zero_left _
 
-omit [ProgramSpec] in
 /-- Reading through the composed getter is equivalent to reading through the original one. -/
 theorem ProgramDenotation.EquivInLens.get {s t : Type u} {α : Type v} (l : Lens s t)
     (g : Getter α s) :
@@ -850,7 +833,6 @@ theorem ProgramDenotation.EquivInLens.get {s t : Type u} {α : Type v} (l : Lens
   rw [ProgramDenotation.get_apply', ProgramDenotation.get_apply', SubProbability.pure_bind]
   rfl
 
-omit [ProgramSpec] in
 /-- Writing through the composed setter is equivalent to writing through the original one. -/
 theorem ProgramDenotation.EquivInLens.set {s t : Type u} {α : Type v} (l : Lens s t)
     (x : Setter α s) (v : α) :
@@ -862,7 +844,6 @@ theorem ProgramDenotation.EquivInLens.set {s t : Type u} {α : Type v} (l : Lens
   rw [ProgramDenotation.set_apply', ProgramDenotation.set_apply', SubProbability.pure_bind]
   simp only [Lens.chainSetter, l.set_get]
 
-omit [ProgramSpec] in
 /-- A state-blind draw is equivalent to itself. -/
 theorem ProgramDenotation.EquivInLens.lift {s t : Type u} {α : Type v} (l : Lens s t)
     (μ : SubProbability α) :
@@ -876,7 +857,6 @@ theorem ProgramDenotation.EquivInLens.lift {s t : Type u} {α : Type v} (l : Len
   congr 1; funext v
   rw [SubProbability.pure_hbind]
 
-omit [ProgramSpec] in
 /-- **Bind congruence** — the `seq` case, and the heart of the path congruences.  Note the
 continuation hypothesis is over *wide* states, which is exactly what `EquivInLens` provides. -/
 theorem ProgramDenotation.EquivInLens.bind {s t : Type u} {α β : Type v} {l : Lens s t}
@@ -898,7 +878,6 @@ theorem ProgramDenotation.EquivInLens.bind {s t : Type u} {α β : Type v} {l : 
   congr 1; funext r
   rw [SubProbability.pure_bind]
 
-omit [ProgramSpec] in
 /-- Projecting twice is projecting along the composite. -/
 theorem SubProbability.mapState_mapState {α : Type v} {s t u : Type w} (f : u → t) (g : t → s)
     (μ : SubProbability (α × u)) :
@@ -909,7 +888,6 @@ theorem SubProbability.mapState_mapState {α : Type v} {s t u : Type w} (f : u �
   congr 1; funext q
   rw [SubProbability.pure_bind]
 
-omit [ProgramSpec] in
 /-- Equivalences compose: through `l`, then through `m`, is through `m.chain l`. -/
 theorem ProgramDenotation.EquivInLens.trans {s t u : Type w} {α : Type v} {l : Lens s t}
     {m : Lens t u} {p : ProgramDenotation s α} {q : ProgramDenotation t α}
@@ -919,7 +897,6 @@ theorem ProgramDenotation.EquivInLens.trans {s t u : Type w} {α : Type v} {l : 
   change ((r su).mapState (fun x => l.get (m.get x))) = p (l.get (m.get su))
   rw [← SubProbability.mapState_mapState, h' _ su rfl, h _ (m.get su) rfl]
 
-omit [ProgramSpec] in
 /-- `mapState` is ω-continuous — what the loop congruence needs. -/
 theorem SubProbability.mapState_ωScottContinuous {α : Type v} {s t : Type u} (f : t → s) :
     OmegaCompletePartialOrder.ωScottContinuous
@@ -937,7 +914,6 @@ theorem SubProbability.mapState_ωScottContinuous {α : Type v} {s t : Type u} (
       OmegaCompletePartialOrder.ωScottContinuous.const
       OmegaCompletePartialOrder.ωScottContinuous.id).map_ωSup ch
 
-omit [ProgramSpec] in
 /-- Equivalence passes to ω-suprema of chains — the limit step of the loop congruence. -/
 theorem ProgramDenotation.EquivInLens.ωSup {s t : Type u} {α : Type v} {l : Lens s t}
     (chP : OmegaCompletePartialOrder.Chain (ProgramDenotation s α))
@@ -954,7 +930,6 @@ theorem ProgramDenotation.EquivInLens.ωSup {s t : Type u} {α : Type v} {l : Le
   ext n
   exact h n _ sb rfl
 
-omit [ProgramSpec] in
 /-- **Loop congruence** (Kleene/ωSup argument again): equivalent conditions and equivalent bodies
 give equivalent loops. -/
 theorem ProgramDenotation.EquivInLens.while_loop {s t : Type u} {l : Lens s t}
@@ -993,7 +968,6 @@ theorem ProgramDenotation.EquivInLens.while_loop {s t : Type u} {l : Lens s t}
   rw [hF_at, hG_at]
   exact ProgramDenotation.EquivInLens.ωSup _ _ key
 
-omit [ProgramSpec] in
 /-- Every program is equivalent to itself, in the identity lens. -/
 theorem ProgramDenotation.EquivInLens.refl {s : Type u} {α : Type v} (p : ProgramDenotation s α) :
     p.EquivInLens p Lens.id := by
@@ -1203,7 +1177,7 @@ theorem equivInLens_flattenCall {sig : ProcedureSignature}
             ProgramDenotation.set (trafo.chainSetter x) v) trafo := by
   rintro sa τ rfl
   have hglob : (trafo.get τ).globals = τ.globals :=
-    congrArg (fun L : Lens State ProgramState => L.get τ) htg
+    congrArg (fun L : Lens VariableAssignment ProgramState => L.get τ) htg
   rw [programDenotation_call'_apply, SubProbability.mapState_eq,
     flattenedCall_apply trafo emb heg x b r f τ, SubProbability.bind_assoc, hpre_get, hglob]
   congr 1; funext w
@@ -1412,7 +1386,7 @@ namespace Flatten
 in their slots, `init` everywhere else. -/
 def FixesEntry (names : List String) (tys : List Type) (hlen : names.length = tys.length)
     (l : Lens ProgramState ProgramState) : Prop :=
-  ∀ (st : State) (args : typeListToTuple tys),
+  ∀ (st : VariableAssignment) (args : typeListToTuple tys),
     l.get ⟨st, VariableAssignment.setParams names tys hlen args VariableAssignment.init⟩
       = ⟨st, VariableAssignment.setParams names tys hlen args VariableAssignment.init⟩
 
@@ -1451,7 +1425,7 @@ theorem procedureDenotation_congr {sig : ProcedureSignature} (names : List Strin
     procedureDenotation (⟨names, hlen, hnodup, b', l.chainGetter r⟩ : Procedure sig)
       = procedureDenotation (⟨names, hlen, hnodup, b, r⟩ : Procedure sig) := by
   have hglob : ∀ τ, (l.get τ).globals = τ.globals := fun τ =>
-    congrArg (fun L : Lens State ProgramState => L.get τ) hglobL
+    congrArg (fun L : Lens VariableAssignment ProgramState => L.get τ) hglobL
   funext argv st
   let τ : ProgramState :=
     ⟨st, VariableAssignment.setParams names sig.params hlen argv VariableAssignment.init⟩
@@ -1615,35 +1589,30 @@ section Clean
 
 /-- A *global* l-value is unaffected by a renaming of the locals. -/
 @[simp] theorem Lens.chainSetter_liftLens_global {A : Type}
-    (m : Lens VariableAssignment VariableAssignment) (g : Lens A State) :
+    (m : Lens VariableAssignment VariableAssignment) (g : Lens A VariableAssignment) :
     (ProgramState.mapLocal m).chainSetter (liftLens g) = liftLens g := by
   ext v τ
   change (⟨g.set v τ.globals, m.set (m.get τ.locals) τ.locals⟩ : ProgramState)
     = ⟨g.set v τ.globals, τ.locals⟩
   rw [m.get_set]
 
-omit [ProgramSpec] in
 /-- A discarded result stays discarded, so a void call does not acquire an l-value. -/
 @[simp] theorem Lens.chainSetter_throwaway {A : Type} {s t : Type u} (l : Lens s t) :
     l.chainSetter (Setter.throwaway (a := A)) = Setter.throwaway := by
   ext v τ; exact l.get_set τ
 
-omit [ProgramSpec] in
 /-- A lens used as an l-value composes as a lens. -/
 @[simp] theorem Lens.chainSetter_toSetter {a : Type u} {s : Type v} {t : Type w} (l : Lens s t)
     (x : Lens a s) : l.chainSetter (Lens.toSetter x) = Lens.toSetter (l.chain x) := rfl
 
-omit [ProgramSpec] in
 @[simp] theorem Lens.chainSetter_chainSetter {a : Type u} {s t u' : Type v} (m : Lens t u')
     (l : Lens s t) (x : Setter a s) : m.chainSetter (l.chainSetter x) = (m.chain l).chainSetter x :=
   rfl
 
-omit [ProgramSpec] in
 @[simp] theorem Lens.chainGetter_chainGetter {a : Type u} {s t u' : Type v} (m : Lens t u')
     (l : Lens s t) (g : Getter a s) : m.chainGetter (l.chainGetter g) = (m.chain l).chainGetter g :=
   rfl
 
-omit [ProgramSpec] in
 /-- A lens read as an expression composes as a lens. -/
 @[simp] theorem Lens.chainGetter_toGetter {a : Type u} {s : Type v} {t : Type w} (l : Lens s t)
     (x : Lens a s) : l.chainGetter (Lens.toGetter x) = Lens.toGetter (l.chain x) := rfl
@@ -1664,11 +1633,13 @@ variable lemmas rename it, and the read prints as `§x` again. -/
     (eval (cs := ⟨l.get τ⟩) x : A) = eval (cs := ⟨τ⟩) (l.chainGetter x) := rfl
 
 @[simp] theorem eval_mapLocal_global_lens {A : Type}
-    (m : Lens VariableAssignment VariableAssignment) (τ : ProgramState) (g : Lens A State) :
+    (m : Lens VariableAssignment VariableAssignment) (τ : ProgramState)
+    (g : Lens A VariableAssignment) :
     (eval (cs := ⟨(ProgramState.mapLocal m).get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
 @[simp] theorem eval_mapLocal_global_getter {A : Type}
-    (m : Lens VariableAssignment VariableAssignment) (τ : ProgramState) (g : Getter A State) :
+    (m : Lens VariableAssignment VariableAssignment) (τ : ProgramState)
+    (g : Getter A VariableAssignment) :
     (eval (cs := ⟨(ProgramState.mapLocal m).get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
 /-! ### The three renamings, unfolded where the lemmas above need `mapLocal`
@@ -1678,44 +1649,48 @@ see the `mapLocal` inside; each gets the global-variable lemmas restated. -/
 
 namespace Flatten
 
-@[simp] theorem trafo_chainSetter_liftLens_global {A : Type} (g : Lens A State) :
+@[simp] theorem trafo_chainSetter_liftLens_global {A : Type} (g : Lens A VariableAssignment) :
     trafo.chainSetter (liftLens g) = liftLens g := Lens.chainSetter_liftLens_global _ g
 
-@[simp] theorem emb_chainSetter_liftLens_global {A : Type} (g : Lens A State) :
+@[simp] theorem emb_chainSetter_liftLens_global {A : Type} (g : Lens A VariableAssignment) :
     emb.chainSetter (liftLens g) = liftLens g := Lens.chainSetter_liftLens_global _ g
 
 @[simp] theorem rename_chainSetter_liftLens_global {A : Type} (ren : List (String × String))
-    (g : Lens A State) : (rename ren).chainSetter (liftLens g) = liftLens g :=
+    (g : Lens A VariableAssignment) : (rename ren).chainSetter (liftLens g) = liftLens g :=
   Lens.chainSetter_liftLens_global _ g
 
-@[simp] theorem trafo_chain_intoGlobal {A : Type} (g : Lens A State) :
+@[simp] theorem trafo_chain_intoGlobal {A : Type} (g : Lens A VariableAssignment) :
     trafo.chain g.intoGlobal = g.intoGlobal := ProgramState.mapLocal_chain_intoGlobal _ g
 
-@[simp] theorem emb_chain_intoGlobal {A : Type} (g : Lens A State) :
+@[simp] theorem emb_chain_intoGlobal {A : Type} (g : Lens A VariableAssignment) :
     emb.chain g.intoGlobal = g.intoGlobal := ProgramState.mapLocal_chain_intoGlobal _ g
 
 @[simp] theorem rename_chain_intoGlobal {A : Type} (ren : List (String × String))
-    (g : Lens A State) : (rename ren).chain g.intoGlobal = g.intoGlobal :=
+    (g : Lens A VariableAssignment) : (rename ren).chain g.intoGlobal = g.intoGlobal :=
   ProgramState.mapLocal_chain_intoGlobal _ g
 
-@[simp] theorem eval_trafo_global_lens {A : Type} (τ : ProgramState) (g : Lens A State) :
+@[simp] theorem eval_trafo_global_lens {A : Type} (τ : ProgramState)
+    (g : Lens A VariableAssignment) :
     (eval (cs := ⟨trafo.get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
-@[simp] theorem eval_emb_global_lens {A : Type} (τ : ProgramState) (g : Lens A State) :
+@[simp] theorem eval_emb_global_lens {A : Type} (τ : ProgramState)
+    (g : Lens A VariableAssignment) :
     (eval (cs := ⟨emb.get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
 @[simp] theorem eval_rename_global_lens {A : Type} (ren : List (String × String))
-    (τ : ProgramState) (g : Lens A State) :
+    (τ : ProgramState) (g : Lens A VariableAssignment) :
     (eval (cs := ⟨(rename ren).get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
-@[simp] theorem eval_trafo_global_getter {A : Type} (τ : ProgramState) (g : Getter A State) :
+@[simp] theorem eval_trafo_global_getter {A : Type} (τ : ProgramState)
+    (g : Getter A VariableAssignment) :
     (eval (cs := ⟨trafo.get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
-@[simp] theorem eval_emb_global_getter {A : Type} (τ : ProgramState) (g : Getter A State) :
+@[simp] theorem eval_emb_global_getter {A : Type} (τ : ProgramState)
+    (g : Getter A VariableAssignment) :
     (eval (cs := ⟨emb.get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
 @[simp] theorem eval_rename_global_getter {A : Type} (ren : List (String × String))
-    (τ : ProgramState) (g : Getter A State) :
+    (τ : ProgramState) (g : Getter A VariableAssignment) :
     (eval (cs := ⟨(rename ren).get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
 /-! ### Resets
@@ -1984,8 +1959,6 @@ structure FlattenStep where
   trafo : Expr
   /-- A proof of `‹input›.EquivInLens stmt trafo`. -/
   proof : Expr
-  /-- The `ProgramSpec` instance the statement is over. -/
-  inst : Expr
   /-- The hole context. -/
   hCtx : Expr
 
@@ -2030,10 +2003,10 @@ partial def countCallSites (e₀ : Expr) : MetaM Nat := do
     let args := e.getAppArgs
     match e.getAppFn.constName? with
     | some ``StmtWithHoles.seq =>
-        return (← countCallSites args[2]!) + (← countCallSites args[3]!)
+        return (← countCallSites args[1]!) + (← countCallSites args[2]!)
     | some ``StmtWithHoles.ifThenElse =>
-        return (← countCallSites args[3]!) + (← countCallSites args[4]!)
-    | some ``StmtWithHoles.while => countCallSites args[3]!
+        return (← countCallSites args[2]!) + (← countCallSites args[3]!)
+    | some ``StmtWithHoles.while => countCallSites args[2]!
     | _ => return 0
 
 /-- The pieces of a call: its signature, result l-value, the callee's parameter names (with their
@@ -2073,20 +2046,21 @@ def callData? (e : Expr) : MetaM (Option CallData) := do
   let args := e.getAppArgs
   match e.getAppFn.constName? with
   | some ``StmtWithHoles.call' =>
-      -- `[inst] {h sig} x names hlen hnodup body ret args`; a `call` unfolds to `call'` with
-      -- the callee's fields as projections
-      unless args.size == 10 do return none
+      -- `{h sig} x names hlen hnodup body ret args`; a `call` unfolds to `call'` with the
+      -- callee's fields as projections
+      unless args.size == 9 do return none
       let field (i : Nat) : MetaM Expr := reduceField args[i]!
-      return some { sig := args[2]!, lvalue := args[3]!, names := ← field 4, hlen := args[5]!,
-                    hnodup := args[6]!, body := ← field 7, retVal := ← field 8, args := args[9]! }
+      return some { sig := args[1]!, lvalue := args[2]!, names := ← field 3, hlen := args[4]!,
+                    hnodup := args[5]!, body := ← field 6, retVal := ← field 7,
+                    args := args[8]! }
   | some ``StmtWithHoles.call =>
-      -- `{h} [inst] {sig} x proc params`
-      unless args.size == 6 do return none
-      let p ← whnf args[4]!
+      -- `{h} {sig} x proc params`
+      unless args.size == 5 do return none
+      let p ← whnf args[3]!
       let pa := p.getAppArgs
-      unless p.isAppOfArity ``ProcedureWithHoles.mk 8 do return none
-      return some { sig := args[2]!, lvalue := args[3]!, names := pa[3]!, hlen := pa[4]!,
-                    hnodup := pa[5]!, body := pa[6]!, retVal := pa[7]!, args := args[5]! }
+      unless p.isAppOfArity ``ProcedureWithHoles.mk 7 do return none
+      return some { sig := args[1]!, lvalue := args[2]!, names := pa[2]!, hlen := pa[3]!,
+                    hnodup := pa[4]!, body := pa[5]!, retVal := pa[6]!, args := args[4]! }
   | _ => return none
 
 /-- Annotate whatever goes wrong inside `k` with the step that was being built. -/
@@ -2107,15 +2081,15 @@ partial def namesIn (e : Expr) (acc : Array String := #[]) : Array String :=
   let push (acc : Array String) (n : String) := if acc.contains n then acc else acc.push n
   if e.isAppOfArity ``VariableName.mk 5 then
     match e.getArg! 0 with | .lit (.strVal n) => push acc n | _ => acc
-  else if e.isAppOfArity ``localVarLens 6 then
-    match e.getArg! 1 with | .lit (.strVal n) => push acc n | _ => acc
+  else if e.isAppOfArity ``localVarLens 5 then
+    match e.getArg! 0 with | .lit (.strVal n) => push acc n | _ => acc
   -- a call: only its result l-value and its arguments are in this frame
-  else if e.isAppOfArity ``StmtWithHoles.call' 10 then
-    namesIn (e.getArg! 9) (namesIn (e.getArg! 3) acc)
-  else if e.isAppOfArity ``StmtWithHoles.call 6 then
-    namesIn (e.getArg! 5) (namesIn (e.getArg! 3) acc)
-  else if e.isAppOfArity ``Stmt.call 5 then
+  else if e.isAppOfArity ``StmtWithHoles.call' 9 then
+    namesIn (e.getArg! 8) (namesIn (e.getArg! 2) acc)
+  else if e.isAppOfArity ``StmtWithHoles.call 5 then
     namesIn (e.getArg! 4) (namesIn (e.getArg! 2) acc)
+  else if e.isAppOfArity ``Stmt.call 4 then
+    namesIn (e.getArg! 3) (namesIn (e.getArg! 1) acc)
   else match e with
   | .app f a => namesIn a (namesIn f acc)
   | .lam _ t b _ | .forallE _ t b _ => namesIn b (namesIn t acc)
@@ -2145,25 +2119,25 @@ def baseName (n : String) : String :=
 /-- The parameters' new variables as one l-value — `Setter.throwaway` for none, the variable for
 one, the `Lens.pair` tuple for more — with the proof that it writes the callee's parameter slots
 (`IsParamWriter`). -/
-partial def mkParamWriter (inst emb : Expr) : List String → List Expr → MetaM (Expr × Expr)
+partial def mkParamWriter (emb : Expr) : List String → List Expr → MetaM (Expr × Expr)
   | [], [] => do
-      let w ← mkAppOptM ``Setter.throwaway #[some (mkConst ``Unit), some (mkApp (mkConst
-        ``ProgramState) inst)]
-      return (w, ← mkAppOptM ``isParamWriter_nil #[some inst, some emb, some (← lenProof [] [])])
+      let w ← mkAppOptM ``Setter.throwaway
+        #[some (mkConst ``Unit), some (mkConst ``ProgramState)]
+      return (w, ← mkAppOptM ``isParamWriter_nil #[some emb, some (← lenProof [] [])])
   | z :: zs, T :: Ts => do
       let (L₁, slotArgs, hL₁) ← slot z T
       let hlen ← lenProof (z :: zs) (T :: Ts)
       match zs, Ts with
       | [], [] =>
           let pf ← mkAppOptM ``isParamWriter_single
-            #[some inst, some emb, some (mkStrLit z), some T, some slotArgs[0]!, some slotArgs[1]!,
+            #[some emb, some (mkStrLit z), some T, some slotArgs[0]!, some slotArgs[1]!,
               some slotArgs[2]!, some hlen, some L₁, some hL₁]
           return (← mkAppM ``Lens.toSetter #[L₁], pf)
       | z' :: zs', T' :: Ts' =>
           let (rest, hrest) ← lensOf (z' :: zs') (T' :: Ts')
           let pair ← mkAppOptM ``Lens.pair #[none, none, none, some L₁, some rest, none]
           let pf ← mkAppOptM ``isParamWriter_cons
-            #[some inst, some emb, some (mkStrLit z), some (mkStrLit z'),
+            #[some emb, some (mkStrLit z), some (mkStrLit z'),
               some (← mkListLit (mkConst ``String) (zs'.map mkStrLit)), some T, some T',
               some (← mkListLit (mkSort Level.one) Ts'), some slotArgs[0]!, some slotArgs[1]!,
               some slotArgs[2]!, some hlen, some (← lenProof (z' :: zs') (T' :: Ts')), some L₁,
@@ -2187,16 +2161,16 @@ where
     let new ← VariableName.mkTerm f T
     let o := old.getAppArgs
     let n := new.getAppArgs
-    let L ← mkAppOptM ``Lens.intoLocal #[some inst, some T, some (mkApp (mkConst ``varLens) new)]
+    let L ← mkAppOptM ``Lens.intoLocal #[some T, some (mkApp (mkConst ``varLens) new)]
     let hname ← mkExpectedTypeHint (← mkEqRefl (mkStrLit f))
       (← mkEq (mkApp (mkConst ``tag) (mkStrLit z)) (mkStrLit f))
     let h ← mkAppOptM ``emb_chain_varLens_eq
-      #[some inst, some (mkStrLit z), some T, some o[2]!, some o[3]!, some o[4]!,
+      #[some (mkStrLit z), some T, some o[2]!, some o[3]!, some o[4]!,
         some (mkStrLit f), some n[3]!, some n[4]!, some hname]
     return (L, #[o[2]!, o[3]!, o[4]!], h)
   /-- Two or more parameters as a lens (for the `Lens.pair` of the next level up). -/
   lensOf (zs : List String) (Ts : List Expr) : MetaM (Expr × Expr) := do
-    let (P, pf) ← mkParamWriter inst emb zs Ts
+    let (P, pf) ← mkParamWriter emb zs Ts
     -- `P` is `L.toSetter`; the pair wants `L`
     unless P.isAppOfArity ``Lens.toSetter 3 do
       throwError "unexpected parameter writer{indentExpr P}"
@@ -2214,7 +2188,7 @@ structure CallPlan where
   proof : Expr
 
 /-- Build the expansion and its correctness proof for one call site. -/
-def planCall (inst hCtx : Expr) (cd : CallData) : MetaM CallPlan := do
+def planCall (hCtx : Expr) (cd : CallData) : MetaM CallPlan := do
   let sigW ← whnf cd.sig
   unless sigW.isAppOfArity ``ProcedureSignature.mk 2 do
     throwError "callee's signature is not literal:{indentExpr cd.sig}"
@@ -2222,18 +2196,18 @@ def planCall (inst hCtx : Expr) (cd : CallData) : MetaM CallPlan := do
   let names ← try stringListLit cd.names catch _ =>
     throwError "the call is not flattenable: its callee is not spelled out at the call site\
       {indentExpr cd.names}"
-  let trafo ← mkAppOptM ``trafo #[some inst]
-  let emb ← mkAppOptM ``emb #[some inst]
-  let (P, hP) ← inStep "the parameter writer" <| mkParamWriter inst emb names paramTys
+  let trafo := mkConst ``trafo
+  let emb := mkConst ``emb
+  let (P, hP) ← inStep "the parameter writer" <| mkParamWriter emb names paramTys
   let proof ← inStep "the call's expansion" <| mkAppOptM ``equivInLens_call
-    #[some inst, some hCtx, some sigW, some cd.lvalue, some cd.names, some cd.hlen,
+    #[some hCtx, some sigW, some cd.lvalue, some cd.names, some cd.hlen,
       some cd.hnodup, some cd.body, some cd.retVal, some cd.args, some P, some hP]
   -- the expansion is the right-hand side of the lemma
   let ty ← instantiateMVars (← inferType proof)
-  unless ty.isAppOfArity ``StmtWithHoles.EquivInLens 5 do
+  unless ty.isAppOfArity ``StmtWithHoles.EquivInLens 4 do
     throwError "unexpected type of the call's expansion:{indentExpr ty}"
-  let stmt := ty.getArg! 3
-  let htg ← mkAppOptM ``trafo_chain_globalL #[some inst]
+  let stmt := ty.getArg! 2
+  let htg := mkConst ``trafo_chain_globalL
   return { trafo, htg, stmt, proof }
 
 /-- What the traversal returns: the rewritten statement, its proof, and the plan the call site
@@ -2249,19 +2223,19 @@ structure PathResult where
 /-- Rebuild the statement along the path to call `idx`, planning the call where it is found —
 inside whatever `let` binders enclose it, since the call may mention them.  Everything off the
 path is re-targeted wholesale with `applyLens`, without being inspected. -/
-partial def rebuildPath (inst hCtx : Expr) (idx : Nat) (stmt₀ : Expr) : MetaM PathResult := do
+partial def rebuildPath (hCtx : Expr) (idx : Nat) (stmt₀ : Expr) : MetaM PathResult := do
   let stmt ← unfoldStmt stmt₀
   if stmt.isAppOf ``StmtWithHoles.hole then
     throwError "this call site is a hole: it has no callee to flatten"
   if isCallSite stmt then
     let some cd ← callData? stmt
       | throwError "the call is not flattenable: its callee is not spelled out"
-    let plan ← planCall inst hCtx cd
+    let plan ← planCall hCtx cd
     return { stmt := plan.stmt, proof := plan.proof, plan }
   match stmt with
   | .letE n ty val body _ =>
       withLetDecl n ty val fun fv => do
-        let res ← rebuildPath inst hCtx idx (body.instantiate1 fv)
+        let res ← rebuildPath hCtx idx (body.instantiate1 fv)
         return { res with stmt := ← mkLetFVars #[fv] res.stmt (usedLetOnly := false),
                           proof := ← mkLetFVars #[fv] res.proof (usedLetOnly := false) }
   | _ =>
@@ -2272,33 +2246,33 @@ partial def rebuildPath (inst hCtx : Expr) (idx : Nat) (stmt₀ : Expr) : MetaM 
               ← mkAppM ``StmtWithHoles.equivInLens_applyLens #[plan.trafo, plan.htg, s])
     match stmt.getAppFn.constName? with
     | some ``StmtWithHoles.seq =>
-        let a := args[2]!
-        let b := args[3]!
+        let a := args[1]!
+        let b := args[2]!
         let na ← countCallSites a
         let (res, a', pa, b', pb) ←
           if idx < na then do
-            let res ← rebuildPath inst hCtx idx a
+            let res ← rebuildPath hCtx idx a
             let (b', pb) ← off res.plan b
             pure (res, res.stmt, res.proof, b', pb)
           else do
-            let res ← rebuildPath inst hCtx (idx - na) b
+            let res ← rebuildPath hCtx (idx - na) b
             let (a', pa) ← off res.plan a
             pure (res, a', pa, res.stmt, res.proof)
         return { res with
           stmt := ← mkAppM ``StmtWithHoles.seq #[a', b'],
           proof := ← mkAppM ``StmtWithHoles.EquivInLens.seq #[pa, pb] }
     | some ``StmtWithHoles.ifThenElse =>
-        let c := args[2]!
-        let t := args[3]!
-        let e := args[4]!
+        let c := args[1]!
+        let t := args[2]!
+        let e := args[3]!
         let nt ← countCallSites t
         let (res, t', pt, e', pe) ←
           if idx < nt then do
-            let res ← rebuildPath inst hCtx idx t
+            let res ← rebuildPath hCtx idx t
             let (e', pe) ← off res.plan e
             pure (res, res.stmt, res.proof, e', pe)
           else do
-            let res ← rebuildPath inst hCtx (idx - nt) e
+            let res ← rebuildPath hCtx (idx - nt) e
             let (t', pt) ← off res.plan t
             pure (res, t', pt, res.stmt, res.proof)
         return { res with
@@ -2306,36 +2280,36 @@ partial def rebuildPath (inst hCtx : Expr) (idx : Nat) (stmt₀ : Expr) : MetaM 
             #[← mkAppM ``Lens.chainGetter #[res.plan.trafo, c], t', e'],
           proof := ← mkAppM ``StmtWithHoles.EquivInLens.ifThenElse #[c, pt, pe] }
     | some ``StmtWithHoles.while =>
-        let c := args[2]!
-        let b := args[3]!
-        let res ← rebuildPath inst hCtx idx b
+        let c := args[1]!
+        let b := args[2]!
+        let res ← rebuildPath hCtx idx b
         return { res with
           stmt := ← mkAppM ``StmtWithHoles.while
             #[← mkAppM ``Lens.chainGetter #[res.plan.trafo, c], res.stmt],
           proof := ← mkAppM ``StmtWithHoles.EquivInLens.while #[c, res.proof] }
     | _ => throwError "no call here:{indentExpr stmt}"
 
-/-- The statement's type, split: its `ProgramSpec` instance and its hole context. -/
-def stmtType (stmt : Expr) : MetaM (Expr × Expr) := do
+/-- The statement's hole context, read off its type. -/
+def stmtType (stmt : Expr) : MetaM Expr := do
   let ty ← whnf (← inferType stmt)
-  unless ty.isAppOfArity ``StmtWithHoles 2 do
+  unless ty.isAppOfArity ``StmtWithHoles 1 do
     throwError "not a `StmtWithHoles`:{indentExpr ty}"
-  return (ty.getAppArgs[0]!, ty.getAppArgs[1]!)
+  return ty.appArg!
 
 /-- `a.EquivInLens b l`. -/
-def mkEquivInLens (inst hCtx a b l : Expr) : MetaM Expr :=
-  mkAppOptM ``StmtWithHoles.EquivInLens #[some inst, some hCtx, some a, some b, some l]
+def mkEquivInLens (hCtx a b l : Expr) : MetaM Expr :=
+  mkAppOptM ``StmtWithHoles.EquivInLens #[some hCtx, some a, some b, some l]
 
 /-- Flatten call site `n` (pre-order), leaving the result deliberately uncleaned. -/
 def flattenCall (n : Nat) (stmt : Expr) : MetaM FlattenStep := do
-  let (inst, hCtx) ← stmtType stmt
+  let hCtx ← stmtType stmt
   let total ← countCallSites stmt
   if n ≥ total then
     throwError "there is no call site number {n}: the statement has {total}"
-  let res ← rebuildPath inst hCtx n stmt
+  let res ← rebuildPath hCtx n stmt
   let proof ← mkExpectedTypeHint res.proof
-    (← mkEquivInLens inst hCtx stmt res.stmt res.plan.trafo)
-  return { stmt := res.stmt, trafo := res.plan.trafo, proof, inst, hCtx }
+    (← mkEquivInLens hCtx stmt res.stmt res.plan.trafo)
+  return { stmt := res.stmt, trafo := res.plan.trafo, proof, hCtx }
 
 /-! ## Cleaning
 
@@ -2468,7 +2442,7 @@ def isSkip (e : Expr) : Bool := e.isAppOf ``StmtWithHoles.skip
 
 /-- Is this `_ <- e`, an assignment with no effect? -/
 def isThrowawayAssign (e : Expr) : Bool :=
-  e.isAppOfArity ``StmtWithHoles.assign 5 && (e.getArg! 3).isAppOf ``Setter.throwaway
+  e.isAppOfArity ``StmtWithHoles.assign 4 && (e.getArg! 2).isAppOf ``Setter.throwaway
 
 /-- `a.Equiv a`. -/
 def mkEquivRefl (s : Expr) : MetaM Expr := mkAppM ``StmtWithHoles.Equiv.refl #[s]
@@ -2479,12 +2453,12 @@ partial def concatSeq (a b : Expr) : MetaM (Expr × Expr) := do
   if isSkip a then return (b, ← mkAppM ``StmtWithHoles.Equiv.skip_seq #[b])
   if isSkip b then return (a, ← mkAppM ``StmtWithHoles.Equiv.seq_skip #[a])
   if isThrowawayAssign a then
-    return (b, ← mkAppM ``StmtWithHoles.Equiv.throwaway_seq #[a.getArg! 4, b])
+    return (b, ← mkAppM ``StmtWithHoles.Equiv.throwaway_seq #[a.getArg! 3, b])
   if isThrowawayAssign b then
-    return (a, ← mkAppM ``StmtWithHoles.Equiv.seq_throwaway #[a, b.getArg! 4])
-  if a.isAppOfArity ``StmtWithHoles.seq 4 then
-    let x := a.getAppArgs[2]!
-    let y := a.getAppArgs[3]!
+    return (a, ← mkAppM ``StmtWithHoles.Equiv.seq_throwaway #[a, b.getArg! 3])
+  if a.isAppOfArity ``StmtWithHoles.seq 3 then
+    let x := a.getAppArgs[1]!
+    let y := a.getAppArgs[2]!
     let (r, p) ← concatSeq y b
     let p₁ ← mkAppM ``StmtWithHoles.Equiv.seq_assoc #[x, y, b]
     let p₂ ← mkAppM ``StmtWithHoles.EquivInLens.seq #[← mkEquivRefl x, p]
@@ -2509,20 +2483,20 @@ partial def flattenSeq (s₀ : Expr) : MetaM (Expr × Expr) := do
     let args := s.getAppArgs
     match s.getAppFn.constName? with
     | some ``StmtWithHoles.seq =>
-        let (a, pa) ← flattenSeq args[2]!
-        let (b, pb) ← flattenSeq args[3]!
+        let (a, pa) ← flattenSeq args[1]!
+        let (b, pb) ← flattenSeq args[2]!
         let (r, p) ← concatSeq a b
         let pseq ← mkAppM ``StmtWithHoles.EquivInLens.seq #[pa, pb]
         return (r, ← mkAppM ``StmtWithHoles.Equiv.trans #[pseq, p])
     | some ``StmtWithHoles.ifThenElse =>
-        let (t, pt) ← flattenSeq args[3]!
-        let (e, pe) ← flattenSeq args[4]!
-        return (← mkAppM ``StmtWithHoles.ifThenElse #[args[2]!, t, e],
-                ← mkAppM ``StmtWithHoles.Equiv.ifThenElse #[args[2]!, pt, pe])
+        let (t, pt) ← flattenSeq args[2]!
+        let (e, pe) ← flattenSeq args[3]!
+        return (← mkAppM ``StmtWithHoles.ifThenElse #[args[1]!, t, e],
+                ← mkAppM ``StmtWithHoles.Equiv.ifThenElse #[args[1]!, pt, pe])
     | some ``StmtWithHoles.while =>
-        let (b, pb) ← flattenSeq args[3]!
-        return (← mkAppM ``StmtWithHoles.while #[args[2]!, b],
-                ← mkAppM ``StmtWithHoles.Equiv.while #[args[2]!, pb])
+        let (b, pb) ← flattenSeq args[2]!
+        return (← mkAppM ``StmtWithHoles.while #[args[1]!, b],
+                ← mkAppM ``StmtWithHoles.Equiv.while #[args[1]!, pb])
     | _ => return (s, ← mkEquivRefl s)
 
 /-! ## Composition and the fixed point -/
@@ -2532,8 +2506,8 @@ the proof of `input.EquivInLens ‹cleaned› step.trafo`. -/
 def transportClean (input : Expr) (step : FlattenStep) : MetaM (Expr × Expr) := do
   let r ← inStep "the cleaning pass" <| cleanStmt step.stmt
   let some h := r.proof? | return (r.expr, step.proof)
-  let motive ← withLocalDeclD `s (mkApp2 (mkConst ``StmtWithHoles) step.inst step.hCtx)
-    fun s => do mkLambdaFVars #[s] (← mkEquivInLens step.inst step.hCtx input s step.trafo)
+  let motive ← withLocalDeclD `s (mkApp (mkConst ``StmtWithHoles) step.hCtx)
+    fun s => do mkLambdaFVars #[s] (← mkEquivInLens step.hCtx input s step.trafo)
   return (r.expr, ← mkEqNDRec motive step.proof h)
 
 /-- `flattenCall`, then `cleanStmt`, then `flattenSeq`, with the proofs composed.  The only step
@@ -2545,7 +2519,7 @@ def flattenCallCleaned (n : Nat) (stmt : Expr) : MetaM FlattenStep := do
   let proofF ← mkAppM ``StmtWithHoles.EquivInLens.trans #[proofC.2, pSeq]
   -- the composite lens is `Lens.id.chain trafo`, which *is* `trafo`
   let proofF ← mkExpectedTypeHint proofF
-    (← mkEquivInLens step.inst step.hCtx stmt final step.trafo)
+    (← mkEquivInLens step.hCtx stmt final step.trafo)
   return { step with stmt := final, proof := proofF }
 
 /-- The result of the whole pass. -/
@@ -2592,7 +2566,7 @@ statement, `applyLens (rename ren)`, cleaned; sound for any choice of names, sin
 a permutation of the names.  `none` if there is nothing to rename. -/
 partial def renameNames (stmt : Expr) (avoid : Array String := #[]) :
     MetaM (Option FlattenStep) := do
-  let (inst, hCtx) ← stmtType stmt
+  let hCtx ← stmtType stmt
   let names := namesIn (← unfoldStmt stmt)
   let madeUp := names.filter isMadeUp
   if madeUp.isEmpty then return none
@@ -2603,12 +2577,11 @@ partial def renameNames (stmt : Expr) (avoid : Array String := #[]) :
     used := used.push f
     ren := ren.push (a, f)
   let renE := toExpr ren.toList
-  let l ← mkAppOptM ``rename #[some inst, some renE]
-  let (s, p) ← applyLensUnderLets l (← mkAppOptM ``rename_chain_globalL #[some inst, some renE])
-    stmt
-  let p ← mkExpectedTypeHint p (← mkEquivInLens inst hCtx stmt s l)
-  let (s', p') ← transportClean stmt { stmt := s, trafo := l, proof := p, inst, hCtx }
-  return some { stmt := s', trafo := l, proof := p', inst, hCtx }
+  let l := mkApp (mkConst ``rename) renE
+  let (s, p) ← applyLensUnderLets l (mkApp (mkConst ``rename_chain_globalL) renE) stmt
+  let p ← mkExpectedTypeHint p (← mkEquivInLens hCtx stmt s l)
+  let (s', p') ← transportClean stmt { stmt := s, trafo := l, proof := p, hCtx }
+  return some { stmt := s', trafo := l, proof := p', hCtx }
 where
   /-- `applyLens l` under the `let`s a statement starts with (a procedure's holes, the user's
   binders), with its proof `equivInLens_applyLens`: cleaning does not go under an `applyLens`
@@ -2654,30 +2627,30 @@ def fixesNamesProof (names f : Expr) : MetaM Expr := do
 
 /-- `FixesEntry names tys hlen l` for a composite of `trafo` and `rename ren`: each keeps the
 parameters' names (checked by `decide`). -/
-partial def fixesEntryProof (inst names tys hlen l : Expr) : MetaM Expr := do
+partial def fixesEntryProof (names tys hlen l : Expr) : MetaM Expr := do
   if l.isAppOfArity ``Lens.chain 5 then
-    let hm ← fixesEntryProof inst names tys hlen (l.getArg! 3)
-    let hl ← fixesEntryProof inst names tys hlen (l.getArg! 4)
+    let hm ← fixesEntryProof names tys hlen (l.getArg! 3)
+    let hl ← fixesEntryProof names tys hlen (l.getArg! 4)
     return ← mkAppM ``FixesEntry.chain #[hl, hm]
-  if l.isAppOfArity ``trafo 1 then
-    return ← mkAppOptM ``fixesEntry_trafo #[some inst, some names, some tys, some hlen,
+  if l.isConstOf ``trafo then
+    return ← mkAppOptM ``fixesEntry_trafo #[some names, some tys, some hlen,
       some (← fixesNamesProof names (mkConst ``escape))]
-  if l.isAppOfArity ``rename 2 then
-    let ren := l.getArg! 1
-    return ← mkAppOptM ``fixesEntry_rename #[some inst, some ren, some names, some tys, some hlen,
+  if l.isAppOfArity ``rename 1 then
+    let ren := l.getArg! 0
+    return ← mkAppOptM ``fixesEntry_rename #[some ren, some names, some tys, some hlen,
       some (← fixesNamesProof names (mkApp (mkConst ``renameName) ren))]
   throwError "not a renaming of flattening:{indentExpr l}"
 
 /-- `l.chain globalL = globalL` for a composite of `trafo` and `rename ren`, piece by piece.
 (Not by `rfl`: the unifier would compare the renamed locals on the way, and get lost evaluating
 the names of a variable it does not know.) -/
-partial def keepsGlobalsProof (inst l : Expr) : MetaM Expr := do
+partial def keepsGlobalsProof (l : Expr) : MetaM Expr := do
   if l.isAppOfArity ``Lens.chain 5 then
     return ← mkAppM ``chain_chain_globalL
-      #[← keepsGlobalsProof inst (l.getArg! 4), ← keepsGlobalsProof inst (l.getArg! 3)]
-  if l.isAppOfArity ``trafo 1 then return ← mkAppOptM ``trafo_chain_globalL #[some inst]
-  if l.isAppOfArity ``rename 2 then
-    return ← mkAppOptM ``rename_chain_globalL #[some inst, some (l.getArg! 1)]
+      #[← keepsGlobalsProof (l.getArg! 4), ← keepsGlobalsProof (l.getArg! 3)]
+  if l.isConstOf ``trafo then return mkConst ``trafo_chain_globalL
+  if l.isAppOfArity ``rename 1 then
+    return mkApp (mkConst ``rename_chain_globalL) (l.getArg! 0)
   throwError "not a renaming of flattening:{indentExpr l}"
 
 /-- Run a pass on the body of a hole-free procedure and put the procedure back together: the
@@ -2686,31 +2659,30 @@ the proof.  Whatever else the pass reports (`α`) is passed on. -/
 def inProcedure {α : Type} (p : Expr) (pass : Expr → Array String → MetaM (FlattenStep × α)) :
     MetaM (Expr × Expr × α) := do
   let ty ← whnf (← inferType p)
-  unless ty.isAppOfArity ``ProcedureWithHoles 3 do
+  unless ty.isAppOfArity ``ProcedureWithHoles 2 do
     throwError "not a procedure:{indentExpr ty}"
-  let inst := ty.getAppArgs[0]!
-  let hCtx ← whnf ty.getAppArgs[1]!
+  let hCtx ← whnf ty.getAppArgs[0]!
   unless hCtx.isAppOf ``HoleSigs.empty do
     throwError "this is stated for hole-free procedures; this one still has holes:\
       {indentExpr hCtx}"
-  let sig := ty.getAppArgs[2]!
+  let sig := ty.getAppArgs[1]!
   let pW ← whnf p
-  unless pW.isAppOfArity ``ProcedureWithHoles.mk 8 do
+  unless pW.isAppOfArity ``ProcedureWithHoles.mk 7 do
     throwError "the procedure is not spelled out:{indentExpr p}"
   let pa := pW.getAppArgs
-  let (names, hlen, hnodup, body, retVal) := (pa[3]!, pa[4]!, pa[5]!, pa[6]!, pa[7]!)
+  let (names, hlen, hnodup, body, retVal) := (pa[2]!, pa[3]!, pa[4]!, pa[5]!, pa[6]!)
   let (res, a) ← pass body (← stringListLit names).toArray
   -- the return value travels along the lens and is cleaned like the body
   let r ← cleanStmt (← mkAppM ``Lens.chainGetter #[res.trafo, retVal])
   let tys ← mkAppM ``ProcedureSignature.params #[sig]
-  let hinit ← fixesEntryProof inst names tys hlen res.trafo
+  let hinit ← fixesEntryProof names tys hlen res.trafo
   let proof ← mkAppOptM ``procedureDenotation_congr
-    #[some inst, some sig, some names, some hlen, some hnodup, some res.trafo, some body,
+    #[some sig, some names, some hlen, some hnodup, some res.trafo, some body,
       some res.stmt, some retVal, some res.proof, some hinit,
-      some (← keepsGlobalsProof inst res.trafo)]
+      some (← keepsGlobalsProof res.trafo)]
   -- `procedureDenotation ⟨…, ret'⟩ = procedureDenotation ⟨…, ret⟩`, along the cleaning of `ret'`
   let mkProc (s rv : Expr) : MetaM Expr := mkAppOptM ``ProcedureWithHoles.mk
-    #[some inst, some hCtx, some sig, some names, some hlen, some hnodup, some s, some rv]
+    #[some hCtx, some sig, some names, some hlen, some hnodup, some s, some rv]
   let proc' ← mkProc res.stmt r.expr
   let proof ← match r.proof? with
     | none => pure proof
@@ -2790,8 +2762,7 @@ def rewriteHead? (lem : Name) (e : Expr) : MetaM (Option (Expr × Expr)) := do
     -- at reducible transparency: at default, `T.f.mk_simp` (`T.f (T.mk ?s) = …`) "matches"
     -- `T.f (Module.app M A)` by unfolding `Module.app` and `T.mk` into the same `Module.mk`
     unless ← withReducible (isDefEq lhs e) do return none
-    -- an instance argument the unification did not pin down (there is none in practice: every
-    -- generated lemma mentions its `ProgramSpec` in its statement)
+    -- an instance argument the unification did not pin down (there is none in practice)
     for (m, bi) in mvars.zip bis do
       if bi.isInstImplicit && !(← m.mvarId!.isAssigned) then
         let .some inst ← trySynthInstance (← inferType m) | return none
@@ -2828,7 +2799,7 @@ partial def procCore (e : Expr) : MetaM Expr := do
 /-- Is this a procedure written out — a `ProcedureWithHoles.mk`, possibly under the `let`
 telescope that binds its holes? -/
 def isProcLiteral (e : Expr) : MetaM Bool :=
-  return (← procCore e).isAppOfArity ``ProcedureWithHoles.mk 8
+  return (← procCore e).isAppOfArity ``ProcedureWithHoles.mk 7
 
 /-- `‹literal tuple›.lookup ‹literal index›`, computed.  This is what the three
 `HoleSigs.Instantiation.lookup_*` lemmas say, and each of them is `rfl`, so the result is
@@ -2975,7 +2946,7 @@ found.
 This is the pass itself; `unfoldProcedure` wraps it. -/
 def unfoldProcedureCore (e : Expr) : MetaM Simp.Result := do
   let ty ← whnf (← inferType e)
-  if ty.isAppOfArity ``ProcedureWithHoles 3 then
+  if ty.isAppOfArity ``ProcedureWithHoles 2 then
     unless e.isAppOf ``Module.Proc.procedure do
       -- a procedure named some other way: nothing module-ish to evaluate, only a body to reach
       return ← spellOutProcedure e
@@ -3035,9 +3006,9 @@ partial def rewriteCalleeAt (idx : Nat) (e₀ : Expr) : MetaM Simp.Result := do
       if idx < ni then one i
       else liftResultAt e j (← rewriteCalleeAt (idx - ni) args[j]!)
     match e.getAppFn.constName? with
-    | some ``StmtWithHoles.seq => two 2 3
-    | some ``StmtWithHoles.ifThenElse => two 3 4
-    | some ``StmtWithHoles.while => one 3
+    | some ``StmtWithHoles.seq => two 1 2
+    | some ``StmtWithHoles.ifThenElse => two 2 3
+    | some ``StmtWithHoles.while => one 2
     | _ => throwError "no call site here:{indentExpr e}"
 
 /-- Unfold the callee of call site `n`, leaving the call itself alone.  The proof is an
@@ -3058,8 +3029,8 @@ def inlineCall (n : Nat) (stmt : Expr) : MetaM FlattenStep := do
   let r ← inlineProcedureRaw n stmt
   let step ← flattenCallCleaned n r.expr
   let some h := r.proof? | return step
-  let motive ← withLocalDeclD `s (mkApp2 (mkConst ``StmtWithHoles) step.inst step.hCtx)
-    fun s => do mkLambdaFVars #[s] (← mkEquivInLens step.inst step.hCtx s step.stmt step.trafo)
+  let motive ← withLocalDeclD `s (mkApp (mkConst ``StmtWithHoles) step.hCtx)
+    fun s => do mkLambdaFVars #[s] (← mkEquivInLens step.hCtx s step.stmt step.trafo)
   return { step with proof := ← mkEqNDRec motive step.proof (← mkEqSymm h) }
 
 /-- Inline call site `n` (`inlineCall`), then give the made-up names readable ones (avoiding
@@ -3087,7 +3058,6 @@ A statement triple is a triple about any statement equivalent to its own, with t
 through the lens of the equivalence: so it can be proved about the flattened statement instead
 (`hoare_inline`). -/
 
-omit [ProgramSpec] in
 /-- The chance of an event under `mapState f μ` is that of its preimage under `μ`. -/
 theorem SubProbability.ofEvent_mapState {α : Type v} {s t : Type u} (f : t → s)
     (μ : SubProbability (α × t)) (E : Set (α × s)) :
@@ -3146,15 +3116,15 @@ the triple about the result, its conditions read through the renaming and cleane
 conditions use count as taken. -/
 def hoareInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOfArity ``hoareStmt 4 do
+  unless ty.isAppOfArity ``hoareStmt 3 do
     throwError "hoare_inline: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
-  let (A, s, B) := (ty.getArg! 1, ty.getArg! 2, ty.getArg! 3)
+  let (A, s, B) := (ty.getArg! 0, ty.getArg! 1, ty.getArg! 2)
   let step ← inlineProcedure n s (namesIn B (namesIn A))
   let (A', hA) ← cleanCondition A step.trafo
   let (B', hB) ← cleanCondition B step.trafo
   let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[A', step.stmt, B']) (← g.getTag)
   g.assign (← mkAppOptM ``hoareStmt_of_equivInLens
-    #[some (ty.getArg! 0), some A, some B, some A', some B', some s, some step.stmt,
+    #[some A, some B, some A', some B', some s, some step.stmt,
       some step.trafo, some step.proof, some hA, some hB, some g'])
   return g'.mvarId!
 

@@ -9,8 +9,6 @@ the files it imports). -/
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 /- # Modules -/
 
 structure Module (T : ModuleTypeRep) where
@@ -272,7 +270,7 @@ theorem proc_type_is_proc {sig : ProcedureSignature}
 noncomputable def Module.Proc.procedure
     {sig : ProcedureSignature} (m : Module.Proc sig) : Procedure sig :=
     match he : m.expression with
-    | @ModuleExpression.proc _ sig' p =>
+    | @ModuleExpression.proc sig' p =>
         -- The signature the `.proc` node carries is the module's own: its typing says so.
         have hsig : sig' = sig := by
           injection (he ▸ m.typed).proc_inv with hs

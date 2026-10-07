@@ -32,7 +32,7 @@ The sequence may start with `var x : T, …;` lines, `GaudiProg[ var i : Nat; i 
 declare local variables exactly as in a `proc` (below): each name stands for its slot in the
 locals of the `ProgramState`.
 
-Example (`a b c : Lens Nat State`, `inc : Procedure …`):
+Example (`a b c : Lens Nat VariableAssignment` globals, `inc : Procedure …`):
 ```
 GaudiProg[
   a <- $a + 1;
@@ -106,7 +106,7 @@ The *module* type of a procedure, `procmod (…) -> R`, is in `ModuleSyntax.lean
 Statement syntax over `StmtWithHoles h`.  Each expression position (assignment
 RHS, sampling distribution, `if`/`while` condition) is wrapped with `GaudiExpr[ ]`
 so the `$x` sigil works.  An l-value (assignment/sample LHS) is a *lens*, lifted
-into the current full state `ProgramState` by `liftLens` — so a global `Lens a State`
+into the current full state `ProgramState` by `liftLens` — so a global `Lens a VariableAssignment`
 may be written bare and is lifted with `Lens.intoGlobal`, and a local variable (a lens into
 `ProgramState`) is used as it is.
 
@@ -170,10 +170,9 @@ initialize GaudisCrypt.gaudiProcParamNamesAttr : ParametricAttribute (Array Name
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 /-- Lift a program variable used as an l-value into a setter on the full current state
-`ProgramState`.  Dispatch is on the lens's *container* `M`: a global lens (`M = State`)
+`ProgramState`.  Dispatch is on the lens's *container* `M`: a global lens
+(`M = VariableAssignment`, the globals)
 is lifted with `Lens.intoGlobal`, a full-state lens (`M = ProgramState`, e.g. a local
 variable `localVarLens "x" T`) is kept as-is.  The content type `A` is deliberately
 *not* a class parameter — resolution then only needs `M` (always concrete from the
@@ -183,7 +182,7 @@ the callee's `sig` is known.) -/
 class LiftLens (M : Type u) where
   lift {A : Type} : Lens A M → Setter A ProgramState
 
-instance : LiftLens State where
+instance : LiftLens VariableAssignment where
   lift x := x.intoGlobal.toSetter
 instance : LiftLens ProgramState where lift x := x.toSetter
 
@@ -739,9 +738,9 @@ built by `proc` prints as `proc (…) uses (…) : R { … }`, a statement print
 reads as the `§x` sigil, the printable spelling of `$x`).
 
 A `Getter` prints that way only over a `ProgramState`, the only carrier `GaudiExpr[ ]` can
-build — a `Getter a State` (an `Expr a`) would print as something that does not elaborate
-back.  Inside a statement the expression slots are printed by `delabGaudiExpr` directly, with
-no `GaudiExpr[ ]` wrapper, since `$`/`§` already works there.
+build — a `Getter a VariableAssignment` (an `Expr a`) would print as something that does not
+elaborate back.  Inside a statement the expression slots are printed by `delabGaudiExpr`
+directly, with no `GaudiExpr[ ]` wrapper, since `$`/`§` already works there.
 
 Printing is *round-trip faithful*: parsing what was printed yields the same term back
 (`ProgramSyntaxTest.lean` checks this by printing, re-parsing and re-elaborating).  Hence
@@ -896,7 +895,7 @@ def ProgramSyntax.lensGet? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr) := 
 projection, ↦ `s`. -/
 private def stateProj? (i : Nat) (e : Lean.Expr) : Option Lean.Expr :=
   let fn := if i == 0 then ``ProgramState.globals else ``ProgramState.locals
-  if e.isAppOfArity fn 2 then some e.appArg!
+  if e.isAppOfArity fn 1 then some e.appArg!
   else match e with
     | .proj ``ProgramState j s => if j == i then some s else none
     | _ => none
@@ -912,13 +911,13 @@ prints well:
   prints as a variable.
 
 Each rewrite is checked with `isDefEq` (the second holds by unfolding `Lens.intoLocal`). -/
-private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
+private def simplifyReads (e : Lean.Expr) : MetaM Lean.Expr :=
   Meta.transform e (post := fun e => do
     -- `GaudiExpr[ e ].get s` is `e` read at `s`: the projection of the constructor
     if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isAppOfArity ``Getter.mk 3 then
       return .visit (((e.getArg! 2).getArg! 2).beta #[e.getArg! 3])
-    if e.isAppOfArity ``eval 6 then
-      let g := e.getArg! 5
+    if e.isAppOfArity ``eval 5 then
+      let g := e.getArg! 4
       if g.isAppOfArity ``Getter.mk 3 then
         if let .lam _ _ b _ := g.getArg! 2 then
           if !b.hasLooseBVar 0 then
@@ -928,7 +927,7 @@ private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :
       if l.isAppOfArity ``varLens 1 then
         if let some s' := stateProj? 1 s then
           let r ← try
-              let slot ← Meta.mkAppOptM ``Lens.intoLocal #[some inst, none, some l]
+              let slot ← Meta.mkAppOptM ``Lens.intoLocal #[none, some l]
               some <$> Meta.mkAppM ``Getter.get #[← Meta.mkAppM ``Lens.toGetter #[slot], s']
             catch _ => pure none
           if let some r := r then
@@ -938,12 +937,12 @@ private def simplifyReads (inst : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :
 /-- Rewrite every read at the current state `cur` — `L.get CurrentState.state`, or
 `x.get CurrentState.state.globals` for a global — into the sigil read `eval L`, which prints as
 `§L`. -/
-private def sigilReads (inst cur : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
+private def sigilReads (cur : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
   Meta.transform e (post := fun e => do
     let some (l, s) := ProgramSyntax.lensGet? e | return .continue
-    let isCur (s : Lean.Expr) := s.isAppOfArity ``CurrentState.state 2 && s.appArg! == cur
+    let isCur (s : Lean.Expr) := s.isAppOfArity ``CurrentState.state 1 && s.appArg! == cur
     unless isCur s || (stateProj? 0 s).any isCur do return .continue
-    let r ← try some <$> Meta.mkAppOptM ``eval #[some inst, none, none, none, some cur, some l]
+    let r ← try some <$> Meta.mkAppOptM ``eval #[none, none, none, some cur, some l]
       catch _ => pure none
     let some r := r | return .continue
     if ← Meta.isDefEq r e then return .done r else return .continue)
@@ -957,22 +956,22 @@ private partial def pinEvals (amb : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr
   if (e.find? (·.isConstOf ``eval)).isNone then return e
   if e.isAppOfArity ``Getter.mk 3 then
     if let .lam n t b bi := e.getArg! 2 then
-      if t.isAppOfArity ``ProgramState 1 then
+      if t.isConstOf ``ProgramState then
         let f ← Meta.withLocalDecl n bi t fun st => do
-          let amb' ← Meta.mkAppOptM ``CurrentState.mk #[some t.appArg!, some st]
+          let amb' ← Meta.mkAppOptM ``CurrentState.mk #[some st]
           Meta.mkLambdaFVars #[st] (← pinEvals amb' (b.instantiate1 st))
         return mkApp3 e.getAppFn (e.getArg! 0) (e.getArg! 1) f
-  if e.isAppOfArity ``eval 6 then
+  if e.isAppOfArity ``eval 5 then
     let args := e.getAppArgs
-    let x ← pinEvals amb args[5]!
-    let cs := args[4]!
-    let atAmb := mkAppN e.getAppFn ((args.set! 5 x).set! 4 amb)
+    let x ← pinEvals amb args[4]!
+    let cs := args[3]!
+    let atAmb := mkAppN e.getAppFn ((args.set! 4 x).set! 3 amb)
     if cs == amb then return atAmb
     if ← Meta.isDefEq atAmb e then return atAmb
-    let s := if cs.isAppOfArity ``CurrentState.mk 2 then cs.appArg!
-      else mkApp2 (mkConst ``CurrentState.state) args[0]! cs
+    let s := if cs.isAppOfArity ``CurrentState.mk 1 then cs.appArg!
+      else mkApp (mkConst ``CurrentState.state) cs
     return ← Meta.mkAppOptM ``Evaluatable.eval
-      #[some args[0]!, some args[1]!, some args[2]!, some args[3]!, some s, some x]
+      #[some args[0]!, some args[1]!, some args[2]!, some s, some x]
   match e with
   | .app f a => return .app (← pinEvals amb f) (← pinEvals amb a)
   | .lam n t b bi => Meta.withLocalDecl n bi t fun x => do
@@ -1004,20 +1003,19 @@ captures: `Getter.mk fun st => let σ := CurrentState.state; f σ`, printed as
 that one is not mentioned). -/
 def ProgramSyntax.getterViaState (f : Lean.Expr) : MetaM Lean.Expr := do
   let .forallE _ ps _ _ ← Meta.whnfR (← Meta.inferType f) | failure
-  guard (ps.isAppOfArity ``ProgramState 1)
-  let inst := ps.appArg!
+  guard (ps.isConstOf ``ProgramState)
   let nm := match f with
     | .lam n .. =>
       if n.hasMacroScopes || n.eraseMacroScopes == stateBinderName then `σ else n
     | _ => `σ
   Meta.withLocalDeclD stateBinderName ps fun st => do
-    let cur ← Meta.mkAppOptM ``CurrentState.mk #[some inst, some st]
-    let v ← Meta.mkAppOptM ``CurrentState.state #[some inst, some cur]
+    let cur ← Meta.mkAppOptM ``CurrentState.mk #[some st]
+    let v ← Meta.mkAppOptM ``CurrentState.state #[some cur]
     Meta.withLetDecl nm ps v fun σ => do
-      let applied ← simplifyReads inst (f.beta #[σ])
+      let applied ← simplifyReads (f.beta #[σ])
       let body ← if occursNested σ.fvarId! applied then
           Meta.mkLetFVars #[σ] (← pinEvals cur applied)
-        else pinEvals cur (← sigilReads inst cur (applied.replaceFVar σ v))
+        else pinEvals cur (← sigilReads cur (applied.replaceFVar σ v))
       Meta.mkAppM ``Getter.mk #[← Meta.mkLambdaFVars #[st] body]
 
 /-- An expression slot of a statement.  What `GaudiExpr[ e ]` builds prints as `e`; any other
@@ -1039,7 +1037,8 @@ def delabStmtExpr : DelabM Term := do
 
 Restricted to getters over a `ProgramState`: that is the only carrier `GaudiExpr[ ]` can
 build, since the `CurrentState` instance it installs holds one.  Without the guard a
-`Getter a State` (an `Expr a`) would print as something that does not elaborate back. -/
+`Getter a VariableAssignment` (an `Expr a`) would print as something that does not elaborate
+back. -/
 @[delab app.GaudisCrypt.Getter.mk]
 private def delabGaudiExprTerm : Delab := do
   guardSurfaceSyntax
@@ -1075,12 +1074,12 @@ private def delabLValue : DelabM (Array Term) := do
   match (← getExpr).getAppFnArgs with
   | (``Setter.throwaway, _) => return #[← `(_)]
   | (``liftLens, args) => do
-      guard (args.size == 5)
-      withNaryArg 4 delabLValueList
+      guard (args.size == 4)
+      withNaryArg 3 delabLValueList
   | (``Lens.toSetter, args) => do
       guard (args.size == 3)
       withNaryArg 2 do
-        if (← getExpr).isAppOfArity ``Lens.intoGlobal 3 then withNaryArg 2 delabLValueList
+        if (← getExpr).isAppOfArity ``Lens.intoGlobal 2 then withNaryArg 1 delabLValueList
         else delabLValueList
   | (``Setter.mk, _) => failure
   | _ => return #[← delab]
@@ -1177,8 +1176,8 @@ private def isEvaluatedKey (n : String) (k : Lean.Expr) : Bool :=
 /-- `(varLens ⟨"x", T, …⟩).intoLocal` — what `localVarLens "x" T` unfolds to, and what a lemma
 stated over an arbitrary `varLens` slot leaves behind — ↦ `("x", T)`. -/
 def unfoldedVarSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
-  guard (e.isAppOfArity ``Lens.intoLocal 3)
-  let v := e.getArg! 2
+  guard (e.isAppOfArity ``Lens.intoLocal 2)
+  let v := e.getArg! 1
   guard (v.isAppOfArity ``varLens 1)
   let nm := v.appArg!
   guard (nm.isAppOfArity ``VariableName.mk 5)
@@ -1188,9 +1187,9 @@ def unfoldedVarSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
 
 /-- `localVarLens "x" T`, or its unfolding (`unfoldedVarSlot?`), ↦ `("x", T)`. -/
 private def varSlot? (e : Lean.Expr) : Option (String × Lean.Expr) := do
-  if e.isAppOfArity ``localVarLens 6 then
-    let .lit (.strVal n) := e.getArg! 1 | none
-    return (n, e.getArg! 2)
+  if e.isAppOfArity ``localVarLens 5 then
+    let .lit (.strVal n) := e.getArg! 0 | none
+    return (n, e.getArg! 1)
   unfoldedVarSlot? e
 
 /-- The variable slots in `e`, outside nested `proc` literals, in order of first occurrence,
@@ -1296,11 +1295,11 @@ one. -/
 @[delab app.GaudisCrypt.localVarLens]
 private def delabLocalVarLens : Delab := do
   guardSurfaceSyntax
-  guard ((← getExpr).getAppNumArgs == 6)
+  guard ((← getExpr).getAppNumArgs == 5)
   if let some (n, ty) := varSlot? (← getExpr) then
     if let some nm ← frameVarFor? n ty then return mkIdent nm
   let f := mkIdent (← unresolveNameGlobal ``localVarLens)
-  `($f $(← withNaryArg 1 delab) $(← withNaryArg 2 delab))
+  `($f $(← withNaryArg 0 delab) $(← withNaryArg 1 delab))
 
 /-- A variable name `⟨"x", T, …⟩` prints as `VariableName.mk "x" T`, which is how it is written:
 the record would print its proofs elided (`⋯`), unparseably.  Only for a literal name with a key
@@ -1326,7 +1325,7 @@ private def delabUnfoldedVarSlot : Delab := do
   let some (n, ty) := unfoldedVarSlot? (← getExpr) | failure
   if let some nm ← frameVarFor? n ty then return mkIdent nm
   let f := mkIdent (← unresolveNameGlobal ``localVarLens)
-  withNaryArg 2 <| withNaryArg 0 do
+  withNaryArg 1 <| withNaryArg 0 do
     `($f $(← withNaryArg 0 delab) $(← withNaryArg 1 delab))
 
 /-- A procedure call whose l-value, callee and argument getter are the arguments `i`, `i + 1`
@@ -1358,9 +1357,9 @@ partial def delabGaudiStmts (holeNames : Array Name) :
                else `(gaudi_stmt| let $decl:letDecl; $body:gaudi_stmt*)]
   match (← getExpr).getAppFnArgs with
   | (``StmtWithHoles.seq, args) => do
-      guard (args.size == 4)
-      let hd ← withNaryArg 2 (delabGaudiStmtNested holeNames)
-      let tl ← withNaryArg 3 (delabGaudiStmts holeNames)
+      guard (args.size == 3)
+      let hd ← withNaryArg 1 (delabGaudiStmtNested holeNames)
+      let tl ← withNaryArg 2 (delabGaudiStmts holeNames)
       return #[hd] ++ tl
   | _ => return #[← delabGaudiStmt holeNames]
 
@@ -1380,33 +1379,33 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
   match (← getExpr).getAppFnArgs with
   | (``StmtWithHoles.skip, _) => `(gaudi_stmt| skip;)
   | (``StmtWithHoles.assign, args) => do
-      guard (args.size == 5)
+      guard (args.size == 4)
       -- `reset S;`: the value written is `()` whatever it is spelled as (`Unit` has eta)
-      if args[3]!.isAppOfArity ``resetSetter 2 then
-        let s ← withNaryArg 3 (withNaryArg 1 delab)
+      if args[2]!.isAppOfArity ``resetSetter 1 then
+        let s ← withNaryArg 2 (withNaryArg 0 delab)
         return ⟨mkNode ``resetStmt #[mkAtom "reset", s, mkAtom ";"]⟩
-      let lv ← withNaryArg 3 delabLValue
-      let e ← withNaryArg 4 delabStmtExpr
+      let lv ← withNaryArg 2 delabLValue
+      let e ← withNaryArg 3 delabStmtExpr
       `(gaudi_stmt| $lv:term,* <- $e;)
   | (``StmtWithHoles.sample, args) => do
-      guard (args.size == 5)
-      let lv ← withNaryArg 3 delabLValue
-      let e ← withNaryArg 4 delabStmtExpr
+      guard (args.size == 4)
+      let lv ← withNaryArg 2 delabLValue
+      let e ← withNaryArg 3 delabStmtExpr
       `(gaudi_stmt| $lv:term,* <$ $e;)
   | (``StmtWithHoles.call, args) => do
-      guard (args.size == 6)
-      delabCall 3
+      guard (args.size == 5)
+      delabCall 2
   -- `Stmt.call` is `StmtWithHoles.call` at no holes, as a definition of its own (lemmas about
   -- statements state calls with it); the `call` statement elaborates to a defeq term
   | (``Stmt.call, args) => do
-      guard (args.size == 5)
-      delabCall 2
+      guard (args.size == 4)
+      delabCall 1
   | (``StmtWithHoles.hole, args) => do
-      guard (args.size == 6)
-      let idx ← withNaryArg 3 delab
-      let void ← withNaryArg 4 isThrowaway
-      let lv ← withNaryArg 4 delabLValue
-      let as := splitArgTuple (← withNaryArg 5 delabStmtExpr)
+      guard (args.size == 5)
+      let idx ← withNaryArg 2 delab
+      let void ← withNaryArg 3 isThrowaway
+      let lv ← withNaryArg 3 delabLValue
+      let as := splitArgTuple (← withNaryArg 4 delabStmtExpr)
       -- inside its `proc`, a hole is called with `call` (that is what the macro rewrites);
       -- anywhere else the internal `holecall` form is the only faithful spelling.
       if idx.raw.isIdent && holeNames.contains idx.raw.getId then
@@ -1416,19 +1415,19 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
         if void then `(gaudi_stmt| holecall $idx ( $as:term,* );)
         else `(gaudi_stmt| $lv:term,* <- holecall $idx ( $as:term,* );)
   | (``StmtWithHoles.ifThenElse, args) => do
-      guard (args.size == 5)
-      let c ← withNaryArg 2 delabStmtExpr
-      let t ← withNaryArg 3 (delabGaudiStmts holeNames)
+      guard (args.size == 4)
+      let c ← withNaryArg 1 delabStmtExpr
+      let t ← withNaryArg 2 (delabGaudiStmts holeNames)
       -- `if (c) { … }` elaborates with `skip` as its else branch, so print the short form
-      let noElse ← withNaryArg 4 (return (← getExpr).isAppOf ``StmtWithHoles.skip)
+      let noElse ← withNaryArg 3 (return (← getExpr).isAppOf ``StmtWithHoles.skip)
       if noElse then `(gaudi_stmt| if ($c) { $t:gaudi_stmt* })
       else
-        let f ← withNaryArg 4 (delabGaudiStmts holeNames)
+        let f ← withNaryArg 3 (delabGaudiStmts holeNames)
         `(gaudi_stmt| if ($c) { $t:gaudi_stmt* } else { $f:gaudi_stmt* })
   | (``StmtWithHoles.while, args) => do
-      guard (args.size == 4)
-      let c ← withNaryArg 2 delabStmtExpr
-      let body ← withNaryArg 3 (delabGaudiStmts holeNames)
+      guard (args.size == 3)
+      let c ← withNaryArg 1 delabStmtExpr
+      let body ← withNaryArg 2 (delabGaudiStmts holeNames)
       `(gaudi_stmt| while ($c) { $body:gaudi_stmt* })
   | _ => failure
 
@@ -1469,17 +1468,17 @@ partial def spineLetNames (ss : Array (TSyntax `gaudi_stmt)) : Array Name := Id.
 private def delabProc : Delab := do
   guardSurfaceSyntax
   let e ← getExpr
-  guard (e.getAppNumArgs == 8)
-  let (paramTys, retTy) ← withNaryArg 2 delabSigParts
-  let holeSigs ← withNaryArg 1 delabHoleSigs
-  let some paramNames := stringListLit? (e.getArg! 3) | failure
-  let some paramTyEs := listLitElems? ((e.getArg! 2).getArg! 0) | failure
+  guard (e.getAppNumArgs == 7)
+  let (paramTys, retTy) ← withNaryArg 1 delabSigParts
+  let holeSigs ← withNaryArg 0 delabHoleSigs
+  let some paramNames := stringListLit? (e.getArg! 2) | failure
+  let some paramTyEs := listLitElems? ((e.getArg! 1).getArg! 0) | failure
   guard (paramNames.size == paramTyEs.size)
   -- the program variables, parameters first; the header has to name every parameter
-  let vars ← frameVars #[e.getArg! 6, e.getArg! 7] (paramNames.zip paramTyEs)
+  let vars ← frameVars #[e.getArg! 5, e.getArg! 6] (paramNames.zip paramTyEs)
   guard ((vars.extract 0 paramNames.size).all (·.printable))
   let printable := vars.filter (·.printable)
-  withVarLocals printable.toList #[e.getArg! 6, e.getArg! 7] fun es => do
+  withVarLocals printable.toList #[e.getArg! 5, e.getArg! 6] fun es => do
     -- the body: the hole `let`s, then the statements
     let (holeNames, stmts) ← withExpr es[0]! <|
       withPeeledLets holeSigs.size isHoleIndex #[] fun hs => do
@@ -1526,22 +1525,22 @@ and the same container, while `LiftLens` resolves exactly once, on the finished 
 
 Hence:
 
-* a mixed tuple fails to elaborate.  `(x, y) <- …` with `x` a local and `y : Lens Int State`
-  gives
+* a mixed tuple fails to elaborate.  `(x, y) <- …` with `x` a local and
+  `y : Lens Int VariableAssignment` a global gives
 
       Application type mismatch: The argument
         y
       has type
-        Lens ℤ State
+        Lens ℤ VariableAssignment
       but is expected to have type
         Lens ℤ ProgramState
       in the application
         @Lens.pair ℤ ProgramState ℤ x y
 
-  All-global works (`LiftLens State` lifts the pair with `Lens.intoGlobal`) and all-local
-  works (`LiftLens ProgramState` keeps it), because there the two components already agree; a
-  mixed pair has no single `M` for the class to be resolved at.  Lifting the global by hand,
-  `(x, y.intoGlobal) <- …`, works (the disjointness instance
+  All-global works (`LiftLens VariableAssignment` lifts the pair with `Lens.intoGlobal`) and
+  all-local works (`LiftLens ProgramState` keeps it), because there the two components already
+  agree; a mixed pair has no single `M` for the class to be resolved at.  Lifting the global by
+  hand, `(x, y.intoGlobal) <- …`, works (the disjointness instance
   `Lens.disjoint_intoLocal_intoGlobal` exists) and round-trips.
 * `_` works only at the top level.  `[lval| _]` short-circuits to `Setter.throwaway`, but a `_`
   *inside* a tuple goes through `[lvalRaw| _]` into `Lens.pair`, which wants a `Lens` — and a

@@ -125,16 +125,11 @@ example (m : VariableAssignment) : VariableAssignment.setParams ["x", "y"] [Int,
     (3, true) m (.mk "z" Int) = m (.mk "z" Int) :=
   VariableAssignment.setParams_apply_of_notMem _ _ _ _ _ _ (by decide)
 
-section
-
-variable [ProgramSpec]
-
 -- local slots stay disjoint inside the program state, and are disjoint from the globals
 example : Lens.Disjoint (varLens (.mk "x" Int)).intoLocal (varLens (.mk "y" Bool)).intoLocal :=
   inferInstance
-example (g : Lens Nat State) : Lens.Disjoint (varLens (.mk "x" Int)).intoLocal g.intoGlobal :=
+example (g : Lens Nat VariableAssignment) :
+    Lens.Disjoint (varLens (.mk "x" Int)).intoLocal g.intoGlobal :=
   inferInstance
-
-end
 
 end GaudisCrypt

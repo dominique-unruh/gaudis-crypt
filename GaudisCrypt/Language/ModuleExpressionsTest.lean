@@ -7,8 +7,6 @@ Smoke tests for the `moduletyping`, `normalmodule` and `reduce_simp` tactics, ke
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 /-! ### Smoke tests -/
 
 example : ModuleExpression.HasType .unit [] .unit := by moduletyping
@@ -27,7 +25,6 @@ example : ModuleExpression.HasType (.fst (.pair .unit .unit)) [] .unit := by mod
 -- `#guard_msgs` rather than papered over with a permanent `sorry`.
 /-- error: unsolved goals
 case a
-inst✝ : ProgramSpec
 ⊢ ModuleExpression.unit.HasType [] (ModuleTypeRep.unit.arr ModuleTypeRep.unit) -/
 #guard_msgs (whitespace := lax) in
 example : ModuleExpression.HasType (.app .unit .unit) [] .unit := by
@@ -138,9 +135,8 @@ with the goal
   (a.pair b).Neutral
 
 Note: The full type of `@ModuleExpression.Normal.neutral` is
-  ∀ [inst : ProgramSpec] {e : ModuleExpression}, e.Neutral → e.Normal
+  ∀ {e : ModuleExpression}, e.Neutral → e.Normal
 
-inst✝ : ProgramSpec
 a b : ModuleExpression
 ⊢ (a.pair b).Neutral -/
 #guard_msgs (whitespace := lax) in

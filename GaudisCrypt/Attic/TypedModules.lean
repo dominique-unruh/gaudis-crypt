@@ -8,8 +8,6 @@ namespace GaudisCrypt.TypedModules
 
 open GaudisCrypt
 
-variable [ProgramSpec]
-
 /- # Definition of the module calculus -/
 
 /-- Possible types of modules -/
@@ -42,7 +40,6 @@ def HoleSigs.toModuleTypeRepTuple : HoleSigs → ModuleTypeRep
 | .empty => .unit
 | .cons sig holes => .prod (.proc sig) (HoleSigs.toModuleTypeRepTuple holes)
 
-omit [ProgramSpec] in
 lemma ModuleContextIdx.toNat_inj' {Γ : ModuleContext} :
   ∀ {T1 T2 : ModuleTypeRep} (r1 : ModuleContextIdx Γ T1) (r2 : ModuleContextIdx Γ T2),
     r1.toNat = r2.toNat → T1 = T2 ∧ HEq r1 r2
@@ -79,7 +76,7 @@ instance (m : ModuleExpression Δ (.prod T U)) : Decidable (IsPair m) :=
   | .pair _ _ => isTrue rfl
   | .var _ | .app _ _ | .fst _ | .snd _ => isFalse Bool.false_ne_true
 
-def IsPair.split [ProgramSpec] {m : ModuleExpression Δ (.prod T U)} (_ : IsPair m) :
+def IsPair.split {m : ModuleExpression Δ (.prod T U)} (_ : IsPair m) :
     (ModuleExpression Δ T × ModuleExpression Δ U) :=
   match m with
    | .pair m1 m2 => (m1,m2)
@@ -162,7 +159,7 @@ def IsProcHoles.destruct {m : ModuleExpression Γ T} (h : IsProcHoles m) :
     { proc : ProcedureWithHoles holes sig //
       T = (.arr (HoleSigs.toModuleTypeRepTuple holes) (.proc sig))}
 := match m with
-| @ModuleExpression.procHoles _ _ holes sigs _ p => ⟨holes, sigs, p, rfl⟩
+| @ModuleExpression.procHoles _ holes sigs _ p => ⟨holes, sigs, p, rfl⟩
 
 
 /- # Normal forms -/
@@ -558,7 +555,7 @@ lemma procTupleLookup_toModuleTuple {Δ : ModuleContext} :
 def cbvReductionStep (m : ModuleExpression Δ t) (nn : ¬ Normal m) :
     ModuleExpression Δ t :=
   match m with
-  | @ModuleExpression.app _ _  A B hd arg =>
+  | @ModuleExpression.app _ A B hd arg =>
       if abs : IsAbs hd then
         substitute abs.body arg
       else if h : IsProcHoles hd ∧ IsProcTuple arg then
@@ -697,9 +694,9 @@ theorem cbvReductionStep_is_reductionStep (m : ModuleExpression Γ T) (nn : ¬ N
 
 def ModuleExpression.erasedEqual
   (m : ModuleExpression Γ T) (m' : ModuleExpression Γ' T') : Prop := match m, m' with
-  | @ModuleExpression.proc _ _ sig p, @ModuleExpression.proc _ _ sig' p' => sig = sig' ∧ p ≍ p'
-  | @ModuleExpression.procHoles _ _ holes sig _ p,
-    @ModuleExpression.procHoles _ _ holes' sig' _ p' => holes = holes' ∧ sig = sig' ∧ p ≍ p'
+  | @ModuleExpression.proc _ sig p, @ModuleExpression.proc _ sig' p' => sig = sig' ∧ p ≍ p'
+  | @ModuleExpression.procHoles _ holes sig _ p,
+    @ModuleExpression.procHoles _ holes' sig' _ p' => holes = holes' ∧ sig = sig' ∧ p ≍ p'
   | .var r, .var r' => r.toNat = r'.toNat
   | .app f a, .app f' a' => ModuleExpression.erasedEqual f f' ∧ ModuleExpression.erasedEqual a a'
   | .fst e, .fst e' => ModuleExpression.erasedEqual e e'

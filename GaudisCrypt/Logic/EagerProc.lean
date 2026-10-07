@@ -30,8 +30,6 @@ namespace GaudisCrypt
 open GaudisCrypt
 open GaudisCrypt
 
-variable [ProgramSpec]
-
 /-! ## Locality -/
 
 /-- **Swap-locality**: every operation of `A` *outside the holes* swaps with the
@@ -59,7 +57,6 @@ def SwapLoc {holes : HoleSigs} (SL : ProgramDenotation ProgramState Unit) :
         (ProgramDenotation.get c) (ProgramDenotation.get c)
       ∧ SwapLoc SL t
 
-omit [ProgramSpec] in
 /-- A self-`transferBy` fact is a (diagonal) self-eager judgment. -/
 theorem eagerR_self_of_transferBy {s : Type*} {α : Type}
     {SL : ProgramDenotation s Unit} {p : ProgramDenotation s α}
@@ -74,7 +71,7 @@ theorem eagerR_self_of_transferBy {s : Type*} {α : Type}
     block `SL` across two hole-instantiations, given swap-locality of its own
     operations and a per-hole eager hypothesis.  The `eagerR` rules are threaded
     over the statement structure. -/
-theorem eager_body (S : ProgramDenotation State Unit) :
+theorem eager_body (S : ProgramDenotation VariableAssignment Unit) :
     ∀ {holes : HoleSigs}
       (A : StmtWithHoles holes) (eagerInst lazyInst : holes.Instantiation),
       SwapLoc (ProgramDenotation.zoom ProgramState.globalL S) A →
@@ -141,7 +138,7 @@ theorem eager_body (S : ProgramDenotation State Unit) :
 /-- **The lifted block slides in**: `S` before the wrapper = `zoom globalL S`
     before the body, inside the wrapper.  Structural. -/
 theorem procWrap_block_in {sig : ProcedureSignature}
-    (S : ProgramDenotation State Unit)
+    (S : ProgramDenotation VariableAssignment Unit)
     (rv : Getter sig.ret ProgramState) (initL : VariableAssignment)
     (B : ProgramDenotation ProgramState Unit) :
     procWrap rv initL (ProgramDenotation.zoom ProgramState.globalL S >>= fun _ => B)
@@ -164,7 +161,7 @@ theorem programGet_eq' {sig : ProcedureSignature}
 /-- From the return-value swap: reading `rv` commutes with the lifted block
     (clean form). -/
 theorem rv_block_stable {sig : ProcedureSignature}
-    (S : ProgramDenotation State Unit)
+    (S : ProgramDenotation VariableAssignment Unit)
     (rv : Getter sig.ret ProgramState)
     (hret : ProgramDenotation.transferBy
       (ProgramDenotation.zoom ProgramState.globalL S)
@@ -180,7 +177,7 @@ theorem rv_block_stable {sig : ProcedureSignature}
 
 /-- Reading `rv` is invariant under the block changing the global component. -/
 theorem rv_block_invariant {sig : ProcedureSignature}
-    (S : ProgramDenotation State Unit)
+    (S : ProgramDenotation VariableAssignment Unit)
     (rv : Getter sig.ret ProgramState)
     (hret : ProgramDenotation.transferBy
       (ProgramDenotation.zoom ProgramState.globalL S)
@@ -190,7 +187,7 @@ theorem rv_block_invariant {sig : ProcedureSignature}
       = (S ps.globals >>= fun w => pure (rv.get ⟨w.2, ps.locals⟩, w.2)) := by
   have hc := rv_block_stable S rv hret ps
   have hp := congrArg (fun (m : SubProbability (sig.ret × ProgramState)) =>
-      m >>= fun p => (pure (p.1, p.2.globals) : SubProbability (sig.ret × State))) hc
+      m >>= fun p => (pure (p.1, p.2.globals) : SubProbability (sig.ret × VariableAssignment))) hc
   simp only [ProgramDenotation.zoom, SubProbability.hbind, ProgramState.globalL, bind, pure]
     at hp ⊢
   generalize S ps.globals = U at hp ⊢
@@ -207,7 +204,7 @@ set_option maxHeartbeats 1000000 in
     body, inside the wrapper.  Consumes `hret` (the return value swaps with the
     block, so reading it commutes with the block changing the globals). -/
 theorem procWrap_block_out {sig : ProcedureSignature}
-    (S : ProgramDenotation State Unit)
+    (S : ProgramDenotation VariableAssignment Unit)
     (rv : Getter sig.ret ProgramState) (initL : VariableAssignment)
     (B : ProgramDenotation ProgramState Unit)
     (hret : ProgramDenotation.transferBy
@@ -245,7 +242,7 @@ theorem procWrap_block_out {sig : ProcedureSignature}
 theorem eager_wrapper {holes : HoleSigs} {sig : ProcedureSignature}
     (eagerInst lazyInst : holes.Instantiation)
     (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
-    (S : ProgramDenotation State Unit)
+    (S : ProgramDenotation VariableAssignment Unit)
     (hbody : ProgramDenotation.eagerR
       (ProgramDenotation.zoom ProgramState.globalL S)
       (ProgramDenotation.zoom ProgramState.globalL S)
@@ -256,10 +253,10 @@ theorem eager_wrapper {holes : HoleSigs} {sig : ProcedureSignature}
     (hret : ProgramDenotation.transferBy
       (ProgramDenotation.zoom ProgramState.globalL S)
       (ProgramDenotation.get A.return_val) (ProgramDenotation.get A.return_val)) :
-    ProgramDenotation.eagerR S S (fun σ₁ σ₂ : State => σ₁ = σ₂)
+    ProgramDenotation.eagerR S S (fun σ₁ σ₂ : VariableAssignment => σ₁ = σ₂)
       (procedureDenotation (A.instantiate eagerInst) args)
       (procedureDenotation (A.instantiate lazyInst) args)
-      (fun u v : sig.ret × State => u = v) := by
+      (fun u v : sig.ret × VariableAssignment => u = v) := by
   refine ProgramDenotation.eagerR_of_eq ?_
   rw [procedureDenotation_eq_procWrap_gen A args eagerInst,
       procedureDenotation_eq_procWrap_gen A args lazyInst]
@@ -285,7 +282,7 @@ theorem eager_wrapper {holes : HoleSigs} {sig : ProcedureSignature}
 theorem eager_call {holes : HoleSigs} {sig : ProcedureSignature}
     (eagerInst lazyInst : holes.Instantiation)
     (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
-    (S : ProgramDenotation State Unit)
+    (S : ProgramDenotation VariableAssignment Unit)
     (hloc : SwapLoc (ProgramDenotation.zoom ProgramState.globalL S) A.body)
     (hret : ProgramDenotation.transferBy
       (ProgramDenotation.zoom ProgramState.globalL S)
@@ -304,10 +301,10 @@ theorem eager_call {holes : HoleSigs} {sig : ProcedureSignature}
           (programDenotation (StmtWithHoles.call x (eagerInst.lookup n) p))
           (programDenotation (StmtWithHoles.call x (lazyInst.lookup n) p))
           (fun u v => u = v)) :
-    ProgramDenotation.eagerR S S (fun σ₁ σ₂ : State => σ₁ = σ₂)
+    ProgramDenotation.eagerR S S (fun σ₁ σ₂ : VariableAssignment => σ₁ = σ₂)
       (procedureDenotation (A.instantiate eagerInst) args)
       (procedureDenotation (A.instantiate lazyInst) args)
-      (fun u v : sig.ret × State => u = v) :=
+      (fun u v : sig.ret × VariableAssignment => u = v) :=
   eager_wrapper eagerInst lazyInst A args S
     (eager_body S A.body eagerInst lazyInst hloc
       (fun n x p hp hx => hhole n x p hp hx))
@@ -329,12 +326,12 @@ private theorem denote_call {sig : ProcedureSignature}
     procedure-level eager specification and swap-stability of the surrounding
     argument read and result write. -/
 theorem eagerR_call {sig : ProcedureSignature}
-    (S : ProgramDenotation State Unit) (f f' : Procedure sig)
+    (S : ProgramDenotation VariableAssignment Unit) (f f' : Procedure sig)
     (x : Setter sig.ret ProgramState) (p : Getter sig.ParamType ProgramState)
     (hspec : ∀ args : sig.ParamType,
-      ProgramDenotation.eagerR S S (fun σ₁ σ₂ : State => σ₁ = σ₂)
+      ProgramDenotation.eagerR S S (fun σ₁ σ₂ : VariableAssignment => σ₁ = σ₂)
         (procedureDenotation f args) (procedureDenotation f' args)
-        (fun u v : sig.ret × State => u = v))
+        (fun u v : sig.ret × VariableAssignment => u = v))
     (hp : ProgramDenotation.transferBy (ProgramDenotation.zoom ProgramState.globalL S)
       (ProgramDenotation.get p) (ProgramDenotation.get p))
     (hx : ∀ ret, ProgramDenotation.transferBy (ProgramDenotation.zoom ProgramState.globalL S)
@@ -354,14 +351,14 @@ theorem eagerR_call {sig : ProcedureSignature}
 /-- **EC's `eager call` with an invariant**: the equality-level call rule
     strengthened by a framing self-coupling of the lazy call site. -/
 theorem eagerR_call_inv {sig : ProcedureSignature}
-    (S : ProgramDenotation State Unit) (f f' : Procedure sig)
+    (S : ProgramDenotation VariableAssignment Unit) (f f' : Procedure sig)
     (x : Setter sig.ret ProgramState) (p : Getter sig.ParamType ProgramState)
     {P : ProgramState → ProgramState → Prop}
     {Q : Unit × ProgramState → Unit × ProgramState → Prop}
     (hspec : ∀ args : sig.ParamType,
-      ProgramDenotation.eagerR S S (fun σ₁ σ₂ : State => σ₁ = σ₂)
+      ProgramDenotation.eagerR S S (fun σ₁ σ₂ : VariableAssignment => σ₁ = σ₂)
         (procedureDenotation f args) (procedureDenotation f' args)
-        (fun u v : sig.ret × State => u = v))
+        (fun u v : sig.ret × VariableAssignment => u = v))
     (hp : ProgramDenotation.transferBy (ProgramDenotation.zoom ProgramState.globalL S)
       (ProgramDenotation.get p) (ProgramDenotation.get p))
     (hx : ∀ ret, ProgramDenotation.transferBy (ProgramDenotation.zoom ProgramState.globalL S)
@@ -386,8 +383,9 @@ theorem eagerR_call_inv {sig : ProcedureSignature}
 theorem eager_call_inv {holes : HoleSigs} {sig : ProcedureSignature}
     (eagerInst lazyInst : holes.Instantiation)
     (A : ProcedureWithHoles holes sig) (args : sig.ParamType)
-    (S : ProgramDenotation State Unit)
-    {P : State → State → Prop} {Q : sig.ret × State → sig.ret × State → Prop}
+    (S : ProgramDenotation VariableAssignment Unit)
+    {P : VariableAssignment → VariableAssignment → Prop}
+    {Q : sig.ret × VariableAssignment → sig.ret × VariableAssignment → Prop}
     (hloc : SwapLoc (ProgramDenotation.zoom ProgramState.globalL S) A.body)
     (hret : ProgramDenotation.transferBy
       (ProgramDenotation.zoom ProgramState.globalL S)

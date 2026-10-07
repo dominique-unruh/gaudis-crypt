@@ -165,8 +165,6 @@ private lemma image_cc_subset {M N : Type*} [Monoid M] [Monoid N]
 
 namespace FVP
 
-variable [ProgramSpec]
-
 /-- Family version of `ProgramDenotation.footprint`: the supremum of the per-input ranges. Used to
 give a setter (which is a *family* `a → ProgramDenotation s Unit`, one program per written value) a
 single footprint. -/
@@ -179,7 +177,6 @@ noncomputable def _root_.GaudisCrypt.ProgramDenotation.footprint'
 /-! ### Properties of `Lens.reduceFootprint` / `Lens.liftFootprint` needed for the framework instance. -/
 
 
-omit [ProgramSpec] in
 /-- The `Lens.reduceFootprint` constraint set is `lens.liftSubProbability ⁻¹'` of a centralizer. -/
 private lemma Lens.reduceFootprint_constraint {a b} (lens : Lens a b) (V : Set (b → SubProbability b)) :
     {f : a → SubProbability a | ∀ g ∈ V, lens.liftSubProbability f * g = g * lens.liftSubProbability f}
@@ -190,7 +187,6 @@ private lemma Lens.reduceFootprint_constraint {a b} (lens : Lens a b) (V : Set (
 
 /-! ### `lens.liftSubProbability` is a monoid homomorphism, and the resulting closure algebra. -/
 
-omit [ProgramSpec] in
 /-- **`lens.liftSubProbability` preserves the identity kernel.** -/
 lemma updateK_one {a b} (lens : Lens a b) :
     lens.liftSubProbability (1 : a → SubProbability a) = 1 := by
@@ -198,7 +194,6 @@ lemma updateK_one {a b} (lens : Lens a b) :
   change (pure (lens.get st) : SubProbability a).hbind (fun a' => pure (lens.set a' st)) = pure st
   rw [SubProbability.pure_hbind, lens.get_set]
 
-omit [ProgramSpec] in
 /-- The bicommutant retraction inequality for a multiplicative `u`:
     `C(u⁻¹'(C(u '' R))) ⊆ CC(R)`.  The engine behind `Lens.reduceFootprint_extend`: if `q` commutes
     with `R` then `u q` commutes with `u '' R` (by multiplicativity), so `q` lies in the
@@ -216,7 +211,6 @@ private lemma centralizer_preimage_image_subset {M N : Type*} [Monoid M] [Monoid
     rw [← hu, ← hu, (Set.mem_centralizer_iff.mp hq) r hr]
   exact (Set.mem_centralizer_iff.mp hf) q hqmem
 
-omit [ProgramSpec] in
 /-- A `diracKer` of a localized deterministic update is the `updateK` of the base `diracKer`
     (alias of `Lens.liftSubProbability_diracKer`, kept under the `updateK` naming of this file). -/
 lemma updateK_diracKer {a s : Type*} (lens : Lens a s) (g : Function.End a) :
@@ -228,7 +222,6 @@ lemma updateK_diracKer {a s : Type*} (lens : Lens a s) (g : Function.End a) :
 -- `footprint_equivariant`, `footprint_liftSubProbability_image` and
 -- `Lens.liftFootprint_updates` moved to `GaudisCrypt/Language/Footprint.lean` (and out of `FVP`).
 
-omit [ProgramSpec] in
 /-- **`Lens.reduceFootprint` is a retraction of `Lens.liftFootprint`** (`reduce (extend r) ≤ r`):
     pushing a footprint forward along a lens and pulling it back recovers at most it.
     Proven in full from `updateK` being a monoid homomorphism
@@ -246,7 +239,6 @@ theorem Lens.reduceFootprint_extend_le {a b} (lens : Lens a b) (r : Footprint a)
   rw [Footprint.double_commutant_closed] at key
   exact key
 
-omit [ProgramSpec] in
 /-- **`Lens.reduceFootprint` is an exact left inverse of `Lens.liftFootprint`** (strengthening
     `Lens.reduceFootprint_extend` to equality): every `p ∈ r.updates` is itself
     `Lens.reduceSubProbability lens (lens.liftSubProbability p, i, o)` for the trivial
@@ -281,11 +273,11 @@ def fvpInductiveFunctionGS : InductiveFunctionGettersSetters Footprint where
   extend := Lens.liftFootprint
 
 noncomputable
-def fvPMexpr (m : ModuleExpression) : (Footprint State) :=
+def fvPMexpr (m : ModuleExpression) : (Footprint VariableAssignment) :=
   fvpInductiveFunctionGS.evalMexpr m
 
 noncomputable
-def fvP [IsModule M] (m : M) : Footprint State := fvpInductiveFunctionGS.eval m
+def fvP [IsModule M] (m : M) : Footprint VariableAssignment := fvpInductiveFunctionGS.eval m
 
 scoped instance : ReducibleGettersSetters fvpInductiveFunctionGS where
   comm := ⟨sup_comm⟩
@@ -332,7 +324,7 @@ theorem fvP_unit (a : Module.Unit) : fvP a = ⊥ :=
  InductiveFunction.unit _ _
 
 noncomputable
-def fvP_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Footprint State :=
+def fvP_proc {sig holes} (proc : ProcedureWithHoles holes sig) : Footprint VariableAssignment :=
   fvpInductiveFunctionGS.proc proc
 
 noncomputable
@@ -345,7 +337,7 @@ def fvP_stmt {holes} (stmt : StmtWithHoles holes) : Footprint ProgramState :=
     `fvP_proc A`. -/
 noncomputable
 def glob {sig holes} (A : ProcedureWithHoles holes sig) :
-    Getter (Quotient ((fvP_proc A)ᶜ.orbit_setoid)) State :=
+    Getter (Quotient ((fvP_proc A)ᶜ.orbit_setoid)) VariableAssignment :=
   (fvP_proc A).touched_getter
 
 end FVP
@@ -408,15 +400,16 @@ theorem reduce_chain_le_compl {t s c : Type*} {L : Lens s c} {v : Lens t s} {R :
 
 open MeasureTheory in
 /-- `globalL.liftSubProbability f` applied to a padded state applies `f` to the global. -/
-theorem globalL_liftSubProbability_pad [ProgramSpec] (f : State → SubProbability State)
-    (g : State) (loc : VariableAssignment) :
+theorem globalL_liftSubProbability_pad
+    (f : VariableAssignment → SubProbability VariableAssignment)
+    (g : VariableAssignment) (loc : VariableAssignment) :
     (ProgramState.globalL.liftSubProbability f) ⟨g, loc⟩
       = f g >>= fun a => pure (⟨a, loc⟩ : ProgramState) := by
   simp only [Lens.liftSubProbability]; rfl
 
 /-- Reading the global out of `globalL.liftSubProbability f` recovers `f` on the global. -/
-theorem globalL_liftSubProbability_global [ProgramSpec]
-    (f : State → SubProbability State)
+theorem globalL_liftSubProbability_global
+    (f : VariableAssignment → SubProbability VariableAssignment)
     (w2 : ProgramState) {ρ : Type} (x : ρ) :
     ((ProgramState.globalL.liftSubProbability f) w2 >>= fun s'' => pure (x, s''.globals))
       = f w2.globals >>= fun a => pure (x, a) := by

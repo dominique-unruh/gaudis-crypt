@@ -4,8 +4,6 @@ import GaudisCrypt.Language.Modules
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 /- # Demo -/
 
 

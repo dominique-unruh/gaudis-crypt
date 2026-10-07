@@ -10,8 +10,6 @@ reduction and normal-form development there stays independent of them;
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 /-! ## The argument of a δ-redex
 
 `inst.toModuleExpr` is a closed tuple of procedures: it determines `inst`, and — once parallel

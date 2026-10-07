@@ -2,8 +2,10 @@ import GaudisCrypt.Language.Programs
 
 namespace GaudisCrypt
 
-class GranularProgramSpec extends ProgramSpec where
-  grains : Set (Footprint State)
+/-- A partition of the global state into grains: lens-derived, pairwise disjoint, nonzero
+footprints. -/
+class GranularProgramSpec where
+  grains : Set (Footprint VariableAssignment)
   from_lenses : ∀ f ∈ grains, f.FromLens
   disjoint : ∀ f ∈ grains, ∀ g ∈ grains, f ≠ g → f ≤ gᶜ
   nonempty_grains : ∀ f ∈ grains, f ≠ ⊥
@@ -11,11 +13,11 @@ class GranularProgramSpec extends ProgramSpec where
 def GranularFootprint [spec : GranularProgramSpec] := Finset spec.grains
 
 def GranularFootprint.grains [spec : GranularProgramSpec] (F : GranularFootprint) :
-  Set (Footprint State) :=
+  Set (Footprint VariableAssignment) :=
     Subtype.val '' (↑(show Finset spec.grains from F) : Set spec.grains)
 
 def GranularFootprint.grainsFinset [spec : GranularProgramSpec] (F : GranularFootprint) :
-    Finset (Footprint State) :=
+    Finset (Footprint VariableAssignment) :=
   Finset.map ⟨Subtype.val, Subtype.val_injective⟩ F
 
 theorem GranularFootprint.grains_finite [spec : GranularProgramSpec] (F : GranularFootprint) :
@@ -27,13 +29,13 @@ theorem GranularFootprint.grains_subset [spec : GranularProgramSpec] (F : Granul
   simp [GranularFootprint.grains]
 
 def GranularFootprint.footprint [spec : GranularProgramSpec]
-    (F : GranularFootprint) : Footprint spec.state :=
+    (F : GranularFootprint) : Footprint VariableAssignment :=
   sSup F.grains
 
-def Footprint.IsGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+def Footprint.IsGranular [spec : GranularProgramSpec] (f : Footprint VariableAssignment) :=
   ∃ (F : GranularFootprint), f = GranularFootprint.footprint F
 
-def Footprint.IsSubGranular [spec : GranularProgramSpec] (f : Footprint spec.state) :=
+def Footprint.IsSubGranular [spec : GranularProgramSpec] (f : Footprint VariableAssignment) :=
   ∃ (F : GranularFootprint), f ≤ GranularFootprint.footprint F
 
 instance [spec : GranularProgramSpec] : PartialOrder GranularFootprint where
@@ -162,7 +164,8 @@ theorem GranularFootprint.footprint_mono [spec : GranularProgramSpec] {F G : Gra
   sSup_le_sSup h
 
 private theorem IsSubGranular.granularCover_finite
-    [spec : GranularProgramSpec] {footprint : Footprint State} (h : footprint.IsSubGranular) :
+    [spec : GranularProgramSpec] {footprint : Footprint VariableAssignment}
+    (h : footprint.IsSubGranular) :
        Finite { f : spec.grains | ¬ footprint ≤ f.valᶜ } := by
     obtain ⟨F, hF⟩ := h
     refine Set.Finite.of_finite_image ?_ Subtype.val_injective.injOn
@@ -182,7 +185,7 @@ open Classical in
     `footprint` is the product-corner argument inlined into
     `Footprint.IsSubGranular.granularCover_ge`. -/
 noncomputable def Footprint.IsSubGranular.granularCover [spec : GranularProgramSpec]
-    {footprint : Footprint State} (h : footprint.IsSubGranular) : GranularFootprint :=
+    {footprint : Footprint VariableAssignment} (h : footprint.IsSubGranular) : GranularFootprint :=
   haveI := IsSubGranular.granularCover_finite h
   { f : spec.grains | ¬ footprint ≤ f.valᶜ }.toFinite.toFinset
 
@@ -192,33 +195,35 @@ noncomputable def Footprint.IsSubGranular.granularCover [spec : GranularProgramS
 theorem GranularFootprint.footprint_fromLens [spec : GranularProgramSpec]
     (F : GranularFootprint) : F.footprint.FromLens := by
   classical
-  change (sSup (Subtype.val '' (↑F.toFinset : Set spec.grains)) : Footprint State).FromLens
+  change (sSup (Subtype.val '' (↑F.toFinset : Set spec.grains)) :
+    Footprint VariableAssignment).FromLens
   induction F.toFinset using Finset.induction_on with
   | empty => simpa using Footprint.fromLens_bot
   | @insert p F hp ih =>
       rw [Finset.coe_insert, Set.image_insert_eq, sSup_insert]
       refine Footprint.fromLens_sup (spec.from_lenses p.val p.property) ih ?_
-      have hsup : (sSup (Subtype.val '' (↑F : Set spec.grains)) : Footprint State)
+      have hsup : (sSup (Subtype.val '' (↑F : Set spec.grains)) : Footprint VariableAssignment)
           ≤ (p.val)ᶜ := by
         refine sSup_le ?_
         rintro q ⟨⟨q, hq⟩, hqF, rfl⟩
         refine spec.disjoint q hq p.val p.property (fun e => hp ?_)
         exact (Subtype.ext e : (⟨q, hq⟩ : spec.grains) = p) ▸ hqF
-      calc (p.val : Footprint State) = (p.val)ᶜᶜ := (Footprint.compl_compl _).symm
+      calc (p.val : Footprint VariableAssignment) = (p.val)ᶜᶜ := (Footprint.compl_compl _).symm
         _ ≤ _ := Footprint.compl_antimono hsup
 
-theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint State}
+theorem IsGranularFootprint.fromLens [spec : GranularProgramSpec] {f : Footprint VariableAssignment}
     (h : f.IsGranular) : f.FromLens := by
   obtain ⟨F, rfl⟩ := h
   exact F.footprint_fromLens
 
-noncomputable def IsGranularFootprint.lens [spec : GranularProgramSpec] {f : Footprint State}
-    (h : f.IsGranular) : Lens (Quotient fᶜ.orbit_setoid) State :=
+noncomputable def IsGranularFootprint.lens [spec : GranularProgramSpec]
+    {f : Footprint VariableAssignment} (h : f.IsGranular) :
+    Lens (Quotient fᶜ.orbit_setoid) VariableAssignment :=
   (IsGranularFootprint.fromLens h).lens
 
 open Classical in
-theorem isSubGranularFootprint_closed_sup [spec : GranularProgramSpec] {f g : Footprint State}
-    (hf : f.IsSubGranular) (hg : g.IsSubGranular) :
+theorem isSubGranularFootprint_closed_sup [spec : GranularProgramSpec]
+    {f g : Footprint VariableAssignment} (hf : f.IsSubGranular) (hg : g.IsSubGranular) :
     (f ⊔ g).IsSubGranular :=
   ⟨hf.choose ⊔ hg.choose,
     sup_le (hf.choose_spec.trans (GranularFootprint.footprint_mono le_sup_left))
@@ -226,7 +231,7 @@ theorem isSubGranularFootprint_closed_sup [spec : GranularProgramSpec] {f g : Fo
 
 /-- The minimal granular cover's footprint is the join of exactly the grains that `f` touches. -/
 theorem Footprint.IsSubGranular.granularCover_footprint_eq_sSup [spec : GranularProgramSpec]
-    (f : Footprint State) (h : f.IsSubGranular) :
+    (f : Footprint VariableAssignment) (h : f.IsSubGranular) :
     h.granularCover.footprint
       = sSup { g ∈ spec.grains | ¬ f ≤ gᶜ } := by
   unfold GranularFootprint.footprint Footprint.IsSubGranular.granularCover
@@ -237,14 +242,15 @@ theorem Footprint.IsSubGranular.granularCover_footprint_eq_sSup [spec : Granular
 
 
 
-theorem lens_pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a State} {lens2 : Lens b State}
+theorem lens_pair_isSubGranular [GranularProgramSpec] {lens1 : Lens a VariableAssignment}
+    {lens2 : Lens b VariableAssignment}
   [Lens.Disjoint lens1 lens2]
   (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (lens1.pair lens2).footprint.IsSubGranular :=
   Footprint.lens_pair lens1 lens2 ▸ isSubGranularFootprint_closed_sup h1 h2
 
 theorem Granularity.lens_pair_isSubGranular_sup [GranularProgramSpec]
-  {lens1 : Lens a State} {lens2 : Lens b State}
+  {lens1 : Lens a VariableAssignment} {lens2 : Lens b VariableAssignment}
   [Lens.Disjoint lens1 lens2]
   (h1 : lens1.footprint.IsSubGranular) (h2 : lens2.footprint.IsSubGranular) :
   (lens_pair_isSubGranular h1 h2).granularCover.footprint
@@ -258,7 +264,6 @@ theorem Granularity.lens_pair_isSubGranular_sup [GranularProgramSpec]
   rw [Footprint.IsSubGranular.granularCover_footprint_eq_sSup,
     Footprint.IsSubGranular.granularCover_footprint_eq_sSup,
     Footprint.IsSubGranular.granularCover_footprint_eq_sSup, hset, sSup_union]
-  rfl
 
 
 -- `Lens.reduceFootprint_compl_footprint`, `Footprint.reduceFootprint_updates` and
@@ -266,13 +271,14 @@ theorem Granularity.lens_pair_isSubGranular_sup [GranularProgramSpec]
 
 open Classical in
 theorem Footprint.IsSubGranular.granularCover_ge [spec : GranularProgramSpec]
-    (footprint : Footprint State) (h : footprint.IsSubGranular) :
+    (footprint : Footprint VariableAssignment) (h : footprint.IsSubGranular) :
     footprint ≤ h.granularCover.footprint := by
   rw [Footprint.IsSubGranular.granularCover_footprint_eq_sSup]
   obtain ⟨F, hF⟩ := h
-  set T : Set (Footprint State) := { g ∈ spec.grains | ¬ footprint ≤ gᶜ } with hT
-  set U : Set (Footprint State) := { g ∈ F.grains | footprint ≤ gᶜ } with hU
-  set Tf : Set (Footprint State) := { g ∈ F.grains | ¬ footprint ≤ gᶜ } with hTf
+  set T : Set (Footprint VariableAssignment) := { g ∈ spec.grains | ¬ footprint ≤ gᶜ }
+    with hT
+  set U : Set (Footprint VariableAssignment) := { g ∈ F.grains | footprint ≤ gᶜ } with hU
+  set Tf : Set (Footprint VariableAssignment) := { g ∈ F.grains | ¬ footprint ≤ gᶜ } with hTf
   have hTf_T : Tf ⊆ T := fun g ⟨hgF, hgt⟩ => ⟨GranularFootprint.grains_subset F hgF, hgt⟩
   have hsplit : F.grains = Tf ∪ U := by
     ext g; by_cases hc : footprint ≤ gᶜ <;> simp [hTf, hU, hc]
@@ -293,7 +299,8 @@ theorem Footprint.IsSubGranular.granularCover_ge [spec : GranularProgramSpec]
     simp only [hU, Set.mem_setOf_eq] at hg; exact hg.2
   have hUB : (sSup U).FromLens := by
     set Ufin : GranularFootprint :=
-      (F.toFinset).filter (fun g => footprint ≤ (g.val : Footprint State)ᶜ) with hUfin
+      (F.toFinset).filter (fun g => footprint ≤ (g.val : Footprint VariableAssignment)ᶜ)
+      with hUfin
     have hUgrains : U = Ufin.grains := by
       ext g
       simp only [hU, GranularFootprint.grains, hUfin, GranularFootprint.toFinset,

@@ -8,12 +8,10 @@ namespace GaudisCrypt.Test
 
 open GaudisCrypt
 
-variable [ProgramSpec]
-
 -- set_option trace.Meta.synthInstance true
 
-axiom a : Lens Nat State
-axiom b : Lens Nat State
+axiom a : Lens Nat VariableAssignment
+axiom b : Lens Nat VariableAssignment
 
 -- global variables
 #check (GaudiExpr[ $a + 1 ] : Getter Nat ProgramState)

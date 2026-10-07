@@ -11,9 +11,8 @@ The memory model of the new procedures (`NEW_PROCEDURES.md`, §2.1, §2.3, §4.2
 * `VariableAssignment` — a value for every `VariableName`, with `VariableAssignment.init` as the
   initial (unspecified) assignment, and `varLens v` onto the slot of `v`.  Two `varLens` are
   disjoint by instance search when the names are literals that differ.
-* `ProgramState` — the `globals` (still a `State` under `[ProgramSpec]`, refactor (I) of §1.4)
-  together with the `locals` of the running procedure, with `globalL`/`localL` and
-  `Lens.intoGlobal`/`Lens.intoLocal`.
+* `ProgramState` — the `globals` and the `locals` of the running procedure, both a
+  `VariableAssignment`, with `globalL`/`localL` and `Lens.intoGlobal`/`Lens.intoLocal`.
 * `VariableAssignment.setParams` — write an argument tuple into the parameter slots.
 * `VariableAssignment.embed`/`rename` — view an assignment through an injective name map
   (types are kept, so no casts), used for flattening.
@@ -39,17 +38,9 @@ writes `⟨"x", Int⟩` or `{ name := "x", type := Int }` and gets `@VariableNam
 
 namespace GaudisCrypt
 
-/-! ## Global state and argument tuples
+/-! ## Argument tuples
 
-Defined here rather than in `Programs.lean`, which builds on this file.
-
-The global state lives in `Type 1`, the universe of `VariableAssignment`, so that `State` and
-`ProgramState` share a universe. -/
-
-class ProgramSpec : Type 2 where
-  state : Type 1
-
-def State [spec : ProgramSpec] := spec.state
+Defined here rather than in `Programs.lean`, which builds on this file. -/
 
 /-- Reducible on purpose: at a concrete parameter list the tuple type has to be visible to
 unification at `reducible` transparency, or everything stated about `_ × _` gets stuck on it —
@@ -234,6 +225,8 @@ abbrev VariableAssignment : Type 1 := (v : VariableName) → v.type
 noncomputable def VariableAssignment.init : VariableAssignment :=
   fun v => Classical.choice v.nonempty
 
+noncomputable instance : Inhabited VariableAssignment := ⟨VariableAssignment.init⟩
+
 /-- Reading a slot under a renamed variable name, when the new name is the old one. -/
 theorem VariableAssignment.apply_withName (m : VariableAssignment) (v : VariableName) {n : String}
     (h : n = v.name) : m (v.withName n) = m v := by
@@ -400,16 +393,15 @@ theorem VariableAssignment.embed_perm (π : Equiv.Perm String) :
 
 section ProgramState
 
-variable [ProgramSpec]
-
 /-- The state a statement runs in: the program's `globals` and the running procedure's
-`locals`.  The globals are still a `State` (refactor (I), `NEW_PROCEDURES.md` §1.4). -/
+`locals`.  Both are variable assignments, the globals named by full declaration names
+(`NEW_PROCEDURES.md` §1.4, Phase 7). -/
 structure ProgramState where
-  globals : State
+  globals : VariableAssignment
   locals : VariableAssignment
 
 /-- Lens onto the globals of a `ProgramState`. -/
-def ProgramState.globalL : Lens State ProgramState where
+def ProgramState.globalL : Lens VariableAssignment ProgramState where
   get s := s.globals
   set v s := { s with globals := v }
   set_get _ _ := rfl
@@ -437,7 +429,7 @@ def Lens.intoLocal {a : Type*} (x : Lens a VariableAssignment) : Lens a ProgramS
   ProgramState.localL.chain x
 
 /-- A lens into the globals, as a lens into the program state. -/
-def Lens.intoGlobal {a : Type*} (x : Lens a State) : Lens a ProgramState :=
+def Lens.intoGlobal {a : Type*} (x : Lens a VariableAssignment) : Lens a ProgramState :=
   ProgramState.globalL.chain x
 
 /-- The local variable `n : T`: its slot in the locals, as a lens into the program state.  This
@@ -451,10 +443,10 @@ noncomputable abbrev localVarLens (n : String) (T : Type) [Nonempty T] {key : Na
   (varLens (@VariableName.mk n T _ key keyCorrect)).intoLocal
 
 instance Lens.disjoint_intoLocal_intoGlobal {a b : Type*} (x : Lens a VariableAssignment)
-    (y : Lens b State) : Lens.Disjoint x.intoLocal y.intoGlobal :=
+    (y : Lens b VariableAssignment) : Lens.Disjoint x.intoLocal y.intoGlobal :=
   ⟨fun _ _ _ => rfl⟩
 
-instance Lens.disjoint_intoGlobal_intoLocal {a b : Type*} (x : Lens a State)
+instance Lens.disjoint_intoGlobal_intoLocal {a b : Type*} (x : Lens a VariableAssignment)
     (y : Lens b VariableAssignment) : Lens.Disjoint x.intoGlobal y.intoLocal :=
   ⟨fun _ _ _ => rfl⟩
 
@@ -462,7 +454,8 @@ instance Lens.disjoint_intoLocal {a b : Type*} (x : Lens a VariableAssignment)
     (y : Lens b VariableAssignment) [Lens.Disjoint x y] : Lens.Disjoint x.intoLocal y.intoLocal :=
   Lens.disjoint_chain _ x y
 
-instance Lens.disjoint_intoGlobal {a b : Type*} (x : Lens a State) (y : Lens b State)
+instance Lens.disjoint_intoGlobal {a b : Type*} (x : Lens a VariableAssignment)
+    (y : Lens b VariableAssignment)
     [Lens.Disjoint x y] : Lens.Disjoint x.intoGlobal y.intoGlobal :=
   Lens.disjoint_chain _ x y
 

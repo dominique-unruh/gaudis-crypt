@@ -41,8 +41,6 @@ structure CommitmentTypes where
 @[reducible] instance (types : CommitmentTypes) : Inhabited types.Commitment := types.commitment_inhabited
 @[reducible] instance (types : CommitmentTypes) : Inhabited types.OpeningKey := types.openingKey_inhabited
 
-variable [ProgramSpec]
-
 variable (types : CommitmentTypes)
 
 /-! ## Module types

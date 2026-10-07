@@ -11,9 +11,7 @@ open GaudisCrypt
 
 namespace FV
 
-variable [ProgramSpec]
-
-abbrev FV := DetermFootprint State
+abbrev FV := DetermFootprint VariableAssignment
 
 
 noncomputable
@@ -38,7 +36,6 @@ definitions they should become theorems.  Note: the proof of `fv_proc_instantiat
 needs *no* properties of `fv_getter`/`fv_setter` — they are used opaquely. -/
 
 section FvReduceSup
-omit [ProgramSpec]
 
 /-- Two `DetermFootprint`s with the same `updates` are equal. -/
 private lemma lensRange_eq_of_updates {m} {x y : DetermFootprint m} (h : x.updates = y.updates) :
@@ -123,7 +120,8 @@ def fvInductiveFunctionGS : InductiveFunctionGettersSetters DetermFootprint wher
   extend := fv_extend
 
 noncomputable
-def fvMexpr (m : ModuleExpression) : (DetermFootprint State) := fvInductiveFunctionGS.evalMexpr m
+def fvMexpr (m : ModuleExpression) : (DetermFootprint VariableAssignment) :=
+  fvInductiveFunctionGS.evalMexpr m
 
 noncomputable
 def fv (m : Module t) : FV := fvInductiveFunctionGS.eval m
@@ -181,7 +179,9 @@ theorem fv_unit (a : Module .unit) : fv a = ⊥ :=
  InductiveFunction.unit _ _
 
 noncomputable
-def fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) : DetermFootprint State := fvInductiveFunctionGS.proc proc
+def fv_proc {sig holes} (proc : ProcedureWithHoles holes sig) :
+    DetermFootprint VariableAssignment :=
+  fvInductiveFunctionGS.proc proc
 
 noncomputable
 def fv_stmt {holes} (stmt : StmtWithHoles holes) : DetermFootprint ProgramState :=

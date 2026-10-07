@@ -556,7 +556,7 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
   obtain ⟨ps₀⟩ : Nonempty ProgramState := inferInstance
   have hne : Nonempty ProgramState := ⟨ps₀⟩
   set β₀ := ProgramState.globalL.compl.get ps₀ with hβ₀
-  have hinv : ∀ m : State,
+  have hinv : ∀ m : state,
       ProgramState.globalL.get
         (ProgramState.globalL.splitSpace.invFun (m, β₀))
       = m := by
@@ -572,7 +572,7 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
     change ((pure β₀ : SubProbability _).hbind fun m' =>
         ((bPS bVar).testKer x₀ (ProgramState.globalL.splitSpace.invFun (m, m'))).hbind fun m'' =>
           (pure () : SubProbability Unit).hbind fun _ =>
-            (pure (ProgramState.globalL.get m'') : SubProbability State))
+            (pure (ProgramState.globalL.get m'') : SubProbability state))
       = bVar.testKer x₀ m
     simp only [SubProbability.pure_hbind]
     rw [SubProbability.hbind_eq_bind]
@@ -608,7 +608,7 @@ theorem testKer_mem_fvP_qsyn (x₀ : Bool) :
     Instance of the pointwise sandwich — contrast with the *minimal semantic* footprint of the
     same program, where the two notions provably differ
     (`CounterExamples.exists_indistinguishable_touched_getter_ne`). -/
-theorem qsyn_indistinguishable_iff_touched_getter_eq (σ σ' : State) :
+theorem qsyn_indistinguishable_iff_touched_getter_eq (σ σ' : state) :
     (FVP.fvP_proc (q_syn bVar)).indistinguishable σ σ' ↔
       (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ
         = (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ' :=
@@ -616,7 +616,7 @@ theorem qsyn_indistinguishable_iff_touched_getter_eq (σ σ' : State) :
     (testKer_mem_fvP_qsyn bVar) (fvP_qsyn_le bVar) σ σ'
 
 /-- The concrete form: `q_syn`'s tests see exactly the variable `bVar`. -/
-theorem qsyn_indistinguishable_iff_get_eq (σ σ' : State) :
+theorem qsyn_indistinguishable_iff_get_eq (σ σ' : state) :
     (FVP.fvP_proc (q_syn bVar)).indistinguishable σ σ' ↔ bVar.get σ = bVar.get σ' :=
   ⟨fun h => Footprint.get_eq_of_indistinguishable_of_testKer_mem (testKer_mem_fvP_qsyn bVar) h,
     fun h => (qsyn_indistinguishable_iff_touched_getter_eq bVar σ σ').mpr
@@ -629,7 +629,7 @@ theorem qsyn_indistinguishable_iff_get_eq (σ σ' : State) :
     only identification `={glob ·}`-style reasoning ever consumes (their codomains differ, so
     literal equality is ill-typed).  Proved *observationally*: both sides are the
     indistinguishability relation of the region. -/
-theorem qsyn_touched_getter_eq_iff_get_eq (σ σ' : State) :
+theorem qsyn_touched_getter_eq_iff_get_eq (σ σ' : state) :
     (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ
         = (FVP.fvP_proc (q_syn bVar)).touched_getter.get σ'
       ↔ bVar.get σ = bVar.get σ' :=

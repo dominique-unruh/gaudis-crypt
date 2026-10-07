@@ -12,10 +12,8 @@ namespace GaudisCrypt.HoareSyntaxTest
 
 open GaudisCrypt
 
-variable [ProgramSpec]
-
-axiom x : Lens Int State
-axiom y : Lens Int State
+axiom x : Lens Int VariableAssignment
+axiom y : Lens Int VariableAssignment
 
 -- `Lens.pair` needs disjointness of the paired lenses (resolved at the concrete lenses).
 axiom x_y_disjoint : Lens.Disjoint x y
@@ -384,7 +382,7 @@ info: a triple is about a procedure, but this module still takes module paramete
 
 /--
 info: expected a procedure or a procedure module `Module.Proc …`, but this has type
-  Lens ℤ State
+  Lens ℤ VariableAssignment
 -/
 #guard_msgs in
 #check_failure hoare[ x : True ==> True ]
@@ -422,8 +420,8 @@ the elaborator binds them with. -/
 -- a `hoareProc` that is not of the notation's shape prints as the application it is
 /-- info: hoareProc (fun x x_1 ↦ True) q fun x x_1 ↦ True : Prop -/
 #guard_msgs in
-#check hoareProc (sig := procsig (Int) -> Int) (fun _ (_ : State) => True) q
-  (fun _ (_ : State) => True)
+#check hoareProc (sig := procsig (Int) -> Int) (fun _ (_ : VariableAssignment) => True) q
+  (fun _ (_ : VariableAssignment) => True)
 
 -- …and so does one of the right *shape* whose first `let` is not the `params` the elaborator
 -- always binds ahead of the parameters
@@ -438,10 +436,10 @@ info: hoareProc
 -/
 #guard_msgs in
 #check hoareProc (sig := procsig (Int) -> Int)
-  (fun _ (σ : State) =>
+  (fun _ (σ : VariableAssignment) =>
     let v : Getter _ ProgramState := Getter.mk fun _ => true
     (GaudiExpr[ §v = true ] : Getter Prop ProgramState).get ⟨σ, VariableAssignment.init⟩) q
-  (fun _ (σ : State) =>
+  (fun _ (σ : VariableAssignment) =>
     let res : Getter _ ProgramState := Getter.mk fun _ => true
     (GaudiExpr[ §res = true ] : Getter Prop ProgramState).get ⟨σ, VariableAssignment.init⟩)
 
@@ -482,8 +480,7 @@ the statement triple written out, so the result is checked as well as printed. -
 
 -- two parameters, named as `moduletype` recorded them: one local variable each
 /--
-trace: inst✝ : ProgramSpec
-m : TestSig
+trace: m : TestSig
 q : proctype (ℤ) → ℤ
 h :
   hoare[ True ==> §res = 2 ] {
@@ -507,8 +504,7 @@ example (h : hoare[ True ==> §res = 2 ] { var res : Int, a : Int, b : Int;
 -- (`h` names the procedure as `Module.Proc.procedure TestMod.p`, which is what the triple is about:
 -- the constant `TestMod.p.procedure` prints the same but is not defeq to it.)
 /--
-trace: inst✝ : ProgramSpec
-m : TestSig
+trace: m : TestSig
 q : proctype (ℤ) → ℤ
 h :
   hoare[ §u = 1 ==> §res = 1 ] {
@@ -530,8 +526,7 @@ example (h : hoare[ §u = 1 ==> §res = 1 ] { var u : Int, res : Int;
 
 -- no parameters; a global is read in the precondition
 /--
-trace: inst✝ : ProgramSpec
-m : TestSig
+trace: m : TestSig
 q : proctype (ℤ) → ℤ
 h :
   hoare[ §y = 0 ==> §res = true ] {
@@ -553,8 +548,7 @@ example (h : hoare[ §y = 0 ==> §res = true ] { var res : Bool;
 
 -- a parameter named `res` (read off the `proc` literal itself): the result variable is renamed
 /--
-trace: inst✝ : ProgramSpec
-m : TestSig
+trace: m : TestSig
 q : proctype (ℤ) → ℤ
 ⊢ hoare[ True ==> §res' = 1 ] {
       var res' : ℤ, res : ℤ;

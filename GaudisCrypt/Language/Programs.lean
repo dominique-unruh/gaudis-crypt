@@ -10,8 +10,6 @@ namespace GaudisCrypt
 open GaudisCrypt
 open GaudisCrypt
 
-variable [ProgramSpec]
-
 structure ProcedureSignature where
   params : List Type
   ret : Type
@@ -77,13 +75,13 @@ noncomputable instance {holes sig} : Fintype (HoleIndex holes sig) := by
       intro i1 i2 h
       exact HoleIndex.toFin_inj (holes := holes) (sig := sig) i1 i2 h)
 
-abbrev Var [ProgramSpec] a := Lens a State
-abbrev Expr [ProgramSpec] a := Getter a State
+abbrev Var a := Lens a VariableAssignment
+abbrev Expr a := Getter a VariableAssignment
 
 /-- Syntactic program (with arbitrary Lean terms as expressions).  Every statement runs on a
 `ProgramState`: the globals, and the locals of the running procedure (its parameters among
 them). -/
-inductive StmtWithHoles [ProgramSpec] : HoleSigs → Type _ where
+inductive StmtWithHoles : HoleSigs → Type _ where
   | skip : StmtWithHoles h
   | sample {a : Type} : Setter a ProgramState → Getter (SubProbability a) ProgramState →
       StmtWithHoles h
@@ -103,23 +101,23 @@ inductive StmtWithHoles [ProgramSpec] : HoleSigs → Type _ where
   | ifThenElse : Getter Bool ProgramState → StmtWithHoles h → StmtWithHoles h → StmtWithHoles h
   | while : Getter Bool ProgramState → StmtWithHoles h → StmtWithHoles h          -- while b do c
 
-def Stmt [ProgramSpec] := StmtWithHoles .empty
+def Stmt := StmtWithHoles .empty
 
 /-- A procedure: its body and return value run on a `ProgramState`, and on a call the arguments
 are written into the local slots named `parameterNames` (with the types `sig.params`), see
 `ProcedureWithHoles.initLocals`. -/
-structure ProcedureWithHoles [ProgramSpec] (holeSigs : HoleSigs) (sig : ProcedureSignature) where
+structure ProcedureWithHoles (holeSigs : HoleSigs) (sig : ProcedureSignature) where
   parameterNames : List String
   parameterNames_length : parameterNames.length = sig.params.length := by rfl
   parameterNames_nodup : parameterNames.Nodup := by decide
   body : StmtWithHoles holeSigs
   return_val : Getter sig.ret ProgramState
 
-def Procedure [ProgramSpec] sig := ProcedureWithHoles .empty sig
+def Procedure sig := ProcedureWithHoles .empty sig
 
 /-- The signature of a procedure-with-holes as a *term* — `sig` is otherwise only reachable as
 an implicit argument of the type, which makes it awkward to name in generated code. -/
-abbrev ProcedureWithHoles.signature [ProgramSpec] {holes sig}
+abbrev ProcedureWithHoles.signature {holes sig}
     (_p : ProcedureWithHoles holes sig) : ProcedureSignature := sig
 
 /-- The locals a call of `p` with arguments `args` starts with: the arguments in the parameter
@@ -130,13 +128,13 @@ noncomputable def ProcedureWithHoles.initLocals {holes sig} (p : ProcedureWithHo
     VariableAssignment.init
 
 @[match_pattern]
-def StmtWithHoles.call [ProgramSpec] {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
+def StmtWithHoles.call {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
       (params : Getter sig.ParamType ProgramState) : StmtWithHoles h :=
   StmtWithHoles.call' x proc.parameterNames proc.parameterNames_length proc.parameterNames_nodup
     proc.body proc.return_val params
 
 noncomputable
-def StmtWithHoles.assign [ProgramSpec]
+def StmtWithHoles.assign
   (x : Setter a ProgramState) (e : Getter a ProgramState) : StmtWithHoles h :=
   StmtWithHoles.sample x ⟨fun st => pure (e.get st)⟩
 
@@ -156,7 +154,7 @@ def resetSetter (S : Set String) : Setter Unit ProgramState where
     funext v
     by_cases h : v.name ∈ S <;> simp [h]
 
-def Stmt.call [ProgramSpec] {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
+def Stmt.call {sig} (x : Setter sig.ret ProgramState) (proc : Procedure sig)
       (params : Getter sig.ParamType ProgramState) : Stmt
      := StmtWithHoles.call x proc params
 
@@ -191,7 +189,7 @@ The universe is written out only because `PUnit` would otherwise take one of its
 `.empty` branch constrains its level, so `Type _` gives the definition a universe parameter that no
 argument determines, and a use site inside an inductive (`ModuleExpression.ReductionStep`) then has
 nothing to infer it from. -/
-def HoleSigs.Instantiation [ProgramSpec] : HoleSigs → Type 1
+def HoleSigs.Instantiation : HoleSigs → Type 1
   | .empty           => PUnit
   | .cons sig .empty => Procedure sig
   | .cons sig holes  => Procedure sig × HoleSigs.Instantiation holes
@@ -321,7 +319,7 @@ universes, hence `hbind` in place of `do`.
 Not mutual with `programDenotation`, whose `call'` case repeats this body. -/
 noncomputable
 def procedureDenotation {sig} (proc : Procedure sig) (args : sig.ParamType) :
-   ProgramDenotation State sig.ret := fun st =>
+   ProgramDenotation VariableAssignment sig.ret := fun st =>
     (programDenotation proc.body ⟨st, proc.initLocals args⟩).hbind fun p =>
       pure (proc.return_val.get p.2, p.2.globals)
 
@@ -341,7 +339,7 @@ theorem programDenotation_call' {sig : ProcedureSignature} (x : Setter sig.ret P
     body, extract `(return_val, globals)`. -/
 noncomputable def procWrap {sig : ProcedureSignature}
     (rv : Getter sig.ret ProgramState) (initL : VariableAssignment)
-    (B : ProgramDenotation ProgramState Unit) : ProgramDenotation State sig.ret :=
+    (B : ProgramDenotation ProgramState Unit) : ProgramDenotation VariableAssignment sig.ret :=
   fun st => (B ⟨st, initL⟩).hbind fun p => pure (rv.get p.2, p.2.globals)
 
 /-- `procedureDenotation` of an instantiated procedure is `procWrap` of its body

@@ -47,7 +47,7 @@ nothing about `HidingExperiment` at all — the inlining was never justified aga
 That justification is now `hidingGame_inline`/`fakeGame_inline`.
 
 One deviation from EC, forced and local: EC's `&m` (an initial memory) becomes an explicit
-`σ : State`.
+`σ : VariableAssignment` (the globals).
 
 `={glob U}` is *not* a deviation: it is `GlobEq` below, which is exactly EC's notion — see the
 comment there.
@@ -57,7 +57,7 @@ namespace GaudisCrypt.Examples.Pedersen
 
 open GaudisCrypt
 
-variable [ProgramSpec] (group : PedersenGroup)
+variable (group : PedersenGroup)
 
 /-! ## EC vocabulary
 
@@ -66,19 +66,19 @@ unfold to the spellings already used in `pedersen_correctness`. -/
 
 /-- EC's `Pr[M.main() @ σ : res]` — the probability that a `Bool`-returning, argument-less
     module procedure returns `true`, started in `σ`. -/
-noncomputable def Pr (M : procmod () -> Bool) (σ : State) : NNReal :=
-  (procedureDenotation M.procedure () σ).ofEvent {r : Bool × State | r.1 = true}
+noncomputable def Pr (M : procmod () -> Bool) (σ : VariableAssignment) : NNReal :=
+  (procedureDenotation M.procedure () σ).ofEvent {r : Bool × VariableAssignment | r.1 = true}
 
 /-- The event `res` as a `wp` postcondition. -/
-noncomputable def resIndicator : Bool × State → ENNReal :=
-  ({r : Bool × State | r.1 = true}).indicator fun _ => 1
+noncomputable def resIndicator : Bool × VariableAssignment → ENNReal :=
+  ({r : Bool × VariableAssignment | r.1 = true}).indicator fun _ => 1
 
 /-- `Pr` as a `wp` — the bridge EC's `byphoare`/`byequiv` cross implicitly.  `wp p F σ` is
     `(p σ).expected F` definitionally, so this is `expectation_indicator` at `c = 1`. -/
-theorem Pr_eq_wp (M : procmod () -> Bool) (σ : State) :
+theorem Pr_eq_wp (M : procmod () -> Bool) (σ : VariableAssignment) :
     (Pr M σ : ENNReal) = (procedureDenotation M.procedure ()).wp resIndicator σ := by
   have hi := expectation_indicator (procedureDenotation M.procedure () σ)
-    {r : Bool × State | r.1 = true} 1
+    {r : Bool × VariableAssignment | r.1 = true} 1
   rw [one_mul] at hi
   exact hi.symm
 
@@ -86,27 +86,29 @@ theorem Pr_eq_wp (M : procmod () -> Bool) (σ : State) :
     Real content under a sub-probability semantics: a diverging adversary would make
     `fakecommit_half` an inequality. -/
 def IsLossless {sig : ProcedureSignature} (p : Procedure sig) : Prop :=
-  ∀ (args : sig.ParamType) (σ : State),
+  ∀ (args : sig.ParamType) (σ : VariableAssignment),
     (procedureDenotation p args).wp (fun _ => (1 : ENNReal)) σ = 1
 
 /-- **EC's `glob A`**, for a whole module `A` — the getter reading everything `A` may touch.
 
-    `FVP.fvP A : Footprint State` is the computed footprint of the module (`FV.lean`; it
-    decomposes over a `moduletype`'s fields by `FVP.fvP_pair`), and `Footprint.touched_getter`
+    `FVP.fvP A : Footprint VariableAssignment` is the computed footprint of the module (`FV.lean`;
+    it decomposes over a `moduletype`'s fields by `FVP.fvP_pair`), and `Footprint.touched_getter`
     quotients the state by the *complement* footprint, so two states read equal exactly when they
     differ only outside `A` — see `Footprint.touched_getter` in `Language/Footprint.lean`, whose
     docstring names this as EC's `glob`. -/
 noncomputable def glob {M : Type _} [IsModule M] (A : M) :
-    Getter (Quotient ((FVP.fvP A)ᶜ.orbit_setoid)) State :=
+    Getter (Quotient ((FVP.fvP A)ᶜ.orbit_setoid)) VariableAssignment :=
   (FVP.fvP A).touched_getter
 
 /-- **EC's `={glob A}`**.  That this is the right notion is not a definition but a theorem:
     `Footprint.indistinguishable_of_touched_getter_eq` says glob-equal states are separated by no
     `A`-test, and `Footprint.touched_getter_get_eq_of_mem` says writes outside `A` preserve it. -/
-noncomputable def GlobEq {M : Type _} [IsModule M] (A : M) (σ₁ σ₂ : State) : Prop :=
+noncomputable def GlobEq {M : Type _} [IsModule M] (A : M) (σ₁ σ₂ : VariableAssignment) :
+    Prop :=
   (glob A).get σ₁ = (glob A).get σ₂
 
-theorem GlobEq.refl {M : Type _} [IsModule M] (A : M) (σ : State) : GlobEq A σ σ := rfl
+theorem GlobEq.refl {M : Type _} [IsModule M] (A : M) (σ : VariableAssignment) :
+    GlobEq A σ σ := rfl
 
 /-! ## The two games
 
@@ -161,7 +163,7 @@ The `prhl2` rules consume `>>=`-chains, but a module procedure is a `procWrap` o
 `programDenotation` on the program state, globals and its own frame of locals — and the two games
 do not even have the same locals (seven against eight, differently typed).  These two lemmas are
 EC's `inline*`: each game *as a module* equals
-a bind chain on `State`, with the adversary calls left as opaque denotations.  Proven by
+a bind chain on the globals, with the adversary calls left as opaque denotations.  Proven by
 `SubProbability.ext_of_expected`, i.e. by checking the `wp` at an arbitrary postcondition, which
 is the same reduction `fakecommit_half` runs. -/
 
@@ -169,10 +171,10 @@ set_option linter.flexible false in
 /-- `FakeCommit(U).main`, inlined. -/
 theorem fakeGame_inline (U : Unhider group.types) :
     procedureDenotation (fakeGame group U).procedure ()
-      = (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun x =>
+      = (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun _mm =>
-        (ProgramDenotation.uniform : ProgramDenotation State Bool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d) >>= fun bg =>
         pure (b == bg) := by
   funext σ
@@ -181,10 +183,10 @@ theorem fakeGame_inline (U : Unhider group.types) :
   simp only [fakeGame, FakeCommit.apply_simp, FakeCommit.main.apply_simp,
     FakeCommit.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  change _ = ((ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun x =>
+  change _ = ((ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun _mm =>
-        (ProgramDenotation.uniform : ProgramDenotation State Bool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d) >>= fun bg =>
         pure (b == bg)).wp post σ
   simp [programDenotation, programDenotation_call',
@@ -202,10 +204,10 @@ set_option linter.flexible false in
     (their internal samplings become the `x` and `d` draws), via `wp_gen`/`wp_commit`. -/
 theorem hidingGame_inline (U : Unhider group.types) :
     procedureDenotation (hidingGame group U).procedure ()
-      = (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun x =>
+      = (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun mm =>
-        (ProgramDenotation.uniform : ProgramDenotation State Bool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg) := by
@@ -215,10 +217,10 @@ theorem hidingGame_inline (U : Unhider group.types) :
   simp only [hidingGame, HidingExperiment.main.apply_simp,
     HidingExperiment.main.procedure.apply_simp, Module.procedure_proc']
   rw [procedureDenotation_eq_procWrap, wp_procWrap]
-  change _ = ((ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun x =>
+  change _ = ((ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun x =>
         procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x) >>= fun mm =>
-        (ProgramDenotation.uniform : ProgramDenotation State Bool) >>= fun b =>
-        (ProgramDenotation.uniform : ProgramDenotation State group.F) >>= fun d =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentBool) >>= fun b =>
+        (ProgramDenotation.uniform : ProgramDenotation VariableAssignmentgroup.F) >>= fun d =>
         procedureDenotation (Unhider.guess group.types U).procedure
             (group.g ^ d * (group.g ^ x) ^ (if b then mm.2 else mm.1 : group.F)) >>= fun bg =>
         pure (b == bg)).wp post σ
@@ -237,15 +239,14 @@ theorem hidingGame_inline (U : Unhider group.types) :
   -- will not match it in its `= fun st => …` form — the pointwise `congrFun` version does.
   rw [wp_gen]
   have hcommit : ∀ (hh : group.G) (mm : group.F)
-      (f : ProgramDenotation.Post State
-        (group.types.Commitment × group.types.OpeningKey)) (st : State),
+      (f : ProgramDenotation.Post VariableAssignment
+        (group.types.Commitment × group.types.OpeningKey)) (st : VariableAssignment),
       (procedureDenotation (Pedersen.commit.procedure group) (hh, mm)).wp f st
         = ∑ d : group.F, f ((group.g ^ d * hh ^ mm, d), st)
             / (Fintype.card group.F : ENNReal) :=
     fun hh mm f st => congrFun (wp_commit group (hh, mm) f) st
   simp only [hcommit]
 
-omit [ProgramSpec] in
 /-- The algebraic heart of the coupling — EC's closing `algebra`: the real commitment at opening
     key `d` is the fake one at `d + x * m`.  `g^d * (g^x)^m = g^d * g^(x*m) = g^(d + x*m)`. -/
 theorem commit_shift (x m d : group.F) :
@@ -268,10 +269,10 @@ The `rcases eq_or_ne` steps are bookkeeping EC does not need: a mid-condition of
 `x₀ = x₁ ∧ τ₁ = τ₂` has to be turned into an actual substitution before the two sides are
 syntactically the same program. -/
 theorem phi_hi_equiv_eq (U : Unhider group.types) :
-    ProgramDenotation.prhl2 (Eq : State → State → Prop)
+    ProgramDenotation.prhl2 (Eq : VariableAssignment → VariableAssignment → Prop)
       (procedureDenotation (hidingGame group U).procedure ())
       (procedureDenotation (fakeGame group U).procedure ())
-      (fun u v : Bool × State => u = v) := by
+      (fun u v : Bool × VariableAssignment => u = v) := by
   rw [hidingGame_inline, fakeGame_inline]
   -- `x <$ dt` — identity coupling
   refine ProgramDenotation.prhl2.bind
@@ -280,7 +281,8 @@ theorem phi_hi_equiv_eq (U : Unhider group.types) :
   rintro x₀ x₁
   rcases eq_or_ne x₀ x₁ with rfl | hne
   case inr => intro _ _ h; exact absurd h.1 hne
-  refine ProgramDenotation.prhl2.conseq (A := (Eq : State → State → Prop))
+  refine ProgramDenotation.prhl2.conseq
+    (A := (Eq : VariableAssignment → VariableAssignment → Prop))
     ?_ (fun _ _ h => h.2) (fun _ _ h => h)
   -- `(m0,m1) <@ U.choose(h)` — same program, same argument
   refine ProgramDenotation.prhl2.bind
@@ -290,7 +292,8 @@ theorem phi_hi_equiv_eq (U : Unhider group.types) :
   rintro mm₀ mm₁
   rcases eq_or_ne mm₀ mm₁ with rfl | hne
   case inr => intro _ _ h; exact absurd h.1 hne
-  refine ProgramDenotation.prhl2.conseq (A := (Eq : State → State → Prop))
+  refine ProgramDenotation.prhl2.conseq
+    (A := (Eq : VariableAssignment → VariableAssignment → Prop))
     ?_ (fun _ _ h => h.2) (fun _ _ h => h)
   -- `b <$ {0,1}` — identity coupling
   refine ProgramDenotation.prhl2.bind
@@ -299,7 +302,8 @@ theorem phi_hi_equiv_eq (U : Unhider group.types) :
   rintro b₀ b₁
   rcases eq_or_ne b₀ b₁ with rfl | hne
   case inr => intro _ _ h; exact absurd h.1 hne
-  refine ProgramDenotation.prhl2.conseq (A := (Eq : State → State → Prop))
+  refine ProgramDenotation.prhl2.conseq
+    (A := (Eq : VariableAssignment → VariableAssignment → Prop))
     ?_ (fun _ _ h => h.2) (fun _ _ h => h)
   -- **the hop**: `d` on the left is `d + x * m` on the right, so the commitments agree
   refine ProgramDenotation.prhl2.bind
@@ -354,7 +358,7 @@ theorem hi_ll (U : Unhider group.types)
   -- (The losslessness hypotheses have to be *specialized* before `simp only` will use them —
   -- `simp only [ug_ll]` on the general `∀ args σ` form fails on the `Module.Proc` transparency
   -- trap documented in `Pedersen.lean`.)
-  have hinner : ∀ τ' : State,
+  have hinner : ∀ τ' : VariableAssignment,
       (2 : ENNReal) * ((∑ d : group.F,
           (procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d)).wp
             (fun _ => (1 : ENNReal)) τ' / (Fintype.card group.F : ENNReal)) / 2) = 1 := by
@@ -383,7 +387,7 @@ local lemma fakecommit_half (U<:Unhider) &m:
 EC: `byphoare; proc; wp; swap 4 3; rnd (pred1 b'); call ug_ll; wp; rnd; call uc_ll; auto`.
 The `swap 4 3` moves the coin `b` past `d` and `c` so that it is drawn *after* `U.guess` has
 fixed `b'`; a fresh fair coin then matches `b'` with probability exactly `1/2`. -/
-theorem fakecommit_half (U : Unhider group.types) (σ : State)
+theorem fakecommit_half (U : Unhider group.types) (σ : VariableAssignment)
     (uc_ll : IsLossless (Unhider.choose group.types U).procedure)
     (ug_ll : IsLossless (Unhider.guess group.types U).procedure) :
     Pr (fakeGame group U) σ = 1 / 2 := by
@@ -407,28 +411,28 @@ theorem fakecommit_half (U : Unhider group.types) (σ : State)
   -- EC's `rnd (pred1 b')`: for a *fixed* `b'`, the fair coin matches it with probability `1/2`.
   -- Here `b` was drawn first, so instead: the two coin branches partition, `⟦res⟧ + ⟦¬res⟧ = 1`
   -- pointwise, and `U.guess` is lossless — so the two branch weights sum to `1` at every state.
-  have guessSum : ∀ (d : group.F) (τ : State),
+  have guessSum : ∀ (d : group.F) (τ : VariableAssignment),
       (procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d)).wp
-            (fun r : Bool × State => if r.1 = true then 1 else 0) τ
+            (fun r : Bool × VariableAssignment => if r.1 = true then 1 else 0) τ
           + (procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d)).wp
-            (fun r : Bool × State => if r.1 = false then 1 else 0) τ = 1 := by
+            (fun r : Bool × VariableAssignment => if r.1 = false then 1 else 0) τ = 1 := by
     intro d τ
     rw [← ProgramDenotation.wp_add]
-    have hone : (fun r : Bool × State =>
+    have hone : (fun r : Bool × VariableAssignment =>
         (if r.1 = true then (1 : ENNReal) else 0) + (if r.1 = false then 1 else 0))
         = fun _ => 1 := by
       funext r; cases hr : r.1 <;> simp
     rw [hone]
     exact ug_ll _ τ
   -- hence the whole `b`/`d`/`U.guess` block is `1/2` from any state
-  have inner : ∀ τ : State,
+  have inner : ∀ τ : VariableAssignment,
       (∑ d : group.F,
           (procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d)).wp
-            (fun r : Bool × State => if r.1 = true then 1 else 0) τ
+            (fun r : Bool × VariableAssignment => if r.1 = true then 1 else 0) τ
               / (Fintype.card group.F : ENNReal)) / 2
         + (∑ d : group.F,
             (procedureDenotation (Unhider.guess group.types U).procedure (group.g ^ d)).wp
-            (fun r : Bool × State => if r.1 = false then 1 else 0) τ
+            (fun r : Bool × VariableAssignment => if r.1 = false then 1 else 0) τ
               / (Fintype.card group.F : ENNReal)) / 2 = 2⁻¹ := by
     intro τ
     rw [← ENNReal.add_div, ← Finset.sum_add_distrib]
@@ -444,7 +448,7 @@ theorem fakecommit_half (U : Unhider group.types) (σ : State)
       (procedureDenotation (Unhider.choose group.types U).procedure (group.g ^ x)).wp
           (fun _ => (2⁻¹ : ENNReal)) σ = 2⁻¹ := by
     intro x
-    have hmul : (fun _ : (group.types.Message × group.types.Message) × State =>
+    have hmul : (fun _ : (group.types.Message × group.types.Message) × VariableAssignment =>
         (2⁻¹ : ENNReal)) = fun _ => (2⁻¹ : ENNReal) * 1 := by
       funext p; rw [mul_one]
     rw [hmul, ProgramDenotation.wp_const_mul, uc_ll, mul_one]
@@ -471,7 +475,7 @@ theorem hidingGame_self_glob (U : Unhider group.types) :
     ProgramDenotation.prhl2 (GlobEq U)
       (procedureDenotation (hidingGame group U).procedure ())
       (procedureDenotation (hidingGame group U).procedure ())
-      (fun u v : Bool × State => u.1 = v.1 ∧ GlobEq U u.2 v.2) :=
+      (fun u v : Bool × VariableAssignment => u.1 = v.1 ∧ GlobEq U u.2 v.2) :=
   sorry
 
 /-- The relational judgment behind EC's `phi_hi` — what `byequiv` reduces that lemma to:
@@ -489,7 +493,7 @@ theorem phi_hi_equiv (U : Unhider group.types) :
     ProgramDenotation.prhl2 (GlobEq U)
       (procedureDenotation (hidingGame group U).procedure ())
       (procedureDenotation (fakeGame group U).procedure ())
-      (fun u v : Bool × State => u.1 = v.1 ∧ GlobEq U u.2 v.2) :=
+      (fun u v : Bool × VariableAssignment => u.1 = v.1 ∧ GlobEq U u.2 v.2) :=
   ((hidingGame_self_glob group U).trans (phi_hi_equiv_eq group U)).conseq
     (fun _ σ₃ h => ⟨σ₃, h, rfl⟩)
     (fun _ _ h => by obtain ⟨_, ⟨h1, h2⟩, rfl⟩ := h; exact ⟨h1, h2⟩)
@@ -502,7 +506,7 @@ local lemma phi_hi (U<:Unhider) &m:
 i.e. `byequiv` applied to `phi_hi_equiv`.  `relE.wp_eq` is the `byequiv` bridge; the observable
 `resIndicator` depends only on the result, so `={res}` alone transfers it, and `GlobEq.refl`
 supplies the precondition at the single memory `σ` (EC's `&m` against itself). -/
-theorem phi_hi (U : Unhider group.types) (σ : State) :
+theorem phi_hi (U : Unhider group.types) (σ : VariableAssignment) :
     Pr (hidingGame group U) σ = Pr (fakeGame group U) σ := by
   refine ENNReal.coe_inj.mp ?_
   rw [Pr_eq_wp, Pr_eq_wp]
@@ -517,7 +521,7 @@ lemma pedersen_perfect_hiding (U<:Unhider) &m:
   Pr[HidingExperiment(Pedersen,U).main() @ &m : res] = 1%r/2%r.
 proof. by move => uc_ll ug_ll; rewrite (phi_hi U &m) (fakecommit_half U &m). qed.
 ``` -/
-theorem pedersen_perfect_hiding (U : Unhider group.types) (σ : State)
+theorem pedersen_perfect_hiding (U : Unhider group.types) (σ : VariableAssignment)
     (uc_ll : IsLossless (Unhider.choose group.types U).procedure)
     (ug_ll : IsLossless (Unhider.guess group.types U).procedure) :
     Pr (hidingGame group U) σ = 1 / 2 := by

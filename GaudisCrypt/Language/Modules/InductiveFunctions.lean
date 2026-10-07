@@ -5,8 +5,6 @@ open GaudisCrypt
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 structure InductiveFunction t :=
   nothing : t
   join : t → t → t
@@ -477,7 +475,7 @@ def InductiveFunctionGettersSetters.stmt (ind : InductiveFunctionGettersSetters 
 | .while c t => ind.join (ind.getter c) (ind.stmt t)
 
 def InductiveFunctionGettersSetters.proc (ind : InductiveFunctionGettersSetters T) {sig holes}
-  (proc : ProcedureWithHoles holes sig) : T State :=
+  (proc : ProcedureWithHoles holes sig) : T VariableAssignment :=
   ind.join
   (ind.reduce ProgramState.globalL (ind.stmt proc.body))
   (ind.reduce ProgramState.globalL (ind.getter proc.return_val))
@@ -504,7 +502,6 @@ class ReducibleGettersSetters {T : Type 1 → Type _} (ind : InductiveFunctionGe
 section JoinHelpers
 variable {T : Type 1 → Type _} {ind : InductiveFunctionGettersSetters T}
 variable [red : ReducibleGettersSetters ind]
-omit [ProgramSpec]
 
 /-- `le_join_right` is derivable from `le_join_left` and `comm`, so it is not assumed by
 `ReducibleGettersSetters`. -/
@@ -565,7 +562,8 @@ end JoinHelpers
     `base ⊔ foldr … nothing l ≤ foldr … base l`.  Proven with only a `Preorder`; the old
     equality version used antisymmetry. -/
 private theorem foldr_sup_base (ind : InductiveFunctionGettersSetters T)
-    [red : ReducibleGettersSetters ind] (base : T State) (l : List (Σ sig, Procedure sig)) :
+    [red : ReducibleGettersSetters ind] (base : T VariableAssignment)
+    (l : List (Σ sig, Procedure sig)) :
     red.preorder.le
       (ind.join base (List.foldr (fun p acc => ind.join (ind.proc p.2) acc) ind.nothing l))
       (List.foldr (fun p acc => ind.join (ind.proc p.2) acc) base l) := by
@@ -588,7 +586,8 @@ private theorem proc_le_toList (ind : InductiveFunctionGettersSetters T) [red : 
     letI pre := @red.preorder
     ∀ {holes sig} (n : HoleIndex holes sig) (args : holes.Instantiation),
       ind.proc (args.lookup n)
-        ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)
+        ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc)
+            (ind.nothing : T VariableAssignment)
   | .cons _ .empty,     _, .zero,    _    => by
       letI := @red.preorder
       simp only [HoleSigs.Instantiation.toList, List.foldr_cons]; exact red.le_join_left _ _
@@ -609,7 +608,8 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
     ind.stmt (stmt.instantiate args)
       ≤ ind.join (ind.stmt stmt)
         (ind.extend ProgramState.globalL
-            (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))) := by
+            (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc)
+              (ind.nothing : T VariableAssignment))) := by
   letI := @red.preorder
   revert args
   induction stmt with
@@ -630,10 +630,12 @@ private theorem stmt_instantiate_le (ind : InductiveFunctionGettersSetters T) [r
       have hmem := proc_le_toList ind n args
       simp only [InductiveFunctionGettersSetters.proc] at hmem
       have hb : ind.reduce ProgramState.globalL (ind.stmt (args.lookup n).body)
-          ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
+          ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc)
+              (ind.nothing : T VariableAssignment) :=
         le_trans (red.le_join_left _ _) hmem
       have hr : ind.reduce ProgramState.globalL (ind.getter (args.lookup n).return_val)
-          ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State) :=
+          ≤ args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc)
+              (ind.nothing : T VariableAssignment) :=
         le_trans (le_join_right _ _) hmem
       simp only [StmtWithHoles.instantiate, StmtWithHoles.call,
         InductiveFunctionGettersSetters.stmt, InductiveFunctionGettersSetters.transfer]
@@ -669,7 +671,8 @@ private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red 
   have key2 :
       ind.reduce ProgramState.globalL (ind.stmt (proc.body.instantiate args))
         ≤ ind.join (ind.reduce ProgramState.globalL (ind.stmt proc.body))
-            (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State)) := by
+            (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc)
+              (ind.nothing : T VariableAssignment)) := by
     refine le_trans (red.reduce_mono _ (stmt_instantiate_le ind proc.body args)) ?_
     exact le_trans (red.reduce_join _) (join_mono_right (red.extend_reduce _ _))
   refine le_trans ?_ (foldr_sup_base ind (ind.proc proc) args.toList)
@@ -678,25 +681,27 @@ private theorem proc_instantiate (ind : InductiveFunctionGettersSetters T) [red 
       ≤ ind.join
           (ind.join (ind.reduce ProgramState.globalL (ind.stmt proc.body))
             (ind.reduce ProgramState.globalL (ind.getter proc.return_val)))
-          (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc) (ind.nothing : T State))
+          (args.toList.foldr (fun p acc => ind.join (ind.proc p.2) acc)
+            (ind.nothing : T VariableAssignment))
   refine join_le ?_ ?_
   · exact le_trans key2 (join_mono (red.le_join_left _ _) le_rfl)
   · exact le_join_of_le_left (le_join_right _ _)
 
 
-def InductiveFunctionGettersSetters.inductiveFunction (ind : InductiveFunctionGettersSetters T) : InductiveFunction (T State) where
+def InductiveFunctionGettersSetters.inductiveFunction (ind : InductiveFunctionGettersSetters T) :
+    InductiveFunction (T VariableAssignment) where
   nothing := ind.nothing
   join := ind.join
   proc (p : ProcedureWithHoles _ _) := ind.proc p
 
 def InductiveFunctionGettersSetters.evalMexpr (ind : InductiveFunctionGettersSetters T) :
-    ModuleExpression → T State := ind.inductiveFunction.evalMexpr
+    ModuleExpression → T VariableAssignment := ind.inductiveFunction.evalMexpr
 
 def InductiveFunctionGettersSetters.eval' (ind : InductiveFunctionGettersSetters T) :
-    Module t → T State := ind.inductiveFunction.eval'
+    Module t → T VariableAssignment := ind.inductiveFunction.eval'
 
 def InductiveFunctionGettersSetters.eval (ind : InductiveFunctionGettersSetters T) [IsModule M] :
-    M → T State := ind.inductiveFunction.eval
+    M → T VariableAssignment := ind.inductiveFunction.eval
 
 instance {ind : InductiveFunctionGettersSetters T} [red: ReducibleGettersSetters ind] : Reducible ind.inductiveFunction where
   le := red.preorder.le

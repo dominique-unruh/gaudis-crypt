@@ -7,6 +7,7 @@ import Mathlib.Order.OmegaCompletePartialOrder
 
 import GaudisCrypt.Misc
 import GaudisCrypt.Language.Semantics
+import GaudisCrypt.Language.Variables
 import GaudisCrypt.WeakestPreconditions
 import GaudisCrypt.Language.Lens
 import GaudisCrypt.Language.Footprint
@@ -15,13 +16,8 @@ import GaudisCrypt.ProbProgramRange
 open GaudisCrypt
 open GaudisCrypt
 
-/-- The ambient state of the development. (Moved here from the former scratch
-    `Unsorted.lean` so that the crypto layer doesn't depend on that file.)
-    It lives in `Type 1`, the universe of `ProgramSpec.state`. -/
-structure state : Type 1 where
-  x : Nat
-  y : Nat
-  z : String
+/-- The ambient state of the development: the globals of a program state. -/
+abbrev state : Type 1 := VariableAssignment
 
 /-- A `Variable` is a lens into the ambient `state`. -/
 abbrev Variable a := Lens a state
@@ -40,7 +36,6 @@ adversary-driven oracle loops live in `PlonkLean.RO.OracleLoop`.
 
 opaque input : Type
 opaque output : Type
-instance : Countable state := sorry
 instance : Inhabited input := sorry
 instance : Fintype input := sorry
 instance : Inhabited output := sorry

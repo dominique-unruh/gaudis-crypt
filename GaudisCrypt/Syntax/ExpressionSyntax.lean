@@ -27,24 +27,23 @@ namespace GaudisCrypt
 
 open Lean
 
-variable [ProgramSpec]
-
 /-! ## Ambient current state + variable evaluation
 
 An expression of value type `T` is a `Getter T ProgramState`.  Inside the body we make the
 current state available via the typeclass `CurrentState`, so a program variable `x` (a
 lens/getter) can be read as a plain value with `eval x`.  `eval` accepts both global variables
-(into `State`) and full-current-state variables (into `ProgramState`, e.g. locals lifted with
-`Lens.intoLocal`); dispatch is on the concrete type of the argument (see `Evaluatable`). -/
+(into the globals, a `VariableAssignment`) and full-current-state variables (into
+`ProgramState`, e.g. locals lifted with `Lens.intoLocal`); dispatch is on the concrete type of
+the argument (see `Evaluatable`). -/
 
 /-- The ambient current state. -/
 class CurrentState where
   state : ProgramState
 
 /-- Anything that can be read to a value `T` in the ambient `CurrentState`: program variables
-(lenses/getters into `State`, or into the full `ProgramState`), and anything users later add
-instances for.  Dispatch is on the concrete type `X` of the argument, so resolution is never
-stuck on a metavariable. -/
+(lenses/getters into the globals `VariableAssignment`, or into the full `ProgramState`), and
+anything users later add instances for.  Dispatch is on the concrete type `X` of the argument, so
+resolution is never stuck on a metavariable. -/
 class Evaluatable (X : Type u) (T : outParam Type) where
   eval : ProgramState → X → T
 
@@ -54,12 +53,12 @@ def eval {X : Type u} {T} [Evaluatable X T] [cs : CurrentState] (x : X) : T :=
 
 /-- The four container shapes, dispatched directly on the argument type.  (No
 `Lens → Getter` forwarder: it would overlap these, so we spell out all four.) -/
-instance : Evaluatable (Getter T State) T where
+instance : Evaluatable (Getter T VariableAssignment) T where
   eval cs x := x.get cs.globals
 instance : Evaluatable (Getter T ProgramState) T where
   eval cs x := x.get cs
 -- TODO: Needed? (We have Lens->Setter coercion)
-instance : Evaluatable (Lens T State) T where
+instance : Evaluatable (Lens T VariableAssignment) T where
   eval cs x := x.get cs.globals
 -- TODO: Needed? (We have Lens->Setter coercion)
 instance : Evaluatable (Lens T ProgramState) T where
@@ -69,13 +68,13 @@ instance : Evaluatable (Lens T ProgramState) T where
 
 `simp` reduces all four cases (global/full × getter/lens) to a plain `.get` read. -/
 
-@[simp] theorem eval_getter_global [cs : CurrentState] (x : Getter T State) :
+@[simp] theorem eval_getter_global [cs : CurrentState] (x : Getter T VariableAssignment) :
     eval x = x.get cs.state.globals := rfl
 
 @[simp] theorem eval_getter_full [cs : CurrentState] (x : Getter T ProgramState) :
     eval x = x.get cs.state := rfl
 
-@[simp] theorem eval_lens_global [cs : CurrentState] (x : Lens T State) :
+@[simp] theorem eval_lens_global [cs : CurrentState] (x : Lens T VariableAssignment) :
     eval x = x.get cs.state.globals := rfl
 
 @[simp] theorem eval_lens_full [cs : CurrentState] (x : Lens T ProgramState) :

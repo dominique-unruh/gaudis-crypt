@@ -269,9 +269,10 @@ means the same as the pair above.  A section variable the declaration mentions a
 field type, in a procedure body, in a module parameter's type — becomes a Lean parameter of it,
 in front of the ones it writes itself, together with the variables it depends on and the instance
 variables that are about them (`variable {α} [Inhabited α]`; using `α` brings the instance too).
-Lean's own auto-inclusion is left the variables no declaration of the batch mentions,
-`[ProgramSpec]` and its like: it works per declaration, by use, and the generated declarations of
-one command refer to one another and so all have to take the same parameters.
+Lean's own auto-inclusion is left the variables no declaration of the batch mentions (instance
+variables about nothing the batch mentions, say): it works per declaration, by use, and the
+generated declarations of one command refer to one another and so all have to take the same
+parameters.
 
 The *module* parameters are a different thing and are now written after `using`.  They used to be
 written in the same position as the Lean parameters are, and they look like a Lean binder list
@@ -398,7 +399,7 @@ left to Lean's own auto-inclusion, because a `module`/`moduletype` is a batch of
 refer to one another by name (`X.typeRep (types := types)`): auto-inclusion puts a variable only
 in those declarations whose body happens to mention it, and a reference from one of the batch to
 another would then be missing an argument.  Only the variables that no declaration of the batch
-takes a stand on — `[ProgramSpec]` and its like, mentioned by none of them — are left to it. -/
+takes a stand on — mentioned by none of them — are left to it. -/
 def sectionBinders (stx : Syntax) (own : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) :
     CommandElabM (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
   let vars := (← getScope).varDecls
@@ -430,7 +431,7 @@ def sectionBinders (stx : Syntax) (own : Array (TSyntax ``Lean.Parser.Term.brack
 
 /-- How a generated declaration refers to another one: bare when there are no parameters, and
 `X.f (a₁ := a₁) … (aₙ := aₙ)` when there are.  *Named* arguments, not `@`: `@` would also expose
-the section variables auto-included in the referenced declaration (`[ProgramSpec]` and friends),
+the section variables auto-included in the referenced declaration,
 which are none of this command's business, while a name reaches an implicit or instance parameter
 without disturbing them. -/
 def LeanParams.ref (P : LeanParams) (id : Ident) : CommandElabM Term := do

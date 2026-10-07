@@ -3,17 +3,14 @@ import GaudisCrypt.WeakestPreconditions
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 def hoareStmt (A : ProgramState → Prop) (p : Stmt) (B : ProgramState → Prop) :=
   ∀ σ, A σ → (programDenotation p σ).ofEvent (fun (_, σ') => ¬ B σ') = 0
 
-def hoareProc {sig} (A : sig.ParamType → State → Prop) (p : Procedure sig)
-    (B : sig.ret → State → Prop) :=
+def hoareProc {sig} (A : sig.ParamType → VariableAssignment → Prop) (p : Procedure sig)
+    (B : sig.ret → VariableAssignment → Prop) :=
   ∀ args σ, A args σ → (procedureDenotation p args σ).ofEvent (fun (ret, σ') => ¬ B ret σ') = 0
 
 
-omit [ProgramSpec] in
 -- TODO: belongs in `Language/SubProbability.lean` next to `ofEvent`.
 /-- A sub-event of a null event is null.  `ofEvent` is `toNNReal` of the measure and the measure
     is finite (total mass `≤ 1`), so the `ℝ≥0` and the `ℝ≥0∞` values vanish together and
@@ -34,8 +31,9 @@ lemma hoareStmt_mono {A : ProgramState → Prop} {p : Stmt}
   SubProbability.ofEvent_eq_zero_of_subset (fun _ hq hb => hq (hB _ hb)) (h σ hA)
 
 /-- `hoareProc` is monotone in its postcondition, for the same reason as `hoareStmt_mono`. -/
-lemma hoareProc_mono {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B₁ B₂ : sig.ret → State → Prop} (hB : ∀ r σ, B₁ r σ → B₂ r σ) (h : hoareProc A p B₁) :
+lemma hoareProc_mono {sig} {A : sig.ParamType → VariableAssignment → Prop} {p : Procedure sig}
+    {B₁ B₂ : sig.ret → VariableAssignment → Prop} (hB : ∀ r σ, B₁ r σ → B₂ r σ)
+    (h : hoareProc A p B₁) :
     hoareProc A p B₂ := fun args σ hA =>
   SubProbability.ofEvent_eq_zero_of_subset (fun _ hq hb => hq (hB _ _ hb)) (h args σ hA)
 
@@ -49,8 +47,8 @@ theorem hoareStmt_iff_wp {A : ProgramState → Prop} {p : Stmt}
   rfl
 
 /-- The same for `hoareProc`. -/
-theorem hoareProc_iff_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B : sig.ret → State → Prop} :
+theorem hoareProc_iff_wp {sig} {A : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {B : sig.ret → VariableAssignment → Prop} :
     hoareProc A p B ↔ ∀ args σ, A args σ →
       (procedureDenotation p args).wp (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ = 0 := by
   simp only [hoareProc, ProgramDenotation.wp, expectation_indicator, one_mul, ENNReal.coe_eq_zero]
@@ -65,8 +63,8 @@ lemma hoareStmt_of_wp {A : ProgramState → Prop} {p : Stmt} {B : ProgramState �
   hoareStmt_iff_wp.mpr h
 
 /-- The same for `hoareProc`. -/
-lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedure sig}
-    {B : sig.ret → State → Prop}
+lemma hoareProc_of_wp {sig} {A : sig.ParamType → VariableAssignment → Prop} {p : Procedure sig}
+    {B : sig.ret → VariableAssignment → Prop}
     (h : ∀ args σ, A args σ →
       (procedureDenotation p args).wp
         (Set.indicator {r | ¬ B r.1 r.2} fun _ => 1) σ = 0) :
@@ -85,7 +83,8 @@ lemma hoareProc_of_wp {sig} {A : sig.ParamType → State → Prop} {p : Procedur
     the two for a given triple: one local variable per parameter, and one for the result. -/
 theorem hoareProc_as_hoareStmt {sig : ProcedureSignature}
     (resL : Lens sig.ret VariableAssignment) (argsL : Lens sig.ParamType VariableAssignment)
-    (A : sig.ParamType → State → Prop) (p : Procedure sig) (B : sig.ret → State → Prop) :
+    (A : sig.ParamType → VariableAssignment → Prop) (p : Procedure sig)
+    (B : sig.ret → VariableAssignment → Prop) :
     hoareProc A p B ↔
       hoareStmt
         (fun σ => A (argsL.get σ.locals) σ.globals)
@@ -110,7 +109,7 @@ theorem hoareProc_as_hoareStmt {sig : ProcedureSignature}
           ∈ {r | ¬ B (resL.get r.2.locals) r.2.globals}) ↔ as' ∈ {r | ¬ B r.1 r.2} := by
       simp only [Set.mem_setOf_eq, Lens.intoLocal, Lens.chain, ProgramState.localL,
         ProgramState.globalL, Lens.set_get]
-    by_cases h : as' ∈ {r : sig.ret × State | ¬ B r.1 r.2}
+    by_cases h : as' ∈ {r : sig.ret × VariableAssignment | ¬ B r.1 r.2}
     · rw [Set.indicator_of_mem (hmem.mpr h), Set.indicator_of_mem h]
     · rw [Set.indicator_of_notMem (fun hc => h (hmem.mp hc)), Set.indicator_of_notMem h]
   constructor

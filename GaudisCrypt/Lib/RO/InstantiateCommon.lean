@@ -22,15 +22,6 @@ open GaudisCrypt
 open Classical
 
 
-/-- The ambient state of an RO adversary is the RO `state`. -/
-instance roSpec : ProgramSpec := ⟨state⟩
-
-
-/-- `State` (= `state`) is inhabited — needed for `Lens.lift_inRange_chain`'s
-    `factor_of_inRange` padding. -/
-instance : Nonempty State := ⟨⟨0, 0, ""⟩⟩
-
-
 /-- The oracle's signature: a query takes an `input`, returns an `output`.
     `abbrev` so `roSig.ParamType` reduces to `input` (for `DecidableEq` synthesis). -/
 abbrev roSig : ProcedureSignature := { params := [input], ret := output }
@@ -40,7 +31,7 @@ abbrev roSig : ProcedureSignature := { params := [input], ret := output }
 abbrev roHoles : HoleSigs := HoleSigs.cons roSig HoleSigs.empty
 
 
-/-- `convert` lifted from the RO `State` to a program state. -/
+/-- `convert` lifted from the RO `state` to a program state. -/
 noncomputable def convertL : ProgramDenotation ProgramState Unit :=
   ProgramDenotation.zoom ProgramState.globalL convert
 
@@ -117,11 +108,11 @@ lives in `GaudisCrypt`; the `transferBy` lift `transferBy_zoom`
 in `GaudisCrypt.Logic.TransferBy`.) -/
 
 /-- On entry, `inp` holds the query (both oracle procedures have the parameter names `["inp"]`). -/
-theorem inpL_get_entry (st : State) (args : roSig.ParamType) :
+theorem inpL_get_entry (st : state) (args : roSig.ParamType) :
     inpL.get ⟨st, RO_lazy_proc.initLocals args⟩ = args :=
   inpL.set_get ⟨st, VariableAssignment.init⟩ args
 
-theorem inpL_get_entry_eager (st : State) (args : roSig.ParamType) :
+theorem inpL_get_entry_eager (st : state) (args : roSig.ParamType) :
     inpL.get ⟨st, RO_eager_proc.initLocals args⟩ = args :=
   inpL.set_get ⟨st, VariableAssignment.init⟩ args
 
@@ -189,7 +180,7 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
         funext j; by_cases hj : j = args
         · rw [if_pos hj, hj]; exact hc.symm
         · rw [if_neg hj]
-      rw [hfun, random_oracle_state.get_set]; rfl
+      rw [hfun, random_oracle_state.get_set]
   | none =>
       generalize (SubProbability.uniform : SubProbability output) = U
       obtain ⟨mu, hmu⟩ := U
@@ -197,7 +188,6 @@ theorem procDenotation_RO_lazy (args : roSig.ParamType) :
         measurable_from_top.aemeasurable, MeasureTheory.Measure.dirac_bind measurable_from_top,
         inpL_get_outL_set, outL_get_outL_set, outL_get_roG_set, roG_set_globals,
         outL_set_globals, hinp]
-      rfl
 
 
 /-- The denotation of a procedure call, with the called procedure kept intact
@@ -241,7 +231,7 @@ discharges **both** `Loc` (theorem 1) and `LocP` (theorem 2), the latter with
 **no `P`-specific side condition** (subtask 3's `h'` is subsumed). -/
 
 instance instNonemptyProgramState : Nonempty ProgramState :=
-  ⟨⟨Classical.arbitrary State, VariableAssignment.init⟩⟩
+  ⟨⟨Classical.arbitrary state, VariableAssignment.init⟩⟩
 
 
 /-- The single `roHoles` hole has signature `roSig`, whose query type is
@@ -522,8 +512,8 @@ open MeasureTheory in
     heart of the `procedureDenotation` footprint bound. -/
 theorem procDenot_core {sig : ProcedureSignature}
     (r : Getter sig.ret ProgramState)
-    (σ : State)
-    (f : State → SubProbability State)
+    (σ : state)
+    (f : state → SubProbability state)
     (pb : ProgramDenotation ProgramState Unit)
     (init : VariableAssignment)
     (hbc : (fun st => (ProgramState.globalL.liftSubProbability f) st >>= pb)
@@ -538,18 +528,18 @@ theorem procDenot_core {sig : ProcedureSignature}
               (pure (w.1, st'') :
                 SubProbability (sig.ret × ProgramState)))) :
     (f σ >>= fun σ' => pb ⟨σ', init⟩ >>= fun w =>
-        (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × State)))
+        (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × state)))
       = (pb ⟨σ, init⟩ >>= fun w =>
-          (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × State)))
+          (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × state)))
           >>= fun u => f u.2 >>= fun s'' => pure (u.1, s'') := by
   set F := ProgramState.globalL.liftSubProbability f with hFdef
   have step1 : (f σ >>= fun σ' => pb ⟨σ', init⟩) = F ⟨σ, init⟩ >>= pb := by
     rw [hFdef, globalL_liftSubProbability_pad, SubProbability.bind_assoc]
     congr 1; funext a; rw [SubProbability.pure_bind]
   have hLHS : (f σ >>= fun σ' => pb ⟨σ', init⟩ >>= fun w =>
-        (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × State)))
+        (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × state)))
       = (f σ >>= fun σ' => pb ⟨σ', init⟩) >>= fun w =>
-          (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × State)) := by
+          (pure (r.get w.2, w.2.globals) : SubProbability (sig.ret × state)) := by
     rw [SubProbability.bind_assoc]
   rw [hLHS, step1]
   have hbcσ := congrFun hbc ⟨σ, init⟩
@@ -560,7 +550,7 @@ theorem procDenot_core {sig : ProcedureSignature}
         (pure (w.1, s'') : SubProbability (Unit × ProgramState))
         >>= fun w' => pure (r.get w'.2, w'.2.globals))
       = F w.2 >>= fun s'' =>
-          (pure (r.get s'', s''.globals) : SubProbability (sig.ret × State)) := by
+          (pure (r.get s'', s''.globals) : SubProbability (sig.ret × state)) := by
     congr 1; funext s''; rw [SubProbability.pure_bind]
   rw [hLcont]
   have hget : ∀ s' : ProgramState,
@@ -585,7 +575,7 @@ theorem procDenot_core {sig : ProcedureSignature}
       rw [hget w.2, SubProbability.pure_bind]
     rw [hL, hrcw0, hR]
   have hsplit : (F w.2 >>= fun s'' =>
-        (pure (r.get s'', s''.globals) : SubProbability (sig.ret × State)))
+        (pure (r.get s'', s''.globals) : SubProbability (sig.ret × state)))
       = (F w.2 >>= fun s' =>
           (pure (r.get s', s') :
             SubProbability (sig.ret × ProgramState)))
@@ -597,7 +587,7 @@ theorem procDenot_core {sig : ProcedureSignature}
           SubProbability (sig.ret × ProgramState))
         >>= fun u => pure (u.1, u.2.globals))
       = F w.2 >>= fun s'' =>
-          (pure (r.get w.2, s''.globals) : SubProbability (sig.ret × State)) := by
+          (pure (r.get w.2, s''.globals) : SubProbability (sig.ret × state)) := by
     congr 1; funext s''; rw [SubProbability.pure_bind]
   rw [hfin, hFdef, globalL_liftSubProbability_global]
 
@@ -759,7 +749,7 @@ theorem fvP_stmt_le_FVP {holes : HoleSigs} :
   decreasing_by all_goals (simp only [StmtWithHoles.depth]; omega)
 
 /-- **Bridge: FV's (global, syntactic) `fvP_proc` disjointness ⟹ the pipeline's (procedure-state,
-    semantic) disjointness.**  `FVP.fvP_proc A` (a `Footprint State`, the `globalL`-reduction of A's
+    semantic) disjointness.**  `FVP.fvP_proc A` (a `Footprint state`, the `globalL`-reduction of A's
     *syntactic* footprint) over-approximates the pipeline's *semantic* `fvP_proc A` after reduction, so
     a disjointness from `random_oracle_state` on the global state gives the disjointness from
     `roLift = globalL.chain random_oracle_state` the confinement needs.  Two ingredients:

@@ -8,12 +8,10 @@ namespace GaudisCrypt.ProgTest
 
 open GaudisCrypt
 
-variable [ProgramSpec]
-
-axiom a : Lens Nat State
-axiom b : Lens Nat State
-axiom c : Lens Bool State
-axiom d : Lens Nat State
+axiom a : Lens Nat VariableAssignment
+axiom b : Lens Nat VariableAssignment
+axiom c : Lens Bool VariableAssignment
+axiom d : Lens Nat VariableAssignment
 
 -- `Lens.pair` needs disjointness of the paired lenses (resolved at the concrete lenses).
 -- For nested tuples `(a, b), d` the `disjoint3'` instance derives
@@ -537,14 +535,14 @@ Outside a statement, where `$`/`§` is available without a wrapper, a `Getter` p
 
 -- a getter whose body reads the state binder is not `GaudiExpr[ ]`-shaped, so it prints as the
 -- structure it is
-/-- info: { get := fun st ↦ st.globals } : Getter State ProgramState -/
+/-- info: { get := fun st ↦ st.globals } : Getter VariableAssignment ProgramState -/
 #guard_msgs in
-#check (Getter.mk (fun st : ProgramState => st.globals) : Getter State ProgramState)
+#check (Getter.mk (fun st : ProgramState => st.globals) : Getter VariableAssignment ProgramState)
 
 -- `GaudiExpr[ ]` can only build a getter over a `ProgramState` — its `CurrentState` instance
--- holds one — so a getter over the global `State` (an `Expr`) is left alone, or printing it
+-- holds one — so a getter over the globals (an `Expr`) is left alone, or printing it
 -- would not parse back
-/-- info: { get := fun st ↦ a.get st } : Getter ℕ State -/
+/-- info: { get := fun st ↦ a.get st } : Getter ℕ VariableAssignment -/
 #guard_msgs in
 #check (Getter.mk (fun st => a.get st) : Expr Nat)
 
@@ -554,7 +552,7 @@ Outside a statement, where `$`/`§` is available without a wrapper, a `Getter` p
 set_option pp.notation false in
 #check (GaudiProg[ a <- 1; ] : Stmt)
 
-/-- info: @StmtWithHoles.skip inst✝ HoleSigs.empty : @StmtWithHoles inst✝ HoleSigs.empty -/
+/-- info: @StmtWithHoles.skip HoleSigs.empty : StmtWithHoles HoleSigs.empty -/
 #guard_msgs in
 set_option pp.explicit true in
 #check (GaudiProg[ skip; ] : Stmt)

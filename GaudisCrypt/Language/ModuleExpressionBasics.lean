@@ -33,8 +33,6 @@ def HoleSigs.toModuleTypeRepTuple : HoleSigs → ModuleTypeRep
   | .empty => .unit
   | .cons sig holes => .prod (.proc sig) (HoleSigs.toModuleTypeRepTuple holes)
 
-variable [ProgramSpec]
-
 /-- Untyped module expressions: the raw syntax tree of the module calculus, with no
     context/type indices.  Well-typedness is captured extrinsically by the predicate
     `ModuleExpression.HasType`.  Variables are de Bruijn indices (`Nat`); `abs` carries no
@@ -165,7 +163,6 @@ def substitute (body arg : ModuleExpression) : ModuleExpression :=
 and the normalization proof need them to push a renaming or a substitution through a
 β-contractum. -/
 
-omit [ProgramSpec] in
 theorem liftRen_comp (ρ ρ' : Nat → Nat) : liftRen ρ' ∘ liftRen ρ = liftRen (ρ' ∘ ρ) :=
   funext fun n => by cases n <;> rfl
 
@@ -388,12 +385,10 @@ namespace ModuleExpression.HasType
 def IsRenaming (Δ Γ : ModuleContext) (ρ : Nat → Nat) : Prop :=
   ∀ {n} (h : n < Δ.length), ∃ h' : ρ n < Γ.length, Γ[ρ n]'h' = Δ[n]'h
 
-omit [ProgramSpec] in
 /-- Weakening: prepending a binder is the renaming `Nat.succ`. -/
 theorem isRenaming_succ {Γ A} : IsRenaming Γ (A :: Γ) Nat.succ :=
   fun {n} h => ⟨by simpa using h, by simp⟩
 
-omit [ProgramSpec] in
 /-- A context renaming lifts under one binder to `liftRen ρ`. -/
 theorem IsRenaming.lift {Δ Γ A ρ} (h : IsRenaming Δ Γ ρ) :
     IsRenaming (A :: Δ) (A :: Γ) (ModuleExpression.liftRen ρ) := by
@@ -708,7 +703,6 @@ inductive NormalClosed : ModuleExpression → Prop where
   | pair {a b} : NormalClosed a → NormalClosed b → NormalClosed (.pair a b)
   | unit : NormalClosed .unit
 
-omit [ProgramSpec] in
 /-- A hole-signature's argument tuple type is always a procedure-argument type. -/
 private theorem toModuleTypeRepTuple_isProcArgType (holes : HoleSigs) :
     IsProcArgType (HoleSigs.toModuleTypeRepTuple holes) := by
@@ -1225,13 +1219,11 @@ private def describeStuckModuleTypingGoal (g : MVarId) : MetaM MessageData := g.
       let ctx := rhs.getAppArgs[1]!
       return m!"`.var {n}` occurs in typing context {ctx}, which does not (provably) \
         contain more than {n} element(s) (need `{n} < {rhs}`)"
-  -- `HasType`/`ModuleExpression`'s constructors all carry the ambient `[ProgramSpec]` as their
-  -- first (instance-implicit) argument, hence arity `3 + 1` / `k + 1` below.
-  if ty.isAppOfArity ``ModuleExpression.HasType 4 then
-    let #[_inst, m, ctx, t] := ty.getAppArgs | pure ()
+  if ty.isAppOfArity ``ModuleExpression.HasType 3 then
+    let #[m, ctx, t] := ty.getAppArgs | pure ()
     let head := m.getAppFn
     if head.isConstOf ``ModuleExpression.var then
-      let n := m.getAppArgs[1]!
+      let n := m.getAppArgs[0]!
       return m!"`.var {n}` does not type-check in context {ctx} at type {t}: that context \
         does not provide a `{n}`-th entry of that type"
     else if head.isConstOf ``ModuleExpression.proc then
@@ -1321,14 +1313,12 @@ private def describeStuckNormalModuleGoal (g : MVarId) : MetaM MessageData := g.
   let ty ← instantiateMVars (← g.getType)
   if ty.isAppOfArity ``Not 1 then
     let inner := ty.getAppArgs[0]!
-    if inner.isAppOfArity ``ModuleExpression.IsProcTuple 2 then
-      let arg := inner.getAppArgs[1]!
+    if inner.isAppOfArity ``ModuleExpression.IsProcTuple 1 then
+      let arg := inner.getAppArgs[0]!
       return m!"could not show `{arg}` is not a hole-free procedure tuple (needed so the \
         `.procHoles`-applied-to-`{arg}` node stays stuck, i.e. genuinely `Neutral`)"
-  -- `Normal`/`Neutral`'s constructors all carry the ambient `[ProgramSpec]` as their first
-  -- (instance-implicit) argument, hence arity `1 + 1` below.
-  if ty.isAppOfArity ``ModuleExpression.Neutral 2 then
-    let m := ty.getAppArgs[1]!
+  if ty.isAppOfArity ``ModuleExpression.Neutral 1 then
+    let m := ty.getAppArgs[0]!
     let head := m.getAppFn
     if head.isConstOf ``ModuleExpression.unit then
       return m!"`.unit` is always `Normal` (via `.unit`), never `Neutral` — it has no \
@@ -1345,8 +1335,8 @@ private def describeStuckNormalModuleGoal (g : MVarId) : MetaM MessageData := g.
     else if m.isFVar then
       return m!"`{m}` is an opaque subterm; no `Normal`/`Neutral` hypothesis for it is in \
         scope (`assumption` failed)"
-  if ty.isAppOfArity ``ModuleExpression.Normal 2 then
-    let m := ty.getAppArgs[1]!
+  if ty.isAppOfArity ``ModuleExpression.Normal 1 then
+    let m := ty.getAppArgs[0]!
     if m.isFVar then
       return m!"`{m}` is an opaque subterm; no `Normal`/`Neutral` hypothesis for it is in \
         scope (`assumption` failed)"

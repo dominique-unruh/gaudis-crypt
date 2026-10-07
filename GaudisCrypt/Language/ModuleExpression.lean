@@ -15,8 +15,6 @@ tactics.  This file is the one downstream modules import. -/
 
 namespace GaudisCrypt
 
-variable [ProgramSpec]
-
 namespace ModuleExpression
 
 theorem multiStepReduction_confluence {m n1 n2 : ModuleExpression}
@@ -401,19 +399,16 @@ private def reduceSimpProcImpl (e : Lean.Expr) : SimpM Simp.Step := do
   return .continue
 
 /- The obvious next step, `simproc reduceSimp (ModuleExpression.reduce _) := reduceSimpProcImpl`,
-   doesn't work: the `simproc` command elaborates its *pattern* in an isolated `TermElabM`
-   (`Lean.Elab.elabSimprocPattern`, confirmed by reading the source), disconnected from this
-   section's `variable [ProgramSpec]` — and then force-synthesizes every instance-implicit in it
-   (`Term.synthesizeSyntheticMVars`), so it always fails to find a `ProgramSpec` (there isn't a
-   global one; that's the whole point of it being a section variable). This isn't a workaround-
-   able syntax issue, it's structural: *no* `[ProgramSpec]`-parameterized declaration can be
-   registered as a discrimination-tree-keyed `simproc` this way.
+   used not to work: the `simproc` command elaborates its *pattern* in an isolated `TermElabM`
+   (`Lean.Elab.elabSimprocPattern`) and force-synthesizes every instance-implicit in it, and
+   `ModuleExpression` used to take a `[ProgramSpec]` section variable that has no global instance.
+   `ProgramSpec` is gone now, so a registered simproc would be possible; not done yet.
 
    So `reduce_simp` doesn't register anything globally. It drives `Lean.Meta.Simp.main` itself,
-   at tactic-run time (where a concrete `ProgramSpec` *is* available, from the calling goal's own
-   context), passing a custom `Simp.Methods.post` hook instead of a `Simprocs`/discrimination-tree
-   entry — `post` is a plain `Expr → SimpM Step`, checked by hand (`isAppOfArity`) against the
-   already-elaborated `Expr`s simp's traversal visits, no pattern registration involved at all.
+   at tactic-run time, passing a custom `Simp.Methods.post` hook instead of a
+   `Simprocs`/discrimination-tree entry — `post` is a plain `Expr → SimpM Step`, checked by hand
+   (`isAppOfArity`) against the already-elaborated `Expr`s simp's traversal visits, no pattern
+   registration involved at all.
    Simp's own bottom-up traversal (confirmed reliable all along — only its conditional-rewrite
    *discharge* step was ever the problem) still does the "keep visiting exposed subterms" work. -/
 open Lean Meta Elab Tactic in
@@ -450,7 +445,7 @@ def reduceSimp : TacticM Unit := do
       { pre := Simp.preDefault #[]
         post :=
           (fun e => do
-            if e.isAppOfArity ``ModuleExpression.reduce 2 then
+            if e.isAppOfArity ``ModuleExpression.reduce 1 then
               reduceSimpProcImpl e
             else
               return .continue) >> Simp.postDefault #[] }
