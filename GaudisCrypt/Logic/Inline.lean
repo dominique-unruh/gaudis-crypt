@@ -20,7 +20,7 @@ frame moves to names the caller cannot have (`Flatten.emb`, renaming `n` to `@.n
 `Flatten.tag`), and the call becomes
 
 ```
-reset Flatten.prefixed "@.";  -- the callee's frame back to its initial values
+reset_vars stringsStartingWith "@.";  -- the callee's frame back to its initial values
 «@.z₁», …, «@.zₙ» <- (args);  -- the arguments, in the callee's parameter slots
 ‹callee body, renamed›
 x <- ‹callee return value, renamed›;
@@ -33,7 +33,7 @@ sound for any choice of names.
 
 What a reset puts back is given by a set of names, which every later round and the cleanup
 renaming map along with the rest.  The cleaning keeps such a set in a normal form,
-`{"z", "w0"} ∪ Flatten.prefixed "@@." \ {"@@.z", "@@.w"}` say (section *Reset regions*, and
+`{"z", "w0"} ∪ stringsStartingWith "@@." \ {"@@.z", "@@.w"}` say (section *Reset regions*, and
 `Flatten.cleanNameSet?`, the only meta code that knows that form).
 -/
 
@@ -122,17 +122,19 @@ theorem VariableAssignment.embed_get_embed_set {ι₁ ι₂ : String → String}
 The names a flattened call resets start out as all of the callee's (`Set.univ`, seen through
 `emb`), and every later round and the cleanup renaming map them along with the rest.  The
 cleaning keeps such a set in the normal form `nf p add rem`, that is
-`{add…} ∪ prefixed p \ {rem…}`: the names that start with `p`, except those in `rem`, and those
-in `add`.  The three name maps keep that form: `tag` and `escape` move the prefix (`@.`, `@@.`,
-…), and each swap of the cleanup renaming moves at most one name out of the set and one into it.
+`{add…} ∪ stringsStartingWith p \ {rem…}`: the names that start with `p`, except those in
+`rem`, and those in `add`.  The three name maps keep that form: `tag` and `escape` move the
+prefix (`@.`, `@@.`, …), and each swap of the cleanup renaming moves at most one name out of the
+set and one into it.
 
 This section and `cleanNameSet?` (which computes the normal form, with these lemmas as proofs)
 are all there is to the form; another one replaces both. -/
 
-namespace Flatten
+/-- The strings that start with `p`.  (Lean has the predicate, `String.IsPrefix`, which unfolds
+to the same `p.toList <+: n.toList`, but not the set.) -/
+def stringsStartingWith (p : String) : Set String := {n | p.toList <+: n.toList}
 
-/-- The names that start with `p`. -/
-def prefixed (p : String) : Set String := {n | p.toList <+: n.toList}
+namespace Flatten
 
 /-- The names in `l`.  Never printed: the cleaning writes it as a set literal (`ofList_cons`,
 `ofList_singleton`). -/
@@ -147,7 +149,8 @@ theorem ofList_cons (a b : String) (l : List String) :
 /-- The normal form of a reset region: the names that start with `p` and are not in `rem`, and
 those in `add`.  Never printed: the cleaning writes it out without its empty parts
 (`nf_eq_pretty` and the rest). -/
-def nf (p : String) (add rem : List String) : Set String := ofList add ∪ prefixed p \ ofList rem
+def nf (p : String) (add rem : List String) : Set String :=
+  ofList add ∪ stringsStartingWith p \ ofList rem
 
 /-- Membership in `nf p add rem`, as a computation. -/
 def memB (p : String) (add rem : List String) (n : String) : Bool :=
@@ -155,30 +158,31 @@ def memB (p : String) (add rem : List String) (n : String) : Bool :=
 
 theorem nf_eq_setOf (p : String) (add rem : List String) :
     nf p add rem = {n | n ∈ add ∨ (p.toList <+: n.toList ∧ n ∉ rem)} := by
-  ext n; simp [nf, ofList, prefixed]
+  ext n; simp [nf, ofList, stringsStartingWith]
 
 theorem nf_eq_setOf_memB (p : String) (add rem : List String) :
     nf p add rem = {n | memB p add rem n = true} := by
-  ext n; simp [nf, ofList, prefixed, memB, List.isPrefixOf_iff_prefix]
+  ext n; simp [nf, ofList, stringsStartingWith, memB, List.isPrefixOf_iff_prefix]
 
 /-! `nf p add rem` written out, given the set literals `A`, `R` of `add`, `rem`. -/
 
-theorem nf_nil_nil (p : String) : nf p [] [] = prefixed p := by ext n; simp [nf, ofList]
+theorem nf_nil_nil (p : String) : nf p [] [] = stringsStartingWith p := by ext n; simp [nf, ofList]
 
 theorem nf_nil_eq (p : String) (add : List String) (A : Set String) (hA : ofList add = A) :
-    nf p add [] = A ∪ prefixed p := by
+    nf p add [] = A ∪ stringsStartingWith p := by
   subst hA; ext n; simp [nf, ofList]
 
 theorem nf_nil_left_eq (p : String) (rem : List String) (R : Set String) (hR : ofList rem = R) :
-    nf p [] rem = prefixed p \ R := by
+    nf p [] rem = stringsStartingWith p \ R := by
   subst hR; ext n; simp [nf, ofList]
 
 theorem nf_eq_pretty (p : String) (add rem : List String) (A R : Set String)
-    (hA : ofList add = A) (hR : ofList rem = R) : nf p add rem = A ∪ prefixed p \ R := by
+    (hA : ofList add = A) (hR : ofList rem = R) :
+    nf p add rem = A ∪ stringsStartingWith p \ R := by
   subst hA hR; rfl
 
 theorem univ_eq_nf : (Set.univ : Set String) = nf "" [] [] := by
-  ext n; simp [nf, ofList, prefixed]
+  ext n; simp [nf, ofList, stringsStartingWith]
 
 /-- The image of a normal form under an injective name map that maps the names with prefix `p`
 onto those with prefix `p'`. -/
@@ -1458,7 +1462,7 @@ partial def litToList? (e : Expr) : Option (List String) :=
 
 /-- `nf p add rem`, written out without its empty parts, with a proof of `nf p add rem = ‹it›`. -/
 def nfToPretty (p : String) (add rem : List String) : MetaM (Expr × Expr) := do
-  let pre := mkApp (mkConst ``prefixed) (mkStrLit p)
+  let pre := mkApp (mkConst ``stringsStartingWith) (mkStrLit p)
   let (e, proof) ← match add, rem with
     | [], [] => pure (pre, mkApp (mkConst ``nf_nil_nil) (mkStrLit p))
     | _, [] => do
@@ -1481,13 +1485,13 @@ a proof of `S = nf p add rem`. -/
 def nfOfExpr? (S : Expr) : MetaM (Option (String × List String × List String × Expr)) := do
   if S.isAppOfArity ``Set.univ 1 then return some ("", [], [], mkConst ``univ_eq_nf)
   let pre? (e : Expr) : Option String := match e.getAppFnArgs with
-    | (``prefixed, #[.lit (.strVal p)]) => some p
+    | (``stringsStartingWith, #[.lit (.strVal p)]) => some p
     | _ => none
   let diff? (e : Expr) : Option (String × List String) := match e.getAppFnArgs with
     | (``SDiff.sdiff, #[_, _, a, b]) => do return (← pre? a, ← litToList? b)
     | _ => none
   let some (p, add, rem) := (match S.getAppFnArgs with
-      | (``prefixed, _) => (pre? S).map fun p => (p, [], [])
+      | (``stringsStartingWith, _) => (pre? S).map fun p => (p, [], [])
       | (``SDiff.sdiff, _) => (diff? S).map fun (p, rem) => (p, [], rem)
       | (``Union.union, #[_, _, a, b]) => do
           let add ← litToList? a

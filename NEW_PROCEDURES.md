@@ -35,8 +35,8 @@ Phase 6 (flattening, `Logic/Inline.lean`) is done (2026-10-06), along §4 with t
   `assign` themselves.  Flattening emits `emb.chainSetter (resetSetter Set.univ)`; later rounds
   and the cleanup renaming map the set, which the cleaning keeps in a normal form
   (`Flatten.cleanNameSet?`), so that it prints as, e.g.,
-  `reset {"z", "w0"} ∪ Flatten.prefixed "@@." \ {"@@.z", "@@.w"};`.  The statement
-  `reset S;` is the surface syntax for `assign (resetSetter S) ⟨fun _ => ()⟩` (Q8), and the
+  `reset_vars {"z", "w0"} ∪ stringsStartingWith "@@." \ {"@@.z", "@@.w"};`.  The statement
+  `reset_vars S;` is the surface syntax for `assign (resetSetter S) ⟨fun _ => ()⟩` (Q8), and the
   printer prints that assignment as it; any other `Setter` on the program state is an l-value
   as it is (`lval%`).  The parameters are then
   written by one tuple assignment `z₁, …, zₙ <- (args);`;

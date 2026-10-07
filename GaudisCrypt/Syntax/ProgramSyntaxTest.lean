@@ -737,10 +737,10 @@ info: GaudiProg[
 
 -- a setter that is not a lens is an l-value as it is; assigning to `resetSetter S` (put the
 -- locals named in `S` back to their initial values; flattening emits this for a callee's frame)
--- is the `reset S;` statement, and prints as one
+-- is the `reset_vars S;` statement, and prints as one
 /--
 info: GaudiProg[
-    reset Set.univ;
+    reset_vars Set.univ;
     a <- 1;
 ]
 -/
@@ -749,22 +749,22 @@ info: GaudiProg[
 
 /--
 info: GaudiProg[
-    reset {"a", "b"} \ {"b"};
+    reset_vars {"a", "b"} \ {"b"};
     a <- 1;
 ]
 -/
 #guard_msgs in
-#roundtrip GaudiProg[ reset {"a", "b"} \ {"b"}; a <- 1; ]
+#roundtrip GaudiProg[ reset_vars {"a", "b"} \ {"b"}; a <- 1; ]
 
--- `reset` is not reserved: still a name
+-- `reset_vars` is not reserved: still a name
 /--
 info: GaudiProg[
-    var reset : ℕ;
-    reset <- 1;
+    var reset_vars : ℕ;
+    reset_vars <- 1;
 ]
 -/
 #guard_msgs in
-#roundtrip GaudiProg[ var reset : ℕ; reset <- 1; ]
+#roundtrip GaudiProg[ var reset_vars : ℕ; reset_vars <- 1; ]
 
 /-! #### Rejected declarations -/
 

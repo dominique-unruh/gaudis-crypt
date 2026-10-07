@@ -27,9 +27,10 @@ theorem intoLocal_varLens_get_resetSetter (n : String) (T : Type) (i : Nonempty 
     ProgramState.localL, h]
 
 /-- Membership in a prefix region, as a statement about character lists that `decide` settles on
-    literals.  A rewrite of the membership only: unfolding `Flatten.prefixed` itself would also
-    change how the resets in the program print. -/
-theorem mem_prefixed_iff (p n : String) : n ∈ Flatten.prefixed p ↔ p.toList <+: n.toList :=
+    literals.  A rewrite of the membership only: unfolding `stringsStartingWith` itself would
+    also change how the resets in the program print. -/
+theorem mem_stringsStartingWith_iff (p n : String) :
+    n ∈ stringsStartingWith p ↔ p.toList <+: n.toList :=
   Iff.rfl
 
 namespace HoareWp
@@ -40,8 +41,8 @@ open Lean Meta TacticMisc
 def simpReadsDecls : List Name :=
   [``liftLens, ``LiftLens.lift, ``eval_lens_full, ``Lens.pair, ``Lens.set_get,
    ``Lens.get_of_disjoint_set, ``intoLocal_varLens_get_resetSetter, ``Set.mem_union,
-   ``Set.mem_insert_iff, ``Set.mem_singleton_iff, ``Set.mem_sdiff, ``mem_prefixed_iff, ``if_pos,
-   ``if_neg, ``not_false_eq_true]
+   ``Set.mem_insert_iff, ``Set.mem_singleton_iff, ``Set.mem_sdiff, ``mem_stringsStartingWith_iff,
+   ``if_pos, ``if_neg, ``not_false_eq_true]
 
 /-- Reads through writes, in the postcondition of a goal `hoareStmt A s B` (as `hoare_assign_wp`
     leaves it): `liftLens` of a program-state lens is the lens itself, `Lens.pair` splits a tuple

@@ -239,19 +239,19 @@ macro_rules
 /- ### Concrete syntax -/
 
 -- `behavior := both`: a statement that starts with an identifier is also tried against the
--- productions led by a non-reserved keyword of that spelling (`reset`)
+-- productions led by a non-reserved keyword of that spelling (`reset_vars`)
 declare_syntax_cat gaudi_stmt (behavior := both)
 
 -- The `ppLine`/`ppSpace` sprinkled over these productions are pretty-printer hints only
 -- (they parse as nothing and add no syntax arguments); they are what makes a printed
 -- program come out one statement per line.  See the *Printing* section at the end.
 syntax ppLine "skip" ";" : gaudi_stmt
--- `reset S;`: the locals named in `S : Set String` back to their initial values (`resetSetter`).
--- A non-reserved keyword, so `reset` stays usable as a name (which also makes quotation
--- patterns `reset $s;` read it as an identifier: the node is matched and built by kind).
--- Low priority: `reset <- e;` is an assignment to a variable `reset`, though it parses as
--- `reset (← e);` too.
-syntax (name := resetStmt) (priority := low) ppLine &"reset" ppSpace term ";" : gaudi_stmt
+-- `reset_vars S;`: the locals named in `S : Set String` back to their initial values
+-- (`resetSetter`).  A non-reserved keyword, so `reset_vars` stays usable as a name (which also
+-- makes quotation patterns `reset_vars $s;` read it as an identifier: the node is matched and
+-- built by kind).  Low priority: `reset_vars <- e;` is an assignment to a variable
+-- `reset_vars`, though it parses as `reset_vars (← e);` too.
+syntax (name := resetStmt) (priority := low) ppLine &"reset_vars" ppSpace term ";" : gaudi_stmt
 syntax ppLine term:max,+ " <- " term ";" : gaudi_stmt
 syntax ppLine term:max,+ " <$ " term ";" : gaudi_stmt
 syntax (name := callStore) ppLine term:max,+ " <- " "call" ppSpace term:max
@@ -305,7 +305,7 @@ macro_rules
   | `([gseq| $s:gaudi_stmt $ss:gaudi_stmt*]) =>
       `(StmtWithHoles.seq [gstmt| $s] [gseq| $ss*])
 
--- `reset S;`, by node kind (see `resetStmt`)
+-- `reset_vars S;`, by node kind (see `resetStmt`)
 macro_rules
   | `([gstmt| $r:gaudi_stmt]) => do
       unless r.raw.isOfKind ``resetStmt do Lean.Macro.throwUnsupported
@@ -1380,10 +1380,10 @@ private partial def delabGaudiStmt (holeNames : Array Name) :
   | (``StmtWithHoles.skip, _) => `(gaudi_stmt| skip;)
   | (``StmtWithHoles.assign, args) => do
       guard (args.size == 4)
-      -- `reset S;`: the value written is `()` whatever it is spelled as (`Unit` has eta)
+      -- `reset_vars S;`: the value written is `()` whatever it is spelled as (`Unit` has eta)
       if args[2]!.isAppOfArity ``resetSetter 1 then
         let s ← withNaryArg 2 (withNaryArg 0 delab)
-        return ⟨mkNode ``resetStmt #[mkAtom "reset", s, mkAtom ";"]⟩
+        return ⟨mkNode ``resetStmt #[mkAtom "reset_vars", s, mkAtom ";"]⟩
       let lv ← withNaryArg 2 delabLValue
       let e ← withNaryArg 3 delabStmtExpr
       `(gaudi_stmt| $lv:term,* <- $e;)

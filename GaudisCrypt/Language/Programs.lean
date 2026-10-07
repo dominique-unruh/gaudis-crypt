@@ -143,7 +143,7 @@ open Classical in
 `VariableAssignment.init`, the value every local has when a procedure starts, and leaves every
 other one alone; the value written, `()`, is ignored.  The values put back form a
 `VariableAssignment`, which lives in `Type 1`, so they cannot themselves be the value of an
-`assign`; `assign (resetSetter S) ⟨fun _ => ()⟩` is the reset, `reset S;` in the surface
+`assign`; `assign (resetSetter S) ⟨fun _ => ()⟩` is the reset, `reset_vars S;` in the surface
 syntax.  Flattening (`Logic/Inline.lean`)
 emits it for the frame of the callee it inlines. -/
 noncomputable
