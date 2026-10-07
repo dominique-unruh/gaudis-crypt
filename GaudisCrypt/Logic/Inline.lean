@@ -482,6 +482,46 @@ variable. -/
           (VariableName.encode (renameName ren n)) rfl)).intoLocal :=
   ProgramState.mapLocal_embed_chain_varLens _ _ n T i k hk
 
+/-! The composite lenses `stepAllCalls` and `withRenaming` build (`rename ren` or `trafo` in front
+of the earlier rounds), reassociated so the variable lemmas above meet one renaming at a time.
+Stated per head rather than as `Lens.chain_assoc`, so that cleaning reassociates the inliner's own
+lenses only. -/
+
+theorem rename_chain_chain {A : Type} (ren : List (String × String))
+    (l : Lens ProgramState ProgramState) (x : Lens A ProgramState) :
+    ((rename ren).chain l).chain x = (rename ren).chain (l.chain x) := rfl
+
+theorem trafo_chain_chain {A : Type} (l : Lens ProgramState ProgramState)
+    (x : Lens A ProgramState) : (trafo.chain l).chain x = trafo.chain (l.chain x) := rfl
+
+theorem emb_chain_chain {A : Type} (l : Lens ProgramState ProgramState)
+    (x : Lens A ProgramState) : (emb.chain l).chain x = emb.chain (l.chain x) := rfl
+
+/-! A read at a state seen through one of the renamings, as a read through the composite: the
+plain-`get` counterparts of `eval_chain_lens`, for conditions whose reads were already turned
+into `get`s (`hoareInline`). -/
+
+theorem get_rename {A : Type} (ren : List (String × String)) (τ : ProgramState)
+    (x : Lens A ProgramState) : x.get ((rename ren).get τ) = ((rename ren).chain x).get τ := rfl
+
+theorem get_trafo {A : Type} (τ : ProgramState) (x : Lens A ProgramState) :
+    x.get (trafo.get τ) = (trafo.chain x).get τ := rfl
+
+theorem get_emb {A : Type} (τ : ProgramState) (x : Lens A ProgramState) :
+    x.get (emb.get τ) = (emb.chain x).get τ := rfl
+
+theorem get_rename_chain {A : Type} (ren : List (String × String))
+    (l : Lens ProgramState ProgramState) (τ : ProgramState) (x : Lens A ProgramState) :
+    x.get (((rename ren).chain l).get τ) = ((rename ren).chain (l.chain x)).get τ := rfl
+
+theorem get_trafo_chain {A : Type} (l : Lens ProgramState ProgramState) (τ : ProgramState)
+    (x : Lens A ProgramState) : x.get ((trafo.chain l).get τ) = (trafo.chain (l.chain x)).get τ :=
+  rfl
+
+theorem get_emb_chain {A : Type} (l : Lens ProgramState ProgramState) (τ : ProgramState)
+    (x : Lens A ProgramState) : x.get ((emb.chain l).get τ) = (emb.chain (l.chain x)).get τ :=
+  rfl
+
 /-- `emb_chain_varLens`, with the new name given: what the meta code instantiates, proving the
 name by evaluation. -/
 theorem emb_chain_varLens_eq (n : String) (T : Type) (i : Nonempty T) (k : Nat)
@@ -1931,7 +1971,7 @@ def cleanLemmas : List Name :=
    ``StmtWithHoles.applyLens_call', ``StmtWithHoles.applyLens_call,
    ``StmtWithHoles.applyLens_hole,
    ``StmtWithHoles.applyLens_seq, ``StmtWithHoles.applyLens_ifThenElse,
-   ``StmtWithHoles.applyLens_while, ``StmtWithHoles.applyLens_applyLens,
+   ``StmtWithHoles.applyLens_while,
    ``StmtWithHoles.weaken_skip, ``StmtWithHoles.weaken_sample, ``StmtWithHoles.weaken_assign,
    ``StmtWithHoles.weaken_call', ``StmtWithHoles.weaken_call,
    ``StmtWithHoles.weaken_seq,
@@ -1941,20 +1981,21 @@ def cleanLemmas : List Name :=
    ``Lens.chainSetter_liftLens, ``Lens.chainSetter_throwaway, ``Lens.chainSetter_toSetter,
    ``trafo_chainSetter_resetSetter, ``emb_chainSetter_resetSetter,
    ``rename_chainSetter_resetSetter,
-   ``Lens.chainSetter_chainSetter, ``Lens.chainGetter_chainGetter, ``Lens.chainGetter_toGetter,
+   ``Lens.chainGetter_toGetter,
    ``trafo_chainSetter_liftLens_global, ``emb_chainSetter_liftLens_global,
    ``rename_chainSetter_liftLens_global,
-  -- the variables: lens algebra, the renamings, globals untouched
-   ``Lens.id_chain, ``Lens.chain_id, ``Lens.chain_assoc,
+  -- the variables: the renamings' own composites, the renamings, globals untouched
+   ``rename_chain_chain, ``trafo_chain_chain, ``emb_chain_chain,
    ``trafo_chain_varLens, ``emb_chain_varLens, ``rename_chain_varLens,
    ``trafo_chain_intoGlobal, ``emb_chain_intoGlobal, ``rename_chain_intoGlobal,
-  -- into expressions
+  -- into expressions, and reads in conditions
    ``eval_chain_lens, ``eval_chain_getter,
+   ``get_rename, ``get_trafo, ``get_emb, ``get_rename_chain, ``get_trafo_chain, ``get_emb_chain,
    ``eval_trafo_global_lens, ``eval_emb_global_lens, ``eval_rename_global_lens,
    ``eval_trafo_global_getter, ``eval_emb_global_getter, ``eval_rename_global_getter]
 
 /-- The lemmas of the cleaning pass that have to apply before `Lens.chainGetter` is unfolded. -/
-def cleanPreLemmas : List Name := [``Lens.chainGetter_toGetter, ``Lens.chainGetter_chainGetter]
+def cleanPreLemmas : List Name := [``Lens.chainGetter_toGetter]
 
 /-- The definitions the cleaning pass unfolds: `Lens.chainGetter`, and `typeListToTuple`, which
 the content type of the parameter writer is spelled with (`Flatten.equivInLens_call`) — a
