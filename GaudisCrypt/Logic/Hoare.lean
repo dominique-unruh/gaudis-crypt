@@ -100,12 +100,12 @@ theorem hoare_post {A : ProgramState → Prop} {p : Stmt} {B B' : ProgramState �
   hoareStmt_mono hB h
 
 /-- The rule for `skip`: the precondition implies the postcondition. -/
-theorem hoare_skip {A B : ProgramState → Prop} (h : ∀ σ, A σ → B σ) : hoareStmt A .skip B :=
+theorem hoare_skip_of_imp {A B : ProgramState → Prop} (h : ∀ σ, A σ → B σ) : hoareStmt A .skip B :=
   hoareStmt_of_wp fun σ hA => by simp [programDenotation, ProgramDenotation.skip, wp_pure, h σ hA]
 
 /-- The wp rule for `skip`: the postcondition itself. -/
 theorem hoare_skip_wp (B : ProgramState → Prop) : hoareStmt B .skip B :=
-  hoare_skip fun _ h => h
+  hoare_skip_of_imp fun _ h => h
 
 /-- An expectation is `0` when the function vanishes outside a null event. -/
 theorem SubProbability.expected_eq_zero_of_null {α : Type*} {μ : SubProbability α}

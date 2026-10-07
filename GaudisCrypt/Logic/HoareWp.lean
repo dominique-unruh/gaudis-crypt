@@ -90,6 +90,19 @@ their triple by the wp rules, and simplify the reads in the new postcondition. -
 elab "hoare_wp " k:num : tactic =>
   Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareWpStep k.getNat g
 
+/-- The end of a backwards proof, on a goal `hoareStmt A skip B` (the statement possibly under
+its `let`s): the implication `∀ σ, A σ → B σ` (`hoare_skip_of_imp`), with the reads of the state
+in it generalized to plain values (`generalizeReads`), if there are any. -/
+def hoareSkip (g : MVarId) : MetaM MVarId := do
+  let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_skip_of_imp)
+  let [g] := gs | throwError "hoareSkip: `hoare_skip_of_imp` left {gs.length} goals"
+  try generalizeReads g catch _ => pure g
+
+/-- `hoare_skip`: `hoareSkip` on the main goal — from `hoareStmt A skip B` to `∀ x …, A → B`
+with the reads of the state as plain values. -/
+elab "hoare_skip" : tactic =>
+  Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareSkip g
+
 end HoareWp
 
 end GaudisCrypt

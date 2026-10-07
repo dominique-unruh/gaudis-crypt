@@ -350,27 +350,16 @@ theorem pedersen_correctness2 :
       ==>
       $res = true
     ] := by
-
   hoare_proc_to_stmt
-
   hoare_inline 0
-
   hoare_wp 1
-
   hoare_inline 2
-
   hoare_wp 4
-
   hoare_inline 1
-
   hoare_wp 5
-
   hoare_inline 0
-
   hoare_wp 6
-
-  apply hoare_skip
-  run_tac Lean.Elab.Tactic.liftMetaTactic1 fun g => some <$> TacticMisc.generalizeReads g
+  hoare_skip
 
   simp
 
