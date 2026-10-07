@@ -21,7 +21,8 @@ partial def seqLength (s : Lean.Expr) : MetaM Nat := do
 
 /-- Split `x₁; …; xₙ` (nested to the right) into the two blocks `{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`,
 returning the result and a proof of `‹input›.Equiv result`.  The second block is the input's own
-subterm, the first is rebuilt.  Fails unless `0 < k < n`. -/
+subterm, the first is rebuilt.  At the ends, `k = 0` gives `{x₁; …; xₙ}; skip` and `k = n` gives
+`skip; {x₁; …; xₙ}`.  Fails if `k > n`. -/
 partial def splitSeq (k : Nat) (s₀ : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
   let s ← openStmt s₀
   if let .letE n ty val body _ := s then
@@ -30,7 +31,14 @@ partial def splitSeq (k : Nat) (s₀ : Lean.Expr) : MetaM (Lean.Expr × Lean.Exp
       return (← mkLetFVars #[fv] r (usedLetOnly := false),
               ← mkLetFVars #[fv] p (usedLetOnly := false))
   let n ← seqLength s
-  unless 0 < k ∧ k < n do
+  if k = 0 ∨ k = n then
+    let hCtx := (← whnf (← inferType s)).appArg!
+    let skip ← mkAppOptM ``StmtWithHoles.skip #[some hCtx]
+    let (parts, lem) := if k = 0 then (#[s, skip], ``StmtWithHoles.Equiv.seq_skip)
+      else (#[skip, s], ``StmtWithHoles.Equiv.skip_seq)
+    return (← mkAppM ``StmtWithHoles.seq parts,
+            ← mkAppM ``StmtWithHoles.Equiv.symm #[← mkAppM lem #[s]])
+  unless k < n do
     throwError "splitSeq: cannot split a sequence of {n} statements with {k} of them in the \
       second block"
   go (n - k) s
@@ -50,7 +58,8 @@ where
             ← mkAppM ``StmtWithHoles.Equiv.trans #[pRest, pAssoc])
 
 /-- `hoare_split k`: on a goal `hoareStmt A {x₁; …; xₙ} B`, regroup the statement as
-`{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`, the last `k` statements in the second block (`splitSeq`). -/
+`{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`, the last `k` statements in the second block (`splitSeq`;
+`k = 0` and `k = n` pad the empty side with `skip`). -/
 elab "hoare_split " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> hoareOnStmt (splitSeq k.getNat) g
 

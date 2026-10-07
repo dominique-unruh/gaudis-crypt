@@ -391,6 +391,10 @@ macro "simp_reads" : tactic =>
     Set.mem_sdiff, mem_prefixed_iff, if_pos, if_neg, not_false_eq_true])
 
 
+lemma hoare_skip (h : ∀ σ, A σ → B σ) : hoareStmt A (.skip) B :=
+  sorry
+
+
 theorem pedersen_correctness2 :
     hoare[ ((Module.app (Correctness group.types) (Pedersen group)).main) :
       True ==> $res = true ] := by
@@ -481,11 +485,10 @@ theorem pedersen_correctness2 :
   · apply hoare_assign_wp
   simp_reads
 
-  -- hoare_split 1
-  -- TODO: should not fail
-  -- apply hoare_seq
-  -- apply hoare_assign_wp
-  -- simp_reads
+  hoare_split 1
+  apply hoare_seq
+  apply hoare_assign_wp
+  simp_reads
 
   sorry
 
