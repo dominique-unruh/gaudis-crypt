@@ -30,7 +30,7 @@ needs `Lens.Disjoint ProgramState.globalL x.intoLocal`, and there is no such ins
 `globalL`/`localL` and `intoLocal`/`intoGlobal`).
 
 **Done.** Instances `Lens.disjoint_globalL_intoLocal`/`Lens.disjoint_intoLocal_globalL` in
-`Logic/Hoare.lean` (TODO: move to `Language/Variables.lean`).
+`Language/Variables.lean`.
 
 ## 3. Clutter left in conditions
 
@@ -38,8 +38,7 @@ needs `Lens.Disjoint ProgramState.globalL x.intoLocal`, and there is no such ins
 part of a call's precondition) in place.
 
 **Done.** `simpReadsDecls` gains `Lens.id_get`/`Lens.ofst_get`/`Lens.osnd_get` (new, in
-`Logic/Hoare.lean`; TODO: move to `Language/Lens.lean`) and `implies_true`, `true_implies`,
-`and_true`, `true_and`.
+`Language/Lens.lean`) and `implies_true`, `true_implies`, `and_true`, `true_and`.
 
 ## 4. Variables printed as raw lenses after a call
 

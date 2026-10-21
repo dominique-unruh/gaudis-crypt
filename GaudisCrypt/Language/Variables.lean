@@ -451,6 +451,16 @@ instance Lens.disjoint_intoGlobal_intoLocal {a b : Type*} (x : Lens a VariableAs
     (y : Lens b VariableAssignment) : Lens.Disjoint x.intoGlobal y.intoLocal :=
   ⟨fun _ _ _ => rfl⟩
 
+/-- The globals and a local slot are disjoint: what lets a read of a local see through the write
+    to the globals that a call does. -/
+instance Lens.disjoint_globalL_intoLocal {a : Type*} (x : Lens a VariableAssignment) :
+    Lens.Disjoint ProgramState.globalL x.intoLocal :=
+  ⟨fun _ _ _ => rfl⟩
+
+instance Lens.disjoint_intoLocal_globalL {a : Type*} (x : Lens a VariableAssignment) :
+    Lens.Disjoint x.intoLocal ProgramState.globalL :=
+  ⟨fun _ _ _ => rfl⟩
+
 instance Lens.disjoint_intoLocal {a b : Type*} (x : Lens a VariableAssignment)
     (y : Lens b VariableAssignment) [Lens.Disjoint x y] : Lens.Disjoint x.intoLocal y.intoLocal :=
   Lens.disjoint_chain _ x y

@@ -115,6 +115,10 @@ def Lens.snd : Lens b (a×b) := {
 def Lens.ofst (lens : Lens a m) : Lens a (m × m') := Lens.fst.chain lens
 def Lens.osnd (lens : Lens a m) : Lens a (m' × m) := Lens.snd.chain lens
 
+theorem Lens.ofst_get (l : Lens a m) (s : m × m') : (l.ofst (m' := m')).get s = l.get s.1 := rfl
+
+theorem Lens.osnd_get (l : Lens a m) (s : m' × m) : (l.osnd (m' := m')).get s = l.get s.2 := rfl
+
 /-- Lift a setter into the first component of a product (no `get` needed, unlike
 `Lens.ofst`, which is why a bare `Setter` can be lifted). -/
 def Setter.ofst (s : Setter a m) : Setter a (m × m') where
@@ -179,6 +183,8 @@ def Lens.id : Lens m m where
   set_set _ _ _ := rfl
   get_set _ := rfl
   set_get _ _ := rfl
+
+theorem Lens.id_get (s : m) : (Lens.id : Lens m m).get s = s := rfl
 
 /-- The trivial lens onto a subsingleton-with-default content type: reads nothing, writes
     nothing.  Its footprint is `⊥`. -/

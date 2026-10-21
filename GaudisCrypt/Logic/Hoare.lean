@@ -170,27 +170,6 @@ theorem hoare_call_wp {sig} (x : Setter sig.ret ProgramState) (p : Procedure sig
   refine SubProbability.expected_eq_zero_of_null (hp _ _ hP) fun r hr => ?_
   exact Set.indicator_of_notMem (by simpa using hQ _ _ (not_not.mp hr)) _
 
--- TODO: these two belong in `Language/Variables.lean`, next to
--- `Lens.disjoint_intoLocal_intoGlobal`.
-/-- The globals and a local slot are disjoint: what lets a read of a local see through the write
-    to the globals that a call does. -/
-instance Lens.disjoint_globalL_intoLocal {a : Type*} (x : Lens a VariableAssignment) :
-    Lens.Disjoint ProgramState.globalL x.intoLocal :=
-  ⟨fun _ _ _ => rfl⟩
-
-instance Lens.disjoint_intoLocal_globalL {a : Type*} (x : Lens a VariableAssignment) :
-    Lens.Disjoint x.intoLocal ProgramState.globalL :=
-  ⟨fun _ _ _ => rfl⟩
-
--- TODO: these three belong in `Language/Lens.lean`.
-theorem Lens.id_get {m : Type*} (s : m) : (Lens.id : Lens m m).get s = s := rfl
-
-theorem Lens.ofst_get {a m m' : Type*} (l : Lens a m) (s : m × m') :
-    (l.ofst (m' := m')).get s = l.get s.1 := rfl
-
-theorem Lens.osnd_get {a m m' : Type*} (l : Lens a m) (s : m' × m) :
-    (l.osnd (m' := m')).get s = l.get s.2 := rfl
-
 /-- A procedure triple is the statement triple about the one-line body
 
       res <- p(args);
