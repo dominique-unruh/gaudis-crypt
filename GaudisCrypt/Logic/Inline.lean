@@ -2484,6 +2484,11 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
       -- `T.mk` of a `moduletype` `T` (which emits `T.mk_destruct` with it)
       if vc.getString! == "mk" && (← getEnv).contains (vc.getPrefix ++ `mk_destruct) then
         return some { expr := v }
+  -- (6) a module named by an `abbrev` (`hidingGame U := Module.app … U`, say): unfold it, by
+  -- definition.  Only reducible ones, which are meant to be seen through.
+  if (← getReducibilityStatus c) == .reducible then
+    if let some v ← unfoldDefinition? e then
+      return some { expr := v }
   return none
 
 /-- Evaluate a module expression until its head is `Module.proc`, then spell that procedure out.

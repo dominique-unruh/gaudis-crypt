@@ -144,6 +144,53 @@ theorem hoare_assign_wp {α} (x : Setter α ProgramState) (e : Getter α Program
     AsGetter.toG, AsSetter.toS, id_eq, expected_pure]
   exact Set.indicator_of_notMem (not_not.mpr hA) _
 
+/-- Every procedure satisfies the trivial triple: partial correctness asks nothing of a run. -/
+theorem hoareProc_true {sig} (p : Procedure sig) :
+    hoareProc (fun _ _ => True) p (fun _ _ => True) := fun _ _ _ => by
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
+/-- The wp rule for a call, EC's `call (_ : P ==> Q)`: given a triple about the callee, the call
+    `x <- p(args)` establishes `B` from the states where `P` holds of the arguments and `B` holds
+    after writing *any* result and globals that `Q` allows.  The callee is not looked into, so
+    this is the rule for an abstract procedure (an adversary); with `hoareProc_true` it is the
+    rule for a call whose specification does not matter. -/
+theorem hoare_call_wp {sig} (x : Setter sig.ret ProgramState) (p : Procedure sig)
+    (args : Getter sig.ParamType ProgramState)
+    {P : sig.ParamType → VariableAssignment → Prop} {Q : sig.ret → VariableAssignment → Prop}
+    (hp : hoareProc P p Q) (B : ProgramState → Prop) :
+    hoareStmt
+      (fun σ => P (args.get σ) σ.globals ∧
+        ∀ r g, Q r g → B (x.set r (ProgramState.globalL.set g σ)))
+      (Stmt.call x p args) B := by
+  refine hoareStmt_of_wp fun σ ⟨hP, hQ⟩ => ?_
+  simp only [Stmt.call, StmtWithHoles.call, programDenotation, procedureWithHoles_eta,
+    wp_bind, wp_get_g, wp_zoom, wp_set_g, AsGetter.toG, AsSetter.toS, id_eq]
+  refine SubProbability.expected_eq_zero_of_null (hp _ _ hP) fun r hr => ?_
+  exact Set.indicator_of_notMem (by simpa using hQ _ _ (not_not.mp hr)) _
+
+-- TODO: these two belong in `Language/Variables.lean`, next to
+-- `Lens.disjoint_intoLocal_intoGlobal`.
+/-- The globals and a local slot are disjoint: what lets a read of a local see through the write
+    to the globals that a call does. -/
+instance Lens.disjoint_globalL_intoLocal {a : Type*} (x : Lens a VariableAssignment) :
+    Lens.Disjoint ProgramState.globalL x.intoLocal :=
+  ⟨fun _ _ _ => rfl⟩
+
+instance Lens.disjoint_intoLocal_globalL {a : Type*} (x : Lens a VariableAssignment) :
+    Lens.Disjoint x.intoLocal ProgramState.globalL :=
+  ⟨fun _ _ _ => rfl⟩
+
+-- TODO: these three belong in `Language/Lens.lean`.
+theorem Lens.id_get {m : Type*} (s : m) : (Lens.id : Lens m m).get s = s := rfl
+
+theorem Lens.ofst_get {a m m' : Type*} (l : Lens a m) (s : m × m') :
+    (l.ofst (m' := m')).get s = l.get s.1 := rfl
+
+theorem Lens.osnd_get {a m m' : Type*} (l : Lens a m) (s : m' × m) :
+    (l.osnd (m' := m')).get s = l.get s.2 := rfl
+
 /-- A procedure triple is the statement triple about the one-line body
 
       res <- p(args);

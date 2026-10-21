@@ -39,10 +39,14 @@ open Lean Meta TacticMisc
 
 /-- The simp set of `simpReads`: theorems are rewritten with, definitions unfolded. -/
 def simpReadsDecls : List Name :=
-  [``liftLens, ``LiftLens.lift, ``eval_lens_full, ``Lens.pair, ``Lens.set_get,
+  [``liftLens, ``LiftLens.lift, ``eval_lens_full, ``eval_getter_full, ``Lens.pair, ``Lens.set_get,
    ``Lens.get_of_disjoint_set, ``intoLocal_varLens_get_resetSetter, ``Set.mem_union,
    ``Set.mem_insert_iff, ``Set.mem_singleton_iff, ``Set.mem_sdiff, ``mem_stringsStartingWith_iff,
-   ``if_pos, ``if_neg, ``not_false_eq_true]
+   ``if_pos, ``if_neg, ``not_false_eq_true,
+   -- the argument getters of a procedure triple (`hoare_call_wp`)
+   ``Lens.id_get, ``Lens.ofst_get, ``Lens.osnd_get,
+   -- the trivial parts of a call's precondition (`hoare_call_wp` with `hoareProc_true`)
+   ``implies_true, ``true_implies, ``and_true, ``true_and]
 
 /-- Reads through writes, in the postcondition of a goal `hoareStmt A s B` (as `hoare_assign_wp`
     leaves it): `liftLens` of a program-state lens is the lens itself, `Lens.pair` splits a tuple
@@ -90,6 +94,38 @@ def hoareWpStep (k : Nat) (g : MVarId) : MetaM MVarId := do
 their triple by the wp rules, and simplify the reads in the new postcondition. -/
 elab "hoare_wp " k:num : tactic =>
   Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareWpStep k.getNat g
+
+/-- One backwards step over a call, on a goal `hoareStmt A {x₁; …; xₙ₋₁; x <- call p (args)} B`:
+close the call by `hoare_call_wp` with the procedure triple `h` about `p` (`hoare_seq`), and
+continue with the triple about `x₁; …; xₙ₋₁`, its postcondition simplified (`simpReads`).
+The new postcondition is `h`'s precondition at the arguments, and `B` after any result and
+globals that `h`'s postcondition allows. -/
+def hoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM MVarId := do
+  let g ← HoareSplit.hoareSplit 1 g
+  let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_seq)
+  let gq :: gp :: _ := gs | throwError "hoareCallStep: `hoare_seq` left {gs.length} goals"
+  -- `hoare_call_wp x p args h B`, with `x`, `p`, `args`, `B` (and `h`'s implicits) by unification
+  let rule ← mkConstWithFreshMVarLevels ``hoare_call_wp
+  let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
+  unless ← isDefEq ms[6]! h do
+    throwError "hoare_call: not a procedure triple:{indentExpr (← inferType h)}"
+  unless ← isDefEq ty (← gq.getType) do
+    throwError "hoare_call: the call rule{indentExpr (← instantiateMVars ty)}\ndoes not match \
+      the last statement{indentExpr (← gq.getType)}"
+  gq.assign (← instantiateMVars (mkAppN rule ms))
+  simpReads gp
+
+/-- `hoare_call h`: `hoareCallStep h` on the main goal — the last statement is a call, closed by
+the procedure triple `h` about the callee (EC's `call (_ : P ==> Q)`).  Without `h`, the trivial
+triple `hoareProc_true`: the call may return anything and write any globals. -/
+elab "hoare_call" h?:(ppSpace colGt term:max)? : tactic => Elab.Tactic.withMainContext do
+  let h ← match h? with
+    | some h => Elab.Tactic.elabTerm h none
+    | none => do
+      let c ← mkConstWithFreshMVarLevels ``hoareProc_true
+      let (ms, _, _) ← forallMetaTelescope (← inferType c)
+      pure (mkAppN c ms)
+  Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareCallStep h g
 
 /-- The end of a backwards proof, on a goal `hoareStmt A skip B` (the statement possibly under
 its `let`s): the implication `∀ σ, A σ → B σ` (`hoare_skip_of_imp`), with the reads of the state
