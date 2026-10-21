@@ -63,6 +63,7 @@ import GaudisCrypt.Logic.EagerProc
 import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.Hoare
+import GaudisCrypt.Logic.HoareFrame
 import GaudisCrypt.Logic.HoareSplit
 import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Logic.Inline
@@ -81,6 +82,7 @@ import GaudisCrypt.Logic.PRHL.Loops
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
+import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding
 import GaudisCrypt.Examples.Pedersen.HidingHoare

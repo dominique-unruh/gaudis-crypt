@@ -26,6 +26,32 @@ theorem intoLocal_varLens_get_resetSetter (n : String) (T : Type) (i : Nonempty 
   by_cases h : n ∈ S <;> simp [resetSetter, Lens.intoLocal, Lens.chain,
     ProgramState.localL, h]
 
+/-! The globals of a state after a write: what a global read in a condition becomes once it is
+a plain `g.get σ.globals` (`eval_lens_global`).  `eval` keeps its state in an instance argument,
+where `simp` does not rewrite, so the reads are taken out of `eval` first. -/
+
+theorem globals_intoLocal_set {A : Type*} (x : Lens A VariableAssignment) (v : A)
+    (τ : ProgramState) : (x.intoLocal.set v τ).globals = τ.globals := rfl
+
+theorem globals_intoGlobal_set {A : Type*} (x : Lens A VariableAssignment) (v : A)
+    (τ : ProgramState) : (x.intoGlobal.set v τ).globals = x.set v τ.globals := rfl
+
+theorem globals_resetSetter_set (S : Set String) (u : Unit) (τ : ProgramState) :
+    ((resetSetter S).set u τ).globals = τ.globals := rfl
+
+theorem globals_globalL_set (g : VariableAssignment) (τ : ProgramState) :
+    (ProgramState.globalL.set g τ).globals = g := rfl
+
+theorem globals_chain_get (l m : Lens ProgramState ProgramState) (τ : ProgramState) :
+    ((l.chain m).get τ).globals = (m.get (l.get τ)).globals := rfl
+
+theorem globals_trafo_get (τ : ProgramState) : (Flatten.trafo.get τ).globals = τ.globals := rfl
+
+theorem globals_emb_get (τ : ProgramState) : (Flatten.emb.get τ).globals = τ.globals := rfl
+
+theorem globals_rename_get (ren : List (String × String)) (τ : ProgramState) :
+    ((Flatten.rename ren).get τ).globals = τ.globals := rfl
+
 /-- Membership in a prefix region, as a statement about character lists that `decide` settles on
     literals.  A rewrite of the membership only: unfolding `stringsStartingWith` itself would
     also change how the resets in the program print. -/
@@ -43,6 +69,11 @@ def simpReadsDecls : List Name :=
    ``Lens.get_of_disjoint_set, ``intoLocal_varLens_get_resetSetter, ``Set.mem_union,
    ``Set.mem_insert_iff, ``Set.mem_singleton_iff, ``Set.mem_sdiff, ``mem_stringsStartingWith_iff,
    ``if_pos, ``if_neg, ``not_false_eq_true,
+   -- global reads, through writes to the state
+   ``eval_lens_global, ``eval_getter_global,
+   ``globals_intoLocal_set, ``globals_intoGlobal_set, ``globals_resetSetter_set,
+   ``globals_globalL_set, ``globals_chain_get, ``globals_trafo_get, ``globals_emb_get,
+   ``globals_rename_get,
    -- the argument getters of a procedure triple (`hoare_call_wp`)
    ``Lens.id_get, ``Lens.ofst_get, ``Lens.osnd_get,
    -- the trivial parts of a call's precondition (`hoare_call_wp` with `hoareProc_true`)
@@ -96,28 +127,41 @@ elab "hoare_wp " k:num : tactic =>
   Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareWpStep k.getNat g
 
 /-- One backwards step over a call, on a goal `hoareStmt A {x₁; …; xₙ₋₁; x <- call p (args)} B`:
-close the call by `hoare_call_wp` with the procedure triple `h` about `p` (`hoare_seq`), and
-continue with the triple about `x₁; …; xₙ₋₁`, its postcondition simplified (`simpReads`).
-The new postcondition is `h`'s precondition at the arguments, and `B` after any result and
-globals that `h`'s postcondition allows. -/
-def hoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM MVarId := do
+close the call (`hoare_seq`), and continue with the triple about `x₁; …; xₙ₋₁`, its
+postcondition simplified (`simpReads`).  `h` is either a procedure triple about `p`, used through
+`hoare_call_wp` (the new postcondition is `h`'s precondition at the arguments, and `B` after any
+result and globals that `h`'s postcondition allows), or a rule concluding a statement triple
+about the call itself, such as `hoare_call_frame L hp`, whose remaining arguments are found by
+unification.  Arguments of the rule that unification leaves open are returned as goals. -/
+def hoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
   let g ← HoareSplit.hoareSplit 1 g
   let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_seq)
   let gq :: gp :: _ := gs | throwError "hoareCallStep: `hoare_seq` left {gs.length} goals"
-  -- `hoare_call_wp x p args h B`, with `x`, `p`, `args`, `B` (and `h`'s implicits) by unification
-  let rule ← mkConstWithFreshMVarLevels ``hoare_call_wp
-  let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
-  unless ← isDefEq ms[6]! h do
-    throwError "hoare_call: not a procedure triple:{indentExpr (← inferType h)}"
+  let hTy ← whnfR (← instantiateMVars (← inferType h))
+  -- a procedure triple goes through `hoare_call_wp`; anything else is the rule itself
+  let (rule, ms) ← if hTy.isAppOf ``hoareProc then do
+      let rule ← mkConstWithFreshMVarLevels ``hoare_call_wp
+      let (ms, _, _) ← forallMetaTelescope (← inferType rule)
+      unless ← isDefEq ms[6]! h do
+        throwError "hoare_call: not a procedure triple:{indentExpr (← inferType h)}"
+      pure (rule, ms)
+    else do
+      let (ms, _, _) ← forallMetaTelescope (← inferType h)
+      pure (h, ms)
+  let ty ← instantiateForall (← inferType rule) ms
   unless ← isDefEq ty (← gq.getType) do
     throwError "hoare_call: the call rule{indentExpr (← instantiateMVars ty)}\ndoes not match \
       the last statement{indentExpr (← gq.getType)}"
   gq.assign (← instantiateMVars (mkAppN rule ms))
-  simpReads gp
+  let open_ ← ms.filterMapM fun m => do
+    let m := m.mvarId!
+    if ← m.isAssigned then return none else return some m
+  return (← simpReads gp) :: open_.toList
 
 /-- `hoare_call h`: `hoareCallStep h` on the main goal — the last statement is a call, closed by
-the procedure triple `h` about the callee (EC's `call (_ : P ==> Q)`).  Without `h`, the trivial
-triple `hoareProc_true`: the call may return anything and write any globals. -/
+`h`: a procedure triple about the callee (EC's `call (_ : P ==> Q)`), or a rule for the call
+statement, such as `hoare_call_frame L hp` (the callee does not touch `L`).  Without `h`, the
+trivial triple `hoareProc_true`: the call may return anything and write any globals. -/
 elab "hoare_call" h?:(ppSpace colGt term:max)? : tactic => Elab.Tactic.withMainContext do
   let h ← match h? with
     | some h => Elab.Tactic.elabTerm h none
@@ -125,7 +169,48 @@ elab "hoare_call" h?:(ppSpace colGt term:max)? : tactic => Elab.Tactic.withMainC
       let c ← mkConstWithFreshMVarLevels ``hoareProc_true
       let (ms, _, _) ← forallMetaTelescope (← inferType c)
       pure (mkAppN c ms)
-  Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareCallStep h g
+  Elab.Tactic.liftMetaTactic fun g => hoareCallStep h g
+
+/-- A loop step, on a goal `hoareStmt A {x₁; …; xₙ₋₁; while c body} B` and an invariant `I`:
+`hoare_while` closes the loop, leaving three goals, in order: the body preserves `I` (from
+`I ∧ c`), `I` with a failed test implies `B` (reads generalized, `generalizeReads`), and the
+triple about `x₁; …; xₙ₋₁` with postcondition `I`. -/
+def hoareWhileStep (I : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
+  let g ← HoareSplit.hoareSplit 1 g
+  let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_seq)
+  let gq :: gp :: _ := gs | throwError "hoareWhileStep: `hoare_seq` left {gs.length} goals"
+  let rule ← mkConstWithFreshMVarLevels ``hoare_while
+  let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
+  unless ← isDefEq ms[2]! I do
+    throwError "hoare_while: not a condition on the program state:{indentExpr (← inferType I)}"
+  unless ← isDefEq ty (← gq.getType) do
+    throwError "hoare_while: the last statement is not a loop:{indentExpr (← gq.getType)}"
+  gq.assign (mkAppN rule ms)
+  let gBody := ms[4]!.mvarId!
+  gBody.setTag `body
+  let gExit ← try generalizeReads ms[5]!.mvarId! catch _ => pure ms[5]!.mvarId!
+  gExit.setTag `exit
+  return [gBody, gExit, gp]
+
+open Lean Elab Tactic in
+/-- `hoare_while I`: `hoareWhileStep` on the main goal, with the invariant `I` written like a
+condition of a `hoare[ ]` triple — `§x` reads the program variable `x` of the goal's program, or a
+global.  Goals: `body`, `exit`, then the code before the loop with postcondition `I`. -/
+elab "hoare_while " I:term : tactic => withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  unless ty.isAppOfArity ``hoareStmt 3 do
+    throwError "hoare_while: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
+  -- the program variables of the goal, each bound to its slot, as a `hoare[ ]` triple binds them
+  let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! 1, ty.getArg! 2] #[]).filter
+    (·.printable)
+  let mut stx ← `((GaudiExpr[ $I ] : Getter Prop ProgramState).get)
+  for v in vars.reverse do
+    let some slot := v.slots[0]? | continue
+    stx ← `(letI $(mkIdent (.mkSimple v.name)) := $(← Term.exprToSyntax slot); $stx)
+  let Ie ← elabTermEnsuringType stx (← mkArrow (mkConst ``ProgramState) (mkSort 0))
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let Ie ← instantiateMVars Ie
+  liftMetaTactic fun g => hoareWhileStep Ie g
 
 /-- The end of a backwards proof, on a goal `hoareStmt A skip B` (the statement possibly under
 its `let`s): the implication `∀ σ, A σ → B σ` (`hoare_skip_of_imp`), with the reads of the state

@@ -1290,6 +1290,17 @@ variable lemmas rename it, and the read prints as `§x` again. -/
     (g : Getter A VariableAssignment) :
     (eval (cs := ⟨(ProgramState.mapLocal m).get τ⟩) g : A) = eval (cs := ⟨τ⟩) g := rfl
 
+/-- A read at a state seen through a composite lens is a read through the two lenses in turn, so
+that the lemmas about each (`eval_trafo_global_lens`, say) apply.  Only for globals, where the
+lenses then drop out. -/
+@[simp] theorem eval_chain_state_global_lens {A : Type} (l m : Lens ProgramState ProgramState)
+    (τ : ProgramState) (g : Lens A VariableAssignment) :
+    (eval (cs := ⟨(l.chain m).get τ⟩) g : A) = eval (cs := ⟨m.get (l.get τ)⟩) g := rfl
+
+@[simp] theorem eval_chain_state_global_getter {A : Type} (l m : Lens ProgramState ProgramState)
+    (τ : ProgramState) (g : Getter A VariableAssignment) :
+    (eval (cs := ⟨(l.chain m).get τ⟩) g : A) = eval (cs := ⟨m.get (l.get τ)⟩) g := rfl
+
 /-! ### The three renamings, unfolded where the lemmas above need `mapLocal`
 
 `trafo`, `emb` and `rename ren` are definitions (so that they print by name), and `simp` does not
@@ -1995,6 +2006,7 @@ def cleanLemmas : List Name :=
   -- into expressions, and reads in conditions
    ``eval_chain_lens, ``eval_chain_getter,
    ``get_rename, ``get_trafo, ``get_emb, ``get_rename_chain, ``get_trafo_chain, ``get_emb_chain,
+   ``eval_chain_state_global_lens, ``eval_chain_state_global_getter,
    ``eval_trafo_global_lens, ``eval_emb_global_lens, ``eval_rename_global_lens,
    ``eval_trafo_global_getter, ``eval_emb_global_getter, ``eval_rename_global_getter]
 

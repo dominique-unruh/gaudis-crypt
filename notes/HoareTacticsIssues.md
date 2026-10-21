@@ -61,3 +61,36 @@ unfolded.  Module combinators are not reducible, so they are unaffected.
 
 (Not a bug, but easy to trip over: a module with two `using` parameters takes a *pair*,
 `Module.app (HidingExperiment types) (Module.pair S U)`, not two curried applications.)
+
+## 6. No rules for `if`, `while`, or framing an abstract call (second round)
+
+Found while proving `game_query_count` (`GaudisCrypt/Examples/QueryCounting.lean`): an abstract
+adversary and a counting oracle in a `q`-round loop, with the EC-style claim
+`hoare[ Game(A, O).main : q = n ==> count = n ]` for any `A` that does not touch `count`.
+
+**Done.**
+* `hoare_if_wp`, `hoare_while` (invariant rule, from `wp_while_invariant`) in `Logic/Hoare.lean`;
+  `hoare_wp` now goes through conditionals (`hoareWpClose`, `Logic/TacticMisc.lean`).
+* Tactic `hoare_while I` (`Logic/HoareWp.lean`): `I` is written like a triple's condition, `§x`
+  for the program's variables; goals `body`, `exit` (reads generalized), then the code before.
+* `Logic/HoareFrame.lean`: `hoareProc_frame` and `hoare_call_frame` — EC's `A <: Adv {-L}` as a
+  footprint hypothesis `inFootprint (L.footprint)ᶜ`, via
+  `ProgramDenotation.wp_zero_of_lens_preserves_footprint`.  `hoare_call` now also takes such a
+  statement-level rule: `hoare_call (hoare_call_frame count hA)`.
+
+## 7. Global reads in conditions got stuck (second round)
+
+A global read in a condition is `eval g` with the state in `eval`'s *instance* argument `cs`,
+where `simp` does not rewrite; after an inline and a few wp steps it sat under the renaming
+lenses and a chain of writes, and `generalizeReads` then cut it off from the invariant's reads
+(the `exit` goal became unprovable as stated).
+
+**Done.**  `simpReads` takes global reads out of `eval` (`eval_lens_global`,
+`eval_getter_global`) and pushes `.globals` through writes (`globals_intoLocal_set`,
+`globals_intoGlobal_set`, `globals_resetSetter_set`, `globals_globalL_set`, `globals_chain_get`,
+`globals_trafo_get`/`_emb_get`/`_rename_get`).  The inliner's cleaning pass reads a global at a
+state seen through a composite lens (`eval_chain_state_global_lens`/`_getter`).
+
+Remaining rough edges: procedure triples bind parameters in the precondition only (as in EC), so
+a postcondition about an argument needs a logical variable (`$q = n ==> $count = n`); a
+`while` test prints as `decide (§i < §q)`.

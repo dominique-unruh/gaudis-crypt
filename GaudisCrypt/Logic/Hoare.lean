@@ -144,6 +144,44 @@ theorem hoare_assign_wp {α} (x : Setter α ProgramState) (e : Getter α Program
     AsGetter.toG, AsSetter.toS, id_eq, expected_pure]
   exact Set.indicator_of_notMem (not_not.mpr hA) _
 
+/-- The wp rule for a conditional: each branch's precondition, under its outcome of the test. -/
+theorem hoare_if_wp {c : Getter Bool ProgramState} {p q : Stmt} {At Ae B : ProgramState → Prop}
+    (ht : hoareStmt At p B) (he : hoareStmt Ae q B) :
+    hoareStmt (fun σ => (c.get σ = true → At σ) ∧ (c.get σ = false → Ae σ))
+      (.ifThenElse c p q) B := by
+  rw [hoareStmt_iff_wp] at ht he ⊢
+  intro σ ⟨hAt, hAe⟩
+  simp only [programDenotation, wp_bind, wp_get_g, AsGetter.toG, id_eq, wp_ite]
+  cases hc : c.get σ
+  · simpa using he σ (hAe hc)
+  · simpa using ht σ (hAt hc)
+
+/-- The rule for a loop, with the invariant `I`: if the body preserves `I` whenever the test
+    passes, and `I` with a failed test implies `B`, then the loop goes from `I` to `B`.  Partial
+    correctness, so nothing is asked about termination. -/
+theorem hoare_while {c : Getter Bool ProgramState} {body : Stmt} (I : ProgramState → Prop)
+    {B : ProgramState → Prop}
+    (hbody : hoareStmt (fun σ => I σ ∧ c.get σ = true) body I)
+    (hexit : ∀ σ, I σ → c.get σ = false → B σ) :
+    hoareStmt I (.while c body) B := by
+  classical
+  refine hoareStmt_of_wp fun σ hI => ?_
+  -- the invariant as an upper bound on the loop's wp: `0` on `I`, `⊤` off it
+  let J : ProgramState → ENNReal := fun τ => if I τ then 0 else ⊤
+  have hle : (programDenotation (.while c body)).wp
+      (Set.indicator {r | ¬ B r.2} fun _ => 1) ≤ J := by
+    simp only [programDenotation]
+    refine wp_while_invariant _ _ J _ fun τ => ?_
+    by_cases hIτ : I τ
+    · simp only [wp_get_g, AsGetter.toG, id_eq, J, if_pos hIτ, nonpos_iff_eq_zero]
+      cases hc : c.get τ
+      · simpa using hexit τ hIτ hc
+      · simp only [if_true]
+        exact SubProbability.expected_eq_zero_of_null (hbody τ ⟨hIτ, hc⟩)
+          fun r hr => by simp [show I r.2 from not_not.mp hr]
+    · exact le_of_le_of_eq le_top (if_neg hIτ).symm
+  exact nonpos_iff_eq_zero.mp ((hle σ).trans_eq (if_pos hI))
+
 /-- Every procedure satisfies the trivial triple: partial correctness asks nothing of a run. -/
 theorem hoareProc_true {sig} (p : Procedure sig) :
     hoareProc (fun _ _ => True) p (fun _ _ => True) := fun _ _ _ => by

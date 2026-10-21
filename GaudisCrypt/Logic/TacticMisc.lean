@@ -125,8 +125,9 @@ def hoareOnStmt (f : Lean.Expr → MetaM (Lean.Expr × Lean.Expr)) (g : MVarId) 
 
 /-- Close a goal `hoareStmt ?A s B`, `?A` a metavariable, by the wp rules: `hoare_seq` (the second
 statement first, which fixes the intermediate condition), `hoare_assign_wp` (resets included),
-`hoare_sample_wp` and `hoare_skip_wp`.  `?A` ends up assigned the weakest precondition.  `let`s
-in the statement are zeta-reduced.  Fails on anything else (`call`, `if`, `while`, holes). -/
+`hoare_sample_wp`, `hoare_skip_wp` and `hoare_if_wp`.  `?A` ends up assigned the weakest
+precondition.  `let`s in the statement are zeta-reduced.  Fails on anything else (`call`,
+`while`, holes). -/
 partial def hoareWpClose (g : MVarId) : MetaM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   unless ty.isAppOfArity ``hoareStmt 3 do
@@ -149,15 +150,26 @@ partial def hoareWpClose (g : MVarId) : MetaM Unit := g.withContext do
     | some ``StmtWithHoles.sample =>
         mkAppOptM ``hoare_sample_wp #[none, some (s.getArg! 3), some (s.getArg! 2), some B]
     | some ``StmtWithHoles.skip => mkAppM ``hoare_skip_wp #[B]
+    | some ``StmtWithHoles.ifThenElse =>
+        -- each branch closed on its own, with its own open precondition
+        let close (b : Lean.Expr) : MetaM Lean.Expr := do
+          let pre ← mkFreshExprMVar (← inferType B)
+          let gb ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[pre, b, B])
+          hoareWpClose gb.mvarId!
+          instantiateMVars gb
+        let (ht, he) := (← close (s.getArg! 2), ← close (s.getArg! 3))
+        mkAppOptM ``hoare_if_wp #[some (s.getArg! 1), some (s.getArg! 2), some (s.getArg! 3),
+          none, none, some B, some ht, some he]
     | _ => throwError "hoareWp: no wp rule for the statement{indentExpr s}"
   unless ← isDefEq (← inferType pr) ty do
     throwError "hoareWp: the wp rule{indentExpr (← inferType pr)}\ndoes not match the goal\
       {indentExpr ty}"
   g.assign pr
 
-/-- On a goal `hoareStmt A s B` with `s` straight-line code (assignments, resets, samplings,
-`skip`, in sequence): if `A` is a metavariable, close the goal and assign `A` the weakest
-precondition (`hoareWpClose`); otherwise reduce it, by `hoare_pre`, to the goal
+/-- On a goal `hoareStmt A s B` with `s` loop- and call-free code (assignments, resets,
+samplings, `skip`, conditionals, in sequence): if `A` is a metavariable, close the goal and
+assign `A` the weakest precondition (`hoareWpClose`); otherwise reduce it, by `hoare_pre`, to
+the goal
 `∀ σ, A σ → wp σ`, which is returned. -/
 def hoareWpFull (g : MVarId) : MetaM (List MVarId) := g.withContext do
   let ty ← instantiateMVars (← g.getType)
