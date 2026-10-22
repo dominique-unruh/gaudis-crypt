@@ -203,6 +203,58 @@ theorem Stmt.ewp_call {sig} (x : Setter sig.ret ProgramState) (p : Procedure sig
     wp_bind, wp_get_g, wp_zoom, wp_set_g, AsGetter.toG, AsSetter.toS, id_eq, Procedure.ewp]
   rfl
 
+/-! ## Expectation algebra
+
+What is left of a judgment once `phoare_wp` has run: sums and quotients of symbolic procedure
+expectations.  Linearity, losslessness, and the arithmetic of averages. -/
+
+theorem Procedure.ewp_add {sig} (p : Procedure sig) (args : sig.ParamType)
+    (F G : sig.ret → VariableAssignment → ENNReal) (σ : VariableAssignment) :
+    p.ewp args (fun v g => F v g + G v g) σ = p.ewp args F σ + p.ewp args G σ :=
+  ProgramDenotation.wp_add _ (fun r => F r.1 r.2) (fun r => G r.1 r.2) σ
+
+theorem Procedure.ewp_const_mul {sig} (p : Procedure sig) (args : sig.ParamType) (c : ENNReal)
+    (F : sig.ret → VariableAssignment → ENNReal) (σ : VariableAssignment) :
+    p.ewp args (fun v g => c * F v g) σ = c * p.ewp args F σ :=
+  ProgramDenotation.wp_const_mul _ c (fun r => F r.1 r.2) σ
+
+theorem Procedure.ewp_finset_sum {sig} {β : Type*} [Fintype β] (p : Procedure sig)
+    (args : sig.ParamType) (F : β → sig.ret → VariableAssignment → ENNReal)
+    (σ : VariableAssignment) :
+    p.ewp args (fun v g => ∑ b, F b v g) σ = ∑ b, p.ewp args (F b) σ :=
+  ProgramDenotation.wp_finset_sum _ (fun b r => F b r.1 r.2) σ
+
+theorem Procedure.ewp_mono {sig} (p : Procedure sig) (args : sig.ParamType)
+    {F G : sig.ret → VariableAssignment → ENNReal} (h : ∀ v g, F v g ≤ G v g)
+    (σ : VariableAssignment) : p.ewp args F σ ≤ p.ewp args G σ :=
+  ProgramDenotation.wp_le_wp_of_le _ _ _ (fun r => h r.1 r.2) σ
+
+/-- A lossless procedure's expectation of a constant is the constant. -/
+theorem Procedure.IsLossless.ewp_const {sig} {p : Procedure sig} (h : p.IsLossless)
+    (args : sig.ParamType) (c : ENNReal) (σ : VariableAssignment) :
+    p.ewp args (fun _ _ => c) σ = c := by
+  have := Procedure.ewp_const_mul p args c (fun _ _ => 1) σ
+  simp only [mul_one] at this
+  rw [this, h args σ, mul_one]
+
+/-- The expectation of a constant is at most the constant (any procedure). -/
+theorem Procedure.ewp_const_le {sig} (p : Procedure sig) (args : sig.ParamType) (c : ENNReal)
+    (σ : VariableAssignment) : p.ewp args (fun _ _ => c) σ ≤ c :=
+  ProgramDenotation.wp_const_le _ c σ
+
+/-- An event and its negation partition. -/
+theorem indicatorE_add_not (Q : Prop) : indicatorE Q + indicatorE (¬ Q) = 1 := by
+  by_cases h : Q <;> simp [indicatorE, h]
+
+theorem indicatorE_not_add (Q : Prop) : indicatorE (¬ Q) + indicatorE Q = 1 := by
+  rw [add_comm, indicatorE_add_not]
+
+/-- The average of a constant over a nonempty finite type is the constant. -/
+theorem ENNReal.sum_div_card {α : Type*} [Fintype α] [Nonempty α] (c : ENNReal) :
+    ∑ _x : α, c / (Fintype.card α : ENNReal) = c := by
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
+    ENNReal.mul_div_cancel' (by simp [Fintype.card_ne_zero]) (by simp)]
+
 /-! ## Procedure judgments as statement judgments -/
 
 /-- A procedure judgment is the statement judgment about the one-line body `res <- p(args);`, as

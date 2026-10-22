@@ -70,3 +70,13 @@ statements — including through abstract calls, left symbolic as
     `HoareWp.simpGoalArg` (generalized `simpReads`).
   * First proof: `phoare[ FairCoin.flip : True ==> §res = true ] = (1 / 2)` in 5 tactic lines
     (`Logic/PHoareWpTest.lean`).
+
+* 2026-10-22 — **Milestone 1 done** (`Examples/Pedersen/HidingPHoare.lean`).
+  * Expectation algebra in `Logic/PHoare.lean`: `Procedure.ewp_add`/`_const_mul`/`_finset_sum`/
+    `_mono`, `Procedure.IsLossless.ewp_const`, `Procedure.ewp_const_le`, `indicatorE_add_not`,
+    `ENNReal.sum_div_card`.
+  * `fakecommit_half_phoare` (judgment) + `fakecommit_half'` (EC's statement, via `byphoare`):
+    9 + 5 tactic lines, against ~70 in `Hiding.lean`.  No `swap`/`rnd (pred1 b')`: the exact
+    expectation keeps both adversary calls symbolic, and one `simp only` (linearity, the
+    partition of the coin, losslessness, averages) closes it.
+  * `hi_ll_phoare`: 6 tactic lines, against ~45.

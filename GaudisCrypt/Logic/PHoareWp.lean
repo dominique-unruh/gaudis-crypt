@@ -140,6 +140,7 @@ def ewpDecls : List Name :=
    ``Stmt.ewp_ifThenElse, ``StmtWithHoles.ewp_call, ``Stmt.ewp_call,
    ``uniform_expected, ``Fintype.sum_bool, ``Fintype.card_bool, ``Nat.cast_ofNat,
    ``Bool.true_eq_false, ``Bool.false_eq_true, ``if_true, ``if_false,
+   ``Bool.true_beq, ``Bool.false_beq, ``Bool.not_eq_true',
    -- events, and the arithmetic they leave
    ``indicatorE_true, ``indicatorE_false, ``ENNReal.zero_div, ``zero_add, ``add_zero, ``mul_one,
    ``one_mul, ``mul_zero, ``zero_mul] ++ HoareWp.simpReadsDecls

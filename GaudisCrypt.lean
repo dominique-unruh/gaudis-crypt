@@ -90,4 +90,5 @@ import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding
 import GaudisCrypt.Examples.Pedersen.HidingHoare
+import GaudisCrypt.Examples.Pedersen.HidingPHoare
 import GaudisCrypt.Examples.Pedersen.Pedersen
