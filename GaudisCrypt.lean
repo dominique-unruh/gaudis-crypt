@@ -29,6 +29,7 @@ import GaudisCrypt.Syntax.ExpressionSyntaxTest
 import GaudisCrypt.Syntax.ProgramSyntaxTest
 import GaudisCrypt.Syntax.ModuleSyntaxTest
 import GaudisCrypt.Syntax.HoareSyntaxTest
+import GaudisCrypt.Syntax.PHoareSyntaxTest
 import GaudisCrypt.Language.Granularity
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
@@ -68,6 +69,9 @@ import GaudisCrypt.Logic.HoareSplit
 import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.InlineTest
+import GaudisCrypt.Logic.PHoare
+import GaudisCrypt.Logic.PHoareWp
+import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.StmtEquiv

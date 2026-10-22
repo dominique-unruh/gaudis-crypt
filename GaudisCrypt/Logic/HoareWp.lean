@@ -79,6 +79,27 @@ def simpReadsDecls : List Name :=
    -- the trivial parts of a call's precondition (`hoare_call_wp` with `hoareProc_true`)
    ``implies_true, ``true_implies, ``and_true, ``true_and]
 
+/-- Simplify argument `i` of the goal (an application, `hoareStmt A s B` say) with `simp only`
+    over the declarations `decls` (theorems are rewritten with, definitions unfolded) and the
+    default simprocs, leaving the other arguments alone.  Never fails; an unchanged goal is
+    returned as is. -/
+def simpGoalArg (decls : List Name) (g : MVarId) (i : Nat) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let (f, args) := (ty.getAppFn, ty.getAppArgs)
+  let some B := args[i]? | throwError "simpGoalArg: no argument {i} in{indentExpr ty}"
+  let mut thms : SimpTheorems := {}
+  for n in decls do
+    if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
+    else thms ← thms.addDeclToUnfold n
+  let ctx ← Simp.mkContext (config := { decide := true }) (simpTheorems := #[thms])
+    (congrTheorems := ← getSimpCongrTheorems)
+  let (r, _) ← simp B ctx #[← Simp.getSimprocs]
+  let target := mkAppN f (args.set! i r.expr)
+  let some h := r.proof? | return ← g.replaceTargetDefEq target
+  let motive ← withLocalDeclD `x (← inferType B) fun x =>
+    mkLambdaFVars #[x] (mkAppN f (args.set! i x))
+  g.replaceTargetEq target (← mkCongrArg motive h)
+
 /-- Reads through writes, in the postcondition of a goal `hoareStmt A s B` (as `hoare_assign_wp`
     leaves it): `liftLens` of a program-state lens is the lens itself, `Lens.pair` splits a tuple
     write into one write per slot, `eval_lens_full` turns a read pinned at a written state into a
@@ -95,17 +116,7 @@ def simpReads (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   unless ty.isAppOfArity ``hoareStmt 3 do
     throwError "simpReads: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
-  let (A, s, B) := (ty.getArg! 0, ty.getArg! 1, ty.getArg! 2)
-  let mut thms : SimpTheorems := {}
-  for n in simpReadsDecls do
-    if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
-    else thms ← thms.addDeclToUnfold n
-  let ctx ← Simp.mkContext (config := { decide := true }) (simpTheorems := #[thms])
-    (congrTheorems := ← getSimpCongrTheorems)
-  let (r, _) ← simp B ctx #[← Simp.getSimprocs]
-  let some h := r.proof? | return ← g.replaceTargetDefEq (mkApp3 (mkConst ``hoareStmt) A s r.expr)
-  g.replaceTargetEq (mkApp3 (mkConst ``hoareStmt) A s r.expr)
-    (← mkCongrArg (mkApp2 (mkConst ``hoareStmt) A s) h)
+  simpGoalArg (← simpReadsDecls.mapM pure) g 2
 
 /-- One backwards step on a goal `hoareStmt A {x₁; …; xₙ} B`: split off the last `k` statements
 (`hoareSplit`), close their triple by the wp rules, which fixes the intermediate condition

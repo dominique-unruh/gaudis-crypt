@@ -171,7 +171,7 @@ and `x` in the body print under the same name and the same `var` line. -/
 section Printing
 open Lean PrettyPrinter Delaborator SubExpr ProgramSyntax
 
-private partial def syntaxMentions (n : Name) : Syntax → Bool
+partial def syntaxMentions (n : Name) : Syntax → Bool
   | .ident _ _ v _ => v.eraseMacroScopes == n
   | .node _ _ args => args.any (syntaxMentions n)
   | _ => false
@@ -179,7 +179,7 @@ private partial def syntaxMentions (n : Name) : Syntax → Bool
 /-- The `P` of a condition `c` (after the spine binders): `(GaudiExpr[ P ]).get` with no state
 argument of its own, or failing that, `c CurrentState.state` (see
 `ProgramSyntax.getterViaState`). -/
-private def delabCondBody : DelabM Term :=
+def delabCondBody : DelabM Term :=
   (do guard ((← getExpr).isAppOfArity ``Getter.get 3)
       withNaryArg 2 delabGaudiExpr) <|>
   (do withExpr (← getterViaState (← getExpr)) delabGaudiExpr)
@@ -187,7 +187,7 @@ private def delabCondBody : DelabM Term :=
 /-- A condition of a statement triple: the spine `let`s, then the condition proper.  A
 condition without them is printed as it is, the macro wraps it in them again; that is only
 faithful if it mentions none of their names. -/
-private def delabStmtCond (spineNames : Array Name) : DelabM (Array Name × Term) :=
+def delabStmtCond (spineNames : Array Name) : DelabM (Array Name × Term) :=
   (withPeeledLets spineNames.size (fun _ => true) #[] (anon := true) fun bs => do
       guard (bs == spineNames)
       return (bs, ← delabCondBody)) <|>
@@ -230,7 +230,7 @@ open Lean Elab Term Meta in section
 /-- The procedure a triple is about, elaborated (`M.procedure` for a procedure module `M`), the
 same thing as syntax, and its signature.  `M` may be a procedure module — then the triple is
 about `M.procedure` — or already a `Procedure`. -/
-private def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) := do
+def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) := do
   let e ← withSynthesize <| elabTerm M none
   -- `M` itself did not elaborate; its own error has been reported, and a second one about the
   -- type we could not read off it would only be noise
@@ -267,7 +267,7 @@ private def recordedParamNames? {m} [Monad m] [MonadEnv m] (e : Lean.Expr) :
   return gaudiProcParamNamesAttr.getParam? (← getEnv) c
 
 /-- `Module.Proc.procedure M` ↦ the procedure module `M` it is the procedure of. -/
-private def procModule? (p : Lean.Expr) : Option Lean.Expr :=
+def procModule? (p : Lean.Expr) : Option Lean.Expr :=
   if p.isAppOfArity ``Module.Proc.procedure 2 then some p.appArg! else none
 
 /-- The strings of a list that reduces (`whnf`, element by element) to a literal list of string
@@ -292,7 +292,7 @@ def knownParamNames? (p : Lean.Expr) : MetaM (Option (Array Name)) := do
 /-- The parameter names of a triple about the procedure `p`: the ones written at the triple if
 there are any (they win, with a warning when the known names disagree), else the known ones
 (`knownParamNames?`). -/
-private def paramNamesOf (M : Term) (written? : Option (Array Ident)) (p : Lean.Expr) (n : Nat) :
+def paramNamesOf (M : Term) (written? : Option (Array Ident)) (p : Lean.Expr) (n : Nat) :
     TermElabM (Array Name) := do
   let recorded? ← knownParamNames? p
   match written? with
@@ -374,7 +374,7 @@ depend on the attribute still being there. -/
 section Printing
 open Lean PrettyPrinter Delaborator SubExpr
 
-private partial def packedCondGo (e : Lean.Expr) (d : Nat) : Option Nat :=
+partial def packedCondGo (e : Lean.Expr) (d : Nat) : Option Nat :=
   match e with
   | .letE _ _ v b _ => if v.isAppOf ``Getter.mk then (· + 1) <$> packedCondGo b (d + 1) else none
   | _ =>
@@ -389,12 +389,12 @@ private partial def packedCondGo (e : Lean.Expr) (d : Nat) : Option Nat :=
 
 /-- The number of `let`s in a condition of the shape the procedure-triple elaborator builds,
 or `none` if it has some other shape. -/
-private def packedCondLets? : Lean.Expr → Option Nat
+def packedCondLets? : Lean.Expr → Option Nat
   | .lam _ _ (.lam _ _ b _) _ => packedCondGo b 0
   | _ => none
 
 /-- The bound names and the condition term of one side of a procedure triple. -/
-private def delabProcCond (n : Nat) : DelabM (Array Name × Term) :=
+def delabProcCond (n : Nat) : DelabM (Array Name × Term) :=
   withBindingBody `args <| withBindingBody `σ <|
     withPeeledLets n (·.isAppOf ``Getter.mk) #[] fun names => do
       return (names, ← withNaryArg 2 delabGaudiExpr)
@@ -440,14 +440,14 @@ open Lean Meta Elab Tactic
 
 /-- The parameter names of the procedure `p` with `n` parameters: `knownParamNames?`, else
 `arg1`, …, `argn`. -/
-private def procParamNames (p : Lean.Expr) (n : Nat) : MetaM (Array String) := do
+def procParamNames (p : Lean.Expr) (n : Nat) : MetaM (Array String) := do
   if let some ns ← knownParamNames? p then
     if ns.size == n then return ns.map (·.toString (escape := false))
   return (Array.range n).map fun i => s!"arg{i + 1}"
 
 /-- The local variable `n : T`: its slot `varLens ⟨n, T, …⟩` in the locals, and the same slot as
 `localVarLens n T` in the program state.  The key is the literal `variable_name_key` gives. -/
-private def mkVarSlots (n : String) (T : Lean.Expr) :
+def mkVarSlots (n : String) (T : Lean.Expr) :
     MetaM (Lean.Expr × Lean.Expr) := do
   let name ← VariableName.mkTerm n T
   let a := name.getAppArgs
@@ -457,7 +457,7 @@ private def mkVarSlots (n : String) (T : Lean.Expr) :
 /-- The tuple lens of the slots `ls` over the carrier `m` (`typeListToTuple`'s shape): `Lens.punit`
 for none, the slot itself for one, `Lens.pair` on the right-nested rest otherwise.  Only the
 lemma's side needs it; the statement reads the slots one by one. -/
-private def mkTupleLens (m : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
+def mkTupleLens (m : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
   | [] => mkAppOptM ``Lens.punit #[some m, some (mkConst ``Unit), none]
   | [l] => pure l
   -- `mkAppOptM`, not `mkAppM`: the trailing `Lens.Disjoint` instance has to be synthesized too
@@ -465,12 +465,12 @@ private def mkTupleLens (m : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
       mkAppOptM ``Lens.pair #[none, none, none, some l, some (← mkTupleLens m ls), none]
 
 /-- `L.get s`, read through `getter`. -/
-private def mkLensGet (L s : Lean.Expr) : MetaM Lean.Expr := do
+def mkLensGet (L s : Lean.Expr) : MetaM Lean.Expr := do
   mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[L], s]
 
 /-- The tuple `(x₁.get s, …, xₙ.get s)` of reads of the slots `ls` at `s` (`typeListToTuple`'s
 shape, `()` for none). -/
-private def mkTupleRead (s : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
+def mkTupleRead (s : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
   | [] => pure (mkConst ``Unit.unit)
   | [l] => mkLensGet l s
   | l :: ls => do mkAppM ``Prod.mk #[← mkLensGet l s, ← mkTupleRead s ls]
@@ -478,7 +478,7 @@ private def mkTupleRead (s : Lean.Expr) : List Lean.Expr → MetaM Lean.Expr
 /-- Reduce, up to defeq, the projections a procedure triple's precondition takes of the argument
 tuple, once that tuple is a literal tuple: `Lens.id.get t` ↦ `t`, `L.ofst.get t` ↦ `L.get t.1`,
 `L.osnd.get t` ↦ `L.get t.2`, `(x, y).1` ↦ `x`, `(x, y).2` ↦ `y`. -/
-private def reduceArgProjections (e : Lean.Expr) : MetaM Lean.Expr :=
+def reduceArgProjections (e : Lean.Expr) : MetaM Lean.Expr :=
   Meta.transform e (post := fun e => do
     let r? ← do
       if let some (l, t) := ProgramSyntax.lensGet? e then

@@ -2,6 +2,7 @@ import GaudisCrypt.Syntax.ExpressionSyntax
 import GaudisCrypt.Syntax.ProgramSyntax
 import GaudisCrypt.Syntax.ModuleSyntax
 import GaudisCrypt.Syntax.HoareSyntax
+import GaudisCrypt.Syntax.PHoareSyntax
 
 /-! # Concrete syntax
 
