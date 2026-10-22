@@ -95,9 +95,20 @@ judgment), instead of one implementation per pair; plus tactics that dispatch on
   coupling facts (`bind_pure_id`, `uniform_bind_not`, `uniform_support`).  `id_eq` was added to
   `simpReadsDecls` (an `if` without `else` updates by `id`).
 
-Known gaps: no `equiv_if` tactic (the rule exists; deterministic `if`s go through wp); no one-sided
-call/`if`/`while` (EC's `call{1}`, `if{1}`, `while{1}`); the procedure form does not print; no
-`sp`/`swap`/`conseq` tactics (the lemmas `prhlStmt_pre`/`_post` work with `apply`/`refine`).
+Added later the same night: `equiv_if` (both sides; `equiv_if{i}` one side, EC's `if{i}`,
+`prhlStmt_if_left/_right`), `equiv_sym`, `prhlProc_refl` (EC's `call (_ : true)` on the same code),
+`prhlProc.trans` (game hopping), `prhlProc_conseq`; the procedure form prints
+(`equiv[ M₁ (x) ~ M₂ (y) : P ==> Q ]`, round-trip tests); simp facts for couplings and one-sided
+samplings (`uniform_bind_add_left`, `uniform_bind_xor`, `uniform_expected_one`).  pHoare: a loop
+rule for lower bounds with a variant, `phoare_while_ge I variant V` (`Stmt.ewp_while_ge_variant`),
+for counted loops.  Examples: all of EC's `PIR.ec`; `Examples/OTP.lean` (perfect secrecy against
+any adversary: `equiv_call prhlProc_refl _` for the adversary, `equiv_rnd (fun k => §m{1} + k)`).
+
+Known gaps: no one-sided call/`while` (EC's `call{1}`, `while{1}`); `equiv_if` only on whole
+statements (cut with `equiv_seq` first); no `sp`/`swap`/`conseq` tactics (the lemmas
+`prhlStmt_pre`/`_post` work with `apply`/`refine`); no `byequiv` tactic (the lemmas
+`Procedure.Pr_eq_of_prhlProc`/`_le_` are one term).  `variant` is now a keyword (from
+`phoare_while_ge … variant …`), hence the goal tag `decreases`.
 
 ## Next
 
