@@ -39,8 +39,28 @@ judgment), instead of one implementation per pair; plus tactics that dispatch on
 * Regression test: every hoare/phoare proof in the repository, plus `stmt_*` tests on both
   judgments in `Logic/PHoareWpTest.lean`.
 
+## Step 2 (wp)
+
+* `Stmt.Det d upd` (`Logic/Judgment.lean`): `d` runs as the state update `upd` (its wp of any
+  postcondition is that postcondition after `upd`), with rules for `skip`, assignment (resets
+  included), sequence and `if`, and the syntax-directed builder `Judgment.detOf?`.
+* Descriptor fields: `postArg`; `detLemma` (`J A s (B ∘ upd) → J A (s; d) B` — one per judgment,
+  the shared core); `sampleLemma`, `callLemma` (judgment-specific: `∀ a ∈ support` /
+  average / symbolic call; Hoare has no call rule without a spec); `postSimp`, `postSimprocs`.
+* `Logic/JudgmentWp.lean`: the driver `Judgment.wpStep k` — one statement at a time from the
+  end, classify (deterministic / sampling / call), apply the registered rule, simplify the
+  postcondition.  `hoare_wp`, `phoare_wp` and the dispatching `stmt_wp` are all this driver.
+  Rules: `hoare_seq_det`, `hoare_seq_sample` (`TacticMisc`), `phoareStmt_seq_det`,
+  `phoareStmt_seq_sample`, `phoareStmt_seq_call` (`PHoareWp`).
+* The Hoare-only wp machinery (`hoareWpClose`, `hoareWpFull`, ~70 lines) is gone.
+* Behaviour change: a deterministic `if` now updates the state conditionally, so the condition
+  stays inside values (`(if b then 1 else 0) ≤ 1`) where the old Hoare rule split the
+  postcondition (`if b then 1 ≤ 1 else 0 ≤ 1`); `Getter.get_ite`/`ProgramState.globals_ite`
+  push reads into the conditional state.  One test adjusted (`QueryCounting.lean`).  An `if`
+  whose branches sample or call is not handled generically (neither old tactic needed it in any
+  proof); a per-judgment `ifLemma` would be the place for it.
+
 ## Next
 
-* Step 2: the deterministic part of wp on a shared core.
 * Step 3: pRHL syntax; `prhl_left`/`prhl_right` as one descriptor per side (needs `stmtArg` to
   select the side's statement, and a transport lemma per side).

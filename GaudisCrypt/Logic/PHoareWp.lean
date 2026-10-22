@@ -71,6 +71,37 @@ theorem StmtWithHoles.ewp_call {sig} (x : Setter sig.ret ProgramState) (p : Proc
           σ.globals :=
   Stmt.ewp_call x p args g
 
+/-! ## wp rules for the generic driver (`Logic/JudgmentWp.lean`) -/
+
+/-- Trailing deterministic code (`Stmt.Det`): the expectation after the update. -/
+theorem phoareStmt_seq_det {A : ProgramState → Prop} {s d : Stmt}
+    {upd : ProgramState → ProgramState} {g r : ProgramState → ENNReal}
+    {ρ : ENNReal → ENNReal → Prop} (hd : Stmt.Det d upd)
+    (h : phoareStmt A s (fun σ => g (upd σ)) ρ r) : phoareStmt A (.seq s d) g ρ r := by
+  rw [phoareStmt_seq_iff]
+  have hd' : d.ewp g = fun σ => g (upd σ) := funext fun σ => hd _ σ
+  rwa [hd']
+
+/-- A trailing sampling: the average over the distribution. -/
+theorem phoareStmt_seq_sample {α} {A : ProgramState → Prop} {s : Stmt}
+    {x : Setter α ProgramState} {e : Getter (SubProbability α) ProgramState}
+    {g r : ProgramState → ENNReal} {ρ : ENNReal → ENNReal → Prop}
+    (h : phoareStmt A s (fun σ => (e.get σ).expected fun a => g (x.set a σ)) ρ r) :
+    phoareStmt A (.seq s (.sample x e)) g ρ r := by
+  rw [phoareStmt_seq_iff, Stmt.ewp_sample]
+  exact h
+
+/-- A trailing call, without a specification: the callee's expectation, symbolically. -/
+theorem phoareStmt_seq_call {sig} {A : ProgramState → Prop} {s : Stmt}
+    {x : Setter sig.ret ProgramState} {p : Procedure sig}
+    {args : Getter sig.ParamType ProgramState} {g r : ProgramState → ENNReal}
+    {ρ : ENNReal → ENNReal → Prop}
+    (h : phoareStmt A s (fun σ => p.ewp (args.get σ)
+      (fun v gl => g (x.set v (ProgramState.globalL.set gl σ))) σ.globals) ρ r) :
+    phoareStmt A (.seq s (StmtWithHoles.call x p args)) g ρ r := by
+  rw [phoareStmt_seq_iff, StmtWithHoles.ewp_call]
+  exact h
+
 namespace PHoareWp
 
 open Lean Meta Elab Tactic TacticMisc
@@ -190,17 +221,18 @@ run_meta registerJudgment {
   -- the inliner's cleaning does not push `.globals` through its renaming lenses: simplify the
   -- conditions and the bound as expectations are simplified
   condSimp := ewpDecls
-  condSimprocs := [``reduceProcedureConst] }
+  condSimprocs := [``reduceProcedureConst]
+  postArg := 2
+  detLemma := some ``phoareStmt_seq_det
+  sampleLemma := some ``phoareStmt_seq_sample
+  callLemma := some ``phoareStmt_seq_call
+  postSimp := ewpDecls
+  postSimprocs := [``reduceProcedureConst] }
 
-/-- One backwards step on a goal `phoareStmt A {x₁; …; xₙ} g ρ r`: split off the last `k`
-statements (`phoareSplit`), and continue with the judgment about `x₁; …; xₙ₋ₖ`, the expectation
-replaced by the exact expectation of the last `k` statements (`phoareStmt_seq_iff`), computed and
-simplified (`ewpDecls`). -/
-def phoareWpStep (k : Nat) (g : MVarId) : MetaM MVarId := do
-  let g ← phoareSplit k g
-  let gs ← applyIffMpr ``phoareStmt_seq_iff g
-  let [g] := gs | throwError "phoare_wp: `phoareStmt_seq_iff` left {gs.length} goals"
-  simpPost g
+/-- `phoare_wp k`'s step: the last `k` statements by wp — the judgment-generic `Judgment.wpStep`,
+with the `phoare` rules registered above (deterministic code, an exact average for a sampling, a
+symbolic expectation for a call), the expectation simplified by `ewpDecls` after each step. -/
+def phoareWpStep (k : Nat) (g : MVarId) : MetaM MVarId := Judgment.wpStep k g
 
 elab "phoare_wp " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> phoareWpStep k.getNat g

@@ -1,12 +1,14 @@
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.HoareSplit
+import GaudisCrypt.Logic.JudgmentWp
 
 /-!
 # Backwards wp steps on a Hoare triple
 
-`hoareWpStep k`: split off the last `k` statements of a triple's statement (`hoareSplit`), close
-their triple by the wp rules (`hoareWpFull`), and simplify the reads in the resulting
-postcondition (`simpReads`).  All three are meta-functions on goals, without tactic syntax.
+`hoare_wp k`: the last `k` statements by wp — the judgment-generic `Judgment.wpStep`
+(`Logic/JudgmentWp.lean`) with the Hoare rules this file registers (`hoare_seq_det`,
+`hoare_seq_sample`), the postcondition simplified by `simpReadsDecls` after each step.  Plus
+`hoare_call`, `hoare_while` and `hoare_skip`, which are Hoare-specific.
 -/
 
 namespace GaudisCrypt
@@ -71,6 +73,8 @@ def simpReadsDecls : List Name :=
    ``if_pos, ``if_neg, ``not_false_eq_true,
    -- global reads, through writes to the state
    ``eval_lens_global, ``eval_getter_global, ``allGlobals_get,
+   -- reads of a conditional state (a deterministic `if`, `Stmt.Det.ite`)
+   ``Getter.get_ite, ``ProgramState.globals_ite,
    ``globals_intoLocal_set, ``globals_intoGlobal_set, ``globals_resetSetter_set,
    ``globals_globalL_set, ``globals_chain_get, ``globals_trafo_get, ``globals_emb_get,
    ``globals_rename_get,
@@ -118,22 +122,22 @@ def simpReads (g : MVarId) : MetaM MVarId := g.withContext do
     throwError "simpReads: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
   simpGoalArg (← simpReadsDecls.mapM pure) g 2
 
-/-- One backwards step on a goal `hoareStmt A {x₁; …; xₙ} B`: split off the last `k` statements
-(`hoareSplit`), close their triple by the wp rules, which fixes the intermediate condition
-(`hoare_seq`, `hoareWpFull`), and continue with the triple about `x₁; …; xₙ₋ₖ`, its
-postcondition simplified (`simpReads`).  The last `k` statements must be straight-line code. -/
-def hoareWpStep (k : Nat) (g : MVarId) : MetaM MVarId := do
-  let g ← HoareSplit.hoareSplit k g
-  -- as `apply hoare_seq`: the second statement's triple first, the intermediate condition open
-  let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_seq)
-  let gq :: gp :: _ := gs | throwError "hoareWpStep: `hoare_seq` left{gs.length} goals"
-  let rest ← hoareWpFull gq
-  unless rest.isEmpty do
-    throwError "hoareWpStep: the wp rules left goals{rest.map (·.name)}"
-  simpReads gp
+run_meta registerJudgment {
+  head := ``hoareStmt
+  stmtArg := 1
+  equivLemma := ``hoareStmt_of_equiv
+  transportLemma := ``hoareStmt_of_equivInLens
+  postArg := 2
+  detLemma := some ``hoare_seq_det
+  sampleLemma := some ``hoare_seq_sample
+  postSimp := simpReadsDecls }
 
-/-- `hoare_wp k`: `hoareWpStep k` on the main goal — split off the last `k` statements, close
-their triple by the wp rules, and simplify the reads in the new postcondition. -/
+/-- `hoare_wp k`'s step: the last `k` statements by wp, one at a time from the end — the
+judgment-generic `Judgment.wpStep`, with the Hoare rules registered above (deterministic code:
+the postcondition after the update; a sampling: every value in the support), the postcondition
+simplified by `simpReadsDecls` after each step. -/
+def hoareWpStep (k : Nat) (g : MVarId) : MetaM MVarId := Judgment.wpStep k g
+
 elab "hoare_wp " k:num : tactic =>
   Elab.Tactic.liftMetaTactic1 fun g => some <$> hoareWpStep k.getNat g
 

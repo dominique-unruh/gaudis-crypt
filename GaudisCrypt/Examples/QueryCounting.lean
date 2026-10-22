@@ -94,6 +94,7 @@ example : hoare[ True ==> §u ≤ 1 ] {
   } := by
   hoare_wp 2
   hoare_skip
-  exact fun _ => trivial
+  -- the conditional stays inside the value (`Stmt.Det.ite`): `(if b then 1 else 0) ≤ 1`
+  exact fun _ a _ => by split <;> simp
 
 end GaudisCrypt.Examples.QueryCounting
