@@ -66,8 +66,8 @@ instance : Evaluatable (Lens T ProgramState) T where
 
 /-- The whole global state, as a value: `§allGlobals` (EC's `glob A` read at the current memory,
 or `&m` itself).  For conditions about everything an abstract procedure may have touched, which
-no single global variable names. -/
-def allGlobals : Getter VariableAssignment ProgramState := ⟨ProgramState.globals⟩
+no single global variable names.  The read-only face of `ProgramState.globalL`. -/
+def allGlobals : Getter VariableAssignment ProgramState := ProgramState.globalL.toGetter
 
 @[simp] theorem allGlobals_get (σ : ProgramState) : allGlobals.get σ = σ.globals := rfl
 
