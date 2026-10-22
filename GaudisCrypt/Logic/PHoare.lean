@@ -410,6 +410,155 @@ theorem phoareStmt_while_le {A : ProgramState → Prop} {pre body : Stmt}
   rw [phoareStmt_seq_iff]
   exact phoareStmt_le_of_le hpre fun σ => Stmt.ewp_while_le I g hbody hexit σ
 
+/-! ## Loops: termination and lower bounds
+
+An upper-bound invariant cannot see that a loop terminates — a loop that never does has
+expectation `0`, below everything.  Lower bounds need termination: `Stmt.ewp_while_one` is the
+zero-one argument (if every iteration exits with probability at least `ε > 0`, the loop
+terminates almost surely), and `Stmt.ewp_while_ge` the lower-bound rule built on it, by
+complement: with mass `1`, `Pr[g] = 1 − Pr[¬g]`, and `1 − I` is an upper invariant for `1 − g`. -/
+
+theorem Stmt.ewp_add (s : Stmt) (F G : ProgramState → ENNReal) (σ : ProgramState) :
+    s.ewp (fun τ => F τ + G τ) σ = s.ewp F σ + s.ewp G σ :=
+  ProgramDenotation.wp_add _ (fun r => F r.2) (fun r => G r.2) σ
+
+theorem Stmt.ewp_const_mul (s : Stmt) (c : ENNReal) (F : ProgramState → ENNReal)
+    (σ : ProgramState) : s.ewp (fun τ => c * F τ) σ = c * s.ewp F σ :=
+  ProgramDenotation.wp_const_mul _ c (fun r => F r.2) σ
+
+theorem Stmt.ewp_mono (s : Stmt) {F G : ProgramState → ENNReal} (h : ∀ τ, F τ ≤ G τ)
+    (σ : ProgramState) : s.ewp F σ ≤ s.ewp G σ :=
+  ProgramDenotation.wp_le_wp_of_le _ _ _ (fun r => h r.2) σ
+
+theorem Stmt.ewp_const_le (s : Stmt) (c : ENNReal) (σ : ProgramState) :
+    s.ewp (fun _ => c) σ ≤ c :=
+  ProgramDenotation.wp_const_le _ c σ
+
+/-- The fixed-point equation of a loop. -/
+theorem Stmt.ewp_while_unfold (c : Getter Bool ProgramState) (body : Stmt)
+    (g : ProgramState → ENNReal) (σ : ProgramState) :
+    Stmt.ewp (StmtWithHoles.while c body) g σ
+      = if c.get σ then body.ewp (Stmt.ewp (StmtWithHoles.while c body) g) σ else g σ := by
+  simp only [Stmt.ewp, programDenotation]
+  conv_lhs => rw [wp_while_unfold]
+  simp only [wp_get_g, AsGetter.toG, id_eq]
+
+/-- **Almost-sure termination** (the zero-one argument): if the body is lossless and exits the
+    loop with probability at least `ε > 0` from every state where the test passes, the loop
+    terminates with probability `1`. -/
+theorem Stmt.ewp_while_one {c : Getter Bool ProgramState} {body : Stmt} (ε : ENNReal)
+    (hε0 : ε ≠ 0) (hε1 : ε ≤ 1)
+    (hll : ∀ σ, c.get σ = true → body.ewp (fun _ => 1) σ = 1)
+    (hprog : ∀ σ, c.get σ = true → ε ≤ body.ewp (fun τ => indicatorE (c.get τ = false)) σ)
+    (σ : ProgramState) : Stmt.ewp (StmtWithHoles.while c body) (fun _ => 1) σ = 1 := by
+  set T := Stmt.ewp (StmtWithHoles.while c body) (fun _ => 1) with hT
+  have hT1 : ∀ τ, T τ ≤ 1 := fun τ => Stmt.ewp_const_le _ 1 τ
+  have hunfold : ∀ τ, T τ = if c.get τ then body.ewp T τ else 1 :=
+    fun τ => Stmt.ewp_while_unfold c body _ τ
+  set m := ⨅ τ, T τ
+  have hm1 : m ≤ 1 := (iInf_le _ σ).trans (hT1 σ)
+  -- every state is at least `m + (1 − m) ε` likely to terminate
+  have hlow : ∀ τ, m + (1 - m) * ε ≤ T τ := by
+    intro τ
+    rw [hunfold τ]
+    split_ifs with hc
+    · have hpt : ∀ τ', m + (1 - m) * indicatorE (c.get τ' = false) ≤ T τ' := by
+        intro τ'
+        cases hc' : c.get τ'
+        · rw [hunfold τ', hc', indicatorE_of rfl, mul_one, add_tsub_cancel_of_le hm1]
+          simp
+        · rw [indicatorE_of_not (by simp), mul_zero, add_zero]
+          exact iInf_le _ τ'
+      calc m + (1 - m) * ε
+          ≤ m * body.ewp (fun _ => 1) τ
+              + (1 - m) * body.ewp (fun τ' => indicatorE (c.get τ' = false)) τ := by
+            rw [hll τ hc, mul_one]
+            gcongr
+            exact hprog τ hc
+        _ = body.ewp (fun τ' => m + (1 - m) * indicatorE (c.get τ' = false)) τ := by
+            rw [Stmt.ewp_add, Stmt.ewp_const_mul]
+            congr 1
+            have := Stmt.ewp_const_mul body m (fun _ => 1) τ
+            simp only [mul_one] at this
+            exact this.symm
+        _ ≤ body.ewp T τ := Stmt.ewp_mono _ hpt τ
+    · calc m + (1 - m) * ε ≤ m + (1 - m) * 1 := by gcongr
+        _ = 1 := by rw [mul_one, add_tsub_cancel_of_le hm1]
+  -- so `m ≥ m + (1 − m) ε`, which forces `m = 1`
+  have hle : m + (1 - m) * ε ≤ m + 0 := by rw [add_zero]; exact le_iInf hlow
+  have hm_top : m ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hm1
+  have h0 : (1 - m) * ε = 0 := le_antisymm ((ENNReal.add_le_add_iff_left hm_top).mp hle) bot_le
+  have hm : 1 ≤ m := tsub_eq_zero_iff_le.mp ((mul_eq_zero.mp h0).resolve_right hε0)
+  exact le_antisymm (hT1 σ) (hm.trans (iInf_le _ σ))
+
+/-- With mass `1`, the expectation of `1 − g` is `1` minus that of `g` (for `g ≤ 1`). -/
+theorem Stmt.ewp_one_sub (s : Stmt) {g : ProgramState → ENNReal} (hg : ∀ τ, g τ ≤ 1)
+    {σ : ProgramState} (h1 : s.ewp (fun _ => 1) σ = 1) :
+    s.ewp (fun τ => 1 - g τ) σ = 1 - s.ewp g σ := by
+  have hsum : s.ewp g σ + s.ewp (fun τ => 1 - g τ) σ = 1 := by
+    have h : (fun τ => g τ + (1 - g τ)) = fun _ => (1 : ENNReal) :=
+      funext fun τ => add_tsub_cancel_of_le (hg τ)
+    rw [← Stmt.ewp_add, h, h1]
+  have hfin : s.ewp g σ ≠ ⊤ :=
+    ne_top_of_le_ne_top ENNReal.one_ne_top (hsum ▸ le_self_add)
+  exact ENNReal.eq_sub_of_add_eq hfin (by rw [add_comm]; exact hsum)
+
+/-- **The lower-bound rule for a loop**: an invariant `I ≤ 1` that one iteration does not decrease
+    (where the test passes) and that is below `g` where the test fails is a lower bound for the
+    loop's expectation of `g ≤ 1`, provided the loop terminates almost surely
+    (`Stmt.ewp_while_one`). -/
+theorem Stmt.ewp_while_ge {c : Getter Bool ProgramState} {body : Stmt}
+    (I g : ProgramState → ENNReal) (hI1 : ∀ τ, I τ ≤ 1) (hg1 : ∀ τ, g τ ≤ 1)
+    (hll : ∀ σ, c.get σ = true → body.ewp (fun _ => 1) σ = 1)
+    (hterm : ∀ σ, Stmt.ewp (StmtWithHoles.while c body) (fun _ => 1) σ = 1)
+    (hbody : ∀ σ, c.get σ = true → I σ ≤ body.ewp I σ)
+    (hexit : ∀ σ, c.get σ = false → I σ ≤ g σ) (σ : ProgramState) :
+    I σ ≤ Stmt.ewp (StmtWithHoles.while c body) g σ := by
+  -- `1 − I` bounds the loop's expectation of `1 − g` from above
+  have hup : Stmt.ewp (StmtWithHoles.while c body) (fun τ => 1 - g τ) σ ≤ 1 - I σ := by
+    refine Stmt.ewp_while_le (fun τ => 1 - I τ) _ (fun τ hc => ?_) (fun τ hc => ?_) σ
+    · rw [Stmt.ewp_one_sub body hI1 (hll τ hc)]
+      exact tsub_le_tsub_left (hbody τ hc) 1
+    · exact tsub_le_tsub_left (hexit τ hc) 1
+  rw [Stmt.ewp_one_sub _ hg1 (hterm σ)] at hup
+  have hfin : Stmt.ewp (StmtWithHoles.while c body) g σ ≤ 1 :=
+    (Stmt.ewp_mono _ hg1 σ).trans (Stmt.ewp_const_le _ 1 σ)
+  calc I σ = 1 - (1 - I σ) := (ENNReal.sub_sub_cancel ENNReal.one_ne_top (hI1 σ)).symm
+    _ ≤ 1 - (1 - Stmt.ewp (StmtWithHoles.while c body) g σ) := tsub_le_tsub_left hup 1
+    _ = _ := ENNReal.sub_sub_cancel ENNReal.one_ne_top hfin
+
+/-- An indicator is at most `1`. -/
+@[simp] theorem indicatorE_le_one (Q : Prop) : indicatorE Q ≤ 1 := by
+  by_cases h : Q <;> simp [indicatorE, h]
+
+/-- **The loop rule for lower bounds**, for a trailing loop: an invariant `I ≤ 1` that the body
+    does not decrease (from the states where the test passes) and that is below `g ≤ 1` where the
+    test fails, and almost-sure termination — the body is lossless and exits the loop with
+    probability at least `ε > 0` (`Stmt.ewp_while_one`).  The code before the loop is judged with
+    `I` as its expectation. -/
+theorem phoareStmt_while_ge {A : ProgramState → Prop} {pre body : Stmt}
+    {c : Getter Bool ProgramState} {g r : ProgramState → ENNReal} (I : ProgramState → ENNReal)
+    (ε : ENNReal)
+    (hbody : phoareStmt (fun σ => c.get σ = true) body I GE.ge I)
+    (hexit : ∀ σ, c.get σ = false → I σ ≤ g σ)
+    (hpre : phoareStmt A pre I GE.ge r)
+    (hll : phoareStmt (fun σ => c.get σ = true) body (fun _ => 1) Eq (fun _ => 1))
+    (hprog : phoareStmt (fun σ => c.get σ = true) body (fun τ => indicatorE (c.get τ = false))
+      GE.ge (fun _ => ε))
+    (hI1 : ∀ τ, I τ ≤ 1) (hg1 : ∀ τ, g τ ≤ 1) (hε0 : ε ≠ 0) (hε1 : ε ≤ 1) :
+    phoareStmt A (.seq pre (.while c body)) g GE.ge r := by
+  rw [phoareStmt_seq_iff]
+  refine phoareStmt_ge_of_ge hpre fun σ => ?_
+  exact Stmt.ewp_while_ge I g hI1 hg1 hll
+    (Stmt.ewp_while_one ε hε0 hε1 hll hprog) hbody hexit σ
+
+/-- Two procedure bounds give an exact judgment. -/
+theorem phoareProc_eq_of_le_ge {sig} {A : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}
+    {R : sig.ParamType → VariableAssignment → ENNReal} (h₁ : phoareProc A p G LE.le R)
+    (h₂ : phoareProc A p G GE.ge R) : phoareProc A p G Eq R := fun a σ hA =>
+  le_antisymm (h₁ a σ hA) (h₂ a σ hA)
+
 /-! ## Procedure judgments as statement judgments -/
 
 /-- A procedure judgment is the statement judgment about the one-line body `res <- p(args);`, as

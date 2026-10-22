@@ -393,6 +393,87 @@ elab "phoare_while_le " I:term : tactic => withMainContext do
   let Ie ← instantiateMVars Ie
   liftMetaTactic fun g => phoareWhileLeStep Ie g
 
+/-- Elaborate an expectation written like a condition of a `phoare[ ]` judgment about the goal's
+program: `§x` reads the program variable `x` (bound to its slot, as the notation binds it) or a
+global. -/
+def elabGoalExpectation (I : Term) : TacticM Lean.Expr := withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  let #[A, s, e, _, r] ← phoareParts ty | unreachable!
+  let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.printable)
+  let mut stx ← `((GaudiExpr[ $I ] : Getter ENNReal ProgramState).get)
+  for v in vars.reverse do
+    let some slot := v.slots[0]? | continue
+    stx ← `(letI $(mkIdent (.mkSimple v.name)) := $(← Term.exprToSyntax slot); $stx)
+  let Ie ← elabTermEnsuringType stx (← mkArrow (mkConst ``ProgramState) (mkConst ``ENNReal))
+  Term.synthesizeSyntheticMVarsNoPostponing
+  instantiateMVars Ie
+
+/-- A goal `∀ σ, …` about conditions and expectations: β-reduced, simplified like an expectation
+(`ewpDecls`), reads generalized. -/
+def cleanSideGoal (g : MVarId) : MetaM MVarId := g.withContext do
+  let t ← Core.betaReduce (← instantiateMVars (← g.getType))
+  let r ← simpExprWith ewpDecls t
+  let g ← match r.proof? with
+    | some pf => g.replaceTargetEq r.expr pf
+    | none => g.replaceTargetDefEq r.expr
+  try generalizeReads g catch _ => pure g
+
+/-- A loop step for a lower bound, on `phoareStmt A {x₁; …; xₙ₋₁; while c body} g ≥ r`, with the
+invariant `I` and the exit probability `ε` (`phoareStmt_while_ge`).  Goals, in order: `body`,
+`exit`, the code before the loop, `lossless`, `progress`, and whichever of `I ≤ 1`, `g ≤ 1`,
+`ε ≠ 0`, `ε ≤ 1` `simp` does not close. -/
+def phoareWhileGeStep (I ε : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
+  let g ← phoareSplit 1 g
+  let rule ← mkConstWithFreshMVarLevels ``phoareStmt_while_ge
+  let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
+  -- `{A pre body c g r} (I) (ε) (hbody) (hexit) (hpre) (hll) (hprog) (hI1) (hg1) (hε0) (hε1)`
+  unless ← isDefEq ms[6]! I do
+    throwError "phoare_while_ge: not an expectation on the program state:\
+      {indentExpr (← inferType I)}"
+  unless ← isDefEq ms[7]! ε do throwError "phoare_while_ge: `ε` is not an `ENNReal`"
+  unless ← isDefEq ty (← g.getType) do
+    throwError "phoare_while_ge: the goal is not a lower bound about a trailing loop:\
+      {indentExpr (← g.getType)}"
+  g.assign (mkAppN rule ms)
+  let tagged (i : Nat) (tag : Name) : MetaM MVarId := do
+    let m := ms[i]!.mvarId!
+    m.setTag tag
+    return m
+  let gBody ← tagged 8 `body
+  let gExit ← cleanSideGoal (← tagged 9 `exit)
+  gExit.setTag `exit
+  let gPre ← tagged 10 (← g.getTag)
+  let gLl ← tagged 11 `lossless
+  let gProg ← tagged 12 `progress
+  -- the side conditions: try `simp`
+  let mut side := []
+  for (i, tag) in [(13, `I_le_one), (14, `g_le_one), (15, `ε_ne_zero), (16, `ε_le_one)] do
+    let m ← cleanSideGoal (← tagged i tag)
+    m.setTag tag
+    -- `simp` either closes it or leaves it as it was (a goal it only rewrote would have to be
+    -- returned in place of `m`)
+    let st ← saveState
+    let closed ← try
+        let (r?, _) ← simpGoal m (← Simp.mkContext (simpTheorems := #[← getSimpTheorems])
+          (congrTheorems := ← getSimpCongrTheorems)) #[← Simp.getSimprocs]
+        pure r?.isNone
+      catch _ => pure false
+    unless closed do
+      st.restore
+      side := side ++ [m]
+  return [gBody, gExit, gPre, gLl, gProg] ++ side
+
+open Lean Elab Tactic in
+/-- `phoare_while_le I` for lower bounds: `phoare_while_ge I using ε` (`phoareWhileGeStep`), `I`
+written like a condition of a `phoare[ ]` judgment, `ε` a plain `ENNReal`. -/
+elab "phoare_while_ge " I:term " using " ε:term : tactic => do
+  let Ie ← elabGoalExpectation I
+  let εe ← withMainContext do
+    let e ← elabTermEnsuringType ε (mkConst ``ENNReal)
+    Term.synthesizeSyntheticMVarsNoPostponing
+    instantiateMVars e
+  liftMetaTactic fun g => phoareWhileGeStep Ie εe g
+
 /-- The end of a backwards proof, on a goal `phoareStmt A skip g ρ r`: the relation itself,
 `∀ σ, A σ → ρ (g σ) (r σ)` (`phoareStmt_skip_iff`), β-reduced, with the reads of the state
 generalized to plain values (`generalizeReads`). -/

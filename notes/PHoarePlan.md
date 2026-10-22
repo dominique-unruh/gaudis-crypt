@@ -130,3 +130,19 @@ its own, once adversaries calling oracle holes are in use.
     with the potential `indicatorE hit + (q − i) / |X|`.  Loop, exit and set-up goals are one
     line each; the per-round step is a ~15-line `calc` (pointwise bound, `ewp_const_le`, the
     union bound, arithmetic).
+
+* 2026-10-22 — **Loop lower bounds; rejection sampling** (`Examples/RejectionSampling.lean`).
+  * `Stmt.ewp_while_one` — almost-sure termination by the zero-one argument, from the loop's
+    fixed-point equation alone (`Stmt.ewp_while_unfold`), no Kleene iterates: with
+    `m = inf (termination probability)`, a lossless body exiting with probability `≥ ε > 0` gives
+    `m ≥ m + (1 − m) ε`, so `m = 1`.
+  * `Stmt.ewp_while_ge` — the lower-bound rule by complement: with mass `1`,
+    `Pr[g] = 1 − Pr[¬g]` (`Stmt.ewp_one_sub`), and `1 − I` is an upper invariant for `1 − g`.
+    `phoareStmt_while_ge`, tactic `phoare_while_ge I using ε`: goals `body` (`≥`), `exit`, the
+    code before, `lossless`, `progress`, and the side conditions `simp` cannot close
+    (`I ≤ 1`, `g ≤ 1`, `ε ≠ 0`, `ε ≤ 1`).
+  * `phoareProc_eq_of_le_ge`; `indicatorE_le_one`; `Stmt.ewp_add`/`_const_mul`/`_mono`/
+    `_const_le`.
+  * `sample_uniform`: `phoare[ Sampler.sample : True ==> res = t ] = 1 / |good|` for every good
+    `t` — the same invariant `if P x then indicatorE (x = t) else 1 / |good|` for both bounds
+    (it is a fixed point); `sample_good`: a bad point has probability `0` (invariant `0`).
