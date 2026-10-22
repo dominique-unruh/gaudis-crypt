@@ -93,5 +93,10 @@ coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
   probability needed) and EC's invariant as an indicator — the database needs characteristic 2
   (`char_two`); and **`PIR_s_uniform`** (`s_uniform`, relational, the xor coupling
   `b ^^ (decide (j ∈ x₁) ^^ decide (j ∈ x₂))`, queries as `Finset`s via `List.toFinset`, one step
-  lemma `toFinset_step`).  Not done: `Pr_PIR_s` (the explicit `2^-N`; the same variant rule
-  applies, with an exact expectation invariant).
+  lemma `toFinset_step`); `PIR_s'_uniform` (`s'_uniform`, the same coupling — the second query
+  takes `j` iff `b ^^ (j == i)`, and both runs have the same `i`); **`Pr_PIR_s`** (`pr_s`,
+  `Pr_PIR_s`: `Pr[set s = x] = if x ⊆ [0, N) then 2^-N else 0`) with one exact per-round equation
+  (`core_step`: the chance from round `j` is the average of the two chances from `j + 1`) serving
+  both `phoare_while_le` and `phoare_while_ge … variant N - §j` (the invariants differ only off
+  the reachable states), against EC's ~50 lines of `seq` with five probabilities, `conseq` and
+  `smt`; and `PIR_secuity_s_bypr` (`security_s_bypr`).  `Pr_PIR_s'` (the mirror) not done.

@@ -410,4 +410,173 @@ theorem s'_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h�
   rintro _ _ rfl
   simp
 
+/-! ## The distribution of a query (EC's `Pr_PIR_s`)
+
+`Pr[set s = x] = 2^-N` for every index set `x` in `[0, N)` (and `0` for any other): each index
+enters the query on its own fair coin.  One expectation invariant: after round `j`, the chance
+that the query will be `x` is `2^-(N-j)` if it is `x` below `j` so far, else `0` (`core`) — exact,
+so it bounds the loop from above (`phoare_while_le`) and, the loop being counted, from below with
+the variant `N - j` (`phoare_while_ge … variant …`).  The two invariants differ only off the
+reachable states (where the query has an index `≥ j`). -/
+
+open Classical in
+/-- The chance that the query ends up `x`, from round `j` with the query `q` so far. -/
+noncomputable def core (x : Finset ℕ) (j : ℕ) (q : List ℕ) : ENNReal :=
+  if q.toFinset = x.filter (· < j) ∧ x ⊆ Finset.range N then (1 / 2) ^ (N - j) else 0
+
+theorem core_le_one (x : Finset ℕ) (j : ℕ) (q : List ℕ) : core N x j q ≤ 1 := by
+  unfold core
+  split_ifs
+  · exact pow_le_one₀ zero_le (by norm_num)
+  · exact zero_le
+
+/-- **One round**: a fair coin decides whether `j` enters the query; the chance at round `j` is
+the average of the two chances at round `j + 1`. -/
+theorem core_step (x : Finset ℕ) {j : ℕ} {q : List ℕ} (hj : j < N)
+    (hq : ∀ y ∈ q.toFinset, y < j) :
+    core N x (j + 1) (j :: q) / 2 + core N x (j + 1) q / 2 = core N x j q := by
+  have hT := toFinset_step (x := x) true hq
+  have hF := toFinset_step (x := x) false hq
+  simp only [if_true, Bool.false_eq_true, if_false] at hT hF
+  have hpow : (2⁻¹ : ENNReal) ^ (N - (j + 1)) / 2 = 2⁻¹ ^ (N - j) := by
+    rw [show N - j = N - (j + 1) + 1 by omega, pow_succ, div_eq_mul_inv]
+  unfold core
+  simp only [hT, hF]
+  by_cases hq' : q.toFinset = x.filter (· < j) <;> by_cases hx : j ∈ x <;>
+    by_cases hR : x ⊆ Finset.range N <;> simp [hq', hx, hR, hpow]
+
+/-- The reachable states: `j ≤ N`, and the query only has indices below `j`. -/
+def Reach (j : ℕ) (q : List ℕ) : Prop := j ≤ N ∧ ∀ y ∈ q.toFinset, y < j
+
+instance (j : ℕ) (q : List ℕ) : Decidable (Reach N j q) := by
+  unfold Reach; infer_instance
+
+theorem reach_step {j : ℕ} {q : List ℕ} (h : Reach N j q) (hj : j < N) (b : Bool) :
+    Reach N (j + 1) (if b then j :: q else q) :=
+  ⟨hj, bounded_step h.2 b⟩
+
+theorem pr_s_le (x : Finset ℕ) :
+    phoare[ (main N D) : True ==> (§s).toFinset = x ]
+      ≤ (if x ⊆ Finset.range N then (1 / 2) ^ N else 0) := by
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_inline 0
+  phoare_inline 0
+  stmt_wp
+  phoare_while_le if Reach N §j §s then core N x §j §s else 1
+  case body =>
+    stmt_wp
+    phoare_wp 1
+    phoare_skip
+    intro j _ q hj
+    simp only [ite_self]
+    have hjN : j < N := by simpa using hj
+    by_cases hr : Reach N j q
+    · have hT : Reach N (j + 1) (j :: q) := ⟨hjN, by simpa using bounded_step hr.2 true⟩
+      have hF : Reach N (j + 1) q := ⟨hjN, by simpa using bounded_step hr.2 false⟩
+      rw [if_pos hT, if_pos hF, if_pos hr]
+      exact (core_step N x hjN hr.2).le
+    · rw [if_neg hr]
+      calc _ ≤ (1 : ENNReal) / 2 + 1 / 2 := by
+            gcongr <;> split_ifs <;> simp [core_le_one]
+        _ = 1 := ENNReal.add_halves 1
+  case exit =>
+    intro j q hj
+    by_cases hr : Reach N j q
+    · rw [if_pos hr]
+      have hjN : j = N := by have := hr.1; simp at hj; omega
+      subst hjN
+      by_cases hqx : q.toFinset = x
+      · have hR : x ⊆ Finset.range j := fun y hy =>
+          Finset.mem_range.mpr (hr.2 y (hqx ▸ hy))
+        have hf : x.filter (· < j) = x :=
+          Finset.filter_true_of_mem fun y hy => Finset.mem_range.mp (hR hy)
+        unfold core
+        rw [if_pos ⟨hqx.trans hf.symm, hR⟩]
+        simp
+      · rw [indicatorE_of_not hqx]
+        exact zero_le
+    · rw [if_neg hr]
+      exact indicatorE_le_one _
+  stmt_wp
+  phoare_skip
+  intro _
+  rw [if_pos ⟨Nat.zero_le _, by simp⟩]
+  unfold core
+  by_cases hR : x ⊆ Finset.range N <;> simp [hR]
+
+theorem pr_s_ge (x : Finset ℕ) :
+    phoare[ (main N D) : True ==> (§s).toFinset = x ]
+      ≥ (if x ⊆ Finset.range N then (1 / 2) ^ N else 0) := by
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_inline 0
+  phoare_inline 0
+  stmt_wp
+  phoare_while_ge (if Reach N §j §s then core N x §j §s else 0) variant N - §j
+  case body =>
+    stmt_wp
+    phoare_wp 1
+    phoare_skip
+    intro j _ q hj
+    simp only [ite_self]
+    have hjN : j < N := by simpa using hj
+    by_cases hr : Reach N j q
+    · have hT : Reach N (j + 1) (j :: q) := ⟨hjN, by simpa using bounded_step hr.2 true⟩
+      have hF : Reach N (j + 1) q := ⟨hjN, by simpa using bounded_step hr.2 false⟩
+      rw [if_pos hT, if_pos hF, if_pos hr]
+      exact (core_step N x hjN hr.2).ge
+    · rw [if_neg hr]
+      exact zero_le
+  case exit =>
+    intro j q hj
+    by_cases hr : Reach N j q
+    · rw [if_pos hr]
+      have hjN : j = N := by have := hr.1; simp at hj; omega
+      subst hjN
+      unfold core
+      split_ifs with h
+      · have hf : x.filter (· < j) = x :=
+          Finset.filter_true_of_mem fun y hy => Finset.mem_range.mp (h.2 hy)
+        rw [indicatorE_of (h.1.trans hf)]
+        simp
+      · exact zero_le
+    · rw [if_neg hr]
+      exact zero_le
+  case decreases =>
+    intro k
+    stmt_wp
+    hoare_wp 1
+    hoare_skip
+    intro j _ ⟨hj, hk⟩ _ _
+    simp only [ite_self, decide_eq_true_eq] at hj ⊢
+    omega
+  stmt_wp
+  phoare_skip
+  intro _
+  rw [if_pos ⟨Nat.zero_le _, by simp⟩]
+  unfold core
+  by_cases hR : x ⊆ Finset.range N <;> simp [hR]
+
+/-- **The distribution of the first query** (EC's `Pr_PIR_s`): every index set in `[0, N)` has
+probability `2^-N`, whatever the index. -/
+theorem pr_s (x : Finset ℕ) :
+    phoare[ (main N D) : True ==> (§s).toFinset = x ]
+      = (if x ⊆ Finset.range N then (1 / 2) ^ N else 0) :=
+  phoareProc_eq_of_le_ge (pr_s_le N D x) (pr_s_ge N D x)
+
+/-- **EC's `Pr_PIR_s`**, as EC states it. -/
+theorem Pr_PIR_s (i₀ : ℕ) (m : VariableAssignment) (x : Finset ℕ) :
+    (Procedure.Pr (main N D) i₀ m (fun _ g => (s.get g).toFinset = x) : ENNReal)
+      = if x ⊆ Finset.range N then (1 / 2) ^ N else 0 :=
+  Procedure.Pr_of_phoareProc (pr_s N D x) (args := i₀) (σ := m) trivial
+
+/-- **EC's `PIR_secuity_s_bypr`**: so the first query's distribution does not depend on the index
+(nor on the initial memory) — the same conclusion as `security_s`, from the explicit
+distribution. -/
+theorem security_s_bypr (i₁ i₂ : ℕ) (m₁ m₂ : VariableAssignment) (x : Finset ℕ) :
+    Procedure.Pr (main N D) i₁ m₁ (fun _ g => (s.get g).toFinset = x)
+      = Procedure.Pr (main N D) i₂ m₂ (fun _ g => (s.get g).toFinset = x) :=
+  ENNReal.coe_inj.mp ((Pr_PIR_s N D i₁ m₁ x).trans (Pr_PIR_s N D i₂ m₂ x).symm)
+
 end GaudisCrypt.Examples.EasyCryptBench.PIR
