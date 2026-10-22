@@ -207,4 +207,116 @@ elab_rules : term <= expectedType?
     elabTerm (← `(prhlProc (sig₁ := $(← exprToSyntax sig₁)) (sig₂ := $(← exprToSyntax sig₂))
       $preTerm $procTerm₁ $procTerm₂ $postTerm)) expectedType?
 
+/-! ## Printing
+
+`prhlStmt A c₁ c₂ B` prints as `equiv[ P ==> Q ] { … } ~ { … }` when both statements print as
+statements and both conditions are functions of the two states that only *read* them: a read
+`§x` at the left state (`eval` at `CurrentState.mk σ₁`, `x.get σ₁`, `g.get σ₁.globals` for a
+global `g`) prints as `§x{1}`, at the right state as `§x{2}`.  Otherwise the judgment prints as
+the plain term.  The reads are first replaced by `relRead σ i x` (the read, carrying its side),
+which the unexpander prints as `§x{i}`; the variables are recovered over the two statements and
+the two conditions together, each declared on the side whose statement uses it (the left one if
+only the conditions do). -/
+
+universe u v in
+/-- The read of `x` at the state `σ` of side `i` of a relational condition — `§x{i}`.  Only the
+printer builds it; it is the read `Evaluatable.eval σ x`. -/
+def relRead {X : Type u} {T : Type v} [Evaluatable X T] (σ : ProgramState) (_i : Nat) (x : X) :
+    T :=
+  Evaluatable.eval σ x
+
+section Printing
+open PrettyPrinter Delaborator SubExpr ProgramSyntax Meta
+
+@[app_unexpander relRead]
+def unexpandRelRead : Unexpander
+  | `($_ $_ $i $x) =>
+      return Syntax.node .none ``relEval
+        #[Syntax.atom .none "§", x, Syntax.atom .none "{", i, Syntax.atom .none "}"]
+  | _ => throw ()
+
+/-- `s.globals`, as a projection function or a primitive projection, ↦ `s`. -/
+private def globalsOf? (e : Lean.Expr) : Option Lean.Expr :=
+  if e.isAppOfArity ``ProgramState.globals 1 then some e.appArg!
+  else match e with
+    | .proj ``ProgramState 0 s => some s
+    | _ => none
+
+/-- Replace the reads of the state `σ` in `e` by `relRead σ i x`: `eval` at `CurrentState.mk σ`,
+`x.get σ`, and `g.get σ.globals` for a global `g`. -/
+def markReads (σ : Lean.Expr) (i : Nat) (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun e => do
+    let mk (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
+      try some <$> mkAppOptM ``relRead #[none, none, none, some σ, some (mkNatLit i), some x]
+      catch _ => pure none
+    if e.isAppOfArity ``eval 5 then
+      let cs := e.getArg! 3
+      if cs.isAppOfArity ``CurrentState.mk 1 && cs.appArg! == σ then
+        if let some r ← mk (e.getArg! 4) then return .done r
+      return .continue
+    let some (l, s) := ProgramSyntax.lensGet? e | return .continue
+    unless s == σ || globalsOf? s == some σ do return .continue
+    let some r ← mk l | return .continue
+    if ← isDefEq r e then return .done r else return .continue)
+
+/-- A relational condition `fun σ₁ σ₂ => P` with its reads marked (`markReads`). -/
+def markCond (c : Lean.Expr) : MetaM Lean.Expr := do
+  let .lam n₁ t₁ (.lam n₂ t₂ b bi₂) bi₁ := c | failure
+  guard (t₁.isConstOf ``ProgramState && t₂.isConstOf ``ProgramState)
+  withLocalDecl n₁ bi₁ t₁ fun s₁ => withLocalDecl n₂ bi₂ t₂ fun s₂ => do
+    let b ← markReads s₂ 2 (← markReads s₁ 1 (b.instantiateRev #[s₁, s₂]))
+    mkLambdaFVars #[s₁, s₂] b
+
+/-- Do the states (loose bound variables `0` and `1` of `e`) occur other than as the state of a
+`relRead`? -/
+private partial def statesEscape (e : Lean.Expr) (d : Nat := 0) : Bool :=
+  if e.isAppOfArity ``relRead 6 then statesEscape (e.getArg! 5) d
+  else match e with
+    | .bvar j => j == d || j == d + 1
+    | .app f a => statesEscape f d || statesEscape a d
+    | .lam _ t b _ | .forallE _ t b _ => statesEscape t d || statesEscape b (d + 1)
+    | .letE _ t v b _ => statesEscape t d || statesEscape v d || statesEscape b (d + 1)
+    | .mdata _ b | .proj _ _ b => statesEscape b d
+    | _ => false
+
+/-- Print a marked relational condition `fun σ₁ σ₂ => P` as `P`. -/
+def delabRelCond : DelabM Term := do
+  let .lam _ _ (.lam _ _ b _) _ := ← getExpr | failure
+  guard !(statesEscape b)
+  withBindingBody `σ₁ <| withBindingBody `σ₂ delab
+
+/-- Print a relational judgment as `equiv[ P ==> Q ] { … } ~ { … }`. -/
+@[delab app.GaudisCrypt.prhlStmt]
+private def delabPrhlStmt : Delab := do
+  guardSurfaceSyntax
+  let e ← getExpr
+  guard (e.getAppNumArgs == 4)
+  let pre ← markCond (e.getArg! 0)
+  let post ← markCond (e.getArg! 3)
+  let parts := #[pre, e.getArg! 1, e.getArg! 2, post]
+  let vars := (← frameVars parts #[]).filter (·.printable)
+  let occursIn (v : FrameVar) (s : Lean.Expr) : Bool :=
+    v.slots.any fun t => (s.find? (· == t)).isSome
+  let vars₂ := vars.filter (occursIn · (e.getArg! 2))
+  let vars₁ := vars.filter fun v => occursIn v (e.getArg! 1) || !occursIn v (e.getArg! 2)
+  withVarLocals vars.toList parts fun es => do
+    let stmts₁ ← withExpr es[1]! (delabGaudiStmts #[])
+    let stmts₂ ← withExpr es[2]! (delabGaudiStmts #[])
+    -- the conditions do not see the statements' spine binders
+    guard ((spineLetNames stmts₁).isEmpty && (spineLetNames stmts₂).isEmpty)
+    let p ← withExpr es[0]! delabRelCond
+    let q ← withExpr es[3]! delabRelCond
+    let lines (vs : Array FrameVar) : DelabM (Array (Syntax.TSepArray `proc_binder ",")) := do
+      let bs ← vs.mapM varBinder
+      return if bs.isEmpty then #[] else #[bs]
+    let l₁ ← lines vars₁
+    let l₂ ← lines vars₂
+    `(equiv[ $p ==> $q ] {
+        $[var $l₁:proc_binder,* ;]*
+        $stmts₁:gaudi_stmt* } ~ {
+        $[var $l₂:proc_binder,* ;]*
+        $stmts₂:gaudi_stmt* })
+
+end Printing
+
 end GaudisCrypt

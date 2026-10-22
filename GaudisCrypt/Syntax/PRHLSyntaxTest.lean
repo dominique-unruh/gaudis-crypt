@@ -1,5 +1,7 @@
 import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Syntax.PRHLSyntax
+-- for `#roundtrip`
+import GaudisCrypt.Syntax.ProgramSyntaxTest
 
 /-! Smoke tests for `equiv[ … ]` (`Syntax/PRHLSyntax.lean`). -/
 
@@ -28,6 +30,45 @@ example : Prop := equiv[ ={x} ==> §x{1} + 1 = §x{2} ] {
     var x : ℕ;
     x <- $x + 1;
   }
+
+/-! Printing: sided reads print as `§x{1}`/`§x{2}`, each side with its own `var`s. -/
+
+/--
+info: equiv[ §g{1} = §g{2} ==> §g{1} = §g{2} ] {
+    var x : ℕ;
+    x <- §g + 1;
+    g <- §x;
+} ~ {
+    var y : ℕ;
+    y <- §g;
+    g <- §y + 1;
+}
+-/
+#guard_msgs in
+#roundtrip equiv[ §g{1} = §g{2} ==> ={g} ] {
+    var x : ℕ;
+    x <- $g + 1;
+    g <- $x;
+  } ~ {
+    var y : ℕ;
+    y <- $g;
+    g <- $y + 1;
+  }
+
+-- reads as plain `get`s, as the wp steps leave them; a variable only the conditions mention is
+-- declared on the left
+/--
+info: equiv[ §g{1} ≤ §g{2} ==> §z{1} = §g{2} ] {
+    var z : ℕ;
+    g <- 1;
+} ~
+  {
+    g <- 2;
+}
+-/
+#guard_msgs in
+#roundtrip prhlStmt (fun σ₁ σ₂ => g.get σ₁.globals ≤ g.get σ₂.globals) GaudiProg[ g <- 1; ]
+  GaudiProg[ g <- 2; ] (fun σ₁ σ₂ => (localVarLens "z" ℕ).get σ₁ = g.get σ₂.globals)
 
 moduletype T {
   proc f (n : ℕ) -> ℕ;
