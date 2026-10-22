@@ -140,7 +140,7 @@ def ewpDecls : List Name :=
    ``Stmt.ewp_ifThenElse, ``StmtWithHoles.ewp_call, ``Stmt.ewp_call,
    ``uniform_expected, ``Fintype.sum_bool, ``Fintype.card_bool, ``Nat.cast_ofNat,
    ``Bool.true_eq_false, ``Bool.false_eq_true, ``if_true, ``if_false,
-   ``Bool.true_beq, ``Bool.false_beq, ``Bool.not_eq_true',
+   ``Bool.true_beq, ``Bool.false_beq, ``Bool.not_eq_true', ``Bool.or_eq_true,
    -- events, and the arithmetic they leave
    ``indicatorE_true, ``indicatorE_false, ``ENNReal.zero_div, ``zero_add, ``add_zero, ``mul_one,
    ``one_mul, ``mul_zero, ``zero_mul,
@@ -340,6 +340,58 @@ elab_rules : tactic
     match ← simpTarget g ctx #[← ewpSimprocs] with
     | (none, _) => replaceMainGoal []
     | (some g', _) => replaceMainGoal [g']
+
+/-- A loop step, on a goal `phoareStmt A {x₁; …; xₙ₋₁; while c body} g ≤ r` and an expectation
+invariant `I`: `phoareStmt_while_le` closes the loop, leaving three goals, in order: `body` (one
+iteration does not increase `I`, from the states where the test passes), `exit` (`g ≤ I` where
+the test fails, simplified, reads generalized), and the judgment about `x₁; …; xₙ₋₁` with `I` as
+its expectation. -/
+def phoareWhileLeStep (I : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
+  let g ← phoareSplit 1 g
+  let rule ← mkConstWithFreshMVarLevels ``phoareStmt_while_le
+  let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
+  -- `{A pre body c g r} (I) (hbody) (hexit) (hpre)`
+  unless ← isDefEq ms[6]! I do
+    throwError "phoare_while_le: not an expectation on the program state:\
+      {indentExpr (← inferType I)}"
+  unless ← isDefEq ty (← g.getType) do
+    throwError "phoare_while_le: the goal is not an upper bound about a trailing loop:\
+      {indentExpr (← g.getType)}"
+  g.assign (mkAppN rule ms)
+  let gBody := ms[7]!.mvarId!
+  gBody.setTag `body
+  -- the exit condition: simplified like an expectation, reads generalized
+  let gExit := ms[8]!.mvarId!
+  let gExit ← gExit.withContext do
+    let t ← Core.betaReduce (← instantiateMVars (← gExit.getType))
+    let r ← simpExprWith ewpDecls t
+    match r.proof? with
+    | some pf => gExit.replaceTargetEq r.expr pf
+    | none => gExit.replaceTargetDefEq r.expr
+  let gExit ← try generalizeReads gExit catch _ => pure gExit
+  gExit.setTag `exit
+  let gPre := ms[9]!.mvarId!
+  gPre.setTag (← g.getTag)
+  return [gBody, gExit, gPre]
+
+open Lean Elab Tactic in
+/-- `phoare_while_le I`: `phoareWhileLeStep` on the main goal, with the expectation invariant `I`
+written like a condition of a `phoare[ ]` judgment (an `ENNReal` expression; `§x` reads the
+program variable `x`, or a global).  Goals: `body`, `exit`, then the code before the loop. -/
+elab "phoare_while_le " I:term : tactic => withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  let #[A, s, e, _, r] ← phoareParts ty | unreachable!
+  -- the program variables of the goal, each bound to its slot, as a `phoare[ ]` judgment binds
+  -- them (see `hoare_while`)
+  let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.printable)
+  let mut stx ← `((GaudiExpr[ $I ] : Getter ENNReal ProgramState).get)
+  for v in vars.reverse do
+    let some slot := v.slots[0]? | continue
+    stx ← `(letI $(mkIdent (.mkSimple v.name)) := $(← Term.exprToSyntax slot); $stx)
+  let Ie ← elabTermEnsuringType stx (← mkArrow (mkConst ``ProgramState) (mkConst ``ENNReal))
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let Ie ← instantiateMVars Ie
+  liftMetaTactic fun g => phoareWhileLeStep Ie g
 
 /-- The end of a backwards proof, on a goal `phoareStmt A skip g ρ r`: the relation itself,
 `∀ σ, A σ → ρ (g σ) (r σ)` (`phoareStmt_skip_iff`), β-reduced, with the reads of the state

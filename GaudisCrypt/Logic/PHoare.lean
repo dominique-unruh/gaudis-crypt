@@ -249,6 +249,19 @@ theorem indicatorE_add_not (Q : Prop) : indicatorE Q + indicatorE (¬ Q) = 1 := 
 theorem indicatorE_not_add (Q : Prop) : indicatorE (¬ Q) + indicatorE Q = 1 := by
   rw [add_comm, indicatorE_add_not]
 
+/-- The union bound for two events. -/
+theorem indicatorE_or_le (Q Q' : Prop) : indicatorE (Q ∨ Q') ≤ indicatorE Q + indicatorE Q' := by
+  by_cases h : Q <;> by_cases h' : Q' <;> simp [indicatorE, h, h']
+
+/-- A uniform draw hits a given point with chance `1 / |α|`. -/
+theorem ENNReal.sum_indicatorE_eq_div_card {α : Type*} [Fintype α] (v : α) :
+    ∑ x : α, indicatorE (v = x) / (Fintype.card α : ENNReal) = 1 / Fintype.card α := by
+  classical
+  have : ∀ x : α, indicatorE (v = x) / (Fintype.card α : ENNReal)
+      = if v = x then 1 / (Fintype.card α : ENNReal) else 0 := fun x => by
+    by_cases h : v = x <;> simp [indicatorE, h]
+  simp only [this, Finset.sum_ite_eq, Finset.mem_univ, if_true]
+
 /-- The average of a constant over a nonempty finite type is the constant. -/
 theorem ENNReal.sum_div_card {α : Type*} [Fintype α] [Nonempty α] (c : ENNReal) :
     ∑ _x : α, c / (Fintype.card α : ENNReal) = c := by
@@ -362,6 +375,40 @@ theorem Procedure.ewp_mul_const {sig} (p : Procedure sig) (args : sig.ParamType)
 /-- A conjunction of events is the product of their indicators. -/
 theorem indicatorE_and (Q Q' : Prop) : indicatorE (Q ∧ Q') = indicatorE Q * indicatorE Q' := by
   by_cases h : Q <;> by_cases h' : Q' <;> simp [indicatorE, h, h']
+
+/-! ## Loops
+
+The rule for upper bounds: an *expectation invariant* `I` bounds a loop's expectation of `g` if one
+iteration (from a state where the test passes) does not increase it, and `g` is below it where the
+test fails — `I` is a pre-fixed point of the loop's wp functional (`wp_while_invariant`).  A
+qualitative invariant `inv` is folded in as `if inv then ‹potential› else ⊤`. -/
+
+/-- The loop's expectation of `g` is below the invariant `I`. -/
+theorem Stmt.ewp_while_le {c : Getter Bool ProgramState} {body : Stmt}
+    (I g : ProgramState → ENNReal)
+    (hbody : ∀ σ, c.get σ = true → body.ewp I σ ≤ I σ)
+    (hexit : ∀ σ, c.get σ = false → g σ ≤ I σ) (σ : ProgramState) :
+    Stmt.ewp (StmtWithHoles.while c body) g σ ≤ I σ := by
+  have h := wp_while_invariant (ProgramDenotation.get c) (programDenotation body) I
+    (fun r => g r.2) fun st => by
+      simp only [wp_get_g, AsGetter.toG, id_eq]
+      cases hc : c.get st
+      · exact hexit st hc
+      · exact hbody st hc
+  simp only [Stmt.ewp, programDenotation]
+  exact h σ
+
+/-- **The loop rule for upper bounds**, for a trailing loop: the body preserves the invariant `I`
+    (as an upper bound, from the states where the test passes), the expectation is below `I` where
+    the test fails, and the code before the loop is judged with `I` as its expectation. -/
+theorem phoareStmt_while_le {A : ProgramState → Prop} {pre body : Stmt}
+    {c : Getter Bool ProgramState} {g r : ProgramState → ENNReal} (I : ProgramState → ENNReal)
+    (hbody : phoareStmt (fun σ => c.get σ = true) body I LE.le I)
+    (hexit : ∀ σ, c.get σ = false → g σ ≤ I σ)
+    (hpre : phoareStmt A pre I LE.le r) :
+    phoareStmt A (.seq pre (.while c body)) g LE.le r := by
+  rw [phoareStmt_seq_iff]
+  exact phoareStmt_le_of_le hpre fun σ => Stmt.ewp_while_le I g hbody hexit σ
 
 /-! ## Procedure judgments as statement judgments -/
 

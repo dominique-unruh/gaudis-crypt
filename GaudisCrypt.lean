@@ -87,6 +87,7 @@ import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Examples.QueryCounting
+import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding
 import GaudisCrypt.Examples.Pedersen.HidingHoare

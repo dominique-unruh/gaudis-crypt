@@ -114,3 +114,19 @@ its own, once adversaries calling oracle holes are in use.
   * Tests (`Logic/PHoareWpTest.lean`): a relay game proved from `flip_half` without inlining the
     coin (`=`), the same with an abstract coin known by an upper bound (`≤`), and two flips
     `= 1/4` via `phoare_simp [flip_half]`.
+
+* 2026-10-22 — **Phase 3 (loop upper bounds) done; milestone 2 done.**
+  * `Stmt.ewp_while_le`, `phoareStmt_while_le` (`Logic/PHoare.lean`): an expectation invariant
+    `I` that one iteration does not increase (where the test passes), above `g` where it fails.
+    Qualitative invariants fold in as `if inv then … else ⊤`.
+  * `phoare_while_le I` (`Logic/PHoareWp.lean`), `I` in program syntax; goals `body`
+    (`phoare[ test ==> I ] ≤ I { body }`), `exit` (simplified, reads generalized), then the code
+    before the loop with expectation `I`.
+  * Union-bound helpers: `indicatorE_or_le`, `ENNReal.sum_indicatorE_eq_div_card`;
+    `Bool.or_eq_true` in the simp set (`beq_iff_eq` is *not*: it pre-empts `Bool.true_beq` and
+    turns `(true == v) = true` into `true = v`).
+  * Milestone 2 (`Examples/GuessingGame.lean`, `game_hit_le`): an abstract guesser, `q` rounds,
+    a fresh uniform secret after each guess: `phoare[ Game(A) (q) : q = n ==> hit ] ≤ n / |X|`,
+    with the potential `indicatorE hit + (q − i) / |X|`.  Loop, exit and set-up goals are one
+    line each; the per-round step is a ~15-line `calc` (pointwise bound, `ewp_const_le`, the
+    union bound, arithmetic).
