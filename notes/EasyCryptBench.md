@@ -10,10 +10,10 @@ header quotes the EC proof for side-by-side comparison.
 | # | EC source | Statement | What it exercises | Status |
 |---|---|---|---|---|
 | 1 | `examples/vonNeumann.eca` — `Simulate_is_Fair` | fair coin from a biased coin of unknown bias `p`: `while (b = b') { b <$ dbiased; b' <$ dbiased }; return b` has `Pr[res = x] = 1/2` | loop lower bound + termination; EC needs the variant rule `while true (b2i (b = b')) 1 (2p(1−p))` and nested five-probability `seq`s; here one fixed-point invariant `if b = b' then 1/2 else [b = x]`, `ε = 2p(1−p)` | **done** — `Examples/EasyCryptBench/VonNeumann.lean` |
-| 2 | `examples/Dice4_6.ec` — `prD6` | a d4 from a d6: `while (5 <= r) r <$ [1..6]` has `Pr[res = k] = 1/4` | rejection sampling on an integer interval; EC goes through `byequiv` and `WhileSamplingFixedTest`, here directly | |
+| 2 | `examples/Dice4_6.ec` — `prD6` | a d4 from a d6: `while (5 <= r) r <$ [1..6]` has `Pr[res = k] = 1/4` | rejection sampling on an integer interval; EC goes through `byequiv` and `WhileSamplingFixedTest`, here directly | **done** — `Examples/EasyCryptBench/Dice4_6.lean` |
 | 3 | `theories/modules/PlugAndPray.eca` — `PBound` | abstract game, then a uniform guess: `(1/|I|) · Pr[G : φ] = Pr[Guess(G) : φ ∧ i = ψ]` | abstract call + linearity; EC: `seq` with probabilities, `call`, nested `byequiv` ("FIXME: more verbose than it should be") | **done** — `Examples/EasyCryptBench/PlugAndPray.lean` |
 | 4 | `theories/encryption/Means.ec` — `prCond`, `Mean` | abstract worker on a sampled input: `Pr[ev] = Σ_v μ(v) · Pr[A.work(v) : ev v]` | exactly the symbolic exact wp of `phoare_wp` | **done** — `Examples/EasyCryptBench/Means.lean` |
-| 5 | `theories/distributions/Dexcepted.ec` — `WhileSampling` | rejection sampling with an arbitrary distribution and test = the `dexcepted` distribution | generalizes `Examples/RejectionSampling.lean` beyond uniform | |
+| 5 | `theories/distributions/Dexcepted.ec` — `WhileSampling` | rejection sampling with an arbitrary distribution and test = the `dexcepted` distribution | generalizes `Examples/RejectionSampling.lean` beyond uniform | **done** — `Examples/EasyCryptBench/WhileSampling.lean` |
 
 Deferred: `examples/PIR.ec` (two-server private information retrieval) — **postponed until we
 have pRHL syntax and tactics**: its privacy proofs `PIR_secure1/2` are `equiv` judgments
@@ -64,3 +64,18 @@ coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
   change in `Syntax/ExpressionSyntax.lean`), the getter `allGlobals`, and `allGlobals_get` in
   `simpReads`.  The EC-style `Pr` corollaries now go through `exact` (the notation's elaborated
   conditions are the plain ones up to unfolding).
+* 2026-10-23 — **WhileSampling done** (`pr_sampleW`: `Pr[SampleW : P res] = μ(P ∧ ¬X)/μ(¬X)`,
+  EC's `mu (d \ X) P`, for any lossless `d` on any type).  One general fact, `draw_inv` (one draw
+  keeps `if X r then c else [P r]`, `c = μ(P ∧ ¬X)/μ(¬X)`), closes both loop bounds; the
+  degenerate `μ(¬X) = 0` (the loop never exits) needs no split in the upper bound (`c = 0/0 = 0`)
+  and a one-line one in the lower bound.  EC: ~80 lines across `pr_sampleW` and `pr_sampleWi`
+  (variant rule, `phoare split`, nested `seq`s, two case splits).
+* 2026-10-23 — **Dice4_6 done** (`prD6`, EC's statement), as an *instance* of `WhileSampling`
+  (`t = ℤ`, `d` uniform on `[1..6]`, test `5 ≤ r`): the loop is `draw_inv` at the instance; the
+  rest is the concrete `μ(r = k ∧ r < 5)/μ(r < 5) = (1/6)/(4/6) = 1/4`.  EC instead goes through
+  an `equiv` with a direct d4 and the `WhileSamplingFixedTest` clone.  Library fix on the way:
+  `uniformOfFinset_expected` (`WeakestPreconditions.lean`) required `[Fintype a]` of the whole
+  ambient type — sampling from a finite subset of `ℤ` was impossible to reason about; now proved
+  via `lintegral_eq_tsum_smul` with no finiteness assumption (the now-unused instances dropped
+  from `wp_uniformOfFinset`, `uniformOfFinset_mass_one` and the Attic's
+  `inRange_uniformOfFinset`).

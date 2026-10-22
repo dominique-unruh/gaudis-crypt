@@ -149,7 +149,7 @@ theorem ProgramDenotation.inRange_uniform {s α : Type} [Fintype α] [Nonempty �
 
 /-- `ProgramDenotation.uniformOfFinset` lives in the trivial range (it doesn't touch
     state — it only samples its return value). -/
-theorem ProgramDenotation.inRange_uniformOfFinset {s α : Type} [Fintype α]
+theorem ProgramDenotation.inRange_uniformOfFinset {s α : Type}
     (fs : Finset α) (hs : fs.Nonempty) :
     (ProgramDenotation.uniformOfFinset fs hs : ProgramDenotation s α).inRange ⊥ := by
   intro f _

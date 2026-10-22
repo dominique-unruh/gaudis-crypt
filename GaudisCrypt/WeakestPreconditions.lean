@@ -24,22 +24,27 @@ theorem uniform_expected [Fintype a] [Nonempty a] (f : a → ENNReal) :
   rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
       PMF.uniformOfFintype_apply, ← div_eq_mul_inv]
 
-theorem uniformOfFinset_expected {a : Type u} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
+/-- Sampling uniformly from a finite set `fs` averages over `fs` — for any ambient type, finite or
+    not (the measure is discrete and supported on `fs`). -/
+theorem uniformOfFinset_expected {a : Type u} (fs : Finset a) (hs : fs.Nonempty)
     (f : a → ENNReal) :
     (SubProbability.uniformOfFinset fs hs).expected f = ∑ x ∈ fs, f x / fs.card := by
   classical
   letI : MeasurableSpace a := ⊤
-  change ∫⁻ x, f x ∂(PMF.uniformOfFinset fs hs).toMeasure = _
-  rw [MeasureTheory.lintegral_fintype]
-  rw [show (fun x : a => f x * (PMF.uniformOfFinset fs hs).toMeasure {x})
-        = fun x : a => if x ∈ fs then f x / (fs.card : ENNReal) else 0 from ?_]
-  · rw [Finset.sum_ite_mem, Finset.univ_inter]
-  · funext x
+  change ∫⁻ x, f x ∂(SubProbability.uniformOfFinset fs hs).1 = _
+  rw [lintegral_eq_tsum_smul (SubProbability.uniformOfFinset fs hs).2.2 f]
+  -- the atoms: `1/|fs|` on `fs`, nothing elsewhere
+  have hatom : ∀ x, (SubProbability.uniformOfFinset fs hs).1 {x} * f x
+      = if x ∈ fs then f x / (fs.card : ENNReal) else 0 := fun x => by
+    change (PMF.uniformOfFinset fs hs).toMeasure {x} * f x = _
     rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
-        PMF.uniformOfFinset_apply]
+      PMF.uniformOfFinset_apply]
     by_cases hx : x ∈ fs
-    · rw [if_pos hx, if_pos hx, ← div_eq_mul_inv]
-    · rw [if_neg hx, if_neg hx, mul_zero]
+    · rw [if_pos hx, if_pos hx, mul_comm, ← div_eq_mul_inv]
+    · rw [if_neg hx, if_neg hx, zero_mul]
+  simp_rw [hatom]
+  rw [tsum_eq_sum (s := fs) fun x hx => if_neg hx]
+  exact Finset.sum_congr rfl fun x hx => if_pos hx
 
 theorem expected_pure (x : a) : (pure x : SubProbability a).expected f = f x := by
   have h : (pure x : SubProbability a) = ⟨@MeasureTheory.Measure.dirac _ ⊤ x, _⟩ := rfl
@@ -204,7 +209,7 @@ theorem wp_uniform [h : Fintype a] [h : Nonempty a] (f : ProgramDenotation.Post 
   ProgramDenotation.uniform.wp f = (fun s => ∑ i:a, f (i,s) / Fintype.card a) := by
   simp [ProgramDenotation.uniform, wp_lift, uniform_expected]
 
-theorem wp_uniformOfFinset {st : Type u} {a : Type v} [Fintype a] (fs : Finset a) (hs : fs.Nonempty)
+theorem wp_uniformOfFinset {st : Type u} {a : Type v} (fs : Finset a) (hs : fs.Nonempty)
     (f : ProgramDenotation.Post st a) :
     (ProgramDenotation.uniformOfFinset fs hs).wp f = (fun σ => ∑ i ∈ fs, f (i, σ) / fs.card) := by
   simp [ProgramDenotation.uniformOfFinset, wp_lift, uniformOfFinset_expected]
@@ -479,7 +484,7 @@ theorem ProgramDenotation.uniform_mass_one {s α : Type*} [Fintype α] [Nonempty
         (ENNReal.natCast_ne_top _)]
 
 /-- `ProgramDenotation.uniformOfFinset` has mass 1. -/
-theorem ProgramDenotation.uniformOfFinset_mass_one {s α : Type*} [Fintype α]
+theorem ProgramDenotation.uniformOfFinset_mass_one {s α : Type*}
     (fs : Finset α) (hs : fs.Nonempty) (σ : s) :
     (ProgramDenotation.uniformOfFinset fs hs).wp (fun _ => (1 : ENNReal)) σ = 1 := by
   rw [wp_uniformOfFinset]
