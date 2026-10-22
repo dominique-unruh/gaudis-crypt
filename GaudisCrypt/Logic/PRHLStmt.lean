@@ -344,6 +344,13 @@ theorem SubProbability.uniform_bind_pure_bijective {α : Type} [Fintype α] [Non
       = SubProbability.uniform :=
   SubProbability.uniform_bind_pure_bijective (Function.Involutive.bijective Bool.not_not)
 
+/-- A translation pushes the uniform distribution on a group to itself. -/
+@[simp] theorem SubProbability.uniform_bind_add_left {G : Type} [AddGroup G] [Fintype G]
+    [Nonempty G] (m : G) :
+    (SubProbability.uniform >>= fun a => (pure (m + a) : SubProbability G))
+      = SubProbability.uniform :=
+  SubProbability.uniform_bind_pure_bijective (add_right_injective m).bijective_of_finite
+
 end Sample
 
 /-! ## Loops -/
@@ -581,6 +588,19 @@ theorem prhlProc_conseq
 end Proc
 
 /-! ## Abstract procedures (EC's `call (_ : ={glob A})`) -/
+
+/-- **Reflexivity**: any procedure, on equal arguments from equal globals, can be coupled with
+itself to equal results and equal globals (EC's `call (_ : true)` on the same code). -/
+theorem prhlProc_refl {sig : ProcedureSignature} (p : Procedure sig) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂) p p
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  intro a₁ a₂ g₁ g₂ ⟨ha, hg⟩
+  subst ha hg
+  have h := (ProgramDenotation.prhl2.refl (procedureDenotation p a₁)).conseq
+    (A' := fun g₁ g₂ => g₁ = g₂)
+    (B' := fun (u v : sig.ret × VariableAssignment) => u.1 = v.1 ∧ u.2 = v.2)
+    (fun _ _ h => h) (fun u v h => h ▸ ⟨rfl, rfl⟩)
+  exact h g₁ g₁ rfl
 
 /-- **The adversary rule**: a procedure confined to the footprint `R` (on every argument), run
 on equal arguments from globals that agree on what it can touch (`R.touched_getter`, EC's

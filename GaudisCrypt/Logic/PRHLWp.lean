@@ -39,6 +39,7 @@ trivial coupling conditions `equiv_rnd` leaves (the identity and negation push a
 distribution to itself, and its support is everything). -/
 def relSimpDecls : List Lean.Name :=
   HoareWp.simpReadsDecls ++ [``SubProbability.bind_pure_id, ``SubProbability.uniform_bind_not,
+    ``SubProbability.uniform_bind_add_left,
     ``eq_self_iff_true, ``SubProbability.uniform_support, ``Set.mem_univ]
 
 end PRHLWp

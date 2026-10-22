@@ -243,21 +243,26 @@ private def globalsOf? (e : Lean.Expr) : Option Lean.Expr :=
     | _ => none
 
 /-- Replace the reads of the state `σ` in `e` by `relRead σ i x`: `eval` at `CurrentState.mk σ`,
-`x.get σ`, and `g.get σ.globals` for a global `g`. -/
-def markReads (σ : Lean.Expr) (i : Nat) (e : Lean.Expr) : MetaM Lean.Expr :=
-  Meta.transform e (post := fun e => do
-    let mk (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
-      try some <$> mkAppOptM ``relRead #[none, none, none, some σ, some (mkNatLit i), some x]
-      catch _ => pure none
-    if e.isAppOfArity ``eval 5 then
-      let cs := e.getArg! 3
-      if cs.isAppOfArity ``CurrentState.mk 1 && cs.appArg! == σ then
-        if let some r ← mk (e.getArg! 4) then return .done r
-      return .continue
-    let some (l, s) := ProgramSyntax.lensGet? e | return .continue
-    unless s == σ || globalsOf? s == some σ do return .continue
-    let some r ← mk l | return .continue
-    if ← isDefEq r e then return .done r else return .continue)
+`x.get σ`, `g.get σ.globals` for a global `g`, and `σ.globals` itself (`§allGlobals`). -/
+def markReads (σ : Lean.Expr) (i : Nat) (e : Lean.Expr) : MetaM Lean.Expr := do
+  let mk (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
+    try some <$> mkAppOptM ``relRead #[none, none, none, some σ, some (mkNatLit i), some x]
+    catch _ => pure none
+  Meta.transform e
+    (pre := fun e => do
+      if e.isAppOfArity ``eval 5 then
+        let cs := e.getArg! 3
+        if cs.isAppOfArity ``CurrentState.mk 1 && cs.appArg! == σ then
+          if let some r ← mk (e.getArg! 4) then return .done r
+        return .continue
+      let some (l, s) := ProgramSyntax.lensGet? e | return .continue
+      unless s == σ || globalsOf? s == some σ do return .continue
+      let some r ← mk l | return .continue
+      if ← isDefEq r e then return .done r else return .continue)
+    (post := fun e => do
+      unless globalsOf? e == some σ do return .continue
+      let some r ← mk (mkConst ``allGlobals) | return .continue
+      return .done r)
 
 /-- A relational condition `fun σ₁ σ₂ => P` with its reads marked (`markReads`). -/
 def markCond (c : Lean.Expr) : MetaM Lean.Expr := do

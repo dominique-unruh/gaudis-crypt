@@ -94,6 +94,7 @@ import GaudisCrypt.Logic.PRHL.Tactics
 import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
+import GaudisCrypt.Examples.OTP
 import GaudisCrypt.Examples.RejectionSampling
 import GaudisCrypt.Examples.EasyCryptBench.Dice4_6
 import GaudisCrypt.Examples.EasyCryptBench.Means
