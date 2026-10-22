@@ -73,8 +73,9 @@ def simpReadsDecls : List Name :=
    ``if_pos, ``if_neg, ``not_false_eq_true,
    -- global reads, through writes to the state
    ``eval_lens_global, ``eval_getter_global, ``allGlobals_get,
-   -- reads of a conditional state (a deterministic `if`, `Stmt.Det.ite`)
-   ``Getter.get_ite, ``ProgramState.globals_ite,
+   -- reads of a conditional state (a deterministic `if`, `Stmt.Det.ite`; an `if` without
+   -- `else` updates by `id` when the test fails, `Stmt.Det.skip`)
+   ``Getter.get_ite, ``ProgramState.globals_ite, ``id_eq,
    ``globals_intoLocal_set, ``globals_intoGlobal_set, ``globals_resetSetter_set,
    ``globals_globalL_set, ``globals_chain_get, ``globals_trafo_get, ``globals_emb_get,
    ``globals_rename_get,

@@ -30,6 +30,7 @@ import GaudisCrypt.Syntax.ProgramSyntaxTest
 import GaudisCrypt.Syntax.ModuleSyntaxTest
 import GaudisCrypt.Syntax.HoareSyntaxTest
 import GaudisCrypt.Syntax.PHoareSyntaxTest
+import GaudisCrypt.Syntax.PRHLSyntaxTest
 import GaudisCrypt.Language.Granularity
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
@@ -76,6 +77,8 @@ import GaudisCrypt.Logic.PHoareWp
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
+import GaudisCrypt.Logic.PRHLStmt
+import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.StmtEquiv
 import GaudisCrypt.Logic.TacticMisc
 import GaudisCrypt.Logic.TransferBy
@@ -93,6 +96,7 @@ import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.RejectionSampling
 import GaudisCrypt.Examples.EasyCryptBench.Dice4_6
 import GaudisCrypt.Examples.EasyCryptBench.Means
+import GaudisCrypt.Examples.EasyCryptBench.PIR
 import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
 import GaudisCrypt.Examples.EasyCryptBench.WhileSampling

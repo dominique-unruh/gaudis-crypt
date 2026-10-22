@@ -87,6 +87,14 @@ What the flattener needs along the path down to the call it is rewriting. -/
 theorem SubProbability.mapState_eq {α : Type v} {s t : Type u} (f : t → s)
     (μ : SubProbability (α × t)) : μ.mapState f = μ >>= fun q => pure (q.1, f q.2) := rfl
 
+/-- An expectation after `mapState`: the function read through the state map. -/
+theorem SubProbability.expected_mapState {α : Type v} {s t : Type u} (f : t → s)
+    (μ : SubProbability (α × t)) (F : α × s → ENNReal) :
+    (μ.mapState f).expected F = μ.expected fun p => F (p.1, f p.2) := by
+  change (μ >>= fun p => pure (p.1, f p.2)).expected F = _
+  rw [SubProbability.expected_bind]
+  simp only [expected_pure]
+
 /-- `pure` is equivalent to itself. -/
 theorem ProgramDenotation.EquivInLens.pure {s t : Type u} {α : Type v} {l : Lens s t} (a : α) :
     (Pure.pure a : ProgramDenotation s α).EquivInLens (Pure.pure a) l := by

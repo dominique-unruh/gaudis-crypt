@@ -2655,17 +2655,21 @@ def cleanCondition (C l : Expr) : MetaM (Expr × Expr) := do
 the judgment about the result, every condition read through the renaming and cleaned — by the
 inliner's own cleaning, then by the judgment's `condSimp`/`condSimprocs` if it registered any.
 The names the conditions use count as taken. -/
-def judgmentInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
-  let (d, ty) ← Judgment.descOf g
-  let args := ty.getAppArgs
-  let mut avoid := #[]
-  for i in [0:args.size] do
-    unless i == d.stmtArg do avoid := namesIn args[i]! avoid
-  let step ← inlineProcedure n (args[d.stmtArg]!) avoid
-  Judgment.applyTransport d d.transportLemma g ty step.proof fun lhs => do
-    let r ← cleanStmt lhs
-    if d.condSimp.isEmpty && d.condSimprocs.isEmpty then return r
-    r.mkEqTrans (← Judgment.simpWithNames d.condSimp d.condSimprocs r.expr)
+def judgmentInline (n : Nat) (g : MVarId) (side? : Option Nat := none) : MetaM MVarId :=
+  Judgment.forSides side? g fun side? g => g.withContext do
+    let (d, ty) ← Judgment.descOf g side?
+    let args := ty.getAppArgs
+    -- the names the conditions use are taken; those of the other side's statement (of a
+    -- relational judgment) are not, the two sides run on different states
+    let stmtArgs := (← Judgment.descsOf g).1.map (·.stmtArg)
+    let mut avoid := #[]
+    for i in [0:args.size] do
+      unless stmtArgs.contains i do avoid := namesIn args[i]! avoid
+    let step ← inlineProcedure n (args[d.stmtArg]!) avoid
+    Judgment.applyTransport d d.transportLemma g ty step.proof fun lhs => do
+      let r ← cleanStmt lhs
+      if d.condSimp.isEmpty && d.condSimprocs.isEmpty then return r
+      r.mkEqTrans (← Judgment.simpWithNames d.condSimp d.condSimprocs r.expr)
 
 /-- `hoareInline` is `judgmentInline` (kept for the name). -/
 abbrev hoareInline := judgmentInline
@@ -2678,9 +2682,10 @@ elab "hoare_inline " n:num : tactic =>
   liftMetaTactic1 fun g => some <$> judgmentInline n.getNat g
 
 /-- `stmt_inline n`: inline call site `n` of the statement of any registered judgment
-(`hoareStmt`, `phoareStmt`, …), as `hoare_inline` does for Hoare triples. -/
-elab "stmt_inline " n:num : tactic =>
-  liftMetaTactic1 fun g => some <$> judgmentInline n.getNat g
+(`hoareStmt`, `phoareStmt`, …), as `hoare_inline` does for Hoare triples; on a relational one,
+on both sides, or with `stmt_inline{i} n` on side `i`. -/
+elab "stmt_inline" s:(Judgment.judgmentSide)? ppSpace n:num : tactic =>
+  liftMetaTactic1 fun g => some <$> judgmentInline n.getNat g (Judgment.sideOf? s)
 
 end Flatten
 

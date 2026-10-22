@@ -18,13 +18,6 @@ namespace GaudisCrypt
 
 /-! ## Judgments about equivalent statements -/
 
-theorem SubProbability.expected_mapState {α : Type v} {s t : Type u} (f : t → s)
-    (μ : SubProbability (α × t)) (F : α × s → ENNReal) :
-    (μ.mapState f).expected F = μ.expected fun p => F (p.1, f p.2) := by
-  change (μ >>= fun p => pure (p.1, f p.2)).expected F = _
-  rw [SubProbability.expected_bind]
-  simp only [expected_pure]
-
 /-- **A judgment about an equivalent statement**: along `s.EquivInLens s' l`, the judgment about
 `s` is the one about `s'` with the conditions, the expectation and the bound read through `l`. -/
 theorem phoareStmt_iff_of_equivInLens {A : ProgramState → Prop} {s s' : Stmt}

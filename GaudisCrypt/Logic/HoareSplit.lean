@@ -60,15 +60,16 @@ where
 /-- On a goal `hoareStmt A {x₁; …; xₙ} B` (or about any registered judgment), regroup the
 statement as `{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`, the last `k` statements in the second block
 (`splitSeq`; `k = 0` and `k = n` pad the empty side with `skip`). -/
-def hoareSplit (k : Nat) (g : MVarId) : MetaM MVarId :=
-  Judgment.onStmt (splitSeq k) g
+def hoareSplit (k : Nat) (g : MVarId) (side? : Option Nat := none) : MetaM MVarId :=
+  Judgment.onStmt (splitSeq k) g side?
 
 /-- `hoare_split k`: `hoareSplit k` on the main goal. -/
 elab "hoare_split " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> hoareSplit k.getNat g
 
-/-- `stmt_split k`: `hoare_split k` on the statement of any registered judgment. -/
-elab "stmt_split " k:num : tactic =>
-  liftMetaTactic1 fun g => some <$> hoareSplit k.getNat g
+/-- `stmt_split k`: `hoare_split k` on the statement of any registered judgment; on a relational
+one, on both sides, or with `stmt_split{i} k` on side `i`. -/
+elab "stmt_split" s:(Judgment.judgmentSide)? ppSpace k:num : tactic =>
+  liftMetaTactic1 fun g => some <$> hoareSplit k.getNat g (Judgment.sideOf? s)
 
 end GaudisCrypt.HoareSplit

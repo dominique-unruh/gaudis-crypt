@@ -24,10 +24,15 @@ namespace GaudisCrypt
 
 open Lean Meta
 
-/-- How a judgment about one statement is transported along an equivalence of statements. -/
+/-- How a judgment about one statement is transported along an equivalence of statements.  A
+relational judgment registers one descriptor per side (`side` 1 and 2): what a step does to one
+side's statement, its transport lemmas and wp rules. -/
 structure JudgmentDesc where
   /-- The head constant of the judgment (`hoareStmt`). -/
   head : Name
+  /-- The side of a relational judgment this descriptor is about (1 or 2); 0 for a judgment
+  about one statement. -/
+  side : Nat := 0
   /-- The position of the statement among the head's arguments. -/
   stmtArg : Nat
   /-- `J … s' … → J … s …` from `s.Equiv s'`, conditions unchanged (`hoareStmt_of_equiv`).  Its
@@ -63,20 +68,27 @@ structure JudgmentDesc where
   postSimprocs : List Name := []
   deriving Inhabited
 
-/-- The registered judgments, by head constant. -/
+/-- Add a descriptor to the registry: it replaces the one for the same head and side. -/
+def addJudgmentDesc (m : NameMap (Array JudgmentDesc)) (d : JudgmentDesc) :
+    NameMap (Array JudgmentDesc) :=
+  let ds := ((m.find? d.head).getD #[]).filter (·.side != d.side) |>.push d
+  m.insert d.head (ds.qsort (·.side < ·.side))
+
+/-- The registered judgments, by head constant: one descriptor, or one per side. -/
 initialize judgmentExt :
-    SimplePersistentEnvExtension JudgmentDesc (NameMap JudgmentDesc) ←
+    SimplePersistentEnvExtension JudgmentDesc (NameMap (Array JudgmentDesc)) ←
   registerSimplePersistentEnvExtension {
-    addEntryFn := fun m d => m.insert d.head d
-    addImportedFn := fun ess => ess.foldl (fun m es => es.foldl (fun m d => m.insert d.head d) m) {}
+    addEntryFn := addJudgmentDesc
+    addImportedFn := fun ess => ess.foldl (fun m es => es.foldl addJudgmentDesc m) {}
   }
 
-/-- Register a judgment (in the file that proves its transport lemmas). -/
+/-- Register a judgment, or one side of a relational one (in the file that proves its transport
+lemmas). -/
 def registerJudgment (d : JudgmentDesc) : CoreM Unit :=
   modifyEnv (judgmentExt.addEntry · d)
 
-/-- The descriptor of a goal's judgment, if its head is registered. -/
-def judgmentOf? (ty : Lean.Expr) : CoreM (Option JudgmentDesc) := do
+/-- The descriptors of a goal's judgment (one per side), if its head is registered. -/
+def judgmentOf? (ty : Lean.Expr) : CoreM (Option (Array JudgmentDesc)) := do
   let some c := ty.getAppFn.constName? | return none
   return (judgmentExt.getState (← getEnv)).find? c
 
@@ -160,15 +172,43 @@ partial def detOf? (s : Lean.Expr) : MetaM (Option (Lean.Expr × Lean.Expr)) := 
 
 namespace Judgment
 
-/-- The descriptor of the goal `g`'s judgment, or an error naming the registered ones. -/
-def descOf (g : MVarId) : MetaM (JudgmentDesc × Lean.Expr) := do
+/-- The descriptors of the goal `g`'s judgment (one, or one per side of a relational judgment),
+or an error naming the registered ones; with `side? = some i`, only side `i`'s. -/
+def descsOf (g : MVarId) (side? : Option Nat := none) : MetaM (Array JudgmentDesc × Lean.Expr) := do
   let ty ← instantiateMVars (← g.getType)
-  let some d ← judgmentOf? ty
+  let some ds ← judgmentOf? ty
     | let known := (judgmentExt.getState (← getEnv)).toList.map (·.1)
       throwError "not a goal about a statement judgment (registered: {known}):{indentExpr ty}"
-  unless ty.getAppNumArgs > d.stmtArg do
-    throwError "the judgment `{d.head}` is not fully applied:{indentExpr ty}"
+  let ds ← match side? with
+    | none => pure ds
+    | some i =>
+        let ds' := ds.filter (·.side == i)
+        if ds'.isEmpty then
+          throwError "the judgment `{ds[0]!.head}` has no side {i} \
+            (sides: {ds.toList.map (·.side)})"
+        pure ds'
+  for d in ds do
+    unless ty.getAppNumArgs > max d.stmtArg d.postArg do
+      throwError "the judgment `{d.head}` is not fully applied:{indentExpr ty}"
+  return (ds, ty)
+
+/-- The descriptor of the goal `g`'s judgment, of side `side?` for a relational one (which then
+has to be given). -/
+def descOf (g : MVarId) (side? : Option Nat := none) : MetaM (JudgmentDesc × Lean.Expr) := do
+  let (ds, ty) ← descsOf g side?
+  let #[d] := ds
+    | throwError "the judgment `{ds[0]!.head}` is relational: choose a side, `\{1}` or `\{2}`"
   return (d, ty)
+
+/-- Run `step` on each side `side?` selects (all of them for `none`), in order, each time on the
+goal the previous one left. -/
+def forSides (side? : Option Nat) (g : MVarId) (step : Option Nat → MVarId → MetaM MVarId) :
+    MetaM MVarId := do
+  let (ds, _) ← descsOf g side?
+  if ds.size == 1 then return ← step side? g
+  let mut g := g
+  for d in ds do g ← step (some d.side) g
+  return g
 
 /-- Simplify `e` with `simp only` over the declarations `decls` (theorems rewritten with,
 definitions unfolded) and the simprocs `procs` along with the default ones. -/
@@ -221,12 +261,22 @@ def applyTransport (d : JudgmentDesc) (lem : Name) (g : MVarId) (ty p : Lean.Exp
 
 /-- On a goal about a registered judgment: rewrite its statement with `f`, which returns the new
 statement `s'` and a proof of `s.Equiv s'` (as `flattenSeq` and `HoareSplit.splitSeq` do), and
-continue with the judgment about `s'`, conditions unchanged. -/
-def onStmt (f : Lean.Expr → MetaM (Lean.Expr × Lean.Expr)) (g : MVarId) : MetaM MVarId :=
-  g.withContext do
-    let (d, ty) ← descOf g
+continue with the judgment about `s'`, conditions unchanged.  On a relational judgment, the
+statement of side `side?`, or of each side in turn for `none`. -/
+def onStmt (f : Lean.Expr → MetaM (Lean.Expr × Lean.Expr)) (g : MVarId)
+    (side? : Option Nat := none) : MetaM MVarId :=
+  forSides side? g fun side? g => g.withContext do
+    let (d, ty) ← descOf g side?
     let (_, p) ← f (ty.getArg! d.stmtArg)
     applyTransport d d.equivLemma g ty p fun e => return { expr := e }
+
+/-- A side selector in a tactic, `{1}` or `{2}`: the side of a relational judgment the tactic works
+on (EasyCrypt's `wp{1}`, `inline{2}`).  Without it, a tactic works on every side. -/
+syntax judgmentSide := "{" num "}"
+
+/-- The side a `judgmentSide` selects. -/
+def sideOf? (s? : Option (TSyntax ``judgmentSide)) : Option Nat :=
+  s?.bind fun s => s.raw[1].isNatLit?
 
 end Judgment
 

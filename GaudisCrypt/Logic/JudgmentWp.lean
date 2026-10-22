@@ -51,10 +51,12 @@ def simpArg (g : MVarId) (i : Nat) (decls procs : List Name) : MetaM MVarId := g
     mkLambdaFVars #[x] (mkAppN f (args.set! i x))
   g.replaceTargetEq target (← mkCongrArg motive h)
 
-/-- One backwards step over the last statement of the goal's judgment. -/
-def wpOne (g : MVarId) : MetaM MVarId := g.withContext do
-  let g ← HoareSplit.hoareSplit 1 g
-  let (d, ty) ← descOf g
+/-- One backwards step over the last statement of the goal's judgment (of side `side?` of a
+relational one).  With `detOnly`, only over deterministic code: anything else is an error. -/
+def wpOne (g : MVarId) (side? : Option Nat := none) (detOnly := false) : MetaM MVarId :=
+    g.withContext do
+  let g ← HoareSplit.hoareSplit 1 g side?
+  let (d, ty) ← descOf g side?
   let st := stripLets (ty.getArg! d.stmtArg)
   unless st.isAppOf ``StmtWithHoles.seq do
     throwError "wp: the statement is not a sequence:{indentExpr st}"
@@ -62,6 +64,8 @@ def wpOne (g : MVarId) : MetaM MVarId := g.withContext do
   let g ← if let some (_, pf) ← detOf? last then
       let some lem := d.detLemma | throwError "wp: `{d.head}` has no rule for deterministic code"
       applyRule lem g ty (some pf)
+    else if detOnly then
+      throwError "wp: not deterministic code:{indentExpr last}"
     else if last.isAppOf ``StmtWithHoles.sample then
       let some lem := d.sampleLemma | throwError "wp: `{d.head}` has no rule for sampling"
       applyRule lem g ty none
@@ -74,15 +78,34 @@ def wpOne (g : MVarId) : MetaM MVarId := g.withContext do
       throwError "wp: no wp rule for the statement (a loop needs an invariant):{indentExpr last}"
   simpArg g d.postArg d.postSimp d.postSimprocs
 
-/-- `k` backwards steps (`wpOne`), the last statement first. -/
-def wpStep (k : Nat) (g : MVarId) : MetaM MVarId := do
-  let mut g := g
-  for _ in [0:k] do g ← wpOne g
-  return g
+/-- `k` backwards steps (`wpOne`), the last statement first; on a relational judgment, `k` on
+side `side?`, or on each side for `none`. -/
+def wpStep (k : Nat) (g : MVarId) (side? : Option Nat := none) : MetaM MVarId :=
+  forSides side? g fun side? g => do
+    let mut g := g
+    for _ in [0:k] do g ← wpOne g side?
+    return g
+
+/-- Backwards steps over the deterministic code at the end of the statement, as many as there
+are (EasyCrypt's `wp`): until the statement is `skip` or ends in a sampling, a call or a loop.
+On a relational judgment, on side `side?`, or on each side for `none`. -/
+def wpDet (g : MVarId) (side? : Option Nat := none) : MetaM MVarId :=
+  forSides side? g fun side? g => do
+    let mut g := g
+    repeat
+      let (d, ty) ← descOf g side?
+      if (stripLets (ty.getArg! d.stmtArg)).isAppOf ``StmtWithHoles.skip then break
+      let s ← saveState
+      try g ← wpOne g side? (detOnly := true)
+      catch _ => s.restore; break
+    return g
 
 /-- `stmt_wp k`: the last `k` statements of any registered judgment's statement, by wp
-(`Judgment.wpStep`). -/
-elab "stmt_wp " k:num : tactic =>
-  liftMetaTactic1 fun g => some <$> wpStep k.getNat g
+(`Judgment.wpStep`); `stmt_wp` alone: all the deterministic code at the end (`Judgment.wpDet`).
+On a relational judgment, on both sides, or with `stmt_wp{i}` on side `i`. -/
+elab "stmt_wp" s:(judgmentSide)? k?:(ppSpace num)? : tactic =>
+  liftMetaTactic1 fun g => some <$> match k? with
+    | some k => wpStep k.getNat g (sideOf? s)
+    | none => wpDet g (sideOf? s)
 
 end GaudisCrypt.Judgment
