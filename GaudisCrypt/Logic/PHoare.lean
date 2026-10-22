@@ -262,6 +262,14 @@ theorem ENNReal.sum_indicatorE_eq_div_card {α : Type*} [Fintype α] (v : α) :
     by_cases h : v = x <;> simp [indicatorE, h]
   simp only [this, Finset.sum_ite_eq, Finset.mem_univ, if_true]
 
+/-- On a finite type, an expectation is the weighted sum over the points. -/
+theorem SubProbability.expected_eq_sum {α : Type*} [Fintype α] (μ : SubProbability α)
+    (f : α → ENNReal) : μ.expected f = ∑ a, μ.1 {a} * f a := by
+  letI : MeasurableSpace α := ⊤
+  change ∫⁻ a, f a ∂μ.1 = _
+  rw [MeasureTheory.lintegral_fintype]
+  simp only [mul_comm]
+
 /-- The average of a constant over a nonempty finite type is the constant. -/
 theorem ENNReal.sum_div_card {α : Type*} [Fintype α] [Nonempty α] (c : ENNReal) :
     ∑ _x : α, c / (Fintype.card α : ENNReal) = c := by

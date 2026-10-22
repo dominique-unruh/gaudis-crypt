@@ -89,6 +89,8 @@ import GaudisCrypt.Logic.PRHL.UpToBad
 import GaudisCrypt.Examples.QueryCounting
 import GaudisCrypt.Examples.GuessingGame
 import GaudisCrypt.Examples.RejectionSampling
+import GaudisCrypt.Examples.EasyCryptBench.Means
+import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding

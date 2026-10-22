@@ -113,26 +113,6 @@ def phoareSplit (k : Nat) (g : MVarId) : MetaM MVarId :=
 elab "phoare_split " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> phoareSplit k.getNat g
 
-/-- On a goal `phoareStmt A s g ρ r`: inline call site `n` of `s` and continue with the judgment
-about the result, its conditions read through the renaming and cleaned (`hoareInline`). -/
-def phoareInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
-  let ty ← instantiateMVars (← g.getType)
-  let #[A, s, e, ρ, r] ← phoareParts ty | unreachable!
-  let step ← Flatten.inlineProcedure n s (Flatten.namesIn r (Flatten.namesIn e
-    (Flatten.namesIn A)))
-  let (A', hA) ← Flatten.cleanCondition A step.trafo
-  let (e', he) ← Flatten.cleanCondition e step.trafo
-  let (r', hr) ← Flatten.cleanCondition r step.trafo
-  let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``phoareStmt #[A', step.stmt, e', ρ, r'])
-    (← g.getTag)
-  g.assign (← mkAppOptM ``phoareStmt_of_equivInLens
-    #[some A, some A', some s, some step.stmt, some e, some e', some r, some r', some ρ,
-      some step.trafo, some step.proof, some hA, some he, some hr, some g'])
-  return g'.mvarId!
-
-elab "phoare_inline " n:num : tactic =>
-  liftMetaTactic1 fun g => some <$> phoareInline n.getNat g
-
 /-- The simp set computing an expectation: the exact expectations of the statements, the reads of
 `simpReads`, and the uniform distribution's average. -/
 def ewpDecls : List Name :=
@@ -203,6 +183,34 @@ def simpPost (g : MVarId) : MetaM MVarId := g.withContext do
   let motive ← withLocalDeclD `x (← inferType (ty.getArg! 2)) fun x =>
     mkLambdaFVars #[x] (mkAppN ty.getAppFn (args.set! 2 x))
   g.replaceTargetEq target (← mkCongrArg motive h)
+
+/-- On a goal `phoareStmt A s g ρ r`: inline call site `n` of `s` and continue with the judgment
+about the result, its conditions read through the renaming and cleaned (`hoareInline`). -/
+def phoareInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let #[A, s, e, ρ, r] ← phoareParts ty | unreachable!
+  let step ← Flatten.inlineProcedure n s (Flatten.namesIn r (Flatten.namesIn e
+    (Flatten.namesIn A)))
+  -- cleaned by the inliner, then simplified like an expectation (`ewpDecls`): the inliner's own
+  -- lemmas do not push `.globals` through its renaming lenses
+  let clean (C : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
+    let (C', h) ← Flatten.cleanCondition C step.trafo
+    let r ← simpExprWith ewpDecls C'
+    match r.proof? with
+    | some p => return (r.expr, ← mkEqTrans h p)
+    | none => return (r.expr, h)
+  let (A', hA) ← clean A
+  let (e', he) ← clean e
+  let (r', hr) ← clean r
+  let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``phoareStmt #[A', step.stmt, e', ρ, r'])
+    (← g.getTag)
+  g.assign (← mkAppOptM ``phoareStmt_of_equivInLens
+    #[some A, some A', some s, some step.stmt, some e, some e', some r, some r', some ρ,
+      some step.trafo, some step.proof, some hA, some he, some hr, some g'])
+  return g'.mvarId!
+
+elab "phoare_inline " n:num : tactic =>
+  liftMetaTactic1 fun g => some <$> phoareInline n.getNat g
 
 /-- One backwards step on a goal `phoareStmt A {x₁; …; xₙ} g ρ r`: split off the last `k`
 statements (`phoareSplit`), and continue with the judgment about `x₁; …; xₙ₋ₖ`, the expectation
