@@ -368,4 +368,46 @@ theorem s_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h�
   rintro _ _ rfl
   simp
 
+/-- **EC's `PIR_s'_uniform`**: the same for the second query.  It takes `j` when the coin says so,
+except at the index, where it takes `j` when the coin says not to; the two runs have the same
+index, so the same coupling works. -/
+theorem s'_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h₂ : x₂ ⊆ Finset.range N) :
+    equiv[ (main N D) ~ (main N D) : ={i} ==>
+      ((§s'{1}).toFinset = x₁ ↔ (§s'{2}).toFinset = x₂) ] := by
+  equiv_proc
+  stmt_inline 0
+  stmt_inline 0
+  stmt_inline 0
+  stmt_wp
+  equiv_while ={i0, j} ∧ §j{1} ≤ N ∧ (∀ y ∈ (§s'{1}).toFinset, y < §j{1}) ∧
+      (∀ y ∈ (§s'{2}).toFinset, y < §j{2}) ∧
+      ((§s'{1}).toFinset = x₁.filter (· < §j{1}) ↔ (§s'{2}).toFinset = x₂.filter (· < §j{2}))
+  case body =>
+    stmt_wp
+    equiv_rnd (fun b => b ^^ (decide (§j{1} ∈ x₁) ^^ decide (§j{2} ∈ x₂)))
+    equiv_skip
+    rintro i j s₁ _ _ s₂ ⟨⟨⟨rfl, rfl⟩, -, hs₁, hs₂, hiff⟩, hj⟩ a
+    -- the second query takes `j` exactly when `a ^^ (j == i)`
+    have hq (b : Bool) (q : List ℕ) : (if (j == i) = true then (if b = true then q else j :: q)
+        else (if b = true then j :: q else q)) = if (b ^^ (j == i)) = true then j :: q else q := by
+      cases b <;> cases (j == i) <;> rfl
+    simp only [hq, ite_self]
+    refine ⟨by simp, by simpa using hj, bounded_step hs₁ _, bounded_step hs₂ _, ?_⟩
+    rw [toFinset_step _ hs₁, toFinset_step _ hs₂, hiff]
+    refine and_congr_right fun _ => ?_
+    cases a <;> cases (j == i) <;> by_cases hx₁ : j ∈ x₁ <;> by_cases hx₂ : j ∈ x₂ <;>
+      simp [hx₁, hx₂]
+  case guard => rintro _ _ _ _ _ _ ⟨⟨_, rfl⟩, -⟩; rfl
+  case exit =>
+    rintro _ j s₁ _ _ s₂ ⟨⟨-, rfl⟩, hjN, -, -, hiff⟩ hj
+    have hjN : j = N := by simp at hj; omega
+    subst hjN
+    have hx (x : Finset ℕ) (hx : x ⊆ Finset.range j) : x.filter (· < j) = x :=
+      Finset.filter_true_of_mem fun y hy => Finset.mem_range.mp (hx hy)
+    rwa [hx x₁ h₁, hx x₂ h₂] at hiff
+  stmt_wp
+  equiv_skip
+  rintro _ _ rfl
+  simp
+
 end GaudisCrypt.Examples.EasyCryptBench.PIR
