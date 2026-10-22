@@ -322,6 +322,101 @@ private def delabPrhlStmt : Delab := do
         $[var $l₂:proc_binder,* ;]*
         $stmts₂:gaudi_stmt* })
 
+/-! ### The procedure form
+
+`prhlProc A p₁ p₂ B` prints as `equiv[ M₁ (x) ~ M₂ (y) : P ==> Q ]` when both conditions have the
+shape the elaborator builds: `fun args₁ σ₁ args₂ σ₂ => let x_1 := …; …; P`, one `Getter.mk`
+`let` per parameter of each side (named `x_1`/`x_2`, `res_1`/`res_2` in the postcondition), and
+the reads at `⟨σᵢ, VariableAssignment.init⟩`.  The two sides' getters of a name print as the one
+variable `x`, the side in the read (`§x{1}`). -/
+
+/-- The `let`s of a procedure-judgment condition, peeled: each one's base name, side and type,
+and the body under them. -/
+private partial def peelSidedLets (e : Lean.Expr) (acc : Array (Name × Nat × Lean.Expr)) :
+    Option (Array (Name × Nat × Lean.Expr) × Lean.Expr) :=
+  match e with
+  | .letE nm ty v b _ => do
+      guard (v.isAppOf ``Getter.mk)
+      let .str p s := nm.eraseMacroScopes | none
+      let k ← if s.endsWith "_1" then some 1 else if s.endsWith "_2" then some 2 else none
+      peelSidedLets b (acc.push (.str p (s.dropEnd 2).toString, k, ty))
+  | b => some (acc, b)
+
+/-- Replace the reads at `⟨gᵢ, VariableAssignment.init⟩` in `e` by `relRead … i x`. -/
+private def markPackedReads (g₁ g₂ : Lean.Expr) (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (pre := fun e => do
+    unless e.isAppOfArity ``eval 5 do return .continue
+    let cs := e.getArg! 3
+    unless cs.isAppOfArity ``CurrentState.mk 1 do return .continue
+    let st := cs.appArg!
+    unless st.isAppOfArity ``ProgramState.mk 2 &&
+        (st.getArg! 1).isConstOf ``VariableAssignment.init do return .continue
+    let i ← if st.getArg! 0 == g₁ then pure 1 else if st.getArg! 0 == g₂ then pure 2
+      else return .continue
+    let r ← mkAppOptM ``relRead #[e.getArg! 0, e.getArg! 1, e.getArg! 2, some st,
+      some (mkNatLit i), e.getArg! 4]
+    return .done r)
+
+/-- Does one of `fvs` occur in `e` other than as the state of a `relRead`? -/
+private partial def fvarsEscape (fvs : Array Lean.Expr) (e : Lean.Expr) : Bool :=
+  if e.isAppOfArity ``relRead 6 then fvarsEscape fvs (e.getArg! 5)
+  else match e with
+    | .fvar _ => fvs.contains e
+    | .app f a => fvarsEscape fvs f || fvarsEscape fvs a
+    | .lam _ t b _ | .forallE _ t b _ => fvarsEscape fvs t || fvarsEscape fvs b
+    | .letE _ t v b _ => fvarsEscape fvs t || fvarsEscape fvs v || fvarsEscape fvs b
+    | .mdata _ b | .proj _ _ b => fvarsEscape fvs b
+    | _ => false
+
+/-- Bind one local per name of `vs` (the first type given for it), for printing. -/
+private partial def withPrintVars {α} (vs : List (Name × Lean.Expr))
+    (acc : Array (Name × Lean.Expr)) (k : Array (Name × Lean.Expr) → DelabM α) : DelabM α :=
+  match vs with
+  | [] => k acc
+  | (n, ty) :: rest =>
+      if acc.any (·.1 == n) then withPrintVars rest acc k
+      else withLocalDecl n .default ty fun fv => withPrintVars rest (acc.push (n, fv)) k
+
+/-- A condition of a procedure judgment: the names its `let`s bind (with their sides), and the
+condition printed with sided reads. -/
+private def delabProcRelCond (e : Lean.Expr) : DelabM (Array (Name × Nat) × Term) := do
+  let .lam n₁ t₁ (.lam n₂ t₂ (.lam n₃ t₃ (.lam n₄ t₄ body _) _) _) _ := e | failure
+  let some (lets, inner) := peelSidedLets body #[] | failure
+  guard !(lets.any fun (_, _, ty) => ty.hasLooseBVars)
+  -- one type per name
+  for (n, _, ty) in lets do
+    for (n', _, ty') in lets do
+      if n == n' then guard (← isDefEq ty ty')
+  withLocalDecl n₁ .default t₁ fun a₁ => withLocalDecl n₂ .default t₂ fun g₁ =>
+  withLocalDecl n₃ .default t₃ fun a₂ => withLocalDecl n₄ .default t₄ fun g₂ =>
+  withPrintVars (lets.toList.map fun (n, _, ty) => (n, ty)) #[] fun pvs => do
+    let letVals := lets.map fun (n, _, _) => ((pvs.find? (·.1 == n)).map (·.2)).getD default
+    let b := inner.instantiateRev (#[a₁, g₁, a₂, g₂] ++ letVals)
+    let b ← markPackedReads g₁ g₂ b
+    guard !(fvarsEscape #[a₁, g₁, a₂, g₂] b)
+    return (lets.map fun (n, k, _) => (n, k), ← withExpr b delab)
+
+/-- Print a procedure judgment as `equiv[ M₁ (x) ~ M₂ (y) : P ==> Q ]`. -/
+@[delab app.GaudisCrypt.prhlProc]
+private def delabPrhlProc : Delab := do
+  guardSurfaceSyntax
+  let e ← getExpr
+  guard (e.getAppNumArgs == 6)
+  let (preLets, pre) ← delabProcRelCond (e.getArg! 2)
+  let (postLets, post) ← delabProcRelCond (e.getArg! 5)
+  guard (postLets == #[(`res, 1), (`res, 2)])
+  let names (k : Nat) := (preLets.filter (·.2 == k)).map (·.1)
+  let (ns₁, ns₂) := (names 1, names 2)
+  guard (ns₁[0]? == some `params && ns₂[0]? == some `params)
+  let ids (ns : Array Name) : Option (Syntax.TSepArray `ident ",") :=
+    if ns.size ≤ 1 then none else some (.ofElems ((ns.extract 1 ns.size).map mkIdent))
+  let callee (i : Nat) : DelabM Term := withNaryArg i do
+    if (procModule? (← getExpr)).isSome then withNaryArg 1 delab else delab
+  let c₁ ← callee 3
+  let c₂ ← callee 4
+  let (o₁, o₂) := (ids ns₁, ids ns₂)
+  `(equiv[ $c₁:term $[( $o₁,* )]? ~ $c₂:term $[( $o₂,* )]? : $pre ==> $post ])
+
 end Printing
 
 end GaudisCrypt

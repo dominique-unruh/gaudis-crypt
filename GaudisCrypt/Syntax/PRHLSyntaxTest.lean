@@ -81,9 +81,14 @@ module M : T {
   };
 }
 
-example : Prop := equiv[ M.f ~ M.f : ={n} ==> ={res, g} ]
+-- the procedure form prints with the parameter names, read on each side
+/-- info: equiv[ M.f (n) ~ M.f (n) : §n{1} = §n{2} ==> §res{1} = §res{2} ∧ §g{1} = §g{2} ] -/
+#guard_msgs in
+#roundtrip equiv[ M.f ~ M.f : ={n} ==> ={res, g} ]
 
-example : Prop := equiv[ M.f ~ M.f : §n{1} = §n{2} + 1 ∧ §g{1} = 0 ==> §res{1} = §res{2} ]
+/-- info: equiv[ M.f (n) ~ M.f (n) : §n{1} = §n{2} + 1 ∧ §g{1} = 0 ==> §res{1} = §res{2} ] -/
+#guard_msgs in
+#roundtrip equiv[ M.f ~ M.f : §n{1} = §n{2} + 1 ∧ §g{1} = 0 ==> §res{1} = §res{2} ]
 
 /-- error: in a relational condition, a read says which side it is about: `§x{1}` or `§x{2}` -/
 #guard_msgs in
