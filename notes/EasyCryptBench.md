@@ -21,7 +21,7 @@ crypto developments (`cramer_shoup`, `ChaChaPoly`, KEM theories) — too much li
 
 Note: no `Language/` change is needed for non-uniform distributions — `x <$ d` samples from any
 `d : SubProbability α`, and `toSubProbability : PMF α → SubProbability α` exists (e.g. a biased
-coin is `toSubProbability (PMF.bernoulli p hp)`).
+coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
 
 ## Log
 
