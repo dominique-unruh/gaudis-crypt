@@ -79,3 +79,13 @@ coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
   via `lintegral_eq_tsum_smul` with no finiteness assumption (the now-unused instances dropped
   from `wp_uniformOfFinset`, `uniformOfFinset_mass_one` and the Attic's
   `inRange_uniformOfFinset`).
+* 2026-10-23 — **PIR privacy done** (`secure1`, `secure2`, `security_s`, `security_s'` in
+  `Examples/EasyCryptBench/PIR.lean`, standard axioms), with the new pRHL layer (branch
+  `prhl-syntax`).  `secure1` is EC's script step for step: `equiv_proc; stmt_inline 0` ×3
+  (`proc; inline *`), `stmt_wp`, `equiv_while ={j, s}`, body `stmt_wp; equiv_rnd; equiv_skip`
+  and a 2-line `simp`.  `secure2` couples the coins with one *state-dependent* function,
+  `fun b => if (§j{1} == §i0{1}) = (§j{2} == §i0{2}) then b else !b`, where EC does a `case`
+  and two `rnd`s.  The `byequiv` corollaries are one term each (`Procedure.Pr_eq_of_prhlProc`).
+  The database is any additive group (EC: words with xor); `s`, `s'` are `List ℕ` as in EC.
+  Not done: `PIR_correct` and `Pr_PIR_s` (phoare with a counted loop — need the variant rule),
+  `PIR_s_uniform` (an `equiv` with the xor coupling, list ↔ set bookkeeping).
