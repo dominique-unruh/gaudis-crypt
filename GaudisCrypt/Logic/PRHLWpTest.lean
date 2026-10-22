@@ -75,4 +75,43 @@ example : equiv[ True ==> ={y} ] {
     equiv_skip
     simp
 
+/-- A conditional with a sampling in a branch, on one side; then the sides swapped. -/
+example : equiv[ ={x} ==> True ] {
+      var x : ℕ, b : Bool;
+      if ($x == 0) { b <$ SubProbability.uniform; } else { b <- true; }
+    } ~ {
+      var x : ℕ, b : Bool;
+      b <- false;
+    } := by
+  equiv_if{1}
+  case «then» =>
+    equiv_sym
+    stmt_wp{2} 1
+    stmt_wp{1}
+    equiv_skip
+    simp
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    simp
+
+/-- Conditionals on both sides, synchronized. -/
+example : equiv[ ={x} ==> ={b} ] {
+      var x : ℕ, b : Bool;
+      if ($x == 0) { b <$ SubProbability.uniform; } else { b <- true; }
+    } ~ {
+      var x : ℕ, b : Bool;
+      if ($x == 0) { b <$ SubProbability.uniform; } else { b <- true; }
+    } := by
+  equiv_if
+  case «then» =>
+    equiv_rnd
+    equiv_skip
+    simp
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    simp
+  case guard => rintro _ _ rfl; rfl
+
 end GaudisCrypt.PRHLWpTest

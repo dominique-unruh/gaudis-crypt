@@ -129,6 +129,11 @@ theorem prhlStmt.symm (h : prhlStmt A c₁ c₂ B) :
     prhlStmt (fun σ₂ σ₁ => A σ₁ σ₂) c₂ c₁ (fun σ₂ σ₁ => B σ₁ σ₂) :=
   ProgramDenotation.prhl2.symm h
 
+/-- Symmetry, backwards: the judgment with the sides swapped. -/
+theorem prhlStmt_of_symm
+    (h : prhlStmt (fun σ₂ σ₁ => A σ₁ σ₂) c₂ c₁ (fun σ₂ σ₁ => B σ₁ σ₂)) : prhlStmt A c₁ c₂ B :=
+  h.symm
+
 theorem prhlStmt_symm_iff :
     prhlStmt A c₁ c₂ B ↔ prhlStmt (fun σ₂ σ₁ => A σ₁ σ₂) c₂ c₁ (fun σ₂ σ₁ => B σ₁ σ₂) :=
   ⟨prhlStmt.symm, fun h => h.symm⟩
@@ -344,6 +349,12 @@ theorem SubProbability.uniform_bind_pure_bijective {α : Type} [Fintype α] [Non
       = SubProbability.uniform :=
   SubProbability.uniform_bind_pure_bijective (Function.Involutive.bijective Bool.not_not)
 
+/-- The uniform distribution is lossless (the side condition of a one-sided sampling). -/
+@[simp] theorem SubProbability.uniform_expected_one {α : Type} [Fintype α] [Nonempty α] :
+    (SubProbability.uniform : SubProbability α).expected (fun _ => 1) = 1 := by
+  rw [uniform_expected, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+  exact ENNReal.mul_div_cancel (by simp) (ENNReal.natCast_ne_top _)
+
 /-- A translation pushes the uniform distribution on a group to itself. -/
 @[simp] theorem SubProbability.uniform_bind_add_left {G : Type} [AddGroup G] [Fintype G]
     [Nonempty G] (m : G) :
@@ -406,6 +417,40 @@ theorem prhlStmt_if (hg : ∀ σ₁ σ₂, A σ₁ σ₂ → c₁.get σ₁ = c�
   cases b₁
   · exact he σ₁ σ₂ ⟨hA, hc⟩
   · exact ht σ₁ σ₂ ⟨hA, hc⟩
+
+/-- A conditional runs one of its branches. -/
+theorem programDenotation_ifThenElse_apply (c : Getter Bool ProgramState) (t e : Stmt)
+    (σ : ProgramState) :
+    programDenotation (StmtWithHoles.ifThenElse c t e) σ
+      = if c.get σ then programDenotation t σ else programDenotation e σ :=
+  SubProbability.ext_of_expected fun F => by
+    have := congrFun (Stmt.ewp_ifThenElse c t e (fun σ' => F ((), σ'))) σ
+    simp only [Stmt.ewp, ProgramDenotation.wp] at this
+    rw [this]
+    split <;> rfl
+
+/-- **A conditional on the left only** (EC's `if{1}`): each branch against the right side. -/
+theorem prhlStmt_if_left {s : Stmt} (ht : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ c₁.get σ₁ = true) t₁ s B)
+    (he : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ c₁.get σ₁ = false) e₁ s B) :
+    prhlStmt A (.ifThenElse c₁ t₁ e₁) s B := by
+  intro σ₁ σ₂ hA
+  have hd := programDenotation_ifThenElse_apply c₁ t₁ e₁ σ₁
+  cases hc : c₁.get σ₁
+  · rw [hc] at hd
+    simp only [Bool.false_eq_true, if_false] at hd
+    rw [hd]
+    exact he σ₁ σ₂ ⟨hA, hc⟩
+  · rw [hc] at hd
+    simp only [if_true] at hd
+    rw [hd]
+    exact ht σ₁ σ₂ ⟨hA, hc⟩
+
+/-- **A conditional on the right only** (EC's `if{2}`). -/
+theorem prhlStmt_if_right {s : Stmt}
+    (ht : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ c₂.get σ₂ = true) s t₂ B)
+    (he : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ c₂.get σ₂ = false) s e₂ B) :
+    prhlStmt A s (.ifThenElse c₂ t₂ e₂) B :=
+  (prhlStmt_if_left (A := fun σ₂ σ₁ => A σ₁ σ₂) (B := fun σ₂ σ₁ => B σ₁ σ₂) ht.symm he.symm).symm
 
 end If
 
@@ -576,6 +621,20 @@ theorem prhlStmt_seq_call (h : prhlProc A p₁ p₂ B) {x₁ : Setter sig₁.ret
     simp only [expected_pure]
   · exact SubProbability.satisfies_bind _ fun w hw =>
       SubProbability.satisfies_pure _ _ (hB _ _ _ _ (hsat w hw))
+
+/-- **Transitivity** of procedure judgments (game hopping): couplings of `p₁` with `p₂` and of
+`p₂` with `p₃` glue along `p₂` (`ProgramDenotation.prhl2.trans`). -/
+theorem prhlProc.trans {sig₃ : ProcedureSignature} {p₃ : Procedure sig₃}
+    {A₂ : sig₂.ParamType → VariableAssignment → sig₃.ParamType → VariableAssignment → Prop}
+    {B₂ : sig₂.ret → VariableAssignment → sig₃.ret → VariableAssignment → Prop}
+    (h₁ : prhlProc A p₁ p₂ B) (h₂ : prhlProc A₂ p₂ p₃ B₂) :
+    prhlProc (fun a₁ g₁ a₃ g₃ => ∃ a₂ g₂, A a₁ g₁ a₂ g₂ ∧ A₂ a₂ g₂ a₃ g₃) p₁ p₃
+      (fun r₁ g₁ r₃ g₃ => ∃ r₂ g₂, B r₁ g₁ r₂ g₂ ∧ B₂ r₂ g₂ r₃ g₃) := by
+  intro a₁ a₃ g₁ g₃ ⟨a₂, g₂, hA, hA₂⟩
+  obtain ⟨μ, hm1, hm2, hsat⟩ := ((h₁ a₁ a₂).trans (h₂ a₂ a₃)) g₁ g₃ ⟨g₂, hA, hA₂⟩
+  exact ⟨μ, hm1, hm2, fun x hx => by
+    obtain ⟨y, hy₁, hy₂⟩ := hsat x hx
+    exact ⟨y.1, y.2, hy₁, hy₂⟩⟩
 
 /-- Consequence for procedure judgments. -/
 theorem prhlProc_conseq

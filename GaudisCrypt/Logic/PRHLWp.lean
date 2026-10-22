@@ -23,6 +23,8 @@ And the relational steps proper:
   `call`; `prhlProc_glob hA` for an abstract procedure, EC's `call (_ : ={glob A})`);
 * `equiv_seq k₁ k₂ : M` — cut after all but the last `k₁` / `k₂` statements (EC's `seq`);
 * `equiv_case P` — case analysis on a relation of the initial states (EC's `case`);
+* `equiv_if`, `equiv_if{i}` — conditionals on both sides, or on one (EC's `if`, `if{i}`);
+* `equiv_sym` — swap the sides;
 * `equiv_skip` — at `skip ~ skip`, the implication, with the reads of both states generalized
   (`x₁`, `x₂`; EC's `skip`).
 
@@ -39,7 +41,7 @@ trivial coupling conditions `equiv_rnd` leaves (the identity and negation push a
 distribution to itself, and its support is everything). -/
 def relSimpDecls : List Lean.Name :=
   HoareWp.simpReadsDecls ++ [``SubProbability.bind_pure_id, ``SubProbability.uniform_bind_not,
-    ``SubProbability.uniform_bind_add_left,
+    ``SubProbability.uniform_bind_add_left, ``SubProbability.uniform_expected_one,
     ``eq_self_iff_true, ``SubProbability.uniform_support, ``Set.mem_univ]
 
 end PRHLWp
@@ -353,6 +355,43 @@ elab "equiv_call " h:term : tactic => withMainContext do
     let gPre := ms.back!.mvarId!
     gPre.setKind .syntheticOpaque
     replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
+
+/-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the
+test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).
+`equiv_if{i}`: side `i`'s statement is a conditional (`prhlStmt_if_left`/`_right`, EC's
+`if{i}`): goals `then`, `else`, each against the other side.  To reach a conditional inside a
+sequence, cut first (`equiv_seq`). -/
+elab "equiv_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_if"
+  let (lem, tags) := match Judgment.sideOf? s with
+    | some 1 => (``prhlStmt_if_left, [`then, `else])
+    | some 2 => (``prhlStmt_if_right, [`then, `else])
+    | _ => (``prhlStmt_if, [`guard, `then, `else])
+  let gs ← applyLemma lem g
+  unless gs.size == tags.length do
+    throwError "equiv_if: the statements are not conditionals (`{lem}` left {gs.size} goals)"
+  let mut out := #[]
+  for (m, tag) in gs.toList.zip tags do
+    m.setTag tag
+    if tag == `guard then
+      out := out.push (← try generalizeReadsRel m catch _ => pure m)
+    else
+      let m' ← Judgment.simpArg m 0 relSimpDecls []
+      m'.setTag tag
+      out := out.push m'
+  -- the branches first, as written
+  let ordered := if out.size == 3 then #[out[1]!, out[2]!, out[0]!] else out
+  replaceMainGoal ordered.toList
+
+/-- `equiv_sym`: swap the two sides (`prhlStmt.symm`). -/
+elab "equiv_sym" : tactic => withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_sym"
+  let gs ← applyLemma ``prhlStmt_of_symm g
+  let #[g'] := gs | throwError "equiv_sym: `prhlStmt_of_symm` left {gs.size} goals"
+  let g' ← Judgment.simpArg g' 0 [] []
+  replaceMainGoal [← Judgment.simpArg g' 3 [] []]
 
 /-- `equiv_case P`: case analysis on the relation `P` of the initial states
 (`prhlStmt_case`): goals with `A ∧ P` and with `A ∧ ¬P` as preconditions. -/
