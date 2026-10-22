@@ -1,4 +1,4 @@
-import GaudisCrypt.Logic.StmtEquiv
+import GaudisCrypt.Logic.Judgment
 
 /-!
 # Meta helpers for statement rewriting
@@ -106,20 +106,18 @@ partial def flattenSeq (s₀ : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
 
 /-! ## Rewriting the statement of a triple -/
 
-/-- On a goal `hoareStmt A s B`: rewrite the statement with `f`, which returns the new statement
-`s'` and a proof of `s.Equiv s'` (as `flattenSeq` and `HoareSplit.splitSeq` do), and continue with
-the triple about `s'`.  The conditions are untouched — `conv` for the statement of a triple. -/
+run_meta registerJudgment {
+  head := ``hoareStmt
+  stmtArg := 1
+  equivLemma := ``hoareStmt_of_equiv
+  transportLemma := ``hoareStmt_of_equivInLens }
+
+/-- On a goal about a statement judgment (`hoareStmt A s B`, or any registered one): rewrite the
+statement with `f`, which returns the new statement `s'` and a proof of `s.Equiv s'` (as
+`flattenSeq` and `HoareSplit.splitSeq` do), and continue with the judgment about `s'`.  The
+conditions are untouched — `conv` for the statement of a judgment (`Judgment.onStmt`). -/
 def hoareOnStmt (f : Lean.Expr → MetaM (Lean.Expr × Lean.Expr)) (g : MVarId) : MetaM MVarId :=
-  g.withContext do
-    let ty ← instantiateMVars (← g.getType)
-    unless ty.isAppOfArity ``hoareStmt 3 do
-      throwError "expected a goal `hoareStmt A s B`, got{indentExpr ty}"
-    let (A, s, B) := (ty.getArg! 0, ty.getArg! 1, ty.getArg! 2)
-    let (s', p) ← f s
-    let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[A, s', B]) (← g.getTag)
-    g.assign
-      (← mkAppOptM ``hoareStmt_of_equiv #[some A, some B, some s, some s', some p, some g'])
-    return g'.mvarId!
+  Judgment.onStmt f g
 
 /-! ## Weakest preconditions of straight-line statements -/
 

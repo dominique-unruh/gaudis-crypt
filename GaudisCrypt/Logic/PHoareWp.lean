@@ -93,22 +93,12 @@ def phoareParts (ty : Lean.Expr) : MetaM (Array Lean.Expr) := do
     throwError "expected a goal `phoareStmt A s g ρ r`, got{indentExpr ty}"
   return ty.getAppArgs
 
-/-- On a goal `phoareStmt A s g ρ r`: rewrite the statement with `f` (a statement and a proof of
-`s.Equiv s'`), and continue with the judgment about the new statement (`hoareOnStmt`). -/
-def phoareOnStmt (f : Lean.Expr → MetaM (Lean.Expr × Lean.Expr)) (g : MVarId) : MetaM MVarId :=
-  g.withContext do
-    let ty ← instantiateMVars (← g.getType)
-    let #[A, s, e, ρ, r] ← phoareParts ty | unreachable!
-    let (s', p) ← f s
-    let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``phoareStmt #[A, s', e, ρ, r])
-      (← g.getTag)
-    g.assign (← mkAppOptM ``phoareStmt_of_equiv
-      #[some A, some s, some s', some e, some r, some ρ, some p, some g'])
-    return g'.mvarId!
+/-- `phoareOnStmt` is the generic `Judgment.onStmt` (kept for the name). -/
+abbrev phoareOnStmt := Judgment.onStmt
 
-/-- `phoare_split k`: regroup the statement as `{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`. -/
-def phoareSplit (k : Nat) (g : MVarId) : MetaM MVarId :=
-  phoareOnStmt (HoareSplit.splitSeq k) g
+/-- `phoare_split k`: regroup the statement as `{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}` — the generic
+`HoareSplit.hoareSplit`, as for every registered judgment. -/
+abbrev phoareSplit := HoareSplit.hoareSplit
 
 elab "phoare_split " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> phoareSplit k.getNat g
@@ -184,33 +174,23 @@ def simpPost (g : MVarId) : MetaM MVarId := g.withContext do
     mkLambdaFVars #[x] (mkAppN ty.getAppFn (args.set! 2 x))
   g.replaceTargetEq target (← mkCongrArg motive h)
 
-/-- On a goal `phoareStmt A s g ρ r`: inline call site `n` of `s` and continue with the judgment
-about the result, its conditions read through the renaming and cleaned (`hoareInline`). -/
-def phoareInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
-  let ty ← instantiateMVars (← g.getType)
-  let #[A, s, e, ρ, r] ← phoareParts ty | unreachable!
-  let step ← Flatten.inlineProcedure n s (Flatten.namesIn r (Flatten.namesIn e
-    (Flatten.namesIn A)))
-  -- cleaned by the inliner, then simplified like an expectation (`ewpDecls`): the inliner's own
-  -- lemmas do not push `.globals` through its renaming lenses
-  let clean (C : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
-    let (C', h) ← Flatten.cleanCondition C step.trafo
-    let r ← simpExprWith ewpDecls C'
-    match r.proof? with
-    | some p => return (r.expr, ← mkEqTrans h p)
-    | none => return (r.expr, h)
-  let (A', hA) ← clean A
-  let (e', he) ← clean e
-  let (r', hr) ← clean r
-  let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``phoareStmt #[A', step.stmt, e', ρ, r'])
-    (← g.getTag)
-  g.assign (← mkAppOptM ``phoareStmt_of_equivInLens
-    #[some A, some A', some s, some step.stmt, some e, some e', some r, some r', some ρ,
-      some step.trafo, some step.proof, some hA, some he, some hr, some g'])
-  return g'.mvarId!
+/-- `phoareInline` is the generic `Flatten.judgmentInline`: the conditions and the bound are
+read through the renaming, cleaned by the inliner, then simplified like an expectation (the
+`condSimp` this file registers for `phoareStmt`). -/
+abbrev phoareInline := Flatten.judgmentInline
 
 elab "phoare_inline " n:num : tactic =>
   liftMetaTactic1 fun g => some <$> phoareInline n.getNat g
+
+run_meta registerJudgment {
+  head := ``phoareStmt
+  stmtArg := 1
+  equivLemma := ``phoareStmt_of_equiv
+  transportLemma := ``phoareStmt_of_equivInLens
+  -- the inliner's cleaning does not push `.globals` through its renaming lenses: simplify the
+  -- conditions and the bound as expectations are simplified
+  condSimp := ewpDecls
+  condSimprocs := [``reduceProcedureConst] }
 
 /-- One backwards step on a goal `phoareStmt A {x₁; …; xₙ} g ρ r`: split off the last `k`
 statements (`phoareSplit`), and continue with the judgment about `x₁; …; xₙ₋ₖ`, the expectation

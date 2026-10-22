@@ -76,4 +76,25 @@ example : phoare[ (Module.app TwoFlips FairCoin) : True ==> §res = true ] = (1 
   intro _
   norm_num [← ENNReal.mul_inv]
 
+/- ### The judgment-generic steps (`Logic/Judgment.lean`): `stmt_inline`, `stmt_split` dispatch on
+the goal's judgment -/
+
+example : phoare[ FairCoin.flip : True ==> §res = true ] = (1 / 2) := by
+  phoare_proc_to_stmt
+  stmt_inline 0
+  stmt_split 3
+  phoare_wp 0
+  phoare_wp 3
+  phoare_skip
+  simp
+
+example : hoare[ FairCoin.flip : True ==> §res = true ∨ §res = false ] := by
+  hoare_proc_to_stmt
+  stmt_inline 0
+  stmt_split 3
+  hoare_wp 3
+  hoare_skip
+  intro _ a _
+  cases a <;> simp
+
 end GaudisCrypt.PHoareWpTest

@@ -2650,28 +2650,37 @@ def cleanCondition (C l : Expr) : MetaM (Expr × Expr) := do
   let r ← cleanStmt lam
   return (r.expr, ← r.getProof)
 
-/-- On a goal `hoareStmt A s B`: inline call site `n` of `s` (`inlineProcedure`) and continue with
-the triple about the result, its conditions read through the renaming and cleaned.  The names the
-conditions use count as taken. -/
-def hoareInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
-  let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOfArity ``hoareStmt 3 do
-    throwError "hoare_inline: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
-  let (A, s, B) := (ty.getArg! 0, ty.getArg! 1, ty.getArg! 2)
-  let step ← inlineProcedure n s (namesIn B (namesIn A))
-  let (A', hA) ← cleanCondition A step.trafo
-  let (B', hB) ← cleanCondition B step.trafo
-  let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``hoareStmt #[A', step.stmt, B']) (← g.getTag)
-  g.assign (← mkAppOptM ``hoareStmt_of_equivInLens
-    #[some A, some B, some A', some B', some s, some step.stmt,
-      some step.trafo, some step.proof, some hA, some hB, some g'])
-  return g'.mvarId!
+/-- On a goal about a statement judgment (`hoareStmt A s B`, or any registered one,
+`Judgment.descOf`): inline call site `n` of the statement (`inlineProcedure`) and continue with
+the judgment about the result, every condition read through the renaming and cleaned — by the
+inliner's own cleaning, then by the judgment's `condSimp`/`condSimprocs` if it registered any.
+The names the conditions use count as taken. -/
+def judgmentInline (n : Nat) (g : MVarId) : MetaM MVarId := g.withContext do
+  let (d, ty) ← Judgment.descOf g
+  let args := ty.getAppArgs
+  let mut avoid := #[]
+  for i in [0:args.size] do
+    unless i == d.stmtArg do avoid := namesIn args[i]! avoid
+  let step ← inlineProcedure n (args[d.stmtArg]!) avoid
+  Judgment.applyTransport d d.transportLemma g ty step.proof fun lhs => do
+    let r ← cleanStmt lhs
+    if d.condSimp.isEmpty && d.condSimprocs.isEmpty then return r
+    r.mkEqTrans (← Judgment.simpWithNames d.condSimp d.condSimprocs r.expr)
+
+/-- `hoareInline` is `judgmentInline` (kept for the name). -/
+abbrev hoareInline := judgmentInline
 
 /-- `hoare_inline n`: on a goal `hoareStmt A s B`, inline call site `n` of `s` (numbered in
 pre-order, holes included; the callee spelled out, named by a definition or through modules), and
-continue with the triple about the result.  The callee's own calls stay calls. -/
+continue with the triple about the result.  The callee's own calls stay calls.  The same step as
+`stmt_inline n`, which works on any registered judgment. -/
 elab "hoare_inline " n:num : tactic =>
-  liftMetaTactic1 fun g => some <$> hoareInline n.getNat g
+  liftMetaTactic1 fun g => some <$> judgmentInline n.getNat g
+
+/-- `stmt_inline n`: inline call site `n` of the statement of any registered judgment
+(`hoareStmt`, `phoareStmt`, …), as `hoare_inline` does for Hoare triples. -/
+elab "stmt_inline " n:num : tactic =>
+  liftMetaTactic1 fun g => some <$> judgmentInline n.getNat g
 
 end Flatten
 

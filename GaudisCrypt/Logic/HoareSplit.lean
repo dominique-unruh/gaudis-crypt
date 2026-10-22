@@ -57,14 +57,18 @@ where
     return (← mkAppM ``StmtWithHoles.seq #[← mkAppM ``StmtWithHoles.seq #[x, l], b],
             ← mkAppM ``StmtWithHoles.Equiv.trans #[pRest, pAssoc])
 
-/-- On a goal `hoareStmt A {x₁; …; xₙ} B`, regroup the statement as
-`{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`, the last `k` statements in the second block (`splitSeq`;
-`k = 0` and `k = n` pad the empty side with `skip`). -/
+/-- On a goal `hoareStmt A {x₁; …; xₙ} B` (or about any registered judgment), regroup the
+statement as `{x₁; …; xₙ₋ₖ}; {xₙ₋ₖ₊₁; …; xₙ}`, the last `k` statements in the second block
+(`splitSeq`; `k = 0` and `k = n` pad the empty side with `skip`). -/
 def hoareSplit (k : Nat) (g : MVarId) : MetaM MVarId :=
-  hoareOnStmt (splitSeq k) g
+  Judgment.onStmt (splitSeq k) g
 
 /-- `hoare_split k`: `hoareSplit k` on the main goal. -/
 elab "hoare_split " k:num : tactic =>
+  liftMetaTactic1 fun g => some <$> hoareSplit k.getNat g
+
+/-- `stmt_split k`: `hoare_split k` on the statement of any registered judgment. -/
+elab "stmt_split " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> hoareSplit k.getNat g
 
 end GaudisCrypt.HoareSplit
