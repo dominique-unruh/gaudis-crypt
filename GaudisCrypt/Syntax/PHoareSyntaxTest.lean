@@ -61,4 +61,8 @@ example : Prop := phoare[ FairCoin.pick : True ==> §res = 0 ] ≥ (if §a = 0 �
 #roundtrip phoare[ FairCoin.flip : True ==> §res = true ] = (1 / 2)
 #roundtrip phoare[ FairCoin.pick : §a ≠ §b ==> §res = §x ] ≤ (1 / 2)
 
+-- the whole global state, `§allGlobals` (EC's `glob A` / `&m`), in the postcondition and the bound
+#roundtrip fun (φ : VariableAssignment → Bool → Prop) (μ : VariableAssignment → ENNReal) =>
+  phoare[ FairCoin.flip : True ==> φ §allGlobals §res ] ≤ (μ §allGlobals)
+
 end GaudisCrypt.PHoareSyntaxTest

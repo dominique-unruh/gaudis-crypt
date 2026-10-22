@@ -51,3 +51,10 @@ coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
   (`introOrs`) and an induction over the support with `prCond` and `Pr[mu_disjoint]`.
   `prCond` adds `Finset.sum_eq_single` (linearity had already pulled `[v = a]` out of the
   worker's expectation).
+* 2026-10-22 — **`§allGlobals`**: the whole global state as a value in conditions and bounds
+  (EC's `glob A`, and `&m` in a bound), so `pbound_phoare`, `mean_phoare` and `prCond_phoare`
+  are now stated in the `phoare[ … ]` syntax rather than as raw `phoareProc` terms.  Needed
+  `Evaluatable`'s value type to be universe-polymorphic (`VariableAssignment : Type 1`; one-line
+  change in `Syntax/ExpressionSyntax.lean`), the getter `allGlobals`, and `allGlobals_get` in
+  `simpReads`.  The EC-style `Pr` corollaries now go through `exact` (the notation's elaborated
+  conditions are the plain ones up to unfolding).

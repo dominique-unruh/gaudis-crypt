@@ -70,7 +70,7 @@ def simpReadsDecls : List Name :=
    ``Set.mem_insert_iff, ``Set.mem_singleton_iff, ``Set.mem_sdiff, ``mem_stringsStartingWith_iff,
    ``if_pos, ``if_neg, ``not_false_eq_true,
    -- global reads, through writes to the state
-   ``eval_lens_global, ``eval_getter_global,
+   ``eval_lens_global, ``eval_getter_global, ``allGlobals_get,
    ``globals_intoLocal_set, ``globals_intoGlobal_set, ``globals_resetSetter_set,
    ``globals_globalL_set, ``globals_chain_get, ``globals_trafo_get, ``globals_emb_get,
    ``globals_rename_get,

@@ -44,11 +44,11 @@ class CurrentState where
 (lenses/getters into the globals `VariableAssignment`, or into the full `ProgramState`), and
 anything users later add instances for.  Dispatch is on the concrete type `X` of the argument, so
 resolution is never stuck on a metavariable. -/
-class Evaluatable (X : Type u) (T : outParam Type) where
+class Evaluatable (X : Type u) (T : outParam (Type v)) where
   eval : ProgramState → X → T
 
 /-- User-facing variable read in the ambient `CurrentState`. -/
-def eval {X : Type u} {T} [Evaluatable X T] [cs : CurrentState] (x : X) : T :=
+def eval {X : Type u} {T : Type v} [Evaluatable X T] [cs : CurrentState] (x : X) : T :=
   Evaluatable.eval cs.state x
 
 /-- The four container shapes, dispatched directly on the argument type.  (No
@@ -63,6 +63,13 @@ instance : Evaluatable (Lens T VariableAssignment) T where
 -- TODO: Needed? (We have Lens->Setter coercion)
 instance : Evaluatable (Lens T ProgramState) T where
   eval cs x := x.get cs
+
+/-- The whole global state, as a value: `§allGlobals` (EC's `glob A` read at the current memory,
+or `&m` itself).  For conditions about everything an abstract procedure may have touched, which
+no single global variable names. -/
+def allGlobals : Getter VariableAssignment ProgramState := ⟨ProgramState.globals⟩
+
+@[simp] theorem allGlobals_get (σ : ProgramState) : allGlobals.get σ = σ.globals := rfl
 
 /-! ## Reduction lemmas (so denotations compute)
 

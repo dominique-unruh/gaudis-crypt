@@ -47,7 +47,8 @@ proof.
 qed.
 ```
 
-Here `Mean` is what `phoare_wp` computes outright: the exact expectation of the game, with the
+EC's `glob A` is the whole global state, `§allGlobals`.  Here `Mean` is what `phoare_wp`
+computes outright: the exact expectation of the game, with the
 worker's expectation left symbolic; the sum over `d` is `SubProbability.expected_eq_sum`.
 `prCond` is the same with the event pinned to one input.
 -/
@@ -90,10 +91,9 @@ module Rand using (W : Worker T) {
 
 /-- **EC's `Mean`**: the event's probability is the `d`-weighted mean of the worker's. -/
 theorem mean_phoare (A : Worker T) (ev : T.input → VariableAssignment → T.output → Prop) :
-    phoareProc (fun _ _ => True) (Module.Proc.procedure (Module.app (Rand T) A))
-      (fun r g => indicatorE (ev r.1 g r.2)) Eq
-      (fun _ σ => ∑ v, mu1 T v *
-        (Module.Proc.procedure (Worker.work T A)).ewp v (fun r g => indicatorE (ev v g r)) σ) := by
+    phoare[ (Module.app (Rand T) A) : True ==> ev (§res).1 §allGlobals (§res).2 ]
+      = (∑ v, mu1 T v * (Module.Proc.procedure (Worker.work T A)).ewp v
+          (fun r g => indicatorE (ev v g r)) §allGlobals) := by
   phoare_proc_to_stmt
   phoare_inline 0
   phoare_wp 4
@@ -106,10 +106,9 @@ theorem mean_phoare (A : Worker T) (ev : T.input → VariableAssignment → T.ou
     worker's on `v`. -/
 theorem prCond_phoare (A : Worker T) (v : T.input)
     (ev : T.input → VariableAssignment → T.output → Prop) :
-    phoareProc (fun _ _ => True) (Module.Proc.procedure (Module.app (Rand T) A))
-      (fun r g => indicatorE (ev v g r.2 ∧ v = r.1)) Eq
-      (fun _ σ => mu1 T v *
-        (Module.Proc.procedure (Worker.work T A)).ewp v (fun r g => indicatorE (ev v g r)) σ) := by
+    phoare[ (Module.app (Rand T) A) : True ==> ev v §allGlobals (§res).2 ∧ v = (§res).1 ]
+      = (mu1 T v * (Module.Proc.procedure (Worker.work T A)).ewp v
+          (fun r g => indicatorE (ev v g r)) §allGlobals) := by
   phoare_proc_to_stmt
   phoare_inline 0
   phoare_wp 4
@@ -130,7 +129,8 @@ theorem prCond (A : Worker T) (v : T.input) (ev : T.input → VariableAssignment
     ((Module.Proc.procedure (Module.app (Rand T) A)).Pr () σ (fun r g => ev v g r.2 ∧ v = r.1)
         : ENNReal)
       = mu1 T v * (Module.Proc.procedure (Worker.work T A)).Pr v σ (fun r g => ev v g r) := by
-  rw [Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp, prCond_phoare T A v ev () σ trivial]
+  rw [Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp]
+  exact prCond_phoare T A v ev () σ trivial
 
 /-- EC's `Mean`. -/
 theorem mean (A : Worker T) (ev : T.input → VariableAssignment → T.output → Prop)

@@ -43,8 +43,8 @@ by hoare; auto=> /> &m0 ->.
 qed.
 ```
 
-Adaptation: EC's `glob G` (the game's state) is the globals, which our postconditions read
-directly; EC's index list is a finite type, so `ψ ∈ indices` is automatic.  The judgment's bound
+Adaptation: EC's `glob G` (the game's state) is the whole global state, `§allGlobals`; EC's
+index list is a finite type, so `ψ ∈ indices` is automatic.  The judgment's bound
 may depend on the initial state, so `(1/|I|) · Pr[G.main(x0) : φ]` is the bound itself — no
 `seq`, `call`, `bypr` or `byequiv`: `phoare_wp` leaves the game's expectation symbolic and the
 uniform guess averages out.
@@ -85,13 +85,15 @@ module Guess using (G : Game T) {
   };
 }
 
-/-- EC's `PBound`, as a judgment whose bound is `G`'s own expectation of `φ`, scaled. -/
+/-- EC's `PBound`, as a judgment whose bound is `G`'s own expectation of `φ` from the initial
+    state, scaled.  `§allGlobals` is the whole global state — EC's `glob G` in the postcondition,
+    and `&m` in the bound. -/
 theorem pbound_phoare (G : Game T) (φ : VariableAssignment → T.tres → Prop)
     (ψ : VariableAssignment → T.tres → T.tval) :
-    phoareProc (fun _ _ => True) (Module.Proc.procedure (Module.app (Guess T) G))
-      (fun r g => indicatorE (φ g r.2 ∧ r.1 = ψ g r.2)) Eq
-      (fun x σ => (Module.Proc.procedure (Game.main T G)).ewp x (fun r g => indicatorE (φ g r)) σ
-        / Fintype.card T.tval) := by
+    phoare[ (Module.app (Guess T) G) (x) : True ==>
+        φ §allGlobals (§res).2 ∧ (§res).1 = ψ §allGlobals (§res).2 ]
+      = ((Module.Proc.procedure (Game.main T G)).ewp §x (fun r g => indicatorE (φ g r))
+          §allGlobals / Fintype.card T.tval) := by
   phoare_proc_to_stmt
   phoare_inline 0
   phoare_wp 5
@@ -115,7 +117,8 @@ theorem pbound (G : Game T) (φ : VariableAssignment → T.tres → Prop)
         (Module.Proc.procedure (Game.main T G)).Pr x₀ σ (fun r g => φ g r)
       = (Module.Proc.procedure (Module.app (Guess T) G)).Pr x₀ σ
           (fun r g => φ g r.2 ∧ r.1 = ψ g r.2) := by
-  rw [Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp, pbound_phoare T G φ ψ x₀ σ trivial, mul_comm,
-    ← div_eq_mul_one_div]
+  rw [Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp, mul_comm, ← div_eq_mul_one_div]
+  -- the judgment's conditions, as the notation elaborates them, are these up to unfolding
+  exact (pbound_phoare T G φ ψ x₀ σ trivial).symm
 
 end GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
