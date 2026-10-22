@@ -406,20 +406,26 @@ elab "phoare_while_le " I:term : tactic => withMainContext do
   let Ie ← instantiateMVars Ie
   liftMetaTactic fun g => phoareWhileLeStep Ie g
 
-/-- Elaborate an expectation written like a condition of a `phoare[ ]` judgment about the goal's
-program: `§x` reads the program variable `x` (bound to its slot, as the notation binds it) or a
-global. -/
-def elabGoalExpectation (I : Term) : TacticM Lean.Expr := withMainContext do
+/-- Elaborate a function of the state with values in `T`, written like a condition of a
+`phoare[ ]` judgment about the goal's program (`elabGoalExpectation` at any type). -/
+def elabGoalFunction (I : Term) (T : Lean.Expr) : TacticM Lean.Expr := withMainContext do
   let ty ← instantiateMVars (← getMainTarget)
   let #[A, s, e, _, r] ← phoareParts ty | unreachable!
   let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.printable)
-  let mut stx ← `((GaudiExpr[ $I ] : Getter ENNReal ProgramState).get)
+  let Tstx ← Term.exprToSyntax T
+  let mut stx ← `((GaudiExpr[ $I ] : Getter $Tstx ProgramState).get)
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue
     stx ← `(letI $(mkIdent (.mkSimple v.name)) := $(← Term.exprToSyntax slot); $stx)
-  let Ie ← elabTermEnsuringType stx (← mkArrow (mkConst ``ProgramState) (mkConst ``ENNReal))
+  let Ie ← elabTermEnsuringType stx (← mkArrow (mkConst ``ProgramState) T)
   Term.synthesizeSyntheticMVarsNoPostponing
   instantiateMVars Ie
+
+/-- Elaborate an expectation written like a condition of a `phoare[ ]` judgment about the goal's
+program: `§x` reads the program variable `x` (bound to its slot, as the notation binds it) or a
+global. -/
+def elabGoalExpectation (I : Term) : TacticM Lean.Expr :=
+  elabGoalFunction I (mkConst ``ENNReal)
 
 /-- A goal `∀ σ, …` about conditions and expectations: β-reduced, simplified like an expectation
 (`ewpDecls`), reads generalized. -/
@@ -486,6 +492,46 @@ elab "phoare_while_ge " I:term " using " ε:term : tactic => do
     Term.synthesizeSyntheticMVarsNoPostponing
     instantiateMVars e
   liftMetaTactic fun g => phoareWhileGeStep Ie εe g
+
+/-- A loop step for a lower bound with a variant, on `phoareStmt A {x₁; …; xₙ₋₁; while c body} g
+≥ r`, with the invariant `I` and the variant `V : ProgramState → ℕ`
+(`phoareStmt_while_ge_variant`).  Goals, in order: `body` (the body does not decrease `I`),
+`exit`, the code before the loop, and `decreases` (`∀ k`, a Hoare triple: from the test and
+`V = k`, the body ends with `V < k`). -/
+def phoareWhileGeVariantStep (I V : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
+  let g ← phoareSplit 1 g
+  let rule ← mkConstWithFreshMVarLevels ``phoareStmt_while_ge_variant
+  let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
+  -- `{A pre body c g r} (I) (V) (hbody) (hexit) (hpre) (hvar)`
+  unless ← isDefEq ms[6]! I do
+    throwError "phoare_while_ge: not an expectation on the program state:\
+      {indentExpr (← inferType I)}"
+  unless ← isDefEq ms[7]! V do
+    throwError "phoare_while_ge: the variant is not a natural number on the program state:\
+      {indentExpr (← inferType V)}"
+  unless ← isDefEq ty (← g.getType) do
+    throwError "phoare_while_ge: the goal is not a lower bound about a trailing loop:\
+      {indentExpr (← g.getType)}"
+  g.assign (mkAppN rule ms)
+  let tagged (i : Nat) (tag : Name) : MetaM MVarId := do
+    let m := ms[i]!.mvarId!
+    m.setTag tag
+    return m
+  let gBody ← tagged 8 `body
+  let gExit ← cleanSideGoal (← tagged 9 `exit)
+  gExit.setTag `exit
+  let gPre ← tagged 10 (← g.getTag)
+  let gVar ← tagged 11 `decreases
+  return [gBody, gExit, gPre, gVar]
+
+open Lean Elab Tactic in
+/-- `phoare_while_ge I variant V`: the lower-bound loop rule with a variant
+(`phoareWhileGeVariantStep`) — for counted loops, which exit with probability `0` in all rounds
+but the last.  `I` and `V` written like conditions of a `phoare[ ]` judgment, `V` natural. -/
+elab "phoare_while_ge " I:term " variant " V:term : tactic => do
+  let Ie ← elabGoalExpectation I
+  let Ve ← elabGoalFunction V (mkConst ``Nat)
+  liftMetaTactic fun g => phoareWhileGeVariantStep Ie Ve g
 
 /-- The end of a backwards proof, on a goal `phoareStmt A skip g ρ r`: the relation itself,
 `∀ σ, A σ → ρ (g σ) (r σ)` (`phoareStmt_skip_iff`), β-reduced, with the reads of the state

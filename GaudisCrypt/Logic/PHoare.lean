@@ -560,6 +560,70 @@ theorem phoareStmt_while_ge {A : ProgramState → Prop} {pre body : Stmt}
   exact Stmt.ewp_while_ge I g hI1 hg1 hll
     (Stmt.ewp_while_one ε hε0 hε1 hll hprog) hbody hexit σ
 
+/-! ### Lower bounds with a variant
+
+A counted loop (`while (j < N)`) exits with probability `0` in every round but the last, so the
+exit-probability argument above does not apply.  A *variant* does: a natural number that every
+round strictly decreases, on every outcome of the body.  Then the loop is lower-bounded by a
+sub-invariant by well-founded induction on the variant — the body need not even be lossless
+(the sub-invariant then accounts for the mass it loses).  EC's `while I V` for `phoare`. -/
+
+/-- An expectation is monotone in the function off a null event. -/
+theorem SubProbability.expected_mono_of_null {α : Type*} {μ : SubProbability α} {E : Set α}
+    (hE : μ.ofEvent E = 0) {F G : α → ENNReal} (h : ∀ a ∉ E, F a ≤ G a) :
+    μ.expected F ≤ μ.expected G := by
+  rw [SubProbability.expected, SubProbability.expected, lintegral_eq_tsum_smul μ.2.2,
+    lintegral_eq_tsum_smul μ.2.2]
+  refine ENNReal.tsum_le_tsum fun a => ?_
+  by_cases ha : a ∈ E
+  · have hfin : μ.1 {a} ≠ ⊤ :=
+      (((MeasureTheory.measure_mono (Set.subset_univ _)).trans μ.2.1).trans_lt
+        ENNReal.one_lt_top).ne
+    have h0 := SubProbability.ofEvent_eq_zero_of_subset (Set.singleton_subset_iff.mpr ha) hE
+    rw [SubProbability.ofEvent, ENNReal.toNNReal_eq_zero_iff] at h0
+    rw [h0.resolve_right hfin, zero_mul, zero_mul]
+  · exact mul_le_mul_right (h a ha) _
+
+/-- A statement's expectation is monotone in the function on the outcomes a Hoare triple allows. -/
+theorem Stmt.ewp_mono_of_hoare {s : Stmt} {B : ProgramState → Prop} {σ : ProgramState}
+    (h : hoareStmt (fun τ => τ = σ) s B) {F G : ProgramState → ENNReal}
+    (hFG : ∀ τ, B τ → F τ ≤ G τ) : s.ewp F σ ≤ s.ewp G σ :=
+  SubProbability.expected_mono_of_null (h σ rfl) fun x hx => hFG x.2 (not_not.mp hx)
+
+/-- **Lower bounds with a variant**: if every round strictly decreases the variant `V` (on every
+    outcome of the body), an `I` that the body does not decrease (from the states where the test
+    passes) and that is below `g` where it fails bounds the loop from below. -/
+theorem Stmt.ewp_while_ge_variant {c : Getter Bool ProgramState} {body : Stmt}
+    (I g : ProgramState → ENNReal) (V : ProgramState → ℕ)
+    (hvar : ∀ k, hoareStmt (fun σ => c.get σ = true ∧ V σ = k) body (fun τ => V τ < k))
+    (hbody : ∀ σ, c.get σ = true → I σ ≤ body.ewp I σ)
+    (hexit : ∀ σ, c.get σ = false → I σ ≤ g σ) (σ : ProgramState) :
+    I σ ≤ Stmt.ewp (StmtWithHoles.while c body) g σ := by
+  induction hn : V σ using Nat.strong_induction_on generalizing σ with
+  | _ n ih =>
+  rw [Stmt.ewp_while_unfold]
+  cases hc : c.get σ
+  · simp only [Bool.false_eq_true, if_false]
+    exact hexit σ hc
+  · simp only [if_true]
+    have hv : hoareStmt (fun τ => τ = σ) body (fun τ => V τ < n) :=
+      hoare_pre (hvar n) fun τ hτ => hτ ▸ ⟨hc, hn⟩
+    exact (hbody σ hc).trans (Stmt.ewp_mono_of_hoare hv fun τ hτ => ih (V τ) hτ τ rfl)
+
+/-- **The loop rule for lower bounds, with a variant** (`Stmt.ewp_while_ge_variant`), for a
+    trailing loop.  The code before the loop is judged with `I` as its expectation. -/
+theorem phoareStmt_while_ge_variant {A : ProgramState → Prop} {pre body : Stmt}
+    {c : Getter Bool ProgramState} {g r : ProgramState → ENNReal} (I : ProgramState → ENNReal)
+    (V : ProgramState → ℕ)
+    (hbody : phoareStmt (fun σ => c.get σ = true) body I GE.ge I)
+    (hexit : ∀ σ, c.get σ = false → I σ ≤ g σ)
+    (hpre : phoareStmt A pre I GE.ge r)
+    (hvar : ∀ k, hoareStmt (fun σ => c.get σ = true ∧ V σ = k) body (fun τ => V τ < k)) :
+    phoareStmt A (.seq pre (.while c body)) g GE.ge r := by
+  rw [phoareStmt_seq_iff]
+  refine phoareStmt_ge_of_ge hpre fun σ => ?_
+  exact Stmt.ewp_while_ge_variant I g V hvar hbody hexit σ
+
 /-- Two procedure bounds give an exact judgment. -/
 theorem phoareProc_eq_of_le_ge {sig} {A : sig.ParamType → VariableAssignment → Prop}
     {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}

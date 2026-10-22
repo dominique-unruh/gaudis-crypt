@@ -1,5 +1,6 @@
 import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.PHoareWp
 
 /-!
 # Private information retrieval (EasyCrypt `examples/PIR.ec`)
@@ -61,7 +62,14 @@ proof. by byequiv PIR_secure1. qed.
 ```
 
 The privacy statements: the query each server sees is distributed independently of `i` — the
-two runs, for *any* two indices, can be coupled so that `s` (resp. `s'`) is the same.
+two runs, for *any* two indices, can be coupled so that `s` (resp. `s'`) is the same.  `secure2`
+couples the coins with one state-dependent function (negation exactly in the rounds where the two
+runs disagree on whether this is the index) where EC splits cases and uses two `rnd`s.
+
+Correctness, `Pr[PIR.main(i0) @ &m : res = a i0] = 1` (EC's `PIR_correct`, via `byphoare` with a
+Hoare invariant and `while true (N-j)` for termination), is `correct`: one lower-bound loop rule
+with a variant (`phoare_while_ge I variant N - §j`), whose invariant is EC's
+`j ≤ N ∧ (if j ≤ i then s = s' else sxor2 s s' i)` as an indicator.
 -/
 
 namespace GaudisCrypt.Examples.EasyCryptBench.PIR
@@ -79,6 +87,7 @@ structure Database where
   [group : AddCommGroup W]
   [inhabited : Inhabited W]
   a : ℕ → W
+  char_two : ∀ x : W, x + x = 0
 
 @[reducible] instance (D : Database) : AddCommGroup D.W := D.group
 @[reducible] instance (D : Database) : Inhabited D.W := D.inhabited
@@ -166,5 +175,117 @@ theorem security_s' (i₁ i₂ : ℕ) (m₁ m₂ : VariableAssignment) (x : List
       = Procedure.Pr (main N D) i₂ m₂ (fun _ g => s'.get g = x) :=
   Procedure.Pr_eq_of_prhlProc (secure2 N D)
     (fun _ g₁ _ g₂ (h : s'.get g₁ = s'.get g₂) => by rw [h]) trivial
+
+/-! ## Correctness (EC's `PIR_correct`)
+
+The two queries differ in exactly the index: one is the other with `i` inserted (`sxor2`), so
+the answers add up to `a i` in characteristic 2.  A probability-`1` statement: partial
+correctness (the invariant) and termination — the loop is counted, so the lower bound needs the
+variant rule (`phoare_while_ge I variant V`). -/
+
+/-- `s'` is `s` with `i` inserted somewhere. -/
+def sxor (s s' : List ℕ) (i : ℕ) : Prop := ∃ s₁ s₂, s = s₁ ++ s₂ ∧ s' = s₁ ++ i :: s₂
+
+/-- One of the two queries is the other with `i` inserted. -/
+def sxor2 (s s' : List ℕ) (i : ℕ) : Prop := sxor s s' i ∨ sxor s' s i
+
+theorem sxor2_cons {s s' : List ℕ} {i : ℕ} (j : ℕ) (h : sxor2 s s' i) :
+    sxor2 (j :: s) (j :: s') i := by
+  rcases h with ⟨s₁, s₂, rfl, rfl⟩ | ⟨s₁, s₂, rfl, rfl⟩
+  · exact Or.inl ⟨j :: s₁, s₂, rfl, rfl⟩
+  · exact Or.inr ⟨j :: s₁, s₂, rfl, rfl⟩
+
+/-- The answers to two queries that differ in `i` add up to `a i`. -/
+theorem answer_of_sxor2 {s s' : List ℕ} {i : ℕ} (h : sxor2 s s' i) :
+    (List.map D.a s).sum + (List.map D.a s').sum = D.a i := by
+  have key : ∀ x y : D.W, x + (x + y) = y := fun x y => by
+    rw [← add_assoc, D.char_two, zero_add]
+  rcases h with ⟨s₁, s₂, rfl, rfl⟩ | ⟨s₁, s₂, rfl, rfl⟩ <;>
+    simp only [List.map_append, List.map_cons, List.sum_append, List.sum_cons]
+  · calc _ = ((List.map D.a s₁).sum + (List.map D.a s₂).sum) +
+          (((List.map D.a s₁).sum + (List.map D.a s₂).sum) + D.a i) := by abel
+      _ = D.a i := key _ _
+  · calc _ = ((List.map D.a s₁).sum + (List.map D.a s₂).sum) +
+          (((List.map D.a s₁).sum + (List.map D.a s₂).sum) + D.a i) := by abel
+      _ = D.a i := key _ _
+
+/-- **Correctness**: the two answers add up to the requested entry, with probability `1`. -/
+theorem correct (i₀ : ℕ) (hi : i₀ < N) :
+    phoare[ (main N D) : §i = i₀ ==> §res = D.a i₀ ] = 1 := by
+  refine phoareProc_eq_of_le_ge (fun _ _ _ => ?_) ?_
+  · exact (Procedure.ewp_mono _ _ (fun _ _ => indicatorE_le_one _) _).trans
+      (Procedure.ewp_const_le _ _ _ _)
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_inline 0
+  phoare_inline 0
+  stmt_wp
+  phoare_while_ge
+    indicatorE (§i0 = i₀ ∧ §j ≤ N ∧ if §j ≤ §i0 then §s = §s' else sxor2 §s §s' §i0)
+    variant N - §j
+  case body =>
+    stmt_wp
+    phoare_wp 1
+    phoare_skip
+    intro j i0 s s' hj
+    simp only [ite_self, beq_iff_eq]
+    by_cases hinv : i0 = i₀ ∧ j ≤ N ∧ if j ≤ i0 then s = s' else sxor2 s s' i0
+    swap
+    · simp [indicatorE_of_not hinv]
+    rw [indicatorE_of hinv]
+    obtain ⟨rfl, -, hrel⟩ := hinv
+    have hjN : j + 1 ≤ N := by simpa using hj
+    -- either coin keeps the invariant: before the index the queries agree, at it one of them
+    -- gets the index, after it both get the same
+    have hT : if j + 1 ≤ i0 then j :: s = (if j = i0 then s' else j :: s')
+        else sxor2 (j :: s) (if j = i0 then s' else j :: s') i0 := by
+      rcases lt_trichotomy j i0 with hlt | rfl | hgt
+      · rw [if_pos hlt.le] at hrel
+        rw [if_pos (Nat.succ_le_of_lt hlt), if_neg hlt.ne, hrel]
+      · rw [if_pos le_rfl] at hrel
+        rw [if_neg (by omega), if_pos rfl, hrel]
+        exact Or.inr ⟨[], s', rfl, rfl⟩
+      · rw [if_neg (Nat.not_le.mpr hgt)] at hrel
+        rw [if_neg (by omega), if_neg hgt.ne']
+        exact sxor2_cons j hrel
+    have hF : if j + 1 ≤ i0 then s = (if j = i0 then j :: s' else s')
+        else sxor2 s (if j = i0 then j :: s' else s') i0 := by
+      rcases lt_trichotomy j i0 with hlt | rfl | hgt
+      · rw [if_pos hlt.le] at hrel
+        rw [if_pos (Nat.succ_le_of_lt hlt), if_neg hlt.ne, hrel]
+      · rw [if_pos le_rfl] at hrel
+        rw [if_neg (by omega), if_pos rfl, hrel]
+        exact Or.inl ⟨[], s', rfl, rfl⟩
+      · rw [if_neg (Nat.not_le.mpr hgt)] at hrel
+        rw [if_neg (by omega), if_neg hgt.ne']
+        exact hrel
+    rw [indicatorE_of rfl, indicatorE_of hjN, indicatorE_of hT, indicatorE_of hF]
+    simp [ENNReal.inv_two_add_inv_two]
+  case exit =>
+    intro j i0 s s' hj
+    rw [← indicatorE_and, ← indicatorE_and]
+    by_cases hinv : i0 = i₀ ∧ j ≤ N ∧ if j ≤ i0 then s = s' else sxor2 s s' i0
+    · obtain ⟨rfl, -, hrel⟩ := hinv
+      rw [if_neg (by simp at hj; omega)] at hrel
+      exact (indicatorE_le_one _).trans (indicatorE_of (answer_of_sxor2 D hrel)).ge
+    · rw [indicatorE_of_not hinv]
+      exact zero_le
+  case decreases =>
+    intro k
+    stmt_wp
+    hoare_wp 1
+    hoare_skip
+    intro j _ ⟨hj, hk⟩ _ _
+    simp only [ite_self, decide_eq_true_eq] at hj ⊢
+    omega
+  stmt_wp
+  phoare_skip
+  rintro _ rfl
+  simp
+
+/-- **EC's `PIR_correct`**, as EC states it: `Pr[PIR.main(i0) @ &m : res = a i0] = 1`. -/
+theorem pir_correct (i₀ : ℕ) (hi : i₀ < N) (m : VariableAssignment) :
+    (Procedure.Pr (main N D) i₀ m (fun r _ => r = D.a i₀) : ENNReal) = 1 :=
+  Procedure.Pr_of_phoareProc (correct N D i₀ hi) (args := i₀) (σ := m) rfl
 
 end GaudisCrypt.Examples.EasyCryptBench.PIR
