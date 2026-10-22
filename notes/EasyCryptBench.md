@@ -1,0 +1,37 @@
+# EasyCrypt `phoare` test bench
+
+Small, self-contained `phoare` proofs from the EasyCrypt distribution, to replicate with our
+`phoare` tactics (`Logic/PHoare.lean`, `Logic/PHoareWp.lean`) and compare.  Sources:
+`~/.opam/ec/.opam-switch/sources/easycrypt` (EasyCrypt r2026.06, opam switch `ec`).
+
+Replications go to `GaudisCrypt/Examples/EasyCryptBench/`, one file per EC source; each file's
+header quotes the EC proof for side-by-side comparison.
+
+| # | EC source | Statement | What it exercises | Status |
+|---|---|---|---|---|
+| 1 | `examples/vonNeumann.eca` — `Simulate_is_Fair` | fair coin from a biased coin of unknown bias `p`: `while (b = b') { b <$ dbiased; b' <$ dbiased }; return b` has `Pr[res = x] = 1/2` | loop lower bound + termination; EC needs the variant rule `while true (b2i (b = b')) 1 (2p(1−p))` and nested five-probability `seq`s; here one fixed-point invariant `if b = b' then 1/2 else [b = x]`, `ε = 2p(1−p)` | **done** — `Examples/EasyCryptBench/VonNeumann.lean` |
+| 2 | `examples/Dice4_6.ec` — `prD6` | a d4 from a d6: `while (5 <= r) r <$ [1..6]` has `Pr[res = k] = 1/4` | rejection sampling on an integer interval; EC goes through `byequiv` and `WhileSamplingFixedTest`, here directly | |
+| 3 | `theories/modules/PlugAndPray.eca` — `PBound` | abstract game, then a uniform guess: `(1/|I|) · Pr[G : φ] = Pr[Guess(G) : φ ∧ i = ψ]` | abstract call + linearity; EC: `seq` with probabilities, `call`, nested `byequiv` ("FIXME: more verbose than it should be") | |
+| 4 | `theories/encryption/Means.ec` — `prCond`, `Mean` | abstract worker on a sampled input: `Pr[ev] = Σ_v μ(v) · Pr[A.work(v) : ev v]` | exactly the symbolic exact wp of `phoare_wp` | |
+| 5 | `theories/distributions/Dexcepted.ec` — `WhileSampling` | rejection sampling with an arbitrary distribution and test = the `dexcepted` distribution | generalizes `Examples/RejectionSampling.lean` beyond uniform | |
+
+Second tier: `examples/PIR.ec` (private information retrieval: the query set is uniform over
+subsets, a `while` with a variant) — interesting but list/fset-heavy.  Not candidates: the large
+crypto developments (`cramer_shoup`, `ChaChaPoly`, KEM theories) — too much library.
+
+Note: no `Language/` change is needed for non-uniform distributions — `x <$ d` samples from any
+`d : SubProbability α`, and `toSubProbability : PMF α → SubProbability α` exists (e.g. a biased
+coin is `toSubProbability (PMF.bernoulli p hp)`).
+
+## Log
+
+* 2026-10-22 — **von Neumann done** (`simulate_is_fair`, standard axioms).  The biased coin is a
+  local definition (`toSubProbability (PMF.ofFintype …)`) with an expectation lemma; no language
+  change.  Proof structure: `simulate_le` (`phoare_while_le`) and `simulate_ge`
+  (`phoare_while_ge … using 2p(1−p)`) with the *same* invariant, both bodies closed by one
+  lemma `round_eq` (one round keeps the invariant: `p²/2 + pq + q²/2 = (p+q)²/2 = 1/2`); then
+  `byphoare` against `Fair`.  The probabilistic structure is ~25 tactic lines plus ~20 lines
+  of `ENNReal` arithmetic (`round_eq`, `ε ≤ 1`), against EC's ~35 dense lines (variant rule,
+  three nested `seq`s with five probabilities each, `smt`).  Friction: `ENNReal` arithmetic
+  wants controlled `simp only` (a plain `simp` rewrites `1/2` to `2⁻¹` and rescales);
+  `PMF.bernoulli` is deprecated, `PMF.ofFintype` used instead.
