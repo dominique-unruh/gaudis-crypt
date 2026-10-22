@@ -349,6 +349,13 @@ theorem SubProbability.uniform_bind_pure_bijective {α : Type} [Fintype α] [Non
       = SubProbability.uniform :=
   SubProbability.uniform_bind_pure_bijective (Function.Involutive.bijective Bool.not_not)
 
+/-- Xor with a constant pushes the uniform coin to itself. -/
+@[simp] theorem SubProbability.uniform_bind_xor (c : Bool) :
+    (SubProbability.uniform >>= fun b => (pure (b ^^ c) : SubProbability Bool))
+      = SubProbability.uniform :=
+  SubProbability.uniform_bind_pure_bijective
+    (Function.Involutive.bijective fun b => by cases b <;> cases c <;> rfl)
+
 /-- The uniform distribution is lossless (the side condition of a one-sided sampling). -/
 @[simp] theorem SubProbability.uniform_expected_one {α : Type} [Fintype α] [Nonempty α] :
     (SubProbability.uniform : SubProbability α).expected (fun _ => 1) = 1 := by

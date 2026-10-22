@@ -87,5 +87,11 @@ coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
   `fun b => if (§j{1} == §i0{1}) = (§j{2} == §i0{2}) then b else !b`, where EC does a `case`
   and two `rnd`s.  The `byequiv` corollaries are one term each (`Procedure.Pr_eq_of_prhlProc`).
   The database is any additive group (EC: words with xor); `s`, `s'` are `List ℕ` as in EC.
-  Not done: `PIR_correct` and `Pr_PIR_s` (phoare with a counted loop — need the variant rule),
-  `PIR_s_uniform` (an `equiv` with the xor coupling, list ↔ set bookkeeping).
+  Later the same night: **`PIR_correct`** (`correct`/`pir_correct`, `Pr[res = a i] = 1`) with a
+  new loop rule for lower bounds with a *variant* (`phoare_while_ge I variant N - §j`;
+  `Stmt.ewp_while_ge_variant`, well-founded induction on the variant, no losslessness or exit
+  probability needed) and EC's invariant as an indicator — the database needs characteristic 2
+  (`char_two`); and **`PIR_s_uniform`** (`s_uniform`, relational, the xor coupling
+  `b ^^ (decide (j ∈ x₁) ^^ decide (j ∈ x₂))`, queries as `Finset`s via `List.toFinset`, one step
+  lemma `toFinset_step`).  Not done: `Pr_PIR_s` (the explicit `2^-N`; the same variant rule
+  applies, with an exact expectation invariant).

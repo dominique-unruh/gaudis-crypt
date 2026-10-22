@@ -42,6 +42,7 @@ distribution to itself, and its support is everything). -/
 def relSimpDecls : List Lean.Name :=
   HoareWp.simpReadsDecls ++ [``SubProbability.bind_pure_id, ``SubProbability.uniform_bind_not,
     ``SubProbability.uniform_bind_add_left, ``SubProbability.uniform_expected_one,
+    ``SubProbability.uniform_bind_xor,
     ``eq_self_iff_true, ``SubProbability.uniform_support, ``Set.mem_univ]
 
 end PRHLWp

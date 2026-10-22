@@ -288,4 +288,84 @@ theorem pir_correct (i₀ : ℕ) (hi : i₀ < N) (m : VariableAssignment) :
     (Procedure.Pr (main N D) i₀ m (fun r _ => r = D.a i₀) : ENNReal) = 1 :=
   Procedure.Pr_of_phoareProc (correct N D i₀ hi) (args := i₀) (σ := m) rfl
 
+/-! ## Uniformity of a query, relationally (EC's `PIR_s_uniform`)
+
+For any two index sets `x₁`, `x₂` in `[0, N)`, the run on the left yields the query `x₁` exactly
+when the run on the right yields `x₂`: the coins are coupled by `b ↦ b ⊕ (j ∈ x₁) ⊕ (j ∈ x₂)`,
+so that the left run takes index `j` into its query as `x₁` does exactly when the right one takes
+it as `x₂` does.  (EC: "unfortunately this does not allow to conclude in EasyCrypt", for lack of
+projections of memories; here `security_s` concludes directly.) -/
+
+/-- One round of the query, restricted to the indices seen so far: the query extended by `j` or
+not is `x` up to `j` exactly when it was `x` below `j` and took `j` as `x` does. -/
+theorem toFinset_step {q : List ℕ} {x : Finset ℕ} {j : ℕ} (b : Bool)
+    (hq : ∀ y ∈ q.toFinset, y < j) :
+    ((if b then j :: q else q).toFinset = x.filter (· < j + 1)) ↔
+      (q.toFinset = x.filter (· < j) ∧ (b = true ↔ j ∈ x)) := by
+  have hj : j ∉ q.toFinset := fun h => lt_irrefl _ (hq j h)
+  have hsplit : x.filter (· < j + 1) = if j ∈ x then insert j (x.filter (· < j))
+      else x.filter (· < j) := by
+    ext y
+    by_cases hy : y = j
+    · subst hy; by_cases hx : y ∈ x <;> simp [hx]
+    · have : y ≤ j ↔ y < j := by omega
+      by_cases hx : j ∈ x <;> simp [hx, hy, this]
+  have hnot : j ∉ x.filter (· < j) := by simp
+  rw [hsplit]
+  cases b <;> by_cases hx : j ∈ x <;> simp only [hx, if_true, if_false, Bool.false_eq_true,
+    List.toFinset_cons, iff_true, iff_false, not_true, and_true, and_false]
+  · intro h; rw [h] at hj; exact hj (Finset.mem_insert_self j _)
+  · constructor
+    · intro h
+      rw [← Finset.erase_insert hj, h, Finset.erase_insert hnot]
+    · intro h; rw [h]
+  · intro h; exact hnot (by rw [← h]; exact Finset.mem_insert_self j _)
+
+/-- A query below `j`, extended by `j` or not, is below `j + 1`. -/
+theorem bounded_step {q : List ℕ} {j : ℕ} (hq : ∀ y ∈ q.toFinset, y < j) (b : Bool) :
+    ∀ y ∈ (if b then j :: q else q).toFinset, y < j + 1 := by
+  intro y hy
+  cases b
+  · exact Nat.lt_succ_of_lt (hq y hy)
+  · simp only [if_true, List.toFinset_cons, Finset.mem_insert] at hy
+    rcases hy with rfl | hy
+    · exact Nat.lt_succ_self y
+    · exact Nat.lt_succ_of_lt (hq y hy)
+
+/-- **EC's `PIR_s_uniform`**: for any two index sets in `[0, N)`, on the same index, the first
+query is `x₁` on the left exactly when it is `x₂` on the right. -/
+theorem s_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h₂ : x₂ ⊆ Finset.range N) :
+    equiv[ (main N D) ~ (main N D) : ={i} ==>
+      ((§s{1}).toFinset = x₁ ↔ (§s{2}).toFinset = x₂) ] := by
+  equiv_proc
+  stmt_inline 0
+  stmt_inline 0
+  stmt_inline 0
+  stmt_wp
+  equiv_while ={i0, j} ∧ §j{1} ≤ N ∧ (∀ y ∈ (§s{1}).toFinset, y < §j{1}) ∧
+      (∀ y ∈ (§s{2}).toFinset, y < §j{2}) ∧
+      ((§s{1}).toFinset = x₁.filter (· < §j{1}) ↔ (§s{2}).toFinset = x₂.filter (· < §j{2}))
+  case body =>
+    stmt_wp
+    equiv_rnd (fun b => b ^^ (decide (§j{1} ∈ x₁) ^^ decide (§j{2} ∈ x₂)))
+    equiv_skip
+    rintro i j s₁ _ _ s₂ ⟨⟨⟨rfl, rfl⟩, -, hs₁, hs₂, hiff⟩, hj⟩ a
+    simp only [ite_self]
+    refine ⟨by simp, by simpa using hj, bounded_step hs₁ _, bounded_step hs₂ _, ?_⟩
+    rw [toFinset_step _ hs₁, toFinset_step _ hs₂, hiff]
+    refine and_congr_right fun _ => ?_
+    cases a <;> by_cases hx₁ : j ∈ x₁ <;> by_cases hx₂ : j ∈ x₂ <;> simp [hx₁, hx₂]
+  case guard => rintro _ _ _ _ _ _ ⟨⟨_, rfl⟩, -⟩; rfl
+  case exit =>
+    rintro _ j s₁ _ _ s₂ ⟨⟨-, rfl⟩, hjN, -, -, hiff⟩ hj
+    have hjN : j = N := by simp at hj; omega
+    subst hjN
+    have hx (x : Finset ℕ) (hx : x ⊆ Finset.range j) : x.filter (· < j) = x :=
+      Finset.filter_true_of_mem fun y hy => Finset.mem_range.mp (hx hy)
+    rwa [hx x₁ h₁, hx x₂ h₂] at hiff
+  stmt_wp
+  equiv_skip
+  rintro _ _ rfl
+  simp
+
 end GaudisCrypt.Examples.EasyCryptBench.PIR
