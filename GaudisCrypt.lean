@@ -79,6 +79,7 @@ import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.StmtEquiv
 import GaudisCrypt.Logic.TacticMisc
 import GaudisCrypt.Logic.TransferBy

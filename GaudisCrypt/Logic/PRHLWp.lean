@@ -19,6 +19,8 @@ And the relational steps proper:
 * `equiv_rnd`, `equiv_rnd f` — the two last statements are samplings, coupled along `f`
   (default: the identity) (EC's `rnd`);
 * `equiv_while I` — synchronized loops with the invariant `I` (EC's `while I`);
+* `equiv_call h` — the last statements are calls, related by the procedure judgment `h` (EC's
+  `call`; `prhlProc_glob hA` for an abstract procedure, EC's `call (_ : ={glob A})`);
 * `equiv_seq k₁ k₂ : M` — cut after all but the last `k₁` / `k₂` statements (EC's `seq`);
 * `equiv_case P` — case analysis on a relation of the initial states (EC's `case`);
 * `equiv_skip` — at `skip ~ skip`, the implication, with the reads of both states generalized
@@ -70,16 +72,25 @@ namespace PRHLWp
 
 open Lean Meta Elab Tactic TacticMisc
 
+/-- The names of the binders of `ty`'s leading `∀`s. -/
+partial def binderNames : Lean.Expr → Array Name
+  | .forallE n _ b _ => #[n] ++ binderNames b
+  | _ => #[]
+
 /-- Apply the lemma `lem` to `g` by unifying its conclusion with the goal (no unfolding of the
 judgment, which `MVarId.apply` would do to count arguments): `pre` sets the lemma's arguments by
-position first.  The arguments left open are returned, in order. -/
-def applyLemma (lem : Name) (g : MVarId) (pre : Array (Nat × Lean.Expr) := #[]) :
+binder name first.  The arguments left open are returned, in order. -/
+def applyLemma (lem : Name) (g : MVarId) (pre : Array (Name × Lean.Expr) := #[]) :
     MetaM (Array MVarId) := g.withContext do
   let c ← mkConstWithFreshMVarLevels lem
-  let (ms, _, concl) ← forallMetaTelescope (← inferType c)
-  for (i, e) in pre do
+  let cTy ← inferType c
+  let names := binderNames cTy
+  let (ms, _, concl) ← forallMetaTelescope cTy
+  for (n, e) in pre do
+    let some i := names.findIdx? (·.eraseMacroScopes == n)
+      | throwError "`{lem}` has no argument `{n}`"
     unless ← isDefEq ms[i]! e do
-      throwError "`{lem}`: argument {i} does not fit:{indentExpr e}"
+      throwError "`{lem}`: the argument `{n}` does not fit:{indentExpr e}"
   unless ← isDefEq concl (← g.getType) do
     throwError "`{lem}` does not apply to{indentExpr (← g.getType)}"
   g.assign (← instantiateMVars (mkAppN c ms))
@@ -310,9 +321,37 @@ elab "equiv_seq " k₁:num ppSpace k₂:num " : " M:term : tactic => withMainCon
     let ty ← prhlGoal g "equiv_seq"
     let Me ← elabRelCond ty M
     -- `prhlStmt_seq`'s implicit arguments: `A B C c₁ c₂ d₁ d₂`
-    let gs ← applyLemma ``prhlStmt_seq g #[(1, Me)]
+    let gs ← applyLemma ``prhlStmt_seq g #[(`B, Me)]
     let #[g₂, g₁] := gs | throwError "equiv_seq: `prhlStmt_seq` left {gs.size} goals"
     replaceMainGoal [g₁, g₂]
+
+/-- `equiv_call h`: the last statements of both sides are calls `x₁ <- call p₁ (e₁)`,
+`x₂ <- call p₂ (e₂)`, and `h` a procedure judgment `equiv[ p₁ ~ p₂ : P ==> Q ]` about the callees
+(`prhlStmt_seq_call`; for an abstract procedure, `prhlProc_glob hA`: EC's
+`call (_ : ={glob A})`).  The postcondition before the calls: `P` at the arguments and globals,
+and the postcondition after them for all results and globals `Q` relates. -/
+elab "equiv_call " h:term : tactic => withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_call"
+  let g ← HoareSplit.hoareSplit 1 g
+  g.withContext do
+    let ty ← prhlGoal g "equiv_call"
+    let hE ← elabTerm h none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let hE ← instantiateMVars hE
+    let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call
+    let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+    let some hm ← ms.findM? fun m => return (← instantiateMVars (← inferType m)).isAppOf ``prhlProc
+      | throwError "equiv_call: `prhlStmt_seq_call` has no procedure-judgment argument"
+    unless ← isDefEq hm hE do
+      throwError "equiv_call: not a procedure judgment:{indentExpr (← inferType hE)}"
+    unless ← isDefEq concl ty do
+      throwError "equiv_call: the judgment{indentExpr (← inferType hE)}\ndoes not fit the last \
+        statements{indentExpr ty}"
+    g.assign (← instantiateMVars (mkAppN c ms))
+    let gPre := ms.back!.mvarId!
+    gPre.setKind .syntheticOpaque
+    replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
 
 /-- `equiv_case P`: case analysis on the relation `P` of the initial states
 (`prhlStmt_case`): goals with `A ∧ P` and with `A ∧ ¬P` as preconditions. -/
@@ -320,7 +359,7 @@ elab "equiv_case " P:term : tactic => withMainContext do
   let g ← getMainGoal
   let ty ← prhlGoal g "equiv_case"
   let Pe ← elabRelCond ty P
-  let gs ← applyLemma ``prhlStmt_case g #[(0, Pe)]
+  let gs ← applyLemma ``prhlStmt_case g #[(`P, Pe)]
   replaceMainGoal gs.toList
 
 end PRHLWp

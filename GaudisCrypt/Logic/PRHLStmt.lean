@@ -540,6 +540,58 @@ theorem Procedure.Pr_le_of_prhlProc (h : prhlProc A p₁ p₂ B)
   · simp [indicatorE, h₁, hE _ _ _ _ hxy h₁]
   · simp [indicatorE, h₁]
 
+/-- **Calls on both sides, with a procedure judgment** (EC's `call (_ : P ==> Q)`): the callees'
+runs coupled by `h`, from the arguments and globals before the calls; the postcondition for
+every results and globals `h` relates, written back. -/
+theorem prhlStmt_seq_call (h : prhlProc A p₁ p₂ B) {x₁ : Setter sig₁.ret ProgramState}
+    {e₁ : Getter sig₁.ParamType ProgramState} {x₂ : Setter sig₂.ret ProgramState}
+    {e₂ : Getter sig₂.ParamType ProgramState} {A' B' : ProgramState → ProgramState → Prop}
+    {s₁ s₂ : Stmt}
+    (hpre : prhlStmt A' s₁ s₂ fun σ₁ σ₂ => A (e₁.get σ₁) σ₁.globals (e₂.get σ₂) σ₂.globals ∧
+      ∀ r₁ g₁ r₂ g₂, B r₁ g₁ r₂ g₂ →
+        B' (x₁.set r₁ (ProgramState.globalL.set g₁ σ₁))
+          (x₂.set r₂ (ProgramState.globalL.set g₂ σ₂))) :
+    prhlStmt A' (.seq s₁ (Stmt.call x₁ p₁ e₁)) (.seq s₂ (Stmt.call x₂ p₂ e₂)) B' := by
+  refine prhlStmt_seq (B := fun σ₁ σ₂ => _) ?_ hpre
+  intro σ₁ σ₂ ⟨hA, hB⟩
+  obtain ⟨μ, hm1, hm2, hsat⟩ := h (e₁.get σ₁) (e₂.get σ₂) σ₁.globals σ₂.globals hA
+  refine ⟨μ >>= fun w => pure (((), x₁.set w.1.1 (ProgramState.globalL.set w.1.2 σ₁)),
+    ((), x₂.set w.2.1 (ProgramState.globalL.set w.2.2 σ₂))), ?_, ?_, ?_⟩
+  · refine SubProbability.marginal_fst_eq fun F => ?_
+    rw [SubProbability.expected_map, SubProbability.expected_fst_of_marginal hm1
+      (fun r => F ((), x₁.set r.1 (ProgramState.globalL.set r.2 σ₁))),
+      programDenotation_call_apply, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.marginal_snd_eq fun F => ?_
+    rw [SubProbability.expected_map, SubProbability.expected_snd_of_marginal hm2
+      (fun r => F ((), x₂.set r.1 (ProgramState.globalL.set r.2 σ₂))),
+      programDenotation_call_apply, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · exact SubProbability.satisfies_bind _ fun w hw =>
+      SubProbability.satisfies_pure _ _ (hB _ _ _ _ (hsat w hw))
+
+/-- Consequence for procedure judgments. -/
+theorem prhlProc_conseq
+    {A' : sig₁.ParamType → VariableAssignment → sig₂.ParamType → VariableAssignment → Prop}
+    {B' : sig₁.ret → VariableAssignment → sig₂.ret → VariableAssignment → Prop}
+    (h : prhlProc A' p₁ p₂ B') (hA : ∀ a₁ g₁ a₂ g₂, A a₁ g₁ a₂ g₂ → A' a₁ g₁ a₂ g₂)
+    (hB : ∀ r₁ g₁ r₂ g₂, B' r₁ g₁ r₂ g₂ → B r₁ g₁ r₂ g₂) : prhlProc A p₁ p₂ B := fun a₁ a₂ =>
+  (h a₁ a₂).conseq (fun g₁ g₂ => hA a₁ g₁ a₂ g₂) fun u v => hB u.1 u.2 v.1 v.2
+
 end Proc
+
+/-! ## Abstract procedures (EC's `call (_ : ={glob A})`) -/
+
+/-- **The adversary rule**: a procedure confined to the footprint `R` (on every argument), run
+on equal arguments from globals that agree on what it can touch (`R.touched_getter`, EC's
+`glob A`), returns equal results and globals that again agree on it (`prhl2_glob`). -/
+theorem prhlProc_glob {sig : ProcedureSignature} {p : Procedure sig}
+    {R : Footprint VariableAssignment}
+    (hp : ∀ a, (procedureDenotation p a).inFootprint R) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ R.touched_getter.get g₁ = R.touched_getter.get g₂)
+      p p (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ R.touched_getter.get g₁ = R.touched_getter.get g₂) := by
+  intro a₁ a₂ g₁ g₂ ⟨ha, hg⟩
+  subst ha
+  exact prhl2_glob (hp a₁) g₁ g₂ hg
 
 end GaudisCrypt
