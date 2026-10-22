@@ -255,6 +255,114 @@ theorem ENNReal.sum_div_card {α : Type*} [Fintype α] [Nonempty α] (c : ENNRea
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
     ENNReal.mul_div_cancel' (by simp [Fintype.card_ne_zero]) (by simp)]
 
+/-! ## Calls with a specification
+
+EC's `call (_ : P ==> Q)` for `phoare`: a trailing call `x <- p(a)` is closed by a judgment about
+`p`, and the expectation before it becomes the judgment's bound — under the side condition that
+the precondition holds at the arguments and the expectation after the call (the *continuation*
+`fun v gl => g (x.set v (globalL.set gl σ))`) is related to the judgment's postcondition as the
+relation needs.  Where the condition fails, the bound is the trivial one (`⊤` for `≤`, `0` for
+`≥`), or for `=` the call's own symbolic expectation, so that the `=` rule is exact. -/
+
+open Classical in
+/-- The call rule for upper bounds. -/
+theorem phoareStmt_call_le {sig} {A : ProgramState → Prop} {pre : Stmt}
+    {x : Setter sig.ret ProgramState} {p : Procedure sig} {a : Getter sig.ParamType ProgramState}
+    {g r : ProgramState → ENNReal} {P : sig.ParamType → VariableAssignment → Prop}
+    {G : sig.ret → VariableAssignment → ENNReal} {R : sig.ParamType → VariableAssignment → ENNReal}
+    (h : phoareProc P p G LE.le R)
+    (h' : phoareStmt A pre (fun σ =>
+      if P (a.get σ) σ.globals ∧
+          ∀ v gl, g (x.set v (ProgramState.globalL.set gl σ)) ≤ G v gl
+        then R (a.get σ) σ.globals else ⊤) LE.le r) :
+    phoareStmt A (.seq pre (Stmt.call x p a)) g LE.le r := by
+  rw [phoareStmt_seq_iff]
+  refine phoareStmt_le_of_le h' fun σ => ?_
+  rw [Stmt.ewp_call]
+  split_ifs with hC
+  · exact (Procedure.ewp_mono _ _ hC.2 _).trans (h _ _ hC.1)
+  · exact le_top
+
+open Classical in
+/-- The call rule for lower bounds. -/
+theorem phoareStmt_call_ge {sig} {A : ProgramState → Prop} {pre : Stmt}
+    {x : Setter sig.ret ProgramState} {p : Procedure sig} {a : Getter sig.ParamType ProgramState}
+    {g r : ProgramState → ENNReal} {P : sig.ParamType → VariableAssignment → Prop}
+    {G : sig.ret → VariableAssignment → ENNReal} {R : sig.ParamType → VariableAssignment → ENNReal}
+    (h : phoareProc P p G GE.ge R)
+    (h' : phoareStmt A pre (fun σ =>
+      if P (a.get σ) σ.globals ∧
+          ∀ v gl, G v gl ≤ g (x.set v (ProgramState.globalL.set gl σ))
+        then R (a.get σ) σ.globals else 0) GE.ge r) :
+    phoareStmt A (.seq pre (Stmt.call x p a)) g GE.ge r := by
+  rw [phoareStmt_seq_iff]
+  refine phoareStmt_ge_of_ge h' fun σ => ?_
+  rw [Stmt.ewp_call]
+  split_ifs with hC
+  · exact (h _ _ hC.1).trans (Procedure.ewp_mono _ _ hC.2 _)
+  · exact bot_le
+
+open Classical in
+/-- The call rule for exact values: where the condition holds the call's expectation *is* the
+    bound, elsewhere it stays as it was. -/
+theorem phoareStmt_call_eq {sig} {A : ProgramState → Prop} {pre : Stmt}
+    {x : Setter sig.ret ProgramState} {p : Procedure sig} {a : Getter sig.ParamType ProgramState}
+    {g r : ProgramState → ENNReal} {ρ : ENNReal → ENNReal → Prop}
+    {P : sig.ParamType → VariableAssignment → Prop}
+    {G : sig.ret → VariableAssignment → ENNReal} {R : sig.ParamType → VariableAssignment → ENNReal}
+    (h : phoareProc P p G Eq R)
+    (h' : phoareStmt A pre (fun σ =>
+      if P (a.get σ) σ.globals ∧
+          ∀ v gl, g (x.set v (ProgramState.globalL.set gl σ)) = G v gl
+        then R (a.get σ) σ.globals else (Stmt.call x p a).ewp g σ) ρ r) :
+    phoareStmt A (.seq pre (Stmt.call x p a)) g ρ r := by
+  rw [phoareStmt_seq_iff]
+  convert h' using 3
+  split_ifs with hC
+  · rw [Stmt.ewp_call, ← h _ _ hC.1]
+    exact congrArg (fun F => p.ewp _ F _) (funext fun v => funext fun gl => hC.2 v gl)
+  · rfl
+
+/-- An exact procedure judgment gives both bounds. -/
+theorem phoareProc_le_of_eq {sig} {A : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}
+    {R : sig.ParamType → VariableAssignment → ENNReal} (h : phoareProc A p G Eq R) :
+    phoareProc A p G LE.le R := fun a σ hA => (h a σ hA).le
+
+theorem phoareProc_ge_of_eq {sig} {A : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}
+    {R : sig.ParamType → VariableAssignment → ENNReal} (h : phoareProc A p G Eq R) :
+    phoareProc A p G GE.ge R := fun a σ hA => (h a σ hA).ge
+
+/-- A procedure judgment as a rewrite rule for the callee's expectation. -/
+theorem phoareProc.ewp_eq {sig} {P : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}
+    {R : sig.ParamType → VariableAssignment → ENNReal} (h : phoareProc P p G Eq R)
+    {args : sig.ParamType} {σ : VariableAssignment} (hP : P args σ) :
+    p.ewp args G σ = R args σ := h args σ hP
+
+theorem phoareProc.ewp_le {sig} {P : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}
+    {R : sig.ParamType → VariableAssignment → ENNReal} (h : phoareProc P p G LE.le R)
+    {args : sig.ParamType} {σ : VariableAssignment} (hP : P args σ) :
+    p.ewp args G σ ≤ R args σ := h args σ hP
+
+theorem phoareProc.ewp_ge {sig} {P : sig.ParamType → VariableAssignment → Prop}
+    {p : Procedure sig} {G : sig.ret → VariableAssignment → ENNReal}
+    {R : sig.ParamType → VariableAssignment → ENNReal} (h : phoareProc P p G GE.ge R)
+    {args : sig.ParamType} {σ : VariableAssignment} (hP : P args σ) :
+    R args σ ≤ p.ewp args G σ := h args σ hP
+
+theorem Procedure.ewp_mul_const {sig} (p : Procedure sig) (args : sig.ParamType) (c : ENNReal)
+    (F : sig.ret → VariableAssignment → ENNReal) (σ : VariableAssignment) :
+    p.ewp args (fun v g => F v g * c) σ = p.ewp args F σ * c := by
+  simp only [mul_comm _ c]
+  exact Procedure.ewp_const_mul p args c F σ
+
+/-- A conjunction of events is the product of their indicators. -/
+theorem indicatorE_and (Q Q' : Prop) : indicatorE (Q ∧ Q') = indicatorE Q * indicatorE Q' := by
+  by_cases h : Q <;> by_cases h' : Q' <;> simp [indicatorE, h, h']
+
 /-! ## Procedure judgments as statement judgments -/
 
 /-- A procedure judgment is the statement judgment about the one-line body `res <- p(args);`, as

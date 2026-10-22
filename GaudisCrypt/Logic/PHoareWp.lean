@@ -143,7 +143,66 @@ def ewpDecls : List Name :=
    ``Bool.true_beq, ``Bool.false_beq, ``Bool.not_eq_true',
    -- events, and the arithmetic they leave
    ``indicatorE_true, ``indicatorE_false, ``ENNReal.zero_div, ``zero_add, ``add_zero, ``mul_one,
-   ``one_mul, ``mul_zero, ``zero_mul] ++ HoareWp.simpReadsDecls
+   ``one_mul, ``mul_zero, ``zero_mul,
+   -- products of events, and constants out of a call's expectation (linearity)
+   ``Bool.and_eq_true, ``indicatorE_and, ``Procedure.ewp_const_mul, ``Procedure.ewp_mul_const,
+   -- the side conditions of `phoare_call`
+   ``le_refl, ``eq_self_iff_true, ``forall_const, ``and_self, ``ite_true, ``ite_false]
+  ++ HoareWp.simpReadsDecls
+
+/-- `M.procedure` for a procedure module `M` that evaluates to `Module.proc q` (the inliner's
+module evaluation, `Flatten.moduleStep?`) ↦ `q`, the spelling call sites carry after inlining
+(`FairCoin.flip.procedure`, say).  Anything else, an abstract module say, is left as it is. -/
+partial def procedureConst (p : Lean.Expr) : MetaM Simp.Result := do
+  unless p.isAppOfArity ``Module.Proc.procedure 2 do return { expr := p }
+  let sig := p.getArg! 0
+  let rec go (r : Simp.Result) (fuel : Nat) : MetaM (Option Simp.Result) := do
+    if r.expr.isAppOf ``Module.proc then return some r
+    if fuel == 0 then return none
+    let some step ← Flatten.moduleStep? r.expr | return none
+    go (← r.mkEqTrans step) (fuel - 1)
+  let some r ← go { expr := p.appArg! } 64 | return { expr := p }
+  let q := r.expr.appArg!
+  let h₁ ← match r.proof? with
+    | some h => mkCongrArg (mkApp (mkConst ``Module.Proc.procedure) sig) h
+    | none => mkEqRefl p
+  let h₂ ← mkAppM ``Module.procedure_proc' #[q]
+  return { expr := q, proof? := some (← mkEqTrans h₁ h₂) }
+
+/-- `M.procedure` ↦ `q` where the procedure module `M` evaluates to `Module.proc q`
+(`procedureConst`): one spelling for a callee, whether it came from the notation or from
+inlining (where it is often a `moduletype` accessor applied to a record). -/
+simproc_decl reduceProcedureConst (Module.Proc.procedure _) := fun e => do
+  -- the module evaluation unfolds definitions: not at `simp`'s reducible transparency
+  let r ← withDefault (procedureConst e)
+  if r.proof?.isNone then return .continue
+  return .done r
+
+/-- The default simprocs, and `reduceProcedureConst`. -/
+def ewpSimprocs : MetaM Simp.Simprocs := do
+  (← Simp.getSimprocs).add ``reduceProcedureConst (post := true)
+
+/-- Simplify `e` with `simp only` over `decls` (theorems rewritten with, definitions unfolded)
+    and the default simprocs. -/
+def simpExprWith (decls : List Name) (e : Lean.Expr) : MetaM Simp.Result := do
+  let mut thms : SimpTheorems := {}
+  for n in decls do
+    if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
+    else thms ← thms.addDeclToUnfold n
+  let ctx ← Simp.mkContext (config := { decide := true }) (simpTheorems := #[thms])
+    (congrTheorems := ← getSimpCongrTheorems)
+  return (← simp e ctx #[← ewpSimprocs]).1
+
+/-- Simplify the expectation of a goal `phoareStmt A s g ρ r` (`ewpDecls`, `ewpSimprocs`). -/
+def simpPost (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let r ← simpExprWith ewpDecls (ty.getArg! 2)
+  let args := ty.getAppArgs
+  let target := mkAppN ty.getAppFn (args.set! 2 r.expr)
+  let some h := r.proof? | return ← g.replaceTargetDefEq target
+  let motive ← withLocalDeclD `x (← inferType (ty.getArg! 2)) fun x =>
+    mkLambdaFVars #[x] (mkAppN ty.getAppFn (args.set! 2 x))
+  g.replaceTargetEq target (← mkCongrArg motive h)
 
 /-- One backwards step on a goal `phoareStmt A {x₁; …; xₙ} g ρ r`: split off the last `k`
 statements (`phoareSplit`), and continue with the judgment about `x₁; …; xₙ₋ₖ`, the expectation
@@ -153,10 +212,134 @@ def phoareWpStep (k : Nat) (g : MVarId) : MetaM MVarId := do
   let g ← phoareSplit k g
   let gs ← applyIffMpr ``phoareStmt_seq_iff g
   let [g] := gs | throwError "phoare_wp: `phoareStmt_seq_iff` left {gs.length} goals"
-  HoareWp.simpGoalArg ewpDecls g 2
+  simpPost g
 
 elab "phoare_wp " k:num : tactic =>
   liftMetaTactic1 fun g => some <$> phoareWpStep k.getNat g
+
+/-- `h : f a₀ … aₙ` with argument `i` replaced by the result `r` of simplifying it. -/
+def rewriteArg (h : Lean.Expr) (i : Nat) (r : Simp.Result) : MetaM Lean.Expr := do
+  let ty ← instantiateMVars (← inferType h)
+  let some pf := r.proof? | return h
+  let args := ty.getAppArgs
+  let motive ← withLocalDeclD `x (← inferType args[i]!) fun x =>
+    mkLambdaFVars #[x] (mkAppN ty.getAppFn (args.set! i x))
+  mkEqMP (← mkCongrArg motive pf) h
+
+/-- A procedure judgment `phoareProc P p G ρ R` with its conditions `P`, `G`, `R` in the normal
+form `phoare_wp` leaves expectations in (`ewpDecls`): the `phoare[ ]` notation wraps them in
+`let`s and `GaudiExpr` getters.  The procedure is left as it is, so that the judgment still
+unifies with a call statement. -/
+def normalizeSpec (h : Lean.Expr) : MetaM Lean.Expr := do
+  let ty ← instantiateMVars (← inferType h)
+  unless ty.isAppOfArity ``phoareProc 6 do return h
+  let mut h := h
+  for i in [1, 3, 5] do
+    let ty ← instantiateMVars (← inferType h)
+    h ← rewriteArg h i (← simpExprWith ewpDecls (ty.getArg! i))
+  return h
+
+/-- One backwards step over a call, on a goal `phoareStmt A {x₁; …; xₙ₋₁; x <- call p (a)} g ρ r`
+and a judgment `h` about `p`: close the call by `phoareStmt_call_le`/`_ge`/`_eq` (by the goal's
+relation; an exact `h` serves for all three), and continue with the judgment about
+`x₁; …; xₙ₋₁`, its expectation the bound of `h` under the side condition, simplified
+(`ewpDecls`).  When the continuation is literally `h`'s postcondition and `h`'s precondition
+simplifies to `True`, the condition disappears. -/
+def phoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM MVarId := do
+  let g ← phoareSplit 1 g
+  let ty ← instantiateMVars (← g.getType)
+  let #[_, _, _, ρ, _] ← phoareParts ty | unreachable!
+  let h ← normalizeSpec h
+  let hTy ← instantiateMVars (← inferType h)
+  unless hTy.isAppOfArity ``phoareProc 6 do
+    throwError "phoare_call: not a procedure judgment `phoareProc A p G ρ r`:{indentExpr hTy}"
+  let ρ' := hTy.getArg! 4
+  let (rule, h) ← if ρ.isAppOf ``Eq then
+      if ρ'.isAppOf ``Eq then pure (``phoareStmt_call_eq, h)
+      else throwError "phoare_call: an exact goal needs an exact judgment about the callee"
+    else if ρ.isAppOf ``LE.le then
+      if ρ'.isAppOf ``LE.le then pure (``phoareStmt_call_le, h)
+      else if ρ'.isAppOf ``Eq then pure (``phoareStmt_call_le, ← mkAppM ``phoareProc_le_of_eq #[h])
+      else throwError "phoare_call: an upper bound needs an upper bound about the callee"
+    else if ρ.isAppOf ``GE.ge then
+      if ρ'.isAppOf ``GE.ge then pure (``phoareStmt_call_ge, h)
+      else if ρ'.isAppOf ``Eq then pure (``phoareStmt_call_ge, ← mkAppM ``phoareProc_ge_of_eq #[h])
+      else throwError "phoare_call: a lower bound needs a lower bound about the callee"
+    else throwError "phoare_call: the goal's relation is not `=`, `≤` or `≥`:{indentExpr ρ}"
+  let c ← mkConstWithFreshMVarLevels rule
+  let (ms, _, cty) ← forallMetaTelescope (← inferType c)
+  -- the judgment about the callee is the one argument of type `phoareProc …`; the judgment about
+  -- the code before the call is the last
+  let some hm ← ms.findM? fun m => return (← instantiateMVars (← inferType m)).isAppOf ``phoareProc
+    | throwError "phoare_call: `{rule}` has no procedure judgment argument"
+  unless ← isDefEq hm h do
+    throwError "phoare_call: the judgment{indentExpr (← inferType h)}\ndoes not fit `{rule}`"
+  unless ← isDefEq cty ty do
+    throwError "phoare_call: the last statement is not a call to the judgment's procedure:\
+      {indentExpr ty}"
+  g.assign (mkAppN c ms)
+  let g' := ms.back!.mvarId!
+  g'.setTag (← g.getTag)
+  simpPost g'
+
+/-- `phoare_call h`: `phoareCallStep h` on the main goal — the last statement is a call, closed by
+the procedure judgment `h` about the callee (EC's `call (_ : P ==> Q)`). -/
+elab "phoare_call " h:term : tactic => withMainContext do
+  let h ← elabTerm h none
+  liftMetaTactic1 fun g => some <$> phoareCallStep h g
+
+/-- A procedure judgment `phoareProc P p G Eq R` as a conditional rewrite rule
+`∀ args σ, P args σ → p.ewp args G σ = R args σ`, normalized like the goal (`ewpDecls`,
+`ewpSimprocs`).  Bounds (`≤`,
+`≥`) are not rewrite rules and are rejected. -/
+def specRewrite (h : Lean.Expr) : MetaM Lean.Expr := do
+  -- everything normalized, the procedure included (`reduceProcedureConst`), as in the goal
+  let r ← simpExprWith ewpDecls (← instantiateMVars (← inferType h))
+  let h ← match r.proof? with
+    | some pf => mkEqMP pf h
+    | none => mkExpectedTypeHint h r.expr
+  let ty ← instantiateMVars (← inferType h)
+  unless ty.isAppOfArity ``phoareProc 6 && (ty.getArg! 4).isAppOf ``Eq do
+    throwError "phoare_simp: not an exact procedure judgment `phoareProc A p G Eq R`:\
+      {indentExpr ty}"
+  let some unfolded ← unfoldDefinition? ty | throwError "phoare_simp: cannot unfold{indentExpr ty}"
+  mkExpectedTypeHint h (← Core.betaReduce unfolded)
+
+/-- `phoare_simp [h₁, …]`: simplify with the simp set of `phoare_wp` (`ewpDecls`) and the exact
+procedure judgments `hᵢ` as rewrite rules for their callees' expectations (`specRewrite`).  On a
+goal `phoareStmt A s g ρ r` only the expectation `g` is simplified; on any other goal (what
+`phoare_skip` leaves, say) the whole goal. -/
+syntax (name := phoareSimp) "phoare_simp" (" [" term,* "]")? : tactic
+
+elab_rules : tactic
+  | `(tactic| phoare_simp $[[$hs?,*]]?) => withMainContext do
+  let hs : Array Term := (hs?.map (·.getElems)).getD #[]
+  let mut thms : SimpTheorems := {}
+  for n in ewpDecls do
+    if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
+    else thms ← thms.addDeclToUnfold n
+  for h in hs do
+    let pf ← specRewrite (← elabTerm h none)
+    thms ← thms.add (.other `phoare_simp) #[] pf
+  let ctx ← Simp.mkContext (config := { decide := true }) (simpTheorems := #[thms])
+    (congrTheorems := ← getSimpCongrTheorems)
+  let g ← getMainGoal
+  let ty ← instantiateMVars (← g.getType)
+  if ty.isAppOfArity ``phoareStmt 5 then
+    let B := ty.getArg! 2
+    let (r, _) ← simp B ctx #[← ewpSimprocs]
+    let args := ty.getAppArgs
+    let target := mkAppN ty.getAppFn (args.set! 2 r.expr)
+    match r.proof? with
+    | none => replaceMainGoal [← g.replaceTargetDefEq target]
+    | some pf =>
+      let motive ← withLocalDeclD `x (← inferType B) fun x =>
+        mkLambdaFVars #[x] (mkAppN ty.getAppFn (args.set! 2 x))
+      replaceMainGoal [← g.replaceTargetEq target (← mkCongrArg motive pf)]
+  else
+    match ← simpTarget g ctx #[← ewpSimprocs] with
+    | (none, _) => replaceMainGoal []
+    | (some g', _) => replaceMainGoal [g']
 
 /-- The end of a backwards proof, on a goal `phoareStmt A skip g ρ r`: the relation itself,
 `∀ σ, A σ → ρ (g σ) (r σ)` (`phoareStmt_skip_iff`), β-reduced, with the reads of the state

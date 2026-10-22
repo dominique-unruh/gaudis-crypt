@@ -38,20 +38,31 @@ statements — including through abstract calls, left symbolic as
    call); reuse `hoareSplit`, the inliner, `generalizeReads`; generalize `simpReads` to any
    condition type/judgment head; an `ENNReal` arithmetic simp set (`∑ x, … / card`, Bool sums,
    `card ≠ 0`, `≠ ⊤`).
-2. **Calls with specs**: `phoare_call h` for `≤`/`≥` (monotonicity) and `=`; lossless rule
-   (post constant in the call's result); frame variant via the footprint lemmas.
-3. **Loops**: `phoare_while_le I` (expectation invariant, `wp_while_invariant`); lower bounds
-   need termination — variant / bounded-counter rule from Kleene iterates
-   (`expected_while_lfp_iSup`, `Logic/PRHL2.lean`); then EC's `fel`
-   (`Pr[bad] ≤ ∑_{i<q} f i`), generalizing `loop_n_wp_linear_bound`.
+2. **Calls with specs**: `phoare_call h`, `h` a procedure judgment about the callee, for a
+   trailing call.  The call's expectation is replaced by the spec's bound under the side
+   condition `C σ` (the spec's precondition at the arguments, and the continuation related to the
+   spec's postcondition): `if C σ then R else ⊤` for `≤`, `… else 0` for `≥`, `… else ‹the
+   symbolic expectation›` for `=` (exact).  Losslessness is used through the expectation algebra
+   (`IsLossless.ewp_const`).
+3. **Loops**: `phoare_while_le I` with an expectation invariant (`wp_while_invariant`).  A
+   potential such as `indicatorE bad + (q − i) · δ` gives the union bound over a `q`-round loop,
+   which is EC's `fel` in the loop form our games use (`oracle_loop_n`); `loop_n_wp_linear_bound`
+   and the Birthday lemmas are hand-proved instances.  Lower bounds for loops (termination, from
+   `expected_while_lfp_iSup` in `Logic/PRHL2.lean`) wait until something needs them.
 4. **`islossless` tactic.**
+
+*Not planned for now*: EC's `fel` proper.  Its point is an abstract adversary `A^O` calling its
+oracles itself, an unknown number of times — an induction over the oracle calls.  That needs a
+call rule for abstract procedures with oracle holes, preserving an invariant/potential on the
+oracle state (EC's `call (_ : inv)`, of which `fel` is the probabilistic version): a project of
+its own, once adversaries calling oracle holes are in use.
 
 ## Milestones
 
 1. Re-prove `hi_ll` and `fakecommit_half` (`Examples/Pedersen/Hiding.lean`) with the tactics
    (phases 0–2).
-2. Abstract adversary hitting a fresh uniform secret within `q` queries:
-   `phoare[ … : True ==> hit ] <= q / |X|` (phase 3, `fel`).
+2. Abstract adversary hitting a fresh uniform secret within `q` rounds of an explicit loop:
+   `phoare[ … : True ==> hit ] <= q / |X|` (phase 3, potential invariant).
 3. Optionally, port one RO bound (QueryHit / CollisionResistance / Switching).
 
 ## Log
@@ -80,3 +91,26 @@ statements — including through abstract calls, left symbolic as
     expectation keeps both adversary calls symbolic, and one `simp only` (linearity, the
     partition of the coin, losslessness, averages) closes it.
   * `hi_ll_phoare`: 6 tactic lines, against ~45.
+
+* 2026-10-22 — **Phase 2 (calls with specs) done.**  `fel` dropped from the plan (see above).
+  * Rules `phoareStmt_call_le`/`_ge`/`_eq` (`Logic/PHoare.lean`): a trailing call closed by a
+    judgment about the callee, under the side condition "precondition at the arguments, and the
+    continuation related to the postcondition"; trivial bound (or, for `=`, the symbolic
+    expectation) where it fails.  `phoareProc_le_of_eq`/`_ge_of_eq`; `phoareProc.ewp_eq`/
+    `_le`/`_ge` (a judgment as a fact about the callee's expectation).
+  * `phoare_call h` (`Logic/PHoareWp.lean`): picks the rule by the goal's relation (an exact `h`
+    serves for all three), after normalizing `h`'s conditions with the goal's simp set — the side
+    condition then usually simplifies away.
+  * `phoare_simp [h₁, …]`: the simp set of `phoare_wp`, plus exact judgments as rewrite rules for
+    their callees' expectations — for continuations that are not literally the spec's
+    postcondition (`indicatorE a * indicatorE v` after two coin flips): linearity
+    (`Procedure.ewp_const_mul`, `indicatorE_and`) exposes the spec's expectation.
+  * Pitfall found: after inlining a functor, a callee is a `moduletype` accessor on a record,
+    `(Coin.flip FairCoin).procedure`, which is *not* definitionally the constant
+    `FairCoin.flip.procedure` (`Module.procedure_proc'` is propositional).  The simproc
+    `reduceProcedureConst` (the inliner's module evaluation, run at default transparency) puts
+    both the goal's and the spec's expectations in the constant form; `phoare_call` leaves the
+    spec's procedure alone, so it still unifies with the call statement.
+  * Tests (`Logic/PHoareWpTest.lean`): a relay game proved from `flip_half` without inlining the
+    coin (`=`), the same with an abstract coin known by an upper bound (`≤`), and two flips
+    `= 1/4` via `phoare_simp [flip_half]`.
