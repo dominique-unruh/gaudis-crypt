@@ -15,8 +15,14 @@ header quotes the EC proof for side-by-side comparison.
 | 4 | `theories/encryption/Means.ec` — `prCond`, `Mean` | abstract worker on a sampled input: `Pr[ev] = Σ_v μ(v) · Pr[A.work(v) : ev v]` | exactly the symbolic exact wp of `phoare_wp` | **done** — `Examples/EasyCryptBench/Means.lean` |
 | 5 | `theories/distributions/Dexcepted.ec` — `WhileSampling` | rejection sampling with an arbitrary distribution and test = the `dexcepted` distribution | generalizes `Examples/RejectionSampling.lean` beyond uniform | |
 
-Second tier: `examples/PIR.ec` (private information retrieval: the query set is uniform over
-subsets, a `while` with a variant) — interesting but list/fset-heavy.  Not candidates: the large
+Deferred: `examples/PIR.ec` (two-server private information retrieval) — **postponed until we
+have pRHL syntax and tactics**: its privacy proofs `PIR_secure1/2` are `equiv` judgments
+(couplings, flipping the coin where the indices differ).  Its `phoare` parts also need a
+**variant rule** for counted loops (`while (j < N)` exits with probability 0 except in the last
+round, so `Stmt.ewp_while_one`'s `ε > 0` does not apply; EC uses `while I (N − j)`): correctness
+(`PIR_correct`, `Pr[res = a i] = 1`) and the explicit distribution `Pr_PIR_s`
+(`Pr[set s = x] = 2^-N`, an expectation invariant `if s = x ∩ [0, j) then 2^-(N−j) else 0`).
+Model `s`, `s'` as `Finset ℕ` to avoid EC's list↔fset bookkeeping.  Not candidates: the large
 crypto developments (`cramer_shoup`, `ChaChaPoly`, KEM theories) — too much library.
 
 Note: no `Language/` change is needed for non-uniform distributions — `x <$ d` samples from any
