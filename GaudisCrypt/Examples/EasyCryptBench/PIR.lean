@@ -66,6 +66,10 @@ two runs, for *any* two indices, can be coupled so that `s` (resp. `s'`) is the 
 couples the coins with one state-dependent function (negation exactly in the rounds where the two
 runs disagree on whether this is the index) where EC splits cases and uses two `rnd`s.
 
+Every lemma of EC's `PIR.ec` is replicated here: the two `equiv`s and their `byequiv`
+corollaries, correctness, the uniformity `equiv`s (`s_uniform`, `s'_uniform`), and the explicit
+distributions with their `bypr` corollaries (`Pr_PIR_s`, `Pr_PIR_s'`).
+
 Correctness, `Pr[PIR.main(i0) @ &m : res = a i0] = 1` (EC's `PIR_correct`, via `byphoare` with a
 Hoare invariant and `while true (N-j)` for termination), is `correct`: one lower-bound loop rule
 with a variant (`phoare_while_ge I variant N - §j`), whose invariant is EC's
@@ -578,5 +582,129 @@ theorem security_s_bypr (i₁ i₂ : ℕ) (m₁ m₂ : VariableAssignment) (x : 
     Procedure.Pr (main N D) i₁ m₁ (fun _ g => (s.get g).toFinset = x)
       = Procedure.Pr (main N D) i₂ m₂ (fun _ g => (s.get g).toFinset = x) :=
   ENNReal.coe_inj.mp ((Pr_PIR_s N D i₁ m₁ x).trans (Pr_PIR_s N D i₂ m₂ x).symm)
+
+/-! The second query: it takes `j` when `b ^^ (j == i)`, so in each round one coin value takes
+it and the other does not — the same average (`core_step`, the halves swapped at the index). -/
+
+theorem pr_s'_le (x : Finset ℕ) :
+    phoare[ (main N D) : True ==> (§s').toFinset = x ]
+      ≤ (if x ⊆ Finset.range N then (1 / 2) ^ N else 0) := by
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_inline 0
+  phoare_inline 0
+  stmt_wp
+  phoare_while_le if Reach N §j §s' then core N x §j §s' else 1
+  case body =>
+    stmt_wp
+    phoare_wp 1
+    phoare_skip
+    intro j i q hj
+    simp only [ite_self]
+    have hjN : j < N := by simpa using hj
+    by_cases hr : Reach N j q
+    · rw [if_pos hr]
+      have hT : Reach N (j + 1) (j :: q) := ⟨hjN, by simpa using bounded_step hr.2 true⟩
+      have hF : Reach N (j + 1) q := ⟨hjN, by simpa using bounded_step hr.2 false⟩
+      -- at the index the two coin values swap roles
+      cases (j == i) <;> simp only [Bool.false_eq_true, if_true, if_false, if_pos hT, if_pos hF]
+      · exact (core_step N x hjN hr.2).le
+      · rw [add_comm]; exact (core_step N x hjN hr.2).le
+    · rw [if_neg hr]
+      calc _ ≤ (1 : ENNReal) / 2 + 1 / 2 := by
+            gcongr <;> split_ifs <;> simp [core_le_one]
+        _ = 1 := ENNReal.add_halves 1
+  case exit =>
+    intro j q hj
+    by_cases hr : Reach N j q
+    · rw [if_pos hr]
+      have hjN : j = N := by have := hr.1; simp at hj; omega
+      subst hjN
+      by_cases hqx : q.toFinset = x
+      · have hR : x ⊆ Finset.range j := fun y hy =>
+          Finset.mem_range.mpr (hr.2 y (hqx ▸ hy))
+        have hf : x.filter (· < j) = x :=
+          Finset.filter_true_of_mem fun y hy => Finset.mem_range.mp (hR hy)
+        unfold core
+        rw [if_pos ⟨hqx.trans hf.symm, hR⟩]
+        simp
+      · rw [indicatorE_of_not hqx]
+        exact zero_le
+    · rw [if_neg hr]
+      exact indicatorE_le_one _
+  stmt_wp
+  phoare_skip
+  intro _
+  rw [if_pos ⟨Nat.zero_le _, by simp⟩]
+  unfold core
+  by_cases hR : x ⊆ Finset.range N <;> simp [hR]
+
+theorem pr_s'_ge (x : Finset ℕ) :
+    phoare[ (main N D) : True ==> (§s').toFinset = x ]
+      ≥ (if x ⊆ Finset.range N then (1 / 2) ^ N else 0) := by
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_inline 0
+  phoare_inline 0
+  stmt_wp
+  phoare_while_ge (if Reach N §j §s' then core N x §j §s' else 0) variant N - §j
+  case body =>
+    stmt_wp
+    phoare_wp 1
+    phoare_skip
+    intro j i q hj
+    simp only [ite_self]
+    have hjN : j < N := by simpa using hj
+    by_cases hr : Reach N j q
+    · rw [if_pos hr]
+      have hT : Reach N (j + 1) (j :: q) := ⟨hjN, by simpa using bounded_step hr.2 true⟩
+      have hF : Reach N (j + 1) q := ⟨hjN, by simpa using bounded_step hr.2 false⟩
+      cases (j == i) <;> simp only [Bool.false_eq_true, if_true, if_false, if_pos hT, if_pos hF]
+      · exact (core_step N x hjN hr.2).ge
+      · rw [add_comm]; exact (core_step N x hjN hr.2).ge
+    · rw [if_neg hr]
+      exact zero_le
+  case exit =>
+    intro j q hj
+    by_cases hr : Reach N j q
+    · rw [if_pos hr]
+      have hjN : j = N := by have := hr.1; simp at hj; omega
+      subst hjN
+      unfold core
+      split_ifs with h
+      · have hf : x.filter (· < j) = x :=
+          Finset.filter_true_of_mem fun y hy => Finset.mem_range.mp (h.2 hy)
+        rw [indicatorE_of (h.1.trans hf)]
+        simp
+      · exact zero_le
+    · rw [if_neg hr]
+      exact zero_le
+  case decreases =>
+    intro k
+    stmt_wp
+    hoare_wp 1
+    hoare_skip
+    intro j _ ⟨hj, hk⟩ _ _
+    simp only [ite_self, decide_eq_true_eq] at hj ⊢
+    omega
+  stmt_wp
+  phoare_skip
+  intro _
+  rw [if_pos ⟨Nat.zero_le _, by simp⟩]
+  unfold core
+  by_cases hR : x ⊆ Finset.range N <;> simp [hR]
+
+/-- **EC's `Pr_PIR_s'`**: the second query has the same distribution. -/
+theorem Pr_PIR_s' (i₀ : ℕ) (m : VariableAssignment) (x : Finset ℕ) :
+    (Procedure.Pr (main N D) i₀ m (fun _ g => (s'.get g).toFinset = x) : ENNReal)
+      = if x ⊆ Finset.range N then (1 / 2) ^ N else 0 :=
+  Procedure.Pr_of_phoareProc (phoareProc_eq_of_le_ge (pr_s'_le N D x) (pr_s'_ge N D x))
+    (args := i₀) (σ := m) trivial
+
+/-- **EC's `PIR_secuity_s'_bypr`**. -/
+theorem security_s'_bypr (i₁ i₂ : ℕ) (m₁ m₂ : VariableAssignment) (x : Finset ℕ) :
+    Procedure.Pr (main N D) i₁ m₁ (fun _ g => (s'.get g).toFinset = x)
+      = Procedure.Pr (main N D) i₂ m₂ (fun _ g => (s'.get g).toFinset = x) :=
+  ENNReal.coe_inj.mp ((Pr_PIR_s' N D i₁ m₁ x).trans (Pr_PIR_s' N D i₂ m₂ x).symm)
 
 end GaudisCrypt.Examples.EasyCryptBench.PIR

@@ -99,4 +99,6 @@ coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
   (`core_step`: the chance from round `j` is the average of the two chances from `j + 1`) serving
   both `phoare_while_le` and `phoare_while_ge … variant N - §j` (the invariants differ only off
   the reachable states), against EC's ~50 lines of `seq` with five probabilities, `conseq` and
-  `smt`; and `PIR_secuity_s_bypr` (`security_s_bypr`).  `Pr_PIR_s'` (the mirror) not done.
+  `smt`; and `PIR_secuity_s_bypr` (`security_s_bypr`); the mirrors `Pr_PIR_s'`,
+  `PIR_secuity_s'_bypr` (at the index the two coin values swap roles: `add_comm`).  **Every
+  lemma of `PIR.ec` is now replicated**, standard axioms.
