@@ -105,10 +105,47 @@ for counted loops.  Examples: all of EC's `PIR.ec`; `Examples/OTP.lean` (perfect
 any adversary: `equiv_call prhlProc_refl _` for the adversary, `equiv_rnd (fun k => §m{1} + k)`).
 
 Known gaps: no one-sided call/`while` (EC's `call{1}`, `while{1}`); `equiv_if` only on whole
-statements (cut with `equiv_seq` first); no `sp`/`swap`/`conseq` tactics (the lemmas
+statements (cut with `equiv_seq` first); no `sp`/`conseq` tactics (the lemmas
 `prhlStmt_pre`/`_post` work with `apply`/`refine`); no `byequiv` tactic (the lemmas
 `Procedure.Pr_eq_of_prhlProc`/`_le_` are one term).  `variant` is now a keyword (from
 `phoare_while_ge … variant …`), hence the goal tag `decreases`.
+
+Added 2026-10-24: `stmt_swap{i} n k` and `stmt_split_pair{i} n` (`Logic/StmtSwap.lean`, EC's
+`swap`); `equiv_call` without argument (same procedure on both sides, `prhlStmt_seq_call_refl`);
+`equiv_skip` generalizes bare globals to `globals₁`/`globals₂`.
+
+## Friction points (to decide later)
+
+Met while replicating Pedersen, ElGamal and hashed ElGamal (2026-10-24); not yet acted on.
+
+1. **Statement positions are counted by hand.**  `stmt_swap{2} 6 -4`, `stmt_split_pair{1} 5`,
+   `stmt_inline{1} 3` count from 0 over the flattened sequence, `reset_vars` lines included;
+   every index was worked out by reading the printed goal.  Error-prone, and it breaks when the
+   inliner's output changes.  Options: name the statement by the variable it assigns or the
+   callee it calls (`stmt_swap y after choose`), or at least number the statements in the goal
+   display.
+2. **The inliner's `reset_vars` block swaps.**  Inlining resets the callee's locals on entry;
+   EC's inliner does not.  A sampling of a same-named variable cannot move past such a reset, so
+   the reset has to be moved out of the way first (an extra swap EC does not need — hashed
+   ElGamal's `ddh1_es1`).  Options: a step that drops a reset whose variables are all written
+   before they are read, or an inliner that renames instead of resetting.
+3. **Tuple assignments need a manual `stmt_split_pair`.**  The inliner assigns a call's
+   parameters as one tuple; EC assigns them one by one, and its swaps rely on that.  Options:
+   split automatically when `stmt_swap` needs to move one component, or have the inliner emit
+   one assignment per parameter.
+4. **The equal-globals hypothesis appears twice** after `equiv_skip`
+   (`globals₁ = globals₂ → … globals₁ = globals₂ ∧ …`), costing a `refine ⟨h, …⟩` per proof.
+   Removing it would mean substituting equalities generally, which reshapes other goals (PIR).
+5. **The swap discharger falls back to the full `simp` set** when the targeted one leaves a
+   goal: robust, but less predictable and possibly slow on large programs.  Its specific lemmas
+   (`Lens.set_outward`, `resetSetter_set_varLens`) had to be stated for the exact spellings the
+   inliner produces (`liftLens X`; `VariableName.mk` literals, where a lemma about
+   `(varLens v).intoLocal` does not fire).
+6. **Counted wp steps fall short at the end.**  `phoare_wp k` must count statements exactly;
+   in `gb_half` a trailing reset was left, hence `phoare_wp 6` followed by `stmt_wp`.  The
+   uncounted `stmt_wp` (deterministic code only) and the counted per-judgment steps could be
+   made consistent (e.g. `phoare_wp` without a count = everything, samplings included).
+7. **Inline call sites are numbered by hand** too (`stmt_inline{1} 3` …), same issue as 1.
 
 ## Next
 
