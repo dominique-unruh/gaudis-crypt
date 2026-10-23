@@ -41,7 +41,8 @@ trivial coupling conditions `equiv_rnd` leaves (the identity and negation push a
 distribution to itself, and its support is everything). -/
 def relSimpDecls : List Lean.Name :=
   HoareWp.simpReadsDecls ++ [``SubProbability.bind_pure_id, ``SubProbability.uniform_bind_not,
-    ``SubProbability.uniform_bind_add_left, ``SubProbability.uniform_expected_one,
+    ``SubProbability.uniform_bind_add_left, ``SubProbability.uniform_bind_add_right,
+    ``SubProbability.uniform_expected_one,
     ``SubProbability.uniform_bind_xor,
     ``eq_self_iff_true, ``SubProbability.uniform_support, ``Set.mem_univ]
 
@@ -253,6 +254,13 @@ elab "equiv_rnd" f?:(ppSpace colGt term:max)? : tactic => withMainContext do
   let g ← HoareSplit.hoareSplit 1 g
   g.withContext do
     let ty ← prhlGoal g "equiv_rnd"
+    -- an assignment is a sampling from a point mass, and would unify: insist on samplings
+    for i in [1, 2] do
+      let st := stripLets (ty.getArg! i)
+      unless st.isAppOf ``StmtWithHoles.seq &&
+          (stripLets (st.getArg! 2)).isAppOf ``StmtWithHoles.sample do
+        throwError "equiv_rnd: the last statement of side {i} is not a sampling (deterministic \
+          code first: `stmt_wp`):{indentExpr (stripLets (st.getArg! 2))}"
     let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_sample
     let (ms, _, concl) ← forallMetaTelescope (← inferType c)
     unless ← isDefEq concl ty do

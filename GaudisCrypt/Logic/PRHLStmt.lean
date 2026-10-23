@@ -369,6 +369,13 @@ theorem SubProbability.uniform_bind_pure_bijective {α : Type} [Fintype α] [Non
       = SubProbability.uniform :=
   SubProbability.uniform_bind_pure_bijective (add_right_injective m).bijective_of_finite
 
+/-- A translation on the right pushes the uniform distribution on a group to itself. -/
+@[simp] theorem SubProbability.uniform_bind_add_right {G : Type} [AddGroup G] [Fintype G]
+    [Nonempty G] (m : G) :
+    (SubProbability.uniform >>= fun a => (pure (a + m) : SubProbability G))
+      = SubProbability.uniform :=
+  SubProbability.uniform_bind_pure_bijective (add_left_injective m).bijective_of_finite
+
 end Sample
 
 /-! ## Loops -/

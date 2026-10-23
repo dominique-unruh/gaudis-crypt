@@ -125,7 +125,8 @@ noncomputable def main := proc (i : ℕ) : D.W {
 /-- The first server's query does not depend on the index (EC's `PIR_secure1`). -/
 theorem secure1 : equiv[ (main N D) ~ (main N D) : True ==> ={s} ] := by
   equiv_proc
-  stmt_inline 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
   stmt_inline 0
   stmt_inline 0
   stmt_wp
