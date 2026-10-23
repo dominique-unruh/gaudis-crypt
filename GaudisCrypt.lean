@@ -104,6 +104,7 @@ import GaudisCrypt.Examples.EasyCryptBench.HashedElGamal
 import GaudisCrypt.Examples.EasyCryptBench.Means
 import GaudisCrypt.Examples.EasyCryptBench.PIR
 import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
+import GaudisCrypt.Examples.EasyCryptBench.Schnorr
 import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
 import GaudisCrypt.Examples.EasyCryptBench.WhileSampling
 import GaudisCrypt.Examples.Pedersen.Binding

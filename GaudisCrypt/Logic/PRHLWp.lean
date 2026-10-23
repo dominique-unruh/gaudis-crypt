@@ -27,6 +27,7 @@ And the relational steps proper:
 * `equiv_case P` — case analysis on a relation of the initial states (EC's `case`);
 * `equiv_if`, `equiv_if{i}` — conditionals on both sides, or on one (EC's `if`, `if{i}`);
 * `equiv_sym` — swap the sides;
+* `equiv_rcondf{i}` — a trailing loop on side `i` whose guard is false (EC's `rcondf{i}`);
 * `equiv_skip` — at `skip ~ skip`, the implication, with the reads of both states generalized
   (`x₁`, `x₂`; EC's `skip`).
 
@@ -44,6 +45,7 @@ distribution to itself, and its support is everything). -/
 def relSimpDecls : List Lean.Name :=
   HoareWp.simpReadsDecls ++ [``SubProbability.bind_pure_id, ``SubProbability.uniform_bind_not,
     ``SubProbability.uniform_bind_add_left, ``SubProbability.uniform_bind_add_right,
+    ``SubProbability.uniform_bind_sub_right,
     ``SubProbability.uniform_expected_one,
     ``SubProbability.uniform_bind_xor,
     ``eq_self_iff_true, ``SubProbability.uniform_support, ``Set.mem_univ]
@@ -125,8 +127,8 @@ partial def bareGlobals (σ : FVarId) (e : Lean.Expr) : Bool :=
 
 /-- On a goal `∀ σ₁ σ₂ : ProgramState, P σ₁ σ₂`: `generalizeReads` for both states — every read
 of `σ₁` becomes a value `x₁`, every read of `σ₂` a value `x₂` (named after the variable), and the
-states are dropped if nothing else mentions them.  Where the globals themselves occur (`§allGlobals`,
-the globals a call leaves), they become a value `globals₁`/`globals₂` first, and the reads of
+states are dropped if nothing else mentions them.  Where the globals themselves occur
+(`§allGlobals`, the globals a call leaves), they become a value `globals₁`/`globals₂` first, and the reads of
 global variables stay reads of it (`x.get globals₁`), so nothing is lost. -/
 def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
   let (fvs, g) ← g.introN 2
@@ -433,6 +435,21 @@ elab "equiv_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
   -- the branches first, as written
   let ordered := if out.size == 3 then #[out[1]!, out[2]!, out[0]!] else out
   replaceMainGoal ordered.toList
+
+/-- `equiv_rcondf{i}`: the last statement of side `i` is a loop that does not run — its guard
+is false where it starts (EC's `rcondf{i}`, for a trailing loop;
+`prhlStmt_seq_while_false_left`/`_right`).  The postcondition before it adds the false guard. -/
+elab "equiv_rcondf" s:Judgment.judgmentSide : tactic => withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_rcondf"
+  let side := (Judgment.sideOf? (some s)).getD 1
+  let g ← HoareSplit.hoareSplit 1 g (some side)
+  let lem := if side == 1 then ``prhlStmt_seq_while_false_left
+    else ``prhlStmt_seq_while_false_right
+  let gs ← try applyLemma lem g
+    catch _ => throwError "equiv_rcondf: the last statement of side {side} is not a loop"
+  let #[g'] := gs | throwError "equiv_rcondf: `{lem}` left {gs.size} goals"
+  replaceMainGoal [← Judgment.simpArg g' 3 relSimpDecls []]
 
 /-- `equiv_sym`: swap the two sides (`prhlStmt.symm`). -/
 elab "equiv_sym" : tactic => withMainContext do

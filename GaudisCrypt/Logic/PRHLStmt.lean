@@ -369,6 +369,13 @@ theorem SubProbability.uniform_bind_pure_bijective {α : Type} [Fintype α] [Non
       = SubProbability.uniform :=
   SubProbability.uniform_bind_pure_bijective (add_right_injective m).bijective_of_finite
 
+/-- Subtracting a constant pushes the uniform distribution on a group to itself. -/
+@[simp] theorem SubProbability.uniform_bind_sub_right {G : Type} [AddGroup G] [Fintype G]
+    [Nonempty G] (m : G) :
+    (SubProbability.uniform >>= fun a => (pure (a - m) : SubProbability G))
+      = SubProbability.uniform :=
+  SubProbability.uniform_bind_pure_bijective (sub_left_injective (b := m)).bijective_of_finite
+
 /-- A translation on the right pushes the uniform distribution on a group to itself. -/
 @[simp] theorem SubProbability.uniform_bind_add_right {G : Type} [AddGroup G] [Fintype G]
     [Nonempty G] (m : G) :
@@ -408,6 +415,35 @@ theorem prhlStmt_seq_while {A : ProgramState → ProgramState → Prop} {s₁ s�
   prhlStmt_seq (prhlStmt_post (prhlStmt_while hg hb) fun σ₁ σ₂ h => hexit σ₁ σ₂ h.1 h.2) hpre
 
 end While
+
+/-- A loop whose guard is false does nothing. -/
+theorem programDenotation_while_of_false {c : Getter Bool ProgramState} {body : Stmt}
+    {σ : ProgramState} (hc : c.get σ = false) :
+    programDenotation (StmtWithHoles.while c body) σ = pure ((), σ) :=
+  SubProbability.ext_of_expected fun F => by
+    have := Stmt.ewp_while_unfold c body (fun τ => F ((), τ)) σ
+    simp only [hc, Bool.false_eq_true, if_false] at this
+    simp only [Stmt.ewp, ProgramDenotation.wp] at this
+    rw [this, expected_pure]
+
+/-- **A loop on the left that does not run** (EC's `rcondf{1}`, for a trailing loop): its guard
+is false where it starts. -/
+theorem prhlStmt_seq_while_false_left {A B : ProgramState → ProgramState → Prop}
+    {c : Getter Bool ProgramState} {body s₁ s₂ : Stmt}
+    (h : prhlStmt A s₁ s₂ fun σ₁ σ₂ => c.get σ₁ = false ∧ B σ₁ σ₂) :
+    prhlStmt A (.seq s₁ (.while c body)) s₂ B := by
+  refine prhlStmt_seq_left (prhlStmt_post h fun σ₁ σ₂ ⟨hc, hB⟩ => ⟨?_, ?_⟩)
+  · simp only [ProgramDenotation.wp, programDenotation_while_of_false hc, expected_pure]
+  · rw [programDenotation_while_of_false hc]
+    exact SubProbability.satisfies_pure _ _ hB
+
+/-- **A loop on the right that does not run** (EC's `rcondf{2}`). -/
+theorem prhlStmt_seq_while_false_right {A B : ProgramState → ProgramState → Prop}
+    {c : Getter Bool ProgramState} {body s₁ s₂ : Stmt}
+    (h : prhlStmt A s₁ s₂ fun σ₁ σ₂ => c.get σ₂ = false ∧ B σ₁ σ₂) :
+    prhlStmt A s₁ (.seq s₂ (.while c body)) B :=
+  (prhlStmt_seq_while_false_left (A := fun σ₂ σ₁ => A σ₁ σ₂) (B := fun σ₂ σ₁ => B σ₁ σ₂)
+    h.symm).symm
 
 /-! ## Conditionals -/
 

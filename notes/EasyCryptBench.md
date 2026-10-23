@@ -164,3 +164,15 @@ Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing 
   planned.  The one new obstacle: the inliner's `reset_vars` of a callee's locals blocks moving
   a sampling of a same-named variable past it (EC's inliner has no resets) — moved out of the
   way first (`stmt_swap{1} 4 -3` in `ddh1_es1`).  Statement positions are still counted by hand.
+* 2026-10-24 — **SchnorrPK done** (round 2, candidate 4; `Examples/EasyCryptBench/Schnorr.lean`,
+  standard axioms): `completeness`, `special_soundness`, `shvzk` (with their judgments
+  `completeness_phoare`, `special_soundness_phoare`, `shvzk_prhl`).  EC's `SigmaProtocol`
+  games are written at Schnorr's types (statement `G`, witness/challenge/response `F`); the
+  HVZK experiment is written out inside `gameIdeal` (the `module` command fails on a functor
+  of three module parameters, so scheme and simulator are Lean parameters there).  New:
+  **`equiv_rcondf{i}`** (EC's `rcondf`: a trailing `while` whose guard is false after the
+  preceding code; `prhlStmt_seq_while_false_left/_right`) and the simp lemma
+  `uniform_bind_sub_right`.  SHVZK first kept `gen` as a call (`equiv_call`), which loses
+  `x = g^w`; inlining it too fixed that (EC's `inline*`).  Completeness and soundness are
+  `phoare = 1` straight from `phoare_wp`/`stmt_wp`; soundness takes an exponent inverse and
+  injectivity of `g ^ ·` as hypotheses (`DDHGroup` has neither).
