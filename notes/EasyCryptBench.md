@@ -157,3 +157,10 @@ Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing 
   `rnd (pred1 b')`.  Pitfalls met: a lemma about `(varLens v).intoLocal` does not fire on a
   `VariableName.mk …` literal (implicit `v.type` not unifiable before `v`) — state it with the
   constructor's fields; l-values are `liftLens X`, not `Lens.toSetter X`.
+* 2026-10-24 — **Hashed ElGamal done** (round 2, candidate 3;
+  `Examples/EasyCryptBench/HashedElGamal.lean`, standard axioms): `cpa_ddh0`, `ddh1_es1`,
+  `es0_gb` (coupling `w ↦ w + m_b`), `gb_half`, `conclusion` (`≤` DDH + ES advantages).  No new
+  machinery: each relational proof went through on the first attempt once the swaps were
+  planned.  The one new obstacle: the inliner's `reset_vars` of a callee's locals blocks moving
+  a sampling of a same-named variable past it (EC's inliner has no resets) — moved out of the
+  way first (`stmt_swap{1} 4 -3` in `ddh1_es1`).  Statement positions are still counted by hand.

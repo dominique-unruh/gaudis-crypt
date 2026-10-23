@@ -100,6 +100,7 @@ import GaudisCrypt.Examples.OTP
 import GaudisCrypt.Examples.RejectionSampling
 import GaudisCrypt.Examples.EasyCryptBench.Dice4_6
 import GaudisCrypt.Examples.EasyCryptBench.ElGamal
+import GaudisCrypt.Examples.EasyCryptBench.HashedElGamal
 import GaudisCrypt.Examples.EasyCryptBench.Means
 import GaudisCrypt.Examples.EasyCryptBench.PIR
 import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
