@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Syntax.PRHLSyntax
+import GaudisCrypt.Logic.StmtSwap
 
 /-!
 # Tactics for relational judgments (pRHL)

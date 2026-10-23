@@ -141,3 +141,19 @@ Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing 
   `equiv_if{2}` with a one-sided sampling — EC's `seq 2 3; if{2}`), and
   `pedersen_std_computational_binding`.  Tool fix on the way: `equiv_rnd` refused nothing, and
   an assignment (a point-mass sampling) unified with it; it now insists on samplings.
+* 2026-10-24 — **ElGamal done** (round 2, candidate 2; `Examples/EasyCryptBench/ElGamal.lean`,
+  standard axioms): `cpa_ddh0`, `ddh1_gb`, `gb_half`, `conclusion`
+  (`|Pr[CPA] − 1/2| = |Pr[DDH0] − Pr[DDH1]|` over the reals, any lossless adversary).  New,
+  judgment-generic: **`stmt_swap{i} n k`** (EC's `swap`; `Logic/StmtSwap.lean`) — adjacent
+  swaps justified by `Stmt.swap_det` (a deterministic statement and one commuting with its
+  update) or `Stmt.swap_sample` (a sampling from a constant distribution and one commuting with
+  writes to its variable, by Fubini); commutation `Stmt.CommutesWith` built syntax-directed
+  (assignments, samplings, calls, `if`, sequences), side conditions — state equations — by
+  `simp` with the read-through-write set plus `Lens.set_outward X` (writes to the moved
+  variable pushed outward) and `resetSetter_set_varLens`.  **`stmt_split_pair{i} n`** splits a
+  tuple assignment (the inliner assigns a call's parameters as one tuple; EC inlines one
+  assignment per parameter, which its `swap`s rely on).  The ElGamal scripts are EC's, swap for
+  swap (in `cpa_ddh0` the right side moves instead of the left).  `gb_half` needs no
+  `rnd (pred1 b')`.  Pitfalls met: a lemma about `(varLens v).intoLocal` does not fire on a
+  `VariableName.mk …` literal (implicit `v.type` not unifiable before `v`) — state it with the
+  constructor's fields; l-values are `liftLens X`, not `Lens.toSetter X`.
