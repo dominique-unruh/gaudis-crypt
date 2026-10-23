@@ -29,6 +29,33 @@ Note: no `Language/` change is needed for non-uniform distributions — `x <$ d`
 `d : SubProbability α`, and `toSubProbability : PMF α → SubProbability α` exists (e.g. a biased
 coin is `toSubProbability (PMF.ofFintype …)`; `PMF.bernoulli` is deprecated).
 
+## Round 2: `equiv` + `phoare` candidates (2026-10-24)
+
+Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing `equiv` and
+`phoare`, with what each needs beyond what we have:
+
+1. **`Pedersen.ec`** (175 lines) — we have correctness and hiding (`Examples/Pedersen/`), but our
+   `phi_hi` goes through the old `prhl2` layer and depends on a `sorry` (`hidingGame_self_glob`,
+   the `={glob U}` adversary rule at the denotation level).  With `equiv[ ]` the precondition
+   `={allGlobals}` and `prhlProc_refl` for the adversary calls suffice for the `Pr` equality at
+   one memory — no footprint needed.  Also `pedersen_computational_binding` (an `equiv` reduction
+   to discrete log: `call (_ : true)`, then algebra) and `std_red_dl_bridge` (`if{2}`, `seq`).
+2. **`elgamal.ec`** (134) — IND-CPA from DDH: `cpa_ddh0` (`equiv`, `swap`, `call (_:true)`),
+   `ddh1_gb` (`rnd` along `z ↦ z + log m_b`, state-dependent), `Gb_half` (`byphoare`,
+   `rnd (pred1 b')`, lossless adversary), `conclusion`.  Needs **`swap`** (a sampling moved across
+   an adversary call) — a statement rewrite, so it would be judgment-generic (`stmt_swap`).
+3. **`hashed_elgamal_std.ec`** (199) — the same shape with entropy smoothing; after ElGamal.
+4. **`SchnorrPK.ec`** (173) — completeness (`phoare = 1`), special soundness (`phoare = 1`,
+   deterministic), SHVZK (`equiv`, `rnd` along `z ↦ z - w·e`, `swap`s, `rcondf`).  Needs the
+   `SigmaProtocol` games and `swap`.
+5. **`RWhileSampling.ec`** (75) — `equiv[ sample ~ idle ]` for a rejection loop: a loop on **one
+   side only** (`while{1}`), terminating by the `phoare` loop rule.  Needs a one-sided loop rule.
+6. **`global-hybrid/GlobalHybridExamp1.ec`** (207) — hybrid argument with up-to-bad `byequiv`
+   (`: bad`), `phoare` with `seq` probabilities, `while true (m - i)`.  Needs the up-to-bad
+   `byequiv` form and the hybrid lemma.
+7. `async-while.ec` (73, EC's `async while`), `Upto.ec` (145, `fel` + up-to-bad call rule):
+   specialised rules, later.
+
 ## Log
 
 * 2026-10-22 — **von Neumann done** (`simulate_is_fair`, standard axioms).  The biased coin is a
