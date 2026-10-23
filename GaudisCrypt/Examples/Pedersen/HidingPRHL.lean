@@ -54,6 +54,11 @@ theorem phi_hi_prhl (U : Unhider group.types) :
   equiv_skip
   -- left: from equal globals, for every exponent `x`, messages `m` (and globals) from `choose`,
   -- coin `b` and opening key `d`, the real commitment is the fake one
+  change ∀ globals₁ globals₂ : VariableAssignment, globals₁ = globals₂ →
+    ∀ x : group.F, globals₁ = globals₂ ∧
+      ∀ (m : group.F × group.F) (_ : VariableAssignment) (b : Bool) (d : group.F),
+        group.g ^ d * (group.g ^ x) ^ (if b then m.2 else m.1)
+          = group.g ^ (d + x * if b then m.2 else m.1)
   intro _ _ h x
   refine ⟨h, fun m _ b d => ?_⟩
   rw [Pedersen.pow_mul group, Pedersen.pow_add group]
