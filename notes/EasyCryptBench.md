@@ -129,3 +129,15 @@ Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing 
   `smt`; and `PIR_secuity_s_bypr` (`security_s_bypr`); the mirrors `Pr_PIR_s'`,
   `PIR_secuity_s'_bypr` (at the index the two coin values swap roles: `add_comm`).  **Every
   lemma of `PIR.ec` is now replicated**, standard axioms.
+* 2026-10-24 — **Pedersen with `equiv[ ]`** (round 2, candidate 1): every lemma of EC's
+  `Pedersen.ec` now has a standard-axioms proof.  `Examples/Pedersen/HidingPRHL.lean`:
+  `phi_hi_prhl` (EC's `phi_hi` script: inline, `equiv_call prhlProc_refl _` for the adversary,
+  `equiv_rnd (fun d => d + §x0{1} * §m{1})`, algebra — 20 lines, against ~300 for the earlier
+  `prhl2` route), `phi_hi'`, `pedersen_perfect_hiding'` (the existing `pedersen_perfect_hiding`
+  depends on the `sorry` in `hidingGame_self_glob`).  `Examples/Pedersen/Binding.lean`: EC's
+  `DLogAttacker`, `DLogExperiment`, `DLogStdExperiment`, `StdRedAdversary`; `binding_prhl` /
+  `pedersen_computational_binding` (an inverse on exponents and injective `g^·` as hypotheses —
+  `PedersenGroup` has neither), `std_red_prhl` / `std_red_dl_bridge` (`equiv_seq 0 1`, then
+  `equiv_if{2}` with a one-sided sampling — EC's `seq 2 3; if{2}`), and
+  `pedersen_std_computational_binding`.  Tool fix on the way: `equiv_rnd` refused nothing, and
+  an assignment (a point-mass sampling) unified with it; it now insists on samplings.

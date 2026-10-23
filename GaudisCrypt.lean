@@ -102,6 +102,7 @@ import GaudisCrypt.Examples.EasyCryptBench.PIR
 import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
 import GaudisCrypt.Examples.EasyCryptBench.WhileSampling
+import GaudisCrypt.Examples.Pedersen.Binding
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding
 import GaudisCrypt.Examples.Pedersen.HidingHoare
