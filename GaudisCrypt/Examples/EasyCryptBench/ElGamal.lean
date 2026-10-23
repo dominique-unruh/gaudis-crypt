@@ -204,22 +204,19 @@ theorem cpa_ddh0 (A : Adversary P) :
   stmt_swap{2} 5 2
   stmt_swap{2} 2 4
   stmt_wp
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd
   stmt_wp
   equiv_rnd
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd
   stmt_wp
   equiv_skip
-  intro σ₁ σ₂ h sk
-  refine ⟨h, ?_⟩
-  rintro r g₁ _ _ ⟨rfl, rfl⟩ b y
-  refine ⟨⟨by rw [ElGamal.pow_mul], rfl⟩, ?_⟩
-  rintro _ _ _ _ ⟨rfl, -⟩
-  rfl
+  -- for every key `sk`, messages, coin and `y`: the ciphertexts agree, `pk^y = g^(sk·y)`
+  intro _ _ h sk
+  exact ⟨h, fun _ _ _ y => by rw [ElGamal.pow_mul]⟩
 
 theorem ddh1_gb (A : Adversary P) :
     equiv[ (Module.app (DDH1 P) (Module.app (DDHAdv P) A)) ~ (Module.app (Gb P) A) :
@@ -234,22 +231,19 @@ theorem ddh1_gb (A : Adversary P) :
   stmt_swap{1} 3 5
   stmt_swap{2} 6 -2
   stmt_wp
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd (fun z => z + P.log (if §b0{1} then §m1{1} else §m0{1}))
   equiv_rnd
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd
   equiv_rnd
   stmt_wp
   equiv_skip
-  intro σ₁ σ₂ h _ _
-  refine ⟨h, ?_⟩
-  rintro r g₁ _ _ ⟨rfl, rfl⟩ b z
-  refine ⟨⟨by rw [ElGamal.pow_add, ElGamal.pow_log], rfl⟩, ?_⟩
-  rintro _ _ _ _ ⟨rfl, -⟩
-  rfl
+  -- the shifted exponent absorbs the message: `g^(z + log m) = g^z * m`
+  intro _ _ h _ _
+  exact ⟨h, fun _ _ _ z => by rw [ElGamal.pow_add, ElGamal.pow_log]⟩
 
 /-- EC's `Gb_half`: in `Gb` the coin is drawn after the adversary has guessed, so it guesses right
 with probability exactly `1/2` (for a lossless adversary). -/

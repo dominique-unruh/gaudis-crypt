@@ -675,6 +675,20 @@ theorem prhlProc_refl {sig : ProcedureSignature} (p : Procedure sig) :
     (fun _ _ h => h) (fun u v h => h ▸ ⟨rfl, rfl⟩)
   exact h g₁ g₁ rfl
 
+/-- **Calls of the same procedure on both sides** (EC's `call (_ : true)` on the same code): from
+equal arguments and equal globals, the two calls return the same result and the same globals
+(`prhlProc_refl`), so the postcondition must hold for every result `r` and globals `g` written
+back on both sides. -/
+theorem prhlStmt_seq_call_refl {sig : ProcedureSignature} {p : Procedure sig}
+    {x₁ x₂ : Setter sig.ret ProgramState} {e₁ e₂ : Getter sig.ParamType ProgramState}
+    {A B : ProgramState → ProgramState → Prop} {s₁ s₂ : Stmt}
+    (hpre : prhlStmt A s₁ s₂ fun σ₁ σ₂ => e₁.get σ₁ = e₂.get σ₂ ∧ σ₁.globals = σ₂.globals ∧
+      ∀ r g, B (x₁.set r (ProgramState.globalL.set g σ₁))
+        (x₂.set r (ProgramState.globalL.set g σ₂))) :
+    prhlStmt A (.seq s₁ (Stmt.call x₁ p e₁)) (.seq s₂ (Stmt.call x₂ p e₂)) B :=
+  prhlStmt_seq_call (prhlProc_refl p) (prhlStmt_post hpre fun _ _ ⟨ha, hg, hB⟩ =>
+    ⟨⟨ha, hg⟩, fun r₁ g₁ _ _ ⟨hr, hg'⟩ => hr ▸ hg' ▸ hB r₁ g₁⟩)
+
 /-- **The adversary rule**: a procedure confined to the footprint `R` (on every argument), run
 on equal arguments from globals that agree on what it can touch (`R.touched_getter`, EC's
 `glob A`), returns equal results and globals that again agree on it (`prhl2_glob`). -/

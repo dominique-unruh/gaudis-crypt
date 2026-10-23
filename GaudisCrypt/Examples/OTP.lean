@@ -68,13 +68,13 @@ theorem real_ideal (A : Adversary S) :
   equiv_proc
   stmt_inline 0
   stmt_wp
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp{1}
   equiv_rnd (fun k => §m{1} + k)
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_skip
-  exact fun _ _ h => ⟨h, fun _ _ _ _ h' _ => ⟨h'.2, fun _ _ _ _ h'' => h''⟩⟩
+  exact fun _ _ h => h
 
 /-- **Perfect secrecy, as probabilities**: every event about the guess and the final globals has
 the same probability in the two games (EC's `byequiv`). -/

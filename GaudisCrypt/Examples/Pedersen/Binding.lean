@@ -97,14 +97,14 @@ theorem binding_prhl (B : Binder group.types)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd
   stmt_wp
   equiv_skip
-  intro σ₁ σ₂ h x
+  intro _ _ h x
   refine ⟨h, ?_⟩
-  rintro ⟨c, m, d, m', d'⟩ g₁ _ _ ⟨rfl, rfl⟩
+  rintro ⟨c, m, d, m', d'⟩ _
   simp only [ite_self]
   cases hcb : (c == group.g ^ d * (group.g ^ x) ^ m && c == group.g ^ d' * (group.g ^ x) ^ m' &&
       !(m == m'))
@@ -195,12 +195,12 @@ theorem std_red_prhl (L : DLogAdversary group) :
   stmt_inline{2} 0
   stmt_wp
   equiv_seq 0 1 : §x'{1} = §lx{2} ∧ §x{1} = §x{2}
-  · equiv_call prhlProc_refl _
+  · equiv_call
     stmt_wp
     equiv_rnd
     stmt_wp
     equiv_skip
-    exact fun _ _ h _ => ⟨h, fun _ _ _ _ h' => h'.1⟩
+    exact fun _ _ h _ => h
   · equiv_if{2}
     case «then» =>
       -- the adversary gave up: it did not win on the left either

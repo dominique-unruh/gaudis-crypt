@@ -22,6 +22,7 @@ And the relational steps proper:
 * `equiv_while I` — synchronized loops with the invariant `I` (EC's `while I`);
 * `equiv_call h` — the last statements are calls, related by the procedure judgment `h` (EC's
   `call`; `prhlProc_glob hA` for an abstract procedure, EC's `call (_ : ={glob A})`);
+  `equiv_call` alone for calls of the same procedure from equal arguments and globals;
 * `equiv_seq k₁ k₂ : M` — cut after all but the last `k₁` / `k₂` statements (EC's `seq`);
 * `equiv_case P` — case analysis on a relation of the initial states (EC's `case`);
 * `equiv_if`, `equiv_if{i}` — conditionals on both sides, or on one (EC's `if`, `if{i}`);
@@ -110,15 +111,37 @@ def applyLemma (lem : Name) (g : MVarId) (pre : Array (Name × Lean.Expr) := #[]
 
 /-! ## Generalizing the reads of two states -/
 
+/-- Does `σ.globals` occur in `e` other than as the state of a read `x.get σ.globals`? -/
+partial def bareGlobals (σ : FVarId) (e : Lean.Expr) : Bool :=
+  if e.isAppOfArity ``Getter.get 4 && isStateOf σ e.appArg! then bareGlobals σ (e.getArg! 2)
+  else if e.isAppOfArity ``ProgramState.globals 1 && e.appArg!.isFVarOf σ then true
+  else match e with
+    | .proj ``ProgramState 0 b => b.isFVarOf σ || bareGlobals σ b
+    | .app f a => bareGlobals σ f || bareGlobals σ a
+    | .lam _ t b _ | .forallE _ t b _ => bareGlobals σ t || bareGlobals σ b
+    | .letE _ t v b _ => bareGlobals σ t || bareGlobals σ v || bareGlobals σ b
+    | .mdata _ b => bareGlobals σ b
+    | _ => false
+
 /-- On a goal `∀ σ₁ σ₂ : ProgramState, P σ₁ σ₂`: `generalizeReads` for both states — every read
 of `σ₁` becomes a value `x₁`, every read of `σ₂` a value `x₂` (named after the variable), and the
-states are dropped if nothing else mentions them. -/
+states are dropped if nothing else mentions them.  Where the globals themselves occur (`§allGlobals`,
+the globals a call leaves), they become a value `globals₁`/`globals₂` first, and the reads of
+global variables stay reads of it (`x.get globals₁`), so nothing is lost. -/
 def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
   let (fvs, g) ← g.introN 2
   let #[σ₁, σ₂] := fvs | throwError "generalizeReadsRel: expected two states"
-  g.withContext do
+  let (gvs, g) ← g.withContext do
     let ty ← instantiateMVars (← g.getType)
     let g ← g.change (← unfoldReads σ₂ (← unfoldReads σ₁ ty))
+    let body ← instantiateMVars (← g.getType)
+    let mut args : Array GeneralizeArg := #[]
+    for (σ, n) in [(σ₁, "globals₁"), (σ₂, "globals₂")] do
+      if bareGlobals σ body then
+        args := args.push { expr := mkApp (mkConst ``ProgramState.globals) (mkFVar σ),
+                            xName? := some (Name.mkSimple n) }
+    if args.isEmpty then pure (#[], g) else g.generalize args
+  g.withContext do
     let body ← instantiateMVars (← g.getType)
     let mut used := binderNamesIn body
     for d in ← getLCtx do
@@ -137,7 +160,7 @@ def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
     let mut keep := #[]
     for σ in [σ₂, σ₁] do
       try gc ← gc.clear σ catch _ => keep := keep.push σ
-    let (_, gr) ← gc.revert (keep.reverse ++ xs) (preserveOrder := true)
+    let (_, gr) ← gc.revert (keep.reverse ++ gvs ++ xs) (preserveOrder := true)
     return gr
 
 /-! ## Relational conditions in tactics -/
@@ -342,28 +365,45 @@ elab "equiv_seq " k₁:num ppSpace k₂:num " : " M:term : tactic => withMainCon
 `x₂ <- call p₂ (e₂)`, and `h` a procedure judgment `equiv[ p₁ ~ p₂ : P ==> Q ]` about the callees
 (`prhlStmt_seq_call`; for an abstract procedure, `prhlProc_glob hA`: EC's
 `call (_ : ={glob A})`).  The postcondition before the calls: `P` at the arguments and globals,
-and the postcondition after them for all results and globals `Q` relates. -/
-elab "equiv_call " h:term : tactic => withMainContext do
+and the postcondition after them for all results and globals `Q` relates.
+
+`equiv_call` alone: both calls are of the same procedure (EC's `call (_ : true)` on the same
+code, `prhlStmt_seq_call_refl`): the postcondition before them asks for equal arguments and equal
+globals, and the postcondition after them for every result and globals, the same on both
+sides. -/
+elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_call"
   let g ← HoareSplit.hoareSplit 1 g
   g.withContext do
     let ty ← prhlGoal g "equiv_call"
-    let hE ← elabTerm h none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    let hE ← instantiateMVars hE
-    let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call
-    let (ms, _, concl) ← forallMetaTelescope (← inferType c)
-    let some hm ← ms.findM? fun m => return (← instantiateMVars (← inferType m)).isAppOf ``prhlProc
-      | throwError "equiv_call: `prhlStmt_seq_call` has no procedure-judgment argument"
-    unless ← isDefEq hm hE do
-      throwError "equiv_call: not a procedure judgment:{indentExpr (← inferType hE)}"
-    unless ← isDefEq concl ty do
-      throwError "equiv_call: the judgment{indentExpr (← inferType hE)}\ndoes not fit the last \
-        statements{indentExpr ty}"
-    g.assign (← instantiateMVars (mkAppN c ms))
-    let gPre := ms.back!.mvarId!
-    gPre.setKind .syntheticOpaque
+    let gPre ← match h? with
+      | none => do
+          let gs ← try applyLemma ``prhlStmt_seq_call_refl g
+            catch _ => throwError "equiv_call: the last statements are not calls of the same \
+              procedure (give a procedure judgment: `equiv_call h`):{indentExpr ty}"
+          let #[gPre] := gs
+            | throwError "equiv_call: `prhlStmt_seq_call_refl` left {gs.size} goals"
+          pure gPre
+      | some h => do
+          let hE ← elabTerm h none
+          Term.synthesizeSyntheticMVarsNoPostponing
+          let hE ← instantiateMVars hE
+          let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call
+          let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+          let isJ (m : Lean.Expr) : TacticM Bool := do
+            return (← instantiateMVars (← inferType m)).isAppOf ``prhlProc
+          let some hm ← ms.findM? isJ
+            | throwError "equiv_call: `prhlStmt_seq_call` has no procedure-judgment argument"
+          unless ← isDefEq hm hE do
+            throwError "equiv_call: not a procedure judgment:{indentExpr (← inferType hE)}"
+          unless ← isDefEq concl ty do
+            throwError "equiv_call: the judgment{indentExpr (← inferType hE)}\ndoes not fit the \
+              last statements{indentExpr ty}"
+          g.assign (← instantiateMVars (mkAppN c ms))
+          let gPre := ms.back!.mvarId!
+          gPre.setKind .syntheticOpaque
+          pure gPre
     replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
 
 /-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the

@@ -17,7 +17,7 @@ proof.
 qed.
 ```
 `phi_hi_prhl` is the same script: inline, the adversary's calls by reflexivity
-(`equiv_call prhlProc_refl _`, EC's `call (_:true)`), the opening key coupled with the fake
+(`equiv_call`, EC's `call (_:true)`), the opening key coupled with the fake
 game's exponent along `d ↦ d + x·m` (`equiv_rnd`), the other samplings by the identity, and the
 algebra `g^d · (g^x)^m = g^(d + x·m)`.
 
@@ -42,36 +42,21 @@ theorem phi_hi_prhl (U : Unhider group.types) :
   stmt_inline{1} 0
   stmt_inline{1} 1
   stmt_wp
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd (fun d => d + §x0{1} * §m{1})
   stmt_wp
   equiv_rnd
-  equiv_call prhlProc_refl _
+  equiv_call
   stmt_wp
   equiv_rnd
   stmt_wp
   equiv_skip
-  -- what is left, with the values named: the exponent `x`, the adversary's messages `m₁`/`m₂`
-  -- (and globals) from `choose`, the coin `b`, the opening key `d`; then the two calls to
-  -- `guess` must get equal arguments from equal globals (the real commitment
-  -- `g^d * (g^x)^m_b` against the fake one `g^(d + x·m_b)`), and equal answers give `={res}`
-  change ∀ σ₁ σ₂ : ProgramState, σ₁.globals = σ₂.globals →
-    ∀ x : group.F, σ₁.globals = σ₂.globals ∧
-      ∀ (m₁ : group.F × group.F) (g₁ : VariableAssignment) (m₂ : group.F × group.F)
-        (g₂ : VariableAssignment), m₁ = m₂ ∧ g₁ = g₂ →
-      ∀ (b : Bool) (d : group.F),
-        (group.g ^ d * (group.g ^ x) ^ (if b then m₁.2 else m₁.1)
-            = group.g ^ (d + x * if b then m₁.2 else m₁.1) ∧ g₁ = g₂) ∧
-        ∀ (b'₁ : Bool) (g'₁ : VariableAssignment) (b'₂ : Bool) (g'₂ : VariableAssignment),
-          b'₁ = b'₂ ∧ g'₁ = g'₂ → (b == b'₁) = (b == b'₂)
-  intro σ₁ σ₂ h x
-  refine ⟨h, ?_⟩
-  rintro m g₁ _ _ ⟨rfl, rfl⟩ b d
-  refine ⟨⟨?_, rfl⟩, ?_⟩
-  · rw [Pedersen.pow_mul group, Pedersen.pow_add group]
-  · rintro _ _ _ _ ⟨rfl, -⟩
-    rfl
+  -- left: from equal globals, for every exponent `x`, messages `m` (and globals) from `choose`,
+  -- coin `b` and opening key `d`, the real commitment is the fake one
+  intro _ _ h x
+  refine ⟨h, fun m _ b d => ?_⟩
+  rw [Pedersen.pow_mul group, Pedersen.pow_add group]
 
 /-- EC's `phi_hi`, by `byequiv` from `phi_hi_prhl`. -/
 theorem phi_hi' (U : Unhider group.types) (σ : VariableAssignment) :
