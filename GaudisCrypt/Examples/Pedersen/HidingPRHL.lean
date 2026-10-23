@@ -52,9 +52,22 @@ theorem phi_hi_prhl (U : Unhider group.types) :
   equiv_rnd
   stmt_wp
   equiv_skip
+  -- what is left, with the values named: the exponent `x`, the adversary's messages `m₁`/`m₂`
+  -- (and globals) from `choose`, the coin `b`, the opening key `d`; then the two calls to
+  -- `guess` must get equal arguments from equal globals (the real commitment
+  -- `g^d * (g^x)^m_b` against the fake one `g^(d + x·m_b)`), and equal answers give `={res}`
+  change ∀ σ₁ σ₂ : ProgramState, σ₁.globals = σ₂.globals →
+    ∀ x : group.F, σ₁.globals = σ₂.globals ∧
+      ∀ (m₁ : group.F × group.F) (g₁ : VariableAssignment) (m₂ : group.F × group.F)
+        (g₂ : VariableAssignment), m₁ = m₂ ∧ g₁ = g₂ →
+      ∀ (b : Bool) (d : group.F),
+        (group.g ^ d * (group.g ^ x) ^ (if b then m₁.2 else m₁.1)
+            = group.g ^ (d + x * if b then m₁.2 else m₁.1) ∧ g₁ = g₂) ∧
+        ∀ (b'₁ : Bool) (g'₁ : VariableAssignment) (b'₂ : Bool) (g'₂ : VariableAssignment),
+          b'₁ = b'₂ ∧ g'₁ = g'₂ → (b == b'₁) = (b == b'₂)
   intro σ₁ σ₂ h x
   refine ⟨h, ?_⟩
-  rintro r₁ g₁ r₂ g₂ ⟨rfl, rfl⟩ b d
+  rintro m g₁ _ _ ⟨rfl, rfl⟩ b d
   refine ⟨⟨?_, rfl⟩, ?_⟩
   · rw [Pedersen.pow_mul group, Pedersen.pow_add group]
   · rintro _ _ _ _ ⟨rfl, -⟩
