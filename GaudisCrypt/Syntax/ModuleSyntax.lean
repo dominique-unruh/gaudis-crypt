@@ -1070,6 +1070,20 @@ def moduleApply (x : Name) : TacticM Unit := do
     #[``Module.substituteSimultaneously_expression, ``Module.reduce_expression]
       ++ reduceStripComposite
 
+/-- Proves `X.reduce = Y.reduce` for two module expressions that differ only by `reduce`s at
+inner positions: through `app`/`pair`/`fst`/`snd` component by component
+(`ModuleExpression.reduce_app_congr` and friends), each leaf by `rfl` or `reduce_idempotent`. -/
+syntax "module_reduce_congr" : tactic
+
+macro_rules
+  | `(tactic| module_reduce_congr) => `(tactic| first
+      | rfl
+      | (simp only [ModuleExpression.reduce_idempotent, Module.reduce_expression]; done)
+      | (apply ModuleExpression.reduce_app_congr <;> module_reduce_congr)
+      | (apply ModuleExpression.reduce_pair_congr <;> module_reduce_congr)
+      | (apply ModuleExpression.reduce_fst_congr <;> module_reduce_congr)
+      | (apply ModuleExpression.reduce_snd_congr <;> module_reduce_congr))
+
 open Lean Elab Tactic in
 /-- Discharges one component of the callee tuple in `procApply`: `c.reduce = m.expression`, where
 `c` is the adapter expression the `module` command derived from the call site and `m` the callee
@@ -1097,8 +1111,20 @@ def moduleCallee : TacticM Unit := do
   (do evalTactic (← `(tactic| rfl))) <|> do
     simpOnlyConsts
       (#[``Module.cast, ``Module.cast', ``Module.fst', ``Module.snd',
-         ``ModuleExpression.toModule, ``Module.reduce_expression] ++ reduceStripInner)
+         ``ModuleExpression.toModule, ``Module.reduce_expression,
+         -- a callee built from several parameters (`D(F, P)` in a module of three or more
+         -- parameters) keeps the substitutions of the outer parameters around the inner ones:
+         -- evaluate them on variables, and let them pass through closed expressions
+         ``ModuleExpression.rename, ``ModuleExpression.substituteSimultaneously,
+         ``ModuleExpression.liftSubst, ``ModuleExpression.variableSubstitution,
+         ``Nat.succ_eq_add_one, ``zero_add,
+         ``Module.rename_expression, ``Module.substituteSimultaneously_expression]
+        ++ reduceStripComposite)
       (extraSets := #[← moduleAccessorTheorems])
+    -- what is left differs only by `reduce`s at inner positions (under an application, inside a
+    -- tuple): compare the two sides component by component
+    unless (← getGoals).isEmpty do
+      evalTactic (← `(tactic| module_reduce_congr))
 
 open Lean Elab Tactic in
 /-- Proves `Module.app (… (Module.app X.f A₁) …) Aₖ = Module.proc (X.f.procedure.instantiate …)`

@@ -56,6 +56,37 @@ Files in this directory:
   * `declare axiom` becomes a hypothesis `variable`.
   * `local` declarations stay ordinary declarations, keeping their EasyCrypt names.
 
+### Conventions found while porting (2026-10-31)
+
+* **EasyCrypt standard library.** Counterparts live in `GaudisCrypt/Lib/EC/`, one file per
+  EasyCrypt theory (`List`, `BitWord` with `BitChunking`, `FMap`, `FSet`, `Distr`, `PRP`).  They
+  keep EasyCrypt's names and include only what the port uses.
+  * `int` is `ℤ`.  The `int`-valued list operations (`size`, `nth`, `take`, `drop`, `nseq`, `index`,
+    `find`, `mkseq`) are mirrored on `ℤ`, with EasyCrypt's behaviour on negative arguments.
+  * `%/`, `%%` and `%|` are `/`, `%` and `∣`.  EasyCrypt's division is Euclidean, like Lean's on `ℤ`.
+  * `fmap` is `Finmap`, with `FMap.get`/`set`/`dom`/`rng` for `m.[x]`, `m.[x <- y]`, `x \in m`,
+    `rng m`.  `fset` is `Finset`.  `distr` is `SubProbability`.
+* **Abstract constants.** An abstract `op` with an axiom, at file level, becomes a field of a
+  parameter class: `op r : { int | 2 <= r } as ge2_r` is `Common.Params`.  An abstract theory's
+  types and operators (`.eca`) are section variables instead, and a `clone` is an application.
+* **Clones with renaming.** `clone BitWord as Block … rename "word" as "block"` becomes a namespace
+  `Block` of abbreviations under the new names, exported where EasyCrypt exports.
+* **Module types with parameters.** `module type X (P : T) = { … }` is the functor type
+  `T →ₘ X'`.  The per-procedure call restrictions `{ P.f }` are expressed by the `ext` of a
+  `Module.Representable` hypothesis (E2), where a theorem needs them.
+* **Subtyping.** EasyCrypt passes a module where a smaller module type is expected (a
+  `PRIMITIVE` as a `DPRIMITIVE`).  Here the smaller view is built explicitly
+  (`PRIMITIVE.view`, or `DPRIMITIVE.mk … { f := …, fi := … }` inside a call).
+* **Modules with more procedures than their type.** EasyCrypt allows this (`module IRO : IRO`
+  with an extra `fill_in`); `module X : T` does not.  Such modules are declared without the type,
+  and a `T`-view is built where one is needed.
+* **Module aliases.** `module GReal(C, P) = Indif(C(P), P)` is a definition applying `Indif`.
+* **Module variables.** `var m` of module `M` is `global_var M.m`.  A variable whose type mentions
+  an abstract type of the theory gets that type as an implicit section variable.  Reads whose
+  type is not determined by the context are annotated (`($IRO.mp : FMap («from» × ℤ) «to»)`).
+* **Calls between procedures of the same module** are `call (M.g <Lean parameters>)`.
+* **Keywords.** `to` and `from` are keywords, so they are written `«to»` and `«from»`.
+
 ## Plan
 
 0. **Inventory**: `Mapping.md` and `Dependencies.md`.  Done 2026-10-30.
@@ -85,7 +116,8 @@ Files in this directory:
      * `conseq` forms;
      * `transitivity`, `islossless`, `exlim`.
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
-   order, so that the headline statements exist early.
+   order, so that the headline statements exist early.  In progress: `Common`,
+   `Indifferentiability`, `OptionIndifferentiability` and `IRO` are done (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

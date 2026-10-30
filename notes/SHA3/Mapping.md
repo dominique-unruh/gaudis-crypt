@@ -38,97 +38,97 @@ Lean: `GaudisCrypt/Examples/SHA3/Common.lean`, namespace `GaudisCrypt.SHA3.Commo
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 11 | op | `r` |  | `r` | — |
-| 12 | op | `c` |  | `c` | — |
-| 16 | lemma | `gt0_r` |  | `gt0_r` | — |
-| 19 | lemma | `ge0_r` |  | `ge0_r` | — |
-| 22 | lemma | `ge0_c` |  | `ge0_c` | — |
-| 26 | clone export | `BitWord` |  | `BitWord` | — |
-| 36 | clone export | `BitWord` |  | `BitWord` | — |
-| 46 | op | `cdistr` |  | `cdistr` | — |
-| 47 | op | `bdistr` |  | `bdistr` | — |
-| 52 | lemma | `dvdz_close` |  | `dvdz_close` | — |
-| 67 | lemma | `chunk_nil'` |  | `chunk_nil'` | — |
-| 70 | lemma | `chunk_sing'` |  | `chunk_sing'` | — |
-| 78 | lemma | `b0P` |  | `b0P` | — |
-| 85 | lemma | `bits2w_inj_eq` |  | `bits2w_inj_eq` | — |
-| 89 | lemma | `last_drop_all_but_last` |  | `last_drop_all_but_last` | — |
-| 102 | clone export | `PRP` |  | `PRP` | — |
-| 105 | clone export | `StrongPRP` |  | `StrongPRP` | — |
-| 107 | clone export | `RP` |  | `RP` | — |
-| 119 | lemma | `needed_blocks0` |  | `needed_blocks0` | — |
-| 124 | lemma | `needed_blocks_non_pos` |  | `needed_blocks_non_pos` | — |
-| 133 | lemma | `needed_blocks_suff` |  | `needed_blocks_suff` | — |
-| 142 | lemma | `needed_blocks_correct` |  | `needed_blocks_correct` | — |
-| 156 | lemma | `needed_blocks_prod_r` |  | `needed_blocks_prod_r` | — |
-| 163 | lemma | `needed_blocks_eq_div_r` |  | `needed_blocks_eq_div_r` | — |
-| 181 | lemma | `needed_blocks_succ_eq_div_r` |  | `needed_blocks_succ_eq_div_r` | — |
-| 211 | lemma | `needed_blocks_rel_div_r` |  | `needed_blocks_rel_div_r` | — |
-| 221 | op | `num0` |  | `num0` | — |
-| 223 | op | `mkpad` |  | `mkpad` | — |
-| 225 | op | `pad` |  | `pad` | — |
-| 227 | op | `unpad` |  | `unpad` | — |
-| 234 | lemma | `rev_mkpad` |  | `rev_mkpad` | — |
-| 237 | lemma | `last_mkpad` |  | `last_mkpad` | — |
-| 240 | lemma | `head_mkpad` |  | `head_mkpad` | — |
-| 243 | lemma | `last_pad` |  | `last_pad` | — |
-| 246 | lemma | `size_mkpad` |  | `size_mkpad` | — |
-| 252 | lemma | `size_pad_equiv` |  | `size_pad_equiv` | — |
-| 259 | lemma | `size_padE` |  | `size_padE` | — |
-| 263 | lemma | `size_pad` |  | `size_pad` | — |
-| 267 | lemma | `size_pad_dvd_r` |  | `size_pad_dvd_r` | — |
-| 270 | lemma | `dvd_r_num0` |  | `dvd_r_num0` | — |
-| 273 | lemma | `num0_ge0` |  | `num0_ge0` | — |
-| 276 | lemma | `num0_ltr` |  | `num0_ltr` | — |
-| 279 | lemma | `index_true_behead_mkpad` |  | `index_true_behead_mkpad` | — |
-| 286 | lemma | `padE` |  | `padE` | — |
-| 294 | lemma | `padK` |  | `padK` | — |
-| 315 | lemma | `unpadK` |  | `unpadK` | — |
-| 342 | inductive | `unpad_spec` |  | `unpad_spec` | — |
-| 348 | lemma | `unpadP` |  | `unpadP` | — |
-| 361 | op | `chunk` |  | `chunk` | — |
-| 363 | lemma | `size_chunk` |  | `size_chunk` | — |
-| 366 | lemma | `in_chunk_size` |  | `in_chunk_size` | — |
-| 369 | lemma | `chunkK` |  | `chunkK` | — |
-| 372 | lemma | `chunk_nil` |  | `chunk_nil` | — |
-| 375 | lemma | `chunk_sing` |  | `chunk_sing` | — |
-| 378 | lemma | `chunk_cat` |  | `chunk_cat` | — |
-| 382 | lemma | `chunk_padK` |  | `chunk_padK` | — |
-| 385 | lemma | `flattenK` |  | `flattenK` | — |
-| 391 | op | `blocks2bits` |  | `blocks2bits` | — |
-| 393 | lemma | `blocks2bits_nil` |  | `blocks2bits_nil` | — |
-| 396 | lemma | `blocks2bits_sing` |  | `blocks2bits_sing` | — |
-| 399 | lemma | `blocks2bits_cat` |  | `blocks2bits_cat` | — |
-| 403 | lemma | `size_blocks2bits` |  | `size_blocks2bits` | — |
-| 411 | lemma | `size_blocks2bits_dvd_r` |  | `size_blocks2bits_dvd_r` | — |
-| 414 | op | `bits2blocks` |  | `bits2blocks` | — |
-| 416 | lemma | `bits2blocks_nil` |  | `bits2blocks_nil` | — |
-| 419 | lemma | `bits2blocks_sing` |  | `bits2blocks_sing` | — |
-| 423 | lemma | `bits2blocks_cat` |  | `bits2blocks_cat` | — |
-| 430 | lemma | `blocks2bitsK` |  | `blocks2bitsK` | — |
-| 438 | lemma | `bits2blocksK` |  | `bits2blocksK` | — |
-| 454 | op | `pad2blocks` |  | `pad2blocks` | — |
-| 455 | op | `unpad_blocks` |  | `unpad_blocks` | — |
-| 457 | lemma | `pad2blocksK` |  | `pad2blocksK` | — |
-| 463 | lemma | `unpadBlocksK` |  | `unpadBlocksK` | — |
-| 476 | lemma | `pad2blocks_inj` |  | `pad2blocks_inj` | — |
-| 481 | lemma | `size_pad2blocks` |  | `size_pad2blocks` | — |
-| 492 | op | `extend` |  | `extend` | — |
-| 495 | op | `strip` |  | `strip` | — |
-| 499 | lemma | `strip_ge0` |  | `strip_ge0` | — |
-| 503 | lemma | `extendK` |  | `extendK` | — |
-| 521 | lemma | `stripK` |  | `stripK` | — |
-| 545 | op | `valid_toplevel` |  | `valid_toplevel` | — |
-| 549 | op | `valid_block` |  | `valid_block` | — |
-| 551 | lemma | `valid_pad2blocks` |  | `valid_pad2blocks` | — |
-| 557 | inductive | `valid_block_spec` |  | `valid_block_spec` | — |
-| 562 | lemma | `valid_blockP` |  | `valid_blockP` | — |
-| 575 | lemma | `valid_block_ends_not_b0` |  | `valid_block_ends_not_b0` | — |
-| 598 | inductive | `valid_block_struct_spec` |  | `valid_block_struct_spec` | — |
-| 608 | lemma | `valid_block_structP` |  | `valid_block_structP` | — |
-| 718 | op | `valid_absorb` |  | `valid_absorb` | — |
-| 720 | inductive | `valid_absorb_spec` |  | `valid_absorb_spec` | — |
-| 726 | lemma | `valid_absorbP` |  | `valid_absorbP` | — |
+| 11 | op | `r` |  | `r`, `ge2_r` (fields of `Params`) | def |
+| 12 | op | `c` |  | `c`, `gt0_c` (fields of `Params`) | def |
+| 16 | lemma | `gt0_r` |  | `gt0_r` | done |
+| 19 | lemma | `ge0_r` |  | `ge0_r` | done |
+| 22 | lemma | `ge0_c` |  | `ge0_c` | done |
+| 26 | clone export | `BitWord` |  | `Capacity` | def |
+| 36 | clone export | `BitWord` |  | `Block` | def |
+| 46 | op | `cdistr` |  | `cdistr` | def |
+| 47 | op | `bdistr` |  | `bdistr` | def |
+| 52 | lemma | `dvdz_close` |  | `dvdz_close` | stated |
+| 67 | lemma | `chunk_nil'` |  | `chunk_nil'` | stated |
+| 70 | lemma | `chunk_sing'` |  | `chunk_sing'` | stated |
+| 78 | lemma | `b0P` |  | `b0P` | stated |
+| 85 | lemma | `bits2w_inj_eq` |  | `bits2w_inj_eq` | stated |
+| 89 | lemma | `last_drop_all_but_last` |  | `last_drop_all_but_last` | stated |
+| 102 | clone export | `PRP` |  | `PRPSec (PRP clone, at D := block × capacity)` | def |
+| 105 | clone export | `StrongPRP` |  | `PRPSec` | def |
+| 107 | clone export | `RP` |  | `Perm, dD, dD_ll, PRIMITIVE` | def |
+| 119 | lemma | `needed_blocks0` |  | `needed_blocks0` | stated |
+| 124 | lemma | `needed_blocks_non_pos` |  | `needed_blocks_non_pos` | stated |
+| 133 | lemma | `needed_blocks_suff` |  | `needed_blocks_suff` | stated |
+| 142 | lemma | `needed_blocks_correct` |  | `needed_blocks_correct` | stated |
+| 156 | lemma | `needed_blocks_prod_r` |  | `needed_blocks_prod_r` | stated |
+| 163 | lemma | `needed_blocks_eq_div_r` |  | `needed_blocks_eq_div_r` | stated |
+| 181 | lemma | `needed_blocks_succ_eq_div_r` |  | `needed_blocks_succ_eq_div_r` | stated |
+| 211 | lemma | `needed_blocks_rel_div_r` |  | `needed_blocks_rel_div_r` | stated |
+| 221 | op | `num0` |  | `num0` | def |
+| 223 | op | `mkpad` |  | `mkpad` | def |
+| 225 | op | `pad` |  | `pad` | def |
+| 227 | op | `unpad` |  | `unpad` | def |
+| 234 | lemma | `rev_mkpad` |  | `rev_mkpad` | stated |
+| 237 | lemma | `last_mkpad` |  | `last_mkpad` | stated |
+| 240 | lemma | `head_mkpad` |  | `head_mkpad` | stated |
+| 243 | lemma | `last_pad` |  | `last_pad` | stated |
+| 246 | lemma | `size_mkpad` |  | `size_mkpad` | stated |
+| 252 | lemma | `size_pad_equiv` |  | `size_pad_equiv` | stated |
+| 259 | lemma | `size_padE` |  | `size_padE` | stated |
+| 263 | lemma | `size_pad` |  | `size_pad` | stated |
+| 267 | lemma | `size_pad_dvd_r` |  | `size_pad_dvd_r` | stated |
+| 270 | lemma | `dvd_r_num0` |  | `dvd_r_num0` | stated |
+| 273 | lemma | `num0_ge0` |  | `num0_ge0` | stated |
+| 276 | lemma | `num0_ltr` |  | `num0_ltr` | stated |
+| 279 | lemma | `index_true_behead_mkpad` |  | `index_true_behead_mkpad` | stated |
+| 286 | lemma | `padE` |  | `padE` | stated |
+| 294 | lemma | `padK` |  | `padK` | stated |
+| 315 | lemma | `unpadK` |  | `unpadK` | stated |
+| 342 | inductive | `unpad_spec` |  | `unpad_spec` | def |
+| 348 | lemma | `unpadP` |  | `unpadP` | stated |
+| 361 | op | `chunk` |  | `chunk` | def |
+| 363 | lemma | `size_chunk` |  | `size_chunk` | stated |
+| 366 | lemma | `in_chunk_size` |  | `in_chunk_size` | stated |
+| 369 | lemma | `chunkK` |  | `chunkK` | stated |
+| 372 | lemma | `chunk_nil` |  | `chunk_nil` | stated |
+| 375 | lemma | `chunk_sing` |  | `chunk_sing` | stated |
+| 378 | lemma | `chunk_cat` |  | `chunk_cat` | stated |
+| 382 | lemma | `chunk_padK` |  | `chunk_padK` | stated |
+| 385 | lemma | `flattenK` |  | `flattenK` | stated |
+| 391 | op | `blocks2bits` |  | `blocks2bits` | def |
+| 393 | lemma | `blocks2bits_nil` |  | `blocks2bits_nil` | stated |
+| 396 | lemma | `blocks2bits_sing` |  | `blocks2bits_sing` | stated |
+| 399 | lemma | `blocks2bits_cat` |  | `blocks2bits_cat` | stated |
+| 403 | lemma | `size_blocks2bits` |  | `size_blocks2bits` | stated |
+| 411 | lemma | `size_blocks2bits_dvd_r` |  | `size_blocks2bits_dvd_r` | stated |
+| 414 | op | `bits2blocks` |  | `bits2blocks` | def |
+| 416 | lemma | `bits2blocks_nil` |  | `bits2blocks_nil` | stated |
+| 419 | lemma | `bits2blocks_sing` |  | `bits2blocks_sing` | stated |
+| 423 | lemma | `bits2blocks_cat` |  | `bits2blocks_cat` | stated |
+| 430 | lemma | `blocks2bitsK` |  | `blocks2bitsK` | stated |
+| 438 | lemma | `bits2blocksK` |  | `bits2blocksK` | stated |
+| 454 | op | `pad2blocks` |  | `pad2blocks` | def |
+| 455 | op | `unpad_blocks` |  | `unpad_blocks` | def |
+| 457 | lemma | `pad2blocksK` |  | `pad2blocksK` | stated |
+| 463 | lemma | `unpadBlocksK` |  | `unpadBlocksK` | stated |
+| 476 | lemma | `pad2blocks_inj` |  | `pad2blocks_inj` | stated |
+| 481 | lemma | `size_pad2blocks` |  | `size_pad2blocks` | stated |
+| 492 | op | `extend` |  | `extend` | def |
+| 495 | op | `strip` |  | `strip` | def |
+| 499 | lemma | `strip_ge0` |  | `strip_ge0` | stated |
+| 503 | lemma | `extendK` |  | `extendK` | stated |
+| 521 | lemma | `stripK` |  | `stripK` | stated |
+| 545 | op | `valid_toplevel` |  | `valid_toplevel` | def |
+| 549 | op | `valid_block` |  | `valid_block` | def |
+| 551 | lemma | `valid_pad2blocks` |  | `valid_pad2blocks` | stated |
+| 557 | inductive | `valid_block_spec` |  | `valid_block_spec` | def |
+| 562 | lemma | `valid_blockP` |  | `valid_blockP` | stated |
+| 575 | lemma | `valid_block_ends_not_b0` |  | `valid_block_ends_not_b0` | stated |
+| 598 | inductive | `valid_block_struct_spec` |  | `valid_block_struct_spec` | def |
+| 608 | lemma | `valid_block_structP` |  | `valid_block_structP` | stated |
+| 718 | op | `valid_absorb` |  | `valid_absorb` | def |
+| 720 | inductive | `valid_absorb_spec` |  | `valid_absorb_spec` | def |
+| 726 | lemma | `valid_absorbP` |  | `valid_absorbP` | stated |
 
 ## `proof/Indifferentiability.eca`
 
@@ -136,18 +136,18 @@ Lean: `GaudisCrypt/Examples/SHA3/Indifferentiability.lean`, namespace `GaudisCry
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 2 | type | `p.` |  | `p.` | — |
-| 4 | module type | `PRIMITIVE` |  | `PRIMITIVE` | — |
-| 10 | module type | `DPRIMITIVE` |  | `DPRIMITIVE` | — |
-| 16 | type | `f_in` |  | `f_in` | — |
-| 18 | module type | `FUNCTIONALITY` |  | `FUNCTIONALITY` | — |
-| 23 | module type | `DFUNCTIONALITY` |  | `DFUNCTIONALITY` | — |
-| 33 | module type | `CONSTRUCTION` |  | `CONSTRUCTION` | — |
-| 38 | module type | `SIMULATOR` |  | `SIMULATOR` | — |
-| 44 | module type | `DISTINGUISHER` |  | `DISTINGUISHER` | — |
-| 48 | module | `Indif` |  | `Indif` | — |
-| 60 | module | `GReal` |  | `GReal` | — |
-| 61 | module | `GIdeal` |  | `GIdeal` | — |
+| 2 | type | `p.` |  | `p.` | def |
+| 4 | module type | `PRIMITIVE` |  | `PRIMITIVE` | def |
+| 10 | module type | `DPRIMITIVE` |  | `DPRIMITIVE` | def |
+| 16 | type | `f_in` |  | `f_in` | def |
+| 18 | module type | `FUNCTIONALITY` |  | `FUNCTIONALITY` | def |
+| 23 | module type | `DFUNCTIONALITY` |  | `DFUNCTIONALITY` | def |
+| 33 | module type | `CONSTRUCTION` |  | `CONSTRUCTION` | def |
+| 38 | module type | `SIMULATOR` |  | `SIMULATOR` | def |
+| 44 | module type | `DISTINGUISHER` |  | `DISTINGUISHER` | def |
+| 48 | module | `Indif` |  | `Indif` | def |
+| 60 | module | `GReal` |  | `GReal` | def |
+| 61 | module | `GIdeal` |  | `GIdeal` | def |
 
 ## `proof/OptionIndifferentiability.eca`
 
@@ -155,18 +155,18 @@ Lean: `GaudisCrypt/Examples/SHA3/OptionIndifferentiability.lean`, namespace `Gau
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 2 | type | `p.` |  | `p.` | — |
-| 4 | module type | `OPRIMITIVE` |  | `OPRIMITIVE` | — |
-| 10 | module type | `ODPRIMITIVE` |  | `ODPRIMITIVE` | — |
-| 16 | type | `f_in` |  | `f_in` | — |
-| 18 | module type | `OFUNCTIONALITY` |  | `OFUNCTIONALITY` | — |
-| 23 | module type | `ODFUNCTIONALITY` |  | `ODFUNCTIONALITY` | — |
-| 33 | module type | `OCONSTRUCTION` |  | `OCONSTRUCTION` | — |
-| 38 | module type | `OSIMULATOR` |  | `OSIMULATOR` | — |
-| 44 | module type | `ODISTINGUISHER` |  | `ODISTINGUISHER` | — |
-| 48 | module | `OIndif` |  | `OIndif` | — |
-| 60 | module | `OGReal` |  | `OGReal` | — |
-| 61 | module | `OGIdeal` |  | `OGIdeal` | — |
+| 2 | type | `p.` |  | `p.` | def |
+| 4 | module type | `OPRIMITIVE` |  | `OPRIMITIVE` | def |
+| 10 | module type | `ODPRIMITIVE` |  | `ODPRIMITIVE` | def |
+| 16 | type | `f_in` |  | `f_in` | def |
+| 18 | module type | `OFUNCTIONALITY` |  | `OFUNCTIONALITY` | def |
+| 23 | module type | `ODFUNCTIONALITY` |  | `ODFUNCTIONALITY` | def |
+| 33 | module type | `OCONSTRUCTION` |  | `OCONSTRUCTION` | def |
+| 38 | module type | `OSIMULATOR` |  | `OSIMULATOR` | def |
+| 44 | module type | `ODISTINGUISHER` |  | `ODISTINGUISHER` | def |
+| 48 | module | `OIndif` |  | `OIndif` | def |
+| 60 | module | `OGReal` |  | `OGReal` | def |
+| 61 | module | `OGIdeal` |  | `OGIdeal` | def |
 
 ## `proof/IRO.eca`
 
@@ -174,15 +174,15 @@ Lean: `GaudisCrypt/Examples/SHA3/IRO.lean`, namespace `GaudisCrypt.SHA3.IRO`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 8 | type | `to` |  | `to` | — |
-| 10 | op | `valid` |  | `valid` | — |
-| 11 | op | `dto` |  | `dto` | — |
-| 13 | module type | `IRO` |  | `IRO` | — |
-| 20 | pred | `prefix_closed` |  | `prefix_closed` | — |
-| 26 | pred | `prefix_closed'` |  | `prefix_closed'` | — |
-| 32 | lemma | `prefix_closed_equiv` |  | `prefix_closed_equiv` | — |
-| 37 | module | `IRO` |  | `IRO` | — |
-| 73 | module | `IRO'` |  | `IRO'` | — |
+| 8 | type | `to`, `from` |  | `«to»`, `«from»` (section variables) | def |
+| 10 | op | `valid` |  | `valid` | def |
+| 11 | op | `dto` |  | `dto` | def |
+| 13 | module type | `IRO` |  | `IRO_T` | exc (E3) |
+| 20 | pred | `prefix_closed` |  | `prefix_closed` | def |
+| 26 | pred | `prefix_closed'` |  | `prefix_closed'` | def |
+| 32 | lemma | `prefix_closed_equiv` |  | `prefix_closed_equiv` | stated |
+| 37 | module | `IRO` |  | `IRO` | def |
+| 73 | module | `IRO'` |  | `IRO'` | def |
 
 ## `proof/smart_counter/SLCommon.ec`
 

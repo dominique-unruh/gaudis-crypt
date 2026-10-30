@@ -109,3 +109,27 @@ For a `module`-command functor, the equation is its `apply_simp` lemmas
 
 Test: `guess_representable` in `AbstractCallTest.lean`, with `O₀ = Zero` (`fvP_Zero`).  It uses
 only the standard axioms.
+
+## 2026-10-31: three fixes in `Language/` and `Syntax/`, found porting the first files
+
+* **`global_var` with abstract types** (`Language/Variables.lean`).  The macro's
+  `Lens.IsGlobalVar` instance named the bare constant, so a variable whose type mentions an
+  implicit section variable (`variable {D}`, then `global_var m : FMap D D`) failed.  The
+  instance now ascribes the type, `($x : Lens $T VariableAssignment)`, which lets the implicit
+  arguments be inferred.  This is needed for the module variables of abstract theories
+  (`PRP.RP.m`, `IRO.mp`).
+* **The `module` command with three or more module parameters** (`Syntax/ModuleSyntax.lean`,
+  `moduleCallee`).  This is the failure first met in Schnorr.  A call target built from several
+  parameters keeps the outer parameters' substitutions around the inner ones.  An example is
+  `D(F, P)` in `Indif`, with `D` applied to views of `F` and `P`.  The callee simp set now
+  evaluates substitutions on variables (`rename`, `substituteSimultaneously`, `liftSubst`,
+  `variableSubstitution`) and lets them pass through closed expressions.
+* **The tactic `module_reduce_congr`** (`Syntax/ModuleSyntax.lean`), with the lemmas
+  `ModuleExpression.reduce_app_congr`, `reduce_pair_congr`, `reduce_fst_congr` and
+  `reduce_snd_congr` (`Language/ModuleExpression.lean`).  It proves `X.reduce = Y.reduce` for
+  expressions that differ only by `reduce`s at inner positions, below the reach of the
+  stripping lemmas.  `moduleCallee` runs it last.
+
+All existing modules still build: the full build is green.  Schnorr's `SHVIdeal` could now take
+the scheme and the simulator as module parameters again, as in EasyCrypt; this has not been
+tried.

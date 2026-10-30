@@ -39,6 +39,12 @@ import GaudisCrypt.CounterExamples.LeastLens
 import GaudisCrypt.CounterExamples.LensRangeComplDisjoint
 import GaudisCrypt.CounterExamples.MiscRangeStuff
 import GaudisCrypt.Lib.Birthday
+import GaudisCrypt.Lib.EC.BitWord
+import GaudisCrypt.Lib.EC.Distr
+import GaudisCrypt.Lib.EC.FMap
+import GaudisCrypt.Lib.EC.FSet
+import GaudisCrypt.Lib.EC.List
+import GaudisCrypt.Lib.EC.PRP
 import GaudisCrypt.Lib.Enc.HashedOTP
 import GaudisCrypt.Lib.RO
 import GaudisCrypt.Lib.RO.Basic
@@ -109,6 +115,10 @@ import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.EasyCryptBench.Schnorr
 import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
 import GaudisCrypt.Examples.EasyCryptBench.WhileSampling
+import GaudisCrypt.Examples.SHA3.Common
+import GaudisCrypt.Examples.SHA3.Indifferentiability
+import GaudisCrypt.Examples.SHA3.IRO
+import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
 import GaudisCrypt.Examples.Pedersen.Binding
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding

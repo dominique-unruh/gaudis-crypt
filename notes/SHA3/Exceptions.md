@@ -59,3 +59,15 @@ lemma.
 **Affects** every `declare module` whose module type takes oracles: the distinguishers and
 adversaries of `Indifferentiability`, `SecureRO`, `SecureORO`, `SecureHash`, `SHA3Security` and
 `SHA3OSecurity`.
+
+## E3: a module type that shares its name with a module gets the suffix `_T`
+
+**Rule broken.** EC names are kept verbatim (E1).
+
+**What we do instead.** EasyCrypt keeps module types and modules in separate namespaces:
+`IRO.eca` has both `module type IRO` and `module IRO`, and `SecureORO.eca` has both
+`module type RF` and `module RF`.  In Lean they would clash, so the module type is named
+`IRO_T` (`RF_T`).
+
+**Affects** `IRO.eca` and `SecureORO.eca`.  These are the only two clashes in the development,
+found from the inventory.

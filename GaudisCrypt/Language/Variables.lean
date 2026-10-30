@@ -506,7 +506,9 @@ instance Lens.IsGlobalVar.instDisjoint {T U : Type} (x : Lens T VariableAssignme
 
 /-- `global_var x : T` declares the global variable `x : Lens T VariableAssignment`, the slot of
 `⟨"N.x", T⟩` with `N.x` the full name of the declaration (`T` must be nonempty), together with
-its `Lens.IsGlobalVar` instance, so that globals are found disjoint by instance search. -/
+its `Lens.IsGlobalVar` instance, so that globals are found disjoint by instance search.  `T` may
+mention implicit section variables (`variable {D : Type}`, then `global_var m : FMap D D`): they
+are inferred from `T`. -/
 syntax (docComment)? "global_var " ident " : " term : command
 
 macro_rules
@@ -515,6 +517,7 @@ macro_rules
     let n := Lean.quote full.toString
     `($[$doc?]? noncomputable def $x : Lens $T VariableAssignment :=
         varLens (VariableName.mk $n $T)
-      instance : Lens.IsGlobalVar $x (VariableName.mk $n $T) := ⟨rfl, HEq.rfl⟩)
+      instance : Lens.IsGlobalVar ($x : Lens $T VariableAssignment) (VariableName.mk $n $T) :=
+        ⟨rfl, HEq.rfl⟩)
 
 end GaudisCrypt

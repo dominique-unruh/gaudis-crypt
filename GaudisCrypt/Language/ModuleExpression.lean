@@ -294,6 +294,33 @@ theorem reduce_snd_inner (m : ModuleExpression) :
     (ModuleExpression.snd m.reduce).reduce = (ModuleExpression.snd m).reduce :=
   reduce_snd_cong _ _ (reduce_idempotent m)
 
+/-! Congruences of `reduce` with both sides open: two composites reduce to the same thing when
+their components do.  They let a proof compare two expressions that differ only by `reduce`s
+at inner positions, below the reach of the stripping lemmas above (`module_reduce_congr`). -/
+
+theorem reduce_app_congr {a b c d : ModuleExpression} (h₁ : a.reduce = c.reduce)
+    (h₂ : b.reduce = d.reduce) : (ModuleExpression.app a b).reduce = (ModuleExpression.app c d).reduce :=
+  calc (ModuleExpression.app a b).reduce = (ModuleExpression.app a.reduce b.reduce).reduce :=
+        reduce_app_cong rfl rfl
+    _ = (ModuleExpression.app c.reduce d.reduce).reduce := by rw [h₁, h₂]
+    _ = (ModuleExpression.app c d).reduce := (reduce_app_cong rfl rfl).symm
+
+theorem reduce_pair_congr {a b c d : ModuleExpression} (h₁ : a.reduce = c.reduce)
+    (h₂ : b.reduce = d.reduce) :
+    (ModuleExpression.pair a b).reduce = (ModuleExpression.pair c d).reduce :=
+  calc (ModuleExpression.pair a b).reduce = (ModuleExpression.pair a.reduce b.reduce).reduce :=
+        reduce_pair_cong rfl rfl
+    _ = (ModuleExpression.pair c.reduce d.reduce).reduce := by rw [h₁, h₂]
+    _ = (ModuleExpression.pair c d).reduce := (reduce_pair_cong rfl rfl).symm
+
+theorem reduce_fst_congr {a c : ModuleExpression} (h : a.reduce = c.reduce) :
+    (ModuleExpression.fst a).reduce = (ModuleExpression.fst c).reduce :=
+  reduce_fst_cong _ _ h
+
+theorem reduce_snd_congr {a c : ModuleExpression} (h : a.reduce = c.reduce) :
+    (ModuleExpression.snd a).reduce = (ModuleExpression.snd c).reduce :=
+  reduce_snd_cong _ _ h
+
 end ModuleExpression
 
 /-! # Tactics -/
