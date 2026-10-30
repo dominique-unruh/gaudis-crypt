@@ -35,6 +35,15 @@ moduletype SPRP_Oracles {
 /-- EC's `StrongPRP.Distinguisher (P : SPRP_Oracles)`. -/
 abbrev Distinguisher := SPRP_Oracles D →ₘ procmod () → Bool
 
+module IND using (P : PRP D, Dist : Distinguisher D) {
+  proc main () : Bool {
+    var b : Bool;
+    _ <- call P.init ();
+    b <- call (Module.app Dist (SPRP_Oracles.mk D { f := PRP.f D P, fi := PRP.fi D P })) ();
+    return $b
+  };
+}
+
 end StrongPRP
 
 namespace RP

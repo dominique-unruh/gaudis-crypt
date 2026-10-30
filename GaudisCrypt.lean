@@ -48,6 +48,7 @@ import GaudisCrypt.Lib.EC.IterProc
 import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Lib.EC.PROM
 import GaudisCrypt.Lib.EC.PRP
+import GaudisCrypt.Lib.EC.Strong_RP_RF
 import GaudisCrypt.Lib.EC.Tuple
 import GaudisCrypt.Lib.Enc.HashedOTP
 import GaudisCrypt.Lib.RO
@@ -123,6 +124,7 @@ import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Examples.SHA3.IRO
 import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
+import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.SLCommon
 import GaudisCrypt.Examples.Pedersen.Binding
 import GaudisCrypt.Examples.Pedersen.Commitment

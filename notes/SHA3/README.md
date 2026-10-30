@@ -96,6 +96,12 @@ Files in this directory:
 * **Module restrictions** `{-C, -Redo}` on a lemma's module quantifier or `declare module` are
   footprint hypotheses, against `C.footprint` (or `X.footprint`, `FVP.fvP M`).
 * **`declare axiom`s** are hypotheses with the axiom's name.
+* **Name scoping.** Where EasyCrypt's last import shadows an earlier name (`SLCommon`'s
+  `PRIMITIVE` over `Common`'s, both via clones), a file states the winner with
+  `export GaudisCrypt.SHA3.SLCommon (state PRIMITIVE)`.  `state` also needs it, against the RO
+  library's root-level `state`.
+* **Views inside module bodies** are written out (`DFUNCTIONALITY.mk … { f := … }`): the `module`
+  command's proofs cannot see through a helper such as `FUNCTIONALITY.view`.
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
   `SLCommon`) are abbreviations of the instantiated declarations in the including file.
 
@@ -129,8 +135,8 @@ Files in this directory:
      * `transitivity`, `islossless`, `exlim`.
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
-   `Indifferentiability`, `OptionIndifferentiability`, `IRO` and `SLCommon` are done
-   (2026-10-31).
+   `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon` and `ConcreteF` are
+   done (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

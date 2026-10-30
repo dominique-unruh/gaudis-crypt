@@ -149,3 +149,6 @@ tried.
 * `Tuple.lean` contains `wordn`, for `SLCommon.bl_enum`.
 * `DProd.lean` contains `ProdSampling.S` and `sample_sample2` (stated), for `SLCommon.Sample2`.
 * `FMap` gains `restr` and `find`; `FSet` gains `elems`.
+* `Strong_RP_RF.lean` contains `ARP`, `DBounder` (with `DBounder.FBounder`), the `PRPi` clone, and
+  `Conclusion` (stated).  `PRP.lean` gains `StrongPRP.IND`.  `FMap.rng` gets a classical
+  `Decidable` instance.

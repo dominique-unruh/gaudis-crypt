@@ -48,6 +48,9 @@ instance (m : FMap α β) : DecidablePred (dom m) := fun x =>
 /-- `rng m y`: some key is bound to `y`. -/
 def rng (m : FMap α β) (y : β) : Prop := ∃ x, m.lookup x = some y
 
+open Classical in
+noncomputable instance (m : FMap α β) : DecidablePred (rng m) := fun _ => Classical.dec _
+
 /-- `fdom m`: the keys of `m`. -/
 def fdom (m : FMap α β) : Finset α := m.keys
 

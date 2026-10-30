@@ -315,17 +315,17 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/ConcreteF.lean`, namespace `Gaudis
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 8 | module | `PF` |  | `PF` | — |
-| 42 | module | `CF` |  | `CF` | — |
-| 45 | declare module | `D` | section . | `D` | — |
-| 47 | declare axiom | `D_ll` | section . | `D_ll` | — |
-| 51 | local module | `GReal'` | section . | `GReal'` | — |
-| 53 | local clone import | `Strong_RP_RF` | section . | `Strong_RP_RF` | — |
-| 77 | lemma | `size_behead` | section . | `size_behead` | — |
-| 80 | local module | `` | section . | `` | — |
-| 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` | — |
-| 220 | local clone import | `ProdSampling` | section . | `ProdSampling` | — |
-| 224 | lemma | `Real_Concrete` | section . | `Real_Concrete` | — |
+| 8 | module | `PF` |  | `PF` | def |
+| 42 | module | `CF` |  | `CF` (definition) | def |
+| 45 | declare module | `D` | section . | `D` (section variable) | def |
+| 47 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
+| 51 | local module | `GReal'` | section . | `GReal'` (definition) | def |
+| 53 | local clone import | `Strong_RP_RF` | section . | `Switching` (namespace) | def |
+| 77 | lemma | `size_behead` | section . | `size_behead` | stated |
+| 80 | local module | `` | section . | `` | def |
+| 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` | stated |
+| 220 | local clone import | `ProdSampling` | section . | `S` | def |
+| 224 | lemma | `Real_Concrete` | section . | `Real_Concrete` | stated |
 
 ## `proof/smart_counter/Handle.eca`
 
