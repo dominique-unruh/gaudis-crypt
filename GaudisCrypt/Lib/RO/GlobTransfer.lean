@@ -244,7 +244,7 @@ final states remain in a lifted orbit — equal locals and `={glob A}` globals
 per-leg supports (`inFootprint_preserves_touched` through the coupling marginals). -/
 
 /-- A `satisfies` of the first marginal holds on the coupling's support. -/
-private lemma coupling_satisfies_fst {γ δ : Type u} {μ : SubProbability (γ × δ)}
+lemma coupling_satisfies_fst {γ δ : Type u} {μ : SubProbability (γ × δ)}
     {B : γ → Prop}
     (h : (μ >>= fun x => (pure x.1 : SubProbability γ)).satisfies B) :
     μ.satisfies (fun x => B x.1) := by
@@ -257,7 +257,7 @@ private lemma coupling_satisfies_fst {γ δ : Type u} {μ : SubProbability (γ �
   exact hx (le_antisymm hle zero_le)
 
 /-- A `satisfies` of the second marginal holds on the coupling's support. -/
-private lemma coupling_satisfies_snd {γ δ : Type u} {μ : SubProbability (γ × δ)}
+lemma coupling_satisfies_snd {γ δ : Type u} {μ : SubProbability (γ × δ)}
     {B : δ → Prop}
     (h : (μ >>= fun x => (pure x.2 : SubProbability δ)).satisfies B) :
     μ.satisfies (fun x => B x.2) := by
@@ -341,7 +341,7 @@ theorem prhl2_self_of_orbit {s : Type*} {γ : Type} {F : Footprint s} {p : Progr
 
 /-- The update set driving the orbit coupling: global `(FVP.fvP_proc A)ᶜ`-updates lifted
     through `globalL` (fixing the locals). -/
-def liftedGlobSteps {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles sig) :
+def liftedGlobSteps {sig : ProcedureSignature} {holes : HoleSigs} (A : ProcedureWithHoles holes sig) :
     Set (Function.End ProgramState) :=
   { fp | ∃ f : Function.End state,
       diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates ∧
@@ -353,7 +353,7 @@ def liftedGlobSteps {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles s
     into body ⊔ return, with the global one the `globalL`-reduction of the procedure one;
     per component the commutation transfers by `Footprint.liftSubProbability_comm_reduce_compl`. -/
 theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
-    (A : ProcedureWithHoles roHoles sig) {f : Function.End state}
+    {holes : HoleSigs} (A : ProcedureWithHoles holes sig) {f : Function.End state}
     (hf : diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates) :
     diracKer (ProgramState.globalL.liftFunction f)
       ∈ ((fvP_proc A)ᶜ).updates := by
@@ -396,7 +396,7 @@ theorem lifted_step_mem_fvP_proc_compl {sig : ProcedureSignature}
 
 /-- **Pre-transport**: a global `(FVP.fvP_proc A)ᶜ`-orbit lifts to a `liftedGlobSteps`
     orbit of procedure states with any fixed locals. -/
-lemma lifted_orbit_of_global {sig : ProcedureSignature} (A : ProcedureWithHoles roHoles sig)
+lemma lifted_orbit_of_global {sig : ProcedureSignature} {holes : HoleSigs} (A : ProcedureWithHoles holes sig)
     (loc : VariableAssignment) {g₁ g₂ : state}
     (h : Relation.EqvGen (fun a b : state => ∃ f : Function.End state,
         diracKer f ∈ ((FVP.fvP_proc A)ᶜ).updates ∧ f a = b) g₁ g₂) :
@@ -414,7 +414,7 @@ lemma lifted_orbit_of_global {sig : ProcedureSignature} (A : ProcedureWithHoles 
 /-- **Post-transport**: `liftedGlobSteps`-orbit-related procedure states have equal locals
     and `={glob A}` globals (each step fixes the locals and is invisible to `glob A`). -/
 lemma glob_locals_of_lifted_orbit {sig : ProcedureSignature}
-    (A : ProcedureWithHoles roHoles sig) {x y : ProgramState}
+    {holes : HoleSigs} (A : ProcedureWithHoles holes sig) {x y : ProgramState}
     (h : Relation.EqvGen (fun a b => ∃ fp ∈ liftedGlobSteps A, fp a = b) x y) :
     (FVP.glob A).get x.globals = (FVP.glob A).get y.globals ∧ x.locals = y.locals := by
   induction h with

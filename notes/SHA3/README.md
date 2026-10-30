@@ -21,6 +21,7 @@ Files in this directory:
   generated, and the statuses are maintained by hand.
 * `Dependencies.md`: the files in dependency order, and the EasyCrypt library theories they use.
 * `Exceptions.md`: the deviations, each with its reason.
+* `Tooling.md`: the logic and tactic extensions made for the port.
 
 ## Conventions
 
@@ -58,6 +59,11 @@ Files in this directory:
 ## Plan
 
 0. **Inventory**: `Mapping.md` and `Dependencies.md`.  Done 2026-10-30.
+   * **Ground truth.** EasyCrypt r2026.09-1-g311ba5d (opam switch `ec`, with Alt-Ergo 2.6.3, CVC4
+     1.8 and Z3 4.12.6) checks 20 of the 21 files (`easycrypt runtest config/tests.config sponge`,
+     about 1.5 minutes with 4 jobs).  `smart_counter/ConcreteF.eca` stops at line 418 with an
+     EasyCrypt anomaly (`InvalidGoalShape`) inside a `sim`.  The authors left a FIXME there about
+     an ill-formed term.
 1. **Logic prerequisites.**  Each is tested on a toy before SHA-3 uses it.
    * **Distinguishers with oracle access**: EasyCrypt's `module type DISTINGUISHER (F : …, P : …)`
      and `Indif(F, P, D)`.  Module parameters of functor type already exist
@@ -67,9 +73,9 @@ Files in this directory:
      * the Schnorr failure: three module parameters of module types that take a Lean parameter
        (`SigmaScheme P`), where the `module` command's well-typedness proof does not close.
    * **Abstract call rule**: EasyCrypt's `call (: inv)` for an abstract adversary run against two
-     different oracle sets: if the oracles preserve `inv` relationally, so does the adversary.
-     There is also a unary `hoare` version.  We have only the same-oracle rule (`prhlProc_glob`)
-     and the eager version (`eager_call_inv`).
+     different oracle sets.  **Done 2026-10-31** (`Logic/AbstractCall.lean`, see `Tooling.md`),
+     for adversaries given as procedures with holes (exception E2).  Still missing: the unary
+     (`hoare`) version, the up-to-bad version, and the representation lemma that would remove E2.
    * **Up-to-bad**: `call (: bad, inv, inv')`, `byequiv : bad`, and `fel` (EasyCrypt's failure
      event lemma; used 8 times, in `Gcol` and `Gext` via `FelTactic`).
    * **Smaller tactics**:
