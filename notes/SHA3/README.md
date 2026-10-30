@@ -85,7 +85,19 @@ Files in this directory:
   an abstract type of the theory gets that type as an implicit section variable.  Reads whose
   type is not determined by the context are annotated (`($IRO.mp : FMap («from» × ℤ) «to»)`).
 * **Calls between procedures of the same module** are `call (M.g <Lean parameters>)`.
-* **Keywords.** `to` and `from` are keywords, so they are written `«to»` and `«from»`.
+* **Keywords.** `to`, `from` and `prefix` are keywords, so they are written `«to»`, `«from»` and
+  `«prefix»`.
+* **Procedure aliases.** `proc f = M.g` (`LRO`, `RRO`, `PRestr`, `FRestr`) is the same
+  procedure: the module is a Lean function or definition that assembles its procedures with
+  `T.mk`, taking the aliased ones from `M`.
+* **Partially applied functors.** EasyCrypt applies `DRestr(D : DISTINGUISHER, F, P)` to `D`
+  alone, and the result is a `DISTINGUISHER`.  Here `D` is a Lean parameter of the module, so
+  `DRestr D` has that type.
+* **Module restrictions** `{-C, -Redo}` on a lemma's module quantifier or `declare module` are
+  footprint hypotheses, against `C.footprint` (or `X.footprint`, `FVP.fvP M`).
+* **`declare axiom`s** are hypotheses with the axiom's name.
+* **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
+  `SLCommon`) are abbreviations of the instantiated declarations in the including file.
 
 ## Plan
 
@@ -117,7 +129,8 @@ Files in this directory:
      * `transitivity`, `islossless`, `exlim`.
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
-   `Indifferentiability`, `OptionIndifferentiability` and `IRO` are done (2026-10-31).
+   `Indifferentiability`, `OptionIndifferentiability`, `IRO` and `SLCommon` are done
+   (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

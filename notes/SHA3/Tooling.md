@@ -133,3 +133,19 @@ only the standard axioms.
 All existing modules still build: the full build is green.  Schnorr's `SHVIdeal` could now take
 the scheme and the simulator as module parameters again, as in EasyCrypt; this has not been
 tried.
+
+## 2026-10-31: more EasyCrypt library theories (`GaudisCrypt/Lib/EC/`), for `SLCommon`
+
+* `PROM.lean` contains `FullRO`:
+  * the `flag` type (`Known`/`Unknown`) and `is_`;
+  * the module types `RO_T`, `ROmap`, `FRO_T` (E3), `RO_Distinguisher` and `FRO_Distinguisher`;
+  * `MainD`;
+  * the oracles `RO` (with `RO.asRO`), `LRO`, `FRO` and `FullEager.RRO`;
+  * `FullEager.RO_LRO_D`, stated, with a representability hypothesis on `D`.
+
+  `Lib/RO/FullEager.lean` has a native lazy = eager proof in a different setting (the `prhl2`
+  layer).  Bridging it to `RO_LRO_D` is left for when a SHA-3 proof needs it.
+* `IterProc.lean` contains `Iter`, for `RRO.resample`.
+* `Tuple.lean` contains `wordn`, for `SLCommon.bl_enum`.
+* `DProd.lean` contains `ProdSampling.S` and `sample_sample2` (stated), for `SLCommon.Sample2`.
+* `FMap` gains `restr` and `find`; `FSet` gains `elems`.

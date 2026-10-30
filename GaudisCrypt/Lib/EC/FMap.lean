@@ -14,6 +14,8 @@ here.  Names are EasyCrypt's, with function names for its mixfix operators:
 | `x \in m` (`dom m x`) | `FMap.dom m x` |
 | `rng m y` | `FMap.rng m y` |
 | `fdom m`, `frng m` | `FMap.fdom m`, `FMap.frng m` |
+| `restr f m` | `FMap.restr f m` |
+| `find p m` | `FMap.find p m` |
 -/
 
 namespace GaudisCrypt.EC
@@ -52,6 +54,19 @@ def fdom (m : FMap α β) : Finset α := m.keys
 /-- `frng m`: the values of `m`. -/
 def frng [DecidableEq β] (m : FMap α β) : Finset β :=
   (m.entries.map Sigma.snd).toFinset
+
+open Classical in
+/-- `find p m`: some key `x` bound to `y` with `p x y` (EasyCrypt leaves which one unspecified),
+`None` if there is none. -/
+noncomputable def find (p : α → β → Bool) (m : FMap α β) : Option α :=
+  if h : ∃ x y, m.lookup x = some y ∧ p x y = true then some h.choose else none
+
+/-- `restr f m` (for `m : ('a, 'b * 'f) fmap`): the bindings of `m` whose tag is `f`, without
+the tag. -/
+noncomputable def restr {φ : Type*} [DecidableEq φ] (f : φ) (m : FMap α (β × φ)) : FMap α β :=
+  m.keys.toList.foldl (fun acc x => match m.lookup x with
+    | some (y, f') => if f' = f then acc.insert x y else acc
+    | none => acc) ∅
 
 end FMap
 

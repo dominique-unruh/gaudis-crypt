@@ -80,6 +80,8 @@ def b0 : block := BitWord.zerow
 namespace DBlock
 noncomputable def dunifin : SubProbability block := BitWord.dunifin
 end DBlock
+/-- `blocks` (`enum`, the clone's `FinType` enumeration). -/
+noncomputable def blocks : List block := (Finset.univ : Finset block).toList
 end Block
 
 export Block (block mkblock ofblock b0)

@@ -70,6 +70,18 @@ noncomputable def FUNCTIONALITY.view (F : FUNCTIONALITY p f_in f_out) :
 noncomputable def PRIMITIVE.view (P : PRIMITIVE p f_in f_out) : DPRIMITIVE p f_in f_out :=
   DPRIMITIVE.mk p f_in f_out { f := PRIMITIVE.f p f_in f_out P, fi := PRIMITIVE.fi p f_in f_out P }
 
+/-- The oracle procedures a `DISTINGUISHER` may call (EasyCrypt's `OI.allowed`): `F.f`, `P.f`,
+`P.fi`.  The holes of its representation (`Module.Representable`, exception E2). -/
+abbrev distHoles : HoleSigs :=
+  .cons (procsig (f_in) -> f_out) (.cons (procsig (p) -> p) (.cons (procsig (p) -> p) .empty))
+
+/-- `F.f`, `P.f`, `P.fi` out of the oracles `(F, P)`. -/
+noncomputable def distExt (FP : DFUNCTIONALITY p f_in f_out ×ₘ DPRIMITIVE p f_in f_out) :
+    (distHoles p f_in f_out).Instantiation :=
+  ((DFUNCTIONALITY.f p f_in f_out (Module.fst FP)).procedure,
+   (DPRIMITIVE.f p f_in f_out (Module.snd FP)).procedure,
+   (DPRIMITIVE.fi p f_in f_out (Module.snd FP)).procedure)
+
 module Indif using (F : FUNCTIONALITY p f_in f_out, P : PRIMITIVE p f_in f_out,
     D : DISTINGUISHER p f_in f_out) {
   proc main () : Bool {

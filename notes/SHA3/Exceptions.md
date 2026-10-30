@@ -56,6 +56,11 @@ a theorem assuming `hD` applies to every distinguisher one can actually write.  
 proven is that the hypothesis holds for every module of the type: that is the representation
 lemma.
 
+**Constructions are not covered yet.** The representation is defined for a functor returning one
+procedure (a distinguisher).  A construction `CO : CONSTRUCTION` returns a functionality with
+several procedures, so `SLCommon.Pr_restr` has no `hD` for it.  This will be extended when a
+proof needs the abstract call rule on a construction.
+
 **Affects** every `declare module` whose module type takes oracles: the distinguishers and
 adversaries of `Indifferentiability`, `SecureRO`, `SecureORO`, `SecureHash`, `SHA3Security` and
 `SHA3OSecurity`.

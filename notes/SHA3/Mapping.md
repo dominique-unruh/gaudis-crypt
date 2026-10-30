@@ -190,125 +190,124 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/SLCommon.lean`, namespace `GaudisC
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 15 | abbrev | `` |  | `` | — |
-| 17 | type | `state` |  | `state` | — |
-| 18 | op | `dstate` |  | `dstate` | — |
-| 20 | clone include | `Indifferentiability` |  | `Indifferentiability` | — |
-| 29 | op | `max_size` |  | `max_size` | — |
-| 32 | clone export | `Tuple` |  | `Tuple` | — |
-| 37 | op | `bl_enum` |  | `bl_enum` | — |
-| 38 | op | `bl_univ` |  | `bl_univ` | — |
-| 43 | clone import | `FullRO` |  | `FullRO` | — |
-| 51 | module | `Redo` |  | `Redo` | — |
-| 60 | module | `SqueezelessSponge` |  | `SqueezelessSponge` | — |
-| 84 | clone export | `DProd.ProdSampling` |  | `DProd.ProdSampling` | — |
-| 91 | op | `incl` |  | `incl` | — |
-| 97 | type | `handle` |  | `handle` | — |
-| 99 | type | `hstate` |  | `hstate` | — |
-| 101 | type | `ccapacity` |  | `ccapacity` | — |
-| 103 | type | `smap` |  | `smap` | — |
-| 104 | type | `hsmap` |  | `hsmap` | — |
-| 105 | type | `handles` |  | `handles` | — |
-| 107 | pred | `is_pre_permutation` |  | `is_pre_permutation` | — |
-| 111 | lemma | `half_permutation_set` |  | `half_permutation_set` | — |
-| 122 | lemma | `pre_permutation_set` |  | `pre_permutation_set` | — |
-| 131 | op | `step_hpath` |  | `step_hpath` | — |
-| 138 | op | `build_hpath` |  | `build_hpath` | — |
-| 141 | inductive | `build_hpath_spec` |  | `build_hpath_spec` | — |
-| 149 | lemma | `build_hpathP` |  | `build_hpathP` | — |
-| 169 | lemma | `build_hpath_map0` |  | `build_hpath_map0` | — |
-| 177 | theory | `Prefix.` | theory Prefix. | `Prefix..Prefix.` | — |
-| 179 | op | `prefix` | theory Prefix. | `Prefix..prefix` | — |
-| 185 | lemma | `prefix0s` | theory Prefix. | `Prefix..prefix0s` | — |
-| 188 | lemma | `prefixs0` | theory Prefix. | `Prefix..prefixs0` | — |
-| 191 | lemma | `prefix_eq` | theory Prefix. | `Prefix..prefix_eq` | — |
-| 195 | lemma | `prefixC` | theory Prefix. | `Prefix..prefixC` | — |
-| 203 | lemma | `prefix_ge0` | theory Prefix. | `Prefix..prefix_ge0` | — |
-| 211 | lemma | `prefix_sizel` | theory Prefix. | `Prefix..prefix_sizel` | — |
-| 219 | lemma | `prefix_sizer` | theory Prefix. | `Prefix..prefix_sizer` | — |
-| 225 | lemma | `prefix_take` | theory Prefix. | `Prefix..prefix_take` | — |
-| 234 | lemma | `take_take` | theory Prefix. | `Prefix..take_take` | — |
-| 250 | lemma | `prefix_take_leq` | theory Prefix. | `Prefix..prefix_take_leq` | — |
-| 257 | lemma | `prefix_nth` | theory Prefix. | `Prefix..prefix_nth` | — |
-| 268 | op | `max_prefix` | theory Prefix. | `Prefix..max_prefix` | — |
-| 274 | op | `get_max_prefix` | theory Prefix. | `Prefix..get_max_prefix` | — |
-| 278 | pred | `prefix_inv` | theory Prefix. | `Prefix..prefix_inv` | — |
-| 289 | pred | `all_prefixes` | theory Prefix. | `Prefix..all_prefixes` | — |
-| 292 | lemma | `aux_mem_get_max_prefix` | theory Prefix. | `Prefix..aux_mem_get_max_prefix` | — |
-| 301 | lemma | `mem_get_max_prefix` | theory Prefix. | `Prefix..mem_get_max_prefix` | — |
-| 308 | lemma | `take_get_max_prefix` | theory Prefix. | `Prefix..take_get_max_prefix` | — |
-| 317 | lemma | `take_get_max_prefix2` | theory Prefix. | `Prefix..take_get_max_prefix2` | — |
-| 328 | lemma | `prefix_cat` | theory Prefix. | `Prefix..prefix_cat` | — |
-| 332 | lemma | `prefix_leq_take` | theory Prefix. | `Prefix..prefix_leq_take` | — |
-| 342 | lemma | `prefix0` | theory Prefix. | `Prefix..prefix0` | — |
-| 350 | lemma | `head_nth0` | theory Prefix. | `Prefix..head_nth0` | — |
-| 353 | lemma | `get_prefix` | theory Prefix. | `Prefix..get_prefix` | — |
-| 386 | lemma | `get_max_prefix_leq` | theory Prefix. | `Prefix..get_max_prefix_leq` | — |
-| 390 | lemma | `get_max_prefix_is_max` | theory Prefix. | `Prefix..get_max_prefix_is_max` | — |
-| 397 | lemma | `get_max_prefix_max` | theory Prefix. | `Prefix..get_max_prefix_max` | — |
-| 402 | lemma | `all_take_in` | theory Prefix. | `Prefix..all_take_in` | — |
-| 416 | lemma | `prefix_inv_leq` | theory Prefix. | `Prefix..prefix_inv_leq` | — |
-| 434 | lemma | `max_prefix_eq` | theory Prefix. | `Prefix..max_prefix_eq` | — |
-| 440 | lemma | `prefix_max_prefix_eq_size` | theory Prefix. | `Prefix..prefix_max_prefix_eq_size` | — |
-| 456 | lemma | `prefix_get_max_prefix_eq_size` | theory Prefix. | `Prefix..prefix_get_max_prefix_eq_size` | — |
-| 463 | lemma | `get_max_prefix_exists` | theory Prefix. | `Prefix..get_max_prefix_exists` | — |
-| 473 | lemma | `prefix_geq` | theory Prefix. | `Prefix..prefix_geq` | — |
-| 482 | lemma | `prefix_take_prefix` | theory Prefix. | `Prefix..prefix_take_prefix` | — |
-| 491 | lemma | `prefix_leq_prefix_cat` | theory Prefix. | `Prefix..prefix_leq_prefix_cat` | — |
-| 498 | lemma | `prefix_take_leq_prefix` | theory Prefix. | `Prefix..prefix_take_leq_prefix` | — |
-| 506 | lemma | `prefix_take_geq_prefix` | theory Prefix. | `Prefix..prefix_take_geq_prefix` | — |
-| 519 | lemma | `get_max_prefix_take` | theory Prefix. | `Prefix..get_max_prefix_take` | — |
-| 534 | lemma | `drop_prefix_neq` | theory Prefix. | `Prefix..drop_prefix_neq` | — |
-| 541 | lemma | `prefix_prefix_prefix` | theory Prefix. | `Prefix..prefix_prefix_prefix` | — |
-| 548 | lemma | `prefix_lt_size` | theory Prefix. | `Prefix..prefix_lt_size` | — |
-| 574 | lemma | `asfadst` | theory Prefix. | `Prefix..asfadst` | — |
-| 589 | lemma | `prefix_exchange_prefix_inv` | theory Prefix. | `Prefix..prefix_exchange_prefix_inv` | — |
-| 606 | lemma | `prefix_inv_nil` | theory Prefix. | `Prefix..prefix_inv_nil` | — |
-| 616 | lemma | `aux_prefix_exchange` | theory Prefix. | `Prefix..aux_prefix_exchange` | — |
-| 634 | lemma | `prefix_exchange` | theory Prefix. | `Prefix..prefix_exchange` | — |
-| 654 | pred | `all_prefixes_fset` | theory Prefix. | `Prefix..all_prefixes_fset` | — |
-| 657 | pred | `inv_prefix_block` | theory Prefix. | `Prefix..inv_prefix_block` | — |
-| 664 | lemma | `prefix_gt0_mem` | theory Prefix. | `Prefix..prefix_gt0_mem` | — |
-| 673 | lemma | `inv_prefix_block_mem_take` | theory Prefix. | `Prefix..inv_prefix_block_mem_take` | — |
-| 686 | lemma | `prefix_cat_leq_prefix_size` | theory Prefix. | `Prefix..prefix_cat_leq_prefix_size` | — |
-| 694 | lemma | `prefix_cat1` | theory Prefix. | `Prefix..prefix_cat1` | — |
-| 707 | lemma | `prefix_leq_prefix_cat_size` | theory Prefix. | `Prefix..prefix_leq_prefix_cat_size` | — |
-| 753 | lemma | `diff_size_prefix_leq_cat` | theory Prefix. | `Prefix..diff_size_prefix_leq_cat` | — |
-| 787 | pred | `invm` | theory Prefix. | `Prefix..invm` | — |
-| 790 | lemma | `invm_set` | theory Prefix. | `Prefix..invm_set` | — |
-| 807 | module | `C` |  | `C` | — |
-| 816 | module | `PC` |  | `PC` | — |
-| 839 | module | `DPRestr` |  | `DPRestr` | — |
-| 861 | module | `PRestr` |  | `PRestr` | — |
-| 874 | module | `FC` |  | `FC` | — |
-| 893 | module | `DFRestr` |  | `DFRestr` | — |
-| 910 | module | `FRestr` |  | `FRestr` | — |
-| 923 | module | `DRestr` |  | `DRestr` | — |
-| 932 | lemma | `rp_ll` |  | `rp_ll` | — |
-| 935 | lemma | `rpi_ll` |  | `rpi_ll` | — |
-| 938 | lemma | `rf_ll` |  | `rf_ll` | — |
-| 941 | lemma | `DRestr_ll` |  | `DRestr_ll` | — |
-| 957 | declare module | `F` | section RESTR. | `F` | — |
-| 958 | declare module | `P` | section RESTR. | `P` | — |
-| 959 | declare module | `D` | section RESTR. | `D` | — |
-| 961 | lemma | `swap_restr` | section RESTR. | `swap_restr` | — |
-| 974 | declare module | `P` | section COUNT. | `P` | — |
-| 975 | declare module | `CO` | section COUNT. | `CO` | — |
-| 976 | declare module | `D` | section COUNT. | `D` | — |
-| 978 | declare axiom | `f_ll` | section COUNT. | `f_ll` | — |
-| 979 | declare axiom | `fi_ll` | section COUNT. | `fi_ll` | — |
-| 981 | declare axiom | `CO_ll` | section COUNT. | `CO_ll` | — |
-| 983 | declare axiom | `D_ll` | section COUNT. | `D_ll` | — |
-| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` | — |
-| 1014 | op | `hinv` |  | `hinv` | — |
-| 1017 | op | `hinvK` |  | `hinvK` | — |
-| 1020 | op | `huniq` |  | `huniq` | — |
-| 1026 | lemma | `hinvP` |  | `hinvP` | — |
-| 1036 | lemma | `huniq_hinv` |  | `huniq_hinv` | — |
-| 1048 | lemma | `hinvKP` |  | `hinvKP` | — |
-| 1058 | lemma | `huniq_hinvK` |  | `huniq_hinvK` | — |
-| 1065 | lemma | `huniq_hinvK_h` |  | `huniq_hinvK_h` | — |
-| 1073 | module | `GReal` |  | `GReal` | — |
+| 17 | type | `state` |  | `state` | def |
+| 18 | op | `dstate` |  | `dstate` | def |
+| 20 | clone include | `Indifferentiability` |  | `Indifferentiability` | def |
+| 29 | op | `max_size` |  | `max_size`, `max_ge0` (fields of `Params`) | def |
+| 32 | clone export | `Tuple` |  | `Tuple` | def |
+| 37 | op | `bl_enum` |  | `bl_enum` | def |
+| 38 | op | `bl_univ` |  | `bl_univ` | def |
+| 43 | clone import | `FullRO` |  | `FullRO` | def |
+| 51 | module | `Redo` |  | `Redo` | def |
+| 60 | module | `SqueezelessSponge` |  | `SqueezelessSponge` | def |
+| 84 | clone export | `DProd.ProdSampling` |  | `DProd.ProdSampling` | def |
+| 91 | op | `incl` |  | `incl` | def |
+| 97 | type | `handle` |  | `handle` | def |
+| 99 | type | `hstate` |  | `hstate` | def |
+| 101 | type | `ccapacity` |  | `ccapacity` | def |
+| 103 | type | `smap` |  | `smap` | def |
+| 104 | type | `hsmap` |  | `hsmap` | def |
+| 105 | type | `handles` |  | `handles` | def |
+| 107 | pred | `is_pre_permutation` |  | `is_pre_permutation` | def |
+| 111 | lemma | `half_permutation_set` |  | `half_permutation_set` | stated |
+| 122 | lemma | `pre_permutation_set` |  | `pre_permutation_set` | stated |
+| 131 | op | `step_hpath` |  | `step_hpath` | def |
+| 138 | op | `build_hpath` |  | `build_hpath` | def |
+| 141 | inductive | `build_hpath_spec` |  | `build_hpath_spec` | def |
+| 149 | lemma | `build_hpathP` |  | `build_hpathP` | stated |
+| 169 | lemma | `build_hpath_map0` |  | `build_hpath_map0` | stated |
+| 177 | theory | `Prefix.` | theory Prefix. | `Prefix` (namespace) | def |
+| 179 | op | `prefix` | theory Prefix. | `Prefix.«prefix»` | def |
+| 185 | lemma | `prefix0s` | theory Prefix. | `Prefix.prefix0s` | stated |
+| 188 | lemma | `prefixs0` | theory Prefix. | `Prefix.prefixs0` | stated |
+| 191 | lemma | `prefix_eq` | theory Prefix. | `Prefix.prefix_eq` | stated |
+| 195 | lemma | `prefixC` | theory Prefix. | `Prefix.prefixC` | stated |
+| 203 | lemma | `prefix_ge0` | theory Prefix. | `Prefix.prefix_ge0` | stated |
+| 211 | lemma | `prefix_sizel` | theory Prefix. | `Prefix.prefix_sizel` | stated |
+| 219 | lemma | `prefix_sizer` | theory Prefix. | `Prefix.prefix_sizer` | stated |
+| 225 | lemma | `prefix_take` | theory Prefix. | `Prefix.prefix_take` | stated |
+| 234 | lemma | `take_take` | theory Prefix. | `Prefix.take_take` | stated |
+| 250 | lemma | `prefix_take_leq` | theory Prefix. | `Prefix.prefix_take_leq` | stated |
+| 257 | lemma | `prefix_nth` | theory Prefix. | `Prefix.prefix_nth` | stated |
+| 268 | op | `max_prefix` | theory Prefix. | `Prefix.max_prefix` | def |
+| 274 | op | `get_max_prefix` | theory Prefix. | `Prefix.get_max_prefix` | def |
+| 278 | pred | `prefix_inv` | theory Prefix. | `Prefix.prefix_inv` | def |
+| 289 | pred | `all_prefixes` | theory Prefix. | `Prefix.all_prefixes` | def |
+| 292 | lemma | `aux_mem_get_max_prefix` | theory Prefix. | `Prefix.aux_mem_get_max_prefix` | stated |
+| 301 | lemma | `mem_get_max_prefix` | theory Prefix. | `Prefix.mem_get_max_prefix` | stated |
+| 308 | lemma | `take_get_max_prefix` | theory Prefix. | `Prefix.take_get_max_prefix` | stated |
+| 317 | lemma | `take_get_max_prefix2` | theory Prefix. | `Prefix.take_get_max_prefix2` | stated |
+| 328 | lemma | `prefix_cat` | theory Prefix. | `Prefix.prefix_cat` | stated |
+| 332 | lemma | `prefix_leq_take` | theory Prefix. | `Prefix.prefix_leq_take` | stated |
+| 342 | lemma | `prefix0` | theory Prefix. | `Prefix.prefix0` | stated |
+| 350 | lemma | `head_nth0` | theory Prefix. | `Prefix.head_nth0` | stated |
+| 353 | lemma | `get_prefix` | theory Prefix. | `Prefix.get_prefix` | stated |
+| 386 | lemma | `get_max_prefix_leq` | theory Prefix. | `Prefix.get_max_prefix_leq` | stated |
+| 390 | lemma | `get_max_prefix_is_max` | theory Prefix. | `Prefix.get_max_prefix_is_max` | stated |
+| 397 | lemma | `get_max_prefix_max` | theory Prefix. | `Prefix.get_max_prefix_max` | stated |
+| 402 | lemma | `all_take_in` | theory Prefix. | `Prefix.all_take_in` | stated |
+| 416 | lemma | `prefix_inv_leq` | theory Prefix. | `Prefix.prefix_inv_leq` | stated |
+| 434 | lemma | `max_prefix_eq` | theory Prefix. | `Prefix.max_prefix_eq` | stated |
+| 440 | lemma | `prefix_max_prefix_eq_size` | theory Prefix. | `Prefix.prefix_max_prefix_eq_size` | stated |
+| 456 | lemma | `prefix_get_max_prefix_eq_size` | theory Prefix. | `Prefix.prefix_get_max_prefix_eq_size` | stated |
+| 463 | lemma | `get_max_prefix_exists` | theory Prefix. | `Prefix.get_max_prefix_exists` | stated |
+| 473 | lemma | `prefix_geq` | theory Prefix. | `Prefix.prefix_geq` | stated |
+| 482 | lemma | `prefix_take_prefix` | theory Prefix. | `Prefix.prefix_take_prefix` | stated |
+| 491 | lemma | `prefix_leq_prefix_cat` | theory Prefix. | `Prefix.prefix_leq_prefix_cat` | stated |
+| 498 | lemma | `prefix_take_leq_prefix` | theory Prefix. | `Prefix.prefix_take_leq_prefix` | stated |
+| 506 | lemma | `prefix_take_geq_prefix` | theory Prefix. | `Prefix.prefix_take_geq_prefix` | stated |
+| 519 | lemma | `get_max_prefix_take` | theory Prefix. | `Prefix.get_max_prefix_take` | stated |
+| 534 | lemma | `drop_prefix_neq` | theory Prefix. | `Prefix.drop_prefix_neq` | stated |
+| 541 | lemma | `prefix_prefix_prefix` | theory Prefix. | `Prefix.prefix_prefix_prefix` | stated |
+| 548 | lemma | `prefix_lt_size` | theory Prefix. | `Prefix.prefix_lt_size` | stated |
+| 574 | lemma | `asfadst` | theory Prefix. | `Prefix.asfadst` | stated |
+| 589 | lemma | `prefix_exchange_prefix_inv` | theory Prefix. | `Prefix.prefix_exchange_prefix_inv` | stated |
+| 606 | lemma | `prefix_inv_nil` | theory Prefix. | `Prefix.prefix_inv_nil` | stated |
+| 616 | lemma | `aux_prefix_exchange` | theory Prefix. | `Prefix.aux_prefix_exchange` | stated |
+| 634 | lemma | `prefix_exchange` | theory Prefix. | `Prefix.prefix_exchange` | stated |
+| 654 | pred | `all_prefixes_fset` | theory Prefix. | `Prefix.all_prefixes_fset` | def |
+| 657 | pred | `inv_prefix_block` | theory Prefix. | `Prefix.inv_prefix_block` | def |
+| 664 | lemma | `prefix_gt0_mem` | theory Prefix. | `Prefix.prefix_gt0_mem` | stated |
+| 673 | lemma | `inv_prefix_block_mem_take` | theory Prefix. | `Prefix.inv_prefix_block_mem_take` | stated |
+| 686 | lemma | `prefix_cat_leq_prefix_size` | theory Prefix. | `Prefix.prefix_cat_leq_prefix_size` | stated |
+| 694 | lemma | `prefix_cat1` | theory Prefix. | `Prefix.prefix_cat1` | stated |
+| 707 | lemma | `prefix_leq_prefix_cat_size` | theory Prefix. | `Prefix.prefix_leq_prefix_cat_size` | stated |
+| 753 | lemma | `diff_size_prefix_leq_cat` | theory Prefix. | `Prefix.diff_size_prefix_leq_cat` | stated |
+| 787 | pred | `invm` | theory Prefix. | `Prefix.invm` | def |
+| 790 | lemma | `invm_set` | theory Prefix. | `Prefix.invm_set` | stated |
+| 807 | module | `C` |  | `C` | def |
+| 816 | module | `PC` |  | `PC` | def |
+| 839 | module | `DPRestr` |  | `DPRestr` | def |
+| 861 | module | `PRestr` |  | `PRestr` (Lean function, `T.mk`) | def |
+| 874 | module | `FC` |  | `FC` | def |
+| 893 | module | `DFRestr` |  | `DFRestr` | def |
+| 910 | module | `FRestr` |  | `FRestr` (Lean function, `T.mk`) | def |
+| 923 | module | `DRestr` |  | `DRestr` (`D` a Lean parameter) | def |
+| 932 | lemma | `rp_ll` |  | `rp_ll` | stated |
+| 935 | lemma | `rpi_ll` |  | `rpi_ll` | stated |
+| 938 | lemma | `rf_ll` |  | `rf_ll` | stated |
+| 941 | lemma | `DRestr_ll` |  | `DRestr_ll` | stated |
+| 957 | declare module | `F` | section RESTR. | `F` | def |
+| 958 | declare module | `P` | section RESTR. | `P` | def |
+| 959 | declare module | `D` | section RESTR. | `D` | def |
+| 961 | lemma | `swap_restr` | section RESTR. | `swap_restr` | stated |
+| 974 | declare module | `P` | section COUNT. | `P` | def |
+| 975 | declare module | `CO` | section COUNT. | `CO` | def |
+| 976 | declare module | `D` | section COUNT. | `D` | def |
+| 978 | declare axiom | `f_ll` | section COUNT. | `f_ll` (hypothesis) | def |
+| 979 | declare axiom | `fi_ll` | section COUNT. | `fi_ll` (hypothesis) | def |
+| 981 | declare axiom | `CO_ll` | section COUNT. | `CO_ll` (hypothesis) | def |
+| 983 | declare axiom | `D_ll` | section COUNT. | `D_ll` (hypothesis) | def |
+| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` | stated |
+| 1014 | op | `hinv` |  | `hinv` | def |
+| 1017 | op | `hinvK` |  | `hinvK` | def |
+| 1020 | op | `huniq` |  | `huniq` | def |
+| 1026 | lemma | `hinvP` |  | `hinvP` | stated |
+| 1036 | lemma | `huniq_hinv` |  | `huniq_hinv` | stated |
+| 1048 | lemma | `hinvKP` |  | `hinvKP` | stated |
+| 1058 | lemma | `huniq_hinvK` |  | `huniq_hinvK` | stated |
+| 1065 | lemma | `huniq_hinvK_h` |  | `huniq_hinvK_h` | stated |
+| 1073 | module | `GReal` |  | `GReal` (definition) | def |
 
 ## `proof/smart_counter/ConcreteF.eca`
 
