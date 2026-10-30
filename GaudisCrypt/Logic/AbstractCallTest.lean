@@ -81,11 +81,9 @@ theorem module_adversary_count (D : Module.Arr Oracle (procmod () → Bool))
       | zero => exact count_query _ hdisj
       | succ m => nomatch m)
 
--- A concrete distinguisher.  The denotation half of `Module.RepresentedBy` holds for it, with the
--- procedure with holes that the `module` command generates.  The footprint half
--- (`FVP.fvP_proc Guess.main.procedure ≤ FVP.fvP Guess`) needs `fvP Guess` computed through the
--- normalization of module expressions (a β-step under `abs`); it is left to the representation
--- lemma (notes/SHA3/Tooling.md).
+-- A concrete distinguisher, written with the `module` command, is representable
+-- (`Module.representedBy_of_app_eq`).  The footprint bound goes through the oracle `Zero`, whose
+-- footprint is empty.
 module Guess using (O : Oracle) {
   proc main() : Bool {
     var y : ℕ;
@@ -94,9 +92,24 @@ module Guess using (O : Oracle) {
   };
 }
 
-example (O : Oracle) (a : (procsig () -> Bool).ParamType) :
-    procedureDenotation (Module.app Guess O).procedure a
-      = procedureDenotation (Guess.main.procedure.instantiate (Oracle.query O).procedure) a := by
-  simp [Guess.apply_simp, Guess.main.apply_simp]
+module Zero : Oracle {
+  proc query(x : ℕ) : ℕ {
+    return 0
+  };
+}
+
+theorem fvP_Zero : FVP.fvP Zero = ⊥ := by
+  change FVP.fvP (Module.proc Zero.query.procedure) = ⊥
+  rw [FVP.fvP_module_proc]
+  refine le_bot_iff.mp (sup_le ?_ ?_)
+  · change Lens.reduceFootprint ProgramState.globalL ⊥ ≤ ⊥
+    rw [Lens.reduceFootprint_bot]
+  · refine le_trans (Lens.reduceFootprint_mono _ ?_) (Lens.reduceFootprint_bot _).le
+    exact ProgramDenotation.footprint_le_of_inFootprint (ProgramDenotation.inFootprint_pure _ _)
+
+theorem guess_representable :
+    Module.Representable (holes := oracleHoles) Guess fun O => (Oracle.query O).procedure :=
+  ⟨_, Module.representedBy_of_app_eq Guess _ Guess.main.procedure
+    (fun O => by simp [Guess.apply_simp, Guess.main.apply_simp]) Zero fvP_Zero⟩
 
 end GaudisCrypt.AbstractCallTest

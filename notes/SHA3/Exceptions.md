@@ -50,6 +50,12 @@ as a theorem, by induction over the adversary's code, so it needs that code
 
 `hD` then disappears from every statement mechanically.  Neither route is done.
 
+**The hypothesis is not vacuous.** Every functor module written with the `module` command satisfies
+it, by `Module.representedBy_of_app_eq` (`notes/SHA3/Tooling.md`, test `guess_representable`).  So
+a theorem assuming `hD` applies to every distinguisher one can actually write.  What is not yet
+proven is that the hypothesis holds for every module of the type: that is the representation
+lemma.
+
 **Affects** every `declare module` whose module type takes oracles: the distinguishers and
 adversaries of `Indifferentiability`, `SecureRO`, `SecureORO`, `SecureHash`, `SHA3Security` and
 `SHA3OSecurity`.

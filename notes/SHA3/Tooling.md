@@ -90,9 +90,22 @@ disjoint from `L`.  The rule in this generality is `prhlProc_abstract_callF`.
 * `Guess`, written with the `module` command: the denotation half of `Module.RepresentedBy`
   holds by `simp [Guess.apply_simp, Guess.main.apply_simp]`.
 
-**Open.** The footprint half for `module`-generated functors,
-`FVP.fvP_proc Guess.main.procedure ≤ FVP.fvP Guess`, is not proven.  `FVP.fvP Guess` evaluates
-the normalized expression of `Guess`.  Computing it needs a β-step under `abs` that substitutes
-`var 0` for itself, and there is no lemma for that in `Language/` yet.  Until it exists, nothing
-shows that `Module.Representable` holds for any concrete functor module.  The denotation half
-suggests it does.  This is the first thing the representation lemma (E2) has to deliver.
+**Closed 2026-10-31: `Module.Representable` is not vacuous.** The footprint half no longer
+needs module-expression normalization:
+* `FVP.fvP_stmt_le_instantiate` and `FVP.fvP_proc_le_instantiate`: footprints only grow when holes
+  are filled.  A hole contributes the result write and the argument read; the call replacing it
+  contributes those and more.
+* `FVP.fvP_module_proc`: `fvP (Module.proc q) = fvP_proc q`.
+* `Lens.reduceFootprint_bot`: `reduceFootprint L ⊥ = ⊥`.  It follows from monotonicity and
+  `reduce (extend r) ≤ r`.
+* `Module.representedBy_of_app_eq`: a functor module `D` with `Module.app D O = Module.proc
+  (p.instantiate (ext O))` for all `O` is represented by `p`, given one oracle module `O₀` with
+  `fvP O₀ = ⊥`.  The bound is
+  `fvP_proc p ≤ fvP_proc (p.instantiate (ext O₀)) = fvP (D O₀) ≤ fvP D ⊔ fvP O₀ = fvP D`.
+
+For a `module`-command functor, the equation is its `apply_simp` lemmas
+(`simp [D.apply_simp, D.f.apply_simp]`).  `O₀` can be any module of constant procedures:
+`fvP O₀ = ⊥` because a constant getter denotes `pure`, whose footprint is `⊥`.
+
+Test: `guess_representable` in `AbstractCallTest.lean`, with `O₀ = Zero` (`fvP_Zero`).  It uses
+only the standard axioms.

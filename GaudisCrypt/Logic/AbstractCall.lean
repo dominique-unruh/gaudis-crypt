@@ -350,4 +350,61 @@ theorem prhlProc_abstract_call_module {T : Type 1} [IsModule T] {sig : Procedure
   rw [hden O₁ a₁, hden O₂ a₂]
   exact prhlProc_abstract_callF L (ext O₁) (ext O₂) p _ hle hdisj I hc horacle a₁ a₂
 
+/-! ## Representability of concrete functor modules
+
+`fvP` only grows when a procedure's holes are filled: a hole node contributes the write of the
+result and the read of the arguments, and the call that replaces it contributes those and more.
+So a functor module `D` whose application reduces to `p.instantiate (ext O)` (what the `module`
+command's `apply_simp` lemmas state) is represented by `p`.  The footprint half goes through one
+oracle `O₀` with an empty footprint:
+`fvP_proc p ≤ fvP_proc (p.instantiate (ext O₀)) = fvP (D O₀) ≤ fvP D ⊔ fvP O₀ = fvP D`. -/
+
+theorem FVP.fvP_stmt_le_instantiate {holes : HoleSigs} (s : StmtWithHoles holes)
+    (inst : holes.Instantiation) :
+    FVP.fvP_stmt s ≤ FVP.fvP_stmt (s.instantiate inst) := by
+  induction s with
+  | skip => exact le_rfl
+  | sample x e => exact le_rfl
+  | call' x ns hl hn b r p => exact le_rfl
+  | hole n x p =>
+      exact sup_le_sup_left (le_sup_of_le_right le_sup_right) _
+  | seq s1 s2 ih1 ih2 => exact sup_le_sup (ih1 inst) (ih2 inst)
+  | ifThenElse c t e iht ihe => exact sup_le_sup_left (sup_le_sup (iht inst) (ihe inst)) _
+  | «while» c t iht => exact sup_le_sup_left (iht inst) _
+
+theorem FVP.fvP_proc_le_instantiate {holes : HoleSigs} {sig : ProcedureSignature}
+    (p : ProcedureWithHoles holes sig) (inst : holes.Instantiation) :
+    FVP.fvP_proc p ≤ FVP.fvP_proc (p.instantiate inst) :=
+  sup_le_sup_right (Lens.reduceFootprint_mono _ (FVP.fvP_stmt_le_instantiate p.body inst)) _
+
+/-- Reducing the empty footprint through a lens gives the empty footprint. -/
+theorem Lens.reduceFootprint_bot {a b : Type*} (lens : Lens a b) :
+    Lens.reduceFootprint lens ⊥ = ⊥ :=
+  le_bot_iff.mp (le_trans (Lens.reduceFootprint_mono lens bot_le)
+    (FVP.Lens.reduceFootprint_extend_le lens ⊥))
+
+theorem FVP.fvP_module_proc {sig : ProcedureSignature} (q : Procedure sig) :
+    FVP.fvP (Module.proc q) = FVP.fvP_proc q := by
+  unfold FVP.fvP InductiveFunctionGettersSetters.eval InductiveFunction.eval
+    InductiveFunction.eval'
+  change fvpInductiveFunctionGS.inductiveFunction.evalMexpr (Module.proc q).expression = _
+  rw [Module.proc, Module.toModule_expression, ModuleExpression.reduce_proc]
+  rfl
+
+/-- **A functor module that applies to `p.instantiate (ext O)` is represented by `p`**, given one
+oracle module `O₀` with an empty footprint (to bound `p`'s footprint by `D`'s). -/
+theorem Module.representedBy_of_app_eq {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    (D : Module.Arr T (Module.Proc sig)) {holes : HoleSigs} (ext : T → holes.Instantiation)
+    (p : ProcedureWithHoles holes sig)
+    (happ : ∀ O, Module.app D O = Module.proc (p.instantiate (ext O)))
+    (O₀ : T) (h₀ : FVP.fvP O₀ = ⊥) :
+    Module.RepresentedBy D ext p where
+  denote O a := by rw [happ O, Module.procedure_proc']
+  fvP_le := by
+    calc FVP.fvP_proc p ≤ FVP.fvP_proc (p.instantiate (ext O₀)) :=
+          FVP.fvP_proc_le_instantiate p _
+      _ = FVP.fvP (Module.app D O₀) := by rw [happ O₀, FVP.fvP_module_proc]
+      _ ≤ FVP.fvP D ⊔ FVP.fvP O₀ := FVP.fvP_app D O₀
+      _ = FVP.fvP D := by rw [h₀, sup_bot_eq]
+
 end GaudisCrypt
