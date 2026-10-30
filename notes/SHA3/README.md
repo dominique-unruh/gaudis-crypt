@@ -74,8 +74,9 @@ Files in this directory:
        (`SigmaScheme P`), where the `module` command's well-typedness proof does not close.
    * **Abstract call rule**: EasyCrypt's `call (: inv)` for an abstract adversary run against two
      different oracle sets.  **Done 2026-10-31** (`Logic/AbstractCall.lean`, see `Tooling.md`),
-     for adversaries given as procedures with holes (exception E2).  Still missing: the unary
-     (`hoare`) version, the up-to-bad version, and the representation lemma that would remove E2.
+     both for procedures with holes and for modules.  The module form carries a representability
+     hypothesis (exception E2).  Still missing: the unary (`hoare`) version, the up-to-bad version,
+     and the representation lemma that would remove E2.
    * **Up-to-bad**: `call (: bad, inv, inv')`, `byequiv : bad`, and `fel` (EasyCrypt's failure
      event lemma; used 8 times, in `Gcol` and `Gext` via `FelTactic`).
    * **Smaller tactics**:

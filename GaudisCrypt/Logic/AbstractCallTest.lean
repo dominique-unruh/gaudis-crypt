@@ -30,19 +30,19 @@ module Count2 : Oracle {
 
 abbrev oracleHoles : HoleSigs := .cons (procsig (ℕ) -> ℕ) .empty
 
-theorem count_query (A : ProcedureWithHoles oracleHoles (procsig () -> Bool))
-    (hdisj : FVP.fvP_proc A ≤ (count.footprint)ᶜ) :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInv count A (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂)
+/-- The oracle premise, for any region `F` disjoint from the counter. -/
+theorem count_query (F : Footprint VariableAssignment) (hF : F ≤ (count.footprint)ᶜ) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF count F (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂)
       (Oracle.query Count1).procedure (Oracle.query Count2).procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInv count A (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂) := by
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF count F (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂) := by
   equiv_proc
   stmt_inline 0
   stmt_wp
   equiv_skip
-  have hc : count.footprint ≤ (FVP.fvP_proc A)ᶜ := (Footprint.le_compl_comm _ _).mp hdisj
+  have hc : count.footprint ≤ Fᶜ := (Footprint.le_compl_comm _ _).mp hF
   rintro g₁ g₂ x₁ x₂ ⟨hx, hg, hI⟩
   refine ⟨hx, ?_, ?_⟩
-  · rw [glob_set_of_le_compl hc, glob_set_of_le_compl hc]
+  · rw [touched_set_of_le_compl hc, touched_set_of_le_compl hc]
     exact hg
   · simp only [Lens.set_get] at hI ⊢
     omega
@@ -60,7 +60,43 @@ theorem adversary_count (A : ProcedureWithHoles oracleHoles (procsig () -> Bool)
       | zero => exact inferInstanceAs (Countable ℕ)
       | succ m => nomatch m)
     (fun n => by cases n with
-      | zero => exact count_query A hdisj
+      | zero => exact count_query _ hdisj
       | succ m => nomatch m)
+
+/-- The same at module level: the adversary is a module of the functor type, as EasyCrypt declares
+it (`declare module D <: Adv {-count}`), with the representation hypothesis (exception E2). -/
+theorem module_adversary_count (D : Module.Arr Oracle (procmod () → Bool))
+    (hD : Module.Representable D (holes := oracleHoles) fun O => (Oracle.query O).procedure)
+    (hdisj : FVP.fvP D ≤ (count.footprint)ᶜ) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF count (FVP.fvP D) (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂)
+      (Module.app D Count1).procedure (Module.app D Count2).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF count (FVP.fvP D) (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂) :=
+  prhlProc_abstract_call_module count D _ hD hdisj _
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable ℕ)
+      | succ m => nomatch m)
+    Count1 Count2
+    (fun n => by cases n with
+      | zero => exact count_query _ hdisj
+      | succ m => nomatch m)
+
+-- A concrete distinguisher.  The denotation half of `Module.RepresentedBy` holds for it, with the
+-- procedure with holes that the `module` command generates.  The footprint half
+-- (`FVP.fvP_proc Guess.main.procedure ≤ FVP.fvP Guess`) needs `fvP Guess` computed through the
+-- normalization of module expressions (a β-step under `abs`); it is left to the representation
+-- lemma (notes/SHA3/Tooling.md).
+module Guess using (O : Oracle) {
+  proc main() : Bool {
+    var y : ℕ;
+    y <- call O.query ((3 : ℕ));
+    return $y == 3
+  };
+}
+
+example (O : Oracle) (a : (procsig () -> Bool).ParamType) :
+    procedureDenotation (Module.app Guess O).procedure a
+      = procedureDenotation (Guess.main.procedure.instantiate (Oracle.query O).procedure) a := by
+  simp [Guess.apply_simp, Guess.main.apply_simp]
 
 end GaudisCrypt.AbstractCallTest

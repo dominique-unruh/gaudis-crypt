@@ -62,3 +62,37 @@ equiv_skip`, then `glob_set_of_le_compl` and `omega`.
 * No automation for footprint bounds of concrete procedures (`(procedureDenotation o a).inFootprint
   L.footprint`, needed by `prhlProc_globInv_of_confined`).  The toy avoids it by proving the oracle
   premise with `={glob A}` included.
+
+## 2026-10-31: the abstract call rule for modules; `={glob}` over any region
+
+**File**: `GaudisCrypt/Logic/AbstractCall.lean`, restructured.
+
+**`={glob}` over any region.** The invariant is now `globInvF L F I`: agreement on a region `F`
+plus `I` on the `L`-content.  `F` is any region that contains the adversary's footprint and is
+disjoint from `L`.  The rule in this generality is `prhlProc_abstract_callF`.
+* `globInv L A I` is `globInvF L (FVP.fvP_proc A) I`, and `prhlProc_abstract_call` is unchanged.
+* The orbit argument needed no change: steps outside `F` are steps outside `A`'s footprint.  The
+  local copies are `liftedStepsOutside`, `lifted_orbit_outside` and
+  `touched_locals_of_lifted_orbit`.
+* The oracle-side lemmas are generalized to `F` as well: `touched_set_of_le_compl`,
+  `touched_eq_of_inFootprint` and `prhlProc_globInvF_of_confined`.
+
+**Modules.** These match EasyCrypt's `declare module D <: T {-O}` (exception E2):
+
+| Lean | What it is |
+|---|---|
+| `Module.RepresentedBy D ext p` | for every `O`, `D` applied to `O` has the denotation of `p.instantiate (ext O)`, and `FVP.fvP_proc p ≤ FVP.fvP D`.  `ext : T → holes.Instantiation` lists the oracle procedures `D` may call (EasyCrypt's `OI.allowed`). |
+| `Module.Representable D ext` | `∃ p, Module.RepresentedBy D ext p` |
+| `prhlProc_abstract_call_module` | the rule for `(Module.app D O₁).procedure` and `(Module.app D O₂).procedure`, with `={glob D}` as agreement on `FVP.fvP D`.  Hypotheses: `Module.Representable D ext`, `FVP.fvP D ≤ L.footprintᶜ`, and the per-oracle premises on `ext O₁` and `ext O₂`. |
+
+**Tests** (`AbstractCallTest.lean`):
+* `module_adversary_count`: the counter toy with `D : Module.Arr Oracle (procmod () → Bool)`.
+* `Guess`, written with the `module` command: the denotation half of `Module.RepresentedBy`
+  holds by `simp [Guess.apply_simp, Guess.main.apply_simp]`.
+
+**Open.** The footprint half for `module`-generated functors,
+`FVP.fvP_proc Guess.main.procedure ≤ FVP.fvP Guess`, is not proven.  `FVP.fvP Guess` evaluates
+the normalized expression of `Guess`.  Computing it needs a β-step under `abs` that substitutes
+`var 0` for itself, and there is no lemma for that in `Language/` yet.  Until it exists, nothing
+shows that `Module.Representable` holds for any concrete functor module.  The denotation half
+suggests it does.  This is the first thing the representation lemma (E2) has to deliver.

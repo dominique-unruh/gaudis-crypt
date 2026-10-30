@@ -14,23 +14,41 @@ The Lean file names follow the EasyCrypt file names in the same way.
 **Why.** The mapping must be mechanical: from an EasyCrypt name you find the Lean declaration
 by `grep`, and the reverse.  It also keeps `Mapping.md` checkable.
 
-## E2: abstract adversaries are procedures with holes, not arbitrary functor modules (temporary)
+## E2: abstract modules carry a representability hypothesis (temporary)
 
-**Rule broken.** EasyCrypt's `declare module D <: DISTINGUISHER` quantifies over every module of
-the (functor) module type.  The Gaudí counterpart would be a variable
-`D : Module.Arr (oracle types) (procmod …)`.
+**Rule broken.** EasyCrypt's `declare module D <: DISTINGUISHER {-O}` is mapped to a module
+variable plus a footprint hypothesis, as the conventions say:
 
-**What we do instead.** The port quantifies over a procedure with holes,
-`D : ProcedureWithHoles holes sig`, one hole per oracle procedure the distinguisher may call.  It
-enters games as the module `Module.procWithHoles D`.
+```
+variable (D : Module.Arr (oracle module type) (procmod …)) (hdisj : FVP.fvP D ≤ (L.footprint)ᶜ)
+```
 
-**Why.** The abstract call rule (`Logic/AbstractCall.lean`, see `Tooling.md`) is proven by
-induction over the adversary's code, so it needs that code.  For a module variable, the missing
-step is a representation lemma: every functor module applied to oracles has the same denotation
-as some procedure with holes instantiated with them.  It is module metatheory (`Language/`).
+There is one extra hypothesis, `hD : Module.Representable D ext`: applied to any oracles `O`, `D`
+has the same denotation as some procedure with holes filled with `ext O`, and touches nothing more
+than `D` (`Logic/AbstractCall.lean`).  `ext` lists the oracle procedures `D` may call.
 
-**How to remove it.** Prove the representation lemma; the statements then switch to module
-variables.
+**EasyCrypt counterpart.** None is needed: `hD` holds in EasyCrypt by construction.
+* An EasyCrypt module is program code.  Its module type lists the oracle procedures each
+  procedure may call (`{ P.f }`, or all procedures of the parameters when there is no list).
+* Applying a functor binds those calls to the given modules.  So "`D` applied to oracles is code
+  with its oracle calls filled in" holds by definition.
+* EasyCrypt's abstract call rule (`proc inv`, kernel function `equivF_abs_spec` in
+  `src/phl/ecPhlFun.ml`) is a trusted kernel rule over that code.  It produces one premise per
+  allowed oracle (`OI.allowed`), and it rejects an `inv` that depends on `glob D`
+  (`PV.check_depend`).
+
+**Why we need it.** Gaudí's module language is a small λ-calculus (functors, pairs, projections,
+nested applications), so the representation must be proven.  Gaudí proves the abstract call rule
+as a theorem, by induction over the adversary's code, so it needs that code
+(`prhlProc_abstract_call_module`).
+
+**How to remove it.** Either:
+* prove that every module of a functor type is representable; or
+* prove the abstract call rule by induction over the normal form of a module expression.  This
+  route avoids flattening nested applications into one procedure with holes, which a call's
+  closed callee body does not allow.
+
+`hD` then disappears from every statement mechanically.  Neither route is done.
 
 **Affects** every `declare module` whose module type takes oracles: the distinguishers and
 adversaries of `Indifferentiability`, `SecureRO`, `SecureORO`, `SecureHash`, `SHA3Security` and
