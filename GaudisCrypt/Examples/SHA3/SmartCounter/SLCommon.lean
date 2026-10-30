@@ -82,6 +82,10 @@ noncomputable abbrev dout : List block → SubProbability block := fun _ => bdis
 noncomputable abbrev RO := PROM.FullRO.RO (List block) block dout
 /-- `F.RO.m`. -/
 noncomputable abbrev RO.m := PROM.FullRO.RO.m (in_t := List block) (out_t := block)
+/-- `F.RO` as its type `RO` (`PROM.FullRO.RO.asRO`). -/
+noncomputable abbrev RO.asRO := PROM.FullRO.RO.asRO (List block) block dout
+/-- The module type `F.RO` (exception E3). -/
+abbrev RO_T := PROM.FullRO.RO_T (List block) block
 noncomputable abbrev LRO := PROM.FullRO.LRO (List block) block dout
 noncomputable abbrev FRO := PROM.FullRO.FRO (List block) block dout
 abbrev RO_Distinguisher := PROM.FullRO.RO_Distinguisher (List block) block Unit Bool

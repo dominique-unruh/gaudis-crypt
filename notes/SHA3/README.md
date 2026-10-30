@@ -143,7 +143,7 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol` and `Gext` are done (2026-10-31).
+   `Handle`, `Gcol`, `Gext` and `Gconcl` are done (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

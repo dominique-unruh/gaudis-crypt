@@ -481,21 +481,21 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCry
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 9 | module | `IF` |  | `IF` | — |
-| 14 | module | `S` |  | `S` | — |
-| 67 | declare module | `D` | section . | `D` | — |
-| 68 | local clone import | `Gext` | section . | `Gext` | — |
-| 71 | local module | `G3` | section . | `G3` | — |
-| 73 | module | `M` | section . | `M` | — |
-| 104 | module | `S` | section . | `S` | — |
-| 206 | local equiv | `G2_G3` | section . | `G2_G3` | — |
-| 253 | local module | `G4` | section . | `G4` | — |
-| 255 | module | `C` | section . | `C` | — |
-| 270 | module | `S` | section . | `S` | — |
-| 326 | local equiv | `G3_G4` | section . | `G3_G4` | — |
-| 350 | local equiv | `G4_Ideal` | section . | `G4_Ideal` | — |
-| 363 | declare axiom | `D_ll` | section . | `D_ll` | — |
-| 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` | — |
+| 9 | module | `IF` |  | `IF` (definition, `T.mk`) | def |
+| 14 | module | `S` |  | `S` | def |
+| 67 | declare module | `D` | section . | `D` (section variable) | def |
+| 68 | local clone import | `Gext` | section . | `open Gext` | def |
+| 71 | local module | `G3` | section . | `G3.M`, `G3.S` (functors of `RO`), `G3` (`D` a Lean parameter) | def |
+| 73 | module | `M` | section . | `G3.M` | def |
+| 104 | module | `S` | section . | `G3.S` | def |
+| 206 | local equiv | `G2_G3` | section . | `G2_G3` | stated |
+| 253 | local module | `G4` | section . | `G4.C`, `G4.S` (functors of `RO`), `G4` (`D` a Lean parameter) | def |
+| 255 | module | `C` | section . | `G4.C` | def |
+| 270 | module | `S` | section . | `G4.S` | def |
+| 326 | local equiv | `G3_G4` | section . | `G3_G4` | stated |
+| 350 | local equiv | `G4_Ideal` | section . | `G4_Ideal` | stated |
+| 363 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
+| 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` | stated |
 
 ## `proof/BlockSponge.ec`
 
