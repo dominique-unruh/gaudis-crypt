@@ -152,3 +152,4 @@ tried.
 * `Strong_RP_RF.lean` contains `ARP`, `DBounder` (with `DBounder.FBounder`), the `PRPi` clone, and
   `Conclusion` (stated).  `PRP.lean` gains `StrongPRP.IND`.  `FMap.rng` gets a classical
   `Decidable` instance.
+* `PROM.lean` gains `FullEager.Eager` (`main1`, `main2`) and `Eager_1_2` (stated), for `Gext`.

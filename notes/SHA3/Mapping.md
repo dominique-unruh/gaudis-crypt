@@ -422,20 +422,20 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace `GaudisCrypt
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 9 | clone export | `Handle` |  | `Handle` | — |
-| 14 | lemma | `c_gt0r` |  | `c_gt0r` | — |
-| 17 | lemma | `c_ge0r` |  | `c_ge0r` | — |
-| 20 | lemma | `eps_ge0` |  | `eps_ge0` | — |
-| 27 | declare module | `D` | section PROOF. | `D` | — |
-| 29 | declare axiom | `D_ll` | section PROOF. | `D_ll` | — |
-| 33 | local module | `Gcol` | section PROOF. | `Gcol` | — |
-| 49 | module | `M` | section PROOF. | `M` | — |
-| 78 | module | `S` | section PROOF. | `S` | — |
-| 181 | lemma | `card_rng_set` | section PROOF. | `card_rng_set` | — |
-| 190 | lemma | `hinv_image` | section PROOF. | `hinv_image` | — |
-| 199 | local lemma | `Pr_col` | section PROOF. | `Pr_col` | — |
-| 220 | local equiv | `G1_col` | section PROOF. | `G1_col` | — |
-| 348 | lemma | `Pr_G1col` | section PROOF. | `Pr_G1col` | — |
+| 9 | clone export | `Handle` |  | `open Handle` | def |
+| 14 | lemma | `c_gt0r` |  | `c_gt0r` | stated |
+| 17 | lemma | `c_ge0r` |  | `c_ge0r` | stated |
+| 20 | lemma | `eps_ge0` |  | `eps_ge0` | stated |
+| 27 | declare module | `D` | section PROOF. | `D` (section variable) | def |
+| 29 | declare axiom | `D_ll` | section PROOF. | `D_ll` (hypothesis) | def |
+| 33 | local module | `Gcol` | section PROOF. | `Gcol.sample_c`, `Gcol.M`, `Gcol.S` (modules), `Gcol` (`D` a Lean parameter) | def |
+| 49 | module | `M` | section PROOF. | `Gcol.M` | def |
+| 78 | module | `S` | section PROOF. | `Gcol.S` | def |
+| 181 | lemma | `card_rng_set` | section PROOF. | `card_rng_set` | stated |
+| 190 | lemma | `hinv_image` | section PROOF. | `hinv_image` | stated |
+| 199 | local lemma | `Pr_col` | section PROOF. | `Pr_col` | stated |
+| 220 | local equiv | `G1_col` | section PROOF. | `G1_col` | stated |
+| 348 | lemma | `Pr_G1col` | section PROOF. | `Pr_G1col` | stated |
 
 ## `proof/smart_counter/Gext.eca`
 
@@ -443,37 +443,37 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 9 | clone export | `Gcol` |  | `Gcol` | — |
-| 11 | op | `bad_ext` |  | `bad_ext` | — |
-| 15 | op | `hinvc` |  | `hinvc` | — |
-| 18 | module | `G2` |  | `G2` | — |
-| 20 | module | `M` |  | `M` | — |
-| 48 | module | `S` |  | `S` | — |
-| 156 | clone include | `EagerCore` |  | `EagerCore` | — |
-| 160 | declare module | `D` | section . | `D` | — |
-| 162 | op | `inv_ext` | section . | `inv_ext` | — |
-| 165 | op | `inv_ext1` | section . | `inv_ext1` | — |
-| 168 | lemma | `rng_restr` | section . | `rng_restr` | — |
-| 175 | equiv | `G1_G2` | section . | `G1_G2` | — |
-| 318 | declare module | `D` | section EXT. | `D` | — |
-| 320 | local module | `ReSample` | section EXT. | `ReSample` | — |
-| 345 | local module | `Gext` | section EXT. | `Gext` | — |
-| 351 | module | `M` | section EXT. | `M` | — |
-| 379 | module | `S` | section EXT. | `S` | — |
-| 492 | op | `inv_lt` | section EXT. | `inv_lt` | — |
-| 497 | op | `inv_le` | section EXT. | `inv_le` | — |
-| 502 | lemma | `fset0_eqP` | section EXT. | `fset0_eqP` | — |
-| 508 | lemma | `size_set` | section EXT. | `size_set` | — |
-| 518 | lemma | `size_set_le` | section EXT. | `size_set_le` | — |
-| 521 | lemma | `size_rem` | section EXT. | `size_rem` | — |
-| 529 | lemma | `size_rem_le` | section EXT. | `size_rem_le` | — |
-| 532 | lemma | `size_ge0` | section EXT. | `size_ge0` | — |
-| 535 | lemma | `size0` | section EXT. | `size0` | — |
-| 538 | local equiv | `RROset_inv_lt` | section EXT. | `RROset_inv_lt` | — |
-| 546 | local lemma | `Pr_ext` | section EXT. | `Pr_ext` | — |
-| 585 | local equiv | `EG2_Gext` | section EXT. | `EG2_Gext` | — |
-| 698 | declare axiom | `D_ll` | section EXT. | `D_ll` | — |
-| 702 | lemma | `Real_G2` | section EXT. | `Real_G2` | — |
+| 9 | clone export | `Gcol` |  | `open Gcol` | def |
+| 11 | op | `bad_ext` |  | `bad_ext` | def |
+| 15 | op | `hinvc` |  | `hinvc` | def |
+| 18 | module | `G2` |  | `G2.M`, `G2.S` (functors of `HS`), `G2` (`D` a Lean parameter) | def |
+| 20 | module | `M` |  | `G2.M` | def |
+| 48 | module | `S` |  | `G2.S` | def |
+| 156 | clone include | `EagerCore` |  | `Eager`, `RRO`, `RRO.resample` | def |
+| 160 | declare module | `D` | section . | `D` (section variable) | def |
+| 162 | op | `inv_ext` | section . | `inv_ext` | def |
+| 165 | op | `inv_ext1` | section . | `inv_ext1` | def |
+| 168 | lemma | `rng_restr` | section . | `rng_restr` | stated |
+| 175 | equiv | `G1_G2` | section . | `G1_G2` | stated |
+| 318 | declare module | `D` | section EXT. | `D` (section variable) | def |
+| 320 | local module | `ReSample` | section EXT. | `ReSample` | def |
+| 345 | local module | `Gext` | section EXT. | `Gext.resample`, `Gext.M`, `Gext.S` (modules), `Gext` (`D` a Lean parameter) | def |
+| 351 | module | `M` | section EXT. | `Gext.M` | def |
+| 379 | module | `S` | section EXT. | `Gext.S` | def |
+| 492 | op | `inv_lt` | section EXT. | `inv_lt` | def |
+| 497 | op | `inv_le` | section EXT. | `inv_le` | def |
+| 502 | lemma | `fset0_eqP` | section EXT. | `fset0_eqP` | stated |
+| 508 | lemma | `size_set` | section EXT. | `size_set` | stated |
+| 518 | lemma | `size_set_le` | section EXT. | `size_set_le` | stated |
+| 521 | lemma | `size_rem` | section EXT. | `size_rem` | stated |
+| 529 | lemma | `size_rem_le` | section EXT. | `size_rem_le` | stated |
+| 532 | lemma | `size_ge0` | section EXT. | `size_ge0` | stated |
+| 535 | lemma | `size0` | section EXT. | `size0` | stated |
+| 538 | local equiv | `RROset_inv_lt` | section EXT. | `RROset_inv_lt` | stated |
+| 546 | local lemma | `Pr_ext` | section EXT. | `Pr_ext` | stated |
+| 585 | local equiv | `EG2_Gext` | section EXT. | `EG2_Gext` | stated |
+| 698 | declare axiom | `D_ll` | section EXT. | `D_ll` (hypothesis) | def |
+| 702 | lemma | `Real_G2` | section EXT. | `Real_G2` | stated |
 
 ## `proof/smart_counter/Gconcl.ec`
 

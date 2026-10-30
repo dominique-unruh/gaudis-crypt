@@ -260,7 +260,7 @@ end RRO
 section RO_LRO_D
 
 variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
-  (dout : in_t → SubProbability out_t)
+  [Inhabited d_in_t] [Inhabited d_out_t] (dout : in_t → SubProbability out_t)
 
 /-- EC's `FullEager.RO_LRO_D`, for `declare module D <: RO_Distinguisher {-RO, -FRO}` and
 `axiom dout_ll x : is_lossless (dout x)`:
@@ -278,6 +278,41 @@ theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
       (Module.app D (RO.asRO in_t out_t dout)).procedure
       (Module.app D (LRO in_t out_t dout)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
+  sorry
+
+-- EC's `FullEager.EagerCore.Eager (D : FRO_Distinguisher)`, with `D` a Lean parameter
+set_option linter.gaudisCrypt.using false in
+module Eager (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) {
+  proc main1 (x : d_in_t) : d_out_t {
+    var b : d_out_t;
+    _ <- call (FRO_T.init in_t out_t (FRO in_t out_t dout)) ();
+    b <- call (Module.app D (FRO in_t out_t dout)) ($x);
+    return $b
+  };
+  proc main2 (x : d_in_t) : d_out_t {
+    var b : d_out_t;
+    _ <- call (FRO_T.init in_t out_t (FRO in_t out_t dout)) ();
+    b <- call (Module.app D (RRO in_t out_t dout)) ($x);
+    _ <- call (RRO.own.resample in_t out_t dout) ();
+    return $b
+  };
+}
+
+/-- EC's `FullEager.EagerCore.Eager_1_2`, for `declare module D <: FRO_Distinguisher {-FRO}`:
+`equiv[ Eager(D).main1 ~ Eager(D).main2 : ={glob D, arg} ==> ={res, glob FRO, glob D} ]`. -/
+theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+    (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.Representable D (holes := .cons (procsig (in_t) -> out_t) .empty)
+      fun G => (FRO_T.get in_t out_t G).procedure)
+    (hdisj : FVP.fvP D ≤ ((FRO.m (in_t := in_t) (out_t := out_t)).footprint)ᶜ) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
+      (Eager.main1 in_t out_t d_in_t d_out_t dout D).procedure
+      (Eager.main2 in_t out_t d_in_t d_out_t dout D).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        (FRO.m (in_t := in_t) (out_t := out_t)).get g₁ = FRO.m.get g₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
   sorry
 
