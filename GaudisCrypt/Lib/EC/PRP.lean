@@ -11,6 +11,9 @@ The abstract type `D` and the operator `dD` are Lean parameters, so EasyCrypt's
 `StrongPRP` and `RP` are namespaces.  Only what ported developments use is here (`WeakPRP` is not).
 -/
 
+-- EasyCrypt names a module after its theory (`RP.RP`, `IRO.IRO`); kept (exception E1)
+set_option linter.dupNamespace false
+
 namespace GaudisCrypt.EC.PRP
 
 open GaudisCrypt GaudisCrypt.EC

@@ -16,6 +16,8 @@ here.  Names are EasyCrypt's, with function names for its mixfix operators:
 | `fdom m`, `frng m` | `FMap.fdom m`, `FMap.frng m` |
 | `restr f m` | `FMap.restr f m` |
 | `find p m` | `FMap.find p m` |
+| `map f m` | `FMap.map f m` |
+| `in_dom_with m x f` | `FMap.in_dom_with m x f` |
 -/
 
 namespace GaudisCrypt.EC
@@ -70,6 +72,21 @@ noncomputable def restr {φ : Type*} [DecidableEq φ] (f : φ) (m : FMap α (β 
   m.keys.toList.foldl (fun acc x => match m.lookup x with
     | some (y, f') => if f' = f then acc.insert x y else acc
     | none => acc) ∅
+
+/-- `map f m`: `m` with each binding `x ↦ y` replaced by `x ↦ f x y`. -/
+noncomputable def map {γ : Type*} (f : α → β → γ) (m : FMap α β) : FMap α γ :=
+  m.keys.toList.foldl (fun acc x => match m.lookup x with
+    | some y => acc.insert x (f x y)
+    | none => acc) ∅
+
+/-- `in_dom_with m x f`: `x` is bound in `m`, with tag `f`. -/
+def in_dom_with {φ : Type*} [Inhabited β] [Inhabited φ] (m : FMap α (β × φ)) (x : α) (f : φ) :
+    Prop :=
+  dom m x ∧ ((get m x).getD default).2 = f
+
+instance {φ : Type*} [Inhabited β] [Inhabited φ] [DecidableEq φ] (m : FMap α (β × φ)) (x : α)
+    (f : φ) : Decidable (in_dom_with m x f) :=
+  inferInstanceAs (Decidable (dom m x ∧ _))
 
 end FMap
 

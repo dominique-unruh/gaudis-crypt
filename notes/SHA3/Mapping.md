@@ -333,88 +333,88 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 10 | clone export | `PROM.FullRO` |  | `PROM.FullRO` | — |
-| 18 | clone export | `ConcreteF` |  | `ConcreteF` | — |
-| 20 | module | `G1` |  | `G1` | — |
-| 27 | module | `M` |  | `M` | — |
-| 58 | module | `S` |  | `S` | — |
-| 179 | inductive | `m_mh` |  | `m_mh` | — |
-| 195 | inductive | `m_p` |  | `m_p` | — |
-| 210 | inductive | `ro_p` |  | `ro_p` | — |
-| 214 | inductive | `mh_spec` |  | `mh_spec` | — |
-| 237 | inductive | `pi_spec` |  | `pi_spec` | — |
-| 245 | inductive | `hs_spec` |  | `hs_spec` | — |
-| 251 | inductive | `inv_spec` |  | `inv_spec` | — |
-| 255 | inductive | `INV_CF_G1` |  | `INV_CF_G1` | — |
-| 272 | lemma | `m_mh_of_INV` |  | `m_mh_of_INV` | — |
-| 281 | lemma | `mi_mhi_of_INV` |  | `mi_mhi_of_INV` | — |
-| 290 | lemma | `incl_of_INV` |  | `incl_of_INV` | — |
-| 299 | lemma | `incli_of_INV` |  | `incli_of_INV` | — |
-| 308 | lemma | `mh_of_INV` |  | `mh_of_INV` | — |
-| 316 | lemma | `pi_of_INV` |  | `pi_of_INV` | — |
-| 324 | lemma | `hs_of_INV` |  | `hs_of_INV` | — |
-| 332 | lemma | `inv_of_INV` |  | `inv_of_INV` | — |
-| 338 | lemma | `invG_of_INV` |  | `invG_of_INV` | — |
-| 348 | lemma | `m_p_of_INV` |  | `m_p_of_INV` | — |
-| 353 | lemma | `all_prefixes_of_m_p` |  | `all_prefixes_of_m_p` | — |
-| 364 | lemma | `all_prefixes_of_INV` |  | `all_prefixes_of_INV` | — |
-| 375 | lemma | `ch_gt0` |  | `ch_gt0` | — |
-| 378 | lemma | `ch_neq0` |  | `ch_neq0` | — |
-| 381 | lemma | `ch_notdomE_hs` |  | `ch_notdomE_hs` | — |
-| 386 | lemma | `Sch_notdomE_hs` |  | `Sch_notdomE_hs` | — |
-| 391 | lemma | `ch_notdomE2_mh` |  | `ch_notdomE2_mh` | — |
-| 401 | lemma | `Sch_notdomE2_mh` |  | `Sch_notdomE2_mh` | — |
-| 411 | lemma | `dom_hs_neq_ch` |  | `dom_hs_neq_ch` | — |
-| 417 | lemma | `dom_hs_neq_Sch` |  | `dom_hs_neq_Sch` | — |
-| 423 | lemma | `notin_m_notin_mh` |  | `notin_m_notin_mh` | — |
-| 433 | lemma | `notin_m_notin_Gm` |  | `notin_m_notin_Gm` | — |
-| 439 | lemma | `notin_hs_notdomE2_mh` |  | `notin_hs_notdomE2_mh` | — |
-| 449 | lemma | `m_mh_addh` |  | `m_mh_addh` | — |
-| 465 | lemma | `m_mh_updh` |  | `m_mh_updh` | — |
-| 487 | lemma | `m_mh_addh_addm` |  | `m_mh_addh_addm` | — |
-| 508 | lemma | `mi_mhi_addh_addmi` |  | `mi_mhi_addh_addmi` | — |
-| 529 | lemma | `inv_mh_inv_Pm` |  | `inv_mh_inv_Pm` | — |
-| 544 | lemma | `inv_incl_none` |  | `inv_incl_none` | — |
-| 563 | lemma | `huniq_addh` |  | `huniq_addh` | — |
-| 576 | lemma | `hs_addh` |  | `hs_addh` | — |
-| 591 | lemma | `hs_updh` |  | `hs_updh` | — |
-| 610 | lemma | `mh_addh` |  | `mh_addh` | — |
-| 623 | lemma | `inv_addm` |  | `inv_addm` | — |
-| 637 | lemma | `incl_addm` |  | `incl_addm` | — |
-| 643 | op | `getflag` |  | `getflag` | — |
-| 646 | lemma | `getflagP_none` |  | `getflagP_none` | — |
-| 650 | lemma | `getflagP_some` |  | `getflagP_some` | — |
-| 666 | lemma | `build_hpath_prefix` |  | `build_hpath_prefix` | — |
-| 676 | lemma | `build_hpath_up` |  | `build_hpath_up` | — |
-| 688 | lemma | `build_hpath_down` |  | `build_hpath_down` | — |
-| 702 | lemma | `known_path_uniq` |  | `known_path_uniq` | — |
-| 716 | lemma | `path_split` |  | `path_split` | — |
-| 742 | lemma | `lemma1` |  | `lemma1` | — |
-| 849 | lemma | `lemma1'` |  | `lemma1'` | — |
-| 955 | lemma | `lemma2` |  | `lemma2` | — |
-| 1053 | lemma | `lemma2'` |  | `lemma2'` | — |
-| 1165 | lemma | `lemma3` |  | `lemma3` | — |
-| 1247 | lemma | `m_mh_None` |  | `m_mh_None` | — |
-| 1257 | lemma | `build_hpath_None` |  | `build_hpath_None` | — |
-| 1261 | lemma | `build_hpath_upd_ch` |  | `build_hpath_upd_ch` | — |
-| 1282 | lemma | `build_hpath_up_None` |  | `build_hpath_up_None` | — |
-| 1309 | lemma | `build_hpath_upd_ch_iff` |  | `build_hpath_upd_ch_iff` | — |
-| 1326 | lemma | `lemma4` |  | `lemma4` | — |
-| 1349 | equiv | `eq_fi` |  | `eq_fi` | — |
-| 1488 | equiv | `eq_f` |  | `eq_f` | — |
-| 1815 | lemma | `head_nth` |  | `head_nth` | — |
-| 1818 | lemma | `drop_add` |  | `drop_add` | — |
-| 1824 | lemma | `behead_drop` |  | `behead_drop` | — |
-| 1827 | lemma | `incl_upd_nin` |  | `incl_upd_nin` | — |
-| 1836 | lemma | `lemma5` |  | `lemma5` | — |
-| 1863 | lemma | `lemma5'` |  | `lemma5'` | — |
-| 1895 | equiv | `PFf_Cf` |  | `PFf_Cf` | — |
-| 2589 | declare module | `D` | section AUX. | `D` | — |
-| 2591 | declare axiom | `D_ll` | section AUX. | `D_ll` | — |
-| 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` | — |
-| 2697 | declare module | `D` | section . | `D` | — |
-| 2699 | declare axiom | `D_ll` | section . | `D_ll` | — |
-| 2703 | lemma | `Real_G1` | section . | `Real_G1` | — |
+| 10 | clone export | `PROM.FullRO` |  | `ROhandle` (namespace), `FRO.m` | def |
+| 18 | clone export | `ConcreteF` |  | `open ConcreteF` | def |
+| 20 | module | `G1` |  | `G1.M`, `G1.S` (modules), `G1` (`D` a Lean parameter) | def |
+| 27 | module | `M` | module G1 | `G1.M` | def |
+| 58 | module | `S` | module G1 | `G1.S` | def |
+| 179 | inductive | `m_mh` |  | `m_mh` | def |
+| 195 | inductive | `m_p` |  | `m_p` | def |
+| 210 | inductive | `ro_p` |  | `ro_p` | def |
+| 214 | inductive | `mh_spec` |  | `mh_spec` | def |
+| 237 | inductive | `pi_spec` |  | `pi_spec` | def |
+| 245 | inductive | `hs_spec` |  | `hs_spec` | def |
+| 251 | inductive | `inv_spec` |  | `inv_spec` | def |
+| 255 | inductive | `INV_CF_G1` |  | `INV_CF_G1` | def |
+| 272 | lemma | `m_mh_of_INV` |  | `m_mh_of_INV` | stated |
+| 281 | lemma | `mi_mhi_of_INV` |  | `mi_mhi_of_INV` | stated |
+| 290 | lemma | `incl_of_INV` |  | `incl_of_INV` | stated |
+| 299 | lemma | `incli_of_INV` |  | `incli_of_INV` | stated |
+| 308 | lemma | `mh_of_INV` |  | `mh_of_INV` | stated |
+| 316 | lemma | `pi_of_INV` |  | `pi_of_INV` | stated |
+| 324 | lemma | `hs_of_INV` |  | `hs_of_INV` | stated |
+| 332 | lemma | `inv_of_INV` |  | `inv_of_INV` | stated |
+| 338 | lemma | `invG_of_INV` |  | `invG_of_INV` | stated |
+| 348 | lemma | `m_p_of_INV` |  | `m_p_of_INV` | stated |
+| 353 | lemma | `all_prefixes_of_m_p` |  | `all_prefixes_of_m_p` | stated |
+| 364 | lemma | `all_prefixes_of_INV` |  | `all_prefixes_of_INV` | stated |
+| 375 | lemma | `ch_gt0` |  | `ch_gt0` | stated |
+| 378 | lemma | `ch_neq0` |  | `ch_neq0` | stated |
+| 381 | lemma | `ch_notdomE_hs` |  | `ch_notdomE_hs` | stated |
+| 386 | lemma | `Sch_notdomE_hs` |  | `Sch_notdomE_hs` | stated |
+| 391 | lemma | `ch_notdomE2_mh` |  | `ch_notdomE2_mh` | stated |
+| 401 | lemma | `Sch_notdomE2_mh` |  | `Sch_notdomE2_mh` | stated |
+| 411 | lemma | `dom_hs_neq_ch` |  | `dom_hs_neq_ch` | stated |
+| 417 | lemma | `dom_hs_neq_Sch` |  | `dom_hs_neq_Sch` | stated |
+| 423 | lemma | `notin_m_notin_mh` |  | `notin_m_notin_mh` | stated |
+| 433 | lemma | `notin_m_notin_Gm` |  | `notin_m_notin_Gm` | stated |
+| 439 | lemma | `notin_hs_notdomE2_mh` |  | `notin_hs_notdomE2_mh` | stated |
+| 449 | lemma | `m_mh_addh` |  | `m_mh_addh` | stated |
+| 465 | lemma | `m_mh_updh` |  | `m_mh_updh` | stated |
+| 487 | lemma | `m_mh_addh_addm` |  | `m_mh_addh_addm` | stated |
+| 508 | lemma | `mi_mhi_addh_addmi` |  | `mi_mhi_addh_addmi` | stated |
+| 529 | lemma | `inv_mh_inv_Pm` |  | `inv_mh_inv_Pm` | stated |
+| 544 | lemma | `inv_incl_none` |  | `inv_incl_none` | stated |
+| 563 | lemma | `huniq_addh` |  | `huniq_addh` | stated |
+| 576 | lemma | `hs_addh` |  | `hs_addh` | stated |
+| 591 | lemma | `hs_updh` |  | `hs_updh` | stated |
+| 610 | lemma | `mh_addh` |  | `mh_addh` | stated |
+| 623 | lemma | `inv_addm` |  | `inv_addm` | stated |
+| 637 | lemma | `incl_addm` |  | `incl_addm` | stated |
+| 643 | op | `getflag` |  | `getflag` | def |
+| 646 | lemma | `getflagP_none` |  | `getflagP_none` | stated |
+| 650 | lemma | `getflagP_some` |  | `getflagP_some` | stated |
+| 666 | lemma | `build_hpath_prefix` |  | `build_hpath_prefix` | stated |
+| 676 | lemma | `build_hpath_up` |  | `build_hpath_up` | stated |
+| 688 | lemma | `build_hpath_down` |  | `build_hpath_down` | stated |
+| 702 | lemma | `known_path_uniq` |  | `known_path_uniq` | stated |
+| 716 | lemma | `path_split` |  | `path_split` | stated |
+| 742 | lemma | `lemma1` |  | `lemma1` | stated |
+| 849 | lemma | `lemma1'` |  | `lemma1'` | stated |
+| 955 | lemma | `lemma2` |  | `lemma2` | stated |
+| 1053 | lemma | `lemma2'` |  | `lemma2'` | stated |
+| 1165 | lemma | `lemma3` |  | `lemma3` | stated |
+| 1247 | lemma | `m_mh_None` |  | `m_mh_None` | stated |
+| 1257 | lemma | `build_hpath_None` |  | `build_hpath_None` | stated |
+| 1261 | lemma | `build_hpath_upd_ch` |  | `build_hpath_upd_ch` | stated |
+| 1282 | lemma | `build_hpath_up_None` |  | `build_hpath_up_None` | stated |
+| 1309 | lemma | `build_hpath_upd_ch_iff` |  | `build_hpath_upd_ch_iff` | stated |
+| 1326 | lemma | `lemma4` |  | `lemma4` | stated |
+| 1349 | equiv | `eq_fi` |  | `eq_fi` | stated |
+| 1488 | equiv | `eq_f` |  | `eq_f` | stated |
+| 1815 | lemma | `head_nth` |  | `head_nth` | stated |
+| 1818 | lemma | `drop_add` |  | `drop_add` | stated |
+| 1824 | lemma | `behead_drop` |  | `behead_drop` | stated |
+| 1827 | lemma | `incl_upd_nin` |  | `incl_upd_nin` | stated |
+| 1836 | lemma | `lemma5` |  | `lemma5` | stated |
+| 1863 | lemma | `lemma5'` |  | `lemma5'` | stated |
+| 1895 | equiv | `PFf_Cf` |  | `PFf_Cf` | stated |
+| 2589 | declare module | `D` | section AUX. | `D` (section variable) | def |
+| 2591 | declare axiom | `D_ll` | section AUX. | `D_ll` (hypothesis) | def |
+| 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` | stated |
+| 2697 | declare module | `D` | section . | `D` (section variable) | def |
+| 2699 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
+| 2703 | lemma | `Real_G1` | section . | `Real_G1` | stated |
 
 ## `proof/smart_counter/Gcol.eca`
 

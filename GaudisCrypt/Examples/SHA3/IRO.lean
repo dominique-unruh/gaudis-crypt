@@ -16,6 +16,9 @@ module type `IRO` and module `IRO` share a name; here the module type is `IRO_T`
 the port).
 -/
 
+-- EasyCrypt names a module after its theory (`RP.RP`, `IRO.IRO`); kept (exception E1)
+set_option linter.dupNamespace false
+
 namespace GaudisCrypt.SHA3.IRO
 
 open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.FSet

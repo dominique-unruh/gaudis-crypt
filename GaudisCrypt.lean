@@ -125,6 +125,7 @@ import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Examples.SHA3.IRO
 import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
+import GaudisCrypt.Examples.SHA3.SmartCounter.Handle
 import GaudisCrypt.Examples.SHA3.SmartCounter.SLCommon
 import GaudisCrypt.Examples.Pedersen.Binding
 import GaudisCrypt.Examples.Pedersen.Commitment

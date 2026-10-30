@@ -92,6 +92,7 @@ module DBounder.FBounder using (F : SPRP_Oracles D) : (SPRP_Oracles D) {
 
 -- EC's `DBounder(D : Distinguisher, F : SPRP_Oracles)`, with `D` a Lean parameter so that
 -- `DBounder Dist` is a `Distinguisher`
+set_option linter.gaudisCrypt.using false in
 module DBounder (Dist : Distinguisher D) using (F : SPRP_Oracles D) {
   proc distinguish () : Bool {
     var b : Bool;

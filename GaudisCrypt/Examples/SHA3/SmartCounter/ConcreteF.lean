@@ -106,6 +106,7 @@ theorem size_behead {α : Type} (l : List α) : l ≠ [] → size (behead l) = s
 
 -- `local module (D' : PRPSec.Distinguisher) (P' : PRPSec.SPRP_Oracles)`, with `D` a Lean
 -- parameter
+set_option linter.gaudisCrypt.using false in
 module D' (D : DISTINGUISHER) using (P' : Switching.PRPSec.SPRP_Oracles) {
   proc distinguish () : Bool {
     var b : Bool;

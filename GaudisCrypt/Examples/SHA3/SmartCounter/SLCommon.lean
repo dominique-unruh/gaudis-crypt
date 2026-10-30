@@ -80,6 +80,8 @@ noncomputable def bl_univ : FSet (List block) := bl_enum.toFinset
 namespace F
 noncomputable abbrev dout : List block → SubProbability block := fun _ => bdistr
 noncomputable abbrev RO := PROM.FullRO.RO (List block) block dout
+/-- `F.RO.m`. -/
+noncomputable abbrev RO.m := PROM.FullRO.RO.m (in_t := List block) (out_t := block)
 noncomputable abbrev LRO := PROM.FullRO.LRO (List block) block dout
 noncomputable abbrev FRO := PROM.FullRO.FRO (List block) block dout
 abbrev RO_Distinguisher := PROM.FullRO.RO_Distinguisher (List block) block Unit Bool
@@ -610,6 +612,7 @@ noncomputable def FRestr (F : FUNCTIONALITY) : FUNCTIONALITY :=
 
 -- EC's `DRestr(D : DISTINGUISHER, F : DFUNCTIONALITY, P : DPRIMITIVE)`, with `D` a Lean parameter
 -- so that `DRestr D` is a `DISTINGUISHER`
+set_option linter.gaudisCrypt.using false in
 module DRestr (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   proc distinguish () : Bool {
     var b : Bool;

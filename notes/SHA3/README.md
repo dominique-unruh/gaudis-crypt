@@ -100,6 +100,13 @@ Files in this directory:
   `PRIMITIVE` over `Common`'s, both via clones), a file states the winner with
   `export GaudisCrypt.SHA3.SLCommon (state PRIMITIVE)`.  `state` also needs it, against the RO
   library's root-level `state`.
+* **Inner modules** that do not depend on the functor's parameters (`G1(D).M`, `G1(D).S`) are
+  modules of their own (`G1.M`, `G1.S`).
+* **Clones of a theory without parameters** (`clone export ConcreteF as ConcreteF1`) are the
+  theory itself, opened.
+* **Repeated sub-expressions** of EasyCrypt statements, such as the instance of `INV_CF_G1`
+  between `CF` and `G1`, may be named once (`INV_CF_G1_12`, `eq_glob_C` in `Handle`).  Such a
+  definition is an abbreviation, documented as not being an EasyCrypt declaration.
 * **Views inside module bodies** are written out (`DFUNCTIONALITY.mk … { f := … }`): the `module`
   command's proofs cannot see through a helper such as `FUNCTIONALITY.view`.
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
@@ -135,8 +142,8 @@ Files in this directory:
      * `transitivity`, `islossless`, `exlim`.
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
-   `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon` and `ConcreteF` are
-   done (2026-10-31).
+   `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF` and
+   `Handle` are done (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).
