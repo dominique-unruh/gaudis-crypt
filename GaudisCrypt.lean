@@ -96,6 +96,7 @@ import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.Logic.PHoareWp
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PRHL
+import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.PRHLWp
