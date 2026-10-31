@@ -160,35 +160,119 @@ theorem StmtWithHoles.equivInLens_substHoles {h h' : HoleSigs}
       exact ProgramDenotation.EquivInLens.while_loop (ProgramDenotation.EquivInLens.get trafo c)
         (StmtWithHoles.equivInLens_substHoles q inst inst' hinst t)
 
+/-- A slot update on both sides of the renaming `ι`: slot `n` on the right, slot `ι n` on the
+left. -/
+theorem VariableAssignment.update_withName_rel (ι : String → String) (hι : ι.Injective)
+    {m m' : VariableAssignment} (hm : ∀ v : VariableName, m (v.withName (ι v.name)) = m' v)
+    (n : String) (T : Type) [Nonempty T] (a : T) (v : VariableName) :
+    (varLens (.mk (ι n) T)).set a m (v.withName (ι v.name)) =
+      (varLens (.mk n T)).set a m' v := by
+  classical
+  by_cases hv : v = .mk n T
+  · subst hv
+    show Function.update m (.mk (ι n) T) a (.mk (ι n) T) = Function.update m' (.mk n T) a (.mk n T)
+    rw [Function.update_self, Function.update_self]
+  · have hw : v.withName (ι v.name) ≠ .mk (ι n) T := by
+      intro h
+      apply hv
+      have hn : ι v.name = ι n := congrArg VariableName.name h
+      have ht : v.type = T := congrArg VariableName.type h
+      exact VariableName.ext' (hι hn) ht
+    simp only [varLens]
+    rw [Function.update_of_ne hw, Function.update_of_ne hv]
+    exact hm v
+
+/-- `setParams` commutes with renaming the slots by `ι`. -/
+theorem VariableAssignment.setParams_map_withName (ι : String → String) (hι : ι.Injective) :
+    ∀ (names : List String) (tys : List Type) (h : names.length = tys.length)
+      (h' : (names.map ι).length = tys.length) (args : typeListToTuple tys)
+      {m m' : VariableAssignment}, (∀ v : VariableName, m (v.withName (ι v.name)) = m' v) →
+      ∀ v : VariableName, VariableAssignment.setParams (names.map ι) tys h' args m
+          (v.withName (ι v.name)) = VariableAssignment.setParams names tys h args m' v
+  | [], [], _, _, _, _, _, hm, v => by simpa [VariableAssignment.setParams] using hm v
+  | [n], [T], _, _, a, _, _, hm, v => by
+      haveI : Nonempty T := ⟨a⟩
+      exact VariableAssignment.update_withName_rel ι hι hm n T a v
+  | n :: n' :: ns, T :: T' :: Ts, h, h', (a, as), _, _, hm, v => by
+      haveI : Nonempty T := ⟨a⟩
+      exact VariableAssignment.setParams_map_withName ι hι (n' :: ns) (T' :: Ts)
+        (by simpa using h) (by simpa using h') as
+        (VariableAssignment.update_withName_rel ι hι hm n T a) v
+  | [], _ :: _, h, _, _, _, _, _, _ => absurd h (by simp)
+  | _ :: _, [], h, _, _, _, _, _, _ => absurd h (by simp)
+  | [_], _ :: _ :: _, h, _, _, _, _, _, _ => absurd h (by simp)
+  | _ :: _ :: _, [_], h, _, _, _, _, _, _ => absurd h (by simp)
+
+open Flatten in
+/-- `trafo` sees the parameters written into the escaped slots in the original ones. -/
+theorem Flatten.trafo_get_entry_escape (names : List String) (tys : List Type)
+    (h : names.length = tys.length) (h' : (names.map escape).length = tys.length)
+    (args : typeListToTuple tys) (st : VariableAssignment) :
+    trafo.get ⟨st, VariableAssignment.setParams (names.map escape) tys h' args
+        VariableAssignment.init⟩ =
+      ⟨st, VariableAssignment.setParams names tys h args VariableAssignment.init⟩ := by
+  change (⟨st, fun v => VariableAssignment.setParams (names.map escape) tys h' args
+      VariableAssignment.init (v.withName (escape v.name))⟩ : ProgramState) = _
+  congr 1
+  funext v
+  exact VariableAssignment.setParams_map_withName escape escape_injective names tys h h' args
+    (fun _ => rfl) v
+
+/-- `procedureDenotation_congr` with the parameters renamed: the renaming `l` sees the entry state
+of `names'` as that of `names`. -/
+theorem Flatten.procedureDenotation_congr_rename {sig : ProcedureSignature}
+    (names names' : List String) (hlen : names.length = sig.params.length)
+    (hlen' : names'.length = sig.params.length) (hnodup : names.Nodup) (hnodup' : names'.Nodup)
+    (l : Lens ProgramState ProgramState) (b b' : Stmt) (r : Getter sig.ret ProgramState)
+    (hb : b.EquivInLens b' l)
+    (hinit : ∀ (st : VariableAssignment) (args : typeListToTuple sig.params),
+      l.get ⟨st, VariableAssignment.setParams names' sig.params hlen' args VariableAssignment.init⟩
+        = ⟨st, VariableAssignment.setParams names sig.params hlen args VariableAssignment.init⟩)
+    (hglobL : l.chain ProgramState.globalL = ProgramState.globalL) :
+    procedureDenotation (⟨names', hlen', hnodup', b', l.chainGetter r⟩ : Procedure sig)
+      = procedureDenotation (⟨names, hlen, hnodup, b, r⟩ : Procedure sig) := by
+  have hglob : ∀ τ, (l.get τ).globals = τ.globals := fun τ =>
+    congrArg (fun L : Lens VariableAssignment ProgramState => L.get τ) hglobL
+  funext argv st
+  let τ : ProgramState :=
+    ⟨st, VariableAssignment.setParams names' sig.params hlen' argv VariableAssignment.init⟩
+  have h := hb ⟨⟩ (l.get τ) τ rfl
+  rw [StmtWithHoles.instantiate_empty, StmtWithHoles.instantiate_empty, hinit] at h
+  change (programDenotation b' τ).hbind (fun p => Pure.pure (r.get (l.get p.2), p.2.globals))
+    = (programDenotation b ⟨st, VariableAssignment.setParams names sig.params hlen argv
+        VariableAssignment.init⟩).hbind (fun p => Pure.pure (r.get p.2, p.2.globals))
+  rw [← h, SubProbability.mapState_eq, SubProbability.bind_hbind]
+  congr 1; funext p
+  rw [SubProbability.pure_hbind, hglob]
+
 open Flatten in
 /-- A procedure with its holes substituted (`StmtWithHoles.substHoles`). -/
 noncomputable def ProcedureWithHoles.substHoles {h h' : HoleSigs} {sig : ProcedureSignature}
     (p : ProcedureWithHoles h sig)
     (q : ∀ {sig : ProcedureSignature}, HoleIndex h sig → ProcedureWithHoles h' sig) :
     ProcedureWithHoles h' sig :=
-  ⟨p.parameterNames, p.parameterNames_length, p.parameterNames_nodup, p.body.substHoles q,
+  ⟨p.parameterNames.map escape, by simp [p.parameterNames_length],
+    p.parameterNames_nodup.map escape_injective, p.body.substHoles q,
     trafo.chainGetter p.return_val⟩
 
 open Flatten in
 /-- **The substitution is sound for procedures**: `p` with its holes substituted by the `q n`,
-filled with `inst'`, computes what `p` filled with the `q n` filled with `inst'` computes.  The
-parameter names must not start with `@` (`escape` keeps them). -/
+filled with `inst'`, computes what `p` filled with the `q n` filled with `inst'` computes. -/
 theorem ProcedureWithHoles.procedureDenotation_substHoles {h h' : HoleSigs}
     {sig : ProcedureSignature} (p : ProcedureWithHoles h sig)
     (q : ∀ {sig : ProcedureSignature}, HoleIndex h sig → ProcedureWithHoles h' sig)
     (inst : h.Instantiation) (inst' : h'.Instantiation)
     (hinst : ∀ {sig : ProcedureSignature} (n : HoleIndex h sig),
-      inst.lookup n = (q n).instantiate inst')
-    (hfix : ∀ n ∈ p.parameterNames, escape n = n) :
+      inst.lookup n = (q n).instantiate inst') :
     procedureDenotation ((p.substHoles q).instantiate inst') =
       procedureDenotation (p.instantiate inst) := by
   have hb : StmtWithHoles.EquivInLens (hCtx := .empty) (p.body.instantiate inst)
       ((p.body.substHoles q).instantiate inst') trafo := fun i => by
     rw [StmtWithHoles.instantiate_empty, StmtWithHoles.instantiate_empty]
     exact StmtWithHoles.equivInLens_substHoles q inst inst' hinst p.body
-  exact procedureDenotation_congr p.parameterNames p.parameterNames_length
-    p.parameterNames_nodup trafo _ _ p.return_val hb
-    (fixesEntry_trafo _ _ _ hfix) trafo_chain_globalL
+  exact procedureDenotation_congr_rename p.parameterNames _ p.parameterNames_length _
+    p.parameterNames_nodup _ trafo _ _ p.return_val hb
+    (fun st args => trafo_get_entry_escape _ _ _ _ args st) trafo_chain_globalL
 
 /-- First-order module types: products of procedures (and `unit`), no functors. -/
 def ModuleTypeRep.FirstOrder : ModuleTypeRep → Prop
