@@ -126,6 +126,7 @@ import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Examples.SHA3.IRO
+import GaudisCrypt.Examples.SHA3.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.SHA3Indiff
 import GaudisCrypt.Examples.SHA3.SHA3_OIndiff

@@ -888,39 +888,39 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 5 | type | `block.` |  | `block.` | — |
-| 6 | type | `f_in.` |  | `f_in.` | — |
-| 7 | type | `f_out.` |  | `f_out.` | — |
-| 9 | op | `sampleto` |  | `sampleto` | — |
-| 10 | axiom | `sampleto_ll` |  | `sampleto_ll` | — |
-| 11 | axiom | `sampleto_fu` |  | `sampleto_fu` | — |
-| 12 | axiom | `sampleto_full` |  | `sampleto_full` | — |
-| 14 | op | `limit` |  | `limit` | — |
-| 15 | axiom | `limit_gt0` |  | `limit_gt0` | — |
-| 17 | op | `bound` |  | `bound` | — |
-| 20 | op | `bound_counter` |  | `bound_counter` | — |
-| 21 | axiom | `bound_counter_ge0` |  | `bound_counter_ge0` | — |
-| 23 | op | `increase_counter` |  | `increase_counter` | — |
-| 24 | axiom | `increase_counter_spec` |  | `increase_counter_spec` | — |
-| 27 | clone import | `SecureRO` |  | `SecureRO` | — |
-| 40 | clone import | `Indifferentiability` |  | `Indifferentiability` | — |
-| 45 | module | `RO` |  | `RO` | — |
-| 50 | module | `FInit` |  | `FInit` | — |
-| 59 | module | `GetF` |  | `GetF` | — |
-| 64 | module | `SInit` |  | `SInit` | — |
-| 75 | module | `FM` |  | `FM` | — |
-| 88 | module | `DColl` |  | `DColl` | — |
-| 94 | declare module | `A` | section Collision. | `A` | — |
-| 96 | declare axiom | `D_ll` | section Collision. | `D_ll` | — |
-| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` | — |
-| 128 | module | `DPre` |  | `DPre` | — |
-| 139 | declare module | `A` | section Preimage. | `A` | — |
-| 141 | declare axiom | `D_ll` | section Preimage. | `D_ll` | — |
-| 144 | lemma | `preimage_resistant_if_indifferentiable` | section Preimage. | `preimage_resistant_if_indifferentiable` | — |
-| 174 | module | `D2Pre` |  | `D2Pre` | — |
-| 185 | declare module | `A` | section SecondPreimage. | `A` | — |
-| 187 | declare axiom | `D_ll` | section SecondPreimage. | `D_ll` | — |
-| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | — |
+| 5 | type | `block` |  | `block` (section variable) | def |
+| 6 | type | `f_in` |  | `f_in` (section variable) | def |
+| 7 | type | `f_out` |  | `f_out` (section variable) | def |
+| 9 | op | `sampleto` |  | `sampleto` (section variable) | def |
+| 10 | axiom | `sampleto_ll` |  | `Axioms.sampleto_ll` | def |
+| 11 | axiom | `sampleto_fu` |  | `Axioms.sampleto_fu` | def |
+| 12 | axiom | `sampleto_full` |  | `Axioms.sampleto_full` | def |
+| 14 | op | `limit` |  | `limit` (section variable) | def |
+| 15 | axiom | `limit_gt0` |  | `Axioms.limit_gt0` | def |
+| 17 | op | `bound` |  | `bound` (section variable) | def |
+| 20 | op | `bound_counter` |  | `bound_counter` (section variable) | def |
+| 21 | axiom | `bound_counter_ge0` |  | `Axioms.bound_counter_ge0` | def |
+| 23 | op | `increase_counter` |  | `increase_counter` (section variable) | def |
+| 24 | axiom | `increase_counter_spec` |  | `Axioms.increase_counter_spec` | def |
+| 27 | clone import | `SecureRO` |  | `SRO` (namespace of abbreviations; variables are lens parameters `SRO_RO_m` …) | def |
+| 40 | clone import | `Indifferentiability` |  | `Indifferentiability` at `block f_in f_out` (opened) | def |
+| 45 | module | `RO` |  | `RO` (Lean definition of the aliases) | def |
+| 50 | module | `FInit` |  | `FInit` (untyped; aliases call-wrapped, E5; `.asRF`, `.asRO`) | def |
+| 59 | module | `GetF` |  | `GetF` (aliases call-wrapped, E5) | def |
+| 64 | module | `SInit` |  | `SInit` (aliases call-wrapped, E5) | def |
+| 75 | module | `FM` |  | `FM` (untyped; aliases call-wrapped, E5; `.asRF`, `.asRO`) | def |
+| 88 | module | `DColl` |  | `DColl` (`A` a Lean parameter; alias call-wrapped, E5) | def |
+| 94 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 96 | declare axiom | `D_ll` | section Collision. | `D_ll` (hypothesis `_D_ll`) | def |
+| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` | stated |
+| 128 | module | `DPre` |  | `DPre` (`A` a Lean parameter; variable: lens `DPre_h`) | def |
+| 139 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 141 | declare axiom | `D_ll` | section Preimage. | `D_ll` (hypothesis `_D_ll`) | def |
+| 144 | lemma | `preimage_resistant_if_indifferentiable` | section Preimage. | `preimage_resistant_if_indifferentiable` | stated |
+| 174 | module | `D2Pre` |  | `D2Pre` (`A` a Lean parameter; variable: lens `D2Pre_m2`) | def |
+| 185 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 187 | declare axiom | `D_ll` | section SecondPreimage. | `D_ll` (hypothesis `_D_ll`) | def |
+| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | stated |
 
 ## `proof/SHA3Security.ec`
 
