@@ -291,6 +291,72 @@ theorem prhlStmt_seq_sample_right {α : Type} {x : Setter α ProgramState}
   have h' := (prhlStmt_seq_sample_left (B := fun σ₂ σ₁ => B σ₁ σ₂) h.symm)
   exact h'.symm
 
+/-- A loop terminates with probability `1` from the states of an invariant `I` under which its
+body is lossless and strictly decreases a variant `V` (EC's `while{i} I V`, the termination half). -/
+theorem Stmt.ewp_while_eq_one {c : Getter Bool ProgramState} {body : Stmt}
+    (I : ProgramState → Prop) (V : ProgramState → ℕ)
+    (hll : ∀ σ, I σ → c.get σ = true → body.ewp (fun _ => 1) σ = 1)
+    (hvar : ∀ k, hoareStmt (fun σ => I σ ∧ c.get σ = true ∧ V σ = k) body
+      (fun τ => I τ ∧ V τ < k))
+    (σ : ProgramState) (hI : I σ) :
+    Stmt.ewp (StmtWithHoles.while c body) (fun _ => 1) σ = 1 := by
+  refine le_antisymm (Stmt.ewp_const_le _ _ _) ?_
+  induction hn : V σ using Nat.strong_induction_on generalizing σ with
+  | _ n ih =>
+  rw [Stmt.ewp_while_unfold]
+  cases hc : c.get σ
+  · simp
+  · simp only [if_true]
+    have hv : hoareStmt (fun τ => τ = σ) body (fun τ => I τ ∧ V τ < n) :=
+      hoare_pre (hvar n) fun τ hτ => hτ ▸ ⟨hI, hc, hn⟩
+    calc (1 : ENNReal) = body.ewp (fun _ => 1) σ := (hll σ hI hc).symm
+      _ ≤ _ := Stmt.ewp_mono_of_hoare hv fun τ hτ => ih (V τ) hτ.2 τ hτ.1 rfl
+
+/-- What a Hoare triple guarantees holds on every outcome. -/
+theorem hoareStmt.satisfies {A B : ProgramState → Prop} {s : Stmt} (h : hoareStmt A s B)
+    {σ : ProgramState} (hA : A σ) : (programDenotation s σ).satisfies fun u => B u.2 := by
+  intro u hu
+  by_contra hB
+  have h0 := SubProbability.ofEvent_eq_zero_of_subset (Set.singleton_subset_iff.mpr hB) (h σ hA)
+  have hfin : (programDenotation s σ).1 {u} ≠ ⊤ :=
+    (((MeasureTheory.measure_mono (Set.subset_univ _)).trans (programDenotation s σ).2.1).trans_lt
+      ENNReal.one_lt_top).ne
+  rw [SubProbability.ofEvent, ENNReal.toNNReal_eq_zero_iff] at h0
+  exact hu (h0.resolve_right hfin)
+
+/-- **A loop on the right only** (EC's `while{2} I V` for a trailing loop): from where the code
+before it establishes `I` (for the left state as it ends), the loop terminates (its body lossless
+and decreasing the variant `V` under `I`; both may depend on the left state), keeps `I`, and `I` with the failed test gives `B`. -/
+theorem prhlStmt_seq_while_right {A B : ProgramState → ProgramState → Prop} {s₁ s₂ body : Stmt}
+    {c : Getter Bool ProgramState} (I : ProgramState → ProgramState → Prop)
+    (V : ProgramState → ProgramState → ℕ)
+    (hll : ∀ σ₁ σ, I σ₁ σ → c.get σ = true → body.ewp (fun _ => 1) σ = 1)
+    (hvar : ∀ σ₁ k, hoareStmt (fun σ => I σ₁ σ ∧ c.get σ = true ∧ V σ₁ σ = k) body
+      (fun τ => I σ₁ τ ∧ V σ₁ τ < k))
+    (hexit : ∀ σ₁ σ, I σ₁ σ → c.get σ = false → B σ₁ σ)
+    (h : prhlStmt A s₁ s₂ I) :
+    prhlStmt A s₁ (.seq s₂ (.while c body)) B := by
+  refine prhlStmt_seq_right (prhlStmt_post h fun σ₁ σ₂ hI => ⟨?_, ?_⟩)
+  · exact Stmt.ewp_while_eq_one (I σ₁) (V σ₁) (hll σ₁) (hvar σ₁) σ₂ hI
+  · have hloop : hoareStmt (I σ₁) (.while c body) (B σ₁) :=
+      hoare_while (I σ₁)
+        (fun σ hσ => hoare_post (hvar σ₁ (V σ₁ σ)) (fun τ hτ => hτ.1) σ ⟨hσ.1, hσ.2, rfl⟩)
+        (hexit σ₁)
+    exact hoareStmt.satisfies hloop hI
+
+/-- **A loop on the left only** (EC's `while{1} I V`): `prhlStmt_seq_while_right`, mirrored. -/
+theorem prhlStmt_seq_while_left {A B : ProgramState → ProgramState → Prop} {s₁ s₂ body : Stmt}
+    {c : Getter Bool ProgramState} (I : ProgramState → ProgramState → Prop)
+    (V : ProgramState → ProgramState → ℕ)
+    (hll : ∀ σ₂ σ, I σ σ₂ → c.get σ = true → body.ewp (fun _ => 1) σ = 1)
+    (hvar : ∀ σ₂ k, hoareStmt (fun σ => I σ σ₂ ∧ c.get σ = true ∧ V σ σ₂ = k) body
+      (fun τ => I τ σ₂ ∧ V τ σ₂ < k))
+    (hexit : ∀ σ₂ σ, I σ σ₂ → c.get σ = false → B σ σ₂)
+    (h : prhlStmt A s₁ s₂ I) :
+    prhlStmt A (.seq s₁ (.while c body)) s₂ B :=
+  (prhlStmt_seq_while_right (A := fun σ₂ σ₁ => A σ₁ σ₂) (B := fun σ₂ σ₁ => B σ₁ σ₂)
+    (fun σ₂ σ₁ => I σ₁ σ₂) (fun σ₂ σ₁ => V σ₁ σ₂) hll hvar hexit h.symm).symm
+
 end OneSided
 
 /-! ## Two-sided sampling (EC's `rnd f`) -/

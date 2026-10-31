@@ -403,3 +403,20 @@ the state and spell the expectation out with the `Stmt.ewp_*` equations (samplin
 `expected`, conditionals `if`s, also those with a sampling inside, which `phoare_wp` refuses),
 then `simp_reads`.  Replaces the hand-written sequence in `SecureRO` (`Bounder_RO_get_potential`,
 `Collision2_le`); test in `PRHLWpTest.lean` (`CondFlip`).
+
+## 2026-11-01: one-sided loops (EC's `while{i} I V`), pilot 2's `HIRO` lemmas
+
+* `prhlStmt_seq_while_right`/`_left` (`Logic/PRHLStmt.lean`): a loop on one side only, with an
+  invariant `I` and a variant `V : ℕ`, both relations (they may mention the other side's state,
+  which the loop does not change).  Premises: the body is lossless under `I` and the guard, it keeps
+  `I` and decreases `V` (a Hoare triple for each state of the other side and each value of `V`),
+  and `I` with a false guard gives the postcondition.  On the way: `Stmt.ewp_while_eq_one` (a
+  terminating, lossless-bodied loop is lossless) and `hoareStmt.satisfies`.
+* `equiv_while{i} I V` (`Logic/PRHLWp.lean`): the rule as a tactic; goals `lossless`, `variant`,
+  `exit`, then the code before the loop with postcondition `I`.
+* Difference to EC: EC's `while{i}` folds the part of the relation the loop does not touch into the
+  precondition of the preceding code (`while{2} (true) …` in `HybridIROLazy_HIRO_LRO_f`); here the
+  invariant carries it.  Likewise the synchronized `equiv_while` does not frame, so the invariants
+  of `HIRO_RO_HybridIROEager_f` list `bs` resp. `m`, which EC's leave out.
+* `HybridIROLazy_HIRO_LRO_f`, `HIRO_RO_HybridIROEager_f` and the two `init` lemmas are proven with
+  them, EC's tactic scripts step for step.

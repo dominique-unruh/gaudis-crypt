@@ -417,7 +417,11 @@ theorem HybridIROLazy_HIRO_LRO_init :
       (HybridIROLazy.init HybridIROLazy_mp).procedure
       (Module.app HIRO.init (ERO.LRO ERO_RO_m)).procedure
       (fun _ g₁ _ g₂ => HybridIROLazy_mp.get g₁ = ERO_RO_m.get g₂) := by
-  sorry
+  -- EC: `proc; inline*; auto`
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  equiv_sim
 
 /-- `local lemma HybridIROLazy_fill_in_LRO_get : equiv[HybridIROLazy.fill_in ~ LRO.get :
 (xs, i){1} = x{2} /\ HybridIROLazy.mp{1} = ERO.RO.m{2} ==>
@@ -459,7 +463,53 @@ theorem HybridIROLazy_HIRO_LRO_f :
       (HybridIROLazy.f HybridIROLazy_mp).procedure
       (Module.app HIRO.f (ERO.LRO ERO_RO_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HybridIROLazy_mp.get g₁ = ERO_RO_m.get g₂) := by
-  sorry
+  -- EC: `proc; inline LRO.sample; sp; if => //`
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 1
+  stmt_wp
+  equiv_seq 1 1 : (={xs0, n0, i, bs} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
+  · equiv_sim
+    rintro _ _ _ _ _ _ ⟨h, rfl⟩
+    exact ⟨Prod.mk.inj h, rfl⟩
+  · equiv_if
+    case «then» =>
+      -- EC: `while{2} (true) (m{2} - i{2}); progress; auto; progress; smt()`: the invariant
+      -- carries the relation the loop does not touch (EC folds it into the precondition)
+      equiv_while{2} (§bs{1} = §bs{2} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
+        (§m{2} - §i{2}).toNat
+      case lossless =>
+        intro σ₁ σ _ _
+        simp [Stmt.ewp_seq, Stmt.ewp_assign]
+      case variant =>
+        intro σ₁ k
+        hoare_wp 3
+        hoare_skip
+        rintro bs mp i m ⟨h, hc, rfl⟩
+        refine ⟨h, ?_⟩
+        simp only [decide_eq_true_eq] at hc
+        omega
+      case exit =>
+        intro _ _ _ _ _ _ h _
+        exact h
+      -- EC: `while (={xs, n, i, bs} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}); wp;
+      -- call HybridIROLazy_fill_in_LRO_get; auto`
+      equiv_while (={xs0, n0, i, bs} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
+      case body =>
+        stmt_wp
+        equiv_call (HybridIROLazy_fill_in_LRO_get HybridIROLazy_mp ERO_RO_m)
+        equiv_skip
+        rintro xs n i bs mp _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl⟩, rfl⟩, -⟩
+        exact ⟨⟨rfl, rfl⟩, fun r₁ g₁ r₂ g₂ ⟨hr, hg⟩ => ⟨⟨rfl, rfl, rfl, hr ▸ rfl⟩, hg⟩⟩
+      case guard => simp_all
+      case exit => simp_all
+      equiv_skip
+      simp_all
+    case «else» =>
+      equiv_skip
+      simp_all
+    case guard => simp_all
 
 /-- `local lemma HIRO_RO_HybridIROEager_init : equiv[HIRO(ERO.RO).init ~ HybridIROEager.init :
 true ==> ={res} /\ ERO.RO.m{1} = HybridIROEager.mp{2}]`. -/
@@ -468,7 +518,11 @@ theorem HIRO_RO_HybridIROEager_init :
       (Module.app HIRO.init (ERO.RO ERO_RO_m)).procedure
       (HybridIROEager.init HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
-  sorry
+  -- EC: `proc; inline*; auto`
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  equiv_sim
 
 /-- `local lemma RO_get_HybridIROEager_fill_in : equiv[ERO.RO.get ~ HybridIROEager.fill_in :
 x{1} = (xs, i){2} /\ ERO.RO.m{1} = HybridIROEager.mp{2} ==>
@@ -542,7 +596,46 @@ theorem HIRO_RO_HybridIROEager_f :
       (Module.app HIRO.f (ERO.RO ERO_RO_m)).procedure
       (HybridIROEager.f HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
-  sorry
+  -- EC: `proc; sp; if => //`
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (={xs0, n0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+  · equiv_sim
+    rintro _ _ _ _ _ _ ⟨h, rfl⟩
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+    exact ⟨⟨rfl, rfl, rfl⟩, rfl⟩
+  · equiv_if
+    case «then» =>
+      -- EC: `while (={i, m, xs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); wp;
+      -- call RO_sample_HybridIROEager_fill_in; auto` (`bs` in the invariant: EC frames it)
+      equiv_while (={xs0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+      case body =>
+        stmt_wp
+        equiv_call (RO_sample_HybridIROEager_fill_in HybridIROEager_mp ERO_RO_m)
+        equiv_skip
+        rintro σ₁ σ₂ ⟨⟨⟨h1, h2, h3, h4⟩, h5⟩, -⟩
+        exact ⟨⟨by rw [h1, h3], h5⟩, fun _ _ _ _ hg => ⟨⟨h1, h2, congrArg (· + 1) h3, h4⟩, hg⟩⟩
+      case guard => simp_all
+      case exit => simp_all
+      -- EC: `while (={i, n, xs, bs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); wp;
+      -- call RO_get_HybridIROEager_fill_in; auto` (`m` in the invariant: EC frames it)
+      equiv_while (={xs0, n0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+      case body =>
+        stmt_wp
+        equiv_call (RO_get_HybridIROEager_fill_in HybridIROEager_mp ERO_RO_m)
+        equiv_skip
+        rintro xs n m i bs mp _ _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl⟩, rfl⟩, -⟩
+        exact ⟨⟨rfl, rfl⟩, fun r₁ g₁ r₂ g₂ ⟨hr, hg⟩ => ⟨⟨rfl, rfl, rfl, rfl, hr ▸ rfl⟩, hg⟩⟩
+      case guard => simp_all
+      case exit => simp_all
+      equiv_skip
+      simp_all
+    case «else» =>
+      equiv_skip
+      simp_all
+    case guard => simp_all
 
 -- Make a distinguisher for random oracles out of `HIRO` and `D` (EC's local `RODist(RO : ERO.RO)`,
 -- with the section's `D` a Lean parameter; its `distinguish` takes `RO_Distinguisher`'s `unit`)

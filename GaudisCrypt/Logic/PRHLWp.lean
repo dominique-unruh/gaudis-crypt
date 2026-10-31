@@ -368,6 +368,32 @@ elab "equiv_while " I:term : tactic => withMainContext do
     let gExit ← try generalizeReadsRel gExit catch _ => pure gExit
     replaceMainGoal [gBody, gGuard, gExit, gPre]
 
+/-- `equiv_while{i} I V`: the last statement of side `i` is a loop, run on that side only, with
+the invariant `I` and the variant `V : ℕ` (both relational, EC's `while{i} I V`;
+`prhlStmt_seq_while_left`/`_right`).  Goals: `lossless` (the body terminates under `I` and the
+guard), `variant` (the body keeps `I` and decreases `V`, a Hoare triple for each state of the
+other side and each value of `V`), `exit` (`I` and a false guard give the postcondition), then
+the code before the loop, with postcondition `I`. -/
+elab "equiv_while" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:term:max : tactic =>
+    withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_while"
+  let side := (Judgment.sideOf? (some s)).getD 1
+  let g ← HoareSplit.hoareSplit 1 g (some side)
+  g.withContext do
+    let ty ← prhlGoal g "equiv_while"
+    let Ie ← elabRelCond ty I
+    let Ve ← elabRelTerm ty V (mkConst ``Nat)
+    let lem := if side == 1 then ``prhlStmt_seq_while_left else ``prhlStmt_seq_while_right
+    let gs ← try applyLemma lem g #[(`I, Ie), (`V, Ve)]
+      catch _ => throwError "equiv_while: the last statement of side {side} is not a loop"
+    let #[gll, gvar, gExit, gPre] := gs
+      | throwError "equiv_while: `{lem}` left {gs.size} goals"
+    for (m, tag) in [(gll, `lossless), (gvar, `variant), (gExit, `exit)] do
+      m.setTag tag
+    let gExit ← try generalizeReadsRel gExit catch _ => pure gExit
+    replaceMainGoal [gll, gvar, gExit, gPre]
+
 /-- `equiv_seq k₁ k₂ : M`: cut both statements, the last `k₁` (left) and `k₂` (right)
 statements after the cut, with the relation `M` in between (`prhlStmt_seq`).  Goals: the code
 before the cut (to `M`), then the code after it (from `M`). -/
