@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Examples.SHA3.Indifferentiability
+import GaudisCrypt.Logic.PRHLWp
 
 /-!
 # A construction indifferentiable from a random oracle is secure
@@ -258,6 +259,106 @@ def S_ll (S : SIMULATOR block f_in f_out) : Prop :=
 /-! ## The section `Collision`, with `declare module A <: AdvCollision {-Bounder, -SRO.RO.RO,
 -SRO.RO.FRO}` and `declare axiom D_ll` -/
 
+/-- The first `have` of EC's proof of `coll_resistant_if_indifferentiable`, as an equivalence:
+`Collision(A, FM(C, P)).main ~ GReal(C, P, DColl(A)).main : ={glob} ==> ={res}`, by EC's
+`proc; inline*; wp; sim. by swap {1} [1..2] 2; sim.` -/
+theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION block f_in f_out)
+    (P : PRIMITIVE block f_in f_out)
+    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint)ᶜ)
+    (_hP : FVP.fvP P ≤ (FVP.fvP C ⊔ FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Module.app (SRO.Collision f_in f_out limit bound_counter increase_counter
+        SRO_Counter_c SRO_Bounder_bounder) (Module.pair A (FM.asRO block f_in f_out C P))).procedure
+      (GReal block f_in f_out C P (DColl block f_in f_out limit bound_counter
+          increase_counter SRO_Counter_c SRO_Bounder_bounder A)).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline 0
+  stmt_inline{1} 0
+  stmt_inline{2} 2
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_swap{1} 4 3
+  stmt_swap{1} 2 4
+  stmt_inline{2} 2
+  stmt_inline{2} 2
+  stmt_inline{2} 2
+  stmt_inline{2} 2
+  stmt_inline{1} 3
+  stmt_inline{1} 4
+  stmt_inline{2} 3
+  stmt_inline{2} 4
+  stmt_wp
+  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · equiv_call
+    · stmt_wp
+      equiv_call
+      stmt_wp
+      equiv_call
+      stmt_wp
+      equiv_skip
+      intro _ _ _ _ h
+      subst h
+      simp [Setter.throwaway, ProgramState.globalL]
+    · simp only [SecureRO.Bounder.apply_simp, SecureRO.RF.get.mk_simp,
+        SecureRO.Bounder.get.apply_simp, SecureRO.Bounder.get.procedure.apply_simp,
+        HoleSigs.Instantiation.lookup_zero_single, HoleSigs.Instantiation.lookup_zero_cons,
+        PROM.FullRO.RO_T.get.mk_simp, FM.asRO, FM.get.apply_simp, FInit.get.apply_simp,
+        Module.procedure_proc', DFUNCTIONALITY.f.mk_simp, PRIMITIVE.view]
+      rfl
+  · equiv_if
+    case «then» =>
+      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+        §hash1{1} = §hash1{2})
+      · stmt_wp
+        equiv_call
+        stmt_wp
+        equiv_skip
+        intros
+        simp_all
+      · equiv_if
+        case «then» =>
+          stmt_wp
+          equiv_call
+          stmt_wp
+          equiv_skip
+          intros
+          simp_all
+        case «else» =>
+          stmt_wp
+          equiv_skip
+          simp
+        case guard =>
+          intros
+          simp_all
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      simp
+    case guard =>
+      rintro _ _ _ _ _ _ ⟨rfl, rfl, rfl⟩
+      rfl
+
+/-- The second `have` of EC's proof of `coll_resistant_if_indifferentiable`:
+`GIdeal(RO, S, DColl(A)).main ~ Collision(A, SRO.RO.RO).main : ={glob} ==> ={res}`, by EC's
+`proc; inline DColl(A, RO, S(RO)).distinguish; wp; sim 3 1. inline*; swap{2} 1 1; wp.
+call{1} (S_ll RO _); auto. by proc; auto; smt(sampleto_ll).` -/
+theorem GIdeal_Collision_RO (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
+    (A : SRO.AdvCollision f_in f_out) (S : SIMULATOR block f_in f_out)
+    (_hS_ll : S_ll block f_in f_out S)
+    (_hSd : FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+        FVP.fvP A)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (GIdeal block f_in f_out (RO block f_in f_out sampleto SRO_RO_m) S
+          (DColl block f_in f_out limit bound_counter increase_counter SRO_Counter_c
+            SRO_Bounder_bounder A)).procedure
+      (Module.app (SRO.Collision f_in f_out limit bound_counter increase_counter
+        SRO_Counter_c SRO_Bounder_bounder) (Module.pair A (SRO.RO.RO f_in f_out sampleto
+          SRO_RO_m))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  sorry
+
 /-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder})
 (P <: PRIMITIVE {-C, -A, -Bounder}) &m`, for the section's `A`. -/
 theorem coll_resistant_if_indifferentiable
@@ -287,7 +388,28 @@ theorem coll_resistant_if_indifferentiable
         SRO_Counter_c SRO_Bounder_bounder) (Module.pair A (FM.asRO block f_in f_out C P))).procedure
         () m (fun r _ => r = true) : ℝ) ≤
       bound + ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * (sampleto.1 {default}).toReal := by
-  sorry
+  rintro ⟨S, _hS, hSd, hS_ll, hbound⟩
+  -- `have->: Pr[Collision(A, FM(C,P)).main() @ &m : res] = Pr[GReal(C, P, DColl(A)).main() …]`
+  have h1 := Procedure.Pr_eq_of_prhlProc
+    (Collision_FM_GReal block f_in f_out limit bound_counter increase_counter SRO_Counter_c
+      SRO_Bounder_bounder A C P _hC _hP)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
+    (fun r₁ _ r₂ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  -- `have->: Pr[GIdeal(RO, S, DColl(A)).main() @ &m : res] = Pr[Collision(A, SRO.RO.RO).main() …]`
+  have h2 := Procedure.Pr_eq_of_prhlProc
+    (GIdeal_Collision_RO block f_in f_out sampleto limit bound_counter increase_counter
+      SRO_RO_m SRO_Counter_c SRO_Bounder_bounder hax A S hS_ll hSd)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
+    (fun r₁ _ r₂ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  -- `exact (RO_is_collision_resistant A &m)`
+  have h3 := SecureRO.RO_is_collision_resistant f_in f_out sampleto limit increase_counter
+    bound_counter SRO_RO_m SRO_FRO_m SRO_Counter_c SRO_Bounder_bounder
+    ⟨hax.limit_gt0, hax.sampleto_ll, hax.sampleto_full, hax.sampleto_fu,
+      hax.increase_counter_spec, hax.bound_counter_ge0⟩ A hA (by fp_disjoint) m
+  rw [h1]
+  rw [h2] at hbound
+  have := (abs_le.mp hbound).2
+  linarith
 
 /-! `DPre`'s and `D2Pre`'s module variables `h`, `m2` are the lens parameters `DPre_h`,
 `D2Pre_m2`. -/

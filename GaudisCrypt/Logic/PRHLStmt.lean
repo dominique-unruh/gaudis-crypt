@@ -725,6 +725,18 @@ theorem prhlStmt_seq_call_refl {sig : ProcedureSignature} {p : Procedure sig}
   prhlStmt_seq_call (prhlProc_refl p) (prhlStmt_post hpre fun _ _ ⟨ha, hg, hB⟩ =>
     ⟨⟨ha, hg⟩, fun r₁ g₁ _ _ ⟨hr, hg'⟩ => hr ▸ hg' ▸ hB r₁ g₁⟩)
 
+/-- `prhlStmt_seq_call_refl` for callees that are equal but not spelled the same (modules built
+differently that reduce to the same procedure): their equality is a premise. -/
+theorem prhlStmt_seq_call_eq {sig : ProcedureSignature} {p₁ p₂ : Procedure sig} (hp : p₁ = p₂)
+    {x₁ x₂ : Setter sig.ret ProgramState} {e₁ e₂ : Getter sig.ParamType ProgramState}
+    {A B : ProgramState → ProgramState → Prop} {s₁ s₂ : Stmt}
+    (hpre : prhlStmt A s₁ s₂ fun σ₁ σ₂ => e₁.get σ₁ = e₂.get σ₂ ∧ σ₁.globals = σ₂.globals ∧
+      ∀ r g, B (x₁.set r (ProgramState.globalL.set g σ₁))
+        (x₂.set r (ProgramState.globalL.set g σ₂))) :
+    prhlStmt A (.seq s₁ (Stmt.call x₁ p₁ e₁)) (.seq s₂ (Stmt.call x₂ p₂ e₂)) B := by
+  subst hp
+  exact prhlStmt_seq_call_refl hpre
+
 /-- **The adversary rule**: a procedure confined to the footprint `R` (on every argument), run
 on equal arguments from globals that agree on what it can touch (`R.touched_getter`, EC's
 `glob A`), returns equal results and globals that again agree on it (`prhl2_glob`). -/

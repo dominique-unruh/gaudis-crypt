@@ -170,6 +170,29 @@ partial def detOf? (s : Lean.Expr) : MetaM (Option (Lean.Expr × Lean.Expr)) := 
       return some ((← inferType pf).appArg!, pf)
   | _ => return none
 
+/-- `decide` of equal propositions, whatever the instances. -/
+theorem decide_congr_inst {p q : Prop} (h : p = q) (hp : Decidable p) (hq : Decidable q) :
+    @decide p hp = @decide q hq := by
+  subst h; congr
+
+/-- `@decide p inst` ↦ `@decide p' inst'`, where `p'` is `p` simplified and `inst'` an instance
+synthesized for it, or `Classical.propDecidable p'` if there is none.  Used by the inliner's
+cleaning and by every tactic's `simpWithNames`.  Not left to `simp`'s
+congruence: that re-synthesizes the instance too, and when it cannot (a condition decided
+classically, as `open Classical in` decides an equality on a type without `DecidableEq`) it leaves
+`p` alone, the reads in it keeping their wrappers. -/
+simproc_decl reduceDecide (decide _) := fun e => do
+  unless e.isAppOfArity ``decide 2 do return .continue
+  let p := e.getArg! 0
+  let r ← Simp.simp p
+  if r.proof?.isNone && r.expr == p then return .continue
+  let inst' ← match ← trySynthInstance (mkApp (mkConst ``Decidable) r.expr) with
+    | .some i => pure i
+    | _ => pure (mkApp (mkConst ``Classical.propDecidable) r.expr)
+  let proof :=
+    mkApp5 (mkConst ``GaudisCrypt.decide_congr_inst) p r.expr (← r.getProof) (e.getArg! 1) inst'
+  return .done { expr := mkApp2 (mkConst ``decide) r.expr inst', proof? := some proof }
+
 namespace Judgment
 
 /-- The descriptors of the goal `g`'s judgment (one, or one per side of a relational judgment),
@@ -218,7 +241,7 @@ def simpWithNames (decls procs : List Name) (e : Lean.Expr) : MetaM Simp.Result 
     if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
     else thms ← thms.addDeclToUnfold n
   let mut sp ← Simp.getSimprocs
-  for n in procs do sp ← sp.add n (post := true)
+  for n in ``reduceDecide :: procs do sp ← sp.add n (post := true)
   let ctx ← Simp.mkContext (config := { decide := true }) (simpTheorems := #[thms])
     (congrTheorems := ← getSimpCongrTheorems)
   return (← simp e ctx #[sp]).1

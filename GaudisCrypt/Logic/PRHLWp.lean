@@ -135,7 +135,15 @@ def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
   let #[σ₁, σ₂] := fvs | throwError "generalizeReadsRel: expected two states"
   let (gvs, g) ← g.withContext do
     let ty ← instantiateMVars (← g.getType)
-    let g ← g.change (← unfoldReads σ₂ (← unfoldReads σ₁ ty))
+    -- `§allGlobals` is the globals themselves (`allGlobals_get`, by `rfl`): spelled as such, it
+    -- makes the reads of global variables stay reads of the generalized globals, instead of
+    -- becoming values unrelated to them
+    let ty ← Meta.transform (← unfoldReads σ₂ (← unfoldReads σ₁ ty)) (post := fun e => do
+      if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isConstOf ``allGlobals
+          && e.appArg!.isFVar then
+        return .done (mkApp (mkConst ``ProgramState.globals) e.appArg!)
+      return .continue)
+    let g ← g.change ty
     let body ← instantiateMVars (← g.getType)
     let mut args : Array GeneralizeArg := #[]
     for (σ, n) in [(σ₁, "globals₁"), (σ₂, "globals₂")] do
@@ -379,14 +387,25 @@ elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
   let g ← HoareSplit.hoareSplit 1 g
   g.withContext do
     let ty ← prhlGoal g "equiv_call"
+    let mut extra : List MVarId := []
     let gPre ← match h? with
       | none => do
+          let st ← saveState
           let gs ← try applyLemma ``prhlStmt_seq_call_refl g
-            catch _ => throwError "equiv_call: the last statements are not calls of the same \
-              procedure (give a procedure judgment: `equiv_call h`):{indentExpr ty}"
-          let #[gPre] := gs
-            | throwError "equiv_call: `prhlStmt_seq_call_refl` left {gs.size} goals"
-          pure gPre
+            catch _ =>
+              -- calls of procedures spelled differently: their equality is left as a goal
+              st.restore
+              try applyLemma ``prhlStmt_seq_call_eq g
+              catch _ => throwError "equiv_call: the last statements are not calls of \
+                procedures of the same signature (give a procedure judgment: `equiv_call h`):\
+                {indentExpr ty}"
+          match gs with
+          | #[gPre] => pure gPre
+          | #[hp, gPre] => do
+              hp.setTag `callee
+              extra := [hp]
+              pure gPre
+          | _ => throwError "equiv_call: the call rule left {gs.size} goals"
       | some h => do
           let hE ← elabTerm h none
           Term.synthesizeSyntheticMVarsNoPostponing
@@ -406,7 +425,7 @@ elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
           let gPre := ms.back!.mvarId!
           gPre.setKind .syntheticOpaque
           pure gPre
-    replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
+    replaceMainGoal ((← Judgment.simpArg gPre 3 relSimpDecls []) :: extra)
 
 /-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the
 test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).

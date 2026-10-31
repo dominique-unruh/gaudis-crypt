@@ -284,3 +284,27 @@ Also, the inliner (`Flatten.moduleStep?`, step 6) now unfolds a definition whose
 `module`-declared module: a single-procedure module (`SecureRO.Counter c := Counter.init c`, which
 it could not inline before) and a game defined as an application (`GReal`, which needed a manual
 `unfold`).
+
+## 2026-11-01: pilot 1, first game hop proven (`Collision_FM_GReal`)
+
+EC's `byequiv; proc; inline*; wp; sim. swap{1} [1..2] 2; sim.` is, in Lean, inlining, two
+`stmt_swap`s, then by hand what `sim` does: `equiv_seq` after the adversary call, `equiv_call`
+backwards through the prefix, `equiv_if` twice with `equiv_call`/`stmt_wp`/`equiv_skip` in the
+branches (~40 tactic lines).  Tooling fixed or added on the way:
+
+* `equiv_call` (no argument) on calls of procedures spelled differently: rule
+  `prhlStmt_seq_call_eq` (`Logic/PRHLStmt.lean`), their equality left as a goal tagged `callee`.
+  Here the adversary's oracles `Bounder(FM(C,P))` and `Bounder(FInit(DColl…))`: closed by `simp only`
+  with the modules' `apply_simp`/`mk_simp` lemmas and `rfl` (`FM.get.procedure` and
+  `FInit.get.procedure` are the same body).
+* `generalizeReadsRel` (behind `equiv_skip`, the `guard` goal of `equiv_if`): `§allGlobals` is now
+  read as the globals themselves, so the reads of global variables stay reads of the generalized
+  globals.  Before, `§SRO_Counter_c{1}` and `§allGlobals{1}` became unrelated values and the
+  guard goal was false.
+* `reduceDecide` (moved from the inliner to `Logic/Judgment.lean`) is now in every tactic's
+  `simpWithNames`: without it no read under a classically decided `decide` was simplified
+  (`b <- decide (§hash1 = §hash2 ∧ …)` on `f_out` without `DecidableEq`), and `equiv_skip` lost
+  the link between the reads and the states.
+
+The second hop, `GIdeal_Collision_RO`, needs EC's `call{1} (S_ll RO _)`: a one-sided call of an
+abstract procedure from its losslessness.  A `sim` tactic would replace the hand-written part.
