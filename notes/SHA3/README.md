@@ -117,6 +117,16 @@ Files in this directory:
 * **Abstract operators over earlier parameters.** An abstract `op` whose axioms mention
   definitions depending on earlier parameters is a class over those parameters:
   `class Params` (`parse`, `formatK` …) in `BlockSponge`, used with `[SLCommon.Params]`.
+* **Section-local name clashes.** EasyCrypt reuses a local name in different sections of a file
+  (`invmC` in `Real` and `Real_Ideal_Abs`, `L` in `Ideal` and `Simplify_Simulator`).  The locals of
+  the later section go into a Lean namespace named after it (`Real_Ideal_Abs.invmC`).
+* **Two-parameter procedures used as a functionality.** `IRO.f(x, n)` is used as the
+  functionality `f : block list * int -> …`; here it takes the pair (`IRO.f (xn)`), and
+  `BlockSponge.BIRO.IRO.asF` is its view as a `FUNCTIONALITY`.
+* **Ground truth for names.** For a non-local declaration, `print M.X.` in `easycrypt cli`
+  (`-I proof -I proof/smart_counter`, after `require M.`) shows it with every name fully
+  resolved.  This settled `C.init` in `Gconcl_list`, where both `SLCommon.C` and
+  `BlockSponge.C` are in scope; it is `BlockSponge.C`.
 * **Views inside module bodies** are written out (`DFUNCTIONALITY.mk … { f := … }`): the `module`
   command's proofs cannot see through a helper such as `FUNCTIONALITY.view`.
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
@@ -153,7 +163,7 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext`, `Gconcl` and `BlockSponge` are done (2026-10-31).
+   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge` and `Gconcl_list` are done (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

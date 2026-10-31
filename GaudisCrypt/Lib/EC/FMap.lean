@@ -17,6 +17,7 @@ here.  Names are EasyCrypt's, with function names for its mixfix operators:
 | `restr f m` | `FMap.restr f m` |
 | `find p m` | `FMap.find p m` |
 | `map f m` | `FMap.map f m` |
+| `m1 + m2` | `FMap.add m1 m2` |
 | `in_dom_with m x f` | `FMap.in_dom_with m x f` |
 -/
 
@@ -78,6 +79,9 @@ noncomputable def map {γ : Type*} (f : α → β → γ) (m : FMap α β) : FMa
   m.keys.toList.foldl (fun acc x => match m.lookup x with
     | some y => acc.insert x (f x y)
     | none => acc) ∅
+
+/-- `m1 + m2`: the bindings of both, `m2`'s winning where both bind a key. -/
+def add (m1 m2 : FMap α β) : FMap α β := m2 ∪ m1
 
 /-- `in_dom_with m x f`: `x` is bound in `m`, with tag `f`. -/
 def in_dom_with {φ : Type*} [Inhabited β] [Inhabited φ] (m : FMap α (β × φ)) (x : α) (f : φ) :

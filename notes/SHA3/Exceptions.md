@@ -89,3 +89,21 @@ game.
 `PROM.FullRO.RO … m`, `IRO.IRO … mp`, `Strong_RP_RF.ARP … coll m mi`).  Each clone declares its
 own `global_var`s under EasyCrypt's names (`Perm.m`, `F.RO.m`, `F2.RO.m`, `ROhandle.FRO.m`,
 `Switching.PRPi.m`, `BIRO.IRO.mp` …) and passes them, as EasyCrypt's clone semantics demands.
+
+## E5: procedure aliases inside a functor are wrapped in a call
+
+**Rule broken.** EasyCrypt's `proc f = M.g` makes `f` the very procedure `M.g`.  Elsewhere the port
+keeps that: modules with aliases are Lean functions assembling the aliased procedures with `T.mk`
+(`PRestr`, `FRestr`, `Squeeze`, `IF'`).
+
+**What we do instead.** A few modules alias a procedure of a functor applied to their own module
+parameters and are used as functors themselves: `Gconcl_list.SimLast(S)(F)`
+(`proc f = S(Last(Valid(F))).f`) is a `SIMULATOR`, and `Gconcl_list.DValid(D)(F)(P)`
+(`= D(FValid(F), P)`) is a `DISTINGUISHER`.  A Lean function cannot be a functor module, and the
+`module` command cannot alias.  So their procedures call the aliased one:
+`proc f (x) { y <- call (S(Last(Valid(F)))).f (x); return y }`.  The denotation is the same; the
+code has one more call.
+
+**How to remove it.** Combinators building a functor from its fields, so that the alias is the
+same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
+(`BlockSponge.Sim`, `Gconcl_list.S2`).

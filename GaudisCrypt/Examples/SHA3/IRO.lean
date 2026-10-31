@@ -28,8 +28,9 @@ variable («to» «from» : Type) [DecidableEq «from»] [Inhabited «to»] [Inh
 -- EC's `module type IRO` (renamed: exception E3)
 moduletype IRO_T {
   proc init () -> Unit;
-  -- `f x`, returning the first `n` elements of the result
-  proc f (x : «from», n : ℤ) -> (List «to»);
+  -- `f x`, returning the first `n` elements of the result (EC's parameters `(x, n)` as one pair,
+  -- the type `FUNCTIONALITY.f` has where the oracle is a functionality)
+  proc f (xn : «from» × ℤ) -> (List «to»);
 }
 
 def prefix_closed (m : FMap («from» × ℤ) «to») : Prop :=
@@ -64,8 +65,9 @@ module IRO {
     }
     return oget (FMap.get $mp ($x, $n))
   };
-  proc f (x : «from», n : ℤ) : (List «to») {
-    var b : «to», bs : List «to», i : ℤ;
+  proc f (xn : «from» × ℤ) : (List «to») {
+    var x : «from», n : ℤ, b : «to», bs : List «to», i : ℤ;
+    x, n <- $xn;
     i <- 0;
     bs <- [];
     if (valid $x) {
@@ -112,8 +114,9 @@ module IRO' {
     }
     return oget (FMap.get $mp ($x, $n))
   };
-  proc f (x : «from», n : ℤ) : (List «to») {
-    var b : «to», bs : List «to», i : ℤ;
+  proc f (xn : «from» × ℤ) : (List «to») {
+    var x : «from», n : ℤ, b : «to», bs : List «to», i : ℤ;
+    x, n <- $xn;
     i <- 0;
     bs <- [];
     if (valid $x) {

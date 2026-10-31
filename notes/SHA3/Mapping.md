@@ -526,104 +526,102 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 11 | op | `valid` |  | `valid` | — |
-| 12 | axiom | `valid_spec` |  | `valid_spec` | — |
-| 13 | axiom | `parse_gt0` |  | `parse_gt0` | — |
-| 14 | axiom | `parse_not_valid` |  | `parse_not_valid` | — |
-| 17 | axiom | `parse_twice` |  | `parse_twice` | — |
-| 19 | axiom | `valid_uniq` |  | `valid_uniq` | — |
-| 23 | clone export | `Handle` |  | `Handle` | — |
-| 25 | module | `DSqueeze` |  | `DSqueeze` | — |
-| 46 | module | `` |  | `` | — |
-| 55 | module | `` |  | `` | — |
-| 67 | module | `NIndif` |  | `NIndif` | — |
-| 80 | module | `P` |  | `P` | — |
-| 82 | clone | `IRO` |  | `IRO` | — |
-| 88 | module | `Valid` |  | `Valid` | — |
-| 102 | module | `SimLast` |  | `SimLast` | — |
-| 111 | clone | `F` |  | `F` | — |
-| 116 | op | `` | section Ideal. | `` | — |
-| 119 | local lemma | `leq_add_nin` | section Ideal. | `leq_add_nin` | — |
-| 128 | local lemma | `leq_add_in` | section Ideal. | `leq_add_in` | — |
-| 136 | local lemma | `leq_nin_dom` | section Ideal. | `leq_nin_dom` | — |
-| 141 | local lemma | `prefix_leq1` | section Ideal. | `prefix_leq1` | — |
-| 159 | local lemma | `prefix_le1` | section Ideal. | `prefix_le1` | — |
-| 171 | local lemma | `leq_add2` | section Ideal. | `leq_add2` | — |
-| 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` | — |
-| 296 | local module | `IF'` | section Ideal. | `IF'` | — |
-| 315 | local module | `` | section Ideal. | `` | — |
-| 319 | local module | `Valid2` | section Ideal. | `Valid2` | — |
-| 330 | local module | `` | section Ideal. | `` | — |
-| 334 | local equiv | `Ideal_equiv_valid` | section Ideal. | `Ideal_equiv_valid` | — |
-| 365 | local equiv | `ideal_equiv2` | section Ideal. | `ideal_equiv2` | — |
-| 388 | inductive | `inv_L_L3` | section Ideal. | `inv_L_L3` | — |
-| 393 | local module | `IF2` | section Ideal. | `IF2` | — |
-| 421 | local module | `` | section Ideal. | `` | — |
-| 425 | local lemma | `lemma1` | section Ideal. | `lemma1` | — |
-| 440 | local lemma | `lemma2` | section Ideal. | `lemma2` | — |
-| 452 | local lemma | `incl_dom` | section Ideal. | `incl_dom` | — |
-| 461 | local lemma | `lemma3` | section Ideal. | `lemma3` | — |
-| 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` | — |
-| 599 | local module | `D2` | section Ideal. | `D2` | — |
-| 603 | local module | `D3` | section Ideal. | `D3` | — |
-| 608 | module | `DSqueeze2` | section Ideal. | `DSqueeze2` | — |
-| 647 | local module | `FValid` | section Ideal. | `FValid` | — |
-| 657 | local module | `DValid` | section Ideal. | `DValid` | — |
-| 659 | local module | `S2` | section Ideal. | `S2` | — |
-| 661 | local module | `L4` | section Ideal. | `L4` | — |
-| 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` | — |
-| 788 | op | `inv_map` | section Ideal. | `inv_map` | — |
-| 794 | inductive | `INV_L4_ideal` | section Ideal. | `INV_L4_ideal` | — |
-| 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | — |
-| 819 | local lemma | `lemma5bis` | section Ideal. | `lemma5bis` | — |
-| 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` | — |
-| 916 | local module | `D5` | section Ideal. | `D5` | — |
-| 919 | local module | `D6` | section Ideal. | `D6` | — |
-| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` | — |
-| 973 | inductive | `m_p` | section Real. | `m_p` | — |
-| 979 | inductive | `INV_Real` | section Real. | `INV_Real` | — |
-| 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | — |
-| 992 | local lemma | `INV_Real_addm_mi` | section Real. | `INV_Real_addm_mi` | — |
-| 1004 | local lemma | `invmC'` | section Real. | `invmC'` | — |
-| 1008 | local lemma | `invmC` | section Real. | `invmC` | — |
-| 1012 | local lemma | `invm_dom_rng` | section Real. | `invm_dom_rng` | — |
-| 1021 | local lemma | `all_prefixes_of_INV_real` | section Real. | `all_prefixes_of_INV_real` | — |
-| 1029 | local lemma | `lemma2'` | section Real. | `lemma2'` | — |
-| 1075 | local lemma | `take_nseq` | section Real. | `take_nseq` | — |
-| 1086 | local lemma | `take_format` | section Real. | `take_format` | — |
-| 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` | — |
-| 1101 | equiv | `` | section Real. | `` | — |
-| 1437 | local lemma | `lemma4` | section Real. | `lemma4` | — |
-| 1463 | local lemma | `lemma_3` | section Real. | `lemma_3` | — |
-| 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` | — |
-| 1494 | equiv | `` | section Real. | `` | — |
-| 1748 | lemma | `pr_real` | section Real. | `pr_real` | — |
-| 1763 | declare module | `D` | section Real_Ideal. | `D` | — |
-| 1765 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` | — |
-| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` | — |
-| 1786 | lemma | `concl` | section Real_Ideal. | `concl` | — |
-| 1809 | declare module | `D` | section Real_Ideal_Abs. | `D` | — |
-| 1811 | declare axiom | `D_lossless` | section Real_Ideal_Abs. | `D_lossless` | — |
-| 1816 | local module | `Neg_D` | section Real_Ideal_Abs. | `Neg_D` | — |
-| 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Neg_D_lossless` | — |
-| 1833 | local lemma | `useful` | section Real_Ideal_Abs. | `useful` | — |
-| 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `invmC` | — |
-| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_lossless` | — |
-| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Ideal_lossless` | — |
-| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `neg_D_concl` | — |
-| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` | — |
-| 1946 | module | `Simulator` |  | `Simulator` | — |
-| 2010 | declare module | `D` | section Simplify_Simulator. | `D` | — |
-| 2012 | declare axiom | `D_lossless` | section Simplify_Simulator. | `D_lossless` | — |
-| 2016 | local clone import | `PROM.FullRO` | section Simplify_Simulator. | `PROM.FullRO` | — |
-| 2024 | local module | `Simu` | section Simplify_Simulator. | `Simu` | — |
-| 2081 | local module | `L` | section Simplify_Simulator. | `L` | — |
-| 2085 | local lemma | `equal1` | section Simplify_Simulator. | `equal1` | — |
-| 2158 | local lemma | `equal2` | section Simplify_Simulator. | `equal2` | — |
-| 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` | — |
-| 2202 | declare module | `D` | section Real_Ideal. | `D` | — |
-| 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` | — |
-| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` | — |
+| 11 | op | `valid` |  | `valid` | def |
+| 12 | axiom | `valid_spec` |  | `valid_spec` (field of `Params`) | def |
+| 13 | axiom | `parse_gt0` |  | `parse_gt0` (field of `Params`) | def |
+| 14 | axiom | `parse_not_valid` |  | `parse_not_valid` (field of `Params`) | def |
+| 17 | axiom | `parse_twice` |  | `parse_twice` (field of `Params`) | def |
+| 19 | axiom | `valid_uniq` |  | `valid_uniq` (field of `Params`) | def |
+| 23 | clone export | `Handle` |  | `open Handle` | def |
+| 25 | module | `DSqueeze` |  | `DSqueeze` | def |
+| 46 | module | `Squeeze` |  | `Squeeze` (Lean function, `T.mk`), `Squeeze.init_` | def |
+| 55 | module | `A` |  | `A` (`D` a Lean parameter) | def |
+| 67 | module | `NIndif` |  | `NIndif` | def |
+| 80 | module | `P` |  | `P` (abbreviation of `Perm`) | def |
+| 82 | clone | `IRO` |  | `BIRO2` (namespace) | def |
+| 88 | module | `Valid` |  | `Valid` | def |
+| 102 | module | `SimLast` |  | `SimLast` (`S` a Lean parameter; aliases wrapped, E5) | def |
+| 111 | clone | `F` |  | `F2` (namespace) | def |
+| 116 | op | `(<=)` | section Ideal. | `«<=»` | def |
+| 119 | local lemma | `leq_add_nin` | section Ideal. | `leq_add_nin` | stated |
+| 128 | local lemma | `leq_add_in` | section Ideal. | `leq_add_in` | stated |
+| 136 | local lemma | `leq_nin_dom` | section Ideal. | `leq_nin_dom` | stated |
+| 141 | local lemma | `prefix_leq1` | section Ideal. | `prefix_leq1` | stated |
+| 159 | local lemma | `prefix_le1` | section Ideal. | `prefix_le1` | stated |
+| 171 | local lemma | `leq_add2` | section Ideal. | `leq_add2` | stated |
+| 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` | stated |
+| 296 | local module | `IF'` | section Ideal. | `IF'` (Lean function), `IF'.f_` | def |
+| 315 | local module | `L` | section Ideal. | `L` (Lean function) | def |
+| 319 | local module | `Valid2` | section Ideal. | `Valid2` (Lean function), `Valid2.f_` | def |
+| 330 | local module | `L2` | section Ideal. | `L2` (Lean function) | def |
+| 334 | local equiv | `Ideal_equiv_valid` | section Ideal. | `Ideal_equiv_valid` | stated |
+| 365 | local equiv | `ideal_equiv2` | section Ideal. | `ideal_equiv2` | stated |
+| 388 | inductive | `inv_L_L3` | section Ideal. | `inv_L_L3` | def |
+| 393 | local module | `IF2` | section Ideal. | `IF2` | def |
+| 421 | local module | `L3` | section Ideal. | `L3` (Lean function) | def |
+| 425 | local lemma | `lemma1` | section Ideal. | `lemma1` | stated |
+| 440 | local lemma | `lemma2` | section Ideal. | `lemma2` | stated |
+| 452 | local lemma | `incl_dom` | section Ideal. | `incl_dom` | stated |
+| 461 | local lemma | `lemma3` | section Ideal. | `lemma3` | stated |
+| 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` | stated |
+| 599 | local module | `D2` | section Ideal. | `D2` (Lean function) | def |
+| 603 | local module | `D3` | section Ideal. | `D3` (Lean function) | def |
+| 608 | module | `DSqueeze2` | section Ideal. | `DSqueeze2` | def |
+| 647 | local module | `FValid` | section Ideal. | `FValid` | def |
+| 657 | local module | `DValid` | section Ideal. | `DValid` (`D` a Lean parameter; E5) | def |
+| 659 | local module | `S2` | section Ideal. | `S2` (`Module.comp`) | def |
+| 661 | local module | `L4` | section Ideal. | `L4` (Lean function) | def |
+| 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` | stated |
+| 788 | op | `inv_map` | section Ideal. | `inv_map` | def |
+| 794 | inductive | `INV_L4_ideal` | section Ideal. | `INV_L4_ideal` | def |
+| 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | stated |
+| 819 | local lemma | `lemma5bis` | section Ideal. | `lemma5bis` | stated |
+| 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` | stated |
+| 916 | local module | `D5` | section Ideal. | `D5` (Lean function) | def |
+| 919 | local module | `D6` | section Ideal. | `D6` (Lean function) | def |
+| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` | stated |
+| 973 | inductive | `m_p` | section Real. | `m_p` | def |
+| 979 | inductive | `INV_Real` | section Real. | `INV_Real` | def |
+| 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | stated |
+| 992 | local lemma | `INV_Real_addm_mi` | section Real. | `INV_Real_addm_mi` | stated |
+| 1004 | local lemma | `invmC'` | section Real. | `invmC'` | stated |
+| 1008 | local lemma | `invmC` | section Real. | `invmC` | stated |
+| 1012 | local lemma | `invm_dom_rng` | section Real. | `invm_dom_rng` | stated |
+| 1021 | local lemma | `all_prefixes_of_INV_real` | section Real. | `all_prefixes_of_INV_real` | stated |
+| 1029 | local lemma | `lemma2'` | section Real. | `lemma2'` | stated |
+| 1075 | local lemma | `take_nseq` | section Real. | `take_nseq` | stated |
+| 1086 | local lemma | `take_format` | section Real. | `take_format` | stated |
+| 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` | stated |
+| 1437 | local lemma | `lemma4` | section Real. | `lemma4` | stated |
+| 1463 | local lemma | `lemma_3` | section Real. | `lemma_3` | stated |
+| 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` | stated |
+| 1748 | lemma | `pr_real` | section Real. | `pr_real` | stated |
+| 1763 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
+| 1765 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
+| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` | stated |
+| 1786 | lemma | `concl` | section Real_Ideal. | `concl` | stated |
+| 1809 | declare module | `D` | section Real_Ideal_Abs. | `D` (section variable) | def |
+| 1811 | declare axiom | `D_lossless` | section Real_Ideal_Abs. | `D_lossless` (abbreviation; hypothesis) | def |
+| 1816 | local module | `Neg_D` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D` | def |
+| 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D_lossless` | stated |
+| 1833 | local lemma | `useful` | section Real_Ideal_Abs. | `Real_Ideal_Abs.useful` | stated |
+| 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `Real_Ideal_Abs.invmC` | stated |
+| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` | stated |
+| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` | stated |
+| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` | stated |
+| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` | stated |
+| 1946 | module | `Simulator` |  | `Simulator` | def |
+| 2010 | declare module | `D` | section Simplify_Simulator. | `D` (section variable) | def |
+| 2012 | declare axiom | `D_lossless` | section Simplify_Simulator. | `D_lossless` (abbreviation; hypothesis) | def |
+| 2016 | local clone import | `PROM.FullRO` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` | def |
+| 2024 | local module | `Simu` | section Simplify_Simulator. | `Simplify_Simulator.Simu` (`FRO` a Lean parameter) | def |
+| 2081 | local module | `L` | section Simplify_Simulator. | `Simplify_Simulator.L` (Lean function) | def |
+| 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` | stated |
+| 2158 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` | stated |
+| 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` | stated |
+| 2202 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
+| 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
+| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` | stated |
 
 ## `proof/Sponge.ec`
 
