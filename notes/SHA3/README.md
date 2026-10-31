@@ -184,7 +184,7 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff`, `SHA3_OIndiff`, `SecureHash` and `SecureRO` are done
+   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff`, `SHA3_OIndiff`, `SecureHash`, `SecureRO` and `SecureORO` are done
    (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last

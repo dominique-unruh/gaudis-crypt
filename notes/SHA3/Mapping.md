@@ -846,41 +846,41 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Se
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 7 | type | `from` |  | `from` | — |
-| 9 | op | `sampleto` |  | `sampleto` | — |
-| 11 | op | `bound` |  | `bound` | — |
-| 12 | axiom | `bound_ge0` |  | `bound_ge0` | — |
-| 14 | axiom | `sampleto_ll` |  | `sampleto_ll` | — |
-| 15 | axiom | `sampleto_full` |  | `sampleto_full` | — |
-| 16 | axiom | `sampleto_fu` |  | `sampleto_fu` | — |
-| 18 | clone import | `PROM.FullRO` |  | `PROM.FullRO` | — |
-| 26 | op | `increase_counter` |  | `increase_counter` | — |
-| 27 | axiom | `increase_counter_spec` |  | `increase_counter_spec` | — |
-| 29 | module type | `RF` |  | `RF` | — |
-| 35 | module | `RF` |  | `RF` | — |
-| 45 | module | `Bounder` |  | `Bounder` | — |
-| 63 | module type | `Oracle` |  | `Oracle` | — |
-| 67 | module type | `AdvPreimage` |  | `AdvPreimage` | — |
-| 71 | module | `Preimage` |  | `Preimage` | — |
-| 84 | declare module | `A` | section Preimage. | `A` | — |
-| 86 | local module | `FEL` | section Preimage. | `FEL` | — |
-| 95 | local module | `Preimage2` | section Preimage. | `Preimage2` | — |
-| 106 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | — |
-| 185 | module type | `AdvSecondPreimage` |  | `AdvSecondPreimage` | — |
-| 189 | module | `SecondPreimage` |  | `SecondPreimage` | — |
-| 203 | declare module | `A` | section SecondPreimage. | `A` | — |
-| 205 | local module | `FEL` | section SecondPreimage. | `FEL` | — |
-| 215 | local module | `SecondPreimage2` | section SecondPreimage. | `SecondPreimage2` | — |
-| 226 | local module | `D1` | section SecondPreimage. | `D1` | — |
-| 235 | local module | `SecondPreimage3` | section SecondPreimage. | `SecondPreimage3` | — |
-| 247 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | — |
-| 349 | module type | `AdvCollision` |  | `AdvCollision` | — |
-| 353 | module | `Collision` |  | `Collision` | — |
-| 366 | declare module | `A` | section Collision. | `A` | — |
-| 368 | local module | `FEL` | section Collision. | `FEL` | — |
-| 377 | local module | `Collision2` | section Collision. | `Collision2` | — |
-| 387 | op | `collision` | section Collision. | `collision` | — |
-| 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | — |
+| 7 | type | `from` |  | `«from»`, `«to»` (section variables) | def |
+| 9 | op | `sampleto` |  | `sampleto` (section variable) | def |
+| 11 | op | `bound` |  | `bound` (section variable) | def |
+| 12 | axiom | `bound_ge0` |  | `Axioms.bound_ge0` | def |
+| 14 | axiom | `sampleto_ll` |  | `Axioms.sampleto_ll` | def |
+| 15 | axiom | `sampleto_full` |  | `Axioms.sampleto_full` | def |
+| 16 | axiom | `sampleto_fu` |  | `Axioms.sampleto_fu` | def |
+| 18 | clone import | `PROM.FullRO` |  | `PROM.FullRO` at lens parameters `RO_m`, `FRO_m` (`RO.RO_T`, `RO.RO`, `RO.LRO`) | def |
+| 26 | op | `increase_counter` |  | `increase_counter` (section variable) | def |
+| 27 | axiom | `increase_counter_spec` |  | `Axioms.increase_counter_spec` | def |
+| 29 | module type | `RF` |  | `RF_T` (E3) | def |
+| 35 | module | `RF` |  | `RF` (aliases call-wrapped, E5) | def |
+| 45 | module | `Bounder` |  | `Bounder` (`sample` call-wrapped, E5; variable: lens `Bounder_bounder`) | def |
+| 63 | module type | `Oracle` |  | `Oracle` (with `Oracle.holes`, `Oracle.ext`) | def |
+| 67 | module type | `AdvPreimage` |  | `AdvPreimage` | def |
+| 71 | module | `Preimage` |  | `Preimage` | def |
+| 84 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 86 | local module | `FEL` | section Preimage. | `Preimage.FEL` | def |
+| 95 | local module | `Preimage2` | section Preimage. | `Preimage.Preimage2` (variable: lens `Preimage2_hash`, E6) | def |
+| 106 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | stated |
+| 185 | module type | `AdvSecondPreimage` |  | `AdvSecondPreimage` | def |
+| 189 | module | `SecondPreimage` |  | `SecondPreimage` | def |
+| 203 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 205 | local module | `FEL` | section SecondPreimage. | `SecondPreimage.FEL` | def |
+| 215 | local module | `SecondPreimage2` | section SecondPreimage. | `SecondPreimage.SecondPreimage2` (variable: lens `SecondPreimage2_m2`, E6) | def |
+| 226 | local module | `D1` | section SecondPreimage. | `SecondPreimage.D1` (variable: lens `D1_m1`, E6) | def |
+| 235 | local module | `SecondPreimage3` | section SecondPreimage. | `SecondPreimage.SecondPreimage3` | def |
+| 247 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | stated |
+| 349 | module type | `AdvCollision` |  | `AdvCollision` | def |
+| 353 | module | `Collision` |  | `Collision` | def |
+| 366 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 368 | local module | `FEL` | section Collision. | `Collision.FEL` | def |
+| 377 | local module | `Collision2` | section Collision. | `Collision.Collision2` | def |
+| 387 | op | `collision` | section Collision. | `collision` | def |
+| 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | stated |
 
 ## `proof/IndifRO_is_secure.ec`
 

@@ -130,6 +130,7 @@ import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.SHA3Indiff
 import GaudisCrypt.Examples.SHA3.SHA3_OIndiff
 import GaudisCrypt.Examples.SHA3.SecureHash
+import GaudisCrypt.Examples.SHA3.SecureORO
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
