@@ -472,3 +472,16 @@ product trees to the tuple form is needed (rebuild the value from the tuple's pr
 footprint), and a lemma that a module type's `ext` (e.g. `PROM.FullRO.RO_ext`) lists the leaves of
 `O.expression`.  Then `Module.Representable (RODist D) ERO.RO_ext` follows, and with it E2 is gone for
 every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowed`) keep `hD`.
+
+## 2026-11-01: `fvP` of concrete code (`Logic/ConcreteFootprint.lean`); `RODist.ecModule`
+
+* `StmtWithHoles.LocalsOnly` (reads independent of the globals, writes commuting with global writes),
+  `FVP.fvP_proc_le_of_localsOnly`: a concrete procedure on locals alone has no footprint.
+  `locals_only` proves `LocalsOnly` for a module's procedure (unfolding as `writes_keep` does; both
+  now run on `stmtPredSplit`), closing local reads and writes by `rfl`.
+* `evalMexpr_*` simp lemmas, `evalMexpr_toModule_le`, `evalMexpr_procWithHoles_le`: bound `fvP` of a
+  module by walking its expression, down to the abstract modules it applies and the concrete
+  procedures (closed by `locals_only`).
+* Sponge: `fvP_HIRO : fvP HIRO = ⊥`, `fvP_RODist_le : fvP (RODist D) ≤ fvP D`, and
+  `RODist.ecModule : ECModule (RODist D) ERO.RO_ext` from `D`'s — EC's "by construction", now a
+  theorem (with `RO_Distinguisher.representable`).

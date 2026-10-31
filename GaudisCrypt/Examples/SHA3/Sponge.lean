@@ -4,6 +4,7 @@ import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.Int
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.SyntacticFrame
+import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.FootprintSolver
 
 /-!
@@ -664,6 +665,51 @@ module RODist (D : HYBRID_IRO_DIST) using (RO : ERO.RO_T) {
     return $b
   };
 }
+
+local notation "E" => FVP.fvpInductiveFunctionGS.evalMexpr
+
+omit [BlockSponge.Params] in
+/-- `HIRO` has no globals of its own. -/
+theorem fvP_HIRO : FVP.fvP HIRO = ⊥ := by
+  refine le_antisymm ?_ bot_le
+  show E HIRO.expression ≤ ⊥
+  unfold HIRO
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs, evalMexpr_pair, evalMexpr_app, evalMexpr_var, sup_bot_eq]
+  refine sup_le ?_ ?_
+  · unfold HIRO.init
+    refine (evalMexpr_toModule_le _ _).trans ?_
+    simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_fst, evalMexpr_var,
+      evalMexpr_unit, sup_bot_eq]
+    exact (evalMexpr_procWithHoles_le _).trans
+      (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
+  · unfold HIRO.f
+    refine (evalMexpr_toModule_le _ _).trans ?_
+    simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_fst, evalMexpr_snd,
+      evalMexpr_var, evalMexpr_unit, sup_bot_eq]
+    exact (evalMexpr_procWithHoles_le _).trans
+      (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
+
+/-- `RODist(D)` touches what `D` does. -/
+theorem fvP_RODist_le (D : HYBRID_IRO_DIST) : FVP.fvP (RODist D) ≤ FVP.fvP D := by
+  show E (RODist D).expression ≤ E D.expression
+  unfold RODist
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_var, sup_bot_eq]
+  unfold RODist.distinguish
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_var, evalMexpr_unit,
+    sup_bot_eq]
+  refine sup_le ((evalMexpr_procWithHoles_le _).trans
+    (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)) (sup_le le_rfl ?_)
+  exact (show E HIRO.expression = ⊥ from fvP_HIRO).le.trans bot_le
+
+/-- `RODist(D)` is an EasyCrypt-like `RO_Distinguisher` (EC: by construction): representable
+over all of `RO`'s procedures (`RO_Distinguisher.representable`), and its globals are `D`'s. -/
+theorem RODist.ecModule (D : HYBRID_IRO_DIST) (hD : Module.ECModule D HYBRID_IRO_DIST.ext) :
+    Module.ECModule (RODist D) ERO.RO_ext :=
+  PROM.FullRO.RO_Distinguisher.ecModule _ _ _ _ (RODist D)
+    (hD.finitelySupported.mono (fvP_RODist_le D))
 
 /-- `local lemma Exper_HybridIROLazy_LRO &m`, for the section's `D`.  `ERO.RO.m` and
 `HybridIROLazy.mp` are distinct variables (exception E8: `Lens.Disjoint`). -/

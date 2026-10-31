@@ -123,20 +123,22 @@ theorem prhlProc_globInvF_of_writesKeep {F : Footprint VariableAssignment}
   exact ⟨hr, by rw [hμ₁ w hw, hμ₂ w hw]; exact hglob, hI'⟩
 
 open Lean Meta Elab Tactic in
-/-- Split a `WritesKeep` goal down to the conditions on single writes, unfolding the procedures
-of modules (`Flatten.unfoldProcedure`) where the statement is a callee's body. -/
-partial def writesKeepSplit (g : MVarId) (fuel : Nat := 256) : MetaM (List MVarId) := do
+/-- Split a goal `head … s` (a predicate on statements defined by recursion on them, such as
+`StmtWithHoles.WritesKeep`) down to its leaves, unfolding the procedures of modules
+(`Flatten.unfoldProcedure`) where the statement is a callee's body. -/
+partial def stmtPredSplit (head : Name) (g : MVarId) (fuel : Nat := 256) :
+    MetaM (List MVarId) := do
   if fuel == 0 then return [g]
   let ty ← whnf (← instantiateMVars (← g.getType))
   if ty.isAppOfArity ``And 2 then
     let gs ← g.apply (mkConst ``And.intro [])
-    return (← gs.mapM (writesKeepSplit · (fuel - 1))).flatten
+    return (← gs.mapM (stmtPredSplit head · (fuel - 1))).flatten
   else if ty.isConstOf ``True then
     g.assign (mkConst ``True.intro)
     return []
-  else if ty.isAppOf ``StmtWithHoles.WritesKeep then
+  else if ty.isAppOf head then
     let some p := ty.find? (·.isAppOf ``Module.Proc.procedure)
-      | throwError "writes_keep: stuck at{indentExpr ty}"
+      | throwError "stuck at{indentExpr ty}"
     let r ← Flatten.unfoldProcedure p
     let g ← g.replaceTargetDefEq ty
     let g ← match r.proof? with
@@ -144,9 +146,14 @@ partial def writesKeepSplit (g : MVarId) (fuel : Nat := 256) : MetaM (List MVarI
       | some h => do
         let res ← g.rewrite ty h
         g.replaceTargetEq res.eNew res.eqProof
-    writesKeepSplit g (fuel - 1)
+    stmtPredSplit head g (fuel - 1)
   else
     return [← g.replaceTargetDefEq ty]
+
+open Lean Meta in
+/-- `stmtPredSplit` for `StmtWithHoles.WritesKeep`. -/
+def writesKeepSplit (g : MVarId) : MetaM (List MVarId) :=
+  stmtPredSplit ``StmtWithHoles.WritesKeep g
 
 open Lean Elab Tactic in
 /-- `writes_keep`: on a goal `StmtWithHoles.WritesKeep G s`, the conditions on the single writes
