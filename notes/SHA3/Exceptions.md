@@ -166,6 +166,14 @@ of a ported statement carries `Module.ECModule D ext := Module.Representable D e
 (FVP.fvP D).FinitelySupported` ("`D` is an EasyCrypt-like module"; `SIMULATOR.ECModule` for a
 simulator), decided 2026-11-01.
 
+**Module variables of the generic theory, too (2026-11-01).** A fresh variable must avoid the
+section's own module variables as well, and those are lens parameters (E4).  So a non-local result
+that picks fresh local variables also takes finite support of the lens parameters it must avoid.
+First case: `Sponge`'s `HybridIROExper_Lazy_Eager'` and `HybridIROExper_Lazy_Eager` take
+`HybridIROLazy_mp.footprint.FinitelySupported` and `HybridIROEager_mp.footprint.FinitelySupported`.
+A clone instantiating them with `global_var`s discharges them by
+`Footprint.FinitelySupported.varLens`.
+
 **Applied everywhere (audit 2026-11-01).** Every `local clone` and every `local module` with
 variables in the development:
 * `ConcreteF`: the clone `Switching` (`PRPi_m`, `PRPi_mi`, `ARP_coll`, `ARP_m`, `ARP_mi`,

@@ -805,7 +805,9 @@ theorem Exper_RO_HybridIROEager [Lens.Disjoint ERO_RO_m HybridIROEager_mp] (D : 
 
 /-- EC's `HybridIROExper_Lazy_Eager' &m`, for the section's `D`.  Not local: it does not mention
 `ERO` (whose variables its proof takes fresh). -/
-theorem HybridIROExper_Lazy_Eager' (D : HYBRID_IRO_DIST)
+theorem HybridIROExper_Lazy_Eager'
+    (hLazy : HybridIROLazy_mp.footprint.FinitelySupported)
+    (hEager : HybridIROEager_mp.footprint.FinitelySupported) (D : HYBRID_IRO_DIST)
     (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D) (m : VariableAssignment) :
     Procedure.Pr (Module.app HybridIROExper (Module.pair (HybridIROLazy.asHI HybridIROLazy_mp) D)
@@ -813,7 +815,29 @@ theorem HybridIROExper_Lazy_Eager' (D : HYBRID_IRO_DIST)
       Procedure.Pr (Module.app HybridIROExper
         (Module.pair (HybridIROEager.asHI HybridIROEager_mp) D)).procedure () m
         (fun r _ => r = true) := by
-  sorry
+  -- the local clone `ERO`'s variables, fresh (exception E6)
+  have hF := (hD.finitelySupported.sup hLazy).sup hEager
+  haveI : Nonempty (FMap (List block × ℤ) Bool) := ⟨FMap.empty⟩
+  haveI : Nonempty (FMap (List block × ℤ) (Bool × PROM.flag)) := ⟨FMap.empty⟩
+  obtain ⟨ERO_RO_m, hRO, -⟩ := Footprint.exists_fresh (FMap (List block × ℤ) Bool) hF
+  obtain ⟨ERO_FRO_m, hFRO, -⟩ :=
+    Footprint.exists_fresh (FMap (List block × ℤ) (Bool × PROM.flag)) hD.finitelySupported
+  have hRO_D : FVP.fvP D ≤ (ERO_RO_m.footprint)ᶜ := (Footprint.le_compl_comm _ _).mp
+    (hRO.trans (Footprint.compl_antimono (le_sup_left.trans le_sup_left)))
+  have hFRO_D : FVP.fvP D ≤ (ERO_FRO_m.footprint)ᶜ := (Footprint.le_compl_comm _ _).mp hFRO
+  haveI : Lens.Disjoint HybridIROLazy_mp ERO_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+      (hRO.trans (Footprint.compl_antimono (le_sup_right.trans le_sup_left))))
+  haveI : Lens.Disjoint ERO_RO_m HybridIROEager_mp :=
+    Lens.disjoint_of_footprint_le_compl _ _
+      (hRO.trans (Footprint.compl_antimono le_sup_right))
+  -- EC: `rewrite (Exper_HybridIROLazy_LRO &m) (LRO_RO RODist &m) (Exper_RO_HybridIROEager &m)`
+  rw [Exper_HybridIROLazy_LRO HybridIROLazy_mp HybridIROEager_mp ERO_RO_m D hD _hDd hRO_D m,
+    LRO_RO ERO_RO_m ERO_FRO_m (RODist D) (RODist.ecModule D hD)
+      ((fvP_RODist_le D).trans ((Footprint.le_compl_comm _ _).mpr
+        (sup_le ((Footprint.le_compl_comm _ _).mp hRO_D)
+          ((Footprint.le_compl_comm _ _).mp hFRO_D)))) m,
+    Exper_RO_HybridIROEager HybridIROLazy_mp HybridIROEager_mp ERO_RO_m D hD _hDd hRO_D m]
 
 end LazyEager
 
@@ -824,15 +848,18 @@ variable (HybridIROLazy_mp : Lens (FMap (List block × ℤ) Bool) VariableAssign
   (HybridIROEager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
 
 /-- EC's `HybridIROExper_Lazy_Eager (D <: HYBRID_IRO_DIST {-HybridIROEager, -HybridIROLazy}) &m`. -/
-theorem HybridIROExper_Lazy_Eager (D : HYBRID_IRO_DIST)
+theorem HybridIROExper_Lazy_Eager
+    (hLazy : HybridIROLazy_mp.footprint.FinitelySupported)
+    (hEager : HybridIROEager_mp.footprint.FinitelySupported) (D : HYBRID_IRO_DIST)
     (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D) (m : VariableAssignment) :
     Procedure.Pr (Module.app HybridIROExper (Module.pair (HybridIROLazy.asHI HybridIROLazy_mp) D)
         ).procedure () m (fun r _ => r = true) =
       Procedure.Pr (Module.app HybridIROExper
         (Module.pair (HybridIROEager.asHI HybridIROEager_mp) D)).procedure () m
-        (fun r _ => r = true) := by
-  sorry
+        (fun r _ => r = true) :=
+  -- EC: `apply (HybridIROExper_Lazy_Eager' D &m)`
+  HybridIROExper_Lazy_Eager' HybridIROLazy_mp HybridIROEager_mp hLazy hEager D hD _hDd m
 
 -- Turn a hybrid IRO implementation (lazy or eager) into the top-level ideal functionality
 module RaiseHybridIRO using (HI : HYBRID_IRO) : FUNCTIONALITY {
