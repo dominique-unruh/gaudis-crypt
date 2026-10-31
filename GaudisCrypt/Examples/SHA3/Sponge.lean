@@ -973,7 +973,7 @@ section Main
 `{-Perm, -BlockSim, -IRO, -BlockSponge.BIRO.IRO}` on `Dist` (an abbreviation). -/
 def Restrictions (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER) : Prop :=
   FVP.fvP BlockSim ≤ ((BIRO.IRO.mp).footprint ⊔ (BlockSponge.BIRO.IRO.mp).footprint)ᶜ ∧
-  FVP.fvP Dist ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ FVP.fvP BlockSim ⊔
+  FVP.fvP Dist ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ (FVP.fvP BlockSim).glob ⊔
     (BIRO.IRO.mp).footprint ⊔ (BlockSponge.BIRO.IRO.mp).footprint)ᶜ
 
 /-- The local clone `HIRO`'s variables are fresh: disjoint from each other, from `BlockSim`,

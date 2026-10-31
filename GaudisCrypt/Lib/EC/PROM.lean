@@ -1,5 +1,5 @@
 import GaudisCrypt.Syntax.Syntax
-import GaudisCrypt.Logic.AbstractCall
+import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet

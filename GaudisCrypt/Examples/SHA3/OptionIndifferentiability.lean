@@ -1,5 +1,5 @@
 import GaudisCrypt.Syntax.Syntax
-import GaudisCrypt.Logic.AbstractCall
+import GaudisCrypt.Logic.Granular
 
 /-!
 # Indifferentiability with failing oracles (EasyCrypt `proof/OptionIndifferentiability.eca`)

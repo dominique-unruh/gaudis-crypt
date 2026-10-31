@@ -218,8 +218,8 @@ theorem Pr_col (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -241,8 +241,8 @@ theorem G1_col (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -260,8 +260,8 @@ theorem Pr_G1col (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →

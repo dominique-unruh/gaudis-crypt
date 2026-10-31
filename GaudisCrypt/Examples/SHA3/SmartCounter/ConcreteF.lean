@@ -137,7 +137,7 @@ theorem DoubleBounding (DBounder_FBounder_c : Lens ℤ VariableAssignment)
     (_hfresh : DBounder_FBounder_c.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
     (P : Switching.PRPSec.PRP)
-    (_hP : FVP.fvP P ≤ (FVP.fvP D ⊔ C.footprint ⊔ DBounder_FBounder_c.footprint ⊔
+    (_hP : FVP.fvP P ≤ ((FVP.fvP D).glob ⊔ C.footprint ⊔ DBounder_FBounder_c.footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
     (m : VariableAssignment) :
     Procedure.Pr (Module.app Switching.PRPSec.IND (Module.pair P (D' D))).procedure () m
@@ -156,8 +156,8 @@ theorem Real_Concrete (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔
       (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →

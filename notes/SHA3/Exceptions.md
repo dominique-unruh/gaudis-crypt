@@ -166,3 +166,38 @@ variables in the development:
 The other local clones have no module variables (`ConcreteF`'s `ProdSampling`), or clone a theory
 whose own local modules do not survive the clone (`Gconcl`'s `Gext0`).
 
+
+## E7: a restriction against a module is stated against its `glob` (variable level)
+
+**Rule changed** (2026-11-01, Denis's decision; evaluation in `GlobGranularity.md`).  EasyCrypt's
+`X <: T {-M}` for a module `M`, and a restriction like it in a lemma's or an axiom's premise
+(`forall (F <: FUNCTIONALITY {-A})`), is
+
+```
+FVP.fvP X ≤ ((FVP.fvP M).glob ⊔ …)ᶜ
+```
+
+and no longer `FVP.fvP X ≤ (FVP.fvP M ⊔ …)ᶜ`.  `Footprint.glob` (`Logic/Granular.lean`) is
+EasyCrypt's `glob M`: the slots of the variables `M`'s footprint touches, whole (its granular
+cover under `variableGranularity`, whose grains are the variables).  Restrictions against
+variables (`{-Bounder}` as `Bounder.bounder.footprint ⊔ Counter.c.footprint`, `{-C}` as
+`C.footprint`) are unchanged: they are variables already.
+
+**EasyCrypt counterpart.** Exactly `{-M}`: EasyCrypt's memory is a set of variables, and `{-M}`
+excludes every variable of `glob M`.  The previous translation was weaker: two modules can have
+disjoint footprints and still touch the same variable (one `v.1`, the other `v.2`).
+
+**Why.** A one-sided run of an abstract procedure (EC's `call{1}`, as in `IndifRO_is_secure`'s
+`GIdeal_Collision_RO`) must leave `={glob A}` intact, and the framework can frame a run only
+against a region with a reset (`CounterExamples/FramingNeedsReset.lean` shows that
+footprint-disjointness alone does not frame).  A `glob` is a lens region, so it frames
+(`ProgramDenotation.preserves_touched_of_glob`).
+
+**Consequences.**
+* All 53 such hypotheses (52 in the SHA-3 files, 1 in `Lib/EC/Strong_RP_RF`) and the named
+  restriction footprints (`SHA3Indiff.DistRestrictions.footprint`) were converted.
+* A hypothesis about an abstract module's `glob` is a premise about whole variables, so a lemma
+  with it in a hypothesis position asks more, and one with it in a premise (`D_ll`, `∃ S`) gives
+  more: both as in EasyCrypt.
+* `glob M ≥ fvP M` (`Footprint.le_glob`), so the old form follows; `fp_disjoint` uses it.  For a
+  concrete module, `glob` is bounded by its variables (`FinitelySupported.glob_le_compl_varLens`).

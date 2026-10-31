@@ -70,4 +70,58 @@ theorem Footprint.FinitelySupported.isSubGranular {F : Footprint VariableAssignm
     simp only [G, Finset.mem_coe, List.mem_toFinset, List.mem_filterMap]
     exact ⟨v, hv, by simp [h]⟩
 
+/-- **EasyCrypt's `glob`** of a footprint: the slots of the variables it touches, whole (its
+granular cover under `variableGranularity`); `⊤` for a footprint that no finitely many variables
+cover (conservative: nothing is outside it).  A restriction `{-Y}` between abstract modules is
+`FVP.fvP X ≤ (FVP.fvP Y).glob ᶜ` (exception E7). -/
+noncomputable def Footprint.glob (F : Footprint VariableAssignment) :
+    Footprint VariableAssignment :=
+  open Classical in
+  if h : @Footprint.IsSubGranular variableGranularity F then
+    @GranularFootprint.footprint variableGranularity
+      (@Footprint.IsSubGranular.granularCover variableGranularity F h)
+  else ⊤
+
+/-- A footprint lies within its `glob`. -/
+theorem Footprint.le_glob (F : Footprint VariableAssignment) : F ≤ F.glob := by
+  unfold Footprint.glob
+  split
+  · next h => exact @Footprint.IsSubGranular.granularCover_ge variableGranularity F h
+  · exact le_top
+
+/-- Below a footprint, below its `glob`. -/
+theorem Footprint.le_glob_of_le {A F : Footprint VariableAssignment} (h : A ≤ F) : A ≤ F.glob :=
+  h.trans (Footprint.le_glob F)
+
+/-- The `glob` of a finitely supported footprint is a lens region. -/
+theorem Footprint.FinitelySupported.glob_fromLens {F : Footprint VariableAssignment}
+    (hF : F.FinitelySupported) : F.glob.FromLens := by
+  unfold Footprint.glob
+  rw [dif_pos hF.isSubGranular]
+  exact @GranularFootprint.footprint_fromLens variableGranularity _
+
+/-- A finitely supported footprint outside a variable has its `glob` outside it. -/
+theorem Footprint.FinitelySupported.glob_le_compl_varLens {F : Footprint VariableAssignment}
+    (hF : F.FinitelySupported) (v : VariableName)
+    (hFv : F ≤ (GaudisCrypt.varLens v).footprintᶜ) :
+    F.glob ≤ (GaudisCrypt.varLens v).footprintᶜ := by
+  by_cases hbot : (GaudisCrypt.varLens v).footprint = ⊥
+  · rw [hbot]; exact (Footprint.le_compl_comm _ _).mpr bot_le
+  unfold Footprint.glob
+  rw [dif_pos hF.isSubGranular]
+  exact @Footprint.IsSubGranular.granularCover_le_compl variableGranularity _ _ _
+    ⟨v, rfl, hbot⟩ hFv
+
+/-- **The one-sided frame**: a run confined to `R`, which stays out of the `glob` of a finitely
+supported `F`, keeps `F`'s content (EC's `call{1}` of an abstract procedure, against
+`={glob A}`). -/
+theorem ProgramDenotation.preserves_touched_of_glob {a : Type}
+    {p : ProgramDenotation VariableAssignment a} {R F : Footprint VariableAssignment}
+    (hp : p.inFootprint R) (hF : F.FinitelySupported) (hR : R ≤ F.globᶜ)
+    (σ : VariableAssignment) :
+    (p σ).satisfies (fun xs => F.touched_getter.get xs.2 = F.touched_getter.get σ) := by
+  have hQR : F.glob ≤ Rᶜ := (Footprint.le_compl_comm _ _).mp hR
+  exact fun xs hxs => Footprint.touched_getter_eq_of_le (Footprint.le_glob F)
+    (preserves_touched_of_fromLens hp hF.glob_fromLens hQR σ xs hxs)
+
 end GaudisCrypt

@@ -190,7 +190,8 @@ section
 is `Gconcl_list.SimLast(Gconcl.S)`'s footprint, as in `SHA3Indiff`'s statement. -/
 noncomputable def DistRestrictions.footprint : Footprint VariableAssignment :=
   (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
-    FVP.fvP (Gconcl_list.SimLast Gconcl.S) ⊔ (BIRO.IRO.mp).footprint ⊔ Cntr.c.footprint ⊔
+    (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).glob ⊔ (BIRO.IRO.mp).footprint ⊔
+    Cntr.c.footprint ⊔
     (BlockSponge.BIRO.IRO.mp).footprint ⊔ (Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔
     (Simulator.paths).footprint ⊔ BlockSponge.C.c.footprint ⊔ (Gconcl.S.m).footprint ⊔
     (Gconcl.S.mi).footprint ⊔ (Gconcl.S.paths).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
@@ -208,8 +209,8 @@ def DistRestrictions (Dist : DISTINGUISHER) : Prop :=
 islossless P.f => islossless P.fi => islossless F.f => islossless Dist(F,P).distinguish` (an
 abbreviation). -/
 def Dist_lossless (Dist : DISTINGUISHER) : Prop :=
-  ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP Dist)ᶜ →
-    FVP.fvP P ≤ (FVP.fvP Dist)ᶜ →
+  ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP Dist).globᶜ →
+    FVP.fvP P ≤ (FVP.fvP Dist).globᶜ →
     (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
       P).procedure.IsLossless →
     (Indifferentiability.DPRIMITIVE.fi (block × capacity) (List Bool × ℤ) (List Bool)

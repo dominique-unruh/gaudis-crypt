@@ -647,14 +647,14 @@ theorem rf_ll (F : DFUNCTIONALITY) (_hF : FVP.fvP F ≤ C.footprintᶜ) :
   sorry
 
 theorem DRestr_ll (D : DISTINGUISHER) (_hD : FVP.fvP D ≤ C.footprintᶜ) :
-    (∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
       (Module.app D (Module.pair F P)).procedure.IsLossless) →
-    ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP (DRestr D))ᶜ →
-      FVP.fvP P ≤ (FVP.fvP (DRestr D))ᶜ →
+    ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP (DRestr D)).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP (DRestr D)).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -669,8 +669,9 @@ variable (F : FUNCTIONALITY) (P : PRIMITIVE) (D : DISTINGUISHER)
 `D <: DISTINGUISHER{-F, -P, -C, -Redo}`. -/
 theorem swap_restr (hD : Module.ECModule D (distExt))
     (_hF : FVP.fvP F ≤ (C.footprint ⊔ (Redo.prefixes).footprint)ᶜ)
-    (_hP : FVP.fvP P ≤ (C.footprint ⊔ FVP.fvP F ⊔ (Redo.prefixes).footprint)ᶜ)
-    (_hDd : FVP.fvP D ≤ (FVP.fvP F ⊔ FVP.fvP P ⊔ C.footprint ⊔ (Redo.prefixes).footprint)ᶜ)
+    (_hP : FVP.fvP P ≤ (C.footprint ⊔ (FVP.fvP F).glob ⊔ (Redo.prefixes).footprint)ᶜ)
+    (_hDd : FVP.fvP D ≤ ((FVP.fvP F).glob ⊔ (FVP.fvP P).glob ⊔ C.footprint ⊔
+      (Redo.prefixes).footprint)ᶜ)
     (m : VariableAssignment) :
     Procedure.Pr (Module.app Indif (Module.pair (FRestr F) (Module.pair (PRestr P) D))).procedure
         () m (fun r _ => r = true) =
@@ -687,15 +688,16 @@ variable (P : PRIMITIVE) (CO : CONSTRUCTION) (D : DISTINGUISHER)
 /-- `declare module P <: PRIMITIVE{-C}`, `CO <: CONSTRUCTION{-C, -P}`,
 `D <: DISTINGUISHER{-C, -P, -CO}`, with the axioms `f_ll`, `fi_ll`, `CO_ll`, `D_ll`. -/
 theorem Pr_restr (hD : Module.ECModule D (distExt))
-    (_hP : FVP.fvP P ≤ C.footprintᶜ) (_hCO : FVP.fvP CO ≤ (C.footprint ⊔ FVP.fvP P)ᶜ)
-    (_hDd : FVP.fvP D ≤ (C.footprint ⊔ FVP.fvP P ⊔ FVP.fvP CO)ᶜ)
+    (_hP : FVP.fvP P ≤ C.footprintᶜ)
+     (_hCO : FVP.fvP CO ≤ (C.footprint ⊔ (FVP.fvP P).glob)ᶜ)
+    (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (FVP.fvP P).glob ⊔ (FVP.fvP CO).glob)ᶜ)
     (f_ll : (Indifferentiability.PRIMITIVE.f state (List block) block P).procedure.IsLossless)
     (fi_ll : (Indifferentiability.PRIMITIVE.fi state (List block) block P).procedure.IsLossless)
     (CO_ll : (Indifferentiability.FUNCTIONALITY.f state (List block) block
       (Module.app CO (Indifferentiability.PRIMITIVE.view state (List block) block P))
       ).procedure.IsLossless)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →

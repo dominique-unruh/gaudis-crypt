@@ -480,8 +480,8 @@ theorem Pr_ext (hD : Module.ECModule D distExt)
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -522,8 +522,8 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →

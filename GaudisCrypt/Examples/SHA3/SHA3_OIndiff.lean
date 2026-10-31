@@ -293,7 +293,8 @@ module OD (D : ODISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
 -Gconcl_list.Simulator, -OSimulator}`: `SHA3Indiff`'s, and `Counter`, `OSimulator` (an
 abbreviation). -/
 def ODistRestrictions (Dist : ODISTINGUISHER) : Prop :=
-  FVP.fvP Dist ≤ (DistRestrictions.footprint ⊔ Counter.c.footprint ⊔ FVP.fvP OSimulator)ᶜ
+  FVP.fvP Dist ≤ (DistRestrictions.footprint ⊔ Counter.c.footprint ⊔
+    (FVP.fvP OSimulator).glob)ᶜ
 
 /-- EC's `SHA3OIndiff (Dist <: ODISTINGUISHER {…}) &m`, whose hypothesis that `Dist` is lossless
 for lossless oracles puts no restriction on the oracles. -/

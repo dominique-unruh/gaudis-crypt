@@ -333,8 +333,8 @@ theorem G4_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) :
 
 /-- EC's `Real_Ideal`, with the axiom `D_ll`. -/
 theorem Real_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
-      FVP.fvP P ≤ (FVP.fvP D)ᶜ →
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →

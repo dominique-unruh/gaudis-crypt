@@ -720,8 +720,8 @@ def DRestrictions_Real_Ideal (D : DISTINGUISHER) : Prop :=
 /-- `D_lossless`/`D_ll`: `D(F, P).distinguish` is lossless for lossless oracles (an
 abbreviation of EasyCrypt's axiom). -/
 def D_lossless (D : DISTINGUISHER) : Prop :=
-  ∀ (F0 : DFUNCTIONALITY) (P0 : DPRIMITIVE), FVP.fvP F0 ≤ (FVP.fvP D)ᶜ →
-    FVP.fvP P0 ≤ (FVP.fvP D)ᶜ →
+  ∀ (F0 : DFUNCTIONALITY) (P0 : DPRIMITIVE), FVP.fvP F0 ≤ (FVP.fvP D).globᶜ →
+    FVP.fvP P0 ≤ (FVP.fvP D).globᶜ →
     (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block) P0).procedure.IsLossless →
     (Indifferentiability.DPRIMITIVE.fi state (List block × ℤ) (List block)
       P0).procedure.IsLossless →
@@ -742,8 +742,9 @@ section Real_Ideal
 /-- EC's `A_lossless`. -/
 theorem A_lossless (D : DISTINGUISHER) (_hDd : DRestrictions_Real_Ideal D) :
     D_lossless D →
-    ∀ (F : SLCommon.DFUNCTIONALITY) (P0 : SLCommon.DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP (A D))ᶜ →
-      FVP.fvP P0 ≤ (FVP.fvP (A D))ᶜ →
+    ∀ (F : SLCommon.DFUNCTIONALITY) (P0 : SLCommon.DPRIMITIVE),
+      FVP.fvP F ≤ (FVP.fvP (A D)).globᶜ →
+      FVP.fvP P0 ≤ (FVP.fvP (A D)).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P0).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P0).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -777,7 +778,8 @@ module Neg_D (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
 }
 
 theorem Neg_D_lossless (D : DISTINGUISHER) (F : DFUNCTIONALITY) (P0 : DPRIMITIVE)
-    (_hF : FVP.fvP F ≤ (FVP.fvP (Neg_D D))ᶜ) (_hP : FVP.fvP P0 ≤ (FVP.fvP (Neg_D D))ᶜ) :
+    (_hF : FVP.fvP F ≤ (FVP.fvP (Neg_D D)).globᶜ)
+    (_hP : FVP.fvP P0 ≤ (FVP.fvP (Neg_D D)).globᶜ) :
     (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block) P0).procedure.IsLossless →
     (Indifferentiability.DPRIMITIVE.fi state (List block × ℤ) (List block)
       P0).procedure.IsLossless →

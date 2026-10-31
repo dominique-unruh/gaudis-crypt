@@ -1,4 +1,4 @@
-import GaudisCrypt.Logic.AbstractCall
+import GaudisCrypt.Logic.Granular
 
 /-!
 # Footprint disjointness from module restrictions
@@ -8,7 +8,8 @@ when the module is built from modules whose restrictions exclude it.  Here such 
 is a goal `A ≤ (FVP.fvP M)ᶜ` (equivalently `FVP.fvP M ≤ Aᶜ`), and `fp_disjoint` proves it the same
 way: it bounds `FVP.fvP M` through the module combinators (`fvP_app`, `fvP_pair`, `fvP_fst`, …,
 unfolding definitions such as a module type's accessors and constructors) down to modules with a
-restriction hypothesis `FVP.fvP N ≤ Sᶜ` in the context, and finds `A` among the joinands of `S`.
+restriction hypothesis `FVP.fvP N ≤ Sᶜ` in the context, and finds `A` among the joinands of `S`
+(a joinand `glob X`, EasyCrypt's restriction against an abstract module, covers `A ≤ X`).
 -/
 
 namespace GaudisCrypt
@@ -77,6 +78,11 @@ partial def solveLeSup (g : MVarId) (fuel : Nat := 8) : MetaM Unit := do
         let [g'] ← applyConst g ``le_sup_of_le_right | failure
         solveLeSup g' fuel) then return
     throwError "fp_disjoint: {A} is not among{indentExpr S}"
+  -- EC's `glob X` (the variables `X` touches): what is below `X` is below it
+  if S.isAppOfArity ``Footprint.glob 1 then
+    let [g'] ← applyConst g ``Footprint.le_glob_of_le
+      | throwError "fp_disjoint: `le_glob_of_le` failed"
+    return ← solveLeSup g' fuel
   -- a named footprint (`C.footprint`, an abbreviation of a restriction): unfold it
   if fuel > 0 then
     if let some S' ← unfoldDefinition? S then

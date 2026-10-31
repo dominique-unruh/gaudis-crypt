@@ -1,6 +1,7 @@
 import GaudisCrypt.Lib.EC.PRP
 import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.FV
+import GaudisCrypt.Logic.Granular
 
 /-!
 # EasyCrypt's PRP/PRF switching lemma (`theories/crypto/prp_prf/Strong_RP_RF.eca`)
@@ -112,7 +113,7 @@ theorem Conclusion (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1 {x} = uD.1 {y
     (_hD : FVP.fvP Dist ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_m.footprint ⊔
       ARP_mi.footprint ⊔ ARP_coll.footprint ⊔ FBounder_c.footprint)ᶜ)
     (m : VariableAssignment) :
-    (∀ O : SPRP_Oracles D, FVP.fvP O ≤ (FVP.fvP Dist)ᶜ →
+    (∀ O : SPRP_Oracles D, FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless) →
     |(Procedure.Pr (Module.app (IND D) (Module.pair (PRPi.PRPi D uD PRPi_m PRPi_mi)
