@@ -1607,6 +1607,27 @@ simproc_decl reduceChainPair (Lens.chain _ (Lens.pair _ _)) := fun e => do
   let pair ← mkAppOptM ``Lens.pair #[none, none, none, some rx.expr, some ry.expr, none]
   return .done { expr := pair, proof? := some proof }
 
+/-- `decide` of equal propositions, whatever the instances. -/
+theorem decide_congr_inst {p q : Prop} (h : p = q) (hp : Decidable p) (hq : Decidable q) :
+    @decide p hp = @decide q hq := by
+  subst h; congr
+
+/-- `@decide p inst` ↦ `@decide p' inst'`, where `p'` is `p` cleaned and `inst'` an instance
+synthesized for it, or `Classical.propDecidable p'` if there is none.  Not left to `simp`'s
+congruence: that re-synthesizes the instance too, and when it cannot (a condition decided
+classically, as `open Classical in` decides an equality on a type without `DecidableEq`) it leaves
+`p` alone, the reads in it keeping their wrappers. -/
+simproc_decl reduceDecide (decide _) := fun e => do
+  unless e.isAppOfArity ``decide 2 do return .continue
+  let p := e.getArg! 0
+  let r ← Simp.simp p
+  if r.proof?.isNone && r.expr == p then return .continue
+  let inst' ← match ← trySynthInstance (mkApp (mkConst ``Decidable) r.expr) with
+    | .some i => pure i
+    | _ => pure (mkApp (mkConst ``Classical.propDecidable) r.expr)
+  let proof := mkApp5 (mkConst ``decide_congr_inst) p r.expr (← r.getProof) (e.getArg! 1) inst'
+  return .done { expr := mkApp2 (mkConst ``decide) r.expr inst', proof? := some proof }
+
 /-! ## Statements -/
 
 /-- What one flattening step produces: the rewritten statement, the renaming lens, and a proof
@@ -2018,9 +2039,10 @@ the content type of the parameter writer is spelled with (`Flatten.equivInLens_c
 variable renamed in a later round would otherwise take that spelling for its type. -/
 def cleanUnfold : List Name := [``Lens.chainGetter, ``typeListToTuple]
 
-/-- The simprocs of the cleaning pass: evaluating the new names, renaming inside a tuple, and
-the reset regions. -/
-def cleanSimprocs : List Name := [``reduceVarName, ``reduceChainPair, ``reduceNameSet]
+/-- The simprocs of the cleaning pass: evaluating the new names, renaming inside a tuple, the reset
+regions, and rewriting under `decide`. -/
+def cleanSimprocs : List Name :=
+  [``reduceVarName, ``reduceChainPair, ``reduceNameSet, ``reduceDecide]
 
 /-- The simp context and simprocs of the cleaning pass, and nothing else. -/
 def cleanContext : MetaM (Simp.Context × Simp.SimprocsArray) := do

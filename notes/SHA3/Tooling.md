@@ -233,3 +233,20 @@ functors `G`, `H` around them (`A(G(F(P.mk …)), H(P))`).  The full build is gr
   supported.  Proven, standard axioms only.  It is what the non-local results of E6 use to
   instantiate the local declarations' lens parameters.
 
+
+## 2026-11-01: the inliner rewrites under a classically decided `decide`
+
+A condition decided classically (`open Classical in … decide ($hash1 = $hash2 ∧ …)` on a type
+without `DecidableEq`, as in `SecureRO.Collision`) kept the inliner's wrappers on its reads: after
+inlining, `b <- decide (§hash1 = …)` still read the callee's names, while every other occurrence
+was renamed (to `hash10`, … because the stale names counted as taken).  Sound, but unusable.
+
+The cause: `simp`'s congruence for `decide p` re-synthesizes `Decidable p'` for the rewritten
+proposition, and when it cannot (no `Classical` instance in scope) it leaves `p` alone.  A
+congruence lemma casting the instance (`h ▸ hp`) fixed the reads but kept the old reads inside the
+instance (phantom variables, false read dependencies for `stmt_swap`).
+
+Fix (`Logic/Inline.lean`): the simproc `Flatten.reduceDecide` in the cleaning pass rewrites `p` to
+`p'`, then synthesizes `Decidable p'` if possible and takes `Classical.propDecidable p'` otherwise
+(`Flatten.decide_congr_inst`: `decide` of equal propositions agrees whatever the instances).
+Reproduced on a toy module first; the full build is green.
