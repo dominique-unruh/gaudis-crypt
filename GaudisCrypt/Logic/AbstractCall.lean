@@ -409,6 +409,23 @@ theorem FVP.fvP_module_proc {sig : ProcedureSignature} (q : Procedure sig) :
   rw [Module.proc, Module.toModule_expression, ModuleExpression.reduce_proc]
   rfl
 
+/-- A procedure-typed module is the module of its procedure. -/
+theorem Module.Proc.eq_proc_procedure {sig : ProcedureSignature} (M : Module.Proc sig) :
+    M = Module.proc M.procedure := by
+  apply Module.ext
+  rw [Module.procedure_spec M, Module.proc]
+  exact (Module.reduce_expression ⟨.proc _, .proc _, .proc⟩).symm
+
+/-- **A module's procedure stays within the module's footprint** (`FVP.fvP`), on every argument:
+what `{-M}`-style restrictions on `M` are about. -/
+theorem Module.Proc.inFootprint_fvP {sig : ProcedureSignature} (M : Module.Proc sig)
+    (a : sig.ParamType) : (procedureDenotation M.procedure a).inFootprint (FVP.fvP M) := by
+  have h : FVP.fvP M = FVP.fvP_proc M.procedure := by
+    conv_lhs => rw [Module.Proc.eq_proc_procedure M]
+    exact FVP.fvP_module_proc _
+  rw [h]
+  exact Lib.RO.Instantiate.procedureDenotation_inFootprint_fvP_proc _ _
+
 /-- **A functor module that applies to `p.instantiate (ext O)` is represented by `p`**, given one
 oracle module `O₀` with an empty footprint (to bound `p`'s footprint by `D`'s). -/
 theorem Module.representedBy_of_app_eq {T : Type 1} [IsModule T] {sig : ProcedureSignature}

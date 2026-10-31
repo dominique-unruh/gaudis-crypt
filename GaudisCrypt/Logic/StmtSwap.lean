@@ -33,6 +33,20 @@ namespace GaudisCrypt
 def Stmt.CommutesWith (s : Stmt) (u : ProgramState → ProgramState) : Prop :=
   ∀ (g : ProgramState → ENNReal) (σ : ProgramState), s.ewp g (u σ) = s.ewp (fun τ => g (u τ)) σ
 
+/-- A program in the footprint `R`, started after a deterministic update `f` from `Rᶜ`, ends as
+if `f` were applied after it (`ProgramDenotation.inFootprint` at the kernel `pure ∘ f`). -/
+theorem ProgramDenotation.wp_of_inFootprint_det {a : Type}
+    {p : ProgramDenotation VariableAssignment a} {R : Footprint VariableAssignment}
+    (hp : p.inFootprint R) {f : VariableAssignment → VariableAssignment}
+    (hf : (fun σ => (pure (f σ) : SubProbability VariableAssignment)) ∈ Rᶜ.updates)
+    (G : a × VariableAssignment → ENNReal) (σ : VariableAssignment) :
+    p.wp G (f σ) = p.wp (fun r => G (r.1, f r.2)) σ := by
+  have h := congrFun (hp _ hf) σ
+  simp only [SubProbability.pure_bind, Prod.mk.eta, SubProbability.bind_pure] at h
+  simp only [ProgramDenotation.wp]
+  rw [h, SubProbability.expected_bind]
+  simp only [expected_pure]
+
 namespace Stmt.CommutesWith
 
 variable {u : ProgramState → ProgramState}
@@ -72,6 +86,29 @@ theorem «call» {sig : ProcedureSignature} {y : Setter sig.ret ProgramState} {p
       = u (y.set v (ProgramState.globalL.set gl σ))) :
     Stmt.CommutesWith (Stmt.call y p args) u := fun g σ => by
   simp only [Stmt.ewp_call, ha, hg, hy]
+
+/-- A call commutes with an update of the globals from outside the callee's footprint (EC's
+`swap` past an abstract call, justified by the callee's memory restriction): the callee lies in `R`
+on every argument, the update `u` applies `f` to the globals, and `f` is a deterministic update
+from `Rᶜ`, so it can be applied before the call or after it.  The arguments must not see `u`, and
+the result variable must not interfere with it. -/
+theorem call_footprint {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    {R : Footprint VariableAssignment} (hp : ∀ a, (procedureDenotation p a).inFootprint R)
+    {f : VariableAssignment → VariableAssignment}
+    (hf : (fun σ => (pure (f σ) : SubProbability VariableAssignment)) ∈ Rᶜ.updates)
+    (hu : ∀ σ, u σ = ProgramState.globalL.set (f σ.globals) σ)
+    (ha : ∀ σ, args.get (u σ) = args.get σ)
+    (hy : ∀ v gl σ, y.set v (ProgramState.globalL.set (f gl) σ)
+      = u (y.set v (ProgramState.globalL.set gl σ))) :
+    Stmt.CommutesWith (Stmt.call y p args) u := fun g σ => by
+  have hg : (u σ).globals = f σ.globals := by
+    rw [hu σ]; exact ProgramState.globalL.set_get σ _
+  have hs : ∀ gl, ProgramState.globalL.set gl (u σ) = ProgramState.globalL.set gl σ := by
+    intro gl; rw [hu σ]; exact ProgramState.globalL.set_set σ _ _
+  simp only [Stmt.ewp_call, ha, Procedure.ewp, hg, hs]
+  rw [ProgramDenotation.wp_of_inFootprint_det (hp _) hf]
+  simp only [hy]
 
 end Stmt.CommutesWith
 

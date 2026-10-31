@@ -250,3 +250,21 @@ Fix (`Logic/Inline.lean`): the simproc `Flatten.reduceDecide` in the cleaning pa
 `p'`, then synthesizes `Decidable p'` if possible and takes `Classical.propDecidable p'` otherwise
 (`Flatten.decide_congr_inst`: `decide` of equal propositions agrees whatever the instances).
 Reproduced on a toy module first; the full build is green.
+
+## 2026-11-01: swapping a global update past an abstract call (pilot 1, in progress)
+
+EC's `swap{1} [1..2] 2` in `coll_resistant_if_indifferentiable` moves `Bounder.bounder <- 0;
+Counter.init()` past `P.init(); C(P).init()`, justified by `C`, `P` being `{-Bounder}`.
+`stmt_swap`'s call rule (`Stmt.CommutesWith.«call»`) only commutes a call with updates of the
+caller's locals.  New, proven:
+
+* `Stmt.CommutesWith.call_footprint` (`Logic/StmtSwap.lean`): a call to `p`, which lies in the
+  footprint `R` on every argument, commutes with an update applying `f` to the globals when
+  `pure ∘ f ∈ Rᶜ` — from `ProgramDenotation.wp_of_inFootprint_det`, which is the definition of
+  `inFootprint` at the kernel `pure ∘ f`.
+* `Module.Proc.inFootprint_fvP` (`Logic/AbstractCall.lean`): a module's procedure lies in the
+  module's footprint `FVP.fvP M` (with `Module.Proc.eq_proc_procedure`).
+
+Not yet wired into `stmt_swap`: that needs `f` read off the assignment, and a solver for
+footprint-disjointness side conditions (`X.footprint ≤ (FVP.fvP (C(view P).init))ᶜ` from the
+hypotheses `fvP C ≤ (… ⊔ bounder ⊔ …)ᶜ` via `fvP_app`/`fvP_pair`/`fvP_fst`).
