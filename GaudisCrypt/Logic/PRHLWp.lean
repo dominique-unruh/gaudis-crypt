@@ -125,9 +125,19 @@ partial def bareGlobals (σ : FVarId) (e : Lean.Expr) : Bool :=
     | .mdata _ b => bareGlobals σ b
     | _ => false
 
+/-- Does the state `σ` occur in `e` only as read (`collectReadsOf`) or as its globals? -/
+def onlyRead (σ : FVarId) (e : Lean.Expr) : Bool :=
+  let reads := collectReadsOf σ e
+  let stripped := e.replace fun x =>
+    if reads.contains x || (x.isAppOfArity ``ProgramState.globals 1 && x.appArg!.isFVarOf σ) then
+      some (mkConst ``True)
+    else none
+  !stripped.containsFVar σ
+
 /-- On a goal `∀ σ₁ σ₂ : ProgramState, P σ₁ σ₂`: `generalizeReads` for both states — every read
 of `σ₁` becomes a value `x₁`, every read of `σ₂` a value `x₂` (named after the variable), and the
-states are dropped if nothing else mentions them.  Where the globals themselves occur
+states are dropped if nothing else mentions them; a state that occurs other than read is left
+alone (`onlyRead`), its reads with it.  Where the globals themselves occur
 (`§allGlobals`, the globals a call leaves), they become a value `globals₁`/`globals₂` first, and the reads of
 global variables stay reads of it (`x.get globals₁`), so nothing is lost. -/
 def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
@@ -147,7 +157,7 @@ def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
     let body ← instantiateMVars (← g.getType)
     let mut args : Array GeneralizeArg := #[]
     for (σ, n) in [(σ₁, "globals₁"), (σ₂, "globals₂")] do
-      if bareGlobals σ body then
+      if bareGlobals σ body && onlyRead σ body then
         args := args.push { expr := mkApp (mkConst ``ProgramState.globals) (mkFVar σ),
                             xName? := some (Name.mkSimple n) }
     if args.isEmpty then pure (#[], g) else g.generalize args
@@ -159,6 +169,9 @@ def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
     let mut reads : Array Lean.Expr := #[]
     let mut args : Array GeneralizeArg := #[]
     for (σ, sfx) in [(σ₁, "₁"), (σ₂, "₂")] do
+      -- a state that occurs other than read (in a statement's run, say) stays: generalizing its
+      -- reads would cut them off from it
+      unless onlyRead σ body do continue
       for r in collectReadsOf σ body do
         if ← reads.anyM fun r' => withReducible (isDefEq r r') then continue
         reads := reads.push r
@@ -200,7 +213,7 @@ def elabRelCond (goalTy : Lean.Expr) (t : Term) : TacticM Lean.Expr :=
 
 /-- The goal's type, checked to be a `prhlStmt` judgment. -/
 def prhlGoal (g : MVarId) (tac : String) : MetaM Lean.Expr := do
-  let ty ← instantiateMVars (← g.getType)
+  let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
   unless ty.isAppOfArity ``prhlStmt 4 do
     throwError "{tac}: expected a relational judgment `prhlStmt A c₁ c₂ B`, got{indentExpr ty}"
   return ty
@@ -211,7 +224,7 @@ def prhlGoal (g : MVarId) (tac : String) : MetaM Lean.Expr := do
 `res <- call pᵢ (x₁, …, xₙ)`, one local variable per parameter (`prhlProc_of_prhlStmt`), the
 conditions with the reads simplified. -/
 def equivProcToStmt (g : MVarId) : MetaM MVarId := g.withContext do
-  let ty ← instantiateMVars (← g.getType)
+  let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
   unless ty.isAppOfArity ``prhlProc 6 do
     throwError "equiv_proc: expected a procedure judgment `prhlProc A p₁ p₂ B`, got{indentExpr ty}"
   let #[sig₁, sig₂, A, p₁, p₂, B] := ty.getAppArgs | unreachable!
@@ -500,7 +513,8 @@ macro "equiv_sim" : tactic => `(tactic| (
     | (equiv_call; try (case callee => rfl)))
   try (equiv_skip; try (first
     | focus (intros; subst_vars; simp [Setter.throwaway, ProgramState.globalL]; done)
-    | focus (intros; simp_all; done)))))
+    | focus (intros; simp_all; done)
+    | focus (intros; simp_all [Setter.throwaway, ProgramState.globalL]; done)))))
 
 end PRHLWp
 

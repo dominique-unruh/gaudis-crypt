@@ -201,3 +201,21 @@ footprint-disjointness alone does not frame).  A `glob` is a lens region, so it 
   more: both as in EasyCrypt.
 * `glob M ≥ fvP M` (`Footprint.le_glob`), so the old form follows; `fp_disjoint` uses it.  For a
   concrete module, `glob` is bounded by its variables (`FinitelySupported.glob_le_compl_varLens`).
+
+## E8: the abstract call rule's side conditions in a generic theory
+
+**Rule added** (2026-11-01).  Where a lemma of a generic theory calls an abstract adversary with
+the abstract call rule (`prhlProc_abstract_call_module`), it has two more hypotheses:
+* `[Countable T]` for the type `T` of the oracle's arguments (the rule's `hc`): the coupling of
+  the adversary's runs is glued along the oracle calls, which needs countably many call points;
+* `[Lens.Disjoint X Y]` for the theory's module variables that make up the oracle state (E4: they
+  are lens parameters), which the invariant reads as one lens (`Lens.pair`).
+
+First used in `IndifRO_is_secure` (`GIdeal_Collision_RO`, and the three
+`*_resistant_if_indifferentiable`): `[Countable f_in]` and the three disjointness instances of
+`SRO_Bounder_bounder`, `SRO_Counter_c`, `SRO_RO_m`.
+
+**EasyCrypt counterpart.** None needed.  EasyCrypt's distributions are discrete, which the rule's
+countability stands in for, and distinct module variables are distinct memory locations.  A clone
+that instantiates the lens parameters with `global_var`s discharges the disjointness by instance
+search; the SHA-3 instance of `f_in` is `List Bool`, countable.

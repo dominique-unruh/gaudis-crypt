@@ -578,6 +578,25 @@ variable {sig₁ sig₂ : ProcedureSignature}
   {p₁ : Procedure sig₁} {p₂ : Procedure sig₂}
   {B : sig₁.ret → VariableAssignment → sig₂.ret → VariableAssignment → Prop}
 
+/-- A call of a lossless procedure terminates (the losslessness half of EC's `call{1} p_ll`). -/
+theorem Stmt.call_wp_one {sig : ProcedureSignature} {p : Procedure sig} (hp : p.IsLossless)
+    (x : Setter sig.ret ProgramState) (args : Getter sig.ParamType ProgramState)
+    (σ : ProgramState) : (programDenotation (Stmt.call x p args)).wp (fun _ => 1) σ = 1 := by
+  have h := congrFun (Stmt.ewp_call x p args (fun _ => 1)) σ
+  simp only [Stmt.ewp] at h
+  exact h.trans (hp _ _)
+
+/-- Every outcome of a call is the caller's state with the callee's result and globals written
+back, for an outcome of the callee. -/
+theorem Stmt.call_satisfies {sig : ProcedureSignature} {p : Procedure sig}
+    {x : Setter sig.ret ProgramState} {args : Getter sig.ParamType ProgramState}
+    {σ : ProgramState} {B : Unit × ProgramState → Prop}
+    (h : (procedureDenotation p (args.get σ) σ.globals).satisfies fun r =>
+      B ((), x.set r.1 (ProgramState.globalL.set r.2 σ))) :
+    (programDenotation (Stmt.call x p args) σ).satisfies B := by
+  rw [programDenotation_call_apply]
+  exact SubProbability.satisfies_hbind _ fun r hr => SubProbability.satisfies_pure _ _ (h r hr)
+
 /-- **From a procedure judgment to a statement judgment**: the procedures' judgment is the one
 about the two call statements `res <- call pᵢ (args)`, the arguments in local slots `argsLᵢ` and
 the results in local slots `resLᵢ` (`phoareProc_as_phoareStmt` for pRHL). -/

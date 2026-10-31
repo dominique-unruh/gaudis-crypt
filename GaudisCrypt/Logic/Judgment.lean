@@ -198,7 +198,7 @@ namespace Judgment
 /-- The descriptors of the goal `g`'s judgment (one, or one per side of a relational judgment),
 or an error naming the registered ones; with `side? = some i`, only side `i`'s. -/
 def descsOf (g : MVarId) (side? : Option Nat := none) : MetaM (Array JudgmentDesc × Lean.Expr) := do
-  let ty ← instantiateMVars (← g.getType)
+  let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
   let some ds ← judgmentOf? ty
     | let known := (judgmentExt.getState (← getEnv)).toList.map (·.1)
       throwError "not a goal about a statement judgment (registered: {known}):{indentExpr ty}"

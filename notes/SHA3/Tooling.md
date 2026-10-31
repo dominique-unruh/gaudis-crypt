@@ -327,3 +327,26 @@ abstract procedure from its losslessness.  A `sim` tactic would replace the hand
   footprints; (b) EC's semantics literally — an abstract module's globals as a list of variables
   (E2/E6) and `{-M}` between abstract modules as disjoint variable lists, so every region is a
   lens; (c) leave these 7 for later.
+
+## 2026-11-01: pilot 1, second game hop proven (`GIdeal_Collision_RO`)
+
+EC's `call{1} (S_ll RO _)` and the adversary call against an oracle that differs on the two sides.
+After E7 (`glob`), the proof is:
+* the adversary call by `prhlProc_abstract_call_module`, invariant `globInvF` over the oracle state
+  `(bounder, (c, m))` (E8), the oracle premise `Bounder_FInit_get_equiv` (both oracles inlined, the
+  sampling by `equiv_rnd`, `={glob A}` through the writes by `touched_set_of_le_compl`);
+* the one-sided `S(RO).init` by `prhlStmt_seq_left` and, new in `Logic/PRHLStmt.lean`,
+  `Stmt.call_wp_one` (a lossless callee terminates) and `Stmt.call_satisfies` (outcomes of a
+  call); the frame by `ProgramDenotation.preserves_touched_of_glob` through `S`'s representation
+  (`SIMULATOR.RepresentedBy.init`); `RO.get`'s losslessness (`RO_f_lossless`) by `phoare_*`;
+* the oracle calls after the adversary by `RO_get_FInit_equiv` (globals are no longer equal on the
+  two sides, so `equiv_call` needs a judgment, not reflexivity).
+
+Fixes on the way:
+* `equiv_proc`, `Judgment.descsOf`, `prhlGoal` read the goal through `cleanupAnnotations`: after a
+  `have` the goal carries an annotation, and the tactics did not recognize the judgment.
+* `generalizeReadsRel` (behind `equiv_skip`, the `guard` goals) leaves a state alone when it
+  occurs other than read (`onlyRead`), for example in the run of a call: it used to generalize the
+  state's globals into a fresh value and keep the state, losing the link between the two.
+  `equiv_sim`'s closing step gained a `simp_all` that unfolds `Setter.throwaway`/`globalL` for the
+  goals this leaves.

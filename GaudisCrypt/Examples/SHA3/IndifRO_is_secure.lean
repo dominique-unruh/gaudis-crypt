@@ -1,6 +1,7 @@
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.PHoareWp
 
 /-!
 # A construction indifferentiable from a random oracle is secure
@@ -316,19 +317,163 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
     case «else» => equiv_sim
     case guard => intros; simp_all
 
+/-- A helper of EC's `sim` in `GIdeal_Collision_RO`: `FInit(RO).get` (`RO.get` behind `FInit`'s
+alias) and `SRO.RO.RO.get`, on equal arguments, `Counter.c` and `RO.m`, return equal results and
+leave `Counter.c` and `RO.m` equal. -/
+theorem RO_get_FInit_equiv [Lens.Disjoint SRO_Counter_c SRO_RO_m] :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ SRO_Counter_c.get g₁ = SRO_Counter_c.get g₂ ∧
+        SRO_RO_m.get g₁ = SRO_RO_m.get g₂)
+      (PROM.FullRO.RO_T.get f_in f_out
+        (PROM.FullRO.RO_T.mk f_in f_out
+          { init := FInit.init block f_in f_out,
+            get := Module.app (FInit.get block f_in f_out)
+              (DFUNCTIONALITY.mk block f_in f_out
+                { f := FUNCTIONALITY.f block f_in f_out (RO block f_in f_out sampleto SRO_RO_m) }),
+            set := FInit.set block f_in f_out, rem := FInit.rem block f_in f_out,
+            sample := FInit.sample block f_in f_out })).procedure
+      (PROM.FullRO.RO_T.get f_in f_out (SRO.RO.RO f_in f_out sampleto SRO_RO_m)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ SRO_Counter_c.get g₁ = SRO_Counter_c.get g₂ ∧
+        SRO_RO_m.get g₁ = SRO_RO_m.get g₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_skip
+  haveI := (inferInstance : Lens.Disjoint SRO_Counter_c SRO_RO_m).symm
+  rintro g₁ g₂ x _ ⟨rfl, hc, hm⟩ a _
+  simp only [hm]
+  split_ifs <;> simp [hc, Lens.get_of_disjoint_set]
+
+/-- The oracle premise of EC's `call (_: ={glob A, Bounder.bounder, Counter.c, RO.m})` in
+`GIdeal_Collision_RO`: `Bounder(FInit(RO)).get` and `Bounder(RO).get` keep the invariant
+`={glob} ∧ ={bounder, c, m}` (`globInvF` over the oracle state), for any region `F` outside the
+oracle state. -/
+theorem Bounder_FInit_get_equiv [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
+    (F : Footprint VariableAssignment)
+    (hF : F ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔ SRO_RO_m.footprint)ᶜ) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF
+        (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) F Eq g₁ g₂)
+      (SecureRO.RF.get f_in f_out
+        (Module.app (SecureRO.Bounder f_in f_out limit increase_counter bound_counter
+            SRO_Counter_c SRO_Bounder_bounder)
+          (SecureRO.RF.mk f_in f_out
+            { init := PROM.FullRO.RO_T.init f_in f_out
+                (PROM.FullRO.RO_T.mk f_in f_out
+                  { init := FInit.init block f_in f_out,
+                    get := Module.app (FInit.get block f_in f_out)
+                      (DFUNCTIONALITY.mk block f_in f_out
+                        { f := FUNCTIONALITY.f block f_in f_out
+                            (RO block f_in f_out sampleto SRO_RO_m) }),
+                    set := FInit.set block f_in f_out, rem := FInit.rem block f_in f_out,
+                    sample := FInit.sample block f_in f_out }),
+              get := PROM.FullRO.RO_T.get f_in f_out
+                (PROM.FullRO.RO_T.mk f_in f_out
+                  { init := FInit.init block f_in f_out,
+                    get := Module.app (FInit.get block f_in f_out)
+                      (DFUNCTIONALITY.mk block f_in f_out
+                        { f := FUNCTIONALITY.f block f_in f_out
+                            (RO block f_in f_out sampleto SRO_RO_m) }),
+                    set := FInit.set block f_in f_out, rem := FInit.rem block f_in f_out,
+                    sample := FInit.sample block f_in f_out }) }))).procedure
+      (SecureRO.RF.get f_in f_out
+        (Module.app (SecureRO.Bounder f_in f_out limit increase_counter bound_counter
+            SRO_Counter_c SRO_Bounder_bounder)
+          (SecureRO.RF.mk f_in f_out
+            { init := PROM.FullRO.RO_T.init f_in f_out (SRO.RO.RO f_in f_out sampleto SRO_RO_m),
+              get := PROM.FullRO.RO_T.get f_in f_out
+                (SRO.RO.RO f_in f_out sampleto SRO_RO_m) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF
+        (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) F Eq g₁ g₂) := by
+  have hb : SRO_Bounder_bounder.footprint ≤ Fᶜ := (Footprint.le_compl_comm _ _).mp
+    (hF.trans (Footprint.compl_antimono (le_sup_left.trans le_sup_left)))
+  have hc : SRO_Counter_c.footprint ≤ Fᶜ := (Footprint.le_compl_comm _ _).mp
+    (hF.trans (Footprint.compl_antimono (le_sup_right.trans le_sup_left)))
+  have hm : SRO_RO_m.footprint ≤ Fᶜ := (Footprint.le_compl_comm _ _).mp
+    (hF.trans (Footprint.compl_antimono le_sup_right))
+  have := (inferInstance : Lens.Disjoint SRO_Counter_c SRO_RO_m).symm
+  have := (inferInstance : Lens.Disjoint SRO_Bounder_bounder SRO_RO_m).symm
+  have := (inferInstance : Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c).symm
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+    globInvF (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) F Eq
+      §allGlobals{1} §allGlobals{2})
+  · equiv_sim
+  · equiv_if
+    case «then» =>
+      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
+        §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+        globInvF (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) F Eq
+          §allGlobals{1} §allGlobals{2})
+      · equiv_sim
+        intros
+        simp_all [globInvF, Lens.pair, Prod.ext_iff, touched_set_of_le_compl hb,
+          touched_set_of_le_compl hc,
+            touched_set_of_le_compl hm, Lens.set_get, Lens.get_of_disjoint_set]
+      · equiv_if
+        case «then» =>
+          stmt_wp
+          equiv_rnd
+          stmt_wp
+          equiv_skip
+          intros
+          simp_all [globInvF, Lens.pair, Prod.ext_iff, touched_set_of_le_compl hb,
+            touched_set_of_le_compl hc,
+            touched_set_of_le_compl hm, Lens.set_get, Lens.get_of_disjoint_set]
+          split_ifs <;> simp_all [globInvF, Lens.pair, Prod.ext_iff, touched_set_of_le_compl hb,
+            touched_set_of_le_compl hc, touched_set_of_le_compl hm, Lens.set_get,
+            Lens.get_of_disjoint_set]
+        case «else» => equiv_sim
+        case guard =>
+          intros
+          simp_all [globInvF, Lens.pair, Prod.ext_iff, touched_set_of_le_compl hb,
+            touched_set_of_le_compl hc,
+            touched_set_of_le_compl hm, Lens.set_get, Lens.get_of_disjoint_set]
+    case «else» => equiv_sim
+    case guard =>
+      intros
+      simp_all [globInvF, Lens.pair, Prod.ext_iff, touched_set_of_le_compl hb,
+        touched_set_of_le_compl hc,
+            touched_set_of_le_compl hm, Lens.set_get, Lens.get_of_disjoint_set]
+
+/-- `RO.f` (`SRO.RO.RO.get`) is lossless: EC's `proc; auto; smt(sampleto_ll)`. -/
+theorem RO_f_lossless (hll : is_lossless sampleto) :
+    (FUNCTIONALITY.f block f_in f_out
+      (RO block f_in f_out sampleto SRO_RO_m)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 5
+  phoare_skip
+  intro _
+  letI : MeasurableSpace f_out := ⊤
+  change ∫⁻ _, 1 ∂sampleto.1 = 1
+  rw [MeasureTheory.lintegral_one]
+  exact hll
+
 /-- The second `have` of EC's proof of `coll_resistant_if_indifferentiable`:
 `GIdeal(RO, S, DColl(A)).main ~ Collision(A, SRO.RO.RO).main : ={glob} ==> ={res}`, by EC's
 `proc; inline DColl(A, RO, S(RO)).distinguish; wp; sim 3 1. inline*; swap{2} 1 1; wp.
 call{1} (S_ll RO _); auto. by proc; auto; smt(sampleto_ll).`
 
-Open: `call{1} (S_ll RO _)` runs the abstract `S(RO).init` on the left only, and the relation
-after it (EC's `={glob A, Bounder.bounder, Counter.c}`) must survive it.  The framework frames a
-program only against a lens region (`Footprint.HasReset`); `glob A` is an arbitrary module
-footprint (see `notes/SHA3/Tooling.md`). -/
-theorem GIdeal_Collision_RO (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
-    (A : SRO.AdvCollision f_in f_out) (S : SIMULATOR block f_in f_out)
-    (_hS_ll : S_ll block f_in f_out S)
-    (_hSd : FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+Here: the adversary call by the abstract call rule, its invariant `={glob A}` and `={bounder, c, m}`
+(EC's `sim`); the one-sided `S(RO).init` by `S_ll` and the frame of `glob A` (exception E7); the
+oracle calls after it by `RO_get_FInit_equiv`.  The abstract call rule needs the oracle's argument
+type countable and the oracle's variables one lens (exception E8). -/
+theorem GIdeal_Collision_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
+    (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
+    (A : SRO.AdvCollision f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
+    (hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+      SRO_RO_m.footprint)ᶜ)
+    (S : SIMULATOR block f_in f_out) (hS : SIMULATOR.ECModule block f_in f_out S)
+    (hS_ll : S_ll block f_in f_out S)
+    (hSd : FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
       (FVP.fvP A).glob)ᶜ) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
       (GIdeal block f_in f_out (RO block f_in f_out sampleto SRO_RO_m) S
@@ -338,11 +483,100 @@ theorem GIdeal_Collision_RO (hax : Axioms f_in f_out sampleto limit bound_counte
         SRO_Counter_c SRO_Bounder_bounder) (Module.pair A (SRO.RO.RO f_in f_out sampleto
           SRO_RO_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  sorry
+  -- the adversary call: EC's `call (_: ={glob A, Bounder.bounder, Counter.c, RO.m})`
+  have hL : FVP.fvP A ≤ ((Lens.pair SRO_Bounder_bounder
+      (Lens.pair SRO_Counter_c SRO_RO_m)).footprint)ᶜ := by
+    rw [Footprint.lens_pair, Footprint.lens_pair, ← sup_assoc]
+    exact hAd
+  have hAcall := prhlProc_abstract_call_module
+    (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) A
+    (SRO.Oracle.ext f_in f_out) hA.representable hL Eq
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable f_in)
+      | succ m => nomatch m)
+    _ _ (fun n => by cases n with
+      | zero =>
+        simp only [SecureRO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
+          SecureRO.Oracle.get.mk_simp]
+        exact Bounder_FInit_get_equiv block f_in f_out sampleto limit bound_counter
+          increase_counter SRO_RO_m SRO_Counter_c SRO_Bounder_bounder _ hAd
+      | succ m => nomatch m)
+  equiv_proc
+  stmt_inline{1} 0
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+    §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2})
+  · equiv_call hAcall
+    stmt_wp
+    apply prhlStmt_seq_left
+    stmt_wp
+    refine prhlStmt_skip fun σ₁ σ₂ hσ => ?_
+    -- EC's `call{1} (S_ll RO _)`: `S(RO).init` is lossless, and keeps `glob A`
+    obtain ⟨⟨pinit, pf, pfi, hrep⟩, -⟩ := hS
+    have hll := hS_ll (RO block f_in f_out sampleto SRO_RO_m)
+      (RO_f_lossless block f_in f_out sampleto SRO_RO_m hax.sampleto_ll)
+    have hfp : ∀ a, (procedureDenotation (PRIMITIVE.init block f_in f_out
+        (Module.app S (FUNCTIONALITY.view block f_in f_out
+          (RO block f_in f_out sampleto SRO_RO_m)))).procedure a).inFootprint (FVP.fvP S) := by
+      intro a
+      rw [hrep.init]
+      refine ProgramDenotation.inFootprint_mono
+        (Lib.RO.Instantiate.procedureDenotation_inFootprint_fvP_proc _ a) ?_
+      rw [ProcedureWithHoles.instantiate_empty]
+      exact le_sup_left.trans (le_sup_left.trans hrep.fvP_le)
+    have hSA : FVP.fvP S ≤ (FVP.fvP A).globᶜ := hSd.trans
+      (Footprint.compl_antimono le_sup_right)
+    refine ⟨Stmt.call_wp_one hll _ _ _, Stmt.call_satisfies fun r hr => ?_⟩
+    have ht := ProgramDenotation.preserves_touched_of_glob (hfp _) hA.finitelySupported hSA _ r hr
+    have hb : SRO_Bounder_bounder.footprint ≤ (FVP.fvP A)ᶜ := (Footprint.le_compl_comm _ _).mp
+      (hAd.trans (Footprint.compl_antimono (le_sup_left.trans le_sup_left)))
+    have hc : SRO_Counter_c.footprint ≤ (FVP.fvP A)ᶜ := (Footprint.le_compl_comm _ _).mp
+      (hAd.trans (Footprint.compl_antimono (le_sup_right.trans le_sup_left)))
+    have hm : SRO_RO_m.footprint ≤ (FVP.fvP A)ᶜ := (Footprint.le_compl_comm _ _).mp
+      (hAd.trans (Footprint.compl_antimono le_sup_right))
+    have := (inferInstance : Lens.Disjoint SRO_Counter_c SRO_RO_m).symm
+    have := (inferInstance : Lens.Disjoint SRO_Bounder_bounder SRO_RO_m).symm
+    have := (inferInstance : Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c).symm
+    simp only [globals_resetSetter_set] at ht
+    simp_all [globInvF, Prod.ext_iff, Setter.throwaway, ProgramState.globalL,
+      touched_set_of_le_compl hb, touched_set_of_le_compl hc, touched_set_of_le_compl hm,
+      Lens.set_get, Lens.get_of_disjoint_set]
+  · -- the rest: EC's `sim`, the oracle calls by `RO_get_FInit_equiv`
+    have hget := RO_get_FInit_equiv block f_in f_out sampleto SRO_RO_m SRO_Counter_c
+    equiv_if
+    case «then» =>
+      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+        §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2} ∧
+        §hash1{1} = §hash1{2})
+      · equiv_call hget
+        stmt_wp
+        equiv_skip
+        intros
+        simp_all
+      · equiv_if
+        case «then» =>
+          stmt_wp
+          equiv_call hget
+          stmt_wp
+          equiv_skip
+          intros
+          simp_all
+        case «else» => equiv_sim
+        case guard =>
+          intros
+          simp_all
+    case «else» => equiv_sim
+    case guard =>
+      intros
+      simp_all
 
 /-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder})
 (P <: PRIMITIVE {-C, -A, -Bounder}) &m`, for the section's `A`. -/
 theorem coll_resistant_if_indifferentiable
+    [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvCollision f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
     (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
@@ -369,7 +603,7 @@ theorem coll_resistant_if_indifferentiable
         SRO_Counter_c SRO_Bounder_bounder) (Module.pair A (FM.asRO block f_in f_out C P))).procedure
         () m (fun r _ => r = true) : ℝ) ≤
       bound + ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * (sampleto.1 {default}).toReal := by
-  rintro ⟨S, _hS, hSd, hS_ll, hbound⟩
+  rintro ⟨S, hS, hSd, hS_ll, hbound⟩
   -- `have->: Pr[Collision(A, FM(C,P)).main() @ &m : res] = Pr[GReal(C, P, DColl(A)).main() …]`
   have h1 := Procedure.Pr_eq_of_prhlProc
     (Collision_FM_GReal block f_in f_out limit bound_counter increase_counter SRO_Counter_c
@@ -379,7 +613,7 @@ theorem coll_resistant_if_indifferentiable
   -- `have->: Pr[GIdeal(RO, S, DColl(A)).main() @ &m : res] = Pr[Collision(A, SRO.RO.RO).main() …]`
   have h2 := Procedure.Pr_eq_of_prhlProc
     (GIdeal_Collision_RO block f_in f_out sampleto limit bound_counter increase_counter
-      SRO_RO_m SRO_Counter_c SRO_Bounder_bounder hax A S hS_ll hSd)
+      SRO_RO_m SRO_Counter_c SRO_Bounder_bounder hax A hA (by fp_disjoint) S hS hS_ll hSd)
     (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
     (fun r₁ _ r₂ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
   -- `exact (RO_is_collision_resistant A &m)`
@@ -419,6 +653,8 @@ module DPre (A : SRO.AdvPreimage f_in f_out)
 /-- EC's `preimage_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder, -DPre})
 (P <: PRIMITIVE {-C, -A, -Bounder, -DPre}) &m hash`, for the section's `A`. -/
 theorem preimage_resistant_if_indifferentiable
+    [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvPreimage f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
     (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
@@ -470,6 +706,8 @@ module D2Pre (A : SRO.AdvSecondPreimage f_in f_out)
 /-- EC's `second_preimage_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder, -D2Pre})
 (P <: PRIMITIVE {-C, -A, -Bounder, -D2Pre}) &m mess`, for the section's `A`. -/
 theorem second_preimage_resistant_if_indifferentiable
+    [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvSecondPreimage f_in f_out)
     (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
