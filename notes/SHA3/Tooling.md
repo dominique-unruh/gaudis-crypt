@@ -395,3 +395,11 @@ is now proven with standard axioms only.
 New on the way: `simp_reads` (the judgments' read-through-write simp set, for hand-unfolded
 expectations); `phoare_proc_to_stmt` sees through goal annotations.  Expectations of conditionals
 with a sampling inside (no `phoare_if` yet) are unfolded with `Stmt.ewp_*` and `simp_reads`.
+
+## 2026-11-01: `phoare_ewp`
+
+`phoare_ewp` (`Logic/PRHLWp.lean`, a macro): on a `phoareStmt` goal about loop-free code, introduce
+the state and spell the expectation out with the `Stmt.ewp_*` equations (samplings become
+`expected`, conditionals `if`s, also those with a sampling inside, which `phoare_wp` refuses),
+then `simp_reads`.  Replaces the hand-written sequence in `SecureRO` (`Bounder_RO_get_potential`,
+`Collision2_le`); test in `PRHLWpTest.lean` (`CondFlip`).

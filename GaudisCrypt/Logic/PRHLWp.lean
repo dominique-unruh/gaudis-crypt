@@ -480,6 +480,18 @@ elab "simp_reads" : tactic => liftMetaTactic1 fun g => do
   let r ← Judgment.simpWithNames relSimpDecls [] ty
   applySimpResultToTarget g ty r
 
+/-- `phoare_ewp`: on a goal `phoareStmt A s g ρ r` about loop-free code, introduce the state and the
+precondition and spell the expectation `s.ewp g σ` out (`Stmt.ewp_seq`, `_ifThenElse`, `_assign`,
+`_sample`, `_skip`): samplings become `expected`, conditionals `if`s (also those with a sampling
+inside, which `phoare_wp` does not take), calls stay the callee's expectation.  Then
+`simp_reads`, and the tests back to propositions.  What is left is about the initial state only. -/
+macro "phoare_ewp" : tactic => `(tactic| (
+  intro σ _
+  try simp only [Stmt.ewp_seq, Stmt.ewp_ifThenElse, Stmt.ewp_assign, Stmt.ewp_sample,
+    Stmt.ewp_skip]
+  simp_reads
+  try simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]))
+
 /-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the
 test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).
 `equiv_if{i}`: side `i`'s statement is a conditional (`prhlStmt_if_left`/`_right`, EC's

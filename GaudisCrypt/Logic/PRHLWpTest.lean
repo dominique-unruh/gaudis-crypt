@@ -1,5 +1,6 @@
 import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.PHoareWp
 
 /-! Tests of the relational tactics (`Logic/PRHLWp.lean`). -/
 
@@ -113,5 +114,27 @@ example : equiv[ ={x} ==> ={b} ] {
     equiv_skip
     simp
   case guard => rintro _ _ rfl; rfl
+
+/- ### `phoare_ewp`: a sampling inside a conditional -/
+
+module CondFlip {
+  proc run () : Bool {
+    var b : Bool, c : Bool;
+    b <$ SubProbability.uniform;
+    c <- false;
+    if ($b) {
+      c <$ SubProbability.uniform;
+    }
+    return $c
+  };
+}
+
+example : phoare[ CondFlip.run : True ==> §res = true ] = (1 / 4) := by
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_ewp
+  simp [uniform_expected, indicatorE]
+  rw [ENNReal.div_eq_inv_mul, ← ENNReal.mul_inv (by norm_num) (by norm_num)]
+  norm_num
 
 end GaudisCrypt.PRHLWpTest

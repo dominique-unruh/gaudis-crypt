@@ -744,10 +744,7 @@ theorem Bounder_RO_get_potential [Lens.Disjoint Bounder_bounder Counter_c]
   have := (inferInstance : Lens.Disjoint Bounder_bounder Counter_c).symm
   phoare_proc_to_stmt
   repeat phoare_inline 0
-  intro σ _
-  simp only [Stmt.ewp_seq, Stmt.ewp_ifThenElse, Stmt.ewp_assign, Stmt.ewp_sample, Stmt.ewp_skip]
-  simp_reads
-  simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]
+  phoare_ewp
   exact collisionPotential_step hfu bound _ _ _ _ _ _
 
 /-- EC's `fel` in `RO_is_collision_resistant`, as a supermartingale: `FEL(A, RO).main` (the
@@ -821,10 +818,7 @@ theorem Collision2_le [Countable «from»] [Lens.Disjoint Bounder_bounder Counte
   phoare_proc_to_stmt
   phoare_inline 0
   repeat phoare_inline 1
-  intro σ _
-  simp only [Stmt.ewp_seq, Stmt.ewp_ifThenElse, Stmt.ewp_assign, Stmt.ewp_sample, Stmt.ewp_skip]
-  simp_reads
-  simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]
+  phoare_ewp
   -- the tail: `[collision RO.m] + μ` (EC's `seq 1 : (collision RO.m) …`)
   refine (Stmt.ewp_mono _ (fun τ => collision_tail_le hfu _ _ _ _ _) _).trans ?_
   rw [Stmt.ewp_add]
