@@ -56,6 +56,9 @@ def iota_ (i n : ℤ) : List ℤ := (List.range n.toNat).map fun k => i + k
 /-- `mkseq f n`: `[f 0; …; f (n - 1)]`. -/
 def mkseq (f : ℤ → α) (n : ℤ) : List α := (iota_ 0 n).map f
 
+/-- `range m n`: the integers from `m` (included) to `n` (excluded). -/
+def range (m n : ℤ) : List ℤ := iota_ m (n - m)
+
 /-! ## Function properties (`theories/core` and `theories/prelude`) -/
 
 /-- `cancel f g`: `g` is a left inverse of `f`. -/

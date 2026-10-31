@@ -928,68 +928,68 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 8 | module | `SHA3` |  | `SHA3` | — |
-| 17 | op | `size_out` |  | `size_out` | — |
-| 18 | axiom | `size_out_gt0` |  | `size_out_gt0` | — |
-| 20 | op | `sigma` |  | `sigma` | — |
-| 21 | axiom | `sigma_gt0` |  | `sigma_gt0` | — |
-| 23 | type | `f_out.` |  | `f_out.` | — |
-| 25 | op | `dout` |  | `dout` | — |
-| 26 | axiom | `dout_ll` |  | `dout_ll` | — |
-| 27 | axiom | `dout_fu` |  | `dout_fu` | — |
-| 28 | axiom | `dout_full` |  | `dout_full` | — |
-| 31 | op | `to_list` |  | `to_list` | — |
-| 32 | op | `of_list` |  | `of_list` | — |
-| 33 | axiom | `spec_dout` |  | `spec_dout` | — |
-| 34 | axiom | `spec2_dout` |  | `spec2_dout` | — |
-| 35 | axiom | `to_list_inj` |  | `to_list_inj` | — |
-| 36 | axiom | `to_listK` |  | `to_listK` | — |
-| 38 | axiom | `dout_equal_dlist` |  | `dout_equal_dlist` | — |
-| 40 | lemma | `doutE1` |  | `doutE1` | — |
-| 62 | module | `CSetSize` |  | `CSetSize` | — |
-| 71 | module | `FSetSize` |  | `FSetSize` | — |
-| 80 | clone import | `IndifRO_is_secure` |  | `IndifRO_is_secure` | — |
-| 103 | module | `FGetSize` |  | `FGetSize` | — |
-| 111 | module | `SimSetSize` |  | `SimSetSize` | — |
-| 113 | module | `DFSetSize` |  | `DFSetSize` | — |
-| 121 | module | `` |  | `` | — |
-| 127 | declare module | `A` | section Preimage. | `A` | — |
-| 129 | declare axiom | `A_ll` | section Preimage. | `A_ll` | — |
-| 131 | local lemma | `invm_dom_rng` | section Preimage. | `invm_dom_rng` | — |
-| 140 | local lemma | `invmC'` | section Preimage. | `invmC'` | — |
-| 144 | local lemma | `invmC` | section Preimage. | `invmC` | — |
-| 148 | local lemma | `useful` | section Preimage. | `useful` | — |
-| 169 | local equiv | `equiv_sponge_perm` | section Preimage. | `equiv_sponge_perm` | — |
-| 194 | op | `same_ro` | section Preimage. | `same_ro` | — |
-| 199 | op | `same_ro2` | section Preimage. | `same_ro2` | — |
-| 204 | clone import | `Program` | section Preimage. | `Program` | — |
-| 209 | local equiv | `equiv_ro_iro` | section Preimage. | `equiv_ro_iro` | — |
-| 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` | — |
-| 481 | declare module | `A` | section SecondPreimage. | `A` | — |
-| 483 | declare axiom | `A_ll` | section SecondPreimage. | `A_ll` | — |
-| 485 | local lemma | `invm_dom_rng` | section SecondPreimage. | `invm_dom_rng` | — |
-| 494 | local lemma | `invmC'` | section SecondPreimage. | `invmC'` | — |
-| 498 | local lemma | `invmC` | section SecondPreimage. | `invmC` | — |
-| 502 | local lemma | `useful` | section SecondPreimage. | `useful` | — |
-| 523 | local equiv | `equiv_sponge_perm` | section SecondPreimage. | `equiv_sponge_perm` | — |
-| 548 | clone import | `Program` | section SecondPreimage. | `Program` | — |
-| 553 | local equiv | `equiv_ro_iro` | section SecondPreimage. | `equiv_ro_iro` | — |
-| 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` | — |
-| 871 | declare module | `A` | section Collision. | `A` | — |
-| 873 | declare axiom | `A_ll` | section Collision. | `A_ll` | — |
-| 875 | local lemma | `invm_dom_rng` | section Collision. | `invm_dom_rng` | — |
-| 884 | local lemma | `invmC'` | section Collision. | `invmC'` | — |
-| 888 | local lemma | `invmC` | section Collision. | `invmC` | — |
-| 892 | local lemma | `useful` | section Collision. | `useful` | — |
-| 913 | local equiv | `equiv_sponge_perm` | section Collision. | `equiv_sponge_perm` | — |
-| 937 | clone import | `Program` | section Collision. | `Program` | — |
-| 942 | local equiv | `equiv_ro_iro` | section Collision. | `equiv_ro_iro` | — |
-| 1126 | lemma | `Sponge_coll_resistant` | section Collision. | `Sponge_coll_resistant` | — |
-| 1241 | module | `X` |  | `X` | — |
-| 1249 | module | `AdvCollisionSHA3` |  | `AdvCollisionSHA3` | — |
-| 1259 | declare module | `A` | section SHA3_Collision. | `A` | — |
-| 1261 | declare axiom | `A_ll` | section SHA3_Collision. | `A_ll` | — |
-| 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` | — |
+| 8 | module | `SHA3` |  | `SHA3` | def |
+| 17 | op | `size_out` |  | `size_out` (field of `Params`) | def |
+| 18 | axiom | `size_out_gt0` |  | `Params.size_out_gt0` | def |
+| 20 | op | `sigma` |  | `sigma` (field of `Params`) | def |
+| 21 | axiom | `sigma_gt0` |  | `Params.sigma_gt0` | def |
+| 23 | type | `f_out` |  | `f_out` (field of `Params`) | def |
+| 25 | op | `dout` |  | `dout` (field of `Params`) | def |
+| 26 | axiom | `dout_ll` |  | `Params.dout_ll` | def |
+| 27 | axiom | `dout_fu` |  | `Params.dout_fu` | def |
+| 28 | axiom | `dout_full` |  | `Params.dout_full` | def |
+| 31 | op | `to_list` |  | `to_list` (field of `Params`) | def |
+| 32 | op | `of_list` |  | `of_list` (field of `Params`) | def |
+| 33 | axiom | `spec_dout` |  | `Params.spec_dout` | def |
+| 34 | axiom | `spec2_dout` |  | `Params.spec2_dout` | def |
+| 35 | axiom | `to_list_inj` |  | `Params.to_list_inj` | def |
+| 36 | axiom | `to_listK` |  | `Params.to_listK` | def |
+| 38 | axiom | `dout_equal_dlist` |  | `Params.dout_equal_dlist` | def |
+| 40 | lemma | `doutE1` |  | `doutE1` | stated |
+| 62 | module | `CSetSize` |  | `CSetSize` (alias call-wrapped, E5) | def |
+| 71 | module | `FSetSize` |  | `FSetSize` (alias call-wrapped, E5) | def |
+| 80 | clone import | `IndifRO_is_secure` |  | `S` (namespace of abbreviations and `global_var`s, opened; `realize`s: `S.axioms`) | def |
+| 103 | module | `FGetSize` |  | `FGetSize` | def |
+| 111 | module | `SimSetSize` |  | `SimSetSize` (`Module.comp`) | def |
+| 113 | module | `DFSetSize` |  | `DFSetSize` | def |
+| 121 | module | `DSetSize` |  | `DSetSize` (alias call-wrapped, E5) | def |
+| 127 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 129 | declare axiom | `A_ll` | section Preimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
+| 131 | local lemma | `invm_dom_rng` | section Preimage. | `Preimage.invm_dom_rng` | stated |
+| 140 | local lemma | `invmC'` | section Preimage. | `Preimage.invmC'` | stated |
+| 144 | local lemma | `invmC` | section Preimage. | `Preimage.invmC` | stated |
+| 148 | local lemma | `useful` | section Preimage. | `Preimage.useful` | stated |
+| 169 | local equiv | `equiv_sponge_perm` | section Preimage. | `Preimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
+| 194 | op | `same_ro` | section Preimage. | `same_ro` | def |
+| 199 | op | `same_ro2` | section Preimage. | `same_ro2` | def |
+| 204 | clone import | `Program` | section Preimage. | `Preimage.Prog.LoopSnoc.sample` | def |
+| 209 | local equiv | `equiv_ro_iro` | section Preimage. | `Preimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
+| 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` | stated |
+| 481 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 483 | declare axiom | `A_ll` | section SecondPreimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
+| 485 | local lemma | `invm_dom_rng` | section SecondPreimage. | `SecondPreimage.invm_dom_rng` | stated |
+| 494 | local lemma | `invmC'` | section SecondPreimage. | `SecondPreimage.invmC'` | stated |
+| 498 | local lemma | `invmC` | section SecondPreimage. | `SecondPreimage.invmC` | stated |
+| 502 | local lemma | `useful` | section SecondPreimage. | `SecondPreimage.useful` | stated |
+| 523 | local equiv | `equiv_sponge_perm` | section SecondPreimage. | `SecondPreimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
+| 548 | clone import | `Program` | section SecondPreimage. | `SecondPreimage.Prog2.LoopSnoc.sample` | def |
+| 553 | local equiv | `equiv_ro_iro` | section SecondPreimage. | `SecondPreimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
+| 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` | stated |
+| 871 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 873 | declare axiom | `A_ll` | section Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
+| 875 | local lemma | `invm_dom_rng` | section Collision. | `Collision.invm_dom_rng` | stated |
+| 884 | local lemma | `invmC'` | section Collision. | `Collision.invmC'` | stated |
+| 888 | local lemma | `invmC` | section Collision. | `Collision.invmC` | stated |
+| 892 | local lemma | `useful` | section Collision. | `Collision.useful` | stated |
+| 913 | local equiv | `equiv_sponge_perm` | section Collision. | `Collision.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
+| 937 | clone import | `Program` | section Collision. | `Collision.Prog3.LoopSnoc.sample` | def |
+| 942 | local equiv | `equiv_ro_iro` | section Collision. | `Collision.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
+| 1126 | lemma | `Sponge_coll_resistant` | section Collision. | `Sponge_coll_resistant` | stated |
+| 1241 | module | `X` |  | `X` | def |
+| 1249 | module | `AdvCollisionSHA3` |  | `AdvCollisionSHA3` (`A` a Lean parameter) | def |
+| 1259 | declare module | `A` | section SHA3_Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 1261 | declare axiom | `A_ll` | section SHA3_Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
+| 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` | stated |
 
 ## `proof/SHA3OSecurity.ec`
 

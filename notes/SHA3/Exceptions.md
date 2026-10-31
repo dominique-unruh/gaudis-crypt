@@ -109,7 +109,7 @@ only one of its two oracles, used as `LowerDist(Dist) : BlockSponge.DISTINGUISHE
 `distinguish` calls `D(RaiseFun(F), P).distinguish`.  `SHA3_OIndiff.FSome(F)` (`proc init = F.init`) is used as a functor
 by `CSome`, so its `init` calls `F.init`.  So do `SecureORO.RF(R)` (`proc init = R.init`,
 `proc sample = R.sample`) and `SecureORO.Bounder(F)` (`proc sample = F.sample`).  In `IndifRO_is_secure`:
-`FInit`, `GetF`, `SInit`, `FM` and `DColl`.
+`FInit`, `GetF`, `SInit`, `FM` and `DColl`.  In `SHA3Security`: `CSetSize`, `FSetSize`, `DSetSize`.
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
 same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
