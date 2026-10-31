@@ -136,10 +136,16 @@ that mention them, with hypotheses that they are fresh for the section's modules
   `SHA3OSecurity`).
 
 The non-local results (`HybridIROExper_Lazy_Eager'`, `IdealIndif_IRO_BlockIRO`, `conclu`,
-`conclusion`) have exactly EasyCrypt's hypotheses.  Their proofs need a **fresh-variable lemma**:
-for a representable `D` (E2), whose code is finite, there is a lens of any type disjoint from
-`FVP.fvP D` and from given finitely many variables.  Not yet proven; it is the same kind of fact as
-the representation lemma of E2.
+`conclusion`) have exactly EasyCrypt's hypotheses.  Their proofs need a **fresh-variable lemma**.
+
+**The fresh-variable lemma needs finite support (2026-11-01).**  It is false for an arbitrary module,
+representable or not: a statement's getters are arbitrary functions of the state, so a module may
+read every `ℤ`-typed slot, and then no `ℤ` variable is fresh for it.  EasyCrypt's modules have
+finitely many global variables.  `Logic/FreshVariable.lean` states that as
+`Footprint.FinitelySupported` (the footprint lies within the slots of finitely many variable names)
+and proves `Footprint.exists_fresh`: under it, there is a fresh variable of any nonempty type, itself
+finitely supported, so several can be chosen in turn.  The non-local results therefore need finite
+support of their abstract modules as a hypothesis; how it enters the statements is open.
 
 **Applied everywhere (audit 2026-11-01).** Every `local clone` and every `local module` with
 variables in the development:

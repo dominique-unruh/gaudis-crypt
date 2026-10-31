@@ -225,3 +225,11 @@ functors `G`, `H` around them (`A(G(F(P.mk …)), H(P))`).  The full build is gr
   one template per section (with the section-specific games, adversaries and bounds) and its long
   lines reflowed, so the sections stay in step.
 
+## 2026-11-01: fresh variables (`Logic/FreshVariable.lean`)
+
+* `Footprint.FinitelySupported F`: `F` lies within the slots of finitely many variables (with
+  `mono`, `bot`, `sup`, and `varLens` for a single slot).
+* `Footprint.exists_fresh T hF`: a lens of type `T` whose footprint lies in `Fᶜ`, itself finitely
+  supported.  Proven, standard axioms only.  It is what the non-local results of E6 use to
+  instantiate the local declarations' lens parameters.
+
