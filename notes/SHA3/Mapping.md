@@ -647,7 +647,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 369 | declare module | `D` | section . | `D` (parameter of the section's lemmas, with `DRestrictions`) | def |
 | 371 | local clone import | `PROM.FullRO` | section . | `HybridIRO.ERO` (namespace; variables are lens parameters, E6) | def |
 | 378 | local module | `EROExper` | section . | `HybridIRO.EROExper` | def |
-| 387 | local lemma | `LRO_RO` | section . | `HybridIRO.LRO_RO` | stated |
+| 387 | local lemma | `LRO_RO` | section . | `HybridIRO.LRO_RO` | done modulo `PROM.FullEager.RO_LRO_D` |
 | 398 | local module | `HIRO` | section . | `HybridIRO.HIRO` | def |
 | 424 | local lemma | `HybridIROLazy_HIRO_LRO_init` | section . | `HybridIRO.HybridIROLazy_HIRO_LRO_init` | done |
 | 429 | local lemma | `HybridIROLazy_fill_in_LRO_get` | section . | `HybridIRO.HybridIROLazy_fill_in_LRO_get` | done |
@@ -657,8 +657,8 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 474 | local lemma | `RO_sample_HybridIROEager_fill_in` | section . | `HybridIRO.RO_sample_HybridIROEager_fill_in` | done |
 | 487 | local lemma | `HIRO_RO_HybridIROEager_f` | section . | `HybridIRO.HIRO_RO_HybridIROEager_f` | done |
 | 503 | local module | `RODist` | section . | `HybridIRO.RODist` | def |
-| 511 | local lemma | `Exper_HybridIROLazy_LRO` | section . | `HybridIRO.Exper_HybridIROLazy_LRO` | done |
-| 522 | local lemma | `Exper_RO_HybridIROEager` | section . | `HybridIRO.Exper_RO_HybridIROEager` | done |
+| 511 | local lemma | `Exper_HybridIROLazy_LRO` | section . | `HybridIRO.Exper_HybridIROLazy_LRO` | done (exc E8) |
+| 522 | local lemma | `Exper_RO_HybridIROEager` | section . | `HybridIRO.Exper_RO_HybridIROEager` | done (exc E8) |
 | 533 | lemma | `HybridIROExper_Lazy_Eager'` | section . | `HybridIRO.HybridIROExper_Lazy_Eager'` | stated |
 | 544 | lemma | `HybridIROExper_Lazy_Eager` |  | `HybridIRO.HybridIROExper_Lazy_Eager` | stated |
 | 553 | module | `RaiseHybridIRO` |  | `HybridIRO.RaiseHybridIRO` | def |

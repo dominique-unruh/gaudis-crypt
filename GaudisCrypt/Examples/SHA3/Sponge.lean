@@ -384,7 +384,22 @@ theorem LRO_RO (D : ERO.RO_Distinguisher) (hD : Module.ECModule D ERO.RO_ext)
         (fun r _ => r = true) =
       Procedure.Pr (Module.app EROExper (Module.pair (ERO.RO ERO_RO_m) D)).procedure () m
         (fun r _ => r = true) := by
-  sorry
+  have hcall := PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) Bool Unit Bool ERO.dout ERO_FRO_m
+    (fun _ => dbool_ll) ERO_RO_m D hD _hDd
+  -- EC: `byequiv => //; proc; seq 1 1 : (={glob D, ERO.RO.m}); first sim;
+  -- by symmetry; call (FullEager.RO_LRO_D D _); auto; rewrite dbool_ll`
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  equiv_sym
+  stmt_wp
+  equiv_call hcall
+  stmt_wp
+  equiv_skip
+  rintro g _ rfl
+  exact ⟨rfl, fun _ _ _ _ h => h.1.symm⟩
 
 -- Make a hybrid IRO out of a random oracle (EC's local `HIRO(RO : ERO.RO) : HYBRID_IRO`)
 module HIRO using (RO : ERO.RO_T) : HYBRID_IRO {

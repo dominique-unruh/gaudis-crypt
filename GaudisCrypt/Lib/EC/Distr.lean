@@ -44,4 +44,11 @@ noncomputable def dexcepted (d : SubProbability α) (P : α → Prop) : SubProba
 /-- `dbool` (`{0,1}`): a fair coin. -/
 noncomputable def dbool : SubProbability Bool := SubProbability.uniform
 
+/-- `lemma dbool_ll : is_lossless dbool`. -/
+theorem dbool_ll : is_lossless dbool := by
+  letI : MeasurableSpace Bool := ⊤
+  change (PMF.uniformOfFintype Bool).toMeasure Set.univ = 1
+  haveI := @PMF.toMeasure.isProbabilityMeasure Bool ⊤ (PMF.uniformOfFintype Bool)
+  exact MeasureTheory.IsProbabilityMeasure.measure_univ
+
 end GaudisCrypt.EC
