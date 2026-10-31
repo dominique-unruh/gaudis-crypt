@@ -120,6 +120,7 @@ import GaudisCrypt.Examples.EasyCryptBench.PlugAndPray
 import GaudisCrypt.Examples.EasyCryptBench.Schnorr
 import GaudisCrypt.Examples.EasyCryptBench.VonNeumann
 import GaudisCrypt.Examples.EasyCryptBench.WhileSampling
+import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Examples.SHA3.IRO

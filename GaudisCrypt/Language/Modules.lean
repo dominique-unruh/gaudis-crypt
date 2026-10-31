@@ -342,6 +342,15 @@ noncomputable def Module.const {T U} [IsModule T] [iu : IsModule U] (m : U) : Mo
     exact .abs (h.weaken_of_empty _)
   abs.toModule habs
 
+/-- Composition of functor modules: `Module.comp f g` applies `g`, then `f`.  It is EasyCrypt's
+`module F (X : A) = G(H(X))` (an alias whose body is a composite application). -/
+noncomputable def Module.comp {A B C : Type _} [IsModule A] [IsModule B] [IsModule C]
+    (f : Module.Arr B C) (g : Module.Arr A B) : Module.Arr A C :=
+  let body : ModuleExpression := .app f.expression (.app g.expression (.var 0))
+  have hbody : body.HasType [Module.moduleTypeRep A] (Module.moduleTypeRep C) :=
+    .app (f.typed.weaken_of_empty _) (.app (g.typed.weaken_of_empty _) (.var 0 (by simp)))
+  (ModuleExpression.abs body).toModule (.abs hbody)
+
 noncomputable def Module.procWithHoles {holes : HoleSigs} {sig : ProcedureSignature}
     (p : ProcedureWithHoles holes sig) :
     Module.Arr (Module holes.toModuleTypeRepTuple) (Module.Proc sig) :=

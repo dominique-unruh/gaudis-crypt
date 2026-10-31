@@ -503,22 +503,22 @@ Lean: `GaudisCrypt/Examples/SHA3/BlockSponge.lean`, namespace `GaudisCrypt.SHA3.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 9 | clone include | `Indifferentiability` |  | `Indifferentiability` | — |
-| 21 | clone import | `IRO` |  | `IRO` | — |
-| 29 | op | `format` |  | `format` | — |
-| 30 | op | `parse` |  | `parse` | — |
-| 32 | axiom | `formatK` |  | `formatK` | — |
-| 33 | axiom | `parseK` |  | `parseK` | — |
-| 34 | axiom | `parse_nil` |  | `parse_nil` | — |
-| 36 | lemma | `parse_injective` |  | `parse_injective` | — |
-| 41 | lemma | `parse_valid` |  | `parse_valid` | — |
-| 56 | module | `C` |  | `C` | — |
-| 63 | module | `FC` |  | `FC` | — |
-| 76 | module | `PC` |  | `PC` | — |
-| 98 | module | `DRestr` |  | `DRestr` | — |
-| 110 | module | `Last` |  | `Last` | — |
-| 119 | module | `` |  | `` | — |
-| 123 | module | `` |  | `` | — |
+| 9 | clone include | `Indifferentiability` |  | `PRIMITIVE` … `IdealIndif` (abbreviations) | def |
+| 21 | clone import | `IRO` |  | `BIRO` (namespace) | def |
+| 29 | op | `format` |  | `format` | def |
+| 30 | op | `parse` |  | `parse` (field of `Params`) | def |
+| 32 | axiom | `formatK` |  | `formatK` (field of `Params`) | def |
+| 33 | axiom | `parseK` |  | `parseK` (field of `Params`) | def |
+| 34 | axiom | `parse_nil` |  | `parse_nil` (field of `Params`) | def |
+| 36 | lemma | `parse_injective` |  | `parse_injective` | stated |
+| 41 | lemma | `parse_valid` |  | `parse_valid` | stated |
+| 56 | module | `C` |  | `C` | def |
+| 63 | module | `FC` |  | `FC` | def |
+| 76 | module | `PC` |  | `PC` | def |
+| 98 | module | `DRestr` |  | `DRestr` (`D` a Lean parameter) | def |
+| 110 | module | `Last` |  | `Last` (with `Last.init` separate) | def |
+| 119 | module | `` |  | `` | def |
+| 123 | module | `` |  | `` | def |
 
 ## `proof/smart_counter/Gconcl_list.ec`
 

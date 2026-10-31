@@ -346,6 +346,9 @@ def valid_toplevel (_ : List Bool) : Prop := True
 /-- In `BlockSponge`. -/
 def valid_block (xs : List block) : Prop := unpad_blocks xs ≠ none
 
+instance (xs : List block) : Decidable (valid_block xs) :=
+  inferInstanceAs (Decidable (unpad_blocks xs ≠ none))
+
 theorem valid_pad2blocks (bs : List Bool) : valid_block (pad2blocks bs) := by
   sorry
 

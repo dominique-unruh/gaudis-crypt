@@ -153,3 +153,10 @@ tried.
   `Conclusion` (stated).  `PRP.lean` gains `StrongPRP.IND`.  `FMap.rng` gets a classical
   `Decidable` instance.
 * `PROM.lean` gains `FullEager.Eager` (`main1`, `main2`) and `Eager_1_2` (stated), for `Gext`.
+
+## 2026-10-31: `Module.comp` (`Language/Modules.lean`), for `BlockSponge.Sim`
+
+`Module.comp f g : Module.Arr A C`, for `f : Module.Arr B C` and `g : Module.Arr A B`, is the
+module `λ X. f (g X)`, typed with the `HasType` constructors in the same way as `Module.const`.
+It translates EasyCrypt's functor aliases with composite bodies,
+`module Sim (F) = Gconcl.S(Last(F))`.

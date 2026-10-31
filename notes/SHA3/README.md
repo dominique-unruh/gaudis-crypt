@@ -107,6 +107,14 @@ Files in this directory:
 * **Repeated sub-expressions** of EasyCrypt statements, such as the instance of `INV_CF_G1`
   between `CF` and `G1`, may be named once (`INV_CF_G1_12`, `eq_glob_C` in `Handle`).  Such a
   definition is an abbreviation, documented as not being an EasyCrypt declaration.
+* **Tuple parameters.** A procedure whose EasyCrypt parameters `(bl, nb)` are the module type's
+  single parameter of a product type takes that pair and names its components
+  (`bl, nb <- $x`).
+* **Functor aliases.** `module Sim (F) = Gconcl.S(Last(F))` is the composite
+  `Module.comp Gconcl.S Last`.
+* **Abstract operators over earlier parameters.** An abstract `op` whose axioms mention
+  definitions depending on earlier parameters is a class over those parameters:
+  `class Params` (`parse`, `formatK` …) in `BlockSponge`, used with `[SLCommon.Params]`.
 * **Views inside module bodies** are written out (`DFUNCTIONALITY.mk … { f := … }`): the `module`
   command's proofs cannot see through a helper such as `FUNCTIONALITY.view`.
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
@@ -143,7 +151,7 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext` and `Gconcl` are done (2026-10-31).
+   `Handle`, `Gcol`, `Gext`, `Gconcl` and `BlockSponge` are done (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).
