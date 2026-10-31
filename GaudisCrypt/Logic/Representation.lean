@@ -34,6 +34,10 @@ procedures), with the full list of the oracle's procedures as `ext`.
   (`ModuleExpression.FOProj.reduce_substitute`), the wrapper of a hole
   (`ProcedureWithHoles.ofHole`, which needs nonempty parameter and result types: they live in
   local slots) and closed procedures in a hole context (`ProcedureWithHoles.ofProc`).
+* **The extraction** (`FONormal.extract`, by induction over first-order normal forms) and its
+  module form, `Module.exists_representation`: every first-order functor module is represented
+  by a procedure with holes over the full list of the oracle's procedures, with at most the
+  footprint of its own normal form.
 -/
 
 namespace GaudisCrypt
@@ -1085,5 +1089,186 @@ theorem fvpGS_stmt_weaken {H : HoleSigs} : ∀ s : Stmt,
     FVP.fvP_proc (ProcedureWithHoles.ofProc (H := H) q) = FVP.fvP_proc q := by
   simp only [FVP.fvP_proc, InductiveFunctionGettersSetters.proc, ProcedureWithHoles.ofProc,
     fvpGS_stmt_weaken]
+
+/-! ## The extraction -/
+
+theorem HoleSigs.toModuleTypeRepTuple_injective :
+    ∀ {h h' : HoleSigs}, h.toModuleTypeRepTuple = h'.toModuleTypeRepTuple → h = h'
+  | .empty, .empty, _ => rfl
+  | .empty, .cons _ _, e => by cases e
+  | .cons _ _, .empty, e => by cases e
+  | .cons s h, .cons s' h', e => by
+      injection e with e1 e2
+      injection e1 with e1
+      rw [e1, HoleSigs.toModuleTypeRepTuple_injective e2]
+
+theorem HoleSigs.toModuleTypeRepTuple_ne_proc (h : HoleSigs) (sig : ProcedureSignature) :
+    h.toModuleTypeRepTuple ≠ .proc sig := by cases h <;> nofun
+
+/-- A family over the holes of `cons s h`: `a` at the first, `f` at the others. -/
+def HoleIndex.consFun {F : ProcedureSignature → Sort*} {s : ProcedureSignature} {h : HoleSigs}
+    (a : F s) (f : ∀ {sig : ProcedureSignature}, HoleIndex h sig → F sig) :
+    ∀ {sig : ProcedureSignature}, HoleIndex (.cons s h) sig → F sig
+  | _, .zero => a
+  | _, .succ n => f n
+
+namespace ModuleExpression
+
+/-- The δ-step on an argument that reduces to a literal tuple. -/
+theorem reduce_app_procHoles {holes : HoleSigs} {sig : ProcedureSignature} (ne : holes.NonEmpty)
+    (r : ProcedureWithHoles holes sig) {a : ModuleExpression} {inst : holes.Instantiation}
+    (h : a.reduce = inst.toModuleExpr) :
+    (ModuleExpression.app (.procHoles ne r) a).reduce = .proc (r.instantiate inst) := by
+  rw [← reduce_app_right, h, reduce_step (.delta ne r inst), reduce_proc]
+
+end ModuleExpression
+
+local notation "E" => FVP.fvpInductiveFunctionGS.evalMexpr
+
+open ModuleExpression in
+/-- **The extraction**: over the oracle parameter of type `H`'s tuple, a first-order normal form of
+procedure type is represented by a procedure with holes, and one of tuple type by a family of
+them: the substituted term, for a literal oracle, reduces to procedures computing the same, and
+the representation's footprint is at most the term's. -/
+theorem FONormal.extract {H : HoleSigs}
+    (hne : ∀ {sig : ProcedureSignature}, HoleIndex H sig →
+      (∀ T ∈ sig.params, Nonempty T) ∧ Nonempty sig.ret) :
+    ∀ {m : ModuleExpression}, m.FONormal →
+      (∀ {sig : ProcedureSignature}, m.HasType [H.toModuleTypeRepTuple] (.proc sig) →
+        ∃ p : ProcedureWithHoles H sig, FVP.fvP_proc p ≤ E m ∧
+          ∀ inst : H.Instantiation, ∃ P : Procedure sig,
+            reduce (m.substitute inst.toModuleExpr) = .proc P ∧
+            procedureDenotation P = procedureDenotation (p.instantiate inst)) ∧
+      (∀ {H' : HoleSigs}, m.HasType [H.toModuleTypeRepTuple] H'.toModuleTypeRepTuple →
+        ∃ q : ∀ {sig : ProcedureSignature}, HoleIndex H' sig → ProcedureWithHoles H sig,
+          (∀ {sig : ProcedureSignature} (n : HoleIndex H' sig), FVP.fvP_proc (q n) ≤ E m) ∧
+          ∀ inst : H.Instantiation, ∃ inst' : H'.Instantiation,
+            reduce (m.substitute inst.toModuleExpr) = inst'.toModuleExpr ∧
+            ∀ {sig : ProcedureSignature} (n : HoleIndex H' sig),
+              procedureDenotation (inst'.lookup n) =
+                procedureDenotation ((q n).instantiate inst)) := by
+  intro m hm
+  induction hm with
+  | «proc» q =>
+      refine ⟨fun ht => ?_, fun ht => ?_⟩
+      · have h' := ht.proc_inv
+        injection h' with hs
+        subst hs
+        refine ⟨.ofProc q, (by simp; rfl), fun inst => ⟨q, ?_, (by simp)⟩⟩
+        exact reduce_proc q
+      · exact absurd ht.proc_inv (HoleSigs.toModuleTypeRepTuple_ne_proc _ _)
+  | unit =>
+      refine ⟨fun ht => (by cases ht.unit_inv), fun {H'} ht => ?_⟩
+      cases H' with
+      | cons _ _ => cases ht.unit_inv
+      | empty =>
+        exact ⟨(fun n => nomatch n), (fun n => nomatch n),
+          fun _ => ⟨⟨⟩, reduce_of_normal .unit, (fun n => nomatch n)⟩⟩
+  | @pair a b ha hb iha ihb =>
+      refine ⟨fun ht => ?_, fun {H'} ht => ?_⟩
+      · obtain ⟨_, _, he, -⟩ := ht.pair_inv
+        cases he
+      · obtain ⟨A, B, hAB, hta, htb⟩ := ht.pair_inv
+        obtain ⟨s, H'', rfl, rfl, rfl⟩ := HoleSigs.toModuleTypeRepTuple_eq_prod hAB
+        obtain ⟨pa, hpa, hda⟩ := iha.1 hta
+        obtain ⟨qb, hqb, hdb⟩ := ihb.2 htb
+        refine ⟨HoleIndex.consFun pa qb, fun n => ?_, fun inst => ?_⟩
+        · cases n with
+          | zero => exact hpa.trans le_sup_left
+          | succ k => exact (hqb k).trans le_sup_right
+        · obtain ⟨Pa, hra, hPa⟩ := hda inst
+          obtain ⟨ib, hrb, hib⟩ := hdb inst
+          refine ⟨HoleSigs.Instantiation.ofFun (HoleIndex.consFun Pa ib.lookup), ?_, fun n => ?_⟩
+          · rw [HoleSigs.Instantiation.toModuleExpr_ofFun_cons]
+            show (ModuleExpression.pair (a.substitute inst.toModuleExpr)
+              (b.substitute inst.toModuleExpr)).reduce = _
+            rw [Module.reduce_pair_of .proc (HoleSigs.Instantiation.toModuleExpr_normal ib) hra hrb]
+            congr 1
+            show ib.toModuleExpr = (HoleSigs.Instantiation.ofFun ib.lookup).toModuleExpr
+            rw [HoleSigs.Instantiation.ofFun_lookup]
+          · rw [HoleSigs.Instantiation.lookup_ofFun]
+            cases n with
+            | zero => exact hPa
+            | succ k => exact hib k
+  | @proj e he =>
+      refine ⟨fun {sig} ht => ?_, fun {H'} ht => ?_⟩
+      · rcases FOProj.reduce_substitute he ht with ⟨sig', n, hA, hred⟩ | ⟨H'', φ, hA, -⟩
+        · injection hA with hs
+          subst hs
+          obtain ⟨hp, hr⟩ := hne n
+          exact ⟨@ProcedureWithHoles.ofHole _ _ n hp hr, @FVP.fvP_proc_ofHole_le _ _ n hp hr _,
+            fun inst => ⟨inst.lookup n, hred inst,
+              (@ProcedureWithHoles.procedureDenotation_ofHole _ _ n hp hr inst).symm⟩⟩
+        · exact absurd hA.symm (HoleSigs.toModuleTypeRepTuple_ne_proc _ _)
+      · rcases FOProj.reduce_substitute he ht with ⟨sig', n, hA, -⟩ | ⟨H'', φ, hA, hred⟩
+        · exact absurd hA (HoleSigs.toModuleTypeRepTuple_ne_proc _ _)
+        · obtain rfl := HoleSigs.toModuleTypeRepTuple_injective hA
+          refine ⟨fun n => @ProcedureWithHoles.ofHole _ _ (φ n) (hne (φ n)).1 (hne (φ n)).2,
+            fun n => @FVP.fvP_proc_ofHole_le _ _ (φ n) (hne (φ n)).1 (hne (φ n)).2 _,
+            fun inst => ⟨HoleSigs.Instantiation.ofFun fun n => inst.lookup (φ n), hred inst,
+              fun n => ?_⟩⟩
+          rw [HoleSigs.Instantiation.lookup_ofFun]
+          exact (@ProcedureWithHoles.procedureDenotation_ofHole _ _ (φ n) (hne (φ n)).1
+            (hne (φ n)).2 inst).symm
+  | @appProcHoles holes sig0 ne r arg harg hnt ih =>
+      refine ⟨fun {sig} ht => ?_, fun {H'} ht => ?_⟩
+      · obtain ⟨A, hf, hta⟩ := ht.app_inv
+        have h' := hf.procHoles_inv
+        injection h' with hA hs
+        injection hs with hs
+        subst hA hs
+        obtain ⟨q, hq, hd⟩ := ih.2 hta
+        refine ⟨r.substHoles q, FVP.fvP_proc_substHoles_le r q _ hq, fun inst => ?_⟩
+        obtain ⟨i', hred, hi'⟩ := hd inst
+        refine ⟨r.instantiate i', reduce_app_procHoles ne r hred, ?_⟩
+        rw [ProcedureWithHoles.procedureDenotation_substHoles r q
+          (HoleSigs.Instantiation.ofFun fun n => (q n).instantiate inst) inst
+          (fun n => HoleSigs.Instantiation.lookup_ofFun _ n)]
+        exact ProcedureWithHoles.procedureDenotation_instantiate_congr r fun n => by
+          rw [HoleSigs.Instantiation.lookup_ofFun]
+          exact hi' n
+      · obtain ⟨A, hf, -⟩ := ht.app_inv
+        have h' := hf.procHoles_inv
+        injection h' with _ hs
+        exact absurd hs (HoleSigs.toModuleTypeRepTuple_ne_proc _ _)
+
+/-- The procedure of a proc-typed module whose expression is a given `.proc`. -/
+theorem Module.procedure_eq_of_expression {sig : ProcedureSignature} {m : Module (.proc sig)}
+    {P : Procedure sig} (h : m.expression = .proc P) : Module.Proc.procedure m = P := by
+  have h2 := (Module.procedure_spec m).symm.trans h
+  injection h2
+
+open ModuleExpression in
+/-- **Every first-order functor module is represented by a procedure with holes**, over the full
+list of the oracle's procedures, with the footprint of its own normal form. -/
+theorem Module.exists_representation {H : HoleSigs} {sig : ProcedureSignature}
+    (hne : ∀ {sig : ProcedureSignature}, HoleIndex H sig →
+      (∀ T ∈ sig.params, Nonempty T) ∧ Nonempty sig.ret)
+    (D : GaudisCrypt.Module (.arr H.toModuleTypeRepTuple (.proc sig))) :
+    ∃ p : ProcedureWithHoles H sig, FVP.fvP_proc p ≤ E D.expression ∧
+      ∀ (O : GaudisCrypt.Module H.toModuleTypeRepTuple) (inst : H.Instantiation),
+        O.expression = inst.toModuleExpr →
+        procedureDenotation (Module.Proc.procedure (Module.app' D O)) =
+          procedureDenotation (p.instantiate inst) := by
+  rcases Module.expression_shape (HoleSigs.toModuleTypeRepTuple_firstOrder H) D with
+    ⟨holes, ne, r, hD⟩ | ⟨b, hD, hb, hbt⟩
+  · have ht := D.typed
+    rw [hD] at ht
+    have h' := ht.procHoles_inv
+    injection h' with hh hs
+    obtain rfl := HoleSigs.toModuleTypeRepTuple_injective hh
+    refine ⟨r, by rw [hD]; exact le_rfl, fun O inst hO => ?_⟩
+    rw [Module.procedure_eq_of_expression (P := r.instantiate inst)]
+    show (ModuleExpression.app D.expression O.expression).reduce = _
+    rw [hD, hO]
+    exact reduce_app_procHoles ne r (reduce_of_normal
+      (HoleSigs.Instantiation.toModuleExpr_normal inst))
+  · obtain ⟨p, hp, hd⟩ := (FONormal.extract hne hb).1 hbt
+    refine ⟨p, by rw [hD]; exact hp, fun O inst hO => ?_⟩
+    obtain ⟨P, hred, hP⟩ := hd inst
+    rw [Module.procedure_eq_of_expression (P := P), hP]
+    show (ModuleExpression.app D.expression O.expression).reduce = _
+    rw [hD, hO, reduce_beta]
+    exact hred
 
 end GaudisCrypt
