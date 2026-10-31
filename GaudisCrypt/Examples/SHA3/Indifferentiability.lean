@@ -1,4 +1,5 @@
 import GaudisCrypt.Syntax.Syntax
+import GaudisCrypt.Logic.AbstractCall
 
 /-!
 # Indifferentiability (EasyCrypt `proof/Indifferentiability.eca`)
@@ -81,6 +82,32 @@ noncomputable def distExt (FP : DFUNCTIONALITY p f_in f_out ×ₘ DPRIMITIVE p f
   ((DFUNCTIONALITY.f p f_in f_out (Module.fst FP)).procedure,
    (DPRIMITIVE.f p f_in f_out (Module.snd FP)).procedure,
    (DPRIMITIVE.fi p f_in f_out (Module.snd FP)).procedure)
+
+/-- The oracle procedure a `SIMULATOR`'s `f` and `fi` may call (EasyCrypt's `{ F.f }`): `F.f`.  Its
+`init` may call none (`{ }`). -/
+abbrev simHoles : HoleSigs := .cons (procsig (f_in) -> f_out) .empty
+
+/-- `F.f` out of the oracle `F`. -/
+noncomputable def simExt (F : DFUNCTIONALITY p f_in f_out) : (simHoles f_in f_out).Instantiation :=
+  (DFUNCTIONALITY.f p f_in f_out F).procedure
+
+/-- `S` applied to an oracle `F` behaves, procedure by procedure, like `pinit`, and like `pf`, `pfi`
+filled with `F.f`, and these touch nothing that `S` does not.  `Module.RepresentedBy` for a
+simulator, whose result has three procedures (exception E2). -/
+structure SIMULATOR.RepresentedBy (S : SIMULATOR p f_in f_out)
+    (pinit : ProcedureWithHoles .empty (procsig () -> Unit))
+    (pf pfi : ProcedureWithHoles (simHoles f_in f_out) (procsig (p) -> p)) : Prop where
+  init : ∀ F a, procedureDenotation (PRIMITIVE.init p f_in f_out (Module.app S F)).procedure a =
+    procedureDenotation (pinit.instantiate PUnit.unit) a
+  f : ∀ F a, procedureDenotation (PRIMITIVE.f p f_in f_out (Module.app S F)).procedure a =
+    procedureDenotation (pf.instantiate (simExt p f_in f_out F)) a
+  fi : ∀ F a, procedureDenotation (PRIMITIVE.fi p f_in f_out (Module.app S F)).procedure a =
+    procedureDenotation (pfi.instantiate (simExt p f_in f_out F)) a
+  fvP_le : FVP.fvP_proc pinit ⊔ FVP.fvP_proc pf ⊔ FVP.fvP_proc pfi ≤ FVP.fvP S
+
+/-- EasyCrypt's call restrictions of `SIMULATOR` for an abstract simulator `S` (exception E2). -/
+def SIMULATOR.Representable (S : SIMULATOR p f_in f_out) : Prop :=
+  ∃ pinit pf pfi, SIMULATOR.RepresentedBy p f_in f_out S pinit pf pfi
 
 module Indif using (F : FUNCTIONALITY p f_in f_out, P : PRIMITIVE p f_in f_out,
     D : DISTINGUISHER p f_in f_out) {

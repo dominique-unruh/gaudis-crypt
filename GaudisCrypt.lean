@@ -40,10 +40,12 @@ import GaudisCrypt.CounterExamples.LensRangeComplDisjoint
 import GaudisCrypt.CounterExamples.MiscRangeStuff
 import GaudisCrypt.Lib.Birthday
 import GaudisCrypt.Lib.EC.BitWord
+import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.DProd
 import GaudisCrypt.Lib.EC.Distr
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
+import GaudisCrypt.Lib.EC.Int
 import GaudisCrypt.Lib.EC.IterProc
 import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Lib.EC.PROM
@@ -132,6 +134,7 @@ import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl_list
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gext
 import GaudisCrypt.Examples.SHA3.SmartCounter.Handle
 import GaudisCrypt.Examples.SHA3.SmartCounter.SLCommon
+import GaudisCrypt.Examples.SHA3.Sponge
 import GaudisCrypt.Examples.Pedersen.Binding
 import GaudisCrypt.Examples.Pedersen.Commitment
 import GaudisCrypt.Examples.Pedersen.Hiding

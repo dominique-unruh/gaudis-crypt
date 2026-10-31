@@ -629,115 +629,97 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 10 | clone include | `Indifferentiability` |  | `Indifferentiability` | — |
-| 22 | clone import | `IRO` |  | `IRO` | — |
-| 30 | module | `StdSponge` |  | `StdSponge` | — |
-| 58 | module | `` |  | `` | — |
-| 85 | lemma | `loop_cond` |  | `loop_cond` | — |
-| 99 | equiv | `Sponge_is_StdSponge` |  | `Sponge_is_StdSponge` | — |
-| 131 | module | `LowerFun` |  | `LowerFun` | — |
-| 146 | module | `RaiseFun` |  | `RaiseFun` | — |
-| 155 | module | `LowerDist` |  | `LowerDist` | — |
-| 158 | module | `RaiseSim` |  | `RaiseSim` | — |
-| 258 | module type | `HYBRID_IRO` |  | `HYBRID_IRO` | — |
-| 268 | module type | `HYBRID_IRO_DIST` |  | `HYBRID_IRO_DIST` | — |
-| 274 | module | `HybridIROExper` |  | `HybridIROExper` | — |
-| 285 | module | `HybridIROLazy` |  | `HybridIROLazy` | — |
-| 320 | module | `HybridIROEager` |  | `HybridIROEager` | — |
-| 369 | declare module | `D` | section . | `D` | — |
-| 371 | local clone import | `PROM.FullRO` | section . | `PROM.FullRO` | — |
-| 378 | local module | `EROExper` | section . | `EROExper` | — |
-| 387 | local lemma | `LRO_RO` | section . | `LRO_RO` | — |
-| 398 | local module | `HIRO` | section . | `HIRO` | — |
-| 424 | local lemma | `HybridIROLazy_HIRO_LRO_init` | section . | `HybridIROLazy_HIRO_LRO_init` | — |
-| 425 | equiv | `` | section . | `` | — |
-| 429 | local lemma | `HybridIROLazy_fill_in_LRO_get` | section . | `HybridIROLazy_fill_in_LRO_get` | — |
-| 430 | equiv | `` | section . | `` | — |
-| 442 | local lemma | `HybridIROLazy_HIRO_LRO_f` | section . | `HybridIROLazy_HIRO_LRO_f` | — |
-| 443 | equiv | `` | section . | `` | — |
-| 456 | local lemma | `HIRO_RO_HybridIROEager_init` | section . | `HIRO_RO_HybridIROEager_init` | — |
-| 457 | equiv | `` | section . | `` | — |
-| 461 | local lemma | `RO_get_HybridIROEager_fill_in` | section . | `RO_get_HybridIROEager_fill_in` | — |
-| 462 | equiv | `` | section . | `` | — |
-| 474 | local lemma | `RO_sample_HybridIROEager_fill_in` | section . | `RO_sample_HybridIROEager_fill_in` | — |
-| 475 | equiv | `` | section . | `` | — |
-| 487 | local lemma | `HIRO_RO_HybridIROEager_f` | section . | `HIRO_RO_HybridIROEager_f` | — |
-| 488 | equiv | `` | section . | `` | — |
-| 503 | local module | `RODist` | section . | `RODist` | — |
-| 511 | local lemma | `Exper_HybridIROLazy_LRO` | section . | `Exper_HybridIROLazy_LRO` | — |
-| 522 | local lemma | `Exper_RO_HybridIROEager` | section . | `Exper_RO_HybridIROEager` | — |
-| 533 | lemma | `HybridIROExper_Lazy_Eager'` | section . | `HybridIROExper_Lazy_Eager'` | — |
-| 544 | lemma | `HybridIROExper_Lazy_Eager` |  | `HybridIROExper_Lazy_Eager` | — |
-| 553 | module | `RaiseHybridIRO` |  | `RaiseHybridIRO` | — |
-| 568 | module | `LowerHybridIRO` |  | `LowerHybridIRO` | — |
-| 579 | pred | `lazy_invar` |  | `lazy_invar` | — |
-| 590 | lemma | `lazy_invar0` |  | `lazy_invar0` | — |
-| 597 | lemma | `lazy_invar_mem_pad2blocks_l2r` |  | `lazy_invar_mem_pad2blocks_l2r` | — |
-| 605 | lemma | `lazy_invar_mem_pad2blocks_r2l` |  | `lazy_invar_mem_pad2blocks_r2l` | — |
-| 613 | lemma | `lazy_invar_vb` |  | `lazy_invar_vb` | — |
-| 621 | lemma | `lazy_invar_lookup_eq` |  | `lazy_invar_lookup_eq` | — |
-| 629 | lemma | `lazy_invar_upd_mem_dom_iff` |  | `lazy_invar_upd_mem_dom_iff` | — |
-| 648 | lemma | `lazy_invar_upd2_vb` |  | `lazy_invar_upd2_vb` | — |
-| 662 | lemma | `lazy_invar_upd_lu_eq` |  | `lazy_invar_upd_lu_eq` | — |
-| 685 | lemma | `LowerFun_IRO_HybridIROLazy_f` |  | `LowerFun_IRO_HybridIROLazy_f` | — |
-| 686 | equiv | `` |  | `` | — |
-| 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` |  | `IRO_RaiseHybridIRO_HybridIROLazy_f` | — |
-| 730 | equiv | `` |  | `` | — |
-| 765 | pred | `eager_invar` |  | `eager_invar` | — |
-| 777 | pred | `block_bits_all_in_dom` |  | `block_bits_all_in_dom` | — |
-| 781 | pred | `block_bits_all_out_dom` |  | `block_bits_all_out_dom` | — |
-| 785 | pred | `block_bits_dom_all_in_or_out` |  | `block_bits_dom_all_in_or_out` | — |
-| 789 | lemma | `eager_inv_mem_mp1_ge0` |  | `eager_inv_mem_mp1_ge0` | — |
-| 796 | lemma | `eager_inv_mem_mp2_ge0` |  | `eager_inv_mem_mp2_ge0` | — |
-| 808 | lemma | `eager_invar0` |  | `eager_invar0` | — |
-| 811 | lemma | `eager_inv_imp_block_bits_dom` |  | `eager_inv_imp_block_bits_dom` | — |
-| 835 | lemma | `eager_inv_mem_dom1` |  | `eager_inv_mem_dom1` | — |
-| 848 | lemma | `eager_inv_not_mem_dom1` |  | `eager_inv_not_mem_dom1` | — |
-| 865 | lemma | `block_bits_dom_first_in_imp_all_in` |  | `block_bits_dom_first_in_imp_all_in` | — |
-| 871 | lemma | `block_bits_dom_first_out_imp_all_out` |  | `block_bits_dom_first_out_imp_all_out` | — |
-| 877 | lemma | `Lower_HybridIROEager_f` |  | `Lower_HybridIROEager_f` | — |
-| 878 | equiv | `` |  | `` | — |
-| 904 | module | `HybridIROEagerTrans` |  | `HybridIROEagerTrans` | — |
-| 962 | pred | `eager_eq_except` |  | `eager_eq_except` | — |
-| 968 | lemma | `eager_eq_except_mem_iff` |  | `eager_eq_except_mem_iff` | — |
-| 976 | lemma | `eager_eq_except_upd1_eq_in` |  | `eager_eq_except_upd1_eq_in` | — |
-| 987 | lemma | `eager_eq_except_upd2_eq_in` |  | `eager_eq_except_upd2_eq_in` | — |
-| 998 | lemma | `eager_eq_except_maps_eq` |  | `eager_eq_except_maps_eq` | — |
-| 1012 | lemma | `eager_invar_eq_except_upd1` |  | `eager_invar_eq_except_upd1` | — |
-| 1079 | lemma | `HybridIROEagerTrans_next_block_split` |  | `HybridIROEagerTrans_next_block_split` | — |
-| 1080 | equiv | `` |  | `` | — |
-| 1188 | module | `BlockSpongeTrans` |  | `BlockSpongeTrans` | — |
-| 1215 | clone | `Program` |  | `Program` | — |
-| 1221 | lemma | `PrLoopSnoc_sample` |  | `PrLoopSnoc_sample` | — |
-| 1235 | lemma | `iter_mul_one_half_pos` |  | `iter_mul_one_half_pos` | — |
-| 1250 | module | `BlockGen` |  | `BlockGen` | — |
-| 1269 | lemma | `BlockGen_loop_direct` |  | `BlockGen_loop_direct` | — |
-| 1270 | equiv | `` |  | `` | — |
-| 1307 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_next_block` |  | `HybridIROEagerTrans_BlockSpongeTrans_next_block` | — |
-| 1308 | equiv | `` |  | `` | — |
-| 1507 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_loop` |  | `HybridIROEagerTrans_BlockSpongeTrans_loop` | — |
-| 1508 | equiv | `` |  | `` | — |
-| 1614 | lemma | `HybridIROEager_f_BlockIRO_f` |  | `HybridIROEager_f_BlockIRO_f` | — |
-| 1615 | equiv | `` |  | `` | — |
-| 1873 | lemma | `HybridIROEager_BlockIRO_f` |  | `HybridIROEager_BlockIRO_f` | — |
-| 1874 | equiv | `` |  | `` | — |
-| 1915 | declare module | `BlockSim` | section . | `BlockSim` | — |
-| 1916 | declare module | `Dist` | section . | `Dist` | — |
-| 1918 | local clone | `HybridIRO` | section . | `HybridIRO` | — |
-| 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | section . | `Sponge_Raise_BlockSponge_f` | — |
-| 1923 | equiv | `` | section . | `` | — |
-| 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | section . | `RealIndif_Sponge_BlockSponge` | — |
-| 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | section . | `Ideal_IRO_Experiment_HybridLazy` | — |
-| 2008 | local module | `` | section . | `` | — |
-| 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | section . | `Experiment_HybridIROExper_Lazy` | — |
-| 2036 | local lemma | `HybridIROExper_Experiment_Eager` | section . | `HybridIROExper_Experiment_Eager` | — |
-| 2053 | local lemma | `Experiment_Hybrid_Lazy_Eager` | section . | `Experiment_Hybrid_Lazy_Eager` | — |
-| 2070 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | section . | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | — |
-| 2071 | equiv | `` | section . | `` | — |
-| 2094 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | section . | `Experiment_HybridEager_Ideal_BlockIRO` | — |
-| 2128 | local lemma | `IdealIndif_IRO_BlockIRO` | section . | `IdealIndif_IRO_BlockIRO` | — |
-| 2138 | lemma | `conclu` | section . | `conclu` | — |
-| 2153 | lemma | `conclusion` |  | `conclusion` | — |
+| 10 | clone include | `Indifferentiability` |  | `PRIMITIVE` … `IdealIndif` (abbreviations) | def |
+| 22 | clone import | `IRO` |  | `BIRO` (namespace) | def |
+| 30 | module | `StdSponge` |  | `StdSponge` | def |
+| 58 | module | `Sponge` |  | `Sponge` | def |
+| 85 | lemma | `loop_cond` |  | `loop_cond` | stated |
+| 99 | equiv | `Sponge_is_StdSponge` |  | `Sponge_is_StdSponge` | stated |
+| 131 | module | `LowerFun` |  | `LowerFun` | def |
+| 146 | module | `RaiseFun` |  | `RaiseFun` | def |
+| 155 | module | `LowerDist` |  | `LowerDist` (call-wrapped alias, E5) | def |
+| 158 | module | `RaiseSim` |  | `RaiseSim` (`Module.comp`) | def |
+| 258 | module type | `HYBRID_IRO` |  | `HybridIRO.HYBRID_IRO` | def |
+| 268 | module type | `HYBRID_IRO_DIST` |  | `HybridIRO.HYBRID_IRO_DIST` (with `.holes`, `.ext`) | def |
+| 274 | module | `HybridIROExper` |  | `HybridIRO.HybridIROExper` | def |
+| 285 | module | `HybridIROLazy` |  | `HybridIRO.HybridIROLazy` (`.asHI` its `HYBRID_IRO` view) | def |
+| 320 | module | `HybridIROEager` |  | `HybridIRO.HybridIROEager` (`.asHI` its `HYBRID_IRO` view) | def |
+| 369 | declare module | `D` | section . | `D` (parameter of the section's lemmas, with `DRestrictions`) | def |
+| 371 | local clone import | `PROM.FullRO` | section . | `HybridIRO.ERO` (namespace; variables are lens parameters, E6) | def |
+| 378 | local module | `EROExper` | section . | `HybridIRO.EROExper` | def |
+| 387 | local lemma | `LRO_RO` | section . | `HybridIRO.LRO_RO` | stated |
+| 398 | local module | `HIRO` | section . | `HybridIRO.HIRO` | def |
+| 424 | local lemma | `HybridIROLazy_HIRO_LRO_init` | section . | `HybridIRO.HybridIROLazy_HIRO_LRO_init` | stated |
+| 429 | local lemma | `HybridIROLazy_fill_in_LRO_get` | section . | `HybridIRO.HybridIROLazy_fill_in_LRO_get` | stated |
+| 442 | local lemma | `HybridIROLazy_HIRO_LRO_f` | section . | `HybridIRO.HybridIROLazy_HIRO_LRO_f` | stated |
+| 456 | local lemma | `HIRO_RO_HybridIROEager_init` | section . | `HybridIRO.HIRO_RO_HybridIROEager_init` | stated |
+| 461 | local lemma | `RO_get_HybridIROEager_fill_in` | section . | `HybridIRO.RO_get_HybridIROEager_fill_in` | stated |
+| 474 | local lemma | `RO_sample_HybridIROEager_fill_in` | section . | `HybridIRO.RO_sample_HybridIROEager_fill_in` | stated |
+| 487 | local lemma | `HIRO_RO_HybridIROEager_f` | section . | `HybridIRO.HIRO_RO_HybridIROEager_f` | stated |
+| 503 | local module | `RODist` | section . | `HybridIRO.RODist` | def |
+| 511 | local lemma | `Exper_HybridIROLazy_LRO` | section . | `HybridIRO.Exper_HybridIROLazy_LRO` | stated |
+| 522 | local lemma | `Exper_RO_HybridIROEager` | section . | `HybridIRO.Exper_RO_HybridIROEager` | stated |
+| 533 | lemma | `HybridIROExper_Lazy_Eager'` | section . | `HybridIRO.HybridIROExper_Lazy_Eager'` | stated |
+| 544 | lemma | `HybridIROExper_Lazy_Eager` |  | `HybridIRO.HybridIROExper_Lazy_Eager` | stated |
+| 553 | module | `RaiseHybridIRO` |  | `HybridIRO.RaiseHybridIRO` | def |
+| 568 | module | `LowerHybridIRO` |  | `HybridIRO.LowerHybridIRO` | def |
+| 579 | pred | `lazy_invar` |  | `HybridIRO.lazy_invar` | def |
+| 590 | lemma | `lazy_invar0` |  | `HybridIRO.lazy_invar0` | stated |
+| 597 | lemma | `lazy_invar_mem_pad2blocks_l2r` |  | `HybridIRO.lazy_invar_mem_pad2blocks_l2r` | stated |
+| 605 | lemma | `lazy_invar_mem_pad2blocks_r2l` |  | `HybridIRO.lazy_invar_mem_pad2blocks_r2l` | stated |
+| 613 | lemma | `lazy_invar_vb` |  | `HybridIRO.lazy_invar_vb` | stated |
+| 621 | lemma | `lazy_invar_lookup_eq` |  | `HybridIRO.lazy_invar_lookup_eq` | stated |
+| 629 | lemma | `lazy_invar_upd_mem_dom_iff` |  | `HybridIRO.lazy_invar_upd_mem_dom_iff` | stated |
+| 648 | lemma | `lazy_invar_upd2_vb` |  | `HybridIRO.lazy_invar_upd2_vb` | stated |
+| 662 | lemma | `lazy_invar_upd_lu_eq` |  | `HybridIRO.lazy_invar_upd_lu_eq` | stated |
+| 685 | lemma | `LowerFun_IRO_HybridIROLazy_f` |  | `HybridIRO.LowerFun_IRO_HybridIROLazy_f` | stated |
+| 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` |  | `HybridIRO.IRO_RaiseHybridIRO_HybridIROLazy_f` | stated |
+| 765 | pred | `eager_invar` |  | `HybridIRO.eager_invar` | def |
+| 777 | pred | `block_bits_all_in_dom` |  | `HybridIRO.block_bits_all_in_dom` | def |
+| 781 | pred | `block_bits_all_out_dom` |  | `HybridIRO.block_bits_all_out_dom` | def |
+| 785 | pred | `block_bits_dom_all_in_or_out` |  | `HybridIRO.block_bits_dom_all_in_or_out` | def |
+| 789 | lemma | `eager_inv_mem_mp1_ge0` |  | `HybridIRO.eager_inv_mem_mp1_ge0` | stated |
+| 796 | lemma | `eager_inv_mem_mp2_ge0` |  | `HybridIRO.eager_inv_mem_mp2_ge0` | stated |
+| 808 | lemma | `eager_invar0` |  | `HybridIRO.eager_invar0` | stated |
+| 811 | lemma | `eager_inv_imp_block_bits_dom` |  | `HybridIRO.eager_inv_imp_block_bits_dom` | stated |
+| 835 | lemma | `eager_inv_mem_dom1` |  | `HybridIRO.eager_inv_mem_dom1` | stated |
+| 848 | lemma | `eager_inv_not_mem_dom1` |  | `HybridIRO.eager_inv_not_mem_dom1` | stated |
+| 865 | lemma | `block_bits_dom_first_in_imp_all_in` |  | `HybridIRO.block_bits_dom_first_in_imp_all_in` | stated |
+| 871 | lemma | `block_bits_dom_first_out_imp_all_out` |  | `HybridIRO.block_bits_dom_first_out_imp_all_out` | stated |
+| 877 | lemma | `Lower_HybridIROEager_f` |  | `HybridIRO.Lower_HybridIROEager_f` | stated |
+| 904 | module | `HybridIROEagerTrans` |  | `HybridIRO.HybridIROEagerTrans` | def |
+| 962 | pred | `eager_eq_except` |  | `HybridIRO.eager_eq_except` | def |
+| 968 | lemma | `eager_eq_except_mem_iff` |  | `HybridIRO.eager_eq_except_mem_iff` | stated |
+| 976 | lemma | `eager_eq_except_upd1_eq_in` |  | `HybridIRO.eager_eq_except_upd1_eq_in` | stated |
+| 987 | lemma | `eager_eq_except_upd2_eq_in` |  | `HybridIRO.eager_eq_except_upd2_eq_in` | stated |
+| 998 | lemma | `eager_eq_except_maps_eq` |  | `HybridIRO.eager_eq_except_maps_eq` | stated |
+| 1012 | lemma | `eager_invar_eq_except_upd1` |  | `HybridIRO.eager_invar_eq_except_upd1` | stated |
+| 1079 | lemma | `HybridIROEagerTrans_next_block_split` |  | `HybridIRO.HybridIROEagerTrans_next_block_split` | stated |
+| 1188 | module | `BlockSpongeTrans` |  | `HybridIRO.BlockSpongeTrans` | def |
+| 1215 | clone | `Program` |  | `HybridIRO.Prog` (namespace) | def |
+| 1221 | lemma | `PrLoopSnoc_sample` |  | `HybridIRO.PrLoopSnoc_sample` | stated |
+| 1235 | lemma | `iter_mul_one_half_pos` |  | `HybridIRO.iter_mul_one_half_pos` | stated |
+| 1250 | module | `BlockGen` |  | `HybridIRO.BlockGen` | def |
+| 1269 | lemma | `BlockGen_loop_direct` |  | `HybridIRO.BlockGen_loop_direct` | stated |
+| 1307 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_next_block` |  | `HybridIRO.HybridIROEagerTrans_BlockSpongeTrans_next_block` | stated |
+| 1507 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_loop` |  | `HybridIRO.HybridIROEagerTrans_BlockSpongeTrans_loop` | stated |
+| 1614 | lemma | `HybridIROEager_f_BlockIRO_f` |  | `HybridIRO.HybridIROEager_f_BlockIRO_f` | stated |
+| 1873 | lemma | `HybridIROEager_BlockIRO_f` |  | `HybridIRO.HybridIROEager_BlockIRO_f` | stated |
+| 1915 | declare module | `BlockSim` | section . | `BlockSim` (parameter, with `hS`, `Restrictions`) | def |
+| 1916 | declare module | `Dist` | section . | `Dist` (parameter, with `hD`, `Restrictions`) | def |
+| 1918 | local clone | `HybridIRO` | section . | `HybridIRO` at lens parameters `HIRO_Lazy_mp`, `HIRO_Eager_mp` (`HIRO_fresh`, E6) | def |
+| 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | section . | `Sponge_Raise_BlockSponge_f` | stated |
+| 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | section . | `RealIndif_Sponge_BlockSponge` | stated |
+| 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | section . | `Ideal_IRO_Experiment_HybridLazy` | stated |
+| 2008 | local module | `HybridIRODist` | section . | `HybridIRODist` | def |
+| 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | section . | `Experiment_HybridIROExper_Lazy` | stated |
+| 2036 | local lemma | `HybridIROExper_Experiment_Eager` | section . | `HybridIROExper_Experiment_Eager` | stated |
+| 2053 | local lemma | `Experiment_Hybrid_Lazy_Eager` | section . | `Experiment_Hybrid_Lazy_Eager` | stated |
+| 2070 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | section . | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | stated |
+| 2094 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | section . | `Experiment_HybridEager_Ideal_BlockIRO` | stated |
+| 2128 | local lemma | `IdealIndif_IRO_BlockIRO` | section . | `IdealIndif_IRO_BlockIRO` | stated |
+| 2138 | lemma | `conclu` | section . | `conclu` | stated |
+| 2153 | lemma | `conclusion` |  | `conclusion` | stated |
 
 ## `proof/SHA3Indiff.ec`
 

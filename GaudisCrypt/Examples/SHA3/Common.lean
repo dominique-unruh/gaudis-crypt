@@ -347,6 +347,8 @@ theorem stripK (xs : List block) : extend (strip xs).1 (strip xs).2 = xs := by
 /-- In `Sponge`. -/
 def valid_toplevel (_ : List Bool) : Prop := True
 
+instance (bs : List Bool) : Decidable (valid_toplevel bs) := inferInstanceAs (Decidable True)
+
 /-- In `BlockSponge`. -/
 def valid_block (xs : List block) : Prop := unpad_blocks xs ≠ none
 

@@ -89,6 +89,32 @@ abbrev RO_Distinguisher := RO_T in_t out_t →ₘ procmod (d_in_t) → d_out_t
 /-- EC's `module type FRO_Distinguisher (G : FRO) = { proc distinguish(_ : d_in_t): d_out_t }`. -/
 abbrev FRO_Distinguisher := FRO_T in_t out_t →ₘ procmod (d_in_t) → d_out_t
 
+/-- The oracle procedures an `RO_Distinguisher` may call: all of `RO`'s (EasyCrypt's module type
+puts no restriction on them).  The holes of its representation (`Module.Representable`, exception
+E2 of the SHA-3 port). -/
+abbrev RO_holes : HoleSigs :=
+  .cons (procsig () -> Unit) (.cons (procsig (in_t) -> out_t) (.cons (procsig (in_t, out_t) -> Unit)
+    (.cons (procsig (in_t) -> Unit) (.cons (procsig (in_t) -> Unit) .empty))))
+
+/-- `G.init`, `G.get`, `G.set`, `G.rem`, `G.sample` out of the oracle `G`. -/
+noncomputable def RO_ext (G : RO_T in_t out_t) : (RO_holes in_t out_t).Instantiation :=
+  ((RO_T.init in_t out_t G).procedure, (RO_T.get in_t out_t G).procedure,
+   (RO_T.set in_t out_t G).procedure, (RO_T.rem in_t out_t G).procedure,
+   (RO_T.sample in_t out_t G).procedure)
+
+/-- The oracle procedures an `FRO_Distinguisher` may call: all of `FRO`'s. -/
+abbrev FRO_holes : HoleSigs :=
+  .cons (procsig () -> Unit) (.cons (procsig (in_t) -> out_t) (.cons (procsig (in_t, out_t) -> Unit)
+    (.cons (procsig (in_t) -> Unit) (.cons (procsig (in_t) -> Unit)
+      (.cons (procsig (in_t, flag) -> Bool) (.cons (procsig () -> (FMap in_t out_t)) .empty))))))
+
+/-- `G.init`, `G.get` … `G.allKnown` out of the oracle `G`. -/
+noncomputable def FRO_ext (G : FRO_T in_t out_t) : (FRO_holes in_t out_t).Instantiation :=
+  ((FRO_T.init in_t out_t G).procedure, (FRO_T.get in_t out_t G).procedure,
+   (FRO_T.set in_t out_t G).procedure, (FRO_T.rem in_t out_t G).procedure,
+   (FRO_T.sample in_t out_t G).procedure, (FRO_T.queried in_t out_t G).procedure,
+   (FRO_T.allKnown in_t out_t G).procedure)
+
 module MainD using (D : RO_Distinguisher in_t out_t d_in_t d_out_t, RO : RO_T in_t out_t) {
   proc distinguish (x : d_in_t) : d_out_t {
     var r : d_out_t;
@@ -276,8 +302,7 @@ variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] 
 theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (RO_m : Lens (FMap in_t out_t) VariableAssignment)
     (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
-    (hD : Module.Representable D (holes := .cons (procsig (in_t) -> out_t) .empty)
-      fun G => (RO_T.get in_t out_t G).procedure)
+    (hD : Module.Representable D (RO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
@@ -311,8 +336,7 @@ module Eager (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) {
 `equiv[ Eager(D).main1 ~ Eager(D).main2 : ={glob D, arg} ==> ={res, glob FRO, glob D} ]`. -/
 theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
-    (hD : Module.Representable D (holes := .cons (procsig (in_t) -> out_t) .empty)
-      fun G => (FRO_T.get in_t out_t G).procedure)
+    (hD : Module.Representable D (FRO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧

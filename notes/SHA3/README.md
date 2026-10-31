@@ -129,6 +129,17 @@ Files in this directory:
   `BlockSponge.C` are in scope; it is `BlockSponge.C`.
 * **Views inside module bodies** are written out (`DFUNCTIONALITY.mk … { f := … }`): the `module`
   command's proofs cannot see through a helper such as `FUNCTIONALITY.view`.
+* **Local clones and local modules with variables.** Their variables are lens parameters of the
+  local declarations that mention them, with freshness hypotheses (`Sponge.HIRO_fresh`); the
+  non-local results do not mention them (exception E6).  `local clone HybridIRO as HIRO` is the
+  theory at the lenses `HIRO_Lazy_mp`, `HIRO_Eager_mp`.
+* **Abstract simulators** (`declare module BlockSim <: SIMULATOR`) carry
+  `Indifferentiability.SIMULATOR.Representable` (E2), as distinguishers carry
+  `Module.Representable`.
+* **Equivalences between procedures of different signatures** give them:
+  `prhlProc (sig₁ := …) (sig₂ := …)`.  Arguments are tuples: `a₁.2.1` is the second parameter.
+* **`proc f()` used where `proc f(_ : unit)` is expected** (a `RO_Distinguisher`) takes a `Unit`
+  parameter.
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
   `SLCommon`) are abbreviations of the instantiated declarations in the including file.
 
@@ -163,7 +174,8 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge` and `Gconcl_list` are done (2026-10-31).
+   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list` and `Sponge` are done
+   (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

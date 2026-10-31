@@ -168,3 +168,27 @@ The generic modules in `Lib/EC/` (`PRP.RP`, `Strong_RP_RF.ARP`/`DBounder`, `PROM
 module variables as lens parameters; a module body uses a parameter lens like a variable
 (`m <- …`, `$m`).  Each clone declares its own variables and passes them.  The `global_var` macro
 fix for implicit types (2026-10-31) is still in place, but nothing in the port uses it any more.
+
+## 2026-10-31: for `Sponge`
+
+* **`PROM.FullRO`'s distinguishers may call every oracle procedure.**  `RO_LRO_D` and `Eager_1_2`
+  had a representability hypothesis whose holes were `G.get` alone, a narrower statement than
+  EasyCrypt's (whose `RO_Distinguisher` is unrestricted).  The holes are now all of `RO`'s
+  (`RO_holes`, `RO_ext`: `init`, `get`, `set`, `rem`, `sample`) and all of `FRO`'s (`FRO_holes`,
+  `FRO_ext`).
+* **`Indifferentiability.SIMULATOR.Representable`** (with `simHoles`, `simExt` and
+  `SIMULATOR.RepresentedBy`): EasyCrypt's call restrictions on an abstract simulator (`f`, `fi`
+  may call `F.f`; `init` nothing), procedure by procedure, since `Module.Representable` covers only
+  functors returning one procedure (E2).  First needed for `Sponge`'s `declare module BlockSim`.
+* **`Lib/EC/DList.lean`**: `dlist`, and the abstract theory `Program`'s `LoopSnoc`.
+  **`Lib/EC/Int.lean`**: `iter`.
+* `Common` gains a `Decidable` instance for `valid_toplevel`; `BlockSponge.BIRO` gains the
+  abbreviations `IRO.init`, `IRO.fill_in`, `IRO.f`.
+* **Writing `prhlProc` between procedures of different signatures.**  The pre-condition is
+  elaborated before the procedures, so `a₁ = a₂` between `(xs, i)` and the pair `x` (or projections
+  `a₁.2.1`) fails on the unknown signature.  Such statements give the signatures:
+  `prhlProc (sig₁ := procsig (List block, ℤ) -> Bool) (sig₂ := procsig (List block × ℤ) -> Bool) …`.
+* **`module` and section variables.**  A `module` takes a whole `variable` binder group when it
+  mentions one of its names: `variable (a b : Lens …)` gives a module using `b` both lens
+  parameters.  Declare lens variables one binder each.
+

@@ -104,6 +104,39 @@ parameters and are used as functors themselves: `Gconcl_list.SimLast(S)(F)`
 `proc f (x) { y <- call (S(Last(Valid(F)))).f (x); return y }`.  The denotation is the same; the
 code has one more call.
 
+`Sponge.LowerDist(D, F) = D(RaiseFun(F))` is a whole-module alias of the same kind: `D` applied to
+only one of its two oracles, used as `LowerDist(Dist) : BlockSponge.DISTINGUISHER`.  Its
+`distinguish` calls `D(RaiseFun(F), P).distinguish`.
+
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
 same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
 (`BlockSponge.Sim`, `Gconcl_list.S2`).
+
+## E6: variables of local clones and local modules are lens parameters, fresh by hypothesis
+
+**Rule broken.** A Lean statement has the EasyCrypt statement's hypotheses, no more.
+
+**Why.** EasyCrypt gives a `local clone` (or a `local module`) declared in a section new variables,
+disjoint from those of every module the section declares (`declare module D`).  The section's
+lemmas may rely on that, and the non-local results do not mention the local variables at all.  A
+fixed `global_var` cannot express this freshness: nothing stops an arbitrary `D` from touching it.
+A local lemma would then need a hypothesis `D` disjoint from it, and the non-local result, which
+is proven from the local lemmas, could not discharge that hypothesis.
+
+**What we do instead.** The variables of a local clone are lens parameters of the local declarations
+that mention them, with hypotheses that they are fresh for the section's modules:
+* in `Sponge`'s `HybridIRO` section, `ERO`'s `ERO_RO_m`, `ERO_FRO_m` (hypotheses `_hDd`, `_hERO`);
+* in `Sponge`'s last section, `HIRO`'s `HIRO_Lazy_mp`, `HIRO_Eager_mp` (`HIRO_fresh`).
+
+The non-local results (`HybridIROExper_Lazy_Eager'`, `IdealIndif_IRO_BlockIRO`, `conclu`,
+`conclusion`) have exactly EasyCrypt's hypotheses.  Their proofs need a **fresh-variable lemma**:
+for a representable `D` (E2), whose code is finite, there is a lens of any type disjoint from
+`FVP.fvP D` and from given finitely many variables.  Not yet proven; it is the same kind of fact as
+the representation lemma of E2.
+
+**Not yet applied to earlier files.** The skeletons of `ConcreteF` (`Switching`, a local clone of
+`Strong_RP_RF`), `Gconcl_list` (`IRO2`, a local clone of `PROM.FullRO`) and other files with local
+modules that have variables still use `global_var`s for them.  Their local lemmas either lack the
+freshness hypothesis or carry it into non-local statements.  They must be brought to this
+convention before their proofs: audit every `local clone` and `local module` with variables.
+

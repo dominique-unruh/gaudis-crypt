@@ -57,6 +57,12 @@ abbrev IRO_T := IRO.IRO_T block (List block)
 /-- The clone's module variable `BIRO.IRO.mp`. -/
 global_var IRO.mp : FMap (List block × ℤ) block
 noncomputable abbrev IRO := IRO.IRO block (List block) valid bdistr IRO.mp
+noncomputable abbrev IRO.init :=
+  GaudisCrypt.SHA3.IRO.IRO.init block (List block) valid bdistr IRO.mp
+noncomputable abbrev IRO.fill_in :=
+  GaudisCrypt.SHA3.IRO.IRO.fill_in block (List block) valid bdistr IRO.mp
+noncomputable abbrev IRO.f :=
+  GaudisCrypt.SHA3.IRO.IRO.f block (List block) valid bdistr IRO.mp
 /-- `BIRO.IRO` as the functionality it is used as (its procedures `init` and `f`). -/
 noncomputable def IRO.asF : FUNCTIONALITY :=
   Indifferentiability.FUNCTIONALITY.mk state (List block × ℤ) (List block)
