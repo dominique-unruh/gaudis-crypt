@@ -379,3 +379,19 @@ abstract adversary's oracle calls.  Its semantic core, proven here:
   hypothesis, sequences compose by `Stmt.ewp_mono`, loops by `Stmt.ewp_while_le`.
 * A `fel` is then a choice of `φ`: the indicator of the bad event plus the bound still to pay for
   the remaining oracle calls; `Pr[bad] ≤ φ(state before the adversary)`.
+
+## 2026-11-01: `RO_is_collision_resistant` proven (EC's `fel`), the collision chain closed
+
+The proof follows EC's: `Collision ≡ Collision2` (`Collision_Collision2`, `inline*; sim`), then
+`byphoare; seq 1` as an expectation bound (`Collision2_le`): the tail after the adversary is at most
+`[collision RO.m] + μ` (`collision_tail_le`, EC's four `case`s) and the adversary part is EC's
+`fel`, here `FEL_potential`: the potential `collisionPotential` (the collision indicator, plus the
+bound still to pay for the remaining queries while `|dom RO.m| ≤ bounder`, `⊤` otherwise) is a
+supermartingale under the oracle (`Bounder_RO_get_potential`, from `collisionPotential_step`) and
+`Module.ewp_app_le` carries it over the abstract adversary.  The arithmetic
+`∑_{i<bound} i · μ + μ = (bound (bound-1) + 2) / 2 · μ` closes it.  `coll_resistant_if_indifferentiable`
+is now proven with standard axioms only.
+
+New on the way: `simp_reads` (the judgments' read-through-write simp set, for hand-unfolded
+expectations); `phoare_proc_to_stmt` sees through goal annotations.  Expectations of conditionals
+with a sampling inside (no `phoare_if` yet) are unfolded with `Stmt.ewp_*` and `simp_reads`.

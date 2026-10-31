@@ -577,18 +577,157 @@ theorem collisionPotential_step [Inhabited β] {d : SubProbability β} (hfu : is
               simp [collisionPotential, hca, hinv'', T]
         _ = d.expected (fun a => indicatorE (∃ k, FMap.dom m k ∧ FMap.get m k = some a)) +
               d.expected (fun _ => T) := SubProbability.expected_add _ _ _
-        _ ≤ (FMap.fdom m).card * μ + T := add_le_add (expected_rng_le hfu m) (expected_const_le' d T)
+        _ ≤ (FMap.fdom m).card * μ + T :=
+            add_le_add (expected_rng_le hfu m) (expected_const_le' d T)
         _ ≤ (b.toNat : ENNReal) * μ + T := by
             gcongr
             exact_mod_cast (show (FMap.fdom m).card ≤ b.toNat by omega)
   · simp only [hQ, if_false, hT]; exact le_add_self
 
+
+theorem get_set_self (m : FMap α β) (x : α) (v : β) : (FMap.set m x v).get x = some v := by
+  simp [FMap.get, FMap.set]
+
+theorem get_set_ne (m : FMap α β) {x y : α} (v : β) (h : y ≠ x) :
+    (FMap.set m x v).get y = m.get y := by
+  simp [FMap.get, FMap.set, Finmap.lookup_insert_of_ne _ h]
+
+theorem indicatorE_le_of_imp {P Q : Prop} (h : P → Q) : indicatorE P ≤ indicatorE Q := by
+  by_cases hP : P
+  · simp [indicatorE, hP, h hP]
+  · simp [indicatorE, hP]
+
+open Classical in
+theorem expected_point [Inhabited β] {d : SubProbability β} (hfu : is_funiform d) (v : β) :
+    d.expected (fun a => indicatorE (v = a)) ≤ d.1 {default} := by
+  rw [SubProbability.expected_eq_tsum,
+    tsum_eq_single v (fun a ha => by simp [indicatorE, Ne.symm ha])]
+  simp [indicatorE, hfu v default]
+
+open Classical in
+/-- The tail of EC's `Collision2` after the adversary: the two queries find a collision only if `m`
+had one, or with probability at most `μ` (EC's four `case`s, `rnd (pred1 _)` and `sampleto_fu`). -/
+theorem collision_tail_le [Inhabited β] {d : SubProbability β} (hfu : is_funiform d)
+    (m : FMap α β) (m1 m2 : α) (Q1 Q2 : Prop) [Decidable Q1] [Decidable Q2] :
+    (if Q1 then
+      d.expected fun a =>
+        if ¬ FMap.dom m m1 then
+          if Q2 then
+            d.expected fun b =>
+              if ¬ FMap.dom (FMap.set m m1 a) m2 then
+                indicatorE (oget ((FMap.set m m1 a).get m1) =
+                    oget ((FMap.set (FMap.set m m1 a) m2 b).get m2) ∧ m1 ≠ m2)
+              else
+                indicatorE (oget ((FMap.set m m1 a).get m1) =
+                    oget ((FMap.set m m1 a).get m2) ∧ m1 ≠ m2)
+          else indicatorE False
+        else
+          if Q2 then
+            d.expected fun a =>
+              if ¬ FMap.dom m m2 then
+                indicatorE (oget (m.get m1) = oget ((FMap.set m m2 a).get m2) ∧ m1 ≠ m2)
+              else
+                indicatorE (oget (m.get m1) = oget (m.get m2) ∧ m1 ≠ m2)
+          else indicatorE False
+    else indicatorE False) ≤ indicatorE (collision m) + d.1 {default} := by
+  set μ := d.1 {default}
+  have h0 : (0 : ENNReal) ≤ indicatorE (collision m) + μ := bot_le
+  have hpt : ∀ v : β, d.expected (fun a => indicatorE (a = v)) ≤ μ := fun v =>
+    (expected_mono' fun a => by by_cases h : a = v <;> simp [indicatorE, h]).trans
+      (expected_point hfu v)
+  by_cases hQ1 : Q1
+  swap
+  · simp [hQ1]
+  by_cases hQ2 : Q2
+  swap
+  · simp only [hQ1, hQ2, if_true, if_false, indicatorE_false]
+    refine (expected_mono' fun a => ?_).trans ((expected_const_le' d 0).trans h0)
+    split_ifs <;> exact le_rfl
+  simp only [hQ1, hQ2, if_true]
+  by_cases h12 : m1 = m2
+  · subst h12
+    refine (expected_mono' fun a => ?_).trans ((expected_const_le' d 0).trans h0)
+    split_ifs
+    all_goals
+      refine le_trans (expected_mono' fun b => ?_) (expected_const_le' d 0)
+      simp
+  by_cases hm1 : FMap.dom m m1
+  · simp only [hm1, not_true_eq_false, if_false]
+    refine (expected_const_le' d _).trans ?_
+    by_cases hm2 : FMap.dom m m2
+    · simp only [hm2, not_true_eq_false, if_false]
+      refine (expected_const_le' d _).trans ?_
+      by_cases hc : oget (m.get m1) = oget (m.get m2)
+      · have hs : ∀ k, FMap.dom m k → ∃ v, m.get k = some v := fun k hk =>
+          Option.isSome_iff_exists.mp (by
+            simpa [FMap.get, FMap.dom, Finmap.mem_keys, Finmap.lookup_isSome] using hk)
+        obtain ⟨v1, hv1⟩ := hs m1 hm1
+        obtain ⟨v2, hv2⟩ := hs m2 hm2
+        have hcol : collision m := ⟨m1, m2, h12, hm1, hm2, by
+          rw [hv1, hv2]; rw [hv1, hv2] at hc; simpa [oget] using hc⟩
+        rw [indicatorE_of ⟨hc, h12⟩, indicatorE_of hcol]
+        exact le_self_add
+      · rw [indicatorE_of_not (fun h => hc h.1)]; exact h0
+    · simp only [hm2, not_false_eq_true, if_true, get_set_self, oget]
+      refine (expected_mono' fun a => ?_).trans ((hpt (oget (m.get m1))).trans le_add_self)
+      exact indicatorE_le_of_imp fun h => by simpa [oget] using h.1.symm
+  · simp only [hm1, not_false_eq_true, if_true]
+    refine le_trans ?_ le_add_self
+    by_cases hm2 : FMap.dom m m2
+    · have hd : ∀ a, FMap.dom (FMap.set m m1 a) m2 := fun a => dom_set_iff.mpr (Or.inr hm2)
+      simp only [hd, not_true_eq_false, if_false, get_set_self, get_set_ne _ _ (Ne.symm h12)]
+      refine (expected_mono' fun a => (expected_const_le' d _).trans ?_).trans
+        (hpt (oget (m.get m2)))
+      exact indicatorE_le_of_imp fun h => by simpa [oget] using h.1
+    · have hd : ∀ a, ¬ FMap.dom (FMap.set m m1 a) m2 := fun a h =>
+        (dom_set_iff.mp h).elim (fun h' => h12 h'.symm) hm2
+      simp only [hd, not_false_eq_true, if_true, get_set_self]
+      refine (expected_mono' fun a => ?_).trans (expected_const_le' d μ)
+      refine (expected_mono' fun b => ?_).trans (hpt a)
+      exact indicatorE_le_of_imp fun h => by simpa [oget, get_set_self, eq_comm] using h.1
+
+open Classical in
+theorem indicatorE_collision_le_potential (bound : ℤ) (μ : ENNReal) (s : ℤ × ℤ × FMap α β) :
+    indicatorE (collision s.2.2) ≤ collisionPotential bound μ s := by
+  by_cases h : collision s.2.2
+  · simp [indicatorE, collisionPotential, h]
+  · simp [indicatorE, h]
+
 end CollisionPotential
+
+/-- The first `have` of EC's proof of `RO_is_collision_resistant`:
+`Collision(A, RO).main ~ Collision2(A, RO).main : ={glob} ==> ={res}`, by EC's
+`byequiv; proc; inline*; sim`. -/
+theorem Collision_Collision2 (A : AdvCollision «from» «to») :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Module.app (Collision «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure
+      (Module.app (Collision.Collision2 «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · equiv_sim
+  · equiv_if
+    case «then» =>
+      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+        §hash1{1} = §hash1{2})
+      · equiv_sim
+      · equiv_if
+        case «then» => equiv_sim
+        case «else» => equiv_sim
+        case guard => intros; simp_all
+    case «else» => equiv_sim
+    case guard => intros; simp_all
 
 /-- The oracle premise of EC's `fel` in `RO_is_collision_resistant`: a query of `Bounder(RO).get`
 does not increase the potential `collisionPotential` of `(Bounder.bounder, Counter.c, RO.m)` in
 expectation (`collisionPotential_step`). -/
-theorem Bounder_RO_get_potential [Lens.Disjoint Bounder_bounder Counter_c] [Lens.Disjoint Bounder_bounder RO_m]
+theorem Bounder_RO_get_potential [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m]
     [Lens.Disjoint Counter_c RO_m] (hfu : is_funiform sampleto) :
     phoareProc (fun _ _ => True)
       (RF.get «from» «to» (Module.app (Bounder «from» «to» bound increase_counter bound_counter
@@ -611,8 +750,96 @@ theorem Bounder_RO_get_potential [Lens.Disjoint Bounder_bounder Counter_c] [Lens
   simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]
   exact collisionPotential_step hfu bound _ _ _ _ _ _
 
+/-- EC's `fel` in `RO_is_collision_resistant`, as a supermartingale: `FEL(A, RO).main` (the
+initialization, then the adversary) ends with the potential at most its value after the
+initialization, `∑_{i < bound} i · μ` (`Module.ewp_app_le`, the oracle by
+`Bounder_RO_get_potential`). -/
+theorem FEL_potential [Countable «from»] [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m]
+    (hfu : is_funiform sampleto) (A : AdvCollision «from» «to»)
+    (hA : Module.ECModule A (Oracle.ext «from» «to»))
+    (hAd : FVP.fvP A ≤ (Bounder_bounder.footprint ⊔ Counter_c.footprint ⊔ RO_m.footprint)ᶜ) :
+    phoareProc (fun _ _ => True)
+      (Module.app (Collision.FEL «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure
+      (fun _ g => collisionPotential bound (sampleto.1 {default})
+        ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).get g))
+      (· ≤ ·)
+      (fun _ _ => ∑ i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat,
+        (i : ENNReal) * sampleto.1 {default}) := by
+  have := (inferInstance : Lens.Disjoint Counter_c RO_m).symm
+  have := (inferInstance : Lens.Disjoint Bounder_bounder RO_m).symm
+  have := (inferInstance : Lens.Disjoint Bounder_bounder Counter_c).symm
+  have hL : FVP.fvP A ≤ ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).footprint)ᶜ := by
+    rw [Footprint.lens_pair, Footprint.lens_pair, ← sup_assoc]
+    exact hAd
+  phoare_proc_to_stmt
+  phoare_inline 0
+  repeat phoare_inline 0
+  intro σ _
+  simp only [Stmt.ewp_seq, Stmt.ewp_assign]
+  simp_reads
+  erw [Stmt.ewp_call]
+  simp_reads
+  refine le_trans (Module.ewp_app_le (Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)) A
+    (Oracle.ext «from» «to») hA.representable hL
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable «from»)
+      | succ m => nomatch m)
+    _ (collisionPotential bound (sampleto.1 {default}))
+    (fun n a g => by cases n with
+      | zero =>
+        simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single, Oracle.get.mk_simp]
+        exact Bounder_RO_get_potential «from» «to» sampleto bound increase_counter bound_counter
+          RO_m Counter_c Bounder_bounder hfu a g trivial
+      | succ m => nomatch m) _ _) ?_
+  simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set, collisionPotential]
+  split_ifs with hc hinv
+  · rw [RO_m.set_get] at hc
+    exact absurd hc not_collision_empty
+  · exact le_rfl
+  · exact absurd ⟨le_rfl, by simp [FMap.fdom, FMap.empty]⟩ hinv
+
+/-- EC's `byphoare=> //; proc; seq 1 : (collision RO.m) …` in `RO_is_collision_resistant`: after the
+adversary (`FEL`), a collision of the two queries needs a collision already in `RO.m` (bounded by
+EC's `fel`, `FEL_potential`) or a fresh sample hitting a fixed value (`μ`, `collision_tail_le`). -/
+theorem Collision2_le [Countable «from»] [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m]
+    (hfu : is_funiform sampleto) (A : AdvCollision «from» «to»)
+    (hA : Module.ECModule A (Oracle.ext «from» «to»))
+    (hAd : FVP.fvP A ≤ (Bounder_bounder.footprint ⊔ Counter_c.footprint ⊔ RO_m.footprint)ᶜ) :
+    phoareProc (fun _ _ => True)
+      (Module.app (Collision.Collision2 «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure
+      (fun r _ => indicatorE (r = true)) (· ≤ ·)
+      (fun _ _ => (∑ i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat,
+        (i : ENNReal) * sampleto.1 {default}) +
+        sampleto.1 {default}) := by
+  have hFEL := FEL_potential «from» «to» sampleto bound increase_counter bound_counter RO_m
+    Counter_c Bounder_bounder hfu A hA hAd
+  have := (inferInstance : Lens.Disjoint Counter_c RO_m).symm
+  phoare_proc_to_stmt
+  phoare_inline 0
+  repeat phoare_inline 1
+  intro σ _
+  simp only [Stmt.ewp_seq, Stmt.ewp_ifThenElse, Stmt.ewp_assign, Stmt.ewp_sample, Stmt.ewp_skip]
+  simp_reads
+  simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]
+  -- the tail: `[collision RO.m] + μ` (EC's `seq 1 : (collision RO.m) …`)
+  refine (Stmt.ewp_mono _ (fun τ => collision_tail_le hfu _ _ _ _ _) _).trans ?_
+  rw [Stmt.ewp_add]
+  refine add_le_add ?_ (Stmt.ewp_const_le _ _ _)
+  -- the adversary: EC's `fel`
+  erw [Stmt.ewp_call]
+  simp_reads
+  refine le_trans (ProgramDenotation.wp_le_wp_of_le _ _ _ (fun r =>
+    indicatorE_collision_le_potential bound (sampleto.1 {default})
+      ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).get r.2)) _) ?_
+  exact hFEL () _ trivial
+
 /-- EC's `RO_is_collision_resistant &m`, for the section's `A`. -/
-theorem RO_is_collision_resistant
+theorem RO_is_collision_resistant [Countable «from»] [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m]
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
     (A : AdvCollision «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (_hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ FRO_m.footprint ⊔ Bounder_bounder.footprint ⊔
@@ -622,6 +849,43 @@ theorem RO_is_collision_resistant
         Counter_c Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure ()
         m (fun r _ => r = true) : ℝ) ≤
       ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * (sampleto.1 {default}).toReal := by
-  sorry
+  -- `have->: Pr[Collision(A,RO).main() @ &m : res] = Pr[Collision2(A,RO).main() @ &m : res]`
+  have h1 := Procedure.Pr_eq_of_prhlProc
+    (Collision_Collision2 «from» «to» sampleto bound increase_counter bound_counter RO_m Counter_c
+      Bounder_bounder A)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
+    (fun r₁ _ r₂ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  rw [h1]
+  -- `byphoare`, `seq 1`, `fel`
+  have hB := Collision2_le «from» «to» sampleto bound increase_counter bound_counter RO_m Counter_c
+    Bounder_bounder hax.sampleto_fu A hA (by fp_disjoint) () m trivial
+  rw [← Procedure.Pr_eq_ewp] at hB
+  -- the arithmetic: `∑_{i < bound} i · μ + μ = (bound (bound - 1) + 2) / 2 · μ`
+  set μ := sampleto.1 {default}
+  have hμ : μ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
+    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
+  have hfin : (∑ i ∈ Finset.Ico (Int.toNat 0) bound.toNat, (i : ENNReal) * μ + μ) ≠ ⊤ :=
+    ENNReal.add_ne_top.mpr ⟨ENNReal.sum_ne_top.mpr fun i _ =>
+      ENNReal.mul_ne_top (ENNReal.natCast_ne_top i) hμ, hμ⟩
+  have hR := ENNReal.toReal_mono hfin hB
+  rw [ENNReal.coe_toReal, ENNReal.toReal_add (ENNReal.sum_ne_top.mpr fun i _ =>
+    ENNReal.mul_ne_top (ENNReal.natCast_ne_top i) hμ) hμ, ENNReal.toReal_sum (fun i _ =>
+    ENNReal.mul_ne_top (ENNReal.natCast_ne_top i) hμ)] at hR
+  simp only [ENNReal.toReal_mul, ENNReal.toReal_natCast, Int.toNat_zero] at hR
+  refine hR.trans (le_of_eq ?_)
+  have hb := hax.bound_gt0
+  obtain ⟨n, rfl⟩ : ∃ n : ℕ, bound = n := ⟨bound.toNat, (Int.toNat_of_nonneg hb.le).symm⟩
+  have hn : 1 ≤ n := by omega
+  rw [Int.toNat_natCast, ← Finset.range_eq_Ico, ← Finset.sum_mul]
+  have hsum : (∑ i ∈ Finset.range n, (i : ℝ)) * 2 = n * (n - 1) := by
+    have := Finset.sum_range_id_mul_two n
+    have h' : ((∑ i ∈ Finset.range n, i : ℕ) : ℝ) * 2 = (n : ℝ) * ((n - 1 : ℕ) : ℝ) := by
+      exact_mod_cast this
+    rw [Nat.cast_sum, Nat.cast_sub hn, Nat.cast_one] at h'
+    exact h'
+  have hs : (∑ i ∈ Finset.range n, (i : ℝ)) = n * (n - 1) / 2 := by linarith [hsum]
+  push_cast
+  rw [hs]
+  ring
 
 end GaudisCrypt.SHA3.SecureRO

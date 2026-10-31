@@ -215,7 +215,8 @@ First used in `IndifRO_is_secure` (`GIdeal_Collision_RO`, and the three
 `*_resistant_if_indifferentiable`): `[Countable f_in]` and the three disjointness instances of
 `SRO_Bounder_bounder`, `SRO_Counter_c`, `SRO_RO_m`; the preimage lemmas also
 `[Lens.Disjoint SRO_RO_m DPre_h]` (resp. `D2Pre_m2`), since `DPre.h` is read right after
-`RO.init` writes `RO.m`.
+`RO.init` writes `RO.m`.  `SecureRO.RO_is_collision_resistant` (EC's `fel` over the adversary)
+takes `[Countable «from»]` and the disjointness of `Bounder_bounder`, `Counter_c`, `RO_m`.
 
 **EasyCrypt counterpart.** None needed.  EasyCrypt's distributions are discrete, which the rule's
 countability stands in for, and distinct module variables are distinct memory locations.  A clone

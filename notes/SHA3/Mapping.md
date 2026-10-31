@@ -838,7 +838,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Sec
 | 397 | local module | `FEL` | section Collision. | `Collision.FEL` | def |
 | 406 | local module | `Collision2` | section Collision. | `Collision.Collision2` | def |
 | 424 | op | `collision` | section Collision. | `collision` | def |
-| 427 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | stated |
+| 427 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done (exc E8) |
 
 ## `proof/SecureORO.eca`
 
@@ -912,7 +912,7 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 | 88 | module | `DColl` |  | `DColl` (`A` a Lean parameter; alias call-wrapped, E5) | def |
 | 94 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 96 | declare axiom | `D_ll` | section Collision. | `D_ll` (hypothesis `_D_ll`) | def |
-| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` (its two `have`s: `Collision_FM_GReal`, `GIdeal_Collision_RO`, both done) | done modulo `SecureRO.RO_is_collision_resistant` (exc E7, E8) |
+| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` (its two `have`s: `Collision_FM_GReal`, `GIdeal_Collision_RO`, both done) | done (exc E7, E8) |
 | 128 | module | `DPre` |  | `DPre` (`A` a Lean parameter; variable: lens `DPre_h`) | def |
 | 139 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 141 | declare axiom | `D_ll` | section Preimage. | `D_ll` (hypothesis `_D_ll`) | def |
