@@ -215,3 +215,13 @@ failed there, in two places:
 Both were reproduced on toy modules first, with three module parameters `A`, `F`, `P` and closed
 functors `G`, `H` around them (`A(G(F(P.mk …)), H(P))`).  The full build is green.
 
+## 2026-10-31: `SHA3OSecurity`
+
+* The `module` command's typing proof of `SORO_P1`/`SORO_P2`/`SORO_Coll` (an adversary applied to
+  `DFSetSize(OFC(ExtendOutputSize(F)))` and `OPC(OSimulator(ExtendOutputSize(F)))`) takes about
+  20 s, past the default heartbeat limit; those three modules raise it to 10M.  Bisected on scratch
+  copies: either oracle alone checks in a few seconds; together they are slow but terminate.
+* The file's three sections repeat the same local declarations; the Lean file was generated from
+  one template per section (with the section-specific games, adversaries and bounds) and its long
+  lines reflowed, so the sections stay in step.
+

@@ -129,6 +129,7 @@ import GaudisCrypt.Examples.SHA3.IRO
 import GaudisCrypt.Examples.SHA3.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.SHA3Indiff
+import GaudisCrypt.Examples.SHA3.SHA3OSecurity
 import GaudisCrypt.Examples.SHA3.SHA3Security
 import GaudisCrypt.Examples.SHA3.SHA3_OIndiff
 import GaudisCrypt.Examples.SHA3.SecureHash

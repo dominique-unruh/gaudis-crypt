@@ -109,7 +109,8 @@ only one of its two oracles, used as `LowerDist(Dist) : BlockSponge.DISTINGUISHE
 `distinguish` calls `D(RaiseFun(F), P).distinguish`.  `SHA3_OIndiff.FSome(F)` (`proc init = F.init`) is used as a functor
 by `CSome`, so its `init` calls `F.init`.  So do `SecureORO.RF(R)` (`proc init = R.init`,
 `proc sample = R.sample`) and `SecureORO.Bounder(F)` (`proc sample = F.sample`).  In `IndifRO_is_secure`:
-`FInit`, `GetF`, `SInit`, `FM` and `DColl`.  In `SHA3Security`: `CSetSize`, `FSetSize`, `DSetSize`.
+`FInit`, `GetF`, `SInit`, `FM` and `DColl`.  In `SHA3Security`: `CSetSize`, `FSetSize`, `DSetSize`.  In `SHA3OSecurity`: `FSetSize`, and the
+sections' `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In`, `Dist`.
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
 same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
@@ -130,6 +131,9 @@ is proven from the local lemmas, could not discharge that hypothesis.
 that mention them, with hypotheses that they are fresh for the section's modules:
 * in `Sponge`'s `HybridIRO` section, `ERO`'s `ERO_RO_m`, `ERO_FRO_m` (hypotheses `_hDd`, `_hERO`);
 * in `Sponge`'s last section, `HIRO`'s `HIRO_Lazy_mp`, `HIRO_Eager_mp` (`HIRO_fresh`).
+* in `SecureRO`, `SecureORO` and `SHA3OSecurity`, the variables of the sections' local modules
+  (`SecondPreimage2.m2`, `D1.m1`, `Log.m`, `RFList.m`, `Dist_of_P2Adv.m` …; `LocalFresh` in
+  `SHA3OSecurity`).
 
 The non-local results (`HybridIROExper_Lazy_Eager'`, `IdealIndif_IRO_BlockIRO`, `conclu`,
 `conclusion`) have exactly EasyCrypt's hypotheses.  Their proofs need a **fresh-variable lemma**:

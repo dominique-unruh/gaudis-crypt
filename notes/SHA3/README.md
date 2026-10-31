@@ -186,10 +186,10 @@ Files in this directory:
      * `conseq` forms;
      * `transitivity`, `islossless`, `exlim`.
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
-   order, so that the headline statements exist early.  In progress: `Common`,
-   `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff`, `SHA3_OIndiff`, `SecureHash`, `SecureRO`, `SecureORO`, `IndifRO_is_secure` and `SHA3Security` are done
-   (2026-10-31).
+   order, so that the headline statements exist early.  **Done 2026-10-31**: all 21 files (and the
+   EasyCrypt library theories they use, in `GaudisCrypt/Lib/EC/`).  Every EasyCrypt declaration has
+   its row in `Mapping.md`.  Known gap before the proofs: exception E6 is not yet applied to the
+   local clones of `ConcreteF` and `Gconcl_list` (see `Exceptions.md`).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).
