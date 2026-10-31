@@ -1,5 +1,6 @@
 import GaudisCrypt.Lib.RO.GlobTransfer
 import GaudisCrypt.Logic.PRHLStmt
+import GaudisCrypt.Logic.FreshVariable
 
 /-!
 # The abstract call rule (EasyCrypt's `call (: inv)` for an adversary with oracles)
@@ -330,6 +331,23 @@ def Module.Representable {T : Type 1} [IsModule T] {sig : ProcedureSignature}
     (D : Module.Arr T (Module.Proc sig)) {holes : HoleSigs} (ext : T → holes.Instantiation) :
     Prop :=
   ∃ p, Module.RepresentedBy D ext p
+
+/-- `D` is an EasyCrypt-like module: representable, its oracles chosen by `ext`
+(`Module.Representable`), and with finitely many global variables
+(`Footprint.FinitelySupported`, which fresh variables need: `Footprint.exists_fresh`).  The
+hypothesis a ported EasyCrypt statement puts on an abstract module (`declare module D`). -/
+def Module.ECModule {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    (D : Module.Arr T (Module.Proc sig)) {holes : HoleSigs} (ext : T → holes.Instantiation) :
+    Prop :=
+  Module.Representable D ext ∧ (FVP.fvP D).FinitelySupported
+
+theorem Module.ECModule.representable {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {D : Module.Arr T (Module.Proc sig)} {holes : HoleSigs} {ext : T → holes.Instantiation}
+    (h : Module.ECModule D ext) : Module.Representable D ext := h.1
+
+theorem Module.ECModule.finitelySupported {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {D : Module.Arr T (Module.Proc sig)} {holes : HoleSigs} {ext : T → holes.Instantiation}
+    (h : Module.ECModule D ext) : (FVP.fvP D).FinitelySupported := h.2
 
 /-- **The abstract call rule for a module** (EasyCrypt's `declare module D <: T {-O}`, then
 `call (: inv)`).  `={glob D}` is agreement on `FVP.fvP D`, everything `D` may touch. -/

@@ -746,7 +746,7 @@ variable (D : DISTINGUISHER)
 /-- `equiv CF_G1 : CF(DRestr(D)).main ~ G1(DRestr(D)).main : ={glob D} ==>
 !(G1.bcol \/ G1.bext){2} => ={res}`, for `declare module D <: DISTINGUISHER
 {-PF, -RO, -G1, -Redo, -C}` with the axiom `D_ll`. -/
-theorem CF_G1 (hD : Module.Representable D distExt)
+theorem CF_G1 (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((PF.m).footprint ⊔ (PF.mi).footprint ⊔ (F.RO.m).footprint ⊔
       (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
       G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
@@ -771,7 +771,7 @@ variable (D : DISTINGUISHER)
 
 /-- EC's `Real_G1`, for `declare module D <: DISTINGUISHER {-Perm, -C, -PF, -G1, -RO, -Redo}`
 with the axiom `D_ll`.  `mu dstate (pred1 witness)` is the probability of `default`. -/
-theorem Real_G1 (hD : Module.Representable D distExt)
+theorem Real_G1 (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔
       (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔
       (PF.mi).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔

@@ -302,7 +302,7 @@ variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] 
 theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (RO_m : Lens (FMap in_t out_t) VariableAssignment)
     (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
-    (hD : Module.Representable D (RO_ext in_t out_t))
+    (hD : Module.ECModule D (RO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
@@ -336,7 +336,7 @@ module Eager (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) {
 `equiv[ Eager(D).main1 ~ Eager(D).main2 : ={glob D, arg} ==> ={res, glob FRO, glob D} ]`. -/
 theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
-    (hD : Module.Representable D (FRO_ext in_t out_t))
+    (hD : Module.ECModule D (FRO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧

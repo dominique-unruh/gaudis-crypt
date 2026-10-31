@@ -615,7 +615,7 @@ module Game (A : SH.AdvPreimage) using (F : Eager.RO_T) {
 }
 
 /-- `local lemma eager_ideal &m`. -/
-theorem eager_ideal (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem eager_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -626,7 +626,7 @@ theorem eager_ideal (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.
   sorry
 
 /-- `local lemma rw_ideal_2 &m`. -/
-theorem rw_ideal_2 (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_ideal_2 (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -637,7 +637,7 @@ theorem rw_ideal_2 (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.d
   sorry
 
 /-- `local lemma rw_ideal &m`. -/
-theorem rw_ideal (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -648,7 +648,7 @@ theorem rw_ideal (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.dis
   sorry
 
 /-- `local lemma leq_ideal &m`. -/
-theorem leq_ideal (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem leq_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -658,7 +658,7 @@ theorem leq_ideal (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.di
   sorry
 
 /-- `local lemma rw_real &m`. -/
-theorem rw_real (A : SH.AdvPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -678,7 +678,7 @@ end Preimage
 /-- EC's `Sponge_preimage_resistant (A <: SH.AdvPreimage {…}) &m`.
 -/
 theorem Sponge_preimage_resistant (A : SH.AdvPreimage)
-    (hA : Module.Representable A SH.OIndif.distExt)
+    (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint)ᶜ)
     (m : VariableAssignment) :
     A_lossless A →
@@ -1069,7 +1069,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
   sorry
 
 /-- `local lemma eager_ideal &m`. -/
-theorem eager_ideal (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem eager_ideal (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint ⊔ Dist_of_P2Adv_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -1081,7 +1081,7 @@ theorem eager_ideal (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.O
   sorry
 
 /-- `local lemma rw_ideal_2 &m (mess : List Bool)`. -/
-theorem rw_ideal_2 (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_ideal_2 (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint ⊔ Dist_of_P2Adv_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) (mess : List Bool) :
@@ -1093,7 +1093,7 @@ theorem rw_ideal_2 (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OI
   sorry
 
 /-- `local lemma rw_ideal &m (mess : List Bool)`. -/
-theorem rw_ideal (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_ideal (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint ⊔ Dist_of_P2Adv_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) (mess : List Bool) :
@@ -1105,7 +1105,7 @@ theorem rw_ideal (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OInd
   sorry
 
 /-- `local lemma leq_ideal &m (mess : List Bool)`. -/
-theorem leq_ideal (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem leq_ideal (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint ⊔ Dist_of_P2Adv_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) (mess : List Bool) :
@@ -1116,7 +1116,7 @@ theorem leq_ideal (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OIn
   sorry
 
 /-- `local lemma rw_real &m (mess : List Bool)`. -/
-theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint ⊔ Dist_of_P2Adv_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) (mess : List Bool) :
@@ -1149,7 +1149,7 @@ end SecondPreimage
 /-- EC's `Sponge_second_preimage_resistant (A <: SH.AdvSecondPreimage {…}) &m (mess : List Bool)`.
 -/
 theorem Sponge_second_preimage_resistant (A : SH.AdvSecondPreimage)
-    (hA : Module.Representable A SH.OIndif.distExt)
+    (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint)ᶜ)
     (m : VariableAssignment) (mess : List Bool) :
     A_lossless A →
@@ -1535,7 +1535,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
   sorry
 
 /-- `local lemma eager_ideal &m`. -/
-theorem eager_ideal (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.distExt)
+theorem eager_ideal (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -1546,7 +1546,7 @@ theorem eager_ideal (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif
   sorry
 
 /-- `local lemma rw_ideal_2 &m`. -/
-theorem rw_ideal_2 (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_ideal_2 (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -1557,7 +1557,7 @@ theorem rw_ideal_2 (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.
   sorry
 
 /-- `local lemma rw_ideal &m`. -/
-theorem rw_ideal (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_ideal (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -1568,7 +1568,7 @@ theorem rw_ideal (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.di
   sorry
 
 /-- `local lemma leq_ideal &m`. -/
-theorem leq_ideal (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.distExt)
+theorem leq_ideal (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -1578,7 +1578,7 @@ theorem leq_ideal (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.d
   sorry
 
 /-- `local lemma rw_real &m`. -/
-theorem rw_real (A : SH.AdvCollision) (hA : Module.Representable A SH.OIndif.distExt)
+theorem rw_real (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint)ᶜ)
     (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
@@ -1598,7 +1598,7 @@ end Collision
 /-- EC's `Sponge_collision_resistant (A <: SH.AdvCollision {…}) &m`.
 -/
 theorem Sponge_collision_resistant (A : SH.AdvCollision)
-    (hA : Module.Representable A SH.OIndif.distExt)
+    (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint)ᶜ)
     (m : VariableAssignment) :
     A_lossless A →

@@ -297,7 +297,7 @@ def ODistRestrictions (Dist : ODISTINGUISHER) : Prop :=
 
 /-- EC's `SHA3OIndiff (Dist <: ODISTINGUISHER {…}) &m`, whose hypothesis that `Dist` is lossless
 for lossless oracles puts no restriction on the oracles. -/
-theorem SHA3OIndiff (Dist : ODISTINGUISHER) (hD : Module.Representable Dist distExt)
+theorem SHA3OIndiff (Dist : ODISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (_hDd : ODistRestrictions Dist) (m : VariableAssignment) :
     (∀ (F : ODFUNCTIONALITY) (P : ODPRIMITIVE),
       (OptionIndifferentiability.ODPRIMITIVE.f state (List Bool × ℤ) (List Bool)

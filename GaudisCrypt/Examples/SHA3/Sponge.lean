@@ -375,7 +375,7 @@ module EROExper using (O : ERO.RO_T, D : ERO.RO_Distinguisher) {
 }
 
 /-- `local lemma LRO_RO (D <: ERO.RO_Distinguisher {-ERO.RO, -ERO.FRO}) &m`. -/
-theorem LRO_RO (D : ERO.RO_Distinguisher) (hD : Module.Representable D ERO.RO_ext)
+theorem LRO_RO (D : ERO.RO_Distinguisher) (hD : Module.ECModule D ERO.RO_ext)
     (_hDd : FVP.fvP D ≤ (ERO_RO_m.footprint ⊔ ERO_FRO_m.footprint)ᶜ) (m : VariableAssignment) :
     Procedure.Pr (Module.app EROExper (Module.pair (ERO.LRO ERO_RO_m) D)).procedure () m
         (fun r _ => r = true) =
@@ -494,7 +494,7 @@ module RODist (D : HYBRID_IRO_DIST) using (RO : ERO.RO_T) {
 
 /-- `local lemma Exper_HybridIROLazy_LRO &m`, for the section's `D`. -/
 theorem Exper_HybridIROLazy_LRO (D : HYBRID_IRO_DIST)
-    (hD : Module.Representable D HYBRID_IRO_DIST.ext)
+    (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D)
     (_hERO : FVP.fvP D ≤ (ERO_RO_m.footprint)ᶜ) (m : VariableAssignment) :
     Procedure.Pr (Module.app HybridIROExper (Module.pair (HybridIROLazy.asHI HybridIROLazy_mp) D)
@@ -505,7 +505,7 @@ theorem Exper_HybridIROLazy_LRO (D : HYBRID_IRO_DIST)
 
 /-- `local lemma Exper_RO_HybridIROEager &m`, for the section's `D`. -/
 theorem Exper_RO_HybridIROEager (D : HYBRID_IRO_DIST)
-    (hD : Module.Representable D HYBRID_IRO_DIST.ext)
+    (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D)
     (_hERO : FVP.fvP D ≤ (ERO_RO_m.footprint)ᶜ) (m : VariableAssignment) :
     Procedure.Pr (Module.app EROExper (Module.pair (ERO.RO ERO_RO_m) (RODist D))).procedure () m
@@ -518,7 +518,7 @@ theorem Exper_RO_HybridIROEager (D : HYBRID_IRO_DIST)
 /-- EC's `HybridIROExper_Lazy_Eager' &m`, for the section's `D`.  Not local: it does not mention
 `ERO` (whose variables its proof takes fresh). -/
 theorem HybridIROExper_Lazy_Eager' (D : HYBRID_IRO_DIST)
-    (hD : Module.Representable D HYBRID_IRO_DIST.ext)
+    (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D) (m : VariableAssignment) :
     Procedure.Pr (Module.app HybridIROExper (Module.pair (HybridIROLazy.asHI HybridIROLazy_mp) D)
         ).procedure () m (fun r _ => r = true) =
@@ -537,7 +537,7 @@ variable (HybridIROLazy_mp : Lens (FMap (List block × ℤ) Bool) VariableAssign
 
 /-- EC's `HybridIROExper_Lazy_Eager (D <: HYBRID_IRO_DIST {-HybridIROEager, -HybridIROLazy}) &m`. -/
 theorem HybridIROExper_Lazy_Eager (D : HYBRID_IRO_DIST)
-    (hD : Module.Representable D HYBRID_IRO_DIST.ext)
+    (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D) (m : VariableAssignment) :
     Procedure.Pr (Module.app HybridIROExper (Module.pair (HybridIROLazy.asHI HybridIROLazy_mp) D)
         ).procedure () m (fun r _ => r = true) =
@@ -1009,7 +1009,7 @@ theorem Sponge_Raise_BlockSponge_f :
 
 /-- `local lemma RealIndif_Sponge_BlockSponge &m`. -/
 theorem RealIndif_Sponge_BlockSponge (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (m : VariableAssignment) :
     Procedure.Pr (RealIndif Sponge Perm Dist).procedure () m (fun r _ => r = true) =
       Procedure.Pr (BlockSponge.RealIndif BlockSponge.Sponge Perm (LowerDist Dist)).procedure () m
@@ -1020,9 +1020,9 @@ theorem RealIndif_Sponge_BlockSponge (BlockSim : BlockSponge.SIMULATOR) (Dist : 
 
 /-- `local lemma Ideal_IRO_Experiment_HybridLazy &m`: first step of the ideal side. -/
 theorem Ideal_IRO_Experiment_HybridLazy (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BIRO.IRO.asF (RaiseSim BlockSim) Dist).procedure () m
@@ -1057,9 +1057,9 @@ module HybridIRODist (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
 
 /-- `local lemma Experiment_HybridIROExper_Lazy &m`: initial bridging step. -/
 theorem Experiment_HybridIROExper_Lazy (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (HybridExperiment BlockSim Dist
@@ -1071,9 +1071,9 @@ theorem Experiment_HybridIROExper_Lazy (BlockSim : BlockSponge.SIMULATOR) (Dist 
 
 /-- `local lemma HybridIROExper_Experiment_Eager &m`: final bridging step. -/
 theorem HybridIROExper_Experiment_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (Module.app HybridIRO.HybridIROExper
@@ -1086,9 +1086,9 @@ theorem HybridIROExper_Experiment_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist
 /-- `local lemma Experiment_Hybrid_Lazy_Eager &m`: middle step of the ideal side, taking
 `HIRO.HybridIROLazy` to `HIRO.HybridIROEager`. -/
 theorem Experiment_Hybrid_Lazy_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (HybridExperiment BlockSim Dist
@@ -1119,9 +1119,9 @@ theorem RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f (BlockSim : BlockSpong
 /-- `local lemma Experiment_HybridEager_Ideal_BlockIRO &m`: last step of the ideal side. -/
 theorem Experiment_HybridEager_Ideal_BlockIRO (BlockSim : BlockSponge.SIMULATOR)
     (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (HybridExperiment BlockSim Dist
@@ -1133,9 +1133,9 @@ theorem Experiment_HybridEager_Ideal_BlockIRO (BlockSim : BlockSponge.SIMULATOR)
 /-- `local lemma IdealIndif_IRO_BlockIRO &m`: the ideal side of the main result.  It does not
 mention `HIRO`, whose variables its proof takes fresh. -/
 theorem IdealIndif_IRO_BlockIRO (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BIRO.IRO.asF (RaiseSim BlockSim) Dist).procedure () m
         (fun r _ => r = true) =
@@ -1145,9 +1145,9 @@ theorem IdealIndif_IRO_BlockIRO (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTI
 
 /-- EC's `conclu &m`, for the section's `BlockSim` and `Dist`. -/
 theorem conclu (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (m : VariableAssignment) :
     |(Procedure.Pr (RealIndif Sponge Perm Dist).procedure () m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (IdealIndif BIRO.IRO.asF (RaiseSim BlockSim) Dist).procedure () m
@@ -1166,9 +1166,9 @@ end Main
 (Dist <: DISTINGUISHER {-Perm, -BlockSim, -IRO, -BlockSponge.BIRO.IRO}) &m`: the sponge is as
 indifferentiable from the bit-level IRO as the block sponge is from the block-level one. -/
 theorem conclusion (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
-    (hS : Indifferentiability.SIMULATOR.Representable (block × capacity) (List block × ℤ)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.Representable Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (m : VariableAssignment) :
     |(Procedure.Pr (RealIndif Sponge Perm Dist).procedure () m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (IdealIndif BIRO.IRO.asF (RaiseSim BlockSim) Dist).procedure () m

@@ -109,6 +109,11 @@ structure SIMULATOR.RepresentedBy (S : SIMULATOR p f_in f_out)
 def SIMULATOR.Representable (S : SIMULATOR p f_in f_out) : Prop :=
   ∃ pinit pf pfi, SIMULATOR.RepresentedBy p f_in f_out S pinit pf pfi
 
+/-- `S` is an EasyCrypt-like simulator: representable (`SIMULATOR.Representable`) and with finitely
+many global variables (`Footprint.FinitelySupported`), as `Module.ECModule` for a distinguisher. -/
+def SIMULATOR.ECModule (S : SIMULATOR p f_in f_out) : Prop :=
+  SIMULATOR.Representable p f_in f_out S ∧ (FVP.fvP S).FinitelySupported
+
 module Indif using (F : FUNCTIONALITY p f_in f_out, P : PRIMITIVE p f_in f_out,
     D : DISTINGUISHER p f_in f_out) {
   proc main () : Bool {

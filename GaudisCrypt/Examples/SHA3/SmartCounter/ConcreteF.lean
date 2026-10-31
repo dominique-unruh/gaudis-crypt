@@ -152,7 +152,7 @@ noncomputable abbrev S := DProd.ProdSampling.S block capacity
 
 /-- EC's `Real_Concrete`, for `declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo}` with
 the axiom `D_ll`.  `mu dstate (pred1 witness)` is the probability of `default`. -/
-theorem Real_Concrete (hD : Module.Representable D distExt)
+theorem Real_Concrete (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔
       (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔
       (Redo.prefixes).footprint)ᶜ)

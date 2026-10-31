@@ -218,7 +218,7 @@ def Dist_lossless (Dist : DISTINGUISHER) : Prop :=
       F).procedure.IsLossless →
     (Module.app Dist (Module.pair F P)).procedure.IsLossless
 
-theorem drestr_commute1 (Dist : DISTINGUISHER) (hD : Module.Representable Dist distExt)
+theorem drestr_commute1 (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (_hDd : DistRestrictions Dist) (m : VariableAssignment) :
     Procedure.Pr (BlockSponge.RealIndif BlockSponge.Sponge Perm
         (LowerDist (DRestr Dist))).procedure () m (fun r _ => r = true) =
@@ -226,7 +226,7 @@ theorem drestr_commute1 (Dist : DISTINGUISHER) (hD : Module.Representable Dist d
         (BlockSponge.DRestr (LowerDist Dist))).procedure () m (fun r _ => r = true) := by
   sorry
 
-theorem drestr_commute2 (Dist : DISTINGUISHER) (hD : Module.Representable Dist distExt)
+theorem drestr_commute2 (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (_hDd : DistRestrictions Dist) (m : VariableAssignment) :
     Procedure.Pr (BlockSponge.IdealIndif BlockSponge.BIRO.IRO.asF
         (Gconcl_list.SimLast Gconcl.S) (LowerDist (DRestr Dist))).procedure () m
@@ -283,7 +283,7 @@ theorem equiv_sim_fi (F : DFUNCTIONALITY)
   sorry
 
 /-- `local lemma replace_simulator &m`. -/
-theorem replace_simulator (Dist : DISTINGUISHER) (hD : Module.Representable Dist distExt)
+theorem replace_simulator (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (_hDd : DistRestrictions Dist) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BIRO.IRO.asF (RaiseSim (Gconcl_list.SimLast Gconcl.S))
         (DRestr Dist)).procedure () m (fun r _ => r = true) =
@@ -298,7 +298,7 @@ noncomputable def bound : ℝ :=
     ((4 * limit ^ 2 : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)
 
 /-- EC's `security &m`, for the section's `Dist` and its axiom `Dist_lossless`. -/
-theorem security (Dist : DISTINGUISHER) (hD : Module.Representable Dist distExt)
+theorem security (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (_hDd : DistRestrictions Dist) (_Dist_lossless : Dist_lossless Dist)
     (m : VariableAssignment) :
     |(Procedure.Pr (RealIndif Sponge.Sponge Perm (DRestr Dist)).procedure () m
@@ -313,7 +313,7 @@ end
 -Gconcl_list.SimLast(Gconcl.S), -BlockSponge.C, -Gconcl.S, -SLCommon.F.RO, -SLCommon.F.FRO,
 -SLCommon.Redo, -SLCommon.C, -Gconcl_list.BIRO2.IRO, -Gconcl_list.F2.RO, -Gconcl_list.F2.FRO,
 -Gconcl_list.Simulator}) &m`: the sponge is indifferentiable from the infinite random oracle. -/
-theorem SHA3Indiff (Dist : DISTINGUISHER) (hD : Module.Representable Dist distExt)
+theorem SHA3Indiff (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (_hDd : DistRestrictions Dist) (m : VariableAssignment) :
     Dist_lossless Dist →
     |(Procedure.Pr (RealIndif Sponge.Sponge Perm (DRestr Dist)).procedure () m

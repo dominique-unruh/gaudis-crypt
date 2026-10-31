@@ -215,7 +215,7 @@ variable (D : DISTINGUISHER)
 /-- `equiv G1_G2 : G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 : ={glob D} ==>
 ={res} /\ inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2}`, for
 `declare module D <: DISTINGUISHER {-G1, -G2, -FRO, -C}`. -/
-theorem G1_G2 (hD : Module.Representable D distExt)
+theorem G1_G2 (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
       G1.bcol.footprint ⊔ (FRO.m).footprint ⊔ C.footprint)ᶜ) :
@@ -469,7 +469,7 @@ theorem RROset_inv_lt :
 
 /-- `local lemma Pr_ext`, for `declare module D <: DISTINGUISHER {-C, -PF, -G1, -G2, -Perm, -RO,
 -Redo}` with `D_ll`. -/
-theorem Pr_ext (hD : Module.Representable D distExt)
+theorem Pr_ext (hD : Module.ECModule D distExt)
     (_hfresh : ReSample_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
@@ -494,7 +494,7 @@ theorem Pr_ext (hD : Module.Representable D distExt)
 /-- `local equiv EG2_Gext : Eager(G2(DRestr(D))).main2 ~ Gext.distinguish : ={glob D} ==>
 ReSample.count{2} <= max_size /\ ((G1.bext{1} \/ inv_ext G1.m{1} G1.mi{1} FRO.m{1}) =>
 G1.bext{2})`. -/
-theorem EG2_Gext (hD : Module.Representable D distExt)
+theorem EG2_Gext (hD : Module.ECModule D distExt)
     (_hfresh : ReSample_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
@@ -513,7 +513,7 @@ theorem EG2_Gext (hD : Module.Representable D distExt)
   sorry
 
 /-- EC's `Real_G2`, with the axiom `D_ll`. -/
-theorem Real_G2 (hD : Module.Representable D distExt)
+theorem Real_G2 (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔

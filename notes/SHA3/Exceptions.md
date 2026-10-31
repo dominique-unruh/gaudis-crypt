@@ -65,6 +65,10 @@ proof needs the abstract call rule on a construction.
 adversaries of `Indifferentiability`, `SecureRO`, `SecureORO`, `SecureHash`, `SHA3Security` and
 `SHA3OSecurity`.
 
+**Bundled with finite support (2026-11-01).** Statements carry `Module.ECModule D ext`, which is
+`Module.Representable D ext` together with `(FVP.fvP D).FinitelySupported` (E6): EasyCrypt's modules
+are both representable and have finitely many global variables.
+
 ## E3: a module type that shares its name with a module gets the suffix `_T`
 
 **Rule broken.** EC names are kept verbatim (E1).
@@ -145,7 +149,10 @@ finitely many global variables.  `Logic/FreshVariable.lean` states that as
 `Footprint.FinitelySupported` (the footprint lies within the slots of finitely many variable names)
 and proves `Footprint.exists_fresh`: under it, there is a fresh variable of any nonempty type, itself
 finitely supported, so several can be chosen in turn.  The non-local results therefore need finite
-support of their abstract modules as a hypothesis; how it enters the statements is open.
+support of their abstract modules.  It is bundled with representability (E2): every abstract module
+of a ported statement carries `Module.ECModule D ext := Module.Representable D ext ∧
+(FVP.fvP D).FinitelySupported` ("`D` is an EasyCrypt-like module"; `SIMULATOR.ECModule` for a
+simulator), decided 2026-11-01.
 
 **Applied everywhere (audit 2026-11-01).** Every `local clone` and every `local module` with
 variables in the development:

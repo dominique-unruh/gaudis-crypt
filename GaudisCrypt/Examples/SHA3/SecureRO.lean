@@ -186,7 +186,7 @@ end Preimage
 /-- EC's `RO_is_preimage_resistant &m (h : to)`, for the section's `A`. -/
 theorem RO_is_preimage_resistant
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
-    (A : AdvPreimage «from» «to») (hA : Module.Representable A (Oracle.ext «from» «to»))
+    (A : AdvPreimage «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (_hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ Counter_c.footprint ⊔ Bounder_bounder.footprint)ᶜ)
     (m : VariableAssignment) (h : «to») :
     (Procedure.Pr (Module.app (Preimage «from» «to» bound increase_counter bound_counter Counter_c
@@ -310,7 +310,7 @@ end SecondPreimage
 /-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`, for the section's `A`. -/
 theorem RO_is_second_preimage_resistant
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
-    (A : AdvSecondPreimage «from» «to») (hA : Module.Representable A (Oracle.ext «from» «to»))
+    (A : AdvSecondPreimage «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (_hAd : FVP.fvP A ≤ (Bounder_bounder.footprint ⊔ RO_m.footprint ⊔ FRO_m.footprint)ᶜ)
     (m : VariableAssignment) (mess1 : «from») :
     (Procedure.Pr (Module.app (SecondPreimage «from» «to» bound increase_counter bound_counter
@@ -409,7 +409,7 @@ def collision {α β : Type} [DecidableEq α] (m : FMap α β) : Prop :=
 /-- EC's `RO_is_collision_resistant &m`, for the section's `A`. -/
 theorem RO_is_collision_resistant
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
-    (A : AdvCollision «from» «to») (hA : Module.Representable A (Oracle.ext «from» «to»))
+    (A : AdvCollision «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (_hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ FRO_m.footprint ⊔ Bounder_bounder.footprint)ᶜ)
     (m : VariableAssignment) :
     (Procedure.Pr (Module.app (Collision «from» «to» bound increase_counter bound_counter

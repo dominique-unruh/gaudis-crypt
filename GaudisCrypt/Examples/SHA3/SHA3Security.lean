@@ -331,7 +331,7 @@ end Preimage
 
 /-- EC's `Sponge_preimage_resistant &m ha`, for the section's `A` and its axiom `A_ll`. -/
 theorem Sponge_preimage_resistant (A : SRO.AdvPreimage)
-    (hA : Module.Representable A SRO.Oracle.ext)
+    (hA : Module.ECModule A SRO.Oracle.ext)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ DPre.h.footprint)ᶜ)
     (_A_ll : IndifRO_is_secure.D_ll (List Bool) f_out A)
     (m : VariableAssignment) (ha : f_out) :
@@ -375,7 +375,7 @@ end SecondPreimage
 /-- EC's `Sponge_second_preimage_resistant &m mess`, for the section's `A` and its axiom
 `A_ll`. -/
 theorem Sponge_second_preimage_resistant (A : SRO.AdvSecondPreimage)
-    (hA : Module.Representable A SRO.Oracle.ext)
+    (hA : Module.ECModule A SRO.Oracle.ext)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ D2Pre.m2.footprint)ᶜ)
     (_A_ll : IndifRO_is_secure.D_ll (List Bool) f_out A)
     (m : VariableAssignment) (mess : List Bool) :
@@ -417,7 +417,7 @@ end Collision
 
 /-- EC's `Sponge_coll_resistant &m`, for the section's `A` and its axiom `A_ll`. -/
 theorem Sponge_coll_resistant (A : SRO.AdvCollision)
-    (hA : Module.Representable A SRO.Oracle.ext)
+    (hA : Module.ECModule A SRO.Oracle.ext)
     (_hAd : FVP.fvP A ≤ ARestrictions.footprintᶜ)
     (_A_ll : IndifRO_is_secure.D_ll (List Bool) f_out A)
     (m : VariableAssignment) :
@@ -451,7 +451,7 @@ module AdvCollisionSHA3 (A : SRO.AdvCollision) using (F : SRO.Oracle) {
 
 /-- EC's `SHA3_coll_resistant &m`, for the section's `A` and its axiom `A_ll`. -/
 theorem SHA3_coll_resistant (A : SRO.AdvCollision)
-    (hA : Module.Representable A SRO.Oracle.ext)
+    (hA : Module.ECModule A SRO.Oracle.ext)
     (_hAd : FVP.fvP A ≤ ARestrictions.footprintᶜ)
     (_A_ll : IndifRO_is_secure.D_ll (List Bool) f_out A)
     (m : VariableAssignment) :

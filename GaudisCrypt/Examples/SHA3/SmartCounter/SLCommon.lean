@@ -667,7 +667,7 @@ variable (F : FUNCTIONALITY) (P : PRIMITIVE) (D : DISTINGUISHER)
 
 /-- `declare module F <: FUNCTIONALITY{-C, -Redo}`, `P <: PRIMITIVE{-C, -F, -Redo}`,
 `D <: DISTINGUISHER{-F, -P, -C, -Redo}`. -/
-theorem swap_restr (hD : Module.Representable D (distExt))
+theorem swap_restr (hD : Module.ECModule D (distExt))
     (_hF : FVP.fvP F ≤ (C.footprint ⊔ (Redo.prefixes).footprint)ᶜ)
     (_hP : FVP.fvP P ≤ (C.footprint ⊔ FVP.fvP F ⊔ (Redo.prefixes).footprint)ᶜ)
     (_hDd : FVP.fvP D ≤ (FVP.fvP F ⊔ FVP.fvP P ⊔ C.footprint ⊔ (Redo.prefixes).footprint)ᶜ)
@@ -686,7 +686,7 @@ variable (P : PRIMITIVE) (CO : CONSTRUCTION) (D : DISTINGUISHER)
 
 /-- `declare module P <: PRIMITIVE{-C}`, `CO <: CONSTRUCTION{-C, -P}`,
 `D <: DISTINGUISHER{-C, -P, -CO}`, with the axioms `f_ll`, `fi_ll`, `CO_ll`, `D_ll`. -/
-theorem Pr_restr (hD : Module.Representable D (distExt))
+theorem Pr_restr (hD : Module.ECModule D (distExt))
     (_hP : FVP.fvP P ≤ C.footprintᶜ) (_hCO : FVP.fvP CO ≤ (C.footprint ⊔ FVP.fvP P)ᶜ)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ FVP.fvP P ⊔ FVP.fvP CO)ᶜ)
     (f_ll : (Indifferentiability.PRIMITIVE.f state (List block) block P).procedure.IsLossless)

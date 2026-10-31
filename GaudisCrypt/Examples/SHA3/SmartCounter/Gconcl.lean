@@ -307,7 +307,7 @@ def DRestrictions : Prop :=
 
 /-- `local equiv G2_G3 : Eager(G2(DRestr(D))).main2 ~ G3(F.LRO).distinguish : ={glob D} ==>
 ={res}`. -/
-theorem G2_G3 (hD : Module.Representable D distExt) (_hDd : DRestrictions D) :
+theorem G2_G3 (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
       (Eager.main2 (G2 (DRestr D))).procedure (Module.app (G3 D) F.LRO).procedure
@@ -315,7 +315,7 @@ theorem G2_G3 (hD : Module.Representable D distExt) (_hDd : DRestrictions D) :
   sorry
 
 /-- `local equiv G3_G4 : G3(F.RO).distinguish ~ G4(F.RO).distinguish : ={glob D} ==> ={res}`. -/
-theorem G3_G4 (hD : Module.Representable D distExt) (_hDd : DRestrictions D) :
+theorem G3_G4 (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
       (Module.app (G3 D) F.RO.asRO).procedure (Module.app (G4 D) F.RO.asRO).procedure
@@ -324,7 +324,7 @@ theorem G3_G4 (hD : Module.Representable D distExt) (_hDd : DRestrictions D) :
 
 /-- `local equiv G4_Ideal : G4(F.LRO).distinguish ~ IdealIndif(IF, S, DRestr(D)).main :
 ={glob D} ==> ={res}`. -/
-theorem G4_Ideal (hD : Module.Representable D distExt) (_hDd : DRestrictions D) :
+theorem G4_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
       (Module.app (G4 D) F.LRO).procedure (IdealIndif IF S (DRestr D)).procedure
@@ -332,7 +332,7 @@ theorem G4_Ideal (hD : Module.Representable D distExt) (_hDd : DRestrictions D) 
   sorry
 
 /-- EC's `Real_Ideal`, with the axiom `D_ll`. -/
-theorem Real_Ideal (hD : Module.Representable D distExt) (_hDd : DRestrictions D)
+theorem Real_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →

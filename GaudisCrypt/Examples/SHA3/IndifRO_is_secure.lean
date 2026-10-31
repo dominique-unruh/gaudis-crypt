@@ -262,7 +262,7 @@ def S_ll (S : SIMULATOR block f_in f_out) : Prop :=
 (P <: PRIMITIVE {-C, -A, -Bounder}) &m`, for the section's `A`. -/
 theorem coll_resistant_if_indifferentiable
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
-    (A : SRO.AdvCollision f_in f_out) (hA : Module.Representable A (SRO.Oracle.ext f_in f_out))
+    (A : SRO.AdvCollision f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
     (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_RO_m.footprint ⊔
       SRO_FRO_m.footprint)ᶜ)
     (_D_ll : D_ll f_in f_out A)
@@ -271,7 +271,7 @@ theorem coll_resistant_if_indifferentiable
     (P : PRIMITIVE block f_in f_out)
     (_hP : FVP.fvP P ≤ (FVP.fvP C ⊔ FVP.fvP A ⊔ SRO_Bounder_bounder.footprint)ᶜ)
     (m : VariableAssignment) :
-    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.Representable block f_in f_out S ∧
+    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
       FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ FVP.fvP A)ᶜ ∧
       S_ll block f_in f_out S ∧
       |(Procedure.Pr (GReal block f_in f_out C P (DColl block f_in f_out limit bound_counter
@@ -314,7 +314,7 @@ module DPre (A : SRO.AdvPreimage f_in f_out)
 (P <: PRIMITIVE {-C, -A, -Bounder, -DPre}) &m hash`, for the section's `A`. -/
 theorem preimage_resistant_if_indifferentiable
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
-    (A : SRO.AdvPreimage f_in f_out) (hA : Module.Representable A (SRO.Oracle.ext f_in f_out))
+    (A : SRO.AdvPreimage f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
     (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_RO_m.footprint ⊔
       SRO_FRO_m.footprint ⊔ DPre_h.footprint)ᶜ)
     (_D_ll : D_ll f_in f_out A)
@@ -325,7 +325,7 @@ theorem preimage_resistant_if_indifferentiable
       DPre_h.footprint)ᶜ)
     (m : VariableAssignment) (hash : f_out) :
     DPre_h.get m = hash →
-    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.Representable block f_in f_out S ∧
+    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
       FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ FVP.fvP A ⊔ DPre_h.footprint)ᶜ ∧
       S_ll block f_in f_out S ∧
       |(Procedure.Pr (GReal block f_in f_out C P (DPre block f_in f_out limit bound_counter
@@ -364,7 +364,7 @@ module D2Pre (A : SRO.AdvSecondPreimage f_in f_out)
 theorem second_preimage_resistant_if_indifferentiable
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvSecondPreimage f_in f_out)
-    (hA : Module.Representable A (SRO.Oracle.ext f_in f_out))
+    (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
     (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_RO_m.footprint ⊔
       SRO_FRO_m.footprint ⊔ D2Pre_m2.footprint)ᶜ)
     (_D_ll : D_ll f_in f_out A)
@@ -375,7 +375,7 @@ theorem second_preimage_resistant_if_indifferentiable
       D2Pre_m2.footprint)ᶜ)
     (m : VariableAssignment) (mess : f_in) :
     D2Pre_m2.get m = mess →
-    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.Representable block f_in f_out S ∧
+    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
       FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ FVP.fvP A ⊔ D2Pre_m2.footprint)ᶜ ∧
       S_ll block f_in f_out S ∧
       |(Procedure.Pr (GReal block f_in f_out C P (D2Pre block f_in f_out limit bound_counter

@@ -256,7 +256,7 @@ def eqGlob {M : Type 1} [IsModule M] (D : M) (g₁ g₂ : VariableAssignment) : 
 /-- `local equiv ideal_equiv (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}) :
 SLCommon.IdealIndif(IF, S, SLCommon.DRestr(A(D))).main ~ SLCommon.IdealIndif(IF, S, A(D)).main :
 ={glob D} ==> ={glob D, res}`. -/
-theorem ideal_equiv (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem ideal_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ (SLCommon.C.footprint ⊔ BlockSponge.C.c.footprint ⊔
       (SLCommon.F.RO.m).footprint ⊔
       (Gconcl.S.m).footprint ⊔ (Gconcl.S.mi).footprint ⊔ (Gconcl.S.paths).footprint)ᶜ) :
@@ -321,7 +321,7 @@ def DRestrictions_Ideal (D : DISTINGUISHER) : Prop :=
 
 /-- `local equiv Ideal_equiv_valid (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}) :
 L(D, F.LRO).distinguish ~ L2(D, F.LRO).distinguish : ={glob D} ==> ={glob D, res}`. -/
-theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Ideal D) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
       (L D SLCommon.F.LRO).procedure (L2 D SLCommon.F.LRO).procedure
@@ -330,7 +330,7 @@ theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.Representable D distE
 
 /-- `local equiv ideal_equiv2 (D <: …) : L2(D, F.RO).distinguish ~
 SLCommon.IdealIndif(IF, S, A(D)).main : ={glob D} ==> ={glob D, res}`. -/
-theorem ideal_equiv2 (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem ideal_equiv2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Ideal D) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
       (L2 D SLCommon.F.RO.asRO).procedure (SLCommon.IdealIndif Gconcl.IF Gconcl.S (A D)).procedure
@@ -396,7 +396,7 @@ theorem lemma3 (m1 m2 m3 : FMap (List block) block) (x : List block) (r : block)
 
 /-- `local equiv Ideal_equiv3 (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO}) :
 L(D, F.RO).distinguish ~ L3(D, F.RO).distinguish : ={glob D} ==> ={glob D, res}`. -/
-theorem Ideal_equiv3 (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem Ideal_equiv3 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Ideal D) (_hDF2 : FVP.fvP D ≤ (F2.RO.m).footprintᶜ) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
       (L D SLCommon.F.RO.asRO).procedure (L3 D SLCommon.F.RO.asRO).procedure
@@ -509,7 +509,7 @@ def DRestrictions_Ideal2 (D : DISTINGUISHER) : Prop :=
 
 /-- `local equiv equiv_L3_L4 : L3(D, F.RO).distinguish ~ L4(D, F.RO, F2.RO).distinguish :
 ={glob D} ==> ={glob D, res}`. -/
-theorem equiv_L3_L4 (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem equiv_L3_L4 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Ideal2 D) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
       (L3 D SLCommon.F.RO.asRO).procedure (L4 D SLCommon.F.RO.asRO F2.RO.asRO).procedure
@@ -547,7 +547,7 @@ theorem lemma5bis (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) 
 
 /-- `local equiv equiv_L4_ideal : L4(D, F.LRO, F2.LRO).distinguish ~
 IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main : ={glob D} ==> ={glob D, res}`. -/
-theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Ideal2 D) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
       (L4 D SLCommon.F.LRO F2.LRO).procedure
@@ -584,7 +584,7 @@ noncomputable def D6 (D : DISTINGUISHER) (F2 : F2.RO_T) : procmod () → Bool :=
 
 /-- EC's `equiv_ideal`, for `D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F.FRO, -F2.RO,
 -F2.FRO, -BIRO.IRO, -BIRO2.IRO}`. -/
-theorem equiv_ideal (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem equiv_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Ideal2 D)
     (_hDd' : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint ⊔ (F2.FRO.m).footprint)ᶜ)
     (m : VariableAssignment) :
@@ -654,7 +654,7 @@ theorem take_format (bl : List block) (n i : ℤ) :
 /-- `local lemma equiv_sponge (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
 equiv[ GReal(A(D)).main ~ NIndif(Squeeze(SqueezelessSponge(P)), P, DRestr(D)).main : ={glob D} ==>
 ={res, glob D, glob P, C.c} /\ SLCommon.C.c{1} <= C.c{2} <= max_size ]`. -/
-theorem equiv_sponge (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem equiv_sponge (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (SLCommon.Redo.prefixes).footprint ⊔ BlockSponge.C.c.footprint ⊔ SLCommon.C.footprint)ᶜ) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
@@ -683,7 +683,7 @@ theorem lemma_3 (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) s
 /-- `local lemma squeeze_squeezeless (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
 equiv[ NIndif(Squeeze(SqueezelessSponge(P)), P, DRestr(D)).main ~ RealIndif(Sponge, P,
 DRestr(D)).main : ={glob D} ==> ={res, glob P, glob D, C.c} /\ C.c{1} <= max_size ]`. -/
-theorem squeeze_squeezeless (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem squeeze_squeezeless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (SLCommon.Redo.prefixes).footprint ⊔ BlockSponge.C.c.footprint ⊔ SLCommon.C.footprint)ᶜ) :
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
@@ -697,7 +697,7 @@ theorem squeeze_squeezeless (D : DISTINGUISHER) (hD : Module.Representable D dis
   sorry
 
 /-- EC's `pr_real`, for `D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -Redo}`. -/
-theorem pr_real (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem pr_real (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (SLCommon.Redo.prefixes).footprint ⊔ BlockSponge.C.c.footprint ⊔ SLCommon.C.footprint)ᶜ)
     (m : VariableAssignment) :
@@ -751,7 +751,7 @@ theorem A_lossless (D : DISTINGUISHER) (_hDd : DRestrictions_Real_Ideal D) :
   sorry
 
 /-- EC's `concl`. -/
-theorem concl (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Real_Ideal D) :
     D_lossless D → ∀ m : VariableAssignment,
       (Procedure.Pr (RealIndif Sponge P (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) ≤
@@ -802,7 +802,7 @@ theorem Ideal_lossless (D : DISTINGUISHER) :
       (DRestr (Neg_D D))).procedure.IsLossless := by
   sorry
 
-theorem neg_D_concl (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem neg_D_concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Real_Ideal D) (_D_lossless : D_lossless D) (m : VariableAssignment) :
     (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure ()
         m (fun r _ => r = true) : ℝ) ≤
@@ -813,7 +813,7 @@ theorem neg_D_concl (D : DISTINGUISHER) (hD : Module.Representable D distExt)
 end Real_Ideal_Abs
 
 /-- EC's `Inefficient_Real_Ideal`. -/
-theorem Inefficient_Real_Ideal (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem Inefficient_Real_Ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Real_Ideal D) :
     D_lossless D → ∀ m : VariableAssignment,
       |(Procedure.Pr (RealIndif Sponge Perm (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) -
@@ -991,7 +991,7 @@ abbreviation). -/
 def DRestrictions (D : DISTINGUISHER) : Prop :=
   FVP.fvP D ≤ DRestrictions.footprintᶜ
 
-theorem equal1 (D : DISTINGUISHER) (hD : Module.Representable D distExt) (_hDd : DRestrictions D)
+theorem equal1 (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRestrictions D)
     (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
     (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ)
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
@@ -1000,7 +1000,7 @@ theorem equal1 (D : DISTINGUISHER) (hD : Module.Representable D distExt) (_hDd :
       Procedure.Pr (L D (IRO2.RO.asRO IRO2_RO_m)).procedure () m (fun r _ => r = true) := by
   sorry
 
-theorem equal2 (D : DISTINGUISHER) (hD : Module.Representable D distExt) (_hDd : DRestrictions D)
+theorem equal2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRestrictions D)
     (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
     (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ)
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
@@ -1012,7 +1012,7 @@ theorem equal2 (D : DISTINGUISHER) (hD : Module.Representable D distExt) (_hDd :
 end Simplify_Simulator
 
 /-- EC's `Simplify_simulator`. -/
-theorem Simplify_simulator (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem Simplify_simulator (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : Simplify_Simulator.DRestrictions D) :
     D_lossless D → ∀ m : VariableAssignment,
       Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure () m
@@ -1023,7 +1023,7 @@ theorem Simplify_simulator (D : DISTINGUISHER) (hD : Module.Representable D dist
 
 /-- EC's `Real_Ideal`: the block sponge is indifferentiable from the infinite random oracle, with
 the simulator `Simulator`. -/
-theorem Real_Ideal (D : DISTINGUISHER) (hD : Module.Representable D distExt)
+theorem Real_Ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Real_Ideal D) (_hDs : Simplify_Simulator.DRestrictions D) :
     D_lossless D → ∀ m : VariableAssignment,
       |(Procedure.Pr (RealIndif Sponge Perm (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) -

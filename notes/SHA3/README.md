@@ -133,9 +133,9 @@ Files in this directory:
   local declarations that mention them, with freshness hypotheses (`Sponge.HIRO_fresh`); the
   non-local results do not mention them (exception E6).  `local clone HybridIRO as HIRO` is the
   theory at the lenses `HIRO_Lazy_mp`, `HIRO_Eager_mp`.
-* **Abstract simulators** (`declare module BlockSim <: SIMULATOR`) carry
-  `Indifferentiability.SIMULATOR.Representable` (E2), as distinguishers carry
-  `Module.Representable`.
+* **Abstract modules** (`declare module D <: …`) carry `Module.ECModule D ext`: representable with
+  the oracle calls `ext` (E2) and with finitely many global variables (E6).  Abstract simulators
+  (`declare module BlockSim <: SIMULATOR`) carry `Indifferentiability.SIMULATOR.ECModule`.
 * **Equivalences between procedures of different signatures** give them:
   `prhlProc (sig₁ := …) (sig₂ := …)`.  Arguments are tuples: `a₁.2.1` is the second parameter.
 * **`proc f()` used where `proc f(_ : unit)` is expected** (a `RO_Distinguisher`) takes a `Unit`

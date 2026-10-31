@@ -209,7 +209,7 @@ section PROOF
 variable (D : DISTINGUISHER)
 
 /-- `local lemma Pr_col`, for `declare module D <: DISTINGUISHER {-C, -PF, -G1}` with `D_ll`. -/
-theorem Pr_col (hD : Module.Representable D distExt)
+theorem Pr_col (hD : Module.ECModule D distExt)
     (_hfresh : Gcol_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
@@ -231,7 +231,7 @@ theorem Pr_col (hD : Module.Representable D distExt)
 
 /-- `local equiv G1_col : G1(DRestr(D)).main ~ Gcol.main : ={glob D} ==>
 (G1.bcol{1} => G1.bcol{2}) /\ Gcol.count{2} <= max_size`. -/
-theorem G1_col (hD : Module.Representable D distExt)
+theorem G1_col (hD : Module.ECModule D distExt)
     (_hfresh : Gcol_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
@@ -253,7 +253,7 @@ theorem G1_col (hD : Module.Representable D distExt)
   sorry
 
 /-- EC's `Pr_G1col`. -/
-theorem Pr_G1col (hD : Module.Representable D distExt)
+theorem Pr_G1col (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint)ᶜ)
