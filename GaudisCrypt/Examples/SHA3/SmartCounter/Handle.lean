@@ -651,7 +651,8 @@ DPRestr(G1(DRestr(D)).S).fi : …`. -/
 theorem eq_fi (D : DISTINGUISHER)
     (_hD : FVP.fvP D ≤ ((PF.m).footprint ⊔ (PF.mi).footprint ⊔ (F.RO.m).footprint ⊔
       (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
-      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint)ᶜ) :
+      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (ROhandle.RO.m).footprint ⊔ (ROhandle.FRO.m).footprint ⊔ (C.queries).footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => G1.bcol.get g₂ = false ∧ G1.bext.get g₂ = false ∧ a₁ = a₂ ∧
         eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂)
@@ -671,7 +672,8 @@ DPRestr(G1(DRestr(D)).S).f : …`. -/
 theorem eq_f (D : DISTINGUISHER)
     (_hD : FVP.fvP D ≤ ((PF.m).footprint ⊔ (PF.mi).footprint ⊔ (F.RO.m).footprint ⊔
       (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
-      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint)ᶜ) :
+      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (ROhandle.RO.m).footprint ⊔ (ROhandle.FRO.m).footprint ⊔ (C.queries).footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => G1.bcol.get g₂ = false ∧ G1.bext.get g₂ = false ∧ a₁ = a₂ ∧
         eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂)
@@ -750,7 +752,8 @@ theorem CF_G1 (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((PF.m).footprint ⊔ (PF.mi).footprint ⊔ (F.RO.m).footprint ⊔
       (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
       G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
-      (Redo.prefixes).footprint ⊔ C.footprint)ᶜ)
+      (Redo.prefixes).footprint ⊔ C.footprint ⊔ (ROhandle.RO.m).footprint ⊔
+      (ROhandle.FRO.m).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
@@ -776,7 +779,8 @@ theorem Real_G1 (hD : Module.ECModule D distExt)
       (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔
       (PF.mi).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
-      G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ)
+      G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔
+      (ROhandle.RO.m).footprint ⊔ (ROhandle.FRO.m).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →

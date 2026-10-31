@@ -215,7 +215,8 @@ module DSetSize (D : Indiff0.DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIM
 -Gconcl_list.Simulator}`, without the per-section `-DPre`/`-D2Pre` (an abbreviation). -/
 noncomputable def ARestrictions.footprint : Footprint VariableAssignment :=
   (SRO.RO.RO.m).footprint ⊔ (SRO.RO.FRO.m).footprint ⊔ SRO.Bounder.bounder.footprint ⊔
-    (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ (Gconcl_list.BIRO2.IRO.mp).footprint ⊔
+    SRO.Counter.c.footprint ⊔ (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+    (Gconcl_list.BIRO2.IRO.mp).footprint ⊔
     (Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔ (Simulator.paths).footprint ⊔
     Cntr.c.footprint ⊔ (BIRO.IRO.mp).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
     (SLCommon.F.FRO.m).footprint ⊔ (SLCommon.Redo.prefixes).footprint ⊔ SLCommon.C.footprint ⊔

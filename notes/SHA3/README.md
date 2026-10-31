@@ -148,8 +148,16 @@ Files in this directory:
   cannot read the callee `D1(A)(F)` back when `A` is a module parameter of the caller.  Such a
   functor (`SecureRO.SecondPreimage.D1`) takes both as module parameters, as in EasyCrypt; a proof
   needing the partial application `D1(A)` builds it.
-* **`{-M}` for a module `M` without variables of its own** (`-Preimage` in `SecureRO`) excludes
-  the variables `M`'s code touches.
+* **`{-M}` for a concrete module `M`** excludes every global variable of `M`: its own and those
+  of the concrete modules it calls, transitively (EasyCrypt's `glob M`).  So `{-Bounder}` in
+  `SecureRO` excludes `Counter.c` too, since `Bounder.init` calls `Counter.init`; this was checked
+  in EasyCrypt (a module declared `{-Bounder}` frames `Counter.c`).  `{-M}` for a module without
+  variables of its own (`-Preimage` in `SecureRO`) excludes the variables its code touches.  Where a
+  hypothesis lists the variables by hand rather than writing `FVP.fvP M`, the list must include the
+  callees'.  The skeleton missed them in 30 hypotheses (fixed 2026-11-01): `Counter.c` for
+  `{-Bounder}`; `BIRO2.IRO.mp` for SHA3Indiff's `{-Simulator}`; for `{-G1}`, `F.RO.m`,
+  `ROhandle.FRO.m` and `C.queries`.  Also, a bare `RO` in Handle/Gext is `ROhandle.RO`, not
+  `F.RO`.
 * **A `.ec` file with abstract types and operators that is cloned** (`IndifRO_is_secure`, cloned
   by `SHA3Security`) is translated like an abstract theory: section variables.
 * **`exists (S <: SIMULATOR {…})`** in a statement ranges over representable simulators

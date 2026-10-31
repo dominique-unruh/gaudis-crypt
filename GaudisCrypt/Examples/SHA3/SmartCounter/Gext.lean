@@ -218,7 +218,7 @@ variable (D : DISTINGUISHER)
 theorem G1_G2 (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
-      G1.bcol.footprint ⊔ (FRO.m).footprint ⊔ C.footprint)ᶜ) :
+      G1.bcol.footprint ⊔ (FRO.m).footprint ⊔ C.footprint ⊔ (F.RO.m).footprint)ᶜ) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
       (G1 (DRestr D)).procedure (Eager.main1 (G2 (DRestr D))).procedure
@@ -478,7 +478,8 @@ theorem Pr_ext (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
-      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ)
+      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
@@ -503,7 +504,8 @@ theorem EG2_Gext (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
-      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ) :
+      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
       (Eager.main2 (G2 (DRestr D))).procedure (Gext ReSample_count D).procedure
@@ -518,7 +520,8 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
-      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ)
+      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →

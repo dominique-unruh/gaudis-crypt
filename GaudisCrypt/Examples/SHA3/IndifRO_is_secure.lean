@@ -263,16 +263,19 @@ def S_ll (S : SIMULATOR block f_in f_out) : Prop :=
 theorem coll_resistant_if_indifferentiable
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvCollision f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
-    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_RO_m.footprint ⊔
-      SRO_FRO_m.footprint)ᶜ)
+    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+      SRO_RO_m.footprint ⊔ SRO_FRO_m.footprint)ᶜ)
     (_D_ll : D_ll f_in f_out A)
     (C : CONSTRUCTION block f_in f_out)
-    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint)ᶜ)
+    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint)ᶜ)
     (P : PRIMITIVE block f_in f_out)
-    (_hP : FVP.fvP P ≤ (FVP.fvP C ⊔ FVP.fvP A ⊔ SRO_Bounder_bounder.footprint)ᶜ)
+    (_hP : FVP.fvP P ≤ (FVP.fvP C ⊔ FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint)ᶜ)
     (m : VariableAssignment) :
     (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
-      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ FVP.fvP A)ᶜ ∧
+      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+        FVP.fvP A)ᶜ ∧
       S_ll block f_in f_out S ∧
       |(Procedure.Pr (GReal block f_in f_out C P (DColl block f_in f_out limit bound_counter
           increase_counter SRO_Counter_c SRO_Bounder_bounder A)).procedure () m
@@ -315,18 +318,20 @@ module DPre (A : SRO.AdvPreimage f_in f_out)
 theorem preimage_resistant_if_indifferentiable
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvPreimage f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
-    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_RO_m.footprint ⊔
-      SRO_FRO_m.footprint ⊔ DPre_h.footprint)ᶜ)
+    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+      SRO_RO_m.footprint ⊔ SRO_FRO_m.footprint ⊔ DPre_h.footprint)ᶜ)
     (_D_ll : D_ll f_in f_out A)
     (C : CONSTRUCTION block f_in f_out)
-    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔ DPre_h.footprint)ᶜ)
+    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint ⊔ DPre_h.footprint)ᶜ)
     (P : PRIMITIVE block f_in f_out)
     (_hP : FVP.fvP P ≤ (FVP.fvP C ⊔ FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
-      DPre_h.footprint)ᶜ)
+      SRO_Counter_c.footprint ⊔ DPre_h.footprint)ᶜ)
     (m : VariableAssignment) (hash : f_out) :
     DPre_h.get m = hash →
     (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
-      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ FVP.fvP A ⊔ DPre_h.footprint)ᶜ ∧
+      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+        FVP.fvP A ⊔ DPre_h.footprint)ᶜ ∧
       S_ll block f_in f_out S ∧
       |(Procedure.Pr (GReal block f_in f_out C P (DPre block f_in f_out limit bound_counter
           increase_counter SRO_Counter_c SRO_Bounder_bounder DPre_h A)).procedure () m
@@ -365,18 +370,20 @@ theorem second_preimage_resistant_if_indifferentiable
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvSecondPreimage f_in f_out)
     (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
-    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_RO_m.footprint ⊔
-      SRO_FRO_m.footprint ⊔ D2Pre_m2.footprint)ᶜ)
+    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+      SRO_RO_m.footprint ⊔ SRO_FRO_m.footprint ⊔ D2Pre_m2.footprint)ᶜ)
     (_D_ll : D_ll f_in f_out A)
     (C : CONSTRUCTION block f_in f_out)
-    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔ D2Pre_m2.footprint)ᶜ)
+    (_hC : FVP.fvP C ≤ (FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint ⊔ D2Pre_m2.footprint)ᶜ)
     (P : PRIMITIVE block f_in f_out)
     (_hP : FVP.fvP P ≤ (FVP.fvP C ⊔ FVP.fvP A ⊔ SRO_Bounder_bounder.footprint ⊔
-      D2Pre_m2.footprint)ᶜ)
+      SRO_Counter_c.footprint ⊔ D2Pre_m2.footprint)ᶜ)
     (m : VariableAssignment) (mess : f_in) :
     D2Pre_m2.get m = mess →
     (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
-      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ FVP.fvP A ⊔ D2Pre_m2.footprint)ᶜ ∧
+      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+        FVP.fvP A ⊔ D2Pre_m2.footprint)ᶜ ∧
       S_ll block f_in f_out S ∧
       |(Procedure.Pr (GReal block f_in f_out C P (D2Pre block f_in f_out limit bound_counter
           increase_counter SRO_Counter_c SRO_Bounder_bounder D2Pre_m2 A)).procedure () m

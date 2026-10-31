@@ -311,7 +311,8 @@ end SecondPreimage
 theorem RO_is_second_preimage_resistant
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
     (A : AdvSecondPreimage «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (_hAd : FVP.fvP A ≤ (Bounder_bounder.footprint ⊔ RO_m.footprint ⊔ FRO_m.footprint)ᶜ)
+    (_hAd : FVP.fvP A ≤ (Bounder_bounder.footprint ⊔ Counter_c.footprint ⊔ RO_m.footprint ⊔
+      FRO_m.footprint)ᶜ)
     (m : VariableAssignment) (mess1 : «from») :
     (Procedure.Pr (Module.app (SecondPreimage «from» «to» bound increase_counter bound_counter
         Counter_c Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure
@@ -410,7 +411,8 @@ def collision {α β : Type} [DecidableEq α] (m : FMap α β) : Prop :=
 theorem RO_is_collision_resistant
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
     (A : AdvCollision «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (_hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ FRO_m.footprint ⊔ Bounder_bounder.footprint)ᶜ)
+    (_hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ FRO_m.footprint ⊔ Bounder_bounder.footprint ⊔
+      Counter_c.footprint)ᶜ)
     (m : VariableAssignment) :
     (Procedure.Pr (Module.app (Collision «from» «to» bound increase_counter bound_counter
         Counter_c Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure ()

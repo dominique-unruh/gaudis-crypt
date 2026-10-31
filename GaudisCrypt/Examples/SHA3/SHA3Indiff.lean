@@ -251,7 +251,7 @@ RaiseSim(Gconcl_list.SimLast(Gconcl.S), F).f ~ Simulator(F).f :
 theorem equiv_sim_f (F : DFUNCTIONALITY)
     (_hF : FVP.fvP F ≤ ((Gconcl.S.m).footprint ⊔ (Gconcl.S.mi).footprint ⊔
       (Gconcl.S.paths).footprint ⊔ (Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔
-      (Simulator.paths).footprint)ᶜ) :
+      (Simulator.paths).footprint ⊔ (Gconcl_list.BIRO2.IRO.mp).footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eqGlob F g₁ g₂ ∧
         Gconcl_list.BIRO2.IRO.mp.get g₁ = Gconcl_list.BIRO2.IRO.mp.get g₂ ∧ eq_S_Simulator g₁ g₂)
@@ -269,7 +269,7 @@ for `fi`. -/
 theorem equiv_sim_fi (F : DFUNCTIONALITY)
     (_hF : FVP.fvP F ≤ ((Gconcl.S.m).footprint ⊔ (Gconcl.S.mi).footprint ⊔
       (Gconcl.S.paths).footprint ⊔ (Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔
-      (Simulator.paths).footprint)ᶜ) :
+      (Simulator.paths).footprint ⊔ (Gconcl_list.BIRO2.IRO.mp).footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eqGlob F g₁ g₂ ∧
         Gconcl_list.BIRO2.IRO.mp.get g₁ = Gconcl_list.BIRO2.IRO.mp.get g₂ ∧ eq_S_Simulator g₁ g₂)
