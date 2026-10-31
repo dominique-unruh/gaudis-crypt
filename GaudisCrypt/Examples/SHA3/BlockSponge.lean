@@ -54,8 +54,9 @@ namespace BIRO
 /-- `op valid <- valid_block`, as a test. -/
 def valid (p : List block) : Bool := decide (valid_block p)
 abbrev IRO_T := IRO.IRO_T block (List block)
-noncomputable abbrev IRO := IRO.IRO block (List block) valid bdistr
-noncomputable abbrev IRO.mp := IRO.IRO.mp («to» := block) («from» := List block)
+/-- The clone's module variable `BIRO.IRO.mp`. -/
+global_var IRO.mp : FMap (List block × ℤ) block
+noncomputable abbrev IRO := IRO.IRO block (List block) valid bdistr IRO.mp
 end BIRO
 
 /-! ## Validity and parsing/formatting of functionality queries -/

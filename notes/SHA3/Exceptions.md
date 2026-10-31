@@ -77,19 +77,15 @@ adversaries of `Indifferentiability`, `SecureRO`, `SecureORO`, `SecureHash`, `SH
 **Affects** `IRO.eca` and `SecureORO.eca`.  These are the only two clashes in the development,
 found from the inventory.
 
-## E4: clones of a theory at the same types share module variables
+## E4 (resolved 2026-10-31): clones of a theory at the same types shared module variables
 
-**Rule broken.** An EasyCrypt `clone` copies the theory, module variables included.  The
-`RP` module of `Common`'s `clone RP as Perm` and that of `ConcreteF`'s
-`clone Strong_RP_RF as Switching` (its `PRPi`) have different variables in EasyCrypt.
+This exception no longer applies.  Generic modules declared their variables once
+(`global_var PRP.RP.m : FMap D D`), so two clones at the same types shared them, where EasyCrypt
+gives each clone its own copy.  `Gconcl_list` needs two random oracles at the same types in one
+game (`F` and its clone `F2`, both `block list -> block`), so the sharing would have changed the
+game.
 
-**What we do instead.** A generic theory's module variables are declared once
-(`global_var PRP.RP.m : FMap D D`), with a slot named after the generic declaration and typed by
-the instance.  Clones at different types get different variables.  Clones at the same type share
-them: `Perm` and `Switching.PRPi` both use `PRP.RP.m (D := state)`.
-
-**Why it is harmless so far.** The shared modules are never run in the same game, and a
-hypothesis "disjoint from `Perm`" is then also "disjoint from `PRPi`" (stronger, not weaker).
-
-**How to remove it, if a proof needs it.** Make the generic module take its variables as lens
-parameters, and give each clone its own `global_var`s.
+**Now**: generic modules take their variables as lens parameters (`PRP.RP.RP D dD m mi`,
+`PROM.FullRO.RO … m`, `IRO.IRO … mp`, `Strong_RP_RF.ARP … coll m mi`).  Each clone declares its
+own `global_var`s under EasyCrypt's names (`Perm.m`, `F.RO.m`, `F2.RO.m`, `ROhandle.FRO.m`,
+`Switching.PRPi.m`, `BIRO.IRO.mp` …) and passes them, as EasyCrypt's clone semantics demands.

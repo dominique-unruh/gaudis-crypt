@@ -20,6 +20,8 @@ Translation notes (see `notes/SHA3/README.md`):
   is its `RO_T` view.
 * `proc init = RO.init` (a procedure alias) is the same procedure: `LRO` and `RRO` are assembled
   with `RO_T.mk`/`FRO_T.mk` from the procedures they share.
+* The module variables `RO.m`, `FRO.m` are parameters: each clone declares its own `global_var`s
+  (`F.RO.m`, `F2.RO.m` …) and passes them.
 -/
 
 namespace GaudisCrypt.EC.PROM
@@ -98,58 +100,55 @@ module MainD using (D : RO_Distinguisher in_t out_t d_in_t d_out_t, RO : RO_T in
 
 end Distinguishers
 
-section Variables
-variable {in_t out_t : Type}
-/-- EC's `RO.m`. -/
-global_var RO.m : FMap in_t out_t
-/-- EC's `FRO.m`. -/
-global_var FRO.m : FMap in_t (out_t × flag)
-end Variables
-
 section Oracles
 
 variable (in_t out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
   (dout : in_t → SubProbability out_t)
 
+section RO
+/-! `RO`'s module variable `m` is a parameter: a clone declares its own (`F.RO.m`) and passes it,
+so two clones never share it. -/
+variable (m : Lens (FMap in_t out_t) VariableAssignment)
+
 -- EC's `MkRO.RO` (declared at `ROmap`; `RO.asRO` is its `RO` view)
 module RO : (ROmap in_t out_t) {
   proc init () : Unit {
-    RO.m <- (FMap.empty : FMap in_t out_t);
+    m <- (FMap.empty : FMap in_t out_t);
     return ()
   };
   proc get (x : in_t) : out_t {
     var r : out_t;
     r <$ dout $x;
-    if (!(decide (FMap.dom ($RO.m : FMap in_t out_t) $x))) {
-      RO.m <- FMap.set $RO.m $x $r;
+    if (!(decide (FMap.dom ($m : FMap in_t out_t) $x))) {
+      m <- FMap.set $m $x $r;
     }
-    return oget (FMap.get $RO.m $x)
+    return oget (FMap.get $m $x)
   };
   proc set (x : in_t, y : out_t) : Unit {
-    RO.m <- FMap.set $RO.m $x $y;
+    m <- FMap.set $m $x $y;
     return ()
   };
   proc rem (x : in_t) : Unit {
-    RO.m <- FMap.rem ($RO.m : FMap in_t out_t) $x;
+    m <- FMap.rem ($m : FMap in_t out_t) $x;
     return ()
   };
   proc sample (x : in_t) : Unit {
-    _ <- call (RO.get in_t out_t dout) ($x);
+    _ <- call (RO.get in_t out_t dout m) ($x);
     return ()
   };
   proc restrK () : (FMap in_t out_t) {
-    return $RO.m
+    return $m
   };
 }
 
 /-- `RO` at its type `RO` (EasyCrypt's `module RO : RO, ROmap`). -/
 noncomputable def RO.asRO : RO_T in_t out_t :=
   RO_T.mk in_t out_t
-    { init := ROmap.init in_t out_t (RO in_t out_t dout)
-      get := ROmap.get in_t out_t (RO in_t out_t dout)
-      set := ROmap.set in_t out_t (RO in_t out_t dout)
-      rem := ROmap.rem in_t out_t (RO in_t out_t dout)
-      sample := ROmap.sample in_t out_t (RO in_t out_t dout) }
+    { init := ROmap.init in_t out_t (RO in_t out_t dout m)
+      get := ROmap.get in_t out_t (RO in_t out_t dout m)
+      set := ROmap.set in_t out_t (RO in_t out_t dout m)
+      rem := ROmap.rem in_t out_t (RO in_t out_t dout m)
+      sample := ROmap.sample in_t out_t (RO in_t out_t dout m) }
 
 -- `LRO.sample`, the one procedure of `LRO` that is not `RO`'s
 module LRO.sample_ {
@@ -161,50 +160,58 @@ module LRO.sample_ {
 /-- EC's `MkRO.LRO`: `RO` with `proc sample(x : in_t) = { }` (and `proc init = RO.init` …). -/
 noncomputable def LRO : RO_T in_t out_t :=
   RO_T.mk in_t out_t
-    { init := ROmap.init in_t out_t (RO in_t out_t dout)
-      get := ROmap.get in_t out_t (RO in_t out_t dout)
-      set := ROmap.set in_t out_t (RO in_t out_t dout)
-      rem := ROmap.rem in_t out_t (RO in_t out_t dout)
+    { init := ROmap.init in_t out_t (RO in_t out_t dout m)
+      get := ROmap.get in_t out_t (RO in_t out_t dout m)
+      set := ROmap.set in_t out_t (RO in_t out_t dout m)
+      rem := ROmap.rem in_t out_t (RO in_t out_t dout m)
       sample := LRO.sample_ in_t out_t }
+
+end RO
+
+section FRO
+/-! `FRO`'s module variable `m` is a parameter (see `RO`). -/
+variable (m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
 
 module FRO : (FRO_T in_t out_t) {
   proc init () : Unit {
-    FRO.m <- (FMap.empty : FMap in_t (out_t × flag));
+    m <- (FMap.empty : FMap in_t (out_t × flag));
     return ()
   };
   proc get (x : in_t) : out_t {
     var r : out_t;
     r <$ dout $x;
-    if (decide (FMap.dom ($FRO.m : FMap in_t (out_t × flag)) $x)) {
-      r <- (oget (FMap.get $FRO.m $x)).1;
+    if (decide (FMap.dom ($m : FMap in_t (out_t × flag)) $x)) {
+      r <- (oget (FMap.get $m $x)).1;
     }
-    FRO.m <- FMap.set $FRO.m $x ($r, Known);
+    m <- FMap.set $m $x ($r, Known);
     return $r
   };
   proc set (x : in_t, y : out_t) : Unit {
-    FRO.m <- FMap.set $FRO.m $x ($y, Known);
+    m <- FMap.set $m $x ($y, Known);
     return ()
   };
   proc rem (x : in_t) : Unit {
-    FRO.m <- FMap.rem ($FRO.m : FMap in_t (out_t × flag)) $x;
+    m <- FMap.rem ($m : FMap in_t (out_t × flag)) $x;
     return ()
   };
   proc sample (x : in_t) : Unit {
     var c : out_t;
     c <$ dout $x;
-    if (!(decide (FMap.dom ($FRO.m : FMap in_t (out_t × flag)) $x))) {
-      FRO.m <- FMap.set $FRO.m $x ($c, Unknown);
+    if (!(decide (FMap.dom ($m : FMap in_t (out_t × flag)) $x))) {
+      m <- FMap.set $m $x ($c, Unknown);
     }
     return ()
   };
   proc queried (x : in_t, f : flag) : Bool {
-    return decide (FMap.dom ($FRO.m : FMap in_t (out_t × flag)) $x ∧
-      is_ (FMap.get ($FRO.m : FMap in_t (out_t × flag)) $x) $f)
+    return decide (FMap.dom ($m : FMap in_t (out_t × flag)) $x ∧
+      is_ (FMap.get ($m : FMap in_t (out_t × flag)) $x) $f)
   };
   proc allKnown () : (FMap in_t out_t) {
-    return FMap.restr Known $FRO.m
+    return FMap.restr Known $m
   };
 }
+
+end FRO
 
 end Oracles
 
@@ -213,14 +220,14 @@ namespace FullEager
 section RRO
 
 variable (in_t out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
-  (dout : in_t → SubProbability out_t)
+  (dout : in_t → SubProbability out_t) (m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
 
 -- EC's `RRO.I`
 module RRO.I {
   proc f (x : in_t) : Unit {
     var c : out_t;
     c <$ dout $x;
-    FRO.m <- FMap.set $FRO.m $x ($c, Unknown);
+    m <- FMap.set $m $x ($c, Unknown);
     return ()
   };
 }
@@ -230,15 +237,15 @@ module RRO.own {
   proc get (x : in_t) : out_t {
     var r : out_t;
     r <$ dout $x;
-    if (!(decide (FMap.dom ($FRO.m : FMap in_t (out_t × flag)) $x)) ||
-        decide (is_ (FMap.get ($FRO.m : FMap in_t (out_t × flag)) $x) Unknown)) {
-      FRO.m <- FMap.set $FRO.m $x ($r, Known);
+    if (!(decide (FMap.dom ($m : FMap in_t (out_t × flag)) $x)) ||
+        decide (is_ (FMap.get ($m : FMap in_t (out_t × flag)) $x) Unknown)) {
+      m <- FMap.set $m $x ($r, Known);
     }
-    return (oget (FMap.get $FRO.m $x)).1
+    return (oget (FMap.get $m $x)).1
   };
   proc resample () : Unit {
-    _ <- call (Module.app (IterProc.Iter in_t) (RRO.I in_t out_t dout))
-      ((FMap.fdom (FMap.restr Unknown ($FRO.m : FMap in_t (out_t × flag)))).toList);
+    _ <- call (Module.app (IterProc.Iter in_t) (RRO.I in_t out_t dout m))
+      ((FMap.fdom (FMap.restr Unknown ($m : FMap in_t (out_t × flag)))).toList);
     return ()
   };
 }
@@ -247,13 +254,13 @@ module RRO.own {
 `RRO.own.resample`). -/
 noncomputable def RRO : FRO_T in_t out_t :=
   FRO_T.mk in_t out_t
-    { init := FRO_T.init in_t out_t (FRO in_t out_t dout)
-      get := RRO.own.get in_t out_t dout
-      set := FRO_T.set in_t out_t (FRO in_t out_t dout)
-      rem := FRO_T.rem in_t out_t (FRO in_t out_t dout)
-      sample := FRO_T.sample in_t out_t (FRO in_t out_t dout)
-      queried := FRO_T.queried in_t out_t (FRO in_t out_t dout)
-      allKnown := FRO_T.allKnown in_t out_t (FRO in_t out_t dout) }
+    { init := FRO_T.init in_t out_t (FRO in_t out_t dout m)
+      get := RRO.own.get in_t out_t dout m
+      set := FRO_T.set in_t out_t (FRO in_t out_t dout m)
+      rem := FRO_T.rem in_t out_t (FRO in_t out_t dout m)
+      sample := FRO_T.sample in_t out_t (FRO in_t out_t dout m)
+      queried := FRO_T.queried in_t out_t (FRO in_t out_t dout m)
+      allKnown := FRO_T.allKnown in_t out_t (FRO in_t out_t dout m) }
 
 end RRO
 
@@ -261,22 +268,23 @@ section RO_LRO_D
 
 variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
   [Inhabited d_in_t] [Inhabited d_out_t] (dout : in_t → SubProbability out_t)
+  (FRO_m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
 
 /-- EC's `FullEager.RO_LRO_D`, for `declare module D <: RO_Distinguisher {-RO, -FRO}` and
 `axiom dout_ll x : is_lossless (dout x)`:
 `equiv[ D(RO).distinguish ~ D(LRO).distinguish : ={glob D, RO.m, arg} ==> ={res, glob D} ]`. -/
 theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+    (RO_m : Lens (FMap in_t out_t) VariableAssignment)
     (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
     (hD : Module.Representable D (holes := .cons (procsig (in_t) -> out_t) .empty)
       fun G => (RO_T.get in_t out_t G).procedure)
-    (hdisj : FVP.fvP D ≤ ((RO.m (in_t := in_t) (out_t := out_t)).footprint ⊔
-      (FRO.m (in_t := in_t) (out_t := out_t)).footprint)ᶜ) :
+    (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
-        (RO.m (in_t := in_t) (out_t := out_t)).get g₁ = RO.m.get g₂)
-      (Module.app D (RO.asRO in_t out_t dout)).procedure
-      (Module.app D (LRO in_t out_t dout)).procedure
+        RO_m.get g₁ = RO_m.get g₂)
+      (Module.app D (RO.asRO in_t out_t dout RO_m)).procedure
+      (Module.app D (LRO in_t out_t dout RO_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
   sorry
@@ -286,15 +294,15 @@ set_option linter.gaudisCrypt.using false in
 module Eager (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) {
   proc main1 (x : d_in_t) : d_out_t {
     var b : d_out_t;
-    _ <- call (FRO_T.init in_t out_t (FRO in_t out_t dout)) ();
-    b <- call (Module.app D (FRO in_t out_t dout)) ($x);
+    _ <- call (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)) ();
+    b <- call (Module.app D (FRO in_t out_t dout FRO_m)) ($x);
     return $b
   };
   proc main2 (x : d_in_t) : d_out_t {
     var b : d_out_t;
-    _ <- call (FRO_T.init in_t out_t (FRO in_t out_t dout)) ();
-    b <- call (Module.app D (RRO in_t out_t dout)) ($x);
-    _ <- call (RRO.own.resample in_t out_t dout) ();
+    _ <- call (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)) ();
+    b <- call (Module.app D (RRO in_t out_t dout FRO_m)) ($x);
+    _ <- call (RRO.own.resample in_t out_t dout FRO_m) ();
     return $b
   };
 }
@@ -305,14 +313,14 @@ theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
     (hD : Module.Representable D (holes := .cons (procsig (in_t) -> out_t) .empty)
       fun G => (FRO_T.get in_t out_t G).procedure)
-    (hdisj : FVP.fvP D ≤ ((FRO.m (in_t := in_t) (out_t := out_t)).footprint)ᶜ) :
+    (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
-      (Eager.main1 in_t out_t d_in_t d_out_t dout D).procedure
-      (Eager.main2 in_t out_t d_in_t d_out_t dout D).procedure
+      (Eager.main1 in_t out_t d_in_t d_out_t dout FRO_m D).procedure
+      (Eager.main2 in_t out_t d_in_t d_out_t dout FRO_m D).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
-        (FRO.m (in_t := in_t) (out_t := out_t)).get g₁ = FRO.m.get g₂ ∧
+        FRO_m.get g₁ = FRO_m.get g₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
   sorry
 

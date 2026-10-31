@@ -81,9 +81,11 @@ Files in this directory:
   with an extra `fill_in`); `module X : T` does not.  Such modules are declared without the type,
   and a `T`-view is built where one is needed.
 * **Module aliases.** `module GReal(C, P) = Indif(C(P), P)` is a definition applying `Indif`.
-* **Module variables.** `var m` of module `M` is `global_var M.m`.  A variable whose type mentions
-  an abstract type of the theory gets that type as an implicit section variable.  Reads whose
-  type is not determined by the context are annotated (`($IRO.mp : FMap («from» × ℤ) «to»)`).
+* **Module variables.** `var m` of module `M` is `global_var M.m`.  In a generic theory
+  (`.eca`) the module's variables are lens parameters of the module (`PRP.RP.RP D dD m mi`), and
+  each clone declares its own `global_var`s under EasyCrypt's names (`Perm.m`, `F.RO.m`) and passes
+  them.  This is EasyCrypt's semantics, in which a clone copies the module variables.  Reads whose
+  type is not determined by the context are annotated (`($G1.mh : hsmap)`).
 * **Calls between procedures of the same module** are `call (M.g <Lean parameters>)`.
 * **Keywords.** `to`, `from` and `prefix` are keywords, so they are written `«to»`, `«from»` and
   `«prefix»`.

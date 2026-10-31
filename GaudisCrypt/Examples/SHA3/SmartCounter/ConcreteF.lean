@@ -85,9 +85,16 @@ noncomputable def GReal' : procmod () → Bool :=
 type K <- unit, op dK <- (MUnit.dunit<:unit> tt), op q <- max_size` -/
 
 namespace Switching
-noncomputable abbrev PRPi.PRPi := Strong_RP_RF.PRPi.PRPi state dstate
-noncomputable abbrev ARP := Strong_RP_RF.ARP state dstate
-noncomputable abbrev DBounder := Strong_RP_RF.DBounder state max_size
+/-- The clone's module variables. -/
+global_var PRPi.m : FMap state state
+global_var PRPi.mi : FMap state state
+global_var ARP.coll : Bool
+global_var ARP.m : FMap state state
+global_var ARP.mi : FMap state state
+global_var DBounder.FBounder.c : ℤ
+noncomputable abbrev PRPi.PRPi := Strong_RP_RF.PRPi.PRPi state dstate PRPi.m PRPi.mi
+noncomputable abbrev ARP := Strong_RP_RF.ARP state dstate ARP.coll ARP.m ARP.mi
+noncomputable abbrev DBounder := Strong_RP_RF.DBounder state max_size DBounder.FBounder.c
 abbrev PRPSec.PRP := EC.PRP.StrongPRP.PRP state
 abbrev PRPSec.SPRP_Oracles := EC.PRP.StrongPRP.SPRP_Oracles state
 abbrev PRPSec.Distinguisher := EC.PRP.StrongPRP.Distinguisher state
@@ -122,7 +129,7 @@ module D' (D : DISTINGUISHER) using (P' : Switching.PRPSec.SPRP_Oracles) {
 
 /-- `local lemma DoubleBounding (P <: PRPSec.PRP {-D, -C, -DBounder, -Redo})`. -/
 theorem DoubleBounding (P : Switching.PRPSec.PRP)
-    (_hP : FVP.fvP P ≤ (FVP.fvP D ⊔ C.footprint ⊔ (Strong_RP_RF.DBounder.FBounder.c).footprint ⊔
+    (_hP : FVP.fvP P ≤ (FVP.fvP D ⊔ C.footprint ⊔ (Switching.DBounder.FBounder.c).footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
     (m : VariableAssignment) :
     Procedure.Pr (Module.app Switching.PRPSec.IND (Module.pair P (D' D))).procedure () m
@@ -137,8 +144,8 @@ noncomputable abbrev S := DProd.ProdSampling.S block capacity
 /-- EC's `Real_Concrete`, for `declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo}` with
 the axiom `D_ll`.  `mu dstate (pred1 witness)` is the probability of `default`. -/
 theorem Real_Concrete (hD : Module.Representable D distExt)
-    (_hDd : FVP.fvP D ≤ ((EC.PRP.RP.m (D := state)).footprint ⊔
-      (EC.PRP.RP.mi (D := state)).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔
+    (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔
+      (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →

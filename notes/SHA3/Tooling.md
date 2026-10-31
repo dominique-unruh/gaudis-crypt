@@ -160,3 +160,11 @@ tried.
 module `λ X. f (g X)`, typed with the `HasType` constructors in the same way as `Module.const`.
 It translates EasyCrypt's functor aliases with composite bodies,
 `module Sim (F) = Gconcl.S(Last(F))`.
+
+## 2026-10-31: module variables of generic theories are parameters (E4 resolved)
+
+The generic modules in `Lib/EC/` (`PRP.RP`, `Strong_RP_RF.ARP`/`DBounder`, `PROM.FullRO`'s
+`RO`/`LRO`/`FRO`/`RRO`/`Eager`) and `IRO.lean` no longer declare `global_var`s.  They take their
+module variables as lens parameters; a module body uses a parameter lens like a variable
+(`m <- …`, `$m`).  Each clone declares its own variables and passes them.  The `global_var` macro
+fix for implicit types (2026-10-31) is still in place, but nothing in the port uses it any more.

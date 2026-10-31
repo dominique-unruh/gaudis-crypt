@@ -7,7 +7,8 @@ import GaudisCrypt.Lib.EC.Distr
 # EasyCrypt's pseudo-random permutations (`theories/crypto/PRP.eca`)
 
 The abstract type `D` and the operator `dD` are Lean parameters, so EasyCrypt's
-`clone PRP with type D <- …` and `clone RP with op dD <- …` are applications.  The sub-theories
+`clone PRP with type D <- …` and `clone RP with op dD <- …` are applications.  So are the module
+variables (`RP.m`, `RP.mi`): a clone declares its own `global_var`s and passes them.  The sub-theories
 `StrongPRP` and `RP` are namespaces.  Only what ported developments use is here (`WeakPRP` is not).
 -/
 
@@ -51,15 +52,10 @@ end StrongPRP
 
 namespace RP
 
-section
-variable {D}
-/-- EC's `RP.m`. -/
-global_var m : FMap D D
-/-- EC's `RP.mi`. -/
-global_var mi : FMap D D
-end
+/-! The module variables `RP.m`, `RP.mi` are parameters: each clone declares its own (EasyCrypt's
+`clone RP as Perm` has `Perm.m`, `Perm.mi`), so two clones never share them. -/
 
-variable (dD : SubProbability D)
+variable (dD : SubProbability D) (m mi : Lens (FMap D D) VariableAssignment)
 
 -- EC's `RP.RP`
 module RP : (StrongPRP.PRP D) {

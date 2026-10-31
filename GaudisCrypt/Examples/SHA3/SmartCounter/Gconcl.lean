@@ -300,9 +300,9 @@ variable (D : DISTINGUISHER)
 
 /-- The section's `declare module D <: DISTINGUISHER {-C, -Perm, -F.RO, -F.FRO, -S, -Redo}`. -/
 def DRestrictions : Prop :=
-  FVP.fvP D ≤ (C.footprint ⊔ (EC.PRP.RP.m (D := state)).footprint ⊔
-    (EC.PRP.RP.mi (D := state)).footprint ⊔ (F.RO.m).footprint ⊔
-    (PROM.FullRO.FRO.m (in_t := List block) (out_t := block)).footprint ⊔ (S.m).footprint ⊔
+  FVP.fvP D ≤ (C.footprint ⊔ (Perm.m).footprint ⊔
+    (Perm.mi).footprint ⊔ (F.RO.m).footprint ⊔
+    (F.FRO.m).footprint ⊔ (S.m).footprint ⊔
     (S.mi).footprint ⊔ (S.paths).footprint ⊔ (Redo.prefixes).footprint)ᶜ
 
 /-- `local equiv G2_G3 : Eager(G2(DRestr(D))).main2 ~ G3(F.LRO).distinguish : ={glob D} ==>

@@ -131,8 +131,12 @@ theorem dD_ll : is_lossless dD := by
 /-- `[module type] "PRP" as "PRIMITIVE"`. -/
 abbrev PRIMITIVE := EC.PRP.StrongPRP.PRP (block × capacity)
 
+/-- The clone's module variables `Perm.m`, `Perm.mi`. -/
+global_var Perm.m : FMap (block × capacity) (block × capacity)
+global_var Perm.mi : FMap (block × capacity) (block × capacity)
+
 /-- `[module] "RP" as "Perm"`: the ideal permutation on `block * capacity`. -/
-noncomputable abbrev Perm := EC.PRP.RP.RP (block × capacity) dD
+noncomputable abbrev Perm := EC.PRP.RP.RP (block × capacity) dD Perm.m Perm.mi
 
 /-! ## Needed blocks computation -/
 

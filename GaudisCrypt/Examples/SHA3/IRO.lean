@@ -13,7 +13,7 @@ to the empty list.
 The abstract theory's types `to`, `from` and operators `valid`, `dto` are section variables, so a
 `clone` is an application.  `to` and `from` are keywords, hence `«to»` and `«from»`.  EasyCrypt's
 module type `IRO` and module `IRO` share a name; here the module type is `IRO_T` (exception E3 of
-the port).
+the port).  The module variables (`IRO.mp` …) are parameters: a clone declares its own.
 -/
 
 -- EasyCrypt names a module after its theory (`RP.RP`, `IRO.IRO`); kept (exception E1)
@@ -42,32 +42,27 @@ theorem prefix_closed_equiv (m : FMap («from» × ℤ) «to») :
     prefix_closed «to» «from» m ↔ prefix_closed' «to» «from» m := by
   sorry
 
-section
-variable {«to» «from»}
-/-- EC's `IRO.mp`. -/
-global_var IRO.mp : FMap («from» × ℤ) «to»
-/-- EC's `IRO'.mp`. -/
-global_var IRO'.mp : FMap («from» × ℤ) «to»
-/-- EC's `IRO'.visible`. -/
-global_var IRO'.visible : FSet («from» × ℤ)
-end
-
 variable (valid : «from» → Bool) (dto : SubProbability «to»)
+
+section IRO
+/-! `IRO`'s module variable `mp` is a parameter: a clone declares its own (`BIRO.IRO.mp`) and
+passes it. -/
+variable (mp : Lens (FMap («from» × ℤ) «to») VariableAssignment)
 
 -- The official version (EC: `module IRO : IRO`; it has more procedures than `IRO_T`, so no type
 -- annotation here: see `notes/SHA3/README.md`, "Modules").
 module IRO {
   proc init () : Unit {
-    IRO.mp <- (FMap.empty : FMap («from» × ℤ) «to»);
+    mp <- (FMap.empty : FMap («from» × ℤ) «to»);
     return ()
   };
   proc fill_in (x : «from», n : ℤ) : «to» {
     var r : «to»;
-    if (!(decide (FMap.dom ($IRO.mp : FMap («from» × ℤ) «to») ($x, $n)))) {
+    if (!(decide (FMap.dom ($mp : FMap («from» × ℤ) «to») ($x, $n)))) {
       r <$ dto;
-      IRO.mp <- FMap.set $IRO.mp ($x, $n) $r;
+      mp <- FMap.set $mp ($x, $n) $r;
     }
-    return oget (FMap.get $IRO.mp ($x, $n))
+    return oget (FMap.get $mp ($x, $n))
   };
   proc f (x : «from», n : ℤ) : (List «to») {
     var b : «to», bs : List «to», i : ℤ;
@@ -75,7 +70,7 @@ module IRO {
     bs <- [];
     if (valid $x) {
       while ($i < $n) {
-        b <- call (IRO.fill_in «to» «from» valid dto) ($x, $i);
+        b <- call (IRO.fill_in «to» «from» valid dto mp) ($x, $i);
         bs <- rcons $bs $b;
         i <- $i + 1;
       }
@@ -84,40 +79,47 @@ module IRO {
   };
 }
 
+end IRO
+
+section IRO'
+/-! `IRO'`'s module variables `mp`, `visible` are parameters (see `IRO`). -/
+variable (mp : Lens (FMap («from» × ℤ) «to») VariableAssignment)
+  (visible : Lens (FSet («from» × ℤ)) VariableAssignment)
+
 -- The version for the `AbsorbToBlocks.ec` attempt (EC: `module IRO' : IRO`).
 module IRO' {
   proc resample_invisible () : Unit {
     var work : FSet («from» × ℤ), x : «from» × ℤ, r : «to»;
-    work <- FMap.fdom ($IRO'.mp : FMap («from» × ℤ) «to») \ $IRO'.visible;
+    work <- FMap.fdom ($mp : FMap («from» × ℤ) «to») \ $visible;
     while ($work != fset0) {
       x <- pick $work;
       r <$ dto;
-      IRO'.mp <- FMap.set $IRO'.mp $x $r;
+      mp <- FMap.set $mp $x $r;
       work <- $work \ fset1 $x;
     }
     return ()
   };
   proc init () : Unit {
-    IRO'.mp <- (FMap.empty : FMap («from» × ℤ) «to»);
-    IRO'.visible <- (fset0 : FSet («from» × ℤ));
+    mp <- (FMap.empty : FMap («from» × ℤ) «to»);
+    visible <- (fset0 : FSet («from» × ℤ));
     return ()
   };
   proc fill_in (x : «from», n : ℤ) : «to» {
     var r : «to»;
-    if (!(decide (FMap.dom ($IRO'.mp : FMap («from» × ℤ) «to») ($x, $n)))) {
+    if (!(decide (FMap.dom ($mp : FMap («from» × ℤ) «to») ($x, $n)))) {
       r <$ dto;
-      IRO'.mp <- FMap.set $IRO'.mp ($x, $n) $r;
+      mp <- FMap.set $mp ($x, $n) $r;
     }
-    return oget (FMap.get $IRO'.mp ($x, $n))
+    return oget (FMap.get $mp ($x, $n))
   };
   proc f (x : «from», n : ℤ) : (List «to») {
     var b : «to», bs : List «to», i : ℤ;
     i <- 0;
     bs <- [];
     if (valid $x) {
-      IRO'.visible <- $IRO'.visible ∪ fset1 ($x, $n);
+      visible <- $visible ∪ fset1 ($x, $n);
       while ($i < $n) {
-        b <- call (IRO'.fill_in «to» «from» valid dto) ($x, $i);
+        b <- call (IRO'.fill_in «to» «from» valid dto mp visible) ($x, $i);
         bs <- rcons $bs $b;
         i <- $i + 1;
       }
@@ -128,11 +130,13 @@ module IRO' {
     var b : «to»;
     b <- default;
     if (valid $x && decide (0 ≤ $i)) {
-      IRO'.visible <- $IRO'.visible ∪ fset1 ($x, $i);
-      b <- call (IRO'.fill_in «to» «from» valid dto) ($x, $i);
+      visible <- $visible ∪ fset1 ($x, $i);
+      b <- call (IRO'.fill_in «to» «from» valid dto mp visible) ($x, $i);
     }
     return $b
   };
 }
+
+end IRO'
 
 end GaudisCrypt.SHA3.IRO

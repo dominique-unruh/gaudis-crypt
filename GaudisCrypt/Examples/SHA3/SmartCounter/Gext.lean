@@ -183,14 +183,15 @@ module G2 (D : DISTINGUISHER) using (HS : HFRO) {
 }
 
 -- `clone include EagerCore` (of `ROhandle`'s `FullEager`)
-noncomputable abbrev Eager := PROM.FullRO.FullEager.Eager handle capacity Unit Bool ROhandle.dout
+noncomputable abbrev Eager :=
+  PROM.FullRO.FullEager.Eager handle capacity Unit Bool ROhandle.dout ROhandle.FRO.m
 noncomputable abbrev Eager.main1 :=
-  PROM.FullRO.FullEager.Eager.main1 handle capacity Unit Bool ROhandle.dout
+  PROM.FullRO.FullEager.Eager.main1 handle capacity Unit Bool ROhandle.dout ROhandle.FRO.m
 noncomputable abbrev Eager.main2 :=
-  PROM.FullRO.FullEager.Eager.main2 handle capacity Unit Bool ROhandle.dout
-noncomputable abbrev RRO := PROM.FullRO.FullEager.RRO handle capacity ROhandle.dout
+  PROM.FullRO.FullEager.Eager.main2 handle capacity Unit Bool ROhandle.dout ROhandle.FRO.m
+noncomputable abbrev RRO := PROM.FullRO.FullEager.RRO handle capacity ROhandle.dout ROhandle.FRO.m
 noncomputable abbrev RRO.resample := PROM.FullRO.FullEager.RRO.own.resample handle capacity
-  ROhandle.dout
+  ROhandle.dout ROhandle.FRO.m
 
 /-! ## The first section: `G1` and the lazy `G2` -/
 
@@ -469,7 +470,7 @@ theorem Pr_ext (hD : Module.Representable D distExt)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
-      (EC.PRP.RP.m (D := state)).footprint ⊔ (EC.PRP.RP.mi (D := state)).footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →
@@ -490,7 +491,7 @@ theorem EG2_Gext (hD : Module.Representable D distExt)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
-      (EC.PRP.RP.m (D := state)).footprint ⊔ (EC.PRP.RP.mi (D := state)).footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
@@ -505,7 +506,7 @@ theorem Real_G2 (hD : Module.Representable D distExt)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
-      (EC.PRP.RP.m (D := state)).footprint ⊔ (EC.PRP.RP.mi (D := state)).footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D)ᶜ →
       FVP.fvP P ≤ (FVP.fvP D)ᶜ →

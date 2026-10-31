@@ -79,18 +79,20 @@ noncomputable def bl_univ : FSet (List block) := bl_enum.toFinset
 -- op dout _ <- bdistr, type d_in_t <- unit, type d_out_t <- bool`
 namespace F
 noncomputable abbrev dout : List block → SubProbability block := fun _ => bdistr
-noncomputable abbrev RO := PROM.FullRO.RO (List block) block dout
-/-- `F.RO.m`. -/
-noncomputable abbrev RO.m := PROM.FullRO.RO.m (in_t := List block) (out_t := block)
+/-- The clone's module variable `F.RO.m`. -/
+global_var RO.m : FMap (List block) block
+/-- The clone's module variable `F.FRO.m`. -/
+global_var FRO.m : FMap (List block) (block × flag)
+noncomputable abbrev RO := PROM.FullRO.RO (List block) block dout RO.m
 /-- `F.RO` as its type `RO` (`PROM.FullRO.RO.asRO`). -/
-noncomputable abbrev RO.asRO := PROM.FullRO.RO.asRO (List block) block dout
+noncomputable abbrev RO.asRO := PROM.FullRO.RO.asRO (List block) block dout RO.m
 /-- The module type `F.RO` (exception E3). -/
 abbrev RO_T := PROM.FullRO.RO_T (List block) block
-noncomputable abbrev LRO := PROM.FullRO.LRO (List block) block dout
-noncomputable abbrev FRO := PROM.FullRO.FRO (List block) block dout
+noncomputable abbrev LRO := PROM.FullRO.LRO (List block) block dout RO.m
+noncomputable abbrev FRO := PROM.FullRO.FRO (List block) block dout FRO.m
 abbrev RO_Distinguisher := PROM.FullRO.RO_Distinguisher (List block) block Unit Bool
 namespace FullEager
-noncomputable abbrev RRO := PROM.FullRO.FullEager.RRO (List block) block dout
+noncomputable abbrev RRO := PROM.FullRO.FullEager.RRO (List block) block dout FRO.m
 end FullEager
 end F
 
