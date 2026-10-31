@@ -727,25 +727,25 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 12 | op | `limit` |  | `limit` | — |
-| 17 | type | `state` |  | `state` | — |
-| 18 | op | `parse` |  | `parse` | — |
-| 19 | op | `valid` |  | `valid` | — |
-| 22 | module | `Simulator` |  | `Simulator` | — |
-| 88 | module | `Cntr` |  | `Cntr` | — |
-| 96 | module | `FC` |  | `FC` | — |
-| 116 | module | `PC` |  | `PC` | — |
-| 137 | module | `DRestr` |  | `DRestr` | — |
-| 148 | declare module | `Dist` | section . | `Dist` | — |
-| 151 | declare axiom | `Dist_lossless` | section . | `Dist_lossless` | — |
-| 155 | lemma | `drestr_commute1` | section . | `drestr_commute1` | — |
-| 185 | lemma | `drestr_commute2` | section . | `drestr_commute2` | — |
-| 223 | op | `wit_pair` | section . | `wit_pair` | — |
-| 225 | local equiv | `equiv_sim_f` | section . | `equiv_sim_f` | — |
-| 245 | local equiv | `equiv_sim_fi` | section . | `equiv_sim_fi` | — |
-| 255 | local lemma | `replace_simulator` | section . | `replace_simulator` | — |
-| 270 | lemma | `security` | section . | `security` | — |
-| 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` | — |
+| 12 | op | `limit` |  | `limit` | def |
+| 17 | type | `state` |  | `state` | def |
+| 18 | op | `parse` |  | `parse` | def |
+| 19 | op | `valid` |  | `valid` | def |
+| 22 | module | `Simulator` |  | `Simulator` | def |
+| 88 | module | `Cntr` |  | `Cntr` | def |
+| 96 | module | `FC` |  | `FC` | def |
+| 116 | module | `PC` |  | `PC` | def |
+| 137 | module | `DRestr` |  | `DRestr` (`D` a Lean parameter) | def |
+| 148 | declare module | `Dist` | section . | `Dist` (parameter, with `hD`, `DistRestrictions`) | def |
+| 151 | declare axiom | `Dist_lossless` | section . | `Dist_lossless` (hypothesis of `security`) | def |
+| 155 | lemma | `drestr_commute1` | section . | `drestr_commute1` | stated |
+| 185 | lemma | `drestr_commute2` | section . | `drestr_commute2` | stated |
+| 223 | op | `wit_pair` | section . | `wit_pair` | def |
+| 225 | local equiv | `equiv_sim_f` | section . | `equiv_sim_f` | stated |
+| 245 | local equiv | `equiv_sim_fi` | section . | `equiv_sim_fi` | stated |
+| 255 | local lemma | `replace_simulator` | section . | `replace_simulator` | stated |
+| 270 | lemma | `security` | section . | `security` | stated |
+| 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` | stated |
 
 ## `proof/SHA3_OIndiff.ec`
 

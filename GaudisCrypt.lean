@@ -127,6 +127,7 @@ import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability
 import GaudisCrypt.Examples.SHA3.IRO
 import GaudisCrypt.Examples.SHA3.OptionIndifferentiability
+import GaudisCrypt.Examples.SHA3.SHA3Indiff
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl
