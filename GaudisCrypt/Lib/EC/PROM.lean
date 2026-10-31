@@ -1,5 +1,6 @@
 import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Logic.Granular
+import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
@@ -114,6 +115,63 @@ noncomputable def FRO_ext (G : FRO_T in_t out_t) : (FRO_holes in_t out_t).Instan
    (FRO_T.set in_t out_t G).procedure, (FRO_T.rem in_t out_t G).procedure,
    (FRO_T.sample in_t out_t G).procedure, (FRO_T.queried in_t out_t G).procedure,
    (FRO_T.allKnown in_t out_t G).procedure)
+
+omit [Inhabited d_in_t] [Inhabited d_out_t] in
+/-- **Every `RO_Distinguisher` is representable** over all of `RO`'s procedures
+(`Module.representable_of_firstOrder`): for it, exception E2 is a theorem. -/
+theorem RO_Distinguisher.representable [Inhabited in_t] [Inhabited out_t]
+    (D : RO_Distinguisher in_t out_t d_in_t d_out_t) :
+    Module.Representable D (RO_ext in_t out_t) :=
+  Module.representable_of_firstOrder (M := RO_T in_t out_t)
+    (by show (RO_T.typeRep in_t out_t).FirstOrder
+        simp only [RO_T.typeRep, ModuleTypeRep.FirstOrder, and_self])
+    (fun n => by
+      cases n with
+      | zero => exact ⟨by simp, inferInstance⟩
+      | succ n => cases n with
+        | zero => exact ⟨by simp; exact ⟨default⟩, ⟨default⟩⟩
+        | succ n => cases n with
+          | zero => exact ⟨by simp; exact ⟨⟨default⟩, ⟨default⟩⟩, inferInstance⟩
+          | succ n => cases n with
+            | zero => exact ⟨by simp; exact ⟨default⟩, inferInstance⟩
+            | succ n => cases n with
+              | zero => exact ⟨by simp; exact ⟨default⟩, inferInstance⟩
+              | succ n => nomatch n)
+    (RO_ext in_t out_t) (fun _ => rfl) D
+
+omit [Inhabited d_in_t] [Inhabited d_out_t] in
+/-- An `RO_Distinguisher` is EasyCrypt-like as soon as it has finitely many globals: its
+representability is `RO_Distinguisher.representable`. -/
+theorem RO_Distinguisher.ecModule [Inhabited in_t] [Inhabited out_t]
+    (D : RO_Distinguisher in_t out_t d_in_t d_out_t) (hD : (FVP.fvP D).FinitelySupported) :
+    Module.ECModule D (RO_ext in_t out_t) :=
+  ⟨RO_Distinguisher.representable in_t out_t d_in_t d_out_t D, hD⟩
+
+omit [Inhabited d_in_t] [Inhabited d_out_t] in
+/-- **Every `FRO_Distinguisher` is representable** over all of `FRO`'s procedures. -/
+theorem FRO_Distinguisher.representable [Inhabited in_t] [Inhabited out_t]
+    (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) :
+    Module.Representable D (FRO_ext in_t out_t) :=
+  Module.representable_of_firstOrder (M := FRO_T in_t out_t)
+    (by show (FRO_T.typeRep in_t out_t).FirstOrder
+        simp only [FRO_T.typeRep, ModuleTypeRep.FirstOrder, and_self])
+    (fun n => by
+      cases n with
+      | zero => exact ⟨by simp, inferInstance⟩
+      | succ n => cases n with
+        | zero => exact ⟨by simp; exact ⟨default⟩, ⟨default⟩⟩
+        | succ n => cases n with
+          | zero => exact ⟨by simp; exact ⟨⟨default⟩, ⟨default⟩⟩, inferInstance⟩
+          | succ n => cases n with
+            | zero => exact ⟨by simp; exact ⟨default⟩, inferInstance⟩
+            | succ n => cases n with
+              | zero => exact ⟨by simp; exact ⟨default⟩, inferInstance⟩
+              | succ n => cases n with
+                | zero => exact ⟨by simp; exact ⟨⟨default⟩, ⟨.Unknown⟩⟩, inferInstance⟩
+                | succ n => cases n with
+                  | zero => exact ⟨by simp, ⟨FMap.empty⟩⟩
+                  | succ n => nomatch n)
+    (FRO_ext in_t out_t) (fun _ => rfl) D
 
 module MainD using (D : RO_Distinguisher in_t out_t d_in_t d_out_t, RO : RO_T in_t out_t) {
   proc distinguish (x : d_in_t) : d_out_t {

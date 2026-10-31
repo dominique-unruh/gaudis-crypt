@@ -461,6 +461,11 @@ the `fvP` of the normal form.  Standard axioms only.  Pieces:
   slots), `ofProc`, `HoleSigs.Instantiation.ofFun`, `procedureDenotation_instantiate_congr`.
 * `FONormal.extract`: the induction; `Module.exists_representation`: its module form.
 
+**Done the same day** (2d95fe5, then PROM): `Module.exists_representation_of_firstOrder` /
+`Module.representable_of_firstOrder` for module types (any tree of products; `T.holesApp`,
+`T.extOf`, `ModuleExpression.rebuild`), and `PROM.FullRO.RO_Distinguisher.representable`,
+`FRO_Distinguisher.representable`.  The paragraph below is the plan as it stood before.
+
 Open before it applies to SHA-3: a `moduletype`'s representation is a right-nested product *without*
 the trailing `unit` (fields may be nested module types), so an adapter from arbitrary first-order
 product trees to the tuple form is needed (rebuild the value from the tuple's projections: no

@@ -48,7 +48,19 @@ as a theorem, by induction over the adversary's code, so it needs that code
   route avoids flattening nested applications into one procedure with holes, which a call's
   closed callee body does not allow.
 
-`hD` then disappears from every statement mechanically.  Neither route is done.
+`hD` then disappears from every statement mechanically.
+
+**Status (2026-11-01): the first route is done for full oracle lists.**
+`Module.representable_of_firstOrder` (`Logic/Representation.lean`) proves `Module.Representable D
+ext` for every functor module `D` over a first-order module type (a tree of products of
+procedures, as `moduletype` builds them) whose `ext` is the full list of the type's procedures,
+provided those procedures' parameter and result types are nonempty (they live in local slots of
+the extracted code).  The representation is extracted from `D`'s own normal form; nested
+applications are flattened by `ProcedureWithHoles.substHoles`, with the inliner's term-level
+lemmas.  Instances: `PROM.FullRO.RO_Distinguisher.representable`,
+`FRO_Distinguisher.representable` (so `RO_Distinguisher.ecModule` needs only finite support).
+Where `ext` is a restricted list (EasyCrypt's `{HI.f}`, `OI.allowed`, e.g. `HYBRID_IRO_DIST.ext`),
+`hD` stays: our module types do not restrict which oracle procedures a functor calls.
 
 **The hypothesis is not vacuous.** Every functor module written with the `module` command satisfies
 it, by `Module.representedBy_of_app_eq` (`notes/SHA3/Tooling.md`, test `guess_representable`).  So
