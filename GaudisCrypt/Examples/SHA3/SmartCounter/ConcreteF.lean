@@ -12,7 +12,8 @@ Translation notes (see `notes/SHA3/README.md`):
   D_ll` are hypotheses of the lemmas.  So are the local modules' parameters.
 * `local clone import Strong_RP_RF as Switching with type D <- state, op uD <- dstate,
   type K <- unit, op dK <- dunit tt, op q <- max_size` is the namespace `Switching`, and its
-  realized axioms `ge0_q`, `uD_uf_fu` are lemmas.
+  realized axioms `ge0_q`, `uD_uf_fu` are lemmas.  The clone is local, so its module variables are
+  lens parameters of the local declarations that mention them (exception E6).
 * EasyCrypt checks this file only up to an anomaly at line 418 (inside the proof of
   `Real_Concrete`); see `notes/SHA3/README.md`.
 -/
@@ -85,16 +86,19 @@ noncomputable def GReal' : procmod () → Bool :=
 type K <- unit, op dK <- (MUnit.dunit<:unit> tt), op q <- max_size` -/
 
 namespace Switching
-/-- The clone's module variables. -/
-global_var PRPi.m : FMap state state
-global_var PRPi.mi : FMap state state
-global_var ARP.coll : Bool
-global_var ARP.m : FMap state state
-global_var ARP.mi : FMap state state
-global_var DBounder.FBounder.c : ℤ
-noncomputable abbrev PRPi.PRPi := Strong_RP_RF.PRPi.PRPi state dstate PRPi.m PRPi.mi
-noncomputable abbrev ARP := Strong_RP_RF.ARP state dstate ARP.coll ARP.m ARP.mi
-noncomputable abbrev DBounder := Strong_RP_RF.DBounder state max_size DBounder.FBounder.c
+/-! The clone is local: its module variables (`PRPi.m`, `PRPi.mi`, `ARP.coll`, `ARP.m`, `ARP.mi`,
+`DBounder.FBounder.c`) are lens parameters of the local declarations that mention them, fresh by
+hypothesis (exception E6). -/
+-- one binder each: a declaration takes only the variables it mentions
+variable (PRPi_m : Lens (FMap state state) VariableAssignment)
+variable (PRPi_mi : Lens (FMap state state) VariableAssignment)
+variable (ARP_coll : Lens Bool VariableAssignment)
+variable (ARP_m : Lens (FMap state state) VariableAssignment)
+variable (ARP_mi : Lens (FMap state state) VariableAssignment)
+variable (DBounder_FBounder_c : Lens ℤ VariableAssignment)
+noncomputable abbrev PRPi.PRPi := Strong_RP_RF.PRPi.PRPi state dstate PRPi_m PRPi_mi
+noncomputable abbrev ARP := Strong_RP_RF.ARP state dstate ARP_coll ARP_m ARP_mi
+noncomputable abbrev DBounder := Strong_RP_RF.DBounder state max_size DBounder_FBounder_c
 abbrev PRPSec.PRP := EC.PRP.StrongPRP.PRP state
 abbrev PRPSec.SPRP_Oracles := EC.PRP.StrongPRP.SPRP_Oracles state
 abbrev PRPSec.Distinguisher := EC.PRP.StrongPRP.Distinguisher state
@@ -127,15 +131,20 @@ module D' (D : DISTINGUISHER) using (P' : Switching.PRPSec.SPRP_Oracles) {
   };
 }
 
-/-- `local lemma DoubleBounding (P <: PRPSec.PRP {-D, -C, -DBounder, -Redo})`. -/
-theorem DoubleBounding (P : Switching.PRPSec.PRP)
-    (_hP : FVP.fvP P ≤ (FVP.fvP D ⊔ C.footprint ⊔ (Switching.DBounder.FBounder.c).footprint ⊔
+/-- `local lemma DoubleBounding (P <: PRPSec.PRP {-D, -C, -DBounder, -Redo})`; `DBounder`'s
+variable is the lens `DBounder_FBounder_c`, fresh for the section's modules (exception E6). -/
+theorem DoubleBounding (DBounder_FBounder_c : Lens ℤ VariableAssignment)
+    (_hfresh : DBounder_FBounder_c.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔
+      (Redo.prefixes).footprint)ᶜ)
+    (P : Switching.PRPSec.PRP)
+    (_hP : FVP.fvP P ≤ (FVP.fvP D ⊔ C.footprint ⊔ DBounder_FBounder_c.footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
     (m : VariableAssignment) :
     Procedure.Pr (Module.app Switching.PRPSec.IND (Module.pair P (D' D))).procedure () m
         (fun r _ => r = true) =
       Procedure.Pr (Module.app Switching.PRPSec.IND
-        (Module.pair P (Switching.DBounder (D' D)))).procedure () m (fun r _ => r = true) := by
+        (Module.pair P (Switching.DBounder DBounder_FBounder_c (D' D)))).procedure () m
+        (fun r _ => r = true) := by
   sorry
 
 /-- `local clone import ProdSampling with type t1 <- block, type t2 <- capacity`. -/

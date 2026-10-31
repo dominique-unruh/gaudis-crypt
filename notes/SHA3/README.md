@@ -188,8 +188,8 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  **Done 2026-10-31**: all 21 files (and the
    EasyCrypt library theories they use, in `GaudisCrypt/Lib/EC/`).  Every EasyCrypt declaration has
-   its row in `Mapping.md`.  Known gap before the proofs: exception E6 is not yet applied to the
-   local clones of `ConcreteF` and `Gconcl_list` (see `Exceptions.md`).
+   its row in `Mapping.md`.  Exception E6 is applied everywhere (audit 2026-11-01); the
+   fresh-variable lemma it relies on is still to be proven.
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
    (`Handle.eca` is the largest single piece).

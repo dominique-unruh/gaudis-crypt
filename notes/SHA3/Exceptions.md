@@ -141,9 +141,15 @@ for a representable `D` (E2), whose code is finite, there is a lens of any type 
 `FVP.fvP D` and from given finitely many variables.  Not yet proven; it is the same kind of fact as
 the representation lemma of E2.
 
-**Not yet applied to earlier files.** The skeletons of `ConcreteF` (`Switching`, a local clone of
-`Strong_RP_RF`), `Gconcl_list` (`IRO2`, a local clone of `PROM.FullRO`) and other files with local
-modules that have variables still use `global_var`s for them.  Their local lemmas either lack the
-freshness hypothesis or carry it into non-local statements.  They must be brought to this
-convention before their proofs: audit every `local clone` and `local module` with variables.
+**Applied everywhere (audit 2026-11-01).** Every `local clone` and every `local module` with
+variables in the development:
+* `ConcreteF`: the clone `Switching` (`PRPi_m`, `PRPi_mi`, `ARP_coll`, `ARP_m`, `ARP_mi`,
+  `DBounder_FBounder_c`; `DoubleBounding`);
+* `Gcol`: `Gcol.count` (`Gcol_count`; `Pr_col`, `G1_col`);
+* `Gext`: `ReSample.count` (`ReSample_count`; `RROset_inv_lt`, `Pr_ext`, `EG2_Gext`);
+* `Gconcl_list`: the clone `IRO2` (`IRO2_RO_m`; `equal1`, `equal2`);
+* `Sponge`, `SecureRO`, `SecureORO`, `SHA3OSecurity`: as listed above.
+
+The other local clones have no module variables (`ConcreteF`'s `ProdSampling`), or clone a theory
+whose own local modules do not survive the clone (`Gconcl`'s `Gext0`).
 

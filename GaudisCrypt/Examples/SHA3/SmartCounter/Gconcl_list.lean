@@ -12,8 +12,9 @@ Translation notes (see `notes/SHA3/README.md` and `Exceptions.md`):
 * Both `SLCommon` and `BlockSponge` define `C`, `DRestr`, `DISTINGUISHER` …; as in EasyCrypt (where
   `BlockSponge` is imported last), the unqualified names are `BlockSponge`'s, and `SLCommon`'s are
   written `SLCommon.X`.
-* The clones `BIRO2` (of `IRO`), `F2` (of `SLCommon`'s `F`) and the section's local `IRO2` (of
-  `PROM.FullRO`) declare their own module variables.
+* The clones `BIRO2` (of `IRO`), `F2` (of `SLCommon`'s `F`) declare their own module variables;
+  the section's local `IRO2` (of `PROM.FullRO`) has its variable as a lens parameter of the local
+  declarations, fresh by hypothesis (exception E6).
 * Local modules that alias a procedure of an applied functor (`L`, `L2`, `L3`, `L4`, `D2`, `D3`,
   `D5`, `D6`) are Lean functions returning that procedure.  `SimLast` and `DValid` are used as
   functors: their aliased procedures are wrapped in a call (exception E5).  `S2` is
@@ -902,10 +903,11 @@ namespace Simplify_Simulator
 -- type out_t <- block, op dout _ <- bdistr, type d_in_t <- unit, type d_out_t <- bool`
 namespace IRO2
 noncomputable abbrev dout : List block × ℤ → SubProbability block := fun _ => bdistr
-/-- The clone's module variable `IRO2.RO.m`. -/
-global_var RO.m : FMap (List block × ℤ) block
-noncomputable abbrev RO.asRO := PROM.FullRO.RO.asRO (List block × ℤ) block dout RO.m
-noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) block dout RO.m
+/-! The clone is local: its module variable `IRO2.RO.m` is the lens parameter `IRO2_RO_m` of the
+local declarations that mention it, fresh by hypothesis (exception E6). -/
+variable (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
+noncomputable abbrev RO.asRO := PROM.FullRO.RO.asRO (List block × ℤ) block dout IRO2_RO_m
+noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) block dout IRO2_RO_m
 abbrev RO_T := PROM.FullRO.RO_T (List block × ℤ) block
 end IRO2
 
@@ -977,26 +979,34 @@ for the section's `D`. -/
 noncomputable def L (D : DISTINGUISHER) (F : IRO2.RO_T) : procmod () → Bool :=
   IdealIndif BlockSponge.BIRO.IRO.asF (Simu F) (DRestr D)
 
+/-- What `DRestrictions` excludes (an abbreviation). -/
+noncomputable def DRestrictions.footprint : Footprint VariableAssignment :=
+  (Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔ (Simulator.paths).footprint ⊔
+    (Simulator.unvalid_map).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
+    (BlockSponge.BIRO.IRO.mp).footprint ⊔ BlockSponge.C.c.footprint ⊔ (Gconcl.S.m).footprint ⊔
+    (Gconcl.S.mi).footprint ⊔ (Gconcl.S.paths).footprint ⊔ (BIRO2.IRO.mp).footprint
+
 /-- The section's restriction `{-Simulator, -F.RO, -BIRO.IRO, -C, -S, -BIRO2.IRO}` (an
 abbreviation). -/
 def DRestrictions (D : DISTINGUISHER) : Prop :=
-  FVP.fvP D ≤ ((Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔ (Simulator.paths).footprint ⊔
-    (Simulator.unvalid_map).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
-    (BlockSponge.BIRO.IRO.mp).footprint ⊔ BlockSponge.C.c.footprint ⊔ (Gconcl.S.m).footprint ⊔
-    (Gconcl.S.mi).footprint ⊔ (Gconcl.S.paths).footprint ⊔ (BIRO2.IRO.mp).footprint)ᶜ
+  FVP.fvP D ≤ DRestrictions.footprintᶜ
 
 theorem equal1 (D : DISTINGUISHER) (hD : Module.Representable D distExt) (_hDd : DRestrictions D)
+    (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
+    (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ)
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure () m
         (fun r _ => r = true) =
-      Procedure.Pr (L D IRO2.RO.asRO).procedure () m (fun r _ => r = true) := by
+      Procedure.Pr (L D (IRO2.RO.asRO IRO2_RO_m)).procedure () m (fun r _ => r = true) := by
   sorry
 
 theorem equal2 (D : DISTINGUISHER) (hD : Module.Representable D distExt) (_hDd : DRestrictions D)
+    (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
+    (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ)
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure () m
         (fun r _ => r = true) =
-      Procedure.Pr (L D IRO2.LRO).procedure () m (fun r _ => r = true) := by
+      Procedure.Pr (L D (IRO2.LRO IRO2_RO_m)).procedure () m (fun r _ => r = true) := by
   sorry
 
 end Simplify_Simulator

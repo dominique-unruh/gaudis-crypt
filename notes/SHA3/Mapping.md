@@ -320,7 +320,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/ConcreteF.lean`, namespace `Gaudis
 | 45 | declare module | `D` | section . | `D` (section variable) | def |
 | 47 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
 | 51 | local module | `GReal'` | section . | `GReal'` (definition) | def |
-| 53 | local clone import | `Strong_RP_RF` | section . | `Switching` (namespace) | def |
+| 53 | local clone import | `Strong_RP_RF` | section . | `Switching` (namespace; variables are lens parameters, E6) | def |
 | 77 | lemma | `size_behead` | section . | `size_behead` | stated |
 | 80 | local module | `` | section . | `` | def |
 | 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` | stated |
@@ -428,7 +428,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace `GaudisCrypt
 | 20 | lemma | `eps_ge0` |  | `eps_ge0` | stated |
 | 27 | declare module | `D` | section PROOF. | `D` (section variable) | def |
 | 29 | declare axiom | `D_ll` | section PROOF. | `D_ll` (hypothesis) | def |
-| 33 | local module | `Gcol` | section PROOF. | `Gcol.sample_c`, `Gcol.M`, `Gcol.S` (modules), `Gcol` (`D` a Lean parameter) | def |
+| 33 | local module | `Gcol` | section PROOF. | `Gcol.sample_c`, `Gcol.M`, `Gcol.S` (modules), `Gcol` (`D` a Lean parameter); variable: lens `Gcol_count`, E6 | def |
 | 49 | module | `M` | section PROOF. | `Gcol.M` | def |
 | 78 | module | `S` | section PROOF. | `Gcol.S` | def |
 | 181 | lemma | `card_rng_set` | section PROOF. | `card_rng_set` | stated |
@@ -456,7 +456,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 168 | lemma | `rng_restr` | section . | `rng_restr` | stated |
 | 175 | equiv | `G1_G2` | section . | `G1_G2` | stated |
 | 318 | declare module | `D` | section EXT. | `D` (section variable) | def |
-| 320 | local module | `ReSample` | section EXT. | `ReSample` | def |
+| 320 | local module | `ReSample` | section EXT. | `ReSample` (variable: lens `ReSample_count`, E6) | def |
 | 345 | local module | `Gext` | section EXT. | `Gext.resample`, `Gext.M`, `Gext.S` (modules), `Gext` (`D` a Lean parameter) | def |
 | 351 | module | `M` | section EXT. | `Gext.M` | def |
 | 379 | module | `S` | section EXT. | `Gext.S` | def |
@@ -613,7 +613,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1946 | module | `Simulator` |  | `Simulator` | def |
 | 2010 | declare module | `D` | section Simplify_Simulator. | `D` (section variable) | def |
 | 2012 | declare axiom | `D_lossless` | section Simplify_Simulator. | `D_lossless` (abbreviation; hypothesis) | def |
-| 2016 | local clone import | `PROM.FullRO` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` | def |
+| 2016 | local clone import | `PROM.FullRO` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` (variable: lens `IRO2_RO_m`, E6) | def |
 | 2024 | local module | `Simu` | section Simplify_Simulator. | `Simplify_Simulator.Simu` (`FRO` a Lean parameter) | def |
 | 2081 | local module | `L` | section Simplify_Simulator. | `Simplify_Simulator.L` (Lean function) | def |
 | 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` | stated |

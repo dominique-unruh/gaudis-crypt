@@ -12,6 +12,8 @@ Translation notes (see `notes/SHA3/README.md`):
 * `G2(D, HS)`: its inner modules `M`, `S` depend on `HS` only: they are the functors `G2.M`, `G2.S`
   of `HS`.  `G2 D` is the `FRO` distinguisher, with `D` a Lean parameter.
 * `clone include EagerCore` is the `ROhandle` instance of `PROM.FullRO.FullEager`: `Eager`, `RRO`.
+* The local module `ReSample`'s variable `count` is the lens parameter `ReSample_count` of the
+  local declarations that mention it, fresh by hypothesis (exception E6).
 * The local modules `ReSample`, `Gext` are modules; `Gext.resample` is its own module, and
   `Gext D` the game (with `D` a Lean parameter).
 -/
@@ -229,19 +231,20 @@ end
 
 /-! ## The section `EXT` -/
 
-/-- EC's `ReSample.count`. -/
-global_var ReSample.count : ℤ
+/-! The local module `ReSample`'s variable `ReSample.count` is the lens parameter `ReSample_count`
+of the local declarations that mention it, fresh by hypothesis (exception E6). -/
+variable (ReSample_count : Lens ℤ VariableAssignment)
 
 module ReSample {
   proc f (h : handle) : Unit {
     var c : capacity;
     c <$ cdistr;
     if (decide (((FMap.fdom ($G1.m : smap)).card : ℤ) ≤ max_size ∧
-        ((FMap.fdom ($G1.mi : smap)).card : ℤ) ≤ max_size ∧ $ReSample.count < max_size)) {
+        ((FMap.fdom ($G1.mi : smap)).card : ℤ) ≤ max_size ∧ $ReSample_count < max_size)) {
       G1.bext <- $G1.bext || decide ($c ∈ Finset.image Prod.snd
         (FMap.fdom ($G1.m : smap) ∪ FMap.fdom ($G1.mi : smap)));
       FRO.m <- FMap.set $FRO.m $h ($c, Unknown);
-      ReSample.count <- $ReSample.count + 1;
+      ReSample_count <- $ReSample_count + 1;
     }
     return ()
   };
@@ -249,11 +252,11 @@ module ReSample {
     var c : capacity;
     c <$ cdistr;
     if (decide (((FMap.fdom ($G1.m : smap)).card : ℤ) < max_size ∧
-        ((FMap.fdom ($G1.mi : smap)).card : ℤ) < max_size ∧ $ReSample.count < max_size)) {
+        ((FMap.fdom ($G1.mi : smap)).card : ℤ) < max_size ∧ $ReSample_count < max_size)) {
       G1.bext <- $G1.bext || decide ($c ∈ Finset.image Prod.snd
         (FMap.fdom ($G1.m : smap) ∪ FMap.fdom ($G1.mi : smap)) ∪ fset1 $x);
       FRO.m <- FMap.set $FRO.m $h ($c, Unknown);
-      ReSample.count <- $ReSample.count + 1;
+      ReSample_count <- $ReSample_count + 1;
     }
     return ()
   };
@@ -263,7 +266,7 @@ module ReSample {
 module Gext.resample {
   proc resample () : Unit {
     _ <- call (Module.app (IterProc.Iter handle)
-        (IterProc.Orcl.mk handle { f := ReSample.f }))
+        (IterProc.Orcl.mk handle { f := ReSample.f ReSample_count }))
       ((FMap.fdom (FMap.restr Unknown ($FRO.m : FMap handle (capacity × flag)))).toList);
     return ()
   };
@@ -325,7 +328,7 @@ module Gext.S : DPRIMITIVE {
         ((oget (FMap.get ($G1.mh : hsmap) (($x).1, $hx2))).2, Unknown);
       if (decide (FMap.dom ($G1.mh : hsmap) (($x).1, $hx2)) && $t) {
         hy2 <- (oget (FMap.get ($G1.mh : hsmap) (($x).1, $hx2))).2;
-        _ <- call ReSample.f1 (($x).2, $hy2);
+        _ <- call (ReSample.f1 ReSample_count) (($x).2, $hy2);
         y2 <- call (PROM.FullRO.FRO_T.get handle capacity ROhandle.FRO) ($hy2);
         y <- (($y).1, $y2);
         G1.m <- FMap.set $G1.m $x $y;
@@ -366,7 +369,7 @@ module Gext.S : DPRIMITIVE {
         ((oget (FMap.get ($G1.mhi : hsmap) (($x).1, $hx2))).2, Unknown);
       if (decide (FMap.dom ($G1.mhi : hsmap) (($x).1, $hx2)) && $t) {
         y1, hy2 <- oget (FMap.get ($G1.mhi : hsmap) (($x).1, $hx2));
-        _ <- call ReSample.f1 (($x).2, $hy2);
+        _ <- call (ReSample.f1 ReSample_count) (($x).2, $hy2);
         y2 <- call (PROM.FullRO.FRO_T.get handle capacity ROhandle.FRO) ($hy2);
         y <- (($y).1, $y2);
         G1.mi <- FMap.set $G1.mi $x $y;
@@ -399,14 +402,14 @@ module Gext (D : DISTINGUISHER) {
     G1.mh <- (FMap.empty : hsmap);
     G1.mhi <- (FMap.empty : hsmap);
     G1.bext <- false;
-    ReSample.count <- 0;
+    ReSample_count <- 0;
     FRO.m <- (FMap.empty : FMap handle (capacity × flag));
     -- the empty path is initially known by the adversary to lead to capacity 0^c
     _ <- call (PROM.FullRO.FRO_T.set handle capacity RRO) (0, c0);
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
-    b <- call (Module.app (DRestr D) (Module.pair Gext.M Gext.S)) ();
-    _ <- call Gext.resample ();
+    b <- call (Module.app (DRestr D) (Module.pair Gext.M (Gext.S ReSample_count))) ();
+    _ <- call (Gext.resample ReSample_count) ();
     return $b
   };
 }
@@ -456,17 +459,21 @@ C.c{1} FRO.m{2} ReSample.count{2} ==> ={res, FRO.m} /\ inv_lt …`. -/
 theorem RROset_inv_lt :
     prhlProc
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ FRO.m.get g₁ = FRO.m.get g₂ ∧
-        inv_lt (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁) (FRO.m.get g₂) (ReSample.count.get g₂))
+        inv_lt (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁) (FRO.m.get g₂) (ReSample_count.get g₂))
       (PROM.FullRO.FRO_T.set handle capacity RRO).procedure
       (PROM.FullRO.FRO_T.set handle capacity RRO).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ FRO.m.get g₁ = FRO.m.get g₂ ∧
         inv_lt (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁) (FRO.m.get g₂)
-          (ReSample.count.get g₂)) := by
+          (ReSample_count.get g₂)) := by
   sorry
 
 /-- `local lemma Pr_ext`, for `declare module D <: DISTINGUISHER {-C, -PF, -G1, -G2, -Perm, -RO,
 -Redo}` with `D_ll`. -/
 theorem Pr_ext (hD : Module.Representable D distExt)
+    (_hfresh : ReSample_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
+      (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
+      G1.bcol.footprint)ᶜ)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
@@ -479,8 +486,8 @@ theorem Pr_ext (hD : Module.Representable D distExt)
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
       (Module.app D (Module.pair F P)).procedure.IsLossless)
     (m : VariableAssignment) :
-    (Procedure.Pr (Gext D).procedure () m
-        (fun _ g => G1.bext.get g = true ∧ ReSample.count.get g ≤ max_size) : ℝ) ≤
+    (Procedure.Pr (Gext ReSample_count D).procedure () m
+        (fun _ g => G1.bext.get g = true ∧ ReSample_count.get g ≤ max_size) : ℝ) ≤
       (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
   sorry
 
@@ -488,6 +495,10 @@ theorem Pr_ext (hD : Module.Representable D distExt)
 ReSample.count{2} <= max_size /\ ((G1.bext{1} \/ inv_ext G1.m{1} G1.mi{1} FRO.m{1}) =>
 G1.bext{2})`. -/
 theorem EG2_Gext (hD : Module.Representable D distExt)
+    (_hfresh : ReSample_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
+      (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
+      G1.bcol.footprint)ᶜ)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
@@ -495,8 +506,8 @@ theorem EG2_Gext (hD : Module.Representable D distExt)
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint)ᶜ) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
-      (Eager.main2 (G2 (DRestr D))).procedure (Gext D).procedure
-      (fun _ g₁ _ g₂ => ReSample.count.get g₂ ≤ max_size ∧
+      (Eager.main2 (G2 (DRestr D))).procedure (Gext ReSample_count D).procedure
+      (fun _ g₁ _ g₂ => ReSample_count.get g₂ ≤ max_size ∧
         (G1.bext.get g₁ = true ∨ inv_ext (G1.m.get g₁) (G1.mi.get g₁) (FRO.m.get g₁) →
           G1.bext.get g₂ = true)) := by
   sorry

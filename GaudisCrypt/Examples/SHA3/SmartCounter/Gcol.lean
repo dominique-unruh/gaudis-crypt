@@ -10,6 +10,9 @@ Translation notes (see `notes/SHA3/README.md`):
 * `clone export Handle as Handle0` clones a theory without parameters: it is `Handle`, opened.
 * The local module `Gcol` calls `sample_c` from its inner modules `M`, `S`: these are the modules
   `Gcol.sample_c`, `Gcol.M`, `Gcol.S`, and `Gcol D` the game (with `D` a Lean parameter).
+* The local module `Gcol`'s variable `count` is the lens parameter `Gcol_count` of the local
+  declarations (`Gcol.sample_c`, `Gcol.M`, `Gcol.S`, `Gcol`, `Pr_col`, `G1_col`), fresh by
+  hypothesis; `Pr_G1col` does not mention it (exception E6).
 * EasyCrypt's `2^c` (an `int` power, `c > 0`) is `2 ^ c.toNat`; `card` (an `int`) is the
   cardinality cast to `ℤ`.
 -/
@@ -38,8 +41,9 @@ theorem eps_ge0 : (0 : ℝ) ≤ ((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : �
 
 /-! ## The section `PROOF` -/
 
-/-- EC's `Gcol.count`. -/
-global_var Gcol.count : ℤ
+/-! The local module `Gcol`'s variable `Gcol.count` is the lens parameter `Gcol_count` of the local
+declarations that mention it, fresh by hypothesis (exception E6). -/
+variable (Gcol_count : Lens ℤ VariableAssignment)
 
 module Gcol.sample_c {
   proc sample_c () : capacity {
@@ -47,11 +51,11 @@ module Gcol.sample_c {
     c <- c0;
     if (decide (((Finset.image Prod.fst
           (FMap.frng ($FRO.m : FMap handle (capacity × flag)))).card : ℤ) ≤ 2 * max_size ∧
-        $Gcol.count < max_size)) {
+        $Gcol_count < max_size)) {
       c <$ cdistr;
       G1.bcol <- $G1.bcol || decide ($c ∈ Finset.image Prod.fst
         (FMap.frng ($FRO.m : FMap handle (capacity × flag))));
-      Gcol.count <- $Gcol.count + 1;
+      Gcol_count <- $Gcol_count + 1;
     }
     return $c
   };
@@ -71,7 +75,7 @@ module Gcol.M : DFUNCTIONALITY {
       } else {
         if (decide ($counter < size $p - «prefix» $p (get_max_prefix $p
             (elems (FMap.fdom ($C.queries : FMap (List block) block)))))) {
-          sc <- call Gcol.sample_c ();
+          sc <- call (Gcol.sample_c Gcol_count) ();
           sa' <- call (PROM.FullRO.ROmap.get (List block) block F.RO) (take ($i + 1) $p);
           sa <- $sa +^ nth default $p $i;
           G1.mh <- FMap.set $G1.mh ($sa, $h) ($sa', $G1.chandle);
@@ -104,10 +108,10 @@ module Gcol.S : DPRIMITIVE {
       if (decide (FMap.dom ($G1.paths : FMap capacity (List block × block)) ($x).2)) {
         p, v <- oget (FMap.get ($G1.paths : FMap capacity (List block × block)) ($x).2);
         y1 <- call (PROM.FullRO.ROmap.get (List block) block F.RO) (rcons $p ($v +^ ($x).1));
-        y2 <- call Gcol.sample_c ();
+        y2 <- call (Gcol.sample_c Gcol_count) ();
       } else {
         y1 <$ bdistr;
-        y2 <- call Gcol.sample_c ();
+        y2 <- call (Gcol.sample_c Gcol_count) ();
       }
       y <- ($y1, $y2);
       if (decide (FMap.dom ($G1.mh : hsmap) (($x).1, $hx2) ∧
@@ -146,7 +150,7 @@ module Gcol.S : DPRIMITIVE {
       }
       hx2 <- oget (hinvK $FRO.m ($x).2);
       y1 <$ bdistr;
-      y2 <- call Gcol.sample_c ();
+      y2 <- call (Gcol.sample_c Gcol_count) ();
       y <- ($y1, $y2);
       if (decide (FMap.dom ($G1.mhi : hsmap) (($x).1, $hx2) ∧
           FMap.in_dom_with ($FRO.m : FMap handle (capacity × flag))
@@ -186,8 +190,8 @@ module Gcol (D : DISTINGUISHER) {
     FRO.m <- FMap.set (FMap.empty : FMap handle (capacity × flag)) 0 (c0, Known);
     G1.paths <- FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0);
     G1.chandle <- 1;
-    Gcol.count <- 0;
-    b <- call (Module.app (DRestr D) (Module.pair Gcol.M Gcol.S)) ();
+    Gcol_count <- 0;
+    b <- call (Module.app (DRestr D) (Module.pair (Gcol.M Gcol_count) (Gcol.S Gcol_count))) ();
     return $b
   };
 }
@@ -206,6 +210,10 @@ variable (D : DISTINGUISHER)
 
 /-- `local lemma Pr_col`, for `declare module D <: DISTINGUISHER {-C, -PF, -G1}` with `D_ll`. -/
 theorem Pr_col (hD : Module.Representable D distExt)
+    (_hfresh : Gcol_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
+      (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
+      G1.bcol.footprint)ᶜ)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint)ᶜ)
@@ -216,14 +224,18 @@ theorem Pr_col (hD : Module.Representable D distExt)
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
       (Module.app D (Module.pair F P)).procedure.IsLossless)
     (m : VariableAssignment) :
-    (Procedure.Pr (Gcol D).procedure () m
-        (fun _ g => G1.bcol.get g = true ∧ Gcol.count.get g ≤ max_size) : ℝ) ≤
+    (Procedure.Pr (Gcol Gcol_count D).procedure () m
+        (fun _ g => G1.bcol.get g = true ∧ Gcol_count.get g ≤ max_size) : ℝ) ≤
       (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
   sorry
 
 /-- `local equiv G1_col : G1(DRestr(D)).main ~ Gcol.main : ={glob D} ==>
 (G1.bcol{1} => G1.bcol{2}) /\ Gcol.count{2} <= max_size`. -/
 theorem G1_col (hD : Module.Representable D distExt)
+    (_hfresh : Gcol_count.footprint ≤ (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint ⊔ (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔
+      (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
+      G1.bcol.footprint)ᶜ)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint)ᶜ)
@@ -235,9 +247,9 @@ theorem G1_col (hD : Module.Representable D distExt)
       (Module.app D (Module.pair F P)).procedure.IsLossless) :
     prhlProc
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
-      (G1 (DRestr D)).procedure (Gcol D).procedure
+      (G1 (DRestr D)).procedure (Gcol Gcol_count D).procedure
       (fun _ g₁ _ g₂ => (G1.bcol.get g₁ = true → G1.bcol.get g₂ = true) ∧
-        Gcol.count.get g₂ ≤ max_size) := by
+        Gcol_count.get g₂ ≤ max_size) := by
   sorry
 
 /-- EC's `Pr_G1col`. -/
