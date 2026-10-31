@@ -35,6 +35,7 @@ import GaudisCrypt.Language.Granularity
 import GaudisCrypt.CounterExamples.ExtendSupProbe
 import GaudisCrypt.CounterExamples.FV
 import GaudisCrypt.CounterExamples.IndistinguishableVsGlob
+import GaudisCrypt.CounterExamples.FramingNeedsReset
 import GaudisCrypt.CounterExamples.LeastLens
 import GaudisCrypt.CounterExamples.LensRangeComplDisjoint
 import GaudisCrypt.CounterExamples.MiscRangeStuff
@@ -76,6 +77,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Logic.FreshVariable
 import GaudisCrypt.Logic.FootprintSolver
+import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.AbstractCall
 import GaudisCrypt.Logic.AbstractCallTest
 import GaudisCrypt.Logic.EagerProc
