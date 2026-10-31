@@ -217,6 +217,10 @@ First used in `IndifRO_is_secure` (`GIdeal_Collision_RO`, and the three
 `[Lens.Disjoint SRO_RO_m DPre_h]` (resp. `D2Pre_m2`), since `DPre.h` is read right after
 `RO.init` writes `RO.m`.  `SecureRO.RO_is_collision_resistant` (EC's `fel` over the adversary)
 takes `[Countable «from»]` and the disjointness of `Bounder_bounder`, `Counter_c`, `RO_m`.
+`Sponge`'s `Exper_HybridIROLazy_LRO` (resp. `Exper_RO_HybridIROEager`) takes
+`[Lens.Disjoint HybridIROLazy_mp ERO_RO_m]` (resp. `[Lens.Disjoint ERO_RO_m HybridIROEager_mp]`):
+the invariant `HybridIROLazy.mp{1} = ERO.RO.m{2}` relates two oracle states, read as one lens.  The
+argument type `block list * int` is countable outright (`block` is finite).
 
 **EasyCrypt counterpart.** None needed.  EasyCrypt's distributions are discrete, which the rule's
 countability stands in for, and distinct module variables are distinct memory locations.  A clone

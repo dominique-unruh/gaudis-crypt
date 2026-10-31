@@ -420,3 +420,23 @@ then `simp_reads`.  Replaces the hand-written sequence in `SecureRO` (`Bounder_R
   of `HIRO_RO_HybridIROEager_f` list `bs` resp. `m`, which EC's leave out.
 * `HybridIROLazy_HIRO_LRO_f`, `HIRO_RO_HybridIROEager_f` and the two `init` lemmas are proven with
   them, EC's tactic scripts step for step.
+
+## 2026-11-01: the syntactic frame (`Logic/SyntacticFrame.lean`), Sponge's `Exper` lemmas
+
+EC's `call (_ : inv)` against an abstract `D` keeps `={glob D}` across the oracles because they
+write none of `D`'s variables, which EC checks syntactically.  The framework's oracle premise
+(`prhlProc_globInvF_of_confined`) needs a footprint fact `inFootprint L.footprint` instead, and a
+concrete procedure does not come with one (bounding `FVP.fvP` of concrete code is still open).
+
+* `StmtWithHoles.WritesKeep G s`: every write of `s`, its callees' bodies included, keeps `G` of the
+  globals.  `hoareStmt_of_writesKeep`, `hoareProc_of_writesKeep`,
+  `Procedure.satisfies_of_writesKeep`: then `s` keeps `G` (induction over the statement; the loop
+  case is `hoare_while`).
+* `prhlProc_globInvF_of_writesKeep`: the oracle premise from the oracles' own relation
+  `={arg} ∧ inv ==> ={res} ∧ inv` and `WritesKeep F.touched_getter.get` of both oracles.
+* `writes_keep`: reduces a `WritesKeep` goal to the single writes, unfolding module procedures as the
+  inliner does (`Flatten.unfoldProcedure`).  It closes writes to locals by `rfl` and writes to a
+  global lens `X` by `touched_set_of_le_compl` with a hypothesis `X.footprint ≤ Fᶜ` from the context.
+* `Exper_HybridIROLazy_LRO`, `Exper_RO_HybridIROEager` are proven with it, as EC's `byequiv; proc;
+  inline*; wp; call (_ : mp{1} = m{2}); conseq …_f; auto`.  The two oracle states are one lens
+  (`Lens.pair`, E8) with the invariant `a.1 = b.2`.

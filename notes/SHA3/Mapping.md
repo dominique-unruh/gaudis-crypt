@@ -657,8 +657,8 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 474 | local lemma | `RO_sample_HybridIROEager_fill_in` | section . | `HybridIRO.RO_sample_HybridIROEager_fill_in` | done |
 | 487 | local lemma | `HIRO_RO_HybridIROEager_f` | section . | `HybridIRO.HIRO_RO_HybridIROEager_f` | done |
 | 503 | local module | `RODist` | section . | `HybridIRO.RODist` | def |
-| 511 | local lemma | `Exper_HybridIROLazy_LRO` | section . | `HybridIRO.Exper_HybridIROLazy_LRO` | stated |
-| 522 | local lemma | `Exper_RO_HybridIROEager` | section . | `HybridIRO.Exper_RO_HybridIROEager` | stated |
+| 511 | local lemma | `Exper_HybridIROLazy_LRO` | section . | `HybridIRO.Exper_HybridIROLazy_LRO` | done |
+| 522 | local lemma | `Exper_RO_HybridIROEager` | section . | `HybridIRO.Exper_RO_HybridIROEager` | done |
 | 533 | lemma | `HybridIROExper_Lazy_Eager'` | section . | `HybridIRO.HybridIROExper_Lazy_Eager'` | stated |
 | 544 | lemma | `HybridIROExper_Lazy_Eager` |  | `HybridIRO.HybridIROExper_Lazy_Eager` | stated |
 | 553 | module | `RaiseHybridIRO` |  | `HybridIRO.RaiseHybridIRO` | def |

@@ -3,6 +3,8 @@ import GaudisCrypt.Lib.EC.PROM
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.Int
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.SyntacticFrame
+import GaudisCrypt.Logic.FootprintSolver
 
 /-!
 # The sponge construction (EasyCrypt `proof/Sponge.ec`)
@@ -648,8 +650,9 @@ module RODist (D : HYBRID_IRO_DIST) using (RO : ERO.RO_T) {
   };
 }
 
-/-- `local lemma Exper_HybridIROLazy_LRO &m`, for the section's `D`. -/
-theorem Exper_HybridIROLazy_LRO (D : HYBRID_IRO_DIST)
+/-- `local lemma Exper_HybridIROLazy_LRO &m`, for the section's `D`.  `ERO.RO.m` and
+`HybridIROLazy.mp` are distinct variables (exception E8: `Lens.Disjoint`). -/
+theorem Exper_HybridIROLazy_LRO [Lens.Disjoint HybridIROLazy_mp ERO_RO_m] (D : HYBRID_IRO_DIST)
     (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D)
     (_hERO : FVP.fvP D ≤ (ERO_RO_m.footprint)ᶜ) (m : VariableAssignment) :
@@ -657,10 +660,45 @@ theorem Exper_HybridIROLazy_LRO (D : HYBRID_IRO_DIST)
         ).procedure () m (fun r _ => r = true) =
       Procedure.Pr (Module.app EROExper (Module.pair (ERO.LRO ERO_RO_m) (RODist D))).procedure ()
         m (fun r _ => r = true) := by
-  sorry
+  unfold DRestrictions at _hDd
+  have hmp : HybridIROLazy_mp.footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hm : ERO_RO_m.footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hL : FVP.fvP D ≤ ((Lens.pair HybridIROLazy_mp ERO_RO_m).footprint)ᶜ := by
+    rw [Footprint.lens_pair]; exact Footprint.le_compl_of_fvP (sup_le hmp hm)
+  -- EC's `call (_ : HybridIROLazy.mp{1} = ERO.RO.m{2}); conseq HybridIROLazy_HIRO_LRO_f`:
+  -- `={glob D}` across the oracles by the syntactic frame (`writes_keep`)
+  have hAcall := prhlProc_abstract_call_module (Lens.pair HybridIROLazy_mp ERO_RO_m) D
+    HYBRID_IRO_DIST.ext hD.representable hL (fun a b => a.1 = b.2)
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ m => nomatch m)
+    (HybridIROLazy.asHI HybridIROLazy_mp) (Module.app HIRO (ERO.LRO ERO_RO_m)) (fun n => by
+      cases n with
+      | zero =>
+        simp only [HYBRID_IRO_DIST.ext, HoleSigs.Instantiation.lookup_zero_single]
+        refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
+        simp only [HybridIROLazy.asHI, HYBRID_IRO.f.mk_simp, HIRO.apply_simp]
+        exact HybridIROLazy_HIRO_LRO_f HybridIROLazy_mp ERO_RO_m
+      | succ m => nomatch m)
+  -- EC: `byequiv => //; proc; inline*; wp; seq 1 1 : (={glob D} /\ HybridIROLazy.mp{1} =
+  -- ERO.RO.m{2}); first auto; call (…); auto`
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_call hAcall
+  stmt_wp
+  equiv_skip
+  rintro g _ rfl
+  refine ⟨⟨?_, ?_⟩, fun _ _ _ _ h => h.1⟩
+  · rw [touched_set_of_le_compl hmp, touched_set_of_le_compl hm]
+  · simp [Lens.set_get]
 
-/-- `local lemma Exper_RO_HybridIROEager &m`, for the section's `D`. -/
-theorem Exper_RO_HybridIROEager (D : HYBRID_IRO_DIST)
+/-- `local lemma Exper_RO_HybridIROEager &m`, for the section's `D`.  `ERO.RO.m` and
+`HybridIROEager.mp` are distinct variables (exception E8: `Lens.Disjoint`). -/
+theorem Exper_RO_HybridIROEager [Lens.Disjoint ERO_RO_m HybridIROEager_mp] (D : HYBRID_IRO_DIST)
     (hD : Module.ECModule D HYBRID_IRO_DIST.ext)
     (_hDd : DRestrictions HybridIROLazy_mp HybridIROEager_mp D)
     (_hERO : FVP.fvP D ≤ (ERO_RO_m.footprint)ᶜ) (m : VariableAssignment) :
@@ -669,7 +707,40 @@ theorem Exper_RO_HybridIROEager (D : HYBRID_IRO_DIST)
       Procedure.Pr (Module.app HybridIROExper
         (Module.pair (HybridIROEager.asHI HybridIROEager_mp) D)).procedure () m
         (fun r _ => r = true) := by
-  sorry
+  unfold DRestrictions at _hDd
+  have hm : ERO_RO_m.footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hmp : HybridIROEager_mp.footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hL : FVP.fvP D ≤ ((Lens.pair ERO_RO_m HybridIROEager_mp).footprint)ᶜ := by
+    rw [Footprint.lens_pair]; exact Footprint.le_compl_of_fvP (sup_le hm hmp)
+  -- EC's `call (_ : ERO.RO.m{1} = HybridIROEager.mp{2}); conseq HIRO_RO_HybridIROEager_f`
+  have hAcall := prhlProc_abstract_call_module (Lens.pair ERO_RO_m HybridIROEager_mp) D
+    HYBRID_IRO_DIST.ext hD.representable hL (fun a b => a.1 = b.2)
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ m => nomatch m)
+    (Module.app HIRO (ERO.RO ERO_RO_m)) (HybridIROEager.asHI HybridIROEager_mp) (fun n => by
+      cases n with
+      | zero =>
+        simp only [HYBRID_IRO_DIST.ext, HoleSigs.Instantiation.lookup_zero_single]
+        refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
+        simp only [HybridIROEager.asHI, HYBRID_IRO.f.mk_simp, HIRO.apply_simp]
+        exact HIRO_RO_HybridIROEager_f HybridIROEager_mp ERO_RO_m
+      | succ m => nomatch m)
+  -- EC: `byequiv => //; proc; inline*; wp; seq 1 1 : (={glob D} /\ ERO.RO.m{1} =
+  -- HybridIROEager.mp{2}); first auto; call (…); auto`
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_call hAcall
+  stmt_wp
+  equiv_skip
+  rintro g _ rfl
+  refine ⟨⟨?_, ?_⟩, fun _ _ _ _ h => h.1⟩
+  · rw [touched_set_of_le_compl hmp, touched_set_of_le_compl hm]
+  · simp [Lens.set_get]
 
 /-- EC's `HybridIROExper_Lazy_Eager' &m`, for the section's `D`.  Not local: it does not mention
 `ERO` (whose variables its proof takes fresh). -/
