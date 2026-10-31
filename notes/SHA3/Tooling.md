@@ -265,6 +265,22 @@ caller's locals.  New, proven:
 * `Module.Proc.inFootprint_fvP` (`Logic/AbstractCall.lean`): a module's procedure lies in the
   module's footprint `FVP.fvP M` (with `Module.Proc.eq_proc_procedure`).
 
-Not yet wired into `stmt_swap`: that needs `f` read off the assignment, and a solver for
-footprint-disjointness side conditions (`X.footprint ≤ (FVP.fvP (C(view P).init))ᶜ` from the
-hypotheses `fvP C ≤ (… ⊔ bounder ⊔ …)ᶜ` via `fvP_app`/`fvP_pair`/`fvP_fst`).
+Wired into `stmt_swap` (same day):
+
+* `Stmt.CommutesWith.call_assign_global X e`: `call_footprint` for the update of `X <- e`, `X` a
+  global variable with `X.footprint ≤ Rᶜ`.  When `stmt_swap`'s plain call rule fails and the other
+  statement is an assignment to a global, it tries this rule: the callee's footprint from
+  `Module.Proc.inFootprint_fvP` (or a hypothesis `∀ a, (procedureDenotation p a).inFootprint R`),
+  the disjointness by the new solver, the rest by `simp` as before.
+* `fp_disjoint` (`Logic/FootprintSolver.lean`): closes `A ≤ (FVP.fvP M)ᶜ` / `FVP.fvP M ≤ Aᶜ` — EC's
+  memory-restriction check.  It bounds `FVP.fvP M` through `Module.app`/`pair`/`fst`/`snd` (and
+  the primed forms, `FVP.fvP_fst'` etc., new), unfolding module-type accessors and constructors,
+  down to modules with a restriction hypothesis `FVP.fvP N ≤ Sᶜ`, and finds `A` among the
+  joinands of `S` (unfolding named footprints such as `C.footprint`).
+* Test: `StmtSwapTest.lean` (a global assignment past `M.init` and `G(M).init`, and back).
+* In pilot 1, `stmt_swap{1} 4 3; stmt_swap{1} 2 4` is EC's `swap{1} [1..2] 2`, with no side goals.
+
+Also, the inliner (`Flatten.moduleStep?`, step 6) now unfolds a definition whose value applies a
+`module`-declared module: a single-procedure module (`SecureRO.Counter c := Counter.init c`, which
+it could not inline before) and a game defined as an application (`GReal`, which needed a manual
+`unfold`).

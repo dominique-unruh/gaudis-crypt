@@ -32,4 +32,27 @@ example : hoare[ True ==> §x = 1 ∧ §y = 2 ] {
   hoare_skip
   simp
 
+global_var swapTestCount : ℕ
+
+moduletype Init {
+  proc init () -> Unit;
+}
+
+/-- EasyCrypt's `swap` past an abstract call: an assignment to a global variable moves past a call
+to a module `M` declared `{-swapTestCount}`, also through a functor `G` applied to it; the
+disjointness comes from the restriction hypotheses (`fp_disjoint`). -/
+example (M : Init) (G : Init →ₘ Init) (hM : FVP.fvP M ≤ (swapTestCount.footprint)ᶜ)
+    (hG : FVP.fvP G ≤ (swapTestCount.footprint)ᶜ) :
+    hoare[ True ==> True ] {
+      swapTestCount <- 0;
+      call (Init.init M).procedure ();
+      call (Init.init (Module.app G M)).procedure ();
+    } := by
+  stmt_swap 0 2
+  stmt_swap 2 -1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
 end GaudisCrypt.StmtSwapTest

@@ -75,6 +75,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.Game2
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Logic.FreshVariable
+import GaudisCrypt.Logic.FootprintSolver
 import GaudisCrypt.Logic.AbstractCall
 import GaudisCrypt.Logic.AbstractCallTest
 import GaudisCrypt.Logic.EagerProc

@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.Logic.PRHL.Prhl
+import GaudisCrypt.Logic.FootprintSolver
 
 /-!
 # Swapping statements (EC's `swap`)
@@ -95,20 +96,35 @@ the result variable must not interfere with it. -/
 theorem call_footprint {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
     {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
     {R : Footprint VariableAssignment} (hp : ∀ a, (procedureDenotation p a).inFootprint R)
-    {f : VariableAssignment → VariableAssignment}
-    (hf : (fun σ => (pure (f σ) : SubProbability VariableAssignment)) ∈ Rᶜ.updates)
-    (hu : ∀ σ, u σ = ProgramState.globalL.set (f σ.globals) σ)
+    {f : ProgramState → VariableAssignment → VariableAssignment}
+    (hf : ∀ σ, (fun g => (pure (f σ g) : SubProbability VariableAssignment)) ∈ Rᶜ.updates)
+    (hu : ∀ σ, u σ = ProgramState.globalL.set (f σ σ.globals) σ)
     (ha : ∀ σ, args.get (u σ) = args.get σ)
-    (hy : ∀ v gl σ, y.set v (ProgramState.globalL.set (f gl) σ)
+    (hy : ∀ v gl σ, y.set v (ProgramState.globalL.set (f σ gl) σ)
       = u (y.set v (ProgramState.globalL.set gl σ))) :
     Stmt.CommutesWith (Stmt.call y p args) u := fun g σ => by
-  have hg : (u σ).globals = f σ.globals := by
+  have hg : (u σ).globals = f σ σ.globals := by
     rw [hu σ]; exact ProgramState.globalL.set_get σ _
   have hs : ∀ gl, ProgramState.globalL.set gl (u σ) = ProgramState.globalL.set gl σ := by
     intro gl; rw [hu σ]; exact ProgramState.globalL.set_set σ _ _
   simp only [Stmt.ewp_call, ha, Procedure.ewp, hg, hs]
-  rw [ProgramDenotation.wp_of_inFootprint_det (hp _) hf]
+  rw [ProgramDenotation.wp_of_inFootprint_det (hp _) (hf σ)]
   simp only [hy]
+
+/-- `call_footprint` for the update of an assignment `X <- e` to a global variable `X` outside the
+callee's footprint (`X.footprint ≤ Rᶜ`).  `X` and `e` come first, for the tactic to supply. -/
+theorem call_assign_global {α : Type} (X : Lens α VariableAssignment)
+    (e : Getter α ProgramState) {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    {R : Footprint VariableAssignment} {u : ProgramState → ProgramState}
+    (hp : ∀ a, (procedureDenotation p a).inFootprint R) (hX : X.footprint ≤ Rᶜ)
+    (hu : ∀ σ, u σ = ProgramState.globalL.set (X.set (e.get σ) σ.globals) σ)
+    (ha : ∀ σ, args.get (u σ) = args.get σ)
+    (hy : ∀ v gl σ, y.set v (ProgramState.globalL.set (X.set (e.get σ) gl) σ)
+      = u (y.set v (ProgramState.globalL.set gl σ))) :
+    Stmt.CommutesWith (Stmt.call y p args) u :=
+  call_footprint hp (f := fun σ => X.set (e.get σ))
+    (fun σ => hX (X.diracKer_liftFunction_mem_footprint (Function.const _ (e.get σ)))) hu ha hy
 
 end Stmt.CommutesWith
 
@@ -304,9 +320,57 @@ def applyRule (lem : Name) (ty : Lean.Expr) (X? : Option Lean.Expr)
     unless ← isDefEq m pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
   instantiateMVars (mkAppN c ms)
 
+/-- `∀ a, (procedureDenotation p a).inFootprint ?R` for the callee `p`: `M`'s footprint for the
+procedure of a module `M` (`Module.Proc.inFootprint_fvP`), or a hypothesis. -/
+def calleeFootprint (ty : Lean.Expr) : MetaM Lean.Expr := do
+  let .forallE n dom body bi := ty | throwError "stmt_swap: not a footprint premise:{indentExpr ty}"
+  let some pf ← withLocalDecl n bi dom fun a => do
+      let body := body.instantiate1 a
+      let_expr ProgramDenotation.inFootprint _ _ den _ := body | return none
+      unless den.isAppOfArity ``procedureDenotation 3 do return none
+      let p ← whnfR (den.getArg! 1)
+      unless p.isAppOfArity ``Module.Proc.procedure 2 do return none
+      let pf ← mkAppM ``Module.Proc.inFootprint_fvP #[p.getArg! 1, a]
+      unless ← isDefEq body (← inferType pf) do return none
+      return some (← mkLambdaFVars #[a] pf)
+    | do
+      for h in ← getLCtx do
+        if h.isImplementationDetail then continue
+        if ← isDefEq h.type ty then return h.toExpr
+      throwError "stmt_swap: no footprint for the callee in{indentExpr ty}"
+  return pf
+
+/-- A proof that the call `s` commutes with the update `u` of the assignment `X <- e` to the
+global variable `X`, `X` outside the callee's footprint (`Stmt.CommutesWith.call_assign_global`;
+the disjointness by `fp_disjoint`, from the restriction hypotheses in context). -/
+def callGlobal (s u X e : Lean.Expr) : MetaM Lean.Expr := do
+  let c ← mkAppOptM ``Stmt.CommutesWith.call_assign_global #[none, some X, some e]
+  let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+  unless ← isDefEq concl (← mkAppM ``Stmt.CommutesWith #[s, u]) do
+    throwError "stmt_swap: `call_assign_global` does not apply to{indentExpr s}"
+  let X? := some (← mkAppM ``Lens.intoGlobal #[X])
+  for m in ms do
+    if ← m.mvarId!.isAssigned then continue
+    let t ← instantiateMVars (← inferType m)
+    -- data (the callee's footprint `R`) is fixed by the premise about the callee
+    unless ← isProp t do continue
+    let isFootprint ← forallTelescope t fun _ b => pure (b.isAppOf ``ProgramDenotation.inFootprint)
+    let pf ← if isFootprint then calleeFootprint t
+      else if t.isAppOfArity ``LE.le 4 then do
+        let g ← mkFreshExprSyntheticOpaqueMVar t
+        try FootprintSolver.solve g.mvarId!
+        catch err => throwError "stmt_swap: cannot show that{indentExpr X}\nlies outside the \
+          callee's footprint: {err.toMessageData}"
+        instantiateMVars g
+      else discharge t X?
+    unless ← isDefEq m pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
+  instantiateMVars (mkAppN c ms)
+
 /-- A proof that the statement `s` commutes with the update `u` (`Stmt.CommutesWith s u`), built
-from its syntax; `X?` is the lens `u` writes through, if any. -/
-partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
+from its syntax; `X?` is the lens `u` writes through, if any, and `e?` the value written, if `u`
+is an assignment's update. -/
+partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Lean.Expr := none) :
+    MetaM Lean.Expr := do
   let s ← openStmt (stripLets (← instantiateMVars s))
   let ty ← mkAppM ``Stmt.CommutesWith #[s, u]
   let some h := s.getAppFn.constName? | throwError "stmt_swap: not a statement:{indentExpr s}"
@@ -317,9 +381,17 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Ex
     | ``StmtWithHoles.assign => pure ``Stmt.CommutesWith.assign
     | ``StmtWithHoles.ifThenElse => pure ``Stmt.CommutesWith.ite
     | ``StmtWithHoles.call | ``Stmt.call | ``StmtWithHoles.call' =>
-        pure ``Stmt.CommutesWith.«call»
+        -- a call commutes with an update of the caller's locals; with an assignment to a global
+        -- variable, if the variable lies outside the callee's footprint
+        let st ← saveState
+        try return ← applyRule ``Stmt.CommutesWith.«call» ty X? fun t u' => commutesOf t u' X? e?
+        catch err =>
+          st.restore
+          let (some X, some e) := (X?, e?) | throw err
+          unless X.isAppOf ``Lens.intoGlobal do throw err
+          return ← callGlobal s u X.appArg! e
     | _ => throwError "stmt_swap: no commutation rule for{indentExpr s}"
-  applyRule lem ty X? fun t u' => commutesOf t u' X?
+  applyRule lem ty X? fun t u' => commutesOf t u' X? e?
 
 /-- The sampling `x <$ e` in `s`, if `s` is one. -/
 def sample? (s : Lean.Expr) : MetaM (Option (Lean.Expr × Lean.Expr)) := do
@@ -336,7 +408,8 @@ def swapPair (a b : Lean.Expr) : MetaM Lean.Expr := do
     let d' ← openStmt (stripLets d)
     let X? ← if d'.isAppOf ``StmtWithHoles.assign then lensOfSetter? (d'.getArg! 2)
       else pure none
-    some <$> mkAppM ``Stmt.swap_det #[hd, ← commutesOf s u X?]
+    let e? := if d'.isAppOf ``StmtWithHoles.assign then some d'.appArg! else none
+    some <$> mkAppM ``Stmt.swap_det #[hd, ← commutesOf s u X? e?]
   let sampleSwap (smp s : Lean.Expr) : MetaM (Option Lean.Expr) := do
     let some (x, e) ← sample? smp | return none
     let X? ← lensOfSetter? x

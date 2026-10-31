@@ -2518,7 +2518,14 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
       -- `T.mk` of a `moduletype` `T` (which emits `T.mk_destruct` with it)
       if vc.getString! == "mk" && (← getEnv).contains (vc.getPrefix ++ `mk_destruct) then
         return some { expr := v }
-  -- (6) a module named by an `abbrev` (`hidingGame U := Module.app … U`, say): unfold it, by
+  -- (6) a module named by a definition whose value applies a `module`-declared module (a
+  -- single-procedure `module`, `Counter c := Counter.init c`; a game `GReal C P D :=
+  -- Module.app Indif …`): unfold it, by definition, for step (1) to apply
+  if let some v ← unfoldDefinition? e then
+    if let some vc := (moduleAppHead v).getAppFn.constName? then
+      if (← getEnv).contains (vc ++ `apply_simp) then
+        return some { expr := v }
+  -- (7) a module named by an `abbrev` (`hidingGame U := Module.app … U`, say): unfold it, by
   -- definition.  Only reducible ones, which are meant to be seen through.
   if (← getReducibilityStatus c) == .reducible then
     if let some v ← unfoldDefinition? e then
