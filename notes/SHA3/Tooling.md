@@ -367,3 +367,15 @@ allowed after it).  New (`Logic/Granular.lean`):
 With it, `Preimage_FM_GReal`, `GIdeal_Preimage_RO`, `SecondPreimage_FM_GReal`,
 `GIdeal_SecondPreimage_RO` follow the collision proofs; `IndifRO_is_secure.lean` has no `sorry`
 left (its three theorems rest on `SecureRO`'s three bounds).
+
+## 2026-11-01: the abstract call rule for expectations (`Logic/ExpectationCall.lean`)
+
+EC's `fel` (failure event lemma, 8 uses in SHA-3) bounds the probability of a bad event over an
+abstract adversary's oracle calls.  Its semantic core, proven here:
+* `Module.ewp_app_le` / `ProcedureWithHoles.ewp_instantiate_le`: an adversary that cannot touch
+  the oracle's state lens `L`, its oracles not increasing the expectation of a potential `φ ∘ L`,
+  does not increase it either (a supermartingale).  Induction over the adversary's statement
+  (`ConfinedP` from its footprint): hole-free code keeps `L` (lens frame), oracle calls are the
+  hypothesis, sequences compose by `Stmt.ewp_mono`, loops by `Stmt.ewp_while_le`.
+* A `fel` is then a choice of `φ`: the indicator of the bad event plus the bound still to pay for
+  the remaining oracle calls; `Pr[bad] ≤ φ(state before the adversary)`.
