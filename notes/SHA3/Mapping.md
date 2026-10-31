@@ -916,11 +916,11 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 | 128 | module | `DPre` |  | `DPre` (`A` a Lean parameter; variable: lens `DPre_h`) | def |
 | 139 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 141 | declare axiom | `D_ll` | section Preimage. | `D_ll` (hypothesis `_D_ll`) | def |
-| 144 | lemma | `preimage_resistant_if_indifferentiable` | section Preimage. | `preimage_resistant_if_indifferentiable` | stated |
+| 144 | lemma | `preimage_resistant_if_indifferentiable` | section Preimage. | `preimage_resistant_if_indifferentiable` | done modulo `SecureRO` (exc E7, E8) |
 | 174 | module | `D2Pre` |  | `D2Pre` (`A` a Lean parameter; variable: lens `D2Pre_m2`) | def |
 | 185 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 187 | declare axiom | `D_ll` | section SecondPreimage. | `D_ll` (hypothesis `_D_ll`) | def |
-| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | stated |
+| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | done modulo `SecureRO` (exc E7, E8) |
 
 ## `proof/SHA3Security.ec`
 

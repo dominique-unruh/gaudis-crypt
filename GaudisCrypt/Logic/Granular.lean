@@ -124,4 +124,61 @@ theorem ProgramDenotation.preserves_touched_of_glob {a : Type}
   exact fun xs hxs => Footprint.touched_getter_eq_of_le (Footprint.le_glob F)
     (preserves_touched_of_fromLens hp hF.glob_fromLens hQR σ xs hxs)
 
+/-! ## Calls with a frame -/
+
+/-- What every outcome of the left marginal satisfies, every coupled pair satisfies on the left. -/
+theorem SubProbability.satisfies_fst_of_marginal {α β : Type 1} {μ : SubProbability (α × β)}
+    {ν : SubProbability α} (hm : (μ >>= fun w => (pure w.1 : SubProbability α)) = ν)
+    {P : α → Prop} (hP : ν.satisfies P) : μ.satisfies fun w => P w.1 := by
+  intro w hw
+  refine hP w.1 fun h0 => hw ?_
+  have h := SubProbability.marginal_fst_singleton μ w.1
+  rw [hm, h0] at h
+  exact le_antisymm ((ENNReal.le_tsum w.2).trans h.symm.le) bot_le
+
+/-- A procedure confined to `R` leaves a variable `X` outside `R` alone. -/
+theorem Procedure.satisfies_frame {sig : ProcedureSignature} {p : Procedure sig}
+    {R : Footprint VariableAssignment} (hp : ∀ a, (procedureDenotation p a).inFootprint R)
+    {β : Type} (X : Lens β VariableAssignment) (hX : X.footprint ≤ Rᶜ) (a : sig.ParamType)
+    (g : VariableAssignment) :
+    (procedureDenotation p a g).satisfies fun r => X.get r.2 = X.get g := fun r hr =>
+  (Lens.footprint_touched_getter_eq_iff X _ _).mp
+    (ProgramDenotation.preserves_touched_of_fromLens (hp a) (Lens.footprint_fromLens X) hX g r hr)
+
+/-- **Calls of the same procedure on both sides, with a frame** (EC's `call (_: true)` where the
+postcondition also uses a variable the callee cannot touch): `prhlStmt_seq_call_refl`, the
+postcondition needed only for globals that keep the value of `X`, a variable outside the callee's
+footprint. -/
+theorem prhlStmt_seq_call_refl_frame {sig : ProcedureSignature} {p : Procedure sig}
+    {R : Footprint VariableAssignment} (hp : ∀ a, (procedureDenotation p a).inFootprint R)
+    {β : Type} (X : Lens β VariableAssignment) (hX : X.footprint ≤ Rᶜ)
+    {x₁ x₂ : Setter sig.ret ProgramState} {e₁ e₂ : Getter sig.ParamType ProgramState}
+    {A B : ProgramState → ProgramState → Prop} {s₁ s₂ : Stmt}
+    (hpre : prhlStmt A s₁ s₂ fun σ₁ σ₂ => e₁.get σ₁ = e₂.get σ₂ ∧ σ₁.globals = σ₂.globals ∧
+      ∀ r g, X.get g = X.get σ₁.globals →
+        B (x₁.set r (ProgramState.globalL.set g σ₁)) (x₂.set r (ProgramState.globalL.set g σ₂))) :
+    prhlStmt A (.seq s₁ (Stmt.call x₁ p e₁)) (.seq s₂ (Stmt.call x₂ p e₂)) B := by
+  refine prhlStmt_seq (B := fun σ₁ σ₂ => _) ?_ hpre
+  intro σ₁ σ₂ ⟨he, hg, hB⟩
+  obtain ⟨μ, hm1, hm2, hsat⟩ :=
+    prhlProc_refl p (e₁.get σ₁) (e₂.get σ₂) σ₁.globals σ₂.globals ⟨he, hg⟩
+  have hfr := SubProbability.satisfies_fst_of_marginal hm1
+    (Procedure.satisfies_frame hp X hX (e₁.get σ₁) σ₁.globals)
+  refine ⟨μ >>= fun w => pure (((), x₁.set w.1.1 (ProgramState.globalL.set w.1.2 σ₁)),
+    ((), x₂.set w.2.1 (ProgramState.globalL.set w.2.2 σ₂))), ?_, ?_, ?_⟩
+  · refine SubProbability.marginal_fst_eq fun F => ?_
+    rw [SubProbability.expected_map, SubProbability.expected_fst_of_marginal hm1
+      (fun r => F ((), x₁.set r.1 (ProgramState.globalL.set r.2 σ₁))),
+      programDenotation_call_apply, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.marginal_snd_eq fun F => ?_
+    rw [SubProbability.expected_map, SubProbability.expected_snd_of_marginal hm2
+      (fun r => F ((), x₂.set r.1 (ProgramState.globalL.set r.2 σ₂))),
+      programDenotation_call_apply, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.satisfies_bind _ fun w hw => SubProbability.satisfies_pure _ _ ?_
+    obtain ⟨hr, hgl⟩ := hsat w hw
+    have := hB w.1.1 w.1.2 (hfr w hw)
+    rwa [← hr, ← hgl]
+
 end GaudisCrypt

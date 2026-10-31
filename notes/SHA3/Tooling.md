@@ -350,3 +350,20 @@ Fixes on the way:
   state's globals into a fresh value and keep the state, losing the link between the two.
   `equiv_sim`'s closing step gained a `simp_all` that unfolds `Setter.throwaway`/`globalL` for the
   goals this leaves.
+
+## 2026-11-01: `equiv_call_frame X` (calls with a frame), preimage lemmas
+
+EC's `swap{2} [1..2] 4` in `preimage_resistant_if_indifferentiable` moves `P.init(); C(P).init()`
+past the read of `DPre.h` (a global read into a local), justified by `{-DPre}`.  `stmt_swap`
+handles writes to globals past calls, not reads; mirrored, the relation `hash{1} = DPre.h{2}` must
+survive the two calls on both sides, which reflexive coupling does not give (any globals are
+allowed after it).  New (`Logic/Granular.lean`):
+* `prhlStmt_seq_call_refl_frame`: calls of the same procedure on both sides, the postcondition
+  needed only for globals that keep the value of a variable `X` outside the callee's footprint
+  (`Procedure.satisfies_frame`, `SubProbability.satisfies_fst_of_marginal`);
+* `equiv_call_frame X` (`Logic/PRHLWp.lean`): the tactic, the callee's footprint and
+  `X ≤ footprintᶜ` discharged as for `stmt_swap` (`calleeFootprint`, `fp_disjoint`).
+
+With it, `Preimage_FM_GReal`, `GIdeal_Preimage_RO`, `SecondPreimage_FM_GReal`,
+`GIdeal_SecondPreimage_RO` follow the collision proofs; `IndifRO_is_secure.lean` has no `sorry`
+left (its three theorems rest on `SecureRO`'s three bounds).

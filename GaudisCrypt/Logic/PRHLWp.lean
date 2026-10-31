@@ -440,6 +440,38 @@ elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
           pure gPre
     replaceMainGoal ((← Judgment.simpArg gPre 3 relSimpDecls []) :: extra)
 
+/-- `equiv_call_frame X`: `equiv_call` (same procedure on both sides) where the postcondition may
+also assume that the variable `X` kept its value through the call
+(`prhlStmt_seq_call_refl_frame`).  `X` must lie outside the callee's footprint: the module's own
+(`Module.Proc.inFootprint_fvP`, or a hypothesis), the disjointness shown by `fp_disjoint` from the
+restriction hypotheses in context.  EC proves such a step with `swap` or `sim`, from its memory
+restrictions. -/
+elab "equiv_call_frame " X:term : tactic => withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_call_frame"
+  let g ← HoareSplit.hoareSplit 1 g
+  g.withContext do
+    let Xe ← elabTerm X none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let gs ← applyLemma ``prhlStmt_seq_call_refl_frame g #[(`X, ← instantiateMVars Xe)]
+    let mut gPre? : Option MVarId := none
+    for m in gs do
+      if ← m.isAssigned then continue
+      let t ← instantiateMVars (← m.getType)
+      if t.isForall && (← forallTelescope t fun _ b =>
+          pure (b.isAppOf ``ProgramDenotation.inFootprint)) then
+        -- `applyLemma` made the footprint `?R` synthetic-opaque; the callee's footprint fixes it
+        let pf ← withAssignableSyntheticOpaque (StmtSwap.calleeFootprint t)
+        unless ← withAssignableSyntheticOpaque (isDefEq (mkMVar m) pf) do
+          throwError "equiv_call_frame: cannot use the callee's footprint"
+      else if t.isAppOfArity ``LE.le 4 then
+        try FootprintSolver.solve m
+        catch err => throwError "equiv_call_frame: cannot show that{indentExpr Xe}\nlies \
+          outside the callee's footprint: {err.toMessageData}"
+      else if (← isProp t) then gPre? := some m
+    let some gPre := gPre? | throwError "equiv_call_frame: no precondition goal"
+    replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
+
 /-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the
 test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).
 `equiv_if{i}`: side `i`'s statement is a conditional (`prhlStmt_if_left`/`_right`, EC's
