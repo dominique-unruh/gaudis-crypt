@@ -308,3 +308,22 @@ branches (~40 tactic lines).  Tooling fixed or added on the way:
 
 The second hop, `GIdeal_Collision_RO`, needs EC's `call{1} (S_ll RO _)`: a one-sided call of an
 abstract procedure from its losslessness.  A `sim` tactic would replace the hand-written part.
+
+## 2026-11-01: `equiv_sim` (light `sim`), and a framing gap
+
+* `equiv_sim` (`Logic/PRHLWp.lean`, a macro): EC's `sim` on straight-line code — backwards by
+  `stmt_wp` and `equiv_call` (a differently spelled callee tried by `rfl`, else left as a `callee`
+  goal), then `equiv_skip` and the remaining implication closed by `subst`+`simp` or `simp_all` if
+  possible.  It stops at a conditional, loop or sampling; there the relation is given by hand
+  (`equiv_seq … : M`, then `equiv_if`).  A full `sim` would compute those relations (EC's backward
+  equality sets: reads of the guard and of the branches' needed variables); not built yet.
+  `Collision_FM_GReal` went from ~40 to ~20 lines of relational steps with it.
+* Gap, for `GIdeal_Collision_RO` (EC's `call{1} (S_ll RO _)`, 7 one-sided calls in all of SHA-3):
+  after a one-sided run of the abstract `S(RO).init`, the relation `={glob A, bounder, c}` must still
+  hold.  The framework can frame a run only against a *lens* region
+  (`inFootprint_preserves_touched` needs `Footprint.HasReset`, proven for lens footprints only;
+  `CounterExamples/IndistinguishableVsGlob.lean` shows the subtlety), while `glob A` is
+  `FVP.fvP A`, an arbitrary footprint.  Options: (a) a framing lemma for `FinitelySupported` module
+  footprints; (b) EC's semantics literally — an abstract module's globals as a list of variables
+  (E2/E6) and `{-M}` between abstract modules as disjoint variable lists, so every region is a
+  lens; (c) leave these 7 for later.

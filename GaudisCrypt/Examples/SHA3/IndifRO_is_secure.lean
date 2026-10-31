@@ -273,12 +273,14 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
       (GReal block f_in f_out C P (DColl block f_in f_out limit bound_counter
           increase_counter SRO_Counter_c SRO_Bounder_bounder A)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  -- `proc; inline*` (the swap is EC's second step, done here between the inlining steps)
   equiv_proc
   stmt_inline 0
   stmt_inline{1} 0
   stmt_inline{2} 2
   stmt_inline{1} 0
   stmt_inline{1} 0
+  -- `swap {1} [1..2] 2`: `Bounder.bounder <- 0; Counter.c <- 0` past `P.init(); C(P).init()`
   stmt_swap{1} 4 3
   stmt_swap{1} 2 4
   stmt_inline{2} 2
@@ -289,61 +291,39 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
   stmt_inline{1} 4
   stmt_inline{2} 3
   stmt_inline{2} 4
+  -- `wp; sim`: `equiv_sim` on straight-line code, the conditionals cut by hand
   stmt_wp
   equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
-  · equiv_call
-    · stmt_wp
-      equiv_call
-      stmt_wp
-      equiv_call
-      stmt_wp
-      equiv_skip
-      intro _ _ _ _ h
-      subst h
-      simp [Setter.throwaway, ProgramState.globalL]
-    · simp only [SecureRO.Bounder.apply_simp, SecureRO.RF.get.mk_simp,
+  · equiv_sim
+    -- the adversary's oracles, `Bounder(FM(C,P))` and `Bounder(FInit(DColl…))`, are equal
+    case callee =>
+      simp only [SecureRO.Bounder.apply_simp, SecureRO.RF.get.mk_simp,
         SecureRO.Bounder.get.apply_simp, SecureRO.Bounder.get.procedure.apply_simp,
-        HoleSigs.Instantiation.lookup_zero_single, HoleSigs.Instantiation.lookup_zero_cons,
-        PROM.FullRO.RO_T.get.mk_simp, FM.asRO, FM.get.apply_simp, FInit.get.apply_simp,
-        Module.procedure_proc', DFUNCTIONALITY.f.mk_simp, PRIMITIVE.view]
+        HoleSigs.Instantiation.lookup_zero_single, PROM.FullRO.RO_T.get.mk_simp, FM.asRO,
+        FM.get.apply_simp, FInit.get.apply_simp, Module.procedure_proc', DFUNCTIONALITY.f.mk_simp,
+        PRIMITIVE.view]
       rfl
   · equiv_if
     case «then» =>
       equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
         §hash1{1} = §hash1{2})
-      · stmt_wp
-        equiv_call
-        stmt_wp
-        equiv_skip
-        intros
-        simp_all
+      · equiv_sim
       · equiv_if
-        case «then» =>
-          stmt_wp
-          equiv_call
-          stmt_wp
-          equiv_skip
-          intros
-          simp_all
-        case «else» =>
-          stmt_wp
-          equiv_skip
-          simp
-        case guard =>
-          intros
-          simp_all
-    case «else» =>
-      stmt_wp
-      equiv_skip
-      simp
-    case guard =>
-      rintro _ _ _ _ _ _ ⟨rfl, rfl, rfl⟩
-      rfl
+        case «then» => equiv_sim
+        case «else» => equiv_sim
+        case guard => intros; simp_all
+    case «else» => equiv_sim
+    case guard => intros; simp_all
 
 /-- The second `have` of EC's proof of `coll_resistant_if_indifferentiable`:
 `GIdeal(RO, S, DColl(A)).main ~ Collision(A, SRO.RO.RO).main : ={glob} ==> ={res}`, by EC's
 `proc; inline DColl(A, RO, S(RO)).distinguish; wp; sim 3 1. inline*; swap{2} 1 1; wp.
-call{1} (S_ll RO _); auto. by proc; auto; smt(sampleto_ll).` -/
+call{1} (S_ll RO _); auto. by proc; auto; smt(sampleto_ll).`
+
+Open: `call{1} (S_ll RO _)` runs the abstract `S(RO).init` on the left only, and the relation
+after it (EC's `={glob A, Bounder.bounder, Counter.c}`) must survive it.  The framework frames a
+program only against a lens region (`Footprint.HasReset`); `glob A` is an arbitrary module
+footprint (see `notes/SHA3/Tooling.md`). -/
 theorem GIdeal_Collision_RO (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvCollision f_in f_out) (S : SIMULATOR block f_in f_out)
     (_hS_ll : S_ll block f_in f_out S)

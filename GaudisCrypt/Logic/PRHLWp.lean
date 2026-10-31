@@ -488,6 +488,20 @@ elab "equiv_case " P:term : tactic => withMainContext do
   let gs ← applyLemma ``prhlStmt_case g #[(`P, Pe)]
   replaceMainGoal gs.toList
 
+/-- `equiv_sim`: EC's `sim` on straight-line code.  Backwards over both statements, as long as one
+of these applies: `stmt_wp` (trailing deterministic code, both sides), `equiv_call` (calls of the
+same procedure, or of procedures spelled differently, their equality tried by `rfl` and left as
+a `callee` goal otherwise).  When both statements are used up, `equiv_skip`, and the implication
+it leaves closed by `simp_all` if it can.  It stops at anything else (a conditional, a loop, a
+sampling, calls of different procedures), leaving that goal: cut there with `equiv_seq … : M`. -/
+macro "equiv_sim" : tactic => `(tactic| (
+  repeat (first
+    | fail_if_no_progress stmt_wp
+    | (equiv_call; try (case callee => rfl)))
+  try (equiv_skip; try (first
+    | focus (intros; subst_vars; simp [Setter.throwaway, ProgramState.globalL]; done)
+    | focus (intros; simp_all; done)))))
+
 end PRHLWp
 
 end GaudisCrypt
