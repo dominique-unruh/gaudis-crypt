@@ -144,6 +144,12 @@ Files in this directory:
   structure `Axioms` of them, a hypothesis where needed and supplied by a clone's `realize`s.
 * **EasyCrypt formulas in program expressions** (`exists y, …` in a game's result) are decided
   classically (`open Classical in` before the `module`).
+* **A Lean parameter cannot receive a module parameter** inside a `module` body: the command
+  cannot read the callee `D1(A)(F)` back when `A` is a module parameter of the caller.  Such a
+  functor (`SecureRO.SecondPreimage.D1`) takes both as module parameters, as in EasyCrypt; a proof
+  needing the partial application `D1(A)` builds it.
+* **`{-M}` for a module `M` without variables of its own** (`-Preimage` in `SecureRO`) excludes
+  the variables `M`'s code touches.
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
   `SLCommon`) are abbreviations of the instantiated declarations in the including file.
 
@@ -178,7 +184,7 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff`, `SHA3_OIndiff` and `SecureHash` are done
+   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff`, `SHA3_OIndiff`, `SecureHash` and `SecureRO` are done
    (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
