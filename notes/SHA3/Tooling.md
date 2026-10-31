@@ -192,3 +192,10 @@ fix for implicit types (2026-10-31) is still in place, but nothing in the port u
   mentions one of its names: `variable (a b : Lens …)` gives a module using `b` both lens
   parameters.  Declare lens variables one binder each.
 
+## 2026-10-31: for `SHA3_OIndiff`
+
+* `OptionIndifferentiability` gains `distHoles`, `distExt`: the oracle procedures an
+  `ODISTINGUISHER` may call, as in `Indifferentiability` (E2).
+* `SHA3Indiff.DistRestrictions.footprint` names what `SHA3Indiff`'s restriction excludes, so that
+  `SHA3_OIndiff.ODistRestrictions` (the same list, plus `Counter` and `OSimulator`) reuses it.
+

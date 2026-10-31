@@ -1,4 +1,5 @@
 import GaudisCrypt.Syntax.Syntax
+import GaudisCrypt.Logic.AbstractCall
 
 /-!
 # Indifferentiability with failing oracles (EasyCrypt `proof/OptionIndifferentiability.eca`)
@@ -51,8 +52,8 @@ functionality. -/
 abbrev OCONSTRUCTION := ODPRIMITIVE p f_in f_out →ₘ OFUNCTIONALITY p f_in f_out
 
 /-- EasyCrypt's `module type OSIMULATOR (F : ODFUNCTIONALITY) = { proc init() : unit { }
-proc f(x : p) : p option { F.f } proc fi(x : p) : p option { F.f } }`: a simulator takes a functionality and
-simulates the primitive. -/
+proc f(x : p) : p option { F.f } proc fi(x : p) : p option { F.f } }`: a simulator takes a
+functionality and simulates the primitive. -/
 abbrev OSIMULATOR := ODFUNCTIONALITY p f_in f_out →ₘ OPRIMITIVE p f_in f_out
 
 /-- EasyCrypt's `module type ODISTINGUISHER (F : ODFUNCTIONALITY, P : ODPRIMITIVE) =
@@ -71,6 +72,19 @@ noncomputable def OFUNCTIONALITY.view (F : OFUNCTIONALITY p f_in f_out) :
 noncomputable def OPRIMITIVE.view (P : OPRIMITIVE p f_in f_out) : ODPRIMITIVE p f_in f_out :=
   ODPRIMITIVE.mk p f_in f_out
     { f := OPRIMITIVE.f p f_in f_out P, fi := OPRIMITIVE.fi p f_in f_out P }
+
+/-- The oracle procedures an `ODISTINGUISHER` may call (EasyCrypt's `OI.allowed`): `F.f`, `P.f`,
+`P.fi`.  The holes of its representation (`Module.Representable`, exception E2). -/
+abbrev distHoles : HoleSigs :=
+  .cons (procsig (f_in) -> (Option f_out))
+    (.cons (procsig (p) -> (Option p)) (.cons (procsig (p) -> (Option p)) .empty))
+
+/-- `F.f`, `P.f`, `P.fi` out of the oracles `(F, P)`. -/
+noncomputable def distExt (FP : ODFUNCTIONALITY p f_in f_out ×ₘ ODPRIMITIVE p f_in f_out) :
+    (distHoles p f_in f_out).Instantiation :=
+  ((ODFUNCTIONALITY.f p f_in f_out (Module.fst FP)).procedure,
+   (ODPRIMITIVE.f p f_in f_out (Module.snd FP)).procedure,
+   (ODPRIMITIVE.fi p f_in f_out (Module.snd FP)).procedure)
 
 module OIndif using (F : OFUNCTIONALITY p f_in f_out, P : OPRIMITIVE p f_in f_out,
     D : ODISTINGUISHER p f_in f_out) {

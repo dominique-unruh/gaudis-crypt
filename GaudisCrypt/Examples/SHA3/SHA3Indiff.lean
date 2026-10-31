@@ -186,10 +186,10 @@ module DRestr (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
 
 section
 
-/-- The section's restriction on `Dist` (an abbreviation).  `-Gconcl_list.SimLast` is
-`Gconcl_list.SimLast(Gconcl.S)`'s footprint, as in `SHA3Indiff`'s statement. -/
-def DistRestrictions (Dist : DISTINGUISHER) : Prop :=
-  FVP.fvP Dist ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+/-- What the section's restriction on `Dist` excludes (an abbreviation).  `-Gconcl_list.SimLast`
+is `Gconcl_list.SimLast(Gconcl.S)`'s footprint, as in `SHA3Indiff`'s statement. -/
+noncomputable def DistRestrictions.footprint : Footprint VariableAssignment :=
+  (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
     FVP.fvP (Gconcl_list.SimLast Gconcl.S) ⊔ (BIRO.IRO.mp).footprint ⊔ Cntr.c.footprint ⊔
     (BlockSponge.BIRO.IRO.mp).footprint ⊔ (Simulator.m).footprint ⊔ (Simulator.mi).footprint ⊔
     (Simulator.paths).footprint ⊔ BlockSponge.C.c.footprint ⊔ (Gconcl.S.m).footprint ⊔
@@ -198,7 +198,11 @@ def DistRestrictions (Dist : DISTINGUISHER) : Prop :=
     (Gconcl_list.BIRO2.IRO.mp).footprint ⊔ (Gconcl_list.F2.RO.m).footprint ⊔
     (Gconcl_list.F2.FRO.m).footprint ⊔ (Gconcl_list.Simulator.m).footprint ⊔
     (Gconcl_list.Simulator.mi).footprint ⊔ (Gconcl_list.Simulator.paths).footprint ⊔
-    (Gconcl_list.Simulator.unvalid_map).footprint)ᶜ
+    (Gconcl_list.Simulator.unvalid_map).footprint
+
+/-- The section's restriction on `Dist` (an abbreviation). -/
+def DistRestrictions (Dist : DISTINGUISHER) : Prop :=
+  FVP.fvP Dist ≤ DistRestrictions.footprintᶜ
 
 /-- `declare axiom Dist_lossless (F <: DFUNCTIONALITY {-Dist}) (P <: DPRIMITIVE {-Dist}) :
 islossless P.f => islossless P.fi => islossless F.f => islossless Dist(F,P).distinguish` (an

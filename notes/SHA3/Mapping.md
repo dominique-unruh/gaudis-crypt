@@ -753,22 +753,22 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean`, namespace `GaudisCrypt.SHA3
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 16 | clone import | `OptionIndifferentiability` |  | `OptionIndifferentiability` | — |
-| 23 | module | `FSome` |  | `FSome` | — |
-| 32 | module | `PSome` |  | `PSome` | — |
-| 46 | module | `Poget` |  | `Poget` | — |
-| 59 | module | `` |  | `` | — |
-| 61 | module | `OSimulator` |  | `OSimulator` | — |
-| 115 | module | `Counter` |  | `Counter` | — |
-| 122 | op | `increase_counter` |  | `increase_counter` | — |
-| 126 | module | `OFC` |  | `OFC` | — |
-| 140 | module | `OPC` |  | `OPC` | — |
-| 161 | module | `ODRestr` |  | `ODRestr` | — |
-| 171 | declare module | `Dist` | section . | `Dist` | — |
-| 175 | local module | `DFSome` | section . | `DFSome` | — |
-| 183 | module | `DPSome` | section . | `DPSome` | — |
-| 196 | local module | `` | section . | `` | — |
-| 205 | lemma | `SHA3OIndiff` | section . | `SHA3OIndiff` | — |
+| 16 | clone import | `OptionIndifferentiability` |  | `OIndif` (namespace of abbreviations, opened) | def |
+| 23 | module | `FSome` |  | `FSome` (`init` call-wrapped, E5) | def |
+| 32 | module | `PSome` |  | `PSome` (Lean function; `PSome.own`) | def |
+| 46 | module | `Poget` |  | `Poget` | def |
+| 59 | module | `CSome` |  | `CSome` (`Module.comp`) | def |
+| 61 | module | `OSimulator` |  | `OSimulator` | def |
+| 115 | module | `Counter` |  | `Counter` | def |
+| 122 | op | `increase_counter` |  | `increase_counter` | def |
+| 126 | module | `OFC` |  | `OFC` | def |
+| 140 | module | `OPC` |  | `OPC` | def |
+| 161 | module | `ODRestr` |  | `ODRestr` (`D` a Lean parameter) | def |
+| 171 | declare module | `Dist` | section . | unused (`SHA3OIndiff` quantifies its own `Dist`) | def |
+| 175 | local module | `DFSome` | section . | `DFSome` | def |
+| 183 | module | `DPSome` | section . | `DPSome` | def |
+| 196 | local module | `OD` | section . | `OD` (`D` a Lean parameter) | def |
+| 205 | lemma | `SHA3OIndiff` | section . | `SHA3OIndiff` | stated |
 
 ## `proof/SecureHash.eca`
 
