@@ -2,6 +2,7 @@ import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Lib.EC.PROM
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.Int
+import GaudisCrypt.Logic.PRHLWp
 
 /-!
 # The sponge construction (EasyCrypt `proof/Sponge.ec`)
@@ -428,7 +429,28 @@ theorem HybridIROLazy_fill_in_LRO_get :
       (HybridIROLazy.fill_in HybridIROLazy_mp).procedure
       (PROM.FullRO.RO_T.get (List block × ℤ) Bool (ERO.LRO ERO_RO_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HybridIROLazy_mp.get g₁ = ERO_RO_m.get g₂) := by
-  sorry
+  -- EC: `case (dom mp (xs, i)); rcondf{1} 1; rcondf{2} 2; rnd{2} …; rcondt{1} 1; rcondt{2} 2;
+  -- wp; rnd`: here the case split is `equiv_if{1}` on the lazy test
+  equiv_proc
+  repeat stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{2} = (§xs0{1}, §i0{1}) ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
+  · equiv_sim
+  · equiv_if{1}
+    case «then» =>
+      stmt_wp{1}
+      equiv_rnd
+      equiv_skip
+      rintro xs i mp x m ⟨⟨rfl, rfl⟩, hd⟩ a -
+      simp [hd]
+    case «else» =>
+      stmt_wp{2} 1
+      equiv_skip
+      rintro xs i mp x m ⟨⟨rfl, rfl⟩, hd⟩
+      refine ⟨?_, fun a _ => by simp [hd]⟩
+      simp [ERO.dout, dbool, uniform_expected]
+      exact ENNReal.mul_inv_cancel (by norm_num) (by norm_num)
 
 /-- `local lemma HybridIROLazy_HIRO_LRO_f : equiv[HybridIROLazy.f ~ HIRO(LRO).f :
 ={xs, n} /\ HybridIROLazy.mp{1} = ERO.RO.m{2} ==> ={res} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}]`. -/
@@ -458,7 +480,28 @@ theorem RO_get_HybridIROEager_fill_in :
       (PROM.FullRO.RO_T.get (List block × ℤ) Bool (ERO.RO ERO_RO_m)).procedure
       (HybridIROEager.fill_in HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
-  sorry
+  -- EC: `case (dom mp (xs, i)); rcondf{1} 2; rcondf{2} 1; rnd{1} …; rcondt{1} 2; rcondt{2} 1;
+  -- wp; rnd`: the case split is `equiv_if{2}` on the eager test
+  equiv_proc
+  repeat stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = (§xs0{2}, §i0{2}) ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+  · equiv_sim
+  · equiv_if{2}
+    case «then» =>
+      stmt_wp{2}
+      equiv_rnd
+      equiv_skip
+      rintro x m xs i mp ⟨⟨rfl, rfl⟩, hd⟩ a -
+      simp [hd]
+    case «else» =>
+      stmt_wp{1} 1
+      equiv_skip
+      rintro x m xs i mp ⟨⟨rfl, rfl⟩, hd⟩
+      refine ⟨?_, fun a _ => by simp [hd]⟩
+      simp [ERO.dout, dbool, uniform_expected]
+      exact ENNReal.mul_inv_cancel (by norm_num) (by norm_num)
 
 /-- `local lemma RO_sample_HybridIROEager_fill_in : equiv[ERO.RO.sample ~ HybridIROEager.fill_in :
 x{1} = (xs, i){2} /\ ERO.RO.m{1} = HybridIROEager.mp{2} ==> ERO.RO.m{1} = HybridIROEager.mp{2}]`. -/
@@ -469,7 +512,27 @@ theorem RO_sample_HybridIROEager_fill_in :
       (PROM.FullRO.RO_T.sample (List block × ℤ) Bool (ERO.RO ERO_RO_m)).procedure
       (HybridIROEager.fill_in HybridIROEager_mp).procedure
       (fun _ g₁ _ g₂ => ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
-  sorry
+  -- EC: `proc; inline ERO.RO.get; sp; case …`, as `RO_get_HybridIROEager_fill_in`
+  equiv_proc
+  repeat stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x1{1} = (§xs0{2}, §i0{2}) ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+  · equiv_sim
+  · equiv_if{2}
+    case «then» =>
+      stmt_wp{2}
+      equiv_rnd
+      equiv_skip
+      rintro x m xs i mp ⟨⟨rfl, rfl⟩, hd⟩ a -
+      simp [hd]
+    case «else» =>
+      stmt_wp{1} 1
+      equiv_skip
+      rintro x m xs i mp ⟨⟨rfl, rfl⟩, hd⟩
+      refine ⟨?_, fun a _ => by simp [hd]⟩
+      simp [ERO.dout, dbool, uniform_expected]
+      exact ENNReal.mul_inv_cancel (by norm_num) (by norm_num)
 
 /-- `local lemma HIRO_RO_HybridIROEager_f : equiv[HIRO(ERO.RO).f ~ HybridIROEager.f :
 ={xs, n} /\ ERO.RO.m{1} = HybridIROEager.mp{2} ==>
