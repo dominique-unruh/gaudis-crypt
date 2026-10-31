@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.FV
 import GaudisCrypt.Lib.RO.InstantiateCommon
+import GaudisCrypt.Logic.AbstractCall
 
 /-!
 # Representing functor modules by procedures with holes
@@ -38,6 +39,13 @@ procedures), with the full list of the oracle's procedures as `ext`.
   module form, `Module.exists_representation`: every first-order functor module is represented
   by a procedure with holes over the full list of the oracle's procedures, with at most the
   footprint of its own normal form.
+* **Module types** (`Module.exists_representation_of_firstOrder`, `Module.representable_of_firstOrder`):
+  a `moduletype` is a tree of products without the trailing `unit`.  Its procedures in order are
+  `T.holesApp .empty`, a literal module's are `T.extOf O`; `ModuleExpression.rebuild` rebuilds the
+  module from the tuple (`ModuleTypeRep.rebuild_extOfApp`), which reduces a functor over `T` to one
+  over the tuple, at no cost in footprint.  So `Module.Representable D ext` holds for every functor
+  module `D` over a first-order module type whose `ext` is the full list of its procedures:
+  exception E2 is a theorem there.
 -/
 
 namespace GaudisCrypt
@@ -1270,5 +1278,243 @@ theorem Module.exists_representation {H : HoleSigs} {sig : ProcedureSignature}
     show (ModuleExpression.app D.expression O.expression).reduce = _
     rw [hD, hO, reduce_beta]
     exact hred
+
+/-! ## Module types -/
+
+/-- The procedures of a first-order module type, in order, in front of `R`. -/
+def ModuleTypeRep.holesApp : ModuleTypeRep → HoleSigs → HoleSigs
+  | .proc s, R => .cons s R
+  | .unit, R => R
+  | .prod a b, R => a.holesApp (b.holesApp R)
+  | .arr _ _, R => R
+
+/-- One procedure in front of an instantiation. -/
+def HoleSigs.Instantiation.consInst {s : ProcedureSignature} :
+    {R : HoleSigs} → Procedure s → R.Instantiation → (HoleSigs.cons s R).Instantiation
+  | .empty, p, _ => p
+  | .cons _ _, p, rest => (p, rest)
+
+theorem HoleSigs.Instantiation.toModuleExpr_consInst {s : ProcedureSignature} {R : HoleSigs}
+    (p : Procedure s) (rest : R.Instantiation) :
+    (HoleSigs.Instantiation.consInst p rest).toModuleExpr = .pair (.proc p) rest.toModuleExpr := by
+  cases R <;> rfl
+
+theorem HoleSigs.Instantiation.toModuleExpr_hasType {Δ : ModuleContext} :
+    ∀ {H : HoleSigs} (inst : H.Instantiation), inst.toModuleExpr.HasType Δ H.toModuleTypeRepTuple
+  | .empty, _ => .unit
+  | .cons _ .empty, p => .pair (.proc p) .unit
+  | .cons _ (.cons _ _), inst => .pair (.proc inst.1) (toModuleExpr_hasType inst.2)
+
+/-- The procedures of a literal module `O` of first-order type `T`, in front of `rest`. -/
+noncomputable def ModuleTypeRep.extOfApp :
+    (T : ModuleTypeRep) → {R : HoleSigs} → GaudisCrypt.Module T → R.Instantiation →
+      (T.holesApp R).Instantiation
+  | .proc _, _, O, rest => HoleSigs.Instantiation.consInst (Module.Proc.procedure O) rest
+  | .unit, _, _, rest => rest
+  | .prod a b, _, O, rest => a.extOfApp (Module.fst' O) (b.extOfApp (Module.snd' O) rest)
+  | .arr _ _, _, _, rest => rest
+
+namespace ModuleExpression
+
+/-- Rebuild a value of type `T` from the front of a tuple `x`; the rest of the tuple second. -/
+def rebuild : ModuleTypeRep → ModuleExpression → ModuleExpression × ModuleExpression
+  | .proc _, x => (.fst x, .snd x)
+  | .unit, x => (.unit, x)
+  | .prod a b, x =>
+      let ra := rebuild a x
+      let rb := rebuild b ra.2
+      (.pair ra.1 rb.1, rb.2)
+  | .arr _ _, x => (.unit, x)
+
+theorem rebuild_hasType {Δ : ModuleContext} :
+    ∀ (T : ModuleTypeRep), T.FirstOrder → ∀ {R : HoleSigs} {x : ModuleExpression},
+      x.HasType Δ (T.holesApp R).toModuleTypeRepTuple →
+        (rebuild T x).1.HasType Δ T ∧ (rebuild T x).2.HasType Δ R.toModuleTypeRepTuple
+  | .proc _, _, _, _, hx => ⟨.fst hx, .snd hx⟩
+  | .unit, _, _, _, hx => ⟨.unit, hx⟩
+  | .prod a b, hT, _, _, hx => by
+      obtain ⟨ha1, ha2⟩ := rebuild_hasType a hT.1 hx
+      obtain ⟨hb1, hb2⟩ := rebuild_hasType b hT.2 ha2
+      exact ⟨.pair ha1 hb1, hb2⟩
+  | .arr _ _, hT, _, _, _ => hT.elim
+
+theorem rebuild_substitute (σ : Nat → ModuleExpression) :
+    ∀ (T : ModuleTypeRep) (x : ModuleExpression),
+      ((rebuild T x).1.substituteSimultaneously σ, (rebuild T x).2.substituteSimultaneously σ) =
+        rebuild T (x.substituteSimultaneously σ)
+  | .proc _, _ => rfl
+  | .unit, _ => rfl
+  | .prod a b, x => by
+      obtain ⟨ha1, ha2⟩ := Prod.mk.inj (rebuild_substitute σ a x)
+      have hb := rebuild_substitute σ b (rebuild a x).2
+      rw [ha2] at hb
+      obtain ⟨hb1, hb2⟩ := Prod.mk.inj hb
+      simp only [rebuild, substituteSimultaneously, ha1, hb1, hb2]
+  | .arr _ _, _ => rfl
+
+/-- Reducing a rebuilt value only depends on the tuple's reduct. -/
+theorem rebuild_reduce_cong :
+    ∀ (T : ModuleTypeRep) {x y : ModuleExpression}, x.reduce = y.reduce →
+      (rebuild T x).1.reduce = (rebuild T y).1.reduce ∧
+        (rebuild T x).2.reduce = (rebuild T y).2.reduce
+  | .proc _, _, _, h => ⟨reduce_fst_cong _ _ h, reduce_snd_cong _ _ h⟩
+  | .unit, _, _, h => ⟨rfl, h⟩
+  | .prod a b, _, _, h => by
+      obtain ⟨ha1, ha2⟩ := rebuild_reduce_cong a h
+      obtain ⟨hb1, hb2⟩ := rebuild_reduce_cong b ha2
+      exact ⟨(reduce_pair_cong ha1 hb1).trans (reduce_pair_cong rfl rfl).symm, hb2⟩
+  | .arr _ _, _, _, h => ⟨rfl, h⟩
+
+end ModuleExpression
+
+/-- A literal module of a product type is the pair of its projections. -/
+theorem Module.expression_eq_pair {A B : ModuleTypeRep} (O : GaudisCrypt.Module (.prod A B)) :
+    O.expression = .pair (Module.fst' O).expression (Module.snd' O).expression := by
+  have ht := O.typed
+  have hn := O.normal
+  simp only [Module.expression_fst', Module.expression_snd']
+  revert ht hn
+  generalize O.expression = e
+  intro ht hn
+  cases hn with
+  | pair ha hb =>
+      rw [ModuleExpression.reduce_fst, ModuleExpression.reduce_snd,
+        ModuleExpression.reduce_of_normal ha.normal, ModuleExpression.reduce_of_normal hb.normal]
+  | «proc» => cases ht
+  | procHoles => cases ht
+  | abs _ => cases ht
+  | unit => cases ht
+
+theorem Module.expression_eq_unit (O : GaudisCrypt.Module .unit) : O.expression = .unit := by
+  have ht := O.typed
+  have hn := O.normal
+  revert ht hn
+  generalize O.expression = e
+  intro ht hn
+  cases hn with
+  | unit => rfl
+  | «proc» => cases ht
+  | procHoles => cases ht
+  | abs _ => cases ht
+  | pair _ _ => cases ht
+
+open ModuleExpression in
+/-- **Rebuilding a literal module** from the tuple of its procedures gives it back. -/
+theorem ModuleTypeRep.rebuild_extOfApp :
+    ∀ (T : ModuleTypeRep), T.FirstOrder → ∀ {R : HoleSigs} (rest : R.Instantiation)
+      (O : GaudisCrypt.Module T),
+      (rebuild T (T.extOfApp O rest).toModuleExpr).1.reduce = O.expression ∧
+        (rebuild T (T.extOfApp O rest).toModuleExpr).2.reduce = rest.toModuleExpr
+  | .proc _, _, _, rest, O => by
+      show (ModuleExpression.fst (HoleSigs.Instantiation.consInst (Module.Proc.procedure O)
+          rest).toModuleExpr).reduce = _ ∧ (ModuleExpression.snd
+          (HoleSigs.Instantiation.consInst (Module.Proc.procedure O) rest).toModuleExpr).reduce = _
+      rw [HoleSigs.Instantiation.toModuleExpr_consInst, reduce_fst, reduce_snd, reduce_proc,
+        reduce_of_normal (HoleSigs.Instantiation.toModuleExpr_normal rest)]
+      exact ⟨(Module.procedure_spec O).symm, rfl⟩
+  | .unit, _, _, rest, O => by
+      show ModuleExpression.unit.reduce = _ ∧ rest.toModuleExpr.reduce = _
+      rw [reduce_of_normal Normal.unit,
+        reduce_of_normal (HoleSigs.Instantiation.toModuleExpr_normal rest)]
+      exact ⟨(Module.expression_eq_unit O).symm, rfl⟩
+  | .prod a b, hT, _, rest, O => by
+      obtain ⟨ha1, ha2⟩ := ModuleTypeRep.rebuild_extOfApp a hT.1
+        (b.extOfApp (Module.snd' O) rest) (Module.fst' O)
+      obtain ⟨hb1, hb2⟩ := ModuleTypeRep.rebuild_extOfApp b hT.2 rest (Module.snd' O)
+      obtain ⟨hc1, hc2⟩ := rebuild_reduce_cong b (ha2.trans (reduce_of_normal
+        (HoleSigs.Instantiation.toModuleExpr_normal _)).symm)
+      change (rebuild (.prod a b) (a.extOfApp (Module.fst' O)
+        (b.extOfApp (Module.snd' O) rest)).toModuleExpr).1.reduce = _ ∧
+        (rebuild (.prod a b) (a.extOfApp (Module.fst' O)
+          (b.extOfApp (Module.snd' O) rest)).toModuleExpr).2.reduce = _
+      refine ⟨?_, hc2.trans hb2⟩
+      show (ModuleExpression.pair _ _).reduce = _
+      rw [reduce_pair_cong ha1 (hc1.trans hb1), Module.expression_eq_pair O]
+      exact reduce_of_normal (.pair (Module.fst' O).normal.normal (Module.snd' O).normal.normal)
+  | .arr _ _, hT, _, _, _ => hT.elim
+
+
+/-- The procedures of a literal module `O` of first-order type `T`, in order. -/
+noncomputable def ModuleTypeRep.extOf (T : ModuleTypeRep) (O : GaudisCrypt.Module T) :
+    (T.holesApp .empty).Instantiation :=
+  T.extOfApp (R := .empty) O PUnit.unit
+
+theorem ModuleExpression.rebuild_evalMexpr_le :
+    ∀ (T : ModuleTypeRep) (x : ModuleExpression),
+      E (ModuleExpression.rebuild T x).1 ≤ E x ∧ E (ModuleExpression.rebuild T x).2 ≤ E x
+  | .proc _, _ => ⟨le_rfl, le_rfl⟩
+  | .unit, _ => ⟨bot_le, le_rfl⟩
+  | .prod a b, x => by
+      obtain ⟨ha1, ha2⟩ := ModuleExpression.rebuild_evalMexpr_le a x
+      obtain ⟨hb1, hb2⟩ := ModuleExpression.rebuild_evalMexpr_le b (ModuleExpression.rebuild a x).2
+      exact ⟨sup_le ha1 (hb1.trans ha2), hb2.trans ha2⟩
+  | .arr _ _, _ => ⟨bot_le, le_rfl⟩
+
+open ModuleExpression in
+/-- **Every functor module over a first-order module type is represented** by a procedure with
+holes over the list of the type's procedures (`T.holesApp .empty`), filled with those of the
+oracle (`T.extOfApp`), with at most the footprint of its own normal form.  The module type may be
+any tree of products (as `moduletype` builds them, without a trailing `unit`). -/
+theorem Module.exists_representation_of_firstOrder {T : ModuleTypeRep} (hT : T.FirstOrder)
+    {sig : ProcedureSignature}
+    (hne : ∀ {sig' : ProcedureSignature}, HoleIndex (T.holesApp .empty) sig' →
+      (∀ U ∈ sig'.params, Nonempty U) ∧ Nonempty sig'.ret)
+    (D : GaudisCrypt.Module (.arr T (.proc sig))) :
+    ∃ p : ProcedureWithHoles (T.holesApp .empty) sig, FVP.fvP_proc p ≤ E D.expression ∧
+      ∀ O : GaudisCrypt.Module T,
+        procedureDenotation (Module.Proc.procedure (Module.app' D O)) =
+          procedureDenotation (p.instantiate (T.extOf O)) := by
+  set H := T.holesApp .empty
+  have hx : (ModuleExpression.var 0).HasType [H.toModuleTypeRepTuple] H.toModuleTypeRepTuple :=
+    .var 0 (by simp)
+  have hbody : (ModuleExpression.app D.expression (rebuild T (.var 0)).1).HasType
+      [H.toModuleTypeRepTuple] (.proc sig) :=
+    .app (Module.typed_weaken D _) (rebuild_hasType T hT (R := .empty) hx).1
+  let D' : GaudisCrypt.Module (.arr H.toModuleTypeRepTuple (.proc sig)) :=
+    (ModuleExpression.abs (.app D.expression (rebuild T (.var 0)).1)).toModule (.abs hbody)
+  obtain ⟨p, hp, hd⟩ := Module.exists_representation hne D'
+  refine ⟨p, hp.trans ?_, fun O => ?_⟩
+  · refine (FVP.fvPMexpr_upper_bound (.abs hbody)).trans ?_
+    show E D.expression ⊔ E (rebuild T (.var 0)).1 ≤ E D.expression
+    exact sup_le le_rfl ((rebuild_evalMexpr_le T _).1.trans bot_le)
+  · set inst := T.extOf O
+    let O' : GaudisCrypt.Module H.toModuleTypeRepTuple :=
+      inst.toModuleExpr.toModule (HoleSigs.Instantiation.toModuleExpr_hasType inst)
+    have hO' : O'.expression = inst.toModuleExpr :=
+      reduce_of_normal (HoleSigs.Instantiation.toModuleExpr_normal inst)
+    rw [← hd O' inst hO']
+    congr 2
+    apply Module.ext
+    symm
+    show (ModuleExpression.app D'.expression O'.expression).reduce =
+      (ModuleExpression.app D.expression O.expression).reduce
+    rw [hO']
+    show (ModuleExpression.app (ModuleExpression.abs _).reduce _).reduce = _
+    rw [reduce_app_left, reduce_beta]
+    have hr : (rebuild T inst.toModuleExpr).1.reduce = O.expression :=
+      (ModuleTypeRep.rebuild_extOfApp T hT (R := .empty) PUnit.unit O).1
+    have hsub := (Prod.mk.inj (rebuild_substitute
+      (variableSubstitution inst.toModuleExpr) T (.var 0))).1
+    show (ModuleExpression.app (D.expression.substituteSimultaneously _)
+      ((rebuild T (.var 0)).1.substituteSimultaneously _)).reduce = _
+    rw [HasType.substituteSimultaneously_eq_self D.typed (fun n hn => absurd hn (by simp)), hsub,
+      show substituteSimultaneously (variableSubstitution inst.toModuleExpr) (.var 0) =
+        inst.toModuleExpr from rfl, ← reduce_app_right, hr]
+
+/-- **Removing exception E2 for full oracle lists**: a functor module over a first-order module type
+`M` is representable (`Module.Representable`) with the list of all of `M`'s procedures as `ext`,
+provided their parameter and result types are nonempty. -/
+theorem Module.representable_of_firstOrder {M : Type 1} [IsModule M] {sig : ProcedureSignature}
+    (hT : (Module.moduleTypeRep M).FirstOrder)
+    (hne : ∀ {sig' : ProcedureSignature},
+      HoleIndex ((Module.moduleTypeRep M).holesApp .empty) sig' →
+        (∀ U ∈ sig'.params, Nonempty U) ∧ Nonempty sig'.ret)
+    (ext : M → ((Module.moduleTypeRep M).holesApp .empty).Instantiation)
+    (hext : ∀ O, ext O = (Module.moduleTypeRep M).extOf (Module.cast M O))
+    (D : Module.Arr M (Module.Proc sig)) : Module.Representable D ext := by
+  obtain ⟨p, hp, hd⟩ := Module.exists_representation_of_firstOrder hT hne D
+  refine ⟨p, ⟨fun O a => ?_, hp⟩⟩
+  rw [hext O]
+  exact congrFun (hd (Module.cast M O)) a
 
 end GaudisCrypt
