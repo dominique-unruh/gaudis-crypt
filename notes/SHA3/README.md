@@ -140,6 +140,10 @@ Files in this directory:
   `prhlProc (sig₁ := …) (sig₂ := …)`.  Arguments are tuples: `a₁.2.1` is the second parameter.
 * **`proc f()` used where `proc f(_ : unit)` is expected** (a `RO_Distinguisher`) takes a `Unit`
   parameter.
+* **Axioms of an abstract theory** whose operators are section variables (`SecureHash`): a
+  structure `Axioms` of them, a hypothesis where needed and supplied by a clone's `realize`s.
+* **EasyCrypt formulas in program expressions** (`exists y, …` in a game's result) are decided
+  classically (`open Classical in` before the `module`).
 * **Abstract theories cloned with `include`** (`clone include Indifferentiability with …` in
   `SLCommon`) are abbreviations of the instantiated declarations in the including file.
 
@@ -174,7 +178,7 @@ Files in this directory:
 2. **Skeleton**: every definition ported and every lemma stated with `sorry`, in dependency
    order, so that the headline statements exist early.  In progress: `Common`,
    `Indifferentiability`, `OptionIndifferentiability`, `IRO`, `SLCommon`, `ConcreteF`,
-   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff` and `SHA3_OIndiff` are done
+   `Handle`, `Gcol`, `Gext`, `Gconcl`, `BlockSponge`, `Gconcl_list`, `Sponge`, `SHA3Indiff`, `SHA3_OIndiff` and `SecureHash` are done
    (2026-10-31).
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last

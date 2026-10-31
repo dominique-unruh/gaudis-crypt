@@ -12,7 +12,7 @@ use is here.  Names are EasyCrypt's.
 | `d1 \`*\` d2` (`DProd`) | `dprod d1 d2` |
 | `d \ P` (`Dexcepted`) | `dexcepted d P` |
 | `{0,1}`, `dbool` (`DBool`) | `dbool` |
-| `is_lossless d` | `is_lossless d` |
+| `is_lossless d`, `is_full d`, `is_funiform d` | the same |
 -/
 
 namespace GaudisCrypt.EC
@@ -25,6 +25,12 @@ noncomputable def dprod (d1 : SubProbability α) (d2 : SubProbability β) : SubP
 
 /-- `is_lossless d`: `d` has total mass `1`. -/
 def is_lossless (d : SubProbability α) : Prop := d.1 Set.univ = 1
+
+/-- `is_full d`: every value is in the support of `d`. -/
+def is_full (d : SubProbability α) : Prop := ∀ x, 0 < d.1 {x}
+
+/-- `is_funiform d`: all values have the same probability. -/
+def is_funiform (d : SubProbability α) : Prop := ∀ x y, d.1 {x} = d.1 {y}
 
 open Classical in
 /-- `d \ P`: `d` conditioned on not satisfying `P`.  EasyCrypt normalizes the restriction of `d` to

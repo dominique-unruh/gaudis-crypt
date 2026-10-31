@@ -1072,13 +1072,17 @@ def moduleApply (x : Name) : TacticM Unit := do
 
 /-- Proves `X.reduce = Y.reduce` for two module expressions that differ only by `reduce`s at
 inner positions: through `app`/`pair`/`fst`/`snd` component by component
-(`ModuleExpression.reduce_app_congr` and friends), each leaf by `rfl` or `reduce_idempotent`. -/
+(`ModuleExpression.reduce_app_congr` and friends), each leaf by `rfl` or `reduce_idempotent`, and a
+doubled `reduce` on the way stripped by `reduce_idempotent`. -/
 syntax "module_reduce_congr" : tactic
 
 macro_rules
   | `(tactic| module_reduce_congr) => `(tactic| first
       | rfl
       | (simp only [ModuleExpression.reduce_idempotent, Module.reduce_expression]; done)
+      -- a `reduce` of a `reduce` at an inner position (`(e.reduce.snd).reduce`, where the callee
+      -- applies a module to an applied parameter, `G(F(P))`): strip it, then go on descending
+      | (simp only [ModuleExpression.reduce_idempotent]; module_reduce_congr)
       | (apply ModuleExpression.reduce_app_congr <;> module_reduce_congr)
       | (apply ModuleExpression.reduce_pair_congr <;> module_reduce_congr)
       | (apply ModuleExpression.reduce_fst_congr <;> module_reduce_congr)
@@ -1119,6 +1123,10 @@ def moduleCallee : TacticM Unit := do
          ``ModuleExpression.liftSubst, ``ModuleExpression.variableSubstitution,
          ``Nat.succ_eq_add_one, ``zero_add,
          ``Module.rename_expression, ``Module.substituteSimultaneously_expression]
+        -- a callee whose argument applies a module to a record built in place
+        -- (`A(F(P.mk …), …)`): unfold the `Module` combinators there too, `X.mk` (reducible) being
+        -- a nest of `Module.pair'`s
+        ++ moduleCombinators
         ++ reduceStripComposite)
       (extraSets := #[← moduleAccessorTheorems])
     -- what is left differs only by `reduce`s at inner positions (under an application, inside a

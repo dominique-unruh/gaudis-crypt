@@ -776,25 +776,25 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureHash.lean`, namespace `GaudisCrypt.SHA3.S
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
-| 4 | type | `from` |  | `from` | — |
-| 7 | clone import | `OptionIndifferentiability` |  | `OptionIndifferentiability` | — |
-| 14 | op | `sampleto` |  | `sampleto` | — |
-| 16 | op | `bound` |  | `bound` | — |
-| 17 | axiom | `bound_ge0` |  | `bound_ge0` | — |
-| 19 | axiom | `sampleto_ll` |  | `sampleto_ll` | — |
-| 20 | axiom | `sampleto_full` |  | `sampleto_full` | — |
-| 21 | axiom | `sampleto_fu` |  | `sampleto_fu` | — |
-| 29 | op | `increase_counter` |  | `increase_counter` | — |
-| 30 | axiom | `increase_counter_spec` |  | `increase_counter_spec` | — |
-| 49 | module | `Bounder` |  | `Bounder` | — |
-| 56 | module | `FBounder` |  | `FBounder` | — |
-| 72 | module | `PBounder` |  | `PBounder` | — |
-| 95 | module type | `AdvPreimage` |  | `AdvPreimage` | — |
-| 99 | module | `Preimage` |  | `Preimage` | — |
-| 113 | module type | `AdvSecondPreimage` |  | `AdvSecondPreimage` | — |
-| 117 | module | `SecondPreimage` |  | `SecondPreimage` | — |
-| 131 | module type | `AdvCollision` |  | `AdvCollision` | — |
-| 135 | module | `Collision` |  | `Collision` | — |
+| 4 | type | `from` |  | `«from»`, `«to»`, `block` (section variables) | def |
+| 7 | clone import | `OptionIndifferentiability` |  | `OptionIndifferentiability` at `block «from» «to»` | def |
+| 14 | op | `sampleto` |  | `sampleto` (section variable) | def |
+| 16 | op | `bound` |  | `bound` (section variable) | def |
+| 17 | axiom | `bound_ge0` |  | `Axioms.bound_ge0` | def |
+| 19 | axiom | `sampleto_ll` |  | `Axioms.sampleto_ll` | def |
+| 20 | axiom | `sampleto_full` |  | `Axioms.sampleto_full` | def |
+| 21 | axiom | `sampleto_fu` |  | `Axioms.sampleto_fu` | def |
+| 29 | op | `increase_counter` |  | `increase_counter` (section variable) | def |
+| 30 | axiom | `increase_counter_spec` |  | `Axioms.increase_counter_spec` | def |
+| 49 | module | `Bounder` |  | `Bounder` (variable: lens parameter `Bounder_bounder`) | def |
+| 56 | module | `FBounder` |  | `FBounder` | def |
+| 72 | module | `PBounder` |  | `PBounder` | def |
+| 95 | module type | `AdvPreimage` |  | `AdvPreimage` | def |
+| 99 | module | `Preimage` |  | `Preimage` | def |
+| 113 | module type | `AdvSecondPreimage` |  | `AdvSecondPreimage` | def |
+| 117 | module | `SecondPreimage` |  | `SecondPreimage` | def |
+| 131 | module type | `AdvCollision` |  | `AdvCollision` | def |
+| 135 | module | `Collision` |  | `Collision` | def |
 
 ## `proof/SecureRO.eca`
 

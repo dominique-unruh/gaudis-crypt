@@ -199,3 +199,19 @@ fix for implicit types (2026-10-31) is still in place, but nothing in the port u
 * `SHA3Indiff.DistRestrictions.footprint` names what `SHA3Indiff`'s restriction excludes, so that
   `SHA3_OIndiff.ODistRestrictions` (the same list, plus `Counter` and `OSimulator`) reuses it.
 
+## 2026-10-31: `module` with callees `A(G(F(P.mk …)), …)` (`Syntax/ModuleSyntax.lean`), for `SecureHash`
+
+`SecureHash`'s games call their adversary as `A(FBounder(F(P)), PBounder(P))`: a module parameter
+(`A`) applied to a closed functor (`FBounder`) around another applied parameter (`F`), whose
+argument is a record built in place (`ODPRIMITIVE.mk … P`).  The `module` command's typing proof
+failed there, in two places:
+* `moduleCallee` did not unfold the `Module` combinators (`Module.app`, `Module.pair'` …) inside a
+  callee's arguments, so `(Module.app F (X.mk …)).expression` stayed folded.  `X.mk` is reducible,
+  a nest of `Module.pair'`s, so unfolding the combinators covers it.  `moduleCallee`'s simp set now
+  includes `moduleCombinators`.
+* `module_reduce_congr` stripped a doubled `reduce` (`(e.reduce).reduce`) only when that closed the
+  goal.  It now also strips it and goes on descending.
+
+Both were reproduced on toy modules first, with three module parameters `A`, `F`, `P` and closed
+functors `G`, `H` around them (`A(G(F(P.mk …)), H(P))`).  The full build is green.
+
