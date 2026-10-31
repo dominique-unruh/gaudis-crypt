@@ -265,8 +265,11 @@ def phoareProcToStmt (e : Lean.Expr) : MetaM Simp.Result := do
 /-- Rewrite a goal `phoareProc A p G ρ r` to the `phoareStmt` about `res <- call p (x₁, …, xₙ);`,
 one local variable per parameter. -/
 elab "phoare_proc_to_stmt" : tactic => liftMetaTactic1 fun g => do
-  let r ← phoareProcToStmt (← g.getType)
-  applySimpResultToTarget g (← g.getType) r
+  -- a `have` before it leaves an annotation on the goal
+  let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
+  let g ← g.replaceTargetDefEq ty
+  let r ← phoareProcToStmt ty
+  applySimpResultToTarget g ty r
 
 end Conv
 

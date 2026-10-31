@@ -472,6 +472,14 @@ elab "equiv_call_frame " X:term : tactic => withMainContext do
     let some gPre := gPre? | throwError "equiv_call_frame: no precondition goal"
     replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
 
+/-- `simp_reads`: simplify the goal with the read-through-write lemmas the judgment tactics use
+(`relSimpDecls`: a variable read after writes to other variables, resets, the globals written by a
+call), for goals left after unfolding expectations or judgments by hand. -/
+elab "simp_reads" : tactic => liftMetaTactic1 fun g => do
+  let ty ← instantiateMVars (← g.getType)
+  let r ← Judgment.simpWithNames relSimpDecls [] ty
+  applySimpResultToTarget g ty r
+
 /-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the
 test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).
 `equiv_if{i}`: side `i`'s statement is a conditional (`prhlStmt_if_left`/`_right`, EC's
