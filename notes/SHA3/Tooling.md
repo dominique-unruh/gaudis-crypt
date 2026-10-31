@@ -440,3 +440,30 @@ concrete procedure does not come with one (bounding `FVP.fvP` of concrete code i
 * `Exper_HybridIROLazy_LRO`, `Exper_RO_HybridIROEager` are proven with it, as EC's `byequiv; proc;
   inline*; wp; call (_ : mp{1} = m{2}); conseq …_f; auto`.  The two oracle states are one lens
   (`Lens.pair`, E8) with the invariant `a.1 = b.2`.
+
+## 2026-11-01: representing functor modules (`Logic/Representation.lean`), towards removing E2
+
+Every module is code: a closed normal module expression.  `Module.exists_representation` extracts
+the procedure with holes from that normal form, for a functor over a first-order oracle (a tuple of
+procedures, `H.toModuleTypeRepTuple`), over the full list of the oracle's procedures, with at most
+the `fvP` of the normal form.  Standard axioms only.  Pieces:
+
+* `StmtWithHoles.substHoles` / `ProcedureWithHoles.substHoles`: substitute procedures with holes for
+  holes (each hole call flattened, as the inliner does, along `Flatten.trafo`/`emb`; the outer
+  parameters renamed by `escape`).  Sound: `procedureDenotation_substHoles`.  Footprint:
+  `FVP.fvP_proc_substHoles_le` — the renamings are invisible to `fvP`
+  (`Footprint.GlobalsCommute.zoom`: a kernel on the globals commutes with `zoom l p` once it commutes
+  with `p`, for `l` keeping the globals; proved through `Lens.reduceFootprint_alt_def`).
+* `ModuleExpression.FONormal`, `foNormal_of_hasType`, `Module.expression_shape`: the normal forms over
+  first-order parameters.
+* `FOProj.reduce_substitute` (oracle components on a literal oracle), `ProcedureWithHoles.ofHole`
+  (the wrapper calling one hole; **needs nonempty parameter and result types**: they live in local
+  slots), `ofProc`, `HoleSigs.Instantiation.ofFun`, `procedureDenotation_instantiate_congr`.
+* `FONormal.extract`: the induction; `Module.exists_representation`: its module form.
+
+Open before it applies to SHA-3: a `moduletype`'s representation is a right-nested product *without*
+the trailing `unit` (fields may be nested module types), so an adapter from arbitrary first-order
+product trees to the tuple form is needed (rebuild the value from the tuple's projections: no
+footprint), and a lemma that a module type's `ext` (e.g. `PROM.FullRO.RO_ext`) lists the leaves of
+`O.expression`.  Then `Module.Representable (RODist D) ERO.RO_ext` follows, and with it E2 is gone for
+every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowed`) keep `hD`.
