@@ -28,6 +28,12 @@ procedures), with the full list of the oracle's procedures as `ext`.
   there: a kernel on the globals commutes with `zoom l p` once it commutes with `p`, for `l`
   keeping the globals (`Footprint.GlobalsCommute.zoom`, by `Lens.reduceFootprint_alt_def`).  The
   callee frame's reset and parameter writes are on the locals alone (`footprint_zoom_localL_le`).
+* **The pieces of the extraction**: instantiations from families (`HoleSigs.Instantiation.ofFun`),
+  congruence of instantiation in the denotations
+  (`ProcedureWithHoles.procedureDenotation_instantiate_congr`), components of a literal oracle
+  (`ModuleExpression.FOProj.reduce_substitute`), the wrapper of a hole
+  (`ProcedureWithHoles.ofHole`, which needs nonempty parameter and result types: they live in
+  local slots) and closed procedures in a hole context (`ProcedureWithHoles.ofProc`).
 -/
 
 namespace GaudisCrypt
@@ -775,5 +781,309 @@ theorem FVP.fvP_proc_substHoles_le {h h' : HoleSigs} {sig : ProcedureSignature}
     (le_sup_right.trans le_sup_left)
 
 end SubstFootprint
+
+/-! ## The pieces of the extraction -/
+
+/-- An instantiation from a family of procedures, one per hole. -/
+def HoleSigs.Instantiation.ofFun :
+    {h : HoleSigs} → (∀ {sig : ProcedureSignature}, HoleIndex h sig → Procedure sig) →
+      h.Instantiation
+  | .empty, _ => ⟨⟩
+  | .cons _ .empty, f => f .zero
+  | .cons _ (.cons _ _), f => (f .zero, HoleSigs.Instantiation.ofFun fun n => f n.succ)
+
+@[simp] theorem HoleSigs.Instantiation.lookup_ofFun :
+    ∀ {h : HoleSigs} (f : ∀ {sig : ProcedureSignature}, HoleIndex h sig → Procedure sig)
+      {sig : ProcedureSignature} (n : HoleIndex h sig),
+      (HoleSigs.Instantiation.ofFun f).lookup n = f n
+  | .cons _ .empty, _, _, .zero => rfl
+  | .cons _ .empty, _, _, .succ j => nomatch j
+  | .cons _ (.cons _ _), _, _, .zero => rfl
+  | .cons _ (.cons _ _), f, _, .succ j =>
+      HoleSigs.Instantiation.lookup_ofFun (fun n => f n.succ) j
+
+/-- Filling the holes with procedures of the same denotations gives the same denotation. -/
+theorem StmtWithHoles.programDenotation_instantiate_congr {h : HoleSigs} {i₁ i₂ : h.Instantiation}
+    (hi : ∀ {sig : ProcedureSignature} (n : HoleIndex h sig),
+      procedureDenotation (i₁.lookup n) = procedureDenotation (i₂.lookup n)) :
+    ∀ s : StmtWithHoles h,
+      programDenotation (s.instantiate i₁) = programDenotation (s.instantiate i₂)
+  | .skip => rfl
+  | .sample _ _ => rfl
+  | .call' _ _ _ _ _ _ _ => rfl
+  | .hole n x p => by
+      have hc : ∀ (q : Procedure _), programDenotation (StmtWithHoles.call x q p) =
+          (ProgramDenotation.get p >>= fun a =>
+            ProgramDenotation.zoom ProgramState.globalL (procedureDenotation q a) >>= fun r =>
+              ProgramDenotation.set x r) := fun q => programDenotation_call' _ _ _ _ _ _ _
+      show programDenotation (StmtWithHoles.call x (i₁.lookup n) p) =
+        programDenotation (StmtWithHoles.call x (i₂.lookup n) p)
+      rw [hc, hc, hi n]
+  | .seq s t => by
+      simp only [StmtWithHoles.instantiate, programDenotation,
+        StmtWithHoles.programDenotation_instantiate_congr hi s,
+        StmtWithHoles.programDenotation_instantiate_congr hi t]
+  | .ifThenElse c t e => by
+      simp only [StmtWithHoles.instantiate, programDenotation,
+        StmtWithHoles.programDenotation_instantiate_congr hi t,
+        StmtWithHoles.programDenotation_instantiate_congr hi e]
+  | .while c t => by
+      simp only [StmtWithHoles.instantiate, programDenotation,
+        StmtWithHoles.programDenotation_instantiate_congr hi t]
+
+theorem ProcedureWithHoles.procedureDenotation_instantiate_congr {h : HoleSigs}
+    {sig : ProcedureSignature} (p : ProcedureWithHoles h sig) {i₁ i₂ : h.Instantiation}
+    (hi : ∀ {sig : ProcedureSignature} (n : HoleIndex h sig),
+      procedureDenotation (i₁.lookup n) = procedureDenotation (i₂.lookup n)) :
+    procedureDenotation (p.instantiate i₁) = procedureDenotation (p.instantiate i₂) := by
+  funext a g
+  simp only [procedureDenotation, ProcedureWithHoles.instantiate]
+  rw [StmtWithHoles.programDenotation_instantiate_congr hi p.body]
+  rfl
+
+
+theorem HoleSigs.Instantiation.ofFun_lookup :
+    ∀ {h : HoleSigs} (inst : h.Instantiation), HoleSigs.Instantiation.ofFun inst.lookup = inst
+  | .empty, _ => rfl
+  | .cons _ .empty, _ => rfl
+  | .cons _ (.cons _ _), inst => by
+      change (inst.1, HoleSigs.Instantiation.ofFun fun n => inst.2.lookup n) = inst
+      rw [HoleSigs.Instantiation.ofFun_lookup inst.2]
+      rfl
+
+theorem HoleSigs.Instantiation.toModuleExpr_ofFun_cons {s : ProcedureSignature} {h : HoleSigs}
+    (f : ∀ {sig : ProcedureSignature}, HoleIndex (.cons s h) sig → Procedure sig) :
+    (HoleSigs.Instantiation.ofFun f).toModuleExpr =
+      .pair (.proc (f .zero)) (HoleSigs.Instantiation.ofFun fun n => f n.succ).toModuleExpr := by
+  cases h <;> rfl
+
+theorem HoleSigs.toModuleTypeRepTuple_eq_prod {h : HoleSigs} {A B : ModuleTypeRep}
+    (e : h.toModuleTypeRepTuple = .prod A B) :
+    ∃ s h', h = .cons s h' ∧ A = .proc s ∧ B = h'.toModuleTypeRepTuple := by
+  cases h with
+  | empty => cases e
+  | cons s h' =>
+      injection e with e1 e2
+      exact ⟨s, h', rfl, e1.symm, e2.symm⟩
+
+namespace ModuleExpression
+
+/-- **Components of the oracle, on a literal oracle**: a projection chain of the parameter of
+type `H`'s tuple, the parameter replaced by a tuple of procedures, reduces to one of them (at
+procedure type) or to the tuple of a selection of them (at tuple type). -/
+theorem FOProj.reduce_substitute {H : HoleSigs} :
+    ∀ {e : ModuleExpression}, FOProj e → ∀ {A : ModuleTypeRep},
+      e.HasType [H.toModuleTypeRepTuple] A →
+      (∃ (sig : ProcedureSignature) (n : HoleIndex H sig), A = .proc sig ∧
+        ∀ inst : H.Instantiation, reduce (e.substitute inst.toModuleExpr) = .proc (inst.lookup n)) ∨
+      (∃ (H' : HoleSigs) (φ : ∀ {sig : ProcedureSignature}, HoleIndex H' sig → HoleIndex H sig),
+        A = H'.toModuleTypeRepTuple ∧ ∀ inst : H.Instantiation,
+          reduce (e.substitute inst.toModuleExpr) =
+            (HoleSigs.Instantiation.ofFun fun n => inst.lookup (φ n)).toModuleExpr)
+  | _, .var n, A, ht => by
+      obtain ⟨hn, rfl⟩ := ht.var_inv
+      have : n = 0 := by simpa using hn
+      subst this
+      refine .inr ⟨H, fun n => n, rfl, fun inst => ?_⟩
+      rw [HoleSigs.Instantiation.ofFun_lookup]
+      exact reduce_of_normal (HoleSigs.Instantiation.toModuleExpr_normal inst)
+  | _, .fst (e := e) he, A, ht => by
+      obtain ⟨B, hte⟩ := ht.fst_inv
+      rcases FOProj.reduce_substitute he hte with ⟨_, _, hA, -⟩ | ⟨H', φ, hA, hred⟩
+      · cases hA
+      · obtain ⟨s, H'', rfl, rfl, -⟩ := HoleSigs.toModuleTypeRepTuple_eq_prod hA.symm
+        refine .inl ⟨s, φ .zero, rfl, fun inst => ?_⟩
+        change reduce (.fst (e.substitute inst.toModuleExpr)) = _
+        rw [reduce_fst_cong _ _ ((hred inst).trans (reduce_of_normal
+          (HoleSigs.Instantiation.toModuleExpr_normal _)).symm),
+          HoleSigs.Instantiation.toModuleExpr_ofFun_cons, reduce_fst, reduce_proc]
+  | _, .snd (e := e) he, A, ht => by
+      obtain ⟨B, hte⟩ := ht.snd_inv
+      rcases FOProj.reduce_substitute he hte with ⟨_, _, hA, -⟩ | ⟨H', φ, hA, hred⟩
+      · cases hA
+      · obtain ⟨s, H'', rfl, -, rfl⟩ := HoleSigs.toModuleTypeRepTuple_eq_prod hA.symm
+        refine .inr ⟨H'', fun n => φ n.succ, rfl, fun inst => ?_⟩
+        change reduce (.snd (e.substitute inst.toModuleExpr)) = _
+        rw [reduce_snd_cong _ _ ((hred inst).trans (reduce_of_normal
+          (HoleSigs.Instantiation.toModuleExpr_normal _)).symm),
+          HoleSigs.Instantiation.toModuleExpr_ofFun_cons, reduce_snd,
+          reduce_of_normal (HoleSigs.Instantiation.toModuleExpr_normal _)]
+
+end ModuleExpression
+
+namespace Wrapper
+
+/-- The name of the wrapper's parameter `i`: `x…x` (`i+1` times). -/
+def wName (i : Nat) : String := String.ofList (List.replicate (i + 1) 'x')
+
+theorem wName_length (i : Nat) : (wName i).length = i + 1 := by simp [wName, String.length]
+
+theorem wName_injective : Function.Injective wName := fun i j h => by
+  have := congrArg String.length h
+  simp only [wName_length] at this
+  omega
+
+theorem wName_ne_empty (i : Nat) : wName i ≠ "" := fun h => by
+  have := congrArg String.length h
+  simp [wName_length] at this
+
+/-- The wrapper's parameter names, for the parameter types `tys`, from index `i` on. -/
+def wNames : List Type → Nat → List String
+  | [], _ => []
+  | _ :: Ts, i => wName i :: wNames Ts (i + 1)
+
+theorem wNames_length : ∀ (tys : List Type) (i : Nat), (wNames tys i).length = tys.length
+  | [], _ => rfl
+  | _ :: Ts, i => by simp [wNames, wNames_length Ts (i + 1)]
+
+theorem mem_wNames : ∀ {tys : List Type} {i : Nat} {n : String}, n ∈ wNames tys i →
+    ∃ j, i ≤ j ∧ n = wName j
+  | [], _, _, h => by simp [wNames] at h
+  | _ :: Ts, i, n, h => by
+      simp only [wNames, List.mem_cons] at h
+      rcases h with rfl | h
+      · exact ⟨i, le_rfl, rfl⟩
+      · obtain ⟨j, hj, rfl⟩ := mem_wNames h
+        exact ⟨j, by omega, rfl⟩
+
+theorem wNames_nodup : ∀ (tys : List Type) (i : Nat), (wNames tys i).Nodup
+  | [], _ => List.nodup_nil
+  | _ :: Ts, i => by
+      refine List.nodup_cons.mpr ⟨fun h => ?_, wNames_nodup Ts (i + 1)⟩
+      obtain ⟨j, hj, he⟩ := mem_wNames h
+      have := wName_injective he
+      omega
+
+theorem empty_not_mem_wNames {tys : List Type} {i : Nat} : "" ∉ wNames tys i := fun h => by
+  obtain ⟨j, -, he⟩ := mem_wNames h
+  exact wName_ne_empty j he.symm
+
+/-- Read the parameters back from their slots. -/
+noncomputable def wGet : (tys : List Type) → (∀ T ∈ tys, Nonempty T) → Nat →
+    VariableAssignment → typeListToTuple tys
+  | [], _, _, _ => ()
+  | [T], h, i, m =>
+      haveI := h T (by simp)
+      m (.mk (wName i) T)
+  | T :: T' :: Ts, h, i, m =>
+      haveI := h T (by simp)
+      (m (.mk (wName i) T), wGet (T' :: Ts) (fun U hU => h U (List.mem_cons_of_mem _ hU)) (i + 1) m)
+
+theorem wGet_setParams : ∀ (tys : List Type) (h : ∀ T ∈ tys, Nonempty T) (i : Nat)
+    (hlen : (wNames tys i).length = tys.length) (a : typeListToTuple tys) (m : VariableAssignment),
+    wGet tys h i (VariableAssignment.setParams (wNames tys i) tys hlen a m) = a
+  | [], _, _, _, _, _ => rfl
+  | [T], h, i, _, a, m => by
+      haveI : Nonempty T := ⟨a⟩
+      exact (varLens (.mk (wName i) T)).set_get m a
+  | T :: T' :: Ts, h, i, hlen, (a, as), m => by
+      haveI : Nonempty T := ⟨a⟩
+      have hrest := wGet_setParams (T' :: Ts) (fun U hU => h U (List.mem_cons_of_mem _ hU)) (i + 1)
+        (wNames_length _ _) as ((varLens (.mk (wName i) T)).set a m)
+      refine Prod.ext ?_ hrest
+      show VariableAssignment.setParams (wNames (T' :: Ts) (i + 1)) (T' :: Ts) _ as
+        ((varLens (.mk (wName i) T)).set a m) (.mk (wName i) T) = a
+      rw [VariableAssignment.setParams_apply_of_notMem _ _ _ _ _ _ (fun hm => by
+        obtain ⟨j, hj, he⟩ := mem_wNames hm
+        have := wName_injective he
+        omega)]
+      exact (varLens (.mk (wName i) T)).set_get m a
+
+end Wrapper
+
+open Wrapper in
+/-- **The wrapper of a hole**: the procedure that calls hole `n` with its arguments and returns
+what it returns.  Its parameters and result live in local slots, so their types must be
+nonempty. -/
+noncomputable def ProcedureWithHoles.ofHole {H : HoleSigs} {sig : ProcedureSignature}
+    (n : HoleIndex H sig) (hp : ∀ T ∈ sig.params, Nonempty T) [Nonempty sig.ret] :
+    ProcedureWithHoles H sig where
+  parameterNames := wNames sig.params 0
+  parameterNames_length := wNames_length _ _
+  parameterNames_nodup := wNames_nodup _ _
+  body := .hole n (varLens (.mk "" sig.ret)).intoLocal.toSetter
+    ⟨fun σ => wGet sig.params hp 0 σ.locals⟩
+  return_val := ⟨fun σ => σ.locals (.mk "" sig.ret)⟩
+
+/-- The wrapper of hole `n`, filled, computes what the procedure in hole `n` computes. -/
+theorem ProcedureWithHoles.procedureDenotation_ofHole {H : HoleSigs} {sig : ProcedureSignature}
+    (n : HoleIndex H sig) (hp : ∀ T ∈ sig.params, Nonempty T) [Nonempty sig.ret]
+    (inst : H.Instantiation) :
+    procedureDenotation ((ProcedureWithHoles.ofHole n hp).instantiate inst) =
+      procedureDenotation (inst.lookup n) := by
+  funext a g
+  have hargs : Wrapper.wGet sig.params hp 0 (VariableAssignment.setParams
+      (Wrapper.wNames sig.params 0) sig.params (Wrapper.wNames_length _ _) a
+      VariableAssignment.init) = a := Wrapper.wGet_setParams _ _ _ _ _ _
+  change (programDenotation (StmtWithHoles.call' _ _ _ _ (inst.lookup n).body
+      (inst.lookup n).return_val _) ⟨g, VariableAssignment.setParams
+        (Wrapper.wNames sig.params 0) sig.params (Wrapper.wNames_length _ _) a
+        VariableAssignment.init⟩).hbind _ = _
+  rw [programDenotation_call'_apply]
+  simp only [hargs, SubProbability.bind_hbind, SubProbability.pure_hbind]
+  change _ = (programDenotation (inst.lookup n).body ⟨g, (inst.lookup n).initLocals a⟩).hbind
+    fun p => pure ((inst.lookup n).return_val.get p.2, p.2.globals)
+  congr 1; funext x
+  exact congrArg (fun r => (pure (r, x.2.globals) : SubProbability _))
+    ((localVarLens "" sig.ret).set_get _ _)
+
+/-- A read of the locals alone is outside the globals. -/
+theorem footprint_get_locals_le {α : Type} (g : Getter α VariableAssignment) :
+    (ProgramDenotation.get (⟨fun σ => g.get σ.locals⟩ : Getter α ProgramState)).footprint ≤
+      (ProgramState.globalL.footprint)ᶜ := by
+  have h := footprint_zoom_localL_le (ProgramDenotation.get g)
+  rw [ProgramDenotation.zoom_get] at h
+  exact h
+
+/-- The wrapper of a hole touches no globals. -/
+theorem FVP.fvP_proc_ofHole_le {H : HoleSigs} {sig : ProcedureSignature}
+    (n : HoleIndex H sig) (hp : ∀ T ∈ sig.params, Nonempty T) [Nonempty sig.ret]
+    (R : Footprint VariableAssignment) :
+    FVP.fvP_proc (ProcedureWithHoles.ofHole n hp) ≤ R := by
+  simp only [FVP.fvP_proc, InductiveFunctionGettersSetters.proc, fvpGS_reduce,
+    ProcedureWithHoles.ofHole, InductiveFunctionGettersSetters.stmt, fvpGS_join, fvpGS_getter,
+    fvpGS_setter, Lens.reduceFootprint_sup]
+  refine sup_le (sup_le ?_ ?_) ?_
+  · exact reduce_globalL_le_of_le_compl (footprint'_set_le_of_locals _
+      (fun v loc => (varLens (.mk "" sig.ret)).set v loc) (fun _ _ => rfl)) _
+  · exact reduce_globalL_le_of_le_compl
+      (footprint_get_locals_le ⟨fun m => Wrapper.wGet sig.params hp 0 m⟩) _
+  · exact reduce_globalL_le_of_le_compl
+      (footprint_get_locals_le ⟨fun m => m (.mk "" sig.ret)⟩) _
+
+/-- A procedure without holes, in a context of holes it does not use. -/
+noncomputable def ProcedureWithHoles.ofProc {H : HoleSigs} {sig : ProcedureSignature}
+    (q : Procedure sig) : ProcedureWithHoles H sig :=
+  ⟨q.parameterNames, q.parameterNames_length, q.parameterNames_nodup,
+    StmtWithHoles.weaken q.body, q.return_val⟩
+
+@[simp] theorem ProcedureWithHoles.ofProc_instantiate {H : HoleSigs} {sig : ProcedureSignature}
+    (q : Procedure sig) (inst : H.Instantiation) :
+    (ProcedureWithHoles.ofProc q).instantiate inst = q := by
+  simp only [ProcedureWithHoles.ofProc, ProcedureWithHoles.instantiate,
+    StmtWithHoles.weaken_instantiate]
+  rfl
+
+theorem fvpGS_stmt_weaken {H : HoleSigs} : ∀ s : Stmt,
+    FVP.fvpInductiveFunctionGS.stmt (StmtWithHoles.weaken (h := H) s) =
+      FVP.fvpInductiveFunctionGS.stmt s
+  | .skip => by simp only [StmtWithHoles.weaken, InductiveFunctionGettersSetters.stmt]
+  | .sample _ _ => by simp only [StmtWithHoles.weaken, InductiveFunctionGettersSetters.stmt]
+  | .call' _ _ _ _ _ _ _ => by simp only [StmtWithHoles.weaken, InductiveFunctionGettersSetters.stmt]
+  | .seq s t => by
+      simp only [StmtWithHoles.weaken, InductiveFunctionGettersSetters.stmt, fvpGS_stmt_weaken s,
+        fvpGS_stmt_weaken t]
+  | .ifThenElse _ t e => by
+      simp only [StmtWithHoles.weaken, InductiveFunctionGettersSetters.stmt, fvpGS_stmt_weaken t,
+        fvpGS_stmt_weaken e]
+  | .while _ t => by
+      simp only [StmtWithHoles.weaken, InductiveFunctionGettersSetters.stmt, fvpGS_stmt_weaken t]
+  termination_by s => s.depth
+  decreasing_by all_goals simp only [StmtWithHoles.depth]; omega
+
+@[simp] theorem FVP.fvP_proc_ofProc {H : HoleSigs} {sig : ProcedureSignature} (q : Procedure sig) :
+    FVP.fvP_proc (ProcedureWithHoles.ofProc (H := H) q) = FVP.fvP_proc q := by
+  simp only [FVP.fvP_proc, InductiveFunctionGettersSetters.proc, ProcedureWithHoles.ofProc,
+    fvpGS_stmt_weaken]
 
 end GaudisCrypt
