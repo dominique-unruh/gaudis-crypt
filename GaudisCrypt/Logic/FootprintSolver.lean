@@ -197,6 +197,11 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
       let [g'] ← applyConst g ``Footprint.le_compl_of_fvP
         | throwError "fp_disjoint: `le_compl_of_fvP` failed"
       return ← solveFvP g' (fuel - 1)
+    else if X.isAppOf ``Lens.footprint && (sup? T).isSome then
+      -- a variable against a join: turn it around and split the join
+      let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[T, ← mkAppM ``Compl.compl #[X]])
+      g.assign (← mkAppM ``Iff.mpr #[← mkAppM ``Footprint.le_compl_comm #[X, T], g'])
+      return ← solveFvP g'.mvarId! (fuel - 1)
     else if X.isAppOf ``Lens.footprint && T.isAppOf ``Lens.footprint then
       -- two variables: disjoint lenses (`global_var`s by instance search)
       if ← attempt (do
@@ -219,9 +224,15 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
   for lem in ← labelled `fp_bound do
     if ← attempt (do
         let c ← mkConstWithFreshMVarLevels lem
-        let (args, _, bty) ← forallMetaTelescope (← inferType c)
+        let (args, binfos, bty) ← forallMetaTelescope (← inferType c)
         let_expr LE.le _ _ L _ := bty | failure
-        unless ← isDefEq L X do failure
+        -- reducible only: a bound is for the module it names, and unfolding other modules to
+        -- compare is slow
+        unless ← withReducible (isDefEq L X) do failure
+        -- the lemma's instance arguments (`[Lens.Disjoint …]`) by instance search
+        for a in args, bi in binfos do
+          if bi.isInstImplicit && !(← a.mvarId!.isAssigned) then
+            a.mvarId!.assign (← synthInstance (← inferType a))
         viaBound (← instantiateMVars (mkAppN c args))) then return
   let_expr FVP.fvP _ _ M := X
     | throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"

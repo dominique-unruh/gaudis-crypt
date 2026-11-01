@@ -718,3 +718,36 @@ axioms only.
 
 The bound is stated per argument (`phoareProc (fun _ _ => True) … (fun h _ => … μ1 sampleto h)`):
 a precondition `fun a _ => a = h` does not elaborate before the procedure fixes the signature.
+
+## 2026-11-01: `RO_is_second_preimage_resistant` proven; equal-outside framing, solver fixes
+
+EC's chain of five `have->`, each a Lean lemma in the namespace `SecondPreimage`:
+`RO.LRO_asRF_eq` (at the type `RF`, `RO` and `LRO` are one module), `SecondPreimage_SecondPreimage2`
+(at `LRO`; EC's `sim` with `m2{1} = SecondPreimage2.m2{2}`: the queries after the adversary are
+inlined and coupled by `equiv_rnd`), `SecondPreimage2_SecondPreimage3` (one lemma for EC's third and
+fifth step, `F` = `LRO` and `RO`), `SecondPreimage3_RO_LRO` (EC's `call (RO_LRO_D (D1(A)))`), then
+`SecondPreimage2_le` (EC's `byphoare; seq 1; fel 2` with the potential `secondPreimagePotential`,
+`FEL_potential` over the eager `F.sample(m1)` and the adversary, and `secondPreimage_tail_le`).
+The final theorem picks `SecondPreimage2.m2`, `D1.m1` fresh (E6).  `D1` and `SecondPreimage3`
+take `A` as a Lean parameter (as `IndifRO_is_secure`'s `D2Pre`), so that `D1 A` is an
+`RO_Distinguisher`; `D1 A` is EasyCrypt-like by `RO_Distinguisher.ecModule` and `fvP_D1`.
+
+New tooling:
+* `Logic/EqualOutside.lean`: `prhlProc_self_equal_outside(_module)`, EC's `sim` across a call when
+  the states are equal except on a lens `L` the callee does not touch (`Lens.equal_outside`, from
+  `prhlProc_abstract_callF` with no holes), and the algebra of `equal_outside` (`set_disjoint`,
+  `get_disjoint`, `set_left`/`set_right`, `refl`).  Used where one side writes `SecondPreimage2.m2`,
+  `D1.m1` and the other does not (EC's `wp 8 -2; sim`).  The relation is best stated with the lens
+  generalized (`generalize Lens.pair … = L`): the judgment simp would unfold `Lens.pair`.
+* `fp_disjoint`: a variable against a join of variables (`X ≤ (Y ⊔ Z)ᶜ`, turned around and split);
+  `@[fp_bound]` lemmas with instance arguments get them by instance search; `@[fp_bound]` lemmas
+  match at reducible transparency only (default transparency made `IndifRO_is_secure` time out
+  once `SecureRO` had bounds on `Bounder`, `LRO`).
+* `within_lens`: return values read off a `module`-generated procedure definition are unfolded
+  (`unfoldReturnVals`, for PROM's `RO`); component writes of nested pair lenses
+  (`Lens.set_get_of_disjoint_set`); reads under a `decide` whose instance is stated in another form
+  (`decide_eq_decide`, then `Iff.rfl`).
+* `fp_module`: an abstract module inside the concrete one (a Lean parameter) is bounded by its own
+  `FVP.fvP`, and the bound may be `F ⊔ X.footprint`.
+* `fp_bound`s in `SecureRO`: `fvP_LRO_init`, `fvP_LRO_get`, `fvP_RO_sample`, `fvP_LRO_sample`,
+  `fvP_Bounder`.

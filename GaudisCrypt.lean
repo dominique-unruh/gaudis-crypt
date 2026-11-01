@@ -81,6 +81,7 @@ import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.ExpectationCall
 import GaudisCrypt.Logic.AbstractCall
 import GaudisCrypt.Logic.AbstractCallUpto
+import GaudisCrypt.Logic.EqualOutside
 import GaudisCrypt.Logic.AbstractCallTest
 import GaudisCrypt.Logic.EagerProc
 import GaudisCrypt.Logic.EagerAbstract

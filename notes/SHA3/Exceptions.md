@@ -182,6 +182,10 @@ variables in the development:
 * `Gext`: `ReSample.count` (`ReSample_count`; `RROset_inv_lt`, `Pr_ext`, `EG2_Gext`);
 * `Gconcl_list`: the clone `IRO2` (`IRO2_RO_m`; `equal1`, `equal2`);
 * `Sponge`, `SecureRO`, `SecureORO`, `SHA3OSecurity`: as listed above.
+  `SecureRO.RO_is_second_preimage_resistant` (proven 2026-11-01) picks `SecondPreimage2.m2` and
+  `D1.m1` fresh, so it takes finite support of `Bounder.bounder`, `Counter.c`, `RO.m`, `FRO.m`
+  (the clone's variables, lens parameters); `IndifRO_is_secure`'s
+  `second_preimage_resistant_if_indifferentiable` passes the same four on for `SRO`.
 
 The other local clones have no module variables (`ConcreteF`'s `ProdSampling`), or clone a theory
 whose own local modules do not survive the clone (`Gconcl`'s `Gext0`).
@@ -237,7 +241,10 @@ First used in `IndifRO_is_secure` (`GIdeal_Collision_RO`, and the three
 `[Lens.Disjoint SRO_RO_m DPre_h]` (resp. `D2Pre_m2`), since `DPre.h` is read right after
 `RO.init` writes `RO.m`.  `SecureRO.RO_is_collision_resistant` and `RO_is_preimage_resistant`
 (EC's `fel` over the adversary) take `[Countable «from»]` and the disjointness of
-`Bounder_bounder`, `Counter_c`, `RO_m`.
+`Bounder_bounder`, `Counter_c`, `RO_m`.  `RO_is_second_preimage_resistant` also uses `FullEager.RO_LRO_D`
+(below): `[Countable «to»]`, `[Lens.Disjoint RO_m FRO_m]`, and `Bounder_bounder`, `Counter_c`
+disjoint from `FRO_m` (`D1(A)` touches them and must stay outside `RO.m`, `FRO.m`); so does
+`second_preimage_resistant_if_indifferentiable` for `SRO`.
 `Sponge`'s `Exper_HybridIROLazy_LRO` (resp. `Exper_RO_HybridIROEager`) takes
 `[Lens.Disjoint HybridIROLazy_mp ERO_RO_m]` (resp. `[Lens.Disjoint ERO_RO_m HybridIROEager_mp]`):
 the invariant `HybridIROLazy.mp{1} = ERO.RO.m{2}` relates two oracle states, read as one lens.  The

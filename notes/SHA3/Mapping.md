@@ -829,9 +829,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Sec
 | 215 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 217 | local module | `FEL` | section SecondPreimage. | `SecondPreimage.FEL` | def |
 | 227 | local module | `SecondPreimage2` | section SecondPreimage. | `SecondPreimage.SecondPreimage2` (variable: lens parameter `SecondPreimage2_m2`, E6) | def |
-| 246 | local module | `D1` | section SecondPreimage. | `SecondPreimage.D1` (variable: lens parameter `D1_m1`, E6) | def |
-| 255 | local module | `SecondPreimage3` | section SecondPreimage. | `SecondPreimage.SecondPreimage3` | def |
-| 267 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | stated |
+| 246 | local module | `D1` | section SecondPreimage. | `SecondPreimage.D1` (variable: lens parameter `D1_m1`, E6; `A` a Lean parameter, so that `D1 A` is an `RO_Distinguisher`) | def |
+| 255 | local module | `SecondPreimage3` | section SecondPreimage. | `SecondPreimage.SecondPreimage3` (`A` a Lean parameter, as in `D1`) | def |
+| 267 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | done (exc E6, E8) |
 | 370 | module type | `AdvCollision` |  | `AdvCollision` | def |
 | 374 | module | `Collision` |  | `Collision` | def |
 | 395 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
@@ -920,7 +920,7 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 | 174 | module | `D2Pre` |  | `D2Pre` (`A` a Lean parameter; variable: lens `D2Pre_m2`) | def |
 | 185 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 187 | declare axiom | `D_ll` | section SecondPreimage. | `D_ll` (hypothesis `_D_ll`) | def |
-| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | done modulo `SecureRO` (exc E7, E8) |
+| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | done (exc E6, E7, E8) |
 
 ## `proof/SHA3Security.ec`
 

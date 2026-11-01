@@ -265,6 +265,15 @@ theorem Lens.get_of_disjoint_set' {a b m : Type*} (L : Lens a m) (M : Lens b m)
     [hd : Lens.Disjoint L M] (v : b) (s : m) : L.get (M.set v s) = L.get s :=
   @Lens.get_of_disjoint_set _ _ _ L M hd.symm v s
 
+/-- Writing back a disjoint lens's own content after a write is no write. -/
+theorem Lens.set_get_of_disjoint_set {a b m : Type*} (L : Lens a m) (M : Lens b m)
+    [Lens.Disjoint M L] (v : b) (s : m) : L.set (L.get s) (M.set v s) = M.set v s := by
+  rw [← Lens.get_of_disjoint_set L M v s, L.get_set]
+
+theorem Lens.set_get_of_disjoint_set' {a b m : Type*} (L : Lens a m) (M : Lens b m)
+    [hd : Lens.Disjoint L M] (v : b) (s : m) : L.set (L.get s) (M.set v s) = M.set v s :=
+  @Lens.set_get_of_disjoint_set _ _ _ L M hd.symm v s
+
 /-- A write of a global `Y` that changes the globals only in `X`, as a function of `X` (`Y` a
 component of a pair `X`, …), is within `X`. -/
 theorem Setter.within_of_global {β : Type} {Y : Lens β VariableAssignment}
@@ -362,6 +371,23 @@ partial def unfoldModuleProcs (g : MVarId) (fuel : Nat := 64) : MetaM MVarId := 
       g.replaceTargetEq res.eNew res.eqProof
   unfoldModuleProcs g (fuel - 1)
 
+open Lean Meta in
+/-- Unfold a procedure definition a return value is read off (`(P …).return_val`, `P` a definition
+of a procedure, as the `module` command generates them), down to the return value's getter. -/
+partial def unfoldReturnVals (g : MVarId) (fuel : Nat := 16) : MetaM MVarId := do
+  if fuel == 0 then return g
+  let ty ← instantiateMVars (← g.getType)
+  let isTarget (e : Lean.Expr) : Bool :=
+    e.isAppOf ``ProcedureWithHoles.return_val &&
+      match e.getAppArgs.back? with
+      | some p => p.getAppFn.isConst && !p.isAppOf ``ProcedureWithHoles.mk
+      | none => false
+  let some e := ty.find? isTarget | return g
+  let e' ← whnf e
+  if e' == e then return g
+  let g ← g.replaceTargetDefEq (ty.replace fun x => if x == e then some e' else none)
+  unfoldReturnVals g (fuel - 1)
+
 open Lean Elab Tactic in
 /-- `within_lens`: on a goal `StmtWithHoles.Within X s` (or `Getter.Within`, `Setter.Within`), the
 conditions on the single reads and writes of `s`, callees included.  Reads and writes of local
@@ -371,6 +397,7 @@ elab "within_lens" : tactic => do
   liftMetaTactic (stmtPredSplit ``StmtWithHoles.Within ·)
   -- a return value: unfold the procedure it is read off, if any
   evalTactic (← `(tactic| all_goals run_tac liftMetaTactic1 fun g => some <$> unfoldModuleProcs g))
+  evalTactic (← `(tactic| all_goals run_tac liftMetaTactic1 fun g => some <$> unfoldReturnVals g))
   evalTactic (← `(tactic| all_goals first
     | exact fun _ _ _ => rfl
     | exact Setter.within_of_locals (fun _ _ _ => rfl) (fun _ _ => rfl)
@@ -380,7 +407,8 @@ elab "within_lens" : tactic => do
         (fun _ _ => by
           simp only [Lens.pair, Lens.get_set, Lens.set_get]
           try simp only [Lens.get_set, Lens.set_get, Lens.get_of_disjoint_set,
-            Lens.get_of_disjoint_set'])
+            Lens.get_of_disjoint_set', Lens.set_get_of_disjoint_set,
+            Lens.set_get_of_disjoint_set'])
         (fun _ _ _ h => by
           simp only [Lens.pair, Prod.mk.injEq] at h
           simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set,
@@ -388,7 +416,12 @@ elab "within_lens" : tactic => do
     -- a read of `X`, or of components of it
     | exact fun _ _ h => by
         try simp only [Lens.pair, Prod.mk.injEq] at h
-        simp_reads; simp only [h]; try rfl
+        simp_reads
+        try simp only [h]
+        try rfl
+        -- under a `decide` whose instance is stated in another form: compare the propositions
+        try (first | (refine congrArg pure ?_; rw [decide_eq_decide]) | rw [decide_eq_decide])
+          <;> simp only [h] <;> exact Iff.rfl
     | skip))
 
 /-! ## `fp_module`: the footprint of a concrete module -/
@@ -443,7 +476,11 @@ partial def go (close : TSyntax `tactic) (g : MVarId) (fuel : Nat := 64) : Tacti
         sup_bot_eq, bot_sup_eq])))
   -- a named module (a `module`, one of its procedures): unfold it
   let some c' ← unfoldDefinition? c
-    | throwError "fp_module: cannot unfold{indentExpr c}"
+    | -- an abstract module (a parameter): its footprint must be part of the bound
+      let gs ← runOn g (← `(tactic| first
+        | exact le_rfl | exact le_sup_of_le_left le_rfl | exact le_sup_of_le_right le_rfl))
+      unless gs.isEmpty do throwError "fp_module: cannot unfold{indentExpr c}"
+      return
   let L' := mkApp L.appFn! (mkApp e.appFn! c')
   go close (← g.replaceTargetDefEq (← mkAppM ``LE.le #[L', ty.getArg! 3])) (fuel - 1)
 
@@ -453,14 +490,17 @@ open Lean Elab Tactic in
 /-- `fp_module X`: prove `FVP.fvP M ≤ B` for a concrete module `M` (a `module`, or a functor of
 modules: the parameters contribute nothing) whose procedures read and write the globals only
 through the lens `X` (`within_lens`), with `X.footprint ≤ B` (by `le_rfl`, after splitting `X`'s
-pairs).  `fp_module` alone: `M`'s procedures use locals only (`locals_only`), and `B` is anything,
-`⊥` in particular.  EasyCrypt reads a concrete module's globals off its code. -/
+pairs, or `B = F ⊔ X.footprint`).  An abstract module `A` inside `M` (a Lean parameter) needs
+`B = FVP.fvP A ⊔ …`.  `fp_module` alone: `M`'s procedures use locals only (`locals_only`), and `B`
+is anything, `⊥` in particular.  EasyCrypt reads a concrete module's globals off its code. -/
 elab "fp_module" X:(ppSpace term)? : tactic => do
   let close ← match X with
     | some X => `(tactic| exact (FVP.fvP_proc_le_of_within (X := $X) _ (by within_lens)
         (by within_lens)).trans (by first
           | exact le_rfl
-          | (simp only [Footprint.lens_pair]; exact le_rfl)))
+          | (simp only [Footprint.lens_pair]; exact le_rfl)
+          | exact le_sup_of_le_right le_rfl
+          | (simp only [Footprint.lens_pair]; exact le_sup_of_le_right le_rfl)))
     | none => `(tactic| exact FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
   FpModule.go close (← getMainGoal)
 

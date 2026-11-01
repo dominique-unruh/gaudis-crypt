@@ -1087,9 +1087,14 @@ theorem GIdeal_SecondPreimage_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bou
 /-- EC's `second_preimage_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder, -D2Pre})
 (P <: PRIMITIVE {-C, -A, -Bounder, -D2Pre}) &m mess`, for the section's `A`. -/
 theorem second_preimage_resistant_if_indifferentiable
-    [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Countable f_in] [Countable f_out] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
     [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
-    [Lens.Disjoint SRO_RO_m D2Pre_m2]
+    [Lens.Disjoint SRO_RO_m D2Pre_m2] [Lens.Disjoint SRO_RO_m SRO_FRO_m]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_FRO_m] [Lens.Disjoint SRO_Counter_c SRO_FRO_m]
+    (hBfs : SRO_Bounder_bounder.footprint.FinitelySupported)
+    (hCfs : SRO_Counter_c.footprint.FinitelySupported)
+    (hROfs : SRO_RO_m.footprint.FinitelySupported)
+    (hFROfs : SRO_FRO_m.footprint.FinitelySupported)
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvSecondPreimage f_in f_out)
     (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
@@ -1135,7 +1140,7 @@ theorem second_preimage_resistant_if_indifferentiable
     (fun r₁ _ r₂ _ h => by rw [h]) (a₁ := ()) (a₂ := mess) (σ₁ := m) (σ₂ := m) ⟨rfl, hinit.symm⟩
   -- `exact (RO_is_second_preimage_resistant A &m mess)`
   have h3 := SecureRO.RO_is_second_preimage_resistant f_in f_out sampleto limit increase_counter
-    bound_counter SRO_RO_m SRO_FRO_m SRO_Counter_c SRO_Bounder_bounder
+    bound_counter SRO_RO_m SRO_FRO_m SRO_Counter_c SRO_Bounder_bounder hBfs hCfs hROfs hFROfs
     ⟨hax.limit_gt0, hax.sampleto_ll, hax.sampleto_full, hax.sampleto_fu,
       hax.increase_counter_spec, hax.bound_counter_ge0⟩ A hA (by fp_disjoint) m mess
   rw [h1]
