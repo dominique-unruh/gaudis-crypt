@@ -572,3 +572,7 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   local), which EC's `swap{1} -1` in `eager_sample` needs.
 * PROM: `eager_set`, `eager_sample` (EC's proofs, including the `swap` and the `seq 1 7` coupling of
   the left `c` with the one `RRO.I.f` samples).
+* `prhlStmt_fix_right` (EC's `exists* e{2}; elim*`). PROM: `I_f_neq`, `I_f_set`, `eager_get` (EC's
+  three cases: `Known` by `rnd{1}` + `iter_inv`/`I_f_neq`; `Unknown` by `transitivity{1}` through
+  `iter_1s`, `seq 5 3`, `iter_inv`/`I_f_eqex`; unbound by `swap{1} -1`, `seq 1 1`,
+  `iter_inv`/`I_f_set`).  With it all seven eager oracle lemmas are proven, and so is `eager_D`.

@@ -190,6 +190,12 @@ theorem prhlStmt_fix_left {β : Sort*} (f : ProgramState → β)
     (h : ∀ v, prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ f σ₁ = v) c₁ c₂ B) : prhlStmt A c₁ c₂ B :=
   fun σ₁ σ₂ hA => h (f σ₁) σ₁ σ₂ ⟨hA, rfl⟩
 
+/-- EC's `exists* e{2}; elim* => v`: fix the value of an expression of the right state. -/
+theorem prhlStmt_fix_right {β : Sort*}
+    (f : ProgramState → β) (h : ∀ v, prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ f σ₂ = v) c₁ c₂ B) :
+    prhlStmt A c₁ c₂ B :=
+  fun σ₁ σ₂ hA => h (f σ₂) σ₁ σ₂ ⟨hA, rfl⟩
+
 /-- A false precondition. -/
 theorem prhlStmt_false : prhlStmt (fun _ _ => False) c₁ c₂ B := fun _ _ h => h.elim
 
