@@ -92,25 +92,51 @@ noncomputable def bdistr : SubProbability block := Block.DBlock.dunifin
 /-! ## Auxiliary lemmas -/
 
 theorem dvdz_close (n : ℤ) : r ∣ n → 0 < n ∧ n < 2 * r → n = r := by
-  sorry
+  intro hd ⟨h0, h2⟩
+  obtain ⟨m, rfl⟩ := hd
+  have hr := gt0_r
+  have hm0 : 0 < m := by
+    by_contra h; push_neg at h; nlinarith
+  have hm2 : m < 2 := by
+    by_contra h; push_neg at h; nlinarith
+  obtain rfl : m = 1 := by omega
+  ring
 
 theorem chunk_nil' {α : Type} (r : ℤ) : BitChunking.chunk r ([] : List α) = [] := by
-  sorry
+  simp [BitChunking.chunk, size, mkseq, iota_]
 
 theorem chunk_sing' (r : ℤ) (xs : List Bool) :
     0 < r → size xs = r → BitChunking.chunk r xs = [xs] := by
-  sorry
+  intro h0 hs
+  have hl : (xs.length : ℤ) = r := hs
+  have hn : r.toNat = xs.length := by omega
+  simp [BitChunking.chunk, mkseq, iota_, size, hl, Int.ediv_self (ne_of_gt h0), drop, take, hn]
 
 theorem b0P : b0 = mkblock (nseq r false) := by
-  sorry
+  apply List.Vector.ext
+  intro i
+  simp only [b0, mkblock, BitWord.zerow, BitWord.mkword, nseq, List.Vector.get_replicate,
+    List.Vector.get_ofFn, List.getD_eq_getElem?_getD, List.getElem?_replicate]
+  split_ifs <;> rfl
 
 theorem bits2w_inj_eq (cs ds : List Bool) :
     size cs = r → size ds = r → (mkblock cs = mkblock ds ↔ cs = ds) := by
-  sorry
+  intro hc hd
+  refine ⟨fun h => ?_, fun h => h ▸ rfl⟩
+  have hc' : cs.length = r.toNat := by have : (cs.length : ℤ) = r := hc; omega
+  have hd' : ds.length = r.toNat := by have : (ds.length : ℤ) = r := hd; omega
+  apply List.ext_getElem (hc'.trans hd'.symm)
+  intro i h1 h2
+  have := congrArg (fun w : block => w.get ⟨i, hc' ▸ h1⟩) h
+  simpa [mkblock, BitWord.mkword, List.getD_eq_getElem?_getD, h1, h2] using this
 
+omit [Params] in
 theorem last_drop_all_but_last {α : Type} (y : α) (xs : List α) :
     xs = [] ∨ drop (size xs - 1) xs = [last y xs] := by
-  sorry
+  rcases List.eq_nil_or_concat xs with h | ⟨ys, z, rfl⟩
+  · exact Or.inl h
+  · right
+    simp [drop, size, last]
 
 /-! ## The primitive: `clone export PRP as PRPt with type D <- block * capacity`,
 `clone export StrongPRP as PRPSec`, `clone export RP as Perm with op dD <- bdistr \`*\` cdistr` -/
@@ -126,7 +152,7 @@ noncomputable def dD : SubProbability (block × capacity) := dprod bdistr cdistr
 
 /-- `realize dD_ll`. -/
 theorem dD_ll : is_lossless dD := by
-  sorry
+  exact dprod_ll BitWord.dunifin_ll BitWord.dunifin_ll
 
 /-- `[module type] "PRP" as "PRIMITIVE"`. -/
 abbrev PRIMITIVE := EC.PRP.StrongPRP.PRP (block × capacity)
@@ -140,31 +166,64 @@ noncomputable abbrev Perm := EC.PRP.RP.RP (block × capacity) dD Perm.m Perm.mi
 
 /-! ## Needed blocks computation -/
 
+/-- Not an EasyCrypt lemma: `(n + r - 1) %/ r` is `n %/ r`, plus one unless `r` divides `n`. -/
+theorem needed_blocks_eq (n : ℤ) :
+    (n + r - 1) / r = n / r + if n % r = 0 then 0 else 1 := by
+  have hr := gt0_r
+  have hk0 := Int.emod_nonneg n (ne_of_gt hr)
+  have hkr := Int.emod_lt_of_pos n hr
+  have he : n + r - 1 = (n % r + r - 1) + n / r * r := by
+    have := Int.emod_add_mul_ediv n r; linarith [mul_comm r (n / r)]
+  rw [he, Int.add_mul_ediv_right _ _ (ne_of_gt hr)]
+  split_ifs with h
+  · rw [h, Int.ediv_eq_zero_of_lt (by linarith) (by linarith)]; ring
+  · have : n % r + r - 1 = (n % r - 1) + 1 * r := by ring
+    rw [this, Int.add_mul_ediv_right _ _ (ne_of_gt hr),
+      Int.ediv_eq_zero_of_lt (by omega) (by linarith)]
+    ring
+
 theorem needed_blocks0 : (0 + r - 1) / r = 0 := by
-  sorry
+  have hr := gt0_r
+  exact Int.ediv_eq_zero_of_lt (by linarith) (by linarith)
 
 theorem needed_blocks_non_pos (n : ℤ) : n ≤ 0 → (n + r - 1) / r ≤ 0 := by
-  sorry
+  intro h
+  have hr := gt0_r
+  calc (n + r - 1) / r ≤ (r - 1) / r := Int.ediv_le_ediv hr (by linarith)
+    _ = 0 := Int.ediv_eq_zero_of_lt (by linarith) (by linarith)
 
 theorem needed_blocks_suff (n : ℤ) : n ≤ (n + r - 1) / r * r := by
-  sorry
+  have hr := gt0_r
+  have h1 := Int.emod_add_mul_ediv (n + r - 1) r
+  have h2 := Int.emod_lt_of_pos (n + r - 1) hr
+  nlinarith [mul_comm r ((n + r - 1) / r)]
 
 theorem needed_blocks_correct (n : ℤ) :
     0 ≤ (n + r - 1) / r * r - n ∧ (n + r - 1) / r * r - n < r := by
-  sorry
+  have hr := gt0_r
+  have h1 := Int.emod_add_mul_ediv (n + r - 1) r
+  have h2 := Int.emod_lt_of_pos (n + r - 1) hr
+  have h3 := Int.emod_nonneg (n + r - 1) (ne_of_gt hr)
+  constructor <;> nlinarith [mul_comm r ((n + r - 1) / r)]
 
 theorem needed_blocks_prod_r (n : ℤ) : (n * r + r - 1) / r = n := by
-  sorry
+  have hr := gt0_r
+  have : n * r + r - 1 = (r - 1) + n * r := by ring
+  rw [this, Int.add_mul_ediv_right _ _ (ne_of_gt hr),
+    Int.ediv_eq_zero_of_lt (by linarith) (by linarith), zero_add]
 
 theorem needed_blocks_eq_div_r (n : ℤ) : r ∣ n ↔ n / r = (n + r - 1) / r := by
-  sorry
+  rw [needed_blocks_eq, Int.dvd_iff_emod_eq_zero]
+  split_ifs with h <;> simp [h]
 
 theorem needed_blocks_succ_eq_div_r (n : ℤ) : ¬ r ∣ n ↔ n / r + 1 = (n + r - 1) / r := by
-  sorry
+  rw [needed_blocks_eq, Int.dvd_iff_emod_eq_zero]
+  split_ifs with h <;> simp [h]
 
 theorem needed_blocks_rel_div_r (n : ℤ) :
     n / r = (n + r - 1) / r ∨ n / r + 1 = (n + r - 1) / r := by
-  sorry
+  rw [needed_blocks_eq]
+  split_ifs <;> simp
 
 /-! ## Padding/unpadding -/
 
@@ -183,54 +242,167 @@ def unpad (s : List Bool) : Option (List Bool) :=
     if i = num0 n then some (take n s) else none
 
 theorem rev_mkpad (n : ℤ) : (mkpad n).reverse = mkpad n := by
-  sorry
+  simp [mkpad, rcons, nseq, List.reverse_replicate]
 
 theorem last_mkpad (b : Bool) (n : ℤ) : last b (mkpad n) = true := by
-  sorry
+  unfold last mkpad rcons
+  rw [← List.cons_append]
+  simp only [List.getLastD_concat]
 
 theorem head_mkpad (b : Bool) (n : ℤ) : head b (mkpad n) = true := by
-  sorry
+  simp [head, mkpad]
 
 theorem last_pad (b : Bool) (s : List Bool) : last b (pad s) = true := by
-  sorry
+  unfold last pad mkpad rcons
+  rw [← List.cons_append, ← List.append_assoc]
+  simp only [List.getLastD_concat]
 
 theorem size_mkpad (n : ℤ) : size (mkpad n) = num0 n + 2 := by
-  sorry
+  have h : 0 ≤ num0 n := Int.emod_nonneg _ (ne_of_gt gt0_r)
+  simp [size, mkpad, rcons, nseq, Int.toNat_of_nonneg h]
+  ring
 
 theorem size_pad_equiv (m : ℤ) : 0 ≤ m → m + num0 m + 2 = (m + 1) / r * r + r := by
-  sorry
+  intro _
+  have hr := gt0_r
+  have h1 := Int.emod_add_mul_ediv (m + 1) r
+  have h2 := Int.emod_nonneg (m + 1) (ne_of_gt hr)
+  have h3 := Int.emod_lt_of_pos (m + 1) hr
+  have hn : num0 m = r - (m + 1) % r - 1 := by
+    unfold num0
+    have : -(m + 2) = (r - (m + 1) % r - 1) + (-((m + 1) / r) - 1) * r := by
+      linarith [mul_comm r ((m + 1) / r)]
+    rw [this, Int.add_mul_emod_self_right, Int.emod_eq_of_lt (by linarith) (by linarith)]
+  rw [hn]
+  linarith [mul_comm r ((m + 1) / r)]
 
 theorem size_padE (s : List Bool) : size (pad s) = size s + num0 (size s) + 2 := by
-  sorry
+  simp only [pad, size, List.length_append]
+  push_cast
+  have := size_mkpad (size s)
+  simp only [size] at this
+  rw [this]
+  ring
 
 theorem size_pad (s : List Bool) : size (pad s) = (size s + 1) / r * r + r := by
-  sorry
+  rw [size_padE]
+  exact size_pad_equiv _ (by simp [size])
 
 theorem size_pad_dvd_r (s : List Bool) : r ∣ size (pad s) := by
-  sorry
+  rw [size_padE]
+  unfold num0
+  have := Int.emod_add_mul_ediv (-(size s + 2)) r
+  exact ⟨-((-(size s + 2)) / r), by linarith [mul_comm r ((-(size s + 2)) / r)]⟩
 
 theorem dvd_r_num0 (m : ℤ) : r ∣ (m + num0 m + 2) := by
-  sorry
+  unfold num0
+  have := Int.emod_add_mul_ediv (-(m + 2)) r
+  exact ⟨-((-(m + 2)) / r), by linarith [mul_comm r ((-(m + 2)) / r)]⟩
 
 theorem num0_ge0 (m : ℤ) : 0 ≤ num0 m := by
-  sorry
+  exact Int.emod_nonneg _ (ne_of_gt gt0_r)
 
 theorem num0_ltr (m : ℤ) : num0 m < r := by
-  sorry
+  exact Int.emod_lt_of_pos _ gt0_r
 
 theorem index_true_behead_mkpad (n : ℤ) : index true (behead (mkpad n)) = num0 n := by
-  sorry
+  simp only [index, behead, mkpad, rcons, nseq, List.tail_cons]
+  rw [List.idxOf_append_of_notMem (by simp), List.length_replicate]
+  exact Int.toNat_of_nonneg (num0_ge0 n)
 
 theorem padE (s : List Bool) (n : ℤ) :
     0 ≤ n ∧ n < r → r ∣ (size s + n + 2) →
     pad s = s ++ [true] ++ nseq n false ++ [true] := by
-  sorry
+  rintro ⟨h0, hr⟩ ⟨k, hk⟩
+  have hn : num0 (size s) = n := by
+    unfold num0
+    have : -(size s + 2) = n + (-k) * r := by linarith [mul_comm r k]
+    rw [this, Int.add_mul_emod_self_right, Int.emod_eq_of_lt h0 hr]
+  simp [pad, mkpad, rcons, hn]
 
 theorem padK : pcancel pad unpad := by
-  sorry
+  intro t
+  have hk := num0_ge0 (size t)
+  have hrev : behead (pad t).reverse = nseq (num0 (size t)) false ++ true :: t.reverse := by
+    simp [behead, pad, mkpad, rcons, nseq, List.reverse_replicate]
+  have hidx : index true (behead (pad t).reverse) = num0 (size t) := by
+    rw [hrev]
+    simp only [index, nseq]
+    rw [List.idxOf_append_of_notMem (by simp), List.length_replicate, List.idxOf_cons_self]
+    simp [Int.toNat_of_nonneg hk]
+  have hsz := size_padE t
+  have hst : 0 ≤ size t := by simp [size]
+  unfold unpad
+  simp only [last_pad, Bool.not_true, Bool.false_eq_true, if_false, hidx, hsz]
+  rw [if_neg (by omega), show size t + num0 (size t) + 2 - (num0 (size t) + 2) = size t by ring,
+    if_pos rfl]
+  simp [take, pad, size]
+
+omit [Params] in
+/-- Not an EasyCrypt lemma: a bit list with a `true` is `false`s, that `true`, and the rest. -/
+theorem split_first_true :
+    ∀ l : List Bool, l.idxOf true < l.length →
+      l = List.replicate (l.idxOf true) false ++ true :: l.drop (l.idxOf true + 1)
+  | [], h => by simp at h
+  | true :: l, _ => by simp
+  | false :: l, h => by
+      have h' : l.idxOf true < l.length := by
+        simp [List.idxOf_cons] at h; omega
+      have ih := split_first_true l h'
+      simp only [List.idxOf_cons, Bool.false_beq, Bool.false_eq_true, cond_false,
+        List.replicate_succ, List.cons_append, List.drop_succ_cons]
+      exact congrArg _ ih
+
+/-- Not an EasyCrypt lemma: what `unpad` accepts is a padding. -/
+theorem pad_of_unpad_some (t y : List Bool) (h : unpad t = some y) : t = pad y := by
+  unfold unpad at h
+  dsimp only at h
+  split_ifs at h with h1 h2 h3
+  obtain ⟨rfl⟩ := Option.some.inj h
+  -- `t` ends with `true`
+  obtain ⟨t', rfl⟩ : ∃ t', t = t' ++ [true] := by
+    rcases List.eq_nil_or_concat t with rfl | ⟨t', z, rfl⟩
+    · simp [last] at h1
+    · refine ⟨t', ?_⟩
+      have : z = true := by simpa [last] using h1
+      rw [this, List.concat_eq_append]
+  -- `behead (rev t) = rev t'`, and its first `true` lies inside it
+  have hb : behead (t' ++ [true]).reverse = t'.reverse := by simp [behead]
+  have hlen : size (t' ++ [true]) = (t'.length : ℤ) + 1 := by simp [size]
+  rw [hb, hlen] at h2 h3
+  rw [hb, hlen]
+  set i := t'.reverse.idxOf true with hi
+  have hidx : index true t'.reverse = (i : ℤ) := rfl
+  rw [hidx] at h2 h3 ⊢
+  have hil : i < t'.reverse.length := by
+    have := List.idxOf_le_length (a := true) (l := t'.reverse)
+    rw [← hi] at this
+    rcases this.lt_or_eq with h | h
+    · exact h
+    · exfalso; apply h2; rw [h]; simp
+  -- `rev t' = nseq i false ++ true :: u`
+  set u := t'.reverse.drop (i + 1) with hu
+  have hsplit : t'.reverse = List.replicate i false ++ true :: u := split_first_true _ hil
+  have ht' : t' = u.reverse ++ true :: List.replicate i false := by
+    have := congrArg List.reverse hsplit
+    simpa [List.reverse_replicate] using this
+  have hul : (t'.length : ℤ) = (u.length : ℤ) + i + 1 := by
+    rw [ht']; simp; ring
+  rw [show (t'.length : ℤ) + 1 - ((i : ℤ) + 2) = u.length by omega] at h3 ⊢
+  rw [ht']
+  have htake : take (u.length : ℤ) ((u.reverse ++ true :: List.replicate i false) ++ [true]) =
+      u.reverse := by
+    simp [take]
+  rw [htake]
+  simp only [pad, mkpad, rcons, nseq, size, List.length_reverse]
+  rw [← h3]
+  simp
 
 theorem unpadK : ocancel unpad pad := by
-  sorry
+  intro t
+  cases h : unpad t with
+  | none => trivial
+  | some y => exact (pad_of_unpad_some t y h).symm
 
 inductive unpad_spec (t : List Bool) : Prop where
   | Unpad (s : List Bool) (n : ℤ) :
@@ -238,35 +410,138 @@ inductive unpad_spec (t : List Bool) : Prop where
       unpad_spec t
 
 theorem unpadP (t : List Bool) : unpad t ≠ none ↔ unpad_spec t := by
-  sorry
+  constructor
+  · intro h
+    obtain ⟨y, hy⟩ := Option.ne_none_iff_exists'.mp h
+    refine ⟨y, num0 (size y), ⟨num0_ge0 _, num0_ltr _⟩, dvd_r_num0 _, ?_⟩
+    rw [pad_of_unpad_some t y hy]
+    simp [pad, mkpad, rcons]
+  · rintro ⟨s, n, hn, hd, rfl⟩
+    rw [← padE s n hn hd, padK s]
+    simp
 
 /-! ## Chunking -/
 
 def chunk (bs : List Bool) : List (List Bool) := BitChunking.chunk r bs
 
+omit [Params] in
+/-- Not an EasyCrypt lemma: fewer than `r` bits make no chunk. -/
+theorem chunk_lt' {α : Type} (r : ℤ) (bs : List α) (h0 : 0 < r) (h : size bs < r) :
+    BitChunking.chunk r bs = [] := by
+  have hs : 0 ≤ size bs := by simp [size]
+  simp [BitChunking.chunk, mkseq, iota_, Int.ediv_eq_zero_of_lt hs h]
+
+omit [Params] in
+/-- Not an EasyCrypt lemma: at least `r` bits make a first chunk, then the chunks of the rest. -/
+theorem chunk_cons' {α : Type} (r : ℤ) (bs : List α) (h0 : 0 < r) (h : r ≤ size bs) :
+    BitChunking.chunk r bs = take r bs :: BitChunking.chunk r (drop r bs) := by
+  have hs : size (drop r bs) = size bs - r := by
+    simp only [size, drop, List.length_drop] at h ⊢; omega
+  have hd : size bs / r = size (drop r bs) / r + 1 := by
+    rw [hs, show size bs = (size bs - r) + 1 * r by ring, Int.add_mul_ediv_right _ _ (ne_of_gt h0)]
+    ring_nf
+  have hq : 0 ≤ size (drop r bs) / r := Int.ediv_nonneg (by simp [size]) (le_of_lt h0)
+  unfold BitChunking.chunk
+  rw [hd, mkseqSr _ _ hq]
+  refine congrArg₂ _ (by simp [drop]) (eq_in_mkseq fun k hk _ => ?_)
+  simp only [drop, List.drop_drop]
+  congr 2
+  have h1 : 0 ≤ r * k := mul_nonneg (le_of_lt h0) hk
+  rw [mul_add, mul_one, Int.toNat_add (le_of_lt h0) h1, Nat.add_comm]
+
 theorem size_chunk (bs : List Bool) : size (chunk bs) = size bs / r := by
-  sorry
+  have : 0 ≤ size bs / r := Int.ediv_nonneg (by simp [size]) ge0_r
+  rw [chunk, BitChunking.chunk, size_mkseq]
+  omega
 
 theorem in_chunk_size (bs b : List Bool) : b ∈ chunk bs → size b = r := by
-  sorry
+  intro hb
+  obtain ⟨i, hi0, hi, rfl⟩ := mem_mkseq.mp hb
+  have hr := gt0_r
+  have h1 : (i + 1) * r ≤ size bs := by
+    have := Int.ediv_mul_le (size bs) (ne_of_gt hr)
+    have : (i + 1) * r ≤ size bs / r * r := Int.mul_le_mul_of_nonneg_right (by omega) ge0_r
+    linarith
+  have h2 : 0 ≤ r * i := mul_nonneg ge0_r hi0
+  have h1' : r * i + r ≤ size bs := by linarith
+  have h3 : ((r * i).toNat : ℤ) = r * i := Int.toNat_of_nonneg h2
+  have h4 : (r.toNat : ℤ) = r := Int.toNat_of_nonneg ge0_r
+  simp only [size, take, drop, List.length_take, List.length_drop, Nat.cast_min] at h1' ⊢
+  omega
 
 theorem chunkK (bs : List Bool) : r ∣ size bs → (chunk bs).flatten = bs := by
-  sorry
+  intro hd
+  induction hn : bs.length using Nat.strong_induction_on generalizing bs with
+  | _ n ih =>
+    by_cases hb : bs = []
+    · subst hb; simp [chunk, chunk_nil' r]
+    · have hr := gt0_r
+      have hpos : 0 < size bs := by
+        simp only [size]; have := List.length_pos_of_ne_nil hb; omega
+      have hle : r ≤ size bs := Int.le_of_dvd hpos hd
+      have hdd : r ∣ size (drop r bs) := by
+        have : size (drop r bs) = size bs - r := by
+          simp only [size, drop, List.length_drop] at hle ⊢; omega
+        rw [this]; exact dvd_sub hd dvd_rfl
+      rw [chunk, chunk_cons' r bs hr hle, List.flatten_cons]
+      have hlt : (drop r bs).length < n := by
+        have : (bs.length : ℤ) = size bs := rfl
+        simp only [drop, List.length_drop]; omega
+      rw [← chunk, ih (drop r bs).length hlt _ hdd rfl]
+      simp [take, drop]
 
 theorem chunk_nil : chunk [] = [] := by
-  sorry
+  exact chunk_nil' r
 
 theorem chunk_sing (xs : List Bool) : size xs = r → chunk xs = [xs] := by
-  sorry
+  exact chunk_sing' r xs gt0_r
 
 theorem chunk_cat (xs ys : List Bool) : r ∣ size xs → chunk (xs ++ ys) = chunk xs ++ chunk ys := by
-  sorry
+  intro hd
+  induction hn : xs.length using Nat.strong_induction_on generalizing xs with
+  | _ n ih =>
+    by_cases hne : xs = []
+    · subst hne; simp [chunk_nil]
+    · have hr := gt0_r
+      have hpos : 0 < size xs := by
+        simp only [size]; have := List.length_pos_of_ne_nil hne; omega
+      have hle : r ≤ size xs := Int.le_of_dvd hpos hd
+      have hle' : r ≤ size (xs ++ ys) := by simp only [size, List.length_append] at hle ⊢; omega
+      have hdd : r ∣ size (drop r xs) := by
+        have : size (drop r xs) = size xs - r := by
+          simp only [size, drop, List.length_drop] at hle ⊢; omega
+        rw [this]; exact dvd_sub hd dvd_rfl
+      have hdr : drop r (xs ++ ys) = drop r xs ++ ys := by
+        simp only [drop]; rw [List.drop_append_of_le_length (by simp only [size] at hle; omega)]
+      have htr : take r (xs ++ ys) = take r xs := by
+        simp only [take]; rw [List.take_append_of_le_length (by simp only [size] at hle; omega)]
+      have e1 : chunk (xs ++ ys) = take r xs :: chunk (drop r xs ++ ys) := by
+        rw [chunk, chunk_cons' r _ hr hle', hdr, htr]; rfl
+      have e2 : chunk xs = take r xs :: chunk (drop r xs) := chunk_cons' r _ hr hle
+      have hlt : (drop r xs).length < n := by
+        have : (xs.length : ℤ) = size xs := rfl
+        simp only [drop, List.length_drop]; omega
+      rw [e1, e2, ih (drop r xs).length hlt _ hdd rfl]
+      rfl
 
 theorem chunk_padK : pcancel (chunk ∘ pad) (unpad ∘ List.flatten) := by
-  sorry
+  intro s
+  simp only [Function.comp_apply]
+  rw [chunkK _ (size_pad_dvd_r s), padK]
 
 theorem flattenK (bs : List (List Bool)) : (∀ b, b ∈ bs → size b = r) → chunk bs.flatten = bs := by
-  sorry
+  induction bs with
+  | nil => intro; exact chunk_nil
+  | cons b bs ih =>
+    intro h
+    have hr := gt0_r
+    have hb := h b List.mem_cons_self
+    have hle : r ≤ size (b :: bs).flatten := by
+      simp only [List.flatten_cons, size, List.length_append] at hb ⊢; omega
+    have hbl : b.length = r.toNat := by simp only [size] at hb; omega
+    rw [chunk, chunk_cons' r _ hr hle, ← chunk]
+    simp only [List.flatten_cons, take, drop, List.take_left' hbl, List.drop_left' hbl]
+    rw [ih fun b' hb' => h b' (List.mem_cons_of_mem _ hb')]
 
 /-! ## Converting between block lists and bits -/
 

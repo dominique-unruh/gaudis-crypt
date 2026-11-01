@@ -1,5 +1,6 @@
 import GaudisCrypt.Language.SubProbability
 import GaudisCrypt.Language.Semantics
+import GaudisCrypt.WeakestPreconditions
 
 /-!
 # EasyCrypt's distributions (`theories/distributions/`)
@@ -26,6 +27,26 @@ noncomputable def dprod (d1 : SubProbability α) (d2 : SubProbability β) : SubP
 /-- `is_lossless d`: `d` has total mass `1`. -/
 def is_lossless (d : SubProbability α) : Prop := d.1 Set.univ = 1
 
+/-- Losslessness as an expectation: the expected value of `1` is `1`. -/
+theorem is_lossless_iff_expected (d : SubProbability α) :
+    is_lossless d ↔ d.expected (fun _ => 1) = 1 := by
+  unfold is_lossless SubProbability.expected
+  rw [MeasureTheory.lintegral_one]
+
+/-- `lemma dprod_ll`: the product of lossless distributions is lossless. -/
+theorem dprod_ll {d1 : SubProbability α} {d2 : SubProbability β} (h1 : is_lossless d1)
+    (h2 : is_lossless d2) : is_lossless (dprod d1 d2) := by
+  rw [is_lossless_iff_expected] at h1 h2 ⊢
+  simp only [dprod, SubProbability.expected_bind, expected_pure, h2, h1]
+
+/-- `lemma duniform_ll` for a finite nonempty type: the uniform distribution is lossless. -/
+theorem uniform_ll [Fintype α] [Nonempty α] :
+    is_lossless (SubProbability.uniform : SubProbability α) := by
+  letI : MeasurableSpace α := ⊤
+  change (PMF.uniformOfFintype α).toMeasure Set.univ = 1
+  haveI := @PMF.toMeasure.isProbabilityMeasure α ⊤ (PMF.uniformOfFintype α)
+  exact MeasureTheory.IsProbabilityMeasure.measure_univ
+
 /-- `is_full d`: every value is in the support of `d`. -/
 def is_full (d : SubProbability α) : Prop := ∀ x, 0 < d.1 {x}
 
@@ -45,10 +66,6 @@ noncomputable def dexcepted (d : SubProbability α) (P : α → Prop) : SubProba
 noncomputable def dbool : SubProbability Bool := SubProbability.uniform
 
 /-- `lemma dbool_ll : is_lossless dbool`. -/
-theorem dbool_ll : is_lossless dbool := by
-  letI : MeasurableSpace Bool := ⊤
-  change (PMF.uniformOfFintype Bool).toMeasure Set.univ = 1
-  haveI := @PMF.toMeasure.isProbabilityMeasure Bool ⊤ (PMF.uniformOfFintype Bool)
-  exact MeasureTheory.IsProbabilityMeasure.measure_univ
+theorem dbool_ll : is_lossless dbool := uniform_ll
 
 end GaudisCrypt.EC

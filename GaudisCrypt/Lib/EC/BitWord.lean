@@ -1,5 +1,6 @@
 import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Language.SubProbability
+import GaudisCrypt.Lib.EC.Distr
 import Mathlib.Data.Fintype.Vector
 
 /-!
@@ -38,6 +39,9 @@ instance : Inhabited (word n) := ⟨zerow⟩
 
 /-- `DWord.dunifin`: the uniform distribution on words. -/
 noncomputable def dunifin : SubProbability (word n) := SubProbability.uniform
+
+/-- `DWord.dunifin_ll`. -/
+theorem dunifin_ll : is_lossless (dunifin : SubProbability (word n)) := uniform_ll
 
 end BitWord
 

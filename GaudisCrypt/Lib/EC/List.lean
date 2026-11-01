@@ -51,13 +51,50 @@ def index [BEq α] (x : α) (s : List α) : ℤ := s.idxOf x
 def find (p : α → Bool) (s : List α) : ℤ := s.findIdx p
 
 /-- `iota_ i n`: `[i; i + 1; …; i + n - 1]`. -/
-def iota_ (i n : ℤ) : List ℤ := (List.range n.toNat).map fun k => i + k
+def iota_ (i n : ℤ) : List ℤ := (List.range n.toNat).map fun k : ℕ => i + (k : ℤ)
 
 /-- `mkseq f n`: `[f 0; …; f (n - 1)]`. -/
 def mkseq (f : ℤ → α) (n : ℤ) : List α := (iota_ 0 n).map f
 
 /-- `range m n`: the integers from `m` (included) to `n` (excluded). -/
 def range (m n : ℤ) : List ℤ := iota_ m (n - m)
+
+/-- `lemma mkseq0`. -/
+theorem mkseq0 (f : ℤ → α) : mkseq f 0 = [] := rfl
+
+/-- `lemma mkseqSr`: `mkseq f (n + 1) = f 0 :: mkseq (f \o (+) 1) n`, for `0 ≤ n`. -/
+theorem mkseqSr (f : ℤ → α) (n : ℤ) (hn : 0 ≤ n) :
+    mkseq f (n + 1) = f 0 :: mkseq (fun i => f (1 + i)) n := by
+  unfold mkseq iota_
+  rw [show (n + 1).toNat = n.toNat + 1 by omega, List.range_succ_eq_map]
+  simp only [List.map_cons, List.map_map]
+  refine congrArg₂ _ (by simp) (List.map_congr_left fun k _ => ?_)
+  simp only [Function.comp_apply]
+  congr 1
+  omega
+
+/-- `lemma eq_in_mkseq`: `mkseq` reads its function only on `0 ≤ i < n`. -/
+theorem eq_in_mkseq {f g : ℤ → α} {n : ℤ} (h : ∀ i, 0 ≤ i → i < n → f i = g i) :
+    mkseq f n = mkseq g n := by
+  unfold mkseq iota_
+  simp only [List.map_map]
+  exact List.map_congr_left fun k hk => by
+    simp only [List.mem_range] at hk
+    simp only [Function.comp_apply]
+    exact h _ (by omega) (by omega)
+
+/-- `lemma size_mkseq`: `size (mkseq f n) = max 0 n`. -/
+theorem size_mkseq (f : ℤ → α) (n : ℤ) : size (mkseq f n) = max 0 n := by
+  simp only [size, mkseq, iota_, List.length_map, List.length_range]
+  omega
+
+/-- `lemma mkseqP`-style membership: an element of `mkseq f n` is `f i` for some `0 ≤ i < n`. -/
+theorem mem_mkseq {f : ℤ → α} {n : ℤ} {x : α} :
+    x ∈ mkseq f n ↔ ∃ i, 0 ≤ i ∧ i < n ∧ f i = x := by
+  simp only [mkseq, iota_, List.map_map, List.mem_map, List.mem_range, Function.comp_apply]
+  constructor
+  · rintro ⟨k, hk, rfl⟩; exact ⟨k, by omega, by omega, by simp⟩
+  · rintro ⟨i, h0, hi, rfl⟩; exact ⟨i.toNat, by omega, by simp [Int.toNat_of_nonneg h0]⟩
 
 /-! ## Function properties (`theories/core` and `theories/prelude`) -/
 
