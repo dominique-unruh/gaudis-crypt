@@ -171,6 +171,23 @@ theorem Stmt.swap_sample {α : Type} {x : Setter α ProgramState}
     simp only [Stmt.ewp, ProgramDenotation.wp]
     exact (SubProbability.expected_comm _ _ _).symm
 
+/-- **Swap a sampling with a call** whose write-back leaves the distribution unchanged (it reads
+only what the call keeps: the caller's locals, say), the call commuting with every write to the
+sampled variable.  EC's `swap` of `c <$ dout x` past a call that does not write `x`. -/
+theorem Stmt.swap_sample_call {α : Type} {x : Setter α ProgramState}
+    {e : Getter (SubProbability α) ProgramState} {sig : ProcedureSignature}
+    {y : Setter sig.ret ProgramState} {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    (he : ∀ v gl σ, e.get (y.set v (ProgramState.globalL.set gl σ)) = e.get σ)
+    (hs : ∀ a, (Stmt.call y p args).CommutesWith (x.set a)) :
+    StmtWithHoles.Equiv (.seq (.sample x e) (Stmt.call y p args) : Stmt)
+      (.seq (Stmt.call y p args) (.sample x e)) :=
+  Stmt.equiv_of_ewp fun g σ => by
+    rw [Stmt.ewp_seq, Stmt.ewp_seq, Stmt.ewp_sample, Stmt.ewp_sample]
+    simp only [hs _ g]
+    simp only [Stmt.ewp_call, he]
+    simp only [Procedure.ewp, ProgramDenotation.wp]
+    exact (SubProbability.expected_comm _ _ _).symm
+
 /-- **Split a pair assignment** `(x, y) <- e` into `x <- e.1; y <- e.2`, when the second
 component does not read `x`. -/
 theorem Stmt.split_pair {α β : Type} {x : Lens α ProgramState} {y : Lens β ProgramState}
@@ -417,12 +434,39 @@ def swapPair (a b : Lean.Expr) : MetaM Lean.Expr := do
       withLocalDeclD `τ (mkConst ``ProgramState) fun τ => do
         mkForallFVars #[σ, τ]
           (← mkEq (← mkAppM ``Getter.get #[e, σ]) (← mkAppM ``Getter.get #[e, τ]))
-    let he ← try discharge heTy none
-      catch _ => throwError "stmt_swap: the distribution of{indentExpr smp}\ndepends on the state"
     let .forallE _ α _ _ ← whnf (← inferType (← mkAppM ``Setter.set #[x])) | failure
     let hs ← withLocalDeclD `a α fun av => do
       mkLambdaFVars #[av] (← commutesOf s (← mkAppM ``Setter.set #[x, av]) X?)
-    some <$> mkAppM ``Stmt.swap_sample #[he, hs]
+    let st ← saveState
+    try
+      let he ← discharge heTy none
+      return some (← mkAppM ``Stmt.swap_sample #[he, hs])
+    catch _ =>
+      st.restore
+      -- a call: the distribution only has to survive the call's write-back
+      let s' ← openStmt (stripLets (← instantiateMVars s))
+      unless s'.isAppOf ``StmtWithHoles.call || s'.isAppOf ``Stmt.call do
+        throwError "stmt_swap: the distribution of{indentExpr smp}\ndepends on the state"
+      let n := s'.getAppNumArgs
+      let y := s'.getArg! (n - 3)
+      let .forallE _ β _ _ ← whnf (← inferType (← mkAppM ``Setter.set #[y])) | failure
+      let heTy ← withLocalDeclD `v β fun v =>
+        withLocalDeclD `gl (mkConst ``VariableAssignment) fun gl =>
+          withLocalDeclD `σ (mkConst ``ProgramState) fun σ => do
+            let gset ← mkAppM ``Lens.toSetter #[mkConst ``ProgramState.globalL]
+            let st' ← mkAppM ``Setter.set #[y, v, ← mkAppM ``Setter.set #[gset, gl, σ]]
+            mkForallFVars #[v, gl, σ]
+              (← mkEq (← mkAppM ``Getter.get #[e, st']) (← mkAppM ``Getter.get #[e, σ]))
+      let he ← try discharge heTy none
+        catch _ => throwError "stmt_swap: the distribution of{indentExpr smp}\ndepends on what \
+          the call{indentExpr s}\nwrites"
+      let xTy ← whnf (← inferType x)
+      let pf ← mkAppOptM ``Stmt.swap_sample_call #[some (xTy.getArg! 0), some x, some e,
+        some (s'.getArg! (n - 4)), some y, some (s'.getArg! (n - 2)), some s'.appArg!, some he,
+        some hs]
+      let pf ← instantiateMVars pf
+      if pf.hasExprMVar then throwError "stmt_swap: unassigned metavariables in{indentExpr pf}"
+      return some pf
   let symm (p : Lean.Expr) : MetaM Lean.Expr := mkAppM ``StmtWithHoles.Equiv.symm #[p]
   let attempts : List (MetaM (Option Lean.Expr)) :=
     [detSwap a b, (do return (← (← detSwap b a).mapM symm)),

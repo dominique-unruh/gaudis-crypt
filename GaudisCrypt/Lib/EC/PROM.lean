@@ -974,7 +974,122 @@ theorem eager_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
       (procedureDenotation (FRO_T.sample in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
       (procedureDenotation (FRO_T.sample in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
       (fun u v => u = v) := by
-  sorry
+  -- EC: `eager proc.` …
+  refine eagerR_of_prhlStmt FRO_m _ _ _ _ (y := localVarLens "r" Unit) (fun _ _ => rfl)
+    (RRO.resample_inFootprint in_t out_t dout FRO_m)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) _)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) _)
+    (fun _ _ => rfl) ?_
+  unfold eagerLeftStmt eagerRightStmt
+  refine prhlStmt_seq_congr_left
+    (fun _ _ _ => congrFun (RRO.resample_call_eq in_t out_t dout FRO_m) _) ?_
+  -- EC: `case: ((x \notin FRO.m){2}).`
+  refine prhlStmt_case (fun _ σ₂ => ¬ FMap.dom (FRO_m.get σ₂.globals) a) ?_ ?_
+  · -- EC: `rcondt{2} 2; transitivity{2} { c <$ dout x; FRO.m.[x] <- (c, Unknown);
+    -- Iter(RRO.I).iter_1s(x, elems ((fdom (restr Unknown FRO.m)) `\` fset1 x)); }`
+    refine prhlStmt_seq_congr_right_snd_on (fun σ => ¬ FMap.dom (FRO_m.get σ.globals) a)
+      (fun σ => FMap.in_dom_with (FRO_m.get σ.globals) a Unknown) (fun _ _ h => h.2) ?_
+      (fun σ h => RRO.resample_call_split in_t out_t dout FRO_m a σ h) ?_
+    · stmt_inline 0
+      hoare_wp 5
+      refine hoare_skip_of_imp fun σ h c _ => ?_
+      have hg : ¬ FMap.dom (FRO_m.get σ.globals) a := h
+      rw [if_pos (by simpa using hg), FMap.in_dom_with_set, if_pos rfl]
+    · -- EC: `inline Iter(RRO.I).iter_1s RRO.I.f RRO.resample; wp; swap{1} -1.`
+      stmt_inline{1} 1
+      stmt_inline{2} 0
+      stmt_inline{2} 0
+      stmt_wp
+      stmt_swap{1} 0 3
+      -- EC: `seq 1 7 : (={x} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
+      -- (FRO.m.[x]){2} = Some (c{1}, Unknown) /\ (FRO.m.[x]){1} = None)`
+      equiv_seq 1 1 : (§x{1} = a ∧ FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧
+        FMap.get §FRO_m{2} a = some (§c{1}, Unknown) ∧ FMap.get §FRO_m{1} a = none)
+      case h₁ =>
+        -- EC: `wp; rnd; auto=> /> &2; rewrite domE dout_ll=> /= x_notin_m c _ cL _. …`
+        stmt_wp
+        equiv_rnd
+        stmt_wp
+        stmt_wp{2} 1
+        stmt_wp
+        equiv_skip
+        rintro σ₂ _ ⟨rfl, hnd⟩
+        refine ⟨by simp [SubProbability.expected, dout_ll], fun c₀ _ c _ => ?_⟩
+        rw [if_pos (by simpa using hnd)]
+        refine ⟨FMap.eq_except_setr (fun x => x = a)
+          (FMap.eq_except_setr (fun x => x = a) (FMap.eq_except_refl _ _) a rfl _) a rfl _,
+          FMap.get_set_sameE _ _ _, ?_⟩
+        simpa [FMap.domE] using hnd
+      case h₂ =>
+        -- EC: `exists* x{1}, c{1}; elim*=> x1 c1. call (iter_inv RRO.I (fun z=> x1<>z)
+        -- (fun o1 o2 => eq_except (pred1 x1) o1 o2 /\ o1.[x1]= None /\ o2.[x1]=mx2) _)`
+        refine prhlStmt_fix_left (fun σ₁ => (localVarLens "c" out_t).get σ₁) fun c => ?_
+        equiv_call (IterProc.iter_inv (RRO.I in_t out_t dout FRO_m) (fun z => a ≠ z)
+          (fun g₁ g₂ => FMap.eq_except (· = a) (FRO_m.get g₁) (FRO_m.get g₂) ∧
+            FMap.get (FRO_m.get g₁) a = none ∧ FMap.get (FRO_m.get g₂) a = some (c, Unknown))
+          (I_f_eqex in_t out_t dout FRO_m a none (some (c, Unknown))))
+        equiv_skip
+        rintro σ₁ σ₂ ⟨⟨hx, he, h2, h1⟩, hc⟩
+        rw [hc] at h2
+        refine ⟨⟨?_, fun z hz => ?_, he, h1, h2⟩, fun r₁ g₁ r₂ g₂ ⟨he', h1', h2'⟩ => ?_⟩
+        · congr 1
+          ext z
+          rw [Finset.mem_sdiff, Finset.mem_singleton, FMap.mem_fdom, FMap.mem_fdom,
+            FMap.dom_restr, FMap.dom_restr]
+          by_cases hz : z = a
+          · subst hz
+            simp only [not_true_eq_false, and_false, iff_false]
+            intro h; exact absurd ((FMap.domE _ _).mp h.1) (by rw [h1]; exact fun h => h rfl)
+          · simp only [hz, not_false_eq_true, and_true]
+            exact FMap.in_dom_with_congr (he z hz) _
+        · rw [Finset.mem_toList, FMap.mem_fdom, FMap.dom_restr] at hz
+          rintro rfl
+          exact absurd ((FMap.domE _ _).mp hz.1) (by rw [h1]; exact fun h => h rfl)
+        · have ex : (localVarLens "x" in_t).get
+              (Setter.throwaway.set r₁ (ProgramState.globalL.set g₁ σ₁)) = a := hx
+          have ec : (localVarLens "c" out_t).get
+              (Setter.throwaway.set r₁ (ProgramState.globalL.set g₁ σ₁)) = c := hc
+          simp only [ex, ec]
+          have hd : ¬ FMap.dom (FRO_m.get (Setter.throwaway.set r₁
+              (ProgramState.globalL.set g₁ σ₁)).globals) a := by
+            show ¬ FMap.dom (FRO_m.get g₁) a
+            simp [FMap.domE, h1']
+          split_ifs with h
+          · exact FMap.set_eq_of_eq_except he' h2'
+          · exact absurd h (by simpa using hd)
+  · -- EC: `rcondf{2} 2; first by auto. swap{1} 2 -1; inline *; auto.
+    -- while (={l, FRO.m} /\ (dom FRO.m x){1}); auto.`
+    refine prhlStmt_seq_congr_right_snd (RRO.resample_call_eq in_t out_t dout FRO_m) ?_
+    stmt_inline{1} 1
+    stmt_inline{2} 0
+    stmt_wp
+    stmt_wp{1} 1
+    stmt_wp
+    equiv_call (IterProc.iter_inv (RRO.I in_t out_t dout FRO_m) (fun _ => True)
+      (fun g₁ g₂ => FRO_m.get g₁ = FRO_m.get g₂ ∧ FMap.dom (FRO_m.get g₁) a) (by
+        rw [RRO.I_f_procedure]
+        equiv_proc
+        stmt_inline{1} 0
+        stmt_inline{2} 0
+        stmt_wp
+        equiv_rnd
+        stmt_wp
+        equiv_skip
+        rintro x m _ _ ⟨rfl, rfl, hd⟩
+        exact ⟨rfl, fun c _ => ⟨rfl, (FMap.mem_set _ _ _ _).mpr (Or.inl hd)⟩⟩))
+    stmt_wp
+    stmt_wp{2} 1
+    stmt_wp
+    equiv_skip
+    intro σ₁ σ₂ ⟨hm, hd⟩
+    have hd' := not_not.mp hd
+    refine ⟨by simp [SubProbability.expected, dout_ll], fun c _ => ⟨⟨by simp [hd', hm],
+      by simp [hd', hm], by rw [hm]; exact hd'⟩, fun r₁ g₁ r₂ g₂ ⟨hg, hgd⟩ =>
+        ⟨by simp [SubProbability.expected, dout_ll], fun c' _ => ?_⟩⟩⟩
+    show (if (!decide (FMap.dom (FRO_m.get g₁) a)) = true then _ else FRO_m.get g₁) =
+      FRO_m.get g₂
+    rw [hg] at hgd
+    simp [hgd, hg]
 
 /-- `eager [RRO.resample();, FRO.queried ~ RRO.queried, RRO.resample(); : ={x, f} /\
 ={FRO.m} ==> ={res, FRO.m}]`, at equality invariants (exception E10). -/

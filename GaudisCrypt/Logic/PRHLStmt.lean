@@ -350,6 +350,27 @@ theorem hoareStmt.satisfies {A B : ProgramState → Prop} {s : Stmt} (h : hoareS
   rw [SubProbability.ofEvent, ENNReal.toNNReal_eq_zero_iff] at h0
   exact hu (h0.resolve_right hfin)
 
+section CongrOn
+
+variable {A B : ProgramState → ProgramState → Prop}
+
+/-- Replace the second statement on the right by one with the same runs from every state the
+first statement can reach (a Hoare postcondition `Q` of it): EC's `transitivity{2}` against a
+program proven equivalent denotationally after `a`. -/
+theorem prhlStmt_seq_congr_right_snd_on {a b b' : Stmt} (P Q : ProgramState → Prop)
+    (hP : ∀ σ₁ σ₂, A σ₁ σ₂ → P σ₂) (ha : hoareStmt P a Q)
+    (hb : ∀ σ, Q σ → programDenotation b σ = programDenotation b' σ)
+    (h' : prhlStmt A c₁ (.seq a b') B) : prhlStmt A c₁ (.seq a b) B := by
+  intro σ₁ σ₂ hA
+  have e : programDenotation (.seq a b) σ₂ = programDenotation (.seq a b') σ₂ := by
+    rw [programDenotation_seq, programDenotation_seq, ProgramDenotation.bind_apply,
+      ProgramDenotation.bind_apply]
+    exact SubProbability.bind_congr_support _ fun u hu => hb u.2 (ha.satisfies (hP σ₁ σ₂ hA) u hu)
+  rw [e]
+  exact h' σ₁ σ₂ hA
+
+end CongrOn
+
 /-- **A loop on the right only** (EC's `while{2} I V` for a trailing loop): from where the code
 before it establishes `I` (for the left state as it ends), the loop terminates (its body lossless
 and decreasing the variant `V` under `I`; both may depend on the left state), keeps `I`, and `I` with the failed test gives `B`. -/

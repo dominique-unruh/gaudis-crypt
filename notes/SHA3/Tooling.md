@@ -565,3 +565,10 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   `RRO.resample_denotation`, `RRO.resample_call_eq`, `RRO.resample_call_split` (EC's
   `transitivity{1} { Iter(RRO.I).iter_1s(x, …) }` via `iter1_perm RRO.I iter_perm2`), `I_f_eqex`,
   and `eager_rem` (EC's proof: case split, `iter_1s`, `seq 3 1`, `exists*`, `iter_inv`).
+* `prhlStmt_seq_congr_right_snd_on` (replace the second statement on the right, given a Hoare
+  postcondition of the first: EC's `transitivity{2}` after `rcondt{2}`).
+* `stmt_swap` (`Logic/StmtSwap.lean`): a sampling now also swaps with a call whose write-back leaves
+  the distribution unchanged (`Stmt.swap_sample_call`; `c <$ dout x` past a call that writes no
+  local), which EC's `swap{1} -1` in `eager_sample` needs.
+* PROM: `eager_set`, `eager_sample` (EC's proofs, including the `swap` and the `seq 1 7` coupling of
+  the left `c` with the one `RRO.I.f` samples).
