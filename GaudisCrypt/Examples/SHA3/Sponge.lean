@@ -500,7 +500,7 @@ theorem HybridIROLazy_HIRO_LRO_f :
       case lossless =>
         intro σ₁ σ _ _
         simp [Stmt.ewp_seq, Stmt.ewp_assign]
-      case variant =>
+      case «variant» =>
         intro σ₁ k
         hoare_wp 3
         hoare_skip
