@@ -82,6 +82,7 @@ import GaudisCrypt.Logic.ExpectationCall
 import GaudisCrypt.Logic.AbstractCall
 import GaudisCrypt.Logic.AbstractCallTest
 import GaudisCrypt.Logic.EagerProc
+import GaudisCrypt.Logic.EagerAbstract
 import GaudisCrypt.Logic.EagerRhl
 import GaudisCrypt.Logic.EquivModuloLens
 import GaudisCrypt.Logic.Hoare

@@ -267,3 +267,23 @@ denotational form holds for every `O` with no hypothesis on it, is strictly stro
 EC's `equiv` under any relation), and is used by rewriting the iteration inside a judgment, where
 EC uses `call (iter1_perm …)` or `transitivity`.  The proofs go through one characterization,
 `Iter.iter_denotation` (the iteration is the calls of `O.f` in order).
+
+## E10: PROM's eager lemmas are stated at equality invariants
+
+**Rule broken.** A Lean statement is EasyCrypt's statement.
+
+**What EasyCrypt states.** `eager_init` … `eager_allKnown` and `eager_D` (`PROM.FullEager`) are
+`eager` judgments with partial-equality invariants, e.g.
+`eager [RRO.resample();, FRO.get ~ RRO.get, RRO.resample(); : ={x, FRO.m} ==> ={res, FRO.m}]` and
+`eager [RRO.resample();, D(FRO).distinguish ~ D(RRO).distinguish, RRO.resample(); :
+={glob D, FRO.m, arg} ==> ={FRO.m, glob D} /\ ={res}]`.
+
+**What we state.** The same judgments (`ProgramDenotation.eagerR`, with the block
+`RRO.resampleDen`) at equality of the whole global state before and after, for equal arguments.
+For the oracle procedures, which touch only `FRO.m`, this says the same as EasyCrypt's.
+
+**Why.** The eager calculus composes equality-invariant judgments (`eagerR_seq`, `eager_call`,
+`eager_call_module`): EasyCrypt's `eager proc` rule is `eager_call_module`, which needs no `={…}`
+of the adversary since its steps swap with the block by footprint disjointness.  EasyCrypt's form
+with an invariant follows by a self-coupling of one composite
+(`ProgramDenotation.eagerR_of_self_right`), where a use needs it.

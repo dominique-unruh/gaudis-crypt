@@ -2509,6 +2509,13 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
   if (← getReducibilityStatus c) == .reducible then
     if let some v ← unfoldDefinition? e then
       return some { expr := v }
+  -- (8) the accessor of a one-procedure `moduletype` (`Orcl.f O := O`) applied to a procedure
+  -- module that is not a `T.mk` (`Iter(RRO.I)`, with `RRO.I` a `module` of no type): unfold
+  -- it, by definition, once its argument is a `Module.proc`
+  if (← isAccessor c) && !args.isEmpty && args.back!.isAppOf ``Module.proc then
+    if let some v ← unfoldDefinition? e then
+      if v.isAppOf ``Module.proc then
+        return some { expr := v }
   return none
 
 /-- Evaluate a module expression until its head is `Module.proc`, then spell that procedure out.

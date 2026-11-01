@@ -6,6 +6,8 @@ import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
 import GaudisCrypt.Lib.EC.IterProc
 import GaudisCrypt.Logic.SyntacticFrame
+import GaudisCrypt.Logic.ConcreteFootprint
+import GaudisCrypt.Logic.EagerAbstract
 
 /-!
 # EasyCrypt's programmable random oracles (`theories/crypto/PROM.ec`), `FullRO`
@@ -37,6 +39,11 @@ inductive flag where
   deriving DecidableEq, Inhabited
 
 export flag (Unknown Known)
+
+instance : Countable flag :=
+  Function.Injective.countable
+    (f := fun f : flag => match f with | Unknown => false | Known => true)
+    (by intro a b; cases a <;> cases b <;> simp)
 
 /-- `fv \is f`: the flag of a (bound) entry. -/
 def is_ {α : Type} [Inhabited α] (fv : Option (α × flag)) (f : flag) : Prop := (oget fv).2 = f
@@ -558,6 +565,147 @@ section EagerCore
 variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
   [Inhabited d_in_t] [Inhabited d_out_t] (dout : in_t → SubProbability out_t)
   (FRO_m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
+
+/-- `RRO.resample();`, the block of PROM's eager judgments, as a program on the globals. -/
+noncomputable abbrev RRO.resampleDen : ProgramDenotation VariableAssignment Unit :=
+  procedureDenotation (RRO.own.resample in_t out_t dout FRO_m).procedure ()
+
+/-- `RRO.resample` touches only `FRO.m` (EC: by its code). -/
+theorem RRO.resample_fvP :
+    FVP.fvP_proc (RRO.own.resample in_t out_t dout FRO_m).procedure ≤ FRO_m.footprint :=
+  FVP.fvP_proc_le_of_within _ (by within_lens) (by within_lens)
+
+theorem RRO.resample_inFootprint :
+    (RRO.resampleDen in_t out_t dout FRO_m).inFootprint FRO_m.footprint :=
+  ProgramDenotation.inFootprint_mono
+    (Lib.RO.Instantiate.procedureDenotation_inFootprint_fvP_proc
+      (RRO.own.resample in_t out_t dout FRO_m).procedure ())
+    (RRO.resample_fvP in_t out_t dout FRO_m)
+
+/-- `lemma RRO_resample_ll : islossless RRO.resample`. -/
+theorem RRO_resample_ll (dout_ll : ∀ x, (dout x).1 Set.univ = 1) :
+    (RRO.own.resample in_t out_t dout FRO_m).procedure.IsLossless := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.init ~ RRO.init, RRO.resample(); : ={FRO.m} ==> ={FRO.m}]`, at
+equality invariants (exception E10). -/
+theorem eager_init (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.init in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.get ~ RRO.get, RRO.resample(); : ={x, FRO.m} ==>
+={res, FRO.m}]`, at equality invariants (exception E10). -/
+theorem eager_get (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.get in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.get in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.set ~ RRO.set, RRO.resample(); : ={x, y} /\ ={FRO.m} ==>
+={res, FRO.m}]`, at equality invariants (exception E10). -/
+theorem eager_set (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.set in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.set in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.rem ~ RRO.rem, RRO.resample(); : ={x} /\ ={FRO.m} ==>
+={res, FRO.m}]`, at equality invariants (exception E10). -/
+theorem eager_rem (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.rem in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.rem in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.sample ~ RRO.sample, RRO.resample(); : ={x, FRO.m} ==>
+={res, FRO.m}]`, at equality invariants (exception E10). -/
+theorem eager_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.sample in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.sample in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.queried ~ RRO.queried, RRO.resample(); : ={x, f} /\
+={FRO.m} ==> ={res, FRO.m}]`, at equality invariants (exception E10). -/
+theorem eager_queried (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.queried in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.queried in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+/-- `eager [RRO.resample();, FRO.allKnown ~ RRO.allKnown, RRO.resample(); : ={FRO.m} ==>
+={res, FRO.m}]`, at equality invariants (exception E10). -/
+theorem eager_allKnown (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (FRO_T.allKnown in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (FRO_T.allKnown in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) := by
+  sorry
+
+omit [Inhabited d_in_t] [Inhabited d_out_t] in
+/-- `lemma eager_D (D <: FRO_Distinguisher {-FRO}) : eager [RRO.resample();, D(FRO).distinguish ~
+D(RRO).distinguish, RRO.resample(); : ={glob D, FRO.m, arg} ==> ={FRO.m, glob D} /\ ={res}]`, at
+equality invariants (exception E10).  EC: `eager proc (={FRO.m}) => //; try by sim;` then the seven
+`eager_*` lemmas — here `eager_call_module`, whose `SwapLoc` side is footprint disjointness. -/
+theorem eager_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+    (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (FRO_ext in_t out_t))
+    (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) (a : d_in_t) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (Module.app D (FRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (Module.app D (RRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) :=
+  eager_call_module FRO_m D (FRO_ext in_t out_t) hD.representable hdisj
+    (fun n => by
+      cases n with
+      | zero => exact inferInstanceAs (Countable Unit)
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable in_t)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (in_t × out_t))
+          | succ n => cases n with
+            | zero => exact inferInstanceAs (Countable in_t)
+            | succ n => cases n with
+              | zero => exact inferInstanceAs (Countable in_t)
+              | succ n => cases n with
+                | zero => exact inferInstanceAs (Countable (in_t × flag))
+                | succ n => cases n with
+                  | zero => exact inferInstanceAs (Countable Unit)
+                  | succ n => nomatch n)
+    _ (RRO.resample_inFootprint in_t out_t dout FRO_m) _ _
+    (fun n a => by
+      cases n with
+      | zero => exact eager_init in_t out_t dout FRO_m dout_ll a
+      | succ n => cases n with
+        | zero => exact eager_get in_t out_t dout FRO_m dout_ll a
+        | succ n => cases n with
+          | zero => exact eager_set in_t out_t dout FRO_m dout_ll a
+          | succ n => cases n with
+            | zero => exact eager_rem in_t out_t dout FRO_m dout_ll a
+            | succ n => cases n with
+              | zero => exact eager_sample in_t out_t dout FRO_m dout_ll a
+              | succ n => cases n with
+                | zero => exact eager_queried in_t out_t dout FRO_m dout_ll a
+                | succ n => cases n with
+                  | zero => exact eager_allKnown in_t out_t dout FRO_m dout_ll a
+                  | succ n => nomatch n)
+    a
 
 -- EC's `FullEager.EagerCore.Eager (D : FRO_Distinguisher)`, with `D` a Lean parameter
 set_option linter.gaudisCrypt.using false in

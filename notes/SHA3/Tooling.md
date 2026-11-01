@@ -515,3 +515,21 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   The outer `prhlProc_conseq` absorbs what `simp` does to `r₁ = r₂` at `Unit` (it becomes `True`).
   `writes_keep` never fails (it leaves what it cannot split), so it must not run on the main goal
   unguarded.
+
+## 2026-11-01: PROM's `eager_D` (`Logic/EagerAbstract.lean`, `Logic/ConcreteFootprint.lean`)
+
+* `StmtWithHoles.Within X` (with `Getter.Within`, `Setter.Within`): every read and write touches
+  the globals only through the lens `X`.  `FVP.fvP_proc_le_of_within`: such a procedure has
+  `fvP ≤ X.footprint`.  Reads and writes are zooms along `ProgramState.withinL X` (the locals and
+  `X`).  Tactic `within_lens` (on `stmtPredSplit`, like `locals_only`): closes local reads and
+  writes, writes of `X` (`Setter.within_self`), and reads of expressions in `X` and the locals
+  (`simp_reads; simp only [h]`).  Used for `RRO.resample_fvP`.
+* Inliner (`Logic/Inline.lean`, `moduleStep?`, new step (8)): the accessor of a one-procedure
+  `moduletype` (`Orcl.f O := O`) applied to a `Module.proc` that is not a `T.mk` is unfolded by
+  definition.  Needed to unfold `Iter(RRO.I)` (`RRO.I` is a `module` without a module type).
+* `Logic/EagerAbstract.lean`: `swapLoc_of_confinedP` (`ConfinedP R` gives `SwapLoc SL` when `SL`
+  is confined outside `R`), `inFootprint_zoom_globalL`, and `eager_call_module` — EasyCrypt's
+  `eager proc` for a representable module disjoint from the block's lens, at equality invariants.
+* `PROM`: `Countable flag`; `RRO.resampleDen`, `RRO.resample_fvP`, `RRO.resample_inFootprint`;
+  `RRO_resample_ll` and `eager_init` … `eager_allKnown` stated (sorry, step 4); `eager_D` proven
+  from them (E10).
