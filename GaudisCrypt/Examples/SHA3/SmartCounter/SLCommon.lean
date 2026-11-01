@@ -1100,27 +1100,62 @@ theorem rf_ll (F : DFUNCTIONALITY) (_hF : FVP.fvP F ≤ C.footprintᶜ) :
   phoare_skip
   simp
 
-theorem DRestr_ll (D : DISTINGUISHER) (_hD : FVP.fvP D ≤ C.footprintᶜ) :
+/-- `DFRestr` touches `C`'s variables only.  Not an EC lemma: EasyCrypt reads a concrete
+module's globals off its code (for `fp_disjoint`, as `glob DRestr(D)`'s side conditions). -/
+@[fp_bound] theorem fvP_DFRestr : FVP.fvP DFRestr ≤ C.footprint := by
+  fp_module (Lens.pair C.c C.queries)
+
+/-- `DPRestr` touches `C`'s variables only.  Not an EC lemma (as `fvP_DFRestr`). -/
+@[fp_bound] theorem fvP_DPRestr : FVP.fvP DPRestr ≤ C.footprint := by
+  fp_module (Lens.pair C.c C.queries)
+
+/-- `lemma DRestr_ll (D<:DISTINGUISHER{-C}): (forall (F<:DFUNCTIONALITY{-D})(P<:DPRIMITIVE{-D}),
+islossless P.f => islossless P.fi => islossless F.f => islossless D(F,P).distinguish) =>
+forall (F <: DFUNCTIONALITY{-DRestr(D)}) (P <: DPRIMITIVE{-DRestr(D)}), islossless P.f =>
+islossless P.fi => islossless F.f => islossless DRestr(D, F, P).distinguish`.
+`{-DRestr(D)}` excludes `glob DRestr(D)`: `C`'s variables and `glob D`.
+EC: `move=> D_ll F P p_ll pi_ll f_ll;proc. call (D_ll (DFRestr(F)) (DPRestr(P)) _ _ _).
++ by apply (rp_ll P). + by apply (rpi_ll P). + by apply (rf_ll F). by inline *;auto.` -/
+theorem DRestr_ll (D : DISTINGUISHER) (_hDm : Module.ECModule D distExt)
+    (_hD : FVP.fvP D ≤ C.footprintᶜ) :
     (∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
       FVP.fvP P ≤ (FVP.fvP D).globᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
       (Module.app D (Module.pair F P)).procedure.IsLossless) →
-    ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP (DRestr D)).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP (DRestr D)).globᶜ →
+    ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (C.footprint ⊔ (FVP.fvP D).glob)ᶜ →
+      FVP.fvP P ≤ (C.footprint ⊔ (FVP.fvP D).glob)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
       (Module.app (DRestr D) (Module.pair F P)).procedure.IsLossless := by
-  sorry
+  intro D_ll F P hF hP p_ll pi_ll f_ll
+  -- `call (D_ll (DFRestr(F)) (DPRestr(P)) _ _ _)`, with `rp_ll`, `rpi_ll`, `rf_ll`
+  have hll := D_ll (Module.app DFRestr F) (Module.app DPRestr P) (by fp_disjoint)
+    (by fp_disjoint) (rp_ll P (by fp_disjoint) p_ll) (rpi_ll P (by fp_disjoint) pi_ll)
+    (rf_ll F (by fp_disjoint) f_ll)
+  rw [Procedure.isLossless_iff_phoareProc] at hll ⊢
+  phoare_proc_to_stmt
+  -- `inline *;auto`
+  phoare_inline 0
+  phoare_inline 0
+  phoare_wp 6
+  phoare_simp [hll]
+  phoare_skip
+  simp
 
 section RESTR
 
 variable (F : FUNCTIONALITY) (P : PRIMITIVE) (D : DISTINGUISHER)
 
 /-- `declare module F <: FUNCTIONALITY{-C, -Redo}`, `P <: PRIMITIVE{-C, -F, -Redo}`,
-`D <: DISTINGUISHER{-F, -P, -C, -Redo}`. -/
+`D <: DISTINGUISHER{-F, -P, -C, -Redo}`; `lemma swap_restr &m: Pr[Indif(FRestr(F), PRestr(P),
+D).main()@ &m: res] = Pr[Indif(F,P,DRestr(D)).main()@ &m: res]`.
+EC: `byequiv=>//;auto. proc;inline *;wp. swap{1}[1..2] 3;sim;auto;call(:true);auto.`
+EC's `sim` tracks `={glob D, glob F, glob P, glob C}` and so ignores the left's
+`Redo.prefixes <- …` (from `FRestr.init`); here that write is swapped to the end instead, past
+the calls that cannot see it (`{-Redo}`), and `equiv_sim` needs equal globals. -/
 theorem swap_restr (hD : Module.ECModule D (distExt))
     (_hF : FVP.fvP F ≤ (C.footprint ⊔ (Redo.prefixes).footprint)ᶜ)
     (_hP : FVP.fvP P ≤ (C.footprint ⊔ (FVP.fvP F).glob ⊔ (Redo.prefixes).footprint)ᶜ)
@@ -1131,7 +1166,26 @@ theorem swap_restr (hD : Module.ECModule D (distExt))
         () m (fun r _ => r = true) =
       Procedure.Pr (Module.app Indif (Module.pair F (Module.pair P (DRestr D)))).procedure
         () m (fun r _ => r = true) := by
-  sorry
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  -- `proc;inline *`
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 2
+  -- `FRestr(F).f` is `DFRestr(F).f`, `PRestr(P).f` is `DPRestr(P).f` (EC: by definition)
+  simp only [FRestr, PRestr, Indifferentiability.FUNCTIONALITY.f.mk_simp,
+    Indifferentiability.PRIMITIVE.f.mk_simp, Indifferentiability.PRIMITIVE.fi.mk_simp,
+    Indifferentiability.DFUNCTIONALITY.mk_f, Indifferentiability.DPRIMITIVE.mk_f_fi,
+    Indifferentiability.FUNCTIONALITY.view, Indifferentiability.PRIMITIVE.view]
+  -- `Redo.prefixes <- …` to the end; `swap{1}[1..2] 3`: `C.init`'s writes past `P.init();
+  -- F.init()`
+  stmt_swap{1} 8 3
+  stmt_swap{1} 4 4
+  stmt_swap{1} 3 4
+  -- `wp; sim; auto; call(:true); auto`
+  equiv_sim
 
 end RESTR
 

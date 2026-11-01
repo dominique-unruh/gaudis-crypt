@@ -259,6 +259,24 @@ theorem Setter.within_self {x : Setter Ω ProgramState}
   intro v g σ _
   rw [hx, hx, X.set_get]
 
+/-- Writing through a disjoint lens keeps a lens's `get` (`Lens.get_of_disjoint_set`, with the
+disjointness the other way round). -/
+theorem Lens.get_of_disjoint_set' {a b m : Type*} (L : Lens a m) (M : Lens b m)
+    [hd : Lens.Disjoint L M] (v : b) (s : m) : L.get (M.set v s) = L.get s :=
+  @Lens.get_of_disjoint_set _ _ _ L M hd.symm v s
+
+/-- A write of a global `Y` that changes the globals only in `X`, as a function of `X` (`Y` a
+component of a pair `X`, …), is within `X`. -/
+theorem Setter.within_of_global {β : Type} {Y : Lens β VariableAssignment}
+    {x : Setter β ProgramState} (hx : ∀ v σ, x.set v σ = ⟨Y.set v σ.globals, σ.locals⟩)
+    (hY : ∀ v g, X.set (X.get (Y.set v g)) g = Y.set v g)
+    (hYX : ∀ v g g', X.get g = X.get g' → X.get (Y.set v g) = X.get (Y.set v g')) :
+    x.Within X := by
+  intro v g σ h
+  rw [hx, hx]
+  dsimp only
+  rw [← hYX v g σ.globals h, hY]
+
 /-- Every read and write of the statement, its callees' included, touches the globals only
 through `X`. -/
 def StmtWithHoles.Within (X : Lens Ω VariableAssignment) {h : HoleSigs} :
@@ -347,7 +365,8 @@ partial def unfoldModuleProcs (g : MVarId) (fuel : Nat := 64) : MetaM MVarId := 
 open Lean Elab Tactic in
 /-- `within_lens`: on a goal `StmtWithHoles.Within X s` (or `Getter.Within`, `Setter.Within`), the
 conditions on the single reads and writes of `s`, callees included.  Reads and writes of local
-variables, writes of `X` and reads of expressions in `X` and the locals are closed. -/
+variables, writes of `X` (or of a component of it, `X` a pair of variables) and reads of
+expressions in `X` (or its components) and the locals are closed. -/
 elab "within_lens" : tactic => do
   liftMetaTactic (stmtPredSplit ``StmtWithHoles.Within ·)
   -- a return value: unfold the procedure it is read off, if any
@@ -356,7 +375,93 @@ elab "within_lens" : tactic => do
     | exact fun _ _ _ => rfl
     | exact Setter.within_of_locals (fun _ _ _ => rfl) (fun _ _ => rfl)
     | exact Setter.within_self (fun _ _ => rfl)
-    | exact fun _ _ h => by simp_reads; simp only [h]; try rfl
+    -- a write of a component of `X` (a pair of variables)
+    | exact Setter.within_of_global (fun _ _ => rfl)
+        (fun _ _ => by
+          simp only [Lens.pair, Lens.get_set, Lens.set_get]
+          try simp only [Lens.get_set, Lens.set_get, Lens.get_of_disjoint_set,
+            Lens.get_of_disjoint_set'])
+        (fun _ _ _ h => by
+          simp only [Lens.pair, Prod.mk.injEq] at h
+          simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set,
+            Lens.get_of_disjoint_set', h])
+    -- a read of `X`, or of components of it
+    | exact fun _ _ h => by
+        try simp only [Lens.pair, Prod.mk.injEq] at h
+        simp_reads; simp only [h]; try rfl
     | skip))
+
+/-! ## `fp_module`: the footprint of a concrete module -/
+
+namespace FpModule
+
+open Lean Meta Elab Tactic
+
+/-- Run the tactic `stx` on the goal `g`, returning the new goals. -/
+def runOn (g : MVarId) (stx : TSyntax `tactic) : TacticM (List MVarId) := do
+  setGoals [g]
+  evalTactic stx
+  getGoals
+
+/-- Bound `L ≤ B`, `L` a join of `FVP.fvP M`, `evalMexpr` of module expressions and procedure
+footprints, through the module's expression down to its procedures, each closed by `close`. -/
+partial def go (close : TSyntax `tactic) (g : MVarId) (fuel : Nat := 64) : TacticM Unit :=
+    g.withContext do
+  if fuel == 0 then throwError "fp_module: gave up"
+  let ty ← instantiateMVars (← g.getType)
+  let_expr LE.le _ _ L _ := ty | throwError "fp_module: not an inequality:{indentExpr ty}"
+  let L ← whnfR L
+  let next (stx : TSyntax `tactic) : TacticM Unit := do
+    for g' in ← runOn g stx do go close g' (fuel - 1)
+  if L.isAppOfArity ``Max.max 4 then
+    return ← next (← `(tactic| refine sup_le ?_ ?_))
+  if L.isAppOf ``Bot.bot then
+    return ← next (← `(tactic| exact bot_le))
+  if L.isAppOf ``FVP.fvP_proc then
+    let gs ← runOn g close
+    unless gs.isEmpty do throwError "fp_module: could not bound{indentExpr L}"
+    return
+  if L.isAppOf ``FVP.fvP then
+    return ← next (← `(tactic|
+      show FVP.fvpInductiveFunctionGS.evalMexpr (Module.expression _) ≤ _))
+  unless L.isAppOf ``InductiveFunctionGettersSetters.evalMexpr do
+    throwError "fp_module: cannot bound{indentExpr L}"
+  let e := L.appArg!
+  -- a module expression the simp set did not take apart
+  let_expr Module.expression _ c := e
+    | next (← `(tactic| simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair,
+        evalMexpr_fst, evalMexpr_snd, evalMexpr_var, evalMexpr_unit, evalMexpr_proc,
+        evalMexpr_procHoles, sup_bot_eq, bot_sup_eq]))
+  let c ← whnfR c
+  if c.isAppOf ``Module.procWithHoles then
+    return ← next (← `(tactic| refine (evalMexpr_procWithHoles_le _).trans ?_))
+  if c.isAppOf ``ModuleExpression.toModule then
+    return ← next (← `(tactic| (
+      refine (evalMexpr_toModule_le _ _).trans ?_
+      try simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_fst,
+        evalMexpr_snd, evalMexpr_var, evalMexpr_unit, evalMexpr_proc, evalMexpr_procHoles,
+        sup_bot_eq, bot_sup_eq])))
+  -- a named module (a `module`, one of its procedures): unfold it
+  let some c' ← unfoldDefinition? c
+    | throwError "fp_module: cannot unfold{indentExpr c}"
+  let L' := mkApp L.appFn! (mkApp e.appFn! c')
+  go close (← g.replaceTargetDefEq (← mkAppM ``LE.le #[L', ty.getArg! 3])) (fuel - 1)
+
+end FpModule
+
+open Lean Elab Tactic in
+/-- `fp_module X`: prove `FVP.fvP M ≤ B` for a concrete module `M` (a `module`, or a functor of
+modules: the parameters contribute nothing) whose procedures read and write the globals only
+through the lens `X` (`within_lens`), with `X.footprint ≤ B` (by `le_rfl`, after splitting `X`'s
+pairs).  `fp_module` alone: `M`'s procedures use locals only (`locals_only`), and `B` is anything,
+`⊥` in particular.  EasyCrypt reads a concrete module's globals off its code. -/
+elab "fp_module" X:(ppSpace term)? : tactic => do
+  let close ← match X with
+    | some X => `(tactic| exact (FVP.fvP_proc_le_of_within (X := $X) _ (by within_lens)
+        (by within_lens)).trans (by first
+          | exact le_rfl
+          | (simp only [Footprint.lens_pair]; exact le_rfl)))
+    | none => `(tactic| exact FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
+  FpModule.go close (← getMainGoal)
 
 end GaudisCrypt

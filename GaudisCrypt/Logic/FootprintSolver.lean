@@ -10,7 +10,16 @@ way: it bounds `FVP.fvP M` through the module combinators (`fvP_app`, `fvP_pair`
 unfolding definitions such as a module type's accessors and constructors) down to modules with a
 restriction hypothesis `FVP.fvP N ≤ Sᶜ` in the context, and finds `A` among the joinands of `S`
 (a joinand `glob X`, EasyCrypt's restriction against an abstract module, covers `A ≤ X`).
+
+A concrete module has no restriction hypothesis: its globals are read off its code.  A lemma
+`FVP.fvP M ≤ B` tagged `@[fp_bound]` (proven by `fp_module`) bounds it; `B` is then a join of
+variables.  A variable `v` is outside `glob D` when it is outside `D` and `D` is finitely supported
+(EasyCrypt's `glob D` is a set of variables): `Footprint.varLens_le_compl_glob`, with the finite
+support from a hypothesis `Module.ECModule D _` (or `(FVP.fvP D).FinitelySupported`).
 -/
+
+/-- `@[fp_bound]`: a bound `FVP.fvP M ≤ B` on a concrete module that `fp_disjoint` uses. -/
+register_label_attr fp_bound
 
 namespace GaudisCrypt
 
@@ -32,6 +41,13 @@ theorem Footprint.le_compl_of_fvP {A F : Footprint VariableAssignment} (h : F �
 theorem Footprint.le_compl_of_le_compl {A S F : Footprint VariableAssignment} (h : F ≤ Sᶜ)
     (hA : A ≤ S) : F ≤ Aᶜ :=
   le_trans h (Footprint.compl_antimono hA)
+
+/-- A variable outside a finitely supported `F` is outside `F.glob` (EasyCrypt: `glob D` is the
+set of `D`'s variables). -/
+theorem Footprint.varLens_le_compl_glob {F : Footprint VariableAssignment}
+    (hF : F.FinitelySupported) (v : VariableName) (h : F ≤ (GaudisCrypt.varLens v).footprintᶜ) :
+    (GaudisCrypt.varLens v).footprint ≤ F.globᶜ :=
+  (Footprint.le_compl_comm _ _).mp (hF.glob_le_compl_varLens v h)
 
 namespace FootprintSolver
 
@@ -106,8 +122,25 @@ def tryHyp (g : MVarId) (h : LocalDecl) : MetaM Bool := do
       #[some A, some S, some F, some h.toExpr, some hA])
     solveLeSup hA.mvarId!
 
-/-- Close `X ≤ Aᶜ`, `X` a join of module footprints `FVP.fvP M`: each `M` has a restriction
-hypothesis, or is bounded through the module combinators by modules that do. -/
+/-- A proof of `F.FinitelySupported`, from a hypothesis `Module.ECModule D _` (`F = FVP.fvP D`)
+or `F.FinitelySupported`. -/
+def finitelySupported (F : Lean.Expr) : MetaM Lean.Expr := do
+  let goal ← mkAppM ``Footprint.FinitelySupported #[F]
+  for h in ← getLCtx do
+    if h.isImplementationDetail then continue
+    let hty ← instantiateMVars h.type
+    let cand? : Option Lean.Expr ←
+      if hty.isAppOf ``Module.ECModule then
+        pure (some (← mkAppM ``Module.ECModule.finitelySupported #[h.toExpr]))
+      else if hty.isAppOf ``Footprint.FinitelySupported then pure (some h.toExpr)
+      else pure none
+    if let some cand := cand? then
+      if ← isDefEq (← inferType cand) goal then return cand
+  throwError "fp_disjoint: no finite support (`Module.ECModule`) for{indentExpr F}"
+
+/-- Close `X ≤ Aᶜ`, `X` a join of module footprints `FVP.fvP M` and variables: each `M` has a
+restriction hypothesis, an `@[fp_bound]`, or is bounded through the module combinators by modules
+that do; each variable is outside `A`'s modules (outside `glob D` by `D`'s finite support). -/
 partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let_expr LE.le _ _ X _ := ty | throwError "fp_disjoint: not an inequality:{indentExpr ty}"
@@ -121,16 +154,62 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
     return
   for h in ← getLCtx do
     if ← tryHyp g h then return
-  let_expr FVP.fvP _ _ M := X
-    | throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"
-  if fuel == 0 then throwError "fp_disjoint: gave up on{indentExpr M}"
-  let M ← whnfCore (← instantiateMVars M)
-  -- `fvP (f a …) ≤ B` by the combinator's lemma, then `B ≤ Aᶜ`
+  if fuel == 0 then throwError "fp_disjoint: gave up on{indentExpr X}"
+  let some T := compl? (ty.getArg! 3)
+    | throwError "fp_disjoint: not of the form `X ≤ Aᶜ`:{indentExpr ty}"
+  -- `glob F ≤ Tᶜ`: turn it around, to the variables of `T` against `glob F`
+  if X.isAppOfArity ``Footprint.glob 1 then
+    let [g'] ← applyConst g ``Footprint.le_compl_of_fvP
+      | throwError "fp_disjoint: `le_compl_of_fvP` failed"
+    return ← solveFvP g' (fuel - 1)
+  -- variables `X` (no module): against `glob F` or a module's footprint
+  unless X.find? (·.isAppOf ``FVP.fvP) |>.isSome do
+    if T.isAppOfArity ``Footprint.glob 1 then
+      -- a variable `v` outside `glob F`: `F` finitely supported, and `v` outside `F`
+      if X.isAppOf ``Lens.footprint then
+        let F := T.getArg! 0
+        let v ← mkFreshExprMVar (mkConst ``VariableName)
+        unless ← isDefEq X (← mkAppM ``Lens.footprint #[← mkAppM ``GaudisCrypt.varLens #[v]]) do
+          throwError "fp_disjoint: not a variable:{indentExpr X}"
+        let hF ← finitelySupported F
+        let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[F, ← mkAppM ``Compl.compl #[X]])
+        g.assign (← mkAppOptM ``Footprint.varLens_le_compl_glob
+          #[some F, some hF, some (← instantiateMVars v), some g'])
+        return ← solveFvP g'.mvarId! (fuel - 1)
+    else if T.find? (·.isAppOf ``FVP.fvP) |>.isSome then
+      -- `X ≤ (fvP M)ᶜ`: turn it around
+      let [g'] ← applyConst g ``Footprint.le_compl_of_fvP
+        | throwError "fp_disjoint: `le_compl_of_fvP` failed"
+      return ← solveFvP g' (fuel - 1)
+    else if X.isAppOf ``Lens.footprint && T.isAppOf ``Lens.footprint then
+      -- two variables: disjoint lenses (`global_var`s by instance search)
+      if ← attempt (do
+          g.assign (← mkAppOptM ``Lens.footprint_le_compl_of_disjoint
+            #[none, none, none, X.appArg!, T.appArg!, none])) then return
+      throwError "fp_disjoint: no `Lens.Disjoint` for{indentExpr ty}"
+    -- a named footprint (`C.footprint`): unfold it
+    if !X.isAppOf ``Lens.footprint then
+      if let some X' ← unfoldDefinition? X then
+        let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[X', ty.getArg! 3])
+        return ← solveFvP g' (fuel - 1)
+    throwError "fp_disjoint: cannot show{indentExpr ty}"
+  -- `X ≤ B` by `pf`, then `B ≤ Aᶜ`
   let viaBound (pf : Lean.Expr) : MetaM Unit := do
     let_expr LE.le _ _ _ B := ← inferType pf | throwError "fp_disjoint: not a bound:{indentExpr pf}"
     let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[B, ty.getArg! 3])
     g.assign (← mkAppM ``le_trans #[pf, g'])
     solveFvP g'.mvarId! (fuel - 1)
+  -- a concrete module with an `@[fp_bound]` bound
+  for lem in ← labelled `fp_bound do
+    if ← attempt (do
+        let c ← mkConstWithFreshMVarLevels lem
+        let (args, _, bty) ← forallMetaTelescope (← inferType c)
+        let_expr LE.le _ _ L _ := bty | failure
+        unless ← isDefEq L X do failure
+        viaBound (← instantiateMVars (mkAppN c args))) then return
+  let_expr FVP.fvP _ _ M := X
+    | throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"
+  let M ← whnfCore (← instantiateMVars M)
   if M.isAppOfArity ``Module.app 6 then
     return ← viaBound (← mkAppM ``FVP.fvP_app #[M.getArg! 4, M.getArg! 5])
   if M.isAppOfArity ``Module.pair 6 then

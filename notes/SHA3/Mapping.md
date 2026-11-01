@@ -286,11 +286,11 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/SLCommon.lean`, namespace `GaudisC
 | 932 | lemma | `rp_ll` |  | `rp_ll` | done |
 | 935 | lemma | `rpi_ll` |  | `rpi_ll` | done |
 | 938 | lemma | `rf_ll` |  | `rf_ll` | done |
-| 941 | lemma | `DRestr_ll` |  | `DRestr_ll` | stated |
+| 941 | lemma | `DRestr_ll` |  | `DRestr_ll` (`{-DRestr(D)}` as `C.footprint ⊔ glob D`; `D` with `Module.ECModule`, E2) | done |
 | 957 | declare module | `F` | section RESTR. | `F` | def |
 | 958 | declare module | `P` | section RESTR. | `P` | def |
 | 959 | declare module | `D` | section RESTR. | `D` | def |
-| 961 | lemma | `swap_restr` | section RESTR. | `swap_restr` | stated |
+| 961 | lemma | `swap_restr` | section RESTR. | `swap_restr` | done |
 | 974 | declare module | `P` | section COUNT. | `P` | def |
 | 975 | declare module | `CO` | section COUNT. | `CO` | def |
 | 976 | declare module | `D` | section COUNT. | `D` | def |

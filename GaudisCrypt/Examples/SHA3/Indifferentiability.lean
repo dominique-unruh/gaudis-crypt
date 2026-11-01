@@ -71,6 +71,19 @@ noncomputable def FUNCTIONALITY.view (F : FUNCTIONALITY p f_in f_out) :
 noncomputable def PRIMITIVE.view (P : PRIMITIVE p f_in f_out) : DPRIMITIVE p f_in f_out :=
   DPRIMITIVE.mk p f_in f_out { f := PRIMITIVE.f p f_in f_out P, fi := PRIMITIVE.fi p f_in f_out P }
 
+/-- A `DFUNCTIONALITY` is the record of its procedure (eta).  Not an EC lemma: EasyCrypt's
+modules are referred to by name, not rebuilt from their procedures. -/
+@[simp] theorem DFUNCTIONALITY.mk_f (X : DFUNCTIONALITY p f_in f_out) :
+    DFUNCTIONALITY.mk p f_in f_out { f := DFUNCTIONALITY.f p f_in f_out X } = X :=
+  DFUNCTIONALITY.destruct_mk p f_in f_out X
+
+/-- A `DPRIMITIVE` is the record of its procedures (eta).  Not an EC lemma (as
+`DFUNCTIONALITY.mk_f`). -/
+@[simp] theorem DPRIMITIVE.mk_f_fi (X : DPRIMITIVE p f_in f_out) :
+    DPRIMITIVE.mk p f_in f_out
+      { f := DPRIMITIVE.f p f_in f_out X, fi := DPRIMITIVE.fi p f_in f_out X } = X :=
+  DPRIMITIVE.destruct_mk p f_in f_out X
+
 /-- The oracle procedures a `DISTINGUISHER` may call (EasyCrypt's `OI.allowed`): `F.f`, `P.f`,
 `P.fi`.  The holes of its representation (`Module.Representable`, exception E2). -/
 abbrev distHoles : HoleSigs :=

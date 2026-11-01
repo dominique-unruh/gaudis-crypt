@@ -631,3 +631,33 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   goal, leaving a metavariable in the proof term; `hoare_/phoare_/equiv_proc_to_stmt` take the
   result variable's type as the signature spells it (`sigRetType`), not `whnf`-unfolded (`block`
   became a bare subtype without its `Nonempty` instance).
+
+## 2026-11-01: `SLCommon.ec` — `DRestr_ll`, `swap_restr`; footprints of concrete modules
+
+* `fp_module X` (`Logic/ConcreteFootprint.lean`): proves `FVP.fvP M ≤ B` for a concrete module
+  (a `module`, or a functor of modules; the parameters contribute nothing) by its expression down
+  to its procedures, each `within_lens` of `X`, with `X.footprint ≤ B`.  `fp_module` alone: locals
+  only.  EasyCrypt reads a concrete module's globals off its code; `fvP_DFRestr`, `fvP_DPRestr`
+  (`≤ C.footprint`) are such bounds, not EasyCrypt lemmas.
+* `within_lens` closes writes of a component of a pair `X` (`Setter.within_of_global`) and reads
+  of its components (`X = Lens.pair C.c C.queries` for `C`'s two variables).
+* `fp_disjoint` (`Logic/FootprintSolver.lean`):
+  * `@[fp_bound]` lemmas `FVP.fvP M ≤ B` bound concrete modules (tried before the combinators);
+  * a variable outside a finitely supported `D` is outside `glob D`
+    (`Footprint.varLens_le_compl_glob`; the finite support from a `Module.ECModule D _`
+    hypothesis), so `C`'s variables are outside `glob D` given `{-C}`;
+  * two variables are disjoint by their `Lens.Disjoint` instance (`global_var`s);
+  * goals `glob F ≤ Tᶜ` and `v ≤ (fvP M)ᶜ` are turned around.
+* `DRestr_ll`: EC's `{-DRestr(D)}` on `F`, `P` is stated as `glob DRestr(D)` spelled out,
+  `C.footprint ⊔ glob D` (README: `{-M}` for a concrete module lists its variables, callees'
+  included), and `D` carries `Module.ECModule` (E2; its finite support gives `glob D ≤ C.footprintᶜ`).
+  Proof as EC's: `D_ll (DFRestr F) (DPRestr P)` with `rp_ll`, `rpi_ll`, `rf_ll` (side conditions
+  by `fp_disjoint`), then `inline *; auto` as `phoare_inline; phoare_wp; phoare_simp [hll]`.
+* `swap_restr`: `Indifferentiability.DFUNCTIONALITY.mk_f`, `DPRIMITIVE.mk_f_fi` (a record of a
+  module's procedures is the module; not EC lemmas) let `simp` rewrite `FRestr(F).f` to
+  `DFRestr(F).f` in the callee.  EC's `swap{1}[1..2] 3; sim` becomes three `stmt_swap{1}` and
+  `equiv_sim`; the left-only `Redo.prefixes <- …` (which EC's `sim` ignores, tracking only
+  `={glob D, glob F, glob P, glob C}`) is swapped to the end, past the calls that cannot see it,
+  since `equiv_sim`'s calls need equal globals.
+* `Pr_restr` remains `stated`: it needs EasyCrypt's up-to-bad abstract call
+  `call (_: max_size < C.c, ={glob P, glob CO, glob C})` (also used by `Handle.eca`).
