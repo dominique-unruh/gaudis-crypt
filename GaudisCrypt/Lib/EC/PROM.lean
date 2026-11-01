@@ -795,7 +795,88 @@ theorem eager_set (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : (in_t × out_t
       (procedureDenotation (FRO_T.set in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
       (procedureDenotation (FRO_T.set in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
       (fun u v => u = v) := by
-  sorry
+  -- EC: `eager proc. inline RRO.resample=> /=; wp.
+  -- case ((x \in FRO.m /\ FRO.m.[x] \is Unknown){1}).`
+  refine eagerR_of_prhlStmt FRO_m _ _ _ _ (y := localVarLens "r" Unit) (fun _ _ => rfl)
+    (RRO.resample_inFootprint in_t out_t dout FRO_m)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) _)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) _)
+    (fun _ _ => rfl) ?_
+  unfold eagerLeftStmt eagerRightStmt
+  refine prhlStmt_seq_congr_right_snd (RRO.resample_call_eq in_t out_t dout FRO_m) ?_
+  refine prhlStmt_case (fun σ₁ _ => FMap.in_dom_with (FRO_m.get σ₁.globals) a.1 Unknown) ?_ ?_
+  · -- EC: `transitivity{1}
+    -- { Iter(RRO.I).iter_1s(x, elems (fdom (restr Unknown FRO.m) `\` fset1 x)); }`
+    refine prhlStmt_seq_congr_left
+      (fun σ₁ _ h => RRO.resample_call_split in_t out_t dout FRO_m a.1 σ₁ h.2) ?_
+    stmt_inline{1} 2
+    stmt_inline{2} 0
+    stmt_wp
+    -- EC: `seq 3 1 : (={x, y} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
+    -- (FRO.m.[x] = Some (y, Known)){2})`
+    equiv_seq 1 1 : (FMap.eq_except (· = a.1) §FRO_m{1} §FRO_m{2} ∧
+      FMap.get §FRO_m{2} a.1 = some (a.2, Known) ∧ FMap.in_dom_with §FRO_m{1} a.1 Unknown)
+    case h₁ =>
+      stmt_inline{1} 0
+      stmt_wp
+      stmt_wp{1} 1
+      stmt_wp
+      equiv_skip
+      rintro m _ ⟨rfl, hU⟩
+      refine ⟨by simp [SubProbability.expected, dout_ll], fun c _ =>
+        ⟨FMap.eq_except_set (fun x => x = a.1) (FMap.eq_except_refl _ _) a.1 _ _
+          (fun h => absurd rfl h), FMap.get_set_sameE _ _ _,
+          by rw [FMap.in_dom_with_set, if_pos rfl]⟩⟩
+    case h₂ =>
+      -- EC: `exists* x{1}, y{1}, (FRO.m.[x]{1}); elim*=> x1 y1 mx1. call (iter_inv RRO.I …
+      -- (I_f_eqex x1 mx1 mx2))`
+      refine prhlStmt_fix_left (fun σ₁ => FMap.get (FRO_m.get σ₁.globals) a.1) fun v => ?_
+      equiv_call (IterProc.iter_inv (RRO.I in_t out_t dout FRO_m) (fun z => a.1 ≠ z)
+        (fun g₁ g₂ => FMap.eq_except (· = a.1) (FRO_m.get g₁) (FRO_m.get g₂) ∧
+          FMap.get (FRO_m.get g₁) a.1 = v ∧ FMap.get (FRO_m.get g₂) a.1 = some (a.2, Known))
+        (I_f_eqex in_t out_t dout FRO_m a.1 v (some (a.2, Known))))
+      equiv_skip
+      rintro σ₁ σ₂ ⟨⟨he, h2, hU⟩, rfl⟩
+      refine ⟨⟨?_, fun z hz => ?_, he, rfl, h2⟩, fun _ g₁ _ g₂ ⟨he', _, h2'⟩ =>
+        FMap.set_eq_of_eq_except he' h2'⟩
+      · congr 1
+        ext z
+        rw [Finset.mem_sdiff, Finset.mem_singleton, FMap.mem_fdom, FMap.mem_fdom,
+          FMap.dom_restr, FMap.dom_restr]
+        by_cases hz : z = a.1
+        · subst hz
+          simp only [not_true_eq_false, and_false, false_iff]
+          intro h
+          have h3 := h.2
+          rw [h2] at h3
+          exact absurd h3 (show Known ≠ Unknown by decide)
+        · simp only [hz, not_false_eq_true, and_true]
+          exact FMap.in_dom_with_congr (he z hz) _
+      · rw [Finset.mem_toList, Finset.mem_sdiff, Finset.mem_singleton] at hz
+        exact fun h => hz.2 h.symm
+  · -- EC: `exists* x{1}, y{1}, (FRO.m.[x]{1}); elim*=> x1 y1 mx1. call (iter_inv RRO.I …)`
+    refine prhlStmt_seq_congr_left
+      (fun _ _ _ => congrFun (RRO.resample_call_eq in_t out_t dout FRO_m) _) ?_
+    stmt_inline{1} 1
+    stmt_inline{2} 0
+    stmt_wp
+    refine prhlStmt_fix_left (fun σ₁ => FMap.get (FRO_m.get σ₁.globals) a.1) fun v => ?_
+    equiv_call (IterProc.iter_inv (RRO.I in_t out_t dout FRO_m) (fun z => a.1 ≠ z)
+      (fun g₁ g₂ => FMap.eq_except (· = a.1) (FRO_m.get g₁) (FRO_m.get g₂) ∧
+        FMap.get (FRO_m.get g₁) a.1 = v ∧ FMap.get (FRO_m.get g₂) a.1 = some (a.2, Known))
+      (I_f_eqex in_t out_t dout FRO_m a.1 v (some (a.2, Known))))
+    stmt_wp
+    equiv_skip
+    rintro σ₁ σ₂ ⟨⟨hm, hU⟩, rfl⟩
+    rw [← hm]
+    refine ⟨⟨?_, fun z hz => ?_,
+      FMap.eq_except_setr (fun x => x = a.1) (FMap.eq_except_refl _ _) a.1 rfl _,
+      rfl, FMap.get_set_sameE _ _ _⟩, fun _ g₁ _ g₂ ⟨he, _, h2⟩ =>
+        FMap.set_eq_of_eq_except he h2⟩
+    · rw [FMap.restr_set, if_neg (by decide), FMap.rem_id _ _ (by rwa [FMap.dom_restr])]
+    · rw [Finset.mem_toList, FMap.mem_fdom, FMap.dom_restr] at hz
+      rintro rfl
+      exact hU hz
 
 /-- `eager [RRO.resample();, FRO.rem ~ RRO.rem, RRO.resample(); : ={x} /\ ={FRO.m} ==>
 ={res, FRO.m}]`, at equality invariants (exception E10). -/

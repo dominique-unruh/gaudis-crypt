@@ -283,6 +283,15 @@ theorem rem_eq_of_eq_except {m1 m2 : FMap α β} {x : α} (h : eq_except (· = x
   · subst hz; exact h2.symm
   · exact h z hz
 
+/-- Equal outside `x`, and bound to `b` at `x` on the right: the left with `x ↦ b` is the right. -/
+theorem set_eq_of_eq_except {m1 m2 : FMap α β} {x : α} {b : β} (h : eq_except (· = x) m1 m2)
+    (h2 : get m2 x = some b) : set m1 x b = m2 := by
+  refine (fmap_eqP _ _).mp fun z => ?_
+  rw [get_setE]
+  split_ifs with hz
+  · subst hz; exact h2.symm
+  · exact h z hz
+
 /-- `eq_except_refl`. -/
 theorem eq_except_refl (X : α → Prop) (m : FMap α β) : eq_except X m m := fun _ _ => rfl
 
