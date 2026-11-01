@@ -8,6 +8,8 @@ import GaudisCrypt.Lib.EC.IterProc
 import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.EagerAbstract
+import GaudisCrypt.Logic.EagerBridge
+import GaudisCrypt.Logic.PHoareWp
 
 /-!
 # EasyCrypt's programmable random oracles (`theories/crypto/PROM.ec`), `FullRO`
@@ -582,10 +584,31 @@ theorem RRO.resample_inFootprint :
       (RRO.own.resample in_t out_t dout FRO_m).procedure ())
     (RRO.resample_fvP in_t out_t dout FRO_m)
 
-/-- `lemma RRO_resample_ll : islossless RRO.resample`. -/
+/-- `RRO.I.f` is lossless (EC: `proc; auto=> /> &m'; exact/dout_ll` in `RRO_resample_ll`). -/
+theorem RRO_I_f_ll (dout_ll : ∀ x, (dout x).1 Set.univ = 1) :
+    (IterProc.Orcl.f in_t (RRO.I in_t out_t dout FRO_m)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 5
+  phoare_skip
+  intro _ _
+  simp [SubProbability.expected, dout_ll]
+
+/-- `lemma RRO_resample_ll : islossless RRO.resample`.  EC: `proc; call (iter_ll RRO.I _)=> //.
+by proc; auto=> /> &m'; exact/dout_ll.` -/
 theorem RRO_resample_ll (dout_ll : ∀ x, (dout x).1 Set.univ = 1) :
     (RRO.own.resample in_t out_t dout FRO_m).procedure.IsLossless := by
-  sorry
+  rw [Procedure.isLossless_iff_phoareProc]
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 3
+  phoare_skip
+  intro σ _ _
+  have hll := IterProc.iter_ll (RRO.I in_t out_t dout FRO_m) (RRO_I_f_ll in_t out_t dout FRO_m dout_ll)
+  rw [IterProc.Iter.iter.apply_simp, Module.procedure_proc'] at hll
+  simp only [IterProc.Orcl.f, RRO.I, RRO.I.f, Module.procedure_proc'] at hll
+  exact hll.ewp_const _ _ _
 
 /-- `eager [RRO.resample();, FRO.init ~ RRO.init, RRO.resample(); : ={FRO.m} ==> ={FRO.m}]`, at
 equality invariants (exception E10). -/
@@ -595,7 +618,26 @@ theorem eager_init (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
       (procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
       (procedureDenotation (FRO_T.init in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
       (fun u v => u = v) := by
-  sorry
+  -- EC: `eager proc. inline{2} *; rcondf{2} 3; auto=> />.
+  -- + by rewrite restr0 fdom0 elems_fset0. by call{1} RRO_resample_ll.`
+  refine eagerR_of_prhlStmt FRO_m _ _ _ a (y := localVarLens "r" Unit) (fun _ _ => rfl)
+    (RRO.resample_inFootprint in_t out_t dout FRO_m)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) a)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) a)
+    (fun _ _ => rfl) ?_
+  unfold eagerLeftStmt eagerRightStmt
+  repeat stmt_inline{2} 0
+  equiv_rcondf{2}
+  stmt_inline{1} 1
+  stmt_wp
+  -- EC's `call{1} RRO_resample_ll`
+  unfold prhlStmt
+  rw [show programDenotation (StmtWithHoles.skip (h := .empty)) =
+    (pure () : ProgramDenotation ProgramState Unit) from funext programDenotation_skip_apply]
+  refine ProgramDenotation.prhl2.kill_left' fun σ₁ σ₂ _ =>
+    ⟨Stmt.call_wp_one (RRO_resample_ll in_t out_t dout FRO_m dout_ll) _ _ _,
+      Stmt.call_satisfies fun _ _ => ?_⟩
+  simp [FMap.restr0, FMap.fdom0]
 
 /-- `eager [RRO.resample();, FRO.get ~ RRO.get, RRO.resample(); : ={x, FRO.m} ==>
 ={res, FRO.m}]`, at equality invariants (exception E10). -/
@@ -645,7 +687,53 @@ theorem eager_queried (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
       (procedureDenotation (FRO_T.queried in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
       (procedureDenotation (FRO_T.queried in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
       (fun u v => u = v) := by
-  sorry
+  -- EC: `eager proc; inline *; wp; while (={l, FRO.m} /\ (forall z, z \in l =>
+  -- in_dom_with FRO.m z Unknown){1} /\ in_dom_with FRO.m{1} x{1} f{1} = result{2})`
+  refine eagerR_of_prhlStmt FRO_m _ _ _ a (y := localVarLens "r" Bool) (fun _ _ => rfl)
+    (RRO.resample_inFootprint in_t out_t dout FRO_m)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) a)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) a)
+    (fun _ _ => rfl) ?_
+  unfold eagerLeftStmt eagerRightStmt
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_while (={l, FRO_m} ∧ (∀ z ∈ §l{1}, FMap.in_dom_with §FRO_m{1} z Unknown) ∧
+    decide (FMap.dom §FRO_m{1} a.1 ∧ is_ (FMap.get §FRO_m{1} a.1) a.2) = §r{2})
+  case body =>
+    stmt_wp
+    equiv_rnd
+    stmt_wp
+    equiv_skip
+    rintro l m _ _ r ⟨⟨⟨rfl, rfl⟩, hinv, rfl⟩, hne⟩
+    cases l with
+    | nil => simp at hne
+    | cons h t =>
+      refine ⟨rfl, fun c _ => ⟨⟨rfl, rfl⟩, fun z hz => ?_, ?_⟩⟩
+      · show FMap.in_dom_with (FMap.set m h (c, Unknown)) z Unknown
+        rw [FMap.in_dom_with_set]
+        split_ifs
+        · rfl
+        · exact hinv z (List.mem_cons_of_mem _ hz)
+      · show decide (FMap.dom (FMap.set m h (c, Unknown)) a.1 ∧
+            is_ (FMap.get (FMap.set m h (c, Unknown)) a.1) a.2) =
+          decide (FMap.dom m a.1 ∧ is_ (FMap.get m a.1) a.2)
+        rw [decide_eq_decide]
+        by_cases hx : a.1 = h
+        · have hh := hinv h List.mem_cons_self
+          rw [← hx] at hh ⊢
+          simp only [is_, oget, FMap.mem_set, FMap.get_set_sameE, Option.getD_some, hh.1, hh.2,
+            or_true, true_and]
+        · simp only [is_, FMap.mem_set, FMap.get_set_neqE _ _ _ _ hx, hx, or_false]
+  case guard => rintro _ _ _ _ _ ⟨⟨rfl, -⟩, -⟩; rfl
+  case exit => exact fun _ _ _ _ ⟨⟨_, h⟩, _, hr⟩ _ => ⟨hr, h⟩
+  case hpre =>
+    stmt_wp
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨by rw [h], h⟩, fun z hz => ?_, decide_eq_decide.mpr (by rw [h])⟩
+    rw [Finset.mem_toList, FMap.mem_fdom, FMap.dom_restr] at hz
+    exact hz
 
 /-- `eager [RRO.resample();, FRO.allKnown ~ RRO.allKnown, RRO.resample(); : ={FRO.m} ==>
 ={res, FRO.m}]`, at equality invariants (exception E10). -/
@@ -655,7 +743,49 @@ theorem eager_allKnown (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
       (procedureDenotation (FRO_T.allKnown in_t out_t (FRO in_t out_t dout FRO_m)).procedure a)
       (procedureDenotation (FRO_T.allKnown in_t out_t (RRO in_t out_t dout FRO_m)).procedure a)
       (fun u v => u = v) := by
-  sorry
+  -- EC: `eager proc; inline *; wp; while (={l, FRO.m} /\ (forall z, mem l z =>
+  -- in_dom_with FRO.m z Unknown){1} /\ restr Known FRO.m{1} = result{2})`
+  refine eagerR_of_prhlStmt FRO_m _ _ _ a (y := localVarLens "r" (FMap in_t out_t)) (fun _ _ => rfl)
+    (RRO.resample_inFootprint in_t out_t dout FRO_m)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) a)
+    (procedureDenotation_inFootprint_of_within _ (by within_lens) (by within_lens) a)
+    (fun _ _ => rfl) ?_
+  unfold eagerLeftStmt eagerRightStmt
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_while (={l, FRO_m} ∧ (∀ z ∈ §l{1}, FMap.in_dom_with §FRO_m{1} z Unknown) ∧
+    FMap.restr Known §FRO_m{1} = §r{2})
+  case body =>
+    stmt_wp
+    equiv_rnd
+    stmt_wp
+    equiv_skip
+    rintro l m _ _ r ⟨⟨⟨rfl, rfl⟩, hinv, rfl⟩, hne⟩
+    cases l with
+    | nil => simp at hne
+    | cons h t =>
+      refine ⟨rfl, fun a _ => ⟨⟨rfl, rfl⟩, fun z hz => ?_, ?_⟩⟩
+      · show FMap.in_dom_with (FMap.set m h (a, Unknown)) z Unknown
+        rw [FMap.in_dom_with_set]
+        split_ifs
+        · rfl
+        · exact hinv z (List.mem_cons_of_mem _ hz)
+      · show FMap.restr Known (FMap.set m h (a, Unknown)) = FMap.restr Known m
+        rw [FMap.restr_set, if_neg (by decide)]
+        refine FMap.rem_id _ _ fun hd => ?_
+        have h1 := (FMap.dom_restr m Known h).mp hd
+        have h2 := hinv h List.mem_cons_self
+        exact absurd (h1.2.symm.trans h2.2) (by decide)
+  case guard => rintro _ _ _ _ _ ⟨⟨rfl, -⟩, -⟩; rfl
+  case exit => rintro _ _ _ _ _ ⟨⟨-, rfl⟩, -, h⟩ -; exact ⟨h, rfl⟩
+  case hpre =>
+    stmt_wp
+    equiv_skip
+    rintro m _ rfl
+    refine ⟨⟨rfl, rfl⟩, fun z hz => ?_, rfl⟩
+    rw [Finset.mem_toList, FMap.mem_fdom, FMap.dom_restr] at hz
+    exact hz
 
 omit [Inhabited d_in_t] [Inhabited d_out_t] in
 /-- `lemma eager_D (D <: FRO_Distinguisher {-FRO}) : eager [RRO.resample();, D(FRO).distinguish ~

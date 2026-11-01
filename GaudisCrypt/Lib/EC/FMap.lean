@@ -134,6 +134,14 @@ theorem fmap_eqP (m₁ m₂ : FMap α β) : (∀ x, get m₁ x = get m₂ x) ↔
   simp [get, empty]
 
 omit [DecidableEq α] in
+/-- `fdom0`. -/
+@[simp] theorem fdom0 : fdom (empty : FMap α β) = ∅ := by simp [fdom, empty]
+
+omit [DecidableEq α] in
+/-- `mem_fdom`. -/
+theorem mem_fdom (m : FMap α β) (x : α) : x ∈ fdom m ↔ dom m x := Iff.rfl
+
+omit [DecidableEq α] in
 /-- `mem_empty`. -/
 theorem mem_empty (x : α) : ¬ dom (empty : FMap α β) x := by simp [dom, empty]
 
@@ -238,6 +246,13 @@ theorem dom_restr [Inhabited β] [Inhabited φ] (m : FMap α (β × φ)) (f : φ
   cases get m x with
   | none => simp
   | some p => by_cases h : p.2 = f <;> simp [h]
+
+/-- `in_dom_with` after a write. -/
+theorem in_dom_with_set [Inhabited β] [Inhabited φ] (m : FMap α (β × φ)) (x z : α) (v : β × φ)
+    (f : φ) : in_dom_with (set m x v) z f ↔ if z = x then v.2 = f else in_dom_with m z f := by
+  unfold in_dom_with
+  rw [mem_set, get_setE]
+  by_cases h : z = x <;> simp [h]
 
 /-- `restr_set`. -/
 theorem restr_set (m : FMap α (β × φ)) (f1 f2 : φ) (x : α) (y : β) :

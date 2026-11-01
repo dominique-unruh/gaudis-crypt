@@ -320,7 +320,29 @@ theorem FVP.fvP_proc_le_of_within {h : HoleSigs} {sig : ProcedureSignature}
   simp only [FVP.fvP_proc, InductiveFunctionGettersSetters.proc, fvpGS_reduce, fvpGS_getter]
   exact sup_le (StmtWithHoles.Within.reduce_le _ hb) hr.reduce_le
 
+/-- A procedure within `X` runs confined to `X`. -/
+theorem procedureDenotation_inFootprint_of_within {sig : ProcedureSignature} (p : Procedure sig)
+    (hb : p.body.Within X) (hr : p.return_val.Within X) (a : sig.ParamType) :
+    (procedureDenotation p a).inFootprint X.footprint :=
+  ProgramDenotation.inFootprint_mono
+    (Lib.RO.Instantiate.procedureDenotation_inFootprint_fvP_proc p a)
+    (FVP.fvP_proc_le_of_within p hb hr)
+
 end Within
+
+open Lean Meta in
+/-- Unfold every module procedure (`Module.Proc.procedure M`) in the goal, as the inliner does. -/
+partial def unfoldModuleProcs (g : MVarId) (fuel : Nat := 64) : MetaM MVarId := do
+  if fuel == 0 then return g
+  let ty ← instantiateMVars (← g.getType)
+  let some p := ty.find? (·.isAppOf ``Module.Proc.procedure) | return g
+  let r ← Flatten.unfoldProcedure p
+  let g ← match r.proof? with
+    | none => g.replaceTargetDefEq (ty.replace fun e => if e == p then some r.expr else none)
+    | some h => do
+      let res ← g.rewrite ty h
+      g.replaceTargetEq res.eNew res.eqProof
+  unfoldModuleProcs g (fuel - 1)
 
 open Lean Elab Tactic in
 /-- `within_lens`: on a goal `StmtWithHoles.Within X s` (or `Getter.Within`, `Setter.Within`), the
@@ -328,6 +350,8 @@ conditions on the single reads and writes of `s`, callees included.  Reads and w
 variables, writes of `X` and reads of expressions in `X` and the locals are closed. -/
 elab "within_lens" : tactic => do
   liftMetaTactic (stmtPredSplit ``StmtWithHoles.Within ·)
+  -- a return value: unfold the procedure it is read off, if any
+  evalTactic (← `(tactic| all_goals run_tac liftMetaTactic1 fun g => some <$> unfoldModuleProcs g))
   evalTactic (← `(tactic| all_goals first
     | exact fun _ _ _ => rfl
     | exact Setter.within_of_locals (fun _ _ _ => rfl) (fun _ _ => rfl)

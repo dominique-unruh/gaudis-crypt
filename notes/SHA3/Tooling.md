@@ -533,3 +533,26 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
 * `PROM`: `Countable flag`; `RRO.resampleDen`, `RRO.resample_fvP`, `RRO.resample_inFootprint`;
   `RRO_resample_ll` and `eager_init` … `eager_allKnown` stated (sorry, step 4); `eager_D` proven
   from them (E10).
+
+## 2026-11-01: from relational statements to `eagerR` (`Logic/EagerBridge.lean`); PROM step 4
+
+* `ProgramDenotation.preserves_compl_of_inFootprint` (a run confined to `X` keeps `X.compl`),
+  `Lens.eq_of_get_compl_get`, and **`ProgramDenotation.eagerR_of_prhl2_lens`** (the frame: a
+  coupling of `S; p` and `q; S` with equal results and equal `X` is the full equality-invariant
+  eager judgment, when all three are confined to `X`).
+* `eagerLeftStmt R p a y` / `eagerRightStmt R q a y` (`_ <- R(); y <- p(a)` and
+  `y <- q(a); _ <- R()`, with `StmtWithHoles.call` so that the inliner sees the call sites), their
+  denotations (`eagerLeftStmt_denotation`, `eagerRightStmt_denotation`), and
+  **`eagerR_of_prhlStmt`**: a `prhlStmt` between them from `={X}` to `={y} ∧ ={X}` is the eager
+  judgment.  EasyCrypt's `eager proc` on concrete procedures is `eagerR_of_prhlStmt` then
+  `unfold eagerLeftStmt eagerRightStmt; repeat stmt_inline{i} 0`, after which EasyCrypt's proof
+  runs with the `equiv_*` tactics (`equiv_rcondf`, `equiv_while`, …).
+* `programDenotation_hcall_apply` (`programDenotation_call_apply` for `StmtWithHoles.call`).
+* `procedureDenotation_inFootprint_of_within`; `within_lens` now also unfolds the module
+  procedures in a `Getter.Within` goal on a return value (`unfoldModuleProcs`).
+* FMap: `get_set_id`, `fdom0`, `mem_fdom`, `in_dom_with_set`.
+* One-sided lossless call (EC's `call{1} p_ll`): after `stmt_wp`, with a lone call left on one side,
+  `unfold prhlStmt`, rewrite `programDenotation skip` to `pure ()`, then
+  `ProgramDenotation.prhl2.kill_left'` with `Stmt.call_wp_one` and `Stmt.call_satisfies`.
+* PROM: `RRO_I_f_ll`, `RRO_resample_ll`, `eager_init`, `eager_queried`, `eager_allKnown` proven
+  (EasyCrypt's proofs step for step).
