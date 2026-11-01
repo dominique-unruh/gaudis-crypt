@@ -568,6 +568,41 @@ theorem prhlProc_abstract_call_upto {holes : HoleSigs} {sig : ProcedureSignature
       · exact Or.inl hb
       · exact Or.inr ⟨hret _ _ hrel, hrel.1⟩
 
+/-! ### Synchronized means equal
+
+With `={glob}` everything outside `L` (`F = L.compl.footprint`) and `invP` equality on `L`,
+EasyCrypt's `={glob A} /\ invP` before the bad event is equality of the global states, and the
+per-oracle premise can be stated at equal states (`prhlProc_upto_of_eq`). -/
+
+/-- `syncInv` at `F = L.compl.footprint` and `invP` equality: equal states, not bad. -/
+theorem syncInv_compl_eq_iff (bad : Ω → Prop) (g₁ g₂ : VariableAssignment) :
+    syncInv L L.compl.footprint (· = ·) bad g₁ g₂ ↔ g₁ = g₂ ∧ ¬ bad (L.get g₂) := by
+  constructor
+  · rintro ⟨hc, he, hb⟩
+    exact ⟨L.splitSpace.injective
+      (Prod.ext he ((Lens.footprint_touched_getter_eq_iff L.compl _ _).mp hc)), hb⟩
+  · rintro ⟨rfl, hb⟩
+    exact ⟨rfl, rfl, hb⟩
+
+/-- The oracle premise of `prhlProc_abstract_call_upto(_module)` at `F = L.compl.footprint`,
+`invP` equality and `invQ` trivial, from equal arguments and states: after the calls, the bad
+event, or equal results and states. -/
+theorem prhlProc_upto_of_eq {sig' : ProcedureSignature} (bad : Ω → Prop)
+    {o₁ o₂ : Procedure sig'}
+    (h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂ ∧ ¬ bad (L.get g₂)) o₁ o₂
+      (fun r₁ g₁ r₂ g₂ => bad (L.get g₂) ∨ (r₁ = r₂ ∧ g₁ = g₂))) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ syncInv L L.compl.footprint (· = ·) bad g₁ g₂) o₁ o₂
+      (fun r₁ g₁ r₂ g₂ => badInv L bad (fun _ _ => True) g₁ g₂ ∨
+        (r₁ = r₂ ∧ syncInv L L.compl.footprint (· = ·) bad g₁ g₂)) := by
+  refine prhlProc_conseq h
+    (fun a₁ g₁ a₂ g₂ ⟨ha, hs⟩ => ⟨ha, (syncInv_compl_eq_iff L bad g₁ g₂).mp hs⟩)
+    (fun r₁ g₁ r₂ g₂ hpost => ?_)
+  by_cases hb : bad (L.get g₂)
+  · exact Or.inl ⟨hb, trivial⟩
+  · rcases hpost with hb' | ⟨hr, hg⟩
+    · exact absurd hb' hb
+    · exact Or.inr ⟨hr, (syncInv_compl_eq_iff L bad g₁ g₂).mpr ⟨hg, hb⟩⟩
+
 /-- **The up-to-bad abstract call rule for a module** (EasyCrypt's `declare module D <: T {-O}`,
 then `call (: bad, invP, invQ)`): `prhlProc_abstract_call_upto` through `D`'s representation.
 `D`'s losslessness with the two oracles is EasyCrypt's `islossless` premise (from `D_ll`). -/

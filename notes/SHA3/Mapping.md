@@ -298,7 +298,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/SLCommon.lean`, namespace `GaudisC
 | 979 | declare axiom | `fi_ll` | section COUNT. | `fi_ll` (hypothesis) | def |
 | 981 | declare axiom | `CO_ll` | section COUNT. | `CO_ll` (hypothesis) | def |
 | 983 | declare axiom | `D_ll` | section COUNT. | `D_ll` (hypothesis) | def |
-| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` | stated |
+| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` (`call (: bad, inv)`: `prhlProc_abstract_call_upto_module`, E11; its oracle subgoals `Pr_restr_F_upto`, `Pr_restr_f(i)_upto`, `FC_f_bad`, `PC_f(i)_bad`) | done |
 | 1014 | op | `hinv` |  | `hinv` | def |
 | 1017 | op | `hinvK` |  | `hinvK` | def |
 | 1020 | op | `huniq` |  | `huniq` | def |

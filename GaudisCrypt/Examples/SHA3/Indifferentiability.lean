@@ -71,15 +71,31 @@ noncomputable def FUNCTIONALITY.view (F : FUNCTIONALITY p f_in f_out) :
 noncomputable def PRIMITIVE.view (P : PRIMITIVE p f_in f_out) : DPRIMITIVE p f_in f_out :=
   DPRIMITIVE.mk p f_in f_out { f := PRIMITIVE.f p f_in f_out P, fi := PRIMITIVE.fi p f_in f_out P }
 
+/-- The view's procedure is the functionality's.  Not an EC lemma (EC's subtyping). -/
+theorem FUNCTIONALITY.view_f (F : FUNCTIONALITY p f_in f_out) :
+    DFUNCTIONALITY.f p f_in f_out (FUNCTIONALITY.view p f_in f_out F) =
+      FUNCTIONALITY.f p f_in f_out F := by
+  simp [FUNCTIONALITY.view]
+
+/-- The view's `f` is the primitive's.  Not an EC lemma (EC's subtyping). -/
+theorem PRIMITIVE.view_f (P : PRIMITIVE p f_in f_out) :
+    DPRIMITIVE.f p f_in f_out (PRIMITIVE.view p f_in f_out P) = PRIMITIVE.f p f_in f_out P := by
+  simp [PRIMITIVE.view]
+
+/-- The view's `fi` is the primitive's.  Not an EC lemma (EC's subtyping). -/
+theorem PRIMITIVE.view_fi (P : PRIMITIVE p f_in f_out) :
+    DPRIMITIVE.fi p f_in f_out (PRIMITIVE.view p f_in f_out P) = PRIMITIVE.fi p f_in f_out P := by
+  simp [PRIMITIVE.view]
+
 /-- A `DFUNCTIONALITY` is the record of its procedure (eta).  Not an EC lemma: EasyCrypt's
 modules are referred to by name, not rebuilt from their procedures. -/
-@[simp] theorem DFUNCTIONALITY.mk_f (X : DFUNCTIONALITY p f_in f_out) :
+theorem DFUNCTIONALITY.mk_f (X : DFUNCTIONALITY p f_in f_out) :
     DFUNCTIONALITY.mk p f_in f_out { f := DFUNCTIONALITY.f p f_in f_out X } = X :=
   DFUNCTIONALITY.destruct_mk p f_in f_out X
 
 /-- A `DPRIMITIVE` is the record of its procedures (eta).  Not an EC lemma (as
 `DFUNCTIONALITY.mk_f`). -/
-@[simp] theorem DPRIMITIVE.mk_f_fi (X : DPRIMITIVE p f_in f_out) :
+theorem DPRIMITIVE.mk_f_fi (X : DPRIMITIVE p f_in f_out) :
     DPRIMITIVE.mk p f_in f_out
       { f := DPRIMITIVE.f p f_in f_out X, fi := DPRIMITIVE.fi p f_in f_out X } = X :=
   DPRIMITIVE.destruct_mk p f_in f_out X

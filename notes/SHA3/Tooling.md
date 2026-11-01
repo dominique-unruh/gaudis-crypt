@@ -680,3 +680,26 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   to a given coupling of the remaining loops when an exit condition holds at the start of an
   iteration (its coupling is the least fixed point of the extended transformer; the marginals are
   sandwiched between the loop's Kleene iterates and the loop, in expectation).
+
+## 2026-11-01: `SLCommon.ec` complete — `Pr_restr`
+
+* `Pr_restr` is EC's proof: `byequiv` (`Procedure.Pr_le_of_prhlProc`), `symmetry` (`equiv_sym`),
+  `inline *`, the up-to-bad `call` (`equiv_call` with `prhlProc_abstract_call_upto_module`), and
+  `auto; call(_:true); …` (`stmt_swap{2}` of `C.init`'s writes past `P.init(); CO(P).init()`, then
+  `equiv_sim`).  EC's `={glob P, glob CO, glob C}` before the bad event is taken as equality of the
+  global states (`F = L.compl.footprint`, `invP` equality on `C`'s lens: `syncInv_compl_eq_iff`,
+  `prhlProc_upto_of_eq`), so the oracle subgoals call `P.f`, `CO(P).f` on equal states.
+* EC's nine `call` subgoals: `apply D_ll` (both oracle sets, with `rp_ll`, `rpi_ll`, `rf_ll` and
+  the new `pc_f_ll`, `pc_fi_ll`, `fc_ll`); the three equivalences `Pr_restr_F_upto`,
+  `Pr_restr_f_upto`, `Pr_restr_fi_upto` (EC's `if{1}` as `equiv_if{1}`; its `call{2} f_ll` as a
+  one-sided lossless call, `prhlStmt_seq_right` with `hoare_call_frame` for `C.c`); `invQ` trivial
+  (`hoareProc_true`); the counting oracles keep `bad` (`FC_f_bad`, `PC_f_bad`, `PC_fi_bad`, with
+  `hoare_call_frame`; `FC`'s conditional by `hoare_seq`/`hoare_if_wp`, Hoare having no `ifLemma`).
+* `Indifferentiability.lean`: `FUNCTIONALITY.view_f`, `PRIMITIVE.view_f`, `PRIMITIVE.view_fi`
+  (a view's procedures are the module's; not EC lemmas, EC's subtyping).  Not `@[simp]`.
+* `fp_disjoint`: a restriction between abstract modules is symmetric
+  (`Footprint.le_compl_glob_symm`, `Logic/Granular.lean`: `F ≤ (glob G)ᶜ` with `F` finitely
+  supported gives `G ≤ (glob F)ᶜ` — EC's `{-D}` means "no common variable"); used at an abstract
+  leaf against a `glob`.  A module reached through projections has its type unfolded: two `glob`s
+  of the same module term are closed by `le_refl`, the kernel checking the instances (unifying at
+  default transparency there made `IndifRO_is_secure` time out).

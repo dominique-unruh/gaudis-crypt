@@ -93,6 +93,26 @@ theorem Footprint.le_glob (F : Footprint VariableAssignment) : F ≤ F.glob := b
 theorem Footprint.le_glob_of_le {A F : Footprint VariableAssignment} (h : A ≤ F) : A ≤ F.glob :=
   h.trans (Footprint.le_glob F)
 
+/-- **Restrictions between abstract modules are symmetric** (EasyCrypt's `{-D}`: no common
+variable): if `F` (finitely supported) stays outside `glob G`, then `G` stays outside
+`glob F`. -/
+theorem Footprint.le_compl_glob_symm {F G : Footprint VariableAssignment}
+    (hF : F.FinitelySupported) (h : F ≤ G.globᶜ) : G ≤ F.globᶜ := by
+  letI := variableGranularity
+  rw [← Footprint.le_compl_comm]
+  unfold Footprint.glob
+  rw [dif_pos hF.isSubGranular, Footprint.IsSubGranular.granularCover_footprint_eq_sSup]
+  refine sSup_le fun g ⟨hg, hFg⟩ => ?_
+  rw [← Footprint.le_compl_comm]
+  by_contra hGg
+  apply hFg
+  refine h.trans (Footprint.compl_antimono ?_)
+  unfold Footprint.glob
+  split
+  · next hG =>
+    rw [Footprint.IsSubGranular.granularCover_footprint_eq_sSup]
+    exact le_sSup ⟨hg, hGg⟩
+  · exact le_top
 /-- The `glob` of a finitely supported footprint is a lens region. -/
 theorem Footprint.FinitelySupported.glob_fromLens {F : Footprint VariableAssignment}
     (hF : F.FinitelySupported) : F.glob.FromLens := by

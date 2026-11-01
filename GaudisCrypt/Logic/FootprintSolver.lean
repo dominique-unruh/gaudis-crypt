@@ -15,7 +15,9 @@ A concrete module has no restriction hypothesis: its globals are read off its co
 `FVP.fvP M ≤ B` tagged `@[fp_bound]` (proven by `fp_module`) bounds it; `B` is then a join of
 variables.  A variable `v` is outside `glob D` when it is outside `D` and `D` is finitely supported
 (EasyCrypt's `glob D` is a set of variables): `Footprint.varLens_le_compl_glob`, with the finite
-support from a hypothesis `Module.ECModule D _` (or `(FVP.fvP D).FinitelySupported`).
+support from a hypothesis `Module.ECModule D _` (or `(FVP.fvP D).FinitelySupported`).  A
+restriction between abstract modules is symmetric (`Footprint.le_compl_glob_symm`): `M` is outside
+`glob D` when `D` is outside `glob M`.
 -/
 
 /-- `@[fp_bound]`: a bound `FVP.fvP M ≤ B` on a concrete module that `fp_disjoint` uses. -/
@@ -82,6 +84,20 @@ partial def solveLeSup (g : MVarId) (fuel : Nat := 8) : MetaM Unit := do
     return
   if A.isAppOf ``Bot.bot then
     let [] ← applyConst g ``bot_le | throwError "fp_disjoint: `bot_le` left goals"
+    return
+  -- the `glob` of the same module, its type spelled differently (a module reached through
+  -- projections has its type unfolded): the kernel checks the instances agree (unifying at
+  -- default transparency here can be slow)
+  let globModule? (e : Lean.Expr) : Option Lean.Expr := do
+    guard (e.isAppOfArity ``Footprint.glob 1)
+    let f := e.getArg! 0
+    guard (f.isAppOfArity ``FVP.fvP 3)
+    return f.getArg! 2
+  let sameModule ← match globModule? A, globModule? S with
+    | some M₁, some M₂ => withReducible (isDefEq M₁ M₂)
+    | _, _ => pure false
+  if sameModule then
+    g.assign (← mkAppOptM ``le_refl #[none, none, A])
     return
   if ← withReducible (isDefEq A S) then
     g.assign (← mkAppM ``le_refl #[A])
@@ -223,7 +239,17 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
       return ← viaBound (← mkAppM lem #[M.getArg! (n - 1)])
   -- a definition (a module type's accessor or constructor, a named module): unfold it
   let some M' ← unfoldDefinition? M
-    | throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"
+    | -- an abstract module against `glob F`: the restriction the other way round
+      -- (`Footprint.le_compl_glob_symm`, `F` finitely supported)
+      if T.isAppOfArity ``Footprint.glob 1 then
+        if ← attempt (do
+            let F := T.getArg! 0
+            let hF ← finitelySupported F
+            let g' ← mkFreshExprSyntheticOpaqueMVar
+              (← mkAppM ``LE.le #[F, ← mkAppM ``Compl.compl #[← mkAppM ``Footprint.glob #[X]]])
+            g.assign (← mkAppM ``Footprint.le_compl_glob_symm #[hF, g'])
+            solveFvP g'.mvarId! (fuel - 1)) then return
+      throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"
   let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M'], ty.getArg! 3])
   solveFvP g' (fuel - 1)
 
