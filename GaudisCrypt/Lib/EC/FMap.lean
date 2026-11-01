@@ -119,6 +119,9 @@ instance {φ : Type*} [Inhabited β] [Inhabited φ] [DecidableEq φ] (m : FMap �
     (f : φ) : Decidable (in_dom_with m x f) :=
   inferInstanceAs (Decidable (dom m x ∧ _))
 
+/-- `eq_except X m1 m2`: `m1` and `m2` agree outside `X` (EC's `eq_exceptP` is the definition). -/
+def eq_except (X : α → Prop) (m1 m2 : FMap α β) : Prop := ∀ y, ¬ X y → get m1 y = get m2 y
+
 /-! ## Lemmas (EasyCrypt's names) -/
 
 /-- `domE`. -/
@@ -167,6 +170,19 @@ theorem get_set_id (m : FMap α β) (x : α) (y : β) (h : get m x = some y) : s
   rw [get_setE]; by_cases hz : z = x
   · subst hz; simp [h]
   · simp [hz]
+
+/-- `set_setE`. -/
+theorem set_setE (m : FMap α β) (x y : α) (b c : β) :
+    set (set m x b) y c = if x = y then set m y c else set (set m y c) x b := by
+  refine (fmap_eqP _ _).mp fun z => ?_
+  split_ifs with h
+  · subst h; simp only [get_setE]; split_ifs <;> rfl
+  · simp only [get_setE]
+    split_ifs with h1 h2 <;> first | rfl | (subst h1; subst h2; exact absurd rfl h)
+
+/-- `fdom_set`. -/
+theorem fdom_set (m : FMap α β) (x : α) (b : β) : fdom (set m x b) = insert x (fdom m) := by
+  ext z; simp [fdom, set, Finmap.mem_keys]
 
 /-- `mem_set`. -/
 theorem mem_set (m : FMap α β) (x : α) (b : β) (y : α) : dom (set m x b) y ↔ dom m y ∨ y = x := by
@@ -228,6 +244,48 @@ theorem map_rem {γ : Type*} (f : α → β → γ) (m : FMap α β) (x : α) :
   refine (fmap_eqP _ _).mp fun y => ?_
   rw [mapE, remE, remE, mapE]; by_cases h : y = x <;> simp [h]
 
+/-- `eq_except_setlr`-style: writing the same key on both sides keeps `eq_except`. -/
+theorem eq_except_set (X : α → Prop) {m1 m2 : FMap α β} (h : eq_except X m1 m2) (x : α)
+    (b c : β) (hbc : ¬ X x → b = c) : eq_except X (set m1 x b) (set m2 x c) := by
+  intro y hy
+  rw [get_setE, get_setE]
+  split_ifs with hyx
+  · subst hyx; rw [hbc hy]
+  · exact h y hy
+
+/-- `eq_except_setl`: a write inside `X` on the left keeps `eq_except`. -/
+theorem eq_except_setl (X : α → Prop) {m1 m2 : FMap α β} (h : eq_except X m1 m2) (x : α)
+    (hx : X x) (b : β) : eq_except X (set m1 x b) m2 := by
+  intro y hy
+  rw [get_setE, if_neg (fun (e : y = x) => hy (e ▸ hx))]
+  exact h y hy
+
+/-- `eq_except_setr`: a write inside `X` on the right keeps `eq_except`. -/
+theorem eq_except_setr (X : α → Prop) {m1 m2 : FMap α β} (h : eq_except X m1 m2) (x : α)
+    (hx : X x) (b : β) : eq_except X m1 (set m2 x b) := by
+  intro y hy
+  rw [get_setE, if_neg (fun (e : y = x) => hy (e ▸ hx))]
+  exact h y hy
+
+/-- `eq_except_remr`: a removal inside `X` on the right keeps `eq_except`. -/
+theorem eq_except_remr (X : α → Prop) {m1 m2 : FMap α β} (h : eq_except X m1 m2) (x : α)
+    (hx : X x) : eq_except X m1 (rem m2 x) := by
+  intro y hy
+  rw [remE, if_neg (fun (e : y = x) => hy (e ▸ hx))]
+  exact h y hy
+
+/-- Equal outside `x`, and unbound at `x` on the right: the left without `x` is the right. -/
+theorem rem_eq_of_eq_except {m1 m2 : FMap α β} {x : α} (h : eq_except (· = x) m1 m2)
+    (h2 : get m2 x = none) : rem m1 x = m2 := by
+  refine (fmap_eqP _ _).mp fun z => ?_
+  rw [remE]
+  split_ifs with hz
+  · subst hz; exact h2.symm
+  · exact h z hz
+
+/-- `eq_except_refl`. -/
+theorem eq_except_refl (X : α → Prop) (m : FMap α β) : eq_except X m m := fun _ _ => rfl
+
 section restr
 variable {φ : Type*} [DecidableEq φ]
 
@@ -253,6 +311,11 @@ theorem in_dom_with_set [Inhabited β] [Inhabited φ] (m : FMap α (β × φ)) (
   unfold in_dom_with
   rw [mem_set, get_setE]
   by_cases h : z = x <;> simp [h]
+
+/-- `in_dom_with` reads only the binding. -/
+theorem in_dom_with_congr [Inhabited β] [Inhabited φ] {m1 m2 : FMap α (β × φ)} {z : α}
+    (h : get m1 z = get m2 z) (f : φ) : in_dom_with m1 z f ↔ in_dom_with m2 z f := by
+  unfold in_dom_with; rw [domE, domE, h]
 
 /-- `restr_set`. -/
 theorem restr_set (m : FMap α (β × φ)) (f1 f2 : φ) (x : α) (y : β) :

@@ -556,3 +556,12 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   `ProgramDenotation.prhl2.kill_left'` with `Stmt.call_wp_one` and `Stmt.call_satisfies`.
 * PROM: `RRO_I_f_ll`, `RRO_resample_ll`, `eager_init`, `eager_queried`, `eager_allKnown` proven
   (EasyCrypt's proofs step for step).
+* (later) `prhlStmt_seq_congr_left` / `prhlStmt_seq_congr_right_snd` (replace a statement by one with
+  the same runs, conditionally on the precondition: EC's `transitivity{i}` against a program proven
+  equivalent denotationally), `prhlStmt_fix_left` (EC's `exists* e{1}; elim*`).
+* FMap: `set_setE`, `fdom_set`, `eq_except` (with `eq_except_set`, `_setl`, `_setr`, `_remr`,
+  `_refl`), `rem_eq_of_eq_except`, `in_dom_with_congr`.
+* PROM: `RRO.I_f_denotation`, `RRO.I_f_procedure`, `iter_perm2` (denotational, E9),
+  `RRO.resample_denotation`, `RRO.resample_call_eq`, `RRO.resample_call_split` (EC's
+  `transitivity{1} { Iter(RRO.I).iter_1s(x, …) }` via `iter1_perm RRO.I iter_perm2`), `I_f_eqex`,
+  and `eager_rem` (EC's proof: case split, `iter_1s`, `seq 3 1`, `exists*`, `iter_inv`).

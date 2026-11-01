@@ -164,6 +164,32 @@ theorem prhlStmt_exists_pre {ι : Sort*} {A : ι → ProgramState → ProgramSta
     (h : ∀ i, prhlStmt (A i) c₁ c₂ B) : prhlStmt (fun σ₁ σ₂ => ∃ i, A i σ₁ σ₂) c₁ c₂ B :=
   ProgramDenotation.prhl2.exists_pre h
 
+/-- Replace the first statement on the left by one with the same runs from the states the
+precondition allows (EC's `transitivity{1}` with an equivalence proven denotationally). -/
+theorem prhlStmt_seq_congr_left {a a' b : Stmt}
+    (h : ∀ σ₁ σ₂, A σ₁ σ₂ → programDenotation a σ₁ = programDenotation a' σ₁)
+    (h' : prhlStmt A (.seq a' b) c₂ B) : prhlStmt A (.seq a b) c₂ B := by
+  intro σ₁ σ₂ hA
+  have e : programDenotation (.seq a b) σ₁ = programDenotation (.seq a' b) σ₁ := by
+    rw [programDenotation_seq, programDenotation_seq, ProgramDenotation.bind_apply,
+      ProgramDenotation.bind_apply, h σ₁ σ₂ hA]
+  rw [e]
+  exact h' σ₁ σ₂ hA
+
+/-- Replace the second statement on the right by one with the same runs. -/
+theorem prhlStmt_seq_congr_right_snd {a b b' : Stmt}
+    (h : programDenotation b = programDenotation b')
+    (h' : prhlStmt A c₁ (.seq a b') B) : prhlStmt A c₁ (.seq a b) B := by
+  unfold prhlStmt at h' ⊢
+  rw [programDenotation_seq] at h' ⊢
+  rw [h]
+  exact h'
+
+/-- EC's `exists* e{1}; elim* => v`: fix the value of an expression of the left state. -/
+theorem prhlStmt_fix_left {β : Sort*} (f : ProgramState → β)
+    (h : ∀ v, prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ f σ₁ = v) c₁ c₂ B) : prhlStmt A c₁ c₂ B :=
+  fun σ₁ σ₂ hA => h (f σ₁) σ₁ σ₂ ⟨hA, rfl⟩
+
 /-- A false precondition. -/
 theorem prhlStmt_false : prhlStmt (fun _ _ => False) c₁ c₂ B := fun _ _ h => h.elim
 
