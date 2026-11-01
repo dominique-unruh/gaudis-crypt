@@ -495,3 +495,23 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   instantiates by `rfl`); `Iter.iter_denotation`: `Iter(O).iter l` is `iterDen (O.f) l`.
 * `iter_ll`, `iter_inv` (as EC), `iter_cat`, `iter_perm`, `iter1_perm` (denotational, E9), via
   `iterDen_append`, `iterDen_perm` (induction on `List.Perm`).
+
+## 2026-11-01: PROM's `RO_FRO_D` and `LRO_RRO_D` (`Lib/EC/PROM.lean`, `Lib/EC/FMap.lean`)
+
+* `FMap`: `restr` and `map` are now built by `ofOpt s h` (the map binding each `x ∈ s` with
+  `h x = some y` to `y`), whose lookup is `get_ofOpt`.  EasyCrypt's lemmas follow from it under
+  their names: `domE`, `fmap_eqP`, `emptyE`, `mem_empty`, `get_setE`, `get_set_sameE`,
+  `get_set_neqE`, `get_set_id`, `mem_set`, `remE`, `rem_id`, `mapE`, `mem_map`, `map_set`,
+  `map_comp`, `map_id`, `map_empty`, `map_rem`, `restrP`, `dom_restr`, `restr_set`,
+  `restr_set_eq`, `restr0`, `restr_rem`; and `noflags`.
+* `PROM`: `FRO.asRO` and `FullEager.RRO.asRO`, the `RO_T` views of `FRO` and `RRO` (EasyCrypt's
+  subtyping `FRO <: RO`).  `RO_FRO_init` … `RO_FRO_sample`, `RO_FRO_D`; `LRO_RRO_init` …
+  `LRO_RRO_sample`, `LRO_RRO_D`.  `FullEager` is now laid out as in EasyCrypt: `RRO`, then
+  `EagerCore` (`Eager`, `Eager_1_2`, the `LRO_RRO_*`), then `RO_LRO_D`.
+* Recipe for EasyCrypt's `proc (inv) => //; conseq O_init; …` over a module type's full oracle
+  list: `prhlProc_abstract_call_module` with `RO_Distinguisher.representable`; each oracle premise
+  by `prhlProc_conseq (prhlProc_globInvF_of_writesKeep _ ?_ ?_ ?_)`, then per hole
+  `simp only [ext, view, T.f.mk_simp, lookup_*]` and `first | writes_keep; done | exact …`.
+  The outer `prhlProc_conseq` absorbs what `simp` does to `r₁ = r₂` at `Unit` (it becomes `True`).
+  `writes_keep` never fails (it leaves what it cannot split), so it must not run on the main goal
+  unguarded.

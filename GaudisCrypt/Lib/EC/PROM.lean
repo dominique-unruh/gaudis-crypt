@@ -5,6 +5,7 @@ import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
 import GaudisCrypt.Lib.EC.IterProc
+import GaudisCrypt.Logic.SyntacticFrame
 
 /-!
 # EasyCrypt's programmable random oracles (`theories/crypto/PROM.ec`), `FullRO`
@@ -295,7 +296,201 @@ module FRO : (FRO_T in_t out_t) {
   };
 }
 
+/-- `FRO` at the type `RO` (EasyCrypt's subtyping `FRO <: RO`: `D(FRO)` for an
+`RO_Distinguisher D`). -/
+noncomputable def FRO.asRO : RO_T in_t out_t :=
+  RO_T.mk in_t out_t
+    { init := FRO_T.init in_t out_t (FRO in_t out_t dout m)
+      get := FRO_T.get in_t out_t (FRO in_t out_t dout m)
+      set := FRO_T.set in_t out_t (FRO in_t out_t dout m)
+      rem := FRO_T.rem in_t out_t (FRO in_t out_t dout m)
+      sample := FRO_T.sample in_t out_t (FRO in_t out_t dout m) }
+
 end FRO
+
+section RO_FRO
+/-! EC's `RO_FRO_init` … `RO_FRO_D`: `RO` and `FRO` agree up to the flags. -/
+variable (RO_m : Lens (FMap in_t out_t) VariableAssignment)
+  (FRO_m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
+
+/-- `equiv RO_FRO_init : RO.init ~ FRO.init : true ==> RO.m{1} = noflags FRO.m{2}`. -/
+theorem RO_FRO_init : prhlProc (fun _ _ _ _ => True)
+    (ROmap.init in_t out_t (RO in_t out_t dout RO_m)).procedure
+    (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  intro _
+  simp [FMap.noflags, FMap.map_empty]
+
+/-- `equiv RO_FRO_get : RO.get ~ FRO.get : ={x} /\ RO.m{1} = noflags FRO.m{2} ==>
+={res} /\ RO.m{1} = noflags FRO.m{2}`. -/
+theorem RO_FRO_get :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.noflags (FRO_m.get g₂))
+    (ROmap.get in_t out_t (RO in_t out_t dout RO_m)).procedure
+    (FRO_T.get in_t out_t (FRO in_t out_t dout FRO_m)).procedure
+    (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_skip
+  rintro x _ _ m ⟨rfl, rfl⟩
+  refine ⟨rfl, fun a _ => ?_⟩
+  unfold FMap.noflags
+  by_cases h : FMap.dom m x
+  · obtain ⟨⟨y, f⟩, hy⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp h)
+    have h' : FMap.dom (FMap.map (fun _ (p : out_t × flag) => p.1) m) x :=
+      (FMap.mem_map _ _ _).mpr h
+    simp only [h, h', decide_true, Bool.not_true, Bool.false_eq_true, if_true, if_false, ite_self]
+    rw [FMap.map_set, FMap.get_set_id _ _ _ (by simp [FMap.mapE, hy, oget])]
+    simp [FMap.mapE, hy, oget]
+  · have h' : ¬ FMap.dom (FMap.map (fun _ (p : out_t × flag) => p.1) m) x :=
+      fun h' => h ((FMap.mem_map _ _ _).mp h')
+    simp [h, h', FMap.map_set, oget]
+
+/-- `equiv RO_FRO_set : RO.set ~ FRO.set : ={x, y} /\ RO.m{1} = noflags FRO.m{2} ==>
+RO.m{1} = noflags FRO.m{2}`. -/
+theorem RO_FRO_set :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.noflags (FRO_m.get g₂))
+    (ROmap.set in_t out_t (RO in_t out_t dout RO_m)).procedure
+    (FRO_T.set in_t out_t (FRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro x y _ _ _ m ⟨h, rfl⟩
+  obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp h
+  exact (FMap.map_set _ m x (y, Known)).symm
+
+/-- `equiv RO_FRO_rem : RO.rem ~ FRO.rem : ={x} /\ RO.m{1} = noflags FRO.m{2} ==>
+RO.m{1} = noflags FRO.m{2}`. -/
+theorem RO_FRO_rem :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.noflags (FRO_m.get g₂))
+    (ROmap.rem in_t out_t (RO in_t out_t dout RO_m)).procedure
+    (FRO_T.rem in_t out_t (FRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro x _ _ m ⟨rfl, rfl⟩
+  exact (FMap.map_rem _ _ _).symm
+
+/-- `equiv RO_FRO_sample : RO.sample ~ FRO.sample : ={x} /\ RO.m{1} = noflags FRO.m{2} ==>
+RO.m{1} = noflags FRO.m{2}`. -/
+theorem RO_FRO_sample :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.noflags (FRO_m.get g₂))
+    (ROmap.sample in_t out_t (RO in_t out_t dout RO_m)).procedure
+    (FRO_T.sample in_t out_t (FRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_skip
+  rintro x _ _ m ⟨rfl, rfl⟩
+  refine ⟨rfl, fun a _ => ?_⟩
+  have hd : FMap.dom (FMap.noflags m) x ↔ FMap.dom m x := FMap.mem_map _ _ _
+  by_cases h : FMap.dom m x
+  · simp [h, hd.mpr h]
+  · simp [h, FMap.noflags, FMap.mem_map, FMap.map_set]
+
+variable (d_in_t d_out_t : Type)
+
+/-- `equiv RO_FRO_D (D <: RO_Distinguisher { -RO, -FRO }) : D(RO).distinguish ~
+D(FRO).distinguish : ={arg, glob D} /\ RO.m{1} = noflags FRO.m{2} ==>
+={res, glob D} /\ RO.m{1} = noflags FRO.m{2}`.  `RO.m` and `FRO.m` are distinct variables, and the
+oracles' arguments countable (exception E8). -/
+theorem RO_FRO_D [Countable in_t] [Countable out_t] [Lens.Disjoint RO_m FRO_m]
+    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (RO_ext in_t out_t))
+    (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
+        RO_m.get g₁ = FMap.noflags (FRO_m.get g₂))
+      (Module.app D (RO.asRO in_t out_t dout RO_m)).procedure
+      (Module.app D (FRO.asRO in_t out_t dout FRO_m)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
+        RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
+  have hRO : RO_m.footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hdisj.trans (Footprint.compl_antimono le_sup_left))
+  have hFRO : FRO_m.footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hdisj.trans (Footprint.compl_antimono le_sup_right))
+  have hL : FVP.fvP D ≤ ((Lens.pair RO_m FRO_m).footprint)ᶜ := by
+    rw [Footprint.lens_pair]; exact hdisj
+  exact prhlProc_abstract_call_module (Lens.pair RO_m FRO_m) D (RO_ext in_t out_t)
+    hD.representable hL (fun a b => a.1 = FMap.noflags b.2)
+    (fun n => by
+      cases n with
+      | zero => exact inferInstanceAs (Countable Unit)
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable in_t)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (in_t × out_t))
+          | succ n => cases n with
+            | zero => exact inferInstanceAs (Countable in_t)
+            | succ n => cases n with
+              | zero => exact inferInstanceAs (Countable in_t)
+              | succ n => nomatch n)
+    (RO.asRO in_t out_t dout RO_m) (FRO.asRO in_t out_t dout FRO_m) (fun n => by
+      -- EC: `proc (RO.m{1} = noflags FRO.m{2}) => //; conseq RO_FRO_init …`
+      refine prhlProc_conseq (prhlProc_globInvF_of_writesKeep _ ?_ ?_ ?_) (fun _ _ _ _ h => h)
+        (fun _ _ _ _ h => ⟨h.1, h.2⟩)
+      all_goals cases n with
+      | zero =>
+        simp only [RO_ext, RO.asRO, FRO.asRO, RO_T.init.mk_simp,
+          HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (RO_FRO_init in_t out_t dout RO_m FRO_m)
+              (fun _ _ _ _ _ => trivial) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RO.asRO, FRO.asRO, RO_T.get.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact RO_FRO_get in_t out_t dout RO_m FRO_m
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RO.asRO, FRO.asRO, RO_T.set.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (RO_FRO_set in_t out_t dout RO_m FRO_m)
+              (fun _ _ _ _ h => h) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RO.asRO, FRO.asRO, RO_T.rem.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (RO_FRO_rem in_t out_t dout RO_m FRO_m)
+              (fun _ _ _ _ h => h) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RO.asRO, FRO.asRO, RO_T.sample.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_single]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (RO_FRO_sample in_t out_t dout RO_m FRO_m)
+              (fun _ _ _ _ h => h) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => nomatch n)
+
+end RO_FRO
 
 end Oracles
 
@@ -346,31 +541,23 @@ noncomputable def RRO : FRO_T in_t out_t :=
       queried := FRO_T.queried in_t out_t (FRO in_t out_t dout m)
       allKnown := FRO_T.allKnown in_t out_t (FRO in_t out_t dout m) }
 
+/-- `RRO` at the type `RO` (EasyCrypt's subtyping `FRO <: RO`: `D(RRO)` for an
+`RO_Distinguisher D`). -/
+noncomputable def RRO.asRO : RO_T in_t out_t :=
+  RO_T.mk in_t out_t
+    { init := FRO_T.init in_t out_t (RRO in_t out_t dout m)
+      get := FRO_T.get in_t out_t (RRO in_t out_t dout m)
+      set := FRO_T.set in_t out_t (RRO in_t out_t dout m)
+      rem := FRO_T.rem in_t out_t (RRO in_t out_t dout m)
+      sample := FRO_T.sample in_t out_t (RRO in_t out_t dout m) }
+
 end RRO
 
-section RO_LRO_D
+section EagerCore
 
 variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
   [Inhabited d_in_t] [Inhabited d_out_t] (dout : in_t → SubProbability out_t)
   (FRO_m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
-
-/-- EC's `FullEager.RO_LRO_D`, for `declare module D <: RO_Distinguisher {-RO, -FRO}` and
-`axiom dout_ll x : is_lossless (dout x)`:
-`equiv[ D(RO).distinguish ~ D(LRO).distinguish : ={glob D, RO.m, arg} ==> ={res, glob D} ]`. -/
-theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
-    (RO_m : Lens (FMap in_t out_t) VariableAssignment)
-    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
-    (hD : Module.ECModule D (RO_ext in_t out_t))
-    (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
-    prhlProc
-      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
-        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
-        RO_m.get g₁ = RO_m.get g₂)
-      (Module.app D (RO.asRO in_t out_t dout RO_m)).procedure
-      (Module.app D (LRO in_t out_t dout RO_m)).procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
-        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
-  sorry
 
 -- EC's `FullEager.EagerCore.Eager (D : FRO_Distinguisher)`, with `D` a Lean parameter
 set_option linter.gaudisCrypt.using false in
@@ -403,6 +590,228 @@ theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
       (Eager.main2 in_t out_t d_in_t d_out_t dout FRO_m D).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         FRO_m.get g₁ = FRO_m.get g₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
+  sorry
+
+section LRO_RRO
+/-! EC's `LRO_RRO_init` … `LRO_RRO_D`: `LRO` and `RRO` agree on the known entries. -/
+variable (RO_m : Lens (FMap in_t out_t) VariableAssignment)
+
+/-- `equiv LRO_RRO_init : LRO.init ~ RRO.init : true ==> RO.m{1} = restr Known FRO.m{2}`. -/
+theorem LRO_RRO_init : prhlProc (fun _ _ _ _ => True)
+    (RO_T.init in_t out_t (LRO in_t out_t dout RO_m)).procedure
+    (FRO_T.init in_t out_t (RRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
+  simp only [LRO, RRO, RO_T.init.mk_simp, FRO_T.init.mk_simp]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  intro _
+  exact (FMap.restr0 _).symm
+
+/-- `equiv LRO_RRO_get : LRO.get ~ RRO.get : ={x} /\ RO.m{1} = restr Known FRO.m{2} ==>
+={res} /\ RO.m{1} = restr Known FRO.m{2}`. -/
+theorem LRO_RRO_get :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂))
+    (RO_T.get in_t out_t (LRO in_t out_t dout RO_m)).procedure
+    (FRO_T.get in_t out_t (RRO in_t out_t dout FRO_m)).procedure
+    (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
+  simp only [LRO, RRO, RO_T.get.mk_simp, FRO_T.get.mk_simp]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_skip
+  rintro x _ _ m ⟨rfl, rfl⟩
+  refine ⟨rfl, fun a _ => ?_⟩
+  have hd := FMap.dom_restr m Known x
+  rcases hm : FMap.get m x with _ | ⟨y, _ | _⟩
+  · have h1 : ¬ FMap.dom m x := by simp [FMap.domE, hm]
+    have h2 : ¬ FMap.dom (FMap.restr Known m) x := by rw [hd, FMap.in_dom_with]; simp [h1]
+    simp [h1, h2, FMap.restr_set_eq, oget]
+  · have h1 : FMap.dom m x := by simp [FMap.domE, hm]
+    have h2 : ¬ FMap.dom (FMap.restr Known m) x := by
+      rw [hd, FMap.in_dom_with]; simp [hm]
+    simp [h1, h2, is_, oget, FMap.restr_set_eq]
+  · have h1 : FMap.dom m x := by simp [FMap.domE, hm]
+    have h2 : FMap.dom (FMap.restr Known m) x := by rw [hd, FMap.in_dom_with]; simp [h1, hm]
+    simp [h1, h2, hm, is_, oget, FMap.restrP]
+
+/-- `equiv LRO_RRO_set : LRO.set ~ RRO.set : ={x, y} /\ RO.m{1} = restr Known FRO.m{2} ==>
+RO.m{1} = restr Known FRO.m{2}`. -/
+theorem LRO_RRO_set :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂))
+    (RO_T.set in_t out_t (LRO in_t out_t dout RO_m)).procedure
+    (FRO_T.set in_t out_t (RRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
+  simp only [LRO, RRO, RO_T.set.mk_simp, FRO_T.set.mk_simp]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro x y _ _ _ m ⟨h, rfl⟩
+  obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp h
+  exact (FMap.restr_set_eq m Known x y).symm
+
+/-- `equiv LRO_RRO_rem : LRO.rem ~ RRO.rem : ={x} /\ RO.m{1} = restr Known FRO.m{2} ==>
+RO.m{1} = restr Known FRO.m{2}`. -/
+theorem LRO_RRO_rem :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂))
+    (RO_T.rem in_t out_t (LRO in_t out_t dout RO_m)).procedure
+    (FRO_T.rem in_t out_t (RRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
+  simp only [LRO, RRO, RO_T.rem.mk_simp, FRO_T.rem.mk_simp]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro x _ _ m ⟨rfl, rfl⟩
+  rw [FMap.restr_rem]
+  split_ifs with h
+  · rfl
+  · exact FMap.rem_id _ _ (by rwa [FMap.dom_restr])
+
+/-- `equiv LRO_RRO_sample : LRO.sample ~ RRO.sample : ={x} /\ RO.m{1} = restr Known FRO.m{2} ==>
+RO.m{1} = restr Known FRO.m{2}` (with the section's `dout_ll`). -/
+theorem LRO_RRO_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂))
+    (RO_T.sample in_t out_t (LRO in_t out_t dout RO_m)).procedure
+    (FRO_T.sample in_t out_t (RRO in_t out_t dout FRO_m)).procedure
+    (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
+  simp only [LRO, RRO, RO_T.sample.mk_simp, FRO_T.sample.mk_simp]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  stmt_wp{2} 1
+  stmt_wp
+  equiv_skip
+  rintro x _ _ m ⟨rfl, rfl⟩
+  refine ⟨by simp [SubProbability.expected, dout_ll], fun a _ => ?_⟩
+  by_cases h : FMap.dom m x
+  · simp [h]
+  · have h2 : ¬ FMap.dom (FMap.restr Known m) x := by
+      rw [FMap.dom_restr, FMap.in_dom_with]; simp [h]
+    simp [h, FMap.restr_set, FMap.rem_id _ _ h2]
+
+omit [Inhabited d_in_t] [Inhabited d_out_t] in
+/-- `equiv LRO_RRO_D (D <: RO_Distinguisher{-RO, -FRO}) : D(LRO).distinguish ~
+D(RRO).distinguish : ={glob D, arg} /\ RO.m{1} = restr Known FRO.m{2} ==>
+={res, glob D} /\ RO.m{1} = restr Known FRO.m{2}`.  `RO.m` and `FRO.m` are distinct variables, and
+the oracles' arguments countable (exception E8). -/
+theorem LRO_RRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1) [Countable in_t] [Countable out_t]
+    [Lens.Disjoint RO_m FRO_m] (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (RO_ext in_t out_t))
+    (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
+        RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂))
+      (Module.app D (LRO in_t out_t dout RO_m)).procedure
+      (Module.app D (RRO.asRO in_t out_t dout FRO_m)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
+        RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
+  have hRO : RO_m.footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hdisj.trans (Footprint.compl_antimono le_sup_left))
+  have hFRO : FRO_m.footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hdisj.trans (Footprint.compl_antimono le_sup_right))
+  have hL : FVP.fvP D ≤ ((Lens.pair RO_m FRO_m).footprint)ᶜ := by
+    rw [Footprint.lens_pair]; exact hdisj
+  exact prhlProc_abstract_call_module (Lens.pair RO_m FRO_m) D (RO_ext in_t out_t)
+    hD.representable hL (fun a b => a.1 = FMap.restr Known b.2)
+    (fun n => by
+      cases n with
+      | zero => exact inferInstanceAs (Countable Unit)
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable in_t)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (in_t × out_t))
+          | succ n => cases n with
+            | zero => exact inferInstanceAs (Countable in_t)
+            | succ n => cases n with
+              | zero => exact inferInstanceAs (Countable in_t)
+              | succ n => nomatch n)
+    (LRO in_t out_t dout RO_m) (RRO.asRO in_t out_t dout FRO_m) (fun n => by
+      -- EC: `proc (RO.m{1} = restr Known FRO.m{2}) => //; conseq LRO_RRO_init …`
+      refine prhlProc_conseq (prhlProc_globInvF_of_writesKeep _ ?_ ?_ ?_) (fun _ _ _ _ h => h)
+        (fun _ _ _ _ h => ⟨h.1, h.2⟩)
+      all_goals cases n with
+      | zero =>
+        simp only [RO_ext, RRO.asRO, RO_T.init.mk_simp,
+          HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (LRO_RRO_init in_t out_t dout FRO_m RO_m)
+              (fun _ _ _ _ _ => trivial) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RRO.asRO, RO_T.get.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact LRO_RRO_get in_t out_t dout FRO_m RO_m
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RRO.asRO, RO_T.set.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (LRO_RRO_set in_t out_t dout FRO_m RO_m)
+              (fun _ _ _ _ h => h) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RRO.asRO, RO_T.rem.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (LRO_RRO_rem in_t out_t dout FRO_m RO_m)
+              (fun _ _ _ _ h => h) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => cases n with
+      | zero =>
+        simp only [RO_ext, RRO.asRO, RO_T.sample.mk_simp,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_single]
+        first
+          | writes_keep; done
+          | exact prhlProc_conseq (LRO_RRO_sample in_t out_t dout FRO_m RO_m dout_ll)
+              (fun _ _ _ _ h => h) fun _ _ _ _ h => ⟨trivial, h⟩
+      | succ n => nomatch n)
+
+end LRO_RRO
+
+end EagerCore
+
+section RO_LRO_D
+
+variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] [Inhabited out_t]
+  [Inhabited d_in_t] [Inhabited d_out_t] (dout : in_t → SubProbability out_t)
+  (FRO_m : Lens (FMap in_t (out_t × flag)) VariableAssignment)
+
+/-- EC's `FullEager.RO_LRO_D`, for `declare module D <: RO_Distinguisher {-RO, -FRO}` and
+`axiom dout_ll x : is_lossless (dout x)`:
+`equiv[ D(RO).distinguish ~ D(LRO).distinguish : ={glob D, RO.m, arg} ==> ={res, glob D} ]`. -/
+theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+    (RO_m : Lens (FMap in_t out_t) VariableAssignment)
+    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (RO_ext in_t out_t))
+    (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂ ∧
+        RO_m.get g₁ = RO_m.get g₂)
+      (Module.app D (RO.asRO in_t out_t dout RO_m)).procedure
+      (Module.app D (LRO in_t out_t dout RO_m)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
   sorry
 
