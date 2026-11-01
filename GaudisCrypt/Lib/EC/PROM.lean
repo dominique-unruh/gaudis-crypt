@@ -584,6 +584,19 @@ theorem RRO.resample_inFootprint :
       (RRO.own.resample in_t out_t dout FRO_m).procedure ())
     (RRO.resample_fvP in_t out_t dout FRO_m)
 
+/-- `RRO.resample()` keeps every region outside `FRO.m`, `glob D` in particular. -/
+theorem RRO.resample_keeps {F : Footprint VariableAssignment} (hF : FRO_m.footprint ≤ Fᶜ)
+    (g : VariableAssignment) :
+    (RRO.resampleDen in_t out_t dout FRO_m g).satisfies
+      (fun u => F.touched_getter.get u.2 = F.touched_getter.get g) := by
+  intro u hu
+  have hc := ProgramDenotation.preserves_compl_of_inFootprint FRO_m
+    (RRO.resample_inFootprint in_t out_t dout FRO_m) g u hu
+  have : u.2 = FRO_m.set (FRO_m.get u.2) g :=
+    Lens.eq_of_get_compl_get FRO_m (FRO_m.set_get _ _).symm
+      (by rw [hc, Lens.compl_get_set])
+  rw [this, touched_set_of_le_compl hF]
+
 /-- `RRO.I.f`'s run: sample `c`, write `FRO.m.[t] <- (c, Unknown)`. -/
 theorem RRO.I_f_denotation (t : in_t) (g : VariableAssignment) :
     procedureDenotation (RRO.I.f.procedure in_t out_t dout FRO_m) t g =
@@ -1474,6 +1487,49 @@ theorem eager_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 
                   | succ n => nomatch n)
     a
 
+omit [Inhabited d_in_t] [Inhabited d_out_t] in
+/-- EC's `eager_D` at an `RO_Distinguisher` (EasyCrypt's subtyping `RO_Distinguisher <:
+FRO_Distinguisher`): `eager_call_module` over `RO`'s procedures, by the same oracle lemmas. -/
+theorem eager_D_RO [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+    (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (RO_ext in_t out_t))
+    (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) (a : d_in_t) :
+    ProgramDenotation.eagerR (RRO.resampleDen in_t out_t dout FRO_m)
+      (RRO.resampleDen in_t out_t dout FRO_m) (fun σ₁ σ₂ => σ₁ = σ₂)
+      (procedureDenotation (Module.app D (FRO.asRO in_t out_t dout FRO_m)).procedure a)
+      (procedureDenotation (Module.app D (RRO.asRO in_t out_t dout FRO_m)).procedure a)
+      (fun u v => u = v) :=
+  eager_call_module FRO_m D (RO_ext in_t out_t) hD.representable hdisj
+    (fun n => by
+      cases n with
+      | zero => exact inferInstanceAs (Countable Unit)
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable in_t)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (in_t × out_t))
+          | succ n => cases n with
+            | zero => exact inferInstanceAs (Countable in_t)
+            | succ n => cases n with
+              | zero => exact inferInstanceAs (Countable in_t)
+              | succ n => nomatch n)
+    _ (RRO.resample_inFootprint in_t out_t dout FRO_m) _ _
+    (fun n a => by
+      simp only [RO_ext, FRO.asRO, RRO.asRO, RO_T.init.mk_simp, RO_T.get.mk_simp,
+        RO_T.set.mk_simp, RO_T.rem.mk_simp, RO_T.sample.mk_simp]
+      cases n with
+      | zero => exact eager_init in_t out_t dout FRO_m dout_ll a
+      | succ n => cases n with
+        | zero => exact eager_get in_t out_t dout FRO_m dout_ll a
+        | succ n => cases n with
+          | zero => exact eager_set in_t out_t dout FRO_m dout_ll a
+          | succ n => cases n with
+            | zero => exact eager_rem in_t out_t dout FRO_m dout_ll a
+            | succ n => cases n with
+              | zero => exact eager_sample in_t out_t dout FRO_m dout_ll a
+              | succ n => nomatch n)
+    a
+
+
 -- EC's `FullEager.EagerCore.Eager (D : FRO_Distinguisher)`, with `D` a Lean parameter
 set_option linter.gaudisCrypt.using false in
 module Eager (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) {
@@ -1882,9 +1938,12 @@ variable (in_t out_t d_in_t d_out_t : Type) [DecidableEq in_t] [Inhabited in_t] 
 
 /-- EC's `FullEager.RO_LRO_D`, for `declare module D <: RO_Distinguisher {-RO, -FRO}` and
 `axiom dout_ll x : is_lossless (dout x)`:
-`equiv[ D(RO).distinguish ~ D(LRO).distinguish : ={glob D, RO.m, arg} ==> ={res, glob D} ]`. -/
-theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
-    (RO_m : Lens (FMap in_t out_t) VariableAssignment)
+`equiv[ D(RO).distinguish ~ D(LRO).distinguish : ={glob D, RO.m, arg} ==> ={res, glob D} ]`.
+`RO.m` and `FRO.m` are distinct variables, and the oracles' arguments countable (exception E8).
+EC's proof: two `transitivity`s through `M.main1 = RRO.resample(); D(FRO)` and
+`M.main2 = D(RRO); RRO.resample()`, by `RO_FRO_D`, `eager_D` and `LRO_RRO_D`. -/
+theorem RO_LRO_D [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+    (RO_m : Lens (FMap in_t out_t) VariableAssignment) [Lens.Disjoint RO_m FRO_m]
     (D : RO_Distinguisher in_t out_t d_in_t d_out_t)
     (hD : Module.ECModule D (RO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ) :
@@ -1896,7 +1955,78 @@ theorem RO_LRO_D (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
       (Module.app D (LRO in_t out_t dout RO_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
-  sorry
+  have hFRO_D : FVP.fvP D ≤ (FRO_m.footprint)ᶜ :=
+    hdisj.trans (Footprint.compl_antimono le_sup_right)
+  have hm : FRO_m.footprint ≤ (FVP.fvP D)ᶜ := (Footprint.le_compl_comm _ _).mp hFRO_D
+  set R := RRO.resampleDen in_t out_t dout FRO_m with hRdef
+  set G := (FVP.fvP D).touched_getter.get with hG
+  let tag : FMap in_t out_t → FMap in_t (out_t × flag) := FMap.map fun _ c => (c, Known)
+  -- `resample` from a state with no `Unknown` entry does nothing (EC's `rcondf{2} 3`)
+  have hR_pure : ∀ g, FMap.restr Unknown (FRO_m.get g) = FMap.empty → R g = pure ((), g) := by
+    intro g h
+    rw [hRdef, RRO.resampleDen, RRO.resample_denotation, IterProc.Iter.iter_denotation, h,
+      FMap.fdom0, Finset.toList_empty]
+    rfl
+  have hR_ll : ∀ g, (R g).1 Set.univ = 1 := by
+    intro g
+    have := RRO_resample_ll in_t out_t dout FRO_m dout_ll () g
+    unfold Procedure.ewp ProgramDenotation.wp SubProbability.expected at this
+    rw [MeasureTheory.lintegral_one] at this
+    exact this
+  intro a₁ a₂
+  -- EC: `transitivity M.main1 (={glob D, arg} /\ FRO.m{2} = map (fun _ c => (c, Known)) RO.m{1}
+  -- ==> ={res, glob D}) …`; `M.main1 = RRO.resample(); D(FRO)`
+  have h1 : ProgramDenotation.prhl2
+      (fun g₁ gm => a₁ = a₂ ∧ G g₁ = G gm ∧ FRO_m.get gm = tag (RO_m.get g₁))
+      (procedureDenotation (Module.app D (RO.asRO in_t out_t dout RO_m)).procedure a₁)
+      (R >>= fun _ =>
+        procedureDenotation (Module.app D (FRO.asRO in_t out_t dout FRO_m)).procedure a₂)
+      (fun u v => u.1 = v.1 ∧ G u.2 = G v.2) := by
+    rintro g₁ gm ⟨rfl, hg, hF⟩
+    have e : (R >>= fun _ => procedureDenotation
+        (Module.app D (FRO.asRO in_t out_t dout FRO_m)).procedure a₁) gm =
+        procedureDenotation (Module.app D (FRO.asRO in_t out_t dout FRO_m)).procedure a₁ gm := by
+      have hU : FMap.restr Unknown (FRO_m.get gm) = FMap.empty := by
+        rw [hF]; exact FMap.restr_map_tag_ne _ (by decide)
+      rw [ProgramDenotation.bind_apply, hR_pure gm hU, SubProbability.pure_bind]
+    rw [e]
+    obtain ⟨μ, hm1, hm2, hsat⟩ := RO_FRO_D _ _ dout RO_m FRO_m _ _ D hD hdisj a₁ a₁ g₁ gm
+      ⟨rfl, hg, by rw [hF, FMap.noflags_map_tag]⟩
+    exact ⟨μ, hm1, hm2, fun w hw => ⟨(hsat w hw).1, (hsat w hw).2.1⟩⟩
+  -- EC: `transitivity M.main2 (={glob D, FRO.m, arg} ==> …)`, `by proc; eager call (eager_D D)`
+  have heq := ProgramDenotation.eagerR_to_eq
+    (eager_D_RO _ _ _ _ dout FRO_m dout_ll D hD hFRO_D a₂)
+  rw [heq] at h1
+  -- EC: `proc*; inline M.main2; wp; call{1} RRO_resample_ll. symmetry; call (LRO_RRO_D D); auto`
+  have h2 : ProgramDenotation.prhl2
+      (fun gm g₂ => G gm = G g₂ ∧ FRO_m.get gm = tag (RO_m.get g₂))
+      (procedureDenotation (Module.app D (RRO.asRO in_t out_t dout FRO_m)).procedure a₂ >>=
+        fun r => R >>= fun _ => pure r)
+      (procedureDenotation (Module.app D (LRO in_t out_t dout RO_m)).procedure a₂)
+      (fun u v => u.1 = v.1 ∧ G u.2 = G v.2) := by
+    have hl := (LRO_RRO_D _ _ _ _ dout FRO_m RO_m dout_ll D hD hdisj a₂ a₂).symm
+    rw [← ProgramDenotation.bind_pure
+      (procedureDenotation (Module.app D (LRO in_t out_t dout RO_m)).procedure a₂)]
+    refine ProgramDenotation.prhl2.bind (hl.conseq (fun gm g₂ ⟨hg, hF⟩ =>
+      ⟨rfl, hg.symm, by rw [hF, FMap.restr_map_tag]⟩) fun _ _ h => h) fun b₁ b₂ => ?_
+    refine ProgramDenotation.prhl2_lossless_left b₂ (fun τ => ?_) fun τ₁ τ₂ hM => ?_
+    · rw [ProgramDenotation.bind_apply, SubProbability.expected_bind]
+      simp only [ProgramDenotation.pure_apply, expected_pure]
+      exact RRO_resample_ll in_t out_t dout FRO_m dout_ll () τ
+    · obtain ⟨hb, hg, -⟩ := hM
+      rw [ProgramDenotation.bind_apply]
+      refine SubProbability.satisfies_bind _ fun v hv => ?_
+      rw [ProgramDenotation.pure_apply]
+      refine SubProbability.satisfies_pure _ _ ⟨hb.symm, ?_⟩
+      exact (RRO.resample_keeps in_t out_t dout FRO_m hm τ₁ v hv).trans hg.symm
+  have htr := ProgramDenotation.prhl2.trans h1 h2
+  rintro g₁ g₂ ⟨rfl, hg, hm'⟩
+  obtain ⟨μ, m1, m2, sat⟩ := htr g₁ g₂ ⟨FRO_m.set (tag (RO_m.get g₁)) g₁,
+    ⟨rfl, by rw [hG, touched_set_of_le_compl hm], FRO_m.set_get _ _⟩,
+    ⟨by rw [hG, touched_set_of_le_compl hm]; exact hg, by rw [FRO_m.set_get, hm']⟩⟩
+  refine ⟨μ, m1, m2, fun w hw => ?_⟩
+  obtain ⟨y, ⟨e1, g1⟩, ⟨e2, g2⟩⟩ := sat w hw
+  exact ⟨e1.trans e2, g1.trans g2⟩
 
 end RO_LRO_D
 

@@ -378,8 +378,10 @@ module EROExper using (O : ERO.RO_T, D : ERO.RO_Distinguisher) {
   };
 }
 
-/-- `local lemma LRO_RO (D <: ERO.RO_Distinguisher {-ERO.RO, -ERO.FRO}) &m`. -/
-theorem LRO_RO (D : ERO.RO_Distinguisher) (hD : Module.ECModule D ERO.RO_ext)
+/-- `local lemma LRO_RO (D <: ERO.RO_Distinguisher {-ERO.RO, -ERO.FRO}) &m`.  `ERO.RO.m` and
+`ERO.FRO.m` are distinct variables (exception E8). -/
+theorem LRO_RO [Lens.Disjoint ERO_RO_m ERO_FRO_m] (D : ERO.RO_Distinguisher)
+    (hD : Module.ECModule D ERO.RO_ext)
     (_hDd : FVP.fvP D ≤ (ERO_RO_m.footprint ⊔ ERO_FRO_m.footprint)ᶜ) (m : VariableAssignment) :
     Procedure.Pr (Module.app EROExper (Module.pair (ERO.LRO ERO_RO_m) D)).procedure () m
         (fun r _ => r = true) =
@@ -819,9 +821,14 @@ theorem HybridIROExper_Lazy_Eager'
   have hF := (hD.finitelySupported.sup hLazy).sup hEager
   haveI : Nonempty (FMap (List block × ℤ) Bool) := ⟨FMap.empty⟩
   haveI : Nonempty (FMap (List block × ℤ) (Bool × PROM.flag)) := ⟨FMap.empty⟩
-  obtain ⟨ERO_RO_m, hRO, -⟩ := Footprint.exists_fresh (FMap (List block × ℤ) Bool) hF
-  obtain ⟨ERO_FRO_m, hFRO, -⟩ :=
-    Footprint.exists_fresh (FMap (List block × ℤ) (Bool × PROM.flag)) hD.finitelySupported
+  obtain ⟨ERO_RO_m, hRO, hROfs⟩ := Footprint.exists_fresh (FMap (List block × ℤ) Bool) hF
+  obtain ⟨ERO_FRO_m, hFRO', -⟩ := Footprint.exists_fresh (FMap (List block × ℤ) (Bool × PROM.flag))
+    (hD.finitelySupported.sup hROfs)
+  have hFRO : ERO_FRO_m.footprint ≤ (FVP.fvP D)ᶜ :=
+    hFRO'.trans (Footprint.compl_antimono le_sup_left)
+  haveI : Lens.Disjoint ERO_RO_m ERO_FRO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+      (hFRO'.trans (Footprint.compl_antimono le_sup_right)))
   have hRO_D : FVP.fvP D ≤ (ERO_RO_m.footprint)ᶜ := (Footprint.le_compl_comm _ _).mp
     (hRO.trans (Footprint.compl_antimono (le_sup_left.trans le_sup_left)))
   have hFRO_D : FVP.fvP D ≤ (ERO_FRO_m.footprint)ᶜ := (Footprint.le_compl_comm _ _).mp hFRO

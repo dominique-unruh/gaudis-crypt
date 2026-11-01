@@ -576,3 +576,19 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   three cases: `Known` by `rnd{1}` + `iter_inv`/`I_f_neq`; `Unknown` by `transitivity{1}` through
   `iter_1s`, `seq 5 3`, `iter_inv`/`I_f_eqex`; unbound by `swap{1} -1`, `seq 1 1`,
   `iter_inv`/`I_f_set`).  With it all seven eager oracle lemmas are proven, and so is `eager_D`.
+
+## 2026-11-01: PROM complete (`Eager_1_2`, `RO_LRO_D`); Sponge's lazy/eager chain closed
+
+* `Logic/EagerBridge.lean`: `prhl2_refl_of_inFootprint`, `prhlProc_refl_of_inFootprint`,
+  `prhlProc_refl_of_within` (EC's `sim` on code within a lens: from `={arg, X}` to `={res, X}`,
+  through the commutation with the update that replaces the outside of `X`);
+  `ProgramDenotation.prhl2_lossless_left` (a lossless run against a value, any result types).
+* FMap: `restr_map_tag`, `restr_map_tag_ne`, `noflags_map_tag` (EC's `map_comp`/`map_id`/`restrP`
+  at `map (fun _ c => (c, f))`).
+* PROM: `RRO.resample_keeps` (resample keeps every region outside `FRO.m`), `eager_D_RO` (EC's
+  `eager_D` at an `RO_Distinguisher`, EC's subtyping), `Eager.main1_denotation`,
+  `Eager.main2_denotation`, `FRO_init_denotation`, `FRO_init_resample`, `Eager.main2_eq_main1`,
+  `Eager.main1_self` (with a local `oracle_sim` macro), `Eager_1_2`, `RO_LRO_D` (EC's two
+  `transitivity`s by `prhl2.trans`, the middle state with `FRO.m := map (·, Known) RO.m`).
+  `PROM.lean` has no `sorry`.
+* Sponge: `LRO_RO`, `HybridIROExper_Lazy_Eager'`, `HybridIROExper_Lazy_Eager` proven outright.

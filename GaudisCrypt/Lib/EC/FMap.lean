@@ -356,7 +356,23 @@ theorem restr_rem [Inhabited β] [Inhabited φ] (m : FMap α (β × φ)) (x : α
     refine (fmap_eqP _ _).mp fun z => ?_
     rw [restrP, remE, remE, restrP]; by_cases hz : z = x <;> simp [hz]
 
+/-- `restrP` at a map tagging every binding with `f`: the bindings themselves. -/
+theorem restr_map_tag (m : FMap α β) (f : φ) : restr f (map (fun _ c => (c, f)) m) = m := by
+  refine (fmap_eqP _ _).mp fun z => ?_
+  rw [restrP, mapE]; cases get m z <;> simp
+
+/-- A map tagging every binding with `f` has no binding tagged `f' ≠ f`. -/
+theorem restr_map_tag_ne (m : FMap α β) {f f' : φ} (h : f' ≠ f) :
+    restr f' (map (fun _ c => (c, f)) m) = empty := by
+  refine (fmap_eqP _ _).mp fun z => ?_
+  rw [restrP, mapE, emptyE]; cases get m z <;> simp [Ne.symm h]
+
 end restr
+
+/-- EC's `map_comp`/`map_id` at `noflags`: tagging every binding, then dropping the tags. -/
+theorem noflags_map_tag {φ : Type*} (m : FMap α β) (f : φ) :
+    noflags (map (fun _ c => (c, f)) m) = m := by
+  rw [noflags, map_comp]; exact map_id m
 
 end FMap
 

@@ -122,6 +122,32 @@ theorem prhlProc_refl_of_within {sig : ProcedureSignature} (p : Procedure sig)
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ X.get g₁ = X.get g₂) :=
   prhlProc_refl_of_inFootprint X p fun a => procedureDenotation_inFootprint_of_within p hb hr a
 
+/-- A run on the left only, against a value on the right: lossless, and the postcondition on all
+its outcomes (`ProgramDenotation.prhl2.kill_left` for any result types). -/
+theorem ProgramDenotation.prhl2_lossless_left {α β : Type}
+    {A : VariableAssignment → VariableAssignment → Prop}
+    {p : ProgramDenotation VariableAssignment α} (b : β)
+    {B : α × VariableAssignment → β × VariableAssignment → Prop}
+    (hloss : ∀ σ, (p σ).expected (fun _ => 1) = 1)
+    (h : ∀ σ₁ σ₂, A σ₁ σ₂ → (p σ₁).satisfies fun u => B u (b, σ₂)) :
+    ProgramDenotation.prhl2 A p (pure b) B := by
+  intro σ₁ σ₂ hA
+  refine ⟨(p σ₁) >>= fun u => pure (u, (b, σ₂)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc]
+    simp only [SubProbability.pure_bind]
+    exact SubProbability.bind_pure _
+  · refine SubProbability.ext_of_expected (fun F => ?_)
+    rw [SubProbability.expected_map, SubProbability.expected_bind]
+    simp only [expected_pure]
+    show (p σ₁).expected (fun _ => F (b, σ₂)) = (pure (b, σ₂) : SubProbability _).expected F
+    rw [expected_pure]
+    have h1 := hloss σ₁
+    unfold SubProbability.expected at h1 ⊢
+    rw [MeasureTheory.lintegral_one] at h1
+    rw [MeasureTheory.lintegral_const, h1, mul_one]
+  · exact SubProbability.satisfies_bind _ fun u hu =>
+      SubProbability.satisfies_pure _ _ (h σ₁ σ₂ hA u hu)
+
 /-! ## The composites as statements -/
 
 /-- `programDenotation_call_apply`, for `StmtWithHoles.call` (the form the program syntax and the

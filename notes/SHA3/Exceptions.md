@@ -241,8 +241,11 @@ takes `[Countable «from»]` and the disjointness of `Bounder_bounder`, `Counter
 `[Lens.Disjoint HybridIROLazy_mp ERO_RO_m]` (resp. `[Lens.Disjoint ERO_RO_m HybridIROEager_mp]`):
 the invariant `HybridIROLazy.mp{1} = ERO.RO.m{2}` relates two oracle states, read as one lens.  The
 argument type `block list * int` is countable outright (`block` is finite).
-`PROM.FullRO.RO_FRO_D` and `FullEager.LRO_RRO_D` take `[Countable in_t] [Countable out_t]` (the
-arguments of `get` and `set`) and `[Lens.Disjoint RO_m FRO_m]`.
+`PROM.FullRO.RO_FRO_D`, `FullEager.LRO_RRO_D` and `FullEager.RO_LRO_D` take
+`[Countable in_t] [Countable out_t]` (the arguments of `get` and `set`) and
+`[Lens.Disjoint RO_m FRO_m]`; `FullEager.eager_D` and `Eager_1_2` take the countability.  So
+`Sponge.HybridIRO.LRO_RO` takes `[Lens.Disjoint ERO_RO_m ERO_FRO_m]`, which
+`HybridIROExper_Lazy_Eager'` discharges by choosing `ERO_FRO_m` fresh for `ERO_RO_m` as well.
 
 **EasyCrypt counterpart.** None needed.  EasyCrypt's distributions are discrete, which the rule's
 countability stands in for, and distinct module variables are distinct memory locations.  A clone
