@@ -703,3 +703,18 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   leaf against a `glob`.  A module reached through projections has its type unfolded: two `glob`s
   of the same module term are closed by `le_refl`, the kernel checking the instances (unifying at
   default transparency there made `IndifRO_is_secure` time out).
+
+## 2026-11-01: `RO_is_preimage_resistant` proven (EC's `fel`, as for collision)
+
+Same scheme as `RO_is_collision_resistant`: `Preimage ≡ Preimage2` (`Preimage_Preimage2`, EC's
+`inline*; sim`; `Preimage`'s own `Counter.init` is dead since `Bounder.init` runs it again, so the
+initialization is a one-sided `stmt_wp` + lens commutation instead of `sim`), then `Preimage2_le`:
+the tail is at most `[rng RO.m h] + μ1 sampleto h` (`preimage_tail_le`), the adversary part is
+EC's `fel` with the potential `preimagePotential` (`[rng RO.m h]`, else `(bound - bounder) · μ`;
+EC's invariant on `|dom RO.m|` is not needed here) via `Module.ewp_app_le`.  The shared expectation
+lemmas (`expected_mono'`, `expected_const_le'`, `get_set_self`, …) moved to a section
+`FELHelpers` before both.  `preimage_resistant_if_indifferentiable` is now proven with standard
+axioms only.
+
+The bound is stated per argument (`phoareProc (fun _ _ => True) … (fun h _ => … μ1 sampleto h)`):
+a precondition `fun a _ => a = h` does not elaborate before the procedure fixes the signature.

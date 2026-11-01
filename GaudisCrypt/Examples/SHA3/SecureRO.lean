@@ -186,8 +186,308 @@ module Preimage2 using (A : AdvPreimage «from» «to», F : RF «from» «to»)
 
 end Preimage
 
+/-! ### The lemmas of EC's `fel` in `RO_is_preimage_resistant` (on `FMap` and the potential)
+
+Not EasyCrypt statements: EC's proof settles these by `smt` (`fcardU`, `rngE`, `get_setE`); here
+they are lemmas for the potential `preimagePotential`, whose expectation the oracle does not
+increase (`preimagePotential_step`), as for `RO_is_collision_resistant` below. -/
+
+section FELHelpers
+
+theorem expected_mono' {γ : Type} {μ : SubProbability γ} {f g : γ → ENNReal}
+    (h : ∀ a, f a ≤ g a) : μ.expected f ≤ μ.expected g := by
+  rw [SubProbability.expected_eq_tsum, SubProbability.expected_eq_tsum]
+  exact ENNReal.tsum_le_tsum fun a => by gcongr; exact h a
+
+theorem expected_const_le' {γ : Type} (μ : SubProbability γ) (c : ENNReal) :
+    μ.expected (fun _ => c) ≤ c := by
+  letI : MeasurableSpace γ := ⊤
+  change ∫⁻ _, c ∂μ.1 ≤ c
+  rw [MeasureTheory.lintegral_const]
+  calc c * μ.1 Set.univ ≤ c * 1 := by gcongr; exact μ.2.1
+    _ = c := mul_one c
+
+variable {α β : Type} [DecidableEq α]
+
+theorem get_set_self (m : FMap α β) (x : α) (v : β) : (FMap.set m x v).get x = some v := by
+  simp [FMap.get, FMap.set]
+
+theorem get_set_ne (m : FMap α β) {x y : α} (v : β) (h : y ≠ x) :
+    (FMap.set m x v).get y = m.get y := by
+  simp [FMap.get, FMap.set, Finmap.lookup_insert_of_ne _ h]
+
+theorem indicatorE_le_of_imp {P Q : Prop} (h : P → Q) : indicatorE P ≤ indicatorE Q := by
+  by_cases hP : P
+  · simp [indicatorE, hP, h hP]
+  · simp [indicatorE, hP]
+
+open Classical in
+/-- The potential of EC's `fel` in `RO_is_preimage_resistant`: `1` once `h` is in the range of `m`,
+the bound `(bound - b) · μ` still to pay for the queries from `b` on, and `⊤` for a negative
+`b`. -/
+noncomputable def preimagePotential {α β : Type} [DecidableEq α] (bound : ℤ) (μ : ENNReal) (h : β)
+    (s : ℤ × ℤ × FMap α β) : ENNReal :=
+  if FMap.rng s.2.2 h then 1
+  else if 0 ≤ s.1 then ∑ _i ∈ Finset.Ico s.1.toNat bound.toNat, μ
+  else ⊤
+
+theorem rng_set_of_rng {m : FMap α β} {x : α} (hx : ¬ FMap.dom m x) {h : β}
+    (hr : FMap.rng m h) (a : β) : FMap.rng (FMap.set m x a) h := by
+  obtain ⟨k, hk⟩ := hr
+  have hkx : k ≠ x := by
+    rintro rfl
+    exact hx (Finmap.mem_keys.mpr (Finmap.mem_of_lookup_eq_some hk))
+  exact ⟨k, by simp only [FMap.set, Finmap.lookup_insert_of_ne _ hkx, hk]⟩
+
+theorem eq_of_rng_set {m : FMap α β} {x : α} {h a : β} (hr : ¬ FMap.rng m h)
+    (hs : FMap.rng (FMap.set m x a) h) : a = h := by
+  obtain ⟨k, hk⟩ := hs
+  by_cases hkx : k = x
+  · subst hkx
+    simpa [FMap.set] using hk
+  · exact absurd ⟨k, by simpa [FMap.set, Finmap.lookup_insert_of_ne _ hkx] using hk⟩ hr
+
+theorem not_rng_empty (h : β) : ¬ FMap.rng (FMap.empty : FMap α β) h := by
+  rintro ⟨k, hk⟩
+  simp [FMap.empty] at hk
+
+open Classical in
+theorem expected_point' {d : SubProbability β} (v : β) :
+    d.expected (fun a => indicatorE (v = a)) ≤ d.1 {v} := by
+  rw [SubProbability.expected_eq_tsum,
+    tsum_eq_single v (fun a ha => by simp [indicatorE, Ne.symm ha])]
+  simp [indicatorE]
+
+open Classical in
+/-- **The step of EC's `fel`** in `RO_is_preimage_resistant`: one query of `Bounder(RO).get` does
+not increase the potential in expectation (EC's `rnd (pred1 h)`). -/
+theorem preimagePotential_step {d : SubProbability β} (h : β)
+    (bound b c c' : ℤ) (m : FMap α β) (x : α) (Q : Prop) [Decidable Q] :
+    (if b < bound then
+      (if Q then d.expected (fun a => if ¬ FMap.dom m x then
+          preimagePotential bound (d.1 {h}) h (b + 1, c', FMap.set m x a)
+        else preimagePotential bound (d.1 {h}) h (b + 1, c', m))
+      else preimagePotential bound (d.1 {h}) h (b + 1, c, m))
+    else preimagePotential bound (d.1 {h}) h (b, c, m)) ≤
+      preimagePotential bound (d.1 {h}) h (b, c, m) := by
+  set μ := d.1 {h}
+  by_cases hb : b < bound
+  swap
+  · simp [hb]
+  rw [if_pos hb]
+  by_cases hr : FMap.rng m h
+  · have h1 : ∀ c₀, preimagePotential bound μ h (b + 1, c₀, m) = 1 := fun _ => by
+      dsimp only [preimagePotential]; rw [if_pos hr]
+    have hφ : preimagePotential bound μ h (b, c, m) = 1 := by
+      dsimp only [preimagePotential]; rw [if_pos hr]
+    rw [hφ]
+    by_cases hQ : Q
+    · simp only [hQ, if_true]
+      refine (expected_mono' fun a => ?_).trans (expected_const_le' d 1)
+      by_cases hx : FMap.dom m x
+      · simp [hx, h1]
+      · simp only [hx, not_false_eq_true, if_true]
+        dsimp only [preimagePotential]; rw [if_pos (rng_set_of_rng hx hr a)]
+    · simp only [hQ, if_false, h1, le_refl]
+  by_cases h0 : 0 ≤ b
+  swap
+  · simp [preimagePotential, hr, h0]
+  set T := ∑ _i ∈ Finset.Ico (b + 1).toNat bound.toNat, μ
+  have hφ : preimagePotential bound μ h (b, c, m) = μ + T := by
+    simp only [preimagePotential, hr, h0, if_false, if_true]
+    rw [Finset.sum_eq_sum_Ico_succ_bot (show b.toNat < bound.toNat by omega),
+      show b.toNat + 1 = (b + 1).toNat by omega]
+  have hT : ∀ c₀, preimagePotential bound μ h (b + 1, c₀, m) = T := fun _ => by
+    simp only [preimagePotential, hr, show 0 ≤ b + 1 by omega, if_false, if_true]
+    rfl
+  rw [hφ]
+  by_cases hQ : Q
+  · simp only [hQ, if_true]
+    calc d.expected (fun a => if ¬ FMap.dom m x then
+            preimagePotential bound μ h (b + 1, c', FMap.set m x a)
+          else preimagePotential bound μ h (b + 1, c', m))
+        ≤ d.expected (fun a => indicatorE (h = a) + T) := by
+          refine expected_mono' fun a => ?_
+          by_cases hx : FMap.dom m x
+          · simp only [hx, not_true_eq_false, if_false, hT]; exact le_add_self
+          simp only [hx, not_false_eq_true, if_true]
+          by_cases hs : FMap.rng (FMap.set m x a) h
+          · simp [preimagePotential, hs, indicatorE_of (eq_of_rng_set hr hs).symm]
+          · simp [preimagePotential, hs, show 0 ≤ b + 1 by omega, T]
+      _ = d.expected (fun a => indicatorE (h = a)) + d.expected (fun _ => T) :=
+          SubProbability.expected_add _ _ _
+      _ ≤ μ + T := add_le_add (expected_point' h) (expected_const_le' d T)
+  · simp only [hQ, if_false, hT]; exact le_add_self
+
+open Classical in
+theorem indicatorE_rng_le_preimagePotential (bound : ℤ) (μ : ENNReal) (h : β)
+    (s : ℤ × ℤ × FMap α β) : indicatorE (FMap.rng s.2.2 h) ≤ preimagePotential bound μ h s := by
+  by_cases hr : FMap.rng s.2.2 h
+  · rw [indicatorE_of hr]; dsimp only [preimagePotential]; rw [if_pos hr]
+  · rw [indicatorE_of_not hr]; exact bot_le
+
+/-- The tail of EC's `Preimage2` after the adversary: the last query hits `h` only if `h` was in the
+range of `m`, or with probability `μ1 sampleto h` (EC's `case: (x \in RO.m)`, `rnd (pred1 h)`). -/
+theorem preimage_tail_le [Inhabited β] {d : SubProbability β} (m : FMap α β) (x : α) (h : β)
+    (Q : Prop) [Decidable Q] :
+    (if Q then
+      d.expected fun a =>
+        if ¬ FMap.dom m x then indicatorE (h = oget ((FMap.set m x a).get x))
+        else indicatorE (h = oget (m.get x))
+    else indicatorE False) ≤ indicatorE (FMap.rng m h) + d.1 {h} := by
+  by_cases hQ : Q
+  swap
+  · simp [hQ]
+  rw [if_pos hQ]
+  by_cases hx : FMap.dom m x
+  · simp only [hx, not_true_eq_false, if_false]
+    refine (expected_const_le' d _).trans (le_trans ?_ le_self_add)
+    refine indicatorE_le_of_imp fun hh => ?_
+    obtain ⟨v, hv⟩ : ∃ v, m.get x = some v := Option.isSome_iff_exists.mp (by
+      simpa [FMap.get, FMap.dom, Finmap.mem_keys, Finmap.lookup_isSome] using hx)
+    exact ⟨x, by rw [hh, ← FMap.get, hv]; rfl⟩
+  · simp only [hx, not_false_eq_true, if_true, get_set_self, oget]
+    exact (expected_point' h).trans le_add_self
+
+end FELHelpers
+
+/-- The oracle premise of EC's `fel` in `RO_is_preimage_resistant`: a query of `Bounder(RO).get`
+does not increase the potential `preimagePotential` of `(Bounder.bounder, Counter.c, RO.m)` in
+expectation (`preimagePotential_step`). -/
+theorem Bounder_RO_get_preimagePotential [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m] (h : «to») :
+    phoareProc (fun _ _ => True)
+      (RF.get «from» «to» (Module.app (Bounder «from» «to» bound increase_counter bound_counter
+        Counter_c Bounder_bounder) (RO.asRF «from» «to» sampleto RO_m))).procedure
+      (fun _ g => preimagePotential bound (sampleto.1 {h}) h
+        ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).get g))
+      (· ≤ ·)
+      (fun _ g => preimagePotential bound (sampleto.1 {h}) h
+        ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).get g)) := by
+  have := (inferInstance : Lens.Disjoint Counter_c RO_m).symm
+  have := (inferInstance : Lens.Disjoint Bounder_bounder RO_m).symm
+  have := (inferInstance : Lens.Disjoint Bounder_bounder Counter_c).symm
+  phoare_proc_to_stmt
+  repeat phoare_inline 0
+  phoare_ewp
+  exact preimagePotential_step h bound _ _ _ _ _ _
+
+/-- EC's `fel` in `RO_is_preimage_resistant`, as a supermartingale: `FEL(A, RO).main` ends with the
+potential at most its value after the initialization, `bound · μ1 sampleto h`
+(`Module.ewp_app_le`, the oracle by `Bounder_RO_get_preimagePotential`). -/
+theorem FEL_preimagePotential [Countable «from»] [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m]
+    (A : AdvPreimage «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
+    (hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ Counter_c.footprint ⊔ Bounder_bounder.footprint)ᶜ)
+    (h : «to») :
+    phoareProc (fun _ _ => True)
+      (Module.app (Preimage.FEL «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure
+      (fun _ g => preimagePotential bound (sampleto.1 {h}) h
+        ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).get g))
+      (· ≤ ·)
+      (fun _ _ => ∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) := by
+  have := (inferInstance : Lens.Disjoint Counter_c RO_m).symm
+  have := (inferInstance : Lens.Disjoint Bounder_bounder RO_m).symm
+  have := (inferInstance : Lens.Disjoint Bounder_bounder Counter_c).symm
+  have hL : FVP.fvP A ≤ ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).footprint)ᶜ := by
+    rw [Footprint.lens_pair, Footprint.lens_pair]
+    rwa [show Bounder_bounder.footprint ⊔ (Counter_c.footprint ⊔ RO_m.footprint) =
+      RO_m.footprint ⊔ Counter_c.footprint ⊔ Bounder_bounder.footprint by ac_rfl]
+  phoare_proc_to_stmt
+  phoare_inline 0
+  repeat phoare_inline 0
+  intro σ _
+  simp only [Stmt.ewp_seq, Stmt.ewp_assign]
+  simp_reads
+  erw [Stmt.ewp_call]
+  simp_reads
+  refine le_trans (Module.ewp_app_le (Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)) A
+    (Oracle.ext «from» «to») hA.representable hL
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable «from»)
+      | succ m => nomatch m)
+    _ (preimagePotential bound (sampleto.1 {h}) h)
+    (fun n a g => by cases n with
+      | zero =>
+        simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single, Oracle.get.mk_simp]
+        exact Bounder_RO_get_preimagePotential «from» «to» sampleto bound increase_counter
+          bound_counter RO_m Counter_c Bounder_bounder h a g trivial
+      | succ m => nomatch m) _ _) ?_
+  simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set, preimagePotential]
+  rw [if_neg (not_rng_empty h), if_pos le_rfl]
+  exact le_rfl
+
+/-- EC's `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) …` in `RO_is_preimage_resistant`:
+after the adversary (`FEL`), the last query hits `h` only if `h` was already in the range of
+`RO.m` (bounded by EC's `fel`, `FEL_preimagePotential`) or with probability `μ1 sampleto h`
+(`preimage_tail_le`). -/
+theorem Preimage2_le [Countable «from»] [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m]
+    (A : AdvPreimage «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
+    (hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ Counter_c.footprint ⊔ Bounder_bounder.footprint)ᶜ) :
+    phoareProc (fun _ _ => True)
+      (Module.app (Preimage.Preimage2 «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure
+      (fun r _ => indicatorE (r = true)) (· ≤ ·)
+      (fun h _ => (∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) +
+        sampleto.1 {h}) := by
+  have hFEL := FEL_preimagePotential «from» «to» sampleto bound increase_counter bound_counter RO_m
+    Counter_c Bounder_bounder A hA hAd
+  have := (inferInstance : Lens.Disjoint Counter_c RO_m).symm
+  phoare_proc_to_stmt
+  phoare_inline 0
+  repeat phoare_inline 1
+  phoare_ewp
+  erw [Stmt.ewp_call]
+  simp_reads
+  generalize (localVarLens "arg1" «to»).get _ = h
+  refine (Procedure.ewp_mono _ _ (G := fun _ g => indicatorE ((RO_m.get g).rng h) +
+    sampleto.1 {h}) (fun v g => ?_) _).trans ?_
+  · exact preimage_tail_le _ _ _ _
+  rw [Procedure.ewp_add]
+  refine add_le_add ?_ (Procedure.ewp_const_le _ _ _ _)
+  refine (Procedure.ewp_mono _ _ (fun v g => indicatorE_rng_le_preimagePotential bound
+    (sampleto.1 {h}) h ((Lens.pair Bounder_bounder (Lens.pair Counter_c RO_m)).get g)) _).trans ?_
+  exact hFEL h h _ trivial
+
+/-- The first `have` of EC's proof of `RO_is_preimage_resistant`:
+`Preimage(A, RO).main ~ Preimage2(A, RO).main : ={arg, glob} ==> ={res}`, by EC's
+`byequiv; proc; inline*; sim` (`Counter.init` is dead: `Bounder.init` runs it again). -/
+theorem Preimage_Preimage2 [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m]
+    [Lens.Disjoint Counter_c RO_m] (A : AdvPreimage «from» «to») :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+      (Module.app (Preimage «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure
+      (Module.app (Preimage.Preimage2 «from» «to» bound increase_counter bound_counter Counter_c
+        Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  equiv_seq 3 4 : (§hash{1} = §hash0{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ a₁ a₂ ⟨ha, hg⟩
+    refine ⟨ha, ha, ?_⟩
+    rw [hg, (inferInstance : Lens.Disjoint Bounder_bounder Counter_c).commute, Counter_c.set_set]
+  · equiv_seq 2 2 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
+    · equiv_sim
+      rintro _ _ _ _ _ ⟨h1, h2, h3⟩
+      exact ⟨h1, h3, fun _ _ => h2⟩
+    · stmt_wp
+      equiv_if
+      case «then» => equiv_sim
+      case «else» => equiv_sim
+      case guard => intros; simp_all
+
 /-- EC's `RO_is_preimage_resistant &m (h : to)`, for the section's `A`. -/
-theorem RO_is_preimage_resistant
+theorem RO_is_preimage_resistant [Countable «from»] [Lens.Disjoint Bounder_bounder Counter_c]
+    [Lens.Disjoint Bounder_bounder RO_m] [Lens.Disjoint Counter_c RO_m]
     (hax : Axioms «from» «to» sampleto bound increase_counter bound_counter)
     (A : AdvPreimage «from» «to») (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (_hAd : FVP.fvP A ≤ (RO_m.footprint ⊔ Counter_c.footprint ⊔ Bounder_bounder.footprint)ᶜ)
@@ -196,7 +496,30 @@ theorem RO_is_preimage_resistant
         Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure h m
         (fun r _ => r = true) : ℝ) ≤
       ((bound + 1 : ℤ) : ℝ) * (sampleto.1 {h}).toReal := by
-  sorry
+  -- `have->: Pr[Preimage(A,RO).main(h) @ &m : res] = Pr[Preimage2(A,RO).main(h) @ &m : res]`
+  rw [Procedure.Pr_eq_of_prhlProc
+    (Preimage_Preimage2 «from» «to» sampleto bound increase_counter bound_counter RO_m Counter_c
+      Bounder_bounder A)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
+    (fun r₁ _ r₂ _ hr => by rw [hr]) (a₁ := h) (a₂ := h) (σ₁ := m) (σ₂ := m) ⟨rfl, rfl⟩]
+  -- `byphoare`, `seq 1`, `fel`
+  have hB := Preimage2_le «from» «to» sampleto bound increase_counter bound_counter RO_m Counter_c
+    Bounder_bounder A hA _hAd h m trivial
+  rw [← Procedure.Pr_eq_ewp] at hB
+  -- the arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
+  set μ := sampleto.1 {h}
+  have hμ : μ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
+    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
+  simp only [Finset.sum_const, Int.toNat_zero, Nat.card_Ico, Nat.sub_zero, nsmul_eq_mul] at hB
+  have hR := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr
+    ⟨ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hμ, hμ⟩) hB
+  rw [ENNReal.coe_toReal, ENNReal.toReal_add (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hμ) hμ,
+    ENNReal.toReal_mul, ENNReal.toReal_natCast] at hR
+  refine hR.trans (le_of_eq ?_)
+  have hb := hax.bound_gt0
+  rw [show ((bound.toNat : ℕ) : ℝ) = (bound : ℝ) by exact_mod_cast Int.toNat_of_nonneg hb.le]
+  push_cast
+  ring
 
 /-- EasyCrypt's `module type AdvSecondPreimage (F : Oracle) = { proc guess(m : from) : from }`. -/
 abbrev AdvSecondPreimage := Oracle «from» «to» →ₘ procmod («from») → «from»
@@ -493,20 +816,6 @@ theorem expected_rng_le {α β : Type} [DecidableEq α] [Inhabited β] {d : SubP
         gcongr
         exact_mod_cast Finset.card_image_le
 
-theorem expected_mono' {γ : Type} {μ : SubProbability γ} {f g : γ → ENNReal}
-    (h : ∀ a, f a ≤ g a) : μ.expected f ≤ μ.expected g := by
-  rw [SubProbability.expected_eq_tsum, SubProbability.expected_eq_tsum]
-  exact ENNReal.tsum_le_tsum fun a => by gcongr; exact h a
-
-theorem expected_const_le' {γ : Type} (μ : SubProbability γ) (c : ENNReal) :
-    μ.expected (fun _ => c) ≤ c := by
-  letI : MeasurableSpace γ := ⊤
-  change ∫⁻ _, c ∂μ.1 ≤ c
-  rw [MeasureTheory.lintegral_const]
-  calc c * μ.1 Set.univ ≤ c * 1 := by gcongr; exact μ.2.1
-    _ = c := mul_one c
-
-
 open Classical in
 /-- The potential of EC's `fel` in `RO_is_collision_resistant`: `1` once `m` has a collision, the
 bound still to pay for the queries from `b` on while `|dom m| ≤ b`, and `⊤` otherwise. -/
@@ -584,18 +893,6 @@ theorem collisionPotential_step [Inhabited β] {d : SubProbability β} (hfu : is
             exact_mod_cast (show (FMap.fdom m).card ≤ b.toNat by omega)
   · simp only [hQ, if_false, hT]; exact le_add_self
 
-
-theorem get_set_self (m : FMap α β) (x : α) (v : β) : (FMap.set m x v).get x = some v := by
-  simp [FMap.get, FMap.set]
-
-theorem get_set_ne (m : FMap α β) {x y : α} (v : β) (h : y ≠ x) :
-    (FMap.set m x v).get y = m.get y := by
-  simp [FMap.get, FMap.set, Finmap.lookup_insert_of_ne _ h]
-
-theorem indicatorE_le_of_imp {P Q : Prop} (h : P → Q) : indicatorE P ≤ indicatorE Q := by
-  by_cases hP : P
-  · simp [indicatorE, hP, h hP]
-  · simp [indicatorE, hP]
 
 open Classical in
 theorem expected_point [Inhabited β] {d : SubProbability β} (hfu : is_funiform d) (v : β) :
