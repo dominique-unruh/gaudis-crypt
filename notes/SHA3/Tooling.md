@@ -485,3 +485,13 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
 * Sponge: `fvP_HIRO : fvP HIRO = ⊥`, `fvP_RODist_le : fvP (RODist D) ≤ fvP D`, and
   `RODist.ecModule : ECModule (RODist D) ERO.RO_ext` from `D`'s — EC's "by construction", now a
   theorem (with `RO_Distinguisher.representable`).
+
+## 2026-11-01: `IterProc` lemmas (`Lib/EC/IterProc.lean`)
+
+* `programDenotation_while_unfold` (`Logic/PRHLStmt.lean`): a loop's fixed-point equation on
+  denotations.
+* `iter_loop`: a loop calling `f` on the head of a list slot and dropping it computes `iterDen f`
+  of the list (stated for any guard/argument/update satisfying the obvious equations, so it
+  instantiates by `rfl`); `Iter.iter_denotation`: `Iter(O).iter l` is `iterDen (O.f) l`.
+* `iter_ll`, `iter_inv` (as EC), `iter_cat`, `iter_perm`, `iter1_perm` (denotational, E9), via
+  `iterDen_append`, `iterDen_perm` (induction on `List.Perm`).

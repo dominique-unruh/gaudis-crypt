@@ -482,6 +482,21 @@ theorem prhlStmt_seq_while {A : ProgramState → ProgramState → Prop} {s₁ s�
 
 end While
 
+/-- The fixed-point equation of a loop, on denotations. -/
+theorem programDenotation_while_unfold (c : Getter Bool ProgramState) (body : Stmt)
+    (σ : ProgramState) :
+    programDenotation (StmtWithHoles.while c body) σ =
+      if c.get σ = true then
+        programDenotation body σ >>= fun r => programDenotation (StmtWithHoles.while c body) r.2
+      else pure ((), σ) := by
+  apply SubProbability.ext_of_expected
+  intro F
+  have h := Stmt.ewp_while_unfold c body (fun τ => F ((), τ)) σ
+  simp only [Stmt.ewp, ProgramDenotation.wp] at h
+  split_ifs with hc
+  · rw [h, if_pos hc, SubProbability.expected_bind]
+  · rw [h, if_neg hc, expected_pure]
+
 /-- A loop whose guard is false does nothing. -/
 theorem programDenotation_while_of_false {c : Getter Bool ProgramState} {body : Stmt}
     {σ : ProgramState} (hc : c.get σ = false) :

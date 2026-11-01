@@ -246,3 +246,22 @@ argument type `block list * int` is countable outright (`block` is finite).
 countability stands in for, and distinct module variables are distinct memory locations.  A clone
 that instantiates the lens parameters with `global_var`s discharges the disjointness by instance
 search; the SHA-3 instance of `f_in` is `List Bool`, countable.
+
+## E9: IterProc's permutation lemmas are denotational equalities
+
+**Rule broken.** A Lean statement is EasyCrypt's statement.
+
+**What EasyCrypt states.** `iter_cat`, `iter_perm`, `iter1_perm` (theory `IterProc`) are `equiv`s
+between iterations over related lists, with `={glob O}` before and after, under `iter2_eq`
+(`equiv[Iter(O).iter_12 ~ Iter(O).iter_21 : ={glob O, t1, t2} ==> ={glob O}]`).
+
+**What we state.** Equalities of denotations (`Lib/EC/IterProc.lean`): e.g. `iter_perm` says
+`procedureDenotation (Iter(O).iter) l₁ = procedureDenotation (Iter(O).iter) l₂` for `l₁ ~ l₂`, if two
+calls of `O.f` commute denotationally.  EC's `Iter(O).iters` and `Iter(O).iter_1s` are spelled as the
+composite denotations they stand for.  `iter_ll` and `iter_inv` are as in EasyCrypt.
+
+**Why.** `={glob O}` for an arbitrary `O` needs a frame for `O`'s footprint (E7), while the
+denotational form holds for every `O` with no hypothesis on it, is strictly stronger (it gives
+EC's `equiv` under any relation), and is used by rewriting the iteration inside a judgment, where
+EC uses `call (iter1_perm …)` or `transitivity`.  The proofs go through one characterization,
+`Iter.iter_denotation` (the iteration is the calls of `O.f` in order).
