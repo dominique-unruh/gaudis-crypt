@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.EagerAbstract
 import GaudisCrypt.Logic.Granular
+import GaudisCrypt.Logic.ConcreteFootprint
 
 /-!
 # From relational statements to the eager judgment
@@ -66,6 +67,60 @@ theorem ProgramDenotation.eagerR_of_prhl2_lens {α : Type}
   refine ⟨μ, hm1, hm2, fun w hw => ?_⟩
   obtain ⟨hr, hX⟩ := hsat w hw
   exact Prod.ext hr (Lens.eq_of_get_compl_get X hX ((hμ₁ w hw).trans (hμ₂ w hw).symm))
+
+/-- **A run confined to `X` from two states equal on `X`** (EC's `sim` on code touching only
+`X`): the two runs couple with equal results and equal `X`.  The second state is the first with
+its outside replaced, a deterministic update outside `X`, which the run commutes with. -/
+theorem ProgramDenotation.prhl2_refl_of_inFootprint {α : Type}
+    {p : ProgramDenotation VariableAssignment α} (hp : p.inFootprint X.footprint) :
+    ProgramDenotation.prhl2 (fun g₁ g₂ => X.get g₁ = X.get g₂) p p
+      (fun u v => u.1 = v.1 ∧ X.get u.2 = X.get v.2) := by
+  intro g₁ g₂ hX
+  let u : VariableAssignment → VariableAssignment := fun g => X.compl.set (X.compl.get g₂) g
+  have hu : u g₁ = g₂ := by
+    refine Lens.eq_of_get_compl_get X ?_ ?_
+    · haveI : Lens.Disjoint X.compl X := ⟨fun st v w => by
+        induction v using Quotient.inductionOn
+        rename_i z
+        change X.set (X.get (X.set w st)) z = X.set w (X.set (X.get st) z)
+        rw [X.set_get, X.set_set]⟩
+      rw [Lens.get_of_disjoint_set]; exact hX
+    · exact X.compl.set_get _ _
+  have hmem : diracKer u ∈ (X.footprint)ᶜ.updates := by
+    rw [Lens.compl_footprint]
+    exact X.compl.diracKer_liftFunction_mem_footprint (fun _ => X.compl.get g₂)
+  have hp₂ : p g₂ = p g₁ >>= fun xs => pure (xs.1, u xs.2) := by
+    rw [← hu]; exact inFootprint_subprob hp hmem g₁
+  refine ⟨p g₁ >>= fun xs => pure (xs, (xs.1, u xs.2)), ?_, ?_, ?_⟩
+  · rw [SubProbability.bind_assoc]
+    simp only [SubProbability.pure_bind]
+    exact SubProbability.bind_pure _
+  · rw [hp₂, SubProbability.bind_assoc]
+    simp only [SubProbability.pure_bind]
+  · refine SubProbability.satisfies_bind _ fun xs _ => SubProbability.satisfies_pure _ _ ⟨rfl, ?_⟩
+    haveI : Lens.Disjoint X.compl X := ⟨fun st v w => by
+      induction v using Quotient.inductionOn
+      rename_i z
+      change X.set (X.get (X.set w st)) z = X.set w (X.set (X.get st) z)
+      rw [X.set_get, X.set_set]⟩
+    exact (Lens.get_of_disjoint_set X X.compl (X.compl.get g₂) xs.2).symm
+
+/-- `ProgramDenotation.prhl2_refl_of_inFootprint` for a procedure: EC's `sim` on an oracle
+procedure whose code touches only `X`, from `={arg, X}` to `={res, X}`. -/
+theorem prhlProc_refl_of_inFootprint {sig : ProcedureSignature} (p : Procedure sig)
+    (hp : ∀ a, (procedureDenotation p a).inFootprint X.footprint) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ X.get g₁ = X.get g₂) p p
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ X.get g₁ = X.get g₂) := by
+  intro a₁ a₂ g₁ g₂ ⟨ha, hX⟩
+  subst ha
+  exact ProgramDenotation.prhl2_refl_of_inFootprint X (hp a₁) g₁ g₂ hX
+
+/-- `prhlProc_refl_of_inFootprint` for a procedure within `X` (`within_lens`). -/
+theorem prhlProc_refl_of_within {sig : ProcedureSignature} (p : Procedure sig)
+    (hb : p.body.Within X) (hr : p.return_val.Within X) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ X.get g₁ = X.get g₂) p p
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ X.get g₁ = X.get g₂) :=
+  prhlProc_refl_of_inFootprint X p fun a => procedureDenotation_inFootprint_of_within p hb hr a
 
 /-! ## The composites as statements -/
 

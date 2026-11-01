@@ -1492,9 +1492,175 @@ module Eager (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) {
   };
 }
 
-/-- EC's `FullEager.EagerCore.Eager_1_2`, for `declare module D <: FRO_Distinguisher {-FRO}`:
+/-- `Eager(D).main1`'s run: `FRO.init()`, then `D(FRO)`. -/
+theorem Eager.main1_denotation (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) (a : d_in_t) :
+    procedureDenotation (Eager.main1 in_t out_t d_in_t d_out_t dout FRO_m D).procedure a =
+      (procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure () >>=
+        fun _ => procedureDenotation (Module.app D (FRO in_t out_t dout FRO_m)).procedure a) := by
+  rw [Eager.main1, Module.procedure_proc']
+  funext g
+  refine SubProbability.ext_of_expected fun F => ?_
+  conv_lhs => rw [procedureDenotation]
+  simp only [Eager.main1.procedure, SubProbability.expected_hbind,
+    programDenotation_seq, ProgramDenotation.bind_apply, SubProbability.expected_bind,
+    programDenotation_hcall_apply, programDenotation_assign_apply, expected_pure]
+  simp_reads
+  refine congrArg _ (funext fun r => ?_)
+  have hx : ∀ (r₁ : Unit) r₂, (localVarLens "x" d_in_t).get (Setter.throwaway.set r₁
+      (ProgramState.globalL.set r₂ ⟨g, (Eager.main1.procedure in_t out_t d_in_t d_out_t dout FRO_m
+        D).initLocals a⟩)) = a := by
+    intro r₁ r₂
+    simp only [ProcedureWithHoles.initLocals, VariableAssignment.setParams, localVarLens,
+      Eager.main1.procedure]
+    exact (varLens (VariableName.mk "x" d_in_t)).set_get _ _
+  erw [hx]
+  rfl
+
+/-- `Eager(D).main2`'s run: `FRO.init()`, `D(RRO)`, then `RRO.resample()`. -/
+theorem Eager.main2_denotation (D : FRO_Distinguisher in_t out_t d_in_t d_out_t) (a : d_in_t) :
+    procedureDenotation (Eager.main2 in_t out_t d_in_t d_out_t dout FRO_m D).procedure a =
+      (procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure () >>=
+        fun _ => procedureDenotation (Module.app D (RRO in_t out_t dout FRO_m)).procedure a >>=
+          fun b => RRO.resampleDen in_t out_t dout FRO_m >>= fun _ => pure b) := by
+  rw [Eager.main2, Module.procedure_proc']
+  funext g
+  refine SubProbability.ext_of_expected fun F => ?_
+  conv_lhs => rw [procedureDenotation]
+  simp only [Eager.main2.procedure, SubProbability.expected_hbind,
+    programDenotation_seq, ProgramDenotation.bind_apply, SubProbability.expected_bind,
+    programDenotation_hcall_apply, expected_pure, ProgramDenotation.pure_apply]
+  simp_reads
+  have hx : ∀ (r₁ : Unit) r₂, (localVarLens "x" d_in_t).get (Setter.throwaway.set r₁
+      (ProgramState.globalL.set r₂ ⟨g, (Eager.main2.procedure in_t out_t d_in_t d_out_t dout FRO_m
+        D).initLocals a⟩)) = a := by
+    intro r₁ r₂
+    simp only [ProcedureWithHoles.initLocals, VariableAssignment.setParams, localVarLens,
+      Eager.main2.procedure]
+    exact (varLens (VariableName.mk "x" d_in_t)).set_get _ _
+  have hb : ∀ (r₃ : Unit) g₃ v τ, (localVarLens "b" d_out_t).get (Setter.throwaway.set r₃
+      (ProgramState.globalL.set g₃ ((localVarLens "b" d_out_t).set v τ))) = v :=
+    fun _ _ v τ => (localVarLens "b" d_out_t).set_get τ v
+  refine congrArg _ (funext fun r => ?_)
+  erw [hx]
+  simp only [hb]
+  rfl
+
+
+
+/-- `FRO.init()`'s run: `FRO.m <- empty`. -/
+theorem FRO_init_denotation (g : VariableAssignment) :
+    procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure () g =
+      pure ((), FRO_m.set FMap.empty g) := by
+  rw [FRO, FRO_T.init.mk_simp, FRO.init, Module.procedure_proc']
+  refine SubProbability.ext_of_expected fun F => ?_
+  simp only [procedureDenotation, FRO.init.procedure, SubProbability.expected_hbind,
+    programDenotation_assign_apply, expected_pure]
+  simp_reads
+  trivial
+
+/-- EC's `inline *; rcondf{2} 3 … restr0 fdom0 elems_fset0`: `RRO.resample()` right after
+`FRO.init()` does nothing. -/
+theorem FRO_init_resample :
+    (procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure () >>=
+        fun _ => RRO.resampleDen in_t out_t dout FRO_m) =
+      procedureDenotation (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure () := by
+  funext g
+  rw [ProgramDenotation.bind_apply, FRO_init_denotation, SubProbability.pure_bind,
+    RRO.resampleDen, RRO.resample_denotation, IterProc.Iter.iter_denotation, FRO_m.set_get,
+    FMap.restr0, FMap.fdom0, Finset.toList_empty]
+  rfl
+
+
+
+/-- EC's `transitivity{1} { FRO.init(); RRO.resample(); b <@ D(FRO).distinguish(x); } …`
+and `eager call (eager_D D)`: `main2` runs as `main1`. -/
+theorem Eager.main2_eq_main1 [Countable in_t] [Countable out_t]
+    (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (FRO_ext in_t out_t)) (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ)
+    (a : d_in_t) :
+    procedureDenotation (Eager.main2 in_t out_t d_in_t d_out_t dout FRO_m D).procedure a =
+      procedureDenotation (Eager.main1 in_t out_t d_in_t d_out_t dout FRO_m D).procedure a := by
+  rw [Eager.main2_denotation, Eager.main1_denotation]
+  have h := ProgramDenotation.eagerR_to_eq
+    (eager_D in_t out_t d_in_t d_out_t dout FRO_m dout_ll D hD hdisj a)
+  rw [← h, ← ProgramDenotation.bind_assoc, FRO_init_resample]
+
+/-- EC's `sim` on an oracle procedure of `FRO` in an abstract call against `FRO` itself: the
+syntactic frame for `glob D` and the self-coupling of code within `FRO.m`. -/
+local macro "oracle_sim" : tactic => `(tactic| (
+  refine prhlProc_globInvF_of_writesKeep _ ?_ ?_ (prhlProc_refl_of_within _ _ ?_ ?_) <;>
+  (dsimp only [FRO_ext, HoleSigs.Instantiation.lookup_succ,
+    HoleSigs.Instantiation.lookup_zero_cons, HoleSigs.Instantiation.lookup_zero_single]
+   first | (writes_keep; done) | within_lens)))
+
+/-- `main1` against itself, from `={glob D, arg}` (EC's `seq 1 1 : (={glob D, FRO.m, x})` and the
+abstract call of `D` with `FRO` on both sides, whose oracles are `sim`). -/
+theorem Eager.main1_self [Countable in_t] [Countable out_t]
+    (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
+    (hD : Module.ECModule D (FRO_ext in_t out_t)) (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
+      (Eager.main1 in_t out_t d_in_t d_out_t dout FRO_m D).procedure
+      (Eager.main1 in_t out_t d_in_t d_out_t dout FRO_m D).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        FRO_m.get g₁ = FRO_m.get g₂ ∧
+        (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
+  have hm : FRO_m.footprint ≤ (FVP.fvP D)ᶜ := (Footprint.le_compl_comm _ _).mp hdisj
+  have hcall := prhlProc_abstract_call_module FRO_m D (FRO_ext in_t out_t) hD.representable
+    hdisj (fun x y => x = y)
+    (fun n => by
+      cases n with
+      | zero => exact inferInstanceAs (Countable Unit)
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable in_t)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (in_t × out_t))
+          | succ n => cases n with
+            | zero => exact inferInstanceAs (Countable in_t)
+            | succ n => cases n with
+              | zero => exact inferInstanceAs (Countable in_t)
+              | succ n => cases n with
+                | zero => exact inferInstanceAs (Countable (in_t × flag))
+                | succ n => cases n with
+                  | zero => exact inferInstanceAs (Countable Unit)
+                  | succ n => nomatch n)
+    (FRO in_t out_t dout FRO_m) (FRO in_t out_t dout FRO_m)
+    (fun n => by
+      cases n with
+      | zero => oracle_sim
+      | succ n => cases n with
+        | zero => oracle_sim
+        | succ n => cases n with
+          | zero => oracle_sim
+          | succ n => cases n with
+            | zero => oracle_sim
+            | succ n => cases n with
+              | zero => oracle_sim
+              | succ n => cases n with
+                | zero => oracle_sim
+                | succ n => cases n with
+                  | zero => oracle_sim
+                  | succ n => nomatch n)
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call hcall
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x₁ x₂ ⟨rfl, hg⟩
+  refine ⟨⟨rfl, ?_, by rw [FRO_m.set_get, FRO_m.set_get]⟩,
+    fun r₁ g₁ r₂ g₂ ⟨hr, hglob, hI⟩ => ⟨hr, hI, hglob⟩⟩
+  rw [touched_set_of_le_compl hm, touched_set_of_le_compl hm]
+  exact hg
+
+/-- EC's `FullEager.EagerCore.Eager_1_2`, for `declare module D <: FRO_Distinguisher {-FRO}`
+(the oracles' arguments countable: exception E8):
 `equiv[ Eager(D).main1 ~ Eager(D).main2 : ={glob D, arg} ==> ={res, glob FRO, glob D} ]`. -/
-theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
+theorem Eager_1_2 [Countable in_t] [Countable out_t] (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
     (D : FRO_Distinguisher in_t out_t d_in_t d_out_t)
     (hD : Module.ECModule D (FRO_ext in_t out_t))
     (hdisj : FVP.fvP D ≤ (FRO_m.footprint)ᶜ) :
@@ -1506,7 +1672,9 @@ theorem Eager_1_2 (dout_ll : ∀ x, (dout x).1 Set.univ = 1)
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         FRO_m.get g₁ = FRO_m.get g₂ ∧
         (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂) := by
-  sorry
+  intro a₁ a₂
+  rw [Eager.main2_eq_main1 in_t out_t d_in_t d_out_t dout FRO_m dout_ll D hD hdisj a₂]
+  exact Eager.main1_self in_t out_t d_in_t d_out_t dout FRO_m D hD hdisj a₁ a₂
 
 section LRO_RRO
 /-! EC's `LRO_RRO_init` … `LRO_RRO_D`: `LRO` and `RRO` agree on the known entries. -/
