@@ -605,3 +605,29 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   block), `findIdx_replicate_append`.  `valid_block_structP` is argued with
   `List.append_eq_append_iff` (where the padding falls relative to the last block) rather than
   EC's index arithmetic.
+
+## 2026-11-01: `SLCommon.ec` — prefix, permutation, path and handle lemmas; lossless wrappers
+
+* `Lib/EC/List.lean`: `take_size`, `cat_take_drop`.  `Lib/EC/FMap.lean`: `rngE`, `findP` (EC's
+  `findP` with bindings `get m x = some y` for `x \in m` and `oget m.[x]`).
+* `SLCommon.lean`: all lemmas but `DRestr_ll`, `swap_restr`, `Pr_restr` proven (tactic proofs).
+  Helpers that are not EasyCrypt lemmas, each documented as such: `prefix_take_min`
+  (`prefix (take i l1) l2 = min (prefix l1 l2) (max i 0)`, from which `prefix_geq`,
+  `prefix_take_prefix`, `prefix_leq_prefix_cat`, `prefix_take_(leq|geq)_prefix`, `all_take_in`,
+  `prefix_lt_size` follow without EC's inductions), `max_prefix_congr` (for `get_max_prefix_take`),
+  `mem_elems_fdom` (EC's `memE` + `mem_fdom`).  `prefix_leq_prefix_cat_size` is argued from
+  `prefix_cat1` at the maximal element instead of EC's induction over `ll`.
+* Inliner (`Logic/Inline.lean`): a `moduletype` accessor applied to the `Module.pair` a typed
+  `module` builds (`DPRIMITIVE.f (DPRestr(P))`) is unfolded to its projection, which is then read
+  off the pair (`Module.fst'_pair`, `Module.snd'_pair` and their `Module.Proc`/`Module.Prod`
+  spellings, matched at default transparency).
+* pHL wp (`Logic/Judgment.lean`, `JudgmentWp.lean`, `PHoareWp.lean`): a judgment may register an
+  `ifLemma` for a trailing conditional with calls or samplings in its branches; pHL's is
+  `phoareStmt_seq_if` (the branches' expectations by cases), so `phoare_wp` goes through EC's
+  `if` in lossless proofs.  `rp_ll`, `rpi_ll`, `rf_ll`: `phoare_proc_to_stmt; phoare_inline 0;
+  phoare_wp 5; phoare_simp [hll]; phoare_skip`.
+* Bug fixes: `generalizeReads`/`generalizeReadsRel` are atomic (`commitIfNoEx`) — a failure after
+  a partial assignment used to make `phoare_skip` (and the other callers' `try … catch`) drop the
+  goal, leaving a metavariable in the proof term; `hoare_/phoare_/equiv_proc_to_stmt` take the
+  result variable's type as the signature spells it (`sigRetType`), not `whnf`-unfolded (`block`
+  became a bare subtype without its `Nonempty` instance).

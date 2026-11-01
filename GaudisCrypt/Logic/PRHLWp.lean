@@ -139,8 +139,9 @@ of `σ₁` becomes a value `x₁`, every read of `σ₂` a value `x₂` (named a
 states are dropped if nothing else mentions them; a state that occurs other than read is left
 alone (`onlyRead`), its reads with it.  Where the globals themselves occur
 (`§allGlobals`, the globals a call leaves), they become a value `globals₁`/`globals₂` first, and the reads of
-global variables stay reads of it (`x.get globals₁`), so nothing is lost. -/
-def generalizeReadsRel (g : MVarId) : MetaM MVarId := g.withContext do
+global variables stay reads of it (`x.get globals₁`), so nothing is lost.  Atomic, as
+`generalizeReads`. -/
+def generalizeReadsRel (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext do
   let (fvs, g) ← g.introN 2
   let #[σ₁, σ₂] := fvs | throwError "generalizeReadsRel: expected two states"
   let (gvs, g) ← g.withContext do
@@ -235,7 +236,7 @@ def equivProcToStmt (g : MVarId) : MetaM MVarId := g.withContext do
       MetaM (Lean.Expr × Lean.Expr × Lean.Expr × List Lean.Expr × Lean.Expr) := do
     let some tys ← ModuleDecl.listLit? (← whnf (mkApp (mkConst ``ProcedureSignature.params) sig))
       | throwError "the parameter list of{indentExpr sig}\nis not a list literal"
-    let ret ← whnf (mkApp (mkConst ``ProcedureSignature.ret) sig)
+    let ret ← sigRetType sig
     let names ← procParamNames p tys.length
     let resName := Id.run do
       let mut r := "res"

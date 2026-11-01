@@ -9,8 +9,8 @@ from the end:
 * deterministic code (`Judgment.detOf?`: assignments, resets, `skip`, sequences and conditionals
   of those) by the judgment's `detLemma` — the postcondition after the state update, the same
   shape in every judgment;
-* a sampling by the judgment's `sampleLemma`, a call by its `callLemma` — where judgments
-  genuinely differ;
+* a sampling by the judgment's `sampleLemma`, a call by its `callLemma`, a conditional with
+  calls or samplings in its branches by its `ifLemma` — where judgments genuinely differ;
 
 simplifying the postcondition after each step with the judgment's `postSimp`.  `hoare_wp`,
 `phoare_wp` and the dispatching `stmt_wp` are this one step.
@@ -73,6 +73,11 @@ def wpOne (g : MVarId) (side? : Option Nat := none) (detOnly := false) : MetaM M
       let some lem := d.callLemma
         | throwError "wp: `{d.head}` has no rule for a call without a specification — use the \
             judgment's call tactic (`hoare_call h`, …)"
+      applyRule lem g ty none
+    else if last.isAppOf ``StmtWithHoles.ifThenElse then
+      let some lem := d.ifLemma
+        | throwError "wp: `{d.head}` has no rule for a conditional with calls or samplings in its \
+            branches"
       applyRule lem g ty none
     else
       throwError "wp: no wp rule for the statement (a loop needs an invariant):{indentExpr last}"

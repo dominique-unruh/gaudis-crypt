@@ -61,6 +61,10 @@ structure JudgmentDesc where
   /-- The judgment's rule for a trailing call without a specification, if it has one (`phoare`:
   the callee's expectation, symbolically). -/
   callLemma : Option Name := none
+  /-- The judgment's rule for a trailing conditional that is not deterministic code (a call or a
+  sampling in a branch), if it has one (`phoare`: the branches' expectations, by cases on the
+  condition). -/
+  ifLemma : Option Name := none
   /-- Simp lemmas (theorems rewritten with, definitions unfolded) and simprocs for the
   postcondition after each wp step: reads through writes, and whatever the judgment's
   conditions need. -/

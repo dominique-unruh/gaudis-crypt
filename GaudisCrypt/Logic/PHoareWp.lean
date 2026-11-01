@@ -10,7 +10,8 @@ The tactics of `Logic/HoareWp.lean` and `Logic/Inline.lean`, for `phoareStmt`:
 * `phoare_split k` — regroup the statement, the last `k` statements in a block of their own;
 * `phoare_wp k` — replace the expectation by the exact expectation of the last `k` statements
   (`phoareStmt_seq_iff`).  Exact for every statement but a loop: an abstract call stays a
-  symbolic `Procedure.ewp` term;
+  symbolic `Procedure.ewp` term, a conditional with calls in its branches becomes an `if` of the
+  branches' expectations (`phoareStmt_seq_if`);
 * `phoare_skip` — at `skip`, the inequality or equation itself, reads generalized.
 -/
 
@@ -93,6 +94,15 @@ theorem phoareStmt_seq_call {sig} {A : ProgramState → Prop} {s : Stmt}
       (fun v gl => g (x.set v (ProgramState.globalL.set gl σ))) σ.globals) ρ r) :
     phoareStmt A (.seq s (StmtWithHoles.call x p args)) g ρ r := by
   rw [phoareStmt_seq_iff, StmtWithHoles.ewp_call]
+  exact h
+
+/-- A trailing conditional with calls or samplings in its branches: the branches' expectations,
+by cases on the condition (`postSimp` then computes them). -/
+theorem phoareStmt_seq_if {A : ProgramState → Prop} {s t e : Stmt}
+    {c : Getter Bool ProgramState} {g r : ProgramState → ENNReal} {ρ : ENNReal → ENNReal → Prop}
+    (h : phoareStmt A s (fun σ => if c.get σ then t.ewp g σ else e.ewp g σ) ρ r) :
+    phoareStmt A (.seq s (.ifThenElse c t e)) g ρ r := by
+  rw [phoareStmt_seq_iff, Stmt.ewp_ifThenElse]
   exact h
 
 namespace PHoareWp
@@ -219,6 +229,7 @@ run_meta registerJudgment {
   detLemma := some ``phoareStmt_seq_det
   sampleLemma := some ``phoareStmt_seq_sample
   callLemma := some ``phoareStmt_seq_call
+  ifLemma := some ``phoareStmt_seq_if
   postSimp := ewpDecls
   postSimprocs := [``reduceProcedureConst] }
 

@@ -96,6 +96,14 @@ theorem mem_mkseq {f : ℤ → α} {n : ℤ} {x : α} :
   · rintro ⟨k, hk, rfl⟩; exact ⟨k, by omega, by omega, by simp⟩
   · rintro ⟨i, h0, hi, rfl⟩; exact ⟨i.toNat, by omega, by simp [Int.toNat_of_nonneg h0]⟩
 
+/-- `lemma take_size`: `take (size s) s = s`. -/
+theorem take_size (s : List α) : take (size s) s = s := by
+  simp [take, size]
+
+/-- `lemma cat_take_drop`: `take n s ++ drop n s = s`. -/
+theorem cat_take_drop (n : ℤ) (s : List α) : take n s ++ drop n s = s := by
+  simp [take, drop]
+
 /-! ## Function properties (`theories/core` and `theories/prelude`) -/
 
 /-- `cancel f g`: `g` is a left inverse of `f`. -/

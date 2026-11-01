@@ -1373,6 +1373,38 @@ end Flatten
 
 end Clean
 
+/-- `Module.fst'` of a `Module.pair` of modules (the projection a `moduletype` accessor is, on the
+record a typed `module` builds). -/
+theorem Module.fst'_pair {T U : ModuleTypeRep} (m1 : Module T) (m2 : Module U) :
+    Module.fst' (Module.pair m1 m2) = m1 := by
+  simp only [Module.pair]
+  exact Module.fst_pair' m1 m2
+
+/-- `Module.snd'` of a `Module.pair` of modules. -/
+theorem Module.snd'_pair {T U : ModuleTypeRep} (m1 : Module T) (m2 : Module U) :
+    Module.snd' (Module.pair m1 m2) = m2 := by
+  simp only [Module.pair]
+  exact Module.snd_pair' m1 m2
+
+/-- `Module.fst'_pair` with a procedure module projected (`Module.Proc` is not reducible, so the
+inliner, which matches at reducible transparency, needs it spelled so). -/
+theorem Module.fst'_pair_proc {sig : ProcedureSignature} {N : Type 1} [IsModule N]
+    (m1 : Module.Proc sig) (m2 : N) : Module.fst' (Module.pair m1 m2) = m1 := by
+  simp only [Module.pair]
+  exact Module.fst_pair' _ _
+
+/-- `Module.snd'_pair` with a procedure module projected. -/
+theorem Module.snd'_pair_proc {M : Type 1} [IsModule M] {sig : ProcedureSignature}
+    (m1 : M) (m2 : Module.Proc sig) : Module.snd' (Module.pair m1 m2) = m2 := by
+  simp only [Module.pair]
+  exact Module.snd_pair' _ _
+
+/-- `Module.snd'_pair` with a pair projected (the rest of a record of three or more fields). -/
+theorem Module.snd'_pair_prod {M : Type 1} [IsModule M] {A B : Type 1} [IsModule A] [IsModule B]
+    (m1 : M) (m2 : Module.Prod A B) : Module.snd' (Module.pair m1 m2) = m2 := by
+  simp only [Module.pair]
+  exact Module.snd_pair' _ _
+
 /-! # The meta code
 
 The passes, of which only the first can fail:
@@ -2327,7 +2359,8 @@ instantiated right-hand side together with the instantiated lemma as its proof.
 `none` if the lemma does not exist (the callers name lemmas that a `module`/`moduletype`
 declaration *may* have emitted), if it does not match, or if matching leaves anything open —
 whatever comes back is a closed term. -/
-def rewriteHead? (lem : Name) (e : Expr) : MetaM (Option (Expr × Expr)) := do
+def rewriteHead? (lem : Name) (e : Expr) (reducible : Bool := true) :
+    MetaM (Option (Expr × Expr)) := do
   unless (← getEnv).contains lem do return none
   -- the whole attempt is speculative: a failed match must not leave assignments behind, and the
   -- results are checked to be metavariable-free before the state is dropped
@@ -2337,7 +2370,8 @@ def rewriteHead? (lem : Name) (e : Expr) : MetaM (Option (Expr × Expr)) := do
     let some (_, lhs, _) := body.eq? | return none
     -- at reducible transparency: at default, `T.f.mk_simp` (`T.f (T.mk ?s) = …`) "matches"
     -- `T.f (Module.app M A)` by unfolding `Module.app` and `T.mk` into the same `Module.mk`
-    unless ← withReducible (isDefEq lhs e) do return none
+    unless ← (if reducible then withReducible (isDefEq lhs e) else isDefEq lhs e) do
+      return none
     -- an instance argument the unification did not pin down (there is none in practice)
     for (m, bi) in mvars.zip bis do
       if bi.isInstImplicit && !(← m.mvarId!.isAssigned) then
@@ -2446,14 +2480,18 @@ partial def moduleAppHead (e : Expr) : Expr :=
   | some i => moduleAppHead e.getAppArgs[i]!
   | none   => e
 
-/-- The lemma that reads a projection off a `Module.pair` — the anonymous record a `module`
-without a module type builds. -/
-def pairLemma? : Name → Option Name
-  | ``Module.fst  => some ``Module.fst_pair
-  | ``Module.snd  => some ``Module.snd_pair
-  | ``Module.fst' => some ``Module.fst_pair'
-  | ``Module.snd' => some ``Module.snd_pair'
-  | _ => none
+/-- The lemmas that read a projection off a pair — `Module.pair`, the record a `module` builds
+(with or without a module type), or `Module.pair'`. -/
+def pairLemmas : Name → List Name
+  | ``Module.fst  => [``Module.fst_pair]
+  | ``Module.snd  => [``Module.snd_pair]
+  | ``Module.fst' => [``Module.fst'_pair_proc, ``Module.fst'_pair, ``Module.fst_pair']
+  | ``Module.snd' => [``Module.snd'_pair_proc, ``Module.snd'_pair_prod, ``Module.snd'_pair,
+                      ``Module.snd_pair']
+  | _ => []
+
+/-- The first of `pairLemmas c`, if any. -/
+def pairLemma? (c : Name) : Option Name := (pairLemmas c).head?
 
 /-- Is this constant an accessor of a `moduletype` declaration?  It is exactly when the command
 emitted the `mk_simp` lemma that reads the field back off a built module. -/
@@ -2477,8 +2515,12 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
     if let some (rhs, h) ← rewriteHead? (c ++ `mk_simp) e then
       return some { expr := ← reduceStructProj rhs, proof? := some h }
   -- (3) a projection out of a `Module.pair`
-  if let some lem := pairLemma? c then
-    if let some (rhs, h) ← rewriteHead? lem e then
+  -- at default transparency: the pair's component types (`Module.Proc sig`, a `moduletype`'s
+  -- field types) are spelled differently in the projection's implicit arguments
+  -- (`Module.moduleTypeRep (Module.Proc sig)` against `.proc sig`); the explicit `Module.pair`
+  -- head keeps the match honest
+  for lem in pairLemmas c do
+    if let some (rhs, h) ← rewriteHead? lem e (reducible := false) then
       return some { expr := rhs, proof? := some h }
   -- (4) not yet: evaluate the position that has to come first, one step
   let i? : Option Nat ←
@@ -2509,6 +2551,13 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
   if (← getReducibilityStatus c) == .reducible then
     if let some v ← unfoldDefinition? e then
       return some { expr := v }
+  -- (9) the accessor of a `moduletype` (`DPRIMITIVE.f M := Module.fst' M`) applied to the
+  -- `Module.pair` a typed `module` applied to its parameters builds (`DPRestr(P)`): unfold it, by
+  -- definition, for step (3) to read the projection off the pair
+  if (← isAccessor c) && !args.isEmpty && args.back!.isAppOf ``Module.pair then
+    if let some v ← unfoldDefinition? e then
+      if (pairLemmas (v.getAppFn.constName?.getD .anonymous)).length > 0 then
+        return some { expr := v }
   -- (8) the accessor of a one-procedure `moduletype` (`Orcl.f O := O`) applied to a procedure
   -- module that is not a `T.mk` (`Iter(RRO.I)`, with `RRO.I` a `module` of no type): unfold
   -- it, by definition, once its argument is a `Module.proc`

@@ -128,6 +128,23 @@ def eq_except (X : α → Prop) (m1 m2 : FMap α β) : Prop := ∀ y, ¬ X y →
 theorem domE (m : FMap α β) (x : α) : dom m x ↔ get m x ≠ none := by
   simp [dom, get, Finmap.lookup_eq_none, Finmap.mem_keys]
 
+/-- `rngE`. -/
+theorem rngE (m : FMap α β) (y : β) : rng m y ↔ ∃ x, get m x = some y := Iff.rfl
+
+/-- `findP`, with bindings `get m x = some y` for EasyCrypt's `x \in m` and `oget m.[x]`: either
+`find` fails and no binding satisfies `p`, or it returns a key whose binding satisfies `p`. -/
+theorem findP (p : α → β → Bool) (m : FMap α β) :
+    (find p m = none ∧ ∀ x y, get m x = some y → p x y = false) ∨
+    (∃ x y, find p m = some x ∧ get m x = some y ∧ p x y = true) := by
+  unfold find
+  split_ifs with h
+  · right
+    obtain ⟨y, hy, hp⟩ := h.choose_spec
+    exact ⟨_, y, rfl, hy, hp⟩
+  · left
+    refine ⟨rfl, fun x y hy => ?_⟩
+    simpa using fun hp => h ⟨x, y, hy, hp⟩
+
 /-- `fmap_eqP`. -/
 theorem fmap_eqP (m₁ m₂ : FMap α β) : (∀ x, get m₁ x = get m₂ x) ↔ m₁ = m₂ :=
   ⟨fun h => Finmap.ext_lookup h, fun h _ => h ▸ rfl⟩

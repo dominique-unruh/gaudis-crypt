@@ -312,8 +312,9 @@ pairs and the like down to reads of lenses and getters (`unfoldReads`), then gen
 against the context, the goal's binders and each other).  Reads that agree up to reducible
 unfolding become one value.  If `σ` is then unused it is dropped, giving `∀ m x …, P'`; otherwise
 it stays in front, `∀ σ m x …, P'`.  With no read left, only the unfolding is done (and `σ`
-dropped if unused). -/
-def generalizeReads (g : MVarId) : MetaM MVarId := g.withContext do
+dropped if unused).  Atomic: if it fails, nothing is assigned (callers fall back to the goal as
+it was, and a half-done assignment would lose the new goal). -/
+def generalizeReads (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext do
   let ty ← whnfR (← instantiateMVars (← g.getType))
   let .forallE _ dom _ _ := ty
     | throwError "generalizeReads: expected a goal `∀ σ : ProgramState, …`, got{indentExpr ty}"

@@ -228,7 +228,7 @@ def phoareProcToStmt (e : Lean.Expr) : MetaM Simp.Result := do
   let #[sig, A, p, G, ρ, r] := e.getAppArgs | unreachable!
   let some tys ← ModuleDecl.listLit? (← whnf (mkApp (mkConst ``ProcedureSignature.params) sig))
     | throwError "the parameter list of{indentExpr sig}\nis not a list literal"
-  let ret ← whnf (mkApp (mkConst ``ProcedureSignature.ret) sig)
+  let ret ← sigRetType sig
   let names ← procParamNames p tys.length
   let resName := Id.run do
     let mut r := "res"

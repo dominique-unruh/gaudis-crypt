@@ -445,6 +445,14 @@ def procParamNames (p : Lean.Expr) (n : Nat) : MetaM (Array String) := do
     if ns.size == n then return ns.map (·.toString (escape := false))
   return (Array.range n).map fun i => s!"arg{i + 1}"
 
+/-- The return type of the signature `sig`, as the signature spells it.  Not `whnf` of the
+projection, which would unfold the type itself too (`block` to the subtype under `List.Vector`),
+losing the instances it has (`Nonempty`, for the result variable). -/
+def sigRetType (sig : Lean.Expr) : MetaM Lean.Expr := do
+  let sigW ← whnf sig
+  if sigW.isAppOfArity ``ProcedureSignature.mk 2 then return sigW.getArg! 1
+  whnf (mkApp (mkConst ``ProcedureSignature.ret) sig)
+
 /-- The local variable `n : T`: its slot `varLens ⟨n, T, …⟩` in the locals, and the same slot as
 `localVarLens n T` in the program state.  The key is the literal `variable_name_key` gives. -/
 def mkVarSlots (n : String) (T : Lean.Expr) :
@@ -510,7 +518,7 @@ def hoareProcToStmt (e : Lean.Expr) : MetaM Simp.Result := do
   let #[sig, A, p, B] := e.getAppArgs | unreachable!
   let some tys ← ModuleDecl.listLit? (← whnf (mkApp (mkConst ``ProcedureSignature.params) sig))
     | throwError "the parameter list of{indentExpr sig}\nis not a list literal"
-  let ret ← whnf (mkApp (mkConst ``ProcedureSignature.ret) sig)
+  let ret ← sigRetType sig
   let names ← procParamNames p tys.length
   -- the result variable must not be one of the parameters
   let resName := Id.run do
