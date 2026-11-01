@@ -592,3 +592,16 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   `transitivity`s by `prhl2.trans`, the middle state with `FRO.m := map (·, Known) RO.m`).
   `PROM.lean` has no `sorry`.
 * Sponge: `LRO_RO`, `HybridIROExper_Lazy_Eager'`, `HybridIROExper_Lazy_Eager` proven outright.
+
+## 2026-11-01: `Common.ec` complete
+
+* `Lib/EC/List.lean`: `mkseq0`, `mkseqSr`, `eq_in_mkseq`, `size_mkseq`, `mem_mkseq`; `iota_`
+  restated with an explicit `ℕ → ℤ` cast (the implicit list coercion elaborated as a monadic bind).
+* `Lib/EC/Distr.lean`: `is_lossless_iff_expected`, `dprod_ll`, `uniform_ll`.
+  `Lib/EC/BitWord.lean`: `mkwordK`, `ofwordK`, `size_word`, `dunifin_ll`.
+* `Common.lean`: all 62 lemmas proven (tactic proofs).  Helpers that are not EasyCrypt lemmas, each
+  documented as such: `needed_blocks_eq`, `split_first_true`, `pad_of_unpad_some` (`unpad` accepts
+  exactly paddings: `padK`/`unpadK`/`unpadP` follow), `chunk_cons'`/`chunk_lt'` (chunking peels one
+  block), `findIdx_replicate_append`.  `valid_block_structP` is argued with
+  `List.append_eq_append_iff` (where the padding falls relative to the last block) rather than
+  EC's index arithmetic.

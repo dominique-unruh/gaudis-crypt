@@ -96,15 +96,17 @@ theorem dvdz_close (n : ℤ) : r ∣ n → 0 < n ∧ n < 2 * r → n = r := by
   obtain ⟨m, rfl⟩ := hd
   have hr := gt0_r
   have hm0 : 0 < m := by
-    by_contra h; push_neg at h; nlinarith
+    by_contra h; push Not at h; nlinarith
   have hm2 : m < 2 := by
-    by_contra h; push_neg at h; nlinarith
+    by_contra h; push Not at h; nlinarith
   obtain rfl : m = 1 := by omega
   ring
 
+omit [Params] in
 theorem chunk_nil' {α : Type} (r : ℤ) : BitChunking.chunk r ([] : List α) = [] := by
   simp [BitChunking.chunk, size, mkseq, iota_]
 
+omit [Params] in
 theorem chunk_sing' (r : ℤ) (xs : List Bool) :
     0 < r → size xs = r → BitChunking.chunk r xs = [xs] := by
   intro h0 hs
@@ -347,10 +349,9 @@ theorem split_first_true :
   | true :: l, _ => by simp
   | false :: l, h => by
       have h' : l.idxOf true < l.length := by
-        simp [List.idxOf_cons] at h; omega
+        simp at h; omega
       have ih := split_first_true l h'
-      simp only [List.idxOf_cons, Bool.false_beq, Bool.false_eq_true, cond_false,
-        List.replicate_succ, List.cons_append, List.drop_succ_cons]
+      simp only [List.idxOf_cons, List.drop_succ_cons]
       exact congrArg _ ih
 
 /-- Not an EasyCrypt lemma: what `unpad` accepts is a padding. -/
@@ -426,7 +427,7 @@ def chunk (bs : List Bool) : List (List Bool) := BitChunking.chunk r bs
 
 omit [Params] in
 /-- Not an EasyCrypt lemma: fewer than `r` bits make no chunk. -/
-theorem chunk_lt' {α : Type} (r : ℤ) (bs : List α) (h0 : 0 < r) (h : size bs < r) :
+theorem chunk_lt' {α : Type} (r : ℤ) (bs : List α) (h : size bs < r) :
     BitChunking.chunk r bs = [] := by
   have hs : 0 ≤ size bs := by simp [size]
   simp [BitChunking.chunk, mkseq, iota_, Int.ediv_eq_zero_of_lt hs h]
@@ -548,38 +549,61 @@ theorem flattenK (bs : List (List Bool)) : (∀ b, b ∈ bs → size b = r) → 
 def blocks2bits (xs : List block) : List Bool := (xs.map ofblock).flatten
 
 theorem blocks2bits_nil : blocks2bits [] = [] := by
-  sorry
+  rfl
 
 theorem blocks2bits_sing (x : block) : blocks2bits [x] = ofblock x := by
-  sorry
+  simp [blocks2bits]
 
 theorem blocks2bits_cat (xs ys : List block) :
     blocks2bits (xs ++ ys) = blocks2bits xs ++ blocks2bits ys := by
-  sorry
+  simp [blocks2bits]
 
 theorem size_blocks2bits (xs : List block) : size (blocks2bits xs) = r * size xs := by
-  sorry
+  induction xs with
+  | nil => simp [blocks2bits, size]
+  | cons x xs ih =>
+    have hx := BitWord.size_word ge0_r x
+    simp only [blocks2bits, List.map_cons, List.flatten_cons, size, List.length_append,
+      List.length_cons] at ih hx ⊢
+    push_cast
+    rw [show ((ofblock x).length : ℤ) = r from hx, ih]
+    ring
 
 theorem size_blocks2bits_dvd_r (xs : List block) : r ∣ size (blocks2bits xs) := by
-  sorry
+  exact ⟨size xs, size_blocks2bits xs⟩
 
 def bits2blocks (xs : List Bool) : List block := (chunk xs).map mkblock
 
 theorem bits2blocks_nil : bits2blocks [] = [] := by
-  sorry
+  simp [bits2blocks, chunk_nil]
 
 theorem bits2blocks_sing (xs : List Bool) : size xs = r → bits2blocks xs = [mkblock xs] := by
-  sorry
+  intro h
+  simp [bits2blocks, chunk_sing xs h]
 
 theorem bits2blocks_cat (xs ys : List Bool) : r ∣ size xs → r ∣ size ys →
     bits2blocks (xs ++ ys) = bits2blocks xs ++ bits2blocks ys := by
-  sorry
+  intro hx _
+  simp [bits2blocks, chunk_cat xs ys hx]
 
 theorem blocks2bitsK : cancel blocks2bits bits2blocks := by
-  sorry
+  intro xs
+  have h : ∀ b ∈ xs.map ofblock, size b = r := by
+    intro b hb
+    obtain ⟨x, _, rfl⟩ := List.mem_map.mp hb
+    exact BitWord.size_word ge0_r x
+  simp only [bits2blocks, blocks2bits]
+  rw [flattenK _ h, List.map_map]
+  conv_rhs => rw [← List.map_id xs]
+  exact List.map_congr_left fun x _ => BitWord.mkwordK x
 
 theorem bits2blocksK (bs : List Bool) : r ∣ size bs → blocks2bits (bits2blocks bs) = bs := by
-  sorry
+  intro hd
+  have h : (chunk bs).map (fun b => ofblock (mkblock b)) = chunk bs := by
+    conv_rhs => rw [← List.map_id (chunk bs)]
+    exact List.map_congr_left fun b hb => BitWord.ofwordK b (in_chunk_size bs b hb)
+  simp only [blocks2bits, bits2blocks, List.map_map, Function.comp_def]
+  rw [h, chunkK bs hd]
 
 /-! ## Padding to blocks / unpadding from blocks -/
 
@@ -588,16 +612,35 @@ def pad2blocks : List Bool → List block := bits2blocks ∘ pad
 def unpad_blocks : List block → Option (List Bool) := unpad ∘ blocks2bits
 
 theorem pad2blocksK : pcancel pad2blocks unpad_blocks := by
-  sorry
+  intro x
+  simp only [unpad_blocks, pad2blocks, Function.comp_apply]
+  rw [bits2blocksK _ (size_pad_dvd_r x), padK]
 
 theorem unpadBlocksK : ocancel unpad_blocks pad2blocks := by
-  sorry
+  intro xs
+  cases h : unpad_blocks xs with
+  | none => trivial
+  | some y =>
+    simp only [unpad_blocks, Function.comp_apply] at h
+    show bits2blocks (pad y) = xs
+    rw [← pad_of_unpad_some _ y h, blocks2bitsK]
 
 theorem pad2blocks_inj : Function.Injective pad2blocks := by
-  sorry
+  intro a b h
+  have ha := pad2blocksK a
+  rw [h, pad2blocksK b] at ha
+  exact (Option.some.inj ha).symm
 
 theorem size_pad2blocks (s : List Bool) : size (pad2blocks s) = (size s + 1) / r + 1 := by
-  sorry
+  have hr := gt0_r
+  simp only [pad2blocks, bits2blocks, Function.comp_apply, size, List.length_map]
+  have h := size_chunk (pad s)
+  simp only [size] at h
+  rw [h]
+  have h2 := size_pad s
+  simp only [size] at h2
+  rw [h2, show ((s.length : ℤ) + 1) / r * r + r = ((s.length : ℤ) + 1) / r * r + 1 * r by ring,
+    ← add_mul, Int.mul_ediv_cancel _ (ne_of_gt hr)]
 
 /-! ## Extending/stripping -/
 
@@ -607,15 +650,58 @@ def strip (xs : List block) : List block × ℤ :=
   let i := find (fun x => x != b0) xs.reverse
   (take (size xs - i) xs, i)
 
+omit [Params] in
+/-- Not an EasyCrypt lemma: before the first match, `findIdx` sees only non-matches. -/
+theorem findIdx_replicate_append {α : Type} (p : α → Bool) (a : α) (ha : p a = false) (k : ℕ)
+    (l : List α) : (List.replicate k a ++ l).findIdx p = k + l.findIdx p := by
+  induction k with
+  | zero => simp
+  | succ k ih => simp [List.replicate_succ, List.findIdx_cons, ha, ih]; omega
+
 theorem strip_ge0 (xs : List block) : 0 ≤ (strip xs).2 := by
-  sorry
+  simp [strip, find]
 
 theorem extendK (xs : List block) (n : ℤ) :
     last b0 xs ≠ b0 → 0 ≤ n → strip (extend xs n) = (xs, n) := by
-  sorry
+  intro hl hn
+  have hne : xs ≠ [] := by rintro rfl; exact hl rfl
+  obtain ⟨ys, z, rfl⟩ := List.eq_nil_or_concat xs |>.resolve_left hne
+  have hz : z ≠ b0 := by simpa [last] using hl
+  have hrev : (extend (ys.concat z) n).reverse =
+      List.replicate n.toNat b0 ++ z :: ys.reverse := by
+    simp [extend, nseq, List.reverse_replicate]
+  have hfind : find (fun x => x != b0) (extend (ys.concat z) n).reverse = n := by
+    have hz' : (z != b0) = true := by simpa using hz
+    rw [hrev, find, findIdx_replicate_append _ _ (by simp)]
+    simp [List.findIdx_cons, hz', Int.toNat_of_nonneg hn]
+  simp only [strip, hfind]
+  refine Prod.ext ?_ rfl
+  simp only [extend, nseq, take, size, List.length_append, List.length_replicate]
+  rw [show ((ys.concat z).length + n.toNat : ℕ) - n = ((ys.concat z).length : ℤ) by omega,
+    Int.toNat_natCast]
+  exact List.take_left' rfl
 
 theorem stripK (xs : List block) : extend (strip xs).1 (strip xs).2 = xs := by
-  sorry
+  set i := (xs.reverse.findIdx fun x => x != b0) with hi
+  have hil : i ≤ xs.length := by
+    have := List.findIdx_le_length (p := fun x => x != b0) (xs := xs.reverse)
+    simpa using this
+  have hstrip : strip xs = (take (size xs - i) xs, (i : ℤ)) := rfl
+  rw [hstrip]
+  have htake : (xs.reverse.take i) = List.replicate i b0 := by
+    refine List.eq_replicate_iff.mpr ⟨by simp; omega, fun b hb => ?_⟩
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hb
+    rw [List.getElem_take]
+    have := List.not_of_lt_findIdx (p := fun x => x != b0) (xs := xs.reverse) (i := j)
+      (by rw [List.length_take] at hj; omega)
+    simpa using this
+  have hdrop : xs.drop (xs.length - i) = List.replicate i b0 := by
+    have := congrArg List.reverse htake
+    rw [List.reverse_take, List.reverse_reverse, List.reverse_replicate] at this
+    simpa using this
+  simp only [extend, take, nseq, size]
+  rw [show (((xs.length : ℤ) - i).toNat) = xs.length - i by omega, Int.toNat_natCast, ← hdrop]
+  exact List.take_append_drop _ _
 
 /-! ## Validity -/
 
@@ -631,7 +717,9 @@ instance (xs : List block) : Decidable (valid_block xs) :=
   inferInstanceAs (Decidable (unpad_blocks xs ≠ none))
 
 theorem valid_pad2blocks (bs : List Bool) : valid_block (pad2blocks bs) := by
-  sorry
+  unfold valid_block
+  rw [pad2blocksK]
+  simp
 
 inductive valid_block_spec (xs : List block) : Prop where
   | ValidBlock (s : List Bool) (n : ℤ) :
@@ -639,10 +727,34 @@ inductive valid_block_spec (xs : List block) : Prop where
       valid_block_spec xs
 
 theorem valid_blockP (xs : List block) : valid_block xs ↔ valid_block_spec xs := by
-  sorry
+  unfold valid_block unpad_blocks
+  rw [Function.comp_apply, unpadP]
+  constructor
+  · rintro ⟨s, n, hn, -, he⟩
+    exact ⟨s, n, hn, he⟩
+  · rintro ⟨s, n, hn, he⟩
+    refine ⟨s, n, hn, ?_, he⟩
+    have h1 := size_blocks2bits xs
+    rw [he] at h1
+    simp only [size, List.length_append, List.length_singleton, nseq, List.length_replicate]
+      at h1 ⊢
+    rw [show ((s.length + 1 + n.toNat + 1 : ℕ) : ℤ) = (s.length : ℤ) + n + 2 by omega] at h1
+    exact ⟨_, h1⟩
 
 theorem valid_block_ends_not_b0 (xs : List block) : valid_block xs → last b0 xs ≠ b0 := by
-  sorry
+  intro hv
+  obtain ⟨s, n, hn, he⟩ := (valid_blockP xs).mp hv
+  rcases List.eq_nil_or_concat xs with rfl | ⟨ys, x, rfl⟩
+  · simp [blocks2bits] at he
+  · intro hx
+    simp only [last, List.concat_eq_append, List.getLastD_concat] at hx
+    have hlast := congrArg (last false) he
+    rw [List.concat_eq_append, blocks2bits_cat, blocks2bits_sing, hx] at hlast
+    have hb0 : ofblock (b0 : block) = List.replicate r.toNat false := rfl
+    obtain ⟨k, hk⟩ : ∃ k, r.toNat = k + 1 := ⟨r.toNat - 1, by have := gt0_r; omega⟩
+    rw [hb0, hk, List.replicate_succ', ← List.append_assoc] at hlast
+    simp only [last, List.getLastD_concat] at hlast
+    exact Bool.false_ne_true hlast
 
 inductive valid_block_struct_spec (xs : List block) : Prop where
   | ValidBlockStruct1 (ys : List block) (x : block) (s : List Bool) (n : ℤ) :
@@ -654,7 +766,63 @@ inductive valid_block_struct_spec (xs : List block) : Prop where
       valid_block_struct_spec xs
 
 theorem valid_block_structP (xs : List block) : valid_block xs ↔ valid_block_struct_spec xs := by
-  sorry
+  have hr := gt0_r
+  have hsz : ∀ x : block, (ofblock x).length = r.toNat := fun x => by simp [ofblock, BitWord.ofword]
+  rw [valid_blockP]
+  constructor
+  · rintro ⟨s, n, ⟨hn0, hnr⟩, he⟩
+    -- the last block
+    have hne : xs ≠ [] := by rintro rfl; simp [blocks2bits] at he
+    obtain ⟨ys, x, rfl⟩ := List.eq_nil_or_concat xs |>.resolve_left hne
+    rw [List.concat_eq_append, blocks2bits_cat, blocks2bits_sing,
+      show s ++ [true] ++ nseq n false ++ [true] = s ++ ([true] ++ nseq n false ++ [true]) by simp]
+      at he
+    rcases List.append_eq_append_iff.mp he with ⟨a', hs, hx⟩ | ⟨c', hys, ht⟩
+    · -- the padding lies within the last block
+      exact .ValidBlockStruct1 ys x a' n (by simp) hn0 (by rw [hx]; simp)
+    · -- the padding straddles the last two blocks
+      have hlen := congrArg List.length ht
+      simp only [List.length_append, List.length_singleton, nseq, List.length_replicate, hsz]
+        at hlen
+      rcases c' with _ | ⟨b, c''⟩
+      · exact .ValidBlockStruct1 ys x [] n (by simp) hn0 (by simpa using ht.symm)
+      · have hc'' : c'' = [] := by
+          apply List.eq_nil_of_length_eq_zero; simp at hlen; omega
+        subst hc''
+        have hb : b = true := by simpa using congrArg List.head? ht
+        subst hb
+        have hn : n = r - 1 := by simp at hlen; omega
+        have hx : ofblock x = nseq (r - 1) false ++ [true] := by
+          have := ht; simp only [List.cons_append, List.cons.injEq] at this
+          simpa [hn] using this.2.symm
+        have hne' : ys ≠ [] := by rintro rfl; simp [blocks2bits] at hys
+        obtain ⟨ys', y, rfl⟩ := List.eq_nil_or_concat ys |>.resolve_left hne'
+        rw [List.concat_eq_append, blocks2bits_cat, blocks2bits_sing] at hys
+        have hy : last false (ofblock y) = true := by
+          have hl := congrArg (last false) hys
+          have hpos : (ofblock y).length ≠ 0 := by rw [hsz y]; omega
+          obtain ⟨u, v, huv⟩ := List.eq_nil_or_concat (ofblock y) |>.resolve_left
+            (fun h => hpos (by rw [h]; rfl))
+          rw [huv, List.concat_eq_append, ← List.append_assoc] at hl
+          simp only [last, List.getLastD_concat] at hl
+          rw [huv]; simpa [last, List.concat_eq_append] using hl
+        exact .ValidBlockStruct2 ys' y x (by simp) hy hx
+  · rintro (⟨ys, x, s, n, rfl, hn0, hx⟩ | ⟨ys, y, z, rfl, hy, hz⟩)
+    · have hlen := congrArg List.length hx
+      simp only [hsz, List.length_append, List.length_singleton, nseq, List.length_replicate]
+        at hlen
+      refine ⟨blocks2bits ys ++ s, n, ⟨hn0, by omega⟩, ?_⟩
+      rw [blocks2bits_cat, blocks2bits_sing, hx]
+      simp
+    · have hpos : (ofblock y).length ≠ 0 := by rw [hsz y]; omega
+      obtain ⟨u, v, huv⟩ := List.eq_nil_or_concat (ofblock y) |>.resolve_left
+        (fun h => hpos (by rw [h]; rfl))
+      have hv : v = true := by
+        rw [huv] at hy; simpa [last, List.concat_eq_append] using hy
+      refine ⟨blocks2bits ys ++ u, r - 1, ⟨by omega, by omega⟩, ?_⟩
+      rw [show ys ++ [y, z] = ys ++ [y] ++ [z] by simp, blocks2bits_cat, blocks2bits_cat,
+        blocks2bits_sing, blocks2bits_sing, huv, hz, hv]
+      simp
 
 /-- In `AbsorbSponge`. -/
 def valid_absorb (xs : List block) : Prop := valid_block (strip xs).1
@@ -664,6 +832,13 @@ inductive valid_absorb_spec (xs : List block) : Prop where
       valid_block ys → 0 ≤ n → xs = ys ++ nseq n b0 → valid_absorb_spec xs
 
 theorem valid_absorbP (xs : List block) : valid_absorb xs ↔ valid_absorb_spec xs := by
-  sorry
+  constructor
+  · intro hv
+    exact ⟨(strip xs).1, (strip xs).2, hv, strip_ge0 xs, (stripK xs).symm⟩
+  · rintro ⟨ys, n, hv, hn, rfl⟩
+    unfold valid_absorb
+    rw [show ys ++ nseq n b0 = extend ys n from rfl,
+      extendK ys n (valid_block_ends_not_b0 ys hv) hn]
+    exact hv
 
 end GaudisCrypt.SHA3.Common

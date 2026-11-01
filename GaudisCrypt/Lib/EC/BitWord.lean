@@ -37,6 +37,28 @@ def xorw (w₁ w₂ : word n) : word n := List.Vector.map₂ xor w₁ w₂
 
 instance : Inhabited (word n) := ⟨zerow⟩
 
+/-- `lemma mkwordK : cancel ofword mkword`. -/
+theorem mkwordK (w : word n) : mkword (ofword w) = w := by
+  apply List.Vector.ext
+  intro i
+  have hi : (i : ℕ) < (List.Vector.toList w).length := by
+    rw [List.Vector.toList_length]; exact i.isLt
+  rw [mkword, List.Vector.get_ofFn]
+  simp only [ofword, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some,
+    List.Vector.get_eq_get_toList]
+  rfl
+
+/-- `lemma ofwordK s : size s = n => ofword (mkword s) = s`. -/
+theorem ofwordK (s : List Bool) (h : size s = n) : ofword (mkword s : word n) = s := by
+  have hl : s.length = n.toNat := by simp only [size] at h; omega
+  apply List.ext_getElem (by simp [ofword, hl])
+  intro i h1 h2
+  simp [ofword, mkword, List.getD_eq_getElem?_getD, h2]
+
+/-- `lemma size_word w : size (ofword w) = n` (`0 ≤ n`, EC's `gt0_n`). -/
+theorem size_word (hn : 0 ≤ n) (w : word n) : size (ofword w) = n := by
+  simp [size, ofword, Int.toNat_of_nonneg hn]
+
 /-- `DWord.dunifin`: the uniform distribution on words. -/
 noncomputable def dunifin : SubProbability (word n) := SubProbability.uniform
 
