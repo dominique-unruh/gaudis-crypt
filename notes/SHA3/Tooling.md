@@ -661,3 +661,22 @@ every full-list `ext`.  Restricted lists (`HYBRID_IRO_DIST.ext`, EC's `OI.allowe
   since `equiv_sim`'s calls need equal globals.
 * `Pr_restr` remains `stated`: it needs EasyCrypt's up-to-bad abstract call
   `call (_: max_size < C.c, ={glob P, glob CO, glob C})` (also used by `Handle.eca`).
+
+## 2026-11-01: the up-to-bad abstract call rule (`Logic/AbstractCallUpto.lean`, `Logic/PRHL2Upto.lean`)
+
+* `prhlProc_abstract_call_upto` (procedure with holes) and `prhlProc_abstract_call_upto_module`:
+  EasyCrypt's `call (: bad, invP, invQ)` on an abstract procedure (`equivF_abs_upto`).  `bad`,
+  `invP`, `invQ` read the oracle lens `L`; `={glob}` is agreement on a region `F ⊇ fvP D`, outside
+  `L`.  Pre and post `badInv ∨ (={arg/res} ∧ syncInv)` are EasyCrypt's
+  `if bad{2} then invQ else ={…} /\ ={glob A} /\ invP`.  Premises: the adversary lossless with each
+  instantiation (E11), the per-oracle equivalence up to `bad` (`prhlProc`), and the per-oracle
+  preservation of `invQ` (left, once `bad{2}`) and `bad ∧ invQ` (right) as `hoareProc`.
+* Proof: `prhl2_body_upto`, an induction over the adversary's code with invariant `uptoInv`.  Before
+  `bad`: as the plain rule (synchronized, `LocP`).  After: `ProgramDenotation.prhl2.product` of the
+  two remainders, each side keeping a unary invariant (`satisfies_inv_of_confined`, the diagonal
+  self-coupling of `body_prhl2_gen`).  The induction carries `ProgramDenotation.LosslessAt` of the
+  current statement at both states; `LosslessAt.of_bind` passes it to almost every intermediate
+  state.  Loops: `ProgramDenotation.prhl2.while_upto` — the synchronized while rule that switches
+  to a given coupling of the remaining loops when an exit condition holds at the start of an
+  iteration (its coupling is the least fixed point of the extended transformer; the marginals are
+  sandwiched between the loop's Kleene iterates and the loop, in expectation).

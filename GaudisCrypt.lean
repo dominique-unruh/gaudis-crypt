@@ -80,6 +80,7 @@ import GaudisCrypt.Logic.FootprintSolver
 import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.ExpectationCall
 import GaudisCrypt.Logic.AbstractCall
+import GaudisCrypt.Logic.AbstractCallUpto
 import GaudisCrypt.Logic.AbstractCallTest
 import GaudisCrypt.Logic.EagerProc
 import GaudisCrypt.Logic.EagerAbstract
@@ -101,6 +102,7 @@ import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.PRHL2
+import GaudisCrypt.Logic.PRHL2Upto
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.PRHLWpTest

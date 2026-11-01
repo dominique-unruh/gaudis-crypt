@@ -290,3 +290,24 @@ For the oracle procedures, which touch only `FRO.m`, this says the same as EasyC
 of the adversary since its steps swap with the block by footprint disjointness.  EasyCrypt's form
 with an invariant follows by a self-coupling of one composite
 (`ProgramDenotation.eagerR_of_self_right`), where a use needs it.
+
+## E11: the up-to-bad abstract call rule asks the adversary lossless with both oracles
+
+**Rule broken.** A Gaudí rule has EasyCrypt's premises.
+
+**What EasyCrypt asks.** `call (: bad, invP, invQ)` on an abstract procedure (`equivF_abs_upto`,
+`src/phl/ecPhlFun.ml`) asks: `A` lossless whenever its oracles are (`islossless`, from `D_ll`);
+per oracle, the equivalence up to `bad`; the left oracle lossless and keeping `invQ` once `bad{2}`
+holds (`phoare … = 1`); the right one lossless and keeping `bad /\ invQ`.
+
+**What we ask.** `prhlProc_abstract_call_upto(_module)` (`Logic/AbstractCallUpto.lean`) asks `A`
+lossless with each of the two given oracle instantiations, and the per-oracle `invQ`/`bad`
+preservation as Hoare triples (`hoareProc`, no losslessness).  A caller derives the first from
+`D_ll` with the two oracle modules, which needs them lossless everywhere, not only after `bad`.
+
+**Why.** The coupling after `bad` is independent, so both remaining runs must be lossless.  The
+Gaudí proof gets that from the losslessness of the whole run (`LosslessAt.of_bind`: almost every
+intermediate state then has a lossless remainder).  EasyCrypt's weaker premise needs an argument
+over every oracle behaviour (`A` lossless for *all* lossless oracles, applied to oracles that
+replay the run's history), which the Gaudí rule does not formalize.  The oracles of the SHA-3 uses
+(`SLCommon.Pr_restr`, `Handle.eca`) are lossless everywhere, so nothing is lost there.
