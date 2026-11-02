@@ -283,63 +283,63 @@ inductive INV_CF_G1 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi 
 theorem m_mh_of_INV (ch : handle) (mi1 m2 mi2 : smap) (mhi2 : hsmap) (ro : FMap (List block) block)
     (pi : FMap capacity (List block × block)) (hs : handles) (m1 : smap) (mh2 : hsmap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → m_mh hs m1 mh2 := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → m_mh hs m1 mh2 :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h4
 
 theorem mi_mhi_of_INV (ch : handle) (m1 m2 mi2 : smap) (mh2 : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (hs : handles)
     (mi1 : smap) (mhi2 : hsmap) (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → m_mh hs mi1 mhi2 := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → m_mh hs mi1 mhi2 :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h5
 
 theorem incl_of_INV (hs : handles) (ch : handle) (mi1 mi2 : smap) (mh2 mhi2 : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (m1 m2 : smap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → incl m2 m1 := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → incl m2 m1 :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h6
 
 theorem incli_of_INV (hs : handles) (ch : handle) (m1 m2 : smap) (mh2 mhi2 : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (mi1 mi2 : smap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → incl mi2 mi1 := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → incl mi2 mi1 :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h7
 
 theorem mh_of_INV (ch : handle) (m1 mi1 mi2 : smap) (mhi2 : hsmap)
     (pi : FMap capacity (List block × block)) (hs : handles) (m2 : smap) (mh2 : hsmap)
     (ro : FMap (List block) block) (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → mh_spec hs m2 mh2 ro := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → mh_spec hs m2 mh2 ro :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h8
 
 theorem pi_of_INV (ch : handle) (m1 m2 mi1 mi2 : smap) (mhi2 : hsmap)
     (ro : FMap (List block) block) (hs : handles) (mh2 : hsmap)
     (pi : FMap capacity (List block × block)) (p : FMap (List block) state)
     (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → pi_spec hs mh2 pi := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → pi_spec hs mh2 pi :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h9
 
 theorem hs_of_INV (m1 m2 mi1 mi2 : smap) (mh2 mhi2 : hsmap) (ro : FMap (List block) block)
     (pi : FMap capacity (List block × block)) (hs : handles) (ch : handle)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → hs_spec hs ch := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → hs_spec hs ch :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h1
 
 theorem inv_of_INV (hs : handles) (ch : handle) (m1 mi1 m2 mi2 : smap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (mh2 mhi2 : hsmap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → inv_spec mh2 mhi2 := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → inv_spec mh2 mhi2 :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h3
 
 theorem invG_of_INV (hs : handles) (ch : handle) (m1 mi1 : smap) (mh2 mhi2 : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (m2 mi2 : smap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → inv_spec m2 mi2 := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → inv_spec m2 mi2 :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h2
 
 theorem m_p_of_INV (hs : handles) (ch : handle) (m1 mi1 : smap) (mh2 mhi2 : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (m2 mi2 : smap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
-    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → m_p m1 p q := by
-  sorry
+    INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → m_p m1 p q :=
+  fun ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ => h10
 
 theorem all_prefixes_of_m_p (m1 : smap) (p : FMap (List block) state)
     (q : FMap (List block) block) : m_p m1 p q → all_prefixes p := by
@@ -353,11 +353,11 @@ theorem all_prefixes_of_INV (hs : handles) (ch : handle) (m1 mi1 : smap) (mh2 mh
 
 /-! ## Handles -/
 
-theorem ch_gt0 (hs : handles) (ch : handle) : hs_spec hs ch → 0 < ch := by
-  sorry
+theorem ch_gt0 (hs : handles) (ch : handle) : hs_spec hs ch → 0 < ch :=
+  fun ⟨_, h0, hlt⟩ => hlt _ 0 h0
 
-theorem ch_neq0 (hs : handles) (ch : handle) : hs_spec hs ch → 0 ≠ ch := by
-  sorry
+theorem ch_neq0 (hs : handles) (ch : handle) : hs_spec hs ch → 0 ≠ ch :=
+  fun ⟨_, h0, hlt⟩ => ne_of_lt (hlt _ 0 h0)
 
 theorem ch_notdomE_hs (hs : handles) (ch : handle) : hs_spec hs ch → FMap.get hs ch = none := by
   sorry
