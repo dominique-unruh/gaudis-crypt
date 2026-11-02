@@ -63,6 +63,10 @@ theorem uniform_funi [Fintype α] [Nonempty α] :
     PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton y)]
   simp
 
+/-- `lemma eq_distr` (one direction): distributions with the same point masses are equal. -/
+theorem eq_distr {μ ν : SubProbability α} (h : ∀ x, μ.1 {x} = ν.1 {x}) : μ = ν :=
+  Subtype.ext (discreteMeasure.ext μ.2.2 ν.2.2 h)
+
 open Classical in
 /-- `mu1 d v` as the expectation of the indicator of `v` (EC's `mu1` is `mu d (pred1 v)`). -/
 theorem mu1_eq_expected (d : SubProbability α) (v : α) :

@@ -846,3 +846,16 @@ New tooling:
   Stmt.ewp_assign]`.
 * A branch whose precondition is contradictory: `prhlStmt_conseq prhlStmt_false`.
 * `Lib/EC/List.lean`: `nth_rcons`.
+* `Lib/EC/DList.lean`: `dlist0`, `dlist_succ`, `dlist_supp`, and EC's `Program` theory results
+  for `LoopSnoc`: `LoopSnoc.sample_ewp` (exact expectation, by `phoare_while_le` and
+  `phoare_while_ge … variant`, glued by `phoareProc_eq_of_le_ge`), `sample_denotation`,
+  `pr_sample` (EC's `Sample_LoopSnoc_eq` + `pr_Sample`).  `Lib/EC/Distr.lean`: `eq_distr`.
+* `prhlStmt_seq_sample_run_map_right` (`Logic/PRHLStmt.lean`): a sampling against code whose run
+  samples `μ`, the left distribution being `μ`'s image by `f` (used for `bypr`, exception E12).
+* Exact loop expectations: `phoare_while_le I` and `phoare_while_ge I variant V` with the same `I`.
+  In `I`, read the globals as `CurrentState.state.globals`, not `§allGlobals`: `phoare_skip`
+  generalizes `§allGlobals` apart from the `σ.globals` of the postcondition.
+* Relation variables named `x` or `l` do not elaborate as `§x{1}` (an identifier clash in the
+  elaborator); write `§(localVarLens "x" T){1}`.
+* A call's run: `refine (programDenotation_call_apply _ _ _ σ).trans ?_` (`rw` fails on the
+  instance-transparency check of variable names).

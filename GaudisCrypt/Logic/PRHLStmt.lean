@@ -465,6 +465,29 @@ theorem prhlStmt_seq_sample_run_right {α : Type} {x₁ x₂ : Setter α Program
   · exact SubProbability.satisfies_hbind _ fun a ha =>
       SubProbability.satisfies_pure _ _ (hB a (SubProbability.mem_support_of_ne_zero ha))
 
+/-- **A sampling against code that samples a preimage**: `x₁ <$ d` on the left, on the right a
+statement `t` whose run draws `b` from `μ` and writes it to `x₂`, with `d` the image of `μ` by `f`
+(`prhlStmt_seq_sample_run_right` with a map; e.g. a block against a loop of bits). -/
+theorem prhlStmt_seq_sample_run_map_right {α β : Type} {x₁ : Setter α ProgramState}
+    {x₂ : Setter β ProgramState} {e₁ : Getter (SubProbability α) ProgramState} {t : Stmt}
+    (μ : ProgramState → ProgramState → SubProbability β) (f : β → α)
+    (h : prhlStmt A s₁ s₂ fun σ₁ σ₂ =>
+      programDenotation t σ₂ = (μ σ₁ σ₂).hbind (fun b => pure ((), x₂.set b σ₂)) ∧
+        e₁.get σ₁ = (μ σ₁ σ₂).hbind (fun b => pure (f b)) ∧
+        ∀ b ∈ (μ σ₁ σ₂).support, B (x₁.set (f b) σ₁) (x₂.set b σ₂)) :
+    prhlStmt A (.seq s₁ (.sample x₁ e₁)) (.seq s₂ t) B := by
+  refine prhlStmt_seq (B := fun σ₁ σ₂ => _) ?_ h
+  intro σ₁ σ₂ ⟨ht, he, hB⟩
+  refine ⟨(μ σ₁ σ₂).hbind fun b => pure (((), x₁.set (f b) σ₁), ((), x₂.set b σ₂)), ?_, ?_, ?_⟩
+  · refine SubProbability.marginal_fst_eq fun F => ?_
+    rw [programDenotation_sample_apply, SubProbability.expected_hbind,
+      SubProbability.expected_hbind, he, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.marginal_snd_eq fun F => ?_
+    rw [ht, SubProbability.expected_hbind, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · exact SubProbability.satisfies_hbind _ fun a ha =>
+      SubProbability.satisfies_pure _ _ (hB a (SubProbability.mem_support_of_ne_zero ha))
 /-! ### Pushing a distribution along a function
 
 The first conjunct `prhlStmt_seq_sample` leaves: the coupling function pushes the left

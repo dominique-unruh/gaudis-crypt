@@ -340,3 +340,16 @@ intermediate state then has a lossless remainder).  EasyCrypt's weaker premise n
 over every oracle behaviour (`A` lossless for *all* lossless oracles, applied to oracles that
 replay the run's history), which the Gaudí rule does not formalize.  The oracles of the SHA-3 uses
 (`SLCommon.Pr_restr`, `Handle.eca`) are lossless everywhere, so nothing is lost there.
+
+## E12: `bypr` is replaced by equivalences through an auxiliary module
+
+**EasyCrypt.** `BlockGen_loop_direct` (`Sponge.ec`) is proven by `bypr res{1} res{2}`: two
+procedures with no shared state are equivalent on `={res}` when every `Pr[_ : res = w]` agrees.
+
+**Gaudí.** There is no `bypr` rule (it needs a coupling built from equal result marginals, i.e.
+conditional distributions of the globals).  The statement is unchanged; the proof composes two
+equivalences through an auxiliary module `BlockGenCall` (`BlockGen.loop` with its loop the call
+`Prog.LoopSnoc.sample(r)`, not in EasyCrypt): EC's own `byequiv` step (the loops in lockstep), and
+a sampling against the call (`prhlStmt_seq_sample_run_map_right`), from the same facts EC uses as
+probabilities (`LoopSnoc.sample_denotation`: the loop samples `dlist {0,1} r`; `bdistr_dlist`:
+its image by `mkblock` is `bdistr`).

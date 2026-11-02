@@ -1737,8 +1737,9 @@ end Prog
 
 theorem PrLoopSnoc_sample (m : VariableAssignment) (bs : List Bool) :
     (Procedure.Pr Prog.LoopSnoc.sample.procedure r m (fun res _ => res = bs) : ENNReal) =
-      (dlist dbool r).1 {bs} := by
-  sorry
+      (dlist dbool r).1 {bs} :=
+  -- EC: `Sample_LoopSnoc_eq` then `pr_Sample`, together `LoopSnoc.pr_sample`
+  DList.Program.LoopSnoc.pr_sample Bool dbool r m bs
 
 theorem iter_mul_one_half_pos (n : ℤ) :
     0 < n → iter n ((1 / 2 : ℝ) * ·) 1 = (((2 ^ n.toNat : ℤ) : ℝ))⁻¹ := by
@@ -1772,11 +1773,104 @@ module BlockGen {
   };
 }
 
-/-- `lemma BlockGen_loop_direct : equiv[BlockGen.loop ~ BlockGen.direct : true ==> ={res}]`. -/
+omit [BlockSponge.Params] in
+open Classical in
+/-- `bdistr` is `r` fair bits made a block (in EC's `BlockGen_loop_direct`: `mu1 bdistr w =
+1 / 2 ^ r`, and the same for the bits of `w` under `dlist {0,1} r`). -/
+theorem bdistr_dlist : bdistr = (dlist dbool r).hbind fun l => pure (mkblock l) := by
+  have hr := gt0_r
+  refine eq_distr fun w => ?_
+  symm
+  rw [mu1_eq_expected, SubProbability.expected_hbind]
+  simp only [expected_pure]
+  have hlen : ((ofblock w).length : ℤ) = r := by
+    have := BitWord.size_word hr.le w
+    simpa [size, ofblock] using this
+  change ∫⁻ l, _ ∂(dlist dbool r).1 = _
+  rw [lintegral_eq_tsum_smul (dlist dbool r).2.2, tsum_eq_single (ofblock w) ?_]
+  · rw [show mkblock (ofblock w) = w from BitWord.mkwordK w, if_pos rfl, mul_one,
+      dlist1E _ _ _ hlen]
+    simp only [dbool1E, List.map_const', List.prod_replicate]
+    letI : MeasurableSpace block := ⊤
+    change _ = (PMF.uniformOfFintype block).toMeasure {w}
+    rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton w)]
+    simp only [PMF.uniformOfFintype_apply, card_vector, Fintype.card_bool, Nat.cast_pow,
+      ENNReal.inv_pow]
+    congr 1
+    omega
+  · intro l hl
+    by_cases hl' : (l.length : ℤ) = r
+    · rw [if_neg]; · simp
+      rintro rfl
+      exact hl (BitWord.ofwordK l (by simp [size]; omega)).symm
+    · rw [dlist_supp _ _ _ (by omega), zero_mul]
+
+-- Auxiliary (not in EC): `BlockGen.loop` with its loop the call `Prog.LoopSnoc.sample(r)`, for
+-- EC's `byequiv` step of `BlockGen_loop_direct`
+module BlockGenCall {
+  proc loop () : block {
+    var cs : List Bool;
+    cs <- call Prog.LoopSnoc.sample (r);
+    return mkblock $cs
+  };
+}
+
+/-- EC's `byequiv` step of `BlockGen_loop_direct`: `BlockGen.loop`'s loop is
+`Prog.LoopSnoc.sample(r)`'s. -/
+theorem BlockGen_loop_BlockGenCall :
+    prhlProc (fun _ _ _ _ => True) BlockGen.loop.procedure BlockGenCall.loop.procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r)
+  · stmt_wp
+    equiv_skip
+    intros; simp_all
+  · equiv_while (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r)
+    case body =>
+      stmt_wp
+      equiv_rnd
+      equiv_skip
+      intros; simp_all [rcons]
+    case guard => intros; simp_all
+    case exit => intros; simp_all
+    · equiv_skip; intros; simp_all
+
+/-- `BlockGen.direct` against `BlockGenCall.loop`: the bits from `LoopSnoc.sample` are `dlist {0,1}
+r` (`LoopSnoc.sample_denotation`), whose image by `mkblock` is `bdistr` (`bdistr_dlist`). -/
+theorem BlockGen_direct_BlockGenCall :
+    prhlProc (fun _ _ _ _ => True) BlockGen.direct.procedure BlockGenCall.loop.procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  stmt_split{1} 1
+  stmt_split{2} 1
+  refine prhlStmt_seq_sample_run_map_right (x₂ := liftLens (localVarLens "cs" (List Bool)))
+    (fun _ _ => dlist dbool r) mkblock ?_
+  stmt_wp
+  equiv_skip
+  intro τ _
+  refine ⟨?_, bdistr_dlist⟩
+  generalize (resetSetter _).set () τ = σ
+  refine (programDenotation_call_apply _ _ _ σ).trans ?_
+  erw [DList.Program.LoopSnoc.sample_denotation]
+  refine SubProbability.ext_of_expected fun F => ?_
+  simp only [SubProbability.expected_hbind, expected_pure]
+  rw [show ProgramState.globalL.set σ.globals σ = σ from ProgramState.globalL.get_set σ]
+
+/-- `lemma BlockGen_loop_direct : equiv[BlockGen.loop ~ BlockGen.direct : true ==> ={res}]`.
+EC: `bypr`, comparing `Pr[_ : res = w]` (`PrLoopSnoc_sample`, `iter_mul_one_half_pos`); here the
+two equivalences above, composed (the same facts as distributions). -/
 theorem BlockGen_loop_direct :
     prhlProc (fun _ _ _ _ => True) BlockGen.loop.procedure BlockGen.direct.procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  sorry
+      (fun r₁ _ r₂ _ => r₁ = r₂) :=
+  prhlProc_conseq (prhlProc.trans BlockGen_loop_BlockGenCall
+      (prhlProc.symm BlockGen_direct_BlockGenCall))
+    (fun _ g _ _ _ => ⟨(), g, trivial, trivial⟩) (fun _ _ _ _ ⟨_, _, h, h'⟩ => h.trans h'.symm)
 
 /-- `lemma HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : int) :
 equiv[HybridIROEagerTrans.next_block ~ BlockSpongeTrans.next_block : …]`; the arguments are
