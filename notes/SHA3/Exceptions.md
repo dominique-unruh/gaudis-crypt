@@ -353,3 +353,12 @@ equivalences through an auxiliary module `BlockGenCall` (`BlockGen.loop` with it
 a sampling against the call (`prhlStmt_seq_sample_run_map_right`), from the same facts EC uses as
 probabilities (`LoopSnoc.sample_denotation`: the loop samples `dlist {0,1} r`; `bdistr_dlist`:
 its image by `mkblock` is `bdistr`).
+
+The same pattern for EC's `transitivity{2}` through code blocks in
+`HybridIROEagerTrans_BlockSpongeTrans_next_block` (`{ w <@ BlockGen.loop(); }`, then
+`{ w <@ BlockGen.direct(); }`): auxiliary modules `NextBlockSplitLoop`/`NextBlockSplitDirect`
+(`next_block_split` with its loop of bits replaced by those calls), each step an equivalence of
+procedures, composed by `prhlProc.trans`.  EC's ghosts (`exists* i{1}, bs{1}`) are read from the
+other side, which keeps them; EC's `exists* HybridIROEager.mp{1}` (the map before the writes) is
+folded into the invariant as the statement it is used for (`∀ mq, eager_eq_except … → … →
+eager_invar … mq`).

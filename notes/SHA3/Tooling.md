@@ -859,3 +859,10 @@ New tooling:
   elaborator); write `§(localVarLens "x" T){1}`.
 * A call's run: `refine (programDenotation_call_apply _ _ _ σ).trans ?_` (`rw` fails on the
   instance-transparency check of variable names).
+* `Lib/EC/List.lean`: `nth_cat`, `set_nth_default`, `take_nth`.
+* A procedure judgment stated with `M.p.procedure` (the body's definition) does not fit a call of
+  `M.p` (`Module.Proc.procedure M.p`) in `equiv_call`: restate it with `(M.p).procedure`
+  (`by simpa using h`).
+* Ghost variables (EC's `exists*`): read them from the other side when it keeps them, or fold the
+  use of the ghost into the invariant (a universally quantified statement about the current
+  state).

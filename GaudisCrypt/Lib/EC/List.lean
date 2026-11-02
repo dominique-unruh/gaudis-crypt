@@ -134,4 +134,34 @@ theorem nth_rcons (x0 : α) (s : List α) (z : α) (i : ℤ) :
   · simp only [h0, if_false]
     split_ifs <;> first | rfl | omega
 
+/-- `lemma nth_cat`. -/
+theorem nth_cat (x0 : α) (s₁ s₂ : List α) (n : ℤ) :
+    nth x0 (s₁ ++ s₂) n = if n < size s₁ then nth x0 s₁ n else nth x0 s₂ (n - size s₁) := by
+  unfold nth size
+  by_cases h0 : 0 ≤ n
+  · simp only [h0, if_true, List.getD_eq_getElem?_getD]
+    split_ifs with h1 h2
+    · rw [List.getElem?_append_left (by omega)]
+    · rw [List.getElem?_append_right (by omega), show (n - s₁.length).toNat = n.toNat - s₁.length
+        by omega]
+    · omega
+  · simp only [h0, if_false]
+    split_ifs with h1 h2 <;> first | rfl | omega
+
+/-- `lemma set_nth_default`: in range, the default does not matter. -/
+theorem set_nth_default (x1 x2 : α) (s : List α) (n : ℤ) (h : 0 ≤ n ∧ n < size s) :
+    nth x1 s n = nth x2 s n := by
+  unfold nth size at *
+  simp only [h.1, if_true, List.getD_eq_getElem?_getD]
+  rw [List.getElem?_eq_getElem (by omega)]
+  rfl
+
+/-- `lemma take_nth`. -/
+theorem take_nth (x0 : α) (n : ℤ) (s : List α) (h : 0 ≤ n ∧ n < size s) :
+    take (n + 1) s = rcons (take n s) (nth x0 s n) := by
+  unfold take rcons nth size at *
+  simp only [h.1, if_true, List.getD_eq_getElem?_getD]
+  rw [show (n + 1).toNat = n.toNat + 1 by omega, List.take_add_one,
+    List.getElem?_eq_getElem (by omega)]
+  rfl
 end GaudisCrypt.EC

@@ -1937,9 +1937,323 @@ module NextBlockSplitDirect {
   };
 }
 
+/-- EC's `transitivity{2}` through `{ w <@ BlockGen.loop(); }` (the first step of the case
+`! dom BlockSponge.BIRO.IRO.mp{2} (x0{2}, n{2})` of
+`HybridIROEagerTrans_BlockSpongeTrans_next_block`): the loop of bits is `BlockGen.loop`'s. -/
+theorem next_block_split_NextBlockSplitLoop :
+    prhlProc (sig₁ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
+      (sig₂ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+      (HybridIROEagerTrans.next_block_split HybridIROEager_mp).procedure
+      (NextBlockSplitLoop.next_block_split HybridIROEager_mp).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+      §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨⟩, rfl⟩
+    exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+  · equiv_if
+    case guard => intros; simp_all
+    case «then» =>
+      equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+      case body =>
+        stmt_wp
+        equiv_skip
+        intros; simp_all
+      case guard => intros; simp_all
+      case exit => intros; simp_all
+      · equiv_skip; intros; simp_all
+    case «else» =>
+      equiv_seq 1 1 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+      · stmt_wp
+        equiv_seq 1 1 : ((§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+            §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2}) ∧ §j{1} = §j{2} ∧
+            §cs{1} = §cs0{2} ∧ size §cs{1} = §j{1} ∧ 0 ≤ §j{1} ∧ §j{1} ≤ r)
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨h, -⟩
+          exact ⟨h, ge0_r⟩
+        · equiv_while ((§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+              §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2}) ∧ §j{1} = §j{2} ∧
+              §cs{1} = §cs0{2} ∧ size §cs{1} = §j{1} ∧ 0 ≤ §j{1} ∧ §j{1} ≤ r)
+          case body =>
+            stmt_wp
+            equiv_rnd
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨h, rfl, rfl, hs, h0, -⟩, hg⟩ a -
+            simp only [decide_eq_true_eq] at hg
+            refine ⟨h, rfl, rfl, ?_, by omega, by omega⟩
+            simp only [size, rcons, List.length_append, List.length_singleton] at hs ⊢
+            push_cast; omega
+          case guard => intros; simp_all
+          case exit =>
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, rfl, rfl, hs, -, hj⟩ hg
+            simp only [decide_eq_false_iff_not, not_lt] at hg
+            refine ⟨rfl, rfl, rfl, ?_, rfl⟩
+            rw [show ofblock (mkblock _) = _ from BitWord.ofwordK _ (by omega)]
+          · equiv_skip
+            intros; assumption
+      · equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+        case body =>
+          stmt_wp
+          equiv_skip
+          intros; simp_all
+        case guard => intros; simp_all
+        case exit => intros; simp_all
+        · equiv_skip; intros; simp_all
+
+/-- EC's `transitivity{2}` from `{ w <@ BlockGen.loop(); }` to `{ w <@ BlockGen.direct(); }`
+(`call BlockGen_loop_direct`). -/
+theorem NextBlockSplitLoop_NextBlockSplitDirect :
+    prhlProc (sig₁ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
+      (sig₂ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+      (NextBlockSplitLoop.next_block_split HybridIROEager_mp).procedure
+      (NextBlockSplitDirect.next_block_split HybridIROEager_mp).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+      §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨⟩, rfl⟩
+    exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+  · equiv_if
+    case guard => intros; simp_all
+    case «then» =>
+      equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+      case body =>
+        stmt_wp
+        equiv_skip
+        intros; simp_all
+      case guard => intros; simp_all
+      case exit => intros; simp_all
+      · equiv_skip; intros; simp_all
+    case «else» =>
+      equiv_seq 1 1 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+      · stmt_wp
+        have hc : prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (BlockGen.loop).procedure
+            (BlockGen.direct).procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) :=
+          by simpa using BlockGen_loop_direct_eq
+        equiv_call hc
+        equiv_skip
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, -⟩
+        exact ⟨rfl, by rintro _ _ _ _ ⟨rfl, rfl⟩; exact ⟨rfl, rfl, rfl, rfl, rfl⟩⟩
+      · equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+        case body =>
+          stmt_wp
+          equiv_skip
+          intros; simp_all
+        case guard => intros; simp_all
+        case exit => intros; simp_all
+        · equiv_skip; intros; simp_all
+
+/-- The rest of EC's proof of `HybridIROEagerTrans_BlockSpongeTrans_next_block` after its
+`transitivity HybridIROEagerTrans.next_block_split`, on `NextBlockSplitDirect` (EC's
+`BlockGen.direct` step done): in the case `dom BlockSponge.BIRO.IRO.mp{2} (x0{2}, n{2})` the
+bits are read (`while{1}`, EC's ghosts `i1`, `bs1` read from the right side); otherwise the block
+is the right side's sample (`rnd`) and its bits are written (`while{1}`, EC's `eager_eq_except`
+invariant, with the old map of the right side folded into the statement it is used for). -/
+theorem NextBlockSplitDirect_BlockSpongeTrans_next_block (i2 : ℤ) :
+    prhlProc (sig₁ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
+      (sig₂ := procsig (List block, ℤ, List block) -> (List block × ℤ))
+      (fun a₁ g₁ a₂ g₂ => i2 = a₂.2.1 ∧ 0 ≤ a₂.2.1 ∧ a₁.1 = a₂.1 ∧ a₁.2.1 = a₂.2.1 * r ∧
+        a₁.2.2.1 - a₁.2.1 = r ∧ a₁.2.2.2 = blocks2bits a₂.2.2 ∧ size a₂.2.2 = a₂.2.1 ∧
+        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁))
+      (NextBlockSplitDirect.next_block_split HybridIROEager_mp).procedure
+      (BlockSpongeTrans.next_block).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁.1 = blocks2bits r₂.1 ∧ r₁.2 = r₂.2 * r ∧ r₂.2 = i2 + 1 ∧
+        size r₂.1 = i2 + 1 ∧
+        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  have hr := gt0_r
+  equiv_seq 1 1 : (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
+      §i0{1} = §i0{2} * r ∧ §m0{1} - §i0{1} = r ∧
+      §(localVarLens "bs0" (List Bool)){1} = blocks2bits §(localVarLens "bs0" (List block)){2} ∧
+      size §(localVarLens "bs0" (List block)){2} = §i0{2} ∧
+      eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager_mp{1})
+  · stmt_wp
+    equiv_skip
+    intros; assumption
+  · equiv_if{1}
+    case «then» =>
+      equiv_if{2}
+      case «then» =>
+        refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+        obtain ⟨⟨⟨-, -, hx, hn, hi, -, -, -, ei⟩, hd1⟩, hd2⟩ := h
+        simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not] at hd1 hd2
+        apply hd2
+        rw [hn, ← hx]
+        have := ei.2 _ _ hd1
+        rwa [hi, Int.mul_ediv_cancel _ (ne_of_gt hr)] at this
+      case «else» =>
+        equiv_while{1} (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
+            §i0{2} * r ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §m0{1} - §i0{2} * r = r ∧
+            size §(localVarLens "bs0" (List Bool)){1} = §i0{1} ∧
+            §(localVarLens "bs0" (List Bool)){1} =
+              blocks2bits §(localVarLens "bs0" (List block)){2} ++ take (§i0{1} - §i0{2} * r)
+                (ofblock (oget (FMap.get §BlockSponge.BIRO.IRO.mp{2} (§x1{2}, §n{2})))) ∧
+            FMap.dom §BlockSponge.BIRO.IRO.mp{2} (§x1{2}, §n{2}) ∧
+            size §(localVarLens "bs0" (List block)){2} = §i0{2} ∧
+            eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager_mp{1})
+          ((§m0{1} - §i0{1}).toNat)
+        case lossless =>
+          intros
+          simp [Stmt.ewp_seq, Stmt.ewp_assign]
+        case «variant» =>
+          intro σ₂ k
+          hoare_wp 3
+          hoare_skip
+          rintro xs i m bs mp ⟨⟨h1, h2, hx, h4, h5, h6, h7, hs, hbs, hd, hs2, ei⟩, hg, hk⟩
+          simp only [eval_lens_full, eval_lens_global, decide_eq_true_eq] at *
+          generalize (localVarLens "i0" ℤ).get σ₂ = I2 at *
+          generalize (localVarLens "n" ℤ).get σ₂ = N at *
+          generalize (localVarLens "x1" (List block)).get σ₂ = X1 at *
+          generalize (localVarLens "bs0" (List block)).get σ₂ = B2 at *
+          generalize BlockSponge.BIRO.IRO.mp.get σ₂.globals = M2 at *
+          subst hx h4
+          have hsz : size (ofblock (oget (M2.get (xs, N)))) = r := BitWord.size_word ge0_r _
+          have hget := (ei.1 _ _ hd).2 i ⟨by omega, by linarith⟩
+          refine ⟨⟨h1, h2, rfl, rfl, by omega, by omega, h7, ?_, ?_, hd, hs2, ei⟩, by omega⟩
+          · simp only [size, rcons, List.length_append, List.length_singleton] at hs ⊢
+            push_cast; omega
+          · have hi1 : 0 ≤ i - N * r := by omega
+            have hi2 : i - N * r < size (ofblock (oget (M2.get (xs, N)))) := by rw [hsz]; omega
+            rw [hget, hbs, show i + 1 - N * r = (i - N * r) + 1 by ring,
+              take_nth false _ _ ⟨hi1, hi2⟩]
+            simp [rcons, oget]
+        case exit =>
+          rintro i0₂ x1 n bs2 mp xs i m bs1 hm ⟨h1, h2, rfl, rfl, h5, h6, h7, hs, hbs, hd, hs2, ei⟩
+            hg
+          simp only [decide_eq_false_iff_not, not_lt] at hg
+          have hsz : size (ofblock (oget (mp.get (xs, n)))) = r := BitWord.size_word ge0_r _
+          refine ⟨?_, by linarith, by omega, ?_, ei⟩
+          · rw [hbs, show i - n * r = size (ofblock (oget (mp.get (xs, n)))) by omega]
+            simp only [take, size, rcons, blocks2bits_cat, blocks2bits_sing]
+            simp
+          · simp only [size, rcons, List.length_append, List.length_singleton] at hs2 ⊢
+            push_cast; omega
+        · equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨⟨h1, h2, hx, hn, hi, hm, hbs, hs2, ei⟩, -⟩, hd2⟩
+          simp only [Bool.not_eq_false', decide_eq_true_eq] at hd2
+          refine ⟨h1, h2, hx, hn, by rw [hi], by omega, by omega, ?_, ?_, hd2, hs2, ei⟩
+          · rw [hbs, size_blocks2bits, hs2, hi, mul_comm]
+          · rw [hi, sub_self]
+            simp [take, hbs]
+    case «else» =>
+      equiv_if{2}
+      case «else» =>
+        refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+        obtain ⟨⟨⟨-, -, hx, hn, hi, -, -, -, ei⟩, hd1⟩, hd2⟩ := h
+        simp only [decide_eq_false_iff_not, Bool.not_eq_false', decide_eq_true_eq] at hd1 hd2
+        apply hd1
+        rw [hn, ← hx] at hd2
+        rw [hi]
+        exact eager_inv_mem_dom1 _ _ _ _ ei hd2 _ ⟨le_rfl, by linarith⟩
+      case «then» =>
+        equiv_seq 1 0 : (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
+            §i0{2} * r ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §m0{1} - §i0{2} * r = r ∧
+            size §(localVarLens "bs0" (List block)){2} = §i0{2} ∧
+            §(localVarLens "bs0" (List Bool)){1} =
+              blocks2bits §(localVarLens "bs0" (List block)){2} ++ ofblock §w{1} ∧
+            FMap.get §BlockSponge.BIRO.IRO.mp{2} (§x1{2}, §n{2}) = some §w{1} ∧
+            (∀ j, §i0{2} * r ≤ j ∧ j < §i0{1} →
+              FMap.get §HybridIROEager_mp{1} (§xs0{1}, j) =
+                some (nth true §(localVarLens "bs0" (List Bool)){1} j)) ∧
+            (∀ mq, eager_eq_except §xs0{1} (§i0{2} * r) ((§i0{2} + 1) * r)
+                §HybridIROEager_mp{1} mq →
+              (∀ j, §i0{2} * r ≤ j ∧ j < (§i0{2} + 1) * r →
+                FMap.get mq (§xs0{1}, j) = some (nth false (ofblock §w{1}) (j - §i0{2} * r))) →
+              eager_invar §BlockSponge.BIRO.IRO.mp{2} mq))
+        · stmt_wp
+          equiv_rnd
+          stmt_wp
+          equiv_skip
+          rintro xs i m bs mp1 i0 x1 n bs2 mp2 ⟨⟨⟨h1, h2, hx, hn, hi, hm, hbs, hs2, ei⟩, -⟩, -⟩ a -
+          subst hx hn
+          refine ⟨h1, h2, rfl, rfl, by rw [hi], by omega, by omega, hs2, by rw [hbs],
+            by rw [FMap.get_set_sameE], fun j hj => absurd hj.2 (by omega),
+            fun mq hee hrange => eager_invar_eq_except_upd1 _ _ _ _ _ _ h2 ei hee hrange⟩
+        · equiv_while{1} (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
+            §i0{2} * r ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §m0{1} - §i0{2} * r = r ∧
+            size §(localVarLens "bs0" (List block)){2} = §i0{2} ∧
+            §(localVarLens "bs0" (List Bool)){1} =
+              blocks2bits §(localVarLens "bs0" (List block)){2} ++ ofblock §w{1} ∧
+            FMap.get §BlockSponge.BIRO.IRO.mp{2} (§x1{2}, §n{2}) = some §w{1} ∧
+            (∀ j, §i0{2} * r ≤ j ∧ j < §i0{1} →
+              FMap.get §HybridIROEager_mp{1} (§xs0{1}, j) =
+                some (nth true §(localVarLens "bs0" (List Bool)){1} j)) ∧
+            (∀ mq, eager_eq_except §xs0{1} (§i0{2} * r) ((§i0{2} + 1) * r)
+                §HybridIROEager_mp{1} mq →
+              (∀ j, §i0{2} * r ≤ j ∧ j < (§i0{2} + 1) * r →
+                FMap.get mq (§xs0{1}, j) = some (nth false (ofblock §w{1}) (j - §i0{2} * r))) →
+              eager_invar §BlockSponge.BIRO.IRO.mp{2} mq)) ((§m0{1} - §i0{1}).toNat)
+          case lossless =>
+            intros
+            simp [Stmt.ewp_seq, Stmt.ewp_assign]
+          case «variant» =>
+            intro σ₂ k
+            hoare_wp 2
+            hoare_skip
+            rintro xs i m bs w mp ⟨⟨h1, h2, hx, h4, h5, h6, h7, hs2, hbs, hget, hrng, hL⟩, hg, hk⟩
+            simp only [eval_lens_full, eval_lens_global, decide_eq_true_eq] at *
+            generalize (localVarLens "i0" ℤ).get σ₂ = I2 at *
+            generalize (localVarLens "n" ℤ).get σ₂ = N at *
+            generalize (localVarLens "x1" (List block)).get σ₂ = X1 at *
+            generalize (localVarLens "bs0" (List block)).get σ₂ = B2 at *
+            generalize BlockSponge.BIRO.IRO.mp.get σ₂.globals = M2 at *
+            subst hx
+            have hI : (I2 + 1) * r = I2 * r + r := by ring
+            refine ⟨⟨h1, h2, rfl, h4, by omega, by omega, h7, hs2, hbs, hget, fun j hj => ?_,
+              fun mq hee hr' => hL mq (fun ys l hl => ?_) hr'⟩, by omega⟩
+            · by_cases hji : j = i
+              · subst hji
+                rw [FMap.get_set_sameE]
+              · rw [FMap.get_setE, if_neg (by rintro ⟨⟩; exact hji rfl)]
+                exact hrng j ⟨hj.1, by omega⟩
+            · rw [← hee ys l hl, FMap.get_setE,
+                if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega)]
+          case exit =>
+            rintro i0 x1 n bs2 mp xs i m bs w mp1
+              ⟨h1, h2, hx, hn, h5, h6, h7, hs2, hbs, hget, hrng, hL⟩
+              hg
+            subst hx hn
+            simp only [decide_eq_false_iff_not, not_lt] at hg
+            have hsz : size (ofblock w) = r := BitWord.size_word ge0_r _
+            have hsb : size (blocks2bits bs2) = n * r := by rw [size_blocks2bits, hs2, mul_comm]
+            rw [hget]
+            simp only [oget, Option.getD_some]
+            refine ⟨by rw [hbs, rcons, blocks2bits_cat, blocks2bits_sing], by linarith, by omega,
+              ?_, hL mp1 (fun _ _ _ => rfl) fun j hj => ?_⟩
+            · simp only [size, rcons, List.length_append, List.length_singleton] at hs2 ⊢
+              push_cast; omega
+            · rw [hrng j ⟨hj.1, by linarith⟩, hbs, nth_cat, if_neg (by omega), hsb,
+                set_nth_default true false _ _ ⟨by omega, by rw [hsz]; linarith⟩]
+          · equiv_skip
+            intros; assumption
+
 /-- `lemma HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : int) :
 equiv[HybridIROEagerTrans.next_block ~ BlockSpongeTrans.next_block : …]`; the arguments are
-`(xs, i, m, bs)` and `(x, i, bs)`. -/
+`(xs, i, m, bs)` and `(x, i, bs)`.
+EC: `transitivity HybridIROEagerTrans.next_block_split` (`HybridIROEagerTrans_next_block_split`),
+then the auxiliary steps above (exception E12). -/
 theorem HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : ℤ) :
     prhlProc (sig₁ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
       (sig₂ := procsig (List block, ℤ, List block) -> (List block × ℤ))
@@ -1950,8 +2264,22 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : ℤ) :
       (BlockSpongeTrans.next_block).procedure
       (fun r₁ g₁ r₂ g₂ => r₁.1 = blocks2bits r₂.1 ∧ r₁.2 = r₂.2 * r ∧ r₂.2 = i2 + 1 ∧
         size r₂.1 = i2 + 1 ∧
-        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
-  sorry
+        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) :=
+  prhlProc_conseq
+    (prhlProc.trans (HybridIROEagerTrans_next_block_split HybridIROEager_mp)
+      (prhlProc.trans (next_block_split_NextBlockSplitLoop HybridIROEager_mp)
+        (prhlProc.trans (NextBlockSplitLoop_NextBlockSplitDirect HybridIROEager_mp)
+          (NextBlockSplitDirect_BlockSpongeTrans_next_block HybridIROEager_mp i2))))
+    (fun a₁ g₁ a₂ g₂ h => by
+      obtain ⟨h1, h2, h3, h4, h5, h6, h7, ei⟩ := h
+      refine ⟨a₁, g₁, ⟨rfl, rfl, by omega, ?_, ?_⟩, a₁, g₁, ⟨rfl, rfl⟩, a₁, g₁, ⟨rfl, rfl⟩,
+        h1, h2, h3, h4, h5, h6, h7, ei⟩
+      · rw [h6, size_blocks2bits, h7, h4, mul_comm]
+      · exact eager_inv_imp_block_bits_dom _ _ _ _ (by rw [h4]; exact mul_nonneg h2 ge0_r)
+          (by rw [h4]; exact Dvd.intro_left _ rfl) ei)
+    (fun r₁ g₁ r₂ g₂ h => by
+      obtain ⟨_, g₂', ⟨rfl, hg⟩, _, _, ⟨rfl, rfl⟩, _, _, ⟨rfl, rfl⟩, h1, h2, h3, h4, ei⟩ := h
+      exact ⟨h1, h2, h3, h4, hg ▸ ei⟩)
 
 /-- `lemma HybridIROEagerTrans_BlockSpongeTrans_loop (n' : int) : equiv[HybridIROEagerTrans.loop
 ~ BlockSpongeTrans.loop : …]`; the arguments are `(n, xs)`. -/
