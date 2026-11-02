@@ -91,10 +91,14 @@ theorem parseK (p : List block) (n : ℤ) : 0 < n → valid_block p → parse (f
 theorem parse_nil : parse [] = ([], 0) := Params.parse_nil
 
 theorem parse_injective : Function.Injective parse := by
-  sorry
+  intro bs1 bs2 eq_format
+  rw [← formatK bs1, eq_format, formatK bs2]
 
 theorem parse_valid (p : List block) : valid_block p → parse p = (p, 1) := by
-  sorry
+  intro h
+  have hp : format p 1 = p := by simp [format, nseq]
+  conv_lhs => rw [← hp]
+  exact parseK p 1 one_pos h
 
 /-! ## Restrictions
 

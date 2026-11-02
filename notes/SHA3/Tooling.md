@@ -751,3 +751,34 @@ New tooling:
   `FVP.fvP`, and the bound may be `F ⊔ X.footprint`.
 * `fp_bound`s in `SecureRO`: `fvP_LRO_init`, `fvP_LRO_get`, `fvP_RO_sample`, `fvP_LRO_sample`,
   `fvP_Bounder`.
+
+## 2026-11-02: `SecureORO.eca` complete
+
+The three lemmas follow `SecureRO`'s proofs step for step; the potentials and tail lemmas
+(`SecureRO.preimagePotential`, `secondPreimagePotential`, `collisionPotential`, their `_step`s and
+`*_tail_le`s) are reused, `SecureORO` importing `SecureRO` for them (EC's `SecureORO.eca` is a
+separate copy).  `SecureORO` has no `Counter`: the potentials' middle (counter) component is `0`
+and the step lemmas are applied with the counter guard `True`.  The option answers of `Bounder`
+(`None` once the bound is spent) are normalized by `simp only [Option.some.injEq,
+exists_eq_left, and_false, exists_false]` before the `SecureRO` tail lemma applies.
+
+* `RO_is_preimage_resistant`: EC's `Preimage2` keeps the hash in a module variable
+  `Preimage2.hash` (`Preimage2_hash`, fresh: E6).  `Preimage_Preimage2` frames it
+  (`prhlProc_self_equal_outside_module` at `L = Preimage2.hash`, with `I` fixing its value, after
+  `prhlStmt_fix_right` — EC's `exists*`/`elim*`); the potential reads the hash off the state
+  (lens `Bounder.bounder × Preimage2.hash × RO.m`), so `Module.ewp_app_le` carries it over the
+  adversary unchanged.
+* `RO_is_second_preimage_resistant`: EC's five `have->` as in `SecureRO`, but its first step
+  `SecondPreimage(A, RF(RO)) ~ SecondPreimage(A, RF(LRO))` cannot be an equation of modules:
+  `RF(RO)` and `RF(LRO)` are module applications whose `get`s agree only after reduction.  New rule
+  `prhlProc_abstract_call_equal_outside_module` (`Logic/EqualOutside.lean`): an abstract module
+  applied to two oracles that keep `L.equal_outside ∧ I` keeps it too; with `I` equality
+  (`Lens.equal_outside_and_get_eq_iff`) this is EC's `sim` across an adversary whose oracles differ
+  in code.  `SecondPreimage2_SecondPreimage3` is general over `F : RO` with `F.init = LRO.init`
+  (both `init`s are inlined) and `fvP F ≤ RO.m` (`F.sample`, `Bounder(RF(F)).get` and the adversary
+  are framed).
+* `RO_is_collision_resistant`: no new tooling.
+* `@[fp_bound]`s: `fvP_Bounder`, `fvP_RF` (`⊥`: `fp_module` without a lens), `fvP_RO`, `fvP_LRO`.
+* `§x` for a local variable whose name a bound variable of the program shadows (`y` in
+  `∃ y, some y = §hash1 …`): the program prints it, and it is written, as
+  `§(localVarLens "y" (Option «to»))`.

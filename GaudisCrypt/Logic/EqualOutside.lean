@@ -48,6 +48,43 @@ theorem prhlProc_self_equal_outside_module {sig : ProcedureSignature} (M : Modul
     exact FVP.fvP_module_proc _
   rwa [← h]
 
+/-- **EasyCrypt's `call (: inv)` for an abstract module, the states equal except on `L`**: `D`
+outside `L`, applied to two oracles that keep the states equal outside `L` and the relation `I` of
+the two contents of `L`, keeps them too (`prhlProc_abstract_callF` at the complement of `L`).  With
+`I` equality, the states are equal (`Lens.equal_outside_and_get_eq_iff`): EC's `sim` across a
+call of an adversary whose oracles differ in code but not in behaviour. -/
+theorem prhlProc_abstract_call_equal_outside_module {T : Type 1} [IsModule T]
+    {sig : ProcedureSignature} {holes : HoleSigs} (D : Module.Arr T (Module.Proc sig))
+    (ext : T → holes.Instantiation) (hD : Module.Representable D ext)
+    (hdisj : FVP.fvP D ≤ (L.footprint)ᶜ) (I : Ω → Ω → Prop)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O₁ O₂ : T)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+        ((ext O₁).lookup n) ((ext O₂).lookup n)
+        (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (Module.app D O₁).procedure (Module.app D O₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
+  have e : ∀ g₁ g₂, globInvF L L.compl.footprint I g₁ g₂ ↔
+      L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂) := fun g₁ g₂ => by
+    rw [globInvF, Lens.footprint_touched_getter_eq_iff, Lens.equal_outside_iff_compl]
+  obtain ⟨p, hden, hle⟩ := hD
+  have h := prhlProc_abstract_callF L (ext O₁) (ext O₂) p L.compl.footprint
+    (by rw [← Lens.compl_footprint]; exact hle.trans hdisj) (by rw [Lens.compl_footprint]) I hc
+    (fun n => prhlProc_conseq (horacle n)
+      (fun a₁ g₁ a₂ g₂ ⟨ha, hg⟩ => ⟨ha, (e g₁ g₂).mp hg⟩)
+      (fun r₁ g₁ r₂ g₂ ⟨hr, hg⟩ => ⟨hr, (e g₁ g₂).mpr hg⟩))
+  have h' : prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (p.instantiate (ext O₁)) (p.instantiate (ext O₂))
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) :=
+    prhlProc_conseq h (fun a₁ g₁ a₂ g₂ ⟨ha, hg⟩ => ⟨ha, (e g₁ g₂).mpr hg⟩)
+    (fun r₁ g₁ r₂ g₂ ⟨hr, hg⟩ => ⟨hr, (e g₁ g₂).mp hg⟩)
+  intro a₁ a₂
+  rw [hden O₁ a₁, hden O₂ a₂]
+  exact h' a₁ a₂
+
 variable {L}
 
 /-- The same write of a lens disjoint from `L` keeps the states equal outside `L`. -/
@@ -79,5 +116,13 @@ theorem Lens.equal_outside.set_left {g₁ g₂ : VariableAssignment} (h : L.equa
     (v : Ω) : L.equal_outside (L.set v g₁) g₂ := by
   obtain ⟨x, rfl⟩ := h
   exact ⟨x, by rw [L.set_set]⟩
+
+/-- States equal outside `L` and on `L` are equal. -/
+theorem Lens.equal_outside_and_get_eq_iff {g₁ g₂ : VariableAssignment} :
+    L.equal_outside g₁ g₂ ∧ L.get g₁ = L.get g₂ ↔ g₁ = g₂ := by
+  refine ⟨fun ⟨⟨x, hx⟩, hg⟩ => ?_, fun h => h ▸ ⟨Lens.equal_outside.refl g₁, rfl⟩⟩
+  subst hx
+  rw [L.set_get] at hg
+  rw [← hg, L.get_set]
 
 end GaudisCrypt

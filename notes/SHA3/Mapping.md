@@ -180,7 +180,7 @@ Lean: `GaudisCrypt/Examples/SHA3/IRO.lean`, namespace `GaudisCrypt.SHA3.IRO`.
 | 13 | module type | `IRO` |  | `IRO_T` | exc (E3) |
 | 20 | pred | `prefix_closed` |  | `prefix_closed` | def |
 | 26 | pred | `prefix_closed'` |  | `prefix_closed'` | def |
-| 32 | lemma | `prefix_closed_equiv` |  | `prefix_closed_equiv` | stated |
+| 32 | lemma | `prefix_closed_equiv` |  | `prefix_closed_equiv` | done |
 | 37 | module | `IRO` |  | `IRO` | def |
 | 73 | module | `IRO'` |  | `IRO'` | def |
 
@@ -510,8 +510,8 @@ Lean: `GaudisCrypt/Examples/SHA3/BlockSponge.lean`, namespace `GaudisCrypt.SHA3.
 | 32 | axiom | `formatK` |  | `formatK` (field of `Params`) | def |
 | 33 | axiom | `parseK` |  | `parseK` (field of `Params`) | def |
 | 34 | axiom | `parse_nil` |  | `parse_nil` (field of `Params`) | def |
-| 36 | lemma | `parse_injective` |  | `parse_injective` | stated |
-| 41 | lemma | `parse_valid` |  | `parse_valid` | stated |
+| 36 | lemma | `parse_injective` |  | `parse_injective` | done |
+| 41 | lemma | `parse_valid` |  | `parse_valid` | done |
 | 56 | module | `C` |  | `C` | def |
 | 63 | module | `FC` |  | `FC` | def |
 | 76 | module | `PC` |  | `PC` | def |
@@ -865,22 +865,22 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Se
 | 84 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 86 | local module | `FEL` | section Preimage. | `Preimage.FEL` | def |
 | 95 | local module | `Preimage2` | section Preimage. | `Preimage.Preimage2` (variable: lens `Preimage2_hash`, E6) | def |
-| 106 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | stated |
+| 106 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | done (exc E6, E8) |
 | 185 | module type | `AdvSecondPreimage` |  | `AdvSecondPreimage` | def |
 | 189 | module | `SecondPreimage` |  | `SecondPreimage` | def |
 | 203 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 205 | local module | `FEL` | section SecondPreimage. | `SecondPreimage.FEL` | def |
 | 215 | local module | `SecondPreimage2` | section SecondPreimage. | `SecondPreimage.SecondPreimage2` (variable: lens `SecondPreimage2_m2`, E6) | def |
-| 226 | local module | `D1` | section SecondPreimage. | `SecondPreimage.D1` (variable: lens `D1_m1`, E6) | def |
-| 235 | local module | `SecondPreimage3` | section SecondPreimage. | `SecondPreimage.SecondPreimage3` | def |
-| 247 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | stated |
+| 226 | local module | `D1` | section SecondPreimage. | `SecondPreimage.D1` (variable: lens `D1_m1`, E6; `A` a Lean parameter, so that `D1 A` is an `RO_Distinguisher`) | def |
+| 235 | local module | `SecondPreimage3` | section SecondPreimage. | `SecondPreimage.SecondPreimage3` (`A` a Lean parameter, as in `D1`) | def |
+| 247 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | done (exc E6, E8) |
 | 349 | module type | `AdvCollision` |  | `AdvCollision` | def |
 | 353 | module | `Collision` |  | `Collision` | def |
 | 366 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 368 | local module | `FEL` | section Collision. | `Collision.FEL` | def |
 | 377 | local module | `Collision2` | section Collision. | `Collision.Collision2` | def |
 | 387 | op | `collision` | section Collision. | `collision` | def |
-| 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | stated |
+| 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done (exc E8) |
 
 ## `proof/IndifRO_is_secure.ec`
 

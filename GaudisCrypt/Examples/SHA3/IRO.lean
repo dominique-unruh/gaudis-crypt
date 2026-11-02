@@ -39,9 +39,10 @@ def prefix_closed (m : FMap («from» × ℤ) «to») : Prop :=
 def prefix_closed' (m : FMap («from» × ℤ) «to») : Prop :=
   ∀ x n i, FMap.dom m (x, n) → 0 ≤ i ∧ i < n → FMap.dom m (x, i)
 
+omit [DecidableEq «from»] [Inhabited «to»] [Inhabited «from»] in
 theorem prefix_closed_equiv (m : FMap («from» × ℤ) «to») :
-    prefix_closed «to» «from» m ↔ prefix_closed' «to» «from» m := by
-  sorry
+    prefix_closed «to» «from» m ↔ prefix_closed' «to» «from» m :=
+  ⟨fun h x n i hd hi => h x n hd i hi, fun h x n hd i hi => h x n i hd hi⟩
 
 variable (valid : «from» → Bool) (dto : SubProbability «to»)
 
