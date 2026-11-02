@@ -140,6 +140,7 @@ theorem mem_frng [DecidableEq β] (m : FMap α β) (y : β) : y ∈ frng m ↔ r
   · rintro ⟨x, hx⟩
     exact ⟨⟨x, y⟩, Finmap.mem_lookup_iff.mp hx, rfl⟩
 
+
 /-- `findP`, with bindings `get m x = some y` for EasyCrypt's `x \in m` and `oget m.[x]`: either
 `find` fails and no binding satisfies `p`, or it returns a key whose binding satisfies `p`. -/
 theorem findP (p : α → β → Bool) (m : FMap α β) :
@@ -169,6 +170,30 @@ omit [DecidableEq α] in
 omit [DecidableEq α] in
 /-- `mem_fdom`. -/
 theorem mem_fdom (m : FMap α β) (x : α) : x ∈ fdom m ↔ dom m x := Iff.rfl
+
+/-- `leq_card_rng_dom`: a map has at most as many values as keys. -/
+theorem leq_card_rng_dom [DecidableEq β] [Inhabited β] (m : FMap α β) :
+    (frng m).card ≤ (fdom m).card := by
+  classical
+  refine (Finset.card_le_card fun y hy => ?_).trans (Finset.card_image_le (s := fdom m)
+    (f := fun k => (get m k).getD default))
+  obtain ⟨k, hk⟩ := (mem_frng m y).mp hy
+  refine Finset.mem_image.mpr ⟨k, (mem_fdom _ _).mpr ((domE _ _).mpr (by
+    rw [show get m k = some y from hk]; simp)), ?_⟩
+  simp [show get m k = some y from hk]
+
+/-- `endo_dom_rng`: a map from a type to itself that misses a key misses a value. -/
+theorem endo_dom_rng [Inhabited α] (m : FMap α α) (h : ∃ x, ¬ dom m x) : ∃ y, ¬ rng m y := by
+  classical
+  by_contra hall
+  simp only [not_exists, not_not] at hall
+  obtain ⟨x, hx⟩ := h
+  letI : Fintype α := ⟨frng m, fun y => (mem_frng m y).mpr (hall y)⟩
+  have h1 : Finset.univ ⊆ frng m := fun y _ => (mem_frng m y).mpr (hall y)
+  have h2 : fdom m ⊂ Finset.univ := (Finset.ssubset_iff_of_subset (Finset.subset_univ _)).mpr
+    ⟨x, Finset.mem_univ x, fun h => hx ((mem_fdom m x).mp h)⟩
+  have := (Finset.card_le_card h1).trans (leq_card_rng_dom m)
+  exact absurd this (not_le.mpr (Finset.card_lt_card h2))
 
 omit [DecidableEq α] in
 /-- `mem_empty`. -/

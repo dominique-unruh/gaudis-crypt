@@ -186,7 +186,13 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
         let F := T.getArg! 0
         let v ← mkFreshExprMVar (mkConst ``VariableName)
         unless ← isDefEq X (← mkAppM ``Lens.footprint #[← mkAppM ``GaudisCrypt.varLens #[v]]) do
-          throwError "fp_disjoint: not a variable:{indentExpr X}"
+          -- a lens parameter (not a single variable): a hypothesis `glob F ≤ Sᶜ`, `X` in `S`
+          -- (the restriction against `glob F` stated for it), turned around
+          let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[T, ← mkAppM ``Compl.compl #[X]])
+          g.assign (← mkAppM ``Iff.mpr #[← mkAppM ``Footprint.le_compl_comm #[X, T], g'])
+          for h in ← getLCtx do
+            if ← tryHyp g'.mvarId! h then return
+          throwError "fp_disjoint: not a variable, and no restriction of {T} against it:{indentExpr X}"
         let hF ← finitelySupported F
         let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[F, ← mkAppM ``Compl.compl #[X]])
         g.assign (← mkAppOptM ``Footprint.varLens_le_compl_glob

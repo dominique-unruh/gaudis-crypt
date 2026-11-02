@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.AbstractCall
+import GaudisCrypt.Logic.AbstractCallUpto
 import GaudisCrypt.Logic.Inline
 
 /-!
@@ -121,6 +122,30 @@ theorem prhlProc_globInvF_of_writesKeep {F : Footprint VariableAssignment}
   refine ⟨μ, hm1, hm2, fun w hw => ?_⟩
   obtain ⟨hr, hI'⟩ := hsat w hw
   exact ⟨hr, by rw [hμ₁ w hw, hμ₂ w hw]; exact hglob, hI'⟩
+
+/-- **EasyCrypt's oracle premise up to `bad`, by the syntactic frame**: the oracle premise of
+`prhlProc_abstract_call_upto(_module)` at `F`, for oracles whose writes keep the content of `F`, from
+a judgment about the `L`-contents (EC's `call (: bad, invP, invQ)` on concrete oracles, `={glob D}`
+framed syntactically). -/
+theorem prhlProc_upto_of_writesKeep {F : Footprint VariableAssignment}
+    {sig' : ProcedureSignature} {I Q : Ω → Ω → Prop} {bad : Ω → Prop} {o₁ o₂ : Procedure sig'}
+    (h₁ : StmtWithHoles.WritesKeep F.touched_getter.get o₁.body)
+    (h₂ : StmtWithHoles.WritesKeep F.touched_getter.get o₂.body)
+    (h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ I (L.get g₁) (L.get g₂) ∧ ¬ bad (L.get g₂)) o₁ o₂
+      (fun r₁ g₁ r₂ g₂ => (bad (L.get g₂) ∧ Q (L.get g₁) (L.get g₂)) ∨
+        (r₁ = r₂ ∧ I (L.get g₁) (L.get g₂) ∧ ¬ bad (L.get g₂)))) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ syncInv L F I bad g₁ g₂) o₁ o₂
+      (fun r₁ g₁ r₂ g₂ => badInv L bad Q g₁ g₂ ∨ (r₁ = r₂ ∧ syncInv L F I bad g₁ g₂)) := by
+  intro a₁ a₂ g₁ g₂ ⟨ha, hglob, hI⟩
+  obtain ⟨μ, hm1, hm2, hsat⟩ := h a₁ a₂ g₁ g₂ ⟨ha, hI⟩
+  have hμ₁ : μ.satisfies (fun w => F.touched_getter.get w.1.2 = F.touched_getter.get g₁) :=
+    coupling_satisfies_fst (by rw [hm1]; exact Procedure.satisfies_of_writesKeep _ o₁ h₁ a₁ g₁)
+  have hμ₂ : μ.satisfies (fun w => F.touched_getter.get w.2.2 = F.touched_getter.get g₂) :=
+    coupling_satisfies_snd (by rw [hm2]; exact Procedure.satisfies_of_writesKeep _ o₂ h₂ a₂ g₂)
+  refine ⟨μ, hm1, hm2, fun w hw => ?_⟩
+  rcases hsat w hw with hb | ⟨hr, hI'⟩
+  · exact Or.inl hb
+  · exact Or.inr ⟨hr, by rw [hμ₁ w hw, hμ₂ w hw]; exact hglob, hI'⟩
 
 open Lean Meta Elab Tactic in
 /-- Split a goal `head … s` (a predicate on statements defined by recursion on them, such as
