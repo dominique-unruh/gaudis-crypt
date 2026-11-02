@@ -817,6 +817,49 @@ theorem Procedure.Pr_le_of_prhlProc (h : prhlProc A p₁ p₂ B)
   · simp [indicatorE, h₁, hE _ _ _ _ hxy h₁]
   · simp [indicatorE, h₁]
 
+/-- Symmetry of procedure judgments: the two sides swapped. -/
+theorem prhlProc.symm (h : prhlProc A p₁ p₂ B) :
+    prhlProc (fun a₂ g₂ a₁ g₁ => A a₁ g₁ a₂ g₂) p₂ p₁ (fun r₂ g₂ r₁ g₁ => B r₁ g₁ r₂ g₂) :=
+  fun a₂ a₁ => ProgramDenotation.prhl2.symm (h a₁ a₂)
+
+/-- The union bound for a procedure's events. -/
+theorem Procedure.Pr_or_le {sig} (p : Procedure sig) (args : sig.ParamType)
+    (σ : VariableAssignment) (E F : sig.ret → VariableAssignment → Prop) :
+    p.Pr args σ (fun r g => E r g ∨ F r g) ≤ p.Pr args σ E + p.Pr args σ F := by
+  refine ENNReal.coe_le_coe.mp ?_
+  rw [ENNReal.coe_add, Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp,
+    ← Procedure.ewp_add]
+  refine Procedure.ewp_mono _ _ (fun r g => ?_) _
+  by_cases hE : E r g <;> by_cases hF : F r g <;> simp [indicatorE, hE, hF]
+
+/-- **EC's `byequiv: bad`** (the fundamental lemma): if related outcomes agree on the bad events,
+and on the events outside them, the events' probabilities differ by at most the bad event's. -/
+theorem Procedure.Pr_abs_sub_le_of_prhlProc_upto (h : prhlProc A p₁ p₂ B)
+    {E₁ bad₁ : sig₁.ret → VariableAssignment → Prop}
+    {E₂ bad₂ : sig₂.ret → VariableAssignment → Prop}
+    (hbad : ∀ r₁ g₁ r₂ g₂, B r₁ g₁ r₂ g₂ → (bad₁ r₁ g₁ ↔ bad₂ r₂ g₂))
+    (hE : ∀ r₁ g₁ r₂ g₂, B r₁ g₁ r₂ g₂ → ¬ bad₂ r₂ g₂ → (E₁ r₁ g₁ ↔ E₂ r₂ g₂))
+    {a₁ : sig₁.ParamType} {a₂ : sig₂.ParamType} {σ₁ σ₂ : VariableAssignment}
+    (hA : A a₁ σ₁ a₂ σ₂) :
+    |(p₁.Pr a₁ σ₁ E₁ : ℝ) - p₂.Pr a₂ σ₂ E₂| ≤ p₂.Pr a₂ σ₂ bad₂ := by
+  have h₁ : p₁.Pr a₁ σ₁ E₁ ≤ p₂.Pr a₂ σ₂ (fun r g => E₂ r g ∨ bad₂ r g) :=
+    Procedure.Pr_le_of_prhlProc h (fun r₁ g₁ r₂ g₂ hB hE₁ => by
+      by_cases hb : bad₂ r₂ g₂
+      · exact Or.inr hb
+      · exact Or.inl ((hE _ _ _ _ hB hb).mp hE₁)) hA
+  have h₂ : p₂.Pr a₂ σ₂ E₂ ≤ p₁.Pr a₁ σ₁ (fun r g => E₁ r g ∨ bad₁ r g) :=
+    Procedure.Pr_le_of_prhlProc h.symm (fun r₂ g₂ r₁ g₁ hB hE₂ => by
+      by_cases hb : bad₂ r₂ g₂
+      · exact Or.inr ((hbad _ _ _ _ hB).mpr hb)
+      · exact Or.inl ((hE _ _ _ _ hB hb).mpr hE₂)) hA
+  have hb : p₁.Pr a₁ σ₁ bad₁ = p₂.Pr a₂ σ₂ bad₂ := Procedure.Pr_eq_of_prhlProc h hbad hA
+  have h₁' := h₁.trans (Procedure.Pr_or_le _ _ _ _ _)
+  have h₂' := h₂.trans (Procedure.Pr_or_le _ _ _ _ _)
+  rw [hb] at h₂'
+  have h₁r : (p₁.Pr a₁ σ₁ E₁ : ℝ) ≤ p₂.Pr a₂ σ₂ E₂ + p₂.Pr a₂ σ₂ bad₂ := by exact_mod_cast h₁'
+  have h₂r : (p₂.Pr a₂ σ₂ E₂ : ℝ) ≤ p₁.Pr a₁ σ₁ E₁ + p₂.Pr a₂ σ₂ bad₂ := by exact_mod_cast h₂'
+  rw [abs_sub_le_iff]
+  constructor <;> linarith
 /-- **Calls on both sides, with a procedure judgment** (EC's `call (_ : P ==> Q)`): the callees'
 runs coupled by `h`, from the arguments and globals before the calls; the postcondition for
 every results and globals `h` relates, written back. -/
