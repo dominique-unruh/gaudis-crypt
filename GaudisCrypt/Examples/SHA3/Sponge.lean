@@ -3436,7 +3436,128 @@ theorem Experiment_HybridIROExper_Lazy (BlockSim : BlockSponge.SIMULATOR) (Dist 
       Procedure.Pr (Module.app HybridIRO.HybridIROExper
         (Module.pair (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)
           (HybridIRODist BlockSim Dist))).procedure () m (fun r _ => r = true) := by
-  sorry
+  unfold HIRO_fresh at _hfresh
+  obtain ⟨hfr, -⟩ := _hfresh
+  have hL := le_sup_left.trans hfr
+  have h4 : HIRO_Lazy_mp.footprint ≤ (FVP.fvP BlockSim)ᶜ := hL.trans (Footprint.compl_antimono
+    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  have hinit : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ HIRO_Lazy_mp.equal_outside g₁ g₂ ∧
+      HIRO_Lazy_mp.get g₂ = FMap.empty)
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)))).procedure
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List block × ℤ) (List block)
+        (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HIRO_Lazy_mp.equal_outside g₁ g₂ ∧
+        HIRO_Lazy_mp.get g₂ = FMap.empty) := by
+    have e : ∀ g₁ g₂, globInvF HIRO_Lazy_mp HIRO_Lazy_mp.compl.footprint
+        (fun _ y => y = FMap.empty) g₁ g₂ ↔
+        HIRO_Lazy_mp.equal_outside g₁ g₂ ∧ HIRO_Lazy_mp.get g₂ = FMap.empty := fun g₁ g₂ => by
+      rw [globInvF, Lens.footprint_touched_getter_eq_iff, Lens.equal_outside_iff_compl]
+    refine prhlProc_conseq (Indifferentiability.SIMULATOR.call_init _ _ _ HIRO_Lazy_mp BlockSim
+      hS.1 HIRO_Lazy_mp.compl.footprint
+      (by rw [← Lens.compl_footprint]; exact Footprint.le_compl_of_fvP h4)
+      (by rw [← Lens.compl_footprint]) (fun _ y => y = FMap.empty) _ _)
+      (fun a₁ g₁ a₂ g₂ ⟨ha, hg⟩ => ⟨ha, (e g₁ g₂).mpr hg⟩)
+      (fun r₁ g₁ r₂ g₂ ⟨hr, hg⟩ => ⟨hr, (e g₁ g₂).mp hg⟩)
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  unfold HybridExperiment
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§allGlobals{1} = §allGlobals{2})
+  · stmt_wp
+    equiv_seq 1 1 : (HIRO_Lazy_mp.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        HIRO_Lazy_mp.get §allGlobals{2} = FMap.empty)
+    · stmt_wp
+      equiv_skip
+      rintro g _ rfl
+      exact ⟨FMap.empty, rfl⟩
+    · equiv_call hinit
+      equiv_skip
+      rintro σ₁ σ₂ h
+      refine ⟨h, fun r₁ g₁ r₂ g₂ ⟨⟨x, hx⟩, he⟩ => ?_⟩
+      show HIRO_Lazy_mp.set FMap.empty g₁ = g₂
+      subst hx
+      rw [Lens.set_get] at he
+      subst he
+      rfl
+  · equiv_call
+    equiv_skip
+    exact fun _ _ h => h
+
+/-- `HybridIROExper_Experiment_Eager`, in the direction of `Experiment_HybridIROExper_Lazy` (the
+same proof, for `HIRO.HybridIROEager`). -/
+theorem Experiment_HybridIROExper_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
+      (List block) BlockSim)
+    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
+    (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
+    Procedure.Pr (HybridExperiment BlockSim Dist
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure () m (fun r _ => r = true) =
+      Procedure.Pr (Module.app HybridIRO.HybridIROExper
+        (Module.pair (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)
+          (HybridIRODist BlockSim Dist))).procedure () m (fun r _ => r = true) := by
+  unfold HIRO_fresh at _hfresh
+  obtain ⟨hfr, -⟩ := _hfresh
+  have hL := le_sup_right.trans hfr
+  have h4 : HIRO_Eager_mp.footprint ≤ (FVP.fvP BlockSim)ᶜ := hL.trans (Footprint.compl_antimono
+    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  have hinit : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ HIRO_Eager_mp.equal_outside g₁ g₂ ∧
+      HIRO_Eager_mp.get g₂ = FMap.empty)
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)))).procedure
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List block × ℤ) (List block)
+        (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HIRO_Eager_mp.equal_outside g₁ g₂ ∧
+        HIRO_Eager_mp.get g₂ = FMap.empty) := by
+    have e : ∀ g₁ g₂, globInvF HIRO_Eager_mp HIRO_Eager_mp.compl.footprint
+        (fun _ y => y = FMap.empty) g₁ g₂ ↔
+        HIRO_Eager_mp.equal_outside g₁ g₂ ∧ HIRO_Eager_mp.get g₂ = FMap.empty := fun g₁ g₂ => by
+      rw [globInvF, Lens.footprint_touched_getter_eq_iff, Lens.equal_outside_iff_compl]
+    refine prhlProc_conseq (Indifferentiability.SIMULATOR.call_init _ _ _ HIRO_Eager_mp BlockSim
+      hS.1 HIRO_Eager_mp.compl.footprint
+      (by rw [← Lens.compl_footprint]; exact Footprint.le_compl_of_fvP h4)
+      (by rw [← Lens.compl_footprint]) (fun _ y => y = FMap.empty) _ _)
+      (fun a₁ g₁ a₂ g₂ ⟨ha, hg⟩ => ⟨ha, (e g₁ g₂).mpr hg⟩)
+      (fun r₁ g₁ r₂ g₂ ⟨hr, hg⟩ => ⟨hr, (e g₁ g₂).mp hg⟩)
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  unfold HybridExperiment
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§allGlobals{1} = §allGlobals{2})
+  · stmt_wp
+    equiv_seq 1 1 : (HIRO_Eager_mp.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        HIRO_Eager_mp.get §allGlobals{2} = FMap.empty)
+    · stmt_wp
+      equiv_skip
+      rintro g _ rfl
+      exact ⟨FMap.empty, rfl⟩
+    · equiv_call hinit
+      equiv_skip
+      rintro σ₁ σ₂ h
+      refine ⟨h, fun r₁ g₁ r₂ g₂ ⟨⟨x, hx⟩, he⟩ => ?_⟩
+      show HIRO_Eager_mp.set FMap.empty g₁ = g₂
+      subst hx
+      rw [Lens.set_get] at he
+      subst he
+      rfl
+  · equiv_call
+    equiv_skip
+    exact fun _ _ h => h
 
 /-- `local lemma HybridIROExper_Experiment_Eager &m`: final bridging step. -/
 theorem HybridIROExper_Experiment_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
@@ -3449,8 +3570,10 @@ theorem HybridIROExper_Experiment_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist
         (Module.pair (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)
           (HybridIRODist BlockSim Dist))).procedure () m (fun r _ => r = true) =
       Procedure.Pr (HybridExperiment BlockSim Dist
-        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure () m (fun r _ => r = true) := by
-  sorry
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure () m (fun r _ => r = true) :=
+  -- EC: `byequiv; proc; inline*; seq 2 2; swap{2} 1 1; …; sim`, as for the lazy one
+  (Experiment_HybridIROExper_Eager BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp _hfresh
+    m).symm
 
 /-- `local lemma Experiment_Hybrid_Lazy_Eager &m`: middle step of the ideal side, taking
 `HIRO.HybridIROLazy` to `HIRO.HybridIROEager`. -/

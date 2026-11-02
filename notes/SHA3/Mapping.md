@@ -712,8 +712,8 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | section . | `RealIndif_Sponge_BlockSponge` | done |
 | 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | section . | `Ideal_IRO_Experiment_HybridLazy` | done |
 | 2008 | local module | `HybridIRODist` | section . | `HybridIRODist` | def |
-| 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | section . | `Experiment_HybridIROExper_Lazy` | stated |
-| 2036 | local lemma | `HybridIROExper_Experiment_Eager` | section . | `HybridIROExper_Experiment_Eager` | stated |
+| 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | section . | `Experiment_HybridIROExper_Lazy` | done |
+| 2036 | local lemma | `HybridIROExper_Experiment_Eager` | section . | `HybridIROExper_Experiment_Eager` | done |
 | 2053 | local lemma | `Experiment_Hybrid_Lazy_Eager` | section . | `Experiment_Hybrid_Lazy_Eager` | stated |
 | 2070 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | section . | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | stated |
 | 2094 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | section . | `Experiment_HybridEager_Ideal_BlockIRO` | stated |
