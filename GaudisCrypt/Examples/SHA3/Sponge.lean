@@ -3799,7 +3799,25 @@ theorem IdealIndif_IRO_BlockIRO (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTI
         (fun r _ => r = true) =
       Procedure.Pr (BlockSponge.IdealIndif BlockSponge.BIRO.IRO.asF BlockSim
         (LowerDist Dist)).procedure () m (fun r _ => r = true) := by
-  sorry
+  -- the local clone `HIRO`'s variables, fresh (exception E6)
+  have hG : (FVP.fvP BlockSim ⊔ FVP.fvP Dist ⊔ (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+      (BIRO.IRO.mp).footprint ⊔ (BlockSponge.BIRO.IRO.mp).footprint).FinitelySupported :=
+    ((((hS.2.sup hD.finitelySupported).sup (.varLens _)).sup (.varLens _)).sup (.varLens _)).sup
+      (.varLens _)
+  haveI : Nonempty (FMap (List block × ℤ) Bool) := ⟨FMap.empty⟩
+  obtain ⟨HIRO_Lazy_mp, hL, hLfs⟩ := Footprint.exists_fresh (FMap (List block × ℤ) Bool) hG
+  obtain ⟨HIRO_Eager_mp, hE, hEfs⟩ :=
+    Footprint.exists_fresh (FMap (List block × ℤ) Bool) (hG.sup hLfs)
+  have hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp :=
+    ⟨sup_le hL (hE.trans (Footprint.compl_antimono le_sup_left)),
+      (Footprint.le_compl_comm _ _).mp (hE.trans (Footprint.compl_antimono le_sup_right)), hLfs,
+      hEfs⟩
+  -- EC: `by rewrite (Ideal_IRO_Experiment_HybridLazy &m) (Experiment_Hybrid_Lazy_Eager &m)
+  -- (Experiment_HybridEager_Ideal_BlockIRO &m)`
+  rw [Ideal_IRO_Experiment_HybridLazy BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp hfresh m,
+    Experiment_Hybrid_Lazy_Eager BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp hfresh m,
+    Experiment_HybridEager_Ideal_BlockIRO BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp hfresh
+      m]
 
 /-- EC's `conclu &m`, for the section's `BlockSim` and `Dist`. -/
 theorem conclu (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
@@ -3814,7 +3832,9 @@ theorem conclu (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
           m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (BlockSponge.IdealIndif BlockSponge.BIRO.IRO.asF BlockSim
           (LowerDist Dist)).procedure () m (fun r _ => r = true) : ℝ)| := by
-  sorry
+  -- EC: `by rewrite (RealIndif_Sponge_BlockSponge &m) (IdealIndif_IRO_BlockIRO &m)`
+  rw [RealIndif_Sponge_BlockSponge BlockSim Dist hD _hR m,
+    IdealIndif_IRO_BlockIRO BlockSim Dist hS hD _hR m]
 
 end Main
 
@@ -3834,7 +3854,8 @@ theorem conclusion (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
       |(Procedure.Pr (BlockSponge.RealIndif BlockSponge.Sponge Perm (LowerDist Dist)).procedure ()
           m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (BlockSponge.IdealIndif BlockSponge.BIRO.IRO.asF BlockSim
-          (LowerDist Dist)).procedure () m (fun r _ => r = true) : ℝ)| := by
-  sorry
+          (LowerDist Dist)).procedure () m (fun r _ => r = true) : ℝ)| :=
+  -- EC: `by apply (conclu BlockSim Dist &m)`
+  conclu BlockSim Dist hS hD _hR m
 
 end GaudisCrypt.SHA3.Sponge
