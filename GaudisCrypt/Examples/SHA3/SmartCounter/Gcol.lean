@@ -282,7 +282,21 @@ theorem Pr_G1col (hD : Module.ECModule D distExt)
     (m : VariableAssignment) :
     (Procedure.Pr (G1 (DRestr D)).procedure () m (fun _ g => G1.bcol.get g = true) : ℝ) ≤
       (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
-  sorry
+  -- the local module `Gcol`'s variable `count`, fresh (exception E6)
+  have hF : (FVP.fvP D ⊔ C.footprint ⊔ (F.RO.m).footprint ⊔ (FRO.m).footprint ⊔
+      (G1.m).footprint ⊔ (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
+      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
+      G1.bcol.footprint).FinitelySupported := by
+    unfold C.footprint
+    repeat (first | exact hD.finitelySupported | exact .varLens _ | refine .sup ?_ ?_)
+  obtain ⟨Gcol_count, hc, -⟩ := Footprint.exists_fresh ℤ hF
+  -- EC: `apply (ler_trans Pr[Gcol.main()@&m : G1.bcol /\ Gcol.count <= max_size])`,
+  -- `byequiv G1_col=> //#` and `apply (Pr_col &m)`
+  refine le_trans ?_ (Pr_col Gcol_count D hD hc _hDd D_ll m)
+  exact_mod_cast Procedure.Pr_le_of_prhlProc (G1_col Gcol_count D hD hc _hDd D_ll)
+    (E₁ := fun _ g => G1.bcol.get g = true)
+    (E₂ := fun _ g => G1.bcol.get g = true ∧ Gcol_count.get g ≤ max_size)
+    (fun _ _ _ _ h h1 => ⟨h.1 h1, h.2⟩) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
 
 end PROOF
 
