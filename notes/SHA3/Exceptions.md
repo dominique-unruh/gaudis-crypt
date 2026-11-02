@@ -229,6 +229,13 @@ footprint-disjointness alone does not frame).  A `glob` is a lens region, so it 
   more: both as in EasyCrypt.
 * `glob M ≥ fvP M` (`Footprint.le_glob`), so the old form follows; `fp_disjoint` uses it.  For a
   concrete module, `glob` is bounded by its variables (`FinitelySupported.glob_le_compl_varLens`).
+* An abstract module against the module variables of a *generic* theory (lens parameters, E4/E6)
+  is stated the other way round, as `(FVP.fvP X).glob ≤ (vars)ᶜ` (2026-11-02, `Strong_RP_RF`'s
+  `Conclusion`, `PartialConclusion`, `pr_PRPi'_Indirect_ARP`): a lens parameter need not be a
+  single variable, and `glob X` is outside it only if said so.  For `global_var` instances it
+  follows from `FVP.fvP X ≤ (vars)ᶜ` and `X`'s finite support, which `fp_disjoint` does
+  (`varLens_le_compl_glob`); `fp_disjoint` uses a hypothesis `glob X ≤ Sᶜ` for a lens parameter in
+  `S` (and any `T ≤ Sᶜ` for a region `T`).
 
 ## E8: the abstract call rule's side conditions in a generic theory
 
@@ -262,6 +269,12 @@ argument type `block list * int` is countable outright (`block` is finite).
 `[Lens.Disjoint RO_m FRO_m]`; `FullEager.eager_D` and `Eager_1_2` take the countability.  So
 `Sponge.HybridIRO.LRO_RO` takes `[Lens.Disjoint ERO_RO_m ERO_FRO_m]`, which
 `HybridIROExper_Lazy_Eager'` discharges by choosing `ERO_FRO_m` fresh for `ERO_RO_m` as well.
+`Lib/EC/Strong_RP_RF` (2026-11-02): the abstract calls of `D` (`pr_PRPi_PRPi'_Indirect`,
+`PRPi'_Indirect_eq`, `pr_PRPi'_Indirect_ARP`, `pr_PRFi_collision`) take `[Countable D]` and the
+disjointness of the module variables they read as one lens: `PRPi.m`, `PRPi.mi`,
+`PRP_indirect_bad.bad`, `ARP.m`, `ARP.mi`, `ARP.coll`, `DBounder.FBounder.c` (all pairs, as
+instances); `Conclusion` and `PartialConclusion` the same for the theory's variables, plus their
+finite support (E6, to choose `PRP_indirect_bad.bad` fresh).
 
 **EasyCrypt counterpart.** None needed.  EasyCrypt's distributions are discrete, which the rule's
 countability stands in for, and distinct module variables are distinct memory locations.  A clone

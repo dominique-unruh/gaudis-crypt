@@ -1114,3 +1114,34 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 2598 | local lemma | `leq_ideal` | section Collision. | `Collision.leq_ideal` | stated |
 | 2608 | local lemma | `rw_real` | section Collision. | `Collision.rw_real` | stated |
 | 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` | stated |
+
+## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
+
+Lean: `GaudisCrypt/Lib/EC/Strong_RP_RF.lean`, namespace `GaudisCrypt.EC.Strong_RP_RF` (only what
+`ConcreteF` uses, and what its proof needs).
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 29 | module | `ARP` |  | `ARP` (variables: lenses `coll`, `m`, `mi`) | def |
+| 69 | module type | `Sample_t` |  | `Sample_t` | def |
+| 73 | module | `Direct` |  | `Direct` | def |
+| 82 | module | `Indirect` |  | `Indirect` | def |
+| 94 | module | `PRPi'` |  | `PRPi'` (`init` alias call-wrapped, E5) | def |
+| 122 | lemma | `notin_supportIP` |  | — (only for `excepted_lossless`; `dexcepted_ll` instead) | omitted |
+| 131 | lemma | `excepted_lossless` |  | `excepted_lossless` (with `uD_full`) | done |
+| 141 | phoare | `Indirect_ll` |  | — (unused downstream) | omitted |
+| 154 | lemma | `PRPi'_Indirect_f_ll` |  | — (unused downstream) | omitted |
+| 162 | lemma | `PRPi'_Indirect_fi_ll` |  | — (unused downstream) | omitted |
+| 188 | local module | `PRP_indirect_bad` | section Upto. | `PRP_indirect_bad` (variable: lens `PRP_indirect_bad_bad`, E6; `PRP` view `asPRP`) | def |
+| 230 | local lemma | `PRPi'_Indirect_eq` | section Upto. | `PRPi'_Indirect_eq` | done |
+| 237 | lemma | `pr_PRPi'_Indirect_ARP` | section Upto. | `pr_PRPi'_Indirect_ARP` (via `pr_PRPi'_Indirect_ARP_of_region`) | done (exc E7, E8, E11) |
+| 311 | module | `DBounder` |  | `DBounder` (`D` a Lean parameter), `DBounder.FBounder` (variable: lens `c`) | def |
+| 354 | local module | `FEL` | section CollisionProbability. | — (the potential carries its invariant) | omitted |
+| 392 | lemma | `pr_PRFi_collision` | section CollisionProbability. | `pr_PRFi_collision` | done (exc E8) |
+| 494 | lemma | `PartialConclusion` |  | `PartialConclusion` | done (exc E6, E7, E8) |
+| 512 | local clone | `Dexcepted.TwoStepSampling` | section PRPi_PRPi'_Indirect. | `dexcepted_indirect` (`Lib/EC/Dexcepted.lean`) | done |
+| 532 | equiv | `eq_Direct_Indirect` | section PRPi_PRPi'_Indirect. | `eq_Direct_Indirect` (`={glob}` kept) | done |
+| 544 | local equiv | `eq_PRPi_PRPi'_f_Indirect` | section PRPi_PRPi'_Indirect. | `eq_PRPi_PRPi'_f_Indirect` | done |
+| 555 | local equiv | `eq_PRPi_PRPi'_fi_Indirect` | section PRPi_PRPi'_Indirect. | `eq_PRPi_PRPi'_fi_Indirect` | done |
+| 556 | lemma | `pr_PRPi_PRPi'_Indirect` | section PRPi_PRPi'_Indirect. | `pr_PRPi_PRPi'_Indirect` | done (exc E8) |
+| 568 | lemma | `Conclusion` |  | `Conclusion` | done (exc E6, E7, E8) |

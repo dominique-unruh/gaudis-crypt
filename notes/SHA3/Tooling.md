@@ -793,3 +793,39 @@ exists_eq_left, and_false, exists_false]` before the `SecureRO` tail lemma appli
   (`x <$ d1 \`*\` d2` against `x₁ <$ d1; x₂ <$ d2`, by the identity) and its tactic
   `equiv_rnd_dprod` (splits the last statement on the left, the last two on the right — statements
   are right-nested).  `DProd` now imports `Logic/PRHLWp`.
+
+## 2026-11-02: `Strong_RP_RF` complete (the PRP/PRF switching lemma)
+
+EC's three sections, statement for statement (Mapping, "Library: `Strong_RP_RF.eca`"):
+* `PRPi_PRPi'_Indirect`: `eq_Direct_Indirect` from `dexcepted_indirect` (`Lib/EC/Dexcepted.lean`:
+  EC's `TwoStepSampling` as an equality of distributions, `dexcepted_expected`, `dexcepted_ll`);
+  EC's `transitivity PRPi'(Direct).f` is `prhlProc.trans`; the abstract call is
+  `prhlProc_abstract_call_equal_outside_module` with `I` equality.
+* `Upto`: `PRPi'_Indirect_eq` by the equal-outside call at `PRP_indirect_bad.bad`;
+  `pr_PRPi'_Indirect_ARP` by `prhlProc_abstract_call_upto_module` at the lens of all six oracle
+  variables (both sides), `F = fvP D`, with the oracle premises by the new
+  `prhlProc_upto_of_writesKeep` (`Logic/SyntacticFrame.lean`) and EC's `byequiv: bad` as the new
+  `Procedure.Pr_abs_sub_le_of_prhlProc_upto` (`Logic/PRHLStmt.lean`, with `prhlProc.symm` and the
+  union bound `Procedure.Pr_or_le`).  The lemma is proven for a region `G ⊇ fvP D` (`D_ll` over
+  oracles outside `G`), EC's statement being `G = glob D`: `PartialConclusion` applies it to
+  `DBounder(D)` at `glob D ⊔ DBounder.c` (a composed module's `glob` is not its parts').
+* `CollisionProbability`: EC's `fel 2` as a potential over the distinguisher
+  (`Module.ewp_app_le`, as in `SecureRO`); the potential is `⊤` off EC's invariant
+  `|dom ARP.m|, |dom ARP.mi| <= c`, so EC's local module `FEL` and the two `have`s that switch to it
+  are not needed (a proof-level deviation; statements unchanged).
+* `Conclusion` picks `PRP_indirect_bad.bad` fresh outside `glob D` (`Footprint.exists_fresh_glob`,
+  `Logic/FootprintSolver.lean`; `freshName` made public).
+
+New tooling:
+* `prhlStmt_seq_sample_run_right` and the tactic `equiv_rnd_run k`: a sampling on the left against
+  `k` statements on the right whose run is the same sampling (the obligation is an equation of
+  runs).
+* `fp_disjoint`: a lens parameter against `glob F` or any region `T`, from a hypothesis `T ≤ Sᶜ`
+  with the parameter in `S` (turned around).
+* `Lib/EC/FMap.lean`: `mem_frng`, `leq_card_rng_dom`, `endo_dom_rng`.
+* `Distinguisher.representable`/`ecModule` for `PRP.StrongPRP.Distinguisher` (E2 as a theorem).
+* Gotchas: `hoare_proc_to_stmt`/`phoare_proc_to_stmt` before any `have` (the judgment annotation);
+  `simp` under `localVarLens` reads can fail on an ill-typed-at-instances term: `generalize` the
+  reads first; rewriting under `decide`: `simp only [decide_eq_true_eq] at h` first; a read
+  `§X` of a predicate variable in a guard is the same on both sides once the argument is
+  rewritten (`Iff.of_eq (congrFun h _)`).

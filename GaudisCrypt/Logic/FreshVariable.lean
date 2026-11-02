@@ -47,10 +47,10 @@ theorem Footprint.FinitelySupported.varLens (v : VariableName) :
     (by simp) le_rfl⟩
 
 /-- A name longer than every name in `vs`, so different from all of them. -/
-private def freshName (vs : List VariableName) : String :=
+def freshName (vs : List VariableName) : String :=
   String.ofList (List.replicate ((vs.map fun v => v.name.length).sum + 1) 'x')
 
-private theorem freshName_ne (vs : List VariableName) (v : VariableName) (hv : v ∈ vs) :
+theorem freshName_ne (vs : List VariableName) (v : VariableName) (hv : v ∈ vs) :
     freshName vs ≠ v.name := by
   intro h
   have hlen : (freshName vs).length = (vs.map fun v => v.name.length).sum + 1 := by

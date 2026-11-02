@@ -51,6 +51,27 @@ theorem Footprint.varLens_le_compl_glob {F : Footprint VariableAssignment}
     (GaudisCrypt.varLens v).footprint ≤ F.globᶜ :=
   (Footprint.le_compl_comm _ _).mp (hF.glob_le_compl_varLens v h)
 
+/-- **Fresh variables outside a `glob`**: `Footprint.exists_fresh` for `F ⊔ G`, the fresh variable
+also outside `glob F` (it is a single variable outside `F`). -/
+theorem Footprint.exists_fresh_glob (T : Type) [Nonempty T] {F G : Footprint VariableAssignment}
+    (hF : F.FinitelySupported) (hG : G.FinitelySupported) :
+    ∃ L : Lens T VariableAssignment, L.footprint ≤ F.globᶜ ∧ L.footprint ≤ (F ⊔ G)ᶜ ∧
+      L.footprint.FinitelySupported := by
+  obtain ⟨vs, hvs⟩ := hF.sup hG
+  let w : VariableName :=
+    { name := freshName vs, type := T, key := VariableName.encode (freshName vs),
+      keyCorrect := rfl }
+  have hw : (GaudisCrypt.varLens w).footprint ≤ (F ⊔ G)ᶜ := by
+    refine le_trans ?_ (Footprint.compl_antimono hvs)
+    rw [Footprint.le_compl_comm]
+    refine iSup₂_le fun v hv => ?_
+    have hne : v ≠ w := fun h => freshName_ne vs v hv (by rw [h])
+    haveI := varLens_disjoint hne
+    exact Lens.footprint_le_compl_of_disjoint (GaudisCrypt.varLens v) (GaudisCrypt.varLens w)
+  exact ⟨GaudisCrypt.varLens w, Footprint.varLens_le_compl_glob hF w
+    ((Footprint.le_compl_comm _ _).mp (hw.trans (Footprint.compl_antimono le_sup_left))), hw,
+    Footprint.FinitelySupported.varLens w⟩
+
 namespace FootprintSolver
 
 open Lean Meta
@@ -219,6 +240,17 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
       if let some X' ← unfoldDefinition? X then
         let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[X', ty.getArg! 3])
         return ← solveFvP g' (fuel - 1)
+    -- a variable against a region `T` with a restriction hypothesis `T ≤ Sᶜ`, `X` in `S`:
+    -- turned around
+    if X.isAppOf ``Lens.footprint then
+      if ← attempt (do
+          let g' ← mkFreshExprSyntheticOpaqueMVar
+            (← mkAppM ``LE.le #[T, ← mkAppM ``Compl.compl #[X]])
+          g.assign (← mkAppM ``Iff.mpr #[← mkAppM ``Footprint.le_compl_comm #[X, T], g'])
+          let mut ok := false
+          for h in ← getLCtx do
+            if !ok then ok ← tryHyp g'.mvarId! h
+          unless ok do failure) then return
     throwError "fp_disjoint: cannot show{indentExpr ty}"
   -- `X ≤ B` by `pf`, then `B ≤ Aᶜ`
   let viaBound (pf : Lean.Expr) : MetaM Unit := do
