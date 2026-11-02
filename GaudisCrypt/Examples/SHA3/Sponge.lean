@@ -2294,7 +2294,156 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
       (fun r₁ g₁ r₂ g₂ => r₁.1 = n' * r ∧ r₂.1 = n' ∧ size r₂.2 = n' ∧
         r₁.2 = blocks2bits r₂.2 ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
-  sorry
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§n0{1} = n' ∧ §n0{2} = n' ∧ §xs0{1} = §xs0{2} ∧ §i{1} = §i{2} * r ∧ 0 ≤ §i{2} ∧
+      §i{2} ≤ n' ∧ size §(localVarLens "bs" (List block)){2} = §i{2} ∧
+      §(localVarLens "bs" (List Bool)){1} = blocks2bits §(localVarLens "bs" (List block)){2} ∧
+      eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager_mp{1})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ _ _ ⟨⟨⟩, rfl, h0, ei⟩
+    exact ⟨rfl, rfl, rfl, by ring, h0, rfl, rfl, ei⟩
+  · refine prhlStmt_of_forall_nat (fun _ σ₂ => (n' - (localVarLens "i" ℤ).get σ₂).toNat) fun k => ?_
+    induction k with
+    | zero =>
+      equiv_rcondf{1}
+      equiv_rcondf{2}
+      equiv_skip
+      rintro n0₁ _ i₁ _ _ n0₂ _ i₂ _ _ ⟨⟨hn1, hn2, -, hi, h0, hn, hs, hbs, ei⟩, hk⟩
+      have : i₂ = n' := by omega
+      subst this
+      exact ⟨by simp [hn2], by simp [hn1, hi], hi, rfl, hs, hbs, ei⟩
+    | succ k ih =>
+      refine prhlStmt_splitwhile_left
+        ⟨fun σ => decide ((localVarLens "i" ℤ).get σ < ((localVarLens "n0" ℤ).get σ - k) * r)⟩
+        (fun σ => ((localVarLens "n0" ℤ).get σ * r - (localVarLens "i" ℤ).get σ).toNat) ?_ ?_
+      · intro k'
+        simp only [Getter.andB_get, Bool.and_eq_true]
+        hoare_wp 2
+        hoare_call
+        hoare_skip
+        rintro i n0 ⟨⟨h1, -⟩, hk⟩ _ _
+        simp only [decide_eq_true_eq] at h1
+        omega
+      refine prhlStmt_unroll_right ?_
+      equiv_if{2}
+      case «else» =>
+        refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+        obtain ⟨⟨⟨-, hn, -, -, -, -, -, -, -⟩, hk⟩, hg⟩ := h
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        dsimp only [localVarLens] at hk
+        omega
+      case «then» =>
+        equiv_seq 1 1 : ((§n0{1} = n' ∧ §n0{2} = n' ∧ §xs0{1} = §xs0{2} ∧ §i{1} = §i{2} * r ∧
+            0 ≤ §i{2} ∧
+            §i{2} ≤ n' ∧ size §(localVarLens "bs" (List block)){2} = §i{2} ∧
+            §(localVarLens "bs" (List Bool)){1} = blocks2bits §(localVarLens "bs" (List block)){2} ∧
+            eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager_mp{1}) ∧ (n' - §i{2}).toNat = k)
+        · have legB : equiv[ §n0{1} = n' ∧ §n0{2} = n' ∧ §xs0{1} = §xs0{2} ∧
+              n' - ((k : ℤ) + 1) = §i{2} ∧ 0 ≤ §i{2} ∧ §i{1} = §i{2} * r ∧
+              (§n0{1} - (k : ℤ)) * r - §i{1} = r ∧
+              §(localVarLens "bs" (List Bool)){1} =
+                blocks2bits §(localVarLens "bs" (List block)){2} ∧
+              size §(localVarLens "bs" (List block)){2} = §i{2} ∧
+              eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager_mp{1} ==>
+              (§n0{1} = n' ∧ §n0{2} = n' ∧ §xs0{1} = §xs0{2} ∧ §i{1} = §i{2} * r ∧
+              0 ≤ §i{2} ∧ §i{2} ≤ n' ∧ size §(localVarLens "bs" (List block)){2} = §i{2} ∧
+              §(localVarLens "bs" (List Bool)){1} =
+                blocks2bits §(localVarLens "bs" (List block)){2} ∧
+              eager_invar §BlockSponge.BIRO.IRO.mp{2} §HybridIROEager_mp{1}) ∧
+              (n' - §i{2}).toNat = k ]
+              { var res1 : List Bool × ℤ, xs0 : List block, i : ℤ, n0 : ℤ;
+                res1 <- call (HybridIROEagerTrans.next_block HybridIROEager_mp).procedure
+                  ($xs0, $i, ($n0 - (k : ℤ)) * r, $(localVarLens "bs" (List Bool)));
+                (localVarLens "bs" (List Bool)), i <- $res1; } ~
+              { var res2 : List block × ℤ, xs0 : List block, i : ℤ;
+                res2 <- call (BlockSpongeTrans.next_block).procedure
+                  ($xs0, $i, $(localVarLens "bs" (List block)));
+                (localVarLens "bs" (List block)), i <- $res2; } := by
+            stmt_wp
+            equiv_call (HybridIROEagerTrans_BlockSpongeTrans_next_block HybridIROEager_mp
+              (n' - ((k : ℤ) + 1)))
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ ⟨hn1, hn2, hx, hi2, h0, hi, hm, hbs, hs, ei⟩
+            refine ⟨⟨hi2, h0, hx, hi, hm, hbs, hs, ei⟩, ?_⟩
+            rintro r₁ g₁ r₂ g₂ ⟨h1, h2, h3, h4, ei'⟩
+            exact ⟨⟨hn1, hn2, hx, h2, by omega, by omega, by rw [h4, h3], h1, ei'⟩, by omega⟩
+          have legC : equiv[ §n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §i{1} = §i{2} ∧
+              §(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ∧
+              §allGlobals{1} = §allGlobals{2} ==>
+              §n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §i{1} = §i{2} ∧
+              §(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ∧
+              §allGlobals{1} = §allGlobals{2} ]
+              { var res2 : List block × ℤ, xs0 : List block, i : ℤ, n0 : ℤ;
+                res2 <- call (BlockSpongeTrans.next_block).procedure
+                  ($xs0, $i, $(localVarLens "bs" (List block)));
+                (localVarLens "bs" (List block)), i <- $res2; } ~
+              { var xs0 : List block, i : ℤ, b : block, n0 : ℤ;
+                b <- call BlockSponge.BIRO.IRO.fill_in.procedure ($xs0, $i);
+                (localVarLens "bs" (List block)) <- rcons $(localVarLens "bs" (List block)) $b;
+                i <- $i + 1; } := by
+            stmt_inline{1} 0
+            stmt_wp
+            equiv_call
+            stmt_wp
+            equiv_skip
+            intros; simp_all
+          refine prhlStmt_conseq (prhlStmt.trans
+            (A := fun σ σ' => (localVarLens "n0" ℤ).get σ = (localVarLens "n0" ℤ).get σ' ∧
+              (localVarLens "xs0" (List block)).get σ = (localVarLens "xs0" (List block)).get σ' ∧
+              (localVarLens "i" ℤ).get σ = (localVarLens "i" ℤ).get σ' ∧
+              (localVarLens "bs" (List Bool)).get σ = (localVarLens "bs" (List Bool)).get σ' ∧
+              σ.globals = σ'.globals)
+            (B := fun σ σ' => (localVarLens "n0" ℤ).get σ = (localVarLens "n0" ℤ).get σ' ∧
+              (localVarLens "xs0" (List block)).get σ = (localVarLens "xs0" (List block)).get σ' ∧
+              (localVarLens "i" ℤ).get σ = (localVarLens "i" ℤ).get σ' ∧
+              (localVarLens "bs" (List Bool)).get σ = (localVarLens "bs" (List Bool)).get σ' ∧
+              σ.globals = σ'.globals) ?_ (prhlStmt.trans legB legC)) ?_ ?_
+          · stmt_inline{2} 0
+            stmt_wp
+            unfold Getter.andB
+            have hr := gt0_r
+            equiv_seq 1 1 : (§n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §xs{2} = §xs0{2} ∧
+                §m{2} = (§n0{1} - (k : ℤ)) * r ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs0{2} ∧
+                §allGlobals{1} = §allGlobals{2})
+            · stmt_wp
+              equiv_skip
+              intros; simp_all
+            · equiv_while (§n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §xs{2} = §xs0{2} ∧
+                §m{2} = (§n0{1} - (k : ℤ)) * r ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs0{2} ∧
+                §allGlobals{1} = §allGlobals{2})
+              case body =>
+                stmt_wp
+                equiv_call
+                equiv_skip
+                intros; simp_all
+              case guard =>
+                rintro _ _ n0 _ i _ _ _ _ _ _ _ ⟨rfl, -, -, rfl, rfl, -⟩
+                have hk : (n0 - (k : ℤ)) * r ≤ n0 * r := by nlinarith
+                by_cases h : i < (n0 - (k : ℤ)) * r
+                · simp [h, show i < n0 * r by omega]
+                · simp [h]
+              case exit => intros; simp_all
+              · equiv_skip; intros; simp_all
+          · rintro σ₁ σ₂ ⟨⟨⟨hn1, hn2, hx, hi, h0, hle, hs, hbs, ei⟩, hk⟩, -⟩
+            have hi2 : n' - ((k : ℤ) + 1) = (localVarLens "i" ℤ).get σ₂ := by omega
+            refine ⟨σ₁, ⟨rfl, rfl, rfl, rfl, rfl⟩, σ₂, ⟨hn1, hn2, hx, hi2, h0, hi, ?_, hbs, hs, ei⟩,
+              rfl, rfl, rfl, rfl, rfl⟩
+            change ((localVarLens "n0" ℤ).get σ₁ - k) * r - (localVarLens "i" ℤ).get σ₁ = r
+            rw [hn1, hi, ← hi2]
+            ring
+          · rintro τ₁ τ₂ ⟨τm, ⟨hn, hx, hi, hbs, hg⟩, τm', ⟨⟨hn1, hn2, hx', hi', h0, hle, hs, hbs',
+              ei⟩,
+              hk⟩, hn'', hx'', hi'', hbs'', hg''⟩
+            simp only [eval_lens_full, eval_lens_global, eval_getter_full, eval_getter_global,
+              allGlobals_get] at *
+            rw [hn, hx, hi, hbs, hg, ← hn'', ← hx'', ← hi'', ← hbs'']
+            rw [← hg''] at *
+            exact ⟨⟨hn1, hn2, hx', hi', h0, hle, hs, hbs', ei⟩, hk⟩
+        · exact ih
 
 /-- `lemma HybridIROEager_f_BlockIRO_f (n1 : int) (x2 : block list) : equiv[HybridIROEager.f ~
 BlockSponge.BIRO.IRO.f : …]`; the arguments are `(xs, n)` and `(x, n)`. -/

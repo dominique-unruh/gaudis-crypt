@@ -866,3 +866,19 @@ New tooling:
 * Ghost variables (EC's `exists*`): read them from the other side when it keeps them, or fold the
   use of the ghost into the invariant (a universally quantified statement about the current
   state).
+* `Logic/LoopTransform.lean` (new): EC's `splitwhile` (`Stmt.Equiv.splitwhile`, needs a variant
+  for the first loop: proven on expectations, `ewp_while_le` above and `ewp_while_ge_variant`
+  below) and `unroll` (`Stmt.Equiv.unroll`), applied in judgments by
+  `prhlStmt_(seq_)splitwhile_left/right` and `prhlStmt_(seq_)unroll_left/right`; the split guard
+  is `c.andB e` (`unfold Getter.andB` before `equiv_while`, so the guard goal sees both tests).
+  `prhlStmt.trans` is EC's `transitivity{i} { code }` (middle programs as `equiv[ … ] { … } ~
+  { … }` statements of `have`s; a variable with two types on the two sides is written
+  `(localVarLens "bs" T)` in the code, and the relations of the outer leg as lambdas).
+  `prhlStmt_of_forall_nat` + `induction` is EC's induction on the rounds left
+  (`HybridIROEagerTrans_BlockSpongeTrans_loop`: per step, `splitwhile` the bit loop at the next
+  block, `unroll` the block loop, the block by `next_block` through calls).
+* Reads of a measure written with `localVarLens` and the elaborator's `Lens.intoLocal (varLens …)`
+  are different atoms for `omega`: `dsimp only [localVarLens] at h` first.
+* Exit conditions of `prhlStmt.trans` chains show middle-state reads as `§x` (`eval`):
+  `simp only [eval_lens_full, eval_lens_global, eval_getter_full, eval_getter_global,
+  allGlobals_get] at *` before rewriting.

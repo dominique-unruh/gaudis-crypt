@@ -702,7 +702,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1250 | module | `BlockGen` |  | `HybridIRO.BlockGen` | def |
 | 1269 | lemma | `BlockGen_loop_direct` |  | `HybridIRO.BlockGen_loop_direct` | done |
 | 1307 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_next_block` |  | `HybridIRO.HybridIROEagerTrans_BlockSpongeTrans_next_block` | done |
-| 1507 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_loop` |  | `HybridIRO.HybridIROEagerTrans_BlockSpongeTrans_loop` | stated |
+| 1507 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_loop` |  | `HybridIRO.HybridIROEagerTrans_BlockSpongeTrans_loop` | done |
 | 1614 | lemma | `HybridIROEager_f_BlockIRO_f` |  | `HybridIRO.HybridIROEager_f_BlockIRO_f` | stated |
 | 1873 | lemma | `HybridIROEager_BlockIRO_f` |  | `HybridIRO.HybridIROEager_BlockIRO_f` | stated |
 | 1915 | declare module | `BlockSim` | section . | `BlockSim` (parameter, with `hS`, `Restrictions`) | def |

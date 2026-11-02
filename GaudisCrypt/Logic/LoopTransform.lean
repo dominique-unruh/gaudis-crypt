@@ -125,6 +125,42 @@ theorem prhlStmt_seq_unroll_right {s₁ s₂ body : Stmt} {c : Getter Bool Progr
   prhlStmt_of_equiv_right
     (StmtWithHoles.EquivInLens.seq (StmtWithHoles.Equiv.refl s₂) (Stmt.Equiv.unroll c body)) h
 
+/-- `splitwhile{1}` on a loop that is the whole left statement. -/
+theorem prhlStmt_splitwhile_left {s₂ body : Stmt} {c : Getter Bool ProgramState}
+    (e : Getter Bool ProgramState) (V : ProgramState → ℕ)
+    (hvar : ∀ k, hoareStmt (fun σ => (c.andB e).get σ = true ∧ V σ = k) body (fun τ => V τ < k))
+    (h : prhlStmt A (.seq (.while (c.andB e) body) (.while c body)) s₂ B) :
+    prhlStmt A (.while c body) s₂ B :=
+  prhlStmt_of_equiv_left (Stmt.Equiv.splitwhile c e body V hvar) h
+
+/-- `splitwhile{2}` on a loop that is the whole right statement. -/
+theorem prhlStmt_splitwhile_right {s₁ body : Stmt} {c : Getter Bool ProgramState}
+    (e : Getter Bool ProgramState) (V : ProgramState → ℕ)
+    (hvar : ∀ k, hoareStmt (fun σ => (c.andB e).get σ = true ∧ V σ = k) body (fun τ => V τ < k))
+    (h : prhlStmt A s₁ (.seq (.while (c.andB e) body) (.while c body)) B) :
+    prhlStmt A s₁ (.while c body) B :=
+  prhlStmt_of_equiv_right (Stmt.Equiv.splitwhile c e body V hvar) h
+
+/-- `unroll{1}` on a loop that is the whole left statement. -/
+theorem prhlStmt_unroll_left {s₂ body : Stmt} {c : Getter Bool ProgramState}
+    (h : prhlStmt A (.ifThenElse c (.seq body (.while c body)) .skip) s₂ B) :
+    prhlStmt A (.while c body) s₂ B :=
+  prhlStmt_of_equiv_left (Stmt.Equiv.unroll c body) h
+
+/-- `unroll{2}` on a loop that is the whole right statement. -/
+theorem prhlStmt_unroll_right {s₁ body : Stmt} {c : Getter Bool ProgramState}
+    (h : prhlStmt A s₁ (.ifThenElse c (.seq body (.while c body)) .skip) B) :
+    prhlStmt A s₁ (.while c body) B :=
+  prhlStmt_of_equiv_right (Stmt.Equiv.unroll c body) h
+
+/-! ## Induction -/
+
+/-- A judgment by cases on a measure of the initial states (for an induction on it, e.g. on the
+rounds a loop has left: EC's `elim` on an integer in a proof by induction). -/
+theorem prhlStmt_of_forall_nat {c₁ c₂ : Stmt} (f : ProgramState → ProgramState → ℕ)
+    (h : ∀ k, prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ f σ₁ σ₂ = k) c₁ c₂ B) : prhlStmt A c₁ c₂ B :=
+  fun σ₁ σ₂ hA => h (f σ₁ σ₂) σ₁ σ₂ ⟨hA, rfl⟩
+
 /-! ## Transitivity -/
 
 /-- **Transitivity** of statement judgments (EC's `transitivity{i} { code } P Q`, with `code` the
