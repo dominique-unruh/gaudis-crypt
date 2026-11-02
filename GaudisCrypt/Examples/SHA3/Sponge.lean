@@ -1331,6 +1331,7 @@ theorem Lower_HybridIROEager_f :
       (HybridIROEager.f HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = bits2blocks r₂ ∧
         HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂) := by
+  -- EC: `inline*`, `seq 5 3`, then `if`, and the two loops in lockstep
   equiv_proc
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -1345,13 +1346,14 @@ theorem Lower_HybridIROEager_f :
     case «else» => equiv_skip; intros; simp_all
     case «then» =>
       equiv_seq 1 1 : (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
-      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+          §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
       · equiv_while (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
-      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+            §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
         case body =>
           stmt_wp
           equiv_seq 1 1 : ((§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
-      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2}) ∧ §xs2{1} = §xs1{1} ∧ §i0{1} = §i{1} ∧ §xs1{2} = §xs0{2} ∧ §i0{2} = §i{2})
+              §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2}) ∧
+              §xs2{1} = §xs1{1} ∧ §i0{1} = §i{1} ∧ §xs1{2} = §xs0{2} ∧ §i0{2} = §i{2})
           · stmt_wp
             equiv_skip
             intros; simp_all
@@ -1367,11 +1369,12 @@ theorem Lower_HybridIROEager_f :
         case exit => intros; simp_all
         · equiv_skip; intros; simp_all
       · equiv_while (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
-      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+            §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
         case body =>
           stmt_wp
           equiv_seq 1 1 : ((§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
-      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2}) ∧ §xs3{1} = §xs1{1} ∧ §i1{1} = §i{1} ∧ §xs2{2} = §xs0{2} ∧ §i1{2} = §i{2})
+              §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2}) ∧
+              §xs3{1} = §xs1{1} ∧ §i1{1} = §i{1} ∧ §xs2{2} = §xs0{2} ∧ §i1{2} = §i{2})
           · stmt_wp
             equiv_skip
             intros; simp_all
