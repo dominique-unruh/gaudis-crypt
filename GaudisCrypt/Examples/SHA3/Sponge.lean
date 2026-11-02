@@ -1817,18 +1817,20 @@ module BlockGenCall {
 
 /-- EC's `byequiv` step of `BlockGen_loop_direct`: `BlockGen.loop`'s loop is
 `Prog.LoopSnoc.sample(r)`'s. -/
-theorem BlockGen_loop_BlockGenCall :
-    prhlProc (fun _ _ _ _ => True) BlockGen.loop.procedure BlockGenCall.loop.procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+theorem BlockGen_loop_BlockGenCall (P : VariableAssignment → VariableAssignment → Prop) :
+    prhlProc (fun _ g₁ _ g₂ => P g₁ g₂) BlockGen.loop.procedure BlockGenCall.loop.procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ P g₁ g₂) := by
   equiv_proc
   stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r)
+  equiv_seq 1 1 : (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r ∧
+      P §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all
-  · equiv_while (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r)
+  · equiv_while (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r ∧
+        P §allGlobals{1} §allGlobals{2})
     case body =>
       stmt_wp
       equiv_rnd
@@ -1840,9 +1842,9 @@ theorem BlockGen_loop_BlockGenCall :
 
 /-- `BlockGen.direct` against `BlockGenCall.loop`: the bits from `LoopSnoc.sample` are `dlist {0,1}
 r` (`LoopSnoc.sample_denotation`), whose image by `mkblock` is `bdistr` (`bdistr_dlist`). -/
-theorem BlockGen_direct_BlockGenCall :
-    prhlProc (fun _ _ _ _ => True) BlockGen.direct.procedure BlockGenCall.loop.procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+theorem BlockGen_direct_BlockGenCall (P : VariableAssignment → VariableAssignment → Prop) :
+    prhlProc (fun _ g₁ _ g₂ => P g₁ g₂) BlockGen.direct.procedure BlockGenCall.loop.procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ P g₁ g₂) := by
   equiv_proc
   stmt_inline{1} 0
   stmt_inline{2} 0
@@ -1853,8 +1855,8 @@ theorem BlockGen_direct_BlockGenCall :
     (fun _ _ => dlist dbool r) mkblock ?_
   stmt_wp
   equiv_skip
-  intro τ _
-  refine ⟨?_, bdistr_dlist⟩
+  intro τ _ hP
+  refine ⟨?_, bdistr_dlist, fun _ _ => hP⟩
   generalize (resetSetter _).set () τ = σ
   refine (programDenotation_call_apply _ _ _ σ).trans ?_
   erw [DList.Program.LoopSnoc.sample_denotation]
@@ -1868,9 +1870,20 @@ two equivalences above, composed (the same facts as distributions). -/
 theorem BlockGen_loop_direct :
     prhlProc (fun _ _ _ _ => True) BlockGen.loop.procedure BlockGen.direct.procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) :=
-  prhlProc_conseq (prhlProc.trans BlockGen_loop_BlockGenCall
-      (prhlProc.symm BlockGen_direct_BlockGenCall))
-    (fun _ g _ _ _ => ⟨(), g, trivial, trivial⟩) (fun _ _ _ _ ⟨_, _, h, h'⟩ => h.trans h'.symm)
+  prhlProc_conseq (prhlProc.trans (BlockGen_loop_BlockGenCall fun _ _ => True)
+      (prhlProc.symm (BlockGen_direct_BlockGenCall fun _ _ => True)))
+    (fun _ g _ _ _ => ⟨(), g, trivial, trivial⟩)
+    (fun _ _ _ _ ⟨_, _, h, h'⟩ => h.1.trans h'.1.symm)
+
+/-- `BlockGen_loop_direct`, keeping the globals equal (for EC's `call BlockGen_loop_direct`, which
+frames the caller's state). -/
+theorem BlockGen_loop_direct_eq :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) BlockGen.loop.procedure BlockGen.direct.procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) :=
+  prhlProc_conseq (prhlProc.trans (BlockGen_loop_BlockGenCall Eq)
+      (prhlProc.symm (BlockGen_direct_BlockGenCall Eq)))
+    (fun _ g _ _ h => ⟨(), g, rfl, h.symm⟩)
+    (fun _ _ _ _ ⟨_, _, h, h'⟩ => ⟨h.1.trans h'.1.symm, h.2.trans h'.2.symm⟩)
 
 /-- `lemma HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : int) :
 equiv[HybridIROEagerTrans.next_block ~ BlockSpongeTrans.next_block : …]`; the arguments are
