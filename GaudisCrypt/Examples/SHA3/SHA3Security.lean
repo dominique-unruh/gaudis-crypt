@@ -82,7 +82,17 @@ def to_list : f_out → List Bool := Params.to_list
 def of_list : List Bool → Option f_out := Params.of_list
 
 theorem doutE1 (x : f_out) : (dout.1 {x}).toReal = ((2 : ℝ) ^ size_out)⁻¹ := by
-  sorry
+  have hlen : ((to_list x).length : ℤ) = size_out := Params.spec_dout x
+  have h := map_mu1_inj dout Params.to_list_inj x
+  change (Params.dout >>= fun a => (pure (Params.to_list a) : SubProbability _)).1
+    {Params.to_list x} = _ at h
+  rw [Params.dout_equal_dlist, dlist1E _ _ (Params.to_list x) (Params.spec_dout x)] at h
+  change _ = dout.1 {x} at h
+  rw [← h]
+  simp only [dbool1E, List.map_const', List.prod_replicate, ENNReal.toReal_pow,
+    ENNReal.toReal_inv]
+  have hl : ((Params.to_list x).length : ℤ) = size_out := hlen
+  rw [← zpow_natCast, hl, ENNReal.toReal_ofNat, inv_zpow]
 
 -- EC's `CSetSize(F : CONSTRUCTION)(P : DPRIMITIVE)`, with `F` a Lean parameter so that
 -- `CSetSize F` is a construction; its `proc init = F(P).init` is wrapped in a call (exception E5)
@@ -307,17 +317,28 @@ def equiv_ro_iro.statement (c : ℤ) (m : List Bool) : Prop :=
 namespace Preimage
 
 theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap.rng mi := by
-  sorry
+  intro h
+  funext x
+  apply propext
+  rw [FMap.domE, FMap.rngE]
+  constructor
+  · intro hx
+    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hx
+    exact ⟨v, (h x v).mp hv⟩
+  · rintro ⟨a, ha⟩
+    rw [(h x a).mpr ha]
+    simp
 
-theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m := by
-  sorry
+theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m :=
+  fun h x y => (h y x).symm
 
-theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m := by
-  sorry
+theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
+  ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
 theorem useful (m mi : FMap state state) (a : state) :
-    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) := by
-  sorry
+    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) :=
+  fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
+    ⟨a, h⟩
 
 theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
   sorry
@@ -350,17 +371,28 @@ theorem Sponge_preimage_resistant (A : SRO.AdvPreimage)
 namespace SecondPreimage
 
 theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap.rng mi := by
-  sorry
+  intro h
+  funext x
+  apply propext
+  rw [FMap.domE, FMap.rngE]
+  constructor
+  · intro hx
+    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hx
+    exact ⟨v, (h x v).mp hv⟩
+  · rintro ⟨a, ha⟩
+    rw [(h x a).mpr ha]
+    simp
 
-theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m := by
-  sorry
+theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m :=
+  fun h x y => (h y x).symm
 
-theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m := by
-  sorry
+theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
+  ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
 theorem useful (m mi : FMap state state) (a : state) :
-    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) := by
-  sorry
+    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) :=
+  fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
+    ⟨a, h⟩
 
 theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
   sorry
@@ -393,17 +425,28 @@ theorem Sponge_second_preimage_resistant (A : SRO.AdvSecondPreimage)
 namespace Collision
 
 theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap.rng mi := by
-  sorry
+  intro h
+  funext x
+  apply propext
+  rw [FMap.domE, FMap.rngE]
+  constructor
+  · intro hx
+    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hx
+    exact ⟨v, (h x v).mp hv⟩
+  · rintro ⟨a, ha⟩
+    rw [(h x a).mpr ha]
+    simp
 
-theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m := by
-  sorry
+theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m :=
+  fun h x y => (h y x).symm
 
-theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m := by
-  sorry
+theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
+  ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
 theorem useful (m mi : FMap state state) (a : state) :
-    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) := by
-  sorry
+    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) :=
+  fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
+    ⟨a, h⟩
 
 theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
   sorry

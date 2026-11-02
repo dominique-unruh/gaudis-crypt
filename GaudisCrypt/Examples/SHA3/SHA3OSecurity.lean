@@ -84,7 +84,17 @@ def to_list : f_out → List Bool := Params.to_list
 def of_list : List Bool → Option f_out := Params.of_list
 
 theorem doutE1 (x : f_out) : (dout.1 {x}).toReal = ((2 : ℝ) ^ size_out)⁻¹ := by
-  sorry
+  have hlen : ((to_list x).length : ℤ) = size_out := Params.spec_dout x
+  have h := map_mu1_inj dout Params.to_list_inj x
+  change (Params.dout >>= fun a => (pure (Params.to_list a) : SubProbability _)).1
+    {Params.to_list x} = _ at h
+  rw [Params.dout_equal_dlist, dlist1E _ _ (Params.to_list x) (Params.spec_dout x)] at h
+  change _ = dout.1 {x} at h
+  rw [← h]
+  simp only [dbool1E, List.map_const', List.prod_replicate, ENNReal.toReal_pow,
+    ENNReal.toReal_inv]
+  have hl : ((Params.to_list x).length : ℤ) = size_out := hlen
+  rw [← zpow_natCast, hl, ENNReal.toReal_ofNat, inv_zpow]
 
 /-- `fun c m => c + ((size m + 1) %/ r + 1) + max ((size_out + r - 1) %/ r - 1) 0`, the clones'
 `increase_counter` (an abbreviation, not an EasyCrypt declaration). -/
@@ -532,8 +542,8 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
         eq_extend_size (BIRO.IRO.mp.get g₁) (BIRO.IRO.mp.get g₂) (Log_m.get g₂)) := by
   sorry
 
-theorem of_listK (l : f_out) : of_list (to_list l) = some l := by
-  sorry
+theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
+  (Params.to_listK l (to_list l)).mp rfl
 
 -- EC's local `Fill_In(F : RO)`; `proc init = F.init` is wrapped in a call (E5)
 module Fill_In using (F : Eager.RO_T) : FUNCTIONALITY {
@@ -947,8 +957,8 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
         eq_extend_size (BIRO.IRO.mp.get g₁) (BIRO.IRO.mp.get g₂) (Log_m.get g₂)) := by
   sorry
 
-theorem of_listK (l : f_out) : of_list (to_list l) = some l := by
-  sorry
+theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
+  (Params.to_listK l (to_list l)).mp rfl
 
 -- EC's local `Fill_In(F : RO)`; `proc init = F.init` is wrapped in a call (E5)
 module Fill_In using (F : Eager.RO_T) : FUNCTIONALITY {
@@ -1413,8 +1423,8 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
         eq_extend_size (BIRO.IRO.mp.get g₁) (BIRO.IRO.mp.get g₂) (Log_m.get g₂)) := by
   sorry
 
-theorem of_listK (l : f_out) : of_list (to_list l) = some l := by
-  sorry
+theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
+  (Params.to_listK l (to_list l)).mp rfl
 
 -- EC's local `Fill_In(F : RO)`; `proc init = F.init` is wrapped in a call (E5)
 module Fill_In using (F : Eager.RO_T) : FUNCTIONALITY {

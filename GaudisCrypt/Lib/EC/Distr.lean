@@ -102,4 +102,11 @@ noncomputable def dbool : SubProbability Bool := SubProbability.uniform
 /-- `lemma dbool_ll : is_lossless dbool`. -/
 theorem dbool_ll : is_lossless dbool := uniform_ll
 
+/-- `lemma dbool1E`: each boolean has probability `1/2`. -/
+theorem dbool1E (b : Bool) : dbool.1 {b} = 2⁻¹ := by
+  letI : MeasurableSpace Bool := ⊤
+  change (PMF.uniformOfFintype Bool).toMeasure {b} = _
+  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton b)]
+  simp
+
 end GaudisCrypt.EC

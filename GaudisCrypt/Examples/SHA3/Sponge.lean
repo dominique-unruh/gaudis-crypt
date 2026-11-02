@@ -901,49 +901,72 @@ def lazy_invar (mp1 : FMap (List Bool × ℤ) Bool) (mp2 : FMap (List block × �
   (∀ (bs : List Bool) (n : ℤ), FMap.dom mp1 (bs, n) →
     oget (FMap.get mp1 (bs, n)) = oget (FMap.get mp2 (pad2blocks bs, n)))
 
-theorem lazy_invar0 : lazy_invar FMap.empty FMap.empty := by
-  sorry
+theorem lazy_invar0 : lazy_invar FMap.empty FMap.empty :=
+  ⟨fun _ _ => iff_of_false (FMap.mem_empty _) (FMap.mem_empty _),
+    fun _ _ h => absurd h (FMap.mem_empty _), fun _ _ h => absurd h (FMap.mem_empty _)⟩
 
 theorem lazy_invar_mem_pad2blocks_l2r (mp1 : FMap (List Bool × ℤ) Bool)
     (mp2 : FMap (List block × ℤ) Bool) (bs : List Bool) (i : ℤ) :
-    lazy_invar mp1 mp2 → FMap.dom mp1 (bs, i) → FMap.dom mp2 (pad2blocks bs, i) := by
-  sorry
+    lazy_invar mp1 mp2 → FMap.dom mp1 (bs, i) → FMap.dom mp2 (pad2blocks bs, i) :=
+  fun li h => (li.1 bs i).mp h
 
 theorem lazy_invar_mem_pad2blocks_r2l (mp1 : FMap (List Bool × ℤ) Bool)
     (mp2 : FMap (List block × ℤ) Bool) (bs : List Bool) (i : ℤ) :
-    lazy_invar mp1 mp2 → FMap.dom mp2 (pad2blocks bs, i) → FMap.dom mp1 (bs, i) := by
-  sorry
+    lazy_invar mp1 mp2 → FMap.dom mp2 (pad2blocks bs, i) → FMap.dom mp1 (bs, i) :=
+  fun li h => (li.1 bs i).mpr h
 
 theorem lazy_invar_vb (mp1 : FMap (List Bool × ℤ) Bool) (mp2 : FMap (List block × ℤ) Bool)
     (xs : List block) (n : ℤ) :
-    lazy_invar mp1 mp2 → FMap.dom mp2 (xs, n) → valid_block xs := by
-  sorry
+    lazy_invar mp1 mp2 → FMap.dom mp2 (xs, n) → valid_block xs :=
+  fun li h => li.2.1 xs n h
 
 theorem lazy_invar_lookup_eq (mp1 : FMap (List Bool × ℤ) Bool)
     (mp2 : FMap (List block × ℤ) Bool) (bs : List Bool) (n : ℤ) :
     lazy_invar mp1 mp2 → FMap.dom mp1 (bs, n) →
-    oget (FMap.get mp1 (bs, n)) = oget (FMap.get mp2 (pad2blocks bs, n)) := by
-  sorry
+    oget (FMap.get mp1 (bs, n)) = oget (FMap.get mp2 (pad2blocks bs, n)) :=
+  fun li h => li.2.2 bs n h
 
 theorem lazy_invar_upd_mem_dom_iff (mp1 : FMap (List Bool × ℤ) Bool)
     (mp2 : FMap (List block × ℤ) Bool) (bs cs : List Bool) (n m : ℤ) (b : Bool) :
     lazy_invar mp1 mp2 →
     (FMap.dom (FMap.set mp1 (bs, n) b) (cs, m) ↔
       FMap.dom (FMap.set mp2 (pad2blocks bs, n) b) (pad2blocks cs, m)) := by
-  sorry
+  intro li
+  rw [FMap.mem_set, FMap.mem_set, li.1 cs m]
+  simp only [Prod.mk.injEq]
+  constructor
+  · rintro (h | ⟨rfl, rfl⟩) <;> simp_all
+  · rintro (h | ⟨h1, rfl⟩)
+    · exact Or.inl h
+    · exact Or.inr ⟨pad2blocks_inj h1, rfl⟩
 
 theorem lazy_invar_upd2_vb (mp1 : FMap (List Bool × ℤ) Bool)
     (mp2 : FMap (List block × ℤ) Bool) (bs : List Bool) (xs : List block) (n m : ℤ) (b : Bool) :
     lazy_invar mp1 mp2 → FMap.dom (FMap.set mp2 (pad2blocks bs, n) b) (xs, m) →
     valid_block xs := by
-  sorry
+  intro li h
+  rcases (FMap.mem_set _ _ _ _).mp h with h | h
+  · exact li.2.1 xs m h
+  · simp only [Prod.mk.injEq] at h
+    rw [h.1]; exact valid_pad2blocks bs
 
 theorem lazy_invar_upd_lu_eq (mp1 : FMap (List Bool × ℤ) Bool)
     (mp2 : FMap (List block × ℤ) Bool) (bs cs : List Bool) (n m : ℤ) (b : Bool) :
     lazy_invar mp1 mp2 → FMap.dom (FMap.set mp1 (bs, n) b) (cs, m) →
     oget (FMap.get (FMap.set mp1 (bs, n) b) (cs, m)) =
       oget (FMap.get (FMap.set mp2 (pad2blocks bs, n) b) (pad2blocks cs, m)) := by
-  sorry
+  intro li h
+  rw [FMap.get_setE, FMap.get_setE]
+  by_cases hc : (cs, m) = (bs, n)
+  · simp only [Prod.mk.injEq] at hc
+    obtain ⟨rfl, rfl⟩ := hc
+    simp
+  · have hp : (pad2blocks cs, m) ≠ (pad2blocks bs, n) := fun h' => hc (by
+      simp only [Prod.mk.injEq] at h' ⊢; exact ⟨pad2blocks_inj h'.1, h'.2⟩)
+    rw [if_neg hc, if_neg hp]
+    rcases (FMap.mem_set _ _ _ _).mp h with h | h
+    · exact li.2.2 cs m h
+    · exact absurd h hc
 
 /-- `lemma LowerFun_IRO_HybridIROLazy_f : equiv[LowerFun(IRO).f ~
 LowerHybridIRO(HybridIROLazy).f : ={xs, n} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2} ==>
@@ -986,46 +1009,78 @@ def block_bits_dom_all_in_or_out (xs : List block) (i : ℤ) (mp : FMap (List bl
     Prop :=
   block_bits_all_in_dom xs i mp ∨ block_bits_all_out_dom xs i mp
 
+omit [BlockSponge.Params] in
+/-- `j / r = i` for `j` in the `i`th block of bits.  Not an EC lemma (EC: `divzDl`,
+`divz_small`). -/
+theorem div_r_eq {i j : ℤ} (h1 : i * r ≤ j) (h2 : j < (i + 1) * r) : j / r = i := by
+  have hr := gt0_r
+  have a := (Int.le_ediv_iff_mul_le hr).mpr h1
+  have b := (Int.ediv_lt_iff_lt_mul hr).mpr h2
+  omega
+
 theorem eager_inv_mem_mp1_ge0 (mp1 : FMap (List block × ℤ) block)
     (mp2 : FMap (List block × ℤ) Bool) (xs : List block) (i : ℤ) :
-    eager_invar mp1 mp2 → FMap.dom mp1 (xs, i) → 0 ≤ i := by
-  sorry
+    eager_invar mp1 mp2 → FMap.dom mp1 (xs, i) → 0 ≤ i :=
+  fun ei h => (ei.1 xs i h).1
 
 theorem eager_inv_mem_mp2_ge0 (mp1 : FMap (List block × ℤ) block)
     (mp2 : FMap (List block × ℤ) Bool) (xs : List block) (j : ℤ) :
     eager_invar mp1 mp2 → FMap.dom mp2 (xs, j) → 0 ≤ j := by
-  sorry
+  intro ei h
+  have := (ei.1 xs (j / r) (ei.2 xs j h)).1
+  simpa using (Int.le_ediv_iff_mul_le gt0_r).mp this
 
-theorem eager_invar0 : eager_invar FMap.empty FMap.empty := by
-  sorry
+theorem eager_invar0 : eager_invar FMap.empty FMap.empty :=
+  ⟨fun _ _ h => absurd h (FMap.mem_empty _), fun _ _ h => absurd h (FMap.mem_empty _)⟩
 
 theorem eager_inv_imp_block_bits_dom (mp1 : FMap (List block × ℤ) block)
     (mp2 : FMap (List block × ℤ) Bool) (xs : List block) (i : ℤ) :
     0 ≤ i → r ∣ i → eager_invar mp1 mp2 → block_bits_dom_all_in_or_out xs i mp2 := by
-  sorry
+  intro _ hdvd ei
+  obtain ⟨k, rfl⟩ := hdvd
+  rw [mul_comm]
+  by_cases h : FMap.dom mp1 (xs, k)
+  · left
+    intro j hj
+    rw [FMap.domE, (ei.1 xs k h).2 j ⟨hj.1, by nlinarith [hj.2]⟩]
+    simp
+  · right
+    intro j hj hd
+    have := ei.2 xs j hd
+    rw [div_r_eq hj.1 (by nlinarith [hj.2])] at this
+    exact h this
 
 theorem eager_inv_mem_dom1 (mp1 : FMap (List block × ℤ) block)
     (mp2 : FMap (List block × ℤ) Bool) (xs : List block) (i : ℤ) :
     eager_invar mp1 mp2 → FMap.dom mp1 (xs, i) → block_bits_all_in_dom xs (i * r) mp2 := by
-  sorry
+  intro ei h j hj
+  rw [FMap.domE, (ei.1 xs i h).2 j ⟨hj.1, by nlinarith [hj.2]⟩]
+  simp
 
 theorem eager_inv_not_mem_dom1 (mp1 : FMap (List block × ℤ) block)
     (mp2 : FMap (List block × ℤ) Bool) (xs : List block) (i : ℤ) :
     eager_invar mp1 mp2 → 0 ≤ i → ¬ FMap.dom mp1 (xs, i) →
     block_bits_all_out_dom xs (i * r) mp2 := by
-  sorry
+  intro ei _ h j hj hd
+  have := ei.2 xs j hd
+  rw [div_r_eq hj.1 (by nlinarith [hj.2])] at this
+  exact h this
 
 theorem block_bits_dom_first_in_imp_all_in (xs : List block) (i : ℤ)
     (mp : FMap (List block × ℤ) Bool) :
     block_bits_dom_all_in_or_out xs i mp → FMap.dom mp (xs, i) →
     block_bits_all_in_dom xs i mp := by
-  sorry
+  rintro (h | h) hd
+  · exact h
+  · exact absurd hd (h i ⟨le_rfl, by have := gt0_r; omega⟩)
 
 theorem block_bits_dom_first_out_imp_all_out (xs : List block) (i : ℤ)
     (mp : FMap (List block × ℤ) Bool) :
     block_bits_dom_all_in_or_out xs i mp → ¬ FMap.dom mp (xs, i) →
     block_bits_all_out_dom xs i mp := by
-  sorry
+  rintro (h | h) hd
+  · exact absurd (h i ⟨le_rfl, by have := gt0_r; omega⟩) hd
+  · exact h
 
 /-- `lemma Lower_HybridIROEager_f : equiv[LowerHybridIRO(HybridIROEager).f ~ HybridIROEager.f :
 ={xs, HybridIROEager.mp} /\ n{1} * r = n{2} ==> res{1} = bits2blocks res{2} /\
@@ -1102,25 +1157,37 @@ theorem eager_eq_except_mem_iff (xs ys : List block) (i j k : ℤ)
     (mp1 mp2 : FMap (List block × ℤ) Bool) :
     eager_eq_except xs i j mp1 mp2 → ys ≠ xs ∨ k < i ∨ j ≤ k →
     (FMap.dom mp1 (ys, k) ↔ FMap.dom mp2 (ys, k)) := by
-  sorry
+  intro h hk
+  rw [FMap.domE, FMap.domE, h ys k hk]
 
 theorem eager_eq_except_upd1_eq_in (xs : List block) (i j k : ℤ) (y : Bool)
     (mp1 mp2 : FMap (List block × ℤ) Bool) :
     eager_eq_except xs i j mp1 mp2 → i ≤ k → k < j →
     eager_eq_except xs i j (FMap.set mp1 (xs, k) y) mp2 := by
-  sorry
+  intro h hik hkj ys l hl
+  rw [FMap.get_setE, if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega),
+    h ys l hl]
 
 theorem eager_eq_except_upd2_eq_in (xs : List block) (i j k : ℤ) (y : Bool)
     (mp1 mp2 : FMap (List block × ℤ) Bool) :
     eager_eq_except xs i j mp1 mp2 → i ≤ k → k < j →
     eager_eq_except xs i j mp1 (FMap.set mp2 (xs, k) y) := by
-  sorry
+  intro h hik hkj ys l hl
+  rw [FMap.get_setE, if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega),
+    h ys l hl]
 
 theorem eager_eq_except_maps_eq (xs : List block) (i j : ℤ) (_y : Bool)
     (mp1 mp2 : FMap (List block × ℤ) Bool) :
     i ≤ j → eager_eq_except xs i j mp1 mp2 →
     (∀ (k : ℤ), i ≤ k ∧ k < j → FMap.get mp1 (xs, k) = FMap.get mp2 (xs, k)) → mp1 = mp2 := by
-  sorry
+  intro _ h hr
+  refine (FMap.fmap_eqP _ _).mp fun ⟨ys, k⟩ => ?_
+  by_cases hys : ys = xs
+  · subst hys
+    by_cases hk : i ≤ k ∧ k < j
+    · exact hr k hk
+    · exact h ys k (Or.inr (by omega))
+  · exact h ys k (Or.inl hys)
 
 theorem eager_invar_eq_except_upd1 (mp1 : FMap (List block × ℤ) block)
     (mp2 mp2' : FMap (List block × ℤ) Bool) (xs : List block) (i : ℤ) (y : block) :
@@ -1128,7 +1195,37 @@ theorem eager_invar_eq_except_upd1 (mp1 : FMap (List block × ℤ) block)
     (∀ (j : ℤ), i * r ≤ j ∧ j < (i + 1) * r →
       FMap.get mp2' (xs, j) = some (nth false (ofblock y) (j - i * r))) →
     eager_invar (FMap.set mp1 (xs, i) y) mp2' := by
-  sorry
+  intro hi ei ee hran
+  have hr := gt0_r
+  refine ⟨fun ys k hd => ?_, fun ys j hd => ?_⟩
+  · by_cases hyk : (ys, k) = (xs, i)
+    · simp only [Prod.mk.injEq] at hyk
+      obtain ⟨rfl, rfl⟩ := hyk
+      refine ⟨hi, fun j hj => ?_⟩
+      rw [FMap.get_set_sameE]
+      exact hran j hj
+    · have hd1 : FMap.dom mp1 (ys, k) := ((FMap.mem_set _ _ _ _).mp hd).resolve_right hyk
+      obtain ⟨hk, hb⟩ := ei.1 ys k hd1
+      refine ⟨hk, fun j hj => ?_⟩
+      rw [FMap.get_setE, if_neg hyk, ← hb j hj]
+      refine (ee ys j ?_).symm
+      by_cases hys : ys = xs
+      · subst hys
+        have hki : k ≠ i := fun h => hyk (by rw [h])
+        rcases lt_or_gt_of_ne hki with hlt | hgt
+        · exact Or.inr (Or.inl (by nlinarith [hj.2]))
+        · exact Or.inr (Or.inr (by nlinarith [hj.1]))
+      · exact Or.inl hys
+  · rw [FMap.mem_set]
+    by_cases hex : ys ≠ xs ∨ j < i * r ∨ (i + 1) * r ≤ j
+    · left
+      apply ei.2
+      rw [FMap.domE] at hd ⊢
+      rwa [ee ys j hex]
+    · right
+      simp only [ne_eq, not_or, not_not, not_lt] at hex
+      obtain ⟨rfl, h1, h2⟩ := hex
+      rw [div_r_eq h1 (by omega)]
 
 /-- `lemma HybridIROEagerTrans_next_block_split : equiv[HybridIROEagerTrans.next_block ~
 HybridIROEagerTrans.next_block_split : ={i, m, xs, bs, HybridIROEager.mp} /\ m{1} = i{1} + r /\
@@ -1184,7 +1281,15 @@ theorem PrLoopSnoc_sample (m : VariableAssignment) (bs : List Bool) :
 
 theorem iter_mul_one_half_pos (n : ℤ) :
     0 < n → iter n ((1 / 2 : ℝ) * ·) 1 = (((2 ^ n.toNat : ℤ) : ℝ))⁻¹ := by
-  sorry
+  intro _
+  have h : ∀ k : ℕ, ((1 / 2 : ℝ) * ·)^[k] 1 = ((2 : ℝ) ^ k)⁻¹ := by
+    intro k
+    induction k with
+    | zero => simp
+    | succ k ih => rw [Function.iterate_succ_apply', ih, pow_succ]; field_simp
+  simp only [iter, h]
+  push_cast
+  rfl
 
 -- Module for adapting `PrLoopSnoc_sample` to block generation
 module BlockGen {

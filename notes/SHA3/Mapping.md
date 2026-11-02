@@ -584,9 +584,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 979 | inductive | `INV_Real` | section Real. | `INV_Real` | def |
 | 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | stated |
 | 992 | local lemma | `INV_Real_addm_mi` | section Real. | `INV_Real_addm_mi` | stated |
-| 1004 | local lemma | `invmC'` | section Real. | `invmC'` | stated |
-| 1008 | local lemma | `invmC` | section Real. | `invmC` | stated |
-| 1012 | local lemma | `invm_dom_rng` | section Real. | `invm_dom_rng` | stated |
+| 1004 | local lemma | `invmC'` | section Real. | `invmC'` | done |
+| 1008 | local lemma | `invmC` | section Real. | `invmC` | done |
+| 1012 | local lemma | `invm_dom_rng` | section Real. | `invm_dom_rng` | done |
 | 1021 | local lemma | `all_prefixes_of_INV_real` | section Real. | `all_prefixes_of_INV_real` | stated |
 | 1029 | local lemma | `lemma2'` | section Real. | `lemma2'` | stated |
 | 1075 | local lemma | `take_nseq` | section Real. | `take_nseq` | stated |
@@ -604,8 +604,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1811 | declare axiom | `D_lossless` | section Real_Ideal_Abs. | `D_lossless` (abbreviation; hypothesis) | def |
 | 1816 | local module | `Neg_D` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D` | def |
 | 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D_lossless` | stated |
-| 1833 | local lemma | `useful` | section Real_Ideal_Abs. | `Real_Ideal_Abs.useful` | stated |
-| 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `Real_Ideal_Abs.invmC` | stated |
+| 1833 | local lemma | `useful` | section Real_Ideal_Abs. | `Real_Ideal_Abs.useful` | done |
+| 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `Real_Ideal_Abs.invmC` | done |
 | 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` | stated |
 | 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` | stated |
 | 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` | stated |
@@ -664,41 +664,41 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 553 | module | `RaiseHybridIRO` |  | `HybridIRO.RaiseHybridIRO` | def |
 | 568 | module | `LowerHybridIRO` |  | `HybridIRO.LowerHybridIRO` | def |
 | 579 | pred | `lazy_invar` |  | `HybridIRO.lazy_invar` | def |
-| 590 | lemma | `lazy_invar0` |  | `HybridIRO.lazy_invar0` | stated |
-| 597 | lemma | `lazy_invar_mem_pad2blocks_l2r` |  | `HybridIRO.lazy_invar_mem_pad2blocks_l2r` | stated |
-| 605 | lemma | `lazy_invar_mem_pad2blocks_r2l` |  | `HybridIRO.lazy_invar_mem_pad2blocks_r2l` | stated |
-| 613 | lemma | `lazy_invar_vb` |  | `HybridIRO.lazy_invar_vb` | stated |
-| 621 | lemma | `lazy_invar_lookup_eq` |  | `HybridIRO.lazy_invar_lookup_eq` | stated |
-| 629 | lemma | `lazy_invar_upd_mem_dom_iff` |  | `HybridIRO.lazy_invar_upd_mem_dom_iff` | stated |
-| 648 | lemma | `lazy_invar_upd2_vb` |  | `HybridIRO.lazy_invar_upd2_vb` | stated |
-| 662 | lemma | `lazy_invar_upd_lu_eq` |  | `HybridIRO.lazy_invar_upd_lu_eq` | stated |
+| 590 | lemma | `lazy_invar0` |  | `HybridIRO.lazy_invar0` | done |
+| 597 | lemma | `lazy_invar_mem_pad2blocks_l2r` |  | `HybridIRO.lazy_invar_mem_pad2blocks_l2r` | done |
+| 605 | lemma | `lazy_invar_mem_pad2blocks_r2l` |  | `HybridIRO.lazy_invar_mem_pad2blocks_r2l` | done |
+| 613 | lemma | `lazy_invar_vb` |  | `HybridIRO.lazy_invar_vb` | done |
+| 621 | lemma | `lazy_invar_lookup_eq` |  | `HybridIRO.lazy_invar_lookup_eq` | done |
+| 629 | lemma | `lazy_invar_upd_mem_dom_iff` |  | `HybridIRO.lazy_invar_upd_mem_dom_iff` | done |
+| 648 | lemma | `lazy_invar_upd2_vb` |  | `HybridIRO.lazy_invar_upd2_vb` | done |
+| 662 | lemma | `lazy_invar_upd_lu_eq` |  | `HybridIRO.lazy_invar_upd_lu_eq` | done |
 | 685 | lemma | `LowerFun_IRO_HybridIROLazy_f` |  | `HybridIRO.LowerFun_IRO_HybridIROLazy_f` | stated |
 | 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` |  | `HybridIRO.IRO_RaiseHybridIRO_HybridIROLazy_f` | stated |
 | 765 | pred | `eager_invar` |  | `HybridIRO.eager_invar` | def |
 | 777 | pred | `block_bits_all_in_dom` |  | `HybridIRO.block_bits_all_in_dom` | def |
 | 781 | pred | `block_bits_all_out_dom` |  | `HybridIRO.block_bits_all_out_dom` | def |
 | 785 | pred | `block_bits_dom_all_in_or_out` |  | `HybridIRO.block_bits_dom_all_in_or_out` | def |
-| 789 | lemma | `eager_inv_mem_mp1_ge0` |  | `HybridIRO.eager_inv_mem_mp1_ge0` | stated |
-| 796 | lemma | `eager_inv_mem_mp2_ge0` |  | `HybridIRO.eager_inv_mem_mp2_ge0` | stated |
-| 808 | lemma | `eager_invar0` |  | `HybridIRO.eager_invar0` | stated |
-| 811 | lemma | `eager_inv_imp_block_bits_dom` |  | `HybridIRO.eager_inv_imp_block_bits_dom` | stated |
-| 835 | lemma | `eager_inv_mem_dom1` |  | `HybridIRO.eager_inv_mem_dom1` | stated |
-| 848 | lemma | `eager_inv_not_mem_dom1` |  | `HybridIRO.eager_inv_not_mem_dom1` | stated |
-| 865 | lemma | `block_bits_dom_first_in_imp_all_in` |  | `HybridIRO.block_bits_dom_first_in_imp_all_in` | stated |
-| 871 | lemma | `block_bits_dom_first_out_imp_all_out` |  | `HybridIRO.block_bits_dom_first_out_imp_all_out` | stated |
+| 789 | lemma | `eager_inv_mem_mp1_ge0` |  | `HybridIRO.eager_inv_mem_mp1_ge0` | done |
+| 796 | lemma | `eager_inv_mem_mp2_ge0` |  | `HybridIRO.eager_inv_mem_mp2_ge0` | done |
+| 808 | lemma | `eager_invar0` |  | `HybridIRO.eager_invar0` | done |
+| 811 | lemma | `eager_inv_imp_block_bits_dom` |  | `HybridIRO.eager_inv_imp_block_bits_dom` | done |
+| 835 | lemma | `eager_inv_mem_dom1` |  | `HybridIRO.eager_inv_mem_dom1` | done |
+| 848 | lemma | `eager_inv_not_mem_dom1` |  | `HybridIRO.eager_inv_not_mem_dom1` | done |
+| 865 | lemma | `block_bits_dom_first_in_imp_all_in` |  | `HybridIRO.block_bits_dom_first_in_imp_all_in` | done |
+| 871 | lemma | `block_bits_dom_first_out_imp_all_out` |  | `HybridIRO.block_bits_dom_first_out_imp_all_out` | done |
 | 877 | lemma | `Lower_HybridIROEager_f` |  | `HybridIRO.Lower_HybridIROEager_f` | stated |
 | 904 | module | `HybridIROEagerTrans` |  | `HybridIRO.HybridIROEagerTrans` | def |
 | 962 | pred | `eager_eq_except` |  | `HybridIRO.eager_eq_except` | def |
-| 968 | lemma | `eager_eq_except_mem_iff` |  | `HybridIRO.eager_eq_except_mem_iff` | stated |
-| 976 | lemma | `eager_eq_except_upd1_eq_in` |  | `HybridIRO.eager_eq_except_upd1_eq_in` | stated |
-| 987 | lemma | `eager_eq_except_upd2_eq_in` |  | `HybridIRO.eager_eq_except_upd2_eq_in` | stated |
-| 998 | lemma | `eager_eq_except_maps_eq` |  | `HybridIRO.eager_eq_except_maps_eq` | stated |
-| 1012 | lemma | `eager_invar_eq_except_upd1` |  | `HybridIRO.eager_invar_eq_except_upd1` | stated |
+| 968 | lemma | `eager_eq_except_mem_iff` |  | `HybridIRO.eager_eq_except_mem_iff` | done |
+| 976 | lemma | `eager_eq_except_upd1_eq_in` |  | `HybridIRO.eager_eq_except_upd1_eq_in` | done |
+| 987 | lemma | `eager_eq_except_upd2_eq_in` |  | `HybridIRO.eager_eq_except_upd2_eq_in` | done |
+| 998 | lemma | `eager_eq_except_maps_eq` |  | `HybridIRO.eager_eq_except_maps_eq` | done |
+| 1012 | lemma | `eager_invar_eq_except_upd1` |  | `HybridIRO.eager_invar_eq_except_upd1` | done |
 | 1079 | lemma | `HybridIROEagerTrans_next_block_split` |  | `HybridIRO.HybridIROEagerTrans_next_block_split` | stated |
 | 1188 | module | `BlockSpongeTrans` |  | `HybridIRO.BlockSpongeTrans` | def |
 | 1215 | clone | `Program` |  | `HybridIRO.Prog` (namespace) | def |
 | 1221 | lemma | `PrLoopSnoc_sample` |  | `HybridIRO.PrLoopSnoc_sample` | stated |
-| 1235 | lemma | `iter_mul_one_half_pos` |  | `HybridIRO.iter_mul_one_half_pos` | stated |
+| 1235 | lemma | `iter_mul_one_half_pos` |  | `HybridIRO.iter_mul_one_half_pos` | done |
 | 1250 | module | `BlockGen` |  | `HybridIRO.BlockGen` | def |
 | 1269 | lemma | `BlockGen_loop_direct` |  | `HybridIRO.BlockGen_loop_direct` | stated |
 | 1307 | lemma | `HybridIROEagerTrans_BlockSpongeTrans_next_block` |  | `HybridIRO.HybridIROEagerTrans_BlockSpongeTrans_next_block` | stated |
@@ -945,7 +945,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 35 | axiom | `to_list_inj` |  | `Params.to_list_inj` | def |
 | 36 | axiom | `to_listK` |  | `Params.to_listK` | def |
 | 38 | axiom | `dout_equal_dlist` |  | `Params.dout_equal_dlist` | def |
-| 40 | lemma | `doutE1` |  | `doutE1` | stated |
+| 40 | lemma | `doutE1` |  | `doutE1` | done |
 | 62 | module | `CSetSize` |  | `CSetSize` (alias call-wrapped, E5) | def |
 | 71 | module | `FSetSize` |  | `FSetSize` (alias call-wrapped, E5) | def |
 | 80 | clone import | `IndifRO_is_secure` |  | `S` (namespace of abbreviations and `global_var`s, opened; `realize`s: `S.axioms`) | def |
@@ -955,10 +955,10 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 121 | module | `DSetSize` |  | `DSetSize` (alias call-wrapped, E5) | def |
 | 127 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 129 | declare axiom | `A_ll` | section Preimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
-| 131 | local lemma | `invm_dom_rng` | section Preimage. | `Preimage.invm_dom_rng` | stated |
-| 140 | local lemma | `invmC'` | section Preimage. | `Preimage.invmC'` | stated |
-| 144 | local lemma | `invmC` | section Preimage. | `Preimage.invmC` | stated |
-| 148 | local lemma | `useful` | section Preimage. | `Preimage.useful` | stated |
+| 131 | local lemma | `invm_dom_rng` | section Preimage. | `Preimage.invm_dom_rng` | done |
+| 140 | local lemma | `invmC'` | section Preimage. | `Preimage.invmC'` | done |
+| 144 | local lemma | `invmC` | section Preimage. | `Preimage.invmC` | done |
+| 148 | local lemma | `useful` | section Preimage. | `Preimage.useful` | done |
 | 169 | local equiv | `equiv_sponge_perm` | section Preimage. | `Preimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
 | 194 | op | `same_ro` | section Preimage. | `same_ro` | def |
 | 199 | op | `same_ro2` | section Preimage. | `same_ro2` | def |
@@ -967,20 +967,20 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` | stated |
 | 481 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 483 | declare axiom | `A_ll` | section SecondPreimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
-| 485 | local lemma | `invm_dom_rng` | section SecondPreimage. | `SecondPreimage.invm_dom_rng` | stated |
-| 494 | local lemma | `invmC'` | section SecondPreimage. | `SecondPreimage.invmC'` | stated |
-| 498 | local lemma | `invmC` | section SecondPreimage. | `SecondPreimage.invmC` | stated |
-| 502 | local lemma | `useful` | section SecondPreimage. | `SecondPreimage.useful` | stated |
+| 485 | local lemma | `invm_dom_rng` | section SecondPreimage. | `SecondPreimage.invm_dom_rng` | done |
+| 494 | local lemma | `invmC'` | section SecondPreimage. | `SecondPreimage.invmC'` | done |
+| 498 | local lemma | `invmC` | section SecondPreimage. | `SecondPreimage.invmC` | done |
+| 502 | local lemma | `useful` | section SecondPreimage. | `SecondPreimage.useful` | done |
 | 523 | local equiv | `equiv_sponge_perm` | section SecondPreimage. | `SecondPreimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
 | 548 | clone import | `Program` | section SecondPreimage. | `SecondPreimage.Prog2.LoopSnoc.sample` | def |
 | 553 | local equiv | `equiv_ro_iro` | section SecondPreimage. | `SecondPreimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
 | 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` | stated |
 | 871 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 873 | declare axiom | `A_ll` | section Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
-| 875 | local lemma | `invm_dom_rng` | section Collision. | `Collision.invm_dom_rng` | stated |
-| 884 | local lemma | `invmC'` | section Collision. | `Collision.invmC'` | stated |
-| 888 | local lemma | `invmC` | section Collision. | `Collision.invmC` | stated |
-| 892 | local lemma | `useful` | section Collision. | `Collision.useful` | stated |
+| 875 | local lemma | `invm_dom_rng` | section Collision. | `Collision.invm_dom_rng` | done |
+| 884 | local lemma | `invmC'` | section Collision. | `Collision.invmC'` | done |
+| 888 | local lemma | `invmC` | section Collision. | `Collision.invmC` | done |
+| 892 | local lemma | `useful` | section Collision. | `Collision.useful` | done |
 | 913 | local equiv | `equiv_sponge_perm` | section Collision. | `Collision.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
 | 937 | clone import | `Program` | section Collision. | `Collision.Prog3.LoopSnoc.sample` | def |
 | 942 | local equiv | `equiv_ro_iro` | section Collision. | `Collision.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
@@ -1014,7 +1014,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 40 | axiom | `to_list_inj` |  | `Params.to_list_inj` | def |
 | 41 | axiom | `to_listK` |  | `Params.to_listK` | def |
 | 43 | axiom | `dout_equal_dlist` |  | `Params.dout_equal_dlist` | def |
-| 45 | lemma | `doutE1` |  | `doutE1` | stated |
+| 45 | lemma | `doutE1` |  | `doutE1` | done |
 | 88 | clone import | `SecureORO` |  | `SORO` (namespace of abbreviations and `global_var`s; `realize`s: `SORO.axioms`) | def |
 | 105 | clone import | `SecureHash` |  | `SH` (namespace of abbreviations and `global_var`s; `realize`s: `SH.axioms`) | def |
 | 143 | module | `FSetSize` |  | `FSetSize` (`init` call-wrapped, E5; `FSetSize.get`) | def |
@@ -1041,7 +1041,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 407 | op | `eq_extend_size` | section Preimage. | `eq_extend_size` | def |
 | 415 | local module | `ExtendSample` | section Preimage. | `Preimage.ExtendSample` (aliases call-wrapped, E5) | def |
 | 430 | local equiv | `eq_extend` | section Preimage. | `Preimage.eq_extend` | stated |
-| 471 | local lemma | `of_listK` | section Preimage. | `Preimage.of_listK` | stated |
+| 471 | local lemma | `of_listK` | section Preimage. | `Preimage.of_listK` | done |
 | 476 | local module | `Fill_In` | section Preimage. | `Preimage.Fill_In` (aliases call-wrapped, E5) | def |
 | 496 | local equiv | `eq_eager_ideal` | section Preimage. | `Preimage.eq_eager_ideal` | stated |
 | 512 | local equiv | `eq_eager_ideal2` | section Preimage. | `Preimage.eq_eager_ideal2` | stated |
@@ -1069,7 +1069,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 1065 | local equiv | `eq_IRO_RFWhile` | section SecondPreimage. | `SecondPreimage.eq_IRO_RFWhile` | stated |
 | 1136 | local module | `ExtendSample` | section SecondPreimage. | `SecondPreimage.ExtendSample` (aliases call-wrapped, E5) | def |
 | 1151 | local equiv | `eq_extend` | section SecondPreimage. | `SecondPreimage.eq_extend` | stated |
-| 1193 | local lemma | `of_listK` | section SecondPreimage. | `SecondPreimage.of_listK` | stated |
+| 1193 | local lemma | `of_listK` | section SecondPreimage. | `SecondPreimage.of_listK` | done |
 | 1198 | local module | `Fill_In` | section SecondPreimage. | `SecondPreimage.Fill_In` (aliases call-wrapped, E5) | def |
 | 1218 | local equiv | `eq_eager_ideal` | section SecondPreimage. | `SecondPreimage.eq_eager_ideal` | stated |
 | 1234 | local equiv | `eq_eager_ideal2` | section SecondPreimage. | `SecondPreimage.eq_eager_ideal2` | stated |
@@ -1100,7 +1100,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 1952 | local equiv | `eq_IRO_RFWhile` | section Collision. | `Collision.eq_IRO_RFWhile` | stated |
 | 2023 | local module | `ExtendSample` | section Collision. | `Collision.ExtendSample` (aliases call-wrapped, E5) | def |
 | 2038 | local equiv | `eq_extend` | section Collision. | `Collision.eq_extend` | stated |
-| 2077 | local lemma | `of_listK` | section Collision. | `Collision.of_listK` | stated |
+| 2077 | local lemma | `of_listK` | section Collision. | `Collision.of_listK` | done |
 | 2082 | local module | `Fill_In` | section Collision. | `Collision.Fill_In` (aliases call-wrapped, E5) | def |
 | 2102 | local equiv | `eq_eager_ideal` | section Collision. | `Collision.eq_eager_ideal` | stated |
 | 2118 | local equiv | `eq_eager_ideal2` | section Collision. | `Collision.eq_eager_ideal2` | stated |

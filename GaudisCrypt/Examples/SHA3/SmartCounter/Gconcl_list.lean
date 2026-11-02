@@ -622,14 +622,24 @@ theorem INV_Real_addm_mi (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List
     INV_Real c1 c2 (FMap.set m x y) (FMap.set mi y x) p := by
   sorry
 
-theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m := by
-  sorry
+theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m :=
+  fun h x y => (h y x).symm
 
-theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m := by
-  sorry
+theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
+  ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
 theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap.rng mi := by
-  sorry
+  intro h
+  funext x
+  apply propext
+  rw [FMap.domE, FMap.rngE]
+  constructor
+  · intro hx
+    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hx
+    exact ⟨v, (h x v).mp hv⟩
+  · rintro ⟨a, ha⟩
+    rw [(h x a).mpr ha]
+    simp
 
 theorem all_prefixes_of_INV_real (c1 c2 : ℤ) (m mi : FMap state state)
     (p : FMap (List block) state) : INV_Real c1 c2 m mi p → all_prefixes p := by
@@ -789,11 +799,12 @@ theorem Neg_D_lossless (D : DISTINGUISHER) (F : DFUNCTIONALITY) (P0 : DPRIMITIVE
   sorry
 
 theorem useful (m mi : FMap state state) (a : state) :
-    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) := by
-  sorry
+    invm m mi → ¬ FMap.dom m a → is_lossless (dexcepted (dprod bdistr cdistr) (FMap.rng m)) :=
+  fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
+    ⟨a, h⟩
 
-theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m := by
-  sorry
+theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
+  ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
 theorem Real_lossless (D : DISTINGUISHER) :
     (RealIndif Sponge P (DRestr (Neg_D D))).procedure.IsLossless := by
