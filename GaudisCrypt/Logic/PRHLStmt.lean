@@ -443,6 +443,28 @@ theorem prhlStmt_seq_sample {α β : Type} {x₁ : Setter α ProgramState} {x₂
   · exact SubProbability.satisfies_hbind _ fun a ha =>
       SubProbability.satisfies_pure _ _ (hB a (SubProbability.mem_support_of_ne_zero ha))
 
+/-- **A sampling against code that samples the same**: `x₁ <$ d` on the left, on the right any
+statement `t` whose run (from the state before it) draws from `d` and writes the draw to `x₂`
+(EC's `rnd` after rewriting the right side into one sampling, e.g. a two-step sampling). -/
+theorem prhlStmt_seq_sample_run_right {α : Type} {x₁ x₂ : Setter α ProgramState}
+    {e₁ : Getter (SubProbability α) ProgramState} {t : Stmt}
+    (h : prhlStmt A s₁ s₂ fun σ₁ σ₂ =>
+      programDenotation t σ₂ = (e₁.get σ₁).hbind (fun a => pure ((), x₂.set a σ₂)) ∧
+        ∀ a ∈ (e₁.get σ₁).support, B (x₁.set a σ₁) (x₂.set a σ₂)) :
+    prhlStmt A (.seq s₁ (.sample x₁ e₁)) (.seq s₂ t) B := by
+  refine prhlStmt_seq (B := fun σ₁ σ₂ => _) ?_ h
+  intro σ₁ σ₂ ⟨ht, hB⟩
+  refine ⟨(e₁.get σ₁).hbind fun a => pure (((), x₁.set a σ₁), ((), x₂.set a σ₂)), ?_, ?_, ?_⟩
+  · refine SubProbability.marginal_fst_eq fun F => ?_
+    rw [programDenotation_sample_apply, SubProbability.expected_hbind,
+      SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.marginal_snd_eq fun F => ?_
+    rw [ht, SubProbability.expected_hbind, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · exact SubProbability.satisfies_hbind _ fun a ha =>
+      SubProbability.satisfies_pure _ _ (hB a (SubProbability.mem_support_of_ne_zero ha))
+
 /-! ### Pushing a distribution along a function
 
 The first conjunct `prhlStmt_seq_sample` leaves: the coupling function pushes the left

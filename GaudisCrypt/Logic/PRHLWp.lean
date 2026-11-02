@@ -19,6 +19,8 @@ And the relational steps proper:
   (EC's `proc`, with the calls then inlined by `stmt_inline 0`);
 * `equiv_rnd`, `equiv_rnd f` — the two last statements are samplings, coupled along `f`
   (default: the identity) (EC's `rnd`);
+* `equiv_rnd_run k` — a sampling on the left against the last `k` statements on the right, which
+  sample the same;
 * `equiv_while I` — synchronized loops with the invariant `I` (EC's `while I`);
 * `equiv_call h` — the last statements are calls, related by the procedure judgment `h` (EC's
   `call`; `prhlProc_glob hA` for an abstract procedure, EC's `call (_ : ={glob A})`);
@@ -332,6 +334,37 @@ elab "equiv_rnd" f?:(ppSpace colGt term:max)? : tactic => withMainContext do
     let hJ := ms.back!
     let g' ← mkFreshExprSyntheticOpaqueMVar (← instantiateMVars (← inferType hJ)) (← g.getTag)
     unless ← isDefEq hJ g' do throwError "equiv_rnd: cannot set the new judgment"
+    g.assign (← instantiateMVars (mkAppN c ms))
+    let g' ← Judgment.simpArg g'.mvarId! 3 relSimpDecls []
+    replaceMainGoal [g']
+
+/-- `equiv_rnd_run k`: the last statement of the left side is a sampling `x₁ <$ d`, and the last
+`k` statements of the right side sample from `d` into the same variable
+(`prhlStmt_seq_sample_run_right`).  The
+postcondition before them asks for that run, as an equation of the right side's run with the
+sampling, and the postcondition for every draw. -/
+elab "equiv_rnd_run" k:num : tactic => withMainContext do
+  let g ← getMainGoal
+  let _ ← prhlGoal g "equiv_rnd_run"
+  let g ← HoareSplit.hoareSplit 1 g (side? := some 1)
+  let g ← HoareSplit.hoareSplit k.getNat g (side? := some 2)
+  g.withContext do
+    let ty ← prhlGoal g "equiv_rnd_run"
+    let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_sample_run_right
+    let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+    unless ← isDefEq concl ty do
+      throwError "equiv_rnd_run: the last statement of the left side is not a sampling of the \
+        right side's type:{indentExpr ty}"
+    -- the variable the right side samples into: by default the left side's
+    let setters ← ms.filterM fun m => do
+      return (← instantiateMVars (← inferType m)).isAppOf ``Setter
+    if h : setters.size = 2 then
+      let x₂ := setters[1]
+      unless (← instantiateMVars x₂).isMVar == false do
+        discard <| isDefEq x₂ (← instantiateMVars setters[0])
+    let hJ := ms.back!
+    let g' ← mkFreshExprSyntheticOpaqueMVar (← instantiateMVars (← inferType hJ)) (← g.getTag)
+    unless ← isDefEq hJ g' do throwError "equiv_rnd_run: cannot set the new judgment"
     g.assign (← instantiateMVars (mkAppN c ms))
     let g' ← Judgment.simpArg g'.mvarId! 3 relSimpDecls []
     replaceMainGoal [g']
