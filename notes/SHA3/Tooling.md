@@ -838,6 +838,28 @@ Every statement of `Sponge.ec` proven; `conclusion` depends on `propext`, `Class
 `Experiment_HybridEager_Ideal_BlockIRO`; `IdealIndif_IRO_BlockIRO` picks `HIRO`'s two variables
 fresh (`Footprint.exists_fresh`, E6).  The notes below ("Sponge, ideal side") have the recipes.
 
+## 2026-11-02: `Gcol.Pr_col` (EC's `fel` over concrete oracles) — `Logic/ExpectationFrame.lean`
+
+EC's `fel` with oracles that are large concrete procedures (`DRestr(D)` over `Gcol.M`, `Gcol.S`)
+which change the potential's state only through one sampling procedure (`Gcol.sample_c`):
+* `StmtWithHoles.ExpDecr G φ s`: every write keeps `G` of the globals, every call is either to a
+  procedure that does not increase `φ ∘ G` in expectation or satisfies `ExpDecr` itself;
+  `Stmt.ewp_le_of_expDecr`/`Procedure.ewp_le_of_expDecr`: then `s` does not increase `φ ∘ G`
+  (loops take `φ ∘ G` as invariant).
+* Tactic `exp_decr` (as `writes_keep`): splits the goal down to single writes, closes a call by a
+  step lemma `∀ a g, p.ewp a (fun _ g' => φ (G g')) g ≤ φ (G g)` in the context (matched at reducible
+  transparency after folding the callee's field-by-field spelling back to `p`), local writes by
+  `rfl`, global writes by `touched_set_of_le_compl` with a footprint fact from the context
+  (`exp_decr_write` tries the hypotheses one by one).
+* Recipe (`Gcol_potential`): the step lemma by `phoare_proc_to_stmt; repeat phoare_inline 0;
+  phoare_ewp` + a pure step inequality; the main game by `phoare_inline`, `Stmt.ewp_seq/assign`,
+  `simp_reads`, `erw [Stmt.ewp_call]`, then `Module.ewp_app_le` with each oracle by
+  `Procedure.ewp_le_of_expDecr _ _ _ (by exp_decr)`.  A typed module defined with a parameter
+  (`Gcol.S c := Module.pair …`) must be unfolded (`unfold Gcol.S`) before `exp_decr` so the
+  inliner sees the pair.
+* Gotcha: inside a tactic, `exact f (by assumption) …` may commit `assumption` before unification
+  pins the type; use `refine f ?_ …; assumption` or try hypotheses one by one.
+
 ### Sponge (`HybridIRO`, loops)
 
 * Inlining: `repeat stmt_inline{i} 0` inlines a call and the calls of its body (fill-in calls
