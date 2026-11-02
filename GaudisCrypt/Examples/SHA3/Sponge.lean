@@ -167,7 +167,120 @@ theorem Sponge_is_StdSponge (P : DPRIMITIVE) :
     prhlProc (fun a₁ g₁ a₂ g₂ => eqGlob P g₁ g₂ ∧ a₁ = a₂)
       (Module.app StdSponge.f P).procedure (Module.app Sponge.f P).procedure
       (fun r₁ g₁ r₂ g₂ => eqGlob P g₁ g₂ ∧ r₁ = r₂) := by
-  sorry
+  -- EC's `call (: true)` on `P.f`: `={glob P}` kept
+  have hPf := prhlProc_glob (R := FVP.fvP P)
+    (p := (Indifferentiability.DPRIMITIVE.f _ _ _ P).procedure)
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+      (FVP.fvP_fst' _))
+  have hsb : ∀ x, size (ofblock x) = r := fun x => by
+    rw [← blocks2bits_sing, size_blocks2bits]; simp [size]
+  have hsz : ∀ (z : List Bool) x, size (z ++ ofblock x) = size z + r := fun z x => by
+    rw [← hsb x]; simp [size]
+  have hr := gt0_r
+  equiv_proc
+  stmt_inline 0
+  stmt_wp
+  equiv_seq 1 1 : (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
+      §finished{1} = false ∧ §i{2} = 0 ∧ §z{1} = [])
+  · equiv_while (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n, xs} ∧
+        §finished{1} = false ∧ §i{2} = 0 ∧ §z{1} = [])
+    case body =>
+      stmt_wp
+      equiv_call hPf
+      equiv_skip
+      intros; simp_all [eqGlob]; aesop
+    case guard => intros; simp_all
+    case exit => intros; simp_all; aesop
+    · stmt_wp
+      equiv_skip
+      intros; simp_all
+  · equiv_case (§n{1} ≤ 0)
+    · equiv_rcondf{2}
+      equiv_while{1} (eqGlob P §allGlobals{1} §allGlobals{2} ∧ §n{1} = §n{2} ∧ §n{1} ≤ 0 ∧
+          §i{2} = 0) (if §finished{1} then 0 else 1)
+      case lossless =>
+        intro σ₂ σ hI hg
+        simp only [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_ifThenElse]
+        simp_reads
+        have hn : (localVarLens "n" ℤ).get σ ≤ 0 := hI.2.2.1
+        rw [if_neg (by
+          simp only [decide_eq_true_eq, not_lt]
+          refine hn.trans ?_
+          simp only [size]; positivity)]
+      case «variant» =>
+        intro σ₂ k
+        hoare_split 1
+        refine hoare_seq (hoare_if_wp (At := fun _ => False) (fun _ h => h.elim)
+          (hoare_assign_wp _ _ _)) ?_
+        hoare_wp 1
+        refine hoare_skip_of_imp fun σ h => ?_
+        obtain ⟨hI, hf, hk⟩ := h
+        have hn : (localVarLens "n" ℤ).get σ ≤ 0 := hI.2.2.1
+        refine ⟨fun hlt => ?_, fun _ => ⟨hI, ?_⟩⟩
+        · simp only [decide_eq_true_eq] at hlt
+          have : (0 : ℤ) ≤ size ((localVarLens "z" (List Bool)).get σ ++
+              ofblock ((localVarLens "sa" block).get σ)) := by simp only [size]; positivity
+          exact absurd hlt (not_lt.mpr (hn.trans this))
+        · have hf' : (localVarLens "finished" Bool).get σ = false := by simpa using hf
+          rw [← hk]
+          simp [hf']
+      case exit =>
+        rintro g₁ g₂ n₁ i₁ z₁ n₂ f₂ z₂ ⟨hg, rfl, hn, rfl⟩ -
+        refine ⟨?_, hg, ?_⟩
+        · simp only [decide_eq_false_iff_not, not_lt]
+          have := (Int.ediv_lt_iff_lt_mul hr).mpr (show n₂ + r - 1 < 1 * r by omega)
+          omega
+        · simp [take, show n₂.toNat = 0 by omega]
+      · equiv_skip
+        rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂ ⟨⟨hg, ⟨-, -, -, rfl⟩, -, rfl, -⟩, hn⟩
+        exact ⟨hg, rfl, hn, rfl⟩
+    · equiv_while (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
+          (§finished{1} = true ↔ §n{1} ≤ size §z{1}) ∧ size §z{1} = r * §i{2} ∧ 0 < §n{1} ∧
+          0 ≤ §i{2})
+      case body =>
+        equiv_seq 1 1 : (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
+          §finished{1} = false ∧ size §z{1} = r * §i{2} ∧ 0 < §n{1} ∧ 1 ≤ §i{2})
+        · stmt_wp
+          equiv_skip
+          rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂
+            ⟨⟨hg, ⟨rfl, rfl, rfl, rfl⟩, -, hs, hn, hi⟩, hnf⟩
+          refine ⟨hg, ⟨rfl, rfl, rfl, rfl⟩, by simpa using hnf, by rw [hsz, hs]; ring, hn, by omega⟩
+        · equiv_if
+          case guard =>
+            rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂ ⟨hg, ⟨rfl, rfl, rfl, rfl⟩, -, hs, hn, hi⟩
+            rw [hs]
+            exact decide_eq_decide.mpr (loop_cond i₂ n₁ (by omega) hn.le)
+          case «then» =>
+            equiv_call hPf
+            equiv_skip
+            rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂
+              ⟨⟨hg, ⟨rfl, rfl, rfl, rfl⟩, rfl, hs, hn, hi⟩, hlt⟩
+            refine ⟨⟨rfl, hg⟩, ?_⟩
+            rintro r₁ g₁' r₂ g₂' ⟨rfl, hg'⟩
+            simp only [decide_eq_true_eq] at hlt
+            exact ⟨hg', ⟨rfl, rfl, rfl, rfl⟩, by simp; omega, hs, hn, by omega⟩
+          case «else» =>
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂
+              ⟨⟨hg, ⟨rfl, rfl, rfl, rfl⟩, rfl, hs, hn, hi⟩, hlt⟩
+            simp only [decide_eq_false_iff_not] at hlt
+            exact ⟨hg, ⟨rfl, rfl, rfl, rfl⟩, by simp; omega, hs, hn, by omega⟩
+      case guard =>
+        rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂ ⟨hg, ⟨rfl, rfl, rfl, rfl⟩, hf, hs, hn, hi⟩
+        have hl := loop_cond i₂ n₁ hi hn.le
+        have key : f₁ = true ↔ ¬ r * i₂ < n₁ := by
+          rw [hf, hs]; constructor <;> intro <;> omega
+        rw [Bool.eq_iff_iff, Bool.not_eq_true', decide_eq_true_eq, ← hl]
+        cases f₁ <;> simp at key ⊢ <;> omega
+      case exit =>
+        rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂ ⟨hg, ⟨rfl, rfl, rfl, rfl⟩, -⟩ -
+        exact ⟨hg, rfl⟩
+      · equiv_skip
+        rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂
+          ⟨⟨hg, ⟨rfl, rfl, rfl, rfl⟩, rfl, rfl, rfl⟩, hn⟩
+        refine ⟨hg, ⟨rfl, rfl, rfl, rfl⟩, ?_, by simp [size], by omega, le_rfl⟩
+        simp [size]; omega
 
 /-! ## Simulator and distinguisher constructions -/
 

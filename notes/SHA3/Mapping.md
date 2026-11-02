@@ -634,7 +634,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 30 | module | `StdSponge` |  | `StdSponge` | def |
 | 58 | module | `Sponge` |  | `Sponge` | def |
 | 85 | lemma | `loop_cond` |  | `loop_cond` | done |
-| 99 | equiv | `Sponge_is_StdSponge` |  | `Sponge_is_StdSponge` | stated |
+| 99 | equiv | `Sponge_is_StdSponge` |  | `Sponge_is_StdSponge` | done |
 | 131 | module | `LowerFun` |  | `LowerFun` | def |
 | 146 | module | `RaiseFun` |  | `RaiseFun` | def |
 | 155 | module | `LowerDist` |  | `LowerDist` (call-wrapped alias, E5) | def |
