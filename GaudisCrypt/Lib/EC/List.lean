@@ -119,4 +119,19 @@ def ocancel (g : β → Option α) (f : α → β) : Prop :=
 /-- `oget`: the content of an option, `default` for `none`. -/
 def oget [Inhabited α] (o : Option α) : α := o.getD default
 
+/-- `lemma nth_rcons`. -/
+theorem nth_rcons (x0 : α) (s : List α) (z : α) (i : ℤ) :
+    nth x0 (rcons s z) i = if i < size s then nth x0 s i else if i = size s then z else x0 := by
+  unfold nth rcons size
+  by_cases h0 : 0 ≤ i
+  · simp only [h0, if_true, List.getD_eq_getElem?_getD]
+    split_ifs with h1 h2
+    · rw [List.getElem?_append_left (by omega)]
+    · rw [List.getElem?_append_right (by omega), show i.toNat - s.length = 0 by omega]
+      simp
+    · rw [List.getElem?_append_right (by omega), List.getElem?_eq_none (by simp; omega)]
+      rfl
+  · simp only [h0, if_false]
+    split_ifs <;> first | rfl | omega
+
 end GaudisCrypt.EC

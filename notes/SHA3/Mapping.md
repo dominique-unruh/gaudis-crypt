@@ -694,7 +694,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 987 | lemma | `eager_eq_except_upd2_eq_in` |  | `HybridIRO.eager_eq_except_upd2_eq_in` | done |
 | 998 | lemma | `eager_eq_except_maps_eq` |  | `HybridIRO.eager_eq_except_maps_eq` | done |
 | 1012 | lemma | `eager_invar_eq_except_upd1` |  | `HybridIRO.eager_invar_eq_except_upd1` | done |
-| 1079 | lemma | `HybridIROEagerTrans_next_block_split` |  | `HybridIRO.HybridIROEagerTrans_next_block_split` | stated |
+| 1079 | lemma | `HybridIROEagerTrans_next_block_split` |  | `HybridIRO.HybridIROEagerTrans_next_block_split` | done |
 | 1188 | module | `BlockSpongeTrans` |  | `HybridIRO.BlockSpongeTrans` | def |
 | 1215 | clone | `Program` |  | `HybridIRO.Prog` (namespace) | def |
 | 1221 | lemma | `PrLoopSnoc_sample` |  | `HybridIRO.PrLoopSnoc_sample` | stated |

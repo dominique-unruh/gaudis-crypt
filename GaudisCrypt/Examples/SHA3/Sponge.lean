@@ -1527,14 +1527,182 @@ size bs{1} = i{1} /\ block_bits_dom_all_in_or_out xs{1} i{1} HybridIROEager.mp{1
 theorem HybridIROEagerTrans_next_block_split :
     prhlProc (sig₁ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
       (sig₂ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
-     
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂ ∧
         a₁.2.2.1 = a₁.2.1 + r ∧ size a₁.2.2.2 = a₁.2.1 ∧
         block_bits_dom_all_in_or_out a₁.1 a₁.2.1 (HybridIROEager_mp.get g₁))
       (HybridIROEagerTrans.next_block HybridIROEager_mp).procedure
       (HybridIROEagerTrans.next_block_split HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂) := by
-  sorry
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  have hr := gt0_r
+  equiv_seq 1 1 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
+      §HybridIROEager_mp{1} = §HybridIROEager_mp{2} ∧ §m0{1} = §i0{1} + r ∧
+      size §bs0{1} = §i0{1} ∧ block_bits_dom_all_in_or_out §xs0{1} §i0{1} §HybridIROEager_mp{1})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨⟩, rfl, hm, hs, hb⟩
+    exact ⟨rfl, rfl, rfl, rfl, rfl, hm, hs, hb⟩
+  · equiv_if{2}
+    case «then» =>
+      equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
+          §HybridIROEager_mp{1} = §HybridIROEager_mp{2} ∧ §i0{1} ≤ §m0{1} ∧
+          ∀ j, §i0{1} ≤ j ∧ j < §m0{1} → FMap.dom §HybridIROEager_mp{1} (§xs0{1}, j))
+      case body =>
+        stmt_wp
+        equiv_seq 1 0 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+          §bs0{1} = §bs0{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2} ∧ §i0{1} < §m0{1} ∧
+          (∀ j, §i0{1} ≤ j ∧ j < §m0{1} → FMap.dom §HybridIROEager_mp{1} (§xs0{1}, j)) ∧
+          §xs1{1} = §xs0{1} ∧ §i1{1} = §i0{1})
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, -, hall⟩, hg⟩
+          simp only [decide_eq_true_eq] at hg
+          exact ⟨rfl, rfl, rfl, rfl, rfl, hg, hall⟩
+        · equiv_if{1}
+          case «then» =>
+            refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+            obtain ⟨⟨-, -, -, -, -, hlt, hall, hx, hi⟩, hd⟩ := h
+            simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hd
+            rw [hx, hi] at hd
+            exact hd (hall _ ⟨le_rfl, hlt⟩)
+          case «else» =>
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hlt, hall, rfl, rfl⟩, -⟩
+            exact ⟨rfl, rfl, rfl, rfl, rfl, by omega, fun j hj => hall j ⟨by omega, hj.2⟩⟩
+      case guard => intros; simp_all
+      case exit =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, -⟩ -
+        exact ⟨rfl, rfl⟩
+      · equiv_skip
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hm, -, hb⟩, hd⟩
+        simp only [decide_eq_true_eq] at hd
+        exact ⟨rfl, rfl, rfl, rfl, rfl, by omega,
+          fun j hj => block_bits_dom_first_in_imp_all_in _ _ _ hb hd j ⟨hj.1, by omega⟩⟩
+    case «else» =>
+      equiv_seq 0 1 : (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
+          §i0{2} = §m0{1} - r ∧ §i0{1} = §m0{1} ∧ size §bs0{1} = §m0{1} ∧
+          (∀ k, §m0{1} - r ≤ k ∧ k < §m0{1} →
+            FMap.get §HybridIROEager_mp{1} (§xs0{1}, k) = some (nth true §bs0{1} k)) ∧
+          eager_eq_except §xs0{1} (§m0{1} - r) §m0{1} §HybridIROEager_mp{1} §HybridIROEager_mp{2})
+      · stmt_wp
+        equiv_seq 1 1 : (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+            §bs0{1} = §bs0{2} ∧ §j{2} = 0 ∧ §cs{2} = [] ∧ §m0{1} = §i0{1} + r ∧
+            size §bs0{1} = §i0{1} ∧
+            (∀ k, §i0{1} ≤ k ∧ k < §m0{1} → ¬ FMap.dom §HybridIROEager_mp{1} (§xs0{1}, k)) ∧
+            §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hm, hs, hb⟩, hd⟩
+          simp only [decide_eq_false_iff_not] at hd
+          exact ⟨rfl, rfl, rfl, rfl, hm, hs,
+            fun k hk => block_bits_dom_first_out_imp_all_out _ _ _ hb hd k ⟨hk.1, by omega⟩, rfl⟩
+        · equiv_while (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §i0{2} = §m0{1} - r ∧
+              §i0{2} ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §i0{1} - §i0{2} = §j{2} ∧
+              size §bs0{1} = §i0{1} ∧ §bs0{1} = §bs0{2} ++ §cs{2} ∧
+              (∀ k, §i0{2} ≤ k ∧ k < §i0{1} →
+                FMap.get §HybridIROEager_mp{1} (§xs0{1}, k) = some (nth true §bs0{1} k)) ∧
+              (∀ k, §i0{1} ≤ k ∧ k < §m0{1} → ¬ FMap.dom §HybridIROEager_mp{1} (§xs0{1}, k)) ∧
+              eager_eq_except §xs0{1} §i0{2} §m0{1} §HybridIROEager_mp{1} §HybridIROEager_mp{2})
+          case body =>
+            stmt_wp
+            equiv_seq 1 1 : ((§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §i0{2} = §m0{1} - r ∧
+                §i0{2} ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §i0{1} - §i0{2} = §j{2} ∧
+                size §bs0{1} = §i0{1} ∧ §bs0{1} = §bs0{2} ++ §cs{2} ∧
+                (∀ k, §i0{2} ≤ k ∧ k < §i0{1} →
+                  FMap.get §HybridIROEager_mp{1} (§xs0{1}, k) = some (nth true §bs0{1} k)) ∧
+                (∀ k, §i0{1} ≤ k ∧ k < §m0{1} →
+                  ¬ FMap.dom §HybridIROEager_mp{1} (§xs0{1}, k)) ∧
+                eager_eq_except §xs0{1} §i0{2} §m0{1} §HybridIROEager_mp{1}
+                  §HybridIROEager_mp{2}) ∧
+                §i0{1} < §m0{1} ∧ §xs1{1} = §xs0{1} ∧ §i1{1} = §i0{1})
+            · stmt_wp
+              equiv_skip
+              rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨h, hg⟩
+              simp only [decide_eq_true_eq] at hg
+              exact ⟨h, hg⟩
+            · equiv_if{1}
+              case «then» =>
+                stmt_wp
+                equiv_rnd
+                equiv_skip
+                rintro _ m _ _ mp xs i _ _ _ _ _ _ _
+                  ⟨⟨⟨rfl, rfl, rfl, h1, h2, rfl, hs, rfl, hget, hnd, hee⟩, hlt, rfl, rfl⟩, -⟩ a -
+                have e : oget (FMap.get (FMap.set mp (xs, i) a) (xs, i)) = a := by
+                  simp [FMap.get_set_sameE, oget]
+                rw [e]
+                refine ⟨rfl, rfl, rfl, by omega, by omega, by omega, ?_, by simp [rcons], ?_, ?_,
+                  eager_eq_except_upd1_eq_in _ _ _ _ _ _ _ hee (by omega) (by omega)⟩
+                · simp only [size, rcons, List.length_append, List.length_singleton] at hs ⊢
+                  push_cast; omega
+                · intro k hk
+                  rw [nth_rcons]
+                  by_cases hki : k = i
+                  · subst hki
+                    rw [FMap.get_set_sameE, if_neg (by omega), if_pos (by omega)]
+                  · rw [FMap.get_setE, if_neg (by rintro ⟨⟩; exact hki rfl), if_pos (by omega)]
+                    exact hget k ⟨hk.1, by omega⟩
+                · intro k hk hd
+                  rcases (FMap.mem_set _ _ _ _).mp hd with hd | hd
+                  · exact hnd k ⟨by omega, hk.2⟩ hd
+                  · simp only [Prod.mk.injEq] at hd; omega
+              case «else» =>
+                refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+                obtain ⟨⟨⟨-, -, -, -, -, -, -, -, -, hnd, -⟩, hlt, hx, hi⟩, hd⟩ := h
+                simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+                rw [hx, hi] at hd
+                exact hnd _ ⟨le_rfl, hlt⟩ hd
+          case guard =>
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨-, -, rfl, -, -, rfl, -⟩
+            rw [decide_eq_decide]; omega
+          case exit =>
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, h1, h2, rfl, hs, rfl, hget, -, hee⟩ hg
+            simp only [decide_eq_false_iff_not, not_lt] at hg
+            exact ⟨rfl, rfl, rfl, rfl, by omega, by omega, fun k hk => hget k ⟨hk.1, by omega⟩,
+              hee⟩
+          · equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, hm, hs, hnd, rfl⟩
+            exact ⟨rfl, rfl, by omega, le_rfl, by omega, by omega, hs, (List.append_nil _).symm,
+              fun k hk => absurd hk.2 (by omega), hnd, fun _ _ _ => rfl⟩
+      · equiv_while{2} (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
+            §m0{1} - r ≤ §i0{2} ∧ §i0{2} ≤ §m0{1} ∧ §i0{1} = §m0{1} ∧ size §bs0{1} = §m0{1} ∧
+            (∀ k, §m0{1} - r ≤ k ∧ k < §i0{2} →
+              FMap.get §HybridIROEager_mp{1} (§xs0{1}, k) =
+                FMap.get §HybridIROEager_mp{2} (§xs0{1}, k)) ∧
+            (∀ k, §i0{2} ≤ k ∧ k < §m0{1} →
+              FMap.get §HybridIROEager_mp{1} (§xs0{1}, k) = some (nth true §bs0{1} k)) ∧
+            eager_eq_except §xs0{1} (§m0{1} - r) §m0{1} §HybridIROEager_mp{1}
+              §HybridIROEager_mp{2}) ((§m0{2} - §i0{2}).toNat)
+        case lossless =>
+          intros
+          simp [Stmt.ewp_seq, Stmt.ewp_assign]
+        case «variant» =>
+          intro σ₁ k
+          hoare_wp 2
+          hoare_skip
+          rintro _ _ _ i mp ⟨⟨rfl, rfl, rfl, h4, h5, h6, h7, h8, h9, h10⟩, hg, hk⟩
+          simp only [eval_lens_full, eval_lens_global, decide_eq_true_eq] at *
+          refine ⟨⟨trivial, trivial, trivial, by omega, by omega, h6, h7, fun j hj => ?_,
+            fun j hj => h9 j ⟨by omega, hj.2⟩,
+            eager_eq_except_upd2_eq_in _ _ _ _ _ _ _ h10 (by omega) (by omega)⟩, by omega⟩
+          by_cases hji : j = i
+          · subst hji
+            rw [FMap.get_set_sameE]
+            exact h9 j ⟨le_rfl, by omega⟩
+          · rw [FMap.get_setE, if_neg (by rintro ⟨⟩; exact hji rfl)]
+            exact h8 j ⟨hj.1, by omega⟩
+        case exit =>
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, h1, h2, hi, hs, heq, -, hee⟩ hg
+          simp only [decide_eq_false_iff_not, not_lt] at hg
+          refine ⟨Prod.ext rfl (by simp only; omega),
+            eager_eq_except_maps_eq _ _ _ true _ _ (by omega) hee
+              fun k hk => heq k ⟨hk.1, by omega⟩⟩
+        · equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, h1, hi, hs, hget, hee⟩
+          exact ⟨rfl, rfl, rfl, by omega, by omega, hi, hs, fun k hk => absurd hk.2 (by omega),
+            fun k hk => hget k ⟨by omega, hk.2⟩, hee⟩
 
 -- Module needed for applying the transitivity tactic in connection with `BlockSponge.BIRO.IRO`
 module BlockSpongeTrans {
@@ -1616,7 +1784,6 @@ equiv[HybridIROEagerTrans.next_block ~ BlockSpongeTrans.next_block : …]`; the 
 theorem HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : ℤ) :
     prhlProc (sig₁ := procsig (List block, ℤ, ℤ, List Bool) -> (List Bool × ℤ))
       (sig₂ := procsig (List block, ℤ, List block) -> (List block × ℤ))
-     
       (fun a₁ g₁ a₂ g₂ => i2 = a₂.2.1 ∧ 0 ≤ a₂.2.1 ∧ a₁.1 = a₂.1 ∧ a₁.2.1 = a₂.2.1 * r ∧
         a₁.2.2.1 - a₁.2.1 = r ∧ a₁.2.2.2 = blocks2bits a₂.2.2 ∧ size a₂.2.2 = a₂.2.1 ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁))
@@ -1632,7 +1799,6 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : ℤ) :
 theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
     prhlProc (sig₁ := procsig (ℤ, List block) -> (ℤ × List Bool))
       (sig₂ := procsig (ℤ, List block) -> (ℤ × List block))
-     
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ n' = a₁.1 ∧ 0 ≤ n' ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁))
       (HybridIROEagerTrans.loop HybridIROEager_mp).procedure
@@ -1647,7 +1813,6 @@ BlockSponge.BIRO.IRO.f : …]`; the arguments are `(xs, n)` and `(x, n)`. -/
 theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
     prhlProc (sig₁ := procsig (List block, ℤ) -> (List Bool))
       (sig₂ := procsig (List block × ℤ) -> (List block))
-     
       (fun a₁ g₁ a₂ g₂ => n1 = a₁.2 ∧ x2 = a₂.1 ∧ a₁.1 = a₂.1 ∧ a₂.2 = (a₁.2 + r - 1) / r ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁))
       (HybridIROEager.f HybridIROEager_mp).procedure
