@@ -434,7 +434,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace `GaudisCrypt
 | 181 | lemma | `card_rng_set` | section PROOF. | `card_rng_set` | done |
 | 190 | lemma | `hinv_image` | section PROOF. | `hinv_image` | done |
 | 199 | local lemma | `Pr_col` | section PROOF. | `Pr_col` | done |
-| 220 | local equiv | `G1_col` | section PROOF. | `G1_col` | stated |
+| 220 | local equiv | `G1_col` | section PROOF. | `G1_col` (oracle steps `S_f_col`, `S_fi_col`, `M_f_col`, wrappers `DPRestr_f_col`, `DPRestr_fi_col`, `DFRestr_f_col`; invariant `colInv`) | done |
 | 348 | lemma | `Pr_G1col` | section PROOF. | `Pr_G1col` | done |
 
 ## `proof/smart_counter/Gext.eca`

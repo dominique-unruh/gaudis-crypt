@@ -838,28 +838,6 @@ Every statement of `Sponge.ec` proven; `conclusion` depends on `propext`, `Class
 `Experiment_HybridEager_Ideal_BlockIRO`; `IdealIndif_IRO_BlockIRO` picks `HIRO`'s two variables
 fresh (`Footprint.exists_fresh`, E6).  The notes below ("Sponge, ideal side") have the recipes.
 
-## 2026-11-02: `Gcol.Pr_col` (EC's `fel` over concrete oracles) — `Logic/ExpectationFrame.lean`
-
-EC's `fel` with oracles that are large concrete procedures (`DRestr(D)` over `Gcol.M`, `Gcol.S`)
-which change the potential's state only through one sampling procedure (`Gcol.sample_c`):
-* `StmtWithHoles.ExpDecr G φ s`: every write keeps `G` of the globals, every call is either to a
-  procedure that does not increase `φ ∘ G` in expectation or satisfies `ExpDecr` itself;
-  `Stmt.ewp_le_of_expDecr`/`Procedure.ewp_le_of_expDecr`: then `s` does not increase `φ ∘ G`
-  (loops take `φ ∘ G` as invariant).
-* Tactic `exp_decr` (as `writes_keep`): splits the goal down to single writes, closes a call by a
-  step lemma `∀ a g, p.ewp a (fun _ g' => φ (G g')) g ≤ φ (G g)` in the context (matched at reducible
-  transparency after folding the callee's field-by-field spelling back to `p`), local writes by
-  `rfl`, global writes by `touched_set_of_le_compl` with a footprint fact from the context
-  (`exp_decr_write` tries the hypotheses one by one).
-* Recipe (`Gcol_potential`): the step lemma by `phoare_proc_to_stmt; repeat phoare_inline 0;
-  phoare_ewp` + a pure step inequality; the main game by `phoare_inline`, `Stmt.ewp_seq/assign`,
-  `simp_reads`, `erw [Stmt.ewp_call]`, then `Module.ewp_app_le` with each oracle by
-  `Procedure.ewp_le_of_expDecr _ _ _ (by exp_decr)`.  A typed module defined with a parameter
-  (`Gcol.S c := Module.pair …`) must be unfolded (`unfold Gcol.S`) before `exp_decr` so the
-  inliner sees the pair.
-* Gotcha: inside a tactic, `exact f (by assumption) …` may commit `assumption` before unification
-  pins the type; use `refine f ?_ …; assumption` or try hypotheses one by one.
-
 ### Sponge (`HybridIRO`, loops)
 
 * Inlining: `repeat stmt_inline{i} 0` inlines a call and the calls of its body (fill-in calls
@@ -944,3 +922,61 @@ which change the potential's state only through one sampling procedure (`Gcol.sa
 * A lemma whose EC statement carries `={glob S}` (`RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f`)
   but is used under a larger `glob` region: prove it without the `glob` (`…_inv`) and frame in
   either region with `prhlProc_globInvF_of_writesKeep`.
+
+## 2026-11-02: `Gcol.Pr_col` (EC's `fel` over concrete oracles) — `Logic/ExpectationFrame.lean`
+
+EC's `fel` with oracles that are large concrete procedures (`DRestr(D)` over `Gcol.M`, `Gcol.S`)
+which change the potential's state only through one sampling procedure (`Gcol.sample_c`):
+* `StmtWithHoles.ExpDecr G φ s`: every write keeps `G` of the globals, every call is either to a
+  procedure that does not increase `φ ∘ G` in expectation or satisfies `ExpDecr` itself;
+  `Stmt.ewp_le_of_expDecr`/`Procedure.ewp_le_of_expDecr`: then `s` does not increase `φ ∘ G`
+  (loops take `φ ∘ G` as invariant).
+* Tactic `exp_decr` (as `writes_keep`): splits the goal down to single writes, closes a call by a
+  step lemma `∀ a g, p.ewp a (fun _ g' => φ (G g')) g ≤ φ (G g)` in the context (matched at reducible
+  transparency after folding the callee's field-by-field spelling back to `p`), local writes by
+  `rfl`, global writes by `touched_set_of_le_compl` with a footprint fact from the context
+  (`exp_decr_write` tries the hypotheses one by one).
+* Recipe (`Gcol_potential`): the step lemma by `phoare_proc_to_stmt; repeat phoare_inline 0;
+  phoare_ewp` + a pure step inequality; the main game by `phoare_inline`, `Stmt.ewp_seq/assign`,
+  `simp_reads`, `erw [Stmt.ewp_call]`, then `Module.ewp_app_le` with each oracle by
+  `Procedure.ewp_le_of_expDecr _ _ _ (by exp_decr)`.  A typed module defined with a parameter
+  (`Gcol.S c := Module.pair …`) must be unfolded (`unfold Gcol.S`) before `exp_decr` so the
+  inliner sees the pair.
+* Gotcha: inside a tactic, `exact f (by assumption) …` may commit `assumption` before unification
+  pins the type; use `refine f ?_ …; assumption` or try hypotheses one by one.
+
+## 2026-11-02: `Gcol.G1_col` — `Gcol.eca` complete
+
+EC's `call (_: ={…} /\ (G1.bcol{1} => G1.bcol{2}) /\ card … /\ Gcol.count <= C.c <= max_size)`
+over `DRestr(D)`'s three oracles, ported oracle by oracle:
+* Inner steps (`S_f_col`, `S_fi_col`, `M_f_col`): `G1.S.f ~ Gcol.S.f` etc. with the `C.c` budget
+  explicit in pre/post (`card ≤ 2·C.c + 1 → card ≤ 2·C.c + 3` for the primitive; the functionality
+  with the charge `qcost p g = size p - prefix p (get_max_prefix p (elems (fdom C.queries)))` and
+  `equiv_while` with the counter in the invariant).  Wrappers (`DPRestr_f_col`, `DPRestr_fi_col`,
+  `DFRestr_f_col`): `stmt_inline{i} 0` **once** (call sites are numbered in pre-order, so
+  `repeat stmt_inline 0` also inlines the oracle inside the wrapper), `equiv_if`, `equiv_call` of
+  the inner step.
+* Top level: `prhlProc_abstract_call_moduleF` with `L` a nested `Lens.pair` of the twelve
+  variables and `I` written on the tuple's projections in `colInv`'s order, so that
+  `I (L.get g₁) (L.get g₂)` is `colInv g₁ g₂` by `Iff.rfl`: the oracle obligations are then
+  `prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep') (DFRestr_f_col …)`.
+* EC's `rcondt{2}` on `sample_c`'s guard: cut so that the left sampling faces the right's guard
+  alone (`equiv_seq 1 1`), `equiv_if{2}`; the else branch is `prhlStmt_pre prhlStmt_false`.
+* EC's `swap{1}[1..2]3` in `S.f` (samplings before the `FRO.m` update on the left, after it on the
+  right): `stmt_swap` cannot move a deterministic `if` past an `if` containing samplings (its
+  `discharge` does not push reads through the `ite` the update unfolds to; adding `apply_ite`
+  there is the follow-up).  Done instead by running the right's deterministic prefix against
+  `skip` (`equiv_seq 7 4`, the left side whole), with the relation stated on the left globals
+  after the update (`rngUpd x g`; simp lemmas `rngUpd_get`, `rngUpd_set` for the other
+  variables).
+* `writes_keep` closes a global write by `by assumption`, which can pick a footprint fact about a
+  different lens and fail (an expensive defeq aborts the search): local `writes_keep'` in
+  `Gcol.lean` takes the hypothesis about the written lens itself, found syntactically
+  (follow-up: fold into `writes_keep` and `exp_decr_write`, `Logic/SyntacticFrame.lean`,
+  `Logic/ExpectationFrame.lean`).
+* Bulk closing pattern for the generalized goals: destructure the ten equalities `e1 … e10` of
+  `colEq`, rewrite the left reads (`col_rw`), `split_ifs` (one case per test, both sides now
+  agree), then `col_eq` (`colEq` unfolded, `simp_reads`, the equalities).  `equiv_rnd`/`col_rw`
+  turn trivial conjuncts into `True`: close them by `trivial`, not `rfl`.
+* `maxHeartbeats` counts the whole declaration: the inlined oracles need 1–4M.
+* `fp_mem` (local): `X ≤ A₁ ⊔ … ⊔ Aₙ` by backtracking over nested joins (`C.footprint` unfolded).
