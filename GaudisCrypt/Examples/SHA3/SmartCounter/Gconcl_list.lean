@@ -220,15 +220,29 @@ def «<=» {β : Type} (m1 m2 : FMap (List block) β) : Prop :=
 
 theorem leq_add_nin {β : Type} (m1 m2 : FMap (List block) β) (x : List block) (y : β) :
     «<=» m1 m2 → ¬ FMap.dom m2 x → «<=» m1 (FMap.set m2 x y) := by
-  sorry
+  intro h hn a ha hd
+  rw [FMap.get_setE]
+  split_ifs with hax
+  · subst hax
+    exact absurd ((FMap.domE _ _).mpr (h a ha hd ▸ (FMap.domE _ _).mp hd)) hn
+  · exact h a ha hd
 
 theorem leq_add_in {β : Type} [Inhabited β] (m1 m2 : FMap (List block) β) (x : List block) :
     «<=» m1 m2 → FMap.dom m2 x → «<=» (FMap.set m1 x (oget (FMap.get m2 x))) m2 := by
-  sorry
+  intro h hx a ha hd
+  rw [FMap.get_setE]
+  split_ifs with hax
+  · subst hax
+    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hx)
+    simp [hv, oget]
+  · rcases (FMap.mem_set _ _ _ _).mp hd with hd | hd
+    · exact h a ha hd
+    · exact absurd hd hax
 
 theorem leq_nin_dom {β : Type} (m1 m2 : FMap (List block) β) (x : List block) :
     «<=» m1 m2 → x ≠ [] → ¬ FMap.dom m2 x → ¬ FMap.dom m1 x := by
-  sorry
+  intro h hx hn hd
+  exact hn ((FMap.domE _ _).mpr (h x hx hd ▸ (FMap.domE _ _).mp hd))
 
 theorem prefix_leq1 (l : List block) (m : FMap (List block) block) (i : ℤ) :
     0 ≤ i → FMap.dom m (format l (i + 1)) →
@@ -237,17 +251,40 @@ theorem prefix_leq1 (l : List block) (m : FMap (List block) block) (i : ℤ) :
       «prefix» (format l (i + 1 + 1))
         (get_max_prefix (format l (i + 1 + 1)) (elems (FMap.fdom m))) ≤
         size (format l (i + 1 + 1)) := by
-  sorry
+  intro hi hd
+  have hf : format l (i + 1 + 1) = format l (i + 1) ++ [b0] := by
+    simp only [format, nseq, List.append_assoc]
+    rw [show (i + 1 + 1 - 1).toNat = (i + 1 - 1).toNat + 1 by omega, List.replicate_succ']
+  rw [hf]
+  have hm := (mem_elems_fdom m (format l (i + 1))).mpr hd
+  have h1 := get_max_prefix_max (format l (i + 1) ++ [b0]) _ _ hm
+  have h2 : «prefix» (format l (i + 1) ++ [b0]) (format l (i + 1)) = size (format l (i + 1)) := by
+    rw [prefixC]
+    have := prefix_cat (format l (i + 1)) [] [b0]
+    rw [List.append_nil, prefix0s] at this
+    omega
+  exact ⟨h2 ▸ h1, prefix_sizel _ _⟩
 
 theorem prefix_le1 (l : List block) (m : FMap (List block) block) (i : ℤ) :
     0 ≤ i → FMap.dom m (format l (i + 1)) →
     size (format l (i + 1 + 1)) - «prefix» (format l (i + 1 + 1))
       (get_max_prefix (format l (i + 1 + 1)) (elems (FMap.fdom m))) ≤ 1 := by
-  sorry
+  intro hi hd
+  have h := prefix_leq1 l m i hi hd
+  have hf : size (format l (i + 1 + 1)) = size (format l (i + 1)) + 1 := by
+    simp only [format, nseq, size, List.length_append, List.length_replicate]
+    omega
+  omega
 
 theorem leq_add2 {β : Type} (m1 m2 : FMap (List block) β) (x : List block) (y : β) :
     «<=» m1 m2 → ¬ FMap.dom m2 x → «<=» (FMap.set m1 x y) (FMap.set m2 x y) := by
-  sorry
+  intro h hn a ha hd
+  rw [FMap.get_setE, FMap.get_setE]
+  split_ifs with hax
+  · rfl
+  · rcases (FMap.mem_set _ _ _ _).mp hd with hd | hd
+    · exact h a ha hd
+    · exact absurd hd hax
 
 /-- `={glob D}`: agreement on what `D` may touch (an abbreviation). -/
 def eqGlob {M : Type 1} [IsModule M] (D : M) (g₁ g₂ : VariableAssignment) : Prop :=
@@ -378,21 +415,70 @@ theorem lemma1 (m1 m2 m3 : FMap (List block) block) (p : List block) (i : ℤ) (
     inv_L_L3 m1 m2 m3 → valid p = true → 0 < i → ¬ FMap.dom m1 (format p i) →
     ¬ FMap.dom m2 (format p i) →
     inv_L_L3 (FMap.set m1 (format p i) r) (FMap.set m2 (format p i) r) m3 := by
-  sorry
+  rintro ⟨rfl, h2, h3⟩ hp hi hn1 hn2
+  have hpk : parse (format p i) = (p, i) := parseK p i hi (by simpa [valid] using hp)
+  have hget : ∀ (a b : FMap (List block) block) y,
+      FMap.get (FMap.add a b) y = if FMap.dom b y then FMap.get b y else FMap.get a y := by
+    intro a b y
+    unfold FMap.add FMap.get FMap.dom
+    split_ifs with h
+    · exact Finmap.lookup_union_left (Finmap.mem_keys.mp h)
+    · exact Finmap.lookup_union_right (mt Finmap.mem_keys.mpr h)
+  have hdom : ∀ (a b : FMap (List block) block) y,
+      FMap.dom (FMap.add a b) y ↔ FMap.dom a y ∨ FMap.dom b y := by
+    intro a b y
+    simp only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm]
+  have hn3 : ¬ FMap.dom m3 (format p i) := fun h => hn1 ((hdom _ _ _).mpr (Or.inr h))
+  refine ⟨?_, ?_, h3⟩
+  · refine (FMap.fmap_eqP _ _).mp fun y => ?_
+    rw [FMap.get_setE, hget, hget, FMap.get_setE]
+    by_cases hy : y = format p i
+    · subst hy; simp [hn3]
+    · simp [hy]
+  · intro l hl
+    rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
+    · exact h2 l hl
+    · rw [hpk]; exact hp
 
 theorem lemma2 (m1 m2 m3 : FMap (List block) block) (p : List block) (i : ℤ) :
     inv_L_L3 m1 m2 m3 → valid p = true → 0 < i → FMap.dom m1 (format p i) →
     FMap.dom m2 (format p i) := by
-  sorry
+  rintro ⟨rfl, -, h3⟩ hp hi hd
+  have hpk : parse (format p i) = (p, i) := parseK p i hi (by simpa [valid] using hp)
+  have hd' : FMap.dom m2 (format p i) ∨ FMap.dom m3 (format p i) := by
+    simpa only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm] using hd
+  rcases hd' with hd' | hd'
+  · exact hd'
+  · have := h3 _ hd'
+    rw [hpk] at this
+    simp [hp] at this
 
 theorem incl_dom (m1 m2 m3 : FMap (List block) block) (l : List block) :
     inv_L_L3 m1 m2 m3 → (FMap.dom m1 l ↔ FMap.dom m2 l ∨ FMap.dom m3 l) := by
-  sorry
+  rintro ⟨rfl, -, -⟩
+  simp only [FMap.dom, FMap.add, Finmap.mem_keys, Finmap.mem_union, or_comm]
 
 theorem lemma3 (m1 m2 m3 : FMap (List block) block) (x : List block) (r : block) :
     inv_L_L3 m1 m2 m3 → valid (parse x).1 = false → ¬ FMap.dom m1 x →
     inv_L_L3 (FMap.set m1 x r) m2 (FMap.set m3 x r) := by
-  sorry
+  rintro ⟨rfl, h2, h3⟩ hv hn1
+  have hget : ∀ (a b : FMap (List block) block) y,
+      FMap.get (FMap.add a b) y = if FMap.dom b y then FMap.get b y else FMap.get a y := by
+    intro a b y
+    unfold FMap.add FMap.get FMap.dom
+    split_ifs with h
+    · exact Finmap.lookup_union_left (Finmap.mem_keys.mp h)
+    · exact Finmap.lookup_union_right (mt Finmap.mem_keys.mpr h)
+  refine ⟨?_, h2, ?_⟩
+  · refine (FMap.fmap_eqP _ _).mp fun y => ?_
+    rw [FMap.get_setE, hget, hget, FMap.get_setE]
+    by_cases hy : y = x
+    · subst hy; simp [FMap.mem_set]
+    · simp [hy, FMap.mem_set]
+  · intro l hl
+    rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
+    · exact h3 l hl
+    · exact hv
 
 /-- `local equiv Ideal_equiv3 (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F2.RO}) :
 L(D, F.RO).distinguish ~ L3(D, F.RO).distinguish : ={glob D} ==> ={glob D, res}`. -/
@@ -535,7 +621,41 @@ theorem lemma5 (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) blo
     (r : block) :
     INV_L4_ideal m1 m2 m3 m4 → ¬ FMap.dom m2 (p, i) → 0 ≤ i → valid p = true →
     INV_L4_ideal (FMap.set m1 (format p (i + 1)) r) (FMap.set m2 (p, i) r) m3 m4 := by
-  sorry
+  rintro ⟨⟨h1, h2, h3, h4⟩, inv34, hd2, hd4⟩ hn hi hp
+  have hpk : parse (format p (i + 1)) = (p, i + 1) :=
+    parseK p (i + 1) (by omega) (by simpa [valid] using hp)
+  have key : ∀ p' n x, parse x = (p', n + 1) → ((p', n) = (p, i) ↔ x = format p (i + 1)) := by
+    intro p' n x hx
+    constructor
+    · intro h
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+      have := formatK x
+      rw [hx] at this
+      exact this.symm
+    · rintro rfl
+      rw [hpk] at hx
+      obtain ⟨rfl, h⟩ := Prod.mk.inj hx
+      rw [show i = n by omega]
+  refine ⟨⟨?_, ?_, ?_, ?_⟩, inv34, ?_, hd4⟩
+  · intro p' n x hx
+    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
+  · intro p' n x hx
+    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
+  · intro p' n x hx
+    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
+    by_cases h : x = format p (i + 1)
+    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
+    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
+  · intro p' n x hx
+    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
+    by_cases h : x = format p (i + 1)
+    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
+    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
+  · intro p' n hd
+    rcases (FMap.mem_set _ _ _ _).mp hd with hd | h
+    · exact hd2 p' n hd
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+      exact ⟨hp, hi⟩
 
 theorem lemma5bis (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block)
     (m3 : FMap (List block) block) (m4 : FMap (List block × ℤ) block) (p : List block) (i : ℤ)
@@ -543,7 +663,39 @@ theorem lemma5bis (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) 
     INV_L4_ideal m1 m2 m3 m4 → ¬ FMap.dom m4 (p, i) → 0 ≤ i → valid p = false →
     parse (format p (i + 1)) = (p, i + 1) →
     INV_L4_ideal m1 m2 (FMap.set m3 (format p (i + 1)) r) (FMap.set m4 (p, i) r) := by
-  sorry
+  rintro ⟨inv12, ⟨h1, h2, h3, h4⟩, hd2, hd4⟩ hn hi hp hpk
+  have key : ∀ p' n x, parse x = (p', n + 1) → ((p', n) = (p, i) ↔ x = format p (i + 1)) := by
+    intro p' n x hx
+    constructor
+    · intro h
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+      have := formatK x
+      rw [hx] at this
+      exact this.symm
+    · rintro rfl
+      rw [hpk] at hx
+      obtain ⟨rfl, h⟩ := Prod.mk.inj hx
+      rw [show i = n by omega]
+  refine ⟨inv12, ⟨?_, ?_, ?_, ?_⟩, hd2, ?_⟩
+  · intro p' n x hx
+    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
+  · intro p' n x hx
+    rw [FMap.mem_set, FMap.mem_set, h1 p' n x hx, key p' n x hx]
+  · intro p' n x hx
+    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
+    by_cases h : x = format p (i + 1)
+    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
+    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
+  · intro p' n x hx
+    rw [FMap.get_setE, FMap.get_setE, h3 p' n x hx]
+    by_cases h : x = format p (i + 1)
+    · rw [if_pos h, if_pos ((key p' n x hx).mpr h)]
+    · rw [if_neg h, if_neg (mt (key p' n x hx).mp h)]
+  · intro p' n hd
+    rcases (FMap.mem_set _ _ _ _).mp hd with hd | h
+    · exact hd4 p' n hd
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+      exact ⟨hp, hi⟩
 
 /-- `local equiv equiv_L4_ideal : L4(D, F.LRO, F2.LRO).distinguish ~
 IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main : ={glob D} ==> ={glob D, res}`. -/
@@ -614,13 +766,28 @@ inductive INV_Real (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block
 
 theorem INV_Real_incr (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state) :
     INV_Real c1 c2 m mi p → INV_Real (c1 + 1) (c2 + 1) m mi p := by
-  sorry
+  rintro ⟨h, hm, hi⟩
+  exact ⟨by omega, hm, hi⟩
 
 theorem INV_Real_addm_mi (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (x y : state) :
     INV_Real c1 c2 m mi p → ¬ FMap.dom m x → ¬ FMap.rng m y →
     INV_Real c1 c2 (FMap.set m x y) (FMap.set mi y x) p := by
-  sorry
+  rintro ⟨hc, ⟨h0, hmp⟩, hinv⟩ hx hy
+  refine ⟨hc, ⟨h0, ?_⟩, invm_set m mi x y hx hy hinv⟩
+  intro l hl i hi
+  obtain ⟨b, c, hb, hm⟩ := hmp l hl i hi
+  refine ⟨b, c, hb, ?_⟩
+  rw [FMap.get_setE, if_neg]
+  · exact hm
+  · intro heq
+    apply hx
+    rw [FMap.domE, ← heq, hm]
+    by_cases hs : i + 1 < size l
+    · obtain ⟨b', c', hb', -⟩ := hmp l hl (i + 1) ⟨by omega, hs⟩
+      rw [hb']; simp
+    · have : take (i + 1) l = l := List.take_of_length_le (by simp only [size] at hs; omega)
+      rw [this, ← FMap.domE]; exact hl
 
 theorem invmC' (m mi : FMap state state) : invm m mi → invm mi m :=
   fun h x y => (h y x).symm
@@ -643,23 +810,88 @@ theorem invm_dom_rng (m mi : FMap state state) : invm m mi → FMap.dom m = FMap
 
 theorem all_prefixes_of_INV_real (c1 c2 : ℤ) (m mi : FMap state state)
     (p : FMap (List block) state) : INV_Real c1 c2 m mi p → all_prefixes p := by
-  sorry
+  rintro ⟨-, ⟨h0, hmp⟩, -⟩ bs hbs i
+  by_cases hi0 : i ≤ 0
+  · have : take i bs = [] := by simp [take, show i.toNat = 0 by omega]
+    rw [this, FMap.domE, h0]; simp
+  by_cases his : size bs ≤ i
+  · have : take i bs = bs := List.take_of_length_le (by simp only [size] at his; omega)
+    rw [this]; exact hbs
+  · obtain ⟨b, c, hb, -⟩ := hmp bs hbs i ⟨by omega, by omega⟩
+    rw [FMap.domE, hb]; simp
 
 theorem lemma2' (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
     INV_Real c1 c2 m mi p → 1 < i → valid bl = true → FMap.dom m (sa, sc) →
     ¬ FMap.dom p (format bl i) → FMap.get p (format bl (i - 1)) = some (sa, sc) →
     INV_Real c1 c2 m mi (FMap.set p (format bl i) (oget (FMap.get m (sa, sc)))) := by
-  sorry
+  intro inv0 hi hv hdm hnp hpbl
+  have hx0 : ∀ x : block, x +^ b0 = x := fun x => by
+    apply List.Vector.ext; intro j; simp [BitWord.xorw, b0, BitWord.zerow]
+  have hf : format bl i = rcons (format bl (i - 1)) b0 := by
+    simp only [format, nseq, rcons, List.append_assoc]
+    rw [show (i - 1).toNat = (i - 1 - 1).toNat + 1 by omega, List.replicate_succ']
+  have key : ∀ (bl : List block) (b sa : block) (sc : capacity),
+      FMap.dom m (sa +^ b, sc) → ¬ FMap.dom p (rcons bl b) → FMap.get p bl = some (sa, sc) →
+      INV_Real c1 c2 m mi (FMap.set p (rcons bl b) (oget (FMap.get m (sa +^ b, sc)))) := by
+    intro bl b sa sc hdm hnp hpbl
+    have hall := all_prefixes_of_INV_real c1 c2 m mi p inv0
+    obtain ⟨hc, ⟨h0, hmp⟩, hinv⟩ := inv0
+    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hdm)
+    have hdp : ∀ k, FMap.dom p k →
+        FMap.get (FMap.set p (rcons bl b) (oget (FMap.get m (sa +^ b, sc)))) k = FMap.get p k :=
+      fun k hk => FMap.get_set_neqE _ _ _ _ (fun h => hnp (h ▸ hk))
+    have hdpl : FMap.dom p bl := by rw [FMap.domE, hpbl]; simp
+    refine ⟨hc, ⟨?_, ?_⟩, hinv⟩
+    · rw [hdp [] (by rw [FMap.domE, h0]; simp)]; exact h0
+    · intro l hl j hj
+      rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
+      · obtain ⟨b', c', hb, hm⟩ := hmp l hl j hj
+        refine ⟨b', c', ?_, ?_⟩
+        · rw [hdp _ (hall l hl j)]; exact hb
+        · rw [hdp _ (hall l hl (j + 1))]; exact hm
+      · have hs : size (rcons bl b) = size bl + 1 := by simp [size, rcons]
+        have ht : ∀ k, k ≤ size bl → take k (rcons bl b) = take k bl := by
+          intro k hk
+          simp only [take, rcons, size] at hk ⊢
+          rw [List.take_append_of_le_length (by omega)]
+        by_cases hjs : j < size bl
+        · have hn : nth default (rcons bl b) j = nth default bl j := by
+            simp only [nth, rcons, size] at hjs ⊢
+            rw [if_pos hj.1, if_pos hj.1]
+            simp [List.getD_eq_getElem?_getD,
+              List.getElem?_append_left (show j.toNat < bl.length by omega)]
+          obtain ⟨b', c', hb, hm⟩ := hmp bl hdpl j ⟨hj.1, hjs⟩
+          refine ⟨b', c', ?_, ?_⟩
+          · rw [ht j (by omega), hdp _ (hall bl hdpl j)]; exact hb
+          · rw [ht (j + 1) (by omega), hdp _ (hall bl hdpl (j + 1)), hn]; exact hm
+        · have hj' : j = size bl := by omega
+          subst hj'
+          refine ⟨sa, sc, ?_, ?_⟩
+          · rw [ht _ le_rfl, take_size, hdp bl hdpl]; exact hpbl
+          · have hn : nth default (rcons bl b) (size bl) = b := by simp [nth, rcons, size]
+            have ht2 : take (size bl + 1) (rcons bl b) = rcons bl b :=
+              List.take_of_length_le (by simp [rcons, size])
+            rw [hn, ht2, FMap.get_set_sameE, hv]
+            simp [oget]
+  rw [hf] at hnp ⊢
+  have := key (format bl (i - 1)) b0 sa sc (by rw [hx0]; exact hdm) hnp hpbl
+  rwa [hx0] at this
 
 theorem take_nseq {α : Type} (a : α) (i j : ℤ) :
     take j (nseq i a) = if j ≤ i then nseq j a else nseq i a := by
-  sorry
+  simp only [take, nseq, List.take_replicate]
+  split_ifs <;> congr 1 <;> omega
 
 theorem take_format (bl : List block) (n i : ℤ) :
     0 < n → 0 ≤ i ∧ i < size bl + n →
     take i (format bl n) = if i ≤ size bl then take i bl else format bl (i - size bl + 1) := by
-  sorry
+  rintro hn ⟨hi0, his⟩
+  simp only [format, take, nseq, size, List.take_append, List.take_replicate] at his ⊢
+  split_ifs with h
+  · rw [show i.toNat - bl.length = 0 by omega]; simp
+  · rw [List.take_of_length_le (by omega)]
+    congr 2; omega
 
 /-- `local lemma equiv_sponge (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
 equiv[ GReal(A(D)).main ~ NIndif(Squeeze(SqueezelessSponge(P)), P, DRestr(D)).main : ={glob D} ==>
@@ -681,14 +913,68 @@ theorem lemma4 (c c' : ℤ) (m mi : FMap state state) (p : FMap (List block) sta
     (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
     INV_Real c c' m mi p → 0 < i → FMap.get p (format bl i) = some (sa, sc) →
     FMap.dom p (format bl (i + 1)) → FMap.get p (format bl (i + 1)) = FMap.get m (sa, sc) := by
-  sorry
+  rintro ⟨-, ⟨-, hmp⟩, -⟩ hi hp hd
+  have hx0 : ∀ x : block, x +^ b0 = x := fun x => by
+    apply List.Vector.ext; intro j; simp [BitWord.xorw, b0, BitWord.zerow]
+  have hf : format bl (i + 1) = format bl i ++ [b0] := by
+    simp only [format, nseq, List.append_assoc]
+    rw [show (i + 1 - 1).toNat = (i - 1).toNat + 1 by omega, List.replicate_succ']
+  rw [hf] at hd ⊢
+  obtain ⟨b, c, hb, hm⟩ := hmp _ hd (size (format bl i)) ⟨by simp [size], by simp [size]⟩
+  have ht1 : take (size (format bl i)) (format bl i ++ [b0]) = format bl i := by simp [take, size]
+  have ht2 : take (size (format bl i) + 1) (format bl i ++ [b0]) = format bl i ++ [b0] :=
+    List.take_of_length_le (by simp [size])
+  have hn : nth default (format bl i ++ [b0]) (size (format bl i)) = b0 := by simp [nth, size]
+  rw [ht1, hp] at hb
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hb).symm
+  rw [hn, ht2, hx0] at hm
+  exact hm.symm
 
 theorem lemma_3 (c1 c2 : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (bl : List block) (b sa : block) (sc : capacity) :
     INV_Real c1 c2 m mi p → FMap.dom m (sa +^ b, sc) → ¬ FMap.dom p (rcons bl b) →
     FMap.get p bl = some (sa, sc) →
     INV_Real c1 c2 m mi (FMap.set p (rcons bl b) (oget (FMap.get m (sa +^ b, sc)))) := by
-  sorry
+  intro inv0 hdm hnp hpbl
+  have hall := all_prefixes_of_INV_real c1 c2 m mi p inv0
+  obtain ⟨hc, ⟨h0, hmp⟩, hinv⟩ := inv0
+  obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hdm)
+  have hdp : ∀ k, FMap.dom p k →
+      FMap.get (FMap.set p (rcons bl b) (oget (FMap.get m (sa +^ b, sc)))) k = FMap.get p k :=
+    fun k hk => FMap.get_set_neqE _ _ _ _ (fun h => hnp (h ▸ hk))
+  have hdpl : FMap.dom p bl := by rw [FMap.domE, hpbl]; simp
+  refine ⟨hc, ⟨?_, ?_⟩, hinv⟩
+  · rw [hdp [] (by rw [FMap.domE, h0]; simp)]; exact h0
+  · intro l hl j hj
+    rcases (FMap.mem_set _ _ _ _).mp hl with hl | rfl
+    · obtain ⟨b', c', hb, hm⟩ := hmp l hl j hj
+      refine ⟨b', c', ?_, ?_⟩
+      · rw [hdp _ (hall l hl j)]; exact hb
+      · rw [hdp _ (hall l hl (j + 1))]; exact hm
+    · have hs : size (rcons bl b) = size bl + 1 := by simp [size, rcons]
+      have ht : ∀ k, k ≤ size bl → take k (rcons bl b) = take k bl := by
+        intro k hk
+        simp only [take, rcons, size] at hk ⊢
+        rw [List.take_append_of_le_length (by omega)]
+      by_cases hjs : j < size bl
+      · have hn : nth default (rcons bl b) j = nth default bl j := by
+          simp only [nth, rcons, size] at hjs ⊢
+          rw [if_pos hj.1, if_pos hj.1]
+          simp [List.getD_eq_getElem?_getD,
+            List.getElem?_append_left (show j.toNat < bl.length by omega)]
+        obtain ⟨b', c', hb, hm⟩ := hmp bl hdpl j ⟨hj.1, hjs⟩
+        refine ⟨b', c', ?_, ?_⟩
+        · rw [ht j (by omega), hdp _ (hall bl hdpl j)]; exact hb
+        · rw [ht (j + 1) (by omega), hdp _ (hall bl hdpl (j + 1)), hn]; exact hm
+      · have hj' : j = size bl := by omega
+        subst hj'
+        refine ⟨sa, sc, ?_, ?_⟩
+        · rw [ht _ le_rfl, take_size, hdp bl hdpl]; exact hpbl
+        · have hn : nth default (rcons bl b) (size bl) = b := by simp [nth, rcons, size]
+          have ht2 : take (size bl + 1) (rcons bl b) = rcons bl b :=
+            List.take_of_length_le (by simp [rcons, size])
+          rw [hn, ht2, FMap.get_set_sameE, hv]
+          simp [oget]
 
 /-- `local lemma squeeze_squeezeless (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
 equiv[ NIndif(Squeeze(SqueezelessSponge(P)), P, DRestr(D)).main ~ RealIndif(Sponge, P,

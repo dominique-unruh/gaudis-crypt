@@ -356,58 +356,58 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 | 332 | lemma | `inv_of_INV` |  | `inv_of_INV` | done |
 | 338 | lemma | `invG_of_INV` |  | `invG_of_INV` | done |
 | 348 | lemma | `m_p_of_INV` |  | `m_p_of_INV` | done |
-| 353 | lemma | `all_prefixes_of_m_p` |  | `all_prefixes_of_m_p` | stated |
-| 364 | lemma | `all_prefixes_of_INV` |  | `all_prefixes_of_INV` | stated |
+| 353 | lemma | `all_prefixes_of_m_p` |  | `all_prefixes_of_m_p` | done |
+| 364 | lemma | `all_prefixes_of_INV` |  | `all_prefixes_of_INV` | done |
 | 375 | lemma | `ch_gt0` |  | `ch_gt0` | done |
 | 378 | lemma | `ch_neq0` |  | `ch_neq0` | done |
-| 381 | lemma | `ch_notdomE_hs` |  | `ch_notdomE_hs` | stated |
-| 386 | lemma | `Sch_notdomE_hs` |  | `Sch_notdomE_hs` | stated |
-| 391 | lemma | `ch_notdomE2_mh` |  | `ch_notdomE2_mh` | stated |
-| 401 | lemma | `Sch_notdomE2_mh` |  | `Sch_notdomE2_mh` | stated |
-| 411 | lemma | `dom_hs_neq_ch` |  | `dom_hs_neq_ch` | stated |
-| 417 | lemma | `dom_hs_neq_Sch` |  | `dom_hs_neq_Sch` | stated |
-| 423 | lemma | `notin_m_notin_mh` |  | `notin_m_notin_mh` | stated |
-| 433 | lemma | `notin_m_notin_Gm` |  | `notin_m_notin_Gm` | stated |
-| 439 | lemma | `notin_hs_notdomE2_mh` |  | `notin_hs_notdomE2_mh` | stated |
-| 449 | lemma | `m_mh_addh` |  | `m_mh_addh` | stated |
-| 465 | lemma | `m_mh_updh` |  | `m_mh_updh` | stated |
-| 487 | lemma | `m_mh_addh_addm` |  | `m_mh_addh_addm` | stated |
-| 508 | lemma | `mi_mhi_addh_addmi` |  | `mi_mhi_addh_addmi` | stated |
-| 529 | lemma | `inv_mh_inv_Pm` |  | `inv_mh_inv_Pm` | stated |
-| 544 | lemma | `inv_incl_none` |  | `inv_incl_none` | stated |
-| 563 | lemma | `huniq_addh` |  | `huniq_addh` | stated |
-| 576 | lemma | `hs_addh` |  | `hs_addh` | stated |
-| 591 | lemma | `hs_updh` |  | `hs_updh` | stated |
-| 610 | lemma | `mh_addh` |  | `mh_addh` | stated |
-| 623 | lemma | `inv_addm` |  | `inv_addm` | stated |
-| 637 | lemma | `incl_addm` |  | `incl_addm` | stated |
+| 381 | lemma | `ch_notdomE_hs` |  | `ch_notdomE_hs` | done |
+| 386 | lemma | `Sch_notdomE_hs` |  | `Sch_notdomE_hs` | done |
+| 391 | lemma | `ch_notdomE2_mh` |  | `ch_notdomE2_mh` | done |
+| 401 | lemma | `Sch_notdomE2_mh` |  | `Sch_notdomE2_mh` | done |
+| 411 | lemma | `dom_hs_neq_ch` |  | `dom_hs_neq_ch` | done |
+| 417 | lemma | `dom_hs_neq_Sch` |  | `dom_hs_neq_Sch` | done |
+| 423 | lemma | `notin_m_notin_mh` |  | `notin_m_notin_mh` | done |
+| 433 | lemma | `notin_m_notin_Gm` |  | `notin_m_notin_Gm` | done |
+| 439 | lemma | `notin_hs_notdomE2_mh` |  | `notin_hs_notdomE2_mh` | done |
+| 449 | lemma | `m_mh_addh` |  | `m_mh_addh` | done |
+| 465 | lemma | `m_mh_updh` |  | `m_mh_updh` | done |
+| 487 | lemma | `m_mh_addh_addm` |  | `m_mh_addh_addm` | done |
+| 508 | lemma | `mi_mhi_addh_addmi` |  | `mi_mhi_addh_addmi` | done |
+| 529 | lemma | `inv_mh_inv_Pm` |  | `inv_mh_inv_Pm` | done |
+| 544 | lemma | `inv_incl_none` |  | `inv_incl_none` | done |
+| 563 | lemma | `huniq_addh` |  | `huniq_addh` | done |
+| 576 | lemma | `hs_addh` |  | `hs_addh` | done |
+| 591 | lemma | `hs_updh` |  | `hs_updh` | done |
+| 610 | lemma | `mh_addh` |  | `mh_addh` | done |
+| 623 | lemma | `inv_addm` |  | `inv_addm` | done |
+| 637 | lemma | `incl_addm` |  | `incl_addm` | done |
 | 643 | op | `getflag` |  | `getflag` | def |
-| 646 | lemma | `getflagP_none` |  | `getflagP_none` | stated |
-| 650 | lemma | `getflagP_some` |  | `getflagP_some` | stated |
-| 666 | lemma | `build_hpath_prefix` |  | `build_hpath_prefix` | stated |
-| 676 | lemma | `build_hpath_up` |  | `build_hpath_up` | stated |
-| 688 | lemma | `build_hpath_down` |  | `build_hpath_down` | stated |
-| 702 | lemma | `known_path_uniq` |  | `known_path_uniq` | stated |
-| 716 | lemma | `path_split` |  | `path_split` | stated |
-| 742 | lemma | `lemma1` |  | `lemma1` | stated |
-| 849 | lemma | `lemma1'` |  | `lemma1'` | stated |
-| 955 | lemma | `lemma2` |  | `lemma2` | stated |
-| 1053 | lemma | `lemma2'` |  | `lemma2'` | stated |
-| 1165 | lemma | `lemma3` |  | `lemma3` | stated |
-| 1247 | lemma | `m_mh_None` |  | `m_mh_None` | stated |
-| 1257 | lemma | `build_hpath_None` |  | `build_hpath_None` | stated |
-| 1261 | lemma | `build_hpath_upd_ch` |  | `build_hpath_upd_ch` | stated |
-| 1282 | lemma | `build_hpath_up_None` |  | `build_hpath_up_None` | stated |
-| 1309 | lemma | `build_hpath_upd_ch_iff` |  | `build_hpath_upd_ch_iff` | stated |
-| 1326 | lemma | `lemma4` |  | `lemma4` | stated |
+| 646 | lemma | `getflagP_none` |  | `getflagP_none` | done |
+| 650 | lemma | `getflagP_some` |  | `getflagP_some` | done |
+| 666 | lemma | `build_hpath_prefix` |  | `build_hpath_prefix` | done |
+| 676 | lemma | `build_hpath_up` |  | `build_hpath_up` | done |
+| 688 | lemma | `build_hpath_down` |  | `build_hpath_down` | done |
+| 702 | lemma | `known_path_uniq` |  | `known_path_uniq` | done |
+| 716 | lemma | `path_split` |  | `path_split` | done |
+| 742 | lemma | `lemma1` |  | `lemma1` | done |
+| 849 | lemma | `lemma1'` |  | `lemma1'` | done |
+| 955 | lemma | `lemma2` |  | `lemma2` | done |
+| 1053 | lemma | `lemma2'` |  | `lemma2'` | done |
+| 1165 | lemma | `lemma3` |  | `lemma3` | done |
+| 1247 | lemma | `m_mh_None` |  | `m_mh_None` | done |
+| 1257 | lemma | `build_hpath_None` |  | `build_hpath_None` | done |
+| 1261 | lemma | `build_hpath_upd_ch` |  | `build_hpath_upd_ch` | done |
+| 1282 | lemma | `build_hpath_up_None` |  | `build_hpath_up_None` | done |
+| 1309 | lemma | `build_hpath_upd_ch_iff` |  | `build_hpath_upd_ch_iff` | done |
+| 1326 | lemma | `lemma4` |  | `lemma4` | done |
 | 1349 | equiv | `eq_fi` |  | `eq_fi` | stated |
 | 1488 | equiv | `eq_f` |  | `eq_f` | stated |
-| 1815 | lemma | `head_nth` |  | `head_nth` | stated |
-| 1818 | lemma | `drop_add` |  | `drop_add` | stated |
-| 1824 | lemma | `behead_drop` |  | `behead_drop` | stated |
-| 1827 | lemma | `incl_upd_nin` |  | `incl_upd_nin` | stated |
-| 1836 | lemma | `lemma5` |  | `lemma5` | stated |
-| 1863 | lemma | `lemma5'` |  | `lemma5'` | stated |
+| 1815 | lemma | `head_nth` |  | `head_nth` | done |
+| 1818 | lemma | `drop_add` |  | `drop_add` | done |
+| 1824 | lemma | `behead_drop` |  | `behead_drop` | done |
+| 1827 | lemma | `incl_upd_nin` |  | `incl_upd_nin` | done |
+| 1836 | lemma | `lemma5` |  | `lemma5` | done |
+| 1863 | lemma | `lemma5'` |  | `lemma5'` | done |
 | 1895 | equiv | `PFf_Cf` |  | `PFf_Cf` | stated |
 | 2589 | declare module | `D` | section AUX. | `D` (section variable) | def |
 | 2591 | declare axiom | `D_ll` | section AUX. | `D_ll` (hypothesis) | def |
@@ -543,12 +543,12 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 102 | module | `SimLast` |  | `SimLast` (`S` a Lean parameter; aliases wrapped, E5) | def |
 | 111 | clone | `F` |  | `F2` (namespace) | def |
 | 116 | op | `(<=)` | section Ideal. | `«<=»` | def |
-| 119 | local lemma | `leq_add_nin` | section Ideal. | `leq_add_nin` | stated |
-| 128 | local lemma | `leq_add_in` | section Ideal. | `leq_add_in` | stated |
-| 136 | local lemma | `leq_nin_dom` | section Ideal. | `leq_nin_dom` | stated |
-| 141 | local lemma | `prefix_leq1` | section Ideal. | `prefix_leq1` | stated |
-| 159 | local lemma | `prefix_le1` | section Ideal. | `prefix_le1` | stated |
-| 171 | local lemma | `leq_add2` | section Ideal. | `leq_add2` | stated |
+| 119 | local lemma | `leq_add_nin` | section Ideal. | `leq_add_nin` | done |
+| 128 | local lemma | `leq_add_in` | section Ideal. | `leq_add_in` | done |
+| 136 | local lemma | `leq_nin_dom` | section Ideal. | `leq_nin_dom` | done |
+| 141 | local lemma | `prefix_leq1` | section Ideal. | `prefix_leq1` | done |
+| 159 | local lemma | `prefix_le1` | section Ideal. | `prefix_le1` | done |
+| 171 | local lemma | `leq_add2` | section Ideal. | `leq_add2` | done |
 | 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` | stated |
 | 296 | local module | `IF'` | section Ideal. | `IF'` (Lean function), `IF'.f_` | def |
 | 315 | local module | `L` | section Ideal. | `L` (Lean function) | def |
@@ -559,10 +559,10 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 388 | inductive | `inv_L_L3` | section Ideal. | `inv_L_L3` | def |
 | 393 | local module | `IF2` | section Ideal. | `IF2` | def |
 | 421 | local module | `L3` | section Ideal. | `L3` (Lean function) | def |
-| 425 | local lemma | `lemma1` | section Ideal. | `lemma1` | stated |
-| 440 | local lemma | `lemma2` | section Ideal. | `lemma2` | stated |
-| 452 | local lemma | `incl_dom` | section Ideal. | `incl_dom` | stated |
-| 461 | local lemma | `lemma3` | section Ideal. | `lemma3` | stated |
+| 425 | local lemma | `lemma1` | section Ideal. | `lemma1` | done |
+| 440 | local lemma | `lemma2` | section Ideal. | `lemma2` | done |
+| 452 | local lemma | `incl_dom` | section Ideal. | `incl_dom` | done |
+| 461 | local lemma | `lemma3` | section Ideal. | `lemma3` | done |
 | 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` | stated |
 | 599 | local module | `D2` | section Ideal. | `D2` (Lean function) | def |
 | 603 | local module | `D3` | section Ideal. | `D3` (Lean function) | def |
@@ -574,26 +574,26 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` | stated |
 | 788 | op | `inv_map` | section Ideal. | `inv_map` | def |
 | 794 | inductive | `INV_L4_ideal` | section Ideal. | `INV_L4_ideal` | def |
-| 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | stated |
-| 819 | local lemma | `lemma5bis` | section Ideal. | `lemma5bis` | stated |
+| 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | done |
+| 819 | local lemma | `lemma5bis` | section Ideal. | `lemma5bis` | done |
 | 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` | stated |
 | 916 | local module | `D5` | section Ideal. | `D5` (Lean function) | def |
 | 919 | local module | `D6` | section Ideal. | `D6` (Lean function) | def |
 | 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` | stated |
 | 973 | inductive | `m_p` | section Real. | `m_p` | def |
 | 979 | inductive | `INV_Real` | section Real. | `INV_Real` | def |
-| 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | stated |
-| 992 | local lemma | `INV_Real_addm_mi` | section Real. | `INV_Real_addm_mi` | stated |
+| 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | done |
+| 992 | local lemma | `INV_Real_addm_mi` | section Real. | `INV_Real_addm_mi` | done |
 | 1004 | local lemma | `invmC'` | section Real. | `invmC'` | done |
 | 1008 | local lemma | `invmC` | section Real. | `invmC` | done |
 | 1012 | local lemma | `invm_dom_rng` | section Real. | `invm_dom_rng` | done |
-| 1021 | local lemma | `all_prefixes_of_INV_real` | section Real. | `all_prefixes_of_INV_real` | stated |
-| 1029 | local lemma | `lemma2'` | section Real. | `lemma2'` | stated |
-| 1075 | local lemma | `take_nseq` | section Real. | `take_nseq` | stated |
-| 1086 | local lemma | `take_format` | section Real. | `take_format` | stated |
+| 1021 | local lemma | `all_prefixes_of_INV_real` | section Real. | `all_prefixes_of_INV_real` | done |
+| 1029 | local lemma | `lemma2'` | section Real. | `lemma2'` | done |
+| 1075 | local lemma | `take_nseq` | section Real. | `take_nseq` | done |
+| 1086 | local lemma | `take_format` | section Real. | `take_format` | done |
 | 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` | stated |
-| 1437 | local lemma | `lemma4` | section Real. | `lemma4` | stated |
-| 1463 | local lemma | `lemma_3` | section Real. | `lemma_3` | stated |
+| 1437 | local lemma | `lemma4` | section Real. | `lemma4` | done |
+| 1463 | local lemma | `lemma_3` | section Real. | `lemma_3` | done |
 | 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` | stated |
 | 1748 | lemma | `pr_real` | section Real. | `pr_real` | stated |
 | 1763 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
@@ -633,7 +633,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 22 | clone import | `IRO` |  | `BIRO` (namespace) | def |
 | 30 | module | `StdSponge` |  | `StdSponge` | def |
 | 58 | module | `Sponge` |  | `Sponge` | def |
-| 85 | lemma | `loop_cond` |  | `loop_cond` | stated |
+| 85 | lemma | `loop_cond` |  | `loop_cond` | done |
 | 99 | equiv | `Sponge_is_StdSponge` |  | `Sponge_is_StdSponge` | stated |
 | 131 | module | `LowerFun` |  | `LowerFun` | def |
 | 146 | module | `RaiseFun` |  | `RaiseFun` | def |

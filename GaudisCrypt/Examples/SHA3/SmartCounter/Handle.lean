@@ -343,13 +343,31 @@ theorem m_p_of_INV (hs : handles) (ch : handle) (m1 mi1 : smap) (mh2 mhi2 : hsma
 
 theorem all_prefixes_of_m_p (m1 : smap) (p : FMap (List block) state)
     (q : FMap (List block) block) : m_p m1 p q → all_prefixes p := by
-  sorry
+  rintro ⟨h0, -, h1, -, -⟩ l hl i
+  by_cases hi0 : i ≤ 0
+  · have : take i l = [] := by simp [take, Int.toNat_eq_zero.mpr hi0]
+    rw [this]; exact (FMap.domE _ _).mpr (by simp [h0])
+  by_cases his : i < size l
+  · obtain ⟨sa, sc, hp, -⟩ := h1 l hl i ⟨by omega, his⟩
+    exact (FMap.domE _ _).mpr (by simp [hp])
+  · have : take i l = l := by
+      unfold take; apply List.take_of_length_le; simp [size] at his; omega
+    rw [this]; exact hl
 
 theorem all_prefixes_of_INV (hs : handles) (ch : handle) (m1 mi1 : smap) (mh2 mhi2 : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block)) (m2 mi2 : smap)
     (p : FMap (List block) state) (q : FMap (List block) block) :
     INV_CF_G1 hs ch m1 mi1 m2 mi2 mh2 mhi2 ro pi p q → all_prefixes p := by
-  sorry
+  rintro ⟨-, -, -, -, -, -, -, -, -, ⟨h0, -, h1, -, -⟩⟩ l hl i
+  by_cases hi0 : i ≤ 0
+  · have : take i l = [] := by simp [take, Int.toNat_eq_zero.mpr hi0]
+    rw [this]; exact (FMap.domE _ _).mpr (by simp [h0])
+  by_cases his : i < size l
+  · obtain ⟨sa, sc, hp, -⟩ := h1 l hl i ⟨by omega, his⟩
+    exact (FMap.domE _ _).mpr (by simp [hp])
+  · have : take i l = l := by
+      unfold take; apply List.take_of_length_le; simp [size] at his; omega
+    rw [this]; exact hl
 
 /-! ## Handles -/
 
@@ -360,57 +378,159 @@ theorem ch_neq0 (hs : handles) (ch : handle) : hs_spec hs ch → 0 ≠ ch :=
   fun ⟨_, h0, hlt⟩ => ne_of_lt (hlt _ 0 h0)
 
 theorem ch_notdomE_hs (hs : handles) (ch : handle) : hs_spec hs ch → FMap.get hs ch = none := by
-  sorry
+  rintro ⟨-, -, hlt⟩
+  cases h : FMap.get hs ch with
+  | none => rfl
+  | some cf => exact absurd (hlt cf ch h) (lt_irrefl _)
 
 theorem Sch_notdomE_hs (hs : handles) (ch : handle) :
     hs_spec hs ch → FMap.get hs (ch + 1) = none := by
-  sorry
+  rintro ⟨-, -, hlt⟩
+  cases h : FMap.get hs (ch + 1) with
+  | none => rfl
+  | some cf => have := hlt cf _ h; linarith
 
 theorem ch_notdomE2_mh (hs : handles) (m : smap) (mh : hsmap) (xa : block) (ch : handle) :
     m_mh hs m mh → hs_spec hs ch → FMap.get mh (xa, ch) = none := by
-  sorry
+  rintro ⟨-, hmh⟩ ⟨-, -, hlt⟩
+  cases h : FMap.get mh (xa, ch) with
+  | none => rfl
+  | some y =>
+    obtain ⟨xc, fx, yc, fy, hx, -, -⟩ := hmh xa ch y.1 y.2 h
+    exact absurd (hlt _ _ hx) (lt_irrefl _)
 
 theorem Sch_notdomE2_mh (hs : handles) (m : smap) (mh : hsmap) (xa : block) (ch : handle) :
     m_mh hs m mh → hs_spec hs ch → FMap.get mh (xa, ch + 1) = none := by
-  sorry
+  rintro ⟨-, hmh⟩ ⟨-, -, hlt⟩
+  cases h : FMap.get mh (xa, ch + 1) with
+  | none => rfl
+  | some y =>
+    obtain ⟨xc, fx, yc, fy, hx, -, -⟩ := hmh xa _ y.1 y.2 h
+    have := hlt _ _ hx; linarith
 
 theorem dom_hs_neq_ch (hs : handles) (ch hx : handle) (xc : capacity) (fx : flag) :
     hs_spec hs ch → FMap.get hs hx = some (xc, fx) → hx ≠ ch := by
-  sorry
+  rintro ⟨-, -, hlt⟩ h
+  have := hlt _ _ h; linarith
 
 theorem dom_hs_neq_Sch (hs : handles) (ch hx : handle) (xc : capacity) (fx : flag) :
     hs_spec hs ch → FMap.get hs hx = some (xc, fx) → hx ≠ ch + 1 := by
-  sorry
+  rintro ⟨-, -, hlt⟩ h
+  have := hlt _ _ h; linarith
 
 theorem notin_m_notin_mh (hs : handles) (m : smap) (mh : hsmap) (xa : block) (xc : capacity)
     (hx : handle) (fx : flag) :
     m_mh hs m mh → FMap.get m (xa, xc) = none → FMap.get hs hx = some (xc, fx) →
     FMap.get mh (xa, hx) = none := by
-  sorry
+  rintro ⟨-, hmh⟩ hm hhs
+  cases h : FMap.get mh (xa, hx) with
+  | none => rfl
+  | some y =>
+    obtain ⟨xc', fx', yc, fy, hx', -, hm'⟩ := hmh xa hx y.1 y.2 h
+    rw [hhs] at hx'
+    simp only [Option.some.injEq, Prod.mk.injEq] at hx'
+    obtain ⟨rfl, rfl⟩ := hx'
+    rw [hm] at hm'; cases hm'
 
 theorem notin_m_notin_Gm {α β : Type} [DecidableEq α] (m Gm : FMap α β) (x : α) :
     incl Gm m → FMap.get m x = none → FMap.get Gm x = none := by
-  sorry
+  intro hincl hm
+  by_contra h
+  have := hincl x h
+  rw [hm] at this; exact h this.symm
 
 theorem notin_hs_notdomE2_mh (hs : handles) (m : smap) (mh : hsmap) (xa : block) (hx : handle) :
     m_mh hs m mh → FMap.get hs hx = none → FMap.get mh (xa, hx) = none := by
-  sorry
+  rintro ⟨-, hmh⟩ hhs
+  cases h : FMap.get mh (xa, hx) with
+  | none => rfl
+  | some y =>
+    obtain ⟨xc', fx', yc, fy, hx', -, -⟩ := hmh xa hx y.1 y.2 h
+    rw [hhs] at hx'; cases hx'
 
 theorem m_mh_addh (hs : handles) (ch : handle) (m : smap) (mh : hsmap) (xc : capacity)
     (fx : flag) : hs_spec hs ch → m_mh hs m mh → m_mh (FMap.set hs ch (xc, fx)) m mh := by
-  sorry
+  rintro ⟨-, -, hlt⟩ ⟨h1, h2⟩
+  have hne : ∀ h cf, FMap.get hs h = some cf → FMap.get (FMap.set hs ch (xc, fx)) h = some cf :=
+    fun h cf hh => by rw [FMap.get_set_neqE _ _ _ _ (ne_of_lt (hlt cf h hh))]; exact hh
+  constructor
+  · intro xa xc' ya yc hm
+    obtain ⟨hx, fx', hy, fy, a, b, c⟩ := h1 xa xc' ya yc hm
+    exact ⟨hx, fx', hy, fy, hne _ _ a, hne _ _ b, c⟩
+  · intro xa hx ya hy hm
+    obtain ⟨xc', fx', yc, fy, a, b, c⟩ := h2 xa hx ya hy hm
+    exact ⟨xc', fx', yc, fy, hne _ _ a, hne _ _ b, c⟩
 
 theorem m_mh_updh (fy0 : flag) (hs : handles) (m : smap) (mh : hsmap) (yc : capacity)
     (hy : handle) (fy : flag) :
     m_mh hs m mh → FMap.get hs hy = some (yc, fy0) → m_mh (FMap.set hs hy (yc, fy)) m mh := by
-  sorry
+  rintro ⟨h1, h2⟩ hhy
+  have key : ∀ h c f, FMap.get hs h = some (c, f) →
+      ∃ f', FMap.get (FMap.set hs hy (yc, fy)) h = some (c, f') := by
+    intro h c f hh
+    by_cases e : h = hy
+    · rw [e, hhy] at hh
+      simp only [Option.some.injEq, Prod.mk.injEq] at hh
+      obtain ⟨rfl, rfl⟩ := hh
+      exact ⟨fy, by rw [e]; simp⟩
+    · exact ⟨f, by rw [FMap.get_set_neqE _ _ _ _ e]; exact hh⟩
+  constructor
+  · intro xa xc ya yc' hm
+    obtain ⟨hx, fx, hy', fy', a, b, c⟩ := h1 xa xc ya yc' hm
+    obtain ⟨f1, a'⟩ := key _ _ _ a
+    obtain ⟨f2, b'⟩ := key _ _ _ b
+    exact ⟨hx, f1, hy', f2, a', b', c⟩
+  · intro xa hx ya hy' hmh
+    obtain ⟨xc, fx, yc', fy', a, b, c⟩ := h2 xa hx ya hy' hmh
+    obtain ⟨f1, a'⟩ := key _ _ _ a
+    obtain ⟨f2, b'⟩ := key _ _ _ b
+    exact ⟨xc, f1, yc', f2, a', b', c⟩
 
 theorem m_mh_addh_addm (hs : handles) (Pm : smap) (mh : hsmap) (hx : handle) (xa : block)
     (xc : capacity) (hy : handle) (ya : block) (yc : capacity) (f f' : flag) :
     m_mh hs Pm mh → huniq hs → FMap.get hs hx = some (xc, f) → FMap.get hs hy = none →
     m_mh (FMap.set hs hy (yc, f')) (FMap.set Pm (xa, xc) (ya, yc))
       (FMap.set mh (xa, hx) (ya, hy)) := by
-  sorry
+  rintro ⟨h1, h2⟩ hu hhx hhy
+  have hne : ∀ h c, FMap.get hs h = some c → h ≠ hy := fun h c hh e => by
+    rw [e, hhy] at hh; cases hh
+  have hold : ∀ h c, FMap.get hs h = some c → FMap.get (FMap.set hs hy (yc, f')) h = some c :=
+    fun h c hh => by rw [FMap.get_set_neqE _ _ _ _ (hne _ _ hh)]; exact hh
+  constructor
+  · intro xa0 xc0 ya0 yc0 hm
+    rw [FMap.get_setE] at hm
+    split_ifs at hm with e
+    · simp only [Prod.mk.injEq] at e
+      obtain ⟨rfl, rfl⟩ := e
+      simp only [Option.some.injEq, Prod.mk.injEq] at hm
+      obtain ⟨rfl, rfl⟩ := hm
+      exact ⟨hx, f, hy, f', hold _ _ hhx, by simp, by simp⟩
+    · obtain ⟨hx0, fx0, hy0, fy0, a, b, c⟩ := h1 _ _ _ _ hm
+      refine ⟨hx0, fx0, hy0, fy0, hold _ _ a, hold _ _ b, ?_⟩
+      rw [FMap.get_set_neqE]
+      · exact c
+      · intro e'
+        simp only [Prod.mk.injEq] at e'
+        obtain ⟨rfl, rfl⟩ := e'
+        rw [hhx] at a
+        simp only [Option.some.injEq, Prod.mk.injEq] at a
+        exact e (by rw [a.1])
+  · intro xa0 hx0 ya0 hy0 hm
+    rw [FMap.get_setE] at hm
+    split_ifs at hm with e
+    · simp only [Prod.mk.injEq] at e
+      obtain ⟨rfl, rfl⟩ := e
+      simp only [Option.some.injEq, Prod.mk.injEq] at hm
+      obtain ⟨rfl, rfl⟩ := hm
+      exact ⟨xc, f, yc, f', hold _ _ hhx, by simp, by simp⟩
+    · obtain ⟨xc0, fx0, yc0, fy0, a, b, c⟩ := h2 _ _ _ _ hm
+      refine ⟨xc0, fx0, yc0, fy0, hold _ _ a, hold _ _ b, ?_⟩
+      rw [FMap.get_set_neqE]
+      · exact c
+      · intro e'
+        simp only [Prod.mk.injEq] at e'
+        obtain ⟨rfl, rfl⟩ := e'
+        exact e (by rw [hu _ _ _ _ a hhx rfl])
 
 theorem mi_mhi_addh_addmi (hs : handles) (mi : smap) (mhi : hsmap) (hx : handle) (xa : block)
     (xc : capacity) (hy : handle) (ya : block) (yc : capacity) (fx fy : flag) :
@@ -418,84 +538,290 @@ theorem mi_mhi_addh_addmi (hs : handles) (mi : smap) (mhi : hsmap) (hx : handle)
     FMap.get hs hy = none →
     m_mh (FMap.set hs hy (yc, fy)) (FMap.set mi (ya, yc) (xa, xc))
       (FMap.set mhi (ya, hy) (xa, hx)) := by
-  sorry
+  rintro ⟨h1, h2⟩ hyc hhx hhy
+  have hne : ∀ h c, FMap.get hs h = some c → h ≠ hy := fun h c hh e => by
+    rw [e, hhy] at hh; cases hh
+  have hold : ∀ h c, FMap.get hs h = some c → FMap.get (FMap.set hs hy (yc, fy)) h = some c :=
+    fun h c hh => by rw [FMap.get_set_neqE _ _ _ _ (hne _ _ hh)]; exact hh
+  constructor
+  · intro ya0 yc0 xa0 xc0 hm
+    rw [FMap.get_setE] at hm
+    split_ifs at hm with e
+    · simp only [Prod.mk.injEq] at e
+      obtain ⟨rfl, rfl⟩ := e
+      simp only [Option.some.injEq, Prod.mk.injEq] at hm
+      obtain ⟨rfl, rfl⟩ := hm
+      exact ⟨hy, fy, hx, fx, by simp, hold _ _ hhx, by simp⟩
+    · obtain ⟨hy0, fy0, hx0, fx0, a, b, c⟩ := h1 _ _ _ _ hm
+      refine ⟨hy0, fy0, hx0, fx0, hold _ _ a, hold _ _ b, ?_⟩
+      rw [FMap.get_set_neqE]
+      · exact c
+      · intro e'
+        simp only [Prod.mk.injEq] at e'
+        exact hne _ _ a e'.2
+  · intro ya0 hy0 xa0 hx0 hm
+    rw [FMap.get_setE] at hm
+    split_ifs at hm with e
+    · simp only [Prod.mk.injEq] at e
+      obtain ⟨rfl, rfl⟩ := e
+      simp only [Option.some.injEq, Prod.mk.injEq] at hm
+      obtain ⟨rfl, rfl⟩ := hm
+      exact ⟨yc, fy, xc, fx, by simp, hold _ _ hhx, by simp⟩
+    · obtain ⟨yc0, fy0, xc0, fx0, a, b, c⟩ := h2 _ _ _ _ hm
+      refine ⟨yc0, fy0, xc0, fx0, hold _ _ a, hold _ _ b, ?_⟩
+      rw [FMap.get_set_neqE]
+      · exact c
+      · intro e'
+        simp only [Prod.mk.injEq] at e'
+        obtain ⟨rfl, rfl⟩ := e'
+        exact hyc _ _ a
 
 theorem inv_mh_inv_Pm (hs : handles) (Pm Pmi : smap) (mh mhi : hsmap) :
     m_mh hs Pm mh → m_mh hs Pmi mhi → inv_spec mh mhi → inv_spec Pm Pmi := by
-  sorry
+  rintro ⟨a1, a2⟩ ⟨b1, b2⟩ ⟨hinv⟩
+  constructor
+  rintro ⟨xa, xc⟩ ⟨ya, yc⟩
+  constructor
+  · intro h
+    obtain ⟨hx, fx, hy, fy, hhx, hhy, hmh⟩ := a1 _ _ _ _ h
+    obtain ⟨yc', fy', xc', fx', hhy', hhx', hP⟩ := b2 _ _ _ _ ((hinv _ _).mp hmh)
+    rw [hhy] at hhy'; rw [hhx] at hhx'
+    simp only [Option.some.injEq, Prod.mk.injEq] at hhy' hhx'
+    obtain ⟨rfl, rfl⟩ := hhy'; obtain ⟨rfl, rfl⟩ := hhx'
+    exact hP
+  · intro h
+    obtain ⟨hy, fy, hx, fx, hhy, hhx, hmhi⟩ := b1 _ _ _ _ h
+    obtain ⟨xc', fx', yc', fy', hhx', hhy', hP⟩ := a2 _ _ _ _ ((hinv _ _).mpr hmhi)
+    rw [hhy] at hhy'; rw [hhx] at hhx'
+    simp only [Option.some.injEq, Prod.mk.injEq] at hhy' hhx'
+    obtain ⟨rfl, rfl⟩ := hhy'; obtain ⟨rfl, rfl⟩ := hhx'
+    exact hP
 
 theorem inv_incl_none {α β : Type} [DecidableEq α] [DecidableEq β] (Pm : FMap α β)
     (Pmi : FMap β α) (Gm : FMap α β) (x : α) (Gmi : FMap β α) (y : β) :
     inv_spec Pm Pmi → inv_spec Gm Gmi → incl Gm Pm → incl Gmi Pmi → FMap.get Pm x = some y →
     (FMap.get Gm x = none ↔ FMap.get Gmi y = none) := by
-  sorry
+  rintro ⟨invP⟩ ⟨invG⟩ hG hGi hx
+  have hy := (invP x y).mp hx
+  constructor
+  · intro hGx
+    cases h : FMap.get Gmi y with
+    | none => rfl
+    | some x' =>
+      have := hGi y (by rw [h]; simp)
+      rw [h, hy] at this
+      cases this
+      exact absurd ((invG x y).mpr h) (by rw [hGx]; simp)
+  · intro hGy
+    cases h : FMap.get Gm x with
+    | none => rfl
+    | some y' =>
+      have := hG x (by rw [h]; simp)
+      rw [h, hx] at this
+      cases this
+      exact absurd ((invG x y).mp h) (by rw [hGy]; simp)
 
 theorem huniq_addh (hs : handles) (h : handle) (c : capacity) (f : flag) :
     huniq hs → (∀ f' h', FMap.get hs h' ≠ some (c, f')) → huniq (FMap.set hs h (c, f)) := by
-  sorry
+  intro hu hc h1 h2 ⟨c1, f1⟩ ⟨c2, f2⟩ g1 g2 e
+  simp only at e; subst e
+  rw [FMap.get_setE] at g1 g2
+  split_ifs at g1 g2 with e1 e2 e2
+  · rw [e1, e2]
+  · simp only [Option.some.injEq, Prod.mk.injEq] at g1; obtain ⟨rfl, rfl⟩ := g1
+    exact absurd g2 (hc _ _)
+  · simp only [Option.some.injEq, Prod.mk.injEq] at g2; obtain ⟨rfl, rfl⟩ := g2
+    exact absurd g1 (hc _ _)
+  · exact hu _ _ _ _ g1 g2 rfl
 
 theorem hs_addh (hs : handles) (ch : handle) (xc : capacity) (fx : flag) :
     hs_spec hs ch → (∀ f h, FMap.get hs h ≠ some (xc, f)) →
     hs_spec (FMap.set hs ch (xc, fx)) (ch + 1) := by
-  sorry
+  rintro ⟨hu, h0, hlt⟩ hxc
+  refine ⟨?_, ?_, ?_⟩
+  · intro h1 h2 ⟨c1, f1⟩ ⟨c2, f2⟩ g1 g2 e
+    simp only at e; subst e
+    rw [FMap.get_setE] at g1 g2
+    split_ifs at g1 g2 with e1 e2 e2
+    · rw [e1, e2]
+    · simp only [Option.some.injEq, Prod.mk.injEq] at g1; obtain ⟨rfl, rfl⟩ := g1
+      exact absurd g2 (hxc _ _)
+    · simp only [Option.some.injEq, Prod.mk.injEq] at g2; obtain ⟨rfl, rfl⟩ := g2
+      exact absurd g1 (hxc _ _)
+    · exact hu _ _ _ _ g1 g2 rfl
+  · rw [FMap.get_set_neqE _ _ _ _ (ne_of_lt (hlt _ 0 h0))]; exact h0
+  · intro cf h hh
+    rw [FMap.get_setE] at hh
+    split_ifs at hh with e
+    · linarith
+    · have := hlt _ _ hh; linarith
 
 theorem hs_updh (hs : handles) (ch : handle) (fx : flag) (hx : handle) (xc : capacity)
     (fx' : flag) :
     hs_spec hs ch → 0 ≠ hx → FMap.get hs hx = some (xc, fx) →
     hs_spec (FMap.set hs hx (xc, fx')) ch := by
-  sorry
+  rintro ⟨hu, h0, hlt⟩ hx0 hhx
+  refine ⟨?_, ?_, ?_⟩
+  · intro h1 h2 ⟨c1, f1⟩ ⟨c2, f2⟩ g1 g2 e
+    simp only at e; subst e
+    rw [FMap.get_setE] at g1 g2
+    split_ifs at g1 g2 with e1 e2 e2
+    · rw [e1, e2]
+    · simp only [Option.some.injEq, Prod.mk.injEq] at g1; obtain ⟨rfl, rfl⟩ := g1
+      rw [e1]; exact hu _ _ _ _ hhx g2 rfl
+    · simp only [Option.some.injEq, Prod.mk.injEq] at g2; obtain ⟨rfl, rfl⟩ := g2
+      rw [e2]; exact hu _ _ _ _ g1 hhx rfl
+    · exact hu _ _ _ _ g1 g2 rfl
+  · rw [FMap.get_set_neqE _ _ _ _ hx0]; exact h0
+  · intro cf h hh
+    rw [FMap.get_setE] at hh
+    split_ifs at hh with e
+    · rw [e]; exact hlt _ _ hhx
+    · exact hlt _ _ hh
 
 theorem mh_addh (hs : handles) (ch : handle) (Gm : smap) (mh : hsmap)
     (ro : FMap (List block) block) (xc : capacity) (fx : flag) :
     hs_spec hs ch → mh_spec hs Gm mh ro → mh_spec (FMap.set hs ch (xc, fx)) Gm mh ro := by
-  sorry
+  rintro ⟨-, -, hlt⟩ ⟨a, b, c⟩
+  refine ⟨?_, b, c⟩
+  intro xa hx ya hy hmh
+  obtain ⟨xc', fx', yc', fy', g1, g2, g3⟩ := a xa hx ya hy hmh
+  refine ⟨xc', fx', yc', fy', ?_, ?_, g3⟩
+  · rw [FMap.get_set_neqE _ _ _ _ (ne_of_lt (hlt _ _ g1))]; exact g1
+  · rw [FMap.get_set_neqE _ _ _ _ (ne_of_lt (hlt _ _ g2))]; exact g2
 
 theorem inv_addm {α β : Type} [DecidableEq α] [DecidableEq β] (m : FMap α β) (mi : FMap β α)
     (x : α) (y : β) :
     inv_spec m mi → FMap.get m x = none → FMap.get mi y = none →
     inv_spec (FMap.set m x y) (FMap.set mi y x) := by
-  sorry
+  rintro ⟨hinv⟩ hmx hmiy
+  constructor
+  intro x' y'
+  simp only [FMap.get_setE]
+  by_cases ex : x' = x <;> by_cases ey : y' = y
+  · subst ex ey; simp
+  · subst ex
+    simp only [if_true, ey, if_false, Option.some.injEq]
+    constructor
+    · intro e; exact absurd e.symm ey
+    · intro e; rw [(hinv _ _).mpr e] at hmx; cases hmx
+  · subst ey
+    simp only [if_true, ex, if_false, Option.some.injEq]
+    constructor
+    · intro e; rw [(hinv _ _).mp e] at hmiy; cases hmiy
+    · intro e; exact absurd e.symm ex
+  · simp only [ex, ey, if_false]; exact hinv x' y'
 
 theorem incl_addm {α β : Type} [DecidableEq α] (m m' : FMap α β) (x : α) (y : β) :
     incl m m' → incl (FMap.set m x y) (FMap.set m' x y) := by
-  sorry
+  intro h x' hx
+  by_cases e : x' = x
+  · subst e; simp
+  · rw [FMap.get_set_neqE _ _ _ _ e] at hx ⊢
+    rw [FMap.get_set_neqE _ _ _ _ e]; exact h x' hx
 
 noncomputable def getflag (hs : handles) (xc : capacity) : Option flag :=
   ((hinv hs xc).bind (FMap.get hs)).map Prod.snd
 
 theorem getflagP_none (hs : handles) (xc : capacity) :
     getflag hs xc = none ↔ ∀ f h, FMap.get hs h ≠ some (xc, f) := by
-  sorry
+  have hp := hinvP hs xc
+  unfold getflag
+  split_ifs at hp with hn
+  · rw [hn]; exact ⟨fun _ f h => hp h f, fun _ => rfl⟩
+  · obtain ⟨f, hf⟩ := hp
+    obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.mp hn
+    rw [hh] at hf ⊢
+    simp only [oget, Option.getD_some] at hf
+    simp only [Option.bind_some, hf, Option.map_some]
+    constructor
+    · intro e; cases e
+    · intro hall; exact absurd hf (hall f h)
 
 theorem getflagP_some (hs : handles) (xc : capacity) (f : flag) :
     huniq hs → (getflag hs xc = some f ↔ FMap.rng hs (xc, f)) := by
-  sorry
+  intro hu
+  have hp := hinvP hs xc
+  unfold getflag
+  split_ifs at hp with hn
+  · rw [hn]
+    constructor
+    · intro e; cases e
+    · rintro ⟨h, hh⟩; exact absurd hh (hp h f)
+  · obtain ⟨f', hf⟩ := hp
+    obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.mp hn
+    rw [hh] at hf ⊢
+    simp only [oget, Option.getD_some] at hf
+    simp only [Option.bind_some, hf, Option.map_some, Option.some.injEq]
+    constructor
+    · intro e; subst e; exact ⟨h, hf⟩
+    · rintro ⟨h', hh'⟩
+      have e := hu _ _ _ _ hf hh' rfl
+      subst e
+      change FMap.get hs h = _ at hh'
+      rw [hf] at hh'
+      simp only [Option.some.injEq, Prod.mk.injEq] at hh'
+      exact hh'.2
 
 /-! ## Handle paths -/
 
 theorem build_hpath_prefix (mh : hsmap) (p : List block) (b v : block) (h : handle) :
     build_hpath mh (rcons p b) = some (v, h) ↔
       ∃ v' h', build_hpath mh p = some (v', h') ∧ FMap.get mh (v' +^ b, h') = some (v, h) := by
-  sorry
+  rw [build_hpathP]
+  constructor
+  · rintro (⟨hnil, -, -⟩ | ⟨p', b', v', h', heq, hb, hm⟩)
+    · simp [rcons] at hnil
+    · have := List.append_inj' heq rfl
+      simp only [List.cons.injEq, and_true] at this
+      obtain ⟨rfl, rfl⟩ := this
+      exact ⟨v', h', hb, hm⟩
+  · rintro ⟨v', h', hb, hm⟩
+    exact .Extend p b v' h' rfl hb hm
 
 theorem build_hpath_up (mh : hsmap) (xa : block) (hx : handle) (ya : block) (hy : handle)
     (p : List block) (za : block) (hz : handle) :
     build_hpath mh p = some (za, hz) → FMap.get mh (xa, hx) = none →
     build_hpath (FMap.set mh (xa, hx) (ya, hy)) p = some (za, hz) := by
-  sorry
+  intro hp hn
+  induction p using List.reverseRecOn generalizing za hz with
+  | nil => exact hp
+  | append_singleton p b ih =>
+    obtain ⟨v', h', hb, hm⟩ := (build_hpath_prefix mh p b za hz).1 hp
+    refine (build_hpath_prefix _ p b za hz).2 ⟨v', h', ih v' h' hb, ?_⟩
+    rw [FMap.get_setE, if_neg]
+    · exact hm
+    · intro he
+      rw [he, hn] at hm
+      cases hm
 
 theorem build_hpath_down (mh : hsmap) (xa : block) (hx : handle) (ya : block) (hy : handle)
     (p : List block) (v : block) (h : handle) :
     (∀ p v, build_hpath mh p ≠ some (v, hx)) →
     build_hpath (FMap.set mh (xa, hx) (ya, hy)) p = some (v, h) →
     build_hpath mh p = some (v, h) := by
-  sorry
+  intro hno hp
+  induction p using List.reverseRecOn generalizing v h with
+  | nil => exact hp
+  | append_singleton p b ih =>
+    obtain ⟨v', h', hb, hm⟩ := (build_hpath_prefix _ p b v h).1 hp
+    have hb' := ih v' h' hb
+    refine (build_hpath_prefix mh p b v h).2 ⟨v', h', hb', ?_⟩
+    rw [FMap.get_setE, if_neg] at hm
+    · exact hm
+    · intro he
+      simp only [Prod.mk.injEq] at he
+      exact hno p v' (he.2 ▸ hb')
 
 theorem known_path_uniq (hs : handles) (mh : hsmap) (pi : FMap capacity (List block × block))
     (xc : capacity) (hx : handle) (p : List block) (xa : block) (p' : List block) (xa' : block) :
     pi_spec hs mh pi → FMap.get hs hx = some (xc, Known) → build_hpath mh p = some (xa, hx) →
     build_hpath mh p' = some (xa', hx) → p = p' ∧ xa = xa' := by
-  sorry
+  rintro ⟨Ipi⟩ hs_hx hp hp'
+  have h1 := (Ipi xc p xa).2 ⟨hx, hp, hs_hx⟩
+  have h2 := (Ipi xc p' xa').2 ⟨hx, hp', hs_hx⟩
+  rw [h1] at h2
+  simpa using h2
 
 theorem path_split (hs : handles) (ch : handle) (m : smap) (mh : hsmap) (xc : capacity)
     (hx : handle) (p : List block) (xa : block) :
@@ -505,7 +831,24 @@ theorem path_split (hs : handles) (ch : handle) (m : smap) (mh : hsmap) (xc : ca
       p = rcons pk b ++ pu ∧ build_hpath mh pk = some (ya, hy) ∧
       FMap.get hs hy = some (yc, Known) ∧ FMap.get mh (ya +^ b, hy) = some (za, hz) ∧
       FMap.get hs hz = some (zc, Unknown) := by
-  sorry
+  rintro ⟨-, hs0, -⟩ ⟨-, Imh⟩
+  induction p using List.reverseRecOn generalizing hx xa xc with
+  | nil =>
+    intro hs_hx hp
+    simp only [build_hpath, List.foldl_nil, Option.some.injEq, Prod.mk.injEq] at hp
+    obtain ⟨-, rfl⟩ := hp
+    rw [hs0] at hs_hx
+    cases hs_hx
+  | append_singleton p b ih =>
+    intro hs_hx hp
+    obtain ⟨ya, hy, hpy, hm⟩ := (build_hpath_prefix mh p b xa hx).1 hp
+    obtain ⟨yc, fy, xc', fx', hs_hy, hs_hx', -⟩ := Imh _ _ _ _ hm
+    cases fy with
+    | Known => exact ⟨p, ya, yc, hy, b, xa, xc, hx, [], by simp [rcons], hpy, hs_hy, hm, hs_hx⟩
+    | Unknown =>
+      obtain ⟨pk, ya', yc', hy', b', za, zc, hz, pu, he, h2, h3, h4, h5⟩ :=
+        ih (hx := hy) (xa := ya) (xc := yc) hs_hy hpy
+      exact ⟨pk, ya', yc', hy', b', za, zc, hz, rcons pu b, by simp [he, rcons], h2, h3, h4, h5⟩
 
 /-! ## Preservation of the invariant -/
 
@@ -521,7 +864,157 @@ theorem lemma1 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsm
       (FMap.set Gm (x1, x2) (y1, y2)) (FMap.set Gmi (y1, y2) (x1, x2))
       (FMap.set mh (x1, ch) (y1, ch + 1)) (FMap.set mhi (y1, ch + 1) (x1, ch))
       ro pi prefixes queries := by
-  sorry
+  intro HINV hx2y2 Pm_x Gm_x hx2 hy2
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
+  obtain ⟨hun, hs0, hlt⟩ := id Hhs
+  obtain ⟨Imm1, Imm2⟩ := id Hmmh
+  obtain ⟨Imi1, Imi2⟩ := id Hmimhi
+  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
+  have hch0 : 0 < ch := hlt _ 0 hs0
+  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
+  have hs_Sch : FMap.get hs (ch + 1) = none := Sch_notdomE_hs hs ch Hhs
+  have mh_ch : ∀ a, FMap.get mh (a, ch) = none := fun a => ch_notdomE2_mh hs Pm mh a ch Hmmh Hhs
+  have hsne : ∀ h cf, FMap.get hs h = some cf →
+      FMap.get (FMap.set (FMap.set hs ch (x2, Known)) (ch + 1) (y2, Known)) h = some cf := by
+    intro h cf hh
+    have := hlt _ _ hh
+    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch + 1 by linarith),
+      FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
+  have notrng : ∀ hc, FMap.get hs hc = none → ∀ a h a', FMap.get mh (a, h) ≠ some (a', hc) := by
+    intro hc hn a h a' hm
+    obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
+    rw [hn] at h2
+    cases h2
+  have nopath : ∀ hc, FMap.get hs hc = none → ∀ p v, build_hpath mh p ≠ some (v, hc) := by
+    intro hc hn p v hp
+    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, rfl⟩ | ⟨p', b, v', h', -, -, hm⟩
+    · rw [hs0] at hn
+      cases hn
+    · exact notrng hc hn _ _ _ hm
+  have mhup : ∀ p v h, build_hpath mh p = some (v, h) →
+      build_hpath (FMap.set mh (x1, ch) (y1, ch + 1)) p = some (v, h) :=
+    fun p v h hp => build_hpath_up mh x1 ch y1 (ch + 1) p v h hp (mh_ch x1)
+  have mhdown : ∀ p v h, build_hpath (FMap.set mh (x1, ch) (y1, ch + 1)) p = some (v, h) →
+      build_hpath mh p = some (v, h) :=
+    fun p v h hp => build_hpath_down mh x1 ch y1 (ch + 1) p v h (nopath ch hs_ch) hp
+  have Hmp' : ∀ (x y : state), FMap.get Pm x = none → m_p (FMap.set Pm x y) prefixes queries := by
+    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
+    intro x y hx
+    refine ⟨c1, c2, ?_, c4, c5⟩
+    intro l hl i hi
+    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
+    refine ⟨sa, sc, h1, ?_⟩
+    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
+      by_cases hi' : i + 1 < size l
+      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
+        rw [h1']
+        simp
+      · have : take (i + 1) l = l := by
+          simp only [take, size] at *
+          apply List.take_of_length_le
+          omega
+        rw [this]
+        exact (FMap.domE _ _).1 hl
+    rw [FMap.get_setE, if_neg]
+    · exact h2
+    · intro he
+      rw [he, hx] at h2
+      exact hne h2.symm
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, Hmp' _ _ Pm_x⟩
+  · rw [show ch + 2 = ch + 1 + 1 by ring]
+    refine hs_addh _ _ _ _ (hs_addh hs ch x2 Known Hhs hx2) ?_
+    intro f h
+    rw [FMap.get_setE]
+    split_ifs
+    · simp [hx2y2]
+    · exact hy2 f h
+  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
+    cases hg : FMap.get Gmi (y1, y2) with
+    | none => rfl
+    | some xc =>
+      have hp := Hincli (y1, y2) (by rw [hg]; simp)
+      rw [hg] at hp
+      obtain ⟨_, fx, _, _, h1, _, _⟩ := Imi1 _ _ _ _ hp
+      exact absurd h1 (hy2 _ _)
+  · exact inv_addm _ _ _ _ Hinvmh (mh_ch x1) (Sch_notdomE2_mh hs Pmi mhi y1 ch Hmimhi Hhs)
+  · refine m_mh_addh_addm (FMap.set hs ch (x2, Known)) Pm mh ch x1 x2 (ch + 1) y1 y2 Known Known
+      (m_mh_addh hs ch Pm mh x2 Known Hhs Hmmh) (hs_addh hs ch x2 Known Hhs hx2).1
+      (FMap.get_set_sameE _ _ _) ?_
+    rw [FMap.get_set_neqE _ _ _ _ (show ch + 1 ≠ ch by simp)]
+    exact hs_Sch
+  · refine mi_mhi_addh_addmi (FMap.set hs ch (x2, Known)) Pmi mhi ch x1 x2 (ch + 1) y1 y2
+      Known Known (m_mh_addh hs ch Pmi mhi x2 Known Hhs Hmimhi) ?_ (FMap.get_set_sameE _ _ _) ?_
+    · intro f h
+      rw [FMap.get_setE]
+      split_ifs
+      · simp [hx2y2]
+      · exact hy2 f h
+    · rw [FMap.get_set_neqE _ _ _ _ (show ch + 1 ≠ ch by simp)]
+      exact hs_Sch
+  · exact incl_addm _ _ _ _ Hincl
+  · exact incl_addm _ _ _ _ Hincli
+  · refine ⟨?_, ?_, ?_⟩
+    · intro xa hx ya hy hm
+      rw [FMap.get_setE] at hm
+      split_ifs at hm with hk
+      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+        obtain ⟨hk1, hk2⟩ := hk
+        obtain ⟨hm1, hm2⟩ := hm
+        subst xa hx ya hy
+        refine ⟨x2, Known, y2, Known, ?_, FMap.get_set_sameE _ _ _, ?_⟩
+        · rw [FMap.get_set_neqE _ _ _ _ (show ch ≠ ch + 1 by simp), FMap.get_set_sameE]
+        · simp
+      · obtain ⟨xc, fx, yc, fy, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+        refine ⟨xc, fx, yc, fy, hsne _ _ h1, hsne _ _ h2, ?_⟩
+        cases fy with
+        | Known =>
+          simp only [if_true] at h3 ⊢
+          refine ⟨?_, h3.2⟩
+          rw [FMap.get_set_neqE]
+          · exact h3.1
+          · intro he
+            rw [he, Gm_x] at h3
+            cases h3.1
+        | Unknown =>
+          simp only [reduceCtorEq, if_false] at h3 ⊢
+          obtain ⟨p, v, h4, h5⟩ := h3
+          exact ⟨p, v, h4, mhup _ _ _ h5⟩
+    · intro p bn b
+      rw [Imh2]
+      constructor
+      · rintro ⟨v, hx, hy, h1, h2⟩
+        refine ⟨v, hx, hy, mhup _ _ _ h1, ?_⟩
+        rw [FMap.get_set_neqE]
+        · exact h2
+        · intro he
+          rw [he, mh_ch] at h2
+          cases h2
+      · rintro ⟨v, hx, hy, h1, h2⟩
+        have h1' := mhdown _ _ _ h1
+        refine ⟨v, hx, hy, h1', ?_⟩
+        rw [FMap.get_set_neqE] at h2
+        · exact h2
+        · intro he
+          simp only [Prod.mk.injEq] at he
+          exact nopath ch hs_ch p v (he.2 ▸ h1')
+    · intro p v p' v' hx h1 h2
+      exact Imh3 p v p' v' hx (mhdown _ _ _ h1) (mhdown _ _ _ h2)
+  · obtain ⟨Ipi⟩ := Hpi
+    refine ⟨fun c p v => ?_⟩
+    rw [Ipi]
+    constructor
+    · rintro ⟨h, h1, h2⟩
+      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
+    · rintro ⟨h, h1, h2⟩
+      have h1' := mhdown _ _ _ h1
+      refine ⟨h, h1', ?_⟩
+      have hne1 : h ≠ ch + 1 := by
+        intro he
+        exact nopath (ch + 1) hs_Sch p v (he ▸ h1')
+      have hne2 : h ≠ ch := by
+        intro he
+        exact nopath ch hs_ch p v (he ▸ h1')
+      rwa [FMap.get_set_neqE _ _ _ _ hne1, FMap.get_set_neqE _ _ _ _ hne2] at h2
 
 theorem lemma1' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -535,7 +1028,156 @@ theorem lemma1' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hs
       (FMap.set Gm (y1, y2) (x1, x2)) (FMap.set Gmi (x1, x2) (y1, y2))
       (FMap.set mh (y1, ch + 1) (x1, ch)) (FMap.set mhi (x1, ch) (y1, ch + 1))
       ro pi prefixes queries := by
-  sorry
+  intro HINV hh hx2y2 Pmi_x Gmi_x hx2 hy2
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
+  obtain ⟨hun, hs0, hlt⟩ := id Hhs
+  obtain ⟨Imm1, Imm2⟩ := id Hmmh
+  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
+  have Pm_y : FMap.get Pm (y1, y2) = none := by
+    rw [FMap.domE] at hh
+    simpa using hh
+  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
+  have hs_Sch : FMap.get hs (ch + 1) = none := Sch_notdomE_hs hs ch Hhs
+  have mh_Sch : ∀ a, FMap.get mh (a, ch + 1) = none :=
+    fun a => Sch_notdomE2_mh hs Pm mh a ch Hmmh Hhs
+  have hsne : ∀ h cf, FMap.get hs h = some cf →
+      FMap.get (FMap.set (FMap.set hs ch (x2, Known)) (ch + 1) (y2, Known)) h = some cf := by
+    intro h cf hh
+    have := hlt _ _ hh
+    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch + 1 by linarith),
+      FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
+  have notrng : ∀ hc, FMap.get hs hc = none → ∀ a h a', FMap.get mh (a, h) ≠ some (a', hc) := by
+    intro hc hn a h a' hm
+    obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
+    rw [hn] at h2
+    cases h2
+  have nopath : ∀ hc, FMap.get hs hc = none → ∀ p v, build_hpath mh p ≠ some (v, hc) := by
+    intro hc hn p v hp
+    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, rfl⟩ | ⟨p', b, v', h', -, -, hm⟩
+    · rw [hs0] at hn
+      cases hn
+    · exact notrng hc hn _ _ _ hm
+  have mhup : ∀ p v h, build_hpath mh p = some (v, h) →
+      build_hpath (FMap.set mh (y1, ch + 1) (x1, ch)) p = some (v, h) :=
+    fun p v h hp => build_hpath_up mh y1 (ch + 1) x1 ch p v h hp (mh_Sch y1)
+  have mhdown : ∀ p v h, build_hpath (FMap.set mh (y1, ch + 1) (x1, ch)) p = some (v, h) →
+      build_hpath mh p = some (v, h) :=
+    fun p v h hp => build_hpath_down mh y1 (ch + 1) x1 ch p v h (nopath _ hs_Sch) hp
+  have Hmp' : ∀ (x y : state), FMap.get Pm x = none → m_p (FMap.set Pm x y) prefixes queries := by
+    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
+    intro x y hx
+    refine ⟨c1, c2, ?_, c4, c5⟩
+    intro l hl i hi
+    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
+    refine ⟨sa, sc, h1, ?_⟩
+    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
+      by_cases hi' : i + 1 < size l
+      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
+        rw [h1']
+        simp
+      · have : take (i + 1) l = l := by
+          simp only [take, size] at *
+          apply List.take_of_length_le
+          omega
+        rw [this]
+        exact (FMap.domE _ _).1 hl
+    rw [FMap.get_setE, if_neg]
+    · exact h2
+    · intro he
+      rw [he, hx] at h2
+      exact hne h2.symm
+  have hy2' : ∀ f h, FMap.get (FMap.set hs ch (x2, Known)) h ≠ some (y2, f) := by
+    intro f h
+    rw [FMap.get_setE]
+    split_ifs
+    · simp [hx2y2]
+    · exact hy2 f h
+  have hsSch' : FMap.get (FMap.set hs ch (x2, Known)) (ch + 1) = none := by
+    rw [FMap.get_set_neqE _ _ _ _ (show ch + 1 ≠ ch by simp)]
+    exact hs_Sch
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, Hmp' _ _ Pm_y⟩
+  · rw [show ch + 2 = ch + 1 + 1 by ring]
+    exact hs_addh _ _ _ _ (hs_addh hs ch x2 Known Hhs hx2) hy2'
+  · refine inv_addm _ _ _ _ HinvG ?_ Gmi_x
+    cases hg : FMap.get Gm (y1, y2) with
+    | none => rfl
+    | some xc =>
+      have hp := Hincl (y1, y2) (by rw [hg]; simp)
+      rw [hg, Pm_y] at hp
+      cases hp
+  · exact inv_addm _ _ _ _ Hinvmh (mh_Sch y1) (ch_notdomE2_mh hs Pmi mhi x1 ch Hmimhi Hhs)
+  · exact mi_mhi_addh_addmi (FMap.set hs ch (x2, Known)) Pm mh ch x1 x2 (ch + 1) y1 y2
+      Known Known (m_mh_addh hs ch Pm mh x2 Known Hhs Hmmh) hy2' (FMap.get_set_sameE _ _ _)
+      hsSch'
+  · exact m_mh_addh_addm (FMap.set hs ch (x2, Known)) Pmi mhi ch x1 x2 (ch + 1) y1 y2 Known
+      Known (m_mh_addh hs ch Pmi mhi x2 Known Hhs Hmimhi) (hs_addh hs ch x2 Known Hhs hx2).1
+      (FMap.get_set_sameE _ _ _) hsSch'
+  · exact incl_addm _ _ _ _ Hincl
+  · exact incl_addm _ _ _ _ Hincli
+  · refine ⟨?_, ?_, ?_⟩
+    · intro ya hy xa hx hm
+      rw [FMap.get_setE] at hm
+      split_ifs at hm with hk
+      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+        obtain ⟨hk1, hk2⟩ := hk
+        obtain ⟨hm1, hm2⟩ := hm
+        subst ya hy xa hx
+        refine ⟨y2, Known, x2, Known, FMap.get_set_sameE _ _ _, ?_, ?_⟩
+        · rw [FMap.get_set_neqE _ _ _ _ (show ch ≠ ch + 1 by simp), FMap.get_set_sameE]
+        · simp
+      · obtain ⟨yc, fy, xc, fx, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+        refine ⟨yc, fy, xc, fx, hsne _ _ h1, hsne _ _ h2, ?_⟩
+        cases fx with
+        | Known =>
+          simp only [if_true] at h3 ⊢
+          refine ⟨?_, h3.2⟩
+          rw [FMap.get_set_neqE]
+          · exact h3.1
+          · intro he
+            rw [he] at h3
+            have := Hincl _ (by rw [h3.1]; simp)
+            rw [h3.1, Pm_y] at this
+            cases this
+        | Unknown =>
+          simp only [reduceCtorEq, if_false] at h3 ⊢
+          obtain ⟨p, v, h4, h5⟩ := h3
+          exact ⟨p, v, h4, mhup _ _ _ h5⟩
+    · intro p bn b
+      rw [Imh2]
+      constructor
+      · rintro ⟨v, hx, hy, h1, h2⟩
+        refine ⟨v, hx, hy, mhup _ _ _ h1, ?_⟩
+        rw [FMap.get_set_neqE]
+        · exact h2
+        · intro he
+          rw [he, mh_Sch] at h2
+          cases h2
+      · rintro ⟨v, hx, hy, h1, h2⟩
+        have h1' := mhdown _ _ _ h1
+        refine ⟨v, hx, hy, h1', ?_⟩
+        rw [FMap.get_set_neqE] at h2
+        · exact h2
+        · intro he
+          simp only [Prod.mk.injEq] at he
+          exact nopath _ hs_Sch p v (he.2 ▸ h1')
+    · intro p v p' v' hx h1 h2
+      exact Imh3 p v p' v' hx (mhdown _ _ _ h1) (mhdown _ _ _ h2)
+  · obtain ⟨Ipi⟩ := Hpi
+    refine ⟨fun c p v => ?_⟩
+    rw [Ipi]
+    constructor
+    · rintro ⟨h, h1, h2⟩
+      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
+    · rintro ⟨h, h1, h2⟩
+      have h1' := mhdown _ _ _ h1
+      refine ⟨h, h1', ?_⟩
+      have hne1 : h ≠ ch + 1 := by
+        intro he
+        exact nopath (ch + 1) hs_Sch p v (he ▸ h1')
+      have hne2 : h ≠ ch := by
+        intro he
+        exact nopath ch hs_ch p v (he ▸ h1')
+      rwa [FMap.get_set_neqE _ _ _ _ hne1, FMap.get_set_neqE _ _ _ _ hne2] at h2
 
 theorem lemma2 (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -549,7 +1191,134 @@ theorem lemma2 (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1m
       (FMap.set G1m (x1, x2) (y1, y2)) (FMap.set G1mi (y1, y2) (x1, x2))
       (FMap.set G1mh (x1, hx) (y1, ch)) (FMap.set G1mhi (y1, ch) (x1, hx))
       ro pi prefixes queries := by
-  sorry
+  intro HINV Pm_x Gm_x pi_x2 hs_hx hy2
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
+  obtain ⟨hun, hs0, hlt⟩ := id Hhs
+  obtain ⟨Imm1, Imm2⟩ := id Hmmh
+  obtain ⟨Imi1, Imi2⟩ := id Hmimhi
+  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
+  obtain ⟨Ipi⟩ := Hpi
+  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
+  have mh_x : FMap.get G1mh (x1, hx) = none :=
+    notin_m_notin_mh hs PFm G1mh x1 x2 hx Known Hmmh Pm_x hs_hx
+  have hsne : ∀ h cf, FMap.get hs h = some cf →
+      FMap.get (FMap.set hs ch (y2, Known)) h = some cf := by
+    intro h cf hh
+    have := hlt _ _ hh
+    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
+  have nopath_ch : ∀ p v, build_hpath G1mh p ≠ some (v, ch) := by
+    intro p v hp
+    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, he⟩ | ⟨p', b, v', h', -, -, hm⟩
+    · rw [he, hs0] at hs_ch
+      cases hs_ch
+    · obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
+      rw [hs_ch] at h2
+      cases h2
+  have nopath_hx : ∀ p v, build_hpath G1mh p ≠ some (v, hx) := by
+    intro p v hp
+    have := (Ipi x2 p v).2 ⟨hx, hp, hs_hx⟩
+    rw [pi_x2] at this
+    cases this
+  have mhup : ∀ p v h, build_hpath G1mh p = some (v, h) →
+      build_hpath (FMap.set G1mh (x1, hx) (y1, ch)) p = some (v, h) :=
+    fun p v h hp => build_hpath_up G1mh x1 hx y1 ch p v h hp mh_x
+  have mhdown : ∀ p v h, build_hpath (FMap.set G1mh (x1, hx) (y1, ch)) p = some (v, h) →
+      build_hpath G1mh p = some (v, h) :=
+    fun p v h hp => build_hpath_down G1mh x1 hx y1 ch p v h nopath_hx hp
+  have Hmp' : ∀ (x y : state), FMap.get PFm x = none →
+      m_p (FMap.set PFm x y) prefixes queries := by
+    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
+    intro x y hx
+    refine ⟨c1, c2, ?_, c4, c5⟩
+    intro l hl i hi
+    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
+    refine ⟨sa, sc, h1, ?_⟩
+    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
+      by_cases hi' : i + 1 < size l
+      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
+        rw [h1']
+        simp
+      · have : take (i + 1) l = l := by
+          simp only [take, size] at *
+          apply List.take_of_length_le
+          omega
+        rw [this]
+        exact (FMap.domE _ _).1 hl
+    rw [FMap.get_setE, if_neg]
+    · exact h2
+    · intro he
+      rw [he, hx] at h2
+      exact hne h2.symm
+  refine ⟨hs_addh hs ch y2 Known Hhs hy2, ?_, ?_, ?_, ?_, incl_addm _ _ _ _ Hincl,
+    incl_addm _ _ _ _ Hincli, ?_, ?_, Hmp' _ _ Pm_x⟩
+  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
+    cases hg : FMap.get G1mi (y1, y2) with
+    | none => rfl
+    | some xc =>
+      have hp := Hincli (y1, y2) (by rw [hg]; simp)
+      rw [hg] at hp
+      obtain ⟨_, fx, _, _, h1, _, _⟩ := Imi1 _ _ _ _ hp
+      exact absurd h1 (hy2 _ _)
+  · exact inv_addm _ _ _ _ Hinvmh mh_x (ch_notdomE2_mh hs PFmi G1mhi y1 ch Hmimhi Hhs)
+  · exact m_mh_addh_addm hs PFm G1mh hx x1 x2 ch y1 y2 Known Known Hmmh hun hs_hx hs_ch
+  · exact mi_mhi_addh_addmi hs PFmi G1mhi hx x1 x2 ch y1 y2 Known Known Hmimhi hy2 hs_hx hs_ch
+  · refine ⟨?_, ?_, ?_⟩
+    · intro xa hx' ya hy hm
+      rw [FMap.get_setE] at hm
+      split_ifs at hm with hk
+      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+        obtain ⟨hk1, hk2⟩ := hk
+        obtain ⟨hm1, hm2⟩ := hm
+        subst xa hx' ya hy
+        refine ⟨x2, Known, y2, Known, hsne _ _ hs_hx, FMap.get_set_sameE _ _ _, ?_⟩
+        simp
+      · obtain ⟨xc, fx, yc, fy, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+        refine ⟨xc, fx, yc, fy, hsne _ _ h1, hsne _ _ h2, ?_⟩
+        cases fy with
+        | Known =>
+          simp only [if_true] at h3 ⊢
+          refine ⟨?_, h3.2⟩
+          rw [FMap.get_set_neqE]
+          · exact h3.1
+          · intro he
+            rw [he, Gm_x] at h3
+            cases h3.1
+        | Unknown =>
+          simp only [reduceCtorEq, if_false] at h3 ⊢
+          obtain ⟨p, v, h4, h5⟩ := h3
+          exact ⟨p, v, h4, mhup _ _ _ h5⟩
+    · intro p bn b
+      rw [Imh2]
+      constructor
+      · rintro ⟨v, hi, hf, h1, h2⟩
+        refine ⟨v, hi, hf, mhup _ _ _ h1, ?_⟩
+        rw [FMap.get_set_neqE]
+        · exact h2
+        · intro he
+          rw [he, mh_x] at h2
+          cases h2
+      · rintro ⟨v, hi, hf, h1, h2⟩
+        have h1' := mhdown _ _ _ h1
+        refine ⟨v, hi, hf, h1', ?_⟩
+        rw [FMap.get_set_neqE] at h2
+        · exact h2
+        · intro he
+          simp only [Prod.mk.injEq] at he
+          exact nopath_hx p v (he.2 ▸ h1')
+    · intro p v p' v' h0 h1 h2
+      exact Imh3 p v p' v' h0 (mhdown _ _ _ h1) (mhdown _ _ _ h2)
+  · refine ⟨fun c p v => ?_⟩
+    rw [Ipi]
+    constructor
+    · rintro ⟨h, h1, h2⟩
+      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
+    · rintro ⟨h, h1, h2⟩
+      have h1' := mhdown _ _ _ h1
+      refine ⟨h, h1', ?_⟩
+      have hne : h ≠ ch := by
+        intro he
+        exact nopath_ch p v (he ▸ h1')
+      rwa [FMap.get_set_neqE _ _ _ _ hne] at h2
 
 theorem lemma2' (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -563,7 +1332,133 @@ theorem lemma2' (hs : handles) (ch : handle) (PFm PFmi G1m G1mi : smap) (G1mh G1
       (FMap.set G1m (y1, y2) (x1, x2)) (FMap.set G1mi (x1, x2) (y1, y2))
       (FMap.set G1mh (y1, ch) (x1, hx)) (FMap.set G1mhi (x1, hx) (y1, ch))
       ro pi prefixes queries := by
-  sorry
+  intro HINV hh Pmi_x Gmi_x hs_hx hy2
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
+  obtain ⟨hun, hs0, hlt⟩ := id Hhs
+  obtain ⟨Imm1, Imm2⟩ := id Hmmh
+  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
+  obtain ⟨Ipi⟩ := Hpi
+  have Pm_y : FMap.get PFm (y1, y2) = none := by
+    rw [FMap.domE] at hh
+    simpa using hh
+  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
+  have mh_ch : ∀ a, FMap.get G1mh (a, ch) = none :=
+    fun a => ch_notdomE2_mh hs PFm G1mh a ch Hmmh Hhs
+  have hsne : ∀ h cf, FMap.get hs h = some cf →
+      FMap.get (FMap.set hs ch (y2, Known)) h = some cf := by
+    intro h cf hh
+    have := hlt _ _ hh
+    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
+  have nopath_ch : ∀ p v, build_hpath G1mh p ≠ some (v, ch) := by
+    intro p v hp
+    rcases (build_hpathP _ _ _ _).1 hp with ⟨-, -, he⟩ | ⟨p', b, v', h', -, -, hm⟩
+    · rw [he, hs0] at hs_ch
+      cases hs_ch
+    · obtain ⟨_, _, _, fy, _, h2, _⟩ := Imm2 _ _ _ _ hm
+      rw [hs_ch] at h2
+      cases h2
+  have mhup : ∀ p v h, build_hpath G1mh p = some (v, h) →
+      build_hpath (FMap.set G1mh (y1, ch) (x1, hx)) p = some (v, h) :=
+    fun p v h hp => build_hpath_up G1mh y1 ch x1 hx p v h hp (mh_ch y1)
+  have mhdown : ∀ p v h, build_hpath (FMap.set G1mh (y1, ch) (x1, hx)) p = some (v, h) →
+      build_hpath G1mh p = some (v, h) :=
+    fun p v h hp => build_hpath_down G1mh y1 ch x1 hx p v h nopath_ch hp
+  have Hmp' : ∀ (x y : state), FMap.get PFm x = none →
+      m_p (FMap.set PFm x y) prefixes queries := by
+    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
+    intro x y hx
+    refine ⟨c1, c2, ?_, c4, c5⟩
+    intro l hl i hi
+    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
+    refine ⟨sa, sc, h1, ?_⟩
+    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
+      by_cases hi' : i + 1 < size l
+      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
+        rw [h1']
+        simp
+      · have : take (i + 1) l = l := by
+          simp only [take, size] at *
+          apply List.take_of_length_le
+          omega
+        rw [this]
+        exact (FMap.domE _ _).1 hl
+    rw [FMap.get_setE, if_neg]
+    · exact h2
+    · intro he
+      rw [he, hx] at h2
+      exact hne h2.symm
+  refine ⟨hs_addh hs ch y2 Known Hhs hy2, ?_, ?_, ?_, ?_, incl_addm _ _ _ _ Hincl,
+    incl_addm _ _ _ _ Hincli, ?_, ?_, Hmp' _ _ Pm_y⟩
+  · refine inv_addm _ _ _ _ HinvG ?_ Gmi_x
+    cases hg : FMap.get G1m (y1, y2) with
+    | none => rfl
+    | some xc =>
+      have hp := Hincl (y1, y2) (by rw [hg]; simp)
+      rw [hg, Pm_y] at hp
+      cases hp
+  · exact inv_addm _ _ _ _ Hinvmh (mh_ch y1)
+      (notin_m_notin_mh hs PFmi G1mhi x1 x2 hx Known Hmimhi Pmi_x hs_hx)
+  · exact mi_mhi_addh_addmi hs PFm G1mh hx x1 x2 ch y1 y2 Known Known Hmmh hy2 hs_hx hs_ch
+  · exact m_mh_addh_addm hs PFmi G1mhi hx x1 x2 ch y1 y2 Known Known Hmimhi hun hs_hx hs_ch
+  · refine ⟨?_, ?_, ?_⟩
+    · intro ya hy xa hx' hm
+      rw [FMap.get_setE] at hm
+      split_ifs at hm with hk
+      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+        obtain ⟨hk1, hk2⟩ := hk
+        obtain ⟨hm1, hm2⟩ := hm
+        subst ya hy xa hx'
+        refine ⟨y2, Known, x2, Known, FMap.get_set_sameE _ _ _, hsne _ _ hs_hx, ?_⟩
+        simp
+      · obtain ⟨yc, fy, xc, fx, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+        refine ⟨yc, fy, xc, fx, hsne _ _ h1, hsne _ _ h2, ?_⟩
+        cases fx with
+        | Known =>
+          simp only [if_true] at h3 ⊢
+          refine ⟨?_, h3.2⟩
+          rw [FMap.get_set_neqE]
+          · exact h3.1
+          · intro he
+            rw [he] at h3
+            have := Hincl _ (by rw [h3.1]; simp)
+            rw [h3.1, Pm_y] at this
+            cases this
+        | Unknown =>
+          simp only [reduceCtorEq, if_false] at h3 ⊢
+          obtain ⟨p, v, h4, h5⟩ := h3
+          exact ⟨p, v, h4, mhup _ _ _ h5⟩
+    · intro p bn b
+      rw [Imh2]
+      constructor
+      · rintro ⟨v, hi, hf, h1, h2⟩
+        refine ⟨v, hi, hf, mhup _ _ _ h1, ?_⟩
+        rw [FMap.get_set_neqE]
+        · exact h2
+        · intro he
+          rw [he, mh_ch] at h2
+          cases h2
+      · rintro ⟨v, hi, hf, h1, h2⟩
+        have h1' := mhdown _ _ _ h1
+        refine ⟨v, hi, hf, h1', ?_⟩
+        rw [FMap.get_set_neqE] at h2
+        · exact h2
+        · intro he
+          simp only [Prod.mk.injEq] at he
+          exact nopath_ch p v (he.2 ▸ h1')
+    · intro p v p' v' h0 h1 h2
+      exact Imh3 p v p' v' h0 (mhdown _ _ _ h1) (mhdown _ _ _ h2)
+  · refine ⟨fun c p v => ?_⟩
+    rw [Ipi]
+    constructor
+    · rintro ⟨h, h1, h2⟩
+      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
+    · rintro ⟨h, h1, h2⟩
+      have h1' := mhdown _ _ _ h1
+      refine ⟨h, h1', ?_⟩
+      have hne : h ≠ ch := by
+        intro he
+        exact nopath_ch p v (he ▸ h1')
+      rwa [FMap.get_set_neqE _ _ _ _ hne] at h2
 
 theorem lemma3 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -577,17 +1472,173 @@ theorem lemma3 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsm
     INV_CF_G1 (FMap.set hs hy (yc, Known)) ch Pm Pmi
       (FMap.set Gm (xa, xc) (ya, yc)) (FMap.set Gmi (ya, yc) (xa, xc)) mh mhi
       ro (FMap.set pi yc (rcons p (b +^ xa), ya)) prefixes queries := by
-  sorry
+  intro HINV Pm_x Gm_x mh_x hs_hx hs_hy pi_xc
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
+  obtain ⟨hun, hs0, hlt⟩ := id Hhs
+  obtain ⟨Imh1, Imh2, Imh3⟩ := id Hmh
+  obtain ⟨Ipi⟩ := Hpi
+  obtain ⟨IG⟩ := id HinvG
+  obtain ⟨Imhi⟩ := id Hinvmh
+  obtain ⟨IP⟩ := inv_mh_inv_Pm hs Pm Pmi mh mhi Hmmh Hmimhi Hinvmh
+  have hxor : ∀ a b : block, a +^ (a +^ b) = b := by
+    intro a b
+    apply List.Vector.ext
+    intro i
+    simp [BitWord.xorw, List.Vector.get_map₂]
+  have hxy : hx ≠ hy := by
+    intro he
+    rw [he, hs_hy] at hs_hx
+    cases hs_hx
+  have Pmi_y : FMap.get Pmi (ya, yc) = some (xa, xc) := (IP _ _).1 Pm_x
+  have path_hy : build_hpath mh (rcons p (b +^ xa)) = some (ya, hy) := by
+    obtain ⟨h, hp, hsh⟩ := (Ipi xc p b).1 pi_xc
+    have := hun _ _ _ _ hsh hs_hx rfl
+    subst this
+    refine (build_hpath_prefix mh p _ ya hy).2 ⟨b, h, hp, ?_⟩
+    rw [hxor]
+    exact mh_x
+  refine ⟨?_, ?_, Hinvmh, m_mh_updh Unknown hs Pm mh yc hy Known Hmmh hs_hy,
+    m_mh_updh Unknown hs Pmi mhi yc hy Known Hmimhi hs_hy, ?_, ?_, ?_, ?_, Hmp⟩
+  · refine hs_updh hs ch Unknown hy yc Known Hhs ?_ hs_hy
+    intro he
+    rw [← he, hs0] at hs_hy
+    cases hs_hy
+  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
+    cases hg : FMap.get Gmi (ya, yc) with
+    | none => rfl
+    | some z =>
+      have hp := Hincli (ya, yc) (by rw [hg]; simp)
+      rw [hg, Pmi_y] at hp
+      cases hp
+      rw [← IG] at hg
+      rw [hg] at Gm_x
+      cases Gm_x
+  · intro z hz
+    rw [FMap.get_setE] at hz ⊢
+    split_ifs with he
+    · rw [he]
+      exact Pm_x
+    · rw [if_neg he] at hz
+      exact Hincl z hz
+  · intro z hz
+    rw [FMap.get_setE] at hz ⊢
+    split_ifs with he
+    · rw [he]
+      exact Pmi_y
+    · rw [if_neg he] at hz
+      exact Hincli z hz
+  · refine ⟨?_, Imh2, Imh3⟩
+    intro xa' hx' ya' hy' hm
+    by_cases hk : (xa', hx') = (xa, hx)
+    · simp only [Prod.mk.injEq] at hk
+      obtain ⟨hk1, hk2⟩ := hk
+      subst xa' hx'
+      rw [mh_x] at hm
+      simp only [Option.some.injEq, Prod.mk.injEq] at hm
+      obtain ⟨hm1, hm2⟩ := hm
+      subst ya' hy'
+      refine ⟨xc, Known, yc, Known, ?_, FMap.get_set_sameE _ _ _, ?_⟩
+      · rw [FMap.get_set_neqE _ _ _ _ hxy]
+        exact hs_hx
+      · simp
+    obtain ⟨xc', fx', yc', fy', h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+    by_cases hyy : hy' = hy
+    · subst hyy
+      rw [hs_hy] at h2
+      simp only [Option.some.injEq, Prod.mk.injEq] at h2
+      obtain ⟨rfl, rfl⟩ := h2
+      simp only [reduceCtorEq, if_false] at h3
+      obtain ⟨p', b', h4, h5⟩ := h3
+      have path' : build_hpath mh (rcons p' (b' +^ xa')) = some (ya', hy') := by
+        refine (build_hpath_prefix mh p' _ ya' hy').2 ⟨b', hx', h5, ?_⟩
+        rw [hxor]
+        exact hm
+      obtain ⟨-, rfl⟩ := Imh3 _ _ _ _ _ path_hy path'
+      have e1 := (Imhi _ _).1 hm
+      rw [(Imhi _ _).1 mh_x] at e1
+      exact absurd (Option.some.inj e1).symm hk
+    · have hk' : (xa', xc') ≠ (xa, xc) := by
+        intro he
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨rfl, rfl⟩ := he
+        exact hk (by rw [hun _ _ _ _ h1 hs_hx rfl])
+      by_cases hxy' : hx' = hy
+      · subst hxy'
+        rw [hs_hy] at h1
+        simp only [Option.some.injEq, Prod.mk.injEq] at h1
+        obtain ⟨rfl, rfl⟩ := h1
+        refine ⟨_, Known, yc', fy', FMap.get_set_sameE _ _ _, ?_, ?_⟩
+        · rw [FMap.get_set_neqE _ _ _ _ hyy]
+          exact h2
+        · cases fy' with
+          | Known => simp at h3
+          | Unknown => simpa using h3
+      · refine ⟨xc', fx', yc', fy', ?_, ?_, ?_⟩
+        · rw [FMap.get_set_neqE _ _ _ _ hxy']
+          exact h1
+        · rw [FMap.get_set_neqE _ _ _ _ hyy]
+          exact h2
+        · cases fy' with
+          | Known =>
+            simp only [if_true] at h3 ⊢
+            exact ⟨by rw [FMap.get_set_neqE _ _ _ _ hk']; exact h3.1, h3.2⟩
+          | Unknown => simpa using h3
+  · refine ⟨fun c p' v => ?_⟩
+    rw [FMap.get_setE]
+    by_cases hc : c = yc
+    · subst hc
+      rw [if_pos rfl]
+      constructor
+      · intro he
+        simp only [Option.some.injEq, Prod.mk.injEq] at he
+        obtain ⟨rfl, rfl⟩ := he
+        exact ⟨hy, path_hy, FMap.get_set_sameE _ _ _⟩
+      · rintro ⟨h, h1, h2⟩
+        by_cases hhy : h = hy
+        · subst hhy
+          obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ path_hy h1
+          rfl
+        · rw [FMap.get_set_neqE _ _ _ _ hhy] at h2
+          exact absurd (hun _ _ _ _ h2 hs_hy rfl) hhy
+    · rw [if_neg hc, Ipi]
+      constructor
+      · rintro ⟨h, h1, h2⟩
+        refine ⟨h, h1, ?_⟩
+        have hhy : h ≠ hy := by
+          intro he
+          rw [he, hs_hy] at h2
+          cases h2
+        rw [FMap.get_set_neqE _ _ _ _ hhy]
+        exact h2
+      · rintro ⟨h, h1, h2⟩
+        refine ⟨h, h1, ?_⟩
+        have hhy : h ≠ hy := by
+          intro he
+          rw [he, FMap.get_set_sameE] at h2
+          simp only [Option.some.injEq, Prod.mk.injEq] at h2
+          exact hc h2.1.symm
+        rw [FMap.get_set_neqE _ _ _ _ hhy] at h2
+        exact h2
 
 theorem m_mh_None (hs0 : handles) (PFm : smap) (G1mh : hsmap) (hx2 : handle) (x2 : capacity)
     (k : flag) (x1 : block) :
     m_mh hs0 PFm G1mh → FMap.get hs0 hx2 = some (x2, k) → FMap.get PFm (x1, x2) = none →
     FMap.get G1mh (x1, hx2) = none := by
-  sorry
+  rintro ⟨_, h2⟩ hh hP
+  cases hg : FMap.get G1mh (x1, hx2) with
+  | none => rfl
+  | some yh =>
+    obtain ⟨xc, fx, yc, fy, h1, -, h3⟩ := h2 x1 hx2 yh.1 yh.2 hg
+    rw [hh] at h1
+    cases h1
+    rw [hP] at h3
+    cases h3
 
 theorem build_hpath_None (G1mh : hsmap) (p : List block) :
     p.foldl (step_hpath G1mh) none = none := by
-  sorry
+  induction p with
+  | nil => rfl
+  | cons b p ih => simpa [step_hpath] using ih
 
 theorem build_hpath_upd_ch (ha ch : handle) (mh : hsmap) (xa ya : block) (p : List block)
     (v : block) (hx : handle) :
@@ -597,19 +1648,79 @@ theorem build_hpath_upd_ch (ha ch : handle) (mh : hsmap) (xa ya : block) (p : Li
     if hx = ch then
       ∃ p0 x, build_hpath mh p0 = some (x, ha) ∧ p = rcons p0 (x +^ xa) ∧ v = ya
     else build_hpath mh p = some (v, hx) := by
-  sorry
+  intro Hch0 Hha Hch hp
+  have hxor : ∀ a b : block, a +^ (a +^ b) = b := by
+    intro a b
+    apply List.Vector.ext
+    intro i
+    simp [BitWord.xorw, List.Vector.get_map₂]
+  induction p using List.reverseRecOn generalizing v hx with
+  | nil =>
+    simp only [build_hpath, List.foldl_nil, Option.some.injEq, Prod.mk.injEq] at hp
+    obtain ⟨rfl, rfl⟩ := hp
+    rw [if_neg Hch0]
+    rfl
+  | append_singleton p b ih =>
+    obtain ⟨v', h', hb, hm⟩ := (build_hpath_prefix _ p b v hx).1 hp
+    have ih' := ih v' h' hb
+    by_cases hh' : h' = ch
+    · subst hh'
+      rw [FMap.get_setE, if_neg (by simp [Ne.symm Hha])] at hm
+      exact absurd rfl (Hch _ _ _ _ hm).1
+    rw [if_neg hh'] at ih'
+    rw [FMap.get_setE] at hm
+    split_ifs at hm with hk
+    · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+      obtain ⟨hk1, rfl⟩ := hk
+      obtain ⟨rfl, rfl⟩ := hm
+      rw [if_pos rfl]
+      refine ⟨p, v', ih', ?_, rfl⟩
+      rw [← hk1, hxor]
+      rfl
+    · have hxc : hx ≠ ch := (Hch _ _ _ _ hm).2
+      rw [if_neg hxc]
+      exact (build_hpath_prefix mh p b v hx).2 ⟨v', h', ih', hm⟩
 
 theorem build_hpath_up_None (G1mh : hsmap) (bi1 bi2 bi : hstate) (p : List block) :
     FMap.get G1mh bi1 = none → build_hpath G1mh p = some bi →
     build_hpath (FMap.set G1mh bi1 bi2) p = some bi := by
-  sorry
+  intro hn hp
+  induction p using List.reverseRecOn generalizing bi with
+  | nil => exact hp
+  | append_singleton p b ih =>
+    obtain ⟨za, hz⟩ := bi
+    obtain ⟨v', h', hb, hm⟩ := (build_hpath_prefix G1mh p b za hz).1 hp
+    refine (build_hpath_prefix _ p b za hz).2 ⟨v', h', ih (v', h') hb, ?_⟩
+    rw [FMap.get_setE, if_neg]
+    · exact hm
+    · intro he
+      rw [he, hn] at hm
+      cases hm
 
 theorem build_hpath_down_None (h ch : handle) (mh : hsmap) (xa : block) (ha : handle)
     (ya a : block) (p : List block) :
     h ≠ ch → ha ≠ ch → (∀ ya, FMap.get mh (ya, ch) = none) →
     build_hpath (FMap.set mh (xa, ha) (ya, ch)) p = some (a, h) →
     build_hpath mh p = some (a, h) := by
-  sorry
+  intro Hh Hha Hmh hp
+  have aux : ∀ (q : List block) (a : block) (h : handle),
+      build_hpath (FMap.set mh (xa, ha) (ya, ch)) q = some (a, h) →
+      h = ch ∨ build_hpath mh q = some (a, h) := by
+    intro q
+    induction q using List.reverseRecOn with
+    | nil => intro a h hq; exact Or.inr hq
+    | append_singleton q b ih =>
+      intro a h hq
+      obtain ⟨v', h', hb, hm⟩ := (build_hpath_prefix _ q b a h).1 hq
+      rcases ih v' h' hb with rfl | hb'
+      · rw [FMap.get_setE, if_neg (by simp [Ne.symm Hha]), Hmh] at hm
+        cases hm
+      · rw [FMap.get_setE] at hm
+        split_ifs at hm
+        · simp only [Option.some.injEq, Prod.mk.injEq] at hm
+          exact Or.inl hm.2.symm
+        · exact Or.inr ((build_hpath_prefix mh q b a h).2 ⟨v', h', hb', hm⟩)
+  exact (aux p a h hp).resolve_left Hh
 
 theorem build_hpath_upd_ch_iff (ha ch : handle) (mh : hsmap) (xa ya : block) (p : List block)
     (v : block) (hx : handle) :
@@ -619,7 +1730,21 @@ theorem build_hpath_upd_ch_iff (ha ch : handle) (mh : hsmap) (xa ya : block) (p 
       if hx = ch then
         ∃ p0 x, build_hpath mh p0 = some (x, ha) ∧ p = rcons p0 (x +^ xa) ∧ v = ya
       else build_hpath mh p = some (v, hx)) := by
-  sorry
+  intro Ha Hch0 Hha Hch
+  have hxor : ∀ a b : block, a +^ (a +^ b) = b := by
+    intro a b
+    apply List.Vector.ext
+    intro i
+    simp [BitWord.xorw, List.Vector.get_map₂]
+  refine ⟨build_hpath_upd_ch ha ch mh xa ya p v hx Hch0 Hha Hch, ?_⟩
+  split_ifs with hxc
+  · rintro ⟨p0, x, hp0, rfl, rfl⟩
+    subst hxc
+    refine (build_hpath_prefix _ p0 _ v hx).2
+      ⟨x, ha, build_hpath_up_None mh (xa, ha) (v, hx) (x, ha) p0 Ha hp0, ?_⟩
+    rw [hxor]
+    exact FMap.get_set_sameE _ _ _
+  · exact build_hpath_up_None mh (xa, ha) (ya, ch) (v, hx) p Ha
 
 theorem lemma4 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -630,7 +1755,19 @@ theorem lemma4 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsm
     build_hpath mh (take i p) = some (sa, h) →
     FMap.get ro (take (i + 1) p) = some (oget (FMap.get prefixes (take (i + 1) p))).1 →
     FMap.get hs h = some (sc, f) → FMap.dom mh (sa +^ nth default p i, h) := by
-  sorry
+  rintro ⟨-, -, -, -, -, -, -, ⟨-, Iro, -⟩, -, -⟩ ⟨hi0, hi⟩ - - hb hro -
+  have hrc : take (i + 1) p = rcons (take i p) (nth default p i) := by
+    have hlt : i.toNat < p.length := by simp only [size] at hi; omega
+    simp only [take, rcons, nth, if_pos hi0, show (i + 1).toNat = i.toNat + 1 by omega,
+      List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some,
+      List.getD_eq_getElem?_getD, Option.getD_some]
+  rw [hrc] at hro
+  obtain ⟨v, hx, hy, hb', hm⟩ := (Iro _ _ _).1 hro
+  rw [hb] at hb'
+  simp only [Option.some.injEq, Prod.mk.injEq] at hb'
+  obtain ⟨rfl, rfl⟩ := hb'
+  rw [FMap.domE, hm]
+  simp
 
 /-! ## The oracles of `CF` and `G1` agree up to the bad events -/
 
@@ -688,18 +1825,26 @@ theorem eq_f (D : DISTINGUISHER)
   sorry
 
 theorem head_nth {α : Type} (w : α) (l : List α) : head w l = nth w l 0 := by
-  sorry
+  cases l <;> rfl
 
 theorem drop_add {α : Type} (n1 n2 : ℤ) (l : List α) :
     0 ≤ n1 → 0 ≤ n2 → drop (n1 + n2) l = drop n2 (drop n1 l) := by
-  sorry
+  intro h1 h2
+  simp only [drop, List.drop_drop]
+  congr 1
+  omega
 
 theorem behead_drop {α : Type} (l : List α) : behead l = drop 1 l := by
-  sorry
+  cases l <;> rfl
 
 theorem incl_upd_nin {α β : Type} [DecidableEq α] (m1 m2 : FMap α β) (x : α) (y : β) :
     incl m1 m2 → ¬ FMap.dom m2 x → incl m1 (FMap.set m2 x y) := by
-  sorry
+  intro hi hx z hz
+  rw [FMap.get_setE]
+  split_ifs with h
+  · subst h
+    exact absurd ((FMap.domE _ _).mpr (by rw [hi z hz]; exact hz)) hx
+  · exact hi z hz
 
 theorem lemma5 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -710,7 +1855,33 @@ theorem lemma5 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsm
     (∃ f, FMap.get hs h = some (c, f)) →
     ∃ b' c' h', FMap.get Pm (b +^ nth default p i, c) = some (b', c') ∧
       FMap.get mh (b +^ nth default p i, h) = some (b', h') := by
-  sorry
+  rintro ⟨⟨hun, -, -⟩, -, -, ⟨Im, -⟩, -, -, -, -, -, ⟨-, -, Ip, -, -⟩⟩ ⟨hi0, hi⟩ hdom hb ⟨f, hh⟩
+  have hlt : i.toNat < p.length := by simp only [size] at hi; omega
+  have hsz : 0 ≤ i ∧ i < size (take (i + 1) p) := by
+    refine ⟨hi0, ?_⟩
+    simp only [size, take, List.length_take]
+    omega
+  obtain ⟨sa, sc, h1, h2⟩ := Ip _ hdom i hsz
+  have htt : take i (take (i + 1) p) = take i p := by
+    simp only [take, List.take_take]
+    congr 1
+    omega
+  have htt' : take (i + 1) (take (i + 1) p) = take (i + 1) p := by
+    simp only [take, List.take_take, min_self]
+  have hnth : nth default (take (i + 1) p) i = nth default p i := by
+    simp only [nth, if_pos hi0, take, List.getD_eq_getElem?_getD, List.getElem?_take]
+    rw [if_pos (by omega)]
+  rw [htt, hb] at h1
+  simp only [Option.some.injEq, Prod.mk.injEq] at h1
+  obtain ⟨rfl, rfl⟩ := h1
+  rw [hnth, htt'] at h2
+  rw [FMap.domE] at hdom
+  obtain ⟨⟨b', c'⟩, hpre⟩ := Option.ne_none_iff_exists'.1 hdom
+  rw [hpre] at h2
+  obtain ⟨hx, fx, hy, fy, h3, -, h5⟩ := Im _ _ _ _ h2
+  have := hun _ _ _ _ hh h3 rfl
+  subst this
+  exact ⟨b', c', hy, h2, h5⟩
 
 theorem lemma5' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
     (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
@@ -722,7 +1893,24 @@ theorem lemma5' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hs
       FMap.get mh (b +^ nth default p i, h) = some (b', h')) ∨
     (FMap.get Pm (b +^ nth default p i, c) = none ∧
       FMap.get mh (b +^ nth default p i, h) = none) := by
-  sorry
+  rintro ⟨⟨hun, -, -⟩, -, -, ⟨Im, Imh⟩, -, -, -, -, -, -⟩ - - ⟨f, hh⟩
+  cases hP : FMap.get Pm (b +^ nth default p i, c) with
+  | none =>
+    refine Or.inr ⟨rfl, ?_⟩
+    cases hM : FMap.get mh (b +^ nth default p i, h) with
+    | none => rfl
+    | some yh =>
+      obtain ⟨xc, fx, yc, fy, h1, -, h3⟩ := Imh _ _ yh.1 yh.2 hM
+      rw [hh] at h1
+      cases h1
+      rw [hP] at h3
+      cases h3
+  | some bc =>
+    obtain ⟨b', c'⟩ := bc
+    obtain ⟨hx, fx, hy, fy, h3, -, h5⟩ := Im _ _ _ _ hP
+    have := hun _ _ _ _ hh h3 rfl
+    subst this
+    exact Or.inl ⟨b', c', hy, rfl, h5⟩
 
 /-- `equiv PFf_Cf (D <: DISTINGUISHER) : DFRestr(SqueezelessSponge(PF)).f ~
 DFRestr(G1(DRestr(D)).M).f : …`. -/

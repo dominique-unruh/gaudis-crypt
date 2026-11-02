@@ -156,7 +156,10 @@ module Sponge using (P : DPRIMITIVE) : FUNCTIONALITY {
 }
 
 theorem loop_cond (i n : ℤ) : 0 ≤ i → 0 ≤ n → (r * i < n ↔ i < (n + r - 1) / r) := by
-  sorry
+  intro _ _
+  have hr := gt0_r
+  rw [← Int.add_one_le_iff (b := (n + r - 1) / r), Int.le_ediv_iff_mul_le hr]
+  constructor <;> intro h <;> nlinarith
 
 /-- `equiv Sponge_is_StdSponge (P <: DPRIMITIVE) : StdSponge(P).f ~ Sponge(P).f :
 ={glob P, bs, n} ==> ={glob P, res}`. -/
