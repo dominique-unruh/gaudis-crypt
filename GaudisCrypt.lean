@@ -107,6 +107,7 @@ import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHL2Upto
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.LoopTransform
+import GaudisCrypt.Logic.ModuleComp
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.StmtSwap
@@ -140,6 +141,7 @@ import GaudisCrypt.Examples.EasyCryptBench.WhileSampling
 import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Examples.SHA3.Common
 import GaudisCrypt.Examples.SHA3.Indifferentiability
+import GaudisCrypt.Examples.SHA3.IndifferentiabilityCalls
 import GaudisCrypt.Examples.SHA3.IRO
 import GaudisCrypt.Examples.SHA3.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.OptionIndifferentiability

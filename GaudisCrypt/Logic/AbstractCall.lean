@@ -368,6 +368,27 @@ theorem prhlProc_abstract_call_module {T : Type 1} [IsModule T] {sig : Procedure
   rw [hden O₁ a₁, hden O₂ a₂]
   exact prhlProc_abstract_callF L (ext O₁) (ext O₂) p _ hle hdisj I hc horacle a₁ a₂
 
+/-- `prhlProc_abstract_call_module` at a region `F` containing `glob D` (instead of `FVP.fvP D`
+itself): the invariant `={F} ∧ I` is the same across nested abstract calls (a distinguisher whose
+oracles are a simulator's procedures, `F` covering both). -/
+theorem prhlProc_abstract_call_moduleF {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {holes : HoleSigs} (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (F : Footprint VariableAssignment)
+    (hDF : FVP.fvP D ≤ F) (hFL : F ≤ (L.footprint)ᶜ) (I : Ω → Ω → Prop)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O₁ O₂ : T)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF L F I g₁ g₂)
+        ((ext O₁).lookup n) ((ext O₂).lookup n)
+        (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF L F I g₁ g₂)) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF L F I g₁ g₂)
+      (Module.app D O₁).procedure (Module.app D O₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF L F I g₁ g₂) := by
+  obtain ⟨p, hden, hle⟩ := hD
+  intro a₁ a₂
+  rw [hden O₁ a₁, hden O₂ a₂]
+  exact prhlProc_abstract_callF L (ext O₁) (ext O₂) p F (hle.trans hDF) hFL I hc horacle a₁ a₂
+
 /-! ## Representability of concrete functor modules
 
 `fvP` only grows when a procedure's holes are filled: a hole node contributes the write of the

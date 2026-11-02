@@ -882,3 +882,19 @@ New tooling:
 * Exit conditions of `prhlStmt.trans` chains show middle-state reads as `§x` (`eval`):
   `simp only [eval_lens_full, eval_lens_global, eval_getter_full, eval_getter_global,
   allGlobals_get] at *` before rewriting.
+
+### Sponge, ideal side (nested abstract calls)
+
+* `Logic/ModuleComp.lean`: `Module.app_comp` (`Module.comp f g` applied is `f (g x)`), for
+  `RaiseSim S = S(LowerFun(·))`.  State the equation for the exact terms of the goal
+  (`Module.app (RaiseSim S) X = …`) and `rw` with it.
+* `prhlProc_abstract_call_moduleF` (`Logic/AbstractCall.lean`): the abstract call rule at a region
+  `F ⊇ glob D`, so that the invariant `globInvF L F I` is the same for `Dist` and for the simulator
+  it calls; `Examples/SHA3/IndifferentiabilityCalls.lean`: `SIMULATOR.call_init/f/fi` (from
+  `SIMULATOR.RepresentedBy`) and `SIMULATOR.init_eq`.  EC's `call (_ : ={glob Dist, glob S} /\
+  inv)` with `proc (inv)` twice is `F := fvP Dist ⊔ fvP S`, the concrete oracles framed by
+  `prhlProc_globInvF_of_writesKeep` + `writes_keep` (the facts `X.footprint ≤ Fᶜ` in context).
+* The oracle procedures appear as `(FUNCTIONALITY.f (Module.app M X)).procedure`; the lemmas are
+  about `(Module.app M.f X).procedure`.  Bridge by an equation: `simp only [M.apply_simp,
+  M.f.apply_simp]; unfold FUNCTIONALITY.f; erw [Module.snd'_pair_proc]` (for a one-procedure
+  `DFUNCTIONALITY`, `unfold DFUNCTIONALITY.f; rfl`), then `rw` and `exact` the lemma.

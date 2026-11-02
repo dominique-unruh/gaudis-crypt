@@ -4,6 +4,8 @@ import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.Int
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.LoopTransform
+import GaudisCrypt.Logic.ModuleComp
+import GaudisCrypt.Examples.SHA3.IndifferentiabilityCalls
 import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.FootprintSolver
@@ -3244,7 +3246,159 @@ theorem Ideal_IRO_Experiment_HybridLazy (BlockSim : BlockSponge.SIMULATOR) (Dist
         (fun r _ => r = true) =
       Procedure.Pr (HybridExperiment BlockSim Dist
         (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)).procedure () m (fun r _ => r = true) := by
-  sorry
+  unfold Restrictions at _hR
+  unfold HIRO_fresh at _hfresh
+  obtain ⟨hSR, hDR⟩ := _hR
+  obtain ⟨hfr, -⟩ := _hfresh
+  have h1 : BIRO.IRO.mp.footprint ≤ (FVP.fvP Dist)ᶜ := by fp_disjoint
+  have hL := le_sup_left.trans hfr
+  have h2 : HIRO_Lazy_mp.footprint ≤ (FVP.fvP Dist)ᶜ := hL.trans (Footprint.compl_antimono
+    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  have h3 : BIRO.IRO.mp.footprint ≤ (FVP.fvP BlockSim)ᶜ := by fp_disjoint
+  have h4 : HIRO_Lazy_mp.footprint ≤ (FVP.fvP BlockSim)ᶜ := hL.trans (Footprint.compl_antimono
+    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  have h5 : HIRO_Lazy_mp.footprint ≤ (BIRO.IRO.mp.footprint)ᶜ := hL.trans (Footprint.compl_antimono
+    (le_sup_right.trans le_sup_left))
+  haveI : Lens.Disjoint HIRO_Lazy_mp BIRO.IRO.mp :=
+    Lens.disjoint_of_footprint_le_compl _ _ h5
+  haveI : Lens.Disjoint BIRO.IRO.mp HIRO_Lazy_mp := (inferInstance : Lens.Disjoint HIRO_Lazy_mp
+    _).symm
+  have hRL : FVP.fvP Dist ⊔ FVP.fvP BlockSim ≤
+      ((Lens.pair BIRO.IRO.mp HIRO_Lazy_mp).footprint)ᶜ := by
+    rw [Footprint.lens_pair]
+    exact sup_le (Footprint.le_compl_of_fvP (sup_le h1 h2))
+      (Footprint.le_compl_of_fvP (sup_le h3 h4))
+  have hIR : BIRO.IRO.mp.footprint ≤ (FVP.fvP Dist ⊔ FVP.fvP BlockSim)ᶜ :=
+    (Footprint.le_compl_comm _ _).mpr (sup_le ((Footprint.le_compl_comm _ _).mp h1)
+    ((Footprint.le_compl_comm _ _).mp h3))
+  have hLR : HIRO_Lazy_mp.footprint ≤ (FVP.fvP Dist ⊔ FVP.fvP BlockSim)ᶜ :=
+    (Footprint.le_compl_comm _ _).mpr (sup_le ((Footprint.le_compl_comm _ _).mp h2)
+    ((Footprint.le_compl_comm _ _).mp h4))
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  unfold HybridExperiment
+  have eS : Module.app (RaiseSim BlockSim) (Indifferentiability.FUNCTIONALITY.view
+      (block × capacity) (List Bool × ℤ) (List Bool) BIRO.IRO.asF) =
+      Module.app BlockSim (Module.app LowerFun (Indifferentiability.FUNCTIONALITY.view
+        (block × capacity) (List Bool × ℤ) (List Bool) BIRO.IRO.asF)) :=
+    Module.app_comp _ _ _
+  have eF₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
+    simp [BIRO.IRO.asF]
+  have eF₂ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      (Module.app HybridIRO.RaiseHybridIRO (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp))).procedure =
+      (Module.app HybridIRO.RaiseHybridIRO.f
+        (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)).procedure := by
+    simp only [HybridIRO.RaiseHybridIRO.apply_simp, HybridIRO.RaiseHybridIRO.f.apply_simp]
+    unfold Indifferentiability.FUNCTIONALITY.f
+    erw [Module.snd'_pair_proc]
+  have eL₁ : (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List block × ℤ) (List block)
+      (Module.app LowerFun (Indifferentiability.FUNCTIONALITY.view (block × capacity)
+        (List Bool × ℤ) (List Bool) BIRO.IRO.asF))).procedure =
+      (Module.app LowerFun.f (Indifferentiability.FUNCTIONALITY.view (block × capacity)
+        (List Bool × ℤ) (List Bool) BIRO.IRO.asF)).procedure := by
+    simp only [LowerFun.apply_simp, LowerFun.f.apply_simp]
+    unfold Indifferentiability.DFUNCTIONALITY.f
+    rfl
+  have eL₂ : (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List block × ℤ) (List block)
+      (Module.app HybridIRO.LowerHybridIRO (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp))).procedure =
+      (Module.app HybridIRO.LowerHybridIRO.f
+        (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)).procedure := by
+    simp only [HybridIRO.LowerHybridIRO.apply_simp, HybridIRO.LowerHybridIRO.f.apply_simp]
+    unfold Indifferentiability.DFUNCTIONALITY.f
+    rfl
+  have hinner : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+      globInvF (Lens.pair BIRO.IRO.mp HIRO_Lazy_mp) (FVP.fvP Dist ⊔ FVP.fvP BlockSim)
+        (fun x y => HybridIRO.lazy_invar x.1 y.2) g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List block × ℤ) (List block)
+        (Module.app LowerFun (Indifferentiability.FUNCTIONALITY.view (block × capacity)
+          (List Bool × ℤ) (List Bool) BIRO.IRO.asF))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List block × ℤ) (List block)
+        (Module.app HybridIRO.LowerHybridIRO (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        globInvF (Lens.pair BIRO.IRO.mp HIRO_Lazy_mp) (FVP.fvP Dist ⊔ FVP.fvP BlockSim)
+          (fun x y => HybridIRO.lazy_invar x.1 y.2) g₁ g₂) := by
+    refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
+    rw [eL₁, eL₂]
+    exact HybridIRO.LowerFun_IRO_HybridIROLazy_f HIRO_Lazy_mp
+  have hinit : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app (RaiseSim BlockSim) (Indifferentiability.FUNCTIONALITY.view
+          (block × capacity) (List Bool × ℤ) (List Bool) BIRO.IRO.asF))).procedure
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+    rw [eS]
+    exact Indifferentiability.SIMULATOR.init_eq _ _ _ BlockSim hS.1 _ _
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF (Lens.pair BIRO.IRO.mp HIRO_Lazy_mp) (FVP.fvP Dist ⊔ FVP.fvP BlockSim)
+      (fun x y => HybridIRO.lazy_invar x.1 y.2) §allGlobals{1} §allGlobals{2})
+  · stmt_inline{1} 1
+    repeat stmt_inline{2} 1
+    stmt_wp
+    equiv_call hinit
+    stmt_wp
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨h, fun r₁ g₁ r₂ g₂ hg => ?_⟩
+    subst hg
+    refine ⟨?_, ?_⟩
+    · simp only [Setter.throwaway]
+      rw [touched_set_of_le_compl hIR, touched_set_of_le_compl hLR]
+      rfl
+    · simp [Lens.set_get]
+      exact HybridIRO.lazy_invar0
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF (Lens.pair BIRO.IRO.mp HIRO_Lazy_mp)
+      Dist distExt hD.1 (FVP.fvP Dist ⊔ FVP.fvP BlockSim) le_sup_left hRL
+      (fun x y => HybridIRO.lazy_invar x.1 y.2) ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List Bool × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (block × capacity))
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+          Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+        refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
+        rw [eF₁, eF₂]
+        exact HybridIRO.IRO_RaiseHybridIRO_HybridIROLazy_f HIRO_Lazy_mp
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          HoleSigs.Instantiation.lookup_succ, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+          Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          rw [eS]
+          exact Indifferentiability.SIMULATOR.call_f _ _ _ _ BlockSim hS.1 _ le_sup_right hRL _ _ _
+            hinner
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+          HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+          Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            rw [eS]
+            exact Indifferentiability.SIMULATOR.call_fi _ _ _ _ BlockSim hS.1 _ le_sup_right hRL _
+              _ _
+              hinner
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ _
+    exact ⟨⟨rfl, ‹_›⟩, fun r₁ _ r₂ _ ⟨hr, _⟩ => by simp_reads; exact hr⟩
 
 -- Make a hybrid IRO distinguisher from `BlockSim` and `Dist` (`HI.f` is used by `BlockSim`, and
 -- by `HIRO.RaiseHybridIRO`; `HI.init` is unused).  EC's local
