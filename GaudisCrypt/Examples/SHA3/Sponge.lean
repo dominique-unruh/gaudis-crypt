@@ -3,6 +3,7 @@ import GaudisCrypt.Lib.EC.PROM
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.Int
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.LoopTransform
 import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.FootprintSolver

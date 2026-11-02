@@ -106,6 +106,7 @@ import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHL2Upto
 import GaudisCrypt.Logic.PRHLStmt
+import GaudisCrypt.Logic.LoopTransform
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.StmtSwap
