@@ -358,6 +358,72 @@ abbrev HYBRID_IRO_DIST.holes : HoleSigs := .cons (procsig (List block, ℤ) -> (
 noncomputable def HYBRID_IRO_DIST.ext (HI : HYBRID_IRO) : HYBRID_IRO_DIST.holes.Instantiation :=
   (HYBRID_IRO.f HI).procedure
 
+/-- An `init` that does nothing (for `HYBRID_IRO_DIST.representable_of_f`). -/
+noncomputable def noInit := proc () : Unit { return () }
+
+/-- **A `HYBRID_IRO_DIST` that calls only `HI.f` is representable over `HI.f`**
+(`HYBRID_IRO_DIST.ext`): EasyCrypt's `{HI.f}` restriction, derived from a congruence (`D HI` only
+depends on `HI.f`).  The representation is the general one over all of `HI`'s procedures
+(`Module.representable_of_firstOrder`), its `init` hole filled with `noInit`. -/
+theorem HYBRID_IRO_DIST.representable_of_f (D : HYBRID_IRO_DIST)
+    (hD : ∀ HI HI' : HYBRID_IRO, HYBRID_IRO.f HI = HYBRID_IRO.f HI' →
+      Module.app D HI = Module.app D HI') :
+    Module.Representable D HYBRID_IRO_DIST.ext := by
+  have hne : ∀ T ∈ (procsig (List block, ℤ) -> (List Bool)).params, Nonempty T := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
+    exact ⟨⟨[]⟩, ⟨0⟩⟩
+  obtain ⟨p, hp⟩ := Module.representable_of_firstOrder (M := HYBRID_IRO)
+    (by show HYBRID_IRO.typeRep.FirstOrder
+        simp only [HYBRID_IRO.typeRep, ModuleTypeRep.FirstOrder, and_self])
+    (fun n => by
+      cases n with
+      | zero => exact ⟨by simp, inferInstance⟩
+      | succ n => cases n with
+        | zero => exact ⟨hne, ⟨[]⟩⟩
+        | succ n => nomatch n)
+    (fun HI => ((HYBRID_IRO.init HI).procedure, (HYBRID_IRO.f HI).procedure)) (fun _ => rfl) D
+  -- the `init` hole gets a procedure that does nothing, the `f` hole the wrapper of `HI.f`
+  let q : ∀ {sig : ProcedureSignature}, HoleIndex (.cons (procsig () -> Unit)
+      HYBRID_IRO_DIST.holes) sig → ProcedureWithHoles HYBRID_IRO_DIST.holes sig :=
+    HoleIndex.consFun (F := ProcedureWithHoles HYBRID_IRO_DIST.holes)
+      (ProcedureWithHoles.ofProc noInit)
+      (HoleIndex.consFun (F := ProcedureWithHoles HYBRID_IRO_DIST.holes)
+        (ProcedureWithHoles.ofHole .zero hne)
+        (fun {_} (n : HoleIndex .empty _) => nomatch n))
+  refine ⟨p.substHoles q, fun HI a => ?_, ?_⟩
+  · let HI₀ : HYBRID_IRO := HYBRID_IRO.mk { init := Module.proc noInit, f := HYBRID_IRO.f HI }
+    rw [hD HI HI₀ (by simp [HI₀]), hp.denote HI₀ a,
+      p.procedureDenotation_substHoles q (noInit,
+        (ProcedureWithHoles.ofHole (H := HYBRID_IRO_DIST.holes) .zero hne).instantiate
+          (HYBRID_IRO_DIST.ext HI))
+        (HYBRID_IRO_DIST.ext HI) (fun n => by
+          cases n with
+          | zero => exact (ProcedureWithHoles.ofProc_instantiate _ _).symm
+          | succ n => cases n with
+            | zero => rfl
+            | succ n => nomatch n)]
+    refine congrFun (p.procedureDenotation_instantiate_congr fun n => ?_) a
+    cases n with
+    | zero =>
+      show procedureDenotation (HYBRID_IRO.init HI₀).procedure = procedureDenotation noInit
+      simp [HI₀, Module.procedure_proc']
+    | succ n => cases n with
+      | zero =>
+        refine Eq.trans ?_ (ProcedureWithHoles.procedureDenotation_ofHole _ _ _).symm
+        show procedureDenotation (HYBRID_IRO.f HI₀).procedure =
+          procedureDenotation (HYBRID_IRO.f HI).procedure
+        simp [HI₀]
+      | succ n => nomatch n
+  · refine (FVP.fvP_proc_substHoles_le p q ⊥ fun n => ?_).trans (sup_le hp.fvP_le bot_le)
+    cases n with
+    | zero =>
+      show FVP.fvP_proc (ProcedureWithHoles.ofProc noInit) ≤ ⊥
+      rw [FVP.fvP_proc_ofProc]
+      exact FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _
+    | succ n => cases n with
+      | zero => exact FVP.fvP_proc_ofHole_le _ _ ⊥
+      | succ n => nomatch n
+
 -- Experiments for hybrid IROs
 module HybridIROExper using (HI : HYBRID_IRO, D : HYBRID_IRO_DIST) {
   proc main () : Bool {
@@ -2945,13 +3011,15 @@ def Restrictions (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER) : Pro
     (BIRO.IRO.mp).footprint ⊔ (BlockSponge.BIRO.IRO.mp).footprint)ᶜ
 
 /-- The local clone `HIRO`'s variables are fresh: disjoint from each other, from `BlockSim`,
-`Dist` and the other games' variables (EasyCrypt's semantics of a local clone; exception E6). -/
+`Dist` and the other games' variables, and single variables (finitely supported) (EasyCrypt's
+semantics of a local clone; exception E6). -/
 def HIRO_fresh (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment) : Prop :=
   (HIRO_Lazy_mp).footprint ⊔ (HIRO_Eager_mp).footprint ≤ (FVP.fvP BlockSim ⊔ FVP.fvP Dist ⊔
     (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ (BIRO.IRO.mp).footprint ⊔
     (BlockSponge.BIRO.IRO.mp).footprint)ᶜ ∧
-  (HIRO_Lazy_mp).footprint ≤ (HIRO_Eager_mp).footprintᶜ
+  (HIRO_Lazy_mp).footprint ≤ (HIRO_Eager_mp).footprintᶜ ∧
+  (HIRO_Lazy_mp).footprint.FinitelySupported ∧ (HIRO_Eager_mp).footprint.FinitelySupported
 
 /-- `Experiment(HIRO.RaiseHybridIRO(HI), BlockSim(HIRO.LowerHybridIRO(HI)), Dist)`, the game the
 ideal side goes through, for `HI` the lazy or the eager hybrid IRO (an abbreviation). -/
@@ -3424,6 +3492,92 @@ module HybridIRODist (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
   };
 }
 
+/-- `HybridIRODist` calls only `HI.f` (EasyCrypt's `{HI.f}` for `HIRO.HYBRID_IRO_DIST`). -/
+theorem HybridIRODist.app_congr (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
+    (HI HI' : HybridIRO.HYBRID_IRO)
+    (h : HybridIRO.HYBRID_IRO.f HI = HybridIRO.HYBRID_IRO.f HI') :
+    Module.app (HybridIRODist BlockSim Dist) HI = Module.app (HybridIRODist BlockSim Dist) HI' := by
+  have eL : Module.app HybridIRO.LowerHybridIRO HI = Module.app HybridIRO.LowerHybridIRO HI' := by
+    simp only [HybridIRO.LowerHybridIRO.apply_simp, HybridIRO.LowerHybridIRO.f.apply_simp, h]
+  have eR : Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      (Module.app HybridIRO.RaiseHybridIRO HI) =
+      Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      (Module.app HybridIRO.RaiseHybridIRO HI') := by
+    simp only [HybridIRO.RaiseHybridIRO.apply_simp, HybridIRO.RaiseHybridIRO.f.apply_simp, h]
+    unfold Indifferentiability.FUNCTIONALITY.f
+    erw [Module.snd'_pair_proc, Module.snd'_pair_proc]
+  simp only [HybridIRODist.apply_simp, HybridIRODist.distinguish.apply_simp, eL, eR]
+
+local notation "E" => FVP.fvpInductiveFunctionGS.evalMexpr
+
+omit [BlockSponge.Params] in
+/-- `LowerHybridIRO` has no globals of its own. -/
+theorem fvP_LowerHybridIRO : FVP.fvP HybridIRO.LowerHybridIRO = ⊥ := by
+  refine le_antisymm ?_ bot_le
+  show E HybridIRO.LowerHybridIRO.expression ≤ ⊥
+  unfold HybridIRO.LowerHybridIRO
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_var, sup_bot_eq]
+  unfold HybridIRO.LowerHybridIRO.f
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_snd, evalMexpr_var,
+    evalMexpr_unit, sup_bot_eq]
+  exact (evalMexpr_procWithHoles_le _).trans
+    (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
+
+omit [BlockSponge.Params] in
+/-- `RaiseHybridIRO` has no globals of its own. -/
+theorem fvP_RaiseHybridIRO : FVP.fvP HybridIRO.RaiseHybridIRO = ⊥ := by
+  refine le_antisymm ?_ bot_le
+  show E HybridIRO.RaiseHybridIRO.expression ≤ ⊥
+  unfold HybridIRO.RaiseHybridIRO
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs]
+  refine sup_le ?_ ?_
+  · unfold HybridIRO.RaiseHybridIRO.init
+    show E (ModuleExpression.app _ _) ≤ ⊥
+    simp only [evalMexpr_app, evalMexpr_var, sup_bot_eq]
+    refine (evalMexpr_toModule_le _ _).trans ?_
+    simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_fst, evalMexpr_var,
+      evalMexpr_unit, sup_bot_eq]
+    exact (evalMexpr_procWithHoles_le _).trans
+      (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
+  · unfold HybridIRO.RaiseHybridIRO.f
+    show E (ModuleExpression.app _ _) ≤ ⊥
+    simp only [evalMexpr_app, evalMexpr_var, sup_bot_eq]
+    refine (evalMexpr_toModule_le _ _).trans ?_
+    simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_snd, evalMexpr_var,
+      evalMexpr_unit, sup_bot_eq]
+    exact (evalMexpr_procWithHoles_le _).trans
+      (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)
+
+/-- `HybridIRODist` touches what `BlockSim` and `Dist` do. -/
+theorem fvP_HybridIRODist_le (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER) :
+    FVP.fvP (HybridIRODist BlockSim Dist) ≤ FVP.fvP BlockSim ⊔ FVP.fvP Dist := by
+  show E (HybridIRODist BlockSim Dist).expression ≤ E BlockSim.expression ⊔ E Dist.expression
+  unfold HybridIRODist
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_var, sup_bot_eq]
+  unfold HybridIRODist.distinguish
+  refine (evalMexpr_toModule_le _ _).trans ?_
+  have hL : E HybridIRO.LowerHybridIRO.expression = ⊥ := fvP_LowerHybridIRO
+  have hR : E HybridIRO.RaiseHybridIRO.expression = ⊥ := fvP_RaiseHybridIRO
+  simp only [evalMexpr_abs, evalMexpr_app, evalMexpr_pair, evalMexpr_fst, evalMexpr_snd,
+    evalMexpr_var, evalMexpr_unit, sup_bot_eq, hL, hR]
+  refine sup_le ((evalMexpr_procWithHoles_le _).trans
+    (FVP.fvP_proc_le_of_localsOnly _ (by locals_only) (by locals_only) _)) ?_
+  exact sup_le le_sup_left (sup_le le_sup_right (sup_le bot_le (sup_le le_sup_left le_sup_left)))
+
+/-- `HybridIRODist` is an EasyCrypt-like `HIRO.HYBRID_IRO_DIST` (EC: by construction): it calls
+only `HI.f` (`HybridIRODist.app_congr`), and its globals are `BlockSim`'s and `Dist`'s. -/
+theorem HybridIRODist.ecModule (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
+    (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
+      (List block) BlockSim)
+    (hD : Module.ECModule Dist distExt) :
+    Module.ECModule (HybridIRODist BlockSim Dist) HybridIRO.HYBRID_IRO_DIST.ext :=
+  ⟨HybridIRO.HYBRID_IRO_DIST.representable_of_f _ (HybridIRODist.app_congr BlockSim Dist),
+    (hS.2.sup hD.finitelySupported).mono (fvP_HybridIRODist_le BlockSim Dist)⟩
+
 /-- `local lemma Experiment_HybridIROExper_Lazy &m`: initial bridging step. -/
 theorem Experiment_HybridIROExper_Lazy (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
     (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
@@ -3587,7 +3741,19 @@ theorem Experiment_Hybrid_Lazy_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : 
         (HybridIRO.HybridIROLazy.asHI HIRO_Lazy_mp)).procedure () m (fun r _ => r = true) =
       Procedure.Pr (HybridExperiment BlockSim Dist
         (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure () m (fun r _ => r = true) := by
-  sorry
+  -- EC: `by rewrite (Experiment_HybridIROExper_Lazy &m) (HIRO.HybridIROExper_Lazy_Eager
+  -- HybridIRODist &m) (HybridIROExper_Experiment_Eager &m)`
+  have hf := _hfresh
+  unfold HIRO_fresh at hf
+  obtain ⟨hfr, -, hLfs, hEfs⟩ := hf
+  have hDd : HybridIRO.DRestrictions HIRO_Lazy_mp HIRO_Eager_mp (HybridIRODist BlockSim Dist) :=
+    (fvP_HybridIRODist_le BlockSim Dist).trans ((Footprint.le_compl_comm _ _).mp
+      ((sup_comm _ _).le.trans (hfr.trans (Footprint.compl_antimono
+        (le_sup_of_le_left (le_sup_of_le_left (le_sup_of_le_left le_sup_left)))))))
+  rw [Experiment_HybridIROExper_Lazy BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp _hfresh m,
+    HybridIRO.HybridIROExper_Lazy_Eager HIRO_Lazy_mp HIRO_Eager_mp hLfs hEfs
+      (HybridIRODist BlockSim Dist) (HybridIRODist.ecModule BlockSim Dist hS hD) hDd m,
+    HybridIROExper_Experiment_Eager BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp _hfresh m]
 
 /-- `local lemma RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f :
 equiv[HIRO.RaiseHybridIRO(HIRO.HybridIROEager).f ~ RaiseFun(BlockSponge.BIRO.IRO).f :
