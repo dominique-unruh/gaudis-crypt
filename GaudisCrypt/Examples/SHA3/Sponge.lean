@@ -3428,7 +3428,7 @@ module HybridIRODist (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
 theorem Experiment_HybridIROExper_Lazy (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
     (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (_hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (HybridExperiment BlockSim Dist
@@ -3496,7 +3496,7 @@ same proof, for `HIRO.HybridIROEager`). -/
 theorem Experiment_HybridIROExper_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
     (hS : Indifferentiability.SIMULATOR.ECModule (block × capacity) (List block × ℤ)
       (List block) BlockSim)
-    (hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
+    (_hD : Module.ECModule Dist distExt) (_hR : Restrictions BlockSim Dist)
     (HIRO_Lazy_mp HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment)
     (_hfresh : HIRO_fresh BlockSim Dist HIRO_Lazy_mp HIRO_Eager_mp) (m : VariableAssignment) :
     Procedure.Pr (HybridExperiment BlockSim Dist
