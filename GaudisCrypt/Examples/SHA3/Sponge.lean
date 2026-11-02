@@ -1094,7 +1094,76 @@ theorem LowerFun_IRO_HybridIROLazy_f :
         (List Bool × ℤ) (List Bool) BIRO.IRO.asF)).procedure
       (Module.app LowerHybridIRO.f (HybridIROLazy.asHI HybridIROLazy_mp)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ lazy_invar (BIRO.IRO.mp.get g₁) (HybridIROLazy_mp.get g₂)) := by
-  sorry
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§xs{1} = §xs0{2} ∧ §n{1} * r = §n0{2} ∧ §ys{1} = [] ∧ §bs0{2} = [] ∧
+      §i{2} = 0 ∧ §obs{1} = unpad_blocks §xs{1} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
+  · stmt_wp
+    equiv_skip
+    intros; simp_all
+  · equiv_if
+    case guard =>
+      rintro _ _ _ _ _ _ _ _ _ _ ⟨rfl, -, -, -, -, rfl, -⟩
+      simp [valid_block]
+    case «else» =>
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨-, -, rfl, rfl, -, -, li⟩, -⟩
+      exact ⟨bits2blocks_nil.symm, li⟩
+    case «then» =>
+      stmt_wp
+      equiv_seq 1 1 : (pad2blocks §x0{1} = §xs0{2} ∧ §n0{1} = §n0{2} ∧ §i{1} = §i{2} ∧
+          §bs{1} = §bs0{2} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
+      · stmt_wp
+        equiv_skip
+        rintro xs₁ _ _ obs _ _ _ _ _ _ ⟨⟨rfl, rfl, -, rfl, rfl, rfl, li⟩, h⟩
+        refine ⟨?_, rfl, rfl, rfl, li⟩
+        simp only [decide_eq_true_eq] at h
+        obtain ⟨y, hy⟩ := Option.ne_none_iff_exists'.mp h
+        have := unpadBlocksK xs₁
+        rw [hy] at this ⊢
+        exact this
+      · equiv_if{1}
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+          simp [BIRO.valid, valid_toplevel] at h
+        case «then» =>
+          equiv_while (pad2blocks §x0{1} = §xs0{2} ∧ §n0{1} = §n0{2} ∧ §i{1} = §i{2} ∧
+              §bs{1} = §bs0{2} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
+          case body =>
+            stmt_wp
+            equiv_seq 1 1 : (pad2blocks §x0{1} = §xs0{2} ∧ §n0{1} = §n0{2} ∧ §i{1} = §i{2} ∧
+              §bs{1} = §bs0{2} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2} ∧
+              §x1{1} = §x0{1} ∧ §n1{1} = §i{1} ∧ §xs1{2} = §xs0{2} ∧ §i0{2} = §i{2})
+            · stmt_wp
+              equiv_skip
+              rintro _ _ _ _ _ _ _ _ _ _ ⟨h, -⟩; exact h
+            · equiv_if
+              case guard =>
+                rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩
+                simp only [Bool.not_inj_iff, decide_eq_decide]
+                exact li.1 _ _
+              case «else» =>
+                equiv_skip
+                rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩, h⟩
+                simp only [Bool.not_eq_false', decide_eq_true_eq] at h
+                exact ⟨rfl, rfl, rfl, by rw [lazy_invar_lookup_eq _ _ _ _ li h], li⟩
+              case «then» =>
+                stmt_wp
+                equiv_rnd
+                equiv_skip
+                rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩, -⟩ b -
+                refine ⟨rfl, rfl, rfl, by simp [FMap.get_set_sameE], ?_, ?_, ?_⟩
+                · exact fun bs n => lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ li
+                · exact fun xs n => lazy_invar_upd2_vb _ _ _ _ _ _ _ li
+                · exact fun bs n => lazy_invar_upd_lu_eq _ _ _ _ _ _ _ li
+          case guard =>
+            rintro _ _ _ _ _ _ _ _ _ _ ⟨-, rfl, rfl, -⟩; rfl
+          case exit =>
+            rintro _ _ _ _ _ _ _ _ _ _ ⟨-, -, -, rfl, li⟩ -; exact ⟨rfl, li⟩
+          · equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ ⟨h, -⟩; exact h
 
 /-- `lemma IRO_RaiseHybridIRO_HybridIROLazy_f : equiv[IRO.f ~ RaiseHybridIRO(HybridIROLazy).f :
 ={n} /\ x{1} = bs{2} /\ lazy_invar IRO.mp{1} HybridIROLazy.mp{2} ==>
@@ -1105,7 +1174,59 @@ theorem IRO_RaiseHybridIRO_HybridIROLazy_f :
       BIRO.IRO.f.procedure
       (Module.app RaiseHybridIRO.f (HybridIROLazy.asHI HybridIROLazy_mp)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ lazy_invar (BIRO.IRO.mp.get g₁) (HybridIROLazy_mp.get g₂)) := by
-  sorry
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§(localVarLens "x" (List Bool)){1} = §bs{2} ∧ §xs{2} = pad2blocks §bs{2} ∧
+      §n{1} = §n0{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs0{2} ∧
+      lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, h⟩
+    exact ⟨rfl, rfl, h⟩
+  · equiv_if
+    case guard =>
+      rintro _ _ _ _ _ _ _ _ _ _ _ ⟨-, rfl, -⟩
+      simp [BIRO.valid, valid_toplevel, valid_pad2blocks]
+    case «else» => equiv_skip; intros; simp_all
+    case «then» =>
+      equiv_while (§xs{2} = pad2blocks §(localVarLens "x" (List Bool)){1} ∧ §n{1} = §n0{2} ∧
+          §i{1} = §i{2} ∧ §bs{1} = §bs0{2} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
+      case body =>
+        stmt_wp
+        equiv_seq 1 1 : (§xs{2} = pad2blocks §(localVarLens "x" (List Bool)){1} ∧
+          §n{1} = §n0{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs0{2} ∧
+          lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2} ∧ §x0{1} = §(localVarLens "x" (List Bool)){1} ∧
+          §n0{1} = §i{1} ∧ §xs0{2} = §xs{2} ∧ §i0{2} = §i{2})
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨h, -⟩; exact h
+        · equiv_if
+          case guard =>
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩
+            simp only [Bool.not_inj_iff, decide_eq_decide]
+            exact li.1 _ _
+          case «else» =>
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩, h⟩
+            simp only [Bool.not_eq_false', decide_eq_true_eq] at h
+            exact ⟨rfl, rfl, rfl, by rw [lazy_invar_lookup_eq _ _ _ _ li h], li⟩
+          case «then» =>
+            stmt_wp
+            equiv_rnd
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩, -⟩ b -
+            refine ⟨rfl, rfl, rfl, by simp [FMap.get_set_sameE], ?_, ?_, ?_⟩
+            · exact fun bs n => lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ li
+            · exact fun xs n => lazy_invar_upd2_vb _ _ _ _ _ _ _ li
+            · exact fun bs n => lazy_invar_upd_lu_eq _ _ _ _ _ _ _ li
+      case guard =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨-, rfl, rfl, -⟩; rfl
+      case exit =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨-, -, -, h, li⟩ -; exact ⟨h, li⟩
+      · equiv_skip
+        rintro _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, h⟩, -⟩; exact h
 
 /-- Invariant relating the maps of `BlockSponge.BIRO.IRO` and `HybridIROEager`. -/
 def eager_invar (mp1 : FMap (List block × ℤ) block) (mp2 : FMap (List block × ℤ) Bool) : Prop :=
@@ -1204,14 +1325,67 @@ theorem block_bits_dom_first_out_imp_all_out (xs : List block) (i : ℤ)
 theorem Lower_HybridIROEager_f :
     prhlProc (sig₁ := procsig (List block × ℤ) -> (List block))
       (sig₂ := procsig (List block, ℤ) -> (List Bool))
-     
       (fun a₁ g₁ a₂ g₂ => a₁.1 = a₂.1 ∧ HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂ ∧
         a₁.2 * r = a₂.2)
       (Module.app LowerHybridIRO.f (HybridIROEager.asHI HybridIROEager_mp)).procedure
       (HybridIROEager.f HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = bits2blocks r₂ ∧
         HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂) := by
-  sorry
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+  · stmt_wp
+    equiv_skip
+    intros; simp_all
+  · equiv_if
+    case guard => intros; simp_all
+    case «else» => equiv_skip; intros; simp_all
+    case «then» =>
+      equiv_seq 1 1 : (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+      · equiv_while (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+        case body =>
+          stmt_wp
+          equiv_seq 1 1 : ((§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2}) ∧ §xs2{1} = §xs1{1} ∧ §i0{1} = §i{1} ∧ §xs1{2} = §xs0{2} ∧ §i0{2} = §i{2})
+          · stmt_wp
+            equiv_skip
+            intros; simp_all
+          · equiv_if
+            case guard => intros; simp_all
+            case «else» => equiv_skip; intros; simp_all
+            case «then» =>
+              stmt_wp
+              equiv_rnd
+              equiv_skip
+              intros; simp_all
+        case guard => intros; simp_all
+        case exit => intros; simp_all
+        · equiv_skip; intros; simp_all
+      · equiv_while (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
+        case body =>
+          stmt_wp
+          equiv_seq 1 1 : ((§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2}) ∧ §xs3{1} = §xs1{1} ∧ §i1{1} = §i{1} ∧ §xs2{2} = §xs0{2} ∧ §i1{2} = §i{2})
+          · stmt_wp
+            equiv_skip
+            intros; simp_all
+          · equiv_if
+            case guard => intros; simp_all
+            case «else» => equiv_skip; intros; simp_all
+            case «then» =>
+              stmt_wp
+              equiv_rnd
+              equiv_skip
+              intros; simp_all
+        case guard => intros; simp_all
+        case exit => intros; simp_all
+        · equiv_skip; intros; simp_all
 
 -- Module needed for applying the transitivity tactic in connection with `HybridIROEager`
 module HybridIROEagerTrans {

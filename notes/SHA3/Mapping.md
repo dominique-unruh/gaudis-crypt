@@ -672,8 +672,8 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 629 | lemma | `lazy_invar_upd_mem_dom_iff` |  | `HybridIRO.lazy_invar_upd_mem_dom_iff` | done |
 | 648 | lemma | `lazy_invar_upd2_vb` |  | `HybridIRO.lazy_invar_upd2_vb` | done |
 | 662 | lemma | `lazy_invar_upd_lu_eq` |  | `HybridIRO.lazy_invar_upd_lu_eq` | done |
-| 685 | lemma | `LowerFun_IRO_HybridIROLazy_f` |  | `HybridIRO.LowerFun_IRO_HybridIROLazy_f` | stated |
-| 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` |  | `HybridIRO.IRO_RaiseHybridIRO_HybridIROLazy_f` | stated |
+| 685 | lemma | `LowerFun_IRO_HybridIROLazy_f` |  | `HybridIRO.LowerFun_IRO_HybridIROLazy_f` | done |
+| 729 | lemma | `IRO_RaiseHybridIRO_HybridIROLazy_f` |  | `HybridIRO.IRO_RaiseHybridIRO_HybridIROLazy_f` | done |
 | 765 | pred | `eager_invar` |  | `HybridIRO.eager_invar` | def |
 | 777 | pred | `block_bits_all_in_dom` |  | `HybridIRO.block_bits_all_in_dom` | def |
 | 781 | pred | `block_bits_all_out_dom` |  | `HybridIRO.block_bits_all_out_dom` | def |
@@ -686,7 +686,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 848 | lemma | `eager_inv_not_mem_dom1` |  | `HybridIRO.eager_inv_not_mem_dom1` | done |
 | 865 | lemma | `block_bits_dom_first_in_imp_all_in` |  | `HybridIRO.block_bits_dom_first_in_imp_all_in` | done |
 | 871 | lemma | `block_bits_dom_first_out_imp_all_out` |  | `HybridIRO.block_bits_dom_first_out_imp_all_out` | done |
-| 877 | lemma | `Lower_HybridIROEager_f` |  | `HybridIRO.Lower_HybridIROEager_f` | stated |
+| 877 | lemma | `Lower_HybridIROEager_f` |  | `HybridIRO.Lower_HybridIROEager_f` | done |
 | 904 | module | `HybridIROEagerTrans` |  | `HybridIRO.HybridIROEagerTrans` | def |
 | 962 | pred | `eager_eq_except` |  | `HybridIRO.eager_eq_except` | def |
 | 968 | lemma | `eager_eq_except_mem_iff` |  | `HybridIRO.eager_eq_except_mem_iff` | done |
