@@ -3755,6 +3755,60 @@ theorem Experiment_Hybrid_Lazy_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist : 
       (HybridIRODist BlockSim Dist) (HybridIRODist.ecModule BlockSim Dist hS hD) hDd m,
     HybridIROExper_Experiment_Eager BlockSim Dist hS hD _hR HIRO_Lazy_mp HIRO_Eager_mp _hfresh m]
 
+/-- `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` on the invariant alone, without
+`={glob BlockSim}`: what the oracle premise of `Experiment_HybridEager_Ideal_BlockIRO` frames (at
+`glob Dist` and `glob BlockSim`), and `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` (at
+`glob BlockSim`), syntactically (`prhlProc_globInvF_of_writesKeep`).  Its proof is EC's. -/
+theorem RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f_inv
+    (HIRO_Eager_mp : Lens (FMap (List block × ℤ) Bool) VariableAssignment) :
+    prhlProc
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+        HybridIRO.eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HIRO_Eager_mp.get g₁))
+      (Module.app HybridIRO.RaiseHybridIRO.f
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure
+      (Module.app RaiseFun.f (Indifferentiability.FUNCTIONALITY.view (block × capacity)
+        (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        HybridIRO.eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HIRO_Eager_mp.get g₁)) := by
+  -- EC: `proc=> /=`
+  have hr := gt0_r
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  have e₁ : (HybridIRO.HYBRID_IRO.f (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure =
+      (HybridIRO.HybridIROEager.f HIRO_Eager_mp).procedure := by
+    simp [HybridIRO.HybridIROEager.asHI]
+  have e₂ : (Indifferentiability.DFUNCTIONALITY.f SLCommon.state (List block × ℤ) (List block)
+      (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List block × ℤ) (List block)
+        BlockSponge.BIRO.IRO.asF)).procedure = BlockSponge.BIRO.IRO.f.procedure := by
+    rw [Indifferentiability.FUNCTIONALITY.view_f]
+    simp [BlockSponge.BIRO.IRO.asF]
+  rw [e₁, e₂]
+  stmt_wp
+  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §n{1} = §n{2} ∧
+      HybridIRO.eager_invar §BlockSponge.BIRO.IRO.mp{2} §HIRO_Eager_mp{1})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, ei⟩
+    exact ⟨rfl, rfl, ei⟩
+  -- EC: 
+  refine prhlStmt_fix_left (fun σ₁ => (localVarLens "n" ℤ).get σ₁) fun n' => ?_
+  refine prhlStmt_fix_right (fun σ₂ => pad2blocks ((localVarLens "bs" (List Bool)).get σ₂))
+    fun xs2 => ?_
+  -- EC: 
+  equiv_call (HybridIRO.HybridIROEager_f_BlockIRO_f HIRO_Eager_mp n' xs2)
+  equiv_skip
+  rintro bs₁ n₁ _ _ _ _ ⟨⟨⟨rfl, rfl, ei⟩, rfl⟩, rfl⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, ei⟩, fun r₁ g₁ r₂ g₂ ⟨ei', hv, hnv⟩ => ⟨?_, ei'⟩⟩
+  by_cases hvb : valid_block (pad2blocks bs₁)
+  · obtain ⟨hle, hgt⟩ := hv hvb
+    by_cases h0 : n₁ ≤ 0
+    · obtain ⟨rfl, rfl⟩ := hle h0
+      simp [blocks2bits_nil, take]
+    · exact (hgt (not_le.mp h0)).1
+  · obtain ⟨rfl, rfl⟩ := hnv hvb
+    simp [blocks2bits_nil, take]
+
 /-- `local lemma RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f :
 equiv[HIRO.RaiseHybridIRO(HIRO.HybridIROEager).f ~ RaiseFun(BlockSponge.BIRO.IRO).f :
 ={bs, n} /\ ={glob BlockSim} /\ HIRO.eager_invar BlockSponge.BIRO.IRO.mp{2}
@@ -3772,7 +3826,21 @@ theorem RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f (BlockSim : BlockSpong
         (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob BlockSim g₁ g₂ ∧
         HybridIRO.eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HIRO_Eager_mp.get g₁)) := by
-  sorry
+  unfold Restrictions at _hR
+  unfold HIRO_fresh at _hfresh
+  obtain ⟨hSR, -⟩ := _hR
+  obtain ⟨hfr, -⟩ := _hfresh
+  have hE' := le_sup_right.trans hfr
+  have hE : HIRO_Eager_mp.footprint ≤ (FVP.fvP BlockSim)ᶜ := hE'.trans (Footprint.compl_antimono
+    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  have hB : BlockSponge.BIRO.IRO.mp.footprint ≤ (FVP.fvP BlockSim)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hSR.trans (Footprint.compl_antimono le_sup_right))
+  haveI : Lens.Disjoint HIRO_Eager_mp BlockSponge.BIRO.IRO.mp :=
+    Lens.disjoint_of_footprint_le_compl _ _ (hE'.trans (Footprint.compl_antimono le_sup_right))
+  -- EC's `={glob BlockSim}`: neither procedure writes `BlockSim`'s globals
+  exact prhlProc_globInvF_of_writesKeep (L := Lens.pair HIRO_Eager_mp BlockSponge.BIRO.IRO.mp)
+    (I := fun x y => HybridIRO.eager_invar y.2 x.1) (by writes_keep) (by writes_keep)
+    (RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f_inv HIRO_Eager_mp)
 
 /-- `local lemma Experiment_HybridEager_Ideal_BlockIRO &m`: last step of the ideal side. -/
 theorem Experiment_HybridEager_Ideal_BlockIRO (BlockSim : BlockSponge.SIMULATOR)
@@ -3786,7 +3854,168 @@ theorem Experiment_HybridEager_Ideal_BlockIRO (BlockSim : BlockSponge.SIMULATOR)
         (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure () m (fun r _ => r = true) =
       Procedure.Pr (BlockSponge.IdealIndif BlockSponge.BIRO.IRO.asF BlockSim
         (LowerDist Dist)).procedure () m (fun r _ => r = true) := by
-  sorry
+  unfold Restrictions at _hR
+  unfold HIRO_fresh at _hfresh
+  obtain ⟨hSR, hDR⟩ := _hR
+  obtain ⟨hfr, -⟩ := _hfresh
+  have hE' := le_sup_right.trans hfr
+  have h1 : BlockSponge.BIRO.IRO.mp.footprint ≤ (FVP.fvP Dist)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hDR.trans (Footprint.compl_antimono le_sup_right))
+  have h2 : HIRO_Eager_mp.footprint ≤ (FVP.fvP Dist)ᶜ := hE'.trans (Footprint.compl_antimono
+    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  have h3 : BlockSponge.BIRO.IRO.mp.footprint ≤ (FVP.fvP BlockSim)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hSR.trans (Footprint.compl_antimono le_sup_right))
+  have h4 : HIRO_Eager_mp.footprint ≤ (FVP.fvP BlockSim)ᶜ := hE'.trans (Footprint.compl_antimono
+    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))
+  haveI : Lens.Disjoint HIRO_Eager_mp BlockSponge.BIRO.IRO.mp :=
+    Lens.disjoint_of_footprint_le_compl _ _ (hE'.trans (Footprint.compl_antimono le_sup_right))
+  have hRL : FVP.fvP Dist ⊔ FVP.fvP BlockSim ≤
+      ((Lens.pair HIRO_Eager_mp BlockSponge.BIRO.IRO.mp).footprint)ᶜ := by
+    rw [Footprint.lens_pair]
+    exact sup_le (Footprint.le_compl_of_fvP (sup_le h2 h1))
+      (Footprint.le_compl_of_fvP (sup_le h4 h3))
+  have hER : HIRO_Eager_mp.footprint ≤ (FVP.fvP Dist ⊔ FVP.fvP BlockSim)ᶜ :=
+    (Footprint.le_compl_comm _ _).mpr (sup_le ((Footprint.le_compl_comm _ _).mp h2)
+    ((Footprint.le_compl_comm _ _).mp h4))
+  have hBR : BlockSponge.BIRO.IRO.mp.footprint ≤ (FVP.fvP Dist ⊔ FVP.fvP BlockSim)ᶜ :=
+    (Footprint.le_compl_comm _ _).mpr (sup_le ((Footprint.le_compl_comm _ _).mp h1)
+    ((Footprint.le_compl_comm _ _).mp h3))
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
+  -- EC: `byequiv=> //; proc`
+  unfold HybridExperiment
+  have hinit : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app BlockSim (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)))).procedure
+      (Indifferentiability.PRIMITIVE.init SLCommon.state (List block × ℤ) (List block)
+        (Module.app BlockSim (Indifferentiability.FUNCTIONALITY.view SLCommon.state
+          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) :=
+    Indifferentiability.SIMULATOR.init_eq _ _ _ BlockSim hS.1 _ _
+  have eF₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      (Module.app HybridIRO.RaiseHybridIRO
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp))).procedure =
+      (Module.app HybridIRO.RaiseHybridIRO.f
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure := by
+    simp only [HybridIRO.RaiseHybridIRO.apply_simp, HybridIRO.RaiseHybridIRO.f.apply_simp]
+    unfold Indifferentiability.FUNCTIONALITY.f
+    erw [Module.snd'_pair_proc]
+  have eF₂ : (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      (Module.app RaiseFun (Indifferentiability.DFUNCTIONALITY.mk SLCommon.state (List block × ℤ)
+        (List block)
+        { f := Indifferentiability.FUNCTIONALITY.f SLCommon.state (List block × ℤ) (List block)
+            BlockSponge.BIRO.IRO.asF }))).procedure =
+      (Module.app RaiseFun.f (Indifferentiability.FUNCTIONALITY.view SLCommon.state
+        (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF)).procedure := by
+    simp only [RaiseFun.apply_simp, RaiseFun.f.apply_simp]
+    unfold Indifferentiability.DFUNCTIONALITY.f
+    rfl
+  have eL₁ : (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List block × ℤ) (List block)
+      (Module.app HybridIRO.LowerHybridIRO
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp))).procedure =
+      (Module.app HybridIRO.LowerHybridIRO.f
+        (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure := by
+    simp only [HybridIRO.LowerHybridIRO.apply_simp, HybridIRO.LowerHybridIRO.f.apply_simp]
+    unfold Indifferentiability.DFUNCTIONALITY.f
+    rfl
+  have eL₂ : (Indifferentiability.DFUNCTIONALITY.f SLCommon.state (List block × ℤ) (List block)
+      (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List block × ℤ) (List block)
+        BlockSponge.BIRO.IRO.asF)).procedure = BlockSponge.BIRO.IRO.f.procedure := by
+    rw [Indifferentiability.FUNCTIONALITY.view_f]
+    simp [BlockSponge.BIRO.IRO.asF]
+  have hinner : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧
+      globInvF (Lens.pair HIRO_Eager_mp BlockSponge.BIRO.IRO.mp) (FVP.fvP Dist ⊔ FVP.fvP BlockSim)
+        (fun x y => HybridIRO.eager_invar y.2 x.1) g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List block × ℤ) (List block)
+        (Module.app HybridIRO.LowerHybridIRO
+          (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f SLCommon.state (List block × ℤ) (List block)
+        (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List block × ℤ) (List block)
+          BlockSponge.BIRO.IRO.asF)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
+        globInvF (Lens.pair HIRO_Eager_mp BlockSponge.BIRO.IRO.mp)
+          (FVP.fvP Dist ⊔ FVP.fvP BlockSim) (fun x y => HybridIRO.eager_invar y.2 x.1) g₁ g₂) := by
+    refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
+    rw [eL₁, eL₂]
+    exact HybridIRO.HybridIROEager_BlockIRO_f HIRO_Eager_mp
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  -- EC: `seq 2 2 : (={glob Dist, glob BlockSim} /\ HIRO.HybridIROEager.mp{1} = empty /\
+  -- BlockSponge.BIRO.IRO.mp{2} = empty); inline*; wp; call (_ : true); auto`, with the
+  -- invariant of the call that follows
+  equiv_seq 1 1 : (globInvF (Lens.pair HIRO_Eager_mp BlockSponge.BIRO.IRO.mp)
+      (FVP.fvP Dist ⊔ FVP.fvP BlockSim) (fun x y => HybridIRO.eager_invar y.2 x.1)
+      §allGlobals{1} §allGlobals{2})
+  · repeat stmt_inline{1} 1
+    stmt_inline{2} 1
+    stmt_wp
+    equiv_call hinit
+    stmt_wp
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨h, fun r₁ g₁ r₂ g₂ hg => ?_⟩
+    subst hg
+    refine ⟨?_, ?_⟩
+    · simp only [Setter.throwaway]
+      rw [touched_set_of_le_compl hER, touched_set_of_le_compl hBR]
+      rfl
+    · simp only [Lens.set_get]
+      exact HybridIRO.eager_invar0
+  · -- EC: `call (_ : … ==> ={res}). proc (={glob BlockSim} /\ HIRO.eager_invar …)`, its oracles
+    -- `conseq HIRO.HybridIROEager_BlockIRO_f` (inside `BlockSim`'s `proc (HIRO.eager_invar …)`)
+    -- and `conseq RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f`; `LowerDist`'s wrapper call
+    -- inlined (exception E5)
+    stmt_inline{2} 0
+    stmt_wp
+    stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF
+      (Lens.pair HIRO_Eager_mp BlockSponge.BIRO.IRO.mp)
+      Dist distExt hD.1 (FVP.fvP Dist ⊔ FVP.fvP BlockSim) le_sup_left hRL
+      (fun x y => HybridIRO.eager_invar y.2 x.1) ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List Bool × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (block × capacity))
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+          Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+        refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
+        rw [eF₁, eF₂]
+        exact RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f_inv HIRO_Eager_mp
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+            HoleSigs.Instantiation.lookup_succ, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact Indifferentiability.SIMULATOR.call_f _ _ _ _ BlockSim hS.1 _ le_sup_right hRL _ _ _
+            hinner
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+              Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact Indifferentiability.SIMULATOR.call_fi _ _ _ _ BlockSim hS.1 _ le_sup_right hRL _
+              _ _ hinner
+          | succ n => nomatch n
+    stmt_wp
+    equiv_skip
+    intro _ _ h
+    exact ⟨h, fun _ _ _ _ ⟨hr, _⟩ => hr⟩
 
 /-- `local lemma IdealIndif_IRO_BlockIRO &m`: the ideal side of the main result.  It does not
 mention `HIRO`, whose variables its proof takes fresh. -/

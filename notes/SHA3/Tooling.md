@@ -830,6 +830,14 @@ New tooling:
   `§X` of a predicate variable in a guard is the same on both sides once the argument is
   rewritten (`Iff.of_eq (congrFun h _)`).
 
+## 2026-11-02: `Sponge.ec` complete
+
+Every statement of `Sponge.ec` proven; `conclusion` depends on `propext`, `Classical.choice`,
+`Quot.sound` only.  The ideal side is EC's chain `Ideal_IRO_Experiment_HybridLazy`,
+`Experiment_Hybrid_Lazy_Eager` (through `HybridIROExper_Lazy_Eager` on `HybridIRODist`),
+`Experiment_HybridEager_Ideal_BlockIRO`; `IdealIndif_IRO_BlockIRO` picks `HIRO`'s two variables
+fresh (`Footprint.exists_fresh`, E6).  The notes below ("Sponge, ideal side") have the recipes.
+
 ### Sponge (`HybridIRO`, loops)
 
 * Inlining: `repeat stmt_inline{i} 0` inlines a call and the calls of its body (fill-in calls
@@ -898,3 +906,19 @@ New tooling:
   about `(Module.app M.f X).procedure`.  Bridge by an equation: `simp only [M.apply_simp,
   M.f.apply_simp]; unfold FUNCTIONALITY.f; erw [Module.snd'_pair_proc]` (for a one-procedure
   `DFUNCTIONALITY`, `unfold DFUNCTIONALITY.f; rfl`), then `rw` and `exact` the lemma.
+* **A distinguisher restricted to some of its oracle's procedures** (EC's `{HI.f}` in a module
+  type): `HybridIRO.HYBRID_IRO_DIST.representable_of_f` gets `Module.Representable D ext` over
+  `HI.f` alone from a congruence (`HI.f = HI'.f → D HI = D HI'`, proven by `apply_simp` on the
+  concrete `D`).  Recipe: the general representation over all procedures
+  (`Module.representable_of_firstOrder`), its other holes substituted
+  (`ProcedureWithHoles.substHoles`) by a do-nothing procedure (`ofProc noInit`) and the kept hole
+  by its wrapper (`ofHole`); the denotation through `procedureDenotation_substHoles`,
+  `procedureDenotation_instantiate_congr` and `procedureDenotation_ofHole`, at the oracle
+  `HYBRID_IRO.mk {init := proc noInit, f := HI.f}`; the footprint through
+  `FVP.fvP_proc_substHoles_le` at `⊥`.  `HybridIRODist.ecModule` adds the finite support
+  (`fvP_HybridIRODist_le`, in the style of `fvP_RODist_le`).
+* EC's `exists* n{1}; elim*=> n'` before `call (lemma n' …)`: `prhlStmt_fix_left`/`_right`, then
+  `equiv_call (lemma n' …)` (the callee rewritten first to the lemma's procedure form).
+* A lemma whose EC statement carries `={glob S}` (`RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f`)
+  but is used under a larger `glob` region: prove it without the `glob` (`…_inv`) and frame in
+  either region with `prhlProc_globInvF_of_writesKeep`.

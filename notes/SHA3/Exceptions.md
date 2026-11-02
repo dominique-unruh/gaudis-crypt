@@ -146,7 +146,9 @@ is proven from the local lemmas, could not discharge that hypothesis.
 **What we do instead.** The variables of a local clone are lens parameters of the local declarations
 that mention them, with hypotheses that they are fresh for the section's modules:
 * in `Sponge`'s `HybridIRO` section, `ERO`'s `ERO_RO_m`, `ERO_FRO_m` (hypotheses `_hDd`, `_hERO`);
-* in `Sponge`'s last section, `HIRO`'s `HIRO_Lazy_mp`, `HIRO_Eager_mp` (`HIRO_fresh`).
+* in `Sponge`'s last section, `HIRO`'s `HIRO_Lazy_mp`, `HIRO_Eager_mp` (`HIRO_fresh`, which also
+  asks them finitely supported, as `HybridIROExper_Lazy_Eager` needs; `IdealIndif_IRO_BlockIRO`
+  chooses them with `Footprint.exists_fresh`).
 * in `SecureRO`, `SecureORO` and `SHA3OSecurity`, the variables of the sections' local modules
   (`SecondPreimage2.m2`, `D1.m1`, `Log.m`, `RFList.m`, `Dist_of_P2Adv.m` …; `LocalFresh` in
   `SHA3OSecurity`).

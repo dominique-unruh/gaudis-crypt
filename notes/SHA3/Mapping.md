@@ -711,15 +711,15 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | section . | `Sponge_Raise_BlockSponge_f` | done |
 | 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | section . | `RealIndif_Sponge_BlockSponge` | done |
 | 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | section . | `Ideal_IRO_Experiment_HybridLazy` | done |
-| 2008 | local module | `HybridIRODist` | section . | `HybridIRODist` | def |
+| 2008 | local module | `HybridIRODist` | section . | `HybridIRODist` (EC-like by `HybridIRODist.ecModule`) | def |
 | 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | section . | `Experiment_HybridIROExper_Lazy` | done |
 | 2036 | local lemma | `HybridIROExper_Experiment_Eager` | section . | `HybridIROExper_Experiment_Eager` | done |
-| 2053 | local lemma | `Experiment_Hybrid_Lazy_Eager` | section . | `Experiment_Hybrid_Lazy_Eager` | stated |
-| 2070 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | section . | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | stated |
-| 2094 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | section . | `Experiment_HybridEager_Ideal_BlockIRO` | stated |
-| 2128 | local lemma | `IdealIndif_IRO_BlockIRO` | section . | `IdealIndif_IRO_BlockIRO` | stated |
-| 2138 | lemma | `conclu` | section . | `conclu` | stated |
-| 2153 | lemma | `conclusion` |  | `conclusion` | stated |
+| 2053 | local lemma | `Experiment_Hybrid_Lazy_Eager` | section . | `Experiment_Hybrid_Lazy_Eager` | done |
+| 2070 | local lemma | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` | section . | `RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f` (from `…_inv`, its proof, without `={glob BlockSim}`) | done |
+| 2094 | local lemma | `Experiment_HybridEager_Ideal_BlockIRO` | section . | `Experiment_HybridEager_Ideal_BlockIRO` | done |
+| 2128 | local lemma | `IdealIndif_IRO_BlockIRO` | section . | `IdealIndif_IRO_BlockIRO` | done |
+| 2138 | lemma | `conclu` | section . | `conclu` | done |
+| 2153 | lemma | `conclusion` |  | `conclusion` | done |
 
 ## `proof/SHA3Indiff.ec`
 
