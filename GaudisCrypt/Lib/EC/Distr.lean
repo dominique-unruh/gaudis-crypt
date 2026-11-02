@@ -53,6 +53,40 @@ def is_full (d : SubProbability α) : Prop := ∀ x, 0 < d.1 {x}
 /-- `is_funiform d`: all values have the same probability. -/
 def is_funiform (d : SubProbability α) : Prop := ∀ x y, d.1 {x} = d.1 {y}
 
+/-- `lemma duniform_funi` for a finite nonempty type: the uniform distribution is uniform. -/
+theorem uniform_funi [Fintype α] [Nonempty α] :
+    is_funiform (SubProbability.uniform : SubProbability α) := by
+  intro x y
+  letI : MeasurableSpace α := ⊤
+  change (PMF.uniformOfFintype α).toMeasure {x} = (PMF.uniformOfFintype α).toMeasure {y}
+  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton x),
+    PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton y)]
+  simp
+
+open Classical in
+/-- `mu1 d v` as the expectation of the indicator of `v` (EC's `mu1` is `mu d (pred1 v)`). -/
+theorem mu1_eq_expected (d : SubProbability α) (v : α) :
+    d.1 {v} = d.expected (fun a => if a = v then 1 else 0) := by
+  letI : MeasurableSpace α := ⊤
+  change _ = ∫⁻ a, (if a = v then 1 else 0) ∂d.1
+  rw [lintegral_eq_tsum_smul d.2.2, tsum_eq_single v (fun a ha => by simp [ha])]
+  simp
+
+/-- `lemma dprod1E`: the point masses of the product distribution are products. -/
+theorem dprod1E (d1 : SubProbability α) (d2 : SubProbability β) (x : α) (y : β) :
+    (dprod d1 d2).1 {(x, y)} = d1.1 {x} * d2.1 {y} := by
+  classical
+  rw [mu1_eq_expected, mu1_eq_expected d1, mu1_eq_expected d2]
+  simp only [dprod, SubProbability.expected_bind, expected_pure, Prod.mk.injEq, ite_and]
+  letI : MeasurableSpace α := ⊤
+  letI : MeasurableSpace β := ⊤
+  have h : ∀ a, d2.expected (fun b => if a = x then (if b = y then (1 : ENNReal) else 0) else 0) =
+      (if a = x then 1 else 0) * d2.expected (fun b => if b = y then 1 else 0) := fun a => by
+    by_cases ha : a = x <;> simp [ha, SubProbability.expected]
+  simp only [h]
+  exact MeasureTheory.lintegral_mul_const _ (measurable_from_top (f := fun a : α =>
+    if a = x then (1 : ENNReal) else 0))
+
 open Classical in
 /-- `d \ P`: `d` conditioned on not satisfying `P`.  EasyCrypt normalizes the restriction of `d` to
 `¬ P`.  Here that is done for lossless `d` with a `¬ P` outcome of positive probability; otherwise

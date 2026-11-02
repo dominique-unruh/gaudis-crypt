@@ -65,6 +65,9 @@ noncomputable def dunifin : SubProbability (word n) := SubProbability.uniform
 /-- `DWord.dunifin_ll`. -/
 theorem dunifin_ll : is_lossless (dunifin : SubProbability (word n)) := uniform_ll
 
+/-- `DWord.dunifin_funi`. -/
+theorem dunifin_funi : is_funiform (dunifin : SubProbability (word n)) := uniform_funi
+
 end BitWord
 
 /-- `w₁ +^ w₂`. -/

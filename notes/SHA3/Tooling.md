@@ -782,3 +782,14 @@ exists_eq_left, and_false, exists_false]` before the `SecureRO` tail lemma appli
 * `§x` for a local variable whose name a bound variable of the program shadows (`y` in
   `∃ y, some y = §hash1 …`): the program prints it, and it is written, as
   `§(localVarLens "y" (Option «to»))`.
+
+## 2026-11-02: library lemmas — `DProd.sample_sample2`, `dprod1E`, `duniform_funi`
+
+* `Lib/EC/Distr.lean`: `uniform_funi` (EC's `duniform_funi`, for a finite type), `mu1_eq_expected`,
+  `dprod1E`; `Lib/EC/BitWord.lean`: `DWord.dunifin_funi`.  Used by `ConcreteF`'s
+  `realize uD_uf_fu`.
+* `Lib/EC/DProd.lean`: `sample_sample2` proven.  EC proves it by `bypr` (equal probability of each
+  result), which Gaudí has no rule for; here a coupling rule `prhlStmt_seq_sample_dprod`
+  (`x <$ d1 \`*\` d2` against `x₁ <$ d1; x₂ <$ d2`, by the identity) and its tactic
+  `equiv_rnd_dprod` (splits the last statement on the left, the last two on the right — statements
+  are right-nested).  `DProd` now imports `Logic/PRHLWp`.

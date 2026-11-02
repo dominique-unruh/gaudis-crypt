@@ -109,11 +109,17 @@ theorem ge0_q : 0 ≤ (max_size : ℤ) := max_ge0
 
 /-- `realize uD_uf_fu`: `dstate` is uniform, lossless and full. -/
 theorem uD_uf_fu : dstate.1 Set.univ = 1 ∧ ∀ x y, dstate.1 {x} = dstate.1 {y} := by
-  sorry
+  refine ⟨dprod_ll BitWord.dunifin_ll BitWord.dunifin_ll, ?_⟩
+  rintro ⟨x1, x2⟩ ⟨y1, y2⟩
+  rw [dstate, dprod1E, dprod1E, bdistr, cdistr, Block.DBlock.dunifin, Capacity.DCapacity.dunifin,
+    BitWord.dunifin_funi x1 y1, BitWord.dunifin_funi x2 y2]
 end Switching
 
+omit [SLCommon.Params] in
 theorem size_behead {α : Type} (l : List α) : l ≠ [] → size (behead l) = size l - 1 := by
-  sorry
+  cases l with
+  | nil => intro h; exact absurd rfl h
+  | cons a l => intro _; simp [size, behead]
 
 -- `local module (D' : PRPSec.Distinguisher) (P' : PRPSec.SPRP_Oracles)`, with `D` a Lean
 -- parameter

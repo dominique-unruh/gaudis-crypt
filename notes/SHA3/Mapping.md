@@ -320,8 +320,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/ConcreteF.lean`, namespace `Gaudis
 | 45 | declare module | `D` | section . | `D` (section variable) | def |
 | 47 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
 | 51 | local module | `GReal'` | section . | `GReal'` (definition) | def |
-| 53 | local clone import | `Strong_RP_RF` | section . | `Switching` (namespace; variables are lens parameters, E6) | def |
-| 77 | lemma | `size_behead` | section . | `size_behead` | stated |
+| 53 | local clone import | `Strong_RP_RF` | section . | `Switching` (namespace; variables are lens parameters, E6) | def (`realize uD_uf_fu`: `Switching.uD_uf_fu`, done) |
+| 77 | lemma | `size_behead` | section . | `size_behead` | done |
 | 80 | local module | `` | section . | `` | def |
 | 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` | stated |
 | 220 | local clone import | `ProdSampling` | section . | `S` | def |
