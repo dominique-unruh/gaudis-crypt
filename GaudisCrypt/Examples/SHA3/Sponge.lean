@@ -2971,7 +2971,248 @@ theorem Sponge_Raise_BlockSponge_f :
           (Indifferentiability.PRIMITIVE.view (block × capacity) (List block × ℤ) (List block)
             Perm)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob Perm g₁ g₂) := by
-  sorry
+  have hPf0 := prhlProc_glob (R := FVP.fvP Perm)
+    (p := (Indifferentiability.PRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+        Perm).procedure)
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+      ((FVP.fvP_fst' _).trans (FVP.fvP_snd' _)))
+  have hPf : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eqGlob Perm g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+        (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ) (List Bool)
+          Perm)).procedure
+      (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+        (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ) (List Bool)
+          Perm)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob Perm g₁ g₂) := by
+    rw [Indifferentiability.PRIMITIVE.view_f]; exact hPf0
+  equiv_proc
+  stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 2 1 : (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      §xs{1} = §xs0{2} ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
+        §(localVarLens "z" (List block)){2} = [] ∧ §n0{2} = (§n{1} + r - 1) / r ∧
+      valid_block §xs0{2} ∧ eqGlob Perm §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, hg⟩
+    exact ⟨rfl, rfl, rfl, valid_pad2blocks _, hg⟩
+  · equiv_if{2}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+      obtain ⟨⟨-, -, -, -, -, -, -, -, hv, -⟩, hg⟩ := h
+      simp only [decide_eq_false_iff_not] at hg
+      exact hg hv
+    case «then» =>
+      equiv_seq 1 1 : (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+          §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
+            §n0{2} = (§n{1} + r - 1) / r ∧
+          eqGlob Perm §allGlobals{1} §allGlobals{2})
+      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+            §xs{1} = §xs0{2} ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
+              §(localVarLens "z" (List block)){2} = [] ∧ §n0{2} = (§n{1} + r - 1) / r ∧
+            eqGlob Perm §allGlobals{1} §allGlobals{2})
+        case body =>
+          stmt_wp
+          equiv_call hPf
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hg⟩, -⟩
+          exact ⟨⟨rfl, hg⟩, fun _ _ _ _ ⟨rfl, hg'⟩ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hg'⟩⟩
+        case guard => intros; simp_all
+        case exit =>
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, -, rfl, rfl, rfl, hg⟩ -
+          exact ⟨rfl, rfl, rfl, rfl, by simp [blocks2bits], rfl, hg⟩
+        · equiv_skip
+          intros; simp_all
+      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+          §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
+            §n0{2} = (§n{1} + r - 1) / r ∧
+          eqGlob Perm §allGlobals{1} §allGlobals{2})
+        case body =>
+          equiv_seq 1 1 : ((§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+          §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
+            §n0{2} = (§n{1} + r - 1) / r ∧
+          eqGlob Perm §allGlobals{1} §allGlobals{2}) ∧ §i{1} = §i{2})
+          · stmt_wp
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hg⟩, -⟩
+            exact ⟨⟨rfl, rfl, rfl, rfl, by rw [rcons, blocks2bits_cat, blocks2bits_sing], rfl, hg⟩,
+              rfl⟩
+          · equiv_if
+            case guard => intros; simp_all
+            case «then» =>
+              equiv_call hPf
+              equiv_skip
+              rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hg⟩, -⟩, -⟩
+              exact ⟨⟨rfl, hg⟩, fun _ _ _ _ ⟨rfl, hg'⟩ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, hg'⟩⟩
+            case «else» => equiv_skip; intros; simp_all
+        case guard => intros; simp_all
+        case exit =>
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, hg⟩ -
+          exact ⟨rfl, hg⟩
+        · equiv_skip
+          intros; simp_all
+
+/-- `Sponge_Raise_BlockSponge_f` on the distinguisher's view of the two functionalities, with all
+the globals kept equal (Sponge and the block sponge touch only `Perm`): the oracle premise of EC's
+`call (_ : ={glob Perm})` in `RealIndif_Sponge_BlockSponge`. -/
+theorem Sponge_Raise_BlockSponge_f_oracle :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+      (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app Sponge (Indifferentiability.PRIMITIVE.view (block × capacity)
+          (List Bool × ℤ) (List Bool) Perm))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+        (Module.app RaiseFun (Indifferentiability.DFUNCTIONALITY.mk SLCommon.state
+          (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f SLCommon.state (List block × ℤ) (List block)
+              (Module.app BlockSponge.Sponge (Indifferentiability.PRIMITIVE.view SLCommon.state
+                (List block × ℤ) (List block) Perm)) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 2 1 : (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      §xs{1} = §xs0{2} ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
+        §(localVarLens "z" (List block)){2} = [] ∧ §n0{2} = (§n{1} + r - 1) / r ∧
+      valid_block §xs0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, hg⟩
+    exact ⟨rfl, rfl, rfl, valid_pad2blocks _, hg⟩
+  · equiv_if{2}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
+      obtain ⟨⟨-, -, -, -, -, -, -, -, hv, -⟩, hg⟩ := h
+      simp only [decide_eq_false_iff_not] at hg
+      exact hg hv
+    case «then» =>
+      equiv_seq 1 1 : (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+          §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
+            §n0{2} = (§n{1} + r - 1) / r ∧
+          §allGlobals{1} = §allGlobals{2})
+      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+            §xs{1} = §xs0{2} ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
+              §(localVarLens "z" (List block)){2} = [] ∧ §n0{2} = (§n{1} + r - 1) / r ∧
+            §allGlobals{1} = §allGlobals{2})
+        case body =>
+          stmt_wp
+          equiv_call
+          equiv_skip
+          intros; simp_all
+        case guard => intros; simp_all
+        case exit =>
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, -, rfl, rfl, rfl, hg⟩ -
+          exact ⟨rfl, rfl, rfl, rfl, by simp [blocks2bits], rfl, hg⟩
+        · equiv_skip
+          intros; simp_all
+      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+          §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
+            §n0{2} = (§n{1} + r - 1) / r ∧
+          §allGlobals{1} = §allGlobals{2})
+        case body =>
+          equiv_seq 1 1 : ((§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+          §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
+            §n0{2} = (§n{1} + r - 1) / r ∧
+          §allGlobals{1} = §allGlobals{2}) ∧ §i{1} = §i{2})
+          · stmt_wp
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hg⟩, -⟩
+            exact ⟨⟨rfl, rfl, rfl, rfl, by rw [rcons, blocks2bits_cat, blocks2bits_sing], rfl, hg⟩,
+              rfl⟩
+          · equiv_if
+            case guard => intros; simp_all
+            case «then» =>
+              equiv_call
+              equiv_skip
+              intros; simp_all
+            case «else» => equiv_skip; intros; simp_all
+        case guard => intros; simp_all
+        case exit =>
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, hg⟩ -
+          exact ⟨rfl, hg⟩
+        · equiv_skip
+          intros; simp_all
+
+/-- The `byequiv` of EC's `RealIndif_Sponge_BlockSponge`: the initializations are the same, and
+`Dist`'s oracles differ only in `F.f` (`Sponge_Raise_BlockSponge_f_oracle`), by the abstract call
+rule, `Dist` disjoint from `Perm`. -/
+theorem RealIndif_Sponge_BlockSponge_equiv (Dist : DISTINGUISHER) (hD : Module.ECModule Dist
+  distExt)
+    (hdisj : FVP.fvP Dist ≤ (Lens.pair Perm.m Perm.mi).footprintᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (RealIndif Sponge Perm Dist).procedure
+      (BlockSponge.RealIndif BlockSponge.Sponge Perm (LowerDist Dist)).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 2
+  stmt_wp
+  equiv_seq 1 1 : (§allGlobals{1} = §allGlobals{2})
+  · have hinit : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
+        (Indifferentiability.FUNCTIONALITY.init (block × capacity) (List Bool × ℤ) (List Bool)
+          (Module.app Sponge (Indifferentiability.PRIMITIVE.view (block × capacity)
+            (List Bool × ℤ) (List Bool) Perm))).procedure
+        (Indifferentiability.FUNCTIONALITY.init SLCommon.state (List block × ℤ) (List block)
+          (Module.app BlockSponge.Sponge (Indifferentiability.PRIMITIVE.view SLCommon.state
+            (List block × ℤ) (List block) Perm))).procedure
+        (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+      equiv_proc
+      repeat stmt_inline{1} 0
+      repeat stmt_inline{2} 0
+      stmt_wp
+      equiv_skip
+      intros; simp_all
+    stmt_wp
+    equiv_call hinit
+    equiv_call
+    stmt_wp
+    equiv_skip
+    intro σ₁ σ₂ h
+    exact ⟨h, fun _ _ => ⟨rfl, fun _ _ _ _ hg => by subst hg; rfl⟩⟩
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module
+      (Lens.pair Perm.m Perm.mi) Dist distExt hD.1 hdisj Eq ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List Bool × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (block × capacity))
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Lens.equal_outside_and_get_eq_iff, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+          Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+        exact Sponge_Raise_BlockSponge_f_oracle
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Lens.equal_outside_and_get_eq_iff,
+            Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact prhlProc_refl _
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Lens.equal_outside_and_get_eq_iff,
+              Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact prhlProc_refl _
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, ⟨(Lens.pair Perm.m Perm.mi).get σ₁.globals, ?_⟩, ?_⟩,
+      fun r₁ g₁ r₂ g₂ ⟨hr, _⟩ => by simp_reads; exact hr⟩
+    · rw [(Lens.pair Perm.m Perm.mi).get_set, h]
+    · simp [h]
 
 /-- `local lemma RealIndif_Sponge_BlockSponge &m`. -/
 theorem RealIndif_Sponge_BlockSponge (BlockSim : BlockSponge.SIMULATOR) (Dist : DISTINGUISHER)
@@ -2979,8 +3220,16 @@ theorem RealIndif_Sponge_BlockSponge (BlockSim : BlockSponge.SIMULATOR) (Dist : 
     (m : VariableAssignment) :
     Procedure.Pr (RealIndif Sponge Perm Dist).procedure () m (fun r _ => r = true) =
       Procedure.Pr (BlockSponge.RealIndif BlockSponge.Sponge Perm (LowerDist Dist)).procedure () m
-        (fun r _ => r = true) := by
-  sorry
+        (fun r _ => r = true) :=
+  -- EC: `byequiv=> //; proc; seq 2 2 : (={glob Dist, glob Perm}); call (_ : ={glob Perm})`
+  Procedure.Pr_eq_of_prhlProc
+    (RealIndif_Sponge_BlockSponge_equiv Dist hD
+      (by rw [Footprint.lens_pair]
+          refine _hR.2.trans (Footprint.compl_antimono (sup_le ?_ ?_))
+          · exact le_sup_of_le_left (le_sup_of_le_left (le_sup_of_le_left le_sup_left))
+          · exact le_sup_of_le_left (le_sup_of_le_left (le_sup_of_le_left le_sup_right))))
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun r₁ _ r₂ _ h => by rw [h])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
 
 /-! ### The ideal side -/
 

@@ -708,8 +708,8 @@ Lean: `GaudisCrypt/Examples/SHA3/Sponge.lean`, namespace `GaudisCrypt.SHA3.Spong
 | 1915 | declare module | `BlockSim` | section . | `BlockSim` (parameter, with `hS`, `Restrictions`) | def |
 | 1916 | declare module | `Dist` | section . | `Dist` (parameter, with `hD`, `Restrictions`) | def |
 | 1918 | local clone | `HybridIRO` | section . | `HybridIRO` at lens parameters `HIRO_Lazy_mp`, `HIRO_Eager_mp` (`HIRO_fresh`, E6) | def |
-| 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | section . | `Sponge_Raise_BlockSponge_f` | stated |
-| 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | section . | `RealIndif_Sponge_BlockSponge` | stated |
+| 1922 | local lemma | `Sponge_Raise_BlockSponge_f` | section . | `Sponge_Raise_BlockSponge_f` | done |
+| 1953 | local lemma | `RealIndif_Sponge_BlockSponge` | section . | `RealIndif_Sponge_BlockSponge` | done |
 | 1970 | local lemma | `Ideal_IRO_Experiment_HybridLazy` | section . | `Ideal_IRO_Experiment_HybridLazy` | stated |
 | 2008 | local module | `HybridIRODist` | section . | `HybridIRODist` | def |
 | 2021 | local lemma | `Experiment_HybridIROExper_Lazy` | section . | `Experiment_HybridIROExper_Lazy` | stated |
