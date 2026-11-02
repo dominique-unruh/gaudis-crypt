@@ -2885,7 +2885,40 @@ theorem HybridIROEager_BlockIRO_f :
       BlockSponge.BIRO.IRO.f.procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
-  sorry
+  have hr := gt0_r
+  -- EC: `exists* n{1}, xs{1}` and `conseq (HybridIROEager_f_BlockIRO_f n1 xs')`
+  have core : prhlProc (sig₁ := procsig (List block, ℤ) -> (List Bool))
+      (sig₂ := procsig (List block × ℤ) -> (List block))
+      (fun a₁ g₁ a₂ g₂ => a₁.1 = a₂.1 ∧ a₁.2 = a₂.2 * r ∧
+        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁))
+      (HybridIROEager.f HybridIROEager_mp).procedure BlockSponge.BIRO.IRO.f.procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = blocks2bits r₂ ∧
+        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
+    intro a₁ a₂ g₁ g₂ ⟨hx, hn, ei⟩
+    refine prhlProc_conseq
+      (B := fun r₁ g₁ r₂ g₂ => r₁ = blocks2bits r₂ ∧
+        eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁))
+      (HybridIROEager_f_BlockIRO_f HybridIROEager_mp a₁.2 a₂.1)
+      (fun _ _ _ _ h => h) ?_ a₁ a₂ g₁ g₂ ⟨rfl, rfl, hx, by rw [hn, needed_blocks_prod_r], ei⟩
+    rintro r₁ g₁' r₂ g₂' ⟨ei', hv, hnv⟩
+    refine ⟨?_, ei'⟩
+    by_cases hvb : valid_block a₂.1
+    · obtain ⟨hle, hgt⟩ := hv hvb
+      by_cases h0 : a₁.2 ≤ 0
+      · obtain ⟨rfl, rfl⟩ := hle h0
+        rfl
+      · obtain ⟨rfl, hs⟩ := hgt (not_le.mp h0)
+        have hsz : size (blocks2bits r₂) = a₁.2 := by
+          rw [size_blocks2bits, hs, hn, needed_blocks_prod_r, mul_comm]
+        simp only [take]
+        rw [List.take_of_length_le (by simp only [size] at hsz; omega)]
+    · obtain ⟨rfl, rfl⟩ := hnv hvb
+      rfl
+  refine prhlProc_conseq (prhlProc.trans (Lower_HybridIROEager_f HybridIROEager_mp) core) ?_ ?_
+  · rintro a₁ g₁ a₂ g₂ ⟨rfl, ei⟩
+    exact ⟨(a₁.1, a₁.2 * r), g₁, ⟨rfl, rfl, rfl⟩, rfl, rfl, ei⟩
+  · rintro r₁ g₁ r₂ g₂ ⟨rm, gm, ⟨rfl, hg⟩, rfl, ei⟩
+    exact ⟨blocks2bitsK r₂, hg ▸ ei⟩
 
 end Hybrid
 
