@@ -1153,7 +1153,8 @@ theorem LowerFun_IRO_HybridIROLazy_f :
                 stmt_wp
                 equiv_rnd
                 equiv_skip
-                rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩, -⟩ b -
+                rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _
+                  ⟨⟨rfl, rfl, rfl, rfl, li, rfl, rfl, rfl, rfl⟩, -⟩ b -
                 refine ⟨rfl, rfl, rfl, by simp [FMap.get_set_sameE], ?_, ?_, ?_⟩
                 · exact fun bs n => lazy_invar_upd_mem_dom_iff _ _ _ _ _ _ _ li
                 · exact fun xs n => lazy_invar_upd2_vb _ _ _ _ _ _ _ li
@@ -1197,7 +1198,8 @@ theorem IRO_RaiseHybridIRO_HybridIROLazy_f :
         stmt_wp
         equiv_seq 1 1 : (§xs{2} = pad2blocks §(localVarLens "x" (List Bool)){1} ∧
           §n{1} = §n0{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs0{2} ∧
-          lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2} ∧ §x0{1} = §(localVarLens "x" (List Bool)){1} ∧
+          lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2} ∧
+          §x0{1} = §(localVarLens "x" (List Bool)){1} ∧
           §n0{1} = §i{1} ∧ §xs0{2} = §xs{2} ∧ §i0{2} = §i{2})
         · stmt_wp
           equiv_skip
@@ -1458,7 +1460,8 @@ theorem eager_eq_except_upd1_eq_in (xs : List block) (i j k : ℤ) (y : Bool)
     eager_eq_except xs i j mp1 mp2 → i ≤ k → k < j →
     eager_eq_except xs i j (FMap.set mp1 (xs, k) y) mp2 := by
   intro h hik hkj ys l hl
-  rw [FMap.get_setE, if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega),
+  rw [FMap.get_setE,
+    if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega),
     h ys l hl]
 
 theorem eager_eq_except_upd2_eq_in (xs : List block) (i j k : ℤ) (y : Bool)
@@ -1466,7 +1469,8 @@ theorem eager_eq_except_upd2_eq_in (xs : List block) (i j k : ℤ) (y : Bool)
     eager_eq_except xs i j mp1 mp2 → i ≤ k → k < j →
     eager_eq_except xs i j mp1 (FMap.set mp2 (xs, k) y) := by
   intro h hik hkj ys l hl
-  rw [FMap.get_setE, if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega),
+  rw [FMap.get_setE,
+    if_neg (by rintro ⟨⟩; rcases hl with h' | h' | h' <;> first | exact h' rfl | omega),
     h ys l hl]
 
 theorem eager_eq_except_maps_eq (xs : List block) (i j : ℤ) (_y : Bool)
@@ -1884,6 +1888,54 @@ theorem BlockGen_loop_direct_eq :
       (prhlProc.symm (BlockGen_direct_BlockGenCall Eq)))
     (fun _ g _ _ h => ⟨(), g, rfl, h.symm⟩)
     (fun _ _ _ _ ⟨_, _, h, h'⟩ => ⟨h.1.trans h'.1.symm, h.2.trans h'.2.symm⟩)
+
+-- Auxiliary (not in EC, exception E12): `HybridIROEagerTrans.next_block_split` with its loop of
+-- bits the call `BlockGen.loop()`, resp. `BlockGen.direct()`: EC's `transitivity{2}` through
+-- `{ w <@ BlockGen.loop(); }` and `{ w <@ BlockGen.direct(); }` in
+-- `HybridIROEagerTrans_BlockSpongeTrans_next_block`
+module NextBlockSplitLoop {
+  proc next_block_split (xs : List block, i : ℤ, m : ℤ, bs : List Bool) : (List Bool × ℤ) {
+    var b : Bool, w : block, cs : List Bool;
+    if (decide (FMap.dom ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i))) {
+      while ($i < $m) {
+        b <- oget (FMap.get ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i));
+        bs <- rcons $bs $b;
+        i <- $i + 1;
+      }
+    } else {
+      w <- call BlockGen.loop ();
+      cs <- ofblock $w;
+      bs <- $bs ++ $cs;
+      while ($i < $m) {
+        HybridIROEager_mp <- FMap.set $HybridIROEager_mp ($xs, $i) (nth true $bs $i);
+        i <- $i + 1;
+      }
+    }
+    return ($bs, $i)
+  };
+}
+
+module NextBlockSplitDirect {
+  proc next_block_split (xs : List block, i : ℤ, m : ℤ, bs : List Bool) : (List Bool × ℤ) {
+    var b : Bool, w : block, cs : List Bool;
+    if (decide (FMap.dom ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i))) {
+      while ($i < $m) {
+        b <- oget (FMap.get ($HybridIROEager_mp : FMap (List block × ℤ) Bool) ($xs, $i));
+        bs <- rcons $bs $b;
+        i <- $i + 1;
+      }
+    } else {
+      w <- call BlockGen.direct ();
+      cs <- ofblock $w;
+      bs <- $bs ++ $cs;
+      while ($i < $m) {
+        HybridIROEager_mp <- FMap.set $HybridIROEager_mp ($xs, $i) (nth true $bs $i);
+        i <- $i + 1;
+      }
+    }
+    return ($bs, $i)
+  };
+}
 
 /-- `lemma HybridIROEagerTrans_BlockSpongeTrans_next_block (i2 : int) :
 equiv[HybridIROEagerTrans.next_block ~ BlockSpongeTrans.next_block : …]`; the arguments are
