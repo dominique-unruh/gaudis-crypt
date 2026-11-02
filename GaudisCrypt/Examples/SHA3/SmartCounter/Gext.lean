@@ -203,10 +203,23 @@ def inv_ext (m mi : smap) (FROm : handles) : Prop :=
 def inv_ext1 (bext1 bext2 : Bool) (m mi : smap) (FROm : handles) : Prop :=
   bext1 = true → bext2 = true ∨ inv_ext m mi FROm
 
+omit [SLCommon.Params] in
 theorem rng_restr {«from» «to» φ : Type} [DecidableEq «from»] [DecidableEq φ]
     (m : FMap «from» («to» × φ)) (f : φ) (x : «to») :
     FMap.rng (FMap.restr f m) x ↔ FMap.rng m (x, f) := by
-  sorry
+  rw [FMap.rngE, FMap.rngE]
+  constructor
+  · rintro ⟨z, hz⟩
+    refine ⟨z, ?_⟩
+    rw [FMap.restrP] at hz
+    rcases hm : FMap.get m z with _ | ⟨t, f'⟩
+    · simp [hm] at hz
+    · simp only [hm, Option.bind_some] at hz
+      split_ifs at hz with hf
+      · simp only [Option.some.injEq] at hz
+        simp [hz, hf]
+  · rintro ⟨z, hz⟩
+    exact ⟨z, by rw [FMap.restrP, hz]; simp⟩
 
 section
 
@@ -422,33 +435,49 @@ def inv_le (m2 mi2 : smap) (c1 : ℤ) (Fm2 : handles) (count2 : ℤ) : Prop :=
   ((FMap.fdom m2).card : ℤ) ≤ c1 ∧ ((FMap.fdom mi2).card : ℤ) ≤ c1 ∧
     count2 + (FMap.fdom (FMap.restr Unknown Fm2)).card ≤ c1 ∧ c1 ≤ max_size
 
+omit [SLCommon.Params] in
 theorem fset0_eqP {α : Type} (s : FSet α) : s = fset0 ↔ ∀ x, x ∉ s := by
-  sorry
+  simp only [fset0]
+  exact Finset.eq_empty_iff_forall_notMem
 
+omit [SLCommon.Params] in
 theorem size_set {α β : Type} [DecidableEq α] (m : FMap α β) (x : α) (y : β) :
     ((FMap.fdom (FMap.set m x y)).card : ℤ) =
       if FMap.dom m x then (FMap.fdom m).card else (FMap.fdom m).card + 1 := by
-  sorry
+  rw [FMap.fdom_set]
+  split_ifs with hx
+  · rw [Finset.insert_eq_of_mem ((FMap.mem_fdom _ _).mpr hx)]
+  · rw [Finset.card_insert_of_notMem (fun h => hx ((FMap.mem_fdom _ _).mp h))]
 
+omit [SLCommon.Params] in
 theorem size_set_le {α β : Type} [DecidableEq α] (m : FMap α β) (x : α) (y : β) :
     ((FMap.fdom (FMap.set m x y)).card : ℤ) ≤ (FMap.fdom m).card + 1 := by
-  sorry
+  rw [size_set]; split_ifs <;> omega
 
+omit [SLCommon.Params] in
 theorem size_rem {α β : Type} [DecidableEq α] (m : FMap α β) (x : α) :
     ((FMap.fdom (FMap.rem m x)).card : ℤ) =
       if FMap.dom m x then (FMap.fdom m).card - 1 else (FMap.fdom m).card := by
-  sorry
+  have he : FMap.fdom (FMap.rem m x) = (FMap.fdom m).erase x := by
+    ext z; simp [FMap.fdom, FMap.rem, Finmap.mem_keys]
+  rw [he]
+  split_ifs with hx
+  · rw [Finset.card_erase_of_mem ((FMap.mem_fdom _ _).mpr hx)]
+  · rw [Finset.erase_eq_of_notMem (fun h => hx ((FMap.mem_fdom _ _).mp h))]
 
+omit [SLCommon.Params] in
 theorem size_rem_le {α β : Type} [DecidableEq α] (m : FMap α β) (x : α) :
     ((FMap.fdom (FMap.rem m x)).card : ℤ) ≤ (FMap.fdom m).card := by
-  sorry
+  rw [size_rem]; split_ifs <;> omega
 
+omit [SLCommon.Params] in
 theorem size_ge0 {α β : Type} (m : FMap α β) : 0 ≤ ((FMap.fdom m).card : ℤ) := by
-  sorry
+  positivity
 
-theorem size0 {α β : Type} [DecidableEq α] :
+omit [SLCommon.Params] in
+theorem size0 {α β : Type} :
     ((FMap.fdom (FMap.empty : FMap α β)).card : ℤ) = 0 := by
-  sorry
+  simp
 
 section EXT
 

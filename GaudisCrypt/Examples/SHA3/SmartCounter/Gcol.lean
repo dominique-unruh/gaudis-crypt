@@ -31,13 +31,14 @@ export GaudisCrypt.SHA3.SLCommon (state PRIMITIVE)
 variable [SLCommon.Params]
 
 theorem c_gt0r : (0 : ℝ) < ((2 ^ c.toNat : ℤ) : ℝ) := by
-  sorry
+  positivity
 
 theorem c_ge0r : (0 : ℝ) ≤ ((2 ^ c.toNat : ℤ) : ℝ) := by
-  sorry
+  positivity
 
 theorem eps_ge0 : (0 : ℝ) ≤ ((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) := by
-  sorry
+  have := max_ge0
+  exact div_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ 2 * max_size)) c_ge0r
 
 /-! ## The section `PROOF` -/
 
@@ -198,11 +199,23 @@ module Gcol (D : DISTINGUISHER) {
 
 theorem card_rng_set {α β : Type} [DecidableEq α] [DecidableEq β] (m : FMap α β) (x : α) (y : β) :
     ((FMap.frng (FMap.set m x y)).card : ℤ) ≤ (FMap.frng m).card + 1 := by
-  sorry
+  have hsub : FMap.frng (FMap.set m x y) ⊆ insert y (FMap.frng m) := by
+    intro b hb
+    rw [FMap.mem_frng, FMap.rngE] at hb
+    obtain ⟨a, ha⟩ := hb
+    rw [FMap.get_setE] at ha
+    split_ifs at ha with hax
+    · simp at ha; simp [ha]
+    · exact Finset.mem_insert_of_mem ((FMap.mem_frng _ _).mpr ⟨a, ha⟩)
+  exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_insert_le _ _)
 
 theorem hinv_image (handles : handles) (c : capacity) :
     hinv handles c ≠ none → c ∈ Finset.image Prod.fst (FMap.frng handles) := by
-  sorry
+  intro hn
+  have hP := hinvP handles c
+  rw [if_neg hn] at hP
+  obtain ⟨f, hf⟩ := hP
+  exact Finset.mem_image.mpr ⟨(c, f), (FMap.mem_frng _ _).mpr ⟨_, hf⟩, rfl⟩
 
 section PROOF
 

@@ -131,6 +131,15 @@ theorem domE (m : FMap α β) (x : α) : dom m x ↔ get m x ≠ none := by
 /-- `rngE`. -/
 theorem rngE (m : FMap α β) (y : β) : rng m y ↔ ∃ x, get m x = some y := Iff.rfl
 
+/-- `mem_frng`. -/
+theorem mem_frng [DecidableEq β] (m : FMap α β) (y : β) : y ∈ frng m ↔ rng m y := by
+  simp only [frng, Multiset.mem_toFinset, Multiset.mem_map, rng]
+  constructor
+  · rintro ⟨⟨x, b⟩, hs, rfl⟩
+    exact ⟨x, Finmap.mem_lookup_iff.mpr hs⟩
+  · rintro ⟨x, hx⟩
+    exact ⟨⟨x, y⟩, Finmap.mem_lookup_iff.mp hx, rfl⟩
+
 /-- `findP`, with bindings `get m x = some y` for EasyCrypt's `x \in m` and `oget m.[x]`: either
 `find` fails and no binding satisfies `p`, or it returns a key whose binding satisfies `p`. -/
 theorem findP (p : α → β → Bool) (m : FMap α β) :

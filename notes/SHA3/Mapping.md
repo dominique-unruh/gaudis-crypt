@@ -423,16 +423,16 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace `GaudisCrypt
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
 | 9 | clone export | `Handle` |  | `open Handle` | def |
-| 14 | lemma | `c_gt0r` |  | `c_gt0r` | stated |
-| 17 | lemma | `c_ge0r` |  | `c_ge0r` | stated |
-| 20 | lemma | `eps_ge0` |  | `eps_ge0` | stated |
+| 14 | lemma | `c_gt0r` |  | `c_gt0r` | done |
+| 17 | lemma | `c_ge0r` |  | `c_ge0r` | done |
+| 20 | lemma | `eps_ge0` |  | `eps_ge0` | done |
 | 27 | declare module | `D` | section PROOF. | `D` (section variable) | def |
 | 29 | declare axiom | `D_ll` | section PROOF. | `D_ll` (hypothesis) | def |
 | 33 | local module | `Gcol` | section PROOF. | `Gcol.sample_c`, `Gcol.M`, `Gcol.S` (modules), `Gcol` (`D` a Lean parameter); variable: lens `Gcol_count`, E6 | def |
 | 49 | module | `M` | section PROOF. | `Gcol.M` | def |
 | 78 | module | `S` | section PROOF. | `Gcol.S` | def |
-| 181 | lemma | `card_rng_set` | section PROOF. | `card_rng_set` | stated |
-| 190 | lemma | `hinv_image` | section PROOF. | `hinv_image` | stated |
+| 181 | lemma | `card_rng_set` | section PROOF. | `card_rng_set` | done |
+| 190 | lemma | `hinv_image` | section PROOF. | `hinv_image` | done |
 | 199 | local lemma | `Pr_col` | section PROOF. | `Pr_col` | stated |
 | 220 | local equiv | `G1_col` | section PROOF. | `G1_col` | stated |
 | 348 | lemma | `Pr_G1col` | section PROOF. | `Pr_G1col` | stated |
@@ -453,7 +453,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 160 | declare module | `D` | section . | `D` (section variable) | def |
 | 162 | op | `inv_ext` | section . | `inv_ext` | def |
 | 165 | op | `inv_ext1` | section . | `inv_ext1` | def |
-| 168 | lemma | `rng_restr` | section . | `rng_restr` | stated |
+| 168 | lemma | `rng_restr` | section . | `rng_restr` | done |
 | 175 | equiv | `G1_G2` | section . | `G1_G2` | stated |
 | 318 | declare module | `D` | section EXT. | `D` (section variable) | def |
 | 320 | local module | `ReSample` | section EXT. | `ReSample` (variable: lens `ReSample_count`, E6) | def |
@@ -462,13 +462,13 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 379 | module | `S` | section EXT. | `Gext.S` | def |
 | 492 | op | `inv_lt` | section EXT. | `inv_lt` | def |
 | 497 | op | `inv_le` | section EXT. | `inv_le` | def |
-| 502 | lemma | `fset0_eqP` | section EXT. | `fset0_eqP` | stated |
-| 508 | lemma | `size_set` | section EXT. | `size_set` | stated |
-| 518 | lemma | `size_set_le` | section EXT. | `size_set_le` | stated |
-| 521 | lemma | `size_rem` | section EXT. | `size_rem` | stated |
-| 529 | lemma | `size_rem_le` | section EXT. | `size_rem_le` | stated |
-| 532 | lemma | `size_ge0` | section EXT. | `size_ge0` | stated |
-| 535 | lemma | `size0` | section EXT. | `size0` | stated |
+| 502 | lemma | `fset0_eqP` | section EXT. | `fset0_eqP` | done |
+| 508 | lemma | `size_set` | section EXT. | `size_set` | done |
+| 518 | lemma | `size_set_le` | section EXT. | `size_set_le` | done |
+| 521 | lemma | `size_rem` | section EXT. | `size_rem` | done |
+| 529 | lemma | `size_rem_le` | section EXT. | `size_rem_le` | done |
+| 532 | lemma | `size_ge0` | section EXT. | `size_ge0` | done |
+| 535 | lemma | `size0` | section EXT. | `size0` | done |
 | 538 | local equiv | `RROset_inv_lt` | section EXT. | `RROset_inv_lt` | stated |
 | 546 | local lemma | `Pr_ext` | section EXT. | `Pr_ext` | stated |
 | 585 | local equiv | `EG2_Gext` | section EXT. | `EG2_Gext` | stated |
