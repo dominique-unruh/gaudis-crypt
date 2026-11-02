@@ -829,3 +829,20 @@ New tooling:
   reads first; rewriting under `decide`: `simp only [decide_eq_true_eq] at h` first; a read
   `§X` of a predicate variable in a guard is the same on both sides once the argument is
   rewritten (`Iff.of_eq (congrFun h _)`).
+
+### Sponge (`HybridIRO`, loops)
+
+* Inlining: `repeat stmt_inline{i} 0` inlines a call and the calls of its body (fill-in calls
+  inside the loops), so both sides become plain loops.
+* `equiv_seq k₁ k₂` with `0`: `equiv_seq 1 0` cuts before a trailing conditional on the left
+  with nothing after the cut on the right (EC's `seq 1 0`); `equiv_seq 0 1` puts a whole side
+  before the cut (a left loop coupled with a prefix of the right, then a right-only loop).
+* EC's `exists* i'` (a ghost for an initial value): not needed when some variable keeps it
+  (`next_block_split`: `i' = m - r`, `m` never written).
+* `equiv_while{2} I V`, `variant` goal: `hoare_wp k` then `hoare_skip` generalizes the moving
+  side; the other side's reads then show as `§x` (`eval`), and
+  `simp only [eval_lens_full, eval_lens_global] at *` turns them into `.get σ₁` reads (so `omega`
+  sees one atom per variable).  `lossless` on deterministic code: `simp [Stmt.ewp_seq,
+  Stmt.ewp_assign]`.
+* A branch whose precondition is contradictory: `prhlStmt_conseq prhlStmt_false`.
+* `Lib/EC/List.lean`: `nth_rcons`.
