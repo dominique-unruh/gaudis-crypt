@@ -749,7 +749,654 @@ theorem Pr_ext (hD : Module.ECModule D distExt)
       rw [← Int.cast_natCast, Int.toNat_of_nonneg hmax]]
   ring
 
+/-- `inv_lt` gives `inv_le`. -/
+theorem inv_lt.le {m2 mi2 : smap} {c1 : ℤ} {Fm2 : handles} {count2 : ℤ}
+    (h : inv_lt m2 mi2 c1 Fm2 count2) : inv_le m2 mi2 c1 Fm2 count2 :=
+  ⟨h.1.le, h.2.1.le, h.2.2.1.le, h.2.2.2⟩
 
+/-- A `Known` write (`RRO.set`) keeps `inv_lt` (as `RROset_inv_lt`). -/
+theorem inv_lt_set_known {m2 mi2 : smap} {c1 : ℤ} {Fm2 : handles} {count2 : ℤ}
+    (h : inv_lt m2 mi2 c1 Fm2 count2) (x : handle) (y : capacity) :
+    inv_lt m2 mi2 c1 (FMap.set Fm2 x (y, Known)) count2 := by
+  refine ⟨h.1, h.2.1, ?_, h.2.2.2⟩
+  rw [FMap.restr_set, if_neg (by decide)]
+  have := size_rem_le (FMap.restr Unknown Fm2) x
+  have := h.2.2.1
+  omega
+
+/-- One oracle step from `inv_lt` to `inv_le`: each of `G1.m`, `G1.mi` gains at most a binding, and
+the count plus the unknown handles does not grow. -/
+theorem inv_lt.step {m2 mi2 m2' mi2' : smap} {c1 : ℤ} {Fm2 Fm2' : handles} {count2 count2' : ℤ}
+    (h : inv_lt m2 mi2 c1 Fm2 count2)
+    (hm : ((FMap.fdom m2').card : ℤ) ≤ (FMap.fdom m2).card + 1)
+    (hmi : ((FMap.fdom mi2').card : ℤ) ≤ (FMap.fdom mi2).card + 1)
+    (hF : count2' + (FMap.fdom (FMap.restr Unknown Fm2')).card ≤
+      count2 + (FMap.fdom (FMap.restr Unknown Fm2)).card) :
+    inv_le m2' mi2' c1 Fm2' count2' := by
+  obtain ⟨h1, h2, h3, h4⟩ := h
+  exact ⟨by omega, by omega, by omega, h4⟩
+
+omit [SLCommon.Params] in
+/-- `set_set_eqE`. -/
+theorem set_set_same {α β : Type} [DecidableEq α] (m : FMap α β) (x : α) (b c : β) :
+    FMap.set (FMap.set m x b) x c = FMap.set m x c := by
+  rw [FMap.set_setE, if_pos rfl]
+
+/-- `G2`'s update of `G1.bext` is `ReSample.f1`'s: `bad_ext` is membership in the capacities of
+`G1.m`, `G1.mi`. -/
+theorem bext_eq (b : Bool) (m mi : smap) (c x : capacity) :
+    (b || decide (bad_ext m mi c) || decide (c = x)) =
+      (b || decide (c ∈ Finset.image Prod.snd (FMap.fdom m ∪ FMap.fdom mi) ∪ fset1 x)) := by
+  simp only [bad_ext, fset1, Finset.image_union, Finset.mem_union, Finset.mem_singleton,
+    Bool.or_assoc, ← Bool.decide_or]
+
+/-- `cdistr` is lossless (`DCapacity.dunifin_ll`), as an expectation. -/
+theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
+  (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- EC's inner `call (_: ={x, …} /\ inv_lt … ==> ={res, …} /\ inv_le …)` for `S.fi` in `EG2_Gext`,
+with `C.c` already incremented (EC's `swap -1`): `rcondt{1} 4`, `rcondt{2} 5`, `rcondt{2} 10`, the
+left `RRO.get`'s sample coupled with `ReSample.f1`'s, `rnd{2}` for `FRO.get`'s. -/
+theorem S_fi_ext (hfr : GcolFresh ReSample_count) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+        inv_lt (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁ + 1) (FRO.m.get g₂)
+          (ReSample_count.get g₂))
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block (Module.app G2.S RRO)).procedure
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Gext.S ReSample_count)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+        inv_le (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁ + 1) (FRO.m.get g₂)
+          (ReSample_count.get g₂)) := by
+  gcol_disj hfr ReSample_count
+  unfold Gext.S
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      §G1.bext{1} = §G1.bext{2} ∧
+      inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ x _ ⟨rfl, ⟨-, e2, -⟩, -⟩
+      rw [e2]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hI⟩, -⟩
+      exact ⟨by rw [hE.2.1], hE, hb, hI.le⟩
+    case «then» =>
+      equiv_seq 7 7 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+          §G1.bext{1} = §G1.bext{2} ∧
+          inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+      · stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 _ ⟨⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hI⟩, -⟩
+        rw [e9] at hI
+        col_rw
+        split_ifs with h
+        · exact ⟨trivial, trivial, by col_eq, hb, inv_lt_set_known hI _ _⟩
+        · exact ⟨trivial, trivial, by col_eq, hb, hI⟩
+      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧ §t{1} = §t{2} ∧
+            colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+            inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2} ∧
+            (§t{1} = true → FMap.in_dom_with §FRO.m{1}
+              (oget (FMap.get §G1.mhi{1} ((§x0{1}).1, §hx2{1}))).2 Unknown))
+        · stmt_wp
+          equiv_rnd
+          equiv_rnd
+          equiv_skip
+          rintro g₁ g₂ x0 hx2 _ _ ⟨rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb,
+              hI⟩ a - b -
+          rw [e9] at hI
+          col_rw
+          exact ⟨trivial, trivial, trivial, by col_eq, hb, hI, fun h => of_decide_eq_true h⟩
+        · equiv_if
+          case guard =>
+            rintro g₁ g₂ x0 hx2 y t _ _ _ _ ⟨rfl, rfl, rfl, rfl, ⟨-, -, -, -, e5, -⟩, -⟩
+            rw [e5]
+          case «else» =>
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ x0 hx2 y t _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7,
+                e8, e9,
+              e10⟩, hb, hI, -⟩, -⟩
+            rw [e9] at hI
+            col_rw
+            refine ⟨trivial, by col_eq, hb, hI.step (size_set_le _ _ _) (size_set_le _ _ _) ?_⟩
+            rw [FMap.restr_set, if_neg (by decide)]
+            have := size_rem_le (FMap.restr Unknown (ROhandle.FRO.m.get g₂)) (G1.chandle.get g₂)
+            change _ ≤ _ + ((FMap.fdom (FMap.restr Unknown (ROhandle.FRO.m.get g₂))).card : ℤ)
+            omega
+          case «then» =>
+            equiv_seq 6 10 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hy2{1} = §hy2{2} ∧
+                §hy2{1} = §(localVarLens "x3" handle){1} ∧ §hy2{2} = §h{2} ∧
+                (§x0{2}).2 = §(localVarLens "x3" capacity){2} ∧
+                §(localVarLens "r" capacity){1} = §(localVarLens "c" capacity){2} ∧
+                colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+                inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2} ∧
+                FMap.in_dom_with §FRO.m{1} §hy2{1} Unknown)
+            · equiv_rnd
+              stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 hx2 y t _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7,
+                  e8, e9,
+                e10⟩, hb, hI, hin⟩, hg⟩ a -
+              rw [e9] at hI
+              simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+              have hin' := hin hg.2
+              col_rw
+              rw [e5, e8] at hin'
+              exact ⟨trivial, trivial, trivial, by col_eq, hb, hI, hin'⟩
+            · stmt_wp
+              stmt_wp{2} 1
+              stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 y hy2 x3 r _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, ⟨e1, e2,
+                  e3, e4,
+                e5, e6, e7, e8, e9, e10⟩, hb, hI, hin⟩
+              refine ⟨cdistr_expected_one, fun a _ => ?_⟩
+              rw [e9] at hI
+              col_rw
+              rw [e8] at hin
+              have h1 : FMap.dom (FRO.m.get g₂) hy2 := hin.1
+              have h2 : is_ ((FRO.m.get g₂).get hy2) Unknown := hin.2
+              have hk := size_ge0 (FMap.restr Unknown (FRO.m.get g₂))
+              have hR : ((FMap.fdom (G1.m.get g₂)).card : ℤ) < max_size ∧
+                  ((FMap.fdom (G1.mi.get g₂)).card : ℤ) < max_size ∧
+                  ReSample_count.get g₂ < max_size := by
+                obtain ⟨hm, hmi, hc, hmax⟩ := hI
+                exact ⟨by omega, by omega, by omega⟩
+              simp only [h1, h2, hR, decide_true, Bool.not_true, Bool.false_or, if_true, and_self,
+                FMap.mem_set, or_true, FMap.get_set_sameE, set_set_same, oget, Option.getD_some]
+              refine ⟨trivial, by col_eq, by rw [hb, bext_eq],
+                hI.step (size_set_le _ _ _) (size_set_le _ _ _) ?_⟩
+              rw [FMap.restr_set, if_neg (by decide), size_rem,
+                if_pos ((FMap.dom_restr _ _ _).mpr hin)]
+              have := Finset.card_pos.mpr ⟨hy2,
+                  (FMap.mem_fdom _ _).mpr ((FMap.dom_restr _ _ _).mpr hin)⟩
+              omega
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `S_fi_ext` for `S.f` (EC's `seq 2 3` first: `y2` sampled in both branches on the left, after
+them
+on the right). -/
+theorem S_f_ext (hfr : GcolFresh ReSample_count) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+        inv_lt (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁ + 1) (FRO.m.get g₂)
+          (ReSample_count.get g₂))
+      (Indifferentiability.DPRIMITIVE.f state (List block) block (Module.app G2.S RRO)).procedure
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Gext.S ReSample_count)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+        inv_le (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁ + 1) (FRO.m.get g₂)
+          (ReSample_count.get g₂)) := by
+  gcol_disj hfr ReSample_count
+  unfold Gext.S
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      §G1.bext{1} = §G1.bext{2} ∧
+      inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ x _ ⟨rfl, ⟨-, -, -, e4, -⟩, -⟩
+      rw [e4]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hI⟩, -⟩
+      exact ⟨by rw [hE.2.2.2.1], hE, hb, hI.le⟩
+    case «then» =>
+      equiv_seq 12 12 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
+          colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+          inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+      · equiv_if{1}
+        case «then» =>
+          equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+              colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+              inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+          · equiv_if{2}
+            case «then» =>
+              stmt_wp
+              equiv_rnd
+              stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 _ ⟨⟨⟨⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hI⟩, -⟩, -⟩,
+                -⟩ a -
+              rw [e9] at hI
+              col_rw
+              split_ifs <;> exact ⟨trivial, trivial, by col_eq, hb, hI⟩
+            case «else» =>
+              refine prhlStmt_pre prhlStmt_false ?_
+              rintro σ₁ σ₂ ⟨⟨⟨⟨hx, ⟨-, -, e3, -⟩, -⟩, -⟩, h1⟩, h2⟩
+              simp only [e3, hx, decide_eq_true_eq] at h1
+              exact (of_decide_eq_false h2) h1
+          · equiv_rnd
+            equiv_skip
+            exact fun _ _ _ _ _ _ h _ _ => h
+        case «else» =>
+          equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+              colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+              inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+          · equiv_if{2}
+            case «then» =>
+              refine prhlStmt_pre prhlStmt_false ?_
+              rintro σ₁ σ₂ ⟨⟨⟨⟨hx, ⟨-, -, e3, -⟩, -⟩, -⟩, h1⟩, h2⟩
+              simp only [e3, hx, decide_eq_false_iff_not] at h1
+              exact h1 (of_decide_eq_true h2)
+            case «else» =>
+              equiv_rnd
+              equiv_skip
+              rintro g₁ g₂ x0 _ ⟨⟨⟨⟨rfl, hE, hb, hI⟩, -⟩, -⟩, -⟩ a -
+              exact ⟨by trivial, hE, hb, hI⟩
+          · equiv_rnd
+            equiv_skip
+            exact fun _ _ _ _ _ _ h _ _ => h
+      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧
+            colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+            inv_le §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+        · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧ §t{1} = §t{2} ∧
+              colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+              inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2} ∧
+              (§t{1} = true → FMap.in_dom_with §FRO.m{1}
+                (oget (FMap.get §G1.mh{1} ((§x0{1}).1, §hx2{1}))).2 Unknown))
+          · equiv_seq 3 3 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧
+                colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+                inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
+            · stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 y1 y2 _ _ _ ⟨rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩,
+                hb, hI⟩
+              rw [e9] at hI
+              col_rw
+              split_ifs
+              · exact ⟨trivial, trivial, trivial, by col_eq, hb, inv_lt_set_known hI _ _⟩
+              · exact ⟨trivial, trivial, trivial, by col_eq, hb, hI⟩
+            · stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 hx2 y _ _ _ ⟨rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩,
+                hb, hI⟩
+              rw [e9] at hI
+              col_rw
+              exact ⟨trivial, trivial, trivial, trivial, by col_eq, hb, hI,
+                  fun h => of_decide_eq_true h⟩
+          · equiv_if
+            case guard =>
+              rintro g₁ g₂ x0 hx2 y t _ _ _ _ ⟨rfl, rfl, rfl, rfl, ⟨-, -, -, -, -, -, e7, -⟩, -⟩
+              rw [e7]
+            case «else» =>
+              stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 hx2 y t _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7,
+                  e8, e9,
+                e10⟩, hb, hI, -⟩, -⟩
+              rw [e9] at hI
+              col_rw
+              refine ⟨trivial, trivial, by col_eq, hb,
+                  hI.step (size_set_le _ _ _) (size_set_le _ _ _) ?_⟩
+              rw [FMap.restr_set, if_neg (by decide)]
+              have := size_rem_le (FMap.restr Unknown (ROhandle.FRO.m.get g₂)) (G1.chandle.get g₂)
+              change _ ≤ _ + ((FMap.fdom (FMap.restr Unknown (ROhandle.FRO.m.get g₂))).card : ℤ)
+              omega
+            case «then» =>
+              equiv_seq 6 10 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hy2{1} = §hy2{2} ∧
+                  §hy2{1} = §(localVarLens "x4" handle){1} ∧ §hy2{2} = §h{2} ∧
+                  (§x0{2}).2 = §(localVarLens "x4" capacity){2} ∧
+                  §r0{1} = §(localVarLens "c" capacity){2} ∧
+                  colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+                  inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2} ∧
+                  FMap.in_dom_with §FRO.m{1} §hy2{1} Unknown)
+              · equiv_rnd
+                stmt_wp
+                equiv_skip
+                rintro g₁ g₂ x0 hx2 y t _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6,
+                    e7, e8, e9,
+                  e10⟩, hb, hI, hin⟩, hg⟩ a -
+                rw [e9] at hI
+                simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+                have hin' := hin hg.2
+                col_rw
+                rw [e7, e8] at hin'
+                exact ⟨trivial, trivial, trivial, by col_eq, hb, hI, hin'⟩
+              · stmt_wp
+                stmt_wp{2} 1
+                stmt_wp
+                equiv_skip
+                rintro g₁ g₂ x0 y hy2 x4 r _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, ⟨e1,
+                    e2, e3,
+                  e4, e5, e6, e7, e8, e9, e10⟩, hb, hI, hin⟩
+                refine ⟨cdistr_expected_one, fun a _ => ?_⟩
+                rw [e9] at hI
+                col_rw
+                rw [e8] at hin
+                have h1 : FMap.dom (FRO.m.get g₂) hy2 := hin.1
+                have h2 : is_ ((FRO.m.get g₂).get hy2) Unknown := hin.2
+                have hk := size_ge0 (FMap.restr Unknown (FRO.m.get g₂))
+                have hR : ((FMap.fdom (G1.m.get g₂)).card : ℤ) < max_size ∧
+                    ((FMap.fdom (G1.mi.get g₂)).card : ℤ) < max_size ∧
+                    ReSample_count.get g₂ < max_size := by
+                  obtain ⟨hm, hmi, hc, hmax⟩ := hI
+                  exact ⟨by omega, by omega, by omega⟩
+                simp only [h1, h2, hR, decide_true, Bool.not_true, Bool.false_or, if_true, and_self,
+                  FMap.mem_set, or_true, FMap.get_set_sameE, set_set_same, oget, Option.getD_some]
+                refine ⟨trivial, trivial, by col_eq, by rw [hb, bext_eq],
+                  hI.step (size_set_le _ _ _) (size_set_le _ _ _) ?_⟩
+                rw [FMap.restr_set, if_neg (by decide), size_rem,
+                  if_pos ((FMap.dom_restr _ _ _).mpr hin)]
+                have := Finset.card_pos.mpr
+                  ⟨hy2, (FMap.mem_fdom _ _).mpr ((FMap.dom_restr _ _ _).mpr hin)⟩
+                omega
+        · stmt_wp
+          equiv_skip
+          rintro g₁ g₂ x0 y _ _ ⟨rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hI⟩
+          rw [e9] at hI
+          col_rw
+          split_ifs <;> exact ⟨trivial, by col_eq, hb, hI⟩
+
+/-- `inv_le` at a larger budget (below `max_size`). -/
+theorem inv_le.mono {m2 mi2 : smap} {c1 c1' : ℤ} {Fm2 : handles} {count2 : ℤ}
+    (h : inv_le m2 mi2 c1 Fm2 count2) (hc : c1 ≤ c1') (hc' : c1' ≤ max_size) :
+    inv_le m2 mi2 c1' Fm2 count2 := by
+  obtain ⟨h1, h2, h3, -⟩ := h
+  exact ⟨by omega, by omega, by omega, hc'⟩
+
+/-- `FRO.sample` adds at most one unknown handle. -/
+theorem card_restr_sample (F : handles) (x : handle) (c : capacity) :
+    ((FMap.fdom (FMap.restr Unknown
+        (if FMap.dom F x then F else FMap.set F x (c, Unknown)))).card : ℤ) ≤
+      (FMap.fdom (FMap.restr Unknown F)).card + 1 := by
+  split_ifs
+  · omega
+  · rw [FMap.restr_set_eq]; exact size_set_le _ _ _
+
+set_option maxHeartbeats 4000000 in
+-- the inlined oracles' wp goals are large
+/-- EC's `M.f` step in `EG2_Gext`: the loop with `inv_le` at the budget `C.c - qcost + counter`
+(`DFRestr` charges `qcost` before the call), each counted step adding at most an unknown handle. -/
+theorem M_f_ext (hfr : GcolFresh ReSample_count) :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+        inv_le (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁ - qcost a₁ g₁) (FRO.m.get g₂)
+          (ReSample_count.get g₂) ∧ C.c.get g₁ ≤ max_size)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app G2.M RRO)).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block Gext.M).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+        inv_le (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁) (FRO.m.get g₂)
+          (ReSample_count.get g₂)) := by
+  gcol_disj hfr ReSample_count
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_while (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+      §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      §G1.bext{1} = §G1.bext{2} ∧ 0 ≤ §counter{2} ∧ §counter{2} ≤ (size §p{2}
+          - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) ∧
+      inv_le §G1.m{2} §G1.mi{2} (§C.c{2} - (size §p{2}
+          - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) +
+              §counter{2}) §FRO.m{2} §ReSample_count{2} ∧ §C.c{2} ≤ max_size)
+  case body =>
+    stmt_wp
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hE, -⟩, -⟩
+      rw [hE.2.2.2.2.2.2.1]
+    case «then» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hE, rest⟩, -⟩, -⟩
+      rw [hE.2.2.2.2.2.2.1]
+      exact ⟨rfl, rfl, rfl, rfl, rfl, hE, rest⟩
+    case «else» =>
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hE, -⟩, -⟩, -⟩
+        rw [hE.2.2.2.2.2.2.2.2.2]
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rest⟩, -⟩, -⟩, -⟩
+        exact ⟨rfl, rfl, rfl, rfl, rfl, rest⟩
+      case «then» =>
+        equiv_seq 11 11 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+              §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+              §G1.bext{1} = §G1.bext{2} ∧ 0 ≤ §counter{2} ∧ §counter{2} < (size §p{2}
+                - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) ∧
+              inv_le §G1.m{2} §G1.mi{2} (§C.c{2} - (size §p{2}
+                - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) +
+                  §counter{2} + 1) §FRO.m{2} §ReSample_count{2} ∧ §C.c{2} ≤ max_size)
+        · stmt_wp
+          equiv_rnd
+          stmt_wp
+          equiv_skip
+          rintro σ₁ σ₂ ⟨⟨⟨⟨hp, hh, hi, hsa, hc, hE, hb, h0, hle, hI, hm⟩, -⟩, -⟩, hlt⟩ a -
+          simp only [colEq] at hE
+          obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩ := hE
+          simp only [decide_eq_true_eq] at hlt
+          simp only [hp, hc, e10] at hlt
+          simp only [hp, hh, hi, hsa, hc]
+          by_cases hd : FMap.dom (FRO.m.get σ₂.globals) (G1.chandle.get σ₂.globals)
+          · have hd1 : FMap.dom (FRO.m.get σ₁.globals) (G1.chandle.get σ₁.globals) := by
+              rw [e8, e6]; exact hd
+            simp only [hd, hd1, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+            exact ⟨by trivial, by trivial, by trivial, by trivial, by trivial, by col_eq, hb, h0,
+                hlt,
+              hI.mono (by omega) (by omega), hm⟩
+          · have hd1 : ¬ FMap.dom (FRO.m.get σ₁.globals) (G1.chandle.get σ₁.globals) := by
+              rw [e8, e6]; exact hd
+            simp only [hd, hd1, decide_false, Bool.not_false, if_true]
+            col_rw
+            refine ⟨by trivial, by trivial, by trivial, by trivial, by trivial, by col_eq, hb,
+                h0, hlt,
+              ?_, hm⟩
+            obtain ⟨h1, h2, h3, h4⟩ := hI
+            have := card_restr_sample (FRO.m.get σ₂.globals) (G1.chandle.get σ₂.globals) a
+            rw [if_neg hd] at this
+            simp only [FRO.m] at h3 this ⊢
+            exact ⟨by omega, by omega, by omega, by omega⟩
+        · stmt_wp
+          equiv_rnd
+          stmt_wp
+          equiv_skip
+          rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6,
+              e7, e8,
+            e9, e10⟩, hb, h0, hlt, hI, hm⟩ a -
+          col_rw
+          split_ifs <;> exact ⟨by trivial, by trivial, by trivial, by trivial, by trivial,
+              by col_eq, hb, by omega, by omega, by simpa [add_assoc] using hI, hm⟩
+  case guard =>
+    rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, -⟩
+    rfl
+  case exit =>
+    rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9,
+      e10⟩, hb, h0, hle, hI, hm⟩ - a -
+    col_rw
+    split_ifs <;> exact ⟨by trivial, by col_eq, hb, hI.mono (by omega) hm⟩
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, hE, hb, hI, hm⟩
+  have e9 : C.c.get g₁ = C.c.get g₂ := hE.2.2.2.2.2.2.2.2.1
+  have e10 : C.queries.get g₁ = C.queries.get g₂ := hE.2.2.2.2.2.2.2.2.2
+  unfold qcost at hI
+  rw [e9, e10] at hI
+  rw [e9] at hm
+  have := prefix_sizel x (get_max_prefix x (elems (FMap.fdom (C.queries.get g₂))))
+  exact ⟨rfl, hE, hb, by omega, by simpa using hI, hm⟩
+
+/-- The invariant of EC's `call (_: ={F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi,
+G1.chandle,
+G1.bext, C.c, C.queries} /\ inv_le G1.m{2} G1.mi{2} C.c{1} FRO.m{2} ReSample.count{2})` in
+`EG2_Gext`. -/
+def extInv (g₁ g₂ : VariableAssignment) : Prop :=
+  colEq g₁ g₂ ∧ G1.bext.get g₁ = G1.bext.get g₂ ∧
+    inv_le (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁) (FRO.m.get g₂) (ReSample_count.get g₂)
+
+/-- `inv_le` at `c` gives `inv_lt` at `c + 1` (`DPRestr`'s guard, EC's `swap -1`). -/
+theorem inv_le.lt_succ {m2 mi2 : smap} {c1 : ℤ} {Fm2 : handles} {count2 : ℤ}
+    (h : inv_le m2 mi2 c1 Fm2 count2) (hc : c1 + 1 ≤ max_size) :
+    inv_lt m2 mi2 (c1 + 1) Fm2 count2 := by
+  obtain ⟨h1, h2, h3, -⟩ := h
+  exact ⟨by omega, by omega, by omega, hc⟩
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `DPRestr(S).fi` under `extInv` (`S_fi_ext`). -/
+theorem DPRestr_fi_ext (hfr : GcolFresh ReSample_count) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ extInv ReSample_count g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Module.app DPRestr (Module.app G2.S RRO))).procedure
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Module.app DPRestr (Gext.S ReSample_count))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ extInv ReSample_count g₁ g₂) := by
+  gcol_disj hfr ReSample_count
+  unfold extInv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      §G1.bext{1} = §G1.bext{2} ∧
+      inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ ⟨-, -, hE, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.1]
+    case «then» =>
+      stmt_wp
+      equiv_call (S_fi_ext ReSample_count hfr)
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hE, hb, hI⟩, hg⟩
+      simp only [decide_eq_true_eq] at hg
+      refine ⟨⟨rfl, hE, hb, hI.lt_succ hg⟩, ?_⟩
+      rintro r g₁' _ g₂' ⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb', hI'⟩
+      exact ⟨rfl, by col_eq, hb', hI'⟩
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨-, rfl, rest⟩, -⟩
+      exact ⟨rfl, rest⟩
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `DPRestr(S).f` under `extInv` (`S_f_ext`). -/
+theorem DPRestr_f_ext (hfr : GcolFresh ReSample_count) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ extInv ReSample_count g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Module.app DPRestr (Module.app G2.S RRO))).procedure
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Module.app DPRestr (Gext.S ReSample_count))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ extInv ReSample_count g₁ g₂) := by
+  gcol_disj hfr ReSample_count
+  unfold extInv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      §G1.bext{1} = §G1.bext{2} ∧
+      inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ ⟨-, -, hE, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.1]
+    case «then» =>
+      stmt_wp
+      equiv_call (S_f_ext ReSample_count hfr)
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hE, hb, hI⟩, hg⟩
+      simp only [decide_eq_true_eq] at hg
+      refine ⟨⟨rfl, hE, hb, hI.lt_succ hg⟩, ?_⟩
+      rintro r g₁' _ g₂' ⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb', hI'⟩
+      exact ⟨rfl, by col_eq, hb', hI'⟩
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨-, rfl, rest⟩, -⟩
+      exact ⟨rfl, rest⟩
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `DFRestr(M).f` under `extInv` (`M_f_ext`). -/
+theorem DFRestr_f_ext (hfr : GcolFresh ReSample_count) :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ extInv ReSample_count g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app DFRestr (Module.app G2.M RRO))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app DFRestr Gext.M)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ extInv ReSample_count g₁ g₂) := by
+  gcol_disj hfr ReSample_count
+  unfold extInv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+      colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+      inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ bs _ _ _ ⟨rfl, -, hE, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.2]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ bs _ b _ ⟨⟨rfl, rfl, hE, rest⟩, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.2]
+      exact ⟨rfl, hE, rest⟩
+    case «then» =>
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ bs _ _ _ ⟨⟨rfl, -, hE, -⟩, -⟩
+        rw [hE.2.2.2.2.2.2.2.2.1, hE.2.2.2.2.2.2.2.2.2]
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ bs _ b _ ⟨⟨⟨rfl, rfl, rest⟩, -⟩, -⟩
+        exact ⟨rfl, rest⟩
+      case «then» =>
+        stmt_wp
+        equiv_call (M_f_ext ReSample_count hfr)
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ bs _ b _ ⟨⟨⟨rfl, rfl, hE, hb, hI⟩, -⟩, hg⟩
+        simp only [decide_eq_true_eq] at hg
+        unfold qcost
+        simp_reads
+        obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩ := hE
+        refine ⟨⟨by col_eq, hb, ?_, hg⟩, ?_⟩
+        · rw [show ∀ a b c : ℤ, a + b - c - (b - c) = a from fun a b c => by ring]
+          exact hI
+        · rintro r g₁' _ g₂' ⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb', hI'⟩
+          exact ⟨rfl, by col_eq, hb', hI'⟩
+
+set_option maxHeartbeats 4000000 in
+-- the twelve-variable invariant and the oracles' footprint checks
 /-- `local equiv EG2_Gext : Eager(G2(DRestr(D))).main2 ~ Gext.distinguish : ={glob D} ==>
 ReSample.count{2} <= max_size /\ ((G1.bext{1} \/ inv_ext G1.m{1} G1.mi{1} FRO.m{1}) =>
 G1.bext{2})`. -/
@@ -770,7 +1417,195 @@ theorem EG2_Gext (hD : Module.ECModule D distExt)
       (fun _ g₁ _ g₂ => ReSample_count.get g₂ ≤ max_size ∧
         (G1.bext.get g₁ = true ∨ inv_ext (G1.m.get g₁) (G1.mi.get g₁) (FRO.m.get g₁) →
           G1.bext.get g₂ = true)) := by
-  sorry
+  have hfr : GcolFresh ReSample_count :=
+    _hfresh.trans (Footprint.compl_antimono (by
+      unfold C.footprint
+      iterate 11 refine sup_le ?_ ?_
+      all_goals gcol_fp))
+  gcol_disj hfr ReSample_count
+  -- the variables of `G1`, `C`, `FRO` and `ReSample.count` lie outside `glob D`
+  have hcc : (C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hcq : (C.queries).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hro : (F.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hfro : (FRO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  -- the oracles write `FRO.m` as `ROhandle.FRO.m` (`writes_keep'` matches syntactically)
+  have hfro' : (ROhandle.FRO.m).footprint ≤ (FVP.fvP D)ᶜ := hfro
+  have hm : (G1.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hmi : (G1.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hmh : (G1.mh).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hmhi : (G1.mhi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hch : (G1.chandle).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hpa : (G1.paths).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hbx : (G1.bext).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hgc : ReSample_count.footprint ≤ (FVP.fvP D)ᶜ :=
+    _hfresh.trans (Footprint.compl_antimono (by gcol_fp))
+  -- EC's invariant, on the values of the variables it reads
+  let L := Lens.pair ReSample_count (Lens.pair C.c (Lens.pair C.queries (Lens.pair F.RO.m
+    (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh (Lens.pair G1.mhi
+      (Lens.pair G1.chandle (Lens.pair G1.paths G1.bext))))))))))
+  let I : ℤ × ℤ × FMap (List block) block × FMap (List block) block ×
+      FMap handle (capacity × flag) × smap × smap × hsmap × hsmap × ℤ ×
+      FMap capacity (List block × block) × Bool →
+      ℤ × ℤ × FMap (List block) block × FMap (List block) block ×
+      FMap handle (capacity × flag) × smap × smap × hsmap × hsmap × ℤ ×
+      FMap capacity (List block × block) × Bool → Prop := fun x y =>
+    (x.2.2.2.1 = y.2.2.2.1 ∧ x.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.1 ∧
+      x.2.2.2.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.2.2.2.1 ∧ x.2.2.2.2.2.1 = y.2.2.2.2.2.1 ∧
+      x.2.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.2.1 ∧ x.2.2.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.2.2.1 ∧
+      x.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.1 ∧ x.2.2.2.2.1 = y.2.2.2.2.1 ∧ x.2.1 = y.2.1 ∧
+      x.2.2.1 = y.2.2.1) ∧
+    x.2.2.2.2.2.2.2.2.2.2.2 = y.2.2.2.2.2.2.2.2.2.2.2 ∧
+    inv_le y.2.2.2.2.2.1 y.2.2.2.2.2.2.1 x.2.1 y.2.2.2.2.1 y.1
+  have hI : ∀ g₁ g₂, I (L.get g₁) (L.get g₂) ↔ extInv ReSample_count g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (L.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [L, Footprint.lens_pair]
+    exact sup_le hgc (sup_le hcc (sup_le hcq (sup_le hro (sup_le hfro (sup_le hm (sup_le hmi
+      (sup_le hmh (sup_le hmhi (sup_le hch (sup_le hpa hbx))))))))))
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 1
+  stmt_wp
+  equiv_seq 6 5 : (colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+      inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
+  · equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+    · stmt_wp
+      equiv_skip
+      intro g₁ g₂ h
+      refine ⟨?_, (hI _ _).mpr ?_⟩
+      · simp only [touched_set_of_le_compl hcc, touched_set_of_le_compl hcq,
+          touched_set_of_le_compl hro, touched_set_of_le_compl hfro', touched_set_of_le_compl hm,
+          touched_set_of_le_compl hmi, touched_set_of_le_compl hmh, touched_set_of_le_compl hmhi,
+          touched_set_of_le_compl hch, touched_set_of_le_compl hpa, touched_set_of_le_compl hbx,
+          touched_set_of_le_compl hgc]
+        exact h
+      · simp only [extInv, colEq]
+        simp_reads
+        refine ⟨by simp, by simp, ?_, max_ge0⟩
+        rw [FMap.restr_set, if_neg (by decide), FMap.restr0]
+        simp
+    · stmt_split{1} 1
+      stmt_split{2} 1
+      refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF L D distExt hD.representable
+        (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+      case hc =>
+        intro _ n
+        cases n with
+        | zero => exact inferInstanceAs (Countable (List block))
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => cases n with
+            | zero => exact inferInstanceAs (Countable state)
+            | succ n => nomatch n
+      case horacle =>
+        intro _ n
+        cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+            Module.fst_pair, Module.snd_pair]
+          exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+            (DFRestr_f_ext ReSample_count hfr)
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair]
+            unfold Gext.S
+            exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+              (DPRestr_f_ext ReSample_count hfr)
+          | succ n => cases n with
+            | zero =>
+              simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+                HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair]
+              unfold Gext.S
+              exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+                (DPRestr_fi_ext ReSample_count hfr)
+            | succ n => nomatch n
+      equiv_skip
+      intro σ₁ σ₂ h
+      refine ⟨⟨rfl, h⟩, ?_⟩
+      rintro r g₁ _ g₂ ⟨rfl, -, hI'⟩
+      have hc := (hI g₁ g₂).mp hI'
+      simp_reads
+      exact hc
+  · equiv_while (§l{1} = §l{2} ∧ §FRO.m{1} = §FRO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
+        §G1.mi{1} = §G1.mi{2} ∧ ((FMap.fdom §G1.m{2}).card : ℤ) ≤ max_size ∧
+        ((FMap.fdom §G1.mi{2}).card : ℤ) ≤ max_size ∧
+        §ReSample_count{2} + ((§l{2}).length : ℤ) ≤ max_size ∧
+        ((§G1.bext{1} = true ∨ ∃ (x : state) (h : handle),
+            x ∈ FMap.fdom §G1.m{1} ∪ FMap.fdom §G1.mi{1} ∧
+            FMap.get §FRO.m{1} h = some (x.2, Unknown) ∧ h ∉ §l{1}) → §G1.bext{2} = true))
+    case body =>
+      stmt_wp
+      equiv_rnd
+      stmt_wp
+      equiv_skip
+      rintro σ₂ l m mm mi b ⟨⟨rfl, rfl, rfl, rfl, hcm, hcmi, hn, hb⟩, hne⟩ a -
+      generalize (localVarLens "l" (List handle)).get σ₂ = L at *
+      cases L with
+      | nil => simp at hne
+      | cons hd tl =>
+        have hg : ((FMap.fdom (G1.m.get σ₂.globals)).card : ℤ) ≤ max_size ∧
+            ((FMap.fdom (G1.mi.get σ₂.globals)).card : ℤ) ≤ max_size ∧
+            ReSample_count.get σ₂.globals < max_size := by
+          simp only [List.length_cons] at hn
+          exact ⟨hcm, hcmi, by omega⟩
+        simp only [hg, and_self, decide_true, if_true, head]
+        refine ⟨trivial, trivial, trivial, trivial, trivial, trivial,
+          ?_, ?_⟩
+        · change _ + 1 + ((tl.length : ℕ) : ℤ) ≤ _
+          simp only [List.length_cons] at hn
+          push_cast at hn
+          omega
+        rintro (h | ⟨x, h, hx, hget, hnot⟩)
+        · simp [hb (Or.inl h)]
+        · change h ∉ tl at hnot
+          change ((FRO.m.get σ₂.globals).set hd (a, Unknown)).get h = some (x.2, Unknown) at hget
+          by_cases hh : h = hd
+          · subst hh
+            rw [FMap.get_set_sameE] at hget
+            simp only [Option.some.injEq, Prod.mk.injEq] at hget
+            have : a ∈ Finset.image Prod.snd (FMap.fdom (G1.m.get σ₂.globals) ∪
+                FMap.fdom (G1.mi.get σ₂.globals)) := Finset.mem_image.mpr ⟨x, hx, hget.1.symm⟩
+            simp [this]
+          · rw [FMap.get_set_neqE _ _ _ _ hh] at hget
+            have := hb (Or.inr ⟨x, h, hx, hget, by simp [hh, hnot]⟩)
+            simp [this]
+    case guard =>
+      rintro l m mm mi b _ _ _ _ _ _ ⟨rfl, -⟩
+      rfl
+    case exit =>
+      rintro l m mm mi b _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, -, -, hn, hb⟩ hl
+      simp only [Bool.not_eq_false', List.isEmpty_iff] at hl
+      subst hl
+      refine ⟨by simpa using hn, ?_⟩
+      rintro (h | ⟨x, h, hx, hget⟩)
+      · exact hb (Or.inl h)
+      · exact hb (Or.inr ⟨x, h, hx, hget, List.not_mem_nil⟩)
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ ⟨⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, h1, h2, h3, h4⟩
+    have hk := size_ge0 (FMap.restr Unknown (FRO.m.get g₂))
+    refine ⟨by rw [← e8], e8, e4, e2, by omega, by omega,
+      by simp only [Finset.length_toList]; omega, ?_⟩
+    rintro (h | ⟨x, h, -, hget, hnot⟩)
+    · rw [← hb]; exact h
+    · exfalso
+      apply hnot
+      rw [Finset.mem_toList, FMap.mem_fdom, FMap.dom_restr]
+      refine ⟨by rw [FMap.domE, hget]; simp, by rw [hget]; rfl⟩
 
 /-- EC's `Real_G2`, with the axiom `D_ll`. -/
 theorem Real_G2 (hD : Module.ECModule D distExt)
