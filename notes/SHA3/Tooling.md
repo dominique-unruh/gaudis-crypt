@@ -1077,3 +1077,31 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   steps are each fast.
 * Long lines: count characters, not bytes (`awk length` counts bytes under a C locale).
 
+## 2026-11-03: `Gconcl_list.Ideal_equiv_valid`, `ideal_equiv2`, `Ideal_equiv3`
+
+* **One EC module type, two Lean instances.** `SLCommon`'s and `BlockSponge`'s `DPRIMITIVE` are
+  both `Indifferentiability.DPRIMITIVE state _ _` at different (unused) `f_in`/`f_out`; they are
+  defeq only by unfolding the module type, so a module declared with one and applied to the other
+  type-checks but does not inline (`A.apply_simp` does not match: "no concrete procedure body").
+  Fix: declare the parameter at the type it is applied to and repackage with `mk` where it is passed
+  on (`A`'s `P`).  `S2 = Module.comp Gconcl.S Last` has the same mismatch (`PRIMITIVE`).
+* **Layered oracle steps.** For `D(FC(DSqueeze(F)), PC(S(F)))`: prove the inner step (`F.f`) once,
+  then lift it through each wrapper with `equiv_call`, inlining one layer at a time
+  (`stmt_inline{i} 0` once); state the wrapper lemmas generically over the inner step (`FC_f_sInv`,
+  `S_f_sInv`) and over an invariant `sInv K₁ K₂ R` (equalities on `S`, `C`, and a relation between
+  two lenses' values, disjointness instances as arguments: `simp_reads` frames them).
+* **Unification through `mk` layers is slow**: `exact (PC_f_sInv S_f_sInv)` against a goal with
+  `DPRIMITIVE.f (DPRIMITIVE.mk {f := …})` timed out at 4M heartbeats.  State the wrapper lemma over a
+  `mk`-built argument (`{X₁ X₂ Y₁ Y₂}`, `DPRIMITIVE.mk {f := X₁, fi := Y₁}`) and
+  `simp only [DPRIMITIVE.f.mk_simp, DPRIMITIVE.fi.mk_simp]` the goal (and, inside the lemma, the
+  inlined call) first.  Implicit lens/relation arguments not fixed by a hypothesis (`S_fi_sInv`)
+  must be given by name.
+* A local `let L := …` shadows a module `L` (`unfold L` fails): name the lens `Lg`.
+* After `simp`/wp, substituted equalities may have become `True`: close tuples with
+  `and_intros <;> first | trivial | rfl | …` (and prune never-executed alternatives: the linter
+  flags them).
+* Redirect `lake env lean` output to an absolute scratch path (`cd` moves the shell).
+* Open framework points (not yet needed by a finished proof): a lower bound `fvP D ≤ fvP (A D)` and
+  `glob` monotonicity (for `A_lossless`/`concl`: EC's `{-A(D)}` is `glob (A D)`); and bridging an
+  E5 wrapper module to the call it wraps (for `RO_LRO_D` on `D2`, `D3`, `D5`, `D6` in
+  `equiv_ideal`: `prhlProc_refl` + `prhlProc.trans` after inlining the wrapper).

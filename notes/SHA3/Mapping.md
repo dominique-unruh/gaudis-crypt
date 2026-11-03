@@ -535,7 +535,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 23 | clone export | `Handle` |  | `open Handle` | def |
 | 25 | module | `DSqueeze` |  | `DSqueeze` | def |
 | 46 | module | `Squeeze` |  | `Squeeze` (Lean function, `T.mk`), `Squeeze.init_` | def |
-| 55 | module | `A` |  | `A` (`D` a Lean parameter) | def |
+| 55 | module | `A` |  | `A` (`D` a Lean parameter; `P` is `SLCommon.DPRIMITIVE`, repackaged with `mk` for `D`) | def |
 | 67 | module | `NIndif` |  | `NIndif` | def |
 | 80 | module | `P` |  | `P` (abbreviation of `Perm`) | def |
 | 82 | clone | `IRO` |  | `BIRO2` (namespace) | def |
@@ -554,8 +554,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 315 | local module | `L` | section Ideal. | `L` (Lean function) | def |
 | 319 | local module | `Valid2` | section Ideal. | `Valid2` (Lean function), `Valid2.f_` | def |
 | 330 | local module | `L2` | section Ideal. | `L2` (Lean function) | def |
-| 334 | local equiv | `Ideal_equiv_valid` | section Ideal. | `Ideal_equiv_valid` | stated |
-| 365 | local equiv | `ideal_equiv2` | section Ideal. | `ideal_equiv2` | stated |
+| 334 | local equiv | `Ideal_equiv_valid` | section Ideal. | `Ideal_equiv_valid` (oracle steps `IF'_Valid2_f`, generic `FC_f_sInv`, `S_f_sInv`, `S_fi_sInv`, `PC_f_sInv`, `PC_fi_sInv`; invariant `idInv`) | done |
+| 365 | local equiv | `ideal_equiv2` | section Ideal. | `ideal_equiv2` (inner step `Valid2_IF_f`) | done |
 | 388 | inductive | `inv_L_L3` | section Ideal. | `inv_L_L3` | def |
 | 393 | local module | `IF2` | section Ideal. | `IF2` | def |
 | 421 | local module | `L3` | section Ideal. | `L3` (Lean function) | def |
@@ -563,7 +563,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 440 | local lemma | `lemma2` | section Ideal. | `lemma2` | done |
 | 452 | local lemma | `incl_dom` | section Ideal. | `incl_dom` | done |
 | 461 | local lemma | `lemma3` | section Ideal. | `lemma3` | done |
-| 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` | stated |
+| 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` (inner step `IF'_IF2_f`; invariant `L3Inv`; `inv_L_L3.dom_valid` … `set_valid`) | done |
 | 599 | local module | `D2` | section Ideal. | `D2` (Lean function) | def |
 | 603 | local module | `D3` | section Ideal. | `D3` (Lean function) | def |
 | 608 | module | `DSqueeze2` | section Ideal. | `DSqueeze2` | def |
