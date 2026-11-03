@@ -3555,7 +3555,11 @@ theorem Inefficient_Real_Ideal (D : DISTINGUISHER) (hD : Module.ECModule D distE
       |(Procedure.Pr (RealIndif Sponge Perm (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S)
           (DRestr D)).procedure () m (fun r _ => r = true) : ℝ)| ≤ bound := by
-  sorry
+  intro D_ll m
+  have h1 := concl D hD _hDd D_ll m
+  have h2 := Real_Ideal_Abs.neg_D_concl D hD _hDd D_ll m
+  rw [abs_sub_le_iff]
+  constructor <;> linarith
 
 /-! ## The simulator -/
 
@@ -3765,6 +3769,8 @@ theorem Real_Ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       |(Procedure.Pr (RealIndif Sponge Perm (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure () m
           (fun r _ => r = true) : ℝ)| ≤ bound := by
-  sorry
+  intro D_ll m
+  rw [Simplify_simulator D hD _hDs D_ll m]
+  exact Inefficient_Real_Ideal D hD _hDd D_ll m
 
 end GaudisCrypt.SHA3.Gconcl_list

@@ -609,7 +609,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` (section axiom `D_lossless` a hypothesis) | stated |
 | 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` (oracle steps `IRO_f_ll`, `Valid_f_ll`, `Last_f_ll`, `S_f_ll`, `S_fi_ll`, `SimLast_f_ll`, `SimLast_fi_ll`; footprints `@[fp_bound]` `fvP_FC` … `fvP_S`) | done |
 | 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` | stated |
-| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` | stated |
+| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` (from `concl`, `neg_D_concl`) | done |
 | 1946 | module | `Simulator` |  | `Simulator` | def |
 | 2010 | declare module | `D` | section Simplify_Simulator. | `D` (section variable) | def |
 | 2012 | declare axiom | `D_lossless` | section Simplify_Simulator. | `D_lossless` (abbreviation; hypothesis) | def |
@@ -621,7 +621,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` | stated |
 | 2202 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
-| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` | stated |
+| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (from `Simplify_simulator`, `Inefficient_Real_Ideal`) | done |
 
 ## `proof/Sponge.ec`
 
