@@ -3737,10 +3737,9 @@ noncomputable abbrev LRO := PROM.FullRO.LRO (List block × ℤ) block dout IRO2_
 abbrev RO_T := PROM.FullRO.RO_T (List block × ℤ) block
 end IRO2
 
--- EC's local `Simu(FRO : IRO2.RO)(F : DFUNCTIONALITY)`, with `FRO` a Lean parameter so that
--- `Simu FRO` is a `SIMULATOR`
-set_option linter.gaudisCrypt.using false in
-module Simu (FRO : IRO2.RO_T) using (F : DFUNCTIONALITY) : PRIMITIVE {
+-- EC's local `Simu(FRO : IRO2.RO)(F : DFUNCTIONALITY)`; both parameters are module parameters, so
+-- that `L` (which applies it to its own parameter) is an `IRO2.RO_Distinguisher`
+module Simu using (FRO : IRO2.RO_T, F : DFUNCTIONALITY) : PRIMITIVE {
   proc init () : Unit {
     _ <- call (Indifferentiability.PRIMITIVE.init state (List block × ℤ) (List block)
       (Module.app Simulator F)) ();
@@ -3800,10 +3799,21 @@ module Simu (FRO : IRO2.RO_T) using (F : DFUNCTIONALITY) : PRIMITIVE {
   };
 }
 
-/-- EC's local `L(F : IRO2.RO)`: `proc distinguish = IdealIndif(BIRO.IRO, Simu(F), DRestr(D)).main`,
-for the section's `D`. -/
-noncomputable def L (D : DISTINGUISHER) (F : IRO2.RO_T) : procmod () → Bool :=
-  IdealIndif BlockSponge.BIRO.IRO.asF (Simu F) (DRestr D)
+-- EC's local `L(F : IRO2.RO)`: `proc distinguish = IdealIndif(BIRO.IRO, Simu(F), DRestr(D)).main`,
+-- for the section's `D` (a Lean parameter, so that `L D` is an `IRO2.RO_Distinguisher`, for
+-- `RO_LRO_D`); its `distinguish` calls the game's `main` (exception E5) and takes EasyCrypt's
+-- `d_in_t = unit`
+set_option linter.gaudisCrypt.using false in
+module L (D : DISTINGUISHER) using (FRO : IRO2.RO_T) {
+  proc distinguish (_u : Unit) : Bool {
+    var b : Bool;
+    b <- call (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
+      (Module.pair BlockSponge.BIRO.IRO.asF (Module.pair (Module.app Simu (Module.pair FRO
+        (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          BlockSponge.BIRO.IRO.asF))) (DRestr D)))) ();
+    return $b
+  };
+}
 
 /-- What `DRestrictions` excludes (an abbreviation). -/
 noncomputable def DRestrictions.footprint : Footprint VariableAssignment :=
@@ -3862,8 +3872,9 @@ theorem Simulator_f_Simu :
         (Module.app Simulator (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ)
           (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
-        (Module.app (Simu (IRO2.LRO IRO2_RO_m)) (Indifferentiability.FUNCTIONALITY.view state
-          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+        (Module.app Simu (Module.pair (IRO2.LRO IRO2_RO_m)
+          (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+            BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
   equiv_proc
   repeat stmt_inline{1} 0
@@ -4019,8 +4030,9 @@ theorem Simulator_fi_Simu :
         (Module.app Simulator (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ)
           (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
-        (Module.app (Simu (IRO2.LRO IRO2_RO_m)) (Indifferentiability.FUNCTIONALITY.view state
-          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+        (Module.app Simu (Module.pair (IRO2.LRO IRO2_RO_m)
+          (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+            BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
   equiv_proc
   repeat stmt_inline{1} 0
@@ -4097,7 +4109,7 @@ theorem equal2_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
     (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
       (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure
-      (L D (IRO2.LRO IRO2_RO_m)).procedure
+      (Module.app (L D) (IRO2.LRO IRO2_RO_m)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold DRestrictions DRestrictions.footprint at _hDd
   unfold DRestrictions.footprint at _hfresh
@@ -4169,7 +4181,7 @@ theorem equal2_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
       (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
         (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
           (by fp_disjoint)))))))))
-  unfold L IdealIndif Indifferentiability.GIdeal
+  unfold IdealIndif Indifferentiability.GIdeal
   equiv_proc
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -4285,8 +4297,9 @@ theorem SimLast_f_Simu :
         (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
           (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
-        (Module.app (Simu (IRO2.RO.asRO IRO2_RO_m)) (Indifferentiability.FUNCTIONALITY.view state
-          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+        (Module.app Simu (Module.pair (IRO2.RO.asRO IRO2_RO_m)
+          (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+            BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e1Inv IRO2_RO_m g₁ g₂) := by
   equiv_proc
   repeat stmt_inline{1} 0
@@ -4504,8 +4517,9 @@ theorem SimLast_fi_Simu :
         (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
           (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
-        (Module.app (Simu (IRO2.RO.asRO IRO2_RO_m)) (Indifferentiability.FUNCTIONALITY.view state
-          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+        (Module.app Simu (Module.pair (IRO2.RO.asRO IRO2_RO_m)
+          (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+            BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e1Inv IRO2_RO_m g₁ g₂) := by
   equiv_proc
   repeat stmt_inline{1} 0
@@ -4577,7 +4591,7 @@ theorem equal1_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
     (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
       (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure
-      (L D (IRO2.RO.asRO IRO2_RO_m)).procedure
+      (Module.app (L D) (IRO2.RO.asRO IRO2_RO_m)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold DRestrictions DRestrictions.footprint at _hDd
   unfold DRestrictions.footprint at _hfresh
@@ -4653,7 +4667,7 @@ theorem equal1_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
       (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
         (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
           (by fp_disjoint)))))))))
-  unfold L IdealIndif Indifferentiability.GIdeal
+  unfold IdealIndif Indifferentiability.GIdeal
   equiv_proc
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -4733,7 +4747,8 @@ theorem equal1 (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRes
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure () m
         (fun r _ => r = true) =
-      Procedure.Pr (L D (IRO2.RO.asRO IRO2_RO_m)).procedure () m (fun r _ => r = true) :=
+      Procedure.Pr (Module.app (L D) (IRO2.RO.asRO IRO2_RO_m)).procedure () m
+        (fun r _ => r = true) :=
   Procedure.Pr_eq_of_prhlProc (equal1_equiv D hD _hDd IRO2_RO_m _hfresh)
     (fun r₁ _ r₂ _ h => by rw [h]) rfl
 
@@ -4743,13 +4758,29 @@ theorem equal2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRes
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure () m
         (fun r _ => r = true) =
-      Procedure.Pr (L D (IRO2.LRO IRO2_RO_m)).procedure () m (fun r _ => r = true) :=
+      Procedure.Pr (Module.app (L D) (IRO2.LRO IRO2_RO_m)).procedure () m
+        (fun r _ => r = true) :=
   Procedure.Pr_eq_of_prhlProc (equal2_equiv D hD _hDd IRO2_RO_m _hfresh)
     (fun r₁ _ r₂ _ h => by rw [h]) rfl
 
+set_option maxHeartbeats 2000000 in
+-- `within_lens` through `Indif`, `Simu` and `DRestr`
+omit [Params] in
+/-- `L D` touches `glob D`, `Simulator`'s variables, `BIRO.IRO.mp` and `C.c` (and its oracle's).
+Not an EC lemma: EasyCrypt reads a concrete module's globals off its code (for `RO_LRO_D`'s side
+conditions, in `Simplify_simulator`). -/
+theorem fvP_L (D : DISTINGUISHER) :
+    FVP.fvP (L D) ≤ FVP.fvP D ⊔ (Lens.pair Simulator.m (Lens.pair Simulator.mi
+      (Lens.pair Simulator.paths (Lens.pair Simulator.unvalid_map
+        (Lens.pair BlockSponge.BIRO.IRO.mp BlockSponge.C.c))))).footprint := by
+  fp_module (Lens.pair Simulator.m (Lens.pair Simulator.mi
+      (Lens.pair Simulator.paths (Lens.pair Simulator.unvalid_map
+        (Lens.pair BlockSponge.BIRO.IRO.mp BlockSponge.C.c)))))
+
 end Simplify_Simulator
 
-/-- EC's `Simplify_simulator`. -/
+/-- EC's `Simplify_simulator` (EC: `rewrite (equal1 &m) (equal2 &m) eq_sym; byequiv (RO_LRO_D L _)`;
+the local clone `IRO2`'s variables are fresh, exception E6). -/
 theorem Simplify_simulator (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : Simplify_Simulator.DRestrictions D) :
     D_lossless D → ∀ m : VariableAssignment,
@@ -4757,7 +4788,45 @@ theorem Simplify_simulator (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
           (fun r _ => r = true) =
         Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure
           () m (fun r _ => r = true) := by
-  sorry
+  intro D_ll m
+  -- the local clone `IRO2`'s variables, fresh (exception E6)
+  have hX : (Lens.pair Simulator.m (Lens.pair Simulator.mi
+      (Lens.pair Simulator.paths (Lens.pair Simulator.unvalid_map
+        (Lens.pair BlockSponge.BIRO.IRO.mp BlockSponge.C.c))))).footprint.FinitelySupported := by
+    simp only [Footprint.lens_pair]
+    repeat (first | exact .varLens _ | refine .sup ?_ ?_)
+  have hfin : (FVP.fvP D ⊔ Simplify_Simulator.DRestrictions.footprint).FinitelySupported :=
+    hD.finitelySupported.sup (by
+      simp only [Simplify_Simulator.DRestrictions.footprint]
+      repeat (first | exact .varLens _ | refine .sup ?_ ?_))
+  haveI : Nonempty (FMap (List block × ℤ) block) := ⟨FMap.empty⟩
+  haveI : Nonempty (FMap (List block × ℤ) (block × PROM.flag)) := ⟨FMap.empty⟩
+  obtain ⟨RO_m, hRO, hROfs⟩ := Footprint.exists_fresh (FMap (List block × ℤ) block) hfin
+  obtain ⟨FRO_m, hFRO, -⟩ :=
+    Footprint.exists_fresh (FMap (List block × ℤ) (block × PROM.flag)) (hfin.sup hROfs)
+  haveI : Lens.Disjoint RO_m FRO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+      (hFRO.trans (Footprint.compl_antimono le_sup_right)))
+  have hLmod := PROM.FullRO.RO_Distinguisher.ecModule (List block × ℤ) block Unit Bool
+    (Simplify_Simulator.L D) ((hD.finitelySupported.sup hX).mono (Simplify_Simulator.fvP_L D))
+  have hXR : (Lens.pair Simulator.m (Lens.pair Simulator.mi
+      (Lens.pair Simulator.paths (Lens.pair Simulator.unvalid_map
+        (Lens.pair BlockSponge.BIRO.IRO.mp BlockSponge.C.c))))).footprint ≤
+      Simplify_Simulator.DRestrictions.footprint := by
+    simp only [Footprint.lens_pair, Simplify_Simulator.DRestrictions.footprint]
+    fp_sub
+  have hLd : FVP.fvP (Simplify_Simulator.L D) ≤ (RO_m.footprint ⊔ FRO_m.footprint)ᶜ := by
+    refine (Simplify_Simulator.fvP_L D).trans ((Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_))
+    · exact hRO.trans (Footprint.compl_antimono (sup_le_sup_left hXR _))
+    · exact hFRO.trans (Footprint.compl_antimono ((sup_le_sup_left hXR _).trans le_sup_left))
+  have e := Procedure.Pr_eq_of_prhlProc (PROM.FullRO.FullEager.RO_LRO_D (List block × ℤ) block
+    Unit Bool Simplify_Simulator.IRO2.dout FRO_m (fun _ => BitWord.dunifin_ll) RO_m
+    (Simplify_Simulator.L D) hLmod hLd)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.1])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) ⟨rfl, rfl, rfl⟩
+  rw [Simplify_Simulator.equal2 D hD _hDd RO_m hRO D_ll m,
+    Simplify_Simulator.equal1 D hD _hDd RO_m hRO D_ll m]
+  exact e.symm
 
 /-- EC's `Real_Ideal`: the block sponge is indifferentiable from the infinite random oracle, with
 the simulator `Simulator`. -/

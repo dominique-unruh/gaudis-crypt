@@ -614,11 +614,11 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 2010 | declare module | `D` | section Simplify_Simulator. | `D` (section variable) | def |
 | 2012 | declare axiom | `D_lossless` | section Simplify_Simulator. | `D_lossless` (abbreviation; hypothesis) | def |
 | 2016 | local clone import | `PROM.FullRO` | section Simplify_Simulator. | `Simplify_Simulator.IRO2` (variable: lens `IRO2_RO_m`, E6) | def |
-| 2024 | local module | `Simu` | section Simplify_Simulator. | `Simplify_Simulator.Simu` (`FRO` a Lean parameter) | def |
-| 2081 | local module | `L` | section Simplify_Simulator. | `Simplify_Simulator.L` (Lean function) | def |
+| 2024 | local module | `Simu` | section Simplify_Simulator. | `Simplify_Simulator.Simu` (`using (FRO, F)`: both module parameters) | def |
+| 2081 | local module | `L` | section Simplify_Simulator. | `Simplify_Simulator.L` (module over `FRO`, `D` a Lean parameter; `distinguish(_u)` calls the game, E5) | exc |
 | 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` (`equal1_equiv`; steps `SimLast_f_Simu`, `SimLast_fi_Simu`, `FC_IRO_e1`; invariant `e1Inv`, a `cInv`, lifted by `PC_f_cInv`/`PC_fi_cInv`) | done |
 | 2158 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` (`equal2_equiv`; steps `Simulator_f_Simu`, `Simulator_fi_Simu`, `FC_IRO_e2`; invariant `e2Inv`) | done |
-| 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` | stated |
+| 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` (`RO_LRO_D (L D)` with fresh `IRO2` maps, E6; `fvP_L`) | done |
 | 2202 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
 | 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (from `Simplify_simulator`, `Inefficient_Real_Ideal`) | done |

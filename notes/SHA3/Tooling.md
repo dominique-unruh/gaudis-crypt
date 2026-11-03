@@ -1221,3 +1221,21 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
 * **`parse (format (parse x).1 (parse x).2)`**: rewrite with `formatK`; `parse_gt0` gives
   `0 < k`, which rules out `Simu`'s `k ≤ 0` branch (closed with `prhlStmt_conseq prhlStmt_false`).
 
+## 2026-11-03: `Gconcl_list.Simplify_simulator`
+
+* **A functor over the random oracle for `RO_LRO_D`.** `L` must be a module over its oracle,
+  `Module.app (L D) RO`, not a Lean function of it.
+  * Its `distinguish` calls `Indif` applied to the game's modules (E5).
+  * The functor it passes the oracle to, `Simu`, takes it as a second `using` parameter:
+    `using (FRO, F)`, applied as `Module.app Simu (Module.pair FRO F)`. A Lean parameter cannot
+    be instantiated by a module variable.
+  * `equal1`/`equal2` (statements and proofs) were unaffected beyond the renaming, because
+    inlining yields the same code.
+* **Fresh `RO.m`/`FRO.m` for a local clone (E6).** Use the recipe of
+  `Sponge.HybridIROExper_Lazy_Eager'`:
+  1. Get the two lenses from `Footprint.exists_fresh`, the second fresh from the first.
+  2. Get `Lens.Disjoint` from `Lens.disjoint_of_footprint_le_compl`.
+  3. Get `ECModule (L D)` from `RO_Distinguisher.ecModule` and the `fvP_L` bound (`fp_module`
+     with `D` in the bound).
+  4. Prove the inclusion of the bound's variables in the restriction with `fp_sub`.
+

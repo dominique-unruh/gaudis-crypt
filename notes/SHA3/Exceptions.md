@@ -117,7 +117,10 @@ parameters and are used as functors themselves: `Gconcl_list.SimLast(S)(F)`
 (`proc f = S(Last(Valid(F))).f`) is a `SIMULATOR`, and `Gconcl_list.DValid(D)(F)(P)`
 (`= D(FValid(F), P)`) is a `DISTINGUISHER`.  `Gconcl_list.S2(F) = S(Last(F))` is a whole-module
 alias whose parts have different instances of one EC module type (`S` returns `SLCommon`'s
-`PRIMITIVE`, `S2` must be `BlockSponge`'s), so `Module.comp` does not inline; it is a wrapper too.  A Lean function cannot be a functor module, and the
+`PRIMITIVE`, `S2` must be `BlockSponge`'s), so `Module.comp` does not inline; it is a wrapper too.
+`Gconcl_list.Simplify_Simulator.L(F) = IdealIndif(BIRO.IRO, Simu(F), DRestr(D))` is a whole-module
+alias used as an `IRO2.RO_Distinguisher` (for `RO_LRO_D`): its `distinguish` calls the game's `main`
+(with EasyCrypt's `d_in_t = unit` argument), as `Gconcl.G3`'s does.  A Lean function cannot be a functor module, and the
 `module` command cannot alias.  So their procedures call the aliased one:
 `proc f (x) { y <- call (S(Last(Valid(F)))).f (x); return y }`.  The denotation is the same; the
 code has one more call.
