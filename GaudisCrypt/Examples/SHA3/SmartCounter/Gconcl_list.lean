@@ -1928,31 +1928,255 @@ theorem Ideal_equiv3 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · simp_reads
       trivial
 
-/-- EC's local `D2(D)(F)`: `proc distinguish = D(FC(DSqueeze(Valid2(F))),
-PC(S(Valid2(F)))).distinguish`. -/
-noncomputable def D2 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
-  Module.app D (Module.pair
-    (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-      (Module.app FC (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-        (Module.app DSqueeze (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (Valid2 F))))))
-    (Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block)
-      (Module.app PC (Indifferentiability.PRIMITIVE.view state (List block) block
-        (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (Valid2 F)))))))
+/-- The call of EC's local `D2(D)(F)`:
+`D(FC(DSqueeze(Valid2(F))), PC(S(Valid2(F)))).distinguish`, its oracles in the form inlining `L2`
+leaves them in (`view`s and `Valid2` unfolded). -/
+noncomputable abbrev D2o (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
+  (Module.app D (Module.pair
+  (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+    { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ)
+          (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app Valid2.f_ F })) })) })
+  (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+    { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app Valid2.f_ F }))
+            fi := Indifferentiability.PRIMITIVE.fi state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app Valid2.f_ F })) }))
+      fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app Valid2.f_ F }))
+            fi := Indifferentiability.PRIMITIVE.fi state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app Valid2.f_ F })) })) })))
 
-/-- EC's local `D3(D)(F)`: `proc distinguish =
-D(FC(DSqueeze(IF'(F))), PC(S(IF'(F)))).distinguish`. -/
-noncomputable def D3 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
-  Module.app D (Module.pair
-    (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-      (Module.app FC (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-        (Module.app DSqueeze (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (IF' F))))))
-    (Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block)
-      (Module.app PC (Indifferentiability.PRIMITIVE.view state (List block) block
-        (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (IF' F)))))))
+set_option maxHeartbeats 4000000 in
+-- the module command's equation for the large body
+-- EC's local `D2(D)(F : F.RO)`, with `D` a Lean parameter so that `D2 D` is an
+-- `F.RO_Distinguisher` (for `RO_LRO_D`); its `distinguish` calls `D2o` (exception E5) and takes
+-- EasyCrypt's `d_in_t = unit`
+set_option linter.gaudisCrypt.using false in
+module D2 (D : DISTINGUISHER) using (F : SLCommon.F.RO_T) {
+  proc distinguish (_u : Unit) : Bool {
+    var b : Bool;
+    b <- call (D2o D F) ();
+    return $b
+  };
+}
+
+/-- `D2o D F` is `D2(D)(F).distinguish` (the wrapper's call). -/
+theorem D2o_D2 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (D2o D F).procedure (Module.app (D2 D) F).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+/-- `D2(D)(F).distinguish` is `D2o D F`. -/
+theorem D2_D2o (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (D2 D) F).procedure (D2o D F).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+set_option maxHeartbeats 4000000 in
+-- `within_lens` through the oracles
+omit [Params] in
+/-- `D2 D` touches `glob D`, `C.c` and `S`'s variables (and its oracle's).  Not an EC lemma. -/
+theorem fvP_D2 (D : DISTINGUISHER) :
+    FVP.fvP (D2 D) ≤ FVP.fvP D ⊔ (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi Gconcl.S.paths))).footprint := by
+  fp_module (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi Gconcl.S.paths)))
+
+set_option maxHeartbeats 4000000 in
+-- inlining `L2`
+/-- `L2(D, F.RO) ~ L2(D, F.LRO)` (EC: `proc; sp; inline*; sp; wp; call (F.FullEager.RO_LRO_D
+(D2(D)) _)`). -/
+theorem L2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Ideal D)
+    (_hDd' : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (L2 D SLCommon.F.RO.asRO).procedure (L2 D SLCommon.F.LRO).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  have hX : (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi Gconcl.S.paths))).footprint.FinitelySupported := by
+    simp only [Footprint.lens_pair]
+    repeat (first | exact .varLens _ | refine .sup ?_ ?_)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (D2 D)
+    ((hD.finitelySupported.sup hX).mono (fvP_D2 D))
+  unfold DRestrictions_Ideal at _hDd
+  have hdisj : FVP.fvP (D2 D) ≤ ((SLCommon.F.RO.m).footprint ⊔ (SLCommon.F.FRO.m).footprint)ᶜ := by
+    refine (fvP_D2 D).trans ((Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_))
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_)
+      · exact _hDd.trans (Footprint.compl_antimono (by fp_sub))
+      · simp only [Footprint.lens_pair]
+        fp_disjoint
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le _hDd' ?_)
+      simp only [Footprint.lens_pair]
+      fp_disjoint
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool SLCommon.F.dout
+    SLCommon.F.FRO.m (fun _ => BitWord.dunifin_ll) SLCommon.F.RO.m (D2 D) hmod hdisj
+  have h := prhlProc_conseq (prhlProc.trans (D2o_D2 D SLCommon.F.RO.asRO)
+      (prhlProc.trans hRO (D2_D2o D SLCommon.F.LRO)))
+    (A := fun _ g₁ _ g₂ => g₁ = g₂) (B := fun r₁ _ r₂ _ => r₁ = r₂)
+    (fun a₁ g₁ a₃ g₃ h => ⟨(), g₁, rfl, (), g₃, ⟨rfl, by rw [h], by rw [h]⟩, rfl⟩)
+    (fun r₁ g₁ r₃ g₃ ⟨r₂, g₂, ⟨h1, _⟩, r₂', g₂', ⟨h2, _⟩, h3, _⟩ => h1.trans (h2.trans h3))
+  unfold L2 SLCommon.IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  simp only [Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp,
+    Indifferentiability.FUNCTIONALITY.view, Valid2, Indifferentiability.FUNCTIONALITY.f.mk_simp]
+  stmt_wp
+  equiv_call h
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  subst h
+  exact ⟨rfl, fun _ _ _ _ h => h⟩
+
+/-- The call of EC's local `D3(D)(F)`: `D(FC(DSqueeze(IF'(F))), PC(S(IF'(F)))).distinguish` (as
+`D2o`). -/
+noncomputable abbrev D3o (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
+  (Module.app D (Module.pair
+  (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+    { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ)
+          (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app IF'.f_ F })) })) })
+  (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+    { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app IF'.f_ F }))
+            fi := Indifferentiability.PRIMITIVE.fi state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app IF'.f_ F })) }))
+      fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app IF'.f_ F }))
+            fi := Indifferentiability.PRIMITIVE.fi state (List block) block
+              (Module.app Gconcl.S (Indifferentiability.DFUNCTIONALITY.mk state
+                (List block) block { f := Module.app IF'.f_ F })) })) })))
+
+set_option maxHeartbeats 4000000 in
+-- the module command's equation for the large body
+-- EC's local `D3(D)(F : F.RO)` (as `D2`)
+set_option linter.gaudisCrypt.using false in
+module D3 (D : DISTINGUISHER) using (F : SLCommon.F.RO_T) {
+  proc distinguish (_u : Unit) : Bool {
+    var b : Bool;
+    b <- call (D3o D F) ();
+    return $b
+  };
+}
+
+/-- `D3o D F` is `D3(D)(F).distinguish` (the wrapper's call). -/
+theorem D3o_D3 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (D3o D F).procedure (Module.app (D3 D) F).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+/-- `D3(D)(F).distinguish` is `D3o D F`. -/
+theorem D3_D3o (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (D3 D) F).procedure (D3o D F).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+set_option maxHeartbeats 4000000 in
+-- `within_lens` through the oracles
+omit [Params] in
+/-- `D3 D` touches `glob D`, `C.c` and `S`'s variables (and its oracle's).  Not an EC lemma. -/
+theorem fvP_D3 (D : DISTINGUISHER) :
+    FVP.fvP (D3 D) ≤ FVP.fvP D ⊔ (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi Gconcl.S.paths))).footprint := by
+  fp_module (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi Gconcl.S.paths)))
+
+set_option maxHeartbeats 4000000 in
+-- inlining `L`
+/-- `L(D, F.RO) ~ L(D, F.LRO)` (EC: `call (F.FullEager.RO_LRO_D (D3(D)) _)`). -/
+theorem L_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Ideal D)
+    (_hDd' : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (L D SLCommon.F.RO.asRO).procedure (L D SLCommon.F.LRO).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  have hX : (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi Gconcl.S.paths))).footprint.FinitelySupported := by
+    simp only [Footprint.lens_pair]
+    repeat (first | exact .varLens _ | refine .sup ?_ ?_)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (D3 D)
+    ((hD.finitelySupported.sup hX).mono (fvP_D3 D))
+  unfold DRestrictions_Ideal at _hDd
+  have hdisj : FVP.fvP (D3 D) ≤ ((SLCommon.F.RO.m).footprint ⊔ (SLCommon.F.FRO.m).footprint)ᶜ := by
+    refine (fvP_D3 D).trans ((Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_))
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_)
+      · exact _hDd.trans (Footprint.compl_antimono (by fp_sub))
+      · simp only [Footprint.lens_pair]
+        fp_disjoint
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le _hDd' ?_)
+      simp only [Footprint.lens_pair]
+      fp_disjoint
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool SLCommon.F.dout
+    SLCommon.F.FRO.m (fun _ => BitWord.dunifin_ll) SLCommon.F.RO.m (D3 D) hmod hdisj
+  have h := prhlProc_conseq (prhlProc.trans (D3o_D3 D SLCommon.F.RO.asRO)
+      (prhlProc.trans hRO (D3_D3o D SLCommon.F.LRO)))
+    (A := fun _ g₁ _ g₂ => g₁ = g₂) (B := fun r₁ _ r₂ _ => r₁ = r₂)
+    (fun a₁ g₁ a₃ g₃ h => ⟨(), g₁, rfl, (), g₃, ⟨rfl, by rw [h], by rw [h]⟩, rfl⟩)
+    (fun r₁ g₁ r₃ g₃ ⟨r₂, g₂, ⟨h1, _⟩, r₂', g₂', ⟨h2, _⟩, h3, _⟩ => h1.trans (h2.trans h3))
+  unfold L SLCommon.IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  simp only [Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp,
+    Indifferentiability.FUNCTIONALITY.view, IF', Indifferentiability.FUNCTIONALITY.f.mk_simp]
+  stmt_wp
+  equiv_call h
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  subst h
+  exact ⟨rfl, fun _ _ _ _ h => h⟩
 
 module DSqueeze2 using (F : SLCommon.F.RO_T, F2 : F2.RO_T) : FUNCTIONALITY {
   proc init () : Unit {
@@ -2819,32 +3043,180 @@ theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · simp_reads
       trivial
 
-/-- EC's local `D5(D)(F) = D(FC(FValid(DSqueeze2(F, F2.RO))), PC(S(Last(DSqueeze2(F, F2.RO)))))`. -/
-noncomputable def D5 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=
-  Module.app D (Module.pair
-    (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-      (Module.app FC (Module.app FValid
-        (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-          (Module.app DSqueeze2 (Module.pair F F2.RO.asRO))))))
-    (Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block)
-      (Module.app PC (Indifferentiability.PRIMITIVE.view state (List block) block
-        (Module.app Gconcl.S (Module.app Last
-          (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-            (Module.app DSqueeze2 (Module.pair F F2.RO.asRO)))))))))
+-- `L4(D)(F)(F2.RO)` as an `F.RO_Distinguisher`, for `RO_LRO_D`: EC applies `RO_LRO_D` to
+-- `D5(D)`, the distinguisher left after inlining `L4`; here to the whole of `L4` (whose
+-- `distinguish` calls the game's `main`, exception E5), which is the same equivalence
+set_option linter.gaudisCrypt.using false in
+module L4F (D : DISTINGUISHER) using (F : SLCommon.F.RO_T) {
+  proc distinguish (_u : Unit) : Bool {
+    var b : Bool;
+    b <- call (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
+      (Module.pair (Module.app DSqueeze2 (Module.pair F F2.RO.asRO)) (Module.pair (Module.app S2
+        (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze2 (Module.pair F F2.RO.asRO)) })) (DValid (DRestr D))))) ();
+    return $b
+  };
+}
 
-/-- EC's local `D6(D)(F2) = D(FC(FValid(DSqueeze2(F.LRO, F2))),
-PC(S(Last(DSqueeze2(F.LRO, F2)))))`. -/
-noncomputable def D6 (D : DISTINGUISHER) (F2 : F2.RO_T) : procmod () → Bool :=
-  Module.app D (Module.pair
-    (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-      (Module.app FC (Module.app FValid
-        (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-          (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2))))))
-    (Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block)
-      (Module.app PC (Indifferentiability.PRIMITIVE.view state (List block) block
-        (Module.app Gconcl.S (Module.app Last
-          (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
-            (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2)))))))))
+/-- `L4` is `L4F`'s `distinguish` (its call). -/
+theorem L4F_bridge (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (L4 D F F2.RO.asRO).procedure
+      (Module.app (L4F D) F).procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  unfold L4 IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  stmt_inline{2} 0
+  simp only [Indifferentiability.FUNCTIONALITY.view]
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+/-- `L4F`'s `distinguish` is `L4`. -/
+theorem L4F_bridge' (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (L4F D) F).procedure
+      (L4 D F F2.RO.asRO).procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  unfold L4 IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  stmt_inline{1} 0
+  simp only [Indifferentiability.FUNCTIONALITY.view]
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+set_option maxHeartbeats 4000000 in
+-- `within_lens` through `L4`'s modules
+omit [Params] in
+/-- `L4F D` touches `glob D`, `C.c`, `S`'s variables and the other clone's `RO.m`.  Not an EC
+lemma. -/
+theorem fvP_L4F (D : DISTINGUISHER) :
+    FVP.fvP (L4F D) ≤ FVP.fvP D ⊔ (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi
+      (Lens.pair Gconcl.S.paths F2.RO.m)))).footprint := by
+  fp_module (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi
+      (Lens.pair Gconcl.S.paths F2.RO.m))))
+
+/-- `L4(D, F.RO, F2.RO) ~ L4(D, F.LRO, F2.RO)` (EC: `call (F.FullEager.RO_LRO_D (D5(D)) _)`). -/
+theorem L4_F_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Ideal2 D)
+    (_hDd' : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint ⊔ (F2.FRO.m).footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (L4 D SLCommon.F.RO.asRO F2.RO.asRO).procedure (L4 D SLCommon.F.LRO F2.RO.asRO).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  have hX : (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi
+      (Lens.pair Gconcl.S.paths F2.RO.m)))).footprint.FinitelySupported := by
+    simp only [Footprint.lens_pair]
+    repeat (first | exact .varLens _ | refine .sup ?_ ?_)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (L4F D)
+    ((hD.finitelySupported.sup hX).mono (fvP_L4F D))
+  obtain ⟨h1, h2⟩ := _hDd
+  unfold DRestrictions_Ideal at h1
+  have hdisj : FVP.fvP (L4F D) ≤ ((SLCommon.F.RO.m).footprint ⊔ (SLCommon.F.FRO.m).footprint)ᶜ := by
+    refine (fvP_L4F D).trans ((Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_))
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le (by fp_disjoint) ?_)
+      simp only [Footprint.lens_pair]
+      fp_disjoint
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le (by fp_disjoint) ?_)
+      simp only [Footprint.lens_pair]
+      fp_disjoint
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool SLCommon.F.dout
+    SLCommon.F.FRO.m (fun _ => BitWord.dunifin_ll) SLCommon.F.RO.m (L4F D) hmod hdisj
+  exact prhlProc_conseq (prhlProc.trans (L4F_bridge D SLCommon.F.RO.asRO)
+      (prhlProc.trans hRO (L4F_bridge' D SLCommon.F.LRO)))
+    (fun a₁ g₁ a₃ g₃ h => ⟨(), g₁, rfl, (), g₃, ⟨rfl, by rw [h], by rw [h]⟩, rfl⟩)
+    (fun r₁ g₁ r₃ g₃ ⟨r₂, g₂, ⟨h1, _⟩, r₂', g₂', ⟨h2, _⟩, h3, _⟩ => h1.trans (h2.trans h3))
+
+-- `L4(D)(F.LRO)(F2)` as an `F2.RO_Distinguisher` (EC's `D6(D)`, as `L4F` for `D5`)
+set_option linter.gaudisCrypt.using false in
+module L4G (D : DISTINGUISHER) using (F2' : F2.RO_T) {
+  proc distinguish (_u : Unit) : Bool {
+    var b : Bool;
+    b <- call (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
+      (Module.pair (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2'))
+        (Module.pair (Module.app S2
+        (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2')) })) (DValid (DRestr D))))) ();
+    return $b
+  };
+}
+
+/-- `L4` is `L4G`'s `distinguish` (its call). -/
+theorem L4G_bridge (D : DISTINGUISHER) (F2' : F2.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (L4 D SLCommon.F.LRO F2').procedure
+      (Module.app (L4G D) F2').procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  unfold L4 IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  stmt_inline{2} 0
+  simp only [Indifferentiability.FUNCTIONALITY.view]
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+/-- `L4G`'s `distinguish` is `L4`. -/
+theorem L4G_bridge' (D : DISTINGUISHER) (F2' : F2.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (L4G D) F2').procedure
+      (L4 D SLCommon.F.LRO F2').procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
+  unfold L4 IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  stmt_inline{1} 0
+  simp only [Indifferentiability.FUNCTIONALITY.view]
+  stmt_wp
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  intro g₁ g₂ h
+  exact ⟨h, fun _ _ _ _ h => h⟩
+
+set_option maxHeartbeats 4000000 in
+-- `within_lens` through `L4`'s modules
+omit [Params] in
+/-- `L4G D` touches `glob D`, `C.c`, `S`'s variables and the other clone's `RO.m`.  Not an EC
+lemma. -/
+theorem fvP_L4G (D : DISTINGUISHER) :
+    FVP.fvP (L4G D) ≤ FVP.fvP D ⊔ (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m
+      (Lens.pair Gconcl.S.mi
+      (Lens.pair Gconcl.S.paths SLCommon.F.RO.m)))).footprint := by
+  fp_module (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi
+      (Lens.pair Gconcl.S.paths SLCommon.F.RO.m))))
+
+/-- `L4(D, F.LRO, F2.RO) ~ L4(D, F.LRO, F2.LRO)` (EC: `call (F2.FullEager.RO_LRO_D (D6(D)) _)`). -/
+theorem L4_F2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Ideal2 D)
+    (_hDd' : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint ⊔ (F2.FRO.m).footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (L4 D SLCommon.F.LRO F2.RO.asRO).procedure (L4 D SLCommon.F.LRO F2.LRO).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  have hX : (Lens.pair BlockSponge.C.c (Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi
+      (Lens.pair Gconcl.S.paths SLCommon.F.RO.m)))).footprint.FinitelySupported := by
+    simp only [Footprint.lens_pair]
+    repeat (first | exact .varLens _ | refine .sup ?_ ?_)
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List block) block Unit Bool (L4G D)
+    ((hD.finitelySupported.sup hX).mono (fvP_L4G D))
+  obtain ⟨h1, h2⟩ := _hDd
+  unfold DRestrictions_Ideal at h1
+  have hdisj : FVP.fvP (L4G D) ≤ ((F2.RO.m).footprint ⊔ (F2.FRO.m).footprint)ᶜ := by
+    refine (fvP_L4G D).trans ((Footprint.le_compl_comm _ _).mp (sup_le ?_ ?_))
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le (by fp_disjoint) ?_)
+      simp only [Footprint.lens_pair]
+      fp_disjoint
+    · refine (Footprint.le_compl_comm _ _).mp (sup_le (by fp_disjoint) ?_)
+      simp only [Footprint.lens_pair]
+      fp_disjoint
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool F2.dout
+    F2.FRO.m (fun _ => BitWord.dunifin_ll) F2.RO.m (L4G D) hmod hdisj
+  exact prhlProc_conseq (prhlProc.trans (L4G_bridge D F2.RO.asRO)
+      (prhlProc.trans hRO (L4G_bridge' D F2.LRO)))
+    (fun a₁ g₁ a₃ g₃ h => ⟨(), g₁, rfl, (), g₃, ⟨rfl, by rw [h], by rw [h]⟩, rfl⟩)
+    (fun r₁ g₁ r₃ g₃ ⟨r₂, g₂, ⟨h1, _⟩, r₂', g₂', ⟨h2, _⟩, h3, _⟩ => h1.trans (h2.trans h3))
 
 /-- EC's `equiv_ideal`, for `D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S, -F.FRO, -F2.RO,
 -F2.FRO, -BIRO.IRO, -BIRO2.IRO}`. -/
@@ -2856,7 +3228,42 @@ theorem equiv_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
         (fun r _ => r = true) =
       Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure ()
         m (fun r _ => r = true) := by
-  sorry
+  have hF : FVP.fvP D ≤ ((SLCommon.F.FRO.m).footprint)ᶜ :=
+    _hDd'.trans (Footprint.compl_antimono le_sup_left)
+  have hF2 : FVP.fvP D ≤ ((F2.RO.m).footprint)ᶜ :=
+    _hDd.2.trans (Footprint.compl_antimono (le_sup_left.trans le_sup_left))
+  -- each `byequiv` of EC's proof
+  have e1 := Procedure.Pr_eq_of_prhlProc (ideal_equiv D hD _hDd.1) (E₁ := fun r _ => r = true)
+    (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.2]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
+    (σ₂ := m) rfl
+  have e2 := Procedure.Pr_eq_of_prhlProc (ideal_equiv2 D hD _hDd.1) (E₁ := fun r _ => r = true)
+    (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.2]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
+    (σ₂ := m) rfl
+  have e3 := Procedure.Pr_eq_of_prhlProc (L2_RO_LRO D hD _hDd.1 hF) (E₁ := fun r _ => r = true)
+    (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
+    (σ₂ := m) rfl
+  have e4 := Procedure.Pr_eq_of_prhlProc (Ideal_equiv_valid D hD _hDd.1)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.2])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have e5 := Procedure.Pr_eq_of_prhlProc (L_RO_LRO D hD _hDd.1 hF) (E₁ := fun r _ => r = true)
+    (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
+    (σ₂ := m) rfl
+  have e6 := Procedure.Pr_eq_of_prhlProc (Ideal_equiv3 D hD _hDd.1 hF2)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.2])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have e7 := Procedure.Pr_eq_of_prhlProc (equiv_L3_L4 D hD _hDd) (E₁ := fun r _ => r = true)
+    (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.2]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
+    (σ₂ := m) rfl
+  have e8 := Procedure.Pr_eq_of_prhlProc (L4_F_RO_LRO D hD _hDd _hDd')
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have e9 := Procedure.Pr_eq_of_prhlProc (L4_F2_RO_LRO D hD _hDd _hDd')
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have e10 := Procedure.Pr_eq_of_prhlProc (equiv_L4_ideal D hD _hDd)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h.2])
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  rw [e1, ← e2, e3, ← e4, ← e5, e6, e7, e8, e9, e10]
 
 end Ideal
 

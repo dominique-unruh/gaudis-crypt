@@ -564,8 +564,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 452 | local lemma | `incl_dom` | section Ideal. | `incl_dom` | done |
 | 461 | local lemma | `lemma3` | section Ideal. | `lemma3` | done |
 | 476 | local equiv | `Ideal_equiv3` | section Ideal. | `Ideal_equiv3` (inner step `IF'_IF2_f`; invariant `L3Inv`; `inv_L_L3.dom_valid` … `set_valid`) | done |
-| 599 | local module | `D2` | section Ideal. | `D2` (Lean function) | def |
-| 603 | local module | `D3` | section Ideal. | `D3` (Lean function) | def |
+| 599 | local module | `D2` | section Ideal. | `D2` (module over `F`, `D` a Lean parameter; `distinguish(_u)` calls `D2o`, E5) | exc |
+| 603 | local module | `D3` | section Ideal. | `D3` (as `D2`; calls `D3o`) | exc |
 | 608 | module | `DSqueeze2` | section Ideal. | `DSqueeze2` | def |
 | 647 | local module | `FValid` | section Ideal. | `FValid` | def |
 | 657 | local module | `DValid` | section Ideal. | `DValid` (`D` a Lean parameter; E5) | def |
@@ -577,9 +577,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | done |
 | 819 | local lemma | `lemma5bis` | section Ideal. | `lemma5bis` | done |
 | 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (oracle steps `FC_FValid_f`, `PC_f_sInv S2_SimLast_f`, `PC_fi_sInv S2_SimLast_fi`; inner step `DSqueeze2_Valid_f` via `Last_f_L4`; invariant `L4Inv`) | done |
-| 916 | local module | `D5` | section Ideal. | `D5` (Lean function) | def |
-| 919 | local module | `D6` | section Ideal. | `D6` (Lean function) | def |
-| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` | stated |
+| 916 | local module | `D5` | section Ideal. | — (`RO_LRO_D` is applied to `L4F`, the whole `L4(D)(F)(F2.RO)`, instead; E5) | exc |
+| 919 | local module | `D6` | section Ideal. | — (`L4G`, the whole `L4(D)(F.LRO)(F2)`, instead; E5) | exc |
+| 922 | lemma | `equiv_ideal` (steps `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`) | section Ideal. | `equiv_ideal` | done (modulo `equiv_L3_L4`) |
 | 973 | inductive | `m_p` | section Real. | `m_p` | def |
 | 979 | inductive | `INV_Real` | section Real. | `INV_Real` | def |
 | 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | done |

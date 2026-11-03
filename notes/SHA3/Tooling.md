@@ -1239,3 +1239,22 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
      with `D` in the bound).
   4. Prove the inclusion of the bound's variables in the restriction with `fp_sub`.
 
+## 2026-11-03: `Gconcl_list.equiv_ideal`
+
+* **`RO_LRO_D` inside a game, for a distinguisher that the game builds from its oracle.** Steps:
+  1. Define the distinguisher as a module over the random oracle (`D2`, using `(F : F.RO_T)`).
+     Its `distinguish` calls an `abbrev` `D2o D F`, the inner `D(…)` call written exactly as
+     inlining the game leaves it, after `simp only [DPRIMITIVE.f.mk_simp, …, FUNCTIONALITY.view,
+     Valid2, FUNCTIONALITY.f.mk_simp]`. The `abbrev` matters: with an opaque `def` the module
+     command cannot prove its `apply_simp` equation. `view`s of terms that depend on the parameter
+     must be written out as `DFUNCTIONALITY.mk {f := …}` for the same reason.
+  2. Bridges `D2o D F ~ D2(D)(F)`: `equiv_proc` keeps the abstract `D2o` as a call statement, so
+     use `stmt_inline` on the wrapper side only, then `equiv_call (prhlProc_refl _)`.
+  3. `prhlProc.trans` bridge, `RO_LRO_D`, bridge, then `prhlProc_conseq` down to `g₁ = g₂ ⟹ r₁ = r₂`.
+  4. In the game, inline everything, `simp only` the call into `D2o` form, `stmt_wp`, then
+     `equiv_call` with that judgment.
+* **Keep the wrapped body small.** The module command's elaboration grows quickly with the body
+  (`D5o`, with five copies of `DSqueeze2`, took about 5 min, and its footprint bound timed out at
+  4M heartbeats). A wrapper around the whole game (`L4F`: `Indif` applied to `L4`'s modules) is
+  small, and its bridges need no inlining of `L4`.
+

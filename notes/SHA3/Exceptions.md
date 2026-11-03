@@ -120,7 +120,11 @@ alias whose parts have different instances of one EC module type (`S` returns `S
 `PRIMITIVE`, `S2` must be `BlockSponge`'s), so `Module.comp` does not inline; it is a wrapper too.
 `Gconcl_list.Simplify_Simulator.L(F) = IdealIndif(BIRO.IRO, Simu(F), DRestr(D))` is a whole-module
 alias used as an `IRO2.RO_Distinguisher` (for `RO_LRO_D`): its `distinguish` calls the game's `main`
-(with EasyCrypt's `d_in_t = unit` argument), as `Gconcl.G3`'s does.  A Lean function cannot be a functor module, and the
+(with EasyCrypt's `d_in_t = unit` argument), as `Gconcl.G3`'s does.  Likewise `Gconcl_list.D2(D)(F)`, `D3(D)(F)`
+(their `distinguish` calls `D2o`/`D3o`, `D(…)` with the oracles in normal form). EC's `D5(D)` and
+`D6(D)` are not ported as such: `RO_LRO_D` is applied to `L4F(D)(F) = L4(D)(F)(F2.RO)` and
+`L4G(D)(F2) = L4(D)(F.LRO)(F2)`, the whole game as a distinguisher, which gives the same equivalence
+(a smaller module body: `D5`'s repeats `DSqueeze2` five times and took minutes to elaborate).  A Lean function cannot be a functor module, and the
 `module` command cannot alias.  So their procedures call the aliased one:
 `proc f (x) { y <- call (S(Last(Valid(F)))).f (x); return y }`.  The denotation is the same; the
 code has one more call.
