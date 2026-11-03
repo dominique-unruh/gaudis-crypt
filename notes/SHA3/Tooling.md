@@ -1038,3 +1038,42 @@ nested `Lens.pair` and `I` on its projections so that `I (L.get g₁) (L.get g�
   `inv_ext1_of_weak` (a new `Known` handle) and `inv_ext1_hit` (`G2`'s `FRO.get` of the witness
   handle fires `bad_ext`/`y2 = x.2`), with freshness `∀ h ∈ FRO.m, h < G1.chandle`
   (`get_set_fresh`, `fresh_set`).
+
+## 2026-11-03: `Gconcl.G2_G3`, `G3_G4`, `G4_Ideal`, `Real_Ideal` — `Gconcl.ec` complete
+
+Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
+`prhlProc_abstract_call_moduleF` with a nested `Lens.pair` and `I` on its projections).  New points:
+* **No `rcondt` for a conditional in the middle of a statement.**  `G2_G3`'s `S.f`: on the guard
+  `(x.1, hx2) \in G1.mh /\ t`, `G2` resamples `y2` inside `RRO.get` after its bookkeeping, `G3`
+  samples it before; the coupling partner of `G3`'s `y2` depends on the guard.  Recipe:
+  `equiv_case P` on the initial states (`P` the guard computed from them, `sfGuard`), then in each
+  case cut (`equiv_seq k₁ k₂`) so that the conditional is a whole side, `equiv_if{1}`, and the
+  impossible branch by `prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => …) (fun _ _ h => h)`.  Put
+  the two samples to be coupled in the same block: the right's `y2` is moved past the bookkeeping
+  with `stmt_swap{2} n k` in the guard-true case only.
+* **`stmt_swap` does not commute two `reset_vars`** (inlined frames): moving `G2`'s bookkeeping
+  (`allKnown`, `set`, `queried`, inlined) past the `paths` test (which inlines `RO.get`) fails.  A
+  sample or an assignment past resets works (`resetSetter_set_localVarLens`).
+* `equiv_if{i}` and `equiv_if{2}` inside handle asymmetric branches: a sample in both branches on
+  one side (`G2.S.f`'s `y2`) against a sample after the conditional on the other side.
+* EC's `call{1} RRO_resample_ll` (a trailing lossless call whose effects the post ignores):
+  `stmt_split{1} 1` (so the call is the second block: `prhlStmt_seq_left` matches `.seq s d`, and
+  the statement is right-nested), `apply prhlStmt_seq_left`, and at the end
+  `⟨Stmt.call_wp_one (RRO_resample_ll …) _ _ _, Stmt.call_satisfies fun r _ => ?_⟩`; the result
+  setter is `Setter.throwaway` (`simp only [Setter.throwaway]; simp_reads`).
+* wp of a conditional leaves `(if c then X else X)` for every variable it does not write:
+  `simp only [ite_self]` after substituting the equalities (`rintro … ⟨rfl, …⟩`).
+* `rintro` patterns on a hypothesis in `σ`-form (`§x{1} = §x{2}` not generalized) may try to `cases`
+  the equation and fail ("dependent elimination failed"): use projections (`h.1.2.2…`).
+* Guard goals are value-generalized (binders for the reads), not `σ`-form: `rintro g₁ g₂ x … ⟨rfl, …⟩`.
+* A conjunct reduced to `True` by the wp (`x1 = x1`) needs `trivial`, not `rfl`; count the
+  conjuncts by `refine ⟨…, ?_⟩; trace_state` when a tuple does not fit.
+* `col_close` (`intros; simp only [colEq] at *; try simp_reads; simp_all`) closes the synchronized
+  steps of `DFRestr_f_G23` (a macro, so the unused-`simp_reads` linter is quiet).
+* A `procmod () → Bool` is not an `RO_Distinguisher` (`procmod (Unit) → Bool`): `G3`, `G4` take
+  `(_u : Unit)` as `G2` does, so that `RO_LRO_D` applies; their `ECModule` is
+  `RO_Distinguisher.ecModule` with finite support from `fvP_G3`/`fvP_G4` (`fp_module`).
+* Heartbeats are counted per declaration: a chain of `simp_all` closers can time out a lemma whose
+  steps are each fast.
+* Long lines: count characters, not bytes (`awk length` counts bytes under a C locale).
+

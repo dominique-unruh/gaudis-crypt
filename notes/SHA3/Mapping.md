@@ -485,17 +485,17 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCry
 | 14 | module | `S` |  | `S` | def |
 | 67 | declare module | `D` | section . | `D` (section variable) | def |
 | 68 | local clone import | `Gext` | section . | `open Gext` | def |
-| 71 | local module | `G3` | section . | `G3.M`, `G3.S` (functors of `RO`), `G3` (`D` a Lean parameter) | def |
+| 71 | local module | `G3` | section . | `G3.M`, `G3.S` (functors of `RO`), `G3` (`D` a Lean parameter; `distinguish (_u : Unit)`, an `F.RO_Distinguisher`) | def |
 | 73 | module | `M` | section . | `G3.M` | def |
 | 104 | module | `S` | section . | `G3.S` | def |
-| 206 | local equiv | `G2_G3` | section . | `G2_G3` | stated |
-| 253 | local module | `G4` | section . | `G4.C`, `G4.S` (functors of `RO`), `G4` (`D` a Lean parameter) | def |
+| 206 | local equiv | `G2_G3` | section . | `G2_G3` (+ `Gext0Fresh D`; oracle steps `DFRestr_f_G23`, `DPRestr_f_G23`, `DPRestr_fi_G23`, invariant `colEq`; `sfGuard`) | exc |
+| 253 | local module | `G4` | section . | `G4.C`, `G4.S` (functors of `RO`), `G4` (`D` a Lean parameter; `distinguish (_u : Unit)`, an `F.RO_Distinguisher`) | def |
 | 255 | module | `C` | section . | `G4.C` | def |
 | 270 | module | `S` | section . | `G4.S` | def |
-| 326 | local equiv | `G3_G4` | section . | `G3_G4` | stated |
-| 350 | local equiv | `G4_Ideal` | section . | `G4_Ideal` | stated |
+| 326 | local equiv | `G3_G4` | section . | `G3_G4` (+ `Gext0Fresh D`; oracle steps `DFRestr_f_G34`, `DPRestr_f_G34`, `DPRestr_fi_G34`, invariant `g34Inv`) | exc |
+| 350 | local equiv | `G4_Ideal` | section . | `G4_Ideal` (+ `Gext0Fresh D`; oracle steps `DFRestr_f_G4I`, `DPRestr_f_G4I`, `DPRestr_fi_G4I`, invariant `g4Inv`) | exc |
 | 363 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
-| 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` | stated |
+| 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` (+ `Gext0Fresh D`; `fvP_G3`, `fvP_G4` for `RO_LRO_D`) | exc |
 
 ## `proof/BlockSponge.ec`
 

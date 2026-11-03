@@ -196,7 +196,8 @@ variables in the development:
   `FRO.m`.
 
 The other local clones have no module variables (`ConcreteF`'s `ProdSampling`), or clone a theory
-whose own local modules do not survive the clone (`Gconcl`'s `Gext0`).
+whose own local modules do not survive the clone.  `Gconcl`'s `local clone import Gext as Gext0` is
+the exception: its (non-local) module variables are fixed `global_var`s (E13).
 
 
 ## E7: a restriction against a module is stated against its `glob` (variable level)
@@ -366,3 +367,30 @@ procedures, composed by `prhlProc.trans`.  EC's ghosts (`exists* i{1}, bs{1}`) a
 other side, which keeps them; EC's `exists* HybridIROEager.mp{1}` (the map before the writes) is
 folded into the invariant as the statement it is used for (`∀ mq, eager_eq_except … → … →
 eager_invar … mq`).
+
+## E13: `Gconcl`'s `Gext0` variables are fresh for `D` by hypothesis (`Gext0Fresh`)
+
+**Rule broken.** A Lean statement has the EasyCrypt statement's hypotheses, no more (as E6).
+
+**Why.** `Gconcl.ec` declares `D <: DISTINGUISHER {-C, -Perm, -F.RO, -F.FRO, -S, -Redo}` and then
+`local clone import Gext as Gext0`.  The clone copies `Gext` and, through its `clone export`s,
+`Gcol`, `Handle`, `ConcreteF` and `ROhandle`, so `G1`, `PF`, `ROhandle.FRO`, `ROhandle.RO` are new
+modules that `D` cannot touch.  The local games `G3`, `G4` and `Gext`'s `Real_G2` rely on it: their
+oracles read and write `G1.m`, `G1.mh`, `FRO.m` … around `D`'s call.  In Lean those theories were
+ported as plain theories: their module variables are fixed `global_var`s (`G1.m`, `PF.m`,
+`ROhandle.FRO.m` …), not lens parameters, so the E6 remedy (lens parameters, chosen fresh with
+`Footprint.exists_fresh` in the non-local result) is not available without making `Handle`,
+`Gcol`, `Gext` and `ConcreteF` generic over their variables.
+
+**What we do instead.** `Gconcl.Gext0Fresh D` (`D` outside `PF.m`, `PF.mi`, `G1.m`, `G1.mi`, `G1.mh`,
+`G1.mhi`, `G1.chandle`, `G1.paths`, `G1.bext`, `G1.bcol`, `FRO.m`, `ROhandle.RO.m`) is a hypothesis of
+the local lemmas `G2_G3`, `G3_G4`, `G4_Ideal` (as E6 allows) and of the non-local `Real_Ideal`.  With
+`DRestrictions D` it gives `Real_G2`'s restriction.
+
+**Consequences.** `Gconcl_list` uses `Real_Ideal` (for `A(D)`), so its results need `Gext0Fresh`
+for the distinguisher it builds, and so on up to `SHA3Indiff`'s final theorem: the adversary must not
+touch these proof-internal variables.  To be propagated when those proofs are done.
+
+**How to remove it.** Make the variables of `Handle`, `Gcol`, `Gext` (and `ConcreteF`'s `PF`) lens
+parameters, as `Sponge`'s `HybridIRO` section does (E6), and pick them fresh in `Real_Ideal` with
+`Footprint.exists_fresh` (under finite support of `D`, which `Module.ECModule` provides).
