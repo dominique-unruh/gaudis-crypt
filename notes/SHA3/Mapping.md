@@ -469,11 +469,11 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 529 | lemma | `size_rem_le` | section EXT. | `size_rem_le` | done |
 | 532 | lemma | `size_ge0` | section EXT. | `size_ge0` | done |
 | 535 | lemma | `size0` | section EXT. | `size0` | done |
-| 538 | local equiv | `RROset_inv_lt` | section EXT. | `RROset_inv_lt` | stated |
-| 546 | local lemma | `Pr_ext` | section EXT. | `Pr_ext` | stated |
+| 538 | local equiv | `RROset_inv_lt` | section EXT. | `RROset_inv_lt` (hypothesis `GcolFresh ReSample_count`) | done (exc E6) |
+| 546 | local lemma | `Pr_ext` | section EXT. | `Pr_ext` (`fel` as the supermartingale `Gext_potential`, steps `ReSample_f_potential`, `ReSample_f1_potential`) | done |
 | 585 | local equiv | `EG2_Gext` | section EXT. | `EG2_Gext` | stated |
 | 698 | declare axiom | `D_ll` | section EXT. | `D_ll` (hypothesis) | def |
-| 702 | lemma | `Real_G2` | section EXT. | `Real_G2` | stated |
+| 702 | lemma | `Real_G2` | section EXT. | `Real_G2` (`ReSample.count` chosen fresh; `Eager_1_2` by `Eager.main2_eq_main1`, side conditions from `fvP_G2`) | done |
 
 ## `proof/smart_counter/Gconcl.ec`
 

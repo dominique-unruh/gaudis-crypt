@@ -181,7 +181,9 @@ variables in the development:
 * `ConcreteF`: the clone `Switching` (`PRPi_m`, `PRPi_mi`, `ARP_coll`, `ARP_m`, `ARP_mi`,
   `DBounder_FBounder_c`; `DoubleBounding`);
 * `Gcol`: `Gcol.count` (`Gcol_count`; `Pr_col`, `G1_col`);
-* `Gext`: `ReSample.count` (`ReSample_count`; `RROset_inv_lt`, `Pr_ext`, `EG2_Gext`);
+* `Gext`: `ReSample.count` (`ReSample_count`; `Pr_ext`, `EG2_Gext`, and `RROset_inv_lt` with only
+  `GcolFresh ReSample_count`, outside `G1` and `C`: it does not call `D`); `Real_G2` picks it with
+  `Footprint.exists_fresh`;
 * `Gconcl_list`: the clone `IRO2` (`IRO2_RO_m`; `equal1`, `equal2`);
 * `Sponge`, `SecureRO`, `SecureORO`, `SHA3OSecurity`: as listed above.
   `SecureRO.RO_is_second_preimage_resistant` (proven 2026-11-01) picks `SecondPreimage2.m2` and

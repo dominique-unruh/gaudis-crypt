@@ -980,3 +980,29 @@ over `DRestr(D)`'s three oracles, ported oracle by oracle:
   turn trivial conjuncts into `True`: close them by `trivial`, not `rfl`.
 * `maxHeartbeats` counts the whole declaration: the inlined oracles need 1–4M.
 * `fp_mem` (local): `X ≤ A₁ ⊔ … ⊔ Aₙ` by backtracking over nested joins (`C.footprint` unfolded).
+
+## 2026-11-03: `Gext.Pr_ext`, `RROset_inv_lt`, `Real_G2`
+
+* `Pr_ext` is `Gcol.Pr_col`'s recipe (`Gext_potential`, potential `gcolPotential` reused on
+  `(G1.bext, ReSample.count)`), with a call *after* the adversary (`Gext.resample`, an
+  `Iter(ReSample).iter`): after `simp only [Stmt.ewp_seq]`, bound the continuation first,
+  `refine le_trans (Stmt.ewp_mono _ (fun τ => Stmt.ewp_le_of_expDecr G φ _ ?_ _) _) ?_` with
+  `exp_decr`, then the adversary's call by `Module.ewp_app_le`.
+* `exp_decr` matches a step lemma against the callee **as spelled at the call site**: inside a
+  functor the hole is instantiated as `(IterProc.Orcl.f t (IterProc.Orcl.mk t {f := p})).procedure`,
+  not `p.procedure`, and the reducible-transparency `assumption` misses it; `exp_decr` then descends
+  into the body and leaves the potential's own writes open.  Restate the step lemma in that
+  spelling (`:= hsf`, a defeq coercion).  Debugging: `logInfo` inside the `try` of a tactic is
+  discarded by `restoreState`; print with `IO.eprintln`.  (Follow-up: try `assumption` at default
+  transparency after the reducible one fails, in `expDecrSplit`.)
+* The final reads of the initial state through fifteen writes: `simp only [Lens.pair, …]` times
+  out at `whnf`; `change gcolPotential (G1.bext.get _, ReSample_count.get _) ≤ _; simp_reads`
+  works (2M heartbeats for the declaration).
+* `Real_G2` needs `Eager_1_2` for `G2(DRestr(D))` and the events `G1.bext`, `inv_ext …`: the
+  `prhlProc` relates only `glob D`, and a variable's equality would need a *lower* bound on
+  `FVP.fvP (G2 (DRestr D))`.  `Eager.main2_eq_main1` (denotational equality) transports every event
+  instead (`unfold Procedure.Pr; rw [Eager.main2_eq_main1 …]`).  Its side conditions: `fvP_G2` by
+  `fp_module` with a ten-variable `Lens.pair` (slow: about 90 s, `maxHeartbeats 8000000`),
+  `ECModule` from `FRO_Distinguisher.representable` and finite support.
+* `fp_sub` (local, `Gext.lean`): `A₁ ⊔ … ⊔ Aₙ ≤ B` by `fp_mem` on each joinand, splitting the left
+  join only when the whole is not itself a joinand (so `C.footprint` stays atomic).
