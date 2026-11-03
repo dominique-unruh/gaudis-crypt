@@ -454,7 +454,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 162 | op | `inv_ext` | section . | `inv_ext` | def |
 | 165 | op | `inv_ext1` | section . | `inv_ext1` | def |
 | 168 | lemma | `rng_restr` | section . | `rng_restr` | done |
-| 175 | equiv | `G1_G2` | section . | `G1_G2` | stated |
+| 175 | equiv | `G1_G2` | section . | `G1_G2` (oracle steps `S_f_G12`, `S_fi_G12`, `M_f_G12`, wrappers `DPRestr_f_G12`, `DPRestr_fi_G12`, `DFRestr_f_G12`; invariant `g12Inv`) | done |
 | 318 | declare module | `D` | section EXT. | `D` (section variable) | def |
 | 320 | local module | `ReSample` | section EXT. | `ReSample` (variable: lens `ReSample_count`, E6) | def |
 | 345 | local module | `Gext` | section EXT. | `Gext.resample`, `Gext.M`, `Gext.S` (modules), `Gext` (`D` a Lean parameter) | def |
@@ -471,7 +471,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 535 | lemma | `size0` | section EXT. | `size0` | done |
 | 538 | local equiv | `RROset_inv_lt` | section EXT. | `RROset_inv_lt` (hypothesis `GcolFresh ReSample_count`) | done (exc E6) |
 | 546 | local lemma | `Pr_ext` | section EXT. | `Pr_ext` (`fel` as the supermartingale `Gext_potential`, steps `ReSample_f_potential`, `ReSample_f1_potential`) | done |
-| 585 | local equiv | `EG2_Gext` | section EXT. | `EG2_Gext` | stated |
+| 585 | local equiv | `EG2_Gext` | section EXT. | `EG2_Gext` (oracle steps `S_f_ext`, `S_fi_ext`, `M_f_ext`, wrappers `DPRestr_f_ext`, `DPRestr_fi_ext`, `DFRestr_f_ext`; invariant `extInv`) | done (exc E6) |
 | 698 | declare axiom | `D_ll` | section EXT. | `D_ll` (hypothesis) | def |
 | 702 | lemma | `Real_G2` | section EXT. | `Real_G2` (`ReSample.count` chosen fresh; `Eager_1_2` by `Eager.main2_eq_main1`, side conditions from `fvP_G2`) | done |
 

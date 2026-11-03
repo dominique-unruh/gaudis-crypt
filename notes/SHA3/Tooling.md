@@ -1006,3 +1006,35 @@ over `DRestr(D)`'s three oracles, ported oracle by oracle:
   `ECModule` from `FRO_Distinguisher.representable` and finite support.
 * `fp_sub` (local, `Gext.lean`): `A₁ ⊔ … ⊔ Aₙ ≤ B` by `fp_mem` on each joinand, splitting the left
   join only when the whole is not itself a joinand (so `C.footprint` stays atomic).
+
+## 2026-11-03: `Gext.EG2_Gext`, `Gext.G1_G2` — `Gext.eca` complete
+
+Both follow `G1_col` (oracle steps, `DRestr` wrappers, `prhlProc_abstract_call_moduleF` with a
+nested `Lens.pair` and `I` on its projections so that `I (L.get g₁) (L.get g₂) ↔ inv g₁ g₂` is
+`Iff.rfl`).  New points:
+* `equiv_seq k₁ k₂` counts the statements **after** the cut.
+* Code after the adversary's call (`EG2_Gext`'s resample loops): `prhlStmt_seq_call` needs the call
+  last, so cut after it first (`equiv_seq 6 5 : extInv …`), then cut before it into `globInvF`, and
+  run the loops with `equiv_while` from the cut's relation.
+* Asymmetric branches (`G2.S.f` samples `y2` in both branches of the `paths` test, `Gext.S.f` after
+  it): `equiv_if{1}`, then `equiv_seq 1 1` and `equiv_if{2}` inside each case; the mismatched cases
+  by `prhlStmt_pre prhlStmt_false` (`rw` of the guard fails on the dependent `Decidable` instance:
+  `simp only [e, hx] at h1` and `of_decide_eq_true`/`of_decide_eq_false` instead).
+* EC's `rnd{2}` (a discarded sample, `FRO.get` on a bound handle): `stmt_wp{2} 1`, which leaves the
+  losslessness `d.expected (fun _ => 1) = 1` (`cdistr_expected_one`).
+* `FRO.m` is an abbreviation of `ROhandle.FRO.m`, and the programs mix the two spellings.  `simp`
+  sees through it, but `omega` (two atoms), `split_ifs` (two conditions, inconsistent cases) and
+  `writes_keep'` (syntactic lookup) do not: `simp only [FRO.m] at h ⊢` before them, or state the
+  footprint fact in both spellings (`hfro'`).
+* When a sampling's distribution reads the state, the generalized goal stays half in `σ`-form:
+  `rintro` with `rfl` patterns for the read equalities, then `by_cases` on the guard and
+  `simp only [h, h1, …]` with the fact for both states (not `split_ifs` after `col_rw`, which may
+  leave the two sides' guards syntactically different).
+* `handle` is `abbrev handle := ℤ`, but `omega` needs binders typed `ℤ` (`∀ h : ℤ, …`).
+* A local list of the inlined `Iter` has type `List (procsig (handle) → Unit).ParamType`: `headD`,
+  `drop` lemmas do not fire; `change` to `List handle` terms first.
+* `colEq` is a `def`: the anonymous constructor does not build it from `e1 … e10`; pass `hE`.
+* `G1_G2`'s `inv_ext1` reasoning is factored into `bext_pre` (`G1`'s early update of `G1.bext`),
+  `inv_ext1_of_weak` (a new `Known` handle) and `inv_ext1_hit` (`G2`'s `FRO.get` of the witness
+  handle fires `bad_ext`/`y2 = x.2`), with freshness `∀ h ∈ FRO.m, h < G1.chandle`
+  (`get_set_fresh`, `fresh_set`).
