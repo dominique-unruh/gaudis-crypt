@@ -549,7 +549,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 141 | local lemma | `prefix_leq1` | section Ideal. | `prefix_leq1` | done |
 | 159 | local lemma | `prefix_le1` | section Ideal. | `prefix_le1` | done |
 | 171 | local lemma | `leq_add2` | section Ideal. | `leq_add2` | done |
-| 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` | stated |
+| 177 | local equiv | `ideal_equiv` | section Ideal. | `ideal_equiv` (oracle steps `FC_DSqueeze_DFRestr_f`, `PC_DPRestr_f`, `PC_DPRestr_fi`, `IF_f_ie`; invariant `ieInv`; no `splitwhile`: one loop invariant) | done |
 | 296 | local module | `IF'` | section Ideal. | `IF'` (Lean function), `IF'.f_` | def |
 | 315 | local module | `L` | section Ideal. | `L` (Lean function) | def |
 | 319 | local module | `Valid2` | section Ideal. | `Valid2` (Lean function), `Valid2.f_` | def |
