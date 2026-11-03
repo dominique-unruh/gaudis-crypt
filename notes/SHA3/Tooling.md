@@ -1258,3 +1258,32 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   4M heartbeats). A wrapper around the whole game (`L4F`: `Indif` applied to `L4`'s modules) is
   small, and its bridges need no inlining of `L4`.
 
+## 2026-11-03: `Gconcl_list.squeeze_squeezeless`
+
+* **`P` (= `Perm`, a `StrongPRP.PRP`) as a `PRIMITIVE` does not unfold.** `stmt_inline` and
+  `writes_keep` stop at `PRIMITIVE.f … P` ("no concrete procedure body"). Bridges proven by
+  `unfold P Perm PRP.RP.RP; simp [PRIMITIVE.f, PRP.StrongPRP.PRP.mk]`: `P_f`, `P_fi`, `P_init`
+  (to `RP.f`, …) and `P_view`/`P_view'` (`PRIMITIVE.view P` as `DPRIMITIVE.mk {f := RP.f, …}`).
+  * `rw [P_f]` works on a `prhlProc` goal *before* `equiv_proc`.
+  * A `simp only [P_init, …]` must come *after* the inlining that exposes the call.
+  * For `writes_keep` through a module that calls `P` deeper down (`DSqueeze(SqueezelessSponge(view
+    P))`), `rw [P_view']` first: the view is visible in the goal, its callees' bodies are not.
+* **Sampling from `dexcepted`.** `equiv_rnd` leaves `∀ a ∈ (dexcepted d P).support, …`. The fact
+  `¬ P a` is `not_of_mem_support_dexcepted` (new `Lib/EC/DexceptedSupport.lean`; not in
+  `Dexcepted.lean`, whose dependents are a long rebuild).
+* **Specifications with logical variables.** For a `call` whose specification mentions values of
+  the state (EC: `exists* p{1}, i{1}; elim*`), use `prhlStmt_fix_left f (fun q => ?_)` (in
+  `PRHLStmt`), then `equiv_call (lemma q.1 q.2)`. Example: `SS_f_extend bl j` (the squeezing calls
+  of `DSqueeze`).
+* **`splitwhile` guards.** After `prhlStmt_splitwhile_left e V hvar`, `unfold Getter.andB` before
+  `equiv_seq`/`equiv_while{1}`. Otherwise the `exit` goal has the split guard generalized to an
+  opaque `Bool`. The `hvar` goal itself takes `simp only [Getter.andB_get, Bool.and_eq_true,
+  decide_eq_true_eq]`.
+* **`§x` reads in one-sided loop goals.** `equiv_while{1}`'s `lossless`/`variant` hypotheses read
+  `§x` (`eval`): `simp only [eval_lens_full, eval_lens_global] at h` turns them into `.get σ` before
+  `omega`/`rw`. Before `omega` on `toNat` of reads, `generalize` the reads.
+* **Avoiding EC's outer `splitwhile`.** EC splits the squeezing loop to treat its last round apart.
+  Instead, a lockstep `equiv_while` whose invariant has the fact about the next prefix under the
+  guard (`i < n → prefixes[format p (i + 1)] = …`) needs no split.
+* **Index of `stmt_inline`.** `stmt_inline{i} k` counts *call sites*, not statements.
+

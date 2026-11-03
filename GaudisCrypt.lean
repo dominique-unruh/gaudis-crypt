@@ -44,6 +44,7 @@ import GaudisCrypt.Lib.EC.BitWord
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.DProd
 import GaudisCrypt.Lib.EC.Dexcepted
+import GaudisCrypt.Lib.EC.DexceptedSupport
 import GaudisCrypt.Lib.EC.Distr
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
