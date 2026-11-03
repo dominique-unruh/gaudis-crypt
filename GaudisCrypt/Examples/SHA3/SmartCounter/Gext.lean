@@ -234,10 +234,551 @@ theorem rng_restr {«from» «to» φ : Type} [DecidableEq «from»] [DecidableE
   · rintro ⟨z, hz⟩
     exact ⟨z, by rw [FMap.restrP, hz]; simp⟩
 
+/-- `cdistr` is lossless (`DCapacity.dunifin_ll`), as an expectation. -/
+theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
+  (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll
+
+/-- The invariant of EC's `call (_: ={F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle,
+FRO.m, C.queries, C.c} /\ inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\
+(forall h, h \in FRO.m => h < G1.chandle){1})` in `G1_G2`. -/
+def g12Inv (g₁ g₂ : VariableAssignment) : Prop :=
+  colEq g₁ g₂ ∧ inv_ext1 (G1.bext.get g₁) (G1.bext.get g₂) (G1.m.get g₂) (G1.mi.get g₂)
+    (FRO.m.get g₂) ∧ ∀ h : ℤ, FMap.dom (FRO.m.get g₁) h → h < G1.chandle.get g₁
+
+/-- A write at a fresh handle keeps `inv_ext`. -/
+theorem inv_ext_set_fresh {m mi : smap} {F : handles} {ch : ℤ}
+    (hf : ∀ h : ℤ, FMap.dom F h → h < ch) (v : capacity × flag) (h : inv_ext m mi F) :
+    inv_ext m mi (FMap.set F ch v) := by
+  obtain ⟨x, h, hx, hget⟩ := h
+  have hne : h ≠ ch := fun he => by
+    have : (h : ℤ) < ch := hf h (by rw [FMap.domE, hget]; simp)
+    exact lt_irrefl _ (he ▸ this)
+  exact ⟨x, h, hx, by rw [FMap.get_set_neqE _ _ _ _ hne]; exact hget⟩
+
+/-- The handles stay below `G1.chandle` after a write at it and its increment. -/
+theorem fresh_set {F : handles} {ch : ℤ} (hf : ∀ h : ℤ, FMap.dom F h → h < ch)
+    (v : capacity × flag) : ∀ h : ℤ, FMap.dom (FMap.set F ch v) h → h < ch + 1 := by
+  intro h hd
+  rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
+  · have : h < ch := hf h hd
+    omega
+  · omega
+
+/-- A fresh write keeps the bindings of `F`. -/
+theorem get_set_fresh {F : handles} {ch : ℤ} (hf : ∀ h : ℤ, FMap.dom F h → h < ch)
+    (w : capacity × flag) :
+    ∀ h v, FMap.get F h = some v → FMap.get (FMap.set F ch w) h = some v := by
+  intro h v hv
+  have hne : h ≠ ch := fun he => by
+    have : (h : ℤ) < ch := hf h (by rw [FMap.domE, hv]; simp)
+    exact lt_irrefl _ (he ▸ this)
+  rw [FMap.get_set_neqE _ _ _ _ hne, hv]
+
+/-- `inv_ext` for an extension of `F`. -/
+theorem inv_ext_mono {m mi m' mi' : smap} {F F' : handles}
+    (hm : FMap.fdom m ∪ FMap.fdom mi ⊆ FMap.fdom m' ∪ FMap.fdom mi')
+    (hF : ∀ h v, FMap.get F h = some v → FMap.get F' h = some v) :
+    inv_ext m mi F → inv_ext m' mi' F' := by
+  rintro ⟨x, h, hx, hget⟩
+  exact ⟨x, h, hm hx, hF _ _ hget⟩
+
+/-- `G1`'s update of `G1.bext` at the start of `S.f`, `S.fi`, against `inv_ext1`: the bad event, an
+unknown handle for `x.2`, or `inv_ext`, all for the (extended) map `F'`. -/
+theorem bext_pre {b1 b2 : Bool} {m mi : smap} {F F' : handles} {c : capacity}
+    (hb : inv_ext1 b1 b2 m mi F) (hF : ∀ h v, FMap.get F h = some v → FMap.get F' h = some v) :
+    (b1 || decide (FMap.rng F (c, Unknown))) = true →
+      b2 = true ∨ FMap.rng F' (c, Unknown) ∨ inv_ext m mi F' := by
+  intro h
+  simp only [Bool.or_eq_true, decide_eq_true_eq] at h
+  rcases h with h | h
+  · rcases hb h with h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inr (inv_ext_mono (fun _ h => h) hF h))
+  · obtain ⟨z, hz⟩ := (FMap.rngE _ _).mp h
+    exact Or.inr (Or.inl ((FMap.rngE _ _).mpr ⟨z, hF _ _ hz⟩))
+
+/-- Back to `inv_ext1` from the weakened implication, after `x` entered `G1.m` or `G1.mi` and `F`
+grew. -/
+theorem inv_ext1_of_weak {b1 b2 : Bool} {m mi m' mi' : smap} {F F' : handles} {x : state}
+    (hb : b1 = true → b2 = true ∨ FMap.rng F (x.2, Unknown) ∨ inv_ext m mi F)
+    (hx : x ∈ FMap.fdom m' ∪ FMap.fdom mi')
+    (hm : FMap.fdom m ∪ FMap.fdom mi ⊆ FMap.fdom m' ∪ FMap.fdom mi')
+    (hF : ∀ h v, FMap.get F h = some v → FMap.get F' h = some v) :
+    inv_ext1 b1 b2 m' mi' F' := by
+  intro h1
+  rcases hb h1 with h | h | h
+  · exact Or.inl h
+  · obtain ⟨z, hz⟩ := (FMap.rngE _ _).mp h
+    exact Or.inr ⟨x, z, hx, hF _ _ hz⟩
+  · exact Or.inr (inv_ext_mono hm hF h)
+
+/-- `inv_ext1_of_weak` when the unknown handle `hy` is resampled (`G2`'s `FRO.get`): a witness at
+`hy` makes `G2`'s update of `G1.bext` fire. -/
+theorem inv_ext1_hit {b1 b2 : Bool} {m mi m' mi' : smap} {F : handles} {x : state} {hy : handle}
+    (hb : b1 = true → b2 = true ∨ FMap.rng F (x.2, Unknown) ∨ inv_ext m mi F)
+    (hx : x ∈ FMap.fdom m' ∪ FMap.fdom mi')
+    (hm : FMap.fdom m ∪ FMap.fdom mi ⊆ FMap.fdom m' ∪ FMap.fdom mi') (w : capacity × flag) :
+    inv_ext1 b1 (b2 || decide (bad_ext m mi (oget (FMap.get F hy)).1) ||
+      decide ((oget (FMap.get F hy)).1 = x.2)) m' mi' (FMap.set F hy w) := by
+  intro h1
+  simp only [Bool.or_eq_true, decide_eq_true_eq]
+  rcases hb h1 with h | h | ⟨x', z, hx', hz⟩
+  · exact Or.inl (Or.inl (Or.inl h))
+  · obtain ⟨z, hz⟩ := (FMap.rngE _ _).mp h
+    by_cases hzy : z = hy
+    · subst hzy
+      exact Or.inl (Or.inr (by rw [hz]; rfl))
+    · exact Or.inr ⟨x, z, hx, by rw [FMap.get_set_neqE _ _ _ _ hzy, hz]⟩
+  · by_cases hzy : z = hy
+    · subst hzy
+      refine Or.inl (Or.inl (Or.inr ?_))
+      rw [hz]
+      simp only [bad_ext, oget, Option.getD_some, ← Finset.mem_union, ← Finset.image_union]
+      exact Finset.mem_image.mpr ⟨x', hx', rfl⟩
+    · exact Or.inr ⟨x', z, hm hx', by rw [FMap.get_set_neqE _ _ _ _ hzy, hz]⟩
+
+set_option maxHeartbeats 4000000 in
+-- the inlined oracles' wp goals are large
+/-- EC's `M.f` step in `G1_G2`: `G1` writes the unknown handle `G1.chandle`, `FRO.sample` does
+too, as it is fresh. -/
+theorem M_f_G12 :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g12Inv g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block G1.M).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app G2.M ROhandle.FRO)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
+  unfold g12Inv
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_while (§p{1} = §p{2} ∧ §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧
+      §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧ §counter{1} = §counter{2} ∧
+      colEq §allGlobals{1} §allGlobals{2} ∧
+      inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+      ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+  case body =>
+    stmt_wp
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hE, -⟩, -⟩
+      rw [hE.2.2.2.2.2.2.1]
+    case «then» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hE, rest⟩, -⟩, -⟩
+      rw [hE.2.2.2.2.2.2.1]
+      exact ⟨rfl, rfl, rfl, rfl, rfl, hE, rest⟩
+    case «else» =>
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hE, -⟩, -⟩, -⟩
+        rw [hE.2.2.2.2.2.2.2.2.2]
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rest⟩, -⟩, -⟩, -⟩
+        exact ⟨rfl, rfl, rfl, rfl, rfl, rest⟩
+      case «then» =>
+        stmt_wp
+        equiv_rnd
+        stmt_wp
+        equiv_rnd
+        stmt_wp
+        equiv_skip
+        rintro σ₂ g₁ p h i sa c ⟨⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hE, hb, hf⟩, -⟩, -⟩, -⟩ a - r -
+        simp only [colEq] at hE
+        obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩ := hE
+        rw [e8, e6] at hf
+        have hd : ¬ FMap.dom (FRO.m.get σ₂.globals) (G1.chandle.get σ₂.globals) := fun hd =>
+          lt_irrefl _ (hf _ hd)
+        simp only [hd, decide_false, Bool.not_false, if_true]
+        col_rw
+        split_ifs <;> exact ⟨trivial, trivial, trivial, trivial, trivial, by col_eq,
+          fun h1 => (hb h1).imp_right (inv_ext_set_fresh hf _), fresh_set hf _⟩
+  case guard =>
+    rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, -⟩
+    rfl
+  case exit =>
+    rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9,
+      e10⟩, hb, hf⟩ - a -
+    rw [e8, e6] at hf
+    col_rw
+    split_ifs <;> exact ⟨by trivial, by col_eq, hb, hf⟩
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, hE, hb, hf⟩
+  exact ⟨rfl, hE, hb, hf⟩
+
+set_option maxHeartbeats 4000000 in
+-- the inlined oracles' wp goals are large
+/-- EC's `S.fi` step in `G1_G2` (`seq 6 8`, then `if`, `rcondt{2} 4`). -/
+theorem S_fi_G12 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g12Inv g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block G1.S).procedure
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Module.app G2.S ROhandle.FRO)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
+  unfold g12Inv G1.S
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+      ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ x _ ⟨rfl, ⟨-, e2, -⟩, -⟩
+      rw [e2]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hf⟩, -⟩
+      exact ⟨by rw [hE.2.1], hE, hb, hf⟩
+    case «then» =>
+      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧
+          §t{2} = decide (FMap.in_dom_with §FRO.m{1}
+            (oget (FMap.get §G1.mhi{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
+          colEq §allGlobals{1} §allGlobals{2} ∧
+          (§G1.bext{1} = true → §G1.bext{2} = true ∨ FMap.rng §FRO.m{2} ((§x0{2}).2, Unknown) ∨
+            inv_ext §G1.m{2} §G1.mi{2} §FRO.m{2}) ∧
+          ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+      · stmt_wp
+        equiv_rnd
+        equiv_rnd
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 _ ⟨⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hf⟩, -⟩ a - b -
+        rw [e8, e6] at hf
+        simp only [rng_restr]
+        col_rw
+        simp only [FRO.m] at hb hf ⊢
+        by_cases hk : FMap.rng (ROhandle.FRO.m.get g₂) (x0.2, Known)
+        · simp only [hk, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+          exact ⟨trivial, rfl, decide_eq_decide.mpr Iff.rfl, by col_eq,
+            bext_pre hb (fun _ _ h => h), hf⟩
+        · simp only [hk, decide_false, Bool.not_false, if_true]
+          exact ⟨trivial, rfl, decide_eq_decide.mpr Iff.rfl, by col_eq,
+            bext_pre hb (get_set_fresh hf _), fresh_set hf _⟩
+      · equiv_if
+        case guard =>
+          rintro g₁ g₂ x0 hx2 y _ _ _ t ⟨rfl, rfl, rfl, rfl, ⟨-, -, -, -, e5, -⟩, -⟩
+          rw [e5, Bool.decide_and]
+        case «else» =>
+          stmt_wp
+          equiv_skip
+          rintro g₁ g₂ x0 hx2 y _ _ _ t ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9,
+            e10⟩, hb, hf⟩, -⟩
+          rw [e8, e6] at hf
+          col_rw
+          simp only [FRO.m] at hb hf ⊢
+          refine ⟨trivial, by col_eq, inv_ext1_of_weak hb ?_ ?_ (get_set_fresh hf _),
+            fresh_set hf _⟩
+          · simp [FMap.fdom_set]
+          · intro z hz
+            simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
+            tauto
+        case «then» =>
+          stmt_wp
+          stmt_wp{2} 1
+          stmt_wp
+          equiv_skip
+          rintro g₁ g₂ x0 hx2 y _ _ _ t ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9,
+            e10⟩, hb, hf⟩, hg⟩
+          refine ⟨cdistr_expected_one, fun a _ => ?_⟩
+          simp only [decide_eq_true_eq] at hg
+          obtain ⟨-, hin⟩ := hg
+          rw [e8, e6] at hf
+          rw [e5, e8] at hin
+          col_rw
+          simp only [FRO.m] at hb hf hin ⊢
+          have h1 := hin.1
+          simp only [h1, decide_true, if_true]
+          refine ⟨trivial, by col_eq, inv_ext1_hit hb ?_ ?_ _, ?_⟩
+          · simp [FMap.fdom_set]
+          · intro z hz
+            simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
+            tauto
+          · intro h hd
+            rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
+            · exact hf h hd
+            · exact hf _ h1
+
+set_option maxHeartbeats 4000000 in
+-- the inlined oracles' wp goals are large
+/-- EC's `S.f` step in `G1_G2` (`seq 2 2`, `seq 3 5`, `seq 1 1`). -/
+theorem S_f_G12 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g12Inv g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.f state (List block) block G1.S).procedure
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Module.app G2.S ROhandle.FRO)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
+  unfold g12Inv G1.S
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+          inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+          ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ x _ ⟨rfl, ⟨-, -, -, e4, -⟩, -⟩
+      rw [e4]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hf⟩, -⟩
+      exact ⟨by rw [hE.2.2.2.1], hE, hb, hf⟩
+    case «then» =>
+      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+          inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+          ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hx2{1} = §hx2{2} ∧
+            §t{2} = decide (FMap.in_dom_with §FRO.m{1}
+              (oget (FMap.get §G1.mh{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
+            colEq §allGlobals{1} §allGlobals{2} ∧
+            (§G1.bext{1} = true → §G1.bext{2} = true ∨ FMap.rng §FRO.m{2} ((§x0{2}).2, Unknown) ∨
+              inv_ext §G1.m{2} §G1.mi{2} §FRO.m{2}) ∧
+            ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+        · equiv_seq 3 9 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+              inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+              ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+          · stmt_wp
+            equiv_if
+            case guard =>
+              rintro g₁ g₂ x _ ⟨⟨rfl, ⟨-, -, e3, -⟩, -⟩, -⟩
+              rw [e3]
+            case «then» =>
+              equiv_rnd
+              stmt_wp
+              equiv_rnd
+              stmt_wp
+              equiv_skip
+              rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hf⟩, -⟩,
+                -⟩ a - b -
+              rw [e8, e6] at hf
+              col_rw
+              split_ifs <;> exact ⟨trivial, trivial, by col_eq, hb, hf⟩
+            case «else» =>
+              equiv_rnd
+              equiv_rnd
+              equiv_skip
+              rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hE, hb, hf⟩, -⟩, -⟩ a - b -
+              exact ⟨rfl, hE, hb, hf⟩
+          · stmt_wp
+            equiv_skip
+            rintro g₁ g₂ x0 y _ _ ⟨rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hf⟩
+            rw [e8, e6] at hf
+            simp only [rng_restr]
+            col_rw
+            simp only [FRO.m] at hb hf ⊢
+            by_cases hk : FMap.rng (ROhandle.FRO.m.get g₂) (x0.2, Known)
+            · simp only [hk, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+              exact ⟨trivial, trivial, rfl, decide_eq_decide.mpr Iff.rfl, by col_eq,
+                bext_pre hb (fun _ _ h => h), hf⟩
+            · simp only [hk, decide_false, Bool.not_false, if_true]
+              exact ⟨trivial, trivial, rfl, decide_eq_decide.mpr Iff.rfl, by col_eq,
+                bext_pre hb (get_set_fresh hf _), fresh_set hf _⟩
+        · equiv_if
+          case guard =>
+            rintro g₁ g₂ x0 y hx2 _ _ _ t ⟨rfl, rfl, rfl, rfl, ⟨-, -, -, -, -, -, e7, -⟩, -⟩
+            rw [e7, Bool.decide_and]
+          case «else» =>
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ x0 y hx2 _ _ _ t ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9,
+              e10⟩, hb, hf⟩, -⟩
+            rw [e8, e6] at hf
+            col_rw
+            simp only [FRO.m] at hb hf ⊢
+            refine ⟨trivial, trivial, by col_eq, inv_ext1_of_weak hb ?_ ?_ (get_set_fresh hf _),
+              fresh_set hf _⟩
+            · simp [FMap.fdom_set]
+            · intro z hz
+              simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
+              tauto
+          case «then» =>
+            stmt_wp
+            stmt_wp{2} 1
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ x0 y hx2 _ _ _ t ⟨⟨rfl, rfl, rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9,
+              e10⟩, hb, hf⟩, hg⟩
+            refine ⟨cdistr_expected_one, fun a _ => ?_⟩
+            simp only [decide_eq_true_eq] at hg
+            obtain ⟨-, hin⟩ := hg
+            rw [e8, e6] at hf
+            rw [e7, e8] at hin
+            col_rw
+            simp only [FRO.m] at hb hf hin ⊢
+            have h1 := hin.1
+            simp only [h1, decide_true, if_true]
+            refine ⟨trivial, trivial, by col_eq, inv_ext1_hit hb ?_ ?_ _, ?_⟩
+            · simp [FMap.fdom_set]
+            · intro z hz
+              simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
+              tauto
+            · intro h hd
+              rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
+              · exact hf h hd
+              · exact hf _ h1
+      · stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 y _ _ ⟨rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hf⟩
+        rw [e8, e6] at hf
+        col_rw
+        split_ifs <;> exact ⟨trivial, by col_eq, hb, hf⟩
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `DPRestr(S).fi` under `g12Inv` (`S_fi_G12`). -/
+theorem DPRestr_fi_G12 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g12Inv g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Module.app DPRestr G1.S)).procedure
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Module.app DPRestr (Module.app G2.S ROhandle.FRO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
+  unfold g12Inv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+      ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ ⟨-, -, hE, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.1]
+    case «then» =>
+      stmt_wp
+      equiv_call S_fi_G12
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hE, hb, hf⟩, -⟩
+      refine ⟨⟨rfl, hE, hb, hf⟩, ?_⟩
+      rintro r g₁' _ g₂' ⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb', hf'⟩
+      exact ⟨rfl, by col_eq, hb', hf'⟩
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨-, rfl, rest⟩, -⟩
+      exact ⟨rfl, rest⟩
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `DPRestr(S).f` under `g12Inv` (`S_f_G12`). -/
+theorem DPRestr_f_G12 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g12Inv g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Module.app DPRestr G1.S)).procedure
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Module.app DPRestr (Module.app G2.S ROhandle.FRO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
+  unfold g12Inv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+      ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ ⟨-, -, hE, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.1]
+    case «then» =>
+      stmt_wp
+      equiv_call S_f_G12
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hE, hb, hf⟩, -⟩
+      refine ⟨⟨rfl, hE, hb, hf⟩, ?_⟩
+      rintro r g₁' _ g₂' ⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb', hf'⟩
+      exact ⟨rfl, by col_eq, hb', hf'⟩
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨-, rfl, rest⟩, -⟩
+      exact ⟨rfl, rest⟩
+
+set_option maxHeartbeats 1000000 in
+-- the inlined oracles' wp goals are large
+/-- `DFRestr(M).f` under `g12Inv` (`M_f_G12`). -/
+theorem DFRestr_f_G12 :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g12Inv g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app DFRestr G1.M)).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app DFRestr (Module.app G2.M ROhandle.FRO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
+  unfold g12Inv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+      colEq §allGlobals{1} §allGlobals{2} ∧
+      inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+      ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ bs _ _ _ ⟨rfl, -, hE, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.2]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ bs _ b _ ⟨⟨rfl, rfl, hE, rest⟩, -⟩
+      rw [hE.2.2.2.2.2.2.2.2.2]
+      exact ⟨rfl, hE, rest⟩
+    case «then» =>
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ bs _ _ _ ⟨⟨rfl, -, hE, -⟩, -⟩
+        rw [hE.2.2.2.2.2.2.2.2.1, hE.2.2.2.2.2.2.2.2.2]
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ bs _ b _ ⟨⟨⟨rfl, rfl, rest⟩, -⟩, -⟩
+        exact ⟨rfl, rest⟩
+      case «then» =>
+        stmt_wp
+        equiv_call M_f_G12
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ bs _ b _ ⟨⟨⟨rfl, rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb, hf⟩, -⟩,
+          -⟩
+        refine ⟨⟨by trivial, by col_eq, by simp_reads; exact hb, by simp_reads; exact hf⟩, ?_⟩
+        rintro r g₁' _ g₂' ⟨rfl, ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, hb', hf'⟩
+        exact ⟨rfl, by col_eq, hb', hf'⟩
+
 section
 
 variable (D : DISTINGUISHER)
 
+set_option maxHeartbeats 4000000 in
+-- the eleven-variable invariant and the oracles' footprint checks
 /-- `equiv G1_G2 : G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 : ={glob D} ==>
 ={res} /\ inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2}`, for
 `declare module D <: DISTINGUISHER {-G1, -G2, -FRO, -C}`. -/
@@ -251,7 +792,121 @@ theorem G1_G2 (hD : Module.ECModule D distExt)
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         inv_ext1 (G1.bext.get g₁) (G1.bext.get g₂) (G1.m.get g₂) (G1.mi.get g₂)
           (FRO.m.get g₂)) := by
-  sorry
+  -- the variables of `G1`, `C` and `FRO` lie outside `glob D`
+  have hcc : (C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hcq : (C.queries).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hro : (F.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hfro : (FRO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  -- `G2`'s oracles write `FRO.m` as `ROhandle.FRO.m` (`writes_keep'` matches syntactically)
+  have hfro' : (ROhandle.FRO.m).footprint ≤ (FVP.fvP D)ᶜ := hfro
+  have hm : (G1.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hmi : (G1.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hmh : (G1.mh).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hmhi : (G1.mhi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hch : (G1.chandle).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hpa : (G1.paths).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hbx : (G1.bext).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hbc : (G1.bcol).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  -- EC's invariant, on the values of the variables it reads
+  let L := Lens.pair C.c (Lens.pair C.queries (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m
+    (Lens.pair G1.mi (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle
+      (Lens.pair G1.paths G1.bext)))))))))
+  let I : ℤ × FMap (List block) block × FMap (List block) block ×
+      FMap handle (capacity × flag) × smap × smap × hsmap × hsmap × ℤ ×
+      FMap capacity (List block × block) × Bool →
+      ℤ × FMap (List block) block × FMap (List block) block ×
+      FMap handle (capacity × flag) × smap × smap × hsmap × hsmap × ℤ ×
+      FMap capacity (List block × block) × Bool → Prop := fun x y =>
+    (x.2.2.1 = y.2.2.1 ∧ x.2.2.2.2.2.1 = y.2.2.2.2.2.1 ∧
+      x.2.2.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.2.2.1 ∧ x.2.2.2.2.1 = y.2.2.2.2.1 ∧
+      x.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.1 ∧ x.2.2.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.2.2.1 ∧
+      x.2.2.2.2.2.2.1 = y.2.2.2.2.2.2.1 ∧ x.2.2.2.1 = y.2.2.2.1 ∧ x.1 = y.1 ∧
+      x.2.1 = y.2.1) ∧
+    inv_ext1 x.2.2.2.2.2.2.2.2.2.2 y.2.2.2.2.2.2.2.2.2.2 y.2.2.2.2.1 y.2.2.2.2.2.1 y.2.2.2.1 ∧
+    ∀ h : ℤ, FMap.dom x.2.2.2.1 h → h < x.2.2.2.2.2.2.2.2.1
+  have hI : ∀ g₁ g₂, I (L.get g₁) (L.get g₂) ↔ g12Inv g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (L.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [L, Footprint.lens_pair]
+    exact sup_le hcc (sup_le hcq (sup_le hro (sup_le hfro (sup_le hm (sup_le hmi
+      (sup_le hmh (sup_le hmhi (sup_le hch (sup_le hpa hbx)))))))))
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    refine ⟨?_, (hI _ _).mpr ?_⟩
+    · simp only [touched_set_of_le_compl hcc, touched_set_of_le_compl hcq,
+        touched_set_of_le_compl hro, touched_set_of_le_compl hfro, touched_set_of_le_compl hm,
+        touched_set_of_le_compl hmi, touched_set_of_le_compl hmh,
+        touched_set_of_le_compl hmhi, touched_set_of_le_compl hch, touched_set_of_le_compl hpa,
+        touched_set_of_le_compl hbx, touched_set_of_le_compl hbc]
+      exact h
+    · simp only [g12Inv, colEq]
+      simp_reads
+      refine ⟨fun h => absurd h (by decide), fun h hd => ?_⟩
+      rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
+      · exact absurd hd (FMap.mem_empty _)
+      · norm_num
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF L D distExt hD.representable
+      (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair]
+        exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+          DFRestr_f_G12
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair]
+          unfold G1.S
+          exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+            DPRestr_f_G12
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair]
+            unfold G1.S
+            exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+              DPRestr_fi_G12
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, h⟩, ?_⟩
+    rintro r g₁ _ g₂ ⟨rfl, -, hI'⟩
+    have hc := (hI g₁ g₂).mp hI'
+    simp_reads
+    exact hc.2.1
+
 
 end
 
@@ -789,10 +1444,6 @@ theorem bext_eq (b : Bool) (m mi : smap) (c x : capacity) :
       (b || decide (c ∈ Finset.image Prod.snd (FMap.fdom m ∪ FMap.fdom mi) ∪ fset1 x)) := by
   simp only [bad_ext, fset1, Finset.image_union, Finset.mem_union, Finset.mem_singleton,
     Bool.or_assoc, ← Bool.decide_or]
-
-/-- `cdistr` is lossless (`DCapacity.dunifin_ll`), as an expectation. -/
-theorem cdistr_expected_one : cdistr.expected (fun _ => (1 : ENNReal)) = 1 :=
-  (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll
 
 set_option maxHeartbeats 1000000 in
 -- the inlined oracles' wp goals are large
