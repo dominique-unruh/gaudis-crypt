@@ -1105,3 +1105,29 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `glob` monotonicity (for `A_lossless`/`concl`: EC's `{-A(D)}` is `glob (A D)`); and bridging an
   E5 wrapper module to the call it wraps (for `RO_LRO_D` on `D2`, `D3`, `D5`, `D6` in
   `equiv_ideal`: `prhlProc_refl` + `prhlProc.trans` after inlining the wrapper).
+
+## 2026-11-03: `Gconcl_list.equiv_L4_ideal`
+
+* **Same proof shape as `Ideal_equiv3`.** The invariant `L4Inv` relates lenses that exist on one
+  side only (`F.RO.m`, `F2.RO.m` on the left; `BIRO.IRO.mp`, `BIRO2.IRO.mp` on the right).
+  `globInvF` takes one lens `Lg` for both sides, so `Lg` pairs all four, and `I` reads each side's
+  half.
+* **The `S(Last(F))` wrapper** (`S2`, E5): inline the wrapper's call once on each side, then
+  `equiv_call (S_f_sInvD Last_f_L4)`. `S_f_sInvD` is `S_f_sInv` for `S` applied to a
+  `DFUNCTIONALITY`. `Last_f_L4` needs `simp only [FUNCTIONALITY.view_f]` and `stmt_wp` (for the
+  trailing `res <- last b0 z`) before `equiv_call`.
+* **Two branches with loops on each side** (`DSqueeze2_Valid_f`). Cut before the validity tests and
+  run `equiv_if` on both sides.
+  * The right side's inner `if` (`BIRO.valid x1` / `true`) is `equiv_if{2}`; close its else with
+    `prhlStmt_conseq prhlStmt_false`.
+  * The invalid branch's left middle loop does not run, because `i = 0 = nn - n`: use
+    `equiv_rcondf{1}`.
+  * Each remaining pair of loops is one `equiv_while`. Its body is a cut, then `equiv_if{2}` on the
+    right's `¬dom`, with `lemma5` / `lemma5bis` as the step.
+  * The invalid branch carries `parse (format pp n) = (pp, n)` and `i ≤ n` in the loop invariant.
+    That gives `parse (format pp (i+1)) = (pp, i+1)` through `parse_twice`.
+* **Closing tuples after `simp only [ite_self]`.** `simp only` also rewrites `a = a` to `True`, so a
+  `⟨rfl, …⟩` tuple fails. Instead use `refine ⟨?_, …, hI, ?_⟩ <;> trivial`; it keeps the
+  `INV_L4_ideal` conjunct whole, which `and_intros` would split.
+* **Heartbeats.** `DSqueeze2_Valid_f` needs 1.6M; the main proof needs 4M, as `Ideal_equiv3` does.
+

@@ -115,7 +115,9 @@ keeps that: modules with aliases are Lean functions assembling the aliased proce
 **What we do instead.** A few modules alias a procedure of a functor applied to their own module
 parameters and are used as functors themselves: `Gconcl_list.SimLast(S)(F)`
 (`proc f = S(Last(Valid(F))).f`) is a `SIMULATOR`, and `Gconcl_list.DValid(D)(F)(P)`
-(`= D(FValid(F), P)`) is a `DISTINGUISHER`.  A Lean function cannot be a functor module, and the
+(`= D(FValid(F), P)`) is a `DISTINGUISHER`.  `Gconcl_list.S2(F) = S(Last(F))` is a whole-module
+alias whose parts have different instances of one EC module type (`S` returns `SLCommon`'s
+`PRIMITIVE`, `S2` must be `BlockSponge`'s), so `Module.comp` does not inline; it is a wrapper too.  A Lean function cannot be a functor module, and the
 `module` command cannot alias.  So their procedures call the aliased one:
 `proc f (x) { y <- call (S(Last(Valid(F)))).f (x); return y }`.  The denotation is the same; the
 code has one more call.
@@ -130,7 +132,7 @@ sections' `FInit`, `PInit`, `OF`, `ExtendOutput`, `ExtendSample`, `Fill_In`, `Di
 
 **How to remove it.** Combinators building a functor from its fields, so that the alias is the
 same procedure.  For a whole-module alias with a composite body, `Module.comp` already exists
-(`BlockSponge.Sim`, `Gconcl_list.S2`).
+(`BlockSponge.Sim`).
 
 ## E6: variables of local clones and local modules are lens parameters, fresh by hypothesis
 

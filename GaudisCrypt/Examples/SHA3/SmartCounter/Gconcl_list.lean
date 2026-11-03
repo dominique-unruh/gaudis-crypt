@@ -20,8 +20,8 @@ Translation notes (see `notes/SHA3/README.md` and `Exceptions.md`):
   repackages it with `mk` (`A`'s `P`).
 * Local modules that alias a procedure of an applied functor (`L`, `L2`, `L3`, `L4`, `D2`, `D3`,
   `D5`, `D6`) are Lean functions returning that procedure.  `SimLast` and `DValid` are used as
-  functors: their aliased procedures are wrapped in a call (exception E5).  `S2` is
-  `Module.comp Gconcl.S Last`.
+  functors: their aliased procedures are wrapped in a call (exception E5); so is `S2`
+  (`S(Last(F))`, whose `PRIMITIVE` is `SLCommon`'s).
 -/
 
 namespace GaudisCrypt.SHA3.Gconcl_list
@@ -1930,8 +1930,27 @@ module DValid (D : DISTINGUISHER) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
   };
 }
 
-/-- EC's local `S2(F) = S(Last(F))`. -/
-noncomputable def S2 : SIMULATOR := Module.comp Gconcl.S Last
+-- EC's local `S2(F) = S(Last(F))`; used as a `SIMULATOR` (`BlockSponge`'s `PRIMITIVE`, while `S`
+-- returns `SLCommon`'s), its procedures are calls of `S(Last(F))`'s (exception E5)
+module S2 using (F : DFUNCTIONALITY) : PRIMITIVE {
+  proc init () : Unit {
+    _ <- call (Indifferentiability.PRIMITIVE.init state (List block) block
+      (Module.app Gconcl.S (Module.app Last F))) ();
+    return ()
+  };
+  proc f (x : state) : state {
+    var y : state;
+    y <- call (Indifferentiability.PRIMITIVE.f state (List block) block
+      (Module.app Gconcl.S (Module.app Last F))) ($x);
+    return $y
+  };
+  proc fi (x : state) : state {
+    var y : state;
+    y <- call (Indifferentiability.PRIMITIVE.fi state (List block) block
+      (Module.app Gconcl.S (Module.app Last F))) ($x);
+    return $y
+  };
+}
 
 /-- EC's local `L4(D)(F)(F2)`: `proc distinguish = IdealIndif(DSqueeze2(F, F2), S2,
 DValid(DRestr(D))).main`. -/
@@ -2049,6 +2068,565 @@ theorem lemma5bis (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) 
     · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
       exact ⟨hp, hi⟩
 
+omit [BlockSponge.Params] [Params] in
+/-- `S_f_sInv` for `S` applied to a `DFUNCTIONALITY` (as in `S2`'s `S(Last(F))`). -/
+theorem S_f_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Lens β VariableAssignment}
+    {R : α → β → Prop} [Lens.Disjoint Gconcl.S.m K₁] [Lens.Disjoint Gconcl.S.m K₂]
+    [Lens.Disjoint Gconcl.S.mi K₁] [Lens.Disjoint Gconcl.S.mi K₂] [Lens.Disjoint Gconcl.S.paths K₁]
+    [Lens.Disjoint Gconcl.S.paths K₂]
+    {G₁ G₂ : SLCommon.DFUNCTIONALITY}
+    (h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ sInv K₁ K₂ R g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block G₁).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block G₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂)) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ sInv K₁ K₂ R g₁ g₂)
+      (Indifferentiability.PRIMITIVE.f state (List block) block
+        (Module.app Gconcl.S G₁)).procedure
+      (Indifferentiability.PRIMITIVE.f state (List block) block
+        (Module.app Gconcl.S G₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
+  unfold sInv
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+      §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+      R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+  · stmt_wp
+    equiv_skip
+    intros; simp_all
+  · equiv_if
+    case guard => intros; simp_all
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      intros; simp_all
+    case «then» =>
+      equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+      §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+      R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+      · equiv_if
+        case guard => intros; simp_all
+        case «then» =>
+          equiv_call h
+          stmt_wp
+          equiv_skip
+          rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hE⟩, -⟩, -⟩
+          exact ⟨⟨by rw [hE.2.2.1], hE⟩, fun _ _ _ _ ⟨hr, hE'⟩ => ⟨rfl, hr, hE'⟩⟩
+        case «else» =>
+          equiv_rnd
+          equiv_skip
+          intros; simp_all
+      · stmt_wp
+        equiv_rnd
+        equiv_skip
+        rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, hR, rfl⟩ _ -
+        simp only [ite_self]
+        and_intros <;> first | rfl | trivial
+
+omit [BlockSponge.Params] [Params] in
+/-- `S_fi_sInv` for `S` applied to a `DFUNCTIONALITY`. -/
+theorem S_fi_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Lens β VariableAssignment}
+    {R : α → β → Prop} [Lens.Disjoint Gconcl.S.m K₁] [Lens.Disjoint Gconcl.S.m K₂]
+    [Lens.Disjoint Gconcl.S.mi K₁] [Lens.Disjoint Gconcl.S.mi K₂] [Lens.Disjoint Gconcl.S.paths K₁]
+    [Lens.Disjoint Gconcl.S.paths K₂]
+    {G₁ G₂ : SLCommon.DFUNCTIONALITY} :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ sInv K₁ K₂ R g₁ g₂)
+      (Indifferentiability.PRIMITIVE.fi state (List block) block
+        (Module.app Gconcl.S G₁)).procedure
+      (Indifferentiability.PRIMITIVE.fi state (List block) block
+        (Module.app Gconcl.S G₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    id_close
+  · equiv_if
+    case guard => id_close
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      id_close
+    case «then» =>
+      stmt_wp
+      equiv_rnd
+      equiv_rnd
+      equiv_skip
+      id_close
+
+omit [BlockSponge.Params] [Params] in
+/-- `equiv_L4_ideal`'s invariant: `={glob S, glob C} /\ INV_L4_ideal F.RO.m{1} BIRO.IRO.mp{2}
+F2.RO.m{1} BIRO2.IRO.mp{2}`. -/
+abbrev L4Inv := sInv (Lens.pair SLCommon.F.RO.m F2.RO.m)
+  (Lens.pair BlockSponge.BIRO.IRO.mp BIRO2.IRO.mp) (fun x y => INV_L4_ideal x.1 y.1 x.2 y.2)
+
+/-- `FC(FValid(DSqueeze2(F.LRO, F2.LRO))).f ~ FC(BIRO.IRO).f` under `L4Inv` (EC: the `f` oracle
+of `equiv_L4_ideal`'s `call (: ...)`, coupling `F.LRO`'s samples with `BIRO.IRO`'s). -/
+theorem FC_FValid_f :
+    prhlProc (sig₁ := procsig (List block × ℤ) -> (List block))
+      (sig₂ := procsig (List block × ℤ) -> (List block))
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L4Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Module.app FValid
+          (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+            { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+                (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2.LRO)) })))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              BlockSponge.BIRO.IRO.asF }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+      §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+  · stmt_wp
+    equiv_skip
+    (rintro g₁ g₂ x _ ⟨rfl, h⟩; simp only [L4Inv, sInv, Lens.pair] at h; exact ⟨rfl, rfl, h⟩)
+  · equiv_if
+    case guard =>
+      rintro bl nb z m mi paths r1 f1 c _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, -, rfl⟩
+      rfl
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ bl nb z _ _ _ ⟨⟨rfl, rfl, rfl, h⟩, -⟩
+      refine ⟨rfl, ?_⟩
+      simp only [L4Inv, sInv, Lens.pair]
+      exact h
+    case «then» =>
+      stmt_wp
+      equiv_seq 1 1 : (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
+          §(localVarLens "r" (List block)){1} = §bs{2} ∧ §bs{2} = [] ∧ §i{2} = 0 ∧
+              §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+      · stmt_wp
+        equiv_skip
+        rintro bl nb z m mi paths r1 f1 c _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hI,
+            rfl⟩, -⟩
+        exact ⟨rfl, rfl, rfl, rfl, rfl, hI, rfl⟩
+      · equiv_if
+        case guard => (rintro p n r m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨rfl, -⟩; rfl)
+        case «else» =>
+          equiv_skip
+          rintro g₁ g₂ p n r x1 n2 bs i ⟨⟨rfl, rfl, rfl, -, -, h⟩, -⟩
+          refine ⟨rfl, ?_⟩
+          simp only [L4Inv, sInv, Lens.pair]
+          exact h
+        case «then» =>
+          stmt_wp
+          equiv_seq 1 1 : (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+              §i{1} = §i{2} ∧ §lres{1} = §bs{2} ∧ §i{1} = 0 ∧ valid §p0{1} = true ∧
+                  §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+          · stmt_wp
+            equiv_skip
+            rintro p n r m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+                rfl, hI, rfl⟩, hv⟩
+            exact ⟨rfl, rfl, rfl, rfl, hv, rfl, rfl, rfl, hI, rfl⟩
+          · equiv_if{1}
+            case «else» =>
+              refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+              (exact Bool.false_ne_true (h.2.symm.trans h.1.2.2.2.2.2.1))
+            case «then» =>
+              equiv_seq 1 1 : (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+                  §i{1} = §i{2} ∧
+                §lres{1} = §bs{2} ∧ valid §p0{1} = true ∧ 0 ≤ §i{1} ∧
+                    §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+              · stmt_wp
+                equiv_skip
+                rintro p0 n0 i lres m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, h0,
+                    hv, rfl, rfl, rfl, hI, rfl⟩, -⟩
+                simp only [ite_self]
+                and_intros <;> first | trivial | assumption | omega
+              · equiv_while (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+                  §i{1} = §i{2} ∧
+                §lres{1} = §bs{2} ∧ valid §p0{1} = true ∧ 0 ≤ §i{1} ∧
+                    §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+                case body =>
+                  stmt_wp
+                  equiv_seq 1 1 : (§x4{1} = format §p0{1} §i{1} ∧
+                      §(localVarLens "x2" (List block)){2} =
+                      §(localVarLens "x1" (List block)){2} ∧ §n0{2} + 1 = §i{1} ∧
+                      §p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+                      §i{1} = §i{2} + 1 ∧ §lres{1} = §bs{2} ∧ valid §p0{1} = true ∧ 1 ≤ §i{1} ∧
+                      §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+                      §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+                      INV_L4_ideal §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1}
+                        §BIRO2.IRO.mp{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+                  · stmt_wp
+                    equiv_skip
+                    rintro p0 n0 i lres m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl,
+                        hv, hi, rfl, rfl, rfl, hI, rfl⟩, -⟩
+                    and_intros <;> first | rfl | assumption | omega
+                  · equiv_if{2}
+                    case «then» =>
+                      stmt_wp
+                      equiv_rnd
+                      equiv_skip
+                      rintro x4 p0 i n0 lres m mi paths ro f2 c
+                          x2 x1 n0' n i' bs m' mi' paths' mp mp1 c'
+                        ⟨⟨rfl, rfl, hn0, rfl, rfl, rfl, rfl, hv, hi1, rfl, rfl, rfl, hI, rfl⟩,
+                            hnd⟩ a -
+                      obtain rfl : n0' = i' := by omega
+                      have hpk : parse (format p0 (n0' + 1)) = (p0, n0' + 1) :=
+                        parseK p0 (n0' + 1) (by omega) (by simpa [valid] using hv)
+                      have hI' := hI
+                      obtain ⟨⟨h1, h2, h3, h4⟩, -, -, -⟩ := hI'
+                      simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hnd
+                      have hnd1 : ¬ FMap.dom ro (format p0 (n0' + 1)) :=
+                        fun h => hnd ((h1 _ _ _ hpk).mpr h)
+                      simp only [hnd1, decide_false, Bool.not_false, if_true, FMap.get_set_sameE]
+                      and_intros <;> first | trivial | rfl | assumption | omega |
+                        exact lemma5 _ _ _ _ _ _ _ hI hnd (by omega) hv
+                    case «else» =>
+                      stmt_wp{1} 1
+                      equiv_skip
+                      rintro x4 p0 i n0 lres m mi paths ro f2 c
+                          x2 x1 n0' n i' bs m' mi' paths' mp mp1 c'
+                        ⟨⟨rfl, rfl, hn0, rfl, rfl, rfl, rfl, hv, hi1, rfl, rfl, rfl, hI, rfl⟩, hnd⟩
+                      obtain rfl : n0' = i' := by omega
+                      have hpk : parse (format p0 (n0' + 1)) = (p0, n0' + 1) :=
+                        parseK p0 (n0' + 1) (by omega) (by simpa [valid] using hv)
+                      have hI' := hI
+                      obtain ⟨⟨h1, h2, h3, h4⟩, -, -, -⟩ := hI'
+                      simp only [Bool.not_eq_false', decide_eq_true_eq] at hnd
+                      have hd1 : FMap.dom ro (format p0 (n0' + 1)) := (h1 _ _ _ hpk).mp hnd
+                      refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+                      simp only [hd1, decide_true, Bool.not_true, Bool.false_eq_true, if_false,
+                          h4 _ _ _ hpk]
+                      and_intros <;> first | trivial | rfl | assumption | omega
+                case guard =>
+                  rintro p0 n0 i lres m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, -⟩
+                  rfl
+                case exit =>
+                  rintro g₁ g₂ p0 n0 i lres x1 n2 i2 bs ⟨rfl, rfl, rfl, rfl, -, -, h⟩ -
+                  refine ⟨rfl, ?_⟩
+                  simp only [L4Inv, sInv, Lens.pair]
+                  exact h
+                equiv_skip
+                intros; assumption
+
+set_option maxHeartbeats 1600000 in
+-- two inlined loops (valid and invalid branch)
+/-- `DSqueeze2(F.LRO, F2.LRO).f ~ Valid(BIRO.IRO).f` under `L4Inv`, on well-formed inputs
+(`parse (format p n) = (p, n)`): valid prefixes couple `F.LRO` with `BIRO.IRO` (`lemma5`), invalid
+ones `F2.LRO` with `BIRO2.IRO` (`lemma5bis`). -/
+theorem DSqueeze2_Valid_f :
+    prhlProc (sig₁ := procsig (List block × ℤ) -> (List block))
+      (sig₂ := procsig (List block × ℤ) -> (List block))
+      (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ parse (format a₁.1 a₁.2) = a₁ ∧ L4Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2.LRO))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app Valid (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ)
+          (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§p{1} = §q{2} ∧ §n{1} = §k{2} ∧ §pp{1} = §p{1} ∧ §nn{1} = §n{1} ∧
+      §lres{1} = [] ∧ §i{1} = 0 ∧ parse (format §p{1} §n{1}) = (§p{1},
+          §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨rfl, hp, h⟩
+    simp only [L4Inv, sInv, Lens.pair] at h
+    refine ⟨?_, ?_, ?_, ?_, ?_, h⟩ <;> simp [hp]
+  · equiv_if
+    case guard => (rintro p n pp nn lres i m mi paths r1 r2 c _ _ _ _ _ _ _ _ ⟨rfl, -⟩; rfl)
+    case «then» =>
+      stmt_wp
+      equiv_seq 1 1 : (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
+          §i{1} = §i{2} ∧
+              §lres{1} = §bs{2} ∧ valid §p{1} = true ∧ 0 ≤ §i{1} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+                  §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+      · stmt_wp
+        equiv_skip
+        rintro p n pp nn lres i m mi paths r1 r2 c _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl,
+            -, rfl, rfl, rfl, hI, rfl⟩, hv⟩
+        simp only [ite_self]
+        refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hI, ?_⟩ <;> first | trivial
+      · equiv_if{2}
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          obtain ⟨⟨hp, -, -, -, hv, -⟩, hb⟩ := h
+          rw [← hp] at hb
+          exact Bool.false_ne_true (hb.symm.trans hv)
+        case «then» =>
+          equiv_while (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
+              §i{1} = §i{2} ∧
+              §lres{1} = §bs{2} ∧ valid §p{1} = true ∧ 0 ≤ §i{1} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+                  §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+          case body =>
+            stmt_wp
+            equiv_seq 1 1 : (§x2{1} = format §p{1} §i{1} ∧
+                §x2{2} = §(localVarLens "x1" (List block)){2} ∧ §n0{2} + 1 = §i{1} ∧
+                §p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} + 1 ∧
+                    §lres{1} = §bs{2} ∧
+                valid §p{1} = true ∧ 1 ≤ §i{1} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+                    §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+                §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+                INV_L4_ideal §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1}
+                  §BIRO2.IRO.mp{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+            · stmt_wp
+              equiv_skip
+              rintro p n i lres m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, hv, hi,
+                  rfl, rfl, rfl, hI, rfl⟩, -⟩
+              and_intros <;> first | rfl | assumption | omega
+            · equiv_if{2}
+              case «then» =>
+                stmt_wp
+                equiv_rnd
+                equiv_skip
+                rintro x2 p i n lres m mi paths ro f2 c x2' x1 n0' n' i' bs m' mi' paths' mp mp1 c'
+                  ⟨⟨rfl, rfl, hn0, rfl, rfl, rfl, rfl, hv, hi1, rfl, rfl, rfl, hI, rfl⟩, hnd⟩ a -
+                obtain rfl : n0' = i' := by omega
+                have hpk : parse (format p (n0' + 1)) = (p, n0' + 1) :=
+                  parseK p (n0' + 1) (by omega) (by simpa [valid] using hv)
+                have hI' := hI
+                obtain ⟨⟨h1, h2, h3, h4⟩, -, -, -⟩ := hI'
+                simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hnd
+                have hnd1 : ¬ FMap.dom ro (format p (n0' + 1)) :=
+                  fun h => hnd ((h1 _ _ _ hpk).mpr h)
+                simp only [hnd1, decide_false, Bool.not_false, if_true, FMap.get_set_sameE]
+                and_intros <;> first | trivial | rfl | assumption | omega |
+                  exact lemma5 _ _ _ _ _ _ _ hI hnd (by omega) hv
+              case «else» =>
+                stmt_wp{1} 1
+                equiv_skip
+                rintro x2 p i n lres m mi paths ro f2 c x2' x1 n0' n' i' bs m' mi' paths' mp mp1 c'
+                  ⟨⟨rfl, rfl, hn0, rfl, rfl, rfl, rfl, hv, hi1, rfl, rfl, rfl, hI, rfl⟩, hnd⟩
+                obtain rfl : n0' = i' := by omega
+                have hpk : parse (format p (n0' + 1)) = (p, n0' + 1) :=
+                  parseK p (n0' + 1) (by omega) (by simpa [valid] using hv)
+                have hI' := hI
+                obtain ⟨⟨h1, h2, h3, h4⟩, -, -, -⟩ := hI'
+                simp only [Bool.not_eq_false', decide_eq_true_eq] at hnd
+                have hd1 : FMap.dom ro (format p (n0' + 1)) := (h1 _ _ _ hpk).mp hnd
+                refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+                simp only [hd1, decide_true, Bool.not_true, Bool.false_eq_true, if_false,
+                    h4 _ _ _ hpk]
+                and_intros <;> first | trivial | rfl | assumption | omega
+          case guard =>
+            rintro p n i lres m mi paths r1 r2 c _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, -⟩
+            rfl
+          case exit =>
+            rintro g₁ g₂ p n i lres x1 n2 i2 bs ⟨rfl, rfl, rfl, rfl, -, -, h⟩ -
+            refine ⟨rfl, ?_⟩
+            simp only [L4Inv, sInv, Lens.pair]
+            exact h
+          equiv_skip
+          intros; rename_i h; exact h.1
+    case «else» =>
+      stmt_wp
+      equiv_seq 1 1 : (§pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} ∧
+              §lres{1} = §bs0{2} ∧ valid §pp{1} = false ∧ 0 ≤ §i{1} ∧
+              parse (format §pp{1} §n{1}) = (§pp{1},
+                  §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+      · equiv_rcondf{1}
+        stmt_wp
+        equiv_skip
+        rintro p n pp nn lres i m mi paths r1 r2 c _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl,
+            hpk, rfl, rfl, rfl, hI, rfl⟩, hv⟩
+        simp only [ite_self]
+        refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hI,
+            ?_⟩ <;> first | trivial | assumption | exact le_rfl | simp
+      · equiv_if{2}
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          exact h.2
+        case «then» =>
+          equiv_while (§pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} ∧
+              §lres{1} = §bs0{2} ∧ valid §pp{1} = false ∧ 0 ≤ §i{1} ∧
+              parse (format §pp{1} §n{1}) = (§pp{1},
+                  §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+          §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+          INV_L4_ideal
+              §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1} §BIRO2.IRO.mp{2} ∧
+          §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+          case body =>
+            stmt_wp
+            equiv_seq 1 1 : (§x5{1} = format §pp{1} §i{1} ∧ §x4{2} = §x3{2} ∧ §n2{2} + 1 = §i{1} ∧
+                §pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} + 1 ∧ §lres{1} = §bs0{2} ∧
+                valid §pp{1} = false ∧ 1 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+                parse (format §pp{1} §n{1}) = (§pp{1},
+                    §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
+                §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
+                INV_L4_ideal §SLCommon.F.RO.m{1} §BlockSponge.BIRO.IRO.mp{2} §F2.RO.m{1}
+                  §BIRO2.IRO.mp{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
+            · stmt_wp
+              equiv_skip
+              rintro pp n i lres m mi paths ro f2 c _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, hv,
+                  hi, hpn, rfl, rfl, rfl, hI, rfl⟩, hlt⟩
+              simp only [decide_eq_true_eq] at hlt
+              and_intros <;> first | rfl | assumption | omega
+            · equiv_if{2}
+              case «then» =>
+                stmt_wp
+                equiv_rnd
+                equiv_skip
+                rintro x5 pp i n lres m mi paths ro f2 c x4 x3 n2 n1 i0 bs0 m' mi' paths' mp mp1 c'
+                  ⟨⟨rfl, rfl, hn2, rfl, rfl, rfl, rfl, hv, hi1, hin, hpn, rfl, rfl, rfl, hI, rfl⟩,
+                      hnd⟩ a -
+                obtain rfl : n2 = i0 := by omega
+                have hpk : parse (format pp (n2 + 1)) = (pp, n2 + 1) :=
+                  parse_twice pp n _ hpn.symm _ ⟨by omega, by omega⟩
+                have hI' := hI
+                obtain ⟨-, ⟨h1, h2, h3, h4⟩, -, -⟩ := hI'
+                simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hnd
+                have hnd1 : ¬ FMap.dom f2 (format pp (n2 + 1)) :=
+                  fun h => hnd ((h1 _ _ _ hpk).mpr h)
+                simp only [hnd1, decide_false, Bool.not_false, if_true, FMap.get_set_sameE]
+                and_intros <;> first | trivial | rfl | assumption | omega |
+                  exact lemma5bis _ _ _ _ _ _ _ hI hnd (by omega) hv hpk
+              case «else» =>
+                stmt_wp{1} 1
+                equiv_skip
+                rintro x5 pp i n lres m mi paths ro f2 c x4 x3 n2 n1 i0 bs0 m' mi' paths' mp mp1 c'
+                  ⟨⟨rfl, rfl, hn2, rfl, rfl, rfl, rfl, hv, hi1, hin, hpn, rfl, rfl, rfl, hI, rfl⟩,
+                      hnd⟩
+                obtain rfl : n2 = i0 := by omega
+                have hpk : parse (format pp (n2 + 1)) = (pp, n2 + 1) :=
+                  parse_twice pp n _ hpn.symm _ ⟨by omega, by omega⟩
+                have hI' := hI
+                obtain ⟨-, ⟨h1, h2, h3, h4⟩, -, -⟩ := hI'
+                simp only [Bool.not_eq_false', decide_eq_true_eq] at hnd
+                have hd1 : FMap.dom f2 (format pp (n2 + 1)) := (h1 _ _ _ hpk).mp hnd
+                refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+                simp only [hd1, decide_true, Bool.not_true, Bool.false_eq_true, if_false,
+                    h4 _ _ _ hpk]
+                and_intros <;> first | trivial | rfl | assumption | omega
+          case guard =>
+            rintro p n i lres m mi paths r1 r2 c _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, -⟩
+            rfl
+          case exit =>
+            rintro g₁ g₂ pp n i lres x3 n1 i0 bs0 ⟨rfl, rfl, rfl, rfl, -, -, -, h⟩ -
+            refine ⟨rfl, ?_⟩
+            simp only [L4Inv, sInv, Lens.pair]
+            exact h
+          equiv_skip
+          intros; rename_i h; exact h
+
+/-- `Last(DSqueeze2(F.LRO, F2.LRO)).f ~ Last(Valid(BIRO.IRO)).f` under `L4Inv`. -/
+theorem Last_f_L4 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L4Inv g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app Last (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2.LRO))))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app Last (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+          (Module.app Valid
+            (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+              BlockSponge.BIRO.IRO.asF))))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.FUNCTIONALITY.view_f]
+  stmt_wp
+  equiv_call DSqueeze2_Valid_f
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, h⟩
+  exact ⟨⟨rfl, by rw [formatK], h⟩, fun _ _ _ _ ⟨hr, h'⟩ => ⟨hr ▸ rfl, h'⟩⟩
+
+/-- `S2(DSqueeze2(F.LRO, F2.LRO)).f ~ SimLast(S)(BIRO.IRO).f` under `L4Inv`. -/
+theorem S2_SimLast_f :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L4Inv g₁ g₂)
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app S2 (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2.LRO))))).procedure
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
+          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call (S_f_sInvD Last_f_L4)
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, h⟩
+  exact ⟨⟨rfl, h⟩, fun _ _ _ _ h => h⟩
+
+/-- `S2(DSqueeze2(F.LRO, F2.LRO)).fi ~ SimLast(S)(BIRO.IRO).fi` under `L4Inv`. -/
+theorem S2_SimLast_fi :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L4Inv g₁ g₂)
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app S2 (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.LRO F2.LRO))))).procedure
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
+          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call (S_fi_sInvD (K₁ := Lens.pair SLCommon.F.RO.m F2.RO.m)
+    (K₂ := Lens.pair BlockSponge.BIRO.IRO.mp BIRO2.IRO.mp)
+    (R := fun x y => INV_L4_ideal x.1 y.1 x.2 y.2))
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, h⟩
+  exact ⟨⟨rfl, h⟩, fun _ _ _ _ h => h⟩
+
+omit [Params] in
+/-- The initial maps satisfy `INV_L4_ideal`. -/
+theorem INV_L4_ideal_empty :
+    INV_L4_ideal FMap.empty FMap.empty FMap.empty FMap.empty := by
+  have hm : inv_map (FMap.empty : FMap (List block) block) FMap.empty :=
+    ⟨fun _ _ _ _ => iff_of_false (FMap.mem_empty _) (FMap.mem_empty _),
+      fun _ _ _ _ => iff_of_false (FMap.mem_empty _) (FMap.mem_empty _), fun _ _ _ _ => rfl,
+      fun _ _ _ _ => rfl⟩
+  exact ⟨hm, hm,
+    fun _ _ h => absurd h (FMap.mem_empty _), fun _ _ h => absurd h (FMap.mem_empty _)⟩
+
+set_option maxHeartbeats 4000000 in
+-- the oracles' footprint checks through the nested wrappers
 /-- `local equiv equiv_L4_ideal : L4(D, F.LRO, F2.LRO).distinguish ~
 IdealIndif(BIRO.IRO, SimLast(S), DRestr(D)).main : ={glob D} ==> ={glob D, res}`. -/
 theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
@@ -2057,7 +2635,102 @@ theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       (L4 D SLCommon.F.LRO F2.LRO).procedure
       (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure
       (fun r₁ g₁ r₂ g₂ => eqGlob D g₁ g₂ ∧ r₁ = r₂) := by
-  sorry
+  have hsm : (Gconcl.S.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hsmi : (Gconcl.S.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hspa : (Gconcl.S.paths).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hro : (SLCommon.F.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hf2 : (F2.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.2.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hiro : (BlockSponge.BIRO.IRO.mp).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.2.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hiro2 : (BIRO2.IRO.mp).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.2.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hcc : (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  let Lg := Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi (Lens.pair Gconcl.S.paths
+    (Lens.pair (Lens.pair SLCommon.F.RO.m F2.RO.m)
+      (Lens.pair (Lens.pair BlockSponge.BIRO.IRO.mp BIRO2.IRO.mp) BlockSponge.C.c))))
+  let I : SLCommon.smap × SLCommon.smap × FMap capacity (List block × block) ×
+      (FMap (List block) block × FMap (List block) block) ×
+      (FMap (List block × ℤ) block × FMap (List block × ℤ) block) × ℤ →
+      SLCommon.smap × SLCommon.smap × FMap capacity (List block × block) ×
+      (FMap (List block) block × FMap (List block) block) ×
+      (FMap (List block × ℤ) block × FMap (List block × ℤ) block) × ℤ → Prop := fun x y =>
+    x.1 = y.1 ∧ x.2.1 = y.2.1 ∧ x.2.2.1 = y.2.2.1 ∧
+      INV_L4_ideal x.2.2.2.1.1 y.2.2.2.2.1.1 x.2.2.2.1.2 y.2.2.2.2.1.2 ∧
+      x.2.2.2.2.2 = y.2.2.2.2.2
+  have hI : ∀ g₁ g₂, I (Lg.get g₁) (Lg.get g₂) ↔ L4Inv g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (Lg.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [Lg, Footprint.lens_pair]
+    exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le (sup_le hro hf2)
+      (sup_le (sup_le hiro hiro2) hcc))))
+  unfold L4 IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    refine ⟨?_, (hI _ _).mpr ?_⟩
+    · simp only [touched_set_of_le_compl hsm, touched_set_of_le_compl hsmi,
+        touched_set_of_le_compl hspa, touched_set_of_le_compl hro, touched_set_of_le_compl hf2,
+        touched_set_of_le_compl hiro, touched_set_of_le_compl hiro2,
+        touched_set_of_le_compl hcc]
+      exact h
+    · simp only [L4Inv, sInv]
+      simp_reads
+      exact INV_L4_ideal_empty
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF Lg D distExt hD.representable
+      (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp]
+        exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep') FC_FValid_f
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+            (PC_f_sInv S2_SimLast_f)
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+              (PC_fi_sInv S2_SimLast_fi)
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, h⟩, ?_⟩
+    rintro r g₁ _ g₂ ⟨rfl, hg, -⟩
+    refine ⟨?_, ?_⟩
+    · simp_reads
+      exact hg
+    · simp_reads
+      trivial
 
 /-- EC's local `D5(D)(F) = D(FC(FValid(DSqueeze2(F, F2.RO))), PC(S(Last(DSqueeze2(F, F2.RO)))))`. -/
 noncomputable def D5 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) : procmod () → Bool :=

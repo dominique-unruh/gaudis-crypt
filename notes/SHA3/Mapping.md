@@ -569,14 +569,14 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 608 | module | `DSqueeze2` | section Ideal. | `DSqueeze2` | def |
 | 647 | local module | `FValid` | section Ideal. | `FValid` | def |
 | 657 | local module | `DValid` | section Ideal. | `DValid` (`D` a Lean parameter; E5) | def |
-| 659 | local module | `S2` | section Ideal. | `S2` (`Module.comp`) | def |
+| 659 | local module | `S2` | section Ideal. | `S2` (call wrapper, E5) | def |
 | 661 | local module | `L4` | section Ideal. | `L4` (Lean function) | def |
 | 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` | stated |
 | 788 | op | `inv_map` | section Ideal. | `inv_map` | def |
 | 794 | inductive | `INV_L4_ideal` | section Ideal. | `INV_L4_ideal` | def |
 | 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | done |
 | 819 | local lemma | `lemma5bis` | section Ideal. | `lemma5bis` | done |
-| 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` | stated |
+| 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (oracle steps `FC_FValid_f`, `PC_f_sInv S2_SimLast_f`, `PC_fi_sInv S2_SimLast_fi`; inner step `DSqueeze2_Valid_f` via `Last_f_L4`; invariant `L4Inv`) | done |
 | 916 | local module | `D5` | section Ideal. | `D5` (Lean function) | def |
 | 919 | local module | `D6` | section Ideal. | `D6` (Lean function) | def |
 | 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` | stated |
