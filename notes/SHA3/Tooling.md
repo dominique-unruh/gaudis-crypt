@@ -1204,3 +1204,20 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   * Then branch: `equiv_rnd` on the two samples.
   * Else branch: `stmt_wp{2} 1` on the right's discarded sample (`bdistr_expected_one`).
 
+## 2026-11-03: `Gconcl_list.Simplify_Simulator.equal1`
+
+* **`cInv K₁ K₂ R`**: equal `C.c` plus a relation `R` between a lens on each side. Unlike `sInv`,
+  it has no `={glob S}` part, so the left and right maps may live in different variables (`S.m` vs
+  `Simulator.m`). `PC_f_cInv`/`PC_fi_cInv` are `PC_f_sInv`/`PC_fi_sInv` for it.
+* **Coupling two loops that fill the same entries in different ways** (`BIRO2.IRO.f`'s `fill_in`
+  loop against `Simu`'s `RO.sample` loop) needs no `splitwhile`. The two loops run in lockstep
+  under the invariant `0 < i → last b0 bs = oget m[(q, i-1)] ∧ (q, i-1) ∈ m`, so `RO.get(q, k-1)`
+  afterwards finds its entry and drops its sample (`stmt_wp{2} 1`). Each step is a cut, then
+  `equiv_if{1}` on the left's `¬dom`:
+  * Then branch: `equiv_rnd` with the right's unconditional sample.
+  * Else branch: `stmt_wp{2} 1`.
+* **`equiv_seq 0 k`** (an empty side after the cut) works. Use it to put one side's trailing
+  statements after a loop pair.
+* **`parse (format (parse x).1 (parse x).2)`**: rewrite with `formatK`; `parse_gt0` gives
+  `0 < k`, which rules out `Simu`'s `k ≤ 0` branch (closed with `prhlStmt_conseq prhlStmt_false`).
+
