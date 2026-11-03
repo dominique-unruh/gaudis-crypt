@@ -1172,3 +1172,35 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   for unconditionally lossless oracles, and `Perm.f`'s `dexcepted` sampling is lossless only under
   `invm`.
 
+## 2026-11-03: `Gconcl_list.Simplify_Simulator.equal2`
+
+* **`Logic/WritesKeepFrame.lean`: `prhlProc_frame_of_writesKeep`.** This is the syntactic frame
+  for any getter. A relation `R (K₁ g₁) (K₂ g₂)` between values that neither procedure writes
+  (`WritesKeep`) is added to both conditions. `prhlProc_refl_of_within`, which compares one
+  procedure on both sides on its own lens, plus this frame gives EC's `sim` for an oracle that is
+  the same on both sides (`FC_IRO_e2`). Its `WritesKeep` side goals for a `Lens.pair` getter are
+  closed by `writes_keep <;> (intro v σ; simp only [Lens.pair]; simp_reads; try trivial)`.
+* **Reuse `sInv`'s wrapper lemmas by putting the invariant in `sInv`'s shape.** `e2Inv` is
+  `sInv K₁ K₂ Eq`: `K₁` pairs `Simulator`'s maps with `unvalid_map`, `K₂` pairs them with
+  `IRO2.RO.m`. `PC_f_sInv`/`PC_fi_sInv` then lift the simulator steps. The abstract call's `Lg`
+  includes `Gconcl.S`'s variables, which neither side writes. `I` is written so that
+  `I (Lg.get g₁) (Lg.get g₂) ↔ e2Inv g₁ g₂` is `Iff.rfl`.
+* **A local lens parameter (E6) needs its disjointness instances in both directions**, for
+  `Lens.pair` and for `simp_reads`. Get them from the freshness hypothesis with
+  `Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)`, using
+  `(Footprint.le_compl_comm _ _).mp` for the reverse direction. The section's instance variables
+  then need `omit … in` per lemma, and `set_option … in` must come before `omit … in`.
+* **`fp_disjoint` failed on a whole join `X₁ ⊔ … ⊔ X₁₀ ≤ (fvP D)ᶜ` but succeeds per variable.**
+  Split it with `sup_le` and run `fp_disjoint` on each piece.
+* **Macro hygiene.** A `local macro` whose quotation names a definition must come after that
+  definition. Otherwise the name stays unresolved and `simp only [e2Inv]` silently does nothing
+  under `try`.
+* **A loop on one side that does nothing** (`Simu`'s `LRO.sample` loop) is handled by
+  `equiv_while{2} I (§k{2} - §i{2}).toNat`. In the `variant` case, `hoare_skip` generalized the
+  globals inconsistently, so use `refine hoare_skip_of_imp fun σ h => ?_` and
+  `Int.toNat_lt_toNat`. `omega` did not see through the `toNat` atoms there.
+* **`LRO.get` samples unconditionally.** Against `if ¬dom {r <$ d; set}`:
+  * `equiv_if{1}` on the left's test.
+  * Then branch: `equiv_rnd` on the two samples.
+  * Else branch: `stmt_wp{2} 1` on the right's discarded sample (`bdistr_expected_one`).
+

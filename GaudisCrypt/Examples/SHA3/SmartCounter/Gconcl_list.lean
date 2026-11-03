@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.SHA3.BlockSponge
 import GaudisCrypt.Logic.PHoareLossless
+import GaudisCrypt.Logic.WritesKeepFrame
 
 /-!
 # From the squeezeless sponge to the block sponge (EasyCrypt `proof/smart_counter/Gconcl_list.ec`)
@@ -3731,6 +3732,430 @@ abbreviation). -/
 def DRestrictions (D : DISTINGUISHER) : Prop :=
   FVP.fvP D ≤ DRestrictions.footprintᶜ
 
+section equal2_steps
+
+variable (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
+  [Lens.Disjoint IRO2_RO_m Simulator.m] [Lens.Disjoint Simulator.m IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m Simulator.mi] [Lens.Disjoint Simulator.mi IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m Simulator.paths] [Lens.Disjoint Simulator.paths IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m Simulator.unvalid_map] [Lens.Disjoint Simulator.unvalid_map IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m BlockSponge.BIRO.IRO.mp]
+  [Lens.Disjoint BlockSponge.BIRO.IRO.mp IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m BlockSponge.C.c] [Lens.Disjoint BlockSponge.C.c IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m Gconcl.S.m] [Lens.Disjoint Gconcl.S.m IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m Gconcl.S.mi] [Lens.Disjoint Gconcl.S.mi IRO2_RO_m]
+  [Lens.Disjoint IRO2_RO_m Gconcl.S.paths] [Lens.Disjoint Gconcl.S.paths IRO2_RO_m]
+
+/-- `equal2`'s invariant (EC's `={BIRO.IRO.mp, C.c, Simulator.m, Simulator.mi, Simulator.paths}
+/\ Simulator.unvalid_map{1} = IRO2.RO.m{2}`), in the shape of `sInv` (with `={glob S}`, which
+neither side writes) so that `PC_f_sInv` lifts its steps. -/
+def e2Inv (g₁ g₂ : VariableAssignment) : Prop := sInv
+  (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+    (Lens.pair Simulator.unvalid_map BlockSponge.BIRO.IRO.mp))))
+  (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+    (Lens.pair IRO2_RO_m BlockSponge.BIRO.IRO.mp)))) Eq g₁ g₂
+
+/-- Close a side condition about `e2Inv`: unfold it, read through the writes, `simp_all`. -/
+local macro "e2_close" : tactic => `(tactic| (
+  intros
+  (try simp only [e2Inv, sInv, Lens.pair, Prod.mk.injEq] at *)
+  (try simp_reads)
+  (try simp_all)
+  (try omega)))
+
+set_option maxHeartbeats 4000000 in
+-- the inlined simulators, with `IRO.f`'s loop and `LRO.get`
+omit [Lens.Disjoint IRO2_RO_m Simulator.unvalid_map] [Lens.Disjoint Simulator.unvalid_map IRO2_RO_m]
+    [Lens.Disjoint BlockSponge.C.c IRO2_RO_m] [Lens.Disjoint Gconcl.S.m IRO2_RO_m]
+    [Lens.Disjoint Gconcl.S.mi IRO2_RO_m] [Lens.Disjoint Gconcl.S.paths IRO2_RO_m] in
+/-- `Simulator(BIRO.IRO).f ~ Simu(IRO2.LRO)(BIRO.IRO).f` under `e2Inv` (EC: `equal2`'s inner
+`call`; `Simu`'s sampling loop is a no-op for `LRO`, `while{2}`, and `LRO.get` samples whether or
+not the entry is known). -/
+theorem Simulator_f_Simu :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ e2Inv IRO2_RO_m g₁ g₂)
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app Simulator (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ)
+          (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app (Simu (IRO2.LRO IRO2_RO_m)) (Indifferentiability.FUNCTIONALITY.view state
+          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    e2_close
+  · equiv_if
+    case guard => e2_close
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      e2_close
+    case «then» =>
+      equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+        e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+      · equiv_if
+        case guard => e2_close
+        case «else» =>
+          equiv_rnd
+          equiv_skip
+          e2_close
+        case «then» =>
+          equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
+            e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+          · stmt_wp
+            equiv_skip
+            e2_close
+          · equiv_if
+            case guard => e2_close
+            case «then» =>
+              stmt_wp
+              equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs{2} ∧
+                    §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+              · stmt_wp
+                equiv_skip
+                e2_close
+              · equiv_if
+                case guard => e2_close
+                case «else» =>
+                  equiv_skip
+                  e2_close
+                case «then» =>
+                  equiv_while (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs{2} ∧
+                    §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+                  case body =>
+                    stmt_wp
+                    equiv_seq 1 1 : (§x2{1} = §x2{2} ∧ §n0{1} = §n0{2} ∧ §x2{1} = §x1{1} ∧
+                        §n0{1} = §i{1} ∧ (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧
+                            §bs{1} = §bs{2} ∧
+                    §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2}))
+                    · stmt_wp
+                      equiv_skip
+                      e2_close
+                    · equiv_if
+                      case guard => e2_close
+                      case «then» =>
+                        stmt_wp
+                        equiv_rnd
+                        equiv_skip
+                        e2_close
+                      case «else» =>
+                        equiv_skip
+                        e2_close
+                  case guard => e2_close
+                  case exit => e2_close
+                  equiv_skip
+                  e2_close
+            case «else» =>
+              equiv_if
+              case guard => e2_close
+              case «else» =>
+                stmt_wp
+                equiv_skip
+                e2_close
+              case «then» =>
+                stmt_wp
+                equiv_seq 1 3 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
+                    e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+                · equiv_while{2} (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
+                    e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2}) (§k{2} - §i{2}).toNat
+                  case lossless =>
+                    intro σ₁ σ _ _
+                    simp only [Stmt.ewp_seq, Stmt.ewp_assign]
+                  case «variant» =>
+                    intro σ₁ k
+                    hoare_wp 3
+                    refine hoare_skip_of_imp fun σ h => ?_
+                    obtain ⟨hpre, hlt, hk⟩ := h
+                    refine ⟨hpre, ?_⟩
+                    have h1 : (localVarLens "i" ℤ).get σ < (localVarLens "k" ℤ).get σ := by
+                      simpa using hlt
+                    have h2 : ((localVarLens "k" ℤ).get σ - (localVarLens "i" ℤ).get σ).toNat = k :=
+                      hk
+                    subst h2
+                    refine (Int.toNat_lt_toNat ?_).mpr ?_
+                    · linarith
+                    · linarith
+                  case exit => e2_close
+                  stmt_wp
+                  equiv_skip
+                  e2_close
+                · equiv_if{1}
+                  case «then» =>
+                    stmt_wp
+                    equiv_rnd
+                    stmt_wp
+                    equiv_skip
+                    rintro g₁ g₂ x0 q k _ _ _ ⟨⟨rfl, rfl, rfl, hk, hI⟩, hnd⟩ a -
+                    have hI' := hI
+                    simp only [e2Inv, sInv, Lens.pair, Prod.mk.injEq] at hI'
+                    obtain ⟨hs1, hs2, hs3, ⟨hm, hmi, hpa, hun, hiro⟩, hc⟩ := hI'
+                    simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hnd
+                    rw [hun] at hnd
+                    simp only [hnd, decide_false, Bool.not_false, if_true, FMap.get_set_sameE]
+                    refine ⟨by trivial, by trivial, ?_⟩
+                    simp only [e2Inv, sInv, Lens.pair, Prod.mk.injEq]
+                    simp_reads
+                    simp_all
+                  case «else» =>
+                    stmt_wp{2} 1
+                    stmt_wp
+                    equiv_skip
+                    rintro g₁ g₂ x0 q k _ _ _ ⟨⟨rfl, rfl, rfl, hk, hI⟩, hd⟩
+                    have hI' := hI
+                    simp only [e2Inv, sInv, Lens.pair, Prod.mk.injEq] at hI'
+                    obtain ⟨-, -, -, ⟨hm, hmi, hpa, hun, hiro⟩, hc⟩ := hI'
+                    simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+                    rw [hun] at hd
+                    refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+                    simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+                    exact ⟨by trivial, by rw [hun], hI⟩
+      · stmt_wp
+        equiv_rnd
+        equiv_skip
+        e2_close
+
+
+omit [Lens.Disjoint IRO2_RO_m Simulator.m] [Lens.Disjoint IRO2_RO_m Simulator.mi]
+    [Lens.Disjoint IRO2_RO_m Simulator.paths] [Lens.Disjoint IRO2_RO_m Simulator.unvalid_map]
+    [Lens.Disjoint Simulator.unvalid_map IRO2_RO_m]
+    [Lens.Disjoint BlockSponge.BIRO.IRO.mp IRO2_RO_m]
+    [Lens.Disjoint IRO2_RO_m BlockSponge.C.c] [Lens.Disjoint BlockSponge.C.c IRO2_RO_m]
+    [Lens.Disjoint IRO2_RO_m Gconcl.S.m] [Lens.Disjoint Gconcl.S.m IRO2_RO_m]
+    [Lens.Disjoint IRO2_RO_m Gconcl.S.mi] [Lens.Disjoint Gconcl.S.mi IRO2_RO_m]
+    [Lens.Disjoint IRO2_RO_m Gconcl.S.paths] [Lens.Disjoint Gconcl.S.paths IRO2_RO_m] in
+/-- `Simulator(BIRO.IRO).fi ~ Simu(IRO2.LRO)(BIRO.IRO).fi` under `e2Inv` (the same code). -/
+theorem Simulator_fi_Simu :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ e2Inv IRO2_RO_m g₁ g₂)
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app Simulator (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ)
+          (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app (Simu (IRO2.LRO IRO2_RO_m)) (Indifferentiability.FUNCTIONALITY.view state
+          (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    e2_close
+  · equiv_if
+    case guard => e2_close
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      e2_close
+    case «then» =>
+      stmt_wp
+      equiv_rnd
+      equiv_rnd
+      equiv_skip
+      e2_close
+
+omit [Params] [Lens.Disjoint IRO2_RO_m Simulator.m] [Lens.Disjoint IRO2_RO_m Simulator.mi]
+    [Lens.Disjoint IRO2_RO_m Simulator.paths] [Lens.Disjoint IRO2_RO_m Simulator.unvalid_map]
+    [Lens.Disjoint Simulator.unvalid_map IRO2_RO_m] [Lens.Disjoint IRO2_RO_m BlockSponge.C.c]
+    [Lens.Disjoint IRO2_RO_m Gconcl.S.m] [Lens.Disjoint IRO2_RO_m Gconcl.S.mi]
+    [Lens.Disjoint IRO2_RO_m Gconcl.S.paths] in
+/-- `FC(BIRO.IRO).f` keeps `e2Inv`: the same procedure on both sides, within `BIRO.IRO.mp` and
+`C.c` (`prhlProc_refl_of_within`), framed by the rest (`prhlProc_frame_of_writesKeep`). -/
+theorem FC_IRO_e2 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ e2Inv IRO2_RO_m g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              BlockSponge.BIRO.IRO.asF }))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              BlockSponge.BIRO.IRO.asF }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
+  have h0 := prhlProc_refl_of_within (X := Lens.pair BlockSponge.BIRO.IRO.mp BlockSponge.C.c)
+    (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+      (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+        { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+            BlockSponge.BIRO.IRO.asF }))).procedure
+    (by within_lens) (by within_lens)
+  have h1 := prhlProc_frame_of_writesKeep
+    (Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi (Lens.pair Gconcl.S.paths
+      (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+        Simulator.unvalid_map)))))).get
+    (Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi (Lens.pair Gconcl.S.paths
+      (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+        IRO2_RO_m)))))).get Eq
+    (by writes_keep <;> (intro v σ; simp only [Lens.pair]; simp_reads; try trivial))
+    (by writes_keep <;> (intro v σ; simp only [Lens.pair]; simp_reads; try trivial)) h0
+  refine prhlProc_conseq h1 ?_ ?_
+  · rintro a₁ g₁ a₂ g₂ ⟨rfl, hI⟩
+    simp only [e2Inv, sInv, Lens.pair, Prod.mk.injEq] at hI ⊢
+    obtain ⟨h1, h2, h3, ⟨h4, h5, h6, h7, h8⟩, h9⟩ := hI
+    exact ⟨⟨trivial, h8, h9⟩, h1, h2, h3, h4, h5, h6, h7⟩
+  · rintro r₁ g₁ r₂ g₂ ⟨⟨rfl, hX⟩, hK⟩
+    simp only [e2Inv, sInv, Lens.pair, Prod.mk.injEq] at hX hK ⊢
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := hK
+    exact ⟨trivial, h1, h2, h3, ⟨h4, h5, h6, h7, hX.1⟩, hX.2⟩
+
+end equal2_steps
+
+set_option maxHeartbeats 4000000 in
+-- the abstract call's oracle side conditions
+/-- `equal2`'s `byequiv` (EC: `proc; inline*; auto; call (: ={BIRO.IRO.mp, C.c, Simulator.m,
+Simulator.mi, Simulator.paths} /\ Simulator.unvalid_map{1} = IRO2.RO.m{2})`). -/
+theorem equal2_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRestrictions D)
+    (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
+    (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure
+      (L D (IRO2.LRO IRO2_RO_m)).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  unfold DRestrictions DRestrictions.footprint at _hDd
+  unfold DRestrictions.footprint at _hfresh
+  have hIRO2D : FVP.fvP D ≤ (IRO2_RO_m.footprint)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hfresh.trans (Footprint.compl_antimono le_sup_left))
+  haveI : Lens.Disjoint IRO2_RO_m Simulator.m :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Simulator.m IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m Simulator.mi :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Simulator.mi IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m Simulator.paths :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Simulator.paths IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m Simulator.unvalid_map :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Simulator.unvalid_map IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m BlockSponge.BIRO.IRO.mp :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint BlockSponge.BIRO.IRO.mp IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m BlockSponge.C.c :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint BlockSponge.C.c IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m Gconcl.S.m :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Gconcl.S.m IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m Gconcl.S.mi :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Gconcl.S.mi IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  haveI : Lens.Disjoint IRO2_RO_m Gconcl.S.paths :=
+    Lens.disjoint_of_footprint_le_compl _ _ (by fp_disjoint)
+  haveI : Lens.Disjoint Gconcl.S.paths IRO2_RO_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp (by fp_disjoint))
+  have hgm : (Gconcl.S.m).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hgmi : (Gconcl.S.mi).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hgpa : (Gconcl.S.paths).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hsm : (Simulator.m).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hsmi : (Simulator.mi).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hspa : (Simulator.paths).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hsun : (Simulator.unvalid_map).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hro2 : (IRO2_RO_m).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hiro : (BlockSponge.BIRO.IRO.mp).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  have hcc : (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ := by fp_disjoint
+  let Lg := Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi (Lens.pair Gconcl.S.paths
+    (Lens.pair Simulator.m (Lens.pair Simulator.mi (Lens.pair Simulator.paths
+      (Lens.pair Simulator.unvalid_map (Lens.pair IRO2_RO_m
+        (Lens.pair BlockSponge.BIRO.IRO.mp BlockSponge.C.c))))))))
+  let I := fun (x y : SLCommon.smap × SLCommon.smap × FMap capacity (List block × block) ×
+      FMap state state × FMap state state × FMap capacity (List block × block) ×
+      FMap (List block × ℤ) block × FMap (List block × ℤ) block ×
+      FMap (List block × ℤ) block × ℤ) =>
+    x.1 = y.1 ∧ x.2.1 = y.2.1 ∧ x.2.2.1 = y.2.2.1 ∧
+      (x.2.2.2.1, x.2.2.2.2.1, x.2.2.2.2.2.1, x.2.2.2.2.2.2.1, x.2.2.2.2.2.2.2.2.1) =
+        (y.2.2.2.1, y.2.2.2.2.1, y.2.2.2.2.2.1, y.2.2.2.2.2.2.2.1, y.2.2.2.2.2.2.2.2.1) ∧
+      x.2.2.2.2.2.2.2.2.2 = y.2.2.2.2.2.2.2.2.2
+  have hI : ∀ g₁ g₂, I (Lg.get g₁) (Lg.get g₂) ↔ e2Inv IRO2_RO_m g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (Lg.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [Lg, Footprint.lens_pair]
+    refine sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
+      (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
+        (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
+          (by fp_disjoint)))))))))
+  unfold L IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    subst h
+    refine ⟨?_, ?_⟩
+    · simp only [touched_set_of_le_compl (show (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ by
+          fp_disjoint),
+        touched_set_of_le_compl (show (BlockSponge.BIRO.IRO.mp).footprint ≤ (FVP.fvP D)ᶜ by
+          fp_disjoint),
+        touched_set_of_le_compl (show (IRO2_RO_m).footprint ≤ (FVP.fvP D)ᶜ by fp_disjoint),
+        touched_set_of_le_compl (show (Simulator.unvalid_map).footprint ≤ (FVP.fvP D)ᶜ by
+          fp_disjoint),
+        touched_set_of_le_compl (show (Simulator.paths).footprint ≤ (FVP.fvP D)ᶜ by fp_disjoint),
+        touched_set_of_le_compl (show (Simulator.mi).footprint ≤ (FVP.fvP D)ᶜ by fp_disjoint),
+        touched_set_of_le_compl (show (Simulator.m).footprint ≤ (FVP.fvP D)ᶜ by fp_disjoint)]
+    · simp only [Lg, I, Lens.pair]
+      simp_reads
+      trivial
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF Lg D distExt hD.representable
+      (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp]
+        exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+          (prhlProc_conseq (FC_IRO_e2 IRO2_RO_m) (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+            (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+            (prhlProc_conseq (PC_f_sInv (Simulator_f_Simu IRO2_RO_m))
+              (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+              (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+              (prhlProc_conseq (PC_fi_sInv (Simulator_fi_Simu IRO2_RO_m))
+                (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+                (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, h⟩, ?_⟩
+    rintro r g₁ _ g₂ ⟨rfl, -, -⟩
+    simp_reads
+    trivial
+
 theorem equal1 (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRestrictions D)
     (IRO2_RO_m : Lens (FMap (List block × ℤ) block) VariableAssignment)
     (_hfresh : IRO2_RO_m.footprint ≤ (FVP.fvP D ⊔ DRestrictions.footprint)ᶜ)
@@ -3746,8 +4171,9 @@ theorem equal2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd : DRes
     (_D_lossless : D_lossless D) (m : VariableAssignment) :
     Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure () m
         (fun r _ => r = true) =
-      Procedure.Pr (L D (IRO2.LRO IRO2_RO_m)).procedure () m (fun r _ => r = true) := by
-  sorry
+      Procedure.Pr (L D (IRO2.LRO IRO2_RO_m)).procedure () m (fun r _ => r = true) :=
+  Procedure.Pr_eq_of_prhlProc (equal2_equiv D hD _hDd IRO2_RO_m _hfresh)
+    (fun r₁ _ r₂ _ h => by rw [h]) rfl
 
 end Simplify_Simulator
 

@@ -617,7 +617,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 2024 | local module | `Simu` | section Simplify_Simulator. | `Simplify_Simulator.Simu` (`FRO` a Lean parameter) | def |
 | 2081 | local module | `L` | section Simplify_Simulator. | `Simplify_Simulator.L` (Lean function) | def |
 | 2085 | local lemma | `equal1` | section Simplify_Simulator. | `Simplify_Simulator.equal1` | stated |
-| 2158 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` | stated |
+| 2158 | local lemma | `equal2` | section Simplify_Simulator. | `Simplify_Simulator.equal2` (`equal2_equiv`; steps `Simulator_f_Simu`, `Simulator_fi_Simu`, `FC_IRO_e2`; invariant `e2Inv`) | done |
 | 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` | stated |
 | 2202 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
