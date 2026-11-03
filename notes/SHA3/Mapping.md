@@ -595,7 +595,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1437 | local lemma | `lemma4` | section Real. | `lemma4` | done |
 | 1463 | local lemma | `lemma_3` | section Real. | `lemma_3` | done |
 | 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` | stated |
-| 1748 | lemma | `pr_real` | section Real. | `pr_real` | stated |
+| 1748 | lemma | `pr_real` | section Real. | `pr_real` (from `squeeze_squeezeless`, `equiv_sponge`) | done |
 | 1763 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 1765 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
 | 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` (`{-A(D)}` as `(C.c ⊔ glob D)ᶜ`, as `DRestr_ll`; oracle steps `DSqueeze_f_ll`, `FC_f_ll`, `PC_f_ll`, `PC_fi_ll`) | done |

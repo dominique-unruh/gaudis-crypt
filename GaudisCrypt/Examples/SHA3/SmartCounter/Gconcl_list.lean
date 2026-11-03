@@ -3112,7 +3112,22 @@ theorem pr_real (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     Procedure.Pr (SLCommon.GReal (A D)).procedure () m
         (fun r g => r = true ∧ SLCommon.C.c.get g ≤ max_size) =
       Procedure.Pr (RealIndif Sponge P (DRestr D)).procedure () m (fun r _ => r = true) := by
-  sorry
+  -- EC: `rewrite (byequiv (squeeze_squeezeless D)); byequiv (equiv_sponge D)`
+  have e1 := Procedure.Pr_eq_of_prhlProc (equiv_sponge D hD _hDd)
+    (E₁ := fun r g => r = true ∧ SLCommon.C.c.get g ≤ max_size)
+    (E₂ := fun r g => r = true ∧ BlockSponge.C.c.get g ≤ max_size)
+    (fun r₁ g₁ r₂ g₂ ⟨hr, _, _, _, _, h1, h2⟩ => by
+      subst hr
+      exact ⟨fun ⟨h, _⟩ => ⟨h, h2⟩, fun ⟨h, _⟩ => ⟨h, h1.trans h2⟩⟩)
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have e2 := Procedure.Pr_eq_of_prhlProc (squeeze_squeezeless D hD _hDd)
+    (E₁ := fun r g => r = true ∧ BlockSponge.C.c.get g ≤ max_size)
+    (E₂ := fun r _ => r = true)
+    (fun r₁ g₁ r₂ g₂ ⟨hr, _, _, _, _, h1⟩ => by
+      subst hr
+      exact ⟨fun ⟨h, _⟩ => h, fun h => ⟨h, h1⟩⟩)
+    (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  rw [e1, e2]
 
 end Real
 
