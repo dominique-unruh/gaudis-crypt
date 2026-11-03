@@ -100,6 +100,7 @@ import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.InlineTest
 import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.Logic.PHoareWp
+import GaudisCrypt.Logic.PHoareLossless
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.PRHL

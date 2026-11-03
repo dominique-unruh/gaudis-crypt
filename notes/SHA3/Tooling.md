@@ -1131,3 +1131,44 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `INV_L4_ideal` conjunct whole, which `and_intros` would split.
 * **Heartbeats.** `DSqueeze2_Valid_f` needs 1.6M; the main proof needs 4M, as `Ideal_equiv3` does.
 
+## 2026-11-03: `Gconcl_list.A_lossless`, `Neg_D_lossless`, `Ideal_lossless`
+
+* **Statement fixes.** EC's section `Real_Ideal_Abs` declares the axiom `D_lossless`.
+  `Neg_D_lossless`, `Real_lossless` and `Ideal_lossless` use it, so they take it as a hypothesis,
+  as `concl` already did. Otherwise they are false for a non-terminating `D`.
+* **`{-A(D)}`.** EC's `{-A(D)}` excludes `glob A(D)`, which is `C.c` plus `glob D`. It is stated as
+  `(C.c.footprint ⊔ (fvP D).glob)ᶜ`, following `SLCommon.DRestr_ll`. Likewise `{-Neg_D(D)}` is
+  `((fvP D).glob)ᶜ`. That closes the open point "a lower bound `fvP D ≤ fvP (A D)`" from the
+  previous entry: no monotonicity is needed.
+* **Loops under a conditional, for lower bounds.** `phoare_wp` stops at an `if` whose branch
+  contains a loop. The new `Logic/PHoareLossless.lean` adds two rules:
+  * `phoareStmt_if_ge`: one lower bound per branch.
+  * `phoareStmt_seq_ge_one`: `p; q` with `q` lossless from everywhere.
+
+  The losslessness recipe (`IRO_f_ll`, `DSqueeze_f_ll`):
+  1. Switch to a lower bound with `phoareProc_eq_of_le_ge (… Procedure.ewp_const_le …)`.
+  2. `phoare_wp 1`, `phoare_split 1`, `refine phoareStmt_seq_ge_one ?_ ?_`, then
+     `refine phoareStmt_if_ge ?_ ?_`.
+  3. For the loop: `phoare_while_ge 1 variant (§n - §i).toNat`.
+  4. `decreases` is a Hoare triple. `hoare_wp` has no rule for an `if` containing a sampling or a
+     call, so build that step by hand:
+     `hoare_split 1; refine hoare_seq (hoare_if_wp (hoare_call_wp _ _ _ (hoareProc_true _) _)
+     (hoare_skip_wp _)) ?_`. Use `hoare_seq (hoare_assign_wp …) (hoare_sample_wp …)` for a
+     sampling instead.
+* **`phoare_simp [h]` needs the callee's expectation to be literally `1`.** `S.f` calls `F.f` with
+  the continuation `cdistr.expected 1`, so the rewrite fails. Instead run `phoare_skip`, `split`,
+  then `convert hF _ _ trivial using 2` and `funext`.
+* **`fp_disjoint` for composite oracles.**
+  * Unfold the restriction definition first (`unfold DRestrictions_Real_Ideal at h`).
+    `fp_disjoint` does not unfold hypotheses: it silently skips them.
+  * Give each concrete module an `@[fp_bound]`. A bound must be a join of variable footprints,
+    not a `Lens.pair` footprint (`simpa only [Footprint.lens_pair]`).
+  * A functor's bound may mention its module parameter, e.g. `fvP (SimLast S) ≤ fvP S ⊔ …`. One
+    `fp_module` over all of `SimLast Gconcl.S` timed out.
+  * The new bounds for BlockSponge's `FC`, `PC` and `IRO` live in `Gconcl_list`. Their natural
+    home is `BlockSponge.lean`/`IRO.lean`, left alone to avoid rebuilding the chain.
+* **`Real_lossless` stays open.** It needs EC's `call (: invm Perm.m Perm.mi)`: a losslessness
+  abstract call under an invariant, which the framework lacks. `D_lossless` gives losslessness only
+  for unconditionally lossless oracles, and `Perm.f`'s `dexcepted` sampling is lossless only under
+  `invm`.
+

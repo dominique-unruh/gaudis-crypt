@@ -598,16 +598,16 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1748 | lemma | `pr_real` | section Real. | `pr_real` | stated |
 | 1763 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 1765 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
-| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` | stated |
+| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` (`{-A(D)}` as `(C.c ⊔ glob D)ᶜ`, as `DRestr_ll`; oracle steps `DSqueeze_f_ll`, `FC_f_ll`, `PC_f_ll`, `PC_fi_ll`) | done |
 | 1786 | lemma | `concl` | section Real_Ideal. | `concl` | stated |
 | 1809 | declare module | `D` | section Real_Ideal_Abs. | `D` (section variable) | def |
 | 1811 | declare axiom | `D_lossless` | section Real_Ideal_Abs. | `D_lossless` (abbreviation; hypothesis) | def |
 | 1816 | local module | `Neg_D` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D` | def |
-| 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D_lossless` | stated |
+| 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D_lossless` (`{-Neg_D(D)}` as `(glob D)ᶜ`; section axiom `D_lossless` a hypothesis) | done |
 | 1833 | local lemma | `useful` | section Real_Ideal_Abs. | `Real_Ideal_Abs.useful` | done |
 | 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `Real_Ideal_Abs.invmC` | done |
-| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` | stated |
-| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` | stated |
+| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` (section axiom `D_lossless` a hypothesis) | stated |
+| 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` (oracle steps `IRO_f_ll`, `Valid_f_ll`, `Last_f_ll`, `S_f_ll`, `S_fi_ll`, `SimLast_f_ll`, `SimLast_fi_ll`; footprints `@[fp_bound]` `fvP_FC` … `fvP_S`) | done |
 | 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` | stated |
 | 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` | stated |
 | 1946 | module | `Simulator` |  | `Simulator` | def |
