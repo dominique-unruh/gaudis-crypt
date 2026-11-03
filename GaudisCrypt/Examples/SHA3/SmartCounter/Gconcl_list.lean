@@ -414,9 +414,13 @@ theorem IF'_Valid2_f :
   equiv_skip
   exact fun _ _ _ _ _ _ _ _ _ _ _ _ h => h
 
-/-- `FC(DSqueeze(IF'(F.LRO))).f ~ FC(DSqueeze(Valid2(F.LRO))).f` under `idInv` (EC: `proc; sp; if;
-auto; call (_: ={glob S, glob F.RO})`, the loops in lockstep, `IF'_Valid2_f` at each call). -/
-theorem FC_f_valid :
+/-- `FC(DSqueeze(F₁)).f ~ FC(DSqueeze(F₂)).f` under `idInv`, from `F₁.f ~ F₂.f` (EC: `proc; sp; if;
+auto; call (_: ={glob S, glob F.RO})`, the loops in lockstep). -/
+theorem FC_f_idInv {F₁ F₂ : SLCommon.FUNCTIONALITY}
+    (h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idInv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block F₁).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block F₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂)) :
     prhlProc (sig₁ := procsig (List block × ℤ) -> (List block))
       (sig₂ := procsig (List block × ℤ) -> (List block))
       (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idInv g₁ g₂)
@@ -425,13 +429,13 @@ theorem FC_f_valid :
           { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
               (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state (List block) block
                 { f := Indifferentiability.FUNCTIONALITY.f state (List block) block
-                    (IF' SLCommon.F.LRO) })) }))).procedure
+                    F₁ })) }))).procedure
       (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
         (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
           { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
               (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state (List block) block
                 { f := Indifferentiability.FUNCTIONALITY.f state (List block) block
-                    (Valid2 SLCommon.F.LRO) })) }))).procedure
+                    F₂ })) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂) := by
   unfold idInv
   equiv_proc
@@ -485,26 +489,31 @@ theorem FC_f_valid :
                 equiv_skip
                 intros; simp_all
               case «then» =>
-                equiv_call IF'_Valid2_f
+                equiv_call h
                 equiv_skip
                 rintro g₁ g₂ p n l b i _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hE⟩, -⟩
                 exact ⟨⟨rfl, hE⟩, fun _ _ _ _ ⟨hr, hE'⟩ => ⟨rfl, rfl, rfl, hr, rfl, hE'⟩⟩
           case guard => intros; simp_all
           case exit => intros; simp_all
-          equiv_call IF'_Valid2_f
+          equiv_call h
           equiv_skip
           rintro g₁ g₂ p n l b i _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, hE⟩, -⟩
           exact ⟨⟨rfl, hE⟩, fun _ _ _ _ ⟨hr, hE'⟩ => ⟨rfl, rfl, rfl, hr, rfl, hE'⟩⟩
 
-/-- `S(IF'(F.LRO)).f ~ S(Valid2(F.LRO)).f` under `idInv` (`IF'_Valid2_f` at `S`'s call of `F.f`). -/
-theorem S_f_valid :
+omit [BlockSponge.Params] [Params] in
+/-- `S(F₁).f ~ S(F₂).f` under `idInv`, from `F₁.f ~ F₂.f` (at `S`'s call of `F.f`). -/
+theorem S_f_idInv {F₁ F₂ : SLCommon.FUNCTIONALITY}
+    (h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idInv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block F₁).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block F₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂)) :
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idInv g₁ g₂)
       (Indifferentiability.PRIMITIVE.f state (List block) block
         (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (IF' SLCommon.F.LRO)))).procedure
+          F₁))).procedure
       (Indifferentiability.PRIMITIVE.f state (List block) block
         (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (Valid2 SLCommon.F.LRO)))).procedure
+          F₂))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂) := by
   unfold idInv
   equiv_proc
@@ -530,7 +539,7 @@ theorem S_f_valid :
       · equiv_if
         case guard => intros; simp_all
         case «then» =>
-          equiv_call IF'_Valid2_f
+          equiv_call h
           stmt_wp
           equiv_skip
           rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hE⟩, -⟩, -⟩
@@ -615,16 +624,16 @@ theorem PC_fi_idInv {X₁ X₂ Y₁ Y₂ : procmod (state) → state}
       rintro g₁ g₂ a z _ _ ⟨⟨rfl, -, hE⟩, -⟩
       exact ⟨⟨rfl, hE⟩, fun _ _ _ _ ⟨hr, hE'⟩ => ⟨hr, by id_close⟩⟩
 
-omit [Params] in
-/-- `S(IF').fi ~ S(Valid2).fi`: `S.fi` does not call `F` (EC: `sim`). -/
-theorem S_fi_valid :
+omit [BlockSponge.Params] [Params] in
+/-- `S(F₁).fi ~ S(F₂).fi`: `S.fi` does not call `F` (EC: `sim`). -/
+theorem S_fi_idInv {F₁ F₂ : SLCommon.FUNCTIONALITY} :
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idInv g₁ g₂)
       (Indifferentiability.PRIMITIVE.fi state (List block) block
         (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (IF' SLCommon.F.LRO)))).procedure
+          F₁))).procedure
       (Indifferentiability.PRIMITIVE.fi state (List block) block
         (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
-          (Valid2 SLCommon.F.LRO)))).procedure
+          F₂))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂) := by
   equiv_proc
   stmt_inline{1} 0
@@ -713,21 +722,21 @@ theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
         simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
           Module.fst_pair, Module.snd_pair]
         exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
-          FC_f_valid
+          (FC_f_idInv IF'_Valid2_f)
       | succ n => cases n with
         | zero =>
           simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
             HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
             Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
           exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
-            (PC_f_idInv S_f_valid)
+            (PC_f_idInv (S_f_idInv IF'_Valid2_f))
         | succ n => cases n with
           | zero =>
             simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
               HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
               Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
             exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
-              (PC_fi_idInv S_fi_valid)
+              (PC_fi_idInv S_fi_idInv)
           | succ n => nomatch n
     equiv_skip
     intro σ₁ σ₂ h
@@ -739,6 +748,27 @@ theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     · simp_reads
       trivial
 
+/-- `Valid2(F.RO).f ~ IF.f` under `idInv` (EC: `inline*; sp; wp 2 2; sim`). -/
+theorem Valid2_IF_f :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idInv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block
+        (Valid2 SLCommon.F.RO.asRO)).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block Gconcl.IF).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂) := by
+  unfold Valid2 Gconcl.IF
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_rnd
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, e1, e2, e3, e4, e5⟩ a -
+  rw [e4]
+  split_ifs <;> exact ⟨rfl, by id_close⟩
+
+set_option maxHeartbeats 4000000 in
+-- the oracles' footprint checks through the nested wrappers
 /-- `local equiv ideal_equiv2 (D <: …) : L2(D, F.RO).distinguish ~
 SLCommon.IdealIndif(IF, S, A(D)).main : ={glob D} ==> ={glob D, res}`. -/
 theorem ideal_equiv2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
@@ -746,7 +776,88 @@ theorem ideal_equiv2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
       (L2 D SLCommon.F.RO.asRO).procedure (SLCommon.IdealIndif Gconcl.IF Gconcl.S (A D)).procedure
       (fun r₁ g₁ r₂ g₂ => eqGlob D g₁ g₂ ∧ r₁ = r₂) := by
-  sorry
+  have hsm : (Gconcl.S.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hsmi : (Gconcl.S.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hspa : (Gconcl.S.paths).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hro : (SLCommon.F.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hcc : (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by gcol_fp)))
+  let Lg := Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi (Lens.pair Gconcl.S.paths
+    (Lens.pair SLCommon.F.RO.m BlockSponge.C.c)))
+  let I : SLCommon.smap × SLCommon.smap × FMap capacity (List block × block) ×
+      FMap (List block) block × ℤ → SLCommon.smap × SLCommon.smap ×
+      FMap capacity (List block × block) × FMap (List block) block × ℤ → Prop := fun x y =>
+    x.1 = y.1 ∧ x.2.1 = y.2.1 ∧ x.2.2.1 = y.2.2.1 ∧ x.2.2.2.1 = y.2.2.2.1 ∧ x.2.2.2.2 = y.2.2.2.2
+  have hI : ∀ g₁ g₂, I (Lg.get g₁) (Lg.get g₂) ↔ idInv g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (Lg.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [Lg, Footprint.lens_pair]
+    exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le hro hcc)))
+  unfold L2 SLCommon.IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    refine ⟨?_, (hI _ _).mpr ?_⟩
+    · simp only [touched_set_of_le_compl hsm, touched_set_of_le_compl hsmi,
+        touched_set_of_le_compl hspa, touched_set_of_le_compl hro, touched_set_of_le_compl hcc]
+      exact h
+    · simp only [idInv]
+      simp_reads
+      trivial
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF Lg D distExt hD.representable
+      (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair]
+        exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+          (FC_f_idInv Valid2_IF_f)
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+            (PC_f_idInv (S_f_idInv Valid2_IF_f))
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+              (PC_fi_idInv S_fi_idInv)
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, h⟩, ?_⟩
+    rintro r g₁ _ g₂ ⟨rfl, hg, -⟩
+    refine ⟨?_, ?_⟩
+    · simp_reads
+      exact hg
+    · simp_reads
+      trivial
 
 inductive inv_L_L3 (m1 m2 m3 : FMap (List block) block) : Prop where
   | INV :
