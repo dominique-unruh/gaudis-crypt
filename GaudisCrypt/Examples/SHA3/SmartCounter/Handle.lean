@@ -1783,6 +1783,845 @@ def INV_CF_G1_12 (g₁ g₂ : VariableAssignment) : Prop :=
 def eq_glob_C (g₁ g₂ : VariableAssignment) : Prop :=
   C.c.get g₁ = C.c.get g₂ ∧ C.queries.get g₁ = C.queries.get g₂
 
+theorem fi_none_inv (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa y1 : block)
+    (xc y2 : capacity)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries)
+    (hP : ¬ FMap.dom Pmi (xa, xc)) (hG : ¬ FMap.dom Gmi (xa, xc))
+    (hnone : ∀ f h, FMap.get hs h ≠ some (xc, f))
+    (hcol : hinv (FMap.set hs ch (xc, Known)) y2 = none) :
+    INV_CF_G1 (FMap.set (FMap.set hs ch (xc, Known)) (ch + 1) (y2, Known)) (ch + 1 + 1)
+      (FMap.set Pm (y1, y2) (xa, xc)) (FMap.set Pmi (xa, xc) (y1, y2))
+      (FMap.set Gm (y1, y2) (xa, xc)) (FMap.set Gmi (xa, xc) (y1, y2))
+      (FMap.set mh (y1, ch + 1) (xa, ch)) (FMap.set mhi (xa, ch) (y1, ch + 1))
+      ro pi prefixes queries := by
+  have hy := hinvP (FMap.set hs ch (xc, Known)) y2
+  rw [if_pos hcol] at hy
+  have hxy : xc ≠ y2 := by
+    rintro rfl
+    exact hy ch Known (FMap.get_set_sameE _ _ _)
+  have hy2 : ∀ f h, FMap.get hs h ≠ some (y2, f) := by
+    intro f h hh
+    by_cases e : h = ch
+    · subst e
+      rw [ch_notdomE_hs _ _ hI.1] at hh
+      cases hh
+    · exact hy h f (by rw [FMap.get_set_neqE _ _ _ _ e]; exact hh)
+  have hPm : ¬ FMap.dom Pm (y1, y2) := by
+    rw [FMap.domE]
+    intro hd
+    obtain ⟨⟨a, b⟩, hab⟩ := Option.ne_none_iff_exists'.mp hd
+    obtain ⟨hx, fx, -, -, h1, -, -⟩ := hI.4.1 _ _ _ _ hab
+    exact hy2 _ _ h1
+  rw [show ch + 1 + 1 = ch + 2 by ring]
+  exact lemma1' hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries xa xc y1 y2 hI hPm hxy
+    (by simpa [FMap.domE] using hP) (by simpa [FMap.domE] using hG) hnone hy2
+
+theorem fi_known_inv (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa y1 : block)
+    (xc y2 : capacity) (hx : handle)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries)
+    (hP : ¬ FMap.dom Pmi (xa, xc)) (hG : ¬ FMap.dom Gmi (xa, xc))
+    (hhx : FMap.get hs hx = some (xc, Known))
+    (hcol : hinv hs y2 = none) :
+    INV_CF_G1 (FMap.set hs ch (y2, Known)) (ch + 1)
+      (FMap.set Pm (y1, y2) (xa, xc)) (FMap.set Pmi (xa, xc) (y1, y2))
+      (FMap.set Gm (y1, y2) (xa, xc)) (FMap.set Gmi (xa, xc) (y1, y2))
+      (FMap.set mh (y1, ch) (xa, hx)) (FMap.set mhi (xa, hx) (y1, ch))
+      ro pi prefixes queries := by
+  have hy := hinvP hs y2
+  rw [if_pos hcol] at hy
+  have hy2 : ∀ f h, FMap.get hs h ≠ some (y2, f) := fun f h => hy h f
+  have hPm : ¬ FMap.dom Pm (y1, y2) := by
+    rw [FMap.domE]
+    intro hd
+    obtain ⟨⟨a, b⟩, hab⟩ := Option.ne_none_iff_exists'.mp hd
+    obtain ⟨hx, fx, -, -, h1, -, -⟩ := hI.4.1 _ _ _ _ hab
+    exact hy2 _ _ h1
+  exact lemma2' hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries xa xc y1 y2 hx hI hPm
+    (by simpa [FMap.domE] using hP) (by simpa [FMap.domE] using hG) hhx hy2
+
+theorem fi_bext (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa : block)
+    (xc : capacity)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries)
+    (hP : FMap.dom Pmi (xa, xc)) (hG : ¬ FMap.dom Gmi (xa, xc)) :
+    FMap.rng hs (xc, Unknown) := by
+  obtain ⟨⟨ya, yc⟩, hPy⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hP)
+  obtain ⟨hx, fx, hy, fy, hhx, hhy, hmhi⟩ := hI.5.1 _ _ _ _ hPy
+  have hmh := (hI.3.1 _ _).mpr hmhi
+  obtain ⟨xc', fx', yc', fy', h1, h2, h3⟩ := hI.8.1 _ _ _ _ hmh
+  rw [hhy] at h1
+  rw [hhx] at h2
+  simp only [Option.some.injEq, Prod.mk.injEq] at h1 h2
+  obtain ⟨rfl, rfl⟩ := h1
+  obtain ⟨rfl, rfl⟩ := h2
+  cases fx with
+  | Unknown => exact ⟨hx, hhx⟩
+  | Known =>
+    rw [if_pos rfl] at h3
+    have := (hI.2.1 _ _).mp h3.1
+    exact absurd ((FMap.domE _ _).mpr (by rw [this]; simp)) hG
+
+set_option maxHeartbeats 4000000 in
+-- the inlined oracles' wp goals are large
+/-- The oracle step of EC's `eq_fi`: the `call (: …)` between `PF.fi` and `G1.S.fi`.  The
+postcondition also keeps `={glob C}` and `[] \in C.queries{2}` (not modified by the oracles). -/
+theorem PF_fi_S_fi :
+    prhlProc (sig₁ := procsig (state) -> state) (sig₂ := procsig (state) -> state)
+      (fun a₁ g₁ a₂ g₂ => G1.bcol.get g₂ = false ∧ G1.bext.get g₂ = false ∧ a₁ = a₂ ∧
+        eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂)
+      (Indifferentiability.PRIMITIVE.fi state (List block) block PF).procedure
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block G1.S).procedure
+      (fun r₁ g₁ r₂ g₂ => eq_glob_C g₁ g₂ ∧ FMap.dom (C.queries.get g₂) [] ∧
+        (G1.bcol.get g₂ = false → G1.bext.get g₂ = false → r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂)) := by
+  unfold PF G1.S
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+      eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨hc, hb, rfl, hC, hI⟩
+    exact ⟨rfl, hc, hb, hC, hI⟩
+  · equiv_if{1}
+    case «then» =>
+      equiv_if{2}
+      case «then» =>
+        stmt_wp
+        equiv_rnd
+        equiv_rnd
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩ y1 - y2 -
+        obtain ⟨xa, xc⟩ := x0
+        simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hP hG
+        unfold INV_CF_G1_12 at hI
+        have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+        rcases hgf : getflag (FRO.m.get g₂) xc with _ | f
+        · have hnone := (getflagP_none _ _).1 hgf
+          have hK : ¬ FMap.rng (FRO.m.get g₂) (xc, Known) := fun ⟨h, hh⟩ => hnone _ h hh
+          have hU : ¬ FMap.rng (FRO.m.get g₂) (xc, Unknown) := fun ⟨h, hh⟩ => hnone _ h hh
+          simp only [hK, hU, decide_false, Bool.not_false, if_true, Bool.or_false]
+          have hx2 : hinvK (FMap.set (FRO.m.get g₂) (G1.chandle.get g₂) (xc, Known)) xc =
+              some (G1.chandle.get g₂) :=
+            huniq_hinvK_h _ _ _ (huniq_addh _ _ _ _ hI.1.1 hnone) (FMap.get_set_sameE _ _ _)
+          have hmhi : ¬ FMap.dom (G1.mhi.get g₂) (xa, G1.chandle.get g₂) := by
+            rw [FMap.domE, notin_hs_notdomE2_mh _ _ _ _ _ hI.5 (ch_notdomE_hs _ _ hI.1)]
+            simp
+          have hx2' : oget (hinvK (FMap.set (FRO.m.get g₂) (G1.chandle.get g₂) (xc, Known)) xc) =
+              G1.chandle.get g₂ := by rw [hx2]; rfl
+          simp only [hx2', hmhi, false_and, decide_false, Bool.false_eq_true, if_false]
+          simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+          simp_reads
+          refine ⟨hC, hq, fun hcol _ => ⟨by simp [oget, FMap.get_set_sameE], ?_⟩⟩
+          simp only [hc, Bool.false_or, decide_eq_false_iff_not, not_not] at hcol
+          exact fi_none_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hP hG hnone hcol
+        · have hsome := (getflagP_some _ _ f hI.1.1).1 hgf
+          cases f with
+          | Known =>
+            obtain ⟨hx, hhx⟩ := id hsome
+            have hU : ¬ FMap.rng (FRO.m.get g₂) (xc, Unknown) := fun h => by
+              have := (getflagP_some _ _ Unknown hI.1.1).2 h
+              rw [hgf] at this
+              cases this
+            simp only [hsome, hU, decide_true, decide_false, Bool.not_true, Bool.false_eq_true,
+              if_false, Bool.or_false]
+            have hx2' : oget (hinvK (FRO.m.get g₂) xc) = hx := by
+              rw [huniq_hinvK_h _ _ _ hI.1.1 hhx]; rfl
+            have hPn : FMap.get (PF.mi.get g₁) (xa, xc) = none := by simpa [FMap.domE] using hP
+            have hmhi : ¬ FMap.dom (G1.mhi.get g₂) (xa, hx) := by
+              rw [FMap.domE, notin_m_notin_mh _ _ _ _ _ _ _ hI.5 hPn hhx]
+              simp
+            simp only [hx2', hmhi, false_and, decide_false, Bool.false_eq_true, if_false]
+            simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+            simp_reads
+            refine ⟨hC, hq, fun hcol _ => ⟨by simp [oget, FMap.get_set_sameE], ?_⟩⟩
+            simp only [hc, Bool.false_or, decide_eq_false_iff_not, not_not] at hcol
+            exact fi_known_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hP hG hhx hcol
+          | Unknown =>
+            have hK : ¬ FMap.rng (FRO.m.get g₂) (xc, Known) := fun h => by
+              have := (getflagP_some _ _ Known hI.1.1).2 h
+              rw [hgf] at this
+              cases this
+            simp only [hsome, hK, decide_true, decide_false, Bool.or_true]
+            simp only [eq_glob_C] at hC ⊢
+            simp_reads
+            simp only [ite_self]
+            exact ⟨hC, hq, fun _ h => absurd h (by simp)⟩
+      case «else» =>
+        refine prhlStmt_pre prhlStmt_false ?_
+        rintro σ₁ σ₂ ⟨⟨⟨hx, -, -, -, hI⟩, hP⟩, hG⟩
+        simp only [Bool.not_eq_false', Bool.not_eq_true', decide_eq_true_eq,
+          decide_eq_false_iff_not] at hP hG
+        rw [hx] at hP
+        unfold INV_CF_G1_12 at hI
+        have hd := (FMap.domE _ _).mp hG
+        exact hP ((FMap.domE _ _).mpr (by rw [hI.7 _ hd]; exact hd))
+    case «else» =>
+      equiv_if{2}
+      case «then» =>
+        stmt_wp
+        stmt_wp{2} 1
+        stmt_wp{2} 1
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩
+        obtain ⟨xa, xc⟩ := x0
+        simp only [Bool.not_eq_false', Bool.not_eq_true', decide_eq_true_eq,
+          decide_eq_false_iff_not] at hP hG
+        unfold INV_CF_G1_12 at hI
+        have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+        have hU := fi_bext _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hP hG
+        refine ⟨(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll, fun _ _ =>
+          ⟨(is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll, fun _ _ => ?_⟩⟩
+        simp only [hU, decide_true, Bool.or_true]
+        simp only [eq_glob_C] at hC ⊢
+        simp_reads
+        simp only [ite_self]
+        exact ⟨hC, hq, fun _ h => absurd h (by simp)⟩
+      case «else» =>
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩
+        simp only [Bool.not_eq_false', decide_eq_true_eq] at hP hG
+        unfold INV_CF_G1_12 at hI
+        have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+        refine ⟨hC, hq, fun _ _ => ⟨?_, hI⟩⟩
+        rw [hI.7 _ (by simpa [FMap.domE] using hG)]
+
+omit [SLCommon.Params] in
+/-- `rcons` is injective in both arguments (EC's `rconssI`/`rconsIs`). -/
+theorem rcons_inj_both {α : Type} {p q : List α} {a b : α} :
+    rcons p a = rcons q b → p = q ∧ a = b := by
+  intro h
+  have := List.append_inj' h rfl
+  simpa using this
+
+/-- Block xor cancels on the left: `a +^ (a +^ b) = b`. -/
+theorem xorw_cancel_left (a b : block) : a +^ (a +^ b) = b := by
+  apply List.Vector.ext
+  intro i
+  simp [BitWord.xorw, List.Vector.get_map₂]
+
+/-- In the path case of `eq_f` the query `rcons p0 (v0 +^ x1)` is fresh for `ro`. -/
+theorem f_path_ro_none (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (x1 : block)
+    (x2 : capacity) (hx2 : handle) (p0 : List block) (v0 : block) :
+    INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries →
+    FMap.get Pm (x1, x2) = none →
+    FMap.get hs hx2 = some (x2, Known) → build_hpath mh p0 = some (v0, hx2) →
+    FMap.get ro (rcons p0 (v0 +^ x1)) = none := by
+  rintro ⟨-, -, -, Hmmh, -, -, -, ⟨-, Imh2, -⟩, -, -⟩ Pm_x hs_hx2 Hpath
+  have mh_x := m_mh_None hs Pm mh hx2 x2 Known x1 Hmmh hs_hx2 Pm_x
+  cases hro : FMap.get ro (rcons p0 (v0 +^ x1)) with
+  | none => rfl
+  | some b =>
+    obtain ⟨v, hx, hy, hp, hm⟩ := (Imh2 _ _ _).1 hro
+    rw [Hpath] at hp
+    simp only [Option.some.injEq, Prod.mk.injEq] at hp
+    obtain ⟨rfl, rfl⟩ := hp
+    rw [xorw_cancel_left, mh_x] at hm
+    cases hm
+
+/-- The path case of EC's `eq_f`: `x2` has a known path `(p0, v0)`, the oracle answers the
+fresh query `rcons p0 (v0 +^ x1)` with `y1`. -/
+theorem f_path_inv (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (x1 : block)
+    (x2 : capacity) (y1 : block) (y2 : capacity) (hx2 : handle) (p0 : List block) (v0 : block) :
+    INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries →
+    FMap.get Pm (x1, x2) = none → FMap.get pi x2 = some (p0, v0) →
+    FMap.get hs hx2 = some (x2, Known) → build_hpath mh p0 = some (v0, hx2) →
+    hinv hs y2 = none →
+    INV_CF_G1 (FMap.set hs ch (y2, Known)) (ch + 1)
+      (FMap.set Pm (x1, x2) (y1, y2)) (FMap.set Pmi (y1, y2) (x1, x2))
+      (FMap.set Gm (x1, x2) (y1, y2)) (FMap.set Gmi (y1, y2) (x1, x2))
+      (FMap.set mh (x1, hx2) (y1, ch)) (FMap.set mhi (y1, ch) (x1, hx2))
+      (FMap.set ro (rcons p0 (v0 +^ x1)) y1) (FMap.set pi y2 (rcons p0 (v0 +^ x1), y1))
+      prefixes queries := by
+  intro HINV Pm_x _pi_x2 hs_hx2 Hpath hinv0
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, Hmp⟩ := HINV
+  obtain ⟨hun, -, hlt⟩ := id Hhs
+  obtain ⟨-, Imm2⟩ := id Hmmh
+  obtain ⟨Imi1, -⟩ := id Hmimhi
+  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
+  obtain ⟨Ipi⟩ := Hpi
+  have hy2 : ∀ f h, FMap.get hs h ≠ some (y2, f) := by
+    have hp := hinvP hs y2
+    rw [if_pos hinv0] at hp
+    exact fun f h => hp h f
+  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
+  have Gm_x : FMap.get Gm (x1, x2) = none := notin_m_notin_Gm Pm Gm _ Hincl Pm_x
+  have mh_x : FMap.get mh (x1, hx2) = none := m_mh_None hs Pm mh hx2 x2 Known x1 Hmmh hs_hx2 Pm_x
+  have Hhx2 : hx2 ≠ ch := dom_hs_neq_ch hs ch hx2 x2 Known Hhs hs_hx2
+  have ch0 : 0 ≠ ch := ch_neq0 hs ch Hhs
+  have ch_None : ∀ xa xb ha hb,
+      FMap.get mh (xa, ha) = some (xb, hb) → ha ≠ ch ∧ hb ≠ ch := by
+    intro xa xb ha hb hm
+    obtain ⟨_, _, _, _, h1, h2, -⟩ := Imm2 _ _ _ _ hm
+    exact ⟨dom_hs_neq_ch hs ch _ _ _ Hhs h1, dom_hs_neq_ch hs ch _ _ _ Hhs h2⟩
+  have hsne : ∀ h cf, FMap.get hs h = some cf →
+      FMap.get (FMap.set hs ch (y2, Known)) h = some cf := by
+    intro h cf hh
+    have := hlt _ _ hh
+    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
+  have mhup : ∀ p v h, build_hpath mh p = some (v, h) →
+      build_hpath (FMap.set mh (x1, hx2) (y1, ch)) p = some (v, h) :=
+    fun p v h hp => build_hpath_up mh x1 hx2 y1 ch p v h hp mh_x
+  have bpiff := fun p v hx =>
+    build_hpath_upd_ch_iff hx2 ch mh x1 y1 p v hx mh_x ch0 Hhx2 ch_None
+  have Hpath' := mhup _ _ _ Hpath
+  have Hmp' : ∀ (x y : state), FMap.get Pm x = none →
+      m_p (FMap.set Pm x y) prefixes queries := by
+    obtain ⟨c1, c2, c3, c4, c5⟩ := Hmp
+    intro x y hx
+    refine ⟨c1, c2, ?_, c4, c5⟩
+    intro l hl i hi
+    obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
+    refine ⟨sa, sc, h1, ?_⟩
+    have hne : FMap.get prefixes (take (i + 1) l) ≠ none := by
+      by_cases hi' : i + 1 < size l
+      · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
+        rw [h1']
+        simp
+      · have : take (i + 1) l = l := by
+          simp only [take, size] at *
+          apply List.take_of_length_le
+          omega
+        rw [this]
+        exact (FMap.domE _ _).1 hl
+    rw [FMap.get_setE, if_neg]
+    · exact h2
+    · intro he
+      rw [he, hx] at h2
+      exact hne h2.symm
+  refine ⟨hs_addh hs ch y2 Known Hhs hy2, ?_, ?_, ?_, ?_, incl_addm _ _ _ _ Hincl,
+    incl_addm _ _ _ _ Hincli, ?_, ?_, Hmp' _ _ Pm_x⟩
+  · refine inv_addm _ _ _ _ HinvG Gm_x ?_
+    cases hg : FMap.get Gmi (y1, y2) with
+    | none => rfl
+    | some xc =>
+      have hp := Hincli (y1, y2) (by rw [hg]; simp)
+      rw [hg] at hp
+      obtain ⟨_, fx, _, _, h1, _, _⟩ := Imi1 _ _ _ _ hp
+      exact absurd h1 (hy2 _ _)
+  · exact inv_addm _ _ _ _ Hinvmh mh_x (ch_notdomE2_mh hs Pmi mhi y1 ch Hmimhi Hhs)
+  · exact m_mh_addh_addm hs Pm mh hx2 x1 x2 ch y1 y2 Known Known Hmmh hun hs_hx2 hs_ch
+  · exact mi_mhi_addh_addmi hs Pmi mhi hx2 x1 x2 ch y1 y2 Known Known Hmimhi hy2 hs_hx2 hs_ch
+  · refine ⟨?_, ?_, ?_⟩
+    · -- first component of `mh_spec`
+      intro xa hx' ya hy hm
+      rw [FMap.get_setE] at hm
+      split_ifs at hm with hk
+      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+        obtain ⟨hk1, hk2⟩ := hk
+        obtain ⟨hm1, hm2⟩ := hm
+        subst xa hx' ya hy
+        refine ⟨x2, Known, y2, Known, hsne _ _ hs_hx2, FMap.get_set_sameE _ _ _, ?_⟩
+        simp
+      · obtain ⟨xc, fx, yc, fy, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+        refine ⟨xc, fx, yc, fy, hsne _ _ h1, hsne _ _ h2, ?_⟩
+        cases fy with
+        | Known =>
+          simp only [if_true] at h3 ⊢
+          refine ⟨?_, h3.2⟩
+          rw [FMap.get_set_neqE]
+          · exact h3.1
+          · intro he
+            rw [he, Gm_x] at h3
+            cases h3.1
+        | Unknown =>
+          simp only [reduceCtorEq, if_false] at h3 ⊢
+          obtain ⟨p, v, h4, h5⟩ := h3
+          refine ⟨p, v, ?_, mhup _ _ _ h5⟩
+          rw [FMap.get_set_neqE _ _ _ _ ?_, h4]
+          intro he
+          obtain ⟨rfl, he2⟩ := rcons_inj_both he
+          rw [Hpath] at h5
+          simp only [Option.some.injEq, Prod.mk.injEq] at h5
+          obtain ⟨rfl, rfl⟩ := h5
+          apply hk
+          rw [← xorw_cancel_left v0 xa, he2, xorw_cancel_left]
+    · -- second component of `mh_spec`
+      intro p bn b
+      rw [FMap.get_setE]
+      split_ifs with hd
+      · obtain ⟨rfl, rfl⟩ := rcons_inj_both hd
+        simp only [Option.some.injEq]
+        constructor
+        · rintro rfl
+          refine ⟨v0, hx2, ch, Hpath', ?_⟩
+          rw [xorw_cancel_left]
+          exact FMap.get_set_sameE _ _ _
+        · rintro ⟨v, hx, hy, hp, hm⟩
+          rw [Hpath'] at hp
+          simp only [Option.some.injEq, Prod.mk.injEq] at hp
+          obtain ⟨rfl, rfl⟩ := hp
+          rw [xorw_cancel_left, FMap.get_set_sameE] at hm
+          simp only [Option.some.injEq, Prod.mk.injEq] at hm
+          exact hm.1
+      · rw [Imh2]
+        constructor
+        · rintro ⟨v, hx, hy, h1, h2⟩
+          refine ⟨v, hx, hy, mhup _ _ _ h1, ?_⟩
+          rw [FMap.get_set_neqE]
+          · exact h2
+          · intro he
+            rw [he, mh_x] at h2
+            cases h2
+        · rintro ⟨v, hx, hy, h1, h2⟩
+          rw [bpiff] at h1
+          split_ifs at h1 with hxc
+          · subst hxc
+            rw [FMap.get_set_neqE _ _ _ _ (by simp [Ne.symm Hhx2]),
+              ch_notdomE2_mh hs Pm mh _ hx Hmmh Hhs] at h2
+            cases h2
+          · refine ⟨v, hx, hy, h1, ?_⟩
+            rw [FMap.get_setE] at h2
+            split_ifs at h2 with hk
+            · simp only [Prod.mk.injEq] at hk
+              obtain ⟨hk1, rfl⟩ := hk
+              obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ h1 Hpath
+              apply absurd _ hd
+              rw [← hk1, xorw_cancel_left]
+            · exact h2
+    · -- third component of `mh_spec`
+      intro p v p' v' hx h1 h2
+      rw [bpiff] at h1 h2
+      split_ifs at h1 h2 with hxc
+      · obtain ⟨pa, xa, ha, rfl, rfl⟩ := h1
+        obtain ⟨pb, xb, hb, rfl, rfl⟩ := h2
+        obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ ha hb
+        exact ⟨rfl, rfl⟩
+      · exact Imh3 _ _ _ _ _ h1 h2
+  · -- `pi_spec`
+    refine ⟨fun c p v => ?_⟩
+    rw [FMap.get_setE]
+    split_ifs with hc
+    · subst hc
+      simp only [Option.some.injEq, Prod.mk.injEq]
+      constructor
+      · rintro ⟨rfl, rfl⟩
+        refine ⟨ch, ?_, FMap.get_set_sameE _ _ _⟩
+        rw [bpiff, if_pos rfl]
+        exact ⟨p0, v0, Hpath, rfl, rfl⟩
+      · rintro ⟨h, h1, h2⟩
+        rw [bpiff] at h1
+        split_ifs at h1 with hh
+        · obtain ⟨pa, xa, ha, rfl, rfl⟩ := h1
+          obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ ha Hpath
+          exact ⟨rfl, rfl⟩
+        · rw [FMap.get_set_neqE _ _ _ _ hh] at h2
+          exact absurd h2 (hy2 _ _)
+    · rw [Ipi]
+      constructor
+      · rintro ⟨h, h1, h2⟩
+        exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
+      · rintro ⟨h, h1, h2⟩
+        rw [bpiff] at h1
+        split_ifs at h1 with hh
+        · subst hh
+          rw [FMap.get_set_sameE] at h2
+          simp only [Option.some.injEq, Prod.mk.injEq] at h2
+          exact absurd h2.1.symm hc
+        · rw [FMap.get_set_neqE _ _ _ _ hh] at h2
+          exact ⟨h, h1, h2⟩
+
+
+theorem f_none_inv (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa y1 : block)
+    (xc y2 : capacity)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries)
+    (hP : ¬ FMap.dom Pm (xa, xc)) (hG : ¬ FMap.dom Gm (xa, xc))
+    (hnone : ∀ f h, FMap.get hs h ≠ some (xc, f))
+    (hcol : hinv (FMap.set hs ch (xc, Known)) y2 = none) :
+    INV_CF_G1 (FMap.set (FMap.set hs ch (xc, Known)) (ch + 1) (y2, Known)) (ch + 1 + 1)
+      (FMap.set Pm (xa, xc) (y1, y2)) (FMap.set Pmi (y1, y2) (xa, xc))
+      (FMap.set Gm (xa, xc) (y1, y2)) (FMap.set Gmi (y1, y2) (xa, xc))
+      (FMap.set mh (xa, ch) (y1, ch + 1)) (FMap.set mhi (y1, ch + 1) (xa, ch))
+      ro pi prefixes queries := by
+  have hy := hinvP (FMap.set hs ch (xc, Known)) y2
+  rw [if_pos hcol] at hy
+  have hxy : xc ≠ y2 := by
+    rintro rfl
+    exact hy ch Known (FMap.get_set_sameE _ _ _)
+  have hy2 : ∀ f h, FMap.get hs h ≠ some (y2, f) := by
+    intro f h hh
+    by_cases e : h = ch
+    · subst e
+      rw [ch_notdomE_hs _ _ hI.1] at hh
+      cases hh
+    · exact hy h f (by rw [FMap.get_set_neqE _ _ _ _ e]; exact hh)
+  rw [show ch + 1 + 1 = ch + 2 by ring]
+  exact lemma1 hs ch Pm Pmi Gm Gmi mh mhi ro pi xa xc y1 y2 prefixes queries hI hxy
+    (by simpa [FMap.domE] using hP) (by simpa [FMap.domE] using hG) hnone hy2
+
+theorem f_known_inv (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa y1 : block)
+    (xc y2 : capacity) (hx : handle)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries)
+    (hP : ¬ FMap.dom Pm (xa, xc)) (hG : ¬ FMap.dom Gm (xa, xc)) (hpi : ¬ FMap.dom pi xc)
+    (hhx : FMap.get hs hx = some (xc, Known))
+    (hcol : hinv hs y2 = none) :
+    INV_CF_G1 (FMap.set hs ch (y2, Known)) (ch + 1)
+      (FMap.set Pm (xa, xc) (y1, y2)) (FMap.set Pmi (y1, y2) (xa, xc))
+      (FMap.set Gm (xa, xc) (y1, y2)) (FMap.set Gmi (y1, y2) (xa, xc))
+      (FMap.set mh (xa, hx) (y1, ch)) (FMap.set mhi (y1, ch) (xa, hx))
+      ro pi prefixes queries := by
+  have hy := hinvP hs y2
+  rw [if_pos hcol] at hy
+  exact lemma2 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries xa xc y1 y2 hx hI
+    (by simpa [FMap.domE] using hP) (by simpa [FMap.domE] using hG)
+    (by simpa [FMap.domE] using hpi) hhx (fun f h => hy h f)
+
+theorem f_B2_facts (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block) (xa ya : block)
+    (xc yc : capacity)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries)
+    (hP : FMap.get Pm (xa, xc) = some (ya, yc)) (hG : FMap.get Gm (xa, xc) = none) :
+    ∃ hx fx hy, FMap.get hs hx = some (xc, fx) ∧ FMap.get hs hy = some (yc, Unknown) ∧
+      FMap.get mh (xa, hx) = some (ya, hy) ∧
+      (fx = Known → ∃ p v, FMap.get pi xc = some (p, v) ∧
+        FMap.get ro (rcons p (v +^ xa)) = some ya ∧ build_hpath mh p = some (v, hx)) := by
+  obtain ⟨hx, fx, hy, fy, h1, h2, h3⟩ := hI.4.1 _ _ _ _ hP
+  obtain ⟨xc', fx', yc', fy', h1', h2', h4⟩ := hI.8.1 _ _ _ _ h3
+  rw [h1] at h1'
+  rw [h2] at h2'
+  simp only [Option.some.injEq, Prod.mk.injEq] at h1' h2'
+  obtain ⟨rfl, rfl⟩ := h1'
+  obtain ⟨rfl, rfl⟩ := h2'
+  cases fy with
+  | Known =>
+    rw [if_pos rfl] at h4
+    rw [hG] at h4
+    cases h4.1
+  | Unknown =>
+    simp only [reduceCtorEq, if_false] at h4
+    obtain ⟨p, v, hro, hb⟩ := h4
+    refine ⟨hx, fx, hy, h1, h2, h3, fun hk => ⟨p, v, ?_, hro, hb⟩⟩
+    subst hk
+    exact (hI.9.1 _ _ _).mpr ⟨hx, hb, h1⟩
+
+set_option maxHeartbeats 4000000 in
+-- the inlined oracles' wp goals are large
+/-- The oracle step of EC's `eq_f`: the `call (: …)` between `PF.f` and `G1.S.f`. -/
+theorem PF_f_S_f :
+    prhlProc (sig₁ := procsig (state) -> state) (sig₂ := procsig (state) -> state)
+      (fun a₁ g₁ a₂ g₂ => G1.bcol.get g₂ = false ∧ G1.bext.get g₂ = false ∧ a₁ = a₂ ∧
+        eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂)
+      (Indifferentiability.PRIMITIVE.f state (List block) block PF).procedure
+      (Indifferentiability.DPRIMITIVE.f state (List block) block G1.S).procedure
+      (fun r₁ g₁ r₂ g₂ => eq_glob_C g₁ g₂ ∧ FMap.dom (C.queries.get g₂) [] ∧
+        (G1.bcol.get g₂ = false → G1.bext.get g₂ = false → r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂)) := by
+  unfold PF G1.S
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+      eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨hc, hb, rfl, hC, hI⟩
+    exact ⟨rfl, hc, hb, hC, hI⟩
+  · equiv_if{1}
+    case «then» =>
+      equiv_if{2}
+      case «then» =>
+        stmt_wp
+        equiv_if{2}
+        case «then» =>
+          equiv_seq 1 3 : (§y1{1} = §(localVarLens "r" block){2} ∧
+              §x1{2} = rcons §p{2} (§v{2} +^ (§x0{2}).1) ∧
+              (§p{2}, §v{2}) = oget (FMap.get §G1.paths{2} (§x0{2}).2) ∧
+              ¬ FMap.dom §F.RO.m{2} §x1{2} ∧
+              §x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+              eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2} ∧
+              ¬ FMap.dom §PF.m{1} §x0{1} ∧ ¬ FMap.dom §G1.m{2} §x0{2} ∧
+              FMap.dom §G1.paths{2} (§x0{2}).2)
+          · equiv_rnd
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ x0 _ ⟨⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩, hpa⟩ a -
+            simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq] at hP hG hpa
+            refine ⟨?_, rfl, hc, hb, hC, hI, hP, hG, hpa⟩
+            obtain ⟨xa, xc⟩ := x0
+            unfold INV_CF_G1_12 at hI
+            obtain ⟨⟨p0, v0⟩, hpi⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hpa)
+            obtain ⟨h, hbp, hhs⟩ := (hI.9.1 _ _ _).mp hpi
+            have := f_path_ro_none _ _ _ _ _ _ _ _ _ _ _ _ xa xc h p0 v0 hI
+              (by simpa [FMap.domE] using hP) hhs hbp
+            rw [hpi]
+            simpa [oget, FMap.domE] using this
+          · equiv_rnd
+            stmt_wp{2} 1
+            equiv_if{2}
+            case «then» =>
+              stmt_wp
+              equiv_skip
+              intro g₁ g₂ y1 x0 r x1 p v x0' hR y2 hy2
+              obtain ⟨⟨rfl, rfl, hpv, -, rfl, hc, hb, hC, hI, hP, hG, hpa⟩, -⟩ := hR
+              obtain ⟨xa, xc⟩ := x0
+              unfold INV_CF_G1_12 at hI
+              have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+              obtain ⟨⟨p0, v0⟩, hpi⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hpa)
+              rw [hpi] at hpv
+              simp only [oget, Option.getD_some, Prod.mk.injEq] at hpv
+              obtain ⟨rfl, rfl⟩ := hpv
+              obtain ⟨h, hbp, hhs⟩ := (hI.9.1 _ _ _).mp hpi
+              have hK : FMap.rng (FRO.m.get g₂) (xc, Known) := ⟨h, hhs⟩
+              have hgf := (getflagP_some _ _ Known hI.1.1).2 hK
+              have hU : ¬ FMap.rng (FRO.m.get g₂) (xc, Unknown) := fun hu => by
+                have := (getflagP_some _ _ Unknown hI.1.1).2 hu
+                rw [hgf] at this
+                cases this
+              have hx2' : oget (hinvK (FRO.m.get g₂) xc) = h := by
+                rw [huniq_hinvK_h _ _ _ hI.1.1 hhs]; rfl
+              have hPn : FMap.get (PF.m.get g₁) (xa, xc) = none := by simpa [FMap.domE] using hP
+              have hmh : ¬ FMap.dom (G1.mh.get g₂) (xa, h) := by
+                rw [FMap.domE, m_mh_None _ _ _ _ _ _ _ hI.4 hhs hPn]
+                simp
+              simp only [hK, hU, decide_true, decide_false, Bool.not_true, Bool.false_eq_true,
+                if_false, Bool.or_false, hx2', hmh, false_and]
+              simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+              simp_reads
+              simp only [hpa, decide_true, if_true, FMap.get_set_sameE, hpi]
+              simp only [oget, Option.getD_some]
+              refine ⟨hC, hq, fun hcol _ => ⟨trivial, ?_⟩⟩
+              simp only [hc, Bool.false_or, decide_eq_false_iff_not, not_not] at hcol
+              exact f_path_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hPn hpi hhs hbp hcol
+            case «else» =>
+              refine prhlStmt_pre prhlStmt_false ?_
+              rintro σ₁ σ₂ ⟨⟨-, -, -, hro, -⟩, hg⟩
+              simp only [Bool.not_eq_false', decide_eq_true_eq] at hg
+              exact hro hg
+        case «else» =>
+          equiv_rnd
+          equiv_rnd
+          equiv_skip
+          rintro g₁ g₂ x0 _ ⟨⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩, hpa⟩ y1 - y2 -
+          obtain ⟨xa, xc⟩ := x0
+          simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hP hG hpa
+          unfold INV_CF_G1_12 at hI
+          have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+          rcases hgf : getflag (FRO.m.get g₂) xc with _ | f
+          · have hnone := (getflagP_none _ _).1 hgf
+            have hK : ¬ FMap.rng (FRO.m.get g₂) (xc, Known) := fun ⟨h, hh⟩ => hnone _ h hh
+            have hU : ¬ FMap.rng (FRO.m.get g₂) (xc, Unknown) := fun ⟨h, hh⟩ => hnone _ h hh
+            simp only [hK, hU, decide_false, Bool.not_false, if_true, Bool.or_false]
+            have hx2 : hinvK (FMap.set (FRO.m.get g₂) (G1.chandle.get g₂) (xc, Known)) xc =
+                some (G1.chandle.get g₂) :=
+              huniq_hinvK_h _ _ _ (huniq_addh _ _ _ _ hI.1.1 hnone) (FMap.get_set_sameE _ _ _)
+            have hx2' : oget (hinvK (FMap.set (FRO.m.get g₂) (G1.chandle.get g₂) (xc, Known))
+                xc) = G1.chandle.get g₂ := by rw [hx2]; rfl
+            have hmh : ¬ FMap.dom (G1.mh.get g₂) (xa, G1.chandle.get g₂) := by
+              rw [FMap.domE, notin_hs_notdomE2_mh _ _ _ _ _ hI.4 (ch_notdomE_hs _ _ hI.1)]
+              simp
+            simp only [hx2', hmh, false_and, decide_false, Bool.false_eq_true, if_false]
+            simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+            simp_reads
+            simp only [hpa, decide_false, Bool.false_eq_true, if_false]
+            refine ⟨hC, hq, fun hcol _ => ⟨by simp [oget, FMap.get_set_sameE], ?_⟩⟩
+            simp only [hc, Bool.false_or, decide_eq_false_iff_not, not_not] at hcol
+            exact f_none_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hP hG hnone hcol
+          · have hsome := (getflagP_some _ _ f hI.1.1).1 hgf
+            cases f with
+            | Known =>
+              obtain ⟨hx, hhx⟩ := id hsome
+              have hU : ¬ FMap.rng (FRO.m.get g₂) (xc, Unknown) := fun h => by
+                have := (getflagP_some _ _ Unknown hI.1.1).2 h
+                rw [hgf] at this
+                cases this
+              simp only [hsome, hU, decide_true, decide_false, Bool.not_true, Bool.false_eq_true,
+                if_false, Bool.or_false]
+              have hx2' : oget (hinvK (FRO.m.get g₂) xc) = hx := by
+                rw [huniq_hinvK_h _ _ _ hI.1.1 hhx]; rfl
+              have hPn : FMap.get (PF.m.get g₁) (xa, xc) = none := by simpa [FMap.domE] using hP
+              have hmh : ¬ FMap.dom (G1.mh.get g₂) (xa, hx) := by
+                rw [FMap.domE, m_mh_None _ _ _ _ _ _ _ hI.4 hhx hPn]
+                simp
+              simp only [hx2', hmh, false_and, decide_false, Bool.false_eq_true, if_false]
+              simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+              simp_reads
+              simp only [hpa, decide_false, Bool.false_eq_true, if_false]
+              refine ⟨hC, hq, fun hcol _ => ⟨by simp [oget, FMap.get_set_sameE], ?_⟩⟩
+              simp only [hc, Bool.false_or, decide_eq_false_iff_not, not_not] at hcol
+              exact f_known_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hP hG hpa hhx hcol
+            | Unknown =>
+              have hK : ¬ FMap.rng (FRO.m.get g₂) (xc, Known) := fun h => by
+                have := (getflagP_some _ _ Known hI.1.1).2 h
+                rw [hgf] at this
+                cases this
+              simp only [hsome, hK, decide_true, decide_false, Bool.or_true]
+              simp only [eq_glob_C] at hC ⊢
+              simp_reads
+              simp only [ite_self]
+              exact ⟨hC, hq, fun _ h => absurd h (by simp)⟩
+      case «else» =>
+        refine prhlStmt_pre prhlStmt_false ?_
+        rintro σ₁ σ₂ ⟨⟨⟨hx, -, -, -, hI⟩, hP⟩, hG⟩
+        simp only [Bool.not_eq_false', Bool.not_eq_true', decide_eq_true_eq,
+          decide_eq_false_iff_not] at hP hG
+        rw [hx] at hP
+        unfold INV_CF_G1_12 at hI
+        have hd := (FMap.domE _ _).mp hG
+        exact hP ((FMap.domE _ _).mpr (by rw [hI.6 _ hd]; exact hd))
+    case «else» =>
+      equiv_if{2}
+      case «then» =>
+        stmt_wp
+        equiv_if{2}
+        case «then» =>
+          equiv_seq 0 3 : (§x1{2} = rcons §p{2} (§v{2} +^ (§x0{2}).1) ∧
+              (§p{2}, §v{2}) = oget (FMap.get §G1.paths{2} (§x0{2}).2) ∧
+              §x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+              eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2} ∧
+              FMap.dom §PF.m{1} §x0{1} ∧ ¬ FMap.dom §G1.m{2} §x0{2} ∧
+              FMap.dom §G1.paths{2} (§x0{2}).2)
+          · stmt_wp{2} 1
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ x0 _ ⟨⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩, hpa⟩
+            simp only [Bool.not_eq_false', Bool.not_eq_true', decide_eq_true_eq,
+              decide_eq_false_iff_not] at hP hG hpa
+            exact ⟨(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+              fun _ _ => ⟨rfl, hc, hb, hC, hI, hP, hG, hpa⟩⟩
+          · stmt_wp{2} 1
+            stmt_wp{2} 1
+            equiv_if{2}
+            case «then» =>
+              stmt_wp
+              equiv_skip
+              intro g₁ g₂ x0 x1 p v x0' r hR
+              refine ⟨(is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll, fun y2 _ => ?_⟩
+              obtain ⟨⟨hx1, hpv, hx0, hc, hb, hC, hI, hP, hG, hpa⟩, hro⟩ := hR
+              subst hx0
+              obtain ⟨xa, xc⟩ := x0
+              simp only [Bool.not_eq_true', Bool.not_eq_false', decide_eq_false_iff_not,
+                decide_eq_true_eq] at hro
+              unfold INV_CF_G1_12 at hI
+              have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+              obtain ⟨⟨ya, yc⟩, hPy⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hP)
+              have hGn : FMap.get (G1.m.get g₂) (xa, xc) = none := by simpa [FMap.domE] using hG
+              obtain ⟨hx, fx, hy, hhx, hhy, hmh, hKp⟩ :=
+                f_B2_facts _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hPy hGn
+              cases fx with
+              | Unknown =>
+                have hU : FMap.rng (FRO.m.get g₂) (xc, Unknown) := ⟨hx, hhx⟩
+                simp only [hU, decide_true, Bool.or_true]
+                simp only [eq_glob_C] at hC ⊢
+                simp_reads
+                simp only [ite_self]
+                exact ⟨hC, hq, fun _ h => absurd h (by simp)⟩
+              | Known =>
+                obtain ⟨p0, v0, hpi, hroy, hbp⟩ := hKp rfl
+                rw [hpi] at hpv
+                simp only [oget, Option.getD_some, Prod.mk.injEq] at hpv
+                obtain ⟨rfl, rfl⟩ := hpv
+                subst hx1
+                exact absurd ((FMap.domE _ _).mpr (by rw [hroy]; simp)) hro
+            case «else» =>
+              equiv_skip
+              intro g₁ g₂ x0 x1 p v x0' hR
+              refine ⟨(is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll, fun y2 _ => ?_⟩
+              obtain ⟨⟨hx1, hpv, hx0, hc, hb, hC, hI, hP, hG, hpa⟩, hro⟩ := hR
+              subst hx0
+              obtain ⟨xa, xc⟩ := x0
+              simp only [Bool.not_eq_true', Bool.not_eq_false', decide_eq_false_iff_not,
+                decide_eq_true_eq] at hro
+              unfold INV_CF_G1_12 at hI
+              have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+              obtain ⟨⟨ya, yc⟩, hPy⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hP)
+              have hGn : FMap.get (G1.m.get g₂) (xa, xc) = none := by simpa [FMap.domE] using hG
+              obtain ⟨hx, fx, hy, hhx, hhy, hmh, hKp⟩ :=
+                f_B2_facts _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hPy hGn
+              cases fx with
+              | Unknown =>
+                have hU : FMap.rng (FRO.m.get g₂) (xc, Unknown) := ⟨hx, hhx⟩
+                simp only [hU, decide_true, Bool.or_true]
+                simp only [eq_glob_C] at hC ⊢
+                simp_reads
+                simp only [ite_self]
+                exact ⟨hC, hq, fun _ h => absurd h (by simp)⟩
+              | Known =>
+                obtain ⟨p0, v0, hpi, hroy, hbp⟩ := hKp rfl
+                rw [hpi] at hpv
+                simp only [oget, Option.getD_some, Prod.mk.injEq] at hpv
+                obtain ⟨rfl, rfl⟩ := hpv
+                subst hx1
+                have hK : FMap.rng (FRO.m.get g₂) (xc, Known) := ⟨hx, hhx⟩
+                have hgf := (getflagP_some _ _ Known hI.1.1).2 hK
+                have hU : ¬ FMap.rng (FRO.m.get g₂) (xc, Unknown) := fun hu => by
+                  have := (getflagP_some _ _ Unknown hI.1.1).2 hu
+                  rw [hgf] at this
+                  cases this
+                have hx2' : oget (hinvK (FRO.m.get g₂) xc) = hx := by
+                  rw [huniq_hinvK_h _ _ _ hI.1.1 hhx]; rfl
+                have hmhd : FMap.dom (G1.mh.get g₂) (xa, hx) := by rw [FMap.domE, hmh]; simp
+                have hidw : FMap.in_dom_with (FRO.m.get g₂) hy Unknown := by
+                  refine ⟨by rw [FMap.domE, hhy]; simp, ?_⟩
+                  rw [hhy]; rfl
+                have hmh' : oget (FMap.get (G1.mh.get g₂) (xa, hx)) = (ya, hy) := by rw [hmh]; rfl
+                have hhy' : oget (FMap.get (FRO.m.get g₂) hy) = (yc, Unknown) := by rw [hhy]; rfl
+                have hroy' : oget (FMap.get (F.RO.m.get g₂) (rcons p (v +^ xa))) = ya := by
+                  rw [hroy]; rfl
+                have hpi' : oget (FMap.get (G1.paths.get g₂) xc) = (p, v) := by rw [hpi]; rfl
+                simp only [hK, hU, decide_true, decide_false, Bool.not_true, Bool.false_eq_true,
+                  if_false, Bool.or_false, hx2', hmhd, hmh', hidw, true_and, if_true]
+                simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+                simp_reads
+                simp only [hhy', hroy', hpi', hpa, decide_true, if_true]
+                exact ⟨hC, hq, fun _ _ => ⟨by rw [hPy]; rfl, lemma3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+                  _ _ hI hPy hGn hmh hhx hhy hpi⟩⟩
+        case «else» =>
+          stmt_wp{2} 1
+          stmt_wp{2} 1
+          equiv_skip
+          intro g₁ g₂ x0 x0' hR
+          refine ⟨(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll, fun y1 _ =>
+            ⟨(is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll, fun y2 _ => ?_⟩⟩
+          obtain ⟨⟨⟨⟨hx0, hc, hb, hC, hI⟩, hP⟩, hG⟩, hpa⟩ := hR
+          subst hx0
+          obtain ⟨xa, xc⟩ := x0
+          simp only [Bool.not_eq_true', Bool.not_eq_false', decide_eq_false_iff_not,
+            decide_eq_true_eq] at hP hG hpa
+          unfold INV_CF_G1_12 at hI
+          have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+          obtain ⟨⟨ya, yc⟩, hPy⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hP)
+          have hGn : FMap.get (G1.m.get g₂) (xa, xc) = none := by simpa [FMap.domE] using hG
+          obtain ⟨hx, fx, hy, hhx, hhy, hmh, hKp⟩ :=
+            f_B2_facts _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hPy hGn
+          cases fx with
+          | Unknown =>
+            have hU : FMap.rng (FRO.m.get g₂) (xc, Unknown) := ⟨hx, hhx⟩
+            simp only [hU, decide_true, Bool.or_true]
+            simp only [eq_glob_C] at hC ⊢
+            simp_reads
+            simp only [ite_self]
+            exact ⟨hC, hq, fun _ h => absurd h (by simp)⟩
+          | Known =>
+            obtain ⟨p0, v0, hpi, -, -⟩ := hKp rfl
+            exact absurd ((FMap.domE _ _).mpr (by rw [hpi]; simp)) hpa
+      case «else» =>
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x0 _ ⟨⟨⟨rfl, hc, hb, hC, hI⟩, hP⟩, hG⟩
+        simp only [Bool.not_eq_false', decide_eq_true_eq] at hP hG
+        unfold INV_CF_G1_12 at hI
+        have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+        refine ⟨hC, hq, fun _ _ => ⟨?_, hI⟩⟩
+        rw [hI.6 _ (by simpa [FMap.domE] using hG)]
+
 /-- `equiv eq_fi (D <: DISTINGUISHER {-PF, -RO, -G1}) : DPRestr(PF).fi ~
 DPRestr(G1(DRestr(D)).S).fi : …`. -/
 theorem eq_fi (D : DISTINGUISHER)
@@ -1802,7 +2641,44 @@ theorem eq_fi (D : DISTINGUISHER)
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then
           FMap.dom (C.queries.get g₁) [] ∧ FMap.dom (C.queries.get g₂) []
         else r₁ = r₂ ∧ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂) := by
-  sorry
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  rw [Indifferentiability.PRIMITIVE.view_fi]
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+      eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨hc, hb, rfl, hC, hI⟩
+    exact ⟨rfl, hc, hb, hC, hI⟩
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ ⟨-, -, -, -, hC, -⟩
+      rw [hC.1]
+    case «then» =>
+      stmt_wp
+      equiv_call PF_fi_S_fi
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hc, hb, hC, hI⟩, hg⟩
+      refine ⟨⟨hc, hb, rfl, hC, hI⟩, ?_⟩
+      rintro r₁ g₁' r₂ g₂' ⟨hC', hq, hpost⟩
+      split_ifs with hbad
+      · exact ⟨by rw [hC'.2]; exact hq, hq⟩
+      · simp only [not_or, Bool.not_eq_true] at hbad
+        obtain ⟨hr, hI'⟩ := hpost hbad.1 hbad.2
+        refine ⟨hr, ?_, ?_⟩
+        · simp only [eq_glob_C] at hC' ⊢
+          simp_reads
+          exact ⟨by rw [hC'.1], hC'.2⟩
+        · simp only [INV_CF_G1_12] at hI' ⊢
+          simp_reads
+          exact hI'
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hc, hb, hC, hI⟩, -⟩
+      simp only [hc, hb, Bool.false_eq_true, or_self, if_false]
+      exact ⟨trivial, hC, hI⟩
 
 /-- `equiv eq_f (D <: DISTINGUISHER {-PF, -RO, -G1}) : DPRestr(PF).f ~
 DPRestr(G1(DRestr(D)).S).f : …`. -/
@@ -1822,7 +2698,44 @@ theorem eq_f (D : DISTINGUISHER)
       (fun r₁ g₁ r₂ g₂ =>
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then FMap.dom (C.queries.get g₂) []
         else r₁ = r₂ ∧ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂) := by
-  sorry
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  rw [Indifferentiability.PRIMITIVE.view_f]
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+      eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨hc, hb, rfl, hC, hI⟩
+    exact ⟨rfl, hc, hb, hC, hI⟩
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ ⟨-, -, -, -, hC, -⟩
+      rw [hC.1]
+    case «then» =>
+      stmt_wp
+      equiv_call PF_f_S_f
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hc, hb, hC, hI⟩, hg⟩
+      refine ⟨⟨hc, hb, rfl, hC, hI⟩, ?_⟩
+      rintro r₁ g₁' r₂ g₂' ⟨hC', hq, hpost⟩
+      split_ifs with hbad
+      · exact hq
+      · simp only [not_or, Bool.not_eq_true] at hbad
+        obtain ⟨hr, hI'⟩ := hpost hbad.1 hbad.2
+        refine ⟨hr, ?_, ?_⟩
+        · simp only [eq_glob_C] at hC' ⊢
+          simp_reads
+          exact ⟨by rw [hC'.1], hC'.2⟩
+        · simp only [INV_CF_G1_12] at hI' ⊢
+          simp_reads
+          exact hI'
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x _ y _ ⟨⟨rfl, rfl, hc, hb, hC, hI⟩, -⟩
+      simp only [hc, hb, Bool.false_eq_true, or_self, if_false]
+      exact ⟨trivial, hC, hI⟩
 
 theorem head_nth {α : Type} (w : α) (l : List α) : head w l = nth w l 0 := by
   cases l <;> rfl
