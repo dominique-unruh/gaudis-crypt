@@ -1360,3 +1360,26 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `writes_keep'`, and `hoareProc_const`, `hoare_if_inv`, `hoare_seq_inv`. `repeat' tac; tac'`
   parses `tac'` into the `repeat'`: parenthesize.
 
+## 2026-11-04: `Handle.PFf_Cf`
+
+* **EC's `splitwhile` on both sides** at `i < qpre p Q` (`prhlStmt_splitwhile_left/right`, then
+  `unfold Getter.andB` and `equiv_seq 1 1` between the halves). The variant obligation is a Hoare
+  triple over the body; it does not write `i` or `p`, so thread `J := (size p - (i+1)).toNat < k`
+  through every `if` with `hoare_if_inv` / `hoare_seq_inv` (`hoare_wp` refuses an `if` with
+  samplings).
+* **Invariants as pure predicates on values.** `PJ1` (first loop), `PJ2L` (left facts, whatever the
+  bad event) and `PJ2` (before the bad event) take the variables' values; the relational invariants
+  are a few equalities plus `PJ1 §FRO.m{2} … §h{2}`. Every loop step is a pure lemma (`PJ1_step`,
+  `PJ2_known`, `PJ2_fresh`, …), proved separately from the programs.
+* **EC's `alias{1} 1 prefixes = Redo.prefixes`**: `prhlStmt_fix_left (fun σ => Redo.prefixes.get
+  σ.globals)` before the loops. The old `(sa, sc)` of a step, overwritten before the `PF.f` call, is
+  fixed the same way, then `equiv_seq 1 1` cuts before the `if`s.
+* **Bad case inside a loop body**: `equiv_case (§G1.bcol{2} = true ∨ §G1.bext{2} = true)`. Before the
+  bad event the guards of the two sides agree (`lemma5'`); after it, the four branch combinations
+  with one-sided samplings (`stmt_wp{i} 1` and losslessness). The right's counter guard is always
+  true (counter bound in the invariant), so its `else` is impossible in both cases.
+* **Coupling across reordered samplings**: the left draws `y1` then `y2`, the right `sc` then the
+  oracle's `r`; `stmt_swap{1} 0 1` swaps the left draws so that `equiv_rnd` pairs `y1↔r`, `y2↔sc`.
+* **Goal shapes after `simp_reads`**: some conjuncts become `True` (`p = p`) and stay; add `true_and`
+  (and `ite_self`) before `refine ⟨…⟩`.
+

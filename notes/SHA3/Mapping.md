@@ -408,13 +408,13 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 | 1827 | lemma | `incl_upd_nin` |  | `incl_upd_nin` | done |
 | 1836 | lemma | `lemma5` |  | `lemma5` | done |
 | 1863 | lemma | `lemma5'` |  | `lemma5'` | done |
-| 1895 | equiv | `PFf_Cf` |  | `PFf_Cf` | stated |
+| 1895 | equiv | `PFf_Cf` |  | `PFf_Cf` (loop invariants `PJ1`, `PJ2`, `PJ2L`; steps `PJ1_init`, `PJ1_step`, `PJ1_PJ2`, `PJ2L_step`, `PJ2_known`, `PJ2_fresh`, `PJ2_final`, inline in EC) | done |
 | 2589 | declare module | `D` | section AUX. | `D` (section variable) | def |
 | 2591 | declare axiom | `D_ll` | section AUX. | `D_ll` (hypothesis) | def |
-| 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` (up-to-bad call on `cfL`/`cfI`/`cfBad`/`cfQ`; inline EC facts as lemmas `PF_f_ll`, `G1_M_f_ll`, `DFRestr_M_f_bad`, `INV_CF_G1_init`, …) | done modulo `PFf_Cf` (exc E14) |
+| 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` (up-to-bad call on `cfL`/`cfI`/`cfBad`/`cfQ`; inline EC facts as lemmas `PF_f_ll`, `G1_M_f_ll`, `DFRestr_M_f_bad`, `INV_CF_G1_init`, …) | done (exc E14) |
 | 2697 | declare module | `D` | section . | `D` (section variable) | def |
 | 2699 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
-| 2703 | lemma | `Real_G1` | section . | `Real_G1` | done modulo `PFf_Cf`, `Real_Concrete` (exc E14) |
+| 2703 | lemma | `Real_G1` | section . | `Real_G1` | done modulo `ConcreteF.Real_Concrete` (exc E14) |
 
 ## `proof/smart_counter/Gcol.eca`
 

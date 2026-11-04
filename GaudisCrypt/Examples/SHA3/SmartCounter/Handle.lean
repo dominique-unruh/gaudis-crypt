@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Logic.FrameTactics
+import GaudisCrypt.Logic.LoopTransform
 
 /-!
 # The handle-based game `G1` and its invariant (EasyCrypt `proof/smart_counter/Handle.eca`)
@@ -2582,8 +2583,8 @@ theorem PF_f_S_f :
                 simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
                 simp_reads
                 simp only [hhy', hroy', hpi', hpa, decide_true, if_true]
-                exact ⟨hC, hq, fun _ _ => ⟨by rw [hPy]; rfl, lemma3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-                  _ _ hI hPy hGn hmh hhx hhy hpi⟩⟩
+                exact ⟨hC, hq, fun _ _ => ⟨by rw [hPy]; rfl,
+                  lemma3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hI hPy hGn hmh hhx hhy hpi⟩⟩
         case «else» =>
           stmt_wp{2} 1
           stmt_wp{2} 1
@@ -2826,6 +2827,676 @@ theorem lemma5' (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hs
     subst this
     exact Or.inl ⟨b', c', hy, rfl, h5⟩
 
+/-! ## The invariants of `PFf_Cf`'s two loops and their steps -/
+
+/-- The longest prefix of `p` in the queries `Q`, EC's `prefix p (get_max_prefix p (elems (fdom
+C.queries)))`.  An abbreviation, not an EC declaration. -/
+noncomputable abbrev qpre (p : List block) (Q : FMap (List block) block) : ℤ :=
+  «prefix» p (get_max_prefix p (elems (FMap.fdom Q)))
+
+/-- The invariant of `PFf_Cf`'s first loop (the blocks of `p` already queried): EC's
+`while (…)` invariant of the first `splitwhile` half, without the bad event (which this loop does
+not touch).  `pref` is `Redo.prefixes{1}`; `(sa, sc)` the left state, `(sa, h)` the right one. -/
+def PJ1 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref : FMap (List block) state) (Q : FMap (List block) block) (p : List block) (i : ℤ)
+    (sa : block) (sc : capacity) (h : handle) : Prop :=
+  INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q ∧
+  FMap.get pref (take i p) = some (sa, sc) ∧ (∃ f, FMap.get hs h = some (sc, f)) ∧
+  build_hpath mh (take i p) = some (sa, h) ∧
+  (if i = 0 then (sa, h) = (b0, 0) else FMap.get ro (take i p) = some sa) ∧
+  0 ≤ i ∧ i ≤ qpre p Q ∧ ¬ FMap.dom Q p ∧ 0 < size p
+
+/-- The left-hand part of the invariant of `PFf_Cf`'s second loop (the new blocks), which holds
+whatever the bad event: `pref0` is `Redo.prefixes{1}` before the loop (EC's `alias`). -/
+def PJ2L (pref pref0 : FMap (List block) state) (Q : FMap (List block) block) (p : List block)
+    (i : ℤ) (sa : block) (sc : capacity) : Prop :=
+  FMap.get pref (take i p) = some (sa, sc) ∧
+  (∀ l, FMap.dom pref0 l → FMap.get pref l = FMap.get pref0 l) ∧
+  (∀ l, FMap.dom pref l → FMap.dom pref0 l ∨ ∃ j, 0 ≤ j ∧ j ≤ i ∧ take j p = l) ∧
+  (i < size p → ¬ FMap.dom pref (take (i + 1) p)) ∧
+  qpre p Q ≤ i ∧ i ≤ size p ∧ ¬ FMap.dom Q p
+
+/-- The invariant of `PFf_Cf`'s second loop before the bad event (EC's `!(G1.bcol{2} \/
+G1.bext{2}) => …`): `INV_CF_G1` with the query `take i p` answered `sa`. -/
+def PJ2 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref pref0 : FMap (List block) state) (Q : FMap (List block) block) (p : List block)
+    (i : ℤ) (sa : block) (sc : capacity) (h : handle) : Prop :=
+  INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref (FMap.set Q (take i p) sa) ∧
+  m_p Pm pref0 Q ∧ (∃ f, FMap.get hs h = some (sc, f)) ∧
+  build_hpath mh (take i p) = some (sa, h) ∧
+  (if i = 0 then (sa, h) = (b0, 0) else FMap.get ro (take i p) = some sa)
+
+
+omit [SLCommon.Params] in
+/-- A prefix of `p` of length `k` has size `k` (for `0 ≤ k ≤ size p`). -/
+theorem size_take_of_le {α : Type} (k : ℤ) (p : List α) (h0 : 0 ≤ k) (h : k ≤ size p) :
+    size (take k p) = k := by
+  simp only [size, take, List.length_take] at *
+  omega
+
+omit [SLCommon.Params] in
+/-- Prefixes of `p` of different lengths (within `size p`) differ. -/
+theorem take_ne_take_of_ne {α : Type} (j k : ℤ) (p : List α) (hj0 : 0 ≤ j) (hj : j ≤ size p)
+    (hk0 : 0 ≤ k) (hk : k ≤ size p) (hne : j ≠ k) : take j p ≠ take k p := by
+  intro he
+  have := congrArg size he
+  rw [size_take_of_le j p hj0 hj, size_take_of_le k p hk0 hk] at this
+  exact hne this
+
+omit [SLCommon.Params] in
+/-- A shorter prefix of a prefix is a prefix. -/
+theorem take_take_of_le {α : Type} (j k : ℤ) (p : List α) (h : j ≤ k) :
+    take j (take k p) = take j p := by
+  rw [take_take, min_eq_left h]
+
+omit [SLCommon.Params] in
+/-- The blocks of a prefix are those of the list. -/
+theorem nth_take_of_lt {α : Type} (x0 : α) (j k : ℤ) (p : List α) (h0 : 0 ≤ j) (h : j < k) :
+    nth x0 (take k p) j = nth x0 p j := by
+  simp only [nth, if_pos h0, take, List.getD_eq_getElem?_getD, List.getElem?_take]
+  rw [if_pos (by omega)]
+
+/-- `m_p`'s third component at a step: `Pm` maps the state recorded for `take i p`, xored with
+the next block, to the state recorded for `take (i + 1) p`. -/
+theorem m_p_step (Pm : smap) (pref : FMap (List block) state) (Q : FMap (List block) block)
+    (p : List block) (i : ℤ) (sa : block) (sc : capacity) :
+    m_p Pm pref Q → 0 ≤ i ∧ i < size p → FMap.dom pref (take (i + 1) p) →
+    FMap.get pref (take i p) = some (sa, sc) →
+    FMap.get Pm (sa +^ nth default p i, sc) = FMap.get pref (take (i + 1) p) := by
+  rintro ⟨-, -, Ip, -, -⟩ ⟨hi0, hi⟩ hdom hb
+  have hsz : 0 ≤ i ∧ i < size (take (i + 1) p) := by
+    rw [size_take_of_le _ _ (by omega) (by omega)]
+    omega
+  obtain ⟨sa', sc', h1, h2⟩ := Ip _ hdom i hsz
+  rw [take_take_of_le _ _ _ (by omega), hb] at h1
+  simp only [Option.some.injEq, Prod.mk.injEq] at h1
+  obtain ⟨rfl, rfl⟩ := h1
+  rwa [nth_take_of_lt _ _ _ _ hi0 (by omega), take_take_of_le _ _ _ le_rfl] at h2
+
+/-- A step of the first loop: both sides find the block known. -/
+theorem PJ1_step (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref : FMap (List block) state) (Q : FMap (List block) block) (p : List block) (i : ℤ)
+    (sa : block) (sc : capacity) (h : handle)
+    (hJ : PJ1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q p i sa sc h) (hi : i < qpre p Q) :
+    FMap.dom pref (take (i + 1) p) ∧ FMap.dom mh (sa +^ nth default p i, h) ∧
+    (oget (FMap.get pref (take (i + 1) p))).1 =
+      (oget (FMap.get mh (sa +^ nth default p i, h))).1 ∧
+    PJ1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q p (i + 1)
+      (oget (FMap.get pref (take (i + 1) p))).1 (oget (FMap.get pref (take (i + 1) p))).2
+      (oget (FMap.get mh (sa +^ nth default p i, h))).2 := by
+  obtain ⟨hI, hpre, ⟨f, hh⟩, hb, -, hi0, -, hQ, hsz⟩ := hJ
+  obtain ⟨-, -, -, ⟨-, Imh⟩, -, -, -, ⟨-, Iro, -⟩, -, hmp⟩ := id hI
+  unfold qpre at hi
+  have hqs := prefix_sizel p (get_max_prefix p (elems (FMap.fdom Q)))
+  have hip : 0 ≤ i ∧ i < size p := ⟨hi0, by omega⟩
+  have hmem : FMap.dom Q (get_max_prefix p (elems (FMap.fdom Q))) :=
+    (mem_elems_fdom _ _).1 (prefix_gt0_mem _ _ (by omega))
+  have hdom : FMap.dom pref (take (i + 1) p) := by
+    rw [prefix_take_leq p (get_max_prefix p (elems (FMap.fdom Q))) (i + 1) (by omega)]
+    obtain ⟨-, -, -, Iq, -⟩ := id hmp
+    obtain ⟨c, hc⟩ := Iq _ hmem
+    exact all_prefixes_of_m_p _ _ _ hmp _ ((FMap.domE _ _).2 (by simp [hc])) _
+  obtain ⟨b', c', h', hPm, hmh⟩ := lemma5 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q i p sa sc h
+    hI hip hdom hpre ⟨f, hh⟩
+  have hpre' : FMap.get pref (take (i + 1) p) = some (b', c') := by
+    rw [← m_p_step Pm pref Q p i sa sc hmp hip hdom hpre, hPm]
+  obtain ⟨xc, fx, yc, fy, hx, hy, hPm'⟩ := Imh _ _ _ _ hmh
+  rw [hh] at hx
+  cases hx
+  rw [hPm] at hPm'
+  cases hPm'
+  have hb' : build_hpath mh (take (i + 1) p) = some (b', h') := by
+    rw [take_nth default i p hip]
+    exact (build_hpath_prefix _ _ _ _ _).2 ⟨sa, h, hb, hmh⟩
+  have hro : FMap.get ro (take (i + 1) p) = some b' := by
+    rw [take_nth default i p hip]
+    exact (Iro _ _ _).2 ⟨sa, h, h', hb, hmh⟩
+  rw [hpre', hmh]
+  simp only [oget, Option.getD_some]
+  refine ⟨(FMap.domE _ _).2 (by simp [hpre']), (FMap.domE _ _).2 (by simp [hmh]), trivial, hI,
+    hpre', ⟨fy, hy⟩, hb', ?_, by omega, by unfold qpre; omega, hQ, hsz⟩
+  rw [if_neg (by omega)]
+  exact hro
+
+/-- From the first loop to the second: at `i = qpre p Q`. -/
+theorem PJ1_PJ2 (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref : FMap (List block) state) (Q : FMap (List block) block) (p : List block) (i : ℤ)
+    (sa : block) (sc : capacity) (h : handle)
+    (hJ : PJ1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q p i sa sc h) (hi : ¬ i < qpre p Q) :
+    PJ2 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref pref Q p i sa sc h ∧
+    PJ2L pref pref Q p i sa sc := by
+  obtain ⟨hI, hpre, hh, hb, hif, hi0, hiq, hQ, hsz⟩ := hJ
+  have hieq : i = qpre p Q := by omega
+  obtain ⟨hs_, hG, hmhi, Imm, Imi, hinc, hinci, hmhs, hpis, hmp⟩ := hI
+  obtain ⟨hp0, hq0, Ip, Iq, Iext⟩ := id hmp
+  have hqs : qpre p Q ≤ size p := prefix_sizel _ _
+  refine ⟨⟨⟨hs_, hG, hmhi, Imm, Imi, hinc, hinci, hmhs, hpis, ?_⟩, hmp, hh, hb, hif⟩,
+    ⟨hpre, fun _ _ => rfl, fun _ h => Or.inl h, ?_, le_of_eq hieq.symm, by omega, hQ⟩⟩
+  · refine ⟨hp0, ?_, Ip, ?_, ?_⟩
+    · rw [FMap.get_setE]
+      split_ifs with he
+      · rw [← he, hp0] at hpre
+        simp only [Option.some.injEq, Prod.mk.injEq] at hpre
+        rw [hpre.1]
+      · exact hq0
+    · intro l hl
+      rw [FMap.mem_set] at hl
+      by_cases he : l = take i p
+      · subst he
+        exact ⟨sc, by simp [hpre, oget]⟩
+      · rw [FMap.get_set_neqE _ _ _ _ he]
+        exact Iq l (hl.resolve_right he)
+    · intro l hl
+      obtain ⟨l2, h2⟩ := Iext l hl
+      exact ⟨l2, (FMap.mem_set _ _ _ _).2 (Or.inl h2)⟩
+  · intro hlt hd
+    obtain ⟨l2, h2⟩ := Iext _ hd
+    have h3 := get_max_prefix_max p _ _ ((mem_elems_fdom _ _).2 h2)
+    have hs1 : size (take (i + 1) p) = i + 1 := size_take_of_le _ _ (by omega) (by omega)
+    have h4 : i + 1 ≤ «prefix» p (take (i + 1) p ++ l2) := by
+      apply prefix_leq_take
+      · refine ⟨by omega, le_min (by omega) ?_⟩
+        have : size (take (i + 1) p ++ l2) = size (take (i + 1) p) + size l2 := by
+          simp [size]
+        have : 0 ≤ size l2 := by simp [size]
+        omega
+      · simp only [take] at hs1 ⊢
+        rw [List.take_append_of_le_length (by simp only [size] at hs1; omega),
+          List.take_take, min_self]
+    unfold qpre at hieq
+    omega
+
+/-- The left-hand part of the second loop's invariant, through a step (whatever the bad
+event): the new prefix `take (i + 1) p` gets the state `(a, b)`.  Needs `pref0` closed under
+prefixes. -/
+theorem PJ2L_step (pref pref0 : FMap (List block) state) (Q : FMap (List block) block)
+    (p : List block) (i : ℤ) (sa : block) (sc : capacity) (a : block) (b : capacity)
+    (hJ : PJ2L pref pref0 Q p i sa sc) (hi : i < size p) (hpre0 : all_prefixes pref0) :
+    PJ2L (FMap.set pref (take (i + 1) p) (a, b)) pref0 Q p (i + 1) a b := by
+  obtain ⟨-, Hagree, Hext, Hnot, hqi, his, hQ⟩ := hJ
+  have hq0 : 0 ≤ qpre p Q := prefix_ge0 _ _
+  have hnd := Hnot hi
+  have hdom0 : ∀ l, FMap.dom pref0 l → FMap.dom pref l := fun l hl =>
+    (FMap.domE _ _).2 (by rw [Hagree _ hl]; exact (FMap.domE _ _).1 hl)
+  refine ⟨FMap.get_set_sameE _ _ _, ?_, ?_, ?_, by omega, by omega, hQ⟩
+  · intro l hl
+    have hne : l ≠ take (i + 1) p := by
+      rintro rfl
+      exact hnd (hdom0 _ hl)
+    rw [FMap.get_set_neqE _ _ _ _ hne, Hagree _ hl]
+  · intro l hl
+    rw [FMap.mem_set] at hl
+    rcases hl with hl | rfl
+    · rcases Hext l hl with h | ⟨j, hj0, hji, hj⟩
+      · exact Or.inl h
+      · exact Or.inr ⟨j, hj0, by omega, hj⟩
+    · exact Or.inr ⟨i + 1, by omega, le_refl _, rfl⟩
+  · intro hlt hd
+    rw [FMap.mem_set] at hd
+    rcases hd with hd | he
+    · rcases Hext _ hd with h0 | ⟨j, hj0, hji, hj⟩
+      · have h1 := hpre0 _ h0 (i + 1)
+        rw [take_take_of_le _ _ _ (by omega)] at h1
+        exact hnd (hdom0 _ h1)
+      · exact take_ne_take_of_ne j (i + 1 + 1) p hj0 (by omega) (by omega) (by omega)
+          (by omega) hj
+    · exact take_ne_take_of_ne (i + 1 + 1) (i + 1) p (by omega) (by omega) (by omega)
+        (by omega) (by omega) he
+
+/-- A step of the second loop on a known block: `PF.m` and `G1.mh` both know it (`lemma5'`). -/
+theorem PJ2_known (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref pref0 : FMap (List block) state) (Q : FMap (List block) block) (p : List block)
+    (i : ℤ) (sa : block) (sc : capacity) (h : handle)
+    (hJ : PJ2 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref pref0 Q p i sa sc h)
+    (hL : PJ2L pref pref0 Q p i sa sc) (hi : i < size p)
+    (hd : FMap.dom Pm (sa +^ nth default p i, sc)) :
+    FMap.dom mh (sa +^ nth default p i, h) ∧
+    (oget (FMap.get Pm (sa +^ nth default p i, sc))).1 =
+      (oget (FMap.get mh (sa +^ nth default p i, h))).1 ∧
+    PJ2 hs ch Pm Pmi Gm Gmi mh mhi ro pi
+      (FMap.set pref (take (i + 1) p) (oget (FMap.get Pm (sa +^ nth default p i, sc)))) pref0 Q p
+      (i + 1) (oget (FMap.get Pm (sa +^ nth default p i, sc))).1
+      (oget (FMap.get Pm (sa +^ nth default p i, sc))).2
+      (oget (FMap.get mh (sa +^ nth default p i, h))).2 := by
+  obtain ⟨hI, hmp0, ⟨f, hh⟩, hb, -⟩ := hJ
+  obtain ⟨hpre, Hagree, -, Hnot, hqi, his, hQ⟩ := hL
+  have hq0 : 0 ≤ qpre p Q := prefix_ge0 _ _
+  have hip : 0 ≤ i ∧ i < size p := ⟨by omega, hi⟩
+  have hnd := Hnot hi
+  rcases lemma5' hs ch Pm Pmi Gm Gmi mh mhi ro pi pref _ i p sa sc h hI hip hpre ⟨f, hh⟩ with
+    ⟨b', c', h', hPm, hmh⟩ | ⟨hPm, -⟩
+  swap
+  · exact absurd hPm ((FMap.domE _ _).1 hd)
+  have hall : all_prefixes pref := all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ hI
+  obtain ⟨hs_, hG, hmhi, Imm, Imi, hinc, hinci, hmhs, hpis, hmp⟩ := hI
+  obtain ⟨-, Iro, -⟩ := id hmhs
+  obtain ⟨-, Imh⟩ := id Imm
+  obtain ⟨hp0, -, Ip, -, Iext⟩ := hmp
+  obtain ⟨-, hq0', -, Iq0, -⟩ := id hmp0
+  obtain ⟨xc, fx, yc, fy, hx, hy, hPm'⟩ := Imh _ _ _ _ hmh
+  rw [hh] at hx
+  cases hx
+  rw [hPm] at hPm'
+  cases hPm'
+  have hb' : build_hpath mh (take (i + 1) p) = some (b', h') := by
+    rw [take_nth default i p hip]
+    exact (build_hpath_prefix _ _ _ _ _).2 ⟨sa, h, hb, hmh⟩
+  have hro : FMap.get ro (take (i + 1) p) = some b' := by
+    rw [take_nth default i p hip]
+    exact (Iro _ _ _).2 ⟨sa, h, h', hb, hmh⟩
+  have hne0 : ([] : List block) ≠ take (i + 1) p := by
+    have := take_ne_take_of_ne 0 (i + 1) p le_rfl (by omega) (by omega) (by omega) (by omega)
+    simpa [take] using this
+  rw [hPm, hmh]
+  simp only [oget, Option.getD_some]
+  refine ⟨(FMap.domE _ _).2 (by simp [hmh]), trivial,
+    ⟨hs_, hG, hmhi, Imm, Imi, hinc, hinci, hmhs, hpis, ?_⟩, hmp0, ⟨fy, hy⟩, hb', ?_⟩
+  swap
+  · rw [if_neg (by omega)]
+    exact hro
+  refine ⟨by rw [FMap.get_set_neqE _ _ _ _ hne0]; exact hp0,
+    by rw [FMap.get_set_neqE _ _ _ _ hne0]; exact hq0', ?_, ?_, ?_⟩
+  · intro l hl j hj
+    rw [FMap.mem_set] at hl
+    rcases hl with hl | rfl
+    · have hne : ∀ k, take k l ≠ take (i + 1) p := fun k he => hnd (he ▸ hall l hl k)
+      obtain ⟨s1, s2, h1, h2⟩ := Ip l hl j hj
+      exact ⟨s1, s2, by rw [FMap.get_set_neqE _ _ _ _ (hne j)]; exact h1,
+        by rw [FMap.get_set_neqE _ _ _ _ (hne (j + 1))]; exact h2⟩
+    · rw [size_take_of_le _ _ (by omega) (by omega)] at hj
+      rw [take_take_of_le _ _ _ (by omega : j ≤ i + 1),
+        take_take_of_le _ _ _ (by omega : j + 1 ≤ i + 1), nth_take_of_lt _ _ _ _ hj.1 hj.2]
+      have hnej : take j p ≠ take (i + 1) p :=
+        take_ne_take_of_ne _ _ p hj.1 (by omega) (by omega) (by omega) (by omega)
+      rw [FMap.get_set_neqE _ _ _ _ hnej]
+      rcases lt_or_eq_of_le (show j ≤ i by omega) with hji | rfl
+      · have hdi : FMap.dom pref (take i p) := (FMap.domE _ _).2 (by simp [hpre])
+        obtain ⟨s1, s2, h1, h2⟩ := Ip _ hdi j
+          ⟨hj.1, by rw [size_take_of_le _ _ (by omega) (by omega)]; exact hji⟩
+        rw [take_take_of_le _ _ _ (by omega : j ≤ i)] at h1
+        rw [take_take_of_le _ _ _ (by omega : j + 1 ≤ i), nth_take_of_lt _ _ _ _ hj.1 hji] at h2
+        have hnej1 : take (j + 1) p ≠ take (i + 1) p :=
+          take_ne_take_of_ne _ _ p (by omega) (by omega) (by omega) (by omega) (by omega)
+        exact ⟨s1, s2, h1, by rw [FMap.get_set_neqE _ _ _ _ hnej1]; exact h2⟩
+      · exact ⟨sa, sc, hpre, by rw [FMap.get_set_sameE, hPm]⟩
+  · intro l hl
+    rw [FMap.mem_set] at hl
+    by_cases he : l = take (i + 1) p
+    · subst he
+      exact ⟨c', by simp [oget]⟩
+    · obtain ⟨c, hc⟩ := Iq0 l (hl.resolve_right he)
+      have hd0 : FMap.dom pref0 l := (FMap.domE _ _).2 (by simp [hc])
+      exact ⟨c, by rw [FMap.get_set_neqE _ _ _ _ he, FMap.get_set_neqE _ _ _ _ he,
+        Hagree _ hd0, hc]⟩
+  · intro l hl
+    rw [FMap.mem_set] at hl
+    rcases hl with hl | rfl
+    · obtain ⟨l2, h2⟩ := Iext l hl
+      rw [FMap.mem_set] at h2
+      rcases h2 with h2 | h2
+      · exact ⟨l2, (FMap.mem_set _ _ _ _).2 (Or.inl h2)⟩
+      · refine ⟨l2 ++ [nth default p i], (FMap.mem_set _ _ _ _).2 (Or.inr ?_)⟩
+        rw [take_nth default i p hip, ← h2, rcons, List.append_assoc]
+    · exact ⟨[], (FMap.mem_set _ _ _ _).2 (Or.inr (List.append_nil _))⟩
+
+
+/-- `m_p` survives adding a fresh entry to the map: every prefix step `PF.m` already answers. -/
+theorem m_p_set_none (Pm : smap) (pref : FMap (List block) state) (q : FMap (List block) block)
+    (x y : state) :
+    m_p Pm pref q → FMap.get Pm x = none → m_p (FMap.set Pm x y) pref q := by
+  rintro ⟨c1, c2, c3, c4, c5⟩ hx
+  refine ⟨c1, c2, ?_, c4, c5⟩
+  intro l hl i hi
+  obtain ⟨sa, sc, h1, h2⟩ := c3 l hl i hi
+  refine ⟨sa, sc, h1, ?_⟩
+  have hne : FMap.get pref (take (i + 1) l) ≠ none := by
+    by_cases hi' : i + 1 < size l
+    · obtain ⟨sa', sc', h1', -⟩ := c3 l hl (i + 1) ⟨by omega, hi'⟩
+      rw [h1']
+      simp
+    · have : take (i + 1) l = l := by
+        simp only [take, size] at *
+        apply List.take_of_length_le
+        omega
+      rw [this]
+      exact (FMap.domE _ _).1 hl
+  rw [FMap.get_setE, if_neg]
+  · exact h2
+  · intro he
+    rw [he, hx] at h2
+    exact hne h2.symm
+
+/-- The fresh-block step of `G1.M.f` (EC's `PFf_Cf`, second loop): the block `x1` after the
+known path `(p0, v0)` to the handle `hx2` is unknown to `PF.m`; the oracle answers the fresh
+query `rcons p0 (v0 +^ x1)` with `y1`, the new handle `ch` gets the unknown capacity `y2`.  The
+prefix part `m_p` of the invariant is a hypothesis (the prefixes change with the caller). -/
+theorem f_fresh_inv (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (prefixes : FMap (List block) state) (queries : FMap (List block) block)
+    (prefixes' : FMap (List block) state) (queries' : FMap (List block) block) (x1 : block)
+    (x2 : capacity) (y1 : block) (y2 : capacity) (hx2 : handle) (fx : flag) (p0 : List block)
+    (v0 : block) :
+    INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi prefixes queries →
+    FMap.get Pm (x1, x2) = none → FMap.get hs hx2 = some (x2, fx) →
+    build_hpath mh p0 = some (v0, hx2) → hinv hs y2 = none →
+    m_p (FMap.set Pm (x1, x2) (y1, y2)) prefixes' queries' →
+    INV_CF_G1 (FMap.set hs ch (y2, Unknown)) (ch + 1)
+      (FMap.set Pm (x1, x2) (y1, y2)) (FMap.set Pmi (y1, y2) (x1, x2)) Gm Gmi
+      (FMap.set mh (x1, hx2) (y1, ch)) (FMap.set mhi (y1, ch) (x1, hx2))
+      (FMap.set ro (rcons p0 (v0 +^ x1)) y1) pi prefixes' queries' := by
+  intro HINV Pm_x hs_hx2 Hpath hinv0 Hmp'
+  obtain ⟨Hhs, HinvG, Hinvmh, Hmmh, Hmimhi, Hincl, Hincli, Hmh, Hpi, -⟩ := HINV
+  obtain ⟨hun, -, hlt⟩ := id Hhs
+  obtain ⟨-, Imm2⟩ := id Hmmh
+  obtain ⟨Imi1, -⟩ := id Hmimhi
+  obtain ⟨Imh1, Imh2, Imh3⟩ := Hmh
+  obtain ⟨Ipi⟩ := Hpi
+  have hy2 : ∀ f h, FMap.get hs h ≠ some (y2, f) := by
+    have hp := hinvP hs y2
+    rw [if_pos hinv0] at hp
+    exact fun f h => hp h f
+  have hs_ch : FMap.get hs ch = none := ch_notdomE_hs hs ch Hhs
+  have mh_x : FMap.get mh (x1, hx2) = none := m_mh_None hs Pm mh hx2 x2 fx x1 Hmmh hs_hx2 Pm_x
+  have Hhx2 : hx2 ≠ ch := dom_hs_neq_ch hs ch hx2 x2 fx Hhs hs_hx2
+  have ch0 : 0 ≠ ch := ch_neq0 hs ch Hhs
+  have ch_None : ∀ xa xb ha hb,
+      FMap.get mh (xa, ha) = some (xb, hb) → ha ≠ ch ∧ hb ≠ ch := by
+    intro xa xb ha hb hm
+    obtain ⟨_, _, _, _, h1, h2, -⟩ := Imm2 _ _ _ _ hm
+    exact ⟨dom_hs_neq_ch hs ch _ _ _ Hhs h1, dom_hs_neq_ch hs ch _ _ _ Hhs h2⟩
+  have hsne : ∀ h cf, FMap.get hs h = some cf →
+      FMap.get (FMap.set hs ch (y2, Unknown)) h = some cf := by
+    intro h cf hh
+    have := hlt _ _ hh
+    rw [FMap.get_set_neqE _ _ _ _ (show h ≠ ch by linarith), hh]
+  have mhup : ∀ p v h, build_hpath mh p = some (v, h) →
+      build_hpath (FMap.set mh (x1, hx2) (y1, ch)) p = some (v, h) :=
+    fun p v h hp => build_hpath_up mh x1 hx2 y1 ch p v h hp mh_x
+  have bpiff := fun p v hx =>
+    build_hpath_upd_ch_iff hx2 ch mh x1 y1 p v hx mh_x ch0 Hhx2 ch_None
+  have Hpath' := mhup _ _ _ Hpath
+  refine ⟨hs_addh hs ch y2 Unknown Hhs hy2, HinvG, ?_, ?_, ?_,
+    incl_upd_nin _ _ _ _ Hincl (by simpa [FMap.domE] using Pm_x), ?_, ?_, ?_, Hmp'⟩
+  · exact inv_addm _ _ _ _ Hinvmh mh_x (ch_notdomE2_mh hs Pmi mhi y1 ch Hmimhi Hhs)
+  · exact m_mh_addh_addm hs Pm mh hx2 x1 x2 ch y1 y2 fx Unknown Hmmh hun hs_hx2 hs_ch
+  · exact mi_mhi_addh_addmi hs Pmi mhi hx2 x1 x2 ch y1 y2 fx Unknown Hmimhi hy2 hs_hx2 hs_ch
+  · refine incl_upd_nin _ _ _ _ Hincli ?_
+    rw [FMap.domE]
+    intro hg
+    obtain ⟨xc, hp⟩ := Option.ne_none_iff_exists'.1 hg
+    obtain ⟨_, _, _, _, h1, -, -⟩ := Imi1 _ _ _ _ hp
+    exact absurd h1 (hy2 _ _)
+  · refine ⟨?_, ?_, ?_⟩
+    · -- first component of `mh_spec`
+      intro xa hx' ya hy hm
+      rw [FMap.get_setE] at hm
+      split_ifs at hm with hk
+      · simp only [Prod.mk.injEq, Option.some.injEq] at hk hm
+        obtain ⟨hk1, hk2⟩ := hk
+        obtain ⟨hm1, hm2⟩ := hm
+        subst xa hx' ya hy
+        refine ⟨x2, fx, y2, Unknown, hsne _ _ hs_hx2, FMap.get_set_sameE _ _ _, ?_⟩
+        simp only [reduceCtorEq, if_false]
+        exact ⟨p0, v0, FMap.get_set_sameE _ _ _, Hpath'⟩
+      · obtain ⟨xc, fx0, yc, fy, h1, h2, h3⟩ := Imh1 _ _ _ _ hm
+        refine ⟨xc, fx0, yc, fy, hsne _ _ h1, hsne _ _ h2, ?_⟩
+        cases fy with
+        | Known => exact h3
+        | Unknown =>
+          simp only [reduceCtorEq, if_false] at h3 ⊢
+          obtain ⟨p, v, h4, h5⟩ := h3
+          refine ⟨p, v, ?_, mhup _ _ _ h5⟩
+          rw [FMap.get_set_neqE _ _ _ _ ?_, h4]
+          intro he
+          obtain ⟨rfl, he2⟩ := rcons_inj_both he
+          rw [Hpath] at h5
+          simp only [Option.some.injEq, Prod.mk.injEq] at h5
+          obtain ⟨rfl, rfl⟩ := h5
+          apply hk
+          rw [← xorw_cancel_left v0 xa, he2, xorw_cancel_left]
+    · -- second component of `mh_spec`
+      intro p bn b
+      rw [FMap.get_setE]
+      split_ifs with hd
+      · obtain ⟨rfl, rfl⟩ := rcons_inj_both hd
+        simp only [Option.some.injEq]
+        constructor
+        · rintro rfl
+          refine ⟨v0, hx2, ch, Hpath', ?_⟩
+          rw [xorw_cancel_left]
+          exact FMap.get_set_sameE _ _ _
+        · rintro ⟨v, hx, hy, hp, hm⟩
+          rw [Hpath'] at hp
+          simp only [Option.some.injEq, Prod.mk.injEq] at hp
+          obtain ⟨rfl, rfl⟩ := hp
+          rw [xorw_cancel_left, FMap.get_set_sameE] at hm
+          simp only [Option.some.injEq, Prod.mk.injEq] at hm
+          exact hm.1
+      · rw [Imh2]
+        constructor
+        · rintro ⟨v, hx, hy, h1, h2⟩
+          refine ⟨v, hx, hy, mhup _ _ _ h1, ?_⟩
+          rw [FMap.get_set_neqE]
+          · exact h2
+          · intro he
+            rw [he, mh_x] at h2
+            cases h2
+        · rintro ⟨v, hx, hy, h1, h2⟩
+          rw [bpiff] at h1
+          split_ifs at h1 with hxc
+          · subst hxc
+            rw [FMap.get_set_neqE _ _ _ _ (by simp [Ne.symm Hhx2]),
+              ch_notdomE2_mh hs Pm mh _ hx Hmmh Hhs] at h2
+            cases h2
+          · refine ⟨v, hx, hy, h1, ?_⟩
+            rw [FMap.get_setE] at h2
+            split_ifs at h2 with hk
+            · simp only [Prod.mk.injEq] at hk
+              obtain ⟨hk1, rfl⟩ := hk
+              obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ h1 Hpath
+              apply absurd _ hd
+              rw [← hk1, xorw_cancel_left]
+            · exact h2
+    · -- third component of `mh_spec`
+      intro p v p' v' hx h1 h2
+      rw [bpiff] at h1 h2
+      split_ifs at h1 h2 with hxc
+      · obtain ⟨pa, xa, ha, rfl, rfl⟩ := h1
+        obtain ⟨pb, xb, hb, rfl, rfl⟩ := h2
+        obtain ⟨rfl, rfl⟩ := Imh3 _ _ _ _ _ ha hb
+        exact ⟨rfl, rfl⟩
+      · exact Imh3 _ _ _ _ _ h1 h2
+  · -- `pi_spec`: the new handle is not known
+    refine ⟨fun c p v => ?_⟩
+    rw [Ipi]
+    constructor
+    · rintro ⟨h, h1, h2⟩
+      exact ⟨h, mhup _ _ _ h1, hsne _ _ h2⟩
+    · rintro ⟨h, h1, h2⟩
+      rw [bpiff] at h1
+      split_ifs at h1 with hh
+      · subst hh
+        rw [FMap.get_set_sameE] at h2
+        simp at h2
+      · rw [FMap.get_set_neqE _ _ _ _ hh] at h2
+        exact ⟨h, h1, h2⟩
+
+/-- A step of the second loop on a fresh block: neither `PF.m` nor `G1.mh` know it, nor `ro` the
+query `take (i + 1) p`; the new block gets `(y1, y2)` on both sides (EC's big inline proof). -/
+theorem PJ2_fresh (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref pref0 : FMap (List block) state) (Q : FMap (List block) block) (p : List block)
+    (i : ℤ) (sa : block) (sc : capacity) (h : handle)
+    (hJ : PJ2 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref pref0 Q p i sa sc h)
+    (hL : PJ2L pref pref0 Q p i sa sc) (hi : i < size p)
+    (hd : ¬ FMap.dom Pm (sa +^ nth default p i, sc)) :
+    ¬ FMap.dom mh (sa +^ nth default p i, h) ∧ ¬ FMap.dom ro (take (i + 1) p) ∧
+    ∀ y1 y2, hinv hs y2 = none →
+      PJ2 (FMap.set hs ch (y2, Unknown)) (ch + 1)
+        (FMap.set Pm (sa +^ nth default p i, sc) (y1, y2))
+        (FMap.set Pmi (y1, y2) (sa +^ nth default p i, sc)) Gm Gmi
+        (FMap.set mh (sa +^ nth default p i, h) (y1, ch))
+        (FMap.set mhi (y1, ch) (sa +^ nth default p i, h))
+        (FMap.set ro (take (i + 1) p) y1) pi
+        (FMap.set pref (take (i + 1) p) (y1, y2)) pref0 Q p (i + 1) y1 y2 ch := by
+  obtain ⟨HINV, Hmp0, ⟨f, hs_h⟩, Hpath, -⟩ := hJ
+  obtain ⟨hpre, hp1, -, hp3, -, -, -⟩ := hL
+  have hnd : ¬ FMap.dom pref (take (i + 1) p) := hp3 hi
+  have hdom_pre : FMap.dom pref (take i p) := (FMap.domE _ _).2 (by rw [hpre]; simp)
+  have hi0 : 0 ≤ i := by
+    by_contra hneg
+    apply hnd
+    have : take (i + 1) p = take i p := by simp only [take]; congr 1; omega
+    rwa [this]
+  have ht : take (i + 1) p = rcons (take i p) (nth default p i) :=
+    take_nth default i p ⟨hi0, hi⟩
+  have Pm_k : FMap.get Pm (sa +^ nth default p i, sc) = none := by
+    simpa [FMap.domE] using hd
+  have mh_k : FMap.get mh (sa +^ nth default p i, h) = none :=
+    m_mh_None hs Pm mh h sc f _ HINV.4 hs_h Pm_k
+  -- the query `take (i + 1) p` is fresh for `ro` (`mh_spec`, second component)
+  have ro_t : FMap.get ro (take (i + 1) p) = none := by
+    cases hro : FMap.get ro (take (i + 1) p) with
+    | none => rfl
+    | some b =>
+      rw [ht] at hro
+      obtain ⟨v, hx, hy, hp, hm⟩ := (HINV.8.2 _ _ _).1 hro
+      rw [Hpath] at hp
+      simp only [Option.some.injEq, Prod.mk.injEq] at hp
+      obtain ⟨rfl, rfl⟩ := hp
+      rw [mh_k] at hm
+      cases hm
+  refine ⟨by simpa [FMap.domE] using mh_k, by simpa [FMap.domE] using ro_t, ?_⟩
+  intro y1 y2 hinv0
+  have Hmp := HINV.10
+  have hall := all_prefixes_of_m_p _ _ _ Hmp
+  -- the new prefix only changes `pref` at `take (i + 1) p`, which it does not know yet
+  have pref_keep : ∀ l, FMap.dom pref l →
+      FMap.get (FMap.set pref (take (i + 1) p) (y1, y2)) l = FMap.get pref l :=
+    fun l hl => FMap.get_set_neqE _ _ _ _ (fun e => hnd (e ▸ hl))
+  -- `m_p` with the new prefix and the query `take (i + 1) p` answered `y1`
+  have Hmp_new : m_p (FMap.set Pm (sa +^ nth default p i, sc) (y1, y2))
+      (FMap.set pref (take (i + 1) p) (y1, y2)) (FMap.set Q (take (i + 1) p) y1) := by
+    obtain ⟨c1, -, c3, -, c5⟩ := m_p_set_none _ _ _ _ (y1, y2) Hmp Pm_k
+    obtain ⟨-, d2, -, d4, -⟩ := Hmp0
+    have hnil_dom : FMap.dom pref [] := (FMap.domE _ _).2 (by rw [c1]; simp)
+    have hnil : ([] : List block) ≠ take (i + 1) p := fun e => hnd (e ▸ hnil_dom)
+    have c3' : ∀ l, FMap.dom pref l → ∀ j, 0 ≤ j ∧ j < size l →
+        ∃ a b, FMap.get (FMap.set pref (take (i + 1) p) (y1, y2)) (take j l) = some (a, b) ∧
+          FMap.get (FMap.set Pm (sa +^ nth default p i, sc) (y1, y2)) (a +^ nth default l j, b) =
+            FMap.get (FMap.set pref (take (i + 1) p) (y1, y2)) (take (j + 1) l) := by
+      intro l hl j hj
+      rw [pref_keep _ (hall l hl j), pref_keep _ (hall l hl (j + 1))]
+      exact c3 l hl j hj
+    refine ⟨by rw [pref_keep _ hnil_dom]; exact c1,
+      by rw [FMap.get_set_neqE _ _ _ _ hnil]; exact d2, ?_, ?_, ?_⟩
+    · intro l hl j hj
+      rw [FMap.mem_set] at hl
+      rcases hl with hl | rfl
+      · exact c3' l hl j hj
+      · have hlen : i.toNat < p.length := by simp only [size] at hi; omega
+        have hsz : size (take (i + 1) p) = i + 1 := by
+          simp only [size, take, List.length_take]; omega
+        by_cases hji : j < i
+        · have e1 : take j (take (i + 1) p) = take j (take i p) := by
+            simp only [take, List.take_take]; congr 1; omega
+          have e2 : take (j + 1) (take (i + 1) p) = take (j + 1) (take i p) := by
+            simp only [take, List.take_take]; congr 1; omega
+          have e3 : nth default (take (i + 1) p) j = nth default (take i p) j := by
+            simp only [nth, if_pos hj.1, take, List.getD_eq_getElem?_getD, List.getElem?_take]
+            rw [if_pos (by omega), if_pos (by omega)]
+          rw [e1, e2, e3]
+          refine c3' _ hdom_pre j ⟨hj.1, ?_⟩
+          simp only [size, take, List.length_take]; omega
+        · have hj' : j = i := by omega
+          subst hj'
+          have e1 : take j (take (j + 1) p) = take j p := by
+            simp only [take, List.take_take]; congr 1; omega
+          have e2 : take (j + 1) (take (j + 1) p) = take (j + 1) p := by
+            simp only [take, List.take_take, min_self]
+          have e3 : nth default (take (j + 1) p) j = nth default p j := by
+            simp only [nth, if_pos hj.1, take, List.getD_eq_getElem?_getD, List.getElem?_take]
+            rw [if_pos (by omega)]
+          rw [e1, e2, e3, pref_keep _ hdom_pre, hpre]
+          exact ⟨sa, sc, rfl, by simp⟩
+    · intro l hl
+      rw [FMap.mem_set] at hl
+      by_cases e : l = take (i + 1) p
+      · subst e
+        exact ⟨y2, by simp [oget]⟩
+      · rcases hl with hl | rfl
+        · rw [FMap.get_set_neqE _ _ _ _ e, FMap.get_set_neqE _ _ _ _ e]
+          obtain ⟨c, hc⟩ := d4 l hl
+          refine ⟨c, ?_⟩
+          rw [hp1 l ((FMap.domE _ _).2 (by rw [hc]; simp)), hc]
+        · exact absurd rfl e
+    · intro l hl
+      rw [FMap.mem_set] at hl
+      rcases hl with hl | rfl
+      · obtain ⟨l2, hl2⟩ := c5 l hl
+        rw [FMap.mem_set] at hl2
+        rcases hl2 with hq | he
+        · exact ⟨l2, (FMap.mem_set _ _ _ _).2 (Or.inl hq)⟩
+        · refine ⟨l2 ++ [nth default p i], (FMap.mem_set _ _ _ _).2 (Or.inr ?_)⟩
+          rw [ht, ← he]
+          simp [rcons]
+      · exact ⟨[], (FMap.mem_set _ _ _ _).2 (Or.inr (by simp))⟩
+  have hro_key : take (i + 1) p = rcons (take i p) (sa +^ (sa +^ nth default p i)) := by
+    rw [xorw_cancel_left]; exact ht
+  refine ⟨?_, m_p_set_none _ _ _ _ _ Hmp0 Pm_k, ⟨Unknown, FMap.get_set_sameE _ _ _⟩, ?_, ?_⟩
+  · -- the invariant
+    have := f_fresh_inv hs ch Pm Pmi Gm Gmi mh mhi ro pi pref _ _ _ (sa +^ nth default p i) sc
+      y1 y2 h f (take i p) sa HINV Pm_k hs_h Hpath hinv0 Hmp_new
+    rwa [← hro_key] at this
+  · -- the path to the new block
+    rw [ht, build_hpath_prefix]
+    exact ⟨sa, h, build_hpath_up mh _ h y1 ch _ sa h Hpath mh_k, FMap.get_set_sameE _ _ _⟩
+  · rw [if_neg (by omega)]
+    exact FMap.get_set_sameE _ _ _
+
+/-- After the second loop (`i = size p`): the invariant with `p` answered `sa`. -/
+theorem PJ2_final (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref pref0 : FMap (List block) state) (Q : FMap (List block) block) (p : List block)
+    (i : ℤ) (sa : block) (sc : capacity) (h : handle)
+    (hJ : PJ2 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref pref0 Q p i sa sc h)
+    (hL : PJ2L pref pref0 Q p i sa sc) (hi : ¬ i < size p) :
+    INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref (FMap.set Q p sa) ∧
+    FMap.get ro p = some sa := by
+  obtain ⟨hI, ⟨-, hq0, -, -, -⟩, -, -, hif⟩ := hJ
+  obtain ⟨-, -, -, -, -, his, hQ⟩ := hL
+  have hsz : 0 < size p := by
+    cases p with
+    | nil => exact absurd ((FMap.domE _ _).2 (by simp [hq0])) hQ
+    | cons x l => simp [size]
+  have hieq : i = size p := by omega
+  have hp : take i p = p := by
+    rw [hieq]
+    exact take_size p
+  rw [hp] at hI hif
+  rw [if_neg (by omega)] at hif
+  exact ⟨hI, hif⟩
+
+/-- The first loop starts at `i = 0`. -/
+theorem PJ1_init (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh mhi : hsmap)
+    (ro : FMap (List block) block) (pi : FMap capacity (List block × block))
+    (pref : FMap (List block) state) (Q : FMap (List block) block) (p : List block)
+    (hI : INV_CF_G1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q) (hp : ¬ FMap.dom Q p) :
+    PJ1 hs ch Pm Pmi Gm Gmi mh mhi ro pi pref Q p 0 b0 c0 0 := by
+  obtain ⟨⟨-, h0, -⟩, -, -, -, -, -, -, -, -, ⟨hp0, hq0, -, -, -⟩⟩ := id hI
+  refine ⟨hI, by simpa [take] using hp0, ⟨Known, h0⟩, by simp [take, build_hpath], by simp,
+    le_rfl, prefix_ge0 _ _, hp, ?_⟩
+  cases p with
+  | nil => exact absurd ((FMap.domE _ _).2 (by simp [hq0])) hp
+  | cons x l => simp [size]
+
+set_option maxHeartbeats 4000000 in
+-- the inlined loops' wp goals are large
 /-- `equiv PFf_Cf (D <: DISTINGUISHER) : DFRestr(SqueezelessSponge(PF)).f ~
 DFRestr(G1(DRestr(D)).M).f : …`. -/
 theorem PFf_Cf (_D : DISTINGUISHER) :
@@ -2841,7 +3512,426 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
       (fun r₁ g₁ r₂ g₂ =>
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then FMap.dom (C.queries.get g₂) []
         else eq_glob_C g₁ g₂ ∧ r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂) := by
-  sorry
+  unfold PF G1.M
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧
+      §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+      ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
+      eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨hb, rfl, hC, hI⟩
+    exact ⟨rfl, hb, hC, hI⟩
+  · equiv_if
+    case guard =>
+      rintro g₁ g₂ bs _ b _ ⟨rfl, -, -, hC, -⟩
+      rw [hC.2]
+    case «else» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ bs _ b _ ⟨⟨rfl, -, hb, hC, hI⟩, -⟩
+      simp only [hb, if_false]
+      exact ⟨hC, by rw [hC.2], hI⟩
+    case «then» =>
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ bs _ b _ ⟨⟨rfl, -, -, hC, -⟩, -⟩
+        rw [hC.1, hC.2]
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ bs _ b _ ⟨⟨⟨rfl, rfl, hb, hC, hI⟩, -⟩, -⟩
+        simp only [hb, if_false]
+        exact ⟨hC, trivial, hI⟩
+      case «then» =>
+        stmt_wp
+        stmt_wp{2} 1
+        stmt_wp
+        equiv_seq 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
+            §counter{2} = 0 ∧ §sa{1} = b0 ∧ §sc{1} = c0 ∧ §sa{2} = b0 ∧ §h{2} = 0 ∧
+            ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
+            eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2} ∧
+            ¬ FMap.dom §C.queries{2} §bs{2})
+        · stmt_wp
+          equiv_skip
+          rintro g₁ g₂ bs b bs' b' ⟨⟨⟨rfl, -, hb, hC, hI⟩, hq⟩, -⟩
+          simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hq
+          simp only [eq_glob_C, INV_CF_G1_12] at hC hI ⊢
+          simp_reads
+          exact ⟨hb, ⟨by rw [hC.1, hC.2], hC.2⟩, hI, by rw [← hC.2]; exact hq⟩
+        · refine prhlStmt_fix_left (fun σ => Redo.prefixes.get σ.globals) (fun pref0 => ?_)
+          refine prhlStmt_splitwhile_left
+            ⟨fun σ => decide ((localVarLens "i" ℤ).get σ <
+              qpre ((localVarLens "p" (List block)).get σ) (C.queries.get σ.globals))⟩
+            (fun σ => (size ((localVarLens "p" (List block)).get σ) -
+              (localVarLens "i" ℤ).get σ).toNat) ?_ ?_
+          · intro k
+            simp only [Getter.andB_get, Bool.and_eq_true]
+            hoare_wp 1
+            refine hoare_pre (hoare_if_inv (J := fun σ => (size ((localVarLens "p"
+                (List block)).get σ) -
+                ((localVarLens "i" ℤ).get σ + 1)).toNat < k) ?_ ?_) ?_
+            · hoare_wp 1
+              hoare_skip
+              exact fun _ _ h => h
+            · hoare_wp 2
+              hoare_split 1
+              refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+              · hoare_wp 4
+                hoare_skip
+                exact fun _ _ h _ _ _ _ => h
+              · hoare_skip
+                exact fun _ _ h => h
+              · hoare_wp 3
+                hoare_skip
+                exact fun _ _ h => h
+            · rintro σ ⟨⟨h1, -⟩, h2⟩
+              have h1' : (localVarLens "i" ℤ).get σ < size ((localVarLens "p"
+                  (List block)).get σ) := by
+                simpa using h1
+              omega
+          refine prhlStmt_splitwhile_right
+            ⟨fun σ => decide ((localVarLens "i" ℤ).get σ <
+              qpre ((localVarLens "p" (List block)).get σ) (C.queries.get σ.globals))⟩
+            (fun σ => (size ((localVarLens "p" (List block)).get σ) -
+              (localVarLens "i" ℤ).get σ).toNat) ?_ ?_
+          · intro k
+            simp only [Getter.andB_get, Bool.and_eq_true]
+            hoare_wp 1
+            refine hoare_pre (hoare_if_inv (J := fun σ => (size ((localVarLens "p"
+                (List block)).get σ) -
+                ((localVarLens "i" ℤ).get σ + 1)).toNat < k) ?_ ?_) ?_
+            · hoare_wp 1
+              hoare_skip
+              exact fun _ _ h => h
+            · refine hoare_if_inv ?_ ?_
+              · hoare_wp 8
+                hoare_split 1
+                refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+                · hoare_wp 1
+                  hoare_skip
+                  exact fun _ _ h => h
+                · hoare_skip
+                  exact fun _ _ h => h
+                · hoare_wp 5
+                  hoare_skip
+                  exact fun _ _ h _ _ _ _ => h
+              · hoare_skip
+                exact fun _ _ h => h
+            · rintro σ ⟨⟨h1, -⟩, h2⟩
+              have h1' : (localVarLens "i" ℤ).get σ < size ((localVarLens "p"
+                  (List block)).get σ) := by
+                simpa using h1
+              omega
+          unfold Getter.andB
+          equiv_seq 1 1 : ((§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+              §sa{1} = §sa{2} ∧ §counter{2} = 0 ∧ ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
+              eq_glob_C §allGlobals{1} §allGlobals{2} ∧ §Redo.prefixes{1} = pref0 ∧
+              PJ1 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
+                §G1.mhi{2} §F.RO.m{2} §G1.paths{2} §Redo.prefixes{1} §C.queries{2} §p{1} §i{1}
+                §sa{1} §sc{1} §h{2} ∧
+              ¬ (§i{1} < qpre §p{1} §C.queries{2})))
+          · equiv_while (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+              §sa{1} = §sa{2} ∧ §counter{2} = 0 ∧ ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
+              eq_glob_C §allGlobals{1} §allGlobals{2} ∧ §Redo.prefixes{1} = pref0 ∧
+              PJ1 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
+                §G1.mhi{2} §F.RO.m{2} §G1.paths{2} §Redo.prefixes{1} §C.queries{2} §p{1} §i{1}
+                §sa{1} §sc{1} §h{2})
+            case guard =>
+              rintro g₁ g₂ p bs i sa sc p' bs' i' sa' c h ⟨rfl, -, -, rfl, -, -, -, hC, -⟩
+              rw [hC.2]
+            case exit =>
+              rintro g₁ g₂ p bs i sa sc p' bs' i' sa' c h
+                ⟨hp, hb, hbs, hi, hsa, hc, hbad, hC, hpr, hJ⟩ hg
+              refine ⟨hp, hb, hbs, hi, hsa, hc, hbad, hC, hpr, hJ, fun hlt => ?_⟩
+              have hs := prefix_sizel p (get_max_prefix p (elems (FMap.fdom (C.queries.get g₂))))
+              rw [hC.2] at hg
+              simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at hg
+              unfold qpre at hlt hg
+              omega
+            case body =>
+              stmt_wp
+              equiv_if{1}
+              case «then» =>
+                equiv_if{2}
+                case «then» =>
+                  stmt_wp
+                  equiv_skip
+                  rintro g₁ g₂ p bs i sa sc p' bs' i' sa' c h
+                    ⟨⟨⟨⟨rfl, hb, rfl, rfl, rfl, hc, hbad, hC, hpr, hJ⟩, hg⟩, -⟩, -⟩
+                  simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+                  obtain ⟨-, -, he, hJ'⟩ :=
+                    PJ1_step _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ (by rw [← hC.2]; exact hg.2)
+                  exact ⟨rfl, hb, rfl, rfl, he, hc, hbad, hC, hpr, hJ'⟩
+                case «else» =>
+                  refine prhlStmt_pre prhlStmt_false ?_
+                  rintro σ₁ σ₂ ⟨⟨⟨⟨hp, -, -, hi, hsa, -, -, hC, -, hJ⟩, hg⟩, -⟩, hg2⟩
+                  simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+                  simp only [Bool.not_eq_true, decide_eq_false_iff_not] at hg2
+                  rw [← hp, ← hi, ← hsa] at hg2
+                  exact hg2 (PJ1_step _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ
+                    (by rw [← hC.2]; exact hg.2)).2.1
+              case «else» =>
+                refine prhlStmt_pre prhlStmt_false ?_
+                rintro σ₁ σ₂ ⟨⟨⟨-, -, -, -, -, -, -, hC, -, hJ⟩, hg⟩, hg1⟩
+                simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+                simp only [Bool.not_eq_true, decide_eq_false_iff_not] at hg1
+                exact hg1 (PJ1_step _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ
+                  (by rw [← hC.2]; exact hg.2)).1
+            equiv_skip
+            rintro g₁ g₂ p bs i sa sc p' bs' i' c sa' h
+              ⟨⟨hp, hpb, hbs, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hbad, hC, hI, hq⟩, hpr⟩
+            subst hbs hpb hp
+            exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, hbad, hC, hpr,
+              PJ1_init _ _ _ _ _ _ _ _ _ _ _ _ _ hI hq⟩
+          · equiv_while (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+              eq_glob_C §allGlobals{1} §allGlobals{2} ∧ FMap.dom §C.queries{2} [] ∧
+              0 ≤ §counter{2} ∧ §counter{2} ≤ §i{2} - qpre §p{2} §C.queries{2} ∧
+              all_prefixes pref0 ∧
+                  PJ2L §Redo.prefixes{1} pref0 §C.queries{2} §p{1} §i{1} §sa{1} §sc{1} ∧
+              (¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) → §sa{1} = §sa{2} ∧
+                PJ2 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
+                  §G1.mhi{2} §F.RO.m{2} §G1.paths{2} §Redo.prefixes{1} pref0 §C.queries{2} §p{1}
+                  §i{1} §sa{1} §sc{1} §h{2}))
+            case guard =>
+              rintro g₁ g₂ p bs i sa sc p' bs' i' sa' c h ⟨rfl, -, -, rfl, -⟩
+              rfl
+            case exit =>
+              rintro g₁ g₂ p bs i sa sc p' bs' i' c sa' h ⟨rfl, rfl, rfl, rfl, hC, hq, -, -, -,
+                  hL, hJ⟩
+                hg
+              simp only [decide_eq_false_iff_not] at hg
+              refine ⟨(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll, fun a _ => ?_⟩
+              by_cases hbad : G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true
+              · simp only [ite_self]
+                rw [if_pos hbad]
+                exact (FMap.mem_set _ _ _ _).2 (Or.inl hq)
+              · obtain ⟨rfl, hJ2⟩ := hJ hbad
+                obtain ⟨hI', hro⟩ := PJ2_final _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ2 hL hg
+                have hd : FMap.dom (F.RO.m.get g₂) p := (FMap.domE _ _).2 (by rw [hro]; simp)
+                have hro' : oget (FMap.get (F.RO.m.get g₂) p) = sa := by rw [hro]; rfl
+                simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, if_false, hro']
+                rw [if_neg hbad]
+                simp only [eq_glob_C, INV_CF_G1_12] at hC ⊢
+                simp_reads
+                exact ⟨⟨hC.1, by rw [hC.2]⟩, hI'⟩
+            case body =>
+              stmt_wp
+              equiv_if{1}
+              case «then» =>
+                refine prhlStmt_pre prhlStmt_false ?_
+                rintro σ₁ σ₂ ⟨⟨⟨-, -, -, -, -, -, -, -, -, hL, -⟩, hg⟩, hg1⟩
+                simp only [decide_eq_true_eq] at hg hg1
+                exact hL.2.2.2.1 hg hg1
+              case «else» =>
+                stmt_wp
+                refine prhlStmt_fix_left (fun σ => ((localVarLens "sa" block).get σ,
+                  (localVarLens "sc" capacity).get σ)) (fun v => ?_)
+                obtain ⟨sa0, sc0⟩ := v
+                equiv_seq 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+                  §i{1} < size §p{1} ∧
+                  §(localVarLens "x0" state){1} = (sa0 +^ nth default §p{1} §i{1}, sc0) ∧
+                  eq_glob_C §allGlobals{1} §allGlobals{2} ∧ FMap.dom §C.queries{2} [] ∧
+                  0 ≤ §counter{2} ∧ §counter{2} ≤ §i{2} - qpre §p{2} §C.queries{2} ∧
+                  all_prefixes pref0 ∧
+                      PJ2L §Redo.prefixes{1} pref0 §C.queries{2} §p{1} §i{1} sa0 sc0 ∧
+                  (¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) → sa0 = §sa{2} ∧
+                    PJ2 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
+                      §G1.mhi{2} §F.RO.m{2} §G1.paths{2} §Redo.prefixes{1} pref0 §C.queries{2} §p{1}
+                      §i{1} sa0 sc0 §h{2}))
+                · stmt_wp
+                  equiv_skip
+                  rintro g₁ g₂ p bs i sa sc p' bs' i' c sa' h
+                    ⟨⟨⟨⟨rfl, hb, rfl, rfl, hC, hq, hc0, hc, hpa, hL, hJ⟩, hg⟩, -⟩, he⟩
+                  simp only [Prod.mk.injEq] at he
+                  obtain ⟨rfl, rfl⟩ := he
+                  simp only [decide_eq_true_eq] at hg
+                  exact ⟨rfl, hb, rfl, rfl, hg, rfl, hC, hq, hc0, hc, hpa, hL, hJ⟩
+                · equiv_case (§G1.bcol{2} = true ∨ §G1.bext{2} = true)
+                  · equiv_if{1}
+                    case «then» =>
+                      equiv_if{2}
+                      case «then» =>
+                        stmt_wp
+                        stmt_wp{1} 1
+                        stmt_wp{1} 1
+                        equiv_skip
+                        rintro g₁ g₂ p bs i x0 p' bs' i' c sa' h
+                          ⟨⟨⟨⟨rfl, hb, rfl, rfl, hi, rfl, hC, hq, hc0, hc, hpa, hL, -⟩, hbad⟩, -⟩,
+                              -⟩
+                        refine ⟨(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll, fun y1 _ =>
+                          ⟨(is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll, fun y2 _ => ?_⟩⟩
+                        simp only [eq_glob_C] at hC ⊢
+                        simp_reads
+                        exact ⟨hb, hC, hq, hc0, by omega, hpa,
+                          PJ2L_step _ _ _ _ _ _ _ _ _ hL hi hpa, fun hnb => (hnb hbad).elim⟩
+                      case «else» =>
+                        equiv_if{2}
+                        case «else» =>
+                          refine prhlStmt_pre prhlStmt_false ?_
+                          rintro σ₁ σ₂ ⟨⟨⟨⟨⟨hp, -, -, hie, hi, -, -, -, -, hc, -, -, -⟩, -⟩, -⟩, -⟩,
+                            hg3⟩
+                          simp only [decide_eq_false_iff_not, not_lt] at hg3
+                          rw [hp, hie] at hi
+                          unfold qpre at hc
+                          omega
+                        case «then» =>
+                          stmt_swap{1} 0 1
+                          stmt_wp
+                          equiv_rnd
+                          stmt_wp
+                          equiv_rnd
+                          equiv_skip
+                          rintro g₁ g₂ p bs i x0 p' bs' i' c sa' h
+                            ⟨⟨⟨⟨⟨rfl, hb, rfl, rfl, hi, rfl, hC, hq, hc0, hc, hpa, hL, -⟩, hbad⟩,
+                                -⟩,
+                              -⟩, -⟩ y2 _ y1 _
+                          simp only [eq_glob_C] at hC ⊢
+                          simp_reads
+                          simp only [ite_self, true_and]
+                          refine ⟨hb, hC, hq, by omega, by omega, hpa,
+                            PJ2L_step _ _ _ _ _ _ _ _ _ hL hi hpa, fun hnb => (hnb ?_).elim⟩
+                          simp only [Bool.or_eq_true]
+                          tauto
+                    case «else» =>
+                      equiv_if{2}
+                      case «then» =>
+                        stmt_wp
+                        equiv_skip
+                        rintro g₁ g₂ p bs i x0 p' bs' i' c sa' h
+                          ⟨⟨⟨⟨rfl, hb, rfl, rfl, hi, rfl, hC, hq, hc0, hc, hpa, hL, -⟩, hbad⟩, -⟩,
+                              -⟩
+                        simp only [eq_glob_C] at hC ⊢
+                        simp_reads
+                        exact ⟨hb, hC, hq, hc0, by omega, hpa,
+                          PJ2L_step _ _ _ _ _ _ _ _ _ hL hi hpa, fun hnb => (hnb hbad).elim⟩
+                      case «else» =>
+                        equiv_if{2}
+                        case «else» =>
+                          refine prhlStmt_pre prhlStmt_false ?_
+                          rintro σ₁ σ₂ ⟨⟨⟨⟨⟨hp, -, -, hie, hi, -, -, -, -, hc, -, -, -⟩, -⟩, -⟩, -⟩,
+                            hg3⟩
+                          simp only [decide_eq_false_iff_not, not_lt] at hg3
+                          rw [hp, hie] at hi
+                          unfold qpre at hc
+                          omega
+                        case «then» =>
+                          stmt_wp
+                          stmt_wp{2} 1
+                          stmt_wp
+                          stmt_wp{2} 1
+                          equiv_skip
+                          rintro g₁ g₂ p bs i x0 p' bs' i' c sa' h
+                            ⟨⟨⟨⟨⟨rfl, hb, rfl, rfl, hi, rfl, hC, hq, hc0, hc, hpa, hL, -⟩, hbad⟩,
+                                -⟩,
+                              -⟩, -⟩
+                          refine ⟨(is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll,
+                              fun y2 _ =>
+                            ⟨(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+                                fun y1 _ => ?_⟩⟩
+                          simp only [eq_glob_C] at hC ⊢
+                          simp_reads
+                          simp only [ite_self, true_and]
+                          refine ⟨hb, hC, hq, by omega, by omega, hpa,
+                            PJ2L_step _ _ _ _ _ _ _ _ _ hL hi hpa, fun hnb => (hnb ?_).elim⟩
+                          simp only [Bool.or_eq_true]
+                          tauto
+                  · equiv_if{1}
+                    case «then» =>
+                      equiv_if{2}
+                      case «then» =>
+                        refine prhlStmt_pre prhlStmt_false ?_
+                        rintro σ₁ σ₂ ⟨⟨⟨⟨hp, -, -, hie, hi, hx, -, -, -, -, -, hL, hJ⟩, hbad⟩, hg1⟩,
+                          hg2⟩
+                        obtain ⟨hsa, hJ2⟩ := hJ hbad
+                        simp only [Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
+                          at hg1 hg2
+                        rw [hx] at hg1
+                        apply (PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ2 hL hi hg1).1
+                        rw [hsa, hp, hie]
+                        exact hg2
+                      case «else» =>
+                        equiv_if{2}
+                        case «else» =>
+                          refine prhlStmt_pre prhlStmt_false ?_
+                          rintro σ₁ σ₂ ⟨⟨⟨⟨⟨hp, -, -, hie, hi, -, -, -, -, hc, -, -, -⟩, -⟩, -⟩, -⟩,
+                            hg3⟩
+                          simp only [decide_eq_false_iff_not, not_lt] at hg3
+                          rw [hp, hie] at hi
+                          unfold qpre at hc
+                          omega
+                        case «then» =>
+                          stmt_swap{1} 0 1
+                          stmt_wp
+                          equiv_rnd
+                          stmt_wp
+                          equiv_rnd
+                          equiv_skip
+                          rintro g₁ g₂ p bs i x0 p' bs' i' c sa' h
+                            ⟨⟨⟨⟨⟨rfl, hb, rfl, rfl, hi, rfl, hC, hq, hc0, hc, hpa, hL, hJ⟩, hbad⟩,
+                                hg1⟩,
+                              -⟩, hg3⟩ y2 _ y1 _
+                          simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hg1
+                          obtain ⟨rfl, hJ2⟩ := hJ hbad
+                          obtain ⟨-, hro, hfr⟩ :=
+                            PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ2 hL hi hg1
+                          simp only [hro, decide_false, Bool.not_false, if_true]
+                          simp only [eq_glob_C] at hC ⊢
+                          simp_reads
+                          have e1 : oget (FMap.get (FMap.set (PF.m.get g₁)
+                              (sa0 +^ nth default p i, sc0) (y1, y2)) (sa0 +^ nth default p i,
+                                  sc0)) =
+                              (y1, y2) := by rw [FMap.get_set_sameE]; rfl
+                          have e2 : oget (FMap.get (FMap.set (F.RO.m.get g₂) (take (i + 1) p) y1)
+                              (take (i + 1) p)) = y1 := by rw [FMap.get_set_sameE]; rfl
+                          simp only [e1, e2]
+                          refine ⟨hb, hC, hq, by omega, by omega, hpa,
+                            PJ2L_step _ _ _ _ _ _ _ _ _ hL hi hpa, fun hb' => ⟨trivial,
+                                hfr y1 y2 ?_⟩⟩
+                          simp only [Bool.or_eq_true, decide_eq_true_eq, not_or, ne_eq,
+                            not_not] at hb'
+                          exact hb'.1.2
+                    case «else» =>
+                      equiv_if{2}
+                      case «then» =>
+                        stmt_wp
+                        equiv_skip
+                        rintro g₁ g₂ p bs i x0 p' bs' i' c sa' h
+                          ⟨⟨⟨⟨rfl, hb, rfl, rfl, hi, rfl, hC, hq, hc0, hc, hpa, hL, hJ⟩, hbad⟩,
+                              hg1⟩, -⟩
+                        simp only [Bool.not_eq_false', decide_eq_true_eq] at hg1
+                        obtain ⟨rfl, hJ2⟩ := hJ hbad
+                        obtain ⟨-, heq, hJ'⟩ :=
+                          PJ2_known _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ2 hL hi hg1
+                        refine ⟨rfl, hb, rfl, rfl, ?_, hq, hc0, by omega, hpa,
+                          PJ2L_step _ _ _ _ _ _ _ _ _ hL hi hpa, fun _ => ⟨heq, hJ'⟩⟩
+                        simp only [eq_glob_C] at hC ⊢
+                        simp_reads
+                        exact hC
+                      case «else» =>
+                        refine prhlStmt_pre prhlStmt_false ?_
+                        rintro σ₁ σ₂ ⟨⟨⟨⟨hp, -, -, hie, hi, hx, -, -, -, -, -, hL, hJ⟩, hbad⟩, hg1⟩,
+                          hg2⟩
+                        obtain ⟨hsa, hJ2⟩ := hJ hbad
+                        simp only [Bool.not_eq_false', decide_eq_false_iff_not, decide_eq_true_eq]
+                          at hg1 hg2
+                        rw [hx] at hg1
+                        apply hg2
+                        have := (PJ2_known _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ2 hL hi hg1).1
+                        rw [hsa, hp, hie] at this
+                        exact this
+            equiv_skip
+            rintro g₁ g₂ p bs i sa sc p' bs' i' sa' c h
+              ⟨rfl, hb, rfl, rfl, rfl, rfl, hbad, hC, hpr, hJ, hlt⟩
+            subst hpr
+            obtain ⟨hJ2, hL⟩ := PJ1_PJ2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hlt
+            have hI := hJ.1
+            have hq : FMap.dom (C.queries.get g₂) [] := by rw [FMap.domE, hI.10.2]; simp
+            have hiq : i ≤ qpre p (C.queries.get g₂) := hJ.2.2.2.2.2.2.1
+            exact ⟨rfl, hb, rfl, rfl, hC, hq, le_rfl, by omega,
+              all_prefixes_of_INV _ _ _ _ _ _ _ _ _ _ _ _ hI, hL, fun _ => ⟨rfl, hJ2⟩⟩
 
 /-! ## `CF_G1`: the oracles' losslessness, footprints, and EC's invariant -/
 
