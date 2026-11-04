@@ -3414,22 +3414,6 @@ theorem take_format (bl : List block) (n i : ℤ) :
   · rw [List.take_of_length_le (by omega)]
     congr 2; omega
 
-/-- `local lemma equiv_sponge (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
-equiv[ GReal(A(D)).main ~ NIndif(Squeeze(SqueezelessSponge(P)), P, DRestr(D)).main : ={glob D} ==>
-={res, glob D, glob P, C.c} /\ SLCommon.C.c{1} <= C.c{2} <= max_size ]`. -/
-theorem equiv_sponge (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
-    (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
-      (SLCommon.Redo.prefixes).footprint ⊔ BlockSponge.C.c.footprint ⊔ SLCommon.C.footprint)ᶜ) :
-    prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
-      (SLCommon.GReal (A D)).procedure
-      (Module.app NIndif (Module.pair (Squeeze (Module.app SLCommon.SqueezelessSponge
-        (Indifferentiability.PRIMITIVE.view state (List block) block P))) (Module.pair P
-        (DRestr D)))).procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob D g₁ g₂ ∧ Perm.m.get g₁ = Perm.m.get g₂ ∧
-        Perm.mi.get g₁ = Perm.mi.get g₂ ∧ BlockSponge.C.c.get g₁ = BlockSponge.C.c.get g₂ ∧
-        SLCommon.C.c.get g₁ ≤ BlockSponge.C.c.get g₂ ∧ BlockSponge.C.c.get g₂ ≤ max_size) := by
-  sorry
-
 theorem lemma4 (c c' : ℤ) (m mi : FMap state state) (p : FMap (List block) state)
     (bl : List block) (i : ℤ) (sa : block) (sc : capacity) :
     INV_Real c c' m mi p → 0 < i → FMap.get p (format bl i) = some (sa, sc) →
@@ -4441,6 +4425,633 @@ theorem squeeze_squeezeless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     obtain ⟨hc, hle, hm', hmi', -⟩ := (hI _ _).mp hI'
     simp_reads
     exact ⟨hm', hmi', hg, hc, hle⟩
+
+omit [BlockSponge.Params] [Params] in
+/-- `P.fi`, at `SLCommon`'s `PRIMITIVE`, is `Perm.fi`. -/
+theorem P_fi' : Indifferentiability.PRIMITIVE.fi state (List block) block P =
+    PRP.RP.RP.fi (block × capacity) dD Perm.m Perm.mi := by
+  unfold P Perm PRP.RP.RP
+  simp [Indifferentiability.PRIMITIVE.fi, PRP.StrongPRP.PRP.mk]
+
+omit [BlockSponge.Params] [Params] in
+/-- `Perm` as `SLCommon`'s `PRIMITIVE` (for `writes_keep` through `SLCommon.PC(Perm)`). -/
+theorem Perm_mk : (Perm : SLCommon.PRIMITIVE) =
+    Indifferentiability.PRIMITIVE.mk state (List block) block
+      { init := PRP.RP.RP.init (block × capacity) dD Perm.m Perm.mi
+        f := PRP.RP.RP.f (block × capacity) dD Perm.m Perm.mi
+        fi := PRP.RP.RP.fi (block × capacity) dD Perm.m Perm.mi } := rfl
+
+/-- `equiv_sponge`'s invariant without the counters (EC: `={Redo.prefixes, glob P, C.c} /\ C.c{1} <=
+max_size`). -/
+def eInv0 (g₁ g₂ : VariableAssignment) : Prop :=
+  SLCommon.Redo.prefixes.get g₁ = SLCommon.Redo.prefixes.get g₂ ∧
+    Perm.m.get g₁ = Perm.m.get g₂ ∧ Perm.mi.get g₁ = Perm.mi.get g₂ ∧
+    BlockSponge.C.c.get g₁ = BlockSponge.C.c.get g₂ ∧ BlockSponge.C.c.get g₁ ≤ max_size
+
+/-- `INV_Real` with `SLCommon.C.c` (the primitive calls on the left) below `k`. -/
+def cntInv (k : ℤ) (g : VariableAssignment) : Prop :=
+  INV_Real (SLCommon.C.c.get g) k (Perm.m.get g) (Perm.mi.get g) (SLCommon.Redo.prefixes.get g)
+
+omit [BlockSponge.Params] [Params] in
+/-- `INV_Real` with a larger bound. -/
+theorem INV_Real_mono {c1 c2 c2' : ℤ} {m mi : FMap state state} {p : FMap (List block) state}
+    (h : INV_Real c1 c2 m mi p) (h2 : c2 ≤ c2') : INV_Real c1 c2' m mi p := by
+  obtain ⟨hc, hm, hi⟩ := h
+  exact ⟨hc.trans h2, hm, hi⟩
+
+/-- `SqueezelessSponge(SLCommon.PC(P)).f ~ SqueezelessSponge(P).f` on `bl`: same code, the left
+counting its calls of `P`. With `take s bl` known, only the prefixes past `s` can call `P`, so the
+count grows by at most `size bl - s` (EC: `equiv_sponge`'s inner `while`s, with `s = 0` for
+absorbing and `s = size (format p i)` for squeezing). -/
+theorem SS_gen (bl : List block) (s k : ℤ) :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = bl ∧ a₂ = bl ∧ 0 ≤ s ∧ s ≤ size bl ∧
+        FMap.dom (SLCommon.Redo.prefixes.get g₁) (take s bl) ∧ eInv0 g₁ g₂ ∧ cntInv k g₁)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block
+        (Module.app SLCommon.SqueezelessSponge (Indifferentiability.PRIMITIVE.view state
+          (List block) block (Module.app SLCommon.PC Perm)))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block
+        (Module.app SLCommon.SqueezelessSponge (Indifferentiability.PRIMITIVE.view state
+          (List block) block P))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv0 g₁ g₂ ∧ cntInv (k + (size bl - s)) g₁ ∧
+        ∃ c, FMap.get (SLCommon.Redo.prefixes.get g₁) bl = some (r₁, c)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.PRIMITIVE.view, Indifferentiability.DPRIMITIVE.f.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      0 ≤ §i{1} ∧ §i{1} ≤ size bl ∧
+      FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} bl) = some (§sa{1}, §sc{1}) ∧
+      0 ≤ s ∧ s ≤ size bl ∧ FMap.dom §SLCommon.Redo.prefixes{1} (take s bl) ∧
+      eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv (k + max 0 (§i{1} - s)) §allGlobals{1})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x₁ x₂ ⟨h1, h2, hs0, hsl, hd, he, hc⟩
+    subst x₁ x₂
+    have h0 : FMap.get (SLCommon.Redo.prefixes.get g₁) [] = some (b0, c0) := by
+      obtain ⟨-, ⟨h0, -⟩, -⟩ := hc; exact h0
+    exact ⟨rfl, rfl, by simp only [size]; omega, by simpa [take] using h0, hs0, hsl, hd, he,
+      INV_Real_mono hc (by omega)⟩
+  equiv_while (§p{1} = bl ∧ §p{2} = bl ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      0 ≤ §i{1} ∧ §i{1} ≤ size bl ∧
+      FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} bl) = some (§sa{1}, §sc{1}) ∧
+      0 ≤ s ∧ s ≤ size bl ∧ FMap.dom §SLCommon.Redo.prefixes{1} (take s bl) ∧
+      eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv (k + max 0 (§i{1} - s)) §allGlobals{1})
+  case guard =>
+    rintro g₁ g₂ p sa sc i p' sa' sc' i' ⟨hp, hp', -, -, hi, -⟩
+    rw [hp, hp', hi]
+  case exit =>
+    rintro g₁ g₂ p sa sc i p' sa' sc' i'
+      ⟨hp, hp', hsa, -, hi, hi0, hil, hpre, hs0, hsl, -, he, hc⟩ hg
+    subst p p'
+    simp only [decide_eq_false_iff_not, not_lt] at hg
+    obtain rfl : i = size bl := le_antisymm hil hg
+    rw [take_size] at hpre
+    exact ⟨hsa, he, INV_Real_mono hc (by omega), _, hpre⟩
+  case body =>
+    stmt_wp
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ p sa sc i p' sa' sc' i' ⟨⟨hp, hp', -, -, hi, -, -, -, -, -, -, ⟨hpe, -⟩, -⟩, -⟩
+      rw [hp, hp', hi, hpe]
+    case «then» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ p sa sc i p' sa' sc' i'
+        ⟨⟨⟨hp, hp', hsa, hsc, hi, hi0, hil, hpre, hs0, hsl, hd, he, hc⟩, hg⟩, hdd⟩
+      subst p p' i'
+      simp only [decide_eq_true_eq] at hg hdd
+      obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hdd)
+      refine ⟨rfl, rfl, by rw [he.1], by rw [he.1], rfl, by omega, by omega, by simp [hv, oget],
+        hs0, hsl, hd, he, INV_Real_mono hc (by omega)⟩
+    case «else» =>
+      stmt_wp
+      simp only [P_f']
+      stmt_inline{1} 0
+      stmt_inline{2} 0
+      simp only [P_f']
+      stmt_inline{1} 0
+      stmt_wp
+      equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §x0{1} = §x{2} ∧ §i{1} = §i{2} ∧ 0 ≤ §i{1} ∧
+          §i{1} < size bl ∧ s ≤ §i{1} ∧
+          ¬ FMap.dom §SLCommon.Redo.prefixes{1} (take (§i{1} + 1) bl) ∧
+          (∃ sa0 sc0, FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} bl) = some (sa0, sc0) ∧
+            §x{2} = (sa0 +^ nth default bl §i{1}, sc0)) ∧
+          0 ≤ s ∧ s ≤ size bl ∧ FMap.dom §SLCommon.Redo.prefixes{1} (take s bl) ∧
+          eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv (k + max 0 (§i{1} - s)) §allGlobals{1})
+      · stmt_wp
+        equiv_skip
+        intro σ₁ σ₂ ⟨⟨⟨hp, hp', hsa, hsc, hi, hi0, hil, hpre, hs0, hsl, hd, he, hc⟩, hg⟩, hnd⟩
+        simp only [decide_eq_true_eq, decide_eq_false_iff_not] at hg hnd
+        rw [hp] at hg hnd
+        rw [hp, hp', ← hsa, ← hsc, ← hi]
+        have hsi : s ≤ (localVarLens "i" ℤ).get σ₁ := by
+          by_contra hlt
+          apply hnd
+          have := all_prefixes_of_INV_real _ _ _ _ _ hc (take s bl) hd
+            ((localVarLens "i" ℤ).get σ₁ + 1)
+          rwa [show take ((localVarLens "i" ℤ).get σ₁ + 1) (take s bl) =
+            take ((localVarLens "i" ℤ).get σ₁ + 1) bl by
+              simp only [take, List.take_take]; congr 1; omega] at this
+        exact ⟨rfl, rfl, rfl, rfl, hi0, hg, hsi, hnd, ⟨_, _, hpre, rfl⟩, hs0, hsl, hd, he, hc⟩
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ p x0 i p' x i' ⟨-, -, hx, -, -, -, -, -, -, -, -, -, ⟨-, hm, -⟩, -⟩
+        rw [hx, hm]
+      case «then» =>
+        stmt_wp
+        equiv_rnd
+        equiv_skip
+        rintro g₁ g₂ p x0 i p' x i' ⟨⟨hp, hp', hx, hi, hi0, hil, hsi, hnd, ⟨sa0, sc0, hpre, hx2⟩,
+          hs0, hsl, hd, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, hg⟩
+        subst p p' i' x
+        refine ⟨by rw [hm], fun a ha => ?_⟩
+        have hnd' : ¬ FMap.dom (Perm.m.get g₁) x0 := by simpa using hg
+        have hinv1 := INV_Real_addm_mi _ _ _ _ _ _ _ hc hnd' (not_of_mem_support_dexcepted ha)
+        have h3 := lemma_3 _ _ _ _ _ (take i bl) (nth default bl i) sa0 sc0 hinv1
+          (by rw [FMap.domE, ← hx2, FMap.get_set_sameE]; simp)
+          (by rwa [← take_succ_rcons _ _ ⟨hi0, hil⟩]) hpre
+        rw [← hx2] at h3
+        refine ⟨rfl, rfl, by rw [hm], by rw [hm], rfl, by omega, by omega,
+          by rw [FMap.get_set_sameE], hs0, hsl, (FMap.mem_set _ _ _ _).mpr (Or.inl hd), ?_, ?_⟩
+        · simp only [eInv0]
+          simp_reads
+          exact ⟨by rw [hpe, hm], by rw [hm], by rw [hmi], hcc, hcm⟩
+        · simp only [cntInv]
+          simp_reads
+          rw [take_succ_rcons _ _ ⟨hi0, hil⟩, Prod.mk.eta]
+          obtain ⟨hc', hmp', hiv'⟩ := h3
+          exact ⟨by omega, hmp', hiv'⟩
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ p x0 i p' x i' ⟨⟨hp, hp', hx, hi, hi0, hil, hsi, hnd, ⟨sa0, sc0, hpre, hx2⟩,
+          hs0, hsl, hd, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, hg⟩
+        subst p p' i' x
+        have hd' : FMap.dom (Perm.m.get g₁) x0 := by simpa using hg
+        have h3 := lemma_3 _ _ _ _ _ (take i bl) (nth default bl i) sa0 sc0 hc
+          (by rw [← hx2]; exact hd') (by rwa [← take_succ_rcons _ _ ⟨hi0, hil⟩]) hpre
+        rw [← hx2] at h3
+        refine ⟨rfl, rfl, by rw [hm], by rw [hm], rfl, by omega, by omega,
+          by rw [FMap.get_set_sameE], hs0, hsl, (FMap.mem_set _ _ _ _).mpr (Or.inl hd), ?_, ?_⟩
+        · simp only [eInv0]
+          simp_reads
+          exact ⟨by rw [hpe, hm], hm, hmi, hcc, hcm⟩
+        · simp only [cntInv]
+          simp_reads
+          rw [take_succ_rcons _ _ ⟨hi0, hil⟩, Prod.mk.eta]
+          obtain ⟨hc', hmp', hiv'⟩ := h3
+          exact ⟨by omega, hmp', hiv'⟩
+  case hpre =>
+    equiv_skip
+    intros
+    assumption
+
+/-- `DSqueeze` over the two squeezeless sponges: the count grows by at most
+`size bl + max (nb - 1) 0` (EC: `equiv_sponge`'s functionality `call`). -/
+theorem DSqueeze_count (bl : List block) (nb k : ℤ) :
+    prhlProc (sig₁ := procsig (List block × ℤ) -> List block)
+      (sig₂ := procsig (List block × ℤ) -> List block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = (bl, nb) ∧ a₂ = (bl, nb) ∧ eInv0 g₁ g₂ ∧ cntInv k g₁)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state (List block) block
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block) block
+              (Module.app SLCommon.SqueezelessSponge (Indifferentiability.PRIMITIVE.view state
+                (List block) block (Module.app SLCommon.PC Perm))) }))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app DSqueeze (Indifferentiability.FUNCTIONALITY.view state (List block) block
+          (Module.app SLCommon.SqueezelessSponge
+            (Indifferentiability.PRIMITIVE.view state (List block) block P))))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv0 g₁ g₂ ∧ cntInv (k + size bl + max (nb - 1) 0) g₁) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp, Indifferentiability.FUNCTIONALITY.view]
+  stmt_wp
+  equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §lres{1} = [] ∧
+      §lres{2} = [] ∧ §(localVarLens "b" block){1} = b0 ∧ §(localVarLens "b" block){2} = b0 ∧
+      §i{1} = 0 ∧ §i{2} = 0 ∧ eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv k §allGlobals{1})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x₁ x₂ ⟨rfl, rfl, he, hc⟩
+    exact ⟨rfl, rfl, rfl, rfl, he, hc⟩
+  have hsz : 0 ≤ size bl := by simp only [size]; omega
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ p n lres b i p' n' lres' b' i' ⟨hp, hp', -⟩
+    rw [hp, hp']
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ p n lres b i p' n' lres' b' i' ⟨⟨-, -, -, -, hl, hl', -, -, -, -, he, hc⟩, -⟩
+    exact ⟨by rw [hl, hl'], he, INV_Real_mono hc (by omega)⟩
+  case «then» =>
+    equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §lres{1} = [] ∧
+        §lres{2} = [] ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+        §i{1} = 0 ∧ §i{2} = 0 ∧ valid bl = true ∧ FMap.dom §SLCommon.Redo.prefixes{1} bl ∧
+        eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv (k + size bl) §allGlobals{1})
+    · equiv_call (SS_gen bl 0 k)
+      equiv_skip
+      rintro g₁ g₂ p n lres b i p' n' lres' b' i'
+        ⟨⟨hp, hp', hn, hn', hl, hl', -, -, hi, hi', he, hc⟩, hv⟩
+      subst p p'
+      refine ⟨⟨rfl, rfl, hsz, ?_, he, hc⟩, fun r₁ g₁' r₂ g₂' ⟨hr, he', hc', c, hpc⟩ =>
+        ⟨rfl, rfl, hn, hn', hl, hl', hr, hi, hi', hv, by rw [FMap.domE, hpc]; simp, he',
+          by simpa using hc'⟩⟩
+      obtain ⟨-, ⟨h0, -⟩, -⟩ := hc
+      simp [take, FMap.domE, h0]
+    equiv_while (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §i{1} = §i{2} ∧
+        §lres{1} = §lres{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+        0 ≤ §i{1} ∧ valid bl = true ∧
+        (§i{1} < nb → FMap.dom §SLCommon.Redo.prefixes{1} (format bl (§i{1} + 1))) ∧
+        eInv0 §allGlobals{1} §allGlobals{2} ∧
+        cntInv (k + size bl + max 0 (min §i{1} (nb - 1))) §allGlobals{1})
+    case guard =>
+      rintro g₁ g₂ p n i lres b p' n' i' lres' b' ⟨-, -, hn, hn', hi, -⟩
+      rw [hn, hn', hi]
+    case exit =>
+      rintro g₁ g₂ p n i lres b p' n' i' lres' b' ⟨-, -, hn, -, -, hl, -, hi0, -, -, he, hc⟩ hg
+      subst n
+      simp only [decide_eq_false_iff_not, not_lt] at hg
+      exact ⟨hl, he, INV_Real_mono hc (by omega)⟩
+    case body =>
+      equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §i{1} = §i{2} ∧
+          §lres{1} = §lres{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+          0 < §i{1} ∧ §i{1} ≤ nb ∧ valid bl = true ∧
+          FMap.dom §SLCommon.Redo.prefixes{1} (format bl §i{1}) ∧
+          eInv0 §allGlobals{1} §allGlobals{2} ∧
+          cntInv (k + size bl + max 0 (min (§i{1} - 1) (nb - 1))) §allGlobals{1})
+      · stmt_wp
+        equiv_skip
+        rintro g₁ g₂ p n i lres b p' n' i' lres' b'
+          ⟨⟨hp, hp', hn, hn', hi, hl, hb, hi0, hv, hdf, he, hc⟩, hg⟩
+        subst n
+        simp only [decide_eq_true_eq] at hg
+        refine ⟨hp, hp', rfl, hn', by rw [hi], by rw [hl, hb], hb, by omega, by omega, hv, hdf hg,
+          he, by simpa using hc⟩
+      equiv_if
+      case guard =>
+        rintro g₁ g₂ p n i lres b p' n' i' lres' b' ⟨-, -, hn, hn', hi, -⟩
+        rw [hn, hn', hi]
+      case «else» =>
+        equiv_skip
+        rintro g₁ g₂ p n i lres b p' n' i' lres' b'
+          ⟨⟨hp, hp', hn, hn', hi, hl, hb, hi0, hil, hv, hdf, he, hc⟩, hg⟩
+        subst n
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        exact ⟨hp, hp', rfl, hn', hi, hl, hb, by omega, hv, fun h => absurd h (by omega), he,
+          INV_Real_mono hc (by omega)⟩
+      case «then» =>
+        refine prhlStmt_fix_left (fun σ => (localVarLens "i" ℤ).get σ) (fun j => ?_)
+        equiv_call (SS_gen (format bl (j + 1)) (size (format bl j))
+          (k + size bl + max 0 (min (j - 1) (nb - 1))))
+        equiv_skip
+        rintro g₁ g₂ p n i lres b p' n' i' lres' b'
+          ⟨⟨⟨hp, hp', hn, hn', hi, hl, hb, hi0, hil, hv, hdf, he, hc⟩, hg⟩, hj⟩
+        subst p p' n i' j
+        simp only [decide_eq_true_eq] at hg
+        have hsz1 := size_format_pos bl (i + 1) (by omega)
+        have hsz2 := size_format_pos bl i hi0
+        refine ⟨⟨rfl, rfl, by omega, by omega, ?_, he, hc⟩,
+          fun r₁ g₁' r₂ g₂' ⟨hr, he', hc', c, hpc⟩ => ⟨rfl, rfl, rfl, hn', rfl, hl, hr, by omega,
+            hv, fun _ => by rw [FMap.domE, hpc]; simp, he', INV_Real_mono hc' (by omega)⟩⟩
+        rw [take_format_succ bl i _ hi0 le_rfl, take_size]
+        exact hdf
+    case hpre =>
+      equiv_skip
+      rintro g₁ g₂ p n lres b i p' n' lres' b' i'
+        ⟨hp, hp', hn, hn', hl, hl', hb, hi, hi', hv, hd, he, hc⟩
+      subst i i'
+      refine ⟨hp, hp', hn, hn', rfl, by rw [hl, hl'], hb, le_rfl, hv,
+        fun _ => by simpa [format, nseq] using hd, he, INV_Real_mono hc (by omega)⟩
+
+/-- `equiv_sponge`'s invariant (EC: `={Redo.prefixes, glob P, C.c} /\ C.c{1} <= max_size /\
+INV_Real SLCommon.C.c{1} C.c{2} Perm.m{1} Perm.mi{1} Redo.prefixes{1}`). -/
+def eInv (g₁ g₂ : VariableAssignment) : Prop :=
+  eInv0 g₁ g₂ ∧ cntInv (BlockSponge.C.c.get g₁) g₁
+
+/-- `FC` over the two squeezes keeps `eInv`: `DSqueeze_count` from the counter before `FC`'s
+increment, with `C.c` framed through the call. -/
+theorem FC_count :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eInv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state (List block) block
+                { f := Indifferentiability.FUNCTIONALITY.f state (List block) block
+                    (Module.app SLCommon.SqueezelessSponge (Indifferentiability.PRIMITIVE.view state
+                      (List block) block (Module.app SLCommon.PC Perm))) })) }))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze (Indifferentiability.FUNCTIONALITY.view state (List block) block
+                (Module.app SLCommon.SqueezelessSponge
+                  (Indifferentiability.PRIMITIVE.view state (List block) block P)))) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+      eInv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨rfl, h⟩
+    exact ⟨rfl, rfl, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ bl nb _ _ _ _ ⟨rfl, rfl, -, ⟨-, -, -, hc, -⟩, -⟩
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ bl nb z _ _ _ ⟨⟨rfl, rfl, rfl, h⟩, -⟩
+    exact ⟨rfl, h⟩
+  case «then» =>
+    refine prhlStmt_fix_left (fun σ => ((localVarLens "bl" (List block)).get σ,
+      (localVarLens "nb" ℤ).get σ, BlockSponge.C.c.get σ.globals)) (fun q => ?_)
+    equiv_call (prhlProc_frame_of_writesKeep BlockSponge.C.c.get BlockSponge.C.c.get
+      (fun c₁ c₂ => c₁ = q.2.2 + size q.1 + max (q.2.1 - 1) 0 ∧ c₂ = c₁)
+      (by rw [Perm_mk]; writes_keep <;> (intro v σ; simp_reads; try trivial))
+      (by rw [P_view']; writes_keep <;> (intro v σ; simp_reads; try trivial))
+      (DSqueeze_count q.1 q.2.1 q.2.2))
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ bl nb z _ _ _ ⟨⟨⟨rfl, rfl, -, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, hg⟩, rfl⟩
+    simp only [decide_eq_true_eq] at hg
+    refine ⟨⟨⟨rfl, rfl, ?_, ?_⟩, rfl, by rw [hcc]⟩,
+      fun r₁ g₁' r₂ g₂' ⟨⟨hr, he', hc'⟩, h1, h2⟩ => ⟨hr, he', ?_⟩⟩
+    · simp only [eInv0]
+      simp_reads
+      exact ⟨hpe, hm, hmi, by rw [hcc], hg⟩
+    · simp only [cntInv] at hc ⊢
+      simp_reads
+      exact hc
+    · simp only [cntInv] at hc' ⊢
+      rw [h1]
+      exact hc'
+
+/-- `PC(SLCommon.PC(P)).f ~ PC(P).f` keeps `eInv`: both counters grow by one. -/
+theorem PC_f_count :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eInv g₁ g₂)
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block) block
+              (Module.app SLCommon.PC Perm)
+            fi := Indifferentiability.PRIMITIVE.fi state (List block) block
+              (Module.app SLCommon.PC Perm) }))).procedure
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P
+            fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+              P }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ eInv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ a _ ⟨rfl, h⟩
+    exact ⟨rfl, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ a _ _ _ ⟨-, -, ⟨-, -, -, hc, -⟩, -⟩
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ a z _ _ ⟨⟨-, rfl, h⟩, -⟩
+    exact ⟨rfl, h⟩
+  case «then» =>
+    stmt_wp
+    simp only [P_f]
+    stmt_inline{1} 0
+    stmt_inline{2} 0
+    simp only [P_f']
+    stmt_inline{1} 0
+    stmt_wp
+    equiv_seq 1 1 : (§x0{1} = §x{2} ∧ §BlockSponge.C.c{1} + 1 ≤ max_size ∧
+        eInv §allGlobals{1} §allGlobals{2})
+    · stmt_wp
+      equiv_skip
+      rintro σ₁ σ₂ ⟨⟨ha, -, h⟩, hg⟩
+      exact ⟨ha, by simpa using hg, h⟩
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ x0 x ⟨rfl, -, ⟨-, hm, -⟩, -⟩
+      rw [hm]
+    case «then» =>
+      stmt_wp
+      equiv_rnd
+      equiv_skip
+      rintro g₁ g₂ x0 x ⟨⟨rfl, hcm1, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, hg⟩
+      refine ⟨by rw [hm], fun a ha => ⟨by rw [hm], ?_⟩⟩
+      have hnd : ¬ FMap.dom (Perm.m.get g₁) x0 := by simpa using hg
+      simp only [eInv, eInv0, cntInv] at hc ⊢
+      simp_reads
+      exact ⟨⟨hpe, by rw [hm], by rw [hmi], by rw [hcc], hcm1⟩, INV_Real_incr _ _ _ _ _
+        (INV_Real_addm_mi _ _ _ _ _ _ _ hc hnd (not_of_mem_support_dexcepted ha))⟩
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ x0 x ⟨⟨rfl, hcm1, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, -⟩
+      simp only [eInv, eInv0, cntInv] at hc ⊢
+      simp_reads
+      exact ⟨by rw [hm], ⟨hpe, hm, hmi, by rw [hcc], hcm1⟩, INV_Real_incr _ _ _ _ _ hc⟩
+
+/-- `PC(SLCommon.PC(P)).fi ~ PC(P).fi` keeps `eInv`. -/
+theorem PC_fi_count :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eInv g₁ g₂)
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block) block
+              (Module.app SLCommon.PC Perm)
+            fi := Indifferentiability.PRIMITIVE.fi state (List block) block
+              (Module.app SLCommon.PC Perm) }))).procedure
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P
+            fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+              P }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ eInv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ a _ ⟨rfl, h⟩
+    exact ⟨rfl, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ a _ _ _ ⟨-, -, ⟨-, -, -, hc, -⟩, -⟩
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ a z _ _ ⟨⟨-, rfl, h⟩, -⟩
+    exact ⟨rfl, h⟩
+  case «then» =>
+    stmt_wp
+    simp only [P_fi]
+    stmt_inline{1} 0
+    stmt_inline{2} 0
+    simp only [P_fi']
+    stmt_inline{1} 0
+    stmt_wp
+    equiv_seq 1 1 : (§y0{1} = §y{2} ∧ §BlockSponge.C.c{1} + 1 ≤ max_size ∧
+        eInv §allGlobals{1} §allGlobals{2})
+    · stmt_wp
+      equiv_skip
+      rintro σ₁ σ₂ ⟨⟨ha, -, h⟩, hg⟩
+      exact ⟨ha, by simpa using hg, h⟩
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ y0 y ⟨rfl, -, ⟨-, -, hmi, -⟩, -⟩
+      rw [hmi]
+    case «then» =>
+      stmt_wp
+      equiv_rnd
+      equiv_skip
+      rintro g₁ g₂ y0 y ⟨⟨rfl, hcm1, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, hg⟩
+      refine ⟨by rw [hmi], fun a ha => ⟨by rw [hmi], ?_⟩⟩
+      have hnd : ¬ FMap.dom (Perm.mi.get g₁) y0 := by simpa using hg
+      simp only [eInv, eInv0, cntInv] at hc ⊢
+      simp_reads
+      have hinvm : invm (Perm.m.get g₁) (Perm.mi.get g₁) := by obtain ⟨-, -, h⟩ := hc; exact h
+      refine ⟨⟨hpe, by rw [hm], by rw [hmi], by rw [hcc], hcm1⟩, INV_Real_incr _ _ _ _ _
+        (INV_Real_addm_mi _ _ _ _ _ _ _ hc ?_ ?_)⟩
+      · rw [invm_dom_rng _ _ hinvm]
+        exact not_of_mem_support_dexcepted ha
+      · rw [← invm_dom_rng _ _ (invmC' _ _ hinvm)]
+        exact hnd
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ y0 y ⟨⟨rfl, hcm1, ⟨hpe, hm, hmi, hcc, hcm⟩, hc⟩, -⟩
+      simp only [eInv, eInv0, cntInv] at hc ⊢
+      simp_reads
+      exact ⟨by rw [hmi], ⟨hpe, hm, hmi, by rw [hcc], hcm1⟩, INV_Real_incr _ _ _ _ _ hc⟩
+
+omit [BlockSponge.Params] [Params] in
+/-- `P.init`, at `SLCommon`'s `PRIMITIVE`, is `Perm.init`. -/
+theorem P_init' : Indifferentiability.PRIMITIVE.init state (List block) block P =
+    PRP.RP.RP.init (block × capacity) dD Perm.m Perm.mi := by
+  unfold P Perm PRP.RP.RP
+  simp [Indifferentiability.PRIMITIVE.init, PRP.StrongPRP.PRP.mk]
+
+/-- `local lemma equiv_sponge (D <: DISTINGUISHER {-P, -Redo, -C, -SLCommon.C}) :
+equiv[ GReal(A(D)).main ~ NIndif(Squeeze(SqueezelessSponge(P)), P, DRestr(D)).main : ={glob D} ==>
+={res, glob D, glob P, C.c} /\ SLCommon.C.c{1} <= C.c{2} <= max_size ]`. -/
+theorem equiv_sponge (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+      (SLCommon.Redo.prefixes).footprint ⊔ BlockSponge.C.c.footprint ⊔ SLCommon.C.footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
+      (SLCommon.GReal (A D)).procedure
+      (Module.app NIndif (Module.pair (Squeeze (Module.app SLCommon.SqueezelessSponge
+        (Indifferentiability.PRIMITIVE.view state (List block) block P))) (Module.pair P
+        (DRestr D)))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob D g₁ g₂ ∧ Perm.m.get g₁ = Perm.m.get g₂ ∧
+        Perm.mi.get g₁ = Perm.mi.get g₂ ∧ BlockSponge.C.c.get g₁ = BlockSponge.C.c.get g₂ ∧
+        SLCommon.C.c.get g₁ ≤ BlockSponge.C.c.get g₂ ∧ BlockSponge.C.c.get g₂ ≤ max_size) := by
+  have hm : (Perm.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
+  have hmi : (Perm.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
+  have hpr : (SLCommon.Redo.prefixes).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
+  have hcc : (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
+  have hsC : SLCommon.C.footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono le_sup_right))
+  have hsc : (SLCommon.C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    le_trans (by unfold SLCommon.C.footprint; exact le_sup_left) hsC
+  have hsq : (SLCommon.C.queries).footprint ≤ (FVP.fvP D)ᶜ :=
+    le_trans (by unfold SLCommon.C.footprint; exact le_sup_right) hsC
+  let Lg := Lens.pair Perm.m (Lens.pair Perm.mi (Lens.pair SLCommon.Redo.prefixes
+    (Lens.pair BlockSponge.C.c SLCommon.C.c)))
+  let I : FMap state state × FMap state state × FMap (List block) state × ℤ × ℤ →
+      FMap state state × FMap state state × FMap (List block) state × ℤ × ℤ → Prop := fun x y =>
+    (x.2.2.1 = y.2.2.1 ∧ x.1 = y.1 ∧ x.2.1 = y.2.1 ∧ x.2.2.2.1 = y.2.2.2.1 ∧
+      x.2.2.2.1 ≤ max_size) ∧ INV_Real x.2.2.2.2 x.2.2.2.1 x.1 x.2.1 x.2.2.1
+  have hI : ∀ g₁ g₂, I (Lg.get g₁) (Lg.get g₂) ↔ eInv g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (Lg.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [Lg, Footprint.lens_pair]
+    exact sup_le hm (sup_le hmi (sup_le hpr (sup_le hcc hsc)))
+  unfold SLCommon.GReal SLCommon.RealIndif Indifferentiability.GReal
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [P_init, Squeeze, Indifferentiability.FUNCTIONALITY.init.mk_simp]
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  simp only [P_init']
+  repeat stmt_inline{1} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    refine ⟨?_, (hI _ _).mpr ?_⟩
+    · simp only [touched_set_of_le_compl hm, touched_set_of_le_compl hmi,
+        touched_set_of_le_compl hpr, touched_set_of_le_compl hcc, touched_set_of_le_compl hsc,
+        touched_set_of_le_compl hsq]
+      exact h
+    · simp only [eInv, eInv0, cntInv]
+      simp_reads
+      exact ⟨SLCommon.max_ge0, INV_Real_init⟩
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF Lg D distExt hD.representable
+      (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp,
+          Indifferentiability.FUNCTIONALITY.f.mk_simp]
+        exact prhlProc_globInvF_of_writesKeep _ (by rw [Perm_mk]; writes_keep')
+          (by rw [P_view']; writes_keep')
+          (prhlProc_conseq FC_count (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+            (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact prhlProc_globInvF_of_writesKeep _ (by rw [Perm_mk]; writes_keep')
+            (by rw [P_f, P_fi]; writes_keep')
+            (prhlProc_conseq PC_f_count (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+              (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact prhlProc_globInvF_of_writesKeep _ (by rw [Perm_mk]; writes_keep')
+              (by rw [P_f, P_fi]; writes_keep')
+              (prhlProc_conseq PC_fi_count (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+                (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, h⟩, ?_⟩
+    rintro r g₁ _ g₂ ⟨rfl, hg, hI'⟩
+    obtain ⟨⟨hpe, hm', hmi', hcc', hcm⟩, hc⟩ := (hI _ _).mp hI'
+    obtain ⟨hle, -, -⟩ := hc
+    simp_reads
+    exact ⟨hg, hm', hmi', hcc', hcc' ▸ hle, hcc' ▸ hcm⟩
 
 /-- EC's `pr_real`, for `D <: DISTINGUISHER {-SLCommon.C, -C, -Perm, -Redo}`. -/
 theorem pr_real (D : DISTINGUISHER) (hD : Module.ECModule D distExt)

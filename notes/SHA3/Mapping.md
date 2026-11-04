@@ -591,7 +591,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1029 | local lemma | `lemma2'` | section Real. | `lemma2'` | done |
 | 1075 | local lemma | `take_nseq` | section Real. | `take_nseq` | done |
 | 1086 | local lemma | `take_format` | section Real. | `take_format` | done |
-| 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` | stated |
+| 1100 | local lemma | `equiv_sponge` | section Real. | `equiv_sponge` (steps `SS_gen`, `DSqueeze_count`, `FC_count`, `PC_f_count`, `PC_fi_count`; after `squeeze_squeezeless` in the file, whose bridges it uses) | done |
 | 1437 | local lemma | `lemma4` | section Real. | `lemma4` | done |
 | 1463 | local lemma | `lemma_3` | section Real. | `lemma_3` | done |
 | 1493 | local lemma | `squeeze_squeezeless` | section Real. | `squeeze_squeezeless` (steps `SS_f_extend`, `DSqueeze_Sponge`, `FC_rInv`, `PC_f_rInv`, `PC_fi_rInv`) | done |

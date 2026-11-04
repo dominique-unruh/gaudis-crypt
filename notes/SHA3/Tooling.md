@@ -1287,3 +1287,21 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   guard (`i < n → prefixes[format p (i + 1)] = …`) needs no split.
 * **Index of `stmt_inline`.** `stmt_inline{i} k` counts *call sites*, not statements.
 
+## 2026-11-04: `Gconcl_list.equiv_sponge`
+
+* **Same code on both sides, one side counting.** The left runs `SqueezelessSponge(SLCommon.PC(P))`,
+  the right `SqueezelessSponge(P)`, so the loops run in lockstep (no `splitwhile`). Only the counter
+  needs a bound. `SS_gen bl s k`: with `take s bl` known, `SLCommon.C.c` grows by at most
+  `size bl - s`. The invariant bound is `k + max 0 (i - s)`, and an uncached prefix forces `s ≤ i`
+  through `all_prefixes`. One lemma covers absorbing (`s = 0`) and each squeezing call
+  (`s = size (format p j)`, so at most `+1`).
+* **Counters as Lean parameters.** `DSqueeze_count bl nb k` and `SS_gen` take the bound `k` as a
+  parameter. The call sites fix the state's values with `prhlStmt_fix_left`, and `FC_count` fixes
+  `(bl, nb, C.c)` before `FC`'s increment.
+* **`writes_keep` through `SLCommon.PC(Perm)`.** `rw [Perm_mk]` (`Perm` as `PRIMITIVE.mk {RP.init,
+  RP.f, RP.fi}`, by `rfl`) first, as `rw [P_view']` for `view P`.
+* **Inlining the game's inits.** `PC(Perm).init` exposes `Perm.init` only after one inlining pass:
+  `repeat stmt_inline; simp only [P_init']; repeat stmt_inline`.
+* **`rintro … rfl` between two variables** (`p₁ = bl` with `bl` a theorem argument) may eliminate
+  the argument. Name the equation and `subst p₁` instead.
+
