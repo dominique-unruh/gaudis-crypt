@@ -1371,6 +1371,73 @@ variable (ARP_coll : Lens Bool VariableAssignment)
   (ARP_m ARP_mi : Lens (FMap D D) VariableAssignment)
 variable (FBounder_c : Lens ℤ VariableAssignment)
 
+/-- `PartialConclusion` with `D`'s losslessness over a region `G` containing `D` and outside the
+module variables (exception E14 of the SHA-3 port), `G` inside the `glob` of a finitely supported
+`GF` (for the fresh choice of the section `Upto`'s local variable). -/
+theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
+    [Lens.Disjoint ARP_coll ARP_m] [Lens.Disjoint ARP_coll ARP_mi] [Lens.Disjoint ARP_m ARP_mi]
+    [Lens.Disjoint PRPi_m ARP_m] [Lens.Disjoint PRPi_m ARP_mi] [Lens.Disjoint PRPi_m ARP_coll]
+    [Lens.Disjoint PRPi_mi ARP_m] [Lens.Disjoint PRPi_mi ARP_mi] [Lens.Disjoint PRPi_mi ARP_coll]
+    [Lens.Disjoint FBounder_c PRPi_m] [Lens.Disjoint FBounder_c PRPi_mi]
+    [Lens.Disjoint FBounder_c ARP_m] [Lens.Disjoint FBounder_c ARP_mi]
+    [Lens.Disjoint FBounder_c ARP_coll]
+    (hfs : (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔ ARP_m.footprint ⊔
+      ARP_mi.footprint ⊔ FBounder_c.footprint).FinitelySupported)
+    (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1 {x} = uD.1 {y})
+    (Dist : Distinguisher D) (hD : Module.ECModule Dist (SPRP_Oracles.ext D))
+    (G GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
+    (hDG : FVP.fvP Dist ≤ G)
+    (hG : G ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
+      ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ)
+    (D_ll : ∀ O : SPRP_Oracles D, FVP.fvP O ≤ Gᶜ →
+      (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
+      (Module.app Dist O).procedure.IsLossless)
+    (m : VariableAssignment) :
+    |(Procedure.Pr (Module.app (IND D) (Module.pair
+        (Module.app (PRPi' D uD PRPi_m PRPi_mi) (Indirect D uD))
+        (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true) : ℝ) -
+      Procedure.Pr (Module.app (IND D) (Module.pair (ARP D uD ARP_coll ARP_m ARP_mi)
+        (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true)| ≤
+      ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal := by
+  -- the section `Upto`'s local variable `PRP_indirect_bad.bad`, fresh (exception E6)
+  obtain ⟨B, hBg, hB, -⟩ := Footprint.exists_fresh_glob Bool hGF hfs
+  have hB' : ∀ {X : Footprint VariableAssignment}, X ≤ GF ⊔ (PRPi_m.footprint ⊔
+      PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint ⊔
+      FBounder_c.footprint) → B.footprint ≤ Xᶜ :=
+    fun h => hB.trans (Footprint.compl_antimono h)
+  haveI : Lens.Disjoint B PRPi_m := Lens.disjoint_of_footprint_le_compl _ _ (hB'
+    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans
+      (le_sup_left.trans le_sup_right))))))
+  haveI : Lens.Disjoint B PRPi_mi := Lens.disjoint_of_footprint_le_compl _ _ (hB'
+    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans
+      (le_sup_left.trans le_sup_right))))))
+  haveI : Lens.Disjoint B ARP_coll := Lens.disjoint_of_footprint_le_compl _ _ (hB'
+    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_right)))))
+  haveI : Lens.Disjoint B ARP_m := Lens.disjoint_of_footprint_le_compl _ _ (hB'
+    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans le_sup_right))))
+  haveI : Lens.Disjoint B ARP_mi := Lens.disjoint_of_footprint_le_compl _ _ (hB'
+    (le_sup_right.trans (le_sup_left.trans le_sup_right)))
+  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_m).symm
+  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_mi).symm
+  haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_m).symm
+  haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_mi).symm
+  haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_coll).symm
+  have hBg' : G ≤ B.footprintᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hBg.trans (Footprint.compl_antimono hGGF))
+  have hDd : FVP.fvP Dist ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
+      ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ := hDG.trans hG
+  -- `pr_PRPi'_Indirect_ARP (DBounder(D))`, its `D_ll` from `D`'s (EC: `call (D_ll …)`)
+  have hupto := pr_PRPi'_Indirect_ARP_of_region D uD PRPi_m PRPi_mi B ARP_coll ARP_m ARP_mi
+    uD_uf_fu (DBounder D q FBounder_c Dist) (G ⊔ FBounder_c.footprint)
+    ((fvP_DBounder D q FBounder_c Dist).trans (sup_le_sup_right hDG _))
+    (by fp_disjoint)
+    (fun O hO hf hfi => DBounder_ll D q FBounder_c Dist O (D_ll _ (by fp_disjoint)
+      (FBounder_f_ll D q FBounder_c O hf) (FBounder_fi_ll D q FBounder_c O hfi))) m
+  -- `pr_PRFi_collision D`
+  have hcoll := pr_PRFi_collision D uD q FBounder_c ARP_coll ARP_m ARP_mi uD_uf_fu.2 Dist
+    (by fp_disjoint) m
+  exact hupto.trans hcoll
+
 /-- EC's `lemma PartialConclusion (D <: Distinguisher {-PRPi, -ARP, -DBounder}) &m`.  The section
 `Upto`'s local variable `PRP_indirect_bad.bad` is chosen fresh (exception E6), outside `glob D`
 too; `pr_PRPi'_Indirect_ARP` is applied to `DBounder(D)` at the region `glob D ⊔ DBounder.c`. -/
@@ -1396,46 +1463,9 @@ theorem PartialConclusion [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
         (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true) : ℝ) -
       Procedure.Pr (Module.app (IND D) (Module.pair (ARP D uD ARP_coll ARP_m ARP_mi)
         (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true)| ≤
-      ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal := by
-  -- the section `Upto`'s local variable `PRP_indirect_bad.bad`, fresh (exception E6)
-  obtain ⟨B, hBg, hB, -⟩ := Footprint.exists_fresh_glob Bool hD.finitelySupported hfs
-  have hB' : ∀ {X : Footprint VariableAssignment}, X ≤ FVP.fvP Dist ⊔ (PRPi_m.footprint ⊔
-      PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint ⊔
-      FBounder_c.footprint) → B.footprint ≤ Xᶜ :=
-    fun h => hB.trans (Footprint.compl_antimono h)
-  haveI : Lens.Disjoint B PRPi_m := Lens.disjoint_of_footprint_le_compl _ _ (hB'
-    (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans
-      (le_sup_left.trans le_sup_right))))))
-  haveI : Lens.Disjoint B PRPi_mi := Lens.disjoint_of_footprint_le_compl _ _ (hB'
-    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans
-      (le_sup_left.trans le_sup_right))))))
-  haveI : Lens.Disjoint B ARP_coll := Lens.disjoint_of_footprint_le_compl _ _ (hB'
-    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans (le_sup_left.trans le_sup_right)))))
-  haveI : Lens.Disjoint B ARP_m := Lens.disjoint_of_footprint_le_compl _ _ (hB'
-    (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans le_sup_right))))
-  haveI : Lens.Disjoint B ARP_mi := Lens.disjoint_of_footprint_le_compl _ _ (hB'
-    (le_sup_right.trans (le_sup_left.trans le_sup_right)))
-  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_m).symm
-  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_mi).symm
-  haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_m).symm
-  haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_mi).symm
-  haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_coll).symm
-  have hBg' : (FVP.fvP Dist).glob ≤ B.footprintᶜ := (Footprint.le_compl_comm _ _).mp hBg
-  have hDd : FVP.fvP Dist ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
-      ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ :=
-    (Footprint.le_glob _).trans hDg
-  -- `pr_PRPi'_Indirect_ARP (DBounder(D))`, its `D_ll` from `D`'s (EC: `call (D_ll …)`)
-  have hupto := pr_PRPi'_Indirect_ARP_of_region D uD PRPi_m PRPi_mi B ARP_coll ARP_m ARP_mi
-    uD_uf_fu (DBounder D q FBounder_c Dist) ((FVP.fvP Dist).glob ⊔ FBounder_c.footprint)
-    ((fvP_DBounder D q FBounder_c Dist).trans (sup_le_sup_right (Footprint.le_glob _) _))
-    (by fp_disjoint)
-    (fun O hO hf hfi => DBounder_ll D q FBounder_c Dist O (D_ll _ (by fp_disjoint)
-      (FBounder_f_ll D q FBounder_c O hf) (FBounder_fi_ll D q FBounder_c O hfi))) m
-  -- `pr_PRFi_collision D`
-  have hcoll := pr_PRFi_collision D uD q FBounder_c ARP_coll ARP_m ARP_mi uD_uf_fu.2 Dist
-    (by fp_disjoint) m
-  exact hupto.trans hcoll
-
+      ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal :=
+  PartialConclusion_of_region D uD q PRPi_m PRPi_mi ARP_coll ARP_m ARP_mi FBounder_c hfs uD_uf_fu
+    Dist hD _ _ hD.finitelySupported le_rfl (Footprint.le_glob _) hDg D_ll m
 end
 
 /-! ### The section `PRPi_PRPi'_Indirect`
@@ -1670,6 +1700,46 @@ theorem pr_PRPi_PRPi'_Indirect [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
 
 end PRPi_PRPi'_Indirect
 
+/-- `Conclusion` with `D`'s losslessness over a region `G` containing `D` and outside the module
+variables (exception E14 of the SHA-3 port), `G` inside the `glob` of a finitely supported `GF`. -/
+theorem Conclusion_of_region [Countable D]
+    (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1 {x} = uD.1 {y})
+    (PRPi_m PRPi_mi ARP_m ARP_mi : Lens (FMap D D) VariableAssignment)
+    (ARP_coll : Lens Bool VariableAssignment) (FBounder_c : Lens ℤ VariableAssignment)
+    [Lens.Disjoint PRPi_m PRPi_mi]
+    [Lens.Disjoint ARP_coll ARP_m] [Lens.Disjoint ARP_coll ARP_mi] [Lens.Disjoint ARP_m ARP_mi]
+    [Lens.Disjoint PRPi_m ARP_m] [Lens.Disjoint PRPi_m ARP_mi] [Lens.Disjoint PRPi_m ARP_coll]
+    [Lens.Disjoint PRPi_mi ARP_m] [Lens.Disjoint PRPi_mi ARP_mi] [Lens.Disjoint PRPi_mi ARP_coll]
+    [Lens.Disjoint FBounder_c PRPi_m] [Lens.Disjoint FBounder_c PRPi_mi]
+    [Lens.Disjoint FBounder_c ARP_m] [Lens.Disjoint FBounder_c ARP_mi]
+    [Lens.Disjoint FBounder_c ARP_coll]
+    (hfs : (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔ ARP_m.footprint ⊔
+      ARP_mi.footprint ⊔ FBounder_c.footprint).FinitelySupported)
+    (Dist : Distinguisher D) (hD : (FVP.fvP Dist).FinitelySupported)
+    (G GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
+    (hDG : FVP.fvP Dist ≤ G)
+    (hG : G ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
+      ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ)
+    (m : VariableAssignment) :
+    (∀ O : SPRP_Oracles D, FVP.fvP O ≤ Gᶜ →
+      (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
+      (Module.app Dist O).procedure.IsLossless) →
+    |(Procedure.Pr (Module.app (IND D) (Module.pair (PRPi.PRPi D uD PRPi_m PRPi_mi)
+        (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true) : ℝ) -
+      (Procedure.Pr (Module.app (IND D) (Module.pair (ARP D uD ARP_coll ARP_m ARP_mi)
+        (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true) : ℝ)| ≤
+      ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal := by
+  intro D_ll
+  have hDd : FVP.fvP Dist ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
+      ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ :=
+    hDG.trans hG
+  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_m).symm
+  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_mi).symm
+  rw [pr_PRPi_PRPi'_Indirect D uD PRPi_m PRPi_mi uD_uf_fu.1 (DBounder D q FBounder_c Dist)
+    ((fvP_DBounder D q FBounder_c Dist).trans (by fp_disjoint)) m]
+  exact PartialConclusion_of_region D uD q PRPi_m PRPi_mi ARP_coll ARP_m ARP_mi FBounder_c hfs
+    uD_uf_fu Dist (Distinguisher.ecModule D Dist hD) G GF hGF hGGF hDG hG D_ll m
+
 /-- EC's `Conclusion`, for `D <: Distinguisher {-PRPi, -ARP, -DBounder}`, under the theory's
 axiom `uD_uf_fu` (`uD` uniform, lossless and full).  `mu uD (pred1 witness)` is the probability of
 `default`.  The restriction is stated against `glob D` (exception E7); the module variables are lens
@@ -1698,16 +1768,8 @@ theorem Conclusion [Countable D] (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1
         (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true) : ℝ) -
       (Procedure.Pr (Module.app (IND D) (Module.pair (ARP D uD ARP_coll ARP_m ARP_mi)
         (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true) : ℝ)| ≤
-      ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal := by
-  intro D_ll
-  have hDd : FVP.fvP Dist ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
-      ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ :=
-    (Footprint.le_glob _).trans _hD
-  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_m).symm
-  haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_mi).symm
-  rw [pr_PRPi_PRPi'_Indirect D uD PRPi_m PRPi_mi uD_uf_fu.1 (DBounder D q FBounder_c Dist)
-    ((fvP_DBounder D q FBounder_c Dist).trans (by fp_disjoint)) m]
-  exact PartialConclusion D uD q PRPi_m PRPi_mi ARP_coll ARP_m ARP_mi FBounder_c hfs uD_uf_fu Dist
-    (Distinguisher.ecModule D Dist hD) _hD D_ll m
+      ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal :=
+  Conclusion_of_region D uD q uD_uf_fu PRPi_m PRPi_mi ARP_m ARP_mi ARP_coll FBounder_c hfs Dist hD
+    _ _ hD le_rfl (Footprint.le_glob _) _hD m
 
 end GaudisCrypt.EC.Strong_RP_RF
