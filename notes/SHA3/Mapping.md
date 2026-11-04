@@ -495,7 +495,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCry
 | 326 | local equiv | `G3_G4` | section . | `G3_G4` (+ `Gext0Fresh D`; oracle steps `DFRestr_f_G34`, `DPRestr_f_G34`, `DPRestr_fi_G34`, invariant `g34Inv`) | exc |
 | 350 | local equiv | `G4_Ideal` | section . | `G4_Ideal` (+ `Gext0Fresh D`; oracle steps `DFRestr_f_G4I`, `DPRestr_f_G4I`, `DPRestr_fi_G4I`, invariant `g4Inv`) | exc |
 | 363 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
-| 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` (+ `Gext0Fresh D`; `fvP_G3`, `fvP_G4` for `RO_LRO_D`) | exc |
+| 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` (+ `Gext0Fresh D`; `D_ll` over `G`, E14; `fvP_G3`, `fvP_G4` for `RO_LRO_D`) | exc |
 
 ## `proof/BlockSponge.ec`
 
@@ -598,8 +598,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1748 | lemma | `pr_real` | section Real. | `pr_real` (from `squeeze_squeezeless`, `equiv_sponge`) | done |
 | 1763 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 1765 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
-| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` (`{-A(D)}` as `(C.c ⊔ glob D)ᶜ`, as `DRestr_ll`; oracle steps `DSqueeze_f_ll`, `FC_f_ll`, `PC_f_ll`, `PC_fi_ll`) | done |
-| 1786 | lemma | `concl` | section Real_Ideal. | `concl` | stated |
+| 1770 | lemma | `A_lossless` | section Real_Ideal. | `A_lossless` (`{-A(D)}` as `(C.c ⊔ glob D)ᶜ`, as `DRestr_ll`; the `glob D` instance of `A_lossless_at`, E14; oracle steps `DSqueeze_f_ll`, `FC_f_ll`, `PC_f_ll`, `PC_fi_ll`) | done |
+| 1786 | lemma | `concl` | section Real_Ideal. | `concl` (+ `Gext0Fresh D`, E13; from `concl_at` with `G := glob D`, E14; `pr_real`, `Gconcl.Real_Ideal (A D)`, `equiv_ideal`, `dstate1E_toReal`) | exc |
 | 1809 | declare module | `D` | section Real_Ideal_Abs. | `D` (section variable) | def |
 | 1811 | declare axiom | `D_lossless` | section Real_Ideal_Abs. | `D_lossless` (abbreviation; hypothesis) | def |
 | 1816 | local module | `Neg_D` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D` | def |
@@ -608,8 +608,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `Real_Ideal_Abs.invmC` | done |
 | 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` (section axiom `D_lossless` a hypothesis) | stated |
 | 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` (oracle steps `IRO_f_ll`, `Valid_f_ll`, `Last_f_ll`, `S_f_ll`, `S_fi_ll`, `SimLast_f_ll`, `SimLast_fi_ll`; footprints `@[fp_bound]` `fvP_FC` … `fvP_S`) | done |
-| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` | stated |
-| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` (from `concl`, `neg_D_concl`) | done |
+| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` (+ `Gext0Fresh D`, E13; `concl_at (Neg_D D)` over `glob D`, E14; `Indif_Neg_D`, `Pr_false_eq_one_sub`; modulo `Real_lossless`) | exc |
+| 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` (+ `Gext0Fresh D`, E13; from `concl`, `neg_D_concl`) | exc |
 | 1946 | module | `Simulator` |  | `Simulator` | def |
 | 2010 | declare module | `D` | section Simplify_Simulator. | `D` (section variable) | def |
 | 2012 | declare axiom | `D_lossless` | section Simplify_Simulator. | `D_lossless` (abbreviation; hypothesis) | def |
@@ -621,7 +621,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 2186 | lemma | `Simplify_simulator` | section Simplify_Simulator. | `Simplify_simulator` (`RO_LRO_D (L D)` with fresh `IRO2` maps, E6; `fvP_L`) | done |
 | 2202 | declare module | `D` | section Real_Ideal. | `D` (section variable) | def |
 | 2204 | declare axiom | `D_lossless` | section Real_Ideal. | `D_lossless` (abbreviation; hypothesis) | def |
-| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (from `Simplify_simulator`, `Inefficient_Real_Ideal`) | done |
+| 2209 | lemma | `Real_Ideal` | section Real_Ideal. | `Real_Ideal` (+ `Gext0Fresh D`, E13; from `Simplify_simulator`, `Inefficient_Real_Ideal`) | exc |
 
 ## `proof/Sponge.ec`
 

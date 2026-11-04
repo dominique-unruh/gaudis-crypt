@@ -6156,19 +6156,87 @@ omit [BlockSponge.Params] [Params] in
 
 section Real_Ideal
 
-/-- EC's `A_lossless`.  `{-A(D)}` is `glob A(D)`: `C.c` and `glob D` (as for `DRestr_ll`). -/
-theorem A_lossless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
-    (_hDd : DRestrictions_Real_Ideal D) :
-    D_lossless D →
+omit [BlockSponge.Params] [Params] in
+/-- Every `SLCommon` distinguisher is representable over `F.f`, `P.f`, `P.fi`
+(`Module.representable_of_firstOrder`).  Not an EC lemma. -/
+theorem SLDistinguisher_representable (D : SLCommon.DISTINGUISHER) :
+    Module.Representable D SLCommon.distExt := by
+  refine Module.representable_of_firstOrder ?_ ?_ SLCommon.distExt (fun _ => rfl) D
+  · simp [IsModule.moduleTypeRep, ModuleTypeRep.FirstOrder, Module.moduleTypeRep,
+      Indifferentiability.DFUNCTIONALITY.typeRep, Indifferentiability.DPRIMITIVE.typeRep]
+  · intro sig n
+    cases n with
+    | zero => exact ⟨fun U hU => by simp at hU; subst hU; exact ⟨[]⟩, inferInstance⟩
+    | succ n => cases n with
+      | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+      | succ n => cases n with
+        | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+        | succ n => nomatch n
+
+omit [Params] in
+/-- `A(D)` touches `D`'s globals and `C.c`.  Not an EC lemma. -/
+theorem fvP_A (D : DISTINGUISHER) : FVP.fvP (A D) ≤ FVP.fvP D ⊔ BlockSponge.C.c.footprint := by
+  fp_module BlockSponge.C.c
+
+omit [BlockSponge.Params] [Params] in
+/-- `DWord.dunifin1E`. -/
+theorem dunifin1E' {n : ℤ} (x : BitWord.word n) :
+    (BitWord.dunifin : SubProbability (BitWord.word n)).1 {x} = ((2 : ENNReal) ^ n.toNat)⁻¹ := by
+  letI : MeasurableSpace (BitWord.word n) := ⊤
+  change (PMF.uniformOfFintype (BitWord.word n)).toMeasure {x} = _
+  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton x), PMF.uniformOfFintype_apply]
+  simp [BitWord.word, card_vector]
+
+omit [BlockSponge.Params] [Params] in
+/-- `dstate`'s mass at a point (EC: `dprod1E`, `dunifin1E`, `block_card`, `capacity_card`). -/
+theorem dstate1E_toReal (x : state) :
+    (SLCommon.dstate.1 {x}).toReal = 1 / ((2 ^ r.toNat : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ) := by
+  obtain ⟨a, b⟩ := x
+  rw [SLCommon.dstate, dprod1E, bdistr, cdistr, Block.DBlock.dunifin, Capacity.DCapacity.dunifin,
+    dunifin1E', dunifin1E']
+  simp [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv]
+
+omit [SLCommon.Params] [BlockSponge.Params] [Params] in
+/-- A variable outside a finitely supported footprint is outside its `glob`. -/
+theorem le_compl_glob_of_le_compl {F : Footprint VariableAssignment} (hF : F.FinitelySupported)
+    {T : Type} (X : Lens T VariableAssignment) (v : VariableName)
+    (hX : X.footprint = (varLens v).footprint)
+    (h : X.footprint ≤ Fᶜ) : X.footprint ≤ F.globᶜ := by
+  rw [hX] at h ⊢
+  exact (Footprint.le_compl_comm _ _).mp
+    (hF.glob_le_compl_varLens v ((Footprint.le_compl_comm _ _).mp h))
+
+/-- `Gconcl.Gext0Fresh` at `BlockSponge`'s `DISTINGUISHER`: the variables of `Gconcl`'s
+`local clone import Gext as Gext0` lie outside `D` (exception E13). -/
+def Gext0Fresh (D : DISTINGUISHER) : Prop :=
+  FVP.fvP D ≤ ((ConcreteF.PF.m).footprint ⊔ (ConcreteF.PF.mi).footprint ⊔ (G1.m).footprint ⊔
+    (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+    (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (Handle.FRO.m).footprint ⊔
+    (ROhandle.RO.m).footprint)ᶜ
+
+/-- `D_lossless` over a region `G` the oracles stay out of; `D_lossless D` is the case
+`G := glob D` (exception E14). -/
+def D_lossless_at (D : DISTINGUISHER) (G : Footprint VariableAssignment) : Prop :=
+  ∀ (F0 : DFUNCTIONALITY) (P0 : DPRIMITIVE), FVP.fvP F0 ≤ Gᶜ → FVP.fvP P0 ≤ Gᶜ →
+    (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block) P0).procedure.IsLossless →
+    (Indifferentiability.DPRIMITIVE.fi state (List block × ℤ) (List block)
+      P0).procedure.IsLossless →
+    (Indifferentiability.DFUNCTIONALITY.f state (List block × ℤ) (List block)
+      F0).procedure.IsLossless →
+    (Module.app D (Module.pair F0 P0)).procedure.IsLossless
+
+/-- EC's `A_lossless` over a region `G` outside `C.c` (exception E14). -/
+theorem A_lossless_at (D : DISTINGUISHER) (G : Footprint VariableAssignment)
+    (hGc : (BlockSponge.C.c).footprint ≤ Gᶜ) :
+    D_lossless_at D G →
     ∀ (F : SLCommon.DFUNCTIONALITY) (P0 : SLCommon.DPRIMITIVE),
-      FVP.fvP F ≤ ((BlockSponge.C.c).footprint ⊔ (FVP.fvP D).glob)ᶜ →
-      FVP.fvP P0 ≤ ((BlockSponge.C.c).footprint ⊔ (FVP.fvP D).glob)ᶜ →
+      FVP.fvP F ≤ ((BlockSponge.C.c).footprint ⊔ G)ᶜ →
+      FVP.fvP P0 ≤ ((BlockSponge.C.c).footprint ⊔ G)ᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P0).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P0).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
       (Module.app (A D) (Module.pair F P0)).procedure.IsLossless := by
   intro D_ll F P0 hF hP p_ll pi_ll f_ll
-  unfold DRestrictions_Real_Ideal at _hDd
   have hPf : (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block)
       (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
         { f := Indifferentiability.DPRIMITIVE.f state (List block) block P0,
@@ -6216,14 +6284,90 @@ theorem A_lossless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   phoare_skip
   simp
 
-/-- EC's `concl`. -/
-theorem concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+
+/-- EC's `A_lossless`.  `{-A(D)}` is `glob A(D)`: `C.c` and `glob D` (as for `DRestr_ll`). -/
+theorem A_lossless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Real_Ideal D) :
+    D_lossless D →
+    ∀ (F : SLCommon.DFUNCTIONALITY) (P0 : SLCommon.DPRIMITIVE),
+      FVP.fvP F ≤ ((BlockSponge.C.c).footprint ⊔ (FVP.fvP D).glob)ᶜ →
+      FVP.fvP P0 ≤ ((BlockSponge.C.c).footprint ⊔ (FVP.fvP D).glob)ᶜ →
+      (Indifferentiability.DPRIMITIVE.f state (List block) block P0).procedure.IsLossless →
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block P0).procedure.IsLossless →
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
+      (Module.app (A D) (Module.pair F P0)).procedure.IsLossless := by
+  intro D_ll
+  unfold DRestrictions_Real_Ideal at _hDd
+  exact A_lossless_at D _ (le_compl_glob_of_le_compl hD.finitelySupported _ _ rfl (by fp_disjoint))
+    D_ll
+
+/-- EC's `concl`, for `D_ll` over a region `G` (exception E14): `Real_Ideal` applied to `A(D)`,
+whose `D_ll` is `A_lossless_at` over `C.c ⊔ G`. -/
+theorem concl_at (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Real_Ideal D) (_hG : Gext0Fresh D) (G : Footprint VariableAssignment)
+    (hGc : (BlockSponge.C.c).footprint ≤ Gᶜ)
+    (hGX : G ≤ (SLCommon.C.footprint ⊔
+      (ConcreteF.PF.m).footprint ⊔ (ConcreteF.PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
+      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
+      (SLCommon.Redo.prefixes).footprint ⊔ (Handle.FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ)
+    (D_ll : D_lossless_at D G) (m : VariableAssignment) :
+    (Procedure.Pr (RealIndif Sponge P (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) ≤
+      (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S)
+        (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) + bound := by
+  have hA := fvP_A D
+  have hAm : Module.ECModule (A D) SLCommon.distExt :=
+    ⟨SLDistinguisher_representable (A D), (hD.finitelySupported.sup (.varLens _)).mono hA⟩
+  unfold DRestrictions_Real_Ideal at _hDd
+  unfold Gext0Fresh at _hG
+  have hR : Gconcl.DRestrictions (A D) := by
+    unfold Gconcl.DRestrictions
+    exact hA.trans (sup_le (_hDd.trans (Footprint.compl_antimono (by fp_sub))) (by fp_disjoint))
+  have hGA : Gconcl.Gext0Fresh (A D) := by
+    unfold Gconcl.Gext0Fresh
+    exact hA.trans (sup_le _hG (by fp_disjoint))
+  have h := Gconcl.Real_Ideal (A D) hAm hR hGA (BlockSponge.C.c.footprint ⊔ G)
+    (sup_le (by fp_disjoint) hGX) (A_lossless_at D G hGc D_ll) m
+  have e1 := pr_real D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) m
+  have e2 := equiv_ideal D hD ⟨_hDd.trans (Footprint.compl_antimono (by fp_sub)),
+    _hDd.trans (Footprint.compl_antimono (by fp_sub))⟩
+    (_hDd.trans (Footprint.compl_antimono (by fp_sub))) m
+  rw [← e1, ← e2]
+  rw [dstate1E_toReal] at h
+  refine h.trans (le_of_eq ?_)
+  unfold bound
+  ring
+
+/-- `glob D` lies outside the variables `concl_at` needs. -/
+theorem glob_hyps (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Real_Ideal D) (_hG : Gext0Fresh D) :
+    (BlockSponge.C.c).footprint ≤ (FVP.fvP D).globᶜ ∧
+      (FVP.fvP D).glob ≤ (SLCommon.C.footprint ⊔
+      (ConcreteF.PF.m).footprint ⊔ (ConcreteF.PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔
+      G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
+      (SLCommon.Redo.prefixes).footprint ⊔ (Handle.FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ := by
+  unfold DRestrictions_Real_Ideal at _hDd
+  unfold Gext0Fresh at _hG
+  refine ⟨le_compl_glob_of_le_compl hD.finitelySupported _ _ rfl (by fp_disjoint), ?_⟩
+  refine (Footprint.le_compl_comm _ _).mp ?_
+  unfold SLCommon.C.footprint
+  repeat' refine sup_le ?_ ?_
+  all_goals exact le_compl_glob_of_le_compl hD.finitelySupported _ _ rfl (by fp_disjoint)
+
+/-- EC's `concl`, with `Gext0Fresh` (exception E13). -/
+theorem concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Real_Ideal D) (_hG : Gext0Fresh D) :
     D_lossless D → ∀ m : VariableAssignment,
       (Procedure.Pr (RealIndif Sponge P (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) ≤
         (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S)
           (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) + bound := by
-  sorry
+  intro D_ll m
+  exact concl_at D hD _hDd _hG _ (glob_hyps D hD _hDd _hG).1 (glob_hyps D hD _hDd _hG).2 D_ll m
 
 end Real_Ideal
 
@@ -6356,26 +6500,108 @@ theorem Ideal_lossless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   phoare_skip
   simp
 
+omit [BlockSponge.Params] [Params] in
+/-- Every distinguisher is representable over `F.f`, `P.f`, `P.fi`.  Not an EC lemma. -/
+theorem Distinguisher_representable (D : DISTINGUISHER) : Module.Representable D distExt := by
+  refine Module.representable_of_firstOrder ?_ ?_ distExt (fun _ => rfl) D
+  · simp [IsModule.moduleTypeRep, ModuleTypeRep.FirstOrder, Module.moduleTypeRep,
+      Indifferentiability.DFUNCTIONALITY.typeRep, Indifferentiability.DPRIMITIVE.typeRep]
+  · intro sig n
+    cases n with
+    | zero => exact ⟨fun U hU => by simp at hU; subst hU; exact ⟨([], 0)⟩, ⟨[]⟩⟩
+    | succ n => cases n with
+      | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+      | succ n => cases n with
+        | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+        | succ n => nomatch n
+
+omit [Params] in
+/-- `Neg_D(D)` touches what `D` does.  Not an EC lemma. -/
+theorem fvP_Neg_D (D : DISTINGUISHER) : FVP.fvP (Real_Ideal_Abs.Neg_D D) ≤ FVP.fvP D := by
+  fp_module
+
+omit [SLCommon.Params] [BlockSponge.Params] [Params] in
+/-- EC's `Neg_A_Pr_minus`, for a lossless procedure. -/
+theorem Pr_false_eq_one_sub {p : Procedure (procsig () -> Bool)} (hp : p.IsLossless)
+    (σ : VariableAssignment) :
+    ((p.Pr () σ (fun r _ => r = false) : NNReal) : ℝ) =
+      1 - ((p.Pr () σ (fun r _ => r = true) : NNReal) : ℝ) := by
+  have h1 : (p.Pr () σ (fun r _ => r = false) : ENNReal) + p.Pr () σ (fun r _ => r = true) = 1 := by
+    rw [Procedure.Pr_eq_ewp, Procedure.Pr_eq_ewp, ← Procedure.ewp_add, ← hp () σ]
+    congr 1
+    funext v g
+    cases v <;> simp [indicatorE]
+  have h2 : (p.Pr () σ (fun r _ => r = false) : ℝ) + p.Pr () σ (fun r _ => r = true) = 1 := by
+    have := congrArg ENNReal.toReal h1
+    rw [ENNReal.toReal_add ENNReal.coe_ne_top ENNReal.coe_ne_top] at this
+    simpa using this
+  linarith
+
+/-- A game on `Neg_D(D)` answers the negation of the game on `D` (EC: `byequiv; proc; inline*;
+sim`). -/
+theorem Indif_Neg_D (F : FUNCTIONALITY) (P0 : PRIMITIVE) (D : DISTINGUISHER) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
+        (Module.pair F (Module.pair P0 (DRestr D)))).procedure
+      (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
+        (Module.pair F (Module.pair P0 (DRestr (Neg_D D))))).procedure
+      (fun r₁ _ r₂ _ => r₁ = !r₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{1} 2
+  stmt_inline{2} 2
+  stmt_inline{2} 3
+  stmt_wp
+  simp only [Bool.not_not]
+  equiv_sim
+
+/-- EC's local `neg_D_concl`, with `Gext0Fresh` (exception E13): `concl` for `Neg_D(D)` (over
+`glob D`, exception E14), and both games lossless. -/
 theorem neg_D_concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
-    (_hDd : DRestrictions_Real_Ideal D) (_D_lossless : D_lossless D) (m : VariableAssignment) :
+    (_hDd : DRestrictions_Real_Ideal D) (_hG : Gext0Fresh D) (_D_lossless : D_lossless D)
+    (m : VariableAssignment) :
     (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S) (DRestr D)).procedure ()
         m (fun r _ => r = true) : ℝ) ≤
       (Procedure.Pr (RealIndif Sponge P (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) +
         bound := by
-  sorry
+  have hN := fvP_Neg_D D
+  have hNm : Module.ECModule (Real_Ideal_Abs.Neg_D D) distExt :=
+    ⟨Distinguisher_representable _, hD.finitelySupported.mono hN⟩
+  have hNd : DRestrictions_Real_Ideal (Real_Ideal_Abs.Neg_D D) := hN.trans _hDd
+  have hNg : Gext0Fresh (Real_Ideal_Abs.Neg_D D) := hN.trans _hG
+  obtain ⟨hGc, hGX⟩ := glob_hyps D hD _hDd _hG
+  have hc := concl_at (Real_Ideal_Abs.Neg_D D) hNm hNd hNg _ hGc hGX
+    (fun F0 P0 hF hP => Real_Ideal_Abs.Neg_D_lossless D _D_lossless F0 P0 hF hP) m
+  have eI := Procedure.Pr_eq_of_prhlProc (Indif_Neg_D BlockSponge.BIRO.IRO.asF
+    (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
+      (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF)) D)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = false)
+    (fun r₁ _ r₂ _ h => by subst h; cases r₂ <;> simp) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have eR := Procedure.Pr_eq_of_prhlProc (Indif_Neg_D (Module.app Sponge
+    (Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block) P)) P D)
+    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = false)
+    (fun r₁ _ r₂ _ h => by subst h; cases r₂ <;> simp) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl
+  have lI := Pr_false_eq_one_sub (Real_Ideal_Abs.Ideal_lossless D hD _hDd _D_lossless) m
+  have lR := Pr_false_eq_one_sub (Real_Ideal_Abs.Real_lossless D hD _hDd _D_lossless) m
+  unfold IdealIndif Indifferentiability.GIdeal at hc lI ⊢
+  unfold RealIndif Indifferentiability.GReal at hc lR ⊢
+  rw [eI, lI]
+  rw [eR, lR]
+  linarith
 
 end Real_Ideal_Abs
 
 /-- EC's `Inefficient_Real_Ideal`. -/
 theorem Inefficient_Real_Ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
-    (_hDd : DRestrictions_Real_Ideal D) :
+    (_hDd : DRestrictions_Real_Ideal D) (_hG : Gext0Fresh D) :
     D_lossless D → ∀ m : VariableAssignment,
       |(Procedure.Pr (RealIndif Sponge Perm (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S)
           (DRestr D)).procedure () m (fun r _ => r = true) : ℝ)| ≤ bound := by
   intro D_ll m
-  have h1 := concl D hD _hDd D_ll m
-  have h2 := Real_Ideal_Abs.neg_D_concl D hD _hDd D_ll m
+  have h1 := concl D hD _hDd _hG D_ll m
+  have h2 := Real_Ideal_Abs.neg_D_concl D hD _hDd _hG D_ll m
   rw [abs_sub_le_iff]
   constructor <;> linarith
 
@@ -7563,13 +7789,14 @@ theorem Simplify_simulator (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
 /-- EC's `Real_Ideal`: the block sponge is indifferentiable from the infinite random oracle, with
 the simulator `Simulator`. -/
 theorem Real_Ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
-    (_hDd : DRestrictions_Real_Ideal D) (_hDs : Simplify_Simulator.DRestrictions D) :
+    (_hDd : DRestrictions_Real_Ideal D) (_hDs : Simplify_Simulator.DRestrictions D)
+    (_hG : Gext0Fresh D) :
     D_lossless D → ∀ m : VariableAssignment,
       |(Procedure.Pr (RealIndif Sponge Perm (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) -
         (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF Simulator (DRestr D)).procedure () m
           (fun r _ => r = true) : ℝ)| ≤ bound := by
   intro D_ll m
   rw [Simplify_simulator D hD _hDs D_ll m]
-  exact Inefficient_Real_Ideal D hD _hDd D_ll m
+  exact Inefficient_Real_Ideal D hD _hDd _hG D_ll m
 
 end GaudisCrypt.SHA3.Gconcl_list

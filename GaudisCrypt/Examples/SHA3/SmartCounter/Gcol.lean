@@ -1092,8 +1092,13 @@ theorem Pr_col (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint)ᶜ)
-    (_D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+      (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint)ᶜ)
+    (_D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -1147,8 +1152,13 @@ theorem G1_col (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint)ᶜ)
-    (_D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+      (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint)ᶜ)
+    (_D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -1294,8 +1304,13 @@ theorem Pr_G1col (hD : Module.ECModule D distExt)
       (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
       (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
       (FRO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+      (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔
+      (FRO.m).footprint)ᶜ)
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -1313,8 +1328,8 @@ theorem Pr_G1col (hD : Module.ECModule D distExt)
   obtain ⟨Gcol_count, hc, -⟩ := Footprint.exists_fresh ℤ hF
   -- EC: `apply (ler_trans Pr[Gcol.main()@&m : G1.bcol /\ Gcol.count <= max_size])`,
   -- `byequiv G1_col=> //#` and `apply (Pr_col &m)`
-  refine le_trans ?_ (Pr_col Gcol_count D hD hc _hDd D_ll m)
-  exact_mod_cast Procedure.Pr_le_of_prhlProc (G1_col Gcol_count D hD hc _hDd D_ll)
+  refine le_trans ?_ (Pr_col Gcol_count D hD hc _hDd G _hGd D_ll m)
+  exact_mod_cast Procedure.Pr_le_of_prhlProc (G1_col Gcol_count D hD hc _hDd G _hGd D_ll)
     (E₁ := fun _ g => G1.bcol.get g = true)
     (E₂ := fun _ g => G1.bcol.get g = true ∧ Gcol_count.get g ≤ max_size)
     (fun _ _ _ _ h h1 => ⟨h.1 h1, h.2⟩) (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl

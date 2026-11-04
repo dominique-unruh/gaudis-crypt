@@ -398,8 +398,44 @@ the local lemmas `G2_G3`, `G3_G4`, `G4_Ideal` (as E6 allows) and of the non-loca
 
 **Consequences.** `Gconcl_list` uses `Real_Ideal` (for `A(D)`), so its results need `Gext0Fresh`
 for the distinguisher it builds, and so on up to `SHA3Indiff`'s final theorem: the adversary must not
-touch these proof-internal variables.  To be propagated when those proofs are done.
+touch these proof-internal variables.  Propagated to `Gconcl_list` (its own `Gext0Fresh`, at
+`BlockSponge`'s `DISTINGUISHER`: `concl`, `neg_D_concl`, `Inefficient_Real_Ideal`, `Real_Ideal`);
+`SHA3Indiff` still to do.
 
 **How to remove it.** Make the variables of `Handle`, `Gcol`, `Gext` (and `ConcreteF`'s `PF`) lens
 parameters, as `Sponge`'s `HybridIRO` section does (E6), and pick them fresh in `Real_Ideal` with
 `Footprint.exists_fresh` (under finite support of `D`, which `Module.ECModule` provides).
+
+## E14: `D_ll` over a region `G`, not `glob D`
+
+**Rule broken.** A Lean statement has the EasyCrypt statement's hypotheses (as E6/E13).
+
+**Why.** EasyCrypt's axiom `D_ll (F <: DFUNCTIONALITY{-D}) (P <: DPRIMITIVE{-D})` quantifies over
+oracles outside `glob D`, and `glob (A(D))` contains `glob D` by construction. In Lean `glob X` is
+built from `FVP.fvP X`, a syntactic over-approximation computed on the module's normal form. For an
+abstract `D` (an opaque Lean variable) nothing yet shows `fvP D ≤ fvP (Module.app D O)`:
+`Module.Representable` gives only `fvP_proc p ≤ fvP D`, and the bound would need metatheory on the
+module-expression normaliser. `concl` applies `Gconcl.Real_Ideal` to `A(D)`, whose `D_ll` is over
+`glob (A(D))`, while `A_lossless` is proven over `C.c ⊔ glob D`. `neg_D_concl` has the same gap,
+with `Neg_D(D)` over `glob D`.
+
+**What we do instead.** The `D_ll` hypothesis of `Handle.CF_G1`, `Handle.Real_G1`, `Gcol.Pr_col`,
+`Gcol.G1_col`, `Gcol.Pr_G1col`, `Gext.Pr_ext`, `Gext.Real_G2` and `Gconcl.Real_Ideal` is over a
+footprint parameter `G` rather than `(fvP D).glob`. A hypothesis `_hGd` says that `G` lies outside the
+lemma's restriction footprint (the game's variables), which is all a proof can use about
+`glob D`. EasyCrypt's statements are the instance `G := glob D`. `glob D` satisfies `_hGd` by
+`Footprint.FinitelySupported.glob_le_compl_varLens` (`Gconcl_list.le_compl_glob_of_le_compl`,
+`glob_hyps`). In `Gconcl_list`:
+* `D_lossless_at D G`, `A_lossless_at` and `concl_at` are the `G` versions;
+* `A_lossless` and `concl` are their `glob D` instances, with EasyCrypt's statements;
+* `concl` uses `G := C.c ⊔ glob D` for `A(D)`;
+* `neg_D_concl` uses `concl_at (Neg_D D)` with `G := glob D`.
+
+When this change was made, `D_ll` was consumed only by `Handle.CF_G1` and `Handle.Real_G1` (still
+`sorry`). Every other lemma passed it on.
+
+**How to remove it.** Prove `fvP D ≤ fvP (Module.app D O)` for representable `D`: substitution and
+hole instantiation in the normaliser do not drop `D`'s code. Then derive `glob D ≤ glob (A D)` and
+`glob D ≤ glob (Neg_D D)` (a call's footprint contains the callee's body; `Lens.reduceFootprint_extend`
+is an equality), and restore `(fvP D).glob`.
+

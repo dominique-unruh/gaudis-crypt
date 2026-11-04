@@ -1463,8 +1463,15 @@ theorem G4_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG 
 
 /-- EC's `Real_Ideal`, with the axiom `D_ll`, and `Gext0Fresh` (exception E13). -/
 theorem Real_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG : Gext0Fresh D)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+      (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ)
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -1508,7 +1515,7 @@ theorem Real_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_h
     simp only [Footprint.lens_pair]
     fp_disjoint
   -- EC: `apply (ler_trans _ _ _ (Real_G2 D D_ll &m))`, then the chain of `byequiv`s
-  have h := Real_G2 D hD hX D_ll m
+  have h := Real_G2 D hD hX G _hGd D_ll m
   have e1 := Procedure.Pr_eq_of_prhlProc (G2_G3 D hD _hDd _hG) (E₁ := fun r _ => r = true)
     (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
     (σ₂ := m) rfl

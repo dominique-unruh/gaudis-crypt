@@ -1361,8 +1361,15 @@ theorem Pr_ext (hD : Module.ECModule D distExt)
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
-    (_D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+      (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ)
+    (_D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -2266,8 +2273,15 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ (C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔ (G1.m).footprint ⊔
+      (G1.mi).footprint ⊔ (G1.mh).footprint ⊔ (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔
+      (G1.paths).footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+      (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
+      (ROhandle.RO.m).footprint)ᶜ)
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -2304,12 +2318,14 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
       ROhandle.FRO.m (fun _ => BitWord.dunifin_ll) _ hG2 hG2d]
   -- EC: `apply (ler_trans _ _ _ (Real_G1 D D_ll &m))`, then the four summands
   have hG1G2 := G1_G2 D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
-  have h1 := Real_G1 D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) D_ll m
+  have h1 := Real_G1 D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) G
+    (_hGd.trans (Footprint.compl_antimono (by fp_sub))) D_ll m
   have h2 : Procedure.Pr (G1 (DRestr D)).procedure () m (fun r _ => r = true) =
       Procedure.Pr (Eager.main2 (G2 (DRestr D))).procedure () m (fun r _ => r = true) :=
     (Procedure.Pr_eq_of_prhlProc hG1G2 (fun _ _ _ _ h => by rw [h.1]) (a₂ := ()) rfl).trans
       (heq _).symm
-  have h3 := Pr_G1col D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) D_ll m
+  have h3 := Pr_G1col D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) G
+    (_hGd.trans (Footprint.compl_antimono (by fp_sub))) D_ll m
   have h4 : Procedure.Pr (G1 (DRestr D)).procedure () m (fun _ g => G1.bext.get g = true) ≤
       Procedure.Pr (Gext RC D).procedure () m
         (fun _ g => G1.bext.get g = true ∧ RC.get g ≤ max_size) := by
@@ -2320,7 +2336,7 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
     rw [← heq]
     exact Procedure.Pr_le_of_prhlProc (EG2_Gext RC D hD hc _hDd)
       (fun _ _ _ _ h hb => ⟨h.2 hb, h.1⟩) (a₁ := ()) (a₂ := ()) rfl
-  have h5 := Pr_ext RC D hD hc _hDd D_ll m
+  have h5 := Pr_ext RC D hD hc _hDd G _hGd D_ll m
   have h4' : (Procedure.Pr (G1 (DRestr D)).procedure () m (fun _ g => G1.bext.get g = true) : ℝ) ≤
       _ := (NNReal.coe_le_coe.mpr h4).trans h5
   rw [h2] at h1
