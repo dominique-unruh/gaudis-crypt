@@ -157,13 +157,17 @@ theorem DoubleBounding (DBounder_FBounder_c : Lens ℤ VariableAssignment)
 noncomputable abbrev S := DProd.ProdSampling.S block capacity
 
 /-- EC's `Real_Concrete`, for `declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo}` with
-the axiom `D_ll`.  `mu dstate (pred1 witness)` is the probability of `default`. -/
+the axiom `D_ll` (over a region `G` outside the restrictions, exception E14).  `mu dstate (pred1 witness)` is the probability of `default`. -/
 theorem Real_Concrete (hD : Module.ECModule D distExt)
     (_hDd : FVP.fvP D ≤ ((Perm.m).footprint ⊔
       (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔
       (Redo.prefixes).footprint)ᶜ)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment)
+    (_hGd : G ≤ ((Perm.m).footprint ⊔
+      (Perm.mi).footprint ⊔ C.footprint ⊔ (PF.m).footprint ⊔ (PF.mi).footprint ⊔
+      (Redo.prefixes).footprint)ᶜ)
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →

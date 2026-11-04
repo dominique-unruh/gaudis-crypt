@@ -327,14 +327,6 @@ theorem GcolFresh.disj (h : GcolFresh Gcol_count) {α : Type} {X : Lens α Varia
   Lens.disjoint_of_footprint_le_compl _ _
     ((Footprint.le_compl_comm _ _).mp (h.trans (Footprint.compl_antimono hX)))
 
-/-- `X ≤ A₁ ⊔ … ⊔ Aₙ` for `X` one of the joinands (nested joins included), by backtracking. -/
-syntax "fp_mem" : tactic
-macro_rules
-  | `(tactic| fp_mem) => `(tactic| first
-    | with_reducible exact le_rfl
-    | (with_reducible apply le_sup_of_le_right); fp_mem
-    | (with_reducible apply le_sup_of_le_left); fp_mem)
-
 /-- A variable's footprint below a join of footprints it is a joinand of (`C.footprint`
 unfolded). -/
 macro "gcol_fp" : tactic => `(tactic| ((try unfold C.footprint); fp_mem))
@@ -366,36 +358,6 @@ macro "gcol_disj " h:ident c:ident : tactic => `(tactic| (
   haveI := (inferInstance : Lens.Disjoint G1.bext $c).symm
   haveI : Lens.Disjoint G1.bcol $c := GcolFresh.disj _ $h (by gcol_fp)
   haveI := (inferInstance : Lens.Disjoint G1.bcol $c).symm))
-
-open Lean Meta Elab Tactic in
-/-- `writes_keep`, the writes to global lenses closed by `touched_set_of_le_compl` with a hypothesis
-`X.footprint ≤ Fᶜ` about the written lens `X` itself (found syntactically, not by `assumption`,
-which compares the footprints of different lenses by unfolding them). -/
-elab "writes_keep'" : tactic => do
-  liftMetaTactic (writesKeepSplit ·)
-  evalTactic (← `(tactic| all_goals try exact fun _ _ => rfl))
-  let gs₀ ← getGoals
-  for g in gs₀ do
-    if ← g.isAssigned then continue
-    let ty ← instantiateMVars (← g.getType)
-    let some lift := ty.find? (·.isAppOfArity ``liftLens 4) | continue
-    let X := lift.appArg!
-    for d in (← g.getDecl).lctx do
-      if d.isImplementationDetail then continue
-      let dty ← instantiateMVars d.type
-      unless dty.isAppOfArity ``LE.le 4 do continue
-      let lhs := dty.getArg! 2
-      unless lhs.isAppOf ``Lens.footprint && lhs.appArg! == X do continue
-      let s ← saveState
-      try
-        setGoals [g]
-        withoutRecover <| evalTactic (← `(tactic| exact fun v σ => touched_set_of_le_compl
-          $(mkIdent d.userName) v σ.globals))
-        break
-      catch _ => s.restore
-  setGoals gs₀
-  let gs ← gs₀.filterM fun g => return !(← g.isAssigned)
-  setGoals gs
 
 set_option hygiene false in
 /-- `colEq` of two states after writes, from the equalities `e1`, …, `e10` of `colEq` before them:

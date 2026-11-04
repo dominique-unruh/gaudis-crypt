@@ -1196,12 +1196,6 @@ theorem ReSample_f1_potential [Lens.Disjoint G1.bext ReSample_count]
     omega
   · exact Strong_RP_RF.expected_const_le_self _ _
 
-/-- A join of footprints below a join containing each of its joinands (`fp_mem`, splitting the
-left-hand join). -/
-syntax "fp_sub" : tactic
-macro_rules
-  | `(tactic| fp_sub) => `(tactic| first | fp_mem | (refine sup_le ?_ ?_ <;> fp_sub))
-
 section EXT
 
 variable (D : DISTINGUISHER)

@@ -431,8 +431,10 @@ lemma's restriction footprint (the game's variables), which is all a proof can u
 * `concl` uses `G := C.c ⊔ glob D` for `A(D)`;
 * `neg_D_concl` uses `concl_at (Neg_D D)` with `G := glob D`.
 
-When this change was made, `D_ll` was consumed only by `Handle.CF_G1` and `Handle.Real_G1` (still
-`sorry`). Every other lemma passed it on.
+`ConcreteF.Real_Concrete` has the same `G` form, so that `Real_G1` can pass its `D_ll` on.
+`D_ll` is consumed only by `Handle.CF_G1`: the oracles of both games lie outside the game variables,
+and so outside `G` (`fvP_G1M`, `fvP_G1S`, `fvP_PF_*`, `fvP_SqueezelessSponge`). Every other lemma
+passes it on.
 
 **How to remove it.** Prove `fvP D ≤ fvP (Module.app D O)` for representable `D`: substitution and
 hole instantiation in the normaliser do not drop `D`'s code. Then derive `glob D ≤ glob (A D)` and

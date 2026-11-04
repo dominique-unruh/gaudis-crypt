@@ -1330,3 +1330,33 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
 * **Inside an anonymous constructor**, `fun j h1 h2 => by tac; exact h` swallows the following
   components. Parenthesize it.
 
+## 2026-11-04: `Handle.eq_fi`, `eq_f`, `CF_G1`, `Real_G1`
+
+* **Big oracle steps under `INV_CF_G1`.** Inline both oracles, `stmt_wp` the deterministic tail,
+  split the heads with `equiv_if{1}` / `equiv_if{2}` (the impossible combination by `incl`
+  through `prhlStmt_pre prhlStmt_false`), couple the samplings with `equiv_rnd`, and close the
+  pure goal by cases (EC's `case @[ambient]`: `getflag hs xc` none / Known / Unknown). `simp only`
+  with the case facts resolves the `if`s; `simp_reads` the reads. The invariant step of each case is
+  a pure lemma (`fi_none_inv`, `f_known_inv`, `f_path_inv`, …), mostly wrapping `lemma1`/`lemma2`/
+  `lemma3`.
+* **wp blow-up.** Three deterministic `if`s after the samplings make an 8-way post; the inlined
+  `RO.get`'s `if` would double it again and `equiv_skip` times out. Cut just before that `if`
+  (`equiv_seq 1 3`) with a relation carrying its guard's value (`¬ dom RO x1`, from
+  `f_path_ro_none`), and resolve it with `equiv_if{2}` and `prhlStmt_false`.
+* **`oget` of a known lookup.** Do not `simp only [oget]`: it unfolds every `oget` and hides the
+  rewrite targets. State `have h' : oget (FMap.get m k) = v := by rw [h]; rfl` and `simp only [h']`.
+* **Up-to-bad abstract call with a non-equality invariant** (`CF_G1`). `prhlProc_abstract_call_upto_module`
+  over a lens `cfL` of every game variable; the invariant `cfI`, `cfBad`, `cfQ` on the tuple
+  projections in the order `INV_CF_G1` reads them, so `cfI (cfL.get g₁) (cfL.get g₂) ↔ …` is
+  `Iff.rfl`. Oracle premises: `prhlProc_upto_of_writesKeep _ (by writes_keep') (by writes_keep')
+  (prhlProc_conseq (eq_f …) …)`, after `unfold PF G1.S` (`writes_keep'` needs concrete bodies).
+* **`fp_disjoint` and concrete modules.** It unfolds `PF`, `G1.M`, `G1.S` to their procedures
+  (`PF.init`, `G1.M.f`, …), so the `@[fp_bound]` lemmas are per procedure. For `G1.M`, `G1.S` it
+  still failed; prove `FVP.fvP (Module.app DFRestr G1.M) ≤ Gᶜ` by hand with `FVP.fvP_app`,
+  `fvP_DFRestr`, `fvP_G1M` and `_hGd` turned around (`Footprint.le_compl_comm`).
+* **`PF` folded back.** Inlining `CF`'s inits needs `unfold PF`, which also rewrites the
+  distinguisher's oracles; `rw [PF_eta, view_PF_eq]` restores `PRIMITIVE.view PF`.
+* **Shared tactics moved to `Logic/FrameTactics.lean`:** `fp_mem`, `fp_sub` (from `Gcol`/`Gext`),
+  `writes_keep'`, and `hoareProc_const`, `hoare_if_inv`, `hoare_seq_inv`. `repeat' tac; tac'`
+  parses `tac'` into the `repeat'`: parenthesize.
+

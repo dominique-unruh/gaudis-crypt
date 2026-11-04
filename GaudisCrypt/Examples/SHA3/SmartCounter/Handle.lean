@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
+import GaudisCrypt.Logic.FrameTactics
 
 /-!
 # The handle-based game `G1` and its invariant (EasyCrypt `proof/smart_counter/Handle.eca`)
@@ -2842,10 +2843,513 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
         else eq_glob_C g₁ g₂ ∧ r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂) := by
   sorry
 
+/-! ## `CF_G1`: the oracles' losslessness, footprints, and EC's invariant -/
+
+/-- `PF.f` is lossless.  Not an EC lemma: EC proves it inline in `CF_G1`. -/
+theorem PF_f_ll :
+    (Indifferentiability.PRIMITIVE.f state (List block) block PF).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  unfold PF
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 4
+  phoare_skip
+  simp [(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+    (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll]
+
+/-- `PF.fi` is lossless.  Not an EC lemma: EC proves it inline in `CF_G1`. -/
+theorem PF_fi_ll :
+    (Indifferentiability.PRIMITIVE.fi state (List block) block PF).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  unfold PF
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 4
+  phoare_skip
+  simp [(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+    (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll]
+
+/-- `G1.S.fi` is lossless.  Not an EC lemma: EC proves it inline in `CF_G1`. -/
+theorem G1_S_fi_ll :
+    (Indifferentiability.DPRIMITIVE.fi state (List block) block G1.S).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  unfold G1.S
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 4
+  phoare_skip
+  simp [(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+    (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll]
+
+/-- `G1.S.f` is lossless.  Not an EC lemma: EC proves it inline in `CF_G1`. -/
+theorem G1_S_f_ll :
+    (Indifferentiability.DPRIMITIVE.f state (List block) block G1.S).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  unfold G1.S
+  phoare_proc_to_stmt
+  repeat phoare_inline 0
+  phoare_wp 4
+  phoare_skip
+  simp [(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+    (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll]
+
+/-- `SqueezelessSponge(P).f` is lossless when `P.f` is: its loop is counted (variant
+`size p - i`).  Not an EC lemma: EC proves it inline in `CF_G1`. -/
+theorem SqueezelessSponge_f_ll (P : DPRIMITIVE)
+    (hP : (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless) :
+    (Indifferentiability.FUNCTIONALITY.f state (List block) block
+      (Module.app SqueezelessSponge P)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc] at hP ⊢
+  refine phoareProc_eq_of_le_ge (fun _ _ _ => Procedure.ewp_const_le _ _ _ _) ?_
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 1
+  phoare_while_ge 1 variant (size §p - §i).toNat
+  case body =>
+    phoare_wp 4
+    phoare_simp [hP]
+    phoare_skip
+    intros
+    split <;> simp
+  case exit => trivial
+  case decreases =>
+    intro k
+    hoare_wp 1
+    hoare_split 1
+    refine hoare_seq (hoare_if_wp (At := ?At) (Ae := ?Ae) ?_ ?_) ?_
+    rotate_left 2
+    · hoare_wp 1
+      exact hoare_skip_wp _
+    · hoare_wp 1
+      hoare_call
+      hoare_wp 1
+      exact hoare_skip_wp _
+    hoare_skip
+    rintro i p _ ⟨hlt, rfl⟩
+    simp only [decide_eq_true_eq] at hlt
+    exact ⟨fun _ => by omega, fun _ _ _ => by omega⟩
+  phoare_wp 4
+  phoare_skip
+  intros; exact le_rfl
+
+/-- `G1.M.f` is lossless: its loop is counted (variant `size p - i`).  Not an EC lemma: EC proves
+it inline in `CF_G1`. -/
+theorem G1_M_f_ll :
+    (Indifferentiability.DFUNCTIONALITY.f state (List block) block G1.M).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  refine phoareProc_eq_of_le_ge (fun _ _ _ => Procedure.ewp_const_le _ _ _ _) ?_
+  unfold G1.M
+  phoare_proc_to_stmt
+  repeat phoare_inline 0
+  phoare_wp 6
+  simp only [F.dout, (is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll]
+  phoare_while_ge 1 variant (size §p - §i).toNat
+  case body =>
+    phoare_wp 2
+    phoare_skip
+    intros
+    split_ifs <;> simp [(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
+      (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll]
+  case exit => trivial
+  case decreases =>
+    intro k
+    hoare_wp 1
+    hoare_split 1
+    refine hoare_seq (hoare_if_wp (At := ?At) (Ae := ?Ae) ?_ ?_) ?_
+    rotate_left 2
+    · hoare_wp 1
+      exact hoare_skip_wp _
+    · hoare_split 1
+      refine hoare_seq (hoare_if_wp (At := ?At') (Ae := ?Ae') ?_ ?_) ?_
+      rotate_left 2
+      · hoare_wp 14
+        exact hoare_skip_wp _
+      · exact hoare_skip_wp _
+      · exact hoare_skip_wp _
+    hoare_skip
+    rintro i p - - - - - - ⟨hlt, rfl⟩
+    simp only [decide_eq_true_eq] at hlt
+    refine ⟨fun _ => by omega, fun _ => ⟨fun _ _ _ _ _ => ?_, fun _ => by omega⟩⟩
+    split <;> omega
+  phoare_wp 7
+  phoare_skip
+  intros; exact le_rfl
+
+/-- `DFRestr(G1.M).f` keeps the bad event and `[] ∈ C.queries` (EC: "lossless and do not reset
+bad", its Hoare part).  Not an EC lemma: EC proves it inline in `CF_G1`. -/
+theorem DFRestr_M_f_bad :
+    hoareProc
+      (fun _ g => (G1.bcol.get g = true ∨ G1.bext.get g = true) ∧ FMap.dom (C.queries.get g) [])
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app DFRestr G1.M)).procedure
+      (fun _ g => (G1.bcol.get g = true ∨ G1.bext.get g = true) ∧
+        FMap.dom (C.queries.get g) []) := by
+  unfold G1.M
+  hoare_proc_to_stmt
+  repeat hoare_inline 0
+  hoare_wp 1
+  hoare_split 1
+  refine hoare_seq (hoare_if_wp (At := ?At) (Ae := ?Ae) ?_ ?_) ?_
+  rotate_left 2
+  · hoare_split 1
+    refine hoare_seq (hoare_if_wp (At := ?At') (Ae := ?Ae') ?_ ?_) ?_
+    rotate_left 2
+    · hoare_wp 7
+      hoare_while (§G1.bcol = true ∨ §G1.bext = true) ∧ (§C.queries).dom []
+      case body =>
+        hoare_wp 1
+        hoare_split 1
+        refine hoare_seq (hoare_if_wp (At := ?At'') (Ae := ?Ae'') ?_ ?_) ?_
+        rotate_left 2
+        · hoare_wp 1
+          exact hoare_skip_wp _
+        · hoare_split 1
+          refine hoare_seq (hoare_if_wp (At := ?At''') (Ae := ?Ae''') ?_ ?_) ?_
+          rotate_left 2
+          · hoare_wp 14
+            exact hoare_skip_wp _
+          · exact hoare_skip_wp _
+          · exact hoare_skip_wp _
+        hoare_skip
+        rintro _ _ _ _ _ _ _ _ _ _ _ ⟨⟨hb, hq⟩, -⟩
+        refine ⟨fun _ => ⟨hb, hq⟩, fun _ => ⟨fun _ _ _ _ _ => ?_, fun _ => ⟨hb, hq⟩⟩⟩
+        simp only [ite_self, Bool.or_eq_true]
+        exact ⟨hb.imp_left Or.inl, hq⟩
+      case exit =>
+        rintro _ _ _ _ _ _ _ ⟨hb, hq⟩ _ _ _
+        simp only [ite_self]
+        exact ⟨hb, (FMap.mem_set _ _ _ _).mpr (Or.inl hq)⟩
+      hoare_wp 8
+      exact hoare_skip_wp _
+    · exact hoare_skip_wp _
+    · exact hoare_skip_wp _
+  · hoare_wp 1
+    exact hoare_skip_wp _
+  hoare_wp 3
+  hoare_skip
+  exact fun _ _ _ _ _ h => ⟨fun _ => ⟨fun _ => h, fun _ => h⟩, fun _ => h⟩
+
+/-- `DPRestr(G1.S).f` keeps the bad event and `[] ∈ C.queries` (as `DFRestr_M_f_bad`).  Not an
+EC lemma: EC proves it inline in `CF_G1`. -/
+theorem DPRestr_S_f_bad :
+    hoareProc
+      (fun _ g => (G1.bcol.get g = true ∨ G1.bext.get g = true) ∧ FMap.dom (C.queries.get g) [])
+      (Indifferentiability.DPRIMITIVE.f state (List block) block
+        (Module.app DPRestr G1.S)).procedure
+      (fun _ g => (G1.bcol.get g = true ∨ G1.bext.get g = true) ∧
+        FMap.dom (C.queries.get g) []) := by
+  unfold G1.S
+  hoare_proc_to_stmt
+  repeat hoare_inline 0
+  hoare_split 2
+  refine hoare_seq_inv ?_ ?_
+  · hoare_wp 1
+    hoare_split 1
+    refine hoare_seq_inv (hoare_if_inv ?_ ?_) (hoare_skip_wp _)
+    · hoare_wp 2
+      hoare_split 1
+      refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+      · hoare_split 1
+        refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+        · hoare_wp 2
+          hoare_skip
+          exact fun _ _ _ h => h
+        · hoare_skip
+          exact fun _ _ _ h => h
+        hoare_split 1
+        refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+        · hoare_wp 5
+          hoare_skip
+          exact fun _ _ _ h => h
+        · hoare_wp 8
+          hoare_skip
+          rintro _ _ _ _ _ ⟨hb, hq⟩
+          exact ⟨by simp only [Bool.or_eq_true]; tauto, hq⟩
+        hoare_split 2
+        refine hoare_seq_inv ?_ ?_
+        · hoare_wp 1
+          hoare_split 1
+          refine hoare_seq_inv (hoare_if_inv ?_ ?_) (hoare_skip_wp _)
+          · hoare_wp 2
+            hoare_skip
+            exact fun _ _ _ h => h
+          · hoare_skip
+            exact fun _ _ _ h => h
+        hoare_wp 2
+        hoare_split 1
+        refine hoare_seq_inv (hoare_if_inv ?_ ?_) (hoare_skip_wp _)
+        · hoare_wp 2
+          hoare_split 1
+          refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+          · hoare_wp 1
+            hoare_skip
+            rintro _ _ _ _ _ ⟨hb, hq⟩ _ _
+            exact ⟨by simp only [Bool.or_eq_true]; tauto, hq⟩
+          · hoare_skip
+            rintro _ _ _ _ _ ⟨hb, hq⟩ _ _
+            exact ⟨by simp only [Bool.or_eq_true]; tauto, hq⟩
+          hoare_wp 4
+          hoare_skip
+          exact fun _ _ _ _ _ h _ _ => h
+        · hoare_wp 2
+          hoare_skip
+          rintro _ _ _ _ _ ⟨hb, hq⟩ _ _ _ _
+          exact ⟨by simp only [Bool.or_eq_true]; tauto, hq⟩
+      · hoare_wp 1
+        hoare_skip
+        exact fun _ _ _ h => h
+      hoare_wp 2
+      hoare_skip
+      exact fun _ _ _ h => h
+    · hoare_skip
+      exact fun _ _ _ h => h
+  hoare_wp 3
+  hoare_skip
+  exact fun _ _ _ h => h
+
+/-- `DPRestr(G1.S).fi` keeps the bad event and `[] ∈ C.queries` (as `DFRestr_M_f_bad`).  Not an
+EC lemma: EC proves it inline in `CF_G1`. -/
+theorem DPRestr_S_fi_bad :
+    hoareProc
+      (fun _ g => (G1.bcol.get g = true ∨ G1.bext.get g = true) ∧ FMap.dom (C.queries.get g) [])
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block
+        (Module.app DPRestr G1.S)).procedure
+      (fun _ g => (G1.bcol.get g = true ∨ G1.bext.get g = true) ∧
+        FMap.dom (C.queries.get g) []) := by
+  unfold G1.S
+  hoare_proc_to_stmt
+  repeat hoare_inline 0
+  hoare_split 2
+  refine hoare_seq_inv ?_ ?_
+  · hoare_wp 1
+    hoare_split 1
+    refine hoare_seq_inv (hoare_if_inv ?_ ?_) (hoare_skip_wp _)
+    · hoare_wp 2
+      hoare_split 1
+      refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+      · hoare_split 1
+        refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+        · hoare_wp 5
+          hoare_skip
+          exact fun _ _ _ h => h
+        · hoare_wp 8
+          hoare_skip
+          rintro _ _ _ _ _ ⟨hb, hq⟩
+          exact ⟨by simp only [Bool.or_eq_true]; tauto, hq⟩
+        hoare_wp 4
+        hoare_split 1
+        refine hoare_seq_inv (hoare_if_inv ?_ ?_) ?_
+        · hoare_wp 2
+          hoare_skip
+          exact fun _ _ _ h _ _ _ _ => h
+        · hoare_skip
+          exact fun _ _ _ h _ _ _ _ => h
+        hoare_wp 1
+        hoare_skip
+        rintro _ _ _ _ _ ⟨hb, hq⟩
+        exact ⟨by simp only [Bool.or_eq_true]; tauto, hq⟩
+      · hoare_wp 1
+        hoare_skip
+        exact fun _ _ _ h => h
+      hoare_wp 2
+      hoare_skip
+      exact fun _ _ _ h => h
+    · hoare_skip
+      exact fun _ _ _ h => h
+  hoare_wp 3
+  hoare_skip
+  exact fun _ _ _ h => h
+
+/-- The invariant holds of the initial states.  Not an EC lemma: EC proves it inline in `CF_G1`
+(`smt (get_setE emptyE build_hpath_map0)`). -/
+theorem INV_CF_G1_init :
+    INV_CF_G1 (FMap.set (FMap.empty : FMap handle (capacity × flag)) 0 (c0, Known)) 1
+      FMap.empty FMap.empty FMap.empty FMap.empty FMap.empty FMap.empty FMap.empty
+      (FMap.set (FMap.empty : FMap capacity (List block × block)) c0 ([], b0))
+      (FMap.set (FMap.empty : FMap (List block) state) [] (b0, c0))
+      (FMap.set (FMap.empty : FMap (List block) block) [] b0) := by
+  refine ⟨⟨?_, ?_, ?_⟩, ⟨?_⟩, ⟨?_⟩, ⟨?_, ?_⟩, ⟨?_, ?_⟩, ?_, ?_, ⟨?_, ?_, ?_⟩, ⟨?_⟩,
+    ⟨?_, ?_, ?_, ?_, ?_⟩⟩
+  · intro h1 h2 cf1 cf2 hh1 hh2 _
+    rw [FMap.get_setE] at hh1 hh2
+    split_ifs at hh1 hh2 <;> simp_all
+  · simp
+  · intro cf h hh
+    rw [FMap.get_setE] at hh
+    split_ifs at hh with h0
+    · simp [h0]
+    · simp at hh
+  all_goals try simp [incl]
+  · intro p v p' v' hx h1 h2
+    rw [build_hpath_map0] at h1 h2
+    split_ifs at h1 h2
+    simp_all
+  · intro c p v
+    rw [FMap.get_setE, build_hpath_map0]
+    by_cases hp : p = []
+    · by_cases hc : c = c0
+      · simp [hc, hp, FMap.get_setE]
+      · simp only [hc, hp, FMap.get_setE]
+        simpa using fun _ h => hc h.symm
+    · simp [hp]
+  · intro l hl
+    obtain rfl : l = [] := by simpa [FMap.mem_set, FMap.mem_empty] using hl
+    intro i _ hi
+    simp [size] at hi
+    omega
+  · intro l hl
+    obtain rfl : l = [] := by simpa [FMap.mem_set, FMap.mem_empty] using hl
+    exact ⟨c0, by simp [oget]⟩
+  · intro l hl
+    obtain rfl : l = [] := by simpa [FMap.mem_set, FMap.mem_empty] using hl
+    exact ⟨[], by simp [FMap.mem_set]⟩
+
+/-- `PF.init` touches `PF.m`, `PF.mi`.  Not an EC lemma (EC reads it off the code). -/
+@[fp_bound] theorem fvP_PF_init : FVP.fvP PF.init ≤ PF.m.footprint ⊔ PF.mi.footprint := by
+  have h : FVP.fvP PF.init ≤ (Lens.pair PF.m PF.mi).footprint := by
+    fp_module (Lens.pair PF.m PF.mi)
+  simpa only [Footprint.lens_pair] using h
+
+/-- `PF.f` touches `PF.m`, `PF.mi`.  Not an EC lemma (EC reads it off the code). -/
+@[fp_bound] theorem fvP_PF_f : FVP.fvP PF.f ≤ PF.m.footprint ⊔ PF.mi.footprint := by
+  have h : FVP.fvP PF.f ≤ (Lens.pair PF.m PF.mi).footprint := by
+    fp_module (Lens.pair PF.m PF.mi)
+  simpa only [Footprint.lens_pair] using h
+
+/-- `PF.fi` touches `PF.m`, `PF.mi`.  Not an EC lemma (EC reads it off the code). -/
+@[fp_bound] theorem fvP_PF_fi : FVP.fvP PF.fi ≤ PF.m.footprint ⊔ PF.mi.footprint := by
+  have h : FVP.fvP PF.fi ≤ (Lens.pair PF.m PF.mi).footprint := by
+    fp_module (Lens.pair PF.m PF.mi)
+  simpa only [Footprint.lens_pair] using h
+
+/-- `SqueezelessSponge` touches `Redo.prefixes`.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_SqueezelessSponge :
+    FVP.fvP SqueezelessSponge ≤ Redo.prefixes.footprint := by
+  fp_module Redo.prefixes
+
+set_option maxHeartbeats 8000000 in
+-- `within_lens` against a pair of seven variables is slow
+/-- `G1.M.f` touches `C.queries`, `F.RO.m`, `FRO.m`, `G1.mh`, `G1.mhi`, `G1.chandle`, `G1.bcol`.
+Not an EC lemma. -/
+@[fp_bound] theorem fvP_G1M_f : FVP.fvP G1.M.f ≤
+    (Lens.pair C.queries (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.mh
+    (Lens.pair G1.mhi (Lens.pair G1.chandle G1.bcol)))))).footprint := by
+  fp_module (Lens.pair C.queries (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.mh
+    (Lens.pair G1.mhi (Lens.pair G1.chandle G1.bcol))))))
+
+set_option maxHeartbeats 8000000 in
+-- `within_lens` against a pair of ten variables is slow
+/-- `G1.S.f` touches `F.RO.m`, `FRO.m` and the variables of `G1`.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_G1S_f : FVP.fvP G1.S.f ≤
+    (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
+    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
+      (Lens.pair G1.bext G1.bcol))))))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
+    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
+      (Lens.pair G1.bext G1.bcol)))))))))
+
+set_option maxHeartbeats 8000000 in
+-- `within_lens` against a pair of ten variables is slow
+/-- `G1.S.fi` touches what `G1.S.f` does.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_G1S_fi : FVP.fvP G1.S.fi ≤
+    (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
+    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
+      (Lens.pair G1.bext G1.bcol))))))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
+    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
+      (Lens.pair G1.bext G1.bcol)))))))))
+
+set_option maxHeartbeats 8000000 in
+-- `within_lens` against a pair of seven variables is slow
+/-- `G1.M` touches what `G1.M.f` does (for `D_ll`'s side conditions in `CF_G1`).  Not an EC
+lemma. -/
+theorem fvP_G1M : FVP.fvP G1.M ≤
+    (Lens.pair C.queries (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.mh
+    (Lens.pair G1.mhi (Lens.pair G1.chandle G1.bcol)))))).footprint := by
+  fp_module (Lens.pair C.queries (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.mh
+    (Lens.pair G1.mhi (Lens.pair G1.chandle G1.bcol))))))
+
+set_option maxHeartbeats 8000000 in
+-- `within_lens` against a pair of ten variables is slow
+/-- `G1.S` touches what `G1.S.f` does (for `D_ll`'s side conditions in `CF_G1`).  Not an EC
+lemma. -/
+theorem fvP_G1S : FVP.fvP G1.S ≤
+    (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
+    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
+      (Lens.pair G1.bext G1.bcol))))))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
+    (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
+      (Lens.pair G1.bext G1.bcol)))))))))
+
+/-- `DFRestr(F).f` is lossless when `F.f` is: `rf_ll` without `{-C}`, which its proof does not
+use (`G1.M` reads `C.queries`).  Not an EC lemma (EC proves it inline in `CF_G1`). -/
+theorem rf_ll' (F : DFUNCTIONALITY) :
+    (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
+    (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+      (Module.app DFRestr F)).procedure.IsLossless := by
+  intro hll
+  rw [Procedure.isLossless_iff_phoareProc] at hll ⊢
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 5
+  phoare_simp [hll]
+  phoare_skip
+  simp
+
+/-- `PF` repackaged as `Indif` presents it to the distinguisher is its view. -/
+theorem view_PF_eq : Indifferentiability.DPRIMITIVE.mk state (List block) block
+    { f := Indifferentiability.PRIMITIVE.f state (List block) block PF,
+      fi := Indifferentiability.PRIMITIVE.fi state (List block) block PF } =
+    Indifferentiability.PRIMITIVE.view state (List block) block PF := rfl
+
+/-- `PF` is the record of its procedures (eta). -/
+theorem PF_eta : Module.pair PF.init (Module.pair PF.f PF.fi) = PF := rfl
+
+/-- `fp_disjoint` with `C.footprint` unfolded (in the goal, when it is there). -/
+macro "fp_disj'" : tactic => `(tactic| ((try unfold C.footprint); fp_disjoint))
+
+/-- The values of the variables EC's invariant of `CF_G1` reads: `C.c`, `C.queries`, `PF.m`,
+`PF.mi`, `Redo.prefixes`, `FRO.m`, `G1.chandle`, `G1.m`, `G1.mi`, `G1.mh`, `G1.mhi`, `F.RO.m`,
+`G1.paths`, `G1.bcol`, `G1.bext`. -/
+abbrev CFState : Type :=
+  ℤ × FMap (List block) block × smap × smap × FMap (List block) state ×
+    FMap handle (capacity × flag) × ℤ × smap × smap × hsmap × hsmap × FMap (List block) block ×
+    FMap capacity (List block × block) × Bool × Bool
+
+/-- The lens of the variables EC's invariant of `CF_G1` reads. -/
+noncomputable abbrev cfL : Lens CFState VariableAssignment :=
+  Lens.pair C.c (Lens.pair C.queries (Lens.pair PF.m (Lens.pair PF.mi (Lens.pair Redo.prefixes
+    (Lens.pair FRO.m (Lens.pair G1.chandle (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair F.RO.m (Lens.pair G1.paths
+        (Lens.pair G1.bcol G1.bext)))))))))))))
+
+/-- EC's invariant of `CF_G1` (`={glob C} /\ INV_CF_G1 …`), on the values of `cfL`. -/
+def cfI (x y : CFState) : Prop :=
+  (x.1 = y.1 ∧ x.2.1 = y.2.1) ∧
+    INV_CF_G1 y.2.2.2.2.2.1 y.2.2.2.2.2.2.1 x.2.2.1 x.2.2.2.1 y.2.2.2.2.2.2.2.1
+      y.2.2.2.2.2.2.2.2.1 y.2.2.2.2.2.2.2.2.2.1 y.2.2.2.2.2.2.2.2.2.2.1
+      y.2.2.2.2.2.2.2.2.2.2.2.1 y.2.2.2.2.2.2.2.2.2.2.2.2.1 x.2.2.2.2.1 y.2.1
+
+/-- EC's bad event `G1.bcol \/ G1.bext`, on the values of `cfL`. -/
+def cfBad (y : CFState) : Prop :=
+  y.2.2.2.2.2.2.2.2.2.2.2.2.2.1 = true ∨ y.2.2.2.2.2.2.2.2.2.2.2.2.2.2 = true
+
+/-- EC's invariant after the bad event, `[] \in C.queries{2}`, on the values of `cfL`. -/
+def cfQ (_ y : CFState) : Prop :=
+  FMap.dom y.2.1 []
+
+theorem cfI_iff (g₁ g₂ : VariableAssignment) :
+    cfI (cfL.get g₁) (cfL.get g₂) ↔ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂ := Iff.rfl
+
+theorem cfBad_iff (g : VariableAssignment) :
+    cfBad (cfL.get g) ↔ G1.bcol.get g = true ∨ G1.bext.get g = true := Iff.rfl
+
 section AUX
 
 variable (D : DISTINGUISHER)
 
+set_option maxHeartbeats 4000000 in
+-- the oracles' footprint and frame checks
 /-- `equiv CF_G1 : CF(DRestr(D)).main ~ G1(DRestr(D)).main : ={glob D} ==>
 !(G1.bcol \/ G1.bext){2} => ={res}`, for `declare module D <: DISTINGUISHER
 {-PF, -RO, -G1, -Redo, -C}` with the axiom `D_ll`. -/
@@ -2871,7 +3375,188 @@ theorem CF_G1 (hD : Module.ECModule D distExt)
       (fun _ g₁ _ g₂ => (FVP.fvP D).touched_getter.get g₁ = (FVP.fvP D).touched_getter.get g₂)
       (CF (DRestr D)).procedure (G1 (DRestr D)).procedure
       (fun r₁ _ r₂ g₂ => ¬ (G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true) → r₁ = r₂) := by
-  sorry
+  unfold C.footprint at _hDd _hGd
+  have hcc : (C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hcq : (C.queries).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hpm : (PF.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hpmi : (PF.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hpre : (Redo.prefixes).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hfro : (FRO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hch : (G1.chandle).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hm : (G1.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hmi : (G1.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hmh : (G1.mh).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hmhi : (G1.mhi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hro : (F.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hpa : (G1.paths).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hbc : (G1.bcol).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hbx : (G1.bext).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by
+      (try unfold C.footprint); fp_mem)))
+  have hGv : ∀ {X : Footprint VariableAssignment}, X ≤ PF.m.footprint ⊔ PF.mi.footprint ⊔
+      F.RO.m.footprint ⊔ G1.m.footprint ⊔ G1.mi.footprint ⊔ G1.mh.footprint ⊔ G1.mhi.footprint ⊔
+      G1.chandle.footprint ⊔ G1.paths.footprint ⊔ G1.bext.footprint ⊔ G1.bcol.footprint ⊔
+      Redo.prefixes.footprint ⊔ (C.c.footprint ⊔ C.queries.footprint) ⊔
+      ROhandle.RO.m.footprint ⊔ ROhandle.FRO.m.footprint → X ≤ Gᶜ :=
+    fun hX => hX.trans ((Footprint.le_compl_comm _ _).mp _hGd)
+  have hL : FVP.fvP D ≤ (cfL.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [cfL, Footprint.lens_pair]
+    exact sup_le hcc (sup_le hcq (sup_le hpm (sup_le hpmi (sup_le hpre (sup_le hfro (sup_le hch
+      (sup_le hm (sup_le hmi (sup_le hmh (sup_le hmhi (sup_le hro (sup_le hpa
+        (sup_le hbc hbx)))))))))))))
+  unfold CF G1 PF
+  equiv_proc
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 0
+  rw [PF_eta, view_PF_eq]
+  stmt_wp
+  equiv_seq 1 1 : (syncInv cfL (FVP.fvP D) cfI cfBad §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    refine ⟨?_, (cfI_iff _ _).mpr ?_, ?_⟩
+    · simp only [touched_set_of_le_compl hcc, touched_set_of_le_compl hcq,
+        touched_set_of_le_compl hpm, touched_set_of_le_compl hpmi, touched_set_of_le_compl hpre,
+        touched_set_of_le_compl hfro, touched_set_of_le_compl hch, touched_set_of_le_compl hm,
+        touched_set_of_le_compl hmi, touched_set_of_le_compl hmh, touched_set_of_le_compl hmhi,
+        touched_set_of_le_compl hro, touched_set_of_le_compl hpa, touched_set_of_le_compl hbc,
+        touched_set_of_le_compl hbx]
+      exact h
+    · simp only [eq_glob_C, INV_CF_G1_12]
+      simp_reads
+      exact INV_CF_G1_init
+    · simp only [cfBad]
+      simp_reads
+      simp
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_upto_module cfL D distExt hD.representable
+      (FVP.fvP D) le_rfl hL ?hc cfBad cfI cfQ _ _ ?hll₁ ?hll₂ ?horacle ?hQ₁ ?hQ₂) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case hll₁ =>
+      exact D_ll _ _ (by fp_disj') (by fp_disj')
+        (rp_ll _ (by fp_disj') (by rw [Indifferentiability.PRIMITIVE.view_f]; exact PF_f_ll))
+        (rpi_ll _ (by fp_disj') (by rw [Indifferentiability.PRIMITIVE.view_fi]; exact PF_fi_ll))
+        (rf_ll' _ (SqueezelessSponge_f_ll _
+          (by rw [Indifferentiability.PRIMITIVE.view_f]; exact PF_f_ll)))
+    case hll₂ =>
+      exact D_ll _ _ ((FVP.fvP_app _ _).trans (sup_le (fvP_DFRestr.trans (hGv (by
+          unfold C.footprint; fp_sub))) (fvP_G1M.trans (hGv (by
+          simp only [Footprint.lens_pair]; fp_sub)))))
+        ((FVP.fvP_app _ _).trans (sup_le (fvP_DPRestr.trans (hGv (by
+          unfold C.footprint; fp_sub))) (fvP_G1S.trans (hGv (by
+          simp only [Footprint.lens_pair]; fp_sub)))))
+        (rp_ll _ (by fp_disj') G1_S_f_ll) (rpi_ll _ (by fp_disj') G1_S_fi_ll)
+        (rf_ll' _ G1_M_f_ll)
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair]
+        unfold PF G1.M
+        refine prhlProc_upto_of_writesKeep _ (by writes_keep') (by writes_keep')
+          (prhlProc_conseq (PFf_Cf D) (fun a₁ g₁ a₂ g₂ ⟨ha, hI, hb⟩ => ⟨hb, ha, hI.1, hI.2⟩)
+            (fun r₁ g₁ r₂ g₂ h => ?_))
+        split_ifs at h with hb
+        · exact Or.inl ⟨hb, h⟩
+        · exact Or.inr ⟨h.2.1, ⟨h.1, h.2.2⟩, hb⟩
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair]
+          unfold PF G1.S
+          refine prhlProc_upto_of_writesKeep _ (by writes_keep') (by writes_keep')
+            (prhlProc_conseq (eq_f D (_hDd.trans (Footprint.compl_antimono (by fp_sub))))
+              (fun a₁ g₁ a₂ g₂ ⟨ha, hI, hb⟩ => ?_)
+              (fun r₁ g₁ r₂ g₂ h => ?_))
+          · simp only [cfBad_iff, not_or, Bool.not_eq_true] at hb
+            exact ⟨hb.1, hb.2, ha, hI.1, hI.2⟩
+          · split_ifs at h with hb
+            · exact Or.inl ⟨hb, h⟩
+            · exact Or.inr ⟨h.1, h.2, hb⟩
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair]
+            unfold PF G1.S
+            refine prhlProc_upto_of_writesKeep _ (by writes_keep') (by writes_keep')
+              (prhlProc_conseq (eq_fi D (_hDd.trans (Footprint.compl_antimono (by fp_sub))))
+                (fun a₁ g₁ a₂ g₂ ⟨ha, hI, hb⟩ => ?_)
+                (fun r₁ g₁ r₂ g₂ h => ?_))
+            · simp only [cfBad_iff, not_or, Bool.not_eq_true] at hb
+              exact ⟨hb.1, hb.2, ha, hI.1, hI.2⟩
+            · split_ifs at h with hb
+              · exact Or.inl ⟨hb, h.2⟩
+              · exact Or.inr ⟨h.1, h.2, hb⟩
+          | succ n => nomatch n
+    case hQ₁ =>
+      intro _ n ω₂ _
+      exact hoareProc_const _ _
+    case hQ₂ =>
+      intro _ n ω₁
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair]
+        exact DFRestr_M_f_bad
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.snd_pair]
+          exact DPRestr_S_f_bad
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.snd_pair]
+            exact DPRestr_S_fi_bad
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨Or.inr ⟨rfl, h⟩, ?_⟩
+    rintro r₁ g₁ r₂ g₂ hpost
+    simp_reads
+    intro hnb
+    rcases hpost with ⟨hb, -⟩ | ⟨hr, -⟩
+    · exact absurd ((cfBad_iff _).mp hb) hnb
+    · exact hr
 
 end AUX
 
@@ -2907,7 +3592,29 @@ theorem Real_G1 (hD : Module.ECModule D distExt)
         ((max_size ^ 2 - max_size : ℤ) : ℝ) * (2 : ℝ)⁻¹ * (dstate.1 {default}).toReal +
         (Procedure.Pr (G1 (DRestr D)).procedure () m (fun _ g => G1.bcol.get g = true) : ℝ) +
         (Procedure.Pr (G1 (DRestr D)).procedure () m (fun _ g => G1.bext.get g = true) : ℝ) := by
-  sorry
+  have hR := Real_Concrete D hD
+    (_hDd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub)))
+    G (_hGd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub))) D_ll m
+  have hC : Procedure.Pr (CF (DRestr D)).procedure () m (fun r _ => r = true) ≤
+      Procedure.Pr (G1 (DRestr D)).procedure () m (fun r g => r = true ∨
+        (G1.bcol.get g = true ∨ G1.bext.get g = true)) :=
+    Procedure.Pr_le_of_prhlProc (CF_G1 D hD
+      (_hDd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub)))
+      G (_hGd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub))) D_ll)
+      (fun r₁ g₁ r₂ g₂ hB h₁ => by
+        by_cases hb : G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true
+        · exact Or.inr hb
+        · exact Or.inl (hB hb ▸ h₁))
+      rfl
+  have h1 := Procedure.Pr_or_le (G1 (DRestr D)).procedure () m (fun r _ => r = true)
+    (fun _ g => G1.bcol.get g = true ∨ G1.bext.get g = true)
+  have h2 := Procedure.Pr_or_le (G1 (DRestr D)).procedure () m (fun _ g => G1.bcol.get g = true)
+    (fun _ g => G1.bext.get g = true)
+  have hC' := NNReal.coe_le_coe.mpr (hC.trans (h1.trans (add_le_add le_rfl h2)))
+  push_cast at hC'
+  have e : ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal =
+      ((max_size ^ 2 - max_size : ℤ) : ℝ) * (2 : ℝ)⁻¹ * (dstate.1 {default}).toReal := by ring
+  linarith
 
 end
 

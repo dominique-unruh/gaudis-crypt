@@ -325,7 +325,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/ConcreteF.lean`, namespace `Gaudis
 | 80 | local module | `` | section . | `` | def |
 | 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` | stated |
 | 220 | local clone import | `ProdSampling` | section . | `S` | def |
-| 224 | lemma | `Real_Concrete` | section . | `Real_Concrete` | stated |
+| 224 | lemma | `Real_Concrete` | section . | `Real_Concrete` (`D_ll` over a region `G`) | stated (exc E14) |
 
 ## `proof/smart_counter/Handle.eca`
 
@@ -400,8 +400,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 | 1282 | lemma | `build_hpath_up_None` |  | `build_hpath_up_None` | done |
 | 1309 | lemma | `build_hpath_upd_ch_iff` |  | `build_hpath_upd_ch_iff` | done |
 | 1326 | lemma | `lemma4` |  | `lemma4` | done |
-| 1349 | equiv | `eq_fi` |  | `eq_fi` | stated |
-| 1488 | equiv | `eq_f` |  | `eq_f` | stated |
+| 1349 | equiv | `eq_fi` |  | `eq_fi` (oracle step `PF_fi_S_fi`; cases `fi_none_inv`, `fi_known_inv`, `fi_bext`) | done |
+| 1488 | equiv | `eq_f` |  | `eq_f` (oracle step `PF_f_S_f`; cases `f_none_inv`, `f_known_inv`, `f_B2_facts`, path case `f_path_inv`/`f_path_ro_none`, inline in EC) | done |
 | 1815 | lemma | `head_nth` |  | `head_nth` | done |
 | 1818 | lemma | `drop_add` |  | `drop_add` | done |
 | 1824 | lemma | `behead_drop` |  | `behead_drop` | done |
@@ -411,10 +411,10 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 | 1895 | equiv | `PFf_Cf` |  | `PFf_Cf` | stated |
 | 2589 | declare module | `D` | section AUX. | `D` (section variable) | def |
 | 2591 | declare axiom | `D_ll` | section AUX. | `D_ll` (hypothesis) | def |
-| 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` | stated |
+| 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` (up-to-bad call on `cfL`/`cfI`/`cfBad`/`cfQ`; inline EC facts as lemmas `PF_f_ll`, `G1_M_f_ll`, `DFRestr_M_f_bad`, `INV_CF_G1_init`, …) | done modulo `PFf_Cf` (exc E14) |
 | 2697 | declare module | `D` | section . | `D` (section variable) | def |
 | 2699 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
-| 2703 | lemma | `Real_G1` | section . | `Real_G1` | stated |
+| 2703 | lemma | `Real_G1` | section . | `Real_G1` | done modulo `PFf_Cf`, `Real_Concrete` (exc E14) |
 
 ## `proof/smart_counter/Gcol.eca`
 
