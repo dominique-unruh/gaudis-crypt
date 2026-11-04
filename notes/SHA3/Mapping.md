@@ -736,16 +736,16 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 | 96 | module | `FC` |  | `FC` | def |
 | 116 | module | `PC` |  | `PC` | def |
 | 137 | module | `DRestr` |  | `DRestr` (`D` a Lean parameter) | def |
-| 148 | declare module | `Dist` | section . | `Dist` (parameter, with `hD`, `DistRestrictions`) | def |
+| 148 | declare module | `Dist` | section . | `Dist` (parameter, with `hD`, `DistRestrictions`; + `Gext0Fresh`, E13) | def |
 | 151 | declare axiom | `Dist_lossless` | section . | `Dist_lossless` (hypothesis of `security`) | def |
-| 155 | lemma | `drestr_commute1` | section . | `drestr_commute1` | stated |
-| 185 | lemma | `drestr_commute2` | section . | `drestr_commute2` | stated |
+| 155 | lemma | `drestr_commute1` | section . | `drestr_commute1` (from `dc_dist`: the equal-outside abstract call over `cL = (Cntr.c, BlockSponge.C.c)`, `cI`; oracle steps `dc_F_f`, `dc_P_f`, `dc_P_fi`) | done |
+| 185 | lemma | `drestr_commute2` | section . | `drestr_commute2` (from `dc_dist`) | done |
 | 223 | op | `wit_pair` | section . | `wit_pair` | def |
-| 225 | local equiv | `equiv_sim_f` | section . | `equiv_sim_f` | stated |
-| 245 | local equiv | `equiv_sim_fi` | section . | `equiv_sim_fi` | stated |
-| 255 | local lemma | `replace_simulator` | section . | `replace_simulator` | stated |
-| 270 | lemma | `security` | section . | `security` | stated |
-| 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` | stated |
+| 225 | local equiv | `equiv_sim_f` | section . | `equiv_sim_f` (`={glob F, glob BIRO2.IRO} /\ ={m, mi, paths}(S, Simulator)` as equal outside `sL` with `sI`; `parseK`/`formatK` as `formatK`; `rcondt{1}` by `equiv_if{1}` + `prhlStmt_false`) | done |
+| 245 | local equiv | `equiv_sim_fi` | section . | `equiv_sim_fi` (as `equiv_sim_f`) | done |
+| 255 | local lemma | `replace_simulator` | section . | `replace_simulator` (equal-outside abstract call over `sL`; oracle steps `rs_PC_f`, `rs_PC_fi`) | done |
+| 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at` over `glob Dist`, E14; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`; modulo `Gconcl_list.Real_lossless`) | exc |
+| 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` (+ `Gext0Fresh`, E13; from `security`) | exc |
 
 ## `proof/SHA3_OIndiff.ec`
 

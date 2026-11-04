@@ -117,6 +117,39 @@ theorem Lens.equal_outside.set_left {g₁ g₂ : VariableAssignment} (h : L.equa
   obtain ⟨x, rfl⟩ := h
   exact ⟨x, by rw [L.set_set]⟩
 
+/-- `equal_outside` is symmetric. -/
+theorem Lens.equal_outside.symm {g₁ g₂ : VariableAssignment} (h : L.equal_outside g₁ g₂) :
+    L.equal_outside g₂ g₁ :=
+  (L.equal_outside_setoid).iseqv.symm h
+
+/-- `equal_outside` is transitive. -/
+theorem Lens.equal_outside.trans {g₁ g₂ g₃ : VariableAssignment} (h : L.equal_outside g₁ g₂)
+    (h' : L.equal_outside g₂ g₃) : L.equal_outside g₁ g₃ :=
+  (L.equal_outside_setoid).iseqv.trans h h'
+
+variable (L) in
+/-- A write of `L` keeps a state equal to itself outside `L`. -/
+theorem Lens.equal_outside_set_self (g : VariableAssignment) (v : Ω) :
+    L.equal_outside g (L.set v g) := ⟨v, rfl⟩
+
+/-- States equal outside `A` are equal outside `Lens.pair A B`. -/
+theorem Lens.equal_outside.pair_left {α β : Type} {A : Lens α VariableAssignment}
+    {B : Lens β VariableAssignment} [Lens.Disjoint A B] {g g' : VariableAssignment}
+    (h : A.equal_outside g g') : (Lens.pair A B).equal_outside g g' := by
+  obtain ⟨x, rfl⟩ := h
+  exact ⟨(x, B.get g), by simp only [Lens.pair, B.get_set]⟩
+
+/-- States equal outside `B` are equal outside `Lens.pair A B`. -/
+theorem Lens.equal_outside.pair_right {α β : Type} {A : Lens α VariableAssignment}
+    {B : Lens β VariableAssignment} [hd : Lens.Disjoint A B] {g g' : VariableAssignment}
+    (h : B.equal_outside g g') : (Lens.pair A B).equal_outside g g' := by
+  obtain ⟨x, rfl⟩ := h
+  refine ⟨(A.get g, x), ?_⟩
+  show A.set (A.get g) (B.set x g) = B.set x g
+  have : A.get (B.set x g) = A.get g := @Lens.get_of_disjoint_set _ _ _ A B hd.symm x g
+  conv_lhs => rw [← this]
+  exact A.get_set _
+
 /-- States equal outside `L` and on `L` are equal. -/
 theorem Lens.equal_outside_and_get_eq_iff {g₁ g₂ : VariableAssignment} :
     L.equal_outside g₁ g₂ ∧ L.get g₁ = L.get g₂ ↔ g₁ = g₂ := by

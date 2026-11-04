@@ -1412,3 +1412,29 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   needs both orders).
 * **The `Pr` chain** in ℝ: `rw` the NNReal equalities under the casts, `exact_mod_cast` for `≤`,
   `abs_sub_le_iff.mp` for `Conclusion`, then `linarith`.
+
+## 2026-11-04: `SHA3Indiff`
+
+* **Two wrappers counting in different variables** (`drestr_commute`: `Cntr.c` vs `BlockSponge.C.c`):
+  the equal-outside abstract call over `Lens.pair Cntr.c C.c` with `I := Cntr.c{1} = C.c{2}`, proven
+  once for any `F`, `P` (`dc_dist`) and instantiated for the real and ideal games.
+* **Two simulators with different variables** (`replace_simulator`): equal outside the six
+  variables (`sL`), with the cross equalities `sI`.  Writes inside `sL` on one side by
+  `Lens.equal_outside_set_self`/`pair_left`/`pair_right` and `.symm`/`.trans`
+  (`Logic/EqualOutside.lean`); the same write outside `sL` on both sides by `set_disjoint`.  Inner
+  calls of `F`, `IRO2` by `prhlProc_self_equal_outside_module`.
+* **`Module.comp`** (`RaiseSim`) does not inline: state `X.f (Module.app (RaiseSim S) F) =
+  X.f (Module.app S (Module.app LowerFun F))` as a lemma (`rw [RaiseSim, Module.app_comp]; rfl`) and
+  `rw` with it — rewriting the goal directly with `Module.app_comp` leaves a term `stmt_inline`
+  cannot unfold.
+* **Program variables in `equiv[…]` relations**: `§y{2}` resolves only if the *left* program
+  declares `y` too; otherwise write `§(localVarLens "y" T){2}`.  An inlined parameter (`a` of a
+  module procedure) may not be in the `var` list at all: also `localVarLens`.
+* **`fp_disjoint`**: bound lemmas for bit-level `IRO.init`/`IRO.f` (`Bool` output), `FC`, `PC`,
+  `RaiseFun`, `BlockSponge.Sponge`; an instance `Lens.Disjoint X sL` is not found once the goal
+  shows `sL` unfolded: pass it with `@Lens.equal_outside.set_disjoint _ sL _ X inferInstance …`.
+* **Simulators are representable** (`Examples/SHA3/SimulatorRepresentable.lean`): `f`, `fi`,
+  `init` as functors `.abs (proj (.app S.expression (.var 0)))`, represented by
+  `Module.exists_representation_of_firstOrder`; `init`'s hole filled with a global-free procedure,
+  given `init` independent of the oracle (for `SimLast(Gconcl.S)` by `simp only [*.apply_simp,
+  PRIMITIVE.init_pair]`).

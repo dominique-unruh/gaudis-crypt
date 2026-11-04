@@ -399,8 +399,9 @@ the local lemmas `G2_G3`, `G3_G4`, `G4_Ideal` (as E6 allows) and of the non-loca
 **Consequences.** `Gconcl_list` uses `Real_Ideal` (for `A(D)`), so its results need `Gext0Fresh`
 for the distinguisher it builds, and so on up to `SHA3Indiff`'s final theorem: the adversary must not
 touch these proof-internal variables.  Propagated to `Gconcl_list` (its own `Gext0Fresh`, at
-`BlockSponge`'s `DISTINGUISHER`: `concl`, `neg_D_concl`, `Inefficient_Real_Ideal`, `Real_Ideal`);
-`SHA3Indiff` still to do.
+`BlockSponge`'s `DISTINGUISHER`: `concl`, `neg_D_concl`, `Inefficient_Real_Ideal`, `Real_Ideal`) and
+to `SHA3Indiff` (`SHA3Indiff.Gext0Fresh Dist`, at the bit level: a hypothesis of `security` and of
+the final `SHA3Indiff`).
 
 **How to remove it.** Make the variables of `Handle`, `Gcol`, `Gext` (and `ConcreteF`'s `PF`) lens
 parameters, as `Sponge`'s `HybridIRO` section does (E6), and pick them fresh in `Real_Ideal` with
@@ -437,6 +438,14 @@ lemma's restriction footprint (the game's variables), which is all a proof can u
 `G` (`fvP_G1M`, `fvP_G1S`, `fvP_PF_*`, `fvP_SqueezelessSponge`, `fvP_Perm`). Every other lemma
 passes it on. `SLCommon.Pr_restr_of_region` and `Strong_RP_RF.(Partial)Conclusion_of_region` are
 the `G` versions of `Pr_restr` and `(Partial)Conclusion`, which are their `glob D` instances.
+
+**`Gconcl_list`'s last lemmas over `G`.** `SHA3Indiff.security` applies `Gconcl_list`'s
+`Real_Ideal` to `LowerDist(Dist)`, whose `D_ll` EasyCrypt derives from `Dist_lossless` (over
+`glob Dist`) — the same gap (`glob Dist ≤ glob (LowerDist Dist)`).  So `Real_Ideal`,
+`Inefficient_Real_Ideal`, `Simplify_simulator`, `neg_D_concl`, `Ideal_lossless`, `Real_lossless`
+(and `Neg_D_lossless`, `equal1`, `equal2`) have `_at` versions with `D_lossless_at D G` and the
+region hypotheses of `concl_at` plus `RealIdealRegion G`; the EasyCrypt-named lemmas are their
+`G := glob D` instances.  `security` uses `Inefficient_Real_Ideal_at` with `G := glob Dist`.
 
 **`G` inside a finitely supported `glob GF`.** `Real_Concrete` chooses fresh lenses for the local
 clone's variables `DBounder.FBounder.c` and `ARP.coll` (E6), and `Conclusion` a fresh bad flag;
