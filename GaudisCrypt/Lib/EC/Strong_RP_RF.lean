@@ -1417,6 +1417,8 @@ theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
     (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans le_sup_right))))
   haveI : Lens.Disjoint B ARP_mi := Lens.disjoint_of_footprint_le_compl _ _ (hB'
     (le_sup_right.trans (le_sup_left.trans le_sup_right)))
+  haveI : Lens.Disjoint B FBounder_c := Lens.disjoint_of_footprint_le_compl _ _ (hB'
+    (le_sup_right.trans le_sup_right))
   haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_m).symm
   haveI := (inferInstance : Lens.Disjoint FBounder_c PRPi_mi).symm
   haveI := (inferInstance : Lens.Disjoint FBounder_c ARP_m).symm
@@ -1430,7 +1432,12 @@ theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
   have hupto := pr_PRPi'_Indirect_ARP_of_region D uD PRPi_m PRPi_mi B ARP_coll ARP_m ARP_mi
     uD_uf_fu (DBounder D q FBounder_c Dist) (G ⊔ FBounder_c.footprint)
     ((fvP_DBounder D q FBounder_c Dist).trans (sup_le_sup_right hDG _))
-    (by fp_disjoint)
+    (by
+      have h1 := (Footprint.le_compl_comm _ _).mp hG
+      have h2 := (Footprint.le_compl_comm _ _).mp hBg'
+      refine sup_le ((Footprint.le_compl_comm _ _).mpr ?_) (by fp_disjoint)
+      simp only [sup_le_iff] at h1 ⊢
+      exact ⟨⟨⟨⟨⟨h1.1.1.1.1.1, h1.1.1.1.1.2⟩, h2⟩, h1.1.1.1.2⟩, h1.1.1.2⟩, h1.1.2⟩)
     (fun O hO hf hfi => DBounder_ll D q FBounder_c Dist O (D_ll _ (by fp_disjoint)
       (FBounder_f_ll D q FBounder_c O hf) (FBounder_fi_ll D q FBounder_c O hfi))) m
   -- `pr_PRFi_collision D`
