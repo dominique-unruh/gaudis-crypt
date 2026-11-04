@@ -432,9 +432,21 @@ lemma's restriction footprint (the game's variables), which is all a proof can u
 * `neg_D_concl` uses `concl_at (Neg_D D)` with `G := glob D`.
 
 `ConcreteF.Real_Concrete` has the same `G` form, so that `Real_G1` can pass its `D_ll` on.
-`D_ll` is consumed only by `Handle.CF_G1`: the oracles of both games lie outside the game variables,
-and so outside `G` (`fvP_G1M`, `fvP_G1S`, `fvP_PF_*`, `fvP_SqueezelessSponge`). Every other lemma
-passes it on.
+`D_ll` is consumed by `Handle.CF_G1` and in `Real_Concrete` (`Pr_restr_of_region`, and `D'_ll` for
+`Strong_RP_RF.Conclusion_of_region`): the oracles lie outside the game variables, and so outside
+`G` (`fvP_G1M`, `fvP_G1S`, `fvP_PF_*`, `fvP_SqueezelessSponge`, `fvP_Perm`). Every other lemma
+passes it on. `SLCommon.Pr_restr_of_region` and `Strong_RP_RF.(Partial)Conclusion_of_region` are
+the `G` versions of `Pr_restr` and `(Partial)Conclusion`, which are their `glob D` instances.
+
+**`G` inside a finitely supported `glob GF`.** `Real_Concrete` chooses fresh lenses for the local
+clone's variables `DBounder.FBounder.c` and `ARP.coll` (E6), and `Conclusion` a fresh bad flag;
+these must lie outside `G` too, which a region `G` alone does not give. So `Real_Concrete`,
+`Real_G1`, `Real_G2`, `Gconcl.Real_Ideal` and `concl_at` also take `GF` with
+`GF.FinitelySupported` and `G ≤ GF.glob`: a variable chosen outside `glob GF`
+(`Footprint.exists_fresh_glob`) is outside `G`. `concl` and `neg_D_concl` pass `GF := fvP D`
+(`G := glob D`); `concl_at` passes `C.c ⊔ GF` for `A(D)`, and `Real_Concrete` passes
+`GF ⊔ (fvP D ⊔ C ⊔ Redo)` to `Conclusion_of_region` (`Footprint.glob_mono`,
+`Logic/GlobMono.lean`).
 
 **How to remove it.** Prove `fvP D ≤ fvP (Module.app D O)` for representable `D`: substitution and
 hole instantiation in the normaliser do not drop `D`'s code. Then derive `glob D ≤ glob (A D)` and

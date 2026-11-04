@@ -298,7 +298,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/SLCommon.lean`, namespace `GaudisC
 | 979 | declare axiom | `fi_ll` | section COUNT. | `fi_ll` (hypothesis) | def |
 | 981 | declare axiom | `CO_ll` | section COUNT. | `CO_ll` (hypothesis) | def |
 | 983 | declare axiom | `D_ll` | section COUNT. | `D_ll` (hypothesis) | def |
-| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` (`call (: bad, inv)`: `prhlProc_abstract_call_upto_module`, E11; its oracle subgoals `Pr_restr_F_upto`, `Pr_restr_f(i)_upto`, `FC_f_bad`, `PC_f(i)_bad`) | done |
+| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` (`call (: bad, inv)`: `prhlProc_abstract_call_upto_module`, E11; its oracle subgoals `Pr_restr_F_upto`, `Pr_restr_f(i)_upto`, `FC_f_bad`, `PC_f(i)_bad`); the instance `G := glob D` of `Pr_restr_of_region` (E14) | done |
 | 1014 | op | `hinv` |  | `hinv` | def |
 | 1017 | op | `hinvK` |  | `hinvK` | def |
 | 1020 | op | `huniq` |  | `huniq` | def |
@@ -323,9 +323,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/ConcreteF.lean`, namespace `Gaudis
 | 53 | local clone import | `Strong_RP_RF` | section . | `Switching` (namespace; variables are lens parameters, E6) | def (`realize uD_uf_fu`: `Switching.uD_uf_fu`, done) |
 | 77 | lemma | `size_behead` | section . | `size_behead` | done |
 | 80 | local module | `` | section . | `` | def |
-| 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` | stated |
+| 88 | local lemma | `DoubleBounding` | section . | `DoubleBounding` (equal-outside abstract call over `dbL = (c, C.c, C.queries, Redo.prefixes)`, invariant `dbI`; oracle steps `DB_P_f`, `DB_P_fi`, `DB_F_f`; `DBounder.FBounder.c` a fresh lens, E6) | done |
 | 220 | local clone import | `ProdSampling` | section . | `S` | def |
-| 224 | lemma | `Real_Concrete` | section . | `Real_Concrete` (`D_ll` over a region `G`) | stated (exc E14) |
+| 224 | lemma | `Real_Concrete` | section . | `Real_Concrete` (`D_ll` over a region `G ≤ glob GF`, E14; `FBounder.c`, `ARP.coll` fresh, E6). Steps: `GReal_GReal'` (equal-outside call over `grL`, oracle steps `GR_P_f`, `GR_P_fi`, `GR_F_f`), `Pr_restr_of_region`, `Indif_IND_Perm`, `DoubleBounding` (twice), `Conclusion_of_region` with `D'_ll`, `IND_ARP_PF` (EC's `ARP`/`PF` `sim`, `equiv_rnd_dprod`), `CF_IND_PF`; `p_ll`/`pi_ll` as `Perm_f_ll`/`Perm_fi_ll` | done (exc E6, E14) |
 
 ## `proof/smart_counter/Handle.eca`
 
@@ -414,7 +414,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Handle.lean`, namespace `GaudisCry
 | 2595 | equiv | `CF_G1` | section AUX. | `CF_G1` (up-to-bad call on `cfL`/`cfI`/`cfBad`/`cfQ`; inline EC facts as lemmas `PF_f_ll`, `G1_M_f_ll`, `DFRestr_M_f_bad`, `INV_CF_G1_init`, …) | done (exc E14) |
 | 2697 | declare module | `D` | section . | `D` (section variable) | def |
 | 2699 | declare axiom | `D_ll` | section . | `D_ll` (hypothesis) | def |
-| 2703 | lemma | `Real_G1` | section . | `Real_G1` | done modulo `ConcreteF.Real_Concrete` (exc E14) |
+| 2703 | lemma | `Real_G1` | section . | `Real_G1` | done (exc E14) |
 
 ## `proof/smart_counter/Gcol.eca`
 
@@ -1138,10 +1138,10 @@ Lean: `GaudisCrypt/Lib/EC/Strong_RP_RF.lean`, namespace `GaudisCrypt.EC.Strong_R
 | 311 | module | `DBounder` |  | `DBounder` (`D` a Lean parameter), `DBounder.FBounder` (variable: lens `c`) | def |
 | 354 | local module | `FEL` | section CollisionProbability. | — (the potential carries its invariant) | omitted |
 | 392 | lemma | `pr_PRFi_collision` | section CollisionProbability. | `pr_PRFi_collision` | done (exc E8) |
-| 494 | lemma | `PartialConclusion` |  | `PartialConclusion` | done (exc E6, E7, E8) |
+| 494 | lemma | `PartialConclusion` |  | `PartialConclusion` (the `glob D` instance of `PartialConclusion_of_region`, E14) | done (exc E6, E7, E8) |
 | 512 | local clone | `Dexcepted.TwoStepSampling` | section PRPi_PRPi'_Indirect. | `dexcepted_indirect` (`Lib/EC/Dexcepted.lean`) | done |
 | 532 | equiv | `eq_Direct_Indirect` | section PRPi_PRPi'_Indirect. | `eq_Direct_Indirect` (`={glob}` kept) | done |
 | 544 | local equiv | `eq_PRPi_PRPi'_f_Indirect` | section PRPi_PRPi'_Indirect. | `eq_PRPi_PRPi'_f_Indirect` | done |
 | 555 | local equiv | `eq_PRPi_PRPi'_fi_Indirect` | section PRPi_PRPi'_Indirect. | `eq_PRPi_PRPi'_fi_Indirect` | done |
 | 556 | lemma | `pr_PRPi_PRPi'_Indirect` | section PRPi_PRPi'_Indirect. | `pr_PRPi_PRPi'_Indirect` | done (exc E8) |
-| 568 | lemma | `Conclusion` |  | `Conclusion` | done (exc E6, E7, E8) |
+| 568 | lemma | `Conclusion` |  | `Conclusion` (the `glob D` instance of `Conclusion_of_region`, E14) | done (exc E6, E7, E8) |

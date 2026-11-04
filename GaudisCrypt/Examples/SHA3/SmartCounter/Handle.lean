@@ -3983,45 +3983,6 @@ theorem G1_S_f_ll :
   simp [(is_lossless_iff_expected bdistr).mp BitWord.dunifin_ll,
     (is_lossless_iff_expected cdistr).mp BitWord.dunifin_ll]
 
-/-- `SqueezelessSponge(P).f` is lossless when `P.f` is: its loop is counted (variant
-`size p - i`).  Not an EC lemma: EC proves it inline in `CF_G1`. -/
-theorem SqueezelessSponge_f_ll (P : DPRIMITIVE)
-    (hP : (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless) :
-    (Indifferentiability.FUNCTIONALITY.f state (List block) block
-      (Module.app SqueezelessSponge P)).procedure.IsLossless := by
-  rw [Procedure.isLossless_iff_phoareProc] at hP ⊢
-  refine phoareProc_eq_of_le_ge (fun _ _ _ => Procedure.ewp_const_le _ _ _ _) ?_
-  phoare_proc_to_stmt
-  phoare_inline 0
-  phoare_wp 1
-  phoare_while_ge 1 variant (size §p - §i).toNat
-  case body =>
-    phoare_wp 4
-    phoare_simp [hP]
-    phoare_skip
-    intros
-    split <;> simp
-  case exit => trivial
-  case decreases =>
-    intro k
-    hoare_wp 1
-    hoare_split 1
-    refine hoare_seq (hoare_if_wp (At := ?At) (Ae := ?Ae) ?_ ?_) ?_
-    rotate_left 2
-    · hoare_wp 1
-      exact hoare_skip_wp _
-    · hoare_wp 1
-      hoare_call
-      hoare_wp 1
-      exact hoare_skip_wp _
-    hoare_skip
-    rintro i p _ ⟨hlt, rfl⟩
-    simp only [decide_eq_true_eq] at hlt
-    exact ⟨fun _ => by omega, fun _ _ _ => by omega⟩
-  phoare_wp 4
-  phoare_skip
-  intros; exact le_rfl
-
 /-- `G1.M.f` is lossless: its loop is counted (variant `size p - i`).  Not an EC lemma: EC proves
 it inline in `CF_G1`. -/
 theorem G1_M_f_ll :
@@ -4312,11 +4273,6 @@ theorem INV_CF_G1_init :
     fp_module (Lens.pair PF.m PF.mi)
   simpa only [Footprint.lens_pair] using h
 
-/-- `SqueezelessSponge` touches `Redo.prefixes`.  Not an EC lemma. -/
-@[fp_bound] theorem fvP_SqueezelessSponge :
-    FVP.fvP SqueezelessSponge ≤ Redo.prefixes.footprint := by
-  fp_module Redo.prefixes
-
 set_option maxHeartbeats 8000000 in
 -- `within_lens` against a pair of seven variables is slow
 /-- `G1.M.f` touches `C.queries`, `F.RO.m`, `FRO.m`, `G1.mh`, `G1.mhi`, `G1.chandle`, `G1.bcol`.
@@ -4370,21 +4326,6 @@ theorem fvP_G1S : FVP.fvP G1.S ≤
   fp_module (Lens.pair F.RO.m (Lens.pair FRO.m (Lens.pair G1.m (Lens.pair G1.mi
     (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths
       (Lens.pair G1.bext G1.bcol)))))))))
-
-/-- `DFRestr(F).f` is lossless when `F.f` is: `rf_ll` without `{-C}`, which its proof does not
-use (`G1.M` reads `C.queries`).  Not an EC lemma (EC proves it inline in `CF_G1`). -/
-theorem rf_ll' (F : DFUNCTIONALITY) :
-    (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
-    (Indifferentiability.DFUNCTIONALITY.f state (List block) block
-      (Module.app DFRestr F)).procedure.IsLossless := by
-  intro hll
-  rw [Procedure.isLossless_iff_phoareProc] at hll ⊢
-  phoare_proc_to_stmt
-  phoare_inline 0
-  phoare_wp 5
-  phoare_simp [hll]
-  phoare_skip
-  simp
 
 /-- `PF` repackaged as `Indif` presents it to the distinguisher is its view. -/
 theorem view_PF_eq : Indifferentiability.DPRIMITIVE.mk state (List block) block
@@ -4670,6 +4611,7 @@ theorem Real_G1 (hD : Module.ECModule D distExt)
       (G1.mhi).footprint ⊔ G1.chandle.footprint ⊔ (G1.paths).footprint ⊔ G1.bext.footprint ⊔
       G1.bcol.footprint ⊔ (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔
       (ROhandle.RO.m).footprint ⊔ (ROhandle.FRO.m).footprint)ᶜ)
+    (GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
       FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
@@ -4684,7 +4626,8 @@ theorem Real_G1 (hD : Module.ECModule D distExt)
         (Procedure.Pr (G1 (DRestr D)).procedure () m (fun _ g => G1.bext.get g = true) : ℝ) := by
   have hR := Real_Concrete D hD
     (_hDd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub)))
-    G (_hGd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub))) D_ll m
+    G (_hGd.trans (Footprint.compl_antimono (by (try unfold C.footprint); fp_sub))) GF hGF hGGF
+    D_ll m
   have hC : Procedure.Pr (CF (DRestr D)).procedure () m (fun r _ => r = true) ≤
       Procedure.Pr (G1 (DRestr D)).procedure () m (fun r g => r = true ∨
         (G1.bcol.get g = true ∨ G1.bext.get g = true)) :=

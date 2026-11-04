@@ -1383,3 +1383,32 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
 * **Goal shapes after `simp_reads`**: some conjuncts become `True` (`p = p`) and stay; add `true_and`
   (and `ite_self`) before `refine ⟨…⟩`.
 
+
+## 2026-11-04: `ConcreteF.DoubleBounding`, `GReal_GReal'`, `Real_Concrete`
+
+* **`DoubleBounding`, `GReal_GReal'`: the equal-outside abstract call** over a lens of the
+  variables that differ (`dbL`, `grL`), with a pure invariant on their values (`dbI`, `grI`). An
+  oracle that writes a variable inside the lens is inlined, the inner call taken by
+  `prhlProc_self_equal_outside_module`, and the writes by the lens's `equal_outside` write lemmas.
+* **`stmt_inline{i} k` counts calls only** (not `reset_vars`, assignments, `var`). When one side
+  has an extra call (`CF`'s `FUNCTIONALITY.init`), `equiv_sim` lines up the wrong calls: inline the
+  extra one first.
+* **Module-view bridges by `rfl`**: `PRIMITIVE.view Perm = SPRP_Oracles.mk {f := PRP.f (PRPi…), …}`,
+  the same for `PF`, `DPRIMITIVE.mk {f := PRIMITIVE.f PF, …}`; `Perm_init_eq` and `PF_init_eq` by
+  `simp`. `Perm.f` is lossless after `rw [← PRIMITIVE.view_f, view_Perm_eq, dprim_f_mk]` (then
+  `phoare_ewp` and `excepted_lossless`).
+* **`fp_disjoint` limits met here.**
+  - An `@[fp_bound]` lemma does not fire under `glob` or for a functor parameter (`CO`) whose module
+    type is spelled differently. Instead, prove the side condition by hand with
+    `Footprint.le_compl_glob_symm`, `Footprint.globalVar_le_compl_glob` and the bound (`fvP_Perm_sup`).
+  - `DFUNCTIONALITY.mk {f := …}` unfolds into its expression form. Use `FUNCTIONALITY.view X` (equal
+    by `rfl`, `view_SS_eq`) and `rf_ll'` (no `{-C}`).
+  - A variable against a named footprint on the right (`≤ C.footprintᶜ`) needs `unfold C.footprint`.
+  - An abstract region against a join (`G ≤ (… ⊔ …)ᶜ`): `Footprint.le_compl_comm` and `sup_le`, by
+    hand.
+* **Fresh lenses outside `G`**: `Footprint.exists_fresh_glob T hGF hR` with `G ≤ GF.glob` gives
+  `L ≤ GF.globᶜ`, hence `G ≤ Lᶜ`. A `Lens.Disjoint` instance with a `global_var` comes from
+  `Lens.disjoint_of_footprint_le_compl … (by fp_disjoint)`; add the `.symm` too (instance search
+  needs both orders).
+* **The `Pr` chain** in ℝ: `rw` the NNReal equalities under the casts, `exact_mod_cast` for `≤`,
+  `abs_sub_le_iff.mp` for `Conclusion`, then `linarith`.

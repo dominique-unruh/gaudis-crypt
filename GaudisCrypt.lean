@@ -116,6 +116,7 @@ import GaudisCrypt.Logic.PRHLWpTest
 import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.FrameTactics
+import GaudisCrypt.Logic.GlobMono
 import GaudisCrypt.Logic.WritesKeepFrame
 import GaudisCrypt.Logic.StmtSwapTest
 import GaudisCrypt.Logic.StmtEquiv

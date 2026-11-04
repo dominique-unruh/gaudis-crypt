@@ -2274,6 +2274,7 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
+    (GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
       FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
@@ -2313,7 +2314,7 @@ theorem Real_G2 (hD : Module.ECModule D distExt)
   -- EC: `apply (ler_trans _ _ _ (Real_G1 D D_ll &m))`, then the four summands
   have hG1G2 := G1_G2 D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
   have h1 := Real_G1 D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) G
-    (_hGd.trans (Footprint.compl_antimono (by fp_sub))) D_ll m
+    (_hGd.trans (Footprint.compl_antimono (by fp_sub))) GF hGF hGGF D_ll m
   have h2 : Procedure.Pr (G1 (DRestr D)).procedure () m (fun r _ => r = true) =
       Procedure.Pr (Eager.main2 (G2 (DRestr D))).procedure () m (fun r _ => r = true) :=
     (Procedure.Pr_eq_of_prhlProc hG1G2 (fun _ _ _ _ h => by rw [h.1]) (a₂ := ()) rfl).trans

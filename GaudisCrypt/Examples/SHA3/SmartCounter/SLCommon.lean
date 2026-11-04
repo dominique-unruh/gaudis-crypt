@@ -1457,8 +1457,10 @@ proc;inline *;wp. call (_: max_size < C.c, ={glob P, glob CO, glob C}). + apply 
 auto;call (_:true);auto;call(:true);auto=>/#.`  The `call` is the up-to-bad abstract call rule
 (`prhlProc_abstract_call_upto_module`; `={glob …}` before the bad event as equal states, its
 oracle subgoals `Pr_restr_F_upto`, `Pr_restr_f_upto`, `Pr_restr_fi_upto`, `FC_f_bad`, `PC_f_bad`,
-`PC_fi_bad`; `D` lossless with both oracles by `D_ll`, exception E11). -/
-theorem Pr_restr (hD : Module.ECModule D (distExt))
+`PC_fi_bad`; `D` lossless with both oracles by `D_ll`, exception E11).
+`Pr_restr_of_region` states `D_ll` over a region `G` outside `P`, `CO` and `C` (exception E14);
+`Pr_restr` is its instance at `G = glob D`. -/
+theorem Pr_restr_of_region (hD : Module.ECModule D (distExt))
     (_hP : FVP.fvP P ≤ C.footprintᶜ)
      (_hCO : FVP.fvP CO ≤ (C.footprint ⊔ (FVP.fvP P).glob)ᶜ)
     (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (FVP.fvP P).glob ⊔ (FVP.fvP CO).glob)ᶜ)
@@ -1467,8 +1469,10 @@ theorem Pr_restr (hD : Module.ECModule D (distExt))
     (CO_ll : (Indifferentiability.FUNCTIONALITY.f state (List block) block
       (Module.app CO (Indifferentiability.PRIMITIVE.view state (List block) block
         P))).procedure.IsLossless)
-    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
-      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+    (G : Footprint VariableAssignment) (_hPG : FVP.fvP P ≤ Gᶜ) (_hCOG : FVP.fvP CO ≤ Gᶜ)
+    (_hCG : G ≤ C.footprintᶜ)
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+      FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
@@ -1583,6 +1587,34 @@ theorem Pr_restr (hD : Module.ECModule D (distExt))
     rcases hpost with hb | ⟨hr, _⟩
     · exact absurd hle (not_le.mpr hb)
     · exact hr.symm
+
+/-- EC's `Pr_restr` (see `Pr_restr_of_region`), `D_ll` over `glob D`. -/
+theorem Pr_restr (hD : Module.ECModule D (distExt))
+    (_hP : FVP.fvP P ≤ C.footprintᶜ)
+     (_hCO : FVP.fvP CO ≤ (C.footprint ⊔ (FVP.fvP P).glob)ᶜ)
+    (_hDd : FVP.fvP D ≤ (C.footprint ⊔ (FVP.fvP P).glob ⊔ (FVP.fvP CO).glob)ᶜ)
+    (f_ll : (Indifferentiability.PRIMITIVE.f state (List block) block P).procedure.IsLossless)
+    (fi_ll : (Indifferentiability.PRIMITIVE.fi state (List block) block P).procedure.IsLossless)
+    (CO_ll : (Indifferentiability.FUNCTIONALITY.f state (List block) block
+      (Module.app CO (Indifferentiability.PRIMITIVE.view state (List block) block
+        P))).procedure.IsLossless)
+    (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ (FVP.fvP D).globᶜ →
+      FVP.fvP P ≤ (FVP.fvP D).globᶜ →
+      (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
+      (Indifferentiability.DPRIMITIVE.fi state (List block) block P).procedure.IsLossless →
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block F).procedure.IsLossless →
+      (Module.app D (Module.pair F P)).procedure.IsLossless)
+    (m : VariableAssignment) :
+    Procedure.Pr (Module.app Indif (Module.pair
+        (Module.app FC
+          (Module.app CO (Indifferentiability.PRIMITIVE.view state (List block) block P)))
+        (Module.pair (Module.app PC P) D))).procedure
+        () m (fun r g => r = true ∧ C.c.get g ≤ max_size) ≤
+      Procedure.Pr (Module.app Indif (Module.pair
+        (Module.app CO (Indifferentiability.PRIMITIVE.view state (List block) block P))
+        (Module.pair P (DRestr D)))).procedure () m (fun r _ => r = true) :=
+  Pr_restr_of_region P CO D hD _hP _hCO _hDd f_ll fi_ll CO_ll (FVP.fvP D).glob
+    (by fp_disjoint) (by fp_disjoint) (by fp_disjoint) D_ll m
 
 end COUNT
 

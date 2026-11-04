@@ -1470,6 +1470,7 @@ theorem Real_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_h
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (F.RO.m).footprint ⊔ (Redo.prefixes).footprint ⊔ (FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
+    (GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
     (D_ll : ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
       FVP.fvP P ≤ Gᶜ →
       (Indifferentiability.DPRIMITIVE.f state (List block) block P).procedure.IsLossless →
@@ -1515,7 +1516,7 @@ theorem Real_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_h
     simp only [Footprint.lens_pair]
     fp_disjoint
   -- EC: `apply (ler_trans _ _ _ (Real_G2 D D_ll &m))`, then the chain of `byequiv`s
-  have h := Real_G2 D hD hX G _hGd D_ll m
+  have h := Real_G2 D hD hX G _hGd GF hGF hGGF D_ll m
   have e1 := Procedure.Pr_eq_of_prhlProc (G2_G3 D hD _hDd _hG) (E₁ := fun r _ => r = true)
     (E₂ := fun r _ => r = true) (fun _ _ _ _ h => by rw [h]) (a₁ := ()) (a₂ := ()) (σ₁ := m)
     (σ₂ := m) rfl

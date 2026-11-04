@@ -6313,6 +6313,7 @@ theorem concl_at (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔ (SLCommon.F.RO.m).footprint ⊔
       (SLCommon.Redo.prefixes).footprint ⊔ (Handle.FRO.m).footprint ⊔
       (ROhandle.RO.m).footprint)ᶜ)
+    (GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
     (D_ll : D_lossless_at D G) (m : VariableAssignment) :
     (Procedure.Pr (RealIndif Sponge P (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) ≤
       (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S)
@@ -6329,7 +6330,10 @@ theorem concl_at (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     unfold Gconcl.Gext0Fresh
     exact hA.trans (sup_le _hG (by fp_disjoint))
   have h := Gconcl.Real_Ideal (A D) hAm hR hGA (BlockSponge.C.c.footprint ⊔ G)
-    (sup_le (by fp_disjoint) hGX) (A_lossless_at D G hGc D_ll) m
+    (sup_le (by fp_disjoint) hGX) (BlockSponge.C.c.footprint ⊔ GF)
+    ((Footprint.FinitelySupported.globalVar _).sup hGF)
+    (sup_le (Footprint.le_glob_of_le le_sup_left) (hGGF.trans (Footprint.glob_mono le_sup_right)))
+    (A_lossless_at D G hGc D_ll) m
   have e1 := pr_real D hD (_hDd.trans (Footprint.compl_antimono (by fp_sub))) m
   have e2 := equiv_ideal D hD ⟨_hDd.trans (Footprint.compl_antimono (by fp_sub)),
     _hDd.trans (Footprint.compl_antimono (by fp_sub))⟩
@@ -6367,7 +6371,8 @@ theorem concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
         (Procedure.Pr (IdealIndif BlockSponge.BIRO.IRO.asF (SimLast Gconcl.S)
           (DRestr D)).procedure () m (fun r _ => r = true) : ℝ) + bound := by
   intro D_ll m
-  exact concl_at D hD _hDd _hG _ (glob_hyps D hD _hDd _hG).1 (glob_hyps D hD _hDd _hG).2 D_ll m
+  exact concl_at D hD _hDd _hG _ (glob_hyps D hD _hDd _hG).1 (glob_hyps D hD _hDd _hG).2
+    (FVP.fvP D) hD.finitelySupported le_rfl D_ll m
 
 end Real_Ideal
 
@@ -6572,6 +6577,7 @@ theorem neg_D_concl (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   have hNg : Gext0Fresh (Real_Ideal_Abs.Neg_D D) := hN.trans _hG
   obtain ⟨hGc, hGX⟩ := glob_hyps D hD _hDd _hG
   have hc := concl_at (Real_Ideal_Abs.Neg_D D) hNm hNd hNg _ hGc hGX
+    (FVP.fvP D) hD.finitelySupported le_rfl
     (fun F0 P0 hF hP => Real_Ideal_Abs.Neg_D_lossless D _D_lossless F0 P0 hF hP) m
   have eI := Procedure.Pr_eq_of_prhlProc (Indif_Neg_D BlockSponge.BIRO.IRO.asF
     (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
