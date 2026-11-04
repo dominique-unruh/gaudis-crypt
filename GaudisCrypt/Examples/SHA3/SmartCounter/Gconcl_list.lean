@@ -2277,15 +2277,6 @@ def DRestrictions_Ideal2 (D : DISTINGUISHER) : Prop :=
   DRestrictions_Ideal D ∧ FVP.fvP D ≤ ((F2.RO.m).footprint ⊔ (BlockSponge.BIRO.IRO.mp).footprint ⊔
     (BIRO2.IRO.mp).footprint)ᶜ
 
-/-- `local equiv equiv_L3_L4 : L3(D, F.RO).distinguish ~ L4(D, F.RO, F2.RO).distinguish :
-={glob D} ==> ={glob D, res}`. -/
-theorem equiv_L3_L4 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
-    (_hDd : DRestrictions_Ideal2 D) :
-    prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
-      (L3 D SLCommon.F.RO.asRO).procedure (L4 D SLCommon.F.RO.asRO F2.RO.asRO).procedure
-      (fun r₁ g₁ r₂ g₂ => eqGlob D g₁ g₂ ∧ r₁ = r₂) := by
-  sorry
-
 def inv_map (m1 : FMap (List block) block) (m2 : FMap (List block × ℤ) block) : Prop :=
   (∀ p n x, parse x = (p, n + 1) → (FMap.dom m2 (p, n) ↔ FMap.dom m1 x)) ∧
   (∀ p n x, parse x = (p, n + 1) → (FMap.dom m1 x ↔ FMap.dom m2 (p, n))) ∧
@@ -3044,6 +3035,783 @@ theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
       exact hg
     · simp_reads
       trivial
+
+/-- `equiv_L3_L4`'s invariant (EC: `={glob S, glob C, glob F.RO, glob F2.RO}`). -/
+abbrev L34Inv := sInv (Lens.pair SLCommon.F.RO.m F2.RO.m) (Lens.pair SLCommon.F.RO.m F2.RO.m) Eq
+
+/-- `IF2(F.RO, F2.RO).f ~ Last(DSqueeze2(F.RO, F2.RO)).f` (EC: `equiv_L3_L4`'s simulator `call`):
+the sampling loop of `IF2` against `DSqueeze2`'s `get` loop, in lockstep; `IF2`'s final `get` finds
+its entry. -/
+theorem IF2_Last :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L34Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block
+        (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app Last (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.FUNCTIONALITY.view_f]
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§(localVarLens "x0" (List block)){1} = format §p0{2} §n{2} ∧ §p{1} = §p0{2} ∧
+      §n{1} = §n{2} ∧ §pp{2} = §p0{2} ∧ §nn{2} = §n{2} ∧ 0 < §n{1} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
+      §lres{2} = [] ∧ L34Inv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨rfl, h⟩
+    rw [formatK]
+    exact ⟨rfl, rfl, rfl, rfl, rfl, parse_gt0 x, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ x0 p n i p0 n' pp nn i' lres ⟨-, rfl, -⟩
+    rfl
+  case «then» =>
+    simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp,
+      PROM.FullRO.RO_T.sample.mk_simp]
+    equiv_seq 1 0 : (§i{1} = §n{1} ∧ §x0{1} = format §p{1} §n{1} ∧ 0 < §n{1} ∧
+        last b0 §lres{2} = oget (FMap.get §SLCommon.F.RO.m{1} §x0{1}) ∧
+        FMap.dom §SLCommon.F.RO.m{1} §x0{1} ∧ L34Inv §allGlobals{1} §allGlobals{2})
+    · equiv_seq 1 1 : (§i{1} = §i{2} ∧ §p{1} = §p0{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+          0 < §n{1} ∧ §x0{1} = format §p0{2} §n{2} ∧
+          (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
+            FMap.dom §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
+          L34Inv §allGlobals{1} §allGlobals{2})
+      · equiv_if{2}
+        case «then» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          obtain ⟨⟨⟨-, -, hn, -, -, hn0, -⟩, -⟩, hg⟩ := h
+          simp only [decide_eq_true_eq] at hg
+          omega
+        case «else» =>
+          equiv_skip
+          rintro g₁ g₂ x0 p n i p0 n' pp nn i' lres
+            ⟨⟨⟨rfl, rfl, rfl, -, -, hn0, rfl, rfl, rfl, h⟩, -⟩, -⟩
+          exact ⟨rfl, rfl, rfl, le_rfl, hn0.le, hn0, rfl, fun h => absurd h (lt_irrefl _), h⟩
+      equiv_while (§i{1} = §i{2} ∧ §p{1} = §p0{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+          0 < §n{1} ∧ §x0{1} = format §p0{2} §n{2} ∧
+          (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
+            FMap.dom §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
+          L34Inv §allGlobals{1} §allGlobals{2})
+      case guard =>
+        rintro g₁ g₂ i p n x0 i' p0 n' lres ⟨rfl, -, rfl, -⟩
+        rfl
+      case exit =>
+        rintro g₁ g₂ i p n x0 i' p0 n' lres ⟨rfl, rfl, rfl, hi0, hin, hn0, rfl, hl, h⟩ hg
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        obtain rfl : i = n := le_antisymm hin hg
+        obtain ⟨hl1, hd⟩ := hl hn0
+        exact ⟨rfl, rfl, hn0, hl1, hd, h⟩
+      case body =>
+        stmt_wp
+        stmt_inline{1} 0
+        stmt_inline{1} 0
+        stmt_inline{2} 0
+        stmt_wp
+        equiv_rnd
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ i p n x0 i' p0 n' lres
+          ⟨⟨rfl, rfl, rfl, hi0, hin, hn0, rfl, hl, ⟨hsm, hsmi, hsp, hR, hc⟩⟩, hg⟩
+        have hm : SLCommon.F.RO.m.get g₁ = SLCommon.F.RO.m.get g₂ := by
+          simpa [Lens.pair] using congrArg Prod.fst hR
+        have hm2 : F2.RO.m.get g₁ = F2.RO.m.get g₂ := by
+          simpa [Lens.pair] using congrArg Prod.snd hR
+        intro a _
+        simp only [decide_eq_true_eq] at hg
+        rw [← hm]
+        by_cases hd : FMap.dom (SLCommon.F.RO.m.get g₁) (format p (i + 1))
+        all_goals simp only [hd, decide_true, decide_false, Bool.not_true, Bool.not_false,
+          Bool.false_eq_true, if_true, if_false]
+        · refine ⟨trivial, trivial, trivial, by omega, by omega, hn0, trivial,
+            fun _ => ⟨by simp [last, rcons], trivial⟩, hsm, hsmi, hsp, hR, hc⟩
+        · refine ⟨trivial, trivial, trivial, by omega, by omega, hn0, trivial,
+            fun _ => ⟨by simp [last, rcons], ?_⟩, ?_⟩
+          · simp [FMap.domE]
+          · simp only [L34Inv, sInv, Lens.pair] at hR ⊢
+            simp_reads
+            exact ⟨hsm, hsmi, hsp, by rw [hm, hm2], hc⟩
+      case hpre =>
+        equiv_skip
+        intros
+        assumption
+    stmt_inline{1} 0
+    stmt_wp
+    stmt_wp{1} 1
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ i n x0 p lres ⟨rfl, rfl, hn0, hl, hd, h⟩
+    refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+    simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+    exact ⟨hl.symm, h⟩
+  case «else» =>
+    simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp,
+      PROM.FullRO.RO_T.sample.mk_simp]
+    equiv_seq 1 0 : (§i{1} = §n{1} ∧ §x0{1} = format §p{1} §n{1} ∧ 0 < §n{1} ∧
+        last b0 §lres{2} = oget (FMap.get §F2.RO.m{1} §x0{1}) ∧
+        FMap.dom §F2.RO.m{1} §x0{1} ∧ L34Inv §allGlobals{1} §allGlobals{2})
+    · equiv_seq 1 1 : (§i{1} = §i{2} ∧ §p{1} = §pp{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+          0 < §n{1} ∧ §x0{1} = format §pp{2} §n{2} ∧
+          (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §F2.RO.m{1} (format §p{1} §i{1})) ∧
+            FMap.dom §F2.RO.m{1} (format §p{1} §i{1})) ∧ L34Inv §allGlobals{1} §allGlobals{2})
+      · equiv_rcondf{2}
+        equiv_if{2}
+        case «then» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          obtain ⟨⟨⟨-, -, hn, -, hnn, hn0, -⟩, -⟩, hg⟩ := h
+          simp only [decide_eq_true_eq] at hg
+          omega
+        case «else» =>
+          equiv_skip
+          rintro g₁ g₂ x0 p n i p0 n' pp nn i' lres
+            ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hn0, rfl, rfl, rfl, h⟩, -⟩, -⟩
+          exact ⟨by simp, rfl, rfl, rfl, le_rfl, hn0.le, hn0, rfl,
+            fun h => absurd h (lt_irrefl _), h⟩
+      equiv_while (§i{1} = §i{2} ∧ §p{1} = §pp{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+          0 < §n{1} ∧ §x0{1} = format §pp{2} §n{2} ∧
+          (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §F2.RO.m{1} (format §p{1} §i{1})) ∧
+            FMap.dom §F2.RO.m{1} (format §p{1} §i{1})) ∧ L34Inv §allGlobals{1} §allGlobals{2})
+      case guard =>
+        rintro g₁ g₂ i p n x0 i' pp n' lres ⟨rfl, -, rfl, -⟩
+        rfl
+      case exit =>
+        rintro g₁ g₂ i p n x0 i' pp n' lres ⟨rfl, rfl, rfl, hi0, hin, hn0, rfl, hl, h⟩ hg
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        obtain rfl : i = n := le_antisymm hin hg
+        obtain ⟨hl1, hd⟩ := hl hn0
+        exact ⟨rfl, rfl, hn0, hl1, hd, h⟩
+      case body =>
+        stmt_wp
+        stmt_inline{1} 0
+        stmt_inline{1} 0
+        stmt_inline{2} 0
+        stmt_wp
+        equiv_rnd
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ i p n x0 i' pp n' lres
+          ⟨⟨rfl, rfl, rfl, hi0, hin, hn0, rfl, hl, ⟨hsm, hsmi, hsp, hR, hc⟩⟩, hg⟩
+        have hm : F2.RO.m.get g₁ = F2.RO.m.get g₂ := by
+          simpa [Lens.pair] using congrArg Prod.snd hR
+        have hm1 : SLCommon.F.RO.m.get g₁ = SLCommon.F.RO.m.get g₂ := by
+          simpa [Lens.pair] using congrArg Prod.fst hR
+        intro a _
+        simp only [decide_eq_true_eq] at hg
+        rw [← hm]
+        by_cases hd : FMap.dom (F2.RO.m.get g₁) (format p (i + 1))
+        all_goals simp only [hd, decide_true, decide_false, Bool.not_true, Bool.not_false,
+          Bool.false_eq_true, if_true, if_false]
+        · refine ⟨trivial, trivial, trivial, by omega, by omega, hn0, trivial,
+            fun _ => ⟨by simp [last, rcons], trivial⟩, hsm, hsmi, hsp, hR, hc⟩
+        · refine ⟨trivial, trivial, trivial, by omega, by omega, hn0, trivial,
+            fun _ => ⟨by simp [last, rcons], ?_⟩, ?_⟩
+          · simp [FMap.domE]
+          · simp only [L34Inv, sInv, Lens.pair] at hR ⊢
+            simp_reads
+            exact ⟨hsm, hsmi, hsp, by rw [hm, hm1], hc⟩
+      case hpre =>
+        equiv_skip
+        intros
+        assumption
+    stmt_inline{1} 0
+    stmt_wp
+    stmt_wp{1} 1
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ i n x0 p lres ⟨rfl, rfl, hn0, hl, hd, h⟩
+    refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+    simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+    exact ⟨hl.symm, h⟩
+
+
+/-- `IF2_Last`, with `IF2` seen as a `DFUNCTIONALITY`. -/
+theorem IF2_Last_view :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L34Inv g₁ g₂)
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Indifferentiability.FUNCTIONALITY.view state (List block) block
+          (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block) block
+        (Module.app Last (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
+  rw [Indifferentiability.FUNCTIONALITY.view_f]
+  exact IF2_Last
+
+/-- `S(IF2).f ~ S2(DSqueeze2).f` under `L34Inv` (`S_f_sInvD` with `IF2_Last`). -/
+theorem S_IF2_S2_f :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L34Inv g₁ g₂)
+      (Indifferentiability.PRIMITIVE.f state (List block) block
+        (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
+          (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
+      (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+        (Module.app S2 (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call (S_f_sInvD IF2_Last_view)
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, h⟩
+  exact ⟨⟨rfl, h⟩, fun _ _ _ _ h => h⟩
+
+/-- `S(IF2).f ~ S2(DSqueeze2).f` under `L34Inv` (`S_f_sInvD` with `IF2_Last`). -/
+theorem S_IF2_S2_fi :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L34Inv g₁ g₂)
+      (Indifferentiability.PRIMITIVE.fi state (List block) block
+        (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
+          (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
+      (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+        (Module.app S2 (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
+          (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_call (S_fi_sInvD (K₁ := Lens.pair SLCommon.F.RO.m F2.RO.m)
+    (K₂ := Lens.pair SLCommon.F.RO.m F2.RO.m) (R := Eq))
+  stmt_wp
+  equiv_skip
+  rintro g₁ g₂ x _ ⟨rfl, h⟩
+  exact ⟨⟨rfl, h⟩, fun _ _ _ _ h => h⟩
+
+/-- `IF2.f(format bl k) ~ F.RO.get(format bl k)` when the shorter prefixes `format bl j`, `j < k`,
+are known (EC: `equiv_L3_L4`'s `splitwhile{1} 1 : i1 + 1 < n1`): `IF2`'s samples of known entries
+are dropped, its last one is coupled with `get`, and its final `get` finds the entry. -/
+theorem IF2_get (bl : List block) (k : ℤ) :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> block)
+      (fun a₁ g₁ a₂ g₂ => a₁ = format bl k ∧ a₂ = format bl k ∧ valid bl = true ∧ 0 < k ∧
+        (∀ j, 1 ≤ j → j < k → FMap.dom (SLCommon.F.RO.m.get g₁) (format bl j)) ∧ L34Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block
+        (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))).procedure
+      (PROM.FullRO.RO_T.get (List block) block SLCommon.F.RO.asRO).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂ ∧
+        ∀ j, 1 ≤ j → j ≤ k → FMap.dom (SLCommon.F.RO.m.get g₁) (format bl j)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.sample.mk_simp]
+  stmt_inline{2} 0
+  repeat stmt_inline{1} 0
+  equiv_seq 2 3 : (§x0{1} = format bl k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = 0 ∧
+      §x0{2} = format bl k ∧ valid bl = true ∧ 0 < k ∧
+      (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
+      L34Inv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x₁ x₂ ⟨rfl, rfl, hv, hk, hpre, h⟩
+    rw [parseK bl k hk (by simpa [valid] using hv)]
+    exact ⟨rfl, rfl, rfl, rfl, hv, hk, hpre, h⟩
+  equiv_seq 1 1 : (§(localVarLens "b" block){1} = oget (FMap.get §SLCommon.F.RO.m{2} §x0{2}) ∧
+      L34Inv §allGlobals{1} §allGlobals{2} ∧
+      ∀ j, 1 ≤ j → j ≤ k → FMap.dom §SLCommon.F.RO.m{1} (format bl j))
+  rotate_left
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if{1}
+  case «else» =>
+    refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+    obtain ⟨⟨-, hp, -, -, -, hv, -⟩, hg⟩ := h
+    rw [hp, hv] at hg
+    exact Bool.noConfusion hg
+  case «then» =>
+    equiv_seq 5 0 : (0 < k ∧ §x0{1} = format bl k ∧ §x0{2} = format bl k ∧
+        (∀ j, 1 ≤ j → j ≤ k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
+        L34Inv §allGlobals{1} §allGlobals{2})
+    rotate_left
+    · stmt_wp
+      stmt_wp{1} 1
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x0 x0' ⟨hk, rfl, rfl, hall, h⟩
+      have hd := hall k (by omega) le_rfl
+      have hm : SLCommon.F.RO.m.get g₁ = SLCommon.F.RO.m.get g₂ := by
+        simpa [Lens.pair] using congrArg Prod.fst h.2.2.2.1
+      refine ⟨bdistr_expected_one, fun a _ => ?_⟩
+      simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+      exact ⟨by rw [hm], h, hall⟩
+    refine prhlStmt_splitwhile_left
+      ⟨fun σ => decide ((localVarLens "i" ℤ).get σ + 1 < (localVarLens "n" ℤ).get σ)⟩
+      (fun σ => ((localVarLens "n" ℤ).get σ - (localVarLens "i" ℤ).get σ).toNat) ?_ ?_
+    · intro k'
+      simp only [Getter.andB_get, Bool.and_eq_true]
+      hoare_wp 7
+      hoare_skip
+      rintro i n p m ⟨⟨h1, h2⟩, rfl⟩ a _
+      simp only [ite_self]
+      simp only [decide_eq_true_eq] at h2
+      omega
+    unfold Getter.andB
+    equiv_seq 1 2 : (0 < k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = k - 1 ∧ §x0{1} = format bl k ∧
+        §x0{2} = format bl k ∧ (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
+        L34Inv §allGlobals{1} §allGlobals{2})
+    · equiv_while{1} (§p{1} = bl ∧ §n{1} = k ∧ 0 ≤ §i{1} ∧ §i{1} ≤ k - 1 ∧
+          §x0{1} = format bl k ∧ §x0{2} = format bl k ∧
+          (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
+          L34Inv §allGlobals{1} §allGlobals{2}) ((§n{1} - §i{1}).toNat)
+      case lossless =>
+        intro σ₂ σ _ _
+        simp [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_sample, Stmt.ewp_ifThenElse]
+        simp only [Stmt.ewp_skip, ite_self]
+        exact bdistr_expected_one
+      case «variant» =>
+        intro σ₂ k'
+        hoare_wp 7
+        refine hoare_skip_of_imp (fun σ h => ?_)
+        simp only [eval_lens_full, eval_lens_global] at h
+        obtain ⟨⟨hp, hn, hi0, hik, hx, hx', hpre, hI⟩, hg, hk⟩ := h
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+        have hi0' : 0 ≤ (localVarLens "i" ℤ).get σ := by simpa using hi0
+        have hik' : (localVarLens "i" ℤ).get σ ≤ k - 1 := by simpa using hik
+        have hn' : (localVarLens "n" ℤ).get σ = k := by simpa using hn
+        have hk' : ((localVarLens "n" ℤ).get σ - (localVarLens "i" ℤ).get σ).toNat = k' := by
+          simpa using hk
+        have hg' : (localVarLens "i" ℤ).get σ + 1 < (localVarLens "n" ℤ).get σ := by
+          simpa using hg.2
+        intro a _
+        have hd : FMap.dom (SLCommon.F.RO.m.get σ.globals)
+            (format ((localVarLens "p" (List block)).get σ) ((localVarLens "i" ℤ).get σ + 1)) := by
+          rw [hp]; exact hpre _ (by omega) (by omega)
+        simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+        exact ⟨⟨hp, hn, by omega, by omega, hx, hx', hpre, hI⟩, by omega⟩
+      case exit =>
+        rintro g₁ g₂ x0' p n i x0 ⟨rfl, rfl, hi0, hik, rfl, rfl, hpre, h⟩ hg
+        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at hg
+        exact ⟨by omega, rfl, rfl, by omega, rfl, rfl, hpre, h⟩
+      equiv_skip
+      rintro g₁ g₂ x0 p n i x0' ⟨⟨rfl, rfl, rfl, rfl, rfl, hv, hk, hpre, h⟩, -⟩
+      exact ⟨rfl, rfl, le_rfl, by omega, rfl, rfl, hpre, h⟩
+    refine prhlStmt_unroll_left ?_
+    equiv_if{1}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      obtain ⟨⟨-, -, hn, hi, -⟩, hg⟩ := h
+      simp only [decide_eq_false_iff_not, not_lt] at hg
+      omega
+    case «then» =>
+      equiv_rcondf{1}
+      stmt_wp
+      equiv_rnd
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ p n i x0 x0' ⟨⟨hk, hp, hn, hi, hx, hx', hpre, h⟩, -⟩ a _
+      subst p n i x0 x0'
+      have hm : SLCommon.F.RO.m.get g₁ = SLCommon.F.RO.m.get g₂ := by
+        simpa [Lens.pair] using congrArg Prod.fst h.2.2.2.1
+      have hm2 : F2.RO.m.get g₁ = F2.RO.m.get g₂ := by
+        simpa [Lens.pair] using congrArg Prod.snd h.2.2.2.1
+      rw [show k - 1 + 1 = k by ring, ← hm]
+      by_cases hd : FMap.dom (SLCommon.F.RO.m.get g₁) (format bl k)
+      all_goals simp only [hd, decide_true, decide_false, Bool.not_true, Bool.not_false,
+        Bool.false_eq_true, if_true, if_false, ite_self, lt_irrefl, decide_false]
+      · exact ⟨trivial, hk, trivial, trivial, fun j h1 h2 => by
+          rcases (show j < k ∨ j = k by omega) with hj | rfl
+          · exact hpre j h1 hj
+          · exact hd, h⟩
+      · refine ⟨trivial, hk, trivial, trivial, fun j h1 h2 => ?_, ?_⟩
+        · rw [FMap.mem_set]
+          rcases (show j < k ∨ j = k by omega) with hj | rfl
+          · exact Or.inl (hpre j h1 hj)
+          · exact Or.inr rfl
+        simp only [L34Inv, sInv, Lens.pair] at h ⊢
+        simp_reads
+        exact ⟨h.1, h.2.1, h.2.2.1, by rw [hm, hm2], h.2.2.2.2⟩
+
+omit [BlockSponge.Params] [Params] in
+/-- `F.RO.get` as `RO`'s procedure. -/
+theorem F_RO_get_eq : PROM.FullRO.RO_T.get (List block) block SLCommon.F.RO.asRO =
+    PROM.FullRO.RO.get (List block) block SLCommon.F.dout SLCommon.F.RO.m := by
+  simp [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO,
+    PROM.FullRO.ROmap.get.mk_simp]
+
+omit [BlockSponge.Params] [Params] in
+/-- `F.RO.sample` as `RO`'s procedure. -/
+theorem F_RO_sample_eq : PROM.FullRO.RO_T.sample (List block) block SLCommon.F.RO.asRO =
+    PROM.FullRO.ROmap.sample (List block) block
+      (PROM.FullRO.RO (List block) block SLCommon.F.dout SLCommon.F.RO.m) := by
+  simp [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.sample.mk_simp]
+
+/-- `IF2.f(format bl 1) ~ F.RO.sample(format bl 1)` (`IF2_get`, the result discarded). -/
+theorem IF2_sample (bl : List block) :
+    prhlProc (sig₁ := procsig (List block) -> block) (sig₂ := procsig (List block) -> Unit)
+      (fun a₁ g₁ a₂ g₂ => a₁ = format bl 1 ∧ a₂ = format bl 1 ∧ valid bl = true ∧
+        L34Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block) block
+        (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))).procedure
+      (PROM.FullRO.RO_T.sample (List block) block SLCommon.F.RO.asRO).procedure
+      (fun _ g₁ _ g₂ => L34Inv g₁ g₂) := by
+  rw [F_RO_sample_eq]
+  equiv_proc
+  stmt_inline{2} 0
+  simp only [← F_RO_get_eq]
+  stmt_wp
+  equiv_call (IF2_get bl 1)
+  stmt_wp
+  equiv_skip
+  rintro σ₂ g₁ x ⟨rfl, hx, hv, h⟩
+  refine ⟨⟨rfl, hx, hv, fun j h1 h2 => absurd h2 (by omega), h⟩, fun r₁ g₁ r₂ g₂ ⟨_, h', _⟩ => ?_⟩
+  simp only [Setter.throwaway]
+  simp_reads
+  exact h'
+
+/-- `DSqueeze(IF2).f ~ FValid(DSqueeze2).f` (EC: `equiv_L3_L4`'s functionality `call`). For `n > 0`:
+the first `get` of `DSqueeze2` is unrolled against `IF2.f(p)`, `DSqueeze`'s loop is split before its
+last round (EC's `splitwhile{1} 8 : i + 1 < n`), and each call is `IF2_get`. -/
+theorem DS_IF2_FValid :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L34Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state (List block) block
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block) block
+              (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)) }))).procedure
+      (Indifferentiability.DFUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FValid
+          (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧
+      §(localVarLens "r" (List block)){2} = [] ∧
+      §(localVarLens "b" block){1} = b0 ∧ §i{1} = 0 ∧ L34Inv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨rfl, h⟩
+    exact ⟨rfl, rfl, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ p n lres b i p' n' r ⟨rfl, -⟩
+    rfl
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ p n lres b i p' n' r ⟨⟨-, -, rfl, rfl, -, -, h⟩, -⟩
+    exact ⟨rfl, h⟩
+  case «then» =>
+    stmt_inline{2} 0
+    stmt_wp
+    equiv_seq 2 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §lres{1} = [] ∧ §lres0{2} = [] ∧
+        §i{1} = 0 ∧ §i0{2} = 0 ∧ valid §p{1} = true ∧ L34Inv §allGlobals{1} §allGlobals{2})
+    · stmt_wp
+      equiv_skip
+      rintro g₁ g₂ p n lres b i p' n' r ⟨⟨rfl, rfl, rfl, -, -, rfl, h⟩, hv⟩
+      exact ⟨rfl, rfl, rfl, rfl, hv, h⟩
+    equiv_if{2}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      obtain ⟨⟨hp, -, -, -, -, -, hv, -⟩, hg⟩ := h
+      rw [← hp, hv] at hg
+      exact Bool.noConfusion hg
+    case «then» =>
+      equiv_case (§n{1} ≤ 0)
+      case hp =>
+        equiv_rcondf{1}
+        equiv_rcondf{2}
+        equiv_if{2}
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          obtain ⟨⟨⟨⟨-, hn, -⟩, -⟩, hle⟩, hg⟩ := h
+          simp only [decide_eq_false_iff_not, not_le] at hg
+          omega
+        case «then» =>
+          refine prhlStmt_fix_left (fun σ => (localVarLens "p" (List block)).get σ) (fun q => ?_)
+          equiv_call (IF2_sample q)
+          equiv_skip
+          rintro σ₂ g₁ p n lres i ⟨⟨⟨⟨⟨hp, hn, hl, hl0, hi, hi0, hv, h⟩, -⟩, hle⟩, -⟩, hq⟩
+          subst hq
+          refine ⟨⟨by rw [format_one], by rw [format_one, ← hp], hv, h⟩,
+            fun r₁ g₁' r₂ g₂' h' => ?_⟩
+          simp only [Setter.throwaway]
+          simp_reads
+          refine ⟨?_, ?_, by rw [hl, hl0], h'⟩
+          · simp only [decide_eq_false_iff_not, not_lt]
+            rw [hi0, ← hn]
+            exact hle
+          · simp only [decide_eq_false_iff_not, not_lt]
+            omega
+      case hn =>
+        equiv_seq 2 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §lres{1} = [] ∧ §lres0{2} = [] ∧
+            §i{1} = 0 ∧ §i0{2} = 0 ∧ valid §p{1} = true ∧ 0 < §n{1} ∧
+            L34Inv §allGlobals{1} §allGlobals{2})
+        · equiv_if{2}
+          case «then» =>
+            refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+            obtain ⟨⟨⟨⟨-, hn, -⟩, -⟩, hle⟩, hg⟩ := h
+            simp only [decide_eq_true_eq] at hg
+            omega
+          case «else» =>
+            equiv_skip
+            rintro g₁ g₂ p n lres i p0 n0 lres0 i0
+              ⟨⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hv, h⟩, -⟩, hle⟩, -⟩
+            exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, hv, by omega, h⟩
+        refine prhlStmt_unroll_right ?_
+        equiv_if{2}
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          obtain ⟨⟨-, hn, -, -, -, hi0, -, hpos, -⟩, hg⟩ := h
+          simp only [decide_eq_false_iff_not, not_lt] at hg
+          omega
+        case «then» =>
+          equiv_seq 1 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
+              §i0{2} ≤ §n{1} ∧ rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
+              valid §p{1} = true ∧ 0 < §n{1} ∧
+              (∀ j, 1 ≤ j → j ≤ §i0{2} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
+              L34Inv §allGlobals{1} §allGlobals{2})
+          · stmt_wp
+            refine prhlStmt_fix_left (fun σ => (localVarLens "p" (List block)).get σ) (fun q => ?_)
+            equiv_call (IF2_get q 1)
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ p n lres i p0 n0 lres0 i0
+              ⟨⟨⟨hp, hn, hl, hl0, hi, hi0, hv, hpos, h⟩, hg⟩, hq⟩
+            subst hq hl hl0 hi hi0
+            refine ⟨⟨by rw [format_one], by rw [hp, zero_add, format_one], hv,
+              fun j h1 h2 => absurd h2 (by omega), h⟩,
+              fun r₁ g₁ r₂ g₂ ⟨hr, h', hd⟩ => ⟨hp, hn, rfl, le_rfl, by omega, by rw [hr], hv, hpos,
+                (fun j h1 h2 => hd j h1 (by omega)), h'⟩⟩
+          refine prhlStmt_splitwhile_left
+            ⟨fun σ => decide ((localVarLens "i" ℤ).get σ + 1 < (localVarLens "n" ℤ).get σ)⟩
+            (fun σ => ((localVarLens "n" ℤ).get σ - (localVarLens "i" ℤ).get σ).toNat) ?_ ?_
+          · intro k'
+            simp only [Getter.andB_get, Bool.and_eq_true]
+            hoare_split 1
+            refine hoare_seq (hoare_if_wp (hoare_call_wp _ _ _ (hoareProc_true _) _)
+              (hoare_skip_wp _)) ?_
+            hoare_wp 2
+            refine hoare_skip_of_imp (fun σ h => ?_)
+            obtain ⟨⟨-, h2⟩, hk⟩ := h
+            have h2' : (localVarLens "i" ℤ).get σ + 1 < (localVarLens "n" ℤ).get σ := by
+              simpa using h2
+            have hk' : ((localVarLens "n" ℤ).get σ - (localVarLens "i" ℤ).get σ).toNat = k' := by
+              simpa using hk
+            refine ⟨fun _ _ _ => ?_, fun _ => ?_⟩
+            all_goals
+              show ((localVarLens "n" ℤ).get σ - ((localVarLens "i" ℤ).get σ + 1)).toNat < k'
+              omega
+          unfold Getter.andB
+          equiv_seq 1 0 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i{1} + 1 = §n{1} ∧
+              rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
+              L34Inv §allGlobals{1} §allGlobals{2})
+          · equiv_while (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
+              §i0{2} ≤ §n{1} ∧ rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
+              valid §p{1} = true ∧ 0 < §n{1} ∧
+              (∀ j, 1 ≤ j → j ≤ §i0{2} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
+              L34Inv §allGlobals{1} §allGlobals{2})
+            case guard =>
+              rintro g₁ g₂ p n i lres b p0 n0 i0 lres0 ⟨-, hn, hi, -, hle, -⟩
+              rw [← hn, hi]
+              by_cases h : i + 1 < n
+              · simp only [h, decide_true, Bool.and_true, decide_eq_true_eq]
+                omega
+              · simp only [h, decide_false, Bool.and_false]
+            case exit =>
+              rintro g₁ g₂ p n i lres b p0 n0 i0 lres0 ⟨hp, hn, hi, hi0', hle, hl, -, -, -, h⟩ hg
+              simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at hg
+              exact ⟨hp, hn, by omega, hl, h⟩
+            case body =>
+              stmt_wp
+              equiv_seq 1 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 < §i{1} ∧
+                  §i{1} < §n{1} ∧ §lres{1} = §lres0{2} ∧ valid §p{1} = true ∧ 0 < §n{1} ∧
+                  (∀ j, 1 ≤ j → j ≤ §i{1} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
+                  L34Inv §allGlobals{1} §allGlobals{2})
+              · stmt_wp
+                equiv_skip
+                rintro g₁ g₂ p n i lres b p0 n0 i0 lres0
+                  ⟨⟨hp, hn, hi, hi0', hle, hl, hv, hpos, hdom, h⟩, hg⟩
+                simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+                exact ⟨hp, hn, by omega, by omega, hg.2, hl, hv, hpos,
+                  fun j h1 h2 => hdom j h1 (by omega), h⟩
+              equiv_if{1}
+              case «else» =>
+                refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+                obtain ⟨⟨-, -, -, -, hlt, -⟩, hg⟩ := h
+                simp only [decide_eq_false_iff_not, not_lt] at hg
+                omega
+              case «then» =>
+                refine prhlStmt_fix_left (fun σ => ((localVarLens "p" (List block)).get σ,
+                  (localVarLens "i" ℤ).get σ)) (fun q => ?_)
+                equiv_call (IF2_get q.1 (q.2 + 1))
+                equiv_skip
+                rintro g₁ g₂ p n i lres p0 n0 i0 lres0
+                  ⟨⟨⟨hp, hn, hi, hi0, hlt, hl, hv, hpos, hdom, h⟩, -⟩, hq⟩
+                subst hq hp hi
+                refine ⟨⟨rfl, rfl, hv, by omega, fun j h1 h2 => hdom j h1 (by omega), h⟩,
+                  fun r₁ g₁ r₂ g₂ ⟨hr, h', hd⟩ => ⟨rfl, hn, rfl, by omega, by omega,
+                    by rw [hl, hr], hv, hpos, fun j h1 h2 => ?_, h'⟩⟩
+                exact hd j h1 h2
+            case hpre =>
+              equiv_skip
+              intros
+              assumption
+          refine prhlStmt_unroll_left ?_
+          equiv_if{1}
+          case «else» =>
+            refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+            obtain ⟨⟨-, -, hi, -⟩, hg⟩ := h
+            simp only [decide_eq_false_iff_not, not_lt] at hg
+            omega
+          case «then» =>
+            equiv_rcondf{1}
+            equiv_seq 1 0 : (§i{1} = §n{1} ∧ §lres{1} = §lres0{2} ∧
+                L34Inv §allGlobals{1} §allGlobals{2})
+            · stmt_wp
+              equiv_skip
+              rintro g₁ g₂ p n i lres b p0 n0 lres0 ⟨⟨-, -, hi, hl, h⟩, -⟩
+              exact ⟨hi, hl, h⟩
+            equiv_if{1}
+            case «then» =>
+              refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+              obtain ⟨⟨hi, -⟩, hg⟩ := h
+              simp only [decide_eq_true_eq] at hg
+              omega
+            case «else» =>
+              equiv_skip
+              rintro g₁ g₂ i n lres lres0 ⟨⟨-, hl, h⟩, hg⟩
+              exact ⟨hg, hl, h⟩
+
+/-- `FC` over `DS_IF2_FValid`. -/
+theorem FC_L34 :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L34Inv g₁ g₂)
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+          { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+              (Module.app DSqueeze (Indifferentiability.DFUNCTIONALITY.mk state (List block) block
+                { f := Indifferentiability.FUNCTIONALITY.f state (List block) block
+                    (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)) })) }))).procedure
+      (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+        (Module.app FC (Module.app FValid
+          (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+            { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+                (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)) })))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+      L34Inv §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨rfl, h⟩
+    exact ⟨rfl, rfl, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ bl nb _ _ _ _ ⟨rfl, rfl, -, ⟨-, -, -, -, hc⟩⟩
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ bl nb z _ _ _ ⟨⟨rfl, rfl, rfl, h⟩, -⟩
+    exact ⟨rfl, h⟩
+  case «then» =>
+    equiv_call DS_IF2_FValid
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ bl nb z _ _ _ ⟨⟨rfl, rfl, -, ⟨hsm, hsmi, hsp, hR, hc⟩⟩, -⟩
+    refine ⟨⟨rfl, ?_⟩, fun _ _ _ _ h => h⟩
+    simp only [L34Inv, sInv] at hR ⊢
+    simp_reads
+    exact ⟨hsm, hsmi, hsp, hR, by rw [hc]⟩
+
+/-- `local equiv equiv_L3_L4 : L3(D, F.RO).distinguish ~ L4(D, F.RO, F2.RO).distinguish :
+={glob D} ==> ={glob D, res}`. -/
+theorem equiv_L3_L4 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
+    (_hDd : DRestrictions_Ideal2 D) :
+    prhlProc (fun _ g₁ _ g₂ => eqGlob D g₁ g₂)
+      (L3 D SLCommon.F.RO.asRO).procedure (L4 D SLCommon.F.RO.asRO F2.RO.asRO).procedure
+      (fun r₁ g₁ r₂ g₂ => eqGlob D g₁ g₂ ∧ r₁ = r₂) := by
+  have hsm : (Gconcl.S.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hsmi : (Gconcl.S.mi).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hspa : (Gconcl.S.paths).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hro : (SLCommon.F.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hf2 : (F2.RO.m).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.2.trans (Footprint.compl_antimono (by gcol_fp)))
+  have hcc : (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ :=
+    (Footprint.le_compl_comm _ _).mp (_hDd.1.trans (Footprint.compl_antimono (by gcol_fp)))
+  let Lg := Lens.pair Gconcl.S.m (Lens.pair Gconcl.S.mi (Lens.pair Gconcl.S.paths
+    (Lens.pair (Lens.pair SLCommon.F.RO.m F2.RO.m) BlockSponge.C.c)))
+  let I : SLCommon.smap × SLCommon.smap × FMap capacity (List block × block) ×
+      (FMap (List block) block × FMap (List block) block) × ℤ →
+      SLCommon.smap × SLCommon.smap × FMap capacity (List block × block) ×
+      (FMap (List block) block × FMap (List block) block) × ℤ → Prop := fun x y =>
+    x.1 = y.1 ∧ x.2.1 = y.2.1 ∧ x.2.2.1 = y.2.2.1 ∧ x.2.2.2.1 = y.2.2.2.1 ∧
+      x.2.2.2.2 = y.2.2.2.2
+  have hI : ∀ g₁ g₂, I (Lg.get g₁) (Lg.get g₂) ↔ L34Inv g₁ g₂ := fun _ _ => Iff.rfl
+  have hL : FVP.fvP D ≤ (Lg.footprint)ᶜ := by
+    refine (Footprint.le_compl_comm _ _).mpr ?_
+    simp only [Lg, Footprint.lens_pair]
+    exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le (sup_le hro hf2) hcc)))
+  unfold L3 L4 SLCommon.IdealIndif IdealIndif Indifferentiability.GIdeal
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    intro g₁ g₂ h
+    refine ⟨?_, (hI _ _).mpr ?_⟩
+    · simp only [touched_set_of_le_compl hsm, touched_set_of_le_compl hsmi,
+        touched_set_of_le_compl hspa, touched_set_of_le_compl hro, touched_set_of_le_compl hf2,
+        touched_set_of_le_compl hcc]
+      exact h
+    · simp only [L34Inv, sInv, Lens.pair]
+      simp_reads
+      trivial
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_moduleF Lg D distExt hD.representable
+      (FVP.fvP D) le_rfl hL I ?hc _ _ ?horacle) ?_
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List block × ℤ))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable state)
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable state)
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, Indifferentiability.DFUNCTIONALITY.f.mk_simp]
+        exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+          (prhlProc_conseq FC_L34 (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+            (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+      | succ n => cases n with
+        | zero =>
+          simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+            Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+          exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+            (prhlProc_conseq (PC_f_sInv S_IF2_S2_f) (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+              (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+        | succ n => cases n with
+          | zero =>
+            simp only [Indifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp]
+            exact prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep')
+              (prhlProc_conseq (PC_fi_sInv S_IF2_S2_fi) (fun _ _ _ _ h => ⟨h.1, (hI _ _).mp h.2⟩)
+                (fun _ _ _ _ h => ⟨h.1, (hI _ _).mpr h.2⟩))
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    refine ⟨⟨rfl, h⟩, ?_⟩
+    rintro r g₁ _ g₂ ⟨rfl, hg, -⟩
+    simp_reads
+    exact hg
 
 -- `L4(D)(F)(F2.RO)` as an `F.RO_Distinguisher`, for `RO_LRO_D`: EC applies `RO_LRO_D` to
 -- `D5(D)`, the distinguisher left after inlining `L4`; here to the whole of `L4` (whose

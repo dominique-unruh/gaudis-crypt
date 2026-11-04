@@ -1305,3 +1305,28 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
 * **`rintro … rfl` between two variables** (`p₁ = bl` with `bl` a theorem argument) may eliminate
   the argument. Name the equation and `subst p₁` instead.
 
+## 2026-11-04: `Gconcl_list.equiv_L3_L4`
+
+* **`stmt_inline{i} k` reaches call sites inside loop bodies** (`k` counts call sites). After
+  `repeat stmt_inline{1} 0` a loop body is call-free, so the `lossless`/`variant` goals of a
+  one-sided `equiv_while{i}` are about samplings and assignments only. `lossless`: `simp [Stmt.ewp_seq,
+  Stmt.ewp_assign, Stmt.ewp_sample, Stmt.ewp_ifThenElse]`, then `simp only [Stmt.ewp_skip, ite_self]`
+  and the distribution's mass (`bdistr_expected_one`).
+* **A discarded `RO.get` of a known entry.** `stmt_wp` folds `get`'s `if`, then `stmt_wp{i} 1` drops the
+  draw (with `bdistr_expected_one`).
+* **Keep the other side's statements when cutting.** A leading `stmt_wp` folds the other side's
+  deterministic suffix (an `if` after a sampling) into the postcondition. Cut around the statements
+  instead (`equiv_seq 2 3`, …).
+* **`RO_T.get F.RO.asRO` against `RO.get`.** Inlining `sample` exposes `FullRO.RO.get …`, while the
+  game's calls read `RO_T.get … F.RO.asRO`. The bridges `F_RO_get_eq` and `F_RO_sample_eq` (`simp`)
+  convert between them. `rw` them at the `prhlProc` goal before `equiv_proc`, where the other side's
+  module terms are folded.
+* **Two spellings of a local read.** `omega` treats `(localVarLens "i" ℤ).get σ` from the program and
+  from a `§i` in an invariant as different atoms, because their `autoParam` proofs differ. Restate
+  the hypotheses with `have h' : … := by simpa using h` and the goal with `show …`, in one spelling.
+* **`rintro` patterns.** An `rfl` against `x = k` with `k` a theorem argument can eliminate `k`; name
+  the equation and `subst x`. Count `⟨` for left-nested `((A ∧ B) ∧ C) ∧ D` preconditions: one per
+  level.
+* **Inside an anonymous constructor**, `fun j h1 h2 => by tac; exact h` swallows the following
+  components. Parenthesize it.
+

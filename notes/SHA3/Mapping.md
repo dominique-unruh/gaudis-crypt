@@ -571,7 +571,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 657 | local module | `DValid` | section Ideal. | `DValid` (`D` a Lean parameter; E5) | def |
 | 659 | local module | `S2` | section Ideal. | `S2` (call wrapper, E5) | def |
 | 661 | local module | `L4` | section Ideal. | `L4` (Lean function) | def |
-| 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` | stated |
+| 665 | local equiv | `equiv_L3_L4` | section Ideal. | `equiv_L3_L4` (steps `IF2_Last`, `IF2_get`, `IF2_sample`, `DS_IF2_FValid`, `FC_L34`, `S_IF2_S2_f`, `S_IF2_S2_fi`; after `equiv_L4_ideal` in the file, for the `S_*_sInvD` lemmas) | done |
 | 788 | op | `inv_map` | section Ideal. | `inv_map` | def |
 | 794 | inductive | `INV_L4_ideal` | section Ideal. | `INV_L4_ideal` | def |
 | 801 | local lemma | `lemma5` | section Ideal. | `lemma5` | done |
@@ -579,7 +579,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 843 | local equiv | `equiv_L4_ideal` | section Ideal. | `equiv_L4_ideal` (oracle steps `FC_FValid_f`, `PC_f_sInv S2_SimLast_f`, `PC_fi_sInv S2_SimLast_fi`; inner step `DSqueeze2_Valid_f` via `Last_f_L4`; invariant `L4Inv`) | done |
 | 916 | local module | `D5` | section Ideal. | — (`RO_LRO_D` is applied to `L4F`, the whole `L4(D)(F)(F2.RO)`, instead; E5) | exc |
 | 919 | local module | `D6` | section Ideal. | — (`L4G`, the whole `L4(D)(F.LRO)(F2)`, instead; E5) | exc |
-| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (steps `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`; modulo `equiv_L3_L4`) | done |
+| 922 | lemma | `equiv_ideal` | section Ideal. | `equiv_ideal` (steps `L2_RO_LRO`, `L_RO_LRO`, `L4_F_RO_LRO`, `L4_F2_RO_LRO`, `equiv_L3_L4`) | done |
 | 973 | inductive | `m_p` | section Real. | `m_p` | def |
 | 979 | inductive | `INV_Real` | section Real. | `INV_Real` | def |
 | 987 | local lemma | `INV_Real_incr` | section Real. | `INV_Real_incr` | done |
