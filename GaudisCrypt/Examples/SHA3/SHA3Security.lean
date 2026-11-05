@@ -642,6 +642,155 @@ theorem Sponge_init_eq (P : DPRIMITIVE) :
   rw [Sponge.apply_simp]
   exact Module.fst_pair _ _
 
+/-! ### The ideal side of the sections' second `have`
+
+`GIdeal(RO, SimSetSize(Simulator), D(A))` against `IdealIndif(BIRO.IRO, Simulator,
+DRestr(DSetSize(D(A))))`: the two games differ in `Cntr.c`, `SRO.RO.RO.m` (left) and `BIRO.IRO.mp`
+(right); EC's invariant `={glob SRO.Counter} /\ ={c}(SRO.Counter, Cntr) /\ same_ro SRO.RO.RO.m{1}
+BIRO.IRO.mp{2}` is the states equal outside `idealL` with `idealI`. -/
+
+/-- The variables of the ideal side's invariant: `Cntr.c`, `SRO.Counter.c`, `SRO.RO.RO.m`,
+`BIRO.IRO.mp`. -/
+noncomputable def idealL :
+    Lens (ℤ × ℤ × (FMap (List Bool) f_out × FMap (List Bool × ℤ) Bool)) VariableAssignment :=
+  Lens.pair Cntr.c (Lens.pair SRO.Counter.c (Lens.pair SRO.RO.RO.m IRO.mp))
+
+/-- EC's `={glob SRO.Counter} /\ ={c}(SRO.Counter, Cntr) /\ same_ro SRO.RO.RO.m{1}
+BIRO.IRO.mp{2}`, on the contents of `idealL`. -/
+def idealI (v₁ v₂ : ℤ × ℤ × (FMap (List Bool) f_out × FMap (List Bool × ℤ) Bool)) : Prop :=
+  v₁.2.1 = v₂.2.1 ∧ v₂.1 = v₂.2.1 ∧ same_ro v₁.2.2.1 v₂.2.2.2
+
+/-- `idealL`'s contents. -/
+@[simp] theorem idealL_get (g : VariableAssignment) :
+    idealL.get g = (Cntr.c.get g, SRO.Counter.c.get g, SRO.RO.RO.m.get g, IRO.mp.get g) := rfl
+
+/-- `idealL`'s footprint, its variables'. -/
+theorem idealL_footprint : idealL.footprint = Cntr.c.footprint ⊔ (SRO.Counter.c.footprint ⊔
+    ((SRO.RO.RO.m).footprint ⊔ (IRO.mp).footprint)) := by
+  simp only [idealL, Footprint.lens_pair]
+
+/-- A write of `SRO.Counter.c` is a write of `idealL`. -/
+theorem idealL_Counter_eq (g : VariableAssignment) (u : ℤ) :
+    SRO.Counter.c.set u g =
+      idealL.set (Cntr.c.get g, u, SRO.RO.RO.m.get g, IRO.mp.get g) g := by
+  simp only [idealL, Lens.pair, IRO.mp.get_set, SRO.RO.RO.m.get_set]
+  rw [show Cntr.c.get g = Cntr.c.get (SRO.Counter.c.set u g) from
+    (Lens.get_of_disjoint_set _ _ _ _).symm, Cntr.c.get_set]
+
+/-- A write of `Cntr.c` is a write of `idealL`. -/
+theorem idealL_Cntr_eq (g : VariableAssignment) (u : ℤ) :
+    Cntr.c.set u g = idealL.set (u, SRO.Counter.c.get g, SRO.RO.RO.m.get g, IRO.mp.get g) g := by
+  simp only [idealL, Lens.pair, IRO.mp.get_set, SRO.RO.RO.m.get_set, SRO.Counter.c.get_set]
+
+/-- A write of `SRO.RO.RO.m` is a write of `idealL`. -/
+theorem idealL_ROm_eq (g : VariableAssignment) (u : FMap (List Bool) f_out) :
+    SRO.RO.RO.m.set u g = idealL.set (Cntr.c.get g, SRO.Counter.c.get g, u, IRO.mp.get g) g := by
+  simp only [idealL, Lens.pair, IRO.mp.get_set]
+  rw [show SRO.Counter.c.get g = SRO.Counter.c.get (SRO.RO.RO.m.set u g) from
+      (Lens.get_of_disjoint_set _ _ _ _).symm, SRO.Counter.c.get_set,
+    show Cntr.c.get g = Cntr.c.get (SRO.RO.RO.m.set u g) from
+      (Lens.get_of_disjoint_set _ _ _ _).symm, Cntr.c.get_set]
+
+/-- A write of `BIRO.IRO.mp` is a write of `idealL`. -/
+theorem idealL_IROmp_eq (g : VariableAssignment) (u : FMap (List Bool × ℤ) Bool) :
+    IRO.mp.set u g =
+      idealL.set (Cntr.c.get g, SRO.Counter.c.get g, SRO.RO.RO.m.get g, u) g := by
+  simp only [idealL, Lens.pair]
+  rw [show SRO.RO.RO.m.get g = SRO.RO.RO.m.get (IRO.mp.set u g) from
+      (Lens.get_of_disjoint_set _ _ _ _).symm, SRO.RO.RO.m.get_set,
+    show SRO.Counter.c.get g = SRO.Counter.c.get (IRO.mp.set u g) from
+      (Lens.get_of_disjoint_set _ _ _ _).symm, SRO.Counter.c.get_set,
+    show Cntr.c.get g = Cntr.c.get (IRO.mp.set u g) from
+      (Lens.get_of_disjoint_set _ _ _ _).symm, Cntr.c.get_set]
+
+/-- Writes of `SRO.Counter.c` keep the states equal outside `idealL`. -/
+theorem idealL_Counter {g₁ g₂ : VariableAssignment} (h : idealL.equal_outside g₁ g₂) (u v : ℤ) :
+    idealL.equal_outside (SRO.Counter.c.set u g₁) (SRO.Counter.c.set v g₂) := by
+  rw [idealL_Counter_eq g₁, idealL_Counter_eq g₂]
+  exact (h.set_left _).set_right _
+
+/-- A write of `Cntr.c` on the right keeps the states equal outside `idealL`. -/
+theorem idealL_Cntr_right {g₁ g₂ : VariableAssignment} (h : idealL.equal_outside g₁ g₂) (v : ℤ) :
+    idealL.equal_outside g₁ (Cntr.c.set v g₂) := by
+  rw [idealL_Cntr_eq g₂]
+  exact h.set_right _
+
+/-- A write of `SRO.RO.RO.m` on the left keeps the states equal outside `idealL`. -/
+theorem idealL_ROm_left {g₁ g₂ : VariableAssignment} (h : idealL.equal_outside g₁ g₂)
+    (v : FMap (List Bool) f_out) : idealL.equal_outside (SRO.RO.RO.m.set v g₁) g₂ := by
+  rw [idealL_ROm_eq g₁]
+  exact h.set_left _
+
+/-- A write of `BIRO.IRO.mp` on the right keeps the states equal outside `idealL`. -/
+theorem idealL_IROmp_right {g₁ g₂ : VariableAssignment} (h : idealL.equal_outside g₁ g₂)
+    (v : FMap (List Bool × ℤ) Bool) : idealL.equal_outside g₁ (IRO.mp.set v g₂) := by
+  rw [idealL_IROmp_eq g₂]
+  exact h.set_right _
+
+/-- `SRO.Bounder.bounder` is outside `idealL`. -/
+instance : Lens.Disjoint SRO.Bounder.bounder idealL := by unfold idealL; infer_instance
+
+/-- `FInit(RO)`, as the sections' games spell it (an abbreviation). -/
+noncomputable abbrev idealF₁ : SecureRO.RF (List Bool) f_out :=
+  SecureRO.RF.mk (List Bool) f_out
+    { init := IndifRO_is_secure.FInit.init (block × capacity) (List Bool) f_out,
+      get := Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+        (Indifferentiability.DFUNCTIONALITY.mk (block × capacity) (List Bool) f_out
+          { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool) f_out RO }) }
+
+/-- `FInit(DFSetSize(FC(BIRO.IRO)))`, as the sections' games spell it (an abbreviation). -/
+noncomputable abbrev idealF₂ : SecureRO.RF (List Bool) f_out :=
+  SecureRO.RF.mk (List Bool) f_out
+    { init := IndifRO_is_secure.FInit.init (block × capacity) (List Bool) f_out,
+      get := Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+        (Module.app DFSetSize (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+          (List Bool × ℤ) (List Bool)
+          { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+              (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+                (List Bool × ℤ) (List Bool)
+                { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+                    (List Bool) BIRO.IRO.asF })) })) }
+
+/-- `idealF₁.get` is `equiv_ro_iro`'s left procedure. -/
+theorem idealF₁_get : SecureRO.RF.get (List Bool) f_out idealF₁ = ro_iro_left := by
+  simp [idealF₁, ro_iro_left, Indifferentiability.FUNCTIONALITY.view]
+
+/-- `idealF₂.get` is `equiv_ro_iro`'s right procedure. -/
+theorem idealF₂_get : SecureRO.RF.get (List Bool) f_out idealF₂ = ro_iro_right := by
+  simp [idealF₂, ro_iro_right, Indifferentiability.FUNCTIONALITY.view]
+
+/-- The clone's `SRO.RO.RO` touches its map only.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_SRO_RO :
+    FVP.fvP (SecureRO.RO.RO (List Bool) f_out dout SRO.RO.RO.m) ≤ (SRO.RO.RO.m).footprint := by
+  fp_module SRO.RO.RO.m
+
+/-- `equiv_ro_iro`'s left procedure touches `SRO.RO.RO.m` only. -/
+theorem fvP_ro_iro_left : FVP.fvP ro_iro_left ≤ (SRO.RO.RO.m).footprint := by
+  unfold ro_iro_left RO
+  fp_le
+
+/-- `equiv_ro_iro`'s right procedure touches `Cntr.c` and `BIRO.IRO.mp` only. -/
+theorem fvP_ro_iro_right : FVP.fvP ro_iro_right ≤ Cntr.c.footprint ⊔ (IRO.mp).footprint := by
+  unfold ro_iro_right
+  fp_le
+
+
+/-- `SimSetSize(Simulator, F).init` is `Simulator.init`. -/
+theorem SimSetSize_init_eq (F : Indiff0.DFUNCTIONALITY) :
+    Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool) f_out
+      (Module.app (SimSetSize Simulator) F) = Simulator.init := by
+  unfold SimSetSize
+  rw [Module.app_comp]
+  erw [Simulator.apply_simp]
+  exact Module.fst_pair _ _
+
+/-- `RO.init` is `SRO.RO.RO.init`. -/
+theorem RO_init_eq :
+    Indifferentiability.FUNCTIONALITY.init (block × capacity) (List Bool) f_out RO =
+      PROM.FullRO.RO_T.init (List Bool) f_out (SecureRO.RO.RO (List Bool) f_out dout
+        SRO.RO.RO.m) := by
+  simp [RO, IndifRO_is_secure.RO]
+
 /-! ## The section `Preimage`, with `declare module A <: SRO.AdvPreimage {…, -DPre}` and
 `declare axiom A_ll` (its local declarations in the namespace `Preimage`) -/
 
@@ -1088,6 +1237,170 @@ theorem real_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
     obtain ⟨⟨hc, hm, hmi⟩, hcn, hinv⟩ := hI
     simp only [decide_eq_true_eq] at hg
     refine ⟨⟨rfl, ⟨hm, hmi⟩, hinv, by rw [hcn, ← hc], rfl, ?_⟩, fun r₁ _ r₂ _ h => by rw [h.1]⟩
+    rw [hcn, ← hc]
+    exact hg.le
+
+/-- EC's oracle premise `proc; sp; if; auto; sp; if; auto; sp; exists* x{1}; elim* => a c1 c2 b1
+b2; call (equiv_ro_iro c1 a)` of the sections' ideal-side `call`: `Bounder(FInit(RO)).get ~
+Bounder(FInit(DFSetSize(FC(BIRO.IRO)))).get`, the states equal outside `idealL` with `idealI`.  Not an
+EC lemma. -/
+theorem ideal_oracle :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ idealL.equal_outside g₁ g₂ ∧
+        idealI (idealL.get g₁) (idealL.get g₂))
+      (SecureRO.RF.get (List Bool) f_out (Module.app (SecureRO.Bounder (List Bool) f_out sigma
+        increase_counter limit SRO.Counter.c SRO.Bounder.bounder) idealF₁)).procedure
+      (SecureRO.RF.get (List Bool) f_out (Module.app (SecureRO.Bounder (List Bool) f_out sigma
+        increase_counter limit SRO.Counter.c SRO.Bounder.bounder) idealF₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idealL.equal_outside g₁ g₂ ∧
+        idealI (idealL.get g₁) (idealL.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+      idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ ⟨-, -, he, -⟩
+    rw [he.get_disjoint]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
+    exact ⟨hy, he, hI⟩
+  case «then» =>
+    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+        idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
+    · stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x0 y x0' y' ⟨⟨hx, hy, he, hI⟩, -⟩
+      refine ⟨hx, hy, ?_, ?_⟩
+      · rw [he.get_disjoint]
+        exact he.set_disjoint _
+      · simp only [idealL_get] at hI ⊢
+        exact hI
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ x0 y x0' y' ⟨rfl, -, -, hI⟩
+      simp only [idealL_get, idealI] at hI
+      rw [hI.1]
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
+      exact ⟨hy, he, hI⟩
+    case «then» =>
+      refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+        (localVarLens "x0" (List Bool)).get σ)) fun q => ?_
+      have hC₁ : ∀ a, (procedureDenotation ro_iro_left.procedure a).inFootprint
+          (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+        (Module.Proc.inFootprint_fvP _ a) (fvP_ro_iro_left.trans (by fp_disjoint))
+      have hC₂ : ∀ a, (procedureDenotation ro_iro_right.procedure a).inFootprint
+          (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+        (Module.Proc.inFootprint_fvP _ a) (fvP_ro_iro_right.trans (by fp_disjoint))
+      have hS := prhlProc_frame_equal_outside_module idealL ro_iro_left ro_iro_right
+        (by rw [idealL_footprint]; exact fvP_ro_iro_left.trans (by fp_le))
+        (by rw [idealL_footprint]; exact fvP_ro_iro_right.trans (by fp_le))
+        (prhlProc_frame_lens SRO.Counter.c SRO.Counter.c hC₁ hC₂
+          (fun a b => a = increase_counter q.1 q.2 ∧ b = increase_counter q.1 q.2)
+          (equiv_ro_iro q.1 q.2))
+      erw [idealF₁_get, idealF₂_get]
+      equiv_call hS
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x0 y x0' y' ⟨⟨⟨rfl, -, he, hI⟩, hg⟩, rfl⟩
+      simp only [idealL_get, idealI] at hI
+      obtain ⟨hc, hcn, hs⟩ := hI
+      simp only [decide_eq_true_eq] at hg
+      refine ⟨⟨⟨⟨rfl, ?_, ?_⟩, rfl, by rw [← hc]⟩, idealL_Counter he _ _⟩, ?_⟩
+      · exact hs
+      · simp only [counter_pre]
+        simp_reads
+        refine ⟨by rw [hcn, ← hc], ?_⟩
+        rw [hcn, ← hc]
+        exact hg.le
+      · rintro r₁ g₁' r₂ g₂' ⟨⟨⟨rfl, hs', hcn'⟩, hc1, hc2⟩, he'⟩
+        refine ⟨rfl, he', ?_⟩
+        simp only [idealL_get, idealI]
+        exact ⟨by rw [hc1, hc2], by rw [hcn', hc2]; rfl, hs'⟩
+
+/-- The second `have` of EC's `Sponge_preimage_resistant`: `Pr[Indiff0.Indif(RO, SimSetSize(Simulator,
+RO), DPre(A)).main() @ &m : res] = Pr[IdealIndif(BIRO.IRO, Simulator, DRestr(DSetSize(DPre(A)))).main()
+@ &m : res]`, by EC's `byequiv`: the initializations, `call (: ={glob SRO.Counter, glob SRO.Bounder,
+glob DPre} /\ ={c}(SRO.Counter, Cntr) /\ same_ro SRO.RO.RO.m{1} BIRO.IRO.mp{2})` (`ideal_oracle`),
+and `call (equiv_ro_iro c mess)`. -/
+theorem ideal_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
+    (hAd : FVP.fvP A ≤ (idealL.footprint)ᶜ) (ha : f_out) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂ ∧ DPre.h.get g₁ = ha)
+      (Indifferentiability.GIdeal (block × capacity) (List Bool) f_out RO
+        (SimSetSize Simulator)
+        (IndifRO_is_secure.DPre (block × capacity) (List Bool) f_out sigma limit increase_counter
+          SRO.Counter.c SRO.Bounder.bounder DPre.h A)).procedure
+      (IdealIndif BIRO.IRO.asF Simulator (DRestr (DSetSize (IndifRO_is_secure.DPre
+        (block × capacity) (List Bool) f_out sigma limit increase_counter SRO.Counter.c
+        SRO.Bounder.bounder DPre.h A)))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 2
+  rw [SimSetSize_init_eq, RO_init_eq]
+  repeat stmt_inline{1} 0
+  stmt_wp
+  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
+      §hash{1} = §hash{2} ∧
+      idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module idealL A
+      SRO.Oracle.ext hA.representable hAd idealI (fun n => by cases n with
+        | zero => exact inferInstanceAs (Countable (List Bool))
+        | succ m => nomatch m) _ _ (fun n => by cases n with
+        | zero =>
+          simp only [SecureRO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
+            SecureRO.Oracle.get.mk_simp]
+          exact ideal_oracle
+        | succ m => nomatch m)) ?_
+    stmt_wp
+    equiv_skip
+    rintro g _ ⟨rfl, -⟩
+    refine ⟨⟨rfl, ?_, ?_⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he, hI⟩ => ⟨hr, rfl, he, hI⟩⟩
+    · exact idealL_Counter ((idealL_Counter (idealL_Cntr_right (idealL_IROmp_right
+        (idealL_ROm_left (Lens.equal_outside.refl _) _) _) _) 0 0).set_disjoint
+          (X := SRO.Bounder.bounder) 0) 0 0
+    · simp only [idealL_get, idealI]
+      simp_reads
+      exact ⟨fun m h => absurd h (FMap.mem_empty m), fun m ⟨_, _, _, h⟩ => absurd h
+        (FMap.mem_empty _), fun m h => absurd h (FMap.mem_empty m)⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ m h m' h' ⟨rfl, -, -, hI⟩
+    simp only [idealL_get, idealI] at hI
+    rw [hI.1]
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    intros
+    trivial
+  case «then» =>
+    stmt_wp
+    refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+      (localVarLens "m" (List Bool)).get σ)) fun q => ?_
+    have h := equiv_ro_iro q.1 q.2
+    unfold equiv_ro_iro.statement at h
+    erw [idealF₁_get, idealF₂_get]
+    equiv_call h
+    equiv_skip
+    rintro g₁ g₂ m h m' h' ⟨⟨⟨rfl, rfl, -, hI⟩, hg⟩, rfl⟩
+    simp only [idealL_get, idealI] at hI
+    obtain ⟨hc, hcn, hs⟩ := hI
+    simp only [decide_eq_true_eq] at hg
+    refine ⟨⟨rfl, hs, by rw [hcn, ← hc], rfl, ?_⟩, fun r₁ _ r₂ _ h => by rw [h.1]⟩
     rw [hcn, ← hc]
     exact hg.le
 

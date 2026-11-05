@@ -223,6 +223,20 @@ def Dist_lossless (Dist : DISTINGUISHER) : Prop :=
       F).procedure.IsLossless →
     (Module.app Dist (Module.pair F P)).procedure.IsLossless
 
+/-- `Dist_lossless` for the oracles outside a region `G` instead of `glob Dist` (exception E14):
+what a distinguisher built from an abstract adversary satisfies.  `Dist_lossless Dist` is
+`Dist_lossless_at Dist (glob Dist)`. -/
+def Dist_lossless_at (Dist : DISTINGUISHER) (G : Footprint VariableAssignment) : Prop :=
+  ∀ (F : DFUNCTIONALITY) (P : DPRIMITIVE), FVP.fvP F ≤ Gᶜ →
+    FVP.fvP P ≤ Gᶜ →
+    (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+      P).procedure.IsLossless →
+    (Indifferentiability.DPRIMITIVE.fi (block × capacity) (List Bool × ℤ) (List Bool)
+      P).procedure.IsLossless →
+    (Indifferentiability.DFUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+      F).procedure.IsLossless →
+    (Module.app Dist (Module.pair F P)).procedure.IsLossless
+
 /-- The two counters: `Cntr.c` (bit level) and `BlockSponge.C.c` (block level).  `drestr_commute`
 keeps the states equal outside them, with `Cntr.c{1} = C.c{2}` (`cI`). -/
 noncomputable abbrev cL : Lens (ℤ × ℤ) VariableAssignment := Lens.pair Cntr.c BlockSponge.C.c
@@ -1070,15 +1084,38 @@ theorem bound_eq : Gconcl_list.bound = bound := by
   field_simp
   ring
 
-/-- EC's `security &m`, for the section's `Dist` and its axiom `Dist_lossless`, with
-`Gext0Fresh Dist` (exception E13).  EC: `rewrite -(replace_simulator &m); …; have->:=conclusion
+/-- The internal variables of the proof of `security`: `BlockSponge.C.c`, those of
+`Gconcl_list.Inefficient_Real_Ideal_at`'s region hypotheses and of `RealIdealRegion` (an
+abbreviation). -/
+noncomputable def SecurityRegion.footprint : Footprint VariableAssignment :=
+  (BlockSponge.C.c).footprint ⊔ SLCommon.C.footprint ⊔
+    (ConcreteF.PF.m).footprint ⊔ (ConcreteF.PF.mi).footprint ⊔ (Handle.G1.m).footprint ⊔
+    (Handle.G1.mi).footprint ⊔ (Handle.G1.mh).footprint ⊔ (Handle.G1.mhi).footprint ⊔
+    Handle.G1.chandle.footprint ⊔ (Handle.G1.paths).footprint ⊔ Handle.G1.bext.footprint ⊔
+    Handle.G1.bcol.footprint ⊔ (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
+    (SLCommon.F.RO.m).footprint ⊔ (SLCommon.F.FRO.m).footprint ⊔
+    (SLCommon.Redo.prefixes).footprint ⊔ (Handle.FRO.m).footprint ⊔
+    (Handle.ROhandle.RO.m).footprint ⊔ (Gconcl.S.m).footprint ⊔ (Gconcl.S.mi).footprint ⊔
+    (Gconcl.S.paths).footprint ⊔ (BlockSponge.BIRO.IRO.mp).footprint ⊔
+    (Gconcl_list.BIRO2.IRO.mp).footprint ⊔ (Gconcl_list.F2.RO.m).footprint ⊔
+    (Gconcl_list.F2.FRO.m).footprint
+
+/-- A region outside the internal variables of `security` (exception E14). -/
+def SecurityRegion (G : Footprint VariableAssignment) : Prop :=
+  G ≤ SecurityRegion.footprintᶜ
+
+/-- EC's `security &m` over a region `G` (exception E14): `Dist` lossless with the oracles outside
+`G` (`Dist_lossless_at`), `G` inside `glob GF` for a finitely supported `GF` and outside the
+proof's internal variables (`SecurityRegion`); with `Gext0Fresh Dist` (exception E13).  `security`
+is the instance at `G = glob Dist`.  EC: `rewrite -(replace_simulator &m); …; have->:=conclusion
 (Gconcl_list.SimLast(Gconcl.S)) (DRestr(Dist)) &m; have:=Gconcl_list.Real_Ideal (LowerDist(Dist));
 rewrite (drestr_commute1 &m) (drestr_commute2 &m); have->:=Gconcl_list.Simplify_simulator …`.  Here
 `Real_Ideal; Simplify_simulator` is `Gconcl_list.Inefficient_Real_Ideal_at` (the same statement),
-`D_ll` of `LowerDist(Dist)` over `glob Dist` (exception E14). -/
-theorem security (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
-    (_hDd : DistRestrictions Dist) (_hG : Gext0Fresh Dist) (_Dist_lossless : Dist_lossless Dist)
-    (m : VariableAssignment) :
+`D_ll` of `LowerDist(Dist)` over `G`. -/
+theorem security_at (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
+    (_hDd : DistRestrictions Dist) (_hG : Gext0Fresh Dist) (G GF : Footprint VariableAssignment)
+    (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob) (hGR : SecurityRegion G)
+    (_Dist_lossless : Dist_lossless_at Dist G) (m : VariableAssignment) :
     |(Procedure.Pr (RealIndif Sponge.Sponge Perm (DRestr Dist)).procedure () m
         (fun r _ => r = true) : ℝ) -
       (Procedure.Pr (IdealIndif BIRO.IRO.asF Simulator (DRestr Dist)).procedure () m
@@ -1109,29 +1146,21 @@ theorem security (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     (fvP_LowerDist Dist).trans (_hDd.trans (Footprint.compl_antimono (by
       unfold SLCommon.C.footprint; fp_sub)))
   have hLDg : Gconcl_list.Gext0Fresh (LowerDist Dist) := (fvP_LowerDist Dist).trans _hG
-  have hgl : ∀ {T : Type} (x : Lens T VariableAssignment) {v : VariableName}
-      [Lens.IsGlobalVar x v], FVP.fvP Dist ≤ x.footprintᶜ →
-      x.footprint ≤ (FVP.fvP Dist).globᶜ :=
-    fun x _ _ h => Footprint.globalVar_le_compl_glob hDfs x h
-  have hGc : (BlockSponge.C.c).footprint ≤ (FVP.fvP Dist).globᶜ := hgl _ (by fp_disjoint)
-  have hGX : (FVP.fvP Dist).glob ≤ (SLCommon.C.footprint ⊔
+  unfold SecurityRegion SecurityRegion.footprint at hGR
+  have hGc : (BlockSponge.C.c).footprint ≤ Gᶜ :=
+    (Footprint.le_compl_comm _ _).mp (hGR.trans (Footprint.compl_antimono (by fp_sub)))
+  have hGX : G ≤ (SLCommon.C.footprint ⊔
       (ConcreteF.PF.m).footprint ⊔ (ConcreteF.PF.mi).footprint ⊔ (Handle.G1.m).footprint ⊔
       (Handle.G1.mi).footprint ⊔ (Handle.G1.mh).footprint ⊔ (Handle.G1.mhi).footprint ⊔
       Handle.G1.chandle.footprint ⊔ (Handle.G1.paths).footprint ⊔ Handle.G1.bext.footprint ⊔
       Handle.G1.bcol.footprint ⊔ (Perm.m).footprint ⊔ (Perm.mi).footprint ⊔
       (SLCommon.F.RO.m).footprint ⊔ (SLCommon.Redo.prefixes).footprint ⊔
-      (Handle.FRO.m).footprint ⊔ (Handle.ROhandle.RO.m).footprint)ᶜ := by
-    refine (Footprint.le_compl_comm _ _).mp ?_
-    unfold SLCommon.C.footprint
-    repeat' refine sup_le ?_ ?_
-    all_goals exact hgl _ (by fp_disjoint)
-  have hRI : Gconcl_list.RealIdealRegion (FVP.fvP Dist).glob := by
+      (Handle.FRO.m).footprint ⊔ (Handle.ROhandle.RO.m).footprint)ᶜ :=
+    hGR.trans (Footprint.compl_antimono (by fp_sub))
+  have hRI : Gconcl_list.RealIdealRegion G := by
     unfold Gconcl_list.RealIdealRegion
-    refine (Footprint.le_compl_comm _ _).mp ?_
-    unfold SLCommon.C.footprint
-    repeat' refine sup_le ?_ ?_
-    all_goals exact hgl _ (by fp_disjoint)
-  have hll : Gconcl_list.D_lossless_at (LowerDist Dist) (FVP.fvP Dist).glob := by
+    exact hGR.trans (Footprint.compl_antimono (by fp_sub))
+  have hll : Gconcl_list.D_lossless_at (LowerDist Dist) G := by
     intro F0 P0 hF hP pll pill fll
     have hll := _Dist_lossless (Module.app RaiseFun F0)
       (Indifferentiability.DPRIMITIVE.mk (block × capacity) (List Bool × ℤ) (List Bool)
@@ -1150,8 +1179,37 @@ theorem security (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
     phoare_simp [hll]
     phoare_skip
     simp
-  exact (Gconcl_list.Inefficient_Real_Ideal_at (LowerDist Dist) hLD hLDd hLDg _ hGc hGX
-    (FVP.fvP Dist) hDfs le_rfl hRI hll m).trans (le_of_eq bound_eq)
+  exact (Gconcl_list.Inefficient_Real_Ideal_at (LowerDist Dist) hLD hLDd hLDg G hGc hGX
+    GF hGF hGGF hRI hll m).trans (le_of_eq bound_eq)
+
+/-- A distinguisher's `glob` is a `SecurityRegion` (its restrictions, by its finite support). -/
+theorem glob_SecurityRegion (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
+    (_hDd : DistRestrictions Dist) (_hG : Gext0Fresh Dist) :
+    SecurityRegion (FVP.fvP Dist).glob := by
+  unfold DistRestrictions DistRestrictions.footprint at _hDd
+  unfold Gext0Fresh at _hG
+  have hDfs := hD.finitelySupported
+  have hgl : ∀ {T : Type} (x : Lens T VariableAssignment) {v : VariableName}
+      [Lens.IsGlobalVar x v], FVP.fvP Dist ≤ x.footprintᶜ →
+      x.footprint ≤ (FVP.fvP Dist).globᶜ :=
+    fun x _ _ h => Footprint.globalVar_le_compl_glob hDfs x h
+  unfold SecurityRegion SecurityRegion.footprint
+  refine (Footprint.le_compl_comm _ _).mp ?_
+  unfold SLCommon.C.footprint
+  repeat' refine sup_le ?_ ?_
+  all_goals exact hgl _ (by fp_disjoint)
+
+/-- EC's `security &m`, for the section's `Dist` and its axiom `Dist_lossless`, with
+`Gext0Fresh Dist` (exception E13): `security_at` at `glob Dist`. -/
+theorem security (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
+    (_hDd : DistRestrictions Dist) (_hG : Gext0Fresh Dist) (_Dist_lossless : Dist_lossless Dist)
+    (m : VariableAssignment) :
+    |(Procedure.Pr (RealIndif Sponge.Sponge Perm (DRestr Dist)).procedure () m
+        (fun r _ => r = true) : ℝ) -
+      (Procedure.Pr (IdealIndif BIRO.IRO.asF Simulator (DRestr Dist)).procedure () m
+        (fun r _ => r = true) : ℝ)| ≤ bound :=
+  security_at Dist hD _hDd _hG _ (FVP.fvP Dist) hD.finitelySupported le_rfl
+    (glob_SecurityRegion Dist hD _hDd _hG) _Dist_lossless m
 
 end
 
@@ -1168,5 +1226,18 @@ theorem SHA3Indiff (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
       (Procedure.Pr (IdealIndif BIRO.IRO.asF Simulator (DRestr Dist)).procedure () m
         (fun r _ => r = true) : ℝ)| ≤ bound :=
   fun h => security Dist hD _hDd _hG h m
+
+/-- `SHA3Indiff` over a region `G` (`security_at`, exception E14): for distinguishers lossless with
+the oracles outside `G` only, such as one built from an abstract adversary (`SHA3Security`). -/
+theorem SHA3Indiff_at (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
+    (_hDd : DistRestrictions Dist) (_hG : Gext0Fresh Dist) (G GF : Footprint VariableAssignment)
+    (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob) (hGR : SecurityRegion G)
+    (m : VariableAssignment) :
+    Dist_lossless_at Dist G →
+    |(Procedure.Pr (RealIndif Sponge.Sponge Perm (DRestr Dist)).procedure () m
+        (fun r _ => r = true) : ℝ) -
+      (Procedure.Pr (IdealIndif BIRO.IRO.asF Simulator (DRestr Dist)).procedure () m
+        (fun r _ => r = true) : ℝ)| ≤ bound :=
+  fun h => security_at Dist hD _hDd _hG G GF hGF hGGF hGR h m
 
 end GaudisCrypt.SHA3.SHA3Indiff
