@@ -24,7 +24,7 @@ Status: `—` not started · `def` definition ported · `stated` statement porte
 | `proof/smart_counter/Gconcl_list.ec` | 2221 | 48 | `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean` |
 | `proof/Sponge.ec` | 2164 | 75 | `GaudisCrypt/Examples/SHA3/Sponge.lean` |
 | `proof/SHA3Indiff.ec` | 322 | 7 | `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean` |
-| `proof/SHA3_OIndiff.ec` | 260 | 1 | `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean` |
+| `proof/SHA3_OIndiff.ec` | 260 | 0 | `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean` |
 | `proof/SecureHash.eca` | 148 | 0 | `GaudisCrypt/Examples/SHA3/SecureHash.lean` |
 | `proof/SecureRO.eca` | 526 | 3 | `GaudisCrypt/Examples/SHA3/SecureRO.lean` |
 | `proof/SecureORO.eca` | 492 | 3 | `GaudisCrypt/Examples/SHA3/SecureORO.lean` |
@@ -768,7 +768,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean`, namespace `GaudisCrypt.SHA3
 | 175 | local module | `DFSome` | section . | `DFSome` | def |
 | 183 | module | `DPSome` | section . | `DPSome` | def |
 | 196 | local module | `OD` | section . | `OD` (`D` a Lean parameter) | def |
-| 205 | lemma | `SHA3OIndiff` | section . | `SHA3OIndiff` | stated |
+| 205 | lemma | `SHA3OIndiff` | section . | `SHA3OIndiff` (+ `OGext0Fresh`, E13). The two `have … byequiv` are `real_equiv`, `ideal_equiv`: equal-outside abstract calls over `ocL = (Counter.c, Cntr.c)` with `ocI`. Oracle steps: the counters `opc_f`, `opc_fi`, `ofc_f` (EC's `rcondt{2}` as `equiv_if{2}` + `prhlStmt_false`), and below them `SomeEquiv`: `real_F` (`Sponge_f_equiv`, `poget_psome_f`), `psome_f(i)`, `fsome_f`, `osim_f`, `osim_fi`. Then `security (OD(Dist))`: `fvP_OD`, `Counter_DistRestrictions`; `OD(Dist)` lossless by `h` and `OPC_DPSome_f(i)_ll`, `OFC_DFSome_f_ll` (pHL) | exc |
 
 ## `proof/SecureHash.eca`
 

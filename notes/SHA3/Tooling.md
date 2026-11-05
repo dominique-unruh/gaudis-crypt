@@ -1473,3 +1473,30 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   oracle's `get` lossless by `phoare_wp`/`phoare_simp [fll]`; `A_ll` for `A`'s; then the game:
   `phoare_inline` (twice, for the `if`'s call), `phoare_wp n`, `phoare_simp [fll]`, `phoare_skip`,
   `simp only [ite_self, fll']` and `exact hAll _ _ trivial` (`phoare_simp` does not take `ite_self`).
+
+## 2026-11-05: `SHA3_OIndiff`
+
+* **Counts.** `equiv_seq n₁ n₂ : M` counts the statements of the *second* (trailing) block on each
+  side.  `stmt_inline{i} k` counts *call sites*, not statements (`k = 0` is the first call,
+  wherever it is, also inside a branch).
+* **EC's `rcondt{2}`/`rcondf{2}` on an inner conditional**: cut so that the conditional is the
+  whole right statement (`equiv_seq 1 1`, the left call kept for the second block), then
+  `equiv_if{2}`; the infeasible branch by
+  `refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)` and the guard
+  (`simp only [decide_eq_false_iff_not] at hg`).
+* **A counter value through a call** (EC's `exists* c; elim*`): `prhlStmt_fix_left (fun σ => …)`
+  fixes it as `q`; then the callee's judgment at a relation `J` of the counters' contents built
+  from `q`.
+* **Reusable oracle steps over an equal-outside lens**: state the callee step for *every*
+  relation `J` of the lens' contents (`SomeEquiv`, `∀ J, prhlProc (… ∧ L.equal_outside ∧ J …)`),
+  so the wrappers (`opc_f`, `ofc_f`) instantiate it at the counter values they fix.  A callee
+  outside the lens is `prhlProc_self_equal_outside_module L _ hfp J`; a procedure on the right
+  with no body (`Perm.f`) stays an opaque call after `equiv_proc`.
+* **Same write on both sides of a variable outside `L`**: `he.set_disjoint v`, reads by
+  `he.get_disjoint` (`instance : Lens.Disjoint X L := by unfold L; infer_instance`).  The
+  judgment simp already turns `J (L.get (X.set v g))` into `J (L.get g)`.
+* **`fp_disjoint` for `X ≤ (glob (fvP M))ᶜ` joinands**: prove the `glob` joinand once
+  (`Footprint.globalVar_le_compl_glob hMfs x (by fp_disjoint)`) and match it with
+  `first | with_reducible exact hg | fp_disjoint`; trying `le_compl_glob_symm` on every joinand
+  times out (`whnf` of the unification).
+* **`lean_multi_attempt`**: multi-line snippets get mangled; join tactics with `;` in parentheses.

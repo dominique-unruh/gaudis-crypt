@@ -403,7 +403,8 @@ touch these proof-internal variables.  Propagated to `Gconcl_list` (its own `Gex
 to `SHA3Indiff` (`SHA3Indiff.Gext0Fresh Dist`, at the bit level: a hypothesis of `security` and of
 the final `SHA3Indiff`).  And to `SHA3Security`: its sections' adversaries `A` get the hypothesis
 `AGext0Fresh A` (the same variables), so that `DSetSize(D(A))` satisfies `SHA3Indiff`'s
-`Gext0Fresh`.
+`Gext0Fresh`.  And to `SHA3_OIndiff`: `SHA3OIndiff`'s `Dist` gets `OGext0Fresh Dist`, so that
+`OD(Dist)` satisfies it.
 
 **How to remove it.** Make the variables of `Handle`, `Gcol`, `Gext` (and `ConcreteF`'s `PF`) lens
 parameters, as `Sponge`'s `HybridIRO` section does (E6), and pick them fresh in `Real_Ideal` with
