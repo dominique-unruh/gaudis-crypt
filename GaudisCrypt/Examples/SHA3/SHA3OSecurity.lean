@@ -371,6 +371,15 @@ theorem to_list_oget_of_list (l : List Bool) (h : size l = size_out) :
   simp only [of_list, to_list, hv, oget, Option.getD_some]
   exact this
 
+/-- `increase_counter` increases the counter. -/
+theorem lt_increase_counter {α : Type} (c : ℤ) (l : List α) (k : ℤ) :
+    c < increase_counter c l k := by
+  have hr := gt0_r
+  have h1 : 0 ≤ (size l + 1) / r := Int.ediv_nonneg (by unfold size; omega) hr.le
+  unfold increase_counter
+  have := le_max_right ((k + r - 1) / r - 1) 0
+  omega
+
 /-- `inv` holds of the empty maps. -/
 theorem inv_empty : inv FMap.empty FMap.empty :=
   ⟨fun _ _ h => absurd h (FMap.mem_empty _), fun _ _ h => absurd h (FMap.mem_empty _),
@@ -1137,7 +1146,7 @@ theorem rw_RF_List_While :
 /-- `local equiv eq_IRO_RFWhile : BIRO.IRO.f ~ RFWhile.get : arg{1} = (x{2}, size_out) /\
 inv BIRO.IRO.mp{1} RFList.m{2} ==> res{2} = of_list res{1} /\ size res{1} = size_out /\
 inv BIRO.IRO.mp{1} RFList.m{2}`. -/
-theorem eq_IRO_RFWhile (_hfresh : LocalFresh Log_m RFList_m) :
+theorem eq_IRO_RFWhile :
     prhlProc (sig₁ := procsig (List Bool × ℤ) -> (List Bool))
       (sig₂ := procsig (List Bool) -> (Option f_out))
       (fun a₁ g₁ a₂ g₂ => a₁ = (a₂, size_out) ∧ inv (BIRO.IRO.mp.get g₁) (RFList_m.get g₂))
@@ -2626,7 +2635,143 @@ theorem fin_get :
         (Module.app (SecureORO.Bounder (List Bool) f_out sigma SORO.Bounder.bounder)
           (RFWhile RFList_m))).procedure
       (fun r₁ _ r₂ _ => r₁ ≠ none → r₁ = r₂) := by
-  sorry
+  have hs : (0 : ℤ) < size_out := Params.size_out_gt0
+  have e₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+      (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
+    simp [BIRO.IRO.asF]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  rw [e₁]
+  equiv_seq 1 1 : (§l{1} = §x0{2} ∧ §k{1} = size_out ∧ §o{1} = none ∧
+      §(localVarLens "y" (Option f_out)){2} = none ∧
+      fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ ⟨h1, _, h2⟩ => ⟨h1, h2⟩
+  equiv_if{1}
+  case «else» =>
+    equiv_if{2}
+    case «else» =>
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨⟨-, -, rfl, -⟩, -⟩, -⟩ h
+      simp at h
+    case «then» =>
+      rw [RFWhile_get]
+      stmt_inline{2} 0
+      stmt_wp
+      refine prhlStmt_conseq
+        (A' := fun σ₁ _ => (localVarLens "o" (Option (List Bool))).get σ₁ = none)
+        (B' := fun σ₁ _ => (localVarLens "o" (Option (List Bool))).get σ₁ = none) ?_
+        (fun σ₁ σ₂ h => h.1.1.2.2.1) (fun σ₁ σ₂ h hne => ?_)
+      · equiv_seq 1 1 : (§o{1} = none)
+        · stmt_wp
+          equiv_skip
+          exact fun _ h => h
+        equiv_if{2}
+        case «else» =>
+          equiv_skip
+          intros
+          rename_i h
+          exact h.1
+        case «then» =>
+          stmt_wp
+          equiv_while{2} (§o{1} = none) ((size_out - §i{2}).toNat)
+          case lossless =>
+            intro σ₁ σ _ _
+            simp only [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_sample]
+            exact (is_lossless_iff_expected _).mp dbool_ll
+          case «variant» =>
+            intro σ₁ k
+            hoare_wp 3
+            hoare_skip
+            rintro i ⟨ho, hg, hk⟩ _ _
+            simp only [decide_eq_true_eq] at hg
+            exact ⟨ho, by omega⟩
+          case exit =>
+            exact fun _ _ h _ => h
+          stmt_wp
+          equiv_skip
+          exact fun _ _ _ h => h.1
+      · rw [h] at hne
+        simp at hne
+  case «then» =>
+    equiv_if{2}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      obtain ⟨⟨⟨-, -, -, -, -, hc, hb⟩, hg⟩, hb'⟩ := h
+      simp only [decide_eq_true_eq, decide_eq_false_iff_not, not_lt] at hg hb'
+      have := (lt_increase_counter _ _ _).trans_le hg
+      unfold sigma at hb'
+      dsimp only at hc hb
+      omega
+    case «then» =>
+      stmt_wp
+      equiv_seq 1 1 : (§x2{1} = §x0{2} ∧ §k0{1} = size_out ∧
+          inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))
+      · stmt_wp
+        equiv_skip
+        rintro _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨⟨rfl, hk, -, -, hinv, -, -⟩, -⟩, -⟩
+        exact ⟨rfl, hk, hinv⟩
+      equiv_if{1}
+      case «else» =>
+        refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+        obtain ⟨⟨-, hk, -⟩, hg⟩ := h
+        simp only [decide_eq_false_iff_not] at hg
+        exact hg hk.le
+      case «then» =>
+        stmt_wp
+        equiv_call (eq_IRO_RFWhile RFList_m)
+        stmt_wp
+        equiv_skip
+        rintro x2 k0 mp x0 RF ⟨⟨rfl, rfl, hinv⟩, -⟩
+        refine ⟨⟨rfl, hinv⟩, fun r₁ _ r₂ _ ⟨hr, hsz, _⟩ _ => ?_⟩
+        have ht : take size_out r₁ = r₁ := by
+          unfold take size at *
+          exact List.take_of_length_le (by omega)
+        rw [show Option.map (take size_out) (some r₁) = some r₁ by rw [Option.map_some, ht],
+          if_pos (Option.some_ne_none _), hr]
+        rfl
+
+set_option maxHeartbeats 4000000 in
+-- `fp_disjoint` / `fp_le` through the procedures
+/-- `eq_IRO_RFWhile` over the states equal outside `fL`, a relation `R` of the bounder and the
+counter kept (the frame rules).  Not an EC lemma. -/
+theorem eq_IRO_RFWhile_frame (R : ℤ × ℤ → ℤ × ℤ → Prop) :
+    prhlProc (sig₁ := procsig (List Bool × ℤ) -> (List Bool))
+      (sig₂ := procsig (List Bool) -> (Option f_out))
+      (fun a₁ g₁ a₂ g₂ => ((a₁ = (a₂, size_out) ∧
+        inv (BIRO.IRO.mp.get g₁) (RFList_m.get g₂)) ∧
+        R ((Lens.pair SORO.Bounder.bounder Counter.c).get g₁)
+          ((Lens.pair SORO.Bounder.bounder Counter.c).get g₂)) ∧
+        (fL RFList_m).equal_outside g₁ g₂)
+      BIRO.IRO.f.procedure (SecureORO.RF_T.get (List Bool) f_out (RFWhile RFList_m)).procedure
+      (fun r₁ g₁ r₂ g₂ => ((r₂ = of_list r₁ ∧ size r₁ = size_out ∧
+        inv (BIRO.IRO.mp.get g₁) (RFList_m.get g₂)) ∧
+        R ((Lens.pair SORO.Bounder.bounder Counter.c).get g₁)
+          ((Lens.pair SORO.Bounder.bounder Counter.c).get g₂)) ∧
+        (fL RFList_m).equal_outside g₁ g₂) := by
+  have hR : RFList_m.footprint ≤ ((Lens.pair SORO.Bounder.bounder Counter.c).footprint)ᶜ := by
+    simp only [Footprint.lens_pair]
+    exact le_compl_sup (Lens.footprint_le_compl_of_disjoint _ _)
+      (Lens.footprint_le_compl_of_disjoint _ _)
+  have hRL : FVP.fvP (SecureORO.RF_T.get (List Bool) f_out (RFWhile RFList_m)) ≤
+      RFList_m.footprint := by
+    rw [RFWhile_get]
+    exact fvP_RFWhile_get RFList_m
+  have h1 := prhlProc_frame_lens (Lens.pair SORO.Bounder.bounder Counter.c)
+    (Lens.pair SORO.Bounder.bounder Counter.c)
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+      (by simp only [Footprint.lens_pair]; fp_disjoint))
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a) (hRL.trans hR))
+    R (eq_IRO_RFWhile RFList_m)
+  exact prhlProc_frame_equal_outside_module (fL RFList_m) _ _
+    (by simp only [fL, Footprint.lens_pair]; fp_le)
+    (hRL.trans (by simp only [fL, Footprint.lens_pair]; fp_le)) h1
 
 /-- `rw_ideal_2`'s last game, the functionality oracle: `extDF ~ bwDF`.  Not an EC lemma. -/
 theorem fin_f :
