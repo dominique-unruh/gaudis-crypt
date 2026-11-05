@@ -351,6 +351,47 @@ def inv (m1 : FMap (List Bool × ℤ) Bool) (m2 : FMap (List Bool) f_out) : Prop
   (∀ l i, FMap.dom m1 (l, i) →
     FMap.get m1 (l, i) = some (nth default (to_list (oget (FMap.get m2 l))) i))
 
+/-- `of_list` inverts `to_list` on lists of length `size_out` (`spec2_dout`, `to_listK`). -/
+theorem to_list_oget_of_list (l : List Bool) (h : size l = size_out) :
+    to_list (oget (of_list l)) = l := by
+  obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp (Params.spec2_dout l h)
+  have := (Params.to_listK v l).mpr hv
+  simp only [of_list, to_list, hv, oget, Option.getD_some]
+  exact this
+
+/-- The exit of `eq_IRO_RFWhile`'s fresh case: `inv` after the loop sampled `bs` for `x` into
+`BIRO.IRO.mp` and `RFList.m` gets `x`.  Not an EC lemma (EC's `smt` after the `while`). -/
+theorem inv_fresh (m mp0 : FMap (List Bool × ℤ) Bool) (m2 : FMap (List Bool) f_out)
+    (x bs : List Bool) (h0 : inv mp0 m2) (hx : ¬ FMap.dom m2 x) (hsz : size bs = size_out)
+    (h1 : ∀ l j, l ≠ x → FMap.get m (l, j) = FMap.get mp0 (l, j))
+    (h2 : ∀ j, FMap.dom m (x, j) ↔ 0 ≤ j ∧ j < size_out)
+    (h3 : ∀ j, 0 ≤ j → j < size_out → FMap.get m (x, j) = some (nth default bs j)) :
+    inv m (FMap.set m2 x (oget (of_list bs))) := by
+  have hdom : ∀ l j, l ≠ x → (FMap.dom m (l, j) ↔ FMap.dom mp0 (l, j)) := fun l j hl => by
+    rw [FMap.domE, FMap.domE, h1 l j hl]
+  refine ⟨fun l i h => ?_, fun l i h => ?_, fun l h i hi => ?_, fun l i h => ?_⟩
+  · by_cases hl : l = x
+    · subst hl
+      exact (h2 i).mp h
+    · exact h0.1 l i ((hdom l i hl).mp h)
+  · by_cases hl : l = x
+    · exact (FMap.mem_set _ _ _ _).mpr (Or.inr hl)
+    · exact (FMap.mem_set _ _ _ _).mpr (Or.inl (h0.2.1 l i ((hdom l i hl).mp h)))
+  · by_cases hl : l = x
+    · subst hl
+      exact (h2 i).mpr hi
+    · have hl2 : FMap.dom m2 l := ((FMap.mem_set _ _ _ _).mp h).resolve_right hl
+      exact (hdom l i hl).mpr (h0.2.2.1 l hl2 i hi)
+  · by_cases hl : l = x
+    · subst hl
+      have hi := (h2 i).mp h
+      rw [h3 i hi.1 hi.2, FMap.get_set_sameE]
+      simp only [oget, Option.getD_some]
+      rw [show Option.getD (of_list bs) default = oget (of_list bs) from rfl,
+        to_list_oget_of_list bs hsz]
+    · rw [FMap.get_set_neqE _ _ _ _ hl, h1 l i hl]
+      exact h0.2.2.2 l i ((hdom l i hl).mp h)
+
 /-- The section `Preimage`'s op `eq_extend_size`. -/
 def eq_extend_size (m1 m2 m3 : FMap (List Bool × ℤ) Bool) : Prop :=
   (∀ x j, 0 ≤ j ∧ j < size_out → FMap.get m1 (x, j) = FMap.get m2 (x, j)) ∧
@@ -749,7 +790,167 @@ theorem eq_IRO_RFWhile (_hfresh : LocalFresh Log_m RFList_m) :
       BIRO.IRO.f.procedure (SecureORO.RF_T.get (List Bool) f_out (RFWhile RFList_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₂ = of_list r₁ ∧ size r₁ = size_out ∧
         inv (BIRO.IRO.mp.get g₁) (RFList_m.get g₂)) := by
-  sorry
+  rw [RFWhile_get]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = 0 ∧ §bs{1} = [] ∧
+      inv §IRO.mp{1} §RFList_m{2})
+  · stmt_wp
+    equiv_skip
+    intros
+    simp_all
+  equiv_if{1}
+  case «else» =>
+    refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+    obtain ⟨-, hg⟩ := h
+    simp [BIRO.valid, valid_toplevel] at hg
+  case «then» =>
+    equiv_if{2}
+    case «then» =>
+      stmt_wp
+      refine prhlStmt_fix_left (fun σ => BIRO.IRO.mp.get σ.globals) fun mp0 => ?_
+      refine prhlStmt_fix_right (fun σ => RFList_m.get σ.globals) fun m2 => ?_
+      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+          0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ size §bs{1} = §i{1} ∧ §RFList_m{2} = m2 ∧
+          ¬ FMap.dom m2 §x0{1} ∧ inv mp0 m2 ∧
+          (∀ y j, y ≠ §x0{1} → FMap.get §IRO.mp{1} (y, j) = FMap.get mp0 (y, j)) ∧
+          (∀ j, FMap.dom §IRO.mp{1} (§x0{1}, j) ↔ 0 ≤ j ∧ j < §i{1}) ∧
+          (∀ j, 0 ≤ j → j < §i{1} → FMap.get §IRO.mp{1} (§x0{1}, j) = some (nth default §bs{1} j)))
+      · stmt_wp
+        equiv_skip
+        rintro x0 n i bs mp x0' rf ⟨⟨⟨⟨⟨rfl, rfl, rfl, rfl, hinv⟩, -⟩, hd⟩, rfl⟩, rfl⟩
+        simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hd
+        exact ⟨rfl, rfl, rfl, rfl, le_rfl, Params.size_out_gt0.le, rfl, rfl, hd, hinv,
+          fun _ _ _ => rfl, fun j => ⟨fun h => absurd (hinv.2.1 _ _ h) hd, fun h => by omega⟩,
+          fun j _ h => by omega⟩
+      equiv_while (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+          0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ size §bs{1} = §i{1} ∧ §RFList_m{2} = m2 ∧
+          ¬ FMap.dom m2 §x0{1} ∧ inv mp0 m2 ∧
+          (∀ y j, y ≠ §x0{1} → FMap.get §IRO.mp{1} (y, j) = FMap.get mp0 (y, j)) ∧
+          (∀ j, FMap.dom §IRO.mp{1} (§x0{1}, j) ↔ 0 ≤ j ∧ j < §i{1}) ∧
+          (∀ j, 0 ≤ j → j < §i{1} → FMap.get §IRO.mp{1} (§x0{1}, j) = some (nth default §bs{1} j)))
+      case body =>
+        stmt_wp
+        equiv_seq 1 1 : ((§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+            0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ size §bs{1} = §i{1} ∧ §RFList_m{2} = m2 ∧
+            ¬ FMap.dom m2 §x0{1} ∧ inv mp0 m2 ∧
+            (∀ y j, y ≠ §x0{1} → FMap.get §IRO.mp{1} (y, j) = FMap.get mp0 (y, j)) ∧
+            (∀ j, FMap.dom §IRO.mp{1} (§x0{1}, j) ↔ 0 ≤ j ∧ j < §i{1}) ∧
+            (∀ j, 0 ≤ j → j < §i{1} →
+              FMap.get §IRO.mp{1} (§x0{1}, j) = some (nth default §bs{1} j))) ∧
+            §i{1} < §n{1} ∧
+            §x1{1} = §x0{1} ∧ §n0{1} = §i{1})
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ ⟨hJ, hg⟩
+          simp only [decide_eq_true_eq] at hg
+          exact ⟨hJ, hg⟩
+        equiv_if{1}
+        case «then» =>
+          stmt_wp
+          equiv_rnd
+          equiv_skip
+          rintro x0 n i bs mp x1 n0 x0' i' l rf
+            ⟨⟨⟨hx, hn, hi, hbs, hi0, hile, hsz, hrf, hdx, hinv, h1, h2, h3⟩, hlt, hx1, hn0⟩, -⟩ a _
+          subst hx hn hi hbs
+          rw [hx1, hn0, FMap.get_set_sameE]
+          simp only [show (oget (some a) : Bool) = a from rfl]
+          have hsz' : size (rcons bs a) = size bs + 1 := by
+            simp only [size, rcons, List.length_append, List.length_singleton]
+            push_cast
+            rfl
+          refine ⟨trivial, trivial, trivial, trivial, by omega, by omega, by omega, hrf, hdx, hinv,
+            fun y j hy => ?_, fun j => ?_, fun j hj0 hj => ?_⟩
+          · rw [FMap.get_set_neqE _ _ _ _ (fun e => hy (Prod.mk.inj e).1)]
+            exact h1 y j hy
+          · rw [FMap.mem_set, h2]
+            constructor
+            · rintro (⟨h, h'⟩ | e)
+              · omega
+              · obtain ⟨-, rfl⟩ := Prod.mk.inj e
+                omega
+            · rintro ⟨h, h'⟩
+              by_cases hji : j = i
+              · exact Or.inr (by rw [hji])
+              · exact Or.inl ⟨h, by omega⟩
+          · rw [nth_rcons]
+            by_cases hji : j = i
+            · subst hji
+              rw [FMap.get_set_sameE, if_neg (by omega), if_pos hsz.symm]
+            · rw [FMap.get_set_neqE _ _ _ _ (fun e => hji (Prod.mk.inj e).2),
+                h3 j hj0 (by omega), if_pos (by omega)]
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          obtain ⟨⟨⟨-, -, -, -, -, -, -, -, -, -, -, h2, -⟩, -, hx1, hn0⟩, hg⟩ := h
+          simp only [Bool.not_eq_false', decide_eq_true_eq] at hg
+          rw [hx1, hn0, h2] at hg
+          omega
+      case guard =>
+        rintro _ _ _ _ _ _ _ _ _ ⟨-, hn, hi, -⟩
+        rw [hn, hi]
+      case exit =>
+        rintro x0 n i bs mp x0' i' l rf
+          ⟨hx, hn, hi, hbs, hi0, hile, hsz, hrf, hdx, hinv, h1, h2, h3⟩ hg
+        subst hx hn hi hbs hrf
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        have hiu : i = size_out := by omega
+        have hsz2 : size bs = size_out := by omega
+        refine ⟨?_, hsz2, inv_fresh mp mp0 _ x0 bs hinv hdx hsz2 h1
+          (fun j => by rw [h2 j, hiu]) (fun j hj0 hj => h3 j hj0 (by omega))⟩
+        rw [FMap.get_set_sameE]
+        obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp (Params.spec2_dout bs hsz2)
+        simp only [of_list] at hv ⊢
+        rw [hv]
+        rfl
+      case hpre =>
+        equiv_skip
+        intros
+        assumption
+    case «else» =>
+      equiv_while{1} (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧
+          FMap.dom §RFList_m{2} §x0{1} ∧ inv §IRO.mp{1} §RFList_m{2} ∧
+          §bs{1} = take §i{1} (to_list (oget (FMap.get §RFList_m{2} §x0{1}))))
+        ((size_out - §i{1}).toNat)
+      case lossless =>
+        intro σ₁ σ _ _
+        have h1 := (is_lossless_iff_expected _).mp dbool_ll
+        simp [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_ifThenElse, Stmt.ewp_sample, Stmt.ewp_skip,
+          h1]
+      case «variant» =>
+        intro σ₂ k
+        hoare_wp 3
+        hoare_split 1
+        refine hoare_seq (hoare_if_wp (At := fun _ => False) (fun _ h => h.elim)
+          (hoare_skip_wp _)) ?_
+        hoare_wp 2
+        hoare_skip
+        rintro x0 n i mp bs ⟨⟨hx, rfl, hi0, hile, hd, hinv, rfl⟩, hg, hk⟩
+        simp only [decide_eq_true_eq] at hg
+        have hdom : FMap.dom mp (x0, i) := hinv.2.2.1 _ hd i ⟨hi0, hg⟩
+        refine ⟨fun h => ?_, fun _ => ⟨⟨hx, rfl, by omega, by omega, hd, hinv, ?_⟩, by omega⟩⟩
+        · simp only [Bool.not_eq_true', decide_eq_false_iff_not] at h
+          exact h hdom
+        · have hL : size (to_list (oget (FMap.get (RFList_m.get σ₂.globals) x0))) = size_out :=
+            Params.spec_dout _
+          rw [hinv.2.2.2 _ _ hdom, take_nth default i _ ⟨hi0, by omega⟩]
+          rfl
+      case exit =>
+        rintro x0 rf x0' n i mp bs ⟨rfl, rfl, hi0, hile, hd, hinv, rfl⟩ hg
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        have hiu : i = size_out := by omega
+        have hL : size (to_list (oget (FMap.get rf x0'))) = size_out := Params.spec_dout _
+        rw [hiu, ← hL, take_size]
+        refine ⟨?_, rfl, hinv⟩
+        obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd)
+        rw [hv]
+        exact ((Params.to_listK v (to_list v)).mp rfl).symm
+      equiv_skip
+      rintro _ _ _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, hinv⟩, -⟩, hd⟩
+      simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+      exact ⟨rfl, rfl, le_rfl, Params.size_out_gt0.le, hd, hinv, rfl⟩
 
 -- EC's local `ExtendSample(F : OFUNCTIONALITY)`; `proc init = F.init` is wrapped in a call (E5)
 module ExtendSample using (F : OFUNCTIONALITY) : OFUNCTIONALITY {
