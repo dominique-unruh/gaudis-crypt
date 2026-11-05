@@ -351,6 +351,18 @@ def inv (m1 : FMap (List Bool × ℤ) Bool) (m2 : FMap (List Bool) f_out) : Prop
   (∀ l i, FMap.dom m1 (l, i) →
     FMap.get m1 (l, i) = some (nth default (to_list (oget (FMap.get m2 l))) i))
 
+/-- `size (rcons s z) = size s + 1`. -/
+theorem size_rcons' {α : Type} (s : List α) (z : α) : size (rcons s z) = size s + 1 := by
+  simp only [size, rcons, List.length_append, List.length_singleton]
+  push_cast
+  rfl
+
+/-- `take k (rcons s z) = take k s` when `k ≤ size s`. -/
+theorem take_rcons_le {α : Type} (k : ℤ) (s : List α) (z : α) (h : k ≤ size s) :
+    take k (rcons s z) = take k s := by
+  unfold take rcons size at *
+  exact List.take_append_of_le_length (by omega)
+
 /-- `of_list` inverts `to_list` on lists of length `size_out` (`spec2_dout`, `to_listK`). -/
 theorem to_list_oget_of_list (l : List Bool) (h : size l = size_out) :
     to_list (oget (of_list l)) = l := by
@@ -1108,7 +1120,236 @@ theorem eq_eager_ideal2 :
       (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
         (Module.app FSome (Module.app Fill_In Eager.RO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂) := by
-  sorry
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.sample.mk_simp]
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 2 : (§(localVarLens "x0" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+      §k{1} = §n{2} ∧ §i{2} = 0 ∧ §l{2} = [] ∧ §IRO.mp{1} = §Eager.RO.m{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, rfl⟩
+    exact ⟨rfl, rfl, rfl⟩
+  equiv_if{1}
+  case «then» =>
+    stmt_wp
+    equiv_seq 1 2 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+        §n{1} = size_out ∧ §k{1} = §n{2} ∧ §k{1} ≤ size_out ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
+        §bs{1} = [] ∧ §l{2} = [] ∧ §IRO.mp{1} = §Eager.RO.m{2})
+    · stmt_wp
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ ⟨⟨hx, hk, hi, hl, hm⟩, hg⟩
+      simp only [decide_eq_true_eq] at hg
+      exact ⟨hx, hk, hg, hi, hl, hm⟩
+    equiv_if{1}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      obtain ⟨-, hg⟩ := h
+      simp [BIRO.valid, valid_toplevel] at hg
+    case «then» =>
+      refine prhlStmt_splitwhile_left
+        ⟨fun σ => decide ((localVarLens "i" ℤ).get σ < (localVarLens "k" ℤ).get σ)⟩
+        (fun σ => ((localVarLens "n" ℤ).get σ - (localVarLens "i" ℤ).get σ).toNat) ?_ ?_
+      · intro k'
+        simp only [Getter.andB_get, Bool.and_eq_true]
+        hoare_wp 3
+        hoare_split 1
+        refine hoare_seq (hoare_if_wp (At := fun σ =>
+          ((localVarLens "n" ℤ).get σ - ((localVarLens "i" ℤ).get σ + 1)).toNat < k') ?_
+          (hoare_skip_wp _)) ?_
+        · hoare_wp 2
+          hoare_skip
+          intro _ _ h _ _
+          exact h
+        · hoare_wp 2
+          hoare_skip
+          rintro i n k mp x2 ⟨⟨h1, -⟩, hk⟩
+          simp only [decide_eq_true_eq] at h1
+          exact ⟨fun _ => by omega, fun _ => by omega⟩
+      equiv_seq 1 1 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+          §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
+          §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1})
+      · simp only [Getter.andB]
+        equiv_while (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+          §n{1} = size_out ∧ §k{1} = §n{2} ∧ §k{1} ≤ size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+          §IRO.mp{1} = §Eager.RO.m{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ max 0 §k{1} ∧ size §bs{1} = §i{1})
+        case body =>
+          simp only [Bool.and_eq_true]
+          stmt_wp
+          equiv_seq 1 1 : (§(localVarLens "x2" (List Bool)){1} =
+              §(localVarLens "x1" (List Bool)){2} ∧
+              §n{1} = size_out ∧ §k{1} = §n{2} ∧ §k{1} ≤ size_out ∧ §i{1} = §i{2} ∧
+              §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ max 0 §k{1} ∧
+              size §bs{1} = §i{1} ∧ §i{1} < §k{1} ∧ §x3{1} = §(localVarLens "x2" (List Bool)){1} ∧
+              §n0{1} = §i{1} ∧ §(localVarLens "x2" (List Bool × ℤ)){2} = (§x1{2}, §i{2}))
+          · stmt_wp
+            equiv_skip
+            rintro _ _ _ _ _ _ _ _ _ _ _ ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩, -, hk⟩
+            simp only [decide_eq_true_eq] at hk
+            exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hk⟩
+          equiv_if{1}
+          case «then» =>
+            stmt_wp
+            equiv_rnd
+            equiv_skip
+            rintro x2 n k i bs mp x3 n0 x1' n' i' l m x2'
+              ⟨⟨rfl, rfl, rfl, hkle, rfl, rfl, rfl, hi0, himax, hsz, hlt, rfl, rfl, rfl⟩, hd⟩ a _
+            simp only [hd, ↓reduceIte, FMap.get_set_sameE, size_rcons']
+            exact ⟨trivial, trivial, trivial, hkle, trivial, trivial, trivial, by omega, by omega,
+              by omega⟩
+          case «else» =>
+            stmt_split{2} 1
+            refine prhlStmt_seq_sample_right ?_
+            equiv_skip
+            rintro σ₂ x2 n k i bs mp x3 n0
+              ⟨⟨hx, hn, hk, hkle, hi, hb, hm, hi0, himax, hsz, hlt, rfl, rfl, hx0⟩, hd⟩
+            refine ⟨(is_lossless_iff_expected _).mp dbool_ll, fun a _ => ?_⟩
+            simp_reads
+            rw [hx0, ← hm]
+            simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+            rw [hx, hi] at hd
+            simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
+              size_rcons']
+            subst hx hi hb hk hn
+            exact ⟨rfl, rfl, rfl, hkle, rfl, rfl, trivial, by omega, by omega, by omega⟩
+        case guard =>
+          rintro _ _ k i _ _ _ _ _ _ _ ⟨-, rfl, rfl, hkle, rfl, -⟩
+          rcases lt_or_ge i k with h' | h'
+          · rw [decide_eq_true h', decide_eq_true (show i < size_out by omega)]
+            rfl
+          · rw [decide_eq_false (not_lt.mpr h'), Bool.and_false]
+        case exit =>
+          rintro _ _ k i bs _ _ _ _ _ _ ⟨hx, hn, hk, hkle, hi, hb, hm, hi0, himax, hsz⟩ hg
+          simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at hg
+          have hki : k ≤ i := by omega
+          refine ⟨hx, hn, hi, ?_, hm, hki, hsz⟩
+          rw [← hb]
+          unfold take size at *
+          exact List.take_of_length_le (by omega)
+        all_goals
+          equiv_skip
+          intros
+          rename_i h
+          obtain ⟨⟨hx, hn, hk, hkle, hi1, hi2, hb, hl, hm⟩, -⟩ := h
+          refine ⟨hx, hn, hk, hkle, by rw [hi1, hi2], by rw [hb, hl], hm, by omega, by omega, ?_⟩
+          rw [hb, hi1]
+          rfl
+      equiv_while (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+          §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
+          §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1})
+      case body =>
+        stmt_wp
+        equiv_seq 1 1 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+            §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
+            §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1} ∧ §i{1} < §n{1} ∧
+            §(localVarLens "x3" (List Bool)){1} = §(localVarLens "x2" (List Bool)){1} ∧
+            §n0{1} = §i{1} ∧ §x4{2} = (§(localVarLens "x1" (List Bool)){2}, §i{2}))
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨h1, h2, h3, h4, h5, h6, h7⟩, hg⟩
+          simp only [decide_eq_true_eq] at hg
+          exact ⟨h1, h2, h3, h4, h5, h6, h7, hg⟩
+        equiv_if{1}
+        case «then» =>
+          stmt_wp
+          equiv_rnd
+          equiv_skip
+          rintro x2 n i k bs mp x3 n0 x1' i' l m x4
+            ⟨⟨rfl, rfl, rfl, rfl, rfl, hki, hsz, hlt, rfl, rfl, rfl⟩, hd⟩ a _
+          simp only [hd, ↓reduceIte, FMap.get_set_sameE, size_rcons',
+            take_rcons_le _ _ _ (show k ≤ size bs by omega)]
+          exact ⟨trivial, trivial, trivial, trivial, trivial, by omega, by omega⟩
+        case «else» =>
+          stmt_split{2} 1
+          refine prhlStmt_seq_sample_right ?_
+          equiv_skip
+          rintro σ₂ x2 n i k bs mp x3 n0 ⟨⟨hx, hn, hi, ht, hm, hki, hsz, hlt, rfl, rfl, hx4⟩, hd⟩
+          refine ⟨(is_lossless_iff_expected _).mp dbool_ll, fun a _ => ?_⟩
+          simp_reads
+          rw [hx4, ← hm]
+          simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+          rw [hx, hi] at hd
+          simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte, size_rcons',
+            take_rcons_le _ _ _ (show k ≤ size bs by omega)]
+          subst hx hi hn
+          exact ⟨rfl, rfl, rfl, ht, trivial, by omega, by omega⟩
+      case guard =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨-, hn, hi, -⟩
+        rw [hn, hi]
+      case exit =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨-, -, -, ht, hm, -⟩ _
+        exact ⟨by rw [← ht]; rfl, hm⟩
+      all_goals
+        equiv_skip
+        intros
+        simp_all
+        try omega
+  case «else» =>
+    stmt_wp
+    equiv_rcondf{2}
+    equiv_seq 1 1 : (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
+        §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2})
+    · stmt_wp
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, hg⟩
+      simp only [decide_eq_false_iff_not, not_le] at hg
+      exact ⟨rfl, rfl, rfl, rfl, rfl, hg⟩
+    equiv_if{1}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      obtain ⟨-, hg⟩ := h
+      simp [BIRO.valid, valid_toplevel] at hg
+    case «then» =>
+      equiv_while (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
+        §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2})
+      case body =>
+        stmt_wp
+        equiv_seq 1 1 : (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
+        §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2} ∧ §i0{1} < §n1{1} ∧
+            §x6{1} = §x5{1} ∧ §n2{1} = §i0{1} ∧ §x2{2} = (§x1{2}, §i{2}))
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨hx, hn, hi, hb, hm, hs⟩, hg⟩
+          simp only [decide_eq_true_eq] at hg
+          exact ⟨hx, hn, hi, hb, hm, hs, hg⟩
+        equiv_if{1}
+        case «then» =>
+          stmt_wp
+          equiv_rnd
+          equiv_skip
+          rintro x n i bs mp x0 n0 x' n' i' l m x0'
+            ⟨⟨rfl, rfl, rfl, rfl, rfl, hs, hlt, rfl, rfl, rfl⟩, hd⟩ a _
+          simp [hd, hs]
+        case «else» =>
+          stmt_split{2} 1
+          refine prhlStmt_seq_sample_right ?_
+          equiv_skip
+          rintro σ₂ x n i bs mp x0 n0 ⟨⟨hx, hn, hi, hb, hm, hs, hlt, rfl, rfl, hx0⟩, hd⟩
+          refine ⟨(is_lossless_iff_expected _).mp dbool_ll, fun a _ => ?_⟩
+          simp_reads
+          rw [hx0, ← hm]
+          simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+          rw [hx, hi] at hd
+          simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          subst hx hi hb hn
+          exact ⟨rfl, rfl, rfl, rfl, trivial, hs⟩
+      case guard =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨-, hn, hi, -⟩
+        rw [hn, hi]
+      case exit =>
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨-, hn, hi, hb, hm, hs⟩ hg
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        refine ⟨?_, by rw [hb], hm⟩
+        simp only [decide_eq_false_iff_not, not_lt]
+        omega
+      all_goals
+        equiv_skip
+        intros
+        simp_all
 
 -- EC's local `Dist(F : RO)`, `proc distinguish = SHA3_OIndiff.OIndif.OIndif(FSome(Fill_In(F)),
 -- OSimulator(FSome(Fill_In(F))), ODRestr(Dist_of_P1Adv(A))).main`, with the section's `A` a Lean
