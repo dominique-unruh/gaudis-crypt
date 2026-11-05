@@ -228,6 +228,22 @@ module FIgnoreSize using (F : SH.OIndif.ODFUNCTIONALITY) : OFUNCTIONALITY {
 P))`. -/
 noncomputable def OSponge : SH.OIndif.OCONSTRUCTION := Module.comp FSetSize (CSome Sponge.Sponge)
 
+/-- Every `ODISTINGUISHER` is representable over `F.f`, `P.f`, `P.fi`.  Not an EC lemma. -/
+theorem ODistinguisher_representable (D : ODISTINGUISHER) :
+    Module.Representable D OIndif.distExt := by
+  refine Module.representable_of_firstOrder ?_ ?_ OIndif.distExt (fun _ => rfl) D
+  · simp [IsModule.moduleTypeRep, ModuleTypeRep.FirstOrder, Module.moduleTypeRep,
+      OptionIndifferentiability.ODFUNCTIONALITY.typeRep,
+      OptionIndifferentiability.ODPRIMITIVE.typeRep]
+  · intro sig n
+    cases n with
+    | zero => exact ⟨fun U hU => by simp at hU; subst hU; exact ⟨([], 0)⟩, ⟨none⟩⟩
+    | succ n => cases n with
+      | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+      | succ n => cases n with
+        | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+        | succ n => nomatch n
+
 /-- `FSome` has no globals.  Not an EC lemma. -/
 @[fp_bound] theorem fvP_FSome : FVP.fvP FSome ≤ ⊥ := by
   fp_module
@@ -339,6 +355,91 @@ def eq_extend_size (m1 m2 m3 : FMap (List Bool × ℤ) Bool) : Prop :=
   (∀ x j, 0 ≤ j ∧ j < size_out → FMap.get m1 (x, j) = FMap.get m2 (x, j)) ∧
   (∀ x j, size_out ≤ j → FMap.get m1 (x, j) = FMap.get m3 (x, j)) ∧
   (∀ x j, FMap.dom m1 (x, j) → 0 ≤ j)
+
+/-- The variables of `Gconcl`'s local `Gext` clone (an abbreviation). -/
+noncomputable def Gext0Vars.footprint : Footprint VariableAssignment :=
+  (ConcreteF.PF.m).footprint ⊔ (ConcreteF.PF.mi).footprint ⊔
+    (Handle.G1.m).footprint ⊔
+    (Handle.G1.mi).footprint ⊔ (Handle.G1.mh).footprint ⊔ (Handle.G1.mhi).footprint ⊔
+    Handle.G1.chandle.footprint ⊔ (Handle.G1.paths).footprint ⊔ Handle.G1.bext.footprint ⊔
+    Handle.G1.bcol.footprint ⊔ (Handle.FRO.m).footprint ⊔ (Handle.ROhandle.RO.m).footprint
+
+/-- `Gext0Vars.footprint` is finitely supported. -/
+theorem Gext0Vars_fs : Gext0Vars.footprint.FinitelySupported := by
+  unfold Gext0Vars.footprint
+  repeat' first
+    | exact Footprint.FinitelySupported.globalVar _
+    | apply Footprint.FinitelySupported.sup
+
+/-- The adversary avoids the variables of `Gconcl`'s local `Gext` clone (exception E13, as
+`SHA3_OIndiff.OGext0Fresh` for a distinguisher). -/
+def AGext0Fresh {T : Type 1} [IsModule T] (A : T) : Prop :=
+  FVP.fvP A ≤ Gext0Vars.footprintᶜ
+
+/-- `ARestrictions.footprint` is finitely supported (a join of global variables). -/
+theorem ARestrictions_fs : ARestrictions.footprint.FinitelySupported := by
+  unfold ARestrictions.footprint SLCommon.C.footprint
+  repeat' first
+    | exact Footprint.FinitelySupported.globalVar _
+    | apply Footprint.FinitelySupported.sup
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the simulator's code
+/-- `OSimulator` touches the simulator's maps and `Gconcl_list.BIRO2.IRO.mp`.  Not an EC lemma. -/
+theorem fvP_OSimulator : FVP.fvP OSimulator ≤ (Lens.pair SHA3Indiff.Simulator.m
+    (Lens.pair SHA3Indiff.Simulator.mi (Lens.pair SHA3Indiff.Simulator.paths
+      Gconcl_list.BIRO2.IRO.mp))).footprint := by
+  fp_module (Lens.pair SHA3Indiff.Simulator.m (Lens.pair SHA3Indiff.Simulator.mi
+    (Lens.pair SHA3Indiff.Simulator.paths Gconcl_list.BIRO2.IRO.mp)))
+
+/-- `OSimulator` has finitely many variables. -/
+theorem OSimulator_fs : (FVP.fvP OSimulator).FinitelySupported := by
+  refine Footprint.FinitelySupported.mono fvP_OSimulator ?_
+  simp only [Footprint.lens_pair]
+  repeat' first
+    | exact Footprint.FinitelySupported.globalVar _
+    | apply Footprint.FinitelySupported.sup
+
+/-- `SHA3OIndiff`'s restrictions are among `ARestrictions` and the `glob`s of `SimLast(Gconcl.S)` and
+`OSimulator`.  Not an EC lemma. -/
+theorem ODistRestrictions_cover : DistRestrictions.footprint ⊔ Counter.c.footprint ⊔
+    (FVP.fvP OSimulator).glob ≤ ARestrictions.footprint ⊔
+      (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).glob ⊔ (FVP.fvP OSimulator).glob := by
+  unfold DistRestrictions.footprint ARestrictions.footprint SLCommon.C.footprint
+  fp_sub
+
+/-- A disjointness `X ≤ Yᶜ` from `X ≤ Y₁ᶜ` and `X ≤ Y₂ᶜ`. -/
+theorem le_compl_sup {X Y₁ Y₂ : Footprint VariableAssignment} (h₁ : X ≤ Y₁ᶜ) (h₂ : X ≤ Y₂ᶜ) :
+    X ≤ (Y₁ ⊔ Y₂)ᶜ :=
+  (Footprint.le_compl_comm _ _).mpr
+    (sup_le ((Footprint.le_compl_comm _ _).mp h₁) ((Footprint.le_compl_comm _ _).mp h₂))
+
+/-- An adversary under the sections' restrictions is outside `SHA3OIndiff`'s (`ODistRestrictions`
+of a distinguisher built from it).  Not an EC lemma. -/
+theorem A_ODistRestrictions {T : Type 1} [IsModule T] (A : T)
+    (hAfs : (FVP.fvP A).FinitelySupported) (hAd : FVP.fvP A ≤ ARestrictions.footprintᶜ) :
+    FVP.fvP A ≤ (DistRestrictions.footprint ⊔ Counter.c.footprint ⊔
+      (FVP.fvP OSimulator).glob)ᶜ := by
+  have hSL : (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).FinitelySupported := SimLast_ECModule.2
+  refine le_trans ?_ (Footprint.compl_antimono ODistRestrictions_cover)
+  refine le_compl_sup (le_compl_sup hAd ?_) ?_
+  · unfold ARestrictions.footprint at hAd
+    exact Footprint.le_compl_glob_symm hSL (by fp_disjoint)
+  · refine Footprint.le_compl_glob_symm OSimulator_fs (fvP_OSimulator.trans ?_)
+    unfold ARestrictions.footprint at hAd
+    simp only [Footprint.lens_pair]
+    repeat' refine sup_le ?_ ?_
+    all_goals exact Footprint.globalVar_le_compl_glob hAfs _ (by fp_disjoint)
+
+/-- A variable outside `ARestrictions` and the `glob`s of `SimLast(Gconcl.S)` and `OSimulator` is
+outside `SHA3OIndiff`'s restrictions.  Not an EC lemma. -/
+theorem X_ODistRestrictions {X : Footprint VariableAssignment} (hXA : X ≤ ARestrictions.footprintᶜ)
+    (hXg : X ≤ (FVP.fvP (Gconcl_list.SimLast Gconcl.S) ⊔ FVP.fvP OSimulator).globᶜ) :
+    X ≤ (DistRestrictions.footprint ⊔ Counter.c.footprint ⊔ (FVP.fvP OSimulator).glob)ᶜ := by
+  refine le_trans ?_ (Footprint.compl_antimono ODistRestrictions_cover)
+  refine le_compl_sup (le_compl_sup hXA ?_) ?_
+  · exact hXg.trans (Footprint.compl_antimono (Footprint.glob_mono le_sup_left))
+  · exact hXg.trans (Footprint.compl_antimono (Footprint.glob_mono le_sup_right))
 
 /-- The sections' local variables are fresh (EasyCrypt's semantics of local modules; exception E6):
 disjoint from each other and from the games' variables (an abbreviation). -/
@@ -1005,6 +1106,53 @@ theorem rr_F (hF : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (Li
 
 end
 
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the adversary's oracles
+/-- `Dist_of_P1Adv(A)` touches `A`'s variables and `Log.m`.  Not an EC lemma. -/
+theorem fvP_Dist_of_P1Adv (A : SH.AdvPreimage) :
+    FVP.fvP (Dist_of_P1Adv Log_m A) ≤ FVP.fvP A ⊔ Log_m.footprint := by
+  fp_module Log_m
+
+/-- `DFSetSize(F).f` is lossless when `F.f` is (EC: `proc; inline*; auto; call Hf; auto`). -/
+theorem DFSetSize_f_ll (F : ODFUNCTIONALITY)
+    (hF : (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      F).procedure.IsLossless) :
+    (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+      (Module.app DFSetSize F)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc] at hF ⊢
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 5
+  phoare_simp [hF]
+  phoare_skip
+  simp
+
+/-- EC's `move=> F P Hp Hpi Hf; proc; inline*; sp; auto; call Hf; auto; call (A_ll (DFSetSize(F)) P
+_ Hp Hpi); auto`: `Dist_of_P1Adv(A)` is lossless for lossless oracles. -/
+theorem Dist_of_P1Adv_ll (A : SH.AdvPreimage) (hll : A_lossless A) (F : ODFUNCTIONALITY)
+    (P : ODPRIMITIVE)
+    (hp : (OptionIndifferentiability.ODPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+      P).procedure.IsLossless)
+    (hpi : (OptionIndifferentiability.ODPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+      P).procedure.IsLossless)
+    (hf : (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      F).procedure.IsLossless) :
+    (Module.app (Dist_of_P1Adv Log_m A) (Module.pair F P)).procedure.IsLossless := by
+  have hD := DFSetSize_f_ll F hf
+  have hA := hll (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool) f_out
+      { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+          (Module.app DFSetSize F) }) P
+    (by simpa only [OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp] using hD) hp hpi
+  have hdout := (is_lossless_iff_expected _).mp Params.dout_ll
+  rw [Procedure.isLossless_iff_phoareProc] at hA hD ⊢
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 6
+  phoare_simp [hA, hD]
+  phoare_skip
+  intro _
+  exact hdout
+
 /-- `local lemma rw_real &m`. -/
 theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
@@ -1135,18 +1283,76 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
 
 end Preimage
 
-/-- EC's `Sponge_preimage_resistant (A <: SH.AdvPreimage {…}) &m`.
--/
+/-- `OGReal(CSome(Sponge), PSome(Perm))` is
+`OIndif(FSome(Sponge(Poget(PSome(Perm)))), PSome(Perm))`. -/
+theorem OGReal_eq (D : ODISTINGUISHER) :
+    OGReal (CSome Sponge.Sponge) (PSome Perm) D =
+      Module.app OIndif.OIndif (Module.pair
+        (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+          (OptionIndifferentiability.OPRIMITIVE.view state (List Bool × ℤ) (List Bool)
+              (PSome Perm)))))
+        (Module.pair (PSome Perm) D)) := by
+  unfold OIndif.OGReal OptionIndifferentiability.OGReal CSome
+  erw [Module.app_comp, Module.app_comp]
+
+/-- EC's `Sponge_preimage_resistant (A <: SH.AdvPreimage {…}) &m`, with `AGext0Fresh A`
+(exception E13).  EC: `move=> A_ll; rewrite (rw_real &m); have := SHA3OIndiff (Dist_of_P1Adv(A)) &m
+_; …; have/#:=leq_ideal &m`.  The sections' local variables `Log.m`, `RFList.m` are chosen fresh
+(`Footprint.exists_fresh_glob`, exception E6). -/
 theorem Sponge_preimage_resistant (A : SH.AdvPreimage)
     (hA : Module.ECModule A SH.OIndif.distExt)
-    (_hAd : FVP.fvP A ≤ (ARestrictions.footprint)ᶜ)
+    (_hAd : FVP.fvP A ≤ (ARestrictions.footprint)ᶜ) (_hG : AGext0Fresh A)
     (m : VariableAssignment) :
     A_lossless A →
     (Procedure.Pr (Module.app SH.Preimage (Module.pair A (Module.pair OSponge
         (PSome Perm)))).procedure
         () m (fun r _ => r = true) : ℝ) ≤
       bound + ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
-  sorry
+  intro hll
+  have hAfs := hA.2
+  have hSL : (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).FinitelySupported := SimLast_ECModule.2
+  obtain ⟨Log_m, hL1, hL2, hLfs⟩ := Footprint.exists_fresh_glob (FMap (List Bool × ℤ) Bool)
+    (hSL.sup OSimulator_fs) ((hAfs.sup ARestrictions_fs).sup Gext0Vars_fs)
+  obtain ⟨RFList_m, hR, -⟩ := Footprint.exists_fresh (FMap (List Bool) f_out)
+    (((hSL.sup OSimulator_fs).sup ((hAfs.sup ARestrictions_fs).sup Gext0Vars_fs)).sup hLfs)
+  -- what the fresh variables avoid
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ :=
+    hL2.trans (Footprint.compl_antimono (le_sup_of_le_right (le_sup_of_le_left le_sup_right)))
+  have hLAd : Log_m.footprint ≤ (FVP.fvP A)ᶜ :=
+    hL2.trans (Footprint.compl_antimono (le_sup_of_le_right (le_sup_of_le_left le_sup_left)))
+  have hLG : Log_m.footprint ≤ Gext0Vars.footprintᶜ :=
+    hL2.trans (Footprint.compl_antimono (le_sup_of_le_right le_sup_right))
+  have hRA : RFList_m.footprint ≤ ARestrictions.footprintᶜ :=
+    hR.trans (Footprint.compl_antimono
+      (le_sup_of_le_left (le_sup_of_le_right (le_sup_of_le_left le_sup_right))))
+  have hRAd : RFList_m.footprint ≤ (FVP.fvP A)ᶜ :=
+    hR.trans (Footprint.compl_antimono
+      (le_sup_of_le_left (le_sup_of_le_right (le_sup_of_le_left le_sup_left))))
+  have hRL : RFList_m.footprint ≤ Log_m.footprintᶜ :=
+    hR.trans (Footprint.compl_antimono le_sup_right)
+  have hfresh : LocalFresh Log_m RFList_m :=
+    ⟨sup_le hLA hRA, (Footprint.le_compl_comm _ _).mp hRL⟩
+  have hAd' : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔ RFList_m.footprint)ᶜ :=
+    le_compl_sup (le_compl_sup _hAd ((Footprint.le_compl_comm _ _).mp hLAd))
+      ((Footprint.le_compl_comm _ _).mp hRAd)
+  -- the distinguisher of `SHA3OIndiff`
+  have hDfp := Preimage.fvP_Dist_of_P1Adv Log_m A
+  have hD : Module.ECModule (Preimage.Dist_of_P1Adv Log_m A) OIndif.distExt :=
+    ⟨ODistinguisher_representable _, (hAfs.sup hLfs).mono hDfp⟩
+  have hDd : ODistRestrictions (Preimage.Dist_of_P1Adv Log_m A) :=
+    hDfp.trans (sup_le (A_ODistRestrictions A hAfs _hAd) (X_ODistRestrictions hLA hL1))
+  have hDg : OGext0Fresh (Preimage.Dist_of_P1Adv Log_m A) :=
+    hDfp.trans (sup_le _hG hLG)
+  have h1 := SHA3OIndiff (Preimage.Dist_of_P1Adv Log_m A) hD hDd hDg m
+    (fun F P hp hpi hf => Preimage.Dist_of_P1Adv_ll Log_m A hll F P hp hpi hf)
+  have h2 := Preimage.leq_ideal Log_m RFList_m A hA hAd' hfresh m
+  rw [Preimage.rw_real Log_m RFList_m A hA hAd' hfresh m, ← OGReal_eq]
+  have h3 := (abs_sub_le_iff.mp h1).1
+  have hb : SHA3Indiff.bound = bound := rfl
+  change (Procedure.Pr (OGIdeal (Module.app FSome BIRO.IRO.asF) OSimulator
+    (ODRestr (Preimage.Dist_of_P1Adv Log_m A))).procedure () m (fun r _ => r = true) : ℝ) ≤ _
+    at h2
+  linarith
 
 /-! ## The section `SecondPreimage`, with `declare module A <: SH.AdvSecondPreimage {…,
 -SORO.RO.FRO}` (its local
