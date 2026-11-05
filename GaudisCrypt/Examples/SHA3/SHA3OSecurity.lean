@@ -441,12 +441,20 @@ theorem X_ODistRestrictions {X : Footprint VariableAssignment} (hXA : X ≤ ARes
   · exact hXg.trans (Footprint.compl_antimono (Footprint.glob_mono le_sup_left))
   · exact hXg.trans (Footprint.compl_antimono (Footprint.glob_mono le_sup_right))
 
+/-- The global variables of `SORO_P1`'s oracles: `Counter.c`, the simulator's maps,
+`Gconcl_list.BIRO2.IRO.mp` (an abbreviation). -/
+noncomputable abbrev soroG :
+    Lens (ℤ × FMap SHA3Indiff.state SHA3Indiff.state × FMap SHA3Indiff.state SHA3Indiff.state ×
+      FMap capacity (List block × block) × FMap (List block × ℤ) block) VariableAssignment :=
+  Lens.pair Counter.c (Lens.pair SHA3Indiff.Simulator.m (Lens.pair SHA3Indiff.Simulator.mi
+    (Lens.pair SHA3Indiff.Simulator.paths Gconcl_list.BIRO2.IRO.mp)))
+
 /-- The sections' local variables are fresh (EasyCrypt's semantics of local modules; exception E6):
 disjoint from each other and from the games' variables (an abbreviation). -/
 def LocalFresh (Log_m : Lens (FMap (List Bool × ℤ) Bool) VariableAssignment)
     (RFList_m : Lens (FMap (List Bool) f_out) VariableAssignment) : Prop :=
   Log_m.footprint ⊔ RFList_m.footprint ≤ ARestrictions.footprintᶜ ∧
-    Log_m.footprint ≤ RFList_m.footprintᶜ
+    Log_m.footprint ≤ RFList_m.footprintᶜ ∧ Log_m.footprint.FinitelySupported
 
 /-! ## The section `Preimage`, with `declare module A <: SH.AdvPreimage {…}` (its local
 declarations in the namespace `Preimage`) -/
@@ -872,6 +880,20 @@ theorem rw_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
         (Module.app SORO.RF SORO.RO.RO))).procedure () m (fun r _ => r = true) := by
   sorry
 
+set_option maxHeartbeats 10000000 in
+-- `fp_module` through `SORO_P1`'s nest of oracles (its typing alone takes about 20 s)
+/-- `SORO_P1(A)` touches `A`'s variables, `Log.m`, `Counter.c`, the simulator's maps and
+`Gconcl_list.BIRO2.IRO.mp`.  Not an EC lemma. -/
+theorem fvP_SORO_P1 [Lens.Disjoint Log_m Counter.c] [Lens.Disjoint Counter.c Log_m]
+    [Lens.Disjoint Log_m SHA3Indiff.Simulator.m] [Lens.Disjoint SHA3Indiff.Simulator.m Log_m]
+    [Lens.Disjoint Log_m SHA3Indiff.Simulator.mi] [Lens.Disjoint SHA3Indiff.Simulator.mi Log_m]
+    [Lens.Disjoint Log_m SHA3Indiff.Simulator.paths]
+    [Lens.Disjoint SHA3Indiff.Simulator.paths Log_m]
+    [Lens.Disjoint Log_m Gconcl_list.BIRO2.IRO.mp] [Lens.Disjoint Gconcl_list.BIRO2.IRO.mp Log_m]
+    (A : SH.AdvPreimage) :
+    FVP.fvP (SORO_P1 Log_m A) ≤ FVP.fvP A ⊔ (Lens.pair Log_m soroG).footprint := by
+  fp_module (Lens.pair Log_m soroG)
+
 /-- `local lemma leq_ideal &m`. -/
 theorem leq_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
@@ -880,7 +902,60 @@ theorem leq_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt
     (Procedure.Pr (IdealGame (Module.app FSome BIRO.IRO.asF) (ODRestr
         (Dist_of_P1Adv Log_m A))).procedure () m (fun r _ => r = true) : ℝ) ≤
       ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
-  sorry
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans _hfresh.1
+  have hLX : ∀ {β : Type} (X : Lens β VariableAssignment),
+      X.footprint ≤ ARestrictions.footprint → Lens.Disjoint Log_m X ∧ Lens.Disjoint X Log_m :=
+    fun X hX => ⟨Lens.disjoint_of_footprint_le_compl _ _ (hLA.trans (Footprint.compl_antimono hX)),
+      Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+        (hLA.trans (Footprint.compl_antimono hX)))⟩
+  have hC := hLX Counter.c (by unfold ARestrictions.footprint; fp_sub)
+  have hSm := hLX SHA3Indiff.Simulator.m (by unfold ARestrictions.footprint; fp_sub)
+  have hSmi := hLX SHA3Indiff.Simulator.mi (by unfold ARestrictions.footprint; fp_sub)
+  have hSp := hLX SHA3Indiff.Simulator.paths (by unfold ARestrictions.footprint; fp_sub)
+  have hB2 := hLX Gconcl_list.BIRO2.IRO.mp (by unfold ARestrictions.footprint; fp_sub)
+  haveI := hC.1
+  haveI := hC.2
+  haveI := hSm.1
+  haveI := hSm.2
+  haveI := hSmi.1
+  haveI := hSmi.2
+  haveI := hSp.1
+  haveI := hSp.2
+  haveI := hB2.1
+  haveI := hB2.2
+  have hfp := fvP_SORO_P1 Log_m A
+  have hGfs : (Lens.pair Log_m soroG).footprint.FinitelySupported := by
+    rw [Footprint.lens_pair]
+    refine _hfresh.2.2.sup ?_
+    simp only [soroG, Footprint.lens_pair]
+    repeat' first
+      | exact Footprint.FinitelySupported.globalVar _
+      | apply Footprint.FinitelySupported.sup
+  have hP : Module.ECModule (SORO_P1 Log_m A) (SecureORO.Oracle.ext (List Bool) f_out) := by
+    refine ⟨Module.representable_of_firstOrder ?_ ?_ (SecureORO.Oracle.ext (List Bool) f_out)
+      (fun _ => rfl) _, Footprint.FinitelySupported.mono hfp (hA.2.sup hGfs)⟩
+    · simp [IsModule.moduleTypeRep, ModuleTypeRep.FirstOrder, Module.moduleTypeRep,
+        SecureORO.Oracle.typeRep]
+    · intro sig n
+      cases n with
+      | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+      | succ n => nomatch n
+  have hPd : FVP.fvP (SORO_P1 Log_m A) ≤
+      ((SORO.RO.RO.m).footprint ⊔ SORO.Bounder.bounder.footprint)ᶜ := by
+    refine hfp.trans (sup_le (_hAd.trans (Footprint.compl_antimono ?_)) ?_)
+    · unfold ARestrictions.footprint
+      fp_sub
+    · simp only [Footprint.lens_pair]
+      refine sup_le (hLA.trans (Footprint.compl_antimono ?_)) (by fp_disjoint)
+      unfold ARestrictions.footprint
+      fp_sub
+  have h1 := rw_ideal Log_m RFList_m A hA _hAd _hfresh m
+  have h2 := SecureORO.RO_is_preimage_resistant (List Bool) f_out dout sigma clone_increase_counter
+    SORO.RO.RO.m SORO.Bounder.bounder (Footprint.FinitelySupported.globalVar _)
+    (Footprint.FinitelySupported.globalVar _) SORO.axioms (SORO_P1 Log_m A) hP hPd m
+  rw [doutE1 default] at h2
+  rw [div_eq_mul_inv]
+  exact h1.trans h2
 
 /-- The variables of `rw_real`'s invariant: `SH.Bounder.bounder` (left), `Counter.c` and `Log.m`
 (right). -/
@@ -1331,7 +1406,7 @@ theorem Sponge_preimage_resistant (A : SH.AdvPreimage)
   have hRL : RFList_m.footprint ≤ Log_m.footprintᶜ :=
     hR.trans (Footprint.compl_antimono le_sup_right)
   have hfresh : LocalFresh Log_m RFList_m :=
-    ⟨sup_le hLA hRA, (Footprint.le_compl_comm _ _).mp hRL⟩
+    ⟨sup_le hLA hRA, (Footprint.le_compl_comm _ _).mp hRL, hLfs⟩
   have hAd' : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔ RFList_m.footprint)ᶜ :=
     le_compl_sup (le_compl_sup _hAd ((Footprint.le_compl_comm _ _).mp hLAd))
       ((Footprint.le_compl_comm _ _).mp hRAd)
