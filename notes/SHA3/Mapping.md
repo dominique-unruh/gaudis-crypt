@@ -30,7 +30,7 @@ Status: `—` not started · `def` definition ported · `stated` statement porte
 | `proof/SecureORO.eca` | 492 | 3 | `GaudisCrypt/Examples/SHA3/SecureORO.lean` |
 | `proof/IndifRO_is_secure.ec` | 218 | 3 | `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean` |
 | `proof/SHA3Security.ec` | 1275 | 23 | `GaudisCrypt/Examples/SHA3/SHA3Security.lean` |
-| `proof/SHA3OSecurity.ec` | 2652 | 41 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
+| `proof/SHA3OSecurity.ec` | 2652 | 34 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
 
 ## `proof/Common.ec`
 
@@ -1015,8 +1015,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 41 | axiom | `to_listK` |  | `Params.to_listK` | def |
 | 43 | axiom | `dout_equal_dlist` |  | `Params.dout_equal_dlist` | def |
 | 45 | lemma | `doutE1` |  | `doutE1` | done |
-| 88 | clone import | `SecureORO` |  | `SORO` (namespace of abbreviations and `global_var`s; `realize`s: `SORO.axioms`) | def |
-| 105 | clone import | `SecureHash` |  | `SH` (namespace of abbreviations and `global_var`s; `realize`s: `SH.axioms`) | def |
+| 88 | clone import | `SecureORO` |  | `SORO` (namespace of abbreviations and `global_var`s; `realize`s: `SORO.axioms`, done) | def |
+| 105 | clone import | `SecureHash` |  | `SH` (namespace of abbreviations and `global_var`s; `realize`s: `SH.axioms`, done) | def |
 | 143 | module | `FSetSize` |  | `FSetSize` (`init` call-wrapped, E5; `FSetSize.get`) | def |
 | 154 | module | `DFSetSize` |  | `DFSetSize` | def |
 | 164 | module | `FIgnoreSize` |  | `FIgnoreSize` | def |
@@ -1035,7 +1035,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 260 | local module | `SORO_P1` | section Preimage. | `Preimage.SORO_P1` (`A` a Lean parameter; `OFC2(F)` written out) | def |
 | 271 | local module | `RFList` | section Preimage. | `Preimage.RFList` (variable: lens `RFList_m`, E6) | def |
 | 287 | local module | `RFWhile` | section Preimage. | `Preimage.RFWhile` | def |
-| 308 | local equiv | `rw_RF_List_While` | section Preimage. | `Preimage.rw_RF_List_While` | stated |
+| 308 | local equiv | `rw_RF_List_While` | section Preimage. | `Preimage.rw_RF_List_While` (`transitivity{1}` to `LoopSnoc.sample` as `prhlStmt_dlist_left`, Lib/EC/DListCall; lockstep `while`) | done |
 | 331 | op | `inv` | section Preimage. | `inv` | def |
 | 337 | local equiv | `eq_IRO_RFWhile` | section Preimage. | `Preimage.eq_IRO_RFWhile` | stated |
 | 407 | op | `eq_extend_size` | section Preimage. | `eq_extend_size` | def |
@@ -1050,9 +1050,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 576 | local lemma | `eager_ideal` | section Preimage. | `Preimage.eager_ideal` | stated |
 | 652 | local lemma | `rw_ideal_2` | section Preimage. | `Preimage.rw_ideal_2` | stated |
 | 792 | local lemma | `rw_ideal` | section Preimage. | `Preimage.rw_ideal` | stated |
-| 870 | local lemma | `leq_ideal` | section Preimage. | `Preimage.leq_ideal` | stated |
-| 881 | local lemma | `rw_real` | section Preimage. | `Preimage.rw_real` | stated |
-| 898 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` | stated |
+| 870 | local lemma | `leq_ideal` | section Preimage. | `Preimage.leq_ideal` (`SORO_P1` an `ECModule` by `fvP_SORO_P1`; modulo `rw_ideal`) | done |
+| 881 | local lemma | `rw_real` | section Preimage. | `Preimage.rw_real` (equal-outside call over `rrL` = (`SH.Bounder.bounder`, `Counter.c`, `Log.m`), `rrI`; oracle steps `rr_F`, `rr_Pf`, `rr_Pfi`; `swap{1}` as `stmt_swap`) | done |
+| 898 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh by `exists_fresh_glob`, E6; `Dist_of_P1Adv(A)` restrictions by `A_ODistRestrictions`/`X_ODistRestrictions`, lossless by pHL `Dist_of_P1Adv_ll`; modulo the local lemmas) | exc |
 | 923 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 925 | local module | `FInit` | section SecondPreimage. | `SecondPreimage.FInit` (aliases call-wrapped, E5) | def |
 | 930 | local module | `PInit` | section SecondPreimage. | `SecondPreimage.PInit` (aliases call-wrapped, E5) | def |

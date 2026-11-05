@@ -1500,3 +1500,25 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `first | with_reducible exact hg | fp_disjoint`; trying `le_compl_glob_symm` on every joinand
   times out (`whnf` of the unification).
 * **`lean_multi_attempt`**: multi-line snippets get mangled; join tactics with `;` in parentheses.
+
+## 2026-11-05: `SHA3OSecurity` (started)
+
+* **A dlist sampling against a loop** (EC's `transitivity{1} { z <@ LoopSnoc.sample(n); }`):
+  `prhlStmt_dlist_left` / `prhlStmt_seq_dlist_left` (`Lib/EC/DListCall.lean`, EC's
+  `Sample_LoopSnoc_eq` at the statement level) replace the sampling by the call; then
+  `stmt_inline` and a lockstep `equiv_while`.  The one semantic fact is in the library rule.
+* **Lenses with an abstract local variable** (`Log.m`, a lens parameter, E6): `Lens.pair` needs
+  `Lens.Disjoint` instances, from `LocalFresh` by `Lens.disjoint_of_footprint_le_compl` (`haveI`);
+  make the pair a `def` taking the instances.  Writes of a pair component keep a state equal
+  outside the pair: `(Lens.equal_outside_set_self _ g v).pair_left` / `.pair_right`, chained with
+  `.trans`/`.symm`.  `simp_reads` can hang on a goal with a write of the abstract lens: close
+  such goals with `change` and the lens laws (`set_get`, `Lens.get_of_disjoint_set`).
+* **`fp_module (Lens.pair Log_m G)`** for a module writing an abstract lens and globals: give the
+  lemma both-direction `Lens.Disjoint` instances between `Log_m` and each global of `G`, or the
+  lens-law goals stay open.
+* **`prhlStmt_seq_call`** needs the call *last*: cut after it (`equiv_seq 1 1`) when more follows.
+* **Module-type spellings** (`OPRIMITIVE state (List Bool) f_out` vs `… (List Bool × ℤ) (List
+  Bool)`, defeq): restate rewrite lemmas at the other spelling (`PSome_init'`), `erw` for
+  `ODPRIMITIVE.f.mk_simp` across spellings, and state oracle lemmas with the simplified right side.
+* **`Footprint.FinitelySupported.mono h (hG.sup ?_)`** inside a `refine` leaves `?_` an unresolved
+  metavariable: prove the finite support in a separate `have` with its type.

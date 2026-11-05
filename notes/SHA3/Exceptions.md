@@ -404,7 +404,8 @@ to `SHA3Indiff` (`SHA3Indiff.Gext0Fresh Dist`, at the bit level: a hypothesis of
 the final `SHA3Indiff`).  And to `SHA3Security`: its sections' adversaries `A` get the hypothesis
 `AGext0Fresh A` (the same variables), so that `DSetSize(D(A))` satisfies `SHA3Indiff`'s
 `Gext0Fresh`.  And to `SHA3_OIndiff`: `SHA3OIndiff`'s `Dist` gets `OGext0Fresh Dist`, so that
-`OD(Dist)` satisfies it.
+`OD(Dist)` satisfies it.  And to `SHA3OSecurity`: its sections' adversaries get `AGext0Fresh A`
+(over `Gext0Vars.footprint`), so that `Dist_of_P*Adv(A)` satisfies `OGext0Fresh`.
 
 **How to remove it.** Make the variables of `Handle`, `Gcol`, `Gext` (and `ConcreteF`'s `PF`) lens
 parameters, as `Sponge`'s `HybridIRO` section does (E6), and pick them fresh in `Real_Ideal` with
