@@ -371,6 +371,11 @@ theorem to_list_oget_of_list (l : List Bool) (h : size l = size_out) :
   simp only [of_list, to_list, hv, oget, Option.getD_some]
   exact this
 
+/-- `inv` holds of the empty maps. -/
+theorem inv_empty : inv FMap.empty FMap.empty :=
+  ⟨fun _ _ h => absurd h (FMap.mem_empty _), fun _ _ h => absurd h (FMap.mem_empty _),
+    fun _ h => absurd h (FMap.mem_empty _), fun _ _ h => absurd h (FMap.mem_empty _)⟩
+
 /-- The exit of `eq_IRO_RFWhile`'s fresh case: `inv` after the loop sampled `bs` for `x` into
 `BIRO.IRO.mp` and `RFList.m` gets `x`.  Not an EC lemma (EC's `smt` after the `while`). -/
 theorem inv_fresh (m mp0 : FMap (List Bool × ℤ) Bool) (m2 : FMap (List Bool) f_out)
@@ -2549,16 +2554,230 @@ theorem ext_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
 
 end ExtSim
 
-/-- `local lemma rw_ideal_2 &m`. -/
-theorem rw_ideal_2 (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
-    (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
-      RFList_m.footprint)ᶜ)
-    (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
-    (Procedure.Pr (IdealGame (Module.app FSome BIRO.IRO.asF) (ODRestr
-        (Dist_of_P1Adv Log_m A))).procedure () m (fun r _ => r = true) : ℝ) ≤
-      Procedure.Pr (Module.app SORO.Preimage (Module.pair (SORO_P1 Log_m A)
-        (RFList RFList_m))).procedure () m (fun r _ => r = true) := by
+section FinSim
+variable [Lens.Disjoint BIRO.IRO.mp RFList_m] [Lens.Disjoint RFList_m BIRO.IRO.mp]
+  [Lens.Disjoint SORO.Bounder.bounder RFList_m] [Lens.Disjoint RFList_m SORO.Bounder.bounder]
+  [Lens.Disjoint Counter.c RFList_m] [Lens.Disjoint RFList_m Counter.c]
+  [Lens.Disjoint Log_m BIRO.IRO.mp] [Lens.Disjoint BIRO.IRO.mp Log_m]
+  [Lens.Disjoint Log_m RFList_m] [Lens.Disjoint RFList_m Log_m]
+  [Lens.Disjoint Log_m SORO.Bounder.bounder] [Lens.Disjoint SORO.Bounder.bounder Log_m]
+  [Lens.Disjoint Log_m Counter.c] [Lens.Disjoint Counter.c Log_m]
+  [Lens.Disjoint SHA3Indiff.Simulator.m Log_m] [Lens.Disjoint SHA3Indiff.Simulator.mi Log_m]
+  [Lens.Disjoint SHA3Indiff.Simulator.paths Log_m] [Lens.Disjoint Gconcl_list.BIRO2.IRO.mp Log_m]
+  [Lens.Disjoint SHA3Indiff.Simulator.m RFList_m] [Lens.Disjoint SHA3Indiff.Simulator.mi RFList_m]
+  [Lens.Disjoint SHA3Indiff.Simulator.paths RFList_m]
+  [Lens.Disjoint Gconcl_list.BIRO2.IRO.mp RFList_m]
+
+/-- The variables of `rw_ideal_2`'s last invariant: `BIRO.IRO.mp` (left), `RFList.m` and
+`SORO.Bounder.bounder` (right), `Counter.c` (both) (an abbreviation). -/
+noncomputable abbrev fL : Lens (FMap (List Bool × ℤ) Bool × FMap (List Bool) f_out × ℤ × ℤ)
+    VariableAssignment :=
+  Lens.pair BIRO.IRO.mp (Lens.pair RFList_m (Lens.pair SORO.Bounder.bounder Counter.c))
+
+/-- EC's `inv BIRO.IRO.mp{1} RFList.m{2} /\ SORO.Bounder.bounder{2} <= Counter.c{1}` with
+`={glob Counter}`, on the contents of `fL`. -/
+def fI (v₁ v₂ : FMap (List Bool × ℤ) Bool × FMap (List Bool) f_out × ℤ × ℤ) : Prop :=
+  inv v₁.1 v₂.2.1 ∧ v₁.2.2.2 = v₂.2.2.2 ∧ v₂.2.2.1 ≤ v₂.2.2.2
+
+/-- A write of `BIRO.IRO.mp` keeps a state equal to itself outside `fL`. -/
+theorem fL_IRO (g : VariableAssignment) (v : FMap (List Bool × ℤ) Bool) :
+    (fL RFList_m).equal_outside g (BIRO.IRO.mp.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_left
+
+/-- A write of `RFList.m` keeps a state equal to itself outside `fL`. -/
+theorem fL_RF (g : VariableAssignment) (v : FMap (List Bool) f_out) :
+    (fL RFList_m).equal_outside g (RFList_m.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_left.pair_right
+
+/-- A write of `SORO.Bounder.bounder` keeps a state equal to itself outside `fL`. -/
+theorem fL_bounder (g : VariableAssignment) (v : ℤ) :
+    (fL RFList_m).equal_outside g (SORO.Bounder.bounder.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_left.pair_right.pair_right
+
+/-- A write of `Counter.c` keeps a state equal to itself outside `fL`. -/
+theorem fL_Counter (g : VariableAssignment) (v : ℤ) :
+    (fL RFList_m).equal_outside g (Counter.c.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_right.pair_right.pair_right
+
+/-- `Bounder(RFWhile)` as `SORO_P1`'s oracle (an abbreviation). -/
+noncomputable abbrev bwO : SORO.Oracle :=
+  SecureORO.Oracle.mk (List Bool) f_out
+    { get := SecureORO.RF_T.get (List Bool) f_out
+        (Module.app (SecureORO.Bounder (List Bool) f_out sigma SORO.Bounder.bounder)
+          (RFWhile RFList_m)) }
+
+/-- The functionality oracle of `SORO_P1(A)` over `Bounder(RFWhile)`:
+`DFSetSize(OFC(ExtendOutputSize(Bounder(RFWhile)))).f` (an abbreviation). -/
+noncomputable abbrev bwDF : Module.Proc (procsig (List Bool) -> (Option f_out)) :=
+  OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+    (Module.app DFSetSize (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ)
+      (List Bool)
+      { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+          (Module.app OFC (Module.app (ExtendOutputSize Log_m) (bwO RFList_m))) }))
+
+/-- The last query of `rw_ideal_2`'s last game: `extDF ~ Bounder(RFWhile).get`, the right's
+answer the left's when the left's counter lets it through (EC: `if{1}; …; call eq_IRO_RFWhile`).
+Not an EC lemma. -/
+theorem fin_get :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂))
+      extDF.procedure
+      (SecureORO.RF_T.get (List Bool) f_out
+        (Module.app (SecureORO.Bounder (List Bool) f_out sigma SORO.Bounder.bounder)
+          (RFWhile RFList_m))).procedure
+      (fun r₁ _ r₂ _ => r₁ ≠ none → r₁ = r₂) := by
   sorry
+
+/-- `rw_ideal_2`'s last game, the functionality oracle: `extDF ~ bwDF`.  Not an EC lemma. -/
+theorem fin_f :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂))
+      extDF.procedure (bwDF Log_m RFList_m).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
+  sorry
+
+/-- The simulator `OSimulator(ExtendOutputSize(F))` as a primitive, both procedures (an
+abbreviation). -/
+noncomputable abbrev osimP (F : SORO.Oracle) :
+    OptionIndifferentiability.ODPRIMITIVE state (List Bool × ℤ) (List Bool) :=
+  OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ) (List Bool)
+    { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+        (Module.app OSimulator (Module.app (ExtendOutputSize Log_m) F))
+      fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+        (Module.app OSimulator (Module.app (ExtendOutputSize Log_m) F)) }
+
+/-- `FSetSize(FSome(BIRO.IRO))` as an oracle (an abbreviation). -/
+noncomputable abbrev iroO : SORO.Oracle :=
+  SecureORO.Oracle.mk (List Bool) f_out
+    { get := Module.app FSetSize.get (Module.app FSome BIRO.IRO.asF) }
+
+/-- `rw_ideal_2`'s last game, the primitive oracle `f`: `OPC(OSimulator(ExtendOutputSize(F)))` over
+`FSetSize(FSome(BIRO.IRO))` and `Bounder(RFWhile)`.  Not an EC lemma. -/
+theorem fin_pf :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂))
+      (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+        (Module.app OPC (osimP Log_m iroO))).procedure
+      (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+        (Module.app OPC (osimP Log_m (bwO RFList_m)))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
+  sorry
+
+/-- `rw_ideal_2`'s last game, the primitive oracle `fi`.  Not an EC lemma. -/
+theorem fin_pfi :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂))
+      (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+        (Module.app OPC (osimP Log_m iroO))).procedure
+      (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+        (Module.app OPC (osimP Log_m (bwO RFList_m)))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
+  sorry
+
+set_option maxHeartbeats 4000000 in
+-- the oracles' unification through `A`'s nest
+/-- EC's last `byequiv` of `rw_ideal_2`: the game over `ExtendOutputSize(FSetSize(FSome(BIRO.IRO)))`
+against `SORO.Preimage(SORO_P1(A), RFWhile)`, the states equal outside `fL` with `fI`, one
+abstract call to `A`.  Not an EC lemma. -/
+theorem fin_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
+    (hAL : FVP.fvP A ≤ ((fL RFList_m).footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Module.app OIndif.OIndif (Module.pair
+        (Module.app ExtendSample (Module.app FSome BIRO.IRO.asF)) (Module.pair
+          (Module.app OSimulator (Module.app (ExtendOutputSize Log_m)
+            (SecureORO.Oracle.mk (List Bool) f_out
+              { get := Module.app FSetSize.get (Module.app FSome BIRO.IRO.asF) })))
+          (ODRestr (Dist_of_P1Adv Log_m A))))).procedure
+      (Module.app SORO.Preimage (Module.pair (SORO_P1 Log_m A) (RFWhile RFList_m))).procedure
+      (fun r₁ _ r₂ _ => r₁ = true → r₂ = true) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  rw [RFWhile_init]
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_call (fin_get RFList_m)
+  stmt_wp
+  stmt_swap{2} 1 5
+  equiv_seq 1 1 : (§hash{1} = §hash{2} ∧ §hash{1} = §(localVarLens "h" f_out){2} ∧
+      (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_rnd
+    stmt_wp
+    equiv_skip
+    rintro g _ rfl a _
+    refine ⟨?_, inv_empty, rfl, le_rfl⟩
+    have hN : ∀ (s : VariableAssignment) v₁ v₂ v₃ v₄ (w : FMap (List Bool × ℤ) Bool),
+        Gconcl_list.BIRO2.IRO.mp.set v₄ (SHA3Indiff.Simulator.paths.set v₃
+          (SHA3Indiff.Simulator.mi.set v₂ (SHA3Indiff.Simulator.m.set v₁ (Log_m.set w s)))) =
+        Log_m.set w (Gconcl_list.BIRO2.IRO.mp.set v₄ (SHA3Indiff.Simulator.paths.set v₃
+          (SHA3Indiff.Simulator.mi.set v₂ (SHA3Indiff.Simulator.m.set v₁ s)))) := by
+      intro s v₁ v₂ v₃ v₄ w
+      have d₁ : Lens.Disjoint SHA3Indiff.Simulator.m Log_m := inferInstance
+      have d₂ : Lens.Disjoint SHA3Indiff.Simulator.mi Log_m := inferInstance
+      have d₃ : Lens.Disjoint SHA3Indiff.Simulator.paths Log_m := inferInstance
+      have d₄ : Lens.Disjoint Gconcl_list.BIRO2.IRO.mp Log_m := inferInstance
+      rw [d₁.commute, d₂.commute, d₃.commute, d₄.commute]
+    refine Lens.equal_outside.trans (((fL_IRO RFList_m _ FMap.empty).trans
+      (fL_Counter RFList_m _ 0)).set_disjoint (X := Log_m) FMap.empty).symm ?_
+    rw [← hN]
+    have e₂ := (((fL_bounder RFList_m g 0).trans (fL_RF RFList_m _ FMap.empty)).set_disjoint
+      (X := Log_m) FMap.empty).trans (fL_Counter RFList_m _ 0)
+    exact (((e₂.set_disjoint (X := SHA3Indiff.Simulator.m) FMap.empty).set_disjoint
+      (X := SHA3Indiff.Simulator.mi) FMap.empty).set_disjoint
+      (X := SHA3Indiff.Simulator.paths) _).set_disjoint (X := Gconcl_list.BIRO2.IRO.mp) FMap.empty
+  stmt_split{1} 1
+  stmt_split{2} 1
+  refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module
+    (fL RFList_m) A SH.OIndif.distExt hA.1 hAL fI ?hc _ _ ?horacle) ?_
+  case hc =>
+    intro _ n
+    cases n with
+    | zero => exact inferInstanceAs (Countable (List Bool))
+    | succ n => cases n with
+      | zero => exact inferInstanceAs (Countable (block × capacity))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => nomatch n
+  case horacle =>
+    intro _ n
+    cases n with
+    | zero =>
+      simp only [SH.OIndif.distExt, OptionIndifferentiability.distExt,
+        HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+        OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
+      exact fin_f Log_m RFList_m
+    | succ n => cases n with
+      | zero =>
+        simp only [SH.OIndif.distExt, OptionIndifferentiability.distExt,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
+        erw [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
+        try erw [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
+        exact fin_pf Log_m RFList_m
+      | succ n => cases n with
+        | zero =>
+          simp only [SH.OIndif.distExt, OptionIndifferentiability.distExt,
+            HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_single,
+            Module.fst_pair, Module.snd_pair, OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
+          erw [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+          try erw [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+          exact fin_pfi Log_m RFList_m
+        | succ n => nomatch n
+  equiv_skip
+  intro σ₁ σ₂ h
+  obtain ⟨hh, hh', he, hI⟩ := h
+  refine ⟨⟨hh', he, hI⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he', hI'⟩ => ?_⟩
+  simp_reads
+  refine ⟨⟨hr, he', hI'⟩, fun o₁ _ o₂ _ ho h1 => ?_⟩
+  simp only [decide_eq_true_eq] at h1 ⊢
+  rw [← ho (by rw [h1]; exact Option.some_ne_none _), h1, hh]
+
+end FinSim
 
 /-- `dlist dbool size_out` read back by `of_list` is `dout` (`dout_equal_dlist`, `of_listK`). -/
 theorem dlist_dout :
@@ -2958,6 +3177,64 @@ theorem rl_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     fp_sub
   exact soro_pre_game RFList_m (· = ·) _ _ (SORO_P1 Log_m A) hP hPL (rl_init RFList_m)
     (rl_bget RFList_m)
+
+/-- `local lemma rw_ideal_2 &m`. -/
+theorem rw_ideal_2 (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
+    (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
+      RFList_m.footprint)ᶜ)
+    (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) :
+    (Procedure.Pr (IdealGame (Module.app FSome BIRO.IRO.asF) (ODRestr
+        (Dist_of_P1Adv Log_m A))).procedure () m (fun r _ => r = true) : ℝ) ≤
+      Procedure.Pr (Module.app SORO.Preimage (Module.pair (SORO_P1 Log_m A)
+        (RFList RFList_m))).procedure () m (fun r _ => r = true) := by
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans _hfresh.1
+  have hRA : RFList_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_right.trans _hfresh.1
+  have hD : ∀ {α β : Type} (Y : Lens α VariableAssignment) (X : Lens β VariableAssignment),
+      Y.footprint ≤ ARestrictions.footprintᶜ → X.footprint ≤ ARestrictions.footprint →
+      Lens.Disjoint Y X ∧ Lens.Disjoint X Y :=
+    fun Y X hY hX => ⟨Lens.disjoint_of_footprint_le_compl _ _
+      (hY.trans (Footprint.compl_antimono hX)), Lens.disjoint_of_footprint_le_compl _ _
+      ((Footprint.le_compl_comm _ _).mp (hY.trans (Footprint.compl_antimono hX)))⟩
+  have h₁ := hD Log_m BIRO.IRO.mp hLA (by unfold ARestrictions.footprint; fp_sub)
+  have h₂ := hD Log_m Counter.c hLA (by unfold ARestrictions.footprint; fp_sub)
+  have h₃ := hD Log_m SHA3Indiff.Simulator.m hLA (by unfold ARestrictions.footprint; fp_sub)
+  have h₄ := hD Log_m SHA3Indiff.Simulator.mi hLA (by unfold ARestrictions.footprint; fp_sub)
+  have h₅ := hD Log_m SHA3Indiff.Simulator.paths hLA (by unfold ARestrictions.footprint; fp_sub)
+  have h₆ := hD Log_m Gconcl_list.BIRO2.IRO.mp hLA (by unfold ARestrictions.footprint; fp_sub)
+  have h₇ := hD Log_m SORO.Bounder.bounder hLA (by unfold ARestrictions.footprint; fp_sub)
+  have k₁ := hD RFList_m BIRO.IRO.mp hRA (by unfold ARestrictions.footprint; fp_sub)
+  have k₂ := hD RFList_m Counter.c hRA (by unfold ARestrictions.footprint; fp_sub)
+  have k₃ := hD RFList_m SHA3Indiff.Simulator.m hRA (by unfold ARestrictions.footprint; fp_sub)
+  have k₄ := hD RFList_m SHA3Indiff.Simulator.mi hRA (by unfold ARestrictions.footprint; fp_sub)
+  have k₅ := hD RFList_m SHA3Indiff.Simulator.paths hRA (by unfold ARestrictions.footprint; fp_sub)
+  have k₆ := hD RFList_m Gconcl_list.BIRO2.IRO.mp hRA (by unfold ARestrictions.footprint; fp_sub)
+  have k₇ := hD RFList_m SORO.Bounder.bounder hRA (by unfold ARestrictions.footprint; fp_sub)
+  haveI := h₁.1; haveI := h₁.2; haveI := h₂.1; haveI := h₂.2; haveI := h₃.2; haveI := h₄.2
+  haveI := h₅.2; haveI := h₆.2; haveI := h₇.1; haveI := h₇.2
+  haveI := k₁.1; haveI := k₁.2; haveI := k₂.1; haveI := k₂.2; haveI := k₃.2; haveI := k₄.2
+  haveI := k₅.2; haveI := k₆.2; haveI := k₇.1; haveI := k₇.2
+  haveI : Lens.Disjoint Log_m RFList_m := Lens.disjoint_of_footprint_le_compl _ _ _hfresh.2.1
+  haveI : Lens.Disjoint RFList_m Log_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp _hfresh.2.1)
+  have hA₁ : FVP.fvP A ≤ ((xL Log_m).footprint)ᶜ := by
+    refine _hAd.trans (Footprint.compl_antimono ?_)
+    simp only [xL, Footprint.lens_pair]
+    unfold ARestrictions.footprint
+    fp_sub
+  have hA₂ : FVP.fvP A ≤ ((fL RFList_m).footprint)ᶜ := by
+    refine _hAd.trans (Footprint.compl_antimono ?_)
+    simp only [fL, Footprint.lens_pair]
+    unfold ARestrictions.footprint
+    fp_sub
+  have hE : ∀ (r₁ : Bool) (g₁ : VariableAssignment) (r₂ : Bool) (g₂ : VariableAssignment),
+      r₁ = r₂ → (r₁ = true ↔ r₂ = true) := fun _ _ _ _ h => by rw [h]
+  rw [eager_ideal Log_m RFList_m A hA _hAd _hfresh m,
+    Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) (ext_game Log_m RFList_m A hA hA₁ _hfresh)
+      hE rfl,
+    Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) (rl_game Log_m RFList_m A hA _hAd _hfresh)
+      hE rfl]
+  exact_mod_cast Procedure.Pr_le_of_prhlProc (a₁ := ()) (a₂ := ())
+    (fin_game Log_m RFList_m A hA hA₂) (fun _ _ _ _ h => h) rfl
 
 /-- `local lemma rw_ideal &m`. -/
 theorem rw_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
