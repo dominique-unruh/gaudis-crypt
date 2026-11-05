@@ -80,6 +80,7 @@ import GaudisCrypt.Lib.RO.OneWayness_GameHop.GuessExperiment
 import GaudisCrypt.Lib.RO.OneWayness_GameHop.UpToBad
 import GaudisCrypt.Logic.FreshVariable
 import GaudisCrypt.Logic.FootprintSolver
+import GaudisCrypt.Logic.FootprintUpper
 import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.ExpectationCall
 import GaudisCrypt.Logic.ExpectationFrame
@@ -112,6 +113,7 @@ import GaudisCrypt.Logic.PRHL2Upto
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.LoopTransform
 import GaudisCrypt.Logic.PRHLTransitivity
+import GaudisCrypt.Logic.PRHLFrame
 import GaudisCrypt.Logic.ModuleComp
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.PRHLWpTest

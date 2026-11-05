@@ -3,6 +3,8 @@ import GaudisCrypt.Examples.SHA3.IndifRO_is_secure
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.ListRange
 import GaudisCrypt.Logic.PRHLTransitivity
+import GaudisCrypt.Logic.PRHLFrame
+import GaudisCrypt.Logic.FootprintUpper
 
 /-!
 # Top-level proof of SHA-3 security (EasyCrypt `proof/SHA3Security.ec`)
@@ -492,6 +494,154 @@ def equiv_ro_iro.statement (c : ℤ) (m : List Bool) : Prop :=
     (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ same_ro (SRO.RO.RO.m.get g₁) (BIRO.IRO.mp.get g₂) ∧
       Cntr.c.get g₂ = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
 
+/-! ### The real side of the sections' first `have`
+
+`GReal(CSetSize(Sponge), Perm, D(A))` against `RealIndif(Sponge, Perm, DRestr(DSetSize(D(A))))`: the
+two games differ in `Cntr.c` (written on the right only); EC's invariant `={glob SRO.Counter,
+glob Perm} /\ invm Perm.m{1} Perm.mi{1} /\ ={c}(SRO.Counter, Cntr)` is the states equal outside
+`realL` with `realI` on its contents (the adversary is outside `realL`). -/
+
+/-- The variables of the real side's invariant: `Cntr.c`, `SRO.Counter.c`, `Perm.m`, `Perm.mi`. -/
+noncomputable def realL :
+    Lens (ℤ × ℤ × (FMap (block × capacity) (block × capacity) ×
+      FMap (block × capacity) (block × capacity))) VariableAssignment :=
+  Lens.pair Cntr.c (Lens.pair SRO.Counter.c (Lens.pair Perm.m Perm.mi))
+
+/-- EC's `={c}(SRO.Counter, Cntr) /\ ={glob SRO.Counter, glob Perm} /\ invm Perm.m{1}
+Perm.mi{1}`, on the contents of `realL`. -/
+def realI (v₁ v₂ : ℤ × ℤ × (FMap (block × capacity) (block × capacity) ×
+      FMap (block × capacity) (block × capacity))) : Prop :=
+  v₁.2 = v₂.2 ∧ v₂.1 = v₂.2.1 ∧ invm v₁.2.2.1 v₁.2.2.2
+
+/-- `FInit(CSetSize(Sponge, Perm))`, as the sections' games spell it (an abbreviation). -/
+noncomputable abbrev realF₁ : SecureRO.RF (List Bool) f_out :=
+  SecureRO.RF.mk (List Bool) f_out
+    { init := IndifRO_is_secure.FInit.init (block × capacity) (List Bool) f_out,
+      get := Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+        (Indifferentiability.DFUNCTIONALITY.mk (block × capacity) (List Bool) f_out
+          { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool) f_out
+              (Module.app (CSetSize Sponge.Sponge)
+                (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool) f_out Perm)) }) }
+
+/-- `FInit(DFSetSize(FC(Sponge(Perm))))`, as the sections' games spell it (an abbreviation). -/
+noncomputable abbrev realF₂ : SecureRO.RF (List Bool) f_out :=
+  SecureRO.RF.mk (List Bool) f_out
+    { init := IndifRO_is_secure.FInit.init (block × capacity) (List Bool) f_out,
+      get := Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+        (Module.app DFSetSize (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+          (List Bool × ℤ) (List Bool)
+          { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+              (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+                (List Bool × ℤ) (List Bool)
+                { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+                    (List Bool) (Module.app Sponge.Sponge
+                      (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ)
+                        (List Bool) Perm)) })) })) }
+
+/-- `realF₁.get` is `equiv_sponge_perm`'s left procedure. -/
+theorem realF₁_get : SecureRO.RF.get (List Bool) f_out realF₁ = sponge_perm_left := by
+  simp [realF₁, sponge_perm_left, Indifferentiability.FUNCTIONALITY.view]
+  rfl
+
+/-- `realF₂.get` is `equiv_sponge_perm`'s right procedure. -/
+theorem realF₂_get : SecureRO.RF.get (List Bool) f_out realF₂ = sponge_perm_right := by
+  simp [realF₂, sponge_perm_right, Indifferentiability.FUNCTIONALITY.view]
+
+/-- A write of `SRO.Counter.c` is a write of `realL`. -/
+theorem realL_Counter_eq (g : VariableAssignment) (u : ℤ) :
+    SRO.Counter.c.set u g = realL.set (Cntr.c.get g, u, Perm.m.get g, Perm.mi.get g) g := by
+  simp only [realL, Lens.pair, Perm.mi.get_set, Perm.m.get_set]
+  rw [show Cntr.c.get g = Cntr.c.get (SRO.Counter.c.set u g) from
+    (Lens.get_of_disjoint_set _ _ _ _).symm, Cntr.c.get_set]
+
+/-- A write of `Cntr.c` is a write of `realL`. -/
+theorem realL_Cntr_eq (g : VariableAssignment) (u : ℤ) :
+    Cntr.c.set u g = realL.set (u, SRO.Counter.c.get g, Perm.m.get g, Perm.mi.get g) g := by
+  simp only [realL, Lens.pair, Perm.mi.get_set, Perm.m.get_set, SRO.Counter.c.get_set]
+
+/-- Writes of `SRO.Counter.c` keep the states equal outside `realL`. -/
+theorem realL_Counter {g₁ g₂ : VariableAssignment} (h : realL.equal_outside g₁ g₂) (u v : ℤ) :
+    realL.equal_outside (SRO.Counter.c.set u g₁) (SRO.Counter.c.set v g₂) := by
+  rw [realL_Counter_eq g₁, realL_Counter_eq g₂]
+  exact (h.set_left _).set_right _
+
+/-- A write of `Cntr.c` on the right keeps the states equal outside `realL`. -/
+theorem realL_Cntr_right {g₁ g₂ : VariableAssignment} (h : realL.equal_outside g₁ g₂) (v : ℤ) :
+    realL.equal_outside g₁ (Cntr.c.set v g₂) := by
+  rw [realL_Cntr_eq g₂]
+  exact h.set_right _
+
+/-- `realL`'s footprint, its variables'. -/
+theorem realL_footprint : realL.footprint = Cntr.c.footprint ⊔ (SRO.Counter.c.footprint ⊔
+    ((Perm.m).footprint ⊔ (Perm.mi).footprint)) := by
+  simp only [realL, Footprint.lens_pair]
+
+/-- `realL`'s contents. -/
+@[simp] theorem realL_get (g : VariableAssignment) :
+    realL.get g = (Cntr.c.get g, SRO.Counter.c.get g, Perm.m.get g, Perm.mi.get g) := rfl
+
+/-- `SRO.Bounder.bounder` is outside `realL`. -/
+instance : Lens.Disjoint SRO.Bounder.bounder realL := by unfold realL; infer_instance
+
+/-- `FInit.get` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_FInit_get :
+    FVP.fvP (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out) ≤ ⊥ := by
+  fp_module
+
+/-- `Sponge` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_Sponge : FVP.fvP Sponge.Sponge ≤ ⊥ := by
+  fp_module
+
+/-- `CSetSize(Sponge)` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_CSetSize_Sponge : FVP.fvP (CSetSize Sponge.Sponge) ≤ ⊥ := by
+  fp_module
+
+/-- `DFSetSize` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_DFSetSize : FVP.fvP DFSetSize ≤ ⊥ := by
+  fp_module
+
+/-- `equiv_sponge_perm`'s left procedure touches `Perm` only. -/
+theorem fvP_sponge_perm_left :
+    FVP.fvP sponge_perm_left ≤ (Perm.m).footprint ⊔ (Perm.mi).footprint := by
+  unfold sponge_perm_left
+  fp_le
+
+/-- `equiv_sponge_perm`'s right procedure touches `Cntr.c` and `Perm` only. -/
+theorem fvP_sponge_perm_right :
+    FVP.fvP sponge_perm_right ≤ Cntr.c.footprint ⊔ ((Perm.m).footprint ⊔ (Perm.mi).footprint) := by
+  unfold sponge_perm_right
+  fp_le
+
+/-- `Perm.init` is `RP.init` (at the clone's types). -/
+theorem Perm_init_eq :
+    Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool) f_out Perm =
+      PRP.RP.RP.init (block × capacity) dD Perm.m Perm.mi := by
+  unfold Perm PRP.RP.RP
+  simp [Indifferentiability.PRIMITIVE.init, PRP.StrongPRP.PRP.mk]
+
+/-- `Perm.init` is `RP.init` (at `Sponge`'s types). -/
+theorem Perm_init_eq' :
+    Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool) Perm =
+      PRP.RP.RP.init (block × capacity) dD Perm.m Perm.mi := by
+  unfold Perm PRP.RP.RP
+  simp [Indifferentiability.PRIMITIVE.init, PRP.StrongPRP.PRP.mk]
+
+
+/-- `CSetSize(F, P).init` is the module of its procedure. -/
+theorem CSetSize_init_eq (F : GaudisCrypt.SHA3.Sponge.CONSTRUCTION)
+    (P : Indifferentiability.DPRIMITIVE (block × capacity) (List Bool) f_out) :
+    Indifferentiability.FUNCTIONALITY.init (block × capacity) (List Bool) f_out
+      (@Module.app (Indifferentiability.DPRIMITIVE (block × capacity) (List Bool) f_out) _ _ _
+        (CSetSize F) P) = (Module.app (CSetSize.init F) P : procmod () → Unit) := by
+  erw [CSetSize.apply_simp, Indifferentiability.FUNCTIONALITY.init.mk_simp]
+
+/-- `Sponge(P).init` is the module of its procedure. -/
+theorem Sponge_init_eq (P : DPRIMITIVE) :
+    Indifferentiability.FUNCTIONALITY.init (block × capacity) (List Bool × ℤ) (List Bool)
+      (Module.app Sponge.Sponge P) = Sponge.init := by
+  rw [Sponge.apply_simp]
+  exact Module.fst_pair _ _
+
 /-! ## The section `Preimage`, with `declare module A <: SRO.AdvPreimage {…, -DPre}` and
 `declare axiom A_ll` (its local declarations in the namespace `Preimage`) -/
 
@@ -769,6 +919,177 @@ theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := b
           exact ⟨rfl, rfl, rfl, le_rfl, Params.size_out_gt0.le, rfl, hs, hdom, fun _ _ h => h,
             fun _ _ _ => rfl, fun _ _ h => Or.inl h, fun j hj => absurd hj.2 (by omega), rfl,
             by rw [range_geq 0 0 le_rfl]; rfl, hc⟩
+
+/-- EC's oracle premise `proc; sp; if; auto; sp; if; auto; sp; exists* x{1}; elim* => m c1 c2 b1
+b2; call (equiv_sponge_perm c1 m)` of the sections' real-side `call`: `Bounder(FInit(CSetSize(Sponge,
+Perm))).get ~ Bounder(FInit(DFSetSize(FC(Sponge(Perm))))).get`, the states equal outside `realL` with
+`realI` (the call framed by `prhlProc_frame_equal_outside_module`, `SRO.Counter.c` by
+`prhlProc_frame_lens`).  Not an EC lemma. -/
+theorem real_oracle :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ realL.equal_outside g₁ g₂ ∧
+        realI (realL.get g₁) (realL.get g₂))
+      (SecureRO.RF.get (List Bool) f_out (Module.app (SecureRO.Bounder (List Bool) f_out sigma
+        increase_counter limit SRO.Counter.c SRO.Bounder.bounder) realF₁)).procedure
+      (SecureRO.RF.get (List Bool) f_out (Module.app (SecureRO.Bounder (List Bool) f_out sigma
+        increase_counter limit SRO.Counter.c SRO.Bounder.bounder) realF₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ realL.equal_outside g₁ g₂ ∧
+        realI (realL.get g₁) (realL.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+      realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    intro _ _ _ _ h
+    exact h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ ⟨-, -, he, -⟩
+    rw [he.get_disjoint]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
+    exact ⟨hy, he, hI⟩
+  case «then» =>
+    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+        realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
+    · stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x0 y x0' y' ⟨⟨hx, hy, he, hI⟩, -⟩
+      refine ⟨hx, hy, ?_, ?_⟩
+      · rw [he.get_disjoint]
+        exact he.set_disjoint _
+      · simp only [realL_get] at hI ⊢
+        exact hI
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ x0 y x0' y' ⟨rfl, -, -, hI⟩
+      simp only [realL_get, realI, Prod.mk.injEq] at hI
+      rw [hI.1.1]
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
+      exact ⟨hy, he, hI⟩
+    case «then» =>
+      refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+        (localVarLens "x0" (List Bool)).get σ)) fun q => ?_
+      have hC₁ : ∀ a, (procedureDenotation sponge_perm_left.procedure a).inFootprint
+          (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+        (Module.Proc.inFootprint_fvP _ a) (fvP_sponge_perm_left.trans (by fp_disjoint))
+      have hC₂ : ∀ a, (procedureDenotation sponge_perm_right.procedure a).inFootprint
+          (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+        (Module.Proc.inFootprint_fvP _ a) (fvP_sponge_perm_right.trans (by fp_disjoint))
+      have hS := prhlProc_frame_equal_outside_module realL sponge_perm_left sponge_perm_right
+        (by rw [realL_footprint]; exact fvP_sponge_perm_left.trans (by fp_le))
+        (by rw [realL_footprint]; exact fvP_sponge_perm_right.trans (by fp_le))
+        (prhlProc_frame_lens SRO.Counter.c SRO.Counter.c hC₁ hC₂
+          (fun a b => a = increase_counter q.1 q.2 ∧ b = increase_counter q.1 q.2)
+          (equiv_sponge_perm q.1 q.2))
+      rw [realF₁_get, realF₂_get]
+      equiv_call hS
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ x0 y x0' y' ⟨⟨⟨rfl, -, he, hI⟩, hg⟩, rfl⟩
+      simp only [realL_get, realI, Prod.mk.injEq] at hI
+      obtain ⟨⟨hc, hm, hmi⟩, hcn, hinv⟩ := hI
+      simp only [decide_eq_true_eq] at hg
+      refine ⟨⟨⟨⟨rfl, ?_, hinv, ?_⟩, rfl, by rw [← hc]⟩, realL_Counter he _ _⟩, ?_⟩
+      · simp only [eqPerm]
+        simp_reads
+        exact ⟨hm, hmi⟩
+      · simp only [counter_pre]
+        simp_reads
+        refine ⟨by rw [hcn, ← hc], ?_⟩
+        rw [hcn, ← hc]
+        exact hg.le
+      · rintro r₁ g₁' r₂ g₂' ⟨⟨⟨rfl, ⟨hm', hmi'⟩, hinv', hcn'⟩, hc1, hc2⟩, he'⟩
+        refine ⟨rfl, he', ?_⟩
+        simp only [realL_get, realI]
+        exact ⟨by rw [hc1, hc2, hm', hmi'], by rw [hcn', hc2]; rfl, hinv'⟩
+
+/-- The first `have` of EC's `Sponge_preimage_resistant`: `Pr[Indiff0.Indif(CSetSize(Sponge, Perm),
+Perm, DPre(A)).main() @ &m : res] = Pr[RealIndif(Sponge, Perm, DRestr(DSetSize(DPre(A)))).main() @ &m
+: res]`, by EC's `byequiv`: the initializations, `call (: ={glob SRO.Counter, glob Perm, glob DPre,
+glob SRO.Bounder} /\ DPre.h{1} = ha /\ invm Perm.m{1} Perm.mi{1} /\ ={c}(SRO.Counter, Cntr))`
+(`real_oracle`), and `call (equiv_sponge_perm c mess)`. -/
+theorem real_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
+    (hAd : FVP.fvP A ≤ (realL.footprint)ᶜ) (ha : f_out) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂ ∧ DPre.h.get g₁ = ha)
+      (Indifferentiability.GReal (block × capacity) (List Bool) f_out (CSetSize Sponge.Sponge) Perm
+        (IndifRO_is_secure.DPre (block × capacity) (List Bool) f_out sigma limit increase_counter
+          SRO.Counter.c SRO.Bounder.bounder DPre.h A)).procedure
+      (RealIndif Sponge.Sponge Perm (DRestr (DSetSize (IndifRO_is_secure.DPre (block × capacity)
+        (List Bool) f_out sigma limit increase_counter SRO.Counter.c SRO.Bounder.bounder DPre.h
+        A)))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 2
+  repeat stmt_inline{2} 2
+  rw [Perm_init_eq, Perm_init_eq', Sponge_init_eq, CSetSize_init_eq]
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  erw [Sponge_init_eq]
+  stmt_inline{1} 0
+  stmt_wp
+  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
+      §hash{1} = §hash{2} ∧
+      realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module realL A SRO.Oracle.ext
+      hA.representable hAd realI (fun n => by cases n with
+        | zero => exact inferInstanceAs (Countable (List Bool))
+        | succ m => nomatch m) _ _ (fun n => by cases n with
+        | zero =>
+          simp only [SecureRO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
+            SecureRO.Oracle.get.mk_simp]
+          exact real_oracle
+        | succ m => nomatch m)) ?_
+    stmt_wp
+    equiv_skip
+    rintro g _ ⟨rfl, -⟩
+    refine ⟨⟨rfl, ?_, ?_⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he, hI⟩ => ⟨hr, rfl, he, hI⟩⟩
+    · have h0 := realL_Cntr_right (Lens.equal_outside.refl
+        (Perm.mi.set FMap.empty (Perm.m.set FMap.empty g))) 0
+      exact realL_Counter ((realL_Counter h0 0 0).set_disjoint (X := SRO.Bounder.bounder) 0) 0 0
+    · simp only [realL_get, realI]
+      simp_reads
+      simp [invm]
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ m h m' h' ⟨rfl, -, -, hI⟩
+    simp only [realL_get, realI, Prod.mk.injEq] at hI
+    rw [hI.1.1]
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    intros
+    trivial
+  case «then» =>
+    stmt_wp
+    refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+      (localVarLens "m" (List Bool)).get σ)) fun q => ?_
+    have h := equiv_sponge_perm q.1 q.2
+    unfold equiv_sponge_perm.statement at h
+    erw [realF₁_get, realF₂_get]
+    equiv_call h
+    equiv_skip
+    rintro g₁ g₂ m h m' h' ⟨⟨⟨rfl, rfl, -, hI⟩, hg⟩, rfl⟩
+    simp only [realL_get, realI, Prod.mk.injEq] at hI
+    obtain ⟨⟨hc, hm, hmi⟩, hcn, hinv⟩ := hI
+    simp only [decide_eq_true_eq] at hg
+    refine ⟨⟨rfl, ⟨hm, hmi⟩, hinv, by rw [hcn, ← hc], rfl, ?_⟩, fun r₁ _ r₂ _ h => by rw [h.1]⟩
+    rw [hcn, ← hc]
+    exact hg.le
 
 end Preimage
 
