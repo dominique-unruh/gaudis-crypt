@@ -1,6 +1,8 @@
 import GaudisCrypt.Examples.SHA3.SHA3Indiff
 import GaudisCrypt.Examples.SHA3.IndifRO_is_secure
 import GaudisCrypt.Lib.EC.DList
+import GaudisCrypt.Lib.EC.ListRange
+import GaudisCrypt.Logic.PRHLTransitivity
 
 /-!
 # Top-level proof of SHA-3 security (EasyCrypt `proof/SHA3Security.ec`)
@@ -178,8 +180,19 @@ noncomputable abbrev FM.asRO := IndifRO_is_secure.FM.asRO (block × capacity) (L
 /-- The clone's `realize bound_counter_ge0`, `limit_gt0`, `sampleto_ll`, `sampleto_fu`,
 `sampleto_full`, `increase_counter_spec`. -/
 theorem axioms :
-    IndifRO_is_secure.Axioms (List Bool) f_out dout sigma limit increase_counter := by
-  sorry
+    IndifRO_is_secure.Axioms (List Bool) f_out dout sigma limit increase_counter where
+  sampleto_ll := Params.dout_ll
+  sampleto_fu := Params.dout_fu
+  sampleto_full := Params.dout_full
+  limit_gt0 := Params.sigma_gt0
+  bound_counter_ge0 := SLCommon.max_ge0
+  increase_counter_spec c m := by
+    have hr := gt0_r
+    have h1 : 0 ≤ (size m + 1) / r :=
+      Int.ediv_nonneg (by unfold size; omega) hr.le
+    unfold increase_counter
+    have := le_max_right ((size_out + r - 1) / r - 1) 0
+    omega
 end S
 
 open S
@@ -254,6 +267,174 @@ def same_ro2 (m1 : FMap (List Bool) (List Bool)) (m2 : FMap (List Bool × ℤ) B
   (∀ m, FMap.dom m1 m →
     oget (FMap.get m1 m) = (range 0 size_out).map fun i => oget (FMap.get m2 (m, i)))
 
+/-- EC's `={glob Perm}`: `Perm.m` and `Perm.mi` agree (EasyCrypt's `glob Perm` is the module's
+variables). -/
+def eqPerm (g₁ g₂ : VariableAssignment) : Prop :=
+  Perm.m.get g₁ = Perm.m.get g₂ ∧ Perm.mi.get g₁ = Perm.mi.get g₂
+
+/-- The invariant of `equiv_sponge_perm`'s `call (: ={glob Perm} /\ invm Perm.m{1} Perm.mi{1})`,
+with the counter `Cntr.c{2} = k` it frames. -/
+def permInv (k : ℤ) (g₁ g₂ : VariableAssignment) : Prop :=
+  Perm.m.get g₁ = Perm.m.get g₂ ∧ Perm.mi.get g₁ = Perm.mi.get g₂ ∧
+    invm (Perm.m.get g₁) (Perm.mi.get g₁) ∧ Cntr.c.get g₂ = k
+
+/-- `Perm.f`, through the distinguisher's view, is `RP.f`. -/
+theorem Perm_f_eq : Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+    (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ) (List Bool) Perm) =
+    PRP.RP.RP.f (block × capacity) dD Perm.m Perm.mi := by
+  rw [Indifferentiability.PRIMITIVE.view_f]
+  unfold Perm PRP.RP.RP
+  simp [Indifferentiability.PRIMITIVE.f, PRP.StrongPRP.PRP.mk]
+
+/-- `Perm.f ~ Perm.f` keeps `permInv` (`invm_set`): the oracle premise of `equiv_sponge_perm`'s
+`call`. -/
+theorem Perm_f_perm (k : ℤ) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ permInv k g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+        (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ) (List Bool)
+          Perm)).procedure
+      (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
+        (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ) (List Bool)
+          Perm)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ permInv k g₁ g₂) := by
+  rw [Perm_f_eq]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ permInv k §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨rfl, h⟩
+    exact ⟨rfl, h⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ x _ ⟨rfl, hm, -, -⟩
+    rw [hm]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨⟨rfl, hm, hmi, hinv⟩, -⟩
+    exact ⟨by rw [hm], hm, hmi, hinv⟩
+  case «then» =>
+    stmt_wp
+    equiv_rnd
+    equiv_skip
+    rintro g₁ g₂ x _ ⟨⟨rfl, hm, hmi, hinv, hc⟩, hg⟩
+    refine ⟨by rw [hm], fun a ha => ?_⟩
+    simp only [permInv]
+    simp_reads
+    refine ⟨by rw [hm], by rw [hm], by rw [hmi], ?_, hc⟩
+    exact invm_set _ _ _ _ (by simpa using hg) (not_of_mem_support_dexcepted ha) hinv
+
+/-- EC's `call (: I); inline*; while (…); …` on `Sponge(P).f ~ Sponge(P).f`: an invariant `I` kept
+by `P.f` is kept by the sponge (both loops in lockstep).  Not an EC lemma. -/
+theorem Sponge_f_inv (P : DPRIMITIVE) (I : VariableAssignment → VariableAssignment → Prop)
+    (hPf : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ I g₁ g₂)
+      (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool) P).procedure
+      (Indifferentiability.DPRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool) P).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ I g₁ g₂)) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ I g₁ g₂)
+      (Module.app Sponge.f P).procedure (Module.app Sponge.f P).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ I g₁ g₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 2 2 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+      §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, hg⟩
+    exact ⟨rfl, rfl, hg⟩
+  equiv_seq 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+      §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
+  · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+        §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
+    case body =>
+      stmt_wp
+      equiv_call hPf
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hg⟩, -⟩
+      exact ⟨⟨rfl, hg⟩, fun _ _ _ _ ⟨rfl, hg'⟩ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, hg'⟩⟩
+    case guard => intros; simp_all
+    case exit =>
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, -, hg⟩ -
+      exact ⟨rfl, rfl, rfl, rfl, rfl, hg⟩
+    · equiv_skip
+      intros; simp_all
+  · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+        §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
+    case body =>
+      equiv_seq 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+        §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2}) ∧ §i{1} = §i{2})
+      · stmt_wp
+        equiv_skip
+        intros; simp_all
+      · equiv_if
+        case guard => intros; simp_all
+        case «then» =>
+          equiv_call hPf
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hg⟩, -⟩, -⟩
+          exact ⟨⟨rfl, hg⟩, fun _ _ _ _ ⟨rfl, hg'⟩ => ⟨rfl, rfl, rfl, rfl, rfl, hg'⟩⟩
+        case «else» => equiv_skip; intros; simp_all
+    case guard => intros; simp_all
+    case exit =>
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, hg⟩ -
+      exact ⟨rfl, hg⟩
+    · equiv_skip
+      intros; simp_all
+
+/-- `of_list` inverts `to_list` on lists of length `size_out` (`spec2_dout`, `to_listK`). -/
+theorem to_list_oget_of_list (l : List Bool) (h : size l = size_out) :
+    to_list (oget (of_list l)) = l := by
+  obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp (Params.spec2_dout l h)
+  have := (Params.to_listK v l).mpr hv
+  simp only [of_list, to_list, hv, oget, Option.getD_some]
+  exact this
+
+/-- The exit of `equiv_ro_iro`'s loops: `same_ro` after `SRO.RO.RO.m` gets the fresh `x0`, with the
+bits the loop sampled for `x0` (EC's `progress` after the `conseq`). -/
+theorem same_ro_set_fresh (m1 : FMap (List Bool) f_out) (mp mp2 : FMap (List Bool × ℤ) Bool)
+    (x0 l0 : List Bool) (hs : same_ro m1 mp) (hdom : ¬ FMap.dom m1 x0)
+    (h1 : ∀ l j, FMap.dom mp (l, j) → FMap.dom mp2 (l, j))
+    (h2 : ∀ l j, FMap.dom mp (l, j) → FMap.get mp2 (l, j) = FMap.get mp (l, j))
+    (h3 : ∀ l j, FMap.dom mp2 (l, j) → FMap.dom mp (l, j) ∨ (l = x0 ∧ 0 ≤ j ∧ j < size_out))
+    (h4 : ∀ j, 0 ≤ j ∧ j < size_out → FMap.dom mp2 (x0, j))
+    (hsz : size l0 = size_out)
+    (hbs : l0 = (range 0 size_out).map fun j => oget (FMap.get mp2 (x0, j))) :
+    same_ro (FMap.set m1 x0 (oget (of_list l0))) mp2 := by
+  refine ⟨fun m' hm i hi => ?_, fun m' ⟨i, hi0, hi1, hi⟩ => ?_, fun m' hm => ?_⟩
+  · rcases (FMap.mem_set _ _ _ _).mp hm with hm | rfl
+    · exact h1 _ _ (hs.1 m' hm i hi)
+    · exact h4 i hi
+  · rcases h3 _ _ hi with h | ⟨rfl, -⟩
+    · exact (FMap.mem_set _ _ _ _).mpr (Or.inl (hs.2.1 m' ⟨i, hi0, hi1, h⟩))
+    · exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)
+  · by_cases hx : m' = x0
+    · subst hx
+      rw [FMap.get_set_sameE]
+      simp only [oget, Option.getD_some]
+      rw [show (Option.getD (of_list l0) default) = oget (of_list l0) from rfl,
+        to_list_oget_of_list l0 hsz]
+      exact hbs
+    · rw [FMap.get_set_neqE _ _ _ _ hx]
+      have hd : FMap.dom m1 m' := ((FMap.mem_set _ _ _ _).mp hm).resolve_right hx
+      rw [hs.2.2 m' hd]
+      refine List.map_congr_left fun i hi => ?_
+      rw [h2 _ _ (hs.1 m' hd i ((mem_range 0 size_out i).mp hi))]
+
+/-- `dout` is `dlist dbool size_out` read back by `of_list` (`dout_equal_dlist`, `to_listK`). -/
+theorem dout_dlist : dout = (dlist dbool size_out).hbind fun l => pure (oget (of_list l)) := by
+  refine SubProbability.ext_of_expected fun F => ?_
+  rw [SubProbability.expected_hbind]
+  change _ = (dlist dbool Params.size_out).expected _
+  rw [← Params.dout_equal_dlist, SubProbability.expected_bind]
+  simp only [expected_pure]
+  refine congrArg (Params.dout.expected) (funext fun x => ?_)
+  have := (Params.to_listK x (Params.to_list x)).mp rfl
+  simp only [of_list, this, oget, Option.getD_some]
+
 /-- The pre- and post-condition parts of the sections' `equiv_sponge_perm`, `equiv_ro_iro`
 on the counter: `Cntr.c{2} = c /\ arg{2} = m /\ (Cntr.c + … <= limit){2}` (an abbreviation). -/
 def counter_pre (c : ℤ) (m : List Bool) (arg : List Bool) (g₂ : VariableAssignment) : Prop :=
@@ -293,10 +474,10 @@ Cntr.c{2} = c /\ arg{2} = m /\ (…){2} ==> ={res, glob Perm} /\ invm Perm.m{1} 
 Cntr.c{2} = c + …`, the statement shared by the three sections (an abbreviation). -/
 def equiv_sponge_perm.statement (c : ℤ) (m : List Bool) : Prop :=
   prhlProc (sig₁ := procsig (List Bool) -> f_out) (sig₂ := procsig (List Bool) -> f_out)
-    (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eqGlob Perm g₁ g₂ ∧ invm (Perm.m.get g₁) (Perm.mi.get g₁) ∧
+    (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eqPerm g₁ g₂ ∧ invm (Perm.m.get g₁) (Perm.mi.get g₁) ∧
       counter_pre c m a₂ g₂)
     sponge_perm_left.procedure sponge_perm_right.procedure
-    (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob Perm g₁ g₂ ∧ invm (Perm.m.get g₁) (Perm.mi.get g₁) ∧
+    (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqPerm g₁ g₂ ∧ invm (Perm.m.get g₁) (Perm.mi.get g₁) ∧
       Cntr.c.get g₂ = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
 
 /-- `local equiv equiv_ro_iro c m : FInit(RO).get ~ FInit(DFSetSize(FC(BIRO.IRO))).get : ={arg} /\
@@ -341,13 +522,253 @@ theorem useful (m mi : FMap state state) (a : state) :
     ⟨a, h⟩
 
 theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
-  sorry
+  unfold equiv_sponge_perm.statement
+  unfold sponge_perm_left sponge_perm_right
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §bs{2} ∧ §n{2} = size_out ∧ eqPerm §allGlobals{1} §allGlobals{2} ∧
+      invm §Perm.m{1} §Perm.mi{1} ∧ §Cntr.c{2} = c ∧ §bs{2} = m ∧
+      c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0 ≤ limit)
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ a₁ a₂ ⟨rfl, hp, hinv, hc, rfl, hle⟩
+    exact ⟨rfl, hp, hinv, hc, rfl, by rw [← hc]; exact hle⟩
+  have hS := Sponge_f_inv (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ)
+    (List Bool) Perm) (permInv (c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0))
+    (Perm_f_perm _)
+  equiv_if{2}
+  case «else» =>
+    refine prhlStmt_pre prhlStmt_false ?_
+    rintro g₁ g₂ ⟨⟨h1, h2, -, -, hc, h3, hle⟩, hg⟩
+    simp only [decide_eq_false_iff_not] at hg
+    rw [h2, h3, hc] at hg
+    exact hg hle
+  case «then» =>
+    have e : ∀ P : DPRIMITIVE, Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+        (List Bool) (Module.app Sponge P) = Module.app Sponge.f P := fun P => by
+      rw [Sponge.apply_simp]; exact Module.snd_pair _ _
+    rw [Indifferentiability.FUNCTIONALITY.view_f, e]
+    equiv_call hS
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x0 bs n ⟨⟨rfl, rfl, ⟨hm, hmi⟩, hinv, hc, rfl, -⟩, -⟩
+    refine ⟨⟨rfl, ?_⟩, ?_⟩
+    · simp only [permInv]
+      simp_reads
+      exact ⟨hm, hmi, hinv, by rw [hc]⟩
+    · rintro r₁ g₁' r₂ g₂' ⟨rfl, hm', hmi', hinv', hc'⟩
+      exact ⟨rfl, ⟨hm', hmi'⟩, hinv', hc'⟩
 
 /-- `clone import Program as Prog with type t <- bool, op d <- dbool`. -/
 noncomputable abbrev Prog.LoopSnoc.sample := DList.Program.LoopSnoc.sample Bool dbool
 
 theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := by
-  sorry
+  unfold equiv_ro_iro.statement ro_iro_left ro_iro_right
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §bs{2} ∧ §n{2} = size_out ∧ same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
+      §Cntr.c{2} = c ∧ §bs{2} = m ∧
+      c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0 ≤ limit)
+  · stmt_wp
+    equiv_skip
+    rintro g a1 m1 a2 ⟨rfl, hs, hc, rfl, hle⟩
+    exact ⟨rfl, hs, hc, rfl, by rw [← hc]; exact hle⟩
+  equiv_if{2}
+  case «else» =>
+    refine prhlStmt_pre prhlStmt_false ?_
+    rintro g₁ g₂ ⟨⟨-, h2, -, hc, h3, hle⟩, hg⟩
+    simp only [decide_eq_false_iff_not] at hg
+    rw [h2, h3, hc] at hg
+    exact hg hle
+  case «then» =>
+    stmt_wp
+    equiv_seq 1 1 : (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §i{2} = 0 ∧ §bs0{2} = [] ∧
+        same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
+        §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
+    · stmt_wp
+      equiv_skip
+      rintro x0 m1 bs n mp c2 ⟨⟨rfl, rfl, hs, rfl, rfl, -⟩, -⟩
+      exact ⟨rfl, rfl, hs, rfl⟩
+    equiv_if{2}
+    case «else» =>
+      refine prhlStmt_pre prhlStmt_false ?_
+      rintro g₁ g₂ ⟨-, hg⟩
+      simp [BIRO.valid, valid_toplevel] at hg
+    case «then» =>
+      equiv_case (FMap.dom §S.SRO.RO.RO.m{1} §x0{1})
+      · equiv_while{2} (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
+            0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
+            §bs0{2} = (range 0 §i{2}).map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) ∧
+            §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
+          ((size_out - §i{2}).toNat)
+        case lossless =>
+          intro σ₁ σ _ _
+          have h1 := (is_lossless_iff_expected _).mp dbool_ll
+          simp [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_ifThenElse, Stmt.ewp_sample, Stmt.ewp_skip,
+            h1]
+        case «variant» =>
+          intro σ₁ k
+          hoare_wp 3
+          hoare_split 1
+          refine hoare_seq (hoare_if_wp (At := fun _ => False) (fun _ h => h.elim)
+            (hoare_skip_wp _)) ?_
+          hoare_wp 2
+          hoare_skip
+          rintro x2 n0 i mp bs0 c1 ⟨⟨rfl, rfl, hdom, hi0, hile, hs, rfl, hc⟩, hg, hk⟩
+          simp only [decide_eq_true_eq] at hg
+          refine ⟨fun h => ?_, fun _ => ⟨⟨rfl, rfl, hdom, by omega, by omega, hs, ?_, hc⟩, by omega⟩⟩
+          · simp only [Bool.not_eq_true', decide_eq_false_iff_not] at h
+            exact h (hs.1 _ hdom i ⟨hi0, hg⟩)
+          · rw [rangeSr 0 i hi0]
+            simp only [rcons, List.map_append, List.map_cons, List.map_nil]
+        case exit =>
+          rintro x0 m1 r1 x2 n0 i mp bs0 c2 ⟨rfl, rfl, hdom, hi0, hile, hs, rfl, hc⟩ hg
+          simp only [decide_eq_false_iff_not, not_lt] at hg
+          have hi : i = size_out := by omega
+          subst hi
+          simp only [hdom, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+          refine ⟨?_, hs, hc⟩
+          rw [← hs.2.2 x2 hdom]
+          have := (Params.to_listK (oget (FMap.get m1 x2)) (Params.to_list (oget (FMap.get m1 x2)))).mp rfl
+          simp only [of_list, to_list]
+          rw [this]
+          rfl
+        · stmt_split{1} 1
+          refine prhlStmt_seq_sample_left ?_
+          equiv_skip
+          rintro σ₁ x2 n0 i bs0 mp c2 ⟨⟨⟨rfl, rfl, rfl, rfl, hs, rfl⟩, -⟩, hdom⟩
+          refine ⟨(is_lossless_iff_expected _).mp Params.dout_ll, fun a _ => ?_⟩
+          simp_reads
+          have h0 : (0 : ℤ) ≤ size_out := Params.size_out_gt0.le
+          simp [hdom, hs, h0, range_geq]
+      · have leg1 : equiv[ §allGlobals{1} = §allGlobals{2} ∧ §x0{1} = §x0{2} ==>
+            §allGlobals{1} = §allGlobals{2} ∧ §x0{1} = §x0{2} ∧
+              §(localVarLens "r" f_out){1} = §(localVarLens "r" f_out){2} ]
+            { var x0 : List Bool; (localVarLens "r" f_out) <$ dout; } ~
+            { var x0 : List Bool, l : List Bool;
+              l <- call Prog.LoopSnoc.sample.procedure (size_out);
+              (localVarLens "r" f_out) <- oget (of_list $l); } := by
+          stmt_wp
+          stmt_split{1} 1
+          stmt_split{2} 1
+          refine prhlStmt_seq_sample_run_map_right (x₂ := liftLens (localVarLens "l" (List Bool)))
+            (fun _ _ => dlist dbool size_out) (fun l => oget (of_list l)) ?_
+          equiv_skip
+          intro τ₁ τ₂ hP
+          refine ⟨?_, dout_dlist, fun _ _ => ?_⟩
+          · refine (programDenotation_call_apply _ _ _ τ₂).trans ?_
+            erw [DList.Program.LoopSnoc.sample_denotation]
+            refine SubProbability.ext_of_expected fun F => ?_
+            simp only [SubProbability.expected_hbind, expected_pure]
+            rw [show ProgramState.globalL.set τ₂.globals τ₂ = τ₂ from ProgramState.globalL.get_set τ₂]
+          · simp_reads
+            exact ⟨hP.1, hP.2⟩
+        refine prhlStmt.trans_left leg1 (fun _ => ⟨rfl, rfl⟩) ?_
+        stmt_wp
+        stmt_inline{1} 0
+        stmt_wp
+        refine prhlStmt_fix_right (fun σ => IRO.mp.get σ.globals) fun mp => ?_
+        equiv_while (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §n{1} = size_out ∧ §i0{1} = §i{2} ∧
+            0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ size §l0{1} = §i{2} ∧
+            same_ro §S.SRO.RO.RO.m{1} mp ∧ ¬ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
+            (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
+            (∀ l j, FMap.dom mp (l, j) → FMap.get §IRO.mp{2} (l, j) = FMap.get mp (l, j)) ∧
+            (∀ l j, FMap.dom §IRO.mp{2} (l, j) →
+              FMap.dom mp (l, j) ∨ (l = §x0{1} ∧ 0 ≤ j ∧ j < §i{2})) ∧
+            (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x0{1}, j)) ∧
+            §l0{1} = §bs0{2} ∧
+            §bs0{2} = (range 0 §i{2}).map (fun j => oget (FMap.get §IRO.mp{2} (§x0{1}, j))) ∧
+            §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
+        case body =>
+          stmt_wp
+          equiv_seq 1 1 : ((§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §n{1} = size_out ∧ §i0{1} = §i{2} ∧
+            0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ size §l0{1} = §i{2} ∧
+            same_ro §S.SRO.RO.RO.m{1} mp ∧ ¬ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
+            (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
+            (∀ l j, FMap.dom mp (l, j) → FMap.get §IRO.mp{2} (l, j) = FMap.get mp (l, j)) ∧
+            (∀ l j, FMap.dom §IRO.mp{2} (l, j) →
+              FMap.dom mp (l, j) ∨ (l = §x0{1} ∧ 0 ≤ j ∧ j < §i{2})) ∧
+            (∀ j, 0 ≤ j ∧ j < §i{2} → FMap.dom §IRO.mp{2} (§x0{1}, j)) ∧
+            §l0{1} = §bs0{2} ∧
+            §bs0{2} = (range 0 §i{2}).map (fun j => oget (FMap.get §IRO.mp{2} (§x0{1}, j))) ∧
+            §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0) ∧ §i{2} < size_out ∧ §x3{2} = §x0{1} ∧ §n1{2} = §i{2})
+          · stmt_wp
+            equiv_skip
+            rintro x0 n i0 l0 m1 x2 n0 i mp2 bs0 c2 ⟨hJ, hg⟩
+            simp only [decide_eq_true_eq] at hg
+            exact ⟨hJ, by rw [hJ.2.2.1, hJ.2.2.2.1] at hg; exact hg, hJ.1⟩
+          equiv_if{2}
+          case «else» =>
+            refine prhlStmt_pre prhlStmt_false ?_
+            rintro σ₁ σ₂ ⟨⟨⟨-, -, -, -, hi0, -, -, hs, hdom, -, -, h3, -⟩, hlt, hx3, hn1⟩, hg⟩
+            simp only [Bool.not_eq_false', decide_eq_true_eq] at hg
+            rw [hx3, hn1] at hg
+            rcases h3 _ _ hg with h | ⟨-, -, h⟩
+            · exact hdom (hs.2.1 _ ⟨_, hi0, hlt, h⟩)
+            · omega
+          case «then» =>
+            stmt_wp
+            equiv_rnd
+            equiv_skip
+            rintro x0 n i0 l0 m1 x2 n0 i mp2 bs0 c2 x3 n1
+              ⟨⟨⟨hx2, hn0, hn, hii, hi0, hile, hsz, hs, hdom, h1, h2, h3, h4, hl, hbs, hc⟩, hlt, hx3,
+                hn1⟩, hg⟩ a _
+            subst x2 x3 n0 n i0 n1
+            have hfresh : ¬ FMap.dom mp2 (x0, i) := by simpa using hg
+            have hmp : ¬ FMap.dom mp (x0, i) := fun h => hdom (hs.2.1 _ ⟨i, hi0, hlt, h⟩)
+            refine ⟨rfl, rfl, rfl, rfl, by omega, by omega, ?_, hs, hdom,
+              fun l j h => (FMap.mem_set _ _ _ _).mpr (Or.inl (h1 l j h)), fun l j h => ?_,
+              fun l j h => ?_, fun j hj => ?_, ?_, ?_, hc⟩
+            · simp only [size, List.length_append, List.length_singleton] at hsz ⊢
+              omega
+            · have hne : (l, j) ≠ (x0, i) := fun e => hmp (e ▸ h)
+              rw [FMap.get_set_neqE _ _ _ _ hne, h2 l j h]
+            · rcases (FMap.mem_set _ _ _ _).mp h with h | h
+              · rcases h3 l j h with h | ⟨rfl, hj0, hj⟩
+                · exact Or.inl h
+                · exact Or.inr ⟨rfl, hj0, by omega⟩
+              · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+                exact Or.inr ⟨rfl, hi0, by omega⟩
+            · by_cases hji : j = i
+              · subst hji
+                exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)
+              · exact (FMap.mem_set _ _ _ _).mpr (Or.inl (h4 j ⟨hj.1, by omega⟩))
+            · simp [rcons, oget, hl]
+            · rw [rangeSr 0 i hi0]
+              simp only [rcons, List.map_append, List.map_cons, List.map_nil, FMap.get_set_sameE]
+              congr 1
+              rw [hbs]
+              refine List.map_congr_left fun j hj => ?_
+              have hj' := (mem_range 0 i j).mp hj
+              rw [FMap.get_set_neqE _ _ _ _ (fun e => by
+                obtain ⟨-, e⟩ := Prod.mk.inj e; omega)]
+        case guard =>
+          rintro x0 n i0 l0 m1 x2 n0 i mp2 bs0 c2 ⟨rfl, rfl, rfl, rfl, -⟩
+          rfl
+        case exit =>
+          rintro g x0 n i0 l0 x2 n0 i mp2 bs0 c2
+            ⟨rfl, rfl, rfl, rfl, hi0, hile, hsz, hs, hdom, h1, h2, h3, h4, rfl, hbs, hc⟩ hg τ
+            ⟨hτg, hτx, hτr⟩
+          simp only [decide_eq_false_iff_not, not_lt] at hg
+          have hi : i0 = size_out := by omega
+          subst hi
+          simp only [hτg, hτx, hτr, hdom, decide_false, Bool.not_false, if_true,
+            FMap.get_set_sameE]
+          refine ⟨rfl, same_ro_set_fresh _ mp _ _ _ hs hdom h1 h2 (fun l j h => ?_) h4 hsz hbs, hc⟩
+          exact h3 l j h
+        · stmt_wp
+          equiv_skip
+          rintro x0 m1 x2 n0 i bs0 mp2 c2 ⟨⟨⟨⟨rfl, rfl, rfl, rfl, hs, hc⟩, -⟩, hdom⟩, rfl⟩
+          exact ⟨rfl, rfl, rfl, le_rfl, Params.size_out_gt0.le, rfl, hs, hdom, fun _ _ h => h,
+            fun _ _ _ => rfl, fun _ _ h => Or.inl h, fun j hj => absurd hj.2 (by omega), rfl,
+            by rw [range_geq 0 0 le_rfl]; rfl, hc⟩
 
 end Preimage
 
@@ -394,14 +815,16 @@ theorem useful (m mi : FMap state state) (a : state) :
   fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
     ⟨a, h⟩
 
-theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
-  sorry
+/-- EC repeats the section's proof (`Preimage.equiv_sponge_perm`). -/
+theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m :=
+  Preimage.equiv_sponge_perm c m
 
 /-- `clone import Program as Prog2 with type t <- bool, op d <- dbool`. -/
 noncomputable abbrev Prog2.LoopSnoc.sample := DList.Program.LoopSnoc.sample Bool dbool
 
-theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := by
-  sorry
+/-- EC repeats the section's proof (`Preimage.equiv_ro_iro`). -/
+theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m :=
+  Preimage.equiv_ro_iro c m
 
 end SecondPreimage
 
@@ -448,14 +871,16 @@ theorem useful (m mi : FMap state state) (a : state) :
   fun _ h => EC.Strong_RP_RF.excepted_lossless state SLCommon.dstate ConcreteF.Switching.uD_uf_fu m
     ⟨a, h⟩
 
-theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
-  sorry
+/-- EC repeats the section's proof (`Preimage.equiv_sponge_perm`). -/
+theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m :=
+  Preimage.equiv_sponge_perm c m
 
 /-- `clone import Program as Prog3 with type t <- bool, op d <- dbool`. -/
 noncomputable abbrev Prog3.LoopSnoc.sample := DList.Program.LoopSnoc.sample Bool dbool
 
-theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := by
-  sorry
+/-- EC repeats the section's proof (`Preimage.equiv_ro_iro`). -/
+theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m :=
+  Preimage.equiv_ro_iro c m
 
 end Collision
 
