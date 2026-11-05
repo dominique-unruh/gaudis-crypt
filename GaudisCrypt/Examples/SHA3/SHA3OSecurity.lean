@@ -2,6 +2,7 @@ import GaudisCrypt.Examples.SHA3.SHA3_OIndiff
 import GaudisCrypt.Examples.SHA3.SecureORO
 import GaudisCrypt.Examples.SHA3.SecureHash
 import GaudisCrypt.Lib.EC.DList
+import GaudisCrypt.Lib.EC.DListCall
 
 /-!
 # Top-level proof of SHA-3 security with failing oracles (EasyCrypt `proof/SHA3OSecurity.ec`)
@@ -123,8 +124,18 @@ noncomputable abbrev Collision := SecureORO.Collision (List Bool) f_out sigma Bo
 noncomputable abbrev RO.RO := SecureORO.RO.RO (List Bool) f_out dout RO.RO.m
 /-- The clone's `realize bound_ge0`, `sampleto_ll`, `sampleto_fu`, `sampleto_full`,
 `increase_counter_spec`. -/
-theorem axioms : SecureORO.Axioms (List Bool) f_out dout sigma clone_increase_counter := by
-  sorry
+theorem axioms : SecureORO.Axioms (List Bool) f_out dout sigma clone_increase_counter where
+  bound_ge0 := Params.sigma_ge0
+  sampleto_ll := Params.dout_ll
+  sampleto_full := Params.dout_full
+  sampleto_fu := Params.dout_fu
+  increase_counter_spec c m := by
+    have hr := gt0_r
+    have h1 : 0 ≤ (size m + 1) / r :=
+      Int.ediv_nonneg (by unfold size; omega) hr.le
+    unfold clone_increase_counter
+    have := le_max_right ((size_out + r - 1) / r - 1) 0
+    omega
 end SORO
 
 /-! ## `clone import SecureHash as SH with type from <- bool list, type to <- f_out,
@@ -152,8 +163,18 @@ noncomputable abbrev Collision := SecureHash.Collision (List Bool) f_out state s
   clone_increase_counter Bounder.bounder
 /-- The clone's `realize sampleto_ll`, `sampleto_fu`, `sampleto_full`, `bound_ge0`,
 `increase_counter_spec`. -/
-theorem axioms : SecureHash.Axioms (List Bool) f_out dout sigma clone_increase_counter := by
-  sorry
+theorem axioms : SecureHash.Axioms (List Bool) f_out dout sigma clone_increase_counter where
+  bound_ge0 := Params.sigma_ge0
+  sampleto_ll := Params.dout_ll
+  sampleto_full := Params.dout_full
+  sampleto_fu := Params.dout_fu
+  increase_counter_spec c m := by
+    have hr := gt0_r
+    have h1 : 0 ≤ (size m + 1) / r :=
+      Int.ediv_nonneg (by unfold size; omega) hr.le
+    unfold clone_increase_counter
+    have := le_max_right ((size_out + r - 1) / r - 1) 0
+    omega
 end SH
 
 -- EC's `FSetSize(F : OFUNCTIONALITY) : OIndif.OFUNCTIONALITY`; its `proc init = F.init` is wrapped
@@ -486,6 +507,17 @@ module RFWhile : SORO.RF_T {
   };
 }
 
+/-- `RFList.get` is the module of its procedure. -/
+theorem RFList_get : SecureORO.RF_T.get (List Bool) f_out (RFList RFList_m) = RFList.get RFList_m := by
+  unfold RFList SecureORO.RF_T.get
+  erw [Module.snd'_pair_prod, Module.fst'_pair_proc]
+
+/-- `RFWhile.get` is the module of its procedure. -/
+theorem RFWhile_get :
+    SecureORO.RF_T.get (List Bool) f_out (RFWhile RFList_m) = RFWhile.get RFList_m := by
+  unfold RFWhile SecureORO.RF_T.get
+  erw [Module.snd'_pair_prod, Module.fst'_pair_proc]
+
 /-- `local equiv rw_RF_List_While : RFList.get ~ RFWhile.get : ={arg, glob RFList} ==>
 ={res, glob RFWhile}`. -/
 theorem rw_RF_List_While :
@@ -493,7 +525,51 @@ theorem rw_RF_List_While :
       (SecureORO.RF_T.get (List Bool) f_out (RFList RFList_m)).procedure
       (SecureORO.RF_T.get (List Bool) f_out (RFWhile RFList_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RFList_m.get g₁ = RFList_m.get g₂) := by
-  sorry
+  rw [RFList_get, RFWhile_get]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2})
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ ⟨rfl, h⟩
+    rw [h]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ ⟨⟨rfl, h⟩, -⟩
+    exact ⟨by rw [h], h⟩
+  case «then» =>
+    stmt_wp
+    refine prhlStmt_dlist_left _ { get := fun _ => size_out } (fun _ => rfl) ?_
+    stmt_inline{1} 0
+    stmt_wp
+    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2} ∧ §n{1} = size_out ∧
+        §i{1} = §i{2} ∧ §l0{1} = §l{2})
+    · stmt_wp
+      equiv_skip
+      exact fun _ _ h => h.1
+    equiv_while (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2} ∧ §n{1} = size_out ∧
+        §i{1} = §i{2} ∧ §l0{1} = §l{2})
+    case body =>
+      stmt_wp
+      equiv_rnd
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ _ ⟨⟨rfl, h, rfl, rfl, rfl⟩, -⟩ _ _
+      exact ⟨rfl, h, rfl, rfl, rfl⟩
+    case guard =>
+      rintro _ _ _ _ _ _ _ _ _ ⟨rfl, -, rfl, rfl, -⟩
+      rfl
+    case exit =>
+      rintro _ _ _ _ _ _ _ _ _ ⟨rfl, h, -, -, rfl⟩ -
+      exact ⟨by rw [h], by rw [h]⟩
+    case hpre =>
+      equiv_skip
+      intros
+      assumption
 
 /-- `local equiv eq_IRO_RFWhile : BIRO.IRO.f ~ RFWhile.get : arg{1} = (x{2}, size_out) /\
 inv BIRO.IRO.mp{1} RFList.m{2} ==> res{2} = of_list res{1} /\ size res{1} = size_out /\
@@ -681,6 +757,12 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
               (PSome Perm)))))
         (Module.pair (PSome Perm) (ODRestr (Dist_of_P1Adv Log_m A))))).procedure () m
             (fun r _ => r = true) := by
+  refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
   sorry
 
 end Preimage

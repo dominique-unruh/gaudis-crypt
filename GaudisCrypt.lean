@@ -42,6 +42,7 @@ import GaudisCrypt.CounterExamples.MiscRangeStuff
 import GaudisCrypt.Lib.Birthday
 import GaudisCrypt.Lib.EC.BitWord
 import GaudisCrypt.Lib.EC.DList
+import GaudisCrypt.Lib.EC.DListCall
 import GaudisCrypt.Lib.EC.DProd
 import GaudisCrypt.Lib.EC.Dexcepted
 import GaudisCrypt.Lib.EC.DexceptedSupport
