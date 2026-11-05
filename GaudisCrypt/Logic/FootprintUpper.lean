@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.FootprintSolver
+import GaudisCrypt.Logic.ConcreteFootprint
 
 /-!
 # Upper bounds of footprints
@@ -23,7 +24,7 @@ partial def solve (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withContext 
   let ty ← instantiateMVars (← g.getType)
   let_expr LE.le _ _ X U := ty | throwError "fp_le: not an inequality:{indentExpr ty}"
   if let some _ := sup? X then
-    let [g₁, g₂] ← applyConst g ``sup_le | throwError "fp_le: `sup_le` failed"
+    let [g₁, g₂] ← FootprintSolver.applyConst g ``sup_le | throwError "fp_le: `sup_le` failed"
     solve g₁ fuel
     solve g₂ fuel
     return
@@ -81,5 +82,12 @@ open Lean Elab Tactic in
 `FVP.fvP M` through the module combinators by `@[fp_bound]` lemmas and bound hypotheses
 `FVP.fvP N ≤ B` in context, each `B`'s joinands among `U`'s. -/
 elab "fp_le" : tactic => liftMetaFinishingTactic FootprintUpper.solve
+
+/-- `Module.comp f g` touches what `f` and `g` touch (EasyCrypt's alias `F(X) = f(g(X))`). -/
+@[fp_bound] theorem FVP.fvP_comp_le {A B C : Type 1} [IsModule A] [IsModule B] [IsModule C]
+    (f : Module.Arr B C) (g : Module.Arr A B) :
+    FVP.fvP (Module.comp f g) ≤ FVP.fvP f ⊔ FVP.fvP g := by
+  unfold Module.comp
+  fp_module
 
 end GaudisCrypt
