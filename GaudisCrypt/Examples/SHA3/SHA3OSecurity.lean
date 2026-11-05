@@ -3,6 +3,7 @@ import GaudisCrypt.Examples.SHA3.SecureORO
 import GaudisCrypt.Examples.SHA3.SecureHash
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.DListCall
+import GaudisCrypt.Logic.FootprintUpper
 
 /-!
 # Top-level proof of SHA-3 security with failing oracles (EasyCrypt `proof/SHA3OSecurity.ec`)
@@ -37,6 +38,8 @@ Translation notes (see `notes/SHA3/README.md`):
 
 -- EasyCrypt's clones contain modules named like them (`SORO.RO.RO`, `SH.OIndif` …); kept (E1)
 set_option linter.dupNamespace false
+-- the parameter classes are section variables of every declaration, used or not
+set_option linter.unusedSectionVars false
 
 namespace GaudisCrypt.SHA3.SHA3OSecurity
 
@@ -224,6 +227,40 @@ module FIgnoreSize using (F : SH.OIndif.ODFUNCTIONALITY) : OFUNCTIONALITY {
 /-- `module (OSponge : OIndif.OCONSTRUCTION) (P : OIndif.ODPRIMITIVE) = FSetSize(CSome(Sponge,
 P))`. -/
 noncomputable def OSponge : SH.OIndif.OCONSTRUCTION := Module.comp FSetSize (CSome Sponge.Sponge)
+
+/-- `FSome` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_FSome : FVP.fvP FSome ≤ ⊥ := by
+  fp_module
+
+/-- `Poget` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_Poget : FVP.fvP Poget ≤ ⊥ := by
+  fp_module
+
+/-- `PSome`'s `f` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_PSome_own_f : FVP.fvP PSome.own.f ≤ ⊥ := by
+  fp_module
+
+/-- `PSome`'s `fi` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_PSome_own_fi : FVP.fvP PSome.own.fi ≤ ⊥ := by
+  fp_module
+
+/-- `Sponge` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_Sponge : FVP.fvP Sponge.Sponge ≤ ⊥ := by
+  fp_module
+
+/-- `PSome(P).init` is `P.init`, at the clone's types. -/
+theorem PSome_init' (P : PRIMITIVE) :
+    OptionIndifferentiability.OPRIMITIVE.init state (List Bool) f_out (PSome P) =
+      Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool) P :=
+  PSome_init P
+
+/-- `OSponge(P)` is `FSetSize(FSome(Sponge(Poget(P))))`. -/
+theorem OSponge_app (P : ODPRIMITIVE) :
+    Module.app OSponge P =
+      Module.app FSetSize (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget P))) := by
+  unfold OSponge CSome
+  erw [Module.app_comp, Module.app_comp, Module.app_comp]
+  rfl
 
 /-! `clone import Program as PBool with type t <- bool, op d <- dbool` -/
 
@@ -508,7 +545,8 @@ module RFWhile : SORO.RF_T {
 }
 
 /-- `RFList.get` is the module of its procedure. -/
-theorem RFList_get : SecureORO.RF_T.get (List Bool) f_out (RFList RFList_m) = RFList.get RFList_m := by
+theorem RFList_get :
+    SecureORO.RF_T.get (List Bool) f_out (RFList RFList_m) = RFList.get RFList_m := by
   unfold RFList SecureORO.RF_T.get
   erw [Module.snd'_pair_prod, Module.fst'_pair_proc]
 
@@ -743,6 +781,230 @@ theorem leq_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt
       ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
   sorry
 
+/-- The variables of `rw_real`'s invariant: `SH.Bounder.bounder` (left), `Counter.c` and `Log.m`
+(right). -/
+noncomputable def rrL [Lens.Disjoint Counter.c Log_m] [Lens.Disjoint SH.Bounder.bounder Log_m] :
+    Lens (ℤ × ℤ × FMap (List Bool × ℤ) Bool) VariableAssignment :=
+  Lens.pair SH.Bounder.bounder (Lens.pair Counter.c Log_m)
+
+/-- EC's `Bounder.bounder{1} = Counter.c{2}`, on the contents of `rrL`. -/
+def rrI (v₁ v₂ : ℤ × ℤ × FMap (List Bool × ℤ) Bool) : Prop := v₁.1 = v₂.2.1
+
+section
+variable [Lens.Disjoint Counter.c Log_m] [Lens.Disjoint SH.Bounder.bounder Log_m]
+
+@[simp] theorem rrL_get (g : VariableAssignment) :
+    (rrL Log_m).get g = (SH.Bounder.bounder.get g, Counter.c.get g, Log_m.get g) := rfl
+
+theorem rrL_footprint : (rrL Log_m).footprint =
+    SH.Bounder.bounder.footprint ⊔ (Counter.c.footprint ⊔ Log_m.footprint) := by
+  simp only [rrL, Footprint.lens_pair]
+
+/-- A write of `SH.Bounder.bounder` keeps a state equal to itself outside `rrL`. -/
+theorem rrL_bounder (g : VariableAssignment) (v : ℤ) :
+    (rrL Log_m).equal_outside g (SH.Bounder.bounder.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_left
+
+/-- A write of `Counter.c` keeps a state equal to itself outside `rrL`. -/
+theorem rrL_Counter (g : VariableAssignment) (v : ℤ) :
+    (rrL Log_m).equal_outside g (Counter.c.set v g) :=
+  ((Lens.equal_outside_set_self _ g v).pair_left).pair_right
+
+/-- A write of `Log.m` keeps a state equal to itself outside `rrL`. -/
+theorem rrL_Log (g : VariableAssignment) (v : FMap (List Bool × ℤ) Bool) :
+    (rrL Log_m).equal_outside g (Log_m.set v g) :=
+  ((Lens.equal_outside_set_self _ g v).pair_right).pair_right
+
+end
+
+section
+variable [Lens.Disjoint Counter.c Log_m] [Lens.Disjoint SH.Bounder.bounder Log_m]
+
+/-- EC's `proc; inline*; sp; if; auto` on `PBounder(PSome(Perm)).f ~ OPC(PSome(Perm)).f` in
+`rw_real`'s `call`.  Not an EC lemma. -/
+theorem rr_Pf (hP : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ)
+      (List Bool) (PSome Perm)) ≤ ((rrL Log_m).footprint)ᶜ) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
+        rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂))
+      (OptionIndifferentiability.OPRIMITIVE.f state (List Bool) f_out
+        (Module.app (SecureHash.PBounder (List Bool) f_out state sigma SH.Bounder.bounder)
+          (PSome Perm))).procedure
+      (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+        (Module.app OPC (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ) (List Bool)
+          { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+              (PSome Perm),
+            fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+              (PSome Perm) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
+        rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §o{2} ∧
+      (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ ⟨-, -, -, hI⟩
+    change SH.Bounder.bounder.get g₁ = Counter.c.get g₂ at hI
+    rw [hI]
+    simp only [sigma, decide_eq_decide]
+    omega
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
+    exact ⟨hy, he, hI⟩
+  case «then» =>
+    stmt_wp
+    equiv_call (prhlProc_self_equal_outside_module (rrL Log_m) _ hP rrI)
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨rfl, -, he, hI⟩, -⟩
+    refine ⟨⟨rfl, he, hI⟩, fun r g₁' _ g₂' ⟨rfl, he', hI'⟩ => ⟨rfl, ?_, ?_⟩⟩
+    · exact (rrL_bounder Log_m g₁' _).symm.trans (he'.trans (rrL_Counter Log_m g₂' _))
+    · change SH.Bounder.bounder.get g₁' = Counter.c.get g₂' at hI'
+      change SH.Bounder.bounder.get (SH.Bounder.bounder.set _ g₁') =
+        Counter.c.get (Counter.c.set _ g₂')
+      rw [SH.Bounder.bounder.set_get, Counter.c.set_get, hI']
+
+
+/-- EC's `proc; inline*; sp; if; auto` on `PBounder(PSome(Perm)).fi ~ OPC(PSome(Perm)).fi` in
+`rw_real`'s `call`.  Not an EC lemma. -/
+theorem rr_Pfi (hP : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ)
+      (List Bool) (PSome Perm)) ≤ ((rrL Log_m).footprint)ᶜ) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
+        rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂))
+      (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool) f_out
+        (Module.app (SecureHash.PBounder (List Bool) f_out state sigma SH.Bounder.bounder)
+          (PSome Perm))).procedure
+      (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+        (Module.app OPC (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ) (List Bool)
+          { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+              (PSome Perm),
+            fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+              (PSome Perm) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
+        rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §o{2} ∧
+      (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ ⟨-, -, -, hI⟩
+    change SH.Bounder.bounder.get g₁ = Counter.c.get g₂ at hI
+    rw [hI]
+    simp only [sigma, decide_eq_decide]
+    omega
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
+    exact ⟨hy, he, hI⟩
+  case «then» =>
+    stmt_wp
+    equiv_call (prhlProc_self_equal_outside_module (rrL Log_m) _ hP rrI)
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨rfl, -, he, hI⟩, -⟩
+    refine ⟨⟨rfl, he, hI⟩, fun r g₁' _ g₂' ⟨rfl, he', hI'⟩ => ⟨rfl, ?_, ?_⟩⟩
+    · exact (rrL_bounder Log_m g₁' _).symm.trans (he'.trans (rrL_Counter Log_m g₂' _))
+    · change SH.Bounder.bounder.get g₁' = Counter.c.get g₂' at hI'
+      change SH.Bounder.bounder.get (SH.Bounder.bounder.set _ g₁') =
+        Counter.c.get (Counter.c.set _ g₂')
+      rw [SH.Bounder.bounder.set_get, Counter.c.set_get, hI']
+
+end
+
+section
+variable [Lens.Disjoint Counter.c Log_m] [Lens.Disjoint SH.Bounder.bounder Log_m]
+
+/-- EC's `proc; inline*; sp; if; auto; sp; …; sim` on `FBounder(OSponge(PSome(Perm))).f ~
+DFSetSize(OFC(FSome(Sponge(Poget(PSome(Perm)))))).f` in `rw_real`'s `call` (and its last call).
+Not an EC lemma. -/
+theorem rr_F (hF : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ)
+      (List Bool) (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+        (OptionIndifferentiability.OPRIMITIVE.view state (List Bool × ℤ) (List Bool)
+          (PSome Perm)))))) ≤ ((rrL Log_m).footprint)ᶜ) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
+        rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂))
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+        (Module.app (SecureHash.FBounder (List Bool) f_out state sigma clone_increase_counter
+          SH.Bounder.bounder)
+          (Module.app FSetSize (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+            (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool) f_out
+              { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool) f_out (PSome Perm),
+                fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool) f_out
+                  (PSome Perm) }))))))).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+        (Module.app DFSetSize
+          (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ) (List Bool)
+            { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+                (Module.app OFC
+                  (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ) (List Bool)
+                    { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ)
+                        (List Bool) (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+                          (OptionIndifferentiability.OPRIMITIVE.view state (List Bool × ℤ)
+                            (List Bool) (PSome Perm))))) })) }))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
+        rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
+  stmt_inline{2} 0
+  simp only [OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
+  stmt_inline{1} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §l{2} ∧ §k{2} = size_out ∧
+      §(localVarLens "y" (Option f_out)){1} = none ∧ §o{2} = none ∧
+      (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ ⟨rfl, he, hI⟩
+    exact ⟨rfl, he, hI⟩
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ _ ⟨rfl, rfl, -, -, -, hI⟩
+    change SH.Bounder.bounder.get g₁ = Counter.c.get g₂ at hI
+    rw [hI]
+    rfl
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ _ ⟨⟨-, -, rfl, rfl, he, hI⟩, -⟩
+    exact ⟨by simp, he, hI⟩
+  case «then» =>
+    refine prhlStmt_fix_left (fun σ => (localVarLens "x0" (List Bool)).get σ) fun q => ?_
+    stmt_wp
+    equiv_call (prhlProc_self_equal_outside_module (rrL Log_m) _ hF
+      (fun v₁ v₂ => v₁.1 = clone_increase_counter v₂.2.1 q))
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x0 y l k o ⟨⟨⟨rfl, rfl, -, -, he, hI⟩, -⟩, rfl⟩
+    change SH.Bounder.bounder.get g₁ = Counter.c.get g₂ at hI
+    refine ⟨⟨rfl, (rrL_bounder Log_m g₁ _).symm.trans he, ?_⟩, ?_⟩
+    · change SH.Bounder.bounder.get (SH.Bounder.bounder.set _ g₁) = _
+      rw [SH.Bounder.bounder.set_get, hI]
+      rfl
+    · rintro r₁ g₁' r₂ g₂' ⟨rfl, he', hJ⟩
+      change SH.Bounder.bounder.get g₁' = clone_increase_counter (Counter.c.get g₂') x0 at hJ
+      refine ⟨rfl, he'.trans (rrL_Counter Log_m g₂' _), ?_⟩
+      change SH.Bounder.bounder.get g₁' = Counter.c.get (Counter.c.set _ g₂')
+      rw [Counter.c.set_get, hJ]
+      rfl
+
+end
+
 /-- `local lemma rw_real &m`. -/
 theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
@@ -757,13 +1019,119 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
               (PSome Perm)))))
         (Module.pair (PSome Perm) (ODRestr (Dist_of_P1Adv Log_m A))))).procedure () m
             (fun r _ => r = true) := by
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans _hfresh.1
+  haveI : Lens.Disjoint Counter.c Log_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp (hLA.trans (Footprint.compl_antimono (by
+      unfold ARestrictions.footprint; fp_sub))))
+  haveI : Lens.Disjoint SH.Bounder.bounder Log_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp (hLA.trans (Footprint.compl_antimono (by
+      unfold ARestrictions.footprint; fp_sub))))
+  have hAL : FVP.fvP A ≤ ((rrL Log_m).footprint)ᶜ := by
+    rw [rrL_footprint]
+    refine _hAd.trans (Footprint.compl_antimono ?_)
+    unfold ARestrictions.footprint
+    fp_sub
+  have hPerm : (Perm.m).footprint ⊔ (Perm.mi).footprint ≤ ((rrL Log_m).footprint)ᶜ := by
+    rw [rrL_footprint]
+    refine (Footprint.le_compl_comm _ _).mpr (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) ?_))
+    exact hLA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub))
+  have hF : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ)
+      (List Bool) (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+        (OptionIndifferentiability.OPRIMITIVE.view state (List Bool × ℤ) (List Bool)
+          (PSome Perm)))))) ≤ ((rrL Log_m).footprint)ᶜ :=
+    le_trans (by fp_le) hPerm
+  have hPf : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ)
+      (List Bool) (PSome Perm)) ≤ ((rrL Log_m).footprint)ᶜ :=
+    le_trans (by fp_le) hPerm
+  have hPfi : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ)
+      (List Bool) (PSome Perm)) ≤ ((rrL Log_m).footprint)ᶜ :=
+    le_trans (by fp_le) hPerm
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
   equiv_proc
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
+  simp only [PSome_init, PSome_init']
+  erw [OSponge_app]
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 1
   stmt_wp
-  sorry
+  stmt_swap{1} 1 10
+  equiv_seq 2 2 : (§hash{1} = §hash{2} ∧
+      (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
+  · equiv_rnd
+    stmt_wp
+    equiv_call (prhlProc_refl
+      (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ) (List Bool)
+        Perm).procedure)
+    stmt_wp
+    equiv_skip
+    rintro σ₁ σ₂ h
+    refine ⟨h, fun _ g₁ _ g₂ hg => ?_⟩
+    subst hg
+    intro _ _
+    refine ⟨((rrL_bounder Log_m _ 0).trans (rrL_bounder Log_m _ 0)).symm.trans
+      ((rrL_Counter Log_m _ 0).trans (rrL_Log Log_m _ _)), ?_⟩
+    change SH.Bounder.bounder.get (SH.Bounder.bounder.set 0 _) =
+      Counter.c.get (Log_m.set _ (Counter.c.set 0 _))
+    rw [SH.Bounder.bounder.set_get,
+      @Lens.get_of_disjoint_set _ _ _ Counter.c Log_m (‹Lens.Disjoint Counter.c Log_m›.symm),
+      Counter.c.set_get]
+  equiv_seq 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧
+      (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
+  swap
+  · equiv_call (rr_F Log_m hF)
+    equiv_skip
+    rintro g₁ g₂ m₁ hash₁ m₂ hash₂ ⟨hm, hh, he, hI⟩
+    exact ⟨⟨hm, he, hI⟩, fun r₁ _ r₂ _ h => by rw [h.1, hh]⟩
+  stmt_split{1} 1
+  stmt_split{2} 1
+  refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module
+    (rrL Log_m) A SH.OIndif.distExt hA.1 hAL rrI ?hc _ _ ?horacle) ?_
+  case hc =>
+    intro _ n
+    cases n with
+    | zero => exact inferInstanceAs (Countable (List Bool))
+    | succ n => cases n with
+      | zero => exact inferInstanceAs (Countable (block × capacity))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => nomatch n
+  case horacle =>
+    intro _ n
+    cases n with
+    | zero =>
+      simp only [OptionIndifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+        Module.fst_pair, Module.snd_pair, OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+        OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+        OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+      exact rr_F Log_m hF
+    | succ n => cases n with
+      | zero =>
+        simp only [OptionIndifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+          HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+          OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+          OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+          OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+        erw [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
+        exact rr_Pf Log_m hPf
+      | succ n => cases n with
+        | zero =>
+          simp only [OptionIndifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+            OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+            OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+            OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+          erw [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+          exact rr_Pfi Log_m hPfi
+        | succ n => nomatch n
+  equiv_skip
+  rintro σ₁ σ₂ ⟨hh, he, hI⟩
+  refine ⟨⟨hh, he, hI⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he', hI'⟩ => ?_⟩
+  simp_reads
+  exact ⟨hr, hh, he', hI'⟩
 
 end Preimage
 
