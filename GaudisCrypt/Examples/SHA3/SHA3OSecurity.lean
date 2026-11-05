@@ -2780,7 +2780,85 @@ theorem fin_f :
       extDF.procedure (bwDF Log_m RFList_m).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
         fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
-  sorry
+  have hs : (0 : ℤ) < size_out := Params.size_out_gt0
+  have e₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+      (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
+    simp [BIRO.IRO.asF]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  rw [e₁]
+  stmt_wp
+  equiv_seq 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
+      (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ _ _ ⟨rfl, rfl, -, -, -, -, hc, -⟩
+    change Counter.c.get g₁ = Counter.c.get g₂ at hc
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ _ _ ⟨⟨-, -, -, rfl, he, hI⟩, -⟩
+    exact ⟨rfl, he, hI⟩
+  case «then» =>
+    stmt_wp
+    equiv_rcondf{2}
+    stmt_wp
+    equiv_seq 1 1 : (§x1{1} = §(localVarLens "x2" (List Bool)){2} ∧ §k0{1} = size_out ∧
+        §k0{2} = size_out ∧ §suffix{2} = [] ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
+        increase_counter §Counter.c{1} §l{1} §k{1} ≤ SHA3Indiff.limit ∧
+        (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+          fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+    · stmt_wp
+      equiv_skip
+      rintro g₁ g₂ _ _ _ _ _ _ ⟨⟨rfl, rfl, hk, -, he, hI⟩, hg⟩
+      simp only [decide_eq_true_eq] at hg
+      exact ⟨rfl, hk, hk, rfl, rfl, hg, he, hI⟩
+    equiv_if{1}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      obtain ⟨⟨-, hk, -⟩, hg⟩ := h
+      simp only [decide_eq_false_iff_not] at hg
+      exact hg hk.le
+    case «then» =>
+      equiv_if{2}
+      case «else» =>
+        refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+        obtain ⟨⟨⟨-, -, -, -, -, -, hg, -, -, hc, hb⟩, -⟩, hb'⟩ := h
+        simp only [decide_eq_false_iff_not, not_lt] at hb'
+        have := (lt_increase_counter _ _ _).trans_le hg
+        unfold sigma at hb'
+        dsimp only at hc hb
+        omega
+      case «then» =>
+        stmt_wp
+        equiv_call (eq_IRO_RFWhile_frame RFList_m (fun v w => v.2 = w.2 ∧ w.1 ≤ w.2 + 1))
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ x1 k0 l k x2 k0' suf l' k'
+          ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, hg, he, hinv, hc, hb⟩, -⟩, -⟩
+        refine ⟨⟨⟨⟨rfl, hinv⟩, hc, by dsimp only at hb; omega⟩,
+          he.trans (fL_bounder RFList_m _ _)⟩, ?_⟩
+        rintro r₁ h₁ r₂ h₂ ⟨⟨⟨hr, hsz, hinv'⟩, hc', hb'⟩, he'⟩
+        have ht : take size_out r₁ = r₁ := by
+          unfold take size at *
+          exact List.take_of_length_le (by omega)
+        have hl' := lt_increase_counter (Counter.c.get h₂) l k
+        refine ⟨decide_eq_false (lt_irrefl _), ?_,
+          (fL_Counter RFList_m h₁ _).symm.trans (he'.trans (fL_Counter RFList_m h₂ _)),
+          hinv', by rw [hc'], by dsimp only; omega⟩
+        rw [hr, to_list_oget_of_list r₁ hsz, ht, List.append_nil,
+          show Option.map (take size_out) (some r₁) = some r₁ by rw [Option.map_some, ht]]
 
 /-- The simulator `OSimulator(ExtendOutputSize(F))` as a primitive, both procedures (an
 abbreviation). -/
