@@ -761,6 +761,47 @@ theorem idealF₁_get : SecureRO.RF.get (List Bool) f_out idealF₁ = ro_iro_lef
 theorem idealF₂_get : SecureRO.RF.get (List Bool) f_out idealF₂ = ro_iro_right := by
   simp [idealF₂, ro_iro_right, Indifferentiability.FUNCTIONALITY.view]
 
+/-- `FInit(CSetSize(Sponge, Perm)).get`, as `SRO.Collision` spells it, is `equiv_sponge_perm`'s left
+procedure. -/
+theorem realG₁_eq : Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+    (Indifferentiability.DFUNCTIONALITY.mk (block × capacity) (List Bool) f_out
+      { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool) f_out
+          (Module.app (CSetSize Sponge.Sponge)
+            (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool) f_out Perm)) }) =
+    sponge_perm_left := by
+  simpa [realF₁] using realF₁_get
+
+/-- The right one (`FInit(DFSetSize(FC(Sponge(Perm)))).get`). -/
+theorem realG₂_eq : Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+    (Module.app DFSetSize (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+      (List Bool × ℤ) (List Bool)
+      { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+          (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+            (List Bool × ℤ) (List Bool)
+            { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+                (List Bool) (Module.app Sponge.Sponge
+                  (Indifferentiability.PRIMITIVE.view (block × capacity) (List Bool × ℤ)
+                    (List Bool) Perm)) })) })) = sponge_perm_right := by
+  simpa [realF₂] using realF₂_get
+
+/-- `FInit(RO).get`, as `SRO.Collision` spells it, is `equiv_ro_iro`'s left procedure. -/
+theorem idealG₁_eq : Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+    (Indifferentiability.DFUNCTIONALITY.mk (block × capacity) (List Bool) f_out
+      { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool) f_out RO }) =
+    ro_iro_left := by
+  simpa [idealF₁] using idealF₁_get
+
+/-- The right one (`FInit(DFSetSize(FC(BIRO.IRO))).get`). -/
+theorem idealG₂_eq : Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+    (Module.app DFSetSize (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+      (List Bool × ℤ) (List Bool)
+      { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
+          (Module.app FC (Indifferentiability.DFUNCTIONALITY.mk (block × capacity)
+            (List Bool × ℤ) (List Bool)
+            { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+                (List Bool) BIRO.IRO.asF })) })) = ro_iro_right := by
+  simpa [idealF₂] using idealF₂_get
+
 /-- The clone's `SRO.RO.RO` touches its map only.  Not an EC lemma. -/
 @[fp_bound] theorem fvP_SRO_RO :
     FVP.fvP (SecureRO.RO.RO (List Bool) f_out dout SRO.RO.RO.m) ≤ (SRO.RO.RO.m).footprint := by
@@ -844,6 +885,15 @@ theorem fvP_DSetSize_D2Pre (A : SRO.AdvSecondPreimage) :
       increase_counter SRO.Counter.c SRO.Bounder.bounder D2Pre.m2 A)) ≤
       FVP.fvP A ⊔ (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder D2Pre.m2)).footprint := by
   fp_module (Lens.pair SRO.Counter.c (Lens.pair SRO.Bounder.bounder D2Pre.m2))
+
+set_option maxHeartbeats 4000000 in
+/-- `DSetSize(DColl(A))` touches `A`'s globals, `SRO.Counter.c`, `SRO.Bounder.bounder`.  Not an EC
+lemma. -/
+theorem fvP_DSetSize_DColl (A : SRO.AdvCollision) :
+    FVP.fvP (DSetSize (IndifRO_is_secure.DColl (block × capacity) (List Bool) f_out sigma limit
+      increase_counter SRO.Counter.c SRO.Bounder.bounder A)) ≤
+      FVP.fvP A ⊔ (Lens.pair SRO.Counter.c SRO.Bounder.bounder).footprint := by
+  fp_module (Lens.pair SRO.Counter.c SRO.Bounder.bounder)
 
 /-- `FInit.init` has no globals.  Not an EC lemma. -/
 @[fp_bound] theorem fvP_FInit_init :
@@ -2076,19 +2126,393 @@ noncomputable abbrev Prog3.LoopSnoc.sample := DList.Program.LoopSnoc.sample Bool
 theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m :=
   Preimage.equiv_ro_iro c m
 
+/-- The first `have` of EC's `Sponge_coll_resistant`, as `SecondPreimage.real_spre`. -/
+theorem real_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext)
+    (hAd : FVP.fvP A ≤ (realL.footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Indifferentiability.GReal (block × capacity) (List Bool) f_out (CSetSize Sponge.Sponge) Perm
+        (IndifRO_is_secure.DColl (block × capacity) (List Bool) f_out sigma limit increase_counter
+          SRO.Counter.c SRO.Bounder.bounder A)).procedure
+      (RealIndif Sponge.Sponge Perm (DRestr (DSetSize (IndifRO_is_secure.DColl (block × capacity)
+        (List Bool) f_out sigma limit increase_counter SRO.Counter.c SRO.Bounder.bounder
+        A)))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 2
+  repeat stmt_inline{2} 2
+  rw [Perm_init_eq, Perm_init_eq', Sponge_init_eq, CSetSize_init_eq]
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  erw [Sponge_init_eq]
+  stmt_inline{1} 0
+  stmt_wp
+  simp only [PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.init.mk_simp]
+  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+      §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
+      realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module realL A SRO.Oracle.ext
+      hA.representable hAd realI (fun n => by cases n with
+        | zero => exact inferInstanceAs (Countable (List Bool))
+        | succ m => nomatch m) _ _ (fun n => by cases n with
+        | zero =>
+          simp only [SecureRO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
+            SecureRO.Oracle.get.mk_simp]
+          exact Preimage.real_oracle
+        | succ m => nomatch m)) ?_
+    stmt_wp
+    equiv_skip
+    rintro g _ rfl
+    refine ⟨⟨?_, ?_⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he, hI⟩ => ⟨by rw [hr], by rw [hr], he, hI⟩⟩
+    · have h0 := realL_Cntr_right (Lens.equal_outside.refl
+        (Perm.mi.set FMap.empty (Perm.m.set FMap.empty g))) 0
+      exact realL_Counter (h0.set_disjoint (X := SRO.Bounder.bounder) 0) 0 0
+    · simp only [realL_get, realI]
+      simp_reads
+      simp [invm]
+  have hC₁ : ∀ a, (procedureDenotation sponge_perm_left.procedure a).inFootprint
+      (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+    (Module.Proc.inFootprint_fvP _ a) (fvP_sponge_perm_left.trans (by fp_disjoint))
+  have hC₂ : ∀ a, (procedureDenotation sponge_perm_right.procedure a).inFootprint
+      (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+    (Module.Proc.inFootprint_fvP _ a) (fvP_sponge_perm_right.trans (by fp_disjoint))
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ m1 m2 m1' m2' ⟨rfl, -, -, hI⟩
+    simp only [realL_get, realI, Prod.mk.injEq] at hI
+    rw [hI.1.1]
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    intros
+    trivial
+  case «then» =>
+    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+        §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
+        §hash1{1} = §hash1{2} ∧ eqPerm §allGlobals{1} §allGlobals{2} ∧
+        invm §Perm.m{1} §Perm.mi{1} ∧ §SRO.Counter.c{1} = §SRO.Counter.c{2} ∧
+        §Cntr.c{2} = §SRO.Counter.c{2})
+    · refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+        (localVarLens "m1" (List Bool)).get σ)) fun q => ?_
+      have hS := prhlProc_frame_lens SRO.Counter.c SRO.Counter.c hC₁ hC₂
+        (fun a b => a = increase_counter q.1 q.2 ∧ b = increase_counter q.1 q.2)
+        (equiv_sponge_perm q.1 q.2)
+      erw [realG₁_eq, realG₂_eq]
+      equiv_call hS
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ m1 m2 m1' m2' ⟨⟨⟨rfl, rfl, -, hI⟩, hg⟩, rfl⟩
+      simp only [realL_get, realI, Prod.mk.injEq] at hI
+      obtain ⟨⟨hc, hm, hmi⟩, hcn, hinv⟩ := hI
+      simp only [decide_eq_true_eq] at hg
+      refine ⟨⟨⟨rfl, ?_, hinv, ?_⟩, rfl, by rw [← hc]⟩, ?_⟩
+      · simp only [eqPerm]
+        simp_reads
+        exact ⟨hm, hmi⟩
+      · simp only [counter_pre]
+        simp_reads
+        refine ⟨by rw [hcn, ← hc], ?_⟩
+        rw [hcn, ← hc]
+        exact hg.le
+      · rintro r₁ g₁' r₂ g₂' ⟨⟨rfl, hp, hinv', hcn'⟩, hc1, hc2⟩
+        exact ⟨rfl, rfl, rfl, hp, hinv', by rw [hc1, hc2], by rw [hcn', hc2]; rfl⟩
+    · equiv_if
+      case guard =>
+        rintro g₁ g₂ m1 m2 h1 m1' m2' h1' ⟨-, rfl, -, -, -, hc, -⟩
+        rw [hc]
+      case «else» =>
+        stmt_wp
+        equiv_skip
+        intros
+        trivial
+      case «then» =>
+        stmt_wp
+        refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+          (localVarLens "m2" (List Bool)).get σ)) fun q => ?_
+        have h := equiv_sponge_perm q.1 q.2
+        unfold equiv_sponge_perm.statement at h
+        erw [realG₁_eq, realG₂_eq]
+        equiv_call h
+        stmt_wp
+        equiv_skip
+        rintro g₁ g₂ m1 m2 h1 m1' m2' h1' ⟨⟨⟨rfl, rfl, rfl, ⟨hm, hmi⟩, hinv, hc, hcn⟩, hg⟩, rfl⟩
+        simp only [decide_eq_true_eq] at hg
+        refine ⟨⟨rfl, ?_, hinv, ?_⟩, fun r₁ _ r₂ _ h => by rw [h.1]⟩
+        · simp only [eqPerm]
+          simp_reads
+          exact ⟨hm, hmi⟩
+        · simp only [counter_pre]
+          simp_reads
+          refine ⟨by rw [hcn, ← hc], ?_⟩
+          rw [hcn, ← hc]
+          exact hg.le
+
+set_option maxHeartbeats 4000000 in
+/-- The second `have` of EC's `Sponge_coll_resistant`, as `SecondPreimage.ideal_spre`. -/
+theorem ideal_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext)
+    (hAd : FVP.fvP A ≤ (idealL.footprint)ᶜ) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Indifferentiability.GIdeal (block × capacity) (List Bool) f_out RO
+        (SimSetSize Simulator)
+        (IndifRO_is_secure.DColl (block × capacity) (List Bool) f_out sigma limit increase_counter
+          SRO.Counter.c SRO.Bounder.bounder A)).procedure
+      (IdealIndif BIRO.IRO.asF Simulator (DRestr (DSetSize (IndifRO_is_secure.DColl
+        (block × capacity) (List Bool) f_out sigma limit increase_counter SRO.Counter.c
+        SRO.Bounder.bounder A)))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  repeat stmt_inline{1} 2
+  rw [SimSetSize_init_eq, RO_init_eq]
+  repeat stmt_inline{1} 0
+  stmt_wp
+  simp only [PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.init.mk_simp]
+  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+      §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
+      idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module idealL A
+      SRO.Oracle.ext hA.representable hAd idealI (fun n => by cases n with
+        | zero => exact inferInstanceAs (Countable (List Bool))
+        | succ m => nomatch m) _ _ (fun n => by cases n with
+        | zero =>
+          simp only [SecureRO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
+            SecureRO.Oracle.get.mk_simp]
+          exact Preimage.ideal_oracle
+        | succ m => nomatch m)) ?_
+    stmt_wp
+    equiv_skip
+    rintro g _ rfl
+    refine ⟨⟨?_, ?_⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he, hI⟩ => ⟨by rw [hr], by rw [hr], he, hI⟩⟩
+    · exact idealL_Counter ((idealL_Cntr_right (idealL_IROmp_right
+        (idealL_ROm_left (Lens.equal_outside.refl _) _) _) _).set_disjoint
+          (X := SRO.Bounder.bounder) 0) 0 0
+    · simp only [idealL_get, idealI]
+      simp_reads
+      exact ⟨fun m h => absurd h (FMap.mem_empty m), fun m ⟨_, _, _, h⟩ => absurd h
+        (FMap.mem_empty _), fun m h => absurd h (FMap.mem_empty m)⟩
+  have hC₁ : ∀ a, (procedureDenotation ro_iro_left.procedure a).inFootprint
+      (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+    (Module.Proc.inFootprint_fvP _ a) (fvP_ro_iro_left.trans (by fp_disjoint))
+  have hC₂ : ∀ a, (procedureDenotation ro_iro_right.procedure a).inFootprint
+      (SRO.Counter.c.footprint)ᶜ := fun a => ProgramDenotation.inFootprint_mono
+    (Module.Proc.inFootprint_fvP _ a) (fvP_ro_iro_right.trans (by fp_disjoint))
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ m1 m2 m1' m2' ⟨rfl, -, -, hI⟩
+    simp only [idealL_get, idealI] at hI
+    rw [hI.1]
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    intros
+    trivial
+  case «then» =>
+    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+        §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
+        §hash1{1} = §hash1{2} ∧ same_ro §SRO.RO.RO.m{1} §IRO.mp{2} ∧
+        §SRO.Counter.c{1} = §SRO.Counter.c{2} ∧ §Cntr.c{2} = §SRO.Counter.c{2})
+    · refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+        (localVarLens "m1" (List Bool)).get σ)) fun q => ?_
+      have hS := prhlProc_frame_lens SRO.Counter.c SRO.Counter.c hC₁ hC₂
+        (fun a b => a = increase_counter q.1 q.2 ∧ b = increase_counter q.1 q.2)
+        (equiv_ro_iro q.1 q.2)
+      erw [idealG₁_eq, idealG₂_eq]
+      equiv_call hS
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ m1 m2 m1' m2' ⟨⟨⟨rfl, rfl, -, hI⟩, hg⟩, rfl⟩
+      simp only [idealL_get, idealI] at hI
+      obtain ⟨hc, hcn, hs⟩ := hI
+      simp only [decide_eq_true_eq] at hg
+      refine ⟨⟨⟨rfl, ?_, ?_⟩, rfl, by rw [← hc]⟩, ?_⟩
+      · exact hs
+      · simp only [counter_pre]
+        simp_reads
+        refine ⟨by rw [hcn, ← hc], ?_⟩
+        rw [hcn, ← hc]
+        exact hg.le
+      · rintro r₁ g₁' r₂ g₂' ⟨⟨rfl, hs', hcn'⟩, hc1, hc2⟩
+        exact ⟨rfl, rfl, rfl, hs', by rw [hc1, hc2], by rw [hcn', hc2]; rfl⟩
+    · equiv_if
+      case guard =>
+        rintro m1 m2 h1 m c1 m1' m2' h1' mp c2 c21 ⟨-, rfl, -, -, rfl, -⟩
+        rfl
+      case «else» =>
+        stmt_wp
+        equiv_skip
+        intros
+        trivial
+      case «then» =>
+        stmt_wp
+        refine prhlStmt_fix_left (fun σ => (SRO.Counter.c.get σ.globals,
+          (localVarLens "m2" (List Bool)).get σ)) fun q => ?_
+        have h := equiv_ro_iro q.1 q.2
+        unfold equiv_ro_iro.statement at h
+        erw [idealG₁_eq, idealG₂_eq]
+        equiv_call h
+        stmt_wp
+        equiv_skip
+        rintro g₂ m1 m2 h1 m c1 m1' m2' h1' ⟨⟨⟨rfl, rfl, rfl, hs, hc, hcn⟩, hg⟩, rfl⟩
+        simp only [decide_eq_true_eq] at hg
+        refine ⟨⟨rfl, hs, ?_⟩, fun r₁ _ r₂ _ h => by rw [h.1]⟩
+        simp only [counter_pre]
+        simp_reads
+        refine ⟨by rw [hcn, ← hc], ?_⟩
+        rw [hcn, ← hc]
+        exact hg.le
+
 end Collision
 
-/-- EC's `Sponge_coll_resistant &m`, for the section's `A` and its axiom `A_ll`. -/
+set_option maxHeartbeats 4000000 in
+/-- EC's `Sponge_coll_resistant &m` with the axiom `A_ll` over a region `G` (exception E14:
+`IndifRO_is_secure.D_ll_at`), `G` inside `glob GF` for a finitely supported `GF`, outside the
+internal variables (`SecurityRegion`) and the clone's counters.  `Sponge_coll_resistant` is the
+instance at `glob A`; `SHA3_coll_resistant` applies it to `AdvCollisionSHA3(A)` at `glob A`. -/
+theorem Sponge_coll_resistant_at (A : SRO.AdvCollision)
+    (hA : Module.ECModule A SRO.Oracle.ext)
+    (_hAd : FVP.fvP A ≤ ARestrictions.footprintᶜ)
+    (_hG : AGext0Fresh A)
+    (G GF : Footprint VariableAssignment) (hGF : GF.FinitelySupported) (hGGF : G ≤ GF.glob)
+    (hGR : SecurityRegion G)
+    (hGc : G ≤ (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint)ᶜ)
+    (_A_ll : IndifRO_is_secure.D_ll_at (List Bool) f_out A G)
+    (m : VariableAssignment) :
+    (Procedure.Pr (Module.app SRO.Collision
+        (Module.pair A (FM.asRO (CSetSize Sponge.Sponge) Perm))).procedure () m
+        (fun r _ => r = true) : ℝ) ≤
+      bound + ((sigma * (sigma - 1) + 2 : ℤ) : ℝ) / 2 / (2 : ℝ) ^ size_out := by
+  have hAd' : FVP.fvP A ≤ ARestrictions.footprintᶜ := _hAd
+  unfold ARestrictions.footprint at _hAd
+  have hAfs := hA.finitelySupported
+  have hCfs : (FVP.fvP (CSetSize Sponge.Sponge)).FinitelySupported :=
+    Footprint.FinitelySupported.bot.mono fvP_CSetSize_Sponge
+  have hCr : FVP.fvP (CSetSize Sponge.Sponge :
+      Indifferentiability.CONSTRUCTION (block × capacity) (List Bool) f_out) ≤
+      ((Perm.m).footprint ⊔ (Perm.mi).footprint)ᶜ := fvP_CSetSize_Sponge'.trans bot_le
+  have key := IndifRO_is_secure.coll_resistant_if_indifferentiable_at (block × capacity)
+    (List Bool) f_out dout sigma bound limit increase_counter SRO.RO.RO.m SRO.RO.FRO.m
+    SRO.Counter.c SRO.Bounder.bounder S.axioms A hA (by fp_disjoint) G _A_ll
+    (CSetSize Sponge.Sponge) (fvP_CSetSize_Sponge'.trans bot_le) Perm
+    (fvP_Perm'.trans (by fp_disjoint)) m ?_
+  · rw [doutE1 default] at key
+    rw [div_eq_mul_inv]
+    exact key
+  · have hSfs : (FVP.fvP (SimSetSize Simulator)).FinitelySupported :=
+      Footprint.FinitelySupported.mono ((FVP.fvP_comp_le _ _).trans (sup_le fvP_Simulator
+        (fvP_FGetSize.trans bot_le)))
+        ((Footprint.FinitelySupported.globalVar _).sup ((Footprint.FinitelySupported.globalVar _).sup
+          ((Footprint.FinitelySupported.globalVar _).sup (Footprint.FinitelySupported.globalVar _))))
+    refine ⟨SimSetSize Simulator,
+      ⟨Indifferentiability.SIMULATOR.representable_of_init _ _ _ _ fun F F' => by
+        rw [SimSetSize_init_eq, SimSetSize_init_eq], hSfs⟩, ?_, ?_, ?_⟩
+    · unfold SimSetSize
+      exact (FVP.fvP_comp_le _ _).trans (sup_le (fvP_Simulator.trans (by fp_disjoint))
+        (fvP_FGetSize.trans bot_le))
+    · intro F _
+      rw [SimSetSize_init_eq, Procedure.isLossless_iff_phoareProc]
+      phoare_proc_to_stmt
+      repeat phoare_inline 0
+      intro σ _
+      simp [Stmt.ewp_seq, Stmt.ewp_assign]
+    · rw [Procedure.Pr_eq_of_prhlProc (Collision.real_coll A hA (by rw [realL_footprint]; fp_disjoint)
+          ) (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun r₁ _ r₂ _ h => by rw [h])
+          (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl,
+        Procedure.Pr_eq_of_prhlProc (Collision.ideal_coll A hA (by rw [idealL_footprint]; fp_disjoint)
+          ) (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true) (fun r₁ _ r₂ _ h => by rw [h])
+          (a₁ := ()) (a₂ := ()) (σ₁ := m) (σ₂ := m) rfl]
+      have hX : (Lens.pair SRO.Counter.c SRO.Bounder.bounder).footprint =
+          SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint := by
+        simp only [Footprint.lens_pair]
+      have hXfs : (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint).FinitelySupported :=
+        (Footprint.FinitelySupported.globalVar _).sup (Footprint.FinitelySupported.globalVar _)
+      have hD := fvP_DSetSize_DColl A
+      rw [hX] at hD
+      have hDfs := (hAfs.sup hXfs).mono hD
+      refine SHA3Indiff_at _ ⟨Distinguisher_representable _, hDfs⟩ ?_ ?_
+        (G ⊔ (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint))
+        (GF ⊔ (SRO.Counter.c.footprint ⊔ SRO.Bounder.bounder.footprint)) (hGF.sup hXfs)
+        (sup_le (hGGF.trans (Footprint.glob_mono le_sup_left))
+          (le_sup_right.trans (Footprint.le_glob _))) ?_ m ?_
+      · have hSL : (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).FinitelySupported :=
+          SimLast_ECModule.2
+        unfold DistRestrictions
+        refine hD.trans (sup_le (A_DistRestrictions A hAfs hAd') ?_)
+        unfold DistRestrictions.footprint
+        fp_disjoint
+      · unfold Gext0Fresh
+        refine hD.trans (sup_le _hG ?_)
+        fp_disjoint
+      · refine sup_le hGR ?_
+        unfold SecurityRegion.footprint
+        fp_disjoint
+      · intro F P hF hP pll pill fll
+        have hget : (SecureRO.RF.get (List Bool) f_out (Module.app (SecureRO.Bounder (List Bool)
+            f_out sigma increase_counter limit SRO.Counter.c SRO.Bounder.bounder)
+            (SecureRO.RF.mk (List Bool) f_out
+              { init := IndifRO_is_secure.FInit.init (block × capacity) (List Bool) f_out,
+                get := Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+                  (Module.app DFSetSize F) }))).procedure.IsLossless := by
+          rw [Procedure.isLossless_iff_phoareProc] at fll ⊢
+          phoare_proc_to_stmt
+          repeat phoare_inline 0
+          phoare_wp 5
+          phoare_simp [fll]
+          phoare_skip
+          intros
+          split_ifs <;> rfl
+        have hAll := _A_ll (SecureRO.Oracle.mk (List Bool) f_out
+          { get := SecureRO.RF.get (List Bool) f_out (Module.app (SecureRO.Bounder (List Bool)
+            f_out sigma increase_counter limit SRO.Counter.c SRO.Bounder.bounder)
+            (SecureRO.RF.mk (List Bool) f_out
+              { init := IndifRO_is_secure.FInit.init (block × capacity) (List Bool) f_out,
+                get := Module.app (IndifRO_is_secure.FInit.get (block × capacity) (List Bool) f_out)
+                  (Module.app DFSetSize F) })) }) (by fp_disjoint)
+          (by simpa only [SecureRO.Oracle.get.mk_simp] using hget)
+        rw [Procedure.isLossless_iff_phoareProc] at hAll fll hget ⊢
+        phoare_proc_to_stmt
+        repeat phoare_inline 0
+        simp only [PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.init.mk_simp]
+        repeat phoare_inline 1
+        repeat phoare_inline 2
+        phoare_wp 13
+        phoare_simp [fll]
+        phoare_skip
+        intro σ _
+        have fll' := fun a g => fll a g trivial
+        simp only [ite_self, fll']
+        exact hAll _ _ trivial
+
+/-- EC's `Sponge_coll_resistant &m`, for the section's `A` and its axiom `A_ll`, with `AGext0Fresh A`
+(exception E13): `Sponge_coll_resistant_at` at `glob A`.  EC: as `Sponge_preimage_resistant`, with
+`coll_resistant_if_indifferentiable`. -/
 theorem Sponge_coll_resistant (A : SRO.AdvCollision)
     (hA : Module.ECModule A SRO.Oracle.ext)
     (_hAd : FVP.fvP A ≤ ARestrictions.footprintᶜ)
+    (_hG : AGext0Fresh A)
     (_A_ll : IndifRO_is_secure.D_ll (List Bool) f_out A)
     (m : VariableAssignment) :
     (Procedure.Pr (Module.app SRO.Collision
         (Module.pair A (FM.asRO (CSetSize Sponge.Sponge) Perm))).procedure () m
         (fun r _ => r = true) : ℝ) ≤
       bound + ((sigma * (sigma - 1) + 2 : ℤ) : ℝ) / 2 / (2 : ℝ) ^ size_out := by
-  sorry
+  have hAfs := hA.finitelySupported
+  have hAd := _hAd
+  unfold ARestrictions.footprint at hAd
+  exact Sponge_coll_resistant_at A hA _hAd _hG _ (FVP.fvP A) hAfs le_rfl
+    (A_SecurityRegion A hAfs _hAd _hG)
+    ((Footprint.le_compl_comm _ _).mp (sup_le
+      (Footprint.globalVar_le_compl_glob hAfs _ (by fp_disjoint))
+      (Footprint.globalVar_le_compl_glob hAfs _ (by fp_disjoint)))) _A_ll m
 
 module X using (F : SRO.Oracle) : SRO.Oracle {
   proc get (bl : List Bool) : f_out {
@@ -2112,16 +2536,68 @@ module AdvCollisionSHA3 (A : SRO.AdvCollision) using (F : SRO.Oracle) {
 /-! ## The section `SHA3_Collision`, with `declare module A <: SRO.AdvCollision {…}` and
 `declare axiom A_ll` -/
 
-/-- EC's `SHA3_coll_resistant &m`, for the section's `A` and its axiom `A_ll`. -/
+/-- `X` has no globals.  Not an EC lemma. -/
+theorem fvP_X : FVP.fvP X ≤ ⊥ := by
+  fp_module
+
+/-- `AdvCollisionSHA3(A)` touches `A`'s globals only.  Not an EC lemma. -/
+theorem fvP_AdvCollisionSHA3 (A : SRO.AdvCollision) :
+    FVP.fvP (AdvCollisionSHA3 A) ≤ FVP.fvP A := by
+  fp_module
+
+/-- EC's `SHA3_coll_resistant &m`, for the section's `A` and its axiom `A_ll`, with `AGext0Fresh A`
+(exception E13).  EC: `apply (Sponge_coll_resistant (AdvCollisionSHA3(A)) _ &m); by move=> F F_ll;
+proc; inline*; call (A_ll (X(F)) _); …`: here `Sponge_coll_resistant_at` at `glob A` (exception
+E14: `glob AdvCollisionSHA3(A)` is `glob A` in EasyCrypt, syntactically). -/
 theorem SHA3_coll_resistant (A : SRO.AdvCollision)
     (hA : Module.ECModule A SRO.Oracle.ext)
     (_hAd : FVP.fvP A ≤ ARestrictions.footprintᶜ)
+    (_hG : AGext0Fresh A)
     (_A_ll : IndifRO_is_secure.D_ll (List Bool) f_out A)
     (m : VariableAssignment) :
     (Procedure.Pr (Module.app SRO.Collision
         (Module.pair (AdvCollisionSHA3 A) (FM.asRO (CSetSize Sponge.Sponge) Perm))).procedure ()
         m (fun r _ => r = true) : ℝ) ≤
       bound + ((sigma * (sigma - 1) + 2 : ℤ) : ℝ) / 2 / (2 : ℝ) ^ size_out := by
-  sorry
+  have hAfs := hA.finitelySupported
+  have hA' : Module.ECModule (AdvCollisionSHA3 A) SRO.Oracle.ext := by
+    refine ⟨Module.representable_of_firstOrder ?_ ?_ SRO.Oracle.ext (fun _ => rfl) _,
+      Footprint.FinitelySupported.mono (fvP_AdvCollisionSHA3 A) hAfs⟩
+    · simp [IsModule.moduleTypeRep, ModuleTypeRep.FirstOrder, Module.moduleTypeRep,
+        SecureRO.Oracle.typeRep]
+    · intro sig n
+      cases n with
+      | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
+      | succ n => nomatch n
+  have hll : IndifRO_is_secure.D_ll_at (List Bool) f_out (AdvCollisionSHA3 A)
+      (FVP.fvP A).glob := by
+    intro F hF hFll
+    have hX := _A_ll (Module.app X F) ((FVP.fvP_app _ _).trans (sup_le (fvP_X.trans bot_le) hF))
+      (by
+        rw [Procedure.isLossless_iff_phoareProc] at hFll ⊢
+        simp only [X.apply_simp]
+        phoare_proc_to_stmt
+        phoare_inline 0
+        phoare_wp 4
+        phoare_simp [hFll]
+        phoare_skip
+        intros
+        trivial)
+    rw [Procedure.isLossless_iff_phoareProc] at hX ⊢
+    phoare_proc_to_stmt
+    phoare_inline 0
+    phoare_wp 3
+    phoare_simp [hX]
+    phoare_skip
+    intros
+    trivial
+  have hAd := _hAd
+  unfold ARestrictions.footprint at hAd
+  exact Sponge_coll_resistant_at (AdvCollisionSHA3 A) hA' ((fvP_AdvCollisionSHA3 A).trans _hAd)
+    ((fvP_AdvCollisionSHA3 A).trans _hG) _ (FVP.fvP A) hAfs le_rfl
+    (A_SecurityRegion A hAfs _hAd _hG)
+    ((Footprint.le_compl_comm _ _).mp (sup_le
+      (Footprint.globalVar_le_compl_glob hAfs _ (by fp_disjoint))
+      (Footprint.globalVar_le_compl_glob hAfs _ (by fp_disjoint)))) hll m
 
 end GaudisCrypt.SHA3.SHA3Security

@@ -251,6 +251,15 @@ def D_ll {sig : ProcedureSignature} (A : SRO.Oracle f_in f_out →ₘ Module.Pro
     (SecureRO.Oracle.get f_in f_out F).procedure.IsLossless →
     (Module.app A F).procedure.IsLossless
 
+/-- `D_ll` for the oracles outside a region `G` instead of `glob A` (exception E14): what an adversary
+built from an abstract one satisfies (EasyCrypt's `glob` is syntactic: `glob AdvCollisionSHA3(A) =
+glob A`).  `D_ll A` is `D_ll_at A (glob A)`. -/
+def D_ll_at {sig : ProcedureSignature} (A : SRO.Oracle f_in f_out →ₘ Module.Proc sig)
+    (G : Footprint VariableAssignment) : Prop :=
+  ∀ F : SRO.Oracle f_in f_out, FVP.fvP F ≤ Gᶜ →
+    (SecureRO.Oracle.get f_in f_out F).procedure.IsLossless →
+    (Module.app A F).procedure.IsLossless
+
 /-- `forall (F <: FUNCTIONALITY), islossless F.f => islossless S(F).init` (an abbreviation). -/
 def S_ll (S : SIMULATOR block f_in f_out) : Prop :=
   ∀ F : FUNCTIONALITY block f_in f_out, (FUNCTIONALITY.f block f_in f_out F).procedure.IsLossless →
@@ -572,16 +581,16 @@ theorem GIdeal_Collision_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder 
       intros
       simp_all
 
-/-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder})
-(P <: PRIMITIVE {-C, -A, -Bounder}) &m`, for the section's `A`. -/
-theorem coll_resistant_if_indifferentiable
+/-- `coll_resistant_if_indifferentiable` with the section's axiom `D_ll` over a region `G`
+(`D_ll_at`, exception E14; the proof does not use it, as EasyCrypt's). -/
+theorem coll_resistant_if_indifferentiable_at
     [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
     [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
     (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
     (A : SRO.AdvCollision f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
     (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
       SRO_RO_m.footprint ⊔ SRO_FRO_m.footprint)ᶜ)
-    (_D_ll : D_ll f_in f_out A)
+    (G : Footprint VariableAssignment) (_D_ll : D_ll_at f_in f_out A G)
     (C : CONSTRUCTION block f_in f_out)
     (_hC : FVP.fvP C ≤ ((FVP.fvP A).glob ⊔ SRO_Bounder_bounder.footprint ⊔
       SRO_Counter_c.footprint)ᶜ)
@@ -625,6 +634,41 @@ theorem coll_resistant_if_indifferentiable
   rw [h2] at hbound
   have := (abs_le.mp hbound).2
   linarith
+
+/-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION {-A, -Bounder})
+(P <: PRIMITIVE {-C, -A, -Bounder}) &m`, for the section's `A`. -/
+theorem coll_resistant_if_indifferentiable
+    [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c]
+    [Lens.Disjoint SRO_Bounder_bounder SRO_RO_m] [Lens.Disjoint SRO_Counter_c SRO_RO_m]
+    (hax : Axioms f_in f_out sampleto limit bound_counter increase_counter)
+    (A : SRO.AdvCollision f_in f_out) (hA : Module.ECModule A (SRO.Oracle.ext f_in f_out))
+    (_hAd : FVP.fvP A ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+      SRO_RO_m.footprint ⊔ SRO_FRO_m.footprint)ᶜ)
+    (_D_ll : D_ll f_in f_out A)
+    (C : CONSTRUCTION block f_in f_out)
+    (_hC : FVP.fvP C ≤ ((FVP.fvP A).glob ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint)ᶜ)
+    (P : PRIMITIVE block f_in f_out)
+    (_hP : FVP.fvP P ≤ ((FVP.fvP C).glob ⊔ (FVP.fvP A).glob ⊔ SRO_Bounder_bounder.footprint ⊔
+      SRO_Counter_c.footprint)ᶜ)
+    (m : VariableAssignment) :
+    (∃ S : SIMULATOR block f_in f_out, SIMULATOR.ECModule block f_in f_out S ∧
+      FVP.fvP S ≤ (SRO_Bounder_bounder.footprint ⊔ SRO_Counter_c.footprint ⊔
+        (FVP.fvP A).glob)ᶜ ∧
+      S_ll block f_in f_out S ∧
+      |(Procedure.Pr (GReal block f_in f_out C P (DColl block f_in f_out limit bound_counter
+          increase_counter SRO_Counter_c SRO_Bounder_bounder A)).procedure () m
+          (fun r _ => r = true) : ℝ) -
+        (Procedure.Pr (GIdeal block f_in f_out (RO block f_in f_out sampleto SRO_RO_m) S
+          (DColl block f_in f_out limit bound_counter increase_counter SRO_Counter_c
+            SRO_Bounder_bounder A)).procedure () m (fun r _ => r = true) : ℝ)| ≤ bound) →
+    (Procedure.Pr (Module.app (SRO.Collision f_in f_out limit bound_counter increase_counter
+        SRO_Counter_c SRO_Bounder_bounder) (Module.pair A (FM.asRO block f_in f_out C P))).procedure
+        () m (fun r _ => r = true) : ℝ) ≤
+      bound + ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * (sampleto.1 {default}).toReal :=
+  coll_resistant_if_indifferentiable_at block f_in f_out sampleto limit bound bound_counter
+    increase_counter SRO_RO_m SRO_FRO_m SRO_Counter_c SRO_Bounder_bounder hax A hA _hAd _
+    _D_ll C _hC P _hP m
 
 /-! `DPre`'s and `D2Pre`'s module variables `h`, `m2` are the lens parameters `DPre_h`,
 `D2Pre_m2`. -/
