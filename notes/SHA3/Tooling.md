@@ -1522,3 +1522,41 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `ODPRIMITIVE.f.mk_simp` across spellings, and state oracle lemmas with the simplified right side.
 * **`Footprint.FinitelySupported.mono h (hG.sup ?_)`** inside a `refine` leaves `?_` an unresolved
   metavariable: prove the finite support in a separate `have` with its type.
+
+## 2026-11-05: `SHA3OSecurity`, section `Preimage` complete
+
+* **Generic congruences for the ideal game** (top of `SHA3OSecurity.lean`, reusable by the other
+  sections): `osim_congr_f` (`OSimulator(F₁).f ~ OSimulator(F₂).f` from `F₁.f ~ F₂.f`, over
+  `ODFUNCTIONALITY`s, a relation `I` before and a weaker `J` after: the simulator calls `F.f` at
+  most once), `osim_congr_fi`, `opc_congr_f/fi` (counter outside the lens), `ideal_game_congr`
+  (`OIndif(F₁, OSimulator(F₁), D) ~ OIndif(F₂, OSimulator(F₂), D)`, `D` one abstract call).
+  When the counter is *inside* the lens (`fL`), write the `OPC` step by hand (`fin_pf/pfi`).
+* **Lifting a local equiv to an equal-outside invariant**: `prhlProc_frame_equal_outside_module`
+  (callees within the lens; bounds by `fp_module L` or `fp_le`) and `prhlProc_frame_lens`
+  (a relation of variables the callees do not touch), then `prhlProc_conseq`
+  (`eager_f_lazy`, `eq_extend_lift`, `eq_IRO_RFWhile_frame`).
+* **Two lenses, one relation**: `L := Lens.pair X₁ X₂` with `I v₁ v₂ := v₁.1 = v₂.2` relates
+  `X₁{1}` to `X₂{2}` (`eagerL`, `xL`, `fL`); component writes keep the states equal outside `L`
+  (`(Lens.equal_outside_set_self _ g v).pair_left`, `.pair_right` nested for deeper components).
+* **Different init orders in the two prefixes**: chain `equal_outside` steps (component writes,
+  `.set_disjoint` for equal writes outside the lens) and commute the writes of disjoint lenses:
+  `have d : Lens.Disjoint X Y := inferInstance; rw [d.commute]` (`(inferInstanceAs …).commute`
+  does not elaborate).  Align the samplings first with `stmt_swap{i} n k`.
+* **One-sided lossless code** (the right runs, the left does not, the post is about the left):
+  `prhlStmt_conseq` to a left-only post, `equiv_if{2}`, `equiv_while{2} I V` (cases `lossless`:
+  `simp only [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_sample]; exact (is_lossless_iff_expected
+  _).mp dbool_ll`; `variant`: `hoare_wp; hoare_skip`; `exit`).
+* **A call wrapper against its callee** (`Dist(F).distinguish` vs the game it calls):
+  `equiv_proc; stmt_inline{1} 0; stmt_wp; simp only [view]; equiv_call (prhlProc_refl _)`.
+* **Probability chains**: `.trans`/`.symm` of `Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ())`;
+  a real-valued `≤` by `exact_mod_cast Procedure.Pr_le_of_prhlProc`.
+* **Pitfalls**: `equiv_proc` turns a precondition on an argument's projection (`a₁.2`) into
+  `sorry` (inline the caller instead); `simp_reads` unfolds an abbreviated pair lens into a
+  structure, on which `Lens.Disjoint` instance search fails (state helpers on the named lens:
+  `hLog : (fL _).equal_outside g₁ g₂ → Log_m.get g₁ = Log_m.get g₂`); `omega` needs `dsimp only`
+  on tuple projections and treats syntactically different `increase_counter` terms as distinct
+  atoms (derive the bound with `(lt_increase_counter _ _ _).trans_le hg`); `-` is not a `fun`
+  pattern (use `_`); a lemma whose only use of a section variable is a hypothesis drags it into
+  every user (`eq_IRO_RFWhile` lost its unused `LocalFresh`).
+* **Section instances**: `variable [Lens.Disjoint …]` in a section; the closing lemma derives
+  them from `LocalFresh` with one helper `hD Y X hY hX : Lens.Disjoint Y X ∧ Lens.Disjoint X Y`.

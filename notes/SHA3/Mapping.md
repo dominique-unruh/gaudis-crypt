@@ -30,7 +30,7 @@ Status: `—` not started · `def` definition ported · `stated` statement porte
 | `proof/SecureORO.eca` | 492 | 3 | `GaudisCrypt/Examples/SHA3/SecureORO.lean` |
 | `proof/IndifRO_is_secure.ec` | 218 | 3 | `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean` |
 | `proof/SHA3Security.ec` | 1275 | 23 | `GaudisCrypt/Examples/SHA3/SHA3Security.lean` |
-| `proof/SHA3OSecurity.ec` | 2652 | 33 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
+| `proof/SHA3OSecurity.ec` | 2652 | 26 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
 
 ## `proof/Common.ec`
 
@@ -1037,22 +1037,22 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 287 | local module | `RFWhile` | section Preimage. | `Preimage.RFWhile` | def |
 | 308 | local equiv | `rw_RF_List_While` | section Preimage. | `Preimage.rw_RF_List_While` (`transitivity{1}` to `LoopSnoc.sample` as `prhlStmt_dlist_left`, Lib/EC/DListCall; lockstep `while`) | done |
 | 331 | op | `inv` | section Preimage. | `inv` | def |
-| 337 | local equiv | `eq_IRO_RFWhile` | section Preimage. | `Preimage.eq_IRO_RFWhile` | stated |
+| 337 | local equiv | `eq_IRO_RFWhile` | section Preimage. | `Preimage.eq_IRO_RFWhile` (fresh case lockstep with ghost maps; known case `while{1}`; framed for `fL` as `eq_IRO_RFWhile_frame`) | done |
 | 407 | op | `eq_extend_size` | section Preimage. | `eq_extend_size` | def |
 | 415 | local module | `ExtendSample` | section Preimage. | `Preimage.ExtendSample` (aliases call-wrapped, E5) | def |
-| 430 | local equiv | `eq_extend` | section Preimage. | `Preimage.eq_extend` | stated |
+| 430 | local equiv | `eq_extend` | section Preimage. | `Preimage.eq_extend` (`if{1}`; lockstep IRO loops; `splitwhile{1}` as `prhlStmt_splitwhile_left`, the IRO loop against the `Log` loop; helpers `eq_extend_size_set_lt/ge`, `_dom_lt/ge`) | done |
 | 471 | local lemma | `of_listK` | section Preimage. | `Preimage.of_listK` | done |
 | 476 | local module | `Fill_In` | section Preimage. | `Preimage.Fill_In` (aliases call-wrapped, E5) | def |
-| 496 | local equiv | `eq_eager_ideal` | section Preimage. | `Preimage.eq_eager_ideal` | stated |
-| 512 | local equiv | `eq_eager_ideal2` | section Preimage. | `Preimage.eq_eager_ideal2` | stated |
+| 496 | local equiv | `eq_eager_ideal` | section Preimage. | `Preimage.eq_eager_ideal` | done |
+| 512 | local equiv | `eq_eager_ideal2` | section Preimage. | `Preimage.eq_eager_ideal2` | done |
 | 559 | local module | `Dist` | section Preimage. | `Preimage.Dist` (`A` a Lean parameter; alias call-wrapped, E5) | def |
 | 564 | local module | `Game` | section Preimage. | `Preimage.Game` (`A` a Lean parameter) | def |
-| 576 | local lemma | `eager_ideal` | section Preimage. | `Preimage.eager_ideal` | stated |
-| 652 | local lemma | `rw_ideal_2` | section Preimage. | `Preimage.rw_ideal_2` | stated |
-| 792 | local lemma | `rw_ideal` | section Preimage. | `Preimage.rw_ideal` | stated |
-| 870 | local lemma | `leq_ideal` | section Preimage. | `Preimage.leq_ideal` (`SORO_P1` an `ECModule` by `fvP_SORO_P1`; modulo `rw_ideal`) | done |
+| 576 | local lemma | `eager_ideal` | section Preimage. | `Preimage.eager_ideal` (`ideal_game_congr` over `eagerL`/`eagerI` with `eager_f_lazy`/`eager_f_ext` (frame-lifted `eq_eager_ideal(2)`); `RO_LRO_D` on `Dist` directly, bridged to the ideal games by `Dist_game`, instead of EC's `Game`) | done |
+| 652 | local lemma | `rw_ideal_2` | section Preimage. | `Preimage.rw_ideal_2` (= `eager_ideal`; `ext_game` (equal outside `xL` with `eq_extend_size`, abstract call to `A`, oracles `ext_dfs_f`, `opc_congr_f/fi` over `osim_congr_f/fi` with `eq_extend_lift`); `fin_game` (`Pr_le`; equal outside `fL` with `fI`; oracles `fin_f`, `fin_pf`, `fin_pfi` via `extout_bw`, last query `fin_get`); `rl_game`) | done |
+| 792 | local lemma | `rw_ideal` | section Preimage. | `Preimage.rw_ideal` (`ri_game` via `soro_pre_game`; `rw_ideal_2`) | done |
+| 870 | local lemma | `leq_ideal` | section Preimage. | `Preimage.leq_ideal` (`SORO_P1` an `ECModule` by `fvP_SORO_P1`) | done |
 | 881 | local lemma | `rw_real` | section Preimage. | `Preimage.rw_real` (equal-outside call over `rrL` = (`SH.Bounder.bounder`, `Counter.c`, `Log.m`), `rrI`; oracle steps `rr_F`, `rr_Pf`, `rr_Pfi`; `swap{1}` as `stmt_swap`) | done |
-| 898 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh by `exists_fresh_glob`, E6; `Dist_of_P1Adv(A)` restrictions by `A_ODistRestrictions`/`X_ODistRestrictions`, lossless by pHL `Dist_of_P1Adv_ll`; modulo the local lemmas) | exc |
+| 898 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh by `exists_fresh_glob`, E6; `Dist_of_P1Adv(A)` restrictions by `A_ODistRestrictions`/`X_ODistRestrictions`, lossless by pHL `Dist_of_P1Adv_ll`) | exc |
 | 923 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 925 | local module | `FInit` | section SecondPreimage. | `SecondPreimage.FInit` (aliases call-wrapped, E5) | def |
 | 930 | local module | `PInit` | section SecondPreimage. | `SecondPreimage.PInit` (aliases call-wrapped, E5) | def |

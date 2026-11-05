@@ -468,8 +468,8 @@ theorem OSimulator_fs : (FVP.fvP OSimulator).FinitelySupported := by
     | exact Footprint.FinitelySupported.globalVar _
     | apply Footprint.FinitelySupported.sup
 
-/-- `SHA3OIndiff`'s restrictions are among `ARestrictions` and the `glob`s of `SimLast(Gconcl.S)` and
-`OSimulator`.  Not an EC lemma. -/
+/-- `SHA3OIndiff`'s restrictions are among `ARestrictions` and the `glob`s of `SimLast(Gconcl.S)`
+and `OSimulator`.  Not an EC lemma. -/
 theorem ODistRestrictions_cover : DistRestrictions.footprint ⊔ Counter.c.footprint ⊔
     (FVP.fvP OSimulator).glob ≤ ARestrictions.footprint ⊔
       (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).glob ⊔ (FVP.fvP OSimulator).glob := by
@@ -2383,7 +2383,8 @@ theorem ext_dfs_f :
       case «then» =>
         equiv_while (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
             0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧
-            §k0{1} = size_out ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧ (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+            §k0{1} = size_out ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
+            (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
           xI ((xL Log_m).get §allGlobals{1}) ((xL Log_m).get §allGlobals{2}))
         case body =>
           stmt_wp
@@ -2404,8 +2405,8 @@ theorem ext_dfs_f :
           case guard =>
             intros
             rename_i h
-            obtain ⟨rfl, rfl, rfl, rfl, h0, hle, rfl, rfl, rfl, rfl, rfl, he, hI, hlt, rfl, rfl, rfl,
-              rfl⟩ := h
+            obtain ⟨rfl, rfl, rfl, rfl, h0, hle, rfl, rfl, rfl, rfl, rfl, he, hI, hlt, rfl, rfl,
+              rfl, rfl⟩ := h
             have hI' := (show eq_extend_size (BIRO.IRO.mp.get _) (BIRO.IRO.mp.get _) (Log_m.get _)
               from hI)
             simp only [eq_extend_size_dom_lt hI' h0 hlt]
@@ -2415,8 +2416,8 @@ theorem ext_dfs_f :
             equiv_skip
             intros
             rename_i h a _
-            obtain ⟨⟨rfl, rfl, rfl, rfl, h0, hle, rfl, rfl, rfl, rfl, rfl, he, hI, hlt, rfl, rfl, rfl,
-              rfl⟩, -⟩ := h
+            obtain ⟨⟨rfl, rfl, rfl, rfl, h0, hle, rfl, rfl, rfl, rfl, rfl, he, hI, hlt, rfl, rfl,
+              rfl, rfl⟩, -⟩ := h
             refine ⟨rfl, rfl, rfl, rfl, by omega, by omega, by simp only [FMap.get_set_sameE], rfl,
               rfl, rfl, rfl, ?_, eq_extend_size_set_lt a hI h0 hlt⟩
             exact (xL_IRO Log_m _ _).symm.trans (he.trans (xL_IRO Log_m _ _))
@@ -2424,8 +2425,8 @@ theorem ext_dfs_f :
             equiv_skip
             intros
             rename_i h
-            obtain ⟨⟨rfl, rfl, rfl, rfl, h0, hle, rfl, rfl, rfl, rfl, rfl, he, hI, hlt, rfl, rfl, rfl,
-              rfl⟩, -⟩ := h
+            obtain ⟨⟨rfl, rfl, rfl, rfl, h0, hle, rfl, rfl, rfl, rfl, rfl, he, hI, hlt, rfl, rfl,
+              rfl, rfl⟩, -⟩ := h
             refine ⟨rfl, rfl, rfl, rfl, by omega, by omega, ?_, rfl, rfl, rfl, rfl, he, hI⟩
             rw [hI.1 _ _ ⟨h0, hlt⟩]
         case guard =>
@@ -2875,6 +2876,111 @@ noncomputable abbrev iroO : SORO.Oracle :=
   SecureORO.Oracle.mk (List Bool) f_out
     { get := Module.app FSetSize.get (Module.app FSome BIRO.IRO.asF) }
 
+/-- `fI` with room for one more simulator query: the invariant before `OPC`'s call. -/
+def fIpre (v₁ v₂ : FMap (List Bool × ℤ) Bool × FMap (List Bool) f_out × ℤ × ℤ) : Prop :=
+  fI v₁ v₂ ∧ v₂.2.2.2 + 1 ≤ SHA3Indiff.limit
+
+/-- The invariant after `OPC`'s call, before the counter's increment: the bounder may be one
+ahead. -/
+def fIpost (v₁ v₂ : FMap (List Bool × ℤ) Bool × FMap (List Bool) f_out × ℤ × ℤ) : Prop :=
+  inv v₁.1 v₂.2.1 ∧ v₁.2.2.2 = v₂.2.2.2 ∧ v₂.2.2.1 ≤ v₂.2.2.2 + 1 ∧
+    v₂.2.2.2 + 1 ≤ SHA3Indiff.limit
+
+/-- The simulator's functionality in `rw_ideal_2`'s last game: `ExtendOutputSize(FSetSize(FSome(
+BIRO.IRO))) ~ ExtendOutputSize(Bounder(RFWhile))` (EC: `inline{1} 1; inline{2} 1; sp; …; call
+(eq_IRO_RFWhile)`; the `Log` loops in lockstep).  Not an EC lemma. -/
+theorem extout_bw :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fIpre ((fL RFList_m).get g₁) ((fL RFList_m).get g₂))
+      (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app (ExtendOutputSize Log_m) iroO)).procedure
+      (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app (ExtendOutputSize Log_m) (bwO RFList_m))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
+        fIpost ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
+  have e₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+      (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
+    simp [BIRO.IRO.asF]
+  have hLog : ∀ g₁ g₂, (fL RFList_m).equal_outside g₁ g₂ → Log_m.get g₁ = Log_m.get g₂ :=
+    fun _ _ h => h.get_disjoint
+  have hLogS : ∀ g₁ g₂ v, (fL RFList_m).equal_outside g₁ g₂ →
+      (fL RFList_m).equal_outside (Log_m.set v g₁) (Log_m.set v g₂) :=
+    fun _ _ v h => h.set_disjoint v
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  stmt_wp
+  rw [e₁]
+  equiv_while (§x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧ §i{1} = §i{2} ∧ §«prefix»{1} = §«prefix»{2} ∧
+      §suffix{1} = §suffix{2} ∧ (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      fIpost ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  case body =>
+    stmt_wp
+    equiv_if
+    case guard =>
+      intros
+      rename_i h
+      obtain ⟨⟨rfl, rfl, rfl, -, -, he, -⟩, -⟩ := h
+      rw [hLog _ _ he]
+    case «then» =>
+      stmt_wp
+      equiv_rnd
+      equiv_skip
+      intros
+      rename_i h a _
+      obtain ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, he, hI⟩, -⟩, -⟩ := h
+      refine ⟨rfl, rfl, rfl, rfl, by simp only [FMap.get_set_sameE], ?_, hI⟩
+      rw [hLog _ _ he]
+      exact hLogS _ _ _ he
+    case «else» =>
+      equiv_skip
+      intros
+      rename_i h
+      obtain ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, he, hI⟩, -⟩, -⟩ := h
+      exact ⟨rfl, rfl, rfl, rfl, by rw [hLog _ _ he], he, hI⟩
+  case guard =>
+    intros
+    rename_i h
+    obtain ⟨-, rfl, rfl, -⟩ := h
+    rfl
+  case exit =>
+    intros
+    rename_i h _
+    obtain ⟨-, -, -, rfl, rfl, he, hI⟩ := h
+    exact ⟨rfl, he, hI⟩
+  stmt_wp
+  equiv_seq 1 1 : (§x2{1} = (§x1{2}, size_out) ∧ §x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧
+      §suffix{1} = [] ∧ §suffix{2} = [] ∧
+      (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      fIpre ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x₁ x₂ ⟨rfl, he, hI⟩
+    exact ⟨rfl, rfl, rfl, he, hI⟩
+  equiv_if{2}
+  case «else» =>
+    refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+    obtain ⟨⟨-, -, -, -, -, -, ⟨-, -, hb⟩, hc1⟩, hb'⟩ := h
+    simp only [decide_eq_false_iff_not, not_lt] at hb'
+    unfold sigma at hb'
+    dsimp only at hb hc1
+    omega
+  case «then» =>
+    equiv_call (eq_IRO_RFWhile_frame RFList_m
+      (fun v w => v.2 = w.2 ∧ w.1 ≤ w.2 + 1 ∧ w.2 + 1 ≤ SHA3Indiff.limit))
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ x2 x0 k suf x1 x0' k' suf' ⟨⟨rfl, rfl, rfl, rfl, rfl, he, ⟨hinv, hc, hb⟩, hc1⟩, -⟩
+    refine ⟨⟨⟨⟨rfl, hinv⟩, hc, by dsimp only at hb; omega, hc1⟩,
+      he.trans (fL_bounder RFList_m _ _)⟩, ?_⟩
+    rintro r₁ h₁ r₂ h₂ ⟨⟨⟨hr, -, hinv'⟩, hc', hb', hc1'⟩, he'⟩
+    refine ⟨rfl, rfl, ?_, rfl, he', hinv', hc', hb', hc1'⟩
+    rw [if_pos (Option.some_ne_none _), hr]
+    rfl
+
 /-- `rw_ideal_2`'s last game, the primitive oracle `f`: `OPC(OSimulator(ExtendOutputSize(F)))` over
 `FSetSize(FSome(BIRO.IRO))` and `Bounder(RFWhile)`.  Not an EC lemma. -/
 theorem fin_pf :
@@ -2886,7 +2992,47 @@ theorem fin_pf :
         (Module.app OPC (osimP Log_m (bwO RFList_m)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
         fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
-  sorry
+  have hB : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ ((fL RFList_m).footprint)ᶜ := by
+    simp only [fL, Footprint.lens_pair]
+    refine le_compl_sup (by fp_disjoint) (le_compl_sup (le_trans
+      (show FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (Gconcl_list.BIRO2.IRO.mp).footprint by fp_le)
+      (Lens.footprint_le_compl_of_disjoint _ _)) (by fp_disjoint))
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+      (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ ⟨-, -, -, -, hc, -⟩
+    change Counter.c.get g₁ = Counter.c.get g₂ at hc
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨-, ho, he, hI⟩, -⟩
+    exact ⟨ho, he, hI⟩
+  case «then» =>
+    stmt_wp
+    simp only [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
+    equiv_call (osim_congr_f (fL RFList_m) fIpre fIpost
+      (fun _ _ ⟨⟨hinv, hc, hb⟩, hc1⟩ => ⟨hinv, hc, by omega, hc1⟩) hB _ _
+      (extout_bw Log_m RFList_m))
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨rfl, -, he, hinv, hc, hb⟩, hg⟩
+    simp only [decide_eq_true_eq] at hg
+    have hg' : Counter.c.get g₂ + 1 ≤ SHA3Indiff.limit := by
+      dsimp only at hc
+      rw [← hc]
+      exact hg
+    refine ⟨⟨rfl, he, ⟨hinv, hc, hb⟩, hg'⟩,
+      fun r₁ h₁ r₂ h₂ ⟨hr, he', hinv', hc', hb', _⟩ => ⟨hr,
+        (fL_Counter RFList_m h₁ _).symm.trans (he'.trans (fL_Counter RFList_m h₂ _)), hinv',
+        congrArg (· + 1) hc', hb'⟩⟩
 
 /-- `rw_ideal_2`'s last game, the primitive oracle `fi`.  Not an EC lemma. -/
 theorem fin_pfi :
@@ -2898,7 +3044,45 @@ theorem fin_pfi :
         (Module.app OPC (osimP Log_m (bwO RFList_m)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (fL RFList_m).equal_outside g₁ g₂ ∧
         fI ((fL RFList_m).get g₁) ((fL RFList_m).get g₂)) := by
-  sorry
+  have hB : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ ((fL RFList_m).footprint)ᶜ := by
+    simp only [fL, Footprint.lens_pair]
+    refine le_compl_sup (by fp_disjoint) (le_compl_sup (le_trans
+      (show FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (Gconcl_list.BIRO2.IRO.mp).footprint by fp_le)
+      (Lens.footprint_le_compl_of_disjoint _ _)) (by fp_disjoint))
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+      (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ _ _ ⟨-, -, -, -, hc, -⟩
+    change Counter.c.get g₁ = Counter.c.get g₂ at hc
+    rw [hc]
+  case «else» =>
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨-, ho, he, hI⟩, -⟩
+    exact ⟨ho, he, hI⟩
+  case «then» =>
+    stmt_wp
+    simp only [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+    equiv_call (osim_congr_fi (fL RFList_m) fIpre _ _)
+    equiv_skip
+    rintro g₁ g₂ _ _ _ _ ⟨⟨rfl, -, he, hinv, hc, hb⟩, hg⟩
+    simp only [decide_eq_true_eq] at hg
+    have hg' : Counter.c.get g₂ + 1 ≤ SHA3Indiff.limit := by
+      dsimp only at hc
+      rw [← hc]
+      exact hg
+    refine ⟨⟨rfl, he, ⟨hinv, hc, hb⟩, hg'⟩,
+      fun r₁ h₁ r₂ h₂ ⟨hr, he', ⟨hinv', hc', hb'⟩, _⟩ => ⟨hr,
+        (fL_Counter RFList_m h₁ _).symm.trans (he'.trans (fL_Counter RFList_m h₂ _)), hinv',
+        congrArg (· + 1) hc', by dsimp only at hb' ⊢; omega⟩⟩
 
 set_option maxHeartbeats 4000000 in
 -- the oracles' unification through `A`'s nest
@@ -3115,7 +3299,8 @@ theorem bounder_get_congr {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω �
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
       §(localVarLens "y" (Option f_out)){1} = §(localVarLens "y" (Option f_out)){2} ∧
-      L.equal_outside §allGlobals{1} §allGlobals{2} ∧ I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+      L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
     exact fun _ _ _ _ h => h
