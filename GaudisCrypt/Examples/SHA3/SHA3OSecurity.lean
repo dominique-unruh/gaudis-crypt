@@ -1020,7 +1020,84 @@ theorem eq_eager_ideal :
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂)
       BIRO.IRO.f.procedure (Module.app Fill_In.f Eager.LRO).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂) := by
-  sorry
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [PROM.FullRO.LRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.sample.mk_simp]
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_while{2} (§bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2}) ((size_out - §i{2}).toNat)
+  case lossless =>
+    intro σ₁ σ _ _
+    simp [Stmt.ewp_seq, Stmt.ewp_assign]
+  case «variant» =>
+    intro σ₁ k
+    hoare_wp 3
+    hoare_skip
+    rintro _ _ _ ⟨h, hg, hk⟩
+    simp only [decide_eq_true_eq] at hg
+    exact ⟨h, by omega⟩
+  case exit =>
+    rintro _ _ _ _ _ h _
+    exact h
+  equiv_seq 1 1 : (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+      §IRO.mp{1} = §Eager.RO.m{2})
+  · stmt_wp
+    equiv_skip
+    intros
+    simp_all
+  equiv_if{1}
+  case «else» =>
+    refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+    obtain ⟨-, hg⟩ := h
+    simp [BIRO.valid, valid_toplevel] at hg
+  case «then» =>
+    equiv_while (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+      §IRO.mp{1} = §Eager.RO.m{2})
+    case body =>
+      stmt_wp
+      equiv_seq 1 1 : (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+      §IRO.mp{1} = §Eager.RO.m{2} ∧ §i{1} < §n{1} ∧
+          §(localVarLens "x0" (List Bool)){1} = §x{1} ∧ §n0{1} = §i{1} ∧
+          §(localVarLens "x0" (List Bool × ℤ)){2} = (§x{2}, §i{2}))
+      · stmt_wp
+        equiv_skip
+        rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨hx, hn, hi, hb, hm⟩, hg⟩
+        simp only [decide_eq_true_eq] at hg
+        exact ⟨hx, hn, hi, hb, hm, hg⟩
+      equiv_if{1}
+      case «then» =>
+        stmt_wp
+        equiv_rnd
+        equiv_skip
+        rintro x n i bs mp x0 n0 x' n' i' l m x0'
+          ⟨⟨rfl, rfl, rfl, rfl, rfl, hlt, rfl, rfl, rfl⟩, hd⟩ a _
+        simp [hd]
+      case «else» =>
+        stmt_split{2} 1
+        refine prhlStmt_seq_sample_right ?_
+        equiv_skip
+        rintro σ₂ x n i bs mp x0 n0 ⟨⟨hx, hn, hi, hb, hm, hlt, rfl, rfl, hx0⟩, hd⟩
+        refine ⟨(is_lossless_iff_expected _).mp dbool_ll, fun a _ => ?_⟩
+        simp_reads
+        rw [hx0, ← hm]
+        simp only [Bool.not_eq_false', decide_eq_true_eq] at hd
+        rw [hx, hi] at hd
+        simp only [hd, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+        subst hx hi hb hn
+        exact ⟨rfl, rfl, rfl, rfl, trivial⟩
+    case guard =>
+      rintro _ _ _ _ _ _ _ _ _ _ ⟨-, hn, hi, -⟩
+      rw [hn, hi]
+    case exit =>
+      rintro _ _ _ _ _ _ _ _ _ _ ⟨-, -, -, hb, hm⟩ _
+      exact ⟨hb, hm⟩
+    all_goals
+      equiv_skip
+      intros
+      simp_all
 
 /-- `local equiv eq_eager_ideal2 : ExtendSample(FSome(BIRO.IRO)).f ~ FSome(Fill_In(RO)).f :
 ={arg} /\ BIRO.IRO.mp{1} = RO.m{2} ==> ={res} /\ BIRO.IRO.mp{1} = RO.m{2}`. -/
