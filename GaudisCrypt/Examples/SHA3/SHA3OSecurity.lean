@@ -510,6 +510,263 @@ def LocalFresh (Log_m : Lens (FMap (List Bool × ℤ) Bool) VariableAssignment)
   Log_m.footprint ⊔ RFList_m.footprint ≤ ARestrictions.footprintᶜ ∧
     Log_m.footprint ≤ RFList_m.footprintᶜ ∧ Log_m.footprint.FinitelySupported
 
+/-! ### Ideal games over two functionalities related outside a lens
+
+EasyCrypt's `call (: ={glob OFC, glob OSimulator} /\ …)` through `OIndif(F, OSimulator(F), D)`,
+for two functionalities `F₁`, `F₂` whose states are related by a relation `I` of the contents of a
+lens `L` (the states equal outside `L`): the simulator's code is the same on both sides but for
+its call of `F.f`, and the distinguisher is an abstract module outside `L`. -/
+
+section IdealCongr
+
+variable {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → Ω → Prop)
+
+/-- `OSimulator(F₁).fi ~ OSimulator(F₂).fi` over the states equal outside `L`: the same code on
+variables outside `L` (EC: `proc; inline*; sim`).  Not an EC lemma. -/
+theorem osim_congr_fi [Lens.Disjoint SHA3Indiff.Simulator.m L]
+    [Lens.Disjoint SHA3Indiff.Simulator.mi L] (F₁ F₂ : OFUNCTIONALITY) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+        (Module.app OSimulator (OptionIndifferentiability.OFUNCTIONALITY.view state
+          (List Bool × ℤ) (List Bool) F₁))).procedure
+      (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+        (Module.app OSimulator (OptionIndifferentiability.OFUNCTIONALITY.view state
+          (List Bool × ℤ) (List Bool) F₂))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ ⟨rfl, he, -⟩
+    rw [he.get_disjoint]
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ _ _ ⟨⟨rfl, he, hI⟩, -⟩
+    exact ⟨by rw [he.get_disjoint], he, hI⟩
+  case «then» =>
+    stmt_wp
+    equiv_rnd
+    equiv_rnd
+    equiv_skip
+    rintro g₁ g₂ _ _ ⟨⟨rfl, he, hI⟩, -⟩
+    intro _ _ _ _
+    rw [he.get_disjoint (X := SHA3Indiff.Simulator.m),
+      he.get_disjoint (X := SHA3Indiff.Simulator.mi)]
+    exact ⟨(he.set_disjoint _).set_disjoint _, hI⟩
+
+/-- `OSimulator(F₁).f ~ OSimulator(F₂).f` over the states equal outside `L`, from
+`F₁.f ~ F₂.f` (EC: `proc; sp; if; …; call (: …)`): the relation `I` of the contents of `L` before,
+a weaker `J` after (the simulator calls `F.f` at most once).  Not an EC lemma. -/
+theorem osim_congr_f [Lens.Disjoint SHA3Indiff.Simulator.m L]
+    [Lens.Disjoint SHA3Indiff.Simulator.mi L] [Lens.Disjoint SHA3Indiff.Simulator.paths L]
+    (J : Ω → Ω → Prop) (hIJ : ∀ v w, I v w → J v w)
+    (hB : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (L.footprint)ᶜ) (F₁ F₂ : ODFUNCTIONALITY)
+    (hF : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool) F₁).procedure
+      (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool) F₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ J (L.get g₁) (L.get g₂))) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+        (Module.app OSimulator F₁)).procedure
+      (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+        (Module.app OSimulator F₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ J (L.get g₁) (L.get g₂)) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+  · stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => h
+  equiv_if
+  case guard =>
+    rintro g₁ g₂ _ _ ⟨rfl, he, -⟩
+    rw [he.get_disjoint]
+  case «else» =>
+    stmt_wp
+    equiv_skip
+    rintro g₁ g₂ _ _ ⟨⟨rfl, he, hI⟩, -⟩
+    exact ⟨by rw [he.get_disjoint], he, hIJ _ _ hI⟩
+  case «then» =>
+    equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+        L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        J (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+    · equiv_if
+      case guard =>
+        rintro g₁ g₂ _ _ ⟨⟨rfl, he, -⟩, -⟩
+        rw [he.get_disjoint]
+      case «then» =>
+        stmt_wp
+        equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
+            L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+            I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+        · stmt_wp
+          equiv_skip
+          rintro g₁ g₂ _ _ ⟨⟨⟨rfl, he, hI⟩, -⟩, -⟩
+          rw [he.get_disjoint]
+          exact ⟨rfl, rfl, rfl, he, hI⟩
+        equiv_if
+        case guard =>
+          rintro g₁ g₂ _ _ _ _ _ _ ⟨rfl, rfl, rfl, -, -⟩
+          rfl
+        case «then» =>
+          stmt_wp
+          equiv_call hF
+          equiv_skip
+          rintro g₁ g₂ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, he, hI⟩, -⟩
+          exact ⟨⟨rfl, he, hI⟩, fun _ _ _ _ ⟨hr, he', hJ'⟩ => ⟨rfl, by rw [hr], he', hJ'⟩⟩
+        case «else» =>
+          equiv_call (prhlProc_self_equal_outside_module L _ hB I)
+          equiv_skip
+          rintro g₁ g₂ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, he, hI⟩, -⟩
+          exact ⟨⟨rfl, he, hI⟩, fun _ _ _ _ ⟨rfl, he', hI'⟩ => ⟨rfl, rfl, he', hIJ _ _ hI'⟩⟩
+      case «else» =>
+        equiv_rnd
+        equiv_skip
+        rintro g₁ g₂ _ _ ⟨⟨⟨rfl, he, hI⟩, -⟩, -⟩
+        exact fun _ _ => ⟨rfl, he, hIJ _ _ hI⟩
+    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §y2{1} = §y2{2} ∧
+        L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        J (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+    · stmt_wp
+      equiv_rnd
+      equiv_skip
+      rintro g₁ g₂ _ _ _ _ ⟨rfl, rfl, he, hJ⟩
+      intro _ _
+      rw [he.get_disjoint (X := SHA3Indiff.Simulator.m),
+        he.get_disjoint (X := SHA3Indiff.Simulator.mi)]
+      exact ⟨rfl, rfl, (he.set_disjoint _).set_disjoint _, hJ⟩
+    equiv_if
+    case guard =>
+      rintro g₁ g₂ _ _ _ _ _ _ ⟨rfl, -, -, he, -⟩
+      rw [he.get_disjoint]
+    case «then» =>
+      stmt_wp
+      equiv_skip
+      rintro g₁ g₂ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, he, hJ⟩, -⟩
+      rw [he.get_disjoint (X := SHA3Indiff.Simulator.paths)]
+      exact ⟨rfl, he.set_disjoint _, hJ⟩
+    case «else» =>
+      equiv_skip
+      rintro g₁ g₂ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, he, hJ⟩, -⟩
+      exact ⟨rfl, he, hJ⟩
+
+/-- EC's `byequiv` on `OIndif(F₁, OSimulator(F₁), D) ~ OIndif(F₂, OSimulator(F₂), D)` for a
+distinguisher `D` outside `L`: the initializations (premise `hinit`) and one equal-outside abstract
+call to `D`, its oracles `F.f` (premise `hf`) and the simulator's (`osim_congr_f`,
+`osim_congr_fi`).  Not an EC lemma. -/
+theorem ideal_game_congr [Lens.Disjoint SHA3Indiff.Simulator.m L]
+    [Lens.Disjoint SHA3Indiff.Simulator.mi L] [Lens.Disjoint SHA3Indiff.Simulator.paths L]
+    (hB : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (L.footprint)ᶜ) (F₁ F₂ : OFUNCTIONALITY)
+    (D : ODISTINGUISHER) (hD : Module.ECModule D OIndif.distExt) (hDL : FVP.fvP D ≤ (L.footprint)ᶜ)
+    (hinit : prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool) F₁).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool) F₂).procedure
+      (fun _ g₁ _ g₂ => L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)))
+    (hf : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool) F₁).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool) F₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (IdealGame F₁ D).procedure (IdealGame F₂ D).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  unfold IdealGame
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 1 : (L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+  · equiv_call hinit
+    stmt_wp
+    equiv_skip
+    intro σ₁ σ₂ h
+    exact ⟨by rw [h], fun r₁ g₁ r₂ g₂ hpost => hpost⟩
+  stmt_split{1} 1
+  stmt_split{2} 1
+  refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module
+    L D OIndif.distExt hD.1 hDL I ?hc _ _ ?horacle) ?_
+  case hc =>
+    intro _ n
+    cases n with
+    | zero => exact inferInstanceAs (Countable (List Bool × ℤ))
+    | succ n => cases n with
+      | zero => exact inferInstanceAs (Countable (block × capacity))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => nomatch n
+  case horacle =>
+    intro _ n
+    cases n with
+    | zero =>
+      simp only [OIndif.distExt, OptionIndifferentiability.distExt,
+        HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+        OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+        OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+        OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+      exact hf
+    | succ n => cases n with
+      | zero =>
+        simp only [OIndif.distExt, OptionIndifferentiability.distExt,
+          HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+          OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+          OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+        exact osim_congr_f L I I (fun _ _ h => h) hB _ _ (by
+          simp only [OptionIndifferentiability.OFUNCTIONALITY.view,
+            OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
+          exact hf)
+      | succ n => cases n with
+        | zero =>
+          simp only [OIndif.distExt, OptionIndifferentiability.distExt,
+            HoleSigs.Instantiation.lookup_succ, HoleSigs.Instantiation.lookup_zero_single,
+            Module.fst_pair, Module.snd_pair, OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+            OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+            OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+          exact osim_congr_fi L I F₁ F₂
+        | succ n => nomatch n
+  equiv_skip
+  intro σ₁ σ₂ h
+  refine ⟨⟨rfl, h⟩, fun r₁ g₁ r₂ g₂ ⟨hr, _⟩ => ?_⟩
+  simp_reads
+  exact hr
+
+end IdealCongr
+
+/-- The variables of `eager_ideal`'s invariant: `BIRO.IRO.mp` (left), `Eager.RO.m` (right) (an
+abbreviation). -/
+noncomputable abbrev eagerL :
+    Lens (FMap (List Bool × ℤ) Bool × FMap (List Bool × ℤ) Bool) VariableAssignment :=
+  Lens.pair BIRO.IRO.mp Eager.RO.m
+
+/-- EC's `BIRO.IRO.mp{1} = RO.m{2}`, on the contents of `eagerL`. -/
+def eagerI (v₁ v₂ : FMap (List Bool × ℤ) Bool × FMap (List Bool × ℤ) Bool) : Prop := v₁.1 = v₂.2
+
+/-- The simulator's `Gconcl_list.BIRO2.IRO` lies outside `eagerL`. -/
+theorem eagerL_BIRO2 : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (eagerL.footprint)ᶜ := by
+  simp only [eagerL, Footprint.lens_pair]
+  fp_disjoint
+
+/-- A write of `BIRO.IRO.mp` keeps a state equal to itself outside `eagerL`. -/
+theorem eagerL_IRO (g : VariableAssignment) (v : FMap (List Bool × ℤ) Bool) :
+    eagerL.equal_outside g (BIRO.IRO.mp.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_left
+
+/-- A write of `Eager.RO.m` keeps a state equal to itself outside `eagerL`. -/
+theorem eagerL_RO (g : VariableAssignment) (v : FMap (List Bool × ℤ) Bool) :
+    eagerL.equal_outside g (Eager.RO.m.set v g) :=
+  (Lens.equal_outside_set_self _ g v).pair_right
+
+
 /-! ## The section `Preimage`, with `declare module A <: SH.AdvPreimage {…}` (its local
 declarations in the namespace `Preimage`) -/
 
@@ -983,6 +1240,49 @@ module ExtendSample using (F : OFUNCTIONALITY) : OFUNCTIONALITY {
   };
 }
 
+/-- `eq_extend_size` survives a common update of the first two maps below `size_out`. -/
+theorem eq_extend_size_set_lt {m1 m2 m3 : FMap (List Bool × ℤ) Bool} {x : List Bool} {j : ℤ}
+    (b : Bool) (h : eq_extend_size m1 m2 m3) (hj0 : 0 ≤ j) (hj : j < size_out) :
+    eq_extend_size (FMap.set m1 (x, j) b) (FMap.set m2 (x, j) b) m3 := by
+  obtain ⟨h1, h2, h3⟩ := h
+  refine ⟨fun x' j' hj' => ?_, fun x' j' hj' => ?_, fun x' j' hd => ?_⟩
+  · rw [FMap.get_setE, FMap.get_setE, h1 x' j' hj']
+  · have : (x', j') ≠ (x, j) := fun he => by
+      obtain ⟨-, rfl⟩ := Prod.mk.inj he
+      omega
+    rw [FMap.get_set_neqE _ _ _ _ this, h2 x' j' hj']
+  · rcases (FMap.mem_set _ _ _ _).mp hd with hd | he
+    · exact h3 x' j' hd
+    · obtain ⟨-, rfl⟩ := Prod.mk.inj he
+      exact hj0
+
+/-- `eq_extend_size` survives a common update of the first and the third map from `size_out`. -/
+theorem eq_extend_size_set_ge {m1 m2 m3 : FMap (List Bool × ℤ) Bool} {x : List Bool} {j : ℤ}
+    (b : Bool) (h : eq_extend_size m1 m2 m3) (hj : size_out ≤ j) :
+    eq_extend_size (FMap.set m1 (x, j) b) m2 (FMap.set m3 (x, j) b) := by
+  obtain ⟨h1, h2, h3⟩ := h
+  have hs : (0 : ℤ) < size_out := Params.size_out_gt0
+  refine ⟨fun x' j' hj' => ?_, fun x' j' hj' => ?_, fun x' j' hd => ?_⟩
+  · have : (x', j') ≠ (x, j) := fun he => by
+      obtain ⟨-, rfl⟩ := Prod.mk.inj he
+      omega
+    rw [FMap.get_set_neqE _ _ _ _ this, h1 x' j' hj']
+  · rw [FMap.get_setE, FMap.get_setE, h2 x' j' hj']
+  · rcases (FMap.mem_set _ _ _ _).mp hd with hd | he
+    · exact h3 x' j' hd
+    · obtain ⟨-, rfl⟩ := Prod.mk.inj he
+      omega
+
+theorem eq_extend_size_dom_lt {m1 m2 m3 : FMap (List Bool × ℤ) Bool} {x : List Bool} {j : ℤ}
+    (h : eq_extend_size m1 m2 m3) (hj0 : 0 ≤ j) (hj : j < size_out) :
+    FMap.dom m1 (x, j) ↔ FMap.dom m2 (x, j) := by
+  rw [FMap.domE, FMap.domE, h.1 x j ⟨hj0, hj⟩]
+
+theorem eq_extend_size_dom_ge {m1 m2 m3 : FMap (List Bool × ℤ) Bool} {x : List Bool} {j : ℤ}
+    (h : eq_extend_size m1 m2 m3) (hj : size_out ≤ j) :
+    FMap.dom m1 (x, j) ↔ FMap.dom m3 (x, j) := by
+  rw [FMap.domE, FMap.domE, h.2.1 x j hj]
+
 /-- `local equiv eq_extend : ExtendSample(FSome(BIRO.IRO)).f ~
 ExtendOutputSize(FSetSize(FSome(BIRO.IRO))).f : ={arg} /\
 eq_extend_size BIRO.IRO.mp{1} BIRO.IRO.mp{2} Log.m{2} ==> ={res} /\ …`. -/
@@ -997,7 +1297,273 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
           { get := Module.app FSetSize.get (Module.app FSome BIRO.IRO.asF) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧
         eq_extend_size (BIRO.IRO.mp.get g₁) (BIRO.IRO.mp.get g₂) (Log_m.get g₂)) := by
-  sorry
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans _hfresh.1
+  haveI : Lens.Disjoint BIRO.IRO.mp Log_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp (hLA.trans (Footprint.compl_antimono (by
+      unfold ARestrictions.footprint; fp_sub))))
+  haveI : Lens.Disjoint Log_m BIRO.IRO.mp := Lens.disjoint_of_footprint_le_compl _ _
+    (hLA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub)))
+  have hs : (0 : ℤ) < size_out := Params.size_out_gt0
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [FSetSize.get]
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_seq 1 8 : (§x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧ §x3{2} = §x0{2} ∧ §n{2} = size_out ∧
+      §i0{2} = 0 ∧ §bs{2} = [] ∧ §suffix{2} = [] ∧
+      eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ _ _ ⟨rfl, h⟩
+    exact ⟨rfl, rfl, h⟩
+  equiv_if{1}
+  case «then» =>
+    stmt_wp
+    equiv_rcondf{2}
+    stmt_wp
+    equiv_seq 1 1 : (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
+        §i{1} = 0 ∧ §bs{1} = §bs{2} ∧ §bs{1} = [] ∧ §k{1} = §k{2} ∧ §k{1} ≤ size_out ∧
+        §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+    · stmt_wp
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, h⟩, hk⟩
+      simp only [decide_eq_true_eq] at hk
+      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, hk, rfl, h⟩
+    equiv_if
+    case guard =>
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, -⟩
+      rfl
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      simp [BIRO.valid, valid_toplevel] at h
+    case «then» =>
+      equiv_while (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
+        0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ size §bs{1} = §i{1} ∧ §k{1} = §k{2} ∧
+        §k{1} ≤ size_out ∧ §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+      case body =>
+        stmt_wp
+        equiv_seq 1 1 : (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
+            0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ size §bs{1} = §i{1} ∧
+            §k{1} = §k{2} ∧ §k{1} ≤ size_out ∧ §suffix{2} = [] ∧
+            eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2} ∧ §i{1} < §n{1} ∧
+            §x3{1} = §x2{1} ∧ §n0{1} = §i{1} ∧ §x4{2} = §x3{2} ∧ §n0{2} = §i0{2})
+        · stmt_wp
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _
+            ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩, hg⟩
+          simp only [decide_eq_true_eq] at hg
+          exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hg⟩
+        equiv_if
+        case guard =>
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+            ⟨rfl, rfl, rfl, rfl, h0, hle, rfl, hsz, rfl, hk, rfl, hinv, hlt, rfl, rfl, rfl, rfl⟩
+          simp only [eq_extend_size_dom_lt hinv h0 hlt]
+        case «then» =>
+          stmt_wp
+          equiv_rnd
+          equiv_skip
+          rintro g₂ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+            ⟨⟨rfl, rfl, rfl, rfl, h0, hle, rfl, hsz, rfl, hk, rfl, hinv, hlt, rfl, rfl, rfl, rfl⟩,
+              -⟩ a _
+          refine ⟨rfl, rfl, rfl, rfl, by omega, by omega, by simp only [FMap.get_set_sameE],
+            by rw [size_rcons', hsz], rfl, hk, rfl, eq_extend_size_set_lt a hinv h0 (by omega)⟩
+        case «else» =>
+          equiv_skip
+          rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+            ⟨⟨rfl, rfl, rfl, rfl, h0, hle, rfl, hsz, rfl, hk, rfl, hinv, hlt, rfl, rfl, rfl, rfl⟩,
+              -⟩
+          refine ⟨rfl, rfl, rfl, rfl, by omega, by omega, ?_, by rw [size_rcons', hsz], rfl, hk,
+            rfl, hinv⟩
+          rw [hinv.1 _ _ ⟨h0, by omega⟩]
+      case guard =>
+        rintro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ⟨-, rfl, -, rfl, -⟩
+        rfl
+      case exit =>
+        rintro x2 n i bs k mp x3 n' i0 bs' k' suf mp' Log
+          ⟨rfl, rfl, rfl, rfl, h0, hle, rfl, hsz, rfl, hk, rfl, hinv⟩ hg
+        simp only [decide_eq_false_iff_not, not_lt] at hg
+        have hsz' : size bs = size_out := by omega
+        refine ⟨decide_eq_false (by omega), ?_, hinv⟩
+        rw [if_pos (Option.some_ne_none bs), show oget (some bs) = bs from rfl,
+          to_list_oget_of_list bs hsz', List.append_nil]
+        rfl
+      all_goals
+        equiv_skip
+        intros
+        rename_i h
+        obtain ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩, -⟩ := h
+        have hs : (0 : ℤ) < size_out := Params.size_out_gt0
+        refine ⟨h1, h2, h3, h4, by omega, by omega, h6, by rw [h7, h5]; rfl, h8, h9, h10, h11⟩
+  case «else» =>
+    stmt_wp
+    equiv_seq 1 8 : (§x5{1} = §x0{2} ∧ §n1{1} = §k{2} ∧ size_out < §k{2} ∧ §i0{1} = 0 ∧
+        §bs0{1} = [] ∧ §x3{2} = §x0{2} ∧ §n{2} = size_out ∧ §i0{2} = 0 ∧ §bs{2} = [] ∧
+        §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+    · stmt_wp
+      equiv_skip
+      rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8⟩, hk⟩
+      simp only [decide_eq_false_iff_not, not_le] at hk
+      exact ⟨h1, h2, h2 ▸ hk, h3, h4, h5, h6, h7, h8⟩
+    equiv_if{1}
+    case «else» =>
+      refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+      simp [BIRO.valid, valid_toplevel] at h
+    case «then» =>
+      refine prhlStmt_splitwhile_left
+        ⟨fun σ => decide ((localVarLens "i0" ℤ).get σ < size_out)⟩
+        (fun σ => ((localVarLens "n1" ℤ).get σ - (localVarLens "i0" ℤ).get σ).toNat) ?_ ?_
+      · intro k'
+        simp only [Getter.andB_get, Bool.and_eq_true]
+        hoare_wp 3
+        hoare_split 1
+        refine hoare_seq (hoare_if_wp (At := fun σ =>
+          ((localVarLens "n1" ℤ).get σ - ((localVarLens "i0" ℤ).get σ + 1)).toNat < k') ?_
+          (hoare_skip_wp _)) ?_
+        · hoare_wp 2
+          hoare_skip
+          intro _ _ h _ _
+          exact h
+        · hoare_wp 2
+          hoare_skip
+          rintro i0 n1 mp x5 ⟨⟨h1, -⟩, hk⟩
+          simp only [decide_eq_true_eq] at h1
+          exact ⟨fun _ => by omega, fun _ => by omega⟩
+      equiv_seq 1 1 : (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
+          §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
+          eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+      · stmt_wp
+        equiv_if{2}
+        case «else» =>
+          refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
+          simp [BIRO.valid, valid_toplevel] at h
+        case «then» =>
+          simp only [Getter.andB]
+          equiv_while (§x5{1} = §x0{2} ∧ §x3{2} = §x0{2} ∧ §n1{1} = §k{2} ∧ size_out < §k{2} ∧
+            §n{2} = size_out ∧ §i0{1} = §i0{2} ∧ 0 ≤ §i0{1} ∧ §i0{1} ≤ size_out ∧
+            §bs0{1} = §bs{2} ∧ size §bs0{1} = §i0{1} ∧ §suffix{2} = [] ∧
+            eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+          case body =>
+            stmt_wp
+            equiv_seq 1 1 : (§x5{1} = §x0{2} ∧ §x3{2} = §x0{2} ∧ §n1{1} = §k{2} ∧
+                size_out < §k{2} ∧ §n{2} = size_out ∧ §i0{1} = §i0{2} ∧ 0 ≤ §i0{1} ∧
+                §i0{1} ≤ size_out ∧ §bs0{1} = §bs{2} ∧ size §bs0{1} = §i0{1} ∧ §suffix{2} = [] ∧
+                eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2} ∧ §i0{1} < size_out ∧
+                §x6{1} = §x5{1} ∧ §n2{1} = §i0{1} ∧ §x4{2} = §x3{2} ∧ §n0{2} = §i0{2})
+            · stmt_wp
+              equiv_skip
+              intros
+              rename_i h
+              obtain ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩, hg⟩ := h
+              simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
+              exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hg.2⟩
+            equiv_if
+            case guard =>
+              intros
+              rename_i h
+              obtain ⟨rfl, rfl, rfl, hk, rfl, rfl, h0, hle, rfl, hsz, rfl, hinv, hlt, rfl, rfl, rfl,
+                rfl⟩ := h
+              simp only [eq_extend_size_dom_lt hinv h0 hlt]
+            case «then» =>
+              stmt_wp
+              equiv_rnd
+              equiv_skip
+              intros
+              rename_i h a _
+              obtain ⟨⟨rfl, rfl, rfl, hk, rfl, rfl, h0, hle, rfl, hsz, rfl, hinv, hlt, rfl, rfl,
+                rfl, rfl⟩, -⟩ := h
+              refine ⟨rfl, rfl, rfl, hk, rfl, rfl, by omega, by omega,
+                by simp only [FMap.get_set_sameE], by rw [size_rcons', hsz], rfl,
+                eq_extend_size_set_lt a hinv h0 hlt⟩
+            case «else» =>
+              equiv_skip
+              intros
+              rename_i h
+              obtain ⟨⟨rfl, rfl, rfl, hk, rfl, rfl, h0, hle, rfl, hsz, rfl, hinv, hlt, rfl, rfl,
+                rfl, rfl⟩, -⟩ := h
+              refine ⟨rfl, rfl, rfl, hk, rfl, rfl, by omega, by omega, ?_, by rw [size_rcons', hsz],
+                rfl, hinv⟩
+              rw [hinv.1 _ _ ⟨h0, hlt⟩]
+          case guard =>
+            intros
+            rename_i h
+            obtain ⟨-, -, rfl, hk, rfl, rfl, -⟩ := h
+            rw [Bool.eq_iff_iff]
+            simp only [Bool.and_eq_true, decide_eq_true_eq]
+            constructor <;> intro h <;> omega
+          case exit =>
+            intros
+            rename_i h hg
+            obtain ⟨rfl, rfl, rfl, hk, rfl, rfl, h0, hle, rfl, hsz, rfl, hinv⟩ := h
+            simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at hg
+            refine ⟨by omega, rfl, rfl, ?_, le_rfl, by omega, hinv⟩
+            rw [if_pos (Option.some_ne_none _), show ∀ l : List Bool, oget (some l) = l from
+              fun _ => rfl, to_list_oget_of_list, List.append_nil]
+            · unfold take size at *
+              exact (List.take_of_length_le (by omega)).symm
+            · omega
+          all_goals
+            equiv_skip
+            intros
+            rename_i h
+            obtain ⟨⟨⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩, -⟩, -⟩ := h
+            refine ⟨h1, h6, h2, h3, h7, by rw [h4, h8], by omega, by omega, by rw [h5, h9],
+              by rw [h5, h4]; rfl, h10, h11⟩
+      equiv_while (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
+          §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
+          eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
+      case body =>
+        stmt_wp
+        equiv_seq 1 1 : (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
+            §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
+            eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2} ∧ §i0{1} < §n1{1} ∧
+            §x6{1} = §x5{1} ∧ §n2{1} = §i0{1})
+        · stmt_wp
+          equiv_skip
+          intros
+          rename_i h
+          obtain ⟨⟨h1, h2, h3, h4, h5, h6, h7⟩, hg⟩ := h
+          simp only [decide_eq_true_eq] at hg
+          exact ⟨h1, h2, h3, h4, h5, h6, h7, hg⟩
+        equiv_if
+        case guard =>
+          intros
+          rename_i h
+          obtain ⟨rfl, rfl, rfl, -, hle, -, hinv, -, rfl, rfl⟩ := h
+          simp only [eq_extend_size_dom_ge hinv hle]
+        case «then» =>
+          stmt_wp
+          equiv_rnd
+          equiv_skip
+          intros
+          rename_i h a _
+          obtain ⟨⟨rfl, rfl, rfl, rfl, hle, hik, hinv, hlt, rfl, rfl⟩, -⟩ := h
+          refine ⟨rfl, rfl, rfl, ?_, by omega, by omega, eq_extend_size_set_ge a hinv hle⟩
+          simp only [FMap.get_set_sameE, rcons, List.append_assoc]
+        case «else» =>
+          equiv_skip
+          intros
+          rename_i h
+          obtain ⟨⟨rfl, rfl, rfl, rfl, hle, hik, hinv, hlt, rfl, rfl⟩, -⟩ := h
+          refine ⟨rfl, rfl, rfl, ?_, by omega, by omega, hinv⟩
+          rw [hinv.2.1 _ _ hle]
+          simp only [rcons, List.append_assoc]
+      case guard =>
+        intros
+        rename_i h
+        obtain ⟨rfl, rfl, -⟩ := h
+        rfl
+      case exit =>
+        intros
+        rename_i h _
+        obtain ⟨-, -, -, rfl, -, -, hinv⟩ := h
+        exact ⟨rfl, hinv⟩
+      all_goals
+        equiv_skip
+        intros
+        rename_i h
+        exact h
 
 theorem of_listK (l : f_out) : of_list (to_list l) = some l :=
   (Params.to_listK l (to_list l)).mp rfl
@@ -1351,6 +1917,106 @@ theorem eq_eager_ideal2 :
         intros
         simp_all
 
+/-- `FSome(BIRO.IRO).init ~ FSome(Fill_In(LRO)).init`: both maps empty.  Not an EC lemma. -/
+theorem eager_init_lazy :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool)
+        (Module.app FSome BIRO.IRO.asF)).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool)
+        (Module.app FSome (Module.app Fill_In Eager.LRO))).procedure
+      (fun _ g₁ _ g₂ => eagerL.equal_outside g₁ g₂ ∧ eagerI (eagerL.get g₁) (eagerL.get g₂)) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro g _ rfl
+  exact ⟨(eagerL_IRO g _).symm.trans (eagerL_RO g _), rfl⟩
+
+/-- `ExtendSample(FSome(BIRO.IRO)).init ~ FSome(Fill_In(RO)).init`: both maps empty.  Not an EC
+lemma. -/
+theorem eager_init_ext :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool)
+        (Module.app ExtendSample (Module.app FSome BIRO.IRO.asF))).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool)
+        (Module.app FSome (Module.app Fill_In Eager.RO))).procedure
+      (fun _ g₁ _ g₂ => eagerL.equal_outside g₁ g₂ ∧ eagerI (eagerL.get g₁) (eagerL.get g₂)) := by
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro g _ rfl
+  exact ⟨(eagerL_IRO g _).symm.trans (eagerL_RO g _), rfl⟩
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the functionalities
+/-- `eq_eager_ideal` through `FSome`, over the states equal outside `eagerL` (EC: `inline{1} 1;
+inline{2} 1; sp; sim 1 1; by call eq_eager_ideal; auto`).  Not an EC lemma. -/
+theorem eager_f_lazy :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eagerL.equal_outside g₁ g₂ ∧
+        eagerI (eagerL.get g₁) (eagerL.get g₂))
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app FSome BIRO.IRO.asF)).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app FSome (Module.app Fill_In Eager.LRO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eagerL.equal_outside g₁ g₂ ∧
+        eagerI (eagerL.get g₁) (eagerL.get g₂)) := by
+  have h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂)
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app FSome BIRO.IRO.asF)).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app FSome (Module.app Fill_In Eager.LRO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂) := by
+    have e₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+        (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
+      simp [BIRO.IRO.asF]
+    have e₂ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
+        (List Bool) (Module.app Fill_In Eager.LRO)).procedure =
+        (Module.app Fill_In.f Eager.LRO).procedure := by
+      simp only [Fill_In.apply_simp]
+      unfold Indifferentiability.FUNCTIONALITY.f
+      erw [Module.snd'_pair_proc]
+    equiv_proc
+    stmt_inline{1} 0
+    stmt_inline{2} 0
+    stmt_wp
+    rw [e₁, e₂]
+    equiv_call eq_eager_ideal
+    stmt_wp
+    equiv_skip
+    exact fun _ _ _ _ h => ⟨h, fun _ _ _ _ ⟨hr, hm⟩ => ⟨by rw [hr], hm⟩⟩
+  have h₁ : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      (Module.app FSome BIRO.IRO.asF)) ≤ eagerL.footprint := by
+    fp_module eagerL
+  have h₂ : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      (Module.app FSome (Module.app Fill_In Eager.LRO))) ≤ eagerL.footprint := by
+    fp_module eagerL
+  exact prhlProc_conseq (prhlProc_frame_equal_outside_module eagerL _ _ h₁ h₂ h)
+    (fun _ _ _ _ ⟨ha, he, hI⟩ => ⟨⟨ha, hI⟩, he⟩) (fun _ _ _ _ ⟨⟨hr, hI⟩, he⟩ => ⟨hr, he, hI⟩)
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the functionalities
+/-- `eq_eager_ideal2` over the states equal outside `eagerL`.  Not an EC lemma. -/
+theorem eager_f_ext :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ eagerL.equal_outside g₁ g₂ ∧
+        eagerI (eagerL.get g₁) (eagerL.get g₂))
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app ExtendSample (Module.app FSome BIRO.IRO.asF))).procedure
+      (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+        (Module.app FSome (Module.app Fill_In Eager.RO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eagerL.equal_outside g₁ g₂ ∧
+        eagerI (eagerL.get g₁) (eagerL.get g₂)) := by
+  have h₁ : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      (Module.app ExtendSample (Module.app FSome BIRO.IRO.asF))) ≤ eagerL.footprint := by
+    fp_module eagerL
+  have h₂ : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      (Module.app FSome (Module.app Fill_In Eager.RO))) ≤ eagerL.footprint := by
+    fp_module eagerL
+  exact prhlProc_conseq (prhlProc_frame_equal_outside_module eagerL _ _ h₁ h₂ eq_eager_ideal2)
+    (fun _ _ _ _ ⟨ha, he, hI⟩ => ⟨⟨ha, hI⟩, he⟩) (fun _ _ _ _ ⟨⟨hr, hI⟩, he⟩ => ⟨hr, he, hI⟩)
+
 -- EC's local `Dist(F : RO)`, `proc distinguish = SHA3_OIndiff.OIndif.OIndif(FSome(Fill_In(F)),
 -- OSimulator(FSome(Fill_In(F))), ODRestr(Dist_of_P1Adv(A))).main`, with the section's `A` a Lean
 -- parameter; the alias is wrapped in a call (E5), and `distinguish` takes `RO_Distinguisher`'s
@@ -1387,6 +2053,49 @@ module Game (A : SH.AdvPreimage) using (F : Eager.RO_T) {
   };
 }
 
+/-- `Dist(F).distinguish` is the ideal game over `FSome(Fill_In(F))` that it calls.  Not an EC
+lemma. -/
+theorem Dist_game (A : SH.AdvPreimage) (F : Eager.RO_T) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (Dist Log_m A) F).procedure
+      (IdealGame (Module.app FSome (Module.app Fill_In F))
+        (ODRestr (Dist_of_P1Adv Log_m A))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  unfold IdealGame
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_wp
+  simp only [OptionIndifferentiability.OFUNCTIONALITY.view]
+  equiv_call (prhlProc_refl _)
+  stmt_wp
+  equiv_skip
+  exact fun _ _ h => ⟨h, fun _ _ _ _ h => h.1⟩
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the adversary's oracles
+/-- `ODRestr(Dist_of_P1Adv(A))` touches `A`'s variables, `Log.m` and `Counter.c`.  Not an EC
+lemma. -/
+theorem fvP_ODRestr_P1 [Lens.Disjoint Log_m Counter.c] [Lens.Disjoint Counter.c Log_m]
+    (A : SH.AdvPreimage) :
+    FVP.fvP (ODRestr (Dist_of_P1Adv Log_m A)) ≤
+      FVP.fvP A ⊔ (Lens.pair Log_m Counter.c).footprint := by
+  fp_module (Lens.pair Log_m Counter.c)
+
+set_option maxHeartbeats 10000000 in
+-- `fp_module` through `Dist`'s nest of oracles
+/-- `Dist(A)` touches `A`'s variables, `Log.m`, `Counter.c`, the simulator's maps and
+`Gconcl_list.BIRO2.IRO.mp`.  Not an EC lemma. -/
+theorem fvP_Dist [Lens.Disjoint Log_m Counter.c] [Lens.Disjoint Counter.c Log_m]
+    [Lens.Disjoint Log_m SHA3Indiff.Simulator.m] [Lens.Disjoint SHA3Indiff.Simulator.m Log_m]
+    [Lens.Disjoint Log_m SHA3Indiff.Simulator.mi] [Lens.Disjoint SHA3Indiff.Simulator.mi Log_m]
+    [Lens.Disjoint Log_m SHA3Indiff.Simulator.paths]
+    [Lens.Disjoint SHA3Indiff.Simulator.paths Log_m]
+    [Lens.Disjoint Log_m Gconcl_list.BIRO2.IRO.mp] [Lens.Disjoint Gconcl_list.BIRO2.IRO.mp Log_m]
+    (A : SH.AdvPreimage) :
+    FVP.fvP (Dist Log_m A) ≤ FVP.fvP A ⊔ (Lens.pair Log_m soroG).footprint := by
+  fp_module (Lens.pair Log_m soroG)
+
+set_option maxHeartbeats 4000000 in
+-- the restrictions' `fp_sub`/`fp_disjoint`
 /-- `local lemma eager_ideal &m`. -/
 theorem eager_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔
@@ -1396,7 +2105,83 @@ theorem eager_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distE
         (Dist_of_P1Adv Log_m A))).procedure () m (fun r _ => r = true) =
       Procedure.Pr (IdealGame (Module.app ExtendSample (Module.app FSome BIRO.IRO.asF))
         (ODRestr (Dist_of_P1Adv Log_m A))).procedure () m (fun r _ => r = true) := by
-  sorry
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans _hfresh.1
+  have hAA : FVP.fvP A ≤ ARestrictions.footprintᶜ :=
+    _hAd.trans (Footprint.compl_antimono (le_sup_left.trans le_sup_left))
+  have hLX : ∀ {β : Type} (X : Lens β VariableAssignment),
+      X.footprint ≤ ARestrictions.footprint → Lens.Disjoint Log_m X ∧ Lens.Disjoint X Log_m :=
+    fun X hX => ⟨Lens.disjoint_of_footprint_le_compl _ _ (hLA.trans (Footprint.compl_antimono hX)),
+      Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+        (hLA.trans (Footprint.compl_antimono hX)))⟩
+  have hC := hLX Counter.c (by unfold ARestrictions.footprint; fp_sub)
+  have hSm := hLX SHA3Indiff.Simulator.m (by unfold ARestrictions.footprint; fp_sub)
+  have hSmi := hLX SHA3Indiff.Simulator.mi (by unfold ARestrictions.footprint; fp_sub)
+  have hSp := hLX SHA3Indiff.Simulator.paths (by unfold ARestrictions.footprint; fp_sub)
+  have hB2 := hLX Gconcl_list.BIRO2.IRO.mp (by unfold ARestrictions.footprint; fp_sub)
+  haveI := hC.1
+  haveI := hC.2
+  haveI := hSm.1
+  haveI := hSm.2
+  haveI := hSmi.1
+  haveI := hSmi.2
+  haveI := hSp.1
+  haveI := hSp.2
+  haveI := hB2.1
+  haveI := hB2.2
+  have hLe : Log_m.footprint ≤ (eagerL.footprint)ᶜ := hLA.trans (Footprint.compl_antimono (by
+    simp only [eagerL, Footprint.lens_pair]
+    unfold ARestrictions.footprint
+    fp_sub))
+  have hAe : FVP.fvP A ≤ (eagerL.footprint)ᶜ := hAA.trans (Footprint.compl_antimono (by
+    simp only [eagerL, Footprint.lens_pair]
+    unfold ARestrictions.footprint
+    fp_sub))
+  -- the distinguisher `ODRestr(Dist_of_P1Adv(A))`, outside `eagerL`
+  have hOD := fvP_ODRestr_P1 Log_m A
+  rw [Footprint.lens_pair] at hOD
+  have hODec : Module.ECModule (ODRestr (Dist_of_P1Adv Log_m A)) OIndif.distExt :=
+    ⟨ODistinguisher_representable _, Footprint.FinitelySupported.mono hOD
+      (hA.2.sup (_hfresh.2.2.sup (Footprint.FinitelySupported.globalVar _)))⟩
+  have hODL : FVP.fvP (ODRestr (Dist_of_P1Adv Log_m A)) ≤ (eagerL.footprint)ᶜ := by
+    refine hOD.trans (sup_le hAe (sup_le hLe ?_))
+    simp only [eagerL, Footprint.lens_pair]
+    fp_disjoint
+  have h1 := ideal_game_congr eagerL eagerI eagerL_BIRO2 _ _ _ hODec hODL eager_init_lazy
+    eager_f_lazy
+  have h2 := ideal_game_congr eagerL eagerI eagerL_BIRO2 _ _ _ hODec hODL eager_init_ext
+    eager_f_ext
+  -- EC's `call (RO_LRO_D Dist _)`
+  have hD := fvP_Dist Log_m A
+  rw [Footprint.lens_pair] at hD
+  have hDfs : (FVP.fvP (Dist Log_m A)).FinitelySupported := by
+    refine Footprint.FinitelySupported.mono hD (hA.2.sup (_hfresh.2.2.sup ?_))
+    simp only [soroG, Footprint.lens_pair]
+    repeat' first
+      | exact Footprint.FinitelySupported.globalVar _
+      | apply Footprint.FinitelySupported.sup
+  have hmod := PROM.FullRO.RO_Distinguisher.ecModule (List Bool × ℤ) Bool Unit Bool
+    (Dist Log_m A) hDfs
+  have hdisj : FVP.fvP (Dist Log_m A) ≤ ((Eager.RO.m).footprint ⊔ (Eager.FRO.m).footprint)ᶜ := by
+    have hRA : (Eager.RO.m).footprint ⊔ (Eager.FRO.m).footprint ≤ ARestrictions.footprint := by
+      unfold ARestrictions.footprint
+      fp_sub
+    refine hD.trans (sup_le (hAA.trans (Footprint.compl_antimono hRA))
+      (sup_le (hLA.trans (Footprint.compl_antimono hRA)) ?_))
+    simp only [soroG, Footprint.lens_pair]
+    fp_disjoint
+  have hRO := PROM.FullRO.FullEager.RO_LRO_D (List Bool × ℤ) Bool Unit Bool (fun _ => dbool)
+    Eager.FRO.m (fun _ => dbool_ll) Eager.RO.m (Dist Log_m A) hmod hdisj
+  have hE : ∀ (r₁ : Bool) (g₁ : VariableAssignment) (r₂ : Bool) (g₂ : VariableAssignment),
+      r₁ = r₂ → (r₁ = true ↔ r₂ = true) := fun _ _ _ _ h => by rw [h]
+  exact (Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) h1 hE rfl).trans
+    ((Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) (Dist_game Log_m A Eager.LRO) hE
+      rfl).symm.trans
+    ((Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) hRO
+      (fun r₁ g₁ r₂ g₂ h => hE r₁ g₁ r₂ g₂ h.1)
+      ⟨rfl, rfl, rfl⟩).symm.trans
+    ((Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) (Dist_game Log_m A Eager.RO) hE
+      rfl).trans
+    (Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ()) h2 hE rfl).symm)))
 
 /-- `local lemma rw_ideal_2 &m`. -/
 theorem rw_ideal_2 (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
