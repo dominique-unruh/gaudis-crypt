@@ -4,6 +4,7 @@ import GaudisCrypt.Examples.SHA3.SecureHash
 import GaudisCrypt.Lib.EC.DList
 import GaudisCrypt.Lib.EC.DListCall
 import GaudisCrypt.Logic.FootprintUpper
+import GaudisCrypt.Logic.PRHLFrame
 
 /-!
 # Top-level proof of SHA-3 security with failing oracles (EasyCrypt `proof/SHA3OSecurity.ec`)
@@ -671,6 +672,20 @@ theorem RFWhile_get :
   unfold RFWhile SecureORO.RF_T.get
   erw [Module.snd'_pair_prod, Module.fst'_pair_proc]
 
+/-- `RFWhile.init` is the module of its procedure. -/
+theorem RFWhile_init :
+    SecureORO.RF_T.init (List Bool) f_out (RFWhile RFList_m) = RFWhile.init RFList_m := by
+  unfold RFWhile SecureORO.RF_T.init
+  erw [Module.fst'_pair_proc]
+
+/-- `RFList.get` touches `RFList.m` only. -/
+theorem fvP_RFList_get : FVP.fvP (RFList.get RFList_m) ≤ RFList_m.footprint := by
+  fp_module RFList_m
+
+/-- `RFWhile.get` touches `RFList.m` only. -/
+theorem fvP_RFWhile_get : FVP.fvP (RFWhile.get RFList_m) ≤ RFList_m.footprint := by
+  fp_module RFList_m
+
 /-- `local equiv rw_RF_List_While : RFList.get ~ RFWhile.get : ={arg, glob RFList} ==>
 ={res, glob RFWhile}`. -/
 theorem rw_RF_List_While :
@@ -969,29 +984,26 @@ theorem ri_get :
 
 end
 
-section
-variable [Lens.Disjoint RFList_m SORO.RO.RO.m] [Lens.Disjoint SORO.Bounder.bounder RFList_m]
-
-/-- EC's `proc; sp; if; auto; call (: …)` on `Bounder(RFList).get ~ Bounder(RF(RO)).get`: the
-oracle premise of `rw_ideal`'s `call`.  Not an EC lemma. -/
-theorem ri_bget :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (riL RFList_m).equal_outside g₁ g₂ ∧
-        riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂))
-      (SecureORO.RF_T.get (List Bool) f_out
-        (Module.app SORO.Bounder (RFList RFList_m))).procedure
-      (SecureORO.RF_T.get (List Bool) f_out
-        (Module.app SORO.Bounder (Module.app SORO.RF SORO.RO.RO))).procedure
-      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (riL RFList_m).equal_outside g₁ g₂ ∧
-        riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂)) := by
-  haveI : Lens.Disjoint SORO.Bounder.bounder (riL RFList_m) := by unfold riL; infer_instance
+/-- EC's `proc; sp; if; auto; call (: …)` on `Bounder(F₁).get ~ Bounder(F₂).get`: a premise
+`F₁.get ~ F₂.get` over the states equal outside a lens `L` (with a relation `I` of its contents) is
+kept by `Bounder`, whose counter lies outside `L`.  Not an EC lemma. -/
+theorem bounder_get_congr {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → Ω → Prop)
+    [Lens.Disjoint SORO.Bounder.bounder L] (F₁ F₂ : SORO.RF_T)
+    (h : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (SecureORO.RF_T.get (List Bool) f_out F₁).procedure
+      (SecureORO.RF_T.get (List Bool) f_out F₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))
+      (SecureORO.RF_T.get (List Bool) f_out (Module.app SORO.Bounder F₁)).procedure
+      (SecureORO.RF_T.get (List Bool) f_out (Module.app SORO.Bounder F₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
   equiv_proc
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
       §(localVarLens "y" (Option f_out)){1} = §(localVarLens "y" (Option f_out)){2} ∧
-      (riL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
-      riI ((riL RFList_m).get §allGlobals{1}) ((riL RFList_m).get §allGlobals{2}))
+      L.equal_outside §allGlobals{1} §allGlobals{2} ∧ I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
     exact fun _ _ _ _ h => h
@@ -1004,7 +1016,7 @@ theorem ri_bget :
     rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
     exact ⟨hy, he, hI⟩
   case «then» =>
-    equiv_call (ri_get RFList_m)
+    equiv_call h
     stmt_wp
     equiv_skip
     rintro g₁ g₂ _ _ _ _ ⟨⟨rfl, -, he, hI⟩, -⟩
@@ -1012,6 +1024,22 @@ theorem ri_bget :
     · rw [he.get_disjoint]
       exact he.set_disjoint _
     · exact hI
+
+section
+variable [Lens.Disjoint RFList_m SORO.RO.RO.m] [Lens.Disjoint SORO.Bounder.bounder RFList_m]
+
+/-- `Bounder(RFList).get ~ Bounder(RF(RO)).get`: the oracle premise of `rw_ideal`'s `call`. -/
+theorem ri_bget :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ (riL RFList_m).equal_outside g₁ g₂ ∧
+        riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂))
+      (SecureORO.RF_T.get (List Bool) f_out
+        (Module.app SORO.Bounder (RFList RFList_m))).procedure
+      (SecureORO.RF_T.get (List Bool) f_out
+        (Module.app SORO.Bounder (Module.app SORO.RF SORO.RO.RO))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (riL RFList_m).equal_outside g₁ g₂ ∧
+        riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂)) := by
+  haveI : Lens.Disjoint SORO.Bounder.bounder (riL RFList_m) := by unfold riL; infer_instance
+  exact bounder_get_congr _ _ _ _ (ri_get RFList_m)
 
 end
 
@@ -1073,10 +1101,99 @@ theorem SORO_P1_ec (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distEx
     | zero => exact ⟨fun U hU => by simp at hU; subst hU; infer_instance, inferInstance⟩
     | succ n => nomatch n
 
+/-- EC's `byequiv` on `SORO.Preimage(D, F₁) ~ SORO.Preimage(D, F₂)` for a module `D` outside a lens
+`L`: the initializations (premise `hinit`), one equal-outside abstract call to `D` (its oracle
+premise `hget`) and the last `get` (`hget` again).  Not an EC lemma. -/
+theorem soro_pre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → Ω → Prop)
+    [Lens.Disjoint SORO.Bounder.bounder L] (F₁ F₂ : SORO.RF_T) (D : SORO.AdvPreimage)
+    (hD : Module.ECModule D (SecureORO.Oracle.ext (List Bool) f_out))
+    (hDL : FVP.fvP D ≤ L.footprintᶜ)
+    (hinit : prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (SecureORO.RF_T.init (List Bool) f_out F₁).procedure
+      (SecureORO.RF_T.init (List Bool) f_out F₂).procedure
+      (fun _ g₁ _ g₂ => L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)))
+    (hget : prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ L.equal_outside g₁ g₂ ∧
+        I (L.get g₁) (L.get g₂))
+      (SecureORO.RF_T.get (List Bool) f_out (Module.app SORO.Bounder F₁)).procedure
+      (SecureORO.RF_T.get (List Bool) f_out (Module.app SORO.Bounder F₂)).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂))) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Module.app SORO.Preimage (Module.pair D F₁)).procedure
+      (Module.app SORO.Preimage (Module.pair D F₂)).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  stmt_wp
+  stmt_swap{1} 1 3
+  stmt_swap{2} 1 3
+  equiv_seq 2 2 : (§hash{1} = §hash{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+  · equiv_rnd
+    equiv_call hinit
+    stmt_wp
+    equiv_skip
+    rintro σ₁ σ₂ h
+    rw [h]
+    exact ⟨rfl, fun _ _ _ _ h' _ _ => h'⟩
+  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
+      §hash{1} = §hash{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
+  swap
+  · equiv_call hget
+    equiv_skip
+    rintro g₁ g₂ m₁ hash₁ m₂ hash₂ ⟨hm, hh, he, hI⟩
+    exact ⟨⟨hm, he, hI⟩, fun r₁ _ r₂ _ h => by rw [h.1, hh]⟩
+  stmt_split{1} 1
+  stmt_split{2} 1
+  refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module
+    L D (SecureORO.Oracle.ext (List Bool) f_out) hD.1 hDL I ?hc _ _ ?horacle) ?_
+  case hc =>
+    intro _ n
+    cases n with
+    | zero => exact inferInstanceAs (Countable (List Bool))
+    | succ n => nomatch n
+  case horacle =>
+    intro _ n
+    cases n with
+    | zero =>
+      simp only [SecureORO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
+        SecureORO.Oracle.get.mk_simp]
+      exact hget
+    | succ n => nomatch n
+  equiv_skip
+  rintro σ₁ σ₂ ⟨hh, he, hI⟩
+  refine ⟨⟨hh, he, hI⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he', hI'⟩ => ?_⟩
+  simp_reads
+  exact ⟨hr, hh, he', hI'⟩
+
+/-- `RFList.init ~ RF(RO).init`: both maps empty.  Not an EC lemma. -/
+theorem ri_init [Lens.Disjoint RFList_m SORO.RO.RO.m] :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (SecureORO.RF_T.init (List Bool) f_out (RFList RFList_m)).procedure
+      (SecureORO.RF_T.init (List Bool) f_out (Module.app SORO.RF SORO.RO.RO)).procedure
+      (fun _ g₁ _ g₂ => (riL RFList_m).equal_outside g₁ g₂ ∧
+        riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂)) := by
+  rw [RFList_init]
+  equiv_proc
+  stmt_inline{1} 0
+  stmt_inline{2} 0
+  simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.init.mk_simp]
+  stmt_inline{2} 0
+  stmt_wp
+  equiv_skip
+  rintro σ₁ σ₂ h
+  rw [h]
+  refine ⟨(riL_RFList RFList_m _ _).symm.trans (riL_RO RFList_m _ _), ?_⟩
+  change RFList_m.get (RFList_m.set _ _) = SORO.RO.RO.m.get (SORO.RO.RO.m.set _ _)
+  rw [RFList_m.set_get, SORO.RO.RO.m.set_get]
+
 /-- EC's `byequiv(: ={glob A} ==> _)` in `rw_ideal`: `Preimage(SORO_P1(A), RFList)` against
 `Preimage(SORO_P1(A), RF(RO))`, the states equal outside `riL` with `RFList.m{1} = RO.m{2}`;
-`SORO_P1(A)` is an abstract call (its oracles' trees are its own code), its oracle premise
-`ri_bget`.  Not an EC lemma. -/
+`SORO_P1(A)` is one abstract call (`soro_pre_game`; its oracles' trees are its own code), its
+oracle premise `ri_bget`.  Not an EC lemma. -/
 theorem ri_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔ RFList_m.footprint)ᶜ)
     (hfresh : LocalFresh Log_m RFList_m) :
@@ -1092,6 +1209,7 @@ theorem ri_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
   haveI : Lens.Disjoint SORO.Bounder.bounder RFList_m := Lens.disjoint_of_footprint_le_compl _ _
     ((Footprint.le_compl_comm _ _).mp
       (hRA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub))))
+  haveI : Lens.Disjoint SORO.Bounder.bounder (riL RFList_m) := by unfold riL; infer_instance
   obtain ⟨hP, hfp⟩ := SORO_P1_ec Log_m RFList_m A hA hfresh
   have hPL : FVP.fvP (SORO_P1 Log_m A) ≤ ((riL RFList_m).footprint)ᶜ := by
     rw [riL_footprint]
@@ -1107,60 +1225,69 @@ theorem ri_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
         fp_sub
       · simp only [soroG, Footprint.lens_pair]
         fp_disjoint
+  exact soro_pre_game (riL RFList_m) riI _ _ (SORO_P1 Log_m A) hP hPL (ri_init RFList_m)
+    (ri_bget RFList_m)
+
+/-- `rw_RF_List_While` over the states equal outside `RFList.m` (the two procedures touch it only,
+`prhlProc_frame_equal_outside_module`), at `Bounder`.  Not an EC lemma. -/
+theorem rl_bget [Lens.Disjoint SORO.Bounder.bounder RFList_m] :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ RFList_m.equal_outside g₁ g₂ ∧
+        RFList_m.get g₁ = RFList_m.get g₂)
+      (SecureORO.RF_T.get (List Bool) f_out
+        (Module.app SORO.Bounder (RFList RFList_m))).procedure
+      (SecureORO.RF_T.get (List Bool) f_out
+        (Module.app SORO.Bounder (RFWhile RFList_m))).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RFList_m.equal_outside g₁ g₂ ∧
+        RFList_m.get g₁ = RFList_m.get g₂) := by
+  refine bounder_get_congr RFList_m (· = ·) _ _ ?_
+  have h := rw_RF_List_While RFList_m
+  rw [RFList_get, RFWhile_get] at h ⊢
+  have h' := prhlProc_frame_equal_outside_module RFList_m _ _ (fvP_RFList_get RFList_m)
+    (fvP_RFWhile_get RFList_m) h
+  exact prhlProc_conseq h' (fun _ _ _ _ ⟨ha, he, hg⟩ => ⟨⟨ha, hg⟩, he⟩)
+    (fun _ _ _ _ ⟨⟨hr, hg⟩, he⟩ => ⟨hr, he, hg⟩)
+
+/-- `RFList.init ~ RFWhile.init`: both maps empty.  Not an EC lemma. -/
+theorem rl_init :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (SecureORO.RF_T.init (List Bool) f_out (RFList RFList_m)).procedure
+      (SecureORO.RF_T.init (List Bool) f_out (RFWhile RFList_m)).procedure
+      (fun _ g₁ _ g₂ => RFList_m.equal_outside g₁ g₂ ∧ RFList_m.get g₁ = RFList_m.get g₂) := by
+  rw [RFList_init, RFWhile_init]
   equiv_proc
   stmt_inline{1} 0
   stmt_inline{2} 0
-  stmt_inline{1} 0
-  stmt_inline{2} 0
-  rw [RFList_init]
-  stmt_inline{1} 0
-  stmt_inline{2} 0
-  simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.init.mk_simp]
-  stmt_inline{2} 0
   stmt_wp
-  equiv_seq 2 2 : (§hash{1} = §hash{2} ∧
-      (riL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
-      riI ((riL RFList_m).get §allGlobals{1}) ((riL RFList_m).get §allGlobals{2}))
-  · stmt_wp
-    equiv_rnd
-    stmt_wp
-    equiv_skip
-    rintro σ₁ σ₂ h a _
-    rw [h]
-    refine ⟨(riL_RFList RFList_m _ _).symm.trans (riL_RO RFList_m _ _), ?_⟩
-    change RFList_m.get (RFList_m.set _ _) = SORO.RO.RO.m.get (SORO.RO.RO.m.set _ _)
-    rw [RFList_m.set_get, SORO.RO.RO.m.set_get]
-  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
-      §hash{1} = §hash{2} ∧ (riL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
-      riI ((riL RFList_m).get §allGlobals{1}) ((riL RFList_m).get §allGlobals{2}))
-  swap
-  · equiv_call (ri_bget RFList_m)
-    equiv_skip
-    rintro g₁ g₂ m₁ hash₁ m₂ hash₂ ⟨hm, hh, he, hI⟩
-    exact ⟨⟨hm, he, hI⟩, fun r₁ _ r₂ _ h => by rw [h.1, hh]⟩
-  stmt_split{1} 1
-  stmt_split{2} 1
-  refine prhlStmt_seq_call (prhlProc_abstract_call_equal_outside_module
-    (riL RFList_m) (SORO_P1 Log_m A) (SecureORO.Oracle.ext (List Bool) f_out) hP.1 hPL riI
-    ?hc _ _ ?horacle) ?_
-  case hc =>
-    intro _ n
-    cases n with
-    | zero => exact inferInstanceAs (Countable (List Bool))
-    | succ n => nomatch n
-  case horacle =>
-    intro _ n
-    cases n with
-    | zero =>
-      simp only [SecureORO.Oracle.ext, HoleSigs.Instantiation.lookup_zero_single,
-        SecureORO.Oracle.get.mk_simp]
-      exact ri_bget RFList_m
-    | succ n => nomatch n
   equiv_skip
-  rintro σ₁ σ₂ ⟨hh, he, hI⟩
-  refine ⟨⟨hh, he, hI⟩, fun r₁ g₁ r₂ g₂ ⟨hr, he', hI'⟩ => ?_⟩
-  simp_reads
-  exact ⟨hr, hh, he', hI'⟩
+  rintro σ₁ σ₂ h
+  rw [h]
+  exact Lens.equal_outside.refl _
+
+/-- EC's first `have` of `rw_ideal_2`: `Pr[SORO.Preimage(SORO_P1(A), RFList)] =
+Pr[SORO.Preimage(SORO_P1(A), RFWhile)]` (`byequiv … call (rw_RF_List_While)`), one abstract call to
+`SORO_P1(A)` (`soro_pre_game`).  Not an EC lemma. -/
+theorem rl_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
+    (hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ Log_m.footprint ⊔ RFList_m.footprint)ᶜ)
+    (hfresh : LocalFresh Log_m RFList_m) :
+    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
+      (Module.app SORO.Preimage (Module.pair (SORO_P1 Log_m A) (RFList RFList_m))).procedure
+      (Module.app SORO.Preimage (Module.pair (SORO_P1 Log_m A) (RFWhile RFList_m))).procedure
+      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+  have hRA : RFList_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_right.trans hfresh.1
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans hfresh.1
+  haveI : Lens.Disjoint SORO.Bounder.bounder RFList_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp
+      (hRA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub))))
+  obtain ⟨hP, hfp⟩ := SORO_P1_ec Log_m RFList_m A hA hfresh
+  have hPL : FVP.fvP (SORO_P1 Log_m A) ≤ RFList_m.footprintᶜ := by
+    refine hfp.trans (sup_le (hAd.trans (Footprint.compl_antimono le_sup_right)) (sup_le
+      hfresh.2.1 ?_))
+    refine (Footprint.le_compl_comm _ _).mp (hRA.trans (Footprint.compl_antimono ?_))
+    simp only [soroG, Footprint.lens_pair]
+    unfold ARestrictions.footprint
+    fp_sub
+  exact soro_pre_game RFList_m (· = ·) _ _ (SORO_P1 Log_m A) hP hPL (rl_init RFList_m)
+    (rl_bget RFList_m)
 
 /-- `local lemma rw_ideal &m`. -/
 theorem rw_ideal (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
