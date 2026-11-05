@@ -744,8 +744,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 | 225 | local equiv | `equiv_sim_f` | section . | `equiv_sim_f` (`={glob F, glob BIRO2.IRO} /\ ={m, mi, paths}(S, Simulator)` as equal outside `sL` with `sI`; `parseK`/`formatK` as `formatK`; `rcondt{1}` by `equiv_if{1}` + `prhlStmt_false`) | done |
 | 245 | local equiv | `equiv_sim_fi` | section . | `equiv_sim_fi` (as `equiv_sim_f`) | done |
 | 255 | local lemma | `replace_simulator` | section . | `replace_simulator` (equal-outside abstract call over `sL`; oracle steps `rs_PC_f`, `rs_PC_fi`) | done |
-| 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at` over `glob Dist`, E14; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`; modulo `Gconcl_list.Real_lossless`) | exc |
-| 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` (+ `Gext0Fresh`, E13; from `security`) | exc |
+| 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; the `glob Dist` instance of `security_at`: `Dist` lossless over a region `G` (`Dist_lossless_at`, `SecurityRegion`, E14), `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at`; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`; modulo `Gconcl_list.Real_lossless`) | exc |
+| 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` (+ `Gext0Fresh`, E13; from `security`); `SHA3Indiff_at` over a region (E14), used by `SHA3Security` | exc |
 
 ## `proof/SHA3_OIndiff.ec`
 
@@ -912,7 +912,7 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 | 88 | module | `DColl` |  | `DColl` (`A` a Lean parameter; alias call-wrapped, E5) | def |
 | 94 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 96 | declare axiom | `D_ll` | section Collision. | `D_ll` (hypothesis `_D_ll`) | def |
-| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` (its two `have`s: `Collision_FM_GReal`, `GIdeal_Collision_RO`, both done) | done (exc E7, E8) |
+| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` (its two `have`s: `Collision_FM_GReal`, `GIdeal_Collision_RO`, both done); the `glob A` instance of `coll_resistant_if_indifferentiable_at` (`D_ll_at`, unused as in EC; E14) | done (exc E7, E8, E14) |
 | 128 | module | `DPre` |  | `DPre` (`A` a Lean parameter; variable: lens `DPre_h`) | def |
 | 139 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 141 | declare axiom | `D_ll` | section Preimage. | `D_ll` (hypothesis `_D_ll`) | def |
@@ -948,48 +948,48 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 40 | lemma | `doutE1` |  | `doutE1` | done |
 | 62 | module | `CSetSize` |  | `CSetSize` (alias call-wrapped, E5) | def |
 | 71 | module | `FSetSize` |  | `FSetSize` (alias call-wrapped, E5) | def |
-| 80 | clone import | `IndifRO_is_secure` |  | `S` (namespace of abbreviations and `global_var`s, opened; `realize`s: `S.axioms`) | def |
+| 80 | clone import | `IndifRO_is_secure` |  | `S` (namespace of abbreviations and `global_var`s, opened; `realize`s: `S.axioms`, done) | def |
 | 103 | module | `FGetSize` |  | `FGetSize` | def |
 | 111 | module | `SimSetSize` |  | `SimSetSize` (`Module.comp`) | def |
 | 113 | module | `DFSetSize` |  | `DFSetSize` | def |
 | 121 | module | `DSetSize` |  | `DSetSize` (alias call-wrapped, E5) | def |
-| 127 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 127 | declare module | `A` | section Preimage. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
 | 129 | declare axiom | `A_ll` | section Preimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
 | 131 | local lemma | `invm_dom_rng` | section Preimage. | `Preimage.invm_dom_rng` | done |
 | 140 | local lemma | `invmC'` | section Preimage. | `Preimage.invmC'` | done |
 | 144 | local lemma | `invmC` | section Preimage. | `Preimage.invmC` | done |
 | 148 | local lemma | `useful` | section Preimage. | `Preimage.useful` | done |
-| 169 | local equiv | `equiv_sponge_perm` | section Preimage. | `Preimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
+| 169 | local equiv | `equiv_sponge_perm` | section Preimage. | `Preimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`; `={glob Perm}` as `eqPerm`, EC's syntactic `glob Perm`; `call (: …)` + `while`s as `Sponge_f_inv` with `Perm_f_perm`) | done |
 | 194 | op | `same_ro` | section Preimage. | `same_ro` | def |
 | 199 | op | `same_ro2` | section Preimage. | `same_ro2` | def |
 | 204 | clone import | `Program` | section Preimage. | `Preimage.Prog.LoopSnoc.sample` | def |
-| 209 | local equiv | `equiv_ro_iro` | section Preimage. | `Preimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
-| 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` | stated |
-| 481 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 209 | local equiv | `equiv_ro_iro` | section Preimage. | `Preimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`; `x \in m`: one-sided `while{2}`; `x \notin m`: EC's two `transitivity{1}` as one `prhlStmt.trans_left` to `Prog.LoopSnoc.sample` (`dout_dlist`, `prhlStmt_seq_sample_run_map_right`) and the synchronized `while`, `same_ro_set_fresh`) | done |
+| 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` (+ `AGext0Fresh A`, E13; the two `have`s `Preimage.real_pre`, `Preimage.ideal_pre`: equal-outside calls over `realL`/`idealL`, oracle premises `real_oracle`/`ideal_oracle`; `SHA3Indiff_at` over `glob A` ⊔ the clone's variables, E14; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
+| 481 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
 | 483 | declare axiom | `A_ll` | section SecondPreimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
 | 485 | local lemma | `invm_dom_rng` | section SecondPreimage. | `SecondPreimage.invm_dom_rng` | done |
 | 494 | local lemma | `invmC'` | section SecondPreimage. | `SecondPreimage.invmC'` | done |
 | 498 | local lemma | `invmC` | section SecondPreimage. | `SecondPreimage.invmC` | done |
 | 502 | local lemma | `useful` | section SecondPreimage. | `SecondPreimage.useful` | done |
-| 523 | local equiv | `equiv_sponge_perm` | section SecondPreimage. | `SecondPreimage.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
+| 523 | local equiv | `equiv_sponge_perm` | section SecondPreimage. | `SecondPreimage.equiv_sponge_perm` (EC repeats the proof: `Preimage.equiv_sponge_perm`) | done |
 | 548 | clone import | `Program` | section SecondPreimage. | `SecondPreimage.Prog2.LoopSnoc.sample` | def |
-| 553 | local equiv | `equiv_ro_iro` | section SecondPreimage. | `SecondPreimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
-| 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` | stated |
-| 871 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
-| 873 | declare axiom | `A_ll` | section Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
+| 553 | local equiv | `equiv_ro_iro` | section SecondPreimage. | `SecondPreimage.equiv_ro_iro` (EC repeats the proof: `Preimage.equiv_ro_iro`) | done |
+| 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` (+ `AGext0Fresh A`, E13; `SecondPreimage.real_spre`, `ideal_spre`: EC's case analysis on the second test as two framed calls in sequence; `SHA3Indiff_at`, E14; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
+| 871 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
+| 873 | declare axiom | `A_ll` | section Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`; over a region in `Sponge_coll_resistant_at`, `D_ll_at`, E14) | def |
 | 875 | local lemma | `invm_dom_rng` | section Collision. | `Collision.invm_dom_rng` | done |
 | 884 | local lemma | `invmC'` | section Collision. | `Collision.invmC'` | done |
 | 888 | local lemma | `invmC` | section Collision. | `Collision.invmC` | done |
 | 892 | local lemma | `useful` | section Collision. | `Collision.useful` | done |
-| 913 | local equiv | `equiv_sponge_perm` | section Collision. | `Collision.equiv_sponge_perm` (statement `equiv_sponge_perm.statement`) | stated |
+| 913 | local equiv | `equiv_sponge_perm` | section Collision. | `Collision.equiv_sponge_perm` (EC repeats the proof: `Preimage.equiv_sponge_perm`) | done |
 | 937 | clone import | `Program` | section Collision. | `Collision.Prog3.LoopSnoc.sample` | def |
-| 942 | local equiv | `equiv_ro_iro` | section Collision. | `Collision.equiv_ro_iro` (statement `equiv_ro_iro.statement`) | stated |
-| 1126 | lemma | `Sponge_coll_resistant` | section Collision. | `Sponge_coll_resistant` | stated |
+| 942 | local equiv | `equiv_ro_iro` | section Collision. | `Collision.equiv_ro_iro` (EC repeats the proof: `Preimage.equiv_ro_iro`) | done |
+| 1126 | lemma | `Sponge_coll_resistant` | section Collision. | `Sponge_coll_resistant` (+ `AGext0Fresh A`, E13; the `glob A` instance of `Sponge_coll_resistant_at`, `A_ll` over a region, E14; `Collision.real_coll`, `ideal_coll`; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
 | 1241 | module | `X` |  | `X` | def |
 | 1249 | module | `AdvCollisionSHA3` |  | `AdvCollisionSHA3` (`A` a Lean parameter) | def |
-| 1259 | declare module | `A` | section SHA3_Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
+| 1259 | declare module | `A` | section SHA3_Collision. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
 | 1261 | declare axiom | `A_ll` | section SHA3_Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
-| 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` | stated |
+| 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` (+ `AGext0Fresh A`, E13; `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` over `glob A`, E14: `glob AdvCollisionSHA3(A) = glob A` is syntactic in EC; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
 
 ## `proof/SHA3OSecurity.ec`
 

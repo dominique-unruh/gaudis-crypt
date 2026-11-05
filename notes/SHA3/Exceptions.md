@@ -401,7 +401,9 @@ for the distinguisher it builds, and so on up to `SHA3Indiff`'s final theorem: t
 touch these proof-internal variables.  Propagated to `Gconcl_list` (its own `Gext0Fresh`, at
 `BlockSponge`'s `DISTINGUISHER`: `concl`, `neg_D_concl`, `Inefficient_Real_Ideal`, `Real_Ideal`) and
 to `SHA3Indiff` (`SHA3Indiff.Gext0Fresh Dist`, at the bit level: a hypothesis of `security` and of
-the final `SHA3Indiff`).
+the final `SHA3Indiff`).  And to `SHA3Security`: its sections' adversaries `A` get the hypothesis
+`AGext0Fresh A` (the same variables), so that `DSetSize(D(A))` satisfies `SHA3Indiff`'s
+`Gext0Fresh`.
 
 **How to remove it.** Make the variables of `Handle`, `Gcol`, `Gext` (and `ConcreteF`'s `PF`) lens
 parameters, as `Sponge`'s `HybridIRO` section does (E6), and pick them fresh in `Real_Ideal` with
@@ -462,3 +464,17 @@ hole instantiation in the normaliser do not drop `D`'s code. Then derive `glob D
 `glob D ≤ glob (Neg_D D)` (a call's footprint contains the callee's body; `Lens.reduceFootprint_extend`
 is an equality), and restore `(fvP D).glob`.
 
+**In `SHA3Indiff` and `SHA3Security`.** The same gap appears at the top: `SHA3Security` applies
+`SHA3Indiff` to `DSetSize(D(A))` (`D` one of `DPre`, `D2Pre`, `DColl`).  `Dist_lossless` is over
+`glob (DSetSize(D(A)))`, and the proof from `A_ll` needs the oracles outside `glob A`.  So:
+* `SHA3Indiff.security_at` / `SHA3Indiff_at` take `Dist_lossless_at Dist G` over a region `G`
+  (inside `glob GF`, `GF` finitely supported, `SecurityRegion G`: outside the proof's internal
+  variables); `security` / `SHA3Indiff` are the instances at `glob Dist` (`glob_SecurityRegion`).
+* `SHA3Security` uses `SHA3Indiff_at` with `G := glob A ⊔` the clone's counters (and `DPre.h` /
+  `D2Pre.m2`).
+* `SHA3_coll_resistant` applies `Sponge_coll_resistant` to `AdvCollisionSHA3(A)`, whose `A_ll` EC
+  gets from `A`'s since `glob AdvCollisionSHA3(A) = glob A` syntactically.  Here
+  `Sponge_coll_resistant_at` takes `A_ll` over a region (`IndifRO_is_secure.D_ll_at`), and so does
+  `IndifRO_is_secure.coll_resistant_if_indifferentiable_at` (whose proof, as EC's, does not use it);
+  `Sponge_coll_resistant` and `coll_resistant_if_indifferentiable` are the `glob A` instances, and
+  `SHA3_coll_resistant` is `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` at `glob A`.

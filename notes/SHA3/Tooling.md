@@ -1438,3 +1438,38 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `Module.exists_representation_of_firstOrder`; `init`'s hole filled with a global-free procedure,
   given `init` independent of the oracle (for `SimLast(Gconcl.S)` by `simp only [*.apply_simp,
   PRIMITIVE.init_pair]`).
+
+## 2026-11-05: `SHA3Security`
+
+* **EC's `transitivity{1} { c } (E ==> F) (P ==> Q)`** with a reflexive `E`: `prhlStmt.trans_left`
+  (`Logic/PRHLTransitivity.lean`); the middle program written out in `equiv[ … ] {…} ~ {…}`, the
+  second leg left as the goal with postcondition `∀ τ₁, F τ₁ τ₂ → Q τ₁ τ₃`.  A sampling against a
+  call of `LoopSnoc.sample`: `prhlStmt_seq_sample_run_map_right` with `LoopSnoc.sample_denotation`
+  (`equiv_ro_iro`, after `BlockGen_direct_BlockGenCall`).
+* **The frame of a `call`** (`Logic/PRHLFrame.lean`): `prhlProc_frame_lens X₁ X₂ h₁ h₂ R h` adds a
+  relation of lenses outside the callees' footprints; `prhlProc_frame_equal_outside(_module) L`
+  adds `L.equal_outside` for callees confined to `L`.  So a local equivalence about part of the
+  state (`equiv_sponge_perm`, `equiv_ro_iro`) serves as the oracle premise of
+  `prhlProc_abstract_call_equal_outside_module`.
+* **`fp_le`** (`Logic/FootprintUpper.lean`): `FVP.fvP M ≤ X₁ ⊔ … ⊔ Xₙ` through the module
+  combinators, by `@[fp_bound]` lemmas (leaves by `fp_module`) and bound hypotheses; with
+  `FVP.fvP_comp_le` for `Module.comp`.  `fp_module` on a big composite module times out: bound the
+  pieces and compose with `fp_le`.
+* **Equal-outside over a `def` lens**: make the lens (`realL`, `idealL`) a `def` (judgment simp
+  unfolds `Lens.pair`), with a `@[simp]` `get` lemma, a `footprint` lemma, `X.set v g = L.set w g`
+  lemmas for its components, and `instance : Lens.Disjoint Y L := by unfold L; infer_instance`.
+* **Rewriting a callee whose module types are spelled differently** (`CONSTRUCTION` at the clone's
+  types vs `Sponge`'s, defeq): `rw` fails, `erw` succeeds; a bridge lemma about
+  `@Module.app (T := …)` with the goal's spelling makes plain `rw` work.  `fp_disjoint`'s
+  `@[fp_bound]` matching is reducible: state the bound at the goal's spelling (`fvP_Perm'`,
+  `fvP_CSetSize_Sponge'`), or give a restriction hypothesis.
+* **Parse trap**: a bare `fp_module` ending a proof takes a following `set_option … in` (or
+  `open … in`) line as its optional term argument.  Put such declarations after one that does not
+  end with `fp_module`.
+* **`fp_disjoint` against `glob (fvP M)` of a concrete module** (`DistRestrictions` has
+  `glob (SimLast(Gconcl.S))`): it may panic.  Turn it around by hand:
+  `(Footprint.le_compl_comm _ _).mp (Footprint.le_compl_glob_symm hMfs (by fp_disjoint))`.
+* **Losslessness with an abstract adversary** (`Dist_lossless_at` of `DSetSize(D(A))`): the
+  oracle's `get` lossless by `phoare_wp`/`phoare_simp [fll]`; `A_ll` for `A`'s; then the game:
+  `phoare_inline` (twice, for the `if`'s call), `phoare_wp n`, `phoare_simp [fll]`, `phoare_skip`,
+  `simp only [ite_self, fll']` and `exact hAll _ _ trivial` (`phoare_simp` does not take `ite_self`).
