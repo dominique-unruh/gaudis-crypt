@@ -30,7 +30,7 @@ Status: `—` not started · `def` definition ported · `stated` statement porte
 | `proof/SecureORO.eca` | 492 | 3 | `GaudisCrypt/Examples/SHA3/SecureORO.lean` |
 | `proof/IndifRO_is_secure.ec` | 218 | 3 | `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean` |
 | `proof/SHA3Security.ec` | 1275 | 23 | `GaudisCrypt/Examples/SHA3/SHA3Security.lean` |
-| `proof/SHA3OSecurity.ec` | 2652 | 34 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
+| `proof/SHA3OSecurity.ec` | 2652 | 33 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
 
 ## `proof/Common.ec`
 
