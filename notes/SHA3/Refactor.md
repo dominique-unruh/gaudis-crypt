@@ -75,12 +75,15 @@ Order: a vertical pilot first — one short file with equivs, `Pr` statements an
 (`SecureRO.eca` or `SHA3_OIndiff.ec`) pushed to near one-to-one form, building only the syntax
 and tactics it needs; measure; then widen.
 
-## Open decisions
+## Decisions (Denis, 2026-11-06)
 
-1. Tactic names: EC names verbatim (scoped, e.g. inside an EC tactic block) or the
-   `equiv_*`/`hoare_*` family with EC behaviour.
-2. `Language/` is off-limits: coordinate E2 (option B) / E14 changes with Dominique, or work
-   around them.
-3. Branch: refactor on `sha3`, or a new branch off it (old proofs kept until replaced).
-4. Transpiler: a deliverable, or is "close enough to transpile by hand" the bar.
-5. Auxiliary lemmas: zero as the goal, or fine when separated and judgment-tactic only.
+1. **Tactic names**: keep the prefixed families (`equiv_*`, `hoare_*`, `phoare_*`, `stmt_*`), but
+   reuse one machinery behind them so the number of tactics does not grow as
+   steps × judgments (`phoare_wp`/`hoare_wp`/`equiv_wp` = one step, the judgment registry).  EC
+   behaviour is reasonable to match, but not a goal in itself: where EC does something
+   unreasonable or we can do better, deviate (and document it).
+2. **Branch**: `ec-fidelity`, off `sha3`; old proofs are kept until each file is replaced.
+3. **Pilot**: `SecureRO.eca`.
+
+Still open: coordination with Dominique on `Language/` changes (E2 option B, E14); whether a
+mechanical transpiler is a deliverable; the target for auxiliary lemmas.
