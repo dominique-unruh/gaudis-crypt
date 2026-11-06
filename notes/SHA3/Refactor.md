@@ -162,5 +162,10 @@ Missing pieces, in order:
     conditions, tried by `rfl`/`trivial`/`simp_all`/`positivity`.  The pilot's main theorem is
     now `calc … := by byequiv (Preimage_Preimage2 A); _ ≤ … := by byphoare (Preimage2_le A); <EC's
     arithmetic>` (EC: `have->: … by byequiv; …; byphoare …`).
+  * All the section's statements are in surface syntax (`phoare[ … ]`, `equiv[ … : ={hash,
+    allGlobals} ==> ={res} ]`, `Pr[ ]`): no raw `phoareProc`/`prhlProc`.  Deviation: parameter
+    names are written at the triple (`Preimage.FEL(A, RO).main (hash)`), since `knownParamNames?`
+    (`Syntax/HoareSyntax.lean`) does not look through `Module.app X …` to `X`'s procedure — to
+    fix with the next batch of `Syntax/` changes (each costs a full rebuild).
   * Proofs of `Preimage2_le`/`FEL_preimagePotential` are still the old ones (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
     arithmetic): steps 3–4.

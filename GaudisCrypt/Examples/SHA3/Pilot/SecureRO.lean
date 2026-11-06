@@ -203,12 +203,9 @@ open GaudisCrypt.SHA3.SecureRO (preimagePotential preimagePotential_step
 /-- The oracle premise of EC's `fel`: a query of `Bounder(RO).get` does not increase the potential
 of `(Bounder.bounder, Counter.c, RO.m)` in expectation. -/
 theorem Bounder_RO_get_preimagePotential (h : «to») :
-    phoareProc (fun _ _ => True) Bounder(RO).get.procedure
-      (fun _ g => preimagePotential bound (sampleto.1 {h}) h
-        ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g))
-      (· ≤ ·)
-      (fun _ g => preimagePotential bound (sampleto.1 {h}) h
-        ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g)) := by
+    phoare[ Bounder(RO).get (x) :
+        True ==> preimagePotential bound (sampleto.1 {h}) h (§Bounder.bounder, §Counter.c, §RO.m) ]
+      ≤ (preimagePotential bound (sampleto.1 {h}) h (§Bounder.bounder, §Counter.c, §RO.m)) := by
   phoare_proc_to_stmt
   repeat phoare_inline 0
   phoare_ewp
@@ -217,11 +214,9 @@ theorem Bounder_RO_get_preimagePotential (h : «to») :
 /-- EC's `fel` in `RO_is_preimage_resistant`, as a supermartingale: `FEL(A, RO).main` ends with the
 potential at most `bound · μ1 sampleto h`. -/
 theorem FEL_preimagePotential [Countable «from»] (h : «to») :
-    phoareProc (fun _ _ => True) Preimage.FEL(A, RO).main.procedure
-      (fun _ g => preimagePotential bound (sampleto.1 {h}) h
-        ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g))
-      (· ≤ ·)
-      (fun _ _ => ∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) := by
+    phoare[ Preimage.FEL(A, RO).main (hash) :
+        True ==> preimagePotential bound (sampleto.1 {h}) h (§Bounder.bounder, §Counter.c, §RO.m) ]
+      ≤ (∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) := by
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).footprint)ᶜ := by
     rw [Footprint.lens_pair, Footprint.lens_pair]
     fp_disjoint
@@ -252,10 +247,9 @@ theorem FEL_preimagePotential [Countable «from»] (h : «to») :
 query hits `h` only if `h` was already in the range of `RO.m` (EC's `fel`) or with probability
 `μ1 sampleto h`. -/
 theorem Preimage2_le [Countable «from»] :
-    phoareProc (fun _ _ => True) Preimage.Preimage2(A, RO).main.procedure
-      (fun r _ => indicatorE (r = true)) (· ≤ ·)
-      (fun h _ => (∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) +
-        sampleto.1 {h}) := by
+    phoare[ Preimage.Preimage2(A, RO).main (hash) : True ==> §res ]
+      ≤ ((∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {§hash}) +
+          sampleto.1 {§hash}) := by
   have hFEL := FEL_preimagePotential A
   phoare_proc_to_stmt
   phoare_inline 0
@@ -276,9 +270,8 @@ theorem Preimage2_le [Countable «from»] :
 /-- The first `have` of EC's proof: `Preimage(A, RO).main ~ Preimage2(A, RO).main`, by EC's
 `byequiv; proc; inline*; sim` (`Counter.init` is dead: `Bounder.init` runs it again). -/
 theorem Preimage_Preimage2 :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
-      Preimage(A, RO).main.procedure Preimage.Preimage2(A, RO).main.procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+    equiv[ Preimage(A, RO).main (hash) ~ Preimage.Preimage2(A, RO).main (hash) :
+      ={hash, allGlobals} ==> ={res} ] := by
   equiv_proc
   stmt_inline 0
   stmt_inline{1} 0
@@ -325,7 +318,8 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
           rw [add_mul, one_mul]
           rfl
         · have hb := bound_gt0 (self := inferInstance)
-          exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1)) ENNReal.toReal_nonneg
+          exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1))
+            ENNReal.toReal_nonneg
 
 end Preimage
 
