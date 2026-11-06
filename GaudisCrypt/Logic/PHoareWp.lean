@@ -105,6 +105,62 @@ theorem phoareStmt_seq_if {A : ProgramState → Prop} {s t e : Stmt}
   rw [phoareStmt_seq_iff, Stmt.ewp_ifThenElse]
   exact h
 
+/-! ### Conditionals with samplings or calls in Hoare triples
+
+A Hoare triple is a pHL judgment with bound `0` (`hoareStmt_iff_phoareStmt`), so a conditional
+whose branches sample or call gets its wp from the expectation calculus: each branch's
+outcomes off the postcondition have probability `0`, an expectation `postSimp` computes with the
+`Stmt.ewp` lemmas and turns back into a condition on the support (`expected_eq_zero_iff`). -/
+
+/-- An expectation is `0` iff the function vanishes on the support (the measure is discrete). -/
+theorem SubProbability.expected_eq_zero_iff {α} (μ : SubProbability α) (f : α → ENNReal) :
+    μ.expected f = 0 ↔ ∀ a ∈ μ.support, f a = 0 := by
+  refine ⟨fun h a ha => ?_, SubProbability.expected_eq_zero_of_support⟩
+  rw [SubProbability.expected, lintegral_eq_tsum_smul μ.2.2] at h
+  have h' := ENNReal.tsum_eq_zero.mp h a
+  rcases mul_eq_zero.mp h' with h0 | h0
+  · exact absurd (show μ.ofEvent {a} = 0 by simp [SubProbability.ofEvent, h0]) ha
+  · exact h0
+
+theorem indicatorE_eq_zero_iff (P : Prop) : indicatorE P = 0 ↔ ¬ P := by
+  by_cases h : P <;> simp [indicatorE, h]
+
+theorem ite_eq_zero_iff' {c : Prop} [Decidable c] (a b : ENNReal) :
+    (if c then a else b) = 0 ↔ (c → a = 0) ∧ (¬ c → b = 0) := by
+  by_cases h : c <;> simp [h]
+
+/-- The wp rule for a trailing conditional with samplings or calls in its branches, for Hoare
+triples: in each branch, the outcomes off `B` have probability `0`. -/
+theorem hoare_seq_if {A B : ProgramState → Prop} {s t e : Stmt} {c : Getter Bool ProgramState}
+    (h : hoareStmt A s (fun σ => if c.get σ then t.ewp (fun τ => indicatorE (¬ B τ)) σ = 0
+      else e.ewp (fun τ => indicatorE (¬ B τ)) σ = 0)) :
+    hoareStmt A (.seq s (.ifThenElse c t e)) B := by
+  refine hoare_seq (hoare_pre (hoare_if_wp
+      (At := fun σ => t.ewp (fun τ => indicatorE (¬ B τ)) σ = 0)
+      (Ae := fun σ => e.ewp (fun τ => indicatorE (¬ B τ)) σ = 0)
+      (hoareStmt_iff_phoareStmt.mpr fun σ hσ => hσ)
+      (hoareStmt_iff_phoareStmt.mpr fun σ hσ => hσ))
+    fun σ hσ => ⟨fun hc => by simpa [hc] using hσ, fun hc => by simpa [hc] using hσ⟩) h
+
+/-- What `postSimp` adds for Hoare triples, to compute a branch's expectation (`hoare_seq_if`): the
+`Stmt.ewp` lemmas, and back from an expectation `= 0` to a condition. -/
+def hoareIfDecls : List Lean.Name :=
+  [``Stmt.ewp_seq, ``Stmt.ewp_skip, ``Stmt.ewp_assign, ``Stmt.ewp_sample,
+   ``Stmt.ewp_ifThenElse, ``indicatorE_true, ``indicatorE_false,
+   ``SubProbability.expected_eq_zero_iff, ``indicatorE_eq_zero_iff, ``ite_eq_zero_iff', ``not_not]
+
+-- Hoare triples again (`HoareWp.lean`), now with a rule for conditionals with samplings or calls
+run_meta registerJudgment {
+  head := ``hoareStmt
+  stmtArg := 1
+  equivLemma := ``hoareStmt_of_equiv
+  transportLemma := ``hoareStmt_of_equivInLens
+  postArg := 2
+  detLemma := some ``TacticMisc.hoare_seq_det
+  sampleLemma := some ``TacticMisc.hoare_seq_sample
+  ifLemma := some ``hoare_seq_if
+  postSimp := HoareWp.simpReadsDecls ++ hoareIfDecls }
+
 namespace PHoareWp
 
 open Lean Meta Elab Tactic TacticMisc

@@ -167,5 +167,16 @@ Missing pieces, in order:
     names are written at the triple (`Preimage.FEL(A, RO).main (hash)`), since `knownParamNames?`
     (`Syntax/HoareSyntax.lean`) does not look through `Module.app X …` to `X`'s procedure — to
     fix with the next batch of `Syntax/` changes (each costs a full rebuild).
-  * Proofs of `Preimage2_le`/`FEL_preimagePotential` are still the old ones (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
+  * **`fel` (step 4, part 2)**: `Logic/Fel.lean` — `Module.fel`, EC's `fel` once for all games,
+    derived from `Module.ewp_app_le` on one potential (`felPotential`); the per-oracle premises
+    are the structure `FelOracle` (`lt`, `step` a pHL judgment, `incr`/`same`/`keep` Hoare
+    triples), proven with the judgment tactics.  Deviation: `bad` must persist (`keep`).  The
+    pilot's `fel` is `FEL_rng` (EC's statement) with `Bounder_RO_get_fel` (EC's oracle bullets);
+    `preimagePotential` and its step/tail lemmas are gone from the pilot.
+  * **Hoare wp through conditionals with samplings/calls**: `hoare_seq_if` registered as hoare's
+    `ifLemma` (`Logic/PHoareWp.lean`): a branch's outcomes off `B` have probability `0`, computed
+    by the `Stmt.ewp` lemmas and turned back into a condition (`expected_eq_zero_iff`) — the
+    phoare machinery reused, one implementation.
+  * Still old-style: `Preimage2_le` (EC's five-bound `seq`, done by `ewp` rewriting and
+    `preimage_tail_le`), `Preimage_Preimage2` (by-index inlining, manual `equiv_seq`). (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
     arithmetic): steps 3–4.

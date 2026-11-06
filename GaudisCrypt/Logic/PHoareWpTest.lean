@@ -96,4 +96,22 @@ example : hoare[ FairCoin.flip : True ==> §res = true ∨ §res = false ] := by
   intro _ a _
   cases a <;> simp
 
+/-! ### `hoare_wp` through a conditional whose branch samples (`hoare_seq_if`) -/
+
+axiom hx : Lens Bool VariableAssignment
+
+example : hoare[ True ==> §hx = true ∨ §hx = false ] {
+  var c : Bool;
+  c <$ SubProbability.uniform;
+  if ($c) {
+    hx <$ SubProbability.uniform;
+  } else {
+    hx <- false;
+  }
+} := by
+  hoare_wp 2
+  hoare_skip
+  intros
+  split_ifs <;> simp
+
 end GaudisCrypt.PHoareWpTest
