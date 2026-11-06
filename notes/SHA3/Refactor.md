@@ -177,6 +177,15 @@ Missing pieces, in order:
     `ifLemma` (`Logic/PHoareWp.lean`): a branch's outcomes off `B` have probability `0`, computed
     by the `Stmt.ewp` lemmas and turned back into a condition (`expected_eq_zero_iff`) — the
     phoare machinery reused, one implementation.
-  * Still old-style: `Preimage2_le` (EC's five-bound `seq`, done by `ewp` rewriting and
-    `preimage_tail_le`), `Preimage_Preimage2` (by-index inlining, manual `equiv_seq`). (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
+  * **pHL's five-bound `seq` (step 4, part 3)**: `Logic/PHoareSeq.lean`, rule `phoareStmt_seq_le`
+    and tactic `phoare_seq n : E p₁ p₂ p₃ p₄ I` (EC's leading count, `E`/`I` in `§` syntax, goals in
+    EC's order, bounds `1` closed on the spot).  The pilot's `Preimage2_le` is now EC's
+    `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) … (hash = h)` with bullets
+    `invariant` (`hoare_call`), `first_E` (`phoare_call (FEL_rng A h)`), `second_notE` (the last
+    query, EC's `rnd (pred1 h)`); `preimage_tail_le` gone.  Deviation: our `seq` counts the two
+    statements `proc` adds for the argument (`seq 3`) — a `phoare_proc` like `equiv_proc` would
+    remove that.
+  * Still old-style: `Preimage_Preimage2` (by-index inlining, manual `equiv_seq`); auxiliary
+    lemmas (`FEL_rng`, `Bounder_RO_get_fel`, `Preimage2_le`, `Preimage_Preimage2`) are EC's inline
+    `have`/bullets — fold them in once `fel` is a tactic. (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
     arithmetic): steps 3–4.

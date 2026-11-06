@@ -108,12 +108,14 @@ import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.Logic.PHoareWp
 import GaudisCrypt.Logic.PHoareLossless
 import GaudisCrypt.Logic.PHoareWpTest
+import GaudisCrypt.Logic.PHoareSeqTest
 import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.Fel
+import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHL2Upto
 import GaudisCrypt.Logic.PRHLStmt

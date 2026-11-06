@@ -3,6 +3,7 @@ import GaudisCrypt.Syntax.PrSyntax
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.Fel
+import GaudisCrypt.Logic.PHoareSeq
 
 /-!
 # Random oracles are preimage resistant — the EC-fidelity pilot
@@ -198,8 +199,8 @@ EC's `fel` is the library rule `Module.fel` (`Logic/Fel.lean`), its oracle premi
 (`Bounder_RO_get_fel`) proven with `hoare_wp`/`phoare_wp`; the generic `FMap` facts are the old
 file's. -/
 
-open GaudisCrypt.SHA3.SecureRO (not_rng_empty preimage_tail_le expected_mono' expected_point'
-  eq_of_rng_set rng_set_of_rng indicatorE_le_of_imp)
+open GaudisCrypt.SHA3.SecureRO (not_rng_empty expected_mono' expected_point' eq_of_rng_set
+  rng_set_of_rng indicatorE_le_of_imp)
 
 /-- EC's `fel` premises for the oracle `Bounder(RO).get`, over `(Bounder.bounder, RO.m)`. -/
 theorem Bounder_RO_get_fel (h : «to») :
@@ -281,25 +282,57 @@ theorem FEL_rng [Countable «from»] (h : «to») :
   · simpa [Lens.pair, Lens.set_get] using not_rng_empty (α := «from») h
   · simp [Lens.pair, Lens.get_of_disjoint_set, Lens.set_get]
 
-/-- EC's `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) …`: after the adversary, the last
-query hits `h` only if `h` was already in the range of `RO.m` (EC's `fel`) or with probability
-`μ1 sampleto h`. -/
-theorem Preimage2_le [Countable «from»] :
-    phoare[ Preimage.Preimage2(A, RO).main (hash) : True ==> §res ]
-      ≤ ((∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {§hash}) + sampleto.1 {§hash}) := by
-  have hFEL := FEL_rng A
+/-- EC's `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) (bound%r * mu1 sampleto h) 1%r 1%r
+(mu1 sampleto h) (hash = h)`: after the adversary (`FEL`), the last query hits `h` only if `h` was
+already in the range of `RO.m` (EC's `fel`, `FEL_rng`) or with probability `μ1 sampleto h`.  (Our
+`seq` counts the two statements `proc` adds for the argument.) -/
+theorem Preimage2_le [Countable «from»] (h : «to») :
+    phoare[ Preimage.Preimage2(A, RO).main (hash) : §hash = h ==> §res ]
+      ≤ ((∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h}) + sampleto.1 {h}) := by
   phoare_proc_to_stmt
   phoare_inline 0
-  repeat phoare_inline 1
-  phoare_ewp
-  erw [Stmt.ewp_call]
-  simp_reads
-  generalize (localVarLens "arg1" «to»).get _ = h
-  refine (Procedure.ewp_mono _ _ (G := fun _ g => indicatorE ((RO.m.get g).rng h) +
-    sampleto.1 {h}) (fun v g => ?_) _).trans ?_
-  · exact preimage_tail_le _ _ _ _
-  rw [Procedure.ewp_add]
-  exact add_le_add (hFEL h h _ trivial) (Procedure.ewp_const_le _ _ _ _)
+  phoare_seq 3 : (FMap.rng §RO.m h) (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h}) 1 1
+    (sampleto.1 {h}) (§hash = h)
+  case invariant =>
+    hoare_call
+    hoare_wp 2
+    hoare_skip
+    exact fun _ h _ _ => h
+  case first_E =>
+    phoare_call (FEL_rng A h)
+    phoare_wp 2
+    phoare_skip
+    intros
+    exact le_rfl
+  case second_notE =>
+    phoare_inline 0
+    phoare_wp 10
+    phoare_skip
+    rintro σ ⟨hr, hh⟩
+    set x := (localVarLens "m" «from»).get σ
+    split_ifs with _ hd
+    · -- a fresh entry: EC's `rnd (pred1 h)`
+      refine (expected_mono' fun a => ?_).trans (expected_point' h)
+      simp only [hh, FMap.get_set_sameE, decide_eq_true_eq]
+      exact le_rfl
+    · -- an entry already there is not `h` (`¬ rng RO.m h`)
+      have hne : (localVarLens "hash" «to»).get σ ≠ oget ((RO.m.get σ.globals).get x) := by
+        rw [hh]
+        intro he
+        apply hr
+        have hd' : FMap.dom (RO.m.get σ.globals) x := by simpa using hd
+        obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd')
+        refine ⟨x, ?_⟩
+        rw [he]
+        simp only [FMap.get] at hv ⊢
+        rw [hv]
+        rfl
+      refine (le_of_eq (SubProbability.expected_eq_zero_of_support fun a _ => ?_)).trans bot_le
+      exact indicatorE_of_not (by simpa only [decide_eq_true_eq] using hne)
+    · exact bot_le
+  case bound =>
+    intros
+    simp
 
 /-- The first `have` of EC's proof: `Preimage(A, RO).main ~ Preimage2(A, RO).main`, by EC's
 `byequiv; proc; inline*; sim` (`Counter.init` is dead: `Bounder.init` runs it again). -/
@@ -335,7 +368,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
       = Pr[ Preimage.Preimage2(A, RO).main (h) @ &m : §res ] := by
         byequiv (Preimage_Preimage2 A)
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
-        byphoare (Preimage2_le A)
+        byphoare (Preimage2_le A h)
         -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
         · have hμ : sampleto.1 {h} ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
             ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
@@ -350,7 +383,6 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
             ENNReal.ofReal_natCast]
           push_cast
           rw [add_mul, one_mul]
-          rfl
         · have hb := bound_gt0 (self := inferInstance)
           exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1))
             ENNReal.toReal_nonneg
