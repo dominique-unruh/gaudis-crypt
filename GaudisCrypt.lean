@@ -30,6 +30,8 @@ import GaudisCrypt.Syntax.ProgramSyntaxTest
 import GaudisCrypt.Syntax.ModuleSyntaxTest
 import GaudisCrypt.Syntax.HoareSyntaxTest
 import GaudisCrypt.Syntax.PHoareSyntaxTest
+import GaudisCrypt.Syntax.ModuleApplicationSyntaxTest
+import GaudisCrypt.Syntax.PrSyntaxTest
 import GaudisCrypt.Syntax.PRHLSyntaxTest
 import GaudisCrypt.Language.Granularity
 import GaudisCrypt.CounterExamples.ExtendSupProbe

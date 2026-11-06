@@ -112,3 +112,25 @@ Missing pieces, in order:
    library rule with EC's premises (derived once from `Module.ewp_app_le`), retiring the three
    per-game potentials; `rcondt`/`rcondf`, `case`, `rnd (pred1 _)` shared by hoare/phoare.
 5. **Rewrite** `SecureRO` (then `SecureORO`, its twin) and measure.
+
+### Status
+
+* **Step 1 done (2026-11-06).** Checked first: no `Pr[ ]` and no EC module paths existed; the rule
+  lemmas did (`Procedure.Pr_of_phoareProc` = `byphoare`, `Procedure.Pr_eq_of_prhlProc`/`_le_`/
+  `_abs_sub_le_…_upto` = `byequiv`), so only syntax was added:
+  * `Syntax/PrSyntax.lean`: `Pr[ M (a₁, …, aₙ) @ &m : E ]`, a real (`NNReal.toReal` of
+    `Procedure.Pr`, EC's `Pr` is real); `M` and `E` read as in `phoare[ M : … ]` (`§res`, `§x`);
+    prints back.
+  * `Syntax/ModuleApplicationSyntax.lean`: `M(A, B(C)).f` = the accessor `T.f` of
+    `Module.app M (Module.pair A (Module.app B C))` (or `M.f` for a single-procedure module),
+    accepted wherever a term is (so in all judgment subjects); prints back.  `atomic`, so EC's
+    `M.f(x)` in `Pr[ ]` still reads as the procedure and its arguments.
+  * Heads must be names: needs step 2 for the SHA-3 modules (they take Lean parameters today).
+* **Step 2 design** (scratch-tested): theory ops + axioms in `class Params (from to : outParam
+  Type)` (the outParams let `bound : ℤ` resolve with no types written — EC's clone semantics),
+  module variables as `global_var`s (disjointness by instance search, no `Lens.Disjoint`
+  hypotheses), types explicit for `moduletype`s and then `variable {from to}` for modules and
+  lemmas.  The pilot is a parallel file `Examples/SHA3/Pilot/SecureRO.lean`; dependents move once
+  it is complete.  Open: EC's module-type subtyping (`A(Bounder(F))`, an `RF` where an `Oracle`
+  is expected) as a reducible `@[coe]`; `.guess` on an abstract adversary (no procedure name to
+  check).
