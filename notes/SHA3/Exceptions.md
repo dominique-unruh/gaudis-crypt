@@ -160,7 +160,9 @@ that mention them, with hypotheses that they are fresh for the section's modules
   chooses them with `Footprint.exists_fresh`).
 * in `SecureRO`, `SecureORO` and `SHA3OSecurity`, the variables of the sections' local modules
   (`SecondPreimage2.m2`, `D1.m1`, `Log.m`, `RFList.m`, `Dist_of_P2Adv.m` …; `LocalFresh` in
-  `SHA3OSecurity`).
+  `SHA3OSecurity`, and `SecondPreimage.DistFresh` for `Dist_of_P2Adv.m`, which also keeps `Log.m`
+  and `Dist_of_P2Adv.m` off `SORO.RO.FRO.m`: that section's `A` avoids `SORO.RO.FRO` beyond
+  `ARestrictions`).
 
 The non-local results (`HybridIROExper_Lazy_Eager'`, `IdealIndif_IRO_BlockIRO`, `conclu`,
 `conclusion`) have exactly EasyCrypt's hypotheses.  Their proofs need a **fresh-variable lemma**.

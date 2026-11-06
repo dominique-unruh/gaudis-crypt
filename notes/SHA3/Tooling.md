@@ -1550,8 +1550,8 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `equiv_proc; stmt_inline{1} 0; stmt_wp; simp only [view]; equiv_call (prhlProc_refl _)`.
 * **Probability chains**: `.trans`/`.symm` of `Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ())`;
   a real-valued `≤` by `exact_mod_cast Procedure.Pr_le_of_prhlProc`.
-* **Pitfalls**: `equiv_proc` turns a precondition on an argument's projection (`a₁.2`) into
-  `sorry` (inline the caller instead); `simp_reads` unfolds an abbreviated pair lens into a
+* **Pitfalls**: a precondition on an argument's projection (`a₁.2`) came out as `sorry` (inline
+  the caller instead; the cause: unknown signatures, see 2026-11-06); `simp_reads` unfolds an abbreviated pair lens into a
   structure, on which `Lens.Disjoint` instance search fails (state helpers on the named lens:
   `hLog : (fL _).equal_outside g₁ g₂ → Log_m.get g₁ = Log_m.get g₂`); `omega` needs `dsimp only`
   on tuple projections and treats syntactically different `increase_counter` terms as distinct
@@ -1560,3 +1560,38 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   every user (`eq_IRO_RFWhile` lost its unused `LocalFresh`).
 * **Section instances**: `variable [Lens.Disjoint …]` in a section; the closing lemma derives
   them from `LocalFresh` with one helper `hD Y X hY hX : Lens.Disjoint Y X ∧ Lens.Disjoint X Y`.
+
+## 2026-11-06: `SHA3OSecurity`, section `SecondPreimage` complete
+
+* **Duplicated local modules**: EC's sections repeat `RFList`, `RFWhile`, `ExtendOutputSize`,
+  `ExtendSample`, `Fill_In`; the Lean copies are definitionally equal (`rfl`), so the repeated
+  local equivs are `exact Preimage.…` (also for `Collision`).  Shared proofs with a parameter for
+  what differs: `Preimage.eager_ideal_of` (any distinguisher `D` and `RO_Distinguisher` with a
+  `Dist_game`), `soro_spre_game` (`soro_pre_game` for `SORO.SecondPreimage`).
+* **`a₂` in a precondition elaborates to `sorry`** when the judgment's signatures are not yet known
+  (`prhlProc` takes them from the procedures, after the precondition): give
+  `(sig₁ := procsig () -> Bool) (sig₂ := procsig (List Bool) -> Bool)`.  This, not `equiv_proc`,
+  is the cause of the earlier `a₁.2` pitfall.
+* **EC's `call` frames what the callee does not write; ours does not.**  A variable read after a
+  call (`Dist_of_P2Adv.m`) needs `prhlProc_frame_lens X X h₁ h₂ R spec`, `h` from a footprint bound
+  (`ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a) hb`).  For an abstract
+  call `Module.app A O`: `(FVP.fvP_app _ _).trans (sup_le hA hO)`, with `hO` a separate lemma
+  about the oracles (`fp_module` inside a big proof exhausts its heartbeats; on a big
+  `Module.pair` it may give up: `rw [FVP.fvP_pair]` and bound the halves).  Leave the frame's
+  footprint obligations as named holes (`?hfr₁`, not `?h₁`: `equiv_seq` uses that tag) closed after
+  the abstract call, or the oracle metavariable gets an abbreviation whose type parameters differ
+  and `Module.snd_pair` stops matching.
+* **EC's `exists* e{1}; elim* => v`** is `prhlStmt_fix_left (fun σ => …) fun v => ?_`; EC's `case`
+  is `equiv_case P`.  A trailing call coupled only by losslessness (`ll_get`): one-sided
+  `equiv_seq 1 0 / 0 1`, `equiv_if{i}`, `equiv_while{i} I V`; a variant through an `if` with a
+  sampling: `hoare_split 1; refine hoare_seq (hoare_if_wp (hoare_seq (hoare_assign_wp _ _ _)
+  (hoare_sample_wp _ _)) (hoare_skip_wp _)) ?_`.
+* **Reads through a call's frame** (`(Setter.throwaway.set r (ProgramState.globalL.set g τ))`):
+  `.globals` is `g` by `rfl`; a local read through `resetSetter`: `show` it on the reset alone,
+  `erw [intoLocal_varLens_get_resetSetter]; rw [if_neg (by simp [stringsStartingWith])]`.  Better:
+  split the argument copy off with `equiv_seq` first, so `equiv_skip` generalizes it.
+* **Running a game from a modified state** (EC's `TOTO` wrapper setting a local variable):
+  `Pr_eq_of_prhlProc (prhlProc_self_equal_outside_module X G hG (fun _ _ => True))` between `m`
+  and `X.set v m`, `G` not touching `X`.
+* **A section closed too late** (missing `end FinSim`) shows only as errors at the namespace's
+  `end`; the declarations in between silently gain the section's instance arguments.

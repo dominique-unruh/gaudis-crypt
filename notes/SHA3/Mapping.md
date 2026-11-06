@@ -30,7 +30,7 @@ Status: `—` not started · `def` definition ported · `stated` statement porte
 | `proof/SecureORO.eca` | 492 | 3 | `GaudisCrypt/Examples/SHA3/SecureORO.lean` |
 | `proof/IndifRO_is_secure.ec` | 218 | 3 | `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean` |
 | `proof/SHA3Security.ec` | 1275 | 23 | `GaudisCrypt/Examples/SHA3/SHA3Security.lean` |
-| `proof/SHA3OSecurity.ec` | 2652 | 26 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
+| `proof/SHA3OSecurity.ec` | 2652 | 41 | `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean` |
 
 ## `proof/Common.ec`
 
@@ -995,6 +995,10 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA3.SHA3OSecurity`.
 
+Status (2026-11-06): sections `Preimage` and `SecondPreimage` complete; 8 `sorry`s left, all in
+section `Collision` (`toto`, `titi`, `eager_ideal`, `rw_ideal_2`, `rw_ideal`, `leq_ideal`, `rw_real`,
+`Sponge_collision_resistant`).
+
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
 | 20 | op | `size_out` |  | `size_out` (field of `Params`) | def |
@@ -1065,25 +1069,25 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 992 | local module | `SORO_P2` | section SecondPreimage. | `SecondPreimage.SORO_P2` (`A` a Lean parameter; `OFC2(F)` written out) | def |
 | 1004 | local module | `RFList` | section SecondPreimage. | `SecondPreimage.RFList` (variable: lens `RFList_m`, E6) | def |
 | 1020 | local module | `RFWhile` | section SecondPreimage. | `SecondPreimage.RFWhile` | def |
-| 1042 | local equiv | `rw_RF_List_While` | section SecondPreimage. | `SecondPreimage.rw_RF_List_While` | stated |
-| 1065 | local equiv | `eq_IRO_RFWhile` | section SecondPreimage. | `SecondPreimage.eq_IRO_RFWhile` | stated |
+| 1042 | local equiv | `rw_RF_List_While` | section SecondPreimage. | `SecondPreimage.rw_RF_List_While` (the local modules are definitionally `Preimage`'s: `Preimage.rw_RF_List_While`; EC repeats the proof) | done |
+| 1065 | local equiv | `eq_IRO_RFWhile` | section SecondPreimage. | `SecondPreimage.eq_IRO_RFWhile` (`Preimage.eq_IRO_RFWhile`, as above) | done |
 | 1136 | local module | `ExtendSample` | section SecondPreimage. | `SecondPreimage.ExtendSample` (aliases call-wrapped, E5) | def |
-| 1151 | local equiv | `eq_extend` | section SecondPreimage. | `SecondPreimage.eq_extend` | stated |
+| 1151 | local equiv | `eq_extend` | section SecondPreimage. | `SecondPreimage.eq_extend` (`Preimage.eq_extend`, as above) | done |
 | 1193 | local lemma | `of_listK` | section SecondPreimage. | `SecondPreimage.of_listK` | done |
 | 1198 | local module | `Fill_In` | section SecondPreimage. | `SecondPreimage.Fill_In` (aliases call-wrapped, E5) | def |
-| 1218 | local equiv | `eq_eager_ideal` | section SecondPreimage. | `SecondPreimage.eq_eager_ideal` | stated |
-| 1234 | local equiv | `eq_eager_ideal2` | section SecondPreimage. | `SecondPreimage.eq_eager_ideal2` | stated |
+| 1218 | local equiv | `eq_eager_ideal` | section SecondPreimage. | `SecondPreimage.eq_eager_ideal` (`Preimage.eq_eager_ideal`, as above) | done |
+| 1234 | local equiv | `eq_eager_ideal2` | section SecondPreimage. | `SecondPreimage.eq_eager_ideal2` (`Preimage.eq_eager_ideal2`, as above) | done |
 | 1281 | local module | `Dist` | section SecondPreimage. | `SecondPreimage.Dist` (`A` a Lean parameter; alias call-wrapped, E5) | def |
 | 1286 | local module | `Game` | section SecondPreimage. | `SecondPreimage.Game` (`A` a Lean parameter) | def |
-| 1298 | local lemma | `eager_ideal` | section SecondPreimage. | `SecondPreimage.eager_ideal` | stated |
-| 1427 | local equiv | `toto` | section SecondPreimage. | `SecondPreimage.toto` | stated |
-| 1442 | local equiv | `titi` | section SecondPreimage. | `SecondPreimage.titi` | stated |
-| 1476 | local lemma | `rw_ideal_2` | section SecondPreimage. | `SecondPreimage.rw_ideal_2` | stated |
-| 1638 | local lemma | `rw_ideal` | section SecondPreimage. | `SecondPreimage.rw_ideal` | stated |
-| 1727 | local lemma | `leq_ideal` | section SecondPreimage. | `SecondPreimage.leq_ideal` | stated |
-| 1738 | local lemma | `rw_real` | section SecondPreimage. | `SecondPreimage.rw_real` | stated |
+| 1298 | local lemma | `eager_ideal` | section SecondPreimage. | `SecondPreimage.eager_ideal` (+ `DistFresh`, E6; `Preimage.eager_ideal_of`, the distinguisher-generic core of `Preimage.eager_ideal`, with this section's `Dist`/`Dist_game`) | done |
+| 1427 | local equiv | `toto` | section SecondPreimage. | `SecondPreimage.toto` (`ext_dfs_f`'s proof with `={glob OFC}` for the frame; framed on `Dist_of_P2Adv.m` as `toto_frame`) | done |
+| 1442 | local equiv | `titi` | section SecondPreimage. | `SecondPreimage.titi` (`fin_get`'s proof; `eq_IRO_RFWhile` framed on the counter and the bounder; `while{2}` for the right's loop) | done |
+| 1476 | local lemma | `rw_ideal_2` | section SecondPreimage. | `SecondPreimage.rw_ideal_2` (+ `DistFresh`; `eager_ideal`; `ext_game` (abstract call over `xL` as in Preimage, then `call toto; call toto`); `fin_game` (abstract call over `fL` framed on `Dist_of_P2Adv.m` via `fvP_finOL/OR`; `titi` on the first queries via `prhlStmt_fix_left` (EC's `exists*`); EC's `case` on the last: `titi` or `ll_get` (both sides lossless, `while{1}`/`while{2}`)); `rl_game` via `soro_spre_game`) | done |
+| 1638 | local lemma | `rw_ideal` | section SecondPreimage. | `SecondPreimage.rw_ideal` (+ `DistFresh`; `ri_game` via `soro_spre_game`, `Preimage.ri_init`/`ri_bget`) | done |
+| 1727 | local lemma | `leq_ideal` | section SecondPreimage. | `SecondPreimage.leq_ideal` (+ `DistFresh`; `SORO_P2_ec`; `RO_is_second_preimage_resistant`) | done |
+| 1738 | local lemma | `rw_real` | section SecondPreimage. | `SecondPreimage.rw_real` (+ `DistFresh`; `Preimage.rw_real`'s steps, `rr_F` and the abstract call framed on `Dist_of_P2Adv.m` via `fvP_rrFL/FR/OL/OR`) | done |
 | 1771 | local module | `TOTO` | section SecondPreimage. | `SecondPreimage.TOTO` (`A` a Lean parameter) | def |
-| 1780 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` | stated |
+| 1780 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m`, `Dist_of_P2Adv.m` fresh, E6; `TOTO` as running the game from the state with `Dist_of_P2Adv.m = mess`, `prhlProc_self_equal_outside_module`; `Dist_of_P2Adv_ll` by pHL; modulo `Gconcl_list.Real_lossless`) | exc |
 | 1811 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 1813 | local module | `FInit` | section Collision. | `Collision.FInit` (aliases call-wrapped, E5) | def |
 | 1818 | local module | `PInit` | section Collision. | `Collision.PInit` (aliases call-wrapped, E5) | def |
@@ -1096,14 +1100,14 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA
 | 1880 | local module | `SORO_Coll` | section Collision. | `Collision.SORO_Coll` (`A` a Lean parameter; `OFC2(F)` written out) | def |
 | 1891 | local module | `RFList` | section Collision. | `Collision.RFList` (variable: lens `RFList_m`, E6) | def |
 | 1907 | local module | `RFWhile` | section Collision. | `Collision.RFWhile` | def |
-| 1929 | local equiv | `rw_RF_List_While` | section Collision. | `Collision.rw_RF_List_While` | stated |
-| 1952 | local equiv | `eq_IRO_RFWhile` | section Collision. | `Collision.eq_IRO_RFWhile` | stated |
+| 1929 | local equiv | `rw_RF_List_While` | section Collision. | `Collision.rw_RF_List_While` (`Preimage.rw_RF_List_While`: the local modules are definitionally `Preimage`'s) | done |
+| 1952 | local equiv | `eq_IRO_RFWhile` | section Collision. | `Collision.eq_IRO_RFWhile` (`Preimage.eq_IRO_RFWhile`, as above) | done |
 | 2023 | local module | `ExtendSample` | section Collision. | `Collision.ExtendSample` (aliases call-wrapped, E5) | def |
-| 2038 | local equiv | `eq_extend` | section Collision. | `Collision.eq_extend` | stated |
+| 2038 | local equiv | `eq_extend` | section Collision. | `Collision.eq_extend` (`Preimage.eq_extend`, as above) | done |
 | 2077 | local lemma | `of_listK` | section Collision. | `Collision.of_listK` | done |
 | 2082 | local module | `Fill_In` | section Collision. | `Collision.Fill_In` (aliases call-wrapped, E5) | def |
-| 2102 | local equiv | `eq_eager_ideal` | section Collision. | `Collision.eq_eager_ideal` | stated |
-| 2118 | local equiv | `eq_eager_ideal2` | section Collision. | `Collision.eq_eager_ideal2` | stated |
+| 2102 | local equiv | `eq_eager_ideal` | section Collision. | `Collision.eq_eager_ideal` (`Preimage.eq_eager_ideal`, as above) | done |
+| 2118 | local equiv | `eq_eager_ideal2` | section Collision. | `Collision.eq_eager_ideal2` (`Preimage.eq_eager_ideal2`, as above) | done |
 | 2165 | local module | `Dist` | section Collision. | `Collision.Dist` (`A` a Lean parameter; alias call-wrapped, E5) | def |
 | 2170 | local module | `Game` | section Collision. | `Collision.Game` (`A` a Lean parameter) | def |
 | 2182 | local lemma | `eager_ideal` | section Collision. | `Collision.eager_ideal` | stated |
