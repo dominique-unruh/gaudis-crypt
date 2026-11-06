@@ -155,5 +155,12 @@ Missing pieces, in order:
     longer assumed: `Module.Declared.ecModule A Oracle.ext` proves `Module.ECModule` from
     `Module.representable_of_firstOrder`, side conditions by auto-params.  The statement now has
     EC's hypotheses only.
-  * Proofs are still the old ones (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
+  * **Step 4 started**: `Logic/PrTactics.lean`, `byequiv` and `byphoare` on `Pr[ ]` goals (real
+    probabilities: small `toReal` bridges over `Procedure.Pr_eq_of_prhlProc`/`_le_`/
+    `Pr_of_phoareProc`).  Without a term they leave the judgment with EC's defaults (`={arg,
+    glob}` / `arg = a ∧ glob = m`, events related, bound `ENNReal.ofReal x`); with a term the side
+    conditions, tried by `rfl`/`trivial`/`simp_all`/`positivity`.  The pilot's main theorem is
+    now `calc … := by byequiv (Preimage_Preimage2 A); _ ≤ … := by byphoare (Preimage2_le A); <EC's
+    arithmetic>` (EC: `have->: … by byequiv; …; byphoare …`).
+  * Proofs of `Preimage2_le`/`FEL_preimagePotential` are still the old ones (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
     arithmetic): steps 3–4.

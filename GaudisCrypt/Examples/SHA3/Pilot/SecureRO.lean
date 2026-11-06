@@ -1,6 +1,7 @@
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Syntax.PrSyntax
 import GaudisCrypt.Logic.DeclareModule
+import GaudisCrypt.Logic.PrTactics
 
 /-!
 # Random oracles are preimage resistant — the EC-fidelity pilot
@@ -303,29 +304,28 @@ theorem Preimage_Preimage2 :
 /-- EC's `RO_is_preimage_resistant &m (h : to)`. -/
 theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (h : «to») :
     Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
-  -- `have->: Pr[Preimage(A,RO).main(h) @ &m : res] = Pr[Preimage2(A,RO).main(h) @ &m : res]`
-  show (Procedure.Pr Preimage(A, RO).main.procedure h m (fun r _ => r = true) : ℝ) ≤ _
-  rw [Procedure.Pr_eq_of_prhlProc (Preimage_Preimage2 A)
-    (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
-    (fun r₁ _ r₂ _ hr => by rw [hr]) (a₁ := h) (a₂ := h) (σ₁ := m) (σ₂ := m) ⟨rfl, rfl⟩]
-  -- `byphoare`, `seq 1`, `fel`
-  have hB := Preimage2_le A h m trivial
-  rw [← Procedure.Pr_eq_ewp] at hB
-  -- the arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
-  set μ := sampleto.1 {h}
-  have hμ : μ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
-    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
-  simp only [Finset.sum_const, Int.toNat_zero, Nat.card_Ico, Nat.sub_zero, nsmul_eq_mul] at hB
-  have hR := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr
-    ⟨ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hμ, hμ⟩) hB
-  rw [ENNReal.coe_toReal, ENNReal.toReal_add (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) hμ) hμ,
-    ENNReal.toReal_mul, ENNReal.toReal_natCast] at hR
-  refine hR.trans (le_of_eq ?_)
-  have hb := bound_gt0 (self := inferInstance)
-  rw [show ((bound.toNat : ℕ) : ℝ) = (bound : ℝ) by exact_mod_cast Int.toNat_of_nonneg hb.le]
-  unfold mu1
-  push_cast
-  ring
+  calc Pr[ Preimage(A, RO).main (h) @ &m : §res ]
+      = Pr[ Preimage.Preimage2(A, RO).main (h) @ &m : §res ] := by
+        byequiv (Preimage_Preimage2 A)
+    _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
+        byphoare (Preimage2_le A)
+        -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
+        · have hμ : sampleto.1 {h} ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
+            ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
+          have hb := bound_gt0 (self := inferInstance)
+          have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
+          simp only [Finset.sum_const, Int.toNat_zero, Nat.card_Ico, Nat.sub_zero, nsmul_eq_mul]
+          refine le_of_eq ?_
+          rw [mu1, ENNReal.ofReal_mul (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1)),
+            ENNReal.ofReal_toReal hμ,
+            show (((bound + 1 : ℤ)) : ℝ) = ((bound.toNat + 1 : ℕ) : ℝ) by
+              push_cast; rw [show ((bound.toNat : ℕ) : ℝ) = (bound : ℝ) by exact_mod_cast hn],
+            ENNReal.ofReal_natCast]
+          push_cast
+          rw [add_mul, one_mul]
+          rfl
+        · have hb := bound_gt0 (self := inferInstance)
+          exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1)) ENNReal.toReal_nonneg
 
 end Preimage
 

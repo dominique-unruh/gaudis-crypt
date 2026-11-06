@@ -112,6 +112,7 @@ import GaudisCrypt.Logic.ConcreteFootprint
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.DeclareModule
+import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHL2Upto
 import GaudisCrypt.Logic.PRHLStmt
