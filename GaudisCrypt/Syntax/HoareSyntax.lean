@@ -280,6 +280,29 @@ private partial def stringList? (e : Lean.Expr) : MetaM (Option (List String)) :
       return (s :: ·) <$> (← stringList? t)
   | _ => return none
 
+/-- The names recorded on the procedure `X.f` of a `module X` applied to its parameters: for
+`Module.app X …` with `X` a single-procedure module (its procedure `f` read off `X`'s definition),
+and for an accessor `C.f (Module.app X …)` (EC's path `X(…).f`). -/
+private def appliedModuleParamNames? (M : Lean.Expr) : MetaM (Option (Array Name)) := do
+  let env ← getEnv
+  let headModule (e : Lean.Expr) : Option Name := Id.run do
+    let mut f := e
+    while f.isAppOfArity ``Module.app 6 do f := f.getArg! 4
+    return f.getAppFn.constName?
+  -- `C.f (Module.app X …)`: `X.f`
+  if let some c := M.getAppFn.constName? then
+    if env.contains (c ++ `utilities) && M.getAppNumArgs ≥ 1 then
+      if let some x := headModule M.appArg! then
+        return gaudiProcParamNamesAttr.getParam? env (x ++ Name.mkSimple c.getString!)
+  -- `Module.app X …`, `X` with a single procedure `X.f`
+  unless M.isAppOfArity ``Module.app 6 do return none
+  let some x := headModule M | return none
+  let some v := (env.find? x).bind (·.value?) | return none
+  let procs := (v.getUsedConstants.filter fun c =>
+    c.getPrefix == x && env.contains (c ++ `procedure)).toList.eraseDups
+  let [f] := procs | return none
+  return gaudiProcParamNamesAttr.getParam? env f
+
 /-- The parameter names of the procedure `p` that can be found without being written: the ones
 `@[gaudiProcParamNames]` records (on `M` for `p = Module.Proc.procedure M`), else
 `p.parameterNames` if it reduces to a literal list (a `proc` literal, say). -/
@@ -294,7 +317,13 @@ there are any (they win, with a warning when the known names disagree), else the
 (`knownParamNames?`). -/
 def paramNamesOf (M : Term) (written? : Option (Array Ident)) (p : Lean.Expr) (n : Nat) :
     TermElabM (Array Name) := do
-  let recorded? ← knownParamNames? p
+  -- for a triple also the names of an applied `module`'s procedure (not in `knownParamNames?`,
+  -- which also names the variables of `*_proc_to_stmt`, whose existing proofs rely on them)
+  let recorded? ← match ← knownParamNames? p with
+    | some ns => pure (some ns)
+    | none => match procModule? p with
+      | some M => appliedModuleParamNames? M
+      | none => pure none
   match written? with
   | some ids =>
       let written := ids.map (·.getId)

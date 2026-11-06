@@ -80,4 +80,33 @@ noncomputable example : ℝ := Pr[ FairCoin.neg(3) @ &m : §res = -3 ]
 #guard_msgs in
 noncomputable example := Both(FairCoin, FairCoin).run
 
+-- the parameter names of a single-procedure module's procedure, through `Module.app`
+module One using (C : Coin) {
+  proc main (k : Int) : Int {
+    var r : Int;
+    r <- call C.neg ($k);
+    return $r
+  };
+}
+
+#roundtrip hoare[ One(FairCoin).main : §k = 1 ==> §res = -1 ]
+
+-- EC's subtyping by a coercion: the record it builds prints as the module
+moduletype Flip {
+  proc flip () -> Bool;
+}
+
+noncomputable instance : Coe Coin Flip := ⟨fun C => Flip.mk { flip := Coin.flip C }⟩
+
+module UseFlip using (F : Flip) {
+  proc main () : Bool {
+    var b : Bool;
+    b <- call F.flip ();
+    return $b
+  };
+}
+
+#roundtrip UseFlip(FairCoin).main
+#roundtrip UseFlip(Swap(FairCoin)).main
+
 end GaudisCrypt.ModuleApplicationSyntaxTest

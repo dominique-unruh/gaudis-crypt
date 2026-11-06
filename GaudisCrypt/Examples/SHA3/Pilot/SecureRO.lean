@@ -74,6 +74,12 @@ noncomputable def Oracle.ext (F : Oracle «from» «to») : (Oracle.holes «from
 /-- EC's `module type AdvPreimage (F : Oracle) = { proc guess(h : to) : from }`. -/
 abbrev AdvPreimage := Oracle «from» «to» →ₘ procmod («to») → «from»
 
+/-- EC's `module type AdvSecondPreimage (F : Oracle) = { proc guess(m : from) : from }`. -/
+abbrev AdvSecondPreimage := Oracle «from» «to» →ₘ procmod («from») → «from»
+
+/-- EC's `module type AdvCollision (F : Oracle) = { proc guess() : from * from }`. -/
+abbrev AdvCollision := Oracle «from» «to» →ₘ procmod () → («from» × «from»)
+
 /-! EC's subtyping of module types, as coercions.  Each is a `fun` building the smaller module
 in place: the coercion then unfolds to that record, which is what the `module` command reads a
 callee like `A(Bounder(F))` back from (a named coercion function it would not see through). -/
@@ -103,11 +109,32 @@ instance [Params «from» «to»] : Lens.IsGlobalVar (RO.m : Lens (FMap «from»
     (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.RO.m" (FMap «from» «to»)) :=
   ⟨rfl, HEq.rfl⟩
 
+/-- The clone's `FRO.m`, written out as `RO.m` is. -/
+@[nolint unusedArguments]
+noncomputable def FRO.m [Params «from» «to»] : Lens (FMap «from» («to» × flag)) VariableAssignment :=
+  varLens (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.FRO.m" (FMap «from» («to» × flag)))
+
+instance [Params «from» «to»] :
+    Lens.IsGlobalVar (FRO.m : Lens (FMap «from» («to» × flag)) VariableAssignment)
+    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.FRO.m" (FMap «from» («to» × flag))) :=
+  ⟨rfl, HEq.rfl⟩
+
 variable [Params «from» «to»]
 
 /-- The clone's `RO`. -/
 noncomputable abbrev RO : PROM.FullRO.RO_T «from» «to» :=
   PROM.FullRO.RO.asRO «from» «to» (fun _ => sampleto) RO.m
+
+/-- The clone's lazy `LRO`. -/
+noncomputable abbrev RO.LRO : PROM.FullRO.RO_T «from» «to» :=
+  PROM.FullRO.LRO «from» «to» (fun _ => sampleto) RO.m
+
+/-- The clone's `FRO`. -/
+noncomputable abbrev FRO : PROM.FullRO.FRO_T «from» «to» :=
+  PROM.FullRO.FRO «from» «to» (fun _ => sampleto) FRO.m
+
+/-- `RO` at the module type `RF` (the coercion, written out where a name is wanted). -/
+noncomputable abbrev RO.asRF : RF «from» «to» := (RO : RF «from» «to»)
 
 global_var Counter.c : ℤ
 
@@ -253,7 +280,7 @@ theorem Bounder_RO_get_fel (h : «to») :
 [Bounder(RO).get: …]`: `FEL(A, RO).main` ends with `h` in the range of `RO.m` with probability at
 most `bound · μ1 sampleto h` (`Module.fel`, the oracle's premises `Bounder_RO_get_fel`). -/
 theorem FEL_rng [Countable «from»] (h : «to») :
-    phoare[ Preimage.FEL(A, RO).main (hash) : True ==> FMap.rng §RO.m h ]
+    phoare[ Preimage.FEL(A, RO).main : True ==> FMap.rng §RO.m h ]
       ≤ (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h}) := by
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
     rw [Footprint.lens_pair]
@@ -287,7 +314,7 @@ theorem FEL_rng [Countable «from»] (h : «to») :
 already in the range of `RO.m` (EC's `fel`, `FEL_rng`) or with probability `μ1 sampleto h`.  (Our
 `seq` counts the two statements `proc` adds for the argument.) -/
 theorem Preimage2_le [Countable «from»] (h : «to») :
-    phoare[ Preimage.Preimage2(A, RO).main (hash) : §hash = h ==> §res ]
+    phoare[ Preimage.Preimage2(A, RO).main : §hash = h ==> §res ]
       ≤ ((∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h}) + sampleto.1 {h}) := by
   phoare_proc_to_stmt
   phoare_inline 0
@@ -337,7 +364,7 @@ theorem Preimage2_le [Countable «from»] (h : «to») :
 /-- The first `have` of EC's proof: `Preimage(A, RO).main ~ Preimage2(A, RO).main`, by EC's
 `byequiv; proc; inline*; sim` (`Counter.init` is dead: `Bounder.init` runs it again). -/
 theorem Preimage_Preimage2 :
-    equiv[ Preimage(A, RO).main (hash) ~ Preimage.Preimage2(A, RO).main (hash) :
+    equiv[ Preimage(A, RO).main ~ Preimage.Preimage2(A, RO).main :
       ={hash, allGlobals} ==> ={res} ] := by
   equiv_proc
   stmt_inline 0

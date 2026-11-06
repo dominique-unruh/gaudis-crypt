@@ -114,6 +114,27 @@ elab_rules : term
 section Printing
 open PrettyPrinter Delaborator SubExpr Meta ModuleApplication
 
+/-- `T.mk (T.Structure.mk (C.f₁ X) … (C.fₙ X))`, a `moduletype`'s record whose fields are all
+accessors applied to one module `X` (what a coercion for EC's subtyping builds): the index, in the
+structure constructor's arguments, of the first field. -/
+def subRecordField? (e : Lean.Expr) : MetaM (Option Nat) := do
+  let env ← getEnv
+  let some ctorFn := e.getAppFn.constName? | return none
+  unless ctorFn.getString! == "mk" && env.contains (ctorFn.getPrefix ++ `mk_destruct) do
+    return none
+  unless e.getAppNumArgs ≥ 1 do return none
+  let s := e.appArg!
+  let some ctor := s.getAppFn.constName? | return none
+  let some (.ctorInfo ci) := env.find? ctor | return none
+  let args := s.getAppArgs
+  unless args.size == ci.numParams + ci.numFields && ci.numFields ≥ 1 do return none
+  let fields := args.extract ci.numParams args.size
+  let some X := (fields[0]!).getAppArgs.back? | return none
+  for f in fields do
+    let some c := f.getAppFn.constName? | return none
+    unless isAccessor env c && f.getAppArgs.back? == some X do return none
+  return some ci.numParams
+
 /-- The arguments of a module application: a right-nested `Module.pair` chain split into its
 components, each printed as a module path. -/
 partial def delabPairArgs : DelabM (Array (TSyntax `ec_mod)) := do
@@ -126,6 +147,11 @@ where
   parenthesized term. -/
   delabEcMod : DelabM (TSyntax `ec_mod) := do
     if let some (m, args) ← delabApp? then return ← `(ec_mod| $m:ident($args,*))
+    -- EC's subtyping: a record of another module's own fields (`RF.mk { init := X.init, get :=
+    -- X.get }`, what a coercion builds) prints as that module, which elaborates back through the
+    -- coercion
+    if let some i ← subRecordField? (← getExpr) then
+      return ← withAppArg <| withNaryArg i <| withAppArg delabEcMod
     let t ← delab
     if let `($x:ident) := t then return ← `(ec_mod| $x:ident)
     `(ec_mod| ($t))

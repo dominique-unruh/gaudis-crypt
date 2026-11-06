@@ -104,6 +104,16 @@ theorem Module.Declared.le_compl {M : Type 1} [IsModule M] (A : M)
     {S : Footprint VariableAssignment} [h : Module.Declared A S] : FVP.fvP A ≤ Sᶜ :=
   h.restr
 
+/-- A global variable's footprint is finitely supported (one variable): what `Module.Declared`'s
+finite support combines with for the modules built from declared ones and the theory's variables. -/
+theorem Lens.IsGlobalVar.footprint_finitelySupported {T : Type} (x : Lens T VariableAssignment)
+    {v : VariableName} [h : Lens.IsGlobalVar x v] : x.footprint.FinitelySupported := by
+  obtain ⟨hT, hx⟩ := h
+  cases v
+  subst hT
+  cases eq_of_heq hx
+  exact Footprint.FinitelySupported.varLens _
+
 namespace DeclareModule
 
 open Meta

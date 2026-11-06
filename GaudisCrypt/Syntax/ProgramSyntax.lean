@@ -1221,13 +1221,27 @@ private partial def replaceVarSlots (ts : Array Lean.Expr) (fv : Lean.Expr) (e :
     | .proj s i b => .proj s i (replaceVarSlots ts fv b)
     | e => e
 
-/-- Does a constant or a binder in `e` carry the name `n`?  Then a variable `n` printed as an
-identifier could not be told apart from it. -/
-private def nameClashes (n : String) (e : Lean.Expr) : Bool :=
+/-- Does a binder in `e` carry the name `n`?  Then a variable `n` printed as an identifier could
+not be told apart from it. -/
+private def binderClashes (n : String) (e : Lean.Expr) : Bool :=
   (e.find? fun
-    | .const c _ => match c with | .str _ s => s == n | _ => false
     | .lam nm .. | .forallE nm .. | .letE nm .. => nm.eraseMacroScopes == .str .anonymous n
     | _ => false).isSome
+
+/-- The constants in `e` whose last name component is `n`. -/
+private def constsNamed (n : String) (e : Lean.Expr) : Array Name :=
+  e.foldConsts #[] fun c acc => match c with
+    | .str _ s => if s == n && !acc.contains c then acc.push c else acc
+    | _ => acc
+
+/-- Does a constant in `es` print as the identifier `n` here — does `n` resolve to it?  Then a
+variable `n` printed as an identifier could not be told apart from it.  (A constant that merely
+ends in `n`, `X.n` outside `X`, prints as `X.n`: no clash.) -/
+private def constClashes (n : String) (es : Array Lean.Expr) : MetaM Bool := do
+  let cs := es.foldl (fun acc e => acc ++ constsNamed n e) #[]
+  if cs.isEmpty then return false
+  let res ← resolveGlobalName (Name.mkSimple n)
+  return cs.any fun c => res.any fun (c', fields) => c' == c && fields.isEmpty
 
 /-- A program variable of a frame: its name, its type, the occurrences of its slot, and whether
 it prints under its name. -/
@@ -1252,9 +1266,10 @@ def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
         else
           vars := vars.set! i { v with printable := false }
     | none => vars := vars.push ⟨n, ty, #[t], true⟩
-  return vars.map fun v =>
-    { v with printable := v.printable && !v.name.isEmpty && !v.name.contains '»'
-                          && !es.any (nameClashes v.name) }
+  vars.mapM fun v => do
+    let printable := v.printable && !v.name.isEmpty && !v.name.contains '»'
+      && !es.any (binderClashes v.name)
+    return { v with printable := printable && !(← constClashes v.name es) }
 
 /-- Bind each variable of `vars` to a let-variable of its name, replace its slots in `es` by it,
 and run `k` on the rewritten terms. -/
