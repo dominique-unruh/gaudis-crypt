@@ -4,6 +4,7 @@ import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.PHoareSeq
+import GaudisCrypt.Syntax.ModuleVar
 
 /-!
 # Random oracles are preimage resistant — the EC-fidelity pilot
@@ -55,29 +56,13 @@ variable {«from» «to» : Type} [DecidableEq «from»] [Inhabited «from»] [I
 /-! `clone import PROM.FullRO as RO with type in_t <- from, type out_t <- to,
 op dout _ <- sampleto, …`: its module variable `RO.m`, and its module `RO`. -/
 
-/-- The clone's module variable `RO.m`: `global_var RO.m : FMap from to`, written out so that it
-takes the theory's instance — through its `outParam`s, `RO.m` alone then determines its types,
-as in EC.  (`global_var` only takes the section variables its type mentions.) -/
-@[nolint unusedArguments]
-noncomputable def RO.m [Params «from» «to»] : Lens (FMap «from» «to») VariableAssignment :=
-  varLens (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.RO.m" (FMap «from» «to»))
-
-instance [Params «from» «to»] : Lens.IsGlobalVar (RO.m : Lens (FMap «from» «to») VariableAssignment)
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.RO.m" (FMap «from» «to»)) :=
-  ⟨rfl, HEq.rfl⟩
-
-/-- The clone's `FRO.m`, written out as `RO.m` is. -/
-@[nolint unusedArguments]
-noncomputable def FRO.m [Params «from» «to»] :
-    Lens (FMap «from» («to» × flag)) VariableAssignment :=
-  varLens (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.FRO.m" (FMap «from» («to» × flag)))
-
-instance [Params «from» «to»] :
-    Lens.IsGlobalVar (FRO.m : Lens (FMap «from» («to» × flag)) VariableAssignment)
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.FRO.m" (FMap «from» («to» × flag))) :=
-  ⟨rfl, HEq.rfl⟩
-
 variable [Params «from» «to»]
+
+/-- The clone's module variables `RO.m`, `FRO.m` (`module_var`: they take the theory's instance,
+whose `outParam`s fix their types). -/
+module_var RO.m : FMap «from» «to»
+
+module_var FRO.m : FMap «from» («to» × flag)
 
 /-! The module types.  Their types are the theory's (implicit, fixed by `Params`'s `outParam`s), so
 they are written as in EC: `RF`, `Oracle`, `AdvPreimage`. -/

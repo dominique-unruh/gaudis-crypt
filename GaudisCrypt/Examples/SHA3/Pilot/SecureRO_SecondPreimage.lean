@@ -71,29 +71,9 @@ module FEL using (A : AdvSecondPreimage, F : PROM.FullRO.RO_T «from» «to») {
 needed: they are disjoint from the theory's by instance search, and the declared adversary is
 restricted against the local modules, as EC's local modules are fresh). -/
 
-set_option linter.overlappingInstances false in
-/-- EC's `SecondPreimage2.m2` (as `RO.m`, with the theory's instance, which fixes its type). -/
-@[nolint unusedArguments]
-noncomputable def SecondPreimage2.m2 [Params «from» «to»] : Lens «from» VariableAssignment :=
-  varLens
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.SecondPreimage2.m2" «from»)
+module_var SecondPreimage2.m2 : «from»
 
-set_option linter.overlappingInstances false in
-instance [Params «from» «to»] :
-    Lens.IsGlobalVar (SecondPreimage2.m2 : Lens «from» VariableAssignment)
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.SecondPreimage2.m2" «from») :=
-  ⟨rfl, HEq.rfl⟩
-
-set_option linter.overlappingInstances false in
-/-- EC's `D1.m1` (as `RO.m`, with the theory's instance, which fixes its type). -/
-@[nolint unusedArguments]
-noncomputable def D1.m1 [Params «from» «to»] : Lens «from» VariableAssignment :=
-  varLens (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.D1.m1" «from»)
-
-set_option linter.overlappingInstances false in
-instance [Params «from» «to»] : Lens.IsGlobalVar (D1.m1 : Lens «from» VariableAssignment)
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.D1.m1" «from») :=
-  ⟨rfl, HEq.rfl⟩
+module_var D1.m1 : «from»
 
 open Classical in
 module SecondPreimage2 using (A : AdvSecondPreimage, F : PROM.FullRO.RO_T «from» «to») {

@@ -118,13 +118,19 @@ namespace DeclareModule
 
 open Meta
 
-/-- `c` is a `global_var` (or one written out like it): its value is `varLens …` under the
-binders of its implicit arguments. -/
+/-- `c` is a `global_var` or a `module_var`: its value is `varLens …` under the binders of its
+implicit arguments (and `module_var`'s `have`s). -/
 def isGlobalVar (env : Environment) (c : Name) : Bool := Id.run do
   let some ci := env.find? c | return false
   let some v := ci.value? | return false
+  -- under the binders of the implicit arguments and the `have`s of `module_var`
   let rec body : Lean.Expr → Lean.Expr
     | .lam _ _ b _ => body b
+    | .letE _ _ _ b _ => body b
+    | e@(.app (.app (.app (.app (.const ``letFun _) _) _) _) f) =>
+      match f with
+      | .lam _ _ b _ => body b
+      | _ => e
     | e => e
   return (body v).isAppOf ``varLens
 
