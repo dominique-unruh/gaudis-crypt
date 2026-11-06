@@ -115,6 +115,7 @@ import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.Fel
+import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype

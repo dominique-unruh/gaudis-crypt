@@ -125,16 +125,23 @@ theorem Collision_Collision2 (A : AdvCollision) :
     case «else» => equiv_sim
     case guard => intros; simp_all
 
-/-- EC's `fel` premises for the oracle `Bounder(RO).get` in `RO_is_collision_resistant`, over
-`(Bounder.bounder, RO.m)`: the event `collision RO.m`, the step `Bounder.bounder · μ1 sampleto _`,
-the invariant `card (fdom RO.m) <= Bounder.bounder`. -/
-theorem Bounder_RO_get_fel_coll :
-    FelOracle (Lens.pair Bounder.bounder RO.m) (fun s => s.1)
-      (fun i => (i.toNat : ENNReal) * sampleto.1 {default}) bound (fun s => collision s.2)
-      (fun s => ((FMap.fdom s.2).card : ℤ) ≤ s.1) (fun s => s.1 < bound)
-      Bounder(RO).get.procedure where
-  lt := fun _ _ _ hp => hp
-  step := by
+/-- EC's `fel 1 Bounder.bounder (fun i, i%r * mu1 sampleto witness) bound (collision RO.m)
+[Bounder(RO).get: …] (card (fdom RO.m) <= Bounder.bounder <= bound)`. -/
+theorem FEL_coll [Countable «from»] :
+    phoare[ Collision.FEL(A, RO).main : True ==> collision §RO.m ]
+      ≤ (∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) := by
+  phoare_proc_to_stmt
+  repeat phoare_inline 0
+  phoare_wp 1
+  fel §Bounder.bounder (fun i => (i.toNat : ENNReal) * sampleto.1 {default}) bound
+    (collision §RO.m) [§Bounder.bounder < bound] (((FMap.fdom §RO.m).card : ℤ) ≤ §Bounder.bounder)
+  case sum => exact le_rfl
+  case init =>
+    hoare_wp 20
+    hoare_skip
+    intros
+    simpa [FMap.fdom, FMap.empty] using not_collision_empty (α := «from») (β := «to»)
+  case step =>
     phoare_proc_to_stmt
     repeat phoare_inline 0
     phoare_wp 20
@@ -155,7 +162,8 @@ theorem Bounder_RO_get_fel_coll :
     all_goals first
       | exact bot_le
       | exact (le_of_eq (SubProbability.expected_eq_zero_of_support fun _ _ => rfl)).trans bot_le
-  incr := fun c => by
+  case incr =>
+    intro c
     hoare_proc_to_stmt
     repeat hoare_inline 0
     hoare_wp 20
@@ -169,7 +177,8 @@ theorem Bounder_RO_get_fel_coll :
     have hi1 : ((FMap.fdom (RO.m.get τ.globals)).card : ℤ) ≤ Bounder.bounder.get τ.globals + 1 := by
       omega
     split_ifs <;> simp_all
-  same := fun c => by
+  case same =>
+    intro c
     hoare_proc_to_stmt
     repeat hoare_inline 0
     hoare_wp 20
@@ -178,7 +187,7 @@ theorem Bounder_RO_get_fel_coll :
     simp only [Lens.pair, eval_lens_global] at hi hc hb hcc
     split_ifs <;> simp_all
     omega
-  keep := by
+  case keep =>
     hoare_proc_to_stmt
     repeat hoare_inline 0
     hoare_wp 20
@@ -196,39 +205,6 @@ theorem Bounder_RO_get_fel_coll :
       omega
     split_ifs <;> simp_all
 
-
-/-- EC's `fel 1 Bounder.bounder (fun i, i%r * mu1 sampleto witness) bound (collision RO.m)
-[Bounder(RO).get: …] (card (fdom RO.m) <= Bounder.bounder <= bound)`. -/
-theorem FEL_coll [Countable «from»] :
-    phoare[ Collision.FEL(A, RO).main : True ==> collision §RO.m ]
-      ≤ (∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) := by
-  have hA := Module.Declared.ecModule A (Oracle.ext)
-  have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
-    rw [Footprint.lens_pair]
-    fp_disjoint
-  phoare_proc_to_stmt
-  repeat phoare_inline 0
-  phoare_ewp
-  rename_i σ _
-  erw [Stmt.ewp_call]
-  simp_reads
-  refine le_trans (Module.fel (L := Lens.pair Bounder.bounder RO.m) (cntr := fun s => s.1)
-    (step := fun i => (i.toNat : ENNReal) * sampleto.1 {default}) (q := bound)
-    (bad := fun s => collision s.2) (inv := fun s => ((FMap.fdom s.2).card : ℤ) ≤ s.1)
-    A (Oracle.ext) hA.representable hL
-    (fun n => by cases n with
-      | zero => exact inferInstanceAs (Countable «from»)
-      | succ m => nomatch m)
-    _ (fun _ s => s.1 < bound)
-    (fun n => by cases n with
-      | zero =>
-        simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single]
-        exact Bounder_RO_get_fel_coll
-      | succ m => nomatch m) _ _ ?_ ?_) ?_
-  · simp [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set, FMap.fdom, FMap.empty]
-  · simpa [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set] using
-      not_collision_empty (α := «from») (β := «to»)
-  · simp [Lens.pair, Lens.get_of_disjoint_set, Lens.set_get]
 
 /-- EC's `byphoare=> //; proc; seq 1 : (collision RO.m)
 ((bound * (bound - 1))%r / 2%r * mu1 sampleto witness) 1%r 1%r (mu1 sampleto witness) (…)`.

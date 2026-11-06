@@ -280,3 +280,17 @@ Validation after each phase: `SecureORO` (SecureRO's twin) with the new machiner
 `SecureORO`, `IndifRO_is_secure`, `SHA3Security` to the pilot and retire the old file.
 
 Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own commands where needed.
+
+### Phase 2 progress
+
+* **A done** (A4 folded into B7): implicit theory types (`RF`, `Oracle`, `declare module A <:
+  AdvPreimage`), `module_var` (`Syntax/ModuleVar.lean`), `module_subtype`
+  (`Syntax/ModuleSubtype.lean`), axioms by name.
+* **B7 done**: `fel cntr step q bad [pre] inv` (`Logic/FelTactic.lean`, rule `phoareStmt_fel`):
+  the state view inferred from the globals the conditions read, `D`, its oracles' `T.ext`,
+  representability, countability, footprints and the result variable discharged; EC's goals left
+  in EC's order (`sum`, `init`, the oracle's `step`, `incr`, `same`, `keep`).  The pilot's three
+  `fel` lemmas are EC's script with bullets; the three oracle-premise lemmas
+  (`Bounder_RO_get_fel*`) and all `Module.fel`/`Lens.pair`/`Oracle.ext` plumbing in them are gone.
+  One oracle only for now.
+* Pilot: 1353 lines (from 1452), auxiliary theorems 21 (from 24).

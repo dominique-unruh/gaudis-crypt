@@ -162,4 +162,45 @@ theorem Module.hoare_app_inv {T : Type 1} [IsModule T] {sig : ProcedureSignature
       (Procedure.ewp_const_le _ _ _ _)
     by_cases h : I (L.get g'') <;> simp [h]
 
+/-- A statement about every oracle of a single-oracle module type: the one oracle. -/
+theorem HoleIndex.forall_single {s : ProcedureSignature}
+    {P : ∀ {sig' : ProcedureSignature}, HoleIndex (.cons s .empty) sig' → Prop}
+    (h : P .zero) : ∀ {sig' : ProcedureSignature} (n : HoleIndex (.cons s .empty) sig'), P n := by
+  intro _ n
+  cases n with
+  | zero => exact h
+  | succ n => nomatch n
+
+/-- **EC's `fel` on a statement**: if `s₀` establishes the invariant, `¬ bad` and `cntr = 0`, then
+after `s₀; x <- call D(O)` (`D` abstract, its oracles with `fel`'s premises, the result `x` outside
+the view `L`) `bad` holds with probability at most `∑_{i ∈ [0, q)} step i`, and so at most any
+`r` above it.  The tactic `fel` (`Logic/FelTactic.lean`) applies it. -/
+theorem phoareStmt_fel {T : Type 1} [IsModule T] {sig : ProcedureSignature} {holes : HoleSigs}
+    (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (hdisj : FVP.fvP D ≤ (L.footprint)ᶜ)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O : T) (pre : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Ω → Prop)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      FelOracle L cntr step q bad inv (pre n) ((ext O).lookup n))
+    {A : ProgramState → Prop} {s₀ : Stmt} {x : Setter sig.ret ProgramState}
+    {e : Getter sig.ParamType ProgramState} {r : ENNReal}
+    (hx : ∀ v τ, L.get (x.set v τ).globals = L.get τ.globals)
+    (hinit : hoareStmt A s₀ fun τ => inv (L.get τ.globals) ∧ ¬ bad (L.get τ.globals) ∧
+      cntr (L.get τ.globals) = 0)
+    (hsum : ∑ i ∈ Finset.Ico 0 q, step i ≤ r) :
+    phoareStmt A (.seq s₀ (Stmt.call x (Module.app D O).procedure e))
+      (fun τ => indicatorE (bad (L.get τ.globals))) (@LE.le ENNReal _) (fun _ => r) := by
+  intro σ hA
+  rw [Stmt.ewp_seq, Stmt.ewp_call]
+  have hσ := hoare_pre hinit fun τ (hτ : τ = σ) => hτ ▸ hA
+  refine (Stmt.ewp_mono_of_hoare hσ (G := fun _ => r) fun τ ⟨hi, hb, h0⟩ => ?_).trans
+    (Stmt.ewp_const_le _ _ _)
+  have hfel := Module.fel D ext hD hdisj hc O pre horacle (e.get τ) τ.globals hi hb
+  rw [h0] at hfel
+  refine le_of_eq_of_le ?_ (hfel.trans hsum)
+  congr 1
+  funext v gl
+  rw [hx]
+  rfl
+
 end GaudisCrypt

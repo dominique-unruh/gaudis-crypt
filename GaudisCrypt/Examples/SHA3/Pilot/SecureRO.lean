@@ -2,7 +2,7 @@ import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Syntax.PrSyntax
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
-import GaudisCrypt.Logic.Fel
+import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
@@ -207,21 +207,31 @@ declare module A <: AdvPreimage {-RO, -Preimage}
 
 /-! ### The proof of `RO_is_preimage_resistant`
 
-EC's `fel` is the library rule `Module.fel` (`Logic/Fel.lean`), its oracle premises
-(`Bounder_RO_get_fel`) proven with `hoare_wp`/`phoare_wp`; the generic `FMap` facts are the old
-file's. -/
+EC's `fel` is the tactic `fel` (`Logic/FelTactic.lean`), its oracle's premises EC's bullets proven
+with `hoare_wp`/`phoare_wp`; the generic `FMap` facts are the old file's. -/
 
 open GaudisCrypt.SHA3.SecureRO (not_rng_empty expected_mono' expected_point' eq_of_rng_set
   rng_set_of_rng indicatorE_le_of_imp)
 
-/-- EC's `fel` premises for the oracle `Bounder(RO).get`, over `(Bounder.bounder, RO.m)`. -/
-theorem Bounder_RO_get_fel (h : «to») :
-    FelOracle (Lens.pair Bounder.bounder RO.m) (fun s => s.1) (fun _ => sampleto.1 {h}) bound
-      (fun s => FMap.rng s.2 h) (fun _ => True) (fun s => s.1 < bound)
-      Bounder(RO).get.procedure where
-  lt := fun _ _ _ hp => hp
-  -- EC: `proc; sp; if; auto; sp; inline*; sp; wp; rnd (pred1 h)`
-  step := by
+/-- EC's `fel 1 Bounder.bounder (fun _, mu1 sampleto h) bound (rng RO.m h)
+[Bounder(RO).get: …]`: `FEL(A, RO).main` ends with `h` in the range of `RO.m` with probability at
+most `bound · μ1 sampleto h`: EC's `fel`, with its goals as EC's bullets (`sum`, `init`, and the
+oracle `Bounder(RO).get`'s `step`, `incr`, `same`, `keep`). -/
+theorem FEL_rng [Countable «from»] (h : «to») :
+    phoare[ Preimage.FEL(A, RO).main : True ==> FMap.rng §RO.m h ]
+      ≤ (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h}) := by
+  phoare_proc_to_stmt
+  repeat phoare_inline 0
+  phoare_wp 1
+  fel §Bounder.bounder (fun _ => sampleto.1 {h}) bound (FMap.rng §RO.m h)
+    [§Bounder.bounder < bound] True
+  case sum => exact le_rfl
+  case init =>
+    hoare_wp 20
+    hoare_skip
+    intros
+    simp [not_rng_empty]
+  case step =>
     phoare_proc_to_stmt
     repeat phoare_inline 0
     phoare_wp 20
@@ -235,7 +245,8 @@ theorem Bounder_RO_get_fel (h : «to») :
     all_goals first
       | exact bot_le
       | exact (le_of_eq (SubProbability.expected_eq_zero_of_support fun _ _ => rfl)).trans bot_le
-  incr := fun c => by
+  case incr =>
+    intro c
     hoare_proc_to_stmt
     repeat hoare_inline 0
     hoare_wp 20
@@ -243,7 +254,8 @@ theorem Bounder_RO_get_fel (h : «to») :
     rintro τ ⟨-, hr, hb, hc⟩
     simp only [Lens.pair, eval_lens_global] at hr hb hc
     split_ifs <;> simp_all
-  same := fun c => by
+  case same =>
+    intro c
     hoare_proc_to_stmt
     repeat hoare_inline 0
     hoare_wp 20
@@ -252,7 +264,7 @@ theorem Bounder_RO_get_fel (h : «to») :
     simp only [Lens.pair, eval_lens_global] at hr hb hc
     split_ifs <;> simp_all
     omega
-  keep := by
+  case keep =>
     hoare_proc_to_stmt
     repeat hoare_inline 0
     hoare_wp 20
@@ -260,39 +272,6 @@ theorem Bounder_RO_get_fel (h : «to») :
     rintro τ ⟨-, hr⟩
     simp only [Lens.pair, eval_lens_global] at hr
     split_ifs <;> simp_all [rng_set_of_rng]
-
-/-- EC's `fel 1 Bounder.bounder (fun _, mu1 sampleto h) bound (rng RO.m h)
-[Bounder(RO).get: …]`: `FEL(A, RO).main` ends with `h` in the range of `RO.m` with probability at
-most `bound · μ1 sampleto h` (`Module.fel`, the oracle's premises `Bounder_RO_get_fel`). -/
-theorem FEL_rng [Countable «from»] (h : «to») :
-    phoare[ Preimage.FEL(A, RO).main : True ==> FMap.rng §RO.m h ]
-      ≤ (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h}) := by
-  have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
-    rw [Footprint.lens_pair]
-    fp_disjoint
-  phoare_proc_to_stmt
-  phoare_inline 0
-  repeat phoare_inline 0
-  intro σ _
-  simp only [Stmt.ewp_seq, Stmt.ewp_assign]
-  simp_reads
-  erw [Stmt.ewp_call]
-  simp_reads
-  refine le_trans (Module.fel (L := Lens.pair Bounder.bounder RO.m) (cntr := fun s => s.1)
-    (step := fun _ => sampleto.1 {h}) (q := bound) (bad := fun s => FMap.rng s.2 h)
-    (inv := fun _ => True) A (Oracle.ext)
-    (Module.Declared.ecModule A (Oracle.ext)).representable hL
-    (fun n => by cases n with
-      | zero => exact inferInstanceAs (Countable «from»)
-      | succ m => nomatch m)
-    _ (fun _ s => s.1 < bound)
-    (fun n => by cases n with
-      | zero =>
-        simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single, Oracle.get.mk_simp]
-        exact Bounder_RO_get_fel h
-      | succ m => nomatch m) _ _ trivial ?_) ?_
-  · simpa [Lens.pair, Lens.set_get] using not_rng_empty (α := «from») h
-  · simp [Lens.pair, Lens.get_of_disjoint_set, Lens.set_get]
 
 /-- EC's `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) (bound%r * mu1 sampleto h) 1%r 1%r
 (mu1 sampleto h) (hash = h)`: after the adversary (`FEL`), the last query hits `h` only if `h` was
