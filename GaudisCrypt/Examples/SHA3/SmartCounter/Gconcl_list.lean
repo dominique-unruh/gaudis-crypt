@@ -6152,6 +6152,86 @@ omit [BlockSponge.Params] [Params] in
 @[fp_bound] theorem fvP_DSqueeze : FVP.fvP DSqueeze ≤ ⊥ := by
   fp_module
 
+omit [BlockSponge.Params] [Params] in
+/-- `P.f` is lossless (`ConcreteF.Perm_f_ll`: `Perm.m` misses the queried key, so its range misses
+a value).  Not an EC lemma. -/
+theorem P_f_ll :
+    (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P).procedure.IsLossless :=
+  ConcreteF.Perm_f_ll
+
+omit [BlockSponge.Params] [Params] in
+/-- `P.fi` is lossless (`ConcreteF.Perm_fi_ll`).  Not an EC lemma. -/
+theorem P_fi_ll :
+    (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block) P).procedure.IsLossless :=
+  ConcreteF.Perm_fi_ll
+
+omit [BlockSponge.Params] [Params] in
+/-- `Sponge` has no globals.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_Sponge : FVP.fvP Sponge ≤ ⊥ := by
+  fp_module
+
+omit [Params] in
+/-- `Sponge(P).f` is lossless when `P.f` is: both loops are counted (variants `size xs` and
+`n - i`).  Not an EC lemma (EC: the two `while` in `Real_lossless`). -/
+theorem Sponge_f_ll (P0 : DPRIMITIVE)
+    (hP : (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block)
+      P0).procedure.IsLossless) :
+    (Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+      (Module.app Sponge P0)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc] at hP ⊢
+  refine phoareProc_eq_of_le_ge (fun _ _ _ => Procedure.ewp_const_le _ _ _ _) ?_
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 1
+  phoare_split 1
+  refine phoareStmt_seq_ge_one ?_ ?_
+  · refine phoareStmt_if_ge ?_ ?_
+    · phoare_split 1
+      refine phoareStmt_seq_ge_one ?_ ?_
+      · phoare_while_ge 1 variant (§n - §i).toNat
+        case body =>
+          phoare_wp 3
+          phoare_simp [hP]
+          phoare_skip
+          intros
+          simp
+        case exit => trivial
+        case decreases =>
+          intro k
+          hoare_split 1
+          refine hoare_seq (hoare_if_wp (hoare_call_wp _ _ _ (hoareProc_true _) _)
+            (hoare_skip_wp _)) ?_
+          hoare_wp 2
+          hoare_skip
+          rintro i n ⟨hlt, rfl⟩
+          simp only [decide_eq_true_eq] at hlt
+          exact ⟨fun _ _ _ => by omega, fun _ => by omega⟩
+        phoare_skip
+        intros; exact le_rfl
+      · phoare_while_ge 1 variant (§xs).length
+        case body =>
+          phoare_wp 2
+          phoare_simp [hP]
+          phoare_skip
+          intros
+          simp
+        case exit => trivial
+        case decreases =>
+          intro k
+          hoare_wp 1
+          hoare_call
+          hoare_skip
+          rintro (_ | ⟨b, xs⟩) ⟨hne, rfl⟩ _ _
+          · simp at hne
+          · simp [behead]
+        phoare_skip
+        intros; exact le_rfl
+    · phoare_skip
+      intros; exact le_rfl
+  · phoare_wp 6
+    phoare_skip
+    intros; exact le_rfl
+
 /-! ## The section `Real_Ideal` -/
 
 section Real_Ideal
@@ -6451,12 +6531,71 @@ theorem useful (m mi : FMap state state) (a : state) :
 theorem invmC (m mi : FMap state state) : invm m mi ↔ invm mi m :=
   ⟨fun h x y => (h y x).symm, fun h x y => (h y x).symm⟩
 
-/-- EC's local `Real_lossless`, `D_ll` over a region `G` (exception E14). -/
+/-- EC's local `Real_lossless`, `D_ll` over a region `G` (exception E14).  EC calls `D` under the
+invariant `invm Perm.m Perm.mi`, which it needs for `useful` (losslessness of the excepted
+sampling).  Here `D_ll` is applied directly: `Perm.f`/`Perm.fi` are lossless in every state
+(`P_f_ll`/`P_fi_ll`, a finite map missing a key misses a value), so no invariant is needed. -/
 theorem Real_lossless_at (D : DISTINGUISHER) (_hD : Module.ECModule D distExt)
     (_hDd : DRestrictions_Real_Ideal D) (G : Footprint VariableAssignment)
-    (_hG : RealIdealRegion G) (_D_ll : D_lossless_at D G) :
+    (hG : RealIdealRegion G) (D_ll : D_lossless_at D G) :
     (RealIndif Sponge P (DRestr (Neg_D D))).procedure.IsLossless := by
-  sorry
+  unfold RealIdealRegion at hG
+  rw [Procedure.isLossless_iff_phoareProc]
+  phoare_proc_to_stmt
+  unfold RealIndif Indifferentiability.GReal
+  phoare_inline 0
+  simp only [P_init]
+  repeat phoare_inline 0
+  have hv : (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block)
+      (Indifferentiability.PRIMITIVE.view state (List block × ℤ) (List block)
+        P)).procedure.IsLossless := by
+    rw [Indifferentiability.PRIMITIVE.view_f]; exact P_f_ll
+  have hS : (Indifferentiability.DFUNCTIONALITY.f state (List block × ℤ) (List block)
+      (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+        { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+            (Module.app Sponge (Indifferentiability.PRIMITIVE.view state (List block × ℤ)
+              (List block) P)) })).procedure.IsLossless := by
+    simpa only [Indifferentiability.DFUNCTIONALITY.f.mk_simp] using Sponge_f_ll _ hv
+  have hPm : (Indifferentiability.DPRIMITIVE.f state (List block × ℤ) (List block)
+      (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+        { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P,
+          fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+            P })).procedure.IsLossless := by
+    simpa only [Indifferentiability.DPRIMITIVE.f.mk_simp] using P_f_ll
+  have hPmi : (Indifferentiability.DPRIMITIVE.fi state (List block × ℤ) (List block)
+      (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+        { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P,
+          fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+            P })).procedure.IsLossless := by
+    simpa only [Indifferentiability.DPRIMITIVE.fi.mk_simp] using P_fi_ll
+  have hll := D_ll
+    (Indifferentiability.DFUNCTIONALITY.mk state (List block × ℤ) (List block)
+      { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+          (Module.app BlockSponge.FC (Indifferentiability.DFUNCTIONALITY.mk state
+            (List block × ℤ) (List block)
+            { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
+                (Module.app Sponge (Indifferentiability.PRIMITIVE.view state (List block × ℤ)
+                  (List block) P)) })) })
+    (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
+      { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block)
+          (Module.app BlockSponge.PC (Indifferentiability.DPRIMITIVE.mk state
+            (List block × ℤ) (List block)
+            { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P,
+              fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block) P })),
+        fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
+          (Module.app BlockSponge.PC (Indifferentiability.DPRIMITIVE.mk state
+            (List block × ℤ) (List block)
+            { f := Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P,
+              fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block) P })) })
+    (by fp_disjoint) (by fp_disjoint)
+    (by simpa only [Indifferentiability.DPRIMITIVE.f.mk_simp] using PC_f_ll _ hPm)
+    (by simpa only [Indifferentiability.DPRIMITIVE.fi.mk_simp] using PC_fi_ll _ hPmi)
+    (by simpa only [Indifferentiability.DFUNCTIONALITY.f.mk_simp] using FC_f_ll _ hS)
+  rw [Procedure.isLossless_iff_phoareProc] at hll
+  phoare_wp 20
+  phoare_simp [hll]
+  phoare_skip
+  simp
 
 /-- EC's local `Real_lossless`. -/
 theorem Real_lossless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)

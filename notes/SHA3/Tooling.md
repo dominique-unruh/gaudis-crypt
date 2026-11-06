@@ -1595,3 +1595,17 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   and `X.set v m`, `G` not touching `X`.
 * **A section closed too late** (missing `end FinSim`) shows only as errors at the namespace's
   `end`; the declarations in between silently gain the section's instance arguments.
+
+## 2026-11-06: `Gconcl_list.Real_lossless` (the last `sorry`)
+
+* **No lossless abstract call under an invariant is needed.**  EC's `call (: invm Perm.m Perm.mi)`
+  only provides `useful` (losslessness of `dexcepted dstate (rng Perm.m)` for a fresh key).  A
+  finite map missing a key misses a value, so `Perm.f`/`Perm.fi` are lossless in every state
+  (`ConcreteF.Perm_f_ll`, reused by defeq as `Gconcl_list.P_f_ll`), and `D_ll` applies directly,
+  as in `Ideal_lossless`.  `Sponge_f_ll`: two counted loops (`phoare_split 1;
+  refine phoareStmt_seq_ge_one`, then `phoare_while_ge 1 variant …` per loop).
+* **Inlining the real game stops at `P.init`** (`P = Perm`, an `RP` read as a `PRIMITIVE`):
+  `simp only [P_init]` first, then `repeat phoare_inline 0`.
+* **`fp_module` takes an optional term**: a following `open X in` (term-level `open … in`) is
+  parsed as its argument.  Put a declaration without `open … in` after a lemma ending in
+  `fp_module`.

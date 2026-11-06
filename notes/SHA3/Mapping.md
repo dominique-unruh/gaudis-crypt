@@ -8,6 +8,8 @@ substitutions skipped): one row per top-level declaration, in file order.  Conve
 Status: `—` not started · `def` definition ported · `stated` statement ported, proof `sorry` ·
 `done` proven · `exc` deviation (see `Exceptions.md`).
 
+Port status (2026-11-06): all 21 files proven, no `sorry`.
+
 | EC file | lines | lemmas | Lean file |
 |---|---:|---:|---|
 | `proof/Common.ec` | 734 | 64 | `GaudisCrypt/Examples/SHA3/Common.lean` |
@@ -606,9 +608,9 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl_list.lean`, namespace `Gaud
 | 1825 | local lemma | `Neg_D_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Neg_D_lossless` (`{-Neg_D(D)}` as `(glob D)ᶜ`; section axiom `D_lossless` a hypothesis) | done |
 | 1833 | local lemma | `useful` | section Real_Ideal_Abs. | `Real_Ideal_Abs.useful` | done |
 | 1853 | local lemma | `invmC` | section Real_Ideal_Abs. | `Real_Ideal_Abs.invmC` | done |
-| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` (section axiom `D_lossless` a hypothesis) | stated |
+| 1858 | local lemma | `Real_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Real_lossless` (section axiom `D_lossless` a hypothesis; the `glob D` instance of `Real_lossless_at`, E14; no `call (: invm Perm.m Perm.mi)`: `D_ll` applied directly, `Perm.f`/`Perm.fi` being lossless in every state, `P_f_ll`/`P_fi_ll`; `Sponge_f_ll`) | done (exc E14) |
 | 1887 | local lemma | `Ideal_lossless` | section Real_Ideal_Abs. | `Real_Ideal_Abs.Ideal_lossless` (oracle steps `IRO_f_ll`, `Valid_f_ll`, `Last_f_ll`, `S_f_ll`, `S_fi_ll`, `SimLast_f_ll`, `SimLast_fi_ll`; footprints `@[fp_bound]` `fvP_FC` … `fvP_S`) | done |
-| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` (+ `Gext0Fresh D`, E13; `concl_at (Neg_D D)` over `glob D`, E14; `Indif_Neg_D`, `Pr_false_eq_one_sub`; modulo `Real_lossless`) | exc |
+| 1905 | local lemma | `neg_D_concl` | section Real_Ideal_Abs. | `Real_Ideal_Abs.neg_D_concl` (+ `Gext0Fresh D`, E13; `concl_at (Neg_D D)` over `glob D`, E14; `Indif_Neg_D`, `Pr_false_eq_one_sub`) | exc |
 | 1924 | lemma | `Inefficient_Real_Ideal` | section Real_Ideal_Abs. | `Inefficient_Real_Ideal` (+ `Gext0Fresh D`, E13; from `concl`, `neg_D_concl`) | exc |
 | 1946 | module | `Simulator` |  | `Simulator` | def |
 | 2010 | declare module | `D` | section Simplify_Simulator. | `D` (section variable) | def |
@@ -744,7 +746,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 | 225 | local equiv | `equiv_sim_f` | section . | `equiv_sim_f` (`={glob F, glob BIRO2.IRO} /\ ={m, mi, paths}(S, Simulator)` as equal outside `sL` with `sI`; `parseK`/`formatK` as `formatK`; `rcondt{1}` by `equiv_if{1}` + `prhlStmt_false`) | done |
 | 245 | local equiv | `equiv_sim_fi` | section . | `equiv_sim_fi` (as `equiv_sim_f`) | done |
 | 255 | local lemma | `replace_simulator` | section . | `replace_simulator` (equal-outside abstract call over `sL`; oracle steps `rs_PC_f`, `rs_PC_fi`) | done |
-| 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; the `glob Dist` instance of `security_at`: `Dist` lossless over a region `G` (`Dist_lossless_at`, `SecurityRegion`, E14), `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at`; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`; modulo `Gconcl_list.Real_lossless`) | exc |
+| 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; the `glob Dist` instance of `security_at`: `Dist` lossless over a region `G` (`Dist_lossless_at`, `SecurityRegion`, E14), `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at`; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`) | exc |
 | 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` (+ `Gext0Fresh`, E13; from `security`); `SHA3Indiff_at` over a region (E14), used by `SHA3Security` | exc |
 
 ## `proof/SHA3_OIndiff.ec`
@@ -964,7 +966,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 199 | op | `same_ro2` | section Preimage. | `same_ro2` | def |
 | 204 | clone import | `Program` | section Preimage. | `Preimage.Prog.LoopSnoc.sample` | def |
 | 209 | local equiv | `equiv_ro_iro` | section Preimage. | `Preimage.equiv_ro_iro` (statement `equiv_ro_iro.statement`; `x \in m`: one-sided `while{2}`; `x \notin m`: EC's two `transitivity{1}` as one `prhlStmt.trans_left` to `Prog.LoopSnoc.sample` (`dout_dlist`, `prhlStmt_seq_sample_run_map_right`) and the synchronized `while`, `same_ro_set_fresh`) | done |
-| 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` (+ `AGext0Fresh A`, E13; the two `have`s `Preimage.real_pre`, `Preimage.ideal_pre`: equal-outside calls over `realL`/`idealL`, oracle premises `real_oracle`/`ideal_oracle`; `SHA3Indiff_at` over `glob A` ⊔ the clone's variables, E14; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
+| 393 | lemma | `Sponge_preimage_resistant` | section Preimage. | `Sponge_preimage_resistant` (+ `AGext0Fresh A`, E13; the two `have`s `Preimage.real_pre`, `Preimage.ideal_pre`: equal-outside calls over `realL`/`idealL`, oracle premises `real_oracle`/`ideal_oracle`; `SHA3Indiff_at` over `glob A` ⊔ the clone's variables, E14) | done (exc E13, E14) |
 | 481 | declare module | `A` | section SecondPreimage. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
 | 483 | declare axiom | `A_ll` | section SecondPreimage. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
 | 485 | local lemma | `invm_dom_rng` | section SecondPreimage. | `SecondPreimage.invm_dom_rng` | done |
@@ -974,7 +976,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 523 | local equiv | `equiv_sponge_perm` | section SecondPreimage. | `SecondPreimage.equiv_sponge_perm` (EC repeats the proof: `Preimage.equiv_sponge_perm`) | done |
 | 548 | clone import | `Program` | section SecondPreimage. | `SecondPreimage.Prog2.LoopSnoc.sample` | def |
 | 553 | local equiv | `equiv_ro_iro` | section SecondPreimage. | `SecondPreimage.equiv_ro_iro` (EC repeats the proof: `Preimage.equiv_ro_iro`) | done |
-| 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` (+ `AGext0Fresh A`, E13; `SecondPreimage.real_spre`, `ideal_spre`: EC's case analysis on the second test as two framed calls in sequence; `SHA3Indiff_at`, E14; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
+| 737 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` (+ `AGext0Fresh A`, E13; `SecondPreimage.real_spre`, `ideal_spre`: EC's case analysis on the second test as two framed calls in sequence; `SHA3Indiff_at`, E14) | done (exc E13, E14) |
 | 871 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
 | 873 | declare axiom | `A_ll` | section Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`; over a region in `Sponge_coll_resistant_at`, `D_ll_at`, E14) | def |
 | 875 | local lemma | `invm_dom_rng` | section Collision. | `Collision.invm_dom_rng` | done |
@@ -984,19 +986,18 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 | 913 | local equiv | `equiv_sponge_perm` | section Collision. | `Collision.equiv_sponge_perm` (EC repeats the proof: `Preimage.equiv_sponge_perm`) | done |
 | 937 | clone import | `Program` | section Collision. | `Collision.Prog3.LoopSnoc.sample` | def |
 | 942 | local equiv | `equiv_ro_iro` | section Collision. | `Collision.equiv_ro_iro` (EC repeats the proof: `Preimage.equiv_ro_iro`) | done |
-| 1126 | lemma | `Sponge_coll_resistant` | section Collision. | `Sponge_coll_resistant` (+ `AGext0Fresh A`, E13; the `glob A` instance of `Sponge_coll_resistant_at`, `A_ll` over a region, E14; `Collision.real_coll`, `ideal_coll`; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
+| 1126 | lemma | `Sponge_coll_resistant` | section Collision. | `Sponge_coll_resistant` (+ `AGext0Fresh A`, E13; the `glob A` instance of `Sponge_coll_resistant_at`, `A_ll` over a region, E14; `Collision.real_coll`, `ideal_coll`) | done (exc E13, E14) |
 | 1241 | module | `X` |  | `X` | def |
 | 1249 | module | `AdvCollisionSHA3` |  | `AdvCollisionSHA3` (`A` a Lean parameter) | def |
 | 1259 | declare module | `A` | section SHA3_Collision. | `A` (parameter, with `hA`, `_hAd`; + `AGext0Fresh A`, E13) | def |
 | 1261 | declare axiom | `A_ll` | section SHA3_Collision. | `A_ll` (hypothesis `_A_ll`, `IndifRO_is_secure.D_ll`) | def |
-| 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` (+ `AGext0Fresh A`, E13; `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` over `glob A`, E14: `glob AdvCollisionSHA3(A) = glob A` is syntactic in EC; modulo `Gconcl_list.Real_lossless`) | done (exc E13, E14) |
+| 1263 | lemma | `SHA3_coll_resistant` | section SHA3_Collision. | `SHA3_coll_resistant` (+ `AGext0Fresh A`, E13; `Sponge_coll_resistant_at (AdvCollisionSHA3 A)` over `glob A`, E14: `glob AdvCollisionSHA3(A) = glob A` is syntactic in EC) | done (exc E13, E14) |
 
 ## `proof/SHA3OSecurity.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA3.SHA3OSecurity`.
 
-Status (2026-11-06): complete, no `sorry`.  The three headline theorems rest on
-`Gconcl_list.Real_lossless_at` (through `SHA3OIndiff`), the port's only remaining `sorry`.
+Status (2026-11-06): complete, no `sorry`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
@@ -1086,7 +1087,7 @@ Status (2026-11-06): complete, no `sorry`.  The three headline theorems rest on
 | 1727 | local lemma | `leq_ideal` | section SecondPreimage. | `SecondPreimage.leq_ideal` (+ `DistFresh`; `SORO_P2_ec`; `RO_is_second_preimage_resistant`) | done |
 | 1738 | local lemma | `rw_real` | section SecondPreimage. | `SecondPreimage.rw_real` (+ `DistFresh`; `Preimage.rw_real`'s steps, `rr_F` and the abstract call framed on `Dist_of_P2Adv.m` via `fvP_rrFL/FR/OL/OR`) | done |
 | 1771 | local module | `TOTO` | section SecondPreimage. | `SecondPreimage.TOTO` (`A` a Lean parameter) | def |
-| 1780 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m`, `Dist_of_P2Adv.m` fresh, E6; `TOTO` as running the game from the state with `Dist_of_P2Adv.m = mess`, `prhlProc_self_equal_outside_module`; `Dist_of_P2Adv_ll` by pHL; modulo `Gconcl_list.Real_lossless`) | exc |
+| 1780 | lemma | `Sponge_second_preimage_resistant` | section SecondPreimage. | `Sponge_second_preimage_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m`, `Dist_of_P2Adv.m` fresh, E6; `TOTO` as running the game from the state with `Dist_of_P2Adv.m = mess`, `prhlProc_self_equal_outside_module`; `Dist_of_P2Adv_ll` by pHL) | exc |
 | 1811 | declare module | `A` | section Collision. | `A` (parameter, with `hA`, `_hAd`) | def |
 | 1813 | local module | `FInit` | section Collision. | `Collision.FInit` (aliases call-wrapped, E5) | def |
 | 1818 | local module | `PInit` | section Collision. | `Collision.PInit` (aliases call-wrapped, E5) | def |
@@ -1116,7 +1117,7 @@ Status (2026-11-06): complete, no `sorry`.  The three headline theorems rest on
 | 2512 | local lemma | `rw_ideal` | section Collision. | `Collision.rw_ideal` (`ri_game` via `soro_coll_game`) | done |
 | 2598 | local lemma | `leq_ideal` | section Collision. | `Collision.leq_ideal` (+ `Log.m` outside `SORO.RO.FRO.m`, E6; `SORO_Coll_ec`; `RO_is_collision_resistant`) | done |
 | 2608 | local lemma | `rw_real` | section Collision. | `Collision.rw_real` (`Preimage.rw_real`'s steps; `rr_F` on both last queries) | done |
-| 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh, E6; `Dist_of_CollAdv_ll` by pHL; modulo `Gconcl_list.Real_lossless`) | exc |
+| 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh, E6; `Dist_of_CollAdv_ll` by pHL) | exc |
 
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
 

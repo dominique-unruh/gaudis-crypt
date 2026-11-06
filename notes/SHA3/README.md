@@ -200,7 +200,8 @@ Files in this directory:
    fresh-variable lemma it relies on is still to be proven.
 3. **Proofs**, from the leaves up: first the short reductions in `SHA3Security` and
    `IndifRO_is_secure`, then `Sponge` and `BlockSponge`, and the `smart_counter` chain last
-   (`Handle.eca` is the largest single piece).
+   (`Handle.eca` is the largest single piece).  **Done 2026-11-06**: all 21 files proven, no
+   `sorry`.
 
 ### EasyCrypt library theories needed
 
