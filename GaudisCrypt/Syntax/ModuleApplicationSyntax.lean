@@ -51,8 +51,13 @@ partial def ecModTerm : TSyntax `ec_mod → MacroM Term
   | `(ec_mod| $m:ident($args,*)) => do appTerm m (← args.getElems.mapM ecModTerm)
   | _ => Macro.throwUnsupported
 where
-  /-- `Module.app m (Module.pair a₁ (… aₙ))`. -/
+  /-- `Module.app m (Module.pair a₁ (… aₙ))`.  Each argument is elaborated on its own, `(aᵢ :)`,
+  and then coerced to the parameter's module type: so EC's subtyping of module types (an `RF`
+  where an `Oracle` is expected, `A(Bounder(F))`) goes through a coercion on the argument,
+  instead of the expected type being pushed into it (where `Bounder`'s own type would have to
+  change). -/
   appTerm (m : Ident) (args : Array Term) : MacroM Term := do
+    let args ← args.mapM fun a => `(($a :))
     let some last := args.back? | Macro.throwUnsupported
     let arg ← (args.pop).foldrM (fun a acc => `(Module.pair $a $acc)) last
     `(Module.app $m $arg)
@@ -93,6 +98,9 @@ elab_rules : term
         return mkAppN (← mkConstWithFreshMVarLevels acc) (ty.getAppArgs.push e)
     -- a procedure module: `f` names the module's procedure
     if (← whnfR ty).isAppOf ``Module.Proc then
+      -- an abstract module (a variable, EC's `declare module A`): its type does not record the
+      -- procedure's name, so `f` is taken as written
+      if (← getLCtx).findFromUserName? m.getId |>.isSome then return e
       let x ← realizeGlobalConstNoOverloadWithInfo m
       let procs := moduleProcs (← getEnv) x
       unless procs.contains (x ++ fname) do

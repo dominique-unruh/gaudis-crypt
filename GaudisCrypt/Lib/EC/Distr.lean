@@ -24,6 +24,9 @@ variable {α β : Type}
 noncomputable def dprod (d1 : SubProbability α) (d2 : SubProbability β) : SubProbability (α × β) :=
   d1 >>= fun a => d2 >>= fun b => pure (a, b)
 
+/-- EC's `mu1 d x`: the probability of `x` under `d`, a real. -/
+noncomputable def mu1 (d : SubProbability α) (x : α) : ℝ := (d.1 {x}).toReal
+
 /-- `is_lossless d`: `d` has total mass `1`. -/
 def is_lossless (d : SubProbability α) : Prop := d.1 Set.univ = 1
 

@@ -126,11 +126,25 @@ Missing pieces, in order:
     accepted wherever a term is (so in all judgment subjects); prints back.  `atomic`, so EC's
     `M.f(x)` in `Pr[ ]` still reads as the procedure and its arguments.
   * Heads must be names: needs step 2 for the SHA-3 modules (they take Lean parameters today).
-* **Step 2 design** (scratch-tested): theory ops + axioms in `class Params (from to : outParam
-  Type)` (the outParams let `bound : ℤ` resolve with no types written — EC's clone semantics),
-  module variables as `global_var`s (disjointness by instance search, no `Lens.Disjoint`
-  hypotheses), types explicit for `moduletype`s and then `variable {from to}` for modules and
-  lemmas.  The pilot is a parallel file `Examples/SHA3/Pilot/SecureRO.lean`; dependents move once
-  it is complete.  Open: EC's module-type subtyping (`A(Bounder(F))`, an `RF` where an `Oracle`
-  is expected) as a reducible `@[coe]`; `.guess` on an abstract adversary (no procedure name to
-  check).
+* **Step 2, `Preimage` slice done (2026-11-06)**: `Examples/SHA3/Pilot/SecureRO.lean` (parallel to the
+  old file, whose generic `FMap`/potential lemmas it reuses), no `sorry`, axioms clean.
+  * Theory ops + axioms: `class Params (from to : outParam Type)` — the outParams let `bound`,
+    `sampleto` … resolve with no types written (EC's clone semantics: the instance is the clone).
+  * Module variables: `global_var`s (`Counter.c`, `Bounder.bounder`), disjoint by instance search:
+    every `Lens.Disjoint` hypothesis and `have := (…).symm` line is gone.  `RO.m`, whose type
+    mentions only the types, is a `global_var` written out with the `[Params]` binder (so `RO.m`
+    alone fixes its types); `global_var` (in `Language/`) could take instance binders — to raise
+    with Dominique.
+  * Types explicit for `moduletype`s, then `variable {from to}`: modules are names.
+  * EC's module-type subtyping (`A(Bounder(F))`: an `RF` where an `Oracle` is expected; `RO` where
+    an `RF` is) is a `Coe` instance whose body is a `fun` building the record — the coercion then
+    unfolds to the record the `module` command reads callees back from.  For that, a path's
+    arguments are elaborated without expected type, `(aᵢ :)`, and coerced.
+  * Statement: `Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h`
+    (EC: `Pr [ Preimage(A,RO).main(h) @ &m : res ] <= (bound + 1)%r * mu1 sampleto h`); `mu1`
+    added to `Lib/EC/Distr.lean`.  Left: the `declare module` hypotheses (`ECModule`, footprint),
+    step 3.
+  * Printing gap: a coerced argument prints as its record (`RF.mk { init := …, get := … }`), not
+    as `RO`.  A delaborator recognising "record of one module's own fields" would print it back.
+  * Proofs are still the old ones (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
+    arithmetic): steps 3–4.
