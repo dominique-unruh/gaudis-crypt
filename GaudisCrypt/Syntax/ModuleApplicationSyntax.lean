@@ -14,9 +14,10 @@ where `M(A₁, …, Aₙ)` is `Module.app M (Module.pair A₁ (… Aₙ))` and `
   type): `.f` must be the name of that procedure, `M.f`.
 
 The arguments are module paths again: a name (`RO`), an application (`Bounder(RO)`), or any Lean
-term in parentheses (`(RO.asRF sampleto m)`).  The head `M` is a name, so a module that still
-takes Lean parameters is written in the old form (`Module.app (M p) A`) or with the parameters
-bundled into instances.
+term in parentheses (`(RO.asRF sampleto m)`).  The head `M` is a name.  A module that takes Lean
+parameters before its module parameters (`module D1 (A : Adv) using (F : RO_T)`, so that `D1 A`
+is a module of its own, EC's partial application `D1(A)`) takes them first: `D1(A, F)` is
+`Module.app (D1 A) F`, its first arguments the head's explicit Lean parameters.
 
 The form exists at the term level only with the trailing `.f`.  Without it, `M(x)` would also
 read EasyCrypt's `M.f(x)` of a `Pr[ ]` or of a procedure judgment as a module application.
@@ -44,19 +45,33 @@ syntax:max (name := ecProcPath) atomic(ident noWs "(" ec_mod,+ ")" noWs "." noWs
 
 namespace ModuleApplication
 
+/-- The number of explicit Lean parameters of the constant `m` (none for a local): the leading
+arguments of a path `m(…)` that are not module arguments. -/
+def leanArity (m : Ident) : Elab.TermElabM Nat := do
+  if (← getLCtx).findFromUserName? m.getId |>.isSome then return 0
+  let some (c, _) := (← resolveGlobalName m.getId).find? (·.2.isEmpty) | return 0
+  Meta.forallTelescope (← getConstInfo c).type fun xs _ =>
+    xs.foldlM (fun n x => return if (← x.fvarId!.getBinderInfo).isExplicit then n + 1 else n) 0
+
 /-- The Lean term of a module path. -/
-partial def ecModTerm : TSyntax `ec_mod → MacroM Term
+partial def ecModTerm : TSyntax `ec_mod → Elab.TermElabM Term
   | `(ec_mod| $x:ident) => pure x
   | `(ec_mod| ($t:term)) => pure t
-  | `(ec_mod| $m:ident($args,*)) => do appTerm m (← args.getElems.mapM ecModTerm)
-  | _ => Macro.throwUnsupported
+  | `(ec_mod| $m:ident($args,*)) => do
+    let args ← args.getElems.mapM ecModTerm
+    -- the head's own Lean parameters first (`D1(A, F)` is `Module.app (D1 A) F`)
+    let k ← leanArity m
+    let head ← if k == 0 then pure (m : Term) else `($m $(args.extract 0 k)*)
+    if args.size ≤ k then return head
+    Elab.liftMacroM <| appTerm head (args.extract k args.size)
+  | _ => Elab.throwUnsupportedSyntax
 where
   /-- `Module.app m (Module.pair a₁ (… aₙ))`.  Each argument is elaborated on its own, `(aᵢ :)`,
   and then coerced to the parameter's module type: so EC's subtyping of module types (an `RF`
   where an `Oracle` is expected, `A(Bounder(F))`) goes through a coercion on the argument,
   instead of the expected type being pushed into it (where `Bounder`'s own type would have to
   change). -/
-  appTerm (m : Ident) (args : Array Term) : MacroM Term := do
+  appTerm (m : Term) (args : Array Term) : MacroM Term := do
     let args ← args.mapM fun a => `(($a :))
     let some last := args.back? | Macro.throwUnsupported
     let arg ← (args.pop).foldrM (fun a acc => `(Module.pair $a $acc)) last
@@ -86,7 +101,7 @@ elab_rules : term
     if let fname :: rest@(_ :: _) := f.getId.components then
       let path ← `($m:ident($args,*).$(mkIdent fname):ident)
       return ← elabTerm (← `(($path).$(mkIdent (Name.fromComponents rest)):ident)) none
-    let app ← liftMacroM <| ecModTerm.appTerm m (← liftMacroM <| args.getElems.mapM ecModTerm)
+    let app ← ecModTerm (← `(ec_mod| $m:ident($args,*)))
     let e ← withSynthesize <| elabTerm app none
     if e.hasSyntheticSorry then throwAbortTerm
     let ty ← instantiateMVars (← inferType e)
@@ -155,11 +170,25 @@ where
     let t ← delab
     if let `($x:ident) := t then return ← `(ec_mod| $x:ident)
     `(ec_mod| ($t))
-  /-- `Module.app M A` with `M` printing as a name: the name and the argument paths. -/
+  /-- `Module.app M A` with `M` printing as a name, or as a name applied to all its explicit
+  Lean parameters (`D1 A`, read back from `D1(A, F)`): the name and the argument paths. -/
   delabApp? : DelabM (Option (Ident × Array (TSyntax `ec_mod))) := do
     unless (← getExpr).isAppOfArity ``Module.app 6 do return none
-    let `($m:ident) ← withNaryArg 4 delab | return none
-    return some (m, ← withNaryArg 5 delabPairArgs)
+    let args ← withNaryArg 5 delabPairArgs
+    match ← withNaryArg 4 delab with
+    | `($m:ident) => return some (m, args)
+    | `($m:ident $xs*) =>
+      let some c := ((← getExpr).getArg! 4).getAppFn.constName? | return none
+      -- all of them, so that the elaborator splits the path the same way
+      let k ← forallTelescope (← getConstInfo c).type fun ys _ =>
+        ys.foldlM (fun n y => return if (← y.fvarId!.getBinderInfo).isExplicit then n + 1
+          else n) 0
+      unless xs.size == k do return none
+      let leanArgs ← xs.mapM fun x => match x with
+        | `($y:ident) => `(ec_mod| $y:ident)
+        | t => `(ec_mod| ($(⟨t⟩)))
+      return some (m, leanArgs ++ args)
+    | _ => return none
 
 /-- `C.f (Module.app M A)` for a `moduletype` accessor `C.f`: `M(A).f`. -/
 @[delab app]

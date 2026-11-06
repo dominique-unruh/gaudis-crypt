@@ -160,8 +160,10 @@ elab "byequiv" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
     | _, _ => `(tactic| refine $ruleId $hT ?hE ?hA)
   evalTactic stx
   let gs ← getGoals
-  let judgment := gs.filter fun g => g.name == `judgment
-  let side := gs.filter fun g => g.name != `judgment
+  -- the quotation's tags are hygienic: compared, and left, without their macro scopes
+  for g in gs do g.setTag (← g.getTag).eraseMacroScopes
+  let judgment ← gs.filterM fun g => return (← g.getTag) == `judgment
+  let side := gs.filter (!judgment.contains ·)
   let left ← closeSide side
   setGoals (judgment ++ left)
   if !judgment.isEmpty then
@@ -190,15 +192,19 @@ elab "byphoare" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
   | none =>
     let aT ← Term.exprToSyntax P[2]!
     let mT ← Term.exprToSyntax P[3]!
+    -- the signature first: the precondition's `x = a` is elaborated before unification
+    let sigT ← Term.exprToSyntax P[0]!
     if hasHx then evalTactic (← `(tactic|
-      refine $ruleId (A := fun x g => x = $aT ∧ g = $mT) (r := fun _ _ => ENNReal.ofReal $xT)
-        ?judgment ?hA ?hr ?hx))
+      refine $ruleId (sig := $sigT) (A := fun x g => x = $aT ∧ g = $mT)
+        (r := fun _ _ => ENNReal.ofReal $xT) ?judgment ?hA ?hr ?hx))
     else evalTactic (← `(tactic|
-      refine $ruleId (A := fun x g => x = $aT ∧ g = $mT) (r := fun _ _ => ENNReal.ofReal $xT)
-        ?judgment ?hA ?hr))
+      refine $ruleId (sig := $sigT) (A := fun x g => x = $aT ∧ g = $mT)
+        (r := fun _ _ => ENNReal.ofReal $xT) ?judgment ?hA ?hr))
   let gs ← getGoals
-  let judgment := gs.filter fun g => g.name == `judgment
-  let side := gs.filter fun g => g.name != `judgment
+  -- the quotation's tags are hygienic: compared, and left, without their macro scopes
+  for g in gs do g.setTag (← g.getTag).eraseMacroScopes
+  let judgment ← gs.filterM fun g => return (← g.getTag) == `judgment
+  let side := gs.filter (!judgment.contains ·)
   let left ← closeSide side
   setGoals (judgment ++ left)
   if !judgment.isEmpty then

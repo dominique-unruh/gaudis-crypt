@@ -848,8 +848,10 @@ The same file in EC's shape, in three files (one in EC).  Theory: `class Params 
 outParam Type)` (the operators and axioms); module variables: `global_var`s (`Counter.c`,
 `Bounder.bounder`, `RO.m`, `FRO.m`, the local modules' `SecondPreimage2.m2`, `D1.m1`); `declare
 module A <: … {-…}` (`Logic/DeclareModule.lean`, representability derived: no E2); E6 retired;
-E8 reduced to `[Countable «from»]` (`[Countable «to»]` for `RO_LRO_D`).  EC's `fel` is
-`Module.fel` (`Logic/Fel.lean`), EC's five-bound `seq` is `phoare_seq` (`Logic/PHoareSeq.lean`).
+E8 reduced to `[Countable «from»]` (`[Countable «to»]` for `RO_LRO_D`).  EC's `fel` is the
+tactic `fel` (`Logic/FelTactic.lean`), EC's five-bound `seq` is `phoare_seq`
+(`Logic/PHoareSeq.lean`), EC's `call (: P ==> Q)`/`byphoare (: P ==> _)` are
+`Logic/CallSpec.lean`'s; each lemma is one proof, as EC's.
 
 Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
 

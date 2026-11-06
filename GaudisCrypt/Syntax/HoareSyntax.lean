@@ -231,7 +231,8 @@ open Lean Elab Term Meta in section
 same thing as syntax, and its signature.  `M` may be a procedure module — then the triple is
 about `M.procedure` — or already a `Procedure`. -/
 def procedureOf (M : Term) : TermElabM (Lean.Expr × Term × Lean.Expr) := do
-  let e ← withSynthesize <| elabTerm M none
+  -- instantiated: an already elaborated `M` (`exprToSyntax`) is a metavariable assigned to it
+  let e ← instantiateMVars (← withSynthesize <| elabTerm M none)
   -- `M` itself did not elaborate; its own error has been reported, and a second one about the
   -- type we could not read off it would only be noise
   if e.hasSyntheticSorry then throwAbortTerm

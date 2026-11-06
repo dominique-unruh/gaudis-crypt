@@ -297,3 +297,31 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   `hoareStmt_call_inv`), same view inference and side conditions; goals `oracle` and `pre`.
   `FEL_dom`'s hand-built `Module.hoare_app_inv` and the lemma `Bounder_RO_get_dom` are gone.
 * Pilot: 1339 lines (from 1452), auxiliary theorems 20 (from 24).
+* **C10, the `have`s and bullets inline**: EC's inline specifications as tactics
+  (`Logic/CallSpec.lean`): `phoare_call (: P ==> Q)` (EC's `call (: P ==> Q)` in a `phoare`; the
+  callee's relation and bound the goal's, or written after), `hoare_call (: P ==> Q)`,
+  `byphoare (: P ==> _)` (the judgment restated as `phoare[ M : P ==> E ] ≤ x`, `E` read back off
+  the `Pr[ ]`).  The judgment about the callee is the first goal, as in EC.  With them, and with
+  `byequiv`'s default judgment as a goal, each headline is **one proof as EC's**: the `have->:`
+  are `calc` steps (`rw` fails on `Pr[ ]`: not type-correct at instance transparency), the `fel`s
+  are under the `call`s, the arithmetic of EC's last `smt()` is the `bound` goal of `phoare_seq`.
+  Gone: `FEL_rng`, `Preimage2_le`, `Preimage_Preimage2`, `FEL2_rng`, `FEL_dom`,
+  `SecondPreimage2_le`, `SecondPreimage_SecondPreimage2`, `SecondPreimage3_RO_LRO`, `FEL_coll`,
+  `Collision2_le`, `Collision_Collision2`, and the dead `RO.LRO_asRF`, `fvP_LRO_init/get`.
+  Kept: `SecondPreimage2_SecondPreimage3` (EC's third and fifth `have`, one lemma for `LRO` and
+  `RO`; EC repeats a one-line `sim`, ours is 100 lines), the footprint bounds `fvP_*` of concrete
+  modules (`@[fp_bound]`, the solver's), `sum_Ico_int_toNat`.  Fixes on the way: `procedureOf`
+  instantiates an already elaborated procedure (`exprToSyntax`), `byphoare`/`byequiv` find their
+  goals by tag (hygienic tags, `eraseMacroScopes`), `byphoare` passes the signature.  The two
+  folded headlines with `fel` need `maxHeartbeats 1000000` (one declaration).
+* **SecondPreimage's modules in EC's shape**: `Bounder(F).init`, `A(Bounder(F)).guess`,
+  `F.sample`, `FEL(A, F).main`, `D1(A, F).distinguish` instead of hand-built `RF.mk {…}`,
+  `Oracle.mk {…}`, `Module.app (M) (Module.pair A F)`.  EC's module type `RO` is `RO_T` (the
+  theory's types fixed by `Params`).  A path's first arguments fill the head's explicit Lean
+  parameters (`Syntax/ModuleApplicationSyntax.lean`): `D1(A, F)` is `Module.app (D1 A) F`, `D1 A`
+  being EC's partial application `D1(A)` (an `RO_Distinguisher`), and prints back so.  Accessors
+  as field notation in proofs (`F.init = RO.LRO.init`, `FVP.fvP RO.sample`).
+* Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three
+  headlines `den` (no longer `clean`): the expectation steps of EC's `rnd (pred1 v)` and `hoare`
+  bullets (`expected_mono'`, `SubProbability.expected_eq_zero_of_support`) were in the auxiliary
+  lemmas and are now in the proofs; B8 is what removes them.
