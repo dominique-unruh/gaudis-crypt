@@ -111,7 +111,8 @@ instance [Params «from» «to»] : Lens.IsGlobalVar (RO.m : Lens (FMap «from»
 
 /-- The clone's `FRO.m`, written out as `RO.m` is. -/
 @[nolint unusedArguments]
-noncomputable def FRO.m [Params «from» «to»] : Lens (FMap «from» («to» × flag)) VariableAssignment :=
+noncomputable def FRO.m [Params «from» «to»] :
+    Lens (FMap «from» («to» × flag)) VariableAssignment :=
   varLens (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.FRO.m" (FMap «from» («to» × flag)))
 
 instance [Params «from» «to»] :

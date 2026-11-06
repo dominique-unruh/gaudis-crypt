@@ -100,10 +100,8 @@ end Collision
 `Collision(A, RO).main ~ Collision2(A, RO).main : ={glob} ==> ={res}`, by EC's
 `byequiv; proc; inline*; sim`. -/
 theorem Collision_Collision2 (A : AdvCollision «from» «to») :
-    prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
-      (Module.app (Collision) (Module.pair A RO)).procedure
-      (Module.app (Collision.Collision2) (Module.pair A RO)).procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+    equiv[ Collision(A, RO).main ~ Collision.Collision2(A, RO).main :
+      ={allGlobals} ==> ={res} ] := by
   equiv_proc
   stmt_inline 0
   stmt_inline{2} 0
@@ -229,8 +227,9 @@ theorem FEL_coll [Countable «from»] (A : AdvCollision «from» «to»)
       not_collision_empty (α := «from») (β := «to»)
   · simp [Lens.pair, Lens.get_of_disjoint_set, Lens.set_get]
 
-/-- EC's `byphoare=> //; proc; seq 1 : (collision RO.m) ((bound * (bound - 1))%r / 2%r * mu1 sampleto
-witness) 1%r 1%r (mu1 sampleto witness) (…)`.  (Our `seq` counts the `reset_vars` `proc` adds.) -/
+/-- EC's `byphoare=> //; proc; seq 1 : (collision RO.m)
+((bound * (bound - 1))%r / 2%r * mu1 sampleto witness) 1%r 1%r (mu1 sampleto witness) (…)`.
+(Our `seq` counts the `reset_vars` `proc` adds.) -/
 theorem Collision2_le [Countable «from»] (A : AdvCollision «from» «to»)
     (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (hAd : FVP.fvP A ≤ (RO.m.footprint ⊔ FRO.m.footprint ⊔ Bounder.bounder.footprint ⊔
@@ -266,7 +265,8 @@ theorem Collision2_le [Countable «from»] (A : AdvCollision «from» «to»)
         simpa using h2
       by_cases hk1 : (localVarLens "m2" «from»).get σ = (localVarLens "m1" «from»).get σ
       · -- `m2 = m1`: the event wants them distinct
-        refine (expected_mono' fun a => ?_).trans (expected_const_le' sampleto (sampleto.1 {default}))
+        refine (expected_mono' fun a => ?_).trans
+          (expected_const_le' sampleto (sampleto.1 {default}))
         refine (le_of_eq (SubProbability.expected_eq_zero_of_support fun b _ => ?_)).trans bot_le
         split_ifs <;> exact indicatorE_of_not (by simp [hk1])
       by_cases hk2 : FMap.dom (RO.m.get σ.globals) ((localVarLens "m2" «from»).get σ)
@@ -281,7 +281,8 @@ theorem Collision2_le [Countable «from»] (A : AdvCollision «from» «to»)
           simp only [decide_eq_true_eq, FMap.get_set_sameE, get_set_ne _ _ hk1, oget] at hP
           exact hP.1.symm
       · -- `m2` fresh too: its value hits `a` (EC's `rnd (pred1 r)`)
-        refine (expected_mono' fun a => ?_).trans (expected_const_le' sampleto (sampleto.1 {default}))
+        refine (expected_mono' fun a => ?_).trans
+          (expected_const_le' sampleto (sampleto.1 {default}))
         refine (expected_mono' (g := fun b => indicatorE (a = b)) fun b => ?_).trans
           ((expected_point' a).trans (le_of_eq (hfu _ _)))
         split_ifs with hc
@@ -293,7 +294,8 @@ theorem Collision2_le [Countable «from»] (A : AdvCollision «from» «to»)
     · -- `m1` in `RO.m` (its sample unused), `m2` fresh: `m2`'s value hits `RO.m.[m1]`
       refine (expected_mono' fun _ => ?_).trans (expected_const_le' sampleto (sampleto.1 {default}))
       refine (expected_mono' fun b => indicatorE_le_of_imp fun hP => ?_).trans
-        ((expected_point' (oget ((RO.m.get σ.globals).get ((localVarLens "m1" «from»).get σ)))).trans
+        ((expected_point'
+          (oget ((RO.m.get σ.globals).get ((localVarLens "m1" «from»).get σ)))).trans
           (le_of_eq (hfu _ _)))
       simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
       exact hP.1

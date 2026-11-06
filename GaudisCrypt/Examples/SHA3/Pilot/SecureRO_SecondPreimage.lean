@@ -75,11 +75,14 @@ set_option linter.overlappingInstances false in
 /-- EC's `SecondPreimage2.m2` (as `RO.m`, with the theory's instance, which fixes its type). -/
 @[nolint unusedArguments]
 noncomputable def SecondPreimage2.m2 [Params «from» «to»] : Lens «from» VariableAssignment :=
-  varLens (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.SecondPreimage2.m2" «from»)
+  varLens
+    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.SecondPreimage2.m2" «from»)
 
 set_option linter.overlappingInstances false in
-instance [Params «from» «to»] : Lens.IsGlobalVar (SecondPreimage2.m2 : Lens «from» VariableAssignment)
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.SecondPreimage2.m2" «from») := ⟨rfl, HEq.rfl⟩
+instance [Params «from» «to»] :
+    Lens.IsGlobalVar (SecondPreimage2.m2 : Lens «from» VariableAssignment)
+    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.SecondPreimage2.m2" «from») :=
+  ⟨rfl, HEq.rfl⟩
 
 set_option linter.overlappingInstances false in
 /-- EC's `D1.m1` (as `RO.m`, with the theory's instance, which fixes its type). -/
@@ -89,7 +92,8 @@ noncomputable def D1.m1 [Params «from» «to»] : Lens «from» VariableAssignm
 
 set_option linter.overlappingInstances false in
 instance [Params «from» «to»] : Lens.IsGlobalVar (D1.m1 : Lens «from» VariableAssignment)
-    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.D1.m1" «from») := ⟨rfl, HEq.rfl⟩
+    (VariableName.mk "GaudisCrypt.SHA3.Pilot.SecureRO.SecondPreimage.D1.m1" «from») :=
+  ⟨rfl, HEq.rfl⟩
 
 open Classical in
 module SecondPreimage2 using (A : AdvSecondPreimage «from» «to», F : PROM.FullRO.RO_T «from» «to») {
@@ -127,7 +131,8 @@ module D1 (A : AdvSecondPreimage «from» «to») using (F : PROM.FullRO.RO_T «
 
 -- `A` a Lean parameter, as in `D1`, which it applies to `A`
 set_option linter.gaudisCrypt.using false in
-module SecondPreimage3 (A : AdvSecondPreimage «from» «to») using (F : PROM.FullRO.RO_T «from» «to») {
+module SecondPreimage3 (A : AdvSecondPreimage «from» «to»)
+    using (F : PROM.FullRO.RO_T «from» «to») {
   proc main (m1 : «from») : Bool {
     var b : Bool;
     SecondPreimage2.m2 <- (default : «from»);
@@ -186,7 +191,7 @@ theorem RO.LRO_asRF_eq :
 namespace SecondPreimage
 
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 2000000 in -- `fp_module` on named variables (instance search)
 /-- `D1(A)` touches `A`'s variables, `Bounder`'s and `Counter`'s, and its own. -/
 theorem fvP_D1
     (A : AdvSecondPreimage «from» «to») :
@@ -200,11 +205,8 @@ theorem fvP_D1
 `inline*; sim` (EC's `sim` relates `m2{1}` to `SecondPreimage2.m2{2}`; here the queries after the
 adversary are inlined and coupled one by one, `equiv_rnd`). -/
 theorem SecondPreimage_SecondPreimage2 (A : AdvSecondPreimage «from» «to») :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
-      (Module.app (SecondPreimage) (Module.pair A (RO.LRO_asRF))).procedure
-      (Module.app (SecondPreimage2)
-        (Module.pair A (RO.LRO))).procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+    equiv[ SecondPreimage(A, RO.LRO).main ~ SecondPreimage2(A, RO.LRO).main :
+      ={m1, allGlobals} ==> ={res} ] := by
   equiv_proc
   stmt_inline 0
   repeat stmt_inline{1} 0
@@ -243,7 +245,7 @@ theorem SecondPreimage_SecondPreimage2 (A : AdvSecondPreimage «from» «to») :
             equiv_skip
             intros; simp_all
 
-set_option maxHeartbeats 1600000 in
+set_option maxHeartbeats 1600000 in -- disjointness of named variables, as for `fvP_D1`
 /-- The third and fifth `have`s of EC's proof of `RO_is_second_preimage_resistant`:
 `SecondPreimage2(A,F).main ~ SecondPreimage3(A,F).main : ={arg, glob} ==> ={res}` for `F` = `LRO`
 (EC's `inline*; wp 8 -2; sim`) and `F` = `RO` (EC's `inline*; wp -2 11; sim`, symmetrically): the
@@ -258,10 +260,8 @@ theorem SecondPreimage2_SecondPreimage3
     (hgetF : PROM.FullRO.RO_T.get «from» «to» F =
       PROM.FullRO.RO_T.get «from» «to» (RO.LRO))
     (hsample : FVP.fvP (PROM.FullRO.RO_T.sample «from» «to» F) ≤ RO.m.footprint) :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
-      (Module.app (SecondPreimage2) (Module.pair A F)).procedure
-      (Module.app (SecondPreimage3 A) F).procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+    equiv[ SecondPreimage2(A, F).main ~ (Module.app (SecondPreimage3 A) F) :
+      ={m1, allGlobals} ==> ={res} ] := by
   equiv_proc
   stmt_inline 0
   repeat (first | stmt_inline{1} 0 | stmt_inline{2} 0 | simp only [hinit, hgetF])
@@ -365,12 +365,8 @@ theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»]
     (hll : is_lossless sampleto) (A : AdvSecondPreimage «from» «to»)
     (hD : Module.ECModule (D1 A) (PROM.FullRO.RO_ext «from» «to»))
     (hdisj : FVP.fvP (D1 A) ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ) :
-    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
-      (Module.app (SecondPreimage3 A)
-        RO).procedure
-      (Module.app (SecondPreimage3 A)
-        (RO.LRO)).procedure
-      (fun r₁ _ r₂ _ => r₁ = r₂) := by
+    equiv[ (Module.app (SecondPreimage3 A) RO) ~ (Module.app (SecondPreimage3 A) RO.LRO) :
+      ={m1, allGlobals} ==> ={res} ] := by
   have hcall := PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO.m
     (fun _ => hll) RO.m _ hD hdisj
   equiv_proc
@@ -408,7 +404,8 @@ theorem Bounder_RO_get_fel2 (m1 : «from») :
       refine (expected_mono' fun a => ?_).trans
         ((expected_point' (oget ((RO.m.get τ.globals).get m1))).trans
           (le_of_eq (sampleto_fu (self := inferInstance) _ _)))
-      refine indicatorE_le_of_imp fun hs => (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ)
+      refine indicatorE_le_of_imp fun hs =>
+        (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ)
         hr ?_).symm
       rwa [get_set_ne _ _ hne] at hs
     all_goals first
