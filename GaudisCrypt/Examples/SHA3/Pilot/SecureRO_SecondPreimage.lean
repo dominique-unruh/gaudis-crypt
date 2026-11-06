@@ -16,10 +16,8 @@ variable {«from» «to» : Type} [DecidableEq «from»] [Inhabited «from»] [I
 
 /-! ## The section `SecondPreimage` -/
 
-open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set
-  secondPreimagePotential secondPreimagePotential_step indicatorE_secondPreimage_le_potential
-  expected_le_one_of indicatorE_le_one' secondPreimage_tail_le expected_const_le' keys_set
-  dom_set_iff get_set_self get_set_ne expected_mono')
+open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set expected_const_le'
+  dom_set_iff get_set_ne expected_mono' expected_point' indicatorE_le_of_imp)
 
 open Classical in
 module SecondPreimage using (A : AdvSecondPreimage «from» «to», F : RF «from» «to») {
@@ -144,11 +142,6 @@ module SecondPreimage3 (A : AdvSecondPreimage «from» «to») using (F : PROM.F
 }
 
 end SecondPreimage
-/-! ### The lemmas of EC's `fel` in `RO_is_second_preimage_resistant` (on `FMap` and the
-potential)
-
-Not EasyCrypt statements, as for `RO_is_preimage_resistant`: EC's `smt` facts on `rem`/`set`, the
-potential `secondPreimagePotential`, its step, and the tail bound. -/
 
 
 /-- `LRO` at the module type `RF` (its procedures `init` and `get`), as `RO.asRF`. -/
@@ -392,98 +385,222 @@ theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»]
   rintro g₁ g₂ a₁ a₂ ⟨rfl, rfl⟩
   exact ⟨rfl, fun _ _ _ _ h => h.1⟩
 
-theorem Bounder_RO_get_secondPreimagePotential (hfu : is_funiform sampleto)
-    (m1 : «from») :
-    phoareProc (fun _ _ => True)
-      (RF.get «from» «to» (Module.app (Bounder) (RF.mk «from» «to»
-          { init := PROM.FullRO.RO_T.init «from» «to» RO,
-            get := PROM.FullRO.RO_T.get «from» «to» RO }))).procedure
-      (fun _ g => secondPreimagePotential bound (sampleto.1 {default}) m1
-        ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g))
-      (· ≤ ·)
-      (fun _ g => secondPreimagePotential bound (sampleto.1 {default}) m1
-        ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g)) := by
-  phoare_proc_to_stmt
-  repeat phoare_inline 0
-  phoare_ewp
-  exact secondPreimagePotential_step hfu m1 bound _ _ _ _ _ _
+/-- EC's `fel` premises for the oracle `Bounder(RO).get` in `RO_is_second_preimage_resistant`, over
+`(Bounder.bounder, RO.m)`: the event `rng (rem RO.m m1) (oget RO.m.[m1])`, the invariant
+`m1 \in RO.m`. -/
+theorem Bounder_RO_get_fel2 (m1 : «from») :
+    FelOracle (Lens.pair Bounder.bounder RO.m) (fun s => s.1) (fun _ => sampleto.1 {default})
+      bound (fun s => FMap.rng (FMap.rem s.2 m1) (oget (s.2.get m1))) (fun s => FMap.dom s.2 m1)
+      (fun s => s.1 < bound) Bounder(RO).get.procedure where
+  lt := fun _ _ _ hp => hp
+  step := by
+    phoare_proc_to_stmt
+    repeat phoare_inline 0
+    phoare_wp 20
+    phoare_skip
+    rintro τ ⟨hd, hr, _⟩
+    simp only [indicatorE_of_not hr]
+    split_ifs with _ _ hx
+    · -- a fresh key `x ≠ m1`: the new value hits `RO.m.[m1]` (EC's `rnd (pred1 _)`)
+      have hx' : ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
+        simpa using hx
+      have hne : m1 ≠ (localVarLens "x" «from»).get τ := fun h => hx' (h ▸ hd)
+      refine (expected_mono' fun a => ?_).trans
+        ((expected_point' (oget ((RO.m.get τ.globals).get m1))).trans
+          (le_of_eq (sampleto_fu (self := inferInstance) _ _)))
+      refine indicatorE_le_of_imp fun hs => (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ)
+        hr ?_).symm
+      rwa [get_set_ne _ _ hne] at hs
+    all_goals first
+      | exact bot_le
+      | exact (le_of_eq (SubProbability.expected_eq_zero_of_support fun _ _ => rfl)).trans bot_le
+  incr := fun c => by
+    hoare_proc_to_stmt
+    repeat hoare_inline 0
+    hoare_wp 20
+    hoare_skip
+    rintro τ ⟨hd, hr, hb, hc⟩
+    simp only [Lens.pair, eval_lens_global] at hd hr hb hc
+    have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) m1 :=
+      fun _ _ => dom_set_iff.mpr (Or.inr hd)
+    split_ifs <;> simp_all
+  same := fun c => by
+    hoare_proc_to_stmt
+    repeat hoare_inline 0
+    hoare_wp 20
+    hoare_skip
+    rintro τ ⟨hd, hr, hb, hc⟩
+    simp only [Lens.pair, eval_lens_global] at hd hr hb hc
+    split_ifs <;> simp_all
+    omega
+  keep := by
+    hoare_proc_to_stmt
+    repeat hoare_inline 0
+    hoare_wp 20
+    hoare_skip
+    rintro τ ⟨hd, hr⟩
+    simp only [Lens.pair, eval_lens_global] at hd hr
+    have key : ∀ (x : «from») (a : «to»), ¬ FMap.dom (RO.m.get τ.globals) x →
+        FMap.dom (FMap.set (RO.m.get τ.globals) x a) m1 ∧
+        FMap.rng (FMap.rem (FMap.set (RO.m.get τ.globals) x a) m1)
+          (oget ((FMap.set (RO.m.get τ.globals) x a).get m1)) := fun x a hx =>
+      ⟨dom_set_iff.mpr (Or.inr hd), by
+        rw [get_set_ne _ _ (fun (h : m1 = x) => hx (h ▸ hd))]; exact rng_rem_set_of_rng hx hr a⟩
+    split_ifs <;> simp_all
 
-theorem FEL2_potential [Countable «from»]
-    (hfu : is_funiform sampleto) (A : AdvSecondPreimage «from» «to»)
+/-- EC's `fel 2 Bounder.bounder (fun _, mu1 sampleto witness) bound
+(mess1 \in RO.m /\ rng (rem RO.m mess1) (oget RO.m.[mess1])) [Bounder(RO).get: …]`. -/
+theorem FEL2_rng [Countable «from»] (A : AdvSecondPreimage «from» «to»)
     (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (hAd : FVP.fvP A ≤ (Bounder.bounder.footprint ⊔ Counter.c.footprint ⊔ RO.m.footprint)ᶜ)
-    (m1 : «from») :
-    @phoareProc (procsig («from») -> «from») (fun a _ => a = m1)
-      (Module.app (SecondPreimage.FEL) (Module.pair A RO)).procedure
-      (fun _ g => secondPreimagePotential bound (sampleto.1 {default}) m1
-        ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g))
-      (· ≤ ·)
-      (fun _ _ => ∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {default}) := by
+    (mess1 : «from») :
+    phoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==>
+        FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)) ]
+      ≤ (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) := by
+  have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
+    rw [Footprint.lens_pair]
+    fp_disjoint
   phoare_proc_to_stmt
   repeat phoare_inline 0
   phoare_ewp
   rename_i σ hσ
-  have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).footprint)ᶜ := by
-    rw [Footprint.lens_pair, Footprint.lens_pair, ← sup_assoc]
-    exact hAd
   refine (expected_mono' fun a => ?_).trans (expected_const_le' _ _)
   rw [if_pos (by simp [FMap.dom, FMap.empty])]
   erw [Stmt.ewp_call]
   simp_reads
-  refine le_trans (Module.ewp_app_le (Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)) A
-    (Oracle.ext «from» «to») hA.representable hL
+  refine le_trans (Module.fel (L := Lens.pair Bounder.bounder RO.m) (cntr := fun s => s.1)
+    (step := fun _ => sampleto.1 {default}) (q := bound)
+    (bad := fun s => FMap.rng (FMap.rem s.2 mess1) (oget (s.2.get mess1)))
+    (inv := fun s => FMap.dom s.2 mess1) A (Oracle.ext «from» «to») hA.representable hL
     (fun n => by cases n with
       | zero => exact inferInstanceAs (Countable «from»)
       | succ m => nomatch m)
-    _ (secondPreimagePotential bound (sampleto.1 {default}) m1)
-    (fun n a g => by cases n with
+    _ (fun _ s => s.1 < bound)
+    (fun n => by cases n with
       | zero =>
         simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single, Oracle.get.mk_simp]
-        exact Bounder_RO_get_secondPreimagePotential hfu m1 a g trivial
-      | succ m => nomatch m) _ _) ?_
-  simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set, hσ]
-  have hd : FMap.dom (FMap.set FMap.empty m1 a) m1 := dom_set_iff.mpr (Or.inl rfl)
-  have hr : ∀ v, ¬ FMap.rng (FMap.rem (FMap.set (FMap.empty : FMap «from» «to») m1 a) m1) v := by
-    rintro v ⟨k, hk⟩
-    by_cases hk1 : k = m1
+        exact Bounder_RO_get_fel2 mess1
+      | succ m => nomatch m) _ _ ?_ ?_) ?_
+  · -- the invariant at the start: `mess1 \in RO.m` after `F.sample(m1)`
+    simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set, hσ]
+    exact dom_set_iff.mpr (Or.inl rfl)
+  · -- and no collision yet: `RO.m` has the one entry
+    simp only [Lens.pair, Lens.set_get, Lens.get_of_disjoint_set, hσ]
+    rintro ⟨k, hk⟩
+    by_cases hk1 : k = mess1
     · subst hk1; simp [FMap.rem] at hk
     · simp [FMap.rem, FMap.set, FMap.empty, Finmap.lookup_erase_ne hk1,
         Finmap.lookup_insert_of_ne _ hk1] at hk
-  simp only [secondPreimagePotential, hd, not_true_eq_false, if_false]
-  rw [if_neg (hr _), if_pos le_rfl]
-  exact le_rfl
+  · simp [Lens.pair, Lens.get_of_disjoint_set, Lens.set_get]
 
-theorem SecondPreimage2_le [Countable «from»]
-    (hfu : is_funiform sampleto) (A : AdvSecondPreimage «from» «to»)
+/-- `Bounder(RO).get` keeps a key in `RO.m`. -/
+theorem Bounder_RO_get_dom (mess1 : «from») :
+    hoare[ Bounder(RO).get : FMap.dom §RO.m mess1 ==> FMap.dom §RO.m mess1 ] := by
+  hoare_proc_to_stmt
+  repeat hoare_inline 0
+  hoare_wp 20
+  hoare_skip
+  intro τ hd
+  have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
+    fun _ _ => dom_set_iff.mpr (Or.inr hd)
+  split_ifs <;> simp_all
+
+/-- EC's `call (: … /\ mess1 \in RO.m)` on `FEL`: `mess1` is in `RO.m` afterwards. -/
+theorem FEL_dom [Countable «from»] (A : AdvSecondPreimage «from» «to»)
     (hA : Module.ECModule A (Oracle.ext «from» «to»))
     (hAd : FVP.fvP A ≤ (Bounder.bounder.footprint ⊔ Counter.c.footprint ⊔ RO.m.footprint)ᶜ)
-    (m1 : «from») :
-    @phoareProc (procsig («from») -> Bool) (fun a _ => a = m1)
-      (Module.app (SecondPreimage.SecondPreimage2)
-        (Module.pair A RO)).procedure
-      (fun r _ => indicatorE (r = true)) (· ≤ ·)
-      (fun _ _ => (∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {default}) +
-        sampleto.1 {default}) := by
-  have hFEL := FEL2_potential hfu A hA hAd m1
+    (mess1 : «from») :
+    hoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==> FMap.dom §RO.m mess1 ] := by
+  hoare_proc_to_stmt
+  have hL : FVP.fvP A ≤ (RO.m.footprint)ᶜ := by fp_disjoint
+  have hcall := Module.hoare_app_inv (L := RO.m) A (Oracle.ext «from» «to») hA.representable hL
+    (fun n => by cases n with
+      | zero => exact inferInstanceAs (Countable «from»)
+      | succ m => nomatch m)
+    _ (fun s => FMap.dom s mess1)
+    (fun n => by cases n with
+      | zero =>
+        simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single]
+        exact Bounder_RO_get_dom mess1
+      | succ m => nomatch m)
+  repeat hoare_inline 0
+  hoare_wp 1
+  hoare_call hcall
+  hoare_wp 20
+  hoare_skip
+  intro σ hσ a _
+  refine ⟨?_, fun _ _ h => h⟩
+  have hx : (localVarLens "arg1" «from»).get σ = mess1 := hσ
+  rw [if_pos (by simp [FMap.dom, FMap.empty]), hx]
+  exact dom_set_iff.mpr (Or.inl rfl)
+
+set_option maxRecDepth 8192 in
+/-- EC's `byphoare(: arg = mess1 ==> _); proc; seq 1 : (rng (rem RO.m mess1) (oget RO.m.[mess1]))
+(bound%r * mu1 sampleto witness) 1%r 1%r (mu1 sampleto witness) (… /\ mess1 \in RO.m /\
+mess1 = m1)`. -/
+theorem SecondPreimage2_le [Countable «from»] (A : AdvSecondPreimage «from» «to»)
+    (hA : Module.ECModule A (Oracle.ext «from» «to»))
+    (hAd : FVP.fvP A ≤ (Bounder.bounder.footprint ⊔ Counter.c.footprint ⊔ RO.m.footprint)ᶜ)
+    (mess1 : «from») :
+    phoare[ SecondPreimage.SecondPreimage2(A, RO).main : §m1 = mess1 ==> §res ]
+      ≤ ((∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) + sampleto.1 {default}) := by
   phoare_proc_to_stmt
   phoare_inline 0
-  repeat phoare_inline 1
-  phoare_ewp
-  rename_i σ hσ
-  erw [Stmt.ewp_call]
-  simp_reads
-  rw [hσ]
-  refine (Procedure.ewp_mono _ _ (G := fun _ g => indicatorE (¬ FMap.dom (RO.m.get g) m1 ∨
-    FMap.rng (FMap.rem (RO.m.get g) m1) (oget ((RO.m.get g).get m1))) + sampleto.1 {default})
-    (fun v g => ?_) _).trans ?_
-  · exact secondPreimage_tail_le hfu _ _ _ _ _
-  rw [Procedure.ewp_add]
-  refine add_le_add ?_ (Procedure.ewp_const_le _ _ _ _)
-  refine (Procedure.ewp_mono _ _ (fun v g => indicatorE_secondPreimage_le_potential bound
-    (sampleto.1 {default}) m1 ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g))
-    _).trans ?_
-  exact hFEL _ _ rfl
-
+  phoare_seq 3 : (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
+    (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) 1 1 (sampleto.1 {default})
+    (FMap.dom §RO.m mess1 ∧ §m1 = mess1)
+  case invariant =>
+    hoare_call (FEL_dom A hA hAd mess1)
+    hoare_wp 2
+    hoare_skip
+    exact fun _ h => ⟨h, fun _ _ hd => ⟨hd, h⟩⟩
+  case first_E =>
+    phoare_call (FEL2_rng A hA hAd mess1)
+    phoare_wp 2
+    phoare_skip
+    intro _ h
+    simp [h]
+  case second_notE =>
+    repeat phoare_inline 0
+    phoare_wp 40
+    phoare_skip
+    rintro σ ⟨hr, hd, hm⟩
+    have hdm : FMap.dom (RO.m.get σ.globals) ((localVarLens "m1" «from»).get σ) := hm ▸ hd
+    split_ifs with h1 h2 h3 h4 h5
+    · exact absurd hdm (by simpa using h2)
+    · exact absurd hdm (by simpa using h2)
+    · -- a fresh `m2`: its value hits `RO.m.[m1]` (EC's `rnd (pred1 _)`); the first query's
+      -- sample is not used (`m1` is in `RO.m`)
+      refine (expected_mono' fun _ => ?_).trans (expected_const_le' sampleto (sampleto.1 {default}))
+      refine (expected_mono' fun b => ?_).trans
+        ((expected_point' (oget ((RO.m.get σ.globals).get mess1))).trans
+          (le_of_eq (sampleto_fu (self := inferInstance) _ _)))
+      refine indicatorE_le_of_imp fun hP => ?_
+      simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+      rw [← hm]
+      exact hP.1
+    · -- `m2` already in `RO.m`, not `m1`: its value is not `RO.m.[m1]` (`¬ rng (rem RO.m m1) _`)
+      refine (expected_mono' fun _ => ?_).trans (expected_const_le' sampleto (sampleto.1 {default}))
+      refine (le_of_eq (SubProbability.expected_eq_zero_of_support fun b _ =>
+        indicatorE_of_not ?_)).trans bot_le
+      simp only [decide_eq_true_eq]
+      rintro ⟨he, hne⟩
+      apply hr
+      have hd2 : FMap.dom (RO.m.get σ.globals) (SecondPreimage.SecondPreimage2.m2.get σ.globals) :=
+        by simpa using h5
+      obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
+      refine ⟨SecondPreimage.SecondPreimage2.m2.get σ.globals, ?_⟩
+      have hk : SecondPreimage.SecondPreimage2.m2.get σ.globals ≠ mess1 :=
+        fun h => hne (hm.trans h.symm)
+      have h1 := get_rem_ne (RO.m.get σ.globals) hk
+      simp only [FMap.get] at h1 hw he ⊢
+      rw [h1, hw, ← hm, he, hw]
+      rfl
+    · exact (le_of_eq (SubProbability.expected_eq_zero_of_support fun _ _ => rfl)).trans bot_le
+    · exact bot_le
+  case bound =>
+    intros
+    simp
 end SecondPreimage
 section SecondPreimageSection
 
@@ -535,14 +652,13 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             PROM.FullRO.RO_T.get.mk_simp])
           fvP_RO_sample)
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
-        byphoare (SecondPreimage.SecondPreimage2_le (sampleto_fu (self := inferInstance)) A hA
-          (by fp_disjoint) mess1)
+        byphoare (SecondPreimage.SecondPreimage2_le A hA (by fp_disjoint) mess1)
         -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
         · have hμ : sampleto.1 {default} ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
             ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
           have hb := bound_gt0 (self := inferInstance)
           have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
-          simp only [Finset.sum_const, Int.toNat_zero, Nat.card_Ico, Nat.sub_zero, nsmul_eq_mul]
+          simp only [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul]
           refine le_of_eq ?_
           rw [mu1, ENNReal.ofReal_mul (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1)),
             ENNReal.ofReal_toReal hμ,

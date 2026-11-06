@@ -136,4 +136,30 @@ theorem Module.fel {T : Type 1} [IsModule T] {sig : ProcedureSignature} {holes :
     · simp [felPotential, hi']
   · simp [felPotential, hi, hb]
 
+/-- **EC's `call (: inv)` on an abstract module, for Hoare triples**: if every oracle keeps the
+invariant `I` of the view `L.get`, so does `D` applied to them (`Module.ewp_app_le` on the
+indicator of `¬ I`: `0` from where `I` holds, which the oracles keep). -/
+theorem Module.hoare_app_inv {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {holes : HoleSigs} (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (hdisj : FVP.fvP D ≤ (L.footprint)ᶜ)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O : T) (I : Ω → Prop)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      hoareProc (fun _ g => I (L.get g)) ((ext O).lookup n) (fun _ g' => I (L.get g'))) :
+    hoareProc (fun _ g => I (L.get g)) (Module.app D O).procedure (fun _ g' => I (L.get g')) := by
+  classical
+  rw [hoareProc_iff_phoareProc]
+  intro a g hI
+  refine le_antisymm ?_ bot_le
+  refine (Module.ewp_app_le (L := L) D ext hD hdisj hc O (fun s => indicatorE (¬ I s))
+    (fun n a' g' => ?_) a g).trans (by simp [hI])
+  by_cases hI' : I (L.get g')
+  · have h0 := (hoareProc_iff_phoareProc.mp (horacle n)) a' g' hI'
+    simp only [hI', not_true_eq_false, indicatorE_false]
+    exact le_of_eq h0
+  · simp only [hI', not_false_eq_true, indicatorE_true]
+    refine (Procedure.ewp_mono _ _ (G := fun _ _ => 1) (fun v g'' => ?_) _).trans
+      (Procedure.ewp_const_le _ _ _ _)
+    by_cases h : I (L.get g'') <;> simp [h]
+
 end GaudisCrypt
