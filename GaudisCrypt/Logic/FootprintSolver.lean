@@ -190,22 +190,36 @@ def finitelySupported (F : Lean.Expr) : MetaM Lean.Expr := do
       if ← isDefEq (← inferType cand) goal then return cand
   throwError "fp_disjoint: no finite support (`Module.ECModule`) for{indentExpr F}"
 
+/-- A source of bounds `FVP.fvP M ≤ B` for modules `M` the solver has no rule for (a concrete
+`module`, whose globals are read off its code: `Logic/ModuleFootprint.lean`): the proof, if any. -/
+abbrev BoundHook := Lean.Expr → MetaM (Option Lean.Expr)
+
 /-- Close `X ≤ Aᶜ`, `X` a join of module footprints `FVP.fvP M` and variables: each `M` has a
 restriction hypothesis, an `@[fp_bound]`, or is bounded through the module combinators by modules
 that do; each variable is outside `A`'s modules (outside `glob D` by `D`'s finite support). -/
-partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withContext do
+partial def solveFvP (hook : BoundHook) (g : MVarId) (fuel : Nat := 64) : MetaM Unit :=
+    g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let_expr LE.le _ _ X _ := ty | throwError "fp_disjoint: not an inequality:{indentExpr ty}"
   if let some _ := sup? X then
     let [g₁, g₂] ← applyConst g ``sup_le | throwError "fp_disjoint: `sup_le` failed"
-    solveFvP g₁ fuel
-    solveFvP g₂ fuel
+    solveFvP hook g₁ fuel
+    solveFvP hook g₂ fuel
     return
   if X.isAppOf ``Bot.bot then
     let [] ← applyConst g ``bot_le | throwError "fp_disjoint: `bot_le` left goals"
     return
   for h in ← getLCtx do
     if ← tryHyp g h then return
+  -- a pair of variables (no hypothesis about the pair): the join of its components
+  -- (`Footprint.lens_pair`); if that fails, the rules below
+  if X.isAppOf ``Lens.footprint && (X.find? (·.isAppOf ``Lens.pair)).isSome then
+    let thms ← ({} : SimpTheorems).addConst ``Footprint.lens_pair
+    let ctx ← Simp.mkContext (simpTheorems := #[thms])
+    if ← attempt (do
+        let (some g', _) ← simpTarget g ctx | failure
+        if g' == g then failure
+        solveFvP hook g' fuel) then return
   if fuel == 0 then throwError "fp_disjoint: gave up on{indentExpr X}"
   let some T := compl? (ty.getArg! 3)
     | throwError "fp_disjoint: not of the form `X ≤ Aᶜ`:{indentExpr ty}"
@@ -213,7 +227,7 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
   if X.isAppOfArity ``Footprint.glob 1 then
     let [g'] ← applyConst g ``Footprint.le_compl_of_fvP
       | throwError "fp_disjoint: `le_compl_of_fvP` failed"
-    return ← solveFvP g' (fuel - 1)
+    return ← solveFvP hook g' (fuel - 1)
   -- variables `X` (no module): against `glob F` or a module's footprint
   unless X.find? (·.isAppOf ``FVP.fvP) |>.isSome do
     if T.isAppOfArity ``Footprint.glob 1 then
@@ -233,17 +247,17 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
         let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[F, ← mkAppM ``Compl.compl #[X]])
         g.assign (← mkAppOptM ``Footprint.varLens_le_compl_glob
           #[some F, some hF, some (← instantiateMVars v), some g'])
-        return ← solveFvP g'.mvarId! (fuel - 1)
+        return ← solveFvP hook g'.mvarId! (fuel - 1)
     else if T.find? (·.isAppOf ``FVP.fvP) |>.isSome then
       -- `X ≤ (fvP M)ᶜ`: turn it around
       let [g'] ← applyConst g ``Footprint.le_compl_of_fvP
         | throwError "fp_disjoint: `le_compl_of_fvP` failed"
-      return ← solveFvP g' (fuel - 1)
+      return ← solveFvP hook g' (fuel - 1)
     else if X.isAppOf ``Lens.footprint && (sup? T).isSome then
       -- a variable against a join: turn it around and split the join
       let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[T, ← mkAppM ``Compl.compl #[X]])
       g.assign (← mkAppM ``Iff.mpr #[← mkAppM ``Footprint.le_compl_comm #[X, T], g'])
-      return ← solveFvP g'.mvarId! (fuel - 1)
+      return ← solveFvP hook g'.mvarId! (fuel - 1)
     else if X.isAppOf ``Lens.footprint && T.isAppOf ``Lens.footprint then
       -- two variables: disjoint lenses (`global_var`s by instance search)
       if ← attempt (do
@@ -254,7 +268,7 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
     if !X.isAppOf ``Lens.footprint then
       if let some X' ← unfoldDefinition? X then
         let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[X', ty.getArg! 3])
-        return ← solveFvP g' (fuel - 1)
+        return ← solveFvP hook g' (fuel - 1)
     -- a variable against a region `T` with a restriction hypothesis `T ≤ Sᶜ`, `X` in `S`:
     -- turned around
     if X.isAppOf ``Lens.footprint then
@@ -272,7 +286,7 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
     let_expr LE.le _ _ _ B := ← inferType pf | throwError "fp_disjoint: not a bound:{indentExpr pf}"
     let g' ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[B, ty.getArg! 3])
     g.assign (← mkAppM ``le_trans #[pf, g'])
-    solveFvP g'.mvarId! (fuel - 1)
+    solveFvP hook g'.mvarId! (fuel - 1)
   -- a concrete module with an `@[fp_bound]` bound
   for lem in ← labelled `fp_bound do
     if ← attempt (do
@@ -301,6 +315,8 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
       (``Module.fst', 3, ``FVP.fvP_fst'), (``Module.snd', 3, ``FVP.fvP_snd')] do
     if M.isAppOfArity c n then
       return ← viaBound (← mkAppM lem #[M.getArg! (n - 1)])
+  -- a concrete module the hook bounds (its globals read off its code)
+  if let some pf ← hook M then return ← viaBound pf
   -- a definition (a module type's accessor or constructor, a named module): unfold it
   let some M' ← unfoldDefinition? M
     | -- an abstract module against `glob F`: the restriction the other way round
@@ -312,14 +328,14 @@ partial def solveFvP (g : MVarId) (fuel : Nat := 64) : MetaM Unit := g.withConte
             let g' ← mkFreshExprSyntheticOpaqueMVar
               (← mkAppM ``LE.le #[F, ← mkAppM ``Compl.compl #[← mkAppM ``Footprint.glob #[X]]])
             g.assign (← mkAppM ``Footprint.le_compl_glob_symm #[hF, g'])
-            solveFvP g'.mvarId! (fuel - 1)) then return
+            solveFvP hook g'.mvarId! (fuel - 1)) then return
       throwError "fp_disjoint: no restriction hypothesis for{indentExpr X}"
   let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M'], ty.getArg! 3])
-  solveFvP g' (fuel - 1)
+  solveFvP hook g' (fuel - 1)
 
 /-- Prove `A ≤ (FVP.fvP M)ᶜ` (or `A ≤ Fᶜ` for a join `F` of module footprints), or
 `FVP.fvP M ≤ Aᶜ`, from the restriction hypotheses in context. -/
-def solve (g : MVarId) : MetaM Unit := g.withContext do
+def solve (g : MVarId) (hook : BoundHook := fun _ => pure none) : MetaM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let_expr LE.le _ _ L R := ty | throwError "fp_disjoint: not an inequality:{indentExpr ty}"
   let some F := compl? R | throwError "fp_disjoint: not of the form `A ≤ Fᶜ`:{indentExpr ty}"
@@ -328,9 +344,9 @@ def solve (g : MVarId) : MetaM Unit := g.withContext do
   if modulesSide F && !modulesSide L then
     let [g'] ← applyConst g ``Footprint.le_compl_of_fvP
       | throwError "fp_disjoint: `le_compl_of_fvP` failed"
-    solveFvP g'
+    solveFvP hook g'
   else
-    solveFvP g
+    solveFvP hook g
 
 end FootprintSolver
 

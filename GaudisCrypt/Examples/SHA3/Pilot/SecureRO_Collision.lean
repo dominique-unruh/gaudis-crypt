@@ -19,18 +19,11 @@ open GaudisCrypt.SHA3.SecureRO (collision collision_set_of_not_dom rng_of_collis
   expected_point' indicatorE_le_of_imp dom_set_iff get_set_ne)
 
 open Classical in
-module Collision using (A : AdvCollision, F : PROM.FullRO.RO_T «from» «to») {
+module Collision using (A : AdvCollision, F : RO_T) {
   proc main () : Bool {
     var b : Bool, m1 : «from», m2 : «from», hash1 : «to», hash2 : «to»;
-    _ <- call (RF.init
-      (Module.app (Bounder) (RF.mk
-          { init := PROM.FullRO.RO_T.init «from» «to» F,
-            get := PROM.FullRO.RO_T.get «from» «to» F }))) ();
-    m1, m2 <- call (Module.app A (Oracle.mk
-      { get := RF.get
-          (Module.app (Bounder) (RF.mk
-              { init := PROM.FullRO.RO_T.init «from» «to» F,
-                get := PROM.FullRO.RO_T.get «from» «to» F })) })) ();
+    _ <- call Bounder(F).init ();
+    m1, m2 <- call A(Bounder(F)).guess ();
     if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
       Counter.c <- increase_counter $Counter.c $m1;
       hash1 <- call F.get ($m1);
@@ -53,27 +46,20 @@ local modules in the namespace `Collision`) -/
 
 namespace Collision
 
-module FEL using (A : AdvCollision, F : PROM.FullRO.RO_T «from» «to») {
+module FEL using (A : AdvCollision, F : RO_T) {
   proc main () : («from» × «from») {
     var m1 : «from», m2 : «from»;
-    _ <- call (RF.init
-      (Module.app (Bounder) (RF.mk
-          { init := PROM.FullRO.RO_T.init «from» «to» F,
-            get := PROM.FullRO.RO_T.get «from» «to» F }))) ();
-    m1, m2 <- call (Module.app A (Oracle.mk
-      { get := RF.get
-          (Module.app (Bounder) (RF.mk
-              { init := PROM.FullRO.RO_T.init «from» «to» F,
-                get := PROM.FullRO.RO_T.get «from» «to» F })) })) ();
+    _ <- call Bounder(F).init ();
+    m1, m2 <- call A(Bounder(F)).guess ();
     return ($m1, $m2)
   };
 }
 
 open Classical in
-module Collision2 using (A : AdvCollision, F : PROM.FullRO.RO_T «from» «to») {
+module Collision2 using (A : AdvCollision, F : RO_T) {
   proc main () : Bool {
     var b : Bool, m1 : «from», m2 : «from», hash1 : «to», hash2 : «to»;
-    m1, m2 <- call (Module.app (FEL) (Module.pair A F)) ();
+    m1, m2 <- call FEL(A, F).main ();
     if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
       Counter.c <- increase_counter $Counter.c $m1;
       hash1 <- call F.get ($m1);

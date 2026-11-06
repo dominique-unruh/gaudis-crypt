@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
+import GaudisCrypt.Logic.ModuleFootprint
 
 /-!
 # Random oracles are second-preimage resistant — the EC-fidelity pilot, continued
@@ -111,18 +112,6 @@ module SecondPreimage3 (A : AdvSecondPreimage) using (F : RO_T) {
 
 end SecondPreimage
 
-@[fp_bound] theorem fvP_RO_sample :
-    FVP.fvP RO.sample ≤ RO.m.footprint := by
-  fp_module RO.m
-
-@[fp_bound] theorem fvP_LRO_sample :
-    FVP.fvP RO.LRO.sample ≤ RO.m.footprint := by
-  fp_module RO.m
-
-@[fp_bound] theorem fvP_Bounder :
-    FVP.fvP Bounder ≤ Bounder.bounder.footprint ⊔ Counter.c.footprint := by
-  fp_module (Lens.pair Bounder.bounder Counter.c)
-
 section SecondPreimageSection
 
 -- EC: `{-Bounder, -RO, -FRO}`; the local modules' variables are fresh in EC, here a restriction
@@ -130,15 +119,6 @@ declare module A <: AdvSecondPreimage
   {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
 
 namespace SecondPreimage
-
-set_option maxHeartbeats 2000000 in -- `fp_module` on named variables (instance search)
-/-- `D1(A)` touches `A`'s variables, `Bounder`'s and `Counter`'s, and its own. -/
-theorem fvP_D1
-    (A : AdvSecondPreimage) :
-    FVP.fvP (D1 A) ≤
-      FVP.fvP A ⊔ (Lens.pair (Lens.pair Bounder.bounder Counter.c)
-        (Lens.pair SecondPreimage2.m2 D1.m1)).footprint := by
-  fp_module (Lens.pair (Lens.pair Bounder.bounder Counter.c) (Lens.pair SecondPreimage2.m2 D1.m1))
 
 set_option maxHeartbeats 1600000 in -- disjointness of named variables, as for `fvP_D1`
 /-- The third and fifth `have`s of EC's proof of `RO_is_second_preimage_resistant`:
@@ -149,7 +129,8 @@ touch (`prhlProc_self_equal_outside`). -/
 theorem SecondPreimage2_SecondPreimage3
     (F : RO_T)
     (hinit : F.init = RO.LRO.init) (hgetF : F.get = RO.LRO.get)
-    (hsample : FVP.fvP F.sample ≤ RO.m.footprint) :
+    (hsample : FVP.fvP F.sample ≤ (SecondPreimage2.m2.footprint ⊔ D1.m1.footprint)ᶜ := by
+      fp_disjoint) :
     equiv[ SecondPreimage2(A, F).main ~ SecondPreimage3(A, F).main :
       ={m1, allGlobals} ==> ={res} ] := by
   equiv_proc
@@ -177,7 +158,7 @@ theorem SecondPreimage2_SecondPreimage3
     A(Bounder(RO.LRO)).guess
     (by rw [hfpL]; fp_disjoint) (fun _ _ => True)
   have hsamp := prhlProc_self_equal_outside_module L F.sample
-    (hsample.trans (by rw [hfpL]; fp_disjoint)) (fun _ _ => True)
+    (by rw [hfpL]; exact hsample) (fun _ _ => True)
   stmt_wp
   equiv_seq 2 2 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
       L.equal_outside §allGlobals{1} §allGlobals{2})
@@ -246,7 +227,7 @@ theorem SecondPreimage2_SecondPreimage3
 
 end SecondPreimage
 
-set_option maxHeartbeats 1000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
+set_option maxHeartbeats 2000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
 set_option maxRecDepth 8192 in
 open SecondPreimage in
 /-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`, its proof EC's: the chain of
@@ -309,36 +290,19 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                   equiv_skip
                   intros; simp_all
     _ = Pr[ SecondPreimage3(A, RO.LRO).main (mess1) @ &m : §res ] := by
-        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _ rfl rfl fvP_LRO_sample)
+        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _ rfl rfl)
     _ = Pr[ SecondPreimage3(A, RO).main (mess1) @ &m : §res ] := by
         -- EC's `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`
         symm
         byequiv
-        have hll := sampleto_ll 
-        -- `D1(A)` is an EasyCrypt-like `RO_Distinguisher`, outside `RO` and `FRO`
-        have hD : Module.ECModule (D1 A) (PROM.FullRO.RO_ext «from» «to») :=
-          PROM.FullRO.RO_Distinguisher.ecModule «from» «to» Unit Bool _
-            (Footprint.FinitelySupported.mono (fvP_D1 A)
-              ((Module.Declared.ecModule A (Oracle.ext)).finitelySupported.sup (by
-                simp only [Footprint.lens_pair]
-                exact ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
-                  (Lens.IsGlobalVar.footprint_finitelySupported _)).sup
-                  ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
-                    (Lens.IsGlobalVar.footprint_finitelySupported _)))))
-        have hdisj : FVP.fvP (D1 A) ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by
-          refine (fvP_D1 A).trans ?_
-          simp only [Footprint.lens_pair]
-          fp_disjoint
-        have hcall := PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto)
-          FRO.m
-          (fun _ => hll) RO.m _ hD hdisj
         equiv_proc
         stmt_inline 0
         stmt_inline 0
         stmt_inline 0
         stmt_inline 0
         stmt_wp
-        equiv_call hcall
+        equiv_call (PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO.m
+          (fun _ => sampleto_ll) RO.m (D1 A) (by ec_module) (by fp_disjoint))
         stmt_wp
         equiv_skip
         rintro g₁ g₂ a₁ a₂ ⟨rfl, rfl⟩
@@ -349,8 +313,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
           (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
             PROM.FullRO.RO_T.init.mk_simp])
           (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
-            PROM.FullRO.RO_T.get.mk_simp])
-          fvP_RO_sample)
+            PROM.FullRO.RO_T.get.mk_simp]))
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
         byphoare (: §m1 = mess1 ==> _)
         · phoare_proc_to_stmt

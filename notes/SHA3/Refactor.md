@@ -321,6 +321,23 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   parameters (`Syntax/ModuleApplicationSyntax.lean`): `D1(A, F)` is `Module.app (D1 A) F`, `D1 A`
   being EC's partial application `D1(A)` (an `RO_Distinguisher`), and prints back so.  Accessors
   as field notation in proofs (`F.init = RO.LRO.init`, `FVP.fvP RO.sample`).
+* **Footprints of concrete modules read off their code** (`Logic/ModuleFootprint.lean`), as EC
+  does: `fp_disjoint` bounds a concrete `module` with no `@[fp_bound]` by the globals its code
+  mentions (`DeclareModule.globalVarsOf`) and its abstract module argument, proven by
+  `fp_module` (a hook in `FootprintSolver`, which also splits pair lenses itself now);
+  `fp_finite` (finite support) and `ec_module` (`Module.ECModule` of a concrete module over a
+  first-order type) on the same bounds.  The bounds are cached per file.  SecondPreimage's
+  `RO_LRO_D` step is EC's one `call`, `equiv_call (RO_LRO_D … (D1 A) (by ec_module)
+  (by fp_disjoint))`; `fvP_D1`, `fvP_Bounder`, `fvP_RO_sample`, `fvP_LRO_sample` and the
+  hand-built `ECModule`/finite-support proof are gone; `SecondPreimage2_SecondPreimage3` takes
+  its disjointness as an auto-parameter.  Cost: disjointness of two named globals is 250–400 ms
+  of instance search (`NatNe` on the names' encodings, `Language/Variables.lean`), so bounding
+  `D1(A)` is the expensive part; the headline needs `maxHeartbeats 2000000` (the old file spent
+  2M on `fvP_D1` alone).  Single-threaded CPU time of the file 71 s (from 87 s).
+* Collision's modules in EC's shape too (`Bounder(F).init`, `A(Bounder(F)).guess`,
+  `FEL(A, F).main`, `F : RO_T`): no hand-built module record left in the pilot.
+* Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
+  and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three
   headlines `den` (no longer `clean`): the expectation steps of EC's `rnd (pred1 v)` and `hoare`
   bullets (`expected_mono'`, `SubProbability.expected_eq_zero_of_support`) were in the auxiliary
