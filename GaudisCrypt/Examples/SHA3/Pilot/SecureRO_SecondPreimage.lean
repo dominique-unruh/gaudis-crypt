@@ -465,44 +465,31 @@ theorem FEL2_rng [Countable «from»] (mess1 : «from») :
         rw [get_set_ne _ _ (fun (h : mess1 = x) => hx (h ▸ hd))]; exact rng_rem_set_of_rng hx hr a⟩
     split_ifs <;> simp_all
 
-/-- `Bounder(RO).get` keeps a key in `RO.m`. -/
-theorem Bounder_RO_get_dom (mess1 : «from») :
-    hoare[ Bounder(RO).get : FMap.dom §RO.m mess1 ==> FMap.dom §RO.m mess1 ] := by
-  hoare_proc_to_stmt
-  repeat hoare_inline 0
-  hoare_wp 20
-  hoare_skip
-  intro τ hd
-  have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
-    fun _ _ => dom_set_iff.mpr (Or.inr hd)
-  split_ifs <;> simp_all
-
 /-- EC's `call (: … /\ mess1 \in RO.m)` on `FEL`: `mess1` is in `RO.m` afterwards. -/
 theorem FEL_dom [Countable «from»] (mess1 : «from») :
     hoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==> FMap.dom §RO.m mess1 ] := by
   hoare_proc_to_stmt
-  have hA := Module.Declared.ecModule A (Oracle.ext)
-  have hL : FVP.fvP A ≤ (RO.m.footprint)ᶜ := by fp_disjoint
-  have hcall := Module.hoare_app_inv (L := RO.m) A (Oracle.ext) hA.representable hL
-    (fun n => by cases n with
-      | zero => exact inferInstanceAs (Countable «from»)
-      | succ m => nomatch m)
-    _ (fun s => FMap.dom s mess1)
-    (fun n => by cases n with
-      | zero =>
-        simp only [Oracle.ext, HoleSigs.Instantiation.lookup_zero_single]
-        exact Bounder_RO_get_dom mess1
-      | succ m => nomatch m)
   repeat hoare_inline 0
   hoare_wp 1
-  hoare_call hcall
-  hoare_wp 20
-  hoare_skip
-  intro σ hσ a _
-  refine ⟨?_, fun _ _ h => h⟩
-  have hx : (localVarLens "arg1" «from»).get σ = mess1 := hσ
-  rw [if_pos (by simp [FMap.dom, FMap.empty]), hx]
-  exact dom_set_iff.mpr (Or.inl rfl)
+  hoare_call (: FMap.dom §RO.m mess1)
+  case oracle =>
+    -- `Bounder(RO).get` keeps a key in `RO.m`
+    hoare_proc_to_stmt
+    repeat hoare_inline 0
+    hoare_wp 20
+    hoare_skip
+    intro τ hd
+    have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
+      fun _ _ => dom_set_iff.mpr (Or.inr hd)
+    split_ifs <;> simp_all
+  case pre =>
+    hoare_wp 20
+    hoare_skip
+    intro σ hσ a _
+    refine ⟨?_, fun _ _ h => h⟩
+    have hx : (localVarLens "arg1" «from»).get σ = mess1 := hσ
+    rw [if_pos (by simp [FMap.dom, FMap.empty]), hx]
+    exact dom_set_iff.mpr (Or.inl rfl)
 
 set_option maxRecDepth 8192 in
 /-- EC's `byphoare(: arg = mess1 ==> _); proc; seq 1 : (rng (rem RO.m mess1) (oget RO.m.[mess1]))

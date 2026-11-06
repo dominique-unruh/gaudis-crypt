@@ -293,4 +293,7 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   `fel` lemmas are EC's script with bullets; the three oracle-premise lemmas
   (`Bounder_RO_get_fel*`) and all `Module.fel`/`Lens.pair`/`Oracle.ext` plumbing in them are gone.
   One oracle only for now.
-* Pilot: 1353 lines (from 1452), auxiliary theorems 21 (from 24).
+* **B7, Hoare side**: `hoare_call (: inv)` (EC's `call (: inv)` on an abstract module, rule
+  `hoareStmt_call_inv`), same view inference and side conditions; goals `oracle` and `pre`.
+  `FEL_dom`'s hand-built `Module.hoare_app_inv` and the lemma `Bounder_RO_get_dom` are gone.
+* Pilot: 1339 lines (from 1452), auxiliary theorems 20 (from 24).

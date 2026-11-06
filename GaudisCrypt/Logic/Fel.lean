@@ -203,4 +203,21 @@ theorem phoareStmt_fel {T : Type 1} [IsModule T] {sig : ProcedureSignature} {hol
   rw [hx]
   rfl
 
+/-- **EC's `call (: inv)` on an abstract module, for a Hoare triple about a statement**: if the
+oracles keep `inv` (of the view `L`), then before `x <- call D(O)` it suffices that `inv` holds and
+that every result and globals keeping it give `B`. -/
+theorem hoareStmt_call_inv {T : Type 1} [IsModule T] {sig : ProcedureSignature} {holes : HoleSigs}
+    (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (hdisj : FVP.fvP D ≤ (L.footprint)ᶜ)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O : T) (I : Ω → Prop)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      hoareProc (fun _ g => I (L.get g)) ((ext O).lookup n) (fun _ g' => I (L.get g')))
+    {A B : ProgramState → Prop} {s₀ : Stmt} {x : Setter sig.ret ProgramState}
+    {e : Getter sig.ParamType ProgramState}
+    (hpre : hoareStmt A s₀ fun σ => I (L.get σ.globals) ∧
+      ∀ r g, I (L.get g) → B (x.set r (ProgramState.globalL.set g σ))) :
+    hoareStmt A (.seq s₀ (Stmt.call x (Module.app D O).procedure e)) B :=
+  hoare_seq (hoare_call_wp x _ e (Module.hoare_app_inv D ext hD hdisj hc O I horacle) B) hpre
+
 end GaudisCrypt
