@@ -20,13 +20,13 @@ open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set 
   dom_set_iff get_set_ne expected_mono' expected_point' indicatorE_le_of_imp)
 
 open Classical in
-module SecondPreimage using (A : AdvSecondPreimage «from» «to», F : RF «from» «to») {
+module SecondPreimage using (A : AdvSecondPreimage, F : RF) {
   proc main (m1 : «from») : Bool {
     var b : Bool, m2 : «from», hash1 : «to», hash2 : «to»;
-    _ <- call (RF.init «from» «to»
+    _ <- call (RF.init
       (Module.app (Bounder) F)) ();
-    m2 <- call (Module.app A (Oracle.mk «from» «to»
-      { get := RF.get «from» «to»
+    m2 <- call (Module.app A (Oracle.mk
+      { get := RF.get
           (Module.app (Bounder) F) })) ($m1);
     if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
       Counter.c <- increase_counter $Counter.c $m1;
@@ -50,17 +50,17 @@ module SecondPreimage using (A : AdvSecondPreimage «from» «to», F : RF «fro
 
 namespace SecondPreimage
 
-module FEL using (A : AdvSecondPreimage «from» «to», F : PROM.FullRO.RO_T «from» «to») {
+module FEL using (A : AdvSecondPreimage, F : PROM.FullRO.RO_T «from» «to») {
   proc main (m1 : «from») : «from» {
     var m2 : «from»;
-    _ <- call (RF.init «from» «to»
-      (Module.app (Bounder) (RF.mk «from» «to»
+    _ <- call (RF.init
+      (Module.app (Bounder) (RF.mk
           { init := PROM.FullRO.RO_T.init «from» «to» F,
             get := PROM.FullRO.RO_T.get «from» «to» F }))) ();
     _ <- call F.sample ($m1);
-    m2 <- call (Module.app A (Oracle.mk «from» «to»
-      { get := RF.get «from» «to»
-          (Module.app (Bounder) (RF.mk «from» «to»
+    m2 <- call (Module.app A (Oracle.mk
+      { get := RF.get
+          (Module.app (Bounder) (RF.mk
               { init := PROM.FullRO.RO_T.init «from» «to» F,
                 get := PROM.FullRO.RO_T.get «from» «to» F })) })) ($m1);
     return $m2
@@ -96,7 +96,7 @@ instance [Params «from» «to»] : Lens.IsGlobalVar (D1.m1 : Lens «from» Vari
   ⟨rfl, HEq.rfl⟩
 
 open Classical in
-module SecondPreimage2 using (A : AdvSecondPreimage «from» «to», F : PROM.FullRO.RO_T «from» «to») {
+module SecondPreimage2 using (A : AdvSecondPreimage, F : PROM.FullRO.RO_T «from» «to») {
   proc main (m1 : «from») : Bool {
     var b : Bool, hash1 : «to», hash2 : «to»;
     SecondPreimage2.m2 <- call (Module.app (FEL) (Module.pair A F)) ($m1);
@@ -121,7 +121,7 @@ module SecondPreimage2 using (A : AdvSecondPreimage «from» «to», F : PROM.Fu
 -- `RO_Distinguisher` (`RO_LRO_D (D1(A))`), so its `distinguish` takes that type's `unit`, and `A`
 -- is a Lean parameter so that `D1 A` is one (as `IndifRO_is_secure`'s `D2Pre`)
 set_option linter.gaudisCrypt.using false in
-module D1 (A : AdvSecondPreimage «from» «to») using (F : PROM.FullRO.RO_T «from» «to») {
+module D1 (A : AdvSecondPreimage) using (F : PROM.FullRO.RO_T «from» «to») {
   proc distinguish (_x : Unit) : Bool {
     var b : Bool;
     b <- call (Module.app (SecondPreimage2) (Module.pair A F)) ($D1.m1);
@@ -131,14 +131,14 @@ module D1 (A : AdvSecondPreimage «from» «to») using (F : PROM.FullRO.RO_T «
 
 -- `A` a Lean parameter, as in `D1`, which it applies to `A`
 set_option linter.gaudisCrypt.using false in
-module SecondPreimage3 (A : AdvSecondPreimage «from» «to»)
+module SecondPreimage3 (A : AdvSecondPreimage)
     using (F : PROM.FullRO.RO_T «from» «to») {
   proc main (m1 : «from») : Bool {
     var b : Bool;
     SecondPreimage2.m2 <- (default : «from»);
     D1.m1 <- $m1;
-    _ <- call (RF.init «from» «to»
-      (Module.app (Bounder) (RF.mk «from» «to»
+    _ <- call (RF.init
+      (Module.app (Bounder) (RF.mk
           { init := PROM.FullRO.RO_T.init «from» «to» F,
             get := PROM.FullRO.RO_T.get «from» «to» F }))) ();
     b <- call (Module.app (D1 A) F) (());
@@ -150,8 +150,8 @@ end SecondPreimage
 
 
 /-- `LRO` at the module type `RF` (its procedures `init` and `get`), as `RO.asRF`. -/
-noncomputable def RO.LRO_asRF : RF «from» «to» :=
-  RF.mk «from» «to»
+noncomputable def RO.LRO_asRF : RF :=
+  RF.mk
     { init := PROM.FullRO.RO_T.init «from» «to» (RO.LRO)
       get := PROM.FullRO.RO_T.get «from» «to» (RO.LRO) }
 
@@ -191,7 +191,7 @@ theorem RO.LRO_asRF_eq :
 section SecondPreimageSection
 
 -- EC: `{-Bounder, -RO, -FRO}`; the local modules' variables are fresh in EC, here a restriction
-declare module A <: AdvSecondPreimage «from» «to»
+declare module A <: AdvSecondPreimage
   {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
 
 namespace SecondPreimage
@@ -200,7 +200,7 @@ namespace SecondPreimage
 set_option maxHeartbeats 2000000 in -- `fp_module` on named variables (instance search)
 /-- `D1(A)` touches `A`'s variables, `Bounder`'s and `Counter`'s, and its own. -/
 theorem fvP_D1
-    (A : AdvSecondPreimage «from» «to») :
+    (A : AdvSecondPreimage) :
     FVP.fvP (D1 A) ≤
       FVP.fvP A ⊔ (Lens.pair (Lens.pair Bounder.bounder Counter.c)
         (Lens.pair SecondPreimage2.m2 D1.m1)).footprint := by
@@ -210,7 +210,7 @@ theorem fvP_D1
 `SecondPreimage(A,LRO).main ~ SecondPreimage2(A,LRO).main : ={arg, glob} ==> ={res}`, by EC's
 `inline*; sim` (EC's `sim` relates `m2{1}` to `SecondPreimage2.m2{2}`; here the queries after the
 adversary are inlined and coupled one by one, `equiv_rnd`). -/
-theorem SecondPreimage_SecondPreimage2 (A : AdvSecondPreimage «from» «to») :
+theorem SecondPreimage_SecondPreimage2 (A : AdvSecondPreimage) :
     equiv[ SecondPreimage(A, RO.LRO).main ~ SecondPreimage2(A, RO.LRO).main :
       ={m1, allGlobals} ==> ={res} ] := by
   equiv_proc
@@ -288,9 +288,9 @@ theorem SecondPreimage2_SecondPreimage3
     (PROM.FullRO.RO_T.get «from» «to» (RO.LRO))
     (by rw [hfpL]; fp_disjoint) (fun x y => x.1 = y.1)
   have hA := prhlProc_self_equal_outside_module L
-    (Module.app A (Oracle.mk «from» «to»
-      { get := RF.get «from» «to»
-          (Module.app (Bounder) (RF.mk «from» «to»
+    (Module.app A (Oracle.mk
+      { get := RF.get
+          (Module.app (Bounder) (RF.mk
               { init := PROM.FullRO.RO_T.init «from» «to» (RO.LRO),
                 get := PROM.FullRO.RO_T.get «from» «to» (RO.LRO) })) }))
     (by rw [hfpL]; fp_disjoint) (fun _ _ => True)
@@ -368,12 +368,12 @@ theorem SecondPreimage2_SecondPreimage3
 theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»] :
     equiv[ (Module.app (SecondPreimage3 A) RO) ~ (Module.app (SecondPreimage3 A) RO.LRO) :
       ={m1, allGlobals} ==> ={res} ] := by
-  have hll := sampleto_ll (self := inferInstance)
+  have hll := sampleto_ll 
   -- `D1(A)` is an EasyCrypt-like `RO_Distinguisher`, outside `RO` and `FRO`
   have hD : Module.ECModule (D1 A) (PROM.FullRO.RO_ext «from» «to») :=
     PROM.FullRO.RO_Distinguisher.ecModule «from» «to» Unit Bool _
       (Footprint.FinitelySupported.mono (fvP_D1 A)
-        ((Module.Declared.ecModule A (Oracle.ext «from» «to»)).finitelySupported.sup (by
+        ((Module.Declared.ecModule A (Oracle.ext)).finitelySupported.sup (by
           simp only [Footprint.lens_pair]
           exact ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
             (Lens.IsGlobalVar.footprint_finitelySupported _)).sup
@@ -419,7 +419,7 @@ theorem Bounder_RO_get_fel2 (m1 : «from») :
       have hne : m1 ≠ (localVarLens "x" «from»).get τ := fun h => hx' (h ▸ hd)
       refine (expected_mono' fun a => ?_).trans
         ((expected_point' (oget ((RO.m.get τ.globals).get m1))).trans
-          (le_of_eq (sampleto_fu (self := inferInstance) _ _)))
+          (le_of_eq (sampleto_fu  _ _)))
       refine indicatorE_le_of_imp fun hs =>
         (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ)
         hr ?_).symm
@@ -467,7 +467,7 @@ theorem FEL2_rng [Countable «from»] (mess1 : «from») :
     phoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==>
         FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)) ]
       ≤ (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) := by
-  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
+  have hA := Module.Declared.ecModule A (Oracle.ext)
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
     rw [Footprint.lens_pair]
     fp_disjoint
@@ -482,7 +482,7 @@ theorem FEL2_rng [Countable «from»] (mess1 : «from») :
   refine le_trans (Module.fel (L := Lens.pair Bounder.bounder RO.m) (cntr := fun s => s.1)
     (step := fun _ => sampleto.1 {default}) (q := bound)
     (bad := fun s => FMap.rng (FMap.rem s.2 mess1) (oget (s.2.get mess1)))
-    (inv := fun s => FMap.dom s.2 mess1) A (Oracle.ext «from» «to») hA.representable hL
+    (inv := fun s => FMap.dom s.2 mess1) A (Oracle.ext) hA.representable hL
     (fun n => by cases n with
       | zero => exact inferInstanceAs (Countable «from»)
       | succ m => nomatch m)
@@ -520,9 +520,9 @@ theorem Bounder_RO_get_dom (mess1 : «from») :
 theorem FEL_dom [Countable «from»] (mess1 : «from») :
     hoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==> FMap.dom §RO.m mess1 ] := by
   hoare_proc_to_stmt
-  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
+  have hA := Module.Declared.ecModule A (Oracle.ext)
   have hL : FVP.fvP A ≤ (RO.m.footprint)ᶜ := by fp_disjoint
-  have hcall := Module.hoare_app_inv (L := RO.m) A (Oracle.ext «from» «to») hA.representable hL
+  have hcall := Module.hoare_app_inv (L := RO.m) A (Oracle.ext) hA.representable hL
     (fun n => by cases n with
       | zero => exact inferInstanceAs (Countable «from»)
       | succ m => nomatch m)
@@ -580,7 +580,7 @@ theorem SecondPreimage2_le [Countable «from»] (mess1 : «from») :
       refine (expected_mono' fun _ => ?_).trans (expected_const_le' sampleto (sampleto.1 {default}))
       refine (expected_mono' fun b => ?_).trans
         ((expected_point' (oget ((RO.m.get σ.globals).get mess1))).trans
-          (le_of_eq (sampleto_fu (self := inferInstance) _ _)))
+          (le_of_eq (sampleto_fu  _ _)))
       refine indicatorE_le_of_imp fun hP => ?_
       simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
       rw [← hm]
@@ -639,7 +639,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
         byphoare (SecondPreimage.SecondPreimage2_le A mess1)
         -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
         · have hμ := mu_ne_top sampleto default
-          have hb := bound_gt0 (self := inferInstance)
+          have hb := bound_gt0 
           have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
           simp only [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul]
           refine le_of_eq ?_
@@ -650,7 +650,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             ENNReal.ofReal_natCast]
           push_cast
           rw [add_mul, one_mul]
-        · have hb := bound_gt0 (self := inferInstance)
+        · have hb := bound_gt0 
           exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1))
             ENNReal.toReal_nonneg
 

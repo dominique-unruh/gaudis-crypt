@@ -49,51 +49,8 @@ class Params («from» «to» : outParam Type) where
 export Params (sampleto bound bound_gt0 sampleto_ll sampleto_full sampleto_fu increase_counter
   increase_counter_spec bound_counter bound_counter_ge0)
 
-variable («from» «to» : Type) [DecidableEq «from»] [Inhabited «from»] [Inhabited «to»]
+variable {«from» «to» : Type} [DecidableEq «from»] [Inhabited «from»] [Inhabited «to»]
 
-/-! The module types: their types are explicit. -/
-
-moduletype RF {
-  proc init () -> Unit;
-  proc get (x : «from») -> «to»;
-}
-
--- EasyCrypt's `module type Oracle = { proc get(x : from) : to {} }`
-moduletype Oracle {
-  proc get (x : «from») -> «to»;
-}
-
-/-- The oracle procedure an adversary with an `Oracle` may call: `F.get`.  The hole of its
-representation (`Module.Representable`, exception E2). -/
-abbrev Oracle.holes : HoleSigs := .cons (procsig («from») -> «to») .empty
-
-/-- `F.get` out of the oracle `F`. -/
-noncomputable def Oracle.ext (F : Oracle «from» «to») : (Oracle.holes «from» «to»).Instantiation :=
-  (Oracle.get «from» «to» F).procedure
-
-/-- EC's `module type AdvPreimage (F : Oracle) = { proc guess(h : to) : from }`. -/
-abbrev AdvPreimage := Oracle «from» «to» →ₘ procmod («to») → «from»
-
-/-- EC's `module type AdvSecondPreimage (F : Oracle) = { proc guess(m : from) : from }`. -/
-abbrev AdvSecondPreimage := Oracle «from» «to» →ₘ procmod («from») → «from»
-
-/-- EC's `module type AdvCollision (F : Oracle) = { proc guess() : from * from }`. -/
-abbrev AdvCollision := Oracle «from» «to» →ₘ procmod () → («from» × «from»)
-
-/-! EC's subtyping of module types, as coercions.  Each is a `fun` building the smaller module
-in place: the coercion then unfolds to that record, which is what the `module` command reads a
-callee like `A(Bounder(F))` back from (a named coercion function it would not see through). -/
-
-/-- An `RF` is an `Oracle` (its `get`). -/
-noncomputable instance : Coe (RF «from» «to») (Oracle «from» «to») :=
-  ⟨fun F => Oracle.mk «from» «to» { get := RF.get «from» «to» F }⟩
-
-/-- The random oracle (`PROM`'s `RO`) is an `RF` (its `init` and `get`). -/
-noncomputable instance : Coe (PROM.FullRO.RO_T «from» «to») (RF «from» «to») :=
-  ⟨fun F => RF.mk «from» «to» { init := PROM.FullRO.RO_T.init «from» «to» F
-                                get := PROM.FullRO.RO_T.get «from» «to» F }⟩
-
-variable {«from» «to»}
 
 /-! `clone import PROM.FullRO as RO with type in_t <- from, type out_t <- to,
 op dout _ <- sampleto, …`: its module variable `RO.m`, and its module `RO`. -/
@@ -122,6 +79,50 @@ instance [Params «from» «to»] :
 
 variable [Params «from» «to»]
 
+/-! The module types.  Their types are the theory's (implicit, fixed by `Params`'s `outParam`s), so
+they are written as in EC: `RF`, `Oracle`, `AdvPreimage`. -/
+
+moduletype RF {
+  proc init () -> Unit;
+  proc get (x : «from») -> «to»;
+}
+
+-- EasyCrypt's `module type Oracle = { proc get(x : from) : to {} }`
+moduletype Oracle {
+  proc get (x : «from») -> «to»;
+}
+
+/-- The oracle procedure an adversary with an `Oracle` may call: `F.get`.  The hole of its
+representation (`Module.Representable`, exception E2). -/
+abbrev Oracle.holes : HoleSigs := .cons (procsig («from») -> «to») .empty
+
+/-- `F.get` out of the oracle `F`. -/
+noncomputable def Oracle.ext (F : Oracle) : (@Oracle.holes «from» «to»).Instantiation :=
+  (Oracle.get F).procedure
+
+/-- EC's `module type AdvPreimage (F : Oracle) = { proc guess(h : to) : from }`. -/
+abbrev AdvPreimage := Oracle →ₘ procmod («to») → «from»
+
+/-- EC's `module type AdvSecondPreimage (F : Oracle) = { proc guess(m : from) : from }`. -/
+abbrev AdvSecondPreimage := Oracle →ₘ procmod («from») → «from»
+
+/-- EC's `module type AdvCollision (F : Oracle) = { proc guess() : from * from }`. -/
+abbrev AdvCollision := Oracle →ₘ procmod () → («from» × «from»)
+
+/-! EC's subtyping of module types, as coercions.  Each is a `fun` building the smaller module
+in place: the coercion then unfolds to that record, which is what the `module` command reads a
+callee like `A(Bounder(F))` back from (a named coercion function it would not see through). -/
+
+/-- An `RF` is an `Oracle` (its `get`). -/
+noncomputable instance : Coe RF Oracle :=
+  ⟨fun F => Oracle.mk { get := RF.get F }⟩
+
+/-- The random oracle (`PROM`'s `RO`) is an `RF` (its `init` and `get`). -/
+noncomputable instance : Coe (PROM.FullRO.RO_T «from» «to») RF :=
+  ⟨fun F => RF.mk { init := PROM.FullRO.RO_T.init «from» «to» F
+                    get := PROM.FullRO.RO_T.get «from» «to» F }⟩
+
+
 /-- The clone's `RO`. -/
 noncomputable abbrev RO : PROM.FullRO.RO_T «from» «to» :=
   PROM.FullRO.RO.asRO «from» «to» (fun _ => sampleto) RO.m
@@ -135,7 +136,7 @@ noncomputable abbrev FRO : PROM.FullRO.FRO_T «from» «to» :=
   PROM.FullRO.FRO «from» «to» (fun _ => sampleto) FRO.m
 
 /-- `RO` at the module type `RF` (the coercion, written out where a name is wanted). -/
-noncomputable abbrev RO.asRF : RF «from» «to» := (RO : RF «from» «to»)
+noncomputable abbrev RO.asRF : RF := (RO : RF)
 
 global_var Counter.c : ℤ
 
@@ -148,7 +149,7 @@ module Counter {
 
 global_var Bounder.bounder : ℤ
 
-module Bounder using (F : RF «from» «to») : (RF «from» «to») {
+module Bounder using (F : RF) : RF {
   proc init () : Unit {
     Bounder.bounder <- 0;
     _ <- call Counter.init ();
@@ -170,7 +171,7 @@ module Bounder using (F : RF «from» «to») : (RF «from» «to») {
 }
 
 open Classical in
-module Preimage using (A : AdvPreimage «from» «to», F : RF «from» «to») {
+module Preimage using (A : AdvPreimage, F : RF) {
   proc main (hash : «to») : Bool {
     var b : Bool, m : «from», hash' : «to»;
     _ <- call Counter.init ();
@@ -190,7 +191,7 @@ module Preimage using (A : AdvPreimage «from» «to», F : RF «from» «to») 
 
 namespace Preimage
 
-module FEL using (A : AdvPreimage «from» «to», F : RF «from» «to») {
+module FEL using (A : AdvPreimage, F : RF) {
   proc main (hash : «to») : «from» {
     var m : «from»;
     _ <- call Bounder(F).init ();
@@ -200,7 +201,7 @@ module FEL using (A : AdvPreimage «from» «to», F : RF «from» «to») {
 }
 
 open Classical in
-module Preimage2 using (A : AdvPreimage «from» «to», F : RF «from» «to») {
+module Preimage2 using (A : AdvPreimage, F : RF) {
   proc main (hash : «to») : Bool {
     var b : Bool, m : «from», hash' : «to»;
     m <- call FEL(A, F).main ($hash);
@@ -219,7 +220,7 @@ end Preimage
 -- after the section's local modules, whose parameter `A` is their own
 section Preimage
 
-declare module A <: AdvPreimage «from» «to» {-RO, -Preimage}
+declare module A <: AdvPreimage {-RO, -Preimage}
 
 /-! ### The proof of `RO_is_preimage_resistant`
 
@@ -296,8 +297,8 @@ theorem FEL_rng [Countable «from»] (h : «to») :
   simp_reads
   refine le_trans (Module.fel (L := Lens.pair Bounder.bounder RO.m) (cntr := fun s => s.1)
     (step := fun _ => sampleto.1 {h}) (q := bound) (bad := fun s => FMap.rng s.2 h)
-    (inv := fun _ => True) A (Oracle.ext «from» «to»)
-    (Module.Declared.ecModule A (Oracle.ext «from» «to»)).representable hL
+    (inv := fun _ => True) A (Oracle.ext)
+    (Module.Declared.ecModule A (Oracle.ext)).representable hL
     (fun n => by cases n with
       | zero => exact inferInstanceAs (Countable «from»)
       | succ m => nomatch m)
@@ -399,7 +400,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
         byphoare (Preimage2_le A h)
         -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
         · have hμ := mu_ne_top sampleto h
-          have hb := bound_gt0 (self := inferInstance)
+          have hb := bound_gt0 
           have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
           simp only [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul]
           refine le_of_eq ?_
@@ -410,7 +411,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
             ENNReal.ofReal_natCast]
           push_cast
           rw [add_mul, one_mul]
-        · have hb := bound_gt0 (self := inferInstance)
+        · have hb := bound_gt0 
           exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1))
             ENNReal.toReal_nonneg
 

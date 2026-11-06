@@ -19,16 +19,16 @@ open GaudisCrypt.SHA3.SecureRO (collision collision_set_of_not_dom rng_of_collis
   expected_point' indicatorE_le_of_imp dom_set_iff get_set_ne)
 
 open Classical in
-module Collision using (A : AdvCollision «from» «to», F : PROM.FullRO.RO_T «from» «to») {
+module Collision using (A : AdvCollision, F : PROM.FullRO.RO_T «from» «to») {
   proc main () : Bool {
     var b : Bool, m1 : «from», m2 : «from», hash1 : «to», hash2 : «to»;
-    _ <- call (RF.init «from» «to»
-      (Module.app (Bounder) (RF.mk «from» «to»
+    _ <- call (RF.init
+      (Module.app (Bounder) (RF.mk
           { init := PROM.FullRO.RO_T.init «from» «to» F,
             get := PROM.FullRO.RO_T.get «from» «to» F }))) ();
-    m1, m2 <- call (Module.app A (Oracle.mk «from» «to»
-      { get := RF.get «from» «to»
-          (Module.app (Bounder) (RF.mk «from» «to»
+    m1, m2 <- call (Module.app A (Oracle.mk
+      { get := RF.get
+          (Module.app (Bounder) (RF.mk
               { init := PROM.FullRO.RO_T.init «from» «to» F,
                 get := PROM.FullRO.RO_T.get «from» «to» F })) })) ();
     if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
@@ -53,16 +53,16 @@ local modules in the namespace `Collision`) -/
 
 namespace Collision
 
-module FEL using (A : AdvCollision «from» «to», F : PROM.FullRO.RO_T «from» «to») {
+module FEL using (A : AdvCollision, F : PROM.FullRO.RO_T «from» «to») {
   proc main () : («from» × «from») {
     var m1 : «from», m2 : «from»;
-    _ <- call (RF.init «from» «to»
-      (Module.app (Bounder) (RF.mk «from» «to»
+    _ <- call (RF.init
+      (Module.app (Bounder) (RF.mk
           { init := PROM.FullRO.RO_T.init «from» «to» F,
             get := PROM.FullRO.RO_T.get «from» «to» F }))) ();
-    m1, m2 <- call (Module.app A (Oracle.mk «from» «to»
-      { get := RF.get «from» «to»
-          (Module.app (Bounder) (RF.mk «from» «to»
+    m1, m2 <- call (Module.app A (Oracle.mk
+      { get := RF.get
+          (Module.app (Bounder) (RF.mk
               { init := PROM.FullRO.RO_T.init «from» «to» F,
                 get := PROM.FullRO.RO_T.get «from» «to» F })) })) ();
     return ($m1, $m2)
@@ -70,7 +70,7 @@ module FEL using (A : AdvCollision «from» «to», F : PROM.FullRO.RO_T «from�
 }
 
 open Classical in
-module Collision2 using (A : AdvCollision «from» «to», F : PROM.FullRO.RO_T «from» «to») {
+module Collision2 using (A : AdvCollision, F : PROM.FullRO.RO_T «from» «to») {
   proc main () : Bool {
     var b : Bool, m1 : «from», m2 : «from», hash1 : «to», hash2 : «to»;
     m1, m2 <- call (Module.app (FEL) (Module.pair A F)) ();
@@ -95,7 +95,7 @@ end Collision
 
 section CollisionSection
 
-declare module A <: AdvCollision «from» «to» {-RO, -FRO, -Bounder}
+declare module A <: AdvCollision {-RO, -FRO, -Bounder}
 
 
 
@@ -104,7 +104,7 @@ declare module A <: AdvCollision «from» «to» {-RO, -FRO, -Bounder}
 /-- The first `have` of EC's proof of `RO_is_collision_resistant`:
 `Collision(A, RO).main ~ Collision2(A, RO).main : ={glob} ==> ={res}`, by EC's
 `byequiv; proc; inline*; sim`. -/
-theorem Collision_Collision2 (A : AdvCollision «from» «to») :
+theorem Collision_Collision2 (A : AdvCollision) :
     equiv[ Collision(A, RO).main ~ Collision.Collision2(A, RO).main :
       ={allGlobals} ==> ={res} ] := by
   equiv_proc
@@ -147,7 +147,7 @@ theorem Bounder_RO_get_fel_coll :
         simpa using hx
       refine (expected_mono' fun a => indicatorE_le_of_imp
         (rng_of_collision_set hx' hc)).trans ?_
-      refine (expected_rng_le (sampleto_fu (self := inferInstance)) _).trans ?_
+      refine (expected_rng_le sampleto_fu _).trans ?_
       gcongr
       have : (FMap.fdom (RO.m.get τ.globals)).card ≤ (Bounder.bounder.get τ.globals).toNat := by
         omega
@@ -202,7 +202,7 @@ theorem Bounder_RO_get_fel_coll :
 theorem FEL_coll [Countable «from»] :
     phoare[ Collision.FEL(A, RO).main : True ==> collision §RO.m ]
       ≤ (∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) := by
-  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
+  have hA := Module.Declared.ecModule A (Oracle.ext)
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
     rw [Footprint.lens_pair]
     fp_disjoint
@@ -215,7 +215,7 @@ theorem FEL_coll [Countable «from»] :
   refine le_trans (Module.fel (L := Lens.pair Bounder.bounder RO.m) (cntr := fun s => s.1)
     (step := fun i => (i.toNat : ENNReal) * sampleto.1 {default}) (q := bound)
     (bad := fun s => collision s.2) (inv := fun s => ((FMap.fdom s.2).card : ℤ) ≤ s.1)
-    A (Oracle.ext «from» «to») hA.representable hL
+    A (Oracle.ext) hA.representable hL
     (fun n => by cases n with
       | zero => exact inferInstanceAs (Countable «from»)
       | succ m => nomatch m)
@@ -258,7 +258,7 @@ theorem Collision2_le [Countable «from»] :
     phoare_wp 40
     phoare_skip
     intro σ hnc
-    have hfu := sampleto_fu (self := inferInstance)
+    have hfu := sampleto_fu 
     split_ifs with h1 h2 h3 h4 h5
     · -- `m1` fresh, sampled `a`; by cases on `m2` (EC's `case: (m2 \in RO.m)`, `m1 = m2`)
       have hd1 : ¬ FMap.dom (RO.m.get σ.globals) ((localVarLens "m1" «from»).get σ) := by
@@ -336,7 +336,7 @@ private theorem sum_Ico_int_toNat (n : ℕ) (f : ℕ → ENNReal) :
 theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) :
     Pr[ Collision(A, RO).main () @ &m : §res ]
       ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
-  have hb := bound_gt0 (self := inferInstance)
+  have hb := bound_gt0 
   calc Pr[ Collision(A, RO).main () @ &m : §res ]
       = Pr[ Collision.Collision2(A, RO).main () @ &m : §res ] := by
         byequiv (Collision_Collision2 A)

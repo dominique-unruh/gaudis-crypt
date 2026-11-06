@@ -241,3 +241,42 @@ Still different from EC (each small, listed for the next files):
 
 Next: switch `SecureORO`, `IndifRO_is_secure`, `SHA3Security` to the pilot and retire the old
 `SecureRO.lean`; then the next file.
+
+## Phase 2: remove the boilerplate EC does not have (agreed 2026-11-06)
+
+The pilot is 1452 lines for EC's 525.  The gap, by pattern (counts in the three pilot files):
+types `«from» «to»` 121; `*_proc_to_stmt` + `*_inline k` 69; `Lens.pair` state views 40;
+expectation lemmas after wp 38; `split_ifs`/`simp_all`/`omega` 50; footprint tactics 21;
+abstract-call side conditions 23; hand-written module variables and coercions 12;
+`(self := inferInstance)`/`set_option` 19.
+
+**A. Declarations**
+1. Theory types implicit for module types too (declared after `variable {from to} [Params]`, the
+   instance's `outParam`s fixing them): `RF`, `Oracle.mk`, `RF.get F` without types.
+2. Our own `module_var x : T` command (what `RO.m`, `FRO.m`, `SecondPreimage2.m2`, `D1.m1` are by
+   hand today); `global_var` stays as it is.
+3. `module_subtype RF <: Oracle`: the coercion from the field names.
+4. `T.holes`/`T.ext` generated, recorded by `declare module`: no `Module.Declared.ecModule …` in
+   proofs.
+5. The theory's axioms usable by name (no `(self := inferInstance)`).
+
+**B. Tactics** (one implementation per step, all judgments)
+6. `proc` to the body with the parameters as locals (no argument copies: EC's `seq` counts);
+   `inline*`, `inline M.f` by name.
+7. `fel cntr step q bad [O: pre] inv` and `call (: inv)` on abstract calls: EC's arguments in `§`
+   syntax, the state view inferred from the variables, side conditions from `declare module`, EC's
+   per-oracle premises as bullets.
+8. Statement-level `rnd (pred1 v)`, `rcondt`/`rcondf`, `case P`, `hoare`, leading-count `seq`
+   everywhere; what is left is logic, closed by `simp_all`/`omega` (no `smt`-like tactic).
+9. A simp set for EC's real-valued bounds.
+
+**C. Structure**
+10. EC's inline `have`s and bullets back inline; generic `FMap` facts to `Lib/EC/FMap.lean` under
+    EC's names; target: no auxiliary lemmas beyond EC's.
+11. One pilot file; the slow disjointness of long variable names.
+12. `scripts/ec_fidelity.py`: Lean/EC line ratio per proof, boilerplate counts.
+
+Validation after each phase: `SecureORO` (SecureRO's twin) with the new machinery; then switch
+`SecureORO`, `IndifRO_is_secure`, `SHA3Security` to the pilot and retire the old file.
+
+Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own commands where needed.
