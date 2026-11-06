@@ -995,9 +995,8 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3OSecurity.lean`, namespace `GaudisCrypt.SHA3.SHA3OSecurity`.
 
-Status (2026-11-06): sections `Preimage` and `SecondPreimage` complete; 8 `sorry`s left, all in
-section `Collision` (`toto`, `titi`, `eager_ideal`, `rw_ideal_2`, `rw_ideal`, `leq_ideal`, `rw_real`,
-`Sponge_collision_resistant`).
+Status (2026-11-06): complete, no `sorry`.  The three headline theorems rest on
+`Gconcl_list.Real_lossless_at` (through `SHA3OIndiff`), the port's only remaining `sorry`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
@@ -1110,14 +1109,14 @@ section `Collision` (`toto`, `titi`, `eager_ideal`, `rw_ideal_2`, `rw_ideal`, `l
 | 2118 | local equiv | `eq_eager_ideal2` | section Collision. | `Collision.eq_eager_ideal2` (`Preimage.eq_eager_ideal2`, as above) | done |
 | 2165 | local module | `Dist` | section Collision. | `Collision.Dist` (`A` a Lean parameter; alias call-wrapped, E5) | def |
 | 2170 | local module | `Game` | section Collision. | `Collision.Game` (`A` a Lean parameter) | def |
-| 2182 | local lemma | `eager_ideal` | section Collision. | `Collision.eager_ideal` | stated |
-| 2310 | local equiv | `toto` | section Collision. | `Collision.toto` | stated |
-| 2325 | local equiv | `titi` | section Collision. | `Collision.titi` | stated |
-| 2359 | local lemma | `rw_ideal_2` | section Collision. | `Collision.rw_ideal_2` | stated |
-| 2512 | local lemma | `rw_ideal` | section Collision. | `Collision.rw_ideal` | stated |
-| 2598 | local lemma | `leq_ideal` | section Collision. | `Collision.leq_ideal` | stated |
-| 2608 | local lemma | `rw_real` | section Collision. | `Collision.rw_real` | stated |
-| 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` | stated |
+| 2182 | local lemma | `eager_ideal` | section Collision. | `Collision.eager_ideal` (`Preimage.eager_ideal_of` with this section's `Dist`/`Dist_game`) | done |
+| 2310 | local equiv | `toto` | section Collision. | `Collision.toto` (`SecondPreimage.toto`: the local modules are definitionally equal) | done |
+| 2325 | local equiv | `titi` | section Collision. | `Collision.titi` (`SecondPreimage.titi`, as above) | done |
+| 2359 | local lemma | `rw_ideal_2` | section Collision. | `Collision.rw_ideal_2` (`eager_ideal`; `ext_game` (abstract call over `xL`, then `call toto; call toto`); `fin_game` (abstract call over `fL`; `titi` on the first queries via `prhlStmt_fix_left`; EC's `case` on the last: `titi` or `SecondPreimage.ll_get`); `rl_game` via `soro_coll_game`) | done |
+| 2512 | local lemma | `rw_ideal` | section Collision. | `Collision.rw_ideal` (`ri_game` via `soro_coll_game`) | done |
+| 2598 | local lemma | `leq_ideal` | section Collision. | `Collision.leq_ideal` (+ `Log.m` outside `SORO.RO.FRO.m`, E6; `SORO_Coll_ec`; `RO_is_collision_resistant`) | done |
+| 2608 | local lemma | `rw_real` | section Collision. | `Collision.rw_real` (`Preimage.rw_real`'s steps; `rr_F` on both last queries) | done |
+| 2634 | lemma | `Sponge_collision_resistant` | section Collision. | `Sponge_collision_resistant` (+ `AGext0Fresh`, E13; `Log.m`, `RFList.m` fresh, E6; `Dist_of_CollAdv_ll` by pHL; modulo `Gconcl_list.Real_lossless`) | exc |
 
 ## Library: `theories/crypto/prp_prf/Strong_RP_RF.eca`
 
