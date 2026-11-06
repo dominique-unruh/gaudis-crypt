@@ -87,3 +87,28 @@ and tactics it needs; measure; then widen.
 
 Still open: coordination with Dominique on `Language/` changes (E2 option B, E14); whether a
 mechanical transpiler is a deliverable; the target for auxiliary lemmas.
+
+## Pilot: `SecureRO.eca`
+
+EC's three proofs share one shape: `byequiv; proc; inline*; sim` to a variant game, then
+`byphoare (: arg = h ==> _)`, pHL's five-bound `seq 1 : E p₁ p₂ p₃ p₄ I`, a Hoare
+`call (: inv)` on the adversary, `call (: true ==> E); bypr; fel 1 cntr f bound E [O: pre] inv`,
+and the last query by `rnd (pred1 h)`, `hoare`, `rcondt`/`rcondf`, `swap`, `case`.
+
+Today's Lean: the modules take eight explicit parameters (types, ops, three lens variables);
+`fel` is a hand-made supermartingale per game (`preimagePotential` + step + tail lemmas, reused
+by `SecureORO`); the `seq`/`byphoare` steps are `ewp` rewriting; 52 auxiliary theorems.
+
+Missing pieces, in order:
+
+1. **Statements**: `Pr[ M(A, F).main(x) @ m : E ]`; module-application subjects
+   (`Preimage(A, RO).main`, via the module command's callee parser) in `equiv[ ]`, `hoare[ ]`,
+   `phoare[ ]`, `Pr[ ]`.
+2. **Theory parameters bundled** (as in `Gconcl_list`/`SHA3Security`): a `Params` class (types'
+   ops and axioms) and a class of the theory's module variables (lenses + disjointness), so
+   modules are applied to their module arguments only.
+3. **`declare module A <: AdvPreimage {-RO, -Preimage}`**: variable + one bundled hypothesis.
+4. **Rules + tactics**: `byequiv`, `byphoare`, `bypr`; pHL's five-bound `seq`; `fel` as a
+   library rule with EC's premises (derived once from `Module.ewp_app_le`), retiring the three
+   per-game potentials; `rcondt`/`rcondf`, `case`, `rnd (pred1 _)` shared by hoare/phoare.
+5. **Rewrite** `SecureRO` (then `SecureORO`, its twin) and measure.
