@@ -27,6 +27,11 @@ noncomputable def dprod (d1 : SubProbability α) (d2 : SubProbability β) : SubP
 /-- EC's `mu1 d x`: the probability of `x` under `d`, a real. -/
 noncomputable def mu1 (d : SubProbability α) (x : α) : ℝ := (d.1 {x}).toReal
 
+/-- EC's `mu_bounded`, as finiteness: a point has finite mass. -/
+theorem mu_ne_top (d : SubProbability α) (x : α) : d.1 {x} ≠ ⊤ :=
+  ne_top_of_le_ne_top ENNReal.one_ne_top
+    ((MeasureTheory.measure_mono (Set.subset_univ _)).trans d.2.1)
+
 /-- `is_lossless d`: `d` has total mass `1`. -/
 def is_lossless (d : SubProbability α) : Prop := d.1 Set.univ = 1
 

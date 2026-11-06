@@ -188,6 +188,12 @@ theorem RO.LRO_asRF_eq :
       Bounder.bounder.footprint ⊔ Counter.c.footprint := by
   fp_module (Lens.pair Bounder.bounder Counter.c)
 
+section SecondPreimageSection
+
+-- EC: `{-Bounder, -RO, -FRO}`; the local modules' variables are fresh in EC, here a restriction
+declare module A <: AdvSecondPreimage «from» «to»
+  {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
+
 namespace SecondPreimage
 
 
@@ -252,8 +258,6 @@ set_option maxHeartbeats 1600000 in -- disjointness of named variables, as for `
 states differ only in `SecondPreimage2.m2` and `D1.m1`, which the adversary and the oracle do not
 touch (`prhlProc_self_equal_outside`). -/
 theorem SecondPreimage2_SecondPreimage3
-    (A : AdvSecondPreimage «from» «to»)
-    (hAd : FVP.fvP A ≤ (SecondPreimage2.m2.footprint ⊔ D1.m1.footprint)ᶜ)
     (F : PROM.FullRO.RO_T «from» «to»)
     (hinit : PROM.FullRO.RO_T.init «from» «to» F =
       PROM.FullRO.RO_T.init «from» «to» (RO.LRO))
@@ -361,12 +365,24 @@ theorem SecondPreimage2_SecondPreimage3
 /-- The fourth `have` of EC's proof of `RO_is_second_preimage_resistant`:
 `SecondPreimage3(A,RO).main ~ SecondPreimage3(A,LRO).main : ={arg, glob} ==> ={res}`, by EC's
 `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`. -/
-theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»]
-    (hll : is_lossless sampleto) (A : AdvSecondPreimage «from» «to»)
-    (hD : Module.ECModule (D1 A) (PROM.FullRO.RO_ext «from» «to»))
-    (hdisj : FVP.fvP (D1 A) ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ) :
+theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»] :
     equiv[ (Module.app (SecondPreimage3 A) RO) ~ (Module.app (SecondPreimage3 A) RO.LRO) :
       ={m1, allGlobals} ==> ={res} ] := by
+  have hll := sampleto_ll (self := inferInstance)
+  -- `D1(A)` is an EasyCrypt-like `RO_Distinguisher`, outside `RO` and `FRO`
+  have hD : Module.ECModule (D1 A) (PROM.FullRO.RO_ext «from» «to») :=
+    PROM.FullRO.RO_Distinguisher.ecModule «from» «to» Unit Bool _
+      (Footprint.FinitelySupported.mono (fvP_D1 A)
+        ((Module.Declared.ecModule A (Oracle.ext «from» «to»)).finitelySupported.sup (by
+          simp only [Footprint.lens_pair]
+          exact ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
+            (Lens.IsGlobalVar.footprint_finitelySupported _)).sup
+            ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
+              (Lens.IsGlobalVar.footprint_finitelySupported _)))))
+  have hdisj : FVP.fvP (D1 A) ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by
+    refine (fvP_D1 A).trans ?_
+    simp only [Footprint.lens_pair]
+    fp_disjoint
   have hcall := PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO.m
     (fun _ => hll) RO.m _ hD hdisj
   equiv_proc
@@ -447,13 +463,11 @@ theorem Bounder_RO_get_fel2 (m1 : «from») :
 
 /-- EC's `fel 2 Bounder.bounder (fun _, mu1 sampleto witness) bound
 (mess1 \in RO.m /\ rng (rem RO.m mess1) (oget RO.m.[mess1])) [Bounder(RO).get: …]`. -/
-theorem FEL2_rng [Countable «from»] (A : AdvSecondPreimage «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (Bounder.bounder.footprint ⊔ Counter.c.footprint ⊔ RO.m.footprint)ᶜ)
-    (mess1 : «from») :
+theorem FEL2_rng [Countable «from»] (mess1 : «from») :
     phoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==>
         FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)) ]
       ≤ (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) := by
+  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
     rw [Footprint.lens_pair]
     fp_disjoint
@@ -503,12 +517,10 @@ theorem Bounder_RO_get_dom (mess1 : «from») :
   split_ifs <;> simp_all
 
 /-- EC's `call (: … /\ mess1 \in RO.m)` on `FEL`: `mess1` is in `RO.m` afterwards. -/
-theorem FEL_dom [Countable «from»] (A : AdvSecondPreimage «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (Bounder.bounder.footprint ⊔ Counter.c.footprint ⊔ RO.m.footprint)ᶜ)
-    (mess1 : «from») :
+theorem FEL_dom [Countable «from»] (mess1 : «from») :
     hoare[ SecondPreimage.FEL(A, RO).main : §m1 = mess1 ==> FMap.dom §RO.m mess1 ] := by
   hoare_proc_to_stmt
+  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
   have hL : FVP.fvP A ≤ (RO.m.footprint)ᶜ := by fp_disjoint
   have hcall := Module.hoare_app_inv (L := RO.m) A (Oracle.ext «from» «to») hA.representable hL
     (fun n => by cases n with
@@ -535,10 +547,7 @@ set_option maxRecDepth 8192 in
 /-- EC's `byphoare(: arg = mess1 ==> _); proc; seq 1 : (rng (rem RO.m mess1) (oget RO.m.[mess1]))
 (bound%r * mu1 sampleto witness) 1%r 1%r (mu1 sampleto witness) (… /\ mess1 \in RO.m /\
 mess1 = m1)`. -/
-theorem SecondPreimage2_le [Countable «from»] (A : AdvSecondPreimage «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (Bounder.bounder.footprint ⊔ Counter.c.footprint ⊔ RO.m.footprint)ᶜ)
-    (mess1 : «from») :
+theorem SecondPreimage2_le [Countable «from»] (mess1 : «from») :
     phoare[ SecondPreimage.SecondPreimage2(A, RO).main : §m1 = mess1 ==> §res ]
       ≤ ((∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) + sampleto.1 {default}) := by
   phoare_proc_to_stmt
@@ -547,12 +556,12 @@ theorem SecondPreimage2_le [Countable «from»] (A : AdvSecondPreimage «from» 
     (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) 1 1 (sampleto.1 {default})
     (FMap.dom §RO.m mess1 ∧ §m1 = mess1)
   case invariant =>
-    hoare_call (FEL_dom A hA hAd mess1)
+    hoare_call (FEL_dom A mess1)
     hoare_wp 2
     hoare_skip
     exact fun _ h => ⟨h, fun _ _ hd => ⟨hd, h⟩⟩
   case first_E =>
-    phoare_call (FEL2_rng A hA hAd mess1)
+    phoare_call (FEL2_rng A mess1)
     phoare_wp 2
     phoare_skip
     intro _ h
@@ -599,32 +608,12 @@ theorem SecondPreimage2_le [Countable «from»] (A : AdvSecondPreimage «from» 
     intros
     simp
 end SecondPreimage
-section SecondPreimageSection
-
--- EC: `{-Bounder, -RO, -FRO}`; the local modules' variables are fresh in EC, here a restriction
-declare module A <: AdvSecondPreimage «from» «to»
-  {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
 
 /-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`. -/
 theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
     (m : VariableAssignment) (mess1 : «from») :
     Pr[ SecondPreimage(A, RO).main (mess1) @ &m : §res ]
       ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
-  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
-  -- `D1(A)` is an EasyCrypt-like `RO_Distinguisher`, outside `RO` and `FRO`
-  have hD1ec : Module.ECModule (SecondPreimage.D1 A) (PROM.FullRO.RO_ext «from» «to») :=
-    PROM.FullRO.RO_Distinguisher.ecModule «from» «to» Unit Bool _
-      (Footprint.FinitelySupported.mono (SecondPreimage.fvP_D1 A)
-        (hA.finitelySupported.sup (by
-          simp only [Footprint.lens_pair]
-          exact ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
-            (Lens.IsGlobalVar.footprint_finitelySupported _)).sup
-            ((Lens.IsGlobalVar.footprint_finitelySupported _).sup
-              (Lens.IsGlobalVar.footprint_finitelySupported _)))))
-  have hD1d : FVP.fvP (SecondPreimage.D1 A) ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by
-    refine (SecondPreimage.fvP_D1 A).trans ?_
-    simp only [Footprint.lens_pair]
-    fp_disjoint
   -- EC's chain of `have->`: `RO` to `LRO`, to `SecondPreimage2`, `SecondPreimage3`, back to `RO`
   calc Pr[ SecondPreimage(A, RO).main (mess1) @ &m : §res ]
       = Pr[ SecondPreimage(A, RO.LRO).main (mess1) @ &m : §res ] := by
@@ -634,25 +623,22 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO.LRO).main (mess1) @ &m : §res ] := by
         byequiv (SecondPreimage.SecondPreimage_SecondPreimage2 A)
     _ = Pr[ (Module.app (SecondPreimage.SecondPreimage3 A) RO.LRO) (mess1) @ &m : §res ] := by
-        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A (by fp_disjoint) _ rfl rfl
-          fvP_LRO_sample)
+        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _ rfl rfl fvP_LRO_sample)
     _ = Pr[ (Module.app (SecondPreimage.SecondPreimage3 A) RO) (mess1) @ &m : §res ] := by
         symm
-        byequiv (SecondPreimage.SecondPreimage3_RO_LRO (sampleto_ll (self := inferInstance)) A
-          hD1ec hD1d)
+        byequiv (SecondPreimage.SecondPreimage3_RO_LRO A)
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO).main (mess1) @ &m : §res ] := by
         symm
-        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A (by fp_disjoint) _
+        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _
           (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
             PROM.FullRO.RO_T.init.mk_simp])
           (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
             PROM.FullRO.RO_T.get.mk_simp])
           fvP_RO_sample)
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
-        byphoare (SecondPreimage.SecondPreimage2_le A hA (by fp_disjoint) mess1)
+        byphoare (SecondPreimage.SecondPreimage2_le A mess1)
         -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
-        · have hμ : sampleto.1 {default} ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
-            ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
+        · have hμ := mu_ne_top sampleto default
           have hb := bound_gt0 (self := inferInstance)
           have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
           simp only [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul]

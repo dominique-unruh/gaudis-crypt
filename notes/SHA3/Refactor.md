@@ -189,3 +189,55 @@ Missing pieces, in order:
     lemmas (`FEL_rng`, `Bounder_RO_get_fel`, `Preimage2_le`, `Preimage_Preimage2`) are EC's inline
     `have`/bullets — fold them in once `fel` is a tactic. (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
     arithmetic): steps 3–4.
+
+### Pilot complete (2026-11-06)
+
+`SecureRO.eca` in EC's shape: `Examples/SHA3/Pilot/SecureRO.lean` (theory, `Preimage`),
+`…/SecureRO_SecondPreimage.lean`, `…/SecureRO_Collision.lean` (one file in EC; split for build
+time).  All three headline theorems proven, axioms `propext`, `Classical.choice`, `Quot.sound`:
+
+    Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h
+    Pr[ SecondPreimage(A, RO).main (mess1) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default
+    Pr[ Collision(A, RO).main () @ &m : §res ] ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default
+
+with EC's hypotheses only (`declare module A <: … {-…}`, `[Countable «from»]`; `[Countable «to»]`
+for `RO_LRO_D`).  Each headline proof is EC's: a `calc` of `byequiv` steps (EC's `have->`), then
+`byphoare` with the arithmetic.  All judgment statements are in surface syntax.  EC's `fel` is
+`Module.fel` with the oracles' premises proven by `hoare_wp`/`phoare_wp` (`FelOracle`), EC's
+five-bound `seq` is `phoare_seq`, EC's Hoare `call (: inv)` on the adversary is
+`Module.hoare_app_inv`.  The three per-game potentials of the old file are not used; E2, E6 are
+retired for this file, E8 is reduced to the `Countable` side conditions.
+
+Measured (`scripts/ec_fidelity.py`, EC's three lemmas; aux = Lean theorems with no EC row):
+
+| | surface statements | clean proofs | term / den / fp | extra hyps | exc | aux |
+|---|---:|---:|---:|---:|---:|---:|
+| old `SecureRO.lean` | 0 / 3 | 0 / 3 | 0 / 3 / 2 | 3 | 3 | 52 |
+| pilot (3 files) | 3 / 3 | 3 / 3 | 0 / 0 / 0 | 0 | 0 | 24 |
+
+The 24 auxiliary theorems are EC's inline `have`s and bullets as lemmas (the equivalences, the
+`fel` premises and `fel`/`seq` statements, footprint bounds of concrete modules), plus two
+`FMap` facts EC leaves to `smt`.
+
+Machinery added on the way (all generic): `Syntax/PrSyntax.lean`, `Syntax/ModuleApplicationSyntax.lean`
+(paths `M(A, B).f`, coercions as EC's subtyping, printed back), `Logic/DeclareModule.lean`,
+`Logic/PrTactics.lean` (`byequiv`, `byphoare`), `Logic/Fel.lean` (`Module.fel`,
+`Module.hoare_app_inv`), `Logic/PHoareSeq.lean` (`phoare_seq`), `hoare_seq_if` (Hoare wp through
+conditionals with samplings), parameter names found through `Module.app` for triples, a precise
+name-clash rule for printing local variables, `mu1`/`mu_ne_top` (`Lib/EC/Distr.lean`).
+
+Still different from EC (each small, listed for the next files):
+* `proc` adds the statements that copy the arguments: our `seq` counts them (`seq 3` for EC's
+  `seq 1`); a `phoare_proc` like `equiv_proc` would remove that.
+* Auxiliary lemmas where EC has inline `have`s/bullets (the equivalences, the `fel` premises as a
+  `FelOracle` lemma, the `fel`/`seq` lemmas): folding them needs `fel` as a tactic.
+* `Preimage_Preimage2` and the other equivalences are by-index inlining and `equiv_seq` splits,
+  not EC's `inline*; sim`.
+* The local modules' variables and `RO.m`/`FRO.m` are written out (`global_var` does not take
+  the theory's instance); the adversary is restricted against the local modules explicitly
+  (EC: fresh); `bad` must persist in `fel`.
+* Named variables make disjointness slower: two raised heartbeat/recursion limits in
+  `SecondPreimage`.
+
+Next: switch `SecureORO`, `IndifRO_is_secure`, `SHA3Security` to the pilot and retire the old
+`SecureRO.lean`; then the next file.

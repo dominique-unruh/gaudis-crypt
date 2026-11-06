@@ -398,8 +398,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
         byphoare (Preimage2_le A h)
         -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
-        · have hμ : sampleto.1 {h} ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
-            ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
+        · have hμ := mu_ne_top sampleto h
           have hb := bound_gt0 (self := inferInstance)
           have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
           simp only [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul]

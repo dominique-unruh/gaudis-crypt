@@ -93,6 +93,11 @@ module Collision2 using (A : AdvCollision «from» «to», F : PROM.FullRO.RO_T 
 
 end Collision
 
+section CollisionSection
+
+declare module A <: AdvCollision «from» «to» {-RO, -FRO, -Bounder}
+
+
 
 
 
@@ -194,12 +199,10 @@ theorem Bounder_RO_get_fel_coll :
 
 /-- EC's `fel 1 Bounder.bounder (fun i, i%r * mu1 sampleto witness) bound (collision RO.m)
 [Bounder(RO).get: …] (card (fdom RO.m) <= Bounder.bounder <= bound)`. -/
-theorem FEL_coll [Countable «from»] (A : AdvCollision «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (RO.m.footprint ⊔ FRO.m.footprint ⊔ Bounder.bounder.footprint ⊔
-      Counter.c.footprint)ᶜ) :
+theorem FEL_coll [Countable «from»] :
     phoare[ Collision.FEL(A, RO).main : True ==> collision §RO.m ]
       ≤ (∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) := by
+  have hA := Module.Declared.ecModule A (Oracle.ext «from» «to»)
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder RO.m).footprint)ᶜ := by
     rw [Footprint.lens_pair]
     fp_disjoint
@@ -230,10 +233,7 @@ theorem FEL_coll [Countable «from»] (A : AdvCollision «from» «to»)
 /-- EC's `byphoare=> //; proc; seq 1 : (collision RO.m)
 ((bound * (bound - 1))%r / 2%r * mu1 sampleto witness) 1%r 1%r (mu1 sampleto witness) (…)`.
 (Our `seq` counts the `reset_vars` `proc` adds.) -/
-theorem Collision2_le [Countable «from»] (A : AdvCollision «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (RO.m.footprint ⊔ FRO.m.footprint ⊔ Bounder.bounder.footprint ⊔
-      Counter.c.footprint)ᶜ) :
+theorem Collision2_le [Countable «from»] :
     phoare[ Collision.Collision2(A, RO).main : True ==> §res ]
       ≤ ((∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) +
           sampleto.1 {default}) := by
@@ -248,7 +248,7 @@ theorem Collision2_le [Countable «from»] (A : AdvCollision «from» «to»)
     hoare_skip
     intros; trivial
   case first_E =>
-    phoare_call (FEL_coll A hA hAd)
+    phoare_call (FEL_coll A)
     phoare_wp 1
     phoare_skip
     intros
@@ -332,10 +332,6 @@ private theorem sum_Ico_int_toNat (n : ℕ) (f : ℕ → ENNReal) :
       ← Finset.insert_Ico_right_eq_Ico_add_one (Int.natCast_nonneg k),
       Finset.sum_insert (by simp), add_comm, Int.toNat_natCast]
 
-section CollisionSection
-
-declare module A <: AdvCollision «from» «to» {-RO, -FRO, -Bounder}
-
 /-- EC's `RO_is_collision_resistant &m`. -/
 theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) :
     Pr[ Collision(A, RO).main () @ &m : §res ]
@@ -345,11 +341,9 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
       = Pr[ Collision.Collision2(A, RO).main () @ &m : §res ] := by
         byequiv (Collision_Collision2 A)
     _ ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
-        byphoare (Collision2_le A (Module.Declared.ecModule A (Oracle.ext «from» «to»))
-          (by fp_disjoint))
+        byphoare (Collision2_le A)
         -- EC's arithmetic: `∑_{i < bound} i · μ + μ = (bound (bound - 1) + 2) / 2 · μ`
-        · have hμ : sampleto.1 {default} ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top
-            ((MeasureTheory.measure_mono (Set.subset_univ _)).trans sampleto.2.1)
+        · have hμ := mu_ne_top sampleto default
           obtain ⟨n, hn'⟩ : ∃ n : ℕ, bound = n := ⟨bound.toNat, (Int.toNat_of_nonneg hb.le).symm⟩
           have hn : 1 ≤ n := by omega
           rw [hn', sum_Ico_int_toNat n (fun i => (i : ENNReal) * sampleto.1 {default})]

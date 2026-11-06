@@ -842,6 +842,41 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Sec
 | 424 | op | `collision` | section Collision. | `collision` | def |
 | 427 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done (exc E8) |
 
+### EC-fidelity pilot (`notes/SHA3/Refactor.md`)
+
+The same file in EC's shape, in three files (one in EC).  Theory: `class Params (from to :
+outParam Type)` (the operators and axioms); module variables: `global_var`s (`Counter.c`,
+`Bounder.bounder`, `RO.m`, `FRO.m`, the local modules' `SecondPreimage2.m2`, `D1.m1`); `declare
+module A <: … {-…}` (`Logic/DeclareModule.lean`, representability derived: no E2); E6 retired;
+E8 reduced to `[Countable «from»]` (`[Countable «to»]` for `RO_LRO_D`).  EC's `fel` is
+`Module.fel` (`Logic/Fel.lean`), EC's five-bound `seq` is `phoare_seq` (`Logic/PHoareSeq.lean`).
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 7 | type | `from` |  | `«from»`, `«to»` (explicit for module types, implicit after) | def |
+| 9 | op | `sampleto` |  | `Params.sampleto` (exported, like the other operators and axioms) | def |
+| 32 | module | `Counter` |  | `Counter` (variable `global_var Counter.c`) | def |
+| 44 | module | `Bounder` |  | `Bounder` (variable `global_var Bounder.bounder`) | def |
+| 73 | module | `Preimage` |  | `Preimage` | def |
+| 89 | declare module | `A` | section Preimage. | `declare module A <: AdvPreimage «from» «to» {-RO, -Preimage}` | def |
+| 112 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | done |
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO_SecondPreimage.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 215 | declare module | `A` | section SecondPreimage. | `declare module A <: AdvSecondPreimage «from» «to» {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}` (the local modules: EC's freshness) | def |
+| 267 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | done |
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO_Collision.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 395 | declare module | `A` | section Collision. | `declare module A <: AdvCollision «from» «to» {-RO, -FRO, -Bounder}` | def |
+| 427 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done |
+
 ## `proof/SecureORO.eca`
 
 Lean: `GaudisCrypt/Examples/SHA3/SecureORO.lean`, namespace `GaudisCrypt.SHA3.SecureORO`.
