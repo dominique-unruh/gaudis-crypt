@@ -6045,11 +6045,102 @@ theorem leq_ideal (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.d
   rw [div_eq_mul_inv]
   exact h1.trans h2
 
+/-- The real game's functionality oracle in `SH.SecondPreimage(A, OSponge, PSome(Perm))`:
+`FBounder(FSetSize(FSome(Sponge(Poget(PSome(Perm)))))).f` (an abbreviation). -/
+noncomputable abbrev rrFL : Module.Proc (procsig (List Bool) -> (Option f_out)) :=
+  OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+    (Module.app (SecureHash.FBounder (List Bool) f_out state sigma clone_increase_counter
+      SH.Bounder.bounder)
+      (Module.app FSetSize (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+        (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool) f_out
+          { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool) f_out (PSome Perm),
+            fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool) f_out
+              (PSome Perm) }))))))
+
+/-- The functionality oracle of `ODRestr(D)` in the real indifferentiability game:
+`DFSetSize(OFC(FSome(Sponge(Poget(PSome(Perm)))))).f` (an abbreviation). -/
+noncomputable abbrev rrFR : Module.Proc (procsig (List Bool) -> (Option f_out)) :=
+  OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+    (Module.app DFSetSize
+      (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ) (List Bool)
+        { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+            (Module.app OFC
+              (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool × ℤ) (List Bool)
+                { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ)
+                    (List Bool) (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+                      (OptionIndifferentiability.OPRIMITIVE.view state (List Bool × ℤ)
+                        (List Bool) (PSome Perm))))) })) }))
+
+/-- `A`'s oracles in `SH.SecondPreimage(A, OSponge, PSome(Perm))` (an abbreviation). -/
+noncomputable abbrev rrOL :=
+  Module.pair
+    (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool) f_out { f := rrFL })
+    (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool) f_out
+      { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool) f_out
+          (Module.app (SecureHash.PBounder (List Bool) f_out state sigma SH.Bounder.bounder)
+            (PSome Perm))
+        fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool) f_out
+          (Module.app (SecureHash.PBounder (List Bool) f_out state sigma SH.Bounder.bounder)
+            (PSome Perm)) })
+
+/-- `A`'s oracles in the real indifferentiability game against `ODRestr(D)` (an abbreviation). -/
+noncomputable abbrev rrOR :=
+  Module.pair
+    (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool) f_out { f := rrFR })
+    (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ) (List Bool)
+      { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+          (Module.app OPC (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ)
+            (List Bool)
+            { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+                (PSome Perm)
+              fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+                (PSome Perm) }))
+        fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+          (Module.app OPC (OptionIndifferentiability.ODPRIMITIVE.mk state (List Bool × ℤ)
+            (List Bool)
+            { f := OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+                (PSome Perm)
+              fi := OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+                (PSome Perm) })) })
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the sponge
+/-- `rrFL` touches `SH.Bounder.bounder` and the permutation.  Not an EC lemma. -/
+theorem fvP_rrFL :
+    FVP.fvP rrFL ≤ (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi)).footprint := by
+  fp_module (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi))
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the sponge
+/-- `rrFR` touches `Counter.c` and the permutation.  Not an EC lemma. -/
+theorem fvP_rrFR :
+    FVP.fvP rrFR ≤ (Lens.pair Counter.c (Lens.pair Perm.m Perm.mi)).footprint := by
+  fp_module (Lens.pair Counter.c (Lens.pair Perm.m Perm.mi))
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the sponge
+/-- `rrOL` touches `SH.Bounder.bounder` and the permutation.  Not an EC lemma. -/
+theorem fvP_rrOL :
+    FVP.fvP rrOL ≤ (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi)).footprint := by
+  fp_module (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi))
+
+set_option maxHeartbeats 10000000 in
+-- `fp_module` through the sponge (its two oracles one at a time)
+/-- `rrOR` touches `Counter.c` and the permutation.  Not an EC lemma. -/
+theorem fvP_rrOR :
+    FVP.fvP rrOR ≤ (Lens.pair Counter.c (Lens.pair Perm.m Perm.mi)).footprint := by
+  rw [FVP.fvP_pair]
+  exact sup_le (by fp_module (Lens.pair Counter.c (Lens.pair Perm.m Perm.mi)))
+    (by fp_module (Lens.pair Counter.c (Lens.pair Perm.m Perm.mi)))
+
+set_option maxHeartbeats 4000000 in
+-- the restrictions' `fp_sub`, the oracles' unification through `A`'s nest
 /-- `local lemma rw_real &m (mess : List Bool)`. -/
 theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
       RFList_m.footprint ⊔ Dist_of_P2Adv_m.footprint)ᶜ)
-    (_hfresh : LocalFresh Log_m RFList_m) (m : VariableAssignment) (mess : List Bool) :
+    (_hfresh : LocalFresh Log_m RFList_m) (_hfM : DistFresh Log_m RFList_m Dist_of_P2Adv_m)
+    (m : VariableAssignment) (mess : List Bool) :
     Dist_of_P2Adv_m.get m = mess →
     Procedure.Pr (Module.app SH.SecondPreimage (Module.pair A (Module.pair OSponge
         (PSome Perm)))).procedure
@@ -6060,7 +6151,232 @@ theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.dis
               (PSome Perm)))))
         (Module.pair (PSome Perm) (ODRestr (Dist_of_P2Adv Log_m Dist_of_P2Adv_m A))))).procedure
             () m (fun r _ => r = true) := by
-  sorry
+  intro hm
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := le_sup_left.trans _hfresh.1
+  have hMA : Dist_of_P2Adv_m.footprint ≤ ARestrictions.footprintᶜ :=
+    _hfM.1.trans (Footprint.compl_antimono (le_sup_of_le_left le_sup_left))
+  haveI : Lens.Disjoint Counter.c Log_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp (hLA.trans (Footprint.compl_antimono (by
+      unfold ARestrictions.footprint; fp_sub))))
+  haveI : Lens.Disjoint SH.Bounder.bounder Log_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp (hLA.trans (Footprint.compl_antimono (by
+      unfold ARestrictions.footprint; fp_sub))))
+  haveI hDr : Lens.Disjoint Dist_of_P2Adv_m (Preimage.rrL Log_m) := by
+    have hML : Dist_of_P2Adv_m.footprint ≤ Log_m.footprintᶜ :=
+      _hfM.1.trans (Footprint.compl_antimono (le_sup_of_le_left le_sup_right))
+    refine Lens.disjoint_of_footprint_le_compl _ _ ?_
+    simp only [Preimage.rrL, Footprint.lens_pair]
+    refine le_compl_sup (hMA.trans (Footprint.compl_antimono ?_))
+      (le_compl_sup (hMA.trans (Footprint.compl_antimono ?_)) hML)
+    all_goals unfold ARestrictions.footprint; fp_sub
+  -- what lies within `ARestrictions` lies outside `Dist_of_P2Adv.m`
+  have hRM : ∀ X, X ≤ ARestrictions.footprint → X ≤ (Dist_of_P2Adv_m.footprint)ᶜ :=
+    fun X h => (Footprint.le_compl_comm _ _).mp (hMA.trans (Footprint.compl_antimono h))
+  have hBL : (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi)).footprint ≤
+      (Dist_of_P2Adv_m.footprint)ᶜ :=
+    hRM _ (by simp only [Footprint.lens_pair]; unfold ARestrictions.footprint; fp_sub)
+  have hBR : (Lens.pair Counter.c (Lens.pair Perm.m Perm.mi)).footprint ≤
+      (Dist_of_P2Adv_m.footprint)ᶜ :=
+    hRM _ (by simp only [Footprint.lens_pair]; unfold ARestrictions.footprint; fp_sub)
+  have hAL : FVP.fvP A ≤ ((Preimage.rrL Log_m).footprint)ᶜ := by
+    rw [Preimage.rrL_footprint]
+    refine _hAd.trans (Footprint.compl_antimono ?_)
+    unfold ARestrictions.footprint
+    fp_sub
+  have hAM : FVP.fvP A ≤ (Dist_of_P2Adv_m.footprint)ᶜ :=
+    _hAd.trans (Footprint.compl_antimono le_sup_right)
+  have hPerm : (Perm.m).footprint ⊔ (Perm.mi).footprint ≤ ((Preimage.rrL Log_m).footprint)ᶜ := by
+    rw [Preimage.rrL_footprint]
+    refine (Footprint.le_compl_comm _ _).mpr (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) ?_))
+    exact hLA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub))
+  have hF : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ)
+      (List Bool) (Module.app FSome (Module.app Sponge.Sponge (Module.app Poget
+        (OptionIndifferentiability.OPRIMITIVE.view state (List Bool × ℤ) (List Bool)
+          (PSome Perm)))))) ≤ ((Preimage.rrL Log_m).footprint)ᶜ :=
+    le_trans (by fp_le) hPerm
+  have hPf : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ)
+      (List Bool) (PSome Perm)) ≤ ((Preimage.rrL Log_m).footprint)ᶜ :=
+    le_trans (by fp_le) hPerm
+  have hPfi : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ)
+      (List Bool) (PSome Perm)) ≤ ((Preimage.rrL Log_m).footprint)ᶜ :=
+    le_trans (by fp_le) hPerm
+  -- `rr_F`, `Dist_of_P2Adv.m` kept (EC's `call` frames it)
+  have hFr := prhlProc_frame_lens Dist_of_P2Adv_m Dist_of_P2Adv_m
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+      (fvP_rrFL.trans hBL))
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+      (fvP_rrFR.trans hBR))
+    (fun d₁ d₂ => d₁ = mess ∧ d₂ = mess) (Preimage.rr_F Log_m hF)
+  refine Procedure.Pr_eq_of_prhlProc (sig₁ := procsig (List Bool) -> Bool)
+    (sig₂ := procsig () -> Bool)
+    (A := fun a₁ g₁ _ g₂ => g₁ = g₂ ∧ a₁ = mess ∧ Dist_of_P2Adv_m.get g₁ = mess)
+    (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) ⟨rfl, rfl, hm⟩
+  equiv_proc
+  repeat stmt_inline{1} 0
+  repeat stmt_inline{2} 0
+  simp only [PSome_init, PSome_init']
+  erw [OSponge_app]
+  repeat stmt_inline{1} 1
+  repeat stmt_inline{2} 1
+  stmt_wp
+  equiv_call hFr
+  equiv_call hFr
+  equiv_seq 1 1 : ((Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
+        Dist_of_P2Adv_m.get §allGlobals{2} = mess) ∧ §m1{1} = mess ∧
+      (Preimage.rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+      Preimage.rrI ((Preimage.rrL Log_m).get §allGlobals{1})
+        ((Preimage.rrL Log_m).get §allGlobals{2}))
+  swap
+  · stmt_split{1} 1
+    stmt_split{2} 1
+    refine prhlStmt_seq_call (prhlProc_frame_lens Dist_of_P2Adv_m Dist_of_P2Adv_m ?hfr₁ ?hfr₂
+      (fun d₁ d₂ => d₁ = mess ∧ d₂ = mess)
+      (prhlProc_abstract_call_equal_outside_module
+        (Preimage.rrL Log_m) A SH.OIndif.distExt hA.1 hAL Preimage.rrI ?hc _ _ ?horacle)) ?_
+    case hfr₁ =>
+      exact fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+        ((FVP.fvP_app _ _).trans (sup_le hAM (fvP_rrOL.trans hBL)))
+    case hfr₂ =>
+      exact fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a)
+        ((FVP.fvP_app _ _).trans (sup_le hAM (fvP_rrOR.trans hBR)))
+    case hc =>
+      intro _ n
+      cases n with
+      | zero => exact inferInstanceAs (Countable (List Bool))
+      | succ n => cases n with
+        | zero => exact inferInstanceAs (Countable (block × capacity))
+        | succ n => cases n with
+          | zero => exact inferInstanceAs (Countable (block × capacity))
+          | succ n => nomatch n
+    case horacle =>
+      intro _ n
+      cases n with
+      | zero =>
+        simp only [OptionIndifferentiability.distExt, HoleSigs.Instantiation.lookup_zero_cons,
+          Module.fst_pair, Module.snd_pair, OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+          OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+          OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+        exact Preimage.rr_F Log_m hF
+      | succ n => cases n with
+        | zero =>
+          simp only [OptionIndifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+            HoleSigs.Instantiation.lookup_zero_cons, Module.fst_pair, Module.snd_pair,
+            OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+            OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+            OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+          erw [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
+          exact Preimage.rr_Pf Log_m hPf
+        | succ n => cases n with
+          | zero =>
+            simp only [OptionIndifferentiability.distExt, HoleSigs.Instantiation.lookup_succ,
+              HoleSigs.Instantiation.lookup_zero_single, Module.fst_pair, Module.snd_pair,
+              OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp,
+              OptionIndifferentiability.ODPRIMITIVE.f.mk_simp,
+              OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+            erw [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
+            exact Preimage.rr_Pfi Log_m hPfi
+          | succ n => nomatch n
+    equiv_skip
+    intro σ₁ σ₂ h
+    obtain ⟨⟨hd1, hd2⟩, hm1, he, hI⟩ := h
+    refine ⟨⟨⟨hm1.trans hd2.symm, he, hI⟩, hd1, hd2⟩,
+      fun r₁ g₁ r₂ g₂ ⟨⟨hr, he', hI'⟩, hd1', hd2'⟩ => ?_⟩
+    simp_reads
+    refine ⟨⟨⟨hm1.trans hd2'.symm, he', hI'⟩, hd1', hd2'⟩,
+      fun a₁ _ a₂ _ ⟨⟨e1, he1, hI1⟩, hd11, hd21⟩ => ⟨⟨⟨hr, he1, hI1⟩, hd11, hd21⟩,
+        fun b₁ _ b₂ _ ⟨⟨e2, _, _⟩, _, hd22⟩ => ?_⟩⟩
+    rw [hm1, hd22, hr, e1, e2, decide_eq_decide]
+    exact ⟨fun ⟨h, y, h1, h2⟩ => ⟨h, y, h2.symm, h1.symm⟩,
+      fun ⟨h, y, h1, h2⟩ => ⟨h, y, h2.symm, h1.symm⟩⟩
+  -- the initializations: `Perm.init` on both sides, `Dist_of_P2Adv.m` kept
+  have hPI : FVP.fvP (Indifferentiability.PRIMITIVE.init (block × capacity) (List Bool × ℤ)
+      (List Bool) Perm) ≤ (Dist_of_P2Adv_m.footprint)ᶜ :=
+    le_trans (b := (Perm.m).footprint ⊔ (Perm.mi).footprint) (by fp_le)
+      (hRM _ (by unfold ARestrictions.footprint; fp_sub))
+  equiv_seq 10 9 : (§m1{1} = mess ∧ §allGlobals{1} = §allGlobals{2} ∧
+      Dist_of_P2Adv_m.get §allGlobals{1} = mess)
+  · stmt_wp
+    equiv_skip
+    rintro _ _ _ ⟨rfl, rfl, hd⟩
+    exact ⟨rfl, rfl, hd⟩
+  stmt_wp
+  equiv_call (prhlProc_frame_lens Dist_of_P2Adv_m Dist_of_P2Adv_m
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a) hPI)
+    (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a) hPI)
+    (fun d₁ _ => d₁ = mess) (prhlProc_refl _))
+  stmt_wp
+  equiv_skip
+  rintro σ₁ σ₂ ⟨hm1, hg, hd⟩
+  refine ⟨⟨hg, hd⟩, fun _ g₁ _ g₂ ⟨hg', hd'⟩ => ?_⟩
+  subst hg'
+  have hML : Dist_of_P2Adv_m.footprint ≤ Log_m.footprintᶜ :=
+    _hfM.1.trans (Footprint.compl_antimono (le_sup_of_le_left le_sup_right))
+  haveI : Lens.Disjoint Log_m Dist_of_P2Adv_m := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp hML)
+  haveI : Lens.Disjoint SH.Bounder.bounder Dist_of_P2Adv_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+      (hMA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub))))
+  haveI : Lens.Disjoint Counter.c Dist_of_P2Adv_m :=
+    Lens.disjoint_of_footprint_le_compl _ _ ((Footprint.le_compl_comm _ _).mp
+      (hMA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub))))
+  simp_reads
+  have e : ∀ (x : Unit) (τ : ProgramState),
+      (Setter.throwaway.set x (ProgramState.globalL.set g₁ τ)).globals = g₁ := fun _ _ => rfl
+  simp only [e]
+  refine ⟨⟨hd', hd'⟩, ?_, ((Preimage.rrL_bounder Log_m _ 0).trans
+    (Preimage.rrL_bounder Log_m _ 0)).symm.trans ((Preimage.rrL_Counter Log_m _ 0).trans
+      (Preimage.rrL_Log Log_m _ _)), ?_⟩
+  · rw [← hm1]
+    show (localVarLens "m1" (List Bool)).get
+      ((resetSetter (stringsStartingWith "@@@@@@@.")).set () σ₁) = _
+    erw [intoLocal_varLens_get_resetSetter]
+    rw [if_neg (by simp [stringsStartingWith])]
+  change SH.Bounder.bounder.get (SH.Bounder.bounder.set 0 _) =
+    Counter.c.get (Log_m.set _ (Counter.c.set 0 _))
+  rw [SH.Bounder.bounder.set_get,
+    @Lens.get_of_disjoint_set _ _ _ Counter.c Log_m (‹Lens.Disjoint Counter.c Log_m›.symm),
+    Counter.c.set_get]
+
+/-- `Dist_of_P2Adv(A)` touches `A`'s variables, `Log.m` and `Dist_of_P2Adv.m`.  Not an EC lemma. -/
+theorem fvP_Dist_of_P2Adv [Lens.Disjoint Log_m Dist_of_P2Adv_m] (A : SH.AdvSecondPreimage) :
+    FVP.fvP (Dist_of_P2Adv Log_m Dist_of_P2Adv_m A) ≤
+      FVP.fvP A ⊔ (Lens.pair Log_m Dist_of_P2Adv_m).footprint := by
+  fp_module (Lens.pair Log_m Dist_of_P2Adv_m)
+
+/-- EC's `move=> F P Hp Hpi Hf; proc; inline*; sp; auto; call Hf; auto; call Hf; auto;
+call (A_ll (DFSetSize(F)) P _ Hp Hpi); auto`: `Dist_of_P2Adv(A)` is lossless for lossless
+oracles. -/
+theorem Dist_of_P2Adv_ll (A : SH.AdvSecondPreimage) (hll : A_lossless A) (F : ODFUNCTIONALITY)
+    (P : ODPRIMITIVE)
+    (hp : (OptionIndifferentiability.ODPRIMITIVE.f state (List Bool × ℤ) (List Bool)
+      P).procedure.IsLossless)
+    (hpi : (OptionIndifferentiability.ODPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
+      P).procedure.IsLossless)
+    (hf : (OptionIndifferentiability.ODFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
+      F).procedure.IsLossless) :
+    (Module.app (Dist_of_P2Adv Log_m Dist_of_P2Adv_m A)
+      (Module.pair F P)).procedure.IsLossless := by
+  have hD := Preimage.DFSetSize_f_ll F hf
+  have hA := hll (OptionIndifferentiability.ODFUNCTIONALITY.mk state (List Bool) f_out
+      { f := OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool) f_out
+          (Module.app DFSetSize F) }) P
+    (by simpa only [OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp] using hD) hp hpi
+  rw [Procedure.isLossless_iff_phoareProc] at hA hD ⊢
+  phoare_proc_to_stmt
+  phoare_inline 0
+  phoare_wp 6
+  phoare_simp [hA, hD]
+  phoare_skip
+  simp
+
+set_option maxHeartbeats 4000000 in
+-- `fp_module` through the sponge
+/-- `SH.SecondPreimage(A, OSponge, PSome(Perm))` touches `A`'s variables, `SH.Bounder.bounder` and
+the permutation.  Not an EC lemma. -/
+theorem fvP_SH_SecondPreimage (A : SH.AdvSecondPreimage) :
+    FVP.fvP (Module.app SH.SecondPreimage (Module.pair A (Module.pair OSponge (PSome Perm)))) ≤
+      FVP.fvP A ⊔ (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi)).footprint := by
+  fp_module (Lens.pair SH.Bounder.bounder (Lens.pair Perm.m Perm.mi))
 
 -- EC's local `TOTO`, with the section's `A` a Lean parameter
 set_option linter.gaudisCrypt.using false in
@@ -6076,18 +6392,110 @@ module TOTO (A : SH.AdvSecondPreimage) {
 
 end SecondPreimage
 
-/-- EC's `Sponge_second_preimage_resistant (A <: SH.AdvSecondPreimage {…}) &m (mess : List Bool)`.
--/
+/-- EC's `Sponge_second_preimage_resistant (A <: SH.AdvSecondPreimage {…}) &m (mess : List Bool)`,
+with `AGext0Fresh A` (exception E13).  EC: `have->: Pr[SecondPreimage(…).main(mess)] =
+Pr[TOTO.main(mess)]; byphoare; …; rewrite (rw_real &m mess Heq); have := SHA3OIndiff
+(Dist_of_P2Adv(A)) &m _; …; have/#:=leq_ideal &m`: `TOTO` sets `Dist_of_P2Adv.m <- mess`, here the
+game is run from the state with `Dist_of_P2Adv.m = mess` (it does not touch it,
+`prhlProc_self_equal_outside_module`).  The sections' local variables `Log.m`, `RFList.m`,
+`Dist_of_P2Adv.m` are chosen fresh (`Footprint.exists_fresh_glob`, exception E6). -/
 theorem Sponge_second_preimage_resistant (A : SH.AdvSecondPreimage)
     (hA : Module.ECModule A SH.OIndif.distExt)
     (_hAd : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint)ᶜ)
-    (m : VariableAssignment) (mess : List Bool) :
+    (_hG : AGext0Fresh A) (m : VariableAssignment) (mess : List Bool) :
     A_lossless A →
     (Procedure.Pr (Module.app SH.SecondPreimage (Module.pair A (Module.pair OSponge
         (PSome Perm)))).procedure
         mess m (fun r _ => r = true) : ℝ) ≤
       bound + ((sigma + 1 : ℤ) : ℝ) / (2 : ℝ) ^ size_out := by
-  sorry
+  intro hll
+  have hAfs := hA.2
+  have hSL : (FVP.fvP (Gconcl_list.SimLast Gconcl.S)).FinitelySupported := SimLast_ECModule.2
+  have hG0 := ((hAfs.sup ARestrictions_fs).sup Gext0Vars_fs).sup
+    (Footprint.FinitelySupported.globalVar SORO.RO.FRO.m)
+  obtain ⟨Log_m, hL1, hL2, hLfs⟩ := Footprint.exists_fresh_glob (FMap (List Bool × ℤ) Bool)
+    (hSL.sup OSimulator_fs) hG0
+  obtain ⟨RFList_m, hR, hRfs⟩ := Footprint.exists_fresh (FMap (List Bool) f_out)
+    (((hSL.sup OSimulator_fs).sup hG0).sup hLfs)
+  obtain ⟨M, hM1, hM2, hMfs⟩ := Footprint.exists_fresh_glob (List Bool)
+    (hSL.sup OSimulator_fs) ((hG0.sup hLfs).sup hRfs)
+  -- what the fresh variables avoid
+  have hLA : Log_m.footprint ≤ ARestrictions.footprintᶜ := hL2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left le_sup_right))))
+  have hLAd : Log_m.footprint ≤ (FVP.fvP A)ᶜ := hL2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left le_sup_left))))
+  have hLG : Log_m.footprint ≤ Gext0Vars.footprintᶜ := hL2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left le_sup_right)))
+  have hLF : Log_m.footprint ≤ ((SORO.RO.FRO.m).footprint)ᶜ :=
+    hL2.trans (Footprint.compl_antimono (le_sup_of_le_right le_sup_right))
+  have hRA : RFList_m.footprint ≤ ARestrictions.footprintᶜ := hR.trans (Footprint.compl_antimono
+    (le_sup_of_le_left (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left
+      le_sup_right)))))
+  have hRAd : RFList_m.footprint ≤ (FVP.fvP A)ᶜ := hR.trans (Footprint.compl_antimono
+    (le_sup_of_le_left (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left
+      le_sup_left)))))
+  have hRL : RFList_m.footprint ≤ Log_m.footprintᶜ :=
+    hR.trans (Footprint.compl_antimono le_sup_right)
+  have hMA : M.footprint ≤ ARestrictions.footprintᶜ := hM2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left (le_sup_of_le_left
+      (le_sup_of_le_left le_sup_right))))))
+  have hMAd : M.footprint ≤ (FVP.fvP A)ᶜ := hM2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left (le_sup_of_le_left
+      (le_sup_of_le_left le_sup_left))))))
+  have hMG : M.footprint ≤ Gext0Vars.footprintᶜ := hM2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left (le_sup_of_le_left le_sup_right)))))
+  have hMF : M.footprint ≤ ((SORO.RO.FRO.m).footprint)ᶜ := hM2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left (le_sup_of_le_left le_sup_right))))
+  have hML : M.footprint ≤ Log_m.footprintᶜ := hM2.trans (Footprint.compl_antimono
+    (le_sup_of_le_right (le_sup_of_le_left le_sup_right)))
+  have hMR : M.footprint ≤ RFList_m.footprintᶜ :=
+    hM2.trans (Footprint.compl_antimono (le_sup_of_le_right le_sup_right))
+  have hfresh : LocalFresh Log_m RFList_m :=
+    ⟨sup_le hLA hRA, (Footprint.le_compl_comm _ _).mp hRL, hLfs⟩
+  have hfM : SecondPreimage.DistFresh Log_m RFList_m M :=
+    ⟨le_compl_sup (le_compl_sup hMA hML) hMR, hMfs, sup_le hLF hMF⟩
+  have hAA : FVP.fvP A ≤ ARestrictions.footprintᶜ :=
+    _hAd.trans (Footprint.compl_antimono le_sup_left)
+  have hAd' : FVP.fvP A ≤ (ARestrictions.footprint ⊔ (SORO.RO.FRO.m).footprint ⊔ Log_m.footprint ⊔
+      RFList_m.footprint ⊔ M.footprint)ᶜ :=
+    le_compl_sup (le_compl_sup (le_compl_sup _hAd ((Footprint.le_compl_comm _ _).mp hLAd))
+      ((Footprint.le_compl_comm _ _).mp hRAd)) ((Footprint.le_compl_comm _ _).mp hMAd)
+  -- EC's `TOTO`: the game from the state with `Dist_of_P2Adv.m = mess`, which it does not touch
+  have hGM : FVP.fvP (Module.app SH.SecondPreimage (Module.pair A (Module.pair OSponge
+      (PSome Perm)))) ≤ M.footprintᶜ := by
+    refine (SecondPreimage.fvP_SH_SecondPreimage A).trans (sup_le
+      ((Footprint.le_compl_comm _ _).mp hMAd) ((Footprint.le_compl_comm _ _).mp
+        (hMA.trans (Footprint.compl_antimono ?_))))
+    simp only [Footprint.lens_pair]
+    unfold ARestrictions.footprint
+    fp_sub
+  rw [Procedure.Pr_eq_of_prhlProc (a₁ := mess) (a₂ := mess) (σ₂ := M.set mess m)
+    (prhlProc_self_equal_outside_module M _ hGM (fun _ _ => True))
+    (fun r₁ g₁ r₂ g₂ h => by rw [h.1]) ⟨rfl, Lens.equal_outside_set_self M m mess, trivial⟩]
+  have hm : M.get (M.set mess m) = mess := M.set_get _ _
+  -- the distinguisher of `SHA3OIndiff`
+  haveI : Lens.Disjoint Log_m M := Lens.disjoint_of_footprint_le_compl _ _
+    ((Footprint.le_compl_comm _ _).mp hML)
+  have hDfp := SecondPreimage.fvP_Dist_of_P2Adv Log_m M A
+  rw [Footprint.lens_pair] at hDfp
+  have hD : Module.ECModule (SecondPreimage.Dist_of_P2Adv Log_m M A) OIndif.distExt :=
+    ⟨ODistinguisher_representable _, (hAfs.sup (hLfs.sup hMfs)).mono hDfp⟩
+  have hDd : ODistRestrictions (SecondPreimage.Dist_of_P2Adv Log_m M A) :=
+    hDfp.trans (sup_le (A_ODistRestrictions A hAfs hAA) (sup_le (X_ODistRestrictions hLA hL1)
+      (X_ODistRestrictions hMA hM1)))
+  have hDg : OGext0Fresh (SecondPreimage.Dist_of_P2Adv Log_m M A) :=
+    hDfp.trans (sup_le _hG (sup_le hLG hMG))
+  have h1 := SHA3OIndiff (SecondPreimage.Dist_of_P2Adv Log_m M A) hD hDd hDg (M.set mess m)
+    (fun F P hp hpi hf => SecondPreimage.Dist_of_P2Adv_ll Log_m M A hll F P hp hpi hf)
+  have h2 := SecondPreimage.leq_ideal Log_m RFList_m M A hA hAd' hfresh hfM (M.set mess m) mess hm
+  rw [SecondPreimage.rw_real Log_m RFList_m M A hA hAd' hfresh hfM (M.set mess m) mess hm,
+    ← OGReal_eq]
+  have h3 := (abs_sub_le_iff.mp h1).1
+  have hb : SHA3Indiff.bound = bound := rfl
+  change (Procedure.Pr (OGIdeal (Module.app FSome BIRO.IRO.asF) OSimulator
+    (ODRestr (SecondPreimage.Dist_of_P2Adv Log_m M A))).procedure () (M.set mess m)
+      (fun r _ => r = true) : ℝ) ≤ _ at h2
+  linarith
 
 /-! ## The section `Collision`, with `declare module A <: SH.AdvCollision {…, -SORO.RO.FRO}` (its
 local declarations in the namespace `Collision`) -/
