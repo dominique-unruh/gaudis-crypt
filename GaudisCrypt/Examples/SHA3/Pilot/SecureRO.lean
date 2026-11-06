@@ -5,6 +5,7 @@ import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Syntax.ModuleVar
+import GaudisCrypt.Syntax.ModuleSubtype
 
 /-!
 # Random oracles are preimage resistant — the EC-fidelity pilot
@@ -99,13 +100,10 @@ in place: the coercion then unfolds to that record, which is what the `module` c
 callee like `A(Bounder(F))` back from (a named coercion function it would not see through). -/
 
 /-- An `RF` is an `Oracle` (its `get`). -/
-noncomputable instance : Coe RF Oracle :=
-  ⟨fun F => Oracle.mk { get := RF.get F }⟩
+module_subtype RF <: Oracle
 
 /-- The random oracle (`PROM`'s `RO`) is an `RF` (its `init` and `get`). -/
-noncomputable instance : Coe (PROM.FullRO.RO_T «from» «to») RF :=
-  ⟨fun F => RF.mk { init := PROM.FullRO.RO_T.init «from» «to» F
-                    get := PROM.FullRO.RO_T.get «from» «to» F }⟩
+module_subtype (PROM.FullRO.RO_T «from» «to») <: RF
 
 
 /-- The clone's `RO`. -/
