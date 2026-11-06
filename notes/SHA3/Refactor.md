@@ -146,5 +146,14 @@ Missing pieces, in order:
     step 3.
   * Printing gap: a coerced argument prints as its record (`RF.mk { init := …, get := … }`), not
     as `RO`.  A delaborator recognising "record of one module's own fields" would print it back.
+  * **Step 3 done**: `Logic/DeclareModule.lean`, `declare module A <: AdvPreimage «from» «to»
+    {-RO, -Preimage}` = `variable (A : …) [Module.Declared A S]`, `S` computed: the
+    `global_var`s the code of each `-X` mentions (EC's `glob` of a concrete module), `glob X` for
+    a declared `X`.  `Module.Declared` (finite support + restriction, `S` an `outParam`) is an
+    instance-implicit section variable, so it is part of exactly the lemmas mentioning `A` (EC's
+    generalization at the section's end); `fp_disjoint` reads it.  Representability (E2) is no
+    longer assumed: `Module.Declared.ecModule A Oracle.ext` proves `Module.ECModule` from
+    `Module.representable_of_firstOrder`, side conditions by auto-params.  The statement now has
+    EC's hypotheses only.
   * Proofs are still the old ones (term-mode `fel` via `Module.ewp_app_le`, `show`, `ewp`
     arithmetic): steps 3–4.

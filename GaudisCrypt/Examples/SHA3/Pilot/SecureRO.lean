@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Syntax.PrSyntax
+import GaudisCrypt.Logic.DeclareModule
 
 /-!
 # Random oracles are preimage resistant — the EC-fidelity pilot
@@ -154,7 +155,7 @@ module Preimage using (A : AdvPreimage «from» «to», F : RF «from» «to») 
   };
 }
 
-/-! ### The section `Preimage` (`declare module A <: AdvPreimage {-RO, -Preimage}`) -/
+/-! ### The section `Preimage` -/
 
 namespace Preimage
 
@@ -184,6 +185,11 @@ module Preimage2 using (A : AdvPreimage «from» «to», F : RF «from» «to»)
 
 end Preimage
 
+-- after the section's local modules, whose parameter `A` is their own
+section Preimage
+
+declare module A <: AdvPreimage «from» «to» {-RO, -Preimage}
+
 /-! ### The proof of `RO_is_preimage_resistant`
 
 As in the old file (`SecureRO.lean`), EC's `fel` is a supermartingale argument on the potential
@@ -209,10 +215,7 @@ theorem Bounder_RO_get_preimagePotential (h : «to») :
 
 /-- EC's `fel` in `RO_is_preimage_resistant`, as a supermartingale: `FEL(A, RO).main` ends with the
 potential at most `bound · μ1 sampleto h`. -/
-theorem FEL_preimagePotential [Countable «from»] (A : AdvPreimage «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (RO.m.footprint ⊔ Counter.c.footprint ⊔ Bounder.bounder.footprint)ᶜ)
-    (h : «to») :
+theorem FEL_preimagePotential [Countable «from»] (h : «to») :
     phoareProc (fun _ _ => True) Preimage.FEL(A, RO).main.procedure
       (fun _ g => preimagePotential bound (sampleto.1 {h}) h
         ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).get g))
@@ -220,8 +223,7 @@ theorem FEL_preimagePotential [Countable «from»] (A : AdvPreimage «from» «t
       (fun _ _ => ∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) := by
   have hL : FVP.fvP A ≤ ((Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)).footprint)ᶜ := by
     rw [Footprint.lens_pair, Footprint.lens_pair]
-    rwa [show Bounder.bounder.footprint ⊔ (Counter.c.footprint ⊔ RO.m.footprint) =
-      RO.m.footprint ⊔ Counter.c.footprint ⊔ Bounder.bounder.footprint by ac_rfl]
+    fp_disjoint
   phoare_proc_to_stmt
   phoare_inline 0
   repeat phoare_inline 0
@@ -231,7 +233,7 @@ theorem FEL_preimagePotential [Countable «from»] (A : AdvPreimage «from» «t
   erw [Stmt.ewp_call]
   simp_reads
   refine le_trans (Module.ewp_app_le (Lens.pair Bounder.bounder (Lens.pair Counter.c RO.m)) A
-    (Oracle.ext «from» «to») hA.representable hL
+    (Oracle.ext «from» «to») (Module.Declared.ecModule A (Oracle.ext «from» «to»)).representable hL
     (fun n => by cases n with
       | zero => exact inferInstanceAs (Countable «from»)
       | succ m => nomatch m)
@@ -248,14 +250,12 @@ theorem FEL_preimagePotential [Countable «from»] (A : AdvPreimage «from» «t
 /-- EC's `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) …`: after the adversary, the last
 query hits `h` only if `h` was already in the range of `RO.m` (EC's `fel`) or with probability
 `μ1 sampleto h`. -/
-theorem Preimage2_le [Countable «from»] (A : AdvPreimage «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (RO.m.footprint ⊔ Counter.c.footprint ⊔ Bounder.bounder.footprint)ᶜ) :
+theorem Preimage2_le [Countable «from»] :
     phoareProc (fun _ _ => True) Preimage.Preimage2(A, RO).main.procedure
       (fun r _ => indicatorE (r = true)) (· ≤ ·)
       (fun h _ => (∑ _i ∈ Finset.Ico (0 : ℤ).toNat bound.toNat, sampleto.1 {h}) +
         sampleto.1 {h}) := by
-  have hFEL := FEL_preimagePotential A hA hAd
+  have hFEL := FEL_preimagePotential A
   phoare_proc_to_stmt
   phoare_inline 0
   repeat phoare_inline 1
@@ -274,7 +274,7 @@ theorem Preimage2_le [Countable «from»] (A : AdvPreimage «from» «to»)
 
 /-- The first `have` of EC's proof: `Preimage(A, RO).main ~ Preimage2(A, RO).main`, by EC's
 `byequiv; proc; inline*; sim` (`Counter.init` is dead: `Bounder.init` runs it again). -/
-theorem Preimage_Preimage2 (A : AdvPreimage «from» «to») :
+theorem Preimage_Preimage2 :
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂)
       Preimage(A, RO).main.procedure Preimage.Preimage2(A, RO).main.procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
@@ -301,10 +301,7 @@ theorem Preimage_Preimage2 (A : AdvPreimage «from» «to») :
       case guard => intros; simp_all
 
 /-- EC's `RO_is_preimage_resistant &m (h : to)`. -/
-theorem RO_is_preimage_resistant [Countable «from»] (A : AdvPreimage «from» «to»)
-    (hA : Module.ECModule A (Oracle.ext «from» «to»))
-    (hAd : FVP.fvP A ≤ (RO.m.footprint ⊔ Counter.c.footprint ⊔ Bounder.bounder.footprint)ᶜ)
-    (m : VariableAssignment) (h : «to») :
+theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (h : «to») :
     Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
   -- `have->: Pr[Preimage(A,RO).main(h) @ &m : res] = Pr[Preimage2(A,RO).main(h) @ &m : res]`
   show (Procedure.Pr Preimage(A, RO).main.procedure h m (fun r _ => r = true) : ℝ) ≤ _
@@ -312,7 +309,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (A : AdvPreimage «from» 
     (E₁ := fun r _ => r = true) (E₂ := fun r _ => r = true)
     (fun r₁ _ r₂ _ hr => by rw [hr]) (a₁ := h) (a₂ := h) (σ₁ := m) (σ₂ := m) ⟨rfl, rfl⟩]
   -- `byphoare`, `seq 1`, `fel`
-  have hB := Preimage2_le A hA hAd h m trivial
+  have hB := Preimage2_le A h m trivial
   rw [← Procedure.Pr_eq_ewp] at hB
   -- the arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
   set μ := sampleto.1 {h}
@@ -329,5 +326,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (A : AdvPreimage «from» 
   unfold mu1
   push_cast
   ring
+
+end Preimage
 
 end GaudisCrypt.SHA3.Pilot.SecureRO

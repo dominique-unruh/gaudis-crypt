@@ -8,7 +8,8 @@ when the module is built from modules whose restrictions exclude it.  Here such 
 is a goal `A ≤ (FVP.fvP M)ᶜ` (equivalently `FVP.fvP M ≤ Aᶜ`), and `fp_disjoint` proves it the same
 way: it bounds `FVP.fvP M` through the module combinators (`fvP_app`, `fvP_pair`, `fvP_fst`, …,
 unfolding definitions such as a module type's accessors and constructors) down to modules with a
-restriction hypothesis `FVP.fvP N ≤ Sᶜ` in the context, and finds `A` among the joinands of `S`
+restriction hypothesis `FVP.fvP N ≤ Sᶜ` (or a declared module `Module.Declared N S`,
+`Logic/DeclareModule.lean`) in the context, and finds `A` among the joinands of `S`
 (a joinand `glob X`, EasyCrypt's restriction against an abstract module, covers `A ≤ X`).
 
 A concrete module has no restriction hypothesis: its globals are read off its code.  A lemma
@@ -143,12 +144,23 @@ partial def solveLeSup (g : MVarId) (fuel : Nat := 8) : MetaM Unit := do
       return ← solveLeSup g' (fuel - 1)
   throwError "fp_disjoint: cannot show{indentExpr ty}"
 
-/-- Close `F ≤ Aᶜ` from a hypothesis `h : F ≤ Sᶜ` with `A ≤ S`. -/
-def tryHyp (g : MVarId) (h : LocalDecl) : MetaM Bool := do
-  if h.isImplementationDetail then return false
+/-- A restriction hypothesis as `(F, S, proof of F ≤ Sᶜ)`: `h : F ≤ Sᶜ` itself, or a declared
+module `h : Module.Declared A S` (`Logic/DeclareModule.lean`), with `F = FVP.fvP A`. -/
+def restriction? (h : LocalDecl) : MetaM (Option (Lean.Expr × Lean.Expr × Lean.Expr)) := do
+  if h.isImplementationDetail then return none
   let hty ← instantiateMVars h.type
-  let_expr LE.le _ _ F' S' := hty | return false
-  let some S := compl? S' | return false
+  if hty.isAppOfArity `GaudisCrypt.Module.Declared 4 then
+    let F ← mkAppOptM ``FVP.fvP #[hty.getArg! 0, hty.getArg! 1, hty.getArg! 2]
+    let pf ← mkAppOptM `GaudisCrypt.Module.Declared.restr
+      #[hty.getArg! 0, hty.getArg! 1, hty.getArg! 2, hty.getArg! 3, h.toExpr]
+    return some (F, hty.getArg! 3, pf)
+  let_expr LE.le _ _ F' S' := hty | return none
+  let some S := compl? S' | return none
+  return some (F', S, h.toExpr)
+
+/-- Close `F ≤ Aᶜ` from a hypothesis `h : F ≤ Sᶜ` with `A ≤ S` (or a declared module's). -/
+def tryHyp (g : MVarId) (h : LocalDecl) : MetaM Bool := do
+  let some (F', S, hpf) ← restriction? h | return false
   attempt do
     let ty ← instantiateMVars (← g.getType)
     let_expr LE.le _ _ F T := ty | failure
@@ -156,7 +168,7 @@ def tryHyp (g : MVarId) (h : LocalDecl) : MetaM Bool := do
     unless ← isDefEq F F' do failure
     let hA ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[A, S])
     g.assign (← mkAppOptM ``Footprint.le_compl_of_le_compl
-      #[some A, some S, some F, some h.toExpr, some hA])
+      #[some A, some S, some F, some hpf, some hA])
     solveLeSup hA.mvarId!
 
 /-- A proof of `F.FinitelySupported`, from a hypothesis `Module.ECModule D _` (`F = FVP.fvP D`)
@@ -169,6 +181,9 @@ def finitelySupported (F : Lean.Expr) : MetaM Lean.Expr := do
     let cand? : Option Lean.Expr ←
       if hty.isAppOf ``Module.ECModule then
         pure (some (← mkAppM ``Module.ECModule.finitelySupported #[h.toExpr]))
+      else if hty.isAppOfArity `GaudisCrypt.Module.Declared 4 then
+        pure (some (← mkAppOptM `GaudisCrypt.Module.Declared.finite
+          #[hty.getArg! 0, hty.getArg! 1, hty.getArg! 2, hty.getArg! 3, h.toExpr]))
       else if hty.isAppOf ``Footprint.FinitelySupported then pure (some h.toExpr)
       else pure none
     if let some cand := cand? then
