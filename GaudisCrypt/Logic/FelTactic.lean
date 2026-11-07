@@ -233,7 +233,7 @@ open Lean Meta Elab Tactic FelTactic in
 /-- **EC's `call (: inv)` on an abstract module**, in a Hoare triple about a statement ending in
 `x <- call D(O) (…)` (`D` a declared module): the oracles keep `inv` (goal `oracle`, a triple
 about the oracle's procedure), and before the call `inv` holds and every result and globals
-keeping it give the postcondition (goal `pre`).  `inv` is written like the triple's conditions;
+keeping it give the postcondition (goal `pre`), in EC's order: `oracle`, then `pre`.  `inv` is written like the triple's conditions;
 the state view, the representation, the footprints and the countability are as for `fel`. -/
 elab "hoare_call" " (" ": " I:term ")" : tactic => do
   liftMetaTactic1 fun g => some <$> Judgment.onStmt (HoareSplit.splitSeq 1) g
@@ -282,5 +282,9 @@ elab "hoare_call" " (" ": " I:term ")" : tactic => do
     setGoals (gs.filter (· != go) ++ rest)
     for r in rest do r.setTag `oracle
   untagGoals
+  -- EC's order: the oracle, then the code before the call
+  let gs ← getGoals
+  let named ← [`oracle, `pre].filterMapM fun n => gs.findM? fun g => return (← g.getTag) == n
+  setGoals (named ++ gs.filter (fun g => !named.contains g))
 
 end GaudisCrypt
