@@ -116,6 +116,7 @@ import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ModuleFootprint
+import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
