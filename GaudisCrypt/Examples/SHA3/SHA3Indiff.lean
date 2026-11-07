@@ -280,7 +280,7 @@ theorem dc_P_f (P : BlockSponge.DPRIMITIVE) (hP : FVP.fvP P ≤ (cL.footprint)�
   have hPf : FVP.fvP (Indifferentiability.DPRIMITIVE.f SLCommon.state (List block × ℤ)
       (List block) P) ≤ (cL.footprint)ᶜ := by fp_disjoint
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧
       cL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       cI (cL.get §allGlobals{1}) (cL.get §allGlobals{2}))
   · stmt_wp
@@ -327,7 +327,7 @@ theorem dc_P_fi (P : BlockSponge.DPRIMITIVE) (hP : FVP.fvP P ≤ (cL.footprint)�
   have hPf : FVP.fvP (Indifferentiability.DPRIMITIVE.fi SLCommon.state (List block × ℤ)
       (List block) P) ≤ (cL.footprint)ᶜ := by fp_disjoint
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧
       cL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       cI (cL.get §allGlobals{1}) (cL.get §allGlobals{2}))
   · stmt_wp
@@ -372,7 +372,7 @@ theorem dc_F_f (F : BlockSponge.DFUNCTIONALITY) (hF : FVP.fvP F ≤ (cL.footprin
   have hFf : FVP.fvP (Indifferentiability.DFUNCTIONALITY.f SLCommon.state (List block × ℤ)
       (List block) F) ≤ (cL.footprint)ᶜ := by fp_disjoint
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §n{1} = §n{2} ∧ §bl{2} = pad2blocks §bs{2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §n{1} = §n{2} ∧ §bl{2} = pad2blocks §bs{2} ∧
       §nb{2} = (§n{2} + r - 1) / r ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
       §(localVarLens "z" (List block)){2} = [] ∧
       cL.equal_outside §allGlobals{1} §allGlobals{2} ∧
@@ -423,7 +423,7 @@ theorem dc_dist (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (cL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (cL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       cI (cL.get §allGlobals{1}) (cL.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -492,7 +492,7 @@ theorem drestr_commute1 (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distEx
     unfold DistRestrictions DistRestrictions.footprint at _hDd
     simp only [cL, Footprint.lens_pair]
     fp_disjoint
-  equiv_seq 1 1 : (§allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§allGlobals{1} = §allGlobals{2})
   · equiv_sim
   equiv_call (dc_dist Dist hD hDc
     (Indifferentiability.DFUNCTIONALITY.mk SLCommon.state (List block × ℤ) (List block)
@@ -528,7 +528,7 @@ theorem drestr_commute2 (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distEx
     unfold DistRestrictions DistRestrictions.footprint at _hDd
     simp only [cL, Footprint.lens_pair]
     fp_disjoint
-  equiv_seq 1 1 : (§allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§allGlobals{1} = §allGlobals{2})
   · equiv_sim
   equiv_call (dc_dist Dist hD hDc
     (Indifferentiability.DFUNCTIONALITY.mk SLCommon.state (List block × ℤ) (List block)
@@ -667,7 +667,7 @@ theorem equiv_sim_f (F : DFUNCTIONALITY) (hF : FVP.fvP F ≤ (sL.footprint)ᶜ) 
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x1{1} = §x0{2} ∧ sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x1{1} = §x0{2} ∧ sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -685,7 +685,7 @@ theorem equiv_sim_f (F : DFUNCTIONALITY) (hF : FVP.fvP F ≤ (sL.footprint)ᶜ) 
     have h1 : Gconcl.S.m.get g₁ = Simulator.m.get g₂ := hI.1
     exact ⟨by rw [h1], he, hI⟩
   case «then» =>
-    equiv_seq 5 5 : (§y1{1} = §y1{2} ∧ §x1{1} = §x0{2} ∧
+    equiv_seq_last 5 5 : (§y1{1} = §y1{2} ∧ §x1{1} = §x0{2} ∧
         sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
     · equiv_if
@@ -701,7 +701,7 @@ theorem equiv_sim_f (F : DFUNCTIONALITY) (hF : FVP.fvP F ≤ (sL.footprint)ᶜ) 
         exact ⟨rfl, he, hI⟩
       case «then» =>
         stmt_wp
-        equiv_seq 1 1 : (§q{1} = §q{2} ∧ §k{1} = §k{2} ∧ §x1{1} = §x0{2} ∧
+        equiv_seq_last 1 1 : (§q{1} = §q{2} ∧ §k{1} = §k{2} ∧ §x1{1} = §x0{2} ∧
             sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
             sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
         · stmt_wp
@@ -721,7 +721,7 @@ theorem equiv_sim_f (F : DFUNCTIONALITY) (hF : FVP.fvP F ≤ (sL.footprint)ᶜ) 
           exact ⟨⟨rfl, he, hI⟩, fun _ _ _ _ ⟨hr, he', hI'⟩ => ⟨by rw [hr], rfl, he', hI'⟩⟩
         case «then» =>
           stmt_wp
-          equiv_seq 1 1 : (§obs{1} = unpad_blocks §q{2} ∧ §n{1} = §k{2} ∧ §obs{1} ≠ none ∧
+          equiv_seq_last 1 1 : (§obs{1} = unpad_blocks §q{2} ∧ §n{1} = §k{2} ∧ §obs{1} ≠ none ∧
               §x1{1} = §x0{2} ∧ sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
               sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
           · stmt_wp
@@ -741,7 +741,7 @@ theorem equiv_sim_f (F : DFUNCTIONALITY) (hF : FVP.fvP F ≤ (sL.footprint)ᶜ) 
             rintro σ₁ σ₂ ⟨⟨-, -, hne, -⟩, hg⟩
             simp only [decide_eq_false_iff_not, not_not] at hg
             exact hne hg
-    equiv_seq 1 1 : (§y0{1} = §(localVarLens "y" state){2} ∧ (§y0{1}).2 = §y2{2} ∧
+    equiv_seq_last 1 1 : (§y0{1} = §(localVarLens "y" state){2} ∧ (§y0{1}).2 = §y2{2} ∧
         §x1{1} = §x0{2} ∧
         sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
@@ -787,7 +787,7 @@ theorem equiv_sim_fi (F : DFUNCTIONALITY) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x1{1} = §x0{2} ∧ sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x1{1} = §x0{2} ∧ sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -836,7 +836,7 @@ theorem rs_PC_f (P1 P2 : DPRIMITIVE)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "a" (block × capacity)){1} =
+  equiv_seq_last 1 1 : (§(localVarLens "a" (block × capacity)){1} =
       §(localVarLens "a" (block × capacity)){2} ∧ §z{1} = §z{2} ∧
       sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
@@ -882,7 +882,7 @@ theorem rs_PC_fi (P1 P2 : DPRIMITIVE)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "a" (block × capacity)){1} =
+  equiv_seq_last 1 1 : (§(localVarLens "a" (block × capacity)){1} =
       §(localVarLens "a" (block × capacity)){2} ∧ §z{1} = §z{2} ∧
       sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
@@ -936,7 +936,7 @@ theorem replace_simulator (Dist : DISTINGUISHER) (hD : Module.ECModule Dist dist
   stmt_inline{1} 2
   stmt_inline{2} 2
   stmt_wp
-  equiv_seq 1 1 : (sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (sL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       sI (sL.get §allGlobals{1}) (sL.get §allGlobals{2}))
   · rw [raiseSim_init]
     repeat stmt_inline{1} 0

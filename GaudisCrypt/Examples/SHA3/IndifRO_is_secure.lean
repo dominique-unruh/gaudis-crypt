@@ -304,7 +304,7 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
   stmt_inline{2} 4
   -- `wp; sim`: `equiv_sim` on straight-line code, the conditionals cut by hand
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_sim
     -- the adversary's oracles, `Bounder(FM(C,P))` and `Bounder(FInit(DColl…))`, are equal
     case callee =>
@@ -316,7 +316,7 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
       rfl
   · equiv_if
     case «then» =>
-      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+      equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
         §hash1{1} = §hash1{2})
       · equiv_sim
       · equiv_if
@@ -409,13 +409,13 @@ theorem Bounder_FInit_get_equiv [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
     globInvF (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) F Eq
       §allGlobals{1} §allGlobals{2})
   · equiv_sim
   · equiv_if
     case «then» =>
-      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧
         §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
         globInvF (Lens.pair SRO_Bounder_bounder (Lens.pair SRO_Counter_c SRO_RO_m)) F Eq
           §allGlobals{1} §allGlobals{2})
@@ -515,7 +515,7 @@ theorem GIdeal_Collision_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder 
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
     §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2})
   · equiv_call hAcall
     stmt_wp
@@ -556,7 +556,7 @@ theorem GIdeal_Collision_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder 
     have hget := RO_get_FInit_equiv block f_in f_out sampleto SRO_RO_m SRO_Counter_c
     equiv_if
     case «then» =>
-      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+      equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
         §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2} ∧
         §hash1{1} = §hash1{2})
       · equiv_call hget
@@ -719,7 +719,7 @@ theorem Preimage_FM_GReal (A : SRO.AdvPreimage f_in f_out) (C : CONSTRUCTION blo
   repeat stmt_inline{1} 3
   repeat stmt_inline{2} 3
   stmt_wp
-  equiv_seq 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_call
     · stmt_wp
       equiv_call_frame DPre_h
@@ -807,7 +807,7 @@ theorem GIdeal_Preimage_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder S
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧
+  equiv_seq_last 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧
     §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2})
   · equiv_call hAcall
     stmt_wp
@@ -965,7 +965,7 @@ theorem SecondPreimage_FM_GReal (A : SRO.AdvSecondPreimage f_in f_out)
   repeat stmt_inline{2} 3
   repeat stmt_inline{2} 4
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_call
     · stmt_wp
       equiv_call_frame D2Pre_m2
@@ -983,7 +983,7 @@ theorem SecondPreimage_FM_GReal (A : SRO.AdvSecondPreimage f_in f_out)
       rfl
   · equiv_if
     case «then» =>
-      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+      equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
         §hash1{1} = §hash1{2})
       · equiv_sim
       · equiv_if
@@ -1058,7 +1058,7 @@ theorem GIdeal_SecondPreimage_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bou
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
     §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2})
   · equiv_call hAcall
     stmt_wp
@@ -1100,7 +1100,7 @@ theorem GIdeal_SecondPreimage_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bou
   · simp only [SecureRO.RF.get.mk_simp, SecureRO.RO.asRF]
     equiv_if
     case «then» =>
-      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+      equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
         §SRO_Counter_c{1} = §SRO_Counter_c{2} ∧ §SRO_RO_m{1} = §SRO_RO_m{2} ∧
         §hash1{1} = §hash1{2})
       · equiv_call hget

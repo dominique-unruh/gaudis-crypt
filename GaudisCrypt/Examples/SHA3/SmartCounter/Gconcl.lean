@@ -336,7 +336,7 @@ theorem DPRestr_fi_G4I :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
       §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §S.m{2} ∧
       §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
   · stmt_wp
@@ -349,7 +349,7 @@ theorem DPRestr_fi_G4I :
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
+      equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
           §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §S.m{2} ∧
           §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
       · stmt_wp
@@ -390,7 +390,7 @@ theorem DPRestr_f_G4I :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
       §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §S.m{2} ∧
       §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
   · stmt_wp
@@ -403,7 +403,7 @@ theorem DPRestr_f_G4I :
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
+      equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
           §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §S.m{2} ∧
           §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
       · stmt_wp
@@ -449,7 +449,7 @@ theorem DFRestr_f_G4I :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
       §G1.m{1} = §S.m{2} ∧ §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
   · stmt_wp
@@ -468,7 +468,7 @@ theorem DFRestr_f_G4I :
         equiv_skip
         intros; simp_all
       case «then» =>
-        equiv_seq 7 6 : (§p{1} = §bs{2} ∧ §bs{1} = §bs{2} ∧
+        equiv_seq_last 7 6 : (§p{1} = §bs{2} ∧ §bs{1} = §bs{2} ∧
             §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
             §G1.m{1} = §S.m{2} ∧ §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
         · equiv_while{1} (§p{1} = §bs{2} ∧ §bs{1} = §bs{2} ∧
@@ -519,7 +519,7 @@ theorem DPRestr_fi_G34 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
       §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
       §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
   · stmt_wp
@@ -532,7 +532,7 @@ theorem DPRestr_fi_G34 :
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
+      equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
           §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
           §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
       · stmt_wp
@@ -569,7 +569,7 @@ theorem DPRestr_f_G34 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §C.c{1} = §C.c{2} ∧
       §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
       §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
   · stmt_wp
@@ -582,7 +582,7 @@ theorem DPRestr_f_G34 :
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
+      equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §C.c{1} = §C.c{2} ∧
           §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
           §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
       · stmt_wp
@@ -595,7 +595,7 @@ theorem DPRestr_f_G34 :
           equiv_skip
           intros; simp_all
         case «then» =>
-          equiv_seq 2 3 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ §C.c{1} = §C.c{2} ∧
+          equiv_seq_last 2 3 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ §C.c{1} = §C.c{2} ∧
               §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
               §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
           · stmt_wp
@@ -638,7 +638,7 @@ theorem DFRestr_f_G34 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
       §G1.m{1} = §G1.m{2} ∧ §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
   · stmt_wp
@@ -657,7 +657,7 @@ theorem DFRestr_f_G34 :
         equiv_skip
         intros; simp_all
       case «then» =>
-        equiv_seq 7 7 : (§p{1} = §p{2} ∧ §bs{1} = §bs{2} ∧
+        equiv_seq_last 7 7 : (§p{1} = §p{2} ∧ §bs{1} = §bs{2} ∧
             §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
             §G1.m{1} = §G1.m{2} ∧ §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
         · equiv_while (§p{1} = §p{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs{2} ∧
@@ -736,7 +736,7 @@ theorem DPRestr_f_G23 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all
@@ -747,7 +747,7 @@ theorem DPRestr_f_G23 :
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ colEq §allGlobals{1} §allGlobals{2})
+      equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ colEq §allGlobals{1} §allGlobals{2})
       · stmt_wp
         equiv_skip
         intros; simp_all
@@ -762,9 +762,9 @@ theorem DPRestr_f_G23 :
           equiv_case (sfGuard §ROhandle.FRO.m{1} §G1.chandle{1} §G1.mh{1} §x1{1} = true)
           · stmt_swap{2} 2 9
             stmt_swap{2} 1 9
-            equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ colEq §allGlobals{1}
+            equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ colEq §allGlobals{1}
                 §allGlobals{2})
-            · equiv_seq 11 12 : (§x1{1} = §x1{2} ∧ §y1{1} = §y1{2} ∧
+            · equiv_seq_last 11 12 : (§x1{1} = §x1{2} ∧ §y1{1} = §y1{2} ∧
                   colEq §allGlobals{1} §allGlobals{2} ∧
                   sfGuard §ROhandle.FRO.m{1} §G1.chandle{1} §G1.mh{1} §x1{1} = true)
               · equiv_if{1}
@@ -800,7 +800,7 @@ theorem DPRestr_f_G23 :
                     equiv_skip
                     rintro g₁ g₂ x1 _ ⟨⟨⟨⟨⟨rfl, hE⟩, -⟩, hg⟩, -⟩, -⟩ - -
                     exact ⟨cdistr_expected_one, fun _ _ => ⟨rfl, hE, hg⟩⟩
-              · equiv_seq 1 3 : (§x1{1} = §x1{2} ∧ (§y0{1}).1 = §y1{2} ∧ §hx2{1} = §hx2{2} ∧
+              · equiv_seq_last 1 3 : (§x1{1} = §x1{2} ∧ (§y0{1}).1 = §y1{2} ∧ §hx2{1} = §hx2{2} ∧
                     §t{1} = §t{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
                     §t{1} = decide (FMap.dom §ROhandle.FRO.m{1}
                       (oget (FMap.get §G1.mh{1} ((§x1{1}).1, §hx2{1}))).2 ∧
@@ -843,9 +843,9 @@ theorem DPRestr_f_G23 :
               rintro g₁ g₂ x1 y0 _ _ ⟨rfl, rfl, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩
               rw [e3]
               split_ifs <;> exact ⟨rfl, by col_eq⟩
-          · equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ colEq §allGlobals{1}
+          · equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ colEq §allGlobals{1}
               §allGlobals{2})
-            · equiv_seq 11 11 : (§x1{1} = §x1{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
+            · equiv_seq_last 11 11 : (§x1{1} = §x1{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
                   colEq §allGlobals{1} §allGlobals{2} ∧
                   sfGuard §ROhandle.FRO.m{1} §G1.chandle{1} §G1.mh{1} §x1{1} = false)
               · equiv_if{1}
@@ -880,7 +880,7 @@ theorem DPRestr_f_G23 :
                     equiv_skip
                     rintro g₁ g₂ x1 _ ⟨⟨⟨⟨⟨rfl, hE⟩, -⟩, hg⟩, -⟩, -⟩ - - - -
                     exact ⟨rfl, hE, by simpa using hg⟩
-              · equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ §hx2{1} = §hx2{2} ∧
+              · equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ §hx2{1} = §hx2{2} ∧
                     §t{1} = §t{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
                     (decide (FMap.dom §G1.mh{1} ((§x1{1}).1, §hx2{1})) && §t{1}) = false)
                 · stmt_wp
@@ -929,7 +929,7 @@ theorem DPRestr_fi_G23 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all
@@ -940,7 +940,7 @@ theorem DPRestr_fi_G23 :
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ colEq §allGlobals{1} §allGlobals{2})
+      equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ colEq §allGlobals{1} §allGlobals{2})
       · stmt_wp
         equiv_skip
         intros; simp_all
@@ -955,7 +955,7 @@ theorem DPRestr_fi_G23 :
           stmt_swap{1} 9 -3
           stmt_swap{1} 10 -3
           stmt_swap{1} 11 -3
-          equiv_seq 4 4 : (§x1{1} = §x1{2} ∧ §hx2{1} = §hx2{2} ∧ §t{1} = §t{2} ∧
+          equiv_seq_last 4 4 : (§x1{1} = §x1{2} ∧ §hx2{1} = §hx2{2} ∧ §t{1} = §t{2} ∧
               colEq §allGlobals{1} §allGlobals{2} ∧
               §t{1} = decide (FMap.dom §ROhandle.FRO.m{1}
                 (oget (FMap.get §G1.mhi{1} ((§x1{1}).1, §hx2{1}))).2 ∧
@@ -970,7 +970,7 @@ theorem DPRestr_fi_G23 :
             refine ⟨trivial, rfl, rfl, ?_⟩
             split_ifs <;> col_eq
           · equiv_case ((decide (FMap.dom §G1.mhi{1} ((§x1{1}).1, §hx2{1})) && §t{1}) = true)
-            · equiv_seq 1 3 : (§x1{1} = §x1{2} ∧ (§y0{1}).1 = §y1{2} ∧ §hx2{1} = §hx2{2} ∧
+            · equiv_seq_last 1 3 : (§x1{1} = §x1{2} ∧ (§y0{1}).1 = §y1{2} ∧ §hx2{1} = §hx2{2} ∧
                   §t{1} = §t{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
                   §t{1} = decide (FMap.dom §ROhandle.FRO.m{1}
                     (oget (FMap.get §G1.mhi{1} ((§x1{1}).1, §hx2{1}))).2 ∧
@@ -1003,7 +1003,7 @@ theorem DPRestr_fi_G23 :
                 case «else» =>
                   refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
                   exact Bool.false_ne_true (h.2.symm.trans h.1.2.2.2.2.2.2)
-            · equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ §hx2{1} = §hx2{2} ∧
+            · equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ §hx2{1} = §hx2{2} ∧
                   §t{1} = §t{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
                   (decide (FMap.dom §G1.mhi{1} ((§x1{1}).1, §hx2{1})) && §t{1}) = false)
               · stmt_wp
@@ -1043,7 +1043,7 @@ theorem DFRestr_f_G23 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       colEq §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -1061,7 +1061,7 @@ theorem DFRestr_f_G23 :
         equiv_skip
         intros; simp_all
       case «then» =>
-        equiv_seq 7 7 : (§p{1} = §p{2} ∧ §bs{1} = §bs{2} ∧ colEq §allGlobals{1} §allGlobals{2})
+        equiv_seq_last 7 7 : (§p{1} = §p{2} ∧ §bs{1} = §bs{2} ∧ colEq §allGlobals{1} §allGlobals{2})
         · equiv_while (§p{1} = §p{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs{2} ∧
               §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧ §sa{1} = §sa{2} ∧
               §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2})
@@ -1200,7 +1200,7 @@ theorem G2_G3 (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG : G
   stmt_split{1} 1
   apply prhlStmt_seq_left
   stmt_wp
-  equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -1307,7 +1307,7 @@ theorem G3_G4 (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG : G
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -1407,7 +1407,7 @@ theorem G4_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG 
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h

@@ -478,13 +478,13 @@ theorem Preimage_Preimage2 [Lens.Disjoint Bounder_bounder Counter_c]
   stmt_inline{2} 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
-  equiv_seq 3 4 : (§hash{1} = §hash0{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 3 4 : (§hash{1} = §hash0{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ a₁ a₂ ⟨ha, hg⟩
     refine ⟨ha, ha, ?_⟩
     rw [hg, (inferInstance : Lens.Disjoint Bounder_bounder Counter_c).commute, Counter_c.set_set]
-  · equiv_seq 2 2 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
+  · equiv_seq_last 2 2 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
     · equiv_sim
       rintro _ _ _ _ _ ⟨h1, h2, h3⟩
       exact ⟨h1, h3, fun _ _ => h2⟩
@@ -933,12 +933,12 @@ theorem SecondPreimage_SecondPreimage2 [Lens.Disjoint Bounder_bounder Counter_c]
   stmt_inline{2} 1
   stmt_inline{2} 1
   stmt_wp
-  equiv_seq 1 2 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 2 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_sim
   · have := (inferInstance : Lens.Disjoint Counter_c RO_m).symm
     have := (inferInstance : Lens.Disjoint SecondPreimage2_m2 Counter_c).symm
     have := (inferInstance : Lens.Disjoint SecondPreimage2_m2 RO_m).symm
-    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
+    equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
       §Counter_c{1} = §Counter_c{2} ∧ §RO_m{1} = §RO_m{2})
     · stmt_wp
       equiv_skip
@@ -947,7 +947,7 @@ theorem SecondPreimage_SecondPreimage2 [Lens.Disjoint Bounder_bounder Counter_c]
       case guard => intros; simp_all
       case «else» => stmt_wp; equiv_skip; intros; trivial
       case «then» =>
-        equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
+        equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
           §Counter_c{1} = §Counter_c{2} ∧ §RO_m{1} = §RO_m{2} ∧ §hash1{1} = §hash1{2})
         · stmt_wp
           equiv_rnd
@@ -1027,11 +1027,11 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder Counter_c
   have hsamp := prhlProc_self_equal_outside_module L (PROM.FullRO.RO_T.sample «from» «to» F)
     (hsample.trans (by rw [hfpL]; fp_disjoint)) (fun _ _ => True)
   stmt_wp
-  equiv_seq 2 2 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
+  equiv_seq_last 2 2 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
       L.equal_outside §allGlobals{1} §allGlobals{2})
-  · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
+  · equiv_seq_last 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
         L.equal_outside §allGlobals{1} §allGlobals{2})
-    · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
+    · equiv_seq_last 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
           L.equal_outside §allGlobals{1} §allGlobals{2})
       · stmt_wp
         equiv_skip
@@ -1052,7 +1052,7 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder Counter_c
       equiv_skip
       rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨h1, h2, h⟩
       exact ⟨⟨h1, h⟩, fun _ _ _ _ h' => ⟨h2, h'.1, h'.2⟩⟩
-  · equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  · equiv_seq_last 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       §SecondPreimage2_m2{1} = §SecondPreimage2_m2{2})
     · stmt_wp
       equiv_skip
@@ -1066,7 +1066,7 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder Counter_c
         rw [h.get_disjoint (X := Counter_c)]
       case «else» => stmt_wp; equiv_skip; intros; trivial
       case «then» =>
-        equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+        equiv_seq_last 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
           §SecondPreimage2_m2{1} = §SecondPreimage2_m2{2} ∧ §hash1{1} = §hash1{2})
         · equiv_call hget
           stmt_wp
@@ -1705,11 +1705,11 @@ theorem Collision_Collision2 (A : AdvCollision «from» «to») :
   stmt_inline 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_sim
   · equiv_if
     case «then» =>
-      equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+      equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
         §hash1{1} = §hash1{2})
       · equiv_sim
       · equiv_if

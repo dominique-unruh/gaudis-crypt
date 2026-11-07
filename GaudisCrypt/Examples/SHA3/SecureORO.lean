@@ -220,7 +220,7 @@ theorem Preimage_Preimage2 [Lens.Disjoint Bounder_bounder RO_m]
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 2 3 : (§hash{1} = §hash{2} ∧ §hash{1} = §Preimage2_hash{2} ∧
+  equiv_seq_last 2 3 : (§hash{1} = §hash{2} ∧ §hash{1} = §Preimage2_hash{2} ∧
       Preimage2_hash.equal_outside §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_rnd
@@ -228,7 +228,7 @@ theorem Preimage_Preimage2 [Lens.Disjoint Bounder_bounder RO_m]
     equiv_skip
     rintro g₁ g₂ rfl a -
     exact (((Lens.equal_outside.refl _).set_right _).set_disjoint _).set_disjoint _
-  · equiv_seq 1 2 : (§m{1} = §m0{2} ∧ §hash{1} = §Preimage2_hash{2} ∧
+  · equiv_seq_last 1 2 : (§m{1} = §m0{2} ∧ §hash{1} = §Preimage2_hash{2} ∧
         Preimage2_hash.equal_outside §allGlobals{1} §allGlobals{2})
     · refine prhlStmt_fix_right (fun σ₂ => Preimage2_hash.get σ₂.globals) fun h => ?_
       equiv_call (hA h)
@@ -526,7 +526,7 @@ theorem SecondPreimage_RO_LRO [Countable «from»] [Lens.Disjoint Bounder_bounde
     repeat stmt_inline{1} 0
     repeat stmt_inline{2} 0
     stmt_wp
-    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §allGlobals{1} = §allGlobals{2})
+    equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §allGlobals{1} = §allGlobals{2})
     · stmt_wp
       equiv_skip
       intros; simp_all
@@ -560,12 +560,12 @@ theorem SecondPreimage_RO_LRO [Countable «from»] [Lens.Disjoint Bounder_bounde
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 2 2 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 2 2 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_call hA'
     stmt_wp
     equiv_skip
     intros; simp_all
-  · equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+  · equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
         §hash1{1} = §hash1{2})
     · equiv_call hget
       equiv_skip
@@ -597,12 +597,12 @@ theorem SecondPreimage_SecondPreimage2 [Lens.Disjoint Bounder_bounder RO_m]
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 1
   stmt_wp
-  equiv_seq 9 10 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 9 10 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_sim
-  · equiv_seq 5 5 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
+  · equiv_seq_last 5 5 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
         §Bounder_bounder{1} = §Bounder_bounder{2} ∧ §RO_m{1} = §RO_m{2} ∧
         §(localVarLens "y" (Option «to»)){1} = §(localVarLens "y" (Option «to»)){2})
-    · equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
+    · equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
           §Bounder_bounder{1} = §Bounder_bounder{2} ∧ §RO_m{1} = §RO_m{2} ∧ §x{1} = §x2{2} ∧
           §y{1} = §y{2})
       · stmt_wp
@@ -617,7 +617,7 @@ theorem SecondPreimage_SecondPreimage2 [Lens.Disjoint Bounder_bounder RO_m]
           stmt_wp
           equiv_skip
           intros; simp_all
-    · equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
+    · equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2_m2{2} ∧
           §Bounder_bounder{1} = §Bounder_bounder{2} ∧ §RO_m{1} = §RO_m{2} ∧ §hash1{1} = §hash1{2} ∧
           §x2{1} = §x5{2} ∧ §y1{1} = §y1{2})
       · stmt_wp
@@ -690,11 +690,11 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder RO_m]
     (PROM.FullRO.RO_T.sample «from» «to» F) (by rw [hfpL]; fp_disjoint) (fun _ _ => True)
   generalize Lens.pair SecondPreimage2_m2 D1_m1 = L at hfpL hSP2 hD1 hSP2get hBL hRL hget hA hsamp ⊢
   stmt_wp
-  equiv_seq 3 3 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
+  equiv_seq_last 3 3 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
       L.equal_outside §allGlobals{1} §allGlobals{2})
-  · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
+  · equiv_seq_last 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
         L.equal_outside §allGlobals{1} §allGlobals{2})
-    · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
+    · equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
           L.equal_outside §allGlobals{1} §allGlobals{2})
       · stmt_wp
         equiv_skip
@@ -713,7 +713,7 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder RO_m]
       equiv_skip
       rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨h1, h2, h⟩
       exact ⟨⟨h1, h⟩, fun _ _ _ _ h' => ⟨h2, h'.1, h'.2⟩⟩
-  · equiv_seq 2 2 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  · equiv_seq_last 2 2 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
         §SecondPreimage2_m2{1} = §SecondPreimage2_m2{2})
     · stmt_wp
       equiv_skip
@@ -721,7 +721,7 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder RO_m]
       refine ⟨h1, ?_, rfl⟩
       rw [hSP2, hSP2]
       exact (h.set_left _).set_right _
-    · equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+    · equiv_seq_last 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
           §SecondPreimage2_m2{1} = §SecondPreimage2_m2{2} ∧ §hash1{1} = §hash1{2})
       · equiv_call hget
         equiv_skip
@@ -1060,7 +1060,7 @@ theorem Collision_Collision2 (A : AdvCollision «from» «to») :
   stmt_inline 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 2 2 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 2 2 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
   · equiv_sim
   · equiv_sim
 

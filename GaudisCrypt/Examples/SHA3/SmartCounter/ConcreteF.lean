@@ -309,7 +309,7 @@ theorem DB_P_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
   simp only [PRP.StrongPRP.SPRP_Oracles.f.mk_simp]
   have hPf : FVP.fvP (PRP.StrongPRP.PRP.f state P) ≤ ((dbL c).footprint)ᶜ := by fp_disjoint
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧
       §(localVarLens "y" state){1} = §(localVarLens "y" state){2} ∧
       (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
       dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}))
@@ -322,7 +322,7 @@ theorem DB_P_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
       rw [show C.c.get g₁ = C.c.get g₂ from congrArg Prod.fst hI1]
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x0{1} = §x1{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §x1{2} ∧
           (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
           dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}) ∧ §C.c{1} + 1 ≤ max_size)
       · stmt_wp
@@ -378,7 +378,7 @@ theorem DB_P_fi (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
   simp only [PRP.StrongPRP.SPRP_Oracles.fi.mk_simp]
   have hPf : FVP.fvP (PRP.StrongPRP.PRP.fi state P) ≤ ((dbL c).footprint)ᶜ := by fp_disjoint
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧
       §(localVarLens "y" state){1} = §(localVarLens "y" state){2} ∧
       (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
       dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}))
@@ -391,7 +391,7 @@ theorem DB_P_fi (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
       rw [show C.c.get g₁ = C.c.get g₂ from congrArg Prod.fst hI1]
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x0{1} = §x1{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §x1{2} ∧
           (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
           dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}) ∧ §C.c{1} + 1 ≤ max_size)
       · stmt_wp
@@ -456,7 +456,7 @@ theorem DB_F_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
   simp only [PRP.StrongPRP.SPRP_Oracles.f.mk_simp]
   have hPf : FVP.fvP (PRP.StrongPRP.PRP.f state P) ≤ ((dbL c).footprint)ᶜ := by fp_disjoint
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧
       §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
       dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}))
@@ -545,7 +545,7 @@ theorem DB_F_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
           case «else» =>
             stmt_wp
             refine prhlStmt_fix_right (fun σ => (dbL c).get σ.globals) (fun v => ?_)
-            equiv_seq 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+            equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
                 (§sa{1}, §sc{1}) = §x0{2} ∧
                 (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
                 dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}) ∧
@@ -709,9 +709,9 @@ theorem DoubleBounding (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 1
   stmt_wp
-  equiv_seq 8 10 : (§allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 8 10 : (§allGlobals{1} = §allGlobals{2})
   · equiv_sim
-  · equiv_seq 1 1 : ((dbL DBounder_FBounder_c).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  · equiv_seq_last 1 1 : ((dbL DBounder_FBounder_c).equal_outside §allGlobals{1} §allGlobals{2} ∧
         dbI ((dbL DBounder_FBounder_c).get §allGlobals{1})
           ((dbL DBounder_FBounder_c).get §allGlobals{2}))
     · stmt_wp
@@ -885,7 +885,7 @@ theorem ARP_PF_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ coll.equal_outside §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ coll.equal_outside §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ x _ ⟨rfl, he⟩
@@ -923,7 +923,7 @@ theorem ARP_PF_fi :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§y{1} = §x0{2} ∧ coll.equal_outside §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§y{1} = §x0{2} ∧ coll.equal_outside §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ x _ ⟨rfl, he⟩
@@ -1354,7 +1354,7 @@ theorem GR_F_f :
   repeat stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_f]
   stmt_wp
-  equiv_seq 1 1 : (§p{1} = §bs{2} ∧ §sa{1} = b0 ∧ §sc{1} = c0 ∧ §i{1} = 0 ∧
+  equiv_seq_last 1 1 : (§p{1} = §bs{2} ∧ §sa{1} = b0 ∧ §sc{1} = c0 ∧ §i{1} = 0 ∧
       §(localVarLens "b" block){2} = b0 ∧
       grL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       grI (grL.get §allGlobals{1}) (grL.get §allGlobals{2}))
@@ -1402,7 +1402,7 @@ theorem GR_F_f :
           stmt_wp
           refine prhlStmt_fix_left (fun σ => grL.get σ.globals) (fun u => ?_)
           refine prhlStmt_fix_right (fun σ => grL.get σ.globals) (fun v => ?_)
-          equiv_seq 1 1 : (§x0{1} = (§sa{2}, §sc{2}) ∧ §p{1} = §p{2} ∧ §p{2} = §bs{2} ∧
+          equiv_seq_last 1 1 : (§x0{1} = (§sa{2}, §sc{2}) ∧ §p{1} = §p{2} ∧ §p{2} = §bs{2} ∧
               §i{1} = §i{2} ∧ grL.equal_outside §allGlobals{1} §allGlobals{2} ∧
               grL.get §allGlobals{1} = u ∧ grL.get §allGlobals{2} = v ∧
               §Redo.prefixes{1} = §Redo.prefixes{2} ∧
@@ -1533,7 +1533,7 @@ theorem GReal_GReal' (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (grL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (grL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       grI (grL.get §allGlobals{1}) (grL.get §allGlobals{2}))
   · stmt_wp
     equiv_call_frame C.queries

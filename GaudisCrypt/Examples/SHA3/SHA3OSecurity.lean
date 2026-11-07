@@ -549,7 +549,7 @@ theorem osim_congr_fi [Lens.Disjoint SHA3Indiff.Simulator.m L]
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -595,7 +595,7 @@ theorem osim_congr_f [Lens.Disjoint SHA3Indiff.Simulator.m L]
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -610,7 +610,7 @@ theorem osim_congr_f [Lens.Disjoint SHA3Indiff.Simulator.m L]
     rintro g₁ g₂ _ _ ⟨⟨rfl, he, hI⟩, -⟩
     exact ⟨by rw [he.get_disjoint], he, hIJ _ _ hI⟩
   case «then» =>
-    equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+    equiv_seq_last 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
         L.equal_outside §allGlobals{1} §allGlobals{2} ∧
         J (L.get §allGlobals{1}) (L.get §allGlobals{2}))
     · equiv_if
@@ -619,7 +619,7 @@ theorem osim_congr_f [Lens.Disjoint SHA3Indiff.Simulator.m L]
         rw [he.get_disjoint]
       case «then» =>
         stmt_wp
-        equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
+        equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
             L.equal_outside §allGlobals{1} §allGlobals{2} ∧
             I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
         · stmt_wp
@@ -647,7 +647,7 @@ theorem osim_congr_f [Lens.Disjoint SHA3Indiff.Simulator.m L]
         equiv_skip
         rintro g₁ g₂ _ _ ⟨⟨⟨rfl, he, hI⟩, -⟩, -⟩
         exact fun _ _ => ⟨rfl, he, hIJ _ _ hI⟩
-    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §y2{1} = §y2{2} ∧
+    equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §y2{1} = §y2{2} ∧
         L.equal_outside §allGlobals{1} §allGlobals{2} ∧
         J (L.get §allGlobals{1}) (L.get §allGlobals{2}))
     · stmt_wp
@@ -690,7 +690,7 @@ theorem opc_congr_f [Lens.Disjoint Counter.c L] (P₁ P₂ : ODPRIMITIVE)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
       L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · stmt_wp
@@ -731,7 +731,7 @@ theorem opc_congr_fi [Lens.Disjoint Counter.c L] (P₁ P₂ : ODPRIMITIVE)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
       L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · stmt_wp
@@ -778,7 +778,7 @@ theorem ideal_game_congr [Lens.Disjoint SHA3Indiff.Simulator.m L]
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · equiv_call hinit
     stmt_wp
@@ -1102,7 +1102,7 @@ theorem rw_RF_List_While :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2})
   · stmt_wp
     equiv_skip
     exact fun _ _ _ _ h => h
@@ -1119,7 +1119,7 @@ theorem rw_RF_List_While :
     refine prhlStmt_dlist_left _ { get := fun _ => size_out } (fun _ => rfl) ?_
     stmt_inline{1} 0
     stmt_wp
-    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2} ∧ §n{1} = size_out ∧
+    equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2} ∧ §n{1} = size_out ∧
         §i{1} = §i{2} ∧ §l0{1} = §l{2})
     · stmt_wp
       equiv_skip
@@ -1159,7 +1159,7 @@ theorem eq_IRO_RFWhile :
   stmt_inline{2} 0
   stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = 0 ∧ §bs{1} = [] ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = 0 ∧ §bs{1} = [] ∧
       inv §IRO.mp{1} §RFList_m{2})
   · stmt_wp
     equiv_skip
@@ -1176,7 +1176,7 @@ theorem eq_IRO_RFWhile :
       stmt_wp
       refine prhlStmt_fix_left (fun σ => BIRO.IRO.mp.get σ.globals) fun mp0 => ?_
       refine prhlStmt_fix_right (fun σ => RFList_m.get σ.globals) fun m2 => ?_
-      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
           0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ size §bs{1} = §i{1} ∧ §RFList_m{2} = m2 ∧
           ¬ FMap.dom m2 §x0{1} ∧ inv mp0 m2 ∧
           (∀ y j, y ≠ §x0{1} → FMap.get §IRO.mp{1} (y, j) = FMap.get mp0 (y, j)) ∧
@@ -1197,7 +1197,7 @@ theorem eq_IRO_RFWhile :
           (∀ j, 0 ≤ j → j < §i{1} → FMap.get §IRO.mp{1} (§x0{1}, j) = some (nth default §bs{1} j)))
       case body =>
         stmt_wp
-        equiv_seq 1 1 : ((§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+        equiv_seq_last 1 1 : ((§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
             0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ size §bs{1} = §i{1} ∧ §RFList_m{2} = m2 ∧
             ¬ FMap.dom m2 §x0{1} ∧ inv mp0 m2 ∧
             (∀ y j, y ≠ §x0{1} → FMap.get §IRO.mp{1} (y, j) = FMap.get mp0 (y, j)) ∧
@@ -1405,7 +1405,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 8 : (§x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧ §x3{2} = §x0{2} ∧ §n{2} = size_out ∧
+  equiv_seq_last 1 8 : (§x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧ §x3{2} = §x0{2} ∧ §n{2} = size_out ∧
       §i0{2} = 0 ∧ §bs{2} = [] ∧ §suffix{2} = [] ∧
       eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
   · stmt_wp
@@ -1417,7 +1417,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
     stmt_wp
     equiv_rcondf{2}
     stmt_wp
-    equiv_seq 1 1 : (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
+    equiv_seq_last 1 1 : (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
         §i{1} = 0 ∧ §bs{1} = §bs{2} ∧ §bs{1} = [] ∧ §k{1} = §k{2} ∧ §k{1} ≤ size_out ∧
         §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
     · stmt_wp
@@ -1438,7 +1438,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
         §k{1} ≤ size_out ∧ §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
       case body =>
         stmt_wp
-        equiv_seq 1 1 : (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
+        equiv_seq_last 1 1 : (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
             0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ size §bs{1} = §i{1} ∧
             §k{1} = §k{2} ∧ §k{1} ≤ size_out ∧ §suffix{2} = [] ∧
             eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2} ∧ §i{1} < §n{1} ∧
@@ -1492,7 +1492,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
         refine ⟨h1, h2, h3, h4, by omega, by omega, h6, by rw [h7, h5]; rfl, h8, h9, h10, h11⟩
   case «else» =>
     stmt_wp
-    equiv_seq 1 8 : (§x5{1} = §x0{2} ∧ §n1{1} = §k{2} ∧ size_out < §k{2} ∧ §i0{1} = 0 ∧
+    equiv_seq_last 1 8 : (§x5{1} = §x0{2} ∧ §n1{1} = §k{2} ∧ size_out < §k{2} ∧ §i0{1} = 0 ∧
         §bs0{1} = [] ∧ §x3{2} = §x0{2} ∧ §n{2} = size_out ∧ §i0{2} = 0 ∧ §bs{2} = [] ∧
         §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
     · stmt_wp
@@ -1524,7 +1524,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
           rintro i0 n1 mp x5 ⟨⟨h1, -⟩, hk⟩
           simp only [decide_eq_true_eq] at h1
           exact ⟨fun _ => by omega, fun _ => by omega⟩
-      equiv_seq 1 1 : (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
+      equiv_seq_last 1 1 : (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
           §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
           eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
       · stmt_wp
@@ -1540,7 +1540,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
             eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
           case body =>
             stmt_wp
-            equiv_seq 1 1 : (§x5{1} = §x0{2} ∧ §x3{2} = §x0{2} ∧ §n1{1} = §k{2} ∧
+            equiv_seq_last 1 1 : (§x5{1} = §x0{2} ∧ §x3{2} = §x0{2} ∧ §n1{1} = §k{2} ∧
                 size_out < §k{2} ∧ §n{2} = size_out ∧ §i0{1} = §i0{2} ∧ 0 ≤ §i0{1} ∧
                 §i0{1} ≤ size_out ∧ §bs0{1} = §bs{2} ∧ size §bs0{1} = §i0{1} ∧ §suffix{2} = [] ∧
                 eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2} ∧ §i0{1} < size_out ∧
@@ -1609,7 +1609,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
           eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
       case body =>
         stmt_wp
-        equiv_seq 1 1 : (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
+        equiv_seq_last 1 1 : (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
             §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
             eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2} ∧ §i0{1} < §n1{1} ∧
             §x6{1} = §x5{1} ∧ §n2{1} = §i0{1})
@@ -1714,7 +1714,7 @@ theorem eq_eager_ideal :
   case exit =>
     rintro _ _ _ _ _ h _
     exact h
-  equiv_seq 1 1 : (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+  equiv_seq_last 1 1 : (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
       §IRO.mp{1} = §Eager.RO.m{2})
   · stmt_wp
     equiv_skip
@@ -1730,7 +1730,7 @@ theorem eq_eager_ideal :
       §IRO.mp{1} = §Eager.RO.m{2})
     case body =>
       stmt_wp
-      equiv_seq 1 1 : (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+      equiv_seq_last 1 1 : (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
       §IRO.mp{1} = §Eager.RO.m{2} ∧ §i{1} < §n{1} ∧
           §(localVarLens "x0" (List Bool)){1} = §x{1} ∧ §n0{1} = §i{1} ∧
           §(localVarLens "x0" (List Bool × ℤ)){2} = (§x{2}, §i{2}))
@@ -1788,7 +1788,7 @@ theorem eq_eager_ideal2 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 2 : (§(localVarLens "x0" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+  equiv_seq_last 1 2 : (§(localVarLens "x0" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
       §k{1} = §n{2} ∧ §i{2} = 0 ∧ §l{2} = [] ∧ §IRO.mp{1} = §Eager.RO.m{2})
   · stmt_wp
     equiv_skip
@@ -1797,7 +1797,7 @@ theorem eq_eager_ideal2 :
   equiv_if{1}
   case «then» =>
     stmt_wp
-    equiv_seq 1 2 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+    equiv_seq_last 1 2 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
         §n{1} = size_out ∧ §k{1} = §n{2} ∧ §k{1} ≤ size_out ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
         §bs{1} = [] ∧ §l{2} = [] ∧ §IRO.mp{1} = §Eager.RO.m{2})
     · stmt_wp
@@ -1830,7 +1830,7 @@ theorem eq_eager_ideal2 :
           rintro i n k mp x2 ⟨⟨h1, -⟩, hk⟩
           simp only [decide_eq_true_eq] at h1
           exact ⟨fun _ => by omega, fun _ => by omega⟩
-      equiv_seq 1 1 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+      equiv_seq_last 1 1 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
           §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
           §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1})
       · simp only [Getter.andB]
@@ -1840,7 +1840,7 @@ theorem eq_eager_ideal2 :
         case body =>
           simp only [Bool.and_eq_true]
           stmt_wp
-          equiv_seq 1 1 : (§(localVarLens "x2" (List Bool)){1} =
+          equiv_seq_last 1 1 : (§(localVarLens "x2" (List Bool)){1} =
               §(localVarLens "x1" (List Bool)){2} ∧
               §n{1} = size_out ∧ §k{1} = §n{2} ∧ §k{1} ≤ size_out ∧ §i{1} = §i{2} ∧
               §bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ max 0 §k{1} ∧
@@ -1903,7 +1903,7 @@ theorem eq_eager_ideal2 :
           §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1})
       case body =>
         stmt_wp
-        equiv_seq 1 1 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+        equiv_seq_last 1 1 : (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
             §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
             §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1} ∧ §i{1} < §n{1} ∧
             §(localVarLens "x3" (List Bool)){1} = §(localVarLens "x2" (List Bool)){1} ∧
@@ -1951,7 +1951,7 @@ theorem eq_eager_ideal2 :
   case «else» =>
     stmt_wp
     equiv_rcondf{2}
-    equiv_seq 1 1 : (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
+    equiv_seq_last 1 1 : (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
         §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2})
     · stmt_wp
       equiv_skip
@@ -1968,7 +1968,7 @@ theorem eq_eager_ideal2 :
         §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2})
       case body =>
         stmt_wp
-        equiv_seq 1 1 : (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
+        equiv_seq_last 1 1 : (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
         §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2} ∧ §i0{1} < §n1{1} ∧
             §x6{1} = §x5{1} ∧ §n2{1} = §i0{1} ∧ §x2{2} = (§x1{2}, §i{2}))
         · stmt_wp
@@ -2344,7 +2344,7 @@ theorem ext_dfs_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
       (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       xI ((xL Log_m).get §allGlobals{1}) ((xL Log_m).get §allGlobals{2}))
   · stmt_wp
@@ -2360,7 +2360,7 @@ theorem ext_dfs_f :
     exact ⟨rfl, he, hI⟩
   case «then» =>
     stmt_wp
-    equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §k0{1} = §k0{2} ∧ §k0{1} = size_out ∧ §l{1} = §l{2} ∧
+    equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §k0{1} = §k0{2} ∧ §k0{1} = size_out ∧ §l{1} = §l{2} ∧
         §k{1} = §k{2} ∧ (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
         xI ((xL Log_m).get §allGlobals{1}) ((xL Log_m).get §allGlobals{2}))
     · stmt_wp
@@ -2380,7 +2380,7 @@ theorem ext_dfs_f :
       exact hg (le_of_eq hk)
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
+      equiv_seq_last 1 1 : (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
           §i{1} = 0 ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧ §k0{1} = size_out ∧ §l{1} = §l{2} ∧
           §k{1} = §k{2} ∧ (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
           xI ((xL Log_m).get §allGlobals{1}) ((xL Log_m).get §allGlobals{2}))
@@ -2403,7 +2403,7 @@ theorem ext_dfs_f :
           xI ((xL Log_m).get §allGlobals{1}) ((xL Log_m).get §allGlobals{2}))
         case body =>
           stmt_wp
-          equiv_seq 1 1 : (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
+          equiv_seq_last 1 1 : (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
               0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧
               §k0{1} = size_out ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
               (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
@@ -2517,7 +2517,7 @@ theorem ext_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     unfold ARestrictions.footprint
     fp_sub
   equiv_call (ext_dfs_f Log_m)
-  equiv_seq 1 1 : (§hash{1} = §hash{2} ∧ (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§hash{1} = §hash{2} ∧ (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       xI ((xL Log_m).get §allGlobals{1}) ((xL Log_m).get §allGlobals{2}))
   · equiv_rnd
     stmt_wp
@@ -2663,7 +2663,7 @@ theorem fin_get :
   stmt_inline{2} 0
   stmt_wp
   rw [e₁]
-  equiv_seq 1 1 : (§l{1} = §x0{2} ∧ §k{1} = size_out ∧ §o{1} = none ∧
+  equiv_seq_last 1 1 : (§l{1} = §x0{2} ∧ §k{1} = size_out ∧ §o{1} = none ∧
       §(localVarLens "y" (Option f_out)){2} = none ∧
       fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
   · stmt_wp
@@ -2684,7 +2684,7 @@ theorem fin_get :
         (A' := fun σ₁ _ => (localVarLens "o" (Option (List Bool))).get σ₁ = none)
         (B' := fun σ₁ _ => (localVarLens "o" (Option (List Bool))).get σ₁ = none) ?_
         (fun σ₁ σ₂ h => h.1.1.2.2.1) (fun σ₁ σ₂ h hne => ?_)
-      · equiv_seq 1 1 : (§o{1} = none)
+      · equiv_seq_last 1 1 : (§o{1} = none)
         · stmt_wp
           equiv_skip
           exact fun _ h => h
@@ -2727,7 +2727,7 @@ theorem fin_get :
       omega
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x2{1} = §x0{2} ∧ §k0{1} = size_out ∧
+      equiv_seq_last 1 1 : (§x2{1} = §x0{2} ∧ §k0{1} = size_out ∧
           inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))
       · stmt_wp
         equiv_skip
@@ -2811,7 +2811,7 @@ theorem fin_f :
   stmt_inline{2} 0
   rw [e₁]
   stmt_wp
-  equiv_seq 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
       (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
   · stmt_wp
@@ -2830,7 +2830,7 @@ theorem fin_f :
     stmt_wp
     equiv_rcondf{2}
     stmt_wp
-    equiv_seq 1 1 : (§x1{1} = §(localVarLens "x2" (List Bool)){2} ∧ §k0{1} = size_out ∧
+    equiv_seq_last 1 1 : (§x1{1} = §(localVarLens "x2" (List Bool)){2} ∧ §k0{1} = size_out ∧
         §k0{2} = size_out ∧ §suffix{2} = [] ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
         increase_counter §Counter.c{1} §l{1} §k{1} ≤ SHA3Indiff.limit ∧
         (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
@@ -2967,7 +2967,7 @@ theorem extout_bw :
     obtain ⟨-, -, -, rfl, rfl, he, hI⟩ := h
     exact ⟨rfl, he, hI⟩
   stmt_wp
-  equiv_seq 1 1 : (§x2{1} = (§x1{2}, size_out) ∧ §x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧
+  equiv_seq_last 1 1 : (§x2{1} = (§x1{2}, size_out) ∧ §x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧
       §suffix{1} = [] ∧ §suffix{2} = [] ∧
       (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fIpre ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
@@ -3016,7 +3016,7 @@ theorem fin_pf :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
       (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
   · stmt_wp
@@ -3068,7 +3068,7 @@ theorem fin_pfi :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
       (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
   · stmt_wp
@@ -3124,7 +3124,7 @@ theorem fin_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
   equiv_call (fin_get RFList_m)
   stmt_wp
   stmt_swap{2} 1 5
-  equiv_seq 1 1 : (§hash{1} = §hash{2} ∧ §hash{1} = §(localVarLens "h" f_out){2} ∧
+  equiv_seq_last 1 1 : (§hash{1} = §hash{2} ∧ §hash{1} = §(localVarLens "h" f_out){2} ∧
       (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
   · stmt_wp
@@ -3255,7 +3255,7 @@ theorem ri_get :
   simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp]
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x1{2} ∧ (riL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x1{2} ∧ (riL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       riI ((riL RFList_m).get §allGlobals{1}) ((riL RFList_m).get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -3312,7 +3312,7 @@ theorem bounder_get_congr {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω �
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧
       §(localVarLens "y" (Option f_out)){1} = §(localVarLens "y" (Option f_out)){2} ∧
       L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
@@ -3441,7 +3441,7 @@ theorem soro_pre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → �
   stmt_wp
   stmt_swap{1} 1 3
   stmt_swap{2} 1 3
-  equiv_seq 2 2 : (§hash{1} = §hash{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 2 2 : (§hash{1} = §hash{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · equiv_rnd
     equiv_call hinit
@@ -3450,7 +3450,7 @@ theorem soro_pre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → �
     rintro σ₁ σ₂ h
     rw [h]
     exact ⟨rfl, fun _ _ _ _ h' _ _ => h'⟩
-  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
       §hash{1} = §hash{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   swap
@@ -3761,7 +3761,7 @@ theorem rr_Pf (hP : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.f state (List 
   stmt_inline{2} 0
   simp only [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §o{2} ∧
       (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
   · stmt_wp
@@ -3813,7 +3813,7 @@ theorem rr_Pfi (hP : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.fi state (Lis
   stmt_inline{2} 0
   simp only [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §o{2} ∧
       (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
   · stmt_wp
@@ -3884,7 +3884,7 @@ theorem rr_F (hF : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (Li
   simp only [OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
   stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §l{2} ∧ §k{2} = size_out ∧
+  equiv_seq_last 1 1 : (§x0{1} = §l{2} ∧ §k{2} = size_out ∧
       §(localVarLens "y" (Option f_out)){1} = none ∧ §o{2} = none ∧
       (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
@@ -4023,7 +4023,7 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
   repeat stmt_inline{2} 1
   stmt_wp
   stmt_swap{1} 1 10
-  equiv_seq 2 2 : (§hash{1} = §hash{2} ∧
+  equiv_seq_last 2 2 : (§hash{1} = §hash{2} ∧
       (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
   · equiv_rnd
@@ -4044,7 +4044,7 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     rw [SH.Bounder.bounder.set_get,
       @Lens.get_of_disjoint_set _ _ _ Counter.c Log_m (‹Lens.Disjoint Counter.c Log_m›.symm),
       Counter.c.set_get]
-  equiv_seq 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧
+  equiv_seq_last 1 1 : (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧
       (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))
   swap
@@ -4608,7 +4608,7 @@ theorem toto (_hfresh : LocalFresh Log_m RFList_m) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §k{1} = size_out ∧ §o{1} = §o{2} ∧
       Counter.c.get §allGlobals{1} = Counter.c.get §allGlobals{2} ∧
       eq_extend_size (BIRO.IRO.mp.get §allGlobals{1}) (BIRO.IRO.mp.get §allGlobals{2})
         (Log_m.get §allGlobals{2}))
@@ -4630,7 +4630,7 @@ theorem toto (_hfresh : LocalFresh Log_m RFList_m) :
     exact ⟨rfl, rfl, hI⟩
   case «then» =>
     stmt_wp
-    equiv_seq 1 1 : (§x2{1} = §x2{2} ∧ §k0{1} = §k0{2} ∧ §k0{1} = size_out ∧ §l{1} = §l{2} ∧
+    equiv_seq_last 1 1 : (§x2{1} = §x2{2} ∧ §k0{1} = §k0{2} ∧ §k0{1} = size_out ∧ §l{1} = §l{2} ∧
         §k{1} = §k{2} ∧ Counter.c.get §allGlobals{1} = Counter.c.get §allGlobals{2} ∧
         eq_extend_size (BIRO.IRO.mp.get §allGlobals{1}) (BIRO.IRO.mp.get §allGlobals{2})
           (Log_m.get §allGlobals{2}))
@@ -4653,7 +4653,7 @@ theorem toto (_hfresh : LocalFresh Log_m RFList_m) :
       exact hg (le_of_eq hk)
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x4{1} = §x4{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
+      equiv_seq_last 1 1 : (§x4{1} = §x4{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
           §i{1} = 0 ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧ §k0{1} = size_out ∧ §l{1} = §l{2} ∧
           §k{1} = §k{2} ∧ Counter.c.get §allGlobals{1} = Counter.c.get §allGlobals{2} ∧
             eq_extend_size (BIRO.IRO.mp.get §allGlobals{1}) (BIRO.IRO.mp.get §allGlobals{2})
@@ -4682,7 +4682,7 @@ theorem toto (_hfresh : LocalFresh Log_m RFList_m) :
                 (Log_m.get §allGlobals{2}))
         case body =>
           stmt_wp
-          equiv_seq 1 1 : (§x4{1} = §x4{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
+          equiv_seq_last 1 1 : (§x4{1} = §x4{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
               0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧
               §k0{1} = size_out ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
             Counter.c.get §allGlobals{1} = Counter.c.get §allGlobals{2} ∧
@@ -4798,7 +4798,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
   stmt_inline{2} 0
   stmt_wp
   rw [e₁]
-  equiv_seq 1 1 : (§l{1} = §x0{2} ∧ §l{1} = mess ∧ §k{1} = size_out ∧ §o{1} = none ∧
+  equiv_seq_last 1 1 : (§l{1} = §x0{2} ∧ §l{1} = mess ∧ §k{1} = size_out ∧ §o{1} = none ∧
       §(localVarLens "y" (Option f_out)){2} = none ∧ Counter.c.get §allGlobals{1} = c ∧
       SORO.Bounder.bounder.get §allGlobals{2} ≤ Counter.c.get §allGlobals{1} ∧
       inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))
@@ -4822,7 +4822,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
         rw [RFWhile_get]
         stmt_inline{2} 0
         stmt_wp
-        equiv_seq 1 1 : (§o{1} = none ∧ ¬ increase_counter c mess size_out ≤ sigma)
+        equiv_seq_last 1 1 : (§o{1} = none ∧ ¬ increase_counter c mess size_out ≤ sigma)
         · stmt_wp
           equiv_skip
           intros
@@ -4872,7 +4872,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
       omega
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x2{1} = §x0{2} ∧ §k0{1} = size_out ∧ §l{1} = mess ∧ §k{1} = size_out ∧
+      equiv_seq_last 1 1 : (§x2{1} = §x0{2} ∧ §k0{1} = size_out ∧ §l{1} = mess ∧ §k{1} = size_out ∧
           Counter.c.get §allGlobals{1} = c ∧
           SORO.Bounder.bounder.get §allGlobals{2} ≤ c + 1 ∧
           increase_counter c mess size_out ≤ sigma ∧
@@ -5036,12 +5036,12 @@ theorem soro_spre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → 
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 4 4 : (§m1{1} = §m1{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 4 4 : (§m1{1} = §m1{2} ∧ §allGlobals{1} = §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ _ _ ⟨h1, h2⟩
     exact ⟨h1, by rw [h2]⟩
-  equiv_seq 3 3 : (§m1{1} = §m1{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 3 3 : (§m1{1} = §m1{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · equiv_call hinit
     equiv_skip
@@ -5363,7 +5363,7 @@ theorem ext_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
     unfold Preimage.xL; infer_instance
   equiv_call hT
   equiv_call hT
-  equiv_seq 1 1 : ((Preimage.xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : ((Preimage.xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       Preimage.xI ((Preimage.xL Log_m).get §allGlobals{1}) ((Preimage.xL Log_m).get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -5450,8 +5450,8 @@ theorem ll_get :
   rw [RFWhile_get]
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 0 : (§k{1} = size_out)
-  · equiv_seq 0 1 : (§k{1} = size_out)
+  equiv_seq_last 1 0 : (§k{1} = size_out)
+  · equiv_seq_last 0 1 : (§k{1} = size_out)
     · stmt_wp
       equiv_skip
       intros
@@ -5464,7 +5464,7 @@ theorem ll_get :
       simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 0 1 : (§k{1} = size_out)
+      equiv_seq_last 0 1 : (§k{1} = size_out)
       · stmt_wp
         equiv_skip
         intros
@@ -5502,7 +5502,7 @@ theorem ll_get :
     trivial
   case «then» =>
     stmt_wp
-    equiv_seq 1 0 : (§k0{1} = size_out)
+    equiv_seq_last 1 0 : (§k0{1} = size_out)
     · stmt_wp
       equiv_skip
       intros
@@ -5514,7 +5514,7 @@ theorem ll_get :
       simp [hk] at hg
     case «then» =>
       stmt_wp
-      equiv_seq 1 0 : True
+      equiv_seq_last 1 0 : True
       · stmt_wp
         equiv_skip
         intros
@@ -5715,7 +5715,7 @@ theorem fin_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
   try rw [RFWhile_init] -- inlined already where `inline` sees through `RFWhile`
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§m'{1} = §m2{2} ∧ §m1{2} = mess ∧ Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
+  equiv_seq_last 1 1 : (§m'{1} = §m2{2} ∧ §m1{2} = mess ∧ Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
       (§hash{1} = none ∨ (∃ y, §hash{1} = some y ∧ §hash1{2} = some y ∧
         SORO.Bounder.bounder.get §allGlobals{2} ≤ Counter.c.get §allGlobals{1} ∧
         inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))))
@@ -5747,7 +5747,7 @@ theorem fin_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
         refine ⟨by rw [hm1, ← hm, ← hd']; exact hne', y, hy1.symm, by rw [h2, e2, e1]⟩
       · rw [hr1] at hpost
         exact absurd hpost (Option.some_ne_none _)
-  equiv_seq 1 1 : (§m'{1} = §m2{2} ∧ §m1{2} = mess ∧ Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
+  equiv_seq_last 1 1 : (§m'{1} = §m2{2} ∧ §m1{2} = mess ∧ Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
       SORO.Bounder.bounder.get §allGlobals{2} ≤ Counter.c.get §allGlobals{1} ∧
       inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))
   swap
@@ -5765,7 +5765,7 @@ theorem fin_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
       exact Or.inr ⟨y, h1, h2, hb', hinv'⟩
     · exact Or.inl hpost
   stmt_wp
-  equiv_seq 1 1 : ((Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
+  equiv_seq_last 1 1 : ((Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
         Dist_of_P2Adv_m.get §allGlobals{2} = mess) ∧
       §(localVarLens "m" (List Bool)){2} = mess ∧ §m1{2} = mess ∧
       (Preimage.fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
@@ -6221,7 +6221,7 @@ theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.dis
   stmt_wp
   equiv_call hFr
   equiv_call hFr
-  equiv_seq 1 1 : ((Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
+  equiv_seq_last 1 1 : ((Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
         Dist_of_P2Adv_m.get §allGlobals{2} = mess) ∧ §m1{1} = mess ∧
       (Preimage.rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       Preimage.rrI ((Preimage.rrL Log_m).get §allGlobals{1})
@@ -6293,7 +6293,7 @@ theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.dis
       (List Bool) Perm) ≤ (Dist_of_P2Adv_m.footprint)ᶜ :=
     le_trans (b := (Perm.m).footprint ⊔ (Perm.mi).footprint) (by fp_le)
       (hRM _ (by unfold ARestrictions.footprint; fp_sub))
-  equiv_seq 10 9 : (§m1{1} = mess ∧ §allGlobals{1} = §allGlobals{2} ∧
+  equiv_seq_last 10 9 : (§m1{1} = mess ∧ §allGlobals{1} = §allGlobals{2} ∧
       Dist_of_P2Adv_m.get §allGlobals{1} = mess)
   · stmt_wp
     equiv_skip
@@ -7012,7 +7012,7 @@ theorem soro_coll_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → 
   stmt_wp
   equiv_call hget
   equiv_call hget
-  equiv_seq 1 1 : (L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · equiv_call hinit
     stmt_wp
@@ -7208,7 +7208,7 @@ theorem ext_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
   have hT := toto Log_m RFList_m hfresh
   equiv_call hT
   equiv_call hT
-  equiv_seq 1 1 : ((Preimage.xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : ((Preimage.xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       Preimage.xI ((Preimage.xL Log_m).get §allGlobals{1}) ((Preimage.xL Log_m).get §allGlobals{2}))
   · stmt_wp
     equiv_skip
@@ -7323,7 +7323,7 @@ theorem fin_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
   try rw [RFWhile_init] -- inlined already where `inline` sees through `RFWhile`
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
       (§hash1{1} = none ∨ (∃ y, §hash1{1} = some y ∧ §hash1{2} = some y ∧
         SORO.Bounder.bounder.get §allGlobals{2} ≤ Counter.c.get §allGlobals{1} ∧
         inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))))
@@ -7355,7 +7355,7 @@ theorem fin_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
         refine ⟨by rw [← hm1, ← hm2]; exact hne', y, hy1.symm, by rw [h2, e2, e1]⟩
       · rw [hr1] at hpost
         exact absurd hpost (Option.some_ne_none _)
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧
       SORO.Bounder.bounder.get §allGlobals{2} ≤ Counter.c.get §allGlobals{1} ∧
       inv (BIRO.IRO.mp.get §allGlobals{1}) (RFList_m.get §allGlobals{2}))
   swap
@@ -7375,7 +7375,7 @@ theorem fin_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
       exact Or.inr ⟨y, h1, h2, hb', hinv'⟩
     · exact Or.inl hpost
   stmt_wp
-  equiv_seq 1 1 : ((Preimage.fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : ((Preimage.fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       Preimage.fI ((Preimage.fL RFList_m).get §allGlobals{1})
         ((Preimage.fL RFList_m).get §allGlobals{2}))
   swap
@@ -7618,7 +7618,7 @@ theorem rw_real (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
   stmt_wp
   equiv_call (Preimage.rr_F Log_m hF)
   equiv_call (Preimage.rr_F Log_m hF)
-  equiv_seq 1 1 : ((Preimage.rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : ((Preimage.rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       Preimage.rrI ((Preimage.rrL Log_m).get §allGlobals{1})
         ((Preimage.rrL Log_m).get §allGlobals{2}))
   swap

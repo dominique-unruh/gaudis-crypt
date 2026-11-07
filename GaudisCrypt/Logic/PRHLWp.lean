@@ -26,7 +26,8 @@ And the relational steps proper:
 * `equiv_call h` — the last statements are calls, related by the procedure judgment `h` (EC's
   `call`; `prhlProc_glob hA` for an abstract procedure, EC's `call (_ : ={glob A})`);
   `equiv_call` alone for calls of the same procedure from equal arguments and globals;
-* `equiv_seq k₁ k₂ : M` — cut after all but the last `k₁` / `k₂` statements (EC's `seq`);
+* `equiv_seq_last k₁ k₂ : M` — cut after all but the last `k₁` / `k₂` statements (EC's `seq`
+  counts from the start: `equiv_seq`, `Logic/ECSeq.lean`);
 * `equiv_case P` — case analysis on a relation of the initial states (EC's `case`);
 * `equiv_if`, `equiv_if{i}` — conditionals on both sides, or on one (EC's `if`, `if{i}`);
 * `equiv_sym` — swap the sides;
@@ -431,20 +432,20 @@ elab "equiv_while" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:term:max
     let gExit ← try generalizeReadsRel gExit catch _ => pure gExit
     replaceMainGoal [gll, gvar, gExit, gPre]
 
-/-- `equiv_seq k₁ k₂ : M`: cut both statements, the last `k₁` (left) and `k₂` (right)
+/-- `equiv_seq_last k₁ k₂ : M`: cut both statements, the last `k₁` (left) and `k₂` (right)
 statements after the cut, with the relation `M` in between (`prhlStmt_seq`).  Goals: the code
 before the cut (to `M`), then the code after it (from `M`). -/
-elab "equiv_seq " k₁:num ppSpace k₂:num " : " M:term : tactic => withMainContext do
+elab "equiv_seq_last " k₁:num ppSpace k₂:num " : " M:term : tactic => withMainContext do
   let g ← getMainGoal
-  let _ ← prhlGoal g "equiv_seq"
+  let _ ← prhlGoal g "equiv_seq_last"
   let g ← HoareSplit.hoareSplit k₁.getNat g (some 1)
   let g ← HoareSplit.hoareSplit k₂.getNat g (some 2)
   g.withContext do
-    let ty ← prhlGoal g "equiv_seq"
+    let ty ← prhlGoal g "equiv_seq_last"
     let Me ← elabRelCond ty M
     -- `prhlStmt_seq`'s implicit arguments: `A B C c₁ c₂ d₁ d₂`
     let gs ← applyLemma ``prhlStmt_seq g #[(`B, Me)]
-    let #[g₂, g₁] := gs | throwError "equiv_seq: `prhlStmt_seq` left {gs.size} goals"
+    let #[g₂, g₁] := gs | throwError "equiv_seq_last: `prhlStmt_seq` left {gs.size} goals"
     replaceMainGoal [g₁, g₂]
 
 /-- `equiv_call h`: the last statements of both sides are calls `x₁ <- call p₁ (e₁)`,
@@ -559,7 +560,7 @@ macro "phoare_ewp" : tactic => `(tactic| (
 test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).
 `equiv_if{i}`: side `i`'s statement is a conditional (`prhlStmt_if_left`/`_right`, EC's
 `if{i}`): goals `then`, `else`, each against the other side.  To reach a conditional inside a
-sequence, cut first (`equiv_seq`). -/
+sequence, cut first (`equiv_seq`, `equiv_seq_last`). -/
 elab "equiv_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_if"

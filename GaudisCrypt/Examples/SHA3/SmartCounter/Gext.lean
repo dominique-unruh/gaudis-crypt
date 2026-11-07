@@ -426,7 +426,7 @@ theorem S_fi_G12 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
       ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
   · stmt_wp
@@ -443,7 +443,7 @@ theorem S_fi_G12 :
       rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hf⟩, -⟩
       exact ⟨by rw [hE.2.1], hE, hb, hf⟩
     case «then» =>
-      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧
           §t{2} = decide (FMap.in_dom_with §FRO.m{1}
             (oget (FMap.get §G1.mhi{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
           colEq §allGlobals{1} §allGlobals{2} ∧
@@ -525,7 +525,7 @@ theorem S_f_G12 :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
           inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
           ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
   · stmt_wp
@@ -542,17 +542,17 @@ theorem S_f_G12 :
       rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hf⟩, -⟩
       exact ⟨by rw [hE.2.2.2.1], hE, hb, hf⟩
     case «then» =>
-      equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
           inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
           ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
-      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hx2{1} = §hx2{2} ∧
+      · equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hx2{1} = §hx2{2} ∧
             §t{2} = decide (FMap.in_dom_with §FRO.m{1}
               (oget (FMap.get §G1.mh{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
             colEq §allGlobals{1} §allGlobals{2} ∧
             (§G1.bext{1} = true → §G1.bext{2} = true ∨ FMap.rng §FRO.m{2} ((§x0{2}).2, Unknown) ∨
               inv_ext §G1.m{2} §G1.mi{2} §FRO.m{2}) ∧
             ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
-        · equiv_seq 3 9 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+        · equiv_seq_last 3 9 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
               inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
               ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
           · stmt_wp
@@ -656,7 +656,7 @@ theorem DPRestr_fi_G12 :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
       ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
   · stmt_wp
@@ -695,7 +695,7 @@ theorem DPRestr_f_G12 :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
       ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
   · stmt_wp
@@ -735,7 +735,7 @@ theorem DFRestr_f_G12 :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       colEq §allGlobals{1} §allGlobals{2} ∧
       inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
       ∀ h : ℤ, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
@@ -846,7 +846,7 @@ theorem G1_G2 (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -1467,7 +1467,7 @@ theorem S_fi_ext (hfr : GcolFresh ReSample_count) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       §G1.bext{1} = §G1.bext{2} ∧
       inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
   · stmt_wp
@@ -1484,7 +1484,7 @@ theorem S_fi_ext (hfr : GcolFresh ReSample_count) :
       rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hI⟩, -⟩
       exact ⟨by rw [hE.2.1], hE, hb, hI.le⟩
     case «then» =>
-      equiv_seq 7 7 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+      equiv_seq_last 7 7 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
           §G1.bext{1} = §G1.bext{2} ∧
           inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
       · stmt_wp
@@ -1495,7 +1495,7 @@ theorem S_fi_ext (hfr : GcolFresh ReSample_count) :
         split_ifs with h
         · exact ⟨trivial, trivial, by col_eq, hb, inv_lt_set_known hI _ _⟩
         · exact ⟨trivial, trivial, by col_eq, hb, hI⟩
-      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧ §t{1} = §t{2} ∧
+      · equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧ §t{1} = §t{2} ∧
             colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
             inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2} ∧
             (§t{1} = true → FMap.in_dom_with §FRO.m{1}
@@ -1527,7 +1527,7 @@ theorem S_fi_ext (hfr : GcolFresh ReSample_count) :
             change _ ≤ _ + ((FMap.fdom (FMap.restr Unknown (ROhandle.FRO.m.get g₂))).card : ℤ)
             omega
           case «then» =>
-            equiv_seq 6 10 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hy2{1} = §hy2{2} ∧
+            equiv_seq_last 6 10 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hy2{1} = §hy2{2} ∧
                 §hy2{1} = §(localVarLens "x3" handle){1} ∧ §hy2{2} = §h{2} ∧
                 (§x0{2}).2 = §(localVarLens "x3" capacity){2} ∧
                 §(localVarLens "r" capacity){1} = §(localVarLens "c" capacity){2} ∧
@@ -1596,7 +1596,7 @@ theorem S_f_ext (hfr : GcolFresh ReSample_count) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       §G1.bext{1} = §G1.bext{2} ∧
       inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
   · stmt_wp
@@ -1613,12 +1613,12 @@ theorem S_f_ext (hfr : GcolFresh ReSample_count) :
       rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hI⟩, -⟩
       exact ⟨by rw [hE.2.2.2.1], hE, hb, hI.le⟩
     case «then» =>
-      equiv_seq 12 12 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
+      equiv_seq_last 12 12 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
           colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
           inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
       · equiv_if{1}
         case «then» =>
-          equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+          equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
               colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
               inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
           · equiv_if{2}
@@ -1641,7 +1641,7 @@ theorem S_f_ext (hfr : GcolFresh ReSample_count) :
             equiv_skip
             exact fun _ _ _ _ _ _ h _ _ => h
         case «else» =>
-          equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+          equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
               colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
               inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
           · equiv_if{2}
@@ -1658,15 +1658,15 @@ theorem S_f_ext (hfr : GcolFresh ReSample_count) :
           · equiv_rnd
             equiv_skip
             exact fun _ _ _ _ _ _ h _ _ => h
-      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧
+      · equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧
             colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
             inv_le §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
-        · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧ §t{1} = §t{2} ∧
+        · equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧ §t{1} = §t{2} ∧
               colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
               inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2} ∧
               (§t{1} = true → FMap.in_dom_with §FRO.m{1}
                 (oget (FMap.get §G1.mh{1} ((§x0{1}).1, §hx2{1}))).2 Unknown))
-          · equiv_seq 3 3 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧
+          · equiv_seq_last 3 3 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y{1} = §y{2} ∧
                 colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
                 inv_lt §G1.m{2} §G1.mi{2} (§C.c{1} + 1) §FRO.m{2} §ReSample_count{2})
             · stmt_wp
@@ -1705,7 +1705,7 @@ theorem S_f_ext (hfr : GcolFresh ReSample_count) :
               change _ ≤ _ + ((FMap.fdom (FMap.restr Unknown (ROhandle.FRO.m.get g₂))).card : ℤ)
               omega
             case «then» =>
-              equiv_seq 6 10 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hy2{1} = §hy2{2} ∧
+              equiv_seq_last 6 10 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §hy2{1} = §hy2{2} ∧
                   §hy2{1} = §(localVarLens "x4" handle){1} ∧ §hy2{2} = §h{2} ∧
                   (§x0{2}).2 = §(localVarLens "x4" capacity){2} ∧
                   §r0{1} = §(localVarLens "c" capacity){2} ∧
@@ -1826,7 +1826,7 @@ theorem M_f_ext (hfr : GcolFresh ReSample_count) :
         rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rest⟩, -⟩, -⟩, -⟩
         exact ⟨rfl, rfl, rfl, rfl, rfl, rest⟩
       case «then» =>
-        equiv_seq 11 11 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+        equiv_seq_last 11 11 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
               §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
               §G1.bext{1} = §G1.bext{2} ∧ 0 ≤ §counter{2} ∧ §counter{2} < (size §p{2}
                 - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) ∧
@@ -1922,7 +1922,7 @@ theorem DPRestr_fi_ext (hfr : GcolFresh ReSample_count) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       §G1.bext{1} = §G1.bext{2} ∧
       inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
   · stmt_wp
@@ -1963,7 +1963,7 @@ theorem DPRestr_f_ext (hfr : GcolFresh ReSample_count) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       §G1.bext{1} = §G1.bext{2} ∧
       inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
   · stmt_wp
@@ -2005,7 +2005,7 @@ theorem DFRestr_f_ext (hfr : GcolFresh ReSample_count) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
       inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
   · stmt_wp
@@ -2131,9 +2131,9 @@ theorem EG2_Gext (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 1
   stmt_wp
-  equiv_seq 6 5 : (colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
+  equiv_seq_last 6 5 : (colEq §allGlobals{1} §allGlobals{2} ∧ §G1.bext{1} = §G1.bext{2} ∧
       inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample_count{2})
-  · equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  · equiv_seq_last 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
     · stmt_wp
       equiv_skip
       intro g₁ g₂ h

@@ -64,7 +64,7 @@ example : equiv[ True ==> ={y} ] {
       x <- 1;
       y <- 1;
     } := by
-  equiv_seq 1 1 : §x{1} = 1
+  equiv_seq_last 1 1 : §x{1} = 1
   · equiv_case §x{2} = 0
     · stmt_wp
       equiv_skip

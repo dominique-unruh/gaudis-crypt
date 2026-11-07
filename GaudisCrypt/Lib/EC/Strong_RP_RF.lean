@@ -270,7 +270,7 @@ theorem PRP_indirect_bad_f_ARP_f [Lens.Disjoint PRPi_m PRPi_mi]
   stmt_inline 0
   repeat stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ (¬ §PRP_indirect_bad_bad{1} = true ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ (¬ §PRP_indirect_bad_bad{1} = true ∧
       §PRPi_m{1} = §ARP_m{2} ∧ §PRPi_mi{1} = §ARP_mi{2}) ∧ ¬ §ARP_coll{2} = true)
   · stmt_wp
     equiv_skip
@@ -282,7 +282,7 @@ theorem PRP_indirect_bad_f_ARP_f [Lens.Disjoint PRPi_m PRPi_mi]
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 0 : (§r0{1} = §y{2} ∧ §X{1} = (§PRPi_m{1}).rng ∧ §x0{1} = §x0{2} ∧
+      equiv_seq_last 1 0 : (§r0{1} = §y{2} ∧ §X{1} = (§PRPi_m{1}).rng ∧ §x0{1} = §x0{2} ∧
         ¬ (§PRPi_m{1}).dom §x0{1} ∧ (¬ §PRP_indirect_bad_bad{1} = true ∧
         §PRPi_m{1} = §ARP_m{2} ∧ §PRPi_mi{1} = §ARP_mi{2}) ∧ ¬ §ARP_coll{2} = true)
       · equiv_rnd
@@ -330,7 +330,7 @@ theorem PRP_indirect_bad_fi_ARP_fi [Lens.Disjoint PRPi_m PRPi_mi]
   stmt_inline 0
   repeat stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§y0{1} = §y0{2} ∧ (¬ §PRP_indirect_bad_bad{1} = true ∧
+  equiv_seq_last 1 1 : (§y0{1} = §y0{2} ∧ (¬ §PRP_indirect_bad_bad{1} = true ∧
       §PRPi_m{1} = §ARP_m{2} ∧ §PRPi_mi{1} = §ARP_mi{2}) ∧ ¬ §ARP_coll{2} = true)
   · stmt_wp
     equiv_skip
@@ -342,7 +342,7 @@ theorem PRP_indirect_bad_fi_ARP_fi [Lens.Disjoint PRPi_m PRPi_mi]
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 0 : (§r0{1} = §x0{2} ∧ §X{1} = (§PRPi_mi{1}).rng ∧ §y0{1} = §y0{2} ∧
+      equiv_seq_last 1 0 : (§r0{1} = §x0{2} ∧ §X{1} = (§PRPi_mi{1}).rng ∧ §y0{1} = §y0{2} ∧
         ¬ (§PRPi_mi{1}).dom §y0{1} ∧ (¬ §PRP_indirect_bad_bad{1} = true ∧
         §PRPi_m{1} = §ARP_m{2} ∧ §PRPi_mi{1} = §ARP_mi{2}) ∧ ¬ §ARP_coll{2} = true)
       · equiv_rnd
@@ -603,7 +603,7 @@ theorem PRPi'_Indirect_f_bad_f [Lens.Disjoint PRPi_m PRPi_mi]
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧
       PRP_indirect_bad_bad.equal_outside §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -619,7 +619,7 @@ theorem PRPi'_Indirect_f_bad_f [Lens.Disjoint PRPi_m PRPi_mi]
       exact ⟨by rw [h.get_disjoint (X := PRPi_m)], h⟩
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§r0{1} = §r0{2} ∧ §X{1} = §X{2} ∧ §x0{1} = §x0{2} ∧
+      equiv_seq_last 1 1 : (§r0{1} = §r0{2} ∧ §X{1} = §X{2} ∧ §x0{1} = §x0{2} ∧
         PRP_indirect_bad_bad.equal_outside §allGlobals{1} §allGlobals{2})
       · equiv_rnd
         stmt_wp
@@ -663,7 +663,7 @@ theorem PRPi'_Indirect_fi_bad_fi [Lens.Disjoint PRPi_m PRPi_mi]
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §y0{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §y0{2} ∧
       PRP_indirect_bad_bad.equal_outside §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -679,7 +679,7 @@ theorem PRPi'_Indirect_fi_bad_fi [Lens.Disjoint PRPi_m PRPi_mi]
       exact ⟨by rw [h.get_disjoint (X := PRPi_mi)], h⟩
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§r0{1} = §r0{2} ∧ §X{1} = §X{2} ∧ §x0{1} = §y0{2} ∧
+      equiv_seq_last 1 1 : (§r0{1} = §r0{2} ∧ §X{1} = §X{2} ∧ §x0{1} = §y0{2} ∧
         PRP_indirect_bad_bad.equal_outside §allGlobals{1} §allGlobals{2})
       · equiv_rnd
         stmt_wp
@@ -1528,7 +1528,7 @@ theorem eq_PRPi_PRPi'_f_Direct [Lens.Disjoint PRPi_m PRPi_mi] :
   stmt_inline 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all
@@ -1554,7 +1554,7 @@ theorem eq_PRPi'_f_Direct_Indirect (huD : is_lossless uD) :
   equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all
@@ -1579,7 +1579,7 @@ theorem eq_PRPi_PRPi'_fi_Direct [Lens.Disjoint PRPi_m PRPi_mi] :
   stmt_inline 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§y{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§y{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all
@@ -1604,7 +1604,7 @@ theorem eq_PRPi'_fi_Direct_Indirect (huD : is_lossless uD) :
   equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
   · stmt_wp
     equiv_skip
     intros; simp_all

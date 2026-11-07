@@ -398,7 +398,7 @@ theorem S_fi_col (hfr : GcolFresh Gcol_count) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
       §Gcol_count{2} ≤ §C.c{2} ∧ §C.c{2} + 1 ≤ max_size)
@@ -416,12 +416,12 @@ theorem S_fi_col (hfr : GcolFresh Gcol_count) :
       rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hc, hk, hm⟩, -⟩
       exact ⟨by rw [hE.2.1], hE, hb, by omega, by omega, hm⟩
     case «then» =>
-      equiv_seq 2 3 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y1{1} = §y1{2} ∧
+      equiv_seq_last 2 3 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y1{1} = §y1{2} ∧
           §y2{1} = §(localVarLens "c" capacity){2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
           ((§G1.bcol{1} = true ∨ hinv §FRO.m{1} §y2{1} ≠ none) → §G1.bcol{2} = true) ∧
           ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 2 ∧
           §Gcol_count{2} ≤ §C.c{2} + 1 ∧ §C.c{2} + 1 ≤ max_size)
-      · equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y1{1} = §y1{2} ∧
+      · equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §hx2{1} = §hx2{2} ∧ §y1{1} = §y1{2} ∧
             colEq §allGlobals{1} §allGlobals{2} ∧
             (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
             ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 2 ∧
@@ -515,7 +515,7 @@ theorem S_f_col (hfr : GcolFresh Gcol_count) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
       §Gcol_count{2} ≤ §C.c{2} ∧ §C.c{2} + 1 ≤ max_size)
@@ -533,7 +533,7 @@ theorem S_f_col (hfr : GcolFresh Gcol_count) :
       rintro g₁ g₂ x _ ⟨⟨rfl, hE, hb, hc, hk, hm⟩, -⟩
       exact ⟨by rw [hE.2.2.2.1], hE, hb, by omega, by omega, hm⟩
     case «then» =>
-      equiv_seq 7 4 : (§x0{1} = §x0{2} ∧ colEq (rngUpd §x0{1} §allGlobals{1}) §allGlobals{2} ∧
+      equiv_seq_last 7 4 : (§x0{1} = §x0{2} ∧ colEq (rngUpd §x0{1} §allGlobals{1}) §allGlobals{2} ∧
           §hx2{2} = oget (hinvK §FRO.m{2} (§x0{2}).2) ∧
           (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
           ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 2 ∧
@@ -546,7 +546,7 @@ theorem S_f_col (hfr : GcolFresh Gcol_count) :
         split_ifs with hr
         · exact ⟨rfl, by col_eq, hb, by omega, hk, hm⟩
         · exact ⟨rfl, by col_eq, hb, (card_rng_set _ _ _).trans (by omega), hk, hm⟩
-      · equiv_seq 6 3 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
+      · equiv_seq_last 6 3 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §y2{1} = §y2{2} ∧
             colEq (rngUpd §x0{1} §allGlobals{1}) §allGlobals{2} ∧
             §hx2{2} = oget (hinvK §FRO.m{2} (§x0{2}).2) ∧
             ((§G1.bcol{1} = true ∨ hinv §FRO.m{2} §y2{1} ≠ none) → §G1.bcol{2} = true) ∧
@@ -560,7 +560,7 @@ theorem S_f_col (hfr : GcolFresh Gcol_count) :
             rw [e3]
           case «then» =>
             stmt_wp{2} 1
-            equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+            equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
                 colEq (rngUpd §x0{1} §allGlobals{1}) §allGlobals{2} ∧
                 §hx2{2} = oget (hinvK §FRO.m{2} (§x0{2}).2) ∧
                 (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
@@ -598,7 +598,7 @@ theorem S_f_col (hfr : GcolFresh Gcol_count) :
                 omega
           case «else» =>
             stmt_wp{2} 1
-            equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+            equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
                 colEq (rngUpd §x0{1} §allGlobals{1}) §allGlobals{2} ∧
                 §hx2{2} = oget (hinvK §FRO.m{2} (§x0{2}).2) ∧
                 (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
@@ -709,7 +709,7 @@ theorem M_f_col (hfr : GcolFresh Gcol_count) :
         rintro g₁ g₂ p h i sa c _ _ _ _ _ ⟨⟨⟨⟨rfl, rfl, rfl, rfl, rfl, rest⟩, -⟩, -⟩, -⟩
         exact ⟨rfl, rfl, rfl, rfl, rfl, rest⟩
       case «then» =>
-        equiv_seq 9 9 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+        equiv_seq_last 9 9 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
               §counter{1} = §counter{2} ∧ §sc{1} = §sc{2} ∧ §x0{1} = §x0{2} ∧
               §(localVarLens "r" block){1} = §(localVarLens "r" block){2} ∧
               colEq §allGlobals{1} §allGlobals{2} ∧
@@ -724,7 +724,7 @@ theorem M_f_col (hfr : GcolFresh Gcol_count) :
                       §counter{2} + 1 ∧ §C.c{2} ≤ max_size)
         · equiv_rnd
           stmt_wp
-          equiv_seq 1 1 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+          equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
                   §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
                   (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧ 0 ≤ §counter{2} ∧
                   §counter{2} < (size §p{2}
@@ -808,7 +808,7 @@ theorem DPRestr_fi_col (hfr : GcolFresh Gcol_count) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
       §Gcol_count{2} ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
@@ -850,7 +850,7 @@ theorem DPRestr_f_col (hfr : GcolFresh Gcol_count) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
       §Gcol_count{2} ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
@@ -893,7 +893,7 @@ theorem DFRestr_f_col (hfr : GcolFresh Gcol_count) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
@@ -1194,7 +1194,7 @@ theorem G1_col (hD : Module.ECModule D distExt)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF L (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h

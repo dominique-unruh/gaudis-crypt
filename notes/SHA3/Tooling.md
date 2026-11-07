@@ -842,8 +842,8 @@ fresh (`Footprint.exists_fresh`, E6).  The notes below ("Sponge, ideal side") ha
 
 * Inlining: `repeat stmt_inline{i} 0` inlines a call and the calls of its body (fill-in calls
   inside the loops), so both sides become plain loops.
-* `equiv_seq k₁ k₂` with `0`: `equiv_seq 1 0` cuts before a trailing conditional on the left
-  with nothing after the cut on the right (EC's `seq 1 0`); `equiv_seq 0 1` puts a whole side
+* `equiv_seq k₁ k₂` with `0`: `equiv_seq_last 1 0` cuts before a trailing conditional on the left
+  with nothing after the cut on the right (EC's `seq 1 0`); `equiv_seq_last 0 1` puts a whole side
   before the cut (a left loop coupled with a prefix of the right, then a right-only loop).
 * EC's `exists* i'` (a ghost for an initial value): not needed when some variable keeps it
   (`next_block_split`: `i' = m - r`, `m` never written).
@@ -961,12 +961,12 @@ over `DRestr(D)`'s three oracles, ported oracle by oracle:
   `I (L.get g₁) (L.get g₂)` is `colInv g₁ g₂` by `Iff.rfl`: the oracle obligations are then
   `prhlProc_globInvF_of_writesKeep _ (by writes_keep') (by writes_keep') (DFRestr_f_col …)`.
 * EC's `rcondt{2}` on `sample_c`'s guard: cut so that the left sampling faces the right's guard
-  alone (`equiv_seq 1 1`), `equiv_if{2}`; the else branch is `prhlStmt_pre prhlStmt_false`.
+  alone (`equiv_seq_last 1 1`), `equiv_if{2}`; the else branch is `prhlStmt_pre prhlStmt_false`.
 * EC's `swap{1}[1..2]3` in `S.f` (samplings before the `FRO.m` update on the left, after it on the
   right): `stmt_swap` cannot move a deterministic `if` past an `if` containing samplings (its
   `discharge` does not push reads through the `ite` the update unfolds to; adding `apply_ite`
   there is the follow-up).  Done instead by running the right's deterministic prefix against
-  `skip` (`equiv_seq 7 4`, the left side whole), with the relation stated on the left globals
+  `skip` (`equiv_seq_last 7 4`, the left side whole), with the relation stated on the left globals
   after the update (`rngUpd x g`; simp lemmas `rngUpd_get`, `rngUpd_set` for the other
   variables).
 * `writes_keep` closes a global write by `by assumption`, which can pick a footprint fact about a
@@ -1014,10 +1014,10 @@ nested `Lens.pair` and `I` on its projections so that `I (L.get g₁) (L.get g�
 `Iff.rfl`).  New points:
 * `equiv_seq k₁ k₂` counts the statements **after** the cut.
 * Code after the adversary's call (`EG2_Gext`'s resample loops): `prhlStmt_seq_call` needs the call
-  last, so cut after it first (`equiv_seq 6 5 : extInv …`), then cut before it into `globInvF`, and
+  last, so cut after it first (`equiv_seq_last 6 5 : extInv …`), then cut before it into `globInvF`, and
   run the loops with `equiv_while` from the cut's relation.
 * Asymmetric branches (`G2.S.f` samples `y2` in both branches of the `paths` test, `Gext.S.f` after
-  it): `equiv_if{1}`, then `equiv_seq 1 1` and `equiv_if{2}` inside each case; the mismatched cases
+  it): `equiv_if{1}`, then `equiv_seq_last 1 1` and `equiv_if{2}` inside each case; the mismatched cases
   by `prhlStmt_pre prhlStmt_false` (`rw` of the guard fails on the dependent `Decidable` instance:
   `simp only [e, hx] at h1` and `of_decide_eq_true`/`of_decide_eq_false` instead).
 * EC's `rnd{2}` (a discarded sample, `FRO.get` on a bound handle): `stmt_wp{2} 1`, which leaves the
@@ -1216,7 +1216,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `equiv_if{1}` on the left's `¬dom`:
   * Then branch: `equiv_rnd` with the right's unconditional sample.
   * Else branch: `stmt_wp{2} 1`.
-* **`equiv_seq 0 k`** (an empty side after the cut) works. Use it to put one side's trailing
+* **`equiv_seq_last 0 k`** (an empty side after the cut) works. Use it to put one side's trailing
   statements after a loop pair.
 * **`parse (format (parse x).1 (parse x).2)`**: rewrite with `formatK`; `parse_gt0` gives
   `0 < k`, which rules out `Simu`'s `k ≤ 0` branch (closed with `prhlStmt_conseq prhlStmt_false`).
@@ -1316,7 +1316,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   draw (with `bdistr_expected_one`).
 * **Keep the other side's statements when cutting.** A leading `stmt_wp` folds the other side's
   deterministic suffix (an `if` after a sampling) into the postcondition. Cut around the statements
-  instead (`equiv_seq 2 3`, …).
+  instead (`equiv_seq_last 2 3`, …).
 * **`RO_T.get F.RO.asRO` against `RO.get`.** Inlining `sample` exposes `FullRO.RO.get …`, while the
   game's calls read `RO_T.get … F.RO.asRO`. The bridges `F_RO_get_eq` and `F_RO_sample_eq` (`simp`)
   convert between them. `rw` them at the `prhlProc` goal before `equiv_proc_to_stmt`, where the other side's
@@ -1341,7 +1341,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `lemma3`.
 * **wp blow-up.** Three deterministic `if`s after the samplings make an 8-way post; the inlined
   `RO.get`'s `if` would double it again and `equiv_skip` times out. Cut just before that `if`
-  (`equiv_seq 1 3`) with a relation carrying its guard's value (`¬ dom RO x1`, from
+  (`equiv_seq_last 1 3`) with a relation carrying its guard's value (`¬ dom RO x1`, from
   `f_path_ro_none`), and resolve it with `equiv_if{2}` and `prhlStmt_false`.
 * **`oget` of a known lookup.** Do not `simp only [oget]`: it unfolds every `oget` and hides the
   rewrite targets. State `have h' : oget (FMap.get m k) = v := by rw [h]; rfl` and `simp only [h']`.
@@ -1363,7 +1363,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
 ## 2026-11-04: `Handle.PFf_Cf`
 
 * **EC's `splitwhile` on both sides** at `i < qpre p Q` (`prhlStmt_splitwhile_left/right`, then
-  `unfold Getter.andB` and `equiv_seq 1 1` between the halves). The variant obligation is a Hoare
+  `unfold Getter.andB` and `equiv_seq_last 1 1` between the halves). The variant obligation is a Hoare
   triple over the body; it does not write `i` or `p`, so thread `J := (size p - (i+1)).toNat < k`
   through every `if` with `hoare_if_inv` / `hoare_seq_inv` (`hoare_wp` refuses an `if` with
   samplings).
@@ -1373,7 +1373,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `PJ2_known`, `PJ2_fresh`, …), proved separately from the programs.
 * **EC's `alias{1} 1 prefixes = Redo.prefixes`**: `prhlStmt_fix_left (fun σ => Redo.prefixes.get
   σ.globals)` before the loops. The old `(sa, sc)` of a step, overwritten before the `PF.f` call, is
-  fixed the same way, then `equiv_seq 1 1` cuts before the `if`s.
+  fixed the same way, then `equiv_seq_last 1 1` cuts before the `if`s.
 * **Bad case inside a loop body**: `equiv_case (§G1.bcol{2} = true ∨ §G1.bext{2} = true)`. Before the
   bad event the guards of the two sides agree (`lemma5'`); after it, the four branch combinations
   with one-sided samplings (`stmt_wp{i} 1` and losslessness). The right's counter guard is always
@@ -1480,7 +1480,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   side.  `stmt_inline{i} k` counts *call sites*, not statements (`k = 0` is the first call,
   wherever it is, also inside a branch).
 * **EC's `rcondt{2}`/`rcondf{2}` on an inner conditional**: cut so that the conditional is the
-  whole right statement (`equiv_seq 1 1`, the left call kept for the second block), then
+  whole right statement (`equiv_seq_last 1 1`, the left call kept for the second block), then
   `equiv_if{2}`; the infeasible branch by
   `refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)` and the guard
   (`simp only [decide_eq_false_iff_not] at hg`).
@@ -1516,7 +1516,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
 * **`fp_module (Lens.pair Log_m G)`** for a module writing an abstract lens and globals: give the
   lemma both-direction `Lens.Disjoint` instances between `Log_m` and each global of `G`, or the
   lens-law goals stay open.
-* **`prhlStmt_seq_call`** needs the call *last*: cut after it (`equiv_seq 1 1`) when more follows.
+* **`prhlStmt_seq_call`** needs the call *last*: cut after it (`equiv_seq_last 1 1`) when more follows.
 * **Module-type spellings** (`OPRIMITIVE state (List Bool) f_out` vs `… (List Bool × ℤ) (List
   Bool)`, defeq): restate rewrite lemmas at the other spelling (`PSome_init'`), `erw` for
   `ODPRIMITIVE.f.mk_simp` across spellings, and state oracle lemmas with the simplified right side.
@@ -1583,7 +1583,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   and `Module.snd_pair` stops matching.
 * **EC's `exists* e{1}; elim* => v`** is `prhlStmt_fix_left (fun σ => …) fun v => ?_`; EC's `case`
   is `equiv_case P`.  A trailing call coupled only by losslessness (`ll_get`): one-sided
-  `equiv_seq 1 0 / 0 1`, `equiv_if{i}`, `equiv_while{i} I V`; a variant through an `if` with a
+  `equiv_seq_last 1 0 / 0 1`, `equiv_if{i}`, `equiv_while{i} I V`; a variant through an `if` with a
   sampling: `hoare_split 1; refine hoare_seq (hoare_if_wp (hoare_seq (hoare_assign_wp _ _ _)
   (hoare_sample_wp _ _)) (hoare_skip_wp _)) ?_`.
 * **Reads through a call's frame** (`(Setter.throwaway.set r (ProgramState.globalL.set g τ))`):

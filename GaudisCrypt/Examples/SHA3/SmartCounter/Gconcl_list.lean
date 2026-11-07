@@ -443,7 +443,7 @@ theorem FC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
       §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
@@ -457,7 +457,7 @@ theorem FC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
       intros; simp_all
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧
+      equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧
           §b{1} = §b{2} ∧ §i{1} = §i{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
@@ -475,7 +475,7 @@ theorem FC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
           case body =>
-            equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧
+            equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧
                 §b{1} = §b{2} ∧ §i{1} = §i{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
@@ -523,7 +523,7 @@ theorem S_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Lens
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
   · stmt_wp
@@ -536,7 +536,7 @@ theorem S_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Lens
       equiv_skip
       intros; simp_all
     case «then» =>
-      equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+      equiv_seq_last 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
       · equiv_if
@@ -579,7 +579,7 @@ theorem PC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     id_close
@@ -616,7 +616,7 @@ theorem PC_fi_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Le
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     id_close
@@ -665,7 +665,7 @@ theorem PC_f_cInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ cInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ cInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     c_close
@@ -701,7 +701,7 @@ theorem PC_fi_cInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Le
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ cInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ cInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     c_close
@@ -736,7 +736,7 @@ theorem S_fi_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     id_close
@@ -861,7 +861,7 @@ theorem PC_DPRestr_f {X Y : procmod (state) → state}
   stmt_inline{1} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ ieInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ ieInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     ie_close
@@ -872,7 +872,7 @@ theorem PC_DPRestr_f {X Y : procmod (state) → state}
       ie_close
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x0{1} = §a{2} ∧ ieInv §allGlobals{1} §allGlobals{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §a{2} ∧ ieInv §allGlobals{1} §allGlobals{2} ∧
           §BlockSponge.C.c{1} + 1 ≤ max_size)
       · stmt_wp
         equiv_skip
@@ -920,7 +920,7 @@ theorem PC_DPRestr_fi {X Y : procmod (state) → state}
   stmt_inline{1} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ ieInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ ieInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     ie_close
@@ -931,7 +931,7 @@ theorem PC_DPRestr_fi {X Y : procmod (state) → state}
       ie_close
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§x0{1} = §a{2} ∧ ieInv §allGlobals{1} §allGlobals{2} ∧
+      equiv_seq_last 1 1 : (§x0{1} = §a{2} ∧ ieInv §allGlobals{1} §allGlobals{2} ∧
           §BlockSponge.C.c{1} + 1 ≤ max_size)
       · stmt_wp
         equiv_skip
@@ -979,7 +979,7 @@ theorem FC_DSqueeze_DFRestr_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
       ieInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -994,7 +994,7 @@ theorem FC_DSqueeze_DFRestr_f :
       (rintro g₁ g₂ bl nb z _ _ _ ⟨⟨rfl, rfl, rfl, h⟩, -⟩; exact ⟨rfl, h⟩)
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
+      equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
           §i{1} = 0 ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
             §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧ §SLCommon.F.RO.m{1} = §SLCommon.F.RO.m{2} ∧
             §BlockSponge.C.c{1} = §BlockSponge.C.c{2} ∧
@@ -1016,7 +1016,7 @@ theorem FC_DSqueeze_DFRestr_f :
           simp only [ieInv, sInv, Lens.pair]
           exact ⟨e1, e2, e3, ⟨hro, by linarith [size_nonneg' p, le_max_right (n - 1) 0], hq⟩, e5⟩
         case «then» =>
-          equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
+          equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
             §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧ 0 ≤ §i{1} ∧
             valid §p{1} = true ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
                 §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -1027,7 +1027,7 @@ theorem FC_DSqueeze_DFRestr_f :
             (§i{1} < §n{1} → FMap.get §SLCommon.C.queries{1} (format §p{1} (§i{1} + 1)) =
               some §(localVarLens "b" block){1}))
           · stmt_wp
-            equiv_seq 1 1 : (§bs{1} = §p{1} ∧ §x2{2} = §p{2} ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
+            equiv_seq_last 1 1 : (§bs{1} = §p{1} ∧ §x2{2} = §p{2} ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
                 §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧ §i{1} = 0 ∧ valid §p{1} = true ∧
                     §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
             §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧ §SLCommon.F.RO.m{1} = §SLCommon.F.RO.m{2} ∧
@@ -1102,7 +1102,7 @@ theorem FC_DSqueeze_DFRestr_f :
             (§i{1} < §n{1} → FMap.get §SLCommon.C.queries{1} (format §p{1} (§i{1} + 1)) =
               some §(localVarLens "b" block){1}))
             case body =>
-              equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
+              equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
                   §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧ 1 ≤ §i{1} ∧
                   §i{1} ≤ §n{1} ∧ valid §p{1} = true ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
                       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -1138,7 +1138,7 @@ theorem FC_DSqueeze_DFRestr_f :
                     fun h => absurd h (by omega)⟩
                 case «then» =>
                   stmt_wp
-                  equiv_seq 1 1 : (§bs0{1} = format §p{1} (§i{1} + 1) ∧
+                  equiv_seq_last 1 1 : (§bs0{1} = format §p{1} (§i{1} + 1) ∧
                       §x3{2} = format §p{2} (§i{2} + 1) ∧
                       §p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
                       1 ≤ §i{1} ∧ §i{1} < §n{1} ∧ valid §p{1} = true ∧
@@ -1269,7 +1269,7 @@ theorem ideal_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -1367,7 +1367,7 @@ theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -1478,7 +1478,7 @@ theorem ideal_equiv2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -1727,7 +1727,7 @@ theorem IF'_IF2_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 4 1 : (§x0{1} = §x0{2} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
+  equiv_seq_last 4 1 : (§x0{1} = §x0{2} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
       parse §x0{1} = (§p{1}, §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ∧
@@ -1871,7 +1871,7 @@ theorem Ideal_equiv3 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -2394,7 +2394,7 @@ theorem S_f_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
   · stmt_wp
@@ -2407,7 +2407,7 @@ theorem S_f_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
       equiv_skip
       intros; simp_all
     case «then» =>
-      equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+      equiv_seq_last 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
       · equiv_if
@@ -2446,7 +2446,7 @@ theorem S_fi_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Le
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ sInv K₁ K₂ R §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     id_close
@@ -2489,7 +2489,7 @@ theorem FC_FValid_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
       §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
           §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
           INV_L4_ideal
@@ -2510,7 +2510,7 @@ theorem FC_FValid_f :
       exact h
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
+      equiv_seq_last 1 1 : (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
           §(localVarLens "r" (List block)){1} = §bs{2} ∧ §bs{2} = [] ∧ §i{2} = 0 ∧
               §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
           §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
@@ -2532,7 +2532,7 @@ theorem FC_FValid_f :
           exact h
         case «then» =>
           stmt_wp
-          equiv_seq 1 1 : (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+          equiv_seq_last 1 1 : (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
               §i{1} = §i{2} ∧ §lres{1} = §bs{2} ∧ §i{1} = 0 ∧ valid §p0{1} = true ∧
                   §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
           §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
@@ -2549,7 +2549,7 @@ theorem FC_FValid_f :
               refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
               (exact Bool.false_ne_true (h.2.symm.trans h.1.2.2.2.2.2.1))
             case «then» =>
-              equiv_seq 1 1 : (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+              equiv_seq_last 1 1 : (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
                   §i{1} = §i{2} ∧
                 §lres{1} = §bs{2} ∧ valid §p0{1} = true ∧ 0 ≤ §i{1} ∧
                     §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -2573,7 +2573,7 @@ theorem FC_FValid_f :
           §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
                 case body =>
                   stmt_wp
-                  equiv_seq 1 1 : (§x4{1} = format §p0{1} §i{1} ∧
+                  equiv_seq_last 1 1 : (§x4{1} = format §p0{1} §i{1} ∧
                       §(localVarLens "x2" (List block)){2} =
                       §(localVarLens "x1" (List block)){2} ∧ §n0{2} + 1 = §i{1} ∧
                       §p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
@@ -2654,7 +2654,7 @@ theorem DSqueeze2_Valid_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§p{1} = §q{2} ∧ §n{1} = §k{2} ∧ §pp{1} = §p{1} ∧ §nn{1} = §n{1} ∧
+  equiv_seq_last 1 1 : (§p{1} = §q{2} ∧ §n{1} = §k{2} ∧ §pp{1} = §p{1} ∧ §nn{1} = §n{1} ∧
       §lres{1} = [] ∧ §i{1} = 0 ∧ parse (format §p{1} §n{1}) = (§p{1},
           §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
           §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
@@ -2670,7 +2670,7 @@ theorem DSqueeze2_Valid_f :
     case guard => (rintro p n pp nn lres i m mi paths r1 r2 c _ _ _ _ _ _ _ _ ⟨rfl, -⟩; rfl)
     case «then» =>
       stmt_wp
-      equiv_seq 1 1 : (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
+      equiv_seq_last 1 1 : (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
           §i{1} = §i{2} ∧
               §lres{1} = §bs{2} ∧ valid §p{1} = true ∧ 0 ≤ §i{1} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
                   §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -2701,7 +2701,7 @@ theorem DSqueeze2_Valid_f :
           §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
           case body =>
             stmt_wp
-            equiv_seq 1 1 : (§x2{1} = format §p{1} §i{1} ∧
+            equiv_seq_last 1 1 : (§x2{1} = format §p{1} §i{1} ∧
                 §x2{2} = §(localVarLens "x1" (List block)){2} ∧ §n0{2} + 1 = §i{1} ∧
                 §p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} + 1 ∧
                     §lres{1} = §bs{2} ∧
@@ -2761,7 +2761,7 @@ theorem DSqueeze2_Valid_f :
           intros; rename_i h; exact h.1
     case «else» =>
       stmt_wp
-      equiv_seq 1 1 : (§pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} ∧
+      equiv_seq_last 1 1 : (§pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} ∧
               §lres{1} = §bs0{2} ∧ valid §pp{1} = false ∧ 0 ≤ §i{1} ∧
               parse (format §pp{1} §n{1}) = (§pp{1},
                   §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -2792,7 +2792,7 @@ theorem DSqueeze2_Valid_f :
           §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
           case body =>
             stmt_wp
-            equiv_seq 1 1 : (§x5{1} = format §pp{1} §i{1} ∧ §x4{2} = §x3{2} ∧ §n2{2} + 1 = §i{1} ∧
+            equiv_seq_last 1 1 : (§x5{1} = format §pp{1} §i{1} ∧ §x4{2} = §x3{2} ∧ §n2{2} + 1 = §i{1} ∧
                 §pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} + 1 ∧ §lres{1} = §bs0{2} ∧
                 valid §pp{1} = false ∧ 1 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
                 parse (format §pp{1} §n{1}) = (§pp{1},
@@ -2978,7 +2978,7 @@ theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -3056,7 +3056,7 @@ theorem IF2_Last :
   simp only [Indifferentiability.FUNCTIONALITY.view_f]
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "x0" (List block)){1} = format §p0{2} §n{2} ∧ §p{1} = §p0{2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "x0" (List block)){1} = format §p0{2} §n{2} ∧ §p{1} = §p0{2} ∧
       §n{1} = §n{2} ∧ §pp{2} = §p0{2} ∧ §nn{2} = §n{2} ∧ 0 < §n{1} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
       §lres{2} = [] ∧ L34Inv §allGlobals{1} §allGlobals{2})
   · stmt_wp
@@ -3071,10 +3071,10 @@ theorem IF2_Last :
   case «then» =>
     simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp,
       PROM.FullRO.RO_T.sample.mk_simp]
-    equiv_seq 1 0 : (§i{1} = §n{1} ∧ §x0{1} = format §p{1} §n{1} ∧ 0 < §n{1} ∧
+    equiv_seq_last 1 0 : (§i{1} = §n{1} ∧ §x0{1} = format §p{1} §n{1} ∧ 0 < §n{1} ∧
         last b0 §lres{2} = oget (FMap.get §SLCommon.F.RO.m{1} §x0{1}) ∧
         FMap.dom §SLCommon.F.RO.m{1} §x0{1} ∧ L34Inv §allGlobals{1} §allGlobals{2})
-    · equiv_seq 1 1 : (§i{1} = §i{2} ∧ §p{1} = §p0{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+    · equiv_seq_last 1 1 : (§i{1} = §i{2} ∧ §p{1} = §p0{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
           0 < §n{1} ∧ §x0{1} = format §p0{2} §n{2} ∧
           (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
             FMap.dom §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
@@ -3149,10 +3149,10 @@ theorem IF2_Last :
   case «else» =>
     simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp,
       PROM.FullRO.RO_T.sample.mk_simp]
-    equiv_seq 1 0 : (§i{1} = §n{1} ∧ §x0{1} = format §p{1} §n{1} ∧ 0 < §n{1} ∧
+    equiv_seq_last 1 0 : (§i{1} = §n{1} ∧ §x0{1} = format §p{1} §n{1} ∧ 0 < §n{1} ∧
         last b0 §lres{2} = oget (FMap.get §F2.RO.m{1} §x0{1}) ∧
         FMap.dom §F2.RO.m{1} §x0{1} ∧ L34Inv §allGlobals{1} §allGlobals{2})
-    · equiv_seq 1 1 : (§i{1} = §i{2} ∧ §p{1} = §pp{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+    · equiv_seq_last 1 1 : (§i{1} = §i{2} ∧ §p{1} = §pp{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
           0 < §n{1} ∧ §x0{1} = format §pp{2} §n{2} ∧
           (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §F2.RO.m{1} (format §p{1} §i{1})) ∧
             FMap.dom §F2.RO.m{1} (format §p{1} §i{1})) ∧ L34Inv §allGlobals{1} §allGlobals{2})
@@ -3295,7 +3295,7 @@ theorem IF2_get (bl : List block) (k : ℤ) :
   simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.sample.mk_simp]
   stmt_inline{2} 0
   repeat stmt_inline{1} 0
-  equiv_seq 2 3 : (§x0{1} = format bl k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = 0 ∧
+  equiv_seq_last 2 3 : (§x0{1} = format bl k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = 0 ∧
       §x0{2} = format bl k ∧ valid bl = true ∧ 0 < k ∧
       (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
       L34Inv §allGlobals{1} §allGlobals{2})
@@ -3304,7 +3304,7 @@ theorem IF2_get (bl : List block) (k : ℤ) :
     rintro g₁ g₂ x₁ x₂ ⟨rfl, rfl, hv, hk, hpre, h⟩
     rw [parseK bl k hk (by simpa [valid] using hv)]
     exact ⟨rfl, rfl, rfl, rfl, hv, hk, hpre, h⟩
-  equiv_seq 1 1 : (§(localVarLens "b" block){1} = oget (FMap.get §SLCommon.F.RO.m{2} §x0{2}) ∧
+  equiv_seq_last 1 1 : (§(localVarLens "b" block){1} = oget (FMap.get §SLCommon.F.RO.m{2} §x0{2}) ∧
       L34Inv §allGlobals{1} §allGlobals{2} ∧
       ∀ j, 1 ≤ j → j ≤ k → FMap.dom §SLCommon.F.RO.m{1} (format bl j))
   rotate_left
@@ -3318,7 +3318,7 @@ theorem IF2_get (bl : List block) (k : ℤ) :
     rw [hp, hv] at hg
     exact Bool.noConfusion hg
   case «then» =>
-    equiv_seq 5 0 : (0 < k ∧ §x0{1} = format bl k ∧ §x0{2} = format bl k ∧
+    equiv_seq_last 5 0 : (0 < k ∧ §x0{1} = format bl k ∧ §x0{2} = format bl k ∧
         (∀ j, 1 ≤ j → j ≤ k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
         L34Inv §allGlobals{1} §allGlobals{2})
     rotate_left
@@ -3345,7 +3345,7 @@ theorem IF2_get (bl : List block) (k : ℤ) :
       simp only [decide_eq_true_eq] at h2
       omega
     unfold Getter.andB
-    equiv_seq 1 2 : (0 < k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = k - 1 ∧ §x0{1} = format bl k ∧
+    equiv_seq_last 1 2 : (0 < k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = k - 1 ∧ §x0{1} = format bl k ∧
         §x0{2} = format bl k ∧ (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
         L34Inv §allGlobals{1} §allGlobals{2})
     · equiv_while{1} (§p{1} = bl ∧ §n{1} = k ∧ 0 ≤ §i{1} ∧ §i{1} ≤ k - 1 ∧
@@ -3477,7 +3477,7 @@ theorem DS_IF2_FValid :
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧
+  equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧
       §(localVarLens "r" (List block)){2} = [] ∧
       §(localVarLens "b" block){1} = b0 ∧ §i{1} = 0 ∧ L34Inv §allGlobals{1} §allGlobals{2})
   · stmt_wp
@@ -3495,7 +3495,7 @@ theorem DS_IF2_FValid :
   case «then» =>
     stmt_inline{2} 0
     stmt_wp
-    equiv_seq 2 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §lres{1} = [] ∧ §lres0{2} = [] ∧
+    equiv_seq_last 2 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §lres{1} = [] ∧ §lres0{2} = [] ∧
         §i{1} = 0 ∧ §i0{2} = 0 ∧ valid §p{1} = true ∧ L34Inv §allGlobals{1} §allGlobals{2})
     · stmt_wp
       equiv_skip
@@ -3535,7 +3535,7 @@ theorem DS_IF2_FValid :
           · simp only [decide_eq_false_iff_not, not_lt]
             omega
       case hn =>
-        equiv_seq 2 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §lres{1} = [] ∧ §lres0{2} = [] ∧
+        equiv_seq_last 2 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §lres{1} = [] ∧ §lres0{2} = [] ∧
             §i{1} = 0 ∧ §i0{2} = 0 ∧ valid §p{1} = true ∧ 0 < §n{1} ∧
             L34Inv §allGlobals{1} §allGlobals{2})
         · equiv_if{2}
@@ -3557,7 +3557,7 @@ theorem DS_IF2_FValid :
           simp only [decide_eq_false_iff_not, not_lt] at hg
           omega
         case «then» =>
-          equiv_seq 1 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
+          equiv_seq_last 1 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
               §i0{2} ≤ §n{1} ∧ rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
               valid §p{1} = true ∧ 0 < §n{1} ∧
               (∀ j, 1 ≤ j → j ≤ §i0{2} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
@@ -3594,7 +3594,7 @@ theorem DS_IF2_FValid :
               show ((localVarLens "n" ℤ).get σ - ((localVarLens "i" ℤ).get σ + 1)).toNat < k'
               omega
           unfold Getter.andB
-          equiv_seq 1 0 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i{1} + 1 = §n{1} ∧
+          equiv_seq_last 1 0 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i{1} + 1 = §n{1} ∧
               rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
               L34Inv §allGlobals{1} §allGlobals{2})
           · equiv_while (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
@@ -3615,7 +3615,7 @@ theorem DS_IF2_FValid :
               exact ⟨hp, hn, by omega, hl, h⟩
             case body =>
               stmt_wp
-              equiv_seq 1 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 < §i{1} ∧
+              equiv_seq_last 1 1 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 < §i{1} ∧
                   §i{1} < §n{1} ∧ §lres{1} = §lres0{2} ∧ valid §p{1} = true ∧ 0 < §n{1} ∧
                   (∀ j, 1 ≤ j → j ≤ §i{1} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
                   L34Inv §allGlobals{1} §allGlobals{2})
@@ -3657,7 +3657,7 @@ theorem DS_IF2_FValid :
             omega
           case «then» =>
             equiv_rcondf{1}
-            equiv_seq 1 0 : (§i{1} = §n{1} ∧ §lres{1} = §lres0{2} ∧
+            equiv_seq_last 1 0 : (§i{1} = §n{1} ∧ §lres{1} = §lres0{2} ∧
                 L34Inv §allGlobals{1} §allGlobals{2})
             · stmt_wp
               equiv_skip
@@ -3694,7 +3694,7 @@ theorem FC_L34 :
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
       L34Inv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -3755,7 +3755,7 @@ theorem equiv_L3_L4 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -4369,7 +4369,7 @@ theorem SS_f_extend (bl : List block) (j : ℤ) :
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp, P_f']
   stmt_wp
-  equiv_seq 1 2 : (§p{1} = format bl (j + 1) ∧ §sa{1} = b0 ∧ §sc{1} = c0 ∧ §i{1} = 0 ∧
+  equiv_seq_last 1 2 : (§p{1} = format bl (j + 1) ∧ §sa{1} = b0 ∧ §sc{1} = c0 ∧ §i{1} = 0 ∧
       valid bl = true ∧ 0 < j ∧
       FMap.get §SLCommon.Redo.prefixes{1} (format bl j) = some §(localVarLens "x" state){2} ∧
       sqInv §allGlobals{1} §allGlobals{2})
@@ -4403,7 +4403,7 @@ theorem SS_f_extend (bl : List block) (j : ℤ) :
       · have h2 := hg.2
         omega
   unfold Getter.andB
-  equiv_seq 1 2 : (§p{1} = format bl (j + 1) ∧ §i{1} = size (format bl j) ∧
+  equiv_seq_last 1 2 : (§p{1} = format bl (j + 1) ∧ §i{1} = size (format bl j) ∧
       FMap.get §SLCommon.Redo.prefixes{1} (format bl j) = some (§sa{1}, §sc{1}) ∧
       §(localVarLens "x" state){2} = (§sa{1}, §sc{1}) ∧ valid bl = true ∧ 0 < j ∧
       sqInv §allGlobals{1} §allGlobals{2})
@@ -4488,7 +4488,7 @@ theorem SS_f_extend (bl : List block) (j : ℤ) :
     equiv_if{1}
     case «then» =>
       stmt_wp
-      equiv_seq 0 1 : (§p{1} = format bl (j + 1) ∧ §i{1} = size (format bl j) ∧
+      equiv_seq_last 0 1 : (§p{1} = format bl (j + 1) ∧ §i{1} = size (format bl j) ∧
           FMap.get §SLCommon.Redo.prefixes{1} (format bl j) = some (§sa{1}, §sc{1}) ∧
           §x0{2} = (§sa{1}, §sc{1}) ∧ 0 < j ∧ sqInv §allGlobals{1} §allGlobals{2} ∧
           FMap.dom §SLCommon.Redo.prefixes{1} (format bl (j + 1)))
@@ -4522,7 +4522,7 @@ theorem SS_f_extend (bl : List block) (j : ℤ) :
       stmt_wp
       stmt_inline{1} 0
       stmt_wp
-      equiv_seq 1 1 : (§x1{1} = §x0{2} ∧ §p{1} = format bl (j + 1) ∧
+      equiv_seq_last 1 1 : (§x1{1} = §x0{2} ∧ §p{1} = format bl (j + 1) ∧
           §i{1} = size (format bl j) ∧
           ¬ FMap.dom §SLCommon.Redo.prefixes{1} (format bl (j + 1)) ∧
           FMap.get §SLCommon.Redo.prefixes{1} (format bl j) = some §x1{1} ∧
@@ -4653,7 +4653,7 @@ theorem DSqueeze_Sponge :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§p{1} = §xs{2} ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧ §z{2} = [] ∧ §b{1} = b0 ∧
+  equiv_seq_last 1 1 : (§p{1} = §xs{2} ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧ §z{2} = [] ∧ §b{1} = b0 ∧
       §sa{2} = b0 ∧ §sc{2} = c0 ∧ §i{1} = 0 ∧ §i{2} = 0 ∧ sqInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -4668,7 +4668,7 @@ theorem DSqueeze_Sponge :
     intros
     simp_all
   case «then» =>
-    equiv_seq 1 1 : (§i{1} = 0 ∧ §i{2} = 0 ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧ §z{2} = [] ∧
+    equiv_seq_last 1 1 : (§i{1} = 0 ∧ §i{2} = 0 ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧ §z{2} = [] ∧
         §b{1} = §sa{2} ∧ valid §p{1} = true ∧
         FMap.get §SLCommon.Redo.prefixes{1} §p{1} = some (§sa{2}, §sc{2}) ∧
         sqInv §allGlobals{1} §allGlobals{2})
@@ -4676,7 +4676,7 @@ theorem DSqueeze_Sponge :
       simp only [Indifferentiability.PRIMITIVE.view, Indifferentiability.DPRIMITIVE.f.mk_simp, P_f,
         P_f']
       stmt_wp
-      equiv_seq 1 1 : (§p0{1} = §p{1} ∧ §sa0{1} = §sa{2} ∧ §sc0{1} = §sc{2} ∧ 0 ≤ §i0{1} ∧
+      equiv_seq_last 1 1 : (§p0{1} = §p{1} ∧ §sa0{1} = §sa{2} ∧ §sc0{1} = §sc{2} ∧ 0 ≤ §i0{1} ∧
           §i0{1} ≤ size §p0{1} ∧ §xs{2} = drop §i0{1} §p0{1} ∧
           FMap.get §SLCommon.Redo.prefixes{1} (take §i0{1} §p0{1}) = some (§sa{2}, §sc{2}) ∧
           §i{1} = 0 ∧ §i{2} = 0 ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧ §z{2} = [] ∧
@@ -4711,7 +4711,7 @@ theorem DSqueeze_Sponge :
         equiv_if{1}
         case «then» =>
           stmt_wp
-          equiv_seq 0 1 : (§x{2} = (§sa{2} +^ nth default §p0{1} §i0{1}, §sc{2}) ∧
+          equiv_seq_last 0 1 : (§x{2} = (§sa{2} +^ nth default §p0{1} §i0{1}, §sc{2}) ∧
               §p0{1} = §p{1} ∧ 0 ≤ §i0{1} ∧ §i0{1} < size §p0{1} ∧ §xs{2} = drop §i0{1} §p0{1} ∧
               FMap.get §SLCommon.Redo.prefixes{1} (take §i0{1} §p0{1}) = some (§sa{2}, §sc{2}) ∧
               FMap.dom §SLCommon.Redo.prefixes{1} (take (§i0{1} + 1) §p0{1}) ∧
@@ -4751,7 +4751,7 @@ theorem DSqueeze_Sponge :
           stmt_wp
           stmt_inline{1} 0
           stmt_wp
-          equiv_seq 1 1 : (§x0{1} = §x{2} ∧ §x{2} = (§sa{2} +^ nth default §p0{1} §i0{1}, §sc{2}) ∧
+          equiv_seq_last 1 1 : (§x0{1} = §x{2} ∧ §x{2} = (§sa{2} +^ nth default §p0{1} §i0{1}, §sc{2}) ∧
               §p0{1} = §p{1} ∧ 0 ≤ §i0{1} ∧ §i0{1} < size §p0{1} ∧ §xs{2} = drop §i0{1} §p0{1} ∧
               FMap.get §SLCommon.Redo.prefixes{1} (take §i0{1} §p0{1}) = some (§sa{2}, §sc{2}) ∧
               ¬ FMap.dom §SLCommon.Redo.prefixes{1} (take (§i0{1} + 1) §p0{1}) ∧
@@ -4821,7 +4821,7 @@ theorem DSqueeze_Sponge :
       rintro g₁ g₂ i n lres b p i' n' z sa sc ⟨rfl, rfl, rfl, -, -, -, -, hs⟩ -
       exact ⟨rfl, hs⟩
     case body =>
-      equiv_seq 1 1 : (§i{1} = §i{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §z{2} ∧
+      equiv_seq_last 1 1 : (§i{1} = §i{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §z{2} ∧
           §(localVarLens "b" block){1} = §sa{2} ∧ 0 < §i{1} ∧ valid §p{1} = true ∧
           FMap.get §SLCommon.Redo.prefixes{1} (format §p{1} §i{1}) = some (§sa{2}, §sc{2}) ∧
           sqInv §allGlobals{1} §allGlobals{2})
@@ -4864,7 +4864,7 @@ theorem Perm_f_sq :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ sqInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ sqInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ x _ ⟨rfl, h⟩
@@ -4900,7 +4900,7 @@ theorem Perm_fi_sq :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§y0{1} = §y0{2} ∧ sqInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§y0{1} = §y0{2} ∧ sqInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ x _ ⟨rfl, h⟩
@@ -4955,7 +4955,7 @@ theorem PC_f_rInv :
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ rInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ rInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ a _ ⟨rfl, h⟩
@@ -5001,7 +5001,7 @@ theorem PC_fi_rInv :
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ rInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ rInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ a _ ⟨rfl, h⟩
@@ -5049,7 +5049,7 @@ theorem FC_rInv :
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
       rInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -5132,7 +5132,7 @@ theorem squeeze_squeezeless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hm (sup_le hmi (sup_le hpr hcc))
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -5248,7 +5248,7 @@ theorem SS_gen (bl : List block) (s k : ℤ) :
   stmt_inline{2} 0
   simp only [Indifferentiability.PRIMITIVE.view, Indifferentiability.DPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+  equiv_seq_last 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
       0 ≤ §i{1} ∧ §i{1} ≤ size bl ∧
       FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} bl) = some (§sa{1}, §sc{1}) ∧
       0 ≤ s ∧ s ≤ size bl ∧ FMap.dom §SLCommon.Redo.prefixes{1} (take s bl) ∧
@@ -5301,7 +5301,7 @@ theorem SS_gen (bl : List block) (s k : ℤ) :
       simp only [P_f']
       stmt_inline{1} 0
       stmt_wp
-      equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §x0{1} = §x{2} ∧ §i{1} = §i{2} ∧ 0 ≤ §i{1} ∧
+      equiv_seq_last 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §x0{1} = §x{2} ∧ §i{1} = §i{2} ∧ 0 ≤ §i{1} ∧
           §i{1} < size bl ∧ s ≤ §i{1} ∧
           ¬ FMap.dom §SLCommon.Redo.prefixes{1} (take (§i{1} + 1) bl) ∧
           (∃ sa0 sc0, FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} bl) = some (sa0, sc0) ∧
@@ -5396,7 +5396,7 @@ theorem DSqueeze_count (bl : List block) (nb k : ℤ) :
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp, Indifferentiability.FUNCTIONALITY.view]
   stmt_wp
-  equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §lres{1} = [] ∧
+  equiv_seq_last 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §lres{1} = [] ∧
       §lres{2} = [] ∧ §(localVarLens "b" block){1} = b0 ∧ §(localVarLens "b" block){2} = b0 ∧
       §i{1} = 0 ∧ §i{2} = 0 ∧ eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv k §allGlobals{1})
   · stmt_wp
@@ -5413,7 +5413,7 @@ theorem DSqueeze_count (bl : List block) (nb k : ℤ) :
     rintro g₁ g₂ p n lres b i p' n' lres' b' i' ⟨⟨-, -, -, -, hl, hl', -, -, -, -, he, hc⟩, -⟩
     exact ⟨by rw [hl, hl'], he, INV_Real_mono hc (by omega)⟩
   case «then» =>
-    equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §lres{1} = [] ∧
+    equiv_seq_last 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §lres{1} = [] ∧
         §lres{2} = [] ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
         §i{1} = 0 ∧ §i{2} = 0 ∧ valid bl = true ∧ FMap.dom §SLCommon.Redo.prefixes{1} bl ∧
         eInv0 §allGlobals{1} §allGlobals{2} ∧ cntInv (k + size bl) §allGlobals{1})
@@ -5442,7 +5442,7 @@ theorem DSqueeze_count (bl : List block) (nb k : ℤ) :
       simp only [decide_eq_false_iff_not, not_lt] at hg
       exact ⟨hl, he, INV_Real_mono hc (by omega)⟩
     case body =>
-      equiv_seq 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §i{1} = §i{2} ∧
+      equiv_seq_last 1 1 : (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §i{1} = §i{2} ∧
           §lres{1} = §lres{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
           0 < §i{1} ∧ §i{1} ≤ nb ∧ valid bl = true ∧
           FMap.dom §SLCommon.Redo.prefixes{1} (format bl §i{1}) ∧
@@ -5520,7 +5520,7 @@ theorem FC_count :
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
+  equiv_seq_last 1 1 : (§bl{1} = §bl{2} ∧ §nb{1} = §nb{2} ∧ §z{1} = §z{2} ∧
       eInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -5578,7 +5578,7 @@ theorem PC_f_count :
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ eInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ eInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ a _ ⟨rfl, h⟩
@@ -5599,7 +5599,7 @@ theorem PC_f_count :
     simp only [P_f']
     stmt_inline{1} 0
     stmt_wp
-    equiv_seq 1 1 : (§x0{1} = §x{2} ∧ §BlockSponge.C.c{1} + 1 ≤ max_size ∧
+    equiv_seq_last 1 1 : (§x0{1} = §x{2} ∧ §BlockSponge.C.c{1} + 1 ≤ max_size ∧
         eInv §allGlobals{1} §allGlobals{2})
     · stmt_wp
       equiv_skip
@@ -5647,7 +5647,7 @@ theorem PC_fi_count :
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
   stmt_wp
-  equiv_seq 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ eInv §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§a{1} = §a{2} ∧ §z{1} = §z{2} ∧ eInv §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ a _ ⟨rfl, h⟩
@@ -5668,7 +5668,7 @@ theorem PC_fi_count :
     simp only [P_fi']
     stmt_inline{1} 0
     stmt_wp
-    equiv_seq 1 1 : (§y0{1} = §y{2} ∧ §BlockSponge.C.c{1} + 1 ≤ max_size ∧
+    equiv_seq_last 1 1 : (§y0{1} = §y{2} ∧ §BlockSponge.C.c{1} + 1 ≤ max_size ∧
         eInv §allGlobals{1} §allGlobals{2})
     · stmt_wp
       equiv_skip
@@ -5757,7 +5757,7 @@ theorem equiv_sponge (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   simp only [P_init']
   repeat stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -7067,7 +7067,7 @@ theorem Simulator_f_Simu :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     e2_close
@@ -7078,7 +7078,7 @@ theorem Simulator_f_Simu :
       equiv_skip
       e2_close
     case «then» =>
-      equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+      equiv_seq_last 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
         e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
       · equiv_if
         case guard => e2_close
@@ -7087,7 +7087,7 @@ theorem Simulator_f_Simu :
           equiv_skip
           e2_close
         case «then» =>
-          equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
+          equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
             e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
           · stmt_wp
             equiv_skip
@@ -7096,7 +7096,7 @@ theorem Simulator_f_Simu :
             case guard => e2_close
             case «then» =>
               stmt_wp
-              equiv_seq 1 1 : (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs{2} ∧
+              equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs{2} ∧
                     §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
               · stmt_wp
                 equiv_skip
@@ -7111,7 +7111,7 @@ theorem Simulator_f_Simu :
                     §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
                   case body =>
                     stmt_wp
-                    equiv_seq 1 1 : (§x2{1} = §x2{2} ∧ §n0{1} = §n0{2} ∧ §x2{1} = §x1{1} ∧
+                    equiv_seq_last 1 1 : (§x2{1} = §x2{2} ∧ §n0{1} = §n0{2} ∧ §x2{1} = §x1{1} ∧
                         §n0{1} = §i{1} ∧ (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧
                             §bs{1} = §bs{2} ∧
                     §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2}))
@@ -7141,7 +7141,7 @@ theorem Simulator_f_Simu :
                 e2_close
               case «then» =>
                 stmt_wp
-                equiv_seq 1 3 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
+                equiv_seq_last 1 3 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
                     e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
                 · equiv_while{2} (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
                     e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2}) (§k{2} - §i{2}).toNat
@@ -7225,7 +7225,7 @@ theorem Simulator_fi_Simu :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     e2_close
@@ -7373,7 +7373,7 @@ theorem equal2_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h
@@ -7492,7 +7492,7 @@ theorem SimLast_f_Simu :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "x1" state){1} = §x0{2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "x1" state){1} = §x0{2} ∧
       e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -7504,7 +7504,7 @@ theorem SimLast_f_Simu :
       equiv_skip
       e1_close
     case «then» =>
-      equiv_seq 5 5 : (§(localVarLens "x1" state){1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+      equiv_seq_last 5 5 : (§(localVarLens "x1" state){1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
           e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
       · equiv_if
         case guard => e1_close
@@ -7514,7 +7514,7 @@ theorem SimLast_f_Simu :
           e1_close
         case «then» =>
           stmt_wp
-          equiv_seq 1 1 : (§(localVarLens "x1" state){1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
+          equiv_seq_last 1 1 : (§(localVarLens "x1" state){1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
               0 < §k{1} ∧
               e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
           · stmt_wp
@@ -7529,7 +7529,7 @@ theorem SimLast_f_Simu :
             case guard => e1_close
             case «then» =>
               stmt_wp
-              equiv_seq 1 1 : (§(localVarLens "x3" (List block)){1} =
+              equiv_seq_last 1 1 : (§(localVarLens "x3" (List block)){1} =
                   §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} =
                       §bs{2} ∧
                   §(localVarLens "x1" state){1} = §x0{2} ∧
@@ -7550,7 +7550,7 @@ theorem SimLast_f_Simu :
                       e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
                   case body =>
                     stmt_wp
-                    equiv_seq 1 1 : (§(localVarLens "x4" (List block)){1} =
+                    equiv_seq_last 1 1 : (§(localVarLens "x4" (List block)){1} =
                         §(localVarLens "x2" (List block)){2} ∧ §n0{1} = §n0{2} ∧
                         §(localVarLens "x4" (List block)){1} =
                             §(localVarLens "x3" (List block)){1} ∧ §n0{1} = §i{1} ∧
@@ -7584,11 +7584,11 @@ theorem SimLast_f_Simu :
                 exact h.2 (by rw [← h.1.1.2.2.1]; exact h.1.1.2.2.2.1)
               case «then» =>
                 stmt_wp
-                equiv_seq 0 3 : (last b0 §bs0{1} = oget ((§IRO2_RO_m{2}).get (§q{2}, §k{2} - 1)) ∧
+                equiv_seq_last 0 3 : (last b0 §bs0{1} = oget ((§IRO2_RO_m{2}).get (§q{2}, §k{2} - 1)) ∧
                     (§IRO2_RO_m{2}).dom (§q{2}, §k{2} - 1) ∧
                         §(localVarLens "x1" state){1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
                             0 < §k{1} ∧ e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
-                · equiv_seq 1 1 : (§(localVarLens "x5" (List block)){1} = §q{2} ∧ §n1{1} = §k{2} ∧
+                · equiv_seq_last 1 1 : (§(localVarLens "x5" (List block)){1} = §q{2} ∧ §n1{1} = §k{2} ∧
                     §i0{1} = §i{2} ∧ 0 ≤ §i0{1} ∧
                       §i0{1} ≤ §n1{1} ∧
                       (0 < §i0{1} → last b0 §bs0{1} =
@@ -7615,7 +7615,7 @@ theorem SimLast_f_Simu :
                                 0 < §k{1} ∧ e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
                       case body =>
                         stmt_wp
-                        equiv_seq 1 1 : (§x6{1} = §(localVarLens "x5" (List block)){1} ∧
+                        equiv_seq_last 1 1 : (§x6{1} = §(localVarLens "x5" (List block)){1} ∧
                             §n2{1} = §i0{1} ∧
                             §(localVarLens "x4" (List block × ℤ)){2} = (§q{2}, §i{2}) ∧
                             §i0{1} < §n1{1} ∧ (§(localVarLens "x5" (List block)){1} = §q{2} ∧
@@ -7712,7 +7712,7 @@ theorem SimLast_fi_Simu :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "x1" state){1} = §x0{2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "x1" state){1} = §x0{2} ∧
       e1Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -7859,7 +7859,7 @@ theorem equal1_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (globInvF Lg (FVP.fvP D) I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h

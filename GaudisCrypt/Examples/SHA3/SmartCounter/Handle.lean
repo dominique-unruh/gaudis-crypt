@@ -1885,7 +1885,7 @@ theorem PF_fi_S_fi :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
       eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -2330,7 +2330,7 @@ theorem PF_f_S_f :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
       eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -2343,7 +2343,7 @@ theorem PF_f_S_f :
         stmt_wp
         equiv_if{2}
         case «then» =>
-          equiv_seq 1 3 : (§y1{1} = §(localVarLens "r" block){2} ∧
+          equiv_seq_last 1 3 : (§y1{1} = §(localVarLens "r" block){2} ∧
               §x1{2} = rcons §p{2} (§v{2} +^ (§x0{2}).1) ∧
               (§p{2}, §v{2}) = oget (FMap.get §G1.paths{2} (§x0{2}).2) ∧
               ¬ FMap.dom §F.RO.m{2} §x1{2} ∧
@@ -2484,7 +2484,7 @@ theorem PF_f_S_f :
         stmt_wp
         equiv_if{2}
         case «then» =>
-          equiv_seq 0 3 : (§x1{2} = rcons §p{2} (§v{2} +^ (§x0{2}).1) ∧
+          equiv_seq_last 0 3 : (§x1{2} = rcons §p{2} (§v{2} +^ (§x0{2}).1) ∧
               (§p{2}, §v{2}) = oget (FMap.get §G1.paths{2} (§x0{2}).2) ∧
               §x0{1} = §x0{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
               eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2} ∧
@@ -2648,7 +2648,7 @@ theorem eq_fi (D : DISTINGUISHER)
   stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_fi]
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
       eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -2705,7 +2705,7 @@ theorem eq_f (D : DISTINGUISHER)
   stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_f]
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
       eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
@@ -3517,7 +3517,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§bs{1} = §bs{2} ∧
+  equiv_seq_last 1 1 : (§bs{1} = §bs{2} ∧
       §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
       ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
       eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2})
@@ -3549,7 +3549,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
         stmt_wp
         stmt_wp{2} 1
         stmt_wp
-        equiv_seq 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
+        equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = 0 ∧ §i{2} = 0 ∧
             §counter{2} = 0 ∧ §sa{1} = b0 ∧ §sc{1} = c0 ∧ §sa{2} = b0 ∧ §h{2} = 0 ∧
             ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
             eq_glob_C §allGlobals{1} §allGlobals{2} ∧ INV_CF_G1_12 §allGlobals{1} §allGlobals{2} ∧
@@ -3626,7 +3626,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
                 simpa using h1
               omega
           unfold Getter.andB
-          equiv_seq 1 1 : ((§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+          equiv_seq_last 1 1 : ((§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
               §sa{1} = §sa{2} ∧ §counter{2} = 0 ∧ ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
               eq_glob_C §allGlobals{1} §allGlobals{2} ∧ §Redo.prefixes{1} = pref0 ∧
               PJ1 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
@@ -3730,7 +3730,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
                 refine prhlStmt_fix_left (fun σ => ((localVarLens "sa" block).get σ,
                   (localVarLens "sc" capacity).get σ)) (fun v => ?_)
                 obtain ⟨sa0, sc0⟩ := v
-                equiv_seq 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+                equiv_seq_last 1 1 : (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
                   §i{1} < size §p{1} ∧
                   §(localVarLens "x0" state){1} = (sa0 +^ nth default §p{1} §i{1}, sc0) ∧
                   eq_glob_C §allGlobals{1} §allGlobals{2} ∧ FMap.dom §C.queries{2} [] ∧
@@ -4470,7 +4470,7 @@ theorem CF_G1 (hD : Module.ECModule D distExt)
   repeat stmt_inline{1} 0
   rw [PF_eta, view_PF_eq]
   stmt_wp
-  equiv_seq 1 1 : (syncInv cfL (FVP.fvP D) cfI cfBad §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (syncInv cfL (FVP.fvP D) cfI cfBad §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     intro g₁ g₂ h

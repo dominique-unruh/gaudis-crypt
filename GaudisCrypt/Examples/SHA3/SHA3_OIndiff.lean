@@ -364,7 +364,7 @@ theorem opc_f (P₁ : ODPRIMITIVE) (Q : DPRIMITIVE)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
       ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧ ocI §ocL{1} §ocL{2})
   · stmt_wp
     equiv_skip
@@ -384,7 +384,7 @@ theorem opc_f (P₁ : ODPRIMITIVE) (Q : DPRIMITIVE)
     stmt_inline{2} 0
     stmt_wp
     refine prhlStmt_fix_left (fun σ => Counter.c.get σ.globals) fun k => ?_
-    equiv_seq 1 1 : (§x0{1} = §a{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+    equiv_seq_last 1 1 : (§x0{1} = §a{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         Counter.c.get §allGlobals{1} = k ∧ Counter.c.get §allGlobals{2} = k ∧
         Cntr.c.get §allGlobals{2} = k ∧ k + 1 ≤ limit)
     · stmt_wp
@@ -432,7 +432,7 @@ theorem opc_fi (P₁ : ODPRIMITIVE) (Q : DPRIMITIVE)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §o{1} = §o{2} ∧
       ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧ ocI §ocL{1} §ocL{2})
   · stmt_wp
     equiv_skip
@@ -452,7 +452,7 @@ theorem opc_fi (P₁ : ODPRIMITIVE) (Q : DPRIMITIVE)
     stmt_inline{2} 0
     stmt_wp
     refine prhlStmt_fix_left (fun σ => Counter.c.get σ.globals) fun k => ?_
-    equiv_seq 1 1 : (§x0{1} = §a{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+    equiv_seq_last 1 1 : (§x0{1} = §a{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         Counter.c.get §allGlobals{1} = k ∧ Counter.c.get §allGlobals{2} = k ∧
         Cntr.c.get §allGlobals{2} = k ∧ k + 1 ≤ limit)
     · stmt_wp
@@ -498,7 +498,7 @@ theorem ofc_f (F₁ : ODFUNCTIONALITY) (F₂ : DFUNCTIONALITY)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §o{1} = §o{2} ∧
+  equiv_seq_last 1 1 : (§l{1} = §l{2} ∧ §k{1} = §k{2} ∧ §o{1} = §o{2} ∧
       ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧ ocI §ocL{1} §ocL{2})
   · stmt_wp
     equiv_skip
@@ -520,7 +520,7 @@ theorem ofc_f (F₁ : ODFUNCTIONALITY) (F₂ : DFUNCTIONALITY)
     stmt_wp
     refine prhlStmt_fix_left (fun σ => (Counter.c.get σ.globals,
       (localVarLens "l" (List Bool)).get σ, (localVarLens "k" ℤ).get σ)) fun q => ?_
-    equiv_seq 1 1 : (§l{1} = §bs{2} ∧ §k{1} = §n{2} ∧
+    equiv_seq_last 1 1 : (§l{1} = §bs{2} ∧ §k{1} = §n{2} ∧
         ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         Counter.c.get §allGlobals{1} = q.1 ∧ Counter.c.get §allGlobals{2} = q.1 ∧
         Cntr.c.get §allGlobals{2} = q.1 ∧ §l{1} = q.2.1 ∧ §k{1} = q.2.2 ∧
@@ -584,13 +584,13 @@ theorem Sponge_f_equiv (P₁ P₂ : DPRIMITIVE) (I : VariableAssignment → Vari
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 2 2 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  equiv_seq_last 2 2 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
       §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro _ _ _ _ ⟨rfl, hg⟩
     exact ⟨rfl, rfl, hg⟩
-  equiv_seq 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  equiv_seq_last 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
       §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
   · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
@@ -609,7 +609,7 @@ theorem Sponge_f_equiv (P₁ P₂ : DPRIMITIVE) (I : VariableAssignment → Vari
   · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
     case body =>
-      equiv_seq 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+      equiv_seq_last 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2}) ∧ §i{1} = §i{2})
       · stmt_wp
         equiv_skip
@@ -764,7 +764,7 @@ theorem osim_fi (F : FUNCTIONALITY) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       J §ocL{1} §ocL{2})
   · stmt_wp
     equiv_skip
@@ -808,7 +808,7 @@ theorem osim_f (F : FUNCTIONALITY)
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       J §ocL{1} §ocL{2})
   · stmt_wp
     equiv_skip
@@ -826,7 +826,7 @@ theorem osim_f (F : FUNCTIONALITY)
     simp only [OptionIndifferentiability.OFUNCTIONALITY.view,
       OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp, Indifferentiability.FUNCTIONALITY.view,
       Indifferentiability.DFUNCTIONALITY.f.mk_simp]
-    equiv_seq 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
+    equiv_seq_last 5 5 : (§x0{1} = §x0{2} ∧ §y1{1} = §y1{2} ∧
         ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧ J §ocL{1} §ocL{2})
     · equiv_if
       case guard =>
@@ -834,7 +834,7 @@ theorem osim_f (F : FUNCTIONALITY)
         rw [he.get_disjoint]
       case «then» =>
         stmt_wp
-        equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
+        equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧
             ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧ J §ocL{1} §ocL{2})
         · stmt_wp
           equiv_skip
@@ -863,7 +863,7 @@ theorem osim_f (F : FUNCTIONALITY)
         equiv_skip
         rintro g₁ g₂ _ _ ⟨⟨⟨rfl, he, hJ⟩, -⟩, -⟩
         exact fun _ _ => ⟨rfl, he, hJ⟩
-    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §y2{1} = §y2{2} ∧
+    equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §y2{1} = §y2{2} ∧
         ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧ J §ocL{1} §ocL{2})
     · stmt_wp
       equiv_rnd
@@ -929,7 +929,7 @@ theorem real_equiv (Dist : ODISTINGUISHER) (hD : Module.ECModule Dist distExt)
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 1
   stmt_wp
-  equiv_seq 1 1 : (ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       ocI (ocL.get §allGlobals{1}) (ocL.get §allGlobals{2}))
   · stmt_wp
     equiv_call (prhlProc_refl
@@ -1012,7 +1012,7 @@ theorem ideal_equiv (Dist : ODISTINGUISHER) (hD : Module.ECModule Dist distExt)
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (ocL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       ocI (ocL.get §allGlobals{1}) (ocL.get §allGlobals{2}))
   · stmt_wp
     equiv_skip

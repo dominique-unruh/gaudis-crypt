@@ -137,7 +137,7 @@ Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing 
   depends on the `sorry` in `hidingGame_self_glob`).  `Examples/Pedersen/Binding.lean`: EC's
   `DLogAttacker`, `DLogExperiment`, `DLogStdExperiment`, `StdRedAdversary`; `binding_prhl` /
   `pedersen_computational_binding` (an inverse on exponents and injective `g^·` as hypotheses —
-  `PedersenGroup` has neither), `std_red_prhl` / `std_red_dl_bridge` (`equiv_seq 0 1`, then
+  `PedersenGroup` has neither), `std_red_prhl` / `std_red_dl_bridge` (`equiv_seq_last 0 1`, then
   `equiv_if{2}` with a one-sided sampling — EC's `seq 2 3; if{2}`), and
   `pedersen_std_computational_binding`.  Tool fix on the way: `equiv_rnd` refused nothing, and
   an assignment (a point-mass sampling) unified with it; it now insists on samplings.

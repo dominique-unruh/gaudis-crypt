@@ -103,6 +103,15 @@ elab "phoare_auto" : tactic => do
   -- what EC's `auto` closes by itself: `1 = 1`, `x ≤ x` under the binders
   evalTactic (← `(tactic| try (intros; first | rfl | exact le_rfl)))
 
+/-- **EC's `auto`** on a relational judgment about statements: `wp`, the samplings on both
+sides by `rnd` (with `wp` after each), `skip` when the code is used up, and the trivial goals
+closed (`simp_all` only when it closes the goal). -/
+macro "equiv_auto" : tactic => `(tactic| (
+  (try stmt_wp)
+  (repeat (equiv_rnd; try stmt_wp))
+  (try equiv_skip)
+  (try (intros; first | rfl | trivial | (simp_all; done)))))
+
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a Hoare triple about a statement. -/
 elab "hoare_auto" : tactic => do

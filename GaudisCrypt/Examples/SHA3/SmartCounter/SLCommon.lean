@@ -1258,7 +1258,7 @@ theorem Pr_restr_f_upto (P : PRIMITIVE) (_hP : FVP.fvP P ≤ C.footprintᶜ)
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.PRIMITIVE.view_f]
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
     ¬max_size < §C.c{2})
   · equiv_sim
   · equiv_if{1}
@@ -1301,7 +1301,7 @@ theorem Pr_restr_fi_upto (P : PRIMITIVE) (_hP : FVP.fvP P ≤ C.footprintᶜ)
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.PRIMITIVE.view_fi]
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
     ¬max_size < §C.c{2})
   · equiv_sim
   · equiv_if{1}
@@ -1343,7 +1343,7 @@ theorem Pr_restr_F_upto (F : FUNCTIONALITY) (_hF : FVP.fvP F ≤ C.footprintᶜ)
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.FUNCTIONALITY.view_f]
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "bs" (List block)){1} = §(localVarLens "bs" (List block)){2} ∧
     §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
     §allGlobals{1} = §allGlobals{2} ∧ ¬max_size < §C.c{2})
   · equiv_sim

@@ -935,7 +935,7 @@ theorem eager_get (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
       stmt_wp
       -- EC: `seq 5 3 : (={x} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
       -- FRO.m{1}.[x{2}] = Some (result{2}, Unknown) /\ FRO.m{2}.[x{2}] = Some (result{2}, Known))`
-      equiv_seq 1 1 : (FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧
+      equiv_seq_last 1 1 : (FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧
         FMap.get §FRO_m{1} a = some (§r{2}, Unknown) ∧ FMap.get §FRO_m{2} a = some (§r{2}, Known))
       case h₁ =>
         stmt_inline{1} 0
@@ -1000,7 +1000,7 @@ theorem eager_get (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
       stmt_inline{2} 0
       stmt_wp
       stmt_swap{1} 0 3
-      equiv_seq 1 1 : (§x{1} = a ∧ FMap.get §FRO_m{1} a = none ∧
+      equiv_seq_last 1 1 : (§x{1} = a ∧ FMap.get §FRO_m{1} a = none ∧
         §FRO_m{2} = FMap.set §FRO_m{1} a (§r0{1}, Known) ∧ §r{2} = §r0{1})
       case h₁ =>
         stmt_wp
@@ -1071,7 +1071,7 @@ theorem eager_set (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : (in_t × out_t
     stmt_wp
     -- EC: `seq 3 1 : (={x, y} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
     -- (FRO.m.[x] = Some (y, Known)){2})`
-    equiv_seq 1 1 : (FMap.eq_except (· = a.1) §FRO_m{1} §FRO_m{2} ∧
+    equiv_seq_last 1 1 : (FMap.eq_except (· = a.1) §FRO_m{1} §FRO_m{2} ∧
       FMap.get §FRO_m{2} a.1 = some (a.2, Known) ∧ FMap.in_dom_with §FRO_m{1} a.1 Unknown)
     case h₁ =>
       stmt_inline{1} 0
@@ -1159,7 +1159,7 @@ theorem eager_rem (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
     stmt_wp
     -- EC: `seq 3 1 : (={x} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
     -- (FRO.m.[x] = None){2})`
-    equiv_seq 1 1 : (FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧ FMap.get §FRO_m{2} a = none ∧
+    equiv_seq_last 1 1 : (FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧ FMap.get §FRO_m{2} a = none ∧
       FMap.in_dom_with §FRO_m{1} a Unknown)
     case h₁ =>
       -- EC: `inline *; auto=> |> &2 x_in_m2 x_is_U2; rewrite dout_ll=> //= c _. …`
@@ -1260,7 +1260,7 @@ theorem eager_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
       stmt_swap{1} 0 3
       -- EC: `seq 1 7 : (={x} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
       -- (FRO.m.[x]){2} = Some (c{1}, Unknown) /\ (FRO.m.[x]){1} = None)`
-      equiv_seq 1 1 : (§x{1} = a ∧ FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧
+      equiv_seq_last 1 1 : (§x{1} = a ∧ FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧
         FMap.get §FRO_m{2} a = some (§c{1}, Unknown) ∧ FMap.get §FRO_m{1} a = none)
       case h₁ =>
         -- EC: `wp; rnd; auto=> /> &2; rewrite domE dout_ll=> /= x_notin_m c _ cL _. …`

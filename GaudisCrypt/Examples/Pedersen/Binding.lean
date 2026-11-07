@@ -194,7 +194,7 @@ theorem std_red_prhl (L : DLogAdversary group) :
   stmt_inline 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 0 1 : §x'{1} = §lx{2} ∧ §x{1} = §x{2}
+  equiv_seq_last 0 1 : §x'{1} = §lx{2} ∧ §x{1} = §x{2}
   · equiv_call
     stmt_wp
     equiv_rnd

@@ -306,7 +306,7 @@ theorem Perm_f_perm (k : ℤ) :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ permInv k §allGlobals{1} §allGlobals{2})
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ permInv k §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro g₁ g₂ x _ ⟨rfl, h⟩
@@ -344,13 +344,13 @@ theorem Sponge_f_inv (P : DPRIMITIVE) (I : VariableAssignment → VariableAssign
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 2 2 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  equiv_seq_last 2 2 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
       §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
   · stmt_wp
     equiv_skip
     rintro _ _ _ _ ⟨rfl, hg⟩
     exact ⟨rfl, rfl, hg⟩
-  equiv_seq 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  equiv_seq_last 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
       §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
   · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
@@ -369,7 +369,7 @@ theorem Sponge_f_inv (P : DPRIMITIVE) (I : VariableAssignment → VariableAssign
   · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
     case body =>
-      equiv_seq 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+      equiv_seq_last 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2}) ∧ §i{1} = §i{2})
       · stmt_wp
         equiv_skip
@@ -972,7 +972,7 @@ theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statemen
   stmt_inline{2} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §bs{2} ∧ §n{2} = size_out ∧ eqPerm §allGlobals{1} §allGlobals{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §bs{2} ∧ §n{2} = size_out ∧ eqPerm §allGlobals{1} §allGlobals{2} ∧
       invm §Perm.m{1} §Perm.mi{1} ∧ §Cntr.c{2} = c ∧ §bs{2} = m ∧
       c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0 ≤ limit)
   · stmt_wp
@@ -1014,7 +1014,7 @@ theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := b
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §bs{2} ∧ §n{2} = size_out ∧ same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §bs{2} ∧ §n{2} = size_out ∧ same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
       §Cntr.c{2} = c ∧ §bs{2} = m ∧
       c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0 ≤ limit)
   · stmt_wp
@@ -1030,7 +1030,7 @@ theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := b
     exact hg hle
   case «then» =>
     stmt_wp
-    equiv_seq 1 1 : (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §i{2} = 0 ∧ §bs0{2} = [] ∧
+    equiv_seq_last 1 1 : (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §i{2} = 0 ∧ §bs0{2} = [] ∧
         same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
         §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
     · stmt_wp
@@ -1129,7 +1129,7 @@ theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := b
             §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)
         case body =>
           stmt_wp
-          equiv_seq 1 1 : ((§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §n{1} = size_out ∧ §i0{1} = §i{2} ∧
+          equiv_seq_last 1 1 : ((§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §n{1} = size_out ∧ §i0{1} = §i{2} ∧
             0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ size §l0{1} = §i{2} ∧
             same_ro §S.SRO.RO.RO.m{1} mp ∧ ¬ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
             (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧
@@ -1229,7 +1229,7 @@ theorem real_oracle :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
       realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
   · stmt_wp
@@ -1245,7 +1245,7 @@ theorem real_oracle :
     rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
     exact ⟨hy, he, hI⟩
   case «then» =>
-    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+    equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
         realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
     · stmt_wp
@@ -1330,7 +1330,7 @@ theorem real_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
   erw [Sponge_init_eq]
   stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
       §hash{1} = §hash{2} ∧
       realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
@@ -1399,7 +1399,7 @@ theorem ideal_oracle :
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+  equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
       idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
   · stmt_wp
@@ -1415,7 +1415,7 @@ theorem ideal_oracle :
     rintro g₁ g₂ _ _ _ _ ⟨⟨-, hy, he, hI⟩, -⟩
     exact ⟨hy, he, hI⟩
   case «then» =>
-    equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
+    equiv_seq_last 1 1 : (§x0{1} = §x0{2} ∧ §(localVarLens "y" f_out){1} = §(localVarLens "y" f_out){2} ∧
         idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
         idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
     · stmt_wp
@@ -1493,7 +1493,7 @@ theorem ideal_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
   rw [SimSetSize_init_eq, RO_init_eq]
   repeat stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
+  equiv_seq_last 1 1 : (§(localVarLens "m" (List Bool)){1} = §(localVarLens "m" (List Bool)){2} ∧
       §hash{1} = §hash{2} ∧
       idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
@@ -1738,7 +1738,7 @@ theorem real_spre (A : SRO.AdvSecondPreimage) (hA : Module.ECModule A SRO.Oracle
   erw [Sponge_init_eq]
   stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
       §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
       realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
@@ -1780,7 +1780,7 @@ theorem real_spre (A : SRO.AdvSecondPreimage) (hA : Module.ECModule A SRO.Oracle
     intros
     trivial
   case «then» =>
-    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+    equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
         §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
         §hash1{1} = §hash1{2} ∧ eqPerm §allGlobals{1} §allGlobals{2} ∧
         invm §Perm.m{1} §Perm.mi{1} ∧ §SRO.Counter.c{1} = §SRO.Counter.c{2} ∧
@@ -1863,7 +1863,7 @@ theorem ideal_spre (A : SRO.AdvSecondPreimage) (hA : Module.ECModule A SRO.Oracl
   rw [SimSetSize_init_eq, RO_init_eq]
   repeat stmt_inline{1} 0
   stmt_wp
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
       §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
       idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
@@ -1906,7 +1906,7 @@ theorem ideal_spre (A : SRO.AdvSecondPreimage) (hA : Module.ECModule A SRO.Oracl
     intros
     trivial
   case «then» =>
-    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+    equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
         §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
         §hash1{1} = §hash1{2} ∧ same_ro §SRO.RO.RO.m{1} §IRO.mp{2} ∧
         §SRO.Counter.c{1} = §SRO.Counter.c{2} ∧ §Cntr.c{2} = §SRO.Counter.c{2})
@@ -2151,7 +2151,7 @@ theorem real_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext)
   stmt_inline{1} 0
   stmt_wp
   simp only [PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.init.mk_simp]
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
       §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
       realL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       realI (realL.get §allGlobals{1}) (realL.get §allGlobals{2}))
@@ -2193,7 +2193,7 @@ theorem real_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext)
     intros
     trivial
   case «then» =>
-    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+    equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
         §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
         §hash1{1} = §hash1{2} ∧ eqPerm §allGlobals{1} §allGlobals{2} ∧
         invm §Perm.m{1} §Perm.mi{1} ∧ §SRO.Counter.c{1} = §SRO.Counter.c{2} ∧
@@ -2274,7 +2274,7 @@ theorem ideal_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext
   repeat stmt_inline{1} 0
   stmt_wp
   simp only [PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.init.mk_simp]
-  equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+  equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
       §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
       idealL.equal_outside §allGlobals{1} §allGlobals{2} ∧
       idealI (idealL.get §allGlobals{1}) (idealL.get §allGlobals{2}))
@@ -2317,7 +2317,7 @@ theorem ideal_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext
     intros
     trivial
   case «then» =>
-    equiv_seq 1 1 : (§m1{1} = §m1{2} ∧
+    equiv_seq_last 1 1 : (§m1{1} = §m1{2} ∧
         §(localVarLens "m2" (List Bool)){1} = §(localVarLens "m2" (List Bool)){2} ∧
         §hash1{1} = §hash1{2} ∧ same_ro §SRO.RO.RO.m{1} §IRO.mp{2} ∧
         §SRO.Counter.c{1} = §SRO.Counter.c{2} ∧ §Cntr.c{2} = §SRO.Counter.c{2})
