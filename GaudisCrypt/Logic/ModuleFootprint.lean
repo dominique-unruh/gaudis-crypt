@@ -74,8 +74,12 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
       | some m, some v => mkAppM ``Max.max #[m, v]
       | some m, none => pure m
       | none, some v => pure v
-      | none, none => mkAppOptM ``Bot.bot #[mkApp (mkConst ``Footprint [levelZero, levelZero])
-          (mkConst ``VariableAssignment), none]
+      | none, none => do
+        -- a module with no globals at all (`RF(R)`, its procedures `R`'s): `⊥`, elaborated (the
+        -- universe levels of `Footprint VariableAssignment` are not `0`)
+        let e ← Term.elabTerm (← `((⊥ : Footprint VariableAssignment))) none
+        Term.synthesizeSyntheticMVarsNoPostponing
+        instantiateMVars e
     let goal ← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M], B]
     let mv ← mkFreshExprSyntheticOpaqueMVar goal
     let tac ← match lensT with

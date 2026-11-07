@@ -18,7 +18,7 @@ is the expectation of an indicator.  The facts its proofs use:
 namespace GaudisCrypt
 
 /-- EC's `mu_le` on expectations: a pointwise smaller function has a smaller expectation. -/
-theorem EC.mu_le {γ : Type} {μ : SubProbability γ} {f g : γ → ENNReal}
+theorem EC.mu_le {γ : Type*} {μ : SubProbability γ} {f g : γ → ENNReal}
     (h : ∀ a, f a ≤ g a) : μ.expected f ≤ μ.expected g := by
   rw [SubProbability.expected_eq_tsum, SubProbability.expected_eq_tsum]
   exact ENNReal.tsum_le_tsum fun a => by gcongr; exact h a

@@ -130,6 +130,7 @@ import GaudisCrypt.Logic.ECIf
 import GaudisCrypt.Logic.ECIfTest
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.ECConseqTest
+import GaudisCrypt.Logic.ECCallFrame
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
@@ -196,6 +197,7 @@ import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
 import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.IndifRO_is_secure
+import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl

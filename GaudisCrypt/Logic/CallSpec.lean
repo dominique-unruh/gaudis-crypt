@@ -107,7 +107,8 @@ elab_rules : tactic
 
 /-- **EC's `byphoare (: P ==> _)`**: `byphoare` (`Logic/PrTactics.lean`) with the precondition
 `P` of the judgment, written as in `phoare[ M : P ==> Q ]`, instead of `arg = a ∧ glob = m`; the
-side condition `P` at the run's arguments and memory is tried as `byphoare`'s are. -/
+side condition `P` at the run's arguments and memory is tried as `byphoare`'s are.  `P` may be
+`_` (EC's `byphoare (: _ ==> _)`): `True`. -/
 syntax "byphoare" " (" ": " term " ==> " "_" ")" : tactic
 
 elab_rules : tactic
@@ -120,6 +121,8 @@ elab_rules : tactic
       | ``GE.ge, some Pr, _ => pure (``Procedure.le_toReal_Pr_of_phoareProc, Pr, r)
       | _, _, _ => throwError "byphoare: expected `Pr[ … ] ≤ x`, `= x` or `≥ x`"
     if rel == ``GE.ge then evalTactic (← `(tactic| show _ ≤ _))
+    -- EC's `byphoare (: _ ==> _)`: no precondition
+    let P ← if P.raw.isOfKind ``Lean.Parser.Term.hole then `(True) else pure P
     let spec ← elabSpec (← `(phoare[ $(← Term.exprToSyntax Pr[1]!) : $P ==> True ] = 0))
     let preT ← Term.exprToSyntax (spec.getArg! 1)
     let sigT ← Term.exprToSyntax Pr[0]!
