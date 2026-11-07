@@ -151,6 +151,27 @@ Lean: `GaudisCrypt/Examples/SHA3/Indifferentiability.lean`, namespace `GaudisCry
 | 60 | module | `GReal` |  | `GReal` | def |
 | 61 | module | `GIdeal` |  | `GIdeal` | def |
 
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/Indifferentiability.lean`, namespace `GaudisCrypt.SHA3.Pilot.Indifferentiability`.
+
+The EC-fidelity port.  The types are the `outParam`s of the field-less class `Params` (a clone is
+`clone … Indifferentiability as Indiff0 with type p <- …`); EC's subtyping `PRIMITIVE <:
+DPRIMITIVE`, `FUNCTIONALITY <: DFUNCTIONALITY` is `module_subtype`; paths `D(F, P)` as in EC.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 2 | type | `p.` |  | `p` (`outParam` of `Params`) | def |
+| 4 | module type | `PRIMITIVE` |  | `PRIMITIVE` | def |
+| 10 | module type | `DPRIMITIVE` |  | `DPRIMITIVE` | def |
+| 16 | type | `f_in` |  | `f_in`, `f_out` (`outParam`s of `Params`) | def |
+| 18 | module type | `FUNCTIONALITY` |  | `FUNCTIONALITY` | def |
+| 23 | module type | `DFUNCTIONALITY` |  | `DFUNCTIONALITY` | def |
+| 33 | module type | `CONSTRUCTION` |  | `CONSTRUCTION` | def |
+| 38 | module type | `SIMULATOR` |  | `SIMULATOR` | def |
+| 44 | module type | `DISTINGUISHER` |  | `DISTINGUISHER` | def |
+| 48 | module | `Indif` |  | `Indif` | def |
+| 60 | module | `GReal` |  | `GReal` | def |
+| 61 | module | `GIdeal` |  | `GIdeal` | def |
+
 ## `proof/OptionIndifferentiability.eca`
 
 Lean: `GaudisCrypt/Examples/SHA3/OptionIndifferentiability.lean`, namespace `GaudisCrypt.SHA3.OptionIndifferentiability`.
@@ -161,6 +182,25 @@ Lean: `GaudisCrypt/Examples/SHA3/OptionIndifferentiability.lean`, namespace `Gau
 | 4 | module type | `OPRIMITIVE` |  | `OPRIMITIVE` | def |
 | 10 | module type | `ODPRIMITIVE` |  | `ODPRIMITIVE` | def |
 | 16 | type | `f_in` |  | `f_in` | def |
+| 18 | module type | `OFUNCTIONALITY` |  | `OFUNCTIONALITY` | def |
+| 23 | module type | `ODFUNCTIONALITY` |  | `ODFUNCTIONALITY` | def |
+| 33 | module type | `OCONSTRUCTION` |  | `OCONSTRUCTION` | def |
+| 38 | module type | `OSIMULATOR` |  | `OSIMULATOR` | def |
+| 44 | module type | `ODISTINGUISHER` |  | `ODISTINGUISHER` | def |
+| 48 | module | `OIndif` |  | `OIndif` | def |
+| 60 | module | `OGReal` |  | `OGReal` | def |
+| 61 | module | `OGIdeal` |  | `OGIdeal` | def |
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/OptionIndifferentiability.lean`, namespace `GaudisCrypt.SHA3.Pilot.OptionIndifferentiability`.
+
+The EC-fidelity port, as `Pilot/Indifferentiability.lean`'s.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 2 | type | `p.` |  | `p` (`outParam` of `Params`) | def |
+| 4 | module type | `OPRIMITIVE` |  | `OPRIMITIVE` | def |
+| 10 | module type | `ODPRIMITIVE` |  | `ODPRIMITIVE` | def |
+| 16 | type | `f_in` |  | `f_in`, `f_out` (`outParam`s of `Params`) | def |
 | 18 | module type | `OFUNCTIONALITY` |  | `OFUNCTIONALITY` | def |
 | 23 | module type | `ODFUNCTIONALITY` |  | `ODFUNCTIONALITY` | def |
 | 33 | module type | `OCONSTRUCTION` |  | `OCONSTRUCTION` | def |
@@ -185,6 +225,24 @@ Lean: `GaudisCrypt/Examples/SHA3/IRO.lean`, namespace `GaudisCrypt.SHA3.IRO`.
 | 32 | lemma | `prefix_closed_equiv` |  | `prefix_closed_equiv` | done |
 | 37 | module | `IRO` |  | `IRO` | def |
 | 73 | module | `IRO'` |  | `IRO'` | def |
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/IRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.IRO`.
+
+The EC-fidelity port.  The operators are the class `Params` (types `outParam`s); module variables
+`module_var IRO.mp`, `IRO'.mp`, `IRO'.visible`; calls `IRO.fill_in` as in EC.  `f`'s `(x, n)` is
+one pair (the type of a functionality's `f` where `IRO` is one).
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 8 | type | `to`, `from` |  | `«to»`, `«from»` (`outParam`s of `Params`) | def |
+| 10 | op | `valid` |  | `valid` (field of `Params`) | def |
+| 11 | op | `dto` |  | `dto` (field of `Params`) | def |
+| 13 | module type | `IRO` |  | `IRO_T` | exc (E3) |
+| 20 | pred | `prefix_closed` |  | `prefix_closed` | def |
+| 26 | pred | `prefix_closed'` |  | `prefix_closed'` | def |
+| 32 | lemma | `prefix_closed_equiv` |  | `prefix_closed_equiv` (EC's `smt()`: `grind`) | done |
+| 37 | module | `IRO` |  | `IRO` (variable `module_var IRO.mp`) | def |
+| 73 | module | `IRO'` |  | `IRO'` (variables `module_var IRO'.mp`, `IRO'.visible`) | def |
 
 ## `proof/smart_counter/SLCommon.ec`
 
@@ -789,6 +847,35 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureHash.lean`, namespace `GaudisCrypt.SHA3.S
 | 29 | op | `increase_counter` |  | `increase_counter` (section variable) | def |
 | 30 | axiom | `increase_counter_spec` |  | `Axioms.increase_counter_spec` | def |
 | 49 | module | `Bounder` |  | `Bounder` (variable: lens parameter `Bounder_bounder`) | def |
+| 56 | module | `FBounder` |  | `FBounder` | def |
+| 72 | module | `PBounder` |  | `PBounder` | def |
+| 95 | module type | `AdvPreimage` |  | `AdvPreimage` | def |
+| 99 | module | `Preimage` |  | `Preimage` | def |
+| 113 | module type | `AdvSecondPreimage` |  | `AdvSecondPreimage` | def |
+| 117 | module | `SecondPreimage` |  | `SecondPreimage` | def |
+| 131 | module type | `AdvCollision` |  | `AdvCollision` | def |
+| 135 | module | `Collision` |  | `Collision` | def |
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureHash.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureHash`.
+
+The EC-fidelity port.  The operators and axioms are the class `Params` (types `outParam`s);
+`clone import OptionIndifferentiability as OIndif with …` is `clone`; `global_var
+Bounder.bounder`; paths `A(FBounder(F(P)), PBounder(P))` as in EC.  The three games' `module`
+commands take a 400k budget (the generated `apply_simp` proof normalises the adversary's callee).
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 4 | type | `from` |  | `«from»`, `«to»`, `block` (`outParam`s of `Params`) | def |
+| 7 | clone import | `OptionIndifferentiability` |  | `clone import … OptionIndifferentiability as OIndif with …` | def |
+| 14 | op | `sampleto` |  | `sampleto` (field of `Params`) | def |
+| 16 | op | `bound` |  | `bound` (field of `Params`) | def |
+| 17 | axiom | `bound_ge0` |  | `bound_ge0` (field of `Params`) | def |
+| 19 | axiom | `sampleto_ll` |  | `sampleto_ll` (field of `Params`) | def |
+| 20 | axiom | `sampleto_full` |  | `sampleto_full` (field of `Params`) | def |
+| 21 | axiom | `sampleto_fu` |  | `sampleto_fu` (field of `Params`) | def |
+| 29 | op | `increase_counter` |  | `increase_counter` (field of `Params`) | def |
+| 30 | axiom | `increase_counter_spec` |  | `increase_counter_spec` (field of `Params`) | def |
+| 49 | module | `Bounder` |  | `Bounder` (variable `global_var Bounder.bounder`) | def |
 | 56 | module | `FBounder` |  | `FBounder` | def |
 | 72 | module | `PBounder` |  | `PBounder` | def |
 | 95 | module type | `AdvPreimage` |  | `AdvPreimage` | def |

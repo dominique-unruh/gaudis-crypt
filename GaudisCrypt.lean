@@ -198,6 +198,8 @@ import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
 import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
+import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
+import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl

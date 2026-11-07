@@ -444,6 +444,17 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   but after `phoare_auto` the goal is already the split.  Budgets: second preimage 2M (five
   `sim`s; the framed third one alone needs 200k–600k, 1.6 s), collision 1M.
 
+* The leaves (2026-11-07): `Pilot/Indifferentiability.lean` (with `IndifRO_is_secure`),
+  `Pilot/OptionIndifferentiability.lean`, `Pilot/SecureHash.lean`, `Pilot/IRO.lean` —
+  declarations only (and `IRO`'s `prefix_closed_equiv`, EC's `smt()` a `grind`).  `SecureHash`'s
+  three games take a 400k budget: the `module` command's generated `apply_simp` proof normalises
+  the adversary's callee `A(FBounder(F(P)), PBounder(P))`, whose `module_subtype` coercions
+  duplicate their arguments (~160k of the ~240k; `F(P).init` alone ~37k) — a cost in
+  `Syntax/ModuleSyntax.lean` (`procApply`) to raise with Dominique.  `Common.lean` is not
+  re-ported: no judgments, its theory already the class `Params`; its hand-built clones of
+  `BitWord`/`PRP`/`RP` wait for `Lib/EC`'s theories to follow the `Params` convention (and for
+  `clone`'s `rename`).
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;
