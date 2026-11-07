@@ -402,3 +402,51 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   headlines `den` (no longer `clean`): the expectation steps of EC's `rnd (pred1 v)` and `hoare`
   bullets (`expected_mono'`, `SubProbability.expected_eq_zero_of_support`) were in the auxiliary
   lemmas and are now in the proofs; B8 is what removes them.
+
+## Phase 3: migrating the codebase (agreed 2026-11-06)
+
+**Strategy.** A file is switched only by its fidelity port: the port lives in `Pilot/` next to
+the old file, the dependents move to it one by one, and the old file is retired when its last
+dependent is ported.  Bottom-up along the SHA-3 import graph; the cross-cutting issues first
+(clones, module-variable freshness, disjointness cost); each file gated by `ec_fidelity.py`.
+
+### Cross-cutting
+
+* **Clones** (`Syntax/Clone.lean`, `Syntax/CloneRegistry.lean`): `clone [import] T as C with type
+  a <- τ, op o <- e` then `proof * by tac`; a theory is a namespace with `class T.Params`.  The
+  clone is the instance `C.params` plus reducible aliases `C.x`; the registry lets `globalVarsOf`,
+  `fp_disjoint` and the frames (`sim /`, `equiv_call (_ : ={…})`) read clone names.
+* **Disjointness cost**: `global_var`/`module_var` emit their key equation as a theorem
+  (`variable_name_key_theorem`, no section variables).  Three disjointness queries went from about
+  2.2 s to 156 ms, kernel 0.8 s to 0.6 ms; pilot budgets went down (SecureRO's second preimage
+  4M to 1M).  The one change in `Language/` (`Variables.lean`), to review.
+* **`Module.Declared A S`** without `outParam`, weakened by `Footprint.JoinLe` (an adversary
+  declared against more is one against less).
+
+### EC's tactics added (all judgments where EC has them)
+
+`sp`, `if`, `rcondt`/`rcondf` (`Logic/ECSp.lean`, `Logic/ECIf.lean`); `hoare`, `conseq`,
+`exists*` (`Logic/ECConseq.lean`); `seq`'s `_` bound; one-sided `call` with a frame
+(`equiv_call{i} H / x, glob A`, `Logic/ECCallOneSided.lean`); `call (_ : ={glob A, …})` on an
+abstract module (`Logic/ECCallAbstract.lean`); framed `call (: P ==> Q)` in `phoare`
+(`Logic/ECCallFrame.lean`); `hoare_call (: inv)` with EC's goal order (oracle first); `sim n₁ n₂`;
+the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argument types.
+
+### Ported
+
+* `Pilot/IndifRO_is_secure.lean` (2026-11-06): 3/3 statements in surface syntax, 3/3 proofs
+  clean, no auxiliary theorems.
+* `Pilot/SecureORO.lean` (2026-11-07): all three lemmas, EC's proof steps (the `have->:` chain,
+  `byphoare`, `seq 1`, `call (: inv)`, `fel`), 3/3 and 3/3 clean, one auxiliary theorem (the
+  clone's `RO_LRO_D`).  Deviation: second preimage's `fel` takes `bad` without its
+  `mess1 \in RO.m` (it is in the invariant; our `fel` wants the event to be `bad`).  EC's last
+  goals' `rcondt`/`swap`/`case` are the conditionals split by `split_ifs`: the tactics exist,
+  but after `phoare_auto` the goal is already the split.  Budgets: second preimage 2M (five
+  `sim`s; the framed third one alone needs 200k–600k, 1.6 s), collision 1M.
+
+### What retiring the old files waits for
+
+The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;
+those by `SHA3OSecurity.lean` (7791 lines) and `SHA3Security.lean` (2603 lines), which use the
+old files' lens parameters (`RO_m`, `Bounder_bounder`, …) about 120 times each.  Retiring the
+three old files is porting those two.

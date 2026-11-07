@@ -922,6 +922,35 @@ Lean: `GaudisCrypt/Examples/SHA3/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Se
 | 387 | op | `collision` | section Collision. | `collision` | def |
 | 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done (exc E8) |
 
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureORO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureORO`.
+
+The EC-fidelity port, as the pilot `SecureRO`: the operators and axioms are the class `Params`;
+`clone import PROM.FullRO as RO` the clone's `RO.m`, `FRO.m`, `RO`, `RO.LRO`, `FRO`, `RO_LRO_D`;
+module variables `global_var Bounder.bounder`, `module_var Preimage2.hash`,
+`module_var SecondPreimage2.m2`, `module_var D1.m1` (E6 retired); `declare module A <: … {-…}`
+with the local modules' variables in the restriction (EC's freshness).  Each lemma is one proof,
+as EC's: EC's `call (_ : ={glob A, …})` is `equiv_call (_ : ={…})`, `fel` the tactic `fel`, EC's
+last goals' `rcondt`/`swap`/`case` the conditionals split by `split_ifs`.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 7 | type | `from` |  | `«from»`, `«to»` (`outParam`s of `Params`) | def |
+| 9 | op | `sampleto` |  | `Params.sampleto` (exported, like the other operators and axioms) | def |
+| 18 | clone import | `PROM.FullRO as RO` |  | `RO`, `RO.LRO`, `FRO`, `RO.m`, `FRO.m`, `RO_LRO_D` | def |
+| 29 | module type | `RF` |  | `RF_T` (E3) | def |
+| 35 | module | `RF` |  | `RF` (aliases call-wrapped, E5) | def |
+| 45 | module | `Bounder` |  | `Bounder` (`sample` call-wrapped, E5; variable `global_var Bounder.bounder`) | def |
+| 63 | module type | `Oracle` |  | `Oracle` (with `Oracle.holes`, `Oracle.ext`) | def |
+| 71 | module | `Preimage` |  | `Preimage` | def |
+| 84 | declare module | `A` | section Preimage. | `declare module A <: AdvPreimage {-RO, -Preimage, -Preimage.Preimage2}` | def |
+| 106 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | done |
+| 189 | module | `SecondPreimage` |  | `SecondPreimage` | def |
+| 203 | declare module | `A` | section SecondPreimage. | `declare module A <: AdvSecondPreimage {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}` | def |
+| 247 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` (`fel`'s `bad` without `mess1 \in RO.m`, in the invariant) | done |
+| 353 | module | `Collision` |  | `Collision` | def |
+| 366 | declare module | `A` | section Collision. | `declare module A <: AdvCollision {-RO, -FRO, -Bounder}` | def |
+| 390 | lemma | `RO_is_collision_resistant` | section Collision. | `RO_is_collision_resistant` | done |
+
 ## `proof/IndifRO_is_secure.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt.SHA3.IndifRO_is_secure`.
