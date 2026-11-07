@@ -2,6 +2,7 @@ import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.FootprintSolver
+import GaudisCrypt.Logic.Granular
 
 /-!
 # Swapping statements (EC's `swap`)
@@ -125,6 +126,23 @@ theorem call_assign_global {α : Type} (X : Lens α VariableAssignment)
     Stmt.CommutesWith (Stmt.call y p args) u :=
   call_footprint hp (f := fun σ => X.set (e.get σ))
     (fun σ => hX (X.diracKer_liftFunction_mem_footprint (Function.const _ (e.get σ)))) hu ha hy
+
+/-- A call commutes with an update `u` that keeps the globals and the arguments, if the result's
+write commutes with `u` whenever a lens `K` outside the callee's footprint has kept its value
+(EC's `swap` of a call past `x <- e`, `e` reading a global the callee cannot touch: the callee's
+run keeps `K`, `Procedure.satisfies_frame`). -/
+theorem call_frame {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    {R : Footprint VariableAssignment} (hp : ∀ a, (procedureDenotation p a).inFootprint R)
+    {β : Type} (K : Lens β VariableAssignment) (hK : K.footprint ≤ Rᶜ)
+    (hg : ∀ σ, (u σ).globals = σ.globals) (ha : ∀ σ, args.get (u σ) = args.get σ)
+    (hy : ∀ v gl σ, K.get gl = K.get σ.globals →
+      y.set v (ProgramState.globalL.set gl (u σ)) = u (y.set v (ProgramState.globalL.set gl σ))) :
+    Stmt.CommutesWith (Stmt.call y p args) u := fun g σ => by
+  simp only [Stmt.ewp_call, ha, hg, Procedure.ewp, ProgramDenotation.wp]
+  exact SubProbability.expected_congr_satisfies
+    (Procedure.satisfies_frame hp K hK (args.get σ) σ.globals)
+    fun r hr => by rw [hy r.1 r.2 σ hr]
 
 end Stmt.CommutesWith
 
@@ -294,11 +312,16 @@ def lensOfSetter? (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
 writes to locals pushed out past resets. -/
 def discharge (ty : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
   let m ← mkFreshExprMVar ty
-  let (_, g) ← m.mvarId!.intros
+  let (hs, g) ← m.mvarId!.intros
   let mut thms : SimpTheorems := {}
+  -- the equations it assumes (a frame's `K.get gl = K.get σ.globals`), rewritten with
+  for h in hs do
+    let hty ← g.withContext do instantiateMVars (← h.getType)
+    if hty.isAppOfArity ``Eq 3 then
+      thms ← g.withContext do thms.add (.fvar h) #[] (mkFVar h)
   for n in HoareWp.simpReadsDecls ++
       [``resetSetter_set_varLens, ``resetSetter_set_localVarLens, ``resetSetter_comm,
-        ``Lens.Disjoint.pair_left,
+        ``Setter.throwaway, ``Lens.Disjoint.pair_left,
         ``Lens.Disjoint.pair_right] do
     if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
     else thms ← thms.addDeclToUnfold n
@@ -393,6 +416,16 @@ def callGlobal (s u X e : Lean.Expr) : MetaM Lean.Expr := do
     unless ← isDefEq m pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
   instantiateMVars (mkAppN c ms)
 
+/-- A global variable that the getter `e` reads, if any: the first closed application of a
+`global_var` or `module_var` (a constant with its key theorem `x.key_eq`), outermost first (the
+variable applied to all its arguments). -/
+def globalLensIn? (e : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let env ← getEnv
+  return e.find? fun x =>
+    !x.hasLooseBVars && match x.getAppFn.constName? with
+      | some c => env.contains (c ++ `key_eq)
+      | none => false
+
 /-- A proof that the statement `s` commutes with the update `u` (`Stmt.CommutesWith s u`), built
 from its syntax; `X?` is the lens `u` writes through, if any, and `e?` the value written, if `u`
 is an assignment's update. -/
@@ -415,8 +448,37 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Le
         catch err =>
           st.restore
           let (some X, some e) := (X?, e?) | throw err
-          unless X.isAppOf ``Lens.intoGlobal do throw err
-          return ← callGlobal s u X.appArg! e
+          if X.isAppOf ``Lens.intoGlobal then return ← callGlobal s u X.appArg! e
+          -- an assignment to a local whose value reads one global, outside the callee's footprint
+          let some K ← globalLensIn? (← instantiateMVars e)
+            | throwError "{err.toMessageData}\n(no global read in{indentExpr e})"
+          let c ← mkConstWithFreshMVarLevels ``Stmt.CommutesWith.call_frame
+          let ty' ← inferType c
+          let st' ← saveState
+          try
+            let (ms, _, concl) ← forallMetaTelescope ty'
+            let some iK := ty'.getForallBinderNames.findIdx? (· == `K)
+              | throwError "stmt_swap: `call_frame` has no `K`"
+            unless ← isDefEq ms[iK]! K do throwError "stmt_swap: the frame{indentExpr K}"
+            unless ← isDefEq concl ty do throwError "stmt_swap: `call_frame` does not apply"
+            for mv in ms do
+              if ← mv.mvarId!.isAssigned then continue
+              let t ← instantiateMVars (← inferType mv)
+              -- data (the footprint `R`, …) is found by unification with the premises
+              unless ← isProp t do continue
+              let isFp ← forallTelescope t fun _ b =>
+                pure (b.isAppOf ``ProgramDenotation.inFootprint)
+              let pf ← if isFp then calleeFootprint t
+                else if t.isAppOfArity ``LE.le 4 then do
+                  let gm ← mkFreshExprSyntheticOpaqueMVar t
+                  FootprintSolver.solve gm.mvarId!
+                  instantiateMVars gm
+                else discharge t none
+              unless ← isDefEq mv pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
+            return ← instantiateMVars (mkAppN c ms)
+          catch e₂ =>
+            st'.restore
+            throwError "{err.toMessageData}\n(with the callee's frame: {e₂.toMessageData})"
     | _ => throwError "stmt_swap: no commutation rule for{indentExpr s}"
   applyRule lem ty X? fun t u' => commutesOf t u' X? e?
 

@@ -202,4 +202,118 @@ end
 
 end Collision
 
+module_var DPre.h : f_out
+
+module DPre (A : AdvPreimage) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
+  proc distinguish () : Bool {
+    var b : Bool;
+    b <- call Preimage(A, FInit(F)).main ($DPre.h);
+    return $b
+  };
+}
+
+/-! ### The section `Preimage` -/
+
+section Preimage
+
+declare module A <: AdvPreimage {-Bounder, -SRO.RO, -SRO.FRO, -DPre}
+
+section
+declare module «C» <: CONSTRUCTION {-A, -Bounder, -DPre}
+declare module P <: PRIMITIVE {-«C», -A, -Bounder, -DPre}
+
+set_option maxHeartbeats 2000000 in -- one declaration: EC's two `have`s, their `byequiv`s
+/-- EC's `preimage_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder, -DPre})
+(P <: PRIMITIVE{-C, -A, -Bounder, -DPre}) &m hash`. -/
+theorem preimage_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignment)
+    (hash : f_out) :
+    DPre.h.get m = hash →
+    (∃ (S <: SIMULATOR {-Bounder, -A, -DPre}),
+      (∀ (F <: FUNCTIONALITY), islossless F.f → islossless S(F).init) ∧
+      |Pr[ GReal(«C», P, DPre(A)).main () @ &m : §res ] -
+        Pr[ GIdeal(RO, S, DPre(A)).main () @ &m : §res ]| ≤ bound) →
+    Pr[ Preimage(A, FM(«C», P)).main (hash) @ &m : §res ] ≤
+      bound + ((limit + 1 : ℤ) : ℝ) * mu1 sampleto hash := by
+  rintro init_hash ⟨S, _, S_ll, Hbound⟩
+  calc Pr[ Preimage(A, FM(«C», P)).main (hash) @ &m : §res ]
+      = Pr[ GReal(«C», P, DPre(A)).main () @ &m : §res ] := by
+        byequiv; equiv_proc; stmt_inline*; stmt_swap{2} [1..2] 4; sim
+    _ ≤ _ := by
+      have : Pr[ GIdeal(RO, S, DPre(A)).main () @ &m : §res ]
+          ≤ ((limit + 1 : ℤ) : ℝ) * mu1 sampleto hash := by
+        calc _ = Pr[ Preimage(A, SRO.RO).main (hash) @ &m : §res ] := by
+              byequiv; equiv_proc; stmt_inline*; sim
+              equiv_call (_ : ={glob A, Bounder.bounder, Counter.c, SRO.RO.m})
+              · equiv_proc; stmt_inline*; sim
+              · stmt_wp
+                equiv_call{1} (S_ll RO ?_) / glob A, DPre.h
+                · sim
+                · phoare_proc; phoare_auto
+                  exact fun _ => (is_lossless_iff_expected _).mp sampleto_ll
+
+          _ ≤ _ := RO_is_preimage_resistant A m hash
+      linarith [(abs_le.mp Hbound).1, (abs_le.mp Hbound).2]
+
+end
+
+end Preimage
+
+module_var D2Pre.m2 : f_in
+
+module D2Pre (A : AdvSecondPreimage) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
+  proc distinguish () : Bool {
+    var b : Bool;
+    b <- call SecondPreimage(A, FInit(F)).main ($D2Pre.m2);
+    return $b
+  };
+}
+
+/-! ### The section `SecondPreimage` -/
+
+section SecondPreimage
+
+-- EC: `{-Bounder, -SRO.RO.RO, -SRO.RO.FRO, -D2Pre}`; `SRO`'s section-local modules' variables are
+-- fresh in EC, here a restriction (as in `SecureRO`'s section)
+declare module A <: AdvSecondPreimage
+  {-Bounder, -SRO.RO, -SRO.FRO, -D2Pre, -SRO.SecondPreimage.SecondPreimage2, -SRO.SecondPreimage.D1}
+
+section
+declare module «C» <: CONSTRUCTION {-A, -Bounder, -D2Pre}
+declare module P <: PRIMITIVE {-«C», -A, -Bounder, -D2Pre}
+
+set_option maxHeartbeats 2000000 in -- one declaration: EC's two `have`s, their `byequiv`s
+/-- EC's `second_preimage_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder, -D2Pre})
+(P <: PRIMITIVE{-C, -A, -Bounder, -D2Pre}) &m mess`. -/
+theorem second_preimage_resistant_if_indifferentiable [Countable f_in] [Countable f_out]
+    (m : VariableAssignment) (mess : f_in) :
+    D2Pre.m2.get m = mess →
+    (∃ (S <: SIMULATOR {-Bounder, -A, -D2Pre}),
+      (∀ (F <: FUNCTIONALITY), islossless F.f → islossless S(F).init) ∧
+      |Pr[ GReal(«C», P, D2Pre(A)).main () @ &m : §res ] -
+        Pr[ GIdeal(RO, S, D2Pre(A)).main () @ &m : §res ]| ≤ bound) →
+    Pr[ SecondPreimage(A, FM(«C», P)).main (mess) @ &m : §res ] ≤
+      bound + ((limit + 1 : ℤ) : ℝ) * mu1 sampleto default := by
+  rintro init_mess ⟨S, _, S_ll, Hbound⟩
+  calc Pr[ SecondPreimage(A, FM(«C», P)).main (mess) @ &m : §res ]
+      = Pr[ GReal(«C», P, D2Pre(A)).main () @ &m : §res ] := by
+        byequiv; equiv_proc; stmt_inline*; stmt_swap{2} [1..2] 3; sim
+    _ ≤ _ := by
+      have : Pr[ GIdeal(RO, S, D2Pre(A)).main () @ &m : §res ]
+          ≤ ((limit + 1 : ℤ) : ℝ) * mu1 sampleto default := by
+        calc _ = Pr[ SecondPreimage(A, SRO.RO).main (mess) @ &m : §res ] := by
+              byequiv; equiv_proc; stmt_inline*; sim
+              equiv_call (_ : ={glob A, Bounder.bounder, Counter.c, SRO.RO.m})
+              · equiv_proc; stmt_inline*; sim
+              · stmt_wp
+                equiv_call{1} (S_ll RO ?_) / glob A, D2Pre.m2
+                · sim
+                · phoare_proc; phoare_auto
+                  exact fun _ => (is_lossless_iff_expected _).mp sampleto_ll
+          _ ≤ _ := RO_is_second_preimage_resistant A m mess
+      linarith [(abs_le.mp Hbound).1, (abs_le.mp Hbound).2]
+
+end
+
+end SecondPreimage
+
 end GaudisCrypt.SHA3.Pilot.IndifRO_is_secure

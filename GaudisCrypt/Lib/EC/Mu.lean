@@ -11,14 +11,14 @@ is the expectation of an indicator.  The facts its proofs use:
 
 | EasyCrypt | here |
 |---|---|
-| `mu_le` | `SubProbability.expected_mono`, `indicatorE_le_of_imp` |
+| `mu_le` | `mu_le` (expectations), `indicatorE_le_of_imp` (indicators) |
 | `mu_mem_le_mu1` (a uniform `d`) | `FMap.mu_rng_le`, at the values of a map |
 -/
 
 namespace GaudisCrypt
 
-/-- `mu_le` on expectations: a pointwise smaller function has a smaller expectation. -/
-theorem SubProbability.expected_mono {γ : Type} {μ : SubProbability γ} {f g : γ → ENNReal}
+/-- EC's `mu_le` on expectations: a pointwise smaller function has a smaller expectation. -/
+theorem EC.mu_le {γ : Type} {μ : SubProbability γ} {f g : γ → ENNReal}
     (h : ∀ a, f a ≤ g a) : μ.expected f ≤ μ.expected g := by
   rw [SubProbability.expected_eq_tsum, SubProbability.expected_eq_tsum]
   exact ENNReal.tsum_le_tsum fun a => by gcongr; exact h a

@@ -962,6 +962,34 @@ Lean: `GaudisCrypt/Examples/SHA3/IndifRO_is_secure.lean`, namespace `GaudisCrypt
 | 187 | declare axiom | `D_ll` | section SecondPreimage. | `D_ll` (hypothesis `_D_ll`) | def |
 | 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | done (exc E6, E7, E8) |
 
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/IndifRO_is_secure.lean`, namespace `GaudisCrypt.SHA3.Pilot.IndifRO_is_secure`.
+
+The EC-fidelity port.  The operators and axioms are the class `Params`;
+EC's two `clone import`s are `clone` (`Syntax/Clone.lean`): `SRO.params`, `Indiff0.params` and
+the aliases `SRO.*`, `Indiff0.*`; module variables `module_var DPre.h`, `module_var D2Pre.m2`;
+EC's lemma binders `(C <: CONSTRUCTION{…})` a `declare module` around the lemma, `exists (S <:
+SIMULATOR{…})` the binder of `Logic/ECModuleBinders.lean`.  `declare axiom D_ll` is unused in
+EC's proofs and left out (a stronger statement).  Each lemma is one proof, as EC's.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 27 | clone import | `SecureRO` |  | `clone import … SecureRO as SRO with …` | def |
+| 40 | clone import | `Indifferentiability` |  | `clone import … Indifferentiability as Indiff0 with …` | def |
+| 45 | module | `RO` |  | `RO` | def |
+| 50 | module | `FInit` |  | `FInit` (at `RO_T`, its unused `f` left out; aliases call-wrapped, E5) | def |
+| 59 | module | `GetF` |  | `GetF` | def |
+| 64 | module | `SInit` |  | `SInit` | def |
+| 75 | module | `FM` |  | `FM` (at `RO_T`, as `FInit`) | def |
+| 88 | module | `DColl` |  | `DColl` | def |
+| 94 | declare module | `A` | section Collision. | `declare module A <: AdvCollision {-Bounder, -SRO.RO, -SRO.FRO}` | def |
+| 99 | lemma | `coll_resistant_if_indifferentiable` | section Collision. | `coll_resistant_if_indifferentiable` | done |
+| 128 | module | `DPre` |  | `DPre` (variable `module_var DPre.h`) | def |
+| 139 | declare module | `A` | section Preimage. | `declare module A <: AdvPreimage {-Bounder, -SRO.RO, -SRO.FRO, -DPre}` | def |
+| 144 | lemma | `preimage_resistant_if_indifferentiable` | section Preimage. | `preimage_resistant_if_indifferentiable` | done |
+| 174 | module | `D2Pre` |  | `D2Pre` (variable `module_var D2Pre.m2`) | def |
+| 185 | declare module | `A` | section SecondPreimage. | `declare module A <: AdvSecondPreimage {…, -SRO.SecondPreimage.SecondPreimage2, -SRO.SecondPreimage.D1}` (`SRO`'s local modules: EC's freshness) | def |
+| 190 | lemma | `second_preimage_resistant_if_indifferentiable` | section SecondPreimage. | `second_preimage_resistant_if_indifferentiable` | done |
+
 ## `proof/SHA3Security.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3Security.lean`, namespace `GaudisCrypt.SHA3.SHA3Security`.

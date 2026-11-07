@@ -741,7 +741,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 · -- a fresh key: a collision only if its value is already in `RO.m` (EC's `mu_mem`)
                   have hx' : ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
                     simpa using hx
-                  refine (SubProbability.expected_mono fun a => indicatorE_le_of_imp
+                  refine (mu_le fun a => indicatorE_le_of_imp
                     (FMap.rng_of_collision_set hx' hc)).trans ?_
                   refine (FMap.mu_rng_le sampleto_fu _).trans ?_
                   gcongr

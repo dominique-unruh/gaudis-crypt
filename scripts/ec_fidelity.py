@@ -241,13 +241,17 @@ def main():
             for it in r["items"].get(args.list, []):
                 print(it)
         return
-    w = max(len(os.path.basename(r["file"])) for r in report)
+    # the file, from `Examples/SHA3/` on where it lies there (`Pilot/SecureRO.lean`)
+    def short(f):
+        k = f.find("Examples/SHA3/")
+        return f[k + len("Examples/SHA3/"):] if k >= 0 else os.path.basename(f)
+    w = max(len(short(r["file"])) for r in report)
     print(f"{'file':{w}s} " + " ".join(f"{h:>5s}" for _, h in COLUMNS))
     tot = Counter()
     for r in report:
         c = r["counts"]
         tot.update(c)
-        print(f"{os.path.basename(r['file']):{w}s} " +
+        print(f"{short(r['file']):{w}s} " +
               " ".join(f"{c.get(k, 0):5d}" for k, _ in COLUMNS))
     print(f"{'TOTAL':{w}s} " + " ".join(f"{tot.get(k, 0):5d}" for k, _ in COLUMNS))
     print()

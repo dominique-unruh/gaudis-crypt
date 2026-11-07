@@ -187,6 +187,11 @@ def lastKind (s : Lean.Expr) : MetaM Last := do
 /-- Close `∀ …, A → B` (what `equiv_skip` leaves) by `simp_all`, if it can. -/
 def closeImp (g : MVarId) : TacticM (List MVarId) := do
   let s ← saveState
+  -- the reads through writes to the state (`HoareWp.simpReadsDecls`: locals past resets and
+  -- writes to globals, …), for the local copies inlining leaves (`hash0 <- §DPre.h`)
+  let reads : Array Ident := (HoareWp.simpReadsDecls.map mkIdent).toArray ++
+    #[mkIdent ``Setter.throwaway, mkIdent ``lensWriteNorm]
+  let readsTac ← `(tactic| simp_all (config := { decide := true }) [$[$reads:ident],*])
   try
     let gs ← evalTacticAt (← `(tactic| first
       | (intros; subst_vars; simp_all; done)
@@ -202,6 +207,7 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
          subst_vars
          split_ifs <;> simp_all [Lens.set_get, Lens.get_of_disjoint_set, lensWriteNorm]; done)
       | (intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]; done)
+      | (intros; subst_vars; $readsTac:tactic; done)
       | (intros
          -- states agreeing on `glob A` and some variables (EC's `={glob A, x}`, the invariant
          -- `globInvF` of an abstract call): `glob A` past the writes outside it (`fp_disjoint`),

@@ -149,14 +149,20 @@ elab "byequiv" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
           let m₁ ← Term.exprToSyntax L[3]!
           let a₂ ← Term.exprToSyntax R[2]!
           let m₂ ← Term.exprToSyntax R[3]!
-          `(fun x₁ g₁ x₂ g₂ => x₁ = $a₁ ∧ g₁ = $m₁ ∧ x₂ = $a₂ ∧ g₂ = $m₂)
+          -- the arguments' types (different signatures: they are not known before the rule's)
+          let T₁ ← Term.exprToSyntax (← inferType L[2]!)
+          let T₂ ← Term.exprToSyntax (← inferType R[2]!)
+          `(fun (x₁ : $T₁) g₁ (x₂ : $T₂) g₂ => x₁ = $a₁ ∧ g₁ = $m₁ ∧ x₂ = $a₂ ∧ g₂ = $m₂)
       let post ← if rel == ``Eq then
           `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ ↔ $E₂ r₂ g₂))
         else `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ → $E₂ r₂ g₂))
       pure (← `(?judgment), some pre, some post)
   let ruleId := mkIdent rule
+  let sig₁ ← Term.exprToSyntax L[0]!
+  let sig₂ ← Term.exprToSyntax R[0]!
   let stx ← match preT?, postT? with
-    | some pre, some post => `(tactic| refine $ruleId (A := $pre) (B := $post) $hT ?hE ?hA)
+    | some pre, some post =>
+      `(tactic| refine $ruleId (sig₁ := $sig₁) (sig₂ := $sig₂) (A := $pre) (B := $post) $hT ?hE ?hA)
     | _, _ => `(tactic| refine $ruleId $hT ?hE ?hA)
   evalTactic stx
   let gs ← getGoals
