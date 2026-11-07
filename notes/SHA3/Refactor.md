@@ -384,6 +384,18 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   Measured: 3/3 statements in surface syntax, 3/3 proofs clean, no extra hypotheses, 2 auxiliary
   theorems (the clone's `RO_LRO_D`, and `SecondPreimage2_SecondPreimage3`, which waits for a
   `sim` with EC's `={glob A}` frame).
+* **`sim` with a frame**, `sim / x₁, …, xₙ` (EC's `sim` with `={glob A}`): the states equal except
+  on the listed globals; a call of the same module that does not touch them by
+  `prhlStmt_seq_call_outside` (after the call, the same globals on both sides but each side's own
+  frame), its disjointness by `fp_disjoint`; the closer reads `equal_outside` as an equation of
+  chains of writes (`Lens.equal_outside_iff_set`, `lensWriteNorm`), with `split_ifs` for the same
+  conditional writes on both sides.  `fp_disjoint`'s concrete-module bounds also take the globals
+  passed as lens arguments (`RO.asRO … RO.m`).  SecondPreimage's third and fifth `have`s are EC's
+  `byequiv; proc; inline*; sim / SecondPreimage2.m2, D1.m1`; `SecondPreimage2_SecondPreimage3`
+  (100 lines) is gone.  The headline needs `maxHeartbeats 4000000` (one declaration, two framed
+  `sim`s of about 20 s each).
+* Pilot: 896 lines (EC 525), one auxiliary theorem (the clone's `RO_LRO_D`, EC's `clone`), all
+  headlines clean, standard axioms only.
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three

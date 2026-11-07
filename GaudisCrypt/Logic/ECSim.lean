@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.Inline
+import GaudisCrypt.Logic.EqualOutside
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -43,7 +44,56 @@ theorem prhlStmt_seq_if_bwd (ht : prhlStmt Aₜ t₁ t₂ B) (he : prhlStmt Aₑ
   · exact prhlStmt_pre ht fun _ _ h => h.1.2.1 h.2
   · exact prhlStmt_pre he fun _ _ h => h.1.2.2 h.2
 
+/-- **Calls of the same procedure, the states equal outside `L`** (EC's `sim` with `={glob A}`):
+a module `M` that does not touch `L`, called on both sides with equal arguments from states equal
+outside `L`, returns the same result in states again equal outside `L`, each with its `L` as it
+was (`prhlProc_self_equal_outside_module`): after the call, the same globals `g` on both sides
+but for each side's own `L`. -/
+theorem prhlStmt_seq_call_outside {Ω : Type} (L : Lens Ω VariableAssignment)
+    {sig : ProcedureSignature} {M : Module.Proc sig} (hM : FVP.fvP M ≤ (L.footprint)ᶜ)
+    {x₁ x₂ : Setter sig.ret ProgramState} {e₁ e₂ : Getter sig.ParamType ProgramState}
+    (hpre : prhlStmt A s₁ s₂ fun σ₁ σ₂ => e₁.get σ₁ = e₂.get σ₂ ∧
+      L.equal_outside σ₁.globals σ₂.globals ∧
+      ∀ r g, B (x₁.set r (ProgramState.globalL.set (L.set (L.get σ₁.globals) g) σ₁))
+        (x₂.set r (ProgramState.globalL.set (L.set (L.get σ₂.globals) g) σ₂))) :
+    prhlStmt A (.seq s₁ (Stmt.call x₁ M.procedure e₁)) (.seq s₂ (Stmt.call x₂ M.procedure e₂)) B := by
+  refine prhlStmt_seq (B := fun σ₁ σ₂ => _) ?_ hpre
+  intro σ₁ σ₂ ⟨he, hL, hB⟩
+  obtain ⟨μ, hm1, hm2, hsat⟩ := prhlProc_self_equal_outside_module L M hM
+    (fun l₁ l₂ => l₁ = L.get σ₁.globals ∧ l₂ = L.get σ₂.globals)
+    (e₁.get σ₁) (e₂.get σ₂) σ₁.globals σ₂.globals ⟨he, hL, rfl, rfl⟩
+  refine ⟨μ >>= fun w => pure (((), x₁.set w.1.1 (ProgramState.globalL.set w.1.2 σ₁)),
+    ((), x₂.set w.2.1 (ProgramState.globalL.set w.2.2 σ₂))), ?_, ?_, ?_⟩
+  · refine SubProbability.marginal_fst_eq fun F => ?_
+    rw [SubProbability.expected_map, SubProbability.expected_fst_of_marginal hm1
+      (fun r => F ((), x₁.set r.1 (ProgramState.globalL.set r.2 σ₁))),
+      programDenotation_call_apply, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.marginal_snd_eq fun F => ?_
+    rw [SubProbability.expected_map, SubProbability.expected_snd_of_marginal hm2
+      (fun r => F ((), x₂.set r.1 (ProgramState.globalL.set r.2 σ₂))),
+      programDenotation_call_apply, SubProbability.expected_hbind]
+    simp only [expected_pure]
+  · refine SubProbability.satisfies_bind _ fun w hw => SubProbability.satisfies_pure _ _ ?_
+    obtain ⟨hr, ⟨x, hx⟩, h1, h2⟩ := hsat w hw
+    have e₁ : w.1.2 = L.set (L.get σ₁.globals) w.1.2 := by rw [← h1, L.get_set]
+    have e₂ : w.2.2 = L.set (L.get σ₂.globals) w.1.2 := by
+      rw [← hx, ← h2, ← hx, L.set_get]
+    simp only
+    rw [← hr, e₂]
+    conv => arg 1; rw [e₁]
+    exact hB _ _
+
 end Rules
+
+/-- States equal outside `L` as an equation: the second is the first with the second's `L`
+written (so that `sim`'s implications are about chains of writes, `lensWriteNorm`). -/
+theorem Lens.equal_outside_iff_set {Ω : Type} (L : Lens Ω VariableAssignment)
+    (g₁ g₂ : VariableAssignment) : L.equal_outside g₁ g₂ ↔ L.set (L.get g₂) g₁ = g₂ := by
+  constructor
+  · rintro ⟨x, rfl⟩
+    rw [L.set_get]
+  · exact fun h => ⟨L.get g₂, h⟩
 
 namespace ECSim
 
@@ -140,6 +190,16 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
     let gs ← evalTacticAt (← `(tactic| first
       | (intros; subst_vars; simp_all; done)
       | (intros; subst_vars; simp_all [lensWriteNorm]; done)
+      | (intros
+         -- states equal outside a frame: an equation of chains of writes
+         simp only [Lens.equal_outside_iff_set] at *
+         simp_all [Lens.set_get, Lens.get_of_disjoint_set, lensWriteNorm]; done)
+      | (intros
+         -- … with the same conditional writes on both sides, once the hypotheses are substituted
+         simp only [Lens.equal_outside_iff_set] at *
+         casesm* _ ∧ _
+         subst_vars
+         split_ifs <;> simp_all [Lens.set_get, Lens.get_of_disjoint_set, lensWriteNorm]; done)
       | (intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]; done))) g
     if gs.isEmpty then return [] else s.restore; return [g]
   catch _ => s.restore; return [g]
@@ -150,7 +210,8 @@ def runOn (g : MVarId) (stx : TSyntax `tactic) : TacticM (List MVarId) := evalTa
 /-- EC's `sim` on the relational goal `g`, backwards (see the module docstring); the goals left.
 `open?`: the precondition is a metavariable to be found (a branch of a conditional), assigned the
 relation left where the statements are used up. -/
-partial def sim (g : MVarId) (fuel : Nat := 400) : TacticM (List MVarId) := do
+partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 400) :
+    TacticM (List MVarId) := do
   if fuel == 0 then return [g]
   -- the deterministic code at the end of both sides
   let g ← Judgment.wpDet g none
@@ -189,16 +250,39 @@ partial def sim (g : MVarId) (fuel : Nat := 400) : TacticM (List MVarId) := do
     let he ← arg `he
     let h ← arg `h
     g.assign (mkAppN c ms)
-    let rt ← sim ht (fuel - 1)
-    let re ← sim he (fuel - 1)
+    let rt ← sim ht frame? (fuel - 1)
+    let re ← sim he frame? (fuel - 1)
     let h ← Judgment.simpArg h 3 relSimpDecls []
-    return rt ++ re ++ (← sim h (fuel - 1))
+    return rt ++ re ++ (← sim h frame? (fuel - 1))
   | .call, .call =>
+    -- with a frame: the call rule for states equal outside it, the callee's disjointness from
+    -- it by `fp_disjoint`
+    if let some L := frame? then
+      let s ← saveState
+      try
+        let g ← HoareSplit.hoareSplit 1 g
+        let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call_outside
+        let cTy ← inferType c
+        let names := cTy.getForallBinderNames
+        let (ms, _, concl) ← forallMetaTelescope cTy
+        let some iL := names.findIdx? (· == `L) | throwError "sim: no `L`"
+        unless ← isDefEq ms[iL]! L do throwError "sim: the frame does not fit"
+        unless ← isDefEq concl (← g.getType) do throwError "sim: not the frame's call rule"
+        g.assign (mkAppN c ms)
+        let some iM := names.findIdx? (· == `hM) | throwError "sim: no `hM`"
+        let some ip := names.findIdx? (· == `hpre) | throwError "sim: no `hpre`"
+        let hM := ms[iM]!.mvarId!
+        let [] ← runOn hM (← `(tactic| ((try simp only [Footprint.lens_pair]); fp_disjoint)))
+          | throwError "sim: the callee touches the frame"
+        let hp := ms[ip]!.mvarId!
+        hp.setKind .syntheticOpaque
+        return ← sim (← Judgment.simpArg hp 3 relSimpDecls []) frame? (fuel - 1)
+      catch _ => s.restore
     let s ← saveState
     try
       let gs ← runOn g (← `(tactic| (equiv_call; try (case callee => rfl))))
       match gs with
-      | [g'] => sim g' (fuel - 1)
+      | [g'] => sim g' frame? (fuel - 1)
       | _ => return gs
     catch _ => s.restore; return [g]
   | .sample, .sample =>
@@ -206,7 +290,7 @@ partial def sim (g : MVarId) (fuel : Nat := 400) : TacticM (List MVarId) := do
     try
       let gs ← runOn g (← `(tactic| equiv_rnd))
       match gs with
-      | [g'] => sim g' (fuel - 1)
+      | [g'] => sim g' frame? (fuel - 1)
       | _ => return gs
     catch _ => s.restore; return [g]
   | _, _ => return [g]
@@ -233,6 +317,20 @@ open Lean Elab Tactic ECSim in
 elab "sim" : tactic => do
   let g ← getMainGoal
   let gs ← sim g
+  replaceMainGoal gs
+
+open Lean Elab Tactic ECSim in
+/-- **EC's `sim` with a frame**: `sim / x₁, …, xₙ`, the states equal except on the globals `xᵢ`
+(EC's `={glob A}`: variables the calls of the same procedure do not touch, written by one side
+only or at different times), calls of the same procedure by `prhlStmt_seq_call_outside`. -/
+elab "sim" " / " xs:term,+ : tactic => withMainContext do
+  let xs := xs.getElems
+  let some last := xs.back? | throwError "sim: a frame"
+  let L ← (xs.pop).foldrM (fun x acc => `(Lens.pair $x $acc)) last
+  let Le ← Term.elabTerm L none
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let g ← getMainGoal
+  let gs ← sim g (some (← instantiateMVars Le))
   replaceMainGoal gs
 
 end GaudisCrypt

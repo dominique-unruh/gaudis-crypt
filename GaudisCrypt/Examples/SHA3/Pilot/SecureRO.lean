@@ -440,121 +440,12 @@ section SecondPreimageSection
 declare module A <: AdvSecondPreimage
   {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
 
-namespace SecondPreimage
-
-set_option maxHeartbeats 1600000 in -- disjointness of named variables, as for `fvP_D1`
-/-- The third and fifth `have`s of EC's proof of `RO_is_second_preimage_resistant`:
-`SecondPreimage2(A,F).main ~ SecondPreimage3(A,F).main : ={arg, glob} ==> ={res}` for `F` = `LRO`
-(EC's `inline*; wp 8 -2; sim`) and `F` = `RO` (EC's `inline*; wp -2 11; sim`, symmetrically): the
-states differ only in `SecondPreimage2.m2` and `D1.m1`, which the adversary and the oracle do not
-touch (`prhlProc_self_equal_outside`). -/
-theorem SecondPreimage2_SecondPreimage3
-    (F : RO_T)
-    (hinit : F.init = RO.LRO.init) (hgetF : F.get = RO.LRO.get)
-    (hsample : FVP.fvP F.sample ≤ (SecondPreimage2.m2.footprint ⊔ D1.m1.footprint)ᶜ := by
-      fp_disjoint) :
-    equiv[ SecondPreimage2(A, F).main ~ SecondPreimage3(A, F).main :
-      ={m1, allGlobals} ==> ={res} ] := by
-  equiv_proc_to_stmt
-  stmt_inline 0
-  repeat (first | stmt_inline{1} 0 | stmt_inline{2} 0 | simp only [hinit, hgetF])
-  have hfpL : (Lens.pair SecondPreimage2.m2 D1.m1).footprint =
-      SecondPreimage2.m2.footprint ⊔ D1.m1.footprint := Footprint.lens_pair _ _
-  have hSP2 : ∀ v g, SecondPreimage2.m2.set v g =
-      (Lens.pair SecondPreimage2.m2 D1.m1).set (v, D1.m1.get g) g := fun v g => by
-    simp only [Lens.pair, D1.m1.get_set]
-  have hD1 : ∀ v g, D1.m1.set v g =
-      (Lens.pair SecondPreimage2.m2 D1.m1).set (SecondPreimage2.m2.get g, v) g := fun v g => by
-    simp only [Lens.pair]
-    rw [← Lens.get_of_disjoint_set' SecondPreimage2.m2 D1.m1 v g, SecondPreimage2.m2.get_set]
-  have hSP2get : ∀ g, SecondPreimage2.m2.get g = ((Lens.pair SecondPreimage2.m2 D1.m1).get g).1 :=
-    fun g => rfl
-  have hCL : Lens.Disjoint Counter.c (Lens.pair SecondPreimage2.m2 D1.m1) := inferInstance
-  have hBL : Lens.Disjoint Bounder.bounder (Lens.pair SecondPreimage2.m2 D1.m1) := inferInstance
-  have hRL : Lens.Disjoint RO.m (Lens.pair SecondPreimage2.m2 D1.m1) := inferInstance
-  generalize Lens.pair SecondPreimage2.m2 D1.m1 = L at hfpL hSP2 hD1 hSP2get hCL hBL hRL ⊢
-  have hget := prhlProc_self_equal_outside_module L
-    RO.LRO.get
-    (by rw [hfpL]; fp_disjoint) (fun x y => x.1 = y.1)
-  have hA := prhlProc_self_equal_outside_module L
-    A(Bounder(RO.LRO)).guess
-    (by rw [hfpL]; fp_disjoint) (fun _ _ => True)
-  have hsamp := prhlProc_self_equal_outside_module L F.sample
-    (by rw [hfpL]; exact hsample) (fun _ _ => True)
-  stmt_wp
-  equiv_seq 2 2 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
-      L.equal_outside §allGlobals{1} §allGlobals{2})
-  · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
-        L.equal_outside §allGlobals{1} §allGlobals{2})
-    · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
-          L.equal_outside §allGlobals{1} §allGlobals{2})
-      · stmt_wp
-        equiv_skip
-        rintro g₁ g₂ a₁ a₂ ⟨rfl, rfl⟩
-        refine ⟨rfl, rfl, ?_⟩
-        simp only [(inferInstance : Lens.Disjoint Bounder.bounder Counter.c).commute,
-          (inferInstance : Lens.Disjoint Bounder.bounder RO.m).commute,
-          (inferInstance : Lens.Disjoint Counter.c RO.m).commute,
-          RO.m.set_set, Counter.c.set_set, Bounder.bounder.set_set]
-        refine ((Lens.equal_outside.set_disjoint ?_ _).set_disjoint _).set_disjoint _
-        rw [hSP2, hD1]
-        exact ((Lens.equal_outside.refl _).set_right _).set_right _
-      · equiv_call hsamp
-        equiv_skip
-        rintro σ₁ σ₂ ⟨h1, h2, h⟩
-        exact ⟨⟨h1, h⟩, fun _ _ _ _ h' => ⟨h1, h2, h'⟩⟩
-    · equiv_call hA
-      equiv_skip
-      rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨h1, h2, h⟩
-      exact ⟨⟨h1, h⟩, fun _ _ _ _ h' => ⟨h2, h'.1, h'.2⟩⟩
-  · equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
-      §SecondPreimage2.m2{1} = §SecondPreimage2.m2{2})
-    · stmt_wp
-      equiv_skip
-      rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨h1, rfl, h⟩
-      refine ⟨h1, ?_, rfl⟩
-      rw [hSP2, hSP2]
-      exact (h.set_left _).set_right _
-    · equiv_if
-      case guard =>
-        rintro g₁ g₂ a₁ a₂ ⟨rfl, h, -⟩
-        rw [h.get_disjoint (X := Counter.c)]
-      case «else» => stmt_wp; equiv_skip; intros; trivial
-      case «then» =>
-        equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
-          §SecondPreimage2.m2{1} = §SecondPreimage2.m2{2} ∧ §hash1{1} = §hash1{2})
-        · equiv_call hget
-          stmt_wp
-          equiv_skip
-          rintro g₁ g₂ a₁ a₂ ⟨⟨rfl, h, hs⟩, -⟩
-          rw [h.get_disjoint (X := Counter.c)]
-          refine ⟨⟨rfl, h.set_disjoint _, by rw [← hSP2get, ← hSP2get, hs]⟩, ?_⟩
-          rintro r₁ g₁' r₂ g₂' ⟨rfl, h', hs'⟩
-          exact ⟨rfl, h', by rw [hSP2get, hSP2get, hs'], rfl⟩
-        · equiv_if
-          case guard =>
-            rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨rfl, h, hs, -⟩
-            rw [h.get_disjoint (X := Counter.c), hs]
-          case «else» => stmt_wp; equiv_skip; intros; trivial
-          case «then» =>
-            stmt_wp
-            equiv_call hget
-            stmt_wp
-            equiv_skip
-            rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨⟨rfl, h, hs, rfl⟩, -⟩
-            rw [h.get_disjoint (X := Counter.c), hs]
-            refine ⟨⟨rfl, h.set_disjoint _, by rw [← hSP2get, ← hSP2get, hs]⟩, ?_⟩
-            rintro r₁ g₁' r₂ g₂' ⟨rfl, h', hs'⟩
-            rw [hSP2get g₁', hSP2get g₂', hs']
-
-end SecondPreimage
-
-set_option maxHeartbeats 2000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
+set_option maxHeartbeats 4000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
 set_option maxRecDepth 8192 in
 open SecondPreimage in
 /-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`, its proof EC's: the chain of
 `have->:` (`calc` steps) from `RO` to `LRO`, to `SecondPreimage2`, `SecondPreimage3` and back to
-`RO` (the third and fifth by the one lemma `SecondPreimage2_SecondPreimage3`, EC's two `sim`s), then
+`RO` (the third and fifth EC's `sim`s, with the local modules' variables as the frame), then
 `byphoare(: arg = mess1 ==> _)`, `proc`, `seq 1`, its invariant EC's
 `call(: … /\ mess1 \in RO.m)` and its first `E` goal EC's `call(: arg = mess1 ==> rng (rem RO.m
 mess1) (oget RO.m.[mess1]))` with EC's `fel 2`, and the arithmetic of EC's last `smt()` in the
@@ -571,7 +462,8 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO.LRO).main (mess1) @ &m : §res ] := by
         byequiv; equiv_proc; stmt_inline*; sim
     _ = Pr[ SecondPreimage3(A, RO.LRO).main (mess1) @ &m : §res ] := by
-        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _ rfl rfl)
+        -- EC's `inline*; wp 8 -2; sim`: the states differ in the local modules' variables
+        byequiv; equiv_proc; stmt_inline*; sim / SecondPreimage2.m2, D1.m1
     _ = Pr[ SecondPreimage3(A, RO).main (mess1) @ &m : §res ] := by
         -- EC's `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`
         symm
@@ -579,12 +471,9 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
         equiv_call (RO_LRO_D (D1 A))
         stmt_inline*; sim
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO).main (mess1) @ &m : §res ] := by
+        -- EC's `inline*; wp -2 11; sim`
         symm
-        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _
-          (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
-            PROM.FullRO.RO_T.init.mk_simp])
-          (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
-            PROM.FullRO.RO_T.get.mk_simp]))
+        byequiv; equiv_proc; stmt_inline*; sim / SecondPreimage2.m2, D1.m1
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
         byphoare (: §m1 = mess1 ==> _)
         · phoare_proc

@@ -40,9 +40,14 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
   let binfos ← forallTelescope (← getConstInfo c).type fun xs _ =>
     xs.mapM fun x => x.fvarId!.getBinderInfo
   let mut mods : Array Lean.Expr := #[]
+  -- the global variables passed as lens arguments (`RO.asRO … RO.m`): the module's code writes
+  -- its parameter, which is them
+  let mut argLenses : Array Lean.Expr := #[]
   for a in M.getAppArgs, bi in binfos do
     if bi.isExplicit then
       if let some fa ← observing? (mkAppM ``FVP.fvP #[a]) then mods := mods.push fa
+      else if let some d := a.getAppFn.constName? then
+        if DeclareModule.isGlobalVar env d then argLenses := argLenses.push a
   if mods.size > 1 then return none
   let vars := DeclareModule.globalVarsOf env #[c]
   Term.TermElabM.run' do
@@ -51,6 +56,7 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
       let e ← Term.elabTerm (mkCIdent v) none
       Term.synthesizeSyntheticMVarsNoPostponing
       instantiateMVars e
+    let lenses := lenses ++ argLenses.filter fun a => !lenses.contains a
     let lensT ← match lenses.back? with
       | none => pure none
       | some last => do
