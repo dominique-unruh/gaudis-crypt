@@ -168,7 +168,7 @@ section
 declare module «C» <: CONSTRUCTION {-A, -Bounder}
 declare module P <: PRIMITIVE {-«C», -A, -Bounder}
 
-set_option maxHeartbeats 2000000 in -- one declaration: EC's two `have`s, their `byequiv`s
+set_option maxHeartbeats 1000000 in -- one declaration: EC's two `have`s, their `byequiv`s
 /-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder})
 (P <: PRIMITIVE{-C, -A, -Bounder}) &m`. -/
 theorem coll_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignment) :
@@ -222,7 +222,7 @@ section
 declare module «C» <: CONSTRUCTION {-A, -Bounder, -DPre}
 declare module P <: PRIMITIVE {-«C», -A, -Bounder, -DPre}
 
-set_option maxHeartbeats 2000000 in -- one declaration: EC's two `have`s, their `byequiv`s
+set_option maxHeartbeats 1000000 in -- one declaration: EC's two `have`s, their `byequiv`s
 /-- EC's `preimage_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder, -DPre})
 (P <: PRIMITIVE{-C, -A, -Bounder, -DPre}) &m hash`. -/
 theorem preimage_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignment)
@@ -281,7 +281,7 @@ section
 declare module «C» <: CONSTRUCTION {-A, -Bounder, -D2Pre}
 declare module P <: PRIMITIVE {-«C», -A, -Bounder, -D2Pre}
 
-set_option maxHeartbeats 2000000 in -- one declaration: EC's two `have`s, their `byequiv`s
+set_option maxHeartbeats 1000000 in -- one declaration: EC's two `have`s, their `byequiv`s
 /-- EC's `second_preimage_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder, -D2Pre})
 (P <: PRIMITIVE{-C, -A, -Bounder, -D2Pre}) &m mess`. -/
 theorem second_preimage_resistant_if_indifferentiable [Countable f_in] [Countable f_out]

@@ -435,8 +435,7 @@ section SecondPreimageSection
 declare module A <: AdvSecondPreimage
   {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
 
-set_option maxHeartbeats 4000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
-set_option maxRecDepth 8192 in
+set_option maxHeartbeats 1000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
 open SecondPreimage in
 /-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`, its proof EC's: the chain of
 `have->:` (`calc` steps) from `RO` to `LRO`, to `SecondPreimage2`, `SecondPreimage3` and back to
@@ -695,7 +694,6 @@ section CollisionSection
 
 declare module A <: AdvCollision {-RO, -FRO, -Bounder}
 
-set_option maxHeartbeats 1000000 in -- one declaration: EC's `have`, its `byphoare`, its `fel`
 /-- EC's `RO_is_collision_resistant &m`, its proof EC's: the `have->:` by `byequiv` (a `calc`
 step), then `byphoare`, `proc`, `seq 1`, its first `E`
 goal EC's `call(: true ==> collision RO.m)` with EC's `fel`, and the arithmetic of EC's last
