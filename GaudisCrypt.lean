@@ -50,6 +50,7 @@ import GaudisCrypt.Lib.EC.Dexcepted
 import GaudisCrypt.Lib.EC.DexceptedSupport
 import GaudisCrypt.Lib.EC.Distr
 import GaudisCrypt.Lib.EC.StdBigop
+import GaudisCrypt.Lib.EC.Mu
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
 import GaudisCrypt.Lib.EC.Int
@@ -120,11 +121,15 @@ import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
+import GaudisCrypt.Logic.ECModuleBinders
+import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
+import GaudisCrypt.Syntax.CloneRegistry
+import GaudisCrypt.Syntax.Clone
 import GaudisCrypt.Syntax.ModuleSubtypeTest
 import GaudisCrypt.Logic.PRHL2
 import GaudisCrypt.Logic.PRHL2Upto
@@ -182,6 +187,8 @@ import GaudisCrypt.Examples.SHA3.SecureHash
 import GaudisCrypt.Examples.SHA3.SecureORO
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
+import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
+import GaudisCrypt.Examples.SHA3.Pilot.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl

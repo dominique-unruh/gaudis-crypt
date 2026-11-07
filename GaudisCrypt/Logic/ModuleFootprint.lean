@@ -35,7 +35,8 @@ def concreteBound (M : Lean.Expr) : MetaM (Option Lean.Expr) := do
   let M ← instantiateMVars M
   let some c := M.getAppFn.constName? | return none
   let env ← getEnv
-  unless isModule env c do return none
+  -- an alias of a clone stands for the theory's module
+  unless isModule env (cloneBase env c) do return none
   -- the abstract modules among the explicit arguments
   let binfos ← forallTelescope (← getConstInfo c).type fun xs _ =>
     xs.mapM fun x => x.fvarId!.getBinderInfo

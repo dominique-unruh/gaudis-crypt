@@ -1,4 +1,5 @@
 import GaudisCrypt.Syntax.ModuleSyntax
+import GaudisCrypt.Syntax.CloneRegistry
 
 /-!
 # EasyCrypt's module paths: `M(A, B).f`
@@ -63,9 +64,36 @@ partial def ecModTerm : TSyntax `ec_mod → Elab.TermElabM Term
     let k ← leanArity m
     let head ← if k == 0 then pure (m : Term) else `($m $(args.extract 0 k)*)
     if args.size ≤ k then return head
-    Elab.liftMacroM <| appTerm head (args.extract k args.size)
+    let margs := args.extract k args.size
+    -- each argument at its component of the head's parameter type, when that is known
+    let comps ← componentTypes head margs.size
+    let margs ← match comps with
+      | some tys => (margs.zip tys).mapM fun (a, t) => do `((($a :) : $(← Elab.Term.exprToSyntax t)))
+      | none => pure margs
+    Elab.liftMacroM <| appTerm head margs
   | _ => Elab.throwUnsupportedSyntax
 where
+  /-- The module types of the `n` components of the parameter of the functor `head`
+  (`Module.Arr (A₁ ×ₘ … ×ₘ Aₙ) B`), if its type shows them: an argument elaborated on its own
+  is then coerced to its component (EC's subtyping inside a pair of arguments, `D(F, P)` with
+  `F : FUNCTIONALITY` for a `DFUNCTIONALITY`). -/
+  componentTypes (head : Term) (n : Nat) : Elab.TermElabM (Option (Array Lean.Expr)) := do
+    let s ← saveState
+    try
+      let h ← Elab.Term.withoutErrToSorry <| Elab.Term.elabTerm head none
+      let ty ← Meta.whnfR (← instantiateMVars (← Meta.inferType h))
+      unless ty.isAppOfArity ``Module.Arr 4 do s.restore; return none
+      let mut M := ty.getArg! 0
+      let mut out := #[]
+      for _ in [0:n - 1] do
+        let M' ← Meta.whnfR (← instantiateMVars M)
+        unless M'.isAppOfArity ``Module.Prod 4 do s.restore; return none
+        out := out.push (M'.getArg! 0)
+        M := M'.getArg! 1
+      out := out.push M
+      if out.any (·.hasMVar) then s.restore; return none
+      return some out
+    catch _ => s.restore; return none
   /-- `Module.app m (Module.pair a₁ (… aₙ))`.  Each argument is elaborated on its own, `(aᵢ :)`,
   and then coerced to the parameter's module type: so EC's subtyping of module types (an `RF`
   where an `Oracle` is expected, `A(Bounder(F))`) goes through a coercion on the argument,
@@ -116,8 +144,12 @@ elab_rules : term
       -- an abstract module (a variable, EC's `declare module A`): its type does not record the
       -- procedure's name, so `f` is taken as written
       if (← getLCtx).findFromUserName? m.getId |>.isSome then return e
-      let x ← realizeGlobalConstNoOverloadWithInfo m
+      -- an alias of a clone stands for the theory's module
+      let x := cloneBase (← getEnv) (← realizeGlobalConstNoOverloadWithInfo m)
       let procs := moduleProcs (← getEnv) x
+      -- a definition building the module (EC's module alias `GReal(C, P) = Indif(C(P), P)`):
+      -- it records no procedure name either
+      if procs.isEmpty then return e
       unless procs.contains (x ++ fname) do
         throwErrorAt f "the module `{x}` has no procedure `{fname}`{if procs.isEmpty then
           m!"" else m!" (its procedure: {procs.map (·.getString!)})"}"

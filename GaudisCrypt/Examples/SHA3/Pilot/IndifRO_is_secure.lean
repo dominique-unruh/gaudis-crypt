@@ -1,0 +1,184 @@
+import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
+import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
+import GaudisCrypt.Syntax.Clone
+import GaudisCrypt.Logic.ECModuleBinders
+
+/-!
+# A construction indifferentiable from a random oracle is secure — the EC-fidelity port
+(EasyCrypt `proof/IndifRO_is_secure.ec`)
+
+Collision, preimage and second-preimage resistance of `FM(C, P)` (a construction `C` over a
+primitive `P`), from the resistance of the random oracle (`SecureRO`) and the indifferentiability
+of `C(P)` from it, up to `bound`.
+
+Translation (as the pilot `SecureRO`'s):
+* the file's types and operators, and their axioms, are the class `Params block f_in f_out`
+  (`SHA3Security`'s clone is an instance of it);
+* `clone import SecureRO as SRO with …` and `clone import Indifferentiability as Indiff0 with …`
+  are `clone` (`Syntax/Clone.lean`): the instances `SRO.params`, `Indiff0.params`, and the
+  aliases `SRO.Bounder`, `SRO.RO_is_collision_resistant`, `Indiff0.GReal`, … opened;
+* EC's `SRO.RO.RO` is the pilot's `RO` (the pilot's clone of `PROM.FullRO` is flattened into
+  `RO`, `RO.LRO`, `FRO`, `RO.m`), so here `SRO.RO`;
+* the procedure aliases of `FInit`, `GetF`, `SInit`, `FM`, `DColl` are wrapped in a call
+  (exception E5; `RO`'s are its procedures themselves); `FInit` and `FM` are declared at `SRO`'s
+  module type `RO_T` (EC's `RO`), their procedure `f`, which nothing calls, left out (EC types
+  them structurally), `FM`'s `rem` before `sample` as the module type has them;
+* EC's `C(P)` is `«C»(P)`: `C(` is Mathlib's notation for continuous maps.
+-/
+
+namespace GaudisCrypt.SHA3.Pilot.IndifRO_is_secure
+
+open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.PROM
+
+/-- The file's operators and their axioms: `sampleto`, `limit`, `bound`, `bound_counter`,
+`increase_counter`.  The types are `outParam`s: a clone is an instance. -/
+class Params (block f_in f_out : outParam Type) where
+  sampleto : SubProbability f_out
+  sampleto_ll : is_lossless sampleto
+  sampleto_fu : is_funiform sampleto
+  sampleto_full : is_full sampleto
+  limit : ℤ
+  limit_gt0 : 0 < limit
+  bound : ℝ
+  bound_counter : ℤ
+  bound_counter_ge0 : 0 ≤ bound_counter
+  increase_counter : ℤ → f_in → ℤ
+  increase_counter_spec : ∀ c m, c ≤ increase_counter c m
+
+export Params (sampleto sampleto_ll sampleto_fu sampleto_full limit limit_gt0 bound bound_counter
+  bound_counter_ge0 increase_counter increase_counter_spec)
+
+variable {block f_in f_out : Type} [Inhabited block] [DecidableEq f_in] [Inhabited f_in]
+  [Inhabited f_out] [Params block f_in f_out]
+
+clone import GaudisCrypt.SHA3.Pilot.SecureRO as SRO with
+  type «from» <- f_in, type «to» <- f_out,
+  op bound <- limit,
+  op sampleto <- sampleto,
+  op increase_counter <- increase_counter,
+  op bound_counter <- bound_counter
+  proof * by first
+    | exact sampleto_fu | exact sampleto_ll | exact sampleto_full | exact limit_gt0
+    | exact increase_counter_spec | exact bound_counter_ge0
+
+clone import GaudisCrypt.SHA3.Pilot.Indifferentiability as Indiff0 with
+  type p <- block, type f_in <- f_in, type f_out <- f_out
+
+/-- EC's `module RO : FUNCTIONALITY = { proc init = SRO.RO.RO.init proc f = SRO.RO.RO.get }`: its
+aliases are `SRO.RO`'s procedures themselves. -/
+noncomputable abbrev RO : FUNCTIONALITY :=
+  FUNCTIONALITY.mk { init := SRO.RO.init, f := SRO.RO.get }
+
+module FInit using (F : DFUNCTIONALITY) : (PROM.FullRO.RO_T f_in f_out) {
+  proc init () : Unit {
+    return ()
+  };
+  proc get (x : f_in) : f_out {
+    var y : f_out;
+    y <- call F.f ($x);
+    return $y
+  };
+  proc set (a : f_in, b : f_out) : Unit {
+    return ()
+  };
+  proc rem (a : f_in) : Unit {
+    return ()
+  };
+  proc sample (a : f_in) : Unit {
+    return ()
+  };
+}
+
+module GetF using (F : RO_T) : FUNCTIONALITY {
+  proc init () : Unit {
+    _ <- call F.init ();
+    return ()
+  };
+  proc f (x : f_in) : f_out {
+    var y : f_out;
+    y <- call F.get ($x);
+    return $y
+  };
+}
+
+module SInit using (F : RO_T, S : SIMULATOR) : (PROM.FullRO.RO_T f_in f_out) {
+  proc init () : Unit {
+    _ <- call S(GetF(F)).init ();
+    _ <- call F.init ();
+    return ()
+  };
+  proc get (x : f_in) : f_out {
+    var y : f_out;
+    y <- call F.get ($x);
+    return $y
+  };
+  proc set (x : f_in, y : f_out) : Unit {
+    _ <- call F.set ($x, $y);
+    return ()
+  };
+  proc rem (x : f_in) : Unit {
+    _ <- call F.rem ($x);
+    return ()
+  };
+  proc sample (x : f_in) : Unit {
+    _ <- call F.sample ($x);
+    return ()
+  };
+}
+
+module FM using (C : CONSTRUCTION, P : PRIMITIVE) : (PROM.FullRO.RO_T f_in f_out) {
+  proc init () : Unit {
+    _ <- call P.init ();
+    _ <- call «C»(P).init ();
+    return ()
+  };
+  proc get (x : f_in) : f_out {
+    var y : f_out;
+    y <- call «C»(P).f ($x);
+    return $y
+  };
+  proc set (a : f_in, b : f_out) : Unit {
+    return ()
+  };
+  proc rem (a : f_in) : Unit {
+    return ()
+  };
+  proc sample (a : f_in) : Unit {
+    return ()
+  };
+}
+
+module DColl (A : AdvCollision) using (F : DFUNCTIONALITY, P : DPRIMITIVE) {
+  proc distinguish () : Bool {
+    var b : Bool;
+    b <- call Collision(A, FInit(F)).main ();
+    return $b
+  };
+}
+
+/-! ### The section `Collision` -/
+
+section Collision
+
+declare module A <: AdvCollision {-Bounder, -SRO.RO, -SRO.FRO}
+
+section
+declare module «C» <: CONSTRUCTION {-A, -Bounder}
+declare module P <: PRIMITIVE {-«C», -A, -Bounder}
+
+/-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder})
+(P <: PRIMITIVE{-C, -A, -Bounder}) &m`. -/
+theorem coll_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignment) :
+    (∃ (S <: SIMULATOR {-Bounder, -A}),
+      (∀ (F <: FUNCTIONALITY), islossless F.f → islossless S(F).init) ∧
+      |Pr[ GReal(«C», P, DColl(A)).main () @ &m : §res ] -
+        Pr[ GIdeal(RO, S, DColl(A)).main () @ &m : §res ]| ≤ bound) →
+    Pr[ Collision(A, FM(«C», P)).main () @ &m : §res ] ≤
+      bound + ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
+  sorry
+
+end
+
+end Collision
+
+end GaudisCrypt.SHA3.Pilot.IndifRO_is_secure
