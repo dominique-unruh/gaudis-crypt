@@ -14,24 +14,23 @@ import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
 /-!
-# Random oracles are preimage resistant — the EC-fidelity pilot
-(EasyCrypt `proof/SecureRO.eca`, section `Preimage`)
+# Random oracles are preimage, second-preimage and collision resistant — the EC-fidelity pilot
+(EasyCrypt `proof/SecureRO.eca`)
 
-The refactor pilot of `notes/SHA3/Refactor.md`: `Examples/SHA3/SecureRO.lean` transcribed so that
-the declarations read as the EasyCrypt ones.  It replaces that file once complete; until then the
-two live side by side (the generic `FMap`/potential lemmas are taken from it).
+The refactor pilot of `notes/SHA3/Refactor.md`: EC's file transcribed one to one, its
+declarations and its proofs EC's (`Examples/SHA3/SecureRO.lean` is the first port; the generic
+`FMap` facts are still taken from it).
 
-Translation, against the old file:
-* the theory's operators and axioms are the class `Params from to`, whose type arguments are
-  `outParam`s: the one instance in scope (EC's clone) fixes them, so `bound`, `sampleto`, … are
-  written without types, as in EC;
-* the module variables are `global_var`s (`Counter.c`, `Bounder.bounder`, the clone's `RO.m`), found
-  disjoint by instance search;
-* the types are explicit arguments of the module types and implicit ones of the modules, so a
-  module is a name and EC's `Preimage(A, RO).main` is a term
-  (`Syntax/ModuleApplicationSyntax.lean`);
-* EC's subtyping of module types (an `RF` passed where an `Oracle` is expected, the `RO` where an
-  `RF` is) is a coercion, which a module path inserts on its arguments (`A(Bounder(F))`).
+Translation:
+* the theory's operators and axioms are the class `Params from to`, whose types are `outParam`s:
+  the one instance in scope (EC's clone) fixes them, so `bound`, `sampleto`, the module types
+  `RF`, `Oracle`, `RO_T` are written without types, as in EC;
+* module variables are `global_var`s and `module_var`s (`Counter.c`, `RO.m`, `D1.m1`), found
+  disjoint by instance search; `declare module A <: T {-…}` is EC's declaration;
+* EC's paths `M(A, B).f` are terms (`Syntax/ModuleApplicationSyntax.lean`), EC's subtyping of
+  module types coercions (`module_subtype`), inserted on the arguments (`A(Bounder(F))`);
+* the proofs use EC's tactics under prefixed names: `proc`, `inline*`, `sim`, `auto`, `seq`,
+  `call (: …)`, `fel`, `rnd`, `byequiv`, `byphoare` (`notes/SHA3/Refactor.md`, phase 2).
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.SecureRO
@@ -337,5 +336,672 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
           ENNReal.toReal_nonneg
 
 end Preimage
+
+/-! ## The section `SecondPreimage` -/
+
+open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set dom_set_iff
+  get_set_ne indicatorE_le_of_imp)
+
+open Classical in
+module SecondPreimage using (A : AdvSecondPreimage, F : RF) {
+  proc main (m1 : «from») : Bool {
+    var b : Bool, m2 : «from», hash1 : «to», hash2 : «to»;
+    _ <- call Bounder(F).init ();
+    m2 <- call A(Bounder(F)).guess ($m1);
+    if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
+      Counter.c <- increase_counter $Counter.c $m1;
+      hash1 <- call F.get ($m1);
+      if (decide (increase_counter $Counter.c $m2 < bound_counter)) {
+        Counter.c <- increase_counter $Counter.c $m2;
+        hash2 <- call F.get ($m2);
+        b <- decide ($hash1 = $hash2 ∧ $m1 ≠ $m2);
+      } else {
+        b <- false;
+      }
+    } else {
+      b <- false;
+    }
+    return $b
+  };
+}
+
+/-! ### The section `SecondPreimage`, with `declare module A <: AdvSecondPreimage {-Bounder, -RO,
+-FRO}` (its local modules in the namespace `SecondPreimage`) -/
+
+namespace SecondPreimage
+
+module FEL using (A : AdvSecondPreimage, F : RO_T) {
+  proc main (m1 : «from») : «from» {
+    var m2 : «from»;
+    _ <- call Bounder(F).init ();
+    _ <- call F.sample ($m1);
+    m2 <- call A(Bounder(F)).guess ($m1);
+    return $m2
+  };
+}
+
+/-! EC's module variables `SecondPreimage2.m2`, `D1.m1` of the local modules.  The declared
+adversary is restricted against the local modules, as EC's local modules are fresh. -/
+
+module_var SecondPreimage2.m2 : «from»
+
+module_var D1.m1 : «from»
+
+open Classical in
+module SecondPreimage2 using (A : AdvSecondPreimage, F : RO_T) {
+  proc main (m1 : «from») : Bool {
+    var b : Bool, hash1 : «to», hash2 : «to»;
+    SecondPreimage2.m2 <- call FEL(A, F).main ($m1);
+    if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
+      Counter.c <- increase_counter $Counter.c $m1;
+      hash1 <- call F.get ($m1);
+      if (decide (increase_counter $Counter.c $SecondPreimage2.m2 < bound_counter)) {
+        Counter.c <- increase_counter $Counter.c $SecondPreimage2.m2;
+        hash2 <- call F.get ($SecondPreimage2.m2);
+        b <- decide ($hash1 = $hash2 ∧ $m1 ≠ $SecondPreimage2.m2);
+      } else {
+        b <- false;
+      }
+    } else {
+      b <- false;
+    }
+    return $b
+  };
+}
+
+-- EC's `D1(A, F)`, used as the `RO_Distinguisher` `D1(A)` (`RO_LRO_D (D1(A))`): `A` is a Lean
+-- parameter, so that `D1 A` is a module of its own; `D1(A, F)` is still written as in EC.  Its
+-- `distinguish` takes that type's `unit`.
+module D1 (A : AdvSecondPreimage) using (F : RO_T) {
+  proc distinguish (_x : Unit) : Bool {
+    var b : Bool;
+    b <- call SecondPreimage2(A, F).main ($D1.m1);
+    return $b
+  };
+}
+
+-- `A` a Lean parameter, as in `D1`
+module SecondPreimage3 (A : AdvSecondPreimage) using (F : RO_T) {
+  proc main (m1 : «from») : Bool {
+    var b : Bool;
+    SecondPreimage2.m2 <- (default : «from»);
+    D1.m1 <- $m1;
+    _ <- call Bounder(F).init ();
+    b <- call D1(A, F).distinguish (());
+    return $b
+  };
+}
+
+end SecondPreimage
+
+section SecondPreimageSection
+
+-- EC: `{-Bounder, -RO, -FRO}`; the local modules' variables are fresh in EC, here a restriction
+declare module A <: AdvSecondPreimage
+  {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}
+
+namespace SecondPreimage
+
+set_option maxHeartbeats 1600000 in -- disjointness of named variables, as for `fvP_D1`
+/-- The third and fifth `have`s of EC's proof of `RO_is_second_preimage_resistant`:
+`SecondPreimage2(A,F).main ~ SecondPreimage3(A,F).main : ={arg, glob} ==> ={res}` for `F` = `LRO`
+(EC's `inline*; wp 8 -2; sim`) and `F` = `RO` (EC's `inline*; wp -2 11; sim`, symmetrically): the
+states differ only in `SecondPreimage2.m2` and `D1.m1`, which the adversary and the oracle do not
+touch (`prhlProc_self_equal_outside`). -/
+theorem SecondPreimage2_SecondPreimage3
+    (F : RO_T)
+    (hinit : F.init = RO.LRO.init) (hgetF : F.get = RO.LRO.get)
+    (hsample : FVP.fvP F.sample ≤ (SecondPreimage2.m2.footprint ⊔ D1.m1.footprint)ᶜ := by
+      fp_disjoint) :
+    equiv[ SecondPreimage2(A, F).main ~ SecondPreimage3(A, F).main :
+      ={m1, allGlobals} ==> ={res} ] := by
+  equiv_proc_to_stmt
+  stmt_inline 0
+  repeat (first | stmt_inline{1} 0 | stmt_inline{2} 0 | simp only [hinit, hgetF])
+  have hfpL : (Lens.pair SecondPreimage2.m2 D1.m1).footprint =
+      SecondPreimage2.m2.footprint ⊔ D1.m1.footprint := Footprint.lens_pair _ _
+  have hSP2 : ∀ v g, SecondPreimage2.m2.set v g =
+      (Lens.pair SecondPreimage2.m2 D1.m1).set (v, D1.m1.get g) g := fun v g => by
+    simp only [Lens.pair, D1.m1.get_set]
+  have hD1 : ∀ v g, D1.m1.set v g =
+      (Lens.pair SecondPreimage2.m2 D1.m1).set (SecondPreimage2.m2.get g, v) g := fun v g => by
+    simp only [Lens.pair]
+    rw [← Lens.get_of_disjoint_set' SecondPreimage2.m2 D1.m1 v g, SecondPreimage2.m2.get_set]
+  have hSP2get : ∀ g, SecondPreimage2.m2.get g = ((Lens.pair SecondPreimage2.m2 D1.m1).get g).1 :=
+    fun g => rfl
+  have hCL : Lens.Disjoint Counter.c (Lens.pair SecondPreimage2.m2 D1.m1) := inferInstance
+  have hBL : Lens.Disjoint Bounder.bounder (Lens.pair SecondPreimage2.m2 D1.m1) := inferInstance
+  have hRL : Lens.Disjoint RO.m (Lens.pair SecondPreimage2.m2 D1.m1) := inferInstance
+  generalize Lens.pair SecondPreimage2.m2 D1.m1 = L at hfpL hSP2 hD1 hSP2get hCL hBL hRL ⊢
+  have hget := prhlProc_self_equal_outside_module L
+    RO.LRO.get
+    (by rw [hfpL]; fp_disjoint) (fun x y => x.1 = y.1)
+  have hA := prhlProc_self_equal_outside_module L
+    A(Bounder(RO.LRO)).guess
+    (by rw [hfpL]; fp_disjoint) (fun _ _ => True)
+  have hsamp := prhlProc_self_equal_outside_module L F.sample
+    (by rw [hfpL]; exact hsample) (fun _ _ => True)
+  stmt_wp
+  equiv_seq 2 2 : (§m1{1} = §m10{2} ∧ §m2{1} = §m2{2} ∧
+      L.equal_outside §allGlobals{1} §allGlobals{2})
+  · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
+        L.equal_outside §allGlobals{1} §allGlobals{2})
+    · equiv_seq 1 1 : (§m10{1} = §m11{2} ∧ §m1{1} = §m10{2} ∧
+          L.equal_outside §allGlobals{1} §allGlobals{2})
+      · stmt_wp
+        equiv_skip
+        rintro g₁ g₂ a₁ a₂ ⟨rfl, rfl⟩
+        refine ⟨rfl, rfl, ?_⟩
+        simp only [(inferInstance : Lens.Disjoint Bounder.bounder Counter.c).commute,
+          (inferInstance : Lens.Disjoint Bounder.bounder RO.m).commute,
+          (inferInstance : Lens.Disjoint Counter.c RO.m).commute,
+          RO.m.set_set, Counter.c.set_set, Bounder.bounder.set_set]
+        refine ((Lens.equal_outside.set_disjoint ?_ _).set_disjoint _).set_disjoint _
+        rw [hSP2, hD1]
+        exact ((Lens.equal_outside.refl _).set_right _).set_right _
+      · equiv_call hsamp
+        equiv_skip
+        rintro σ₁ σ₂ ⟨h1, h2, h⟩
+        exact ⟨⟨h1, h⟩, fun _ _ _ _ h' => ⟨h1, h2, h'⟩⟩
+    · equiv_call hA
+      equiv_skip
+      rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨h1, h2, h⟩
+      exact ⟨⟨h1, h⟩, fun _ _ _ _ h' => ⟨h2, h'.1, h'.2⟩⟩
+  · equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+      §SecondPreimage2.m2{1} = §SecondPreimage2.m2{2})
+    · stmt_wp
+      equiv_skip
+      rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨h1, rfl, h⟩
+      refine ⟨h1, ?_, rfl⟩
+      rw [hSP2, hSP2]
+      exact (h.set_left _).set_right _
+    · equiv_if
+      case guard =>
+        rintro g₁ g₂ a₁ a₂ ⟨rfl, h, -⟩
+        rw [h.get_disjoint (X := Counter.c)]
+      case «else» => stmt_wp; equiv_skip; intros; trivial
+      case «then» =>
+        equiv_seq 1 1 : (§m1{1} = §m10{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
+          §SecondPreimage2.m2{1} = §SecondPreimage2.m2{2} ∧ §hash1{1} = §hash1{2})
+        · equiv_call hget
+          stmt_wp
+          equiv_skip
+          rintro g₁ g₂ a₁ a₂ ⟨⟨rfl, h, hs⟩, -⟩
+          rw [h.get_disjoint (X := Counter.c)]
+          refine ⟨⟨rfl, h.set_disjoint _, by rw [← hSP2get, ← hSP2get, hs]⟩, ?_⟩
+          rintro r₁ g₁' r₂ g₂' ⟨rfl, h', hs'⟩
+          exact ⟨rfl, h', by rw [hSP2get, hSP2get, hs'], rfl⟩
+        · equiv_if
+          case guard =>
+            rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨rfl, h, hs, -⟩
+            rw [h.get_disjoint (X := Counter.c), hs]
+          case «else» => stmt_wp; equiv_skip; intros; trivial
+          case «then» =>
+            stmt_wp
+            equiv_call hget
+            stmt_wp
+            equiv_skip
+            rintro g₁ g₂ a₁ b₁ a₂ b₂ ⟨⟨rfl, h, hs, rfl⟩, -⟩
+            rw [h.get_disjoint (X := Counter.c), hs]
+            refine ⟨⟨rfl, h.set_disjoint _, by rw [← hSP2get, ← hSP2get, hs]⟩, ?_⟩
+            rintro r₁ g₁' r₂ g₂' ⟨rfl, h', hs'⟩
+            rw [hSP2get g₁', hSP2get g₂', hs']
+
+end SecondPreimage
+
+set_option maxHeartbeats 2000000 in -- one declaration: EC's `have`s, its `byphoare`, its `fel`
+set_option maxRecDepth 8192 in
+open SecondPreimage in
+/-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`, its proof EC's: the chain of
+`have->:` (`calc` steps) from `RO` to `LRO`, to `SecondPreimage2`, `SecondPreimage3` and back to
+`RO` (the third and fifth by the one lemma `SecondPreimage2_SecondPreimage3`, EC's two `sim`s), then
+`byphoare(: arg = mess1 ==> _)`, `proc`, `seq 1`, its invariant EC's
+`call(: … /\ mess1 \in RO.m)` and its first `E` goal EC's `call(: arg = mess1 ==> rng (rem RO.m
+mess1) (oget RO.m.[mess1]))` with EC's `fel 2`, and the arithmetic of EC's last `smt()` in the
+`bound` goal. -/
+theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
+    (m : VariableAssignment) (mess1 : «from») :
+    Pr[ SecondPreimage(A, RO).main (mess1) @ &m : §res ]
+      ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
+  calc Pr[ SecondPreimage(A, RO).main (mess1) @ &m : §res ]
+      = Pr[ SecondPreimage(A, RO.LRO).main (mess1) @ &m : §res ] := by
+        -- at the module type `RF`, `RO` and `LRO` are the same module (they differ in `sample`)
+        simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
+          PROM.FullRO.RO_T.init.mk_simp, PROM.FullRO.RO_T.get.mk_simp]
+    _ = Pr[ SecondPreimage.SecondPreimage2(A, RO.LRO).main (mess1) @ &m : §res ] := by
+        byequiv; equiv_proc; stmt_inline*; sim
+    _ = Pr[ SecondPreimage3(A, RO.LRO).main (mess1) @ &m : §res ] := by
+        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _ rfl rfl)
+    _ = Pr[ SecondPreimage3(A, RO).main (mess1) @ &m : §res ] := by
+        -- EC's `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`
+        symm
+        byequiv; equiv_proc
+        equiv_call (RO_LRO_D (D1 A))
+        stmt_inline*; sim
+    _ = Pr[ SecondPreimage.SecondPreimage2(A, RO).main (mess1) @ &m : §res ] := by
+        symm
+        byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _
+          (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
+            PROM.FullRO.RO_T.init.mk_simp])
+          (by simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
+            PROM.FullRO.RO_T.get.mk_simp]))
+    _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
+        byphoare (: §m1 = mess1 ==> _)
+        · phoare_proc
+          phoare_seq 1 : (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
+            (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) 1 1 (sampleto.1 {default})
+            (FMap.dom §RO.m mess1 ∧ §m1 = mess1)
+          case invariant =>
+            hoare_call (: §m1 = mess1 ==> FMap.dom §RO.m mess1)
+            · -- EC's `call (: … /\ mess1 \in RO.m)` on `FEL`: `mess1` is in `RO.m` afterwards
+              hoare_proc
+              hoare_inline*
+              hoare_call (: FMap.dom §RO.m mess1)
+              case oracle =>
+                -- `Bounder(RO).get` keeps a key in `RO.m`
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                intro τ hd
+                have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
+                  fun _ _ => dom_set_iff.mpr (Or.inr hd)
+                split_ifs <;> simp_all
+              case pre =>
+                hoare_auto
+                intro m1 hm1 a _
+                subst hm1
+                refine ⟨?_, fun _ _ h => h⟩
+                rw [if_pos (by simp [FMap.dom, FMap.empty])]
+                exact dom_set_iff.mpr (Or.inl rfl)
+            · hoare_skip
+              exact fun _ h => ⟨h, fun _ _ hd => ⟨hd, h⟩⟩
+          case first_E =>
+            phoare_call (: §m1 = mess1 ==>
+                FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
+            · -- EC's `fel 2 Bounder.bounder (fun _, mu1 sampleto witness) bound …`
+              phoare_proc
+              phoare_inline*
+              fel §Bounder.bounder (fun _ => sampleto.1 {default}) bound
+                (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
+                [§Bounder.bounder < bound]
+                (FMap.dom §RO.m mess1)
+              case sum => exact le_rfl
+              case init =>
+                -- `F.sample(m1)` on the empty `RO.m`: `mess1` in it, nothing else
+                hoare_auto
+                intro m1 hm1 a _
+                subst hm1
+                have he : (!decide (FMap.dom (FMap.empty : FMap «from» «to») m1)) = true := by
+                  simp [FMap.dom, FMap.empty]
+                split_ifs
+                refine ⟨dom_set_iff.mpr (Or.inl rfl), ?_, rfl⟩
+                rintro ⟨k, hk⟩
+                by_cases hk1 : k = m1
+                · subst hk1; simp [FMap.rem] at hk
+                · simp [FMap.rem, FMap.set, FMap.empty, Finmap.lookup_erase_ne hk1,
+                    Finmap.lookup_insert_of_ne _ hk1] at hk
+              case step =>
+                phoare_proc
+                phoare_inline*
+                phoare_auto
+                rintro τ ⟨hd, hr, _⟩
+                simp only [indicatorE_of_not hr]
+                split_ifs with _ _ hx
+                · -- a fresh key `x ≠ mess1`: the new value hits `RO.m.[mess1]`
+                  -- (EC's `rnd (pred1 _)`)
+                  have hx' :
+                      ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
+                    simpa using hx
+                  have hne : mess1 ≠ (localVarLens "x" «from»).get τ := fun h => hx' (h ▸ hd)
+                  rnd_pred1 (oget ((RO.m.get τ.globals).get mess1))
+                  · refine indicatorE_le_of_imp fun hs =>
+                      (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ) hr ?_).symm
+                    rwa [get_set_ne _ _ hne] at hs
+                  · exact le_of_eq (sampleto_fu _ _)
+                all_goals first
+                  | exact bot_le
+                  | (rnd_null; rfl)
+              case incr =>
+                intro c
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                rintro τ ⟨hd, hr, hb, hc⟩
+                have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
+                  fun _ _ => dom_set_iff.mpr (Or.inr hd)
+                split_ifs <;> simp_all
+              case same =>
+                intro c
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                rintro τ ⟨hd, hr, hb, hc⟩
+                split_ifs <;> simp_all
+                omega
+              case keep =>
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                rintro τ ⟨hd, hr⟩
+                have key : ∀ (x : «from») (a : «to»), ¬ FMap.dom (RO.m.get τ.globals) x →
+                    FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 ∧
+                    FMap.rng (FMap.rem (FMap.set (RO.m.get τ.globals) x a) mess1)
+                      (oget ((FMap.set (RO.m.get τ.globals) x a).get mess1)) := fun x a hx =>
+                  ⟨dom_set_iff.mpr (Or.inr hd), by
+                    rw [get_set_ne _ _ (fun (h : mess1 = x) => hx (h ▸ hd))]
+                    exact rng_rem_set_of_rng hx hr a⟩
+                split_ifs <;> simp_all
+            · phoare_skip
+              exact fun _ h => le_of_eq (if_pos h)
+          case second_notE =>
+            phoare_inline*
+            phoare_auto
+            intro ROm m1 c m2 ⟨hr, hd, hm⟩
+            subst hm
+            split_ifs with h1 h2 h3 h4 h5
+            · exact absurd hd (by simpa using h2)
+            · exact absurd hd (by simpa using h2)
+            · -- a fresh `m2`: its value hits `RO.m.[m1]` (EC's `rnd (pred1 _)`); the first query's
+              -- sample is not used (`m1` is in `RO.m`)
+              rnd_bound
+              rnd_pred1 (oget (ROm.get m1))
+              · refine indicatorE_le_of_imp fun hP => ?_
+                simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+                exact hP.1
+              · exact le_of_eq (sampleto_fu _ _)
+            · -- `m2` already in `RO.m`, not `m1`: its value is not `RO.m.[m1]`
+              -- (`¬ rng (rem RO.m m1) _`)
+              rnd_bound
+              rnd_null
+              refine indicatorE_of_not ?_
+              simp only [decide_eq_true_eq]
+              rintro ⟨he, hne⟩
+              apply hr
+              have hd2 : FMap.dom ROm m2 := by simpa using h5
+              obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
+              refine ⟨m2, ?_⟩
+              have h1 := get_rem_ne ROm (Ne.symm hne)
+              simp only [FMap.get] at h1 hw he ⊢
+              rw [h1, hw, he, hw]
+              rfl
+            · (rnd_null; rfl)
+            · exact bot_le
+          case bound =>
+            -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
+            intro _ _
+            have := bound_gt0
+            show _ ≤ ENNReal.ofReal _
+            rw [ofReal_intCast_mul_mu1, sum_Ico_const,
+              show (bound + 1).toNat = bound.toNat + 1 by omega]
+            push_cast; ring_nf; exact le_rfl
+        · have hb := bound_gt0
+          exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1))
+            ENNReal.toReal_nonneg
+
+end SecondPreimageSection
+
+/-! ## The section `Collision` -/
+
+open GaudisCrypt.SHA3.SecureRO (collision collision_set_of_not_dom rng_of_collision_set
+  card_fdom_set not_collision_empty expected_rng_le expected_mono' indicatorE_le_of_imp dom_set_iff
+  get_set_ne)
+
+open Classical in
+module Collision using (A : AdvCollision, F : RO_T) {
+  proc main () : Bool {
+    var b : Bool, m1 : «from», m2 : «from», hash1 : «to», hash2 : «to»;
+    _ <- call Bounder(F).init ();
+    m1, m2 <- call A(Bounder(F)).guess ();
+    if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
+      Counter.c <- increase_counter $Counter.c $m1;
+      hash1 <- call F.get ($m1);
+      if (decide (increase_counter $Counter.c $m2 < bound_counter)) {
+        Counter.c <- increase_counter $Counter.c $m2;
+        hash2 <- call F.get ($m2);
+        b <- decide ($hash1 = $hash2 ∧ $m1 ≠ $m2);
+      } else {
+        b <- false;
+      }
+    } else {
+      b <- false;
+    }
+    return $b
+  };
+}
+
+/-! ### The section `Collision`, with `declare module A <: AdvCollision {-RO, -FRO, -Bounder}` (its
+local modules in the namespace `Collision`) -/
+
+namespace Collision
+
+module FEL using (A : AdvCollision, F : RO_T) {
+  proc main () : («from» × «from») {
+    var m1 : «from», m2 : «from»;
+    _ <- call Bounder(F).init ();
+    m1, m2 <- call A(Bounder(F)).guess ();
+    return ($m1, $m2)
+  };
+}
+
+open Classical in
+module Collision2 using (A : AdvCollision, F : RO_T) {
+  proc main () : Bool {
+    var b : Bool, m1 : «from», m2 : «from», hash1 : «to», hash2 : «to»;
+    m1, m2 <- call FEL(A, F).main ();
+    if (decide (increase_counter $Counter.c $m1 < bound_counter)) {
+      Counter.c <- increase_counter $Counter.c $m1;
+      hash1 <- call F.get ($m1);
+      if (decide (increase_counter $Counter.c $m2 < bound_counter)) {
+        Counter.c <- increase_counter $Counter.c $m2;
+        hash2 <- call F.get ($m2);
+        b <- decide ($hash1 = $hash2 ∧ $m1 ≠ $m2);
+      } else {
+        b <- false;
+      }
+    } else {
+      b <- false;
+    }
+    return $b
+  };
+}
+
+end Collision
+
+section CollisionSection
+
+declare module A <: AdvCollision {-RO, -FRO, -Bounder}
+
+set_option maxHeartbeats 1000000 in -- one declaration: EC's `have`, its `byphoare`, its `fel`
+/-- EC's `RO_is_collision_resistant &m`, its proof EC's: the `have->:` by `byequiv` (a `calc`
+step), then `byphoare`, `proc`, `seq 1`, its first `E`
+goal EC's `call(: true ==> collision RO.m)` with EC's `fel`, and the arithmetic of EC's last
+`smt()` in the `bound` goal. -/
+theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) :
+    Pr[ Collision(A, RO).main () @ &m : §res ]
+      ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
+  have hb := bound_gt0
+  calc Pr[ Collision(A, RO).main () @ &m : §res ]
+      = Pr[ Collision.Collision2(A, RO).main () @ &m : §res ] := by
+        byequiv; equiv_proc; stmt_inline*; sim
+    _ ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
+        byphoare
+        · phoare_proc
+          phoare_seq 1 : (collision §RO.m)
+            (∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) 1 1
+            (sampleto.1 {default}) True
+          case invariant =>
+            hoare_call
+            hoare_skip
+            intros; trivial
+          case first_E =>
+            phoare_call (: True ==> collision §RO.m)
+            · -- EC's `fel 1 Bounder.bounder (fun i, i%r * mu1 sampleto witness) bound (collision
+              -- RO.m) …`
+              phoare_proc
+              phoare_inline*
+              fel §Bounder.bounder (fun i => (i.toNat : ENNReal) * sampleto.1 {default}) bound
+                (collision §RO.m) [§Bounder.bounder < bound]
+                  (((FMap.fdom §RO.m).card : ℤ) ≤ §Bounder.bounder)
+              case sum => exact le_rfl
+              case init =>
+                hoare_auto
+                intros
+                simpa [FMap.fdom, FMap.empty] using not_collision_empty (α := «from») (β := «to»)
+              case step =>
+                phoare_proc
+                phoare_inline*
+                phoare_auto
+                rintro τ ⟨hi, hc, _⟩
+                simp only [indicatorE_of_not hc]
+                split_ifs with _ _ hx
+                · -- a fresh key: a collision only if its value is already in `RO.m` (EC's `mu_mem`)
+                  have hx' : ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
+                    simpa using hx
+                  refine (expected_mono' fun a => indicatorE_le_of_imp
+                    (rng_of_collision_set hx' hc)).trans ?_
+                  refine (expected_rng_le sampleto_fu _).trans ?_
+                  gcongr
+                  have :
+                      (FMap.fdom (RO.m.get τ.globals)).card ≤
+                        (Bounder.bounder.get τ.globals).toNat := by
+                    omega
+                  exact_mod_cast this
+                all_goals first
+                  | exact bot_le
+                  | (rnd_null; rfl)
+              case incr =>
+                intro c
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                rintro τ ⟨hi, hc, hb, hcc⟩
+                have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
+                    ((FMap.fdom (FMap.set (RO.m.get τ.globals) x a)).card : ℤ) ≤
+                      Bounder.bounder.get τ.globals + 1 := fun x a hx => by
+                  rw [card_fdom_set hx]; push_cast; omega
+                have hi1 :
+                    ((FMap.fdom (RO.m.get τ.globals)).card : ℤ) ≤ Bounder.bounder.get τ.globals + 1
+                      := by
+                  omega
+                split_ifs <;> simp_all
+              case same =>
+                intro c
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                rintro τ ⟨hi, hc, hb, hcc⟩
+                split_ifs <;> simp_all
+                omega
+              case keep =>
+                hoare_proc
+                hoare_inline*
+                hoare_auto
+                rintro τ ⟨hi, hc⟩
+                have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
+                    ((FMap.fdom (FMap.set (RO.m.get τ.globals) x a)).card : ℤ) ≤
+                      Bounder.bounder.get τ.globals + 1 := fun x a hx => by
+                  rw [card_fdom_set hx]; push_cast; omega
+                have hcoll : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
+                    collision (FMap.set (RO.m.get τ.globals) x a) :=
+                  fun x a hx => collision_set_of_not_dom hx hc a
+                have hi1 :
+                    ((FMap.fdom (RO.m.get τ.globals)).card : ℤ) ≤ Bounder.bounder.get τ.globals + 1
+                      := by
+                  omega
+                split_ifs <;> simp_all
+            · phoare_skip
+              intros
+              exact le_rfl
+          case second_notE =>
+            phoare_inline*
+            phoare_auto
+            intro ROm c m1 m2 hnc
+            have hfu := sampleto_fu
+            split_ifs with h1 h2 h3 h4 h5
+            · -- `m1` fresh, sampled `a`; by cases on `m2` (EC's `case: (m2 \in RO.m)`, `m1 = m2`)
+              have hd1 : ¬ FMap.dom ROm m1 := by simpa using h2
+              by_cases hk1 : m2 = m1
+              · -- `m2 = m1`: the event wants them distinct
+                rnd_bound
+                rnd_null
+                split_ifs <;> exact indicatorE_of_not (by simp [hk1])
+              by_cases hk2 : FMap.dom ROm m2
+              · -- `m2` already in `RO.m`: `m1`'s value hits it
+                -- (EC's `rnd (pred1 (oget RO.m.[m2]))`)
+                rnd_pred1 (oget (ROm.get m2))
+                · split_ifs with hc
+                  · rnd_bound
+                    exact absurd (dom_set_iff.mpr (Or.inr hk2)) (by simpa using hc)
+                  · rnd_bound
+                    refine indicatorE_le_of_imp fun hP => ?_
+                    simp only [decide_eq_true_eq, FMap.get_set_sameE, get_set_ne _ _ hk1,
+                      oget] at hP
+                    exact hP.1.symm
+                · exact le_of_eq (hfu _ _)
+              · -- `m2` fresh too: its value hits `a` (EC's `rnd (pred1 r)`)
+                rnd_bound
+                split_ifs with hc
+                · rnd_pred1 a
+                  · refine indicatorE_le_of_imp fun hP => ?_
+                    simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+                    exact hP.1
+                  · exact le_of_eq (hfu _ _)
+                · exact absurd (by simpa using hc) fun h => (dom_set_iff.mp h).elim hk1 hk2
+            · (rnd_null; rfl)
+            · -- `m1` in `RO.m` (its sample unused), `m2` fresh: `m2`'s value hits `RO.m.[m1]`
+              rnd_bound
+              rnd_pred1 (oget (ROm.get m1))
+              · refine indicatorE_le_of_imp fun hP => ?_
+                simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+                exact hP.1
+              · exact le_of_eq (hfu _ _)
+            · -- both in `RO.m`: equal values would be a collision already
+              rnd_bound
+              rnd_null
+              refine indicatorE_of_not ?_
+              simp only [decide_eq_true_eq]
+              rintro ⟨he, hne⟩
+              apply hnc
+              have hd1 : FMap.dom ROm m1 := by simpa using h2
+              have hd2 : FMap.dom ROm m2 := by simpa using h5
+              obtain ⟨v1, hv1⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd1)
+              obtain ⟨v2, hv2⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
+              refine ⟨_, _, hne, hd1, hd2, ?_⟩
+              rw [hv1, hv2] at he ⊢
+              simp only [oget, Option.getD_some] at he
+              rw [he]
+            · (rnd_null; rfl)
+            · exact bot_le
+          case bound =>
+            -- EC's arithmetic: `∑_{i < bound} i · μ + μ = (bound (bound - 1) + 2) / 2 · μ`
+            intros
+            simp only [mul_one, one_mul]
+            have hμ := mu_ne_top sampleto default
+            obtain ⟨n, hn'⟩ : ∃ n : ℕ, bound = n := ⟨bound.toNat, (Int.toNat_of_nonneg hb.le).symm⟩
+            have hn : 1 ≤ n := by omega
+            rw [hn', sum_Ico_toNat n (fun i => (i : ENNReal) * sampleto.1 {default})]
+            have hsum_ne : (∑ i ∈ Finset.range n, (i : ENNReal) * sampleto.1 {default}) ≠ ⊤ :=
+              ENNReal.sum_ne_top.mpr fun i _ => ENNReal.mul_ne_top (ENNReal.natCast_ne_top i) hμ
+            rw [← ENNReal.ofReal_toReal (ENNReal.add_ne_top.mpr ⟨hsum_ne, hμ⟩)]
+            refine ENNReal.ofReal_le_ofReal (le_of_eq ?_)
+            rw [ENNReal.toReal_add hsum_ne hμ, ENNReal.toReal_sum (fun i _ =>
+              ENNReal.mul_ne_top (ENNReal.natCast_ne_top i) hμ)]
+            simp only [ENNReal.toReal_mul, ENNReal.toReal_natCast]
+            rw [← Finset.sum_mul, mu1]
+            have hsum : (∑ i ∈ Finset.range n, (i : ℝ)) * 2 = n * (n - 1) := by
+              have := Finset.sum_range_id_mul_two n
+              have h' : ((∑ i ∈ Finset.range n, i : ℕ) : ℝ) * 2 = (n : ℝ) * ((n - 1 : ℕ) : ℝ) := by
+                exact_mod_cast this
+              rw [Nat.cast_sum, Nat.cast_sub hn, Nat.cast_one] at h'
+              exact h'
+            have hs : (∑ i ∈ Finset.range n, (i : ℝ)) = n * (n - 1) / 2 := by linarith [hsum]
+            push_cast
+            rw [hs]
+            ring
+        · have h0 : (0 : ℤ) ≤ bound * (bound - 1) + 2 := by nlinarith
+          exact mul_nonneg (div_nonneg (by exact_mod_cast h0) (by norm_num))
+            ENNReal.toReal_nonneg
+
+end CollisionSection
 
 end GaudisCrypt.SHA3.Pilot.SecureRO

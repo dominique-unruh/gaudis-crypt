@@ -866,14 +866,14 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SH
 | 89 | declare module | `A` | section Preimage. | `declare module A <: AdvPreimage «from» «to» {-RO, -Preimage}` | def |
 | 112 | lemma | `RO_is_preimage_resistant` | section Preimage. | `RO_is_preimage_resistant` | done |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO_SecondPreimage.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|
 | 215 | declare module | `A` | section SecondPreimage. | `declare module A <: AdvSecondPreimage «from» «to» {-Bounder, -RO, -FRO, -SecondPreimage.SecondPreimage2, -SecondPreimage.D1}` (the local modules: EC's freshness) | def |
 | 267 | lemma | `RO_is_second_preimage_resistant` | section SecondPreimage. | `RO_is_second_preimage_resistant` | done |
 
-Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO_Collision.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SHA3.Pilot.SecureRO`.
 
 | EC line | kind | EC name | context | Lean name | status |
 |---:|---|---|---|---|---|

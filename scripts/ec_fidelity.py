@@ -147,7 +147,15 @@ def lookup(decls, ns, name):
 
 def analyse():
     report = []
+    # one entry per Lean file: the sections of an EC file ported to one Lean file together (the
+    # auxiliary theorems are those of the file no section maps)
+    merged = {}
     for sec in parse_mapping(MAPPING):
+        if sec["file"] in merged:
+            merged[sec["file"]]["rows"] = merged[sec["file"]]["rows"] + sec["rows"]
+        else:
+            merged[sec["file"]] = dict(sec)
+    for sec in merged.values():
         path = os.path.join(ROOT, sec["file"])
         if not os.path.exists(path):
             continue

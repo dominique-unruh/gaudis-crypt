@@ -182,8 +182,6 @@ import GaudisCrypt.Examples.SHA3.SecureHash
 import GaudisCrypt.Examples.SHA3.SecureORO
 import GaudisCrypt.Examples.SHA3.SecureRO
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
-import GaudisCrypt.Examples.SHA3.Pilot.SecureRO_SecondPreimage
-import GaudisCrypt.Examples.SHA3.Pilot.SecureRO_Collision
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl

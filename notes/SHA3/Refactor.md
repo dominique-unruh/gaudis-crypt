@@ -379,6 +379,11 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   it): its statement `type_of%` `PROM`'s at the clone's arguments, its side conditions
   auto-parameters (`ec_module`, `fp_disjoint`); SecondPreimage's step is EC's
   `equiv_call (RO_LRO_D (D1 A))`.  Measured: all three headlines `clean` (no term, den, fp).
+* **C11, one file** as EC's: `Pilot/SecureRO.lean` holds the three sections (1007 lines, EC 525);
+  `ec_fidelity.py` counts per Lean file (the sections of one EC file mapped to one Lean file).
+  Measured: 3/3 statements in surface syntax, 3/3 proofs clean, no extra hypotheses, 2 auxiliary
+  theorems (the clone's `RO_LRO_D`, and `SecondPreimage2_SecondPreimage3`, which waits for a
+  `sim` with EC's `={glob A}` frame).
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three
