@@ -239,8 +239,8 @@ open GaudisCrypt.SHA3.SecureRO (not_rng_empty eq_of_rng_set
 /-- EC's `RO_is_preimage_resistant &m (h : to)`, its proof EC's: the `have->:` by `byequiv`
 (here a `calc` step), then `byphoare(: arg = h ==> _)`, `proc`, `seq 1`, its first `E` goal
 EC's `call(: true ==> rng RO.m h)` with EC's `fel`, and the arithmetic of EC's last `smt()` in
-the `bound` goal.  The oracle's bullets are proven with
-`hoare_wp`/`phoare_wp`; the generic `FMap` facts are the old file's. -/
+the `bound` goal.  The oracle's bullets are EC's `proc; inline*; auto`, then the logic EC leaves
+to `smt()`; the generic `FMap` facts are the old file's. -/
 theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (h : «to») :
     Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
   calc Pr[ Preimage(A, RO).main (h) @ &m : §res ]
