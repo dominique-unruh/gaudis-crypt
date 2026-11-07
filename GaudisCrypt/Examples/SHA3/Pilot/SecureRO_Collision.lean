@@ -1,5 +1,4 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
-import GaudisCrypt.Logic.ECProc
 
 /-!
 # Random oracles are collision resistant — the EC-fidelity pilot, continued
@@ -105,25 +104,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
   have hb := bound_gt0
   calc Pr[ Collision(A, RO).main () @ &m : §res ]
       = Pr[ Collision.Collision2(A, RO).main () @ &m : §res ] := by
-        -- EC's `byequiv; proc; inline*; sim`
-        byequiv
-        equiv_proc_to_stmt
-        stmt_inline 0
-        stmt_inline{2} 0
-        stmt_wp
-        equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
-        · equiv_sim
-        · equiv_if
-          case «then» =>
-            equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2} ∧
-              §hash1{1} = §hash1{2})
-            · equiv_sim
-            · equiv_if
-              case «then» => equiv_sim
-              case «else» => equiv_sim
-              case guard => intros; simp_all
-          case «else» => equiv_sim
-          case guard => intros; simp_all
+        byequiv; equiv_proc; stmt_inline*; sim
     _ ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
         byphoare
         · phoare_proc

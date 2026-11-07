@@ -1,5 +1,4 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
-import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ModuleFootprint
 
 /-!
@@ -248,66 +247,16 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
         simp only [RO, RO.LRO, PROM.FullRO.LRO, PROM.FullRO.RO.asRO,
           PROM.FullRO.RO_T.init.mk_simp, PROM.FullRO.RO_T.get.mk_simp]
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO.LRO).main (mess1) @ &m : §res ] := by
-        -- EC's `inline*; sim` (EC's `sim` relates `m2{1}` to `SecondPreimage2.m2{2}`; here the
-        -- queries after the adversary are inlined and coupled one by one, `equiv_rnd`)
-        byequiv
-        equiv_proc_to_stmt
-        stmt_inline 0
-        repeat stmt_inline{1} 0
-        repeat stmt_inline{2} 0
-        stmt_inline{1} 1
-        stmt_inline{1} 1
-        stmt_inline{2} 1
-        stmt_inline{2} 1
-        stmt_wp
-        equiv_seq 1 2 :
-          (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧ §allGlobals{1} = §allGlobals{2})
-        · equiv_sim
-        · have := (inferInstance : Lens.Disjoint Counter.c RO.m).symm
-          equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2.m2{2} ∧
-            §Counter.c{1} = §Counter.c{2} ∧ §RO.m{1} = §RO.m{2})
-          · stmt_wp
-            equiv_skip
-            intros; simp_all
-          · equiv_if
-            case guard => intros; simp_all
-            case «else» => stmt_wp; equiv_skip; intros; trivial
-            case «then» =>
-              equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §SecondPreimage2.m2{2} ∧
-                §Counter.c{1} = §Counter.c{2} ∧ §RO.m{1} = §RO.m{2} ∧
-                §hash1{1} = §hash1{2})
-              · stmt_wp
-                equiv_rnd
-                stmt_wp
-                equiv_skip
-                intros; simp_all
-              · equiv_if
-                case guard => intros; simp_all
-                case «else» => stmt_wp; equiv_skip; intros; trivial
-                case «then» =>
-                  stmt_wp
-                  equiv_rnd
-                  stmt_wp
-                  equiv_skip
-                  intros; simp_all
+        byequiv; equiv_proc; stmt_inline*; sim
     _ = Pr[ SecondPreimage3(A, RO.LRO).main (mess1) @ &m : §res ] := by
         byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _ rfl rfl)
     _ = Pr[ SecondPreimage3(A, RO).main (mess1) @ &m : §res ] := by
         -- EC's `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`
         symm
-        byequiv
-        equiv_proc_to_stmt
-        stmt_inline 0
-        stmt_inline 0
-        stmt_inline 0
-        stmt_inline 0
-        stmt_wp
+        byequiv; equiv_proc
         equiv_call (PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO.m
           (fun _ => sampleto_ll) RO.m (D1 A) (by ec_module) (by fp_disjoint))
-        stmt_wp
-        equiv_skip
-        rintro g₁ g₂ a₁ a₂ ⟨rfl, rfl⟩
-        exact ⟨rfl, fun _ _ _ _ h => by rw [h.1]⟩
+        stmt_inline*; sim
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO).main (mess1) @ &m : §res ] := by
         symm
         byequiv (SecondPreimage.SecondPreimage2_SecondPreimage3 A _

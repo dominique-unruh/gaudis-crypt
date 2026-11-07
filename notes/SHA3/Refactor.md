@@ -346,6 +346,19 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   that step and is renamed `equiv_proc_to_stmt` everywhere (321 uses).  The pilot's `phoare`
   and `hoare` proofs use `*_proc`; the return-copy `wp 1` steps and the copy-skipping `wp 2`s are
   gone.
+* **EC's `inline*` and `sim`** (`Logic/ECSim.lean`): `stmt_inline*` (`phoare_inline*`,
+  `hoare_inline*`) inlines every call that can be (not an abstract procedure's).  `sim` goes
+  backwards over two statements with a relation (not EC's sets of equal variables): wp over the
+  deterministic code of either side (copies, dead writes, frame resets vanish), samplings coupled
+  by the identity, calls of the same procedure, conditionals on both sides (equal guards, the
+  branches' relations found by `sim` on the branches, `prhlStmt_seq_if_bwd`); the final
+  implication by `simp_all` with `lensWriteNorm` (a simproc putting chains of global writes in
+  normal form: `set_set`, disjoint writes sorted by `Lens.Disjoint.commute`).  The pilot's
+  equivalences are EC's: `byequiv; equiv_proc; stmt_inline*; sim` for `Preimage ~ Preimage2`,
+  `Collision ~ Collision2`, `SecondPreimage ~ SecondPreimage2` (25, 17, 45 lines before), and
+  the `RO_LRO_D` step `byequiv; equiv_proc; equiv_call (RO_LRO_D … (D1 A) …); stmt_inline*; sim`.
+  Left: `SecondPreimage2_SecondPreimage3`, where the states differ in variables the adversary
+  does not touch (EC's `sim` with `={glob A}`): a call rule equal outside a lens.
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three

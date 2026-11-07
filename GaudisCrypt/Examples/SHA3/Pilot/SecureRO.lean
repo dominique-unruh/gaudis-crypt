@@ -6,6 +6,7 @@ import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECProc
+import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
@@ -230,31 +231,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
     Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
   calc Pr[ Preimage(A, RO).main (h) @ &m : §res ]
       = Pr[ Preimage.Preimage2(A, RO).main (h) @ &m : §res ] := by
-        byequiv
-        equiv_proc_to_stmt
-        stmt_inline 0
-        stmt_inline{1} 0
-        stmt_inline{2} 0
-        repeat stmt_inline{1} 0
-        repeat stmt_inline{2} 0
-        equiv_seq 3 4 :
-          (§hash{1} = §hash0{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
-        · stmt_wp
-          equiv_skip
-          rintro g₁ g₂ a₁ a₂ ⟨ha, hg⟩
-          refine ⟨ha, ha, ?_⟩
-          rw [hg, (inferInstance : Lens.Disjoint Bounder.bounder Counter.c).commute,
-            Counter.c.set_set]
-        · equiv_seq 2 2 :
-            (§m{1} = §m{2} ∧ §hash{1} = §hash{2} ∧ §allGlobals{1} = §allGlobals{2})
-          · equiv_sim
-            rintro _ _ _ _ _ ⟨h1, h2, h3⟩
-            exact ⟨h1, h3, fun _ _ => h2⟩
-          · stmt_wp
-            equiv_if
-            case «then» => equiv_sim
-            case «else» => equiv_sim
-            case guard => intros; simp_all
+        byequiv; equiv_proc; stmt_inline*; sim
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
       byphoare (: §hash = h ==> _)
       · phoare_proc
