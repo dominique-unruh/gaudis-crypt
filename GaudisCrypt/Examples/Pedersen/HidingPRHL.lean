@@ -37,7 +37,7 @@ variable (group : PedersenGroup)
 theorem phi_hi_prhl (U : Unhider group.types) :
     equiv[ (hidingGame group U) ~ (fakeGame group U) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 0
   stmt_inline{1} 1

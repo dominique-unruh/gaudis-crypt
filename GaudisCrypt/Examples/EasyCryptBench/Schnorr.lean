@@ -279,7 +279,7 @@ theorem shvzk_prhl (D : Distinguisher P) :
     equiv[ (Module.app (SHVIdeal P (SchnorrPK P) (SchnorrPKAlgorithms P finv)) D)
         ~ (Module.app (SHVReal P) (Module.pair (SchnorrPK P) D)) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 3
   stmt_inline{1} 2

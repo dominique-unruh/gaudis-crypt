@@ -65,7 +65,7 @@ module Ideal using (A : Adversary S) {
 theorem real_ideal (A : Adversary S) :
     equiv[ (Module.app (Real S) A) ~ (Module.app (Ideal S) A) :
       §allGlobals{1} = §allGlobals{2} ==> ={res, allGlobals} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_call

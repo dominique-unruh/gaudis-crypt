@@ -360,7 +360,7 @@ theorem opc_f (P₁ : ODPRIMITIVE) (Q : DPRIMITIVE)
               fi := Indifferentiability.PRIMITIVE.fi (block × capacity) (List Bool × ℤ)
                 (List Bool) (Module.app PC Q) })))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ocL.equal_outside g₁ g₂ ∧ ocI (ocL.get g₁) (ocL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -428,7 +428,7 @@ theorem opc_fi (P₁ : ODPRIMITIVE) (Q : DPRIMITIVE)
               fi := Indifferentiability.PRIMITIVE.fi (block × capacity) (List Bool × ℤ)
                 (List Bool) (Module.app PC Q) })))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ocL.equal_outside g₁ g₂ ∧ ocI (ocL.get g₁) (ocL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -494,7 +494,7 @@ theorem ofc_f (F₁ : ODFUNCTIONALITY) (F₂ : DFUNCTIONALITY)
             { f := Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
                 (List Bool) (Module.app FC F₂) })))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ocL.equal_outside g₁ g₂ ∧ ocI (ocL.get g₁) (ocL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -580,7 +580,7 @@ theorem Sponge_f_equiv (P₁ P₂ : DPRIMITIVE) (I : VariableAssignment → Vari
       (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
         (Module.app Sponge.Sponge P₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ I g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -640,7 +640,7 @@ theorem psome_f (P : PRIMITIVE)
         P).procedure := by
   intro J
   simp only [PSome, OptionIndifferentiability.OPRIMITIVE.f.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   equiv_call (prhlProc_self_equal_outside_module ocL _ hP J)
@@ -659,7 +659,7 @@ theorem psome_fi (P : PRIMITIVE)
         P).procedure := by
   intro J
   simp only [PSome, OptionIndifferentiability.OPRIMITIVE.fi.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   equiv_call (prhlProc_self_equal_outside_module ocL _ hP J)
@@ -682,7 +682,7 @@ theorem poget_psome_f (P : PRIMITIVE)
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ocL.equal_outside g₁ g₂ ∧ J (ocL.get g₁) (ocL.get g₂)) := by
   simp only [OptionIndifferentiability.OPRIMITIVE.view, Indifferentiability.PRIMITIVE.view,
     Indifferentiability.DPRIMITIVE.f.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   simp only [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
   stmt_wp
@@ -705,7 +705,7 @@ theorem real_F (P : PRIMITIVE)
         (Module.app Sponge.Sponge (Indifferentiability.PRIMITIVE.view (block × capacity)
           (List Bool × ℤ) (List Bool) P))).procedure := by
   intro J
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   equiv_call (Sponge_f_equiv _ _ (fun g₁ g₂ => ocL.equal_outside g₁ g₂ ∧ J (ocL.get g₁)
@@ -741,7 +741,7 @@ theorem fsome_f (F : FUNCTIONALITY)
       (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ) (List Bool)
         F).procedure := by
   intro J
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   equiv_call (prhlProc_self_equal_outside_module ocL _ hF J)
@@ -760,7 +760,7 @@ theorem osim_fi (F : FUNCTIONALITY) :
         (Module.app Simulator (Indifferentiability.FUNCTIONALITY.view (block × capacity)
           (List Bool × ℤ) (List Bool) F))).procedure := by
   intro J
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -804,7 +804,7 @@ theorem osim_f (F : FUNCTIONALITY)
   have hB : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (ocL.footprint)ᶜ := by
     rw [ocL_footprint]
     fp_disjoint
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -922,7 +922,7 @@ theorem real_equiv (Dist : ODISTINGUISHER) (hD : Module.ECModule Dist distExt)
       (List Bool) Perm) ≤ (ocL.footprint)ᶜ := by
     rw [ocL_footprint]
     fp_disjoint
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [CSome, Module.app_comp, PSome_init, FSome_init, Sponge_init]
@@ -1008,7 +1008,7 @@ theorem ideal_equiv (Dist : ODISTINGUISHER) (hD : Module.ECModule Dist distExt)
       (List Bool) BIRO.IRO.asF) ≤ (ocL.footprint)ᶜ := by
     rw [ocL_footprint]
     fp_disjoint
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp

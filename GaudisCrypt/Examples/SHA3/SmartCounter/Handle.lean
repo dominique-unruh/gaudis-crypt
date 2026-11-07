@@ -1881,7 +1881,7 @@ theorem PF_fi_S_fi :
       (fun r₁ g₁ r₂ g₂ => eq_glob_C g₁ g₂ ∧ FMap.dom (C.queries.get g₂) [] ∧
         (G1.bcol.get g₂ = false → G1.bext.get g₂ = false → r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂)) := by
   unfold PF G1.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2326,7 +2326,7 @@ theorem PF_f_S_f :
       (fun r₁ g₁ r₂ g₂ => eq_glob_C g₁ g₂ ∧ FMap.dom (C.queries.get g₂) [] ∧
         (G1.bcol.get g₂ = false → G1.bext.get g₂ = false → r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂)) := by
   unfold PF G1.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2643,7 +2643,7 @@ theorem eq_fi (D : DISTINGUISHER)
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then
           FMap.dom (C.queries.get g₁) [] ∧ FMap.dom (C.queries.get g₂) []
         else r₁ = r₂ ∧ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_fi]
@@ -2700,7 +2700,7 @@ theorem eq_f (D : DISTINGUISHER)
       (fun r₁ g₁ r₂ g₂ =>
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then FMap.dom (C.queries.get g₂) []
         else r₁ = r₂ ∧ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_f]
@@ -3513,7 +3513,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then FMap.dom (C.queries.get g₂) []
         else eq_glob_C g₁ g₂ ∧ r₁ = r₂ ∧ INV_CF_G1_12 g₁ g₂) := by
   unfold PF G1.M
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -4465,7 +4465,7 @@ theorem CF_G1 (hD : Module.ECModule D distExt)
       (sup_le hm (sup_le hmi (sup_le hmh (sup_le hmhi (sup_le hro (sup_le hpa
         (sup_le hbc hbx)))))))))))))
   unfold CF G1 PF
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 0
   rw [PF_eta, view_PF_eq]

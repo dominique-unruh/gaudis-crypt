@@ -327,7 +327,7 @@ theorem RO_FRO_init : prhlProc (fun _ _ _ _ => True)
     (ROmap.init in_t out_t (RO in_t out_t dout RO_m)).procedure
     (FRO_T.init in_t out_t (FRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -342,7 +342,7 @@ theorem RO_FRO_get :
     (ROmap.get in_t out_t (RO in_t out_t dout RO_m)).procedure
     (FRO_T.get in_t out_t (FRO in_t out_t dout FRO_m)).procedure
     (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -370,7 +370,7 @@ theorem RO_FRO_set :
     (ROmap.set in_t out_t (RO in_t out_t dout RO_m)).procedure
     (FRO_T.set in_t out_t (FRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -386,7 +386,7 @@ theorem RO_FRO_rem :
     (ROmap.rem in_t out_t (RO in_t out_t dout RO_m)).procedure
     (FRO_T.rem in_t out_t (FRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -401,7 +401,7 @@ theorem RO_FRO_sample :
     (ROmap.sample in_t out_t (RO in_t out_t dout RO_m)).procedure
     (FRO_T.sample in_t out_t (FRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.noflags (FRO_m.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -778,7 +778,7 @@ theorem I_f_eqex (x1 : in_t) (mx1 mx2 : Option (out_t × flag)) :
       (fun _ g₁ _ g₂ => FMap.eq_except (· = x1) (FRO_m.get g₁) (FRO_m.get g₂) ∧
           FMap.get (FRO_m.get g₁) x1 = mx1 ∧ FMap.get (FRO_m.get g₂) x1 = mx2) := by
   rw [RRO.I_f_procedure]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -800,7 +800,7 @@ theorem I_f_neq (x1 : in_t) (mx1 : Option (out_t × flag)) :
       (IterProc.Orcl.f in_t (RRO.I in_t out_t dout FRO_m)).procedure
       (fun _ g₁ _ g₂ => FRO_m.get g₁ = FRO_m.get g₂ ∧ FMap.get (FRO_m.get g₁) x1 = mx1) := by
   rw [RRO.I_f_procedure]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -823,7 +823,7 @@ theorem I_f_set (x1 : in_t) (r1 : out_t) :
       (fun _ g₁ _ g₂ => FMap.get (FRO_m.get g₁) x1 = none ∧
           FRO_m.get g₂ = FMap.set (FRO_m.get g₁) x1 (r1, Known)) := by
   rw [RRO.I_f_procedure]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1306,7 +1306,7 @@ theorem eager_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
     equiv_call (IterProc.iter_inv (RRO.I in_t out_t dout FRO_m) (fun _ => True)
       (fun g₁ g₂ => FRO_m.get g₁ = FRO_m.get g₂ ∧ FMap.dom (FRO_m.get g₁) a) (by
         rw [RRO.I_f_procedure]
-        equiv_proc
+        equiv_proc_to_stmt
         stmt_inline{1} 0
         stmt_inline{2} 0
         stmt_wp
@@ -1698,7 +1698,7 @@ theorem Eager.main1_self [Countable in_t] [Countable out_t]
                 | succ n => cases n with
                   | zero => oracle_sim
                   | succ n => nomatch n)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0
@@ -1742,7 +1742,7 @@ theorem LRO_RRO_init : prhlProc (fun _ _ _ _ => True)
     (FRO_T.init in_t out_t (RRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
   simp only [LRO, RRO, RO_T.init.mk_simp, FRO_T.init.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1759,7 +1759,7 @@ theorem LRO_RRO_get :
     (FRO_T.get in_t out_t (RRO in_t out_t dout FRO_m)).procedure
     (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
   simp only [LRO, RRO, RO_T.get.mk_simp, FRO_T.get.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1790,7 +1790,7 @@ theorem LRO_RRO_set :
     (FRO_T.set in_t out_t (RRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
   simp only [LRO, RRO, RO_T.set.mk_simp, FRO_T.set.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1808,7 +1808,7 @@ theorem LRO_RRO_rem :
     (FRO_T.rem in_t out_t (RRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
   simp only [LRO, RRO, RO_T.rem.mk_simp, FRO_T.rem.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1828,7 +1828,7 @@ theorem LRO_RRO_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) :
     (FRO_T.sample in_t out_t (RRO in_t out_t dout FRO_m)).procedure
     (fun _ g₁ _ g₂ => RO_m.get g₁ = FMap.restr Known (FRO_m.get g₂)) := by
   simp only [LRO, RRO, RO_T.sample.mk_simp, FRO_T.sample.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp

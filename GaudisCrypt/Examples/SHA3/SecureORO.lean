@@ -215,7 +215,7 @@ theorem Preimage_Preimage2 [Lens.Disjoint Bounder_bounder RO_m]
     (RF_T.get «from» «to» (Module.app (Bounder «from» «to» bound Bounder_bounder)
       (Module.app (RF «from» «to») (RO.RO «from» «to» sampleto RO_m))))
     (by fp_disjoint) (fun _ y => y = h)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -522,7 +522,7 @@ theorem SecondPreimage_RO_LRO [Countable «from»] [Lens.Disjoint Bounder_bounde
       (RF_T.get «from» «to» (Module.app (Bounder «from» «to» bound Bounder_bounder)
         (Module.app (RF «from» «to») (RO.LRO «from» «to» sampleto RO_m)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-    equiv_proc
+    equiv_proc_to_stmt
     repeat stmt_inline{1} 0
     repeat stmt_inline{2} 0
     stmt_wp
@@ -555,7 +555,7 @@ theorem SecondPreimage_RO_LRO [Countable «from»] [Lens.Disjoint Bounder_bounde
         exact hget
       | succ m => nomatch m)
   simp only [Lens.equal_outside_and_get_eq_iff] at hA'
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -590,7 +590,7 @@ theorem SecondPreimage_SecondPreimage2 [Lens.Disjoint Bounder_bounder RO_m]
   have := (inferInstance : Lens.Disjoint Bounder_bounder RO_m).symm
   have := (inferInstance : Lens.Disjoint SecondPreimage2_m2 Bounder_bounder).symm
   have := (inferInstance : Lens.Disjoint SecondPreimage2_m2 RO_m).symm
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -654,7 +654,7 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder RO_m]
       (Module.app (SecondPreimage3 «from» «to» bound Bounder_bounder SecondPreimage2_m2 D1_m1 A)
         F).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat (first | stmt_inline{1} 0 | stmt_inline{2} 0 | simp only [hinit])
   have := (inferInstance : Lens.Disjoint Bounder_bounder RO_m).symm
@@ -761,7 +761,7 @@ theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»] [Lens.Dis
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   have hcall := PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO_m
     (fun _ => hll) RO_m _ hD hdisj
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline 0
@@ -1056,7 +1056,7 @@ theorem Collision_Collision2 (A : AdvCollision «from» «to») :
       (Module.app (Collision.Collision2 «from» «to» bound Bounder_bounder)
         (Module.pair A (Module.app (RF «from» «to») (RO.RO «from» «to» sampleto RO_m)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{2} 0
   stmt_wp

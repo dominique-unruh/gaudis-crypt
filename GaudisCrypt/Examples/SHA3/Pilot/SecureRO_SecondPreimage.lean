@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
+import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ModuleFootprint
 
 /-!
@@ -133,7 +134,7 @@ theorem SecondPreimage2_SecondPreimage3
       fp_disjoint) :
     equiv[ SecondPreimage2(A, F).main ~ SecondPreimage3(A, F).main :
       ={m1, allGlobals} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat (first | stmt_inline{1} 0 | stmt_inline{2} 0 | simp only [hinit, hgetF])
   have hfpL : (Lens.pair SecondPreimage2.m2 D1.m1).footprint =
@@ -233,7 +234,7 @@ open SecondPreimage in
 /-- EC's `RO_is_second_preimage_resistant &m (mess1 : from)`, its proof EC's: the chain of
 `have->:` (`calc` steps) from `RO` to `LRO`, to `SecondPreimage2`, `SecondPreimage3` and back to
 `RO` (the third and fifth by the one lemma `SecondPreimage2_SecondPreimage3`, EC's two `sim`s), then
-`byphoare(: arg = mess1 ==> _)`, `proc`, `seq 1` (our `seq 3`), its invariant EC's
+`byphoare(: arg = mess1 ==> _)`, `proc`, `seq 1`, its invariant EC's
 `call(: … /\ mess1 \in RO.m)` and its first `E` goal EC's `call(: arg = mess1 ==> rng (rem RO.m
 mess1) (oget RO.m.[mess1]))` with EC's `fel 2`, and the arithmetic of EC's last `smt()` in the
 `bound` goal. -/
@@ -250,7 +251,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
         -- EC's `inline*; sim` (EC's `sim` relates `m2{1}` to `SecondPreimage2.m2{2}`; here the
         -- queries after the adversary are inlined and coupled one by one, `equiv_rnd`)
         byequiv
-        equiv_proc
+        equiv_proc_to_stmt
         stmt_inline 0
         repeat stmt_inline{1} 0
         repeat stmt_inline{2} 0
@@ -295,7 +296,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
         -- EC's `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`
         symm
         byequiv
-        equiv_proc
+        equiv_proc_to_stmt
         stmt_inline 0
         stmt_inline 0
         stmt_inline 0
@@ -316,21 +317,19 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             PROM.FullRO.RO_T.get.mk_simp]))
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto default := by
         byphoare (: §m1 = mess1 ==> _)
-        · phoare_proc_to_stmt
-          phoare_inline 0
-          phoare_seq 3 : (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
+        · phoare_proc
+          phoare_seq 1 : (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
             (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) 1 1 (sampleto.1 {default})
             (FMap.dom §RO.m mess1 ∧ §m1 = mess1)
           case invariant =>
             hoare_call (: §m1 = mess1 ==> FMap.dom §RO.m mess1)
             · -- EC's `call (: … /\ mess1 \in RO.m)` on `FEL`: `mess1` is in `RO.m` afterwards
-              hoare_proc_to_stmt
+              hoare_proc
               repeat hoare_inline 0
-              hoare_wp 1
               hoare_call (: FMap.dom §RO.m mess1)
               case oracle =>
                 -- `Bounder(RO).get` keeps a key in `RO.m`
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -343,19 +342,17 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_skip
                 intro σ hσ a _
                 refine ⟨?_, fun _ _ h => h⟩
-                have hx : (localVarLens "arg1" «from»).get σ = mess1 := hσ
+                have hx : (localVarLens "m1" «from»).get σ = mess1 := hσ
                 rw [if_pos (by simp [FMap.dom, FMap.empty]), hx]
                 exact dom_set_iff.mpr (Or.inl rfl)
-            · hoare_wp 2
-              hoare_skip
+            · hoare_skip
               exact fun _ h => ⟨h, fun _ _ hd => ⟨hd, h⟩⟩
           case first_E =>
             phoare_call (: §m1 = mess1 ==>
                 FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
             · -- EC's `fel 2 Bounder.bounder (fun _, mu1 sampleto witness) bound …`
-              phoare_proc_to_stmt
+              phoare_proc
               repeat phoare_inline 0
-              phoare_wp 1
               fel §Bounder.bounder (fun _ => sampleto.1 {default}) bound
                 (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
                 [§Bounder.bounder < bound]
@@ -368,19 +365,19 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 intro σ hσ a _
                 subst hσ
                 have he : (!decide (FMap.dom (FMap.empty : FMap «from» «to»)
-                    ((localVarLens "arg1" «from»).get σ))) = true := by
+                    ((localVarLens "m1" «from»).get σ))) = true := by
                       simp [FMap.dom, FMap.empty]
                 split_ifs with hc
                 swap
                 · exact absurd he hc
                 refine ⟨dom_set_iff.mpr (Or.inl rfl), ?_, rfl⟩
                 rintro ⟨k, hk⟩
-                by_cases hk1 : k = (localVarLens "arg1" «from»).get σ
+                by_cases hk1 : k = (localVarLens "m1" «from»).get σ
                 · subst hk1; simp [FMap.rem] at hk
                 · simp [FMap.rem, FMap.set, FMap.empty, Finmap.lookup_erase_ne hk1,
                     Finmap.lookup_insert_of_ne _ hk1] at hk
               case step =>
-                phoare_proc_to_stmt
+                phoare_proc
                 repeat phoare_inline 0
                 phoare_wp 20
                 phoare_skip
@@ -406,7 +403,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                       fun _ _ => rfl)).trans bot_le
               case incr =>
                 intro c
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -417,7 +414,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 split_ifs <;> simp_all
               case same =>
                 intro c
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -426,7 +423,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 split_ifs <;> simp_all
                 omega
               case keep =>
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -440,10 +437,8 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                     rw [get_set_ne _ _ (fun (h : mess1 = x) => hx (h ▸ hd))]
                     exact rng_rem_set_of_rng hx hr a⟩
                 split_ifs <;> simp_all
-            · phoare_wp 2
-              phoare_skip
-              intro _ h
-              simp [h]
+            · phoare_skip
+              exact fun _ h => le_of_eq (if_pos h)
           case second_notE =>
             repeat phoare_inline 0
             phoare_wp 40

@@ -1222,7 +1222,7 @@ theorem swap_restr (_hD : Module.ECModule D (distExt))
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
   -- `proc;inline *`
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 1
@@ -1253,7 +1253,7 @@ theorem Pr_restr_f_upto (P : PRIMITIVE) (_hP : FVP.fvP P ≤ C.footprintᶜ)
         (Indifferentiability.PRIMITIVE.view state (List block) block P))).procedure
       (Indifferentiability.PRIMITIVE.f state (List block) block (Module.app PC P)).procedure
       (fun r₁ g₁ r₂ g₂ => max_size < C.c.get g₂ ∨ (r₁ = r₂ ∧ g₁ = g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.PRIMITIVE.view_f]
@@ -1296,7 +1296,7 @@ theorem Pr_restr_fi_upto (P : PRIMITIVE) (_hP : FVP.fvP P ≤ C.footprintᶜ)
         (Indifferentiability.PRIMITIVE.view state (List block) block P))).procedure
       (Indifferentiability.PRIMITIVE.fi state (List block) block (Module.app PC P)).procedure
       (fun r₁ g₁ r₂ g₂ => max_size < C.c.get g₂ ∨ (r₁ = r₂ ∧ g₁ = g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.PRIMITIVE.view_fi]
@@ -1338,7 +1338,7 @@ theorem Pr_restr_F_upto (F : FUNCTIONALITY) (_hF : FVP.fvP F ≤ C.footprintᶜ)
         (Indifferentiability.FUNCTIONALITY.view state (List block) block F))).procedure
       (Indifferentiability.FUNCTIONALITY.f state (List block) block (Module.app FC F)).procedure
       (fun r₁ g₁ r₂ g₂ => max_size < C.c.get g₂ ∨ (r₁ = r₂ ∧ g₁ = g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.FUNCTIONALITY.view_f]
@@ -1562,7 +1562,7 @@ theorem Pr_restr_of_region (hD : Module.ECModule D (distExt))
     (B := fun r₁ g₁ r₂ _ => C.c.get g₁ ≤ max_size → r₁ = r₂) ?_
     (fun r₁ g₁ r₂ g₂ h hr => h hr.2 ▸ hr.1) rfl
   -- `symmetry; proc; inline *; wp`
-  equiv_proc
+  equiv_proc_to_stmt
   equiv_sym
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0

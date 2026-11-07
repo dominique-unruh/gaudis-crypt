@@ -195,7 +195,7 @@ theorem cpa_ddh0 (A : Adversary P E) :
     equiv[ (Module.app (CPA P E) (Module.pair (HashedElGamalScheme P E) A))
         ~ (Module.app (DDH0 P) (Module.app (DDHAdv P E) A)) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline{1} 1
@@ -225,7 +225,7 @@ theorem ddh1_es1 (A : Adversary P E) :
     equiv[ (Module.app (DDH1 P) (Module.app (DDHAdv P E) A))
         ~ (Module.app (ES1 P E) (Module.app (ESAdv P E) A)) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   -- EC's `swap{1} 7 -3; swap{2} [5..6] -4; swap{2} 4 -1`, here on the left only: the samplings
@@ -252,7 +252,7 @@ theorem ddh1_es1 (A : Adversary P E) :
 theorem es0_gb (A : Adversary P E) :
     equiv[ (Module.app (ES0 P E) (Module.app (ESAdv P E) A)) ~ (Module.app (Gb P E) A) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 0
   stmt_split_pair{1} 4

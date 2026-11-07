@@ -15,8 +15,9 @@ so the generic statement steps work on it, on both sides or on one (`{1}`, `{2}`
 
 And the relational steps proper:
 
-* `equiv_proc` — from `equiv[ M₁ ~ M₂ : P ==> Q ]` to the judgment about the two call statements
-  (EC's `proc`, with the calls then inlined by `stmt_inline 0`);
+* `equiv_proc_to_stmt` — from `equiv[ M₁ ~ M₂ : P ==> Q ]` to the judgment about the two call
+  statements (inlined by `stmt_inline 0`; EC's `proc`, to the bodies, is `equiv_proc`,
+  `Logic/ECProc.lean`);
 * `equiv_rnd`, `equiv_rnd f` — the two last statements are samplings, coupled along `f`
   (default: the identity) (EC's `rnd`);
 * `equiv_rnd_run k` — a sampling on the left against the last `k` statements on the right, which
@@ -229,7 +230,8 @@ conditions with the reads simplified. -/
 def equivProcToStmt (g : MVarId) : MetaM MVarId := g.withContext do
   let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
   unless ty.isAppOfArity ``prhlProc 6 do
-    throwError "equiv_proc: expected a procedure judgment `prhlProc A p₁ p₂ B`, got{indentExpr ty}"
+    throwError "equiv_proc_to_stmt: expected a procedure judgment `prhlProc A p₁ p₂ B`, got\
+      {indentExpr ty}"
   let #[sig₁, sig₂, A, p₁, p₂, B] := ty.getAppArgs | unreachable!
   let va := mkConst ``VariableAssignment
   let ps := mkConst ``ProgramState
@@ -268,17 +270,18 @@ def equivProcToStmt (g : MVarId) : MetaM MVarId := g.withContext do
   let lem ← mkAppOptM ``prhlProc_of_prhlStmt #[some sig₁, some sig₂, some A, some p₁, some p₂,
     some B, some resVA₁, some argsVA₁, some resVA₂, some argsVA₂]
   let .forallE _ hyp _ _ ← whnfR (← inferType lem)
-    | throwError "equiv_proc: unexpected type of `prhlProc_of_prhlStmt`"
+    | throwError "equiv_proc_to_stmt: unexpected type of `prhlProc_of_prhlStmt`"
   unless ← isDefEq hyp target do
-    throwError "equiv_proc: the statement built is not the lemma's"
+    throwError "equiv_proc_to_stmt: the statement built is not the lemma's"
   let g' ← mkFreshExprSyntheticOpaqueMVar target (← g.getTag)
   g.assign (mkApp lem g')
   let g ← Judgment.simpArg g'.mvarId! 0 relSimpDecls []
   Judgment.simpArg g 3 relSimpDecls []
 
-/-- `equiv_proc`: from `equiv[ M₁ ~ M₂ : P ==> Q ]` to the judgment about the call statements
-`res <- call Mᵢ (x₁, …, xₙ)` (`equivProcToStmt`); inline them with `stmt_inline 0`. -/
-elab "equiv_proc" : tactic => liftMetaTactic1 fun g => some <$> equivProcToStmt g
+/-- `equiv_proc_to_stmt`: from `equiv[ M₁ ~ M₂ : P ==> Q ]` to the judgment about the call
+statements `res <- call Mᵢ (x₁, …, xₙ)` (`equivProcToStmt`); inline them with `stmt_inline 0`.
+EC's `proc`, to the bodies, is `equiv_proc` (`Logic/ECProc.lean`). -/
+elab "equiv_proc_to_stmt" : tactic => liftMetaTactic1 fun g => some <$> equivProcToStmt g
 
 /-! ## Relational steps -/
 

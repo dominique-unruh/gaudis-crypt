@@ -332,7 +332,7 @@ theorem DPRestr_fi_G4I :
                       }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g4Inv g₁ g₂) := by
   unfold g4Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -386,7 +386,7 @@ theorem DPRestr_f_G4I :
                       }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g4Inv g₁ g₂) := by
   unfold g4Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -445,7 +445,7 @@ theorem DFRestr_f_G4I :
             { f := Indifferentiability.FUNCTIONALITY.f state (List block) block IF }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g4Inv g₁ g₂) := by
   unfold g4Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -515,7 +515,7 @@ theorem DPRestr_fi_G34 :
         (Module.app DPRestr (Module.app G4.S F.RO.asRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g34Inv g₁ g₂) := by
   unfold g34Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -565,7 +565,7 @@ theorem DPRestr_f_G34 :
         (Module.app DPRestr (Module.app G4.S F.RO.asRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g34Inv g₁ g₂) := by
   unfold g34Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -634,7 +634,7 @@ theorem DFRestr_f_G34 :
         (Module.app DFRestr (Module.app G4.C F.RO.asRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g34Inv g₁ g₂) := by
   unfold g34Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -732,7 +732,7 @@ theorem DPRestr_f_G23 :
       (Indifferentiability.DPRIMITIVE.f state (List block) block
         (Module.app DPRestr (Module.app G3.S F.LRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colEq g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -925,7 +925,7 @@ theorem DPRestr_fi_G23 :
       (Indifferentiability.DPRIMITIVE.fi state (List block) block
         (Module.app DPRestr (Module.app G3.S F.LRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colEq g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1039,7 +1039,7 @@ theorem DFRestr_f_G23 :
       (Indifferentiability.DFUNCTIONALITY.f state (List block) block
         (Module.app DFRestr (Module.app G3.M F.LRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colEq g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1192,7 +1192,7 @@ theorem G2_G3 (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG : G
     simp only [L, Footprint.lens_pair]
     exact sup_le hcc (sup_le hcq (sup_le hro (sup_le hfro (sup_le hm (sup_le hmi
       (sup_le hmh (sup_le hmhi (sup_le hch hpa))))))))
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1303,7 +1303,7 @@ theorem G3_G4 (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG : G
     refine (Footprint.le_compl_comm _ _).mpr ?_
     simp only [L, Footprint.lens_pair]
     exact sup_le hcc (sup_le hcq (sup_le hro (sup_le hm (sup_le hmi hpa))))
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1403,7 +1403,7 @@ theorem G4_Ideal (hD : Module.ECModule D distExt) (_hDd : DRestrictions D) (_hG 
     exact sup_le hcc (sup_le hcq (sup_le hro (sup_le hm (sup_le hmi (sup_le hpa
       (sup_le hsm (sup_le hsmi hspa)))))))
   unfold IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp

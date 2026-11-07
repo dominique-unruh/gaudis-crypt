@@ -90,7 +90,7 @@ theorem binding_prhl (B : Binder group.types)
     (hinj : ∀ a b : group.F, group.g ^ a = group.g ^ b → a = b) :
     equiv[ (bindingGame group B) ~ (dlogGame group finv B) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 3
   stmt_inline{1} 2
@@ -190,7 +190,7 @@ theorem std_red_prhl (L : DLogAdversary group) :
     equiv[ (Module.app (DLogExperiment group) L)
         ~ (Module.app (DLogStdExperiment group) (Module.app (StdRedAdversary group) L)) :
       §allGlobals{1} = §allGlobals{2} ==> §res{1} = true → §res{2} = true ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{2} 0
   stmt_wp

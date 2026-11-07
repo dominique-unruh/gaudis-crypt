@@ -81,7 +81,7 @@ judgment), instead of one implementation per pair; plus tactics that dispatch on
   (`Judgment.wpDet`, EC's `wp`), for any judgment.
 * Inlining one side no longer avoids the *other* side's local names (separate states), so both
   sides of `main ~ main` inline to the same names (`j`, `b`, …) and EC's `={j}` reads naturally.
-* Relational steps (`Logic/PRHLWp.lean`): `equiv_proc`, `equiv_rnd [f]`, `equiv_while I`
+* Relational steps (`Logic/PRHLWp.lean`): `equiv_proc_to_stmt`, `equiv_rnd [f]`, `equiv_while I`
   (goals `body`, `guard`, `exit`, then the prefix), `equiv_call h`, `equiv_seq k₁ k₂ : M`,
   `equiv_case P`, `equiv_skip` (reads of both states generalized as `x₁`, `x₂`).  Relations in
   tactics are written like the judgment's conditions.

@@ -394,7 +394,7 @@ theorem S_fi_col (hfr : GcolFresh Gcol_count) :
         Gcol_count.get g₂ ≤ C.c.get g₂ + 1 ∧ C.c.get g₂ + 1 ≤ max_size) := by
   gcol_disj hfr Gcol_count
   unfold G1.S Gcol.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -511,7 +511,7 @@ theorem S_f_col (hfr : GcolFresh Gcol_count) :
         Gcol_count.get g₂ ≤ C.c.get g₂ + 1 ∧ C.c.get g₂ + 1 ≤ max_size) := by
   gcol_disj hfr Gcol_count
   unfold G1.S Gcol.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -671,7 +671,7 @@ theorem M_f_col (hfr : GcolFresh Gcol_count) :
         Gcol_count.get g₂ ≤ C.c.get g₂ ∧ C.c.get g₂ ≤ max_size) := by
   gcol_disj hfr Gcol_count
   unfold G1.M Gcol.M
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -804,7 +804,7 @@ theorem DPRestr_fi_col (hfr : GcolFresh Gcol_count) :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colInv Gcol_count g₁ g₂) := by
   gcol_disj hfr Gcol_count
   unfold colInv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -846,7 +846,7 @@ theorem DPRestr_f_col (hfr : GcolFresh Gcol_count) :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colInv Gcol_count g₁ g₂) := by
   gcol_disj hfr Gcol_count
   unfold colInv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -889,7 +889,7 @@ theorem DFRestr_f_col (hfr : GcolFresh Gcol_count) :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ colInv Gcol_count g₁ g₂) := by
   gcol_disj hfr Gcol_count
   unfold colInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1186,7 +1186,7 @@ theorem G1_col (hD : Module.ECModule D distExt)
     simp only [L, Footprint.lens_pair]
     exact sup_le hgc (sup_le hcc (sup_le hcq (sup_le hro (sup_le hfro (sup_le hm (sup_le hmi
       (sup_le hmh (sup_le hmhi (sup_le hch (sup_le hpa hbc))))))))))
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0

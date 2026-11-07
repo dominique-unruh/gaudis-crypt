@@ -180,7 +180,7 @@ theorem Sponge_is_StdSponge (P : DPRIMITIVE) :
   have hsz : ∀ (z : List Bool) x, size (z ++ ofblock x) = size z + r := fun z x => by
     rw [← hsb x]; simp [size]
   have hr := gt0_r
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_seq 1 1 : (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
@@ -578,7 +578,7 @@ theorem LRO_RO [Lens.Disjoint ERO_RO_m ERO_FRO_m] (D : ERO.RO_Distinguisher)
   -- by symmetry; call (FullEager.RO_LRO_D D _); auto; rewrite dbool_ll`
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   equiv_sym
@@ -623,7 +623,7 @@ theorem HybridIROLazy_HIRO_LRO_init :
       (Module.app HIRO.init (ERO.LRO ERO_RO_m)).procedure
       (fun _ g₁ _ g₂ => HybridIROLazy_mp.get g₁ = ERO_RO_m.get g₂) := by
   -- EC: `proc; inline*; auto`
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   equiv_sim
@@ -640,7 +640,7 @@ theorem HybridIROLazy_fill_in_LRO_get :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HybridIROLazy_mp.get g₁ = ERO_RO_m.get g₂) := by
   -- EC: `case (dom mp (xs, i)); rcondf{1} 1; rcondf{2} 2; rnd{2} …; rcondt{1} 1; rcondt{2} 2;
   -- wp; rnd`: here the case split is `equiv_if{1}` on the lazy test
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{2} 0
   stmt_inline{1} 0
   stmt_wp
@@ -669,7 +669,7 @@ theorem HybridIROLazy_HIRO_LRO_f :
       (Module.app HIRO.f (ERO.LRO ERO_RO_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HybridIROLazy_mp.get g₁ = ERO_RO_m.get g₂) := by
   -- EC: `proc; inline LRO.sample; sp; if => //`
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{2} 1
@@ -724,7 +724,7 @@ theorem HIRO_RO_HybridIROEager_init :
       (HybridIROEager.init HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
   -- EC: `proc; inline*; auto`
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   equiv_sim
@@ -741,7 +741,7 @@ theorem RO_get_HybridIROEager_fill_in :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
   -- EC: `case (dom mp (xs, i)); rcondf{1} 2; rcondf{2} 1; rnd{1} …; rcondt{1} 2; rcondt{2} 1;
   -- wp; rnd`: the case split is `equiv_if{2}` on the eager test
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -772,7 +772,7 @@ theorem RO_sample_HybridIROEager_fill_in :
       (HybridIROEager.fill_in HybridIROEager_mp).procedure
       (fun _ g₁ _ g₂ => ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
   -- EC: `proc; inline ERO.RO.get; sp; case …`, as `RO_get_HybridIROEager_fill_in`
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -802,7 +802,7 @@ theorem HIRO_RO_HybridIROEager_f :
       (HybridIROEager.f HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ERO_RO_m.get g₁ = HybridIROEager_mp.get g₂) := by
   -- EC: `proc; sp; if => //`
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -932,7 +932,7 @@ theorem Exper_HybridIROLazy_LRO [Lens.Disjoint HybridIROLazy_mp ERO_RO_m] (D : H
   -- ERO.RO.m{2}); first auto; call (…); auto`
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -978,7 +978,7 @@ theorem Exper_RO_HybridIROEager [Lens.Disjoint ERO_RO_m HybridIROEager_mp] (D : 
   -- HybridIROEager.mp{2}); first auto; call (…); auto`
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1163,7 +1163,7 @@ theorem LowerFun_IRO_HybridIROLazy_f :
         (List Bool × ℤ) (List Bool) BIRO.IRO.asF)).procedure
       (Module.app LowerHybridIRO.f (HybridIROLazy.asHI HybridIROLazy_mp)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ lazy_invar (BIRO.IRO.mp.get g₁) (HybridIROLazy_mp.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1244,7 +1244,7 @@ theorem IRO_RaiseHybridIRO_HybridIROLazy_f :
       BIRO.IRO.f.procedure
       (Module.app RaiseHybridIRO.f (HybridIROLazy.asHI HybridIROLazy_mp)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ lazy_invar (BIRO.IRO.mp.get g₁) (HybridIROLazy_mp.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1403,7 +1403,7 @@ theorem Lower_HybridIROEager_f :
       (fun r₁ g₁ r₂ g₂ => r₁ = bits2blocks r₂ ∧
         HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂) := by
   -- EC: `inline*`, `seq 5 3`, then `if`, and the two loops in lockstep
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1606,7 +1606,7 @@ theorem HybridIROEagerTrans_next_block_split :
       (HybridIROEagerTrans.next_block HybridIROEager_mp).procedure
       (HybridIROEagerTrans.next_block_split HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ HybridIROEager_mp.get g₁ = HybridIROEager_mp.get g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1893,7 +1893,7 @@ module BlockGenCall {
 theorem BlockGen_loop_BlockGenCall (P : VariableAssignment → VariableAssignment → Prop) :
     prhlProc (fun _ g₁ _ g₂ => P g₁ g₂) BlockGen.loop.procedure BlockGenCall.loop.procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ P g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1918,7 +1918,7 @@ r` (`LoopSnoc.sample_denotation`), whose image by `mkblock` is `bdistr` (`bdistr
 theorem BlockGen_direct_BlockGenCall (P : VariableAssignment → VariableAssignment → Prop) :
     prhlProc (fun _ g₁ _ g₂ => P g₁ g₂) BlockGen.direct.procedure BlockGenCall.loop.procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ P g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2016,7 +2016,7 @@ theorem next_block_split_NextBlockSplitLoop :
       (HybridIROEagerTrans.next_block_split HybridIROEager_mp).procedure
       (NextBlockSplitLoop.next_block_split HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2088,7 +2088,7 @@ theorem NextBlockSplitLoop_NextBlockSplitDirect :
       (NextBlockSplitLoop.next_block_split HybridIROEager_mp).procedure
       (NextBlockSplitDirect.next_block_split HybridIROEager_mp).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2148,7 +2148,7 @@ theorem NextBlockSplitDirect_BlockSpongeTrans_next_block (i2 : ℤ) :
       (fun r₁ g₁ r₂ g₂ => r₁.1 = blocks2bits r₂.1 ∧ r₁.2 = r₂.2 * r ∧ r₂.2 = i2 + 1 ∧
         size r₂.1 = i2 + 1 ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2362,7 +2362,7 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
       (fun r₁ g₁ r₂ g₂ => r₁.1 = n' * r ∧ r₂.1 = n' ∧ size r₂.2 = n' ∧
         r₁.2 = blocks2bits r₂.2 ∧
         eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HybridIROEager_mp.get g₁)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2528,7 +2528,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
           (n1 ≤ 0 → r₁ = [] ∧ r₂ = []) ∧
           (0 < n1 → r₁ = take n1 (blocks2bits r₂) ∧ size r₂ = (n1 + r - 1) / r)) ∧
         (¬ valid_block x2 → r₁ = [] ∧ r₂ = [])) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -3055,7 +3055,7 @@ theorem Sponge_Raise_BlockSponge_f :
           Perm)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eqGlob Perm g₁ g₂) := by
     rw [Indifferentiability.PRIMITIVE.view_f]; exact hPf0
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -3138,7 +3138,7 @@ theorem Sponge_Raise_BlockSponge_f_oracle :
               (Module.app BlockSponge.Sponge (Indifferentiability.PRIMITIVE.view SLCommon.state
                 (List block × ℤ) (List block) Perm)) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -3213,7 +3213,7 @@ theorem RealIndif_Sponge_BlockSponge_equiv (Dist : DISTINGUISHER) (hD : Module.E
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (RealIndif Sponge Perm Dist).procedure
       (BlockSponge.RealIndif BlockSponge.Sponge Perm (LowerDist Dist)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{2} 2
@@ -3227,7 +3227,7 @@ theorem RealIndif_Sponge_BlockSponge_equiv (Dist : DISTINGUISHER) (hD : Module.E
           (Module.app BlockSponge.Sponge (Indifferentiability.PRIMITIVE.view SLCommon.state
             (List block × ℤ) (List block) Perm))).procedure
         (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-      equiv_proc
+      equiv_proc_to_stmt
       repeat stmt_inline{1} 0
       repeat stmt_inline{2} 0
       stmt_wp
@@ -3399,7 +3399,7 @@ theorem Ideal_IRO_Experiment_HybridLazy (BlockSim : BlockSponge.SIMULATOR) (Dist
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
     rw [eS]
     exact Indifferentiability.SIMULATOR.init_eq _ _ _ BlockSim hS.1 _ _
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -3618,7 +3618,7 @@ theorem Experiment_HybridIROExper_Lazy (BlockSim : BlockSponge.SIMULATOR) (Dist 
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
   unfold HybridExperiment
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   repeat stmt_inline{1} 1
@@ -3686,7 +3686,7 @@ theorem Experiment_HybridIROExper_Eager (BlockSim : BlockSponge.SIMULATOR) (Dist
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ _ r₂ _ h => by rw [h]) rfl
   unfold HybridExperiment
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   repeat stmt_inline{1} 1
@@ -3772,7 +3772,7 @@ theorem RaiseHybridIRO_HybridIROEager_RaiseFun_BlockIRO_f_inv
         HybridIRO.eager_invar (BlockSponge.BIRO.IRO.mp.get g₂) (HIRO_Eager_mp.get g₁)) := by
   -- EC: `proc=> /=`
   have hr := gt0_r
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   have e₁ : (HybridIRO.HYBRID_IRO.f (HybridIRO.HybridIROEager.asHI HIRO_Eager_mp)).procedure =
@@ -3939,7 +3939,7 @@ theorem Experiment_HybridEager_Ideal_BlockIRO (BlockSim : BlockSponge.SIMULATOR)
     refine prhlProc_globInvF_of_writesKeep _ (by writes_keep) (by writes_keep) ?_
     rw [eL₁, eL₂]
     exact HybridIRO.HybridIROEager_BlockIRO_f HIRO_Eager_mp
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp

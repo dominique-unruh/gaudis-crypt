@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
+import GaudisCrypt.Logic.ECProc
 
 /-!
 # Random oracles are collision resistant — the EC-fidelity pilot, continued
@@ -95,7 +96,7 @@ private theorem sum_Ico_int_toNat (n : ℕ) (f : ℕ → ENNReal) :
 
 set_option maxHeartbeats 1000000 in -- one declaration: EC's `have`, its `byphoare`, its `fel`
 /-- EC's `RO_is_collision_resistant &m`, its proof EC's: the `have->:` by `byequiv` (a `calc`
-step), then `byphoare`, `proc`, `seq 1` (our `seq 2`: `proc` keeps a `reset_vars`), its first `E`
+step), then `byphoare`, `proc`, `seq 1`, its first `E`
 goal EC's `call(: true ==> collision RO.m)` with EC's `fel`, and the arithmetic of EC's last
 `smt()` in the `bound` goal. -/
 theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) :
@@ -106,7 +107,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
       = Pr[ Collision.Collision2(A, RO).main () @ &m : §res ] := by
         -- EC's `byequiv; proc; inline*; sim`
         byequiv
-        equiv_proc
+        equiv_proc_to_stmt
         stmt_inline 0
         stmt_inline{2} 0
         stmt_wp
@@ -125,23 +126,20 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
           case guard => intros; simp_all
     _ ≤ ((bound * (bound - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
         byphoare
-        · phoare_proc_to_stmt
-          phoare_inline 0
-          phoare_seq 2 : (collision §RO.m)
+        · phoare_proc
+          phoare_seq 1 : (collision §RO.m)
             (∑ i ∈ Finset.Ico (0 : ℤ) bound, (i.toNat : ENNReal) * sampleto.1 {default}) 1 1
             (sampleto.1 {default}) True
           case invariant =>
             hoare_call
-            hoare_wp 1
             hoare_skip
             intros; trivial
           case first_E =>
             phoare_call (: True ==> collision §RO.m)
             · -- EC's `fel 1 Bounder.bounder (fun i, i%r * mu1 sampleto witness) bound (collision
               -- RO.m) …`
-              phoare_proc_to_stmt
+              phoare_proc
               repeat phoare_inline 0
-              phoare_wp 1
               fel §Bounder.bounder (fun i => (i.toNat : ENNReal) * sampleto.1 {default}) bound
                 (collision §RO.m) [§Bounder.bounder < bound]
                   (((FMap.fdom §RO.m).card : ℤ) ≤ §Bounder.bounder)
@@ -152,7 +150,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 intros
                 simpa [FMap.fdom, FMap.empty] using not_collision_empty (α := «from») (β := «to»)
               case step =>
-                phoare_proc_to_stmt
+                phoare_proc
                 repeat phoare_inline 0
                 phoare_wp 20
                 phoare_skip
@@ -176,7 +174,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                       fun _ _ => rfl)).trans bot_le
               case incr =>
                 intro c
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -193,7 +191,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 split_ifs <;> simp_all
               case same =>
                 intro c
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -202,7 +200,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 split_ifs <;> simp_all
                 omega
               case keep =>
-                hoare_proc_to_stmt
+                hoare_proc
                 repeat hoare_inline 0
                 hoare_wp 20
                 hoare_skip
@@ -220,8 +218,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                       := by
                   omega
                 split_ifs <;> simp_all
-            · phoare_wp 1
-              phoare_skip
+            · phoare_skip
               intros
               exact le_rfl
           case second_notE =>

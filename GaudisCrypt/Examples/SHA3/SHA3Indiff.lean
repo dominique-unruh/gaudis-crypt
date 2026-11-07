@@ -273,7 +273,7 @@ theorem dc_P_f (P : BlockSponge.DPRIMITIVE) (hP : FVP.fvP P ≤ (cL.footprint)�
       (Indifferentiability.PRIMITIVE.f SLCommon.state (List block × ℤ) (List block)
         (Module.app BlockSponge.PC P)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ cL.equal_outside g₁ g₂ ∧ cI (cL.get g₁) (cL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -320,7 +320,7 @@ theorem dc_P_fi (P : BlockSponge.DPRIMITIVE) (hP : FVP.fvP P ≤ (cL.footprint)�
       (Indifferentiability.PRIMITIVE.fi SLCommon.state (List block × ℤ) (List block)
         (Module.app BlockSponge.PC P)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ cL.equal_outside g₁ g₂ ∧ cI (cL.get g₁) (cL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
@@ -366,7 +366,7 @@ theorem dc_F_f (F : BlockSponge.DFUNCTIONALITY) (hF : FVP.fvP F ≤ (cL.footprin
           { f := Indifferentiability.FUNCTIONALITY.f SLCommon.state (List block × ℤ) (List block)
               (Module.app BlockSponge.FC F) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ cL.equal_outside g₁ g₂ ∧ cI (cL.get g₁) (cL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   have hFf : FVP.fvP (Indifferentiability.DFUNCTIONALITY.f SLCommon.state (List block × ℤ)
@@ -415,7 +415,7 @@ theorem dc_dist (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distExt)
       (Module.app (LowerDist (DRestr Dist)) (Module.pair F P)).procedure
       (Module.app (BlockSponge.DRestr (LowerDist Dist)) (Module.pair F P)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ cL.equal_outside g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{2} 1
@@ -484,7 +484,7 @@ theorem drestr_commute1 (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distEx
         (BlockSponge.DRestr (LowerDist Dist))).procedure () m (fun r _ => r = true) := by
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -520,7 +520,7 @@ theorem drestr_commute2 (Dist : DISTINGUISHER) (hD : Module.ECModule Dist distEx
         (fun r _ => r = true) := by
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -663,7 +663,7 @@ theorem equiv_sim_f (F : DFUNCTIONALITY) (hF : FVP.fvP F ≤ (sL.footprint)ᶜ) 
       (List Bool) F) ≤ (sL.footprint)ᶜ := by fp_disjoint
   have hIf : FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (sL.footprint)ᶜ := by
     simp only [sL, Footprint.lens_pair]; fp_disjoint
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -783,7 +783,7 @@ theorem equiv_sim_fi (F : DFUNCTIONALITY) :
         (Module.app Simulator F)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sL.equal_outside g₁ g₂ ∧ sI (sL.get g₁) (sL.get g₂)) := by
   rw [raiseSim_fi]
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -832,7 +832,7 @@ theorem rs_PC_f (P1 P2 : DPRIMITIVE)
       (Indifferentiability.PRIMITIVE.f (block × capacity) (List Bool × ℤ) (List Bool)
         (Module.app PC P2)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sL.equal_outside g₁ g₂ ∧ sI (sL.get g₁) (sL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -878,7 +878,7 @@ theorem rs_PC_fi (P1 P2 : DPRIMITIVE)
       (Indifferentiability.PRIMITIVE.fi (block × capacity) (List Bool × ℤ) (List Bool)
         (Module.app PC P2)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sL.equal_outside g₁ g₂ ∧ sI (sL.get g₁) (sL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -930,7 +930,7 @@ theorem replace_simulator (Dist : DISTINGUISHER) (hD : Module.ECModule Dist dist
         (fun r _ => r = true) := by
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 2

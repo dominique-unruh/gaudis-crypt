@@ -108,7 +108,7 @@ Small EC examples (`~/.opam/ec/.opam-switch/sources/easycrypt/examples`) mixing 
   `inRange_uniformOfFinset`).
 * 2026-10-23 — **PIR privacy done** (`secure1`, `secure2`, `security_s`, `security_s'` in
   `Examples/EasyCryptBench/PIR.lean`, standard axioms), with the new pRHL layer (branch
-  `prhl-syntax`).  `secure1` is EC's script step for step: `equiv_proc; stmt_inline 0` ×3
+  `prhl-syntax`).  `secure1` is EC's script step for step: `equiv_proc_to_stmt; stmt_inline 0` ×3
   (`proc; inline *`), `stmt_wp`, `equiv_while ={j, s}`, body `stmt_wp; equiv_rnd; equiv_skip`
   and a 2-line `simp`.  `secure2` couples the coins with one *state-dependent* function,
   `fun b => if (§j{1} == §i0{1}) = (§j{2} == §i0{2}) then b else !b`, where EC does a `case`

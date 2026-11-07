@@ -5,6 +5,7 @@ import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Logic.CallSpec
+import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
@@ -221,16 +222,16 @@ open GaudisCrypt.SHA3.SecureRO (not_rng_empty expected_mono' expected_point' eq_
   rng_set_of_rng indicatorE_le_of_imp)
 
 /-- EC's `RO_is_preimage_resistant &m (h : to)`, its proof EC's: the `have->:` by `byequiv`
-(here a `calc` step), then `byphoare(: arg = h ==> _)`, `proc`, `seq 1` (our `seq 3`: `proc` keeps
-the argument's copy), its first `E` goal EC's `call(: true ==> rng RO.m h)` with EC's `fel`, and the
-arithmetic of EC's last `smt()` in the `bound` goal.  The oracle's bullets are proven with
+(here a `calc` step), then `byphoare(: arg = h ==> _)`, `proc`, `seq 1`, its first `E` goal
+EC's `call(: true ==> rng RO.m h)` with EC's `fel`, and the arithmetic of EC's last `smt()` in
+the `bound` goal.  The oracle's bullets are proven with
 `hoare_wp`/`phoare_wp`; the generic `FMap` facts are the old file's. -/
 theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (h : «to») :
     Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
   calc Pr[ Preimage(A, RO).main (h) @ &m : §res ]
       = Pr[ Preimage.Preimage2(A, RO).main (h) @ &m : §res ] := by
         byequiv
-        equiv_proc
+        equiv_proc_to_stmt
         stmt_inline 0
         stmt_inline{1} 0
         stmt_inline{2} 0
@@ -256,20 +257,17 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
             case guard => intros; simp_all
     _ ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
       byphoare (: §hash = h ==> _)
-      · phoare_proc_to_stmt
-        phoare_inline 0
-        phoare_seq 3 : (FMap.rng §RO.m h) (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h})
+      · phoare_proc
+        phoare_seq 1 : (FMap.rng §RO.m h) (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {h})
           1 1 (sampleto.1 {h}) (§hash = h)
         case invariant =>
           hoare_call
-          hoare_wp 2
           hoare_skip
           exact fun _ h _ _ => h
         case first_E =>
           phoare_call (: True ==> FMap.rng §RO.m h)
-          · phoare_proc_to_stmt
+          · phoare_proc
             repeat phoare_inline 0
-            phoare_wp 1
             fel §Bounder.bounder (fun _ => sampleto.1 {h}) bound (FMap.rng §RO.m h)
               [§Bounder.bounder < bound] True
             case sum => exact le_rfl
@@ -279,7 +277,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               intros
               simp [not_rng_empty]
             case step =>
-              phoare_proc_to_stmt
+              phoare_proc
               repeat phoare_inline 0
               phoare_wp 20
               phoare_skip
@@ -294,7 +292,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
                     fun _ _ => rfl)).trans bot_le
             case incr =>
               intro c
-              hoare_proc_to_stmt
+              hoare_proc
               repeat hoare_inline 0
               hoare_wp 20
               hoare_skip
@@ -303,7 +301,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               split_ifs <;> simp_all
             case same =>
               intro c
-              hoare_proc_to_stmt
+              hoare_proc
               repeat hoare_inline 0
               hoare_wp 20
               hoare_skip
@@ -312,15 +310,14 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               split_ifs <;> simp_all
               omega
             case keep =>
-              hoare_proc_to_stmt
+              hoare_proc
               repeat hoare_inline 0
               hoare_wp 20
               hoare_skip
               rintro τ ⟨-, hr⟩
               simp only [Lens.pair, eval_lens_global] at hr
               split_ifs <;> simp_all [rng_set_of_rng]
-          · phoare_wp 2
-            phoare_skip
+          · phoare_skip
             intros
             exact le_rfl
         case second_notE =>

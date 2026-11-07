@@ -383,7 +383,7 @@ theorem IF'_Valid2_f :
         (Valid2 SLCommon.F.LRO)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂) := by
   unfold idInv sInv IF' Valid2
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -437,7 +437,7 @@ theorem FC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
                     F₂ })) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
   unfold sInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0
@@ -519,7 +519,7 @@ theorem S_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Lens
           F₂))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
   unfold sInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -574,7 +574,7 @@ theorem PC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
         (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
           { f := X₂, fi := Y₂ }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -611,7 +611,7 @@ theorem PC_fi_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Le
         (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
           { f := X₂, fi := Y₂ }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
@@ -660,7 +660,7 @@ theorem PC_f_cInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
         (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
           { f := X₂, fi := Y₂ }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ cInv K₁ K₂ R g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -696,7 +696,7 @@ theorem PC_fi_cInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Le
         (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
           { f := X₂, fi := Y₂ }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ cInv K₁ K₂ R g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
@@ -732,7 +732,7 @@ theorem S_fi_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
         (Module.app Gconcl.S (Indifferentiability.FUNCTIONALITY.view state (List block) block
           F₂))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -815,7 +815,7 @@ theorem IF_f_ie :
       (Indifferentiability.FUNCTIONALITY.f state (List block) block Gconcl.IF).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ieInv g₁ g₂) := by
   unfold Gconcl.IF
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -854,7 +854,7 @@ theorem PC_DPRestr_f {X Y : procmod (state) → state}
         (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
           { f := X, fi := Y }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ieInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -913,7 +913,7 @@ theorem PC_DPRestr_fi {X Y : procmod (state) → state}
         (Module.app PC (Indifferentiability.DPRIMITIVE.mk state (List block × ℤ) (List block)
           { f := X, fi := Y }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ieInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
@@ -975,7 +975,7 @@ theorem FC_DSqueeze_DFRestr_f :
                     Gconcl.IF })) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ ieInv g₁ g₂) := by
   unfold Gconcl.IF
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1265,7 +1265,7 @@ theorem ideal_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le hro (sup_le hcc (sup_le hsc hsq)))))
   unfold SLCommon.IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1363,7 +1363,7 @@ theorem Ideal_equiv_valid (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le hro hcc)))
   unfold L L2 SLCommon.IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1432,7 +1432,7 @@ theorem Valid2_IF_f :
       (Indifferentiability.FUNCTIONALITY.f state (List block) block Gconcl.IF).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idInv g₁ g₂) := by
   unfold Valid2 Gconcl.IF
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1474,7 +1474,7 @@ theorem ideal_equiv2 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le hro hcc)))
   unfold L2 SLCommon.IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1723,7 +1723,7 @@ theorem IF'_IF2_f :
         (Module.app IF2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L3Inv g₁ g₂) := by
   unfold L3Inv sInv IF'
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1867,7 +1867,7 @@ theorem Ideal_equiv3 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le hro (sup_le hf2 hcc))))
   unfold L L3 SLCommon.IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1978,7 +1978,7 @@ module D2 (D : DISTINGUISHER) using (F : SLCommon.F.RO_T) {
 theorem D2o_D2 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (D2o D F).procedure (Module.app (D2 D) F).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   stmt_wp
   equiv_call (prhlProc_refl _)
@@ -1991,7 +1991,7 @@ theorem D2o_D2 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
 theorem D2_D2o (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (D2 D) F).procedure (D2o D F).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   equiv_call (prhlProc_refl _)
@@ -2044,7 +2044,7 @@ theorem L2_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (fun a₁ g₁ a₃ g₃ h => ⟨(), g₁, rfl, (), g₃, ⟨rfl, by rw [h], by rw [h]⟩, rfl⟩)
     (fun r₁ g₁ r₃ g₃ ⟨r₂, g₂, ⟨h1, _⟩, r₂', g₂', ⟨h2, _⟩, h3, _⟩ => h1.trans (h2.trans h3))
   unfold L2 SLCommon.IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp,
@@ -2102,7 +2102,7 @@ module D3 (D : DISTINGUISHER) using (F : SLCommon.F.RO_T) {
 theorem D3o_D3 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (D3o D F).procedure (Module.app (D3 D) F).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   stmt_wp
   equiv_call (prhlProc_refl _)
@@ -2115,7 +2115,7 @@ theorem D3o_D3 (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
 theorem D3_D3o (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (D3 D) F).procedure (D3o D F).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   equiv_call (prhlProc_refl _)
@@ -2167,7 +2167,7 @@ theorem L_RO_LRO (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (fun a₁ g₁ a₃ g₃ h => ⟨(), g₁, rfl, (), g₃, ⟨rfl, by rw [h], by rw [h]⟩, rfl⟩)
     (fun r₁ g₁ r₃ g₃ ⟨r₂, g₂, ⟨h1, _⟩, r₂', g₂', ⟨h2, _⟩, h3, _⟩ => h1.trans (h2.trans h3))
   unfold L SLCommon.IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp, Indifferentiability.DPRIMITIVE.fi.mk_simp,
@@ -2390,7 +2390,7 @@ theorem S_f_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
         (Module.app Gconcl.S G₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
   unfold sInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2442,7 +2442,7 @@ theorem S_fi_sInvD {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Le
       (Indifferentiability.PRIMITIVE.fi state (List block) block
         (Module.app Gconcl.S G₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sInv K₁ K₂ R g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2485,7 +2485,7 @@ theorem FC_FValid_f :
           { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
               BlockSponge.BIRO.IRO.asF }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2650,7 +2650,7 @@ theorem DSqueeze2_Valid_f :
         (Module.app Valid (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ)
           (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2865,7 +2865,7 @@ theorem Last_f_L4 :
             (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
               BlockSponge.BIRO.IRO.asF))))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.FUNCTIONALITY.view_f]
@@ -2886,7 +2886,7 @@ theorem S2_SimLast_f :
         (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
           (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2906,7 +2906,7 @@ theorem S2_SimLast_fi :
         (Module.app (SimLast Gconcl.S) (Indifferentiability.FUNCTIONALITY.view state
           (List block × ℤ) (List block) BlockSponge.BIRO.IRO.asF))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L4Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2974,7 +2974,7 @@ theorem equiv_L4_ideal (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le (sup_le hro hf2)
       (sup_le (sup_le hiro hiro2) hcc))))
   unfold L4 IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -3050,7 +3050,7 @@ theorem IF2_Last :
         (Module.app Last (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
           (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.FUNCTIONALITY.view_f]
@@ -3249,7 +3249,7 @@ theorem S_IF2_S2_f :
         (Module.app S2 (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
           (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   stmt_wp
   equiv_call (S_f_sInvD IF2_Last_view)
@@ -3268,7 +3268,7 @@ theorem S_IF2_S2_fi :
         (Module.app S2 (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
           (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO))))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   stmt_wp
   equiv_call (S_fi_sInvD (K₁ := Lens.pair SLCommon.F.RO.m F2.RO.m)
@@ -3290,7 +3290,7 @@ theorem IF2_get (bl : List block) (k : ℤ) :
       (PROM.FullRO.RO_T.get (List block) block SLCommon.F.RO.asRO).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂ ∧
         ∀ j, 1 ≤ j → j ≤ k → FMap.dom (SLCommon.F.RO.m.get g₁) (format bl j)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.sample.mk_simp]
   stmt_inline{2} 0
@@ -3444,7 +3444,7 @@ theorem IF2_sample (bl : List block) :
       (PROM.FullRO.RO_T.sample (List block) block SLCommon.F.RO.asRO).procedure
       (fun _ g₁ _ g₂ => L34Inv g₁ g₂) := by
   rw [F_RO_sample_eq]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   simp only [← F_RO_get_eq]
   stmt_wp
@@ -3472,7 +3472,7 @@ theorem DS_IF2_FValid :
           { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
               (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
@@ -3689,7 +3689,7 @@ theorem FC_L34 :
             { f := Indifferentiability.FUNCTIONALITY.f state (List block × ℤ) (List block)
                 (Module.app DSqueeze2 (Module.pair SLCommon.F.RO.asRO F2.RO.asRO)) })))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L34Inv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
@@ -3751,7 +3751,7 @@ theorem equiv_L3_L4 (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hsm (sup_le hsmi (sup_le hspa (sup_le (sup_le hro hf2) hcc)))
   unfold L3 L4 SLCommon.IdealIndif IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -3834,7 +3834,7 @@ theorem L4F_bridge (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (L4 D F F2.RO.asRO).procedure
       (Module.app (L4F D) F).procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
   unfold L4 IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   simp only [Indifferentiability.FUNCTIONALITY.view]
   stmt_wp
@@ -3849,7 +3849,7 @@ theorem L4F_bridge' (D : DISTINGUISHER) (F : SLCommon.F.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (L4F D) F).procedure
       (L4 D F F2.RO.asRO).procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
   unfold L4 IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   simp only [Indifferentiability.FUNCTIONALITY.view]
   stmt_wp
@@ -3921,7 +3921,7 @@ theorem L4G_bridge (D : DISTINGUISHER) (F2' : F2.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (L4 D SLCommon.F.LRO F2').procedure
       (Module.app (L4G D) F2').procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
   unfold L4 IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{2} 0
   simp only [Indifferentiability.FUNCTIONALITY.view]
   stmt_wp
@@ -3936,7 +3936,7 @@ theorem L4G_bridge' (D : DISTINGUISHER) (F2' : F2.RO_T) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (Module.app (L4G D) F2').procedure
       (L4 D SLCommon.F.LRO F2').procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
   unfold L4 IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   simp only [Indifferentiability.FUNCTIONALITY.view]
   stmt_wp
@@ -4364,7 +4364,7 @@ theorem SS_f_extend (bl : List block) (j : ℤ) :
         FMap.get (SLCommon.Redo.prefixes.get g₁) (format bl (j + 1)) = some r₂ ∧ sqInv g₁ g₂) := by
   simp only [Indifferentiability.FUNCTIONALITY.view, Indifferentiability.DFUNCTIONALITY.f.mk_simp,
     Indifferentiability.PRIMITIVE.view, Indifferentiability.DPRIMITIVE.f.mk_simp, P_f]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp, P_f']
@@ -4649,7 +4649,7 @@ theorem DSqueeze_Sponge :
         (Module.app Sponge (Indifferentiability.PRIMITIVE.view state (List block × ℤ)
           (List block) P))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sqInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -4860,7 +4860,7 @@ theorem Perm_f_sq :
       (Indifferentiability.PRIMITIVE.f state (List block × ℤ) (List block) P).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sqInv g₁ g₂) := by
   rw [P_f]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -4896,7 +4896,7 @@ theorem Perm_fi_sq :
       (Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block) P).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ sqInv g₁ g₂) := by
   rw [P_fi]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -4950,7 +4950,7 @@ theorem PC_f_rInv :
             fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
               P }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ rInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -4996,7 +4996,7 @@ theorem PC_fi_rInv :
             fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
               P }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ rInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
@@ -5044,7 +5044,7 @@ theorem FC_rInv :
               (Module.app Sponge (Indifferentiability.PRIMITIVE.view state (List block × ℤ)
                 (List block) P)) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ rInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
@@ -5114,7 +5114,7 @@ theorem squeeze_squeezeless (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
   have hcc : (BlockSponge.C.c).footprint ≤ (FVP.fvP D)ᶜ :=
     (Footprint.le_compl_comm _ _).mp (_hDd.trans (Footprint.compl_antimono (by fp_sub)))
   unfold RealIndif Indifferentiability.GReal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [P_init, Squeeze, Indifferentiability.FUNCTIONALITY.init.mk_simp]
@@ -5243,7 +5243,7 @@ theorem SS_gen (bl : List block) (s k : ℤ) :
           (List block) block P))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv0 g₁ g₂ ∧ cntInv (k + (size bl - s)) g₁ ∧
         ∃ c, FMap.get (SLCommon.Redo.prefixes.get g₁) bl = some (r₁, c)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.PRIMITIVE.view, Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -5391,7 +5391,7 @@ theorem DSqueeze_count (bl : List block) (nb k : ℤ) :
           (Module.app SLCommon.SqueezelessSponge
             (Indifferentiability.PRIMITIVE.view state (List block) block P))))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv0 g₁ g₂ ∧ cntInv (k + size bl + max (nb - 1) 0) g₁) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp, Indifferentiability.FUNCTIONALITY.view]
@@ -5515,7 +5515,7 @@ theorem FC_count :
                 (Module.app SLCommon.SqueezelessSponge
                   (Indifferentiability.PRIMITIVE.view state (List block) block P)))) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DFUNCTIONALITY.f.mk_simp]
@@ -5573,7 +5573,7 @@ theorem PC_f_count :
             fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
               P }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.f.mk_simp]
@@ -5642,7 +5642,7 @@ theorem PC_fi_count :
             fi := Indifferentiability.PRIMITIVE.fi state (List block × ℤ) (List block)
               P }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ eInv g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [Indifferentiability.DPRIMITIVE.fi.mk_simp]
@@ -5748,7 +5748,7 @@ theorem equiv_sponge (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     simp only [Lg, Footprint.lens_pair]
     exact sup_le hm (sup_le hmi (sup_le hpr (sup_le hcc hsc)))
   unfold SLCommon.GReal SLCommon.RealIndif Indifferentiability.GReal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [P_init, Squeeze, Indifferentiability.FUNCTIONALITY.init.mk_simp]
@@ -6735,7 +6735,7 @@ theorem Indif_Neg_D (F : FUNCTIONALITY) (P0 : PRIMITIVE) (D : DISTINGUISHER) :
       (Module.app (Indifferentiability.Indif state (List block × ℤ) (List block))
         (Module.pair F (Module.pair P0 (DRestr (Neg_D D))))).procedure
       (fun r₁ _ r₂ _ => r₁ = !r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 2
@@ -7063,7 +7063,7 @@ theorem Simulator_f_Simu :
           (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
             BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -7221,7 +7221,7 @@ theorem Simulator_fi_Simu :
           (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
             BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e2Inv IRO2_RO_m g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -7369,7 +7369,7 @@ theorem equal2_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
         (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
           (by fp_disjoint)))))))))
   unfold IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -7488,7 +7488,7 @@ theorem SimLast_f_Simu :
           (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
             BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e1Inv IRO2_RO_m g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -7708,7 +7708,7 @@ theorem SimLast_fi_Simu :
           (Indifferentiability.FUNCTIONALITY.view state (List block × ℤ) (List block)
             BlockSponge.BIRO.IRO.asF)))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ e1Inv IRO2_RO_m g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -7855,7 +7855,7 @@ theorem equal1_equiv (D : DISTINGUISHER) (hD : Module.ECModule D distExt) (_hDd 
         (sup_le (by fp_disjoint) (sup_le (by fp_disjoint) (sup_le (by fp_disjoint)
           (by fp_disjoint)))))))))
   unfold IdealIndif Indifferentiability.GIdeal
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp

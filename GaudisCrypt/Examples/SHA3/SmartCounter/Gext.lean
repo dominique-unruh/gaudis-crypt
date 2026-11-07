@@ -349,7 +349,7 @@ theorem M_f_G12 :
         (Module.app G2.M ROhandle.FRO)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
   unfold g12Inv
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -422,7 +422,7 @@ theorem S_fi_G12 :
         (Module.app G2.S ROhandle.FRO)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
   unfold g12Inv G1.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -521,7 +521,7 @@ theorem S_f_G12 :
         (Module.app G2.S ROhandle.FRO)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
   unfold g12Inv G1.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -652,7 +652,7 @@ theorem DPRestr_fi_G12 :
         (Module.app DPRestr (Module.app G2.S ROhandle.FRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
   unfold g12Inv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -691,7 +691,7 @@ theorem DPRestr_f_G12 :
         (Module.app DPRestr (Module.app G2.S ROhandle.FRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
   unfold g12Inv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -731,7 +731,7 @@ theorem DFRestr_f_G12 :
         (Module.app DFRestr (Module.app G2.M ROhandle.FRO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g12Inv g₁ g₂) := by
   unfold g12Inv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -842,7 +842,7 @@ theorem G1_G2 (hD : Module.ECModule D distExt)
     simp only [L, Footprint.lens_pair]
     exact sup_le hcc (sup_le hcq (sup_le hro (sup_le hfro (sup_le hm (sup_le hmi
       (sup_le hmh (sup_le hmhi (sup_le hch (sup_le hpa hbx)))))))))
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1214,7 +1214,7 @@ theorem RROset_inv_lt (hfr : GcolFresh ReSample_count) :
           (ReSample_count.get g₂)) := by
   gcol_disj hfr ReSample_count
   simp only [RRO, PROM.FullRO.FullEager.RRO, PROM.FullRO.FRO_T.set.mk_simp]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1463,7 +1463,7 @@ theorem S_fi_ext (hfr : GcolFresh ReSample_count) :
           (ReSample_count.get g₂)) := by
   gcol_disj hfr ReSample_count
   unfold Gext.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1592,7 +1592,7 @@ theorem S_f_ext (hfr : GcolFresh ReSample_count) :
           (ReSample_count.get g₂)) := by
   gcol_disj hfr ReSample_count
   unfold Gext.S
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1791,7 +1791,7 @@ theorem M_f_ext (hfr : GcolFresh ReSample_count) :
         inv_le (G1.m.get g₂) (G1.mi.get g₂) (C.c.get g₁) (FRO.m.get g₂)
           (ReSample_count.get g₂)) := by
   gcol_disj hfr ReSample_count
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1918,7 +1918,7 @@ theorem DPRestr_fi_ext (hfr : GcolFresh ReSample_count) :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ extInv ReSample_count g₁ g₂) := by
   gcol_disj hfr ReSample_count
   unfold extInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1959,7 +1959,7 @@ theorem DPRestr_f_ext (hfr : GcolFresh ReSample_count) :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ extInv ReSample_count g₁ g₂) := by
   gcol_disj hfr ReSample_count
   unfold extInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2001,7 +2001,7 @@ theorem DFRestr_f_ext (hfr : GcolFresh ReSample_count) :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ extInv ReSample_count g₁ g₂) := by
   gcol_disj hfr ReSample_count
   unfold extInv
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -2125,7 +2125,7 @@ theorem EG2_Gext (hD : Module.ECModule D distExt)
     simp only [L, Footprint.lens_pair]
     exact sup_le hgc (sup_le hcc (sup_le hcq (sup_le hro (sup_le hfro (sup_le hm (sup_le hmi
       (sup_le hmh (sup_le hmhi (sup_le hch (sup_le hpa hbx))))))))))
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 1

@@ -85,7 +85,7 @@ module S {
 theorem sample_sample2 :
     prhlProc (fun a₁ _ a₂ _ => a₁ = a₂) (S.sample t1 t2).procedure (S.sample2 t1 t2).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_rnd_dprod

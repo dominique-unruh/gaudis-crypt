@@ -266,7 +266,7 @@ theorem PRP_indirect_bad_f_ARP_f [Lens.Disjoint PRPi_m PRPi_mi]
   have := (inferInstance : Lens.Disjoint ARP_coll ARP_m).symm
   have := (inferInstance : Lens.Disjoint ARP_coll ARP_mi).symm
   have := (inferInstance : Lens.Disjoint ARP_m ARP_mi).symm
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   stmt_wp
@@ -326,7 +326,7 @@ theorem PRP_indirect_bad_fi_ARP_fi [Lens.Disjoint PRPi_m PRPi_mi]
   have := (inferInstance : Lens.Disjoint ARP_coll ARP_m).symm
   have := (inferInstance : Lens.Disjoint ARP_coll ARP_mi).symm
   have := (inferInstance : Lens.Disjoint ARP_m ARP_mi).symm
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   stmt_wp
@@ -598,7 +598,7 @@ theorem PRPi'_Indirect_f_bad_f [Lens.Disjoint PRPi_m PRPi_mi]
   have := (inferInstance : Lens.Disjoint PRP_indirect_bad_bad PRPi_m).symm
   have := (inferInstance : Lens.Disjoint PRP_indirect_bad_bad PRPi_mi).symm
   have := (inferInstance : Lens.Disjoint PRPi_m PRPi_mi).symm
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -658,7 +658,7 @@ theorem PRPi'_Indirect_fi_bad_fi [Lens.Disjoint PRPi_m PRPi_mi]
   have := (inferInstance : Lens.Disjoint PRP_indirect_bad_bad PRPi_m).symm
   have := (inferInstance : Lens.Disjoint PRP_indirect_bad_bad PRPi_mi).symm
   have := (inferInstance : Lens.Disjoint PRPi_m PRPi_mi).symm
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -746,7 +746,7 @@ theorem PRPi'_Indirect_eq_equiv [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
             PRP_indirect_bad.asPRP, PRP.fi.mk_simp]
           exact PRPi'_Indirect_fi_bad_fi D uD PRPi_m PRPi_mi PRP_indirect_bad_bad
         | succ n => nomatch n)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -884,7 +884,7 @@ theorem pr_PRPi'_Indirect_ARP_equiv [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
             HoleSigs.Instantiation.lookup_zero_single, SPRP_Oracles.fi.mk_simp]
           exact ARP_fi_coll D uD ARP_coll ARP_m ARP_mi ω₁.1.2.2
         | succ n => nomatch n)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -1490,7 +1490,7 @@ run is a sampling from `uD \ X` (`dexcepted_indirect`), coupled by the identity
 theorem eq_Direct_Indirect (huD : is_lossless uD) :
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ g₁ = g₂) (Direct.sample D uD).procedure
       (Indirect.sample D uD).procedure (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_rnd_run 2
@@ -1524,7 +1524,7 @@ theorem eq_PRPi_PRPi'_f_Direct [Lens.Disjoint PRPi_m PRPi_mi] :
       (PRP.f D (PRPi.PRPi D uD PRPi_m PRPi_mi)).procedure
       (PRP.f D (Module.app (PRPi' D uD PRPi_m PRPi_mi) (Direct D uD))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1551,7 +1551,7 @@ theorem eq_PRPi'_f_Direct_Indirect (huD : is_lossless uD) :
       (PRP.f D (Module.app (PRPi' D uD PRPi_m PRPi_mi) (Indirect D uD))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
   have hs := eq_Direct_Indirect D uD huD
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
@@ -1575,7 +1575,7 @@ theorem eq_PRPi_PRPi'_fi_Direct [Lens.Disjoint PRPi_m PRPi_mi] :
       (PRP.fi D (PRPi.PRPi D uD PRPi_m PRPi_mi)).procedure
       (PRP.fi D (Module.app (PRPi' D uD PRPi_m PRPi_mi) (Direct D uD))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1601,7 +1601,7 @@ theorem eq_PRPi'_fi_Direct_Indirect (huD : is_lossless uD) :
       (PRP.fi D (Module.app (PRPi' D uD PRPi_m PRPi_mi) (Indirect D uD))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ g₁ = g₂) := by
   have hs := eq_Direct_Indirect D uD huD
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §allGlobals{1} = §allGlobals{2})
@@ -1681,7 +1681,7 @@ theorem pr_PRPi_PRPi'_Indirect_equiv [Countable D] [Lens.Disjoint PRPi_m PRPi_mi
           exact eq_PRPi_PRPi'_fi_Indirect D uD PRPi_m PRPi_mi huD
         | succ n => nomatch n)
   simp only [Lens.equal_outside_and_get_eq_iff] at hcall
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0

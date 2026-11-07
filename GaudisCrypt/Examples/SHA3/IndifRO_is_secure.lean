@@ -285,7 +285,7 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
           increase_counter SRO_Counter_c SRO_Bounder_bounder A)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   -- `proc; inline*` (the swap is EC's second step, done here between the inlining steps)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 0
   stmt_inline{2} 2
@@ -343,7 +343,7 @@ theorem RO_get_FInit_equiv [Lens.Disjoint SRO_Counter_c SRO_RO_m] :
       (PROM.FullRO.RO_T.get f_in f_out (SRO.RO.RO f_in f_out sampleto SRO_RO_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ SRO_Counter_c.get g₁ = SRO_Counter_c.get g₂ ∧
         SRO_RO_m.get g₁ = SRO_RO_m.get g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -405,7 +405,7 @@ theorem Bounder_FInit_get_equiv [Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c
   have := (inferInstance : Lens.Disjoint SRO_Counter_c SRO_RO_m).symm
   have := (inferInstance : Lens.Disjoint SRO_Bounder_bounder SRO_RO_m).symm
   have := (inferInstance : Lens.Disjoint SRO_Bounder_bounder SRO_Counter_c).symm
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -510,7 +510,7 @@ theorem GIdeal_Collision_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder 
         exact Bounder_FInit_get_equiv block f_in f_out sampleto limit bound_counter
           increase_counter SRO_RO_m SRO_Counter_c SRO_Bounder_bounder _ hAd
       | succ m => nomatch m)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 0
@@ -710,7 +710,7 @@ theorem Preimage_FM_GReal (A : SRO.AdvPreimage f_in f_out) (C : CONSTRUCTION blo
           increase_counter SRO_Counter_c SRO_Bounder_bounder DPre_h A)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   -- `proc; inline*`, and the swap
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 2
@@ -802,7 +802,7 @@ theorem GIdeal_Preimage_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bounder S
       | succ m => nomatch m)
   have hget := RO_get_FInit_equiv block f_in f_out sampleto SRO_RO_m SRO_Counter_c
   simp only [PROM.FullRO.RO_T.get.mk_simp] at hget
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 0
@@ -954,7 +954,7 @@ theorem SecondPreimage_FM_GReal (A : SRO.AdvSecondPreimage f_in f_out)
           increase_counter SRO_Counter_c SRO_Bounder_bounder D2Pre_m2 A)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   -- `proc; inline*`, and the swap
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 2
@@ -1053,7 +1053,7 @@ theorem GIdeal_SecondPreimage_RO [Countable f_in] [Lens.Disjoint SRO_Bounder_bou
       | succ m => nomatch m)
   have hget := RO_get_FInit_equiv block f_in f_out sampleto SRO_RO_m SRO_Counter_c
   simp only [PROM.FullRO.RO_T.get.mk_simp] at hget
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 0

@@ -302,7 +302,7 @@ theorem Perm_f_perm (k : ℤ) :
           Perm)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ permInv k g₁ g₂) := by
   rw [Perm_f_eq]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -340,7 +340,7 @@ theorem Sponge_f_inv (P : DPRIMITIVE) (I : VariableAssignment → VariableAssign
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ I g₁ g₂)
       (Module.app Sponge.f P).procedure (Module.app Sponge.f P).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ I g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -965,7 +965,7 @@ theorem useful (m mi : FMap state state) (a : state) :
 theorem equiv_sponge_perm (c : ℤ) (m : List Bool) : equiv_sponge_perm.statement c m := by
   unfold equiv_sponge_perm.statement
   unfold sponge_perm_left sponge_perm_right
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{1} 0
   stmt_inline{2} 0
@@ -1010,7 +1010,7 @@ noncomputable abbrev Prog.LoopSnoc.sample := DList.Program.LoopSnoc.sample Bool 
 
 theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := by
   unfold equiv_ro_iro.statement ro_iro_left ro_iro_right
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1225,7 +1225,7 @@ theorem real_oracle :
         increase_counter limit SRO.Counter.c SRO.Bounder.bounder) realF₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ realL.equal_outside g₁ g₂ ∧
         realI (realL.get g₁) (realL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1317,7 +1317,7 @@ theorem real_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
         (List Bool) f_out sigma limit increase_counter SRO.Counter.c SRO.Bounder.bounder DPre.h
         A)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 2
@@ -1395,7 +1395,7 @@ theorem ideal_oracle :
         increase_counter limit SRO.Counter.c SRO.Bounder.bounder) idealF₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ idealL.equal_outside g₁ g₂ ∧
         idealI (idealL.get g₁) (idealL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1486,7 +1486,7 @@ theorem ideal_pre (A : SRO.AdvPreimage) (hA : Module.ECModule A SRO.Oracle.ext)
         (block × capacity) (List Bool) f_out sigma limit increase_counter SRO.Counter.c
         SRO.Bounder.bounder DPre.h A)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 2
@@ -1725,7 +1725,7 @@ theorem real_spre (A : SRO.AdvSecondPreimage) (hA : Module.ECModule A SRO.Oracle
         (List Bool) f_out sigma limit increase_counter SRO.Counter.c SRO.Bounder.bounder D2Pre.m2
         A)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 2
@@ -1856,7 +1856,7 @@ theorem ideal_spre (A : SRO.AdvSecondPreimage) (hA : Module.ECModule A SRO.Oracl
         (block × capacity) (List Bool) f_out sigma limit increase_counter SRO.Counter.c
         SRO.Bounder.bounder D2Pre.m2 A)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 2
@@ -2137,7 +2137,7 @@ theorem real_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext)
         (List Bool) f_out sigma limit increase_counter SRO.Counter.c SRO.Bounder.bounder
         A)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 2
@@ -2266,7 +2266,7 @@ theorem ideal_coll (A : SRO.AdvCollision) (hA : Module.ECModule A SRO.Oracle.ext
         (block × capacity) (List Bool) f_out sigma limit increase_counter SRO.Counter.c
         SRO.Bounder.bounder A)))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   repeat stmt_inline{1} 2

@@ -301,7 +301,7 @@ theorem DB_P_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
             { f := PRP.StrongPRP.PRP.f state P, fi := PRP.StrongPRP.PRP.fi state P })))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (dbL c).equal_outside g₁ g₂ ∧
         dbI ((dbL c).get g₁) ((dbL c).get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [dprim_f_mk, dprim_f_FB]
@@ -370,7 +370,7 @@ theorem DB_P_fi (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
             { f := PRP.StrongPRP.PRP.f state P, fi := PRP.StrongPRP.PRP.fi state P })))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (dbL c).equal_outside g₁ g₂ ∧
         dbI ((dbL c).get g₁) ((dbL c).get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [dprim_fi_mk, dprim_fi_FB]
@@ -448,7 +448,7 @@ theorem DB_F_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
                       fi := PRP.StrongPRP.PRP.fi state P }))) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (dbL c).equal_outside g₁ g₂ ∧
         dbI ((dbL c).get g₁) ((dbL c).get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [dprim_f_mk, dprim_f_FB]
@@ -703,7 +703,7 @@ theorem DoubleBounding (hD : Module.ECModule D distExt)
     fp_sub
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   repeat stmt_inline{1} 1
@@ -830,7 +830,7 @@ theorem Indif_IND_Perm (m : VariableAssignment) :
         (fun r _ => r = true) := by
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   rw [Perm_init_eq]
   repeat stmt_inline{1} 0
@@ -865,7 +865,7 @@ theorem CF_IND_PF (m : VariableAssignment) :
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
   unfold CF
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [view_PF_sprp, mk_PF_eq, PF_prim_init_eq, PF_init_eq]
@@ -885,7 +885,7 @@ theorem ARP_PF_f :
       (PRP.StrongPRP.PRP.f state (PF : Switching.PRPSec.PRP)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ coll.equal_outside g₁ g₂ ∧ True) := by
   rw [PF_f_eq]
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -923,7 +923,7 @@ theorem ARP_PF_fi :
       (PRP.StrongPRP.PRP.fi state (PF : Switching.PRPSec.PRP)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ coll.equal_outside g₁ g₂ ∧ True) := by
   rw [PF_fi_eq]
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -990,7 +990,7 @@ theorem IND_ARP_PF (Dist : Switching.PRPSec.Distinguisher)
             HoleSigs.Instantiation.lookup_zero_single, PRP.StrongPRP.SPRP_Oracles.fi.mk_simp]
           exact ARP_PF_fi coll
         | succ n => nomatch n)
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   rw [PF_init_eq]
   repeat stmt_inline{1} 0
@@ -1130,7 +1130,7 @@ theorem GR_P_f :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ grL.equal_outside g₁ g₂ ∧
         grI (grL.get g₁) (grL.get g₂)) := by
   have hP := fvP_Perm_grL
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   have hPf : FVP.fvP (Indifferentiability.PRIMITIVE.f state (List block) block Perm) ≤
@@ -1154,7 +1154,7 @@ theorem GR_P_fi :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ grL.equal_outside g₁ g₂ ∧
         grI (grL.get g₁) (grL.get g₂)) := by
   have hP := fvP_Perm_grL
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   have hPf : FVP.fvP (Indifferentiability.PRIMITIVE.fi state (List block) block Perm) ≤
@@ -1353,7 +1353,7 @@ theorem GR_F_f :
   have hP := fvP_Perm_grL
   have hPf : FVP.fvP (Indifferentiability.PRIMITIVE.f state (List block) block Perm) ≤
       (grL.footprint)ᶜ := by fp_disjoint
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_f]
@@ -1529,7 +1529,7 @@ theorem GReal_GReal' (D : DISTINGUISHER) (hD : Module.ECModule D distExt)
     (B := fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ C.c.get g₁ = C.c.get g₂) ?_
     (fun r₁ g₁ r₂ g₂ h => by rw [h.1, h.2]) rfl
   unfold GReal GReal' RealIndif Indifferentiability.GReal
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   repeat stmt_inline{1} 1

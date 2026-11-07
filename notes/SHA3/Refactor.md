@@ -183,7 +183,7 @@ Missing pieces, in order:
     `byphoare(: arg = h ==> _); proc; seq 1 : (rng RO.m h) … (hash = h)` with bullets
     `invariant` (`hoare_call`), `first_E` (`phoare_call (FEL_rng A h)`), `second_notE` (the last
     query, EC's `rnd (pred1 h)`); `preimage_tail_le` gone.  Deviation: our `seq` counts the two
-    statements `proc` adds for the argument (`seq 3`) — a `phoare_proc` like `equiv_proc` would
+    statements `proc` adds for the argument (`seq 3`) — a `phoare_proc` like `equiv_proc_to_stmt` would
     remove that.
   * Still old-style: `Preimage_Preimage2` (by-index inlining, manual `equiv_seq`); auxiliary
     lemmas (`FEL_rng`, `Bounder_RO_get_fel`, `Preimage2_le`, `Preimage_Preimage2`) are EC's inline
@@ -228,7 +228,7 @@ name-clash rule for printing local variables, `mu1`/`mu_ne_top` (`Lib/EC/Distr.l
 
 Still different from EC (each small, listed for the next files):
 * `proc` adds the statements that copy the arguments: our `seq` counts them (`seq 3` for EC's
-  `seq 1`); a `phoare_proc` like `equiv_proc` would remove that.
+  `seq 1`); a `phoare_proc` like `equiv_proc_to_stmt` would remove that.
 * Auxiliary lemmas where EC has inline `have`s/bullets (the equivalences, the `fel` premises as a
   `FelOracle` lemma, the `fel`/`seq` lemmas): folding them needs `fel` as a tactic.
 * `Preimage_Preimage2` and the other equivalences are by-index inlining and `equiv_seq` splits,
@@ -336,6 +336,16 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   2M on `fvP_D1` alone).  Single-threaded CPU time of the file 71 s (from 87 s).
 * Collision's modules in EC's shape too (`Bounder(F).init`, `A(Bounder(F)).guess`,
   `FEL(A, F).main`, `F : RO_T`): no hand-built module record left in the pilot.
+* **B6, EC's `proc`** (`Logic/ECProc.lean`): `phoare_proc`, `hoare_proc`, `equiv_proc` turn a
+  procedure judgment into the judgment about the body (bodies), the parameters local variables
+  under their own names, the postcondition read at the return value: no call, no argument
+  copies, no frame reset, so EC's counts are ours (`seq 1`).  The rules
+  (`phoareProc_of_body_anyLocals`, `hoareProc_of_body_anyLocals`, `prhlProc_of_body_anyLocals`)
+  prove the body's judgment from every state whose parameter variables hold the arguments, as
+  EC's `proc` does.  The old step to the call statement is `*_proc_to_stmt`; `equiv_proc` was
+  that step and is renamed `equiv_proc_to_stmt` everywhere (321 uses).  The pilot's `phoare`
+  and `hoare` proofs use `*_proc`; the return-copy `wp 1` steps and the copy-skipping `wp 2`s are
+  gone.
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three

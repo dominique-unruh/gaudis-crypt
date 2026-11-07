@@ -193,7 +193,7 @@ noncomputable abbrev cpaGame (A : Adversary P) : procmod () -> Bool :=
 theorem cpa_ddh0 (A : Adversary P) :
     equiv[ (cpaGame P A) ~ (Module.app (DDH0 P) (Module.app (DDHAdv P) A)) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline{1} 1
@@ -221,7 +221,7 @@ theorem cpa_ddh0 (A : Adversary P) :
 theorem ddh1_gb (A : Adversary P) :
     equiv[ (Module.app (DDH1 P) (Module.app (DDHAdv P) A)) ~ (Module.app (Gb P) A) :
       §allGlobals{1} = §allGlobals{2} ==> ={res} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 0
   stmt_split_pair{1} 5

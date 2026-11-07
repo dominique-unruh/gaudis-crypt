@@ -46,7 +46,7 @@ sides produces two kinds of premise:
 
 **The toy** (`AbstractCallTest.lean`): an abstract adversary with one oracle, run against a
 counter that adds 1 and one that adds 2, keeps `count₂ = 2 · count₁`, `={glob A}` and `={res}`
-(`adversary_count`).  The oracle premise (`count_query`) is `equiv_proc; stmt_inline 0; stmt_wp;
+(`adversary_count`).  The oracle premise (`count_query`) is `equiv_proc_to_stmt; stmt_inline 0; stmt_wp;
 equiv_skip`, then `glob_set_of_le_compl` and `omega`.
 
 **Limitations and open points:**
@@ -343,7 +343,7 @@ After E7 (`glob`), the proof is:
   two sides, so `equiv_call` needs a judgment, not reflexivity).
 
 Fixes on the way:
-* `equiv_proc`, `Judgment.descsOf`, `prhlGoal` read the goal through `cleanupAnnotations`: after a
+* `equiv_proc_to_stmt`, `Judgment.descsOf`, `prhlGoal` read the goal through `cleanupAnnotations`: after a
   `have` the goal carries an annotation, and the tactics did not recognize the judgment.
 * `generalizeReadsRel` (behind `equiv_skip`, the `guard` goals) leaves a state alone when it
   occurs other than read (`onlyRead`), for example in the run of a call: it used to generalize the
@@ -1248,7 +1248,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
      Valid2, FUNCTIONALITY.f.mk_simp]`. The `abbrev` matters: with an opaque `def` the module
      command cannot prove its `apply_simp` equation. `view`s of terms that depend on the parameter
      must be written out as `DFUNCTIONALITY.mk {f := …}` for the same reason.
-  2. Bridges `D2o D F ~ D2(D)(F)`: `equiv_proc` keeps the abstract `D2o` as a call statement, so
+  2. Bridges `D2o D F ~ D2(D)(F)`: `equiv_proc_to_stmt` keeps the abstract `D2o` as a call statement, so
      use `stmt_inline` on the wrapper side only, then `equiv_call (prhlProc_refl _)`.
   3. `prhlProc.trans` bridge, `RO_LRO_D`, bridge, then `prhlProc_conseq` down to `g₁ = g₂ ⟹ r₁ = r₂`.
   4. In the game, inline everything, `simp only` the call into `D2o` form, `stmt_wp`, then
@@ -1264,7 +1264,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `writes_keep` stop at `PRIMITIVE.f … P` ("no concrete procedure body"). Bridges proven by
   `unfold P Perm PRP.RP.RP; simp [PRIMITIVE.f, PRP.StrongPRP.PRP.mk]`: `P_f`, `P_fi`, `P_init`
   (to `RP.f`, …) and `P_view`/`P_view'` (`PRIMITIVE.view P` as `DPRIMITIVE.mk {f := RP.f, …}`).
-  * `rw [P_f]` works on a `prhlProc` goal *before* `equiv_proc`.
+  * `rw [P_f]` works on a `prhlProc` goal *before* `equiv_proc_to_stmt`.
   * A `simp only [P_init, …]` must come *after* the inlining that exposes the call.
   * For `writes_keep` through a module that calls `P` deeper down (`DSqueeze(SqueezelessSponge(view
     P))`), `rw [P_view']` first: the view is visible in the goal, its callees' bodies are not.
@@ -1319,7 +1319,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   instead (`equiv_seq 2 3`, …).
 * **`RO_T.get F.RO.asRO` against `RO.get`.** Inlining `sample` exposes `FullRO.RO.get …`, while the
   game's calls read `RO_T.get … F.RO.asRO`. The bridges `F_RO_get_eq` and `F_RO_sample_eq` (`simp`)
-  convert between them. `rw` them at the `prhlProc` goal before `equiv_proc`, where the other side's
+  convert between them. `rw` them at the `prhlProc` goal before `equiv_proc_to_stmt`, where the other side's
   module terms are folded.
 * **Two spellings of a local read.** `omega` treats `(localVarLens "i" ℤ).get σ` from the program and
   from a `§i` in an invariant as different atoms, because their `autoParam` proofs differ. Restate
@@ -1491,7 +1491,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   relation `J` of the lens' contents (`SomeEquiv`, `∀ J, prhlProc (… ∧ L.equal_outside ∧ J …)`),
   so the wrappers (`opc_f`, `ofc_f`) instantiate it at the counter values they fix.  A callee
   outside the lens is `prhlProc_self_equal_outside_module L _ hfp J`; a procedure on the right
-  with no body (`Perm.f`) stays an opaque call after `equiv_proc`.
+  with no body (`Perm.f`) stays an opaque call after `equiv_proc_to_stmt`.
 * **Same write on both sides of a variable outside `L`**: `he.set_disjoint v`, reads by
   `he.get_disjoint` (`instance : Lens.Disjoint X L := by unfold L; infer_instance`).  The
   judgment simp already turns `J (L.get (X.set v g))` into `J (L.get g)`.
@@ -1547,7 +1547,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `simp only [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_sample]; exact (is_lossless_iff_expected
   _).mp dbool_ll`; `variant`: `hoare_wp; hoare_skip`; `exit`).
 * **A call wrapper against its callee** (`Dist(F).distinguish` vs the game it calls):
-  `equiv_proc; stmt_inline{1} 0; stmt_wp; simp only [view]; equiv_call (prhlProc_refl _)`.
+  `equiv_proc_to_stmt; stmt_inline{1} 0; stmt_wp; simp only [view]; equiv_call (prhlProc_refl _)`.
 * **Probability chains**: `.trans`/`.symm` of `Procedure.Pr_eq_of_prhlProc (a₁ := ()) (a₂ := ())`;
   a real-valued `≤` by `exact_mod_cast Procedure.Pr_le_of_prhlProc`.
 * **Pitfalls**: a precondition on an argument's projection (`a₁.2`) came out as `sorry` (inline
@@ -1570,7 +1570,7 @@ Same outline as `Gext.G1_G2` (oracle steps for `DFRestr`/`DPRestr`, then
   `Dist_game`), `soro_spre_game` (`soro_pre_game` for `SORO.SecondPreimage`).
 * **`a₂` in a precondition elaborates to `sorry`** when the judgment's signatures are not yet known
   (`prhlProc` takes them from the procedures, after the precondition): give
-  `(sig₁ := procsig () -> Bool) (sig₂ := procsig (List Bool) -> Bool)`.  This, not `equiv_proc`,
+  `(sig₁ := procsig () -> Bool) (sig₂ := procsig (List Bool) -> Bool)`.  This, not `equiv_proc_to_stmt`,
   is the cause of the earlier `a₁.2` pitfall.
 * **EC's `call` frames what the callee does not write; ours does not.**  A variable read after a
   call (`Dist_of_P2Adv.m`) needs `prhlProc_frame_lens X X h₁ h₂ R spec`, `h` from a footprint bound

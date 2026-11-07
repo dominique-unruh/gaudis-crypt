@@ -472,7 +472,7 @@ theorem Preimage_Preimage2 [Lens.Disjoint Bounder_bounder Counter_c]
       (Module.app (Preimage.Preimage2 «from» «to» bound increase_counter bound_counter Counter_c
         Bounder_bounder) (Module.pair A (RO.asRF «from» «to» sampleto RO_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{1} 0
   stmt_inline{2} 0
@@ -924,7 +924,7 @@ theorem SecondPreimage_SecondPreimage2 [Lens.Disjoint Bounder_bounder Counter_c]
         Counter_c Bounder_bounder SecondPreimage2_m2)
         (Module.pair A (RO.LRO «from» «to» sampleto RO_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
@@ -989,7 +989,7 @@ theorem SecondPreimage2_SecondPreimage3 [Lens.Disjoint Bounder_bounder Counter_c
       (Module.app (SecondPreimage3 «from» «to» bound increase_counter bound_counter
         Counter_c Bounder_bounder SecondPreimage2_m2 D1_m1 A) F).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   repeat (first | stmt_inline{1} 0 | stmt_inline{2} 0 | simp only [hinit, hgetF])
   have := (inferInstance : Lens.Disjoint SecondPreimage2_m2 Counter_c).symm
@@ -1111,7 +1111,7 @@ theorem SecondPreimage3_RO_LRO [Countable «from»] [Countable «to»] [Lens.Dis
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   have hcall := PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO_m
     (fun _ => hll) RO_m _ hD hdisj
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline 0
@@ -1701,7 +1701,7 @@ theorem Collision_Collision2 (A : AdvCollision «from» «to») :
       (Module.app (Collision.Collision2 «from» «to» bound increase_counter bound_counter Counter_c
         Bounder_bounder) (Module.pair A (RO.RO «from» «to» sampleto RO_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline{2} 0
   stmt_wp

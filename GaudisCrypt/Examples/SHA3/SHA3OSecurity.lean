@@ -545,7 +545,7 @@ theorem osim_congr_fi [Lens.Disjoint SHA3Indiff.Simulator.m L]
       (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
         (Module.app OSimulator F₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -591,7 +591,7 @@ theorem osim_congr_f [Lens.Disjoint SHA3Indiff.Simulator.m L]
       (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
         (Module.app OSimulator F₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ J (L.get g₁) (L.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -686,7 +686,7 @@ theorem opc_congr_f [Lens.Disjoint Counter.c L] (P₁ P₂ : ODPRIMITIVE)
       (OptionIndifferentiability.OPRIMITIVE.f state (List Bool × ℤ) (List Bool)
         (Module.app OPC P₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -727,7 +727,7 @@ theorem opc_congr_fi [Lens.Disjoint Counter.c L] (P₁ P₂ : ODPRIMITIVE)
       (OptionIndifferentiability.OPRIMITIVE.fi state (List Bool × ℤ) (List Bool)
         (Module.app OPC P₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -774,7 +774,7 @@ theorem ideal_game_congr [Lens.Disjoint SHA3Indiff.Simulator.m L]
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂) (IdealGame F₁ D).procedure (IdealGame F₂ D).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -1098,7 +1098,7 @@ theorem rw_RF_List_While :
       (SecureORO.RF_T.get (List Bool) f_out (RFWhile RFList_m)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ RFList_m.get g₁ = RFList_m.get g₂) := by
   rw [RFList_get, RFWhile_get]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -1154,7 +1154,7 @@ theorem eq_IRO_RFWhile :
       (fun r₁ g₁ r₂ g₂ => r₂ = of_list r₁ ∧ size r₁ = size_out ∧
         inv (BIRO.IRO.mp.get g₁) (RFList_m.get g₂)) := by
   rw [RFWhile_get]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0
@@ -1398,7 +1398,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
   haveI : Lens.Disjoint Log_m BIRO.IRO.mp := Lens.disjoint_of_footprint_le_compl _ _
     (hLA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub)))
   have hs : (0 : ℤ) < size_out := Params.size_out_gt0
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [FSetSize.get]
@@ -1692,7 +1692,7 @@ theorem eq_eager_ideal :
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂)
       BIRO.IRO.f.procedure (Module.app Fill_In.f Eager.LRO).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [PROM.FullRO.LRO, PROM.FullRO.RO_T.get.mk_simp, PROM.FullRO.RO_T.sample.mk_simp]
@@ -1780,7 +1780,7 @@ theorem eq_eager_ideal2 :
       (OptionIndifferentiability.OFUNCTIONALITY.f state (List Bool × ℤ) (List Bool)
         (Module.app FSome (Module.app Fill_In Eager.RO))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ BIRO.IRO.mp.get g₁ = Eager.RO.m.get g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{2} 0
@@ -2019,7 +2019,7 @@ theorem eager_init_lazy :
       (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool)
         (Module.app FSome (Module.app Fill_In Eager.LRO))).procedure
       (fun _ g₁ _ g₂ => eagerL.equal_outside g₁ g₂ ∧ eagerI (eagerL.get g₁) (eagerL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2036,7 +2036,7 @@ theorem eager_init_ext :
       (OptionIndifferentiability.OFUNCTIONALITY.init state (List Bool × ℤ) (List Bool)
         (Module.app FSome (Module.app Fill_In Eager.RO))).procedure
       (fun _ g₁ _ g₂ => eagerL.equal_outside g₁ g₂ ∧ eagerI (eagerL.get g₁) (eagerL.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2072,7 +2072,7 @@ theorem eager_f_lazy :
       simp only [Fill_In.apply_simp]
       unfold Indifferentiability.FUNCTIONALITY.f
       erw [Module.snd'_pair_proc]
-    equiv_proc
+    equiv_proc_to_stmt
     stmt_inline{1} 0
     stmt_inline{2} 0
     stmt_wp
@@ -2155,7 +2155,7 @@ theorem Dist_game (A : SH.AdvPreimage) (F : Eager.RO_T) :
         (ODRestr (Dist_of_P1Adv Log_m A))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   simp only [OptionIndifferentiability.OFUNCTIONALITY.view]
@@ -2340,7 +2340,7 @@ theorem ext_dfs_f :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (xL Log_m).equal_outside g₁ g₂ ∧
         xI ((xL Log_m).get g₁) ((xL Log_m).get g₂)) := by
   have hs : (0 : ℤ) < size_out := Params.size_out_gt0
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2504,7 +2504,7 @@ theorem ext_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
           (ODRestr (Dist_of_P1Adv Log_m A))))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -2655,7 +2655,7 @@ theorem fin_get :
   have e₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
       (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
     simp [BIRO.IRO.asF]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{1} 0
   stmt_inline{1} 0
@@ -2800,7 +2800,7 @@ theorem fin_f :
   have e₁ : (Indifferentiability.FUNCTIONALITY.f (block × capacity) (List Bool × ℤ)
       (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
     simp [BIRO.IRO.asF]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{1} 0
   stmt_inline{1} 0
@@ -2921,7 +2921,7 @@ theorem extout_bw :
   have hLogS : ∀ g₁ g₂ v, (fL RFList_m).equal_outside g₁ g₂ →
       (fL RFList_m).equal_outside (Log_m.set v g₁) (Log_m.set v g₂) :=
     fun _ _ v h => h.set_disjoint v
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{1} 0
   stmt_inline{1} 0
@@ -3012,7 +3012,7 @@ theorem fin_pf :
     refine le_compl_sup (by fp_disjoint) (le_compl_sup (le_trans
       (show FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (Gconcl_list.BIRO2.IRO.mp).footprint by fp_le)
       (Lens.footprint_le_compl_of_disjoint _ _)) (by fp_disjoint))
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -3064,7 +3064,7 @@ theorem fin_pfi :
     refine le_compl_sup (by fp_disjoint) (le_compl_sup (le_trans
       (show FVP.fvP Gconcl_list.BIRO2.IRO.f ≤ (Gconcl_list.BIRO2.IRO.mp).footprint by fp_le)
       (Lens.footprint_le_compl_of_disjoint _ _)) (by fp_disjoint))
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -3115,7 +3115,7 @@ theorem fin_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
           (ODRestr (Dist_of_P1Adv Log_m A))))).procedure
       (Module.app SORO.Preimage (Module.pair (SORO_P1 Log_m A) (RFWhile RFList_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = true → r₂ = true) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [RFWhile_init]
@@ -3249,7 +3249,7 @@ theorem ri_get :
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (riL RFList_m).equal_outside g₁ g₂ ∧
         riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂)) := by
   rw [RFList_get]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.get.mk_simp]
@@ -3308,7 +3308,7 @@ theorem bounder_get_congr {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω �
       (SecureORO.RF_T.get (List Bool) f_out (Module.app SORO.Bounder F₁)).procedure
       (SecureORO.RF_T.get (List Bool) f_out (Module.app SORO.Bounder F₂)).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ L.equal_outside g₁ g₂ ∧ I (L.get g₁) (L.get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -3433,7 +3433,7 @@ theorem soro_pre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → �
       (Module.app SORO.Preimage (Module.pair D F₁)).procedure
       (Module.app SORO.Preimage (Module.pair D F₂)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0
@@ -3489,7 +3489,7 @@ theorem ri_init [Lens.Disjoint RFList_m SORO.RO.RO.m] :
       (fun _ g₁ _ g₂ => (riL RFList_m).equal_outside g₁ g₂ ∧
         riI ((riL RFList_m).get g₁) ((riL RFList_m).get g₂)) := by
   rw [RFList_init]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [PROM.FullRO.RO.asRO, PROM.FullRO.RO_T.init.mk_simp]
@@ -3566,7 +3566,7 @@ theorem rl_init :
       (SecureORO.RF_T.init (List Bool) f_out (RFWhile RFList_m)).procedure
       (fun _ g₁ _ g₂ => RFList_m.equal_outside g₁ g₂ ∧ RFList_m.get g₁ = RFList_m.get g₂) := by
   rw [RFList_init, RFWhile_init]
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
@@ -3756,7 +3756,7 @@ theorem rr_Pf (hP : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.f state (List 
               (PSome Perm) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
         rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [OptionIndifferentiability.ODPRIMITIVE.f.mk_simp]
@@ -3808,7 +3808,7 @@ theorem rr_Pfi (hP : FVP.fvP (OptionIndifferentiability.OPRIMITIVE.fi state (Lis
               (PSome Perm) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
         rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [OptionIndifferentiability.ODPRIMITIVE.fi.mk_simp]
@@ -3876,7 +3876,7 @@ theorem rr_F (hF : FVP.fvP (OptionIndifferentiability.OFUNCTIONALITY.f state (Li
                             (List Bool) (PSome Perm))))) })) }))).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ (rrL Log_m).equal_outside g₁ g₂ ∧
         rrI ((rrL Log_m).get g₁) ((rrL Log_m).get g₂)) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   simp only [OptionIndifferentiability.ODFUNCTIONALITY.f.mk_simp]
@@ -4014,7 +4014,7 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
     le_trans (by fp_le) hPerm
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [PSome_init, PSome_init']
@@ -4529,7 +4529,7 @@ theorem Dist_game (A : SH.AdvSecondPreimage) (F : Eager.RO_T) :
         (ODRestr (Dist_of_P2Adv Log_m Dist_of_P2Adv_m A))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   simp only [OptionIndifferentiability.OFUNCTIONALITY.view]
@@ -4604,7 +4604,7 @@ theorem toto (_hfresh : LocalFresh Log_m RFList_m) :
     (hLA.trans (Footprint.compl_antimono (by unfold ARestrictions.footprint; fp_sub)))
   have hs : (0 : ℤ) < size_out := Params.size_out_gt0
   unfold DFSetSize_OFC_ExtendSample
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -4790,7 +4790,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
     (fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP _ a) hb₂)
     (fun c' b' => c' = c ∧ b' ≤ c + 1) (eq_IRO_RFWhile Log_m RFList_m _hfresh)
   unfold DFSetSize_OFC_ExtendSample
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{1} 0
   stmt_inline{1} 0
@@ -5030,7 +5030,7 @@ theorem soro_spre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → 
       (Module.app SORO.SecondPreimage (Module.pair D F₁)).procedure
       (Module.app SORO.SecondPreimage (Module.pair D F₂)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0
@@ -5346,7 +5346,7 @@ theorem ext_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
           (ODRestr (Dist_of_P2Adv Log_m Dist_of_P2Adv_m A))))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -5444,7 +5444,7 @@ theorem ll_get :
       (List Bool) BIRO.IRO.asF).procedure = BIRO.IRO.f.procedure := by
     simp [BIRO.IRO.asF]
   unfold DFSetSize_OFC_ExtendSample
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   stmt_inline{2} 0
   rw [RFWhile_get]
@@ -5709,7 +5709,7 @@ theorem fin_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
       (Module.app SORO.SecondPreimage (Module.pair (SORO_P2 Log_m Dist_of_P2Adv_m A)
         (RFWhile RFList_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = true → r₂ = true) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [RFWhile_init]
@@ -6211,7 +6211,7 @@ theorem rw_real (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.dis
     (sig₂ := procsig () -> Bool)
     (A := fun a₁ g₁ _ g₂ => g₁ = g₂ ∧ a₁ = mess ∧ Dist_of_P2Adv_m.get g₁ = mess)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) ⟨rfl, rfl, hm⟩
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [PSome_init, PSome_init']
@@ -6880,7 +6880,7 @@ theorem Dist_game (A : SH.AdvCollision) (F : Eager.RO_T) :
         (ODRestr (Dist_of_CollAdv Log_m A))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_wp
   simp only [OptionIndifferentiability.OFUNCTIONALITY.view]
@@ -7004,7 +7004,7 @@ theorem soro_coll_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → 
       (Module.app SORO.Collision (Module.pair D F₁)).procedure
       (Module.app SORO.Collision (Module.pair D F₂)).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline{1} 0
@@ -7193,7 +7193,7 @@ theorem ext_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
           (ODRestr (Dist_of_CollAdv Log_m A))))).procedure
       (fun r₁ _ r₂ _ => r₁ = r₂) := by
   unfold IdealGame
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
@@ -7317,7 +7317,7 @@ theorem fin_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
       (Module.app SORO.Collision (Module.pair (SORO_Coll Log_m A)
         (RFWhile RFList_m))).procedure
       (fun r₁ _ r₂ _ => r₁ = true → r₂ = true) := by
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   rw [RFWhile_init]
@@ -7608,7 +7608,7 @@ theorem rw_real (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt)
     le_trans (by fp_le) hPerm
   refine Procedure.Pr_eq_of_prhlProc (A := fun _ g₁ _ g₂ => g₁ = g₂)
     (B := fun r₁ _ r₂ _ => r₁ = r₂) ?_ (fun r₁ g₁ r₂ g₂ h => by rw [h]) rfl
-  equiv_proc
+  equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   simp only [PSome_init, PSome_init']

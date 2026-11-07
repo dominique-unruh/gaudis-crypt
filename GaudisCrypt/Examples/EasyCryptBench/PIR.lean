@@ -124,7 +124,7 @@ noncomputable def main := proc (i : ℕ) : D.W {
 
 /-- The first server's query does not depend on the index (EC's `PIR_secure1`). -/
 theorem secure1 : equiv[ (main N D) ~ (main N D) : True ==> ={s} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_inline 0
@@ -146,7 +146,7 @@ theorem secure1 : equiv[ (main N D) ~ (main N D) : True ==> ={s} ] := by
 /-- The second server's query does not depend on the index (EC's `PIR_secure2`): where the two
 runs disagree on whether this round is the index, their coins are coupled as negations. -/
 theorem secure2 : equiv[ (main N D) ~ (main N D) : True ==> ={s'} ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline 0
@@ -342,7 +342,7 @@ query is `x₁` on the left exactly when it is `x₂` on the right. -/
 theorem s_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h₂ : x₂ ⊆ Finset.range N) :
     equiv[ (main N D) ~ (main N D) : ={i} ==>
       ((§s{1}).toFinset = x₁ ↔ (§s{2}).toFinset = x₂) ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline 0
@@ -379,7 +379,7 @@ index, so the same coupling works. -/
 theorem s'_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h₂ : x₂ ⊆ Finset.range N) :
     equiv[ (main N D) ~ (main N D) : ={i} ==>
       ((§s'{1}).toFinset = x₁ ↔ (§s'{2}).toFinset = x₂) ] := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_inline 0
   stmt_inline 0

@@ -35,7 +35,7 @@ theorem count_query (F : Footprint VariableAssignment) (hF : F ≤ (count.footpr
     prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF count F (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂)
       (Oracle.query Count1).procedure (Oracle.query Count2).procedure
       (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF count F (fun c₁ c₂ => c₂ = 2 * c₁) g₁ g₂) := by
-  equiv_proc
+  equiv_proc_to_stmt
   stmt_inline 0
   stmt_wp
   equiv_skip
