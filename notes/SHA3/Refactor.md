@@ -480,6 +480,12 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   `equiv_case`).  What was left are EC's rewriting/`smt` steps (`simp_all` with the `blocks2bits`
   lemmas) and declaration artifacts of the old port.
 
+* Deferred (agreed 2026-11-07): the path elaborator (`Syntax/ModuleApplicationSyntax.lean`) finds
+  `.f` by the module type's head constant, so over the old port's module types (abbreviations of
+  `Indifferentiability.X` with explicit type parameters) `Sponge(Perm).f` fails; `Pilot/Sponge.lean`
+  works around it (`Module.app Sponge.f …`, the old views as coercions).  Fix later: see through
+  such abbreviations; the pilot-style declarations do not need it.
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

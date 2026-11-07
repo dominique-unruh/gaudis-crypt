@@ -43,22 +43,6 @@ arguments and, when `J` does not read the left side, `J`'s preservation on the l
 
 namespace GaudisCrypt
 
-/-- A statement about every oracle of a module type with one more procedure: the first one, and
-every other. -/
-theorem HoleIndex.forall_cons {s : ProcedureSignature} {holes : HoleSigs}
-    {P : ∀ {sig' : ProcedureSignature}, HoleIndex (.cons s holes) sig' → Prop}
-    (h0 : P .zero) (hs : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'), P (.succ n)) :
-    ∀ {sig' : ProcedureSignature} (n : HoleIndex (.cons s holes) sig'), P n := by
-  intro _ n
-  cases n with
-  | zero => exact h0
-  | succ n => exact hs n
-
-/-- A statement about every oracle of a module type without procedures. -/
-theorem HoleIndex.forall_empty {P : ∀ {sig' : ProcedureSignature}, HoleIndex .empty sig' → Prop} :
-    ∀ {sig' : ProcedureSignature} (n : HoleIndex .empty sig'), P n :=
-  fun n => nomatch n
-
 /-- `phoare[ p : A ==> B ] = 1`: `B` holds after every run from `A` (a Hoare triple). -/
 theorem hoareProc_of_phoareProc_eq_one {sig : ProcedureSignature}
     {A : sig.ParamType → VariableAssignment → Prop} {p : Procedure sig}
@@ -121,7 +105,7 @@ end GaudisCrypt
 
 namespace GaudisCrypt.ECCallUpto
 
-open Lean Meta Elab Tactic PRHLWp FelTactic
+open Lean Meta Elab Tactic PRHLWp FelTactic ECCall
 
 /-- `§x` without a side ↦ `§x{2}`: EC's `bad` is about the right memory. -/
 partial def onRight (stx : Syntax) : MacroM Syntax :=
@@ -188,73 +172,6 @@ def onGlobals (fs : Array Lean.Expr) :
       return (L, Ω, preds)
 
 
-/-- The components of the oracles `O : T` (`T` a `×ₘ` of module types): each module type and
-module, in the order of the holes (`ModuleTypeRep.holesApp`); a literal pair's components, or
-(`literal := false`) `Module.fst O`, `Module.snd O` — what `T`'s canonical `ext` reduces to. -/
-partial def components (T O : Lean.Expr) (literal := true) :
-    MetaM (Array (Lean.Expr × Lean.Expr)) := do
-  let T' ← whnfR T
-  if T'.isAppOfArity ``GaudisCrypt.Module.Prod 4 then
-    let (X, Y) ← if literal && O.isAppOfArity ``GaudisCrypt.Module.pair 6 then
-        pure (O.getArg! 4, O.getArg! 5)
-      else pure (← mkAppM ``GaudisCrypt.Module.fst #[O], ← mkAppM ``GaudisCrypt.Module.snd #[O])
-    return (← components (T'.getArg! 0) X literal) ++ (← components (T'.getArg! 1) Y literal)
-  return #[(T', O)]
-
-/-- The procedures of a module `X` of a module type `C` declared by `moduletype` (its fields, in
-order), as `(C.f X).procedure`. -/
-def procsOf (C X : Lean.Expr) : MetaM (Array Lean.Expr) := do
-  let some c := C.getAppFn.constName?
-    | throwError "equiv_call: the oracles' type is not a module type:{indentExpr C}"
-  let some fs := getStructureFields? (← getEnv) (c ++ `Structure)
-    | throwError "equiv_call: `{c}` is not a module type declared by `moduletype`"
-  fs.mapM fun f => do
-    let acc ← mkConstWithFreshMVarLevels (c ++ f)
-    mkAppM ``GaudisCrypt.Module.Proc.procedure #[mkAppN acc (C.getAppArgs.push X)]
-
-/-- `holes` as a literal `.cons s₁ (… .empty)` (the signatures left as they are). -/
-partial def holesLit (h : Lean.Expr) : MetaM Lean.Expr := do
-  let h ← whnf h
-  if h.isAppOfArity ``HoleSigs.cons 2 then
-    return mkApp2 h.getAppFn (h.getArg! 0) (← holesLit (h.getArg! 1))
-  return h
-
-/-- Split a goal `∀ {sig'} (n : HoleIndex holes sig'), P n` over the `k` holes. -/
-partial def splitHoles (g : MVarId) (k : Nat) : TacticM (List MVarId) := do
-  -- the holes as a literal, for `HoleIndex.forall_cons` to apply
-  let ty ← instantiateMVars (← g.getType)
-  let g ← match ty.find? (·.isAppOfArity ``HoleIndex 2) with
-    | some hi =>
-      let h := hi.getArg! 0
-      if h.isAppOf ``HoleSigs.cons || h.isAppOf ``HoleSigs.empty then pure g
-      else g.withContext do
-        let lit ← holesLit h
-        g.change (ty.replace fun e => if e == h then some lit else none)
-    | none => pure g
-  if k == 0 then
-    let [] ← evalTacticAt (← `(tactic| apply HoleIndex.forall_empty)) g
-      | throwError "equiv_call: more oracle procedures than expected"
-    return []
-  let [g0, g1] ← evalTacticAt (← `(tactic| apply HoleIndex.forall_cons)) g
-    | throwError "equiv_call: fewer oracle procedures than expected"
-  return g0 :: (← splitHoles g1 (k - 1))
-
-/-- In the goal `g` about the hole `k`: each `(ext O).lookup _` the procedure of `O₁` or `O₂` it
-is (`procs₁[k]`, `procs₂[k]`); the views `L.get g` taken apart (`Lens.pair`); the goal's
-remaining `fun`s applied. -/
-def niceGoal (g : MVarId) (O₁ : Lean.Expr) (p₁ p₂ : Lean.Expr) : TacticM MVarId := g.withContext do
-  let ty ← instantiateMVars (← g.getType)
-  let ty' := ty.replace fun e =>
-    if e.isAppOf ``HoleSigs.Instantiation.lookup then
-      some (if (e.find? (· == O₁)).isSome then p₁ else p₂)
-    else none
-  let g ← g.change ty'
-  let [g] ← evalTacticAt (← `(tactic|
-      ((try dsimp only [Lens.pair]); (try simp only [Module.fst_pair, Module.snd_pair])))) g
-    | return g
-  return g
-
-
 /-- Hole `i`'s component and its position in it, for components with `nprocs` procedures. -/
 def holeComp (nprocs : Array Nat) (i : Nat) : Nat × Nat := Id.run do
   let mut c := 0
@@ -292,7 +209,7 @@ end GaudisCrypt.ECCallUpto
 
 namespace GaudisCrypt
 
-open Lean Meta Elab Tactic PRHLWp FelTactic ECCallUpto
+open Lean Meta Elab Tactic PRHLWp FelTactic ECCallUpto ECCall
 
 /-- **EC's `call (_: bad, I, J)`**: see the module docstring. -/
 syntax (name := equivCallUpto) "equiv_call" " (" "_" " : " term ", " term (", " term)? ")" :

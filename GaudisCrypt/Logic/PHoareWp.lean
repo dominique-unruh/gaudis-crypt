@@ -363,9 +363,15 @@ def phoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM MVarId := do
   simpPost g'
 
 /-- `phoare_call h`: `phoareCallStep h` on the main goal — the last statement is a call, closed by
-the procedure judgment `h` about the callee (EC's `call (_ : P ==> Q)`). -/
+the procedure judgment `h` about the callee (EC's `call (_ : P ==> Q)`), or by its losslessness
+`h : islossless M.f` (EC's `call H`). -/
 elab "phoare_call " h:term : tactic => withMainContext do
   let h ← elabTerm h none
+  -- EC's `call H` with `H : islossless M.f`: the lossless judgment `phoare[ M.f : true ==> true ] = 1`
+  let hty ← whnfR (← instantiateMVars (← inferType h))
+  let h ← if hty.isAppOf ``Procedure.IsLossless then
+      mkAppM ``Iff.mp #[← mkAppM ``Procedure.isLossless_iff_phoareProc #[hty.appArg!], h]
+    else pure h
   liftMetaTactic1 fun g => some <$> phoareCallStep h g
 
 /-- A procedure judgment `phoareProc P p G Eq R` as a conditional rewrite rule
