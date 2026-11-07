@@ -868,11 +868,7 @@ theorem CF_IND_PF (m : VariableAssignment) :
   equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
-  rw [view_PF_sprp, mk_PF_eq, PF_prim_init_eq, PF_init_eq]
-  stmt_inline{1} 2
-  stmt_inline{1} 1
-  stmt_inline{2} 1
-  stmt_inline{2} 2
+  rw [view_PF_sprp, mk_PF_eq]
   stmt_wp
   equiv_sim
 

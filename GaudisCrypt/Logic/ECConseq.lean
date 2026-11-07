@@ -141,6 +141,25 @@ open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq PRHLWp in
 `post`, then the judgment with `P`, `Q`; `_` keeps a condition. -/
 elab "equiv_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
   let g ← getMainGoal
+  let ty0 ← instantiateMVars (← g.getType)
+  if ty0.isAppOfArity ``prhlProc 6 then
+    -- about two procedures: the conditions as `equiv[ p₁ ~ p₂ : P ==> Q ]` reads them (the
+    -- parameters, `res`)
+    let (p₁, p₂) ← (do return (← Term.exprToSyntax (ty0.getArg! 3),
+      ← Term.exprToSyntax (ty0.getArg! 4)) : TermElabM _)
+    let P' ← if isHole P then `(True) else pure P
+    let Q' ← if isHole Q then `(True) else pure Q
+    let j ← Term.elabTerm (← `(equiv[ $p₁ ~ $p₂ : $P' ==> $Q' ])) none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let j ← instantiateMVars j
+    let Pe := if isHole P then ty0.getArg! 2 else j.getArg! 2
+    let Qe := if isHole Q then ty0.getArg! 5 else j.getArg! 5
+    let (Ps, Qs) := (← Term.exprToSyntax Pe, ← Term.exprToSyntax Qe)
+    let pre ← if isHole P then `(fun _ _ _ _ h => h) else `(?pre)
+    let post ← if isHole Q then `(fun _ _ _ _ h => h) else `(?post)
+    refineTagged (← `(prhlProc_conseq (A' := $Ps) (B' := $Qs) ?judgment $pre $post))
+      [`pre, `post, `judgment]
+    return
   let ty ← prhlGoal g "equiv_conseq"
   let Pe ← if isHole P then pure (ty.getArg! 0) else elabRelCond ty P
   let Qe ← if isHole Q then pure (ty.getArg! 3) else elabRelCond ty Q
@@ -169,3 +188,15 @@ elab "stmt_exists" "*" e:term : tactic => withMainContext do
   Term.synthesizeSyntheticMVarsNoPostponing
   let es ← Term.exprToSyntax (← instantiateMVars ee)
   evalTactic (← `(tactic| refine $(mkIdent lem) $es ?_))
+
+open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
+/-- **EC's `conseq H`** on a relational judgment: the judgment `H` (about the same statements or
+procedures) for the goal's; goals `pre` (the goal's precondition implies `H`'s) and `post`
+(`H`'s postcondition implies the goal's). -/
+elab "equiv_conseq " H:term:max : tactic => withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  if ty.isAppOfArity ``prhlProc 6 then
+    refineTagged (← `(prhlProc_conseq $H ?pre ?post)) [`pre, `post]
+  else if ty.isAppOfArity ``prhlStmt 4 then
+    refineTagged (← `(prhlStmt_conseq $H ?pre ?post)) [`pre, `post]
+  else throwError "equiv_conseq: not a relational judgment"

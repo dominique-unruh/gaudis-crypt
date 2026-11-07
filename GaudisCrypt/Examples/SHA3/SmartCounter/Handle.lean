@@ -2644,8 +2644,8 @@ theorem eq_fi (D : DISTINGUISHER)
           FMap.dom (C.queries.get g₁) [] ∧ FMap.dom (C.queries.get g₂) []
         else r₁ = r₂ ∧ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂) := by
   equiv_proc_to_stmt
-  repeat stmt_inline{1} 0
-  repeat stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_fi]
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧
@@ -2701,8 +2701,8 @@ theorem eq_f (D : DISTINGUISHER)
         if G1.bcol.get g₂ = true ∨ G1.bext.get g₂ = true then FMap.dom (C.queries.get g₂) []
         else r₁ = r₂ ∧ eq_glob_C g₁ g₂ ∧ INV_CF_G1_12 g₁ g₂) := by
   equiv_proc_to_stmt
-  repeat stmt_inline{1} 0
-  repeat stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
   rw [Indifferentiability.PRIMITIVE.view_f]
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ §G1.bcol{2} = false ∧ §G1.bext{2} = false ∧

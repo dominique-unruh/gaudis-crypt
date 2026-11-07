@@ -124,6 +124,8 @@ import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.ECCallAbstract
+import GaudisCrypt.Logic.ECCallUpto
+import GaudisCrypt.Logic.ECGlob
 import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECSpTest
 import GaudisCrypt.Logic.ECIf

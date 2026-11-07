@@ -1,3 +1,4 @@
+import GaudisCrypt.Logic.ECGlob
 import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.ModuleFootprint

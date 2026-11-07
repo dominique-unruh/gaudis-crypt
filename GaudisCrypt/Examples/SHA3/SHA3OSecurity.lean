@@ -3118,7 +3118,7 @@ theorem fin_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
   equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
-  rw [RFWhile_init]
+  try rw [RFWhile_init] -- inlined already where `inline` sees through `RFWhile`
   repeat stmt_inline{2} 0
   stmt_wp
   equiv_call (fin_get RFList_m)
@@ -5712,7 +5712,7 @@ theorem fin_game (A : SH.AdvSecondPreimage) (hA : Module.ECModule A SH.OIndif.di
   equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
-  rw [RFWhile_init]
+  try rw [RFWhile_init] -- inlined already where `inline` sees through `RFWhile`
   repeat stmt_inline{2} 0
   stmt_wp
   equiv_seq 1 1 : (§m'{1} = §m2{2} ∧ §m1{2} = mess ∧ Dist_of_P2Adv_m.get §allGlobals{1} = mess ∧
@@ -7320,7 +7320,7 @@ theorem fin_game (A : SH.AdvCollision) (hA : Module.ECModule A SH.OIndif.distExt
   equiv_proc_to_stmt
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
-  rw [RFWhile_init]
+  try rw [RFWhile_init] -- inlined already where `inline` sees through `RFWhile`
   repeat stmt_inline{2} 0
   stmt_wp
   equiv_seq 1 1 : (§m1{1} = §m1{2} ∧ §m2{1} = §m2{2} ∧

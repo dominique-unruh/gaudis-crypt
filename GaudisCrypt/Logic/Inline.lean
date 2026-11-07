@@ -2551,6 +2551,12 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
     if let some vc := (moduleAppHead v).getAppFn.constName? then
       if (← getEnv).contains (vc ++ `apply_simp) then
         return some { expr := v }
+  -- (10) a module named by a definition whose value is a `Module.pair` (a typed `module` with no
+  -- parameters, `PF := Module.pair PF.init (Module.pair PF.f PF.fi)`): unfold it, by definition,
+  -- for an accessor's steps (9) and (3) to read the procedure off the pair
+  if let some v ← unfoldDefinition? e then
+    if v.isAppOf ``Module.pair then
+      return some { expr := v }
   -- (7) a module named by an `abbrev` (`hidingGame U := Module.app … U`, say): unfold it, by
   -- definition.  Only reducible ones, which are meant to be seen through.
   if (← getReducibilityStatus c) == .reducible then

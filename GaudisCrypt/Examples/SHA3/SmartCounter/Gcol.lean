@@ -805,8 +805,8 @@ theorem DPRestr_fi_col (hfr : GcolFresh Gcol_count) :
   gcol_disj hfr Gcol_count
   unfold colInv
   equiv_proc_to_stmt
-  repeat stmt_inline{1} 0
-  repeat stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
@@ -847,8 +847,8 @@ theorem DPRestr_f_col (hfr : GcolFresh Gcol_count) :
   gcol_disj hfr Gcol_count
   unfold colInv
   equiv_proc_to_stmt
-  repeat stmt_inline{1} 0
-  repeat stmt_inline{2} 0
+  stmt_inline{1} 0
+  stmt_inline{2} 0
   stmt_wp
   equiv_seq 1 1 : (§x0{1} = §x0{2} ∧ §y{1} = §y{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
