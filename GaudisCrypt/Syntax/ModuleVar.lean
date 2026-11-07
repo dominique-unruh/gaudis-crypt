@@ -12,6 +12,12 @@ section's instances too.  With the theory's operators in a class whose types are
 `outParam`s (`class Params (from to : outParam Type)`), that instance is what determines the types
 where the variable is used alone (`RO.m`, `§RO.m`), as EC's `RO.m` is used.  (`global_var` takes
 only the section variables its type mentions, so there the types would stay undetermined.)
+
+The name's key proof is a theorem of its own, `RO.m.key_eq : k = VariableName.encode "N.RO.m"`,
+proven once here.  With the proof `rfl` (as `VariableName.mk` makes it), every use of the
+instance would evaluate `encode "N.RO.m"` again — in instance search, to check the proof against
+the instance's pattern, and in the kernel — which for a name of 50 characters is some 0.5 s per
+disjointness found; with the theorem it is nothing (its type is already the pattern's).
 -/
 
 -- the quotations' layout (`$[$doc?]? module_var`) trips the whitespace linter
@@ -35,11 +41,15 @@ elab_rules : command
       | `(Lean.Parser.Term.bracketedBinderF| [$ty]) => some ty
       | `(Lean.Parser.Term.bracketedBinderF| [$_ : $ty]) => some ty
       | _ => none
+    -- the key and its proof, a theorem (see the module docstring)
+    let k := Syntax.mkNumLit (toString (VariableName.encode full.toString))
+    let kx := mkIdentFrom x (x.getId ++ `key_eq)
+    elabCommand (← `(variable_name_key_theorem $kx $n))
     let body ← instTys.foldrM (fun ty acc => `(have _ := (inferInstance : $ty); $acc))
-      (← `(varLens (VariableName.mk $n $T)))
+      (← `(varLens (@VariableName.mk $n $T _ $k $kx)))
     elabCommand (← `($[$doc?]? @[nolint unusedArguments]
       noncomputable def $x : Lens $T VariableAssignment := $body))
     elabCommand (← `(instance : Lens.IsGlobalVar ($x : Lens $T VariableAssignment)
-        (VariableName.mk $n $T) := ⟨rfl, HEq.rfl⟩))
+        (@VariableName.mk $n $T _ $k $kx) := ⟨rfl, HEq.rfl⟩))
 
 end GaudisCrypt

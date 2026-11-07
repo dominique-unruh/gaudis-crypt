@@ -1,4 +1,5 @@
-import GaudisCrypt.Examples.SHA3.SecureRO
+import GaudisCrypt.Lib.EC.PROM
+import GaudisCrypt.Lib.EC.Mu
 import GaudisCrypt.Syntax.PrSyntax
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.PrTactics
@@ -18,8 +19,8 @@ import GaudisCrypt.Syntax.ModuleSubtype
 (EasyCrypt `proof/SecureRO.eca`)
 
 The refactor pilot of `notes/SHA3/Refactor.md`: EC's file transcribed one to one, its
-declarations and its proofs EC's (`Examples/SHA3/SecureRO.lean` is the first port; the generic
-`FMap` facts are still taken from it).
+declarations and its proofs EC's (`Examples/SHA3/SecureRO.lean` is the first port).  The facts
+EC's `smt()` finds on maps and bounds are `Lib/EC/FMap.lean`'s and `Lib/EC/Mu.lean`'s.
 
 Translation:
 * the theory's operators and axioms are the class `Params from to`, whose types are `outParam`s:
@@ -233,14 +234,11 @@ declare module A <: AdvPreimage {-RO, -Preimage}
 One proof, as EC's: EC's `fel` is the tactic `fel` (`Logic/FelTactic.lean`), EC's inline
 specifications `call (: P ==> Q)` and `byphoare (: P ==> _)` are `Logic/CallSpec.lean`'s. -/
 
-open GaudisCrypt.SHA3.SecureRO (not_rng_empty eq_of_rng_set
-  rng_set_of_rng indicatorE_le_of_imp)
-
 /-- EC's `RO_is_preimage_resistant &m (h : to)`, its proof EC's: the `have->:` by `byequiv`
 (here a `calc` step), then `byphoare(: arg = h ==> _)`, `proc`, `seq 1`, its first `E` goal
 EC's `call(: true ==> rng RO.m h)` with EC's `fel`, and the arithmetic of EC's last `smt()` in
 the `bound` goal.  The oracle's bullets are EC's `proc; inline*; auto`, then the logic EC leaves
-to `smt()`; the generic `FMap` facts are the old file's. -/
+to `smt()`, its `FMap` facts `Lib/EC/FMap.lean`'s. -/
 theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (h : «to») :
     Pr[ Preimage(A, RO).main (h) @ &m : §res ] ≤ ((bound + 1 : ℤ) : ℝ) * mu1 sampleto h := by
   calc Pr[ Preimage(A, RO).main (h) @ &m : §res ]
@@ -265,7 +263,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
             case init =>
               hoare_auto
               intros
-              simp [not_rng_empty]
+              simp [FMap.rng_empty]
             case step =>
               phoare_proc
               phoare_inline*
@@ -274,7 +272,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               simp only [indicatorE_of_not hr]
               split_ifs
               · rnd_pred1 h
-                exact indicatorE_le_of_imp fun hs => (eq_of_rng_set hr hs).symm
+                exact indicatorE_le_of_imp fun hs => (FMap.eq_of_rng_set hr hs).symm
               all_goals first
                 | exact bot_le
                 | (rnd_null; rfl)
@@ -298,7 +296,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               hoare_inline*
               hoare_auto
               rintro τ ⟨-, hr⟩
-              split_ifs <;> simp_all [rng_set_of_rng]
+              split_ifs <;> simp_all [FMap.rng_set_of_rng]
           · phoare_skip
             intros
             exact le_rfl
@@ -338,9 +336,6 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
 end Preimage
 
 /-! ## The section `SecondPreimage` -/
-
-open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set dom_set_iff
-  get_set_ne indicatorE_le_of_imp)
 
 open Classical in
 module SecondPreimage using (A : AdvSecondPreimage, F : RF) {
@@ -493,7 +488,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_auto
                 intro τ hd
                 have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
-                  fun _ _ => dom_set_iff.mpr (Or.inr hd)
+                  fun _ _ => (FMap.mem_set _ _ _ _).mpr (Or.inl hd)
                 split_ifs <;> simp_all
               case pre =>
                 hoare_auto
@@ -501,7 +496,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 subst hm1
                 refine ⟨?_, fun _ _ h => h⟩
                 rw [if_pos (by simp [FMap.dom, FMap.empty])]
-                exact dom_set_iff.mpr (Or.inl rfl)
+                exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)
             · hoare_skip
               exact fun _ h => ⟨h, fun _ _ hd => ⟨hd, h⟩⟩
           case first_E =>
@@ -523,7 +518,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 have he : (!decide (FMap.dom (FMap.empty : FMap «from» «to») m1)) = true := by
                   simp [FMap.dom, FMap.empty]
                 split_ifs
-                refine ⟨dom_set_iff.mpr (Or.inl rfl), ?_, rfl⟩
+                refine ⟨(FMap.mem_set _ _ _ _).mpr (Or.inr rfl), ?_, rfl⟩
                 rintro ⟨k, hk⟩
                 by_cases hk1 : k = m1
                 · subst hk1; simp [FMap.rem] at hk
@@ -544,8 +539,8 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                   have hne : mess1 ≠ (localVarLens "x" «from»).get τ := fun h => hx' (h ▸ hd)
                   rnd_pred1 (oget ((RO.m.get τ.globals).get mess1))
                   · refine indicatorE_le_of_imp fun hs =>
-                      (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ) hr ?_).symm
-                    rwa [get_set_ne _ _ hne] at hs
+                      (FMap.eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ) hr ?_).symm
+                    rwa [FMap.get_set_neqE _ _ _ _ hne] at hs
                   · exact le_of_eq (sampleto_fu _ _)
                 all_goals first
                   | exact bot_le
@@ -557,7 +552,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_auto
                 rintro τ ⟨hd, hr, hb, hc⟩
                 have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
-                  fun _ _ => dom_set_iff.mpr (Or.inr hd)
+                  fun _ _ => (FMap.mem_set _ _ _ _).mpr (Or.inl hd)
                 split_ifs <;> simp_all
               case same =>
                 intro c
@@ -576,9 +571,9 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                     FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 ∧
                     FMap.rng (FMap.rem (FMap.set (RO.m.get τ.globals) x a) mess1)
                       (oget ((FMap.set (RO.m.get τ.globals) x a).get mess1)) := fun x a hx =>
-                  ⟨dom_set_iff.mpr (Or.inr hd), by
-                    rw [get_set_ne _ _ (fun (h : mess1 = x) => hx (h ▸ hd))]
-                    exact rng_rem_set_of_rng hx hr a⟩
+                  ⟨(FMap.mem_set _ _ _ _).mpr (Or.inl hd), by
+                    rw [FMap.get_set_neqE _ _ _ _ (fun (h : mess1 = x) => hx (h ▸ hd))]
+                    exact FMap.rng_rem_set_of_rng hx hr a⟩
                 split_ifs <;> simp_all
             · phoare_skip
               exact fun _ h => le_of_eq (if_pos h)
@@ -609,7 +604,8 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               have hd2 : FMap.dom ROm m2 := by simpa using h5
               obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
               refine ⟨m2, ?_⟩
-              have h1 := get_rem_ne ROm (Ne.symm hne)
+              have h1 : (FMap.rem ROm m1).get m2 = ROm.get m2 := by
+                rw [FMap.remE, if_neg (Ne.symm hne)]
               simp only [FMap.get] at h1 hw he ⊢
               rw [h1, hw, he, hw]
               rfl
@@ -631,9 +627,8 @@ end SecondPreimageSection
 
 /-! ## The section `Collision` -/
 
-open GaudisCrypt.SHA3.SecureRO (collision collision_set_of_not_dom rng_of_collision_set
-  card_fdom_set not_collision_empty expected_rng_le expected_mono' indicatorE_le_of_imp dom_set_iff
-  get_set_ne)
+-- EC's `op collision`, generic as EC's (`Lib/EC/FMap.lean`)
+open FMap (collision)
 
 open Classical in
 module Collision using (A : AdvCollision, F : RO_T) {
@@ -735,7 +730,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
               case init =>
                 hoare_auto
                 intros
-                simpa [FMap.fdom, FMap.empty] using not_collision_empty (α := «from») (β := «to»)
+                simpa [FMap.fdom, FMap.empty] using FMap.collision_empty (α := «from») (β := «to»)
               case step =>
                 phoare_proc
                 phoare_inline*
@@ -746,9 +741,9 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 · -- a fresh key: a collision only if its value is already in `RO.m` (EC's `mu_mem`)
                   have hx' : ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
                     simpa using hx
-                  refine (expected_mono' fun a => indicatorE_le_of_imp
-                    (rng_of_collision_set hx' hc)).trans ?_
-                  refine (expected_rng_le sampleto_fu _).trans ?_
+                  refine (SubProbability.expected_mono fun a => indicatorE_le_of_imp
+                    (FMap.rng_of_collision_set hx' hc)).trans ?_
+                  refine (FMap.mu_rng_le sampleto_fu _).trans ?_
                   gcongr
                   have :
                       (FMap.fdom (RO.m.get τ.globals)).card ≤
@@ -767,7 +762,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
                     ((FMap.fdom (FMap.set (RO.m.get τ.globals) x a)).card : ℤ) ≤
                       Bounder.bounder.get τ.globals + 1 := fun x a hx => by
-                  rw [card_fdom_set hx]; push_cast; omega
+                  rw [FMap.fcard_set hx]; push_cast; omega
                 have hi1 :
                     ((FMap.fdom (RO.m.get τ.globals)).card : ℤ) ≤ Bounder.bounder.get τ.globals + 1
                       := by
@@ -789,10 +784,10 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
                     ((FMap.fdom (FMap.set (RO.m.get τ.globals) x a)).card : ℤ) ≤
                       Bounder.bounder.get τ.globals + 1 := fun x a hx => by
-                  rw [card_fdom_set hx]; push_cast; omega
+                  rw [FMap.fcard_set hx]; push_cast; omega
                 have hcoll : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
                     collision (FMap.set (RO.m.get τ.globals) x a) :=
-                  fun x a hx => collision_set_of_not_dom hx hc a
+                  fun x a hx => FMap.collision_set hx hc a
                 have hi1 :
                     ((FMap.fdom (RO.m.get τ.globals)).card : ℤ) ≤ Bounder.bounder.get τ.globals + 1
                       := by
@@ -820,10 +815,10 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 rnd_pred1 (oget (ROm.get m2))
                 · split_ifs with hc
                   · rnd_bound
-                    exact absurd (dom_set_iff.mpr (Or.inr hk2)) (by simpa using hc)
+                    exact absurd ((FMap.mem_set _ _ _ _).mpr (Or.inl hk2)) (by simpa using hc)
                   · rnd_bound
                     refine indicatorE_le_of_imp fun hP => ?_
-                    simp only [decide_eq_true_eq, FMap.get_set_sameE, get_set_ne _ _ hk1,
+                    simp only [decide_eq_true_eq, FMap.get_set_sameE, FMap.get_set_neqE _ _ _ _ hk1,
                       oget] at hP
                     exact hP.1.symm
                 · exact le_of_eq (hfu _ _)
@@ -835,7 +830,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                     simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
                     exact hP.1
                   · exact le_of_eq (hfu _ _)
-                · exact absurd (by simpa using hc) fun h => (dom_set_iff.mp h).elim hk1 hk2
+                · exact absurd (by simpa using hc) fun h => ((FMap.mem_set _ _ _ _).mp h).elim hk2 hk1
             · (rnd_null; rfl)
             · -- `m1` in `RO.m` (its sample unused), `m2` fresh: `m2`'s value hits `RO.m.[m1]`
               rnd_bound

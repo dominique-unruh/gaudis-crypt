@@ -425,6 +425,99 @@ theorem noflags_map_tag {φ : Type*} (m : FMap α β) (f : φ) :
     noflags (map (fun _ c => (c, f)) m) = m := by
   rw [noflags, map_comp]; exact map_id m
 
+/-! ### Facts EC's `smt()` finds on `rng`, `fdom` and fresh bindings
+
+Not in EC's `FMap.ec`: the facts its proofs leave to `smt()` (with `mem_set`, `get_setE`, `remE`,
+`fcardUI_indep`).  `collision` is `SecureRO`'s `op collision`, generic as there. -/
+
+/-- A binding of a fresh key keeps the range. -/
+theorem rng_set_of_rng {m : FMap α β} {x : α} (hx : ¬ dom m x) {h : β} (hr : rng m h) (a : β) :
+    rng (set m x a) h := by
+  obtain ⟨k, hk⟩ := hr
+  have hkx : k ≠ x := by
+    rintro rfl
+    exact hx (Finmap.mem_keys.mpr (Finmap.mem_of_lookup_eq_some hk))
+  exact ⟨k, by simp only [set, Finmap.lookup_insert_of_ne _ hkx, hk]⟩
+
+/-- A value new in the range of `m.[x <- a]` is `a`. -/
+theorem eq_of_rng_set {m : FMap α β} {x : α} {h a : β} (hr : ¬ rng m h)
+    (hs : rng (set m x a) h) : a = h := by
+  obtain ⟨k, hk⟩ := hs
+  by_cases hkx : k = x
+  · subst hkx
+    simpa [set] using hk
+  · exact absurd ⟨k, by simpa [set, Finmap.lookup_insert_of_ne _ hkx] using hk⟩ hr
+
+/-- `empty` has an empty range. -/
+theorem rng_empty (h : β) : ¬ rng (empty : FMap α β) h := by
+  rintro ⟨k, hk⟩
+  simp [empty] at hk
+
+/-- A binding of a fresh key keeps the range of the map without `m1`. -/
+theorem rng_rem_set_of_rng {m : FMap α β} {x m1 : α} (hx : ¬ dom m x) {v : β}
+    (hr : rng (rem m m1) v) (a : β) : rng (rem (set m x a) m1) v := by
+  obtain ⟨k, hk⟩ := hr
+  have hk1 : k ≠ m1 := by rintro rfl; simp [rem] at hk
+  have hk' : m.lookup k = some v := by simpa [rem, Finmap.lookup_erase_ne hk1] using hk
+  have hkx : k ≠ x := by
+    rintro rfl
+    exact hx (Finmap.mem_keys.mpr (Finmap.mem_of_lookup_eq_some hk'))
+  exact ⟨k, by simp [rem, set, Finmap.lookup_erase_ne hk1, Finmap.lookup_insert_of_ne _ hkx, hk']⟩
+
+/-- A value new in the range of `rem m.[x <- a] m1` is `a`. -/
+theorem eq_of_rng_rem_set {m : FMap α β} {x m1 : α} {v a : β}
+    (hr : ¬ rng (rem m m1) v) (hs : rng (rem (set m x a) m1) v) : a = v := by
+  obtain ⟨k, hk⟩ := hs
+  have hk1 : k ≠ m1 := by rintro rfl; simp [rem] at hk
+  by_cases hkx : k = x
+  · subst hkx
+    simpa [rem, set, Finmap.lookup_erase_ne hk1] using hk
+  · exact absurd ⟨k, by simpa [rem, set, Finmap.lookup_erase_ne hk1,
+      Finmap.lookup_insert_of_ne _ hkx] using hk⟩ hr
+
+/-- `fcardUI_indep` at a fresh key: `card (fdom m.[x <- r]) = card (fdom m) + 1`. -/
+theorem fcard_set {m : FMap α β} {x : α} (hx : ¬ dom m x) (r : β) :
+    (fdom (set m x r)).card = (fdom m).card + 1 := by
+  rw [fdom_set]
+  exact Finset.card_insert_of_notMem hx
+
+/-- `SecureRO`'s `op collision (m : ('a, 'b) fmap)`: two distinct keys with the same value. -/
+def collision (m : FMap α β) : Prop :=
+  ∃ m1 m2, m1 ≠ m2 ∧ dom m m1 ∧ dom m m2 ∧ get m m1 = get m m2
+
+/-- A binding of a fresh key keeps a collision. -/
+theorem collision_set {m : FMap α β} {x : α} (hx : ¬ dom m x) (hc : collision m) (r : β) :
+    collision (set m x r) := by
+  obtain ⟨k₁, k₂, hne, hd₁, hd₂, heq⟩ := hc
+  have h₁ : k₁ ≠ x := fun h => hx (h ▸ hd₁)
+  have h₂ : k₂ ≠ x := fun h => hx (h ▸ hd₂)
+  refine ⟨k₁, k₂, hne, (mem_set _ _ _ _).mpr (Or.inl hd₁), (mem_set _ _ _ _).mpr (Or.inl hd₂), ?_⟩
+  rw [get_set_neqE _ _ _ _ h₁, get_set_neqE _ _ _ _ h₂]
+  exact heq
+
+/-- A collision new in `m.[x <- r]`, `x` fresh: `r` is already a value of `m`. -/
+theorem rng_of_collision_set {m : FMap α β} {x : α} (hx : ¬ dom m x) (hc : ¬ collision m) {r : β}
+    (hcs : collision (set m x r)) : ∃ k, dom m k ∧ get m k = some r := by
+  obtain ⟨k₁, k₂, hne, hd₁, hd₂, heq⟩ := hcs
+  rw [mem_set] at hd₁ hd₂
+  rw [get_setE, get_setE] at heq
+  by_cases h₁ : k₁ = x
+  · subst h₁
+    have h₂ : k₂ ≠ k₁ := fun h => hne h.symm
+    simp only [if_neg h₂] at heq
+    exact ⟨k₂, hd₂.resolve_right h₂, heq.symm⟩
+  by_cases h₂ : k₂ = x
+  · subst h₂
+    simp only [if_neg h₁] at heq
+    exact ⟨k₁, hd₁.resolve_right h₁, heq⟩
+  · simp only [if_neg h₁, if_neg h₂] at heq
+    exact absurd ⟨k₁, k₂, hne, hd₁.resolve_right h₁, hd₂.resolve_right h₂, heq⟩ hc
+
+/-- `empty` has no collision. -/
+theorem collision_empty : ¬ collision (empty : FMap α β) := by
+  rintro ⟨k₁, -, -, hd, -⟩
+  simp [dom, empty] at hd
+
 end FMap
 
 end GaudisCrypt.EC

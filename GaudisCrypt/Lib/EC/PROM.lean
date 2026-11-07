@@ -260,6 +260,25 @@ noncomputable def LRO : RO_T in_t out_t :=
       rem := ROmap.rem in_t out_t (RO in_t out_t dout m)
       sample := LRO.sample_ in_t out_t }
 
+/-! The footprints of `RO` and `LRO`: their procedures touch `m` only (`LRO` is not a `module`:
+`fp_disjoint` reads them here). -/
+
+@[fp_bound] theorem fvP_RO_sample :
+    FVP.fvP (RO_T.sample in_t out_t (RO.asRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_LRO_init :
+    FVP.fvP (RO_T.init in_t out_t (LRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_LRO_get :
+    FVP.fvP (RO_T.get in_t out_t (LRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_LRO_sample :
+    FVP.fvP (RO_T.sample in_t out_t (LRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
 end RO
 
 section FRO

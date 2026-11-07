@@ -504,20 +504,47 @@ instance Lens.IsGlobalVar.instDisjoint {T U : Type} (x : Lens T VariableAssignme
     [hy : Lens.IsGlobalVar y w] [VariableName.NameNe v w] : Lens.Disjoint x y :=
   hx.disjoint hy VariableName.ne_of_nameNe
 
+open Lean Elab Command in
+/-- `variable_name_key_theorem x.key_eq "N.x"`: the theorem `k = VariableName.encode "N.x"`, `k`
+the key's literal, added as it stands: with none of the section's variables (a theorem would take
+the section's instances, and the global's definition, which uses it, with them). -/
+elab "variable_name_key_theorem " kx:ident n:str : command => do
+  let s := n.getString
+  let k := mkNatLit (VariableName.encode s)
+  let nat := mkConst ``Nat
+  let ty := mkApp3 (mkConst ``Eq [levelOne]) nat k
+    (mkApp (mkConst ``VariableName.encode) (mkStrLit s))
+  -- the kernel evaluates `encode "N.x"`, once
+  let pf := mkApp2 (mkConst ``Eq.refl [levelOne]) nat k
+  let name := (← getCurrNamespace) ++ kx.getId
+  liftCoreM <| addDecl (.thmDecl { name, levelParams := [], type := ty, value := pf })
+
 /-- `global_var x : T` declares the global variable `x : Lens T VariableAssignment`, the slot of
 `⟨"N.x", T⟩` with `N.x` the full name of the declaration (`T` must be nonempty), together with
 its `Lens.IsGlobalVar` instance, so that globals are found disjoint by instance search.  `T` may
 mention implicit section variables (`variable {D : Type}`, then `global_var m : FMap D D`): they
-are inferred from `T`. -/
+are inferred from `T`.
+
+The name's key proof is the theorem `x.key_eq : k = VariableName.encode "N.x"`, proven once here.
+With the proof `rfl` (as `VariableName.mk` makes it), every use of the `Lens.IsGlobalVar` instance
+would evaluate `encode "N.x"` again — in instance search, to match the proof against the pattern
+of `VariableName.NameNe`'s instance, and in the kernel — some 0.5 s per disjointness found for a
+name of 50 characters; with the theorem, whose type is the pattern, it is nothing. -/
 syntax (docComment)? "global_var " ident " : " term : command
 
 macro_rules
   | `($[$doc?]? global_var $x : $T) => do
     let full := (← Lean.Macro.getCurrNamespace) ++ x.getId.eraseMacroScopes
     let n := Lean.quote full.toString
-    `($[$doc?]? noncomputable def $x : Lens $T VariableAssignment :=
-        varLens (VariableName.mk $n $T)
-      instance : Lens.IsGlobalVar ($x : Lens $T VariableAssignment) (VariableName.mk $n $T) :=
+    -- the key and its proof as a theorem of its own (see the docstring of `global_var`)
+    let k := Lean.Syntax.mkNumLit (toString (VariableName.encode full.toString))
+    let kx := Lean.mkIdentFrom x (x.getId ++ `key_eq)
+    let thm ← `(command| variable_name_key_theorem $kx $n)
+    let rest ← `($[$doc?]? noncomputable def $x : Lens $T VariableAssignment :=
+        varLens (@VariableName.mk $n $T _ $k $kx)
+      instance : Lens.IsGlobalVar ($x : Lens $T VariableAssignment)
+          (@VariableName.mk $n $T _ $k $kx) :=
         ⟨rfl, HEq.rfl⟩)
+    return Lean.mkNullNode #[thm, rest]
 
 end GaudisCrypt
