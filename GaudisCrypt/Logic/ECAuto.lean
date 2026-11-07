@@ -75,20 +75,39 @@ def wpAll (g : MVarId) : MetaM MVarId := do
       break
   return g
 
+/-- The precondition (argument `0`) with its reads of pairs of globals taken apart
+(`(§(Lens.pair X Y)).1` is `§X`), so that `skip` generalizes the reads to plain variables (as
+`fel`'s view of several variables reads them). -/
+def splitPairReads (g : MVarId) : MetaM MVarId := do
+  let s ← saveState
+  try Judgment.simpArg g 0 [``Lens.pair, ``eval_lens_global] []
+  catch _ => s.restore; return g
+
+/-- `hoare_skip` with the goal beta-reduced first (as `phoare_skip` does), so that the reads are
+generalized to plain variables. -/
+def hoareSkipGen (g : MVarId) : MetaM MVarId := do
+  let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_skip_of_imp)
+  let [g] := gs | throwError "hoare_auto: `hoare_skip_of_imp` left {gs.length} goals"
+  let g ← g.withContext do
+    g.replaceTargetDefEq (← Core.betaReduce (← instantiateMVars (← g.getType)))
+  try TacticMisc.generalizeReads g catch _ => pure g
+
 end ECAuto
 
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a `phoare` statement judgment: wp back to the last call, then `skip` if
 the code is used up. -/
 elab "phoare_auto" : tactic => do
-  liftMetaTactic1 fun g => some <$> wpAll g
+  liftMetaTactic1 fun g => do return some (← splitPairReads (← wpAll g))
   evalTactic (← `(tactic| try phoare_skip))
 
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a Hoare triple about a statement. -/
 elab "hoare_auto" : tactic => do
-  liftMetaTactic1 fun g => some <$> wpAll g
-  evalTactic (← `(tactic| try hoare_skip))
+  liftMetaTactic1 fun g => do return some (← splitPairReads (← wpAll g))
+  liftMetaTactic1 fun g => do
+    let s ← saveState
+    try return some (← hoareSkipGen g) catch _ => s.restore; return some g
 
 -- the variables the steps introduce (`a`, `ha`) are the proof's to name: not hygienic
 set_option hygiene false

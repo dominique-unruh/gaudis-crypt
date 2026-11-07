@@ -49,6 +49,7 @@ import GaudisCrypt.Lib.EC.DProd
 import GaudisCrypt.Lib.EC.Dexcepted
 import GaudisCrypt.Lib.EC.DexceptedSupport
 import GaudisCrypt.Lib.EC.Distr
+import GaudisCrypt.Lib.EC.StdBigop
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.FSet
 import GaudisCrypt.Lib.EC.Int

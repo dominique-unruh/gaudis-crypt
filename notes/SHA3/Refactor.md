@@ -368,6 +368,13 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   preimage and collision headlines `clean`, second preimage `fp` (the `RO_LRO_D` call's
   `by fp_disjoint`), no `den`.
 * Pilot: 1061 lines (from 1215).
+* **B9, the bounds' arithmetic** (`Lib/EC/StdBigop.lean`): `sum_Ico_const`, `sum_Ico_toNat`,
+  `ofReal_intCast_mul_mu1` (no `0 ≤ n` needed), EC's `StdBigop` facts its `smt()` uses: the
+  preimage and second-preimage `bound` goals are 4 lines (from 15).  `hoare_auto`/`phoare_auto`
+  split the reads of `fel`'s pair views before `skip`, so the oracle bullets lose their
+  `simp only [Lens.pair, eval_lens_global] at …`.  Collision's `sum_Ico_int_toNat` is the
+  library's `sum_Ico_toNat`.
+* Pilot: 1029 lines (from 1061), auxiliary theorems 1 (`SecondPreimage2_SecondPreimage3`).
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three

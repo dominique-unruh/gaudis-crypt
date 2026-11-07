@@ -83,16 +83,6 @@ section CollisionSection
 
 declare module A <: AdvCollision {-RO, -FRO, -Bounder}
 
-/-- `∑_{i ∈ [0, n)} f i` over `ℤ` (EC's `range 0 n`) and over `ℕ`. -/
-private theorem sum_Ico_int_toNat (n : ℕ) (f : ℕ → ENNReal) :
-    ∑ i ∈ Finset.Ico (0 : ℤ) n, f i.toNat = ∑ i ∈ Finset.range n, f i := by
-  induction n with
-  | zero => simp
-  | succ k ih =>
-    rw [Finset.sum_range_succ, ← ih, Nat.cast_succ,
-      ← Finset.insert_Ico_right_eq_Ico_add_one (Int.natCast_nonneg k),
-      Finset.sum_insert (by simp), add_comm, Int.toNat_natCast]
-
 set_option maxHeartbeats 1000000 in -- one declaration: EC's `have`, its `byphoare`, its `fel`
 /-- EC's `RO_is_collision_resistant &m`, its proof EC's: the `have->:` by `byequiv` (a `calc`
 step), then `byphoare`, `proc`, `seq 1`, its first `E`
@@ -157,7 +147,6 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 hoare_inline*
                 hoare_auto
                 rintro τ ⟨hi, hc, hb, hcc⟩
-                simp only [Lens.pair, eval_lens_global] at hi hc hb hcc
                 have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
                     ((FMap.fdom (FMap.set (RO.m.get τ.globals) x a)).card : ℤ) ≤
                       Bounder.bounder.get τ.globals + 1 := fun x a hx => by
@@ -173,7 +162,6 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 hoare_inline*
                 hoare_auto
                 rintro τ ⟨hi, hc, hb, hcc⟩
-                simp only [Lens.pair, eval_lens_global] at hi hc hb hcc
                 split_ifs <;> simp_all
                 omega
               case keep =>
@@ -181,7 +169,6 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 hoare_inline*
                 hoare_auto
                 rintro τ ⟨hi, hc⟩
-                simp only [Lens.pair, eval_lens_global] at hi hc
                 have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
                     ((FMap.fdom (FMap.set (RO.m.get τ.globals) x a)).card : ℤ) ≤
                       Bounder.bounder.get τ.globals + 1 := fun x a hx => by
@@ -264,7 +251,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
             have hμ := mu_ne_top sampleto default
             obtain ⟨n, hn'⟩ : ∃ n : ℕ, bound = n := ⟨bound.toNat, (Int.toNat_of_nonneg hb.le).symm⟩
             have hn : 1 ≤ n := by omega
-            rw [hn', sum_Ico_int_toNat n (fun i => (i : ENNReal) * sampleto.1 {default})]
+            rw [hn', sum_Ico_toNat n (fun i => (i : ENNReal) * sampleto.1 {default})]
             have hsum_ne : (∑ i ∈ Finset.range n, (i : ENNReal) * sampleto.1 {default}) ≠ ⊤ :=
               ENNReal.sum_ne_top.mpr fun i _ => ENNReal.mul_ne_top (ENNReal.natCast_ne_top i) hμ
             rw [← ENNReal.ofReal_toReal (ENNReal.add_ne_top.mpr ⟨hsum_ne, hμ⟩)]

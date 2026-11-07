@@ -346,7 +346,6 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_inline*
                 hoare_auto
                 rintro τ ⟨hd, hr, hb, hc⟩
-                simp only [Lens.pair, eval_lens_global] at hd hr hb hc
                 have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
                   fun _ _ => dom_set_iff.mpr (Or.inr hd)
                 split_ifs <;> simp_all
@@ -356,7 +355,6 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_inline*
                 hoare_auto
                 rintro τ ⟨hd, hr, hb, hc⟩
-                simp only [Lens.pair, eval_lens_global] at hd hr hb hc
                 split_ifs <;> simp_all
                 omega
               case keep =>
@@ -364,7 +362,6 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_inline*
                 hoare_auto
                 rintro τ ⟨hd, hr⟩
-                simp only [Lens.pair, eval_lens_global] at hd hr
                 have key : ∀ (x : «from») (a : «to»), ¬ FMap.dom (RO.m.get τ.globals) x →
                     FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 ∧
                     FMap.rng (FMap.rem (FMap.set (RO.m.get τ.globals) x a) mess1)
@@ -410,20 +407,12 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             · exact bot_le
           case bound =>
             -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
-            intros
-            have hμ := mu_ne_top sampleto default
-            have hb := bound_gt0
-            have hn : ((bound.toNat : ℕ) : ℤ) = bound := Int.toNat_of_nonneg hb.le
-            simp only [mul_one, one_mul, Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul]
-            refine le_of_eq ?_
-            rw [mu1, ENNReal.ofReal_mul (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1)),
-              ENNReal.ofReal_toReal hμ,
-              show (((bound + 1 : ℤ)) : ℝ) = ((bound.toNat + 1 : ℕ) : ℝ) by
-                push_cast
-                rw [show ((bound.toNat : ℕ) : ℝ) = (bound : ℝ) by exact_mod_cast hn],
-              ENNReal.ofReal_natCast]
-            push_cast
-            rw [add_mul, one_mul]
+            intro _ _
+            have := bound_gt0
+            show _ ≤ ENNReal.ofReal _
+            rw [ofReal_intCast_mul_mu1, sum_Ico_const,
+              show (bound + 1).toNat = bound.toNat + 1 by omega]
+            push_cast; ring_nf; exact le_rfl
         · have hb := bound_gt0
           exact mul_nonneg (by exact_mod_cast (by omega : (0 : ℤ) ≤ bound + 1))
             ENNReal.toReal_nonneg
