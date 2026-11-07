@@ -2,6 +2,7 @@ import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.EqualOutside
 import GaudisCrypt.Syntax.CloneRegistry
+import GaudisCrypt.Logic.ECSimGlob
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -231,15 +232,118 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
 /-- Run the tactic `stx` on `g`, the goals it leaves. -/
 def runOn (g : MVarId) (stx : TSyntax `tactic) : TacticM (List MVarId) := evalTacticAt stx g
 
+/-- EC's equality set of a relational precondition `A` (`fun σ₁ σ₂ => …`): the regions it keeps
+equal (`R.touched_getter.get σ₁.globals = …`) and the global variables it reads. -/
+def eqSetOf (A : Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) := do
+  let A ← instantiateMVars A
+  if A.getAppFn.isMVar then return (#[], #[])
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    let body := (mkApp2 A σ₁ σ₂).headBeta
+    let Rs ← IO.mkRef (#[] : Array Lean.Expr)
+    let xs ← IO.mkRef (#[] : Array Lean.Expr)
+    Meta.forEachExpr body fun e => do
+      if e.isAppOfArity ``Getter.get 4 then
+        let G := e.getArg! 2
+        if G.isAppOf ``Footprint.touched_getter then
+          let R := G.appArg!
+          let local_ := R.containsFVar σ₁.fvarId! || R.containsFVar σ₂.fvarId!
+          unless local_ || (← Rs.get).contains R do Rs.modify (·.push R)
+        else if G.isAppOfArity ``Lens.toGetter 3 then
+          let x := G.getArg! 2
+          let t ← whnfR (← inferType x)
+          if t.isAppOfArity ``Lens 2 && (t.getArg! 1).isConstOf ``VariableAssignment &&
+              !(x.containsFVar σ₁.fvarId! || x.containsFVar σ₂.fvarId!) &&
+              !(← xs.get).contains x then
+            xs.modify (·.push x)
+    return (← Rs.get, ← xs.get)
+
+/-- EC's `sim` through a call with an equality set: when the judgment's precondition keeps a
+region `R` equal (`R.touched_getter.get σ₁.globals = R.touched_getter.get σ₂.globals`) that
+contains the callee `M` (`fp_le`), the call rule `prhlStmt_seq_call_glob`, its frames the global
+variables the precondition reads that `M` does not touch (`fp_disjoint`).  `none` if no region
+fits. -/
+def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
+    TacticM (Option MVarId) := g.withContext do
+  let s ← saveState
+  try
+    let g ← HoareSplit.hoareSplit 1 g
+    let ty ← prhlGoal g "sim"
+    -- the callee `M` (`M.procedure`) of the left side's last statement
+    let st ← TacticMisc.openStmt (ty.getArg! 1)
+    let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then TacticMisc.openStmt (st.getArg! 2)
+      else pure st
+    unless last.isAppOf ``Stmt.call || last.isAppOf ``StmtWithHoles.call do
+      throwError "sim: not a call"
+    let p := last.getArg! (last.getAppNumArgs - 2)
+    unless p.isAppOf ``Module.Proc.procedure do throwError "sim: not a module's procedure"
+    let M := p.appArg!
+    let (Rs, xs) := eqset
+    -- the region containing the callee
+    let MS ← Term.exprToSyntax M
+    let mut R? : Option Lean.Expr := none
+    for R in Rs do
+      let RS ← Term.exprToSyntax R
+      let s' ← saveState
+      try
+        let m ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M], R])
+        let [] ← runOn m.mvarId! (← `(tactic| fp_le)) | failure
+        let _ := RS
+        R? := some R
+        break
+      catch _ => s'.restore
+    let some R := R? | throwError "sim: no region contains the callee"
+    -- the frames: the variables read that `M` does not touch
+    let mut frames : Array Term := #[]
+    for x in xs do
+      let XS ← Term.exprToSyntax x
+      let s' ← saveState
+      try
+        let m ← mkFreshExprSyntheticOpaqueMVar
+          (← mkAppM ``LE.le #[← mkAppM ``Lens.footprint #[x],
+            ← mkAppM ``Compl.compl #[← mkAppM ``FVP.fvP #[M]]])
+        let [] ← runOn m.mvarId! (← `(tactic| fp_disjoint)) | failure
+        frames := frames.push (← `(Module.Proc.frame_lens $XS (by fp_disjoint)))
+      catch _ => s'.restore
+    let fr ← match frames.back? with
+      | none => `(Module.Proc.frame_true _)
+      | some l => frames.pop.foldrM (fun f acc => `(Module.Proc.frame_and $f $acc)) l
+    -- the rule, its arguments by hand: `R`, `M`, the bound (`fp_le`), the frame
+    let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call_glob
+    let cTy ← inferType c
+    let names := cTy.getForallBinderNames
+    let (ms, _, concl) ← forallMetaTelescope cTy
+    let idx (n : Name) : TacticM Nat := do
+      let some i := names.findIdx? (· == n) | throwError "sim: no argument `{n}`"
+      return i
+    unless ← isDefEq ms[← idx `R]! R do throwError "sim: R"
+    unless ← isDefEq ms[← idx `M]! M do throwError "sim: M"
+    unless ← isDefEq concl (← g.getType) do throwError "sim: the call rule does not apply"
+    let hM := ms[← idx `hM]!.mvarId!
+    let [] ← runOn hM (← `(tactic| fp_le)) | throwError "sim: the callee is not in the region"
+    let hFrM := ms[← idx `hFr]!
+    let hFr ← Term.elabTermEnsuringType fr (← instantiateMVars (← inferType hFrM))
+    Term.synthesizeSyntheticMVarsNoPostponing
+    unless ← isDefEq hFrM (← instantiateMVars hFr) do throwError "sim: the frame"
+    g.assign (mkAppN c ms)
+    let hp := ms[← idx `hpre]!.mvarId!
+    hp.setKind .syntheticOpaque
+    return some (← Judgment.simpArg hp 3 relSimpDecls [])
+  catch _ => s.restore; return none
+
 /-- EC's `sim` on the relational goal `g`, backwards (see the module docstring); the goals left.
 `open?`: the precondition is a metavariable to be found (a branch of a conditional), assigned the
 relation left where the statements are used up. -/
-partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 400) :
+partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 400)
+    (eqset : Array Lean.Expr × Array Lean.Expr := (#[], #[])) :
     TacticM (List MVarId) := do
   if fuel == 0 then return [g]
   -- the deterministic code at the end of both sides
   let g ← Judgment.wpDet g none
   let ty ← prhlGoal g "sim"
+  -- EC's equality set: the precondition's, at the start (a branch's precondition is still open)
+  let eqset ← if eqset.1.isEmpty && eqset.2.isEmpty then g.withContext (eqSetOf (ty.getArg! 0))
+    else pure eqset
   let k₁ ← lastKind (ty.getArg! 1)
   let k₂ ← lastKind (ty.getArg! 2)
   match k₁, k₂ with
@@ -274,10 +378,10 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     let he ← arg `he
     let h ← arg `h
     g.assign (mkAppN c ms)
-    let rt ← sim ht frame? (fuel - 1)
-    let re ← sim he frame? (fuel - 1)
+    let rt ← sim ht frame? (fuel - 1) eqset
+    let re ← sim he frame? (fuel - 1) eqset
     let h ← Judgment.simpArg h 3 relSimpDecls []
-    return rt ++ re ++ (← sim h frame? (fuel - 1))
+    return rt ++ re ++ (← sim h frame? (fuel - 1) eqset)
   | .call, .call =>
     -- with a frame: the call rule for states equal outside it, the callee's disjointness from
     -- it by `fp_disjoint`
@@ -300,8 +404,10 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
           | throwError "sim: the callee touches the frame"
         let hp := ms[ip]!.mvarId!
         hp.setKind .syntheticOpaque
-        return ← sim (← Judgment.simpArg hp 3 relSimpDecls []) frame? (fuel - 1)
+        return ← sim (← Judgment.simpArg hp 3 relSimpDecls []) frame? (fuel - 1) eqset
       catch _ => s.restore
+    -- EC's `sim` with an equality set: a region the precondition keeps equal, the callee in it
+    if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset
     let s ← saveState
     try
       -- calls of procedures spelled differently (an abstract procedure with oracles that are
@@ -322,7 +428,7 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         unless ok do s.restore; throwError "sim: the callees differ"
         return none
       match gs with
-      | [g'] => sim g' frame? (fuel - 1)
+      | [g'] => sim g' frame? (fuel - 1) eqset
       | _ => return gs
     catch _ => s.restore; return [g]
   | .sample, .sample =>
@@ -330,7 +436,7 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     try
       let gs ← runOn g (← `(tactic| equiv_rnd))
       match gs with
-      | [g'] => sim g' frame? (fuel - 1)
+      | [g'] => sim g' frame? (fuel - 1) eqset
       | _ => return gs
     catch _ => s.restore; return [g]
   | _, _ => return [g]

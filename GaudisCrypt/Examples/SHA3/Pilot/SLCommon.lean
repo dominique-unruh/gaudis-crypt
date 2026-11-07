@@ -280,7 +280,8 @@ theorem DRestr_ll : ∀ (D <: DISTINGUISHER {-C}),
     (∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
       islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish) →
     ∀ (F <: DFUNCTIONALITY {-D, -C}), ∀ (P <: DPRIMITIVE {-D, -C}),
-      islossless P.f → islossless P.fi → islossless F.f → islossless DRestr(D, F, P).distinguish := by
+      islossless P.f → islossless P.fi → islossless F.f →
+        islossless DRestr(D, F, P).distinguish := by
   intro D _ D_ll F _ P _ p_ll pi_ll f_ll
   phoare_proc
   phoare_call (@D_ll (Module.app DFRestr F) ⟨by fp_finite, by fp_disjoint⟩
@@ -296,6 +297,8 @@ declare module F <: FUNCTIONALITY {-C, -Redo}
 declare module P <: PRIMITIVE {-C, -F, -Redo}
 declare module D <: DISTINGUISHER {-F, -P, -C, -Redo}
 
+set_option maxHeartbeats 500000 in
+-- one declaration: the distinguisher's call over three oracles, each by `sim`
 /-- EC's `lemma swap_restr &m: Pr[Indif(FRestr(F), PRestr(P), D).main() @ &m: res] =
 Pr[Indif(F,P,DRestr(D)).main() @ &m: res]`. -/
 theorem swap_restr (m : VariableAssignment) :
@@ -305,9 +308,10 @@ theorem swap_restr (m : VariableAssignment) :
   stmt_swap{1} [1..2] 3
   equiv_call (_ : ={glob D, glob F, glob P, C.c, C.queries})
   · equiv_proc; stmt_inline*; sim
-    all_goals trace_state
-    all_goals sorry
-  all_goals sorry
+  · equiv_proc; stmt_inline*; sim
+  · equiv_proc; stmt_inline*; sim
+  · stmt_swap{1} [2..2] 3
+    sim
 
 end RESTR
 

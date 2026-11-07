@@ -121,6 +121,16 @@ partial def solveLeSup (g : MVarId) (fuel : Nat := 8) : MetaM Unit := do
   if sameModule then
     g.assign (← mkAppOptM ``le_refl #[none, none, A])
     return
+  -- the footprint of the same module, its type spelled differently (as for `glob`)
+  let fvpModule? (e : Lean.Expr) : Option Lean.Expr := do
+    guard (e.isAppOfArity ``FVP.fvP 3)
+    return e.getArg! 2
+  let sameFvP ← match fvpModule? A, fvpModule? S with
+    | some M₁, some M₂ => withReducible (isDefEq M₁ M₂)
+    | _, _ => pure false
+  if sameFvP then
+    g.assign (← mkAppOptM ``le_refl #[none, none, A])
+    return
   if ← withReducible (isDefEq A S) then
     g.assign (← mkAppM ``le_refl #[A])
     return
