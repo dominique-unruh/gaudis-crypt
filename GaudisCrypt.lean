@@ -124,6 +124,10 @@ import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.ECCallAbstract
+import GaudisCrypt.Logic.ECSp
+import GaudisCrypt.Logic.ECSpTest
+import GaudisCrypt.Logic.ECIf
+import GaudisCrypt.Logic.ECIfTest
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
