@@ -80,6 +80,8 @@ elab "phoare_seq " n:num " : " E:term:max p₁:term:max p₂:term:max p₃:term:
   let Ee ← elabGoalFunction E (mkSort levelZero)
   let Ie ← elabGoalFunction I (mkSort levelZero)
   let ps ← withMainContext <| [p₁, p₂, p₃, p₄].mapM fun p => do
+    -- EC's `_`: a bound left open, `1` (its goal, an event's probability, closed below)
+    let p ← if p.raw.isOfKind ``Lean.Parser.Term.hole then `((1 : ENNReal)) else pure p
     let e ← Term.elabTermEnsuringType p (mkConst ``ENNReal)
     Term.synthesizeSyntheticMVarsNoPostponing
     instantiateMVars e

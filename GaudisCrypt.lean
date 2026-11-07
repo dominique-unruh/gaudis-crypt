@@ -128,6 +128,8 @@ import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECSpTest
 import GaudisCrypt.Logic.ECIf
 import GaudisCrypt.Logic.ECIfTest
+import GaudisCrypt.Logic.ECConseq
+import GaudisCrypt.Logic.ECConseqTest
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq
