@@ -478,3 +478,9 @@ elab_rules (kind := equivCallUpto) : tactic
       setGoals (out.toList ++ others ++ pre.toList)
 
 end GaudisCrypt
+
+/-- EC's implicit `={glob D}` across code writing outside `glob D`: each write `x.set v g` under
+`(FVP.fvP D).touched_getter.get` removed (`touched_set_of_le_compl`, `x` outside `glob D` by
+`fp_disjoint`), as long as one is found. -/
+macro "glob_simp" : tactic => `(tactic|
+  repeat (rw [GaudisCrypt.touched_set_of_le_compl ?_]; rotate_left; fp_disjoint))

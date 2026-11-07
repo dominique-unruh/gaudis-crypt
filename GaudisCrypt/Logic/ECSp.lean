@@ -60,6 +60,37 @@ theorem prhlStmt_sp_right {A B : ProgramState → ProgramState → Prop} (hd : S
   rw [programDenotation_seq_det hd]
   exact h σ₁ (upd σ₂) ⟨σ₂, hA, rfl⟩
 
+/-- `hoareStmt_sp`, the precondition kept on the new state when the update cannot change it (an
+assignment to a variable it does not read): EC's `P /\ x = e` where `P` does not mention `x`. -/
+theorem hoareStmt_sp_keep {A B : ProgramState → Prop} (hd : Stmt.Det d upd)
+    (hA : ∀ τ, A τ → A (upd τ))
+    (h : hoareStmt (fun σ => A σ ∧ ∃ τ, A τ ∧ σ = upd τ) s B) : hoareStmt A (.seq d s) B :=
+  hoareStmt_sp hd (hoare_pre h fun _ ⟨τ, hτ, e⟩ => ⟨e ▸ hA τ hτ, τ, hτ, e⟩)
+
+/-- `phoareStmt_sp`, the precondition kept on the new state (as `hoareStmt_sp_keep`). -/
+theorem phoareStmt_sp_keep {A : ProgramState → Prop} {g : ProgramState → ENNReal}
+    {ρ : ENNReal → ENNReal → Prop} {r : ProgramState → ENNReal} (hd : Stmt.Det d upd)
+    (hr : ∀ τ, A τ → r (upd τ) = r τ) (hA : ∀ τ, A τ → A (upd τ))
+    (h : phoareStmt (fun σ => A σ ∧ ∃ τ, A τ ∧ σ = upd τ) s g ρ r) :
+    phoareStmt A (.seq d s) g ρ r :=
+  phoareStmt_sp hd hr (phoareStmt_pre h fun _ ⟨τ, hτ, e⟩ => ⟨e ▸ hA τ hτ, τ, hτ, e⟩)
+
+/-- `prhlStmt_sp_left`, the precondition kept on the new state (as `hoareStmt_sp_keep`). -/
+theorem prhlStmt_sp_left_keep {A B : ProgramState → ProgramState → Prop} (hd : Stmt.Det d upd)
+    (hA : ∀ τ σ₂, A τ σ₂ → A (upd τ) σ₂)
+    (h : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ ∃ τ, A τ σ₂ ∧ σ₁ = upd τ) s₁ s₂ B) :
+    prhlStmt A (.seq d s₁) s₂ B :=
+  prhlStmt_sp_left hd (prhlStmt_conseq h (fun _ σ₂ ⟨τ, hτ, e⟩ => ⟨e ▸ hA τ σ₂ hτ, τ, hτ, e⟩)
+    fun _ _ h => h)
+
+/-- `prhlStmt_sp_right`, the precondition kept on the new state. -/
+theorem prhlStmt_sp_right_keep {A B : ProgramState → ProgramState → Prop} (hd : Stmt.Det d upd)
+    (hA : ∀ σ₁ τ, A σ₁ τ → A σ₁ (upd τ))
+    (h : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ ∃ τ, A σ₁ τ ∧ σ₂ = upd τ) s₁ s₂ B) :
+    prhlStmt A s₁ (.seq d s₂) B :=
+  prhlStmt_sp_right hd (prhlStmt_conseq h (fun σ₁ _ ⟨τ, hτ, e⟩ => ⟨e ▸ hA σ₁ τ hτ, τ, hτ, e⟩)
+    fun _ _ h => h)
+
 namespace ECSp
 
 open Lean Meta Elab Tactic PRHLWp
@@ -79,12 +110,30 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
   let g ← if st.isAppOfArity ``StmtWithHoles.seq 3 then pure g
     else HoareSplit.hoareSplit 0 g side?
   let ty ← instantiateMVars (← g.getType)
-  let lem ← if ty.isAppOf ``hoareStmt then pure ``hoareStmt_sp
-    else if ty.isAppOf ``phoareStmt then pure ``phoareStmt_sp
+  let (lem, keep) ← if ty.isAppOf ``hoareStmt then pure (``hoareStmt_sp, ``hoareStmt_sp_keep)
+    else if ty.isAppOf ``phoareStmt then pure (``phoareStmt_sp, ``phoareStmt_sp_keep)
     else if ty.isAppOf ``prhlStmt then
-      pure (if side? == some 2 then ``prhlStmt_sp_right else ``prhlStmt_sp_left)
+      pure (if side? == some 2 then (``prhlStmt_sp_right, ``prhlStmt_sp_right_keep)
+        else (``prhlStmt_sp_left, ``prhlStmt_sp_left_keep))
     else throwError "sp: not a statement judgment:{indentExpr ty}"
-  let gs ← applyLemma lem g #[(`hd, hd)]
+  -- EC's `P /\ x = e` when the update cannot change `P` (its reads simplified, `P` again)
+  let trivialPre ← do
+    let A := ty.getArg! 0
+    forallTelescope (← inferType A) fun xs _ => isDefEq (mkAppN A xs) (mkConst ``True)
+  let kept? ← if trivialPre then pure none else do
+    let s ← saveState
+    try
+      let gs ← applyLemma keep g #[(`hd, hd)]
+      -- `hA` (the invariance) is the open argument before the judgment
+      let some hA := gs[gs.size - 2]? | throwError "sp: unexpected arguments"
+      let [] ← Term.TermElabM.run' (Tactic.run hA (do
+          evalTactic (← `(tactic| (intros; simp_reads; first | assumption | exact id)))))
+        | throwError "not invariant"
+      pure (some (gs.toList.filter (· != hA)))
+    catch _ => s.restore; pure none
+  let gs ← match kept? with
+    | some gs => pure gs
+    | none => pure (← applyLemma lem g #[(`hd, hd)]).toList
   -- the bound's invariance (`phoare`): by `rfl` for a bound that does not read the state
   let mut out := []
   for h in gs do

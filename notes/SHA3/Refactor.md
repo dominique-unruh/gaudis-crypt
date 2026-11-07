@@ -455,6 +455,18 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   `BitWord`/`PRP`/`RP` wait for `Lib/EC`'s theories to follow the `Params` convention (and for
   `clone`'s `rename`).
 
+* The `CF_G1` experiment (2026-11-07, `Pilot/Handle.lean`, over the old declarations): EC's
+  game-level equivalence through the up-to-bad call over three oracles, EC's proof step by step
+  (about 100 lines; the old proof about 210 plus its auxiliary lemmas; budget 1M against 4M).  New:
+  `equiv_call (_ : bad, I, J)` (`Logic/ECCallUpto.lean`: the invariants' variables collected, the
+  goals in EC's order, `D_ll`'s goal closed by `exact D_ll`), `glob M` in conditions
+  (`Logic/ECGlob.lean`), `equiv_conseq` on procedures and `equiv_conseq H`, `phoare_while I V`
+  for `= 1` (`Logic/ECWhile.lean`), `sp` keeping a precondition the statement cannot change (EC's
+  `P /\ x = e`), `glob_simp` (EC's implicit `={glob D}` across writes), `phoare_auto` closing the
+  trivial goals; `inline*` through typed modules without parameters; the footprint solver using a
+  typed module's procedure bounds (54 s → 0.3 s).  What was left are EC's closers (`smt`, `/#`):
+  here `simp`, `split_ifs`, `omega`, and the old port's `INV_CF_G1_init` for EC's 18 `smt` calls.
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

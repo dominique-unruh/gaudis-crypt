@@ -96,10 +96,12 @@ end ECAuto
 
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a `phoare` statement judgment: wp back to the last call, then `skip` if
-the code is used up. -/
+the code is used up, the trivial goals (`1 = 1`) closed. -/
 elab "phoare_auto" : tactic => do
   liftMetaTactic1 fun g => do return some (← splitPairReads (← wpAll g))
   evalTactic (← `(tactic| try phoare_skip))
+  -- what EC's `auto` closes by itself: `1 = 1`, `x ≤ x` under the binders
+  evalTactic (← `(tactic| try (intros; first | rfl | exact le_rfl)))
 
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a Hoare triple about a statement. -/
