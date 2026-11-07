@@ -127,6 +127,8 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallUpto
 import GaudisCrypt.Logic.ECGlob
 import GaudisCrypt.Logic.ECWhile
+import GaudisCrypt.Logic.ECSeq
+import GaudisCrypt.Logic.ECInline
 import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECSpTest
 import GaudisCrypt.Logic.ECIf
@@ -204,6 +206,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
 import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
+import GaudisCrypt.Examples.SHA3.Pilot.Sponge
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl

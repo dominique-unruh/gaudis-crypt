@@ -236,8 +236,8 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
             exact fun _ _ _ => ⟨⟨by simp [FMap.fdom, FMap.empty], bound_ge0⟩, fun _ _ h => h⟩
         case first_E =>
           phoare_seq 1 : True 1 (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) 0 _ True
-          case invariant => hoare_auto; simp
-          case first_notE => phoare_hoare; hoare_auto; simp
+          case invariant => hoare_auto
+          case first_notE => phoare_hoare; hoare_auto
           case bound => intros; simp
           case second_E =>
             stmt_exists* §Preimage2.hash
@@ -286,11 +286,6 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
                 hoare_proc
                 hoare_inline*
                 hoare_auto
-                rintro σ ⟨⟨hc, hb⟩, hr, hn, rfl⟩
-                split_ifs with hlt
-                · simp only [decide_eq_true_eq] at hlt
-                  exact absurd ⟨hc, hlt⟩ hn
-                · exact ⟨⟨hc, hb⟩, hr, le_rfl⟩
               case keep =>
                 hoare_proc
                 hoare_inline*
@@ -568,11 +563,6 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_proc
                 hoare_inline*
                 hoare_auto
-                rintro σ ⟨⟨hc, hb, hd⟩, hr, hn, rfl⟩
-                split_ifs with hlt
-                · simp only [decide_eq_true_eq] at hlt
-                  exact absurd ⟨hc, hlt⟩ hn
-                · exact ⟨⟨hc, hb, hd⟩, hr, le_rfl⟩
               case keep =>
                 hoare_proc
                 hoare_inline*
@@ -743,7 +733,6 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 omega
               · exact ⟨hc, hcb⟩
             · hoare_auto
-              exact fun _ _ => ⟨⟨by simp [FMap.fdom, FMap.empty], hb⟩, fun _ _ h => h⟩
           case first_E =>
             -- EC's `call(: true ==> collision RO.m); auto`
             phoare_call (: True ==> collision §RO.m)
@@ -800,11 +789,6 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 hoare_proc
                 hoare_inline*
                 hoare_auto
-                rintro σ ⟨⟨hc, hcb⟩, hr, hn, rfl⟩
-                split_ifs with hlt
-                · simp only [decide_eq_true_eq] at hlt
-                  exact absurd ⟨hc, hlt⟩ hn
-                · exact ⟨⟨hc, hcb⟩, hr, le_rfl⟩
               case keep =>
                 hoare_proc
                 hoare_inline*

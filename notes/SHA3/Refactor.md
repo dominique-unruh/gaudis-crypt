@@ -467,6 +467,19 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   typed module's procedure bounds (54 s → 0.3 s).  What was left are EC's closers (`smt`, `/#`):
   here `simp`, `split_ifs`, `omega`, and the old port's `INV_CF_G1_init` for EC's 18 `smt` calls.
 
+* The second experiment (2026-11-07, `Pilot/Sponge.lean`, over the old declarations):
+  `Sponge_Raise_BlockSponge_f`, a procedure equivalence with two two-sided loops, EC's proof step
+  by step (about 45 lines against about 110 plus a helper; default budget).  New: EC's
+  `equiv_seq n m : P` (positions from the start, resets not counted; the old cut, counted from
+  the end, is `equiv_seq_last`, 444 uses renamed), `stmt_inline (M.f)` (EC's inline by name),
+  `equiv_auto`, `equiv_call (_ : ={glob P})` on a concrete callee (`prhlProc_glob_module`),
+  `hoare_auto` introducing the memory of a one-sided side goal, and stronger closers for
+  `hoare_auto`/`equiv_auto` (reads simplified, the generalized variables substituted) — which
+  also closed by themselves several goals the pilots `SecureRO`/`SecureORO` closed by hand (those
+  lines removed).  Not gaps after all: two-sided `while I` and `case` existed (`equiv_while`,
+  `equiv_case`).  What was left are EC's rewriting/`smt` steps (`simp_all` with the `blocks2bits`
+  lemmas) and declaration artifacts of the old port.
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

@@ -281,16 +281,11 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               hoare_proc
               hoare_inline*
               hoare_auto
-              rintro τ ⟨-, hr, hb, hc⟩
-              split_ifs <;> simp_all
             case same =>
               intro c
               hoare_proc
               hoare_inline*
               hoare_auto
-              rintro τ ⟨-, hr, hb, hc⟩
-              split_ifs <;> simp_all
-              omega
             case keep =>
               hoare_proc
               hoare_inline*
@@ -558,9 +553,6 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 hoare_proc
                 hoare_inline*
                 hoare_auto
-                rintro τ ⟨hd, hr, hb, hc⟩
-                split_ifs <;> simp_all
-                omega
               case keep =>
                 hoare_proc
                 hoare_inline*
@@ -771,9 +763,6 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 hoare_proc
                 hoare_inline*
                 hoare_auto
-                rintro τ ⟨hi, hc, hb, hcc⟩
-                split_ifs <;> simp_all
-                omega
               case keep =>
                 hoare_proc
                 hoare_inline*

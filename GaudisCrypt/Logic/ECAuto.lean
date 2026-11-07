@@ -110,15 +110,29 @@ macro "equiv_auto" : tactic => `(tactic| (
   (try stmt_wp)
   (repeat (equiv_rnd; try stmt_wp))
   (try equiv_skip)
-  (try (intros; first | rfl | trivial | (simp_all; done)))))
+  (try ((try simp_reads); intros; first
+    | rfl
+    | trivial
+    | (simp_all; done)
+    | (simp only [eval, Evaluatable.eval, decide_eq_true_eq, decide_eq_false_iff_not] at *
+       casesm* _ ∧ _; subst_vars; first | assumption | (simp_all; done))))))
 
 open Lean Elab Tactic ECAuto in
-/-- **EC's `auto`** on a Hoare triple about a statement. -/
+/-- **EC's `auto`** on a Hoare triple about a statement (the memories of a side goal
+`∀ σ₁, hoare[ … ]` introduced first; the trivial goals closed). -/
 elab "hoare_auto" : tactic => do
+  -- a side goal `∀ σ₁, hoare[ … ]` (EC's `forall &1`, from a one-sided rule): the memory first
+  evalTactic (← `(tactic| intros))
   liftMetaTactic1 fun g => do return some (← splitPairReads (← wpAll g))
   liftMetaTactic1 fun g => do
     let s ← saveState
     try return some (← hoareSkipGen g) catch _ => s.restore; return some g
+  -- what EC's `auto` closes by itself
+  evalTactic (← `(tactic| try ((try simp_reads); intros; first
+    | trivial
+    | (simp_all; done)
+    | (simp only [eval, Evaluatable.eval, decide_eq_true_eq, decide_eq_false_iff_not] at *
+       casesm* _ ∧ _; subst_vars; first | assumption | (simp_all; done)))))
 
 -- the variables the steps introduce (`a`, `ha`) are the proof's to name: not hygienic
 set_option hygiene false

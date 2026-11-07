@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.ECGlob
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.FootprintUpper
 
 /-!
 # EasyCrypt's `call (_: ={glob A, x₁, …})` on an abstract procedure
@@ -22,6 +23,16 @@ calls (`pre`).  The representation of `A` comes from its declaration and the ora
 
 namespace GaudisCrypt
 
+/-- **A concrete procedure keeps `={glob R}`**: a procedure module `M` touching only `R` (its
+footprint below `R`) runs the same from equal arguments and states equal on `R` (EC's
+`call (_ : ={glob P})` on a concrete callee, its oracle judgment by `sim`). -/
+theorem prhlProc_glob_module {sig : ProcedureSignature} (M : Module.Proc sig)
+    {R : Footprint VariableAssignment} (hM : FVP.fvP M ≤ R) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ R.touched_getter.get g₁ = R.touched_getter.get g₂)
+      M.procedure M.procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ R.touched_getter.get g₁ = R.touched_getter.get g₂) :=
+  prhlProc_glob fun a => ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP M a) hM
+
 open Lean Meta Elab Tactic FelTactic PRHLWp
 
 /-- **EC's `call (_: ={glob A, x₁, …})`**: see the module docstring. -/
@@ -35,12 +46,26 @@ elab_rules (kind := equivCallInv) : tactic
     setGoals [g]
     let ty ← instantiateMVars (← g.getType)
     -- the callee of the left side's last statement (not a module applied anywhere in the goal)
-    let (ext, C) ← g.withContext do
+    let abs? ← g.withContext do
       let st ← TacticMisc.openStmt (ty.getArg! 1)
       let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then TacticMisc.openStmt (st.getArg! 2)
         else pure st
-      let (ext, _, C) ← abstractCall last
-      return (ext, C)
+      try
+        let (ext, _, C) ← abstractCall last
+        pure (some (ext, C))
+      catch _ => pure none
+    -- a concrete callee: it touches only what `={…}` names (`prhlProc_glob_module`)
+    let some (ext, C) := abs? | do
+      let Rs ← xs.getElems.mapM fun (t : Term) => match t with
+        | `(glob $a) => `(FVP.fvP $a)
+        | _ => `(Lens.footprint $t)
+      let some last := Rs.back? | throwError "equiv_call: `=\{glob M, x₁, …}`"
+      let R ← Rs.pop.foldrM (fun x acc => `($x ⊔ $acc)) last
+      g.withContext <| evalTactic (← `(tactic| refine prhlStmt_seq_call
+          (prhlProc_glob_module _ (R := $R) ?hM) ?pre))
+      untagGoals
+      closeTagged `hM (← `(tactic| fp_le))
+      return
     let isGlob : Term → Bool := fun t => match t with
       | `(glob $_) => true
       | _ => false
