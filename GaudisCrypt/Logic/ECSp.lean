@@ -127,7 +127,9 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
       -- `hA` (the invariance) is the open argument before the judgment
       let some hA := gs[gs.size - 2]? | throwError "sp: unexpected arguments"
       let [] ← Term.TermElabM.run' (Tactic.run hA (do
-          evalTactic (← `(tactic| (intros; simp_reads; first | assumption | exact id)))))
+          evalTactic (← `(tactic| first
+            | (intros; simp_reads; first | assumption | exact id)
+            | (simp_reads; intros; assumption)))))
         | throwError "not invariant"
       pure (some (gs.toList.filter (· != hA)))
     catch _ => s.restore; pure none

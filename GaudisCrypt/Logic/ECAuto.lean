@@ -55,6 +55,10 @@ theorem expected_le_of_null (h : ∀ a ∈ d.support, f a = 0) : d.expected f �
 
 end SubProbability
 
+/-- An event's indicator is `1` exactly when the event holds (what a `phoare … = 1` leaves). -/
+@[simp] theorem indicatorE_eq_one_iff (Q : Prop) : indicatorE Q = 1 ↔ Q := by
+  by_cases h : Q <;> simp [indicatorE, h]
+
 namespace ECAuto
 
 open Lean Meta Elab Tactic

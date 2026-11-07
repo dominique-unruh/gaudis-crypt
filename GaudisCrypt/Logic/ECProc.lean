@@ -3,6 +3,7 @@ import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Syntax.PHoareSyntax
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Syntax.CloneRegistry
 
 /-!
 # EasyCrypt's `proc`: a procedure judgment as the judgment about its body
@@ -223,6 +224,33 @@ def procStep (g : MVarId) : MetaM MVarId := g.withContext do
     return ← Judgment.simpArg g'' 3 relSimpDecls []
   return g'.mvarId!
 
+/-- A module's procedure read off a module built from a record (`DPRIMITIVE.f (DPRIMITIVE.mk
+{ f := P.f, … })`, what a module type's view leaves at a call) or out of a `Module.pair`, read off
+(`T.f.mk_simp`, `Module.fst_pair'`, …) everywhere in the goal: the two sides of a call then name
+the same procedure (`P.f`), as EC's `sim` sees them. -/
+def accessorNorm (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let readOff? (e : Lean.Expr) : MetaM (Option Simp.Result) := do
+    let some c := e.getAppFn.constName? | return none
+    let args := e.getAppArgs
+    if args.isEmpty then return none
+    let acc := (← Flatten.isAccessor c) && args.back!.isAppOf (c.getPrefix ++ `mk)
+    unless acc || (Flatten.pairLemma? c).isSome do return none
+    Flatten.moduleStep? e
+  let pre : Simp.Simproc := fun e => do
+    if let some r ← readOff? e then return .visit r
+    -- the accessor under a clone's alias (`Indiff.DPRIMITIVE.f`): the theory's, by definition
+    let some c := e.getAppFn.constName? | return .continue
+    if (cloneOf? (← getEnv) c).isNone then return .continue
+    let some e' ← Meta.unfoldDefinition? e | return .continue
+    let e' := e'.headBeta
+    let some r ← readOff? e' | return .continue
+    return .visit r
+  let ctx ← Simp.mkContext (config := { zeta := false, iota := false, proj := false })
+  let (r, _) ← Simp.main ty ctx (methods := { pre })
+  if r.expr == ty then return g
+  applySimpResultToTarget g ty r
+
 end ECProc
 
 open Lean Elab Tactic in
@@ -232,14 +260,16 @@ elab "phoare_proc" : tactic => do
   let g ← getMainGoal
   if (← instantiateMVars (← g.getType)).cleanupAnnotations.isAppOf ``Procedure.IsLossless then
     evalTactic (← `(tactic| rw [Procedure.isLossless_iff_phoareProc]))
-  liftMetaTactic1 fun g => some <$> ECProc.procStep g
+  liftMetaTactic1 fun g => some <$> (ECProc.procStep g >>= ECProc.accessorNorm)
 
 open Lean Elab Tactic in
 /-- **EC's `proc`** on `hoare[ M.f : P ==> Q ]`: see the module docstring. -/
-elab "hoare_proc" : tactic => liftMetaTactic1 fun g => some <$> ECProc.procStep g
+elab "hoare_proc" : tactic => liftMetaTactic1 fun g =>
+  some <$> (ECProc.procStep g >>= ECProc.accessorNorm)
 
 open Lean Elab Tactic in
 /-- **EC's `proc`** on `equiv[ M₁.f ~ M₂.g : P ==> Q ]`: see the module docstring. -/
-elab "equiv_proc" : tactic => liftMetaTactic1 fun g => some <$> ECProc.procStep g
+elab "equiv_proc" : tactic => liftMetaTactic1 fun g =>
+  some <$> (ECProc.procStep g >>= ECProc.accessorNorm)
 
 end GaudisCrypt

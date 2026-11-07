@@ -599,9 +599,17 @@ elab "equiv_rcondf" s:Judgment.judgmentSide : tactic => withMainContext do
   let #[g'] := gs | throwError "equiv_rcondf: `{lem}` left {gs.size} goals"
   replaceMainGoal [← Judgment.simpArg g' 3 relSimpDecls []]
 
-/-- `equiv_sym`: swap the two sides (`prhlStmt.symm`). -/
+/-- `equiv_sym`: swap the two sides (`prhlStmt.symm`, on a procedure judgment `prhlProc.symm`;
+EC's `symmetry`). -/
 elab "equiv_sym" : tactic => withMainContext do
   let g ← getMainGoal
+  let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
+  if ty.isAppOfArity ``prhlProc 6 then
+    let gs ← applyLemma ``prhlProc_of_symm g
+    let #[g'] := gs | throwError "equiv_sym: `prhlProc_of_symm` left {gs.size} goals"
+    let g' ← Judgment.simpArg g' 2 [] []
+    replaceMainGoal [← Judgment.simpArg g' 5 [] []]
+    return
   let _ ← prhlGoal g "equiv_sym"
   let gs ← applyLemma ``prhlStmt_of_symm g
   let #[g'] := gs | throwError "equiv_sym: `prhlStmt_of_symm` left {gs.size} goals"

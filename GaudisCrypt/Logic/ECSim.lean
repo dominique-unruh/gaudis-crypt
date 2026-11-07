@@ -3,6 +3,7 @@ import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.EqualOutside
 import GaudisCrypt.Syntax.CloneRegistry
 import GaudisCrypt.Logic.ECSimGlob
+import GaudisCrypt.Logic.ECProc
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -261,8 +262,8 @@ def eqSetOf (A : Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) := do
 /-- EC's `sim` through a call with an equality set: when the judgment's precondition keeps a
 region `R` equal (`R.touched_getter.get σ₁.globals = R.touched_getter.get σ₂.globals`) that
 contains the callee `M` (`fp_le`), the call rule `prhlStmt_seq_call_glob`, its frames the global
-variables the precondition reads that `M` does not touch (`fp_disjoint`).  `none` if no region
-fits. -/
+variables the precondition or the postcondition reads that `M` does not touch (`fp_disjoint`).
+`none` if no region fits. -/
 def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
     TacticM (Option MVarId) := g.withContext do
   let s ← saveState
@@ -279,6 +280,10 @@ def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
     unless p.isAppOf ``Module.Proc.procedure do throwError "sim: not a module's procedure"
     let M := p.appArg!
     let (Rs, xs) := eqset
+    -- EC's call keeps every variable outside the callee: the frames also cover what the
+    -- postcondition reads
+    let (_, ys) ← eqSetOf (ty.getArg! 3)
+    let xs := xs ++ ys.filter (!xs.contains ·)
     -- the region containing the callee
     let MS ← Term.exprToSyntax M
     let mut R? : Option Lean.Expr := none
@@ -461,7 +466,7 @@ elab "hoare_inline" "*" : tactic => liftMetaTactic1 fun g => some <$> inlineAllS
 open Lean Elab Tactic ECSim in
 /-- **EC's `sim`**: see the module docstring. -/
 elab "sim" : tactic => do
-  let g ← getMainGoal
+  let g ← ECProc.accessorNorm (← getMainGoal)
   let gs ← sim g
   replaceMainGoal gs
 

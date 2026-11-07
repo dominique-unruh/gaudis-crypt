@@ -67,6 +67,17 @@ partial def expand (states : Nat → Option Term) (param : Nat → Name → Opti
     if s.getKind == ``relEqs then
       let xs := s[1].getSepArgs.map (⟨·⟩ : Syntax → Term)
       if xs.isEmpty then return some (← `(True))
+      -- EC's `={glob A, glob B}`: the globals of `A` and `B` together, one region (`glob A ⊔
+      -- glob B`; equal on each is weaker for footprints in general), where the first `glob` is
+      let isGlob (x : Term) : Bool := x.raw.getKind == `GaudisCrypt.ecGlob
+      let globs := (xs.filter isGlob).map fun x => (⟨x.raw[1]⟩ : Term)
+      let xs ← if globs.size ≤ 1 then pure xs else do
+        let fvP := mkCIdent `GaudisCrypt.FVP.fvP  -- not imported here: resolved where used
+        let fps ← globs.mapM fun a => `($fvP $a)
+        let F ← fps.pop.foldrM (fun x acc => `($x ⊔ $acc)) fps.back!
+        let j : Term ← `(($F).touched_getter)
+        let some i := xs.findIdx? isGlob | unreachable!
+        pure ((xs.filter (!isGlob ·)).insertIdx! i j)
       let eqs ← xs.mapM fun x => do `($(← side 1 x) = $(← side 2 x))
       return some (← eqs.pop.foldrM (fun e acc => `($e ∧ $acc)) eqs.back!)
     if s.isAntiquot then

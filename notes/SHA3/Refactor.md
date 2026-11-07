@@ -486,6 +486,21 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   works around it (`Module.app Sponge.f …`, the old views as coercions).  Fix later: see through
   such abbreviations; the pilot-style declarations do not need it.
 
+* `Pilot/SLCommon.lean` (2026-11-08), bottom-up from SmartCounter: the shared declarations moved
+  to `SmartCounter/SLCommonCore.lean` (both ports import it); `swap_restr` and `Pr_restr` EC's
+  proofs step for step.  New for `Pr_restr`: `byequiv (_ : P ==> Q)`; `equiv_sym` on procedure
+  judgments; the up-to-bad call with `={glob X, …}` in the invariant
+  (`prhlProc_abstract_call_upto_ecF`: the region `glob D ⊔ glob X …` kept by the oracles; a
+  concrete module's `glob` its variables); EC's `={glob A, glob B}` as one region `glob A ⊔
+  glob B` (`Syntax/PRHLSyntax.lean`; equal on each is weaker for footprints in general, and no
+  join lemma); `*_proc` and `sim` read procedures off module views (`DPRIMITIVE.f (DPRIMITIVE.mk
+  {f := P.f, …})` is `P.f`, `ECProc.accessorNorm`); `sim`'s call frames cover the variables the
+  postcondition reads (EC's call keeps everything outside the callee); `phoare_call H / x, …`
+  (EC's `call H`, `H : islossless`, in a `phoare … = 1`, past the frame:
+  `phoareStmt_call_lossless_frame`); `sp`'s keep closer robust to `∧ True`.  What was left: EC's
+  `auto => /#` and `smt(prefix_sizel)`, written out (`omega`, `glob_simp`, the hypotheses
+  destructured).
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

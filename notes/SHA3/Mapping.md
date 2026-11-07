@@ -369,6 +369,48 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/SLCommon.lean`, namespace `GaudisC
 | 1065 | lemma | `huniq_hinvK_h` |  | `huniq_hinvK_h` | done |
 | 1073 | module | `GReal` |  | `GReal` (definition) | def |
 
+### EC-fidelity pilot (`notes/SHA3/Refactor.md`)
+
+The section `COUNT`/`RESTR` part of the file in EC's shape.  The shared declarations (types,
+`max_size`, the handle operators) are `SmartCounter/SLCommonCore.lean`, imported by both ports;
+`Indifferentiability` is `clone import Pilot.Indifferentiability as Indiff`; module variables
+`global_var`s (`C.c`, `C.queries`, `F.RO.m`, `F.FRO.m`); `declare module … {-…}`; EC's
+`declare axiom`s are section `variable`s.  `swap_restr` is EC's `call (_: ={glob D, glob F,
+glob P, C.c, C.queries})` with `sim` per oracle; `Pr_restr` is EC's
+`call (_: max_size < C.c, ={glob P, glob CO, glob C})` (`Logic/ECCallUpto.lean`, the region
+`glob D ⊔ glob P ⊔ glob CO` kept by the oracles), its thirteen goals in EC's order (E11: the
+right oracles' `islossless`).  EC's `={glob A, glob B}` is one region `glob A ⊔ glob B`.
+
+Lean: `GaudisCrypt/Examples/SHA3/Pilot/SLCommon.lean`, namespace `GaudisCrypt.SHA3.Pilot.SLCommon`.
+
+| EC line | kind | EC name | context | Lean name | status |
+|---:|---|---|---|---|---|
+| 820 | module | `C` |  | `C` (variables `global_var C.c`, `C.queries`) | def |
+| 829 | module | `PC` |  | `PC` | def |
+| 839 | module | `DPRestr` |  | `DPRestr` | def |
+| 861 | module | `PRestr` |  | `PRestr` | def |
+| 874 | module | `FC` |  | `FC` | def |
+| 893 | module | `DFRestr` |  | `DFRestr` | def |
+| 910 | module | `FRestr` |  | `FRestr` | def |
+| 923 | module | `DRestr` |  | `DRestr` (`D` a Lean parameter) | def |
+| 932 | lemma | `rp_ll` |  | `rp_ll` | done |
+| 935 | lemma | `rpi_ll` |  | `rpi_ll` | done |
+| 938 | lemma | `rf_ll` |  | `rf_ll` | done |
+| 941 | lemma | `DRestr_ll` |  | `DRestr_ll` | done |
+| 957 | declare module | `F` | section RESTR. | `declare module F <: FUNCTIONALITY {-C, -Redo}` | def |
+| 958 | declare module | `P` | section RESTR. | `declare module P <: PRIMITIVE {-C, -F, -Redo}` | def |
+| 959 | declare module | `D` | section RESTR. | `declare module D <: DISTINGUISHER {-F, -P, -C, -Redo}` | def |
+| 961 | lemma | `swap_restr` | section RESTR. | `swap_restr` | done |
+| 974 | declare module | `P` | section COUNT. | `declare module P <: PRIMITIVE {-C}` | def |
+| 975 | declare module | `CO` | section COUNT. | `declare module CO <: CONSTRUCTION {-C, -P}` | def |
+| 976 | declare module | `D` | section COUNT. | `declare module D <: DISTINGUISHER {-C, -P, -CO}` | def |
+| 978 | declare axiom | `f_ll` | section COUNT. | `f_ll` (section `variable`) | def |
+| 979 | declare axiom | `fi_ll` | section COUNT. | `fi_ll` (section `variable`) | def |
+| 981 | declare axiom | `CO_ll` | section COUNT. | `CO_ll` (section `variable`) | def |
+| 983 | declare axiom | `D_ll` | section COUNT. | `D_ll` (section `variable`) | def |
+| 987 | lemma | `Pr_restr` | section COUNT. | `Pr_restr` (E11) | done |
+| 1073 | module | `GReal` |  | `GReal` (abbreviation) | def |
+
 ## `proof/smart_counter/ConcreteF.eca`
 
 Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/ConcreteF.lean`, namespace `GaudisCrypt.SHA3.ConcreteF`.

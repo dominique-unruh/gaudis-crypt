@@ -101,6 +101,42 @@ theorem prhlProc_abstract_call_upto_ec {T : Type 1} [IsModule T] {sig : Procedur
   · exact Or.inl ⟨hb, h⟩
   · exact Or.inr ⟨h.1, h.2, hb⟩
 
+open Classical in
+/-- **EC's `call (_: bad, I, J)` with `={glob P, …}` in `I`**: `prhlProc_abstract_call_upto_ec`
+with the region `F` of those `glob`s (and `glob D`) kept equal, which the oracles' judgments
+keep themselves (they may change it: `glob P` of an oracle's own module). -/
+theorem prhlProc_abstract_call_upto_ecF {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {holes : HoleSigs} (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (F : Footprint VariableAssignment) (hDF : FVP.fvP D ≤ F)
+    (hFL : F ≤ (L.footprint)ᶜ)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (bad : Ω → Prop) (I Q : Ω → Ω → Prop) (O₁ O₂ : T)
+    (hll₁ : (Module.app D O₁).procedure.IsLossless)
+    (hll₂ : (Module.app D O₂).procedure.IsLossless)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      prhlProc (fun a₁ g₁ a₂ g₂ => ¬ bad (L.get g₂) ∧ a₁ = a₂ ∧
+          F.touched_getter.get g₁ = F.touched_getter.get g₂ ∧ I (L.get g₁) (L.get g₂))
+        ((ext O₁).lookup n) ((ext O₂).lookup n)
+        (fun r₁ g₁ r₂ g₂ => if bad (L.get g₂) then Q (L.get g₁) (L.get g₂)
+          else r₁ = r₂ ∧ F.touched_getter.get g₁ = F.touched_getter.get g₂ ∧
+            I (L.get g₁) (L.get g₂)))
+    (hQ₁ : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig') (ω₂ : Ω), bad ω₂ →
+      hoareProc (fun _ g => Q (L.get g) ω₂) ((ext O₁).lookup n) (fun _ g => Q (L.get g) ω₂))
+    (hQ₂ : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig') (ω₁ : Ω),
+      phoareProc (fun _ g => bad (L.get g) ∧ Q ω₁ (L.get g)) ((ext O₂).lookup n)
+        (fun _ g => indicatorE (bad (L.get g) ∧ Q ω₁ (L.get g))) Eq (fun _ _ => 1)) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ syncInv L F I bad g₁ g₂)
+      (Module.app D O₁).procedure (Module.app D O₂).procedure
+      (fun r₁ g₁ r₂ g₂ => badInv L bad Q g₁ g₂ ∨ (r₁ = r₂ ∧ syncInv L F I bad g₁ g₂)) := by
+  refine prhlProc_conseq (prhlProc_abstract_call_upto_module L D ext hD F hDF hFL hc bad I Q O₁ O₂
+    hll₁ hll₂ (fun n => prhlProc_conseq (horacle n)
+      (fun _ _ _ _ ⟨ha, hF, hI, hb⟩ => ⟨hb, ha, hF, hI⟩) (fun _ _ _ _ h => ?_)) hQ₁
+    (fun n ω₁ => hoareProc_of_phoareProc_eq_one (hQ₂ n ω₁)))
+    (fun _ _ _ _ h => Or.inr h) (fun _ _ _ _ h => h)
+  split_ifs at h with hb
+  · exact Or.inl ⟨hb, h⟩
+  · exact Or.inr ⟨h.1, h.2.1, h.2.2, hb⟩
+
 end GaudisCrypt
 
 namespace GaudisCrypt.ECCallUpto
@@ -172,6 +208,38 @@ def onGlobals (fs : Array Lean.Expr) :
       return (L, Ω, preds)
 
 
+/-- EC's `={glob X, …}` in the invariant `I` of `call (_: bad, I, J)` (`I` that or `={…} ∧ rest`):
+a declared `X` (a local) leaves `={…}`, its `glob` joins the region kept equal (returned, as
+`FVP.fvP X`); a concrete module's `glob` is its global variables (`DeclareModule.globalVarsOf`). -/
+def splitGlobs (I : Term) : TacticM (Term × Array Term) := do
+  let (some eqs, rest?) ← (match I with
+      | `(={ $xs,* } ∧ $r) => pure (some xs.getElems, some r)
+      | `(={ $xs,* }) => pure (some xs.getElems, none)
+      | _ => pure (none, none) : TacticM (Option (Array Term) × Option Term))
+    | return (I, #[])
+  let mut items : Array Term := #[]
+  let mut globs : Array Term := #[]
+  for x in eqs do
+    match x with
+    | `(glob $a:ident) =>
+      if (← getLCtx).findFromUserName? a.getId |>.isSome then
+        globs := globs.push (← `(FVP.fvP $a))
+      else
+        let c ← realizeGlobalConstNoOverloadWithInfo a
+        let vars := DeclareModule.globalVarsOf (← getEnv) #[c]
+        if vars.isEmpty then throwErrorAt a "equiv_call: `glob {a}` names no global variable"
+        for v in vars do
+          let t : Term := mkCIdent v
+          unless items.any (·.raw == t.raw) do items := items.push t
+    | `(glob $a) => throwErrorAt a "equiv_call: `glob` of a module name expected"
+    | _ => items := items.push x
+  let sep : Syntax.TSepArray `term "," := .ofElems items
+  let eqT ← `(={ $sep,* })
+  let I' ← match rest? with
+    | some r => if items.isEmpty then pure r else `($eqT ∧ $r)
+    | none => pure eqT
+  return (I', globs)
+
 /-- Hole `i`'s component and its position in it, for components with `nprocs` procedures. -/
 def holeComp (nprocs : Array Nat) (i : Nat) : Nat × Nat := Id.run do
   let mut c := 0
@@ -222,6 +290,7 @@ elab_rules (kind := equivCallUpto) : tactic
     -- the conditions, as functions of the two states (`bad` on the right)
     let badStx : Term := ⟨← liftMacroM (onRight bad)⟩
     let badF ← elabRelCond ty0 badStx
+    let (I, globs) ← splitGlobs I
     let IF ← elabRelCond ty0 I
     let JF ← elabRelCond ty0 (← match J with | some J => pure J | none => `(True))
     let (L, _Ω, preds) ← onGlobals #[badF, IF, JF]
@@ -245,13 +314,23 @@ elab_rules (kind := equivCallUpto) : tactic
       let badS ← Term.exprToSyntax badΩ
       let IS ← Term.exprToSyntax preds[1]!
       let QS ← Term.exprToSyntax preds[2]!
-      evalTactic (← `(tactic| refine prhlStmt_seq_call
-          (prhlProc_abstract_call_upto_ec (L := $LS) _ $extS
-            (Module.Declared.ecModule _ $extS).representable ?hdisj ?hc $badS $IS $QS _ _
-            ?ll₁ ?ll₂ ?wk₁ ?wk₂ ?oracle ?left ?right) ?pre))
+      let D := callee.getArg! 4
+      if globs.isEmpty then
+        evalTactic (← `(tactic| refine prhlStmt_seq_call
+            (prhlProc_abstract_call_upto_ec (L := $LS) _ $extS
+              (Module.Declared.ecModule _ $extS).representable ?hdisj ?hc $badS $IS $QS _ _
+              ?ll₁ ?ll₂ ?wk₁ ?wk₂ ?oracle ?left ?right) ?pre))
+      else
+        -- `={glob X, …}` in `I`: the region `glob D ⊔ glob X ⊔ …` kept equal, by the oracles
+        let DS ← Term.exprToSyntax D
+        let gs := #[← `(FVP.fvP $DS)] ++ globs
+        let FS ← gs.pop.foldrM (fun x acc => `($x ⊔ $acc)) gs.back!
+        evalTactic (← `(tactic| refine prhlStmt_seq_call
+            (prhlProc_abstract_call_upto_ecF (L := $LS) _ $extS
+              (Module.Declared.ecModule _ $extS).representable $FS (by fp_le) ?hdisj ?hc $badS
+              $IS $QS _ _ ?ll₁ ?ll₂ ?oracle ?left ?right) ?pre))
       untagGoals
       -- the oracles' procedures, hole by hole, and EC's order of them (the last component first)
-      let D := callee.getArg! 4
       let O₁ := callee.getArg! 5
       let comps₁ ← components T O₁
       -- the right oracles, out of the goal about `D(O₂)`'s losslessness
@@ -280,7 +359,9 @@ elab_rules (kind := equivCallUpto) : tactic
       let byTag (t : Name) : TacticM (Option MVarId) := do
         (← getGoals).findM? fun g => return (← g.getTag) == t
       -- side conditions
-      closeTagged `hdisj (← `(tactic| ((try simp only [Footprint.lens_pair]); fp_disjoint)))
+      let splitSup ← `(tactic| repeat' apply sup_le)
+      closeTagged `hdisj
+        (← `(tactic| ((try simp only [Footprint.lens_pair]); $splitSup; all_goals fp_disjoint)))
       let mut done : Array MVarId := #[]
       if let some gc ← byTag `hc then
         for h in ← splitHoles gc k do

@@ -44,6 +44,10 @@ theorem globals_resetSetter_set (S : Set String) (u : Unit) (τ : ProgramState) 
 theorem globals_globalL_set (g : VariableAssignment) (τ : ProgramState) :
     (ProgramState.globalL.set g τ).globals = g := rfl
 
+/-- A discarded result (`_ <- call …`) writes nothing. -/
+theorem Setter.throwaway_set {A : Type*} (v : A) (τ : ProgramState) :
+    (Setter.throwaway : Setter A ProgramState).set v τ = τ := rfl
+
 theorem globals_chain_get (l m : Lens ProgramState ProgramState) (τ : ProgramState) :
     ((l.chain m).get τ).globals = (m.get (l.get τ)).globals := rfl
 

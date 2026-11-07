@@ -46,6 +46,32 @@ theorem phoareStmt_call_le_frame {sig} {A : ProgramState → Prop} {pre : Stmt}
     · exact le_rfl
   · exact le_top
 
+/-- **EC's `call H` (`H : islossless M`) in a `phoare … = 1`**, with a frame `Fr` the callee
+keeps: the event `B` after the call holds with probability `1` when, before it, `B` holds after
+the call for every result and every globals in the frame of the current ones. -/
+theorem phoareStmt_call_lossless_frame {sig} {A : ProgramState → Prop} {pre : Stmt}
+    {x : Setter sig.ret ProgramState} {M : Module.Proc sig} {a : Getter sig.ParamType ProgramState}
+    {B : ProgramState → Prop} {Fr : VariableAssignment → VariableAssignment → Prop}
+    (hFr : M.Frame Fr) (hll : M.procedure.IsLossless)
+    (h' : phoareStmt A pre (fun σ => indicatorE (∀ v gl, Fr σ.globals gl →
+        B (x.set v (ProgramState.globalL.set gl σ)))) Eq (fun _ => 1)) :
+    phoareStmt A (.seq pre (Stmt.call x M.procedure a)) (fun σ => indicatorE (B σ)) Eq
+      (fun _ => 1) := by
+  rw [phoareStmt_seq_iff]
+  intro σ hA
+  have hC : ∀ τ, (Stmt.call x M.procedure a).ewp (fun σ => indicatorE (B σ)) τ ≤ 1 := fun τ =>
+    (Stmt.ewp_mono _ (fun _ => indicatorE_le_one _) τ).trans (Stmt.ewp_const_le _ 1 τ)
+  refine le_antisymm ((Stmt.ewp_mono _ hC σ).trans (Stmt.ewp_const_le _ 1 σ)) ?_
+  rw [← h' σ hA]
+  refine Stmt.ewp_mono _ (fun τ => ?_) σ
+  by_cases h : ∀ v gl, Fr τ.globals gl → B (x.set v (ProgramState.globalL.set gl τ))
+  · rw [indicatorE_of h, Stmt.ewp_call]
+    have e := hll (a.get τ) τ.globals
+    simp only [Procedure.ewp, ProgramDenotation.wp] at e ⊢
+    rw [SubProbability.expected_congr_satisfies (hFr (a.get τ) τ.globals)
+      (G := fun _ => 1) fun u hu => indicatorE_of (h _ _ hu), e]
+  · rw [indicatorE_of_not h]; exact bot_le
+
 end GaudisCrypt
 
 open Lean Meta Elab Tactic GaudisCrypt CallSpec PHoareWp ECCallOneSided in
@@ -77,3 +103,18 @@ elab "phoare_call" " (" ": " P:term " ==> " Q:term ")" " / " xs:term,+ : tactic 
     pure g'
   g'.setTag (← g.getTag)
   replaceMainGoal [h.mvarId!, ← simpPost g']
+
+open Lean Meta Elab Tactic GaudisCrypt PHoareWp ECCallOneSided in
+/-- **EC's `call H`** (`H : islossless M`) in a `phoare … = 1`, past what the callee does not
+touch: the frame `x₁, …, glob A` (`phoareStmt_call_lossless_frame`).  Goal: the code before the
+call, the event for every result and globals in the frame. -/
+elab "phoare_call " h:term:max " / " xs:term,+ : tactic => withMainContext do
+  let g ← phoareSplit 1 (← getMainGoal)
+  let g' ← g.withContext do
+    let fr ← frameTerm xs.getElems
+    let gs ← Tactic.run g (evalTactic (← `(tactic|
+      refine phoareStmt_call_lossless_frame $fr $h ?_)))
+    let [g'] := gs | throwError "phoare_call / frame: the rule left {gs.length} goals"
+    pure g'
+  g'.setTag (← g.getTag)
+  replaceMainGoal [← simpPost g']

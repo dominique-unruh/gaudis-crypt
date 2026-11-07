@@ -845,6 +845,12 @@ theorem prhlProc.symm (h : prhlProc A p₁ p₂ B) :
     prhlProc (fun a₂ g₂ a₁ g₁ => A a₁ g₁ a₂ g₂) p₂ p₁ (fun r₂ g₂ r₁ g₁ => B r₁ g₁ r₂ g₂) :=
   fun a₂ a₁ => ProgramDenotation.prhl2.symm (h a₁ a₂)
 
+/-- Symmetry of procedure judgments, backwards: the judgment with the sides swapped. -/
+theorem prhlProc_of_symm
+    (h : prhlProc (fun a₂ g₂ a₁ g₁ => A a₁ g₁ a₂ g₂) p₂ p₁ (fun r₂ g₂ r₁ g₁ => B r₁ g₁ r₂ g₂)) :
+    prhlProc A p₁ p₂ B :=
+  h.symm
+
 /-- The union bound for a procedure's events. -/
 theorem Procedure.Pr_or_le {sig} (p : Procedure sig) (args : sig.ParamType)
     (σ : VariableAssignment) (E F : sig.ret → VariableAssignment → Prop) :

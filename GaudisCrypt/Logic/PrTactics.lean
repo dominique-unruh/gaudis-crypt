@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.PRHLStmt
 import GaudisCrypt.Logic.PHoare
+import GaudisCrypt.Syntax.PRHLSyntax
 
 /-!
 # EasyCrypt's `byequiv` and `byphoare`, on probabilities
@@ -217,3 +218,15 @@ elab "byphoare" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
     try evalTactic (← `(tactic| beta_reduce)) catch _ => pure ()
 
 end GaudisCrypt
+
+open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.PrTactics in
+/-- **EC's `byequiv (_ : P ==> Q)`**: `byequiv` with the judgment `equiv[ p₁ ~ p₂ : P ==> Q ]`
+(`P`, `Q` relational conditions on the two procedures, `res` their results) as the new goal; the
+side conditions (`P` of the two runs, `Q` implying the events) as goals when not closed. -/
+elab "byequiv" " (" "_" " : " P:term " ==> " Q:term ")" : tactic => withMainContext do
+  let (_, l, r) ← goalRel
+  let some L := prParts? l | throwError "byequiv: the left side is not a probability{indentExpr l}"
+  let some R := prParts? r | throwError "byequiv: the right side is not a probability{indentExpr r}"
+  let p₁ ← Term.exprToSyntax L[1]!
+  let p₂ ← Term.exprToSyntax R[1]!
+  evalTactic (← `(tactic| byequiv (?judgment : equiv[ $p₁ ~ $p₂ : $P ==> $Q ])))
