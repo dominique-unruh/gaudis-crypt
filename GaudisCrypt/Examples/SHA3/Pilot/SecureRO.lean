@@ -9,6 +9,7 @@ import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Lib.EC.StdBigop
+import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
@@ -128,6 +129,18 @@ noncomputable abbrev RO.LRO : PROM.FullRO.RO_T «from» «to» :=
 /-- The clone's `FRO`. -/
 noncomputable abbrev FRO : PROM.FullRO.FRO_T «from» «to» :=
   PROM.FullRO.FRO «from» «to» (fun _ => sampleto) FRO.m
+
+/-- The clone's `RO_LRO_D` (`PROM.FullRO`'s, at the clone's `dout` and module variables, its
+`dout_ll` the theory's `sampleto_ll`): a distinguisher cannot tell `RO` from `LRO`.  Its side
+conditions, which EC checks itself, are found (`ec_module`, `fp_disjoint`). -/
+theorem RO_LRO_D [Countable «from»] [Countable «to»] {d_in d_out : Type} [Inhabited d_in]
+    [Inhabited d_out] (D : PROM.FullRO.RO_Distinguisher «from» «to» d_in d_out)
+    (hD : Module.ECModule D (PROM.FullRO.RO_ext «from» «to») := by ec_module)
+    (hdisj : FVP.fvP D ≤ (RO.m.footprint ⊔ FRO.m.footprint)ᶜ := by fp_disjoint) :
+    type_of% (PROM.FullRO.FullEager.RO_LRO_D «from» «to» d_in d_out (fun _ => sampleto) FRO.m
+      (fun _ => sampleto_ll) RO.m D hD hdisj) :=
+  PROM.FullRO.FullEager.RO_LRO_D «from» «to» d_in d_out (fun _ => sampleto) FRO.m
+    (fun _ => sampleto_ll) RO.m D hD hdisj
 
 /-- `RO` at the module type `RF` (the coercion, written out where a name is wanted). -/
 noncomputable abbrev RO.asRF : RF := (RO : RF)

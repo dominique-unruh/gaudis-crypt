@@ -1,5 +1,4 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
-import GaudisCrypt.Logic.ModuleFootprint
 
 /-!
 # Random oracles are second-preimage resistant — the EC-fidelity pilot, continued
@@ -254,8 +253,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
         -- EC's `proc; call (RO_LRO_D (D1(A)) _); inline*; auto`
         symm
         byequiv; equiv_proc
-        equiv_call (PROM.FullRO.FullEager.RO_LRO_D «from» «to» Unit Bool (fun _ => sampleto) FRO.m
-          (fun _ => sampleto_ll) RO.m (D1 A) (by ec_module) (by fp_disjoint))
+        equiv_call (RO_LRO_D (D1 A))
         stmt_inline*; sim
     _ = Pr[ SecondPreimage.SecondPreimage2(A, RO).main (mess1) @ &m : §res ] := by
         symm

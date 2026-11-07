@@ -375,6 +375,10 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   `simp only [Lens.pair, eval_lens_global] at …`.  Collision's `sum_Ico_int_toNat` is the
   library's `sum_Ico_toNat`.
 * Pilot: 1029 lines (from 1061), auxiliary theorems 1 (`SecondPreimage2_SecondPreimage3`).
+* The clone's `RO_LRO_D` in `Pilot/SecureRO.lean` (EC's `clone import PROM.FullRO as RO` makes
+  it): its statement `type_of%` `PROM`'s at the clone's arguments, its side conditions
+  auto-parameters (`ec_module`, `fp_disjoint`); SecondPreimage's step is EC's
+  `equiv_call (RO_LRO_D (D1 A))`.  Measured: all three headlines `clean` (no term, den, fp).
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three

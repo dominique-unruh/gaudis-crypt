@@ -859,6 +859,7 @@ Lean: `GaudisCrypt/Examples/SHA3/Pilot/SecureRO.lean`, namespace `GaudisCrypt.SH
 |---:|---|---|---|---|---|
 | 7 | type | `from` |  | `«from»`, `«to»` (explicit for module types, implicit after) | def |
 | 9 | op | `sampleto` |  | `Params.sampleto` (exported, like the other operators and axioms) | def |
+| 18 | clone | `PROM.FullRO as RO` |  | `RO`, `RO.LRO`, `FRO`, `RO.m`, `FRO.m`, `RO_LRO_D` (the clone's lemma, side conditions found) | def |
 | 32 | module | `Counter` |  | `Counter` (variable `global_var Counter.c`) | def |
 | 44 | module | `Bounder` |  | `Bounder` (variable `global_var Bounder.bounder`) | def |
 | 73 | module | `Preimage` |  | `Preimage` | def |
