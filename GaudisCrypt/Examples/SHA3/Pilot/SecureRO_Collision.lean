@@ -15,8 +15,8 @@ variable {«from» «to» : Type} [DecidableEq «from»] [Inhabited «from»] [I
   [Params «from» «to»]
 
 open GaudisCrypt.SHA3.SecureRO (collision collision_set_of_not_dom rng_of_collision_set
-  card_fdom_set not_collision_empty expected_rng_le expected_mono' expected_const_le'
-  expected_point' indicatorE_le_of_imp dom_set_iff get_set_ne)
+  card_fdom_set not_collision_empty expected_rng_le expected_mono' indicatorE_le_of_imp dom_set_iff
+  get_set_ne)
 
 open Classical in
 module Collision using (A : AdvCollision, F : RO_T) {
@@ -120,21 +120,19 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
             · -- EC's `fel 1 Bounder.bounder (fun i, i%r * mu1 sampleto witness) bound (collision
               -- RO.m) …`
               phoare_proc
-              repeat phoare_inline 0
+              phoare_inline*
               fel §Bounder.bounder (fun i => (i.toNat : ENNReal) * sampleto.1 {default}) bound
                 (collision §RO.m) [§Bounder.bounder < bound]
                   (((FMap.fdom §RO.m).card : ℤ) ≤ §Bounder.bounder)
               case sum => exact le_rfl
               case init =>
-                hoare_wp 20
-                hoare_skip
+                hoare_auto
                 intros
                 simpa [FMap.fdom, FMap.empty] using not_collision_empty (α := «from») (β := «to»)
               case step =>
                 phoare_proc
-                repeat phoare_inline 0
-                phoare_wp 20
-                phoare_skip
+                phoare_inline*
+                phoare_auto
                 rintro τ ⟨hi, hc, _⟩
                 simp only [indicatorE_of_not hc]
                 split_ifs with _ _ hx
@@ -146,19 +144,18 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                   refine (expected_rng_le sampleto_fu _).trans ?_
                   gcongr
                   have :
-                      (FMap.fdom (RO.m.get τ.globals)).card ≤ (Bounder.bounder.get τ.globals).toNat := by
+                      (FMap.fdom (RO.m.get τ.globals)).card ≤
+                        (Bounder.bounder.get τ.globals).toNat := by
                     omega
                   exact_mod_cast this
                 all_goals first
                   | exact bot_le
-                  | exact (le_of_eq (SubProbability.expected_eq_zero_of_support
-                      fun _ _ => rfl)).trans bot_le
+                  | (rnd_null; rfl)
               case incr =>
                 intro c
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 rintro τ ⟨hi, hc, hb, hcc⟩
                 simp only [Lens.pair, eval_lens_global] at hi hc hb hcc
                 have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
@@ -173,18 +170,16 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
               case same =>
                 intro c
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 rintro τ ⟨hi, hc, hb, hcc⟩
                 simp only [Lens.pair, eval_lens_global] at hi hc hb hcc
                 split_ifs <;> simp_all
                 omega
               case keep =>
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 rintro τ ⟨hi, hc⟩
                 simp only [Lens.pair, eval_lens_global] at hi hc
                 have hcard : ∀ x a, ¬ FMap.dom (RO.m.get τ.globals) x →
@@ -203,75 +198,64 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
               intros
               exact le_rfl
           case second_notE =>
-            repeat phoare_inline 0
-            phoare_wp 40
-            phoare_skip
-            intro σ hnc
-            have hfu := sampleto_fu 
+            phoare_inline*
+            phoare_auto
+            intro ROm c m1 m2 hnc
+            have hfu := sampleto_fu
             split_ifs with h1 h2 h3 h4 h5
             · -- `m1` fresh, sampled `a`; by cases on `m2` (EC's `case: (m2 \in RO.m)`, `m1 = m2`)
-              have hd1 : ¬ FMap.dom (RO.m.get σ.globals) ((localVarLens "m1" «from»).get σ) := by
-                simpa using h2
-              by_cases hk1 : (localVarLens "m2" «from»).get σ = (localVarLens "m1" «from»).get σ
+              have hd1 : ¬ FMap.dom ROm m1 := by simpa using h2
+              by_cases hk1 : m2 = m1
               · -- `m2 = m1`: the event wants them distinct
-                refine (expected_mono' fun a => ?_).trans
-                  (expected_const_le' sampleto (sampleto.1 {default}))
-                refine (le_of_eq (SubProbability.expected_eq_zero_of_support
-                    fun b _ => ?_)).trans bot_le
+                rnd_bound
+                rnd_null
                 split_ifs <;> exact indicatorE_of_not (by simp [hk1])
-              by_cases hk2 : FMap.dom (RO.m.get σ.globals) ((localVarLens "m2" «from»).get σ)
-              · -- `m2` already in `RO.m`: `m1`'s value hits it (EC's `rnd (pred1 (oget
-                -- RO.m.[m2]))`)
-                refine (expected_mono' (g := fun a => indicatorE
-                  (oget ((RO.m.get σ.globals).get ((localVarLens "m2" «from»).get σ)) = a))
-                  fun a => ?_).trans ((expected_point' _).trans (le_of_eq (hfu _ _)))
-                refine (expected_mono' fun b => ?_).trans (expected_const_le' _ _)
-                split_ifs with hc
-                · exact absurd (dom_set_iff.mpr (Or.inr hk2)) (by simpa using hc)
-                · refine indicatorE_le_of_imp fun hP => ?_
-                  simp only [decide_eq_true_eq, FMap.get_set_sameE, get_set_ne _ _ hk1, oget] at hP
-                  exact hP.1.symm
+              by_cases hk2 : FMap.dom ROm m2
+              · -- `m2` already in `RO.m`: `m1`'s value hits it
+                -- (EC's `rnd (pred1 (oget RO.m.[m2]))`)
+                rnd_pred1 (oget (ROm.get m2))
+                · split_ifs with hc
+                  · rnd_bound
+                    exact absurd (dom_set_iff.mpr (Or.inr hk2)) (by simpa using hc)
+                  · rnd_bound
+                    refine indicatorE_le_of_imp fun hP => ?_
+                    simp only [decide_eq_true_eq, FMap.get_set_sameE, get_set_ne _ _ hk1,
+                      oget] at hP
+                    exact hP.1.symm
+                · exact le_of_eq (hfu _ _)
               · -- `m2` fresh too: its value hits `a` (EC's `rnd (pred1 r)`)
-                refine (expected_mono' fun a => ?_).trans
-                  (expected_const_le' sampleto (sampleto.1 {default}))
-                refine (expected_mono' (g := fun b => indicatorE (a = b)) fun b => ?_).trans
-                  ((expected_point' a).trans (le_of_eq (hfu _ _)))
+                rnd_bound
                 split_ifs with hc
-                · refine indicatorE_le_of_imp fun hP => ?_
-                  simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
-                  exact hP.1
+                · rnd_pred1 a
+                  · refine indicatorE_le_of_imp fun hP => ?_
+                    simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+                    exact hP.1
+                  · exact le_of_eq (hfu _ _)
                 · exact absurd (by simpa using hc) fun h => (dom_set_iff.mp h).elim hk1 hk2
-            · exact (le_of_eq (SubProbability.expected_eq_zero_of_support
-                fun _ _ => rfl)).trans bot_le
+            · (rnd_null; rfl)
             · -- `m1` in `RO.m` (its sample unused), `m2` fresh: `m2`'s value hits `RO.m.[m1]`
-              refine (expected_mono' fun _ => ?_).trans
-                (expected_const_le' sampleto (sampleto.1 {default}))
-              refine (expected_mono' fun b => indicatorE_le_of_imp fun hP => ?_).trans
-                ((expected_point'
-                  (oget ((RO.m.get σ.globals).get ((localVarLens "m1" «from»).get σ)))).trans
-                  (le_of_eq (hfu _ _)))
-              simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
-              exact hP.1
+              rnd_bound
+              rnd_pred1 (oget (ROm.get m1))
+              · refine indicatorE_le_of_imp fun hP => ?_
+                simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+                exact hP.1
+              · exact le_of_eq (hfu _ _)
             · -- both in `RO.m`: equal values would be a collision already
-              refine (expected_mono' fun _ => ?_).trans
-                (expected_const_le' sampleto (sampleto.1 {default}))
-              refine (le_of_eq (SubProbability.expected_eq_zero_of_support fun _ _ =>
-                indicatorE_of_not ?_)).trans bot_le
+              rnd_bound
+              rnd_null
+              refine indicatorE_of_not ?_
               simp only [decide_eq_true_eq]
               rintro ⟨he, hne⟩
               apply hnc
-              have hd1 : FMap.dom (RO.m.get σ.globals) ((localVarLens "m1" «from»).get σ) := by
-                simpa using h2
-              have hd2 : FMap.dom (RO.m.get σ.globals) ((localVarLens "m2" «from»).get σ) := by
-                simpa using h5
+              have hd1 : FMap.dom ROm m1 := by simpa using h2
+              have hd2 : FMap.dom ROm m2 := by simpa using h5
               obtain ⟨v1, hv1⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd1)
               obtain ⟨v2, hv2⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
               refine ⟨_, _, hne, hd1, hd2, ?_⟩
               rw [hv1, hv2] at he ⊢
               simp only [oget, Option.getD_some] at he
               rw [he]
-            · exact (le_of_eq (SubProbability.expected_eq_zero_of_support
-                fun _ _ => rfl)).trans bot_le
+            · (rnd_null; rfl)
             · exact bot_le
           case bound =>
             -- EC's arithmetic: `∑_{i < bound} i · μ + μ = (bound (bound - 1) + 2) / 2 · μ`

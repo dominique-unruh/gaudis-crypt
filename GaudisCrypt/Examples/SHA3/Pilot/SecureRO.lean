@@ -7,6 +7,7 @@ import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
+import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
@@ -219,7 +220,7 @@ declare module A <: AdvPreimage {-RO, -Preimage}
 One proof, as EC's: EC's `fel` is the tactic `fel` (`Logic/FelTactic.lean`), EC's inline
 specifications `call (: P ==> Q)` and `byphoare (: P ==> _)` are `Logic/CallSpec.lean`'s. -/
 
-open GaudisCrypt.SHA3.SecureRO (not_rng_empty expected_mono' expected_point' eq_of_rng_set
+open GaudisCrypt.SHA3.SecureRO (not_rng_empty eq_of_rng_set
   rng_set_of_rng indicatorE_le_of_imp)
 
 /-- EC's `RO_is_preimage_resistant &m (h : to)`, its proof EC's: the `have->:` by `byequiv`
@@ -244,53 +245,47 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
         case first_E =>
           phoare_call (: True ==> FMap.rng §RO.m h)
           · phoare_proc
-            repeat phoare_inline 0
+            phoare_inline*
             fel §Bounder.bounder (fun _ => sampleto.1 {h}) bound (FMap.rng §RO.m h)
               [§Bounder.bounder < bound] True
             case sum => exact le_rfl
             case init =>
-              hoare_wp 20
-              hoare_skip
+              hoare_auto
               intros
               simp [not_rng_empty]
             case step =>
               phoare_proc
-              repeat phoare_inline 0
-              phoare_wp 20
-              phoare_skip
+              phoare_inline*
+              phoare_auto
               intro τ ⟨hr, _⟩
               simp only [indicatorE_of_not hr]
               split_ifs
-              · refine (expected_mono' fun a => ?_).trans (expected_point' h)
+              · rnd_pred1 h
                 exact indicatorE_le_of_imp fun hs => (eq_of_rng_set hr hs).symm
               all_goals first
                 | exact bot_le
-                | exact (le_of_eq (SubProbability.expected_eq_zero_of_support
-                    fun _ _ => rfl)).trans bot_le
+                | (rnd_null; rfl)
             case incr =>
               intro c
               hoare_proc
-              repeat hoare_inline 0
-              hoare_wp 20
-              hoare_skip
+              hoare_inline*
+              hoare_auto
               rintro τ ⟨-, hr, hb, hc⟩
               simp only [Lens.pair, eval_lens_global] at hr hb hc
               split_ifs <;> simp_all
             case same =>
               intro c
               hoare_proc
-              repeat hoare_inline 0
-              hoare_wp 20
-              hoare_skip
+              hoare_inline*
+              hoare_auto
               rintro τ ⟨-, hr, hb, hc⟩
               simp only [Lens.pair, eval_lens_global] at hr hb hc
               split_ifs <;> simp_all
               omega
             case keep =>
               hoare_proc
-              repeat hoare_inline 0
-              hoare_wp 20
-              hoare_skip
+              hoare_inline*
+              hoare_auto
               rintro τ ⟨-, hr⟩
               simp only [Lens.pair, eval_lens_global] at hr
               split_ifs <;> simp_all [rng_set_of_rng]
@@ -298,29 +293,24 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
             intros
             exact le_rfl
         case second_notE =>
-          phoare_inline 0
-          phoare_wp 10
-          phoare_skip
-          rintro σ ⟨hr, hh⟩
-          set x := (localVarLens "m" «from»).get σ
+          phoare_inline*
+          phoare_auto
+          rintro ROm hash c x ⟨hr, rfl⟩
           split_ifs with _ hd
-          · refine (expected_mono' fun a => ?_).trans (expected_point' h)
-            simp only [hh, FMap.get_set_sameE, decide_eq_true_eq]
+          · rnd_pred1 hash
+            simp only [FMap.get_set_sameE, decide_eq_true_eq]
             exact le_rfl
-          · have hne :
-                (localVarLens "hash" «to»).get σ ≠ oget ((RO.m.get σ.globals).get x) := by
-              rw [hh]
+          · have hne : hash ≠ oget (ROm.get x) := by
               intro he
               apply hr
-              have hd' : FMap.dom (RO.m.get σ.globals) x := by simpa using hd
+              have hd' : FMap.dom ROm x := by simpa using hd
               obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd')
               refine ⟨x, ?_⟩
               rw [he]
               simp only [FMap.get] at hv ⊢
               rw [hv]
               rfl
-            refine (le_of_eq (SubProbability.expected_eq_zero_of_support
-              fun a _ => ?_)).trans bot_le
+            rnd_null
             exact indicatorE_of_not (by simpa only [decide_eq_true_eq] using hne)
           · exact bot_le
         case bound =>

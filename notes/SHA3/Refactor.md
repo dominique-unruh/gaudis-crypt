@@ -359,6 +359,15 @@ Decisions (Denis): no `smt`-like tactic; `global_var` unchanged, our own command
   the `RO_LRO_D` step `byequiv; equiv_proc; equiv_call (RO_LRO_D … (D1 A) …); stmt_inline*; sim`.
   Left: `SecondPreimage2_SecondPreimage3`, where the states differ in variables the adversary
   does not touch (EC's `sim` with `={glob A}`): a call rule equal outside a lens.
+* **EC's `auto` and `rnd` steps** (`Logic/ECAuto.lean`, B8): `phoare_auto`/`hoare_auto` (wp
+  back to the last call, then `skip`, the reads as plain variables); on the expectations a
+  sampling leaves, `rnd_pred1 v` (EC's `rnd (pred1 v)`), `rnd_bound` (EC's `rnd` with a lossless
+  distribution), `rnd_null` (EC's `hoare`), each leaving the pointwise goal.  The pilot's
+  bullets use them and `*_inline*`: no `expected_mono'`/`expected_point'`/
+  `SubProbability.expected_eq_zero_of_support` chains, no `phoare_wp 20`.  Measured: the
+  preimage and collision headlines `clean`, second preimage `fp` (the `RO_LRO_D` call's
+  `by fp_disjoint`), no `den`.
+* Pilot: 1061 lines (from 1215).
 * Pilot: 1215 lines (from 1311), auxiliary theorems 2 (from 6): `SecondPreimage2_SecondPreimage3`
   and `sum_Ico_int_toNat`.
 * Pilot: 1311 lines (from 1339), auxiliary theorems 6 (from 20).  The script now flags the three

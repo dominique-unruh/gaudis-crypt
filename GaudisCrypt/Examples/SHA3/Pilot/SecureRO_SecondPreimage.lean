@@ -17,8 +17,8 @@ variable {«from» «to» : Type} [DecidableEq «from»] [Inhabited «from»] [I
 
 /-! ## The section `SecondPreimage` -/
 
-open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set expected_const_le'
-  dom_set_iff get_set_ne expected_mono' expected_point' indicatorE_le_of_imp)
+open GaudisCrypt.SHA3.SecureRO (get_rem_ne rng_rem_set_of_rng eq_of_rng_rem_set dom_set_iff
+  get_set_ne indicatorE_le_of_imp)
 
 open Classical in
 module SecondPreimage using (A : AdvSecondPreimage, F : RF) {
@@ -274,25 +274,23 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             hoare_call (: §m1 = mess1 ==> FMap.dom §RO.m mess1)
             · -- EC's `call (: … /\ mess1 \in RO.m)` on `FEL`: `mess1` is in `RO.m` afterwards
               hoare_proc
-              repeat hoare_inline 0
+              hoare_inline*
               hoare_call (: FMap.dom §RO.m mess1)
               case oracle =>
                 -- `Bounder(RO).get` keeps a key in `RO.m`
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 intro τ hd
                 have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
                   fun _ _ => dom_set_iff.mpr (Or.inr hd)
                 split_ifs <;> simp_all
               case pre =>
-                hoare_wp 20
-                hoare_skip
-                intro σ hσ a _
+                hoare_auto
+                intro m1 hm1 a _
+                subst hm1
                 refine ⟨?_, fun _ _ h => h⟩
-                have hx : (localVarLens "m1" «from»).get σ = mess1 := hσ
-                rw [if_pos (by simp [FMap.dom, FMap.empty]), hx]
+                rw [if_pos (by simp [FMap.dom, FMap.empty])]
                 exact dom_set_iff.mpr (Or.inl rfl)
             · hoare_skip
               exact fun _ h => ⟨h, fun _ _ hd => ⟨hd, h⟩⟩
@@ -301,7 +299,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
             · -- EC's `fel 2 Bounder.bounder (fun _, mu1 sampleto witness) bound …`
               phoare_proc
-              repeat phoare_inline 0
+              phoare_inline*
               fel §Bounder.bounder (fun _ => sampleto.1 {default}) bound
                 (FMap.rng (FMap.rem §RO.m mess1) (oget ((§RO.m).get mess1)))
                 [§Bounder.bounder < bound]
@@ -309,27 +307,22 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               case sum => exact le_rfl
               case init =>
                 -- `F.sample(m1)` on the empty `RO.m`: `mess1` in it, nothing else
-                hoare_wp 20
-                hoare_skip
-                intro σ hσ a _
-                subst hσ
-                have he : (!decide (FMap.dom (FMap.empty : FMap «from» «to»)
-                    ((localVarLens "m1" «from»).get σ))) = true := by
-                      simp [FMap.dom, FMap.empty]
-                split_ifs with hc
-                swap
-                · exact absurd he hc
+                hoare_auto
+                intro m1 hm1 a _
+                subst hm1
+                have he : (!decide (FMap.dom (FMap.empty : FMap «from» «to») m1)) = true := by
+                  simp [FMap.dom, FMap.empty]
+                split_ifs
                 refine ⟨dom_set_iff.mpr (Or.inl rfl), ?_, rfl⟩
                 rintro ⟨k, hk⟩
-                by_cases hk1 : k = (localVarLens "m1" «from»).get σ
+                by_cases hk1 : k = m1
                 · subst hk1; simp [FMap.rem] at hk
                 · simp [FMap.rem, FMap.set, FMap.empty, Finmap.lookup_erase_ne hk1,
                     Finmap.lookup_insert_of_ne _ hk1] at hk
               case step =>
                 phoare_proc
-                repeat phoare_inline 0
-                phoare_wp 20
-                phoare_skip
+                phoare_inline*
+                phoare_auto
                 rintro τ ⟨hd, hr, _⟩
                 simp only [indicatorE_of_not hr]
                 split_ifs with _ _ hx
@@ -339,23 +332,19 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                       ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
                     simpa using hx
                   have hne : mess1 ≠ (localVarLens "x" «from»).get τ := fun h => hx' (h ▸ hd)
-                  refine (expected_mono' fun a => ?_).trans
-                    ((expected_point' (oget ((RO.m.get τ.globals).get mess1))).trans
-                      (le_of_eq (sampleto_fu  _ _)))
-                  refine indicatorE_le_of_imp fun hs =>
-                    (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ)
-                    hr ?_).symm
-                  rwa [get_set_ne _ _ hne] at hs
+                  rnd_pred1 (oget ((RO.m.get τ.globals).get mess1))
+                  · refine indicatorE_le_of_imp fun hs =>
+                      (eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ) hr ?_).symm
+                    rwa [get_set_ne _ _ hne] at hs
+                  · exact le_of_eq (sampleto_fu _ _)
                 all_goals first
                   | exact bot_le
-                  | exact (le_of_eq (SubProbability.expected_eq_zero_of_support
-                      fun _ _ => rfl)).trans bot_le
+                  | (rnd_null; rfl)
               case incr =>
                 intro c
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 rintro τ ⟨hd, hr, hb, hc⟩
                 simp only [Lens.pair, eval_lens_global] at hd hr hb hc
                 have hdom : ∀ x a, FMap.dom (FMap.set (RO.m.get τ.globals) x a) mess1 :=
@@ -364,18 +353,16 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               case same =>
                 intro c
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 rintro τ ⟨hd, hr, hb, hc⟩
                 simp only [Lens.pair, eval_lens_global] at hd hr hb hc
                 split_ifs <;> simp_all
                 omega
               case keep =>
                 hoare_proc
-                repeat hoare_inline 0
-                hoare_wp 20
-                hoare_skip
+                hoare_inline*
+                hoare_auto
                 rintro τ ⟨hd, hr⟩
                 simp only [Lens.pair, eval_lens_global] at hd hr
                 have key : ∀ (x : «from») (a : «to»), ¬ FMap.dom (RO.m.get τ.globals) x →
@@ -389,48 +376,37 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             · phoare_skip
               exact fun _ h => le_of_eq (if_pos h)
           case second_notE =>
-            repeat phoare_inline 0
-            phoare_wp 40
-            phoare_skip
-            rintro σ ⟨hr, hd, hm⟩
-            have hdm : FMap.dom (RO.m.get σ.globals) ((localVarLens "m1" «from»).get σ) :=
-              hm ▸ hd
+            phoare_inline*
+            phoare_auto
+            intro ROm m1 c m2 ⟨hr, hd, hm⟩
+            subst hm
             split_ifs with h1 h2 h3 h4 h5
-            · exact absurd hdm (by simpa using h2)
-            · exact absurd hdm (by simpa using h2)
+            · exact absurd hd (by simpa using h2)
+            · exact absurd hd (by simpa using h2)
             · -- a fresh `m2`: its value hits `RO.m.[m1]` (EC's `rnd (pred1 _)`); the first query's
               -- sample is not used (`m1` is in `RO.m`)
-              refine (expected_mono' fun _ => ?_).trans
-                (expected_const_le' sampleto (sampleto.1 {default}))
-              refine (expected_mono' fun b => ?_).trans
-                ((expected_point' (oget ((RO.m.get σ.globals).get mess1))).trans
-                  (le_of_eq (sampleto_fu  _ _)))
-              refine indicatorE_le_of_imp fun hP => ?_
-              simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
-              rw [← hm]
-              exact hP.1
+              rnd_bound
+              rnd_pred1 (oget (ROm.get m1))
+              · refine indicatorE_le_of_imp fun hP => ?_
+                simp only [decide_eq_true_eq, FMap.get_set_sameE, oget] at hP
+                exact hP.1
+              · exact le_of_eq (sampleto_fu _ _)
             · -- `m2` already in `RO.m`, not `m1`: its value is not `RO.m.[m1]`
               -- (`¬ rng (rem RO.m m1) _`)
-              refine (expected_mono' fun _ => ?_).trans
-                (expected_const_le' sampleto (sampleto.1 {default}))
-              refine (le_of_eq (SubProbability.expected_eq_zero_of_support fun b _ =>
-                indicatorE_of_not ?_)).trans bot_le
+              rnd_bound
+              rnd_null
+              refine indicatorE_of_not ?_
               simp only [decide_eq_true_eq]
               rintro ⟨he, hne⟩
               apply hr
-              have hd2 :
-                  FMap.dom (RO.m.get σ.globals) (SecondPreimage2.m2.get σ.globals) :=
-                by simpa using h5
+              have hd2 : FMap.dom ROm m2 := by simpa using h5
               obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
-              refine ⟨SecondPreimage.SecondPreimage2.m2.get σ.globals, ?_⟩
-              have hk : SecondPreimage.SecondPreimage2.m2.get σ.globals ≠ mess1 :=
-                fun h => hne (hm.trans h.symm)
-              have h1 := get_rem_ne (RO.m.get σ.globals) hk
+              refine ⟨m2, ?_⟩
+              have h1 := get_rem_ne ROm (Ne.symm hne)
               simp only [FMap.get] at h1 hw he ⊢
-              rw [h1, hw, ← hm, he, hw]
+              rw [h1, hw, he, hw]
               rfl
-            · exact (le_of_eq (SubProbability.expected_eq_zero_of_support
-                fun _ _ => rfl)).trans bot_le
+            · (rnd_null; rfl)
             · exact bot_le
           case bound =>
             -- EC's arithmetic: `∑_{i < bound} μ + μ = (bound + 1) · μ`
