@@ -10,8 +10,8 @@ EasyCrypt reads a concrete module's globals off its code: no lemma states what `
 * `fp_disjoint` (this file's elaborator, extending `Logic/FootprintSolver.lean`'s): a concrete
   `module` `M` with no `@[fp_bound]` bound is bounded by the globals its code mentions
   (`DeclareModule.globalVarsOf`, through the modules and definitions it uses) and the abstract
-  modules among its Lean arguments, `FVP.fvP M ≤ FVP.fvP A ⊔ (Lens.pair x₁ (… xₙ)).footprint`, proven by
-  `fp_module`;
+  modules among its Lean arguments, `FVP.fvP M ≤ FVP.fvP A ⊔ (Lens.pair x₁ (… xₙ)).footprint`,
+  proven by `fp_module`;
 * `fp_finite`: `F.FinitelySupported` for a join of module footprints and variables, the modules
   declared (`Module.Declared`, `Module.ECModule`) or concrete (bounded as above);
 * `ec_module`: `Module.ECModule D ext` for a concrete `D` over a first-order module type, its
@@ -135,11 +135,37 @@ partial def finite (hook : FootprintSolver.BoundHook) (F : Lean.Expr) (fuel : Na
     return ← mkAppOptM ``Lens.IsGlobalVar.footprint_finitelySupported #[none, x, none, none]
   if let some pf ← observing? (FootprintSolver.finitelySupported F) then return pf
   let_expr FVP.fvP _ _ M := F | throwError "fp_finite: cannot show finite support of{indentExpr F}"
+  -- a module with an `@[fp_bound]` bound (as `fp_disjoint`: matched at reducible transparency)
+  for lem in ← labelled `fp_bound do
+    let s ← saveState
+    try
+      let c ← mkConstWithFreshMVarLevels lem
+      let (args, binfos, bty) ← forallMetaTelescope (← inferType c)
+      let_expr LE.le _ _ L _ := bty | failure
+      unless ← withReducible (isDefEq L F) do failure
+      for a in args, bi in binfos do
+        if bi.isInstImplicit && !(← a.mvarId!.isAssigned) then
+          a.mvarId!.assign (← synthInstance (← inferType a))
+      return ← viaBound (← instantiateMVars (mkAppN c args))
+    catch _ => s.restore
   let M ← whnfCore M
   if M.isAppOfArity ``Module.app 6 then
     return ← viaBound (← mkAppM ``FVP.fvP_app #[M.getArg! 4, M.getArg! 5])
   if M.isAppOfArity ``Module.pair 6 then
     return ← viaBound (← mkAppM ``le_of_eq #[← mkAppM ``FVP.fvP_pair #[M.getArg! 4, M.getArg! 5]])
+  -- the combinators a module type's constructor and accessors unfold to (as `fp_disjoint`)
+  if M.isAppOfArity ``Module.pair' 4 then
+    return ← viaBound
+      (← mkAppM ``le_of_eq #[← mkAppM ``FVP.fvP_pair' #[M.getArg! 2, M.getArg! 3]])
+  for (c, n, lem) in [(``Module.fst, 5, ``FVP.fvP_fst), (``Module.snd, 5, ``FVP.fvP_snd),
+      (``Module.fst', 3, ``FVP.fvP_fst'), (``Module.snd', 3, ``FVP.fvP_snd')] do
+    if M.isAppOfArity c n then
+      return ← viaBound (← mkAppM lem #[M.getArg! (n - 1)])
+  -- a typed module without parameters (a `Module.pair` of its procedures): its procedures first
+  if let some M' ← unfoldDefinition? M then
+    if M'.isAppOf ``Module.pair then
+      let pf ← finite hook (← mkAppM ``FVP.fvP #[M']) (fuel - 1)
+      return ← mkExpectedTypeHint pf (← mkAppM ``Footprint.FinitelySupported #[F])
   if let some pf ← hook M then return ← viaBound pf
   let some M' ← unfoldDefinition? M
     | throwError "fp_finite: no finite support for{indentExpr F}"

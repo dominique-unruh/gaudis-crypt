@@ -315,6 +315,12 @@ partial def solveFvP (hook : BoundHook) (g : MVarId) (fuel : Nat := 64) : MetaM 
       (``Module.fst', 3, ``FVP.fvP_fst'), (``Module.snd', 3, ``FVP.fvP_snd')] do
     if M.isAppOfArity c n then
       return ← viaBound (← mkAppM lem #[M.getArg! (n - 1)])
+  -- a typed module without parameters (`G1.S := Module.pair G1.S.f G1.S.fi`): its procedures,
+  -- which may have bounds of their own, before reading the whole module's code (the hook)
+  if let some M' ← unfoldDefinition? M then
+    if M'.isAppOf ``Module.pair then
+      let g' ← g.replaceTargetDefEq (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M'], ty.getArg! 3])
+      return ← solveFvP hook g' (fuel - 1)
   -- a concrete module the hook bounds (its globals read off its code)
   if let some pf ← hook M then return ← viaBound pf
   -- a definition (a module type's accessor or constructor, a named module): unfold it

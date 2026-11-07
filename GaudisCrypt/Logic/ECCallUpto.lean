@@ -377,13 +377,24 @@ elab_rules (kind := equivCallUpto) : tactic
           let hs ← splitHoles gw k
           for (h, i) in hs.zipIdx do
             let h ← niceGoal h O₁ fs₁[i]! fs₂[i]!
+            let saved ← getGoals
             let rest ← h.withContext do
               setGoals [h]
               liftMetaTactic (writesKeepSplit ·)
-              evalTactic (← `(tactic| all_goals first
-                | exact fun _ _ => rfl
-                | exact fun v σ => touched_set_of_le_compl (by fp_disjoint) v σ.globals))
-              getGoals
+              evalTactic (← `(tactic| all_goals try exact fun _ _ => rfl))
+              -- a write to a global `X`: `X` outside `glob D` (the declaration's restriction)
+              let DS ← Term.exprToSyntax D
+              for leaf in ← getGoals do
+                let lty ← instantiateMVars (← leaf.getType)
+                let some lift := lty.find? (·.isAppOfArity ``liftLens 4) | continue
+                let XS ← Term.exprToSyntax lift.appArg!
+                let [] ← leaf.withContext <| withoutRecover <| evalTacticAt (← `(tactic|
+                    exact fun v σ => touched_set_of_le_compl
+                      (show Lens.footprint $XS ≤ (FVP.fvP $DS)ᶜ by fp_disjoint) v σ.globals))
+                    leaf
+                  | pure ()
+              (← getGoals).filterM fun g => return !(← g.isAssigned)
+            setGoals saved
             unless rest.isEmpty do
               throwError "equiv_call: an oracle writes `glob` of the abstract module"
           done := done.push gw
@@ -455,7 +466,8 @@ elab_rules (kind := equivCallUpto) : tactic
       -- EC's order: `D_ll`, then per oracle its judgment, the left oracle's losslessness, the
       -- right one's `phoare`, and (the deviation) the right one's losslessness; then the code
       -- before the calls
-      let others ← (← getGoals).filterM fun g => return !done.contains g && some g != pre
+      let others ← (← getGoals).filterM fun g => do
+        return !done.contains g && some g != pre && !(← g.isAssigned)
       let mut out : Array MVarId := #[llM.mvarId!]
       for j in [0:k] do
         out := out.push oracleGs[j]!
