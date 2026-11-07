@@ -204,9 +204,17 @@ elab_rules : command
             if x.getAppNumArgs ≥ k && (x.getAppArgs.extract 0 k) == e.getAppArgs then
               return .done (mkAppN r (x.getAppArgs.extract k x.getAppNumArgs))
         return .continue)
+      -- the lemmas the `module` and `moduletype` commands generate state code: kept as the
+      -- theory spells it, as the code inside the theory's definitions is (what `inline` and
+      -- `simp` rewrite with must match what they rewrite)
+      let generated (c : Name) : Bool := match c with
+        | .str _ s => s == "apply_simp" || s == "mk_simp" || s == "mk_destruct" ||
+            s == "destruct_mk"
+        | _ => false
       let mut pending : Array (Name × Name × Expr × Expr) := #[]
       for (c, aliasN, e) in insts do
-        let ty ← fold (← instantiateMVars (← inferType e))
+        let ty0 ← instantiateMVars (← inferType e)
+        let ty ← if generated c then pure ty0 else fold ty0
         pending := pending.push (c, aliasN, e, ty)
       -- added once the aliases their types mention are
       let mut progress := true

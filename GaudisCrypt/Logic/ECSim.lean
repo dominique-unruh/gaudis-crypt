@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.Inline
 import GaudisCrypt.Logic.EqualOutside
+import GaudisCrypt.Syntax.CloneRegistry
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -200,7 +201,24 @@ def closeImp (g : MVarId) : TacticM (List MVarId) := do
          casesm* _ ∧ _
          subst_vars
          split_ifs <;> simp_all [Lens.set_get, Lens.get_of_disjoint_set, lensWriteNorm]; done)
-      | (intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]; done))) g
+      | (intros; simp_all [Setter.throwaway, ProgramState.globalL, lensWriteNorm]; done)
+      | (intros
+         -- states agreeing on `glob A` and some variables (EC's `={glob A, x}`, the invariant
+         -- `globInvF` of an abstract call): `glob A` past the writes outside it (`fp_disjoint`),
+         -- the writes read through
+         simp only [globInvF, Prod.mk.injEq] at *
+         (try simp (disch := fp_disjoint) only [touched_set_of_le_compl])
+         simp_all (config := { contextual := true }) [Lens.set_get, Lens.get_of_disjoint_set,
+           Setter.throwaway, ProgramState.globalL]
+         done)
+      | (intros
+         -- … the variables' equations substituted first, the conditional writes split
+         simp only [globInvF, Prod.mk.injEq] at *
+         casesm* _ ∧ _
+         (try split_ifs) <;> (try simp (disch := fp_disjoint) only [touched_set_of_le_compl]) <;>
+           simp_all (config := { contextual := true }) [Lens.set_get, Lens.get_of_disjoint_set,
+             Setter.throwaway, ProgramState.globalL]
+         done))) g
     if gs.isEmpty then return [] else s.restore; return [g]
   catch _ => s.restore; return [g]
 
@@ -280,7 +298,23 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       catch _ => s.restore
     let s ← saveState
     try
-      let gs ← runOn g (← `(tactic| (equiv_call; try (case callee => rfl))))
+      -- calls of procedures spelled differently (an abstract procedure with oracles that are
+      -- the same once unfolded, `A(Bounder(FM(C,P)))` and `A(Bounder(FInit(C(P))))`): their
+      -- equality by `simp` (the modules' `apply_simp` lemmas), then `rfl`
+      let gs ← runOn g (← `(tactic| equiv_call))
+      -- the callees' equality within a budget: oracles that differ (`A(Bounder(FInit(RO)))`,
+      -- `A(Bounder(RO))`) fail it, and are left to EC's `call (_: ={…})`
+      let gs ← gs.filterMapM fun h => do
+        unless (← h.getTag).eraseMacroScopes == `callee do return some h
+        let s ← saveState
+        let ok ← tryCatchRuntimeEx
+          (withCurrHeartbeats <|
+            withTheReader Core.Context (fun c => { c with maxHeartbeats := 50000 * 1000 }) do
+              let rest ← runOn h (← `(tactic| first | (simp; rfl) | rfl))
+              pure rest.isEmpty)
+          (fun _ => pure false)
+        unless ok do s.restore; throwError "sim: the callees differ"
+        return none
       match gs with
       | [g'] => sim g' frame? (fuel - 1)
       | _ => return gs
@@ -319,6 +353,32 @@ elab "sim" : tactic => do
   let gs ← sim g
   replaceMainGoal gs
 
+open Lean Meta Elab Tactic ECSim PRHLWp in
+/-- **EC's `sim n₁ n₂`**: `sim` on the code after the first `n₁` statements of the left side and
+the first `n₂` of the right; the goal left is the code before, its postcondition what `sim` needs
+(the relation between the two parts is open, for `sim` to compute). -/
+elab "sim" ppSpace n₁:num ppSpace n₂:num : tactic => withMainContext do
+  let g ← getMainGoal
+  let ty ← prhlGoal g "sim"
+  let l₁ ← HoareSplit.seqLength (ty.getArg! 1)
+  let l₂ ← HoareSplit.seqLength (ty.getArg! 2)
+  unless n₁.getNat ≤ l₁ && n₂.getNat ≤ l₂ do
+    throwError "sim: the sides have {l₁} and {l₂} statements"
+  let g ← HoareSplit.hoareSplit (l₁ - n₁.getNat) g (some 1)
+  let g ← HoareSplit.hoareSplit (l₂ - n₂.getNat) g (some 2)
+  g.withContext do
+    -- `prhlStmt_seq` by hand: its middle relation an ordinary metavariable, for `sim` to assign
+    let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq
+    let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+    unless ← isDefEq concl (← g.getType) do throwError "sim: cannot cut the code"
+    g.assign (mkAppN c ms)
+    let hAfter := ms[ms.size - 2]!.mvarId!
+    let hBefore := ms[ms.size - 1]!.mvarId!
+    hAfter.setKind .syntheticOpaque
+    hBefore.setKind .syntheticOpaque
+    let rest ← sim hAfter
+    replaceMainGoal (rest ++ [hBefore])
+
 open Lean Elab Tactic ECSim in
 /-- **EC's `sim` with a frame**: `sim / x₁, …, xₙ`, the states equal except on the globals `xᵢ`
 (EC's `={glob A}`: variables the calls of the same procedure do not touch, written by one side
@@ -330,7 +390,8 @@ elab "sim" " / " xs:term,+ : tactic => withMainContext do
   let Le ← Term.elabTerm L none
   Term.synthesizeSyntheticMVarsNoPostponing
   let g ← getMainGoal
-  let gs ← sim g (some (← instantiateMVars Le))
+  -- the clone's names as the code spells them (`SRO.RO.m` ↦ `SecureRO.RO.m`)
+  let gs ← sim g (some (← unfoldCloneAliases (← instantiateMVars Le)))
   replaceMainGoal gs
 
 end GaudisCrypt

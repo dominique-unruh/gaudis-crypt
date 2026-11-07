@@ -2,6 +2,8 @@ import GaudisCrypt.Examples.SHA3.Pilot.SecureRO
 import GaudisCrypt.Examples.SHA3.Pilot.Indifferentiability
 import GaudisCrypt.Syntax.Clone
 import GaudisCrypt.Logic.ECModuleBinders
+import GaudisCrypt.Logic.ECCallOneSided
+import GaudisCrypt.Logic.ECCallAbstract
 
 /-!
 # A construction indifferentiable from a random oracle is secure — the EC-fidelity port
@@ -166,6 +168,7 @@ section
 declare module «C» <: CONSTRUCTION {-A, -Bounder}
 declare module P <: PRIMITIVE {-«C», -A, -Bounder}
 
+set_option maxHeartbeats 2000000 in -- one declaration: EC's two `have`s, their `byequiv`s
 /-- EC's `coll_resistant_if_indifferentiable (C <: CONSTRUCTION{-A, -Bounder})
 (P <: PRIMITIVE{-C, -A, -Bounder}) &m`. -/
 theorem coll_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignment) :
@@ -175,7 +178,25 @@ theorem coll_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignm
         Pr[ GIdeal(RO, S, DColl(A)).main () @ &m : §res ]| ≤ bound) →
     Pr[ Collision(A, FM(«C», P)).main () @ &m : §res ] ≤
       bound + ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
-  sorry
+  rintro ⟨S, _, S_ll, Hbound⟩
+  calc Pr[ Collision(A, FM(«C», P)).main () @ &m : §res ]
+      = Pr[ GReal(«C», P, DColl(A)).main () @ &m : §res ] := by
+        byequiv; equiv_proc; stmt_inline*
+        stmt_swap{1} [1..2] 2; sim
+    _ ≤ _ := by
+      have : Pr[ GIdeal(RO, S, DColl(A)).main () @ &m : §res ]
+          ≤ ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
+        calc _ = Pr[ Collision(A, SRO.RO).main () @ &m : §res ] := by
+              byequiv; equiv_proc; stmt_inline*; sim
+              equiv_call (_ : ={glob A, Bounder.bounder, Counter.c, SRO.RO.m})
+              · equiv_proc; stmt_inline*; sim
+              · stmt_wp
+                equiv_call{1} (S_ll RO ?_) / glob A
+                · sim
+                · phoare_proc; phoare_auto
+                  exact fun _ => (is_lossless_iff_expected _).mp sampleto_ll
+          _ ≤ _ := RO_is_collision_resistant A m
+      linarith [(abs_le.mp Hbound).1, (abs_le.mp Hbound).2]
 
 end
 

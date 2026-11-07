@@ -123,6 +123,7 @@ import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
+import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq

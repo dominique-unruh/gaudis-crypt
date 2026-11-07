@@ -248,6 +248,15 @@ theorem resetSetter_set_varLens (S : Set String) (n : String) (T : Type) (i : No
           ((resetSetter S).set u σ) :=
   resetSetter_set_intoLocal S (@VariableName.mk n T i key kc) hn u a σ
 
+/-- Two resets of locals commute (both write the initial values; `simp` orders them). -/
+theorem resetSetter_comm (S T : Set String) (u v : Unit) (σ : ProgramState) :
+    (resetSetter S).set u ((resetSetter T).set v σ)
+      = (resetSetter T).set v ((resetSetter S).set u σ) := by
+  simp only [resetSetter]
+  congr 1
+  funext w
+  by_cases h₁ : w.name ∈ S <;> by_cases h₂ : w.name ∈ T <;> simp [h₁, h₂]
+
 /-- A pair of variables is disjoint from what both components are disjoint from. -/
 instance Lens.Disjoint.pair_left {a b c m : Type*} {x : Lens a m} {y : Lens b m}
     {z : Lens c m} [Lens.Disjoint x y] [hxz : Lens.Disjoint x z] [hyz : Lens.Disjoint y z] :
@@ -288,7 +297,8 @@ def discharge (ty : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
   let (_, g) ← m.mvarId!.intros
   let mut thms : SimpTheorems := {}
   for n in HoareWp.simpReadsDecls ++
-      [``resetSetter_set_varLens, ``resetSetter_set_localVarLens, ``Lens.Disjoint.pair_left,
+      [``resetSetter_set_varLens, ``resetSetter_set_localVarLens, ``resetSetter_comm,
+        ``Lens.Disjoint.pair_left,
         ``Lens.Disjoint.pair_right] do
     if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
     else thms ← thms.addDeclToUnfold n
@@ -538,6 +548,65 @@ elab_rules : tactic
     let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
     liftMetaTactic1 fun g => some <$>
       Judgment.onStmt (moveStmt n.getNat k) g (Judgment.sideOf? s)
+
+/-- The statement `s` resets locals (`reset_vars S`, what inlining a call leaves for the callee's
+locals): not one of EC's statements, which inlines without them. -/
+def isReset (s : Lean.Expr) : MetaM Bool := do
+  let s ← TacticMisc.openStmt s
+  return s.isAppOf ``StmtWithHoles.assign && s.getAppArgs.any (·.isAppOf ``resetSetter)
+
+/-- Whether each statement along the right spine of `s` is a reset (`isReset`), through the
+`let`s of the locals (as `moveStmt` counts positions). -/
+partial def spineResets (s : Lean.Expr) : MetaM (List Bool) := do
+  let s ← TacticMisc.openStmt s
+  if let .letE n ty val body _ := s then
+    return ← withLetDecl n ty val fun fv => spineResets (body.instantiate1 fv)
+  if s.isAppOfArity ``StmtWithHoles.seq 3 then
+    return (← isReset (s.getArg! 1)) :: (← spineResets (s.getArg! 2))
+  return [← isReset s]
+
+/-- EC's statements of a spine (`spineResets`) as groups of ours: each with the resets just before it
+(the sizes of the groups, in order). -/
+def ecGroups (rs : List Bool) : Array Nat := Id.run do
+  let mut out := #[]
+  let mut pending := 0
+  for r in rs do
+    if r then pending := pending + 1
+    else
+      out := out.push (pending + 1)
+      pending := 0
+  if pending > 0 then out := out.push pending
+  return out
+
+/-- `stmt_swap [a..b] k` (EC's `swap [a..b] k`): move the block of statements `a` to `b` by `k`
+positions, in EC's positions (from 1, the resets inlining leaves not counted: each moves with
+the statement after it), one of our statements at a time (`stmt_swap n k`). -/
+syntax "stmt_swap" (Judgment.judgmentSide)? " [" num ".." num "] " ("-")? num : tactic
+
+elab_rules : tactic
+  | `(tactic| stmt_swap $[$s]? [$a:num .. $b:num] $[-%$neg]? $k:num) => do
+    let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
+    let (a, b) := (a.getNat, b.getNat)
+    let side? := Judgment.sideOf? s
+    let g ← getMainGoal
+    let gs ← g.withContext do
+      let (d, ty) ← Judgment.descOf g side?
+      return ecGroups (← spineResets (ty.getArg! d.stmtArg))
+    unless 1 ≤ a && a ≤ b && b ≤ gs.size do
+      throwError "stmt_swap: the block [{a}..{b}] is not in the {gs.size} statements"
+    -- our positions (from 0): the block's, and the distance in ours of `k` of EC's
+    let start := (gs.extract 0 (a - 1)).foldl (· + ·) 0
+    let stop := start + (gs.extract (a - 1) b).foldl (· + ·) 0
+    let dist : Int ← if k > 0 then do
+        unless b + k.toNat ≤ gs.size do throwError "stmt_swap: moved past the end"
+        pure (Int.ofNat ((gs.extract b (b + k.toNat)).foldl (· + ·) 0))
+      else do
+        unless k.natAbs < a do throwError "stmt_swap: moved before the start"
+        pure (-Int.ofNat ((gs.extract (a - 1 - k.natAbs) (a - 1)).foldl (· + ·) 0))
+    let order := if k > 0 then (List.range (stop - start)).reverse.map (· + start)
+      else (List.range (stop - start)).map (· + start)
+    for n in order do
+      liftMetaTactic1 fun g => some <$> Judgment.onStmt (moveStmt n dist) g side?
 
 /-- Split the pair assignment at position `p` into one assignment per component, recursively
 for nested pairs (`Stmt.split_pair`). -/

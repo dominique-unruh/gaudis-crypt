@@ -89,7 +89,12 @@ open Lean Meta Elab Tactic PRHLWp
 def frameTerm (xs : Array Term) : TacticM Term := do
   let parts ← xs.mapM fun t => match t with
     | `(glob $a) => `(Module.Proc.frame_glob (FVP.fvP $a) (by fp_finite) (by fp_disjoint))
-    | _ => `(Module.Proc.frame_lens $(⟨t⟩) (by fp_disjoint))
+    | _ => do
+      -- the clone's names as the code spells them (`SRO.RO.m` ↦ `SecureRO.RO.m`)
+      let x ← Term.elabTerm t none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let x ← Term.exprToSyntax (← unfoldCloneAliases (← instantiateMVars x))
+      `(Module.Proc.frame_lens $x (by fp_disjoint))
   match parts.back? with
   | none => `(Module.Proc.frame_true _)
   | some last => parts.pop.foldrM (fun p acc => `(Module.Proc.frame_and $p $acc)) last
@@ -107,10 +112,11 @@ elab_rules : tactic
     let g ← getMainGoal
     let _ ← prhlGoal g "equiv_call"
     let g ← HoareSplit.hoareSplit 1 g (some side)
+    setGoals [g]
     let lem := mkIdent (if side == 1 then ``prhlStmt_seq_call_left_lossless
       else ``prhlStmt_seq_call_right_lossless)
-    let fr ← frameTerm ((xs.map (·.getElems)).getD #[])
     let (gs, holes) ← g.withContext do
+      let fr ← frameTerm ((xs.map (·.getElems)).getD #[])
       let (hE, holes) ← elabTermWithHoles h none `lossless (allowNaturalHoles := true)
       let gs ← Tactic.run g (evalTactic
         (← `(tactic| refine $lem $(← Term.exprToSyntax hE) $fr ?_)))

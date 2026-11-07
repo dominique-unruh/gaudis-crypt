@@ -227,7 +227,12 @@ end ECProc
 
 open Lean Elab Tactic in
 /-- **EC's `proc`** on `phoare[ M.f : P ==> Q ] ⋈ r`: see the module docstring. -/
-elab "phoare_proc" : tactic => liftMetaTactic1 fun g => some <$> ECProc.procStep g
+elab "phoare_proc" : tactic => do
+  -- EC's `proc` on `islossless M`: the `phoare` judgment it is
+  let g ← getMainGoal
+  if (← instantiateMVars (← g.getType)).cleanupAnnotations.isAppOf ``Procedure.IsLossless then
+    evalTactic (← `(tactic| rw [Procedure.isLossless_iff_phoareProc]))
+  liftMetaTactic1 fun g => some <$> ECProc.procStep g
 
 open Lean Elab Tactic in
 /-- **EC's `proc`** on `hoare[ M.f : P ==> Q ]`: see the module docstring. -/

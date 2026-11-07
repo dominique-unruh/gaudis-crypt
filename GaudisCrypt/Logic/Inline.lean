@@ -2503,6 +2503,11 @@ to its parameters, reading a field off a record, or — when none of those appli
 one step in the position that has to be evaluated first (the function of a `Module.app`, the
 module a projection is taken of). -/
 partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
+  -- (0) a structure projection of a record (`{ init := …, get := … }.1`, what a clone's
+  -- accessor unfolds to): reduce it, by definition
+  if let .proj .. := e.getAppFn then
+    if let some v ← Meta.reduceProj? e.getAppFn then
+      return some { expr := (mkAppN v e.getAppArgs).headBeta }
   let some c := e.getAppFn.constName? | return none
   let args := e.getAppArgs
   -- (1) applying a `module`-declared module, or one of its procedures, to its parameters

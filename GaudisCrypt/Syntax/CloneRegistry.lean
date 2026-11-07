@@ -37,6 +37,16 @@ def cloneRename? (env : Environment) (C T v : Name) : Option Name :=
     if env.contains a then some a else none
   else none
 
+/-- `e` with the aliases of clones unfolded (`SRO.RO.m` ↦ `SecureRO.RO.m` at the clone's
+instance): as code spells them, which reads the theory's definitions.  For tactics that take
+variables or modules from the user (`equiv_call (_ : ={…})`, a frame). -/
+def unfoldCloneAliases (e : Expr) : MetaM Expr := Meta.transform e (post := fun x => do
+  let some c := x.getAppFn.constName? | return .continue
+  if (cloneOf? (← getEnv) c).isNone then return .continue
+  match ← Meta.unfoldDefinition? x with
+  | some x' => return .visit x'.headBeta
+  | none => return .continue)
+
 /-- The declaration an alias of a clone stands for, through nested clones (`S.SRO.Bounder` ↦
 `IndifRO_is_secure.SRO.Bounder` ↦ `SecureRO.Bounder`); any other name itself. -/
 partial def cloneBase (env : Environment) (c : Name) : Name :=
