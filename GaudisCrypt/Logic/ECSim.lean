@@ -145,16 +145,23 @@ open Lean Meta Elab Tactic PRHLWp
 (`Flatten.judgmentInline`) until every one left fails (an abstract procedure). -/
 def inlineAll (g : MVarId) (side? : Option Nat) : MetaM MVarId := do
   let mut g := g
-  let mut k := 0
-  for _ in [0:500] do
-    let (d, ty) ← Judgment.descOf g side?
-    let n ← Flatten.countCallSites (ty.getArg! d.stmtArg)
-    if k ≥ n then break
-    let s ← saveState
-    try g ← Flatten.judgmentInline k g side?
-    catch _ =>
-      s.restore
-      k := k + 1
+  -- rounds: a call through a view of a concrete module (`PRIMITIVE.init Perm`, `Perm` a record
+  -- of another module type) is read off by `ECProc.accessorNorm` (EC's structural subtyping),
+  -- then inlined
+  for _ in [0:8] do
+    let mut k := 0
+    for _ in [0:500] do
+      let (d, ty) ← Judgment.descOf g side?
+      let n ← Flatten.countCallSites (ty.getArg! d.stmtArg)
+      if k ≥ n then break
+      let s ← saveState
+      try g ← Flatten.judgmentInline k g side?
+      catch _ =>
+        s.restore
+        k := k + 1
+    let g' ← try ECProc.accessorNorm g catch _ => pure g
+    if g' == g then break
+    g := g'
   return g
 
 /-- `inlineAll` on both sides of a relational judgment, or on the one statement. -/
