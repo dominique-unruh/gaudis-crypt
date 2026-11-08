@@ -118,6 +118,44 @@ theorem size_behead {α : Type} (l : List α) : l ≠ [] → size (behead l) = s
   | nil => intro h; exact absurd rfl h
   | cons a l => intro _; simp [size, behead]
 
+/-! EC's `smt(domE mem_set get_setE take_size cat_take_drop)` in `DoubleBounding`'s `conseq`,
+the facts `smt_close` does not find: the query `bs₀` added, with its block `sa`. -/
+
+theorem db_query_block (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (bs₀ : List block) (sa : block) (sc : capacity) (x : List block)
+    (hx : (Q.set bs₀ sa).dom x) (hinv : prefix_inv Q P) (hPR : ∀ y, P.dom y → P.get y = R.get y)
+    (hQP : ∀ y, Q.dom y → P.dom y) (hR : R.get (take (size bs₀) bs₀) = some (sa, sc)) :
+    oget ((Q.set bs₀ sa).get x) = (oget (R.get x)).1 := by
+  rw [FMap.get_setE]
+  split_ifs with h
+  · subst h; rw [take_size] at hR; rw [hR]; rfl
+  · have hd : Q.dom x := by
+      rcases (FMap.mem_set _ _ _ _).1 hx with h' | h'
+      · exact h'
+      · exact absurd h' h
+    rw [hinv.1 x hd, hPR x (hQP x hd)]
+
+theorem db_query_prefixes (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (bs₀ : List block) (sa : block) (x : List block) (i : ℤ)
+    (hx : (Q.set bs₀ sa).dom x) (hinv : prefix_inv Q P)
+    (hR : ∀ y, R.dom y ↔ P.dom y ∨ ∃ j, 0 ≤ j ∧ j ≤ size bs₀ ∧ y = take j bs₀) :
+    R.dom (take i x) := by
+  rcases (FMap.mem_set _ _ _ _).1 hx with h | h
+  · exact (hR _).2 (Or.inl (hinv.2.1 x h i))
+  · subst h
+    have : 0 ≤ size x := by simp [size]
+    refine (hR _).2 (Or.inr ⟨min (max i 0) (size x), by omega, min_le_right _ _, take_clamp i x⟩)
+
+theorem db_query_extend (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (bs₀ : List block) (sa : block) (x : List block) (i : ℤ) (hne : take i x ≠ [])
+    (hdom : R.dom (take i x)) (hinv : prefix_inv Q P)
+    (hR : ∀ y, R.dom y ↔ P.dom y ∨ ∃ j, 0 ≤ j ∧ j ≤ size bs₀ ∧ y = take j bs₀) :
+    ∃ l2, (Q.set bs₀ sa).dom (take i x ++ l2) := by
+  rcases (hR _).1 hdom with hP | ⟨j, -, -, hj⟩
+  · obtain ⟨l2, hl⟩ := hinv.2.2 x i hne hP
+    exact ⟨l2, (FMap.mem_set _ _ _ _).2 (Or.inl hl)⟩
+  · exact ⟨drop j bs₀, by rw [hj, cat_take_drop]; exact (FMap.mem_set _ _ _ _).2 (Or.inr rfl)⟩
+
 /-- A `PRPSec.SPRP_Oracles` is a `DPRIMITIVE` (its `f`, `fi`). -/
 module_subtype (EC.PRP.StrongPRP.SPRP_Oracles state) <:
   GaudisCrypt.SHA3.Pilot.Indifferentiability.DPRIMITIVE
@@ -207,7 +245,11 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
             §DBounder.FBounder.c{2} = §C.c{2} - size §bs{1} + §i{1})
         · auto_progress
           -- EC's six `smt(domE mem_set get_setE take_size cat_take_drop)`
-          all_goals sorry
+          · smt_close [FMap.domE, FMap.mem_set, FMap.get_setE, take_size, cat_take_drop]
+          · smt_close [FMap.domE, FMap.mem_set, FMap.get_setE, take_size, cat_take_drop]
+          · generalize_reads_all; subst_vars; apply db_query_block <;> assumption
+          · generalize_reads_all; subst_vars; apply db_query_prefixes <;> assumption
+          · generalize_reads_all; subst_vars; apply db_query_extend <;> assumption
         · sorry
       · equiv_skip; auto_close
       · auto_close

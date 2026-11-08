@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECCallUpto
 import GaudisCrypt.Logic.RenameReads
+import GaudisCrypt.Lib.EC.List
 
 /-!
 # A closer for what EC leaves to `auto => /#`
@@ -112,5 +113,48 @@ macro_rules
         | (intro _; auto_progress)
         | (simp_all; done)
         | skip))
+
+end GaudisCrypt
+
+namespace GaudisCrypt
+
+open Lean Meta Elab Tactic in
+/-- `generalize_reads_all`: every read of a variable in a state (`x.get σ`, `X.get σ.globals`,
+`σ` a local) a fresh variable, in the goal and the hypotheses: EC's view of a memory as its
+variables' values. -/
+elab "generalize_reads_all" : tactic => withMainContext do
+  let g ← getMainGoal
+  -- the propositions among the hypotheses go into the goal, and come back after
+  let hyps ← (← getLCtx).foldlM (init := #[]) fun acc d => do
+    if d.isImplementationDetail then return acc
+    if ← isProp d.type then return acc.push d.fvarId else return acc
+  let (_, g) ← g.revert hyps (preserveOrder := true)
+  let g ← g.withContext do
+    let t ← instantiateMVars (← g.getType)
+    let reads ← IO.mkRef (#[] : Array Lean.Expr)
+    Meta.forEachExpr t fun e => do
+      unless e.isAppOfArity ``Getter.get 4 && !e.hasLooseBVars do return
+      let st := e.appArg!
+      let ok := st.isFVar || (st.isAppOfArity ``ProgramState.globals 1 && st.appArg!.isFVar)
+      if ok && !(← reads.get).contains e then reads.modify (·.push e)
+    let rs ← reads.get
+    if rs.isEmpty then return g
+    let args := rs.map fun r => ({ expr := r, xName? := some `v } : GeneralizeArg)
+    let (_, g) ← g.generalize args
+    return g
+  let (_, g) ← g.intros
+  replaceMainGoal [g]
+
+/-- **EC's `smt(l₁, …)`**: `auto_close`'s preprocessing, the reads of the states as variables
+(`generalize_reads_all`), their equations substituted, then `grind` with the lemmas `lᵢ`. -/
+syntax "smt_close" (" [" Lean.Parser.Tactic.grindParam,* "]")? : tactic
+
+macro_rules
+  | `(tactic| smt_close) => `(tactic| smt_close [])
+  | `(tactic| smt_close [$ls,*]) => `(tactic| focus (
+      auto_prep
+      all_goals try generalize_reads_all
+      all_goals try subst_vars
+      all_goals grind [GaudisCrypt.EC.oget_some, $ls,*]))
 
 end GaudisCrypt

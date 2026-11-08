@@ -100,6 +100,13 @@ theorem mem_mkseq {f : ℤ → α} {n : ℤ} {x : α} :
 theorem take_size (s : List α) : take (size s) s = s := by
   simp [take, size]
 
+/-- `take i s` is a `take` of `s` at a position in `[0, size s]`. -/
+theorem take_clamp (i : ℤ) (s : List α) : take i s = take (min (max i 0) (size s)) s := by
+  unfold take size
+  by_cases h : i.toNat ≤ s.length
+  · congr 1; omega
+  · rw [List.take_of_length_le (by omega), List.take_of_length_le (by omega)]
+
 /-- `lemma cat_take_drop`: `take n s ++ drop n s = s`. -/
 theorem cat_take_drop (n : ℤ) (s : List α) : take n s ++ drop n s = s := by
   simp [take, drop]
@@ -118,6 +125,8 @@ def ocancel (g : β → Option α) (f : α → β) : Prop :=
 
 /-- `oget`: the content of an option, `default` for `none`. -/
 def oget [Inhabited α] (o : Option α) : α := o.getD default
+
+theorem oget_some [Inhabited α] (a : α) : oget (some a) = a := rfl
 
 /-- `lemma nth_rcons`. -/
 theorem nth_rcons (x0 : α) (s : List α) (z : α) (i : ℤ) :
