@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECCallUpto
+import GaudisCrypt.Logic.RenameReads
 
 /-!
 # A closer for what EC leaves to `auto => /#`
@@ -12,7 +13,8 @@ apart the way one does by hand:
 
 * introduce everything, take the hypotheses apart (`∧`, `∃`, `∨`), substitute the equations of
   variables (the states of EC's `sp`: `σ = x.set v τ`);
-* simplify the reads through writes everywhere, the hypotheses included (`simp_reads_all`), and the
+* simplify the reads through writes everywhere, the hypotheses included (`simp_reads_all`; through
+  the inliner's renamings, `rename_reads`), and the
   `glob` of a region past writes outside it (`glob_simp`, EC's implicit `={glob D}`);
 * the tests back to propositions (`decide … = true`), indicators of events (`indicatorE P = 1`);
 * split the goal (`∧`, `if`), and close each part by `rfl`, an assumption (either way round),
@@ -61,6 +63,7 @@ macro_rules
       all_goals intros
       all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
       all_goals try subst_vars
+      all_goals try rename_reads
       all_goals try simp only [Setter.throwaway_set] at *
       all_goals try simp_reads_all
       all_goals try glob_simp

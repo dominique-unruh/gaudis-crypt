@@ -198,7 +198,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
         stmt_alias{2} 1 query = §C.queries
         stmt_sp 1
         sorry
-      · sorry -- EC's `auto`: the precondition through the inliner's renamings
+      · equiv_skip; auto_close
       · auto_close
     · stmt_wp; equiv_skip; auto_close
     · auto_close

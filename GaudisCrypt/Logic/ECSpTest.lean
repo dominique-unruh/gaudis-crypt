@@ -19,8 +19,8 @@ example : hoare[ True ==> §y = 2 ] {
   stmt_sp 2
   hoare_wp 1
   apply hoare_skip_of_imp
-  rintro _ ⟨_, ⟨_, -, rfl⟩, rfl⟩
-  simp [liftLens, LiftLens.lift, Lens.set_get]
+  rintro _ ⟨_, ⟨-, h⟩, rfl⟩
+  simp_all [liftLens, LiftLens.lift, Lens.set_get]
 
 /-- EC's `sp` on both sides of a relational judgment, as far as the code is deterministic, then
 `sim` on what is left. -/

@@ -91,9 +91,64 @@ theorem prhlStmt_sp_right_keep {A B : ProgramState → ProgramState → Prop} (h
   prhlStmt_sp_right hd (prhlStmt_conseq h (fun σ₁ _ ⟨τ, hτ, e⟩ => ⟨e ▸ hA σ₁ τ hτ, τ, hτ, e⟩)
     fun _ _ h => h)
 
+/-! ### EC's `P /\ x = e`: an assignment as a read
+
+For an assignment `x <- e` (the update `upd τ = x.set (e τ) τ`) that changes neither `P` nor `e`,
+the precondition after it is `P ∧ x = e`, a fact about reads (EC's), rather than the equation of
+states `σ = upd τ`: reads go through the later steps (the inliner's renamings among them). -/
+
+/-- `hoareStmt_sp` for an assignment: `A ∧ x = e`. -/
+theorem hoareStmt_sp_read {α : Type} {A B : ProgramState → Prop} (X : Lens α ProgramState)
+    (E : ProgramState → α) (hd : Stmt.Det d upd) (hupd : ∀ τ, upd τ = X.set (E τ) τ)
+    (hA : ∀ τ, A τ → A (upd τ)) (hE : ∀ τ, E (upd τ) = E τ)
+    (h : hoareStmt (fun σ => A σ ∧ X.get σ = E σ) s B) : hoareStmt A (.seq d s) B :=
+  hoareStmt_sp hd (hoare_pre h fun _ ⟨τ, hτ, e⟩ => by
+    subst e; exact ⟨hA τ hτ, by rw [hE, hupd, X.set_get]⟩)
+
+/-- `phoareStmt_sp` for an assignment: `A ∧ x = e`. -/
+theorem phoareStmt_sp_read {α : Type} {A : ProgramState → Prop} {g : ProgramState → ENNReal}
+    {ρ : ENNReal → ENNReal → Prop} {r : ProgramState → ENNReal} (X : Lens α ProgramState)
+    (E : ProgramState → α) (hd : Stmt.Det d upd) (hupd : ∀ τ, upd τ = X.set (E τ) τ)
+    (hr : ∀ τ, A τ → r (upd τ) = r τ) (hA : ∀ τ, A τ → A (upd τ)) (hE : ∀ τ, E (upd τ) = E τ)
+    (h : phoareStmt (fun σ => A σ ∧ X.get σ = E σ) s g ρ r) : phoareStmt A (.seq d s) g ρ r :=
+  phoareStmt_sp hd hr (phoareStmt_pre h fun _ ⟨τ, hτ, e⟩ => by
+    subst e; exact ⟨hA τ hτ, by rw [hE, hupd, X.set_get]⟩)
+
+/-- `prhlStmt_sp_left` for an assignment: `A ∧ x{1} = e{1}`. -/
+theorem prhlStmt_sp_left_read {α : Type} {A B : ProgramState → ProgramState → Prop}
+    (X : Lens α ProgramState) (E : ProgramState → α) (hd : Stmt.Det d upd)
+    (hupd : ∀ τ, upd τ = X.set (E τ) τ) (hA : ∀ τ σ₂, A τ σ₂ → A (upd τ) σ₂)
+    (hE : ∀ τ, E (upd τ) = E τ)
+    (h : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ X.get σ₁ = E σ₁) s₁ s₂ B) :
+    prhlStmt A (.seq d s₁) s₂ B :=
+  prhlStmt_sp_left hd (prhlStmt_conseq h (fun _ σ₂ ⟨τ, hτ, e⟩ => by
+    subst e; exact ⟨hA τ σ₂ hτ, by rw [hE, hupd, X.set_get]⟩) fun _ _ h => h)
+
+/-- `prhlStmt_sp_right` for an assignment: `A ∧ x{2} = e{2}`. -/
+theorem prhlStmt_sp_right_read {α : Type} {A B : ProgramState → ProgramState → Prop}
+    (X : Lens α ProgramState) (E : ProgramState → α) (hd : Stmt.Det d upd)
+    (hupd : ∀ τ, upd τ = X.set (E τ) τ) (hA : ∀ σ₁ τ, A σ₁ τ → A σ₁ (upd τ))
+    (hE : ∀ τ, E (upd τ) = E τ)
+    (h : prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ X.get σ₂ = E σ₂) s₁ s₂ B) :
+    prhlStmt A s₁ (.seq d s₂) B :=
+  prhlStmt_sp_right hd (prhlStmt_conseq h (fun σ₁ _ ⟨τ, hτ, e⟩ => by
+    subst e; exact ⟨hA σ₁ τ hτ, by rw [hE, hupd, X.set_get]⟩) fun _ _ h => h)
+
 namespace ECSp
 
 open Lean Meta Elab Tactic PRHLWp
+
+/-- The lens an assignment's setter writes through (`Lens.toSetter X`, `liftLens X`), if any. -/
+def lensOfSetter? (x : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let x ← instantiateMVars x
+  if x.isAppOfArity ``Lens.toSetter 3 then return some x.appArg!
+  if x.isAppOfArity `GaudisCrypt.liftLens 4 then
+    let X := x.appArg!
+    let .app (.app (.const ``Lens _) _) M ← whnfR (← inferType X) | return none
+    if ← isDefEq M (mkConst ``ProgramState) then return some X
+    if ← isDefEq M (mkConst ``VariableAssignment) then
+      return some (← mkAppM ``Lens.intoGlobal #[X])
+  return none
 
 /-- The statement of side `side?` of the goal (the only one of a Hoare or `phoare` judgment). -/
 def stmtOf (g : MVarId) (side? : Option Nat) : MetaM Lean.Expr := do
@@ -116,11 +171,44 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
       pure (if side? == some 2 then (``prhlStmt_sp_right, ``prhlStmt_sp_right_keep)
         else (``prhlStmt_sp_left, ``prhlStmt_sp_left_keep))
     else throwError "sp: not a statement judgment:{indentExpr ty}"
+  -- EC's `P /\ x = e` for an assignment `x <- e` that changes neither `P` nor `e`
+  let read? ← do
+    let f := stripLets first
+    if !f.isAppOf ``StmtWithHoles.assign then pure none else
+    let some X ← lensOfSetter? (f.getArg! (f.getAppNumArgs - 2)) | pure none
+    let E ← mkAppM ``Getter.get #[f.appArg!]
+    let rlem := if ty.isAppOf ``hoareStmt then ``hoareStmt_sp_read
+      else if ty.isAppOf ``phoareStmt then ``phoareStmt_sp_read
+      else if side? == some 2 then ``prhlStmt_sp_right_read else ``prhlStmt_sp_left_read
+    let s ← saveState
+    try
+      let gs ← applyLemma rlem g #[(`hd, hd), (`X, X), (`E, E)]
+      let mut rest := #[]
+      for h in gs do
+        let tag ← h.getTag
+        let t ← instantiateMVars (← h.getType)
+        if t.isAppOf ``prhlStmt || t.isAppOf ``hoareStmt || t.isAppOf ``phoareStmt then
+          rest := rest.push h; continue
+        if tag == `hupd then
+          let (_, h') ← h.intros
+          h'.refl; continue
+        if tag == `hA || tag == `hE then
+          let [] ← Term.TermElabM.run' (Tactic.run h (do
+              evalTactic (← `(tactic| first
+                | (intros; rfl)
+                | (intros; simp_reads; done)
+                | (intros; simp_reads; first | assumption | exact id)
+                | (simp_reads; intros; assumption)))))
+            | throwError "not kept"
+          continue
+        rest := rest.push h
+      pure (some rest.toList)
+    catch _ => s.restore; pure none
   -- EC's `P /\ x = e` when the update cannot change `P` (its reads simplified, `P` again)
   let trivialPre ← do
     let A := ty.getArg! 0
     forallTelescope (← inferType A) fun xs _ => isDefEq (mkAppN A xs) (mkConst ``True)
-  let kept? ← if trivialPre then pure none else do
+  let kept? ← if read?.isSome then pure read? else if trivialPre then pure none else do
     let s ← saveState
     try
       let gs ← applyLemma keep g #[(`hd, hd)]

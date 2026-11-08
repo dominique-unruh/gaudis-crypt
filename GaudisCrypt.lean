@@ -122,6 +122,7 @@ import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECClose
+import GaudisCrypt.Logic.RenameReads
 import GaudisCrypt.Logic.ECLoop
 import GaudisCrypt.Logic.ECLoopTest
 import GaudisCrypt.Logic.ECTrans
