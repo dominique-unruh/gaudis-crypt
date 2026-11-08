@@ -234,9 +234,17 @@ def accessorNorm (g : MVarId) : MetaM MVarId := g.withContext do
     let some c := e.getAppFn.constName? | return none
     let args := e.getAppArgs
     if args.isEmpty then return none
-    let acc := (← Flatten.isAccessor c) && args.back!.isAppOf (c.getPrefix ++ `mk)
+    let a := args.back!
+    -- of a record (`T.mk`, another module type's, or the bare `Module.pair'`), or of a module
+    -- of another module type with the same fields (the accessor switched, by definition)
+    let otherType : MetaM Bool := do
+      let some t := (← instantiateMVars (← inferType a)).getAppFn.constName? | return false
+      return t != c.getPrefix && (← getEnv).contains (t ++ `Structure)
+    let acc := (← Flatten.isAccessor c) && (a.isAppOf (c.getPrefix ++ `mk) ||
+      (← Flatten.builtModule? a) || a.isAppOf ``Module.pair' || (← otherType))
     unless acc || (Flatten.pairLemma? c).isSome do return none
-    Flatten.moduleStep? e
+    -- `simp` calls back at reducible transparency; the step unfolds accessors
+    withTransparency .default (Flatten.moduleStep? e (views := true))
   let pre : Simp.Simproc := fun e => do
     if let some r ← readOff? e then return .visit r
     -- the accessor under a clone's alias (`Indiff.DPRIMITIVE.f`): the theory's, by definition
@@ -273,3 +281,9 @@ elab "equiv_proc" : tactic => liftMetaTactic1 fun g =>
   some <$> (ECProc.procStep g >>= ECProc.accessorNorm)
 
 end GaudisCrypt
+
+open Lean Elab Tactic in
+/-- `module_norm`: read the procedures off module views in the goal (`ECProc.accessorNorm`:
+`DPRIMITIVE.f (DPRIMITIVE.mk { f := P.f, … })` is `P.f`), as `*_proc` and `sim` do. -/
+elab "module_norm" : tactic =>
+  liftMetaTactic1 fun g => some <$> GaudisCrypt.ECProc.accessorNorm g

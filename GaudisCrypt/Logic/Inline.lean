@@ -2498,11 +2498,17 @@ emitted the `mk_simp` lemma that reads the field back off a built module. -/
 def isAccessor (c : Name) : MetaM Bool :=
   return (← getEnv).contains (c ++ `mk_simp)
 
+/-- A module built from a record: some module type's `T.mk r`. -/
+def builtModule? (m : Expr) : MetaM Bool := do
+  let some c := m.getAppFn.constName? | return false
+  unless c.isStr && c.getString! == "mk" do return false
+  return (← getEnv).contains (c.getPrefix ++ `Structure)
+
 /-- One step of head evaluation of a module expression: applying a module or one of its procedures
 to its parameters, reading a field off a record, or — when none of those applies yet — the same
 one step in the position that has to be evaluated first (the function of a `Module.app`, the
 module a projection is taken of). -/
-partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
+partial def moduleStep? (e : Expr) (views : Bool := false) : MetaM (Option Simp.Result) := do
   -- (0) a structure projection of a record (`{ init := …, get := … }.1`, what a clone's
   -- accessor unfolds to): reduce it, by definition
   if let .proj .. := e.getAppFn then
@@ -2519,6 +2525,35 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
   if !args.isEmpty && args.back!.isAppOf (c.getPrefix ++ `mk) then
     if let some (rhs, h) ← rewriteHead? (c ++ `mk_simp) e then
       return some { expr := ← reduceStructProj rhs, proof? := some h }
+  -- (2') … of a module of another module type `T'` with the same fields (EC's structural
+  -- subtyping: `DPRIMITIVE.f (SPRP_Oracles.mk r)`, `DPRIMITIVE.f FBounder(P)`): the accessor is
+  -- `T'`'s, by definition, and the steps of `T'` apply next; of the bare record
+  -- (`Module.pair' …`, what `T'.mk` unfolds to): the accessor unfolded, for (3)
+  if !args.isEmpty && (← isAccessor c) then
+    let a := args.back!
+    let T'? ← (do
+      if let some c' := a.getAppFn.constName? then
+        if c'.isStr && c'.getString! == "mk" && (← getEnv).contains (c'.getPrefix ++ `Structure)
+          then return some c'.getPrefix
+      if let some t := (← instantiateMVars (← inferType a)).getAppFn.constName? then
+        if (← getEnv).contains (t ++ `Structure) then return some t
+      return none : MetaM (Option Name))
+    -- inlining: only a functor's application (`FBounder(P)`, what the switch is needed for; a
+    -- record of the other type, `Perm` unfolded, stays: the first port's proofs keep such
+    -- calls); `views` (`ECProc.accessorNorm`): any module of the other type
+    let switchable := views || a.isAppOfArity ``Module.app 6
+    if let some T' := T'? then
+      let f' := T' ++ Name.mkSimple c.getString!
+      if switchable && T' != c.getPrefix && (← isAccessor f') then
+        let n ← forallTelescope (← inferType (← mkConstWithFreshMVarLevels f')) fun xs _ =>
+          pure xs.size
+        if let some e' ← observing? (mkAppOptM f'
+            ((Array.replicate (n - 1) none).push (some a))) then
+          if ← withNewMCtxDepth (isDefEq e e') then
+            return some { expr := ← instantiateMVars e' }
+    if views && a.isAppOf ``Module.pair' then
+      if let some e' ← unfoldDefinition? e then
+        return some { expr := e'.headBeta }
   -- (3) a projection out of a `Module.pair`
   -- at default transparency: the pair's component types (`Module.Proc sig`, a `moduletype`'s
   -- field types) are spelled differently in the projection's implicit arguments
@@ -2526,7 +2561,7 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
   -- head keeps the match honest
   for lem in pairLemmas c do
     if let some (rhs, h) ← rewriteHead? lem e (reducible := false) then
-      return some { expr := rhs, proof? := some h }
+      return some { expr := ← reduceStructProj rhs, proof? := some h }
   -- (4) not yet: evaluate the position that has to come first, one step
   let i? : Option Nat ←
     match moduleAppFn? e with                                      -- its function
@@ -2535,7 +2570,7 @@ partial def moduleStep? (e : Expr) : MetaM (Option Simp.Result) := do
       if (pairLemma? c).isSome || (← isAccessor c) then pure (some (args.size - 1))
       else pure none
   if let some i := i? then
-    if let some r ← moduleStep? args[i]! then
+    if let some r ← moduleStep? args[i]! views then
       return some (← liftResultAt e i r)
   -- (5) a module named by a definition whose value is a record, `T.mk …` (a `module` with no
   -- parameters, which has no `apply_simp`): unfold it, by definition

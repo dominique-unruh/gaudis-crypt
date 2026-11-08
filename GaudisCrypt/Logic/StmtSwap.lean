@@ -3,6 +3,7 @@ import GaudisCrypt.Logic.PHoare
 import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.FootprintSolver
 import GaudisCrypt.Logic.Granular
+import GaudisCrypt.Logic.LoopCommute
 
 /-!
 # Swapping statements (EC's `swap`)
@@ -80,6 +81,21 @@ theorem ite {c : Getter Bool ProgramState} {t e : Stmt} (hc : ∀ σ, c.get (u �
   split
   · exact ht g σ
   · exact he g σ
+
+/-- A loop commutes with `u` when its guard does not see `u` and its body commutes with it
+(`ProgramDenotation.CommutesU.while_loop`, the Kleene argument). -/
+theorem «while» {c : Getter Bool ProgramState} {b : Stmt} (hc : ∀ σ, c.get (u σ) = c.get σ)
+    (hb : b.CommutesWith u) : Stmt.CommutesWith (StmtWithHoles.while c b) u := by
+  have hbU : (programDenotation b).CommutesU u := fun σ =>
+    SubProbability.ext_of_expected fun F => by
+      rw [SubProbability.expected_mapState]
+      have h := hb (fun τ => F ((), τ)) σ
+      simp only [Stmt.ewp, ProgramDenotation.wp] at h
+      exact h
+  have hL := ProgramDenotation.CommutesU.while_loop (ProgramDenotation.CommutesU.get c hc) hbU
+  intro g σ
+  simp only [Stmt.ewp, ProgramDenotation.wp, programDenotation]
+  rw [hL σ, SubProbability.expected_mapState]
 
 theorem «call» {sig : ProcedureSignature} {y : Setter sig.ret ProgramState} {p : Procedure sig}
     {args : Getter sig.ParamType ProgramState} (ha : ∀ σ, args.get (u σ) = args.get σ)
@@ -440,6 +456,7 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Le
     | ``StmtWithHoles.sample => pure ``Stmt.CommutesWith.sample
     | ``StmtWithHoles.assign => pure ``Stmt.CommutesWith.assign
     | ``StmtWithHoles.ifThenElse => pure ``Stmt.CommutesWith.ite
+    | ``StmtWithHoles.while => pure ``Stmt.CommutesWith.«while»
     | ``StmtWithHoles.call | ``Stmt.call | ``StmtWithHoles.call' =>
         -- a call commutes with an update of the caller's locals; with an assignment to a global
         -- variable, if the variable lies outside the callee's footprint
