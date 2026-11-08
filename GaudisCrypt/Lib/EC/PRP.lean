@@ -2,6 +2,9 @@ import GaudisCrypt.Syntax.Syntax
 import GaudisCrypt.Lib.EC.List
 import GaudisCrypt.Lib.EC.FMap
 import GaudisCrypt.Lib.EC.Distr
+import GaudisCrypt.Lib.EC.Dexcepted
+import GaudisCrypt.Logic.ECClose
+import GaudisCrypt.Logic.ECIf
 
 /-!
 # EasyCrypt's pseudo-random permutations (`theories/crypto/PRP.eca`)
@@ -83,6 +86,30 @@ module RP : (StrongPRP.PRP D) {
     return oget (FMap.get $mi $y)
   };
 }
+
+/-- `lemma f_ll: is_full dD => islossless RP.f` (with the theory's axiom `dD_ll`): `RP.f`
+samples from `dD \ rng RP.m`, which keeps a value when `RP.m` misses the queried key
+(`endo_dom_rng`). -/
+theorem f_ll (dD_ll : is_lossless dD) (dD_fu : is_full dD) :
+    (StrongPRP.PRP.f D (RP D dD m mi)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  phoare_proc; stmt_if
+  · phoare_auto
+    intro m1 x h
+    obtain ⟨y, hy⟩ := FMap.endo_dom_rng m1 ⟨x, by simpa using h⟩
+    exact (is_lossless_iff_expected _).mp (dexcepted_ll dD _ dD_ll ⟨y, hy, (dD_fu y).ne'⟩)
+  · phoare_auto
+
+/-- `lemma fi_ll: is_full dD => islossless RP.fi` (as `f_ll`). -/
+theorem fi_ll (dD_ll : is_lossless dD) (dD_fu : is_full dD) :
+    (StrongPRP.PRP.fi D (RP D dD m mi)).procedure.IsLossless := by
+  rw [Procedure.isLossless_iff_phoareProc]
+  phoare_proc; stmt_if
+  · phoare_auto
+    intro m1 y h
+    obtain ⟨x, hx⟩ := FMap.endo_dom_rng m1 ⟨y, by simpa using h⟩
+    exact (is_lossless_iff_expected _).mp (dexcepted_ll dD _ dD_ll ⟨x, hx, (dD_fu x).ne'⟩)
+  · phoare_auto
 
 end RP
 

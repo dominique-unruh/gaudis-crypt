@@ -3,6 +3,7 @@ import GaudisCrypt.Lib.EC.Strong_RP_RF
 import GaudisCrypt.Logic.ECLoop
 import GaudisCrypt.Logic.ECTrans
 import GaudisCrypt.Logic.ECAlias
+import GaudisCrypt.Logic.ECWhile
 
 /-!
 # From the permutation to a random function (EasyCrypt `proof/smart_counter/ConcreteF.eca`) —
@@ -767,6 +768,76 @@ theorem Real_GReal' (m : VariableAssignment) :
   all_goals first
     | smt_close [FMap.mem_set, FMap.mem_empty, FMap.get_setE]
     | (apply db_init_dom; assumption)
+
+end
+
+set_option maxHeartbeats 2000000 in
+/-- `SqueezelessSponge` touches `Redo.prefixes` (EC computes a module's `glob` from its code; the
+footprint solver reads it off this bound).  Not an EC lemma. -/
+@[fp_bound] theorem fvP_SqueezelessSponge :
+    FVP.fvP SqueezelessSponge ≤ Redo.prefixes.footprint := by
+  fp_module Redo.prefixes
+
+set_option maxHeartbeats 2000000 in
+/-- `Perm` touches `Perm.m`, `Perm.mi`.  Not an EC lemma. -/
+@[fp_bound] theorem fvP_Perm :
+    FVP.fvP (Perm : Indiff.PRIMITIVE) ≤ Perm.m.footprint ⊔ Perm.mi.footprint := by
+  rw [← Footprint.lens_pair]
+  fp_module (Lens.pair Perm.m Perm.mi)
+
+section
+
+-- EC's section's `D`, with the local clone's modules fresh for it (as `DoubleBounding`'s)
+declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo, -DBounder, -ARP, -PRPi.PRPi}
+
+-- EC's `declare axiom D_ll`
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+  islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
+
+set_option maxHeartbeats 1000000 in
+include D_ll in
+/-- EC's `lemma Real_Concrete &m : Pr[GReal(D).main()@ &m: res /\ C.c <= max_size] <=
+Pr[CF(DRestr(D)).main()@ &m: res] + (max_size ^ 2 - max_size)%r / 2%r * mu dstate (pred1
+witness)`. -/
+theorem Real_Concrete (m : VariableAssignment) :
+    Pr[ (GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
+      Pr[ (CF (DRestr D)) () @ &m : §res ] +
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal := by
+  refine (Real_GReal' D m).trans_le ?_
+  have dD_fu : is_full dD := fun x =>
+    pos_iff_ne_zero.2 (Strong_RP_RF.uD_full _ _ Switching.uD_uf_fu x)
+  have p_ll : islossless Perm.f := EC.PRP.RP.f_ll _ _ _ _ Switching.uD_uf_fu.1 dD_fu
+  have pi_ll : islossless Perm.fi := EC.PRP.RP.fi_ll _ _ _ _ Switching.uD_uf_fu.1 dD_fu
+  -- EC's `have f_ll : islossless SqueezelessSponge(Perm).f`, as `Pr_restr`'s argument
+  haveI hP : Module.Declared (Perm : Indiff.PRIMITIVE) (C.c.footprint ⊔ C.queries.footprint) :=
+    ⟨by fp_finite, by fp_disjoint⟩
+  haveI hCO : Module.Declared (SqueezelessSponge : Indiff.CONSTRUCTION)
+      (C.c.footprint ⊔ C.queries.footprint ⊔ (FVP.fvP (Perm : Indiff.PRIMITIVE)).glob) :=
+    ⟨by fp_finite, by fp_disjoint⟩
+  haveI hD : Module.Declared D (C.c.footprint ⊔ C.queries.footprint ⊔
+      (FVP.fvP (Perm : Indiff.PRIMITIVE)).glob ⊔
+      (FVP.fvP (SqueezelessSponge : Indiff.CONSTRUCTION)).glob) := by
+    refine ⟨by fp_finite, (Footprint.le_compl_comm _ _).mpr (sup_le (sup_le ?_ ?_) ?_)⟩
+    · exact (Footprint.le_compl_comm _ _).mp (by fp_disjoint)
+    · exact (Footprint.le_compl_comm _ _).mp (Footprint.le_compl_glob_symm (by fp_finite)
+        (fvP_Perm.trans (by fp_disjoint)))
+    · exact (Footprint.le_compl_comm _ _).mp (Footprint.le_compl_glob_symm (by fp_finite)
+        (fvP_SqueezelessSponge.trans (by fp_disjoint)))
+  -- EC's `have f_ll : islossless SqueezelessSponge(Perm).f`, as `Pr_restr`'s argument
+  have hr := @Pr_restr _ (Perm : Indiff.PRIMITIVE) hP SqueezelessSponge hCO D hD p_ll pi_ll
+    (by
+      phoare_proc
+      phoare_while True ((size §p - §i).toNat)
+      · intro z; stmt_wp; stmt_if
+        · phoare_auto; smt_close
+        · stmt_wp; phoare_call p_ll; phoare_auto
+          smt_close
+      · phoare_auto) D_ll m
+  refine le_trans (le_of_eq ?greal) (hr.trans ?_)
+  case greal =>
+    unfold GReal'; module_norm; rfl
+  trace_state
+  sorry
 
 end
 
