@@ -461,7 +461,7 @@ section
 
 declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo}
 
-set_option maxHeartbeats 4000000 in
+set_option maxHeartbeats 0 in
 -- one declaration: EC's call over three oracles, with the loops of `SqueezelessSponge`
 /-- The first step of EC's `Real_Concrete` (its `have ->:`): `Pr[RealIndif(SqueezelessSponge,
 PC(Perm), D).main() @ &m: res /\ C.c <= max_size] = Pr[GReal'.main() @ &m: res /\ C.c <=
@@ -483,7 +483,37 @@ theorem Real_GReal' (m : VariableAssignment) :
     · sim; auto_close
     · auto_close
   -- `F.f`
-  · sorry
+  · equiv_proc; stmt_inline*; stmt_sp; equiv_if{2}
+    · sorry
+    · stmt_wp
+      equiv_conseq (: _ ==> §sa{1} = (oget (FMap.get §Redo.prefixes{1} (take §i{1} §p{1}))).1 ∧
+          §i{1} = size §p{1} ∧ FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧
+          ={Perm.m, Perm.mi, Redo.prefixes, C.c})
+      · auto_progress
+        all_goals first
+          | smt_close [take_size]
+          | smt_close [take_size, prefix_inv]
+          | smt_close [all_prefixes]
+      equiv_while{1} (={Perm.m, Perm.mi, Redo.prefixes, C.c} ∧ FMap.dom §C.queries{2} §p{1} ∧
+          prefix_inv §C.queries{2} §Redo.prefixes{1} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size §p{1} ∧
+          FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧
+          (§sa{1}, §sc{1}) = oget (FMap.get §Redo.prefixes{1} (take §i{1} §p{1})) ∧
+          all_prefixes §Redo.prefixes{1}) ((size §p{1} - §i{1}).toNat)
+      · while_ll_phoare
+        intro σ₂
+        stmt_rcondt 1
+        · hoare_auto; smt_close [prefix_inv]
+        phoare_auto
+      · intro σ₂ k
+        stmt_rcondt 1
+        · hoare_auto; smt_close [prefix_inv]
+        hoare_auto
+        smt_close
+      · auto_progress
+        all_goals smt_close
+      · equiv_skip
+        auto_progress
+        all_goals smt_close [size, take]
   stmt_wp; equiv_skip
   auto_progress
   all_goals first

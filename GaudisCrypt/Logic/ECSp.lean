@@ -271,6 +271,19 @@ elab "stmt_sp" s:(Judgment.judgmentSide)? n:(ppSpace num)? : tactic => do
       else spSide g none n?
   replaceMainGoal gs
 
+/-- The losslessness goal of `equiv_while{i} I V` from a `phoare` judgment about the body
+(EC's `while{i}` goal on the body is a `phoare … = 1`). -/
+theorem while_lossless_of_phoare {I : ProgramState → ProgramState → Prop}
+    {c : Getter Bool ProgramState} {body : Stmt}
+    (h : ∀ σ₂, phoareStmt (fun σ => I σ σ₂ ∧ c.get σ = true) body (fun _ => 1) Eq (fun _ => 1)) :
+    ∀ σ₂ σ, I σ σ₂ → c.get σ = true → body.ewp (fun _ => 1) σ = 1 :=
+  fun σ₂ σ hI hc => h σ₂ σ ⟨hI, hc⟩
+
+/-- `while_ll_phoare`: the `lossless` goal of `equiv_while{i} I V` as
+`∀ σ₂, phoare[ I ∧ guard ==> 1 ] = 1` about the body, for the `phoare` tactics (EC's `while{i}`
+body goal: `auto; sp; rcondt 1; …`). -/
+macro "while_ll_phoare" : tactic => `(tactic| refine while_lossless_of_phoare ?_)
+
 open Lean Meta Elab Tactic ECSp Judgment in
 /-- **EC's `sp n m`** on a relational judgment, with EC's code positions (`Judgment.ecGap`): the
 statements before the gap `n` of the left side and before the gap `m` of the right forward (`0`:

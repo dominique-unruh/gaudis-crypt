@@ -184,8 +184,9 @@ elab "equiv_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainCont
   -- (those `Q` and the new postcondition read: EC's frame covers every unmodified variable)
   let (ls, gls) ← ECSim.varsOf #[B, Qe]
   let xs := ls ++ (← gls.mapM fun x => mkAppM ``Lens.intoGlobal #[x])
-  let (F₁, hF₁) ← ECConseqFrame.frameOf c₁ xs
-  let (F₂, hF₂) ← ECConseqFrame.frameOf c₂ xs
+  let rs ← ECConseqFrame.regionsOf #[B, Qe]
+  let (F₁, hF₁) ← ECConseqFrame.frameOf c₁ xs rs
+  let (F₂, hF₂) ← ECConseqFrame.frameOf c₂ xs rs
   let (F₁s, hF₁s, F₂s, hF₂s) := (← Term.exprToSyntax F₁, ← Term.exprToSyntax hF₁,
     ← Term.exprToSyntax F₂, ← Term.exprToSyntax hF₂)
   refineTagged (← `(prhlStmt_conseq_frame (A' := $Ps) (B' := $Qs) $F₁s $F₂s $hF₁s $hF₂s
