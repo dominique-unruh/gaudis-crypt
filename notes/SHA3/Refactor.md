@@ -501,6 +501,18 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   `auto => /#` and `smt(prefix_sizel)`, written out (`omega`, `glob_simp`, the hypotheses
   destructured).
 
+* Closers and loop tactics (2026-11-08 night): `auto_close` (`Logic/ECClose.lean`), our closer
+  for EC's `auto => /#` (no SMT: intro, take the hypotheses apart, substitute, reads through
+  writes everywhere, `glob_simp`, split, `omega`/`simp_all`; it closes or fails) —
+  `Pr_restr` 95 → 50 lines, every closer `auto_close` but EC's `smt(prefix_sizel)` (the
+  instance stated first).  EC's `splitwhile{i} n : e` and `unroll{i} n` (`Logic/ECLoop.lean`;
+  splitwhile proven for every loop, no variant, unlike `LoopTransform`'s), `transitivity{i}
+  { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` (`Logic/ECTrans.lean`, EC's goal order; the procedure form
+  as a rule), `alias{i} n x = e` (`Logic/ECAlias.lean`).  `sim` through two loops (EC's
+  equality set as invariant), and stopping at a conditional it does not finish (it used to leave
+  a metavariable).  Remaining known gaps: EC's `rnd f g` (ours is `equiv_rnd f`, other side
+  goals), two-judgment `conseq`, `sim` over abstract calls with differing oracles.
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;
