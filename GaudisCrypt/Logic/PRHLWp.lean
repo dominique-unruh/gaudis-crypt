@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.HoareWp
 import GaudisCrypt.Syntax.PRHLSyntax
 import GaudisCrypt.Logic.StmtSwap
+import GaudisCrypt.Logic.LoopTransform
 
 /-!
 # Tactics for relational judgments (pRHL)
@@ -556,6 +557,26 @@ macro "phoare_ewp" : tactic => `(tactic| (
   simp_reads
   try simp only [decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]))
 
+/-- `if c t e; s` (through the `let`s of the locals) as `if c (t; s) (e; s)`, and the
+equivalence (`Stmt.Equiv.seq_ite`); fails on anything else. -/
+partial def distribIf (s₀ : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
+  let s ← TacticMisc.openStmt s₀
+  if let .letE n ty val body _ := s then
+    return ← withLetDecl n ty val fun fv => do
+      let (r, pr) ← distribIf (body.instantiate1 fv)
+      return (← mkLetFVars #[fv] r (usedLetOnly := false),
+              ← mkLetFVars #[fv] pr (usedLetOnly := false))
+  unless s.isAppOfArity ``StmtWithHoles.seq 3 do throwError "not a sequence"
+  let a ← TacticMisc.openStmt (s.getArg! 1)
+  unless a.isAppOfArity ``StmtWithHoles.ifThenElse 4 do throwError "not a conditional first"
+  let (c, t, e, rest) := (a.getArg! 1, a.getArg! 2, a.getArg! 3, s.getArg! 2)
+  let r ← mkAppM ``StmtWithHoles.ifThenElse
+      #[c, ← mkAppM ``StmtWithHoles.seq #[t, rest], ← mkAppM ``StmtWithHoles.seq #[e, rest]]
+  -- each branch one sequence (`flattenSeq`), as EC's `if` leaves it
+  let (r', p') ← TacticMisc.flattenSeq r
+  return (r', ← mkAppM ``StmtWithHoles.Equiv.trans
+    #[← mkAppM ``Stmt.Equiv.seq_ite #[c, t, e, rest], p'])
+
 /-- `equiv_if`: both statements are conditionals (`prhlStmt_if`): goals `then`, `else` (with the
 test true, resp. false, on both sides) and `guard` (the tests agree under the precondition).
 `equiv_if{i}`: side `i`'s statement is a conditional (`prhlStmt_if_left`/`_right`, EC's
@@ -564,6 +585,14 @@ sequence, cut first (`equiv_seq`, `equiv_seq_last`). -/
 elab "equiv_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_if"
+  -- EC's `if` on the first statement of a sequence: the rest into both branches
+  -- (`Stmt.Equiv.seq_ite`)
+  let sides := match Judgment.sideOf? s with
+    | some i => [i]
+    | none => [1, 2]
+  let mut g := g
+  for i in sides do
+    g ← (Judgment.onStmt distribIf g (some i) : MetaM MVarId) <|> (pure g : MetaM MVarId)
   let (lem, tags) := match Judgment.sideOf? s with
     | some 1 => (``prhlStmt_if_left, [`then, `else])
     | some 2 => (``prhlStmt_if_right, [`then, `else])

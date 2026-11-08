@@ -87,6 +87,18 @@ theorem Stmt.Equiv.unroll (c : Getter Bool ProgramState) (body : Stmt) :
     · rw [programDenotation_seq, ProgramDenotation.bind_apply]
     · rw [programDenotation_skip_apply]
 
+/-! ## A conditional followed by code -/
+
+/-- The code after a conditional goes into both branches (what EC's `if` does with the rest of the
+code). -/
+theorem Stmt.Equiv.seq_ite (c : Getter Bool ProgramState) (t e s : Stmt) :
+    (StmtWithHoles.seq (StmtWithHoles.ifThenElse c t e) s).Equiv
+      (StmtWithHoles.ifThenElse c (StmtWithHoles.seq t s) (StmtWithHoles.seq e s)) :=
+  Stmt.Equiv.of_denotation_eq fun σ => by
+    rw [programDenotation_seq, ProgramDenotation.bind_apply, programDenotation_ifThenElse_apply,
+      programDenotation_ifThenElse_apply]
+    split_ifs <;> rw [programDenotation_seq, ProgramDenotation.bind_apply]
+
 /-! ## In judgments, for a trailing loop -/
 
 variable {A B : ProgramState → ProgramState → Prop}

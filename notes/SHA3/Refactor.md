@@ -522,12 +522,21 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   rcondt{2} 3; sim; auto`).  New for it: views across module types with the same fields
   (`DPRIMITIVE.f (SPRP_Oracles.mk …)`, `DPRIMITIVE.f FBounder(P)`) read off by the inliner and
   `module_norm`; loops commute with updates (`Logic/LoopCommute.lean`), so `alias` passes loops.
-  **Open**: the `F.f` oracle stops after EC's `splitwhile`/`alias`/`sp`: after `inline*` the
-  precondition carries the inliner's renaming equations (`(Flatten.rename …).chain
-  Flatten.trafo).get τ = …`), which `auto_close` cannot read through (EC's `auto` closes the
-  inner `if`'s else-branch at once).  To decide: the inliner keeping preconditions free of them,
-  or read lemmas for them.  Then the two loop invariants (EC's ~30 `smt` calls on prefix/`FMap`
-  facts) and `Real_Concrete`.
+  `DoubleBounding` **closed** (2026-11-08, sorry-free, one theorem at 4M heartbeats, ~2 min):
+  the `F.f` oracle, both loops (EC's `splitwhile`, `alias`, `sp`, two `conseq`s with EC's frame,
+  `while (I)`, `rcondt`, `sim`), the init code (`call (: true)` as `equiv_call (_ : ={glob D,
+  glob P})`: the region-join deviation).  New for it: `sp` in read form and `rename_reads` (the
+  inliner's renamings), EC's `conseq` frame (`Stmt.Keeps`), `if` on the first statement of a
+  sequence (`Stmt.Equiv.seq_ite`, in `equiv_if`), `smt_close`.  Closers: of EC's ~30
+  `smt`/`/#`, 9 are `smt_close`, ~17 are stated lemmas over plain values (13 `db_*` lemmas in
+  the file, from `prefix_exchange`, `all_take_in`, `take_get_max_prefix2`, `prefix_lt_size`,
+  `mem_set`), applied with `apply … <;> assumption` after `generalize_reads_all; subst_vars`.
+  `smt_close` fails on goals needing a lemma chain or case split EC's provers find themselves
+  (also on `0 ≤ prefix …` with `prefix_ge0` given — not investigated, per the policy).
+  Pitfall: `hoare_auto`/`hoare_skip` generalize the reads of the state while the precondition
+  still mentions the state in its `∃ τ, … σ = x.set … τ` form, losing the link (an rcondt side
+  goal on the bounder's counter); `apply hoare_skip_of_imp; auto_prep; generalize_reads_all;
+  subst_vars; omega` instead.  Next: `Real_Concrete`.
 
 ### What retiring the old files waits for
 
