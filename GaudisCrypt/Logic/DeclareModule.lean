@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.FootprintSolver
+import GaudisCrypt.Logic.GlobMono
 import GaudisCrypt.Syntax.CloneRegistry
 
 /-!
@@ -72,6 +73,157 @@ instance (priority := low) Module.Declared.weaken {M : Type 1} [IsModule M] {A :
     {S₀ S : Footprint VariableAssignment} [h : Module.Declared A S₀] [hS : Footprint.JoinLe S S₀] :
     Module.Declared A S :=
   ⟨h.finite, h.restr.trans (Footprint.compl_antimono hS.le)⟩
+
+/-! ### Concrete modules: their `glob` read off their code
+
+EC checks a restriction against a concrete module from its code (`glob Perm` is `Perm.m`,
+`Perm.mi`).  Here a concrete module carries `Module.GlobBound A B`: its footprint within a join
+`B` of `global_var`s (proven once, by `fp_module`, next to the module).  Instance search then
+derives `Module.Declared` for it, and for a declared module against the `glob` of a concrete
+one, as EC does:
+
+* `Footprint.Outside B S` — `B ≤ Sᶜ` over the joins: `global_var`s by their `Lens.Disjoint`
+  instances, the `glob` of a declared module (its restriction), of a concrete one (its bound);
+* `Module.Declared.ofGlobBound` — a concrete module is declared against what its bound stays
+  outside;
+* `Footprint.Covers S₀ S` — what stays outside `S₀` (finitely supported) stays outside `S`: the
+  joinands of `S₀`, and the `glob` of a concrete module whose bound is within `S₀`
+  (`Module.Declared.weakenCovers`, `weaken` extended). -/
+
+/-- A concrete module's footprint lies within `B`, a join of `global_var`s (`fp_module`): what
+EC reads off the module's code.  Not an EC notion. -/
+class Module.GlobBound {M : Type 1} [IsModule M] (A : M)
+    (B : outParam (Footprint VariableAssignment)) : Prop where
+  le : FVP.fvP A ≤ B
+  finite : (FVP.fvP A).FinitelySupported
+
+/-- `B` is a join of `global_var`s: finitely supported, and outside a finitely supported `F`,
+outside `glob F`. -/
+class Footprint.GlobalJoin (B : Footprint VariableAssignment) : Prop where
+  finite : B.FinitelySupported
+  le_compl_glob : ∀ F : Footprint VariableAssignment, F.FinitelySupported → F ≤ Bᶜ →
+    B ≤ F.globᶜ
+
+instance Footprint.GlobalJoin.var {T : Type} (x : Lens T VariableAssignment) {v : VariableName}
+    [Lens.IsGlobalVar x v] : Footprint.GlobalJoin x.footprint :=
+  ⟨Footprint.FinitelySupported.globalVar x, fun _ hF h => Footprint.globalVar_le_compl_glob hF x h⟩
+
+instance Footprint.GlobalJoin.sup {a b : Footprint VariableAssignment} [ha : Footprint.GlobalJoin a]
+    [hb : Footprint.GlobalJoin b] : Footprint.GlobalJoin (a ⊔ b) :=
+  ⟨ha.finite.sup hb.finite, fun F hF h => sup_le
+    (ha.le_compl_glob F hF (h.trans (Footprint.compl_antimono le_sup_left)))
+    (hb.le_compl_glob F hF (h.trans (Footprint.compl_antimono le_sup_right)))⟩
+
+/-- `B ≤ Sᶜ`, by instance search over the two joins. -/
+class Footprint.Outside (B S : Footprint VariableAssignment) : Prop where
+  le : B ≤ Sᶜ
+
+instance Footprint.Outside.sup_left {a b S : Footprint VariableAssignment}
+    [ha : Footprint.Outside a S] [hb : Footprint.Outside b S] : Footprint.Outside (a ⊔ b) S :=
+  ⟨sup_le ha.le hb.le⟩
+
+instance Footprint.Outside.sup_right {B a b : Footprint VariableAssignment}
+    [ha : Footprint.Outside B a] [hb : Footprint.Outside B b] : Footprint.Outside B (a ⊔ b) :=
+  ⟨(Footprint.le_compl_comm _ _).mpr (sup_le ((Footprint.le_compl_comm _ _).mp ha.le)
+    ((Footprint.le_compl_comm _ _).mp hb.le))⟩
+
+/-- Two `global_var`s: their `Lens.Disjoint` instance. -/
+instance Footprint.Outside.var {T U : Type} (x : Lens T VariableAssignment)
+    (y : Lens U VariableAssignment) [Lens.Disjoint x y] :
+    Footprint.Outside x.footprint y.footprint :=
+  ⟨Lens.footprint_le_compl_of_disjoint x y⟩
+
+set_option synthInstance.checkSynthOrder false in
+/-- The `glob` of a declared module `N`: its restriction keeps it outside `B`. -/
+instance (priority := low) Footprint.Outside.glob_declared {M : Type 1} [IsModule M] {N : M}
+    {B S₀ : Footprint VariableAssignment} [h : Module.Declared N S₀] [hB : Footprint.GlobalJoin B]
+    [hS : Footprint.JoinLe B S₀] : Footprint.Outside B (FVP.fvP N).glob :=
+  ⟨hB.le_compl_glob _ h.finite (h.restr.trans (Footprint.compl_antimono hS.le))⟩
+
+set_option synthInstance.checkSynthOrder false in
+/-- The `glob` of a declared module `N` on the left: its restriction keeps the `global_var`s `S`
+outside it. -/
+instance (priority := low) Footprint.Outside.glob_declared_left {M : Type 1} [IsModule M] {N : M}
+    {S S₀ : Footprint VariableAssignment} [h : Module.Declared N S₀] [hS : Footprint.GlobalJoin S]
+    [hJ : Footprint.JoinLe S S₀] : Footprint.Outside (FVP.fvP N).glob S :=
+  ⟨(Footprint.le_compl_comm _ _).mp
+    (hS.le_compl_glob _ h.finite (h.restr.trans (Footprint.compl_antimono hJ.le)))⟩
+
+/-- The `glob` of a concrete module `N`, its bound `B'` outside `B`. -/
+instance Footprint.Outside.glob_concrete {M : Type 1} [IsModule M] {N : M}
+    {B B' : Footprint VariableAssignment} [h : Module.GlobBound N B'] [hB : Footprint.GlobalJoin B]
+    [hO : Footprint.Outside B' B] : Footprint.Outside B (FVP.fvP N).glob :=
+  ⟨hB.le_compl_glob _ h.finite (h.le.trans hO.le)⟩
+
+/-- **A concrete module is declared** against what its bound stays outside (EC's check of a
+restriction from the module's code). -/
+instance Module.Declared.ofGlobBound {M : Type 1} [IsModule M] {A : M}
+    {B S : Footprint VariableAssignment} [h : Module.GlobBound A B] [hO : Footprint.Outside B S] :
+    Module.Declared A S :=
+  ⟨h.finite, h.le.trans hO.le⟩
+
+/-- **A concrete functor applied to a declared module** is declared where both stay outside
+(EC's restriction of `F(A)` from `F`'s code and `A`'s declaration). -/
+instance Module.Declared.app {A B : Type 1} [IsModule A] [IsModule B] {F : Module.Arr A B} {X : A}
+    {BF S : Footprint VariableAssignment} [hF : Module.GlobBound F BF] [hX : Module.Declared X S]
+    [hO : Footprint.Outside BF S] : Module.Declared (Module.app F X) S :=
+  ⟨(hF.finite.sup hX.finite).mono (FVP.fvP_app F X),
+    (FVP.fvP_app F X).trans (sup_le (hF.le.trans hO.le) hX.restr)⟩
+
+/-- **EC's syntactic `glob A`**: `R`, a region containing `A`'s footprint, within the `glob` of a
+finitely supported footprint (a declared module's `glob`, joined with `global_var`s).  Given once
+for a local module built from declared ones (EC's `glob D'` is `glob D` and the variables of
+`D'`'s code), where `glob (fvP A)` would not do: `fvP` of an application is only bounded
+above. -/
+class Module.ECGlob {M : Type 1} [IsModule M] (A : M)
+    (R : outParam (Footprint VariableAssignment)) : Prop where
+  finite : (FVP.fvP A).FinitelySupported
+  le : FVP.fvP A ≤ R
+  base : ∃ GF : Footprint VariableAssignment, GF.FinitelySupported ∧ R ≤ GF.glob
+
+set_option synthInstance.checkSynthOrder false in
+/-- A declared module's EC `glob` is its `glob`. -/
+instance (priority := low) Module.ECGlob.declared {M : Type 1} [IsModule M] {A : M}
+    {S : Footprint VariableAssignment} [h : Module.Declared A S] :
+    Module.ECGlob A (FVP.fvP A).glob :=
+  ⟨h.finite, Footprint.le_glob _, ⟨_, h.finite, le_rfl⟩⟩
+
+/-- A module is declared against what its EC `glob` stays outside (EC's restriction of a local
+module, `{-PRPi}` on `D'`). -/
+instance (priority := low) Module.Declared.ofECGlob {M : Type 1} [IsModule M] {A : M}
+    {R S : Footprint VariableAssignment} [h : Module.ECGlob A R] [hO : Footprint.Outside R S] :
+    Module.Declared A S :=
+  ⟨h.finite, h.le.trans hO.le⟩
+
+/-- What stays outside `S₀` (a finitely supported footprint) stays outside `S`. -/
+class Footprint.Covers (S₀ S : Footprint VariableAssignment) : Prop where
+  le : ∀ F : Footprint VariableAssignment, F.FinitelySupported → F ≤ S₀ᶜ → F ≤ Sᶜ
+
+instance (priority := low) Footprint.Covers.of_joinLe {S₀ S : Footprint VariableAssignment}
+    [h : Footprint.JoinLe S S₀] : Footprint.Covers S₀ S :=
+  ⟨fun _ _ hF => hF.trans (Footprint.compl_antimono h.le)⟩
+
+instance Footprint.Covers.sup {S₀ a b : Footprint VariableAssignment} [ha : Footprint.Covers S₀ a]
+    [hb : Footprint.Covers S₀ b] : Footprint.Covers S₀ (a ⊔ b) :=
+  ⟨fun F hfs hF => (Footprint.le_compl_comm _ _).mpr (sup_le
+    ((Footprint.le_compl_comm _ _).mp (ha.le F hfs hF))
+    ((Footprint.le_compl_comm _ _).mp (hb.le F hfs hF)))⟩
+
+/-- The `glob` of a concrete module whose bound lies within `S₀` (EC: a module restricted
+against `Perm.m`, `Perm.mi` is restricted against `glob Perm`). -/
+instance Footprint.Covers.glob_concrete {M : Type 1} [IsModule M] {N : M}
+    {S₀ B : Footprint VariableAssignment} [h : Module.GlobBound N B] [hB : Footprint.GlobalJoin B]
+    [hS : Footprint.JoinLe B S₀] : Footprint.Covers S₀ (FVP.fvP N).glob :=
+  ⟨fun F hfs hF => Footprint.le_compl_glob_symm h.finite
+    (h.le.trans (hB.le_compl_glob F hfs (hF.trans (Footprint.compl_antimono hS.le))))⟩
+
+set_option synthInstance.checkSynthOrder false in
+/-- `Module.Declared.weaken`, to what a declaration's set `Covers`: also the `glob` of the
+concrete modules within it. -/
+instance (priority := low) Module.Declared.weakenCovers {M : Type 1} [IsModule M] {A : M}
+    {S₀ S : Footprint VariableAssignment} [h : Module.Declared A S₀] [hS : Footprint.Covers S₀ S] :
+    Module.Declared A S :=
+  ⟨h.finite, hS.le _ h.finite h.restr⟩
 
 /-- Every procedure signature of `holes` has nonempty parameter and result types. -/
 def HoleSigs.AllNonempty : HoleSigs → Prop

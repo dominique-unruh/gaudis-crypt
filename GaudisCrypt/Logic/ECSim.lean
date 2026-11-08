@@ -5,6 +5,7 @@ import GaudisCrypt.Syntax.CloneRegistry
 import GaudisCrypt.Logic.ECSimGlob
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.DeclareModule
+import GaudisCrypt.Lib.EC.DProd
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -368,10 +369,21 @@ def varsOf (ss : Array Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) :
           unless (← globals.get).contains e do globals.modify (·.push e)
   return (← locals.get, ← globals.get)
 
-/-- EC's `sim` invariant of two loops: the relation `B` after them, and the variables the loops
-mention equal on the two sides. -/
+/-- `set_option debug.sim true`: `sim` reports why it stops at two loops. -/
+register_option debug.sim : Bool := {
+  defValue := false
+  descr := "sim: report why it stops at two loops"
+}
+
+/-- EC's `sim` invariant of two loops: the relation `B` after them, and the variables both loops
+mention equal on the two sides (a variable of one side only — `Perm.m` against `PRPi.m`, EC's
+`sim (_: ={m,mi}(Perm,PRPi))` — is related by `B`, if at all). -/
 def loopInv (B : Lean.Expr) (loops : Array Lean.Expr) : MetaM Lean.Expr := do
-  let (ls, gs) ← varsOf loops
+  let (ls, gs) ← if h : loops.size = 2 then do
+      let (ls₁, gs₁) ← varsOf #[loops[0]]
+      let (ls₂, gs₂) ← varsOf #[loops[1]]
+      pure (ls₁.filter ls₂.contains, gs₁.filter gs₂.contains)
+    else varsOf loops
   let ps := mkConst ``ProgramState
   withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
     let get (x st : Lean.Expr) : MetaM Lean.Expr := do
@@ -384,11 +396,86 @@ def loopInv (B : Lean.Expr) (loops : Array Lean.Expr) : MetaM Lean.Expr := do
     let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 B σ₁ σ₂).headBeta
     mkLambdaFVars #[σ₁, σ₂] body
 
+/-- The variables (lenses of the state or of the globals) a relational precondition `A` keeps
+equal, `x.get σ₁ = x.get σ₂`: EC's equality set. -/
+def eqVarsOf (A : Lean.Expr) : MetaM (Array Lean.Expr) := do
+  let A ← instantiateMVars A
+  if A.getAppFn.isMVar then return #[]
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    let body := (mkApp2 A σ₁ σ₂).headBeta
+    let xs ← IO.mkRef (#[] : Array Lean.Expr)
+    let lensOf? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr) :=
+      if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isAppOfArity ``Lens.toGetter 3 then
+        some ((e.getArg! 2).getArg! 2, e.getArg! 3) else none
+    Meta.forEachExpr body fun e => do
+      let some (_, a, b) := e.eq? | return
+      let some (x, sa) := lensOf? a | return
+      let some (y, sb) := lensOf? b | return
+      unless x == y && sa.containsFVar σ₁.fvarId! && sb.containsFVar σ₂.fvarId! do return
+      if x.containsFVar σ₁.fvarId! || x.containsFVar σ₂.fvarId! then return
+      unless (← xs.get).contains x do xs.modify (·.push x)
+    xs.get
+
+/-- EC's `sim (_: J)` invariant of two loops: `J`, the variables both loops mention equal, and
+of the precondition's equality set (its regions `Rs`, its variables `xs`) what neither or both
+loops mention. -/
+def loopInvWith (J : Lean.Expr) (Rs xs : Array Lean.Expr) (l₁ l₂ : Lean.Expr) :
+    MetaM Lean.Expr := do
+  -- the locals the bodies reset (inlining's temporaries, dead at the loop's head) are not kept
+  let resets ← IO.mkRef (#[] : Array String)
+  for l in [l₁, l₂] do
+    Meta.forEachExpr (← instantiateMVars l) fun e => do
+      if e.isAppOf ``resetSetter then
+        Meta.forEachExpr e fun t => do
+          if let .lit (.strVal str) := t then resets.modify (·.push str)
+  let resets ← resets.get
+  let reset (x : Lean.Expr) : Bool := (x.find? fun a =>
+    match a with | .lit (.strVal str) => resets.contains str | _ => false).isSome
+  let (ls₁, gs₁) ← varsOf #[l₁]
+  let (ls₂, gs₂) ← varsOf #[l₂]
+  let ls₁ := ls₁.filter (!reset ·)
+  let ls₂ := ls₂.filter (!reset ·)
+  let both (v : Lean.Expr) : Bool := (ls₁.contains v && ls₂.contains v) ||
+    (gs₁.contains v && gs₂.contains v)
+  let neither (v : Lean.Expr) : Bool := !(ls₁.contains v || ls₂.contains v ||
+    gs₁.contains v || gs₂.contains v)
+  let mut vs : Array Lean.Expr := ls₁.filter ls₂.contains ++ gs₁.filter gs₂.contains
+  for x in xs do
+    if (both x || neither x) && !vs.contains x then vs := vs.push x
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    -- a lens of the state or of the globals, or a region (`glob A`)
+    let get (x st : Lean.Expr) : MetaM Lean.Expr := do
+      let t ← whnfR (← inferType x)
+      if t.isAppOf ``Footprint then
+        return ← mkAppM ``Getter.get #[← mkAppM ``Footprint.touched_getter #[x],
+          ← mkAppM ``ProgramState.globals #[st]]
+      if t.isAppOfArity ``Lens 2 && (t.getArg! 1).isConstOf ``VariableAssignment then
+        return ← mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x],
+          ← mkAppM ``ProgramState.globals #[st]]
+      mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], st]
+    let mut eqs : Array Lean.Expr := #[]
+    for x in vs ++ Rs do eqs := eqs.push (← mkEq (← get x σ₁) (← get x σ₂))
+    let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 J σ₁ σ₂).headBeta
+    mkLambdaFVars #[σ₁, σ₂] body
+
+/-- `auto_close` (`Logic/ECClose.lean`, which imports this file) on `g`, when the environment has
+it: the goals left (`[g]` if it does not close it). -/
+def autoCloseIfAvailable (g : MVarId) : TacticM (List MVarId) := do
+  let .ok stx := Parser.runParserCategory (← getEnv) `tactic "auto_close" | return [g]
+  let s ← saveState
+  try
+    let gs ← evalTacticAt stx g
+    if gs.isEmpty then return [] else s.restore; return [g]
+  catch _ => s.restore; return [g]
+
 /-- EC's `sim` on the relational goal `g`, backwards (see the module docstring); the goals left.
 `open?`: the precondition is a metavariable to be found (a branch of a conditional), assigned the
 relation left where the statements are used up. -/
 partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 400)
-    (eqset : Array Lean.Expr × Array Lean.Expr := (#[], #[])) :
+    (eqset : Array Lean.Expr × Array Lean.Expr := (#[], #[]))
+    (inv? : Option (Lean.Expr × Array Lean.Expr) := none) :
     TacticM (List MVarId) := do
   if fuel == 0 then return [g]
   -- the deterministic code at the end of both sides
@@ -433,8 +520,8 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     let he ← arg `he
     let h ← arg `h
     g.assign (mkAppN c ms)
-    let rt ← sim ht frame? (fuel - 1) eqset
-    let re ← sim he frame? (fuel - 1) eqset
+    let rt ← sim ht frame? (fuel - 1) eqset inv?
+    let re ← sim he frame? (fuel - 1) eqset inv?
     -- a branch `sim` does not finish leaves its precondition open: EC's `sim` stops at the
     -- conditional then
     for n in [`Aₜ, `Aₑ] do
@@ -443,7 +530,7 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         s.restore
         return [g₀]
     let h ← Judgment.simpArg h 3 relSimpDecls []
-    return rt ++ re ++ (← sim h frame? (fuel - 1) eqset)
+    return rt ++ re ++ (← sim h frame? (fuel - 1) eqset inv?)
   | .call, .call =>
     -- with a frame: the call rule for states equal outside it, the callee's disjointness from
     -- it by `fp_disjoint`
@@ -466,10 +553,10 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
           | throwError "sim: the callee touches the frame"
         let hp := ms[ip]!.mvarId!
         hp.setKind .syntheticOpaque
-        return ← sim (← Judgment.simpArg hp 3 relSimpDecls []) frame? (fuel - 1) eqset
+        return ← sim (← Judgment.simpArg hp 3 relSimpDecls []) frame? (fuel - 1) eqset inv?
       catch _ => s.restore
     -- EC's `sim` with an equality set: a region the precondition keeps equal, the callee in it
-    if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset
+    if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset inv?
     let s ← saveState
     try
       -- calls of procedures spelled differently (an abstract procedure with oracles that are
@@ -490,7 +577,7 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         unless ok do s.restore; throwError "sim: the callees differ"
         return none
       match gs with
-      | [g'] => sim g' frame? (fuel - 1) eqset
+      | [g'] => sim g' frame? (fuel - 1) eqset inv?
       | _ => return gs
     catch _ => s.restore; return [g]
   | .loop, .loop =>
@@ -505,7 +592,9 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       if B.getAppFn.isMVar then throwError "sim: the relation after the loops is open"
       let l₁ := stripLets (lastOf (ty.getArg! 1))
       let l₂ := stripLets (lastOf (ty.getArg! 2))
-      let I ← loopInv B #[l₁, l₂]
+      let I ← match inv? with
+        | some (J, xs) => loopInvWith J eqset.1 xs l₁ l₂
+        | none => loopInv B #[l₁, l₂]
       let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_while
       let (ms, _, concl) ← forallMetaTelescope (← inferType c)
       unless ← isDefEq ms[0]! I do throwError "sim: the invariant"
@@ -515,22 +604,41 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       let (gGuard, gBody, gExit, gPre) :=
         (ms[n - 4]!.mvarId!, ms[n - 3]!.mvarId!, ms[n - 2]!.mvarId!, ms[n - 1]!.mvarId!)
       for m in [gGuard, gBody, gExit, gPre] do m.setKind .syntheticOpaque
-      let rb ← sim (← Judgment.simpArg gBody 0 relSimpDecls []) frame? (fuel - 1) eqset
+      let rb ← sim (← Judgment.simpArg gBody 0 relSimpDecls []) frame? (fuel - 1) eqset inv?
+      -- what `sim` leaves of the bodies (a relation between different variables, `glob A` past
+      -- writes): `auto_close`
+      let rb ← rb.flatMapM autoCloseIfAvailable
       unless rb.isEmpty do throwError "sim: the loops' bodies"
       for m in [gGuard, gExit] do
         let m ← try generalizeReadsRel m catch _ => pure m
         let r ← closeImp m
-        unless r.isEmpty do throwError "sim: the loops' guards"
-      return ← sim gPre frame? (fuel - 1) eqset
-    catch _ => s.restore; return [g]
+        let r ← r.flatMapM autoCloseIfAvailable
+        if let some m' := r.head? then
+          throwError "sim: the loops' guards or exit:{indentExpr (← instantiateMVars (← m'.getType))}"
+      return ← sim gPre frame? (fuel - 1) eqset inv?
+    catch e =>
+      s.restore
+      if debug.sim.get (← getOptions) then
+        -- printed, not logged: an enclosing rule's `restore` would drop a log message
+        IO.eprintln s!"sim (loops): {← e.toMessageData.toString}"
+      return [g]
   | .sample, .sample =>
     let s ← saveState
     try
       let gs ← runOn g (← `(tactic| equiv_rnd))
       match gs with
-      | [g'] => sim g' frame? (fuel - 1) eqset
+      | [g'] => sim g' frame? (fuel - 1) eqset inv?
       | _ => return gs
-    catch _ => s.restore; return [g]
+    catch _ =>
+      s.restore
+      -- a product sampling against two samplings (`x <$ d1 \`*\` d2` against `x₁ <$ d1;
+      -- x₂ <$ d2`, either side), coupled by the identity: EC's `sample_sample2`
+      try
+        let gs ← runOn g (← `(tactic| equiv_rnd_dprod))
+        match gs with
+        | [g'] => sim g' frame? (fuel - 1) eqset inv?
+        | _ => return gs
+      catch _ => s.restore; return [g]
   | _, _ => return [g]
 
 end ECSim
@@ -555,6 +663,19 @@ open Lean Elab Tactic ECSim in
 elab "sim" : tactic => do
   let g ← ECProc.accessorNorm (← getMainGoal)
   let gs ← sim g
+  replaceMainGoal gs
+
+open Lean Meta Elab Tactic ECSim PRHLWp in
+/-- **EC's `sim (_: I)`**: `sim` with the relation `I` (`§x{1}`, `§y{2}`; EC's
+`={m,mi}(Perm,PRPi)` is `§Perm.m{1} = §PRPi.m{2} ∧ …`) kept through loops, with EC's equality
+set: the loops' invariant is `I`, the variables both loops mention equal, and the
+precondition's equalities the loops keep. -/
+elab "sim" " (" "_" " : " I:term ")" : tactic => withMainContext do
+  let g ← ECProc.accessorNorm (← getMainGoal)
+  let ty ← prhlGoal g "sim"
+  let Ie ← g.withContext (elabRelCond ty I)
+  let xs ← g.withContext (eqVarsOf (ty.getArg! 0))
+  let gs ← sim g none 400 (#[], #[]) (some (Ie, xs))
   replaceMainGoal gs
 
 open Lean Meta Elab Tactic ECSim PRHLWp in

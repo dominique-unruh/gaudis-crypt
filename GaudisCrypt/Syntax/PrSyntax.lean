@@ -35,6 +35,10 @@ open Elab Term Meta in
 elab_rules : term <= expectedType?
   | `(Pr[ $M:term ( $args,* ) @ & $mem:term : $ev:term ]) => do
     let (_, procTerm, sig) ← procedureOf M
+    -- the signature known before the arguments are read (`()` against `ParamType ?sig` would
+    -- be stuck)
+    synthesizeSyntheticMVarsNoPostponing
+    let sig ← instantiateMVars sig
     let params ← whnf (mkApp (mkConst ``ProcedureSignature.params) sig)
     let some tys ← ModuleDecl.listLit? params
       | throwErrorAt M m!"the parameter list of this procedure's signature is not a list \

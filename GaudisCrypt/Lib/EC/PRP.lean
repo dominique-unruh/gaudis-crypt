@@ -87,6 +87,9 @@ module RP : (StrongPRP.PRP D) {
   };
 }
 
+-- the clone's parameters, as EC's `f_ll _` leaves them: implicit
+variable {D dD m mi}
+
 /-- `lemma f_ll: is_full dD => islossless RP.f` (with the theory's axiom `dD_ll`): `RP.f`
 samples from `dD \ rng RP.m`, which keeps a value when `RP.m` misses the queried key
 (`endo_dom_rng`). -/

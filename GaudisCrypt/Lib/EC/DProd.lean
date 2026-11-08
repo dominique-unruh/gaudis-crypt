@@ -44,26 +44,49 @@ theorem prhlStmt_seq_sample_dprod {t1 t2 : Type} {A B : ProgramState → Program
       SubProbability.satisfies_pure _ _ (hB a (SubProbability.mem_support_of_ne_zero ha))
 
 
+/-- `prhlStmt_seq_sample_dprod` the other way round: the two samplings on the left. -/
+theorem prhlStmt_seq_sample_dprod_left {t1 t2 : Type} {A B : ProgramState → ProgramState → Prop}
+    {s₁ s₂ : Stmt} {x : Setter (t1 × t2) ProgramState}
+    {e : Getter (SubProbability (t1 × t2)) ProgramState}
+    {x₁ : Setter t1 ProgramState} {e₁ : Getter (SubProbability t1) ProgramState}
+    {x₂ : Setter t2 ProgramState} {e₂ : Getter (SubProbability t2) ProgramState}
+    (h : prhlStmt A s₁ s₂ fun σ₁ σ₂ => e.get σ₂ = dprod (e₁.get σ₁) (e₂.get σ₁) ∧
+      (∀ a, e₂.get (x₁.set a σ₁) = e₂.get σ₁) ∧
+      ∀ p ∈ (e.get σ₂).support, B (x₂.set p.2 (x₁.set p.1 σ₁)) (x.set p σ₂)) :
+    prhlStmt A (.seq s₁ (.seq (.sample x₁ e₁) (.sample x₂ e₂))) (.seq s₂ (.sample x e)) B :=
+  (prhlStmt_seq_sample_dprod (A := fun σ₂ σ₁ => A σ₁ σ₂) (B := fun σ₂ σ₁ => B σ₁ σ₂)
+    h.symm).symm
+
 open Lean Meta Elab Tactic in
 /-- `equiv_rnd_dprod`: `x <$ d1 \`*\` d2` on the left against `x₁ <$ d1; x₂ <$ d2` on the right,
 coupled by the identity (`prhlStmt_seq_sample_dprod`). -/
 elab "equiv_rnd_dprod" : tactic => withMainContext do
-  let g ← getMainGoal
-  let _ ← PRHLWp.prhlGoal g "equiv_rnd_dprod"
-  let g ← HoareSplit.hoareSplit 1 g (side? := some 1)
-  let g ← HoareSplit.hoareSplit 2 g (side? := some 2)
-  g.withContext do
-    let ty ← PRHLWp.prhlGoal g "equiv_rnd_dprod"
-    let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_sample_dprod
-    let (ms, _, concl) ← forallMetaTelescope (← inferType c)
-    unless ← isDefEq concl ty do
-      throwError "equiv_rnd_dprod: not `x <$ d1 `*` d2` against two samplings:{indentExpr ty}"
-    let hJ := ms.back!
-    let g' ← mkFreshExprSyntheticOpaqueMVar (← instantiateMVars (← inferType hJ)) (← g.getTag)
-    unless ← isDefEq hJ g' do throwError "equiv_rnd_dprod: cannot set the new judgment"
-    g.assign (← instantiateMVars (mkAppN c ms))
-    let g' ← Judgment.simpArg g'.mvarId! 3 PRHLWp.relSimpDecls []
-    replaceMainGoal [g']
+  let g₀ ← getMainGoal
+  let _ ← PRHLWp.prhlGoal g₀ "equiv_rnd_dprod"
+  let s ← saveState
+  -- the product on the left, or (`prhlStmt_seq_sample_dprod_left`) on the right
+  for (n₁, n₂, lem) in [(1, 2, ``prhlStmt_seq_sample_dprod),
+      (2, 1, ``prhlStmt_seq_sample_dprod_left)] do
+    s.restore
+    let r ← observing? do
+      let g ← HoareSplit.hoareSplit n₁ g₀ (side? := some 1)
+      let g ← HoareSplit.hoareSplit n₂ g (side? := some 2)
+      g.withContext do
+        let ty ← PRHLWp.prhlGoal g "equiv_rnd_dprod"
+        let c ← mkConstWithFreshMVarLevels lem
+        let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+        unless ← isDefEq concl ty do throwError "equiv_rnd_dprod: no product sampling"
+        let hJ := ms.back!
+        let g' ← mkFreshExprSyntheticOpaqueMVar (← instantiateMVars (← inferType hJ))
+          (← g.getTag)
+        unless ← isDefEq hJ g' do throwError "equiv_rnd_dprod: cannot set the new judgment"
+        g.assign (← instantiateMVars (mkAppN c ms))
+        Judgment.simpArg g'.mvarId! 3 PRHLWp.relSimpDecls []
+    if let some g' := r then
+      replaceMainGoal [g']
+      return
+  s.restore
+  throwError "equiv_rnd_dprod: not a product sampling against two samplings"
 
 variable (t1 t2 : Type) [Inhabited t1] [Inhabited t2]
 

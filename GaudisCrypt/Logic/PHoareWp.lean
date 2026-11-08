@@ -329,6 +329,15 @@ def phoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM MVarId := do
   let g ← phoareSplit 1 g
   let ty ← instantiateMVars (← g.getType)
   let #[_, _, _, ρ, _] ← phoareParts ty | unreachable!
+  -- the judgment's metavariables (`D_ll _ _ …`: the oracles) from the callee, before the judgment
+  -- is normalized
+  let hTy₀ ← instantiateMVars (← inferType h)
+  if hTy₀.isAppOfArity ``phoareProc 6 && hTy₀.hasMVar then
+    let st ← TacticMisc.openStmt (ty.getArg! 1)
+    let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then TacticMisc.openStmt (st.getArg! 2)
+      else pure st
+    if last.isAppOf ``StmtWithHoles.call || last.isAppOf ``Stmt.call then
+      discard <| isDefEq (hTy₀.getArg! 1) (last.getArg! (last.getAppNumArgs - 2))
   let h ← normalizeSpec h
   let hTy ← instantiateMVars (← inferType h)
   unless hTy.isAppOfArity ``phoareProc 6 do
@@ -366,13 +375,36 @@ def phoareCallStep (h : Lean.Expr) (g : MVarId) : MetaM MVarId := do
 the procedure judgment `h` about the callee (EC's `call (_ : P ==> Q)`), or by its losslessness
 `h : islossless M.f` (EC's `call H`). -/
 elab "phoare_call " h:term : tactic => withMainContext do
-  let h ← elabTerm h none
+  -- `?_` holes in `h` (EC's `call` subgoals: `call (D_ll ?_ ?_ ?_)`) are goals after the call's
+  let (h, holes) ← elabTermWithHoles h none `call (allowNaturalHoles := true)
   -- EC's `call H` with `H : islossless M.f`: the lossless judgment `phoare[ M.f : true ==> true ] = 1`
   let hty ← whnfR (← instantiateMVars (← inferType h))
   let h ← if hty.isAppOf ``Procedure.IsLossless then
       mkAppM ``Iff.mp #[← mkAppM ``Procedure.isLossless_iff_phoareProc #[hty.appArg!], h]
     else pure h
-  liftMetaTactic1 fun g => some <$> phoareCallStep h g
+  -- assignable while the call is matched (the oracles `_` from the callee), goals after
+  for m in holes do m.setKind .natural
+  let g ← phoareCallStep h (← getMainGoal)
+  for m in holes do
+    unless ← m.isAssigned do m.setKind .syntheticOpaque
+  -- a restriction left open (`Module.Declared A S`) is checked, as EC checks it: by instance
+  -- search, else from the code (`fp_finite`, `fp_disjoint`)
+  let mut rest : List MVarId := []
+  for m in holes do
+    if ← m.isAssigned then continue
+    let ty ← instantiateMVars (← m.getType)
+    -- (`Logic/DeclareModule.lean`'s class and the footprint tactics, read when available)
+    if ty.isAppOf `GaudisCrypt.Module.Declared then
+      if let .ok stx := Parser.runParserCategory (← getEnv) `tactic
+          "first | exact inferInstance | exact ⟨by fp_finite, by fp_disjoint⟩" then
+        let s ← saveState
+        try
+          let gs ← evalTacticAt stx m
+          if gs.isEmpty then continue
+          s.restore
+        catch _ => s.restore
+    rest := rest ++ [m]
+  replaceMainGoal (g :: rest)
 
 /-- A procedure judgment `phoareProc P p G Eq R` as a conditional rewrite rule
 `∀ args σ, P args σ → p.ewp args G σ = R args σ`, normalized like the goal (`ewpDecls`,

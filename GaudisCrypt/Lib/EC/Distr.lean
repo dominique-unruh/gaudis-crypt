@@ -71,6 +71,15 @@ theorem uniform_funi [Fintype α] [Nonempty α] :
     PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton y)]
   simp
 
+/-- `lemma duniform_fu` for a finite nonempty type: every value has positive probability. -/
+theorem uniform_fu [Fintype α] [Nonempty α] :
+    is_full (SubProbability.uniform : SubProbability α) := by
+  intro x
+  letI : MeasurableSpace α := ⊤
+  change 0 < (PMF.uniformOfFintype α).toMeasure {x}
+  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton x)]
+  simp
+
 /-- `lemma eq_distr` (one direction): distributions with the same point masses are equal. -/
 theorem eq_distr {μ ν : SubProbability α} (h : ∀ x, μ.1 {x} = ν.1 {x}) : μ = ν :=
   Subtype.ext (discreteMeasure.ext μ.2.2 ν.2.2 h)
@@ -98,6 +107,13 @@ theorem dprod1E (d1 : SubProbability α) (d2 : SubProbability β) (x : α) (y : 
   simp only [h]
   exact MeasureTheory.lintegral_mul_const _ (measurable_from_top (f := fun a : α =>
     if a = x then (1 : ENNReal) else 0))
+
+/-- `supp_dprod`, as fullness: a product of full distributions is full. -/
+theorem dprod_fu {d1 : SubProbability α} {d2 : SubProbability β} (h1 : is_full d1)
+    (h2 : is_full d2) : is_full (dprod d1 d2) := by
+  rintro ⟨x, y⟩
+  rw [dprod1E]
+  exact ENNReal.mul_pos (h1 x).ne' (h2 y).ne'
 
 open Classical in
 /-- `d \ P`: `d` conditioned on not satisfying `P`.  EasyCrypt normalizes the restriction of `d` to

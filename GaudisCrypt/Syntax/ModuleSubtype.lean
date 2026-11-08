@@ -7,7 +7,9 @@ import GaudisCrypt.Syntax.ModuleSyntax
 
 makes a module of type `RF` usable where an `Oracle` is expected, as EasyCrypt does for a module
 type with (at least) the procedures of another: a `Coe RF Oracle` whose function builds the
-`Oracle` from `RF`'s procedures of the same names, `fun s => Oracle.mk { get := s.get }`.  The
+`Oracle` from `RF`'s procedures of the same names, `fun s => Oracle.mk { get := s.get }` — or,
+when the two module types have the same procedures (equal by definition), the identity: the
+module itself, as EC sees it.  The
 function is a `fun` building the record, not a named function, so that the coercion unfolds to
 the record the `module` command reads a callee like `A(Bounder(F))` back from; it prints back as
 the module (`Syntax/ModuleApplicationSyntax.lean`).  Either side may be a module type applied to
@@ -35,6 +37,29 @@ private partial def headModuleType (t : Term) : CommandElabM Name := do
 
 elab_rules : command
   | `($[$doc?]? module_subtype $S <: $T) => do
+    -- the same procedures (the two module types equal by definition): EC's subtyping is the
+    -- identity, and so is the view — a module of `S` is one of `T` as it stands, no record
+    -- `runTermElabM`: the section's variables (its instances) in scope
+    let same ← runTermElabM fun _ => do
+      let log ← Core.getMessageLog
+      try
+        Term.withoutErrToSorry do
+          let Se ← Term.elabType S
+          Term.synthesizeSyntheticMVarsNoPostponing
+          let Se ← instantiateMVars Se
+          if Se.hasMVar || Se.hasSorry then return false
+          -- `T`'s parameters (if written without them) from `S`
+          let Te ← Term.elabType T
+          unless ← Meta.isDefEq Se Te do return false
+          Term.synthesizeSyntheticMVarsNoPostponing
+          let Te ← instantiateMVars Te
+          if Te.hasMVar || Te.hasSorry then return false
+          return !(← Core.getMessageLog).hasErrors
+      catch _ => return false
+      finally Core.setMessageLog log
+    if same then
+      elabCommand (← `($[$doc?]? noncomputable instance : Coe $S $T := ⟨fun s => s⟩))
+      return
     let env ← getEnv
     let C ← headModuleType T
     let some fields := getStructureFields? env (C ++ `Structure)

@@ -769,10 +769,12 @@ theorem pr_PRPi'_Indirect_ARP_equiv [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
     [Lens.Disjoint PRP_indirect_bad_bad ARP_m] [Lens.Disjoint PRP_indirect_bad_bad ARP_mi]
     [Lens.Disjoint PRP_indirect_bad_bad ARP_coll]
     (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1 {x} = uD.1 {y})
+    (hfs : (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ PRP_indirect_bad_bad.footprint ⊔
+      ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint).FinitelySupported)
     (Dist : Distinguisher D) (G : Footprint VariableAssignment) (hDG : FVP.fvP Dist ≤ G)
     (hG : G ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ PRP_indirect_bad_bad.footprint ⊔
       ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint)ᶜ)
-    (D_ll : ∀ O : SPRP_Oracles D, FVP.fvP O ≤ Gᶜ →
+    (D_ll : ∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ Gᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless) :
     prhlProc (fun _ g₁ _ g₂ => g₁ = g₂)
@@ -786,7 +788,7 @@ theorem pr_PRPi'_Indirect_ARP_equiv [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
         fi := PRP.fi D
           (PRP_indirect_bad.asPRP D uD PRPi_m PRPi_mi PRP_indirect_bad_bad) })).procedure
       |>.IsLossless := by
-    refine D_ll _ (by fp_disjoint) ?_ ?_
+    refine D_ll _ (hfs.mono (by fp_le)) (by fp_disjoint) ?_ ?_
     · simp only [SPRP_Oracles.f.mk_simp, PRP_indirect_bad.asPRP, PRP.f.mk_simp]
       exact PRP_indirect_bad_f_ll D uD PRPi_m PRPi_mi PRP_indirect_bad_bad uD_uf_fu
     · simp only [SPRP_Oracles.fi.mk_simp, PRP_indirect_bad.asPRP, PRP.fi.mk_simp]
@@ -794,7 +796,7 @@ theorem pr_PRPi'_Indirect_ARP_equiv [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
   have hll₂ : (Module.app Dist (SPRP_Oracles.mk D
       { f := PRP.f D (ARP D uD ARP_coll ARP_m ARP_mi)
         fi := PRP.fi D (ARP D uD ARP_coll ARP_m ARP_mi) })).procedure.IsLossless := by
-    refine D_ll _ (by fp_disjoint) ?_ ?_
+    refine D_ll _ (hfs.mono (by fp_le)) (by fp_disjoint) ?_ ?_
     · simp only [SPRP_Oracles.f.mk_simp]
       exact ARP_f_ll D uD ARP_coll ARP_m ARP_mi uD_uf_fu.1
     · simp only [SPRP_Oracles.fi.mk_simp]
@@ -931,10 +933,12 @@ theorem pr_PRPi'_Indirect_ARP_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi
     [Lens.Disjoint PRP_indirect_bad_bad ARP_m] [Lens.Disjoint PRP_indirect_bad_bad ARP_mi]
     [Lens.Disjoint PRP_indirect_bad_bad ARP_coll]
     (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1 {x} = uD.1 {y})
+    (hfs : (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ PRP_indirect_bad_bad.footprint ⊔
+      ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint).FinitelySupported)
     (Dist : Distinguisher D) (G : Footprint VariableAssignment) (hDG : FVP.fvP Dist ≤ G)
     (hG : G ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ PRP_indirect_bad_bad.footprint ⊔
       ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint)ᶜ)
-    (D_ll : ∀ O : SPRP_Oracles D, FVP.fvP O ≤ Gᶜ →
+    (D_ll : ∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ Gᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless)
     (m : VariableAssignment) :
@@ -950,7 +954,7 @@ theorem pr_PRPi'_Indirect_ARP_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi
       (le_sup_right.trans (le_sup_left.trans (le_sup_left.trans le_sup_left)))))) m]
   refine Procedure.Pr_abs_sub_le_of_prhlProc_upto
     (pr_PRPi'_Indirect_ARP_equiv D uD PRPi_m PRPi_mi PRP_indirect_bad_bad ARP_coll ARP_m ARP_mi
-      uD_uf_fu Dist G hDG hG D_ll)
+      uD_uf_fu hfs Dist G hDG hG D_ll)
     (bad₁ := fun _ g => PRP_indirect_bad_bad.get g = true) ?_ ?_ rfl
   · rintro r₁ g₁ r₂ g₂ (⟨_, hq⟩ | ⟨_, hb, hc⟩)
     · exact hq
@@ -970,10 +974,12 @@ theorem pr_PRPi'_Indirect_ARP [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
     [Lens.Disjoint PRP_indirect_bad_bad ARP_m] [Lens.Disjoint PRP_indirect_bad_bad ARP_mi]
     [Lens.Disjoint PRP_indirect_bad_bad ARP_coll]
     (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1 {x} = uD.1 {y})
+    (hfs : (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ PRP_indirect_bad_bad.footprint ⊔
+      ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint).FinitelySupported)
     (Dist : Distinguisher D)
     (hDg : (FVP.fvP Dist).glob ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔
       PRP_indirect_bad_bad.footprint ⊔ ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint)ᶜ)
-    (D_ll : ∀ O : SPRP_Oracles D, FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
+    (D_ll : ∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless)
     (m : VariableAssignment) :
@@ -985,7 +991,7 @@ theorem pr_PRPi'_Indirect_ARP [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
       Procedure.Pr (Module.app (IND D) (Module.pair (ARP D uD ARP_coll ARP_m ARP_mi)
         Dist)).procedure () m (fun _ g => ARP_coll.get g = true) :=
   pr_PRPi'_Indirect_ARP_of_region D uD PRPi_m PRPi_mi PRP_indirect_bad_bad ARP_coll ARP_m ARP_mi
-    uD_uf_fu Dist _ (Footprint.le_glob _) hDg D_ll m
+    uD_uf_fu hfs Dist _ (Footprint.le_glob _) hDg D_ll m
 
 end Upto
 
@@ -1389,7 +1395,7 @@ theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
     (hDG : FVP.fvP Dist ≤ G)
     (hG : G ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
       ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ)
-    (D_ll : ∀ O : SPRP_Oracles D, FVP.fvP O ≤ Gᶜ →
+    (D_ll : ∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ Gᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless)
     (m : VariableAssignment) :
@@ -1400,7 +1406,7 @@ theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
         (DBounder D q FBounder_c Dist))).procedure () m (fun r _ => r = true)| ≤
       ((q ^ 2 - q : ℤ) : ℝ) / 2 * (uD.1 {default}).toReal := by
   -- the section `Upto`'s local variable `PRP_indirect_bad.bad`, fresh (exception E6)
-  obtain ⟨B, hBg, hB, -⟩ := Footprint.exists_fresh_glob Bool hGF hfs
+  obtain ⟨B, hBg, hB, hBfs⟩ := Footprint.exists_fresh_glob Bool hGF hfs
   have hB' : ∀ {X : Footprint VariableAssignment}, X ≤ GF ⊔ (PRPi_m.footprint ⊔
       PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔ ARP_m.footprint ⊔ ARP_mi.footprint ⊔
       FBounder_c.footprint) → B.footprint ≤ Xᶜ :=
@@ -1430,7 +1436,8 @@ theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
       ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ := hDG.trans hG
   -- `pr_PRPi'_Indirect_ARP (DBounder(D))`, its `D_ll` from `D`'s (EC: `call (D_ll …)`)
   have hupto := pr_PRPi'_Indirect_ARP_of_region D uD PRPi_m PRPi_mi B ARP_coll ARP_m ARP_mi
-    uD_uf_fu (DBounder D q FBounder_c Dist) (G ⊔ FBounder_c.footprint)
+    uD_uf_fu ((hfs.sup hBfs).mono (by fp_sub)) (DBounder D q FBounder_c Dist)
+    (G ⊔ FBounder_c.footprint)
     ((fvP_DBounder D q FBounder_c Dist).trans (sup_le_sup_right hDG _))
     (by
       have h1 := (Footprint.le_compl_comm _ _).mp hG
@@ -1438,7 +1445,8 @@ theorem PartialConclusion_of_region [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
       refine sup_le ((Footprint.le_compl_comm _ _).mpr ?_) (by fp_disjoint)
       simp only [sup_le_iff] at h1 ⊢
       exact ⟨⟨⟨⟨⟨h1.1.1.1.1.1, h1.1.1.1.1.2⟩, h2⟩, h1.1.1.1.2⟩, h1.1.1.2⟩, h1.1.2⟩)
-    (fun O hO hf hfi => DBounder_ll D q FBounder_c Dist O (D_ll _ (by fp_disjoint)
+    (fun O hOf hO hf hfi => DBounder_ll D q FBounder_c Dist O (D_ll _
+      (((hfs.mono le_sup_right).sup hOf).mono (by fp_le)) (by fp_disjoint)
       (FBounder_f_ll D q FBounder_c O hf) (FBounder_fi_ll D q FBounder_c O hfi))) m
   -- `pr_PRFi_collision D`
   have hcoll := pr_PRFi_collision D uD q FBounder_c ARP_coll ARP_m ARP_mi uD_uf_fu.2 Dist
@@ -1461,7 +1469,7 @@ theorem PartialConclusion [Countable D] [Lens.Disjoint PRPi_m PRPi_mi]
     (Dist : Distinguisher D) (hD : Module.ECModule Dist (SPRP_Oracles.ext D))
     (hDg : (FVP.fvP Dist).glob ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
       ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ)
-    (D_ll : ∀ O : SPRP_Oracles D, FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
+    (D_ll : ∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless)
     (m : VariableAssignment) :
@@ -1728,7 +1736,7 @@ theorem Conclusion_of_region [Countable D]
     (hG : G ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
       ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ)
     (m : VariableAssignment) :
-    (∀ O : SPRP_Oracles D, FVP.fvP O ≤ Gᶜ →
+    (∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ Gᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless) →
     |(Procedure.Pr (Module.app (IND D) (Module.pair (PRPi.PRPi D uD PRPi_m PRPi_mi)
@@ -1768,7 +1776,7 @@ theorem Conclusion [Countable D] (uD_uf_fu : uD.1 Set.univ = 1 ∧ ∀ x y, uD.1
     (_hD : (FVP.fvP Dist).glob ≤ (PRPi_m.footprint ⊔ PRPi_mi.footprint ⊔ ARP_coll.footprint ⊔
       ARP_m.footprint ⊔ ARP_mi.footprint ⊔ FBounder_c.footprint)ᶜ)
     (m : VariableAssignment) :
-    (∀ O : SPRP_Oracles D, FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
+    (∀ O : SPRP_Oracles D, (FVP.fvP O).FinitelySupported → FVP.fvP O ≤ (FVP.fvP Dist).globᶜ →
       (SPRP_Oracles.f D O).procedure.IsLossless → (SPRP_Oracles.fi D O).procedure.IsLossless →
       (Module.app Dist O).procedure.IsLossless) →
     |(Procedure.Pr (Module.app (IND D) (Module.pair (PRPi.PRPi D uD PRPi_m PRPi_mi)

@@ -89,7 +89,8 @@ open Lean Meta Elab Tactic
 
 /-- EC's `while I V` on `phoareStmt A {…; while c body} g = 1` (`phoareStmt_while_eq_one`): goals
 `body`, then the code before the loop; `exit` and `bound` when `simp` does not close them. -/
-def phoareWhileEqOneStep (I V : Lean.Expr) (g : MVarId) : TacticM (List MVarId) := do
+def phoareWhileEqOneStep (I V : Lean.Expr) (g : MVarId) : TacticM (List MVarId) :=
+    g.withContext do
   let g ← phoareSplit 1 g
   let rule ← mkConstWithFreshMVarLevels ``phoareStmt_while_eq_one
   let (ms, _, ty) ← forallMetaTelescope (← inferType rule)
@@ -123,7 +124,7 @@ end PHoareWp
 open Lean Elab Tactic PHoareWp in
 /-- **EC's `while I V`** on `phoare[ … ] = 1` (see the module docstring): `I` a condition, `V` a
 natural number, written like the judgment's conditions. -/
-elab "phoare_while " I:term:max ppSpace V:term:max : tactic => do
+elab "phoare_while " I:term:max ppSpace V:term:max : tactic => withMainContext do
   let Ie ← elabGoalFunction I (mkSort 0)
   let Ve ← elabGoalFunction V (mkConst ``Nat)
   let gs ← phoareWhileEqOneStep Ie Ve (← getMainGoal)

@@ -592,7 +592,7 @@ axiom absM : Module.Arr U T
 
 /--
 error: no concrete procedure body: nothing to unfold at the head of
-  (Module.app absM someU).f
+  absM(someU).f
 -/
 #guard_msgs in
 #unfoldProc (T.f (Module.app absM someU))
