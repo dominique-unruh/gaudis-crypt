@@ -48,6 +48,12 @@ theorem phoareStmt_exists {α : Type} (e : ProgramState → α) {g r : ProgramSt
     phoareStmt A c g ρ r :=
   fun σ hA => h (e σ) σ ⟨hA, rfl⟩
 
+/-- **EC's `exists* e`** on a relational judgment: `e` reads both states. -/
+theorem prhlStmt_exists {α : Type} {A B : ProgramState → ProgramState → Prop} {c₁ c₂ : Stmt}
+    (e : ProgramState → ProgramState → α)
+    (h : ∀ v, prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ e σ₁ σ₂ = v) c₁ c₂ B) : prhlStmt A c₁ c₂ B :=
+  prhlStmt_pre (prhlStmt_exists_pre h) fun σ₁ σ₂ hA => ⟨e σ₁ σ₂, hA, rfl⟩
+
 /-- **EC's `exists* e`** on a Hoare triple. -/
 theorem hoareStmt_exists {α : Type} (e : ProgramState → α) {B : ProgramState → Prop}
     (h : ∀ v, hoareStmt (fun σ => A σ ∧ e σ = v) c B) : hoareStmt A c B :=
@@ -204,6 +210,24 @@ elab "stmt_exists" "*" e:term : tactic => withMainContext do
   Term.synthesizeSyntheticMVarsNoPostponing
   let es ← Term.exprToSyntax (← instantiateMVars ee)
   evalTactic (← `(tactic| refine $(mkIdent lem) $es ?_))
+
+open Lean Meta Elab Tactic GaudisCrypt PRHLWp in
+/-- **EC's `exists* e₁, …, eₙ`** on a relational judgment: the `eᵢ` relational terms (`§x{1}`,
+`§y{2}`); the goal for all their values, `∀ v₁ … vₙ, equiv[ (A ∧ e₁ = v₁) ∧ … ∧ eₙ = vₙ ==> … ]`
+(EC's `elim* => v₁ … vₙ` is `intro v₁ … vₙ`). -/
+elab "equiv_exists" "*" ts:term,+ : tactic => do
+  let mut vs : Array FVarId := #[]
+  for t in ts.getElems do
+    withMainContext do
+      let ty ← prhlGoal (← getMainGoal) "equiv_exists*"
+      let e ← elabRelTerm ty t (← mkFreshTypeMVar)
+      let es ← Term.exprToSyntax (← instantiateMVars e)
+      evalTactic (← `(tactic| refine prhlStmt_exists $es ?_))
+    let (v, g) ← (← getMainGoal).intro `v
+    vs := vs.push v
+    replaceMainGoal [g]
+  let (_, g) ← (← getMainGoal).revert vs (preserveOrder := true)
+  replaceMainGoal [g]
 
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
 /-- **EC's `conseq H`** on a relational judgment: the judgment `H` (about the same statements or

@@ -69,4 +69,18 @@ example : equiv[ ={x, y} ==> ={x, y} ] {
   · auto_close
   · sim
 
+/-- EC's `exists* x{1}, y{2}; elim* => a b` on a relational judgment. -/
+example : equiv[ ={x} ∧ §y{2} = 2 ==> §z{1} + 2 = §z{2} ] {
+      var x : ℕ, z : ℕ;
+      z <- §x;
+    } ~ {
+      var x : ℕ, y : ℕ, z : ℕ;
+      z <- §x + §y;
+    } := by
+  equiv_exists* §x{1}, §y{2}
+  intro a b
+  stmt_wp
+  equiv_skip
+  auto_close
+
 end GaudisCrypt.ECConseqTest

@@ -299,6 +299,25 @@ the implication from the precondition to the postcondition, the reads of the two
 plain values `x₁`, `x₂`. -/
 elab "equiv_skip" : tactic => liftMetaTactic1 fun g => some <$> equivSkip g
 
+/-- **EC's `rnd{i}`**: the last statement of side `i` is a sampling `x <$ d`, which goes by
+itself (`prhlStmt_seq_sample_left`/`_right`): the postcondition before it asks `d` lossless and
+the postcondition for every value in its support. -/
+syntax (priority := high) "equiv_rnd" Judgment.judgmentSide : tactic
+
+elab_rules : tactic
+  | `(tactic| equiv_rnd $s:judgmentSide) => withMainContext do
+    let some i := Judgment.sideOf? (some s) | throwError "equiv_rnd: no side"
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_rnd"
+    let g ← HoareSplit.hoareSplit 1 g (some i)
+    let st ← g.withContext do
+      let (d, ty) ← Judgment.descOf g (some i)
+      pure (stripLets (ty.getArg! d.stmtArg))
+    unless st.isAppOf ``StmtWithHoles.seq &&
+        (stripLets (st.getArg! 2)).isAppOf ``StmtWithHoles.sample do
+      throwError "equiv_rnd: the last statement of side {i} is not a sampling"
+    replaceMainGoal [← Judgment.wpOne g (some i)]
+
 /-- `equiv_rnd f`: the last statements of both sides are samplings `x₁ <$ d₁`, `x₂ <$ d₂`,
 coupled along `f` (`prhlStmt_seq_sample`): the postcondition before them asks that `f` push `d₁`
 to `d₂`, and the postcondition for every `a` in the support of `d₁` paired with `f a`.  `f` is a

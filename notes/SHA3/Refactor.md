@@ -431,6 +431,15 @@ dependent is ported.  Bottom-up along the SHA-3 import graph; the cross-cutting 
 abstract module (`Logic/ECCallAbstract.lean`); framed `call (: P ==> Q)` in `phoare`
 (`Logic/ECCallFrame.lean`); `hoare_call (: inv)` with EC's goal order (oracle first); `sim n₁ n₂`;
 the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argument types.
+From the SmartCounter gap scan (2026-11-08): EC's `wp n m` / `sp n m` as `stmt_wp n m` /
+`stmt_sp n m` with EC's code positions (`n` keeps the first `n`; `-k` counts from the end, `-1`
+after the last; `Judgment.ecGap`) — the one-number `stmt_wp k` stays ours (the last `k`); `swap k`
+/ `swap -k` (`stmt_swap{i}? [-]k`: the first statement later, the last one earlier; both sides
+without `{i}`); `inline M₁ M₂` as `stmt_inline (M₁) (M₂)`; one-sided `rnd{i}` as
+`equiv_rnd{i}` (`prhlStmt_seq_sample_left/right`: the distribution lossless, the post for every
+value in its support); relational `exists* e₁{1}, e₂{2}; elim* => a b` as
+`equiv_exists* §e₁{1}, §e₂{2}; intro a b` (`prhlStmt_exists`; statements only, not yet on
+procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
 
 ### Ported
 

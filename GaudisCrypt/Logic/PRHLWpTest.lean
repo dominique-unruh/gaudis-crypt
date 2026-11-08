@@ -39,6 +39,20 @@ example : equiv[ True ==> §b{1} = !§b{2} ] {
   equiv_skip
   simp
 
+/-- EC's one-sided `rnd{1}`, `rnd{2}`: each sampling by itself, its distribution lossless; the
+negation coupling is not needed for a postcondition about one side. -/
+example : equiv[ True ==> §b{1} = §b{1} ∧ §c{2} = §c{2} ] {
+      var b : Bool;
+      b <$ SubProbability.uniform;
+    } ~ {
+      var c : Bool;
+      c <$ SubProbability.uniform;
+    } := by
+  equiv_rnd{1}
+  equiv_rnd{2}
+  equiv_skip
+  simp
+
 /-- wp on one side, then the other. -/
 example : equiv[ ={x} ==> ={x} ] {
       var x : ℕ;
