@@ -267,6 +267,160 @@ theorem db_init_dom {β γ : Type} (v : β) (w : γ) (bs : List block) (i : ℤ)
   · exact absurd h (FMap.mem_empty _)
   · exact (FMap.mem_set _ _ _ _).2 (Or.inr (by simp [take]))
 
+/-! EC's facts in `Real_Concrete`'s first step (the new query `bs`, `Redo.prefixes` from `P` to
+`R`: `P`'s entries kept, the prefixes of `bs` added, nothing else), the `conseq` goals
+`smt_close` does not find (EC's `progress` bullets: two by hand, three `smt`). -/
+
+theorem rc_dom_of_P (P R : FMap (List block) state)
+    (hPR : ∀ l, P.dom l → P.get l = R.get l) (l : List block) (h : P.dom l) : R.dom l := by
+  rw [FMap.domE] at h ⊢; rwa [← hPR l ((FMap.domE _ _).2 h)]
+
+theorem rc_take_in (R : FMap (List block) state) (bs : List block)
+    (hRin : ∀ j, 0 ≤ j → j ≤ size bs → R.dom (take j bs)) (i : ℤ) : R.dom (take i bs) := by
+  have : 0 ≤ size bs := by simp [size]
+  rw [take_clamp]; exact hRin _ (by omega) (min_le_right _ _)
+
+theorem rc_query_block (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (bs : List block) (sa : block) (sc : capacity) (x : List block)
+    (hx : (Q.set bs sa).dom x) (hinv : prefix_inv Q P)
+    (hPR : ∀ l, P.dom l → P.get l = R.get l)
+    (hR : R.get (take (size bs) bs) = some (sa, sc)) :
+    oget ((Q.set bs sa).get x) = (oget (R.get x)).1 :=
+  db_query_block Q P R bs sa sc x hx hinv hPR
+    (fun y hy => by simpa [take_size] using hinv.2.1 y hy (size y)) hR
+
+theorem rc_query_prefixes (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (bs : List block) (sa : block) (x : List block) (i : ℤ)
+    (hx : (Q.set bs sa).dom x) (hinv : prefix_inv Q P)
+    (hPR : ∀ l, P.dom l → P.get l = R.get l)
+    (hRin : ∀ j, 0 ≤ j → j ≤ size bs → R.dom (take j bs)) : R.dom (take i x) := by
+  rcases (FMap.mem_set _ _ _ _).1 hx with h | h
+  · exact rc_dom_of_P P R hPR _ (hinv.2.1 x h i)
+  · subst h; exact rc_take_in R x hRin i
+
+theorem rc_query_extend (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (bs : List block) (sa : block) (x : List block) (i : ℤ) (hne : take i x ≠ [])
+    (hdom : R.dom (take i x)) (hinv : prefix_inv Q P)
+    (hRout : ∀ l, R.dom l → P.dom l ∨ ∃ j, 0 ≤ j ∧ j ≤ size bs ∧ l = take j bs) :
+    ∃ l2, (Q.set bs sa).dom (take i x ++ l2) := by
+  rcases hRout _ hdom with hP | ⟨j, -, -, hj⟩
+  · obtain ⟨l2, hl⟩ := hinv.2.2 x i hne hP
+    exact ⟨l2, (FMap.mem_set _ _ _ _).2 (Or.inl hl)⟩
+  · exact ⟨drop j bs, by rw [hj, cat_take_drop]; exact (FMap.mem_set _ _ _ _).2 (Or.inr rfl)⟩
+
+theorem rc_nil (P R : FMap (List block) state) (hP0 : P.get [] = some (b0, c0))
+    (hPR : ∀ l, P.dom l → P.get l = R.get l) : R.get [] = some (b0, c0) := by
+  rw [← hPR [] ((FMap.domE _ _).2 (by rw [hP0]; simp))]; exact hP0
+
+theorem rc_all_prefixes (P R : FMap (List block) state) (bs : List block) (l : List block)
+    (i : ℤ) (hl : R.dom l) (hall : all_prefixes P)
+    (hPR : ∀ l, P.dom l → P.get l = R.get l)
+    (hRin : ∀ j, 0 ≤ j → j ≤ size bs → R.dom (take j bs))
+    (hRout : ∀ l, R.dom l → P.dom l ∨ ∃ j, 0 ≤ j ∧ j ≤ size bs ∧ l = take j bs) :
+    R.dom (take i l) := by
+  rcases hRout l hl with hP | ⟨j, -, -, rfl⟩
+  · exact rc_dom_of_P P R hPR _ (hall l hP i)
+  · rw [take_take]; exact rc_take_in R bs hRin _
+
+/-! EC's facts in `Real_Concrete`'s first step, second loop: a round past the longest queried
+prefix adds `take (i+1) p`, which was nowhere yet (EC's `prefix_exchange`). -/
+
+theorem rc_pref_notin (Q : FMap (List block) block) (P : FMap (List block) state)
+    (p : List block) (i : ℤ) (hinv : prefix_inv Q P) (hallP : all_prefixes P)
+    (hpre : «prefix» p (get_max_prefix p (elems (FMap.fdom Q))) ≤ i) (hi : i < size p) :
+    ¬ P.dom (take (i + 1) p) := by
+  intro hP
+  rw [prefix_exchange Q P p hinv hallP] at hpre
+  exact prefix_lt_size p _ (by omega) (i + 1) (by omega) ((mem_elems_fdom _ _).2 hP)
+
+theorem rc_loop_notin (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (p : List block) (i : ℤ) (hinv : prefix_inv Q P) (hallP : all_prefixes P)
+    (hpre : «prefix» p (get_max_prefix p (elems (FMap.fdom Q))) ≤ i) (hi : i < size p)
+    (hRout : ∀ l, R.dom l → P.dom l ∨ ∃ j, 0 ≤ j ∧ j ≤ i ∧ l = take j p) :
+    ¬ R.dom (take (i + 1) p) := by
+  intro hd
+  rcases hRout _ hd with hP | ⟨j, hj0, hji, hj⟩
+  · exact rc_pref_notin Q P p i hinv hallP hpre hi hP
+  · have h2 := congrArg List.length hj
+    simp only [take, List.length_take] at h2
+    simp only [size] at hi
+    omega
+
+theorem rc_loop_closed (Q : FMap (List block) block) (R : FMap (List block) state)
+    (p x : List block) (i i' : ℤ) (v : state) (hx : (R.set (take (i + 1) p) v).dom x)
+    (hall : all_prefixes R) (hpre : «prefix» p (get_max_prefix p (elems (FMap.fdom Q))) ≤ i)
+    (hRin : ∀ j, 0 ≤ j → j ≤ i → R.dom (take j p)) :
+    (R.set (take (i + 1) p) v).dom (take i' x) := by
+  have h0 := prefix_ge0 p (get_max_prefix p (elems (FMap.fdom Q)))
+  rcases (FMap.mem_set _ _ _ _).1 hx with h | h
+  · exact (FMap.mem_set _ _ _ _).2 (Or.inl (hall x h i'))
+  · subst h
+    rw [take_take]
+    by_cases hm : min i' (i + 1) ≤ i
+    · have : 0 ≤ size p := by simp [size]
+      refine (FMap.mem_set _ _ _ _).2 (Or.inl ?_)
+      rw [take_clamp]
+      exact hRin _ (by omega) (by omega)
+    · rw [show min i' (i + 1) = i + 1 by omega]
+      exact (FMap.mem_set _ _ _ _).2 (Or.inr rfl)
+
+theorem rc_loop_pref (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (p l : List block) (i : ℤ) (v : state) (hinv : prefix_inv Q P) (hallP : all_prefixes P)
+    (hpre : «prefix» p (get_max_prefix p (elems (FMap.fdom Q))) ≤ i) (hi : i < size p)
+    (hl : P.dom l) (hPR : ∀ l, P.dom l → P.get l = R.get l) :
+    P.get l = (R.set (take (i + 1) p) v).get l := by
+  rw [FMap.get_setE, if_neg]
+  · exact hPR l hl
+  · rintro rfl; exact rc_pref_notin Q P p i hinv hallP hpre hi hl
+
+theorem rc_loop_in (R : FMap (List block) state)
+    (p : List block) (i j : ℤ) (v : state)
+    (hRin : ∀ j, 0 ≤ j → j ≤ i → R.dom (take j p)) (hj0 : 0 ≤ j) (hj : j ≤ i + 1) :
+    (R.set (take (i + 1) p) v).dom (take j p) := by
+  by_cases h : j ≤ i
+  · exact (FMap.mem_set _ _ _ _).2 (Or.inl (hRin j hj0 h))
+  · rw [show j = i + 1 by omega]; exact (FMap.mem_set _ _ _ _).2 (Or.inr rfl)
+
+theorem rc_loop_out (Q : FMap (List block) block) (P R : FMap (List block) state)
+    (p l : List block) (i : ℤ) (v : state)
+    (hpre : «prefix» p (get_max_prefix p (elems (FMap.fdom Q))) ≤ i)
+    (hRout : ∀ l, R.dom l → P.dom l ∨ ∃ j, 0 ≤ j ∧ j ≤ i ∧ l = take j p)
+    (hl : (R.set (take (i + 1) p) v).dom l) :
+    P.dom l ∨ ∃ j, 0 ≤ j ∧ j ≤ i + 1 ∧ l = take j p := by
+  have h0 := prefix_ge0 p (get_max_prefix p (elems (FMap.fdom Q)))
+  rcases (FMap.mem_set _ _ _ _).1 hl with h | rfl
+  · rcases hRout l h with h | ⟨j, h0, h1, rfl⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨j, h0, by omega, rfl⟩
+  · exact Or.inr ⟨i + 1, by omega, le_rfl, rfl⟩
+
+/-! EC's facts in `Real_Concrete`'s first step, first loop: it stops exactly at the longest
+queried prefix (EC's `take_get_max_prefix`, `prefix_exchange`). -/
+
+theorem rc_first_exit {Q : FMap (List block) block} {R : FMap (List block) state}
+    {bs : List block} {i : ℤ} {s : state} (hinv : prefix_inv Q R) (hall : all_prefixes R)
+    (hi : i ≤ «prefix» bs (get_max_prefix bs (elems (FMap.fdom Q))))
+    (hR : R.get (take i bs) = some s)
+    (hg : (decide (i < size bs) && decide (R.dom (take (i + 1) bs))) = false) :
+    «prefix» bs (get_max_prefix bs (elems (FMap.fdom Q))) = i := by
+  rw [prefix_exchange Q R bs hinv hall] at hi ⊢
+  by_contra hne
+  have hs := prefix_sizel bs (get_max_prefix bs (elems (FMap.fdom R)))
+  have hd := take_get_max_prefix2 bs R (i + 1)
+    ⟨_, (FMap.domE _ _).2 (by rw [hR]; simp)⟩ hall (by omega)
+  simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not] at hg
+  rcases hg with h | h
+  · omega
+  · exact h hd
+
+theorem rc_first_in (Q : FMap (List block) block) (R : FMap (List block) state)
+    (bs : List block) (i j : ℤ) (s : state) (hinv : prefix_inv Q R) (hall : all_prefixes R)
+    (hi : «prefix» bs (get_max_prefix bs (elems (FMap.fdom Q))) = i)
+    (hR : R.get (take i bs) = some s) (hj : j ≤ i) : R.dom (take j bs) := by
+  subst hi
+  rw [prefix_exchange Q R bs hinv hall] at hj
+  exact take_get_max_prefix2 bs R j ⟨_, (FMap.domE _ _).2 (by rw [hR]; simp)⟩ hall hj
+
 /-- A `PRPSec.SPRP_Oracles` is a `DPRIMITIVE` (its `f`, `fi`). -/
 module_subtype (EC.PRP.StrongPRP.SPRP_Oracles state) <:
   GaudisCrypt.SHA3.Pilot.Indifferentiability.DPRIMITIVE
@@ -461,7 +615,7 @@ section
 
 declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo}
 
-set_option maxHeartbeats 0 in
+set_option maxHeartbeats 4000000 in
 -- one declaration: EC's call over three oracles, with the loops of `SqueezelessSponge`
 /-- The first step of EC's `Real_Concrete` (its `have ->:`): `Pr[RealIndif(SqueezelessSponge,
 PC(Perm), D).main() @ &m: res /\ C.c <= max_size] = Pr[GReal'.main() @ &m: res /\ C.c <=
@@ -484,7 +638,101 @@ theorem Real_GReal' (m : VariableAssignment) :
     · auto_close
   -- `F.f`
   · equiv_proc; stmt_inline*; stmt_sp; equiv_if{2}
-    · sorry
+    · stmt_sp; stmt_wp
+      stmt_splitwhile{1} 1 : FMap.dom §Redo.prefixes (take (§i + 1) §p)
+      stmt_splitwhile{2} 1 : FMap.dom §Redo.prefixes (take (§i + 1) §p0)
+      stmt_alias{1} 1 pref = §Redo.prefixes
+      stmt_alias{2} 1 pref = §Redo.prefixes
+      stmt_sp 1 1
+      stmt_alias{2} 1 query = §C.queries
+      stmt_sp 0 1
+      equiv_conseq (: _ ==> §sa{1} = §sa0{2} ∧ §p{1} = §p0{2} ∧
+          ={Perm.m, Perm.mi, Redo.prefixes, i} ∧
+          §C.c{1} = §C.c{2} - size §p0{2} + §i{2} ∧ §i{2} = size §p0{2} ∧
+          FMap.get §Redo.prefixes{2} (take §i{2} §p0{2}) = some (§sa0{2}, §sc{2}) ∧
+          (∀ l, FMap.dom §pref{2} l → FMap.get §pref{2} l = FMap.get §Redo.prefixes{2} l) ∧
+          (∀ j, 0 ≤ j → j ≤ §i{2} → FMap.dom §Redo.prefixes{2} (take j §p0{2})) ∧
+          (∀ l, FMap.dom §Redo.prefixes{2} l →
+            FMap.dom §pref{2} l ∨ ∃ j, 0 ≤ j ∧ j ≤ §i{2} ∧ l = take j §p0{2}))
+      · auto_progress
+        all_goals first
+          | smt_close
+          | (generalize_reads_all; subst_vars
+             first
+              | (apply rc_query_block <;> assumption)
+              | (apply rc_query_prefixes <;> assumption)
+              | (apply rc_query_extend <;> assumption)
+              | (apply rc_nil <;> assumption)
+              | (apply rc_all_prefixes <;> assumption))
+      equiv_while (§sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧ §p{1} = §p0{2} ∧
+          §C.c{1} = §C.c{2} - size §p0{2} + §i{2} ∧
+          all_prefixes §Redo.prefixes{2} ∧ all_prefixes §pref{2} ∧
+          prefix_inv §C.queries{2} §pref{2} ∧
+          «prefix» §p0{2} (get_max_prefix §p0{2} (elems (FMap.fdom §C.queries{2}))) ≤ §i{2} ∧
+          §i{2} ≤ size §p0{2} ∧
+          FMap.get §Redo.prefixes{2} (take §i{2} §p0{2}) = some (§sa0{2}, §sc{2}) ∧
+          (∀ l, FMap.dom §pref{2} l → FMap.get §pref{2} l = FMap.get §Redo.prefixes{2} l) ∧
+          (∀ j, 0 ≤ j → j ≤ §i{2} → FMap.dom §Redo.prefixes{2} (take j §p0{2})) ∧
+          (∀ l, FMap.dom §Redo.prefixes{2} l →
+            FMap.dom §pref{2} l ∨ ∃ j, 0 ≤ j ∧ j ≤ §i{2} ∧ l = take j §p0{2}))
+      · stmt_rcondf{1} 1
+        · intros; apply hoare_skip_of_imp
+          auto_prep; generalize_reads_all; subst_vars
+          apply rc_loop_notin <;> assumption
+        stmt_rcondf{2} 1
+        · intros; apply hoare_skip_of_imp
+          auto_prep; generalize_reads_all; subst_vars
+          apply rc_loop_notin <;> assumption
+        sim
+        auto_progress
+        all_goals first
+          | smt_close
+          | (generalize_reads_all; try subst_vars
+             first
+              | (apply rc_loop_closed <;> assumption)
+              | (apply rc_loop_pref <;> assumption)
+              | (apply rc_loop_in <;> assumption)
+              | (apply rc_loop_out <;> assumption))
+      · auto_close
+      · auto_close
+      · equiv_conseq (: _ ==> §sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧
+            §p{1} = §p0{2} ∧ §C.c{1} = §C.c{2} - size §p0{2} + §i{2} ∧
+            §pref{2} = §Redo.prefixes{2} ∧ all_prefixes §pref{2} ∧
+            prefix_inv §C.queries{2} §pref{2} ∧
+            «prefix» §p0{2} (get_max_prefix §p0{2} (elems (FMap.fdom §C.queries{2}))) = §i{2} ∧
+            FMap.get §Redo.prefixes{2} (take §i{2} §p0{2}) = some (§sa0{2}, §sc{2}))
+        · auto_progress
+          all_goals first
+            | smt_close [all_prefixes]
+            | (generalize_reads_all; subst_vars
+               first
+                | exact prefix_sizel _ _
+                | (apply rc_first_in <;> first | assumption | rfl))
+        equiv_while (§sa{1} = §sa0{2} ∧ ={sc, Perm.m, Perm.mi, Redo.prefixes, i} ∧
+            §p{1} = §p0{2} ∧
+            §C.c{1} = §C.c{2} - size §p0{2} +
+              «prefix» §p0{2} (get_max_prefix §p0{2} (elems (FMap.fdom §C.queries{2}))) ∧
+            §pref{2} = §Redo.prefixes{2} ∧ all_prefixes §pref{2} ∧
+            prefix_inv §C.queries{2} §pref{2} ∧ 0 ≤ §i{2} ∧
+            §i{2} ≤ «prefix» §p0{2} (get_max_prefix §p0{2} (elems (FMap.fdom §C.queries{2}))) ∧
+            FMap.get §Redo.prefixes{2} (take §i{2} §p0{2}) = some (§sa0{2}, §sc{2}))
+        · stmt_rcondt{1} 1
+          · hoare_auto
+          stmt_rcondt{2} 1
+          · hoare_auto
+          equiv_auto
+          auto_progress
+          · apply db_first_step <;> assumption
+          · apply db_first_get; assumption
+        · auto_close
+        · auto_progress
+          all_goals
+            have := rc_first_exit (by assumption) (by assumption) (by assumption) (by assumption)
+              (by assumption)
+            omega
+        · equiv_skip
+          auto_progress
+          generalize_reads_all; exact prefix_ge0 _ _
     · stmt_wp
       equiv_conseq (: _ ==> §sa{1} = (oget (FMap.get §Redo.prefixes{1} (take §i{1} §p{1}))).1 ∧
           §i{1} = size §p{1} ∧ FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧
