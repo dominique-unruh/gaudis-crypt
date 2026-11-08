@@ -18,6 +18,7 @@ import GaudisCrypt.Logic.ECSeq
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECCallFrame
+import GaudisCrypt.Logic.ECClose
 
 /-!
 # The squeezeless sponge: common definitions (EasyCrypt `proof/smart_counter/SLCommon.ec`) —
@@ -339,8 +340,9 @@ EC's proof, step for step: `byequiv (_: ={glob D, glob P, glob CO} ==> …); sym
 inline *; wp; call (_: max_size < C.c, ={glob P, glob CO, glob C})`, then per oracle its
 equivalence (`proc; sp; if{1}`, the call kept by `sim`, EC's `call (_: true)`; `call{2} f_ll`
 past the bad event), the left oracle's losslessness and the right one's `phoare` (`call f_ll`
-keeping `C.c`, `phoare_call f_ll / C.c`).  Deviations: the right oracles' `islossless` (exception
-E11), and the closers of EC's `auto => /#` and `smt(prefix_sizel)` written out. -/
+keeping `C.c`, `phoare_call f_ll / C.c`); EC's `auto => /#` is `auto_close`, its
+`smt(prefix_sizel)` the instance of `prefix_sizel` and `auto_close`.  Deviation: the right
+oracles' `islossless` (exception E11). -/
 theorem Pr_restr (m : VariableAssignment) :
     Pr[ Indif(FC(CO(P)), PC(P), D).main () @ &m : §res ∧ §C.c ≤ max_size ] ≤
       Pr[ Indif(CO(P), P, DRestr(D)).main () @ &m : §res ] := by
@@ -350,64 +352,29 @@ theorem Pr_restr (m : VariableAssignment) :
     · exact D_ll
     -- `P.f`
     · equiv_proc; stmt_sp; equiv_if{1}
-      · sim
-        intro σ₁ σ₂ h
-        obtain ⟨⟨⟨⟨_, hx, hF, _, _⟩, _⟩, _⟩, _⟩ := h
-        refine ⟨hx, hF, fun r g₁ g₂ hg h₁ h₂ => ?_⟩
-        glob_simp
-        split_ifs
-        exact ⟨hg, by omega, by simp_all⟩
-      · stmt_wp; equiv_call{2} f_ll / C.c; equiv_skip
-        intro σ₁ σ₂ h r g hg
-        obtain ⟨⟨⟨⟨_, _, _, hc, _⟩, _⟩, _⟩, hd⟩ := h
-        simp only [decide_eq_false_iff_not, not_le] at hd
-        rw [if_pos (by omega)]; trivial
+      · sim; auto_close
+      · stmt_wp; equiv_call{2} f_ll / C.c; equiv_skip; auto_close
     · phoare_proc; stmt_sp; stmt_if
       · phoare_auto; phoare_call f_ll; phoare_auto
       · phoare_auto
-    · phoare_proc; stmt_wp; phoare_call f_ll / C.c; phoare_auto
-      simp only [indicatorE_eq_one_iff]; intros; omega
+    · phoare_proc; stmt_wp; phoare_call f_ll / C.c; phoare_auto; auto_close
     · phoare_proc; stmt_wp; phoare_call f_ll; phoare_auto
     -- `P.fi`
     · equiv_proc; stmt_sp; equiv_if{1}
-      · sim
-        intro σ₁ σ₂ h
-        obtain ⟨⟨⟨⟨_, hx, hF, _, _⟩, _⟩, _⟩, _⟩ := h
-        refine ⟨hx, hF, fun r g₁ g₂ hg h₁ h₂ => ?_⟩
-        glob_simp
-        split_ifs
-        exact ⟨hg, by omega, by simp_all⟩
-      · stmt_wp; equiv_call{2} fi_ll / C.c; equiv_skip
-        intro σ₁ σ₂ h r g hg
-        obtain ⟨⟨⟨⟨_, _, _, hc, _⟩, _⟩, _⟩, hd⟩ := h
-        simp only [decide_eq_false_iff_not, not_le] at hd
-        rw [if_pos (by omega)]; trivial
+      · sim; auto_close
+      · stmt_wp; equiv_call{2} fi_ll / C.c; equiv_skip; auto_close
     · phoare_proc; stmt_sp; stmt_if
       · phoare_auto; phoare_call fi_ll; phoare_auto
       · phoare_auto
-    · phoare_proc; stmt_wp; phoare_call fi_ll / C.c; phoare_auto
-      simp only [indicatorE_eq_one_iff]; intros; omega
+    · phoare_proc; stmt_wp; phoare_call fi_ll / C.c; phoare_auto; auto_close
     · phoare_proc; stmt_wp; phoare_call fi_ll; phoare_auto
     -- `CO(P).f`
     · equiv_proc; stmt_sp; equiv_if
       · equiv_if{1}
-        · sim
-          intro σ₁ σ₂ h
-          obtain ⟨⟨⟨⟨⟨_, hbs, hF, hc, hq⟩, _⟩, _⟩, _⟩, _⟩ := h
-          refine ⟨hbs, by glob_simp; exact hF, fun r g₁ g₂ hg ⟨h₁, h₁'⟩ ⟨h₂, h₂'⟩ => ?_⟩
-          glob_simp
-          split_ifs
-          refine ⟨hg, ?_, by rw [h₁', h₂', hq, hbs]⟩
-          rw [h₁, h₂, hc, hq, hbs]
-        · stmt_wp; equiv_call{2} CO_ll / C.c; stmt_wp; equiv_skip
-          intro σ₁ σ₂ h r g hg
-          obtain ⟨⟨⟨⟨⟨_, hbs, _, hc, hq⟩, _⟩, _⟩, _⟩, hd⟩ := h
-          simp only [decide_eq_false_iff_not, not_le] at hd
-          rw [hbs, hc, hq] at hd
-          rw [if_pos (by omega)]; trivial
+        · sim; auto_close
+        · stmt_wp; equiv_call{2} CO_ll / C.c; stmt_wp; equiv_skip; auto_close
       · equiv_auto
-      · intro σ₁ σ₂ ⟨⟨⟨_, hbs, _, _, hq⟩, _⟩, _⟩
-        rw [hbs, hq]
+      · auto_close
     · phoare_proc; stmt_sp; stmt_if
       · stmt_if
         · phoare_auto; phoare_call CO_ll; phoare_auto
@@ -415,32 +382,15 @@ theorem Pr_restr (m : VariableAssignment) :
       · phoare_auto
     · phoare_proc; stmt_sp; stmt_if
       · stmt_wp; phoare_call CO_ll / C.c; phoare_auto
-        intro _ c q bs ⟨⟨hc, _⟩, _⟩
-        simp only [indicatorE_eq_one_iff]
-        intro gl hgl
+        intro _ _ q bs
         have := prefix_sizel bs (get_max_prefix bs (elems q.fdom))
-        omega
-      · phoare_auto
-        intro _ c _ _ ⟨⟨hc, _⟩, _⟩
-        simpa using hc
+        auto_close
+      · phoare_auto; auto_close
     · phoare_proc; stmt_sp; stmt_if
       · phoare_auto; phoare_call CO_ll; phoare_auto
       · phoare_auto
-    · sim
-      intro σ₁ σ₂ h
-      simp only [Setter.throwaway_set]
-      simp_reads
-      refine ⟨by glob_simp; exact h.symm, fun _ g₁ g₂ hg _ ⟨hc₂, hq₂⟩ =>
-        ⟨hg, fun _ g₁' g₂' hg' _ ⟨hc₂', hq₂'⟩ =>
-          ⟨⟨?_, ⟨by rw [hc₂', hc₂], by rw [hq₂', hq₂]⟩, by rw [hc₂', hc₂]; have := max_ge0; omega⟩,
-            ?_⟩⟩⟩
-      · glob_simp; exact hg'
-      · intro r₁ g₁ r₂ g₂ h hc
-        rcases h with h | ⟨hr, -⟩
-        · omega
-        · exact hr.symm
-  · intro _ _ _ _ H ⟨h₁, h₂⟩
-    simp only [eval, Evaluatable.eval] at *; rw [← H h₂]; exact h₁
+    · sim; have := max_ge0; auto_close
+  · auto_close
 
 end COUNT
 

@@ -121,6 +121,7 @@ import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
+import GaudisCrypt.Logic.ECClose
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.ECCallAbstract
