@@ -58,8 +58,8 @@ macro_rules
   | `(tactic| auto_close) => `(tactic| focus (
       -- the `let`s of the conditions first (introduced, they would hide the reads)
       try simp only [] at *
-      intros
-      try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+      all_goals intros
+      all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
       all_goals try subst_vars
       all_goals try simp only [Setter.throwaway_set] at *
       all_goals try simp_reads_all

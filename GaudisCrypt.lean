@@ -122,6 +122,12 @@ import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECClose
+import GaudisCrypt.Logic.ECLoop
+import GaudisCrypt.Logic.ECLoopTest
+import GaudisCrypt.Logic.ECTrans
+import GaudisCrypt.Logic.ECTransTest
+import GaudisCrypt.Logic.ECAlias
+import GaudisCrypt.Logic.ECAliasTest
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.ECCallAbstract
