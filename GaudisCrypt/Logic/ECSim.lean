@@ -4,6 +4,7 @@ import GaudisCrypt.Logic.EqualOutside
 import GaudisCrypt.Syntax.CloneRegistry
 import GaudisCrypt.Logic.ECSimGlob
 import GaudisCrypt.Logic.ECProc
+import GaudisCrypt.Logic.DeclareModule
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -21,11 +22,13 @@ from the one needed after it, as EC's `sim` does with its sets of equal variable
 relation: deterministic code on either side by wp (`stmt_wp`: copies, dead assignments and
 the frame resets of inlined calls disappear into the relation), samplings on both sides
 coupled by the identity (`equiv_rnd`), calls of the same procedure on both sides from equal
-arguments and globals (`equiv_call`), and conditionals on both sides (`prhlStmt_seq_if_bwd`):
-equal guards, each branch's relation found by `sim` on the branches.  Where both statements
-are used up, the precondition must imply what is left (`equiv_skip`), closed by `simp_all` if it
-can; anything else (a loop, calls of different procedures, a sampling against other code) stops
-`sim` with that goal.
+arguments and globals (`equiv_call`), conditionals on both sides (`prhlStmt_seq_if_bwd`):
+equal guards, each branch's relation found by `sim` on the branches (a branch it does not
+finish stops it at the conditional), and loops on both sides (`prhlStmt_seq_while`): EC's
+equality set as the invariant (the relation after the loops and the variables they mention
+equal), the bodies by `sim`.  Where both statements are used up, the precondition must imply
+what is left (`equiv_skip`), closed by `simp_all` if it can; anything else (calls of different
+procedures, a sampling against other code) stops `sim` with that goal.
 -/
 
 namespace GaudisCrypt
@@ -162,7 +165,7 @@ def inlineAllSides (g : MVarId) (side? : Option Nat) : MetaM MVarId := do
   else inlineAll g side?
 
 /-- The kind of the last statement of `s`: `skip`, a conditional, a call, a sampling, or other. -/
-inductive Last | skip | cond | call | sample | other
+inductive Last | skip | cond | call | sample | loop | other
   deriving BEq
 
 /-- The last statement of the right-nested `s` (after `stripLets`). -/
@@ -181,6 +184,7 @@ def lastKind (s : Lean.Expr) : MetaM Last := do
   if l.isAppOf ``StmtWithHoles.call' || l.isAppOf ``Stmt.call || l.isAppOf ``StmtWithHoles.call
     then return .call
   if l.isAppOf ``StmtWithHoles.sample then return .sample
+  if l.isAppOf ``StmtWithHoles.while then return .loop
   -- a call spelled through a definition
   if let some l' ← unfoldDefinition? l then
     if l'.isAppOf ``StmtWithHoles.call' then return .call
@@ -336,6 +340,42 @@ def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
     return some (← Judgment.simpArg hp 3 relSimpDecls [])
   catch _ => s.restore; return none
 
+/-- The program variables the statements `ss` mention: the locals (`localVarLens`, of the
+program state) and the global variables (`global_var`s, of the globals), in order. -/
+def varsOf (ss : Array Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) := do
+  let env ← getEnv
+  let locals ← IO.mkRef (#[] : Array Lean.Expr)
+  let globals ← IO.mkRef (#[] : Array Lean.Expr)
+  for s in ss do
+    Meta.forEachExpr (← instantiateMVars s) fun e => do
+      if e.hasLooseBVars || e.hasFVar then return
+      let some c := e.getAppFn.constName? | return
+      if c == ``localVarLens then
+        -- fully applied (the last argument is a proof of the name's key)
+        let t ← whnfR (← inferType e)
+        if t.isAppOfArity ``Lens 2 && !(← locals.get).contains e then locals.modify (·.push e)
+      else if DeclareModule.isGlobalVar env c then
+        let t ← whnfR (← inferType e)
+        if t.isAppOfArity ``Lens 2 && (t.getArg! 1).isConstOf ``VariableAssignment then
+          unless (← globals.get).contains e do globals.modify (·.push e)
+  return (← locals.get, ← globals.get)
+
+/-- EC's `sim` invariant of two loops: the relation `B` after them, and the variables the loops
+mention equal on the two sides. -/
+def loopInv (B : Lean.Expr) (loops : Array Lean.Expr) : MetaM Lean.Expr := do
+  let (ls, gs) ← varsOf loops
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    let get (x st : Lean.Expr) : MetaM Lean.Expr := do
+      mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], st]
+    let mut eqs : Array Lean.Expr := #[]
+    for x in ls do eqs := eqs.push (← mkEq (← get x σ₁) (← get x σ₂))
+    for x in gs do
+      eqs := eqs.push (← mkEq (← get x (← mkAppM ``ProgramState.globals #[σ₁]))
+        (← get x (← mkAppM ``ProgramState.globals #[σ₂])))
+    let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 B σ₁ σ₂).headBeta
+    mkLambdaFVars #[σ₁, σ₂] body
+
 /-- EC's `sim` on the relational goal `g`, backwards (see the module docstring); the goals left.
 `open?`: the precondition is a metavariable to be found (a branch of a conditional), assigned the
 relation left where the statements are used up. -/
@@ -366,6 +406,8 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     let g ← equivSkip g
     closeImp g
   | .cond, .cond =>
+    let s ← saveState
+    let g₀ := g
     let g ← HoareSplit.hoareSplit 1 g
     -- by hand, not `applyLemma`: the branches' relations `Aₜ`, `Aₑ` stay ordinary metavariables,
     -- for the branches' `sim` to assign
@@ -385,6 +427,13 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     g.assign (mkAppN c ms)
     let rt ← sim ht frame? (fuel - 1) eqset
     let re ← sim he frame? (fuel - 1) eqset
+    -- a branch `sim` does not finish leaves its precondition open: EC's `sim` stops at the
+    -- conditional then
+    for n in [`Aₜ, `Aₑ] do
+      let some i := names.findIdx? (· == n) | continue
+      if (← instantiateMVars ms[i]!).getAppFn.isMVar then
+        s.restore
+        return [g₀]
     let h ← Judgment.simpArg h 3 relSimpDecls []
     return rt ++ re ++ (← sim h frame? (fuel - 1) eqset)
   | .call, .call =>
@@ -435,6 +484,36 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       match gs with
       | [g'] => sim g' frame? (fuel - 1) eqset
       | _ => return gs
+    catch _ => s.restore; return [g]
+  | .loop, .loop =>
+    -- EC's `sim` through two loops: its equality set as the invariant (the relation after them,
+    -- and the variables the loops mention equal); the bodies by `sim`, the guards agree and the
+    -- exit by `closeImp`, then on before the loops.  Otherwise it stops at them.
+    let s ← saveState
+    try
+      let g ← HoareSplit.hoareSplit 1 g
+      let ty ← prhlGoal g "sim"
+      let B ← instantiateMVars (ty.getArg! 3)
+      if B.getAppFn.isMVar then throwError "sim: the relation after the loops is open"
+      let l₁ := stripLets (lastOf (ty.getArg! 1))
+      let l₂ := stripLets (lastOf (ty.getArg! 2))
+      let I ← loopInv B #[l₁, l₂]
+      let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_while
+      let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+      unless ← isDefEq ms[0]! I do throwError "sim: the invariant"
+      unless ← isDefEq concl ty do throwError "sim: not two loops"
+      g.assign (← instantiateMVars (mkAppN c ms))
+      let n := ms.size
+      let (gGuard, gBody, gExit, gPre) :=
+        (ms[n - 4]!.mvarId!, ms[n - 3]!.mvarId!, ms[n - 2]!.mvarId!, ms[n - 1]!.mvarId!)
+      for m in [gGuard, gBody, gExit, gPre] do m.setKind .syntheticOpaque
+      let rb ← sim (← Judgment.simpArg gBody 0 relSimpDecls []) frame? (fuel - 1) eqset
+      unless rb.isEmpty do throwError "sim: the loops' bodies"
+      for m in [gGuard, gExit] do
+        let m ← try generalizeReadsRel m catch _ => pure m
+        let r ← closeImp m
+        unless r.isEmpty do throwError "sim: the loops' guards"
+      return ← sim gPre frame? (fuel - 1) eqset
     catch _ => s.restore; return [g]
   | .sample, .sample =>
     let s ← saveState

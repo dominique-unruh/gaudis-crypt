@@ -25,11 +25,10 @@ example : equiv[ ={i} ==> ={i} ] {
     } := by
   stmt_splitwhile{1} 2 : §i < 3
   stmt_splitwhile{2} 2 : §i < 3
-  equiv_while (={i})
-  all_goals try (equiv_while (={i}))
-  all_goals first | sim | auto_close
+  sim
 
-/-- EC's `unroll{i} 2` on both sides: one round as a conditional, the same code again. -/
+/-- EC's `unroll{i} 2` on both sides: one round as a conditional, the same code again (`sim`
+through the conditional and the loop in it). -/
 example : equiv[ ={i} ==> ={i} ] {
       var i : ℕ;
       i <- 0;
@@ -41,9 +40,17 @@ example : equiv[ ={i} ==> ={i} ] {
     } := by
   stmt_unroll{1} 2
   stmt_unroll{2} 2
-  stmt_sp; equiv_if
-  all_goals try (equiv_while (={i}))
-  all_goals try sim
-  all_goals auto_close
+  sim
+
+/-- EC's `sim` through two loops: the equality set (`={j}` after them, and the loops' `i`, `j`)
+as the invariant. -/
+example : equiv[ ={i, j} ==> ={j} ] {
+      var i : ℕ, j : ℕ;
+      while (decide (§i < 5)) { i <- §i + 1; j <- §j + §i; }
+    } ~ {
+      var i : ℕ, j : ℕ;
+      while (decide (§i < 5)) { i <- §i + 1; j <- §j + §i; }
+    } := by
+  sim
 
 end GaudisCrypt.ECLoopTest
