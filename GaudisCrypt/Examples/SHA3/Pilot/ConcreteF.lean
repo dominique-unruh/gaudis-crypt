@@ -189,7 +189,8 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
   · equiv_proc; stmt_sp; equiv_if
     · stmt_inline*
       equiv_if
-      · stmt_splitwhile{1} 5 : FMap.dom §Redo.prefixes (take (§i + 1) §p)
+      · stmt_wp
+        stmt_splitwhile{1} 5 : FMap.dom §Redo.prefixes (take (§i + 1) §p)
         stmt_splitwhile{2} 5 : FMap.dom §Redo.prefixes (take (§i + 1) §p)
         stmt_alias{1} 1 pref = §Redo.prefixes
         stmt_alias{2} 1 pref = §Redo.prefixes
@@ -197,7 +198,17 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
         stmt_alias{1} 1 query = §C.queries
         stmt_alias{2} 1 query = §C.queries
         stmt_sp 1
-        sorry
+        equiv_conseq (: _ ==> ={sa, Redo.prefixes, glob D, glob P, i, C.c} ∧ all_prefixes §Redo.prefixes{2} ∧
+            (∀ x, FMap.dom §query{2} x → FMap.dom §Redo.prefixes{2} x) ∧ §i{1} = size §bs{1} ∧
+            FMap.get §Redo.prefixes{1} (take §i{1} §bs{1}) = some (§sa{1}, §sc{1}) ∧
+            (∀ y, FMap.dom §pref{1} y → FMap.get §pref{1} y = FMap.get §Redo.prefixes{1} y) ∧
+            (∀ y, FMap.dom §Redo.prefixes{1} y ↔
+              (FMap.dom §pref{1} y ∨ ∃ j, 0 ≤ j ∧ j ≤ §i{1} ∧ y = take j §bs{1})) ∧
+            §DBounder.FBounder.c{2} = §C.c{2} - size §bs{1} + §i{1})
+        · auto_progress
+          -- EC's six `smt(domE mem_set get_setE take_size cat_take_drop)`
+          all_goals sorry
+        · sorry
       · equiv_skip; auto_close
       · auto_close
     · stmt_wp; equiv_skip; auto_close

@@ -348,9 +348,10 @@ def varsOf (ss : Array Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) :
   let globals ← IO.mkRef (#[] : Array Lean.Expr)
   for s in ss do
     Meta.forEachExpr (← instantiateMVars s) fun e => do
-      if e.hasLooseBVars || e.hasFVar then return
+      -- (free variables are allowed: the section's instances, `[SLCommon.Params]`)
+      if e.hasLooseBVars then return
       let some c := e.getAppFn.constName? | return
-      if c == ``localVarLens then
+      if c == ``localVarLens || (c == ``Lens.intoLocal && e.appArg!.isAppOf ``varLens) then
         -- fully applied (the last argument is a proof of the name's key)
         let t ← whnfR (← inferType e)
         if t.isAppOfArity ``Lens 2 && !(← locals.get).contains e then locals.modify (·.push e)

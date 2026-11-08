@@ -1,3 +1,4 @@
+import GaudisCrypt.Logic.ECClose
 import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Syntax.Syntax
@@ -54,5 +55,18 @@ example : hoare[ True ==> §y = §x ] {
   hoare_wp 1
   hoare_skip
   simp
+
+/-- EC's `conseq (_ ==> ={x})`: `y`, which the code does not modify, keeps its equality from the
+precondition (EC's frame). -/
+example : equiv[ ={x, y} ==> ={x, y} ] {
+      var x : ℕ, y : ℕ;
+      x <- §x + 1;
+    } ~ {
+      var x : ℕ, y : ℕ;
+      x <- §x + 1 + (§y - §y);
+    } := by
+  equiv_conseq (: _ ==> ={x})
+  · auto_close
+  · sim
 
 end GaudisCrypt.ECConseqTest

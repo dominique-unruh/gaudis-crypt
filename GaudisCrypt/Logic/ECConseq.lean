@@ -1,6 +1,7 @@
 import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Lib.EC.Mu
+import GaudisCrypt.Logic.ECConseqFrame
 
 /-!
 # EasyCrypt's `hoare` and `conseq`
@@ -138,7 +139,9 @@ elab "phoare_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainCon
 
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq PRHLWp in
 /-- **EC's `conseq (: P ==> Q)`** on a relational judgment (`§x{1}`, `§x{2}`): goals `pre`,
-`post`, then the judgment with `P`, `Q`; `_` keeps a condition. -/
+`post`, then the judgment with `P`, `Q`; `_` keeps a condition.  On statements, `post` is EC's
+`P => (frames) => Q' => Q`: the variables `Q` reads that the code does not modify keep their
+values from the start (`prhlStmt_conseq_frame`). -/
 elab "equiv_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainContext do
   let g ← getMainGoal
   let ty0 ← instantiateMVars (← g.getType)
@@ -165,9 +168,22 @@ elab "equiv_conseq" " (" ": " P:term " ==> " Q:term ")" : tactic => withMainCont
   let Qe ← if isHole Q then pure (ty.getArg! 3) else elabRelCond ty Q
   let (Ps, Qs) := (← Term.exprToSyntax Pe, ← Term.exprToSyntax Qe)
   let pre ← if isHole P then `(fun _ _ h => h) else `(?pre)
-  let post ← if isHole Q then `(fun _ _ h => h) else `(?post)
-  refineTagged (← `(prhlStmt_conseq (A' := $Ps) (B' := $Qs) ?judgment $pre $post))
-    [`pre, `post, `judgment]
+  if isHole Q then
+    refineTagged (← `(prhlStmt_conseq (A' := $Ps) (B' := $Qs) ?judgment $pre (fun _ _ h => h)))
+      [`pre, `post, `judgment]
+    return
+  -- EC's frame: what the code does not modify keeps its value from the precondition
+  -- (`Logic/ECConseqFrame.lean`)
+  let #[_, c₁, c₂, B] := ty.getAppArgs | unreachable!
+  -- (those `Q` and the new postcondition read: EC's frame covers every unmodified variable)
+  let (ls, gls) ← ECSim.varsOf #[B, Qe]
+  let xs := ls ++ (← gls.mapM fun x => mkAppM ``Lens.intoGlobal #[x])
+  let (F₁, hF₁) ← ECConseqFrame.frameOf c₁ xs
+  let (F₂, hF₂) ← ECConseqFrame.frameOf c₂ xs
+  let (F₁s, hF₁s, F₂s, hF₂s) := (← Term.exprToSyntax F₁, ← Term.exprToSyntax hF₁,
+    ← Term.exprToSyntax F₂, ← Term.exprToSyntax hF₂)
+  refineTagged (← `(prhlStmt_conseq_frame (A' := $Ps) (B' := $Qs) $F₁s $F₂s $hF₁s $hF₂s
+      ?judgment $pre ?post)) [`pre, `post, `judgment]
 
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq in
 /-- **EC's `exists* e`** on a `phoare` judgment or a Hoare triple: `e` an expression of the state

@@ -53,26 +53,31 @@ elab "simp_reads_all" : tactic => withMainContext do
   unless progress do throwError "simp_reads_all: no progress"
   replaceMainGoal [g]
 
+/-- The steps `auto_close` and `auto_progress` share: introduce, take the hypotheses apart,
+substitute, simplify the reads and the tests (see the module docstring). -/
+macro "auto_prep" : tactic => `(tactic| (
+  -- the `let`s of the conditions first (introduced, they would hide the reads)
+  try simp only [] at *
+  all_goals intros
+  all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+  all_goals try subst_vars
+  all_goals try rename_reads
+  all_goals try simp only [Setter.throwaway_set] at *
+  all_goals try simp_reads_all
+  all_goals try glob_simp
+  all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',
+    Bool.not_eq_eq_eq_not, Bool.not_true, not_lt, not_le, and_true, true_and,
+    indicatorE_eq_one_iff, if_true, if_false] at *
+  -- what the simplification took apart
+  all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+  all_goals try subst_vars))
+
 /-- **What EC leaves to `auto => /#`**: see the module docstring. -/
 syntax "auto_close" : tactic
 
 macro_rules
   | `(tactic| auto_close) => `(tactic| focus (
-      -- the `let`s of the conditions first (introduced, they would hide the reads)
-      try simp only [] at *
-      all_goals intros
-      all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
-      all_goals try subst_vars
-      all_goals try rename_reads
-      all_goals try simp only [Setter.throwaway_set] at *
-      all_goals try simp_reads_all
-      all_goals try glob_simp
-      all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',
-        Bool.not_eq_eq_eq_not, Bool.not_true, not_lt, not_le, and_true, true_and,
-        indicatorE_eq_one_iff, if_true, if_false] at *
-      -- what the simplification took apart
-      all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
-      all_goals try subst_vars
+      auto_prep
       all_goals first
         | done
         | trivial
@@ -87,5 +92,25 @@ macro_rules
         | fail "auto_close: a goal is left (state the lemmas EC's `smt` is given, or close it \
             by hand)"
       done))
+
+/-- **EC's `progress`** (`auto => />; progress`): `auto_close`'s steps, the goals it cannot close
+left (split as far as it goes), for the lemmas EC's `smt` calls are given. -/
+syntax "auto_progress" : tactic
+
+macro_rules
+  | `(tactic| auto_progress) => `(tactic| focus (
+      auto_prep
+      all_goals first
+        | done
+        | trivial
+        | rfl
+        | assumption
+        | (apply Eq.symm; assumption)
+        | omega
+        | (apply And.intro <;> auto_progress)
+        | (split_ifs <;> auto_progress)
+        | (intro _; auto_progress)
+        | (simp_all; done)
+        | skip))
 
 end GaudisCrypt
