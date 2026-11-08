@@ -546,6 +546,21 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   still mentions the state in its `∃ τ, … σ = x.set … τ` form, losing the link (an rcondt side
   goal on the bounder's counter); `apply hoare_skip_of_imp; auto_prep; generalize_reads_all;
   subst_vars; omega` instead.  Next: `Real_Concrete`.
+  `Real_GReal'` (2026-11-08, `Real_Concrete`'s first `have ->:`, a theorem of its own, 4M
+  heartbeats, sorry-free): EC's script step for step — the three oracles (`proc; inline*; sp;
+  if; auto`), the init (`auto; smt(…)`), `F.f`'s `if{2}` with the one-sided `while{1} (I)
+  (size p - i)` on the known query, and the new query's `splitwhile`/`alias`/`sp 1 1`/`sp 0 1`,
+  `conseq`, two loops (`rcondf`/`rcondt` both sides, `sim`).  New for it: `inline*` reads calls
+  through a concrete module's view (`PRIMITIVE.init Perm`); EC's `conseq` frame keeps `glob D`
+  (`Stmt.KeepsRegion`, the region's writes by `touched_set_of_le_compl`/`fp_disjoint`);
+  `auto_prep` rewrites `glob` reads in the hypotheses too; `while_ll_phoare` (the one-sided
+  loop's lossless goal as a `phoare`, for EC's `sp; rcondt 1; auto`).  Deviations: the right
+  side's inlined `p`, `sa` are `p0`, `sa0` (our inliner renames against the left's names in the
+  conditions), so EC's `={sa, p}` is `§sa{1} = §sa0{2} ∧ §p{1} = §p0{2}`; EC's no-op `wp`/`sp`
+  dropped (an `sp` on a judgment whose left side is a loop and right side one assignment timed
+  out at 4M in its simp — avoid no-op `sp`s).  Closers: ~10 `smt_close` (several with the
+  definitions `prefix_inv`, `all_prefixes` to unfold, which EC's provers see through), 13 new
+  `rc_*` lemmas (~17 applications), plus DoubleBounding's `db_first_step/get`, `db_init_dom`.
 
 ### What retiring the old files waits for
 
