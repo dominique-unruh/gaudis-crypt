@@ -513,6 +513,22 @@ the block `swap{i} [a..b] k` with EC's positions; `byequiv` for different argume
   a metavariable).  Remaining known gaps: EC's `rnd f g` (ours is `equiv_rnd f`, other side
   goals), two-judgment `conseq`, `sim` over abstract calls with differing oracles.
 
+* `Pilot/ConcreteF.lean` (2026-11-08, WIP, not in the barrel): declarations in EC's form (`PF`,
+  `CF`, the local `Strong_RP_RF` clone as `global_var`s with the library's modules at them, the
+  local module `D'` with EC's path `DRestr(D, SqueezelessSponge(P'), P')`); EC's freshness of the
+  local clone for `D` is in `D`'s restriction (as `SecureRO`'s local modules).  `DoubleBounding`
+  EC-style: the statement in EC's paths; EC's `call (_: ={glob C, glob P, glob Redo} /\ …)` (new:
+  `equiv_call (_ : ={…} ∧ I)`); the `P.f`, `P.fi` oracles step for step (`proc; sp; if; inline*;
+  rcondt{2} 3; sim; auto`).  New for it: views across module types with the same fields
+  (`DPRIMITIVE.f (SPRP_Oracles.mk …)`, `DPRIMITIVE.f FBounder(P)`) read off by the inliner and
+  `module_norm`; loops commute with updates (`Logic/LoopCommute.lean`), so `alias` passes loops.
+  **Open**: the `F.f` oracle stops after EC's `splitwhile`/`alias`/`sp`: after `inline*` the
+  precondition carries the inliner's renaming equations (`(Flatten.rename …).chain
+  Flatten.trafo).get τ = …`), which `auto_close` cannot read through (EC's `auto` closes the
+  inner `if`'s else-branch at once).  To decide: the inliner keeping preconditions free of them,
+  or read lemmas for them.  Then the two loop invariants (EC's ~30 `smt` calls on prefix/`FMap`
+  facts) and `Real_Concrete`.
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;
