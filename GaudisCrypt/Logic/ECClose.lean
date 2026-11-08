@@ -66,6 +66,8 @@ macro "auto_prep" : tactic => `(tactic| (
   all_goals try simp only [Setter.throwaway_set] at *
   all_goals try simp_reads_all
   all_goals try glob_simp
+  -- … and in the hypotheses
+  all_goals try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at *
   all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',
     Bool.not_eq_eq_eq_not, Bool.not_true, not_lt, not_le, and_true, true_and,
     indicatorE_eq_one_iff, if_true, if_false] at *
