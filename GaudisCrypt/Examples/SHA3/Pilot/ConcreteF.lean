@@ -457,4 +457,39 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
 
 end
 
+section
+
+declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo}
+
+set_option maxHeartbeats 4000000 in
+-- one declaration: EC's call over three oracles, with the loops of `SqueezelessSponge`
+/-- The first step of EC's `Real_Concrete` (its `have ->:`): `Pr[RealIndif(SqueezelessSponge,
+PC(Perm), D).main() @ &m: res /\ C.c <= max_size] = Pr[GReal'.main() @ &m: res /\ C.c <=
+max_size]`; a theorem of its own (EC's proof, step for step). -/
+theorem Real_GReal' (m : VariableAssignment) :
+    Pr[ RealIndif(SqueezelessSponge, PC(Perm), D).main () @ &m : §res ∧ §C.c ≤ max_size ] =
+      Pr[ (GReal' D) () @ &m : §res ∧ §C.c ≤ max_size ] := by
+  byequiv; equiv_proc; stmt_inline*
+  equiv_call (_ : ={C.c, glob Perm, Redo.prefixes} ∧ prefix_inv §C.queries{2} §Redo.prefixes{1} ∧
+      FMap.get §Redo.prefixes{1} [] = some (b0, c0) ∧ all_prefixes §Redo.prefixes{1})
+  -- `P.f`
+  · equiv_proc; stmt_inline*; stmt_sp; equiv_if
+    · sim; auto_close
+    · sim; auto_close
+    · auto_close
+  -- `P.fi`
+  · equiv_proc; stmt_inline*; stmt_sp; equiv_if
+    · sim; auto_close
+    · sim; auto_close
+    · auto_close
+  -- `F.f`
+  · sorry
+  stmt_wp; equiv_skip
+  auto_progress
+  all_goals first
+    | smt_close [FMap.mem_set, FMap.mem_empty, FMap.get_setE]
+    | (apply db_init_dom; assumption)
+
+end
+
 end GaudisCrypt.SHA3.Pilot.ConcreteF
