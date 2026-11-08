@@ -113,4 +113,40 @@ elab "stmt_wp" s:(judgmentSide)? k?:(ppSpace num)? : tactic =>
     | some k => wpStep k.getNat g (sideOf? s)
     | none => wpDet g (sideOf? s)
 
+/-- An EC code position (`n` or `-n`), as in `wp n m`/`sp n m`. -/
+declare_syntax_cat ecPos
+syntax num : ecPos
+syntax "-" num : ecPos
+
+/-- The integer an `ecPos` denotes. -/
+def ecPosOf : TSyntax `ecPos → Int
+  | `(ecPos| - $n:num) => -(n.getNat : Int)
+  | `(ecPos| $n:num) => n.getNat
+  | _ => 0
+
+/-- **EC's code gap** (`s_codegap1_0before`): in a statement of `len` statements, `n ≥ 0` is the
+gap after the first `n` (before the statement at 0-based index `n`), `-k` the gap after the
+`k`-th statement from the end (`-1`: after the last).  The number of statements before it. -/
+def ecGap (n : Int) (len : Nat) : MetaM Nat := do
+  let gap : Int := if n ≥ 0 then n else len + n + 1
+  unless 0 ≤ gap ∧ gap ≤ len do
+    throwError "position {n} is outside a statement of {len} statements"
+  return gap.toNat
+
+/-- **EC's `wp n`**: the statements after EC's code gap `pos` (`ecGap`) by wp (`wpStep`), the
+ones before kept; on side `side?` of a relational judgment. -/
+def wpAt (pos : Int) (g : MVarId) (side? : Option Nat := none) : MetaM MVarId :=
+  forSides side? g fun side? g => do
+    let (d, ty) ← descOf g side?
+    let len ← HoareSplit.seqLength (stripLets (ty.getArg! d.stmtArg))
+    wpStep (len - (← ecGap pos len)) g side?
+
+/-- **EC's `wp n m`** on a relational judgment, with EC's code positions (`ecGap`): on the left
+the statements after the first `n` by wp, on the right those after the first `m` (`-k`: up to
+the `k`-th from the end).  (The one-number `stmt_wp k` counts from the end: the last `k`.) -/
+elab "stmt_wp" ppSpace n:ecPos ppSpace m:ecPos : tactic =>
+  liftMetaTactic1 fun g => do
+    let g ← wpAt (ecPosOf n) g (some 1)
+    some <$> wpAt (ecPosOf m) g (some 2)
+
 end GaudisCrypt.Judgment

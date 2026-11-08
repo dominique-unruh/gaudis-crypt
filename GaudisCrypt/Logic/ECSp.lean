@@ -271,4 +271,22 @@ elab "stmt_sp" s:(Judgment.judgmentSide)? n:(ppSpace num)? : tactic => do
       else spSide g none n?
   replaceMainGoal gs
 
+open Lean Meta Elab Tactic ECSp Judgment in
+/-- **EC's `sp n m`** on a relational judgment, with EC's code positions (`Judgment.ecGap`): the
+statements before the gap `n` of the left side and before the gap `m` of the right forward (`0`:
+none; `-k`: up to and with the `k`-th statement from the end). -/
+elab "stmt_sp" ppSpace n:ecPos ppSpace m:ecPos : tactic => do
+  let g ← getMainGoal
+  let count (g : MVarId) (side : Nat) (pos : Int) : MetaM Nat := g.withContext do
+    let (d, ty) ← descOf g (some side)
+    let len ← HoareSplit.seqLength (stripLets (ty.getArg! d.stmtArg))
+    ecGap pos len
+  let k₁ ← count g 1 (ecPosOf n)
+  let gs ← spSide g (some 1) (some k₁)
+  match gs with
+  | j :: rest =>
+    let k₂ ← count j 2 (ecPosOf m)
+    replaceMainGoal ((← spSide j (some 2) (some k₂)) ++ rest)
+  | [] => replaceMainGoal []
+
 end GaudisCrypt

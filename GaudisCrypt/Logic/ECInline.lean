@@ -53,23 +53,28 @@ partial def inlineByName (p : Expr) (g : MVarId) (side? : Option Nat) (fuel : Na
   let some k := k? | return g
   inlineByName p (← judgmentInline k g side?) side? (fuel - 1)
 
-/-- `stmt_inline M`, `stmt_inline{i} M`: see the module docstring. -/
-elab "stmt_inline" s:(Judgment.judgmentSide)? ppSpace "(" M:term ")" : tactic => withMainContext do
-  let Me ← Term.elabTerm M none
-  Term.synthesizeSyntheticMVarsNoPostponing
-  let Me ← instantiateMVars Me
-  -- a procedure module stands for its procedure
-  let p ← try mkAppM ``Module.Proc.procedure #[Me] catch _ => pure Me
-  let g ← getMainGoal
+/-- `stmt_inline (M)`, `stmt_inline{i} (M)`, and EC's `inline M₁ … Mₙ` as
+`stmt_inline (M₁) … (Mₙ)` (each in turn): see the module docstring. -/
+elab "stmt_inline" s:(Judgment.judgmentSide)? Ms:(ppSpace "(" term ")")+ : tactic =>
+    withMainContext do
+  let g₀ ← getMainGoal
   let side? := Judgment.sideOf? s
-  let (ds, _) ← Judgment.descsOf g side?
-  let mut g := g
-  let before := g
-  if ds.size == 1 then
-    g ← inlineByName p g side?
-  else
-    for d in ds do g ← inlineByName p g (some d.side)
-  if g == before then throwError "stmt_inline: no call of{indentExpr p}"
+  let mut g := g₀
+  for M in Ms do
+    let M : Term := ⟨M.raw[1]⟩
+    let Me ← g.withContext do
+      let Me ← Term.elabTerm M none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      instantiateMVars Me
+    -- a procedure module stands for its procedure
+    let p ← g.withContext do try mkAppM ``Module.Proc.procedure #[Me] catch _ => pure Me
+    let (ds, _) ← Judgment.descsOf g side?
+    let before := g
+    if ds.size == 1 then
+      g ← inlineByName p g side?
+    else
+      for d in ds do g ← inlineByName p g (some d.side)
+    if g == before then throwError "stmt_inline: no call of{indentExpr p}"
   replaceMainGoal [g]
 
 end Flatten

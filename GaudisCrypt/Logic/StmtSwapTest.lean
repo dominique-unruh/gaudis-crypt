@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Syntax.Syntax
+import GaudisCrypt.Logic.ECSim
 
 /-! Tests of `stmt_swap` and `stmt_split_pair` (`Logic/StmtSwap.lean`). -/
 
@@ -54,5 +55,24 @@ example (M : Init) (G : Init →ₘ Init) (hM : FVP.fvP M ≤ (swapTestCount.foo
   simp only [not_true_eq_false]
   exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
     (by simp [SubProbability.ofEvent])
+
+/-- EC's `swap k` and `swap -k`: the first statement two later, then the last one back one; on
+both sides of a relational judgment. -/
+example : equiv[ True ==> ={x, y} ] {
+      var x : ℕ, y : ℕ, b : Bool;
+      x <- 1;
+      b <$ SubProbability.uniform;
+      y <- 2;
+    } ~ {
+      var x : ℕ, y : ℕ, b : Bool;
+      x <- 1;
+      b <$ SubProbability.uniform;
+      y <- 2;
+    } := by
+  stmt_swap 2
+  stmt_swap{1} -1
+  stmt_swap{1} -1
+  stmt_swap{2} -2
+  sim
 
 end GaudisCrypt.StmtSwapTest

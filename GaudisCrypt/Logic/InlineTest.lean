@@ -1,4 +1,6 @@
 import GaudisCrypt.Logic.Inline
+import GaudisCrypt.Logic.ECInline
+import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Syntax.ModuleSyntax
 import GaudisCrypt.Syntax.ProgramSyntaxTest
 
@@ -720,5 +722,15 @@ error: nothing to flatten: the call is not flattenable: its callee is not spelle
     n <- call (Module.Proc.procedure (T.f N)) (§n);
     return §n
   })
+
+/-- EC's `inline N.f N.h`: every call of each, in turn. -/
+example : hoare[ True ==> §y = 13 ] {
+      var y : ℕ, z : ℕ;
+      y <- call (N.f).procedure ((3 : ℕ));
+      z <- call (N.h).procedure ();
+      y <- §y + §z;
+    } := by
+  stmt_inline (N.f) (N.h)
+  hoare_auto
 
 end GaudisCrypt.InlineTest

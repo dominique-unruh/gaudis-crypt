@@ -662,30 +662,54 @@ positions, in EC's positions (from 1, the resets inlining leaves not counted: ea
 the statement after it), one of our statements at a time (`stmt_swap n k`). -/
 syntax "stmt_swap" (Judgment.judgmentSide)? " [" num ".." num "] " ("-")? num : tactic
 
+/-- EC's statements of side `side?` as groups of ours (`ecGroups`). -/
+def ecGroupsOf (g : MVarId) (side? : Option Nat) : MetaM (Array Nat) := g.withContext do
+  let (d, ty) ← Judgment.descOf g side?
+  return ecGroups (← spineResets (ty.getArg! d.stmtArg))
+
+/-- EC's `swap [a..b] k` on side `side?`: see `stmt_swap [a..b] k`. -/
+def swapBlock (a b : Nat) (k : Int) (side? : Option Nat) : TacticM Unit := do
+  let gs ← ecGroupsOf (← getMainGoal) side?
+  unless 1 ≤ a && a ≤ b && b ≤ gs.size do
+    throwError "stmt_swap: the block [{a}..{b}] is not in the {gs.size} statements"
+  -- our positions (from 0): the block's, and the distance in ours of `k` of EC's
+  let start := (gs.extract 0 (a - 1)).foldl (· + ·) 0
+  let stop := start + (gs.extract (a - 1) b).foldl (· + ·) 0
+  let dist : Int ← if k > 0 then do
+      unless b + k.toNat ≤ gs.size do throwError "stmt_swap: moved past the end"
+      pure (Int.ofNat ((gs.extract b (b + k.toNat)).foldl (· + ·) 0))
+    else do
+      unless k.natAbs < a do throwError "stmt_swap: moved before the start"
+      pure (-Int.ofNat ((gs.extract (a - 1 - k.natAbs) (a - 1)).foldl (· + ·) 0))
+  let order := if k > 0 then (List.range (stop - start)).reverse.map (· + start)
+    else (List.range (stop - start)).map (· + start)
+  for n in order do
+    liftMetaTactic1 fun g => some <$> Judgment.onStmt (moveStmt n dist) g side?
+
 elab_rules : tactic
   | `(tactic| stmt_swap $[$s]? [$a:num .. $b:num] $[-%$neg]? $k:num) => do
     let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
-    let (a, b) := (a.getNat, b.getNat)
-    let side? := Judgment.sideOf? s
-    let g ← getMainGoal
-    let gs ← g.withContext do
-      let (d, ty) ← Judgment.descOf g side?
-      return ecGroups (← spineResets (ty.getArg! d.stmtArg))
-    unless 1 ≤ a && a ≤ b && b ≤ gs.size do
-      throwError "stmt_swap: the block [{a}..{b}] is not in the {gs.size} statements"
-    -- our positions (from 0): the block's, and the distance in ours of `k` of EC's
-    let start := (gs.extract 0 (a - 1)).foldl (· + ·) 0
-    let stop := start + (gs.extract (a - 1) b).foldl (· + ·) 0
-    let dist : Int ← if k > 0 then do
-        unless b + k.toNat ≤ gs.size do throwError "stmt_swap: moved past the end"
-        pure (Int.ofNat ((gs.extract b (b + k.toNat)).foldl (· + ·) 0))
-      else do
-        unless k.natAbs < a do throwError "stmt_swap: moved before the start"
-        pure (-Int.ofNat ((gs.extract (a - 1 - k.natAbs) (a - 1)).foldl (· + ·) 0))
-    let order := if k > 0 then (List.range (stop - start)).reverse.map (· + start)
-      else (List.range (stop - start)).map (· + start)
-    for n in order do
-      liftMetaTactic1 fun g => some <$> Judgment.onStmt (moveStmt n dist) g side?
+    swapBlock a.getNat b.getNat k (Judgment.sideOf? s)
+
+/-- **EC's `swap k`** (no position): the first statement `k` positions later, or with `-k` the
+last one `k` positions earlier (EC's statements: the resets inlining leaves move with the
+statement after them).  On a relational judgment both sides, or with `stmt_swap{i} k` side `i`. -/
+syntax "stmt_swap" (Judgment.judgmentSide)? ppSpace ("-")? num : tactic
+
+elab_rules : tactic
+  | `(tactic| stmt_swap $[$s]? $[-%$neg]? $k:num) => do
+    let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
+    let sides : List (Option Nat) ← match Judgment.sideOf? s with
+      | some i => pure [some i]
+      | none =>
+        if (← instantiateMVars (← (← getMainGoal).getType)).isAppOf ``prhlStmt then
+          pure [some 1, some 2]
+        else pure [none]
+    for side? in sides do
+      if k > 0 then swapBlock 1 1 k side?
+      else
+        let n := (← ecGroupsOf (← getMainGoal) side?).size
+        swapBlock n n k side?
 
 /-- Split the pair assignment at position `p` into one assignment per component, recursively
 for nested pairs (`Stmt.split_pair`). -/

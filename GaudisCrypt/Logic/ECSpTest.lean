@@ -36,4 +36,23 @@ example : equiv[ True ==> ={b} ] {
   stmt_sp
   sim
 
+/-- EC's `sp n m` and `wp n m`, positions counted from the start or (negative) the end:
+`sp 1 0` the left's first assignment, `wp -2 2` the left's last statement and the right's after
+its second, `sp 0 -1` all of the right's first. -/
+example : equiv[ True ==> ={b} ] {
+      var x : ℕ, b : Bool;
+      x <- 1;
+      b <$ SubProbability.uniform;
+      x <- 3;
+    } ~ {
+      var x : ℕ, b : Bool;
+      x <- 2;
+      b <$ SubProbability.uniform;
+      x <- 4;
+    } := by
+  stmt_sp 1 0
+  stmt_wp -2 2
+  stmt_sp 0 -2
+  sim
+
 end GaudisCrypt.ECSpTest
