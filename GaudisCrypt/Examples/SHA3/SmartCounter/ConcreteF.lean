@@ -903,7 +903,7 @@ theorem ARP_PF_f :
       equiv_rnd_dprod
       equiv_skip
       rintro g₁ g₂ x0 _ ⟨⟨rfl, he⟩, -⟩
-      refine ⟨rfl, fun p _ => ?_⟩
+      refine fun p _ => ?_
       haveI := (inferInstance : Lens.Disjoint PF.m coll).symm
       haveI := (inferInstance : Lens.Disjoint PF.mi coll).symm
       simp only [Lens.get_of_disjoint_set, Prod.mk.eta]
@@ -941,7 +941,7 @@ theorem ARP_PF_fi :
       equiv_rnd_dprod
       equiv_skip
       rintro g₁ g₂ y _ ⟨⟨rfl, he⟩, -⟩
-      refine ⟨rfl, fun p _ => ?_⟩
+      refine fun p _ => ?_
       haveI := (inferInstance : Lens.Disjoint PF.m coll).symm
       haveI := (inferInstance : Lens.Disjoint PF.mi coll).symm
       simp only [Lens.get_of_disjoint_set, Prod.mk.eta]
@@ -1867,7 +1867,7 @@ theorem Real_Concrete (hD : Module.ECModule D distExt)
       (Footprint.le_glob_of_le le_sup_right))
     ((fvP_D' D).trans (by simp only [Footprint.lens_pair]; unfold C.footprint; fp_sub))
     hG' m
-    (fun O hO hf hfi => D'_ll D G hCRG D_ll O (hO.trans (Footprint.compl_antimono le_sup_left))
+    (fun O _ hO hf hfi => D'_ll D G hCRG D_ll O (hO.trans (Footprint.compl_antimono le_sup_left))
       (hO.trans (Footprint.compl_antimono (by fp_mem))) hf hfi)
   -- `smt()`
   rw [h1, h8, h7, ← h6]

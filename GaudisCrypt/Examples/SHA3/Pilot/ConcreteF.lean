@@ -771,19 +771,92 @@ theorem Real_GReal' (m : VariableAssignment) :
 
 end
 
+/-! The `glob`s of the concrete modules, which EC reads off their code (`Module.GlobBound`:
+instance search derives the restrictions against them).  Not EC lemmas. -/
+
 set_option maxHeartbeats 2000000 in
-/-- `SqueezelessSponge` touches `Redo.prefixes` (EC computes a module's `glob` from its code; the
-footprint solver reads it off this bound).  Not an EC lemma. -/
 @[fp_bound] theorem fvP_SqueezelessSponge :
     FVP.fvP SqueezelessSponge ≤ Redo.prefixes.footprint := by
   fp_module Redo.prefixes
 
+-- at the module types the lemmas ask for (`Perm` is a `PRIMITIVE` by definition, `@` keeps the
+-- type: an ascription would elaborate to `Perm` at its own type)
+instance : @Module.GlobBound Indiff.CONSTRUCTION _ SqueezelessSponge Redo.prefixes.footprint :=
+  ⟨fvP_SqueezelessSponge, by fp_finite⟩
+
 set_option maxHeartbeats 2000000 in
-/-- `Perm` touches `Perm.m`, `Perm.mi`.  Not an EC lemma. -/
 @[fp_bound] theorem fvP_Perm :
     FVP.fvP (Perm : Indiff.PRIMITIVE) ≤ Perm.m.footprint ⊔ Perm.mi.footprint := by
   rw [← Footprint.lens_pair]
   fp_module (Lens.pair Perm.m Perm.mi)
+
+instance : @Module.GlobBound Indiff.PRIMITIVE _ Perm (Perm.m.footprint ⊔ Perm.mi.footprint) :=
+  ⟨fvP_Perm, by fp_finite⟩
+
+set_option maxHeartbeats 2000000 in
+theorem fvP_PRPi :
+    FVP.fvP (Switching.PRPi.PRPi : Switching.PRPSec.PRP) ≤
+      Switching.PRPi.m.footprint ⊔ Switching.PRPi.mi.footprint := by
+  rw [← Footprint.lens_pair]
+  fp_module (Lens.pair Switching.PRPi.m Switching.PRPi.mi)
+
+instance : @Module.GlobBound Switching.PRPSec.PRP _ Switching.PRPi.PRPi
+    (Switching.PRPi.m.footprint ⊔ Switching.PRPi.mi.footprint) :=
+  ⟨fvP_PRPi, by fp_finite⟩
+
+set_option maxHeartbeats 2000000 in
+theorem fvP_ARP :
+    FVP.fvP (Switching.ARP : Switching.PRPSec.PRP) ≤
+      Switching.ARP.coll.footprint ⊔ (Switching.ARP.m.footprint ⊔ Switching.ARP.mi.footprint) := by
+  rw [← Footprint.lens_pair, ← Footprint.lens_pair]
+  fp_module (Lens.pair Switching.ARP.coll (Lens.pair Switching.ARP.m Switching.ARP.mi))
+
+instance : @Module.GlobBound Switching.PRPSec.PRP _ Switching.ARP
+    (Switching.ARP.coll.footprint ⊔ (Switching.ARP.m.footprint ⊔ Switching.ARP.mi.footprint)) :=
+  ⟨fvP_ARP, by fp_finite⟩
+
+set_option maxHeartbeats 4000000 in
+/-- `D'(D)` touches `D`'s variables, `C`'s and `Redo.prefixes`.  Not an EC lemma. -/
+theorem fvP_D' (D : DISTINGUISHER) : FVP.fvP (D' D) ≤
+    FVP.fvP D ⊔ (C.c.footprint ⊔ C.queries.footprint ⊔ Redo.prefixes.footprint) := by
+  rw [← Footprint.lens_pair, ← Footprint.lens_pair]
+  fp_module (Lens.pair (Lens.pair C.c C.queries) Redo.prefixes)
+
+set_option synthInstance.checkSynthOrder false in
+/-- EC's `glob D'`: `glob D` and the variables of `D'`'s code. -/
+instance (D : DISTINGUISHER) {S : Footprint VariableAssignment} [h : Module.Declared D S] :
+    Module.ECGlob (D' D)
+      ((FVP.fvP D).glob ⊔ (C.c.footprint ⊔ C.queries.footprint ⊔ Redo.prefixes.footprint)) :=
+  ⟨(h.finite.sup (by fp_finite)).mono (fvP_D' D),
+    (fvP_D' D).trans (sup_le_sup_right (Footprint.le_glob _) _),
+    ⟨_, h.finite.sup (by fp_finite), sup_le (Footprint.glob_mono le_sup_left)
+      (Footprint.le_glob_of_le le_sup_right)⟩⟩
+
+namespace Switching
+
+/-- The clone's `lemma Conclusion (D <: Distinguisher {-PRPi, -ARP, -DBounder}) &m:
+(forall (O <: SPRP_Oracles{-D}), islossless O.f => islossless O.fi =>
+islossless D(O).distinguish) => `|Pr[IND(PRPi,DBounder(D)).main() @ &m: res] -
+Pr[IND(ARP,DBounder(D)).main() @ &m: res]| <= (q^2 - q)%r / 2%r * mu uD (pred1 witness)`: the
+library's (`Lib/EC/Strong_RP_RF.lean`) at the clone's variables.  EC's restrictions are on EC's
+`glob D` (`Module.ECGlob`, a local module's `glob` from its code): `D` outside the clone's
+variables, the oracles `O <: SPRP_Oracles{-D}` declared against it. -/
+theorem Conclusion (D : PRPSec.Distinguisher) {R : Footprint VariableAssignment}
+    [hR : Module.ECGlob D R] [hD : Footprint.Outside R (PRPi.m.footprint ⊔ PRPi.mi.footprint ⊔
+      ARP.coll.footprint ⊔ ARP.m.footprint ⊔ ARP.mi.footprint ⊔ DBounder.FBounder.c.footprint)]
+    (m : VariableAssignment) :
+    (∀ (O : PRPSec.SPRP_Oracles) [Module.Declared O R], islossless O.f → islossless O.fi →
+      islossless (Module.app D O)) →
+    |Pr[ PRPSec.IND(PRPi.PRPi, DBounder(D)).main () @ &m : §res ] -
+      Pr[ PRPSec.IND(ARP, DBounder(D)).main () @ &m : §res ]| ≤
+      ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal := by
+  intro hll
+  obtain ⟨GF, hGF, hRGF⟩ := hR.base
+  exact Strong_RP_RF.Conclusion_of_region state dstate max_size uD_uf_fu PRPi.m PRPi.mi
+    ARP.m ARP.mi ARP.coll DBounder.FBounder.c (by fp_finite) D hR.finite R GF hGF hRGF hR.le hD.le
+    m (fun O hOf hO hf hfi => @hll O ⟨hOf, hO⟩ hf hfi)
+
+end Switching
 
 section
 
@@ -794,7 +867,10 @@ declare module D <: DISTINGUISHER {-Perm, -C, -PF, -Redo, -DBounder, -ARP, -PRPi
 variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
-set_option maxHeartbeats 1000000 in
+set_option maxHeartbeats 4000000 in
+-- EC's restriction checks by instance search (`{-PRPi, -ARP, -DBounder}` on `glob D'`: 18 pairs
+-- of variables)
+set_option synthInstance.maxSize 1024 in
 include D_ll in
 /-- EC's `lemma Real_Concrete &m : Pr[GReal(D).main()@ &m: res /\ C.c <= max_size] <=
 Pr[CF(DRestr(D)).main()@ &m: res] + (max_size ^ 2 - max_size)%r / 2%r * mu dstate (pred1
@@ -803,41 +879,62 @@ theorem Real_Concrete (m : VariableAssignment) :
     Pr[ (GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
       Pr[ (CF (DRestr D)) () @ &m : §res ] +
         ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal := by
-  refine (Real_GReal' D m).trans_le ?_
-  have dD_fu : is_full dD := fun x =>
-    pos_iff_ne_zero.2 (Strong_RP_RF.uD_full _ _ Switching.uD_uf_fu x)
-  have p_ll : islossless Perm.f := EC.PRP.RP.f_ll _ _ _ _ Switching.uD_uf_fu.1 dD_fu
-  have pi_ll : islossless Perm.fi := EC.PRP.RP.fi_ll _ _ _ _ Switching.uD_uf_fu.1 dD_fu
-  -- EC's `have f_ll : islossless SqueezelessSponge(Perm).f`, as `Pr_restr`'s argument
-  haveI hP : Module.Declared (Perm : Indiff.PRIMITIVE) (C.c.footprint ⊔ C.queries.footprint) :=
-    ⟨by fp_finite, by fp_disjoint⟩
-  haveI hCO : Module.Declared (SqueezelessSponge : Indiff.CONSTRUCTION)
-      (C.c.footprint ⊔ C.queries.footprint ⊔ (FVP.fvP (Perm : Indiff.PRIMITIVE)).glob) :=
-    ⟨by fp_finite, by fp_disjoint⟩
-  haveI hD : Module.Declared D (C.c.footprint ⊔ C.queries.footprint ⊔
-      (FVP.fvP (Perm : Indiff.PRIMITIVE)).glob ⊔
-      (FVP.fvP (SqueezelessSponge : Indiff.CONSTRUCTION)).glob) := by
-    refine ⟨by fp_finite, (Footprint.le_compl_comm _ _).mpr (sup_le (sup_le ?_ ?_) ?_)⟩
-    · exact (Footprint.le_compl_comm _ _).mp (by fp_disjoint)
-    · exact (Footprint.le_compl_comm _ _).mp (Footprint.le_compl_glob_symm (by fp_finite)
-        (fvP_Perm.trans (by fp_disjoint)))
-    · exact (Footprint.le_compl_comm _ _).mp (Footprint.le_compl_glob_symm (by fp_finite)
-        (fvP_SqueezelessSponge.trans (by fp_disjoint)))
-  -- EC's `have f_ll : islossless SqueezelessSponge(Perm).f`, as `Pr_restr`'s argument
-  have hr := @Pr_restr _ (Perm : Indiff.PRIMITIVE) hP SqueezelessSponge hCO D hD p_ll pi_ll
-    (by
-      phoare_proc
-      phoare_while True ((size §p - §i).toNat)
-      · intro z; stmt_wp; stmt_if
-        · phoare_auto; smt_close
-        · stmt_wp; phoare_call p_ll; phoare_auto
-          smt_close
-      · phoare_auto) D_ll m
-  refine le_trans (le_of_eq ?greal) (hr.trans ?_)
-  case greal =>
-    unfold GReal'; module_norm; rfl
-  trace_state
-  sorry
+  rw [Real_GReal' D m]
+  have p_ll : islossless Perm.f :=
+    EC.PRP.RP.f_ll dD_ll (dprod_fu BitWord.dunifin_fu BitWord.dunifin_fu)
+  have pi_ll : islossless Perm.fi :=
+    EC.PRP.RP.fi_ll dD_ll (dprod_fu BitWord.dunifin_fu BitWord.dunifin_fu)
+  have f_ll : islossless SqueezelessSponge(Perm).f := by
+    phoare_proc
+    phoare_while True ((size §p - §i).toNat)
+    · intro z; stmt_wp; stmt_if
+      · phoare_auto; smt_close
+      · stmt_wp; phoare_call p_ll; phoare_auto; smt_close
+    · phoare_auto
+  apply le_trans (Pr_restr Perm SqueezelessSponge D p_ll pi_ll f_ll D_ll m)
+  have e1 : Pr[ Indif(SqueezelessSponge(Perm), Perm, DRestr(D)).main () @ &m : §res ] =
+      Pr[ PRPSec.IND(PRPi.PRPi, DBounder(D'(D))).main () @ &m : §res ] := by
+    rw [← DoubleBounding D PRPi.PRPi m]
+    byequiv; equiv_proc; stmt_inline*; stmt_wp
+    equiv_call (_ : ={glob D, glob C, glob Redo} ∧ §Perm.m{1} = §PRPi.m{2} ∧
+      §Perm.mi{1} = §PRPi.mi{2})
+    all_goals try (equiv_proc; stmt_inline*)
+    all_goals sim (_ : §Perm.m{1} = §PRPi.m{2} ∧ §Perm.mi{1} = §PRPi.mi{2})
+    all_goals auto_close
+  simp only [e1]
+  have e2 : Pr[ (CF (DRestr D)) () @ &m : §res ] =
+      Pr[ PRPSec.IND(ARP, DBounder(D'(D))).main () @ &m : §res ] := by
+    rw [← DoubleBounding D ARP m]
+    byequiv; equiv_proc; stmt_inline*; stmt_wp
+    equiv_call (_ : ={glob D, glob C, glob Redo} ∧ §PF.m{1} = §ARP.m{2} ∧
+      §PF.mi{1} = §ARP.mi{2})
+    all_goals try (equiv_proc; stmt_inline*)
+    all_goals sim (_ : §PF.m{1} = §ARP.m{2} ∧ §PF.mi{1} = §ARP.mi{2})
+  simp only [e2]
+  have := Switching.Conclusion (D' D) m ?D'_ll
+  -- EC's `smt()`
+  · linarith [(abs_le.1 this).2]
+  case D'_ll =>
+    intro O _ O_f_ll O_fi_ll
+    phoare_proc; phoare_inline*; stmt_sp; stmt_wp
+    phoare_call (@D_ll _ ?_ _ ?_ ?_ ?_ ?_)
+    · phoare_auto
+    · phoare_proc; stmt_sp; stmt_if
+      · phoare_auto; phoare_call O_f_ll; phoare_auto
+      · phoare_auto
+    · phoare_proc; stmt_sp; stmt_if
+      · phoare_auto; phoare_call O_fi_ll; phoare_auto
+      · phoare_auto
+    · phoare_proc; phoare_inline*; stmt_sp; stmt_if
+      · stmt_if
+        · stmt_wp
+          phoare_while True ((size §p - §i).toNat)
+          · intro z; stmt_wp; stmt_if
+            · phoare_auto; smt_close
+            · stmt_wp; phoare_call O_f_ll; phoare_auto; smt_close
+          · phoare_auto
+        · phoare_auto
+      · phoare_auto
 
 end
 

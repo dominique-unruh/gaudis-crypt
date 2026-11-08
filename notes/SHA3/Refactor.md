@@ -562,6 +562,44 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   definitions `prefix_inv`, `all_prefixes` to unfold, which EC's provers see through), 13 new
   `rc_*` lemmas (~17 applications), plus DoubleBounding's `db_first_step/get`, `db_init_dom`.
 
+* `Real_Concrete` closed (2026-11-08, sorry-free, EC's script step for step after Denis's
+  "no boilerplate in the proof" review): `rw [Real_GReal' D m]`; `have p_ll := f_ll dD_ll
+  (dprod_fu dunifin_fu dunifin_fu)` (RP's `f_ll`/`fi_ll`, now in `Lib/EC/PRP.lean`); `have f_ll`
+  by `phoare_while`; `apply le_trans (Pr_restr Perm SqueezelessSponge D p_ll pi_ll f_ll D_ll m)`;
+  the two `have ->:` as `have e : … := by rw [← DoubleBounding …]; byequiv; …; sim (_ : I)` and
+  `simp only [e]`; `have := Switching.Conclusion (D' D) m ?_`; EC's `smt()` as `linarith`; `D'`'s
+  losslessness EC's `call (_: true)`, `apply D_ll` and three oracle bullets.  What made the glue
+  disappear (each a fix where the cause was, not in the proof):
+  - **Views**: `module_subtype S <: T` for module types with the same procedures (equal by
+    definition) is the identity coercion, not a record — EC's one `Perm`, so `SqueezelessSponge
+    (Perm)` and `Pr_restr`'s `CO(P)` at `P := Perm` are the same term (`Syntax/ModuleSubtype.lean`;
+    `runTermElabM` for the section's instances).
+  - **Restrictions of concrete modules** (`Logic/DeclareModule.lean`): `Module.GlobBound A B` (a
+    concrete module's `glob` read off its code, stated once by `fp_module`, at the module type
+    the lemmas ask for), `Footprint.GlobalJoin`/`Outside`/`Covers` instances, so `Module.Declared`
+    is found for concrete modules, for a declared module against the `glob` of a concrete one, and
+    for `F(A)` (`Module.Declared.app`).  `Module.ECGlob A R`: EC's syntactic `glob` of a local
+    module (`glob D'` = `glob D` and `D'`'s variables; `fvP` of an application is only bounded
+    above), from which `D'` is declared.  The 3×6 variable pairs of `{-PRPi, -ARP, -DBounder}`
+    need `synthInstance.maxSize 1024` on the declaration.
+  - **`phoare_call`** takes `?_` holes (EC's `call` subgoals), matches the judgment's
+    metavariables against the callee first, and checks open `Module.Declared` goals as EC does
+    (instance search, else `fp_finite`/`fp_disjoint`).
+  - **`sim (_ : I)`** (EC's `sim (_: inv)`): loops' invariant `I` with the precondition's
+    equality set and the shared loop variables (inlining's reset temporaries excluded); a
+    product sampling against two samplings (`sample_sample2`'s coupling, `equiv_rnd_dprod` both
+    ways); `auto_close` on what the loop bodies leave.
+  - `dD`, `dstate` abbreviations (EC's one operator `bdistr \`*\` cdistr`); `phoare_while` in
+    the goal's context (lost later `have`s); the library's `Conclusion` chain quantifies its
+    oracles over finitely supported ones (EC's modules), with lens finiteness where it builds
+    concrete oracles; the clone's `Switching.Conclusion` in EC's form in the pilot.
+  Remaining deviations: `rw` on a goal holding `PRIMITIVE.f Perm` (`Perm` at its PRP type,
+  well typed only by unfolding the module types) fails its `instances`-transparency check, so EC's
+  `rewrite` after `Pr_restr` is `simp only`; `@D_ll _ ?_ _ ?_` spells out the restriction holes;
+  module types are not reducibly equal (instances keyed per module type: `GlobBound` stated at
+  the lemmas' types) — making `moduletype`'s types reducible would remove both (proposed, not
+  done: it touches every module type).
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

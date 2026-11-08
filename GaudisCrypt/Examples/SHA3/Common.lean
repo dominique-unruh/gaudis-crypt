@@ -150,7 +150,7 @@ abbrev Distinguisher := EC.PRP.StrongPRP.Distinguisher (block × capacity)
 end PRPSec
 
 /-- The `RP` clone's `op dD <- bdistr \`*\` cdistr`. -/
-noncomputable def dD : SubProbability (block × capacity) := dprod bdistr cdistr
+noncomputable abbrev dD : SubProbability (block × capacity) := dprod bdistr cdistr
 
 /-- `realize dD_ll`. -/
 theorem dD_ll : is_lossless dD := by

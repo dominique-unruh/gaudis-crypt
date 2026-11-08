@@ -34,7 +34,7 @@ abbrev «[+]» {α β : Type*} (x : β) : α → β := fun _ => x
 
 abbrev state := block × capacity
 
-noncomputable def dstate : SubProbability state := dprod bdistr cdistr
+noncomputable abbrev dstate : SubProbability state := dprod bdistr cdistr
 
 
 /-- `clone export Tuple as TupleBl with type t <- block, op Support.enum <- Block.blocks`. -/
