@@ -723,54 +723,31 @@ def moveStmt (p : Nat) (k : Int) (s : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr
 `k > 0`, earlier for `-k` (EC's `swap`).  Each step exchanges two neighbours, one deterministic
 and the other commuting with its update, or one a sampling from a constant distribution and the
 other commuting with the writes to its variable; the commutation is shown by `simp`.  Any
-registered judgment; on a relational one, `stmt_swap{i} n k` on side `i`. -/
+registered judgment; on a relational one, `stmt_swap{i} n k` on side `i`.  Positions are EC's
+(the resets inlining leaves are not counted, and move with the statement after them). -/
 syntax "stmt_swap" (Judgment.judgmentSide)? ppSpace num ppSpace ("-")? num : tactic
 
+/-- **`stmt_swap_raw n k`**: `stmt_swap n k` in *our* positions (from 1, every statement counted,
+the resets inlining leaves included).  For the older ports, written against our positions; EC-form
+proofs use `stmt_swap n k` (EC's positions). -/
+syntax "stmt_swap_raw" (Judgment.judgmentSide)? ppSpace num ppSpace ("-")? num : tactic
+
 elab_rules : tactic
-  | `(tactic| stmt_swap $[$s]? $n:num $[-%$neg]? $k:num) => do
+  | `(tactic| stmt_swap_raw $[$s]? $n:num $[-%$neg]? $k:num) => do
     let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
-    if n.getNat == 0 then throwError "stmt_swap: EC's positions count from 1"
+    if n.getNat == 0 then throwError "stmt_swap_raw: positions count from 1"
     liftMetaTactic1 fun g => some <$>
       Judgment.onStmt (moveStmt (n.getNat - 1) k) g (Judgment.sideOf? s)
 
-/-- The statement `s` resets locals (`reset_vars S`, what inlining a call leaves for the callee's
-locals): not one of EC's statements, which inlines without them. -/
-def isReset (s : Lean.Expr) : MetaM Bool := do
-  let s ← TacticMisc.openStmt s
-  return s.isAppOf ``StmtWithHoles.assign && s.getAppArgs.any (·.isAppOf ``resetSetter)
-
-/-- Whether each statement along the right spine of `s` is a reset (`isReset`), through the
-`let`s of the locals (as `moveStmt` counts positions). -/
-partial def spineResets (s : Lean.Expr) : MetaM (List Bool) := do
-  let s ← TacticMisc.openStmt s
-  if let .letE n ty val body _ := s then
-    return ← withLetDecl n ty val fun fv => spineResets (body.instantiate1 fv)
-  if s.isAppOfArity ``StmtWithHoles.seq 3 then
-    return (← isReset (s.getArg! 1)) :: (← spineResets (s.getArg! 2))
-  return [← isReset s]
-
-/-- EC's statements of a spine (`spineResets`) as groups of ours: each with the resets just before it
-(the sizes of the groups, in order). -/
-def ecGroups (rs : List Bool) : Array Nat := Id.run do
-  let mut out := #[]
-  let mut pending := 0
-  for r in rs do
-    if r then pending := pending + 1
-    else
-      out := out.push (pending + 1)
-      pending := 0
-  if pending > 0 then out := out.push pending
-  return out
-
 /-- `stmt_swap [a..b] k` (EC's `swap [a..b] k`): move the block of statements `a` to `b` by `k`
 positions, in EC's positions (from 1, the resets inlining leaves not counted: each moves with
-the statement after it), one of our statements at a time (`stmt_swap n k`). -/
+the statement after it), one of our statements at a time (`moveStmt`). -/
 syntax "stmt_swap" (Judgment.judgmentSide)? " [" num ".." num "] " ("-")? num : tactic
 
 /-- EC's statements of side `side?` as groups of ours (`ecGroups`). -/
 def ecGroupsOf (g : MVarId) (side? : Option Nat) : MetaM (Array Nat) := g.withContext do
   let (d, ty) ← Judgment.descOf g side?
-  return ecGroups (← spineResets (ty.getArg! d.stmtArg))
+  return TacticMisc.ecGroups (← TacticMisc.spineResets (ty.getArg! d.stmtArg))
 
 /-- EC's `swap [a..b] k` on side `side?`: see `stmt_swap [a..b] k`. -/
 def swapBlock (a b : Nat) (k : Int) (side? : Option Nat) : TacticM Unit := do
@@ -795,6 +772,14 @@ elab_rules : tactic
   | `(tactic| stmt_swap $[$s]? [$a:num .. $b:num] $[-%$neg]? $k:num) => do
     let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
     swapBlock a.getNat b.getNat k (Judgment.sideOf? s)
+
+-- `stmt_swap n k` (declared above): EC's `swap n k`, the block `[n..n]` (EC's positions: the
+-- resets inlining leaves move with the statement after them and are not counted)
+elab_rules : tactic
+  | `(tactic| stmt_swap $[$s]? $n:num $[-%$neg]? $k:num) => do
+    let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
+    if n.getNat == 0 then throwError "stmt_swap: EC's positions count from 1"
+    swapBlock n.getNat n.getNat k (Judgment.sideOf? s)
 
 /-- **EC's `swap k`** (no position): the first statement `k` positions later, or with `-k` the
 last one `k` positions earlier (EC's statements: the resets inlining leaves move with the

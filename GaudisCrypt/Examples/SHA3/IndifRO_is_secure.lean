@@ -292,8 +292,8 @@ theorem Collision_FM_GReal (A : SRO.AdvCollision f_in f_out) (C : CONSTRUCTION b
   stmt_inline{1} 0
   stmt_inline{1} 0
   -- `swap {1} [1..2] 2`: `Bounder.bounder <- 0; Counter.c <- 0` past `P.init(); C(P).init()`
-  stmt_swap{1} 5 3
-  stmt_swap{1} 3 4
+  stmt_swap_raw{1} 5 3
+  stmt_swap_raw{1} 3 4
   stmt_inline{2} 2
   stmt_inline{2} 2
   stmt_inline{2} 2
@@ -714,8 +714,8 @@ theorem Preimage_FM_GReal (A : SRO.AdvPreimage f_in f_out) (C : CONSTRUCTION blo
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 2
-  stmt_swap{1} 10 -8
-  stmt_swap{1} 11 -8
+  stmt_swap_raw{1} 10 -8
+  stmt_swap_raw{1} 11 -8
   repeat stmt_inline{1} 3
   repeat stmt_inline{2} 3
   stmt_wp
@@ -958,8 +958,8 @@ theorem SecondPreimage_FM_GReal (A : SRO.AdvSecondPreimage f_in f_out)
   stmt_inline 0
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 2
-  stmt_swap{1} 8 -6
-  stmt_swap{1} 9 -6
+  stmt_swap_raw{1} 8 -6
+  stmt_swap_raw{1} 9 -6
   repeat stmt_inline{1} 3
   repeat stmt_inline{1} 4
   repeat stmt_inline{2} 3

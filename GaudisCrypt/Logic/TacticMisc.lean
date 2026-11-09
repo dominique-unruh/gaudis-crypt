@@ -40,6 +40,47 @@ partial def openStmt (e : Lean.Expr) : MetaM Lean.Expr := do
   | some e'' => openStmt e''
   | none => return e'
 
+/-- The statement `s` resets locals (`reset_vars S`, what inlining a call leaves for the callee's
+locals): not one of EC's statements, which inlines without them. -/
+def isReset (s : Lean.Expr) : MetaM Bool := do
+  let s ← openStmt s
+  return s.isAppOf ``StmtWithHoles.assign && s.getAppArgs.any (·.isAppOf ``resetSetter)
+
+/-- Whether each statement along the right spine of `s` is a reset (`isReset`), through the
+`let`s of the locals. -/
+partial def spineResets (s : Lean.Expr) : MetaM (List Bool) := do
+  let s ← openStmt s
+  if let .letE n ty val body _ := s then
+    return ← withLetDecl n ty val fun fv => spineResets (body.instantiate1 fv)
+  if s.isAppOfArity ``StmtWithHoles.seq 3 then
+    return (← isReset (s.getArg! 1)) :: (← spineResets (s.getArg! 2))
+  return [← isReset s]
+
+/-- EC's statements of a spine (`spineResets`) as groups of ours: each with the resets just before
+it (the sizes of the groups, in order). -/
+def ecGroups (rs : List Bool) : Array Nat := Id.run do
+  let mut out := #[]
+  let mut pending := 0
+  for r in rs do
+    if r then pending := pending + 1
+    else
+      out := out.push (pending + 1)
+      pending := 0
+  if pending > 0 then out := out.push pending
+  return out
+
+/-- **EC's code gap `pos`** in the statement `s`, as our gap (the number of our statements before
+it): `pos ≥ 0` after EC's first `pos` statements, `-k` after the `k`-th from the end (`-1`: after
+the last); EC's statements are `ecGroups` (the resets inlining leaves belong to the statement
+after them, so they are not counted). -/
+def ecGapIn (pos : Int) (s : Lean.Expr) : MetaM Nat := do
+  let gs := ecGroups (← spineResets s)
+  let n := gs.size
+  let gap : Int := if pos ≥ 0 then pos else n + pos + 1
+  unless 0 ≤ gap ∧ gap ≤ n do
+    throwError "position {pos} is outside a statement of {n} statements"
+  return (gs.extract 0 gap.toNat).foldl (· + ·) 0
+
 /-- Is this `skip`? -/
 def isSkip (e : Lean.Expr) : Bool := e.isAppOf ``StmtWithHoles.skip
 

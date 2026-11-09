@@ -93,8 +93,8 @@ elab_rules (kind := stmtAlias) : tactic
     let ty ← prhlGoal g "stmt_alias"
     let st := ty.getArg! side
     -- our position of EC's statement `n` (the resets before it come after the alias)
-    let rs ← spineResets st
-    let gs := ecGroups rs
+    let rs ← TacticMisc.spineResets st
+    let gs := TacticMisc.ecGroups rs
     let n := n.getNat
     unless 1 ≤ n && n ≤ gs.size + 1 do
       throwError "stmt_alias: no position {n} (the code has {gs.size} statements)"

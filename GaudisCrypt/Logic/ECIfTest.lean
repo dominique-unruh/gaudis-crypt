@@ -45,9 +45,9 @@ example : equiv[ ={b} ==> ={y} ] {
       y <- §y + 1;
     } := by
   stmt_if
-  · sim
-  · sim
   · intros; simp_all
+  · sim
+  · sim
 
 /-- EC's `rcondt 2`: the test holds after `b <- true`; the conditional is its `then` branch. -/
 example : hoare[ True ==> §y = 0 ] {

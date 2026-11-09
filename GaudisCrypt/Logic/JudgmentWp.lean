@@ -133,13 +133,15 @@ def ecGap (n : Int) (len : Nat) : MetaM Nat := do
     throwError "position {n} is outside a statement of {len} statements"
   return gap.toNat
 
-/-- **EC's `wp n`**: the statements after EC's code gap `pos` (`ecGap`) by wp (`wpStep`), the
-ones before kept; on side `side?` of a relational judgment. -/
+/-- **EC's `wp n`**: the statements after EC's code gap `pos` (`TacticMisc.ecGapIn`: EC's
+statements, the resets inlining leaves not counted) by wp (`wpStep`), the ones before kept; on
+side `side?` of a relational judgment. -/
 def wpAt (pos : Int) (g : MVarId) (side? : Option Nat := none) : MetaM MVarId :=
   forSides side? g fun side? g => do
     let (d, ty) ← descOf g side?
-    let len ← HoareSplit.seqLength (stripLets (ty.getArg! d.stmtArg))
-    wpStep (len - (← ecGap pos len)) g side?
+    let st := ty.getArg! d.stmtArg
+    let len ← HoareSplit.seqLength (stripLets st)
+    wpStep (len - (← TacticMisc.ecGapIn pos st)) g side?
 
 /-- **EC's `wp n m`** on a relational judgment, with EC's code positions (`ecGap`): on the left
 the statements after the first `n` by wp, on the right those after the first `m` (`-k`: up to

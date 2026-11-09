@@ -13,8 +13,8 @@ EC's `if` works on the first statement of the code, the rest following each bran
 conditional takes the rest into its branches (`StmtWithHoles.Equiv.ifThenElse_seq`, an
 equivalence, for any judgment), then the judgment's rule for a conditional applies: `hoareStmt_if`,
 `phoareStmt_if` (any relation to the bound), `prhlStmt_if` (the guard goal: the tests agree), or
-`prhlStmt_if_left`/`_right`.  Goals: `then`, `else` (the precondition with the test true, false),
-and `guard` for the two-sided rule.
+`prhlStmt_if_left`/`_right`.  Goals in EC's order: `guard` for the two-sided
+rule (the tests agree), then `then`, `else` (the precondition with the test true, false).
 -/
 
 namespace GaudisCrypt
@@ -180,9 +180,8 @@ elab "stmt_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
       try Judgment.simpArg m 0 relSimpDecls [] catch _ => pure m
     m'.setTag tag
     out := out.push m'
-  -- the branches first, as written
-  let ordered := if out.size == 3 then #[out[1]!, out[2]!, out[0]!] else out
-  replaceMainGoal ordered.toList
+  -- EC's order: the guard goal (two-sided), then the branches
+  replaceMainGoal out.toList
 
 namespace ECIf
 
@@ -215,7 +214,7 @@ def rcond (b : Bool) (side? : Option Nat) (n : Nat) : TacticM Unit := withMainCo
   if isRel && side?.isNone then throwError "rcond: a side, `rcondt\{1} n` or `rcondt\{2} n`"
   -- EC's position: the resets inlining leaves not counted
   let (d, ty') ← Judgment.descOf g side?
-  let groups := StmtSwap.ecGroups (← StmtSwap.spineResets (ty'.getArg! d.stmtArg))
+  let groups := TacticMisc.ecGroups (← TacticMisc.spineResets (ty'.getArg! d.stmtArg))
   unless 1 ≤ n && n ≤ groups.size do
     throwError "rcond: no statement {n} (the code has {groups.size})"
   let k := (groups.extract 0 n).foldl (· + ·) 0 - 1

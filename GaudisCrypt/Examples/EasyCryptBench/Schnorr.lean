@@ -290,8 +290,8 @@ theorem shvzk_prhl (D : Distinguisher P) :
   stmt_inline 0
   -- EC's `swap`s: on the real side the challenge is drawn before the commitment's randomness
   -- (the test's reset of its locals moved out of the way first)
-  stmt_swap{2} 12 -3
-  stmt_swap{2} 14 -4
+  stmt_swap_raw{2} 12 -3
+  stmt_swap_raw{2} 14 -4
   stmt_wp
   equiv_call
   stmt_wp

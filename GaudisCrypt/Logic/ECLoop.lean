@@ -103,7 +103,7 @@ def loopOf (tac : String) (s : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
 /-- Our position (from 0) of EC's statement `n` (from 1) of the statement `s`: the last of its
 group (`ecGroups`: the resets before it come first). -/
 def ourPos (tac : String) (s : Lean.Expr) (n : Nat) : MetaM Nat := do
-  let gs := ecGroups (← spineResets s)
+  let gs := TacticMisc.ecGroups (← TacticMisc.spineResets s)
   unless 1 ≤ n && n ≤ gs.size do
     throwError "{tac}: no statement {n} (the code has {gs.size})"
   return (gs.extract 0 n).foldl (· + ·) 0 - 1

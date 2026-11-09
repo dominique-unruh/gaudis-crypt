@@ -3778,7 +3778,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
                           unfold qpre at hc
                           omega
                         case «then» =>
-                          stmt_swap{1} 1 1
+                          stmt_swap_raw{1} 1 1
                           stmt_wp
                           equiv_rnd
                           stmt_wp
@@ -3863,7 +3863,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
                           unfold qpre at hc
                           omega
                         case «then» =>
-                          stmt_swap{1} 1 1
+                          stmt_swap_raw{1} 1 1
                           stmt_wp
                           equiv_rnd
                           stmt_wp

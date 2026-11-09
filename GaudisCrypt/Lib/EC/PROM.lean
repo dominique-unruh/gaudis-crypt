@@ -1015,7 +1015,7 @@ theorem eager_get (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
       stmt_inline{1} 1
       stmt_inline{2} 0
       stmt_wp
-      stmt_swap{1} 1 3
+      stmt_swap_raw{1} 1 3
       equiv_seq_last 1 1 : (§x{1} = a ∧ FMap.get §FRO_m{1} a = none ∧
         §FRO_m{2} = FMap.set §FRO_m{1} a (§r0{1}, Known) ∧ §r{2} = §r0{1})
       case h₁ =>
@@ -1273,7 +1273,7 @@ theorem eager_sample (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a : in_t) :
       stmt_inline{2} 0
       stmt_inline{2} 0
       stmt_wp
-      stmt_swap{1} 1 3
+      stmt_swap_raw{1} 1 3
       -- EC: `seq 1 7 : (={x} /\ eq_except (pred1 x{1}) FRO.m{1} FRO.m{2} /\ … /\
       -- (FRO.m.[x]){2} = Some (c{1}, Unknown) /\ (FRO.m.[x]){1} = None)`
       equiv_seq_last 1 1 : (§x{1} = a ∧ FMap.eq_except (· = a) §FRO_m{1} §FRO_m{2} ∧

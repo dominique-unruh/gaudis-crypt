@@ -20,7 +20,7 @@ open Lean Meta Elab Tactic StmtSwap
 /-- Our statements after the first `n` of EC's, of the statement `s` (as `equiv_seq_last` counts
 them). -/
 def afterEC (s : Lean.Expr) (n : Nat) : MetaM Nat := do
-  let gs := ecGroups (← spineResets s)
+  let gs := TacticMisc.ecGroups (← TacticMisc.spineResets s)
   unless n ≤ gs.size do
     throwError "equiv_seq: {n} statements, but the code has {gs.size}"
   return (gs.extract n gs.size).foldl (· + ·) 0

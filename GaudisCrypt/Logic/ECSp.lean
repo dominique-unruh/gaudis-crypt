@@ -285,15 +285,14 @@ body goal: `auto; sp; rcondt 1; …`). -/
 macro "while_ll_phoare" : tactic => `(tactic| refine while_lossless_of_phoare ?_)
 
 open Lean Meta Elab Tactic ECSp Judgment in
-/-- **EC's `sp n m`** on a relational judgment, with EC's code positions (`Judgment.ecGap`): the
-statements before the gap `n` of the left side and before the gap `m` of the right forward (`0`:
+/-- **EC's `sp n m`** on a relational judgment, with EC's code positions (`TacticMisc.ecGapIn`: EC's
+statements, the resets inlining leaves not counted): the statements before the gap `n` of the left side and before the gap `m` of the right forward (`0`:
 none; `-k`: up to and with the `k`-th statement from the end). -/
 elab "stmt_sp" ppSpace n:ecPos ppSpace m:ecPos : tactic => do
   let g ← getMainGoal
   let count (g : MVarId) (side : Nat) (pos : Int) : MetaM Nat := g.withContext do
     let (d, ty) ← descOf g (some side)
-    let len ← HoareSplit.seqLength (stripLets (ty.getArg! d.stmtArg))
-    ecGap pos len
+    TacticMisc.ecGapIn pos (ty.getArg! d.stmtArg)
   let k₁ ← count g 1 (ecPosOf n)
   let gs ← spSide g (some 1) (some k₁)
   match gs with

@@ -60,6 +60,18 @@ do better, deviate — and **document the deviation in the theorem's docstring**
    generically, in `Logic/`/`Lib/`/`Syntax/`, add a test next to it (`XTest.lean`), then continue.
    Before adding anything, check it does not exist (`grep -rn 'elab "…' GaudisCrypt/Logic`;
    names with trailing spaces are easy to miss).
+   **Ground truth from EC itself (Denis's method):** to design a tactic that must match EC — its
+   goals, their order, their exact conditions, what counts as a statement — write a tiny EC file
+   with *opaque* types and ops (`type t. op b1 : t -> bool. op I : t -> t -> bool.` …), modules
+   over them, and run the tactic in `easycrypt cli` with `pragma Goals:printall.`.  Nothing can be
+   simplified away, so EC prints every side condition in full.  Setup: memory
+   `easycrypt_local_install.md` (opam switch `ec`); probes and logs in
+   `~/easycrypt-transfer-probes/` (eager ones in `~/easycrypt-eager-experiments/`).
+   Findings so far (`while_if.ec`): `var h, i, c <- x` is **three** statements; two-sided `if`
+   leaves (1) the ambient `∀ &1 &2, P ⇒ (b1{1} ⇔ b2{2})`, (2) `P ∧ b1{1}` and (3) `P ∧ ¬b1{1}`
+   with the programs in sync; two-sided `while I` leaves (1) the body `I ∧ b1{1} ∧ b2{2} ==> I ∧
+   (b1{1} ⇔ b2{2})`, (2) the code before with post `(I ∧ (b1 ⇔ b2)) ∧ ∀ x_L x_R, ¬b1 x_L ⇒ ¬b2
+   x_R ⇒ I x_L x_R ⇒ Q x_L x_R` (quantified over the loop's *modified variables*).
 7. **Measure**: `scripts/ec_fidelity.py` (surface statements, clean proofs, term/den/fp, extra
    hypotheses, aux).  Update `notes/SHA3/Refactor.md` (Ported / Measurement) and
    `notes/SHA3/Mapping.md`.
@@ -126,17 +138,18 @@ call to them).
 
 Prefixes: `equiv_*` (pRHL), `hoare_*`, `phoare_*`, `stmt_*` (any judgment).  Side `{i}` as in EC.
 
-**Positions.**  Inlining leaves `reset_vars` statements (the callee's locals) that EC does not
-have.  Most position-taking forms skip them and count as EC does: `stmt_rcondt/f`,
-`equiv_seq`, `stmt_swap{i} [a..b] k`, `stmt_swap{i} k`, `stmt_alias`, `stmt_splitwhile`.
-**Three forms count raw statements, resets included:** `stmt_swap{i} n k`, `stmt_wp n m`,
-`stmt_sp n m`.  After an `inline` they may disagree with EC: use `stmt_swap{i} [n..n] k`
-instead of `stmt_swap{i} n k`, and check the goal after `stmt_wp`/`stmt_sp n m`.
+**Positions are EC's** in every position-taking EC form: inlining leaves `reset_vars` statements
+(the callee's locals) that EC does not have; they are not counted and move with the statement
+after them (`TacticMisc.ecGroups`, `ecGapIn`).  So EC's numbers are copied as they are:
+`stmt_rcondt/f`, `equiv_seq`, `stmt_swap{i} n k`, `stmt_swap{i} [a..b] k`, `stmt_swap{i} k`,
+`stmt_wp n m`, `stmt_sp n m`, `stmt_alias`, `stmt_splitwhile` (since 2026-11-09 for
+`swap n k`/`wp n m`/`sp n m`).  `stmt_swap_raw{i} n k` is the older form in *our* positions
+(resets counted), kept for the old ports only; `stmt_wp k` / `stmt_inline n` (one number) are
+ours too.
 
-**Goal order differs from EC in two places**, so EC's selectors after them need renumbering:
-two-sided `stmt_if` leaves `then, else, guard` (EC: guard first — EC's `if; 1: auto` is
-`stmt_if; on_goals 3 => …` or a bullet on the third goal); `equiv_while (I)` leaves four goals
-(`body, guard, exit, hpre`; EC two).
+**Goal order is EC's for `if`** (two-sided `stmt_if`: `guard, then, else`; EC's `if; 1,3: auto`
+is `stmt_if; on_goals 1, 3 => equiv_auto`).  **Not for `while`:** `equiv_while (I)` leaves four
+goals (`body, guard, exit, hpre`; EC two) — use the tags (`case body => …`).
 
 ### Program logic
 
@@ -148,16 +161,16 @@ two-sided `stmt_if` leaves `then, else, guard` (EC: guard first — EC's `if; 1:
 | `proc` | `equiv_proc` / `hoare_proc` / `phoare_proc` (to the body, params as locals; EC's counts) |
 | `inline*` | `stmt_inline*` (`hoare_inline*`, `phoare_inline*`) |
 | `inline{i} M.f` / `inline M₁ M₂` / `inline{i}*` | `stmt_inline{i} (M.f)` / `stmt_inline (M₁) (M₂)` / `stmt_inline*{i}` (parens needed: `stmt_inline n` inlines call site `n`) |
-| `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` (raw positions, see above) |
-| `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (raw positions, see above; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
+| `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` (EC positions) |
+| `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (EC positions; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
 | `auto` | `equiv_auto` / `hoare_auto` / `phoare_auto` |
 | `skip` | `equiv_skip` / `hoare_skip` / `phoare_skip`; if a read under `decide` or an inlined call's renamed state blocks the closer, `equiv_skip_ec` (what `equiv_auto` uses) |
-| `if` / `if{i}` | `stmt_if` (goals `then, else, guard`) / `stmt_if{i}` |
+| `if` / `if{i}` | `stmt_if` (goals EC's: `guard, then, else`) / `stmt_if{i}` |
 | `rcondt{i} n` / `rcondf{i} n` | `stmt_rcondt{i} n` / `stmt_rcondf{i} n`, EC's positions; side goal first: `· hoare_auto; …` |
 | `seq n m : P` (pRHL) | `equiv_seq n m : (P)` (leading counts, resets not counted). The old from-the-end cut is `equiv_seq_last` |
 | pHL `seq n : E p₁ p₂ p₃ p₄ I` (upper bound) | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged `invariant, first_E, second_E, first_notE, second_notE, bound` (bounds `1` closed on the spot), `_` bound allowed. `≤` goals only |
 | Hoare/pHL `seq n : P` (one condition) | **missing** as an EC-form tactic (8 uses: SHA3Security, Gconcl_list); `stmt_split k` cuts counting from the end |
-| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (1-based, raw positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k` |
+| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (EC positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k` |
 | `call (: inv)` (abstract adversary, Hoare) | `hoare_call (: inv)`; goals oracle(s) first, then pre |
 | `call (_ : ={glob A, x…})` (abstract) | `equiv_call (_ : ={glob A, x, …})` |
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)` |
@@ -195,7 +208,7 @@ two-sided `stmt_if` leaves `then, else, guard` (EC: guard first — EC's `if; 1:
 
 | EC | Gaudí |
 |---|---|
-| `t; 1,3: t'`, `2..-2: t'`, `-1: t'` | `on_goals 1, 3 => t'`, … — it acts on **all current goals**, not only `t`'s subgoals as in EC: use it inside a focused bullet (`· t; on_goals 1, 3 => t'`). Remember the reordered goals of `stmt_if`/`equiv_while` |
+| `t; 1,3: t'`, `2..-2: t'`, `-1: t'` | `on_goals 1, 3 => t'`, … — it acts on **all current goals**, not only `t`'s subgoals as in EC: use it inside a focused bullet (`· t; on_goals 1, 3 => t'`). Remember `equiv_while`'s four goals |
 | `last first` / `first last` | `rotate_right` (`swap` when there are exactly two goals) / `rotate_left` |
 | `n: t` (one goal) | Batteries' `on_goal n => t` |
 | `t; t'` (on all subgoals) | `t <;> t'` |
@@ -324,7 +337,12 @@ Document each in the docstring when it applies.
 * `simp [Lens.Disjoint.commute]` loops — use `lensWriteNorm`.  `Setter.throwaway_set` in
   `simpReadsDecls` broke PROM.
 * `simp_reads` rewrites under `decide` but leaves the instance: `normDecide` re-synthesizes it.
-* A namespace-local theorem shadows an opened one of the same name.
+* A namespace-local theorem shadows an opened one of the same name; two *opened* namespaces
+  with the same name give "Ambiguous term" — when moving a helper (e.g. into `TacticMisc`), don't
+  leave an alias behind in the old namespace, qualify the users.
+* Changing a tactic's semantics (positions, goal order): grep every use first; old ports rely on
+  the old behaviour — keep it under a new name (`stmt_swap_raw`) and rename the old uses
+  mechanically, rather than recomputing their arguments.
 * Elaborators must run `withMainContext`; module steps inside simp callbacks at default
   transparency.
 * Multi-line tactic quotations inside `( … )` fail to parse: bind sub-tactics with `let`.
@@ -337,8 +355,8 @@ Document each in the docstring when it applies.
 - [ ] Closers: `auto_close` / `smt_close [EC's lemmas]` / short hand proofs with EC's lemmas.
 - [ ] No aux lemma beyond EC's (inline `have`s inline), except plain-value facts standing for
       EC's `smt` (§5).
-- [ ] EC's goal selectors renumbered where our goal order differs (`stmt_if`, `equiv_while`);
-      positions after `inline` checked for the raw-position forms (§4).
+- [ ] EC's goal selectors renumbered where our goal order differs (`equiv_while`); no
+      `stmt_swap_raw` / one-number `stmt_wp k` where EC writes positions (§4).
 - [ ] Budget set per declaration with a reason; `sorry`-free; `lean_verify` shows standard axioms.
 - [ ] `lake build` of the module green; full build + `Pilot/ConcreteF.lean` if infrastructure
       changed.
