@@ -451,17 +451,21 @@ def globTuples (g : MVarId) : MetaM MVarId := g.withContext do
 
 /-- `globTuples` on the target and on every hypothesis mentioning a region's `touched_getter`
 (each reverted, rewritten, and introduced again under its name). -/
-def globTuplesAll (g : MVarId) : MetaM MVarId := g.withContext do
-  let mut g ← globTuples g
-  for d in ← g.withContext getLCtx do
-    if d.isImplementationDetail then continue
-    let t ← instantiateMVars d.type
-    unless (t.find? (·.isAppOfArity ``Footprint.touched_getter 2)).isSome do continue
-    let (fvs, g1) ← g.revert #[d.fvarId] (preserveOrder := true)
-    let g2 ← globTuples g1
-    let (_, g3) ← g2.introNP fvs.size
-    g := g3
-  return g
+def globTuplesAll (g : MVarId) : MetaM MVarId := do
+  let g ← globTuples g
+  -- the hypotheses mentioning a region, reverted together (their ids change on reverting)
+  let hs ← g.withContext do
+    let mut hs := #[]
+    for d in ← getLCtx do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      if (t.find? (·.isAppOfArity ``Footprint.touched_getter 2)).isSome then hs := hs.push d.fvarId
+    pure hs
+  if hs.isEmpty then return g
+  let (fvs, g1) ← g.revert hs (preserveOrder := true)
+  let g2 ← globTuples g1
+  let (_, g3) ← g2.introNP fvs.size
+  return g3
 
 /-- On a goal `∀ σ : ProgramState, P σ`: first unfold the reads of `σ` through expressions,
 pairs and the like down to reads of lenses and getters (`unfoldReads`), then generalize every read

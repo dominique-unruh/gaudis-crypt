@@ -230,9 +230,11 @@ Closers are the bulk of the remaining manual work.  Order of attack:
 
 1. **`auto_close`** — our `auto => /#`: intro, take hypotheses apart, substitute, reads through
    writes, `glob_simp`, split, `omega`/`simp_all`.  Closes or fails (never half-way).
-2. **`smt_close [l₁, …]`** — EC's `smt(l₁, …)` (grind-based, reads generalized).  Try it **once**
-   with EC's hint lemmas; on failure **do not tune grind** — write the proof (policy, Denis
-   2026-11-08).  EC's provers see through definitions; ours don't: pass definitions to unfold
+2. **`smt_close [l₁, …]`** — EC's `smt(l₁, …)` (grind-based, reads generalized).  Try it **at
+   most once** with EC's hint lemmas; if it fails — *any* failure, internal `grind` errors
+   included — **write the closer by hand right away**.  Never investigate why `grind` fails, and
+   don't list grind failures as infrastructure gaps (Denis, 2026-11-08 and 2026-11-09: time spent
+   on grind/smt is wasted).  EC's provers see through definitions; ours don't: pass definitions to unfold
    (`prefix_inv`, `all_prefixes`) as hints.
 3. **By hand**, with **EC's lemmas** (`lemma1'`, `huniq_hinvK_h`, `m_p_of_INV` …):
    `auto_prep` then `rw`/`simp`/`refine lemma … ?_ ?_`.  For a lemma over plain values:

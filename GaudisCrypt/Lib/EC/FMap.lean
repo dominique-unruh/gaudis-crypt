@@ -1,4 +1,5 @@
 import Mathlib.Data.Finmap
+import GaudisCrypt.Lib.EC.List
 
 /-!
 # EasyCrypt's finite maps (`theories/datatypes/FMap.ec`)
@@ -127,6 +128,13 @@ def eq_except (X : α → Prop) (m1 m2 : FMap α β) : Prop := ∀ y, ¬ X y →
 /-- `domE`. -/
 theorem domE (m : FMap α β) (x : α) : dom m x ↔ get m x ≠ none := by
   simp [dom, get, Finmap.lookup_eq_none, Finmap.mem_keys]
+
+/-- `get_some`: `x \in m => m.[x] = Some (oget m.[x])`. -/
+theorem get_some [Inhabited β] (m : FMap α β) (x : α) (h : dom m x) :
+    get m x = some (oget (get m x)) := by
+  rw [domE] at h
+  obtain ⟨y, hy⟩ := Option.ne_none_iff_exists'.mp h
+  rw [hy]; rfl
 
 /-- `rngE`. -/
 theorem rngE (m : FMap α β) (y : β) : rng m y ↔ ∃ x, get m x = some y := Iff.rfl
