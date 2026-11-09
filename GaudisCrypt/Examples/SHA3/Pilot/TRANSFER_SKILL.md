@@ -33,34 +33,52 @@ do better, deviate — and **document the deviation in the theorem's docstring**
 
 ## 1. Workflow per file
 
-1. **Read EC's file** (sources: `scratchpad/ext/sha3/proof/…` in the session scratchpad; clone
-   `formosa-crypto/sha3` again if gone).  Note its clones, module variables, `declare module`s,
-   `local` modules, `declare axiom`s.
+1. **Read EC's file.**  The sources are not in the repo: clone `formosa-crypto/sha3` (directory
+   `proof/`, `proof/smart_counter/`) into the session scratchpad — earlier sessions' copies are
+   gone.  Note its clones, module variables, `declare module`s, `local` modules, `declare
+   axiom`s, and which E-exceptions (`notes/SHA3/Exceptions.md`) it will hit.
+   **Order** (`Refactor.md`, "What retiring the old files waits for"): bottom-up; the two tops
+   `SHA3OSecurity` (7.8k lines) and `SHA3Security` use the old files' lens parameters ~120× each.
 2. **Port bottom-up** along the import graph.  A file is switched *by its fidelity port*: the
    port lives in `Pilot/` next to the old file; dependents move to it one by one; the old file is
    retired when its last dependent is ported.  Never mechanically rewire old dependents.
-3. **Declarations first** (§2), then statements (§3) — compile them with `sorry` proofs.
-4. **Proofs**: transcribe EC's script line by line (§4), closers last (§5).
-5. **Each gap** (a step with no Lean counterpart, or one that needs glue): fix it once,
+3. **File setup**: `Pilot/<EcName>.lean`, `namespace GaudisCrypt.SHA3.Pilot.<EcName>`, module
+   docstring with a "Translation" list (see `Pilot/SecureRO.lean`).  **Imports**: every EC tactic
+   lives in its own module and there is no barrel for them — a missing import shows up as a
+   *parse error* at the tactic.  Copy the import block of the closest pilot and add as needed:
+   `Logic.ECProc` (`*_proc`), `ECSim` (`inline*`, `sim`), `ECAuto` (`*_auto`, `rnd_*`),
+   `ECClose` (`auto_close`, `smt_close`, `auto_progress`), `ECSp`, `ECIf`, `ECSeq`, `ECInline`,
+   `ECConseq`, `ECCallEquiv`/`ECCallAbstract`/`ECCallUpto`/`ECCallOneSided`/`ECCallFrame`/
+   `CallSpec`, `ECWhile`, `ECLoop`, `ECTrans`, `ECAlias`, `ECGoals`, `StmtSwap`, `FelTactic`,
+   `PHoareSeq`, `PrTactics`, `DeclareModule`, `ECModuleBinders`, `ModuleFootprint`;
+   `Syntax.PrSyntax`, `Syntax.Clone`, `Syntax.ModuleVar`, `Syntax.ModuleSubtype`.  Add the file to
+   `GaudisCrypt.lean` once it builds; add a section to `notes/SHA3/Mapping.md` (EC lemma → Lean
+   name rows, as for the other pilots).
+4. **Declarations first** (§2), then statements (§3) — compile them with `sorry` proofs.
+5. **Proofs**: transcribe EC's script line by line (§4), closers last (§5).
+6. **Each gap** (a step with no Lean counterpart, or one that needs glue): fix it once,
    generically, in `Logic/`/`Lib/`/`Syntax/`, add a test next to it (`XTest.lean`), then continue.
    Before adding anything, check it does not exist (`grep -rn 'elab "…' GaudisCrypt/Logic`;
    names with trailing spaces are easy to miss).
-6. **Measure**: `scripts/ec_fidelity.py` (surface statements, clean proofs, term/den/fp, extra
+7. **Measure**: `scripts/ec_fidelity.py` (surface statements, clean proofs, term/den/fp, extra
    hypotheses, aux).  Update `notes/SHA3/Refactor.md` (Ported / Measurement) and
    `notes/SHA3/Mapping.md`.
-7. **Build/check**: `LEAN_NUM_THREADS=4 nice -n 10 lake build <Module>`; never two lake builds at
-   once.  After *any* change to closers or `generalizeReads`, also recheck
-   `Pilot/ConcreteF.lean` (not in the barrel, ~150 s: `lake env lean …`) and do a full build —
-   closer changes break old hand-written proofs (`rintro` patterns) far away.
-8. Commit locally at milestones (`Co-Authored-By` line); the user pushes.
+8. **Build/check**: `LEAN_NUM_THREADS=4 nice -n 10 lake build <Module>` (use fewer threads if the
+   box is busy — it is shared); never two lake builds at once.  After *any* change to closers or
+   `generalizeReads`, also recheck the pilots outside the barrel (`Pilot/ConcreteF.lean` ~150 s,
+   `Pilot/IRO.lean`; `lake env lean …`) and do a full build — closer changes break old
+   hand-written proofs (`rintro` patterns) far away.
+9. Commit locally at milestones (`Co-Authored-By` line); the user pushes.
 
 ## 2. Declarations
 
 | EC | Gaudí | Notes |
 |---|---|---|
 | `type from, to.` + `op`s + `axiom`s of a theory | `class Params («from» «to» : outParam Type)` with the ops and axioms as fields; `export Params (…)` | outParams: the one instance in scope (= EC's clone) fixes the types, so ops and module types are written without types. Then `variable {«from» «to» : Type} [Params «from» «to»]`. |
-| `clone [import] T as C with type a <- τ, op o <- e` | `clone [import] T as C with type a <- τ, op o <- e` (`Syntax/Clone.lean`), `proof * by tac` on its own line | Theory = namespace with `class T.Params`. Clone = instance `C.params` + reducible aliases `C.x`. Clones of theories still in old (lens-parameter) style: a `namespace C` with `global_var`s for its module variables and `abbrev`s applying the library modules at them (`ConcreteF`'s `Switching`, `SLCommon`'s `F`). |
+| `clone [import] T as C with type a <- τ, op o <- e` | `clone [import] GaudisCrypt.….T as C with type a <- τ, op o <- e` (`Syntax/Clone.lean`; the theory **fully qualified**), `proof * by tac` on its own line | Theory = namespace with `class T.Params`. Clone = instance `C.params` + reducible aliases `C.x`. Limits: no per-axiom `realize x by t` / `proof x by t` (only `proof *`); no clone `rename`; two clones of one theory at the same types share module variables, and same-type clones with different ops are unsupported (`Clone.lean` docstring). Clones of theories still in old (lens-parameter) style — `Lib/EC`'s `BitWord`/`PRP`/`RP`/`Strong_RP_RF`, `Common` (not re-ported) — are a `namespace C` with `global_var`s for its module variables, `abbrev`s applying the library modules at them, and its `realize`d axioms as theorems (`ConcreteF`'s `Switching`, `SLCommon`'s `F`). |
 | `rename [module] "A" as "B"` | `noncomputable abbrev B := @C.A` | |
+| `op f (x : t) = e` / `pred P (x : t) = e` | `def` (or `abbrev` when closers must see through it) / `def … : Prop` | EC's provers see through `op` bodies, ours don't: an opaque `def` must be passed to `smt_close`/`simp`. |
+| `inductive P = \| C of …` (e.g. `INV_CF_G1`) | `inductive P … : Prop` (or `structure` for one constructor) | Fields by `.1`/`obtain ⟨…⟩`, as the old port's `INV_CF_G1`. |
 | `module M = { var x : t … }` | `global_var M.x : t` before `module M { … }` | Disjoint from every other variable by instance search. |
 | module variable whose type mentions only theory types | `module_var M.x : T` (`Syntax/ModuleVar.lean`) | It takes the theory's instance; `global_var` (in `Language/`, off-limits) does not. |
 | `module type T = { proc f(x : a) : b … }` | `moduletype T { proc f (x : a) -> b; … }` | A module type named like a module: suffix `_T` (E3). |
@@ -69,13 +87,13 @@ do better, deviate — and **document the deviation in the theorem's docstring**
 | EC's `witness` | `default` | |
 | subtyping `RO <: RF` (passing an `RF` where an `Oracle` is expected) | `module_subtype RF <: Oracle` | Same-field module types: identity coercion. Module-type abbreviations are seen through. |
 | `module CF(D) = Indif(SqueezelessSponge(PF), PF, D)` (alias) | `noncomputable abbrev CF (D : T) := Module.app Indif (Module.pair …)` | Prefer an alias over a `def` (a `def` needs `unfold` in proofs). |
-| `section; declare module A <: T {-M₁, -M₂}.` | `declare module A <: T {-M₁, -M₂}` (`Logic/DeclareModule.lean`) | Variable + instance-implicit `[Module.Declared A S]`; `S` read off the `global_var`s of `M₁`'s code / `glob` of declared modules. Representability is derived. |
+| `section S. declare module A <: T {-M₁, -M₂}.` | `section S` … `declare module A <: T {-M₁, -M₂}` … `end S` (`Logic/DeclareModule.lean`; needs the enclosing `section`, as do `declare axiom`s) | Variable + instance-implicit `[Module.Declared A S]`; `S` read off the `global_var`s of `M₁`'s code / `glob` of declared modules. Representability is derived. |
 | `declare axiom D_ll : …` | `variable (D_ll : ∀ (F <: T {-D}), …, islossless D(F, P).distinguish)` + `include D_ll in` on the lemmas using it | `∀ (F <: T {-X}), P` and `∃ (S <: T {-X}), P` are `Logic/ECModuleBinders.lean`. |
 | `local module L (A : T) = { … }` | an ordinary `module` (or `module_var`s + `module`) inside `namespace Section` *before* the section's `declare module` | Its freshness for the declared adversary goes in the adversary's restriction list (EC: implicit) — e.g. `{-RO, -Preimage, -Preimage.Preimage2}`. |
 | `local` (clones, lemmas) | nothing — names stay visible | |
 | `lemma l &m (h : to) : Pr[ … ]` | `theorem l (m : VariableAssignment) (h : «to») : Pr[ … ]` | `&m` is an explicit memory argument. |
 | `equiv l : M.f ~ N.g : P ==> Q` | `theorem l : equiv[ M.f ~ N.g : P ==> Q ]` | |
-| EC lemma names | **verbatim** (E1), incl. `lemma1'`, `Real_GReal'` | Collisions with an opened namespace: qualify (`SHA3.Handle.eq_fi`). |
+| EC lemma names | **verbatim** (E1), incl. `lemma1'`, `Real_GReal'` | A theorem of the current namespace shadows an opened one of the same name: to reach the opened one, qualify it (in `Pilot.Handle`, `SHA3.Handle.eq_fi` is the *old* port's lemma, the bare `eq_fi` the pilot's). |
 | `state` (clashes with a root `state`) | `abbrev state := GaudisCrypt.SHA3.SLCommon.state` | |
 | `open … hiding X` | same | Needed when EC's names clash with ours (`PRIMITIVE`). |
 
@@ -99,14 +117,26 @@ call to them).
   module its footprint.  Closers read `={glob C}` as variable equalities.
 * `Pr[ M(A, F).main (x) @ &m : §res ∧ §C.c ≤ max_size ]` is a real number (EC's `Pr` is real);
   bounds are written over ℝ with casts: `((bound + 1 : ℤ) : ℝ) * mu1 sampleto h`.
-* EC's `x \in m` (maps) is `FMap.dom m x`; `m.[x]` is `FMap.get m x` (or `m.get x`); `oget`,
-  `rng`, `fdom` are in `Lib/EC/FMap.lean` under EC's names.
+* EC's `x \in m` (maps) is `FMap.dom m x`; `m.[x]` is `FMap.get m x` (or `m.get x`); `rng`,
+  `fdom` are in `Lib/EC/FMap.lean`, `oget` in `Lib/EC/List.lean`, under EC's names.
 * Parameter names in `hoare[ ]`/`phoare[ ]` are the procedure's; `arg` maps to `params`.
 * `islossless M.f`.
 
 ## 4. Proof steps: EC tactic → Gaudí tactic
 
 Prefixes: `equiv_*` (pRHL), `hoare_*`, `phoare_*`, `stmt_*` (any judgment).  Side `{i}` as in EC.
+
+**Positions.**  Inlining leaves `reset_vars` statements (the callee's locals) that EC does not
+have.  Most position-taking forms skip them and count as EC does: `stmt_rcondt/f`,
+`equiv_seq`, `stmt_swap{i} [a..b] k`, `stmt_swap{i} k`, `stmt_alias`, `stmt_splitwhile`.
+**Three forms count raw statements, resets included:** `stmt_swap{i} n k`, `stmt_wp n m`,
+`stmt_sp n m`.  After an `inline` they may disagree with EC: use `stmt_swap{i} [n..n] k`
+instead of `stmt_swap{i} n k`, and check the goal after `stmt_wp`/`stmt_sp n m`.
+
+**Goal order differs from EC in two places**, so EC's selectors after them need renumbering:
+two-sided `stmt_if` leaves `then, else, guard` (EC: guard first — EC's `if; 1: auto` is
+`stmt_if; on_goals 3 => …` or a bullet on the third goal); `equiv_while (I)` leaves four goals
+(`body, guard, exit, hpre`; EC two).
 
 ### Program logic
 
@@ -117,53 +147,62 @@ Prefixes: `equiv_*` (pRHL), `hoare_*`, `phoare_*`, `stmt_*` (any judgment).  Sid
 | `have ->: Pr[…] = Pr[…] by …` (rewrite chain) | `calc` steps, or `have e : … := by …` then `simp only [e]` (`rw` on `Pr[ ]` goals often fails its instances-transparency check) |
 | `proc` | `equiv_proc` / `hoare_proc` / `phoare_proc` (to the body, params as locals; EC's counts) |
 | `inline*` | `stmt_inline*` (`hoare_inline*`, `phoare_inline*`) |
-| `inline M.f` / `inline M₁ M₂` | `stmt_inline (M.f)` / `stmt_inline (M₁) (M₂)` (no `{i}`; parens needed) |
-| `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` |
-| `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (EC positions; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
+| `inline{i} M.f` / `inline M₁ M₂` / `inline{i}*` | `stmt_inline{i} (M.f)` / `stmt_inline (M₁) (M₂)` / `stmt_inline*{i}` (parens needed: `stmt_inline n` inlines call site `n`) |
+| `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` (raw positions, see above) |
+| `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (raw positions, see above; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
 | `auto` | `equiv_auto` / `hoare_auto` / `phoare_auto` |
-| `skip` | `equiv_skip` / `hoare_skip` / `phoare_skip` |
-| `if` / `if{i}` | `stmt_if` / `stmt_if{i}` |
+| `skip` | `equiv_skip` / `hoare_skip` / `phoare_skip`; if a read under `decide` or an inlined call's renamed state blocks the closer, `equiv_skip_ec` (what `equiv_auto` uses) |
+| `if` / `if{i}` | `stmt_if` (goals `then, else, guard`) / `stmt_if{i}` |
 | `rcondt{i} n` / `rcondf{i} n` | `stmt_rcondt{i} n` / `stmt_rcondf{i} n`, EC's positions; side goal first: `· hoare_auto; …` |
 | `seq n m : P` (pRHL) | `equiv_seq n m : (P)` (leading counts, resets not counted). The old from-the-end cut is `equiv_seq_last` |
-| pHL `seq n : E p₁ p₂ p₃ p₄ I` | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged (`invariant`, `first_E`, `first_notE`, `second_notE`, `bound`…), `_` bound allowed |
-| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (1-based) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k` |
+| pHL `seq n : E p₁ p₂ p₃ p₄ I` (upper bound) | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged `invariant, first_E, second_E, first_notE, second_notE, bound` (bounds `1` closed on the spot), `_` bound allowed. `≤` goals only |
+| Hoare/pHL `seq n : P` (one condition) | **missing** as an EC-form tactic (8 uses: SHA3Security, Gconcl_list); `stmt_split k` cuts counting from the end |
+| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (1-based, raw positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k` |
 | `call (: inv)` (abstract adversary, Hoare) | `hoare_call (: inv)`; goals oracle(s) first, then pre |
 | `call (_ : ={glob A, x…})` (abstract) | `equiv_call (_ : ={glob A, x, …})` |
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)` |
 | `call (_ : bad, I, J)` (up to bad) | `equiv_call (_ : bad, I, J)`; EC's goal order; `D_ll`'s goal: `exact D_ll` (E11: right oracles' `islossless` is one more goal each) |
 | `call (: P ==> Q)` (concrete callees, pRHL) | `equiv_call (_ : P ==> Q)`; callee's judgment first, then pre; the frame of unwritten variables is found |
 | `call (_ : ={glob P})` (concrete callee) | `equiv_call (_ : ={glob P})` |
-| `call H` | `equiv_call (H)`; `phoare_call H` (`?_` holes = EC's `call` subgoals) |
+| `call H` | `equiv_call (H)`; `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; `phoare_call H / x, …` for lossless + frame |
 | `sim` / `sim n m` / `sim (_ : I)` / `sim` with `={glob A}` | `sim` / `sim n₁ n₂` / `sim (_ : I)` / `sim / x₁, …, xₙ` (equal except the listed globals) |
-| `rnd` / `rnd{i}` / `rnd f` | `equiv_rnd` / `equiv_rnd{i}` / `equiv_rnd f` |
-| pHL `rnd (pred1 v)` / `rnd` (lossless) / `hoare` | `rnd_pred1 v` / `rnd_bound` / `rnd_null` (after `phoare_auto`) |
-| `hoare` (phoare → hoare for a 0 bound) | `phoare_hoare` |
-| `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` / `conseq H` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)` / `equiv_conseq H` (also `hoare_`, `phoare_`); EC's frame of what the code keeps is kept |
+| `rnd` / `rnd{i}` / `rnd f` | `equiv_rnd` / `equiv_rnd{i}` / `equiv_rnd f` (product samplings: `equiv_rnd_dprod`) |
+| `rnd f g` | **missing** (~14 uses, Sponge, SHA3OSecurity): `equiv_rnd f` has other side goals |
+| pHL `rnd (pred1 v)` / `rnd` (lossless) | `rnd_pred1 v` / `rnd_bound` (on the expectation `phoare_auto` leaves at a sampling) |
+| `hoare` | as a *tactic turning a `phoare … = 0`/`≤ 0` goal into a Hoare triple*: `phoare_hoare`; at a *sampling* inside a pHL proof (the event has probability 0): `rnd_null` |
+| `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
+| `conseq H` | `equiv_conseq H` (pRHL only) |
 | `exists* e₁{1}, e₂{2}; elim* => a b` | `equiv_exists* §e₁{1}, §e₂{2}` then `intro a b` (also on procedure judgments, `§x{2}` the parameter); `stmt_exists* e` |
 | `case (P)` (pRHL) | `equiv_case (P)` |
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
-| `while I` (two-sided) | `equiv_while (I)`; goals tagged `body`, `guard`, `exit`, `hpre` |
-| `while{i} I V` | `equiv_while{i} (I) (V)` |
-| pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal); `while_ll_phoare` for EC's `sp; rcondt 1; auto` on a lossless side goal |
+| `while I` (two-sided) | `equiv_while (I)`; four goals tagged `body`, `guard`, `exit`, `hpre` (EC: two — renumber EC's selectors) |
+| `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, `exit`, then the code before. EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
+| pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
+| Hoare `while I` | `hoare_while I` |
 | `splitwhile{i} n : e` / `unroll{i} n` | `stmt_splitwhile{i} n : e` / `stmt_unroll{i} n` |
 | `alias{i} n x = e` | `stmt_alias{i} n x = e` |
 | `transitivity{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` | `equiv_trans{i} { code } (P₁ ==> Q₁) (P₂ ==> Q₂)` |
+| `transitivity N.f (P₁ ==> Q₁) (P₂ ==> Q₂)` (procedure) | **no tactic** (2 uses, Sponge); the rule `prhlProc_trans_ec` (`Logic/ECTrans.lean`) |
+| `proc (I)` on an abstract procedure | **no tactic** (4 uses, Sponge); use `equiv_call (_ : ={…} ∧ I)` one level up, or the `AbstractCall` lemmas |
 | `symmetry` | `equiv_sym` |
-| `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)`; goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviation: `bad` must persist; one oracle only so far |
+| `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)` — EC's `n` dropped: the call must be the **last** statement (`stmt_wp` first). Goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviations: `bad` must persist; **one oracle only** — Gext's `fel 8 … [ReSample.f : …; ReSample.f1 : …]` needs the multi-oracle extension |
+| `bypr` | not a tactic (E12; before `fel`, collapses to `phoare_proc`) |
 
 ### Goal management
 
 | EC | Gaudí |
 |---|---|
-| `1,3: t`, `2..-2: t`, `-1: t` | `on_goals 1, 3 => t`, `on_goals 2..-2 => t`, `on_goals -1 => t` |
-| `last first` / `first last` | `swap` / `rotate_right` / `rotate_left` |
+| `t; 1,3: t'`, `2..-2: t'`, `-1: t'` | `on_goals 1, 3 => t'`, … — it acts on **all current goals**, not only `t`'s subgoals as in EC: use it inside a focused bullet (`· t; on_goals 1, 3 => t'`). Remember the reordered goals of `stmt_if`/`equiv_while` |
+| `last first` / `first last` | `rotate_right` (`swap` when there are exactly two goals) / `rotate_left` |
 | `n: t` (one goal) | Batteries' `on_goal n => t` |
 | `t; t'` (on all subgoals) | `t <;> t'` |
+| `t; [t₁ \| t₂]` (67 uses) | `t <;> [t₁; t₂]` (Batteries) or bullets |
 | `+ …` / `- …` bullets | `·` |
 | `=> //` | usually nothing (the tactics close trivial goals); else `<;> try trivial` |
+| `progress` (286 uses) | `auto_progress` (`Logic/ECClose.lean`), leaves goals split and simplified |
 
 ## 5. Closers (EC's `smt`, `/#`, `move=>`, `progress`)
 
@@ -183,12 +222,22 @@ Closers are the bulk of the remaining manual work.  Order of attack:
    fact as a lemma, reusing it is acceptable — **as a documented deviation** (`eq_f`'s path case
    = `f_path_inv`).
 
+**Auxiliary lemmas, the one exception to "no aux lemmas":** a small lemma *over plain values*
+(no programs, no states) that stands for what EC's `smt` finds by itself — ConcreteF's `db_*`,
+`rc_*` — is allowed, named after the EC lemma it comes from, in the game file if specific,
+in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
+
 Mappings for ssreflect idioms:
 
 * `move=> &1 &2 [#] !<<- ->> h` → the closers do it (`subst_named` = `<<*`, `subst_reads` =
   `<<-`/`->>` for `read = name` or `read = (name, name)`); positional `move=> … ya ? yc ?` →
   `rename_i ya _ yc _` (a deviation; names are positional in EC's sense).
 * `have /lemma [] h1 h2 := inv0` → `obtain ⟨h1, h2⟩ := lemma … inv0`.
+* `case: e => [|x]` / `elim` → `rcases e with _ | x` / `induction`; views `apply/l`, `move/l` →
+  `apply l.mpr` / `have := l.mp h`; `rewrite /f` → `unfold f`/`simp only [f]`; `rewrite -l` →
+  `rw [← l]`; `@/f` → `simp only [f]`; `split` → `constructor`/`refine ⟨?_, ?_⟩`;
+  `exists x` → `refine ⟨x, ?_⟩`; `pose x := e` → `set x := e`; `congr` → `congr 1`;
+  `do !t` → `repeat t`; `ring` → `ring`; `smt ml=0 w=…` → as `smt`.
 * `rewrite domE Pmi_xaxc` → `simp [FMap.domE, Pmi_xaxc]`; `smt(domE)` → `smt_close [FMap.domE]`.
 * `smt (@Block.DBlock …)` for losslessness → the `@[simp]` facts `bdistr_expected_one` etc.
   (state them once per file/library, `is_lossless_iff_expected`).
@@ -210,6 +259,10 @@ Mappings for ssreflect idioms:
   step: weaken the postcondition first (`equiv_conseq (: _ ==> §G1.bext{2})`) when the branch
   only needs the bad flag.
 * Drop EC's **no-op** `wp`/`sp` (one with a loop on one side timed out at 4M).
+* Disjointness of two named globals costs ~150–400 ms of instance search; big restriction lists
+  and many module variables add up.  `module_subtype` coercions are duplicated by the `module`
+  command's generated proof (`procApply`): callees like `A(FBounder(F(P)), PBounder(P))` need
+  ~400k (SecureHash).
 * Many variable pairs in restrictions (`{-PRPi, -ARP, -DBounder}`): `set_option
   synthInstance.maxSize 1024 in`.
 * Probing a large goal: `trace_state` + `lake env lean file | grep` (the LSP may choke);
@@ -225,8 +278,15 @@ Document each in the docstring when it applies.
 * **Inliner renaming**: an inlined callee's locals that clash with names in the conditions are
   renamed (`p`, `sa` → `p0`, `sa0` on side 2): EC's `={sa, p}` becomes `§sa{1} = §sa0{2} ∧ …`.
 * **`rename_i`** for EC's positional intro names; `rcases h : e` for `case @[ambient]`.
-* **E11**: the up-to-bad call wants the right oracles lossless (one more goal each).
-* **`fel`**: one oracle; `bad` must persist (`keep` goal); the event must be `bad` itself.
+* **E11**: the EC-form up-to-bad call `equiv_call (_ : bad, I, J)` wants the right oracles
+  lossless everywhere (one more `islossless` goal each, CF_G1).  (`Exceptions.md` E11 describes
+  the older `prhlProc_abstract_call_upto` rule, whose oracle premises are Hoare triples.)
+* **E13, E14** will recur in Gconcl, Gconcl_list, SHA3Indiff, SHA3(O)Security: variables of
+  local games fresh for `D` by hypothesis (`Gext0Fresh`), `D_ll` over a region rather than
+  `glob D`.  Read them before porting those files; retire them if `declare module` /
+  `Module.ECGlob` now cover the case.
+* **`fel`**: one oracle (Gext needs two); `bad` must persist (`keep` goal); the event must be
+  `bad` itself; the call last.
 * **`rw`** fails on goals with terms well-typed only by unfolding module types (`PRIMITIVE.f Perm`
   at a PRP type): use `simp only`.  Module types are not reducibly equal (making `moduletype`'s
   types `@[reducible]` is proposed, not done); instances like `Module.GlobBound` must be stated at
@@ -236,9 +296,12 @@ Document each in the docstring when it applies.
   `call (: true)` on init code is `equiv_call (_ : ={glob D, glob P})`.
 * **`seq`/`proc` counts** match EC only with the EC tactics (`*_proc`, `equiv_seq`); the
   `*_proc_to_stmt` and `equiv_seq_last` forms are older and count differently.
-* **Missing**: two-judgment `conseq (: _ ==> true) (: _ ==> Q)`; `rnd f g` (ours: `equiv_rnd f`,
-  other side goals); `sim` over abstract calls with differing oracles (use `equiv_call` with the
-  invariant); `bypr` (E12; collapses to `phoare_proc` before `fel`); multi-oracle `fel`.
+* **Missing** (counts over the files still to port): Hoare/pHL `seq n : P` (8); `rnd f g` (~14);
+  procedure-level `transitivity` (2) and `proc (I)` on abstract procedures (4); clone `realize` /
+  `proof x by` (~20) and `rename` (6); multi-oracle `fel` (Gext); two-judgment
+  `conseq (: _ ==> true) (: _ ==> Q)`; `sim` over abstract calls with differing oracles (use
+  `equiv_call` with the invariant); `bypr` (2; E12).  Not used there at all: `ecall`, `eager`,
+  `fission`/`fusion`, `cfold`, `kill`, `outline`, `exlim`, `byupto`, `rewrite equiv`.
 * **Old-port declarations**: lemmas ported in EC form *over the old declarations* (Handle's
   `eq_f`) carry artifacts (`unfold CF`, `module_subtype SLCommon.PRIMITIVE <: DPRIMITIVE`, old
   invariant forms); they vanish when the declarations are re-ported.
@@ -272,13 +335,21 @@ Document each in the docstring when it applies.
       statement and lists deviations.
 - [ ] Proof: every EC step has a Lean step with the same arguments/positions; no glue (§0).
 - [ ] Closers: `auto_close` / `smt_close [EC's lemmas]` / short hand proofs with EC's lemmas.
-- [ ] No aux lemma beyond EC's (inline `have`s inline).
+- [ ] No aux lemma beyond EC's (inline `have`s inline), except plain-value facts standing for
+      EC's `smt` (§5).
+- [ ] EC's goal selectors renumbered where our goal order differs (`stmt_if`, `equiv_while`);
+      positions after `inline` checked for the raw-position forms (§4).
 - [ ] Budget set per declaration with a reason; `sorry`-free; `lean_verify` shows standard axioms.
 - [ ] `lake build` of the module green; full build + `Pilot/ConcreteF.lean` if infrastructure
       changed.
 - [ ] `notes/SHA3/Refactor.md` (and `Mapping.md`) updated; `ec_fidelity.py` run.
 
 ## 10. Reference ports (read these first)
+
+`SecureRO`, `SecureORO`, `IndifRO_is_secure`, `SLCommon`, `ConcreteF` are on EC-form
+declarations.  **`Handle.lean` and `Sponge.lean` are over the old port's declarations** and carry
+its artifacts (`unfold CF`, abbreviation module types, `Module.app Sponge.f …`, CF_G1's `rintro`
+glue around the *old* `eq_f`/`eq_fi`): copy their proof steps, not their declarations.
 
 * Statements + `Pr` + `fel` + `phoare_seq`: `SecureRO.lean` (`RO_is_preimage_resistant`).
 * Abstract calls, clones, `sim /`: `SecureORO.lean`, `IndifRO_is_secure.lean`.
@@ -287,4 +358,5 @@ Document each in the docstring when it applies.
 * Loops, `splitwhile`/`alias`/`conseq` frames, `sim (_ : I)`, `phoare_while`: `ConcreteF.lean`
   (`DoubleBounding`, `Real_GReal'`, `Real_Concrete`).
 * Large invariant proofs with `exists*`, ambient cases, `rcondt`/`rcondf`, `swap` past calls:
-  `Handle.lean` (`eq_fi`, `eq_f`, `CF_G1`) — compare with `Handle.eca` lines 1349–1800.
+  `Handle.lean` (`eq_fi`, `eq_f`, `CF_G1`) — compare with `Handle.eca`: `eq_fi` from line 1349,
+  `eq_f` 1488–1813, `CF_G1` 2595.
