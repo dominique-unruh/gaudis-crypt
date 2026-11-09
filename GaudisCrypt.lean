@@ -153,6 +153,7 @@ import GaudisCrypt.Logic.ECGoals
 import GaudisCrypt.Logic.ECGoalsTest
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
+import GaudisCrypt.Logic.FelInner
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
@@ -221,6 +222,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
 import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
+import GaudisCrypt.Examples.SHA3.Pilot.Gcol
 import GaudisCrypt.Examples.SHA3.Pilot.Sponge
 import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF

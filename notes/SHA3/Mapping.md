@@ -539,6 +539,18 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gcol.lean`, namespace `GaudisCrypt
 | 220 | local equiv | `G1_col` | section PROOF. | `G1_col` (oracle steps `S_f_col`, `S_fi_col`, `M_f_col`, wrappers `DPRestr_f_col`, `DPRestr_fi_col`, `DFRestr_f_col`; invariant `colInv`) | done |
 | 348 | lemma | `Pr_G1col` | section PROOF. | `Pr_G1col` | done |
 
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Gcol.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.Gcol`, over the old `Handle` declarations):
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 27 | declare module | `D` | `declare module D <: DISTINGUISHER {-C, -PF, -G1, -Gcol.sample_c}` | def |
+| 29 | declare axiom | `D_ll` | `variable (D_ll …)` | def |
+| 33 | local module | `Gcol` | `Gcol.sample_c`, `Gcol.M`, `Gcol.S`, `Gcol (D)`; `global_var Gcol.count` | def |
+| 199 | local lemma | `Pr_col` | `Pr_col` (EC's `fel … [Gcol.sample_c : …]`) | done |
+| 220 | local equiv | `G1_col` | `G1_col` (EC's script, 8M) | done |
+| 348 | lemma | `Pr_G1col` | `Pr_G1col` | done |
+
 ## `proof/smart_counter/Gext.eca`
 
 Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt.SHA3.Gext`.

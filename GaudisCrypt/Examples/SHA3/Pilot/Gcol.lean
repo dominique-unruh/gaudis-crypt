@@ -1,6 +1,8 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Logic.PrTactics
+import GaudisCrypt.Logic.FelInner
+import GaudisCrypt.Logic.CallSpec
 
 /-!
 # The collision event of `G1` (EasyCrypt `proof/smart_counter/Gcol.eca`) — EC-fidelity port
@@ -39,10 +41,7 @@ set_option linter.dupNamespace false
   (framed) and its callee goal by `equiv_proc; equiv_auto` (EC's `1:by sim`).
 * (GAP 8, fixed: `swap` of a call past a deterministic `if`/sequence of writes — `callDet` in
   `Logic/StmtSwap.lean`.)
-* GAP 9: EC's `fel … [Gcol.sample_c : pre]` in `Pr_col`: the bad event and the counter change only
-  in a procedure the oracles call; our `fel` takes the adversary's oracles as the procedures
-  (the old port proves it by a potential, `SmartCounter/Gcol.lean`'s `Gcol_potential`).
-  `Pr_col` is `sorry` until `fel` takes inner procedures.
+* (GAP 9, fixed: `fel … [M : pre]` over a procedure the oracles call — `Logic/FelInner.lean`.)
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.Gcol
@@ -509,9 +508,61 @@ theorem Pr_col (m : VariableAssignment) :
   --       max_size G1.bcol
   --       [Gcol.sample_c : (card (image fst (frng FRO.m)) <= 2*max_size /\ Gcol.count < max_size)]
   --       =>//;2:by auto.
-  --     (GAP 9: `fel` whose bad event and counter change in a procedure the oracles call,
-  --     `[Gcol.sample_c : …]`; ours takes the adversary's oracles only)
-  sorry
+  --     (our `fel` works on the procedure's body: `byphoare`, `proc`, `inline*` first; the step
+  --     in `ENNReal`; EC's event `bad /\ cntr <= q` weakened to `bad`, the side condition `lt`
+  --     and the oracles' syntactic check closed by `fel`; one more goal, `keep`)
+  byphoare (: True ==> _)
+  · phoare_proc
+    phoare_inline*
+    fel §Gcol.count (fun _ => ((2 * max_size).toNat : ENNReal) / (2 ^ c.toNat : ENNReal))
+      max_size (§G1.bcol = true)
+      [Gcol.sample_c : (((Finset.image Prod.fst (FMap.frng §FRO.m)).card : ℤ) ≤ 2 * max_size ∧
+        §Gcol.count < max_size)]
+    -- EC: + rewrite /felsum Bigreal.sumr_const count_predT size_range.
+    --       apply ler_wpmul2r;1:by apply eps_ge0.
+    --       by rewrite le_fromint;smt ml=0 w=max_ge0.
+    · have hm := max_ge0
+      rw [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul,
+        ENNReal.ofReal_mul (by exact_mod_cast hm), ENNReal.ofReal_div_of_pos (by positivity)]
+      have e1 : ((max_size : ℤ) : ℝ) = ((max_size.toNat : ℕ) : ℝ) := by
+        exact_mod_cast (Int.toNat_of_nonneg hm).symm
+      have e2 : ((2 * max_size : ℤ) : ℝ) = (((2 * max_size).toNat : ℕ) : ℝ) := by
+        exact_mod_cast (Int.toNat_of_nonneg (by omega)).symm
+      have e3 : ((2 ^ c.toNat : ℤ) : ℝ) = ((2 ^ c.toNat : ℕ) : ℝ) := by push_cast; rfl
+      rw [e1, e2, e3, ENNReal.ofReal_natCast, ENNReal.ofReal_natCast, ENNReal.ofReal_natCast]
+      push_cast; rfl
+    -- (EC's `2:by auto`)
+    · hoare_auto
+    -- EC: + proc;sp;if;2:by hoare=>//??;apply eps_ge0.
+    --       wp.
+    --       rnd (mem (image fst (frng FRO.m)));skip;progress;2:smt ml=0.
+    --       have->:=(Mu_mem.mu_mem (image fst (frng FRO.m{hr})) cdistr (1%r/(2^c)%r) _).
+    --       + move=>x _; rewrite DCapacity.dunifin1E;do !congr;smt(@Capacity).
+    --       apply ler_wpmul2r;2:by rewrite le_fromint.
+    --       by apply divr_ge0=>//;apply /c_ge0r.
+    --     (`Mu_mem.mu_mem` for `cdistr`: the old port's `cdistr_expected_mem`)
+    · phoare_proc; phoare_auto
+      rintro σ ⟨-, hb, hg⟩
+      rw [if_pos (by simpa using hg)]
+      simp only [hb, Bool.false_eq_true, false_or, decide_eq_true_eq]
+      set S := Finset.image Prod.fst (FMap.frng (FRO.m.get σ.globals))
+      calc cdistr.expected (fun a => indicatorE (a ∈ S))
+          = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
+            congr 1; funext a; by_cases h : a ∈ S <;> simp [h]
+        _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
+        _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
+            rw [mul_one_div]
+            exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
+              by have := hg.1; omega)) _
+    -- EC: + move=>ci;proc;rcondt 2;auto=>/#.
+    · intro ci; hoare_proc; hoare_auto
+    -- EC: move=> b c;proc;sp;if;auto;smt ml=0.
+    · intro ci; hoare_proc; hoare_auto
+    -- (`keep`: `bad` persists)
+    · hoare_proc; hoare_auto
+  · exact mul_nonneg (by exact_mod_cast max_ge0)
+      (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
+        (by positivity))
 
 /-- EC's `lemma Pr_G1col &m : Pr[G1(DRestr(D)).main() @ &m : G1.bcol] <=
 max_size%r * ((2*max_size)%r / (2^c)%r)`. -/

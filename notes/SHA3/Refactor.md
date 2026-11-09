@@ -697,6 +697,16 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   invariant); a clone's op given as a function (`op dout _ <- bdistr`) is not substituted in
   code, so `r <$ F.dout x` reads `x` and EC's `swap{2} -3` fails (the left's samplings swapped
   instead); `grind_pattern` for arithmetic lemmas (`prefix_sizel`).
+* `Gcol.eca` (2026-11-09, `Pilot/Gcol.lean`, sorry-free, in the barrel, ~3.5 min): `G1_col` in
+  EC's script (three oracle bullets and the init goal; EC's lines as comments), `Pr_col` by EC's
+  `fel … [Gcol.sample_c : …]` (`fel` over a procedure the oracles call: `Logic/FelInner.lean`, the
+  oracles checked syntactically, `ExpDecr`), `Pr_G1col` by `byequiv (G1_col D)` and `Pr_col`.
+  Infrastructure fixed on the way: frames of clone aliases of globals (`varsOf`,
+  `globalLensIn?`), `swap` of a call past a deterministic `if`/sequence of writes (`callDet`),
+  `fel` with inner procedures, EC's `size_ge0`, `frng0`.  Open gaps (Gcol header, workarounds in
+  the proof): abstract call keeps `={glob D}` (1), inline by name vs old accessors (2), boolean
+  `=>` (3), swap past a call that reads the value's globals (4), `glob D` through an `if` (5),
+  `while` exit frames (6), concrete `call (_: ={x})` without frame (7).
 
 ### What retiring the old files waits for
 

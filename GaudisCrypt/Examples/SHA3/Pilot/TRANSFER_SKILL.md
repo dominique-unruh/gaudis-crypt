@@ -208,7 +208,7 @@ the `while` row.
 | `transitivity N.f (P₁ ==> Q₁) (P₂ ==> Q₂)` (procedure) | **no tactic** (2 uses, Sponge); the rule `prhlProc_trans_ec` (`Logic/ECTrans.lean`) |
 | `proc (I)` on an abstract procedure | **no tactic** (4 uses, Sponge); use `equiv_call (_ : ={…} ∧ I)` one level up, or the `AbstractCall` lemmas |
 | `symmetry` | `equiv_sym` |
-| `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)` — EC's `n` dropped: the call must be the **last** statement (`stmt_wp` first). Goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviations: `bad` must persist; **one oracle only** — Gext's `fel 8 … [ReSample.f : …; ReSample.f1 : …]` needs the multi-oracle extension |
+| `fel n cntr step q bad [O.f : pre] inv` | `fel §cntr (fun i => step) q (bad) [pre] (inv)` — EC's `n` dropped: the call must be the **last** statement (`stmt_wp` first). Goals EC's order (`sum`, `init`, oracle `step`, `incr`, `same`, `keep`). Deviations: `bad` must persist; **one oracle only** — Gext's `fel 8 … [ReSample.f : …; ReSample.f1 : …]` needs the multi-oracle extension .  **A procedure the oracles call** (`fel … [Gcol.sample_c : pre]`): `fel §cntr (fun _ => step) q (bad) [Gcol.sample_c : pre] (inv)?` (`Logic/FelInner.lean`; `inv` may be left out): `stmt_wp` itself, the event may be EC's `bad ∧ cntr ≤ q`, `pre` may read anything, the oracles' code checked syntactically (`exp_decr`), `lt` closed; goals `sum`, `init`, then per procedure `step`, `incr`, `same`, `keep`. Over the procedure's body: `byphoare (: True ==> _)`, `phoare_proc`, `phoare_inline*` first (Gcol's `Pr_col`) |
 | `bypr` | not a tactic (E12; before `fel`, collapses to `phoare_proc`) |
 
 ### Goal management
@@ -359,10 +359,9 @@ Document each in the docstring when it applies.
   back to a one-sided `rnd` when the last samplings differ in type, so where EC's `auto` stops
   before a `swap` (types differ), write that `auto` as `stmt_wp`, then EC's `swap`, then
   `equiv_auto`.
-* **`fel`**: one oracle (Gext needs two); `bad` must persist (`keep` goal); the event must be
-  `bad` itself; the call last.  The procedures listed must be the adversary's oracles: EC's
-  `fel … [Gcol.sample_c : pre]`, a procedure *the oracles call* (Gcol's `Pr_col`), has no
-  counterpart yet (Gcol GAP 9).
+* **`fel`**: the oracle form takes one oracle (Gext needs two); `bad` must persist (`keep` goal);
+  the call last.  The inner-procedure form (`[M : pre]`) takes any number of procedures, the
+  oracles of a product module type, and EC's event `bad ∧ cntr ≤ q`.
 * **`rw`** fails on goals with terms well-typed only by unfolding module types (`PRIMITIVE.f Perm`
   at a PRP type): use `simp only`.  Module types are not reducibly equal (making `moduletype`'s
   types `@[reducible]` is proposed, not done); instances like `Module.GlobBound` must be stated at
