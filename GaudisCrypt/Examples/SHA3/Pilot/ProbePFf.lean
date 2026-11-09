@@ -455,6 +455,37 @@ theorem PFf_Cf' : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         · stmt_if{2}
           · equiv_auto; pf_bad_leaf
           · equiv_auto; pf_bad_leaf
-    trace "W2 GOOD"; trace_state; sorry
+    -- EC: rcondf{1}1;1:auto=>/#.
+    stmt_rcondf{1} 1
+    · hoare_auto
+    -- EC: sp;wp.
+    stmt_sp; stmt_wp
+    -- EC: if{1};2:rcondt{2}1;first last;3:rcondf{2}1;..3:auto.
+    --     (as bullets: the known case first, EC's `first last`)
+    stmt_if{1}
+    rotate_left
+    -- the left's `x` is in `PF.m`: the right's handle path is known
+    · stmt_rcondt{2} 1
+      -- EC: + progress.
+      --     have[]HINV[]Hbad[]HINV0[]Hp1[]Hp2[]->>[]H_counter[]H_h[]H_path[]H_F_RO H_take_not_in:=H3 H6.
+      --     have:=lemma5' _ _ _ _ _ _ _ _ _ _ _ _ i{hr} bs{m} sa{hr} sc{m} h{hr} HINV _ _ _.
+      --     - smt(prefix_ge0).  - exact H1.  - exact H_h.
+      --     by have:=H7;rewrite !domE=>->/=/#.
+      · hoare_auto; auto_prep
+        rcases lemma5' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+            ⟨le_trans (prefix_ge0 _ _) ‹_›, ‹_›⟩ ‹_› ⟨_, ‹_›⟩ with ⟨b', c', h', -, hmh⟩ | ⟨hP, -⟩
+        · simp [FMap.domE, hmh]
+        · simp_all [FMap.domE]
+      equiv_auto
+      trace "G KNOWN"; trace_state; sorry
+    -- the left's `x` is fresh: so is the right's
+    · stmt_rcondf{2} 1
+      -- EC: + progress. … lemma5' … by have:=H7;rewrite !domE=>/=->/=.
+      · hoare_auto; auto_prep
+        rcases lemma5' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+            ⟨le_trans (prefix_ge0 _ _) ‹_›, ‹_›⟩ ‹_› ⟨_, ‹_›⟩ with ⟨b', c', h', hP, -⟩ | ⟨-, hmh⟩
+        · simp_all [FMap.domE]
+        · simp [FMap.domE, hmh]
+      trace "G FRESH"; trace_state; sorry
 
 end GaudisCrypt.SHA3.Pilot.Handle
