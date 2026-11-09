@@ -477,11 +477,25 @@ elab_rules (kind := equivCallUpto) : tactic
 
 end GaudisCrypt
 
+namespace GaudisCrypt
+
+/-- A region's view of a conditional state is the conditional of the views (a conditional write,
+`RO.get`'s `if (x ∉ m) m.[x] <- r`, under `glob D`). -/
+theorem touched_getter_get_ite {F : Footprint VariableAssignment} (c : Prop) [Decidable c]
+    (a b : VariableAssignment) :
+    F.touched_getter.get (if c then a else b) =
+      if c then F.touched_getter.get a else F.touched_getter.get b :=
+  apply_ite _ _ _ _
+
+end GaudisCrypt
+
 /-- EC's implicit `={glob D}` across code writing outside `glob D`: each write `x.set v g` under
 `(FVP.fvP D).touched_getter.get` removed (`touched_set_of_le_compl`, `x` outside `glob D` by
-`fp_disjoint`), as long as one is found. -/
-macro "glob_simp" : tactic => `(tactic|
-  repeat (rw [GaudisCrypt.touched_set_of_le_compl ?_]; rotate_left; fp_disjoint))
+`fp_disjoint`), as long as one is found; the view taken into conditional states first. -/
+macro "glob_simp" : tactic => `(tactic| (
+  (try simp only [GaudisCrypt.touched_getter_get_ite])
+  repeat (rw [GaudisCrypt.touched_set_of_le_compl ?_]; rotate_left; fp_disjoint)
+  (try simp only [ite_self])))
 
 namespace GaudisCrypt
 

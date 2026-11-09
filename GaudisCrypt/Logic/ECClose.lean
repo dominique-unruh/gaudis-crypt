@@ -68,23 +68,36 @@ def readState? (e : Lean.Expr) : Option (Lean.Expr × FVarId) :=
 /-- EC's memories as one: an equation between reads of the same variable in two states (the frame
 `X.get τ = X.get σ` that `conseq` and `call` leave for what the code does not modify, or `={x}`)
 rewrites the read of the later state (in the context) into the earlier one's, everywhere.  One
-direction for every pair of states, so the rewriting cannot loop. -/
+direction for every pair of states, so the rewriting cannot loop; of two equations saying the same
+(`X.get τ₁ = X.get τ₂` from an invariant, `X.get τ₂ = X.get τ₁` from a frame) one is dropped, so
+that `simp_all` does not loop on them either. -/
 elab "subst_frames" : tactic => withMainContext do
   let g ← getMainGoal
   let lctx ← getLCtx
   let mut thms : SimpTheorems := {}
   let mut rules : Array FVarId := #[]
+  let mut seen : Array (Lean.Expr × FVarId × FVarId) := #[]
+  let mut twins : Array FVarId := #[]
   for d in lctx do
     if d.isImplementationDetail then continue
     let some (_, a, b) := (← instantiateMVars d.type).eq? | continue
     let some (Ga, sa) := readState? a | continue
     let some (Gb, sb) := readState? b | continue
     unless sa != sb && Ga == Gb do continue
+    -- the same equation again (either way round): dropped
+    if seen.any fun (G, x, y) => G == Ga && ((x == sa && y == sb) || (x == sb && y == sa)) then
+      twins := twins.push d.fvarId
+      continue
+    seen := seen.push (Ga, sa, sb)
     let (ia, ib) := ((lctx.get! sa).index, (lctx.get! sb).index)
     thms ← thms.add (.fvar d.fvarId) #[] d.toExpr (inv := ia < ib)
     rules := rules.push d.fvarId
-  if rules.isEmpty then return
+  let g ← g.tryClearMany twins
+  if rules.isEmpty then
+    replaceMainGoal [g]
+    return
   -- every hypothesis but the rules themselves, and the goal
+  let lctx ← g.withContext getLCtx
   let others := lctx.foldl (init := #[]) fun acc d =>
     if d.isImplementationDetail || rules.contains d.fvarId then acc else acc.push d.fvarId
   let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
@@ -185,7 +198,8 @@ macro "auto_prep" : tactic => `(tactic| (
   all_goals try simp_reads_all
   all_goals try glob_simp
   -- … and in the hypotheses
-  all_goals try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at *
+  all_goals try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl,
+    GaudisCrypt.touched_getter_get_ite, ite_self] at *
   all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',
     Bool.not_eq_eq_eq_not, Bool.not_true, not_lt, not_le, and_true, true_and,
     indicatorE_eq_one_iff, if_true, if_false, Prod.mk.injEq, ite_self] at *

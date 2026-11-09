@@ -32,13 +32,10 @@ set_option linter.dupNamespace false
 * GAP 4: `swap` past a call that reads (but does not write) what the moved assignment reads:
   our frame needs the read variables outside the callee's whole footprint (reads and writes
   together); EC's `swap` uses read/write sets.
-* GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
-  only writes it sees directly under the getter; the getter should be pushed into the `if`.
-* GAP 6: EC `while`'s exit goal: after `auto_prep` the frames are equations `x τ₂ = x τ₁` between
-  reads of the final states (not substituted; `simp_all` cycles on them).
-* GAP 7: `equiv_call (_ : ={x})` on a concrete callee (`prhlProc_glob_module`) has no frame; EC's
-  `call (_: ={x})` keeps what the callee does not write: `equiv_call (_ : ={arg, x} ==> ={res, x})`
-  (framed) and its callee goal by `equiv_proc; equiv_auto` (EC's `1:by sim`).
+* (GAP 5, fixed: `glob D` through an `if` — `touched_getter_get_ite` in `glob_simp`.)
+* (GAP 6, fixed: EC `while`'s exit frames — `subst_frames` drops symmetric twins.)
+* (GAP 7, fixed: `equiv_call (_ : ={x})` on a concrete callee keeps EC's frame —
+  `Logic/ECCallEquiv.lean`.)
 * (GAP 8, fixed: `swap` of a call past a deterministic `if`/sequence of writes — `callDet` in
   `Logic/StmtSwap.lean`.)
 * (GAP 9, fixed: `fel … [M : pre]` over a procedure the oracles call — `Logic/FelInner.lean`.)
@@ -431,10 +428,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
           §C.c{2} + size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
         §C.c{2} + size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ≤
           max_size)
-    on_goals 2 =>
-      stmt_inline*; equiv_auto; auto_prep
-      --   (GAP 5: `glob D` read through the `if` of `RO.get`'s write: split by hand)
-      refine ⟨by split_ifs <;> glob_simp <;> assumption, ‹_›, by omega, by omega, ‹_›⟩
+    on_goals 2 => (stmt_inline*; equiv_auto; smt_close [prefix_sizel])
     -- EC: while
     --      (={F.RO.m,G1.mi,G1.paths,G1.m,G1.mhi,G1.chandle,G1.mh,FRO.m,C.c,b,
     --         p,h,i,sa,counter,C.queries} /\ (0 <= i <= size p){1} /\
@@ -460,11 +454,10 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
           max_size)
     -- EC: + by auto=> />; smt(size_ge0 prefix_sizel prefix_ge0).
     case hpre =>
+      --     (EC's `smt`: its lemmas' instances, then `auto_close`)
       equiv_auto; auto_prep
       refine ⟨⟨size_ge0 _, ‹_›, sub_nonneg.2 (prefix_sizel _ _), by omega, by omega, ‹_›⟩, ?_⟩
-      --   (GAP 6: the exit's frames `x τ₂ = x τ₁` are left as hypotheses (a cycle for `simp_all`))
-      auto_prep
-      exact ⟨Eq.trans ‹_› (Eq.symm ‹_›), by omega, Eq.symm ‹_›, ‹_›, ‹_›, ‹_›, ‹_›, ‹_›, ‹_›⟩
+      auto_close
     -- EC: if=>//;auto;1:smt ml=0 w=size_ge0.
     stmt_if
     · auto_close
@@ -476,10 +469,8 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     on_goals 2 => (equiv_auto; auto_close)
     -- EC: auto;call (_: ={F.RO.m})=>/=;1:by sim.
     equiv_auto
-    --     (GAP 7: our `equiv_call (_ : ={F.RO.m})` on a concrete callee has no frame: the
-    --     `P ==> Q` form, whose frame keeps what the callee does not write)
-    equiv_call (_ : ={arg, F.RO.m} ==> ={res, F.RO.m})
-    · equiv_proc; equiv_auto
+    --     (the callee's judgment, EC's `1:by sim`, closed by the call rule: its footprint)
+    equiv_call (_ : ={F.RO.m})
     -- EC: inline *;rcondt{2} 2.
     --     + auto;progress.
     --       - apply(StdOrder.IntOrder.ler_trans _ _ _ (fcard_image_leq fst (frng FRO.m{hr})))=>/#.
@@ -489,8 +480,15 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     · hoare_auto; auto_prep
       exact ⟨(Nat.cast_le.2 Finset.card_image_le).trans (by omega), by omega⟩
     -- EC: auto;smt ml=0 w=(hinv_image card_rng_set).
+    --     (EC's `smt`: `card_rng_set`, `hinv_image` applied)
     equiv_auto; auto_prep
-    smt_close [hinv_image, card_rng_set]
+    refine ⟨rfl, fun r₁ g₁ r₂ g₂ h₁ h₂ h₃ => ?_⟩
+    auto_prep
+    refine ⟨⟨by omega, by omega⟩, ?_, by omega, by omega, (card_rng_set _ _ _).trans (by omega),
+      by omega, ‹_›⟩
+    rw [‹G1.bcol.get g₁ = _›, ‹G1.bcol.get g₂ = _›]
+    simp only [Bool.or_eq_true, decide_eq_true_eq]
+    exact Or.imp ‹_› (hinv_image _ _)
   -- EC: auto;progress;3:by smt ml=0.
   --     + rewrite -(add0z 1) -{2}fcards0<:capacity*flag> -(frng0<:int,_>).
   --       exact/card_rng_set/max_ge0.

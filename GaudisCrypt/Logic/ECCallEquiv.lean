@@ -179,6 +179,44 @@ elab_rules : tactic
       pure (hJ.mvarId!, gPre)
     replaceMainGoal [hJ, ← Judgment.simpArg gPre 3 relSimpDecls []]
 
+open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
+/-- **EC's `call (_: ={x₁, …, glob M})` on a concrete callee**, with EC's frame: the callee keeps
+`={x₁, …}` (`prhlProc_glob_module`, its footprint inside them), and what it does not write keeps
+its value (as for `equiv_call (_ : P ==> Q)`).  Goal: the code before the calls.  An abstract
+callee (`D(O)`) is left to the rule of `Logic/ECCallAbstract.lean`. -/
+elab_rules (kind := GaudisCrypt.equivCallInv) : tactic
+  | `(tactic| equiv_call (_ : ={ $xs:term,* })) => withMainContext do
+    let s ← saveState
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_call"
+    let g ← HoareSplit.hoareSplit 1 g
+    let concrete ← g.withContext do
+      let ty ← prhlGoal g "equiv_call"
+      try
+        let M₁ ← lastCallee (ty.getArg! 1)
+        let M₂ ← lastCallee (ty.getArg! 2)
+        let isApp (M : Lean.Expr) := (M.find? (·.isAppOfArity ``Module.app 6)).isSome
+        if isApp M₁ || isApp M₂ then return none
+        return some (ty, M₁, M₂)
+      catch _ => return none
+    let some (ty, M₁, M₂) := concrete | do s.restore; throwUnsupportedSyntax
+    let Rs ← xs.getElems.mapM fun (t : Term) => match t with
+      | `(glob $a) => `(glob_region $a)
+      | _ => `(Lens.footprint $t)
+    let some last := Rs.back? | throwError "equiv_call: `=\{glob M, x₁, …}`"
+    let R ← Rs.pop.foldrM (fun x acc => `($x ⊔ $acc)) last
+    let (fr₁, fr₂) ← g.withContext do
+      let B := ty.getArg! 3
+      let (_, gls) ← ECSim.varsOf #[B]
+      let Rs' ← ECConseqFrame.regionsOf #[B]
+      pure (← Term.exprToSyntax (← frameFor M₁ gls Rs'),
+        ← Term.exprToSyntax (← frameFor M₂ gls Rs'))
+    setGoals [g]
+    let [gp] ← g.withContext <| evalTacticAt (← `(tactic| refine prhlStmt_seq_call_frame
+        (prhlProc_glob_module _ (R := $R) (by fp_le)) $fr₁ $fr₂ ?_)) g
+      | throwError "equiv_call: the call rule left more than the code before the calls"
+    replaceMainGoal [← Judgment.simpArg gp 3 relSimpDecls []]
+
 open Lean Meta Elab Tactic GaudisCrypt in
 /-- **EC's `exfalso`** on a relational judgment: the goal is that the precondition is
 contradictory, `∀ …, pre → False`. -/

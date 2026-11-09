@@ -183,7 +183,7 @@ the `while` row.
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)` |
 | `call (_ : bad, I, J)` (up to bad) | `equiv_call (_ : bad, I, J)`; EC's goal order; `D_ll`'s goal: `exact D_ll` (E11: right oracles' `islossless` is one more goal each) |
 | `call (: P ==> Q)` (concrete callees, pRHL) | `equiv_call (_ : P ==> Q)`; callee's judgment first, then pre; the frame of unwritten variables is found |
-| `call (_ : ={glob P})` (concrete callee) | `equiv_call (_ : ={glob P})` — **no frame** (Gcol GAP 7): the postcondition keeps nothing else.  Where it reads more than `={…}` (EC's `call (_: ={F.RO.m})` in an oracle with a twelve-variable invariant), write `equiv_call (_ : ={arg, F.RO.m} ==> ={res, F.RO.m})` (framed) and close the callee goal, EC's `1: by sim`, by `equiv_proc; equiv_auto` |
+| `call (_ : ={glob P})` / `call (_: ={x})` (concrete callee) | `equiv_call (_ : ={glob P})` / `equiv_call (_ : ={x})`, with EC's frame (what the callee does not write keeps its value); the callee's judgment (EC's `1: by sim`) is closed by its footprint |
 | `call H` | `equiv_call (H)`; `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; `phoare_call H / x, …` for lossless + frame |
@@ -198,7 +198,7 @@ the `while` row.
 | `case (P)` (pRHL) | `equiv_case (P)` |
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
-| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's eight).  A frame equality bullet (`bs{1} = bs{2}`, kept by the loops) EC's `progress` closes; ours: `exact (by assumption : …).trans (by assumption : …).symm` (`simp_all` cycles on the frames' equations).  The older four-goal form without frame is `equiv_while_raw`.  The exit goal's frames after `auto_prep` are equations between the two final states' reads (`x τ₂ = x τ₁`, Gcol GAP 6): close the conjuncts by hand (`Eq.trans ‹_› (Eq.symm ‹_›)`, `by omega`, `‹_›`) — `auto_close` reaches `simp_all` and hits the recursion limit |
+| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's seven).  The exit goal's frames are equations between the two final states' reads (`x τ₂ = x τ₁`, and the invariant's `x τ₁ = x τ₂`): `subst_frames` keeps one of each pair, so `progress`/`smt_close` close frame equalities as EC does.  The older four-goal form without frame is `equiv_while_raw` |
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, `exit`, then the code before. EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | Hoare `while I` | `hoare_while I` |
@@ -422,9 +422,12 @@ Document each in the docstring when it applies.
   (`FRO.m := ROhandle.FRO.m`, a reducible `abbrev`) was missed, so `FRO.m` had no frame and the
   goal was unprovable; `varsOf` now takes reducible aliases of globals too.  When a goal after a
   framed rule lacks an equation EC has, check the variable is seen by `varsOf`.
-* **`glob D` through an `if`** (Gcol GAP 5): `glob_simp` removes writes directly under
-  `(FVP.fvP D).touched_getter.get`; a conditional write (`RO.get`'s `if (x ∉ m) m.[x] <- r`)
-  leaves `get (if c then set … g else g)`: `split_ifs <;> glob_simp <;> assumption` by hand.
+* **`glob D` through an `if`**: `glob_simp` first pushes the view into conditional states
+  (`touched_getter_get_ite`; `RO.get`'s `if (x ∉ m) m.[x] <- r`), then removes the writes.
+* **Frames between two final states** (`while`'s exit, `x τ₂ = x τ₁` beside the invariant's
+  `x τ₁ = x τ₂`): `subst_frames` keeps one equation of each pair — two made `simp_all` loop.
+  A frame whose right side is not a read (`G1.bcol.get g₁ = (… || …)` after a call) is left as a
+  hypothesis: `rw [‹G1.bcol.get g₁ = _›]` in a hand closer.
 * **EC's `seq n m : R; last by t`**: our `equiv_seq` leaves the first part, then the rest —
   `on_goals 2 => t` is EC's `last`.
 * A `smt_close` attempt that failed on a goal that was *wrong* (missing frame, an infrastructure

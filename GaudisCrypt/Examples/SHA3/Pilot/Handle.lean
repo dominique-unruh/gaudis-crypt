@@ -401,7 +401,7 @@ local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all 
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 2: the second loop still uses the older `equiv_while_raw` (four goals, no frame); the
-  first is EC's `while I` (`equiv_while`) with EC's `auto; progress` and eight bullets.
+  first is EC's `while I` (`equiv_while`) with EC's `auto; progress` and its bullets.
 * GAP 5: the pilot's oracle lemmas (`eq_f`, `eq_fi`, `PFf_Cf`, in EC's paths through
   `module_subtype` coercions) match `CF_G1`'s oracles (the old port's `CF`/`G1` views) only by
   heavy unfolding (~2M heartbeats per `conseq`): goes away with EC-form `CF`/`G1` declarations.
@@ -589,10 +589,6 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         by_contra hsz
         simp only [size, not_lt, Nat.cast_nonpos, List.length_eq_zero_iff] at hsz
         subst hsz; simp_all [FMap.domE]
-      --     (`bs` kept by the loop: EC's frame, EC's `progress` closes it; `simp_all` cycles on the
-      --     frames' equations)
-      · exact (by assumption : (localVarLens "bs" (List block)).get _ = _).trans
-          (by assumption : (localVarLens "bs" (List block)).get _ = _).symm
       -- EC: * smt(prefix_sizel).
       · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at *
         smt_close [prefix_sizel]
