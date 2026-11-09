@@ -188,6 +188,67 @@ theorem call_frame {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
     (Procedure.satisfies_frame hp K hK (args.get σ) σ.globals)
     fun r hr => by rw [hy r.1 r.2 σ hr]
 
+/-- A statement commutes with the identity update (of `skip`). -/
+theorem id_update {s : Stmt} : s.CommutesWith fun σ => σ := fun _ _ => rfl
+
+/-- A statement commuting with two updates commutes with the one after the other (the update of
+a sequence of deterministic statements, `Stmt.Det.seq`). -/
+theorem comp {s : Stmt} {u₁ u₂ : ProgramState → ProgramState} (h₁ : s.CommutesWith u₁)
+    (h₂ : s.CommutesWith u₂) : s.CommutesWith fun σ => u₂ (u₁ σ) := fun g σ => by
+  rw [h₂ g (u₁ σ), h₁ (fun τ => g (u₂ τ)) σ]
+
+/-- A call commutes with the update of a deterministic `if` (`Stmt.Det.ite`) if it commutes with
+both branches' updates and keeps the condition: what the condition reads is the caller's locals
+other than the result, and globals `K` outside the callee's footprint (EC's `swap` of a call past
+`if (…) {X <- …}`, `X` outside the callee). -/
+theorem call_ite {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    {R : Footprint VariableAssignment} (hp : ∀ a, (procedureDenotation p a).inFootprint R)
+    {β : Type} (K : Lens β VariableAssignment) (hK : K.footprint ≤ Rᶜ)
+    {c : Getter Bool ProgramState} {u₁ u₂ : ProgramState → ProgramState}
+    (h₁ : (Stmt.call y p args).CommutesWith u₁) (h₂ : (Stmt.call y p args).CommutesWith u₂)
+    (hc : ∀ v gl σ, K.get gl = K.get σ.globals →
+      c.get (y.set v (ProgramState.globalL.set gl σ)) = c.get σ) :
+    (Stmt.call y p args).CommutesWith fun σ => if c.get σ then u₁ σ else u₂ σ := fun g σ => by
+  have hsame : ∀ (G : ProgramState → ENNReal),
+      (Stmt.call y p args).ewp G σ = (Stmt.call y p args).ewp
+        (fun τ => if c.get τ = c.get σ then G τ else 0) σ := by
+    intro G
+    simp only [Stmt.ewp_call, Procedure.ewp, ProgramDenotation.wp]
+    exact SubProbability.expected_congr_satisfies
+      (Procedure.satisfies_frame hp K hK (args.get σ) σ.globals)
+      fun r hr => by simp only [hc r.1 r.2 σ hr, if_true]
+  beta_reduce
+  cases hcσ : c.get σ
+  · rw [show (if false = true then u₁ σ else u₂ σ) = u₂ σ by simp, h₂ g σ, hsame, hsame (fun τ => g (if c.get τ = true then u₁ τ else u₂ τ))]
+    congr 1; funext τ
+    split_ifs <;> simp_all
+  · rw [show (if true = true then u₁ σ else u₂ σ) = u₁ σ by simp, h₁ g σ, hsame, hsame (fun τ => g (if c.get τ = true then u₁ τ else u₂ τ))]
+    congr 1; funext τ
+    split_ifs <;> simp_all
+
+/-- `call_ite` for a condition that reads no globals (only the caller's locals other than the
+result). -/
+theorem call_ite_local {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    {c : Getter Bool ProgramState} {u₁ u₂ : ProgramState → ProgramState}
+    (h₁ : (Stmt.call y p args).CommutesWith u₁) (h₂ : (Stmt.call y p args).CommutesWith u₂)
+    (hc : ∀ v gl σ, c.get (y.set v (ProgramState.globalL.set gl σ)) = c.get σ) :
+    (Stmt.call y p args).CommutesWith fun σ => if c.get σ then u₁ σ else u₂ σ := fun g σ => by
+  have hsame : ∀ (G : ProgramState → ENNReal),
+      (Stmt.call y p args).ewp G σ = (Stmt.call y p args).ewp
+        (fun τ => if c.get τ = c.get σ then G τ else 0) σ := by
+    intro G
+    simp only [Stmt.ewp_call, hc, if_true]
+  beta_reduce
+  cases hcσ : c.get σ
+  · rw [show (if false = true then u₁ σ else u₂ σ) = u₂ σ by simp, h₂ g σ, hsame, hsame (fun τ => g (if c.get τ = true then u₁ τ else u₂ τ))]
+    congr 1; funext τ
+    split_ifs <;> simp_all
+  · rw [show (if true = true then u₁ σ else u₂ σ) = u₁ σ by simp, h₁ g σ, hsame, hsame (fun τ => g (if c.get τ = true then u₁ τ else u₂ τ))]
+    congr 1; funext τ
+    split_ifs <;> simp_all
+
 end Stmt.CommutesWith
 
 /-! ## Equivalences -/
@@ -410,9 +471,43 @@ def discharge (ty : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
       if let some (_, g'') := r' then
         try g''.refl
         catch _ =>
-          throwError "stmt_swap: cannot show that the statements commute; left to prove:\
-            {indentExpr (← g''.getType)}"
+          -- the update of a deterministic `if` (`Stmt.Det.ite`): by cases on its condition, the
+          -- case's equation `c = b` a rewrite rule (reads through writes then settle the other
+          -- side's condition)
+          unless ← splitClose g'' thms 4 do
+            throwError "stmt_swap: cannot show that the statements commute; left to prove:\
+              {indentExpr (← g''.getType)}"
   instantiateMVars m
+where
+  /-- Close `g` by splitting its `if`s (up to `fuel` deep), each case simplified with its
+  condition's equation added to `thms`. -/
+  splitClose (g : MVarId) (thms : SimpTheorems) : Nat → MetaM Bool
+    | 0 => pure false
+    | fuel + 1 => do
+      let some (c₁, c₂) ← splitIfTarget? g | return false
+      for c in [c₁, c₂] do
+        let ok ← c.mvarId.withContext do
+          let hty ← instantiateMVars (← c.fvarId.getType)
+          -- `¬ (b = true)` as `b = false`, so that it rewrites
+          let (hpf, hty) ← match hty with
+            | .app (.const ``Not _) (.app (.app (.app (.const ``Eq _) (.const ``Bool [])) b)
+                (.const ``Bool.true [])) =>
+              let e ← mkEq b (mkConst ``Bool.false)
+              pure (← mkAppM ``eq_false_of_ne_true #[mkFVar c.fvarId], e)
+            | _ => pure (mkFVar c.fvarId, hty)
+          let thms' ← if hty.isAppOfArity ``Eq 3 then
+              thms.add (.stx (← mkFreshId) .missing) #[] hpf
+            else pure thms
+          let ctx ← Simp.mkContext (config := { decide := true, failIfUnchanged := false })
+            (simpTheorems := #[thms', ← getSimpTheorems]) (congrTheorems := ← getSimpCongrTheorems)
+          let (r, _) ← simpGoal c.mvarId ctx #[← Simp.getSimprocs]
+          match r with
+          | none => pure true
+          | some (_, g') =>
+            try g'.refl; pure true
+            catch _ => splitClose g' thms' fuel
+        unless ok do return false
+      return true
 
 /-- A proof of `ty` by the rule `lem`: its conclusion unified with `ty`; its premises about
 sub-statements (`Stmt.CommutesWith t u`) by `sub`, the others by `discharge`. -/
@@ -526,20 +621,31 @@ def callGlobalFrame (s u X e K : Lean.Expr) : MetaM Lean.Expr := do
   instantiateMVars (mkAppN c ms)
 
 /-- A global variable that the getter `e` reads, if any: the first closed application of a
-`global_var` or `module_var` (a constant with its key theorem `x.key_eq`), outermost first (the
-variable applied to all its arguments). -/
+`global_var` or `module_var` (a constant with its key theorem `x.key_eq`), or of a clone's alias
+of one (`Handle.FRO.m`, kept as written), outermost first (the variable applied to all its
+arguments). -/
 def globalLensIn? (e : Lean.Expr) : MetaM (Option Lean.Expr) := do
   let env ← getEnv
-  return e.find? fun x =>
-    !x.hasLooseBVars && match x.getAppFn.constName? with
-      | some c => env.contains (c ++ `key_eq)
-      | none => false
+  let found ← IO.mkRef (none : Option Lean.Expr)
+  Meta.forEachExpr e fun x => do
+    if (← found.get).isSome || x.hasLooseBVars then return
+    let some c := x.getAppFn.constName? | return
+    let isVar ← if env.contains (c ++ `key_eq) then pure true
+      else if (← getReducibilityStatus c) != .reducible then pure false
+      else pure <| match (← whnfR x).getAppFn.constName? with
+        | some c' => c' != c && env.contains (c' ++ `key_eq)
+        | none => false
+    if isVar then found.set (some x)
+  found.get
+
+mutual
 
 /-- A proof that the statement `s` commutes with the update `u` (`Stmt.CommutesWith s u`), built
 from its syntax; `X?` is the lens `u` writes through, if any, and `e?` the value written, if `u`
-is an assignment's update. -/
-partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Lean.Expr := none) :
-    MetaM Lean.Expr := do
+is an assignment's update; `d?` the deterministic statement whose update `u` is (`detOf?`), taken
+apart where a call meets it (`callDet`). -/
+partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Lean.Expr := none)
+    (d? : Option Lean.Expr := none) : MetaM Lean.Expr := do
   let s ← openStmt (stripLets (← instantiateMVars s))
   let ty ← mkAppM ``Stmt.CommutesWith #[s, u]
   let some h := s.getAppFn.constName? | throwError "stmt_swap: not a statement:{indentExpr s}"
@@ -554,9 +660,19 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Le
         -- a call commutes with an update of the caller's locals; with an assignment to a global
         -- variable, if the variable lies outside the callee's footprint
         let st ← saveState
-        try return ← applyRule ``Stmt.CommutesWith.«call» ty X? fun t u' => commutesOf t u' X? e?
+        try return ← applyRule ``Stmt.CommutesWith.«call» ty X? fun t u' => commutesOf t u' X? e? d?
         catch err =>
           st.restore
+          -- the update of a deterministic statement other than one assignment: by its parts
+          if let some d := d? then
+            let d' ← openStmt (stripLets (← instantiateMVars d))
+            unless d'.isAppOf ``StmtWithHoles.assign do
+              let st₀ ← saveState
+              try return ← callDet s d'
+              catch err₀ =>
+                st₀.restore
+                throwError "{err.toMessageData}\n(by the parts of{indentExpr d'}\n: \
+                  {err₀.toMessageData})"
           let (some X, some e) := (X?, e?) | throw err
           if X.isAppOf ``Lens.intoGlobal then
             let st₁ ← saveState
@@ -594,14 +710,68 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Le
                   let gm ← mkFreshExprSyntheticOpaqueMVar t
                   FootprintSolver.solve gm.mvarId!
                   instantiateMVars gm
-                else discharge t none
+                -- (the assigned local pushed outward past the result's and the globals' writes)
+                else discharge t X?
               unless ← isDefEq mv pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
             return ← instantiateMVars (mkAppN c ms)
           catch e₂ =>
             st'.restore
             throwError "{err.toMessageData}\n(with the callee's frame: {e₂.toMessageData})"
     | _ => throwError "stmt_swap: no commutation rule for{indentExpr s}"
-  applyRule lem ty X? fun t u' => commutesOf t u' X? e?
+  applyRule lem ty X? fun t u' => commutesOf t u' X? e? d?
+
+/-- A proof that the call `s` commutes with the update of the deterministic statement `d`, by
+`d`'s parts: an assignment as `commutesOf` does, a sequence by `Stmt.CommutesWith.comp`, a
+conditional by `Stmt.CommutesWith.call_ite` (its condition kept by the call: the globals it reads
+outside the callee's footprint) or `call_ite_local`, `skip` by `id_update`. -/
+partial def callDet (s d : Lean.Expr) : MetaM Lean.Expr := do
+  let d ← openStmt (stripLets (← instantiateMVars d))
+  let some (u, _) ← detOf? d | throwError "stmt_swap: not deterministic:{indentExpr d}"
+  if d.isAppOf ``StmtWithHoles.skip then
+    return ← mkAppOptM ``Stmt.CommutesWith.id_update #[some s]
+  if d.isAppOf ``StmtWithHoles.assign then
+    return ← commutesOf s u (← lensOfSetter? (d.getArg! 2)) (some d.appArg!)
+  if d.isAppOfArity ``StmtWithHoles.seq 3 then
+    return ← mkAppM ``Stmt.CommutesWith.comp
+      #[← callDet s (d.getArg! 1), ← callDet s (d.getArg! 2)]
+  unless d.isAppOf ``StmtWithHoles.ifThenElse do
+    throwError "stmt_swap: no rule for a call against{indentExpr d}"
+  let n := d.getAppNumArgs
+  let (c, t, e) := (d.getArg! (n - 3), d.getArg! (n - 2), d.getArg! (n - 1))
+  let h₁ ← callDet s t
+  let h₂ ← callDet s e
+  let K? ← globalsLensIn? (← instantiateMVars c)
+  let lem := if K?.isSome then ``Stmt.CommutesWith.call_ite else ``Stmt.CommutesWith.call_ite_local
+  let cst ← mkConstWithFreshMVarLevels lem
+  let cTy ← inferType cst
+  let (ms, _, concl) ← forallMetaTelescope cTy
+  let names := cTy.getForallBinderNames
+  let idx (nm : Name) : MetaM Nat := do
+    let some i := names.findIdx? (· == nm) | throwError "stmt_swap: `{lem}` has no `{nm}`"
+    return i
+  if let some K := K? then
+    unless ← isDefEq ms[← idx `K]! K do throwError "stmt_swap: the frame{indentExpr K}"
+  unless ← isDefEq ms[← idx `c]! c do throwError "stmt_swap: the condition{indentExpr c}"
+  unless ← isDefEq ms[← idx `h₁]! h₁ do throwError "stmt_swap: the `then` branch's update"
+  unless ← isDefEq ms[← idx `h₂]! h₂ do throwError "stmt_swap: the `else` branch's update"
+  unless ← isDefEq concl (← mkAppM ``Stmt.CommutesWith #[s, u]) do
+    throwError "stmt_swap: `{lem}` does not apply to{indentExpr s}"
+  for mv in ms do
+    if ← mv.mvarId!.isAssigned then continue
+    let ty ← instantiateMVars (← inferType mv)
+    unless ← isProp ty do continue
+    let isFp ← forallTelescope ty fun _ b => pure (b.isAppOf ``ProgramDenotation.inFootprint)
+    let pf ← if isFp then calleeFootprint ty
+      else if ty.isAppOfArity ``LE.le 4 then do
+        let gm ← mkFreshExprSyntheticOpaqueMVar ty
+        try FootprintSolver.solve gm.mvarId!
+        catch err => throwError "stmt_swap: cannot show that{indentExpr ty}\n: {err.toMessageData}"
+        instantiateMVars gm
+      else discharge ty none
+    unless ← isDefEq mv pf do throwError "stmt_swap: cannot use the proof of{indentExpr ty}"
+  instantiateMVars (mkAppN cst ms)
+
+end
 
 /-- The sampling `x <$ e` in `s`, if `s` is one. -/
 def sample? (s : Lean.Expr) : MetaM (Option (Lean.Expr × Lean.Expr)) := do
@@ -619,7 +789,7 @@ def swapPair (a b : Lean.Expr) : MetaM Lean.Expr := do
     let X? ← if d'.isAppOf ``StmtWithHoles.assign then lensOfSetter? (d'.getArg! 2)
       else pure none
     let e? := if d'.isAppOf ``StmtWithHoles.assign then some d'.appArg! else none
-    some <$> mkAppM ``Stmt.swap_det #[hd, ← commutesOf s u X? e?]
+    some <$> mkAppM ``Stmt.swap_det #[hd, ← commutesOf s u X? e? (some d')]
   let sampleSwap (smp s : Lean.Expr) : MetaM (Option Lean.Expr) := do
     let some (x, e) ← sample? smp | return none
     let X? ← lensOfSetter? x

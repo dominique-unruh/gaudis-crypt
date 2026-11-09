@@ -97,6 +97,41 @@ example (M : Init) (G : Init →ₘ Init) (hM : FVP.fvP M ≤ (swapTestCount.foo
   exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
     (by simp [SubProbability.ofEvent])
 
+global_var swapTestFlag : Bool
+
+/-- EC's `swap` of an abstract call past a deterministic `if` whose branch writes two globals
+outside the callee (`Stmt.CommutesWith.call_ite`, `comp`): the condition reads a global the call
+keeps; then back. -/
+example (M : Init) (hM : FVP.fvP M ≤ (swapTestCount.footprint)ᶜ)
+    (hM' : FVP.fvP M ≤ (swapTestFlag.footprint)ᶜ) :
+    hoare[ True ==> True ] {
+      call (Init.init M).procedure ();
+      if (decide (§swapTestCount = 0)) {
+        swapTestCount <- 1;
+        swapTestFlag <- true;
+      }
+    } := by
+  stmt_swap 1 1
+  stmt_swap 2 -1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
+/-- EC's `swap` of a call with a result past an assignment to a local reading a global the callee
+keeps (`Stmt.CommutesWith.call_frame`; the local's write moved outward past the result's). -/
+example (M : Init) (hM : FVP.fvP M ≤ (swapTestCount.footprint)ᶜ) :
+    hoare[ True ==> True ] {
+      var n : ℕ, r : Unit;
+      r <- call (Init.init M).procedure ();
+      n <- §swapTestCount + 1;
+    } := by
+  stmt_swap 1 1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
 /-- EC's `swap k` and `swap -k`: the first statement two later, then the last one back one; on
 both sides of a relational judgment. -/
 example : equiv[ True ==> ={x, y} ] {

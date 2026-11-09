@@ -183,7 +183,7 @@ the `while` row.
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)` |
 | `call (_ : bad, I, J)` (up to bad) | `equiv_call (_ : bad, I, J)`; EC's goal order; `D_ll`'s goal: `exact D_ll` (E11: right oracles' `islossless` is one more goal each) |
 | `call (: P ==> Q)` (concrete callees, pRHL) | `equiv_call (_ : P ==> Q)`; callee's judgment first, then pre; the frame of unwritten variables is found |
-| `call (_ : ={glob P})` (concrete callee) | `equiv_call (_ : ={glob P})` |
+| `call (_ : ={glob P})` (concrete callee) | `equiv_call (_ : ={glob P})` — **no frame** (Gcol GAP 7): the postcondition keeps nothing else.  Where it reads more than `={…}` (EC's `call (_: ={F.RO.m})` in an oracle with a twelve-variable invariant), write `equiv_call (_ : ={arg, F.RO.m} ==> ={res, F.RO.m})` (framed) and close the callee goal, EC's `1: by sim`, by `equiv_proc; equiv_auto` |
 | `call H` | `equiv_call (H)`; `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; `phoare_call H / x, …` for lossless + frame |
@@ -198,7 +198,7 @@ the `while` row.
 | `case (P)` (pRHL) | `equiv_case (P)` |
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
-| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's eight).  A frame equality bullet (`bs{1} = bs{2}`, kept by the loops) EC's `progress` closes; ours: `exact (by assumption : …).trans (by assumption : …).symm` (`simp_all` cycles on the frames' equations).  The older four-goal form without frame is `equiv_while_raw` |
+| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's eight).  A frame equality bullet (`bs{1} = bs{2}`, kept by the loops) EC's `progress` closes; ours: `exact (by assumption : …).trans (by assumption : …).symm` (`simp_all` cycles on the frames' equations).  The older four-goal form without frame is `equiv_while_raw`.  The exit goal's frames after `auto_prep` are equations between the two final states' reads (`x τ₂ = x τ₁`, Gcol GAP 6): close the conjuncts by hand (`Eq.trans ‹_› (Eq.symm ‹_›)`, `by omega`, `‹_›`) — `auto_close` reaches `simp_all` and hits the recursion limit |
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, `exit`, then the code before. EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | Hoare `while I` | `hoare_while I` |
@@ -332,7 +332,9 @@ Mappings for ssreflect idioms:
   `#count_heartbeats` misses async elaboration (`set_option Elab.async false in`);
   `lean_profile_proof` fails on same-file modules — use `set_option profiler true in`.
 * Long proofs: `sorry` the later bullets while working on early ones; files outside the barrel
-  are checked with `lake env lean`.
+  are checked with `lake env lean`.  For one bullet of a long proof, work in an uncommitted
+  scratch copy of the file with every other bullet `sorry`'d (`Pilot/GcolScratch.lean`: 7 s per
+  check against 2.5 min for `G1_col` whole), then paste the bullet back.
 
 ## 7. Known limitations and standing deviations
 
@@ -411,7 +413,23 @@ Document each in the docstring when it applies.
   mechanically, rather than recomputing their arguments.
 * Elaborators must run `withMainContext`; module steps inside simp callbacks at default
   transparency.
-* Multi-line tactic quotations inside `( … )` fail to parse: bind sub-tactics with `let`.
+* Multi-line tactic quotations inside `( … )` fail to parse: bind sub-tactics with `let`.  The
+  same in proofs: `on_goals 2 => (t₁; t₂⏎ t₃)` does not parse — put the block on its own lines
+  under `on_goals 2 =>`.
+* **Frames and clone aliases**: the variables a condition reads are collected by `ECSim.varsOf`
+  (frames of `sim`, `conseq`, `while`, `call (: P ==> Q)`).  A clone's alias of a global
+  (`FRO.m := ROhandle.FRO.m`, a reducible `abbrev`) was missed, so `FRO.m` had no frame and the
+  goal was unprovable; `varsOf` now takes reducible aliases of globals too.  When a goal after a
+  framed rule lacks an equation EC has, check the variable is seen by `varsOf`.
+* **`glob D` through an `if`** (Gcol GAP 5): `glob_simp` removes writes directly under
+  `(FVP.fvP D).touched_getter.get`; a conditional write (`RO.get`'s `if (x ∉ m) m.[x] <- r`)
+  leaves `get (if c then set … g else g)`: `split_ifs <;> glob_simp <;> assumption` by hand.
+* **EC's `seq n m : R; last by t`**: our `equiv_seq` leaves the first part, then the rest —
+  `on_goals 2 => t` is EC's `last`.
+* A `smt_close` attempt that failed on a goal that was *wrong* (missing frame, an infrastructure
+  bug) may be retried once the goal is fixed — the one-attempt rule is per goal.
+* `sorry` after a tactic that closed all goals is **not** reported; a `trace_state` printing
+  nothing there means the goal was already closed.
 
 ## 9. Checklist before calling a lemma done
 
