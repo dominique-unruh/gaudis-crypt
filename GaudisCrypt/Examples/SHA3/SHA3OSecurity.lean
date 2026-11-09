@@ -1124,7 +1124,7 @@ theorem rw_RF_List_While :
     · stmt_wp
       equiv_skip
       exact fun _ _ h => h.1
-    equiv_while (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2} ∧ §n{1} = size_out ∧
+    equiv_while_raw (§x0{1} = §x0{2} ∧ §RFList_m{1} = §RFList_m{2} ∧ §n{1} = size_out ∧
         §i{1} = §i{2} ∧ §l0{1} = §l{2})
     case body =>
       stmt_wp
@@ -1189,7 +1189,7 @@ theorem eq_IRO_RFWhile :
         exact ⟨rfl, rfl, rfl, rfl, le_rfl, Params.size_out_gt0.le, rfl, rfl, hd, hinv,
           fun _ _ _ => rfl, fun j => ⟨fun h => absurd (hinv.2.1 _ _ h) hd, fun h => by omega⟩,
           fun j _ h => by omega⟩
-      equiv_while (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+      equiv_while_raw (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
           0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ size §bs{1} = §i{1} ∧ §RFList_m{2} = m2 ∧
           ¬ FMap.dom m2 §x0{1} ∧ inv mp0 m2 ∧
           (∀ y j, y ≠ §x0{1} → FMap.get §IRO.mp{1} (y, j) = FMap.get mp0 (y, j)) ∧
@@ -1433,7 +1433,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
       refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
       simp [BIRO.valid, valid_toplevel] at h
     case «then» =>
-      equiv_while (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
+      equiv_while_raw (§x2{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{2} = size_out ∧ §i{1} = §i0{2} ∧
         0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ size §bs{1} = §i{1} ∧ §k{1} = §k{2} ∧
         §k{1} ≤ size_out ∧ §suffix{2} = [] ∧ eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
       case body =>
@@ -1534,7 +1534,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
           simp [BIRO.valid, valid_toplevel] at h
         case «then» =>
           simp only [Getter.andB]
-          equiv_while (§x5{1} = §x0{2} ∧ §x3{2} = §x0{2} ∧ §n1{1} = §k{2} ∧ size_out < §k{2} ∧
+          equiv_while_raw (§x5{1} = §x0{2} ∧ §x3{2} = §x0{2} ∧ §n1{1} = §k{2} ∧ size_out < §k{2} ∧
             §n{2} = size_out ∧ §i0{1} = §i0{2} ∧ 0 ≤ §i0{1} ∧ §i0{1} ≤ size_out ∧
             §bs0{1} = §bs{2} ∧ size §bs0{1} = §i0{1} ∧ §suffix{2} = [] ∧
             eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
@@ -1604,7 +1604,7 @@ theorem eq_extend (_hfresh : LocalFresh Log_m RFList_m) :
             obtain ⟨⟨⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩, -⟩, -⟩ := h
             refine ⟨h1, h6, h2, h3, h7, by rw [h4, h8], by omega, by omega, by rw [h5, h9],
               by rw [h5, h4]; rfl, h10, h11⟩
-      equiv_while (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
+      equiv_while_raw (§i0{1} = §i{2} ∧ §n1{1} = §k{2} ∧ §x5{1} = §x0{2} ∧
           §bs0{1} = §«prefix»{2} ++ §suffix{2} ∧ size_out ≤ §i{2} ∧ §i{2} ≤ §k{2} ∧
           eq_extend_size §IRO.mp{1} §IRO.mp{2} §Log_m{2})
       case body =>
@@ -1726,7 +1726,7 @@ theorem eq_eager_ideal :
     obtain ⟨-, hg⟩ := h
     simp [BIRO.valid, valid_toplevel] at hg
   case «then» =>
-    equiv_while (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
+    equiv_while_raw (§x{1} = §x{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
       §IRO.mp{1} = §Eager.RO.m{2})
     case body =>
       stmt_wp
@@ -1834,7 +1834,7 @@ theorem eq_eager_ideal2 :
           §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
           §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1})
       · simp only [Getter.andB]
-        equiv_while (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+        equiv_while_raw (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
           §n{1} = size_out ∧ §k{1} = §n{2} ∧ §k{1} ≤ size_out ∧ §i{1} = §i{2} ∧ §bs{1} = §l{2} ∧
           §IRO.mp{1} = §Eager.RO.m{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ max 0 §k{1} ∧ size §bs{1} = §i{1})
         case body =>
@@ -1898,7 +1898,7 @@ theorem eq_eager_ideal2 :
           refine ⟨hx, hn, hk, hkle, by rw [hi1, hi2], by rw [hb, hl], hm, by omega, by omega, ?_⟩
           rw [hb, hi1]
           rfl
-      equiv_while (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
+      equiv_while_raw (§(localVarLens "x2" (List Bool)){1} = §(localVarLens "x1" (List Bool)){2} ∧
           §n{1} = size_out ∧ §i{1} = §i{2} ∧ take §k{1} §bs{1} = §l{2} ∧
           §IRO.mp{1} = §Eager.RO.m{2} ∧ §k{1} ≤ §i{1} ∧ size §bs{1} = §i{1})
       case body =>
@@ -1964,7 +1964,7 @@ theorem eq_eager_ideal2 :
       obtain ⟨-, hg⟩ := h
       simp [BIRO.valid, valid_toplevel] at hg
     case «then» =>
-      equiv_while (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
+      equiv_while_raw (§x5{1} = §x1{2} ∧ §n1{1} = §n{2} ∧ §i0{1} = §i{2} ∧ §bs0{1} = §l{2} ∧
         §IRO.mp{1} = §Eager.RO.m{2} ∧ size_out < §n{2})
       case body =>
         stmt_wp
@@ -2396,7 +2396,7 @@ theorem ext_dfs_f :
         obtain ⟨-, hg⟩ := h
         simp [BIRO.valid, valid_toplevel] at hg
       case «then» =>
-        equiv_while (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
+        equiv_while_raw (§x3{1} = §x3{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
             0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧
             §k0{1} = size_out ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
             (xL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
@@ -2929,7 +2929,7 @@ theorem extout_bw :
   stmt_inline{2} 0
   stmt_wp
   rw [e₁]
-  equiv_while (§x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧ §i{1} = §i{2} ∧ §«prefix»{1} = §«prefix»{2} ∧
+  equiv_while_raw (§x0{1} = §x0{2} ∧ §k{1} = §k{2} ∧ §i{1} = §i{2} ∧ §«prefix»{1} = §«prefix»{2} ∧
       §suffix{1} = §suffix{2} ∧ (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fIpost ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
   case body =>
@@ -4674,7 +4674,7 @@ theorem toto (_hfresh : LocalFresh Log_m RFList_m) :
         obtain ⟨-, hg⟩ := h
         simp [BIRO.valid, valid_toplevel] at hg
       case «then» =>
-        equiv_while (§x4{1} = §x4{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
+        equiv_while_raw (§x4{1} = §x4{2} ∧ §n{1} = §n{2} ∧ §n{1} = size_out ∧ §i{1} = §i{2} ∧
             0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧ §bs{1} = §bs{2} ∧ §k0{1} = §k0{2} ∧
             §k0{1} = size_out ∧ §l{1} = §l{2} ∧ §k{1} = §k{2} ∧
             Counter.c.get §allGlobals{1} = Counter.c.get §allGlobals{2} ∧

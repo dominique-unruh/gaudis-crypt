@@ -136,6 +136,8 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECCallUpto
 import GaudisCrypt.Logic.ECGlob
 import GaudisCrypt.Logic.ECWhile
+import GaudisCrypt.Logic.ECWhileRel
+import GaudisCrypt.Logic.ECWhileRelTest
 import GaudisCrypt.Logic.ECSeq
 import GaudisCrypt.Logic.ECInline
 import GaudisCrypt.Logic.ECSimGlob

@@ -355,7 +355,7 @@ theorem M_f_G12 :
   stmt_wp
   equiv_rnd
   stmt_wp
-  equiv_while (§p{1} = §p{2} ∧ §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧
+  equiv_while_raw (§p{1} = §p{2} ∧ §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧
       §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧ §counter{1} = §counter{2} ∧
       colEq §allGlobals{1} §allGlobals{2} ∧
       inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
@@ -1797,7 +1797,7 @@ theorem M_f_ext (hfr : GcolFresh ReSample_count) :
   stmt_wp
   equiv_rnd
   stmt_wp
-  equiv_while (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+  equiv_while_raw (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
       §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       §G1.bext{1} = §G1.bext{2} ∧ 0 ≤ §counter{2} ∧ §counter{2} ≤ (size §p{2}
           - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) ∧
@@ -2192,7 +2192,7 @@ theorem EG2_Gext (hD : Module.ECModule D distExt)
       have hc := (hI g₁ g₂).mp hI'
       simp_reads
       exact hc
-  · equiv_while (§l{1} = §l{2} ∧ §FRO.m{1} = §FRO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
+  · equiv_while_raw (§l{1} = §l{2} ∧ §FRO.m{1} = §FRO.m{2} ∧ §G1.m{1} = §G1.m{2} ∧
         §G1.mi{1} = §G1.mi{2} ∧ ((FMap.fdom §G1.m{2}).card : ℤ) ≤ max_size ∧
         ((FMap.fdom §G1.mi{2}).card : ℤ) ≤ max_size ∧
         §ReSample_count{2} + ((§l{2}).length : ℤ) ≤ max_size ∧

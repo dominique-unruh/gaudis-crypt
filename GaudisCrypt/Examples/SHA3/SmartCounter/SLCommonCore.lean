@@ -186,6 +186,10 @@ theorem prefix_sizel (l1 l2 : List α) : «prefix» l1 l2 ≤ size l1 := by
       simp only [«prefix», size, List.length_cons] at ih ⊢
       split_ifs <;> push_cast <;> linarith [ih l2]
 
+-- `grind` on `prefix_sizel` by the prefix, not by its normalized inequality (which never
+-- matches): EC's `smt(prefix_sizel)` as `smt_close [prefix_sizel]`
+grind_pattern prefix_sizel => «prefix» l1 l2
+
 theorem prefix_sizer (l1 l2 : List α) : «prefix» l1 l2 ≤ size l2 := by
   rw [prefixC]; exact prefix_sizel l2 l1
 

@@ -35,6 +35,33 @@ example (F : Type) [Inhabited F] [Fintype F] :
   hoare_skip
   simp
 
+/-- A clone's op given as a function (`op dout _ <- d`, an abbreviation): the sampling
+`b <$ dout §x` does not read `x`, and moves past `x`'s assignment. -/
+noncomputable abbrev dconst : ℕ → SubProbability Bool := fun _ => SubProbability.uniform
+
+example : hoare[ True ==> §x = 1 ] {
+      var x : ℕ, b : Bool;
+      x <- 1;
+      b <$ dconst §x;
+    } := by
+  stmt_swap 2 -1
+  hoare_wp 2
+  hoare_skip
+  simp
+
+/-- EC's `swap -k` past a statement preceded by a reset (inlining's) of the moved sampling's
+variable: the reset goes first, the sampling after it (EC has no reset). -/
+example : hoare[ True ==> §x = 1 ] {
+      var x : ℕ, b : Bool;
+      reset_vars {"x", "b"};
+      x <- 1;
+      b <$ dconst §x;
+    } := by
+  stmt_swap -1
+  hoare_wp 3
+  hoare_skip
+  simp
+
 /-- A tuple assignment split, and an assignment moved past a sampling it does not read. -/
 example : hoare[ True ==> §x = 1 ∧ §y = 2 ] {
       var x : ℕ, y : ℕ, b : Bool;

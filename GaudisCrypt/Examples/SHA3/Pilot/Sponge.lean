@@ -66,14 +66,14 @@ theorem Sponge_Raise_BlockSponge_f :
     stmt_wp
     equiv_seq 1 1 : (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
         §n0{2} = (§n{1} + r - 1) / r)
-    · equiv_while (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
+    · equiv_while_raw (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
           §n0{2} = (§n{1} + r - 1) / r)
       case body =>
         stmt_wp; equiv_call (_ : ={glob Perm}); equiv_auto
       case guard => intros; simp_all
       case exit => intros; simp_all
       case hpre => equiv_auto
-    · equiv_while (={n, sa, sc, i, glob Perm} ∧ blocks2bits §z0{2} = §z{1} ∧
+    · equiv_while_raw (={n, sa, sc, i, glob Perm} ∧ blocks2bits §z0{2} = §z{1} ∧
           §n0{2} = (§n{1} + r - 1) / r)
       case body =>
         equiv_case (§i{1} + 1 < (§n{1} + r - 1) / r)

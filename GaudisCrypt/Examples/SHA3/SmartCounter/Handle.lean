@@ -3633,7 +3633,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
                 §G1.mhi{2} §F.RO.m{2} §G1.paths{2} §Redo.prefixes{1} §C.queries{2} §p{1} §i{1}
                 §sa{1} §sc{1} §h{2} ∧
               ¬ (§i{1} < qpre §p{1} §C.queries{2})))
-          · equiv_while (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+          · equiv_while_raw (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
               §sa{1} = §sa{2} ∧ §counter{2} = 0 ∧ ¬(§G1.bcol{2} = true ∨ §G1.bext{2} = true) ∧
               eq_glob_C §allGlobals{1} §allGlobals{2} ∧ §Redo.prefixes{1} = pref0 ∧
               PJ1 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
@@ -3686,7 +3686,7 @@ theorem PFf_Cf (_D : DISTINGUISHER) :
             subst hbs hpb hp
             exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, hbad, hC, hpr,
               PJ1_init _ _ _ _ _ _ _ _ _ _ _ _ _ hI hq⟩
-          · equiv_while (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+          · equiv_while_raw (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
               eq_glob_C §allGlobals{1} §allGlobals{2} ∧ FMap.dom §C.queries{2} [] ∧
               0 ≤ §counter{2} ∧ §counter{2} ≤ §i{2} - qpre §p{2} §C.queries{2} ∧
               all_prefixes pref0 ∧

@@ -352,7 +352,7 @@ theorem Sponge_f_inv (P : DPRIMITIVE) (I : VariableAssignment → VariableAssign
     exact ⟨rfl, rfl, hg⟩
   equiv_seq_last 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
       §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
-  · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  · equiv_while_raw (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
     case body =>
       stmt_wp
@@ -366,7 +366,7 @@ theorem Sponge_f_inv (P : DPRIMITIVE) (I : VariableAssignment → VariableAssign
       exact ⟨rfl, rfl, rfl, rfl, rfl, hg⟩
     · equiv_skip
       intros; simp_all
-  · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  · equiv_while_raw (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
     case body =>
       equiv_seq_last 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
@@ -1116,7 +1116,7 @@ theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := b
         stmt_inline{1} 0
         stmt_wp
         refine prhlStmt_fix_right (fun σ => IRO.mp.get σ.globals) fun mp => ?_
-        equiv_while (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §n{1} = size_out ∧ §i0{1} = §i{2} ∧
+        equiv_while_raw (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ §n{1} = size_out ∧ §i0{1} = §i{2} ∧
             0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ size §l0{1} = §i{2} ∧
             same_ro §S.SRO.RO.RO.m{1} mp ∧ ¬ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
             (∀ l j, FMap.dom mp (l, j) → FMap.dom §IRO.mp{2} (l, j)) ∧

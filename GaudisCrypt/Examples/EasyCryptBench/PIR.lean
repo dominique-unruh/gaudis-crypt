@@ -130,7 +130,7 @@ theorem secure1 : equiv[ (main N D) ~ (main N D) : True ==> ={s} ] := by
   stmt_inline 0
   stmt_inline 0
   stmt_wp
-  equiv_while ={j, s}
+  equiv_while_raw ={j, s}
   case body =>
     stmt_wp
     equiv_rnd
@@ -151,7 +151,7 @@ theorem secure2 : equiv[ (main N D) ~ (main N D) : True ==> ={s'} ] := by
   stmt_inline 0
   stmt_inline 0
   stmt_wp
-  equiv_while ={j, s'}
+  equiv_while_raw ={j, s'}
   case body =>
     stmt_wp
     equiv_rnd (fun b => if (§j{1} == §i0{1}) = (§j{2} == §i0{2}) then b else !b)
@@ -347,7 +347,7 @@ theorem s_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h�
   stmt_inline 0
   stmt_inline 0
   stmt_wp
-  equiv_while ={i0, j} ∧ §j{1} ≤ N ∧ (∀ y ∈ (§s{1}).toFinset, y < §j{1}) ∧
+  equiv_while_raw ={i0, j} ∧ §j{1} ≤ N ∧ (∀ y ∈ (§s{1}).toFinset, y < §j{1}) ∧
       (∀ y ∈ (§s{2}).toFinset, y < §j{2}) ∧
       ((§s{1}).toFinset = x₁.filter (· < §j{1}) ↔ (§s{2}).toFinset = x₂.filter (· < §j{2}))
   case body =>
@@ -384,7 +384,7 @@ theorem s'_uniform (x₁ x₂ : Finset ℕ) (h₁ : x₁ ⊆ Finset.range N) (h�
   stmt_inline 0
   stmt_inline 0
   stmt_wp
-  equiv_while ={i0, j} ∧ §j{1} ≤ N ∧ (∀ y ∈ (§s'{1}).toFinset, y < §j{1}) ∧
+  equiv_while_raw ={i0, j} ∧ §j{1} ≤ N ∧ (∀ y ∈ (§s'{1}).toFinset, y < §j{1}) ∧
       (∀ y ∈ (§s'{2}).toFinset, y < §j{2}) ∧
       ((§s'{1}).toFinset = x₁.filter (· < §j{1}) ↔ (§s'{2}).toFinset = x₂.filter (· < §j{2}))
   case body =>

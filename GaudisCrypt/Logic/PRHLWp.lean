@@ -23,7 +23,7 @@ And the relational steps proper:
   (default: the identity) (EC's `rnd`);
 * `equiv_rnd_run k` — a sampling on the left against the last `k` statements on the right, which
   sample the same;
-* `equiv_while I` — synchronized loops with the invariant `I` (EC's `while I`);
+* `equiv_while_raw I` — synchronized loops with the invariant `I` (four goals; EC's `while I` is `equiv_while`, `Logic/ECWhileRel.lean`);
 * `equiv_call h` — the last statements are calls, related by the procedure judgment `h` (EC's
   `call`; `prhlProc_glob hA` for an abstract procedure, EC's `call (_ : ={glob A})`);
   `equiv_call` alone for calls of the same procedure from equal arguments and globals;
@@ -402,16 +402,17 @@ elab "equiv_rnd_run" k:num : tactic => withMainContext do
     let g' ← Judgment.simpArg g'.mvarId! 3 relSimpDecls []
     replaceMainGoal [g']
 
-/-- `equiv_while I`: the last statements of both sides are loops, synchronized by the invariant
+/-- `equiv_while_raw I` (the older form of EC's `while I`, which is `equiv_while`,
+`Logic/ECWhileRel.lean`): the last statements of both sides are loops, synchronized by the invariant
 `I` (`prhlStmt_seq_while`).  Goals: `body` (the bodies keep `I`, from `I` and the guard), `guard`
 (under `I` the guards agree), `exit` (`I` and a false guard give the postcondition), then the
 code before the loops, with postcondition `I`. -/
-elab "equiv_while " I:term : tactic => withMainContext do
+elab "equiv_while_raw " I:term : tactic => withMainContext do
   let g ← getMainGoal
-  let _ ← prhlGoal g "equiv_while"
+  let _ ← prhlGoal g "equiv_while_raw"
   let g ← HoareSplit.hoareSplit 1 g
   g.withContext do
-    let ty ← prhlGoal g "equiv_while"
+    let ty ← prhlGoal g "equiv_while_raw"
     let Ie ← elabRelCond ty I
     let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_while
     let (ms, _, concl) ← forallMetaTelescope (← inferType c)

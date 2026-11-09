@@ -1383,7 +1383,7 @@ theorem eager_queried (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_while (={l, FRO_m} ∧ (∀ z ∈ §l{1}, FMap.in_dom_with §FRO_m{1} z Unknown) ∧
+  equiv_while_raw (={l, FRO_m} ∧ (∀ z ∈ §l{1}, FMap.in_dom_with §FRO_m{1} z Unknown) ∧
     decide (FMap.dom §FRO_m{1} a.1 ∧ is_ (FMap.get §FRO_m{1} a.1) a.2) = §r{2})
   case body =>
     stmt_wp
@@ -1439,7 +1439,7 @@ theorem eager_allKnown (dout_ll : ∀ x, (dout x).1 Set.univ = 1) (a) :
   repeat stmt_inline{1} 0
   repeat stmt_inline{2} 0
   stmt_wp
-  equiv_while (={l, FRO_m} ∧ (∀ z ∈ §l{1}, FMap.in_dom_with §FRO_m{1} z Unknown) ∧
+  equiv_while_raw (={l, FRO_m} ∧ (∀ z ∈ §l{1}, FMap.in_dom_with §FRO_m{1} z Unknown) ∧
     FMap.restr Known §FRO_m{1} = §r{2})
   case body =>
     stmt_wp

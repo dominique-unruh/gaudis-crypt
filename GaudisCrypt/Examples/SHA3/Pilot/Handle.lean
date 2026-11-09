@@ -373,8 +373,6 @@ theorem eq_f : equiv[ DPRestr(PF).f ~ DPRestr(G1.S).f :
       hs_hx2 hs_hy2 pi_x2⟩
   · auto_close
 
-grind_pattern prefix_sizel => «prefix» l1 l2
-
 module_subtype FUNCTIONALITY <: DFUNCTIONALITY
 
 /-- EC's first bullet of `PFf_Cf`'s first loop body (`prefix_gt0_mem`, `prefix_take_leq`, the
@@ -401,16 +399,14 @@ local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all 
   (intros; (try refine ⟨FMap.get_some _ _ ‹_›, ?_⟩); simp only [← Bool.not_eq_true] at *; tauto))))
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 2: `equiv_while`'s `exit` has no frame of the variables the loop does not modify (EC's
-  `while` keeps them): `={bs}` added to the first loop's invariant.
-* GAP 4: a clone's op given as a function (`op dout _ <- bdistr`) is not substituted and
-  beta-reduced in code as in EC: `r <$ F.dout x` reads `x`, so EC's `swap{2} 4 -3` fails.
+* GAP 2: EC's `while I` (two goals, the frame of what the loops do not modify) is `equiv_while`
+  (`Logic/ECWhileRel.lean`), but the closers cannot yet work its last goal (EC's
+  `∀ (modified variables), …`: reads of the states under the inner `∀ τ₁ τ₂` are not
+  generalized, `auto_progress`'s `simp` runs out of recursion depth): the loops here use the
+  older `equiv_while_raw` (four goals, no frame), so `={bs}` is added to the first invariant.
 * GAP 5: the pilot's oracle lemmas (`eq_f`, `eq_fi`, `PFf_Cf`, in EC's paths through
   `module_subtype` coercions) match `CF_G1`'s oracles (the old port's `CF`/`G1` views) only by
   heavy unfolding (~2M heartbeats per `conseq`): goes away with EC-form `CF`/`G1` declarations.
-* GAP 3: `grind` patterns of arithmetic lemmas are their normalized inequalities
-  (`prefix_sizel`), which never match: `grind_pattern prefix_sizel => «prefix» l1 l2` (to move
-  next to the lemma, `SLCommonCore`).
 -/
 
 set_option maxHeartbeats 8000000 in
@@ -551,8 +547,8 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
   --     (our `while` leaves `body`, `guard`, `exit`, `hpre`: EC's second goal is `guard`, `exit`
   --     and `hpre` together)
   -- GAP 2: `={bs}` is not EC's: EC's `while` keeps what the loop does not modify (`bs{1}`) by
-  -- itself; our `equiv_while` has no frame on `exit`
-  · equiv_while (={p, i, glob C, bs} ∧ §bs{2} = §p{2} ∧ (§i{2} = 0 → §sa{1} = b0) ∧
+  -- itself; `equiv_while_raw` has no frame on `exit` (EC's form, `equiv_while`, not yet closable)
+  · equiv_while_raw (={p, i, glob C, bs} ∧ §bs{2} = §p{2} ∧ (§i{2} = 0 → §sa{1} = b0) ∧
         0 ≤ §i{2} ∧ §i{2} ≤ «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2}))) ∧
         FMap.get §Redo.prefixes{1} (take §i{1} §p{1}) = some (§sa{1}, §sc{1}) ∧
         FMap.dom §Redo.prefixes{1} (take §i{1} §p{1}) ∧
@@ -727,7 +723,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
   --         /\ (if i{2} = 0 then (sa{2}, h{2}) = (b0, 0)
   --             else F.RO.m{2}.[take i{2} p{2}] = Some sa{1})
   --         /\ (i{2} < size p{2} => ! take (i{2}+1) p{2} \in Redo.prefixes{1})));last first.
-  equiv_while (={i, p, C.queries, C.c} ∧
+  equiv_while_raw (={i, p, C.queries, C.c} ∧
       «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2}))) ≤ §i{1} ∧
       §i{1} ≤ size §p{1} ∧
       FMap.get §Redo.prefixes{1} (take §i{2} §p{2}) = some (§sa{1}, §sc{1}) ∧
@@ -814,9 +810,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         -- EC: + if {2}; last first. + auto=> />. smt … + swap {2} 4 -3; auto=> />. smt …
         · stmt_if{2}; rotate_right
           · equiv_auto; pf_bad_leaf
-          -- GAP 4: our clone keeps `r <$ F.dout x` (EC's `op dout _ <- bdistr` substitutes
-          -- `bdistr`), so the sampling reads `x` and does not swap; our `auto` couples without it
-          · equiv_auto; pf_bad_leaf
+          · stmt_swap{2} 4 -3; equiv_auto; pf_bad_leaf
         -- EC: auto=> />. smt …
         · equiv_auto; pf_bad_leaf
       -- EC: if {2}. + auto=> />. smt …  if {2}. + auto=> />. smt …  auto=> />. smt …
@@ -896,17 +890,16 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         have hL : PJ2L _ _ _ _ _ _ _ :=
           ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnext, hpi, hisz, hq⟩
         exact (PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi (by simpa using hdom)).2.1
+      --     (EC's `auto` on the main goal: here only wp — EC's `rnd` cannot pair `y2` with `r`)
+      stmt_wp
       -- EC: swap{2}-3;auto;progress.
-      --     (GAP 4: EC's `swap{2} -3` moves the right's `r <$ dout x` before `sc <$ cdistr` —
-      --     EC's `dout` is the constant `bdistr`, ours reads `x`; the left's two samplings are
-      --     swapped instead: the same coupling, `y1` with `r` and `y2` with `sc`)
-      stmt_swap{1} 1 1
+      stmt_swap{2} -3
       equiv_auto
       --     (EC's closer, ~200 lines: `hs_addh`, `inv_addm`, `m_mh_addh_addm`, `mi_mhi_addh_addmi`,
       --     `build_hpath_up`, `build_hpath_upd_ch_iff`, `known_path_uniq`, … — the old port's
       --     `PJ2_fresh` (with `f_fresh_inv`) and `PJ2L_step`: deviation)
       auto_prep
-      rename_i bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y2 hy2 y1 hy1 w hb hisz hb1 hpp
+      rename_i bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y1 hy1 y2 hy2 w hb hisz hb1 hpp
         hpbs hpref hext hmp hI hpi hq hcnt hpath hi hif hdom f hh hnext
       have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ _ _ h :=
         ⟨by rw [hpbs]; exact hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩

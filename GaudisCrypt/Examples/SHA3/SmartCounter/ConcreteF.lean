@@ -485,7 +485,7 @@ theorem DB_F_f (hP : FVP.fvP P ≤ ((dbL c).footprint)ᶜ) :
         exact ⟨rfl, he, hI⟩
       case «then» =>
         stmt_wp
-        equiv_while (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
+        equiv_while_raw (§p{1} = §p{2} ∧ §p{1} = §bs{1} ∧ §bs{1} = §bs{2} ∧ §i{1} = §i{2} ∧
           §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
           (dbL c).equal_outside §allGlobals{1} §allGlobals{2} ∧
           dbI ((dbL c).get §allGlobals{1}) ((dbL c).get §allGlobals{2}) ∧
@@ -1364,7 +1364,7 @@ theorem GR_F_f :
   · equiv_if{2}
     case «then» =>
       stmt_wp
-      equiv_while (§p{1} = §p{2} ∧ §p{2} = §bs{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+      equiv_while_raw (§p{1} = §p{2} ∧ §p{2} = §bs{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
           §sc{1} = §sc{2} ∧ grL.equal_outside §allGlobals{1} §allGlobals{2} ∧
           §Redo.prefixes{1} = §Redo.prefixes{2} ∧
           §C.c{1} = §C.c{2} - (size §p{2} - dbq §p{2} §C.queries{2}) +

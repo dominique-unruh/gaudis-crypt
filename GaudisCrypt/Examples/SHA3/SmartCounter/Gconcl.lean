@@ -660,7 +660,7 @@ theorem DFRestr_f_G34 :
         equiv_seq_last 7 7 : (§p{1} = §p{2} ∧ §bs{1} = §bs{2} ∧
             §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
             §G1.m{1} = §G1.m{2} ∧ §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
-        · equiv_while (§p{1} = §p{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs{2} ∧
+        · equiv_while_raw (§p{1} = §p{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs{2} ∧
               §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
               §G1.m{1} = §G1.m{2} ∧ §G1.mi{1} = §G1.mi{2} ∧ §G1.paths{1} = §G1.paths{2})
           case body =>
@@ -1062,7 +1062,7 @@ theorem DFRestr_f_G23 :
         intros; simp_all
       case «then» =>
         equiv_seq_last 7 7 : (§p{1} = §p{2} ∧ §bs{1} = §bs{2} ∧ colEq §allGlobals{1} §allGlobals{2})
-        · equiv_while (§p{1} = §p{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs{2} ∧
+        · equiv_while_raw (§p{1} = §p{2} ∧ §i{1} = §i{2} ∧ §bs{1} = §bs{2} ∧
               §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧ §sa{1} = §sa{2} ∧
               §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2})
           case body =>

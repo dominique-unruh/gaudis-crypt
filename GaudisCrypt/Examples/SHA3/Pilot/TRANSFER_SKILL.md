@@ -155,8 +155,9 @@ after them (`TacticMisc.ecGroups`, `ecGapIn`).  So EC's numbers are copied as th
 ours too.
 
 **Goal order is EC's for `if`** (two-sided `stmt_if`: `guard, then, else`; EC's `if; 1,3: auto`
-is `stmt_if; on_goals 1, 3 => equiv_auto`).  **Not for `while`:** `equiv_while (I)` leaves four
-goals (`body, guard, exit, hpre`; EC two) — use the tags (`case body => …`).
+is `stmt_if; on_goals 1, 3 => equiv_auto`) and for `while` (`equiv_while`, two goals) — but see
+the `while` row: `equiv_while_raw` (four goals, tags `body, guard, exit, hpre`) is what closes
+today.
 
 ### Program logic
 
@@ -198,7 +199,7 @@ goals (`body, guard, exit, hpre`; EC two) — use the tags (`case body => …`).
 | `case (P)` (pRHL) | `equiv_case (P)` |
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
-| `while I` (two-sided) | `equiv_while (I)`; four goals tagged `body`, `guard`, `exit`, `hpre` (EC: two — renumber EC's selectors) |
+| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). **Its `hpre` is not yet closable by our closers** (the reads under the inner `∀ τ₁ τ₂` are not generalized; `auto_progress` hits the recursion limit on large invariants) — until then use `equiv_while_raw (I)`: four goals `body`, `guard`, `exit`, `hpre`, no frame (add the unmodified variables EC's frame would keep to the invariant, as a documented deviation) |
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, `exit`, then the code before. EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | Hoare `while I` | `hoare_while I` |
@@ -337,11 +338,14 @@ Document each in the docstring when it applies.
   `glob D`.  Read them before porting those files; retire them if `declare module` /
   `Module.ECGlob` now cover the case.
 * **Clone ops given as functions** (`op dout _ <- bdistr`) stay applied in our code
-  (`r <$ F.dout x` reads `x`), so EC's `swap` moving such a sampling past the assignment of its
-  argument fails; swap the other side's samplings instead (same coupling), as a documented
-  deviation (gap: substitute and beta-reduce clone ops in code).
-* **EC's `auto` couples the last samplings of both sides** — when ours pairs the wrong ones (the
-  invariant cannot be proven, sampled values unrelated), reorder samplings with `stmt_swap` first.
+  (`r <$ F.dout x`), but `stmt_swap` sees such a distribution as constant (equal up to reducible
+  unfolding), so EC's swaps go through.  Moving a statement to an earlier position past
+  inlining's resets takes the resets along (they go first; EC has none), so a sampling of a
+  callee's local can move past that callee's reset.
+* **EC's `auto` couples the last samplings of both sides, and only same-type ones** — ours falls
+  back to a one-sided `rnd` when the last samplings differ in type, so where EC's `auto` stops
+  before a `swap` (types differ), write that `auto` as `stmt_wp`, then EC's `swap`, then
+  `equiv_auto`.
 * **`fel`**: one oracle (Gext needs two); `bad` must persist (`keep` goal); the event must be
   `bad` itself; the call last.
 * **`rw`** fails on goals with terms well-typed only by unfolding module types (`PRIMITIVE.f Perm`

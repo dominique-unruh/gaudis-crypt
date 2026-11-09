@@ -630,6 +630,18 @@ def swapPair (a b : Lean.Expr) : MetaM Lean.Expr := do
     let .forallE _ α _ _ ← whnf (← inferType (← mkAppM ``Setter.set #[x])) | failure
     let hs ← withLocalDeclD `a α fun av => do
       mkLambdaFVars #[av] (← commutesOf s (← mkAppM ``Setter.set #[x, av]) X?)
+    -- a distribution constant up to reducible unfolding (a clone's `op dout _ <- bdistr`: the
+    -- sampling `r <$ dout x` does not read `x`), by `rfl`
+    let constRefl? ← withLocalDeclD `σ (mkConst ``ProgramState) fun σ =>
+      withLocalDeclD `τ (mkConst ``ProgramState) fun τ => do
+        let a ← mkAppM ``Getter.get #[e, σ]
+        let b ← mkAppM ``Getter.get #[e, τ]
+        let st ← saveState
+        if ← withReducible (isDefEq a b) then
+          return some (← mkLambdaFVars #[σ, τ] (← mkEqRefl a))
+        st.restore; return none
+    if let some he := constRefl? then
+      return some (← mkAppM ``Stmt.swap_sample #[he, hs])
     let st ← saveState
     try
       let he ← discharge heTy none
@@ -763,6 +775,26 @@ def swapBlock (a b : Nat) (k : Int) (side? : Option Nat) : TacticM Unit := do
     else do
       unless k.natAbs < a do throwError "stmt_swap: moved before the start"
       pure (-Int.ofNat ((gs.extract (a - 1 - k.natAbs) (a - 1)).foldl (· + ·) 0))
+  -- moving earlier past resets (the callee's locals, `reset_vars`, EC has none): the resets in
+  -- the region jumped over go to its front first (they commute with what does not touch the
+  -- callee's locals), and the block lands after them — a reset of a variable the block writes
+  -- would otherwise clear it
+  let dist ← if k > 0 then pure dist else do
+    let rs ← (← getMainGoal).withContext do
+      let (d, ty) ← Judgment.descOf (← getMainGoal) side?
+      pure (TacticMisc.spineResets (ty.getArg! d.stmtArg))
+    let rs := (← rs).toArray
+    let rStart := (Int.toNat (Int.ofNat start + dist))
+    let resetsIn := (List.range (start - rStart)).filter fun i => rs[rStart + i]?.getD false
+    let mut moved := 0
+    for i in resetsIn do
+      let pos := rStart + i
+      let target := rStart + moved
+      if pos > target then
+        liftMetaTactic1 fun g => some <$>
+          Judgment.onStmt (moveStmt pos (-(Int.ofNat (pos - target)))) g side?
+      moved := moved + 1
+    pure (dist + Int.ofNat moved)
   let order := if k > 0 then (List.range (stop - start)).reverse.map (· + start)
     else (List.range (stop - start)).map (· + start)
   for n in order do

@@ -592,7 +592,7 @@ theorem Sponge_f_equiv (P₁ P₂ : DPRIMITIVE) (I : VariableAssignment → Vari
     exact ⟨rfl, rfl, hg⟩
   equiv_seq_last 1 1 : (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
       §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
-  · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  · equiv_while_raw (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ §xs{1} = §xs{2} ∧ I §allGlobals{1} §allGlobals{2})
     case body =>
       stmt_wp
@@ -606,7 +606,7 @@ theorem Sponge_f_equiv (P₁ P₂ : DPRIMITIVE) (I : VariableAssignment → Vari
       exact ⟨rfl, rfl, rfl, rfl, rfl, hg⟩
     · equiv_skip
       intros; simp_all
-  · equiv_while (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
+  · equiv_while_raw (§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧
         §i{1} = §i{2} ∧ I §allGlobals{1} §allGlobals{2})
     case body =>
       equiv_seq_last 1 1 : ((§n{1} = §n{2} ∧ §z{1} = §z{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧

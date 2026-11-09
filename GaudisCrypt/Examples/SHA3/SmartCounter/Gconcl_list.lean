@@ -470,7 +470,7 @@ theorem FC_f_sInv {α β : Type} {K₁ : Lens α VariableAssignment} {K₂ : Len
           equiv_skip
           intros; simp_all
         case «then» =>
-          equiv_while (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧
+          equiv_while_raw (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧
               §b{1} = §b{2} ∧ §i{1} = §i{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       R §K₁{1} §K₂{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
@@ -1091,7 +1091,7 @@ theorem FC_DSqueeze_DFRestr_f :
                 and_intros <;> first | rfl | trivial | assumption |
                   linarith [size_nonneg' p, le_max_right (n - 1) 0] |
                   (intro; rw [zero_add, format_one]; exact get_eq_some_oget hd)
-          · equiv_while (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
+          · equiv_while_raw (§p{1} = §p{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §lres{2} ∧ §i{1} = §i{2} ∧
             §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧ 0 ≤ §i{1} ∧
             valid §p{1} = true ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
                 §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -1741,7 +1741,7 @@ theorem IF'_IF2_f :
       stmt_wp
       equiv_rnd
       stmt_wp
-      equiv_while (§x0{1} = §x0{2} ∧ §i{1} = §i{2} ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
+      equiv_while_raw (§x0{1} = §x0{2} ∧ §i{1} = §i{2} ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
           parse §x0{1} = (§p{1}, §n{1}) ∧ valid §p{1} = true ∧ 0 ≤ §i{1} ∧
           §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
           §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
@@ -1785,7 +1785,7 @@ theorem IF'_IF2_f :
       stmt_wp
       equiv_rnd
       stmt_wp
-      equiv_while (§x0{1} = §x0{2} ∧ §i{1} = §i{2} ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
+      equiv_while_raw (§x0{1} = §x0{2} ∧ §i{1} = §i{2} ∧ §p{1} = §p{2} ∧ §n{1} = §n{2} ∧
           parse §x0{1} = (§p{1}, §n{1}) ∧ valid §p{1} = false ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
           §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
           inv_L_L3 §SLCommon.F.RO.m{1} §SLCommon.F.RO.m{2} §F2.RO.m{2} ∧
@@ -2563,7 +2563,7 @@ theorem FC_FValid_f :
                     hv, rfl, rfl, rfl, hI, rfl⟩, -⟩
                 simp only [ite_self]
                 and_intros <;> first | trivial | assumption | omega
-              · equiv_while (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
+              · equiv_while_raw (§p0{1} = §(localVarLens "x1" (List block)){2} ∧ §n0{1} = §n{2} ∧
                   §i{1} = §i{2} ∧
                 §lres{1} = §bs{2} ∧ valid §p0{1} = true ∧ 0 ≤ §i{1} ∧
                     §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -2691,7 +2691,7 @@ theorem DSqueeze2_Valid_f :
           rw [← hp] at hb
           exact Bool.false_ne_true (hb.symm.trans hv)
         case «then» =>
-          equiv_while (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
+          equiv_while_raw (§p{1} = §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧
               §i{1} = §i{2} ∧
               §lres{1} = §bs{2} ∧ valid §p{1} = true ∧ 0 ≤ §i{1} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
                   §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -2782,7 +2782,7 @@ theorem DSqueeze2_Valid_f :
           refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
           exact h.2
         case «then» =>
-          equiv_while (§pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} ∧
+          equiv_while_raw (§pp{1} = §x3{2} ∧ §n{1} = §n1{2} ∧ §i{1} = §i0{2} ∧
               §lres{1} = §bs0{2} ∧ valid §pp{1} = false ∧ 0 ≤ §i{1} ∧
               parse (format §pp{1} §n{1}) = (§pp{1},
                   §n{1}) ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧ §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧
@@ -3090,7 +3090,7 @@ theorem IF2_Last :
           rintro g₁ g₂ x0 p n i p0 n' pp nn i' lres
             ⟨⟨⟨rfl, rfl, rfl, -, -, hn0, rfl, rfl, rfl, h⟩, -⟩, -⟩
           exact ⟨rfl, rfl, rfl, le_rfl, hn0.le, hn0, rfl, fun h => absurd h (lt_irrefl _), h⟩
-      equiv_while (§i{1} = §i{2} ∧ §p{1} = §p0{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+      equiv_while_raw (§i{1} = §i{2} ∧ §p{1} = §p0{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
           0 < §n{1} ∧ §x0{1} = format §p0{2} §n{2} ∧
           (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
             FMap.dom §SLCommon.F.RO.m{1} (format §p{1} §i{1})) ∧
@@ -3169,7 +3169,7 @@ theorem IF2_Last :
             ⟨⟨⟨rfl, rfl, rfl, rfl, rfl, hn0, rfl, rfl, rfl, h⟩, -⟩, -⟩
           exact ⟨by simp, rfl, rfl, rfl, le_rfl, hn0.le, hn0, rfl,
             fun h => absurd h (lt_irrefl _), h⟩
-      equiv_while (§i{1} = §i{2} ∧ §p{1} = §pp{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
+      equiv_while_raw (§i{1} = §i{2} ∧ §p{1} = §pp{2} ∧ §n{1} = §n{2} ∧ 0 ≤ §i{1} ∧ §i{1} ≤ §n{1} ∧
           0 < §n{1} ∧ §x0{1} = format §pp{2} §n{2} ∧
           (0 < §i{1} → last b0 §lres{2} = oget (FMap.get §F2.RO.m{1} (format §p{1} §i{1})) ∧
             FMap.dom §F2.RO.m{1} (format §p{1} §i{1})) ∧ L34Inv §allGlobals{1} §allGlobals{2})
@@ -3597,7 +3597,7 @@ theorem DS_IF2_FValid :
           equiv_seq_last 1 0 : (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i{1} + 1 = §n{1} ∧
               rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
               L34Inv §allGlobals{1} §allGlobals{2})
-          · equiv_while (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
+          · equiv_while_raw (§p{1} = §p0{2} ∧ §n{1} = §n0{2} ∧ §i0{2} = §i{1} + 1 ∧ 0 ≤ §i{1} ∧
               §i0{2} ≤ §n{1} ∧ rcons §lres{1} §(localVarLens "b" block){1} = §lres0{2} ∧
               valid §p{1} = true ∧ 0 < §n{1} ∧
               (∀ j, 1 ≤ j → j ≤ §i0{2} → FMap.dom §SLCommon.F.RO.m{1} (format §p{1} j)) ∧
@@ -4688,7 +4688,7 @@ theorem DSqueeze_Sponge :
         obtain ⟨-, ⟨h0, -⟩, -⟩ := hs.2.2
         refine ⟨rfl, rfl, by simp [size], by simp [drop], ?_, rfl, rfl, rfl, rfl, rfl, hv, hs⟩
         simpa [take] using h0
-      equiv_while (§p0{1} = §p{1} ∧ §sa0{1} = §sa{2} ∧ §sc0{1} = §sc{2} ∧ 0 ≤ §i0{1} ∧
+      equiv_while_raw (§p0{1} = §p{1} ∧ §sa0{1} = §sa{2} ∧ §sc0{1} = §sc{2} ∧ 0 ≤ §i0{1} ∧
           §i0{1} ≤ size §p0{1} ∧ §xs{2} = drop §i0{1} §p0{1} ∧
           FMap.get §SLCommon.Redo.prefixes{1} (take §i0{1} §p0{1}) = some (§sa{2}, §sc{2}) ∧
           §i{1} = 0 ∧ §i{2} = 0 ∧ §n{1} = §n{2} ∧ §lres{1} = [] ∧ §z{2} = [] ∧
@@ -4809,7 +4809,7 @@ theorem DSqueeze_Sponge :
         equiv_skip
         intros
         assumption
-    equiv_while (§i{1} = §i{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §z{2} ∧
+    equiv_while_raw (§i{1} = §i{2} ∧ §n{1} = §n{2} ∧ §lres{1} = §z{2} ∧
         §(localVarLens "b" block){1} = §sa{2} ∧ 0 ≤ §i{1} ∧ valid §p{1} = true ∧
         (§i{1} < §n{1} →
           FMap.get §SLCommon.Redo.prefixes{1} (format §p{1} (§i{1} + 1)) = some (§sa{2}, §sc{2})) ∧
@@ -5261,7 +5261,7 @@ theorem SS_gen (bl : List block) (s k : ℤ) :
       obtain ⟨-, ⟨h0, -⟩, -⟩ := hc; exact h0
     exact ⟨rfl, rfl, by simp only [size]; omega, by simpa [take] using h0, hs0, hsl, hd, he,
       INV_Real_mono hc (by omega)⟩
-  equiv_while (§p{1} = bl ∧ §p{2} = bl ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+  equiv_while_raw (§p{1} = bl ∧ §p{2} = bl ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
       0 ≤ §i{1} ∧ §i{1} ≤ size bl ∧
       FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} bl) = some (§sa{1}, §sc{1}) ∧
       0 ≤ s ∧ s ≤ size bl ∧ FMap.dom §SLCommon.Redo.prefixes{1} (take s bl) ∧
@@ -5427,7 +5427,7 @@ theorem DSqueeze_count (bl : List block) (nb k : ℤ) :
           by simpa using hc'⟩⟩
       obtain ⟨-, ⟨h0, -⟩, -⟩ := hc
       simp [take, FMap.domE, h0]
-    equiv_while (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §i{1} = §i{2} ∧
+    equiv_while_raw (§p{1} = bl ∧ §p{2} = bl ∧ §n{1} = nb ∧ §n{2} = nb ∧ §i{1} = §i{2} ∧
         §lres{1} = §lres{2} ∧ §(localVarLens "b" block){1} = §(localVarLens "b" block){2} ∧
         0 ≤ §i{1} ∧ valid bl = true ∧
         (§i{1} < nb → FMap.dom §SLCommon.Redo.prefixes{1} (format bl (§i{1} + 1))) ∧
@@ -7107,7 +7107,7 @@ theorem Simulator_f_Simu :
                   equiv_skip
                   e2_close
                 case «then» =>
-                  equiv_while (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs{2} ∧
+                  equiv_while_raw (§x1{1} = §x1{2} ∧ §n{1} = §n{2} ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs{2} ∧
                     §x0{1} = §x0{2} ∧ e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
                   case body =>
                     stmt_wp
@@ -7543,7 +7543,7 @@ theorem SimLast_f_Simu :
                   equiv_skip
                   e1_close
                 case «then» =>
-                  equiv_while (§(localVarLens "x3" (List block)){1} =
+                  equiv_while_raw (§(localVarLens "x3" (List block)){1} =
                       §(localVarLens "x1" (List block)){2} ∧ §n{1} = §n{2} ∧ §i{1} =
                           §i0{2} ∧ §bs{1} = §bs{2} ∧
                   §(localVarLens "x1" state){1} = §x0{2} ∧
@@ -7605,7 +7605,7 @@ theorem SimLast_f_Simu :
                       refine prhlStmt_conseq prhlStmt_false (fun σ₁ σ₂ h => ?_) (fun _ _ h => h)
                       exact absurd h.2 (by decide)
                     case «then» =>
-                      equiv_while (§(localVarLens "x5" (List block)){1} = §q{2} ∧ §n1{1} = §k{2} ∧
+                      equiv_while_raw (§(localVarLens "x5" (List block)){1} = §q{2} ∧ §n1{1} = §k{2} ∧
                           §i0{1} = §i{2} ∧ 0 ≤ §i0{1} ∧
                       §i0{1} ≤ §n1{1} ∧
                       (0 < §i0{1} → last b0 §bs0{1} =

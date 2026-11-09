@@ -185,7 +185,7 @@ theorem Sponge_is_StdSponge (P : DPRIMITIVE) :
   stmt_wp
   equiv_seq_last 1 1 : (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
       §finished{1} = false ∧ §i{2} = 0 ∧ §z{1} = [])
-  · equiv_while (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n, xs} ∧
+  · equiv_while_raw (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n, xs} ∧
         §finished{1} = false ∧ §i{2} = 0 ∧ §z{1} = [])
     case body =>
       stmt_wp
@@ -237,7 +237,7 @@ theorem Sponge_is_StdSponge (P : DPRIMITIVE) :
       · equiv_skip
         rintro g₁ g₂ z₁ sa₁ sc₁ n₁ f₁ z₂ sa₂ sc₂ n₂ i₂ ⟨⟨hg, ⟨-, -, -, rfl⟩, -, rfl, -⟩, hn⟩
         exact ⟨hg, rfl, hn, rfl⟩
-    · equiv_while (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
+    · equiv_while_raw (eqGlob P §allGlobals{1} §allGlobals{2} ∧ ={z, sa, sc, n} ∧
           (§finished{1} = true ↔ §n{1} ≤ size §z{1}) ∧ size §z{1} = r * §i{2} ∧ 0 < §n{1} ∧
           0 ≤ §i{2})
       case body =>
@@ -700,7 +700,7 @@ theorem HybridIROLazy_HIRO_LRO_f :
         exact h
       -- EC: `while (={xs, n, i, bs} /\ HybridIROLazy.mp{1} = ERO.RO.m{2}); wp;
       -- call HybridIROLazy_fill_in_LRO_get; auto`
-      equiv_while (={xs0, n0, i, bs} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
+      equiv_while_raw (={xs0, n0, i, bs} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
       case body =>
         stmt_wp
         equiv_call (HybridIROLazy_fill_in_LRO_get HybridIROLazy_mp ERO_RO_m)
@@ -815,7 +815,7 @@ theorem HIRO_RO_HybridIROEager_f :
     case «then» =>
       -- EC: `while (={i, m, xs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); wp;
       -- call RO_sample_HybridIROEager_fill_in; auto` (`bs` in the invariant: EC frames it)
-      equiv_while (={xs0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+      equiv_while_raw (={xs0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
       case body =>
         stmt_wp
         equiv_call (RO_sample_HybridIROEager_fill_in HybridIROEager_mp ERO_RO_m)
@@ -826,7 +826,7 @@ theorem HIRO_RO_HybridIROEager_f :
       case exit => simp_all
       -- EC: `while (={i, n, xs, bs} /\ ERO.RO.m{1} = HybridIROEager.mp{2}); wp;
       -- call RO_get_HybridIROEager_fill_in; auto` (`m` in the invariant: EC frames it)
-      equiv_while (={xs0, n0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
+      equiv_while_raw (={xs0, n0, m, i, bs} ∧ §ERO_RO_m{1} = §HybridIROEager_mp{2})
       case body =>
         stmt_wp
         equiv_call (RO_get_HybridIROEager_fill_in HybridIROEager_mp ERO_RO_m)
@@ -1198,7 +1198,7 @@ theorem LowerFun_IRO_HybridIROLazy_f :
           refine prhlStmt_conseq prhlStmt_false (fun _ _ h => ?_) (fun _ _ h => h)
           simp [BIRO.valid, valid_toplevel] at h
         case «then» =>
-          equiv_while (pad2blocks §x0{1} = §xs0{2} ∧ §n0{1} = §n0{2} ∧ §i{1} = §i{2} ∧
+          equiv_while_raw (pad2blocks §x0{1} = §xs0{2} ∧ §n0{1} = §n0{2} ∧ §i{1} = §i{2} ∧
               §bs{1} = §bs0{2} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
           case body =>
             stmt_wp
@@ -1261,7 +1261,7 @@ theorem IRO_RaiseHybridIRO_HybridIROLazy_f :
       simp [BIRO.valid, valid_toplevel, valid_pad2blocks]
     case «else» => equiv_skip; intros; simp_all
     case «then» =>
-      equiv_while (§xs{2} = pad2blocks §(localVarLens "x" (List Bool)){1} ∧ §n{1} = §n0{2} ∧
+      equiv_while_raw (§xs{2} = pad2blocks §(localVarLens "x" (List Bool)){1} ∧ §n{1} = §n0{2} ∧
           §i{1} = §i{2} ∧ §bs{1} = §bs0{2} ∧ lazy_invar §BIRO.IRO.mp{1} §HybridIROLazy_mp{2})
       case body =>
         stmt_wp
@@ -1418,7 +1418,7 @@ theorem Lower_HybridIROEager_f :
     case «then» =>
       equiv_seq_last 1 1 : (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
           §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
-      · equiv_while (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      · equiv_while_raw (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
             §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
         case body =>
           stmt_wp
@@ -1439,7 +1439,7 @@ theorem Lower_HybridIROEager_f :
         case guard => intros; simp_all
         case exit => intros; simp_all
         · equiv_skip; intros; simp_all
-      · equiv_while (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+      · equiv_while_raw (§xs1{1} = §xs0{2} ∧ §n1{1} = §n0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
             §bs0{1} = §bs{2} ∧ §HybridIROEager_mp{1} = §HybridIROEager_mp{2})
         case body =>
           stmt_wp
@@ -1620,7 +1620,7 @@ theorem HybridIROEagerTrans_next_block_split :
     exact ⟨rfl, rfl, rfl, rfl, rfl, hm, hs, hb⟩
   · equiv_if{2}
     case «then» =>
-      equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
+      equiv_while_raw (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
           §HybridIROEager_mp{1} = §HybridIROEager_mp{2} ∧ §i0{1} ≤ §m0{1} ∧
           ∀ j, §i0{1} ≤ j ∧ j < §m0{1} → FMap.dom §HybridIROEager_mp{1} (§xs0{1}, j))
       case body =>
@@ -1672,7 +1672,7 @@ theorem HybridIROEagerTrans_next_block_split :
           simp only [decide_eq_false_iff_not] at hd
           exact ⟨rfl, rfl, rfl, rfl, hm, hs,
             fun k hk => block_bits_dom_first_out_imp_all_out _ _ _ hb hd k ⟨hk.1, by omega⟩, rfl⟩
-        · equiv_while (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §i0{2} = §m0{1} - r ∧
+        · equiv_while_raw (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §i0{2} = §m0{1} - r ∧
               §i0{2} ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §i0{1} - §i0{2} = §j{2} ∧
               size §bs0{1} = §i0{1} ∧ §bs0{1} = §bs0{2} ++ §cs{2} ∧
               (∀ k, §i0{2} ≤ k ∧ k < §i0{1} →
@@ -1902,7 +1902,7 @@ theorem BlockGen_loop_BlockGenCall (P : VariableAssignment → VariableAssignmen
   · stmt_wp
     equiv_skip
     intros; simp_all
-  · equiv_while (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r ∧
+  · equiv_while_raw (§j{1} = §i{2} ∧ §cs{1} = §(localVarLens "l" (List Bool)){2} ∧ §n{2} = r ∧
         P §allGlobals{1} §allGlobals{2})
     case body =>
       stmt_wp
@@ -2029,7 +2029,7 @@ theorem next_block_split_NextBlockSplitLoop :
   · equiv_if
     case guard => intros; simp_all
     case «then» =>
-      equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+      equiv_while_raw (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
           §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
       case body =>
         stmt_wp
@@ -2049,7 +2049,7 @@ theorem next_block_split_NextBlockSplitLoop :
           equiv_skip
           rintro _ _ _ _ _ _ _ _ _ _ ⟨h, -⟩
           exact ⟨h, ge0_r⟩
-        · equiv_while ((§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+        · equiv_while_raw ((§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
               §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2}) ∧ §j{1} = §j{2} ∧
               §cs{1} = §cs0{2} ∧ size §cs{1} = §j{1} ∧ 0 ≤ §j{1} ∧ §j{1} ≤ r)
           case body =>
@@ -2069,7 +2069,7 @@ theorem next_block_split_NextBlockSplitLoop :
             rw [show ofblock (mkblock _) = _ from BitWord.ofwordK _ (by omega)]
           · equiv_skip
             intros; assumption
-      · equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+      · equiv_while_raw (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
           §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
         case body =>
           stmt_wp
@@ -2101,7 +2101,7 @@ theorem NextBlockSplitLoop_NextBlockSplitDirect :
   · equiv_if
     case guard => intros; simp_all
     case «then» =>
-      equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+      equiv_while_raw (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
           §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
       case body =>
         stmt_wp
@@ -2121,7 +2121,7 @@ theorem NextBlockSplitLoop_NextBlockSplitDirect :
         equiv_skip
         rintro _ _ _ _ _ _ _ _ _ _ ⟨⟨rfl, rfl, rfl, rfl, rfl⟩, -⟩
         exact ⟨rfl, by rintro _ _ _ _ ⟨rfl, rfl⟩; exact ⟨rfl, rfl, rfl, rfl, rfl⟩⟩
-      · equiv_while (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
+      · equiv_while_raw (§xs0{1} = §xs0{2} ∧ §i0{1} = §i0{2} ∧ §m0{1} = §m0{2} ∧
           §bs0{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
         case body =>
           stmt_wp
@@ -2480,7 +2480,7 @@ theorem HybridIROEagerTrans_BlockSpongeTrans_loop (n' : ℤ) :
             · stmt_wp
               equiv_skip
               intros; simp_all
-            · equiv_while (§n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §xs{2} = §xs0{2} ∧
+            · equiv_while_raw (§n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §xs{2} = §xs0{2} ∧
                 §m{2} = (§n0{1} - (k : ℤ)) * r ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs0{2} ∧
                 §allGlobals{1} = §allGlobals{2})
               case body =>
@@ -2647,7 +2647,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
             · stmt_wp
               equiv_skip
               intros; simp_all; aesop
-            · equiv_while (§n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §m{1} = §m{2} ∧ §xs{2} = §xs0{2} ∧
+            · equiv_while_raw (§n0{1} = §n0{2} ∧ §xs0{1} = §xs0{2} ∧ §m{1} = §m{2} ∧ §xs{2} = §xs0{2} ∧
                 §n{2} = n1 / r ∧ §i{1} = §i0{2} ∧ §bs{1} = §bs0{2} ∧ §n0{1} = n1 ∧ 0 < n1 ∧
                 §allGlobals{1} = §allGlobals{2})
               case body =>
@@ -2674,7 +2674,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
             · stmt_wp
               equiv_skip
               intros; simp_all
-            · equiv_while (§n0{1} = §n0{2} ∧
+            · equiv_while_raw (§n0{1} = §n0{2} ∧
                 §(localVarLens "x" (List block)){1} = §(localVarLens "x" (List block)){2} ∧
                 §xs{1} = §(localVarLens "x" (List block)){1} ∧
                 §n{1} = n1 / r ∧ §i0{1} = §i{2} ∧ §bs0{1} = §bs{2} ∧
@@ -2755,7 +2755,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
                 · stmt_wp
                   equiv_skip
                   intros; simp_all
-                · equiv_while (§xs0{1} = §xs0{2} ∧ §xs{2} = §xs0{2} ∧ §i{1} = §i0{2} ∧
+                · equiv_while_raw (§xs0{1} = §xs0{2} ∧ §xs{2} = §xs0{2} ∧ §i{1} = §i0{2} ∧
                     §m{1} = §m{2} ∧
                     §m0{2} = §m{2} ∧ §bs{1} = §bs0{2} ∧ §allGlobals{1} = §allGlobals{2})
                   case body =>
@@ -2855,7 +2855,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
                     §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2} ∧
                     §allGlobals{1} = §allGlobals{2} ∧ §i{1} = n1 ∧
                     n1 ≤ §m{1} ∧ size §(localVarLens "bs" (List Bool)){2} = n1)
-                · equiv_while (§n0{1} = n1 ∧ §n0{2} = n1 ∧ §xs0{1} = §xs0{2} ∧ §m{1} = §m{2} ∧
+                · equiv_while_raw (§n0{1} = n1 ∧ §n0{2} = n1 ∧ §xs0{1} = §xs0{2} ∧ §m{1} = §m{2} ∧
                     §i{1} = §i{2} ∧
                     §(localVarLens "bs" (List Bool)){1} = §(localVarLens "bs" (List Bool)){2} ∧
                     §allGlobals{1} = §allGlobals{2} ∧
@@ -2884,7 +2884,7 @@ theorem HybridIROEager_f_BlockIRO_f (n1 : ℤ) (x2 : List block) :
                   · equiv_skip
                     rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨hn1, rfl, rfl, rfl, rfl, rfl, hm, hi, hs, hn2⟩
                     exact ⟨hn1, hn2, rfl, rfl, rfl, rfl, rfl, hm, hi, hs⟩
-                · equiv_while (§xs0{1} = §xs0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
+                · equiv_while_raw (§xs0{1} = §xs0{2} ∧ §m{1} = §m{2} ∧ §i{1} = §i{2} ∧
                     §allGlobals{1} = §allGlobals{2} ∧ n1 ≤ §i{1} ∧
                     n1 ≤ size §(localVarLens "bs" (List Bool)){2} ∧
                     §(localVarLens "bs" (List Bool)){1} =
@@ -3078,7 +3078,7 @@ theorem Sponge_Raise_BlockSponge_f :
           §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
             §n0{2} = (§n{1} + r - 1) / r ∧
           eqGlob Perm §allGlobals{1} §allGlobals{2})
-      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      · equiv_while_raw (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
             §xs{1} = §xs0{2} ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
               §(localVarLens "z" (List block)){2} = [] ∧ §n0{2} = (§n{1} + r - 1) / r ∧
             eqGlob Perm §allGlobals{1} §allGlobals{2})
@@ -3094,7 +3094,7 @@ theorem Sponge_Raise_BlockSponge_f :
           exact ⟨rfl, rfl, rfl, rfl, by simp [blocks2bits], rfl, hg⟩
         · equiv_skip
           intros; simp_all
-      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      · equiv_while_raw (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
           §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
             §n0{2} = (§n{1} + r - 1) / r ∧
           eqGlob Perm §allGlobals{1} §allGlobals{2})
@@ -3161,7 +3161,7 @@ theorem Sponge_Raise_BlockSponge_f_oracle :
           §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
             §n0{2} = (§n{1} + r - 1) / r ∧
           §allGlobals{1} = §allGlobals{2})
-      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      · equiv_while_raw (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
             §xs{1} = §xs0{2} ∧ §(localVarLens "z" (List Bool)){1} = [] ∧
               §(localVarLens "z" (List block)){2} = [] ∧ §n0{2} = (§n{1} + r - 1) / r ∧
             §allGlobals{1} = §allGlobals{2})
@@ -3176,7 +3176,7 @@ theorem Sponge_Raise_BlockSponge_f_oracle :
           exact ⟨rfl, rfl, rfl, rfl, by simp [blocks2bits], rfl, hg⟩
         · equiv_skip
           intros; simp_all
-      · equiv_while (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
+      · equiv_while_raw (§n{1} = §n{2} ∧ §sa{1} = §sa{2} ∧ §sc{1} = §sc{2} ∧ §i{1} = §i{2} ∧
           §(localVarLens "z" (List Bool)){1} = blocks2bits §(localVarLens "z" (List block)){2} ∧
             §n0{2} = (§n{1} + r - 1) / r ∧
           §allGlobals{1} = §allGlobals{2})

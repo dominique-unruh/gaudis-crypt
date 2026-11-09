@@ -677,7 +677,7 @@ theorem M_f_col (hfr : GcolFresh Gcol_count) :
   stmt_wp
   equiv_rnd
   stmt_wp
-  equiv_while (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
+  equiv_while_raw (§p{1} = §p{2} ∧ §h{1} = §h{2} ∧ §i{1} = §i{2} ∧ §sa{1} = §sa{2} ∧
       §counter{1} = §counter{2} ∧ colEq §allGlobals{1} §allGlobals{2} ∧
       (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧ 0 ≤ §counter{2} ∧ §counter{2} ≤ (size §p{2}
           - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2})))) ∧
