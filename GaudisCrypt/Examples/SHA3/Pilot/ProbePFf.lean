@@ -369,9 +369,44 @@ theorem PFf_Cf' : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         (if §i{2} = 0 then (§sa{2}, §h{2}) = (b0, 0)
           else FMap.get §F.RO.m{2} (take §i{2} §p{2}) = some §sa{1}) ∧
         (§i{2} < size §p{2} → ¬FMap.dom §Redo.prefixes{1} (take (§i{2} + 1) §p{2}))))
-  case guard => trace "W2 GUARD"; auto_prep; trace_state; sorry
-  case exit => trace "W2 EXIT"; auto_prep; trace_state; sorry
-  case hpre => trace "W2 HPRE"; equiv_auto; trace_state; sorry
+  case guard => auto_close
+  -- EC (of the second goal): part of `auto;progress.`: `rewrite/#`, `smt(take_size)`
+  case exit =>
+    auto_prep
+    rename_i pref sa sc pm pmi pref0 i p q c bcol bext hs ch gm gmi mh mhi ro paths bad1 sa2 cnt h
+      hpref hq hpi hi hJ hg
+    have hip : i = size p := by omega
+    refine ⟨hip, fun hb => ?_⟩
+    obtain ⟨hI, -, hmp, -, -, rfl, -, -, -, hif, -⟩ := hJ hb
+    obtain ⟨-, hq0, -, -, -⟩ := hmp
+    have hp0 : p ≠ [] := by rintro rfl; exact hq ((FMap.domE _ _).2 (by simp [hq0]))
+    have hi0 : i ≠ 0 := by
+      rw [hip]; cases p with
+      | nil => exact absurd rfl hp0
+      | cons _ _ => simp only [size, List.length_cons]; omega
+    rw [if_neg hi0] at hif
+    simp only [hip, take_size] at hI hif ⊢
+    exact ⟨hI, by simp, hif⟩
+  -- EC: + auto;progress.
+  --     (fifteen bullets: `prefix_sizel`, `m_p_of_INV`, `mem_set`, `prefix_exchange_prefix_inv`,
+  --     `take_size`; the old port's `PJ1_PJ2`, the first loop's end as the second's start —
+  --     deviation)
+  case hpre =>
+    equiv_auto
+    rintro p₁ i₁ c₁ q₁ bs₁ pref sa₁ sc₁ m₁ mi₁ pref0 p₂ i₂ c₂ q₂ bs₂ bcol bext hs ch gm gmi mh mhi ro
+      paths sa₂ cnt h bad1 ⟨⟨⟨⟨hp, hi, ⟨hc, hqq⟩, hbs⟩, hbs2, hpi, hpref, -, -, hq, hJ, -, hsz⟩, rfl⟩,
+        rfl⟩
+    subst hp hi hc hqq hbs hbs2
+    refine ⟨⟨rfl, rfl, rfl, rfl⟩, hpi.le, by rw [← hpi]; exact prefix_sizel _ _, hpref, rfl, hq,
+      fun hb => ?_⟩
+    obtain ⟨hI, rfl, rfl, ⟨f, hh⟩, hb', hif⟩ := hJ hb
+    have hJ1 : PJ1 hs ch m₁ mi₁ gm gmi mh mhi ro paths pref0 q₁ bs₁ i₁ sa₁ sc₁ h :=
+      ⟨hI, hpref, ⟨f, hh⟩, hb', by simpa using hif, by rw [← hpi]; exact prefix_ge0 _ _, hpi.ge,
+        hq, hsz⟩
+    obtain ⟨⟨hI2, hmp, -, -, -⟩, ⟨-, -, -, hnext, -⟩⟩ :=
+      PJ1_PJ2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ1 (by unfold qpre; omega)
+    exact ⟨hI2, hb, hmp, fun _ _ => rfl, fun _ hl => Or.inl hl, rfl, by omega, ⟨f, hh⟩, hb', hif,
+      hnext⟩
   case body => trace "W2 BODY"; trace_state; sorry
 
 end GaudisCrypt.SHA3.Pilot.Handle
