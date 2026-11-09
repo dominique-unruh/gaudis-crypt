@@ -55,9 +55,16 @@ do better, deviate — and **document the deviation in the theorem's docstring**
    `GaudisCrypt.lean` once it builds; add a section to `notes/SHA3/Mapping.md` (EC lemma → Lean
    name rows, as for the other pilots).
 4. **Declarations first** (§2), then statements (§3) — compile them with `sorry` proofs.
-5. **Proofs**: transcribe EC's script line by line (§4), closers last (§5).
-6. **Each gap** (a step with no Lean counterpart, or one that needs glue): fix it once,
-   generically, in `Logic/`/`Lib/`/`Syntax/`, add a test next to it (`XTest.lean`), then continue.
+5. **Proofs**: transcribe EC's script line by line (§4), closers last (§5).  **Each logical
+   block starts with EC's own lines as a comment** (Denis, 2026-11-09), verbatim:
+   `-- EC: proc; sp; inline*; sp.` then the Lean steps; a long EC block as several `-- EC:` lines.
+   A reader checks the port block by block against EC this way.
+6. **Each gap** (a step with no Lean counterpart, or one that needs glue): **don't stop the proof
+   for it** (Denis, 2026-11-09).  Write that step by hand (or `sorry` it), mark it `-- GAP: <what
+   is missing>`, add it to the gap list of the port (file header), and go on.  Fix the gaps in a
+   **batch** — once, generically, in `Logic/`/`Lib/`/`Syntax/`, with a test next to it
+   (`XTest.lean`) — then remove the hand-written workarounds: the final proof has no glue.  Only a
+   trivial gap is fixed on the spot.  Batches show which gaps recur and which matter.
    Before adding anything, check it does not exist (`grep -rn 'elab "…' GaudisCrypt/Logic`;
    names with trailing spaces are easy to miss).
    **Ground truth from EC itself (Denis's method):** to design a tactic that must match EC — its
@@ -228,9 +235,19 @@ Closers are the bulk of the remaining manual work.  Order of attack:
    2026-11-08).  EC's provers see through definitions; ours don't: pass definitions to unfold
    (`prefix_inv`, `all_prefixes`) as hints.
 3. **By hand**, with **EC's lemmas** (`lemma1'`, `huniq_hinvK_h`, `m_p_of_INV` …):
-   `auto_prep` (normalizes: `norm_decide`, `subst_named`, `subst_reads`, `subst_vars`,
-   `glob_reads`, simp of reads) then `rw`/`simp`/`refine lemma … ?_ ?_`.  For a lemma over plain
-   values: `generalize_reads_all; subst_vars; apply lemma <;> assumption`.
+   `auto_prep` then `rw`/`simp`/`refine lemma … ?_ ?_`.  For a lemma over plain values:
+   `generalize_reads_all; subst_vars; apply lemma <;> assumption`.  A conditional postcondition
+   (`if bad then … else …`, what EC's `progress` splits): `auto_prep; split_ifs`, then one bullet
+   per EC bullet.
+
+What `auto_prep` does (so you know what is left to write): intro, split conjunctions,
+`norm_decide` (`decide` instances), `glob_tuples` (`={glob C}` of a concrete module as its
+variables' equalities, in goal and hypotheses, also over written states), **`mp_hyps`** (EC's
+`progress` on implications: `h : p → q` with `p` a hypothesis becomes `q`), `subst_named` (`<<*`),
+`subst_reads` (`<<-`/`->>`), `subst_vars`, `glob_reads`, reads through writes, `glob_simp`, and
+**`subst_frames`** (EC's memories as one: the frames `X.get τ = X.get σ` that `conseq`/`call`
+leave for unmodified variables, and `={x}` equations, rewrite the later state's reads into the
+earlier one's — after it, unmodified variables are read in one state, as in EC's goal).
 4. If EC's inline closer is very long (100+ ssreflect lines) and the old port proved the same
    fact as a lemma, reusing it is acceptable — **as a documented deviation** (`eq_f`'s path case
    = `f_path_inv`).
@@ -256,6 +273,10 @@ Mappings for ssreflect idioms:
   (state them once per file/library, `is_lossless_iff_expected`).
 * EC's `smt()` on real arithmetic → `linarith`/`positivity`; bounds: `Lib/EC/StdBigop.lean`
   (`sum_Ico_const`, `sum_Ico_toNat`, `ofReal_intCast_mul_mu1`).
+* `sp` gives EC's read form `P ∧ x = e`, and past the resets inlining leaves it keeps `P` and
+  forgets the reset (EC has no such statement).  If a precondition shows `∃ τ, … σ = …set… τ`
+  instead, `sp` could not show `P` unchanged by some statement: that is an infrastructure gap
+  (seen: `decide` instances, `True` side goals), not something to work around in the proof.
 * `hoare_auto`/`hoare_skip` lose the link when the precondition still mentions the state outside
   reads (`∃ τ, … σ = x.set … τ`): use `intros; apply hoare_skip_of_imp; auto_prep;
   generalize_reads_all; subst_vars; omega`.
@@ -340,6 +361,13 @@ Document each in the docstring when it applies.
 * A namespace-local theorem shadows an opened one of the same name; two *opened* namespaces
   with the same name give "Ambiguous term" — when moving a helper (e.g. into `TacticMisc`), don't
   leave an alias behind in the old namespace, qualify the users.
+* Tactics that loop over "the next deterministic statement" must stop at `skip` (`sp` over `skip`
+  leaves `skip`: it looped until the heartbeats ran out — a `whnf` timeout far from the cause).
+* `rfl` at default transparency on reads of local variables unfolds the variable names'
+  encodings: use `with_reducible rfl` in tactic alternatives.
+* `simp only [h, …] at *` with hypotheses as rules also rewrites the rules themselves (they become
+  `True`); to rewrite with hypotheses everywhere else, use `simpGoal` with `fvarIdsToSimp`
+  excluding them (`subst_frames`).
 * Changing a tactic's semantics (positions, goal order): grep every use first; old ports rely on
   the old behaviour — keep it under a new name (`stmt_swap_raw`) and rename the old uses
   mechanically, rather than recomputing their arguments.

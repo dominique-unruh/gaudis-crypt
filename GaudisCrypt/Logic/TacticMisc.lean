@@ -449,6 +449,20 @@ def globTuples (g : MVarId) : MetaM MVarId := g.withContext do
   if r.expr == ty then return g
   applySimpResultToTarget g ty r
 
+/-- `globTuples` on the target and on every hypothesis mentioning a region's `touched_getter`
+(each reverted, rewritten, and introduced again under its name). -/
+def globTuplesAll (g : MVarId) : MetaM MVarId := g.withContext do
+  let mut g ← globTuples g
+  for d in ← g.withContext getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    unless (t.find? (·.isAppOfArity ``Footprint.touched_getter 2)).isSome do continue
+    let (fvs, g1) ← g.revert #[d.fvarId] (preserveOrder := true)
+    let g2 ← globTuples g1
+    let (_, g3) ← g2.introNP fvs.size
+    g := g3
+  return g
+
 /-- On a goal `∀ σ : ProgramState, P σ`: first unfold the reads of `σ` through expressions,
 pairs and the like down to reads of lenses and getters (`unfoldReads`), then generalize every read
 `g.get σ` (or `g.get σ.globals`) to a universally quantified value (`readBaseName`, made unique
@@ -487,3 +501,22 @@ def generalizeReads (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext
     return g
 
 end GaudisCrypt.TacticMisc
+
+open Lean Meta Elab Tactic in
+/-- `TacticMisc.normDecide` on the goal and every hypothesis (the instances under `decide`
+about the propositions as they stand). -/
+elab "norm_decide" : tactic => withMainContext do
+  let mut g ← getMainGoal
+  g ← GaudisCrypt.TacticMisc.normDecideGoal g
+  for d in ← g.withContext getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    let t' ← GaudisCrypt.TacticMisc.normDecide t
+    if t' != t then g ← g.replaceLocalDeclDefEq d.fvarId t'
+  replaceMainGoal [g]
+
+open Lean Meta Elab Tactic in
+/-- EC's `={glob C}` of a concrete module as its variables' equalities (`TacticMisc.globTuples`),
+in the goal and the hypotheses. -/
+elab "glob_tuples" : tactic => withMainContext do
+  replaceMainGoal [← GaudisCrypt.TacticMisc.globTuplesAll (← getMainGoal)]

@@ -29,18 +29,6 @@ namespace GaudisCrypt
 
 open Lean Meta Elab Tactic
 
-/-- `TacticMisc.normDecide` on the goal and every hypothesis (the instances under `decide`
-about the propositions as they stand). -/
-elab "norm_decide" : tactic => withMainContext do
-  let mut g ← getMainGoal
-  g ← TacticMisc.normDecideGoal g
-  for d in ← g.withContext getLCtx do
-    if d.isImplementationDetail then continue
-    let t ← instantiateMVars d.type
-    let t' ← TacticMisc.normDecide t
-    if t' != t then g ← g.replaceLocalDeclDefEq d.fvarId t'
-  replaceMainGoal [g]
-
 /-- `e` is a name (a variable with an accessible name) or a tuple of names. -/
 partial def namedTuple (lctx : LocalContext) (e : Lean.Expr) : Bool :=
   let anon (n : Name) := n.hasMacroScopes || n.isInaccessibleUserName
@@ -68,6 +56,66 @@ elab "subst_reads" : tactic => withMainContext do
       rules := rules.push (← `(Lean.Parser.Tactic.simpLemma| ← $h:term))
   if rules.isEmpty then return
   evalTactic (← `(tactic| simp only [$rules,*] at *))
+
+/-- The state a read is of: `σ` for `G.get σ` and `G.get σ.globals`. -/
+def readState? (e : Lean.Expr) : Option (Lean.Expr × FVarId) :=
+  if e.isAppOfArity ``Getter.get 4 then
+    let s := e.getArg! 3
+    let s := if s.isAppOfArity ``ProgramState.globals 1 then s.appArg! else s
+    if s.isFVar then some (e.getArg! 2, s.fvarId!) else none
+  else none
+
+/-- EC's memories as one: an equation between reads of the same variable in two states (the frame
+`X.get τ = X.get σ` that `conseq` and `call` leave for what the code does not modify, or `={x}`)
+rewrites the read of the later state (in the context) into the earlier one's, everywhere.  One
+direction for every pair of states, so the rewriting cannot loop. -/
+elab "subst_frames" : tactic => withMainContext do
+  let g ← getMainGoal
+  let lctx ← getLCtx
+  let mut thms : SimpTheorems := {}
+  let mut rules : Array FVarId := #[]
+  for d in lctx do
+    if d.isImplementationDetail then continue
+    let some (_, a, b) := (← instantiateMVars d.type).eq? | continue
+    let some (Ga, sa) := readState? a | continue
+    let some (Gb, sb) := readState? b | continue
+    unless sa != sb && Ga == Gb do continue
+    let (ia, ib) := ((lctx.get! sa).index, (lctx.get! sb).index)
+    thms ← thms.add (.fvar d.fvarId) #[] d.toExpr (inv := ia < ib)
+    rules := rules.push d.fvarId
+  if rules.isEmpty then return
+  -- every hypothesis but the rules themselves, and the goal
+  let others := lctx.foldl (init := #[]) fun acc d =>
+    if d.isImplementationDetail || rules.contains d.fvarId then acc else acc.push d.fvarId
+  let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
+  let (r, _) ← simpGoal g ctx (fvarIdsToSimp := others)
+  match r with
+  | none => replaceMainGoal []
+  | some (_, g') => replaceMainGoal [g']
+
+/-- EC's `progress` on implications: a hypothesis `p → q` whose premise `p` is another hypothesis
+(up to reducible unfolding) becomes `q`; repeated while one applies. -/
+elab "mp_hyps" : tactic => withMainContext do
+  let mut g ← getMainGoal
+  for _ in [0:32] do
+    let lctx ← g.withContext getLCtx
+    let mut step : Option (FVarId × Lean.Expr × Lean.Expr) := none
+    for d in lctx do
+      if d.isImplementationDetail then continue
+      let t ← g.withContext (instantiateMVars d.type)
+      let .forallE _ p q _ := t | continue
+      if q.hasLooseBVars then continue
+      unless ← g.withContext (Meta.isProp p) do continue
+      for e in lctx do
+        if e.isImplementationDetail || e.fvarId == d.fvarId then continue
+        if ← g.withContext (withReducible (isDefEq e.type p)) then
+          step := some (d.fvarId, mkApp d.toExpr e.toExpr, q); break
+      if step.isSome then break
+    let some (h, pf, q) := step | break
+    let g1 ← g.assert (← g.withContext (pure (lctx.get! h).userName)) q pf
+    let (_, g2) ← g1.intro1P
+    g ← g2.clear h
+  replaceMainGoal [g]
 
 /-- EC's `<<*`: an equation between a named variable (EC's `elim* => hs`) and an anonymous one
 (a read generalized by the closer) eliminates the anonymous one, so the names stay. -/
@@ -123,10 +171,15 @@ macro "auto_prep" : tactic => `(tactic| (
   all_goals intros
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
   all_goals try norm_decide
+  all_goals try glob_tuples
+  all_goals try casesm* _ ∧ _
+  all_goals try mp_hyps
+  all_goals try casesm* _ ∧ _
   all_goals try subst_named
   all_goals try subst_reads
   all_goals try subst_vars
   all_goals try glob_reads
+  all_goals try subst_frames
   all_goals try rename_reads
   all_goals try simp only [Setter.throwaway_set] at *
   all_goals try simp_reads_all
@@ -138,6 +191,9 @@ macro "auto_prep" : tactic => `(tactic| (
     indicatorE_eq_one_iff, if_true, if_false, Prod.mk.injEq, ite_self] at *
   -- what the simplification took apart
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+  all_goals try mp_hyps
+  all_goals try casesm* _ ∧ _
+  all_goals try subst_frames
   all_goals try subst_named
   all_goals try subst_vars))
 

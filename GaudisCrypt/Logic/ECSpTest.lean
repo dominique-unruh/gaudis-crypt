@@ -22,6 +22,18 @@ example : hoare[ True ==> §y = 2 ] {
   rintro _ ⟨_, ⟨-, h⟩, rfl⟩
   simp_all [liftLens, LiftLens.lift, Lens.set_get]
 
+/-- EC's `P /\ x = e` with a precondition on a local variable, past an assignment and a reset
+(what inlining leaves): `P` kept, the assignment as a read. -/
+example : hoare[ §x = 1 ==> §x = 1 ] {
+      var x : ℕ, y : ℕ;
+      reset_vars {"y"} ∪ stringsStartingWith "@." \ {"@.y"};
+      y <- 2;
+    } := by
+  stmt_sp
+  apply hoare_skip_of_imp
+  intro _ h
+  exact h.1
+
 /-- EC's `sp` on both sides of a relational judgment, as far as the code is deterministic, then
 `sim` on what is left. -/
 example : equiv[ True ==> ={b} ] {

@@ -91,6 +91,37 @@ theorem prhlStmt_sp_right_keep {A B : ProgramState → ProgramState → Prop} (h
   prhlStmt_sp_right hd (prhlStmt_conseq h (fun σ₁ _ ⟨τ, hτ, e⟩ => ⟨e ▸ hA σ₁ τ hτ, τ, hτ, e⟩)
     fun _ _ h => h)
 
+/-! ### The resets inlining leaves: not EC's statements
+
+A reset (`reset_vars S`, the callee's locals set to their initial values) is no statement of EC's,
+whose inlining has none; past it the precondition is kept as it is, when the reset cannot change
+it (`A` reads none of `S`), and the reset forgotten — its values are never read before the
+callee's code assigns them. -/
+
+/-- `hoareStmt_sp_keep`, the update forgotten. -/
+theorem hoareStmt_sp_drop {A B : ProgramState → Prop} (hd : Stmt.Det d upd)
+    (hA : ∀ τ, A τ → A (upd τ)) (h : hoareStmt A s B) : hoareStmt A (.seq d s) B :=
+  hoareStmt_sp_keep hd hA (hoare_pre h fun _ h' => h'.1)
+
+/-- `phoareStmt_sp_keep`, the update forgotten. -/
+theorem phoareStmt_sp_drop {A : ProgramState → Prop} {g : ProgramState → ENNReal}
+    {ρ : ENNReal → ENNReal → Prop} {r : ProgramState → ENNReal} (hd : Stmt.Det d upd)
+    (hr : ∀ τ, A τ → r (upd τ) = r τ) (hA : ∀ τ, A τ → A (upd τ))
+    (h : phoareStmt A s g ρ r) : phoareStmt A (.seq d s) g ρ r :=
+  phoareStmt_sp_keep hd hr hA (phoareStmt_pre h fun _ h' => h'.1)
+
+/-- `prhlStmt_sp_left_keep`, the update forgotten. -/
+theorem prhlStmt_sp_left_drop {A B : ProgramState → ProgramState → Prop} (hd : Stmt.Det d upd)
+    (hA : ∀ τ σ₂, A τ σ₂ → A (upd τ) σ₂) (h : prhlStmt A s₁ s₂ B) :
+    prhlStmt A (.seq d s₁) s₂ B :=
+  prhlStmt_sp_left_keep hd hA (prhlStmt_conseq h (fun _ _ h' => h'.1) fun _ _ h => h)
+
+/-- `prhlStmt_sp_right_keep`, the update forgotten. -/
+theorem prhlStmt_sp_right_drop {A B : ProgramState → ProgramState → Prop} (hd : Stmt.Det d upd)
+    (hA : ∀ σ₁ τ, A σ₁ τ → A σ₁ (upd τ)) (h : prhlStmt A s₁ s₂ B) :
+    prhlStmt A s₁ (.seq d s₂) B :=
+  prhlStmt_sp_right_keep hd hA (prhlStmt_conseq h (fun _ _ h' => h'.1) fun _ _ h => h)
+
 /-! ### EC's `P /\ x = e`: an assignment as a read
 
 For an assignment `x <- e` (the update `upd τ = x.set (e τ) τ`) that changes neither `P` nor `e`,
@@ -161,6 +192,8 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
   let st ← TacticMisc.openStmt (← stmtOf g side?)
   -- a single statement: `s; skip`, for the rule
   let first := if st.isAppOfArity ``StmtWithHoles.seq 3 then st.getArg! 1 else st
+  -- nothing to move past `skip` (and `sp` over it would leave `skip` again, forever)
+  if TacticMisc.isSkip (← TacticMisc.openStmt first) then return none
   let some (_, hd) ← detOf? first | return none
   let g ← if st.isAppOfArity ``StmtWithHoles.seq 3 then pure g
     else HoareSplit.hoareSplit 0 g side?
@@ -195,10 +228,11 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
         if tag == `hA || tag == `hE then
           let [] ← Term.TermElabM.run' (Tactic.run h (do
               evalTactic (← `(tactic| first
-                | (intros; rfl)
+                | (intros; with_reducible rfl)
+                | (intros; trivial)
                 | (intros; simp_reads; done)
-                | (intros; simp_reads; first | assumption | exact id)
-                | (simp_reads; intros; assumption)))))
+                | (intros; simp_reads; norm_decide; first | trivial | assumption | exact id)
+                | (simp_reads; intros; norm_decide; assumption)))))
             | throwError "not kept"
           continue
         rest := rest.push h
@@ -208,6 +242,11 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
   let trivialPre ← do
     let A := ty.getArg! 0
     forallTelescope (← inferType A) fun xs _ => isDefEq (mkAppN A xs) (mkConst ``True)
+  let isReset ← TacticMisc.isReset first
+  let keep := if !isReset then keep
+    else if ty.isAppOf ``hoareStmt then ``hoareStmt_sp_drop
+    else if ty.isAppOf ``phoareStmt then ``phoareStmt_sp_drop
+    else if side? == some 2 then ``prhlStmt_sp_right_drop else ``prhlStmt_sp_left_drop
   let kept? ← if read?.isSome then pure read? else if trivialPre then pure none else do
     let s ← saveState
     try
@@ -216,8 +255,8 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
       let some hA := gs[gs.size - 2]? | throwError "sp: unexpected arguments"
       let [] ← Term.TermElabM.run' (Tactic.run hA (do
           evalTactic (← `(tactic| first
-            | (intros; simp_reads; first | assumption | exact id)
-            | (simp_reads; intros; assumption)))))
+            | (intros; simp_reads; norm_decide; first | trivial | assumption | exact id)
+            | (simp_reads; intros; norm_decide; assumption)))))
         | throwError "not invariant"
       pure (some (gs.toList.filter (· != hA)))
     catch _ => s.restore; pure none
