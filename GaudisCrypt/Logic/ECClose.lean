@@ -218,6 +218,16 @@ macro_rules
             by hand)"
       done))
 
+open Lean Elab Tactic in
+/-- `simp_all; done`, failing (as an ordinary error, so `first` goes on) also when `simp_all` runs
+into a runtime limit (a rewriting cycle among the hypotheses, e.g. the frames of EC's `while`
+reaching the recursion limit), which `try`/`first` would not catch. -/
+elab "simp_all_done_safe" : tactic => do
+  let s ← saveState
+  tryCatchRuntimeEx (evalTactic (← `(tactic| (simp_all; done)))) fun _ => do
+    s.restore
+    throwError "simp_all_done_safe: simp_all did not close the goal"
+
 /-- **EC's `progress`** (`auto => />; progress`): `auto_close`'s steps, the goals it cannot close
 left (split as far as it goes), for the lemmas EC's `smt` calls are given. -/
 syntax "auto_progress" : tactic
@@ -235,7 +245,7 @@ macro_rules
         | (apply And.intro <;> auto_progress)
         | (split_ifs <;> auto_progress)
         | (intro _; auto_progress)
-        | (simp_all; done)
+        | simp_all_done_safe
         | skip))
 
 end GaudisCrypt

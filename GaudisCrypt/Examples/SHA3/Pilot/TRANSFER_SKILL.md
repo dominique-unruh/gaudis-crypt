@@ -156,8 +156,7 @@ ours too.
 
 **Goal order is EC's for `if`** (two-sided `stmt_if`: `guard, then, else`; EC's `if; 1,3: auto`
 is `stmt_if; on_goals 1, 3 => equiv_auto`) and for `while` (`equiv_while`, two goals) — but see
-the `while` row: `equiv_while_raw` (four goals, tags `body, guard, exit, hpre`) is what closes
-today.
+the `while` row.
 
 ### Program logic
 
@@ -199,7 +198,7 @@ today.
 | `case (P)` (pRHL) | `equiv_case (P)` |
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
-| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). **Its `hpre` is not yet closable by our closers** (the reads under the inner `∀ τ₁ τ₂` are not generalized; `auto_progress` hits the recursion limit on large invariants) — until then use `equiv_while_raw (I)`: four goals `body`, `guard`, `exit`, `hpre`, no frame (add the unmodified variables EC's frame would keep to the invariant, as a documented deviation) |
+| `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's eight).  A frame equality bullet (`bs{1} = bs{2}`, kept by the loops) EC's `progress` closes; ours: `exact (by assumption : …).trans (by assumption : …).symm` (`simp_all` cycles on the frames' equations).  The older four-goal form without frame is `equiv_while_raw` |
 | `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, `exit`, then the code before. EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | Hoare `while I` | `hoare_while I` |
@@ -271,6 +270,9 @@ in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
   `x ∈ m → m.[x] = Some (oget m.[x])` is EC's `FMap.get_some`.
 * One EC closer repeated over many leaves (`smt(get_setE mem_set DBlock.dunifin_ll …)`): one
   file-local `macro` with a docstring naming EC's call, used at each leaf.
+* `simp_all` can cycle on hypotheses that are equations between reads (EC's frames) and hit the
+  recursion limit — a *runtime* exception that `try`/`first` do not catch: `auto_progress` uses
+  `simp_all_done_safe` (runtime-safe); in hand closers avoid bare `simp_all` on such contexts.
 * Do not add rules to `auto_prep`'s simp set that change the *shape* of hypotheses (decoding
   boolean guards broke ConcreteF's `apply db_* <;> assumption`): decode locally
   (`simp only [Bool.and_eq_true, decide_eq_true_eq] at *`) where a closer needs it.

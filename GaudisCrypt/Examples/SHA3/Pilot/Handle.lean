@@ -400,10 +400,8 @@ local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all 
   (intros; (try refine ⟨FMap.get_some _ _ ‹_›, ?_⟩); simp only [← Bool.not_eq_true] at *; tauto))))
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 2: on EC's `while I` (`equiv_while`), `auto_progress` (EC's `progress`) loops in a `simp`
-  on the last goal's exit part (`∀ τ₁ τ₂, …`): the first loop splits it by hand
-  (`refine ⟨?_, ?_⟩`, the invariant part by `auto_progress`, the exit part by `auto_prep`); the
-  second loop still uses the older `equiv_while_raw`.
+* GAP 2: the second loop still uses the older `equiv_while_raw` (four goals, no frame); the
+  first is EC's `while I` (`equiv_while`) with EC's `auto; progress` and eight bullets.
 * GAP 5: the pilot's oracle lemmas (`eq_f`, `eq_fi`, `PFf_Cf`, in EC's paths through
   `module_subtype` coercions) match `CF_G1`'s oracles (the old port's `CF`/`G1` views) only by
   heavy unfolding (~2M heartbeats per `conseq`): goes away with EC-form `CF`/`G1` declarations.
@@ -565,41 +563,39 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
     --       * by rewrite build_hpathP; apply/Empty=> //; exact/take0.
     --       * by have[]:=m_p_of_INV … H0; smt(take0 domE size_take size_eq0 size_ge0).
     --       * smt(prefix_sizel).
-    --     (EC's `progress` splits the invariant and the exit part, `∀ τ₁ τ₂`; here by hand —
-    --     `auto_progress` loops on the exit part, gap list)
     case hpre =>
-      equiv_auto; auto_prep
-      refine ⟨?_, ?_⟩
-      · auto_progress
-        -- EC: * smt(@Prefix).
-        · exact prefix_ge0 _ _
-        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
-        · obtain ⟨hp0, -, -, -, -⟩ :=
-            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-          smt_close [take, FMap.domE]
-        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
-        · obtain ⟨hp0, -, -, -, -⟩ :=
-            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-          smt_close [take, FMap.domE]
-        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0.
-        · obtain ⟨-, hq, -, -, -⟩ :=
-            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-          exact hq
-        -- EC: * by have[]:=hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
-        · obtain ⟨-, h0, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-          exact ⟨Known, h0⟩
-        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;
-        --       smt(take0 domE size_take size_eq0 size_ge0).
-        · obtain ⟨-, hq, -, -, -⟩ :=
-            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-          by_contra hsz
-          simp only [size, not_lt, Nat.cast_nonpos, List.length_eq_zero_iff] at hsz
-          subst hsz; simp_all [FMap.domE]
+      equiv_auto; auto_progress
+      -- EC: * smt(@Prefix).
+      · exact prefix_ge0 _ _
+      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
+      · obtain ⟨hp0, -, -, -, -⟩ :=
+          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+        smt_close [take, FMap.domE]
+      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
+      · obtain ⟨hp0, -, -, -, -⟩ :=
+          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+        smt_close [take, FMap.domE]
+      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0.
+      · obtain ⟨-, hq, -, -, -⟩ :=
+          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+        exact hq
+      -- EC: * by have[]:=hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
+      · obtain ⟨-, h0, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+        exact ⟨Known, h0⟩
+      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;
+      --       smt(take0 domE size_take size_eq0 size_ge0).
+      · obtain ⟨-, hq, -, -, -⟩ :=
+          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+        by_contra hsz
+        simp only [size, not_lt, Nat.cast_nonpos, List.length_eq_zero_iff] at hsz
+        subst hsz; simp_all [FMap.domE]
+      --     (`bs` kept by the loop: EC's frame, EC's `progress` closes it; `simp_all` cycles on the
+      --     frames' equations)
+      · exact (by assumption : (localVarLens "bs" (List block)).get _ = _).trans
+          (by assumption : (localVarLens "bs" (List block)).get _ = _).symm
       -- EC: * smt(prefix_sizel).
-      · auto_prep
-        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at *
-        all_goals (split_ands <;> (try assumption) <;> (try (simp_all; done)) <;>
-          smt_close [prefix_sizel])
+      · simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at *
+        smt_close [prefix_sizel]
     case body =>
       -- EC: case(G1.bcol{2} \/ G1.bext{2}).
       equiv_case (§G1.bcol{2} ∨ §G1.bext{2})
