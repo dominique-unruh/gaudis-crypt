@@ -178,6 +178,15 @@ elab "stmt_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
   for (m, tag) in gs.toList.zip tags do
     let m' ← if tag == `guard then pure m else
       try Judgment.simpArg m 0 relSimpDecls [] catch _ => pure m
+    -- a branch with the code after it is `(body); rest`: flat, as EC counts its statements
+    let m' ← if tag == `guard then pure m' else do
+      let sides : List (Option Nat) := if ty.isAppOf ``prhlStmt then
+          (match side? with | some i => [some i] | none => [some 1, some 2])
+        else [none]
+      let mut h := m'
+      for sd in sides do
+        h ← try Judgment.onStmt TacticMisc.flattenSeq h sd catch _ => pure h
+      pure h
     m'.setTag tag
     out := out.push m'
   -- EC's order: the guard goal (two-sided), then the branches
