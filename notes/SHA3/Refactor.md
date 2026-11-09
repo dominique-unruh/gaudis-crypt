@@ -650,6 +650,36 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   SLCommon.PRIMITIVE <: DPRIMITIVE` (the old port lacks EC's subtyping).  `CF_G1` still uses the
   old `eq_fi` (its statement in the old `INV_CF_G1_12` form).
 
+* Handle's `eq_f` (2026-11-09, `Pilot/Handle.lean`, sorry-free, ~80 s at 8M): EC's 327-line
+  proof step by step in ~186 lines (EC's own steps one to one: `call(: …)`, `exists*`, four
+  ambient cases, `seq 2 2`/`seq 0 3`/`seq 0 1` with EC's conditions, `swap{2} 3 -2`, eleven
+  `rcondt`/`rcondf` at EC's positions, `inline F.RO.get`, `conseq (_: _ ==> G1.bcol{2})`/
+  `G1.bext{2}`, `if{2}`; EC's closers with EC's lemmas `lemma1`/`lemma2`/`lemma3`,
+  `m_p_of_INV`, `huniq_hinvK_h`, `notin_m_notin_mh`, …).  New for it:
+  - **`swap` past a call** when the moved assignment reads globals the callee does not touch
+    (`Stmt.CommutesWith.call_assign_global_frame`, proven; `stmt_swap` tries it after
+    `call_assign_global`, `K` the `Lens.pair` of the globals the value reads, clone aliases
+    such as `Handle.FRO.m` recognized); `discharge` splits a pair frame into one equation per
+    variable and normalizes `decide` instances first.
+  - `@[fp_bound]`s for PROM's `RO` procedures (`init`, `get`, `set`, `rem`): only `sample` and
+    `LRO`'s had them, so `fp_disjoint` could not see that `F.RO.get` stays out of `G1.bext`.
+  Deviations: EC's ~100-line inline closer of the path case is the old port's `f_path_inv`;
+  one `conseq` to `G1.bext{2}` before the last `auto` of the `Unknown` branch (`auto` through
+  the inlined oracle with `INV_CF_G1` in the postcondition exhausts 8M: performance, not
+  logic); EC's `move=> … y1 ? y2 ?` as `rename_i`.
+
+* **Measurement (Handle pilot, 2026-11-09).**  Program-logic steps: every EC step of `eq_fi` and
+  `eq_f` has a Lean step of the same name and arguments, EC's positions and conditions written as
+  EC writes them; what remained after the infrastructure fixes are (1) closers — EC's `smt`
+  calls with EC's lemmas become `smt_close [lemmas]` or a few lines applying the same lemmas;
+  long inline ssreflect closers are the bulk of the remaining manual work; (2) performance —
+  `auto` with a large invariant through inlined code (one `conseq` needed), declarations of
+  20–80 s; (3) Lean-side naming of EC's positional intro patterns (`rename_i`).  Each new file
+  so far still surfaced 2–5 infrastructure gaps (here: the call frame for `swap`, PROM's
+  footprint bounds, `decide` instances, renamed states, EC's `glob` of concrete modules,
+  `={arg}`), each fixed once in `Logic/`/`Lib/`; the gap rate per lemma fell from `eq_fi` (~10)
+  to `eq_f` (~4).
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

@@ -143,6 +143,34 @@ theorem call_assign_global {α : Type} (X : Lens α VariableAssignment)
   call_footprint hp (f := fun σ => X.set (e.get σ))
     (fun σ => hX (X.diracKer_liftFunction_mem_footprint (Function.const _ (e.get σ)))) hu ha hy
 
+/-- `call_assign_global` where the value `e` reads globals the callee cannot touch (EC's `swap`
+of `X <- X || f(K)` past a call that stays out of `X` and `K`): the write commutes for the
+globals `gl` a run of the callee ends in, which keep `K` (`Procedure.satisfies_frame`). -/
+theorem call_assign_global_frame {α : Type} (X : Lens α VariableAssignment)
+    (e : Getter α ProgramState) {sig : ProcedureSignature} {y : Setter sig.ret ProgramState}
+    {p : Procedure sig} {args : Getter sig.ParamType ProgramState}
+    {R : Footprint VariableAssignment} {u : ProgramState → ProgramState}
+    (hp : ∀ a, (procedureDenotation p a).inFootprint R) (hX : X.footprint ≤ Rᶜ)
+    {β : Type} (K : Lens β VariableAssignment) (hK : K.footprint ≤ Rᶜ)
+    (hu : ∀ σ, u σ = ProgramState.globalL.set (X.set (e.get σ) σ.globals) σ)
+    (ha : ∀ σ, args.get (u σ) = args.get σ)
+    (hy : ∀ v gl σ, K.get gl = K.get σ.globals →
+      y.set v (ProgramState.globalL.set (X.set (e.get σ) gl) σ)
+        = u (y.set v (ProgramState.globalL.set gl σ))) :
+    Stmt.CommutesWith (Stmt.call y p args) u := fun g σ => by
+  have hfX : (fun gl => (pure (X.set (e.get σ) gl) : SubProbability VariableAssignment)) ∈
+      Rᶜ.updates := hX (X.diracKer_liftFunction_mem_footprint (Function.const _ (e.get σ)))
+  have hg : (u σ).globals = X.set (e.get σ) σ.globals := by
+    rw [hu σ]; exact ProgramState.globalL.set_get σ _
+  have hs : ∀ gl, ProgramState.globalL.set gl (u σ) = ProgramState.globalL.set gl σ := by
+    intro gl; rw [hu σ]; exact ProgramState.globalL.set_set σ _ _
+  simp only [Stmt.ewp_call, ha, Procedure.ewp, hg, hs]
+  rw [ProgramDenotation.wp_of_inFootprint_det (hp _) hfX]
+  simp only [ProgramDenotation.wp]
+  exact SubProbability.expected_congr_satisfies
+    (Procedure.satisfies_frame hp K hK (args.get σ) σ.globals)
+    fun r hr => by rw [hy r.1 r.2 σ hr]
+
 /-- A call commutes with an update `u` that keeps the globals and the arguments, if the result's
 write commutes with `u` whenever a lens `K` outside the callee's footprint has kept its value
 (EC's `swap` of a call past `x <- e`, `e` reading a global the callee cannot touch: the callee's
@@ -329,6 +357,21 @@ writes to locals pushed out past resets. -/
 def discharge (ty : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
   let m ← mkFreshExprMVar ty
   let (hs, g) ← m.mvarId!.intros
+  -- the instances under `decide` about the propositions as they stand (`normDecide`), so that
+  -- the frame's equations rewrite inside a `decide`
+  let g ← try TacticMisc.normDecideGoal g catch _ => pure g
+  -- a frame of several variables (`K` their `Lens.pair`): its equation as each one's
+  let (hs, g) ← g.withContext do
+    let mut pt : SimpTheorems := {}
+    pt ← pt.addDeclToUnfold ``Lens.pair
+    pt ← pt.addConst ``Prod.mk.injEq
+    let ctxP ← Simp.mkContext (config := { failIfUnchanged := false }) (simpTheorems := #[pt])
+      (congrTheorems := ← getSimpCongrTheorems)
+    let (r, _) ← simpGoal g ctxP (fvarIdsToSimp := hs)
+    let some (_, g) := r | return (hs, g)
+    let g ← g.casesAnd
+    return ((← g.withContext getLCtx).foldl (init := #[]) fun acc d =>
+      if d.isImplementationDetail then acc else acc.push d.fvarId, g)
   let mut thms : SimpTheorems := {}
   -- the equations it assumes (a frame's `K.get gl = K.get σ.globals`), rewritten with
   for h in hs do
@@ -432,6 +475,56 @@ def callGlobal (s u X e : Lean.Expr) : MetaM Lean.Expr := do
     unless ← isDefEq m pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
   instantiateMVars (mkAppN c ms)
 
+/-- The global variables the getter `e` reads (closed applications of `global_var`s), as one
+lens: their `Lens.pair` (the disjointness instances synthesized); `none` if it reads none. -/
+def globalsLensIn? (e : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let env ← getEnv
+  let xs ← IO.mkRef (#[] : Array Lean.Expr)
+  Meta.forEachExpr (← instantiateMVars e) fun x => do
+    if x.hasLooseBVars then return
+    let some c := x.getAppFn.constName? | return
+    -- a `global_var`, or a clone's alias of one (`Handle.FRO.m`), kept as written
+    let isVar ← if env.contains (c ++ `key_eq) then pure true else do
+      let some c' := (← whnfR x).getAppFn.constName? | pure false
+      pure (c' != c && env.contains (c' ++ `key_eq))
+    unless isVar do return
+    unless (← whnfR (← inferType x)).isAppOf ``Lens do return
+    unless (← xs.get).contains x do xs.modify (·.push x)
+  let xs ← xs.get
+  let some last := xs.back? | return none
+  let pair (a b : Lean.Expr) : MetaM Lean.Expr := do
+    let p ← mkAppM ``Lens.pair #[a, b]
+    let .forallE _ d _ _ ← whnf (← inferType p) | return p
+    return mkApp p (← synthInstance d)
+  some <$> xs.pop.foldrM pair last
+
+/-- `callGlobal` with the frame of what the value reads (`Stmt.CommutesWith.call_assign_global_frame`:
+`K` the globals `e` reads, outside the callee's footprint). -/
+def callGlobalFrame (s u X e K : Lean.Expr) : MetaM Lean.Expr := do
+  let c ← mkAppOptM ``Stmt.CommutesWith.call_assign_global_frame #[none, some X, some e]
+  let cTy ← inferType c
+  let (ms, _, concl) ← forallMetaTelescope cTy
+  let some iK := cTy.getForallBinderNames.findIdx? (· == `K)
+    | throwError "stmt_swap: `call_assign_global_frame` has no `K`"
+  unless ← isDefEq ms[iK]! K do throwError "stmt_swap: the frame{indentExpr K}"
+  unless ← isDefEq concl (← mkAppM ``Stmt.CommutesWith #[s, u]) do
+    throwError "stmt_swap: `call_assign_global_frame` does not apply to{indentExpr s}"
+  let X? := some (← mkAppM ``Lens.intoGlobal #[X])
+  for m in ms do
+    if ← m.mvarId!.isAssigned then continue
+    let t ← instantiateMVars (← inferType m)
+    unless ← isProp t do continue
+    let isFootprint ← forallTelescope t fun _ b => pure (b.isAppOf ``ProgramDenotation.inFootprint)
+    let pf ← if isFootprint then calleeFootprint t
+      else if t.isAppOfArity ``LE.le 4 then do
+        let g ← mkFreshExprSyntheticOpaqueMVar t
+        try FootprintSolver.solve g.mvarId!
+        catch err => throwError "stmt_swap: cannot show that{indentExpr t}\n: {err.toMessageData}"
+        instantiateMVars g
+      else discharge t X?
+    unless ← isDefEq m pf do throwError "stmt_swap: cannot use the proof of{indentExpr t}"
+  instantiateMVars (mkAppN c ms)
+
 /-- A global variable that the getter `e` reads, if any: the first closed application of a
 `global_var` or `module_var` (a constant with its key theorem `x.key_eq`), outermost first (the
 variable applied to all its arguments). -/
@@ -465,7 +558,18 @@ partial def commutesOf (s u : Lean.Expr) (X? : Option Lean.Expr) (e? : Option Le
         catch err =>
           st.restore
           let (some X, some e) := (X?, e?) | throw err
-          if X.isAppOf ``Lens.intoGlobal then return ← callGlobal s u X.appArg! e
+          if X.isAppOf ``Lens.intoGlobal then
+            let st₁ ← saveState
+            try return ← callGlobal s u X.appArg! e
+            catch err₁ =>
+              -- the value reads globals: their frame (outside the callee too)
+              st₁.restore
+              let some K ← globalsLensIn? (← instantiateMVars e) | throw err₁
+              try return ← callGlobalFrame s u X.appArg! e K
+              catch err₂ =>
+                st₁.restore
+                throwError "{err₁.toMessageData}\n(with the frame of what the value reads: \
+                  {err₂.toMessageData})"
           -- an assignment to a local whose value reads one global, outside the callee's footprint
           let some K ← globalLensIn? (← instantiateMVars e)
             | throwError "{err.toMessageData}\n(no global read in{indentExpr e})"

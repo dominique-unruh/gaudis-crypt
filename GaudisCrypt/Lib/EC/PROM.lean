@@ -267,6 +267,22 @@ noncomputable def LRO : RO_T in_t out_t :=
     FVP.fvP (RO_T.sample in_t out_t (RO.asRO in_t out_t dout m)) ≤ m.footprint := by
   fp_module m
 
+@[fp_bound] theorem fvP_RO_init :
+    FVP.fvP (ROmap.init in_t out_t (RO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_RO_get :
+    FVP.fvP (ROmap.get in_t out_t (RO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_RO_set :
+    FVP.fvP (ROmap.set in_t out_t (RO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_RO_rem :
+    FVP.fvP (ROmap.rem in_t out_t (RO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
 @[fp_bound] theorem fvP_LRO_init :
     FVP.fvP (RO_T.init in_t out_t (LRO in_t out_t dout m)) ≤ m.footprint := by
   fp_module m
