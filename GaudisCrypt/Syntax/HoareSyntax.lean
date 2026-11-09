@@ -313,6 +313,14 @@ def knownParamNames? (p : Lean.Expr) : MetaM (Option (Array Name)) := do
     catch _ => pure none
   return reduced.map fun ns => ns.toArray.map Name.mkSimple
 
+/-- The names recorded on the module an abbreviation `M` stands for (`Eager.main1 :=
+PROM.FullRO.FullEager.Eager.main1 …`, a clone's alias). -/
+private def abbrevParamNames? (M : Lean.Expr) : MetaM (Option (Array Name)) := do
+  let some c := M.getAppFn.constName? | return none
+  unless (← getReducibilityStatus c) == .reducible do return none
+  let some M' ← (try unfoldDefinition? M catch _ => pure none) | return none
+  recordedParamNames? M'.headBeta
+
 /-- The parameter names of a triple about the procedure `p`: the ones written at the triple if
 there are any (they win, with a warning when the known names disagree), else the known ones
 (`knownParamNames?`). -/
@@ -323,7 +331,10 @@ def paramNamesOf (M : Term) (written? : Option (Array Ident)) (p : Lean.Expr) (n
   let recorded? ← match ← knownParamNames? p with
     | some ns => pure (some ns)
     | none => match procModule? p with
-      | some M => appliedModuleParamNames? M
+      | some M => do
+        match ← appliedModuleParamNames? M with
+        | some ns => pure (some ns)
+        | none => abbrevParamNames? M
       | none => pure none
   match written? with
   | some ids =>

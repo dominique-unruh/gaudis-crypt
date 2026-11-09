@@ -129,6 +129,9 @@ call to them).
 
 * Paths: `M(A, B(C)).f` is a term (`Syntax/ModuleApplicationSyntax.lean`); a head's explicit Lean
   parameters are filled first, so `D1(A, F)` = `Module.app (D1 A) F` (EC's partial application).
+  A module without a module type (EC's `module Eager(D) = { proc main1 …; proc main2 … }`):
+  `Eager(G2(DRestr(D))).main1` is the procedure module `Eager.main1 (G2 (DRestr D))`; its
+  parameter names are found through abbreviations (a pilot's `abbrev Eager.main1 := PROM.…`).
   Mathlib's token `C(` breaks `C(P)`: write `«C»(P)`.
 * Variables: EC's `x{1}` is `§x{1}`; module variables `§G1.bcol{2}`; `={x, y}`, `={res}`,
   `={arg}`, `={glob A}`, `={glob A, glob B}` (one region, the join — don't split it).

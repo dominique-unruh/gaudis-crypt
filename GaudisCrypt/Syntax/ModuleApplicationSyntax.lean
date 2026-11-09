@@ -156,6 +156,15 @@ elab_rules : term
         throwErrorAt f "the module `{x}` has no procedure `{fname}`{if procs.isEmpty then
           m!"" else m!" (its procedure: {procs.map (·.getString!)})"}"
       return e
+    -- a module without a module type (EC's `module Eager(D) = { proc main1 …; proc main2 … }`,
+    -- the product of its procedures): its procedure `f` is the module `M.f` the `module` command
+    -- declares, applied to the same arguments
+    if let some x ← (try some <$> realizeGlobalConstNoOverloadWithInfo m catch _ => pure none) then
+      let xf := x ++ fname
+      if (← getEnv).contains xf then
+        let app' ← ecModTerm (← `(ec_mod| $(mkIdent xf):ident($args,*)))
+        let e' ← withSynthesize <| elabTerm app' none
+        if (← whnfR (← inferType e')).isAppOf ``Module.Proc then return e'
     throwErrorAt f "`{fname}` is not a procedure of this module, of type{indentExpr ty}"
 
 /-! ## Printing -/
