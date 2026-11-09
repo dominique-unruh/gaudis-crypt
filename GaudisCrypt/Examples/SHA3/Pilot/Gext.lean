@@ -1,5 +1,7 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gext
+import GaudisCrypt.Logic.FelInner
+import GaudisCrypt.Logic.CallSpec
 
 /-!
 # The extension event (EasyCrypt `proof/smart_counter/Gext.eca`) — EC-fidelity port
@@ -231,7 +233,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
     stmt_sp; stmt_if
     · auto_close
     on_goals -1 => equiv_auto
-    stmt_sp
+    --     (EC's third `sp` has nothing to do here)
     --     (GAP 2: the only call on each side, by index)
     stmt_inline 0; stmt_sp; stmt_wp
     -- EC: conseq (_: ={sa,G1.mh,G1.mhi,F.RO.m, G1.chandle, FRO.m,C.queries,C.c} /\
@@ -455,12 +457,111 @@ section EXT
 declare module D <: DISTINGUISHER {-C.c, -C.queries, -PF, -G1, -G2, -Perm, -ROhandle.RO.m, -Redo,
   -ReSample.count}
 
+set_option maxHeartbeats 4000000 in
+-- the oracles' syntactic check (`exp_decr`) over `Gext`'s oracles and the resampling
 /-- EC's `local lemma Pr_ext &m : Pr[Gext.distinguish()@&m : G1.bext /\ ReSample.count <= max_size]
 <= max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
 theorem Pr_ext (m : VariableAssignment) :
     Pr[ Gext(D).distinguish () @ &m : §G1.bext ∧ §ReSample.count ≤ max_size ] ≤
       (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
-  sorry
+  -- EC: fel 8 ReSample.count (fun x=> (2*max_size)%r / (2^c)%r)
+  --       max_size G1.bext
+  --       [ReSample.f :
+  --         (card (fdom G1.m) <= max_size /\ card (fdom G1.mi) <= max_size /\ ReSample.count < max_size);
+  --        ReSample.f1 :
+  --         (card (fdom G1.m) < max_size /\ card (fdom G1.mi) < max_size /\ ReSample.count < max_size)
+  --       ]=> //; 2:by auto.
+  --     (our `fel` works on the procedure's body: `byphoare`, `proc`, and `DRestr(D)`'s call
+  --     inlined, so that the adversary `D` is the callee; the resampling stays a call)
+  byphoare (: True ==> _)
+  · phoare_proc
+    phoare_inline 1
+    fel §ReSample.count (fun _ => ((2 * max_size).toNat : ENNReal) / (2 ^ c.toNat : ENNReal))
+      max_size (§G1.bext)
+      [ReSample.f : (((FMap.fdom §G1.m).card : ℤ) ≤ max_size ∧ ((FMap.fdom §G1.mi).card : ℤ) ≤ max_size ∧
+          §ReSample.count < max_size),
+       ReSample.f1 : (((FMap.fdom §G1.m).card : ℤ) < max_size ∧ ((FMap.fdom §G1.mi).card : ℤ) < max_size ∧
+          §ReSample.count < max_size)]
+    -- EC: + rewrite /felsum Bigreal.sumr_const count_predT size_range.
+    --       apply ler_wpmul2r;1:by apply eps_ge0.
+    --       by rewrite le_fromint;smt ml=0 w=max_ge0.
+    · have hm := max_ge0
+      rw [Finset.sum_const, Int.card_Ico, sub_zero, nsmul_eq_mul,
+        ENNReal.ofReal_mul (by exact_mod_cast hm), ENNReal.ofReal_div_of_pos (by positivity)]
+      have e1 : ((max_size : ℤ) : ℝ) = ((max_size.toNat : ℕ) : ℝ) := by
+        exact_mod_cast (Int.toNat_of_nonneg hm).symm
+      have e2 : ((2 * max_size : ℤ) : ℝ) = (((2 * max_size).toNat : ℕ) : ℝ) := by
+        exact_mod_cast (Int.toNat_of_nonneg (by omega)).symm
+      have e3 : ((2 ^ c.toNat : ℤ) : ℝ) = ((2 ^ c.toNat : ℕ) : ℝ) := by push_cast; rfl
+      rw [e1, e2, e3, ENNReal.ofReal_natCast, ENNReal.ofReal_natCast, ENNReal.ofReal_natCast]
+      push_cast; rfl
+    -- (EC's `2:by auto`)
+    · stmt_inline*; hoare_auto
+    -- EC: + proc;rcondt 2;1:by auto.
+    --       wp; rnd (mem (image snd (fdom G1.m `|` fdom G1.mi))); skip=> /> &hr h1 h2 h3 h4 h5.
+    --       rewrite (Mu_mem.mu_mem (image snd (fdom G1.m{hr} `|` fdom G1.mi{hr}))
+    --                cdistr (1%r/(2^c)%r))//.
+    --       + by move=>x _;rewrite DCapacity.dunifin1E capacity_card.
+    --       rewrite ler_wpmul2r;1:by apply divr_ge0=>//;apply /c_ge0r.
+    --       rewrite imageU fcardU le_fromint.
+    --       move:(fcard_image_leq snd (fdom G1.m{hr}))(fcard_image_leq snd (fdom G1.mi{hr})).
+    --       smt(fcard_ge0).
+    --     (`Mu_mem.mu_mem` for `cdistr`: the old port's `cdistr_expected_mem`)
+    · phoare_proc; phoare_auto
+      rintro σ ⟨-, hb, hg⟩
+      simp only [Bool.not_eq_true] at hb
+      simp only [decide_eq_true_eq, hg, and_self, if_true, hb, Bool.false_or]
+      set S := Finset.image Prod.snd (FMap.fdom (G1.m.get σ.globals) ∪ FMap.fdom (G1.mi.get σ.globals))
+      show _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat
+      calc cdistr.expected (fun a => indicatorE (a ∈ S))
+          = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
+            congr 1; funext a; by_cases h : a ∈ S <;> simp [h]
+        _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
+        _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
+            rw [mul_one_div]
+            have h1 : S.card ≤ (FMap.fdom (G1.m.get σ.globals)).card +
+                (FMap.fdom (G1.mi.get σ.globals)).card :=
+              Finset.card_image_le.trans (Finset.card_union_le _ _)
+            exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
+              by have := hg.1; have := hg.2.1; omega)) _
+    -- EC: + by move=>c1;proc;auto=> &hr [^H 2->]/#.
+    · intro c1; hoare_proc; hoare_auto
+    -- EC: + by move=> b1 c1;proc;auto=> /#.
+    · intro c1; hoare_proc; hoare_auto; auto_close
+    -- (`keep`: `bad` persists)
+    · hoare_proc; hoare_auto
+    -- EC: + proc;rcondt 2;1:by auto.
+    --       wp;rnd (mem (image snd (fdom G1.m `|` fdom G1.mi) `|` fset1 x));skip=> /> &hr ?????. …
+    --     (as for `ReSample.f`, the set one larger)
+    · phoare_proc; phoare_auto
+      rintro σ ⟨-, hb, hg⟩
+      simp only [Bool.not_eq_true] at hb
+      simp only [decide_eq_true_eq, hg, and_self, if_true, hb, Bool.false_or]
+      set S := Finset.image Prod.snd (FMap.fdom (G1.m.get σ.globals) ∪
+        FMap.fdom (G1.mi.get σ.globals)) ∪ fset1 ((localVarLens "x" capacity).get σ)
+      show _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat
+      calc cdistr.expected (fun a => indicatorE (a ∈ S))
+          = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
+            congr 1; funext a; by_cases h : a ∈ S <;> simp [h]
+        _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
+        _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
+            rw [mul_one_div]
+            have h1 : S.card ≤ (FMap.fdom (G1.m.get σ.globals)).card +
+                (FMap.fdom (G1.mi.get σ.globals)).card + 1 :=
+              (Finset.card_union_le _ _).trans (Nat.add_le_add
+                (Finset.card_image_le.trans (Finset.card_union_le _ _))
+                (by simp [fset1]))
+            exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
+              by have := hg.1; have := hg.2.1; omega)) _
+    -- EC: + by move=>c1;proc;auto=> &hr [^H 2->]/#.
+    · intro c1; hoare_proc; hoare_auto
+    -- EC: by move=> b1 c1;proc;auto=> /#.
+    · intro c1; hoare_proc; hoare_auto; auto_close
+    -- (`keep`)
+    · hoare_proc; hoare_auto
+  · exact mul_nonneg (by exact_mod_cast max_ge0)
+      (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
+        (by positivity))
 
 /-- EC's `local equiv EG2_Gext : Eager(G2(DRestr(D))).main2 ~ Gext.distinguish : ={glob D} ==>
 ReSample.count{2} <= max_size /\ ((G1.bext{1} \/ inv_ext G1.m{1} G1.mi{1} FRO.m{1}) =>
