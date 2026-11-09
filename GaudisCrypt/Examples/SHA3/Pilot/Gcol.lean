@@ -34,9 +34,6 @@ set_option linter.dupNamespace false
 * GAP 7: `equiv_call (_ : ={x})` on a concrete callee (`prhlProc_glob_module`) has no frame; EC's
   `call (_: ={x})` keeps what the callee does not write: `equiv_call (_ : ={arg, x} ==> ={res, x})`
   (framed) and its callee goal by `equiv_proc; equiv_auto` (EC's `1:by sim`).
-* GAP 8: `swap` of a call past a deterministic statement that is not one assignment (a sequence
-  of assignments, an `if` of them) writing globals outside the callee: the call case of
-  `commutesOf` (`StmtSwap.lean`) handles a single assignment only.
 * GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
   only writes it sees directly under the getter; the getter should be pushed into the `if`.
 -/
@@ -250,8 +247,89 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       -- EC: sp;if;1,3:auto=>/#;swap{1}[1..2]3;sp 1 1.
       stmt_sp; stmt_if
       on_goals 1, 3 => (equiv_auto; auto_close)
-      --     (GAP 8: `swap{1}[1..2]3` moves a call past `if (…) {FRO.m <- …; G1.chandle <- …}`)
-      sorry
+      stmt_swap{1} [1..2] 3; stmt_sp 1 1
+      -- EC: seq 5 5 : (={x0, y0, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle,
+      --                 G1.mh, FRO.m, C.c, C.queries}
+      --       /\ (G1.bcol{1} => G1.bcol{2})
+      --       /\ card (frng FRO.m{2}) <= 2 * C.c{2} + 1
+      --       /\ Gcol.count{2} <= C.c{2} <= max_size );last by if;auto.
+      --     (GAP 1: `glob D` added)
+      equiv_seq 5 5 : (={glob D, x0, y0, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh,
+          FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+          ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
+          §Gcol.count{2} ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
+      on_goals 2 => (stmt_if <;> equiv_auto; auto_close)
+      -- EC: seq 2 2 : (={x0, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle,
+      --                 G1.mh, FRO.m, C.c, C.queries}
+      --       /\ (G1.bcol{1} => G1.bcol{2})
+      --       /\ card (frng FRO.m{2}) <= 2 * C.c{2}
+      --       /\ Gcol.count{2} + 1 <= C.c{2} <= max_size).
+      --     + by if; auto=> /> &1 &2; smt(card_rng_set).
+      equiv_seq 2 2 : (={glob D, x0, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh,
+          FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+          ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} ∧
+          §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
+      · stmt_if <;> equiv_auto
+        all_goals smt_close [card_rng_set]
+      -- EC: if;1:auto.
+      stmt_if
+      · auto_close
+      -- EC: - inline Gcol.sample_c;rcondt{2}4.
+      --       * auto;inline*;auto;progress.
+      --         + by have/#:=fcard_image_leq (fun (p : capacity * flag) => p.`1) (frng FRO.m{hr}).
+      --         rewrite/#.
+      · stmt_inline (Gcol.sample_c)
+        stmt_rcondt{2} 4
+        · hoare_auto; stmt_inline*; hoare_auto; auto_prep
+          exact ⟨(Nat.cast_le.2 Finset.card_image_le).trans (by omega), by omega⟩
+        -- EC: seq 3 4 : (={x0, p, v, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
+        --                 G1.chandle, G1.mh, FRO.m, C.c, C.queries}
+        --       /\ (G1.bcol{1} => G1.bcol{2})
+        --       /\ card (frng FRO.m{2}) <= 2 * C.c{2}
+        --       /\ Gcol.count{2} + 1 <= C.c{2} <= max_size
+        --       /\ (x0{1}.`2 \in G1.paths{1})
+        --       /\ y2{1} = c{2});1: by inline*;auto.
+        equiv_seq 3 4 : (={glob D, x0, p, v, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
+            G1.chandle, G1.mh, FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+            ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} ∧
+            §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size ∧
+            FMap.dom §G1.paths{1} (§x0{1}).2 ∧ §y2{1} = §(localVarLens "c" capacity){2})
+        · stmt_inline*; equiv_auto; auto_close
+        -- EC: sp 1 4;if;auto;progress.
+        --     + by have->:=(H H6).
+        --     + smt(card_rng_set).
+        --     + case:H5=>/=[h|H_hinv];1: by have->:=H h.
+        --       have:=hinvP FRO.m{2} c{2};rewrite H_hinv/=imageP/==>[][]f H_f.
+        --       by right; exists (c{2}, f)=> //=; rewrite mem_frng rngE/= /#.
+        --     smt(card_rng_set).
+        stmt_sp 1 4; stmt_if <;> equiv_auto
+        · auto_close
+        all_goals smt_close [hinv_image, card_rng_set]
+      -- EC: inline Gcol.sample_c;rcondt{2}3.
+      --     * auto;progress.
+      --       + by have/#:=fcard_image_leq (fun (p : capacity * flag) => p.`1) (frng FRO.m{hr}).
+      --       rewrite/#.
+      · stmt_inline (Gcol.sample_c)
+        stmt_rcondt{2} 3
+        · hoare_auto; auto_prep
+          exact ⟨(Nat.cast_le.2 Finset.card_image_le).trans (by omega), by omega⟩
+        -- EC: seq 2 3 : (={x0, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
+        --                 G1.chandle, G1.mh, FRO.m, C.c, C.queries}
+        --       /\ (G1.bcol{1} => G1.bcol{2})
+        --       /\ card (frng FRO.m{2}) <= 2 * C.c{2}
+        --       /\ Gcol.count{2} + 1 <= C.c{2} <= max_size
+        --       /\ ! (x0{1}.`2 \in G1.paths{1})
+        --       /\ y2{1} = c{2});1: by auto.
+        equiv_seq 2 3 : (={glob D, x0, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
+            G1.chandle, G1.mh, FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+            ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} ∧
+            §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size ∧
+            ¬ FMap.dom §G1.paths{1} (§x0{1}).2 ∧ §y2{1} = §(localVarLens "c" capacity){2})
+        · equiv_auto
+        -- EC: sp 1 4;if;auto;progress.  (the four bullets as above)
+        stmt_sp 1 4; stmt_if <;> equiv_auto
+        · auto_close
+        all_goals smt_close [hinv_image, card_rng_set]
     · equiv_auto
   -- EC: + proc;sp 1 1;if=>//.
   --       inline G1(DRestr(D)).S.fi Gcol.S.fi;swap-3.
