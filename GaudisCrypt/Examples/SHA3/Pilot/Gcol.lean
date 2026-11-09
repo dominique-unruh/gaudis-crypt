@@ -28,7 +28,8 @@ set_option linter.dupNamespace false
 * GAP 2: inline by name: EC's paths `G1(DRestr(D)).S.fi`, `Gcol.S.fi` do not match the old
   declarations' call sites `DPRIMITIVE.fi G1.S` (not definitionally equal at default transparency
   either): the only call on each side inlined by index.
-* GAP 3: `→` between booleans in conditions (EC's `G1.bcol{1} => G1.bcol{2}`) needs `= true`.
+* (GAP 3, fixed: `→` between booleans, EC's `G1.bcol{1} => G1.bcol{2}` — reads elaborated
+  without the expected type, then coerced.)
 * GAP 4: `swap` past a call that reads (but does not write) what the moved assignment reads:
   our frame needs the read variables outside the callee's whole footprint (reads and writes
   together); EC's `swap` uses read/write sets.
@@ -231,7 +232,7 @@ set_option maxHeartbeats 8000000 in
 /-- EC's `local equiv G1_col : G1(DRestr(D)).main ~ Gcol.main : ={glob D} ==>
 (G1.bcol{1} => G1.bcol{2}) /\ Gcol.count{2} <= max_size`. -/
 theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
-    ={glob D} ==> (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧ §Gcol.count{2} ≤ max_size ] := by
+    ={glob D} ==> (§G1.bcol{1} → §G1.bcol{2}) ∧ §Gcol.count{2} ≤ max_size ] := by
   -- EC: proc;inline*;wp.
   equiv_proc; stmt_inline*; stmt_wp
   -- EC: call (_: ={F.RO.m,G1.mi,G1.paths,G1.m,G1.mhi,G1.chandle,G1.mh,FRO.m,C.c,C.queries}/\
@@ -239,7 +240,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
   --          (card (frng FRO.m) <= 2*C.c + 1 /\
   --           Gcol.count <= C.c <= max_size){2}).
   equiv_call (_ : ={F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m, C.c,
-      C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+      C.queries} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧ §Gcol.count{2} ≤ §C.c{2} ∧
       §C.c{2} ≤ max_size)
   -- EC: + proc;sp 1 1;if=>//;inline G1(DRestr(D)).S.f Gcol.S.f;swap -3.
@@ -258,7 +259,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       --       /\ Gcol.count{2} <= C.c{2} <= max_size );last by if;auto.
       --     (GAP 1: `glob D` added)
       equiv_seq 5 5 : (={glob D, x0, y0, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh,
-          FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+          FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
           ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧
           §Gcol.count{2} ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
       on_goals 2 => (stmt_if <;> equiv_auto; auto_close)
@@ -269,7 +270,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       --       /\ Gcol.count{2} + 1 <= C.c{2} <= max_size).
       --     + by if; auto=> /> &1 &2; smt(card_rng_set).
       equiv_seq 2 2 : (={glob D, x0, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh,
-          FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+          FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
           ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} ∧
           §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
       · stmt_if <;> equiv_auto
@@ -293,7 +294,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
         --       /\ (x0{1}.`2 \in G1.paths{1})
         --       /\ y2{1} = c{2});1: by inline*;auto.
         equiv_seq 3 4 : (={glob D, x0, p, v, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
-            G1.chandle, G1.mh, FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+            G1.chandle, G1.mh, FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
             ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} ∧
             §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size ∧
             FMap.dom §G1.paths{1} (§x0{1}).2 ∧ §y2{1} = §(localVarLens "c" capacity){2})
@@ -324,7 +325,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
         --       /\ ! (x0{1}.`2 \in G1.paths{1})
         --       /\ y2{1} = c{2});1: by auto.
         equiv_seq 2 3 : (={glob D, x0, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
-            G1.chandle, G1.mh, FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+            G1.chandle, G1.mh, FRO.m, C.c, C.queries} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
             ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} ∧
             §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size ∧
             ¬ FMap.dom §G1.paths{1} (§x0{1}).2 ∧ §y2{1} = §(localVarLens "c" capacity){2})
@@ -347,7 +348,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       --                Gcol.count + 1 <= C.c <= max_size){2});1:by auto=>/#.
       --     (GAP 1: `glob D` added: our call rule keeps `={glob D}` in the oracles' judgments)
       equiv_seq 2 2 : (={glob D, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m,
-          C.c, C.queries, x0} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+          C.c, C.queries, x0} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
           ((FMap.frng §FRO.m{2}).card : ℤ) + 2 ≤ 2 * §C.c{2} + 1 ∧
           §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
       · equiv_auto; auto_close
@@ -362,7 +363,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       --              Gcol.count + 1 <= C.c <= max_size){2}).
       --     + sp 1 1;if;auto;smt ml=0 w=card_rng_set.
       equiv_seq 3 3 : (={glob D, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m,
-          C.c, C.queries, x0, hx2} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+          C.c, C.queries, x0, hx2} ∧ (§G1.bcol{1} → §G1.bcol{2}) ∧
           ((FMap.frng §FRO.m{2}).card : ℤ) + 1 ≤ 2 * §C.c{2} + 1 ∧
           §Gcol.count{2} + 1 ≤ §C.c{2} ∧ §C.c{2} ≤ max_size)
       · stmt_sp 1 1; stmt_if <;> equiv_auto
@@ -419,7 +420,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     --     (`b` is assigned after: not in the condition; GAP 1: `glob D` added)
     equiv_seq 1 1 : (={glob D, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m,
         C.c, C.queries, p, h, i, sa, bs, counter} ∧ §i{1} = size §p{2} ∧ §p{2} = §bs{2} ∧
-        (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+        (§G1.bcol{1} → §G1.bcol{2}) ∧
         0 ≤ §counter{2} ∧
         §counter{2} ≤ size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
         ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * (§C.c{2} + §counter{2}) + 1 ∧
@@ -443,7 +444,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     --         <= max_size);last first.
     equiv_while (={glob D, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m, C.c,
         p, h, i, sa, counter, C.queries} ∧ (0 ≤ §i{1} ∧ §i{1} ≤ size §p{1}) ∧
-        (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+        (§G1.bcol{1} → §G1.bcol{2}) ∧
         0 ≤ §counter{2} ∧
         §counter{2} ≤ size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
         ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * (§C.c{2} + §counter{2}) + 1 ∧

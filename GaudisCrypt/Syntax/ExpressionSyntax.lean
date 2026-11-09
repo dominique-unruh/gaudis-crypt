@@ -102,7 +102,9 @@ private def fixExpr (stx : Syntax) : MacroM Syntax :=
   stx.replaceM fun s => do
     if s.isAntiquot then
       let inner : Term := ⟨s.getAntiquotTerm⟩
-      some <$> `(eval $inner)
+      -- elaborated without the expected type (`eval`'s type comes from the variable, an
+      -- `outParam`), then coerced: a `Bool` read where a proposition is expected is `b = true`
+      some <$> `((eval $inner :))
     else
       pure none
 
@@ -123,7 +125,7 @@ prints.  The `eval` unexpander turns every variable read back into it. -/
 printable spelling of `$x`. -/
 syntax:max "§" noWs term:max : term
 
-macro_rules | `(§$x:term) => `(eval $x)
+macro_rules | `(§$x:term) => `((eval $x :))
 
 open Lean PrettyPrinter in
 @[app_unexpander GaudisCrypt.eval]

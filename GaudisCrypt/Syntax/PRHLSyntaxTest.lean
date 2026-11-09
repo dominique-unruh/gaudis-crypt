@@ -94,4 +94,20 @@ module M : T {
 #guard_msgs in
 example : Prop := equiv[ M.f ~ M.f : §n = 1 ==> True ]
 
+/-- EC's `b{1} => b{2}` on booleans: the reads coerced to propositions (`b = true`). -/
+example : equiv[ (§b{1} → §b{2}) ==> (§b{1} → §b{2}) ] {
+      var b : Bool;
+      skip;
+    } ~ {
+      var b : Bool;
+      skip;
+    } =
+    equiv[ (§b{1} = true → §b{2} = true) ==> (§b{1} = true → §b{2} = true) ] {
+      var b : Bool;
+      skip;
+    } ~ {
+      var b : Bool;
+      skip;
+    } := rfl
+
 end GaudisCrypt.PRHLSyntaxTest

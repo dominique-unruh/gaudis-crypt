@@ -138,6 +138,9 @@ call to them).
   bounds are written over ℝ with casts: `((bound + 1 : ℤ) : ℝ) * mu1 sampleto h`.
 * EC's `x \in m` (maps) is `FMap.dom m x`; `m.[x]` is `FMap.get m x` (or `m.get x`); `rng`,
   `fdom` are in `Lib/EC/FMap.lean`, `oget` in `Lib/EC/List.lean`, under EC's names.
+* Boolean variables as propositions, as in EC: `(§G1.bcol{1} → §G1.bcol{2})` for EC's
+  `G1.bcol{1} => G1.bcol{2}` (a read is elaborated without the expected type, then coerced: the
+  term is `§G1.bcol{1} = true → …`, what goals and closers show).
 * Parameter names in `hoare[ ]`/`phoare[ ]` are the procedure's; `arg` maps to `params`.
 * `islossless M.f`.
 

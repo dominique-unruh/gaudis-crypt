@@ -52,7 +52,7 @@ namespace RelSyntax
 /-- The read of the program variable `x` at the state `st`: what `§x` means where `st` is the
 current state. -/
 def readAt (st : Term) (x : Term) : MacroM Term :=
-  `((@eval _ _ _ (CurrentState.mk $st) $x))
+  `(((@eval _ _ _ (CurrentState.mk $st) $x :)))
 
 /-- Expand the sided reads of a relational condition: `§x{i}` ↦ a read at `states i` — of the
 term `param i x` instead if that gives one (the parameters of a procedure judgment) — and
