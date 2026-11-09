@@ -405,6 +405,9 @@ local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all 
   `while` keeps them): `={bs}` added to the first loop's invariant.
 * GAP 4: a clone's op given as a function (`op dout _ <- bdistr`) is not substituted and
   beta-reduced in code as in EC: `r <$ F.dout x` reads `x`, so EC's `swap{2} 4 -3` fails.
+* GAP 5: the pilot's oracle lemmas (`eq_f`, `eq_fi`, `PFf_Cf`, in EC's paths through
+  `module_subtype` coercions) match `CF_G1`'s oracles (the old port's `CF`/`G1` views) only by
+  heavy unfolding (~2M heartbeats per `conseq`): goes away with EC-form `CF`/`G1` declarations.
 * GAP 3: `grind` patterns of arithmetic lemmas are their normalized inequalities
   (`prefix_sizel`), which never match: `grind_pattern prefix_sizel => «prefix» l1 l2` (to move
   next to the lemma, `SLCommonCore`).
@@ -931,8 +934,9 @@ declare module D <: DISTINGUISHER {-PF, -F.RO, -ROhandle.RO, -G1, -Redo, -C}
 variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
-set_option maxHeartbeats 1000000 in
--- one declaration: EC's call over three oracles, with their twelve goals
+set_option maxHeartbeats 8000000 in
+-- one declaration: EC's call over three oracles, with their twelve goals; each `conseq` with a
+-- pilot oracle lemma (EC's paths) matches the old declarations' views at ~2M (gap list)
 include D_ll in
 /-- EC's `equiv CF_G1 : CF(DRestr(D)).main ~ G1(DRestr(D)).main : ={glob D} ==>
 !(G1.bcol \/ G1.bext){2} => ={res}`, its proof EC's (see the module docstring). -/
@@ -941,19 +945,23 @@ theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
   unfold CF -- the old port declares `CF` a `def`, not an alias
   equiv_proc; stmt_inline*; stmt_wp
   equiv_call (_ : §G1.bcol ∨ §G1.bext,
-    ={C.c, C.queries} ∧
+    ={glob C} ∧
       INV_CF_G1 §FRO.m{2} §G1.chandle{2} §PF.m{1} §PF.mi{1} §G1.m{2} §G1.mi{2} §G1.mh{2}
         §G1.mhi{2} §F.RO.m{2} §G1.paths{2} §Redo.prefixes{1} §C.queries{2},
     FMap.dom §C.queries{2} [])
   · exact D_ll
   -- proofs for G1.S.f
   -- equivalence up to bad of PF.f and G1.S.f
-  · equiv_conseq (SHA3.Handle.eq_f D (by fp_disjoint))
-    · rintro a₁ g₁ a₂ g₂ ⟨hb, rfl, hC, hI⟩
-      simp only [not_or, Bool.not_eq_true] at hb
-      exact ⟨hb.1, hb.2, rfl, hC, hI⟩
-    · intro _ _ _ _ h
-      split_ifs at h ⊢ <;> exact h
+  -- EC: + conseq (_: !G1.bcol{2} /\ !G1.bext{2} /\ ={x, glob C} /\ INV_CF_G1 … ==>
+  --         !G1.bcol{2} => !G1.bext{2} => ={res, glob C} /\ INV_CF_G1 …).
+  --       + by move=> &1 &2; rewrite negb_or.
+  --       + progress;have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(domE).
+  --       conseq(eq_f D);progress=>/#.
+  --     (our up-to-bad call asks one judgment `if bad then … else …` per oracle, which is
+  --     `eq_f`'s own: EC's intermediate `conseq` is not needed)
+  · equiv_conseq eq_f
+    · auto_close
+    · auto_close
   -- lossless PF.f
   · phoare_proc; phoare_inline*; phoare_auto
     -- EC's `smt (@Block.DBlock @Capacity.DCapacity)`: the distributions are lossless
@@ -966,12 +974,10 @@ theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
     intro _ _; split_ifs <;> simp [F.dout]
   -- proofs for G1.S.fi
   -- equiv PF.P.fi G1.S.fi
-  · equiv_conseq (SHA3.Handle.eq_fi D (by fp_disjoint))
-    · rintro a₁ g₁ a₂ g₂ ⟨hb, rfl, hC, hI⟩
-      simp only [not_or, Bool.not_eq_true] at hb
-      exact ⟨hb.1, hb.2, rfl, hC, hI⟩
-    · intro _ _ _ _ h
-      split_ifs at h ⊢ <;> first | exact h.2 | exact h
+  -- EC: + conseq(eq_fi D)=>/#.
+  · equiv_conseq eq_fi
+    · auto_close
+    · auto_close
   -- lossless PF.P.fi
   · phoare_proc; phoare_inline*; phoare_auto
     intro _ _; split_ifs <;> simp
@@ -983,10 +989,10 @@ theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
     intro _ _; split_ifs <;> simp
   -- proofs for G1.C.f
   -- equiv PF.C.f G1.C.f
-  · equiv_conseq (SHA3.Handle.PFf_Cf D)
-    · exact fun _ _ _ _ h => h
-    · intro _ _ _ _ h
-      split_ifs at h ⊢ <;> first | exact h | exact ⟨h.2.1, h.1, h.2.2⟩
+  -- EC: + conseq(PFf_Cf D);auto=>/#.
+  · equiv_conseq PFf_Cf
+    · auto_close
+    · auto_close
   -- lossless PF.C.f
   · phoare_proc; phoare_inline*; stmt_sp; stmt_if
     · stmt_if
