@@ -172,6 +172,11 @@ theorem fmap_eqP (m₁ m₂ : FMap α β) : (∀ x, get m₁ x = get m₂ x) ↔
   simp [get, empty]
 
 omit [DecidableEq α] in
+/-- `frng0`: the empty map's range is empty. -/
+@[simp] theorem frng0 [DecidableEq β] : frng (empty : FMap α β) = ∅ := by
+  simp [frng, empty]; rfl
+
+omit [DecidableEq α] in
 /-- `fdom0`. -/
 @[simp] theorem fdom0 : fdom (empty : FMap α β) = ∅ := by simp [fdom, empty]
 

@@ -31,6 +31,9 @@ set_option linter.dupNamespace false
 * GAP 3: `→` between booleans in conditions (EC's `G1.bcol{1} => G1.bcol{2}`) needs `= true`.
 * GAP 6: EC `while`'s exit goal: after `auto_prep` the frames are equations `x τ₂ = x τ₁` between
   reads of the final states (not substituted; `simp_all` cycles on them).
+* GAP 7: `equiv_call (_ : ={x})` on a concrete callee (`prhlProc_glob_module`) has no frame; EC's
+  `call (_: ={x})` keeps what the callee does not write: `equiv_call (_ : ={arg, x} ==> ={res, x})`
+  (framed) and its callee goal by `equiv_proc; equiv_auto` (EC's `1:by sim`).
 * GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
   only writes it sees directly under the getter; the getter should be pushed into the `if`.
 -/
@@ -220,7 +223,7 @@ declare module D <: DISTINGUISHER {-C, -PF, -G1, -Gcol.sample_c}
 variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
   islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
 
-set_option maxHeartbeats 4000000 in
+set_option maxHeartbeats 8000000 in
 -- one declaration: EC's call over three oracles, the twelve-variable invariant
 /-- EC's `local equiv G1_col : G1(DRestr(D)).main ~ Gcol.main : ={glob D} ==>
 (G1.bcol{1} => G1.bcol{2}) /\ Gcol.count{2} <= max_size`. -/
@@ -391,7 +394,13 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     -- EC: auto;smt ml=0 w=(hinv_image card_rng_set).
     equiv_auto; auto_prep
     smt_close [hinv_image, card_rng_set]
-  · sorry
+  -- EC: auto;progress;3:by smt ml=0.
+  --     + rewrite -(add0z 1) -{2}fcards0<:capacity*flag> -(frng0<:int,_>).
+  --       exact/card_rng_set/max_ge0.
+  --     by apply max_ge0.
+  · equiv_auto; auto_prep
+    refine ⟨⟨rfl, (card_rng_set _ _ _).trans (by simp), max_ge0⟩, ?_⟩
+    auto_close
 
 end PROOF
 
