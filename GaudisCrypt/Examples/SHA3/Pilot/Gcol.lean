@@ -25,7 +25,14 @@ set_option linter.dupNamespace false
 * GAP 2: inline by name: EC's paths `G1(DRestr(D)).S.fi`, `Gcol.S.fi` do not match the old
   declarations' call sites `DPRIMITIVE.fi G1.S` (not definitionally equal at default transparency
   either): the only call on each side inlined by index.
+* GAP 4: `swap` past a call that reads (but does not write) what the moved assignment reads:
+  our frame needs the read variables outside the callee's whole footprint (reads and writes
+  together); EC's `swap` uses read/write sets.
 * GAP 3: `→` between booleans in conditions (EC's `G1.bcol{1} => G1.bcol{2}`) needs `= true`.
+* GAP 6: EC `while`'s exit goal: after `auto_prep` the frames are equations `x τ₂ = x τ₁` between
+  reads of the final states (not substituted; `simp_all` cycles on them).
+* GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
+  only writes it sees directly under the getter; the getter should be pushed into the `if`.
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.Gcol
@@ -283,7 +290,107 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       -- EC: auto=> /> ?? Himp _ _ _ ?_?_ [/Himp->// | X];right;apply hinv_image=> //.
       equiv_auto; smt_close [hinv_image]
     · equiv_auto
-  · sorry
+  -- EC: + proc;sp 1 1;if=>//;2:auto;sp;if=>//;swap 1;wp.
+  · equiv_proc; stmt_sp 1 1; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    --     (GAP 4: EC's `swap 1` moves `C.c <- …` past the call, which reads `C.queries` (our frame
+    --     wants it outside the callee's footprint): inlined first, then moved past the inlined code
+    --     (whose calls do not touch `C`), the same order as EC's)
+    -- EC: inline G1(DRestr(D)).M.f Gcol.M.f;sp;wp.
+    --     (GAP 2: the only call on each side, by index)
+    stmt_inline 0
+    --     (EC's `wp` before the inlining, ours after it: then the second `wp` has nothing to do)
+    stmt_swap{1} 1 8; stmt_swap{2} 1 7; stmt_wp
+    stmt_sp
+    -- EC: seq 1 1:
+    --      (={F.RO.m,G1.mi,G1.paths,G1.m,G1.mhi,G1.chandle,G1.mh,FRO.m,C.c,
+    --        C.queries,b,p,h,i,sa,bs,counter} /\ i{1}=size p{2} /\ p{2} = bs{2} /\
+    --       (G1.bcol{1} => G1.bcol{2}) /\
+    --       (0 <= counter{2} <= size p{2} -
+    --         prefix p{2} (get_max_prefix p{2} (elems (fdom C.queries{1})))) /\
+    --       card (frng FRO.m{2}) <= 2 * (C.c{2} + counter{2}) + 1 /\
+    --       Gcol.count{2} + size p{2} -
+    --         prefix p{2} (get_max_prefix p{2} (elems (fdom C.queries{1})))
+    --         - counter{2} <= C.c{2} + size p{2} -
+    --         prefix p{2} (get_max_prefix p{2} (elems (fdom C.queries{1})))
+    --         <= max_size);
+    --         last by inline*;auto;smt(size_ge0 prefix_sizel).
+    --     (`b` is assigned after: not in the condition; GAP 1: `glob D` added)
+    equiv_seq 1 1 : (={glob D, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m,
+        C.c, C.queries, p, h, i, sa, bs, counter} ∧ §i{1} = size §p{2} ∧ §p{2} = §bs{2} ∧
+        (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+        0 ≤ §counter{2} ∧
+        §counter{2} ≤ size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
+        ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * (§C.c{2} + §counter{2}) + 1 ∧
+        §Gcol.count{2} + size §p{2} -
+          «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) - §counter{2} ≤
+          §C.c{2} + size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
+        §C.c{2} + size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ≤
+          max_size)
+    on_goals 2 =>
+      stmt_inline*; equiv_auto; auto_prep
+      --   (GAP 5: `glob D` read through the `if` of `RO.get`'s write: split by hand)
+      refine ⟨by split_ifs <;> glob_simp <;> assumption, ‹_›, by omega, by omega, ‹_›⟩
+    -- EC: while
+    --      (={F.RO.m,G1.mi,G1.paths,G1.m,G1.mhi,G1.chandle,G1.mh,FRO.m,C.c,b,
+    --         p,h,i,sa,counter,C.queries} /\ (0 <= i <= size p){1} /\
+    --       (G1.bcol{1} => G1.bcol{2}) /\
+    --       (0 <= counter{2} <= size p{2} -
+    --         prefix p{2} (get_max_prefix p{2} (elems (fdom C.queries{1})))) /\
+    --       card (frng FRO.m{2}) <= 2 * (C.c{2} + counter{2}) + 1 /\
+    --       Gcol.count{2} + size p{2} -
+    --         prefix p{2} (get_max_prefix p{2} (elems (fdom C.queries{1})))
+    --         - counter{2} <= C.c{2} + size p{2} -
+    --         prefix p{2} (get_max_prefix p{2} (elems (fdom C.queries{1})))
+    --         <= max_size);last first.
+    equiv_while (={glob D, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi, G1.chandle, G1.mh, FRO.m, C.c,
+        p, h, i, sa, counter, C.queries} ∧ (0 ≤ §i{1} ∧ §i{1} ≤ size §p{1}) ∧
+        (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
+        0 ≤ §counter{2} ∧
+        §counter{2} ≤ size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
+        ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * (§C.c{2} + §counter{2}) + 1 ∧
+        §Gcol.count{2} + size §p{2} -
+          «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) - §counter{2} ≤
+          §C.c{2} + size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ∧
+        §C.c{2} + size §p{2} - «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{1}))) ≤
+          max_size)
+    -- EC: + by auto=> />; smt(size_ge0 prefix_sizel prefix_ge0).
+    case hpre =>
+      equiv_auto; auto_prep
+      refine ⟨⟨size_ge0 _, ‹_›, sub_nonneg.2 (prefix_sizel _ _), by omega, by omega, ‹_›⟩, ?_⟩
+      --   (GAP 6: the exit's frames `x τ₂ = x τ₁` are left as hypotheses (a cycle for `simp_all`))
+      auto_prep
+      exact ⟨Eq.trans ‹_› (Eq.symm ‹_›), by omega, Eq.symm ‹_›, ‹_›, ‹_›, ‹_›, ‹_›, ‹_›, ‹_›⟩
+    -- EC: if=>//;auto;1:smt ml=0 w=size_ge0.
+    stmt_if
+    · auto_close
+    on_goals 1 => (equiv_auto; auto_close)
+    equiv_auto
+    -- EC: if=>//;2:auto;2:smt(size_ge0 prefix_sizel).
+    stmt_if
+    · auto_close
+    on_goals 2 => (equiv_auto; auto_close)
+    -- EC: auto;call (_: ={F.RO.m})=>/=;1:by sim.
+    equiv_auto
+    --     (GAP 7: our `equiv_call (_ : ={F.RO.m})` on a concrete callee has no frame: the
+    --     `P ==> Q` form, whose frame keeps what the callee does not write)
+    equiv_call (_ : ={arg, F.RO.m} ==> ={res, F.RO.m})
+    · equiv_proc; equiv_auto
+    -- EC: inline *;rcondt{2} 2.
+    --     + auto;progress.
+    --       - apply(StdOrder.IntOrder.ler_trans _ _ _ (fcard_image_leq fst (frng FRO.m{hr})))=>/#.
+    --       smt(size_ge0 prefix_sizel).
+    stmt_inline*
+    stmt_rcondt{2} 2
+    · hoare_auto; auto_prep
+      exact ⟨(Nat.cast_le.2 Finset.card_image_le).trans (by omega), by omega⟩
+    -- EC: auto;smt ml=0 w=(hinv_image card_rng_set).
+    equiv_auto; auto_prep
+    smt_close [hinv_image, card_rng_set]
   · sorry
 
 end PROOF

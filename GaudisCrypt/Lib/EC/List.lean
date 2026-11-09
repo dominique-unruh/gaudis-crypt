@@ -20,6 +20,9 @@ variable {α β : Type*}
 /-- `size s`, as an `int`. -/
 def size (s : List α) : ℤ := s.length
 
+/-- EC's `size_ge0`. -/
+theorem size_ge0 (s : List α) : 0 ≤ size s := Int.natCast_nonneg _
+
 /-- `nseq n x`: `n` copies of `x` (none for `n ≤ 0`). -/
 def nseq (n : ℤ) (x : α) : List α := List.replicate n.toNat x
 

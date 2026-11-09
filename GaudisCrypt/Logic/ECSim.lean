@@ -349,7 +349,8 @@ def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
   catch _ => s.restore; return none
 
 /-- The program variables the statements `ss` mention: the locals (`localVarLens`, of the
-program state) and the global variables (`global_var`s, of the globals), in order. -/
+program state) and the global variables (`global_var`s, of the globals, or a clone's alias of one,
+`FRO.m := ROhandle.FRO.m`, as written), in order. -/
 def varsOf (ss : Array Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) := do
   let env ← getEnv
   let locals ← IO.mkRef (#[] : Array Lean.Expr)
@@ -363,11 +364,18 @@ def varsOf (ss : Array Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) :
         -- fully applied (the last argument is a proof of the name's key)
         let t ← whnfR (← inferType e)
         if t.isAppOfArity ``Lens 2 && !(← locals.get).contains e then locals.modify (·.push e)
-      else if DeclareModule.isGlobalVar env c then
+      else if DeclareModule.isGlobalVar env c || (← isGlobalAlias env c e) then
         let t ← whnfR (← inferType e)
         if t.isAppOfArity ``Lens 2 && (t.getArg! 1).isConstOf ``VariableAssignment then
           unless (← globals.get).contains e do globals.modify (·.push e)
   return (← locals.get, ← globals.get)
+where
+  /-- `e` (headed by `c`) a reducible alias of a global variable. -/
+  isGlobalAlias (env : Environment) (c : Name) (e : Lean.Expr) : MetaM Bool := do
+    unless (← getReducibilityStatus c) == .reducible do return false
+    let e' ← whnfR e
+    let some c' := e'.getAppFn.constName? | return false
+    return c' != c && DeclareModule.isGlobalVar env c'
 
 /-- `set_option debug.sim true`: `sim` reports why it stops at two loops. -/
 register_option debug.sim : Bool := {
