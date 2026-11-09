@@ -232,6 +232,8 @@ def rcond (b : Bool) (side? : Option Nat) (n : Nat) : TacticM Unit := withMainCo
   let (d, _) ← Judgment.descOf h side?
   let h ← Judgment.simpArg h d.stmtArg
     [``eq_self_iff_true, ``ite_true, ``Bool.false_eq_true, ``ite_false] []
+  -- the branch spliced in, as EC leaves it (EC's later positions count its statements)
+  let h ← try Judgment.onStmt TacticMisc.flattenSeq h side? catch _ => pure h
   -- EC's order: the test's goal, then the judgment
   replaceMainGoal [hp, h]
 

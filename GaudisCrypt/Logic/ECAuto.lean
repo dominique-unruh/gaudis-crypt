@@ -59,7 +59,58 @@ end SubProbability
 @[simp] theorem indicatorE_eq_one_iff (Q : Prop) : indicatorE Q = 1 ↔ Q := by
   by_cases h : Q <;> simp [indicatorE, h]
 
+/-- Equal on a region `R` (EC's `={glob C}`), so equal on each variable inside it
+(`={C.c, C.queries}`, a concrete module's `glob` being its variables). -/
+theorem Lens.get_eq_of_touched_getter_eq {β m : Type*} (x : Lens β m) {R : Footprint m}
+    (hx : x.footprint ≤ R) {σ σ' : m} (h : R.touched_getter.get σ = R.touched_getter.get σ') :
+    x.get σ = x.get σ' :=
+  (Lens.footprint_touched_getter_eq_iff x σ σ').1 (Footprint.touched_getter_eq_of_le hx h)
+
 namespace ECAuto
+
+open Lean Meta Elab Tactic in
+/-- **EC's `={glob C}` as the equalities of `C`'s variables**: for each hypothesis
+`R.touched_getter.get a = R.touched_getter.get b`, the hypotheses `x.get a = x.get b` for the
+variables `x` read at `a` or `b` (in the goal or a hypothesis) that lie inside `R` (`fp_le`). -/
+def globReads (g : MVarId) : TacticM MVarId := g.withContext do
+  let lctx ← getLCtx
+  -- the regions kept equal
+  let mut eqs : Array (Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr) := #[]
+  for d in lctx do
+    if d.isImplementationDetail then continue
+    let ty ← instantiateMVars d.type
+    let some (_, l, r) := ty.eq? | continue
+    unless l.isAppOfArity ``Getter.get 4 && r.isAppOfArity ``Getter.get 4 do continue
+    let (G, G') := (l.getArg! 2, r.getArg! 2)
+    unless G.isAppOfArity ``Footprint.touched_getter 2 && G == G' do continue
+    eqs := eqs.push (d.toExpr, G.appArg!, l.getArg! 3, r.getArg! 3)
+  if eqs.isEmpty then return g
+  -- the variables read
+  let mut texts : Array Lean.Expr := #[← instantiateMVars (← g.getType)]
+  for d in lctx do
+    unless d.isImplementationDetail do texts := texts.push (← instantiateMVars d.type)
+  let mut g := g
+  for (h, R, a, b) in eqs do
+    let xs ← IO.mkRef (#[] : Array Lean.Expr)
+    for t in texts do
+      Meta.forEachExpr t fun e => do
+        if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isAppOfArity ``Lens.toGetter 3 then
+          let st := e.getArg! 3
+          let x := (e.getArg! 2).appArg!
+          if (st == a || st == b) && !x.hasLooseBVars &&
+              !(← xs.get).contains x then
+            xs.modify (·.push x)
+    for x in ← xs.get do
+      let s ← saveState
+      try
+        let hle ← mkFreshExprSyntheticOpaqueMVar
+          (← mkAppM ``LE.le #[← mkAppM ``Lens.footprint #[x], R])
+        let [] ← Tactic.run hle.mvarId! (evalTactic (← `(tactic| fp_le))) | failure
+        let pf ← mkAppM ``Lens.get_eq_of_touched_getter_eq #[x, ← instantiateMVars hle, h]
+        let (_, g') ← (← g.assert `hglob (← inferType pf) pf).intro1P
+        g := g'
+      catch _ => s.restore
+  return g
 
 open Lean Meta Elab Tactic
 
@@ -98,6 +149,10 @@ def hoareSkipGen (g : MVarId) : MetaM MVarId := do
 
 end ECAuto
 
+open Lean Elab Tactic in
+/-- **EC's `={glob C}` as `={C.c, C.queries}`** in a closer: see `ECAuto.globReads`. -/
+elab "glob_reads" : tactic => do replaceMainGoal [← ECAuto.globReads (← getMainGoal)]
+
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a `phoare` statement judgment: wp back to the last call, then `skip` if
 the code is used up, the trivial goals (`1 = 1`) closed. -/
@@ -112,14 +167,19 @@ sides by `rnd` (with `wp` after each), `skip` when the code is used up, and the 
 closed (`simp_all` only when it closes the goal). -/
 macro "equiv_auto" : tactic => `(tactic| (
   (try stmt_wp)
-  (repeat (equiv_rnd; try stmt_wp))
+  -- the samplings: coupled when both sides end with one, else each by itself (EC's `auto`
+  -- takes a sampling of a lossless distribution on one side)
+  (repeat (first
+    | (equiv_rnd; try stmt_wp)
+    | (equiv_rnd{1}; try stmt_wp)
+    | (equiv_rnd{2}; try stmt_wp)))
   (try equiv_skip)
   (try ((try simp_reads); intros; first
     | rfl
     | trivial
     | (simp_all; done)
-    | (simp only [eval, Evaluatable.eval, decide_eq_true_eq, decide_eq_false_iff_not] at *
-       casesm* _ ∧ _; subst_vars; first | assumption | (simp_all; done))))))
+    | ((try simp only [eval, Evaluatable.eval, decide_eq_true_eq, decide_eq_false_iff_not] at *)
+       casesm* _ ∧ _; (try subst_vars); glob_reads; first | assumption | (simp_all; done))))))
 
 open Lean Elab Tactic ECAuto in
 /-- **EC's `auto`** on a Hoare triple about a statement (the memories of a side goal

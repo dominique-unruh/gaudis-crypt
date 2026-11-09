@@ -72,8 +72,10 @@ partial def expand (states : Nat → Option Term) (param : Nat → Name → Opti
       let isGlob (x : Term) : Bool := x.raw.getKind == `GaudisCrypt.ecGlob
       let globs := (xs.filter isGlob).map fun x => (⟨x.raw[1]⟩ : Term)
       let xs ← if globs.size ≤ 1 then pure xs else do
-        let fvP := mkCIdent `GaudisCrypt.FVP.fvP  -- not imported here: resolved where used
-        let fps ← globs.mapM fun a => `($fvP $a)
+        -- each `glob A`'s region, `glob_region A` (`Logic/ECGlob.lean`, not imported here: the
+        -- node built by its kind)
+        let fps := globs.map fun a => (⟨Syntax.node .none `GaudisCrypt.ecGlobRegion
+          #[Syntax.atom .none "glob_region", a.raw]⟩ : Term)
         let F ← fps.pop.foldrM (fun x acc => `($x ⊔ $acc)) fps.back!
         let j : Term ← `(($F).touched_getter)
         let some i := xs.findIdx? isGlob | unreachable!
@@ -199,6 +201,8 @@ elab_rules : term <= expectedType?
     let bs₂ ← paramBinds 2 names₂ args₂
     let lookup (bs₁ bs₂ : Array (Name × Ident × Term)) (k : Nat) (n : Name) : Option Term :=
       let bs := if k == 1 then bs₁ else bs₂
+      -- EC's `arg`: all the parameters (`params`), unless a parameter is named `arg`
+      let n := if n == `arg && !bs.any (·.1 == `arg) then `params else n
       (bs.find? (·.1 == n)).map fun (_, id, _) => (id : Term)
     let wrap (bs : Array (Name × Ident × Term)) (body : Term) : TermElabM Term :=
       bs.foldrM (fun (_, id, val) acc => `(let $id:ident : Getter _ ProgramState := $val; $acc))

@@ -60,13 +60,11 @@ theorem Sponge_Raise_BlockSponge_f :
   equiv_proc; stmt_inline{2} ((BlockSpongePerm).f)
   equiv_seq 5 6 : (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
       §n0{2} = (§n{1} + r - 1) / r ∧ valid_block §xs0{2})
-  · equiv_auto
-    rintro _ _ _ _ ⟨rfl, rfl⟩
-    exact ⟨⟨rfl, rfl⟩, rfl, rfl, valid_pad2blocks _⟩
+  · equiv_auto; smt_close [valid_pad2blocks]
   · stmt_rcondt{2} 1
     · hoare_auto
     stmt_wp
-    equiv_seq 1 2 : (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
+    equiv_seq 1 1 : (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
         §n0{2} = (§n{1} + r - 1) / r)
     · equiv_while (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
           §n0{2} = (§n{1} + r - 1) / r)

@@ -61,6 +61,16 @@ theorem Module.Proc.frame_glob (G : Footprint VariableAssignment) (hG : G.Finite
     M.Frame fun g g' => G.touched_getter.get g' = G.touched_getter.get g :=
   fun a g => ProgramDenotation.preserves_touched_of_glob (Module.Proc.inFootprint_fvP M a) hG hMG g
 
+/-- A region of variables (`X.footprint`, `X` their `Lens.pair`: EC's `glob C` of a concrete
+module) outside `M` is a frame of `M`. -/
+theorem Module.Proc.frame_region {β : Type}
+    (X : Lens β VariableAssignment) {R : Footprint VariableAssignment} (hR : X.footprint = R)
+    (hX : X.footprint ≤ (FVP.fvP M)ᶜ) :
+    M.Frame fun g g' => R.touched_getter.get g' = R.touched_getter.get g := by
+  subst hR
+  intro a g r hr
+  exact (Lens.footprint_touched_getter_eq_iff X _ _).2 (Module.Proc.frame_lens X hX a g r hr)
+
 /-- **EC's `call{1} H`**, `H : islossless M`: the call `x₁ <- M(e₁)` at the end of the left side,
 nothing on the right.  The precondition: the postcondition for every result `r` and every
 globals `g` in the frame `Fr` of the left state's. -/
@@ -89,7 +99,17 @@ open Lean Meta Elab Tactic PRHLWp
 /-- The frame `x₁, …, glob A` as a proof of `M.Frame _`: a lens, or the `glob` of a module. -/
 def frameTerm (xs : Array Term) : TacticM Term := do
   let parts ← xs.mapM fun t => match t with
-    | `(glob $a) => `(Module.Proc.frame_glob (FVP.fvP $a) (by fp_finite) (by fp_disjoint))
+    | `(glob $a) => do
+      -- a concrete module's `glob` (its variables' tuple, `glob_region`): their frame
+      let R ← Term.elabTerm (← `(glob_region $a)) none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let R ← instantiateMVars R
+      if let some X ← TacticMisc.regionLens? R then
+        let XS ← Term.exprToSyntax X
+        let RS ← Term.exprToSyntax R
+        `(Module.Proc.frame_region $XS (R := $RS) (by first | rfl | simp only [Footprint.lens_pair])
+          (by fp_disjoint))
+      else `(Module.Proc.frame_glob (FVP.fvP $a) (by fp_finite) (by fp_disjoint))
     | _ => do
       -- the clone's names as the code spells them (`SRO.RO.m` ↦ `SecureRO.RO.m`)
       let x ← Term.elabTerm t none

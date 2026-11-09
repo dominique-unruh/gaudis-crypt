@@ -29,6 +29,27 @@ namespace GaudisCrypt
 
 open Lean Meta Elab Tactic
 
+/-- EC's `<<*`: an equation between a named variable (EC's `elim* => hs`) and an anonymous one
+(a read generalized by the closer) eliminates the anonymous one, so the names stay. -/
+elab "subst_named" : tactic => withMainContext do
+  let mut g ← getMainGoal
+  for _ in [0:64] do
+    let lctx ← g.withContext getLCtx
+    let mut found : Option FVarId := none
+    for d in lctx do
+      if d.isImplementationDetail then continue
+      let some (_, a, b) := (← g.withContext (instantiateMVars d.type)).eq? | continue
+      unless a.isFVar && b.isFVar do continue
+      let anon (n : Name) := n.hasMacroScopes || n.isInaccessibleUserName
+      let (da, db) := (lctx.get! a.fvarId!, lctx.get! b.fvarId!)
+      if anon da.userName && !anon db.userName then
+        found := some a.fvarId!; break
+      if anon db.userName && !anon da.userName then
+        found := some b.fvarId!; break
+    let some x := found | break
+    g ← g.withContext (substVar g x)
+  replaceMainGoal [g]
+
 /-- `simp_reads` on the goal and every hypothesis (a hypothesis simplified to `False` closes the
 goal). -/
 elab "simp_reads_all" : tactic => withMainContext do
@@ -61,7 +82,9 @@ macro "auto_prep" : tactic => `(tactic| (
   try simp only [] at *
   all_goals intros
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+  all_goals try subst_named
   all_goals try subst_vars
+  all_goals try glob_reads
   all_goals try rename_reads
   all_goals try simp only [Setter.throwaway_set] at *
   all_goals try simp_reads_all
@@ -70,9 +93,10 @@ macro "auto_prep" : tactic => `(tactic| (
   all_goals try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at *
   all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',
     Bool.not_eq_eq_eq_not, Bool.not_true, not_lt, not_le, and_true, true_and,
-    indicatorE_eq_one_iff, if_true, if_false] at *
+    indicatorE_eq_one_iff, if_true, if_false, Prod.mk.injEq] at *
   -- what the simplification took apart
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+  all_goals try subst_named
   all_goals try subst_vars))
 
 /-- **What EC leaves to `auto => /#`**: see the module docstring. -/
@@ -156,6 +180,7 @@ macro_rules
   | `(tactic| smt_close [$ls,*]) => `(tactic| focus (
       auto_prep
       all_goals try generalize_reads_all
+      all_goals try subst_named
       all_goals try subst_vars
       all_goals grind [GaudisCrypt.EC.oget_some, $ls,*]))
 

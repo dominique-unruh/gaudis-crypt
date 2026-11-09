@@ -54,6 +54,20 @@ theorem prhlStmt_exists {α : Type} {A B : ProgramState → ProgramState → Pro
     (h : ∀ v, prhlStmt (fun σ₁ σ₂ => A σ₁ σ₂ ∧ e σ₁ σ₂ = v) c₁ c₂ B) : prhlStmt A c₁ c₂ B :=
   prhlStmt_pre (prhlStmt_exists_pre h) fun σ₁ σ₂ hA => ⟨e σ₁ σ₂, hA, rfl⟩
 
+/-- **EC's `exists* e`** on a procedure judgment: `e` reads both sides' arguments and globals. -/
+theorem prhlProc_exists {α : Type} {sig₁ sig₂ : ProcedureSignature} {p₁ : Procedure sig₁}
+    {p₂ : Procedure sig₂}
+    {A : sig₁.ParamType → VariableAssignment → sig₂.ParamType → VariableAssignment → Prop}
+    {B : sig₁.ret → VariableAssignment → sig₂.ret → VariableAssignment → Prop}
+    (e : sig₁.ParamType → VariableAssignment → sig₂.ParamType → VariableAssignment → α)
+    (h : ∀ v, prhlProc (fun a₁ g₁ a₂ g₂ => A a₁ g₁ a₂ g₂ ∧ e a₁ g₁ a₂ g₂ = v) p₁ p₂ B) :
+    prhlProc A p₁ p₂ B :=
+  fun a₁ a₂ g₁ g₂ hA => h (e a₁ g₁ a₂ g₂) a₁ a₂ g₁ g₂ ⟨hA, rfl⟩
+
+/-- A marker: `equiv_exists*` on a procedure judgment reads `e` off the precondition
+`existsMark e` that `equiv[ p₁ ~ p₂ : … ]` elaborates. -/
+def ECConseq.existsMark {α : Sort*} (_ : α) : Prop := True
+
 /-- **EC's `exists* e`** on a Hoare triple. -/
 theorem hoareStmt_exists {α : Type} (e : ProgramState → α) {B : ProgramState → Prop}
     (h : ∀ v, hoareStmt (fun σ => A σ ∧ e σ = v) c B) : hoareStmt A c B :=
@@ -220,6 +234,30 @@ elab "equiv_exists" "*" ts:term,+ : tactic => do
   let mut vs : Array FVarId := #[]
   for t in ts.getElems do
     withMainContext do
+      let ty0 ← instantiateMVars (← getMainTarget)
+      if ty0.isAppOfArity ``prhlProc 6 then
+        -- about two procedures: `e` as `equiv[ p₁ ~ p₂ : … ]` reads a condition (the
+        -- parameters, `§x{2}`), as a function of the arguments and globals
+        let (p₁, p₂) := (← Term.exprToSyntax (ty0.getArg! 3), ← Term.exprToSyntax (ty0.getArg! 4))
+        let j ← Term.elabTerm
+          (← `(equiv[ $p₁ ~ $p₂ : GaudisCrypt.ECConseq.existsMark ($t) ==> True ])) none
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let j ← instantiateMVars j
+        let e ← lambdaTelescope (j.getArg! 2) fun xs body => do
+          let body ← zetaReduce body
+          let body := body.headBeta
+          unless body.isAppOfArity ``ECConseq.existsMark 2 do
+            throwError "equiv_exists*: could not read{indentExpr body}"
+          let e ← Core.betaReduce body.appArg!
+          let e ← Meta.transform e (post := fun t => do
+            -- `(Getter.mk f).get σ` is `f σ`
+            if t.isAppOfArity ``Getter.get 4 && (t.getArg! 2).isAppOfArity ``Getter.mk 3 then
+              return .done ((t.getArg! 2).getArg! 2 |>.beta #[t.getArg! 3])
+            return .continue)
+          mkLambdaFVars xs e
+        let es ← Term.exprToSyntax e
+        evalTactic (← `(tactic| refine prhlProc_exists $es ?_))
+        return
       let ty ← prhlGoal (← getMainGoal) "equiv_exists*"
       let e ← elabRelTerm ty t (← mkFreshTypeMVar)
       let es ← Term.exprToSyntax (← instantiateMVars e)

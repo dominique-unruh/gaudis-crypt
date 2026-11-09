@@ -27,13 +27,29 @@ syntax (docComment)? "module_subtype " term:max " <: " term:max : command
 private def getStructureFields? (env : Environment) (n : Name) : Option (Array Name) :=
   if isStructure env n then some (getStructureFields env n) else none
 
-/-- The `moduletype` a module type term names: its head constant. -/
+/-- The `moduletype` behind `n`: `n` itself, or what an abbreviation `n` stands for
+(`abbrev DPRIMITIVE := Indifferentiability.DPRIMITIVE state (List block) block`), unfolded until
+a `moduletype` (one with a `Structure`). -/
+private partial def resolveModuleType (env : Environment) (n : Name) (fuel : Nat := 8) : Name :=
+  if isStructure env (n ++ `Structure) || fuel == 0 then n else
+  match env.find? n with
+  | some (.defnInfo d) =>
+    let rec body : Lean.Expr → Lean.Expr
+      | Lean.Expr.lam _ _ b _ => body b
+      | e => e
+    match (body d.value).getAppFn.constName? with
+    | some n' => resolveModuleType env n' (fuel - 1)
+    | none => n
+  | _ => n
+
+/-- The `moduletype` a module type term names: its head constant (through abbreviations). -/
 private partial def headModuleType (t : Term) : CommandElabM Name := do
-  match t with
-  | `(($t)) => headModuleType t
-  | `($f:ident $_*) => liftTermElabM <| realizeGlobalConstNoOverloadWithInfo f
-  | `($f:ident) => liftTermElabM <| realizeGlobalConstNoOverloadWithInfo f
-  | _ => throwErrorAt t "module_subtype: expected a module type, a name applied to its parameters"
+  let n ← match t with
+    | `(($t)) => return ← headModuleType t
+    | `($f:ident $_*) => liftTermElabM <| realizeGlobalConstNoOverloadWithInfo f
+    | `($f:ident) => liftTermElabM <| realizeGlobalConstNoOverloadWithInfo f
+    | _ => throwErrorAt t "module_subtype: expected a module type, a name applied to its parameters"
+  return resolveModuleType (← getEnv) n
 
 elab_rules : command
   | `($[$doc?]? module_subtype $S <: $T) => do

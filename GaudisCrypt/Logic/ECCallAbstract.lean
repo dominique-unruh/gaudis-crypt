@@ -175,7 +175,7 @@ elab_rules (kind := equivCallInv) : tactic
         -- the region kept equal: the `glob`s named, the callee's among them
         let DS ← Term.exprToSyntax D
         let globs ← xs.getElems.filterMapM fun (t : Term) => match t with
-          | `(glob $a) => return some (← `(FVP.fvP $a))
+          | `(glob $a) => return some (← `(glob_region $a))
           | _ => return none
         let globs ← if globs.isEmpty then pure #[← `(FVP.fvP $DS)] else pure globs
         let F ← globs.pop.foldrM (fun x acc => `($x ⊔ $acc)) globs.back!
@@ -233,7 +233,7 @@ elab_rules (kind := equivCallInv) : tactic
     -- a concrete callee: it touches only what `={…}` names (`prhlProc_glob_module`)
     let some (ext, C) := abs? | do
       let Rs ← xs.getElems.mapM fun (t : Term) => match t with
-        | `(glob $a) => `(FVP.fvP $a)
+        | `(glob $a) => `(glob_region $a)
         | _ => `(Lens.footprint $t)
       let some last := Rs.back? | throwError "equiv_call: `=\{glob M, x₁, …}`"
       let R ← Rs.pop.foldrM (fun x acc => `($x ⊔ $acc)) last

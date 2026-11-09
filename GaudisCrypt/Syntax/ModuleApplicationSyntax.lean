@@ -134,11 +134,13 @@ elab_rules : term
     if e.hasSyntheticSorry then throwAbortTerm
     let ty ← instantiateMVars (← inferType e)
     let fname := f.getId
-    -- a `moduletype`: its accessor
-    if let some C := ty.getAppFn.constName? then
-      let acc := C ++ fname
-      if isAccessor (← getEnv) acc then
-        return mkAppN (← mkConstWithFreshMVarLevels acc) (ty.getAppArgs.push e)
+    -- a `moduletype`: its accessor (the type as written, or what an abbreviation of it stands
+    -- for: `abbrev DPRIMITIVE := Indifferentiability.DPRIMITIVE state (List block) block`)
+    for ty' in [ty, ← whnfR ty] do
+      if let some C := ty'.getAppFn.constName? then
+        let acc := C ++ fname
+        if isAccessor (← getEnv) acc then
+          return mkAppN (← mkConstWithFreshMVarLevels acc) (ty'.getAppArgs.push e)
     -- a procedure module: `f` names the module's procedure
     if (← whnfR ty).isAppOf ``Module.Proc then
       -- an abstract module (a variable, EC's `declare module A`): its type does not record the

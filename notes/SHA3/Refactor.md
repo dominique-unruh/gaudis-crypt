@@ -600,6 +600,43 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   the lemmas' types) — making `moduletype`'s types reducible would remove both (proposed, not
   done: it touches every module type).
 
+* Handle's `eq_fi` (2026-11-09, `Pilot/Handle.lean`, over the old declarations, sorry-free):
+  EC's 139-line proof step by step in ~118 lines, ~20 s at 4M; it replaces the old port's five
+  declarations (`PF_fi_S_fi`, `fi_none_inv`, `fi_known_inv`, `fi_bext`, `eq_fi`, ~250 lines).
+  EC's `proc;sp;if;auto`, `call(: P ==> Q);auto`, `exists*`/`elim*`, `case @[ambient]` (as
+  `by_cases`/`rcases h : e`), `exfalso`, `rcondt{i} n`/`rcondf{i} n` at EC's own positions,
+  `conseq (_: _ ==> G1.bext{2})`; EC's closers with EC's lemmas (`lemma1'`, `lemma2'`,
+  `m_p_of_INV`, `huniq_hinvK_h`; `smt(domE)` as `smt_close [FMap.domE]`).  Fixed where the cause
+  was:
+  - **Statements**: `={arg}` in procedure conditions (EC's `arg`, the `params` binding);
+    `module_subtype` and the path elaborator (`M(A).f`) see through abbreviations of module
+    types (the old port's `abbrev DPRIMITIVE := Indifferentiability.DPRIMITIVE …`: the deferred
+    item of 2026-11-07).
+  - **EC's `glob` of a concrete module is its variables** (`Logic/ECGlob.lean`): `glob_region C`
+    is `C.c.footprint ⊔ C.queries.footprint` (the `global_var`s `C.x` its procedures use;
+    `fvP C`, only an upper bound, could not give `C.c{1} = C.c{2}` from `={glob C}`); other
+    modules keep `fvP M`.  `={glob C}` stays a region in judgments (the call rules want one;
+    `equiv_call (_ : ={glob P})` on a concrete callee and the frames `/ glob A` use
+    `glob_region` too), and the closers read it as `={C.c, C.queries}`: `TacticMisc.globTuples`
+    before the reads are generalized (`touched_getter_eq_iff_of_lens` with the variables'
+    `Lens.pair`), `glob_reads` for the hypotheses.
+  - **`equiv_call (_ : P ==> Q)`** (`Logic/ECCallEquiv.lean`, EC's `call (: P ==> Q)` on concrete
+    callees): the callees' judgment a goal, and EC's memory past the call — the frame of what
+    each callee does not write is found (variables and variable regions the postcondition reads,
+    `fp_disjoint`; `prhlStmt_seq_call_frame`, `Module.Proc.frame_region`).
+  - **`equiv_exists*` on procedure judgments** (`prhlProc_exists`; `§x{2}` the parameter),
+    **`equiv_exfalso`** (EC's `exfalso`).
+  - **`rcondt`/`rcondf` splice the branch** (`flattenSeq`): EC's later positions count its
+    statements (`rcondt{2} 2` then `rcondf{2} 8` as in EC).  `Pilot/Sponge.lean`'s
+    `equiv_seq 1 2` after an `rcondt` became EC's own `seq 1 1`.
+  - **Closers**: `equiv_auto` takes a sampling on one side (EC's `auto`, lossless
+    distributions); `subst_named` (EC's `<<*`: the `elim*` names survive, the generalized reads
+    are eliminated); tuple equations taken apart; the guard's `simp` optional.
+  Left as deviations: `rename_i` for EC's positional `move=> … ya ? yc ?`; `rcases h : e` for
+  `case @[ambient]: {-1}(e) (eq_refl e)`, `swap` for `last first`; one `module_subtype
+  SLCommon.PRIMITIVE <: DPRIMITIVE` (the old port lacks EC's subtyping).  `CF_G1` still uses the
+  old `eq_fi` (its statement in the old `INV_CF_G1_12` form).
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;

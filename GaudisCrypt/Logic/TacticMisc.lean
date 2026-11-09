@@ -306,6 +306,70 @@ def freshIn (used : Array String) (base : String) : String := Id.run do
   while used.contains (base ++ toString i) do i := i + 1
   return base ++ toString i
 
+/-- A region of variables, `X.footprint = R` (`X` their `Lens.pair`): equal on it is equal on
+`X` (EC's `={glob C}` as `={C.c, C.queries}`). -/
+theorem touched_getter_eq_iff_of_lens {β : Type} {X : Lens β VariableAssignment}
+    {R : Footprint VariableAssignment} (hR : X.footprint = R) (a b : VariableAssignment) :
+    (R.touched_getter.get a = R.touched_getter.get b) = (X.get a = X.get b) := by
+  subst hR; exact propext (Lens.footprint_touched_getter_eq_iff X a b)
+
+/-- The variables' lens of a region of variables `x₁.footprint ⊔ (x₂.footprint ⊔ …)`: their
+`Lens.pair` (EC's `glob C` of a concrete module, `glob_region`). -/
+partial def regionLens? (R : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let R ← instantiateMVars R
+  if R.isAppOfArity ``Lens.footprint 3 then return some R.appArg!
+  if R.getAppNumArgs ≥ 2 then
+    let n := R.getAppNumArgs
+    if R.isAppOf ``Max.max || R.isAppOf ``SemilatticeSup.sup then
+      let some a ← regionLens? (R.getArg! (n - 2)) | return none
+      let some b ← regionLens? (R.getArg! (n - 1)) | return none
+      try
+        -- `Lens.pair a b`, its instance `[Lens.Disjoint a b]` (trailing) synthesized
+        let p ← mkAppM ``Lens.pair #[a, b]
+        let .forallE _ d _ _ ← whnf (← inferType p) | return some p
+        return some (mkApp p (← synthInstance d))
+      catch _ => return none
+  return none
+
+/-- EC's `glob C` of a concrete module, a region of variables `x₁.footprint ⊔ (x₂.footprint ⊔ …)`
+(`glob_region`): its equalities `R.touched_getter.get a = R.touched_getter.get b` as the
+variables' (`={C.c, C.queries}`: `touched_getter_eq_iff_of_lens` with their `Lens.pair`, the tuple
+taken apart), before the reads are generalized (a generalized region would be a value unrelated
+to the variables).  Nothing if no such region occurs. -/
+def globTuples (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let mut thms : SimpTheorems := {}
+  let mut found := false
+  let mut seen : Array Lean.Expr := #[]
+  let cands := (← (Meta.transform (m := StateT (Array Lean.Expr) MetaM) ty (pre := fun e => do
+    if e.isAppOfArity ``Footprint.touched_getter 2 then
+      modify (·.push e.appArg!)
+    return .continue)).run #[]).2
+  for R in cands do
+    if seen.contains R || R.hasLooseBVars then continue
+    seen := seen.push R
+    let some X ← regionLens? R | continue
+    -- `X.footprint = R`, by `Footprint.lens_pair`
+    let lhs ← mkAppM ``Lens.footprint #[X]
+    let hR ← try
+        let t ← ({} : SimpTheorems).addConst ``Footprint.lens_pair
+        let ctx ← Simp.mkContext (simpTheorems := #[t]) (congrTheorems := ← getSimpCongrTheorems)
+        let (r, _) ← simp lhs ctx
+        unless ← isDefEq r.expr R do failure
+        r.getProof
+      catch _ => continue
+    let pf ← mkAppM ``touched_getter_eq_iff_of_lens #[hR]
+    let pf ← mkLambdaFVars #[] pf
+    thms ← thms.add (.other (← mkFreshUserName `globTuple)) #[] pf
+    found := true
+  if !found then return g
+  thms ← thms.addConst ``Prod.mk.injEq
+  thms ← thms.addDeclToUnfold ``Lens.pair
+  let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
+  let (r, _) ← simp ty ctx
+  if r.expr == ty then return g
+  applySimpResultToTarget g ty r
+
 /-- On a goal `∀ σ : ProgramState, P σ`: first unfold the reads of `σ` through expressions,
 pairs and the like down to reads of lenses and getters (`unfoldReads`), then generalize every read
 `g.get σ` (or `g.get σ.globals`) to a universally quantified value (`readBaseName`, made unique
@@ -323,6 +387,7 @@ def generalizeReads (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext
   let (σ, g) ← g.intro1
   g.withContext do
     let g ← g.change (← unfoldReads σ (← instantiateMVars (← g.getType)))
+    let g ← try globTuples g catch _ => pure g
     let body ← instantiateMVars (← g.getType)
     let mut used := binderNamesIn body
     for d in ← getLCtx do

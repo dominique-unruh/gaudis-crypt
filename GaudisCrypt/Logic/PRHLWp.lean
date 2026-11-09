@@ -160,6 +160,7 @@ def generalizeReadsRel (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withCont
         return .done (mkApp (mkConst ``ProgramState.globals) e.appArg!)
       return .continue)
     let g ← g.change ty
+    let g ← try TacticMisc.globTuples g catch _ => pure g
     let body ← instantiateMVars (← g.getType)
     let mut args : Array GeneralizeArg := #[]
     for (σ, n) in [(σ₁, "globals₁"), (σ₂, "globals₂")] do
