@@ -34,6 +34,9 @@ set_option linter.dupNamespace false
 * GAP 7: `equiv_call (_ : ={x})` on a concrete callee (`prhlProc_glob_module`) has no frame; EC's
   `call (_: ={x})` keeps what the callee does not write: `equiv_call (_ : ={arg, x} ==> ={res, x})`
   (framed) and its callee goal by `equiv_proc; equiv_auto` (EC's `1:by sim`).
+* GAP 8: `swap` of a call past a deterministic statement that is not one assignment (a sequence
+  of assignments, an `if` of them) writing globals outside the callee: the call case of
+  `commutesOf` (`StmtSwap.lean`) handles a single assignment only.
 * GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
   only writes it sees directly under the getter; the getter should be pushed into the `if`.
 -/
@@ -239,7 +242,17 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       C.queries} ∧ (§G1.bcol{1} = true → §G1.bcol{2} = true) ∧
       ((FMap.frng §FRO.m{2}).card : ℤ) ≤ 2 * §C.c{2} + 1 ∧ §Gcol.count{2} ≤ §C.c{2} ∧
       §C.c{2} ≤ max_size)
-  · sorry
+  -- EC: + proc;sp 1 1;if=>//;inline G1(DRestr(D)).S.f Gcol.S.f;swap -3.
+  · equiv_proc; stmt_sp 1 1; stmt_if
+    · auto_close
+    --     (GAP 2: the only call on each side, by index)
+    · stmt_inline 0; stmt_swap -3
+      -- EC: sp;if;1,3:auto=>/#;swap{1}[1..2]3;sp 1 1.
+      stmt_sp; stmt_if
+      on_goals 1, 3 => (equiv_auto; auto_close)
+      --     (GAP 8: `swap{1}[1..2]3` moves a call past `if (…) {FRO.m <- …; G1.chandle <- …}`)
+      sorry
+    · equiv_auto
   -- EC: + proc;sp 1 1;if=>//.
   --       inline G1(DRestr(D)).S.fi Gcol.S.fi;swap-3.
   · equiv_proc; stmt_sp 1 1; stmt_if
