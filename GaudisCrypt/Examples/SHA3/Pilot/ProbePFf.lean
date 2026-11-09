@@ -476,8 +476,33 @@ theorem PFf_Cf' : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
             ⟨le_trans (prefix_ge0 _ _) ‹_›, ‹_›⟩ ‹_› ⟨_, ‹_›⟩ with ⟨b', c', h', -, hmh⟩ | ⟨hP, -⟩
         · simp [FMap.domE, hmh]
         · simp_all [FMap.domE]
+      -- EC: + progress. … (the known block, ~60 lines: `m_p_of_INV`, `mem_set`, `get_setE`,
+      --     `take_take`, `nth_take`, `prefix_exchange_prefix_inv`, …) — the old port's
+      --     `PJ2_known` and `PJ2L_step` (deviation)
       equiv_auto
-      trace "G KNOWN"; trace_state; sorry
+      auto_prep
+      rename_i bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h w hb hisz hb1 hpp hpbs hpref hext hmp
+        hI hpi hq hcnt hpath hi hif hdom f hh hnext
+      have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ _ _ h :=
+        ⟨by rw [hpbs]; exact hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
+      have hL : PJ2L _ _ _ _ _ _ _ :=
+        ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnext, hpi, hisz, hq⟩
+      set x : SLCommon.state := ((localVarLens "sa" block).get w +^
+          nth default ((localVarLens "p" (List block)).get w) ((localVarLens "i" ℤ).get w),
+          (localVarLens "sc" capacity).get w) with hx
+      have hdomx : FMap.dom (PF.m.get w.globals) x := by simpa using hdom
+      obtain ⟨-, hfst, hI', hmp', ⟨f', hh'⟩, hpath', hif'⟩ :=
+        PJ2_known _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi hdomx
+      have hL' := PJ2L_step _ _ _ _ _ _ _ (oget (FMap.get (PF.m.get w.globals) x)).1
+        (oget (FMap.get (PF.m.get w.globals) x)).2 hL hi (all_prefixes_of_m_p _ _ _ hmp)
+      simp only [Prod.mk.eta] at hL' ⊢
+      obtain ⟨hpref', hpp', hext', hnext', hpi', hisz', -⟩ := hL'
+      have h0 := le_trans (prefix_ge0 _ _) hpi
+      refine ⟨hpi', hisz', hpref', hpbs, hq, fun _ => ⟨by rw [← hpbs]; exact hI', hb1, hmp,
+        fun l hl => (hpp' l hl).symm, hext', hfst, by omega, ⟨f', hh'⟩, by rw [hpath', hfst],
+        ?_, hnext'⟩⟩
+      rw [if_neg (by omega)] at hif' ⊢
+      exact hif'
     -- the left's `x` is fresh: so is the right's
     · stmt_rcondf{2} 1
       -- EC: + progress. … lemma5' … by have:=H7;rewrite !domE=>/=->/=.
