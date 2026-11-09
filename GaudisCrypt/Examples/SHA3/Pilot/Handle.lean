@@ -9,6 +9,7 @@ import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECIf
 import GaudisCrypt.Logic.ECWhile
+import GaudisCrypt.Logic.ECWhileRel
 import GaudisCrypt.Logic.ECCallEquiv
 import GaudisCrypt.Syntax.ModuleSubtype
 import GaudisCrypt.Logic.ECSeq
@@ -399,11 +400,10 @@ local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all 
   (intros; (try refine ⟨FMap.get_some _ _ ‹_›, ?_⟩); simp only [← Bool.not_eq_true] at *; tauto))))
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 2: EC's `while I` (two goals, the frame of what the loops do not modify) is `equiv_while`
-  (`Logic/ECWhileRel.lean`), but the closers cannot yet work its last goal (EC's
-  `∀ (modified variables), …`: reads of the states under the inner `∀ τ₁ τ₂` are not
-  generalized, `auto_progress`'s `simp` runs out of recursion depth): the loops here use the
-  older `equiv_while_raw` (four goals, no frame), so `={bs}` is added to the first invariant.
+* GAP 2: on EC's `while I` (`equiv_while`), `auto_progress` (EC's `progress`) loops in a `simp`
+  on the last goal's exit part (`∀ τ₁ τ₂, …`): the first loop splits it by hand
+  (`refine ⟨?_, ?_⟩`, the invariant part by `auto_progress`, the exit part by `auto_prep`); the
+  second loop still uses the older `equiv_while_raw`.
 * GAP 5: the pilot's oracle lemmas (`eq_f`, `eq_fi`, `PFf_Cf`, in EC's paths through
   `module_subtype` coercions) match `CF_G1`'s oracles (the old port's `CF`/`G1` views) only by
   heavy unfolding (~2M heartbeats per `conseq`): goes away with EC-form `CF`/`G1` declarations.
@@ -544,11 +544,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
   --             (build_hpath G1.mh (take i p) = Some (sa,h)){2} /\
   --             if i{2} = 0 then (sa,h){2} = (b0, 0)
   --             else F.RO.m.[take i p]{2} = Some sa{1})) /\ 0 < size p{2});last first.
-  --     (our `while` leaves `body`, `guard`, `exit`, `hpre`: EC's second goal is `guard`, `exit`
-  --     and `hpre` together)
-  -- GAP 2: `={bs}` is not EC's: EC's `while` keeps what the loop does not modify (`bs{1}`) by
-  -- itself; `equiv_while_raw` has no frame on `exit` (EC's form, `equiv_while`, not yet closable)
-  · equiv_while_raw (={p, i, glob C, bs} ∧ §bs{2} = §p{2} ∧ (§i{2} = 0 → §sa{1} = b0) ∧
+  · equiv_while (={p, i, glob C} ∧ §bs{2} = §p{2} ∧ (§i{2} = 0 → §sa{1} = b0) ∧
         0 ≤ §i{2} ∧ §i{2} ≤ «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2}))) ∧
         FMap.get §Redo.prefixes{1} (take §i{1} §p{1}) = some (§sa{1}, §sc{1}) ∧
         FMap.dom §Redo.prefixes{1} (take §i{1} §p{1}) ∧
@@ -563,39 +559,47 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
           (if §i{2} = 0 then (§sa{2}, §h{2}) = (b0, 0)
             else FMap.get §F.RO.m{2} (take §i{2} §p{2}) = some §sa{1})) ∧
         0 < size §p{2})
-    case guard => auto_close
-    -- EC (of the second goal): smt(prefix_sizel).
-    case exit =>
-      auto_prep
-      simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at *
-      smt_close [prefix_sizel]
     -- EC: - auto;progress.
+    --       * smt(@Prefix).  * by have[]:=m_p_of_INV … H0;smt(take0 domE). (×2)
+    --       * by have[]:=m_p_of_INV … H0.  * by have[]:=hs_of_INV … H0;smt(take0 domE).
+    --       * by rewrite build_hpathP; apply/Empty=> //; exact/take0.
+    --       * by have[]:=m_p_of_INV … H0; smt(take0 domE size_take size_eq0 size_ge0).
+    --       * smt(prefix_sizel).
+    --     (EC's `progress` splits the invariant and the exit part, `∀ τ₁ τ₂`; here by hand —
+    --     `auto_progress` loops on the exit part, gap list)
     case hpre =>
-      equiv_auto; auto_progress
-      -- EC: * smt(@Prefix).
-      · exact prefix_ge0 _ _
-      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
-      · obtain ⟨hp0, -, -, -, -⟩ :=
-          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-        smt_close [take, FMap.domE]
-      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
-      · obtain ⟨hp0, -, -, -, -⟩ :=
-          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-        smt_close [take, FMap.domE]
-      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0.
-      · obtain ⟨-, hq, -, -, -⟩ :=
-          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-        exact hq
-      -- EC: * by have[]:=hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
-      · obtain ⟨-, h0, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-        exact ⟨Known, h0⟩
-      -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;
-      --       smt(take0 domE size_take size_eq0 size_ge0).
-      · obtain ⟨-, hq, -, -, -⟩ :=
-          m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
-        by_contra hsz
-        simp only [size, not_lt, Nat.cast_nonpos, List.length_eq_zero_iff] at hsz
-        subst hsz; simp_all [FMap.domE]
+      equiv_auto; auto_prep
+      refine ⟨?_, ?_⟩
+      · auto_progress
+        -- EC: * smt(@Prefix).
+        · exact prefix_ge0 _ _
+        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
+        · obtain ⟨hp0, -, -, -, -⟩ :=
+            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+          smt_close [take, FMap.domE]
+        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
+        · obtain ⟨hp0, -, -, -, -⟩ :=
+            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+          smt_close [take, FMap.domE]
+        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0.
+        · obtain ⟨-, hq, -, -, -⟩ :=
+            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+          exact hq
+        -- EC: * by have[]:=hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;smt(take0 domE).
+        · obtain ⟨-, h0, -⟩ := hs_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+          exact ⟨Known, h0⟩
+        -- EC: * by have[]:=m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ H0;
+        --       smt(take0 domE size_take size_eq0 size_ge0).
+        · obtain ⟨-, hq, -, -, -⟩ :=
+            m_p_of_INV _ _ _ _ _ _ _ _ _ _ _ _ ‹INV_CF_G1 _ _ _ _ _ _ _ _ _ _ _ _›
+          by_contra hsz
+          simp only [size, not_lt, Nat.cast_nonpos, List.length_eq_zero_iff] at hsz
+          subst hsz; simp_all [FMap.domE]
+      -- EC: * smt(prefix_sizel).
+      · auto_prep
+        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, not_lt] at *
+        all_goals (split_ands <;> (try assumption) <;> (try (simp_all; done)) <;>
+          smt_close [prefix_sizel])
     case body =>
       -- EC: case(G1.bcol{2} \/ G1.bext{2}).
       equiv_case (§G1.bcol{2} ∨ §G1.bext{2})
@@ -635,8 +639,7 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       --       ! (G1.bcol{2} \/ G1.bext{2}) /\ (take (i+1) p \in Redo.prefixes){1} /\
       --       0 < size p{2}
       --       ==>_);progress.
-      --     (GAP 2: `={bs}` kept, as in the invariant)
-      · equiv_conseq (: ={p, i, glob C, bs} ∧ §bs{2} = §p{2} ∧ (§i{2} = 0 → §sa{1} = b0) ∧
+      · equiv_conseq (: ={p, i, glob C} ∧ §bs{2} = §p{2} ∧ (§i{2} = 0 → §sa{1} = b0) ∧
             0 ≤ §i{2} ∧ §i{2} ≤ «prefix» §p{2} (get_max_prefix §p{2} (elems (FMap.fdom §C.queries{2}))) ∧
             FMap.get §Redo.prefixes{1} (take §i{1} §p{1}) = some (§sa{1}, §sc{1}) ∧
             FMap.get §C.queries{1} [] = some b0 ∧ ¬FMap.dom §C.queries{2} §p{2} ∧
@@ -679,17 +682,18 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
         equiv_auto
         --     (EC's twelve bullets, ~60 lines with `lemma5`, `m_mh_of_INV`, `mh_of_INV`,
         --     `build_hpath_prefix`: the old port's `PJ1_step`, the loop's step — deviation)
-        rintro p₁ i₁ c₁ q₁ bs₁ sa₁ pref sc₁ m₁ mi₁ p₂ i₂ c₂ q₂ bs₂ bcol bext hs ch gm gmi mh mhi ro paths
-          sa₂ cnt h ⟨⟨hp, hi, ⟨hc, hqq⟩, hbs⟩, hbs2, hsa0, hi0, hiq, hpref, hq0, hq, hdom, hJ,
+        rintro p₁ i₁ c₁ q₁ sa₁ pref sc₁ m₁ mi₁ p₂ i₂ c₂ q₂ bs₂ bcol bext hs ch gm gmi mh mhi ro paths
+          sa₂ cnt h ⟨⟨hp, hi, ⟨hc, hqq⟩⟩, hbs2, hsa0, hi0, hiq, hpref, hq0, hq, hdom, hJ,
             ⟨hi1, hi1'⟩, -, -, hbad, hdom1, hsz⟩
-        subst hp hi hc hqq hbs
+        subst hp hi hc hqq
         obtain ⟨hI, rfl, hcnt, ⟨f, hh⟩, hb, hif⟩ := hJ hbad
         have hJ1 : PJ1 hs ch m₁ mi₁ gm gmi mh mhi ro paths pref q₁ p₁ i₁ sa₁ sc₁ h :=
           ⟨hI, hpref, ⟨f, hh⟩, hb, by simpa using hif, hi0, hiq, hq, hsz⟩
         obtain ⟨-, -, he, hI', hpref', hh', hb', hif', hi0', hiq', -, -⟩ :=
           PJ1_step _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ1 hi1'
-        refine ⟨⟨rfl, rfl, ⟨rfl, rfl⟩, rfl⟩, hbs2, fun h0 => absurd h0 (by omega), by omega, hiq',
-          hpref', hdom1, hq0, hq, fun _ => ⟨hI', he, hcnt, hh', by rw [← he]; exact hb', ?_⟩, hsz⟩
+        refine ⟨⟨⟨rfl, rfl, rfl, rfl⟩, hbs2, fun h0 => absurd h0 (by omega), by omega, hiq',
+          hpref', hdom1, hq0, hq, fun _ => ⟨hI', he, hcnt, hh', by rw [← he]; exact hb', ?_⟩, hsz⟩,
+          rfl⟩
         rw [if_neg (by omega)] at hif' ⊢
         exact hif'
   -- EC: alias{1} 1 prefixes = Redo.prefixes;sp.
