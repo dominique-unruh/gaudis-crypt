@@ -46,6 +46,26 @@ variable [SLCommon.Params]
 /-- EC's `state` (`SLCommonCore`'s, named here: a root `state` exists). -/
 abbrev state := GaudisCrypt.SHA3.SLCommon.state
 
+/-- The footprint of the handles' eager random oracle `RRO`: `FRO.m`. -/
+@[fp_bound] theorem fvP_RRO : FVP.fvP RRO ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+/-- The footprint of the functor `G2.S` (for the solver, which reads concrete modules off their
+code but not a functor's): `G1`'s variables and `F.RO.m` (EC reads a module's globals off its
+code). -/
+@[fp_bound] theorem fvP_G2S :
+    FVP.fvP G2.S ≤ (Lens.pair F.RO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths G1.bext))))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths G1.bext)))))))
+
+/-- The footprint of the functor `G2.M` (as `fvP_G2S`). -/
+@[fp_bound] theorem fvP_G2M :
+    FVP.fvP G2.M ≤ (Lens.pair F.RO.m (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle
+      C.queries)))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle
+      C.queries))))
+
 /-! ## The first section: `G1` and the lazy `G2` -/
 
 section
@@ -452,6 +472,34 @@ module Gext (D : DISTINGUISHER) {
 }
 
 
+set_option maxHeartbeats 2000000 in
+-- `within_lens` on a long oracle
+/-- The footprints of `Gext`'s oracles' procedures (for the solver, which does not read a
+procedure called as a module, `Module.proc`). -/
+@[fp_bound] theorem fvP_GextSf :
+    FVP.fvP (Module.proc Gext.S.f.procedure) ≤ (Lens.pair F.RO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths (Lens.pair G1.bext
+        (Lens.pair ROhandle.FRO.m ReSample.count))))))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths (Lens.pair G1.bext
+        (Lens.pair ROhandle.FRO.m ReSample.count)))))))))
+
+set_option maxHeartbeats 2000000 in
+-- `within_lens` on a long oracle
+@[fp_bound] theorem fvP_GextSfi :
+    FVP.fvP (Module.proc Gext.S.fi.procedure) ≤ (Lens.pair F.RO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths (Lens.pair G1.bext
+        (Lens.pair ROhandle.FRO.m ReSample.count))))))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair G1.m (Lens.pair G1.mi (Lens.pair G1.mh
+      (Lens.pair G1.mhi (Lens.pair G1.chandle (Lens.pair G1.paths (Lens.pair G1.bext
+        (Lens.pair ROhandle.FRO.m ReSample.count)))))))))
+
+@[fp_bound] theorem fvP_GextMf :
+    FVP.fvP (Module.proc Gext.M.f.procedure) ≤ (Lens.pair F.RO.m (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle
+      (Lens.pair C.queries ROhandle.FRO.m))))).footprint := by
+  fp_module (Lens.pair F.RO.m (Lens.pair G1.mh (Lens.pair G1.mhi (Lens.pair G1.chandle
+      (Lens.pair C.queries ROhandle.FRO.m)))))
+
 section EXT
 
 declare module D <: DISTINGUISHER {-C.c, -C.queries, -PF, -G1, -G2, -Perm, -ROhandle.RO.m, -Redo,
@@ -600,6 +648,21 @@ theorem Pr_ext (m : VariableAssignment) :
       (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
         (by positivity))
 
+/-- EC's `local equiv RROset_inv_lt : RRO.set ~ RRO.set : ={x, y, FRO.m} /\ inv_lt G1.m{2}
+G1.mi{2} C.c{1} FRO.m{2} ReSample.count{2} ==> ={res,FRO.m} /\ inv_lt G1.m{2} G1.mi{2} C.c{1}
+FRO.m{2} ReSample.count{2}`. -/
+theorem RROset_inv_lt : equiv[ (PROM.FullRO.FRO_T.set handle capacity RRO) ~
+    (PROM.FullRO.FRO_T.set handle capacity RRO) :
+    ={x, y, FRO.m} ∧ inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ==>
+    ={res, FRO.m} ∧ inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ] := by
+  -- EC: proc;auto=> &ml&mr[#]3!-> /= @/inv_lt [*].
+  --     rewrite restr_set /=;smt w=(size_set_le size_rem_le).
+  equiv_proc; equiv_auto; auto_prep
+  obtain ⟨h1, h2, h3, h4⟩ := ‹inv_lt _ _ _ _ _›
+  refine ⟨h1, h2, ?_, h4⟩
+  rw [FMap.restr_set, if_neg (by decide)]
+  exact lt_of_le_of_lt (add_le_add_right (GaudisCrypt.SHA3.Gext.size_rem_le _ _) _) h3
+
 set_option maxHeartbeats 8000000 in
 -- one declaration: EC's call over three oracles, the resampling loops
 /-- EC's `local equiv EG2_Gext : Eager(G2(DRestr(D))).main2 ~ Gext.distinguish : ={glob D} ==>
@@ -641,7 +704,25 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
   · stmt_wp
     equiv_call (_ : ={F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext,
         C.c, C.queries} ∧ inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
-    · sorry
+    -- EC: + proc;sp;if=>//=;swap -1.
+    --       call (_: ={x,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,C.c,
+    --                  C.queries} /\
+    --                inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2} ==>
+    --                ={res,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,C.c,
+    --                  C.queries} /\
+    --                inv_le  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2});last by auto=>/#.
+    · equiv_proc; stmt_sp; stmt_if
+      · auto_close
+      · stmt_swap -1
+        equiv_call (_ : ={x, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+            G1.bext, C.c, C.queries} ∧
+            inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ==>
+            ={res, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext, C.c,
+              C.queries} ∧
+            inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
+        on_goals 2 => (equiv_auto; simp only [inv_lt, inv_le] at *; auto_close)
+        trace "SFC"; trace_state; sorry
+      · equiv_auto
     · sorry
     · sorry
     -- EC: auto;progress[delta];rewrite ?(size0,restr0,restr_set,rem0,max_ge0,-sizeE,-cardE) //=.
