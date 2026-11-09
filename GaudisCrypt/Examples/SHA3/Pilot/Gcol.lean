@@ -1,5 +1,6 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
+import GaudisCrypt.Logic.PrTactics
 
 /-!
 # The collision event of `G1` (EasyCrypt `proof/smart_counter/Gcol.eca`) — EC-fidelity port
@@ -25,17 +26,23 @@ set_option linter.dupNamespace false
 * GAP 2: inline by name: EC's paths `G1(DRestr(D)).S.fi`, `Gcol.S.fi` do not match the old
   declarations' call sites `DPRIMITIVE.fi G1.S` (not definitionally equal at default transparency
   either): the only call on each side inlined by index.
+* GAP 3: `→` between booleans in conditions (EC's `G1.bcol{1} => G1.bcol{2}`) needs `= true`.
 * GAP 4: `swap` past a call that reads (but does not write) what the moved assignment reads:
   our frame needs the read variables outside the callee's whole footprint (reads and writes
   together); EC's `swap` uses read/write sets.
-* GAP 3: `→` between booleans in conditions (EC's `G1.bcol{1} => G1.bcol{2}`) needs `= true`.
+* GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
+  only writes it sees directly under the getter; the getter should be pushed into the `if`.
 * GAP 6: EC `while`'s exit goal: after `auto_prep` the frames are equations `x τ₂ = x τ₁` between
   reads of the final states (not substituted; `simp_all` cycles on them).
 * GAP 7: `equiv_call (_ : ={x})` on a concrete callee (`prhlProc_glob_module`) has no frame; EC's
   `call (_: ={x})` keeps what the callee does not write: `equiv_call (_ : ={arg, x} ==> ={res, x})`
   (framed) and its callee goal by `equiv_proc; equiv_auto` (EC's `1:by sim`).
-* GAP 5: `glob D` read through an `if` (the conditional write of `RO.get`): `glob_simp` rewrites
-  only writes it sees directly under the getter; the getter should be pushed into the `if`.
+* (GAP 8, fixed: `swap` of a call past a deterministic `if`/sequence of writes — `callDet` in
+  `Logic/StmtSwap.lean`.)
+* GAP 9: EC's `fel … [Gcol.sample_c : pre]` in `Pr_col`: the bad event and the counter change only
+  in a procedure the oracles call; our `fel` takes the adversary's oracles as the procedures
+  (the old port proves it by a potential, `SmartCounter/Gcol.lean`'s `Gcol_potential`).
+  `Pr_col` is `sorry` until `fel` takes inner procedures.
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.Gcol
@@ -492,6 +499,32 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
   · equiv_auto; auto_prep
     refine ⟨⟨rfl, (card_rng_set _ _ _).trans (by simp), max_ge0⟩, ?_⟩
     auto_close
+
+/-- EC's `local lemma Pr_col &m : Pr[Gcol.main()@&m : G1.bcol /\ Gcol.count <= max_size] <=
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem Pr_col (m : VariableAssignment) :
+    Pr[ Gcol(D).main () @ &m : §G1.bcol = true ∧ §Gcol.count ≤ max_size ] ≤
+      (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: fel 10 Gcol.count (fun x=> (2*max_size)%r / (2^c)%r)
+  --       max_size G1.bcol
+  --       [Gcol.sample_c : (card (image fst (frng FRO.m)) <= 2*max_size /\ Gcol.count < max_size)]
+  --       =>//;2:by auto.
+  --     (GAP 9: `fel` whose bad event and counter change in a procedure the oracles call,
+  --     `[Gcol.sample_c : …]`; ours takes the adversary's oracles only)
+  sorry
+
+/-- EC's `lemma Pr_G1col &m : Pr[G1(DRestr(D)).main() @ &m : G1.bcol] <=
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem Pr_G1col (m : VariableAssignment) :
+    Pr[ G1(DRestr(D)).main () @ &m : §G1.bcol = true ] ≤
+      (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: apply (ler_trans Pr[Gcol.main()@&m : G1.bcol /\ Gcol.count <= max_size]).
+  refine le_trans (b := Pr[ Gcol(D).main () @ &m : §G1.bcol = true ∧ §Gcol.count ≤ max_size ])
+    ?_ ?_
+  -- EC: + byequiv G1_col=> //#.
+  · byequiv (G1_col D)
+  -- EC: apply (Pr_col &m).
+  · exact Pr_col D m
 
 end PROOF
 

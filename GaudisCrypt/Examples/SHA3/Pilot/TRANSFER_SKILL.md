@@ -177,7 +177,7 @@ the `while` row.
 | `seq n m : P` (pRHL) | `equiv_seq n m : (P)` (leading counts, resets not counted). The old from-the-end cut is `equiv_seq_last` |
 | pHL `seq n : E p₁ p₂ p₃ p₄ I` (upper bound) | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged `invariant, first_E, second_E, first_notE, second_notE, bound` (bounds `1` closed on the spot), `_` bound allowed. `≤` goals only |
 | Hoare/pHL `seq n : P` (one condition) | **missing** as an EC-form tactic (8 uses: SHA3Security, Gconcl_list); `stmt_split k` cuts counting from the end |
-| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (EC positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k` |
+| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (EC positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k`.  A call moves past assignments, samplings, and deterministic `if`s/sequences of writes to globals outside the callee whose conditions read what the call keeps (`callDet`, Gcol's `swap{1}[1..2]3`).  Not yet: past an assignment whose value reads a global the callee only *reads* (Gcol GAP 4: inline the call first) |
 | `call (: inv)` (abstract adversary, Hoare) | `hoare_call (: inv)`; goals oracle(s) first, then pre |
 | `call (_ : ={glob A, x…})` (abstract) | `equiv_call (_ : ={glob A, x, …})` |
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)` |
@@ -360,7 +360,9 @@ Document each in the docstring when it applies.
   before a `swap` (types differ), write that `auto` as `stmt_wp`, then EC's `swap`, then
   `equiv_auto`.
 * **`fel`**: one oracle (Gext needs two); `bad` must persist (`keep` goal); the event must be
-  `bad` itself; the call last.
+  `bad` itself; the call last.  The procedures listed must be the adversary's oracles: EC's
+  `fel … [Gcol.sample_c : pre]`, a procedure *the oracles call* (Gcol's `Pr_col`), has no
+  counterpart yet (Gcol GAP 9).
 * **`rw`** fails on goals with terms well-typed only by unfolding module types (`PRIMITIVE.f Perm`
   at a PRP type): use `simp only`.  Module types are not reducibly equal (making `moduletype`'s
   types `@[reducible]` is proposed, not done); instances like `Module.GlobBound` must be stated at
