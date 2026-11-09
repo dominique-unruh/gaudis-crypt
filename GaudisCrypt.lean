@@ -147,6 +147,8 @@ import GaudisCrypt.Logic.ECConseq
 import GaudisCrypt.Logic.ECConseqTest
 import GaudisCrypt.Logic.ECCallFrame
 import GaudisCrypt.Logic.ECCallEquiv
+import GaudisCrypt.Logic.ECGoals
+import GaudisCrypt.Logic.ECGoalsTest
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.PHoareSeq

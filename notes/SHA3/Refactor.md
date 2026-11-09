@@ -425,6 +425,8 @@ dependent is ported.  Bottom-up along the SHA-3 import graph; the cross-cutting 
 
 ### EC's tactics added (all judgments where EC has them)
 
+EC's goal selectors `1,3: t`, `2..-2: t`, `-1: t` as `on_goals 1, 3 => t` (`Logic/ECGoals.lean`;
+`last first`/`first last` are Lean's `rotate_right`/`rotate_left`, one goal Batteries' `on_goal`).
 `sp`, `if`, `rcondt`/`rcondf` (`Logic/ECSp.lean`, `Logic/ECIf.lean`); `hoare`, `conseq`,
 `exists*` (`Logic/ECConseq.lean`); `seq`'s `_` bound; one-sided `call` with a frame
 (`equiv_call{i} H / x, glob A`, `Logic/ECCallOneSided.lean`); `call (_ : ={glob A, …})` on an
