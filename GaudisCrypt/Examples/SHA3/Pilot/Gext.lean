@@ -457,6 +457,43 @@ section EXT
 declare module D <: DISTINGUISHER {-C.c, -C.queries, -PF, -G1, -G2, -Perm, -ROhandle.RO.m, -Redo,
   -ReSample.count}
 
+/-- EC's `case (l)=>//=; smt w=List.size_ge0`: a list that is not empty has a positive size. -/
+theorem size_pos_of_isEmpty {α : Type} {l : List α} (h : l.isEmpty = false) : 0 < size l := by
+  cases l with
+  | nil => simp at h
+  | cons a t => simp only [size, List.length_cons]; omega
+
+/-- EC's closer of the resampling loops' body in `EG2_Gext` (`case(l{mr})=>[//|h1 l1/=Hle Hext c
+?/=];split. + smt w=(drop0 size_ge0). rewrite drop0=>-[H|[x h][#]];1:by rewrite Hext // H.
+rewrite get_setE;case (h=h1)=> [/=->Hin->_ | Hneq ???]. + by right;apply (mem_image snd _ x).
+by rewrite Hext 2://;right;exists x h;rewrite Hneq.`): one handle `head l` resampled. -/
+theorem resample_step {b1 b2 : Bool} {m mi : smap} {F : handles} {l : List handle} {c : capacity}
+    {count : ℤ} (hl : l.isEmpty = false) (hcount : count + size l ≤ max_size)
+    (hext : (b1 = true ∨ ∃ (x : state) (h : handle), x ∈ FMap.fdom m ∪ FMap.fdom mi ∧
+      FMap.get F h = some (x.2, Unknown) ∧ h ∉ l) → b2 = true) :
+    count + 1 + size (drop 1 l) ≤ max_size ∧
+      ((b1 = true ∨ ∃ (x : state) (h : handle), x ∈ FMap.fdom m ∪ FMap.fdom mi ∧
+        FMap.get (FMap.set F (head default l) (c, Unknown)) h = some (x.2, Unknown) ∧
+          h ∉ drop 1 l) →
+        (b2 || decide (c ∈ Finset.image Prod.snd (FMap.fdom m ∪ FMap.fdom mi))) = true) := by
+  cases l with
+  | nil => simp at hl
+  | cons h1 l1 =>
+    simp only [drop, head, List.headD_cons, size, List.length_cons] at hcount ⊢
+    refine ⟨by simp; omega, ?_⟩
+    rintro (H | ⟨x, h, hx, hh, hn⟩)
+    · simp [hext (Or.inl H)]
+    · by_cases he : h = h1
+      · subst he
+        rw [FMap.get_set_sameE] at hh
+        cases hh
+        simp only [Bool.or_eq_true, decide_eq_true_eq]
+        exact Or.inr (Finset.mem_image.mpr ⟨x, hx, rfl⟩)
+      · rw [FMap.get_set_neqE _ _ _ _ he] at hh
+        have : h ∉ h1 :: l1 := by
+          simp only [List.mem_cons, not_or]; exact ⟨he, by simpa using hn⟩
+        simp [hext (Or.inr ⟨x, h, hx, hh, this⟩)]
+
 set_option maxHeartbeats 4000000 in
 -- the oracles' syntactic check (`exp_decr`) over `Gext`'s oracles and the resampling
 /-- EC's `local lemma Pr_ext &m : Pr[Gext.distinguish()@&m : G1.bext /\ ReSample.count <= max_size]
@@ -563,13 +600,77 @@ theorem Pr_ext (m : VariableAssignment) :
       (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
         (by positivity))
 
+set_option maxHeartbeats 8000000 in
+-- one declaration: EC's call over three oracles, the resampling loops
 /-- EC's `local equiv EG2_Gext : Eager(G2(DRestr(D))).main2 ~ Gext.distinguish : ={glob D} ==>
 ReSample.count{2} <= max_size /\ ((G1.bext{1} \/ inv_ext G1.m{1} G1.mi{1} FRO.m{1}) =>
 G1.bext{2})`. -/
 theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
     ={glob D} ==> §ReSample.count{2} ≤ max_size ∧
       ((§G1.bext{1} ∨ inv_ext §G1.m{1} §G1.mi{1} §FRO.m{1}) → §G1.bext{2}) ] := by
-  sorry
+  -- EC: proc;inline *;wp.
+  equiv_proc; stmt_inline*; stmt_wp
+  -- EC: while (={l,FRO.m,G1.m,G1.mi} /\ card (fdom G1.m{2}) <= max_size /\
+  --          card (fdom G1.mi{2}) <= max_size /\
+  --         ReSample.count{2} + size l{2} <= max_size /\
+  --         ((G1.bext{1} \/
+  --          exists (x : state) (h : handle),
+  --            mem (fdom G1.m{1} `|` fdom G1.mi{1}) x /\
+  --            FRO.m{1}.[h] = Some (x.`2, Unknown) /\ !mem l{1} h) =>
+  --          G1.bext{2})).
+  equiv_while (={l, FRO.m, G1.m, G1.mi} ∧ ((FMap.fdom §G1.m{2}).card : ℤ) ≤ max_size ∧
+      ((FMap.fdom §G1.mi{2}).card : ℤ) ≤ max_size ∧ §ReSample.count{2} + size §l{2} ≤ max_size ∧
+      ((§G1.bext{1} ∨ ∃ (x : state) (h : handle), x ∈ FMap.fdom §G1.m{1} ∪ FMap.fdom §G1.mi{1} ∧
+          FMap.get §FRO.m{1} h = some (x.2, Unknown) ∧ h ∉ §l{1}) → §G1.bext{2}))
+  -- EC: + rcondt{2} 3.
+  --       + move=> &m;auto=> &m'[#] 6!-> /= + _ _;case (l{m'})=>//=; smt w=List.size_ge0.
+  · stmt_rcondt{2} 3
+    · hoare_auto; auto_prep
+      exact ⟨‹_›, ‹_›, by have := size_pos_of_isEmpty ‹_›; omega⟩
+    -- EC: auto=> &ml&mr[#]6!->;case(l{mr})=>[//|h1 l1/=Hle Hext c ?/=];split.
+    --     + smt w=(drop0 size_ge0).
+    --     rewrite drop0=>-[H|[x h][#]];1:by rewrite Hext // H.
+    --     rewrite get_setE;case (h=h1)=> [/=->Hin->_ | Hneq ???].
+    --     + by right;apply (mem_image snd _ x).
+    --     by rewrite Hext 2://;right;exists x h;rewrite Hneq.
+    equiv_auto; auto_prep
+    exact ⟨‹_›, ‹_›, resample_step ‹_› ‹_› ‹_›⟩
+  -- EC: wp; call (_: ={F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,
+  --                    C.c,C.queries} /\
+  --                 inv_le G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2}).
+  · stmt_wp
+    equiv_call (_ : ={F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext,
+        C.c, C.queries} ∧ inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
+    · sorry
+    · sorry
+    · sorry
+    -- EC: auto;progress[delta];rewrite ?(size0,restr0,restr_set,rem0,max_ge0,-sizeE,-cardE) //=.
+    --     + smt(size_rem_le size0).
+    --     + smt(). + smt(). + smt().
+    --     + by elim H7=>// [[x h] [#]];rewrite -memE mem_fdom dom_restr /in_dom_with domE=> _ ->.
+    --     by apply H10.
+    · equiv_auto; auto_prep
+      refine ⟨⟨rfl, ?_⟩, ?_⟩
+      · simp [inv_le, FMap.restr_set, FMap.restr0, max_ge0]
+      · intro r₁ g₁ r₂ g₂ h; auto_prep
+        obtain ⟨h1, h2, h3, h4⟩ := ‹inv_le _ _ _ _ _›
+        have hs : size (FMap.fdom (FMap.restr Unknown (FRO.m.get g₁))).toList =
+            ((FMap.fdom (FMap.restr Unknown (FRO.m.get g₁))).card : ℤ) := by simp [size]
+        refine ⟨⟨⟨by omega, by omega, by omega, ?_⟩, by simp⟩, ?_⟩
+        -- EC: + by elim H7=>// [[x h] [#]];rewrite -memE mem_fdom dom_restr /in_dom_with domE=> _ ->.
+        · rintro (hb | ⟨x, h, -, hh, hn⟩)
+          · exact hb
+          · refine absurd (Finset.mem_toList.mpr ((FMap.mem_fdom _ _).mpr
+              ((FMap.dom_restr _ _ _).mpr ⟨(FMap.domE _ _).mpr ?_, ?_⟩))) hn
+            · rw [hh]; simp
+            · show ((FMap.get (FRO.m.get g₁) h).getD default).2 = Unknown
+              rw [hh]; rfl
+        -- EC: by apply H10.  (the loops' exit: `l` empty)
+        · rintro τ₁ τ₂ - - ⟨-, -, -, hcnt, hI⟩ hl₁ -
+          have hl : (localVarLens "l" (List handle)).get τ₁ = [] :=
+            List.isEmpty_iff.mp (by simpa using hl₁)
+          exact ⟨(le_add_of_nonneg_right (size_ge0 _)).trans hcnt,
+            fun hb => hI (hb.imp_right fun ⟨x, h, hx, hh⟩ => ⟨x, h, hx, hh, by simp [hl]⟩)⟩
 
 end EXT
 
