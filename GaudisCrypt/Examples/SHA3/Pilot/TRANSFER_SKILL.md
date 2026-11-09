@@ -219,7 +219,7 @@ goals (`body, guard, exit, hpre`; EC two) — use the tags (`case body => …`).
 | `last first` / `first last` | `rotate_right` (`swap` when there are exactly two goals) / `rotate_left` |
 | `n: t` (one goal) | Batteries' `on_goal n => t` |
 | `t; t'` (on all subgoals) | `t <;> t'` |
-| `t; [t₁ \| t₂]` (67 uses) | `t <;> [t₁; t₂]` (Batteries) or bullets |
+| `t; [t₁ \| t₂]` (67 uses) | `t <;> [t₁; t₂]` (Batteries) or bullets; EC's `t₀; t; 1,3: t'` over branches as `t₀ <;> (t <;> [t'; …])` — `on_goals` positions shift when branches leave different numbers of goals |
 | `+ …` / `- …` bullets | `·` |
 | `=> //` | usually nothing (the tactics close trivial goals); else `<;> try trivial` |
 | `progress` (286 uses) | `auto_progress` (`Logic/ECClose.lean`), leaves goals split and simplified |
@@ -258,6 +258,21 @@ earlier one's — after it, unmodified variables are read in one state, as in EC
 (no programs, no states) that stands for what EC's `smt` finds by itself — ConcreteF's `db_*`,
 `rc_*` — is allowed, named after the EC lemma it comes from, in the game file if specific,
 in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
+
+**Hand closers in practice** (from `PFf_Cf`):
+* After `auto_prep` the variables and hypotheses are anonymous: name them with `rename_i` (print
+  the context once to get the order), then apply EC's lemma explicitly.
+* An EC invariant in conjunction form and an old-port lemma stated over a packaged predicate
+  (`PJ2 …`): build the predicate from the named hypotheses (`⟨hI, hmp, ⟨f, hh⟩, …⟩`), apply the
+  lemma, take its result apart, `refine` the goal.  Name long terms with `set x := … with hx`
+  when a lemma argument is not determined by unification.
+* EC's pair `((oget m.[x]).1, (oget m.[x]).2)` vs `oget m.[x]`: `simp only [Prod.mk.eta]`;
+  `x ∈ m → m.[x] = Some (oget m.[x])` is EC's `FMap.get_some`.
+* One EC closer repeated over many leaves (`smt(get_setE mem_set DBlock.dunifin_ll …)`): one
+  file-local `macro` with a docstring naming EC's call, used at each leaf.
+* Do not add rules to `auto_prep`'s simp set that change the *shape* of hypotheses (decoding
+  boolean guards broke ConcreteF's `apply db_* <;> assumption`): decode locally
+  (`simp only [Bool.and_eq_true, decide_eq_true_eq] at *`) where a closer needs it.
 
 Mappings for ssreflect idioms:
 
@@ -321,6 +336,12 @@ Document each in the docstring when it applies.
   local games fresh for `D` by hypothesis (`Gext0Fresh`), `D_ll` over a region rather than
   `glob D`.  Read them before porting those files; retire them if `declare module` /
   `Module.ECGlob` now cover the case.
+* **Clone ops given as functions** (`op dout _ <- bdistr`) stay applied in our code
+  (`r <$ F.dout x` reads `x`), so EC's `swap` moving such a sampling past the assignment of its
+  argument fails; swap the other side's samplings instead (same coupling), as a documented
+  deviation (gap: substitute and beta-reduce clone ops in code).
+* **EC's `auto` couples the last samplings of both sides** — when ours pairs the wrong ones (the
+  invariant cannot be proven, sampled values unrelated), reorder samplings with `stmt_swap` first.
 * **`fel`**: one oracle (Gext needs two); `bad` must persist (`keep` goal); the event must be
   `bad` itself; the call last.
 * **`rw`** fails on goals with terms well-typed only by unfolding module types (`PRIMITIVE.f Perm`

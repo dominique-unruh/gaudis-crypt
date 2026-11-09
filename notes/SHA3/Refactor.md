@@ -682,6 +682,22 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   `={arg}`), each fixed once in `Logic/`/`Lib/`; the gap rate per lemma fell from `eq_fi` (~10)
   to `eq_f` (~4).
 
+* Handle's `PFf_Cf` (2026-11-09, `Pilot/Handle.lean`, sorry-free, standard axioms, ~2 min at 8M):
+  EC's 680-line proof block by block (EC's lines as comments above each block): 319 Lean lines
+  (+185 comment lines).  Every program step is EC's (`proc; sp; inline*`, `if; 1,3: auto`,
+  `swap{1} 4`, `swap{2} 11`, `wp 1 5`, `conseq`, `seq 1 1`, both `splitwhile`s, two loops with EC's
+  invariants, `alias`, `case`, eight `rcondt`/`rcondf` at EC's positions, `swap{2} -3`).  The
+  closers: one `smt_close` attempt, otherwise by hand (Denis's policy of the day); EC's long
+  inline closers are the old port's `PJ1_step`, `PJ1_PJ2`, `PJ2_known`, `PJ2_fresh`, `PJ2L_step`
+  (assembled from EC's invariant after `auto_prep; rename_i`).  Infrastructure fixed on the way:
+  EC positions for `swap n k`/`wp n m`/`sp n m` (`stmt_swap_raw` for the old ports), EC's goal
+  order for `if`, `sp` in EC's read form past inlining's resets (`*_sp_drop`), `sp` stopping at
+  `skip`, closers' `glob_tuples` / `subst_frames` / `mp_hyps`, EC's `FMap.get_some`.  Open gaps
+  (batch): `equiv_while`'s `exit` has no frame of the unmodified variables (`={bs}` added to an
+  invariant); a clone's op given as a function (`op dout _ <- bdistr`) is not substituted in
+  code, so `r <$ F.dout x` reads `x` and EC's `swap{2} -3` fails (the left's samplings swapped
+  instead); `grind_pattern` for arithmetic lemmas (`prefix_sizel`).
+
 ### What retiring the old files waits for
 
 The old `SecureRO.lean` is imported by the old `SecureORO.lean` and `IndifRO_is_secure.lean`;
