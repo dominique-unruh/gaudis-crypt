@@ -183,7 +183,8 @@ open Lean Meta Elab Tactic GaudisCrypt in
 /-- **EC's `exfalso`** on a relational judgment: the goal is that the precondition is
 contradictory, `∀ …, pre → False`. -/
 elab "equiv_exfalso" : tactic => withMainContext do
-  let ty ← instantiateMVars (← getMainTarget)
+  -- (through a `match` an `intro ⟨a, b⟩` leaves)
+  let ty ← whnfR (← instantiateMVars (← getMainTarget))
   if ty.isAppOf ``prhlProc then
     evalTactic (← `(tactic| refine prhlProc_exfalso ?_))
   else if ty.isAppOf ``prhlStmt then

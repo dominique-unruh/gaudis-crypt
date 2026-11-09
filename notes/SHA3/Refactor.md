@@ -632,6 +632,19 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   - **Closers**: `equiv_auto` takes a sampling on one side (EC's `auto`, lossless
     distributions); `subst_named` (EC's `<<*`: the `elim*` names survive, the generalized reads
     are eliminated); tuple equations taken apart; the guard's `simp` optional.
+  Follow-ups (same night, while porting `eq_f`): EC's **`swap{i} n k` counts from 1** —
+  `stmt_swap n k` now does too (47 old uses renumbered; the block form already did);
+  **closers for EC's `auto`** (`equiv_auto` → `equiv_skip_ec`): the `Decidable` instances under
+  `decide` re-synthesized before the reads are generalized (`TacticMisc.normDecide`: `simp_reads`
+  rewrites `p` but leaves the instance about the old `p`, so a read under a `decide` could not be
+  generalized — "not type-correct" at instances transparency) and the globals of the state an
+  inlined call renamed (`(Flatten.rename r).chain Flatten.trafo`) read as the state's own; the
+  plain `equiv_skip` keeps the old behaviour (on it, both broke hand-written `rintro` patterns
+  in the old Gext/Gconcl/Gconcl_list/PROM ports); the Hoare side (`hoare_auto`) has the renamed-
+  state fix only.  `auto_prep` also: `norm_decide`, `subst_reads` (EC's `<<-`/`->>`: an
+  equation `read = name` or `read = (name, name)` rewrites the read; wider — any read-free
+  term — broke `Real_Concrete`'s closers), `ite_self` (inlined `RO.get` leaves
+  `if c then X else X`); `generalize_reads_all` keeps the hypotheses' names.
   Left as deviations: `rename_i` for EC's positional `move=> … ya ? yc ?`; `rcases h : e` for
   `case @[ambient]: {-1}(e) (eq_refl e)`, `swap` for `last first`; one `module_subtype
   SLCommon.PRIMITIVE <: DPRIMITIVE` (the old port lacks EC's subtyping).  `CF_G1` still uses the

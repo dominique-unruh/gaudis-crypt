@@ -615,7 +615,7 @@ def moveStmt (p : Nat) (k : Int) (s : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr
     pos := if k > 0 then pos + 1 else pos - 1
   return (cur, pr)
 
-/-- `stmt_swap n k`: move the statement at position `n` (from 0) by `k` positions — later for
+/-- `stmt_swap n k`: move the statement at position `n` (from 1, EC's) by `k` positions — later for
 `k > 0`, earlier for `-k` (EC's `swap`).  Each step exchanges two neighbours, one deterministic
 and the other commuting with its update, or one a sampling from a constant distribution and the
 other commuting with the writes to its variable; the commutation is shown by `simp`.  Any
@@ -625,8 +625,9 @@ syntax "stmt_swap" (Judgment.judgmentSide)? ppSpace num ppSpace ("-")? num : tac
 elab_rules : tactic
   | `(tactic| stmt_swap $[$s]? $n:num $[-%$neg]? $k:num) => do
     let k : Int := if neg.isSome then -(k.getNat : Int) else k.getNat
+    if n.getNat == 0 then throwError "stmt_swap: EC's positions count from 1"
     liftMetaTactic1 fun g => some <$>
-      Judgment.onStmt (moveStmt n.getNat k) g (Judgment.sideOf? s)
+      Judgment.onStmt (moveStmt (n.getNat - 1) k) g (Judgment.sideOf? s)
 
 /-- The statement `s` resets locals (`reset_vars S`, what inlining a call leaves for the callee's
 locals): not one of EC's statements, which inlines without them. -/

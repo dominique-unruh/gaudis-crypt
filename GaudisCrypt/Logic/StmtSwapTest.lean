@@ -15,8 +15,8 @@ example (F : Type) [Inhabited F] [Fintype F] :
       y <$ SubProbability.uniform;
       reset_vars {"z"};
     } := by
-  stmt_swap 0 1
-  stmt_swap 1 -1
+  stmt_swap 1 1
+  stmt_swap 2 -1
   hoare_wp 2
   hoare_skip
   simp
@@ -28,7 +28,7 @@ example : hoare[ True ==> §x = 1 ∧ §y = 2 ] {
       b <$ SubProbability.uniform;
     } := by
   stmt_split_pair 0
-  stmt_swap 1 1
+  stmt_swap 2 1
   hoare_wp 3
   hoare_skip
   simp
@@ -49,8 +49,8 @@ example (M : Init) (G : Init →ₘ Init) (hM : FVP.fvP M ≤ (swapTestCount.foo
       call (Init.init M).procedure ();
       call (Init.init (Module.app G M)).procedure ();
     } := by
-  stmt_swap 0 2
-  stmt_swap 2 -1
+  stmt_swap 1 2
+  stmt_swap 3 -1
   intro _ _
   simp only [not_true_eq_false]
   exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)

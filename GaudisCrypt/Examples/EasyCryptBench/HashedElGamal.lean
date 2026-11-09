@@ -199,11 +199,11 @@ theorem cpa_ddh0 (A : Adversary P E) :
   stmt_inline 0
   stmt_inline 0
   stmt_inline{1} 1
-  stmt_swap{1} 2 1
+  stmt_swap{1} 3 1
   stmt_split_pair{2} 4
+  stmt_swap{2} 7 3
   stmt_swap{2} 6 3
-  stmt_swap{2} 5 3
-  stmt_swap{2} 2 5
+  stmt_swap{2} 3 5
   stmt_wp
   equiv_call
   stmt_wp
@@ -231,9 +231,9 @@ theorem ddh1_es1 (A : Adversary P E) :
   -- EC's `swap{1} 7 -3; swap{2} [5..6] -4; swap{2} 4 -1`, here on the left only: the samplings
   -- in the order `hk, z, x, y` of the right (the inlined reset of `DDHAdv`'s locals, `hk`
   -- among them, moved out of the way first)
-  stmt_swap{1} 4 -3
-  stmt_swap{1} 6 -4
-  stmt_swap{1} 5 -2
+  stmt_swap{1} 5 -3
+  stmt_swap{1} 7 -4
+  stmt_swap{1} 6 -2
   stmt_wp
   equiv_call
   stmt_wp
@@ -258,9 +258,9 @@ theorem es0_gb (A : Adversary P E) :
   stmt_split_pair{1} 4
   -- EC's `swap{1} 2 1; swap{1} [3..4] 4; swap{2} 7 -2`: the uniform string `h` drawn after the
   -- adversary's choice and the coin
-  stmt_swap{1} 5 4
-  stmt_swap{1} 2 6
-  stmt_swap{2} 7 -2
+  stmt_swap{1} 6 4
+  stmt_swap{1} 3 6
+  stmt_swap{2} 8 -2
   stmt_wp
   equiv_call
   stmt_wp

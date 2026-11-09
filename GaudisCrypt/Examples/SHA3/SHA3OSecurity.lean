@@ -3123,7 +3123,7 @@ theorem fin_game (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
   stmt_wp
   equiv_call (fin_get RFList_m)
   stmt_wp
-  stmt_swap{2} 1 5
+  stmt_swap{2} 2 5
   equiv_seq_last 1 1 : (§hash{1} = §hash{2} ∧ §hash{1} = §(localVarLens "h" f_out){2} ∧
       (fL RFList_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       fI ((fL RFList_m).get §allGlobals{1}) ((fL RFList_m).get §allGlobals{2}))
@@ -3439,8 +3439,8 @@ theorem soro_pre_game {Ω : Type} (L : Lens Ω VariableAssignment) (I : Ω → �
   stmt_inline{1} 0
   stmt_inline{2} 0
   stmt_wp
-  stmt_swap{1} 1 3
-  stmt_swap{2} 1 3
+  stmt_swap{1} 2 3
+  stmt_swap{2} 2 3
   equiv_seq_last 2 2 : (§hash{1} = §hash{2} ∧ L.equal_outside §allGlobals{1} §allGlobals{2} ∧
       I (L.get §allGlobals{1}) (L.get §allGlobals{2}))
   · equiv_rnd
@@ -4022,7 +4022,7 @@ theorem rw_real (A : SH.AdvPreimage) (hA : Module.ECModule A SH.OIndif.distExt)
   repeat stmt_inline{1} 1
   repeat stmt_inline{2} 1
   stmt_wp
-  stmt_swap{1} 1 10
+  stmt_swap{1} 2 10
   equiv_seq_last 2 2 : (§hash{1} = §hash{2} ∧
       (rrL Log_m).equal_outside §allGlobals{1} §allGlobals{2} ∧
       rrI ((rrL Log_m).get §allGlobals{1}) ((rrL Log_m).get §allGlobals{2}))

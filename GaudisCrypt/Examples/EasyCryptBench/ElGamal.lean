@@ -200,9 +200,9 @@ theorem cpa_ddh0 (A : Adversary P) :
   stmt_split_pair{2} 4
   -- EC's `swap{1} 7 -5`, the other way round: the right side's `y` and what depends on it move
   -- after the adversary's `choose` and the coin
+  stmt_swap{2} 7 2
   stmt_swap{2} 6 2
-  stmt_swap{2} 5 2
-  stmt_swap{2} 2 4
+  stmt_swap{2} 3 4
   stmt_wp
   equiv_call
   stmt_wp
@@ -227,9 +227,9 @@ theorem ddh1_gb (A : Adversary P) :
   stmt_split_pair{1} 5
   -- EC's `swap{1} 3 2; swap{1} [5..6] 2; swap{2} 6 -2`: the exponent `z` drawn after the
   -- adversary's choice and the coin, on both sides
-  stmt_swap{1} 7 2
-  stmt_swap{1} 3 5
-  stmt_swap{2} 6 -2
+  stmt_swap{1} 8 2
+  stmt_swap{1} 4 5
+  stmt_swap{2} 7 -2
   stmt_wp
   equiv_call
   stmt_wp

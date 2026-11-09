@@ -760,8 +760,8 @@ theorem DPRestr_f_G23 :
           exact ⟨by rw [e4], by col_eq⟩
         case «then» =>
           equiv_case (sfGuard §ROhandle.FRO.m{1} §G1.chandle{1} §G1.mh{1} §x1{1} = true)
-          · stmt_swap{2} 2 9
-            stmt_swap{2} 1 9
+          · stmt_swap{2} 3 9
+            stmt_swap{2} 2 9
             equiv_seq_last 1 1 : (§x1{1} = §x1{2} ∧ §y0{1} = §y0{2} ∧ colEq §allGlobals{1}
                 §allGlobals{2})
             · equiv_seq_last 11 12 : (§x1{1} = §x1{2} ∧ §y1{1} = §y1{2} ∧
@@ -952,9 +952,9 @@ theorem DPRestr_fi_G23 :
           rintro g₁ g₂ x1 _ ⟨⟨rfl, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩, -⟩
           exact ⟨by rw [e2], by col_eq⟩
         case «then» =>
-          stmt_swap{1} 9 -3
           stmt_swap{1} 10 -3
           stmt_swap{1} 11 -3
+          stmt_swap{1} 12 -3
           equiv_seq_last 4 4 : (§x1{1} = §x1{2} ∧ §hx2{1} = §hx2{2} ∧ §t{1} = §t{2} ∧
               colEq §allGlobals{1} §allGlobals{2} ∧
               §t{1} = decide (FMap.dom §ROhandle.FRO.m{1}

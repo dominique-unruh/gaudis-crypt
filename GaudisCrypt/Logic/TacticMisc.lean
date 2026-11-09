@@ -266,8 +266,20 @@ partial def unfoldReadStep (σ : FVarId) (e : Lean.Expr) : MetaM (Option Lean.Ex
 /-- Unfold the reads of `σ` in `e` that are not reads of a lens or getter as it is, but of
 an expression built around them (`unfoldReadStep`), until none is left: what remains are reads
 `x.get σ` (or `x.get σ.globals`) of the lenses and getters themselves.  A definitional rewrite. -/
-def unfoldReads (σ : FVarId) (e : Lean.Expr) : MetaM Lean.Expr :=
+def unfoldReads (σ : FVarId) (e : Lean.Expr) (foldRenames : Bool := true) : MetaM Lean.Expr :=
   Meta.transform e (post := fun e => do
+    -- the globals of the state an inlined call renamed (`(Flatten.rename r).chain Flatten.trafo`,
+    -- `Flatten.emb`): renaming touches the locals only, they are the state's globals (by `rfl`,
+    -- `globals_chain_get`, …); generalized as a state of its own they would be unrelated to them
+    if foldRenames && e.isAppOfArity ``ProgramState.globals 1 then
+      let a := e.appArg!
+      if a.isAppOfArity ``Getter.get 4 && isStateOf σ a.appArg! &&
+          ((a.getArg! 2).find? fun t => t.isConstOf `GaudisCrypt.Flatten.trafo ||
+            t.isConstOf `GaudisCrypt.Flatten.emb || t.isAppOf `GaudisCrypt.Flatten.rename).isSome then
+        let s := a.appArg!
+        let r := mkApp (mkConst ``ProgramState.globals) s
+        if (← inferType s).isConstOf ``ProgramState then
+          if ← withDefault (isDefEq e r) then return .visit r
     match ← unfoldReadStep σ e with
     | some r => return .visit r
     | none => return .done e)
@@ -305,6 +317,32 @@ def freshIn (used : Array String) (base : String) : String := Id.run do
   let mut i := 1
   while used.contains (base ++ toString i) do i := i + 1
   return base ++ toString i
+
+/-- The `Decidable` instances under `decide p` re-synthesized for `p` as it stands: simplifying
+the reads in `p` (`simp_reads`) leaves the instance about the old `p` — equal by unfolding, but
+not at instances transparency, so that rewriting or generalizing a read through the `decide`
+fails ("not type-correct").  Each instance is replaced by the synthesized one when the two are
+equal by definition (a `change`). -/
+def normDecide (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun t => do
+    if t.isAppOfArity ``Decidable.decide 2 then
+      let p := t.getArg! 0
+      let i := t.getArg! 1
+      if p.hasLooseBVars then return .continue
+      try
+        let j ← synthInstance (mkApp (mkConst ``Decidable) p)
+        if j != i then
+          if ← withDefault (isDefEq i j) then
+            return .done (mkApp2 (mkConst ``Decidable.decide) p j)
+      catch _ => pure ()
+    return .continue)
+
+/-- `normDecide` on the goal (a `change`). -/
+def normDecideGoal (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let ty' ← normDecide ty
+  if ty' == ty then return g
+  g.replaceTargetDefEq ty'
 
 /-- A region of variables, `X.footprint = R` (`X` their `Lens.pair`): equal on it is equal on
 `X` (EC's `={glob C}` as `={C.c, C.queries}`). -/

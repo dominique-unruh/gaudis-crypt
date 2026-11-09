@@ -146,7 +146,8 @@ alone (`onlyRead`), its reads with it.  Where the globals themselves occur
 (`§allGlobals`, the globals a call leaves), they become a value `globals₁`/`globals₂` first, and the reads of
 global variables stay reads of it (`x.get globals₁`), so nothing is lost.  Atomic, as
 `generalizeReads`. -/
-def generalizeReadsRel (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext do
+def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
+    commitIfNoEx <| g.withContext do
   let (fvs, g) ← g.introN 2
   let #[σ₁, σ₂] := fvs | throwError "generalizeReadsRel: expected two states"
   let (gvs, g) ← g.withContext do
@@ -154,12 +155,15 @@ def generalizeReadsRel (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withCont
     -- `§allGlobals` is the globals themselves (`allGlobals_get`, by `rfl`): spelled as such, it
     -- makes the reads of global variables stay reads of the generalized globals, instead of
     -- becoming values unrelated to them
-    let ty ← Meta.transform (← unfoldReads σ₂ (← unfoldReads σ₁ ty)) (post := fun e => do
+    let ty ← Meta.transform (← unfoldReads σ₂ (← unfoldReads σ₁ ty normDec) normDec)
+      (post := fun e => do
       if e.isAppOfArity ``Getter.get 4 && (e.getArg! 2).isConstOf ``allGlobals
           && e.appArg!.isFVar then
         return .done (mkApp (mkConst ``ProgramState.globals) e.appArg!)
       return .continue)
     let g ← g.change ty
+    -- (EC's `auto`, `equiv_skip_ec`: the `decide` instances first, so that no read is left)
+    let g ← if normDec then (try TacticMisc.normDecideGoal g catch _ => pure g) else pure g
     let g ← try TacticMisc.globTuples g catch _ => pure g
     let body ← instantiateMVars (← g.getType)
     let mut args : Array GeneralizeArg := #[]
@@ -289,16 +293,20 @@ elab "equiv_proc_to_stmt" : tactic => liftMetaTactic1 fun g => some <$> equivPro
 /-! ## Relational steps -/
 
 /-- `skip ~ skip`: the implication, reads generalized (`generalizeReadsRel`). -/
-def equivSkip (g : MVarId) : MetaM MVarId := do
+def equivSkip (g : MVarId) (normDec : Bool := false) : MetaM MVarId := do
   let _ ← prhlGoal g "equiv_skip"
   let gs ← applyLemma ``prhlStmt_skip g
   let #[g] := gs | throwError "equiv_skip: `prhlStmt_skip` left {gs.size} goals"
-  try generalizeReadsRel g catch _ => pure g
+  try generalizeReadsRel g normDec catch _ => pure g
 
 /-- `equiv_skip`: at `skip ~ skip` (what `stmt_wp` leaves when the code is all deterministic),
 the implication from the precondition to the postcondition, the reads of the two states as
 plain values `x₁`, `x₂`. -/
 elab "equiv_skip" : tactic => liftMetaTactic1 fun g => some <$> equivSkip g
+
+/-- `equiv_skip`, the `decide` instances normalized first (`TacticMisc.normDecide`), so that every
+read is generalized (EC's `auto` uses it). -/
+elab "equiv_skip_ec" : tactic => liftMetaTactic1 fun g => some <$> equivSkip g (normDec := true)
 
 /-- **EC's `rnd{i}`**: the last statement of side `i` is a sampling `x <$ d`, which goes by
 itself (`prhlStmt_seq_sample_left`/`_right`): the postcondition before it asks `d` lossless and

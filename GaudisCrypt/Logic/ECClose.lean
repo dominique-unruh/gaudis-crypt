@@ -29,6 +29,46 @@ namespace GaudisCrypt
 
 open Lean Meta Elab Tactic
 
+/-- `TacticMisc.normDecide` on the goal and every hypothesis (the instances under `decide`
+about the propositions as they stand). -/
+elab "norm_decide" : tactic => withMainContext do
+  let mut g ← getMainGoal
+  g ← TacticMisc.normDecideGoal g
+  for d in ← g.withContext getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    let t' ← TacticMisc.normDecide t
+    if t' != t then g ← g.replaceLocalDeclDefEq d.fvarId t'
+  replaceMainGoal [g]
+
+/-- `e` is a name (a variable with an accessible name) or a tuple of names. -/
+partial def namedTuple (lctx : LocalContext) (e : Lean.Expr) : Bool :=
+  let anon (n : Name) := n.hasMacroScopes || n.isInaccessibleUserName
+  if e.isFVar then !anon (lctx.get! e.fvarId!).userName
+  else if e.isAppOfArity ``Prod.mk 4 then namedTuple lctx (e.getArg! 2) && namedTuple lctx (e.getArg! 3)
+  else false
+
+/-- EC's `<<-` on reads: an equation between a read of the state (`FRO.m.get σ.globals`) and a
+named variable (EC's `elim* => hs0`) rewrites the read into the name everywhere, so the closer
+works with the names (`subst_vars` would eliminate the name instead). -/
+elab "subst_reads" : tactic => withMainContext do
+  let lctx ← getLCtx
+  let mut rules : Array (TSyntax `Lean.Parser.Tactic.simpLemma) := #[]
+  let anon (n : Name) := n.hasMacroScopes || n.isInaccessibleUserName
+  for d in lctx do
+    if d.isImplementationDetail then continue
+    let some (_, a, b) := (← instantiateMVars d.type).eq? | continue
+    let isRead (e : Lean.Expr) := !e.isFVar && (e.find? fun t => t.isAppOf ``Getter.get ||
+      t.isAppOf ``ProgramState.globals).isSome
+    -- a name (EC's `elim*` name, `<<-`), or a tuple of names (`(x1, x2)`, EC's `->>`)
+    let named (e : Lean.Expr) : Bool := namedTuple lctx e
+    let h ← Term.exprToSyntax d.toExpr
+    if isRead a && named b then rules := rules.push (← `(Lean.Parser.Tactic.simpLemma| $h:term))
+    else if isRead b && named a then
+      rules := rules.push (← `(Lean.Parser.Tactic.simpLemma| ← $h:term))
+  if rules.isEmpty then return
+  evalTactic (← `(tactic| simp only [$rules,*] at *))
+
 /-- EC's `<<*`: an equation between a named variable (EC's `elim* => hs`) and an anonymous one
 (a read generalized by the closer) eliminates the anonymous one, so the names stay. -/
 elab "subst_named" : tactic => withMainContext do
@@ -82,7 +122,9 @@ macro "auto_prep" : tactic => `(tactic| (
   try simp only [] at *
   all_goals intros
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
+  all_goals try norm_decide
   all_goals try subst_named
+  all_goals try subst_reads
   all_goals try subst_vars
   all_goals try glob_reads
   all_goals try rename_reads
@@ -93,7 +135,7 @@ macro "auto_prep" : tactic => `(tactic| (
   all_goals try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl] at *
   all_goals try simp only [decide_eq_true_eq, decide_eq_false_iff_not, Bool.not_eq_true',
     Bool.not_eq_eq_eq_not, Bool.not_true, not_lt, not_le, and_true, true_and,
-    indicatorE_eq_one_iff, if_true, if_false, Prod.mk.injEq] at *
+    indicatorE_eq_one_iff, if_true, if_false, Prod.mk.injEq, ite_self] at *
   -- what the simplification took apart
   all_goals try casesm* _ ∧ _, ∃ _, _, _ ∨ _
   all_goals try subst_named
@@ -168,7 +210,8 @@ elab "generalize_reads_all" : tactic => withMainContext do
     let args := rs.map fun r => ({ expr := r, xName? := some `v } : GeneralizeArg)
     let (_, g) ← g.generalize args
     return g
-  let (_, g) ← g.intros
+  -- the hypotheses back under their names (EC's `elim*` names, `inv0`, …)
+  let (_, g) ← g.introNP hyps.size
   replaceMainGoal [g]
 
 /-- **EC's `smt(l₁, …)`**: `auto_close`'s preprocessing, the reads of the states as variables

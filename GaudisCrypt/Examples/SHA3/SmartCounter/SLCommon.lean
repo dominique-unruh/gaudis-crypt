@@ -438,9 +438,9 @@ theorem swap_restr (_hD : Module.ECModule D (distExt))
     Indifferentiability.FUNCTIONALITY.view, Indifferentiability.PRIMITIVE.view]
   -- `Redo.prefixes <- …` to the end; `swap{1}[1..2] 3`: `C.init`'s writes past `P.init();
   -- F.init()`
-  stmt_swap{1} 8 3
+  stmt_swap{1} 9 3
+  stmt_swap{1} 5 4
   stmt_swap{1} 4 4
-  stmt_swap{1} 3 4
   -- `wp; sim; auto; call(:true); auto`
   equiv_sim
 
@@ -773,8 +773,8 @@ theorem Pr_restr_of_region (hD : Module.ECModule D (distExt))
   repeat stmt_inline{1} 2
   repeat stmt_inline{2} 1
   -- `C.init`'s writes past `P.init(); CO(P).init()` (EC: `auto`, by `{-C}`)
+  stmt_swap{2} 5 3
   stmt_swap{2} 4 3
-  stmt_swap{2} 3 3
   stmt_wp
   equiv_call hcall
   -- `auto; call (_:true); auto; call(:true); auto=>/#`

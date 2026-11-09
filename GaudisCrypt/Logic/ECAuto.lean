@@ -173,7 +173,7 @@ macro "equiv_auto" : tactic => `(tactic| (
     | (equiv_rnd; try stmt_wp)
     | (equiv_rnd{1}; try stmt_wp)
     | (equiv_rnd{2}; try stmt_wp)))
-  (try equiv_skip)
+  (try equiv_skip_ec)
   (try ((try simp_reads); intros; first
     | rfl
     | trivial
@@ -195,8 +195,8 @@ elab "hoare_auto" : tactic => do
   evalTactic (← `(tactic| try ((try simp_reads); intros; first
     | trivial
     | (simp_all; done)
-    | (simp only [eval, Evaluatable.eval, decide_eq_true_eq, decide_eq_false_iff_not] at *
-       casesm* _ ∧ _; subst_vars; first | assumption | (simp_all; done)))))
+    | ((try simp only [eval, Evaluatable.eval, decide_eq_true_eq, decide_eq_false_iff_not] at *)
+       casesm* _ ∧ _; (try subst_vars); first | assumption | (simp_all; done)))))
 
 -- the variables the steps introduce (`a`, `ha`) are the proof's to name: not hygienic
 set_option hygiene false
