@@ -172,7 +172,7 @@ the `while` row.
 | `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (EC positions; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
 | `auto` | `equiv_auto` / `hoare_auto` / `phoare_auto` |
 | `skip` | `equiv_skip` / `hoare_skip` / `phoare_skip`; if a read under `decide` or an inlined call's renamed state blocks the closer, `equiv_skip_ec` (what `equiv_auto` uses) |
-| `if` / `if{i}` | `stmt_if` (goals EC's: `guard, then, else`) / `stmt_if{i}` |
+| `if` / `if{i}` | `stmt_if` (goals EC's: `guard, then, else`; each branch with the code after it, flattened: EC's positions inside a branch) / `stmt_if{i}` |
 | `rcondt{i} n` / `rcondf{i} n` | `stmt_rcondt{i} n` / `stmt_rcondf{i} n`, EC's positions; side goal first: `· hoare_auto; …` |
 | `seq n m : P` (pRHL) | `equiv_seq n m : (P)` (leading counts, resets not counted). The old from-the-end cut is `equiv_seq_last` |
 | pHL `seq n : E p₁ p₂ p₃ p₄ I` (upper bound) | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged `invariant, first_E, second_E, first_notE, second_notE, bound` (bounds `1` closed on the spot), `_` bound allowed. `≤` goals only |
@@ -270,6 +270,15 @@ in `Lib/EC/` under EC's name if generic.  Never an aux lemma for a program step.
   `x ∈ m → m.[x] = Some (oget m.[x])` is EC's `FMap.get_some`.
 * One EC closer repeated over many leaves (`smt(get_setE mem_set DBlock.dunifin_ll …)`): one
   file-local `macro` with a docstring naming EC's call, used at each leaf.
+* EC's `smt(lemma)` where the lemma is an inequality (`prefix_sizel`, `card_rng_set`): `grind`'s
+  default pattern is the normalized inequality, which never matches — give the lemma a
+  `grind_pattern` on the term EC's `smt` would trigger on (`grind_pattern card_rng_set =>
+  FMap.frng (FMap.set m x y)`), next to the lemma; then `smt_close [lemma]` works.
+* A procedure called as a module (`call Gcol.sample_c.procedure`, inside an inlined oracle) is
+  `Module.proc p` to the footprint solver, which reads only named `module`s off their code: give
+  it an `@[fp_bound]` (`FVP.fvP (Module.proc M.f.procedure) ≤ … := by fp_module (Lens.pair …)`).
+* Our abstract `call (_ : ={…} ∧ I)` keeps `={glob D}` in the oracles' judgments (EC's do not
+  mention it): EC's intermediate `seq` conditions inside an oracle need `glob D` added (gap).
 * `simp_all` can cycle on hypotheses that are equations between reads (EC's frames) and hit the
   recursion limit — a *runtime* exception that `try`/`first` do not catch: `auto_progress` uses
   `simp_all_done_safe` (runtime-safe); in hand closers avoid bare `simp_all` on such contexts.
