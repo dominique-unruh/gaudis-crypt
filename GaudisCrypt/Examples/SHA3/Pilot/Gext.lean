@@ -21,6 +21,14 @@ Translation:
 set_option linter.dupNamespace false
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
+* GAP 1: as Gcol's: our abstract `call (_: ={…} /\ inv)` keeps `={glob D}` in the oracles'
+  judgments: `glob D` added to EC's intermediate conditions.
+* GAP 2: as Gcol's: inline by name vs the old declarations' accessors: by index.
+* GAP 3: `sp` through an inlined call (`G1_G2`'s `M.f`): the start state as nested existentials
+  with whole-state equations through the inliner's renaming (`ProgramState.mapLocal`); the
+  closers do not use them (EC's `sp` keeps reads, `exists` only for overwritten values).
+* EC's `x` (the wrapper `DRestr`'s parameter) is not a program variable after our `sp`
+  (it is substituted): `x{1} = x0{1}` dropped, `x` read as `x0`.
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.Gext
@@ -150,8 +158,102 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
         simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
         tauto
     · equiv_auto
-  · sorry
-  · sorry
+  -- EC: + proc;sp;if;auto;inline G1(DRestr(D)).S.fi G2(DRestr(D), FRO).S.fi;sp;wp.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    --     (GAP 2: the only call on each side, by index)
+    · stmt_inline 0; stmt_sp; stmt_wp
+      -- EC: if=>//;last by auto.
+      stmt_if
+      · auto_close
+      on_goals -1 => (equiv_auto; auto_close)
+      -- EC: seq 6 8:
+      --       (={F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.paths,G1.chandle,FRO.m,hx2,x,x0,y0,hx2,C.queries,
+      --          C.c} /\
+      --        t{2} = (in_dom_with FRO.m (oget G1.mhi.[(x.`1, hx2)]).`2 Unknown){1} /\ x{1} = x0{1} /\
+      --        (G1.bext{1} => (G1.bext{2} \/ (rng FRO.m (x.`2, Unknown)){2} \/
+      --                         inv_ext G1.m{2} G1.mi{2} FRO.m{2})) /\
+      --       (forall h, h \in FRO.m => h < G1.chandle){1} /\
+      --       x{1} \notin G1.mi{1}).
+      --     (GAP 1: `glob D` added; `x`, the wrapper's parameter: `x0`)
+      equiv_seq 6 8 : (={glob D, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
+          hx2, x0, y0, C.queries, C.c} ∧
+          §t{2} = decide (FMap.in_dom_with §FRO.m{1}
+            (oget (FMap.get §G1.mhi{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
+          (§G1.bext{1} → §G1.bext{2} ∨ FMap.rng §FRO.m{2} ((§x0{2}).2, Unknown) ∨
+            inv_ext §G1.m{2} §G1.mi{2} §FRO.m{2}) ∧
+          (∀ h, FMap.dom §FRO.m{1} h → h < §G1.chandle{1}) ∧ ¬ FMap.dom §G1.mi{1} §x0{1})
+      -- EC: + inline *; auto=> |> &ml &mr Hi Hhand.
+      --       rewrite -dom_restr rng_restr !rngE /= negb_exists=> /= |> c_le_msize x_notin_G1.
+      --       … (the cases of `rng FRO.m (x.`2, Known)`)
+      · stmt_inline*; equiv_auto; auto_prep
+        simp only [GaudisCrypt.SHA3.Gext.rng_restr] at *
+        split_ifs
+        · exact ⟨⟨rfl, trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
+            GaudisCrypt.SHA3.Gext.bext_pre ‹_› (fun _ _ h => h), ‹_›, ‹_›⟩
+        · exact ⟨⟨rfl, trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
+            GaudisCrypt.SHA3.Gext.bext_pre ‹_› (GaudisCrypt.SHA3.Gext.get_set_fresh ‹_› _),
+            GaudisCrypt.SHA3.Gext.fresh_set ‹_› _, ‹_›⟩
+      -- EC: if=>//.
+      stmt_if
+      · auto_close
+      -- EC: + inline *;rcondt{2} 4.
+      --       + by move=> &m;auto;rewrite /in_dom_with.
+      · stmt_inline*; stmt_rcondt{2} 4
+        · hoare_auto; auto_prep
+          exact ‹FMap.in_dom_with _ _ _›.1
+        -- EC: auto;progress.
+        --     + rewrite /inv_ext1=>/H{H}[->//|[|[[x1 x2] h [Hx Hh]]]]. …
+        --     by move:H5 H1;rewrite /in_dom_with mem_set /#.
+        equiv_auto; auto_prep
+        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨rfl,
+          GaudisCrypt.SHA3.Gext.inv_ext1_hit ‹_› (by simp [FMap.fdom_set]) (fun z hz => ?_) _,
+          fun h hd => ?_⟩⟩
+        · simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
+          tauto
+        · rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
+          · exact ‹∀ (h : handle), (FRO.m.get _).dom h → h < _› h hd
+          · exact ‹∀ (h : handle), (FRO.m.get _).dom h → h < _› _ ‹FMap.in_dom_with _ _ _›.1
+      -- EC: inline *;auto;progress;last by move:H3;rewrite mem_set /#.
+      --     rewrite /inv_ext1=> /H [->//|[|[x' h [Hx Hh]]]]. …
+      · stmt_inline*; equiv_auto; auto_prep
+        refine ⟨rfl, GaudisCrypt.SHA3.Gext.inv_ext1_of_weak ‹_› (by simp [FMap.fdom_set])
+          (fun z hz => ?_) (GaudisCrypt.SHA3.Gext.get_set_fresh ‹_› _),
+          GaudisCrypt.SHA3.Gext.fresh_set ‹_› _⟩
+        simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
+        tauto
+    · equiv_auto
+  -- EC: + proc;sp;if;auto;sp;if;auto;sp.
+  --       inline G1(DRestr(D)).M.f G2(DRestr(D), FRO).M.f;sp;wp.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals -1 => equiv_auto
+    stmt_sp; stmt_if
+    · auto_close
+    on_goals -1 => equiv_auto
+    stmt_sp
+    --     (GAP 2: the only call on each side, by index)
+    stmt_inline 0; stmt_sp; stmt_wp
+    -- EC: conseq (_: ={sa,G1.mh,G1.mhi,F.RO.m, G1.chandle, FRO.m,C.queries,C.c} /\
+    --                inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\
+    --                forall (h0 : handle), h0 \in FRO.m{1} => h0 < G1.chandle{1})=>//.
+    --     (GAP 1: `glob D` added)
+    equiv_conseq (: _ ==> ={glob D, sa, G1.mh, G1.mhi, F.RO.m, G1.chandle, FRO.m, C.queries, C.c} ∧
+        inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
+        ∀ h0, FMap.dom §FRO.m{1} h0 → h0 < §G1.chandle{1})
+    --     (GAP 3: `conseq`'s frame goal: our `sp`s through the inlined call leave the start state
+    --     as nested existentials with whole-state equations through the inliner's renaming
+    --     (`ProgramState.mapLocal`), which the closers do not use; EC's `sp` keeps reads)
+    case post => sorry
+    -- EC: sp;call (_: ={F.RO.m});1:by sim.
+    --     while (={sa,G1.mh,G1.mhi,F.RO.m,G1.chandle,FRO.m,i,h,sa,p,C.queries,counter,bs} /\
+    --            inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\ p{2} = bs{2} /\
+    --            forall (h0 : handle), h0 \in FRO.m{1} => h0 < G1.chandle{1})=>//.
+    --     if=>//;inline *;1:by auto.
+    --     if;1,3:auto;progress.
+    --     rcondt{2} 3;1:by auto=>/#.
+    --     auto;progress. …
+    sorry
   -- EC: inline *;auto;progress.
   --     smt(mem_set mem_empty).
   · equiv_auto; auto_prep
