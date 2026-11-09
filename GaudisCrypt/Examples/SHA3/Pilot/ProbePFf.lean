@@ -32,9 +32,18 @@ theorem PFf_Cf_dom_next (hs : handles) (ch : handle) (Pm Pmi Gm Gmi : smap) (mh 
   obtain ⟨c, hc⟩ := Iq _ hmem
   exact all_prefixes_of_m_p _ _ _ hmp _ ((FMap.domE _ _).2 (by simp [hc])) _
 
+/-- EC's `smt(get_setE mem_set DBlock.dunifin_ll DCapacity.dunifin_ll)` closing the leaves of
+`PFf_Cf`'s second loop in the bad case (the bad event stays, the samplings are lossless), by
+hand. -/
+local macro "pf_bad_leaf" : tactic => `(tactic| (auto_prep; all_goals (simp_all [FMap.get_setE,
+  FMap.mem_set, F.dout, bdistr_expected_one, cdistr_expected_one] <;>
+  (intros; (try refine ⟨FMap.get_some _ _ ‹_›, ?_⟩); simp only [← Bool.not_eq_true] at *; tauto))))
+
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 2: `equiv_while`'s `exit` has no frame of the variables the loop does not modify (EC's
   `while` keeps them): `={bs}` added to the first loop's invariant.
+* GAP 4: a clone's op given as a function (`op dout _ <- bdistr`) is not substituted and
+  beta-reduced in code as in EC: `r <$ F.dout x` reads `x`, so EC's `swap{2} 4 -3` fails.
 * GAP 3: `grind` patterns of arithmetic lemmas are their normalized inequalities
   (`prefix_sizel`), which never match: `grind_pattern prefix_sizel => «prefix» l1 l2` (to move
   next to the lemma, `SLCommonCore`).
@@ -407,6 +416,45 @@ theorem PFf_Cf' : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       PJ1_PJ2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ1 (by unfold qpre; omega)
     exact ⟨hI2, hb, hmp, fun _ _ => rfl, fun _ hl => Or.inl hl, rfl, by omega, ⟨f, hh⟩, hb', hif,
       hnext⟩
-  case body => trace "W2 BODY"; trace_state; sorry
+  case body =>
+    -- EC: case : (! (G1.bcol{2} \/ G1.bext{2}));last first.
+    equiv_case (¬(§G1.bcol{2} ∨ §G1.bext{2}))
+    rotate_right
+    -- EC: - wp 1 1=>/=.
+    · stmt_wp 1 1
+      -- EC: conseq(:_==> Redo.prefixes{1}.[take (i{1}+1) p{1}] = Some (sa{1}, sc{1})
+      --           /\ (take (i{1} + 1) p{1} \in Redo.prefixes{1})
+      --           /\ (G1.bcol{2} \/ G1.bext{2}));1:smt(prefix_ge0).
+      equiv_conseq (: _ ==>
+          FMap.get §Redo.prefixes{1} (take (§i{1} + 1) §p{1}) = some (§sa{1}, §sc{1}) ∧
+          FMap.dom §Redo.prefixes{1} (take (§i{1} + 1) §p{1}) ∧ (§G1.bcol{2} ∨ §G1.bext{2}))
+      · auto_prep
+        all_goals (try simp only [Bool.and_eq_true, decide_eq_true_eq] at *)
+        all_goals (split_ands <;> (try omega) <;> (try simp_all))
+      -- EC's closer of every leaf below: smt(get_setE mem_set DBlock.dunifin_ll DCapacity.dunifin_ll)
+      -- EC: if {1}; last first.
+      stmt_if{1}; rotate_right
+      -- EC: + sp; if {1}; if {2}; last first.
+      · stmt_sp; stmt_if{1} <;> stmt_if{2}
+        rotate_right
+        -- EC: + if {2}; sp; auto=> />. (+ smt …) smt …
+        · stmt_if{2} <;> (stmt_sp; equiv_auto) <;> (pf_bad_leaf)
+        -- EC: + auto=> />. smt …
+        · equiv_auto; pf_bad_leaf
+        -- EC: + if {2}; last first. + auto=> />. smt … + swap {2} 4 -3; auto=> />. smt …
+        · stmt_if{2}; rotate_right
+          · equiv_auto; pf_bad_leaf
+          -- GAP 4: our clone keeps `r <$ F.dout x` (EC's `op dout _ <- bdistr` substitutes
+          -- `bdistr`), so the sampling reads `x` and does not swap; our `auto` couples without it
+          · equiv_auto; pf_bad_leaf
+        -- EC: auto=> />. smt …
+        · equiv_auto; pf_bad_leaf
+      -- EC: if {2}. + auto=> />. smt …  if {2}. + auto=> />. smt …  auto=> />. smt …
+      · stmt_if{2}
+        · equiv_auto; pf_bad_leaf
+        · stmt_if{2}
+          · equiv_auto; pf_bad_leaf
+          · equiv_auto; pf_bad_leaf
+    trace "W2 GOOD"; trace_state; sorry
 
 end GaudisCrypt.SHA3.Pilot.Handle
