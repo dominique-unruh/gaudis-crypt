@@ -711,6 +711,24 @@ theorem Pr_ext (m : VariableAssignment) :
       (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
         (by positivity))
 
+/-- EC's closer of `EG2_Gext`'s oracles when the unknown handle `k` is resampled
+(`rewrite /bad_ext !get_setE /= set_set_eqE //=. rewrite !(imageU,inE) restr_set /= size_rem
+dom_restr Hin //=; smt w=size_set_le.`): `G2`'s update of `G1.bext` is `ReSample.f1`'s, and the
+invariant steps from `inv_lt` to `inv_le`. -/
+theorem ext_hit {b2 : Bool} {m mi : smap} {F : handles} {k : handle} {a : capacity}
+    {x y : SLCommon.state} {c count : ℤ}
+    (hin : FMap.in_dom_with F k Unknown) (hI : inv_lt m mi c F count) :
+    (b2 || decide (bad_ext m mi a) || decide (a = x.2)) =
+        (b2 || decide (a ∈ Finset.image Prod.snd (FMap.fdom m ∪ FMap.fdom mi) ∪ fset1 x.2)) ∧
+      inv_le (FMap.set m x y) (FMap.set mi y x) c (FMap.set F k (a, Known)) (count + 1) := by
+  refine ⟨GaudisCrypt.SHA3.Gext.bext_eq _ _ _ _ _,
+    GaudisCrypt.SHA3.Gext.inv_lt.step hI (GaudisCrypt.SHA3.Gext.size_set_le _ _ _)
+      (GaudisCrypt.SHA3.Gext.size_set_le _ _ _) ?_⟩
+  rw [FMap.restr_set, if_neg (by decide), GaudisCrypt.SHA3.Gext.size_rem,
+    if_pos ((FMap.dom_restr _ _ _).mpr hin)]
+  have := Finset.card_pos.mpr ⟨k, (FMap.mem_fdom _ _).mpr ((FMap.dom_restr _ _ _).mpr hin)⟩
+  omega
+
 /-- EC's `local equiv RROset_inv_lt : RRO.set ~ RRO.set : ={x, y, FRO.m} /\ inv_lt G1.m{2}
 G1.mi{2} C.c{1} FRO.m{2} ReSample.count{2} ==> ={res,FRO.m} /\ inv_lt G1.m{2} G1.mi{2} C.c{1}
 FRO.m{2} ReSample.count{2}`. -/
@@ -831,12 +849,44 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
           · auto_close
           --     (`in_dom_with` and `RRO.queried`'s `is_` unfolded: EC's `auto` sees through them)
           · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
-            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt, inv_le] at *
+            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt] at *
             auto_close
           · equiv_auto
-            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt, inv_le] at *
+            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt] at *
             auto_close
-        trace "SFC"; trace_state; sorry
+        -- EC: if=>//;wp.
+        stmt_if
+        · auto_close
+        -- EC: + inline *;rcondt{1} 4;1:by auto=>/#.
+        --       rcondt{2} 5;1:by auto;smt w=(size_ge0).
+        --       rcondt{2} 10. by auto;progress;rewrite mem_set.
+        · stmt_wp; stmt_inline*
+          stmt_rcondt{1} 4
+          · hoare_auto; simp only [FMap.in_dom_with, PROM.is_, oget] at *; auto_close
+          --     (our inliner binds `ReSample.f1`'s two parameters in one assignment: EC's
+          --     positions 5 and 10 are 4 and 9)
+          stmt_rcondt{2} 4
+          · hoare_auto; simp only [inv_lt] at *; auto_close
+          stmt_rcondt{2} 9
+          · hoare_auto; auto_prep
+            exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)
+          -- EC: wp;rnd{2};auto=> /= ??[#]!-> @/inv_lt @/inv_le [#] mlt milt clt cle Hin 4? /=.
+          --     move => ? _;rewrite /bad_ext !get_setE /= set_set_eqE //=.
+          --     rewrite !(imageU,inE) restr_set /= size_rem dom_restr Hin //=; smt w=size_set_le.
+          stmt_wp; equiv_rnd{2}; equiv_auto; auto_prep
+          simp only [FMap.get_set_sameE, GaudisCrypt.SHA3.Gext.set_set_same, oget,
+            Option.getD_some]
+          have hin := ‹_ = true → FMap.in_dom_with _ _ _›
+            ((Bool.and_eq_true _ _).mp ‹(decide _ && _) = true›).2
+          refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun _ _ =>
+            ⟨⟨trivial, trivial, trivial, trivial, ?_⟩, (ext_hit (b2 := false) hin ‹_›).2⟩⟩
+          exact (ext_hit (y := default) hin ‹_›).1
+        -- EC: by call RROset_inv_lt;auto;smt w=size_set_le.
+        · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
+          --     (EC's `smt w=size_set_le`: the step `inv_lt.step` with `size_set_le` at `inv_le`)
+          auto_prep
+          refine ⟨‹_›, fun r₁ g₁ r₂ g₂ ⟨hF, hI⟩ _ _ => ⟨by auto_close,
+            Gext.inv_lt.step hI (Gext.size_set_le _ _ _) (Gext.size_set_le _ _ _) le_rfl⟩⟩
       · equiv_auto
     · sorry
     · sorry
