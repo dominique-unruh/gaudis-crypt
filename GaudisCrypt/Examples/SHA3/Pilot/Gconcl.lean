@@ -23,8 +23,9 @@ Translation:
   (Gext's GAP 4): its read `(localVarLens "x" SLCommon.state)` written out.
 * GAP 4: `swap` of a statement past code calling a procedure with a disjoint footprint (EC's
   `swap{1} [3..7] -2` in `G2_G3`'s `S.f`: `RRO`'s calls past the conditional calling `F.RO.get`):
-  ours handles deterministic code and samplings only; the general rule (disjoint footprints
-  commute, `Program.commute_of_disjoint`) has no statement-level form yet.  `G2_G3`'s `S.f`
+  ours handles deterministic code and samplings only.  `ProgramDenotation.commute_of_disjoint_footprint`
+  does not apply as is: both blocks *read* the parameter `x`, so it is in both footprints; EC's
+  swap needs only no write/read conflict.  Needs read/write sets (as Gext's GAP 5).  `G2_G3`'s `S.f`
   bullet is a `sorry`.
 * GAP 5: `sim` stops at two loops after `inline*` (`G2_G3`'s `M.f` callee) where EC's goes
   through: `equiv_while` with EC's equality set, the bodies by `sim`.

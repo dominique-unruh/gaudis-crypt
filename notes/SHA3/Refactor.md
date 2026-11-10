@@ -717,6 +717,15 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   `smt_close [size_ge0]` (6), a local not a name after `sp; call` (7).  `Real_G2` waits for
   `Real_G1`: Pilot/Handle's `CF_G1` is over the old `CF`, Pilot/ConcreteF's `Real_Concrete` over
   the EC-form one.
+* `Gconcl.ec` (2026-11-10, `Pilot/Gconcl.lean`, not in the barrel): `G3_G4`, `G4_Ideal` in EC's
+  scripts, sorry-free; `G2_G3` too except its `S.f` bullet (GAP 4).  Infrastructure: frame builders
+  no longer fail because of earlier errors in the file (message log reset); `equiv_call (_ : ={x})`
+  between different concrete callees leaves their judgment (EC's); `sim` over a call keeps EC's
+  equality set (the callee's variables read after it) instead of all globals; `equiv_while{i}`
+  reachable again next to the two-sided `equiv_while (I)`; `RO.asRO` footprints.  Open gaps
+  (Gconcl header): `sim` into calls of different procedures (1), one-sided `while` frame (2),
+  procedure parameter names (3), swap of code with disjoint footprints sharing reads — needs
+  read/write sets (4), `sim` through two loops after `inline*` (5).
 
 ### What retiring the old files waits for
 

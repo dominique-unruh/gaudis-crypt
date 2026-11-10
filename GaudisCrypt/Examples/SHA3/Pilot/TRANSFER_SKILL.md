@@ -457,6 +457,18 @@ Document each in the docstring when it applies.
   missing, still fix the errors above it first.
 * **Two different concrete callees**: `equiv_call (_ : ={x})` is EC's
   `={arg, x} ==> ={res, x}`, the callees' judgment left as the first goal (EC's `call` subgoal).
+* **`sim` over a call**: with no equality set given, ours now keeps EC's — the variables read
+  after the call that the callee touches (`F.RO.m` for `RO.get`), needing their `fp_bound`s
+  (`fp_le` on the callee).  A `sim` goal asking `globals₁ = globals₂` means no bound was found.
+  Our `sim` still stops at calls of *different* procedures (`stmt_inline*` first, then `sim`) and
+  sometimes at two loops after `inline*` (`equiv_while (={…})`, bodies by `sim`).
+* **One-sided `while{i}`**: `equiv_while{1} (I) (V)` (both in parentheses); it has no frame of
+  what the loop keeps (EC's has): put those equations in `I`.  Its goals: `lossless`
+  (`while_ll_phoare; intro σ₂; phoare_auto`), `variant` (`intro σ₂ k; hoare_auto`), `exit`, code
+  before.
+* **EC's `case (P{1}); [rcondt{1} n;2:rcondt{2} n | rcondf{1} n;2:rcondf{2} n]`**:
+  `equiv_case (P)` then per branch `stmt_rcondt{1} n` / `stmt_rcondt{2} n`, each side goal by
+  `hoare_auto` (EC's `move=>?;conseq (_:true);auto`).
 * **Globals in `sp`'s existential form**: the rule states `X.intoGlobal.get σ = …` and
   `… (X.intoGlobal.set v σ).globals …`; `stmt_sp` now rewrites them to `§x` reads.  Unnormalized,
   frames (`ECSim.varsOf`) and closers did not see the variable: a framed call lost its frame
