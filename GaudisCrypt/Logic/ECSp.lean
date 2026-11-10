@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.PRHLWp
+import GaudisCrypt.Logic.AbstractCall
 import GaudisCrypt.Logic.PHoareWp
 
 /-!
@@ -318,8 +319,15 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
         let t ← instantiateMVars (← h.getType)
         if X.isAppOf ``Lens.intoGlobal &&
             (t.isAppOf ``prhlStmt || t.isAppOf ``hoareStmt || t.isAppOf ``phoareStmt) then
-          rest := rest.push (← Judgment.simpArg h 0
-            (``Lens.intoGlobal_get_eq :: HoareWp.simpReadsDecls) [])
+          let h ← Judgment.simpArg h 0 (``Lens.intoGlobal_get_eq :: HoareWp.simpReadsDecls) []
+          -- `glob D` past the write `X.set v` (`X` outside `D`'s footprint): EC's `glob D` as it was
+          let t ← instantiateMVars (← h.getType)
+          let h ← if (t.find? (·.isAppOf ``Footprint.touched_getter)).isNone then pure h else
+            match ← Term.TermElabM.run' (Tactic.run h (evalTactic (← `(tactic|
+                try simp (disch := fp_disjoint) only [GaudisCrypt.touched_set_of_le_compl])))) with
+            | [h'] => pure h'
+            | _ => pure h
+          rest := rest.push h
           continue
         rest := rest.push h
       pure (some rest.toList)

@@ -34,6 +34,8 @@ set_option linter.dupNamespace false
   `proc` (not in the code's `var` list): written as its read `(localVarLens "x" SLCommon.state)`.
 * GAP 5: a call's frame (`equiv_call`) keeps only variables outside the callee's footprint;
   EC's keeps what the callee does not write (`RRO.allKnown` reads `FRO.m`): read/write sets.
+* GAP 6: `smt_close [size_ge0]` does not close `0 ≤ size p` (EC's `smt(List.size_ge0)`):
+  `exact size_ge0 _` first.
 * EC's `x` (the wrapper `DRestr`'s parameter) is not a program variable after our `sp`
   (it is substituted): `x{1} = x0{1}` dropped, `x` read as `x0`.
 -/
@@ -974,9 +976,79 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
       on_goals -1 => equiv_auto
       stmt_inline 0
       stmt_sp 6 6; equiv_elim* => c0L c0R
+      --     (`={C.c}` before: the two sides' values are one, `c0L`, EC's `c0R` too)
       stmt_wp; equiv_call (_ : ={F.RO.m})
-      trace "MF"; trace_state
-      sorry
+      -- EC: conseq(:_==> ={i,p,G1.mh,sa,h,FRO.m,F.RO.m,G1.mh,G1.mhi,G1.chandle,counter} /\
+      --        0 <= i{1} <= size p{1} /\
+      --        0 <= counter{1} <= size p{1} -
+      --        prefix bs{1} (get_max_prefix bs{1} (elems (fdom C.queries{1}))) /\
+      --        c0R + size p{1} -
+      --        prefix bs{1} (get_max_prefix bs{1} (elems (fdom C.queries{1}))) <= max_size /\
+      --        inv_le G1.m{2} G1.mi{2} (c0R + counter){2} FRO.m{2} ReSample.count{2}).
+      equiv_conseq (: _ ==>
+          ={i, p, G1.mh, sa, h, FRO.m, F.RO.m, G1.mh, G1.mhi, G1.chandle, counter} ∧
+          (0 ≤ §i{1} ∧ §i{1} ≤ size §p{1}) ∧
+          (0 ≤ §counter{1} ∧ §counter{1} ≤ size §p{1} -
+            «prefix» §bs{1} (get_max_prefix §bs{1} (elems (FMap.fdom §C.queries{1})))) ∧
+          c0L + size §p{1} -
+            «prefix» §bs{1} (get_max_prefix §bs{1} (elems (FMap.fdom §C.queries{1}))) ≤ max_size ∧
+          inv_le §G1.m{2} §G1.mi{2} (c0L + §counter{2}) §FRO.m{2} §ReSample.count{2})
+      -- EC: + by auto=> />; smt(List.size_ge0).
+      · auto_progress
+        all_goals smt_close [inv_le, size_ge0]
+      -- EC: while (={bs,i,p,G1.mh,sa,h,FRO.m,F.RO.m,G1.mh,G1.mhi,G1.chandle,counter,C.queries} /\
+      --        bs{1} = p{1} /\ 0 <= i{1} <= size p{1} /\
+      --        0 <= counter{1} <= size p{1} -
+      --        prefix bs{1} (get_max_prefix bs{1} (elems (fdom C.queries{1}))) /\
+      --        c0R + size p{1} -
+      --        prefix bs{1} (get_max_prefix bs{1} (elems (fdom C.queries{1}))) <= max_size /\
+      --        inv_le G1.m{2} G1.mi{2} (c0R + counter){2} FRO.m{2} ReSample.count{2});
+      --   last first.
+      --     (`bs` only on the left: our `Gext.M.f` has no `bs`)
+      equiv_while (={i, p, G1.mh, sa, h, FRO.m, F.RO.m, G1.mhi, G1.chandle, counter, C.queries} ∧
+          §bs{1} = §p{1} ∧ (0 ≤ §i{1} ∧ §i{1} ≤ size §p{1}) ∧
+          (0 ≤ §counter{1} ∧ §counter{1} ≤ size §p{1} -
+            «prefix» §bs{1} (get_max_prefix §bs{1} (elems (FMap.fdom §C.queries{1})))) ∧
+          c0L + size §p{1} -
+            «prefix» §bs{1} (get_max_prefix §bs{1} (elems (FMap.fdom §C.queries{1}))) ≤ max_size ∧
+          inv_le §G1.m{2} §G1.mi{2} (c0L + §counter{2}) §FRO.m{2} §ReSample.count{2})
+      -- EC: + by auto=> />;smt(List.size_ge0 prefix_sizel).
+      case hpre =>
+        --     (GAP 6: `0 ≤ size p` by `size_ge0` itself)
+        equiv_auto; auto_progress
+        all_goals first
+          | exact size_ge0 _
+          | smt_close [inv_le, size_ge0, prefix_sizel]
+      -- EC: if=> //;1:by auto=>/#.
+      stmt_if
+      · auto_close
+      on_goals 1 => (equiv_auto; auto_close)
+      -- EC: if=> //;2:by auto=>/#.
+      stmt_if
+      · auto_close
+      on_goals 2 => (equiv_auto; auto_close)
+      -- EC: auto;call (_: ={F.RO.m});1:by sim.
+      equiv_auto; equiv_call (_ : ={F.RO.m})
+      -- EC: inline *;auto=> &ml&mr [#]!->@/inv_le Hi0[#] _ H_c_0 H_c_max H1 [#]H_size_m H_size_mi
+      --       H_count H2 H3/=.
+      stmt_inline*; equiv_auto; auto_prep
+      refine ⟨(Lens.footprint_touched_getter_eq_iff _ _ _).mpr ‹_›,
+        fun r₁ g₁ r₂ g₂ ⟨hr, hF⟩ h₁ h₂ => ?_⟩
+      auto_prep
+      -- EC: rewrite H3/==>H_nin_dom H_counter_prefix c;rewrite DCapacity.dunifin_fu/=.
+      --     case(G1.chandle{mr} \in FRO.m{mr})=>//=[/#|]H_handle_in_dom.
+      --     progress;..-3,-1: rewrite/#; by rewrite restr_set_eq size_set/=/#.
+      obtain ⟨h1, h2, h3, -⟩ := ‹inv_le _ _ _ _ _›
+      rw [‹FRO.m.get g₁ = _›, ‹FRO.m.get g₂ = _›]
+      split_ifs
+      · exact ⟨rfl, ⟨by omega, by omega⟩, ⟨by omega, by omega⟩, ‹_›,
+          Gext.inv_le.mono ‹_› (by omega) (by omega)⟩
+      · refine ⟨rfl, ⟨by omega, by omega⟩, ⟨by omega, by omega⟩, ‹_›, by omega, by omega, ?_,
+          by omega⟩
+        rw [FMap.restr_set_eq]
+        refine (Int.add_le_add_left
+          (Gext.size_set_le (α := handle) (β := capacity) _ _ _) _).trans ?_
+        omega
     -- EC: auto;progress[delta];rewrite ?(size0,restr0,restr_set,rem0,max_ge0,-sizeE,-cardE) //=.
     --     + smt(size_rem_le size0).
     --     + smt(). + smt(). + smt().

@@ -2,6 +2,8 @@ import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.HoareFrame
 import GaudisCrypt.Logic.FrameTactics
+import GaudisCrypt.Logic.Granular
+import GaudisCrypt.Logic.ModuleFootprint
 
 /-!
 # EasyCrypt's `conseq` keeps what the code does not modify
@@ -145,6 +147,22 @@ theorem sample {β : Type} {y : Setter β ProgramState} {e : Getter (SubProbabil
     Stmt.KeepsRegion F (.sample y e) := fun _ =>
   hoare_pre (hoare_sample_wp y _) fun σ h a _ => (hy a σ).trans h
 
+/-- A call of a module's procedure staying out of `F.glob` keeps `F` (EC's `glob A` across a call
+of a concrete procedure outside `A`), its result written where `F` does not look. -/
+theorem «call» {sig : ProcedureSignature} {y : Setter sig.ret ProgramState} {M : Module.Proc sig}
+    {args : Getter sig.ParamType ProgramState} (hF : F.FinitelySupported)
+    (hM : FVP.fvP M ≤ F.globᶜ)
+    (hy : ∀ r σ, F.touched_getter.get (y.set r σ).globals = F.touched_getter.get σ.globals) :
+    Stmt.KeepsRegion F (Stmt.call y M.procedure args) := by
+  obtain ⟨L, hL⟩ := hF.glob_fromLens
+  have hp : ∀ a, (procedureDenotation M.procedure a).inFootprint (L.footprint)ᶜ := fun a =>
+    ProgramDenotation.inFootprint_mono (Module.Proc.inFootprint_fvP M a) (hL ▸ hM)
+  intro c
+  refine hoare_pre (hoare_call_frame L hp) fun σ h r g hg => ?_
+  rw [hy, globals_globalL_set, ← h]
+  exact Footprint.touched_getter_eq_of_le (hL ▸ Footprint.le_glob F)
+    ((Lens.footprint_touched_getter_eq_iff L _ _).mpr hg)
+
 end Stmt.KeepsRegion
 
 theorem SubProbability.satisfies_and' {γ : Type*} {μ : SubProbability γ} {P Q : γ → Prop}
@@ -250,7 +268,23 @@ def dischargeRegionWrite (ty : Lean.Expr) : MetaM Lean.Expr := do
   finally
     Core.setMessageLog log
 
-/-- A proof of `Stmt.KeepsRegion F s`, by the statement's syntax (no calls). -/
+/-- A proof of the proposition `ty` by the tactic `tac` (no goal left, no error, no `sorry`). -/
+def byTactic (ty : Lean.Expr) (tac : TSyntax `tactic) : MetaM Lean.Expr := do
+  let m ← mkFreshExprMVar ty
+  let log ← Core.getMessageLog
+  try
+    let gs ← Elab.Term.TermElabM.run' <| Elab.Term.withoutErrToSorry <|
+      Elab.Tactic.run m.mvarId! (Elab.Tactic.evalTactic tac)
+    unless gs.isEmpty do throwError "keeps region: {ty}"
+    if (← Core.getMessageLog).hasErrors then throwError "keeps region: {ty}"
+    let pf ← instantiateMVars m
+    if pf.hasSyntheticSorry || pf.hasSorry then throwError "keeps region: {ty}"
+    return pf
+  finally
+    Core.setMessageLog log
+
+/-- A proof of `Stmt.KeepsRegion F s`, by the statement's syntax (calls of modules' procedures
+outside `F.glob`: `Stmt.KeepsRegion.call`). -/
 partial def keepsRegionOf (s F : Lean.Expr) : MetaM Lean.Expr := do
   let s ← TacticMisc.openStmt (← instantiateMVars s)
   let goal ← mkAppM ``Stmt.KeepsRegion #[F, s]
@@ -263,6 +297,8 @@ partial def keepsRegionOf (s F : Lean.Expr) : MetaM Lean.Expr := do
       let t ← instantiateMVars (← inferType m)
       unless ← isProp t do continue
       let pf ← if t.isAppOf ``Stmt.KeepsRegion then keepsRegionOf t.appArg! F
+        else if t.isAppOf ``Footprint.FinitelySupported then byTactic t (← `(tactic| fp_finite))
+        else if t.isAppOf ``LE.le then byTactic t (← `(tactic| fp_disjoint))
         else dischargeRegionWrite t
       unless ← isDefEq m pf do throwError "keeps region: cannot use the proof of{indentExpr t}"
     instantiateMVars (mkAppN c ms)
@@ -273,6 +309,8 @@ partial def keepsRegionOf (s F : Lean.Expr) : MetaM Lean.Expr := do
   | some ``StmtWithHoles.while => byRule ``Stmt.KeepsRegion.«while»
   | some ``StmtWithHoles.assign => byRule ``Stmt.KeepsRegion.assign
   | some ``StmtWithHoles.sample => byRule ``Stmt.KeepsRegion.sample
+  | some ``StmtWithHoles.call | some ``Stmt.call | some ``StmtWithHoles.call' =>
+    byRule ``Stmt.KeepsRegion.«call»
   | _ => throwError "keeps region: no rule for{indentExpr s}"
 
 /-- The regions `F` whose `F.touched_getter` the conditions `es` read (EC's `glob A`). -/
