@@ -707,6 +707,16 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   the proof): abstract call keeps `={glob D}` (1), inline by name vs old accessors (2), boolean
   `=>` (3), swap past a call that reads the value's globals (4), `glob D` through an `if` (5),
   `while` exit frames (6), concrete `call (_: ={x})` without frame (7).
+* `Gext.eca` (2026-11-10, `Pilot/Gext.lean`, sorry-free, in the barrel): `G1_G2`, `Pr_ext`
+  (EC's `fel`), `EG2_Gext` in EC's scripts.  Infrastructure: EC's `sp` over `x <- e` with `e`
+  reading `x` (`exists x0, P[x0/x] /\ x = e[x0/x]`, `Logic/ECSp.lean`) and `elim * => a b`
+  (`equiv_elim*`, `Logic/ECElim.lean`) — closed GAP 3 (`sp` through an inlined call); `conseq`
+  frames `glob A` across calls of concrete procedures (`Stmt.KeepsRegion.call`); framed
+  `equiv_call H`.  Open gaps (Gext header): abstract call keeps `={glob D}` (1), inline by index
+  (2), a procedure's parameter not a name (4), call frames without read/write sets (5),
+  `smt_close [size_ge0]` (6), a local not a name after `sp; call` (7).  `Real_G2` waits for
+  `Real_G1`: Pilot/Handle's `CF_G1` is over the old `CF`, Pilot/ConcreteF's `Real_Concrete` over
+  the EC-form one.
 
 ### What retiring the old files waits for
 

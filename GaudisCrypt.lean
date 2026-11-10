@@ -224,6 +224,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
 import GaudisCrypt.Examples.SHA3.Pilot.Gcol
+import GaudisCrypt.Examples.SHA3.Pilot.Gext
 import GaudisCrypt.Examples.SHA3.Pilot.Sponge
 import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF

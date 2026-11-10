@@ -454,6 +454,15 @@ Document each in the docstring when it applies.
   `… (X.intoGlobal.set v σ).globals …`; `stmt_sp` now rewrites them to `§x` reads.  Unnormalized,
   frames (`ECSim.varsOf`) and closers did not see the variable: a framed call lost its frame
   equations, a closer lost `C.c{1} = v + 1`.
+* **`conseq` and `glob A` across calls**: EC's `conseq` keeps `glob D` over code that calls
+  concrete procedures outside `D`; ours does too (`Stmt.KeepsRegion.call`, `fp_finite` and
+  `fp_disjoint` side goals).  A post goal `touched_getter τ₁ = touched_getter τ₂` left after a
+  `conseq` means the frame lost a region: check `keepsRegionOf` has a rule for each statement.
+* **`inline *` after `if`**: EC's `if=>//; inline *` inlines in *every* branch; ours is
+  `stmt_if; · auto_close; all_goals stmt_inline*`.
+* **`‹_›` and implicit shapes**: `lt_irrefl _ (‹∀ h0, _ → _› _ hd)` lets the pattern's `_` unify
+  with the wrong body; name the hypothesis first (`have hf := ‹∀ h0, … → h0 < _›`).  Likewise
+  `(h.trans (by omega))` runs `omega` before unification: `refine h.trans ?_; omega`.
 * **EC's type abbreviations** (`state`): write the module code with the library's own name
   (`SLCommon.state`).  A local `abbrev state` types the procedures' variables twice
   (`localVarLens "x0" state` vs `localVarLens "x0" SLCommon.state`); reads at one type are not

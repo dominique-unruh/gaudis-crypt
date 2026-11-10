@@ -589,6 +589,19 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 698 | declare axiom | `D_ll` | section EXT. | `D_ll` (hypothesis) | def |
 | 702 | lemma | `Real_G2` | section EXT. | `Real_G2` (`ReSample.count` chosen fresh; `Eager_1_2` by `Eager.main2_eq_main1`, side conditions from `fvP_G2`) | done |
 
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Gext.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.Gext`, over the old `Handle`/`Gext` declarations):
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 31 | declare module | `D` | `declare module D <: DISTINGUISHER {…}` | def |
+| 33 | local equiv | `G1_G2` | `G1_G2` (EC's script, 8M) | done |
+| 320 | local module | `ReSample` | `ReSample` (`f`, `f1`); `global_var ReSample.count` | def |
+| 345 | local module | `Gext` | `Gext.resample`, `Gext.M`, `Gext.S`, `Gext (D)` | def |
+| 546 | local lemma | `Pr_ext` | `Pr_ext` (EC's `fel`) | done |
+| 585 | local equiv | `EG2_Gext` | `EG2_Gext` (EC's script, 8M) | done |
+| 702 | lemma | `Real_G2` | — (needs `Real_G1`: Pilot/Handle over EC-form declarations) | open |
+
 ## `proof/smart_counter/Gconcl.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCrypt.SHA3.Gconcl`.

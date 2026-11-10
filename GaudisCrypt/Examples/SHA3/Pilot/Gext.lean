@@ -27,13 +27,14 @@ set_option linter.dupNamespace false
 * GAP 1: as Gcol's: our abstract `call (_: ={…} /\ inv)` keeps `={glob D}` in the oracles'
   judgments: `glob D` added to EC's intermediate conditions.
 * GAP 2: as Gcol's: inline by name vs the old declarations' accessors: by index.
-* GAP 3: `sp` through an inlined call (`G1_G2`'s `M.f`): the start state as nested existentials
-  with whole-state equations through the inliner's renaming (`ProgramState.mapLocal`); the
-  closers do not use them (EC's `sp` keeps reads, `exists` only for overwritten values).
+* GAP 3 (fixed): `sp` through an inlined call left whole-state existentials; now EC's
+  `exists x0, P[x0/x] /\ x = e[x0/x]` and `equiv_elim*` (`Logic/ECSp.lean`, `Logic/ECElim.lean`).
 * GAP 4: a procedure's parameter (`x` of `S.f`) is not a name of the statement conditions after
   `proc` (not in the code's `var` list): written as its read `(localVarLens "x" SLCommon.state)`.
 * GAP 5: a call's frame (`equiv_call`) keeps only variables outside the callee's footprint;
   EC's keeps what the callee does not write (`RRO.allKnown` reads `FRO.m`): read/write sets.
+* GAP 7: in `G1_G2`'s `M.f`, after `sp; call`, the local `h` is not a name of the conditions
+  (`Unknown identifier`), though the code declares it: its read written out.
 * GAP 6: `smt_close [size_ge0]` does not close `0 ≤ size p` (EC's `smt(List.size_ge0)`):
   `exact size_ge0 _` first.
 * EC's `x` (the wrapper `DRestr`'s parameter) is not a program variable after our `sp`
@@ -329,19 +330,41 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
     equiv_conseq (: _ ==> ={glob D, sa, G1.mh, G1.mhi, F.RO.m, G1.chandle, FRO.m, C.queries, C.c} ∧
         inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
         ∀ h0, FMap.dom §FRO.m{1} h0 → h0 < §G1.chandle{1})
-    --     (GAP 3: `conseq`'s frame goal: our `sp`s through the inlined call leave the start state
-    --     as nested existentials with whole-state equations through the inliner's renaming
-    --     (`ProgramState.mapLocal`), which the closers do not use; EC's `sp` keeps reads)
-    case post => sorry
+    case post => auto_close
     -- EC: sp;call (_: ={F.RO.m});1:by sim.
-    --     while (={sa,G1.mh,G1.mhi,F.RO.m,G1.chandle,FRO.m,i,h,sa,p,C.queries,counter,bs} /\
+    stmt_sp; equiv_call (_ : ={F.RO.m})
+    -- EC: while (={sa,G1.mh,G1.mhi,F.RO.m,G1.chandle,FRO.m,i,h,sa,p,C.queries,counter,bs} /\
     --            inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\ p{2} = bs{2} /\
     --            forall (h0 : handle), h0 \in FRO.m{1} => h0 < G1.chandle{1})=>//.
-    --     if=>//;inline *;1:by auto.
-    --     if;1,3:auto;progress.
-    --     rcondt{2} 3;1:by auto=>/#.
-    --     auto;progress. …
-    sorry
+    --     (GAP 7: `h` is not a name of the conditions here: its read written out)
+    equiv_while (={sa, G1.mh, G1.mhi, F.RO.m, G1.chandle, FRO.m, i, p, C.queries, counter, bs} ∧
+        §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧
+        inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧ §p{2} = §bs{2} ∧
+        ∀ h0, FMap.dom §FRO.m{1} h0 → h0 < §G1.chandle{1})
+    case hpre =>
+      equiv_auto; auto_progress
+    -- EC: if=>//;inline *;1:by auto.
+    stmt_if
+    · auto_close
+    all_goals stmt_inline*
+    on_goals 1 => equiv_auto
+    -- EC: if;1,3:auto;progress.
+    stmt_if
+    on_goals 1, 3 => equiv_auto
+    -- EC: rcondt{2} 3;1:by auto=>/#.
+    stmt_rcondt{2} 3
+    · hoare_auto; auto_prep
+      have hf := ‹∀ (h0 : handle), (FRO.m.get _).dom h0 → h0 < _›
+      exact fun hd => lt_irrefl _ (hf _ hd)
+    -- EC: auto;progress.
+    --     + move=>bad1;have[/=->//|]:=H bad1;rewrite/inv_ext=>[][]x h[]H_dom Hh;right.
+    --       exists x h;rewrite H_dom/= get_set_neqE //=.
+    --       by move:(H0 h);rewrite domE Hh /#.
+    --     + smt(mem_set).
+    --     (the old port's `inv_ext_set_fresh` and `fresh_set`)
+    equiv_auto; auto_prep
+    exact ⟨fun hb => (‹inv_ext1 _ _ _ _ _› hb).imp_right (Gext.inv_ext_set_fresh ‹_› _),
+      Gext.fresh_set ‹_› _⟩
   -- EC: inline *;auto;progress.
   --     smt(mem_set mem_empty).
   · equiv_auto; auto_prep
