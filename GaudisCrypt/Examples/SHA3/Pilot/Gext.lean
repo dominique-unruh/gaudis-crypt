@@ -712,18 +712,15 @@ theorem Pr_ext (m : VariableAssignment) :
         (by positivity))
 
 /-- EC's closer of `EG2_Gext`'s oracles when the unknown handle `k` is resampled
-(`rewrite /bad_ext !get_setE /= set_set_eqE //=. rewrite !(imageU,inE) restr_set /= size_rem
-dom_restr Hin //=; smt w=size_set_le.`): `G2`'s update of `G1.bext` is `ReSample.f1`'s, and the
-invariant steps from `inv_lt` to `inv_le`. -/
-theorem ext_hit {b2 : Bool} {m mi : smap} {F : handles} {k : handle} {a : capacity}
-    {x y : SLCommon.state} {c count : ℤ}
+(`rewrite … restr_set /= size_rem dom_restr Hin //=; smt w=size_set_le.`): the invariant steps
+from `inv_lt` to `inv_le` (`G2`'s update of `G1.bext` is `ReSample.f1`'s: the old port's
+`bext_eq`). -/
+theorem ext_hit {m mi : smap} {F : handles} {k : handle} {a : capacity}
+    {p q p' q' : SLCommon.state} {c count : ℤ}
     (hin : FMap.in_dom_with F k Unknown) (hI : inv_lt m mi c F count) :
-    (b2 || decide (bad_ext m mi a) || decide (a = x.2)) =
-        (b2 || decide (a ∈ Finset.image Prod.snd (FMap.fdom m ∪ FMap.fdom mi) ∪ fset1 x.2)) ∧
-      inv_le (FMap.set m x y) (FMap.set mi y x) c (FMap.set F k (a, Known)) (count + 1) := by
-  refine ⟨GaudisCrypt.SHA3.Gext.bext_eq _ _ _ _ _,
-    GaudisCrypt.SHA3.Gext.inv_lt.step hI (GaudisCrypt.SHA3.Gext.size_set_le _ _ _)
-      (GaudisCrypt.SHA3.Gext.size_set_le _ _ _) ?_⟩
+    inv_le (FMap.set m p q) (FMap.set mi p' q') c (FMap.set F k (a, Known)) (count + 1) := by
+  refine GaudisCrypt.SHA3.Gext.inv_lt.step hI (GaudisCrypt.SHA3.Gext.size_set_le _ _ _)
+      (GaudisCrypt.SHA3.Gext.size_set_le _ _ _) ?_
   rw [FMap.restr_set, if_neg (by decide), GaudisCrypt.SHA3.Gext.size_rem,
     if_pos ((FMap.dom_restr _ _ _).mpr hin)]
   have := Finset.card_pos.mpr ⟨k, (FMap.mem_fdom _ _).mpr ((FMap.dom_restr _ _ _).mpr hin)⟩
@@ -878,9 +875,9 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
             Option.getD_some]
           have hin := ‹_ = true → FMap.in_dom_with _ _ _›
             ((Bool.and_eq_true _ _).mp ‹(decide _ && _) = true›).2
-          refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun _ _ =>
-            ⟨⟨trivial, trivial, trivial, trivial, ?_⟩, (ext_hit (b2 := false) hin ‹_›).2⟩⟩
-          exact (ext_hit (y := default) hin ‹_›).1
+          exact ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun _ _ =>
+            ⟨⟨trivial, trivial, trivial, trivial, GaudisCrypt.SHA3.Gext.bext_eq _ _ _ _ _⟩,
+              ext_hit hin ‹_›⟩⟩
         -- EC: by call RROset_inv_lt;auto;smt w=size_set_le.
         · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
           --     (EC's `smt w=size_set_le`: the step `inv_lt.step` with `size_set_le` at `inv_le`)
@@ -888,7 +885,82 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
           refine ⟨‹_›, fun r₁ g₁ r₂ g₂ ⟨hF, hI⟩ _ _ => ⟨by auto_close,
             Gext.inv_lt.step hI (Gext.size_set_le _ _ _) (Gext.size_set_le _ _ _) le_rfl⟩⟩
       · equiv_auto
-    · sorry
+    -- EC: + proc;sp;if=> //;swap -1.
+    --       call (_: ={x,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,C.c} /\
+    --                inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2} ==>
+    --                ={res,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,C.c} /\
+    --                inv_le  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2});last by auto=> /#.
+    · equiv_proc; stmt_sp; stmt_if
+      · auto_close
+      · stmt_swap -1
+        equiv_call (_ : ={x, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+            G1.bext, C.c} ∧
+            inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ==>
+            ={res, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext, C.c} ∧
+            inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
+        on_goals 2 => (equiv_auto; simp only [inv_lt, inv_le] at *; auto_close)
+        -- EC: proc;if=>//;last by auto=>/#.
+        equiv_proc; stmt_if
+        · auto_close
+        on_goals -1 => (equiv_auto; simp only [inv_lt, inv_le] at *; auto_close)
+        -- EC: seq 8 8 :
+        --       (={t,y,x,hx2,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,
+        --          C.c} /\
+        --       inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2} /\
+        --       (t => in_dom_with FRO.m (oget G1.mhi.[(x.`1, hx2)]).`2 Unknown){1}).
+        --     (GAP 4: `x` written out)
+        equiv_seq 8 8 : (={t, y, (localVarLens "x" SLCommon.state), hx2, F.RO.m, FRO.m, G1.paths,
+            G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext, C.c} ∧
+            inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ∧
+            (§t{1} → FMap.in_dom_with §FRO.m{1}
+              (oget (FMap.get §G1.mhi{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2
+              Unknown))
+        -- EC: + inline RRO.queried; auto;call (_: ={FRO.m});1:by sim.
+        --       inline RRO.allKnown;sp 1 1;if=>//.
+        --       by wp;call RROset_inv_lt;auto.
+        --     (GAP 5: the second `RRO.allKnown` inlined; GAP 2: by index)
+        · stmt_inline 3; stmt_inline 2; equiv_auto
+          stmt_inline 0; stmt_sp 1 1; stmt_if
+          · auto_close
+          · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
+            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt] at *
+            auto_close
+          · equiv_auto
+            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt] at *
+            auto_close
+        -- EC: if=>//;wp.
+        stmt_if
+        · auto_close
+        -- EC: + inline *;rcondt{1} 4;1:by auto=>/#.
+        --       rcondt{2} 5;1:by auto;smt w=(size_ge0).
+        --       rcondt{2} 10. by auto;progress;rewrite mem_set.
+        --       wp;rnd{2};auto=> /= ??[#]!-> @/inv_lt @/inv_le [#] mlt milt clt cle Hin 5? _.
+        --       rewrite /bad_ext !get_setE /= set_set_eqE //=.
+        --       rewrite !(imageU,inE) restr_set /= size_rem dom_restr Hin //=; smt w=size_set_le.
+        --     (as in `S.f`: EC's positions 5, 10 are 4, 9)
+        · stmt_wp; stmt_inline*
+          stmt_rcondt{1} 4
+          · hoare_auto; simp only [FMap.in_dom_with, PROM.is_, oget] at *; auto_close
+          stmt_rcondt{2} 4
+          · hoare_auto; simp only [inv_lt] at *; auto_close
+          stmt_rcondt{2} 9
+          · hoare_auto; auto_prep
+            exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)
+          stmt_wp; equiv_rnd{2}; equiv_auto; auto_prep
+          simp only [FMap.get_set_sameE, GaudisCrypt.SHA3.Gext.set_set_same, oget,
+            Option.getD_some]
+          have hin := ‹_ = true → FMap.in_dom_with _ _ _›
+            ((Bool.and_eq_true _ _).mp ‹(decide _ && _) = true›).2
+          exact ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun _ _ =>
+            ⟨⟨trivial, trivial, trivial, trivial, GaudisCrypt.SHA3.Gext.bext_eq _ _ _ _ _⟩,
+              ext_hit hin ‹_›⟩⟩
+        -- EC: by call RROset_inv_lt;auto;smt w=size_set_le.
+        · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
+          --     (EC's `smt w=size_set_le`: `inv_lt.step` with `size_set_le`)
+          auto_prep
+          refine ⟨‹_›, fun r₁ g₁ r₂ g₂ ⟨hF, hI⟩ _ _ => ⟨by auto_close,
+            Gext.inv_lt.step hI (Gext.size_set_le _ _ _) (Gext.size_set_le _ _ _) le_rfl⟩⟩
+      · equiv_auto
     · sorry
     -- EC: auto;progress[delta];rewrite ?(size0,restr0,restr_set,rem0,max_ge0,-sizeE,-cardE) //=.
     --     + smt(size_rem_le size0).
