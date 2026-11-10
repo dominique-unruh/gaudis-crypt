@@ -841,26 +841,21 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       --     `PJ2_known` and `PJ2L_step` (deviation)
       equiv_auto
       auto_prep
-      rename_i bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h w hb hisz hb1 hpp hpbs hpref hext hmp
-        hI hpi hq hcnt hpath hi hif hdom f hh hnext
-      have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ _ _ h :=
-        ⟨by rw [hpbs]; exact hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
-      have hL : PJ2L _ _ _ _ _ _ _ :=
-        ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnext, hpi, hisz, hq⟩
-      set x : SLCommon.state := ((localVarLens "sa" block).get w +^
-          nth default ((localVarLens "p" (List block)).get w) ((localVarLens "i" ℤ).get w),
-          (localVarLens "sc" capacity).get w) with hx
-      have hdomx : FMap.dom (PF.m.get w.globals) x := by simpa using hdom
+      rename_i pref m mi pref0 i p q c bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h w hb hpref
+        hq hb1 hmp hpp hext hcnt hqi hisz hI hpath hi hif f hh hnd hdom
+      have hJ : PJ2 hs ch m mi gm gmi mh mhi ro paths pref pref0 q p i w.1 w.2 h :=
+        ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
+      have hL : PJ2L pref pref0 q p i w.1 w.2 :=
+        ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnd, hqi, hisz, hq⟩
       obtain ⟨-, hfst, hI', hmp', ⟨f', hh'⟩, hpath', hif'⟩ :=
-        PJ2_known _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi hdomx
-      have hL' := PJ2L_step _ _ _ _ _ _ _ (oget (FMap.get (PF.m.get w.globals) x)).1
-        (oget (FMap.get (PF.m.get w.globals) x)).2 hL hi (all_prefixes_of_m_p _ _ _ hmp)
+        PJ2_known _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi (by simpa using hdom)
+      have hL' := PJ2L_step _ _ _ _ _ _ _ (oget (FMap.get m (w.1 +^ nth default p i, w.2))).1
+        (oget (FMap.get m (w.1 +^ nth default p i, w.2))).2 hL hi (all_prefixes_of_m_p _ _ _ hmp)
       simp only [Prod.mk.eta] at hL' ⊢
       obtain ⟨hpref', hpp', hext', hnext', hpi', hisz', -⟩ := hL'
-      have h0 := le_trans (prefix_ge0 _ _) hpi
-      refine ⟨hpi', hisz', hpref', hpbs, hq, fun _ => ⟨by rw [← hpbs]; exact hI', hb1, hmp,
-        fun l hl => (hpp' l hl).symm, hext', hfst, by omega, ⟨f', hh'⟩, by rw [hpath', hfst],
-        ?_, hnext'⟩⟩
+      have h0 := le_trans (prefix_ge0 _ _) hqi
+      refine ⟨hpi', hisz', hpref', hq, fun _ => ⟨hI', hb1, hmp, fun l hl => (hpp' l hl).symm, hext',
+        hfst, by omega, ⟨f', hh'⟩, by rw [hpath', hfst], ?_, hnext'⟩⟩
       rw [if_neg (by omega)] at hif' ⊢
       exact hif'
     -- the left's `x` is fresh: so is the right's
@@ -879,13 +874,15 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       -- EC: * rewrite(@take_nth witness);1:smt(prefix_ge0);rewrite domE. … (~20 lines:
       --       `mh_of_INV`, `lemma5'`) — the old port's `PJ2_fresh` (deviation)
       · hoare_auto; auto_prep
-        rename_i bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h sc' hsc' r w hb hisz hb1 hpp
-          hpbs hr hpref hext hmp hI hpi hq hcnt hpath hi hif hdom f hh hnext
-        have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ _ _ h :=
-          ⟨by rw [hpbs]; exact hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
-        have hL : PJ2L _ _ _ _ _ _ _ :=
-          ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnext, hpi, hisz, hq⟩
-        exact (PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi (by simpa using hdom)).2.1
+        rename_i σ bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y2 hy2 y1 hx w hb hisz hb1 hpp
+          hpbs hy1 hpref hext hmp hI hqi hq hcnt hpath hdom hi hif f hh hsa hsc hnd
+        rw [← hpbs] at hI
+        have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ w.1 w.2 h :=
+          ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
+        have hL : PJ2L _ _ _ _ _ w.1 w.2 :=
+          ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnd, hqi, hisz, hq⟩
+        exact (PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi
+          (by rwa [hx, hsa, hsc] at hdom)).2.1
       --     (EC's `auto` on the main goal: here only wp — EC's `rnd` cannot pair `y2` with `r`)
       stmt_wp
       -- EC: swap{2}-3;auto;progress.
@@ -895,24 +892,24 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       --     `build_hpath_up`, `build_hpath_upd_ch_iff`, `known_path_uniq`, … — the old port's
       --     `PJ2_fresh` (with `f_fresh_inv`) and `PJ2L_step`: deviation)
       auto_prep
-      rename_i bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y1 hy1 y2 hy2 w hb hisz hb1 hpp
-        hpbs hpref hext hmp hI hpi hq hcnt hpath hi hif hdom f hh hnext
-      have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ _ _ h :=
-        ⟨by rw [hpbs]; exact hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
-      have hL : PJ2L _ _ _ _ _ _ _ :=
-        ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnext, hpi, hisz, hq⟩
+      rename_i pref m mi pref0 i p q c bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y1 hy1 y2 hy2
+        w hb hpref hq hb1 hmp hpp hext hcnt hqi hisz hI hpath hi hif f hh hnd hdom
+      have hJ : PJ2 hs ch m mi gm gmi mh mhi ro paths pref pref0 q p i w.1 w.2 h :=
+        ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
+      have hL : PJ2L pref pref0 q p i w.1 w.2 :=
+        ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnd, hqi, hisz, hq⟩
       obtain ⟨-, hro, hfr⟩ :=
         PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi (by simpa using hdom)
       have hL' := PJ2L_step _ _ _ _ _ _ _ y1 y2 hL hi (all_prefixes_of_m_p _ _ _ hmp)
-      have h0 := le_trans (prefix_ge0 _ _) hpi
+      have h0 := le_trans (prefix_ge0 _ _) hqi
       simp only [FMap.get_set_sameE, oget_some] at hL' ⊢
       obtain ⟨hpref', hpp', hext', hnext', hpi', hisz', -⟩ := hL'
-      refine ⟨hpi', hisz', trivial, hpbs, hq, fun hb' => ?_⟩
+      refine ⟨hpi', hisz', trivial, hq, fun hb' => ?_⟩
       have hinv : hinv hs y2 = none := by
         simp only [not_or, Bool.or_eq_true, decide_eq_true_eq, ne_eq, not_not] at hb'
         exact hb'.1.2
       obtain ⟨hI', hmp', -, hpath', -⟩ := hfr y1 y2 hinv
-      exact ⟨by rw [← hpbs]; exact hI', hb1, hmp', fun l hl => (hpp' l hl).symm, hext', trivial,
+      exact ⟨hI', hb1, hmp', fun l hl => (hpp' l hl).symm, hext', trivial,
         by omega, ⟨Unknown, rfl⟩, hpath', by rw [if_neg (by omega)]; trivial, hnext'⟩
 
 section AUX

@@ -38,6 +38,10 @@ theorem globals_intoLocal_set {A : Type*} (x : Lens A VariableAssignment) (v : A
 theorem globals_intoGlobal_set {A : Type*} (x : Lens A VariableAssignment) (v : A)
     (τ : ProgramState) : (x.intoGlobal.set v τ).globals = x.set v τ.globals := rfl
 
+/-- A global's read in the program state is its read in the globals. -/
+theorem Lens.intoGlobal_get_eq {α : Type} (X : Lens α VariableAssignment) (σ : ProgramState) :
+    X.intoGlobal.get σ = X.get σ.globals := rfl
+
 theorem globals_resetSetter_set (S : Set String) (u : Unit) (τ : ProgramState) :
     ((resetSetter S).set u τ).globals = τ.globals := rfl
 

@@ -594,7 +594,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
             · equiv_skip
               auto_progress
               all_goals first
-                | (generalize_reads_all; exact prefix_ge0 _ _)
+                | (generalize_reads_all; subst_vars; exact prefix_ge0 _ _)
                 | (generalize_reads_all; subst_vars; apply db_first_init <;> assumption)
                 | (generalize_reads_all; subst_vars
                    simp only [take, Int.toNat_zero, List.take_zero]; assumption)

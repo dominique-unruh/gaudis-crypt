@@ -42,10 +42,6 @@ theorem Stmt.satisfies_keep {α : Type} (x : Lens α ProgramState) {s : Stmt}
     by_cases hr : x.get r.2 = x.get σ <;> simp [Set.indicator, hr]
   exact hk.satisfies rfl
 
-/-- A global's read in the program state is its read in the globals. -/
-theorem Lens.intoGlobal_get_eq {α : Type} (X : Lens α VariableAssignment) (σ : ProgramState) :
-    X.intoGlobal.get σ = X.get σ.globals := rfl
-
 /-- `s` keeps `x`: every run ends with `x` as it started. -/
 def Stmt.Keeps {α : Type} (x : Lens α ProgramState) (s : Stmt) : Prop :=
   ∀ c, hoareStmt (fun τ => x.get τ = c) s (fun τ => x.get τ = c)

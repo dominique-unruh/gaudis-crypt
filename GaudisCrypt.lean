@@ -154,6 +154,7 @@ import GaudisCrypt.Logic.ECGoalsTest
 import GaudisCrypt.Logic.Fel
 import GaudisCrypt.Logic.FelTactic
 import GaudisCrypt.Logic.FelInner
+import GaudisCrypt.Logic.ECElim
 import GaudisCrypt.Logic.PHoareSeq
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype

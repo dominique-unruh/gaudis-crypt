@@ -201,6 +201,7 @@ the `while` row.
 | `conseq (: P ==> Q)` / `conseq (_ : _ ==> Q)` | `equiv_conseq (: P ==> Q)` / `equiv_conseq (: _ ==> Q)`; also `hoare_conseq (: P ==> Q)`, `phoare_conseq (: P ==> Q)` (upper bounds). EC's frame of what the code keeps is kept |
 | `conseq H` | `equiv_conseq H` (pRHL only) |
 | `exists* e₁{1}, e₂{2}; elim* => a b` | `equiv_exists* §e₁{1}, §e₂{2}` then `intro a b` (also on procedure judgments, `§x{2}` the parameter); `stmt_exists* e` |
+| `elim * => a b` (after `sp`) | `equiv_elim* => a b` / `hoare_elim* => a`: EC's names, the left side's existentials first |
 | `case (P)` (pRHL) | `equiv_case (P)` |
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
@@ -309,7 +310,11 @@ Mappings for ssreflect idioms:
 * EC's `smt()` on real arithmetic → `linarith`/`positivity`; bounds: `Lib/EC/StdBigop.lean`
   (`sum_Ico_const`, `sum_Ico_toNat`, `ofReal_intCast_mul_mu1`).
 * `sp` gives EC's read form `P ∧ x = e`, and past the resets inlining leaves it keeps `P` and
-  forgets the reset (EC has no such statement).  If a precondition shows `∃ τ, … σ = …set… τ`
+  forgets the reset (EC has no such statement).  Over `x <- e` with `e` reading `x` it gives EC's
+  `∃ v, P[x:=v] ∧ x = e[x:=v]` (`X.set v σ` inside reads); `equiv_elim*` names `v` as EC's
+  `elim *`, and `auto_prep` turns the rest into plain values.  Hand closers written against the
+  older `∃ τ, … σ = X.set … τ` form name hypotheses positionally (`rename_i`): recompute them
+  from `trace_state`.  If a precondition shows `∃ τ, … σ = …set… τ`
   instead, `sp` could not show `P` unchanged by some statement: that is an infrastructure gap
   (seen: `decide` instances, `True` side goals), not something to work around in the proof.
 * `hoare_auto`/`hoare_skip` lose the link when the precondition still mentions the state outside
@@ -438,6 +443,21 @@ Document each in the docstring when it applies.
   `on_goals 2 => t` is EC's `last`.
 * A `smt_close` attempt that failed on a goal that was *wrong* (missing frame, an infrastructure
   bug) may be retried once the goal is fixed — the one-attempt rule is per goal.
+* **Ambiguous tactic syntax**: `equiv_call (_ : ={x})` also parses as `equiv_call H` with `H` the
+  term `(_ : ={x})` (a `choice` node, which moves to the next reading only on
+  `throwUnsupportedSyntax`).  The invariant reading comes first; the `equiv_call H` rules now also
+  refuse a hole with a type ascription.  A new `elab_rules` for an existing kind must throw
+  `unsupportedSyntax` (not an error) for what it does not handle, and check the forms another
+  syntax shares.  To see which elaborator runs: `tacticElabAttribute.getEntries env kind` on each
+  alternative, results collected and logged *after* the state restore.
+* **Globals in `sp`'s existential form**: the rule states `X.intoGlobal.get σ = …` and
+  `… (X.intoGlobal.set v σ).globals …`; `stmt_sp` now rewrites them to `§x` reads.  Unnormalized,
+  frames (`ECSim.varsOf`) and closers did not see the variable: a framed call lost its frame
+  equations, a closer lost `C.c{1} = v + 1`.
+* **EC's type abbreviations** (`state`): write the module code with the library's own name
+  (`SLCommon.state`).  A local `abbrev state` types the procedures' variables twice
+  (`localVarLens "x0" state` vs `localVarLens "x0" SLCommon.state`); reads at one type are not
+  rewritten by equations at the other, and closers fail.
 * `sorry` after a tactic that closed all goals is **not** reported; a `trace_state` printing
   nothing there means the goal was already closed.
 

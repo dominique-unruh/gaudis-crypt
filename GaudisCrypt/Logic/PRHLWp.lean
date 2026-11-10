@@ -489,6 +489,10 @@ code, `prhlStmt_seq_call_refl`): the postcondition before them asks for equal ar
 globals, and the postcondition after them for every result and globals, the same on both
 sides. -/
 elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
+  -- `equiv_call (_ : …)` is one of the call forms with an invariant or a specification
+  -- (`Logic/ECCallAbstract.lean`, …), parsed here too (a hole with a type ascription): left to them
+  if let some h := h? then
+    if let `(term| (_ : $_)) := h then throwUnsupportedSyntax
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_call"
   let g ← HoareSplit.hoareSplit 1 g

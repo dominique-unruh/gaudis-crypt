@@ -51,8 +51,8 @@ open GaudisCrypt.SHA3.Gcol (card_rng_set hinv_image)
 
 variable [SLCommon.Params]
 
-/-- EC's `state` (`SLCommonCore`'s, named here: a root `state` exists). -/
-abbrev state := GaudisCrypt.SHA3.SLCommon.state
+-- EC's `state` is `SLCommon.state`, written out: a local abbreviation for it types the
+-- procedures' variables at a second (reducibly equal) type, which reads of them do not match.
 
 -- `grind` on `card_rng_set` by the map written, not its normalized inequality (EC's
 -- `smt(card_rng_set)` as `smt_close [card_rng_set]`)
@@ -111,8 +111,8 @@ module Gcol.M : DFUNCTIONALITY {
 
 -- EC's `Gcol.S`
 module Gcol.S : DPRIMITIVE {
-  proc f (x : state) : state {
-    var p : List block, v : block, y : state, y1 : block, y2 : capacity, hy2 : handle,
+  proc f (x : SLCommon.state) : SLCommon.state {
+    var p : List block, v : block, y : SLCommon.state, y1 : block, y2 : capacity, hy2 : handle,
       hx2 : handle;
     if (!(decide (FMap.dom ($G1.m : smap) $x))) {
       y <- (b0, c0);
@@ -156,8 +156,8 @@ module Gcol.S : DPRIMITIVE {
     }
     return $y
   };
-  proc fi (x : state) : state {
-    var y : state, y1 : block, y2 : capacity, hx2 : handle, hy2 : handle;
+  proc fi (x : SLCommon.state) : SLCommon.state {
+    var y : SLCommon.state, y1 : block, y2 : capacity, hx2 : handle, hy2 : handle;
     if (!(decide (FMap.dom ($G1.mi : smap) $x))) {
       y <- (b0, c0);
       if (!(decide (FMap.rng ($FRO.m : FMap handle (capacity × flag)) (($x).2, Known)))) {

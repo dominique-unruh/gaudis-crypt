@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.ECSp
+import GaudisCrypt.Logic.ECElim
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Syntax.Syntax
@@ -19,7 +20,19 @@ example : hoare[ True ==> §y = 2 ] {
   stmt_sp 2
   hoare_wp 1
   apply hoare_skip_of_imp
-  rintro _ ⟨_, ⟨-, h⟩, rfl⟩
+  rintro _ ⟨_, ⟨-, h⟩, h'⟩
+  simp_all [liftLens, LiftLens.lift, Lens.set_get]
+
+/-- EC's `sp` over `x <- e` with `e` reading `x`: `exists x0, P[x0/x] /\ x = e[x0/x]`, the
+existential out by EC's `elim * => x0`. -/
+example : hoare[ §x = 1 ==> §x = 2 ] {
+      var x : ℕ;
+      x <- §x + 1;
+    } := by
+  stmt_sp
+  hoare_elim* => x0
+  apply hoare_skip_of_imp
+  rintro _ ⟨h, h'⟩
   simp_all [liftLens, LiftLens.lift, Lens.set_get]
 
 /-- EC's `P /\ x = e` with a precondition on a local variable, past an assignment and a reset

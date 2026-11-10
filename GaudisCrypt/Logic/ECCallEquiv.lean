@@ -185,6 +185,8 @@ EC's frame: what each callee does not write keeps its value (as for `equiv_call 
 Goal: the code before the calls.  Other uses of `equiv_call H` are left to `Logic/PRHLWp.lean`. -/
 elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
   | `(tactic| equiv_call $h:term) => withMainContext do
+    -- (`equiv_call (_ : …)`: the call forms with an invariant or a specification)
+    if let `(term| (_ : $_)) := h then throwUnsupportedSyntax
     let s ← saveState
     let g ← getMainGoal
     let _ ← prhlGoal g "equiv_call"

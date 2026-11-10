@@ -165,6 +165,55 @@ theorem prhlStmt_sp_right_read {α : Type} {A B : ProgramState → ProgramState 
   prhlStmt_sp_right hd (prhlStmt_conseq h (fun σ₁ _ ⟨τ, hτ, e⟩ => by
     subst e; exact ⟨hA σ₁ τ hτ, by rw [hE, hupd, X.set_get]⟩) fun _ _ h => h)
 
+/-! ### EC's `exists x0, P[x0/x] /\ x = e[x0/x]`: an assignment reading its variable
+
+For `x <- e` with `e` reading `x` (`C.c <- C.c + 1`), the old value is existentially quantified
+(EC's `sp`, then `elim *`), not the whole state: the precondition stays a fact about reads. -/
+
+/-- `hoareStmt_sp` for an assignment reading its variable: `∃ v, A[v/x] ∧ x = E[v/x]`. -/
+theorem hoareStmt_sp_exval {α : Type} {A B : ProgramState → Prop} (X : Lens α ProgramState)
+    (E : ProgramState → α) (hd : Stmt.Det d upd) (hupd : ∀ τ, upd τ = X.set (E τ) τ)
+    (h : hoareStmt (fun σ => ∃ v, A (X.set v σ) ∧ X.get σ = E (X.set v σ)) s B) :
+    hoareStmt A (.seq d s) B :=
+  hoareStmt_sp hd (hoare_pre h fun _ ⟨τ, hτ, e⟩ => by
+    subst e
+    exact ⟨X.get τ, by simpa only [hupd, X.set_set, X.get_set] using hτ,
+      by simp only [hupd, X.set_set, X.get_set, X.set_get]⟩)
+
+/-- `phoareStmt_sp` for an assignment reading its variable (as `hoareStmt_sp_exval`). -/
+theorem phoareStmt_sp_exval {α : Type} {A : ProgramState → Prop} {g : ProgramState → ENNReal}
+    {ρ : ENNReal → ENNReal → Prop} {r : ProgramState → ENNReal} (X : Lens α ProgramState)
+    (E : ProgramState → α) (hd : Stmt.Det d upd) (hupd : ∀ τ, upd τ = X.set (E τ) τ)
+    (hr : ∀ τ, A τ → r (upd τ) = r τ)
+    (h : phoareStmt (fun σ => ∃ v, A (X.set v σ) ∧ X.get σ = E (X.set v σ)) s g ρ r) :
+    phoareStmt A (.seq d s) g ρ r :=
+  phoareStmt_sp hd hr (phoareStmt_pre h fun _ ⟨τ, hτ, e⟩ => by
+    subst e
+    exact ⟨X.get τ, by simpa only [hupd, X.set_set, X.get_set] using hτ,
+      by simp only [hupd, X.set_set, X.get_set, X.set_get]⟩)
+
+/-- `prhlStmt_sp_left` for an assignment reading its variable (as `hoareStmt_sp_exval`). -/
+theorem prhlStmt_sp_left_exval {α : Type} {A B : ProgramState → ProgramState → Prop}
+    (X : Lens α ProgramState) (E : ProgramState → α) (hd : Stmt.Det d upd)
+    (hupd : ∀ τ, upd τ = X.set (E τ) τ)
+    (h : prhlStmt (fun σ₁ σ₂ => ∃ v, A (X.set v σ₁) σ₂ ∧ X.get σ₁ = E (X.set v σ₁)) s₁ s₂ B) :
+    prhlStmt A (.seq d s₁) s₂ B :=
+  prhlStmt_sp_left hd (prhlStmt_conseq h (fun _ σ₂ ⟨τ, hτ, e⟩ => by
+    subst e
+    exact ⟨X.get τ, by simpa only [hupd, X.set_set, X.get_set] using hτ,
+      by simp only [hupd, X.set_set, X.get_set, X.set_get]⟩) fun _ _ h => h)
+
+/-- `prhlStmt_sp_right` for an assignment reading its variable (as `hoareStmt_sp_exval`). -/
+theorem prhlStmt_sp_right_exval {α : Type} {A B : ProgramState → ProgramState → Prop}
+    (X : Lens α ProgramState) (E : ProgramState → α) (hd : Stmt.Det d upd)
+    (hupd : ∀ τ, upd τ = X.set (E τ) τ)
+    (h : prhlStmt (fun σ₁ σ₂ => ∃ v, A σ₁ (X.set v σ₂) ∧ X.get σ₂ = E (X.set v σ₂)) s₁ s₂ B) :
+    prhlStmt A s₁ (.seq d s₂) B :=
+  prhlStmt_sp_right hd (prhlStmt_conseq h (fun σ₁ _ ⟨τ, hτ, e⟩ => by
+    subst e
+    exact ⟨X.get τ, by simpa only [hupd, X.set_set, X.get_set] using hτ,
+      by simp only [hupd, X.set_set, X.get_set, X.set_get]⟩) fun _ _ h => h)
+
 namespace ECSp
 
 open Lean Meta Elab Tactic PRHLWp
@@ -247,6 +296,34 @@ def spOne (g : MVarId) (side? : Option Nat) : MetaM (Option (List MVarId)) := g.
     else if ty.isAppOf ``hoareStmt then ``hoareStmt_sp_drop
     else if ty.isAppOf ``phoareStmt then ``phoareStmt_sp_drop
     else if side? == some 2 then ``prhlStmt_sp_right_drop else ``prhlStmt_sp_left_drop
+  -- EC's `exists x0, P[x0/x] /\ x = e[x0/x]` for an assignment `x <- e` whose `e` reads `x`
+  let read? ← if read?.isSome || isReset then pure read? else do
+    let f := stripLets first
+    if !f.isAppOf ``StmtWithHoles.assign then pure none else
+    let some X ← lensOfSetter? (f.getArg! (f.getAppNumArgs - 2)) | pure none
+    let E ← mkAppM ``Getter.get #[f.appArg!]
+    let elem := if ty.isAppOf ``hoareStmt then ``hoareStmt_sp_exval
+      else if ty.isAppOf ``phoareStmt then ``phoareStmt_sp_exval
+      else if side? == some 2 then ``prhlStmt_sp_right_exval else ``prhlStmt_sp_left_exval
+    let s ← saveState
+    try
+      let gs ← applyLemma elem g #[(`hd, hd), (`X, X), (`E, E)]
+      let mut rest := #[]
+      for h in gs do
+        if (← h.getTag) == `hupd then
+          let (_, h') ← h.intros
+          h'.refl; continue
+        -- a global's `X.intoGlobal.get σ` and `(X.intoGlobal.set v σ).globals` as its reads
+        -- `§x` (what the read form and the closers see); other globals' reads past `X.set v`
+        let t ← instantiateMVars (← h.getType)
+        if X.isAppOf ``Lens.intoGlobal &&
+            (t.isAppOf ``prhlStmt || t.isAppOf ``hoareStmt || t.isAppOf ``phoareStmt) then
+          rest := rest.push (← Judgment.simpArg h 0
+            (``Lens.intoGlobal_get_eq :: HoareWp.simpReadsDecls) [])
+          continue
+        rest := rest.push h
+      pure (some rest.toList)
+    catch _ => s.restore; pure none
   let kept? ← if read?.isSome then pure read? else if trivialPre then pure none else do
     let s ← saveState
     try

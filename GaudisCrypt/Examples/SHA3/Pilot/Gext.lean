@@ -2,6 +2,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gext
 import GaudisCrypt.Logic.FelInner
 import GaudisCrypt.Logic.CallSpec
+import GaudisCrypt.Logic.ECElim
 
 /-!
 # The extension event (EasyCrypt `proof/smart_counter/Gext.eca`) — EC-fidelity port
@@ -961,7 +962,21 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
           refine ⟨‹_›, fun r₁ g₁ r₂ g₂ ⟨hF, hI⟩ _ _ => ⟨by auto_close,
             Gext.inv_lt.step hI (Gext.size_set_le _ _ _) (Gext.size_set_le _ _ _) le_rfl⟩⟩
       · equiv_auto
-    · sorry
+    -- EC: + proc;sp 1 1;if;auto;if;auto=>//.
+    --       inline G2(DRestr(D), RRO).M.f Gext.M.f.
+    --       sp 6 6;elim *=> c0L c0R.
+    --       wp;call (_: ={F.RO.m});1:by sim.
+    · equiv_proc; stmt_sp 1 1; stmt_if
+      · auto_close
+      on_goals -1 => equiv_auto
+      stmt_if
+      · auto_close
+      on_goals -1 => equiv_auto
+      stmt_inline 0
+      stmt_sp 6 6; equiv_elim* => c0L c0R
+      stmt_wp; equiv_call (_ : ={F.RO.m})
+      trace "MF"; trace_state
+      sorry
     -- EC: auto;progress[delta];rewrite ?(size0,restr0,restr_set,rem0,max_ge0,-sizeE,-cardE) //=.
     --     + smt(size_rem_le size0).
     --     + smt(). + smt(). + smt().
