@@ -21,6 +21,13 @@ Translation:
   `S(IF).f`); ours stops there: `stmt_inline*` first.
 * GAP 3: a procedure's parameter (`x` of `G3.S.f`) is not a name of the conditions after `proc`
   (Gext's GAP 4): its read `(localVarLens "x" SLCommon.state)` written out.
+* GAP 4: `swap` of a statement past code calling a procedure with a disjoint footprint (EC's
+  `swap{1} [3..7] -2` in `G2_G3`'s `S.f`: `RRO`'s calls past the conditional calling `F.RO.get`):
+  ours handles deterministic code and samplings only; the general rule (disjoint footprints
+  commute, `Program.commute_of_disjoint`) has no statement-level form yet.  `G2_G3`'s `S.f`
+  bullet is a `sorry`.
+* GAP 5: `sim` stops at two loops after `inline*` (`G2_G3`'s `M.f` callee) where EC's goes
+  through: `equiv_while` with EC's equality set, the bodies by `sim`.
 * GAP 2: the one-sided `equiv_while{i}` has no frame of the variables the loop keeps (the
   two-sided `while` has, `Logic/ECWhileRel.lean`): they go into the invariant.
 -/
@@ -39,6 +46,124 @@ section
 
 declare module D <: DISTINGUISHER {-C, -Perm, -F.RO, -F.FRO, -S.m, -S.mi, -S.paths, -Redo, -G1,
   -FRO.m}
+
+set_option maxHeartbeats 8000000 in
+/-- EC's `local equiv G2_G3: Eager(G2(DRestr(D))).main2 ~ G3(F.LRO).distinguish : ={glob D} ==>
+={res}`. -/
+theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
+    ={glob D} ==> ={res} ] := by
+  -- EC: proc;wp;call{1} RRO_resample_ll;inline *;wp.
+  equiv_proc; stmt_wp
+  equiv_call{1} (PROM.FullRO.FullEager.RRO_resample_ll handle capacity ROhandle.dout
+    ROhandle.FRO.m (fun _ => BitWord.dunifin_ll))
+  stmt_inline*; stmt_wp
+  -- EC: call (_: ={FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
+  --       last by auto.
+  equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
+    C.queries})
+  -- EC: + proc;sp;if=> //;sim 1 1.
+  --       call (_: ={FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
+  --       2:by auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    sim 1 1
+    equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
+      C.queries})
+    on_goals 2 => (equiv_auto; auto_close)
+    -- EC: if=> //;2:by sim.
+    equiv_proc; stmt_if
+    · auto_close
+    on_goals 2 => sim
+    -- EC: swap{1} [3..7] -2;swap{2} [4..8] -3.
+    --     seq 5 5:(={hx2,t,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,
+    --              C.queries} /\ (t = in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2 Unknown){1});
+    --       1:by inline *;auto.
+    --     seq 3 4:(={y,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
+    --       2:by sim.
+    --     if=>//.
+    --     + seq 2 2:(={y1,hx2,t,x,FRO.m,…} /\ (t = in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2
+    --                Unknown){1}).
+    --       + by inline *;auto=> /> ? _;rewrite Block.DWord.bdistr_ll.
+    --       case (((x.`1, hx2) \in G1.mh /\ t){1});
+    --           [rcondt{1} 3;2:rcondt{2} 3| rcondf{1} 3;2:rcondf{2} 3];
+    --           1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
+    --       inline *;rcondt{1} 6;1:by auto=>/>.
+    --       by auto => /> *; rewrite !get_setE.
+    --     case (((x.`1, hx2) \in G1.mh /\ t){1});
+    --           [rcondt{1} 4;2:rcondt{2} 4| rcondf{1} 4;2:rcondf{2} 4];
+    --           1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
+    --     inline *;rcondt{1} 7;1:by auto=>/>.
+    --     by wp;rnd;auto;rnd{1};auto => /> *; rewrite !get_setE.
+    --     (GAP 4: our `swap` cannot move the `RRO` calls past the conditional calling `F.RO.get`
+    --     (EC: their footprints are disjoint); the bullet waits for it)
+    sorry
+  -- EC: + proc;sp;if=>//;sim 1 1.
+  --       call (_: ={FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
+  --       2:by auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    sim 1 1
+    equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
+      C.queries})
+    on_goals 2 => (equiv_auto; auto_close)
+    -- EC: if=> //;2:sim.
+    equiv_proc; stmt_if
+    · auto_close
+    on_goals 2 => sim
+    -- EC: swap{1} 8 -3.
+    stmt_swap{1} 8 -3
+    -- EC: seq 6 6 : (={y1,hx2,t,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,
+    --                 C.queries} /\ (t = in_dom_with FRO.m (oget G1.mhi.[(x.`1, hx2)]).`2 Unknown){1}).
+    --     + by inline *;auto.
+    equiv_seq 6 6 : (={y1, hx2, t, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m, G1.mi,
+        G1.mh, G1.mhi, G1.chandle, G1.paths, C.c, C.queries} ∧
+      §t{1} = decide (FMap.in_dom_with §FRO.m{1}
+        (oget (FMap.get §G1.mhi{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2 Unknown))
+    · stmt_inline*; equiv_auto; auto_close
+    -- EC: case (((x.`1, hx2) \in G1.mhi /\ t){1});
+    --       [rcondt{1} 3;2:rcondt{2} 3| rcondf{1} 3;2:rcondf{2} 3];
+    --       1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
+    equiv_case (FMap.dom §G1.mhi{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}) ∧
+      §t{1} = true)
+    · stmt_rcondt{1} 3
+      · hoare_auto
+      stmt_rcondt{2} 3
+      · hoare_auto
+      -- EC: inline *;rcondt{1} 6;1:by auto=>/>.
+      stmt_inline*; stmt_rcondt{1} 6
+      · hoare_auto; simp only [FMap.in_dom_with, PROM.is_, oget] at *; auto_close
+      -- EC: by auto => /> *; rewrite !get_setE.
+      equiv_auto; auto_progress
+      all_goals simp only [FMap.get_set_sameE, oget_some]
+    · stmt_rcondf{1} 3
+      · hoare_auto
+      stmt_rcondf{2} 3
+      · hoare_auto
+      sim
+  -- EC: proc;sp;if=>//;auto;if;[1,3:by auto];sim 2 2.
+  --     call (_: ={FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
+  --       2:by auto.
+  --     by inline*;sim.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    sim 2 2
+    equiv_call (_ : ={FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c,
+      C.queries})
+    on_goals 2 => (equiv_auto; auto_close)
+    equiv_proc; stmt_inline*; sim
+    --     (GAP 5: our `sim` stops at the two loops here: EC's equality set as their invariant)
+    equiv_while (={i, p, h, counter, sa, FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle,
+      G1.paths, C.c, C.queries})
+    · sim
+    · equiv_auto
+  -- EC: last by auto.
+  · equiv_auto; auto_close
 
 set_option maxHeartbeats 4000000 in
 /-- EC's `local equiv G3_G4 : G3(F.RO).distinguish ~ G4(F.RO).distinguish : ={glob D} ==>
