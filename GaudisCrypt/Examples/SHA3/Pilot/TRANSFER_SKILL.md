@@ -450,6 +450,13 @@ Document each in the docstring when it applies.
   `unsupportedSyntax` (not an error) for what it does not handle, and check the forms another
   syntax shares.  To see which elaborator runs: `tacticElabAttribute.getEntries env kind` on each
   alternative, results collected and logged *after* the state restore.
+* **Earlier errors and frames**: the frame builders (`ECCallEquiv.elabClean`,
+  `ECConseqFrame`'s proofs, `module_subtype`) used to reject a frame whenever the file's message
+  log had *any* error, so one failing bullet above made every later call lose its frames (goals
+  without `G1.bcol.get g₁ = …`).  Fixed (the log reset around each check); when a frame is
+  missing, still fix the errors above it first.
+* **Two different concrete callees**: `equiv_call (_ : ={x})` is EC's
+  `={arg, x} ==> ={res, x}`, the callees' judgment left as the first goal (EC's `call` subgoal).
 * **Globals in `sp`'s existential form**: the rule states `X.intoGlobal.get σ = …` and
   `… (X.intoGlobal.set v σ).globals …`; `stmt_sp` now rewrites them to `§x` reads.  Unnormalized,
   frames (`ECSim.varsOf`) and closers did not see the variable: a framed call lost its frame

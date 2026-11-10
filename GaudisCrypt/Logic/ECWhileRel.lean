@@ -50,7 +50,9 @@ end GaudisCrypt
 open Lean Meta Elab Tactic GaudisCrypt GaudisCrypt.ECConseq PRHLWp in
 /-- **EC's `while I`** on two loops ending the code of both sides: goals `body` and `hpre` (see
 the module docstring; `prhlStmt_seq_while_ec`). -/
-elab "equiv_while " I:term : tactic => withMainContext do
+-- `I` a `term:max` (written in parentheses): a whole term would also read the one-sided
+-- `equiv_while{i} (I) (V)` of `Logic/PRHLWp.lean`, as the set literal `{i}` applied
+elab "equiv_while " I:term:max : tactic => withMainContext do
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_while"
   let g ← HoareSplit.hoareSplit 1 g

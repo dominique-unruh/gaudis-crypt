@@ -94,6 +94,8 @@ def lastCallee (s : Lean.Expr) : MetaM Lean.Expr := do
 def elabClean (t : Term) : TermElabM (Option Lean.Expr) := do
   let s ← saveState
   let log ← Core.getMessageLog
+  -- only this elaboration's messages: errors logged earlier in the file are not this term's
+  Core.resetMessageLog
   try
     let e ← Term.withoutErrToSorry do
       let e ← Term.elabTerm t none
@@ -231,8 +233,9 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
 open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
 /-- **EC's `call (_: ={x₁, …, glob M})` on a concrete callee**, with EC's frame: the callee keeps
 `={x₁, …}` (`prhlProc_glob_module`, its footprint inside them), and what it does not write keeps
-its value (as for `equiv_call (_ : P ==> Q)`).  Goal: the code before the calls.  An abstract
-callee (`D(O)`) is left to the rule of `Logic/ECCallAbstract.lean`. -/
+its value (as for `equiv_call (_ : P ==> Q)`).  Goal: the code before the calls.  Two different
+concrete callees: `equiv_call (_ : ={arg, x₁, …} ==> ={res, x₁, …})` (their judgment a goal, as
+EC's).  An abstract callee (`D(O)`) is left to the rule of `Logic/ECCallAbstract.lean`. -/
 elab_rules (kind := GaudisCrypt.equivCallInv) : tactic
   | `(tactic| equiv_call (_ : ={ $xs:term,* })) => withMainContext do
     let s ← saveState
@@ -245,10 +248,20 @@ elab_rules (kind := GaudisCrypt.equivCallInv) : tactic
         let M₁ ← lastCallee (ty.getArg! 1)
         let M₂ ← lastCallee (ty.getArg! 2)
         let isApp (M : Lean.Expr) := (M.find? (·.isAppOfArity ``Module.app 6)).isSome
+        -- an application of a declared (abstract) module: `Logic/ECCallAbstract.lean`'s rule
+        let isAbstract (M : Lean.Expr) := (M.find? fun e =>
+          e.isAppOfArity ``Module.app 6 && (e.getArg! 4).getAppFn.isFVar).isSome
+        if isAbstract M₁ || isAbstract M₂ then return none
+        -- two different concrete callees: EC's `={arg, x…} ==> ={res, x…}`, their judgment a goal
+        unless ← withReducible (isDefEq M₁ M₂) do return some (ty, M₁, M₂, true)
         if isApp M₁ || isApp M₂ then return none
-        return some (ty, M₁, M₂)
+        return some (ty, M₁, M₂, false)
       catch _ => return none
-    let some (ty, M₁, M₂) := concrete | do s.restore; throwUnsupportedSyntax
+    let some (ty, M₁, M₂, different) := concrete | do s.restore; throwUnsupportedSyntax
+    if different then
+      s.restore
+      evalTactic (← `(tactic| equiv_call (_ : ={arg, $xs,*} ==> ={res, $xs,*})))
+      return
     let Rs ← xs.getElems.mapM fun (t : Term) => match t with
       | `(glob $a) => `(glob_region $a)
       | _ => `(Lens.footprint $t)

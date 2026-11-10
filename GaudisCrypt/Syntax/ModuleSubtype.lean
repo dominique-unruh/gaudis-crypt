@@ -58,6 +58,8 @@ elab_rules : command
     -- `runTermElabM`: the section's variables (its instances) in scope
     let same ← runTermElabM fun _ => do
       let log ← Core.getMessageLog
+      -- only this check's messages (errors logged earlier in the file are not its own)
+      Core.resetMessageLog
       try
         Term.withoutErrToSorry do
           let Se ← Term.elabType S

@@ -250,6 +250,8 @@ partial def keepsOf (s x : Lean.Expr) : MetaM Lean.Expr := do
 def dischargeRegionWrite (ty : Lean.Expr) : MetaM Lean.Expr := do
   let m ← mkFreshExprMVar ty
   let log ← Core.getMessageLog
+  -- only this proof's messages (errors logged earlier in the file are not its own)
+  Core.resetMessageLog
   try
     let gs ← Elab.Term.TermElabM.run' <| Elab.Term.withoutErrToSorry <|
       Elab.Tactic.run m.mvarId! do
@@ -272,6 +274,8 @@ def dischargeRegionWrite (ty : Lean.Expr) : MetaM Lean.Expr := do
 def byTactic (ty : Lean.Expr) (tac : TSyntax `tactic) : MetaM Lean.Expr := do
   let m ← mkFreshExprMVar ty
   let log ← Core.getMessageLog
+  -- only this proof's messages (errors logged earlier in the file are not its own)
+  Core.resetMessageLog
   try
     let gs ← Elab.Term.TermElabM.run' <| Elab.Term.withoutErrToSorry <|
       Elab.Tactic.run m.mvarId! (Elab.Tactic.evalTactic tac)
