@@ -180,6 +180,53 @@ elab_rules : tactic
     replaceMainGoal [hJ, ← Judgment.simpArg gPre 3 relSimpDecls []]
 
 open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
+/-- **EC's `call H`** with `H` a judgment about the two last callees (modules' procedures), with
+EC's frame: what each callee does not write keeps its value (as for `equiv_call (_ : P ==> Q)`).
+Goal: the code before the calls.  Other uses of `equiv_call H` are left to `Logic/PRHLWp.lean`. -/
+elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
+  | `(tactic| equiv_call $h:term) => withMainContext do
+    let s ← saveState
+    let g ← getMainGoal
+    let _ ← prhlGoal g "equiv_call"
+    let g ← HoareSplit.hoareSplit 1 g
+    let res? ← g.withContext do
+      try
+        let ty ← prhlGoal g "equiv_call"
+        let M₁ ← lastCallee (ty.getArg! 1)
+        let M₂ ← lastCallee (ty.getArg! 2)
+        let isApp (M : Lean.Expr) := (M.find? (·.isAppOfArity ``Module.app 6)).isSome
+        if isApp M₁ || isApp M₂ then return none
+        let hJ ← Term.elabTerm h none
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let hJ ← instantiateMVars hJ
+        unless (← whnfR (← inferType hJ)).isAppOf ``prhlProc do return none
+        let B := ty.getArg! 3
+        let (_, gls) ← ECSim.varsOf #[B]
+        let Rs ← ECConseqFrame.regionsOf #[B]
+        let fr₁ ← frameFor M₁ gls Rs
+        let fr₂ ← frameFor M₂ gls Rs
+        let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_call_frame
+        let (ms, _, concl) ← forallMetaTelescope (← inferType c)
+        let names := (← inferType c).getForallBinderNames
+        let idx (n : Name) : MetaM Nat := do
+          let some i := names.findIdx? (· == n) | throwError "equiv_call: no argument `{n}`"
+          return i
+        unless ← isDefEq ms[← idx `M₁]! M₁ do return none
+        unless ← isDefEq ms[← idx `M₂]! M₂ do return none
+        unless ← isDefEq ms[← idx `h]! hJ do return none
+        unless ← isDefEq ms[← idx `hFr₁]! fr₁ do return none
+        unless ← isDefEq ms[← idx `hFr₂]! fr₂ do return none
+        unless ← isDefEq concl ty do return none
+        g.assign (← instantiateMVars (mkAppN c ms))
+        let gPre := ms[← idx `hpre]!.mvarId!
+        gPre.setKind .syntheticOpaque
+        gPre.setTag (← g.getTag)
+        return some gPre
+      catch _ => return none
+    let some gPre := res? | do s.restore; throwUnsupportedSyntax
+    replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
+
+open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
 /-- **EC's `call (_: ={x₁, …, glob M})` on a concrete callee**, with EC's frame: the callee keeps
 `={x₁, …}` (`prhlProc_glob_module`, its footprint inside them), and what it does not write keeps
 its value (as for `equiv_call (_ : P ==> Q)`).  Goal: the code before the calls.  An abstract

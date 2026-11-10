@@ -29,6 +29,10 @@ set_option linter.dupNamespace false
 * GAP 3: `sp` through an inlined call (`G1_G2`'s `M.f`): the start state as nested existentials
   with whole-state equations through the inliner's renaming (`ProgramState.mapLocal`); the
   closers do not use them (EC's `sp` keeps reads, `exists` only for overwritten values).
+* GAP 4: a procedure's parameter (`x` of `S.f`) is not a name of the statement conditions after
+  `proc` (not in the code's `var` list): written as its read `(localVarLens "x" SLCommon.state)`.
+* GAP 5: a call's frame (`equiv_call`) keeps only variables outside the callee's footprint;
+  EC's keeps what the callee does not write (`RRO.allKnown` reads `FRO.m`): read/write sets.
 * EC's `x` (the wrapper `DRestr`'s parameter) is not a program variable after our `sp`
   (it is substituted): `x{1} = x0{1}` dropped, `x` read as `x0`.
 -/
@@ -48,6 +52,65 @@ abbrev state := GaudisCrypt.SHA3.SLCommon.state
 
 /-- The footprint of the handles' eager random oracle `RRO`: `FRO.m`. -/
 @[fp_bound] theorem fvP_RRO : FVP.fvP RRO ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+/-! The footprints of `RRO`'s procedures (as `Lib/EC/PROM.lean`'s for `RO`; to move there). -/
+
+@[fp_bound] theorem fvP_RRO_init :
+    FVP.fvP (PROM.FullRO.FRO_T.init handle capacity RRO) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_RRO_get :
+    FVP.fvP (PROM.FullRO.FRO_T.get handle capacity RRO) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_RRO_set :
+    FVP.fvP (PROM.FullRO.FRO_T.set handle capacity RRO) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_handle :
+    FVP.fvP (PROM.FullRO.FRO handle capacity ROhandle.dout ROhandle.FRO.m) ≤
+      (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_init_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.init.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_get_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.get.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_set_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.set.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_rem_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.rem.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_sample_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.sample.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_queried_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.queried.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_FRO_allKnown_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FRO.allKnown.procedure handle capacity ROhandle.dout
+      ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
+  fp_module ROhandle.FRO.m
+
+@[fp_bound] theorem fvP_RRO_own_get_proc :
+    FVP.fvP (Module.proc (PROM.FullRO.FullEager.RRO.own.get.procedure handle capacity
+      ROhandle.dout ROhandle.FRO.m)) ≤ (ROhandle.FRO.m).footprint := by
   fp_module ROhandle.FRO.m
 
 /-- The footprint of the functor `G2.S` (for the solver, which reads concrete modules off their
@@ -362,8 +425,8 @@ module Gext.M : DFUNCTIONALITY {
 
 -- EC's `Gext.S`
 module Gext.S : DPRIMITIVE {
-  proc f (x : state) : state {
-    var p : List block, v : block, y : state, y1 : block, y2 : capacity, hy2 : handle,
+  proc f (x : SLCommon.state) : SLCommon.state {
+    var p : List block, v : block, y : SLCommon.state, y1 : block, y2 : capacity, hy2 : handle,
       hx2 : handle, handles_ : FMap handle capacity, t : Bool;
     if (!(decide (FMap.dom ($G1.m : smap) $x))) {
       if (decide (FMap.dom ($G1.paths : FMap capacity (List block × block)) ($x).2)) {
@@ -408,8 +471,8 @@ module Gext.S : DPRIMITIVE {
     }
     return $y
   };
-  proc fi (x : state) : state {
-    var y : state, y1 : block, y2 : capacity, hx2 : handle, hy2 : handle,
+  proc fi (x : SLCommon.state) : SLCommon.state {
+    var y : SLCommon.state, y1 : block, y2 : capacity, hx2 : handle, hy2 : handle,
       handles_ : FMap handle capacity, t : Bool;
     if (!(decide (FMap.dom ($G1.mi : smap) $x))) {
       handles_ <- call (PROM.FullRO.FRO_T.allKnown handle capacity RRO) ();
@@ -721,6 +784,58 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
               C.queries} ∧
             inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
         on_goals 2 => (equiv_auto; simp only [inv_lt, inv_le] at *; auto_close)
+        -- EC: proc;if=>//;last by auto=>/#.
+        equiv_proc; stmt_if
+        · auto_close
+        on_goals -1 => (equiv_auto; simp only [inv_lt, inv_le] at *; auto_close)
+        -- EC: seq 8 9 : (={x, y, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+        --                  G1.bext, C.c, C.queries} /\
+        --                inv_le G1.m{2} G1.mi{2} C.c{1} FRO.m{2} ReSample.count{2});2:by auto.
+        --     (GAP 4: the procedure's parameter `x` is not a name of the statement conditions after
+        --     `proc`: its read written out)
+        equiv_seq 8 9 : (={(localVarLens "x" SLCommon.state), y, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+            G1.bext, C.c, C.queries} ∧
+            inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
+        on_goals 2 => equiv_auto
+        -- EC: seq 2 3 :
+        --       (={y,x,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,
+        --          C.c,C.queries} /\
+        --       inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2}).
+        --     + by if=>//;auto;call (_: ={F.RO.m});auto.
+        equiv_seq 2 3 : (={y, (localVarLens "x" SLCommon.state), F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+            G1.bext, C.c, C.queries} ∧
+            inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
+        · stmt_if
+          · auto_close
+          · equiv_auto; equiv_call (_ : ={F.RO.m}); equiv_auto
+          · equiv_auto
+        -- EC: seq 5 5 :
+        --       (={t,y,x,hx2,F.RO.m,FRO.m,G1.paths,G1.mh,G1.mhi,G1.m,G1.mi,G1.chandle,G1.bext,
+        --          C.c,C.queries} /\
+        --       inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2} /\
+        --       (t => in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2 Unknown){1}).
+        equiv_seq 5 5 : (={t, y, (localVarLens "x" SLCommon.state), hx2, F.RO.m, FRO.m, G1.paths,
+            G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext, C.c, C.queries} ∧
+            inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ∧
+            (§t{1} → FMap.in_dom_with §FRO.m{1}
+              (oget (FMap.get §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2
+              Unknown))
+        -- EC: + inline RRO.queried; wp;call (_: ={FRO.m});1:by sim.
+        --       inline RRO.allKnown;sp 1 1;if=>//.
+        --       by wp;call RROset_inv_lt;auto.
+        --     (GAP 2: inline by index)
+        --     (GAP 5: EC's `call (_: ={FRO.m})` on `RRO.allKnown` frames `FRO.m`, which it only
+        --     reads; our frame needs what is outside the callee's whole footprint: inlined)
+        · stmt_inline 3; stmt_inline 2; stmt_wp
+          stmt_inline 0; stmt_sp 1 1; stmt_if
+          · auto_close
+          --     (`in_dom_with` and `RRO.queried`'s `is_` unfolded: EC's `auto` sees through them)
+          · stmt_wp; equiv_call RROset_inv_lt; equiv_auto
+            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt, inv_le] at *
+            auto_close
+          · equiv_auto
+            simp only [FMap.in_dom_with, PROM.is_, oget, inv_lt, inv_le] at *
+            auto_close
         trace "SFC"; trace_state; sorry
       · equiv_auto
     · sorry
