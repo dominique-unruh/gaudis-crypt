@@ -19,6 +19,8 @@ Translation:
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 1: EC's `sim` goes into calls of different concrete procedures (`G4.S(F.LRO).f` against
   `S(IF).f`); ours stops there: `stmt_inline*` first.
+* GAP 3: a procedure's parameter (`x` of `G3.S.f`) is not a name of the conditions after `proc`
+  (Gext's GAP 4): its read `(localVarLens "x" SLCommon.state)` written out.
 * GAP 2: the one-sided `equiv_while{i}` has no frame of the variables the loop keeps (the
   two-sided `while` has, `Logic/ECWhileRel.lean`): they go into the invariant.
 -/
@@ -37,6 +39,93 @@ section
 
 declare module D <: DISTINGUISHER {-C, -Perm, -F.RO, -F.FRO, -S.m, -S.mi, -S.paths, -Redo, -G1,
   -FRO.m}
+
+set_option maxHeartbeats 4000000 in
+/-- EC's `local equiv G3_G4 : G3(F.RO).distinguish ~ G4(F.RO).distinguish : ={glob D} ==>
+={res}`. -/
+theorem G3_G4 : equiv[ G3(D, F.RO.asRO).distinguish ~ G4(D, F.RO.asRO).distinguish :
+    ={glob D} ==> ={res} ] := by
+  -- EC: proc;inline *;wp.
+  equiv_proc; stmt_inline*; stmt_wp
+  -- EC: call (_: ={G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});last by auto.
+  equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
+  -- EC: + proc;sp;if=>//;sim 1 1.
+  --       call (_: ={G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});last by auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    sim 1 1
+    equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
+    on_goals 2 => (equiv_auto; auto_close)
+    -- EC: if => //;2:sim.
+    equiv_proc; stmt_if
+    · auto_close
+    on_goals 2 => sim
+    -- EC: seq 3 3: (={x,y1,y2,y,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});1:by sim.
+    --     (GAP 3: the procedure's parameter `x` written as its read)
+    equiv_seq 3 3 : (={(localVarLens "x" SLCommon.state), y1, y2, y, G1.m, G1.mi, G1.paths,
+      F.RO.m, C.c, C.queries})
+    · sim
+    -- EC: sim;seq 5 0: (={x,y1,y2,y,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});
+    --       1:by inline *;auto.
+    sim
+    equiv_seq 5 0 : (={(localVarLens "x" SLCommon.state), y1, y2, y, G1.m, G1.mi, G1.paths, F.RO.m,
+      C.c, C.queries})
+    · stmt_inline*; equiv_auto
+    -- EC: by if{1};sim;inline *;auto.
+    stmt_if{1}
+    all_goals sim
+    stmt_inline*; equiv_auto
+  -- EC: + proc;sp;if=>//;sim 1 1.
+  --       call (_: ={G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});last by auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    sim 1 1
+    equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
+    on_goals 2 => (equiv_auto; auto_close)
+    -- EC: if => //;2:sim.
+    equiv_proc; stmt_if
+    · auto_close
+    on_goals 2 => sim
+    -- EC: seq 5 0: (={x,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});1:by inline *;auto.
+    equiv_seq 5 0 : (={(localVarLens "x" SLCommon.state), G1.m, G1.mi, G1.paths, F.RO.m, C.c,
+      C.queries})
+    · stmt_inline*; equiv_auto
+    -- EC: seq 3 3: (={x,y1,y2,y,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});1:by sim.
+    equiv_seq 3 3 : (={(localVarLens "x" SLCommon.state), y1, y2, y, G1.m, G1.mi, G1.paths,
+      F.RO.m, C.c, C.queries})
+    · sim
+    -- EC: by if{1};sim;inline *;auto.
+    stmt_if{1}
+    all_goals sim
+    stmt_inline*; equiv_auto
+  -- EC: proc;sp;if=>//;auto;if=>//;sim 2 2.
+  --     call (_: ={G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});last by auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    stmt_sp; stmt_if
+    · auto_close
+    on_goals 2 => equiv_auto
+    sim 2 2
+    equiv_call (_ : ={G1.m, G1.mi, G1.paths, F.RO.m, C.c, C.queries})
+    on_goals 2 => (equiv_auto; auto_close)
+    -- EC: sp;sim; while(={i,p,F.RO.m})=>//.
+    equiv_proc; stmt_sp; sim
+    equiv_while (={i, p, F.RO.m})
+    -- EC: inline F.RO.sample F.RO.get;if{1};1:by auto.
+    · stmt_inline*
+      stmt_if{1}
+      · equiv_auto
+      -- EC: if{1};2:by auto.
+      stmt_if{1}
+      on_goals 2 => equiv_auto
+      -- EC: by sim;inline *;auto;progress;smt(DCapacity.dunifin_ll).
+      sim; equiv_auto
+    · equiv_auto
+  -- EC: last by auto.
+  · equiv_auto; auto_close
 
 set_option maxHeartbeats 4000000 in
 /-- EC's `local equiv G4_Ideal : G4(F.LRO).distinguish ~ IdealIndif(IF,S,DRestr(D)).main :

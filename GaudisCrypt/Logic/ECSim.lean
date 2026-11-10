@@ -309,6 +309,32 @@ def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
         R? := some R
         break
       catch _ => s'.restore
+    -- none given (plain `sim`): EC's equality set for the call, the variables read after it that
+    -- the callee touches (`F.RO.m` for `RO.get`), as one region
+    if R?.isNone then
+      let mut zs : Array Term := #[]
+      for x in xs do
+        let s' ← saveState
+        let outside ← try
+            let m ← mkFreshExprSyntheticOpaqueMVar
+              (← mkAppM ``LE.le #[← mkAppM ``Lens.footprint #[x],
+                ← mkAppM ``Compl.compl #[← mkAppM ``FVP.fvP #[M]]])
+            let [] ← runOn m.mvarId! (← `(tactic| fp_disjoint)) | failure
+            pure true
+          catch _ => pure false
+        s'.restore
+        unless outside do zs := zs.push (← `(Lens.footprint $(← Term.exprToSyntax x)))
+      if let some last := zs.back? then
+        let RS ← zs.pop.foldrM (fun z acc => `($z ⊔ $acc)) last
+        let R ← Term.elabTerm RS (some (← mkAppM ``Footprint #[mkConst ``VariableAssignment]))
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let R ← instantiateMVars R
+        let s' ← saveState
+        try
+          let m ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``LE.le #[← mkAppM ``FVP.fvP #[M], R])
+          let [] ← runOn m.mvarId! (← `(tactic| fp_le)) | failure
+          R? := some R
+        catch _ => s'.restore
     let some R := R? | throwError "sim: no region contains the callee"
     -- the frames: the variables read that `M` does not touch
     let mut frames : Array Term := #[]

@@ -283,6 +283,24 @@ noncomputable def LRO : RO_T in_t out_t :=
     FVP.fvP (ROmap.rem in_t out_t (RO in_t out_t dout m)) ≤ m.footprint := by
   fp_module m
 
+/-! `RO` through its `RO_T` view (`RO.asRO`, EC's `RO` as an `RO` module argument). -/
+
+@[fp_bound] theorem fvP_ROasRO_init :
+    FVP.fvP (RO_T.init in_t out_t (RO.asRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_ROasRO_get :
+    FVP.fvP (RO_T.get in_t out_t (RO.asRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_ROasRO_set :
+    FVP.fvP (RO_T.set in_t out_t (RO.asRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
+@[fp_bound] theorem fvP_ROasRO_rem :
+    FVP.fvP (RO_T.rem in_t out_t (RO.asRO in_t out_t dout m)) ≤ m.footprint := by
+  fp_module m
+
 @[fp_bound] theorem fvP_LRO_init :
     FVP.fvP (RO_T.init in_t out_t (LRO in_t out_t dout m)) ≤ m.footprint := by
   fp_module m
