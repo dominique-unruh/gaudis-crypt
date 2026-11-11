@@ -27,8 +27,8 @@ Translation:
   read `x`).  EC's later `inline *` comes first here: what the block moves past is then
   deterministic code, which our `swap` commutes with it (`StmtSwap.discharge`), at EC's positions
   after the inlining; the rest of EC's script with its `seq`s at the inlined positions.
-* GAP 5: `sim` stops at two loops after `inline*` (`G2_G3`'s `M.f` callee) where EC's goes
-  through: `equiv_while` with EC's equality set, the bodies by `sim`.
+* (GAP 5, fixed: `sim` through two loops whose relation after them reads what they change: EC's
+  equality set as the invariant.)
 * GAP 2: the one-sided `equiv_while{i}` has no frame of the variables the loop keeps (the
   two-sided `while` has, `Logic/ECWhileRel.lean`): they go into the invariant.
 -/
@@ -210,11 +210,6 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
       C.queries})
     on_goals 2 => (equiv_auto; auto_close)
     equiv_proc; stmt_inline*; sim
-    --     (GAP 5: our `sim` stops at the two loops here: EC's equality set as their invariant)
-    equiv_while (={i, p, h, counter, sa, FRO.m, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.chandle,
-      G1.paths, C.c, C.queries})
-    · sim
-    · equiv_auto
   -- EC: last by auto.
   · equiv_auto; auto_close
 

@@ -375,6 +375,56 @@ register_option debug.sim : Bool := {
   descr := "sim: report why it stops at two loops"
 }
 
+/-- A set of program variables: the local slots and the globals (as `varsOf` returns them). -/
+abbrev VarSet := Array Lean.Expr × Array Lean.Expr
+
+/-- `x` among `xs`, as a variable (`lensKey`: a local's two spellings are one variable). -/
+private def containsVar (xs : Array Lean.Expr) (x : Lean.Expr) : MetaM Bool := do
+  let k ← lensKey x
+  xs.anyM fun y => return (← lensKey y) == k
+
+private def vsUnion (a b : VarSet) : MetaM VarSet := do
+  let mut (ls, gs) := a
+  for x in b.1 do unless ← containsVar ls x do ls := ls.push x
+  for x in b.2 do unless ← containsVar gs x do gs := gs.push x
+  return (ls, gs)
+
+private def vsDiff (a b : VarSet) : MetaM VarSet :=
+  return (← a.1.filterM fun x => return !(← containsVar b.1 x),
+    ← a.2.filterM fun x => return !(← containsVar b.2 x))
+
+private def vsMeets (a b : VarSet) : MetaM Bool :=
+  return (← a.1.anyM (containsVar b.1)) || (← a.2.anyM (containsVar b.2))
+
+/-- **EC's equality sets, backwards**: the variables that must be equal on the two sides before
+`s` (run on both) for those of `S` to be equal after it.  An assignment or sampling to variables
+of `S` replaces them by what it reads (otherwise it does not matter); a conditional adds its
+guard; a loop the fixpoint of its body with its guard; anything else (a call, a hole) everything
+it mentions. -/
+partial def eqBack (s : Lean.Expr) (S : VarSet) : MetaM VarSet := do
+  let s := stripLets (← instantiateMVars s)
+  let args := s.getAppArgs
+  let last (k : Nat) : Lean.Expr := args[args.size - k]!
+  match s.getAppFn.constName? with
+  | some ``StmtWithHoles.skip => return S
+  | some ``StmtWithHoles.seq => eqBack (last 2) (← eqBack (last 1) S)
+  | some ``StmtWithHoles.ifThenElse =>
+    let t ← eqBack (last 2) S
+    let e ← eqBack (last 1) S
+    vsUnion (← vsUnion (← varsOf #[last 3]) t) e
+  | some ``StmtWithHoles.while =>
+    let c ← varsOf #[last 2]
+    let mut I ← vsUnion S c
+    for _ in [0:20] do
+      let I' ← vsUnion I (← eqBack (last 1) I)
+      if I'.1.size == I.1.size && I'.2.size == I.2.size then return I'
+      I := I'
+    return I
+  | some ``StmtWithHoles.sample | some ``StmtWithHoles.assign =>
+    let W ← varsOf #[last 2]
+    if ← vsMeets W S then vsUnion (← vsDiff S W) (← varsOf #[last 1]) else return S
+  | _ => vsUnion S (← varsOf #[s])
+
 /-- EC's `sim` invariant of two loops: the relation `B` after them, and the variables both loops
 mention equal on the two sides (a variable of one side only — `Perm.m` against `PRPi.m`, EC's
 `sim (_: ={m,mi}(Perm,PRPi))` — is related by `B`, if at all). -/
@@ -382,7 +432,12 @@ def loopInv (B : Lean.Expr) (loops : Array Lean.Expr) : MetaM Lean.Expr := do
   let (ls, gs) ← if h : loops.size = 2 then do
       let (ls₁, gs₁) ← varsOf #[loops[0]]
       let (ls₂, gs₂) ← varsOf #[loops[1]]
-      pure (ls₁.filter ls₂.contains, gs₁.filter gs₂.contains)
+      -- of those, the ones `B` and the loops need (EC's equality set, `eqBack`): not a local the
+      -- body writes before reading it (an inlined callee's `x0`, named differently on the sides)
+      let SB ← varsOf #[B]
+      let (nl, ng) ← vsUnion (← eqBack loops[0] SB) (← eqBack loops[1] SB)
+      pure (← ls₁.filterM fun x => return (← containsVar ls₂ x) && (← containsVar nl x),
+        ← gs₁.filterM fun x => return (← containsVar gs₂ x) && (← containsVar ng x))
     else varsOf loops
   let ps := mkConst ``ProgramState
   withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
@@ -394,6 +449,26 @@ def loopInv (B : Lean.Expr) (loops : Array Lean.Expr) : MetaM Lean.Expr := do
       eqs := eqs.push (← mkEq (← get x (← mkAppM ``ProgramState.globals #[σ₁]))
         (← get x (← mkAppM ``ProgramState.globals #[σ₂])))
     let body ← eqs.foldrM (fun e acc => mkAppM ``And #[e, acc]) (mkApp2 B σ₁ σ₂).headBeta
+    mkLambdaFVars #[σ₁, σ₂] body
+
+/-- EC's `sim` invariant of two loops as an **equality set**: the variables the relation `B` after
+them reads, closed backwards through each loop (`eqBack`), equal on the two sides (`B` itself left
+out: it may read what the loops change, `F.RO.m` at the loops' `p`; at the exit it follows from
+the equalities). -/
+def loopInvEq (B : Lean.Expr) (l₁ l₂ : Lean.Expr) : MetaM Lean.Expr := do
+  let SB ← varsOf #[B]
+  let (ls, gs) ← vsUnion (← eqBack l₁ SB) (← eqBack l₂ SB)
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ => do
+    let get (x st : Lean.Expr) : MetaM Lean.Expr := do
+      mkAppM ``Getter.get #[← mkAppM ``Lens.toGetter #[x], st]
+    let mut eqs : Array Lean.Expr := #[]
+    for x in ls do eqs := eqs.push (← mkEq (← get x σ₁) (← get x σ₂))
+    for x in gs do
+      eqs := eqs.push (← mkEq (← get x (← mkAppM ``ProgramState.globals #[σ₁]))
+        (← get x (← mkAppM ``ProgramState.globals #[σ₂])))
+    let some last := eqs.back? | throwError "sim: no variables for the loops' equality set"
+    let body ← (eqs.pop).foldrM (fun e acc => mkAppM ``And #[e, acc]) last
     mkLambdaFVars #[σ₁, σ₂] body
 
 /-- The variables (lenses of the state or of the globals) a relational precondition `A` keeps
@@ -593,17 +668,19 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     | none => s.restore; return [g]
   | .loop, .loop =>
     -- EC's `sim` through two loops: its equality set as the invariant (the relation after them,
-    -- and the variables the loops mention equal); the bodies by `sim`, the guards agree and the
-    -- exit by `closeImp`, then on before the loops.  Otherwise it stops at them.
+    -- and the variables the loops mention equal; else, when the relation after them reads what
+    -- the loops change, the equalities of the variables it reads instead of it); the bodies by
+    -- `sim`, the guards agree and the exit by `closeImp`, then on before the loops.  Otherwise it
+    -- stops at them.
     let s ← saveState
-    try
+    let attempt (eqOnly : Bool) : TacticM (List MVarId) := do
       let g ← HoareSplit.hoareSplit 1 g
       let ty ← prhlGoal g "sim"
       let B ← instantiateMVars (ty.getArg! 3)
       if B.getAppFn.isMVar then throwError "sim: the relation after the loops is open"
       let l₁ := stripLets (lastOf (ty.getArg! 1))
       let l₂ := stripLets (lastOf (ty.getArg! 2))
-      let I ← match inv? with
+      let I ← if eqOnly then loopInvEq B l₁ l₂ else match inv? with
         | some (J, xs) => loopInvWith J eqset.1 xs l₁ l₂
         | none => loopInv B #[l₁, l₂]
       let c ← mkConstWithFreshMVarLevels ``prhlStmt_seq_while
@@ -626,13 +703,20 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         let r ← r.flatMapM autoCloseIfAvailable
         if let some m' := r.head? then
           throwError "sim: the loops' guards or exit:{indentExpr (← instantiateMVars (← m'.getType))}"
-      return ← sim gPre frame? (fuel - 1) eqset inv?
+      sim gPre frame? (fuel - 1) eqset inv?
+    try attempt false
     catch e =>
       s.restore
       if debug.sim.get (← getOptions) then
         -- printed, not logged: an enclosing rule's `restore` would drop a log message
         IO.eprintln s!"sim (loops): {← e.toMessageData.toString}"
-      return [g]
+      if inv?.isSome then return [g]
+      try attempt true
+      catch e =>
+        s.restore
+        if debug.sim.get (← getOptions) then
+          IO.eprintln s!"sim (loops, equality set): {← e.toMessageData.toString}"
+        return [g]
   | .sample, .sample =>
     let s ← saveState
     try
