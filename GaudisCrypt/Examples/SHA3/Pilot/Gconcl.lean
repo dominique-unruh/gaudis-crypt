@@ -21,13 +21,11 @@ Translation:
   `S(IF).f`); ours stops there: `stmt_inline*` first.
 * GAP 3: a procedure's parameter (`x` of `G3.S.f`) is not a name of the conditions after `proc`
   (Gext's GAP 4): its read `(localVarLens "x" SLCommon.state)` written out.
-* GAP 4: EC's `swap{1} [3..7] -2` in `G2_G3`'s `S.f` (`RRO`'s calls past the conditional
-  calling `F.RO.get`).  Footprint disjointness does not apply (both read `x`).  Tried (2026-11-11):
-  inlining the `RRO` calls and `F.RO.get` first (EC's later `inline *`) makes the moved block
-  deterministic, and the first moved statement then swaps; the next (a deterministic `if` with a
-  `reset_vars` in its branch) fails in `StmtSwap.discharge`: it cannot push the left's tuple
-  assignment `p, v <- …` through that `if`'s update.  A discharger gap, not read/write sets.
-  `G2_G3`'s `S.f` bullet is a `sorry` until then.
+* (closed, was GAP 4) EC's `swap{1} [3..7] -2;swap{2} [4..8] -3` in `G2_G3`'s `S.f` moves `RRO`'s
+  calls past the conditional calling `F.RO.get`; footprint disjointness does not apply (both
+  read `x`).  EC's later `inline *` comes first here: what the block moves past is then
+  deterministic code, which our `swap` commutes with it (`StmtSwap.discharge`), at EC's positions
+  after the inlining; the rest of EC's script with its `seq`s at the inlined positions.
 * GAP 5: `sim` stops at two loops after `inline*` (`G2_G3`'s `M.f` callee) where EC's goes
   through: `equiv_while` with EC's equality set, the bodies by `sim`.
 * GAP 2: the one-sided `equiv_while{i}` has no frame of the variables the loop keeps (the
@@ -78,28 +76,80 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     · auto_close
     on_goals 2 => sim
     -- EC: swap{1} [3..7] -2;swap{2} [4..8] -3.
-    --     seq 5 5:(={hx2,t,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,
+    --     (EC's later `inline *` first, for `RRO`'s calls and `F.RO.get`: what the block moves
+    --     past is then deterministic code, which our `swap` commutes with the block although both
+    --     read `x`; EC's positions after the inlining)
+    stmt_inline{1} 4; stmt_inline{1} 3; stmt_inline{1} 2; stmt_inline{1} 1; stmt_inline{1} 0
+    stmt_inline{2} 4; stmt_inline{2} 3; stmt_inline{2} 2; stmt_inline{2} 1; stmt_inline{2} 0
+    stmt_swap{1} [3..8] -2; stmt_swap{2} [4..9] -3
+    -- EC: seq 5 5:(={hx2,t,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,
     --              C.queries} /\ (t = in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2 Unknown){1});
     --       1:by inline *;auto.
-    --     seq 3 4:(={y,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
+    --     (`RRO.in_dom` inlined: two statements)
+    equiv_seq 6 6 : (={hx2, t, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m, G1.mi,
+        G1.mh, G1.mhi, G1.chandle, G1.paths, C.c, C.queries} ∧
+      §t{1} = decide (FMap.in_dom_with §FRO.m{1}
+        (oget (FMap.get §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2 Unknown))
+    · stmt_inline*; equiv_auto; auto_close
+    -- EC: seq 3 4:(={y,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
     --       2:by sim.
-    --     if=>//.
-    --     + seq 2 2:(={y1,hx2,t,x,FRO.m,…} /\ (t = in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2
+    equiv_seq 3 4 : (={y, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m, G1.mi, G1.mh,
+      G1.mhi, G1.chandle, G1.paths, C.c, C.queries})
+    on_goals 2 => sim
+    -- EC: if=>//.
+    stmt_if
+    · auto_close
+    -- EC: + seq 2 2:(={y1,hx2,t,x,FRO.m,…} /\ (t = in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2
     --                Unknown){1}).
     --       + by inline *;auto=> /> ? _;rewrite Block.DWord.bdistr_ll.
-    --       case (((x.`1, hx2) \in G1.mh /\ t){1});
-    --           [rcondt{1} 3;2:rcondt{2} 3| rcondf{1} 3;2:rcondf{2} 3];
-    --           1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
-    --       inline *;rcondt{1} 6;1:by auto=>/>.
-    --       by auto => /> *; rewrite !get_setE.
-    --     case (((x.`1, hx2) \in G1.mh /\ t){1});
-    --           [rcondt{1} 4;2:rcondt{2} 4| rcondf{1} 4;2:rcondf{2} 4];
-    --           1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
-    --     inline *;rcondt{1} 7;1:by auto=>/>.
-    --     by wp;rnd;auto;rnd{1};auto => /> *; rewrite !get_setE.
-    --     (GAP 4: our `swap` cannot move the `RRO` calls past the conditional calling `F.RO.get`
-    --     (EC: their footprints are disjoint); the bullet waits for it)
-    sorry
+    --     (`F.RO.get` inlined: five statements)
+    · equiv_seq 5 5 : (={y1, hx2, t, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m,
+          G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c, C.queries} ∧
+        §t{1} = decide (FMap.in_dom_with §FRO.m{1}
+          (oget (FMap.get §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2
+          Unknown))
+      · stmt_inline*; equiv_auto
+      -- EC: case (((x.`1, hx2) \in G1.mh /\ t){1});
+      --       [rcondt{1} 3;2:rcondt{2} 3| rcondf{1} 3;2:rcondf{2} 3];
+      --       1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
+      equiv_case (FMap.dom §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}) ∧
+        §t{1} = true)
+      · stmt_rcondt{1} 3
+        · hoare_auto
+        stmt_rcondt{2} 3
+        · hoare_auto
+        -- EC: inline *;rcondt{1} 6;1:by auto=>/>.
+        stmt_inline*; stmt_rcondt{1} 6
+        · hoare_auto; simp only [FMap.in_dom_with, PROM.is_, oget] at *; auto_close
+        -- EC: by auto => /> *; rewrite !get_setE.
+        equiv_auto; auto_progress
+        all_goals simp only [FMap.get_set_sameE, oget_some]
+      · stmt_rcondf{1} 3
+        · hoare_auto
+        stmt_rcondf{2} 3
+        · hoare_auto
+        sim
+    -- EC: case (((x.`1, hx2) \in G1.mh /\ t){1});
+    --       [rcondt{1} 4;2:rcondt{2} 4| rcondf{1} 4;2:rcondf{2} 4];
+    --       1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
+    · equiv_case (FMap.dom §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}) ∧
+        §t{1} = true)
+      · stmt_rcondt{1} 4
+        · hoare_auto
+        stmt_rcondt{2} 4
+        · hoare_auto
+        -- EC: inline *;rcondt{1} 7;1:by auto=>/>.
+        stmt_inline*; stmt_rcondt{1} 7
+        · hoare_auto; simp only [FMap.in_dom_with, PROM.is_, oget] at *; auto_close
+        -- EC: by wp;rnd;auto;rnd{1};auto => /> *; rewrite !get_setE.
+        --     (our `auto` takes EC's `rnd{1}` as well)
+        stmt_wp; equiv_rnd; equiv_auto; auto_progress
+        all_goals simp only [FMap.get_set_sameE, oget_some]
+      · stmt_rcondf{1} 4
+        · hoare_auto
+        stmt_rcondf{2} 4
+        · hoare_auto
+        sim
   -- EC: + proc;sp;if=>//;sim 1 1.
   --       call (_: ={FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
   --       2:by auto.

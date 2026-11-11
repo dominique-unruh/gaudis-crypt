@@ -151,4 +151,60 @@ example : equiv[ True ==> ={x, y} ] {
   stmt_swap{2} -2
   sim
 
+/-- A deterministic `if` (a reset in its branch) moves before a conditional tuple assignment: the
+writes of disjoint locals in normal form (`lensWriteNorm`) in each case of the conditions. -/
+example : hoare[ True ==> True ] {
+      var p : ℕ, v : ℕ, h : ℕ, b : Bool, c : Bool;
+      if (§b) { p, v <- (1, 2); }
+      if (§c) { reset_vars {"w"}; h <- 3; }
+    } := by
+  stmt_swap 2 -1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
+/-- The same past a tuple assignment outside a conditional. -/
+example : hoare[ True ==> True ] {
+      var p : ℕ, v : ℕ, h : ℕ, c : Bool;
+      p, v <- (1, 2);
+      if (§c) { reset_vars {"w"}; h <- 3; }
+    } := by
+  stmt_swap 2 -1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
+/-- Both conditionals with resets, the right one's prefix: the same variable reaches the side goal
+both as `localVarLens n T` and unfolded (`(varLens ⟨n, T, …⟩).intoLocal`), which `lensWriteNorm`
+takes for one lens (`ECSim.lensKey`). -/
+example : hoare[ True ==> True ] {
+      var p : ℕ, v : ℕ, x2 : ℕ, b : Bool, c : Bool, x1 : ℕ, y0 : ℕ;
+      if (§b) { p, v <- (1, 2); reset_vars {"x2"} ∪ stringsStartingWith "@." \ {"@.x"};
+        x2 <- §p + §v; }
+      if (§c) { reset_vars {"x1", "y0"} ∪ stringsStartingWith "@@@." \ {"@@@.x", "@@@.y"};
+        x1, y0 <- (§swapTestCount, 1); }
+    } := by
+  stmt_swap 2 -1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
+/-- A reset of locals (in a conditional that samples, so it moves on its own) past a conditional
+writing globals (`resetSetter_set_intoGlobal`). -/
+example : hoare[ True ==> True ] {
+      var x2 : ℕ, b : Bool, c : Bool, x1 : ℕ;
+      if (§b) { reset_vars {"x2"} ∪ stringsStartingWith "@." \ {"@.x"}; x2 <- 3;
+        b <$ SubProbability.uniform; } else { b <$ SubProbability.uniform; }
+      if (!§c) { reset_vars {"x1"}; x1 <- §swapTestCount;
+        swapTestCount <- §swapTestCount + §x1; }
+    } := by
+  stmt_swap 2 -1
+  intro _ _
+  simp only [not_true_eq_false]
+  exact SubProbability.ofEvent_eq_zero_of_subset (F := ∅) (fun _ h => h)
+    (by simp [SubProbability.ofEvent])
+
 end GaudisCrypt.StmtSwapTest

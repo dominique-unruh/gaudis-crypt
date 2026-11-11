@@ -183,7 +183,7 @@ the `while` row.
 | `seq n m : P` (pRHL) | `equiv_seq n m : (P)` (leading counts, resets not counted). The old from-the-end cut is `equiv_seq_last` |
 | pHL `seq n : E p₁ p₂ p₃ p₄ I` (upper bound) | `phoare_seq n : (E) p₁ p₂ p₃ p₄ (I)`; goals tagged `invariant, first_E, second_E, first_notE, second_notE, bound` (bounds `1` closed on the spot), `_` bound allowed. `≤` goals only |
 | Hoare/pHL `seq n : P` (one condition) | **missing** as an EC-form tactic (8 uses: SHA3Security, Gconcl_list); `stmt_split k` cuts counting from the end |
-| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (EC positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k`.  A call moves past assignments, samplings, and deterministic `if`s/sequences of writes to globals outside the callee whose conditions read what the call keeps (`callDet`, Gcol's `swap{1}[1..2]3`).  Not yet: past an assignment whose value reads a global the callee only *reads* (Gcol GAP 4: inline the call first) |
+| `swap{i} n k` / `swap{i} [a..b] k` / `swap k` | `stmt_swap{i} n k` (EC positions) / `stmt_swap{i} [a..b] k` / `stmt_swap{i}? [-]k`.  A call moves past assignments, samplings, and deterministic `if`s/sequences of writes to globals outside the callee whose conditions read what the call keeps (`callDet`, Gcol's `swap{1}[1..2]3`).  Not yet: past an assignment whose value reads a global the callee only *reads* (Gcol GAP 4: inline the call first).  **When the moved block and what it moves past both read a variable** (footprints not disjoint), do EC's later `inline *` first (`stmt_inline{i} k`, last call first) so that one side is deterministic code, then `stmt_swap` at EC's positions *after* the inlining (a `reset_vars` counts with the statement after it); EC's later `seq`s then count the inlined statements (Gconcl `G2_G3` `S.f`) |
 | `call (: inv)` (abstract adversary, Hoare) | `hoare_call (: inv)`; goals oracle(s) first, then pre |
 | `call (_ : ={glob A, x…})` (abstract) | `equiv_call (_ : ={glob A, x, …})` |
 | `call (_ : ={…} /\ I)` | `equiv_call (_ : ={…} ∧ I)` |
@@ -369,7 +369,8 @@ Document each in the docstring when it applies.
 * **EC's `auto` couples the last samplings of both sides, and only same-type ones** — ours falls
   back to a one-sided `rnd` when the last samplings differ in type, so where EC's `auto` stops
   before a `swap` (types differ), write that `auto` as `stmt_wp`, then EC's `swap`, then
-  `equiv_auto`.
+  `equiv_auto`.  For the same reason EC's `auto;rnd{1};auto` is one `equiv_auto` here (Gconcl
+  `G2_G3` `S.f`: `wp;rnd;auto;rnd{1};auto` → `stmt_wp; equiv_rnd; equiv_auto`).
 * **`fel`**: the oracle form takes one oracle (Gext needs two); `bad` must persist (`keep` goal);
   the call last.  The inner-procedure form (`[M : pre]`) takes any number of procedures, the
   oracles of a product module type, and EC's event `bad ∧ cntr ≤ q`.
@@ -408,7 +409,16 @@ Document each in the docstring when it applies.
   restore the `MessageLog` and throw.  `logInfo` inside `saveState`/`restore` is lost.
 * `elabTermWithHoles` makes holes `syntheticOpaque`; `applyLemma` too for implicit mvars.
 * `simp [Lens.Disjoint.commute]` loops — use `lensWriteNorm`.  `Setter.throwaway_set` in
-  `simpReadsDecls` broke PROM.
+  `simpReadsDecls` broke PROM.  `lensWriteNorm` together with `Lens.set_outward` loops too
+  (`stmt_swap`'s discharger keeps them in separate passes).
+* A local variable reaches side goals in two spellings, `localVarLens n T` and, once a rule has
+  unfolded that `abbrev`, `(varLens ⟨n, T, …⟩).intoLocal` (its type argument then `⟨n, T, …⟩.type`).
+  Anything that compares lenses syntactically must normalize first (`ECSim.lensKey`: every
+  subterm `whnfR`, proofs erased); `lensWriteNorm` failed to sort such chains before.
+* `stmt_swap`'s side goals: when one fails, reproduce the two statements in a scratch `hoare`
+  example (`stmt_swap 2 -1`), then prove the printed residual by hand; the missing simp rule shows
+  at once (a reset past a global write needed `resetSetter_set_intoGlobal`).  Debug output
+  inside the discharger's `saveState`/`restore` is lost: print with `IO.eprintln`.
 * `simp_reads` rewrites under `decide` but leaves the instance: `normDecide` re-synthesizes it.
 * A namespace-local theorem shadows an opened one of the same name; two *opened* namespaces
   with the same name give "Ambiguous term" — when moving a helper (e.g. into `TacticMisc`), don't

@@ -4,6 +4,7 @@ import GaudisCrypt.Logic.PRHL.Prhl
 import GaudisCrypt.Logic.FootprintSolver
 import GaudisCrypt.Logic.Granular
 import GaudisCrypt.Logic.LoopCommute
+import GaudisCrypt.Logic.LensWriteNorm
 
 /-!
 # Swapping statements (EC's `swap`)
@@ -371,6 +372,17 @@ theorem resetSetter_set_varLens (S : Set String) (n : String) (T : Type) (i : No
           ((resetSetter S).set u σ) :=
   resetSetter_set_intoLocal S (@VariableName.mk n T i key kc) hn u a σ
 
+/-- A write to a global moves out past a reset of locals. -/
+theorem resetSetter_set_intoGlobal (S : Set String) {a : Type*} (X : Lens a VariableAssignment)
+    (u : Unit) (v : a) (σ : ProgramState) :
+    (resetSetter S).set u (X.intoGlobal.set v σ) = X.intoGlobal.set v ((resetSetter S).set u σ) :=
+  rfl
+
+/-- A reset of locals leaves the globals alone. -/
+theorem resetSetter_set_globals (S : Set String) (u : Unit) (σ : ProgramState) :
+    ((resetSetter S).set u σ).globals = σ.globals :=
+  rfl
+
 /-- Two resets of locals commute (both write the initial values; `simp` orders them). -/
 theorem resetSetter_comm (S T : Set String) (u v : Unit) (σ : ProgramState) :
     (resetSetter S).set u ((resetSetter T).set v σ)
@@ -441,10 +453,13 @@ def discharge (ty : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
       thms ← g.withContext do thms.add (.fvar h) #[] (mkFVar h)
   for n in HoareWp.simpReadsDecls ++
       [``resetSetter_set_varLens, ``resetSetter_set_localVarLens, ``resetSetter_comm,
+        ``resetSetter_set_intoGlobal, ``resetSetter_set_globals,
         ``Setter.throwaway, ``Lens.Disjoint.pair_left,
         ``Lens.Disjoint.pair_right] do
     if (← getConstInfo n) matches .thmInfo _ then thms ← thms.addConst n
     else thms ← thms.addDeclToUnfold n
+  -- (the rules without `Lens.set_outward`, for the last pass: it and `lensWriteNorm` disagree)
+  let thms₀ := thms
   if let some X := X? then
     -- `Lens.set_outward X`, the other lens's universe left as a parameter for `simp`
     let .app (.app (.const ``Lens _) α) m ← whnfR (← inferType X)
@@ -460,28 +475,51 @@ def discharge (ty : Lean.Expr) (X? : Option Lean.Expr) : MetaM Lean.Expr := do
     thms ← thms.add (.stx (← mkFreshId) .missing) #[`u] pf
   let ctx ← Simp.mkContext (config := { decide := true, failIfUnchanged := false })
     (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
-  let (r, _) ← simpGoal g ctx #[← Simp.getSimprocs]
+  let procs := #[← Simp.getSimprocs]
+  let (r, _) ← simpGoal g ctx procs
   if let some (_, g') := r then
     try g'.refl
     catch _ =>
       -- the default simp set as well
       let ctx' ← Simp.mkContext (config := { decide := true, failIfUnchanged := false })
         (simpTheorems := #[thms, ← getSimpTheorems]) (congrTheorems := ← getSimpCongrTheorems)
-      let (r', _) ← simpGoal g' ctx' #[← Simp.getSimprocs]
+      let (r', _) ← simpGoal g' ctx' procs
       if let some (_, g'') := r' then
         try g''.refl
         catch _ =>
           -- the update of a deterministic `if` (`Stmt.Det.ite`): by cases on its condition, the
           -- case's equation `c = b` a rewrite rule (reads through writes then settle the other
           -- side's condition)
-          unless ← splitClose g'' thms 4 do
-            throwError "stmt_swap: cannot show that the statements commute; left to prove:\
-              {indentExpr (← g''.getType)}"
+          -- last: chains of writes in normal form (writes of disjoint lenses in a fixed order)
+          let s ← saveState
+          let ok ← splitClose g'' thms procs 4
+          let ok ← if ok then pure true else do
+            s.restore
+            let procsNorm := procs.push
+              (← ({} : Simp.Simprocs).add ``ECSim.lensWriteNorm (post := true))
+            -- by cases on the conditions first (the default set would rewrite them away), else
+            -- on the chains of writes alone
+            let s' ← saveState
+            if ← splitClose g'' thms₀ procsNorm 4 then pure true else do
+              s'.restore
+              let ctxN ← Simp.mkContext (config := { decide := true, failIfUnchanged := false })
+                (simpTheorems := #[thms₀, ← getSimpTheorems])
+                (congrTheorems := ← getSimpCongrTheorems)
+              let (rN, _) ← simpGoal g'' ctxN procsNorm
+              match rN with
+              | none => pure true
+              | some (_, gN) => try gN.refl; pure true catch _ => pure false
+          unless ok do
+            -- (printed in its own context: its free variables are the commutation's states)
+            let msg ← g''.withContext do
+              addMessageContext m!"{indentExpr (← instantiateMVars (← g''.getType))}"
+            throwError "stmt_swap: cannot show that the statements commute; left to prove:{msg}"
   instantiateMVars m
 where
   /-- Close `g` by splitting its `if`s (up to `fuel` deep), each case simplified with its
   condition's equation added to `thms`. -/
-  splitClose (g : MVarId) (thms : SimpTheorems) : Nat → MetaM Bool
+  splitClose (g : MVarId) (thms : SimpTheorems) (procs : Array Simp.Simprocs) :
+      Nat → MetaM Bool
     | 0 => pure false
     | fuel + 1 => do
       let some (c₁, c₂) ← splitIfTarget? g | return false
@@ -500,12 +538,12 @@ where
             else pure thms
           let ctx ← Simp.mkContext (config := { decide := true, failIfUnchanged := false })
             (simpTheorems := #[thms', ← getSimpTheorems]) (congrTheorems := ← getSimpCongrTheorems)
-          let (r, _) ← simpGoal c.mvarId ctx #[← Simp.getSimprocs]
+          let (r, _) ← simpGoal c.mvarId ctx procs
           match r with
           | none => pure true
           | some (_, g') =>
             try g'.refl; pure true
-            catch _ => splitClose g' thms' fuel
+            catch _ => splitClose g' thms' procs fuel
         unless ok do return false
       return true
 

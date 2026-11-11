@@ -625,15 +625,15 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCry
 | 369 | lemma | `Real_Ideal` | section . | `Real_Ideal` (+ `Gext0Fresh D`; `D_ll` over `G`, E14; `fvP_G3`, `fvP_G4` for `RO_LRO_D`) | exc |
 
 **EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/Gconcl.lean`, namespace
-`GaudisCrypt.SHA3.Pilot.Gconcl`, over the old `IF`, `S`, `G3`, `G4`; not in the barrel):
+`GaudisCrypt.SHA3.Pilot.Gconcl`, over the old `IF`, `S`, `G3`, `G4`; sorry-free, in the barrel):
 
 | EC line | kind | EC name | Lean name | status |
 |---:|---|---|---|---|
 | 67 | declare module | `D` | `declare module D <: DISTINGUISHER {…, -G1, -FRO.m}` | def |
-| 206 | local equiv | `G2_G3` | `G2_G3` (EC's script; `S.f` bullet `sorry`, GAP 4) | partial |
+| 206 | local equiv | `G2_G3` | `G2_G3` (EC's script; `S.f`: EC's later `inline *` before its `swap`) | done |
 | 326 | local equiv | `G3_G4` | `G3_G4` (EC's script) | done |
 | 350 | local equiv | `G4_Ideal` | `G4_Ideal` (EC's script) | done |
-| 369 | lemma | `Real_Ideal` | `Real_Ideal` (EC's chain; inherits `G2_G3`'s GAP 4) | done mod GAP 4 |
+| 369 | lemma | `Real_Ideal` | `Real_Ideal` (EC's chain) | done |
 
 ## `proof/BlockSponge.ec`
 

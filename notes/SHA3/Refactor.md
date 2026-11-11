@@ -727,7 +727,18 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   EC's scripts.  `Pilot/ConcreteF` is in the barrel.  Deviation: a section's `declare module D`
   names the local modules of the files whose lemmas it uses (`Gcol.sample_c`,
   `Switching.DBounder`, …), fresh in EC.
-* `Gconcl.ec` (2026-11-10, `Pilot/Gconcl.lean`, not in the barrel): `G3_G4`, `G4_Ideal` in EC's
+* **`Gconcl.ec` sorry-free** (2026-11-11): `G2_G3`'s `S.f` swap (GAP 4) needed no read/write
+  sets.  EC's later `inline *` comes first, so that what the block moves past is deterministic;
+  then `stmt_swap` at EC's positions after the inlining; the rest is EC's script with its `seq`s
+  at the inlined positions.  Two discharger fixes in `StmtSwap`:
+  * `lensWriteNorm` compares lenses by `ECSim.lensKey` (`Logic/LensWriteNorm.lean`), because a
+    local reaches the side goals both as `localVarLens n T` and unfolded;
+  * a reset of locals passes a global write (`resetSetter_set_intoGlobal`,
+    `resetSetter_set_globals`).
+
+  It runs as a last pass, after the conditions are split.  So `Real_Ideal` (EC's chain
+  `Real_Concrete`…`Real_Ideal`) is closed in EC's scripts, and `Pilot/Gconcl` is in the barrel.
+* `Gconcl.ec` (2026-11-10, `Pilot/Gconcl.lean`): `G3_G4`, `G4_Ideal` in EC's
   scripts, sorry-free; `G2_G3` too except its `S.f` bullet (GAP 4).  Infrastructure: frame builders
   no longer fail because of earlier errors in the file (message log reset); `equiv_call (_ : ={x})`
   between different concrete callees leaves their judgment (EC's); `sim` over a call keeps EC's

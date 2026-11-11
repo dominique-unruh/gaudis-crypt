@@ -170,6 +170,7 @@ import GaudisCrypt.Logic.PRHLFrame
 import GaudisCrypt.Logic.ModuleComp
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.PRHLWpTest
+import GaudisCrypt.Logic.LensWriteNorm
 import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Logic.SyntacticFrame
 import GaudisCrypt.Logic.FrameTactics
@@ -226,6 +227,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.ConcreteF
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
 import GaudisCrypt.Examples.SHA3.Pilot.Gcol
 import GaudisCrypt.Examples.SHA3.Pilot.Gext
+import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
 import GaudisCrypt.Examples.SHA3.Pilot.Sponge
 import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF

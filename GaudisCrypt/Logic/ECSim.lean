@@ -6,6 +6,7 @@ import GaudisCrypt.Logic.ECSimGlob
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Lib.EC.DProd
+import GaudisCrypt.Logic.LensWriteNorm
 
 /-!
 # EasyCrypt's `inline*` and `sim`
@@ -102,41 +103,6 @@ theorem Lens.equal_outside_iff_set {Ω : Type} (L : Lens Ω VariableAssignment)
     rw [L.set_get]
   · exact fun h => ⟨L.get g₂, h⟩
 
-namespace ECSim
-
-open Lean Meta
-
-/-- A write `X.set v s` through a lens `X` (`Setter.set (Lens.toSetter X) v s`): `(X, v, s)`. -/
-def lensWrite? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr × Lean.Expr) :=
-  if e.isAppOfArity ``Setter.set 5 then
-    let S := e.getArg! 2
-    if S.isAppOfArity ``Lens.toSetter 3 then some (S.getArg! 2, e.getArg! 3, e.getArg! 4)
-    else none
-  else none
-
-/-- **Chains of writes in normal form** (EC's memory: what a run of assignments leaves): two
-writes of the same lens are one (`Setter.set_set`), two writes of disjoint lenses
-(`Lens.Disjoint`, by instance search) in a fixed order (`Expr.lt` of the lenses), swapped by
-`Lens.Disjoint.commute` when out of order.  Two chains of writes on the same state are equal
-once in normal form exactly when they write the same values to the same lenses. -/
-simproc_decl lensWriteNorm (Setter.set _ _ (Setter.set _ _ _)) := fun e => do
-  let some (X, v, s) := lensWrite? e | return .continue
-  let some (Y, w, t) := lensWrite? s | return .continue
-  if X == Y then
-    -- `X.set v (X.set w t) = X.set v t`
-    let pf ← mkAppM ``Setter.set_set #[e.getArg! 2, t, w, v]
-    return .visit { expr := mkAppN e.getAppFn ((e.getAppArgs).set! 4 t), proof? := pf }
-  unless Y.lt X do return .continue
-  let some inst ← (do
-      let ty ← mkAppM ``Lens.Disjoint #[X, Y]
-      try some <$> synthInstance ty catch _ => pure none) | return .continue
-  -- `X.set v (Y.set w t) = Y.set w (X.set v t)`
-  let pf ← mkAppOptM ``Lens.Disjoint.commute
-    #[none, none, none, X, Y, inst, t, v, w]
-  let rhs := (← instantiateMVars (← inferType pf)).appArg!
-  return .visit { expr := rhs, proof? := pf }
-
-end ECSim
 
 namespace ECSim
 
