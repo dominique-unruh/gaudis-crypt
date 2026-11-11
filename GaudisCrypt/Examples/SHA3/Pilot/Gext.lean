@@ -37,6 +37,10 @@ set_option linter.dupNamespace false
   (`Unknown identifier`), though the code declares it: its read written out.
 * GAP 6: `smt_close [size_ge0]` does not close `0 ≤ size p` (EC's `smt(List.size_ge0)`):
   `exact size_ge0 _` first.
+* GAP 8: `={glob M}` of a concrete functor application (`G2(DRestr(D))`) is the equality of an
+  upper bound of its footprint: it does not give its variables' equalities (`Real_G2`'s step
+  through `Eager_1_2` on `G1.bext \/ inv_ext …`); EC reads `glob M` off the code.  The runs'
+  equality `Eager.main2_eq_main1` instead.
 * EC's `x` (the wrapper `DRestr`'s parameter) is not a program variable after our `sp`
   (it is substituted): `x{1} = x0{1}` dropped, `x` read as `x0`.
 -/
@@ -1101,5 +1105,88 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
             fun hb => hI (hb.imp_right fun ⟨x, h, hx, hh⟩ => ⟨x, h, hx, hh, by simp [hl]⟩)⟩
 
 end EXT
+
+
+/-! ## `Real_G2`
+
+In EC's section `EXT`; here a section of its own, `D`'s restriction also naming the local
+modules of `Gcol` and `ConcreteF` (fresh in EC) that `Pr_G1col` and `Real_G1` exclude. -/
+
+-- EC reads `G2(DRestr(D))`'s globals off its code (for `Eager_1_2`'s side conditions)
+attribute [fp_bound] GaudisCrypt.SHA3.Gext.fvP_G2
+
+section REAL
+
+declare module D <: DISTINGUISHER {-C.c, -C.queries, -PF, -G1, -G2, -Perm, -ROhandle.RO.m, -Redo,
+  -ReSample.count, -F.RO, -ROhandle.RO, -Pilot.Gcol.Gcol.sample_c,
+  -Pilot.ConcreteF.Switching.DBounder, -Pilot.ConcreteF.Switching.ARP,
+  -Pilot.ConcreteF.Switching.PRPi.PRPi}
+
+-- EC's `declare axiom D_ll`
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+  islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
+
+set_option maxHeartbeats 4000000 in
+set_option synthInstance.maxHeartbeats 400000 in
+set_option synthInstance.maxSize 1024 in
+include D_ll in
+/-- EC's `lemma Real_G2 &m: Pr[GReal(D).main() @ &m: res /\ C.c <= max_size] <=
+Pr[Eager(G2(DRestr(D))).main2() @ &m: res] + (max_size ^ 2 - max_size)%r / 2%r * mu dstate
+(pred1 witness) + max_size%r * ((2*max_size)%r / (2^c)%r) +
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem Real_G2 (m : VariableAssignment) :
+    Pr[ (Pilot.SLCommon.GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
+      Pr[ Eager(G2(DRestr(D))).main2 (()) @ &m : §res ] +
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: apply (ler_trans _ _ _ (Real_G1 D D_ll &m)).
+  refine le_trans (Pilot.Handle.Real_G1 D D_ll m) ?_
+  -- EC's `Eager_1_2 (G2(DRestr(D)))`
+  have e12 := PROM.FullRO.FullEager.Eager_1_2 handle capacity Unit Bool ROhandle.dout
+    ROhandle.FRO.m (fun _ => BitWord.dunifin_ll) (G2 (DRestr D)) (by ec_module) (by fp_disjoint)
+  -- EC: do !apply ler_add => //.
+  --     + have ->: Pr[G1(DRestr(D)).main() @ &m : res] =
+  --                Pr[Eager(G2(DRestr(D))).main1() @ &m : res].
+  --       + by byequiv (G1_G2 D).
+  --       by apply lerr_eq;byequiv (Eager_1_2 (G2(DRestr(D)))).
+  have h1 : Pr[ G1(DRestr(D)).main () @ &m : §res ] =
+      Pr[ Eager(G2(DRestr(D))).main2 (()) @ &m : §res ] := by
+    have : Pr[ G1(DRestr(D)).main () @ &m : §res ] =
+        Pr[ Eager(G2(DRestr(D))).main1 (()) @ &m : §res ] := by
+      byequiv (G1_G2 D)
+    rw [this]
+    byequiv e12
+  --     + by apply (Pr_G1col D D_ll &m).
+  have h2 := Pilot.Gcol.Pr_G1col D m
+  --     apply (ler_trans Pr[Eager(G2(DRestr(D))).main1()@&m:
+  --       G1.bext \/ inv_ext G1.m G1.mi FRO.m]).
+  --     + by byequiv (G1_G2 D)=>//#.
+  --     apply (ler_trans Pr[Eager(G2(DRestr(D))).main2()@&m :
+  --       G1.bext \/ inv_ext G1.m G1.mi FRO.m]).
+  --     + by apply lerr_eq;byequiv (Eager_1_2 (G2(DRestr(D)))).
+  --     apply (ler_trans _ _ _ _ (Pr_ext &m)).
+  --     byequiv EG2_Gext=>//#.
+  have h3 : Pr[ G1(DRestr(D)).main () @ &m : §G1.bext ] ≤
+      (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+    refine le_trans (b := Pr[ Eager(G2(DRestr(D))).main1 (()) @ &m :
+      §G1.bext ∨ inv_ext §G1.m §G1.mi §FRO.m ]) ?_ ?_
+    · byequiv (G1_G2 D)
+      --     (EC's `//#`: `inv_ext1` is the implication)
+      exact fun _ _ _ _ h hb => h.2 hb
+    refine le_trans (b := Pr[ Eager(G2(DRestr(D))).main2 (()) @ &m :
+      §G1.bext ∨ inv_ext §G1.m §G1.mi §FRO.m ]) ?_ ?_
+    --     (GAP 8: `Eager_1_2`'s `={glob G2(DRestr(D))}` does not give `={G1.m, G1.mi, G1.bext}`:
+    --     a module's footprint is bounded from above only, EC reads its globals off its code; the
+    --     eager equality of the runs instead, `Eager.main2_eq_main1`)
+    · apply le_of_eq
+      unfold Procedure.Pr
+      rw [PROM.FullRO.FullEager.Eager.main2_eq_main1 handle capacity Unit Bool ROhandle.dout
+        ROhandle.FRO.m (fun _ => BitWord.dunifin_ll) (G2 (DRestr D)) (by ec_module) (by fp_disjoint)]
+    refine le_trans ?_ (Pr_ext D m)
+    byequiv (EG2_Gext D)
+  linarith
+
+end REAL
 
 end GaudisCrypt.SHA3.Pilot.Gext

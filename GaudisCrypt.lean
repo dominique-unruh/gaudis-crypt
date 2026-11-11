@@ -222,6 +222,7 @@ import GaudisCrypt.Examples.SHA3.Pilot.IndifRO_is_secure
 import GaudisCrypt.Examples.SHA3.Pilot.SecureORO
 import GaudisCrypt.Examples.SHA3.Pilot.OptionIndifferentiability
 import GaudisCrypt.Examples.SHA3.Pilot.SecureHash
+import GaudisCrypt.Examples.SHA3.Pilot.ConcreteF
 import GaudisCrypt.Examples.SHA3.Pilot.Handle
 import GaudisCrypt.Examples.SHA3.Pilot.Gcol
 import GaudisCrypt.Examples.SHA3.Pilot.Gext

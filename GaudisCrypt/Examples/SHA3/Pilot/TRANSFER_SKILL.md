@@ -469,6 +469,20 @@ Document each in the docstring when it applies.
 * **EC's `case (P{1}); [rcondt{1} n;2:rcondt{2} n | rcondf{1} n;2:rcondf{2} n]`**:
   `equiv_case (P)` then per branch `stmt_rcondt{1} n` / `stmt_rcondt{2} n`, each side goal by
   `hoare_auto` (EC's `move=>?;conseq (_:true);auto`).
+* **One declaration per EC variable.**  A `global_var` is identified by its full name: two files
+  that each declare `C.c` have two variables, and lemmas about one say nothing about the other.
+  Before declaring a variable, module or module type, check whether a file the pilot builds on
+  already declares it, and use (open) that one.
+* **Local modules of other files** (EC's `local module`, `local clone`): fresh for `D` in EC; when
+  a section uses a lemma whose `declare module D` names them, its own `declare module D` names
+  them too (`-Pilot.Gcol.Gcol.sample_c`, `-Pilot.ConcreteF.Switching.DBounder`, …).  Large
+  restrictions need `set_option synthInstance.maxHeartbeats 400000` (`Module.Declared.weaken`).
+* **EC's `byequiv … => //#` up to bad**: `Pr[ p₁ : E₁ ] ≤ Pr[ p₂ : E₂ ] + Pr[ p₂ : bad ]` is
+  `byequiv H` directly (the side goal `E₁ → E₂ ∨ bad` from `H`'s post).
+* **`glob` of a concrete functor application** (`G2(DRestr(D))`) in a lemma's side conditions:
+  register the old port's footprint bound (`attribute [fp_bound] fvP_G2`) so `ec_module` and
+  `fp_disjoint` see through it.  Its `={glob …}` does not give its variables' equalities (an
+  upper bound only): Gext's GAP 8.
 * **Globals in `sp`'s existential form**: the rule states `X.intoGlobal.get σ = …` and
   `… (X.intoGlobal.set v σ).globals …`; `stmt_sp` now rewrites them to `§x` reads.  Unnormalized,
   frames (`ECSim.varsOf`) and closers did not see the variable: a framed call lost its frame

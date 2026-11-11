@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.SmartCounter.Handle
+import GaudisCrypt.Examples.SHA3.Pilot.ConcreteF
 import GaudisCrypt.Logic.DeclareModule
 import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallAbstract
@@ -914,7 +915,11 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
 
 section AUX
 
-declare module D <: DISTINGUISHER {-PF, -F.RO, -ROhandle.RO, -G1, -Redo, -C}
+-- (`Real_G1` uses `ConcreteF`'s `Real_Concrete`, whose `D` stays outside the section's local
+-- `clone Strong_RP_RF as Switching`: in EC a local clone is fresh, here its modules are named)
+declare module D <: DISTINGUISHER {-PF, -F.RO, -ROhandle.RO, -G1, -Redo, -C, -Perm,
+  -Pilot.ConcreteF.Switching.DBounder, -Pilot.ConcreteF.Switching.ARP,
+  -Pilot.ConcreteF.Switching.PRPi.PRPi}
 
 -- EC's `declare axiom D_ll`
 variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
@@ -1027,6 +1032,44 @@ theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
     rcases h with ⟨hb, -⟩ | ⟨hr, -⟩
     · exact absurd hb hnb
     · exact hr
+
+set_option synthInstance.maxHeartbeats 400000 in
+set_option synthInstance.maxSize 1024 in
+include D_ll in
+/-- EC's `lemma Real_G1 &m : Pr[GReal(D).main() @ &m: res /\ C.c <= max_size] <=
+Pr[G1(DRestr(D)).main() @ &m: res] + (max_size ^ 2 - max_size)%r * inv 2%r * mu dstate
+(pred1 witness) + Pr[G1(DRestr(D)).main() @&m: G1.bcol] + Pr[G1(DRestr(D)).main() @&m:
+G1.bext]`. -/
+theorem Real_G1 (m : VariableAssignment) :
+    Pr[ (Pilot.SLCommon.GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
+      Pr[ G1(DRestr(D)).main () @ &m : §res ] +
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) * (2 : ℝ)⁻¹ * (dstate.1 {default}).toReal +
+        Pr[ G1(DRestr(D)).main () @ &m : §G1.bcol ] +
+        Pr[ G1(DRestr(D)).main () @ &m : §G1.bext ] := by
+  -- EC: apply (@RealOrder.ler_trans _ _ _ (Real_Concrete D _ &m))=>//=.
+  --     + exact: D_ll.
+  refine le_trans (Pilot.ConcreteF.Real_Concrete D D_ll m) ?_
+  --     (`ConcreteF`'s `CF`, an abbreviation, is the first port's `CF`, a definition)
+  have e : Pr[ (Pilot.ConcreteF.CF (DRestr D)) () @ &m : §res ] =
+      Pr[ CF(DRestr(D)).main () @ &m : §res ] := rfl
+  -- EC: have : Pr[CF(DRestr(D)).main() @ &m : res] <=
+  --           Pr[G1(DRestr(D)).main() @ &m : res] +
+  --           Pr[G1(DRestr(D)).main() @ &m : G1.bcol \/ G1.bext].
+  --     + by byequiv (CF_G1 D D_ll)=>//=/#.
+  have h : Pr[ CF(DRestr(D)).main () @ &m : §res ] ≤ Pr[ G1(DRestr(D)).main () @ &m : §res ] +
+      Pr[ G1(DRestr(D)).main () @ &m : §G1.bcol ∨ §G1.bext ] := by
+    byequiv (CF_G1 D D_ll)
+    --     (EC's `/#`: the result is `true` unless the bad event happened)
+    auto_prep
+    exact or_iff_not_imp_right.mpr fun hb => Eq.symm (‹¬_ → true = _› hb)
+  -- EC: have/#:Pr[G1(DRestr(D)).main() @ &m : G1.bcol \/ G1.bext]
+  --             <= Pr[G1(DRestr(D)).main() @&m: G1.bcol]
+  --             + Pr[G1(DRestr(D)).main() @&m: G1.bext].
+  --     by rewrite Pr[mu_or];smt(Distr.mu_bounded).
+  have h' : Pr[ G1(DRestr(D)).main () @ &m : §G1.bcol ∨ §G1.bext ] ≤
+      Pr[ G1(DRestr(D)).main () @ &m : §G1.bcol ] + Pr[ G1(DRestr(D)).main () @ &m : §G1.bext ] := by
+    exact_mod_cast Procedure.Pr_or_le _ _ _ _ _
+  linarith
 
 end AUX
 

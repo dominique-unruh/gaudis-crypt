@@ -717,6 +717,16 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   `smt_close [size_ge0]` (6), a local not a name after `sp; call` (7).  `Real_G2` waits for
   `Real_G1`: Pilot/Handle's `CF_G1` is over the old `CF`, Pilot/ConcreteF's `Real_Concrete` over
   the EC-form one.
+* **One declaration per EC variable** (2026-11-11): `Pilot/SLCommon` and `Pilot/ConcreteF` had
+  re-declared `C.c`, `C.queries`, `Redo.prefixes`, `F.RO.m`, `PF.m`, `PF.mi`, the module types and
+  `C`, `Redo`, `SqueezelessSponge`, `DRestr`, … — distinct `global_var` slots from the first port's
+  that `Pilot/Handle`, `Gcol`, `Gext`, `Gconcl` use, so `Real_Concrete` and `CF_G1` were about
+  different games.  `Pilot/SLCommon` now uses the first port's declarations (only `PRestr`,
+  `FRestr`, `GReal` and the lemmas its own, EC-form), `Pilot/ConcreteF` its `PF`; EC's
+  `Real_G1` (`Pilot/Handle`), `Real_G2` (`Pilot/Gext`) and `Real_Ideal` (`Pilot/Gconcl`) chain in
+  EC's scripts.  `Pilot/ConcreteF` is in the barrel.  Deviation: a section's `declare module D`
+  names the local modules of the files whose lemmas it uses (`Gcol.sample_c`,
+  `Switching.DBounder`, …), fresh in EC.
 * `Gconcl.ec` (2026-11-10, `Pilot/Gconcl.lean`, not in the barrel): `G3_G4`, `G4_Ideal` in EC's
   scripts, sorry-free; `G2_G3` too except its `S.f` bullet (GAP 4).  Infrastructure: frame builders
   no longer fail because of earlier errors in the file (message log reset); `equiv_call (_ : ={x})`

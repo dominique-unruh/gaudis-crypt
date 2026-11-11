@@ -297,4 +297,67 @@ theorem G4_Ideal : equiv[ G4(D, F.LRO).distinguish ~ IdealIndif(IF, S, DRestr(D)
 
 end
 
+/-! ## `Real_Ideal`
+
+`D`'s restriction also names the local modules of `Gext`, `Gcol` and `ConcreteF` (fresh in EC)
+that `Real_G2` excludes. -/
+
+-- EC reads the games' globals off their code (for `RO_LRO_D`'s side conditions)
+attribute [fp_bound] GaudisCrypt.SHA3.Gconcl.fvP_G3 GaudisCrypt.SHA3.Gconcl.fvP_G4
+
+section REAL
+
+declare module D <: DISTINGUISHER {-C, -Perm, -F.RO, -F.FRO, -S.m, -S.mi, -S.paths, -Redo, -G1,
+  -G2, -PF, -FRO.m, -ROhandle.RO, -Pilot.Gext.ReSample.count, -Pilot.Gcol.Gcol.sample_c,
+  -Pilot.ConcreteF.Switching.DBounder, -Pilot.ConcreteF.Switching.ARP,
+  -Pilot.ConcreteF.Switching.PRPi.PRPi}
+
+-- EC's `declare axiom D_ll`
+variable (D_ll : ∀ (F <: DFUNCTIONALITY {-D}), ∀ (P <: DPRIMITIVE {-D}),
+  islossless P.f → islossless P.fi → islossless F.f → islossless D(F, P).distinguish)
+
+set_option maxHeartbeats 4000000 in
+set_option synthInstance.maxHeartbeats 400000 in
+set_option synthInstance.maxSize 1024 in
+include D_ll in
+/-- EC's `lemma Real_Ideal &m: Pr[GReal(D).main() @ &m: res /\ C.c <= max_size] <=
+Pr[IdealIndif(IF,S,DRestr(D)).main() @ &m :res] + (max_size ^ 2 - max_size)%r / 2%r * mu dstate
+(pred1 witness) + max_size%r * ((2*max_size)%r / (2^c)%r) +
+max_size%r * ((2*max_size)%r / (2^c)%r)`. -/
+theorem Real_Ideal (m : VariableAssignment) :
+    Pr[ (Pilot.SLCommon.GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
+      Pr[ IdealIndif(IF, S, DRestr(D)).main () @ &m : §res ] +
+        ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) +
+        (max_size : ℝ) * (((2 * max_size : ℤ) : ℝ) / ((2 ^ c.toNat : ℤ) : ℝ)) := by
+  -- EC: apply (ler_trans _ _ _ (Real_G2 D D_ll &m)).
+  refine le_trans (Pilot.Gext.Real_G2 D D_ll m) ?_
+  -- EC: rewrite !(ler_add2l, ler_add2r);apply lerr_eq.
+  suffices e : Pr[ Eager(G2(DRestr(D))).main2 (()) @ &m : §res ] =
+      Pr[ IdealIndif(IF, S, DRestr(D)).main () @ &m : §res ] by
+    rw [e]
+  -- EC: apply (eq_trans _ Pr[G3(F.LRO).distinguish() @ &m : res]);1:by byequiv G2_G3.
+  refine Eq.trans (b := Pr[ G3(D, F.LRO).distinguish (()) @ &m : §res ]) ?_ ?_
+  · byequiv (G2_G3 D)
+  -- EC: apply (eq_trans _ Pr[G3(F.RO ).distinguish() @ &m : res]).
+  --     + byequiv (_: ={glob G3, F.RO.m} ==> _)=>//;symmetry;conseq (F.FullEager.RO_LRO_D G3 _)=> //.
+  --       by move=> _; exact/Block.DBlock.dunifin_ll.
+  refine Eq.trans (b := Pr[ G3(D, F.RO.asRO).distinguish (()) @ &m : §res ]) ?_ ?_
+  · symm
+    byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool F.dout F.FRO.m
+      (fun _ => BitWord.dunifin_ll) F.RO.m (G3 D) (by ec_module) (by fp_disjoint))
+  -- EC: apply (eq_trans _ Pr[G4(F.RO ).distinguish() @ &m : res]);1:by byequiv G3_G4.
+  refine Eq.trans (b := Pr[ G4(D, F.RO.asRO).distinguish (()) @ &m : §res ]) ?_ ?_
+  · byequiv (G3_G4 D)
+  -- EC: apply (eq_trans _ Pr[G4(F.LRO).distinguish() @ &m : res]).
+  --     + byequiv (F.FullEager.RO_LRO_D G4 _)=> //.
+  --       by move=> _; exact/Block.DBlock.dunifin_ll.
+  refine Eq.trans (b := Pr[ G4(D, F.LRO).distinguish (()) @ &m : §res ]) ?_ ?_
+  · byequiv (PROM.FullRO.FullEager.RO_LRO_D (List block) block Unit Bool F.dout F.FRO.m
+      (fun _ => BitWord.dunifin_ll) F.RO.m (G4 D) (by ec_module) (by fp_disjoint))
+  -- EC: by byequiv G4_Ideal.
+  byequiv (G4_Ideal D)
+
+end REAL
+
 end GaudisCrypt.SHA3.Pilot.Gconcl

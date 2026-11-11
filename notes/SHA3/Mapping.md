@@ -600,7 +600,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gext.lean`, namespace `GaudisCrypt
 | 345 | local module | `Gext` | `Gext.resample`, `Gext.M`, `Gext.S`, `Gext (D)` | def |
 | 546 | local lemma | `Pr_ext` | `Pr_ext` (EC's `fel`) | done |
 | 585 | local equiv | `EG2_Gext` | `EG2_Gext` (EC's script, 8M) | done |
-| 702 | lemma | `Real_G2` | — (needs `Real_G1`: Pilot/Handle over EC-form declarations) | open |
+| 702 | lemma | `Real_G2` | `Real_G2` (own section; `Eager_1_2` step on the `inv_ext` event by `Eager.main2_eq_main1`, GAP 8) | done |
 
 ## `proof/smart_counter/Gconcl.ec`
 
@@ -633,7 +633,7 @@ Lean: `GaudisCrypt/Examples/SHA3/SmartCounter/Gconcl.lean`, namespace `GaudisCry
 | 206 | local equiv | `G2_G3` | `G2_G3` (EC's script; `S.f` bullet `sorry`, GAP 4) | partial |
 | 326 | local equiv | `G3_G4` | `G3_G4` (EC's script) | done |
 | 350 | local equiv | `G4_Ideal` | `G4_Ideal` (EC's script) | done |
-| 369 | lemma | `Real_Ideal` | — (needs `Real_G2`) | open |
+| 369 | lemma | `Real_Ideal` | `Real_Ideal` (EC's chain; inherits `G2_G3`'s GAP 4) | done mod GAP 4 |
 
 ## `proof/BlockSponge.ec`
 

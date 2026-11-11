@@ -1,4 +1,5 @@
 import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
+import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Lib.EC.Strong_RP_RF
 import GaudisCrypt.Logic.ECLoop
 import GaudisCrypt.Logic.ECTrans
@@ -27,46 +28,16 @@ namespace GaudisCrypt.SHA3.Pilot.ConcreteF
 open GaudisCrypt GaudisCrypt.EC GaudisCrypt.EC.FSet
 open GaudisCrypt.SHA3.Common hiding PRIMITIVE
 open GaudisCrypt.SHA3.SLCommon GaudisCrypt.SHA3.SLCommon.Prefix
-open GaudisCrypt.SHA3.Pilot.SLCommon GaudisCrypt.SHA3.Pilot.SLCommon.Indiff
+open GaudisCrypt.SHA3.Pilot.SLCommon
 
 variable [SLCommon.Params]
 
 /-- EC's `state` (`SLCommonCore`'s, named here: a root `state` exists). -/
 abbrev state := GaudisCrypt.SHA3.SLCommon.state
 
-/-- EC's `PF.m`. -/
-global_var PF.m : FMap state state
-
-/-- EC's `PF.mi`. -/
-global_var PF.mi : FMap state state
-
-module PF : PRIMITIVE {
-  proc init () : Unit {
-    PF.m <- (FMap.empty : FMap state state);
-    PF.mi <- (FMap.empty : FMap state state);
-    return ()
-  };
-  proc f (x : state) : state {
-    var y1 : block, y2 : capacity;
-    if (!(decide (FMap.dom ($PF.m : FMap state state) $x))) {
-      y1 <$ bdistr;
-      y2 <$ cdistr;
-      PF.m <- FMap.set $PF.m $x ($y1, $y2);
-      PF.mi <- FMap.set $PF.mi ($y1, $y2) $x;
-    }
-    return oget (FMap.get ($PF.m : FMap state state) $x)
-  };
-  proc fi (x : state) : state {
-    var y1 : block, y2 : capacity;
-    if (!(decide (FMap.dom ($PF.mi : FMap state state) $x))) {
-      y1 <$ bdistr;
-      y2 <$ cdistr;
-      PF.mi <- FMap.set $PF.mi $x ($y1, $y2);
-      PF.m <- FMap.set $PF.m ($y1, $y2) $x;
-    }
-    return oget (FMap.get ($PF.mi : FMap state state) $x)
-  };
-}
+-- EC's `PF.m`, `PF.mi`, `PF`: the first port's (`SmartCounter/ConcreteF.lean`), one declaration
+-- per EC variable, shared with the pilots of `Handle`, `Gcol`, `Gext`, `Gconcl`
+open GaudisCrypt.SHA3.ConcreteF (PF PF.m PF.mi)
 
 /-- `module CF(D : DISTINGUISHER) = Indif(SqueezelessSponge(PF), PF, D)`. -/
 noncomputable abbrev CF (D : DISTINGUISHER) : procmod () → Bool :=
@@ -423,8 +394,7 @@ theorem rc_first_in (Q : FMap (List block) block) (R : FMap (List block) state)
   exact take_get_max_prefix2 bs R j ⟨_, (FMap.domE _ _).2 (by rw [hR]; simp)⟩ hall hj
 
 /-- A `PRPSec.SPRP_Oracles` is a `DPRIMITIVE` (its `f`, `fi`). -/
-module_subtype (EC.PRP.StrongPRP.SPRP_Oracles state) <:
-  GaudisCrypt.SHA3.Pilot.Indifferentiability.DPRIMITIVE
+module_subtype (EC.PRP.StrongPRP.SPRP_Oracles state) <: DPRIMITIVE
 
 section
 
@@ -781,16 +751,16 @@ set_option maxHeartbeats 2000000 in
 
 -- at the module types the lemmas ask for (`Perm` is a `PRIMITIVE` by definition, `@` keeps the
 -- type: an ascription would elaborate to `Perm` at its own type)
-instance : @Module.GlobBound Indiff.CONSTRUCTION _ SqueezelessSponge Redo.prefixes.footprint :=
+instance : @Module.GlobBound CONSTRUCTION _ SqueezelessSponge Redo.prefixes.footprint :=
   ⟨fvP_SqueezelessSponge, by fp_finite⟩
 
 set_option maxHeartbeats 2000000 in
 @[fp_bound] theorem fvP_Perm :
-    FVP.fvP (Perm : Indiff.PRIMITIVE) ≤ Perm.m.footprint ⊔ Perm.mi.footprint := by
+    FVP.fvP (Perm : PRIMITIVE) ≤ Perm.m.footprint ⊔ Perm.mi.footprint := by
   rw [← Footprint.lens_pair]
   fp_module (Lens.pair Perm.m Perm.mi)
 
-instance : @Module.GlobBound Indiff.PRIMITIVE _ Perm (Perm.m.footprint ⊔ Perm.mi.footprint) :=
+instance : @Module.GlobBound PRIMITIVE _ Perm (Perm.m.footprint ⊔ Perm.mi.footprint) :=
   ⟨fvP_Perm, by fp_finite⟩
 
 set_option maxHeartbeats 2000000 in
@@ -876,7 +846,7 @@ include D_ll in
 Pr[CF(DRestr(D)).main()@ &m: res] + (max_size ^ 2 - max_size)%r / 2%r * mu dstate (pred1
 witness)`. -/
 theorem Real_Concrete (m : VariableAssignment) :
-    Pr[ (GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
+    Pr[ (Pilot.SLCommon.GReal D) () @ &m : §res ∧ §C.c ≤ max_size ] ≤
       Pr[ (CF (DRestr D)) () @ &m : §res ] +
         ((max_size ^ 2 - max_size : ℤ) : ℝ) / 2 * (dstate.1 {default}).toReal := by
   rw [Real_GReal' D m]

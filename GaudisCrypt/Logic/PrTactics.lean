@@ -8,7 +8,8 @@ import GaudisCrypt.Syntax.PRHLSyntax
 A goal about probabilities, as `Pr[ M (a) @ &m : E ]` writes them (`Syntax/PrSyntax.lean`: the
 real `(Procedure.Pr p a m E : ℝ)`), is turned into a judgment:
 
-* `byequiv` — `Pr[ p₁ … ] = Pr[ p₂ … ]` (or `≤`) from `equiv[ p₁ ~ p₂ : P ==> Q ]`, with the
+* `byequiv` — `Pr[ p₁ … ] = Pr[ p₂ … ]` (or `≤`, or EC's up to bad `Pr[ p₁ : E₁ ] ≤
+  Pr[ p₂ : E₂ ] + Pr[ p₂ : F₂ ]`, `Q` giving `E₂ ∨ F₂`) from `equiv[ p₁ ~ p₂ : P ==> Q ]`, with the
   precondition holding of the two runs' arguments and memories and `Q` relating the events
   (`E₁ ↔ E₂`, for `≤` `E₁ → E₂`).  Without a term, the judgment is the new goal with EC's
   defaults: `P` is `={arg, glob}` (the arguments and the globals agree) when both sides run on the
@@ -84,6 +85,18 @@ theorem Procedure.toReal_Pr_le_of_prhlProc (h : prhlProc A p₁ p₂ B)
     (hA : A a₁ σ₁ a₂ σ₂) : (p₁.Pr a₁ σ₁ E₁ : ℝ) ≤ p₂.Pr a₂ σ₂ E₂ :=
   NNReal.coe_le_coe.mpr (Procedure.Pr_le_of_prhlProc h hE hA)
 
+/-- `byequiv` up to a bad event (EC's `byequiv … => //#` on `Pr[p₁ : E₁] <= Pr[p₂ : E₂] +
+Pr[p₂ : F₂]`): the judgment gives `E₂ ∨ F₂` from `E₁`, then the union bound. -/
+theorem Procedure.toReal_Pr_le_add_of_prhlProc (h : prhlProc A p₁ p₂ B)
+    {E₁ : sig₁.ret → VariableAssignment → Prop} {E₂ F₂ : sig₂.ret → VariableAssignment → Prop}
+    (hE : ∀ r₁ g₁ r₂ g₂, B r₁ g₁ r₂ g₂ → E₁ r₁ g₁ → E₂ r₂ g₂ ∨ F₂ r₂ g₂)
+    {a₁ : sig₁.ParamType} {a₂ : sig₂.ParamType} {σ₁ σ₂ : VariableAssignment}
+    (hA : A a₁ σ₁ a₂ σ₂) :
+    (p₁.Pr a₁ σ₁ E₁ : ℝ) ≤ p₂.Pr a₂ σ₂ E₂ + p₂.Pr a₂ σ₂ F₂ := by
+  have h1 := Procedure.Pr_le_of_prhlProc (E₂ := fun r g => E₂ r g ∨ F₂ r g) h hE hA
+  have h2 := h1.trans (Procedure.Pr_or_le p₂ a₂ σ₂ E₂ F₂)
+  exact_mod_cast h2
+
 end Rules2
 
 namespace PrTactics
@@ -132,11 +145,19 @@ open Lean Meta Elab Tactic PrTactics in
 elab "byequiv" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
   let (rel, l, r) ← goalRel
   let some L := prParts? l | throwError "byequiv: the left side is not a probability{indentExpr l}"
-  let some R := prParts? r | throwError "byequiv: the right side is not a probability{indentExpr r}"
-  let rule ← match rel with
-    | ``Eq => pure ``Procedure.toReal_Pr_eq_of_prhlProc
-    | ``LE.le => pure ``Procedure.toReal_Pr_le_of_prhlProc
-    | _ => throwError "byequiv: `=` or `≤` between two probabilities"
+  -- EC's up to bad: `Pr[ p₁ : E₁ ] ≤ Pr[ p₂ : E₂ ] + Pr[ p₂ : F₂ ]` (the same run on the right)
+  let upto? : Option (Array Lean.Expr × Array Lean.Expr) := do
+    guard (rel == ``LE.le && r.isAppOfArity ``HAdd.hAdd 6)
+    let R₁ ← prParts? (r.getArg! 4)
+    let R₂ ← prParts? (r.getArg! 5)
+    return (R₁, R₂)
+  let some R := (upto?.map (·.1)) <|> prParts? r
+    | throwError "byequiv: the right side is not a probability{indentExpr r}"
+  let rule ← match rel, upto? with
+    | ``Eq, _ => pure ``Procedure.toReal_Pr_eq_of_prhlProc
+    | ``LE.le, some _ => pure ``Procedure.toReal_Pr_le_add_of_prhlProc
+    | ``LE.le, none => pure ``Procedure.toReal_Pr_le_of_prhlProc
+    | _, _ => throwError "byequiv: `=` or `≤` between two probabilities"
   let (hT, preT?, postT?) ← match h? with
     | some h => pure (h, none, none)
     | none => do
@@ -154,9 +175,12 @@ elab "byequiv" h?:(ppSpace colGt term:max)? : tactic => withMainContext do
           let T₁ ← Term.exprToSyntax (← inferType L[2]!)
           let T₂ ← Term.exprToSyntax (← inferType R[2]!)
           `(fun (x₁ : $T₁) g₁ (x₂ : $T₂) g₂ => x₁ = $a₁ ∧ g₁ = $m₁ ∧ x₂ = $a₂ ∧ g₂ = $m₂)
-      let post ← if rel == ``Eq then
-          `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ ↔ $E₂ r₂ g₂))
-        else `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ → $E₂ r₂ g₂))
+      let post ← match rel, upto? with
+        | ``Eq, _ => `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ ↔ $E₂ r₂ g₂))
+        | _, some (_, R₂) => do
+          let F₂ ← Term.exprToSyntax R₂[4]!
+          `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ → $E₂ r₂ g₂ ∨ $F₂ r₂ g₂))
+        | _, none => `(fun r₁ g₁ r₂ g₂ => ($E₁ r₁ g₁ → $E₂ r₂ g₂))
       pure (← `(?judgment), some pre, some post)
   let ruleId := mkIdent rule
   let sig₁ ← Term.exprToSyntax L[0]!
