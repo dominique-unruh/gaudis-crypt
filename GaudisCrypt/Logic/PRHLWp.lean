@@ -202,7 +202,7 @@ def generalizeReadsRel (g : MVarId) (normDec : Bool := false) : MetaM MVarId :=
 /-- Elaborate the relational term `t` (`§x{1}`, `§x{2}`, `={x}` over the program variables of the
 goal `goalTy`) at type `T`, as a function `ProgramState → ProgramState → T`. -/
 def elabRelTerm (goalTy : Lean.Expr) (t : Term) (T : Lean.Expr) : TacticM Lean.Expr := do
-  let vars := (← ProgramSyntax.frameVars goalTy.getAppArgs #[]).filter (·.printable)
+  let vars := (← ProgramSyntax.frameVars goalTy.getAppArgs #[]).filter (·.nameable)
   let σ₁ ← `(σ₁)
   let σ₂ ← `(σ₂)
   let states (k : Nat) : Option Term :=

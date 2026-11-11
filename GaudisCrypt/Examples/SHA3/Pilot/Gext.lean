@@ -29,12 +29,11 @@ set_option linter.dupNamespace false
 * GAP 2: as Gcol's: inline by name vs the old declarations' accessors: by index.
 * GAP 3 (fixed): `sp` through an inlined call left whole-state existentials; now EC's
   `exists x0, P[x0/x] /\ x = e[x0/x]` and `equiv_elim*` (`Logic/ECSp.lean`, `Logic/ECElim.lean`).
-* GAP 4: a procedure's parameter (`x` of `S.f`) is not a name of the statement conditions after
-  `proc` (not in the code's `var` list): written as its read `(localVarLens "x" SLCommon.state)`.
+* (GAP 4, fixed: a procedure's parameter, `x` of `S.f`, is a name of the conditions after `proc`
+  — `FrameVar.nameable`: a binder `x` elsewhere in the goal no longer hides it.)
 * GAP 5: a call's frame (`equiv_call`) keeps only variables outside the callee's footprint;
   EC's keeps what the callee does not write (`RRO.allKnown` reads `FRO.m`): read/write sets.
-* GAP 7: in `G1_G2`'s `M.f`, after `sp; call`, the local `h` is not a name of the conditions
-  (`Unknown identifier`), though the code declares it: its read written out.
+* (GAP 7, fixed: the local `h` in `G1_G2`'s `M.f` is a name of the conditions — as GAP 4.)
 * GAP 6: `smt_close [size_ge0]` does not close `0 ≤ size p` (EC's `smt(List.size_ge0)`):
   `exact size_ge0 _` first.
 * GAP 8: `={glob M}` of a concrete functor application (`G2(DRestr(D))`) is the equality of an
@@ -340,9 +339,8 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
     -- EC: while (={sa,G1.mh,G1.mhi,F.RO.m,G1.chandle,FRO.m,i,h,sa,p,C.queries,counter,bs} /\
     --            inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\ p{2} = bs{2} /\
     --            forall (h0 : handle), h0 \in FRO.m{1} => h0 < G1.chandle{1})=>//.
-    --     (GAP 7: `h` is not a name of the conditions here: its read written out)
     equiv_while (={sa, G1.mh, G1.mhi, F.RO.m, G1.chandle, FRO.m, i, p, C.queries, counter, bs} ∧
-        §(localVarLens "h" handle){1} = §(localVarLens "h" handle){2} ∧
+        §h{1} = §h{2} ∧
         inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧ §p{2} = §bs{2} ∧
         ∀ h0, FMap.dom §FRO.m{1} h0 → h0 < §G1.chandle{1})
     case hpre =>
@@ -836,9 +834,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         -- EC: seq 8 9 : (={x, y, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
         --                  G1.bext, C.c, C.queries} /\
         --                inv_le G1.m{2} G1.mi{2} C.c{1} FRO.m{2} ReSample.count{2});2:by auto.
-        --     (GAP 4: the procedure's parameter `x` is not a name of the statement conditions after
-        --     `proc`: its read written out)
-        equiv_seq 8 9 : (={(localVarLens "x" SLCommon.state), y, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+        equiv_seq 8 9 : (={x, y, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
             G1.bext, C.c, C.queries} ∧
             inv_le §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
         on_goals 2 => equiv_auto
@@ -847,7 +843,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         --          C.c,C.queries} /\
         --       inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2}).
         --     + by if=>//;auto;call (_: ={F.RO.m});auto.
-        equiv_seq 2 3 : (={y, (localVarLens "x" SLCommon.state), F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
+        equiv_seq 2 3 : (={y, x, F.RO.m, FRO.m, G1.paths, G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle,
             G1.bext, C.c, C.queries} ∧
             inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2})
         · stmt_if
@@ -859,11 +855,11 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         --          C.c,C.queries} /\
         --       inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2} /\
         --       (t => in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2 Unknown){1}).
-        equiv_seq 5 5 : (={t, y, (localVarLens "x" SLCommon.state), hx2, F.RO.m, FRO.m, G1.paths,
+        equiv_seq 5 5 : (={t, y, x, hx2, F.RO.m, FRO.m, G1.paths,
             G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext, C.c, C.queries} ∧
             inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ∧
             (§t{1} → FMap.in_dom_with §FRO.m{1}
-              (oget (FMap.get §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2
+              (oget (FMap.get §G1.mh{1} ((§x{1}).1, §hx2{1}))).2
               Unknown))
         -- EC: + inline RRO.queried; wp;call (_: ={FRO.m});1:by sim.
         --       inline RRO.allKnown;sp 1 1;if=>//.
@@ -938,12 +934,11 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
         --          C.c} /\
         --       inv_lt  G1.m{2} G1.mi{2} C.c{1} FRO.m{2}  ReSample.count{2} /\
         --       (t => in_dom_with FRO.m (oget G1.mhi.[(x.`1, hx2)]).`2 Unknown){1}).
-        --     (GAP 4: `x` written out)
-        equiv_seq 8 8 : (={t, y, (localVarLens "x" SLCommon.state), hx2, F.RO.m, FRO.m, G1.paths,
+        equiv_seq 8 8 : (={t, y, x, hx2, F.RO.m, FRO.m, G1.paths,
             G1.mh, G1.mhi, G1.m, G1.mi, G1.chandle, G1.bext, C.c} ∧
             inv_lt §G1.m{2} §G1.mi{2} §C.c{1} §FRO.m{2} §ReSample.count{2} ∧
             (§t{1} → FMap.in_dom_with §FRO.m{1}
-              (oget (FMap.get §G1.mhi{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2
+              (oget (FMap.get §G1.mhi{1} ((§x{1}).1, §hx2{1}))).2
               Unknown))
         -- EC: + inline RRO.queried; auto;call (_: ={FRO.m});1:by sim.
         --       inline RRO.allKnown;sp 1 1;if=>//.

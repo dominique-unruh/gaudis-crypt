@@ -420,6 +420,10 @@ Document each in the docstring when it applies.
   at once (a reset past a global write needed `resetSetter_set_intoGlobal`).  Debug output
   inside the discharger's `saveState`/`restore` is lost: print with `IO.eprintln`.
 * `simp_reads` rewrites under `decide` but leaves the instance: `normDecide` re-synthesizes it.
+* Names in tactic conditions come from `ProgramSyntax.frameVars`: `.nameable` for elaborating
+  (the condition is wrapped in `letI x := slot`), `.printable` for printing (also no binder `x`
+  anywhere in the goal).  A new tactic that elaborates a condition filters by `.nameable`; using
+  `.printable` hid procedure parameters and locals whenever some `fun x`/proof `h` was in the goal.
 * A namespace-local theorem shadows an opened one of the same name; two *opened* namespaces
   with the same name give "Ambiguous term" — when moving a helper (e.g. into `TacticMisc`), don't
   leave an alias behind in the old namespace, qualify the users.

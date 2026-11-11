@@ -226,7 +226,7 @@ elab "hoare_while " I:term : tactic => withMainContext do
     throwError "hoare_while: expected a goal `hoareStmt A s B`, got{indentExpr ty}"
   -- the program variables of the goal, each bound to its slot, as a `hoare[ ]` triple binds them
   let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! 1, ty.getArg! 2] #[]).filter
-    (·.printable)
+    (·.nameable)
   let mut stx ← `((GaudiExpr[ $I ] : Getter Prop ProgramState).get)
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue

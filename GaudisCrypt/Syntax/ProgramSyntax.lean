@@ -1243,20 +1243,23 @@ private def constClashes (n : String) (es : Array Lean.Expr) : MetaM Bool := do
   let res ← resolveGlobalName (Name.mkSimple n)
   return cs.any fun c => res.any fun (c', fields) => c' == c && fields.isEmpty
 
-/-- A program variable of a frame: its name, its type, the occurrences of its slot, and whether
-it prints under its name. -/
+/-- A program variable of a frame: its name, its type, the occurrences of its slot, whether it
+prints under its name, and whether a condition written for the frame (a tactic's argument) may
+name it.  The latter ignores binders of the same name in the frame's terms (a `fun x` inside a
+procedure, a proof's `h`), which only matter to printing. -/
 structure FrameVar where
   name : String
   type : Lean.Expr
   slots : Array Lean.Expr
   printable : Bool
+  nameable : Bool := printable
   deriving Inhabited
 
 /-- The program variables of the frame whose terms are `es`: the parameters `params` first (in
 order), then every other variable whose slot occurs in `es`, in order of first occurrence. -/
 def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
     MetaM (Array FrameVar) := do
-  let mut vars : Array FrameVar := params.map fun (n, ty) => ⟨n, ty, #[], true⟩
+  let mut vars : Array FrameVar := params.map fun (n, ty) => ⟨n, ty, #[], true, true⟩
   for (n, ty, t) in es.foldl (fun acc e => collectVarSlots e acc) #[] do
     match vars.findIdx? (·.name == n) with
     | some i =>
@@ -1265,11 +1268,11 @@ def frameVars (es : Array Lean.Expr) (params : Array (String × Lean.Expr)) :
           vars := vars.set! i { v with slots := v.slots.push t }
         else
           vars := vars.set! i { v with printable := false }
-    | none => vars := vars.push ⟨n, ty, #[t], true⟩
+    | none => vars := vars.push ⟨n, ty, #[t], true, true⟩
   vars.mapM fun v => do
-    let printable := v.printable && !v.name.isEmpty && !v.name.contains '»'
-      && !es.any (binderClashes v.name)
-    return { v with printable := printable && !(← constClashes v.name es) }
+    let nameable := v.printable && !v.name.isEmpty && !v.name.contains '»'
+      && !(← constClashes v.name es)
+    return { v with printable := nameable && !es.any (binderClashes v.name), nameable }
 
 /-- Bind each variable of `vars` to a let-variable of its name, replace its slots in `es` by it,
 and run `k` on the rewritten terms. -/

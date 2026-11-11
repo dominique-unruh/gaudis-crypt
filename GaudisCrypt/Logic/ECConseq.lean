@@ -92,7 +92,7 @@ open Lean Meta Elab Tactic PRHLWp
 /-- A condition on one state, written as the judgment's (`§x`, the code's variables by name). -/
 def elabCond (ty : Lean.Expr) (stmtIdx : Nat) (P : Term) : TacticM Lean.Expr := do
   let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! stmtIdx] #[]).filter
-    (·.printable)
+    (·.nameable)
   let mut stx ← `((GaudiExpr[ $P ] : Getter Prop ProgramState).get)
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue
@@ -216,7 +216,7 @@ elab "stmt_exists" "*" e:term : tactic => withMainContext do
     else if ty.isAppOf ``hoareStmt then pure ``hoareStmt_exists
     else throwError "stmt_exists*: not a `phoare` judgment or a Hoare triple"
   -- `e` as a function of the state, as a condition is (`GaudiExpr`, the code's variables)
-  let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! 1] #[]).filter (·.printable)
+  let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! 1] #[]).filter (·.nameable)
   let mut stx ← `((GaudiExpr[ $e ] : Getter _ ProgramState).get)
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue

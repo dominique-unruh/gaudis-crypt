@@ -111,7 +111,7 @@ def ourPos (tac : String) (s : Lean.Expr) (n : Nat) : MetaM Nat := do
 /-- A condition written like those of the goal's program (`§x` reads the program variable `x`),
 a proposition (decided) or a boolean, as a getter of the program state. -/
 def elabStmtCond (s : Lean.Expr) (stx : Term) : TacticM Lean.Expr := do
-  let vars := (← ProgramSyntax.frameVars #[s] #[]).filter (·.printable)
+  let vars := (← ProgramSyntax.frameVars #[s] #[]).filter (·.nameable)
   let mut t ← `((GaudiExpr[ decide ($stx) ] : Getter Bool ProgramState))
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue

@@ -245,7 +245,7 @@ elab "hoare_call" " (" ": " I:term ")" : tactic => do
   -- `inv` as a function of the state, as `hoare_while` reads its invariant
   let IF ← g.withContext do
     let vars := (← ProgramSyntax.frameVars #[ty.getArg! 0, ty.getArg! 1, ty.getArg! 2] #[]).filter
-      (·.printable)
+      (·.nameable)
     let mut stx ← `((GaudiExpr[ $I ] : Getter Prop ProgramState).get)
     for v in vars.reverse do
       let some slot := v.slots[0]? | continue

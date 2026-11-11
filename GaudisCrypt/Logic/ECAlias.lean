@@ -100,7 +100,7 @@ elab_rules (kind := stmtAlias) : tactic
       throwError "stmt_alias: no position {n} (the code has {gs.size} statements)"
     let p := (gs.extract 0 (n - 1)).foldl (· + ·) 0
     -- `e` over side `side`'s variables, and the fresh local `x` of its type
-    let vars := (← ProgramSyntax.frameVars #[st] #[]).filter (·.printable)
+    let vars := (← ProgramSyntax.frameVars #[st] #[]).filter (·.nameable)
     let mut t ← `((GaudiExpr[ $e ] : Getter _ ProgramState))
     for v in vars.reverse do
       let some slot := v.slots[0]? | continue

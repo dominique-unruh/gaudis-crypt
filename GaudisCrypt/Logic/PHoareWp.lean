@@ -501,7 +501,7 @@ elab "phoare_while_le " I:term : tactic => withMainContext do
   let #[A, s, e, _, r] ← phoareParts ty | unreachable!
   -- the program variables of the goal, each bound to its slot, as a `phoare[ ]` judgment binds
   -- them (see `hoare_while`)
-  let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.printable)
+  let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.nameable)
   let mut stx ← `((GaudiExpr[ $I ] : Getter ENNReal ProgramState).get)
   for v in vars.reverse do
     let some slot := v.slots[0]? | continue
@@ -516,7 +516,7 @@ elab "phoare_while_le " I:term : tactic => withMainContext do
 def elabGoalFunction (I : Term) (T : Lean.Expr) : TacticM Lean.Expr := withMainContext do
   let ty ← instantiateMVars (← getMainTarget)
   let #[A, s, e, _, r] ← phoareParts ty | unreachable!
-  let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.printable)
+  let vars := (← ProgramSyntax.frameVars #[A, s, e, r] #[]).filter (·.nameable)
   let Tstx ← Term.exprToSyntax T
   let mut stx ← `((GaudiExpr[ $I ] : Getter $Tstx ProgramState).get)
   for v in vars.reverse do

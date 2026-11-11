@@ -19,8 +19,8 @@ Translation:
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
 * GAP 1: EC's `sim` goes into calls of different concrete procedures (`G4.S(F.LRO).f` against
   `S(IF).f`); ours stops there: `stmt_inline*` first.
-* GAP 3: a procedure's parameter (`x` of `G3.S.f`) is not a name of the conditions after `proc`
-  (Gext's GAP 4): its read `(localVarLens "x" SLCommon.state)` written out.
+* (GAP 3, fixed as Gext's GAP 4: a procedure's parameter, `x` of `G3.S.f`, is a name of the
+  conditions after `proc`.)
 * (closed, was GAP 4) EC's `swap{1} [3..7] -2;swap{2} [4..8] -3` in `G2_G3`'s `S.f` moves `RRO`'s
   calls past the conditional calling `F.RO.get`; footprint disjointness does not apply (both
   read `x`).  EC's later `inline *` comes first here: what the block moves past is then
@@ -86,14 +86,14 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     --              C.queries} /\ (t = in_dom_with FRO.m (oget G1.mh.[(x.`1, hx2)]).`2 Unknown){1});
     --       1:by inline *;auto.
     --     (`RRO.in_dom` inlined: two statements)
-    equiv_seq 6 6 : (={hx2, t, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m, G1.mi,
+    equiv_seq 6 6 : (={hx2, t, x, FRO.m, F.RO.m, G1.m, G1.mi,
         G1.mh, G1.mhi, G1.chandle, G1.paths, C.c, C.queries} ∧
       §t{1} = decide (FMap.in_dom_with §FRO.m{1}
-        (oget (FMap.get §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2 Unknown))
+        (oget (FMap.get §G1.mh{1} ((§x{1}).1, §hx2{1}))).2 Unknown))
     · stmt_inline*; equiv_auto; auto_close
     -- EC: seq 3 4:(={y,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,C.queries});
     --       2:by sim.
-    equiv_seq 3 4 : (={y, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m, G1.mi, G1.mh,
+    equiv_seq 3 4 : (={y, x, FRO.m, F.RO.m, G1.m, G1.mi, G1.mh,
       G1.mhi, G1.chandle, G1.paths, C.c, C.queries})
     on_goals 2 => sim
     -- EC: if=>//.
@@ -103,16 +103,16 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     --                Unknown){1}).
     --       + by inline *;auto=> /> ? _;rewrite Block.DWord.bdistr_ll.
     --     (`F.RO.get` inlined: five statements)
-    · equiv_seq 5 5 : (={y1, hx2, t, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m,
+    · equiv_seq 5 5 : (={y1, hx2, t, x, FRO.m, F.RO.m, G1.m,
           G1.mi, G1.mh, G1.mhi, G1.chandle, G1.paths, C.c, C.queries} ∧
         §t{1} = decide (FMap.in_dom_with §FRO.m{1}
-          (oget (FMap.get §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2
+          (oget (FMap.get §G1.mh{1} ((§x{1}).1, §hx2{1}))).2
           Unknown))
       · stmt_inline*; equiv_auto
       -- EC: case (((x.`1, hx2) \in G1.mh /\ t){1});
       --       [rcondt{1} 3;2:rcondt{2} 3| rcondf{1} 3;2:rcondf{2} 3];
       --       1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
-      equiv_case (FMap.dom §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}) ∧
+      equiv_case (FMap.dom §G1.mh{1} ((§x{1}).1, §hx2{1}) ∧
         §t{1} = true)
       · stmt_rcondt{1} 3
         · hoare_auto
@@ -132,7 +132,7 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     -- EC: case (((x.`1, hx2) \in G1.mh /\ t){1});
     --       [rcondt{1} 4;2:rcondt{2} 4| rcondf{1} 4;2:rcondf{2} 4];
     --       1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
-    · equiv_case (FMap.dom §G1.mh{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}) ∧
+    · equiv_case (FMap.dom §G1.mh{1} ((§x{1}).1, §hx2{1}) ∧
         §t{1} = true)
       · stmt_rcondt{1} 4
         · hoare_auto
@@ -169,15 +169,15 @@ theorem G2_G3 : equiv[ Eager(G2(DRestr(D))).main2 ~ G3(D, F.LRO).distinguish :
     -- EC: seq 6 6 : (={y1,hx2,t,x,FRO.m,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.chandle,G1.paths,C.c,
     --                 C.queries} /\ (t = in_dom_with FRO.m (oget G1.mhi.[(x.`1, hx2)]).`2 Unknown){1}).
     --     + by inline *;auto.
-    equiv_seq 6 6 : (={y1, hx2, t, (localVarLens "x" SLCommon.state), FRO.m, F.RO.m, G1.m, G1.mi,
+    equiv_seq 6 6 : (={y1, hx2, t, x, FRO.m, F.RO.m, G1.m, G1.mi,
         G1.mh, G1.mhi, G1.chandle, G1.paths, C.c, C.queries} ∧
       §t{1} = decide (FMap.in_dom_with §FRO.m{1}
-        (oget (FMap.get §G1.mhi{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}))).2 Unknown))
+        (oget (FMap.get §G1.mhi{1} ((§x{1}).1, §hx2{1}))).2 Unknown))
     · stmt_inline*; equiv_auto; auto_close
     -- EC: case (((x.`1, hx2) \in G1.mhi /\ t){1});
     --       [rcondt{1} 3;2:rcondt{2} 3| rcondf{1} 3;2:rcondf{2} 3];
     --       1,2,4,5:(by move=>?;conseq (_:true);auto);2:by sim.
-    equiv_case (FMap.dom §G1.mhi{1} ((§(localVarLens "x" SLCommon.state){1}).1, §hx2{1}) ∧
+    equiv_case (FMap.dom §G1.mhi{1} ((§x{1}).1, §hx2{1}) ∧
       §t{1} = true)
     · stmt_rcondt{1} 3
       · hoare_auto
@@ -239,14 +239,13 @@ theorem G3_G4 : equiv[ G3(D, F.RO.asRO).distinguish ~ G4(D, F.RO.asRO).distingui
     · auto_close
     on_goals 2 => sim
     -- EC: seq 3 3: (={x,y1,y2,y,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});1:by sim.
-    --     (GAP 3: the procedure's parameter `x` written as its read)
-    equiv_seq 3 3 : (={(localVarLens "x" SLCommon.state), y1, y2, y, G1.m, G1.mi, G1.paths,
+    equiv_seq 3 3 : (={x, y1, y2, y, G1.m, G1.mi, G1.paths,
       F.RO.m, C.c, C.queries})
     · sim
     -- EC: sim;seq 5 0: (={x,y1,y2,y,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});
     --       1:by inline *;auto.
     sim
-    equiv_seq 5 0 : (={(localVarLens "x" SLCommon.state), y1, y2, y, G1.m, G1.mi, G1.paths, F.RO.m,
+    equiv_seq 5 0 : (={x, y1, y2, y, G1.m, G1.mi, G1.paths, F.RO.m,
       C.c, C.queries})
     · stmt_inline*; equiv_auto
     -- EC: by if{1};sim;inline *;auto.
@@ -266,11 +265,11 @@ theorem G3_G4 : equiv[ G3(D, F.RO.asRO).distinguish ~ G4(D, F.RO.asRO).distingui
     · auto_close
     on_goals 2 => sim
     -- EC: seq 5 0: (={x,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});1:by inline *;auto.
-    equiv_seq 5 0 : (={(localVarLens "x" SLCommon.state), G1.m, G1.mi, G1.paths, F.RO.m, C.c,
+    equiv_seq 5 0 : (={x, G1.m, G1.mi, G1.paths, F.RO.m, C.c,
       C.queries})
     · stmt_inline*; equiv_auto
     -- EC: seq 3 3: (={x,y1,y2,y,G1.m,G1.mi,G1.paths,F.RO.m,C.c,C.queries});1:by sim.
-    equiv_seq 3 3 : (={(localVarLens "x" SLCommon.state), y1, y2, y, G1.m, G1.mi, G1.paths,
+    equiv_seq 3 3 : (={x, y1, y2, y, G1.m, G1.mi, G1.paths,
       F.RO.m, C.c, C.queries})
     · sim
     -- EC: by if{1};sim;inline *;auto.

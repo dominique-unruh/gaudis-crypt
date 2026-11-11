@@ -66,7 +66,7 @@ elab_rules (kind := equivTrans) : tactic
     let #[A, c₁, c₂, B] := ty.getAppArgs | unreachable!
     -- the middle code, over side `side`'s variables and those it declares
     let st := if side == 1 then c₁ else c₂
-    let vars := (← ProgramSyntax.frameVars #[st] #[]).filter (·.printable)
+    let vars := (← ProgramSyntax.frameVars #[st] #[]).filter (·.nameable)
     let bs ← liftMacroM (RelSyntax.localsOf locals)
     let binds ← liftMacroM (bs.mapM fun (id, ty) => ProgramSyntax.varBinding id ty)
     let mut mstx ← liftMacroM (ProgramSyntax.wrapLetI binds (← `((GaudiProg[ $stmts* ] : Stmt))))
