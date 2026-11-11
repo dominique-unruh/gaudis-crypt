@@ -199,7 +199,7 @@ theorem Sponge_is_StdSponge (P : DPRIMITIVE) :
       intros; simp_all
   · equiv_case (§n{1} ≤ 0)
     · equiv_rcondf{2}
-      equiv_while{1} (eqGlob P §allGlobals{1} §allGlobals{2} ∧ §n{1} = §n{2} ∧ §n{1} ≤ 0 ∧
+      equiv_while_noframe{1} (eqGlob P §allGlobals{1} §allGlobals{2} ∧ §n{1} = §n{2} ∧ §n{1} ≤ 0 ∧
           §i{2} = 0) (if §finished{1} then 0 else 1)
       case lossless =>
         intro σ₂ σ hI hg
@@ -682,7 +682,7 @@ theorem HybridIROLazy_HIRO_LRO_f :
     case «then» =>
       -- EC: `while{2} (true) (m{2} - i{2}); progress; auto; progress; smt()`: the invariant
       -- carries the relation the loop does not touch (EC folds it into the precondition)
-      equiv_while{2} (§bs{1} = §bs{2} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
+      equiv_while_noframe{2} (§bs{1} = §bs{2} ∧ §HybridIROLazy_mp{1} = §ERO_RO_m{2})
         (§m{2} - §i{2}).toNat
       case lossless =>
         intro σ₁ σ _ _
@@ -1739,7 +1739,7 @@ theorem HybridIROEagerTrans_next_block_split :
             rintro _ _ _ _ _ _ _ _ _ _ _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, hm, hs, hnd, rfl⟩
             exact ⟨rfl, rfl, by omega, le_rfl, by omega, by omega, hs, (List.append_nil _).symm,
               fun k hk => absurd hk.2 (by omega), hnd, fun _ _ _ => rfl⟩
-      · equiv_while{2} (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
+      · equiv_while_noframe{2} (§xs0{1} = §xs0{2} ∧ §m0{1} = §m0{2} ∧ §bs0{1} = §bs0{2} ∧
             §m0{1} - r ≤ §i0{2} ∧ §i0{2} ≤ §m0{1} ∧ §i0{1} = §m0{1} ∧ size §bs0{1} = §m0{1} ∧
             (∀ k, §m0{1} - r ≤ k ∧ k < §i0{2} →
               FMap.get §HybridIROEager_mp{1} (§xs0{1}, k) =
@@ -2173,7 +2173,7 @@ theorem NextBlockSplitDirect_BlockSpongeTrans_next_block (i2 : ℤ) :
         have := ei.2 _ _ hd1
         rwa [hi, Int.mul_ediv_cancel _ (ne_of_gt hr)] at this
       case «else» =>
-        equiv_while{1} (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
+        equiv_while_noframe{1} (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
             §i0{2} * r ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §m0{1} - §i0{2} * r = r ∧
             size §(localVarLens "bs0" (List Bool)){1} = §i0{1} ∧
             §(localVarLens "bs0" (List Bool)){1} =
@@ -2260,7 +2260,7 @@ theorem NextBlockSplitDirect_BlockSpongeTrans_next_block (i2 : ℤ) :
           refine ⟨h1, h2, rfl, rfl, by rw [hi], by omega, by omega, hs2, by rw [hbs],
             by rw [FMap.get_set_sameE], fun j hj => absurd hj.2 (by omega),
             fun mq hee hrange => eager_invar_eq_except_upd1 _ _ _ _ _ _ h2 ei hee hrange⟩
-        · equiv_while{1} (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
+        · equiv_while_noframe{1} (i2 = §i0{2} ∧ 0 ≤ §i0{2} ∧ §xs0{1} = §x1{2} ∧ §n{2} = §i0{2} ∧
             §i0{2} * r ≤ §i0{1} ∧ §i0{1} ≤ §m0{1} ∧ §m0{1} - §i0{2} * r = r ∧
             size §(localVarLens "bs0" (List block)){2} = §i0{2} ∧
             §(localVarLens "bs0" (List Bool)){1} =

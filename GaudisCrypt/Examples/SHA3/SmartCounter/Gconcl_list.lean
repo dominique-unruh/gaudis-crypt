@@ -389,7 +389,7 @@ theorem IF'_Valid2_f :
   stmt_wp
   equiv_rnd
   stmt_wp
-  equiv_while{1} (§x0{1} = §x{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
+  equiv_while_noframe{1} (§x0{1} = §x{2} ∧ §Gconcl.S.m{1} = §Gconcl.S.m{2} ∧
       §Gconcl.S.mi{1} = §Gconcl.S.mi{2} ∧ §Gconcl.S.paths{1} = §Gconcl.S.paths{2} ∧
       §SLCommon.F.RO.m{1} = §SLCommon.F.RO.m{2} ∧ §BlockSponge.C.c{1} = §BlockSponge.C.c{2})
     (§n{1} - §i{1}).toNat
@@ -3348,7 +3348,7 @@ theorem IF2_get (bl : List block) (k : ℤ) :
     equiv_seq_last 1 2 : (0 < k ∧ §p{1} = bl ∧ §n{1} = k ∧ §i{1} = k - 1 ∧ §x0{1} = format bl k ∧
         §x0{2} = format bl k ∧ (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
         L34Inv §allGlobals{1} §allGlobals{2})
-    · equiv_while{1} (§p{1} = bl ∧ §n{1} = k ∧ 0 ≤ §i{1} ∧ §i{1} ≤ k - 1 ∧
+    · equiv_while_noframe{1} (§p{1} = bl ∧ §n{1} = k ∧ 0 ≤ §i{1} ∧ §i{1} ≤ k - 1 ∧
           §x0{1} = format bl k ∧ §x0{2} = format bl k ∧
           (∀ j, 1 ≤ j → j < k → FMap.dom §SLCommon.F.RO.m{1} (format bl j)) ∧
           L34Inv §allGlobals{1} §allGlobals{2}) ((§n{1} - §i{1}).toNat)
@@ -4407,7 +4407,7 @@ theorem SS_f_extend (bl : List block) (j : ℤ) :
       FMap.get §SLCommon.Redo.prefixes{1} (format bl j) = some (§sa{1}, §sc{1}) ∧
       §(localVarLens "x" state){2} = (§sa{1}, §sc{1}) ∧ valid bl = true ∧ 0 < j ∧
       sqInv §allGlobals{1} §allGlobals{2})
-  · equiv_while{1} (§p{1} = format bl (j + 1) ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size (format bl j) ∧
+  · equiv_while_noframe{1} (§p{1} = format bl (j + 1) ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size (format bl j) ∧
         FMap.get §SLCommon.Redo.prefixes{1} (take §i{1} §p{1}) = some (§sa{1}, §sc{1}) ∧
         FMap.get §SLCommon.Redo.prefixes{1} (format bl j) = some §(localVarLens "x" state){2} ∧
         valid bl = true ∧ 0 < j ∧ sqInv §allGlobals{1} §allGlobals{2})
@@ -7143,7 +7143,7 @@ theorem Simulator_f_Simu :
                 stmt_wp
                 equiv_seq_last 1 3 : (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
                     e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2})
-                · equiv_while{2} (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
+                · equiv_while_noframe{2} (§x0{1} = §x0{2} ∧ §q{1} = §q{2} ∧ §k{1} = §k{2} ∧ 0 < §k{1} ∧
                     e2Inv IRO2_RO_m §allGlobals{1} §allGlobals{2}) (§k{2} - §i{2}).toNat
                   case lossless =>
                     intro σ₁ σ _ _

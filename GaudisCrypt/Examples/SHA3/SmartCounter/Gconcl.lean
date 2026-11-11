@@ -471,7 +471,7 @@ theorem DFRestr_f_G4I :
         equiv_seq_last 7 6 : (§p{1} = §bs{2} ∧ §bs{1} = §bs{2} ∧
             §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
             §G1.m{1} = §S.m{2} ∧ §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
-        · equiv_while{1} (§p{1} = §bs{2} ∧ §bs{1} = §bs{2} ∧
+        · equiv_while_noframe{1} (§p{1} = §bs{2} ∧ §bs{1} = §bs{2} ∧
               §C.c{1} = §C.c{2} ∧ §C.queries{1} = §C.queries{2} ∧ §F.RO.m{1} = §F.RO.m{2} ∧
               §G1.m{1} = §S.m{2} ∧ §G1.mi{1} = §S.mi{2} ∧ §G1.paths{1} = §S.paths{2})
             (size §p{1} - §i{1}).toNat

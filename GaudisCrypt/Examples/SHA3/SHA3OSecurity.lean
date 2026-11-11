@@ -1273,7 +1273,7 @@ theorem eq_IRO_RFWhile :
         intros
         assumption
     case «else» =>
-      equiv_while{1} (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧
+      equiv_while_noframe{1} (§x0{1} = §x0{2} ∧ §n{1} = size_out ∧ 0 ≤ §i{1} ∧ §i{1} ≤ size_out ∧
           FMap.dom §RFList_m{2} §x0{1} ∧ inv §IRO.mp{1} §RFList_m{2} ∧
           §bs{1} = take §i{1} (to_list (oget (FMap.get §RFList_m{2} §x0{1}))))
         ((size_out - §i{1}).toNat)
@@ -1700,7 +1700,7 @@ theorem eq_eager_ideal :
   stmt_inline{2} 0
   stmt_inline{2} 0
   stmt_wp
-  equiv_while{2} (§bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2}) ((size_out - §i{2}).toNat)
+  equiv_while_noframe{2} (§bs{1} = §l{2} ∧ §IRO.mp{1} = §Eager.RO.m{2}) ((size_out - §i{2}).toNat)
   case lossless =>
     intro σ₁ σ _ _
     simp [Stmt.ewp_seq, Stmt.ewp_assign]
@@ -2696,7 +2696,7 @@ theorem fin_get :
           exact h.1
         case «then» =>
           stmt_wp
-          equiv_while{2} (§o{1} = none) ((size_out - §i{2}).toNat)
+          equiv_while_noframe{2} (§o{1} = none) ((size_out - §i{2}).toNat)
           case lossless =>
             intro σ₁ σ _ _
             simp only [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_sample]
@@ -4836,7 +4836,7 @@ theorem titi (_hfresh : LocalFresh Log_m RFList_m) (mess : List Bool) (c : ℤ) 
           exact h.1
         case «then» =>
           stmt_wp
-          equiv_while{2} (§o{1} = none ∧ ¬ increase_counter c mess size_out ≤ sigma)
+          equiv_while_noframe{2} (§o{1} = none ∧ ¬ increase_counter c mess size_out ≤ sigma)
             ((size_out - §i{2}).toNat)
           case lossless =>
             intro σ₁ σ _ _
@@ -5476,7 +5476,7 @@ theorem ll_get :
         simp_all
       case «then» =>
         stmt_wp
-        equiv_while{2} (§k{1} = size_out) ((size_out - §i{2}).toNat)
+        equiv_while_noframe{2} (§k{1} = size_out) ((size_out - §i{2}).toNat)
         case lossless =>
           intro σ₁ σ _ _
           simp only [Stmt.ewp_seq, Stmt.ewp_assign, Stmt.ewp_sample]
@@ -5525,7 +5525,7 @@ theorem ll_get :
         intros
         trivial
       case «then» =>
-        equiv_while{1} True ((§n{1} - §i{1}).toNat)
+        equiv_while_noframe{1} True ((§n{1} - §i{1}).toNat)
         case lossless =>
           intro σ₁ σ _ _
           have h1 := (is_lossless_iff_expected _).mp dbool_ll

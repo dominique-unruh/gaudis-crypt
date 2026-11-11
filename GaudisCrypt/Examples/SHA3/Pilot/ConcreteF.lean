@@ -5,6 +5,7 @@ import GaudisCrypt.Logic.ECLoop
 import GaudisCrypt.Logic.ECTrans
 import GaudisCrypt.Logic.ECAlias
 import GaudisCrypt.Logic.ECWhile
+import GaudisCrypt.Logic.ECWhileRel
 
 /-!
 # From the permutation to a random function (EasyCrypt `proof/smart_counter/ConcreteF.eca`) —
@@ -728,11 +729,9 @@ theorem Real_GReal' (m : VariableAssignment) :
         · hoare_auto; smt_close [prefix_inv]
         hoare_auto
         smt_close
-      · auto_progress
-        all_goals smt_close
       · equiv_skip
         auto_progress
-        all_goals smt_close [size, take]
+        all_goals first | smt_close | smt_close [size, take]
   stmt_wp; equiv_skip
   auto_progress
   all_goals first

@@ -1044,7 +1044,7 @@ theorem equiv_ro_iro (c : ℤ) (m : List Bool) : equiv_ro_iro.statement c m := b
       simp [BIRO.valid, valid_toplevel] at hg
     case «then» =>
       equiv_case (FMap.dom §S.SRO.RO.RO.m{1} §x0{1})
-      · equiv_while{2} (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
+      · equiv_while_noframe{2} (§x2{2} = §x0{1} ∧ §n0{2} = size_out ∧ FMap.dom §S.SRO.RO.RO.m{1} §x0{1} ∧
             0 ≤ §i{2} ∧ §i{2} ≤ size_out ∧ same_ro §S.SRO.RO.RO.m{1} §IRO.mp{2} ∧
             §bs0{2} = (range 0 §i{2}).map (fun j => oget (FMap.get §IRO.mp{2} (§x2{2}, j))) ∧
             §Cntr.c{2} = c + ((size m + 1) / r + 1) + max ((size_out + r - 1) / r - 1) 0)

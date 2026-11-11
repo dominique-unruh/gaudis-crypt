@@ -29,8 +29,8 @@ Translation:
   after the inlining; the rest of EC's script with its `seq`s at the inlined positions.
 * (GAP 5, fixed: `sim` through two loops whose relation after them reads what they change: EC's
   equality set as the invariant.)
-* GAP 2: the one-sided `equiv_while{i}` has no frame of the variables the loop keeps (the
-  two-sided `while` has, `Logic/ECWhileRel.lean`): they go into the invariant.
+* (GAP 2, fixed: the one-sided `equiv_while{i}` keeps EC's frame, its exit in the precondition
+  goal: EC's invariant `true`.)
 -/
 
 namespace GaudisCrypt.SHA3.Pilot.Gconcl
@@ -326,16 +326,13 @@ theorem G4_Ideal : equiv[ G4(D, F.LRO).distinguish ~ IdealIndif(IF, S, DRestr(D)
     -- EC: inline F.LRO.get F.FRO.sample;wp 7 2;sim.
     equiv_proc; stmt_inline*; stmt_wp 7 2; sim
     -- EC: by while{1} (true) (size p - i){1};auto;1:inline*;auto=>/#.
-    --     (GAP 2: our one-sided `while` has no frame of what the loop keeps: `p{1} = x{2}` and
-    --     `={F.RO.m}` in the invariant, EC's `true`)
-    equiv_while{1} (§p{1} = §x{2} ∧ §F.RO.m{1} = §F.RO.m{2}) ((size §p{1} - §i{1}).toNat)
+    equiv_while{1} (True) ((size §p{1} - §i{1}).toNat)
     · while_ll_phoare
       intro σ₂
       phoare_auto
     · intro σ₂ k
       hoare_auto
-    · auto_progress
-    · equiv_auto
+    equiv_auto
   -- EC: by auto.
   · equiv_auto; auto_close
 

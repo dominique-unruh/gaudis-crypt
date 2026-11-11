@@ -1448,7 +1448,7 @@ theorem GR_F_f :
         grLoop_init _ _ _ hinv h0 hall⟩
     case «else» =>
       stmt_wp
-      equiv_while{1} (§p{1} = §bs{2} ∧ FMap.dom §C.queries{2} §bs{2} ∧
+      equiv_while_noframe{1} (§p{1} = §bs{2} ∧ FMap.dom §C.queries{2} §bs{2} ∧
           grL.equal_outside §allGlobals{1} §allGlobals{2} ∧
           grI (grL.get §allGlobals{1}) (grL.get §allGlobals{2}) ∧
           0 ≤ §i{1} ∧ §i{1} ≤ size §p{1} ∧

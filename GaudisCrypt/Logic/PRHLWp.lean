@@ -436,13 +436,15 @@ elab "equiv_while_raw " I:term : tactic => withMainContext do
     let gExit ← try generalizeReadsRel gExit catch _ => pure gExit
     replaceMainGoal [gBody, gGuard, gExit, gPre]
 
-/-- `equiv_while{i} I V`: the last statement of side `i` is a loop, run on that side only, with
+/-- `equiv_while_noframe{i} I V` (the older form of EC's `while{i} I V`, which is
+`equiv_while{i}`, `Logic/ECWhileRel.lean`): the last statement of side `i` is a loop, run on that
+side only, with
 the invariant `I` and the variant `V : ℕ` (both relational, EC's `while{i} I V`;
 `prhlStmt_seq_while_left`/`_right`).  Goals: `lossless` (the body terminates under `I` and the
 guard), `variant` (the body keeps `I` and decreases `V`, a Hoare triple for each state of the
 other side and each value of `V`), `exit` (`I` and a false guard give the postcondition), then
 the code before the loop, with postcondition `I`. -/
-elab "equiv_while" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:term:max : tactic =>
+elab "equiv_while_noframe" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:term:max : tactic =>
     withMainContext do
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_while"

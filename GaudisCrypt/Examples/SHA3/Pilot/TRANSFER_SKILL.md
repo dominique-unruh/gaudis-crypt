@@ -206,7 +206,7 @@ the `while` row.
 | `case @[ambient]: {-1}(e) (eq_refl e) => [h₁ \| x h₂]` | `rcases h : e with _ \| x` (or `by_cases h : P`) |
 | `exfalso` | `equiv_exfalso` |
 | `while I` (two-sided) | `equiv_while (I)` (`Logic/ECWhileRel.lean`): EC's two goals, `body` (`I ∧ b₁ ∧ b₂ ==> I ∧ b₁ = b₂`) and `hpre` (EC's `(I ∧ b₁ = b₂) ∧ ∀ τ₁ τ₂, (frames: what the loops keep) → I → ¬b₁ → ¬b₂ → Q`). EC's `while I; last first; + auto; progress.` and its bullets transcribe as `equiv_while (I)` then `case hpre => equiv_auto; auto_progress` with one bullet per EC bullet (PFf_Cf's first loop: EC's seven).  The exit goal's frames are equations between the two final states' reads (`x τ₂ = x τ₁`, and the invariant's `x τ₁ = x τ₂`): `subst_frames` keeps one of each pair, so `progress`/`smt_close` close frame equalities as EC does.  The older four-goal form without frame is `equiv_while_raw` |
-| `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, `exit`, then the code before. EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
+| `while{i} I V` | `equiv_while{i} (I) (V)`; goals `lossless`, `variant`, then the code before (EC's: `I` and, over the loop's final states under EC's frame, `I ∧ ¬guard ⇒ post`; old form with an `exit` goal and no frame: `equiv_while_noframe{i}`). EC's body goal (`auto; sp; rcondt 1; …`) on `lossless`: `while_ll_phoare`, then the `phoare` tactics |
 | pHL `while I V` (`= 1`) | `phoare_while I V` (then `intro k` in the body goal) |
 | Hoare `while I` | `hoare_while I` |
 | `splitwhile{i} n : e` / `unroll{i} n` | `stmt_splitwhile{i} n : e` / `stmt_unroll{i} n` |
@@ -474,12 +474,12 @@ Document each in the docstring when it applies.
 * **`sim` over a call**: with no equality set given, ours now keeps EC's — the variables read
   after the call that the callee touches (`F.RO.m` for `RO.get`), needing their `fp_bound`s
   (`fp_le` on the callee).  A `sim` goal asking `globals₁ = globals₂` means no bound was found.
-  Our `sim` still stops at calls of *different* procedures (`stmt_inline*` first, then `sim`) and
-  sometimes at two loops after `inline*` (`equiv_while (={…})`, bodies by `sim`).
-* **One-sided `while{i}`**: `equiv_while{1} (I) (V)` (both in parentheses); it has no frame of
-  what the loop keeps (EC's has): put those equations in `I`.  Its goals: `lossless`
-  (`while_ll_phoare; intro σ₂; phoare_auto`), `variant` (`intro σ₂ k; hoare_auto`), `exit`, code
-  before.
+  Calls of *different* concrete procedures and two loops after `inline*`: `sim` handles them
+  (Gconcl GAP 1, 5).
+* **One-sided `while{i}`**: `equiv_while{1} (I) (V)` (both in parentheses), with EC's frame of
+  what the loop keeps, so EC's `I` as is (`true`).  Its goals: `lossless`
+  (`while_ll_phoare; intro σ₂; phoare_auto`), `variant` (`intro σ₂ k; hoare_auto`), the code
+  before (EC's second goal; its exit part over the loop's final state `τ`).
 * **EC's `case (P{1}); [rcondt{1} n;2:rcondt{2} n | rcondf{1} n;2:rcondf{2} n]`**:
   `equiv_case (P)` then per branch `stmt_rcondt{1} n` / `stmt_rcondt{2} n`, each side goal by
   `hoare_auto` (EC's `move=>?;conseq (_:true);auto`).
