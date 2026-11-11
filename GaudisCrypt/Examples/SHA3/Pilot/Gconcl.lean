@@ -17,8 +17,9 @@ Translation:
 -/
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: EC's `sim` goes into calls of different concrete procedures (`G4.S(F.LRO).f` against
-  `S(IF).f`); ours stops there: `stmt_inline*` first.
+* (GAP 1, fixed: EC's `sim` goes into calls of different concrete procedures, `G4.S(F.LRO).f`
+  against `S(IF).f`: where ours makes no progress, it inlines the callees and closes what is left
+  by `auto_close`.)
 * (GAP 3, fixed as Gext's GAP 4: a procedure's parameter, `x` of `G3.S.f`, is a name of the
   conditions after `proc`.)
 * (closed, was GAP 4) EC's `swap{1} [3..7] -2;swap{2} [4..8] -3` in `G2_G3`'s `S.f` moves `RRO`'s
@@ -315,10 +316,8 @@ theorem G4_Ideal : equiv[ G4(D, F.LRO).distinguish ~ IdealIndif(IF, S, DRestr(D)
   equiv_call (_ : ={C.c, C.queries, F.RO.m} ∧ §G1.m{1} = §S.m{2} ∧ §G1.mi{1} = §S.mi{2} ∧
     §G1.paths{1} = §S.paths{2})
   -- EC: + by sim. + by sim.
-  --     (GAP 1: our `sim` stops at calls of different procedures: inlined first; what it leaves
-  --     before the code, by `auto_close`)
-  · equiv_proc; stmt_inline*; sim; auto_close
-  · equiv_proc; stmt_inline*; sim; auto_close
+  · equiv_proc; sim
+  · equiv_proc; sim
   -- EC: + proc;sp;if=>//;auto;if=>//;auto.
   · equiv_proc; stmt_sp; stmt_if
     · auto_close

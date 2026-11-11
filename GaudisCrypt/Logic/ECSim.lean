@@ -498,6 +498,8 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       for h in gs do
         let _ ← evalTacticAt (← `(tactic| exact fun _ _ h => h)) h
       return []
+    if debug.sim.get (← getOptions) then
+      IO.eprintln s!"sim (skip): precondition not open: {← ppExpr pre}"
     let g ← equivSkip g
     closeImp g
   | .cond, .cond =>
@@ -527,6 +529,13 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     for n in [`Aₜ, `Aₑ] do
       let some i := names.findIdx? (· == n) | continue
       if (← instantiateMVars ms[i]!).getAppFn.isMVar then
+        if debug.sim.get (← getOptions) then
+          let left := if n == `Aₜ then rt else re
+          let msg ← match left.head? with
+            | some h => h.withContext do
+                pure s!"{← ppExpr (← instantiateMVars (← h.getType))}"
+            | none => pure "(no goal)"
+          IO.eprintln s!"sim (if, branch {n} not finished): {msg}"
         s.restore
         return [g₀]
     let h ← Judgment.simpArg h 3 relSimpDecls []
@@ -558,7 +567,7 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     -- EC's `sim` with an equality set: a region the precondition keeps equal, the callee in it
     if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset inv?
     let s ← saveState
-    try
+    let called? ← try
       -- calls of procedures spelled differently (an abstract procedure with oracles that are
       -- the same once unfolded, `A(Bounder(FM(C,P)))` and `A(Bounder(FInit(C(P))))`): their
       -- equality by `simp` (the modules' `apply_simp` lemmas), then `rfl`
@@ -576,10 +585,12 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
           (fun _ => pure false)
         unless ok do s.restore; throwError "sim: the callees differ"
         return none
-      match gs with
-      | [g'] => sim g' frame? (fuel - 1) eqset inv?
-      | _ => return gs
-    catch _ => s.restore; return [g]
+      pure (some gs)
+    catch _ => pure none
+    match called? with
+    | some [g'] => sim g' frame? (fuel - 1) eqset inv?
+    | some gs => return gs
+    | none => s.restore; return [g]
   | .loop, .loop =>
     -- EC's `sim` through two loops: its equality set as the invariant (the relation after them,
     -- and the variables the loops mention equal); the bodies by `sim`, the guards agree and the
@@ -662,8 +673,27 @@ open Lean Elab Tactic ECSim in
 /-- **EC's `sim`**: see the module docstring. -/
 elab "sim" : tactic => do
   let g ← ECProc.accessorNorm (← getMainGoal)
+  let s ← saveState
   let gs ← sim g
-  replaceMainGoal gs
+  -- calls of different concrete procedures (`G4.S(F.LRO).f`, `S(IF).f`), where EC's `sim` goes
+  -- into the callees: our call rule stops at them (inside a conditional, `sim` then stops before
+  -- it and does nothing), so the callees inlined (`inline*`), then `sim` and `auto_close` on what
+  -- it leaves — kept only if that closes the goal.  (Inlining inside a branch would put the
+  -- branch's open precondition under the inliner's frame.)  Only when `sim` made no progress: a
+  -- partial `sim` (EC's `sim;` before further steps) stays as it is.
+  unless gs == [g] do replaceMainGoal gs; return
+  let sPlain ← saveState
+  s.restore
+  let ok ← try
+      let g' ← inlineAllSides g none
+      if g' == g then pure false else
+        let gs' ← sim g'
+        let rest ← gs'.flatMapM autoCloseIfAvailable
+        pure rest.isEmpty
+    catch _ => pure false
+  if ok then replaceMainGoal [] else
+    sPlain.restore
+    replaceMainGoal gs
 
 open Lean Meta Elab Tactic ECSim PRHLWp in
 /-- **EC's `sim (_: I)`**: `sim` with the relation `I` (`§x{1}`, `§y{2}`; EC's

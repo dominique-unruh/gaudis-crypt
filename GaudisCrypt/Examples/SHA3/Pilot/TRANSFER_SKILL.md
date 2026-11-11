@@ -193,7 +193,7 @@ the `while` row.
 | `call H` | `equiv_call (H)`; `phoare_call H` (`?_` holes = EC's `call` subgoals); `hoare_call H` |
 | `call{i} H` | `equiv_call{i} H / x, glob A` (frame listed) |
 | `call (: P ==> Q)` in `phoare` / `hoare` | `phoare_call (: P ==> Q)` / `hoare_call (: P ==> Q)`; `phoare_call H / x, …` for lossless + frame |
-| `sim` / `sim n m` / `sim (_ : I)` / `sim` with `={glob A}` | `sim` / `sim n₁ n₂` / `sim (_ : I)` / `sim / x₁, …, xₙ` (equal except the listed globals) |
+| `sim` / `sim n m` / `sim (_ : I)` / `sim` with `={glob A}` | `sim` / `sim n₁ n₂` / `sim (_ : I)` / `sim / x₁, …, xₙ` (equal except the listed globals).  Calls of different concrete procedures (EC's `sim` goes into them): where plain `sim` makes no progress it inlines the callees, runs again and closes the rest by `auto_close` — so EC's `by sim` stays `sim` (Gconcl `G4_Ideal`).  A partial `sim` is never changed that way.  Why `sim` stops: `set_option debug.sim true in sim` (loops, calls, unfinished branches) |
 | `rnd` / `rnd{i}` / `rnd f` | `equiv_rnd` / `equiv_rnd{i}` / `equiv_rnd f` (product samplings: `equiv_rnd_dprod`) |
 | `rnd f g` | **missing** (~14 uses, Sponge, SHA3OSecurity): `equiv_rnd f` has other side goals |
 | pHL `rnd (pred1 v)` / `rnd` (lossless) | `rnd_pred1 v` / `rnd_bound` (on the expectation `phoare_auto` leaves at a sampling) |
