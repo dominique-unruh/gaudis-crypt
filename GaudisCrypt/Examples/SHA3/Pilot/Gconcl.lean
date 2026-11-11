@@ -21,12 +21,13 @@ Translation:
   `S(IF).f`); ours stops there: `stmt_inline*` first.
 * GAP 3: a procedure's parameter (`x` of `G3.S.f`) is not a name of the conditions after `proc`
   (Gext's GAP 4): its read `(localVarLens "x" SLCommon.state)` written out.
-* GAP 4: `swap` of a statement past code calling a procedure with a disjoint footprint (EC's
-  `swap{1} [3..7] -2` in `G2_G3`'s `S.f`: `RRO`'s calls past the conditional calling `F.RO.get`):
-  ours handles deterministic code and samplings only.  `ProgramDenotation.commute_of_disjoint_footprint`
-  does not apply as is: both blocks *read* the parameter `x`, so it is in both footprints; EC's
-  swap needs only no write/read conflict.  Needs read/write sets (as Gext's GAP 5).  `G2_G3`'s `S.f`
-  bullet is a `sorry`.
+* GAP 4: EC's `swap{1} [3..7] -2` in `G2_G3`'s `S.f` (`RRO`'s calls past the conditional
+  calling `F.RO.get`).  Footprint disjointness does not apply (both read `x`).  Tried (2026-11-11):
+  inlining the `RRO` calls and `F.RO.get` first (EC's later `inline *`) makes the moved block
+  deterministic, and the first moved statement then swaps; the next (a deterministic `if` with a
+  `reset_vars` in its branch) fails in `StmtSwap.discharge`: it cannot push the left's tuple
+  assignment `p, v <- …` through that `if`'s update.  A discharger gap, not read/write sets.
+  `G2_G3`'s `S.f` bullet is a `sorry` until then.
 * GAP 5: `sim` stops at two loops after `inline*` (`G2_G3`'s `M.f` callee) where EC's goes
   through: `equiv_while` with EC's equality set, the bodies by `sim`.
 * GAP 2: the one-sided `equiv_while{i}` has no frame of the variables the loop keeps (the
