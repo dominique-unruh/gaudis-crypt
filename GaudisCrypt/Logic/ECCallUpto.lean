@@ -137,11 +137,62 @@ theorem prhlProc_abstract_call_upto_ecF {T : Type 1} [IsModule T] {sig : Procedu
   · exact Or.inl ⟨hb, h⟩
   · exact Or.inr ⟨h.1, h.2.1, h.2.2, hb⟩
 
+/-- **EC's abstract `call (_: ={…} /\ I)`** with the region `glob D` alone: the oracles' judgments
+are EC's `={arg} /\ I ==> ={res} /\ I`, `={glob D}` framed syntactically (their writes keep
+`glob D`, `StmtWithHoles.WritesKeep`). -/
+theorem prhlProc_abstract_call_module_ec {T : Type 1} [IsModule T] {sig : ProcedureSignature}
+    {holes : HoleSigs} (D : Module.Arr T (Module.Proc sig)) (ext : T → holes.Instantiation)
+    (hD : Module.Representable D ext) (hFL : FVP.fvP D ≤ (L.footprint)ᶜ) (I : Ω → Ω → Prop)
+    (hc : ∀ {sig' : ProcedureSignature}, HoleIndex holes sig' → Countable sig'.ParamType)
+    (O₁ O₂ : T)
+    (hwk₁ : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      StmtWithHoles.WritesKeep (FVP.fvP D).touched_getter.get ((ext O₁).lookup n).body)
+    (hwk₂ : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      StmtWithHoles.WritesKeep (FVP.fvP D).touched_getter.get ((ext O₂).lookup n).body)
+    (horacle : ∀ {sig' : ProcedureSignature} (n : HoleIndex holes sig'),
+      prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ I (L.get g₁) (L.get g₂))
+        ((ext O₁).lookup n) ((ext O₂).lookup n)
+        (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ I (L.get g₁) (L.get g₂))) :
+    prhlProc (fun a₁ g₁ a₂ g₂ => a₁ = a₂ ∧ globInvF L (FVP.fvP D) I g₁ g₂)
+      (Module.app D O₁).procedure (Module.app D O₂).procedure
+      (fun r₁ g₁ r₂ g₂ => r₁ = r₂ ∧ globInvF L (FVP.fvP D) I g₁ g₂) :=
+  prhlProc_abstract_call_moduleF L D ext hD (FVP.fvP D) le_rfl hFL I hc O₁ O₂ fun n =>
+    prhlProc_globInvF_of_writesKeep L (hwk₁ n) (hwk₂ n) (horacle n)
+
 end GaudisCrypt
 
 namespace GaudisCrypt.ECCallUpto
 
 open Lean Meta Elab Tactic PRHLWp FelTactic ECCall
+
+/-- The frame goals `StmtWithHoles.WritesKeep (FVP.fvP D).touched_getter.get o.body` of the `k`
+oracle procedures (one goal `gw` for all holes): each split down to its writes, a write to a local
+or a global outside `glob D` (`D`'s restriction, `fp_disjoint`) closed. -/
+def closeWritesKeep (gw : MVarId) (k : Nat) (D O₁ : Lean.Expr) (fs₁ fs₂ : Array Lean.Expr) :
+    TacticM Unit := do
+  let hs ← ECCall.splitHoles gw k
+  for (h, i) in hs.zipIdx do
+    let h ← ECCall.niceGoal h O₁ fs₁[i]! fs₂[i]!
+    let saved ← getGoals
+    let rest ← h.withContext do
+      setGoals [h]
+      liftMetaTactic (writesKeepSplit ·)
+      evalTactic (← `(tactic| all_goals try exact fun _ _ => rfl))
+      -- a write to a global `X`: `X` outside `glob D` (the declaration's restriction)
+      let DS ← Term.exprToSyntax D
+      for leaf in ← getGoals do
+        let lty ← instantiateMVars (← leaf.getType)
+        let some lift := lty.find? (·.isAppOfArity ``liftLens 4) | continue
+        let XS ← Term.exprToSyntax lift.appArg!
+        let [] ← leaf.withContext <| withoutRecover <| evalTacticAt (← `(tactic|
+            exact fun v σ => touched_set_of_le_compl
+              (show Lens.footprint $XS ≤ (FVP.fvP $DS)ᶜ by fp_disjoint) v σ.globals))
+            leaf
+          | pure ()
+      (← getGoals).filterM fun g => return !(← g.isAssigned)
+    setGoals saved
+    unless rest.isEmpty do
+      throwError "equiv_call: an oracle writes `glob` of the abstract module"
 
 /-- `§x` without a side ↦ `§x{2}`: EC's `bad` is about the right memory. -/
 partial def onRight (stx : Syntax) : MacroM Syntax :=
@@ -372,29 +423,7 @@ elab_rules (kind := equivCallUpto) : tactic
         done := done.push gc
       for t in [`wk₁, `wk₂] do
         if let some gw ← byTag t then
-          let hs ← splitHoles gw k
-          for (h, i) in hs.zipIdx do
-            let h ← niceGoal h O₁ fs₁[i]! fs₂[i]!
-            let saved ← getGoals
-            let rest ← h.withContext do
-              setGoals [h]
-              liftMetaTactic (writesKeepSplit ·)
-              evalTactic (← `(tactic| all_goals try exact fun _ _ => rfl))
-              -- a write to a global `X`: `X` outside `glob D` (the declaration's restriction)
-              let DS ← Term.exprToSyntax D
-              for leaf in ← getGoals do
-                let lty ← instantiateMVars (← leaf.getType)
-                let some lift := lty.find? (·.isAppOfArity ``liftLens 4) | continue
-                let XS ← Term.exprToSyntax lift.appArg!
-                let [] ← leaf.withContext <| withoutRecover <| evalTacticAt (← `(tactic|
-                    exact fun v σ => touched_set_of_le_compl
-                      (show Lens.footprint $XS ≤ (FVP.fvP $DS)ᶜ by fp_disjoint) v σ.globals))
-                    leaf
-                  | pure ()
-              (← getGoals).filterM fun g => return !(← g.isAssigned)
-            setGoals saved
-            unless rest.isEmpty do
-              throwError "equiv_call: an oracle writes `glob` of the abstract module"
+          closeWritesKeep gw k D O₁ fs₁ fs₂
           done := done.push gw
       -- `J` kept by the left oracles: closed when `J` does not read the left side
       if let some gl ← byTag `left then
@@ -516,81 +545,102 @@ elab_rules (kind := equivCallInvAnd) : tactic
     let (I, globs) ← splitGlobs (← `(={ $xs,* } ∧ $rest))
     let IF ← elabRelCond ty0 I
     let (L, _Ω, preds) ← onGlobals #[IF]
-    let g ← HoareSplit.hoareSplit 1 g
-    setGoals [g]
-    let ty ← instantiateMVars (← g.getType)
-    g.withContext do
-      let lastCall (stmt : Lean.Expr) : MetaM (Option Lean.Expr) := do
-        let st ← TacticMisc.openStmt stmt
-        let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then
-            TacticMisc.openStmt (st.getArg! 2) else pure st
-        return last.find? (·.isAppOfArity ``GaudisCrypt.Module.app 6)
-      let some c₁ ← lastCall (ty.getArg! 1)
-        | throwError "equiv_call: no call of an applied module last on the left"
-      let some c₂ ← lastCall (ty.getArg! 2)
-        | throwError "equiv_call: no call of an applied module last on the right"
-      let D := c₁.getArg! 4
-      unless D.isFVar do throwError "equiv_call: the callee{indentExpr D}\nis not declared"
-      let O₁ := c₁.getArg! 5
-      let O₂ := c₂.getArg! 5
-      let DS ← Term.exprToSyntax D
-      let gs := #[← `(FVP.fvP $DS)] ++ globs
-      let FS ← gs.pop.foldrM (fun x acc => `($x ⊔ $acc)) gs.back!
-      let T ← inferType O₁
-      let TS ← Term.exprToSyntax T
-      let extS ← `(fun O => (Module.moduleTypeRep $TS).extOf (Module.cast $TS O))
-      let LS ← Term.exprToSyntax L
-      let IS ← Term.exprToSyntax preds[0]!
-      evalTactic (← `(tactic| refine prhlStmt_seq_call
-          (prhlProc_abstract_call_moduleF (L := $LS) _ $extS
-            (Module.Declared.ecModule _ $extS).representable $FS (by fp_le) ?hdisj $IS ?hc _ _
-            ?oracle) ?pre))
-      untagGoals
-      let splitSup ← `(tactic| repeat' apply sup_le)
-      closeTagged `hdisj
-        (← `(tactic| ((try simp only [Footprint.lens_pair]); $splitSup; all_goals fp_disjoint)))
-      -- the oracles' procedures, and EC's order of them (the last component first)
-      let comps ← components T O₁
-      let nprocs ← comps.mapM fun (C, X) => return (← procsOf C X).size
-      let k := nprocs.foldl (· + ·) 0
-      let mut start := 0
-      let mut groups : Array (Array Nat) := #[]
-      for n in nprocs do
-        groups := groups.push ((List.range n).toArray.map (start + ·))
-        start := start + n
-      let ecOrder := groups.reverse.flatten
-      let procsFS (O : Lean.Expr) : MetaM (Array Lean.Expr) := do
-        return (← (← components T O false).mapM fun (C, X) => procsOf C X).flatten
-      let fs₁ ← procsFS O₁
-      let fs₂ ← procsFS O₂
-      let byTag (t : Name) : TacticM (Option MVarId) := do
-        (← getGoals).findM? fun g => return (← g.getTag) == t
-      let mut done : Array MVarId := #[]
-      if let some gc ← byTag `hc then
-        for h in ← splitHoles gc k do
-          let [] ← evalTacticAt (← `(tactic| first
-              | infer_instance
-              | (dsimp only [ProcedureSignature.ParamType, typeListToTuple]; infer_instance))) h
-            | throwError "equiv_call: an oracle's argument type is not countable"
-        done := done.push gc
-      let mut oracleGs : Array MVarId := #[]
-      if let some go ← byTag `oracle then
-        let hs := (← splitHoles go k).toArray
-        for i in ecOrder do
-          let h ← niceGoal hs[i]! O₁ fs₁[i]! fs₂[i]!
-          let h ← (do
-            let [h'] ← evalTacticAt (← `(tactic| dsimp only [globInvF])) h | pure h
-            pure h') <|> pure h
-          h.setTag `oracle
-          oracleGs := oracleGs.push h
-        done := done.push go
-      let rest ← (← getGoals).filterM fun g' => return !done.contains g'
-      let rest ← rest.mapM fun g' => do
-        if (← g'.getTag) == `pre then
-          let [p'] ← evalTacticAt (← `(tactic| dsimp only [globInvF, Lens.pair])) g' | pure g'
-          p'.setTag `pre
-          pure p'
-        else pure g'
-      setGoals (oracleGs.toList ++ rest)
+    let g₀ ← getMainGoal
+    let go (ec : Bool) : TacticM Unit := do
+      let g := g₀
+      let g ← HoareSplit.hoareSplit 1 g
+      setGoals [g]
+      let ty ← instantiateMVars (← g.getType)
+      g.withContext do
+        let lastCall (stmt : Lean.Expr) : MetaM (Option Lean.Expr) := do
+          let st ← TacticMisc.openStmt stmt
+          let last ← if st.isAppOfArity ``StmtWithHoles.seq 3 then
+              TacticMisc.openStmt (st.getArg! 2) else pure st
+          return last.find? (·.isAppOfArity ``GaudisCrypt.Module.app 6)
+        let some c₁ ← lastCall (ty.getArg! 1)
+          | throwError "equiv_call: no call of an applied module last on the left"
+        let some c₂ ← lastCall (ty.getArg! 2)
+          | throwError "equiv_call: no call of an applied module last on the right"
+        let D := c₁.getArg! 4
+        unless D.isFVar do throwError "equiv_call: the callee{indentExpr D}\nis not declared"
+        let O₁ := c₁.getArg! 5
+        let O₂ := c₂.getArg! 5
+        let DS ← Term.exprToSyntax D
+        let gs := #[← `(FVP.fvP $DS)] ++ globs
+        let FS ← gs.pop.foldrM (fun x acc => `($x ⊔ $acc)) gs.back!
+        let T ← inferType O₁
+        let TS ← Term.exprToSyntax T
+        let extS ← `(fun O => (Module.moduleTypeRep $TS).extOf (Module.cast $TS O))
+        let LS ← Term.exprToSyntax L
+        let IS ← Term.exprToSyntax preds[0]!
+        -- no other `glob`s: EC's oracle judgments (`={glob D}` framed by their writes), else the
+        -- region kept by them
+        if ec then
+          evalTactic (← `(tactic| refine prhlStmt_seq_call
+              (prhlProc_abstract_call_module_ec (L := $LS) _ $extS
+                (Module.Declared.ecModule _ $extS).representable ?hdisj $IS ?hc _ _ ?wk₁ ?wk₂
+                ?oracle) ?pre))
+        else
+          evalTactic (← `(tactic| refine prhlStmt_seq_call
+              (prhlProc_abstract_call_moduleF (L := $LS) _ $extS
+                (Module.Declared.ecModule _ $extS).representable $FS (by fp_le) ?hdisj $IS ?hc _ _
+                ?oracle) ?pre))
+        untagGoals
+        let splitSup ← `(tactic| repeat' apply sup_le)
+        closeTagged `hdisj
+          (← `(tactic| ((try simp only [Footprint.lens_pair]); $splitSup; all_goals fp_disjoint)))
+        -- the oracles' procedures, and EC's order of them (the last component first)
+        let comps ← components T O₁
+        let nprocs ← comps.mapM fun (C, X) => return (← procsOf C X).size
+        let k := nprocs.foldl (· + ·) 0
+        let mut start := 0
+        let mut groups : Array (Array Nat) := #[]
+        for n in nprocs do
+          groups := groups.push ((List.range n).toArray.map (start + ·))
+          start := start + n
+        let ecOrder := groups.reverse.flatten
+        let procsFS (O : Lean.Expr) : MetaM (Array Lean.Expr) := do
+          return (← (← components T O false).mapM fun (C, X) => procsOf C X).flatten
+        let fs₁ ← procsFS O₁
+        let fs₂ ← procsFS O₂
+        let byTag (t : Name) : TacticM (Option MVarId) := do
+          (← getGoals).findM? fun g => return (← g.getTag) == t
+        let mut done : Array MVarId := #[]
+        if let some gc ← byTag `hc then
+          for h in ← splitHoles gc k do
+            let [] ← evalTacticAt (← `(tactic| first
+                | infer_instance
+                | (dsimp only [ProcedureSignature.ParamType, typeListToTuple]; infer_instance))) h
+              | throwError "equiv_call: an oracle's argument type is not countable"
+          done := done.push gc
+        for t in [`wk₁, `wk₂] do
+          if let some gw ← byTag t then
+            closeWritesKeep gw k D O₁ fs₁ fs₂
+            done := done.push gw
+        let mut oracleGs : Array MVarId := #[]
+        if let some go ← byTag `oracle then
+          let hs := (← splitHoles go k).toArray
+          for i in ecOrder do
+            let h ← niceGoal hs[i]! O₁ fs₁[i]! fs₂[i]!
+            let h ← (do
+              let [h'] ← evalTacticAt (← `(tactic| dsimp only [globInvF])) h | pure h
+              pure h') <|> pure h
+            h.setTag `oracle
+            oracleGs := oracleGs.push h
+          done := done.push go
+        let rest ← (← getGoals).filterM fun g' => return !done.contains g'
+        let rest ← rest.mapM fun g' => do
+          if (← g'.getTag) == `pre then
+            let [p'] ← evalTacticAt (← `(tactic| dsimp only [globInvF, Lens.pair])) g' | pure g'
+            p'.setTag `pre
+            pure p'
+          else pure g'
+        setGoals (oracleGs.toList ++ rest)
+    -- no other `glob`s: EC's rule (`prhlProc_abstract_call_module_ec`), unless its frame goals
+    -- are out of reach (an oracle through a view the frame splitter cannot open): the region rule
+    if globs.isEmpty then
+      let s ← saveState
+      try go true catch _ => s.restore; go false
+    else go false
 
 end GaudisCrypt

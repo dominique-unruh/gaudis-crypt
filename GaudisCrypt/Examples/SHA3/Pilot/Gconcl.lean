@@ -322,7 +322,7 @@ theorem G4_Ideal : equiv[ G4(D, F.LRO).distinguish ~ IdealIndif(IF, S, DRestr(D)
     on_goals -1 => equiv_auto
     -- EC: call (_: ={F.RO.m});2:by auto.
     stmt_wp; equiv_call (_ : ={F.RO.m})
-    on_goals 2 => (equiv_auto; auto_close)
+    on_goals 2 => equiv_auto
     -- EC: inline F.LRO.get F.FRO.sample;wp 7 2;sim.
     equiv_proc; stmt_inline*; stmt_wp 7 2; sim
     -- EC: by while{1} (true) (size p - i){1};auto;1:inline*;auto=>/#.

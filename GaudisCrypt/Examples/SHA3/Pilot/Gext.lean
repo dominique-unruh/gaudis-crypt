@@ -24,8 +24,7 @@ Translation:
 set_option linter.dupNamespace false
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 1: as Gcol's: our abstract `call (_: ={…} /\ inv)` keeps `={glob D}` in the oracles'
-  judgments: `glob D` added to EC's intermediate conditions.
+* (GAP 1, fixed as Gcol's: the oracles' judgments without `={glob D}`.)
 * GAP 2: as Gcol's: inline by name vs the old declarations' accessors: by index.
 * GAP 3 (fixed): `sp` through an inlined call left whole-state existentials; now EC's
   `exists x0, P[x0/x] /\ x = e[x0/x]` and `equiv_elim*` (`Logic/ECSp.lean`, `Logic/ECElim.lean`).
@@ -166,16 +165,16 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
       -- EC: if=>//;last by auto.
       stmt_if
       · auto_close
-      on_goals -1 => (equiv_auto; auto_close)
+      on_goals -1 => equiv_auto
       -- EC: seq 2 2: (={F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.paths,G1.chandle,FRO.m,x,x0,y0,
       --                 C.queries,C.c} /\
       --               inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\ x{1} = x0{1} /\
       --               (forall h, h \in FRO.m => h < G1.chandle){1} /\
       --               x0{1} \notin G1.m{1}).
       --     + by if=>//;auto;call (_: ={F.RO.m});[sim |auto].
-      --     (GAP 1: `glob D` added; `x`, the wrapper's parameter, is not a variable after our
-      --     `sp`: `x{1} = x0{1}` dropped)
-      equiv_seq 2 2 : (={glob D, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
+      --     (`x`, the wrapper's parameter, is not a variable after our `sp`: `x{1} = x0{1}`
+      --     dropped)
+      equiv_seq 2 2 : (={F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
           x0, y0, C.queries, C.c} ∧
           inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
           (∀ h, FMap.dom §FRO.m{1} h → h < §G1.chandle{1}) ∧ ¬ FMap.dom §G1.m{1} §x0{1})
@@ -191,7 +190,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
       --                        inv_ext G1.m{2} G1.mi{2} FRO.m{2})) /\
       --       (forall h, h \in FRO.m => h < G1.chandle){1} /\
       --       x0{1} \notin G1.m{1}).
-      equiv_seq 3 5 : (={glob D, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
+      equiv_seq 3 5 : (={F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
           hx2, x0, y0, C.queries, C.c} ∧
           §t{2} = decide (FMap.in_dom_with §FRO.m{1}
             (oget (FMap.get §G1.mh{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
@@ -204,20 +203,20 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
       · stmt_inline*; equiv_auto; auto_prep
         simp only [GaudisCrypt.SHA3.Gext.rng_restr] at *
         split_ifs
-        · exact ⟨⟨rfl, trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
+        · exact ⟨⟨trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
             GaudisCrypt.SHA3.Gext.bext_pre ‹_› (fun _ _ h => h), ‹_›, ‹_›⟩
-        · exact ⟨⟨rfl, trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
+        · exact ⟨⟨trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
             GaudisCrypt.SHA3.Gext.bext_pre ‹_› (GaudisCrypt.SHA3.Gext.get_set_fresh ‹_› _),
             GaudisCrypt.SHA3.Gext.fresh_set ‹_› _, ‹_›⟩
       -- EC: seq 1 1: (={x0,y0,x,F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.paths,G1.chandle,FRO.m,
       --                 C.queries,C.c} /\
       --               inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\ x{1} = x0{1} /\
       --               forall (h : handle), h \in FRO.m{1} => h < G1.chandle{1});2:by auto.
-      equiv_seq 1 1 : (={glob D, x0, y0, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle,
+      equiv_seq 1 1 : (={x0, y0, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle,
           FRO.m, C.queries, C.c} ∧
           inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
           ∀ h, FMap.dom §FRO.m{1} h → h < §G1.chandle{1})
-      on_goals 2 => (equiv_auto; auto_close)
+      on_goals 2 => equiv_auto
       -- EC: if=>//.
       stmt_if
       · auto_close
@@ -232,19 +231,19 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
         --     by move:H5 H2;rewrite /in_dom_with mem_set /#.
         --     (the old port's `inv_ext1_hit`, `cdistr_expected_one`)
         equiv_auto; auto_prep
-        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨rfl,
+        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨
           GaudisCrypt.SHA3.Gext.inv_ext1_hit ‹_› (by simp [FMap.fdom_set]) (fun z hz => ?_) _,
           fun h hd => ?_⟩⟩
         · simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
           tauto
         · rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
-          · exact ‹∀ (h : handle), (FRO.m.get _).dom h → h < _› h hd
-          · exact ‹∀ (h : handle), (FRO.m.get _).dom h → h < _› _ ‹FMap.in_dom_with _ _ _›.1
+          · exact ‹∀ (h : handle), FMap.dom _ h → h < _› h hd
+          · exact ‹∀ (h : handle), FMap.dom _ h → h < _› _ ‹FMap.in_dom_with _ _ _›.1
       -- EC: inline *;auto;progress;last by move:H3;rewrite mem_set /#.
       --     rewrite /inv_ext1=> /H [->//|[|[x' h [Hx Hh]]]]. …
       --     (the old port's `inv_ext1_of_weak`, `get_set_fresh`, `fresh_set`)
       · stmt_inline*; equiv_auto; auto_prep
-        refine ⟨rfl, GaudisCrypt.SHA3.Gext.inv_ext1_of_weak ‹_› (by simp [FMap.fdom_set])
+        refine ⟨GaudisCrypt.SHA3.Gext.inv_ext1_of_weak ‹_› (by simp [FMap.fdom_set])
           (fun z hz => ?_) (GaudisCrypt.SHA3.Gext.get_set_fresh ‹_› _),
           GaudisCrypt.SHA3.Gext.fresh_set ‹_› _⟩
         simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
@@ -258,7 +257,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
       -- EC: if=>//;last by auto.
       stmt_if
       · auto_close
-      on_goals -1 => (equiv_auto; auto_close)
+      on_goals -1 => equiv_auto
       -- EC: seq 6 8:
       --       (={F.RO.m,G1.m,G1.mi,G1.mh,G1.mhi,G1.paths,G1.chandle,FRO.m,hx2,x,x0,y0,hx2,C.queries,
       --          C.c} /\
@@ -267,8 +266,8 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
       --                         inv_ext G1.m{2} G1.mi{2} FRO.m{2})) /\
       --       (forall h, h \in FRO.m => h < G1.chandle){1} /\
       --       x{1} \notin G1.mi{1}).
-      --     (GAP 1: `glob D` added; `x`, the wrapper's parameter: `x0`)
-      equiv_seq 6 8 : (={glob D, F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
+      --     (`x`, the wrapper's parameter: `x0`)
+      equiv_seq 6 8 : (={F.RO.m, G1.m, G1.mi, G1.mh, G1.mhi, G1.paths, G1.chandle, FRO.m,
           hx2, x0, y0, C.queries, C.c} ∧
           §t{2} = decide (FMap.in_dom_with §FRO.m{1}
             (oget (FMap.get §G1.mhi{1} ((§x0{1}).1, §hx2{1}))).2 Unknown) ∧
@@ -281,9 +280,9 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
       · stmt_inline*; equiv_auto; auto_prep
         simp only [GaudisCrypt.SHA3.Gext.rng_restr] at *
         split_ifs
-        · exact ⟨⟨rfl, trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
+        · exact ⟨⟨trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
             GaudisCrypt.SHA3.Gext.bext_pre ‹_› (fun _ _ h => h), ‹_›, ‹_›⟩
-        · exact ⟨⟨rfl, trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
+        · exact ⟨⟨trivial, trivial, rfl⟩, decide_eq_decide.mpr Iff.rfl,
             GaudisCrypt.SHA3.Gext.bext_pre ‹_› (GaudisCrypt.SHA3.Gext.get_set_fresh ‹_› _),
             GaudisCrypt.SHA3.Gext.fresh_set ‹_› _, ‹_›⟩
       -- EC: if=>//.
@@ -298,18 +297,18 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
         --     + rewrite /inv_ext1=>/H{H}[->//|[|[[x1 x2] h [Hx Hh]]]]. …
         --     by move:H5 H1;rewrite /in_dom_with mem_set /#.
         equiv_auto; auto_prep
-        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨rfl,
+        refine ⟨GaudisCrypt.SHA3.Gext.cdistr_expected_one, fun a _ => ⟨
           GaudisCrypt.SHA3.Gext.inv_ext1_hit ‹_› (by simp [FMap.fdom_set]) (fun z hz => ?_) _,
           fun h hd => ?_⟩⟩
         · simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
           tauto
         · rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
-          · exact ‹∀ (h : handle), (FRO.m.get _).dom h → h < _› h hd
-          · exact ‹∀ (h : handle), (FRO.m.get _).dom h → h < _› _ ‹FMap.in_dom_with _ _ _›.1
+          · exact ‹∀ (h : handle), FMap.dom _ h → h < _› h hd
+          · exact ‹∀ (h : handle), FMap.dom _ h → h < _› _ ‹FMap.in_dom_with _ _ _›.1
       -- EC: inline *;auto;progress;last by move:H3;rewrite mem_set /#.
       --     rewrite /inv_ext1=> /H [->//|[|[x' h [Hx Hh]]]]. …
       · stmt_inline*; equiv_auto; auto_prep
-        refine ⟨rfl, GaudisCrypt.SHA3.Gext.inv_ext1_of_weak ‹_› (by simp [FMap.fdom_set])
+        refine ⟨GaudisCrypt.SHA3.Gext.inv_ext1_of_weak ‹_› (by simp [FMap.fdom_set])
           (fun z hz => ?_) (GaudisCrypt.SHA3.Gext.get_set_fresh ‹_› _),
           GaudisCrypt.SHA3.Gext.fresh_set ‹_› _⟩
         simp only [FMap.fdom_set, Finset.mem_union, Finset.mem_insert] at hz ⊢
@@ -329,8 +328,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
     -- EC: conseq (_: ={sa,G1.mh,G1.mhi,F.RO.m, G1.chandle, FRO.m,C.queries,C.c} /\
     --                inv_ext1 G1.bext{1} G1.bext{2} G1.m{2} G1.mi{2} FRO.m{2} /\
     --                forall (h0 : handle), h0 \in FRO.m{1} => h0 < G1.chandle{1})=>//.
-    --     (GAP 1: `glob D` added)
-    equiv_conseq (: _ ==> ={glob D, sa, G1.mh, G1.mhi, F.RO.m, G1.chandle, FRO.m, C.queries, C.c} ∧
+    equiv_conseq (: _ ==> ={sa, G1.mh, G1.mhi, F.RO.m, G1.chandle, FRO.m, C.queries, C.c} ∧
         inv_ext1 §G1.bext{1} §G1.bext{2} §G1.m{2} §G1.mi{2} §FRO.m{2} ∧
         ∀ h0, FMap.dom §FRO.m{1} h0 → h0 < §G1.chandle{1})
     case post => auto_close
