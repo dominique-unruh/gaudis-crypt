@@ -291,4 +291,63 @@ right✝ : (x.get τ, y.get τ) = z.get σ
 example : (x.get σ, y.get σ) = z.get σ ∧ (x.get τ, y.get τ) = z.get σ → P (x.get σ) → P (x.get τ) := by
   auto_close
 
+/-! ## The steps on reads -/
+
+-- `simp_reads_all`: reads through writes, in the hypotheses and the goal
+/--
+trace: x y : Lens ℤ VariableAssignment
+z : Lens (ℤ × ℤ) VariableAssignment
+σ τ : VariableAssignment
+P Q : ℤ → Prop
+h : P (x.get (y.set 3 σ))
+⊢ Q 3
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (h : P (x.get (y.set 3 σ))) : Q (y.get (y.set 3 σ)) := by
+  simp_reads_all
+  trace_state
+  sorry
+
+-- `generalize_reads_all`: the reads of the states become values
+/--
+trace: x y : Lens ℤ VariableAssignment
+z : Lens (ℤ × ℤ) VariableAssignment
+σ τ : VariableAssignment
+P Q : ℤ → Prop
+v✝¹ v✝ v : ℤ
+h : P v✝¹
+hf : v✝ = v✝¹ + 1
+⊢ Q (v✝ + v)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (h : P (x.get σ)) (hf : x.get τ = x.get σ + 1) : Q (x.get τ + y.get σ) := by
+  generalize_reads_all
+  trace_state
+  sorry
+
+-- `norm_decide`: a test's `decide` instance about the proposition as it stands
+/--
+trace: x y : Lens ℤ VariableAssignment
+z : Lens (ℤ × ℤ) VariableAssignment
+σ τ : VariableAssignment
+P Q : ℤ → Prop
+h : decide (x.get σ < 3) = true
+⊢ decide (x.get σ < 3) = true
+---
+warning: declaration uses `sorry`
+---
+warning: 'norm_decide' tactic does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+-/
+#guard_msgs in
+example (h : decide (x.get σ < 3) = true) : decide (x.get σ < 3) = true := by
+  norm_decide
+  trace_state
+  sorry
+
 end GaudisCrypt.ECCloseTest

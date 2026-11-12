@@ -11,9 +11,29 @@ import json, subprocess, sys, re
 
 HEADER = "Docstring on `#guard_msgs` does not match generated message:"
 
+def lean_options():
+    """The lakefile's `[leanOptions]`, as `-D` flags: the build prints goals under them (for
+    example `pp.unicode.fun`) and runs its linters, whose warnings `#guard_msgs` also sees."""
+    import tomllib
+    with open("lakefile.toml", "rb") as f:
+        opts = tomllib.load(f).get("leanOptions", {})
+    flags = []
+    def walk(prefix, d):          # TOML reads `pp.unicode.fun = true` as nested tables
+        for k, v in d.items():
+            name = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                walk(name, v)
+            else:
+                if isinstance(v, bool):
+                    v = "true" if v else "false"
+                flags.extend(["-D", f"{name}={v}"])
+    walk("", opts)
+    return flags
+
 def run(path):
     # (plain text, not a diff against the old docstring)
-    out = subprocess.run(["lake", "env", "lean", "-D", "guard_msgs.diff=false", "--json", path],
+    out = subprocess.run(["lake", "env", "lean", *lean_options(),
+                          "-D", "guard_msgs.diff=false", "--json", path],
                          capture_output=True, text=True).stdout
     msgs = []
     for line in out.splitlines():
