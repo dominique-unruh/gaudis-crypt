@@ -3,6 +3,7 @@ import GaudisCrypt.Examples.SHA3.SmartCounter.Gext
 import GaudisCrypt.Logic.FelInner
 import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECElim
+import GaudisCrypt.Logic.ECAutoStrict
 
 /-!
 # The extension event (EasyCrypt `proof/smart_counter/Gext.eca`) — EC-fidelity port
@@ -355,7 +356,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
     on_goals 1, 3 => equiv_auto
     -- EC: rcondt{2} 3;1:by auto=>/#.
     stmt_rcondt{2} 3
-    · hoare_auto; auto_prep
+    · ec_auto; auto_prep
       have hf := ‹∀ (h0 : handle), (FRO.m.get _).dom h0 → h0 < _›
       exact fun hd => lt_irrefl _ (hf _ hd)
     -- EC: auto;progress.
@@ -683,11 +684,12 @@ theorem Pr_ext (m : VariableAssignment) :
     --       move:(fcard_image_leq snd (fdom G1.m{hr}))(fcard_image_leq snd (fdom G1.mi{hr})).
     --       smt(fcard_ge0).
     --     (`Mu_mem.mu_mem` for `cdistr`: the old port's `cdistr_expected_mem`)
-    · phoare_proc; phoare_auto
-      rintro σ ⟨-, hb, hg⟩
+    · phoare_proc; ec_auto
+      ec_intro
+      rintro ⟨hb, hg⟩
       simp only [Bool.not_eq_true] at hb
       simp only [decide_eq_true_eq, hg, and_self, if_true, hb, Bool.false_or]
-      set S := Finset.image Prod.snd (FMap.fdom (G1.m.get σ.globals) ∪ FMap.fdom (G1.mi.get σ.globals))
+      set S := Finset.image Prod.snd (FMap.fdom m1 ∪ FMap.fdom mi)
       show _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat
       calc cdistr.expected (fun a => indicatorE (a ∈ S))
           = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
@@ -695,26 +697,27 @@ theorem Pr_ext (m : VariableAssignment) :
         _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
         _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
             rw [mul_one_div]
-            have h1 : S.card ≤ (FMap.fdom (G1.m.get σ.globals)).card +
-                (FMap.fdom (G1.mi.get σ.globals)).card :=
+            have h1 : S.card ≤ (FMap.fdom m1).card +
+                (FMap.fdom mi).card :=
               Finset.card_image_le.trans (Finset.card_union_le _ _)
             exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
               by have := hg.1; have := hg.2.1; omega)) _
     -- EC: + by move=>c1;proc;auto=> &hr [^H 2->]/#.
-    · intro c1; hoare_proc; hoare_auto
+    · intro c1; hoare_proc; ec_auto
     -- EC: + by move=> b1 c1;proc;auto=> /#.
-    · intro c1; hoare_proc; hoare_auto; auto_close
+    · intro c1; hoare_proc; ec_auto; auto_close
     -- (`keep`: `bad` persists)
-    · hoare_proc; hoare_auto
+    · hoare_proc; ec_auto
     -- EC: + proc;rcondt 2;1:by auto.
     --       wp;rnd (mem (image snd (fdom G1.m `|` fdom G1.mi) `|` fset1 x));skip=> /> &hr ?????. …
     --     (as for `ReSample.f`, the set one larger)
-    · phoare_proc; phoare_auto
-      rintro σ ⟨-, hb, hg⟩
+    · phoare_proc; ec_auto
+      ec_intro
+      rintro ⟨hb, hg⟩
       simp only [Bool.not_eq_true] at hb
       simp only [decide_eq_true_eq, hg, and_self, if_true, hb, Bool.false_or]
-      set S := Finset.image Prod.snd (FMap.fdom (G1.m.get σ.globals) ∪
-        FMap.fdom (G1.mi.get σ.globals)) ∪ fset1 ((localVarLens "x" capacity).get σ)
+      set S := Finset.image Prod.snd (FMap.fdom m1 ∪
+        FMap.fdom mi) ∪ fset1 x
       show _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat
       calc cdistr.expected (fun a => indicatorE (a ∈ S))
           = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
@@ -722,19 +725,19 @@ theorem Pr_ext (m : VariableAssignment) :
         _ = (S.card : ENNReal) * (1 / 2 ^ c.toNat) := GaudisCrypt.SHA3.Gcol.cdistr_expected_mem S
         _ ≤ ((2 * max_size).toNat : ENNReal) / 2 ^ c.toNat := by
             rw [mul_one_div]
-            have h1 : S.card ≤ (FMap.fdom (G1.m.get σ.globals)).card +
-                (FMap.fdom (G1.mi.get σ.globals)).card + 1 :=
+            have h1 : S.card ≤ (FMap.fdom m1).card +
+                (FMap.fdom mi).card + 1 :=
               (Finset.card_union_le _ _).trans (Nat.add_le_add
                 (Finset.card_image_le.trans (Finset.card_union_le _ _))
                 (by simp [fset1]))
             exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
               by have := hg.1; have := hg.2.1; omega)) _
     -- EC: + by move=>c1;proc;auto=> &hr [^H 2->]/#.
-    · intro c1; hoare_proc; hoare_auto
+    · intro c1; hoare_proc; ec_auto
     -- EC: by move=> b1 c1;proc;auto=> /#.
-    · intro c1; hoare_proc; hoare_auto; auto_close
+    · intro c1; hoare_proc; ec_auto; auto_close
     -- (`keep`)
-    · hoare_proc; hoare_auto
+    · hoare_proc; ec_auto
   · exact mul_nonneg (by exact_mod_cast max_ge0)
       (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
         (by positivity))
@@ -794,7 +797,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
   -- EC: + rcondt{2} 3.
   --       + move=> &m;auto=> &m'[#] 6!-> /= + _ _;case (l{m'})=>//=; smt w=List.size_ge0.
   · stmt_rcondt{2} 3
-    · hoare_auto; auto_prep
+    · ec_auto; auto_prep
       exact ⟨‹_›, ‹_›, by have := size_pos_of_isEmpty ‹_›; omega⟩
     -- EC: auto=> &ml&mr[#]6!->;case(l{mr})=>[//|h1 l1/=Hle Hext c ?/=];split.
     --     + smt w=(drop0 size_ge0).
@@ -889,7 +892,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
           --     (our inliner binds `ReSample.f1`'s two parameters in one assignment: EC's
           --     positions 5 and 10 are 4 and 9)
           stmt_rcondt{2} 4
-          · hoare_auto; simp only [inv_lt] at *; auto_close
+          · ec_auto; simp only [inv_lt] at *; auto_close
           stmt_rcondt{2} 9
           · hoare_auto; auto_prep
             exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)
@@ -967,7 +970,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
           stmt_rcondt{1} 4
           · hoare_auto; simp only [FMap.in_dom_with, PROM.is_, oget] at *; auto_close
           stmt_rcondt{2} 4
-          · hoare_auto; simp only [inv_lt] at *; auto_close
+          · ec_auto; simp only [inv_lt] at *; auto_close
           stmt_rcondt{2} 9
           · hoare_auto; auto_prep
             exact (FMap.mem_set _ _ _ _).mpr (Or.inr rfl)

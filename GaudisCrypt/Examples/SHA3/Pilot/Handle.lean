@@ -19,6 +19,7 @@ import GaudisCrypt.Logic.ECLoop
 import GaudisCrypt.Logic.ECAlias
 import GaudisCrypt.Logic.ECGoals
 import GaudisCrypt.Logic.StmtSwap
+import GaudisCrypt.Logic.ECAutoStrict
 
 /-!
 # `Handle.eca`'s `CF_G1` in EC's form — the tactic experiment
@@ -954,15 +955,14 @@ theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
     · auto_close
     · auto_close
   -- lossless PF.f
-  · phoare_proc; phoare_inline*; phoare_auto
-    -- EC's `smt (@Block.DBlock @Capacity.DCapacity)`: the distributions are lossless
-    intro _ _; split_ifs <;> simp
+  -- (EC's `smt (@Block.DBlock @Capacity.DCapacity)`, the distributions are lossless: `ec_auto`)
+  · phoare_proc; phoare_inline*; ec_auto
   -- lossless and do not reset bad G1.S.f
-  · phoare_proc; phoare_inline*; phoare_auto
-    rintro σ ⟨hb | hb, hq⟩ <;> simp [hb, hq, F.dout]
+  · phoare_proc; phoare_inline*; ec_auto
+    ec_intro
+    rintro ⟨hb | hb, hq⟩ <;> simp [hb, hq, F.dout]
   -- lossless G1.S.f (the deviation: EC needs it only after the bad event, above)
-  · phoare_proc; phoare_inline*; phoare_auto
-    intro _ _; split_ifs <;> simp [F.dout]
+  · phoare_proc; phoare_inline*; ec_auto
   -- proofs for G1.S.fi
   -- equiv PF.P.fi G1.S.fi
   -- EC: + conseq(eq_fi D)=>/#.
@@ -970,14 +970,13 @@ theorem CF_G1 : equiv[ CF(DRestr(D)).main ~ G1(DRestr(D)).main :
     · auto_close
     · auto_close
   -- lossless PF.P.fi
-  · phoare_proc; phoare_inline*; phoare_auto
-    intro _ _; split_ifs <;> simp
+  · phoare_proc; phoare_inline*; ec_auto
   -- lossless and do not reset bad G1.S.fi
-  · phoare_proc; phoare_inline*; phoare_auto
-    rintro σ ⟨hb | hb, hq⟩ <;> simp [hb, hq]
+  · phoare_proc; phoare_inline*; ec_auto
+    ec_intro
+    rintro ⟨hb | hb, hq⟩ <;> simp [hb, hq]
   -- lossless G1.S.fi
-  · phoare_proc; phoare_inline*; phoare_auto
-    intro _ _; split_ifs <;> simp
+  · phoare_proc; phoare_inline*; ec_auto
   -- proofs for G1.C.f
   -- equiv PF.C.f G1.C.f
   -- EC: + conseq(PFf_Cf D);auto=>/#.

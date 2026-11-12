@@ -6,6 +6,7 @@ import GaudisCrypt.Logic.ECTrans
 import GaudisCrypt.Logic.ECAlias
 import GaudisCrypt.Logic.ECWhile
 import GaudisCrypt.Logic.ECWhileRel
+import GaudisCrypt.Logic.ECAutoStrict
 
 /-!
 # From the permutation to a random function (EasyCrypt `proof/smart_counter/ConcreteF.eca`) —
@@ -448,7 +449,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
   · equiv_proc; stmt_sp; equiv_if
     · stmt_inline*
       stmt_rcondt{2} 3
-      · hoare_auto
+      · ec_auto
       sim; auto_close
     · equiv_skip; auto_close
     · auto_close
@@ -456,7 +457,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
   · equiv_proc; stmt_sp; equiv_if
     · stmt_inline*
       stmt_rcondt{2} 3
-      · hoare_auto
+      · ec_auto
       sim; auto_close
     · equiv_skip; auto_close
     · auto_close
@@ -569,7 +570,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
                 | (generalize_reads_all; subst_vars; apply db_first_init <;> assumption)
                 | (generalize_reads_all; subst_vars
                    simp only [take, Int.toNat_zero, List.take_zero]; assumption)
-      · equiv_skip; auto_close
+      · ec_skip; auto_close
       · auto_close
     · stmt_wp; equiv_skip; auto_close
     · auto_close

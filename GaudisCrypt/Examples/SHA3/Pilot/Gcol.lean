@@ -3,6 +3,7 @@ import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Logic.PrTactics
 import GaudisCrypt.Logic.FelInner
 import GaudisCrypt.Logic.CallSpec
+import GaudisCrypt.Logic.ECAutoStrict
 
 /-!
 # The collision event of `G1` (EasyCrypt `proof/smart_counter/Gcol.eca`) — EC-fidelity port
@@ -314,7 +315,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       --       rewrite/#.
       · stmt_inline (Gcol.sample_c)
         stmt_rcondt{2} 3
-        · hoare_auto; auto_prep
+        · ec_auto; auto_prep
           exact ⟨(Nat.cast_le.2 Finset.card_image_le).trans (by omega), by omega⟩
         -- EC: seq 2 3 : (={x0, y1, hx2, F.RO.m, G1.mi, G1.paths, G1.m, G1.mhi,
         --                 G1.chandle, G1.mh, FRO.m, C.c, C.queries}
@@ -382,7 +383,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
       -- EC: rcondt{2}3.
       --     + by auto;progress;have /#:= fcard_image_leq fst (frng FRO.m{hr}).
       stmt_rcondt{2} 3
-      · hoare_auto; smt_close [Finset.card_image_le]
+      · ec_auto; smt_close [Finset.card_image_le]
       -- EC: auto=> /> ?? Himp _ _ _ ?_?_ [/Himp->// | X];right;apply hinv_image=> //.
       equiv_auto; smt_close [hinv_image]
     · equiv_auto
@@ -476,7 +477,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     --       smt(size_ge0 prefix_sizel).
     stmt_inline*
     stmt_rcondt{2} 2
-    · hoare_auto; auto_prep
+    · ec_auto; auto_prep
       exact ⟨(Nat.cast_le.2 Finset.card_image_le).trans (by omega), by omega⟩
     -- EC: auto;smt ml=0 w=(hinv_image card_rng_set).
     --     (EC's `smt`: `card_rng_set`, `hinv_image` applied)
@@ -538,11 +539,12 @@ theorem Pr_col (m : VariableAssignment) :
     --       apply ler_wpmul2r;2:by rewrite le_fromint.
     --       by apply divr_ge0=>//;apply /c_ge0r.
     --     (`Mu_mem.mu_mem` for `cdistr`: the old port's `cdistr_expected_mem`)
-    · phoare_proc; phoare_auto
-      rintro σ ⟨-, hb, hg⟩
+    · phoare_proc; ec_auto
+      ec_intro
+      rintro ⟨hb, hg⟩
       rw [if_pos (by simpa using hg)]
       simp only [hb, Bool.false_eq_true, false_or, decide_eq_true_eq]
-      set S := Finset.image Prod.fst (FMap.frng (FRO.m.get σ.globals))
+      set S := Finset.image Prod.fst (FMap.frng m1)
       calc cdistr.expected (fun a => indicatorE (a ∈ S))
           = cdistr.expected (fun a => if a ∈ S then (1 : ENNReal) else 0) := by
             congr 1; funext a; by_cases h : a ∈ S <;> simp [h]
@@ -552,11 +554,11 @@ theorem Pr_col (m : VariableAssignment) :
             exact ENNReal.div_le_div_right (by exact_mod_cast (show S.card ≤ (2 * max_size).toNat
               by have := hg.1; omega)) _
     -- EC: + move=>ci;proc;rcondt 2;auto=>/#.
-    · intro ci; hoare_proc; hoare_auto
+    · intro ci; hoare_proc; ec_auto
     -- EC: move=> b c;proc;sp;if;auto;smt ml=0.
-    · intro ci; hoare_proc; hoare_auto
+    · intro ci; hoare_proc; ec_auto
     -- (`keep`: `bad` persists)
-    · hoare_proc; hoare_auto
+    · hoare_proc; ec_auto
   · exact mul_nonneg (by exact_mod_cast max_ge0)
       (div_nonneg (by exact_mod_cast (show (0 : ℤ) ≤ 2 * max_size by have := max_ge0; omega))
         (by positivity))
