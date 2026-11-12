@@ -123,6 +123,8 @@ import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECReport
+import GaudisCrypt.Logic.ReadNorm
+import GaudisCrypt.Logic.ReadNormTest
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECAutoTest
 import GaudisCrypt.Logic.ECCloseTest
@@ -255,3 +257,4 @@ import GaudisCrypt.Examples.Pedersen.HidingHoare
 import GaudisCrypt.Examples.Pedersen.HidingPHoare
 import GaudisCrypt.Examples.Pedersen.HidingPRHL
 import GaudisCrypt.Examples.Pedersen.Pedersen
+import GaudisCrypt.PilotCheck
