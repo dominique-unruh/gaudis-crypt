@@ -177,6 +177,7 @@ the `while` row.
 | `sp` / `sp n m` | `stmt_sp` / `stmt_sp n m` (EC positions) |
 | `wp` / `wp n m` | `stmt_wp` / `stmt_wp n m` (EC positions; `-k` from the end). One-number `stmt_wp k` is *ours*: the last `k` statements |
 | `auto` | `equiv_auto` / `hoare_auto` / `phoare_auto` |
+| `auto`, `skip` (new proofs) | `ec_auto`, `ec_skip`: the same on every judgment, every read a value or an error; then `ec_intro` puts the values in the context under their names (`m1`, `bounder`, `x`), and the hand step names values, never `X.get σ.globals` |
 | `skip` | `equiv_skip` / `hoare_skip` / `phoare_skip`; if a read under `decide` or an inlined call's renamed state blocks the closer, `equiv_skip_ec` (what `equiv_auto` uses) |
 | `if` / `if{i}` | `stmt_if` (goals EC's: `guard, then, else`; each branch with the code after it, flattened: EC's positions inside a branch) / `stmt_if{i}` |
 | `rcondt{i} n` / `rcondf{i} n` | `stmt_rcondt{i} n` / `stmt_rcondf{i} n`, EC's positions; side goal first: `· hoare_auto; …` |
@@ -581,6 +582,15 @@ Document each in the docstring when it applies.
   rewritten by equations at the other, and closers fail.
 * `sorry` after a tactic that closed all goals is **not** reported; a `trace_state` printing
   nothing there means the goal was already closed.
+
+* **Strict `auto`/`skip` (2026-11-12)**: `ec_auto`/`ec_skip` (`Logic/ECAutoStrict.lean`,
+  `Logic/ReadNorm.lean`) normalize the goal to the read normal form and generalize every read;
+  a state that survives is an error naming the place, not a goal about `σ`.  Migrating a proof
+  from `hoare_auto`/`phoare_auto`/`phoare_skip`: `rintro σ ⟨…⟩` becomes `ec_intro; rintro ⟨…⟩`,
+  reads of `σ` in the hand step become the value names.  A hypothesis that is now an equation
+  between values (`hash = h`) is taken with `rintro rfl`: an anonymous-constructor pattern on it
+  substitutes and binds nothing.  A gap in the normal form is fixed in `ReadNorm.normalize`, with
+  a golden test in `Logic/ReadNormTest.lean`, not at the call site.
 
 ## 9. Checklist before calling a lemma done
 

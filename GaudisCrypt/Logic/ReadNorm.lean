@@ -25,7 +25,8 @@ A proposition `P` is in **read normal form** for the states `σ₁ … σₙ` wh
   (`TacticMisc.globTuples`).
 
 `ReadNorm.normalize` brings a goal to this form with the existing steps, all of them, in one
-order: `relSimpDecls` (reads through writes), `unfoldReads`, `normDecideGoal`, `globTuples`.
+order: `relSimpDecls` (reads through writes), `unfoldReads`, `normDecideGoal`, `normInst`,
+`globTuples`.
 Until now each path applied its own subset (the Hoare and pHL paths no `normDecide`: the reads
 then do not generalize, and the goal silently stays about the states).
 
@@ -46,6 +47,57 @@ namespace GaudisCrypt.ReadNorm
 
 open Lean Meta TacticMisc
 
+/-- The instance `i : Decidable c'` re-made for `c` (`c'` an older spelling of `c`): the same
+instance constant with its arguments read off `c` (`instDecidableAnd`, `Int.decLe`,
+`Classical.propDecidable`, …), the `Decidable` arguments re-made the same way; if `i` is not of
+that shape, the synthesized instance of `c`.  (The instance's own structure first: a synthesized
+instance in place of a classical one is not equal to it by definition.) -/
+partial def respellInst (c i : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let s ← saveState
+  if let some j ← sameHead then return some j
+  s.restore
+  try
+    return some (← synthInstance (mkApp (mkConst ``Decidable) c))
+  catch _ => return none
+where
+  sameHead : MetaM (Option Lean.Expr) := do
+    let f := i.getAppFn
+    unless f.isConst do return none
+    let args := i.getAppArgs
+    let (ms, _, ty) ← forallMetaTelescopeReducing (← inferType f) (some args.size)
+    unless ms.size == args.size do return none
+    unless ← isDefEq ty (mkApp (mkConst ``Decidable) c) do return none
+    for m in ms, a in args do
+      unless (← instantiateMVars m).isMVar do continue
+      let mt ← whnfR (← instantiateMVars (← inferType m))
+      let mut v := a
+      if mt.isAppOfArity ``Decidable 1 then
+        let some v' ← respellInst (mt.getArg! 0) a | return none
+        v := v'
+      unless ← isDefEq m v do return none
+    return some (← instantiateMVars (mkAppN f ms))
+
+/-- The `Decidable` instance of every `decide c` and `if c then … else …` re-made for `c` as it
+stands (`respellInst`), replaced when equal by definition.  `TacticMisc.normDecide` does the
+synthesized case for `decide`; this also covers `if`, and instances that are not synthesized
+(a classical one, a conjunction with a classical part). -/
+def normInst (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun t => do
+    let fn := t.getAppFn
+    let k? := if fn.isConstOf ``Decidable.decide && t.getAppNumArgs == 2 then some 0
+      else if (fn.isConstOf ``ite || fn.isConstOf ``dite) && t.getAppNumArgs ≥ 3 then some 1
+      else none
+    let some k := k? | return .continue
+    let args := t.getAppArgs
+    let c := args[k]!
+    let i := args[k + 1]!
+    if c.hasLooseBVars || i.hasLooseBVars then return .continue
+    let some j ← respellInst c i | return .continue
+    if j == i then return .continue
+    if ← withDefault (isDefEq i j) then
+      return .done (mkAppN fn (args.set! (k + 1) j))
+    return .continue)
+
 /-- The target of `g`, a proposition about the states `σs` (free variables of its context), in
 read normal form (see the module docstring). -/
 def normalize (g : MVarId) (σs : Array FVarId) : MetaM MVarId := g.withContext do
@@ -62,6 +114,10 @@ def normalize (g : MVarId) (σs : Array FVarId) : MetaM MVarId := g.withContext 
     let g ← g.change ty
     -- the tests' instances, then the regions of variables
     let g ← normDecideGoal g
+    let g ← g.withContext do
+      let ty ← instantiateMVars (← g.getType)
+      let ty' ← normInst ty
+      if ty' == ty then pure g else g.replaceTargetDefEq ty'
     globTuples g
 
 /-- The subterms of `e` that use a state of `σs` other than by a read in normal form: an

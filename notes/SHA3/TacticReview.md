@@ -197,9 +197,21 @@ to
 
 i.e. they name values, not reads of a state.  The file has no fallback warning left.
 
-Left in the pilot check after the trial (`lake build GaudisCrypt.PilotCheck`, green): 60
-un-generalized reads, 48 of them in pilots (`SecureORO` 19, `Gext` 12, `Gcol` 7, `Handle` 6,
-`ConcreteF` 4) and 12 in first-port files the pilots import.
+Second file, `Pilot/SecureORO.lean` (19 sites): 18 generalize as they are.  The 19th, the
+`skip` after a `phoare_call`, showed a second cause: an `if … then … else` whose instance is not
+synthesized (`instDecidableAnd` over a classical part) and still spells the read through the
+state the call rule built.  `ReadNorm.normInst` now re-makes the instance of every `decide` and
+`if` along the instance's own structure (golden test "The instance of an `if`").
+
+Left in the pilot check (`lake build GaudisCrypt.PilotCheck`, green): 41 un-generalized reads,
+29 of them in pilots (`Gext` 12, `Gcol` 7, `Handle` 6, `ConcreteF` 4) and 12 in first-port files
+the pilots import.
+
+Seen while migrating, not changed:
+- The generalized values are named after the variable's last name component, numbered on a
+  clash: with a memory `m` in the context `RO.m` is `m1`, and the local `m1` then `m11`.
+  Deterministic, but a scheme without clashes (`RO_m`?) would read better.
+- `ec_skip` prints a place under a binder with a loose index (`#1`).
 
 Next: the `while` exit goals on the same normalizer; the remaining pilots file by file; then delete `auto_prep`'s script and the old skip variants when
 their last user is gone.

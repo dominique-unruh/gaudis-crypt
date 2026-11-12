@@ -9,6 +9,7 @@ import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECAuto
+import GaudisCrypt.Logic.ECAutoStrict
 import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECIf
 import GaudisCrypt.Logic.ECConseq
@@ -223,8 +224,9 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
           · -- the oracle keeps the invariant: a fresh key costs one query (EC's `fcardU`)
             hoare_proc
             hoare_inline*
-            hoare_auto
-            rintro σ ⟨hc, hb⟩
+            ec_auto
+            ec_intro
+            rintro ⟨hc, hb⟩
             split_ifs with hlt
             · simp only [decide_eq_true_eq] at hlt
               refine fun _ _ => ⟨fun hx => ?_, fun _ => ⟨by omega, by omega⟩⟩
@@ -256,8 +258,9 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
               case step =>
                 phoare_proc
                 phoare_inline*
-                phoare_auto
-                rintro σ ⟨-, hr, -, -⟩
+                ec_auto
+                ec_intro
+                rintro ⟨-, hr, -, -⟩
                 split_ifs
                 · -- a fresh key's value hits `h` (EC's `rnd (pred1 h)`)
                   rnd_pred1 h
@@ -272,8 +275,9 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
                 intro c
                 hoare_proc
                 hoare_inline*
-                hoare_auto
-                rintro σ ⟨-, -, ⟨hc, hlt⟩, rfl⟩
+                ec_auto
+                ec_intro
+                rintro ⟨-, -, ⟨hc, hlt⟩, rfl⟩
                 split_ifs
                 · refine fun _ _ => ⟨fun hx => ⟨?_, Or.inr (by omega)⟩,
                     fun _ => ⟨⟨by omega, by omega⟩, Or.inr (by omega)⟩⟩
@@ -285,12 +289,13 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
                 intro c
                 hoare_proc
                 hoare_inline*
-                hoare_auto
+                ec_auto
               case keep =>
                 hoare_proc
                 hoare_inline*
-                hoare_auto
-                rintro σ ⟨⟨hc, hb⟩, hr⟩
+                ec_auto
+                ec_intro
+                rintro ⟨⟨hc, hb⟩, hr⟩
                 split_ifs with hlt
                 · simp only [decide_eq_true_eq] at hlt
                   refine fun a _ => ⟨fun hx => ⟨?_, FMap.rng_set_of_rng (by simpa using hx) hr a⟩,
@@ -299,17 +304,18 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
                   push_cast
                   constructor <;> omega
                 · exact ⟨⟨hc, hb⟩, hr⟩
-            · phoare_skip
-              rintro σ ⟨-, hh⟩
-              have hh' : Preimage2.hash.get σ.globals = h := hh
-              rw [if_pos ⟨⟨hh', hh'.symm⟩, fun _ gl hg => by rw [hg, hh']⟩]
+            · ec_skip
+              ec_intro
+              rintro rfl
+              rw [if_pos ⟨⟨rfl, rfl⟩, fun _ gl hg => by rw [hg]⟩]
         case second_notE =>
           phoare_inline*
-          phoare_auto
-          rintro σ ⟨hr, -, -⟩
+          ec_auto
+          ec_intro
+          rintro ⟨hr, -, -⟩
           split_ifs with hb hd
           · -- a fresh `m`: its value hits `Preimage2.hash` (EC's `rnd (pred1 Preimage2.hash)`)
-            rnd_pred1 (Preimage2.hash.get σ.globals)
+            rnd_pred1 hash
             · simp only [FMap.get_set_sameE, oget, Option.some.injEq, decide_eq_true_eq]
               exact indicatorE_le_of_imp fun h => h.symm
             · exact le_of_eq (sampleto_fu _ _)
@@ -319,10 +325,10 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
             simp only [Option.some.injEq, decide_eq_true_eq]
             intro he
             apply hr
-            have hd' : FMap.dom (RO.m.get σ.globals) ((localVarLens "m" «from»).get σ) := by
+            have hd' : FMap.dom m1 m2 := by
               simpa using hd
             obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd')
-            refine ⟨(localVarLens "m" «from»).get σ, ?_⟩
+            refine ⟨m2, ?_⟩
             rw [← he]
             simp only [FMap.get] at hv ⊢
             rw [hv]
@@ -474,8 +480,9 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             · -- the oracle keeps it: a fresh key costs one query (EC's `fcardU`)
               hoare_proc
               hoare_inline*
-              hoare_auto
-              rintro σ ⟨hc, hb, hd⟩
+              ec_auto
+              ec_intro
+              rintro ⟨hc, hb, hd⟩
               split_ifs with hlt
               · simp only [decide_eq_true_eq] at hlt
                 refine fun a _ => ⟨fun hx => ⟨?_, by omega, (FMap.mem_set _ _ _ _).mpr (Or.inl hd)⟩,
@@ -525,19 +532,20 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               case step =>
                 phoare_proc
                 phoare_inline*
-                phoare_auto
-                rintro τ ⟨⟨-, -, hd⟩, hr, -⟩
+                ec_auto
+                ec_intro
+                rintro ⟨⟨-, -, hd⟩, hr, -⟩
                 simp only [indicatorE_of_not hr]
                 split_ifs with _ hx
                 · -- a fresh key `x ≠ mess1`: the new value hits `RO.m.[mess1]`
                   -- (EC's `rnd (pred1 _)`)
                   have hx' :
-                      ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
+                      ¬ FMap.dom m1 x1 := by
                     simpa using hx
-                  have hne : mess1 ≠ (localVarLens "x" «from»).get τ := fun h => hx' (h ▸ hd)
-                  rnd_pred1 (oget ((RO.m.get τ.globals).get mess1))
+                  have hne : mess1 ≠ x1 := fun h => hx' (h ▸ hd)
+                  rnd_pred1 (oget (m1.get mess1))
                   · refine indicatorE_le_of_imp fun hs =>
-                      (FMap.eq_of_rng_rem_set (x := (localVarLens "x" «from»).get τ) hr ?_).symm
+                      (FMap.eq_of_rng_rem_set (x := x1) hr ?_).symm
                     rwa [FMap.get_set_neqE _ _ _ _ hne] at hs
                   · exact le_of_eq (sampleto_fu _ _)
                 all_goals first
@@ -547,10 +555,11 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 intro c
                 hoare_proc
                 hoare_inline*
-                hoare_auto
-                rintro σ ⟨⟨-, -, hd⟩, -, ⟨hc, hlt⟩, rfl⟩
+                ec_auto
+                ec_intro
+                rintro ⟨⟨-, -, hd⟩, -, ⟨hc, hlt⟩, rfl⟩
                 have hdom := fun x a =>
-                  (FMap.mem_set (RO.m.get σ.globals) x a mess1).mpr (Or.inl hd)
+                  (FMap.mem_set m1 x a mess1).mpr (Or.inl hd)
                 split_ifs
                 · refine fun _ _ => ⟨fun hx => ⟨⟨?_, by omega, hdom _ _⟩, Or.inr (by omega)⟩,
                     fun _ => ⟨⟨by omega, by omega, hd⟩, Or.inr (by omega)⟩⟩
@@ -562,25 +571,26 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
                 intro c
                 hoare_proc
                 hoare_inline*
-                hoare_auto
+                ec_auto
               case keep =>
                 hoare_proc
                 hoare_inline*
-                hoare_auto
-                rintro σ ⟨⟨hc, hb, hd⟩, hr⟩
+                ec_auto
+                ec_intro
+                rintro ⟨⟨hc, hb, hd⟩, hr⟩
                 split_ifs with hlt
                 · simp only [decide_eq_true_eq] at hlt
                   have hdom := fun x a =>
-                    (FMap.mem_set (RO.m.get σ.globals) x a mess1).mpr (Or.inl hd)
+                    (FMap.mem_set m1 x a mess1).mpr (Or.inl hd)
                   refine fun a _ => ⟨fun hx => ⟨⟨?_, by omega, hdom _ _⟩, ?_⟩,
                     fun _ => ⟨⟨by omega, by omega, hd⟩, hr⟩⟩
                   · rw [FMap.fcard_set (by simpa using hx)]
                     push_cast
                     omega
                   · have hx' :
-                        ¬ FMap.dom (RO.m.get σ.globals) ((localVarLens "x" «from»).get σ) := by
+                        ¬ FMap.dom m1 x := by
                       simpa using hx
-                    have hne : mess1 ≠ (localVarLens "x" «from»).get σ := fun h => hx' (h ▸ hd)
+                    have hne : mess1 ≠ x := fun h => hx' (h ▸ hd)
                     rw [FMap.get_set_neqE _ _ _ _ hne]
                     exact FMap.rng_rem_set_of_rng hx' hr a
                 · exact ⟨⟨hc, hb, hd⟩, hr⟩
@@ -588,8 +598,9 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               exact fun _ h => le_of_eq (if_pos h)
           case second_notE =>
             phoare_inline*
-            phoare_auto
-            rintro σ ⟨hr, -, -, hd, hm⟩
+            ec_auto
+            ec_intro
+            rintro ⟨hr, -, -, hd, hm⟩
             rw [hm] at hr hd
             split_ifs with h1 h2 h3 h4 h5 h6
             · simp [hd] at h2
@@ -597,7 +608,7 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
             · -- a fresh `m2`: its value hits `RO.m.[m1]` (EC's `rnd (pred1 (oget RO.m.[x3]))`); the
               -- first query's sample is not used (`m1` is in `RO.m`)
               rnd_bound
-              rnd_pred1 (oget ((RO.m.get σ.globals).get ((localVarLens "m1" «from»).get σ)))
+              rnd_pred1 (oget (m1.get m11))
               · refine indicatorE_le_of_imp fun hP => ?_
                 simp only [decide_eq_true_eq, FMap.get_set_sameE, oget, Option.some.injEq] at hP
                 obtain ⟨-, y, rfl, rfl⟩ := hP
@@ -611,14 +622,14 @@ theorem RO_is_second_preimage_resistant [Countable «from»] [Countable «to»]
               simp only [decide_eq_true_eq, Option.some.injEq]
               rintro ⟨hne, y, hy1, hy2⟩
               apply hr
-              have hd2 : FMap.dom (RO.m.get σ.globals) (SecondPreimage2.m2.get σ.globals) := by
+              have hd2 : FMap.dom m1 m2 := by
                 simpa using h5
               obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp ((FMap.domE _ _).mp hd2)
-              refine ⟨SecondPreimage2.m2.get σ.globals, ?_⟩
+              refine ⟨m2, ?_⟩
               have he := hy1.symm.trans hy2
-              have h1 : (FMap.rem (RO.m.get σ.globals) ((localVarLens "m1" «from»).get σ)).get
-                  (SecondPreimage2.m2.get σ.globals) = (RO.m.get σ.globals).get
-                    (SecondPreimage2.m2.get σ.globals) := by
+              have h1 : (FMap.rem m1 m11).get
+                  m2 = m1.get
+                    m2 := by
                 rw [FMap.remE, if_neg (Ne.symm hne)]
               simp only [FMap.get] at h1 hw he ⊢
               rw [h1, hw, he, hw]
@@ -723,8 +734,9 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
             · -- the oracle keeps it: a fresh key costs one query (EC's `fcardU`)
               hoare_proc
               hoare_inline*
-              hoare_auto
-              rintro σ ⟨hc, hcb⟩
+              ec_auto
+              ec_intro
+              rintro ⟨hc, hcb⟩
               split_ifs with hlt
               · simp only [decide_eq_true_eq] at hlt
                 refine fun _ _ => ⟨fun hx => ⟨?_, by omega⟩, fun _ => ⟨by omega, by omega⟩⟩
@@ -751,21 +763,22 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
               case step =>
                 phoare_proc
                 phoare_inline*
-                phoare_auto
-                rintro τ ⟨-, hc, hi, -⟩
+                ec_auto
+                ec_intro
+                rintro ⟨-, hc, hi, -⟩
                 simp only [indicatorE_of_not hc]
                 split_ifs with _ hx
                 · -- a fresh key: a collision only if its value is already in `RO.m` (EC's `mu_mem`)
                   have hx' :
-                      ¬ FMap.dom (RO.m.get τ.globals) ((localVarLens "x" «from»).get τ) := by
+                      ¬ FMap.dom m1 x1 := by
                     simpa using hx
                   refine (mu_le fun a => indicatorE_le_of_imp
                     (FMap.rng_of_collision_set hx' hc)).trans ?_
                   refine (FMap.mu_rng_le sampleto_fu _).trans ?_
                   gcongr
                   have :
-                      (FMap.fdom (RO.m.get τ.globals)).card ≤
-                        (Bounder.bounder.get τ.globals).toNat := by
+                      (FMap.fdom m1).card ≤
+                        bounder.toNat := by
                     omega
                   exact_mod_cast this
                 all_goals first
@@ -775,8 +788,9 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 intro c
                 hoare_proc
                 hoare_inline*
-                hoare_auto
-                rintro σ ⟨-, -, ⟨hc, hlt⟩, rfl⟩
+                ec_auto
+                ec_intro
+                rintro ⟨-, -, ⟨hc, hlt⟩, rfl⟩
                 split_ifs
                 · refine fun _ _ => ⟨fun hx => ⟨⟨?_, by omega⟩, Or.inr (by omega)⟩,
                     fun _ => ⟨⟨by omega, by omega⟩, Or.inr (by omega)⟩⟩
@@ -788,12 +802,13 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
                 intro c
                 hoare_proc
                 hoare_inline*
-                hoare_auto
+                ec_auto
               case keep =>
                 hoare_proc
                 hoare_inline*
-                hoare_auto
-                rintro σ ⟨⟨hc, hcb⟩, hr⟩
+                ec_auto
+                ec_intro
+                rintro ⟨⟨hc, hcb⟩, hr⟩
                 split_ifs with hlt
                 · simp only [decide_eq_true_eq] at hlt
                   refine fun a _ => ⟨fun hx => ⟨⟨?_, by omega⟩,
@@ -808,12 +823,10 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
               exact le_rfl
           case second_notE =>
             phoare_inline*
-            phoare_auto
-            rintro σ ⟨hnc, -, -⟩
+            ec_auto
+            intro ROm _ m1 m2
+            rintro ⟨hnc, -, -⟩
             have hfu := sampleto_fu
-            set ROm := RO.m.get σ.globals
-            set m1 := (localVarLens "m1" «from»).get σ
-            set m2 := (localVarLens "m2" «from»).get σ
             split_ifs with h1 h2 h3 h4 h5 h6
             · -- `m1` fresh, sampled `a`; by cases on `m2` (EC's `case: (m1 = m2)`,
               -- `case: (m2 \in RO.m)`)

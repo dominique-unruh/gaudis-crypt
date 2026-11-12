@@ -267,6 +267,31 @@ example (P Q : ℤ → Prop) : hoare[ P §n ==> Q §i ] {
   trace_state
   sorry
 
+/-! ## The instance of an `if` -/
+
+-- an `if` whose instance is not synthesized (a conjunction with a classical part) and spells the
+-- read through a write, as a call rule leaves it: re-made for the condition as it stands
+/--
+trace: Q : ℤ → Prop
+⊢ ∀ (rnCount : ℤ), if 0 ≤ rnCount ∧ ∀ (k : ℕ), ↑k ≤ rnCount then Q rnCount else True
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (Q : ℤ → Prop) :
+    hoareStmt (fun _ => True) StmtWithHoles.skip
+      (fun σ => @ite Prop
+        (0 ≤ rnCount.get σ.globals ∧ ∀ k : ℕ, (k : ℤ) ≤ rnCount.get σ.globals)
+        (@instDecidableAnd _ _
+          (Classical.propDecidable
+            (0 ≤ rnCount.get (ProgramState.globalL.set σ.globals σ).globals))
+          (Classical.propDecidable
+            (∀ k : ℕ, (k : ℤ) ≤ rnCount.get (ProgramState.globalL.set σ.globals σ).globals)))
+        (Q (rnCount.get σ.globals)) True) := by
+  ec_skip
+  trace_state
+  sorry
+
 /-! ## Strictness -/
 
 -- a state used other than by a read: `ec_skip` fails and names the places (`hoare_skip` leaves
