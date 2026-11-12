@@ -294,17 +294,100 @@ elab "generalize_reads_all" : tactic => withMainContext do
   let (_, g) ← g.introNP hyps.size
   replaceMainGoal [g]
 
+open Lean Meta Elab Tactic
+
+namespace ECClose
+
+/-- The instances of the lemma `lemName` (`∀ xs, P xs`) at the terms of `targets`: each subterm of its
+conclusion that mentions all its non-instance arguments (a pattern, `size l` of `size_ge0 :
+0 ≤ size l`) matched (reducibly) against each target term, the instance kept when that fixes the
+arguments (the instance arguments synthesized). -/
+def instancesOf (lemName : Name) (targets : Array Lean.Expr) : MetaM (Array Lean.Expr) := do
+  let mut out : Array Lean.Expr := #[]
+  for t in targets do
+    let r? ← withNewMCtxDepth do
+      -- (its universe levels open at this depth, to be fixed by the match)
+      let lem ← mkConstWithFreshMVarLevels lemName
+      let (ms, bis, concl) ← forallMetaTelescopeReducing (← inferType lem)
+      if ms.isEmpty then return none
+      let vars := (ms.zip bis).filterMap fun (m, bi) => if bi.isInstImplicit then none else some m
+      -- the application subterms of the conclusion that mention every argument
+      let subs ← IO.mkRef (#[] : Array Lean.Expr)
+      Meta.forEachExpr concl fun e => do
+        if e.isApp && vars.all (fun m => (e.find? (· == m)).isSome) then
+          subs.modify (·.push e)
+      for p in ← subs.get do
+        -- (the same head: by name for a constant, the lemma's universe levels being open)
+        let sameHead := match p.getAppFn.constName?, t.getAppFn.constName? with
+          | some a, some b => a == b
+          | _, _ => p.getAppFn == t.getAppFn
+        unless sameHead do continue
+        let s ← saveState
+        if ← withReducible (isDefEq p t) then
+          -- the instance arguments
+          let mut ok := true
+          for (m, bi) in ms.zip bis do
+            if bi.isInstImplicit && !(← m.mvarId!.isAssigned) then
+              try
+                let inst ← synthInstance (← inferType m)
+                unless ← isDefEq m inst do ok := false
+              catch _ => ok := false
+          if ok then
+            let pf ← instantiateMVars (mkAppN lem ms)
+            unless pf.hasMVar do return some pf
+        s.restore
+      return none
+    if let some pf := r? then
+      let pty ← inferType pf
+      unless ← out.anyM (fun q => return (← inferType q) == pty) do out := out.push pf
+  return out
+
+end ECClose
+
+open ECClose in
+/-- `ec_instances [l₁, …]`: the instances of the lemmas `lᵢ` (`∀ xs, P xs`) at the terms of the
+goal and the hypotheses, as hypotheses (what EC's provers instantiate on the goal's terms: a
+`smt(List.size_ge0)` on `0 <= size p`).  At most 64. -/
+elab "ec_instances" " [" ls:ident,* "]" : tactic => withMainContext do
+  let g ← getMainGoal
+  let mut sources := #[← instantiateMVars (← g.getType)]
+  for d in ← getLCtx do
+    unless d.isImplementationDetail do sources := sources.push (← instantiateMVars d.type)
+  let termsRef ← IO.mkRef (#[] : Array Lean.Expr)
+  for src in sources do
+    Meta.forEachExpr src fun e => do
+      if e.isApp && !e.hasLooseBVars then termsRef.modify (·.push e)
+  let terms ← termsRef.get
+  let mut hyps : Array Hypothesis := #[]
+  for l in ls.getElems do
+    for pf in ← instancesOf (← realizeGlobalConstNoOverloadWithInfo l) terms do
+      if hyps.size ≥ 64 then break
+      hyps := hyps.push { userName := `h_inst, type := ← inferType pf, value := pf }
+  if hyps.isEmpty then return
+  let (_, g') ← g.assertHypotheses hyps
+  replaceMainGoal [g']
+
 /-- **EC's `smt(l₁, …)`**: `auto_close`'s preprocessing, the reads of the states as variables
-(`generalize_reads_all`), their equations substituted, then `grind` with the lemmas `lᵢ`. -/
+(`generalize_reads_all`), their equations substituted, then `grind` with the lemmas `lᵢ`; if that
+fails, once more with the lemmas' instances at the goal's terms as hypotheses (`ec_instances`:
+EC's provers instantiate them there, `grind`'s E-matching may not, through definitions). -/
 syntax "smt_close" (" [" Lean.Parser.Tactic.grindParam,* "]")? : tactic
+
+/-- The lemma names among `smt_close`'s parameters (plain identifiers). -/
+def ECClose.paramIdents (ps : Array Syntax) : Array Ident :=
+  ps.filterMap fun p => (p.find? (·.isIdent)).map (⟨·⟩)
 
 macro_rules
   | `(tactic| smt_close) => `(tactic| smt_close [])
-  | `(tactic| smt_close [$ls,*]) => `(tactic| focus (
+  | `(tactic| smt_close [$ls,*]) => do
+    let ids := ECClose.paramIdents (ls.getElems.map (·.raw))
+    `(tactic| focus (
       auto_prep
       all_goals try generalize_reads_all
       all_goals try subst_named
       all_goals try subst_vars
-      all_goals grind [GaudisCrypt.EC.oget_some, $ls,*]))
+      all_goals first
+        | grind [GaudisCrypt.EC.oget_some, $ls,*]
+        | (ec_instances [$ids,*]; grind [GaudisCrypt.EC.oget_some, $ls,*])))
 
 end GaudisCrypt

@@ -242,7 +242,9 @@ Closers are the bulk of the remaining manual work.  Order of attack:
    included — **write the closer by hand right away**.  Never investigate why `grind` fails, and
    don't list grind failures as infrastructure gaps (Denis, 2026-11-08 and 2026-11-09: time spent
    on grind/smt is wasted).  EC's provers see through definitions; ours don't: pass definitions to unfold
-   (`prefix_inv`, `all_prefixes`) as hints.
+   (`prefix_inv`, `all_prefixes`) as hints.  When `grind` fails, `smt_close` retries once with
+   the hint lemmas' instances at the goal's terms as hypotheses (`ec_instances`: `size_ge0` at
+   `size p`), so EC's `smt(List.size_ge0 …)` needs no `exact size_ge0 _` first.
 3. **By hand**, with **EC's lemmas** (`lemma1'`, `huniq_hinvK_h`, `m_p_of_INV` …):
    `auto_prep` then `rw`/`simp`/`refine lemma … ?_ ?_`.  For a lemma over plain values:
    `generalize_reads_all; subst_vars; apply lemma <;> assumption`.  A conditional postcondition

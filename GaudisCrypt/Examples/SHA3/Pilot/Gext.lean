@@ -33,8 +33,8 @@ set_option linter.dupNamespace false
 * GAP 5: a call's frame (`equiv_call`) keeps only variables outside the callee's footprint;
   EC's keeps what the callee does not write (`RRO.allKnown` reads `FRO.m`): read/write sets.
 * (GAP 7, fixed: the local `h` in `G1_G2`'s `M.f` is a name of the conditions — as GAP 4.)
-* GAP 6: `smt_close [size_ge0]` does not close `0 ≤ size p` (EC's `smt(List.size_ge0)`):
-  `exact size_ge0 _` first.
+* (GAP 6, fixed: `smt_close [size_ge0]` closes `0 ≤ size p` — when `grind` fails, the lemmas'
+  instances at the goal's terms are added, `ec_instances`.)
 * GAP 8: `={glob M}` of a concrete functor application (`G2(DRestr(D))`) is the equality of an
   upper bound of its footprint: it does not give its variables' equalities (`Real_G2`'s step
   through `Eager_1_2` on `G1.bext \/ inv_ext …`); EC reads `glob M` off the code.  The runs'
@@ -1034,11 +1034,8 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
           inv_le §G1.m{2} §G1.mi{2} (c0L + §counter{2}) §FRO.m{2} §ReSample.count{2})
       -- EC: + by auto=> />;smt(List.size_ge0 prefix_sizel).
       case hpre =>
-        --     (GAP 6: `0 ≤ size p` by `size_ge0` itself)
         equiv_auto; auto_progress
-        all_goals first
-          | exact size_ge0 _
-          | smt_close [inv_le, size_ge0, prefix_sizel]
+        all_goals smt_close [inv_le, size_ge0, prefix_sizel]
       -- EC: if=> //;1:by auto=>/#.
       stmt_if
       · auto_close
