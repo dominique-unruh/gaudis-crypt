@@ -42,17 +42,28 @@ works with the names (`subst_vars` would eliminate the name instead). -/
 elab "subst_reads" : tactic => withMainContext do
   let lctx ← getLCtx
   let mut rules : Array (TSyntax `Lean.Parser.Tactic.simpLemma) := #[]
+  let mut seen : Array Lean.Expr := #[]
   let anon (n : Name) := n.hasMacroScopes || n.isInaccessibleUserName
   for d in lctx do
     if d.isImplementationDetail then continue
     let some (_, a, b) := (← instantiateMVars d.type).eq? | continue
     let isRead (e : Lean.Expr) := !e.isFVar && (e.find? fun t => t.isAppOf ``Getter.get ||
       t.isAppOf ``ProgramState.globals).isSome
-    -- a name (EC's `elim*` name, `<<-`), or a tuple of names (`(x1, x2)`, EC's `->>`)
-    let named (e : Lean.Expr) : Bool := namedTuple lctx e
+    -- a name (EC's `elim*` name, `<<-`), or a tuple of names (`(x1, x2)`, EC's `->>`); or a
+    -- tuple of anything without the read (`(bl, nb) = x` from `sp` over `bl, nb <- x`: EC's
+    -- memory has `x` as the tuple)
+    let named (e r : Lean.Expr) : Bool := namedTuple lctx e ||
+      (r.isAppOfArity ``Getter.get 4 && e.isAppOfArity ``Prod.mk 4 && (e.find? (· == r)).isNone)
     let h ← Term.exprToSyntax d.toExpr
-    if isRead a && named b then rules := rules.push (← `(Lean.Parser.Tactic.simpLemma| $h:term))
-    else if isRead b && named a then
+    -- one rule per read: of `(p, n) = x0` and `x0 = (bl, nb)`, the second becomes
+    -- `(p, n) = (bl, nb)` (two rules would rewrite each into `True`)
+    if isRead a && named b a then
+      if seen.contains a then continue
+      seen := seen.push a
+      rules := rules.push (← `(Lean.Parser.Tactic.simpLemma| $h:term))
+    else if isRead b && named a b then
+      if seen.contains b then continue
+      seen := seen.push b
       rules := rules.push (← `(Lean.Parser.Tactic.simpLemma| ← $h:term))
   if rules.isEmpty then return
   evalTactic (← `(tactic| simp only [$rules,*] at *))
@@ -213,6 +224,8 @@ macro "auto_prep" : tactic => `(tactic| (
   -- tuple equations the substitutions made (`x₁ = x₂` with `x = (bs, n)`): componentwise (EC's
   -- `progress`); a procedure's arguments are typed `sig.ParamType`, a tuple once unfolded
   all_goals try dsimp only [ProcedureSignature.ParamType, typeListToTuple] at *
+  -- (the reads normalized: a tuple read `(bl, nb) = x` from `sp` over `bl, nb <- x` now applies)
+  all_goals try subst_reads
   all_goals try simp only [Prod.mk.injEq] at *
   all_goals try casesm* _ ∧ _
   all_goals try subst_vars))

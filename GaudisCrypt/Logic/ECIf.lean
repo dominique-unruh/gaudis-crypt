@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.PRHLWp
 import GaudisCrypt.Logic.PHoareWp
+import GaudisCrypt.Logic.ECLoop
 
 /-!
 # EasyCrypt's `if` on the first statement
@@ -66,7 +67,9 @@ theorem phoareStmt_if {A : ProgramState → Prop} {c : Getter Bool ProgramState}
 
 EC's `rcondt n` (`rcondf n`): the statement at position `n` is a conditional whose test holds
 (fails) wherever the code before it ends, from the precondition (a Hoare triple on that code);
-the conditional is replaced by its branch. -/
+the conditional is replaced by its branch.  On a loop (EC's `rcondt`/`rcondf` on a `while`), the
+loop unrolled first (`Stmt.Equiv.unroll`): `rcondt` leaves its body before the loop, `rcondf`
+nothing. -/
 
 /-- A conditional run where its test is `b`: the branch `b` selects. -/
 theorem programDenotation_ifThenElse_of {c : Getter Bool ProgramState} {t e : Stmt}
@@ -233,6 +236,8 @@ def rcond (b : Bool) (side? : Option Nat) (n : Nat) : TacticM Unit := withMainCo
   unless 1 ≤ n && n ≤ groups.size do
     throwError "rcond: no statement {n} (the code has {groups.size})"
   let k := (groups.extract 0 n).foldl (· + ·) 0 - 1
+  -- a loop (EC's `rcondt`/`rcondf` on a `while`): unrolled, `if c { body; while c body }`
+  let g ← try ECLoop.unrollAt k g side? catch _ => pure g
   let g ← Judgment.onStmt (aroundAt k) g side?
   let lem := if ty.isAppOf ``hoareStmt then ``hoareStmt_rcond
     else if ty.isAppOf ``phoareStmt then ``phoareStmt_rcond

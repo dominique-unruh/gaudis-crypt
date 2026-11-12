@@ -85,4 +85,29 @@ example : equiv[ §b{1} = false ==> ={y} ] {
     simp_all
   · sim
 
+/-- EC's `rcondt{1} 2` on a loop: its body comes before it; then `rcondf{1} 4` on the loop
+again, which is no longer entered: it is gone. -/
+example : equiv[ True ==> ={y} ] {
+      var i : ℕ, y : ℕ;
+      i <- 0;
+      while (decide ($i < 1)) {
+        i <- $i + 1;
+      }
+      y <- 2;
+    } ~ {
+      var y : ℕ;
+      y <- 2;
+    } := by
+  stmt_rcondt{1} 2
+  · intro _
+    hoare_wp 1
+    hoare_skip
+    simp
+  stmt_rcondf{1} 3
+  · intro _
+    hoare_wp 2
+    hoare_skip
+    simp
+  sim
+
 end GaudisCrypt.ECIfTest

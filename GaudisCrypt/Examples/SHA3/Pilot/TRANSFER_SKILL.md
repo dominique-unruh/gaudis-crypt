@@ -414,6 +414,21 @@ Document each in the docstring when it applies.
   written over them; `glob D`'s equality by hand, `congrArg` of `glob D`'s getter then
   `simp (disch := fp_disjoint) only [touched_set_of_le_compl]` (SHA3Indiff GAP 4).
 
+* **`rcondt{i} n` / `rcondf{i} n` on a `while`** (Gconcl_list `ideal_equiv`): as EC, the loop
+  unrolled first — `rcondt` leaves the body before the loop (EC's later positions count the body's
+  statements), `rcondf` removes the loop.  `splitwhile` then `rcondt` on the second loop and
+  `rcondf` on the spliced `if`, then on the loop again, is EC's usual last-round peel.
+* **`hoare_while I` needs the loop last**: EC's `while` side goals after `rcondt` on a loop end
+  with the spliced round's head (`i <- i + 1; …`): `stmt_wp` first (deviation).
+* **`call (: ={glob IF, glob S, glob A} ∧ …)` with concrete modules**: `equiv_call` reads each
+  `glob M` of a module of procedures as its written variables (`Logic/GlobWrites.lean`), exactly
+  EC's goals.
+* **EC's `smt` selects lemmas itself** (`domE`, `mem_set`, `get_setE`, the definition of an `op`
+  such as Gconcl_list's `<=`): `smt_close` takes them in its list (a definition by name unfolds).
+* **Tuple equations from `sp`** (`(bl, nb) = x`): `auto_close` rewrites the read `x` into the
+  tuple (one rule per read); a chain `(p, n) = x0`, `x0 = (bl, nb)` it may still miss (GAP 1 of
+  Gconcl_list): `simp_reads_all; smt_close []`.
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in

@@ -875,15 +875,15 @@ theorem PFf_Cf : equiv[ DFRestr(SqueezelessSponge(PF)).f ~ DFRestr(G1.M).f :
       -- EC: * rewrite(@take_nth witness);1:smt(prefix_ge0);rewrite domE. … (~20 lines:
       --       `mh_of_INV`, `lemma5'`) — the old port's `PJ2_fresh` (deviation)
       · hoare_auto; auto_prep
-        rename_i σ bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y2 hy2 y1 hx w hb hisz hb1 hpp
-          hpbs hy1 hpref hext hmp hI hqi hq hcnt hpath hdom hi hif f hh hsa hsc hnd
+        rename_i σ bcol bext hs ch gm gmi mh mhi ro paths bad1 cnt h y2 hy2 y1 w hb hisz hb1 hpp _
+          hpbs hy1 hpref hext hmp hI hqi hq hcnt hpath hi hdom hif f hh hsa hsc hnd
         rw [← hpbs] at hI
         have hJ : PJ2 hs ch _ _ gm gmi mh mhi ro paths _ _ _ _ _ w.1 w.2 h :=
           ⟨hI, hmp, ⟨f, hh⟩, hpath, by simpa using hif⟩
         have hL : PJ2L _ _ _ _ _ w.1 w.2 :=
           ⟨hpref, fun l hl => (hpp l hl).symm, hext, fun _ => hnd, hqi, hisz, hq⟩
         exact (PJ2_fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hJ hL hi
-          (by rwa [hx, hsa, hsc] at hdom)).2.1
+          (by rwa [hsa, hsc] at hdom)).2.1
       --     (EC's `auto` on the main goal: here only wp — EC's `rnd` cannot pair `y2` with `r`)
       stmt_wp
       -- EC: swap{2}-3;auto;progress.

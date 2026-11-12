@@ -133,6 +133,17 @@ def andGetter (c e : Lean.Expr) : MetaM Lean.Expr := do
     let b ← mkAppM ``Bool.and #[(mkApp c.appArg! st).headBeta, (mkApp e.appArg! st).headBeta]
     mkAppM ``Getter.mk #[← mkLambdaFVars #[st] b]
 
+/-- The loop at our position `p` (from 0) of side `side?` of the judgment `g`, unrolled
+(`Stmt.Equiv.unroll`): `if c { body; while c body }`. -/
+def unrollAt (p : Nat) (g : MVarId) (side? : Option Nat) : MetaM MVarId :=
+  Judgment.onStmt (rewriteAt p fun a => do
+    let (c, body) ← loopOf "unroll" a
+    let w ← mkAppM ``StmtWithHoles.while #[c, body]
+    return (← mkAppM ``StmtWithHoles.ifThenElse
+              #[c, ← mkAppM ``StmtWithHoles.seq #[body, w],
+                ← mkAppOptM ``StmtWithHoles.skip #[(← whnfR (← inferType body)).appArg!]],
+            ← mkAppM ``Stmt.Equiv.unroll #[c, body])) g side?
+
 end ECLoop
 
 open Lean Meta Elab Tactic ECLoop in
@@ -163,12 +174,6 @@ elab "stmt_unroll" s:(Judgment.judgmentSide)? ppSpace n:num : tactic => do
   let p ← g.withContext do
     let (d, ty) ← Judgment.descOf g side?
     ourPos "unroll" (ty.getArg! d.stmtArg) n.getNat
-  liftMetaTactic1 fun g => some <$> Judgment.onStmt (rewriteAt p fun a => do
-    let (c, body) ← loopOf "unroll" a
-    let w ← mkAppM ``StmtWithHoles.while #[c, body]
-    return (← mkAppM ``StmtWithHoles.ifThenElse
-              #[c, ← mkAppM ``StmtWithHoles.seq #[body, w],
-                ← mkAppOptM ``StmtWithHoles.skip #[(← whnfR (← inferType body)).appArg!]],
-            ← mkAppM ``Stmt.Equiv.unroll #[c, body])) g side?
+  liftMetaTactic1 fun g => some <$> unrollAt p g side?
 
 end GaudisCrypt
