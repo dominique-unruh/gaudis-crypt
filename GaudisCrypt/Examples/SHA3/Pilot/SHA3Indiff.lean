@@ -15,10 +15,8 @@ Translation:
 -/
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
-* GAP 3: `replace_simulator`'s `call(equiv_sim_f IRO)`: our `glob F` at the concrete `IRO` is a
-  footprint region (an upper bound): the judgment's `={glob F}` does not give `={IRO.mp}` back
-  (Gext's GAP 8); and the call's frame does not find `Cntr.c` outside `RaiseSim(…)`'s callee.
-  The two oracle bullets are `sorry` until then.
+* (GAP 3, fixed: `glob IRO` read off its code as `={IRO.mp}`, `Logic/GlobWrites.lean`; the call's
+  frame through `RaiseSim(…)(IRO)`.)
 * GAP 4: after `byequiv` (all globals equal) and `sp` over the initializations, the two memories'
   equation (`X.set v (…σ₁.globals) = Y.set w (…σ₂.globals)`) is not used for `glob D`'s
   equality: by hand (`congrArg` of `glob D`'s getter, `touched_set_of_le_compl`).

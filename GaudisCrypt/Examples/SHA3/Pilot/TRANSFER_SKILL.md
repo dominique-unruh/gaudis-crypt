@@ -402,8 +402,11 @@ Document each in the docstring when it applies.
   inlined code starts with the callee's first statement: before EC's `if`, a `stmt_sp`.
 * **A lemma `∀ (F <: T {-X}), …` at a concrete module** (EC's `equiv_sim_f IRO`): the
   declaration by hand, `@lemma _ _ _ M ⟨by fp_finite, by fp_disjoint⟩` (the leading `_`s are the
-  section's instance parameters).  Its `={glob F}` is then `M`'s footprint region, an upper bound:
-  it gives no equalities of `M`'s variables back (SHA3Indiff GAP 3, Gext GAP 8).
+  section's instance parameters).  Its `={glob F}` is then `M`'s footprint region, read as EC
+  does, `={M's variables}`, when `M` is a module of procedures touching only the globals its code
+  writes (`Logic/GlobWrites.lean`: `fp_writes` finds an assignment, `globTuples` rewrites
+  `={glob M}` both ways; SHA3Indiff GAP 3).  Not yet for a functor (`G2(DRestr(D))` before its
+  oracle is applied: Gext GAP 8), nor for a variable `M` only reads.
 * **Inlined callees' locals are renamed per side** (`x3, n0` against `x0, n`): `sim` relates
   loops by name, so it stops at loops of such callees; `equiv_while (§x3{1} = §(localVarLens "x0"
   T){2} ∧ …)` with the bodies by `sim` (SHA3Indiff GAP 2).

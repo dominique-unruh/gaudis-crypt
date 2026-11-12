@@ -37,7 +37,9 @@ set_option linter.dupNamespace false
   instances at the goal's terms are added, `ec_instances`.)
 * GAP 8: `={glob M}` of a concrete functor application (`G2(DRestr(D))`) is the equality of an
   upper bound of its footprint: it does not give its variables' equalities (`Real_G2`'s step
-  through `Eager_1_2` on `G1.bext \/ inv_ext …`); EC reads `glob M` off the code.  The runs'
+  through `Eager_1_2` on `G1.bext \/ inv_ext …`); EC reads `glob M` off the code.  (A module of
+  procedures is read off its code now, `Logic/GlobWrites.lean`; `G2(DRestr(D))` is a functor, the
+  oracle applied later: its footprint has no lower bound by its procedures yet.)  The runs'
   equality `Eager.main2_eq_main1` instead.
 * EC's `x` (the wrapper `DRestr`'s parameter) is not a program variable after our `sp`
   (it is substituted): `x{1} = x0{1}` dropped, `x` read as `x0`.
