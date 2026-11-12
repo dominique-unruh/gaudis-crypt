@@ -1,5 +1,6 @@
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.PHoareWp
+import GaudisCrypt.Logic.GlobWrites
 
 /-!
 # EasyCrypt's `auto` and `rnd` steps for `hoare` and `phoare`
@@ -71,7 +72,9 @@ namespace ECAuto
 open Lean Meta Elab Tactic in
 /-- **EC's `={glob C}` as the equalities of `C`'s variables**: for each hypothesis
 `R.touched_getter.get a = R.touched_getter.get b`, the hypotheses `x.get a = x.get b` for the
-variables `x` read at `a` or `b` (in the goal or a hypothesis) that lie inside `R` (`fp_le`). -/
+variables `x` read at `a` or `b` (in the goal or a hypothesis) that lie inside `R`: `R` a region of
+variables among which `x` is (`fp_le`), or a concrete module's footprint and the module writes `x`
+(`fp_writes`). -/
 def globReads (g : MVarId) : TacticM MVarId := g.withContext do
   let lctx ← getLCtx
   -- the regions kept equal
@@ -102,11 +105,19 @@ def globReads (g : MVarId) : TacticM MVarId := g.withContext do
             xs.modify (·.push x)
     for x in ← xs.get do
       let s ← saveState
-      try
+      -- `x` inside `R`: a region of variables among which `x` is (`fp_le`), or a concrete
+      -- module's that writes `x` (`fp_writes`)
+      let viaLe : TacticM Lean.Expr := do
         let hle ← mkFreshExprSyntheticOpaqueMVar
           (← mkAppM ``LE.le #[← mkAppM ``Lens.footprint #[x], R])
         let [] ← Tactic.run hle.mvarId! (evalTactic (← `(tactic| fp_le))) | failure
-        let pf ← mkAppM ``Lens.get_eq_of_touched_getter_eq #[x, ← instantiateMVars hle, h]
+        mkAppM ``Lens.get_eq_of_touched_getter_eq #[x, ← instantiateMVars hle, h]
+      let viaWrites : TacticM Lean.Expr := do
+        let hw ← mkFreshExprSyntheticOpaqueMVar (← mkAppM ``Footprint.HasWrites #[R, x])
+        GlobWrites.goModule hw.mvarId!
+        mkAppM ``Lens.get_eq_of_touched_getter_eq_of_hasWrites #[x, ← instantiateMVars hw, h]
+      try
+        let pf ← try viaLe catch _ => s.restore; viaWrites
         let (_, g') ← (← g.assert `hglob (← inferType pf) pf).intro1P
         g := g'
       catch _ => s.restore

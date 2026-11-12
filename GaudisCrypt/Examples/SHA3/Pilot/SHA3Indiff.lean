@@ -294,9 +294,7 @@ theorem replace_simulator (m : VariableAssignment) :
       equiv_call (@equiv_sim_f _ _ _
         (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List Bool × ℤ) (List Bool) IRO.asF)
         ⟨by fp_finite, by fp_disjoint⟩)
-      --     (GAP 3: EC's `auto`; our `glob IRO` is a footprint region, no `={IRO.mp}` back, and no
-      --     frame for `Cntr.c` through `RaiseSim`)
-      sorry
+      equiv_auto
     · equiv_auto
   -- EC: + by proc;sp;if;auto;call(equiv_sim_fi IRO);auto.
   · equiv_proc; stmt_sp; stmt_if
@@ -306,9 +304,7 @@ theorem replace_simulator (m : VariableAssignment) :
       equiv_call (@equiv_sim_fi _ _ _
         (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List Bool × ℤ) (List Bool) IRO.asF)
         ⟨by fp_finite, by fp_disjoint⟩)
-      --     (GAP 3: EC's `auto`; our `glob IRO` is a footprint region, no `={IRO.mp}` back, and no
-      --     frame for `Cntr.c` through `RaiseSim`)
-      sorry
+      equiv_auto
     · equiv_auto
   -- EC: by proc;sim.
   · equiv_proc; sim

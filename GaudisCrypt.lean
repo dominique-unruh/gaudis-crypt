@@ -112,6 +112,8 @@ import GaudisCrypt.Logic.PHoareLossless
 import GaudisCrypt.Logic.PHoareWpTest
 import GaudisCrypt.Logic.PHoareSeqTest
 import GaudisCrypt.Logic.ConcreteFootprint
+import GaudisCrypt.Logic.GlobWrites
+import GaudisCrypt.Logic.GlobWritesTest
 import GaudisCrypt.Logic.PRHL
 import GaudisCrypt.Logic.Representation
 import GaudisCrypt.Logic.DeclareModule

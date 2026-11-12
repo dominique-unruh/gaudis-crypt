@@ -410,6 +410,13 @@ partial def regionLens? (R : Lean.Expr) : MetaM (Option Lean.Expr) := do
       catch _ => return none
   return none
 
+/-- **EC's `glob M` of a concrete module given by its code**: for a region `R` (`FVP.fvP M`), a
+proof of `∀ a b, (R.touched_getter.get a = R.touched_getter.get b) = (X.get a = X.get b)`, `X` the
+pair of the variables `M` writes (`Logic/GlobWrites.lean` sets it: the reading needs the module
+footprint tactics, which come later than this file). -/
+initialize globRegionHook : IO.Ref (Lean.Expr → MetaM (Option Lean.Expr)) ←
+  IO.mkRef fun _ => pure none
+
 /-- EC's `glob C` of a concrete module, a region of variables `x₁.footprint ⊔ (x₂.footprint ⊔ …)`
 (`glob_region`): its equalities `R.touched_getter.get a = R.touched_getter.get b` as the
 variables' (`={C.c, C.queries}`: `touched_getter_eq_iff_of_lens` with their `Lens.pair`, the tuple
@@ -427,7 +434,12 @@ def globTuples (g : MVarId) : MetaM MVarId := g.withContext do
   for R in cands do
     if seen.contains R || R.hasLooseBVars then continue
     seen := seen.push R
-    let some X ← regionLens? R | continue
+    let some X ← regionLens? R | do
+      -- a concrete module's region, read off its code
+      let some pf ← (try (← globRegionHook.get) R catch _ => pure none) | continue
+      thms ← thms.add (.other (← mkFreshUserName `globTuple)) #[] pf
+      found := true
+      continue
     -- `X.footprint = R`, by `Footprint.lens_pair`
     let lhs ← mkAppM ``Lens.footprint #[X]
     let hR ← try

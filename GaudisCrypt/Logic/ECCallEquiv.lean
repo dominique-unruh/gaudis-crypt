@@ -198,8 +198,14 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
         let ty ← prhlGoal g "equiv_call"
         let M₁ ← lastCallee (ty.getArg! 1)
         let M₂ ← lastCallee (ty.getArg! 2)
+        -- a functor applied to an abstract module (a parameter of a module type): the frameless
+        -- rule (`Logic/PRHLWp.lean`)
         let isApp (M : Lean.Expr) := (M.find? (·.isAppOfArity ``Module.app 6)).isSome
-        if isApp M₁ || isApp M₂ then return none
+        let abstractIn (M : Lean.Expr) : MetaM Bool := do
+          for fv in (Lean.collectFVars {} M).fvarIds do
+            if (← whnf (← fv.getType)).isAppOf ``GaudisCrypt.Module then return true
+          return false
+        if (isApp M₁ && (← abstractIn M₁)) || (isApp M₂ && (← abstractIn M₂)) then return none
         let hJ ← Term.elabTerm h none
         Term.synthesizeSyntheticMVarsNoPostponing
         let hJ ← instantiateMVars hJ
