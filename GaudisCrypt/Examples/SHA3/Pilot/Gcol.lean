@@ -481,7 +481,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
     -- EC: auto;smt ml=0 w=(hinv_image card_rng_set).
     --     (EC's `smt`: `card_rng_set`, `hinv_image` applied)
     equiv_auto; auto_prep
-    refine ⟨rfl, fun r₁ g₁ r₂ g₂ h₁ h₂ h₃ => ?_⟩
+    refine ⟨trivial, fun r₁ g₁ r₂ g₂ h₁ h₂ h₃ => ?_⟩
     auto_prep
     refine ⟨⟨by omega, by omega⟩, ?_, by omega, by omega, (card_rng_set _ _ _).trans (by omega),
       by omega, ‹_›⟩
@@ -493,7 +493,7 @@ theorem G1_col : equiv[ G1(DRestr(D)).main ~ Gcol(D).main :
   --       exact/card_rng_set/max_ge0.
   --     by apply max_ge0.
   · equiv_auto; auto_prep
-    refine ⟨⟨rfl, (card_rng_set _ _ _).trans (by simp), max_ge0⟩, ?_⟩
+    refine ⟨⟨trivial, (card_rng_set _ _ _).trans (by simp), max_ge0⟩, ?_⟩
     auto_close
 
 /-- EC's `local lemma Pr_col &m : Pr[Gcol.main()@&m : G1.bcol /\ Gcol.count <= max_size] <=

@@ -368,7 +368,7 @@ theorem G1_G2 : equiv[ G1(DRestr(D)).main ~ Eager(G2(DRestr(D))).main1 :
   -- EC: inline *;auto;progress.
   --     smt(mem_set mem_empty).
   · equiv_auto; auto_prep
-    refine ⟨⟨rfl, fun h => absurd h Bool.false_ne_true, fun h hd => ?_⟩, ?_⟩
+    refine ⟨⟨trivial, fun h => absurd h Bool.false_ne_true, fun h hd => ?_⟩, ?_⟩
     · rcases (FMap.mem_set _ _ _ _).mp hd with hd | rfl
       · exact absurd hd (FMap.mem_empty _)
       · exact (by decide : (0 : ℤ) < 1)
@@ -1072,7 +1072,7 @@ theorem EG2_Gext : equiv[ Eager(G2(DRestr(D))).main2 ~ Gext(D).distinguish :
     --     + by elim H7=>// [[x h] [#]];rewrite -memE mem_fdom dom_restr /in_dom_with domE=> _ ->.
     --     by apply H10.
     · equiv_auto; auto_prep
-      refine ⟨⟨rfl, ?_⟩, ?_⟩
+      refine ⟨⟨trivial, ?_⟩, ?_⟩
       · simp [inv_le, FMap.restr_set, FMap.restr0, max_ge0]
       · intro r₁ g₁ r₂ g₂ h; auto_prep
         obtain ⟨h1, h2, h3, h4⟩ := ‹inv_le _ _ _ _ _›

@@ -209,6 +209,12 @@ macro "auto_prep" : tactic => `(tactic| (
   all_goals try casesm* _ ∧ _
   all_goals try subst_frames
   all_goals try subst_named
+  all_goals try subst_vars
+  -- tuple equations the substitutions made (`x₁ = x₂` with `x = (bs, n)`): componentwise (EC's
+  -- `progress`); a procedure's arguments are typed `sig.ParamType`, a tuple once unfolded
+  all_goals try dsimp only [ProcedureSignature.ParamType, typeListToTuple] at *
+  all_goals try simp only [Prod.mk.injEq] at *
+  all_goals try casesm* _ ∧ _
   all_goals try subst_vars))
 
 /-- **What EC leaves to `auto => /#`**: see the module docstring. -/

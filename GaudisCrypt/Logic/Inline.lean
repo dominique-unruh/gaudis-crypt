@@ -2616,14 +2616,15 @@ partial def moduleStep? (e : Expr) (views : Bool := false) : MetaM (Option Simp.
 /-- Evaluate a module expression until its head is `Module.proc`, then spell that procedure out.
 Fails as soon as no step applies — which is exactly the case where the term has no concrete
 procedure body. -/
-partial def unfoldModuleExpr (e : Expr) (fuel : Nat := 64) : MetaM Simp.Result := do
+partial def unfoldModuleExpr (e : Expr) (fuel : Nat := 64) (views : Bool := false) :
+    MetaM Simp.Result := do
   if e.isAppOf ``Module.proc then
     let i := e.getAppNumArgs - 1
     return ← liftResultAt e i (← spellOutProcedure e.appArg!)
   if fuel == 0 then throwError "gave up unfolding{indentExpr e}"
-  let some step ← moduleStep? e
+  let some step ← moduleStep? e views
     | throwError "no concrete procedure body: nothing to unfold at the head of{indentExpr e}"
-  step.mkEqTrans (← unfoldModuleExpr step.expr (fuel - 1))
+  step.mkEqTrans (← unfoldModuleExpr step.expr (fuel - 1) views)
 
 /-- Unfold a term built from modules that evaluates to a procedure, and hand back the
 result with a proof that it equals the term.
@@ -2634,20 +2635,20 @@ call site carries — whose result is the procedure itself.  Fails if no concret
 found.
 
 This is the pass itself; `unfoldProcedure` wraps it. -/
-def unfoldProcedureCore (e : Expr) : MetaM Simp.Result := do
+def unfoldProcedureCore (e : Expr) (views : Bool := false) : MetaM Simp.Result := do
   let ty ← whnf (← inferType e)
   if ty.isAppOfArity ``ProcedureWithHoles 2 then
     unless e.isAppOf ``Module.Proc.procedure do
       -- a procedure named some other way: nothing module-ish to evaluate, only a body to reach
       return ← spellOutProcedure e
     let i := e.getAppNumArgs - 1
-    let r₁ ← liftResultAt e i (← unfoldModuleExpr e.appArg!)
+    let r₁ ← liftResultAt e i (← unfoldModuleExpr e.appArg! (views := views))
     let some (rhs, h) ← rewriteHead? ``Module.procedure_proc' r₁.expr
       | throwError "unexpected: the module did not unfold to a `Module.proc`{indentExpr r₁.expr}"
     let r ← r₁.mkEqTrans { expr := rhs, proof? := some h }
     r.mkEqTrans (← spellOutProcedure rhs)
   else if ty.isAppOf ``GaudisCrypt.Module then
-    unfoldModuleExpr e
+    unfoldModuleExpr e (views := views)
   else
     throwError "not a module or a procedure:{indentExpr (← inferType e)}"
 
@@ -2656,8 +2657,8 @@ def unfoldProcedureCore (e : Expr) : MetaM Simp.Result := do
 A step that unfolds a *definition* carries no proof of its own — `none` is `rfl` — so what the
 composed proof states can end at a term that is only definitionally the result.  Both are
 correct; this is the one a caller (and a `#check`) would rather read. -/
-def unfoldProcedure (e : Expr) : MetaM Simp.Result := do
-  let r ← unfoldProcedureCore e
+def unfoldProcedure (e : Expr) (views : Bool := false) : MetaM Simp.Result := do
+  let r ← unfoldProcedureCore e views
   let some h := r.proof? | return r
   return { r with proof? := some (← mkExpectedTypeHint h (← mkEq e r.expr)) }
 

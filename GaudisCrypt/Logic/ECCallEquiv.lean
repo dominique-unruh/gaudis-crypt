@@ -236,8 +236,8 @@ open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
 its value (as for `equiv_call (_ : P ==> Q)`).  Goal: the code before the calls.  Two different
 concrete callees: `equiv_call (_ : ={arg, x₁, …} ==> ={res, x₁, …})` (their judgment a goal, as
 EC's).  An abstract callee (`D(O)`) is left to the rule of `Logic/ECCallAbstract.lean`. -/
-elab_rules (kind := GaudisCrypt.equivCallInv) : tactic
-  | `(tactic| equiv_call (_ : ={ $xs:term,* })) => withMainContext do
+elab_rules (kind := GaudisCrypt.equivCallConcrete) : tactic
+  | `(tactic| equiv_call_concrete (_ : ={ $xs:term,* })) => withMainContext do
     let s ← saveState
     let g ← getMainGoal
     let _ ← prhlGoal g "equiv_call"
@@ -254,13 +254,18 @@ elab_rules (kind := GaudisCrypt.equivCallInv) : tactic
         if isAbstract M₁ || isAbstract M₂ then return none
         -- two different concrete callees: EC's `={arg, x…} ==> ={res, x…}`, their judgment a goal
         unless ← withReducible (isDefEq M₁ M₂) do return some (ty, M₁, M₂, true)
-        if isApp M₁ || isApp M₂ then return none
+        -- (an applied functor too: `fp_le` bounds its footprint, `@[fp_bound]`; if it cannot,
+        -- the rule fails and the caller falls back to the frameless one)
+        let _ := isApp
         return some (ty, M₁, M₂, false)
       catch _ => return none
     let some (ty, M₁, M₂, different) := concrete | do s.restore; throwUnsupportedSyntax
     if different then
       s.restore
-      evalTactic (← `(tactic| equiv_call (_ : ={arg, $xs,*} ==> ={res, $xs,*})))
+      -- (`arg`, `res` unhygienic: the names the conditions give a procedure's argument and result)
+      let argI := mkIdent `arg
+      let resI := mkIdent `res
+      evalTactic (← `(tactic| equiv_call (_ : ={$argI, $xs,*} ==> ={$resI, $xs,*})))
       return
     let Rs ← xs.getElems.mapM fun (t : Term) => match t with
       | `(glob $a) => `(glob_region $a)

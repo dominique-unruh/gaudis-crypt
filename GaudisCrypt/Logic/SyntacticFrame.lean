@@ -151,34 +151,39 @@ open Lean Meta Elab Tactic in
 /-- Split a goal `head … s` (a predicate on statements defined by recursion on them, such as
 `StmtWithHoles.WritesKeep`) down to its leaves, unfolding the procedures of modules
 (`Flatten.unfoldProcedure`) where the statement is a callee's body. -/
-partial def stmtPredSplit (head : Name) (g : MVarId) (fuel : Nat := 256) :
+partial def stmtPredSplit (head : Name) (g : MVarId) (fuel : Nat := 256)
+    (onStuck? : Option (MVarId → MetaM MVarId) := none) :
     MetaM (List MVarId) := do
   if fuel == 0 then return [g]
   let ty ← whnf (← instantiateMVars (← g.getType))
   if ty.isAppOfArity ``And 2 then
     let gs ← g.apply (mkConst ``And.intro [])
-    return (← gs.mapM (stmtPredSplit head · (fuel - 1))).flatten
+    return (← gs.mapM (stmtPredSplit head · (fuel - 1) onStuck?)).flatten
   else if ty.isConstOf ``True then
     g.assign (mkConst ``True.intro)
     return []
   else if ty.isAppOf head then
     let some p := ty.find? (·.isAppOf ``Module.Proc.procedure)
       | throwError "stuck at{indentExpr ty}"
-    let r ← Flatten.unfoldProcedure p
+    -- a callee the plain unfolding cannot open (a view, `PRIMITIVE.f (Module.pair' …)`): with
+    -- the views read off (`ECProc.accessorNorm`'s steps; the goal shows no code to the user)
+    let r ← try Flatten.unfoldProcedure p
+      catch _ => Flatten.unfoldProcedure p (views := true)
     let g ← g.replaceTargetDefEq ty
     let g ← match r.proof? with
       | none => g.replaceTargetDefEq (ty.replace fun e => if e == p then some r.expr else none)
       | some h => do
         let res ← g.rewrite ty h
         g.replaceTargetEq res.eNew res.eqProof
-    stmtPredSplit head g (fuel - 1)
+    stmtPredSplit head g (fuel - 1) onStuck?
   else
     return [← g.replaceTargetDefEq ty]
 
 open Lean Meta in
 /-- `stmtPredSplit` for `StmtWithHoles.WritesKeep`. -/
-def writesKeepSplit (g : MVarId) : MetaM (List MVarId) :=
-  stmtPredSplit ``StmtWithHoles.WritesKeep g
+def writesKeepSplit (g : MVarId) (onStuck? : Option (MVarId → MetaM MVarId) := none) :
+    MetaM (List MVarId) :=
+  stmtPredSplit ``StmtWithHoles.WritesKeep g (onStuck? := onStuck?)
 
 open Lean Elab Tactic in
 /-- `writes_keep`: on a goal `StmtWithHoles.WritesKeep G s`, the conditions on the single writes

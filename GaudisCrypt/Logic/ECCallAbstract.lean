@@ -128,6 +128,11 @@ namespace GaudisCrypt
 
 open Lean Meta Elab Tactic FelTactic PRHLWp ECCall
 
+/-- The concrete-callee case of `equiv_call (_ : ={x₁, …})` with EC's frame, elaborated in
+`Logic/ECCallEquiv.lean` (which imports this file): the rule below hands concrete callees to it. -/
+syntax (name := equivCallConcrete) "equiv_call_concrete" " (" "_" " : " "={" term,+ "}" ")" :
+  tactic
+
 /-- **EC's `call (_: ={glob A, x₁, …})`**: see the module docstring. -/
 syntax (name := equivCallInv) "equiv_call" " (" "_" " : " "={" term,+ "}" ")" : tactic
 
@@ -230,8 +235,19 @@ elab_rules (kind := equivCallInv) : tactic
           else pure g'
         setGoals (oracleGs.toList ++ rest)
       return
-    -- a concrete callee: it touches only what `={…}` names (`prhlProc_glob_module`)
+    -- a concrete callee: `Logic/ECCallEquiv.lean`'s rule (EC's frame: what the callee does not
+    -- write keeps its value), else, when that does not apply, it touches only what `={…}` names
+    -- (`prhlProc_glob_module`)
     let some (ext, C) := abs? | do
+      let s ← saveState
+      let others := (← getGoals).filter (· != g)
+      try
+        setGoals [g]
+        evalTactic (← `(tactic| equiv_call_concrete (_ : ={ $xs,* })))
+        setGoals ((← getGoals) ++ others)
+        return
+      catch _ => s.restore
+      setGoals (g :: others)
       let Rs ← xs.getElems.mapM fun (t : Term) => match t with
         | `(glob $a) => `(glob_region $a)
         | _ => `(Lens.footprint $t)

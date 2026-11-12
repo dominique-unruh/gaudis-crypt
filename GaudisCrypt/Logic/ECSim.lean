@@ -237,6 +237,24 @@ def eqSetOf (A : Lean.Expr) : MetaM (Array Lean.Expr × Array Lean.Expr) := do
             xs.modify (·.push x)
     return (← Rs.get, ← xs.get)
 
+/-- `e` (a conjunction) has the conjunct `a.globals = b.globals`. -/
+partial def hasGlobalsEq (a b : FVarId) (e : Lean.Expr) : Bool :=
+  if e.isAppOfArity ``And 2 then hasGlobalsEq a b (e.getArg! 0) || hasGlobalsEq a b (e.getArg! 1)
+  else match e.eq? with
+    | some (_, x, y) =>
+      x.isAppOfArity ``ProgramState.globals 1 && x.appArg! == .fvar a &&
+        y.isAppOfArity ``ProgramState.globals 1 && y.appArg! == .fvar b
+    | none => false
+
+/-- Does the relational precondition `A` keep all globals equal (`σ₁.globals = σ₂.globals`, a
+conjunct of it)? -/
+def keepsAllGlobals (A : Lean.Expr) : MetaM Bool := do
+  let A ← instantiateMVars A
+  if A.getAppFn.isMVar then return false
+  let ps := mkConst ``ProgramState
+  withLocalDeclD `σ₁ ps fun σ₁ => withLocalDeclD `σ₂ ps fun σ₂ =>
+    return hasGlobalsEq σ₁.fvarId! σ₂.fvarId! (mkApp2 A σ₁ σ₂).headBeta
+
 /-- EC's `sim` through a call with an equality set: when the judgment's precondition keeps a
 region `R` equal (`R.touched_getter.get σ₁.globals = R.touched_getter.get σ₂.globals`) that
 contains the callee `M` (`fp_le`), the call rule `prhlStmt_seq_call_glob`, its frames the global
@@ -640,7 +658,10 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         return ← sim (← Judgment.simpArg hp 3 relSimpDecls []) frame? (fuel - 1) eqset inv?
       catch _ => s.restore
     -- EC's `sim` with an equality set: a region the precondition keeps equal, the callee in it
-    if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset inv?
+    -- (not when the precondition keeps all globals equal, `byequiv`'s `={glob}` of the whole
+    -- memory: the plain call rule then keeps them, and the code after needs them all)
+    unless ← keepsAllGlobals ((← prhlGoal g "sim").getArg! 0) do
+      if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset inv?
     let s ← saveState
     let called? ← try
       -- calls of procedures spelled differently (an abstract procedure with oracles that are
