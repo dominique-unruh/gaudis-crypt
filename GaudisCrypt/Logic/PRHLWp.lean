@@ -222,6 +222,14 @@ def elabRelTerm (goalTy : Lean.Expr) (t : Term) (T : Lean.Expr) : TacticM Lean.E
 def elabRelCond (goalTy : Lean.Expr) (t : Term) : TacticM Lean.Expr :=
   elabRelTerm goalTy t (mkSort 0)
 
+/-- `generalizeReadsRel`, for the tactic `tac`: if it fails, the goal stays about the two states,
+and `tac` says so (`ECReport.fallback`). -/
+def generalizeReadsRelOr (tac : String) (g : MVarId) (normDec : Bool := false) : MetaM MVarId := do
+  try generalizeReadsRel g normDec
+  catch e =>
+    ECReport.fallback tac m!"the reads are not generalized: the goal stays about the states" (some e)
+    pure g
+
 /-- The goal's type, checked to be a `prhlStmt` judgment. -/
 def prhlGoal (g : MVarId) (tac : String) : MetaM Lean.Expr := do
   let ty := (← instantiateMVars (← g.getType)).cleanupAnnotations
@@ -297,7 +305,7 @@ def equivSkip (g : MVarId) (normDec : Bool := false) : MetaM MVarId := do
   let _ ← prhlGoal g "equiv_skip"
   let gs ← applyLemma ``prhlStmt_skip g
   let #[g] := gs | throwError "equiv_skip: `prhlStmt_skip` left {gs.size} goals"
-  try generalizeReadsRel g normDec catch _ => pure g
+  generalizeReadsRelOr "equiv_skip" g normDec
 
 /-- `equiv_skip`: at `skip ~ skip` (what `stmt_wp` leaves when the code is all deterministic),
 the implication from the precondition to the postcondition, the reads of the two states as
@@ -432,8 +440,8 @@ elab "equiv_while_raw " I:term : tactic => withMainContext do
       m.setTag tag
     gPre.setKind .syntheticOpaque
     let gBody ← Judgment.simpArg gBody 0 relSimpDecls []
-    let gGuard ← try generalizeReadsRel gGuard catch _ => pure gGuard
-    let gExit ← try generalizeReadsRel gExit catch _ => pure gExit
+    let gGuard ← generalizeReadsRelOr "equiv_while_raw" gGuard
+    let gExit ← generalizeReadsRelOr "equiv_while_raw" gExit
     replaceMainGoal [gBody, gGuard, gExit, gPre]
 
 /-- `equiv_while_noframe{i} I V` (the older form of EC's `while{i} I V`, which is
@@ -461,7 +469,7 @@ elab "equiv_while_noframe" s:Judgment.judgmentSide ppSpace I:term:max ppSpace V:
       | throwError "equiv_while: `{lem}` left {gs.size} goals"
     for (m, tag) in [(gll, `lossless), (gvar, `variant), (gExit, `exit)] do
       m.setTag tag
-    let gExit ← try generalizeReadsRel gExit catch _ => pure gExit
+    let gExit ← generalizeReadsRelOr "equiv_while_noframe" gExit
     replaceMainGoal [gll, gvar, gExit, gPre]
 
 /-- `equiv_seq_last k₁ k₂ : M`: cut both statements, the last `k₁` (left) and `k₂` (right)
@@ -480,21 +488,10 @@ elab "equiv_seq_last " k₁:num ppSpace k₂:num " : " M:term : tactic => withMa
     let #[g₂, g₁] := gs | throwError "equiv_seq_last: `prhlStmt_seq` left {gs.size} goals"
     replaceMainGoal [g₁, g₂]
 
-/-- `equiv_call h`: the last statements of both sides are calls `x₁ <- call p₁ (e₁)`,
-`x₂ <- call p₂ (e₂)`, and `h` a procedure judgment `equiv[ p₁ ~ p₂ : P ==> Q ]` about the callees
-(`prhlStmt_seq_call`; for an abstract procedure, `prhlProc_glob hA`: EC's
-`call (_ : ={glob A})`).  The postcondition before the calls: `P` at the arguments and globals,
-and the postcondition after them for all results and globals `Q` relates.
-
-`equiv_call` alone: both calls are of the same procedure (EC's `call (_ : true)` on the same
-code, `prhlStmt_seq_call_refl`): the postcondition before them asks for equal arguments and equal
-globals, and the postcondition after them for every result and globals, the same on both
-sides. -/
-elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
-  -- `equiv_call (_ : …)` is one of the call forms with an invariant or a specification
-  -- (`Logic/ECCallAbstract.lean`, …), parsed here too (a hole with a type ascription): left to them
-  if let some h := h? then
-    if let `(term| (_ : $_)) := h then throwUnsupportedSyntax
+/-- The call rule without a frame (`prhlStmt_seq_call`, `prhlStmt_seq_call_refl`): what
+`equiv_call h` and `equiv_call` do when no framed rule applies (`Logic/ECCallEquiv.lean`), and
+`equiv_call_frameless` by name. -/
+def equivCallFrameless (h? : Option Term) : TacticM Unit := withMainContext do
   let g ← getMainGoal
   let _ ← prhlGoal g "equiv_call"
   let g ← HoareSplit.hoareSplit 1 g
@@ -539,6 +536,27 @@ elab "equiv_call" h?:(ppSpace colGt term)? : tactic => withMainContext do
           gPre.setKind .syntheticOpaque
           pure gPre
     replaceMainGoal ((← Judgment.simpArg gPre 3 relSimpDecls []) :: extra)
+
+/-- `equiv_call h`: the last statements of both sides are calls `x₁ <- call p₁ (e₁)`,
+`x₂ <- call p₂ (e₂)`, and `h` a procedure judgment `equiv[ p₁ ~ p₂ : P ==> Q ]` about the callees
+(`prhlStmt_seq_call`; for an abstract procedure, `prhlProc_glob hA`: EC's
+`call (_ : ={glob A})`).  The postcondition before the calls: `P` at the arguments and globals,
+and the postcondition after them for all results and globals `Q` relates.
+
+`equiv_call` alone: both calls are of the same procedure (EC's `call (_ : true)` on the same
+code, `prhlStmt_seq_call_refl`): the postcondition before them asks for equal arguments and equal
+globals, and the postcondition after them for every result and globals, the same on both
+sides. -/
+elab "equiv_call" h?:(ppSpace colGt term)? : tactic => do
+  -- `equiv_call (_ : …)` is one of the call forms with an invariant or a specification
+  -- (`Logic/ECCallAbstract.lean`, …), parsed here too (a hole with a type ascription): left to them
+  if let some h := h? then
+    if let `(term| (_ : $_)) := h then throwUnsupportedSyntax
+  equivCallFrameless h?
+
+/-- `equiv_call_frameless h` / `equiv_call_frameless`: the call rule without a frame, by name
+(what `equiv_call h` falls back to, with a warning, when the framed rule does not apply). -/
+elab "equiv_call_frameless" h?:(ppSpace colGt term)? : tactic => equivCallFrameless h?
 
 /-- `equiv_call_frame X`: `equiv_call` (same procedure on both sides) where the postcondition may
 also assume that the variable `X` kept its value through the call
@@ -639,7 +657,7 @@ elab "equiv_if" s:(Judgment.judgmentSide)? : tactic => withMainContext do
   for (m, tag) in gs.toList.zip tags do
     m.setTag tag
     if tag == `guard then
-      out := out.push (← try generalizeReadsRel m catch _ => pure m)
+      out := out.push (← generalizeReadsRelOr "equiv_if" m)
     else
       let m' ← Judgment.simpArg m 0 relSimpDecls []
       m'.setTag tag

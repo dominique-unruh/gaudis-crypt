@@ -259,9 +259,9 @@ def keepsAllGlobals (A : Lean.Expr) : MetaM Bool := do
 region `R` equal (`R.touched_getter.get σ₁.globals = R.touched_getter.get σ₂.globals`) that
 contains the callee `M` (`fp_le`), the call rule `prhlStmt_seq_call_glob`, its frames the global
 variables the precondition or the postcondition reads that `M` does not touch (`fp_disjoint`).
-`none` if no region fits. -/
+`none` if no region fits, with the reason. -/
 def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
-    TacticM (Option MVarId) := g.withContext do
+    TacticM (Option MVarId × Option Exception) := g.withContext do
   let s ← saveState
   try
     let g ← HoareSplit.hoareSplit 1 g
@@ -355,8 +355,8 @@ def callGlob (g : MVarId) (eqset : Array Lean.Expr × Array Lean.Expr) :
     g.assign (mkAppN c ms)
     let hp := ms[← idx `hpre]!.mvarId!
     hp.setKind .syntheticOpaque
-    return some (← Judgment.simpArg hp 3 relSimpDecls [])
-  catch _ => s.restore; return none
+    return (some (← Judgment.simpArg hp 3 relSimpDecls []), none)
+  catch e => s.restore; return (none, some e)
 
 /-- The program variables the statements `ss` mention: the locals (`localVarLens`, of the
 program state) and the global variables (`global_var`s, of the globals, or a clone's alias of one,
@@ -660,8 +660,13 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
     -- EC's `sim` with an equality set: a region the precondition keeps equal, the callee in it
     -- (not when the precondition keeps all globals equal, `byequiv`'s `={glob}` of the whole
     -- memory: the plain call rule then keeps them, and the code after needs them all)
+    -- (no equality set for the call found: the plain call rule below, which asks for all globals
+    -- equal; said aloud if it is then used, `ECReport.fallback`)
+    let mut noEqset? : Option Exception := none
     unless ← keepsAllGlobals ((← prhlGoal g "sim").getArg! 0) do
-      if let some g' ← callGlob g eqset then return ← sim g' frame? (fuel - 1) eqset inv?
+      match ← callGlob g eqset with
+      | (some g', _) => return ← sim g' frame? (fuel - 1) eqset inv?
+      | (none, e?) => noEqset? := e?
     let s ← saveState
     let called? ← try
       -- calls of procedures spelled differently (an abstract procedure with oracles that are
@@ -683,6 +688,11 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
         return none
       pure (some gs)
     catch _ => pure none
+    if called?.isSome then
+      if let some e := noEqset? then
+        ECReport.fallback "sim" m!"no equality set for the call (a region the precondition \
+          keeps equal that contains the callee); using the plain call rule, which asks for all \
+          globals equal" (some e)
     match called? with
     | some [g'] => sim g' frame? (fuel - 1) eqset inv?
     | some gs => return gs
@@ -719,7 +729,7 @@ partial def sim (g : MVarId) (frame? : Option Lean.Expr := none) (fuel : Nat := 
       let rb ← rb.flatMapM autoCloseIfAvailable
       unless rb.isEmpty do throwError "sim: the loops' bodies"
       for m in [gGuard, gExit] do
-        let m ← try generalizeReadsRel m catch _ => pure m
+        let m ← generalizeReadsRelOr "sim" m
         let r ← closeImp m
         let r ← r.flatMapM autoCloseIfAvailable
         if let some m' := r.head? then

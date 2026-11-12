@@ -193,7 +193,9 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
     let g ← getMainGoal
     let _ ← prhlGoal g "equiv_call"
     let g ← HoareSplit.hoareSplit 1 g
-    let res? ← g.withContext do
+    -- `(goal, none)`: done; `(none, none)`: another use of the syntax (`Logic/PRHLWp.lean`);
+    -- `(none, some e)`: the framed rule fails on these callees
+    let res ← g.withContext do
       try
         let ty ← prhlGoal g "equiv_call"
         let M₁ ← lastCallee (ty.getArg! 1)
@@ -205,11 +207,12 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
           for fv in (Lean.collectFVars {} M).fvarIds do
             if (← whnf (← fv.getType)).isAppOf ``GaudisCrypt.Module then return true
           return false
-        if (isApp M₁ && (← abstractIn M₁)) || (isApp M₂ && (← abstractIn M₂)) then return none
+        if (isApp M₁ && (← abstractIn M₁)) || (isApp M₂ && (← abstractIn M₂)) then
+          return (none, none)
         let hJ ← Term.elabTerm h none
         Term.synthesizeSyntheticMVarsNoPostponing
         let hJ ← instantiateMVars hJ
-        unless (← whnfR (← inferType hJ)).isAppOf ``prhlProc do return none
+        unless (← whnfR (← inferType hJ)).isAppOf ``prhlProc do return (none, none)
         let B := ty.getArg! 3
         let (_, gls) ← ECSim.varsOf #[B]
         let Rs ← ECConseqFrame.regionsOf #[B]
@@ -221,20 +224,29 @@ elab_rules (kind := GaudisCrypt.PRHLWp.tacticEquiv_call___) : tactic
         let idx (n : Name) : MetaM Nat := do
           let some i := names.findIdx? (· == n) | throwError "equiv_call: no argument `{n}`"
           return i
-        unless ← isDefEq ms[← idx `M₁]! M₁ do return none
-        unless ← isDefEq ms[← idx `M₂]! M₂ do return none
-        unless ← isDefEq ms[← idx `h]! hJ do return none
-        unless ← isDefEq ms[← idx `hFr₁]! fr₁ do return none
-        unless ← isDefEq ms[← idx `hFr₂]! fr₂ do return none
-        unless ← isDefEq concl ty do return none
+        unless ← isDefEq ms[← idx `M₁]! M₁ do return (none, none)
+        unless ← isDefEq ms[← idx `M₂]! M₂ do return (none, none)
+        unless ← isDefEq ms[← idx `h]! hJ do return (none, none)
+        unless ← isDefEq ms[← idx `hFr₁]! fr₁ do throwError "the left callee's frame does not fit"
+        unless ← isDefEq ms[← idx `hFr₂]! fr₂ do throwError "the right callee's frame does not fit"
+        unless ← isDefEq concl ty do
+          throwError "the framed call rule does not fit the last statements{indentExpr ty}"
         g.assign (← instantiateMVars (mkAppN c ms))
         let gPre := ms[← idx `hpre]!.mvarId!
         gPre.setKind .syntheticOpaque
         gPre.setTag (← g.getTag)
-        return some gPre
-      catch _ => return none
-    let some gPre := res? | do s.restore; throwUnsupportedSyntax
-    replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
+        return (some gPre, none)
+      catch e => return (none, some e)
+    match res with
+    | (some gPre, _) => replaceMainGoal [← Judgment.simpArg gPre 3 relSimpDecls []]
+    | (none, none) => s.restore; throwUnsupportedSyntax
+    | (none, some e) =>
+      -- the weaker rule, said aloud (`ECReport.fallback`)
+      s.restore
+      ECReport.fallback "equiv_call" m!"the rule with EC's frame does not apply to these \
+        callees; using the rule without a frame (`equiv_call_frameless`: what the callees do \
+        not write is not kept)" (some e)
+      PRHLWp.equivCallFrameless (some h)
 
 open Lean Meta Elab Tactic GaudisCrypt PRHLWp ECCallEquiv in
 /-- **EC's `call (_: ={x₁, …, glob M})` on a concrete callee**, with EC's frame: the callee keeps
@@ -285,8 +297,10 @@ elab_rules (kind := GaudisCrypt.equivCallConcrete) : tactic
       pure (← Term.exprToSyntax (← frameFor M₁ gls Rs'),
         ← Term.exprToSyntax (← frameFor M₂ gls Rs'))
     setGoals [g]
-    let [gp] ← g.withContext <| evalTacticAt (← `(tactic| refine prhlStmt_seq_call_frame
-        (prhlProc_glob_module _ (R := $R) (by fp_le)) $fr₁ $fr₂ ?_)) g
+    -- (`withoutRecover`: a failing `by fp_le` is an exception here, not an error logged next to
+    -- a goal with a `sorry` inside)
+    let [gp] ← withoutRecover <| g.withContext <| evalTacticAt (← `(tactic| refine
+        prhlStmt_seq_call_frame (prhlProc_glob_module _ (R := $R) (by fp_le)) $fr₁ $fr₂ ?_)) g
       | throwError "equiv_call: the call rule left more than the code before the calls"
     replaceMainGoal [← Judgment.simpArg gp 3 relSimpDecls []]
 

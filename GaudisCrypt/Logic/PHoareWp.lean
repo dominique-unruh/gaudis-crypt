@@ -486,7 +486,7 @@ def phoareWhileLeStep (I : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
     match r.proof? with
     | some pf => gExit.replaceTargetEq r.expr pf
     | none => gExit.replaceTargetDefEq r.expr
-  let gExit ← try generalizeReads gExit catch _ => pure gExit
+  let gExit ← generalizeReadsOr "phoare_while" gExit
   gExit.setTag `exit
   let gPre := ms[9]!.mvarId!
   gPre.setTag (← g.getTag)
@@ -540,7 +540,7 @@ def cleanSideGoal (g : MVarId) : MetaM MVarId := g.withContext do
   let g ← match r.proof? with
     | some pf => g.replaceTargetEq r.expr pf
     | none => g.replaceTargetDefEq r.expr
-  try generalizeReads g catch _ => pure g
+  generalizeReadsOr "phoare (side goal)" g
 
 /-- A loop step for a lower bound, on `phoareStmt A {x₁; …; xₙ₋₁; while c body} g ≥ r`, with the
 invariant `I` and the exit probability `ε` (`phoareStmt_while_ge`).  Goals, in order: `body`,
@@ -646,7 +646,7 @@ def phoareSkip (g : MVarId) : MetaM MVarId := do
   let [g] := gs | throwError "phoare_skip: `phoareStmt_skip_iff` left {gs.length} goals"
   let g ← g.withContext do g.replaceTargetDefEq (← Core.betaReduce (← instantiateMVars
     (← g.getType)))
-  try generalizeReads g catch _ => pure g
+  generalizeReadsOr "phoare_skip" g
 
 elab "phoare_skip" : tactic =>
   liftMetaTactic1 fun g => some <$> phoareSkip g

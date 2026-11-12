@@ -237,7 +237,8 @@ def rcond (b : Bool) (side? : Option Nat) (n : Nat) : TacticM Unit := withMainCo
     throwError "rcond: no statement {n} (the code has {groups.size})"
   let k := (groups.extract 0 n).foldl (· + ·) 0 - 1
   -- a loop (EC's `rcondt`/`rcondf` on a `while`): unrolled, `if c { body; while c body }`
-  let g ← try ECLoop.unrollAt k g side? catch _ => pure g
+  let g ← if ← ECLoop.isLoopAt k (ty'.getArg! d.stmtArg) then ECLoop.unrollAt k g side?
+    else pure g
   let g ← Judgment.onStmt (aroundAt k) g side?
   let lem := if ty.isAppOf ``hoareStmt then ``hoareStmt_rcond
     else if ty.isAppOf ``phoareStmt then ``phoareStmt_rcond

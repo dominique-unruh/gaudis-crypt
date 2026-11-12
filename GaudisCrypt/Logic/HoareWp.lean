@@ -212,7 +212,7 @@ def hoareWhileStep (I : Lean.Expr) (g : MVarId) : MetaM (List MVarId) := do
   gq.assign (mkAppN rule ms)
   let gBody := ms[4]!.mvarId!
   gBody.setTag `body
-  let gExit ← try generalizeReads ms[5]!.mvarId! catch _ => pure ms[5]!.mvarId!
+  let gExit ← generalizeReadsOr "hoare_while" ms[5]!.mvarId!
   gExit.setTag `exit
   return [gBody, gExit, gp]
 
@@ -242,7 +242,7 @@ in it generalized to plain values (`generalizeReads`), if there are any. -/
 def hoareSkip (g : MVarId) : MetaM MVarId := do
   let gs ← g.apply (← mkConstWithFreshMVarLevels ``hoare_skip_of_imp)
   let [g] := gs | throwError "hoareSkip: `hoare_skip_of_imp` left {gs.length} goals"
-  try generalizeReads g catch _ => pure g
+  generalizeReadsOr "hoare_skip" g
 
 /-- `hoare_skip`: `hoareSkip` on the main goal — from `hoareStmt A skip B` to `∀ x …, A → B`
 with the reads of the state as plain values. -/

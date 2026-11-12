@@ -246,7 +246,12 @@ elab_rules (kind := equivCallInv) : tactic
         evalTactic (← `(tactic| equiv_call_concrete (_ : ={ $xs,* })))
         setGoals ((← getGoals) ++ others)
         return
-      catch _ => s.restore
+      catch e =>
+        s.restore
+        -- the weaker rule, said aloud (`ECReport.fallback`)
+        ECReport.fallback "equiv_call" m!"the rule with EC's frame does not apply to this \
+          concrete callee; using the rule without a frame (what the callee does not write is \
+          not kept)" (some e)
       setGoals (g :: others)
       let Rs ← xs.getElems.mapM fun (t : Term) => match t with
         | `(glob $a) => `(glob_region $a)

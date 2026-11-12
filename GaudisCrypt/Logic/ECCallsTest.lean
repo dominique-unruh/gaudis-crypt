@@ -198,22 +198,42 @@ example (R : ℤ → ℤ → Prop) :
 -- `call (_ : ={x})` on the same callee on both sides, the callee's footprint not known: an
 -- error is logged and a goal is still left
 /--
-error: fp_le: no bound for
+warning: equiv_call: the rule with EC's frame does not apply to this concrete callee; using the rule without a frame (what the callee does not write is not kept)
+reason: fp_le: no bound for
   FVP.fvP { expression := (ModuleExpression.proc Inc.get.procedure).reduce, typed := ⋯, normal := ⋯ }
 ---
-trace: R : ℤ → ℤ → Prop
-⊢ equiv[ §x{1} = §x{2} ∧ §cCount{1} = §cCount{2} ==>
-      (§r{1} = §r{2} ∧
-          cCount.footprint.touched_getter.get §allGlobals{1} = cCount.footprint.touched_getter.get §allGlobals{2}) ∧
-        ∀ (r₁ : ℤ) (g₁ : VariableAssignment) (r₂ : ℤ) (g₂ : VariableAssignment),
-          r₁ = r₂ ∧ cCount.footprint.touched_getter.get g₁ = cCount.footprint.touched_getter.get g₂ → R r₁ r₂ ]
-      {
-      var x : ℤ, r : ℤ;
-      r <- call Inc.get.procedure (§x);
-} ~ {
-      var x : ℤ, r : ℤ;
-      r <- call Inc.get.procedure (§x);
-}
+trace: case hM
+R : ℤ → ℤ → Prop
+⊢ FVP.fvP Inc.get ≤ cCount.footprint
+
+case pre
+R : ℤ → ℤ → Prop
+⊢ prhlStmt
+    (fun σ₁ σ₂ ↦
+      (localVarLens "x" ℤ).get σ₁ = (localVarLens "x" ℤ).get σ₂ ∧ cCount.get σ₁.globals = cCount.get σ₂.globals)
+    (GaudiProg[
+        var r : ℤ, x : ℤ;
+        r <- call Inc.get.procedure (§x);
+  ])
+    (GaudiProg[
+        var r : ℤ, x : ℤ;
+        r <- call Inc.get.procedure (§x);
+  ])
+    fun σ₁ σ₂ ↦
+    (GaudiExpr[ §(localVarLens "r" ℤ) ].get σ₁ = GaudiExpr[ §(localVarLens "r" ℤ) ].get σ₂ ∧
+        cCount.footprint.touched_getter.get σ₁.globals = cCount.footprint.touched_getter.get σ₂.globals) ∧
+      ∀ (r₁ : (procsig (ℤ) → ℤ).ret) (g₁ : VariableAssignment) (r₂ : (procsig (ℤ) → ℤ).ret) (g₂ : VariableAssignment),
+        r₁ = r₂ ∧ cCount.footprint.touched_getter.get g₁ = cCount.footprint.touched_getter.get g₂ →
+          R ((localVarLens "r" ℤ).get ((liftLens (localVarLens "r" ℤ)).set r₁ (ProgramState.globalL.set g₁ σ₁)))
+            ((localVarLens "r" ℤ).get ((liftLens (localVarLens "r" ℤ)).set r₂ (ProgramState.globalL.set g₂ σ₂)))
+---
+warning: declaration uses `sorry`
+---
+warning: The following tactic starts with 2 goals and ends with 2 goals, 2 of which are not operated on.
+  trace_state
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
 -/
 #guard_msgs in
 example (R : ℤ → ℤ → Prop) :
@@ -391,6 +411,9 @@ example (R : ℤ → ℤ → Prop) :
 -- all globals equal after the write, which the precondition does not give (EC's `sim` closes
 -- this)
 /--
+warning: sim: no equality set for the call (a region the precondition keeps equal that contains the callee); using the plain call rule, which asks for all globals equal
+reason: sim: no region contains the callee
+---
 error: unsolved goals
 case h
 A : ADV

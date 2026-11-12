@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.Judgment
+import GaudisCrypt.Logic.ECReport
 
 /-!
 # Meta helpers for statement rewriting
@@ -515,6 +516,19 @@ def generalizeReads (g : MVarId) : MetaM MVarId := commitIfNoEx <| g.withContext
     let (g, keepσ) ← try pure (← g.clear σ, false) catch _ => pure (g, true)
     let (_, g) ← g.revert (if keepσ then #[σ] ++ xs else xs) (preserveOrder := true)
     return g
+
+/-- `generalizeReads`, for the tactic `tac`: if it fails, the goal stays about the states, and
+`tac` says so (`ECReport.fallback`). -/
+def generalizeReadsOr (tac : String) (g : MVarId) : MetaM MVarId := do
+  -- no state to generalize (the goal is not `∀ σ : ProgramState, …`): nothing to do, nothing
+  -- to say
+  let ty ← whnfR (← instantiateMVars (← g.getType))
+  let .forallE _ dom _ _ := ty | return g
+  unless ← isDefEq dom (mkConst ``ProgramState) do return g
+  try generalizeReads g
+  catch e =>
+    ECReport.fallback tac m!"the reads are not generalized: the goal stays about the states" (some e)
+    pure g
 
 end GaudisCrypt.TacticMisc
 

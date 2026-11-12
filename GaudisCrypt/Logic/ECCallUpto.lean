@@ -640,7 +640,14 @@ elab_rules (kind := equivCallInvAnd) : tactic
     -- are out of reach (an oracle through a view the frame splitter cannot open): the region rule
     if globs.isEmpty then
       let s ← saveState
-      try go true catch _ => s.restore; go false
+      try go true
+      catch e =>
+        s.restore
+        -- the weaker rule, said aloud (`ECReport.fallback`)
+        ECReport.fallback "equiv_call" m!"EC's rule for the oracles (`=\{arg} ∧ I ==> =\{res} ∧ \
+          I`, `glob D` kept by their writes) does not apply; the oracles keep the region \
+          `glob D` themselves" (some e)
+        go false
     else go false
 
 end GaudisCrypt

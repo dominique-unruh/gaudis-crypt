@@ -435,6 +435,16 @@ Document each in the docstring when it applies.
 * **Every pilot file is in the barrel** (`GaudisCrypt.lean`), also unfinished ones: a file outside
   it is not checked by the full build (`Pilot/SHA3Indiff` broke unnoticed that way).
 
+* **A warning `tac: … (ECReport.fallback)` is a gap, not noise** (2026-11-13): the tactic could
+  not do the step as specified and continued another way (`the reads are not generalized`: the
+  goal stays about the states; `using the rule without a frame`; `sim: no equality set for the
+  call`).  `set_option ec.strict true in` makes it an error; `set_option trace.ec.frame true in`
+  lists what a frame keeps and drops.  The frameless call rule by name: `equiv_call_frameless`.
+* **Golden tests** (`Logic/ECAutoTest.lean`, `ECCloseTest.lean`, `ECRulesTest.lean`,
+  `ECCallsTest.lean`): a tactic change that changes an output fails there first;
+  `scripts/update_golden.py FILE` refreshes the expected text — its diff is the record of the
+  behaviour change.  A tactic change comes with a golden test of the new behaviour.
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in

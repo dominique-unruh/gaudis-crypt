@@ -344,7 +344,10 @@ def frameOf (s : Lean.Expr) (xs : Array Lean.Expr) (regions : Array Lean.Expr :=
       let pf ← keepsOf s x
       unless (← isTypeCorrect pf) do throwError "frame"
       kept := kept.push (x, pf)
-    catch _ => s'.restore
+      trace[ec.frame] "kept: {x}"
+    catch e =>
+      s'.restore
+      trace[ec.frame] "not kept: {x}\n{e.toMessageData}"
   let mut keptR : Array (Lean.Expr × Lean.Expr) := #[]
   for F in regions do
     let s' ← saveState
@@ -352,7 +355,10 @@ def frameOf (s : Lean.Expr) (xs : Array Lean.Expr) (regions : Array Lean.Expr :=
       let pf ← keepsRegionOf s F
       unless (← isTypeCorrect pf) do throwError "frame"
       keptR := keptR.push (F, pf)
-    catch _ => s'.restore
+      trace[ec.frame] "kept (region): {F}"
+    catch e =>
+      s'.restore
+      trace[ec.frame] "not kept (region): {F}\n{e.toMessageData}"
   withLocalDeclD `σ ps fun σ => withLocalDeclD `τ ps fun τ => do
     -- a global as the conditions read it, `X.get σ.globals` (`X.intoGlobal.get σ`, by `rfl`)
     let get (x st : Lean.Expr) : MetaM Lean.Expr := do

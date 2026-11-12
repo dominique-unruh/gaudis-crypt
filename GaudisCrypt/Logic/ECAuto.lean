@@ -164,7 +164,7 @@ def hoareSkipGen (g : MVarId) : MetaM MVarId := do
       let r ← Judgment.simpWithNames PRHLWp.relSimpDecls [] ty
       applySimpResultToTarget g ty r
     catch _ => pure g
-  try TacticMisc.generalizeReads g catch _ => pure g
+  TacticMisc.generalizeReadsOr "hoare_auto" g
 
 end ECAuto
 

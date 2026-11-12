@@ -133,6 +133,17 @@ def andGetter (c e : Lean.Expr) : MetaM Lean.Expr := do
     let b ← mkAppM ``Bool.and #[(mkApp c.appArg! st).headBeta, (mkApp e.appArg! st).headBeta]
     mkAppM ``Getter.mk #[← mkLambdaFVars #[st] b]
 
+/-- Is the statement at our position `p` (from 0) of the statement `s₀` a loop? -/
+partial def isLoopAt (p : Nat) (s₀ : Lean.Expr) : MetaM Bool := do
+  let s ← openStmt s₀
+  if let .letE n ty val body _ := s then
+    return ← withLetDecl n ty val fun fv => isLoopAt p (body.instantiate1 fv)
+  if s.isAppOfArity ``StmtWithHoles.seq 3 then
+    if p == 0 then
+      return (← openStmt (s.getArg! 1)).isAppOfArity ``StmtWithHoles.while 3
+    return ← isLoopAt (p - 1) (s.getArg! 2)
+  return p == 0 && s.isAppOfArity ``StmtWithHoles.while 3
+
 /-- The loop at our position `p` (from 0) of side `side?` of the judgment `g`, unrolled
 (`Stmt.Equiv.unroll`): `if c { body; while c body }`. -/
 def unrollAt (p : Nat) (g : MVarId) (side? : Option Nat) : MetaM MVarId :=

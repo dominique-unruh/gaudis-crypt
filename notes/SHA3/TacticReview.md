@@ -120,3 +120,50 @@ Decisions this needs:
   what `hoare_auto` leaves.
 - Where the closers miss, the manual proofs are short (a lemma application and `omega`), but
   they depend on hypothesis positions or on how a read is spelled.
+
+## 6. Progress
+
+### Step 1 done (2026-11-13): golden tests
+
+66 tests in `Logic/ECAutoTest.lean`, `ECCloseTest.lean`, `ECRulesTest.lean`, `ECCallsTest.lean`,
+all in the barrel; `scripts/update_golden.py` refreshes the expected text (it compiles under the
+lakefile's `leanOptions`: a bare `lean` prints goals differently from the build).
+
+### Step 2 done (2026-11-13): fallbacks report
+
+`Logic/ECReport.lean`: `ECReport.fallback` (a warning; an error under `set_option ec.strict
+true`) and the trace classes `ec.frame`, `ec.rule`, `ec.close`.  Converted: the un-generalized
+reads (11 sites), the four rule fallbacks (`equiv_call H`, `equiv_call (_ : ={x})`,
+`equiv_call (_ : … ∧ I)`, `sim`'s call), a nested failure that was logged next to a goal with a
+`sorry` inside (now an exception), `rcond`'s unrolling (only on a loop); frames trace what they
+keep and drop.  The frameless call rule has a name, `equiv_call_frameless`.
+
+Measured on the full build (2841 jobs, green):
+
+| Fallback | Fires | Where |
+|---|---|---|
+| Reads not generalized (the goal stays about states) | 81 | mostly `hoare_auto`, `phoare_skip`; 14 files |
+| `sim`: no equality set for a call, all globals asked equal | 11 | `Pilot/IndifRO_is_secure` |
+| `equiv_call (_ : ={x})`: frameless rule | 3 | `Pilot/Sponge` (2), `Pilot/ConcreteF` (1) |
+| `equiv_call H`, `equiv_call (_ : … ∧ I)`: weaker rule | 0 | |
+
+75 of the 95 are in pilot files.
+
+All 81 un-generalized reads report the same failure (`generalize`: result not type correct).
+Traced on one of them (`Pilot/SecureRO.lean:292`): a `decide (…)` whose `Decidable` instance
+spells the read differently from the visible one; `norm_decide` first makes every read generalize
+and the state disappear.  The relational `skip` (`equiv_skip_ec`) normalizes these instances
+before generalizing; the Hoare and pHL paths do not.  The other 80 were not traced.
+
+Not done from the inventory: the trace of `sp`'s choice of precondition form; letting errors
+other than "no progress" through the best-effort simplifications (about 12 sites); keeping the
+underlying error in reworded ones (about 8).
+
+### Requirements for step 3 collected so far
+
+1. The read normal form includes canonical `decide` instances, and it is applied on every path
+   (Hoare, pHL, relational) before the reads are generalized: this alone accounts for the 81.
+2. Changing that in place alters about 80 goals at once: the new closer goes in under a new name,
+   pilots migrate file by file.
+3. `sim`'s call case needs the write-based equality set (11 sites pass today only because their
+   preconditions give all globals equal).

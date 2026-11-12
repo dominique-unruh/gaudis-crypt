@@ -122,6 +122,7 @@ import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
+import GaudisCrypt.Logic.ECReport
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECAutoTest
 import GaudisCrypt.Logic.ECCloseTest
