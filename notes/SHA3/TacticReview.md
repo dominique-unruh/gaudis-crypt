@@ -167,3 +167,39 @@ underlying error in reworded ones (about 8).
    pilots migrate file by file.
 3. `sim`'s call case needs the write-based equality set (11 sites pass today only because their
    preconditions give all globals equal).
+
+### Step 3, first two pieces (2026-11-12): the read normal form, `ec_skip`, `ec_auto`, `ec_intro`
+
+`Logic/ReadNorm.lean` states the read normal form (atoms `x.get σ` / `X.get σ.globals`, no
+expressions around reads, no reads through writes, canonical `decide` instances, regions of
+variables read as variables) and has the one normalizer (`ReadNorm.normalize`: the existing four
+steps, all of them, in one order), a checker (`ReadNorm.offenders`) and the strict skip:
+
+    ec_skip     -- EC's `skip` on hoare / phoare / equiv; an error if a state survives
+
+`Logic/ECAutoStrict.lean` builds EC's `auto` on it, for the three judgments:
+
+    ec_auto     -- wp (and `rnd` on a relational judgment), then `ec_skip`, then the trivial closers
+    ec_intro    -- the generalized values into the context under their own names
+
+Old tactics (`hoare_auto`, `phoare_auto`, `equiv_auto`, the `*_skip` variants) are unchanged.
+Golden tests: `Logic/ReadNormTest.lean`.
+
+Trial migration, `Pilot/SecureRO.lean`: its 13 sites where `hoare_auto`/`phoare_auto` left the
+goal about a state are now `ec_auto`.  All 13 generalize (no other cause than the `decide`
+instances turned up in this file).  The hand steps after them changed from
+
+    intro τ h;  … (RO.m.get τ.globals) … ((localVarLens "x" «from»).get τ) …
+
+to
+
+    ec_intro;  intro h;  … m1 … x …
+
+i.e. they name values, not reads of a state.  The file has no fallback warning left.
+
+Left in the pilot check after the trial (`lake build GaudisCrypt.PilotCheck`, green): 60
+un-generalized reads, 48 of them in pilots (`SecureORO` 19, `Gext` 12, `Gcol` 7, `Handle` 6,
+`ConcreteF` 4) and 12 in first-port files the pilots import.
+
+Next: the `while` exit goals on the same normalizer; the remaining pilots file by file; then delete `auto_prep`'s script and the old skip variants when
+their last user is gone.

@@ -124,6 +124,7 @@ import GaudisCrypt.Logic.ECProc
 import GaudisCrypt.Logic.ECSim
 import GaudisCrypt.Logic.ECReport
 import GaudisCrypt.Logic.ReadNorm
+import GaudisCrypt.Logic.ECAutoStrict
 import GaudisCrypt.Logic.ReadNormTest
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECAutoTest

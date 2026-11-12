@@ -1,4 +1,5 @@
 import GaudisCrypt.Logic.ReadNorm
+import GaudisCrypt.Logic.ECAutoStrict
 import GaudisCrypt.Logic.ECAuto
 import GaudisCrypt.Logic.ECSp
 import GaudisCrypt.Logic.ECProc
@@ -179,6 +180,90 @@ example (R S : ℤ → ℤ → Prop) : equiv[ R §x{1} §rnCount{2} ==> S §y{1}
     } := by
   stmt_wp
   ec_skip
+  trace_state
+  sorry
+
+/-! ## `ec_auto`, `ec_intro` -/
+
+-- `ec_auto` on inlined code with a test: wp, then the strict skip
+/--
+trace: P Q : ℤ → Prop
+⊢ ∀ (rnCount : ℤ), P rnCount → Q (if decide (rnCount < 3) = true then rnCount + 1 else rnCount)
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (P Q : ℤ → Prop) : hoare[ Bound.tick : P §rnCount ==> Q §rnCount ] := by
+  hoare_proc
+  ec_auto
+  trace_state
+  sorry
+
+-- `ec_intro`: the generalized values in the context under their names; the hypotheses stay
+/--
+trace: P Q : ℤ → ℤ → Prop
+x rnCount : ℤ
+⊢ P x rnCount → Q (x + 1) rnCount
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (P Q : ℤ → ℤ → Prop) : hoare[ P §x §rnCount ==> Q §y §rnCount ] {
+      var x : ℤ, y : ℤ;
+      y <- $x + 1;
+    } := by
+  ec_auto
+  ec_intro
+  trace_state
+  sorry
+
+-- `ec_auto` on a relational judgment with samplings
+/--
+trace: case h
+R : Bool → Bool → Prop
+⊢ ∀ (x₁ x₂ : ℤ), x₁ = x₂ → ∀ (a : Bool), R a a ∧ x₁ = x₂
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (R : Bool → Bool → Prop) : equiv[ ={x} ==> R §b{1} §b{2} ∧ ={x} ] {
+      var x : ℤ, b : Bool;
+      b <$ SubProbability.uniform;
+    } ~ {
+      var x : ℤ, b : Bool;
+      b <$ SubProbability.uniform;
+    } := by
+  ec_auto
+  trace_state
+  sorry
+
+-- a goal `ec_auto`'s closer proves leaves nothing
+#guard_msgs in
+example : hoare[ 0 ≤ §x ==> 0 < §y ] {
+      var x : ℤ, y : ℤ;
+      y <- $x + 1;
+    } := by
+  ec_auto
+
+-- the code not used up (a loop): the judgment is left there
+/--
+trace: P Q : ℤ → Prop
+⊢ hoare[ P §n ==> Q (§i + 1) ] {
+      var n : ℤ, i : ℤ;
+      while (decide (§i < §n)) {
+        i <- §i + 1;
+      }
+}
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs in
+example (P Q : ℤ → Prop) : hoare[ P §n ==> Q §i ] {
+      var i : ℤ, n : ℤ;
+      while (decide ($i < $n)) { i <- $i + 1; }
+      i <- $i + 1;
+    } := by
+  ec_auto
   trace_state
   sorry
 
