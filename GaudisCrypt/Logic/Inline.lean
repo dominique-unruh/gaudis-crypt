@@ -2,6 +2,7 @@ import GaudisCrypt.Syntax.ProgramSyntax
 import GaudisCrypt.Language.Modules
 import GaudisCrypt.Logic.Hoare
 import GaudisCrypt.Logic.TacticMisc
+import GaudisCrypt.Logic.ModuleComp
 
 /-!
 # Flattening calls whose callee is spelled out
@@ -2504,6 +2505,13 @@ def builtModule? (m : Expr) : MetaM Bool := do
   unless c.isStr && c.getString! == "mk" do return false
   return (← getEnv).contains (c.getPrefix ++ `Structure)
 
+/-- `set_option inline.defEqApply true`: module evaluation (`moduleStep?`) also applies a
+`module`'s `apply_simp` at default transparency (see there). -/
+register_option inline.defEqApply : Bool := {
+  defValue := false
+  descr := "inlining: apply a module's apply_simp at default transparency too"
+}
+
 /-- One step of head evaluation of a module expression: applying a module or one of its procedures
 to its parameters, reading a field off a record, or — when none of those applies yet — the same
 one step in the position that has to be evaluated first (the function of a `Module.app`, the
@@ -2520,6 +2528,13 @@ partial def moduleStep? (e : Expr) (views : Bool := false) : MetaM (Option Simp.
   if let some hc := (moduleAppHead e).getAppFn.constName? then
     if let some (rhs, h) ← rewriteHead? (hc ++ `apply_simp) e then
       return some { expr := rhs, proof? := some h }
+    -- … at default transparency, with `set_option inline.defEqApply true`: the module type's
+    -- parameters spelled differently but not mattering (`RaiseSim(S)`'s bit-level view of `S`'s
+    -- block-level `PRIMITIVE`).  Opt-in: always on, it inlines further than the first port's
+    -- proofs expect.
+    if inline.defEqApply.get (← getOptions) then
+      if let some (rhs, h) ← rewriteHead? (hc ++ `apply_simp) e (reducible := false) then
+        return some { expr := rhs, proof? := some h }
   -- (2) a `moduletype` accessor `T.f` of a module built by `T.mk` — only then: matched against
   -- anything else, the lemma unifies by unfolding both sides
   if !args.isEmpty && args.back!.isAppOf (c.getPrefix ++ `mk) then
@@ -2562,6 +2577,11 @@ partial def moduleStep? (e : Expr) (views : Bool := false) : MetaM (Option Simp.
   for lem in pairLemmas c do
     if let some (rhs, h) ← rewriteHead? lem e (reducible := false) then
       return some { expr := ← reduceStructProj rhs, proof? := some h }
+  -- (11) applying a composite functor (`Module.comp f g`, EC's alias `module F (X) = f(g(X))`,
+  -- `RaiseSim(S)`): the nested application (`Module.app_comp`)
+  if e.isAppOfArity ``Module.app 6 && (e.getArg! 4).isAppOf ``Module.comp then
+    if let some (rhs, h) ← rewriteHead? ``Module.app_comp e (reducible := false) then
+      return some { expr := rhs, proof? := some h }
   -- (4) not yet: evaluate the position that has to come first, one step
   let i? : Option Nat ←
     match moduleAppFn? e with                                      -- its function
@@ -2586,6 +2606,11 @@ partial def moduleStep? (e : Expr) (views : Bool := false) : MetaM (Option Simp.
     if let some vc := (moduleAppHead v).getAppFn.constName? then
       if (← getEnv).contains (vc ++ `apply_simp) then
         return some { expr := v }
+  -- (12) a functor named by a definition whose value is a composite (`RaiseSim S :=
+  -- Module.comp S LowerFun`): unfold it, by definition, for step (11)
+  if let some v ← unfoldDefinition? e then
+    if v.isAppOf ``Module.comp then
+      return some { expr := v }
   -- (10) a module named by a definition whose value is a `Module.pair` (a typed `module` with no
   -- parameters, `PF := Module.pair PF.init (Module.pair PF.f PF.fi)`): unfold it, by definition,
   -- for an accessor's steps (9) and (3) to read the procedure off the pair

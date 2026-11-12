@@ -885,6 +885,22 @@ Lean: `GaudisCrypt/Examples/SHA3/SHA3Indiff.lean`, namespace `GaudisCrypt.SHA3.S
 | 270 | lemma | `security` | section . | `security` (+ `Gext0Fresh`, E13; the `glob Dist` instance of `security_at`: `Dist` lossless over a region `G` (`Dist_lossless_at`, `SecurityRegion`, E14), `Real_Ideal`+`Simplify_simulator` as `Gconcl_list.Inefficient_Real_Ideal_at`; `SimLast_ECModule` by `SIMULATOR.representable_of_init`; `bound_eq`) | exc |
 | 309 | lemma | `SHA3Indiff` |  | `SHA3Indiff` (+ `Gext0Fresh`, E13; from `security`); `SHA3Indiff_at` over a region (E14), used by `SHA3Security` | exc |
 
+**EC-fidelity port** (`GaudisCrypt/Examples/SHA3/Pilot/SHA3Indiff.lean`, namespace
+`GaudisCrypt.SHA3.Pilot.SHA3Indiff`, over the old `Simulator`, `Cntr`, `FC`, `PC`, `DRestr`;
+calibration file, not in the barrel yet):
+
+| EC line | kind | EC name | Lean name | status |
+|---:|---|---|---|---|
+| 148 | declare module | `Dist` | `declare module Dist <: DISTINGUISHER {…}` | def |
+| 151 | declare axiom | `Dist_lossless` | variable `Dist_lossless` | def |
+| 155 | lemma | `drestr_commute1` | `drestr_commute1` (EC's script) | done |
+| 185 | lemma | `drestr_commute2` | `drestr_commute2` (EC's script) | done |
+| 225 | local equiv | `equiv_sim_f` | `equiv_sim_f` (EC's script; GAP 2: the IRO loops by `while` with renamed variables) | done |
+| 245 | local equiv | `equiv_sim_fi` | `equiv_sim_fi` (EC's script) | done |
+| 255 | local lemma | `replace_simulator` | `replace_simulator` (EC's script; the two oracle bullets `sorry`, GAP 3) | partial |
+| 270 | lemma | `security` | — (chains through `Sponge.conclusion`, `Gconcl_list.Real_Ideal`, `Simplify_simulator`: wait for their pilots) | todo |
+| 309 | lemma | `SHA3Indiff` | — | todo |
+
 ## `proof/SHA3_OIndiff.ec`
 
 Lean: `GaudisCrypt/Examples/SHA3/SHA3_OIndiff.lean`, namespace `GaudisCrypt.SHA3.SHA3_OIndiff`.

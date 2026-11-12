@@ -15,6 +15,20 @@ Translation:
 -/
 
 /-! Gap list (batch-fix later, see TRANSFER_SKILL.md §1.6):
+* GAP 3: `replace_simulator`'s `call(equiv_sim_f IRO)`: our `glob F` at the concrete `IRO` is a
+  footprint region (an upper bound): the judgment's `={glob F}` does not give `={IRO.mp}` back
+  (Gext's GAP 8); and the call's frame does not find `Cntr.c` outside `RaiseSim(…)`'s callee.
+  The two oracle bullets are `sorry` until then.
+* GAP 4: after `byequiv` (all globals equal) and `sp` over the initializations, the two memories'
+  equation (`X.set v (…σ₁.globals) = Y.set w (…σ₂.globals)`) is not used for `glob D`'s
+  equality: by hand (`congrArg` of `glob D`'s getter, `touched_set_of_le_compl`).
+* GAP 5: `RaiseSim(S)` views `S`'s block-level procedures at the bit level (`PRIMITIVE`'s
+  parameters spelled differently): the inliner applies `SimLast`'s `apply_simp` there only at
+  default transparency, by `set_option inline.defEqApply true` (always on, it inlines further than
+  the first port's proofs expect).
+* GAP 2: our inliner renames a callee's locals per side (`x3, n0` against `x0, n` in
+  `equiv_sim_f`'s IRO loops), so `sim` cannot relate loops by name where EC's does: `while` with
+  the renamed variables' equalities.
 * GAP 1: inline by name: EC's paths over `Perm` (`BlockSponge.FC(BlockSponge.Sponge(Perm)).f`) do
   not elaborate over the old declarations (`Perm` is not a `BlockSponge.DPRIMITIVE`; Gcol's GAP 2):
   by index.
@@ -32,6 +46,11 @@ open GaudisCrypt.SHA3.SHA3Indiff (Simulator Cntr FC PC DRestr limit)
 export GaudisCrypt.SHA3.Sponge (PRIMITIVE)
 
 variable [SLCommon.Params] [BlockSponge.Params] [Gconcl_list.Params]
+
+/-- `RaiseSim(S)` touches what `S` and `LowerFun` touch (`Module.comp`).  Not an EC lemma. -/
+@[fp_bound] theorem fvP_RaiseSim (S : BlockSponge.SIMULATOR) :
+    FVP.fvP (RaiseSim S) ≤ FVP.fvP S ⊔ FVP.fvP LowerFun := by
+  unfold RaiseSim; exact FVP.fvP_comp_le _ _
 
 section
 
@@ -121,8 +140,184 @@ theorem drestr_commute2 (m : VariableAssignment) :
   · sim
   -- EC: inline*; wp; sp.
   stmt_inline*; stmt_wp; stmt_sp
-  trace_state
-  sorry
+  -- EC: call
+  --   (_ :  ={BlockSponge.BIRO.IRO.mp,Gconcl_list.BIRO2.IRO.mp} /\
+  --    ={c}(Cntr, BlockSponge.C) /\
+  --    ={glob Gconcl_list.SimLast(Gconcl.S)}).
+  equiv_call (_ : ={BlockSponge.BIRO.IRO.mp, Gconcl_list.BIRO2.IRO.mp, Gconcl.S.m, Gconcl.S.mi,
+      Gconcl.S.paths} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
+  -- EC: proc; sp; if=> //; sim.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    all_goals sim
+  -- EC: proc; sp; if=> //; sim.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    all_goals sim
+  -- EC: proc=> /=.
+  --     inline BlockSponge.FC(BlockSponge.BIRO.IRO).f.
+  · equiv_proc
+    --     (GAP 1: by index)
+    stmt_inline{2} 0
+    -- EC: sp; wp.
+    stmt_sp; stmt_wp
+    -- EC: if=> //.
+    stmt_if
+    -- EC: progress; smt(size_pad2blocks).
+    · smt_close [size_pad2blocks]
+    -- EC: seq 1 1 :
+    --   (={n} /\ nb{2} = (n{2} + r - 1) %/ r /\ bl{2} = pad2blocks bs{1} /\
+    --    Cntr.c{1} = BlockSponge.C.c{2} /\
+    --    ={BlockSponge.BIRO.IRO.mp, Gconcl_list.BIRO2.IRO.mp,
+    --      Gconcl.S.paths, Gconcl.S.mi, Gconcl.S.m}).
+    -- EC: auto; progress.
+    --     rewrite size_pad2blocks //.
+    · equiv_seq 1 1 : (={n, BlockSponge.BIRO.IRO.mp, Gconcl_list.BIRO2.IRO.mp, Gconcl.S.paths,
+          Gconcl.S.mi, Gconcl.S.m} ∧ §nb{2} = (§n{2} + r - 1) / r ∧
+          §bl{2} = pad2blocks §bs{1} ∧ §Cntr.c{1} = §BlockSponge.C.c{2})
+      · equiv_auto; auto_progress
+        smt_close [size_pad2blocks]
+      -- EC: inline RaiseFun(BlockSponge.BIRO.IRO).f.
+      --     (GAP 1: by index)
+      stmt_inline{1} 0
+      -- EC: wp; sp.
+      stmt_wp; stmt_sp
+      -- EC: call (_ : ={BlockSponge.BIRO.IRO.mp}); first sim.
+      --     (the callees' judgment, EC's `first sim`, closed by `equiv_call`: the same procedure)
+      equiv_call (_ : ={BlockSponge.BIRO.IRO.mp})
+      -- EC: auto.
+      equiv_auto
+    -- EC: by auto.
+    · equiv_auto; auto_progress
+      simp [blocks2bits_nil, take]
+  --     (the code before the call: `auto`)
+  · equiv_auto
+
+set_option maxHeartbeats 4000000 in
+-- (GAP 5: `RaiseSim(S)`'s bit-level view of `S`'s block-level procedures)
+set_option inline.defEqApply true in
+/-- EC's `local equiv equiv_sim_f (F <: DFUNCTIONALITY{-Gconcl.S, -Simulator}) :
+RaiseSim(Gconcl_list.SimLast(Gconcl.S),F).f ~ Simulator(F).f : ={arg, glob F, glob
+Gconcl_list.BIRO2.IRO} /\ ={m, mi, paths}(Gconcl.S,Simulator) ==> ={res, glob F, glob
+Gconcl_list.BIRO2.IRO} /\ ={m, mi, paths}(Gconcl.S,Simulator)`. -/
+theorem equiv_sim_f : ∀ (F <: DFUNCTIONALITY {-Gconcl.S, -Simulator}),
+    equiv[ RaiseSim(Gconcl_list.SimLast(Gconcl.S), F).f ~ Simulator(F).f :
+      ={arg, glob F, Gconcl_list.BIRO2.IRO.mp} ∧ §Gconcl.S.m{1} = §Simulator.m{2} ∧
+        §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2} ==>
+      ={res, glob F, Gconcl_list.BIRO2.IRO.mp} ∧ §Gconcl.S.m{1} = §Simulator.m{2} ∧
+        §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2} ] := by
+  intro F _
+  -- EC: proc;inline*;if;1,3:auto=>/#.
+  --     (our `inline*` leaves the parameter's assignment before the `if`: `sp` first)
+  equiv_proc; stmt_inline*; stmt_sp; stmt_if
+  · auto_close
+  on_goals 2 => equiv_auto
+  -- EC: wp;conseq(:_==> ={y1, y2, glob F, glob Gconcl_list.BIRO2.IRO}
+  --   /\ ={m, mi, paths}(Gconcl.S,Simulator));progress;sim.
+  stmt_wp
+  equiv_conseq (: _ ==> ={y1, y2, glob F, Gconcl_list.BIRO2.IRO.mp} ∧
+      §Gconcl.S.m{1} = §Simulator.m{2} ∧ §Gconcl.S.mi{1} = §Simulator.mi{2} ∧
+      §Gconcl.S.paths{1} = §Simulator.paths{2})
+  case post => auto_close
+  sim
+  -- EC: if;1,3:auto=>/#;wp;sp;if;1:(auto;smt(BlockSponge.parseK BlockSponge.formatK));
+  --   last sim;smt(BlockSponge.parseK BlockSponge.formatK).
+  stmt_if
+  · auto_close
+  on_goals 2 => equiv_auto
+  stmt_wp; stmt_sp
+  stmt_if
+  · equiv_auto
+    smt_close [BlockSponge.parseK, BlockSponge.formatK]
+  --     (GAP 2: `last sim` — our inliner names the IRO's locals differently on the two sides,
+  --     `x3, n0` against `x0, n`, so `sim` cannot relate the loops by name: EC's `while` with the
+  --     renamed variables' equalities, the bodies by `sim`)
+  on_goals -1 =>
+    stmt_wp; stmt_sp; stmt_if
+    · auto_close
+    · equiv_while (§x3{1} = §(localVarLens "x0" (List block)){2} ∧ §n0{1} = §n{2} ∧
+          ={i, bs, Gconcl_list.BIRO2.IRO.mp})
+      · sim
+      · equiv_auto
+        smt_close [BlockSponge.parseK, BlockSponge.formatK]
+    · equiv_auto
+  -- EC: auto; rcondt {1} 5.
+  stmt_wp; stmt_rcondt{1} 5
+  -- EC: + by auto; call (: true); auto.
+  --     (our code before the `if` has no call: `valid q` gives it, by definition)
+  · hoare_auto
+    smt_close [Gconcl_list.valid, valid_block]
+  -- EC: by auto; call (: true); auto=> |> &1 &2; smt(BlockSponge.parseK BlockSponge.formatK).
+  stmt_wp
+  equiv_call (_ : ={glob F})
+  equiv_auto
+  smt_close [BlockSponge.parseK, BlockSponge.formatK]
+
+set_option maxHeartbeats 4000000 in
+-- (GAP 5: `RaiseSim(S)`'s bit-level view of `S`'s block-level procedures)
+set_option inline.defEqApply true in
+/-- EC's `local equiv equiv_sim_fi (F <: DFUNCTIONALITY{-Gconcl.S, -Simulator}) :
+RaiseSim(Gconcl_list.SimLast(Gconcl.S),F).fi ~ Simulator(F).fi : ={arg, glob F, glob
+Gconcl_list.BIRO2.IRO} /\ ={m, mi, paths}(Gconcl.S,Simulator) ==> ={res, glob F, glob
+Gconcl_list.BIRO2.IRO} /\ ={m, mi, paths}(Gconcl.S,Simulator)`. -/
+theorem equiv_sim_fi : ∀ (F <: DFUNCTIONALITY {-Gconcl.S, -Simulator}),
+    equiv[ RaiseSim(Gconcl_list.SimLast(Gconcl.S), F).fi ~ Simulator(F).fi :
+      ={arg, glob F, Gconcl_list.BIRO2.IRO.mp} ∧ §Gconcl.S.m{1} = §Simulator.m{2} ∧
+        §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2} ==>
+      ={res, glob F, Gconcl_list.BIRO2.IRO.mp} ∧ §Gconcl.S.m{1} = §Simulator.m{2} ∧
+        §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2} ] := by
+  intro F _
+  -- EC: by proc;inline*;if;auto=>/#.
+  --     (our `inline*` leaves the parameter's assignment before the `if`: `sp` first)
+  equiv_proc; stmt_inline*; stmt_sp; stmt_if
+  all_goals (equiv_auto; try auto_close)
+
+set_option maxHeartbeats 4000000 in
+-- (GAP 5)
+set_option inline.defEqApply true in
+/-- EC's `local lemma replace_simulator &m`. -/
+theorem replace_simulator (m : VariableAssignment) :
+    Pr[ IdealIndif(IRO.asF, RaiseSim(Gconcl_list.SimLast(Gconcl.S)), DRestr(Dist)).main ()
+        @ &m : §res ] =
+      Pr[ IdealIndif(IRO.asF, Simulator, DRestr(Dist)).main () @ &m : §res ] := by
+  -- EC: byequiv=>//=;proc;inline*;sp;wp.
+  byequiv; equiv_proc; stmt_inline*; stmt_sp; stmt_wp
+  -- EC: call(: ={glob IRO, glob DRestr, glob Gconcl_list.BIRO2.IRO}
+  --   /\ ={m, mi, paths}(Gconcl.S,Simulator));auto.
+  equiv_call (_ : ={IRO.mp, Cntr.c, Gconcl_list.BIRO2.IRO.mp} ∧ §Gconcl.S.m{1} = §Simulator.m{2} ∧
+      §Gconcl.S.mi{1} = §Simulator.mi{2} ∧ §Gconcl.S.paths{1} = §Simulator.paths{2})
+  -- EC: + by proc;sp;if;auto;call(equiv_sim_f IRO);auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    · stmt_wp
+      --     (EC checks `IRO`'s restriction: its declaration by `fp_finite`, `fp_disjoint`)
+      equiv_call (@equiv_sim_f _ _ _
+        (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List Bool × ℤ) (List Bool) IRO.asF)
+        ⟨by fp_finite, by fp_disjoint⟩)
+      --     (GAP 3: EC's `auto`; our `glob IRO` is a footprint region, no `={IRO.mp}` back, and no
+      --     frame for `Cntr.c` through `RaiseSim`)
+      sorry
+    · equiv_auto
+  -- EC: + by proc;sp;if;auto;call(equiv_sim_fi IRO);auto.
+  · equiv_proc; stmt_sp; stmt_if
+    · auto_close
+    · stmt_wp
+      --     (EC checks `IRO`'s restriction: its declaration by `fp_finite`, `fp_disjoint`)
+      equiv_call (@equiv_sim_fi _ _ _
+        (Indifferentiability.FUNCTIONALITY.view (block × capacity) (List Bool × ℤ) (List Bool) IRO.asF)
+        ⟨by fp_finite, by fp_disjoint⟩)
+      --     (GAP 3: EC's `auto`; our `glob IRO` is a footprint region, no `={IRO.mp}` back, and no
+      --     frame for `Cntr.c` through `RaiseSim`)
+      sorry
+    · equiv_auto
+  -- EC: by proc;sim.
+  · equiv_proc; sim
+  --     (EC's `auto` after the call; GAP 4: `glob Dist` from the equation of the two memories
+  --     `sp` leaves, by hand)
+  · equiv_auto; auto_prep
+    have h := congrArg (FVP.fvP Dist).touched_getter.get ‹Gconcl_list.BIRO2.IRO.mp.set _ _ = _›
+    simp (disch := fp_disjoint) only [touched_set_of_le_compl] at h
+    auto_close
 
 end
 

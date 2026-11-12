@@ -138,10 +138,16 @@ open Lean Meta Elab Tactic PRHLWp
 
 /-- The first statement of `s`, a conditional followed by more code, with that code in its
 branches; `s` itself if it is a conditional, or not one (a proof of `s.Equiv s'`). -/
-def distribute (s : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
+partial def distribute (s : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
   let s' ← TacticMisc.openStmt s
   if s'.isAppOfArity ``StmtWithHoles.seq 3 then
     let first ← TacticMisc.openStmt (s'.getArg! 1)
+    -- a leading `skip` (what `sim` leaves of the code it went through): dropped
+    if TacticMisc.isSkip first then
+      let r := s'.getArg! 2
+      let (r', pr) ← distribute r
+      return (r', ← mkAppM ``StmtWithHoles.Equiv.trans
+        #[← mkAppM ``StmtWithHoles.Equiv.skip_seq #[r], pr])
     if first.isAppOfArity ``StmtWithHoles.ifThenElse 4 then
       let r := s'.getArg! 2
       let (c, t, e) := (first.getArg! 1, first.getArg! 2, first.getArg! 3)

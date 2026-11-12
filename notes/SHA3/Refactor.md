@@ -727,6 +727,18 @@ procedures: Handle's use comes before `proc`, ours can come after `equiv_proc`).
   EC's scripts.  `Pilot/ConcreteF` is in the barrel.  Deviation: a section's `declare module D`
   names the local modules of the files whose lemmas it uses (`Gcol.sample_c`,
   `Switching.DBounder`, …), fresh in EC.
+* **Calibration: `SHA3Indiff.ec`** (2026-11-12, `Pilot/SHA3Indiff.lean`, not in the barrel): its
+  program-logic lemmas (`drestr_commute1/2`, `equiv_sim_f/fi`, `replace_simulator`) in EC's
+  scripts, with these infrastructure fixes on the way: `sim` keeps all globals under `byequiv`'s
+  precondition; the abstract call's EC rule through views (frame splitter); the concrete call
+  always with EC's frame (two competing rules made one); `auto_prep` splits tuple equations late;
+  `Module.comp` (`RaiseSim`) in the inliner; `stmt_if` over a leading `skip`.  Open: GAP 2
+  (inliner's per-side renaming vs `sim`'s loops), GAP 3 (`glob` of a concrete module through
+  `call H` is a footprint region, as Gext's GAP 8), GAP 4 (`byequiv`'s memories equation after
+  `sp`).  `security`/`SHA3Indiff` wait for the `Sponge` and `Gconcl_list` pilots (their lemmas
+  exist only in the old E13/E14 form).  Verdict: the program logic transfers mechanically; each
+  file still surfaces 2–4 infrastructure gaps, mostly about globs of concrete modules and
+  inlining artefacts.
 * **`Gconcl.ec` sorry-free** (2026-11-11): `G2_G3`'s `S.f` swap (GAP 4) needed no read/write
   sets.  EC's later `inline *` comes first, so that what the block moves past is deterministic;
   then `stmt_swap` at EC's positions after the inlining; the rest is EC's script with its `seq`s

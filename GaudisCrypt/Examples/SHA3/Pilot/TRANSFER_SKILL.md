@@ -398,6 +398,19 @@ Document each in the docstring when it applies.
   fold); plain `equiv_skip` keeps the old behaviour that old hand-written proofs rely on.  Use the
   EC tactics in new proofs.
 
+* **After `inline*`, the callee's parameter assignment comes first** (`x0 <- x`), where EC's
+  inlined code starts with the callee's first statement: before EC's `if`, a `stmt_sp`.
+* **A lemma `∀ (F <: T {-X}), …` at a concrete module** (EC's `equiv_sim_f IRO`): the
+  declaration by hand, `@lemma _ _ _ M ⟨by fp_finite, by fp_disjoint⟩` (the leading `_`s are the
+  section's instance parameters).  Its `={glob F}` is then `M`'s footprint region, an upper bound:
+  it gives no equalities of `M`'s variables back (SHA3Indiff GAP 3, Gext GAP 8).
+* **Inlined callees' locals are renamed per side** (`x3, n0` against `x0, n`): `sim` relates
+  loops by name, so it stops at loops of such callees; `equiv_while (§x3{1} = §(localVarLens "x0"
+  T){2} ∧ …)` with the bodies by `sim` (SHA3Indiff GAP 2).
+* **`byequiv`'s precondition through `sp`**: the two memories' equation with the initializations
+  written over them; `glob D`'s equality by hand, `congrArg` of `glob D`'s getter then
+  `simp (disch := fp_disjoint) only [touched_set_of_le_compl]` (SHA3Indiff GAP 4).
+
 ## 8. Infrastructure pitfalls (when fixing a gap)
 
 * Off-limits: `GaudisCrypt/Language/` (Dominique), `OneWayness.lean`, `QueryHit.lean`.  A change in
@@ -422,6 +435,22 @@ Document each in the docstring when it applies.
   at once (a reset past a global write needed `resetSetter_set_intoGlobal`).  Debug output
   inside the discharger's `saveState`/`restore` is lost: print with `IO.eprintln`.
 * `simp_reads` rewrites under `decide` but leaves the instance: `normDecide` re-synthesizes it.
+* Two `elab_rules` for one syntax kind in different files compete by import order (the later
+  tried first): `equiv_call (_ : ={…})` had a framed concrete-callee rule in `ECCallEquiv` and a
+  frameless one in `ECCallAbstract`, and which one ran depended on the file.  Give one rule the
+  syntax and let it hand over to a separate syntax (`equiv_call_concrete`) declared low enough
+  to be seen by both.
+* Building terms with `arg`/`res` in a syntax quotation makes them hygienic (`arg✝`): no longer
+  the condition keywords.  `mkIdent `arg`.
+* `moduleStep?` (inlining, `proc`, frames) unfolds views only with `views := true`
+  (`accessorNorm`); turned on everywhere it can loop/crash (stack overflow, exit 139); the frame
+  splitter uses it only where the plain unfolding is stuck.  `Module.comp` (EC's aliases,
+  `RaiseSim`) is steps (11), (12).  A `module`'s `apply_simp` at default transparency (a view
+  whose module type's parameters are spelled differently, `RaiseSim(S)`) only with
+  `set_option inline.defEqApply true`: always on, it inlined further than the first port's
+  `SHA3Security` proofs expect (their `rw`s found nothing).
+* Rebuild the module you changed *and* the modules your test file reaches it through:
+  `lake env lean` loads stale `.olean`s silently (a fix that "does nothing").
 * Names in tactic conditions come from `ProgramSyntax.frameVars`: `.nameable` for elaborating
   (the condition is wrapped in `letI x := slot`), `.printable` for printing (also no binder `x`
   anywhere in the goal).  A new tactic that elaborates a condition filters by `.nameable`; using
