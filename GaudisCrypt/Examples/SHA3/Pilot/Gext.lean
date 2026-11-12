@@ -5,6 +5,9 @@ import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECElim
 import GaudisCrypt.Logic.ECAutoStrict
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # The extension event (EasyCrypt `proof/smart_counter/Gext.eca`) — EC-fidelity port
 

@@ -20,6 +20,9 @@ import GaudisCrypt.Logic.CallSpec
 import GaudisCrypt.Logic.ECCallFrame
 import GaudisCrypt.Logic.ECClose
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # The squeezeless sponge: common definitions (EasyCrypt `proof/smart_counter/SLCommon.ec`) —
 EC-fidelity port

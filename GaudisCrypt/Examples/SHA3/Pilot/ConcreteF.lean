@@ -8,6 +8,11 @@ import GaudisCrypt.Logic.ECWhile
 import GaudisCrypt.Logic.ECWhileRel
 import GaudisCrypt.Logic.ECAutoStrict
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+-- (off at one call, `equiv_call (_ : ={glob D, glob P})`: the frameless rule is used there,
+-- `set_option ec.strict false in`)
+set_option ec.strict true
+
 /-!
 # From the permutation to a random function (EasyCrypt `proof/smart_counter/ConcreteF.eca`) —
 EC-fidelity port
@@ -575,7 +580,7 @@ theorem DoubleBounding : ∀ (P <: Switching.PRPSec.PRP {-D, -C, -DBounder, -Red
     · stmt_wp; equiv_skip; auto_close
     · auto_close
   stmt_wp
-  equiv_call (_ : ={glob D, glob P})
+  set_option ec.strict false in equiv_call (_ : ={glob D, glob P})
   equiv_skip
   auto_progress
   all_goals first

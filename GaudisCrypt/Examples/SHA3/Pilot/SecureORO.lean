@@ -21,6 +21,9 @@ import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # Random oracles with failing queries are preimage, second-preimage and collision resistant —
 the EC-fidelity port (EasyCrypt `proof/SecureORO.eca`)

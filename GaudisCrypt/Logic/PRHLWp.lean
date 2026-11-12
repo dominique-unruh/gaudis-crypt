@@ -227,6 +227,9 @@ and `tac` says so (`ECReport.fallback`). -/
 def generalizeReadsRelOr (tac : String) (g : MVarId) (normDec : Bool := false) : MetaM MVarId := do
   try generalizeReadsRel g normDec
   catch e =>
+    -- strict mode: once more with the instances of `decide`/`if` normalized
+    if ← TacticMisc.isStrict then
+      try return ← generalizeReadsRel (← TacticMisc.normInstUnderStates g) normDec catch _ => pure ()
     ECReport.fallback tac m!"the reads are not generalized: the goal stays about the states" (some e)
     pure g
 

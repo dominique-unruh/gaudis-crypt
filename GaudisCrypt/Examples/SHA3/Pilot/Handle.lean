@@ -21,6 +21,9 @@ import GaudisCrypt.Logic.ECGoals
 import GaudisCrypt.Logic.StmtSwap
 import GaudisCrypt.Logic.ECAutoStrict
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # `Handle.eca`'s `CF_G1` in EC's form — the tactic experiment
 

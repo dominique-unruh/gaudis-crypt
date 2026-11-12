@@ -1,6 +1,9 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Gext
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # Conclusion of the squeezeless sponge proof (EasyCrypt `proof/smart_counter/Gconcl.ec`) —
 EC-fidelity port

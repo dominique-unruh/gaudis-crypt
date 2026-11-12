@@ -592,6 +592,12 @@ Document each in the docstring when it applies.
   substitutes and binds nothing.  A gap in the normal form is fixed in `ReadNorm.normalize`, with
   a golden test in `Logic/ReadNormTest.lean`, not at the call site.
 
+* **Strict mode (2026-11-13)**: every pilot with proofs starts with `set_option ec.strict true`.
+  A tactic fallback (reads not generalized, a weaker call rule, `sim` asking all globals equal)
+  is then an error at the tactic, not a warning.  Where a fallback is a known gap, switch it off
+  for that one tactic, `set_option ec.strict false in equiv_call (_ : ={glob Perm})`, so the gap
+  is visible in the source.  A new pilot file gets the option from the start.
+
 ## 9. Checklist before calling a lemma done
 
 - [ ] Statement in surface syntax, EC's hypotheses only, EC's name; docstring quotes EC's

@@ -1,6 +1,9 @@
 import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
 import GaudisCrypt.Examples.SHA3.SHA3Indiff
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # Indifferentiability of the sponge (EasyCrypt `proof/SHA3Indiff.ec`) — EC-fidelity port
 

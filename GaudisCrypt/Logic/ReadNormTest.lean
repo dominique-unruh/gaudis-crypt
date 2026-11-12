@@ -67,6 +67,27 @@ example (P Q : ℤ → Prop) : hoare[ Bound.tick : P §rnCount ==> Q §rnCount ]
   trace_state
   sorry
 
+-- the same in strict mode (`set_option ec.strict true`): the old tactic, when the reads do not
+-- generalize, normalizes the instances and tries again; the read is a value, no warning
+/--
+trace: P Q : ℤ → Prop
+⊢ ∀ (rnCount : ℤ), P rnCount → Q (if decide (rnCount < 3) = true then rnCount + 1 else rnCount)
+---
+warning: declaration uses `sorry`
+---
+warning: 'hoare_inline*' tactic does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+-/
+#guard_msgs in
+set_option ec.strict true in
+example (P Q : ℤ → Prop) : hoare[ Bound.tick : P §rnCount ==> Q §rnCount ] := by
+  hoare_proc
+  hoare_inline*
+  hoare_auto
+  trace_state
+  sorry
+
 -- the same with `ec_skip`
 /--
 trace: P Q : ℤ → Prop
@@ -89,8 +110,8 @@ example (P Q : ℤ → Prop) : hoare[ Bound.tick : P §rnCount ==> Q §rnCount ]
 
 /-! ## A test in the code (`if (decide …)`) -/
 
--- today: `hoare_auto` leaves the goal about the state, with a warning (the `decide`'s instance
--- spells the read differently, so the read does not generalize)
+-- a test written in the code itself: `hoare_auto` generalizes the read (the instance is spelled
+-- as the test is; it is the procedure's test above that is not)
 /--
 trace: P Q : ℤ → Prop
 ⊢ ∀ (rnCount : ℤ), P rnCount → Q (if decide (rnCount < 3) = true then rnCount + 1 else rnCount)

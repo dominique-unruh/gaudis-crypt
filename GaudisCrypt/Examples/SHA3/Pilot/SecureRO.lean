@@ -15,6 +15,9 @@ import GaudisCrypt.Logic.ModuleFootprint
 import GaudisCrypt.Syntax.ModuleVar
 import GaudisCrypt.Syntax.ModuleSubtype
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+set_option ec.strict true
+
 /-!
 # Random oracles are preimage, second-preimage and collision resistant — the EC-fidelity pilot
 (EasyCrypt `proof/SecureRO.eca`)

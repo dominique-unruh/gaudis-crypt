@@ -386,6 +386,79 @@ def normDecideGoal (g : MVarId) : MetaM MVarId := g.withContext do
   if ty' == ty then return g
   g.replaceTargetDefEq ty'
 
+/-- The instance `i : Decidable c'` re-made for `c` (`c'` an older spelling of `c`): the same
+instance constant with its arguments read off `c` (`instDecidableAnd`, `Int.decLe`,
+`Classical.propDecidable`, …), the `Decidable` arguments re-made the same way; if `i` is not of
+that shape, the synthesized instance of `c`.  (The instance's own structure first: a synthesized
+instance in place of a classical one is not equal to it by definition.) -/
+partial def respellInst (c i : Lean.Expr) : MetaM (Option Lean.Expr) := do
+  let s ← saveState
+  if let some j ← sameHead then return some j
+  s.restore
+  try
+    return some (← synthInstance (mkApp (mkConst ``Decidable) c))
+  catch _ => return none
+where
+  sameHead : MetaM (Option Lean.Expr) := do
+    let f := i.getAppFn
+    unless f.isConst do return none
+    let args := i.getAppArgs
+    let (ms, _, ty) ← forallMetaTelescopeReducing (← inferType f) (some args.size)
+    unless ms.size == args.size do return none
+    unless ← isDefEq ty (mkApp (mkConst ``Decidable) c) do return none
+    for m in ms, a in args do
+      unless (← instantiateMVars m).isMVar do continue
+      let mt ← whnfR (← instantiateMVars (← inferType m))
+      let mut v := a
+      if mt.isAppOfArity ``Decidable 1 then
+        let some v' ← respellInst (mt.getArg! 0) a | return none
+        v := v'
+      unless ← isDefEq m v do return none
+    return some (← instantiateMVars (mkAppN f ms))
+
+/-- The `Decidable` instance of every `decide c` and `if c then … else …` re-made for `c` as it
+stands (`respellInst`), replaced when equal by definition.  `TacticMisc.normDecide` does the
+synthesized case for `decide`; this also covers `if`, and instances that are not synthesized
+(a classical one, a conjunction with a classical part). -/
+def normInst (e : Lean.Expr) : MetaM Lean.Expr :=
+  Meta.transform e (post := fun t => do
+    let fn := t.getAppFn
+    let k? := if fn.isConstOf ``Decidable.decide && t.getAppNumArgs == 2 then some 0
+      else if (fn.isConstOf ``ite || fn.isConstOf ``dite) && t.getAppNumArgs ≥ 3 then some 1
+      else none
+    let some k := k? | return .continue
+    let args := t.getAppArgs
+    let c := args[k]!
+    let i := args[k + 1]!
+    if c.hasLooseBVars || i.hasLooseBVars then return .continue
+    let some j ← respellInst c i | return .continue
+    if j == i then return .continue
+    if ← withDefault (isDefEq i j) then
+      return .done (mkAppN fn (args.set! (k + 1) j))
+    return .continue)
+
+/-- `normInst` under the leading states of a goal `∀ σ₁ … σₙ : ProgramState, P` (the instances
+in `P` mention the states, so they are re-made with the states in the context). -/
+def normInstUnderStates (g : MVarId) : MetaM MVarId := do
+  let ty ← whnfR (← instantiateMVars (← g.getType))
+  let rec count (t : Lean.Expr) (n : Nat) : Nat := match t with
+    | .forallE _ dom b _ => if dom.isConstOf ``ProgramState then count b (n + 1) else n
+    | _ => n
+  let n := count ty 0
+  if n == 0 then return g
+  let (σs, g) ← g.introNP n
+  let g ← g.withContext do
+    let ty ← instantiateMVars (← g.getType)
+    let ty' ← normInst ty
+    if ty' == ty then pure g else g.replaceTargetDefEq ty'
+  let (_, g) ← g.revert σs (preserveOrder := true)
+  return g
+
+/-- Strict mode (`set_option ec.strict true`, `Logic/ECReport.lean`): a fallback is an error, and
+a goal a rule leaves about the states whose reads do not generalize gets its instances normalized
+(`normInst`) and is tried again. -/
+def isStrict : CoreM Bool := return ec.strict.get (← getOptions)
+
 /-- A region of variables, `X.footprint = R` (`X` their `Lens.pair`): equal on it is equal on
 `X` (EC's `={glob C}` as `={C.c, C.queries}`). -/
 theorem touched_getter_eq_iff_of_lens {β : Type} {X : Lens β VariableAssignment}
@@ -527,6 +600,10 @@ def generalizeReadsOr (tac : String) (g : MVarId) : MetaM MVarId := do
   unless ← isDefEq dom (mkConst ``ProgramState) do return g
   try generalizeReads g
   catch e =>
+    -- strict mode: once more with the instances of `decide`/`if` normalized (only then: a goal
+    -- whose reads generalize as they are is left as it is, and costs nothing)
+    if ← isStrict then
+      try return ← generalizeReads (← normInstUnderStates g) catch _ => pure ()
     ECReport.fallback tac m!"the reads are not generalized: the goal stays about the states" (some e)
     pure g
 

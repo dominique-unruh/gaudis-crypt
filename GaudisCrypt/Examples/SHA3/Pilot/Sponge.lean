@@ -9,6 +9,11 @@ import GaudisCrypt.Logic.ECCallAbstract
 import GaudisCrypt.Logic.ECInline
 import GaudisCrypt.Logic.ECSeq
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+-- (off at two calls of the concrete `Perm`: the call rule with EC's frame does not apply to a
+-- concrete callee and the frameless rule is used, `set_option ec.strict false in`)
+set_option ec.strict true
+
 /-!
 # `Sponge.ec`'s `Sponge_Raise_BlockSponge_f` in EC's form — the second tactic experiment
 
@@ -69,7 +74,7 @@ theorem Sponge_Raise_BlockSponge_f :
     · equiv_while_raw (={n, sa, sc, i, glob Perm} ∧ §xs{1} = §xs0{2} ∧ §z{1} = [] ∧ §z0{2} = [] ∧
           §n0{2} = (§n{1} + r - 1) / r)
       case body =>
-        stmt_wp; equiv_call (_ : ={glob Perm}); equiv_auto
+        stmt_wp; (set_option ec.strict false in equiv_call (_ : ={glob Perm})); equiv_auto
       case guard => intros; simp_all
       case exit => intros; simp_all
       case hpre => equiv_auto
@@ -82,7 +87,7 @@ theorem Sponge_Raise_BlockSponge_f :
           stmt_rcondt{2} 3
           · hoare_auto
           stmt_wp
-          equiv_call (_ : ={glob Perm})
+          set_option ec.strict false in equiv_call (_ : ={glob Perm})
           -- EC's `auto; progress; by rewrite -cats1 blocks2bits_cat blocks2bits_sing`
           equiv_auto; intros; simp_all [rcons, blocks2bits_cat, blocks2bits_sing]
         · stmt_rcondf{1} 3

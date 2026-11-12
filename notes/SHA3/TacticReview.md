@@ -203,9 +203,34 @@ synthesized (`instDecidableAnd` over a classical part) and still spells the read
 state the call rule built.  `ReadNorm.normInst` now re-makes the instance of every `decide` and
 `if` along the instance's own structure (golden test "The instance of an `if`").
 
-Left in the pilot check (`lake build GaudisCrypt.PilotCheck`, green): 41 un-generalized reads,
-29 of them in pilots (`Gext` 12, `Gcol` 7, `Handle` 6, `ConcreteF` 4) and 12 in first-port files
-the pilots import.
+Remaining pilots (`Gcol` 7, `Gext` 12, `Handle` 6, `ConcreteF` 3): 28 sites, all generalize
+with the normalizer as it is; four hand steps are closed by `ec_auto` itself.
+
+### Step 3, third piece (2026-11-13): strict mode in the pilots
+
+`set_option ec.strict true` at the top of every pilot that uses the tactic layer (12 files).
+It means two things:
+
+* a fallback (`ECReport.fallback`) is an error, not a warning;
+* a goal that an old rule or closer leaves about the states (`while`/`if` exits, side goals,
+  `hoare_auto`, the `*_skip`s) and whose reads do not generalize gets its instances normalized
+  (`TacticMisc.normInst`) and is tried again.  A goal whose reads generalize as they are is not
+  touched (normalizing at every exit timed out in `Pilot/Gconcl`).
+
+Files without the option behave as before.  The option is switched off, in the source, at the
+six places where a rule falls back today (`set_option ec.strict false in …`):
+
+| Where | Fallback |
+|---|---|
+| `Pilot/IndifRO_is_secure` (3 `sim`s, 11 calls) | no equality set for a call, all globals asked equal |
+| `Pilot/Sponge` (2), `Pilot/ConcreteF` (1) | `equiv_call (_ : ={x})` on a concrete callee: frameless rule |
+
+Pilot check green.  Un-generalized reads left: none in the pilots; 12 in first-port files the
+pilots import (`SmartCounter/Gconcl_list` 7, `SmartCounter/SLCommon` 2, `SmartCounter/ConcreteF`
+1, `Lib/EC/Strong_RP_RF` 2), which stay on the old behaviour.
+
+Still to do in step 3: `auto_prep`'s script and the positional `rename_i` proofs (the closer in
+two phases); deleting the old skip variants needs the first-port files above migrated or retired.
 
 Seen while migrating, not changed:
 - The generalized values are named after the variable's last name component, numbered on a
@@ -213,5 +238,3 @@ Seen while migrating, not changed:
   Deterministic, but a scheme without clashes (`RO_m`?) would read better.
 - `ec_skip` prints a place under a binder with a loose index (`#1`).
 
-Next: the `while` exit goals on the same normalizer; the remaining pilots file by file; then delete `auto_prep`'s script and the old skip variants when
-their last user is gone.

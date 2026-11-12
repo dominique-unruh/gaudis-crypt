@@ -5,6 +5,11 @@ import GaudisCrypt.Logic.ECModuleBinders
 import GaudisCrypt.Logic.ECCallOneSided
 import GaudisCrypt.Logic.ECCallAbstract
 
+-- strict mode: a tactic fallback is an error (`notes/SHA3/TacticReview.md`, step 3)
+-- (off at three `sim`s: no equality set for their calls, all globals are asked equal,
+-- `set_option ec.strict false in`)
+set_option ec.strict true
+
 /-!
 # A construction indifferentiable from a random oracle is secure — the EC-fidelity port
 (EasyCrypt `proof/IndifRO_is_secure.ec`)
@@ -182,7 +187,7 @@ theorem coll_resistant_if_indifferentiable [Countable f_in] (m : VariableAssignm
   calc Pr[ Collision(A, FM(«C», P)).main () @ &m : §res ]
       = Pr[ GReal(«C», P, DColl(A)).main () @ &m : §res ] := by
         byequiv; equiv_proc; stmt_inline*
-        stmt_swap{1} [1..2] 2; sim
+        stmt_swap{1} [1..2] 2; set_option ec.strict false in sim
     _ ≤ _ := by
       have : Pr[ GIdeal(RO, S, DColl(A)).main () @ &m : §res ]
           ≤ ((limit * (limit - 1) + 2 : ℤ) : ℝ) / 2 * mu1 sampleto default := by
@@ -237,7 +242,7 @@ theorem preimage_resistant_if_indifferentiable [Countable f_in] (m : VariableAss
   rintro init_hash ⟨S, _, S_ll, Hbound⟩
   calc Pr[ Preimage(A, FM(«C», P)).main (hash) @ &m : §res ]
       = Pr[ GReal(«C», P, DPre(A)).main () @ &m : §res ] := by
-        byequiv; equiv_proc; stmt_inline*; stmt_swap{2} [1..2] 4; sim
+        byequiv; equiv_proc; stmt_inline*; stmt_swap{2} [1..2] 4; set_option ec.strict false in sim
     _ ≤ _ := by
       have : Pr[ GIdeal(RO, S, DPre(A)).main () @ &m : §res ]
           ≤ ((limit + 1 : ℤ) : ℝ) * mu1 sampleto hash := by
@@ -296,7 +301,7 @@ theorem second_preimage_resistant_if_indifferentiable [Countable f_in] [Countabl
   rintro init_mess ⟨S, _, S_ll, Hbound⟩
   calc Pr[ SecondPreimage(A, FM(«C», P)).main (mess) @ &m : §res ]
       = Pr[ GReal(«C», P, D2Pre(A)).main () @ &m : §res ] := by
-        byequiv; equiv_proc; stmt_inline*; stmt_swap{2} [1..2] 3; sim
+        byequiv; equiv_proc; stmt_inline*; stmt_swap{2} [1..2] 3; set_option ec.strict false in sim
     _ ≤ _ := by
       have : Pr[ GIdeal(RO, S, D2Pre(A)).main () @ &m : §res ]
           ≤ ((limit + 1 : ℤ) : ℝ) * mu1 sampleto default := by
