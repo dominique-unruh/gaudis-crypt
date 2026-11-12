@@ -425,9 +425,15 @@ Document each in the docstring when it applies.
   EC's goals.
 * **EC's `smt` selects lemmas itself** (`domE`, `mem_set`, `get_setE`, the definition of an `op`
   such as Gconcl_list's `<=`): `smt_close` takes them in its list (a definition by name unfolds).
-* **Tuple equations from `sp`** (`(bl, nb) = x`): `auto_close` rewrites the read `x` into the
-  tuple (one rule per read); a chain `(p, n) = x0`, `x0 = (bl, nb)` it may still miss (GAP 1 of
-  Gconcl_list): `simp_reads_all; smt_close []`.
+* **Tuple equations from `sp`** (`(bl, nb) = x`, or a chain `(p, n) = x0`, `x0 = (bl, nb)`):
+  `auto_close` does not use them (GAP 1 of Gconcl_list): `intro σ₁ σ₂ h; simp_reads_all;
+  smt_close []`.  (A rule for them in `subst_reads` was tried on 2026-11-12 and taken out: it
+  broke `smt_close` steps in `Pilot/SHA3Indiff` and shifted `Pilot/Handle`'s `rename_i` names.)
+* **`hoare_auto` after `sp`**: its `skip` simplifies the reads through writes before it
+  generalizes the reads (2026-11-12); the goals it leaves have no `True ∧` and no state binder
+  when nothing reads the state.
+* **Every pilot file is in the barrel** (`GaudisCrypt.lean`), also unfinished ones: a file outside
+  it is not checked by the full build (`Pilot/SHA3Indiff` broke unnoticed that way).
 
 ## 8. Infrastructure pitfalls (when fixing a gap)
 

@@ -290,7 +290,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) (
               hoare_proc
               hoare_inline*
               hoare_auto
-              rintro τ ⟨-, hr⟩
+              rintro τ hr
               split_ifs <;> simp_all [FMap.rng_set_of_rng]
           · phoare_skip
             intros

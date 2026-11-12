@@ -156,6 +156,14 @@ def hoareSkipGen (g : MVarId) : MetaM MVarId := do
   let [g] := gs | throwError "hoare_auto: `hoare_skip_of_imp` left {gs.length} goals"
   let g ← g.withContext do
     g.replaceTargetDefEq (← Core.betaReduce (← instantiateMVars (← g.getType)))
+  -- the reads through writes first (`sp`'s `∃ v, P (x.set v σ)`): reads of `σ` then, generalized
+  -- with the postcondition's (else they stay reads of `σ` unrelated to the generalized values)
+  let g ← g.withContext do
+    let ty ← instantiateMVars (← g.getType)
+    try
+      let r ← Judgment.simpWithNames PRHLWp.relSimpDecls [] ty
+      applySimpResultToTarget g ty r
+    catch _ => pure g
   try TacticMisc.generalizeReads g catch _ => pure g
 
 end ECAuto

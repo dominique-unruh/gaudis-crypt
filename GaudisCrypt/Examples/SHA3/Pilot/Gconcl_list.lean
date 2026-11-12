@@ -21,9 +21,12 @@ Translation:
 * GAP 2: EC's `auto` takes a one-sided sampling of a lossless distribution (`r <$ dout`) as
   lossless; ours leaves `bdistr`'s mass (`bdistr_expected_one`), and `smt_close` with it as a hint
   fails on an unknown free variable (an `ec_instances` bug): `simp only [bdistr_expected_one]`.
-* GAP 3: after `sp` over an unrolled round's head (`i <- i + 1`), `rcondt`'s test reads
-  (`Evaluatable.eval σ i`) and the state's (`i.get σ`) are generalized apart: the side goal is
-  `i < n` about fresh `i`, `n`.  `sorry` until fixed.
+* (GAP 3, fixed: after `sp`, `hoare_auto`'s `skip` simplifies the reads through writes before it
+  generalizes the reads, so a test's reads and the precondition's are the same values.)
+* EC's `have := prefix_le1 …` side goals (`move=> /> &hr …`): by hand, the hypotheses by
+  `rename_i` on the context's tail or by type (`‹(0:ℤ) ≤ _›`); a hypothesis picked by a typed
+  pattern of a read (`‹(localVarLens "p" _).get _ = _›`) may be spelled differently from the
+  context's, and `omega` then sees two atoms: name it instead.
 * EC's `smt` selects its lemmas (`domE`, `mem_set`, `valid_spec`, the definition of `<=`) itself:
   our `smt_close` lists them (deviation, not a gap).
 -/
@@ -85,7 +88,8 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     all_goals equiv_auto
   -- EC: proc;inline*;sp;if;auto;swap 6;auto;sp;if;auto;2:smt(size_ge0).
   · equiv_proc; stmt_inline*; stmt_sp; stmt_if
-    · auto_close
+    --     (GAP 1: EC's `auto` on the guard; our closer does not use `(bl, nb) = x`)
+    · intro σ₁ σ₂ h; simp_reads_all; smt_close []
     on_goals 2 => equiv_auto
     equiv_auto; stmt_swap 6; equiv_auto; stmt_sp; stmt_if
     --     (GAP 1: EC's `auto` on the guard; our closer loses `(p, n) = x0`, `x0 = (bl, nb)`)
@@ -178,7 +182,7 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     equiv_conseq (: _ ==> ={b, lres, SLCommon.F.RO.m, S.paths, S.mi, S.m} ∧
       §i{1} = §n{1} - 1 ∧ §SLCommon.C.c{1} ≤ §C.c{1} + size §bl{1} + §i{1} ∧
       «<=» §SLCommon.C.queries{1} §SLCommon.F.RO.m{2})
-    case post => auto_close
+    case post => smt_close []
     -- EC: while(={lres,F.RO.m,S.paths,S.mi,S.m,i,n,p,nb,b,bl}
     --       /\ 0 <= i{1} <= n{1} - 1
     --       /\ SLCommon.C.queries.[format p (i+1)]{1} = Some b{1}
@@ -196,16 +200,157 @@ theorem ideal_equiv : ∀ (D <: DISTINGUISHER {-SLCommon.C, -C, -IF, -S}),
     -- EC: sp;rcondt{1}1;2:rcondt{2}1;1,2:auto;sp.
     · stmt_sp; stmt_rcondt{1} 1
       on_goals 2 => stmt_rcondt{2} 1
-      --     (GAP 3: EC's `auto`; after `sp` over the round's head, the test's reads
-      --     (`Evaluatable.eval`) and the state's (`.get`) are generalized apart: `i < n` with
-      --     nothing about `i`, `n`)
-      · sorry
-      · sorry
+      · hoare_auto; auto_close
+      · hoare_auto; auto_close
       stmt_sp
-      -- EC: case((x0 \in F.RO.m){2});last first. … (the rest of the body)
-      sorry
-    -- EC: the code before the loop: sp;conseq(:_==> ={F.RO.m,b} … );progress. …
-    sorry
+      -- EC: case((x0 \in F.RO.m){2});last first.
+      --     (EC's `x0` of the right's inlined `F.RO.get` is our `x2`)
+      equiv_case (FMap.dom §SLCommon.F.RO.m{2} §x2{2})
+      rotate_left
+      -- EC: * rcondt{2}2;1:auto;rcondt{1}1.
+      · stmt_rcondt{2} 2
+        · hoare_auto
+        stmt_rcondt{1} 1
+        -- EC: + auto => /> &hr iR 9?; apply leq_nin_dom => //.
+        --       by rewrite -size_eq0 size_cat size_nseq; smt(size_ge0).
+        · hoare_auto; auto_prep
+          refine leq_nin_dom _ _ _ ‹«<=» _ _› (format_ne_nil (valid_spec _ ‹_›) _) ?_
+          simp_all
+        -- EC: rcondt{1}1;1:auto.
+        --     - move=> /> &hr i [#] h1 h2 h3 h4 h5 h6 h7 h8 h9 h10.
+        --       have//= /#:= prefix_le1 bl{m} SLCommon.C.queries{hr} i h1 _.
+        --       by rewrite domE h3.
+        stmt_rcondt{1} 1
+        · hoare_auto; auto_prep
+          rename_i hw _ _ _ _ _ _ hq hbl
+          have h := prefix_le1 _ _ _ hw
+            ((FMap.domE _ _).mpr (by rw [hq]; exact Option.some_ne_none _))
+          simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+          have hsz := congrArg size hbl
+          omega
+        -- EC: sp;rcondt{1}2;auto;progress.
+        stmt_sp; stmt_rcondt{1} 2
+        · hoare_auto; auto_close
+        --     - smt().
+        --     - smt().
+        --     - by rewrite!get_setE/=.
+        --     (closed by `progress` already)
+        equiv_auto; auto_progress
+        --     - have//= /#:= prefix_le1 bl{2} SLCommon.C.queries{1} i_R H _.
+        --       by rewrite domE H1.
+        · rename_i hw _ _ _ _ _ _ _ hq _ _
+          have h := prefix_le1 _ _ _ hw
+            ((FMap.domE _ _).mpr (by rw [hq]; exact Option.some_ne_none _))
+          omega
+        --     - by rewrite!get_setE/= leq_add2//=.
+        · smt_close [«<=», FMap.get_setE, FMap.mem_set, FMap.domE]
+      -- EC: if{1}.
+      stmt_if{1}
+      -- EC: * rcondt{1}1;1:auto.
+      --       - move=> /> &hr i [#] h1 h2 h3 h4 h5 h6 h7 h8 h9 h10.
+      --         have//= /#:= prefix_le1 bl{m} SLCommon.C.queries{hr} i h1 _.
+      --         by rewrite domE h3.
+      · stmt_rcondt{1} 1
+        · hoare_auto; auto_prep
+          have h := prefix_le1 _ _ _ ‹(0:ℤ) ≤ _›
+            ((FMap.domE _ _).mpr (by rw [‹FMap.get _ _ = some _›]; exact Option.some_ne_none _))
+          simp only [Bool.and_eq_true, decide_eq_true_eq] at *
+          rename_i hbl _ _ _
+          have hsz := congrArg size hbl
+          omega
+        -- EC: sp;rcondf{1}2;2:rcondf{2}2;auto;progress.
+        stmt_sp; stmt_rcondf{1} 2
+        on_goals 2 => stmt_rcondf{2} 2
+        · hoare_auto; auto_close
+        · hoare_auto; auto_close
+        --     - smt().
+        --     - smt().
+        --     - by rewrite!get_setE/=.
+        --     (closed by `progress` already)
+        equiv_auto; auto_progress
+        --     - have//= /#:= prefix_le1 bl{2} SLCommon.C.queries{1} i_R H _.
+        --       by rewrite domE H1.
+        · have h := prefix_le1 _ _ _ ‹(0:ℤ) ≤ _›
+            ((FMap.domE _ _).mpr (by rw [‹FMap.get _ _ = some _›]; exact Option.some_ne_none _))
+          omega
+        --     - smt(leq_add_in domE).
+        · exact leq_add_in _ _ _ ‹_› ‹_› _ ‹_› ‹_›
+      -- EC: rcondf{2}2;auto;progress.
+      stmt_rcondf{2} 2
+      · hoare_auto
+      --     - smt(size_cat size_nseq size_eq0 size_ge0).
+      --     - smt().
+      --     - smt().
+      --     - by move: H11; rewrite domE; case: (SLCommon.C.queries{1}.[format bl{2} (i_R + 2)]).
+      --     - smt().
+      --     (two left after `progress`: the known entry's value, and its `oget`)
+      equiv_auto; auto_progress
+      · rename_i _ hqd _ _
+        simp only [Bool.not_false, decide_eq_true_eq] at hqd
+        rw [‹«<=» _ _› _ (format_ne_nil (valid_spec _ ‹_›) _) hqd]
+      · rename_i _ hqd _ _
+        simp only [Bool.not_false, decide_eq_true_eq] at hqd
+        exact get_eq_some_oget hqd
+    -- EC: sp;conseq(:_==> ={F.RO.m,b}
+    --       /\ SLCommon.C.queries.[p]{1} = Some b{1}
+    --       /\ SLCommon.C.c{1} <= C.c{1} + size bl{1}
+    --       /\ SLCommon.C.queries{1} <= F.RO.m{2});progress.
+    stmt_sp
+    equiv_conseq (: _ ==> ={SLCommon.F.RO.m, b} ∧
+      (§SLCommon.C.queries{1}).get §p{1} = some §b{1} ∧
+      §SLCommon.C.c{1} ≤ §C.c{1} + size §bl{1} ∧
+      «<=» §SLCommon.C.queries{1} §SLCommon.F.RO.m{2})
+    --     - smt().
+    --     - smt(nseq0 cats0).
+    --     - smt(size_ge0).
+    --     - smt().
+    case post =>
+      auto_progress
+      all_goals smt_close [format_one, size_ge0]
+    -- EC: case(p{2} \in F.RO.m{2}).
+    equiv_case (FMap.dom §SLCommon.F.RO.m{2} §p{2})
+    -- EC: + rcondf{2}2;1:auto.
+    --       sp;if{1}.
+    · stmt_rcondf{2} 2
+      · hoare_auto
+      --     (EC's `sp`: nothing to do here)
+      stmt_if{1}
+      -- EC: - rcondt{1}1;1:auto;1:smt(prefix_ge0).
+      --       sp;rcondf{1}2;auto;progress.
+      --       * by rewrite!get_setE/=.
+      --       * smt(prefix_ge0).
+      --       * smt(leq_add_in domE).
+      · stmt_rcondt{1} 1
+        · hoare_auto; smt_close [SLCommon.Prefix.prefix_ge0]
+        stmt_sp; stmt_rcondf{1} 2
+        · hoare_auto; smt_close []
+        equiv_auto; auto_progress
+        all_goals smt_close [FMap.get_setE, SLCommon.Prefix.prefix_ge0, leq_add_in, FMap.domE,
+          «<=», FMap.mem_set, get_eq_some_oget, size_ge0, valid_spec]
+      -- EC: auto;progress.
+      --     - smt(domE).
+      --     - smt(domE).
+      --     - smt(size_ge0).
+      equiv_auto; auto_progress
+      all_goals smt_close [FMap.domE, size_ge0, «<=», valid_spec, get_eq_some_oget]
+    -- EC: rcondt {1} 1.
+    --     + by auto=> |> &0 /#.
+    stmt_rcondt{1} 1
+    · hoare_auto; smt_close [«<=», FMap.domE, valid_spec]
+    -- EC: rcondt {1} 1.
+    --     + by auto=> |> &0; smt(prefix_ge0).
+    stmt_rcondt{1} 1
+    · hoare_auto; smt_close [SLCommon.Prefix.prefix_ge0]
+    -- EC: sp;auto;progress.
+    --     + by rewrite!get_setE/=.
+    --     + smt(prefix_ge0).
+    --     + rewrite get_setE/= leq_add2//=.
+    --     + by rewrite!get_setE/=.
+    --     + smt(prefix_ge0).
+    --     + exact leq_add_in.
+    stmt_sp; equiv_auto; auto_progress
+    all_goals smt_close [FMap.get_setE, SLCommon.Prefix.prefix_ge0, leq_add2, leq_add_in, «<=»,
+      FMap.mem_set, FMap.domE, get_eq_some_oget, size_ge0, valid_spec]
   -- EC (the precondition, EC's `last first`): + progress.
   --   by move=>x;rewrite get_setE/=mem_set-mem_fdom fdom0 in_fset0//==>->.
   equiv_auto; auto_progress

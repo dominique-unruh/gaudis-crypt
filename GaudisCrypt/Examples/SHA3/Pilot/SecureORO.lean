@@ -233,7 +233,7 @@ theorem RO_is_preimage_resistant [Countable «from»] (m : VariableAssignment) :
               constructor <;> omega
             · exact ⟨hc, hb⟩
           · hoare_auto
-            exact fun _ _ _ => ⟨⟨by simp [FMap.fdom, FMap.empty], bound_ge0⟩, fun _ _ h => h⟩
+            exact fun _ _ => ⟨⟨by simp [FMap.fdom, FMap.empty], bound_ge0⟩, fun _ _ h => h⟩
         case first_E =>
           phoare_seq 1 : True 1 (∑ _i ∈ Finset.Ico (0 : ℤ) bound, sampleto.1 {default}) 0 _ True
           case invariant => hoare_auto
@@ -747,7 +747,7 @@ theorem RO_is_collision_resistant [Countable «from»] (m : VariableAssignment) 
               case sum => exact le_rfl
               case init =>
                 hoare_auto
-                exact fun _ => ⟨⟨by simp [FMap.fdom, FMap.empty], hb⟩, FMap.collision_empty⟩
+                exact ⟨⟨by simp [FMap.fdom, FMap.empty], hb⟩, FMap.collision_empty⟩
               case step =>
                 phoare_proc
                 phoare_inline*

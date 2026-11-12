@@ -232,6 +232,9 @@ import GaudisCrypt.Examples.SHA3.Pilot.Gext
 import GaudisCrypt.Examples.SHA3.Pilot.Gconcl
 import GaudisCrypt.Examples.SHA3.Pilot.Sponge
 import GaudisCrypt.Examples.SHA3.Pilot.SLCommon
+import GaudisCrypt.Examples.SHA3.Pilot.IRO
+import GaudisCrypt.Examples.SHA3.Pilot.SHA3Indiff
+import GaudisCrypt.Examples.SHA3.Pilot.Gconcl_list
 import GaudisCrypt.Examples.SHA3.SmartCounter.ConcreteF
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gcol
 import GaudisCrypt.Examples.SHA3.SmartCounter.Gconcl
